@@ -5448,7 +5448,7 @@ function flyBuiltZRaw(scene, x, y, grid){
   try { const b = scene.builtHeightAt(x, y, bl, (grid && grid.extLots) || []); if(b > 0) h = b; } catch(e){}
   if(WORLDGEN_COAST){
     const hg = harborGeo();
-    if(inHarborRect(hg.bldg, x, y)) h = Math.max(h, flyHarborH());
+    if(harborHouseAt(x, y)) h = Math.max(h, flyHarborH());
     const L = flyLightGeo();
     if(Math.hypot(x - L.x, y - L.y) < L.r) h = Math.max(h, L.h);
   }
@@ -5499,7 +5499,7 @@ function flyBlocked(scene, ow, x, y, z, R){
   if(b){ const oh = flyObstH(scene, x, y, R); if(z < oh + m) return hit(oh, b); }
   if(WORLDGEN_COAST){
     const hg = harborGeo();
-    if(z < flyHarborH() + m && (inHarborRect(hg.bldg, x - R, y) || inHarborRect(hg.bldg, x + R, y) || inHarborRect(hg.bldg, x, y - R) || inHarborRect(hg.bldg, x, y + R))) return hit(flyHarborH(), OW_CURB_BLOCK);
+    if(z < flyHarborH() + m && (harborHouseAt(x - R, y) || harborHouseAt(x + R, y) || harborHouseAt(x, y - R) || harborHouseAt(x, y + R))) return hit(flyHarborH(), OW_CURB_BLOCK);
     const L = flyLightGeo();
     if(z < L.h + m && Math.hypot(x - L.x, y - L.y) < L.r + R) return hit(L.h, OW_CURB_BLOCK);
     if(z < sierraZ(x, y) + 320 && sierraBlocks(x, y, R)) return hit(sierraZ(x, y) + 320, OW_CURB_BLOCK);
@@ -43196,7 +43196,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair);
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, see: SEE && pair });
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, see: SEE && pair, boff: BOFF });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -69073,14 +69073,28 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   head:'Pelican Harbor, at the head of Harbor Road',
   tags:['harbor house','watch tower','clock pavilion','chandlery wing','standing-seam roof'],
   desc:"The harbor house at the end of Harbor Road: a white two-storey hall under a teal standing-seam roof, a clock pavilion over the front doors, the harbour master's glazed watch tower flying the harbor flag, and a chandlery in the low west wing under a striped awning.",
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the two lanterns either side of the Port Office's doors */
+  lamps: () => [-1, 1].map(sd => ({ a: (PH_PLAN.PA0 + PH_PLAN.PA1)/2 + sd*PH_PLAN.LANT_A, b: PH_PLAN.PB + 22, z: PH_PLAN.LANT_Z + 16, r: 150 })),
   draw(p){
     const WALL = '#f3efe6', WALLS = '#dcd6c8', WALLD = '#c9c2b2', TRIM = '#1f3a4d', ROOF = '#2f6f7e', ROOFD = '#245966', ROOFL = '#3e8494';
     const GLASS = 'rgba(96,140,164,.92)', GLASSL = 'rgba(170,206,222,.9)', STONE = '#b9b2a4';
     const word = blockWord;
-    const HB = -180, HBB = -1700, HA0 = 820, HA1 = 3320, EZ = 340, RZ = 560, RB = -940;   // the hall
-    const WA0 = 80, WA1 = HA0, WZ = 230;                                                 // the wing
-    const TA0 = 2760, TA1 = 3060, TB0 = -1250, TB1 = -950, TZ = 700;                      // the tower
-    const PA0 = 1820, PA1 = 2320, PB = -40;                                              // the pavilion
+    /* the plan (PH_PLAN: one source with harborGeo's footprint, the people's places and the door) */
+    const { HB, HBB, HA0, HA1, EZ, RZ, RB, WA0, WB, WZ, TA0, TA1, TB0, TB1, TZ, PA0, PA1, PB } = PH_PLAN, WA1 = HA0;
+    /* OPEN OR SHUT (harborOpen, latched while nobody sees it: handed in on _open by queueHarbor): open, the chandlery's
+       lights on behind its windows and OPEN hung in the east one; shut, dark and CLOSED */
+    const open = this._open !== false;
+    /* the awning and its sign board (also drawn on their own, _part 'awning': queueHarbor lays them back over whoever
+       stands under them -- the house is one piece, keyed at its middle, and they stand in front of its wall) */
+    const awning = () => {
+      slab(WA0 + 40, WA1 - 40, WZ + 30, WZ + 110, HB + 10, HB + 2, '#f3efe6', '#dcd6c8', '#ffffff');
+      word('CHANDLERY', (WA0 + WA1)/2, WZ + 100, 11, HB + 10.4, TRIM, null);
+      for(let a = PH_PLAN.AWN[0], k = 0; a < PH_PLAN.AWN[1]; a += 60, k++){
+        poly([P(a, HB, 200), P(a + 60, HB, 200), P(a + 60, HB + PH_PLAN.AWN_D, 166), P(a, HB + PH_PLAN.AWN_D, 166)], k % 2 ? '#f3efe6' : ROOF);
+        F(a, a + 60, 150, 166, k % 2 ? '#f3efe6' : ROOF, null, 0, HB + PH_PLAN.AWN_D);
+      }
+    };
+    if(this._part === 'awning'){ awning(); return; }
     if(!inView(0, 3400, -2400, 0, 0, 1150)) return;
     const win = (a0, a1, z0, z1, b) => {                 // a sash window: frame, glass, glazing bar
       F(a0 - 6, a1 + 6, z0 - 6, z1 + 6, TRIM, null, 0, b + 0.3);
@@ -69121,18 +69135,24 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
 
     /* ---- 2. THE CHANDLERY WING ---- */
     F(WA0, WA1, 0, WZ, WALL, null, 0, HB);
-    T(WA0, WA1, -1250, HB, WZ, '#a9a59b');
+    T(WA0, WA1, WB, HB, WZ, '#a9a59b');
     slab(WA0 - 10, WA1, WZ, WZ + 34, HB + 8, HB - 6, WALL, WALLS, '#e9e4d8');      // the parapet
     for(const [a0, a1] of [[150, 380], [520, 750]]){                                // the shop windows
       F(a0 - 8, a1 + 8, 20, 180, TRIM, null, 0, HB + 0.3);
       F(a0, a1, 28, 172, GLASS, null, 0, HB + 0.6);
+      if(open) F(a0, a1, 28, 172, 'rgba(255,222,150,.34)', null, 0, HB + 0.65);       // the shop's lights on behind it
       for(let a = a0 + 76; a < a1; a += 76) F(a - 2, a + 2, 28, 172, TRIM, null, 0, HB + 0.8);
       /* the stock in the window: coils of rope, a lifebuoy, lanterns */
       faceCircle((a0 + a1)/2, HB + 0.9, 112, 30, '#e8693c', '#c4512c', 2);
-      faceCircle((a0 + a1)/2, HB + 1.0, 112, 15, GLASS);
+      faceCircle((a0 + a1)/2, HB + 1.0, 112, 15, open ? 'rgba(236,214,160,.95)' : GLASS);
     }
-    F(410, 490, 0, 172, TRIM, null, 0, HB + 0.3);                                   // the shop door
-    F(418, 482, 0, 164, GLASSL, null, 0, HB + 0.6);
+    /* the sign hung in the east window, top corner: OPEN, or CLOSED */
+    F(664, 744, 136, 162, open ? '#f6f3ea' : '#2b2f36', TRIM, 1, HB + 0.85);
+    word(open ? 'OPEN' : 'CLOSED', 704, 157, open ? 2.4 : 1.7, HB + 0.9, open ? '#c2452e' : '#e8e2d4', null);
+    /* THE SHOP DOOR: the kit's (shopDoor), on the wing's face -- set back to it by BOFF (the kit's own set-back), so
+       LIB.drawDoorOpen swings it open live for whoever goes in and out (queueHarbor: the chandlery's customers) */
+    { const b0 = BOFF; BOFF = b0 + HB;
+      try { shopDoor(PH_PLAN.DOOR_A, WALL, TRIM, null, WA1, 0); } finally { BOFF = b0; } }
 
     /* ---- 3. THE HALL'S WALLS ---- */
     F(HA0, HA1, 0, EZ, WALL, null, 0, HB);
@@ -69144,6 +69164,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       faceCircle(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                       // its arched head
       win(a + 10, a + 110, 210, 300, HB);                                          // first floor
     }
+    /* THE TIDE BOARD on the pier west of the pavilion: the day's tides and notices to mariners, under glass */
+    { const [n0, n1] = PH_PLAN.BOARD;
+      F(n0, n1, 40, 156, TRIM, null, 0, HB + 0.3);
+      F(n0 + 8, n1 - 8, 48, 148, '#f3efe6', null, 0, HB + 0.6);
+      for(let z = 60, k = 0; z < 136; z += 13, k++) F(n0 + 16, n1 - 16 - (k % 3)*14, z, z + 4, k % 4 ? '#8a94a0' : '#2f6f7e', null, 0, HB + 0.8);
+      F(n0 + 8, n1 - 8, 48, 148, 'rgba(200,226,236,.22)', null, 0, HB + 1); }
     if(FLANK_RIGHT){                                                                // the east end and its gable
       S(HA1, HBB, HB, 0, EZ, WALLD);
       poly([P(HA1, HBB, EZ), P(HA1, HB, EZ), P(HA1, RB, RZ)], WALLD);
@@ -69183,6 +69209,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       F(ac - 150, ac + 150, 284, 340, TRIM, null, 0, PB + 1);                      // the clock board
       word('PORT OFFICE', ac, 326, 3.9, PB + 1.4, '#e8b54a', null);
       faceCircle(ac, PB + 0.8, 440, 50, '#f6f3ea', TRIM, 4);                      // the clock
+      /* a ship's lantern either side of the doors, on a bracket (their light at night: lamps, above) */
+      for(const sd of [-1, 1]){ const la = ac + sd*PH_PLAN.LANT_A, lz = PH_PLAN.LANT_Z;
+        F(la - 3, la + 3, lz - 6, lz + 34, TRIM, null, 0, PB + 1);
+        box(la - 10, la + 10, PB + 12, PB + 32, lz, lz + 6, '#2b2f36', '#1f2328', '#16191d');
+        box(la - 8, la + 8, PB + 14, PB + 30, lz + 6, lz + 28, 'rgba(255,236,190,.95)', 'rgba(246,224,170,.95)', 'rgba(226,200,140,.95)');
+        box(la - 11, la + 11, PB + 11, PB + 33, lz + 28, lz + 34, '#2b2f36', '#1f2328', '#16191d');
+        tube(la, PB + 1, lz + 30, la, PB + 22, lz + 30, 1.6, TRIM); }
       tube(ac, PB + 2, 440, ac, PB + 2, 474, 2.4, TRIM);
       tube(ac, PB + 2, 440, ac + 24, PB + 2, 440, 2.4, TRIM);
       /* the steps up to the doors */
@@ -69190,12 +69223,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(ac - 180, ac + 180, PB, PB + 30, 10, 20, '#d6cfbf', STONE, shade(STONE, .85)); }
 
     /* ---- 6. THE CHANDLERY'S AWNING AND SIGN, nearest of all ---- */
-    slab(WA0 + 40, WA1 - 40, WZ + 30, WZ + 110, HB + 10, HB + 2, '#f3efe6', '#dcd6c8', '#ffffff');
-    word('CHANDLERY', (WA0 + WA1)/2, WZ + 100, 11, HB + 10.4, TRIM, null);
-    for(let a = 120, k = 0; a < 780; a += 60, k++){
-      poly([P(a, HB, 200), P(a + 60, HB, 200), P(a + 60, HB + 120, 166), P(a, HB + 120, 166)], k % 2 ? '#f3efe6' : ROOF);
-      F(a, a + 60, 150, 166, k % 2 ? '#f3efe6' : ROOF, null, 0, HB + 120);
-    }
+    awning();
     kerb(p, 'none');
   }
 },
@@ -75507,7 +75535,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = shop.boff || 0;
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
       SEE = !!shop.see;
       SHOP_SLOT = { G };
       ctx.__bind(g);
@@ -75525,7 +75553,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = shop.boff || 0;
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
       SHOP_SLOT = { G };
       try { return shopDoorLeaves(d).map(([h, sg, len]) => [P(h, 0.6, 0), P(h + sg*len*ca, 0.6 + len*sa, 0)]); }
       finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
@@ -75539,7 +75567,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = shop.boff || 0;
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
       SHOP_SLOT = { G };
       try {
         const A0 = d.a0 + 2, A1 = d.a1 - 2, z0 = d.z, z1 = d.z + d.dH - 30;
@@ -75836,7 +75864,9 @@ function lhLightSpots(){
 function lhLooks(){
   if(!lhLooks.c){
     const sail = streetLook(LH_RUN.look.master, { adult: true, aid: 'none', type: 'sailor', sex: 'm' });
-    const clerk = streetLook(LH_RUN.look.clerk, { adult: true, aid: 'none', type: 'woman', sex: 'f' });
+    /* the chandlery's clerk in the shop's own uniform (CHANDLERY_UNIFORM: PELICAN HARBOR, OPEN) */
+    const cl0 = streetLook(LH_RUN.look.clerk, { adult: true, aid: 'none', type: 'woman', sex: 'f' }), CU = CHANDLERY_UNIFORM;
+    const clerk = Object.assign({}, cl0, { shirt: CU.shirt, pants: CU.pants, shoe: CU.shoe, uniform: CU, dress: null });
     const ines = streetLook(LH_RUN.look.ines, { adult: true, aid: 'none', type: 'fisher', sex: 'f' });
     /* the crew chief: the Fleet's own people wear Tipsey's crew kit (TIPSY_CREW_UNIFORM: the orange vest and cap) */
     const cb = streetLook(LH_RUN.look.crew, { adult: true, aid: 'none', type: 'woman', sex: 'f' }), U = TIPSY_CREW_UNIFORM;
@@ -75860,6 +75890,7 @@ function lhMasterAt(now){
 function lhClerkAt(now){
   const R = LH;
   if(R.clerk){ const p = hospWalkAt(R.clerk, now); if(p) return Object.assign(p, { has: R.clerk.has }); R.clerk = null; }
+  if(!harborOpen()) return null;                     // (the chandlery shut: she has gone home -- PELICAN HARBOR, OPEN)
   const c = LH_RUN.clerk;
   return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
 }
@@ -75878,7 +75909,7 @@ CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, 
   each(scene, t, fn){
     const now = scene.time.now;
     for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
-      fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
+      if(at) fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
   } });
 /* the GPS leg (freeroam), as the stories' (tixNav) */
 function lhNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "lighthouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
@@ -76055,7 +76086,8 @@ function lhTick(scene, ow){
       if(fleetCur()) return;
       if(armed(LH_RUN.chand)){
         R.stage = 'clerk'; ow.vel = 0; cineBars(true);
-        const c = LH_RUN.clerk;
+        /* (the shop shut -- PELICAN HARBOR, OPEN -- she comes out of its door to him, and goes back in after) */
+        const c = harborOpen() ? LH_RUN.clerk : phSpots().doorIn;
         R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, -1, scene), { has: 'lamp', th0: Math.PI/2 });   // (on his left: on his right a flagpole stands in front of her)
         if(typeof sfxThump === "function") sfxThump(0.15);
       }
@@ -76134,17 +76166,185 @@ function lhQueue(scene, t, queuePerson, layerFor){
   const one = (p, L, carry) => {
     if(!p || !scene.visProp("people", p.x, p.y)) return;
     const px = p.x, py = p.y, th = p.th, mv = !!p.moving;
-    queuePerson(px, py, (g, tt) => {
+    if(L === K.clerk && phInside(px, py)) return;      // (inside the chandlery: PELICAN HARBOR, OPEN)
+    (L === K.clerk ? (x, y, fn) => scene.phPerson(x, y, fn, queuePerson) : queuePerson)(px, py, (g, tt) => {   // (the clerk: through its door, as its visitors)
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
       const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
       scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   };
   const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
-  one(m, K.master, null); one(c, K.clerk, c.has); one(i, K.ines, i.has); one(cr, K.crew, null);
+  one(m, K.master, null); one(c, K.clerk, c && c.has); one(i, K.ines, i.has); one(cr, K.crew, null);
   const P = LH.park;
   if(P && scene.visProp("chargestation", P.x, P.y))
     queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
+}
+/* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
+   The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
+     open   the chandlery's lights on behind its windows and OPEN hung in the east one (the house's cached piece has an
+            open and a shut version: 'hb|house|1' / '|0'); its clerk at her place under the awning (THE LIGHTHOUSE RUN's
+            chandlery clerk, now in the shop's own uniform: CHANDLERY_UNIFORM); two harbor visitors coming and going
+     shut   dark behind the glass, CLOSED; the clerk gone home, the visitors finish what they came for and go
+   Open or shut is latched (harborOpen): it changes only while the house is off the screen, so nothing pops; the two
+   visitors are the ones who go at closing and come at opening, walked, past the view's edge. While the Lighthouse Run
+   needs the clerk and the shop is shut, she comes out of its door to him and goes back in (lhTick).
+   THE VISITORS (PH_LIFE.walkers, two, each a trip at a time, seeded per trip): up Harbor Road's west sidewalk from past
+   the view's edge (F: a trip starts only while F is off the screen, and one that ends there in view walks on), round
+   the turning circle's walk, and either
+     into the chandlery (its door the kit's shopDoor, opening live for them: LIB.drawDoorOpen, they drawn between its
+     lit room and its leaf), 15-35 s inside, and out again with what they came for -- a coil of rope, a lifejacket, a
+     bag -- in hand, back the way they came; or
+     to the tide board by the Port Office's doors, reading it 8-14 s, then over to the basin's rail by the boathouse to
+     look at the boats 8-12 s, and home.
+   THE WATCH OFFICER (PH_LIFE.officer): the harbour's watch is kept round the clock from the tower's glazed lantern room
+   (lit at night: queueHarbor), its officer -- not the harbour master, who is on the quay (THE LIGHTHOUSE RUN) -- out on
+   its gallery, walking its front and east sides, stopping at the rail to look out over the harbour and the road.
+   All walked with the kit's walker (walkPathAt: one pace, eased ends and turns) on routes clear of the plaza's lamps,
+   flags, anchor, bench and the run's bay, held while Tipsey stands in their way; listed in CITY_PEOPLE ('Pelican
+   Harbor'); drawn only on screen. Three people: the game's people are its biggest draw, so no more. */
+const CHANDLERY_UNIFORM = { shirt: { c:0x23405e, dk:0x182d44 }, pants: { c:0x4a4f57, dk:0x363a40 }, shoe: { c:0x6b4a2e, dk:0x4e3520 },
+  vest: { c:0xc9b48a, dk:0xa8946c }, shoeKind: 'sneaker' };                              // a navy guernsey, the canvas apron over it, deck shoes
+const HARBOUR_WATCH_UNIFORM = { shirt: { c:0xf2f2ee, dk:0xd4d4ce }, pants: { c:0x1f2a40, dk:0x151d2d }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  vest: { c:0x1f3a4d, dk:0x142a38 }, cap: { c:0x1f3a4d, dk:0x142a38, top:0xf6f6f2, badge:0xe8c96a }, shoeKind: 'dress' };   // the harbour's navy, a white-topped cap
+const PH_LIFE = { open: null, walkers: null, officer: null, door: { k: 0, t: 0 }, frame: -1 };
+function harborHours(){ const c = typeof TP_PLACE_COPY !== 'undefined' && TP_PLACE_COPY['Chandlery']; return (c && c.hours) || [8, 18]; }
+function harborOpenNow(){ const [o, c] = harborHours(), h = walkinClockHour(); return h >= o && h < c; }
+/* open, as latched (see above): before the harbour has been seen, by the clock */
+function harborOpen(){ return PH_LIFE.open == null ? harborOpenNow() : PH_LIFE.open; }
+/* the places, in the world (PH_PLAN in harborGeo's frame) */
+function phSpots(){
+  if(phSpots.c) return phSpots.c;
+  const hg = harborGeo(), P = PH_PLAN, ox = hg.bldg.x0, oy = hg.bldg.y1, R = hg.road;
+  const dx = ox + P.DOOR_A, face = oy + P.HB, sx = R.x0 + 170;          // the shop door's middle and its wall; the sidewalk's line
+  const F = { x: sx, y: -9500 }, F2 = { x: sx, y: -3000 };              // past the view's edge, and on down the road
+  const up = [F, { x: sx, y: -11950 }, { x: -3880, y: -12150 }, { x: -4000, y: -12500 }, { x: -4080, y: -12900 }];   // round the circle's walk, clear of the run's bay
+  const board = { x: ox + (P.BOARD[0] + P.BOARD[1])/2, y: face + 75 }, rail = { x: -5000, y: hg.MY0 - 88 };
+  return (phSpots.c = { face, door: { x: dx, y: face }, doorIn: { x: dx, y: face - 52 }, F, F2, board, rail,
+    shop: [...up, { x: -4590, y: -13800 }, { x: dx, y: -14080 }, { x: dx, y: face + 60 }, { x: dx, y: face - 52 }],   // between the flags, to the door and in
+    toBoard: [...up, { x: -3600, y: -13900 }, board],
+    boardRail: [board, { x: -3560, y: -13700 }, { x: -4300, y: -12900 }, { x: -4700, y: -12420 }, rail],
+    railHome: [rail, { x: -4700, y: -12420 }, { x: -4300, y: -12900 }, { x: -4000, y: -12500 }, { x: -3880, y: -12150 }, { x: sx, y: -11950 }, F],
+    gallery: (() => { const z = P.TZ + 14, a = P.TA0 + 6, b = P.TA1 + 21, f = P.TB1 + 21, n = P.TB0 + 24;   // (out from under the cap's eave, TB1 + 18, inside the rail, + 30)
+      return { z, A: { x: ox + a, y: oy + f }, B: { x: ox + b, y: oy + f }, C: { x: ox + b, y: oy + n } }; })() });
+}
+/* in the chandlery's doorway (drawn with its door, between the room and the leaf), or inside it (not drawn) */
+function phInDoor(x, y){ const S = phSpots(); return Math.abs(x - S.door.x) < 40 && y < S.face + 8 && y > S.face - 60; }
+function phInside(x, y){ const S = phSpots(); return Math.abs(x - S.door.x) < 40 && y <= S.face - 44; }
+const PH_BUY = ['rope', 'lifejacket', 'bag'];
+/* a visitor's next trip, seeded */
+function phTrip(w, now){
+  const S = phSpots(), rr = mulberry32((w.seed*7919 + 0x9a7b) >>> 0), toShop = rr() < 0.62;
+  w.look = streetLook((w.seed*104729 ^ 0x6a1b) >>> 0, { adult: true, aid: 'none', jobs: ['fisher', 'sailor'] });
+  w.has = null; w.buy = PH_BUY[Math.floor(rr()*PH_BUY.length)];
+  w.legs = toShop
+    ? [{ pts: S.shop, face: -Math.PI/2, dwell: 15000 + rr()*20000, inside: true }, { pts: S.shop.slice().reverse(), carry: true, home: true }]
+    : [{ pts: S.toBoard, face: -Math.PI/2, dwell: 8000 + rr()*6000 }, { pts: S.boardRail, face: Math.PI/2, dwell: 8000 + rr()*4000 }, { pts: S.railHome, home: true }];
+  w.i = -1; phLeg(w, now);
+}
+function phLeg(w, now){
+  w.i++;
+  const L = w.legs[w.i];
+  if(!L){ w.legs = null; return; }
+  if(L.carry) w.has = w.buy;
+  w.P = { pts: L.pts, t0: now, faceTh: L.face != null ? L.face : null, th0: w.th };
+  w.st = 'walk';
+}
+/* where a visitor is now: { x, y, th, moving, has } or null (inside, or not out) */
+function phWalkerAt(w, now){
+  if(!w || !w.legs || !w.P) return null;
+  const p = walkPathAt(w.P, now);
+  if(!p) return null;
+  if(w.st === 'dwell' && w.legs[w.i] && w.legs[w.i].inside) return null;
+  if(phInside(p.x, p.y)) return null;
+  let th = p.th;
+  if(w.st === 'dwell') th = lhGlance(th, now, w.seed % 7);        // (reading, looking: the head and body turning a little)
+  return { x: p.x, y: p.y, th, moving: p.moving, has: w.has, look: w.look };
+}
+/* the officer on the gallery: walk to a stop, look out a while (6-12 s), walk on -- front, the corner, the east side */
+function phOfficerAt(now){
+  const O = PH_LIFE.officer, S = phSpots().gallery;
+  if(!O) return { x: S.A.x, y: S.A.y, z: S.z, th: Math.PI/2, moving: false };
+  const p = walkPathAt(O.P, now);
+  if(!p) return { x: S.A.x, y: S.A.y, z: S.z, th: Math.PI/2, moving: false };
+  return { x: p.x, y: p.y, z: S.z, th: p.there ? lhGlance(p.th, now, 5) : p.th, moving: p.moving };
+}
+function phOfficerTick(now){
+  const S = phSpots().gallery, stops = [[S.A, Math.PI/2], [S.B, Math.PI*0.3], [S.C, 0], [S.B, Math.PI*0.62]];
+  let O = PH_LIFE.officer;
+  if(!O){ O = PH_LIFE.officer = { k: 0, P: { pts: [S.A], t0: now - 1, faceTh: Math.PI/2 }, until: now + 7000 }; return; }
+  const p = walkPathAt(O.P, now);
+  if(p && !p.there) return;
+  if(O.until == null){ const rr = mulberry32((O.k*2654435761) >>> 0); O.until = now + 6000 + rr()*6000; return; }
+  if(now < O.until) return;
+  const from = stops[O.k % stops.length][0]; O.k++;
+  const [to, face] = stops[O.k % stops.length];
+  O.P = { pts: [{ x: from.x, y: from.y }, { x: to.x, y: to.y }], t0: now, faceTh: face, th0: p ? p.th : face };
+  O.until = null;
+}
+/* every frame the harbour is queued (queueHarbor): the latch, the visitors' trips, the officer, the door */
+function phTick(scene, now){
+  const L = PH_LIFE, S = phSpots(), hg = harborGeo(), B = hg.bldg;
+  if(L.frame === now) return;
+  const away = !L.t || now - L.t > 600;                     // (not queued lately: he has been too far off to see it)
+  const dt = L.t ? Math.min(250, Math.max(0, now - L.t)) : 0; L.t = now; L.frame = now;
+  /* the latch: only while no part of the house is on the screen */
+  const want = harborOpenNow();
+  const was = L.open;
+  if(L.open == null || away) L.open = want;
+  else if(L.open !== want){
+    const seen = [[B.x0, B.y1], [B.x1, B.y1], [(B.x0 + B.x1)/2, B.y0], [B.x0, B.y0], [B.x1, B.y0]].some(([x, y]) => scene.visWorldPt(x, y, 400, 900));
+    if(!seen) L.open = want;
+  }
+  if(!L.walkers) L.walkers = [{ seed: 1, st: 'wait', until: now + 2000, legs: null }, { seed: 2, st: 'wait', until: now + 40000, legs: null }];
+  /* shut while nobody saw: whoever was out on a trip, unseen, has gone home (one in view finishes it) */
+  if(was === true && L.open === false) for(const w of L.walkers){
+    const q = w.P && walkPathAt(w.P, now);
+    if(!q || !scene.visProp('people', q.x, q.y)){ w.legs = null; w.P = null; w.st = 'wait'; w.until = now; }
+  }
+  const bx = scene.botX, by = scene.botY;
+  for(const w of L.walkers){
+    if(w.st === 'wait'){
+      if(now < w.until || !harborOpen()) continue;
+      if(scene.visProp('people', S.F.x, S.F.y)){ w.until = now + 3000; continue; }   // (they come from past the view's edge)
+      w.seed += 2; phTrip(w, now); continue;
+    }
+    const p = walkPathAt(w.P, now);
+    if(w.st === 'walk'){
+      /* held while he stands in their way: the clock of their walk stops */
+      if(p && p.moving && Math.hypot(p.x - bx, p.y - by) < 80 && Math.cos(Math.atan2(by - p.y, bx - p.x) - p.th) > 0.2){ w.P.t0 += dt; continue; }
+      if(p && p.there){
+        w.th = p.th;
+        const leg = w.legs[w.i];
+        if(leg.home){
+          /* home: past the view's edge -- or, if he can see the end of the road, on down it */
+          if(scene.visProp('people', p.x, p.y) && !leg.on){ w.legs.push({ pts: [{ x: p.x, y: p.y }, S.F2], home: true, on: true }); phLeg(w, now); continue; }
+          w.legs = null; w.P = null; w.st = 'wait'; w.until = now + 15000 + mulberry32(w.seed)()*30000; continue;
+        }
+        w.st = 'dwell'; w.until = now + leg.dwell;
+      }
+      continue;
+    }
+    if(w.st === 'dwell' && now >= w.until){ w.th = p ? p.th : w.th; phLeg(w, now); }
+  }
+  phOfficerTick(now);
+  /* the chandlery's door: open while anyone is in its doorway or on its step (the visitors, the clerk), shut after */
+  let use = false;
+  const at = (x, y) => Math.abs(x - S.door.x) < 60 && y > S.face - 60 && y < S.face + 85;
+  for(const w of L.walkers){ const q = w.P && walkPathAt(w.P, now); if(q && at(q.x, q.y) && !(w.st === 'dwell' && w.legs && w.legs[w.i] && w.legs[w.i].inside)) use = true; }
+  if(!use && LH.clerk){ const q = hospWalkAt(LH.clerk, now); if(q && at(q.x, q.y)) use = true; }
+  const D = L.door; D.k = use ? Math.min(1, D.k + dt/280) : Math.max(0, D.k - dt/480);
+}
+CITY_PEOPLE.add({ name: 'Pelican Harbor', where: "the harbor house: its visitors (the chandlery, the tide board, the rail) and the watch officer on the tower's gallery", solid: false,
+  each(scene, t, fn){
+    const now = scene.time.now;
+    if(PH_LIFE.walkers) PH_LIFE.walkers.forEach((w, i) => { const p = phWalkerAt(w, now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'harbor visitor', look: p.look })); });
+    const o = phOfficerAt(now);
+    fn(cpEntry(this, { x: o.x, y: o.y, z: o.z, th: o.th, moving: !!o.moving, kind: 'harbour watch officer', look: phOfficerLook(), noDoor: true }));
+  } });
+function phOfficerLook(){
+  if(!phOfficerLook.c){ const b = streetLook(0x0a7c11, { adult: true, aid: 'none', type: 'man' }), U = HARBOUR_WATCH_UNIFORM;
+    phOfficerLook.c = Object.assign({}, b, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null }); }
+  return phOfficerLook.c;
 }
 /* THE STREET'S ROSTER (Sir, 2026-10-23: "pavement walker, shopper, errand driver and dog walker ... are sets of our
    people not a person type"): whoever walks the pavements, shops, runs an errand or walks a dog is rolled off their
@@ -78869,6 +79069,7 @@ class WorldScene extends Phaser.Scene {
        for the mall's (its ground-level mass is under him) */
     if(this.ow && this.ow.deck && (this.ow.deck.name === HOSP_GARAGE_SITE || this.ow.deck.name === MARINA_GARAGE_SITE)){ const h = garageDeckHeightAt(x, y); if(h !== null) return h; }
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
+    if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
       if(b.type === "park"){
         /* a landmark that declares its volume is as tall as that says --
@@ -82520,10 +82721,9 @@ class WorldScene extends Phaser.Scene {
     /* the harbor house: a unit, keyed at its footprint's middle (the census, 2026-10-30: at its far corner, so whatever
        stood behind or beside it -- anything past that corner's x+y -- drew over it; what stands on the plaza in front
        is past the middle too, so still after it) */
-    const B = hg.bldg;
-    if(near((B.x0 + B.x1)/2, (B.y0 + B.y1)/2, 2600))
-      vq.push({ depth: (B.x0 + B.x1 + B.y0 + B.y1)/2, fn: (g) => this.bcDraw(g, "hb|house", B.x0, B.y1,
-        gg => LIB.draw('Pelican Harbor', gg, (a, b, h) => this.W(B.x0 + a, B.y1 + b, h), null, this.K, null, true)) });
+    const B = hg.bldg, houseD = (B.x0 + B.x1 + B.y0 + B.y1)/2;
+    /* (open or shut, latched: PELICAN HARBOR, OPEN -- the life, the door, the lamps and the watch's light with it) */
+    if(near((B.x0 + B.x1)/2, (B.y0 + B.y1)/2, 2600)) this.queueHarborHouse(vq, hg, houseD, near);
     /* the light on the breakwater: the keeper's-cottage tower (see Harbor
        Light), its foot (640, -300) at the kit's scale put on the platform */
     { const L = hg.light, lhE = LIB.get('Harbor Light'), sc = (lhE && lhE.sc) || 1, fa = 640*sc, fb = -300*sc;
@@ -82628,6 +82828,8 @@ class WorldScene extends Phaser.Scene {
       }
       else if(pr.kind === 'trailer') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|trailer|" + pr.k, x, y, gg => this.drawHarborTrailer(gg, x, y, pr.k)) });
       else if(pr.kind === 'rack') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|rack", x, y, gg => this.drawHarborRack(gg, x, y)) });
+      else if(pr.kind === 'picnic') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|picnic|" + x + "," + y, x, y, gg => this.drawHarborPicnic(gg, x, y)) });
+      else if(pr.kind === 'bin') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|bin|" + x + "," + y, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, 0, 0)) });
       else if(pr.kind === 'palm') vq.push({ depth: x + y, fn: (g, t2) => {
         post(g, x, y, 54, 0.3, 46, 0xb9b2a4, 0xa39c8e, 0x8f887b);           // the tub
         post(g, x, y, 56, 54, 40, 0x6b5a44, 0x6b5a44, 0x6b5a44);
@@ -82800,6 +83002,125 @@ class WorldScene extends Phaser.Scene {
   }
   /* A MONTEREY CYPRESS, wind-bent: a leaning trunk and flat, tabled crowns
      streaming away from the sea (east), each a dark underside and a lit top */
+  /* THE HARBOR HOUSE, queued (queueHarbor): the cached piece, open or shut; its lanterns' light and the watch room's
+     at night; its people (PELICAN HARBOR, OPEN) and the chandlery's door, live over the piece while it swings */
+  queueHarborHouse(vq, hg, houseD, near){
+    const B = hg.bldg, now = this.time.now, ent = LIB.get('Pelican Harbor'), open = harborOpen(), P = PH_PLAN;
+    phTick(this, now);
+    const G = (a, b, h) => this.W(B.x0 + a, B.y1 + b, h);
+    /* HIM BEHIND IT (the back lot is park now: he can stand right behind its back wall, past its middle's key): the
+       house goes after him there, and the x-ray ghosts him through it (builtHeightAt: harborHouseHeightAt) */
+    const H = hg.house[1], bx = this.botX, by = this.botY;
+    const behind = bx > B.x0 - 300 && bx < B.x1 + 300 && by < H.y0 + 40 && by > B.y0 - 1400;
+    vq.push({ depth: behind ? Math.max(houseD, bx + by + 1) : houseD, fn: (g) => this.bcDraw(g, "hb|house|" + (open ? 1 : 0), B.x0, B.y1,
+      gg => { ent._open = open; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; } }) });
+    if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
+    /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
+    const nl = nightLevel();
+    if(nl > 0.02){
+      const a0 = P.TA0 + 26, a1 = P.TA1 - 26, b0 = P.TB0 + 26, b1 = P.TB1 - 26, z0 = P.TZ + 14, z1 = P.TZ + 120;
+      if(this.visWorldPt(B.x0 + a1, B.y1 + b1, 200, z1)) vq.push({ depth: B.x0 + a1 + B.y1 + b1 - 2, fn: () => this.glowInWorld((gl, fill) => {
+        fill(gl, 0xffd28a, 0.42*nl);
+        for(const q of [[G(a0, b1, z0), G(a1, b1, z0), G(a1, b1, z1), G(a0, b1, z1)], [G(a1, b0, z0), G(a1, b1, z0), G(a1, b1, z1), G(a1, b0, z1)]])
+          gl.fillPoints(q.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
+        const c = G((a0 + a1)/2, b1, z0 + 56); fill(gl, 0xffd28a, 0.06*nl); gl.fillCircle(c.x, c.y, 170*this.K); }) });   // (and a soft halo round it)
+    }
+    /* who is in the chandlery's doorway this frame (phPerson), drawn with its door */
+    this._phQ = { vq, t: now, houseD, who: [] };
+    const who = this._phQ.who, D = PH_LIFE.door;
+    vq.push({ depth: houseD + 0.2, fn: (g, tt) => {
+      if(D.k <= 0.001 && !who.length) return;
+      const between = clip => () => { this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
+        try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; } };
+      const clip = who.length && LIB.doorOpening('Pelican Harbor', G, this.K, true, P.DOOR_A);
+      LIB.drawDoorOpen('Pelican Harbor', g, G, this.K, true, P.DOOR_A, D.k, clip ? between(clip) : null);
+    } });
+    /* the visitors */
+    for(const w of PH_LIFE.walkers || []){
+      const m = phWalkerAt(w, now);
+      if(!m || !this.visProp('people', m.x, m.y)) continue;
+      this.phPerson(m.x, m.y, (g, tt) => this.drawHarborPerson(g, m, m.look, tt || now));
+    }
+    /* THE AWNING OVER WHOEVER IS UNDER IT (the house is one piece keyed at its middle: they go after it, and its
+       awning, in front of them, goes back over them -- its own cached piece) */
+    { const A0 = B.x0 + P.AWN[0] - 30, A1 = B.x0 + P.AWN[1] + 30, S = phSpots(), y0 = S.face - 60, y1 = S.face + P.AWN_D + 10;
+      const under = (q) => q && q.x > A0 && q.x < A1 && q.y > y0 && q.y < y1;
+      let any = (PH_LIFE.walkers || []).some(w => under(phWalkerAt(w, now)));
+      if(!any){ const c = lhClerkAt(now); any = under(c); }
+      if(any) vq.push({ depth: houseD + 0.5, fn: (g) => this.bcDraw(g, "hb|awning", B.x0, B.y1,
+        gg => { ent._part = 'awning'; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._part = null; } }) }); }
+    /* the watch officer on the gallery, and the gallery's near rails over him */
+    { const o = phOfficerAt(now);
+      if(this.visProp('people', o.x, o.y, o.z)) vq.push({ depth: o.x + o.y, fn: (g, tt) => {
+        this.drawHarborPerson(g, o, phOfficerLook(), tt || now);
+        const TR = 0x1f3a4d, lw = Math.max(1, 4.4*this.K), a0 = P.TA0 - 30, a1 = P.TA1 + 30, bf = P.TB1 + 30, bn = P.TB0 - 30;
+        g.lineStyle(lw, TR, 1);
+        for(const z of [P.TZ + 40, P.TZ + 66]){
+          const p0 = G(a0, bf, z), p1 = G(a1, bf, z), p2 = G(a1, bn, z);
+          g.lineBetween(p0.x, p0.y, p1.x, p1.y); g.lineBetween(p1.x, p1.y, p2.x, p2.y); }
+        g.lineStyle(Math.max(1, 3.2*this.K), TR, 1);
+        for(let a = a0; a <= a1; a += 60){ const p0 = G(a, bf, P.TZ + 14), p1 = G(a, bf, P.TZ + 66); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+      } });
+    }
+  }
+  /* someone at the harbor house's front: in the chandlery's doorway, drawn with its door (between its room and its
+     leaf); in front of the house, after it (it is one piece keyed at its middle, and its west end's front is nearer
+     the eye than that middle); fallback: anyone else's queue, when the house is not queued this frame */
+  phPerson(x, y, fn, fallback){
+    const Q = this._phQ;
+    if(!Q || Q.t !== this.time.now){ if(fallback) fallback(x, y, fn); return; }
+    if(phInDoor(x, y)){ Q.who.push(fn); return; }
+    const B = harborGeo().bldg, S = phSpots();
+    const front = x > B.x0 - 60 && x < B.x1 + 60 && y >= S.face - 60 && y < B.y1 + 400;
+    Q.vq.push({ depth: front ? Math.max(x + y, Q.houseD + 0.3) : x + y, fn });
+  }
+  /* one of the harbor house's people: walking or standing, on the ground or up on the gallery (m.z), with what they
+     carry in hand (m.has: drawHarborBuy) */
+  drawHarborPerson(g, m, L, tt){
+    const thW = m.th - Math.PI/2, carry = m.has, lift = carry ? 0.3 : 0;
+    const bag = carry ? () => { const hp = this.handWorldPos(m.x, m.y, thW, L.build, lift); this.drawHarborBuy(g, hp.x, hp.y, hp.z + (m.z || 0), carry); } : null;
+    this.drawPersonHull(g, m.x, m.y, m.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!m.moving, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+  }
+  /* what a chandlery customer comes out with: a coil of rope, a lifejacket, a bag with the shop's band on it */
+  drawHarborBuy(g, x, y, z, kind){
+    const P = (a, b, h) => this.W(x + a, y + b, z + h);
+    const box = (r, d, h0, h1, top, front, side) => {
+      this.quadOn(g, [P(-r, d, h1), P(r, d, h1), P(r, d, h0), P(-r, d, h0)], front);
+      this.quadOn(g, [P(r, -d, h1), P(r, d, h1), P(r, d, h0), P(r, -d, h0)], side);
+      this.quadOn(g, [P(-r, -d, h1), P(r, -d, h1), P(r, d, h1), P(-r, d, h1)], top);
+    };
+    if(kind === 'rope'){
+      const ring = (rad, col, w) => { const pts = []; for(let i = 0; i <= 14; i++){ const t = i/14*Math.PI*2; pts.push(P(Math.cos(t)*rad*0.5, Math.cos(t)*rad*0.5, -14 + Math.sin(t)*rad)); }
+        g.lineStyle(Math.max(1, w*this.K), col, 1); g.strokePoints(pts, false); };
+      ring(15, 0xb98a4e, 7); ring(10, 0xd8b276, 4);
+    } else if(kind === 'lifejacket'){
+      box(13, 5, -34, -2, 0xff8a3a, 0xf06a1e, 0xc9551a);
+      this.quadOn(g, [P(-13, 5.5, -12), P(13, 5.5, -12), P(13, 5.5, -16), P(-13, 5.5, -16)], 0xe8e2d4);
+    } else {
+      box(10, 6, -30, -2, 0xd9b98a, 0xc49a64, 0xa8834f);
+      this.quadOn(g, [P(-10, 6.5, -16), P(10, 6.5, -16), P(10, 6.5, -21), P(-10, 6.5, -21)], 0x2f6f7e);
+    }
+  }
+  /* a park picnic table (Sea Lion Point's seating spot): the table top and its two benches, slatted, on A-frame legs;
+     along x, the benches either side in y */
+  drawHarborPicnic(g, x, y){
+    const P = (a, b, h) => this.W(x + a, y + b, h);
+    const box = (a0, a1, b0, b1, h0, h1, top, front, side) => {
+      const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
+      q([P(a0, b1, h1), P(a1, b1, h1), P(a1, b1, h0), P(a0, b1, h0)], front);
+      q([P(a1, b0, h1), P(a1, b1, h1), P(a1, b1, h0), P(a1, b0, h0)], side);
+      q([P(a0, b0, h1), P(a1, b0, h1), P(a1, b1, h1), P(a0, b1, h1)], top);
+    };
+    const T = 0x9a7f5a, TD = 0x7d6548, TS = 0x6b5540, LEG = 0x5c4836;
+    const legs = (sd) => { for(const a of [-80, 80]) box(a - 5, a + 5, sd*58 - 4, sd*58 + 4, 0, 46, LEG, TS, LEG); };
+    legs(-1);
+    box(-100, 100, -72, -46, 40, 46, T, TD, TS);                         // the far bench
+    for(const a of [-80, 80]) box(a - 5, a + 5, -30, 30, 0, 72, LEG, TS, LEG);   // the table's legs
+    box(-110, 110, -34, 34, 72, 78, T, TD, TS);                          // the top
+    for(let a = -110 + 44; a < 110; a += 44){ const p0 = P(a, -34, 78.2), p1 = P(a, 34, 78.2); g.lineStyle(Math.max(1, 1.4*this.K), TD, 0.8); g.lineBetween(p0.x, p0.y, p1.x, p1.y); }
+    legs(1);
+    box(-100, 100, 46, 72, 40, 46, T, TD, TS);                           // the near bench
+  }
   drawCypress(g, c){
     const W = (x, y, z) => this.W(c.x + x, c.y + y, z), h = c.h, L = c.lean;
     const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
@@ -83174,7 +83495,8 @@ class WorldScene extends Phaser.Scene {
        along the water */
     rect(hg.apron, 0.3, PAVE);
     rect(hg.plaza, 0.3, PAVE);
-    rect({ x0: hg.bldg.x0 - 120, x1: hg.bldg.x1 + 120, y0: hg.bldg.y0 - 120, y1: hg.plaza.y0 }, 0.3, PAVE);   // under the harbor house
+    /* under the harbor house: its own footprint, no further back (the back lot is Sea Lion Point's: harborGeo) */
+    for(const r of hg.house) rect({ x0: r.x0 - (r.x0 <= hg.bldg.x0 ? 120 : 0), x1: r.x1 + (r.x1 >= hg.bldg.x1 ? 120 : 0), y0: r.y0, y1: hg.plaza.y0 }, 0.3, PAVE);
     faceS(hg.plaza.x0, hg.quay.x0, hg.plaza.y1, -24, 0.3, 0x8f877a);       // the plaza's quay wall, over the basin
     rect({ x0: hg.plaza.x0, x1: hg.quay.x0, y0: hg.plaza.y1 - 60, y1: hg.plaza.y1 }, 0.5, 0xb9b2a4);
     /* the piles below the deck (see harborPosts), BEFORE the planks: the
@@ -113135,7 +113457,7 @@ function mapCoastBands(grid, dateStr, cband, cring){
       const hw = bt.L/2, hb = harborBoatBeam(bt.kind, bt.L)/2;
       cband(bt.x - hw, bt.y - hb, bt.x + hw, bt.y + hb, "#f6f3ea");
     }
-    rb(hg.bldg, "#2f5f6e");
+    for(const r of hg.house) rb(r, "#2f5f6e");
     cring(hg.light.x, hg.light.y, 120, "#f2ece0");
   }
   /* mountains: foothill shoulder band, then the range proper, same
@@ -114955,6 +115277,19 @@ function northHillPolys(o){
                road ends; the harbor building stands behind it
      head      the headland under all of that, north to the hills
    No lawn anywhere (CLAUDE.md): paving, planks, sand and rock. */
+/* THE HARBOR HOUSE'S PLAN (the 'Pelican Harbor' entry): its frame's a runs east along the plaza from bldg.x0, b is 0 on
+   the plaza's north edge (bldg.y1) and negative inland; game units. One source for the drawing, the footprint harborGeo
+   makes solid (house), the door the chandlery's customers use and where its people stand. */
+const PH_PLAN = {
+  HB: -180, HBB: -1700, HA0: 820, HA1: 3320, EZ: 340, RZ: 560, RB: -940,   // the hall: its front and back walls, its ends, eave, ridge
+  WA0: 80, WB: -1250, WZ: 230,                                             // the chandlery wing (from WA0 to the hall), its back wall
+  TA0: 2760, TA1: 3060, TB0: -1250, TB1: -950, TZ: 700,                     // the watch tower; its gallery at TZ + 14
+  PA0: 1820, PA1: 2320, PB: -40,                                           // the Port Office's pavilion
+  DOOR_A: 450,                                                             // the chandlery's shop door (shopDoor's middle)
+  AWN: [120, 780], AWN_D: 120,                                             // its striped awning: along the wing, and how far out
+  BOARD: [1610, 1770],                                                     // the tide board, on the pier west of the pavilion
+  LANT_A: 150, LANT_Z: 196                                                 // the Port Office's lanterns: either side of the doors, how high
+};
 const HARBOR = {
   QUAY_W: 400,          // the plank promenade between the road's sidewalk and the water
   FINGERS: 6,           // finger docks off the quay (6, not 8, since the boats doubled: the fairways stay open water)
@@ -115207,6 +115542,64 @@ function harborGeo(){
   for(const a of park.agave) props.push({ kind:'none', x: a.x, y: a.y, r: 36*a.s });
   for(const sd of [-1, 1]) props.push({ kind:'none', x: park.sign.x + sd*200, y: park.sign.y, r: 18 });
   for(const b of park.benches) props.push({ kind:'bench', x: b.x, y: b.y, r: 90, facing: b.facing });
+  /* THE HOUSE'S OWN FOOTPRINT (PH_PLAN): the wing and the hall (the tower stands in the hall). What stands, and what
+     stops him and a flyer; bldg stays the box the house is drawn in and Sea Lion Point is laid out round. */
+  const house = [ { x0: bldg.x0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.WB, y1: bldg.y1 },     // the wing
+                  { x0: bldg.x0 + PH_PLAN.HA0, x1: bldg.x1, y0: bldg.y1 + PH_PLAN.HBB, y1: bldg.y1 } ];  // the hall
+  /* THE BACK LOT IS PARK (Sir, 2026-11-01: "get that parking lot off, behind it doesn't look good. Maybe a park with
+     plants and sand"). The paving under the house ran the whole bldg box, 700 behind the hall's back wall and 1,150
+     behind the wing's: a bare slab, seen over the ridge from the plaza. Sea Lion Point runs on over it -- D behind the
+     hall, E behind the wing -- on the same sand with the same planting, on a seed of its own (nothing already planted
+     moves): a path hugging the back walls (the strip that keeps the planting off them), on round the wing to the path
+     in from the plaza and north to the sea-side path; two benches looking out over the park to the sea; a picnic
+     table and a bin on a seating spot where the link leaves the back path. */
+  { const hall = house[1], wing = house[0], PW = 240;
+    const D = { x0: bldg.x0, x1: bldg.x1, y0: bldg.y0, y1: hall.y0 }, E = { x0: bldg.x0, x1: hall.x0, y0: hall.y0, y1: wing.y0 };
+    park.rects.push(D, E);
+    park.back = { D, E };
+    const np = [
+      { x0: hall.x0 - PW, x1: HARBOR.BACK_PATH_X1, y0: hall.y0 - PW, y1: hall.y0 },                   // along the hall's back
+      { x0: hall.x0 - PW, x1: hall.x0, y0: hall.y0, y1: wing.y0 },                                    // round its west end
+      { x0: bldg.x0 - 600, x1: hall.x0, y0: wing.y0 - PW, y1: wing.y0 },                              // along the wing's back, to the path in from the plaza
+      { x0: -2900, x1: -2900 + PW, y0: H.HEAD_Y0 + 400 + PW, y1: hall.y0 - PW },                      // north to the sea-side path (between the cypress and the ice plant there)
+      { x0: -2660, x1: -2300, y0: -17040, y1: -16660 } ];                                             // the seating spot, off the link's east side (clear of the house on the screen)
+    park.paths.push(...np);
+    park.seat = np[4];
+    park.picnic = { x: (np[4].x0 + np[4].x1)/2 + 10, y: (np[4].y0 + np[4].y1)/2 };
+    park.bin = { x: np[4].x0 + 40, y: np[4].y0 + 40 };
+    const nb = [ { x: hall.x0 + 420, y: hall.y0 - PW - 90, facing: -1 }, { x: -2300, y: hall.y0 - PW - 90, facing: -1 } ];
+    park.benches.push(...nb);
+    /* the ground's low planting off the new paths (ground only: nothing keyed by index moves) */
+    const onNew = (x, y, pad) => np.some(r => x > r.x0 - pad && x < r.x1 + pad && y > r.y0 - pad && y < r.y1 + pad);
+    for(const L of [park.ice, park.sage, park.tufts])
+      for(let i = L.length - 1; i >= 0; i--) if(onNew(L[i].x, L[i].y, (L[i].r || 0) + 20)) L.splice(i, 1);
+    /* the planting, as Sea Lion Point's (same kinds, same sizes, its density), off the paths, the benches, the table
+       and well off the back walls: the trees far enough back that their crowns never reach the roof on screen */
+    const rr = mulberry32(0x5ea1b0), onPath = (x, y, pad) => park.paths.some(r => x > r.x0 - pad && x < r.x1 + pad && y > r.y0 - pad && y < r.y1 + pad);
+    const keep = [...nb, park.picnic, park.bin];
+    const clearAt = (x, y, pad, back) => !onPath(x, y, pad) && y < hall.y0 - PW - back && !keep.some(q => Math.hypot(q.x - x, q.y - y) < 140 + pad);
+    const scatter = (n, pad, gap, back, list, from, make) => {
+      for(let tries = 0, got = 0; got < n && tries < n*80; tries++){
+        const R = rr() < 0.88 ? D : E;
+        const x = R.x0 + 80 + rr()*(R.x1 - R.x0 - 160), y = R.y0 + 80 + rr()*(R.y1 - R.y0 - 160);
+        if(R === E ? onPath(x, y, pad) || x > hall.x0 - PW - pad : !clearAt(x, y, pad, back)) continue;
+        if(list.some(q => Math.hypot(q.x - x, q.y - y) < gap) || from.some(q => Math.hypot(q.x - x, q.y - y) < 120)) continue;
+        list.push(make(x, y)); got++;
+      }
+    };
+    const c0 = park.cypress.length, a0 = park.agave.length;
+    scatter(2, 160, 700, 300, park.cypress, [], (x, y) => ({ x, y, h: 0.85 + rr()*0.4, lean: 0.6 + rr()*0.5 }));
+    scatter(4, 80, 260, 120, park.agave, park.cypress.slice(c0), (x, y) => ({ x, y, s: 0.8 + rr()*0.5, rot: rr()*Math.PI }));
+    const others = [...park.cypress.slice(c0), ...park.agave.slice(a0)];
+    scatter(5, 30, 320, 60, park.ice, others, (x, y) => ({ x, y, r: 80 + rr()*90, n: 9, rot: rr()*6, bloom: rr() < 0.75, tone: Math.floor(rr()*3) }));
+    scatter(8, 30, 150, 40, park.sage, others, (x, y) => ({ x, y, r: 40 + rr()*30 }));
+    scatter(30, 10, 90, 20, park.tufts, others, (x, y) => ({ x, y, h: 30 + rr()*30, k: Math.floor(rr()*1000) }));
+    for(const c of park.cypress.slice(c0)) props.push({ kind:'none', x: c.x, y: c.y, r: 50 });
+    for(const a of park.agave.slice(a0)) props.push({ kind:'none', x: a.x, y: a.y, r: 36*a.s });
+    for(const b of nb) props.push({ kind:'bench', x: b.x, y: b.y, r: 90, facing: b.facing });
+    props.push({ kind:'picnic', x: park.picnic.x, y: park.picnic.y, r: 110 });
+    props.push({ kind:'bin', x: park.bin.x, y: park.bin.y, r: 24 });
+  }
   /* WHERE HE MAY DRIVE, inside the harbor zone (west of X0, north of the
      stub's south sidewalk): the street and its sidewalks, the quay, the
      docks, the apron and the plaza. Everything else there is water, sand,
@@ -115225,7 +115618,7 @@ function harborGeo(){
                       corner: { x0: road.x0, x1: RX - ROAD_HALF, y0: ROAD_HALF, y1: SW } };
   const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
-  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, head, arm, light, round, rocks, jetty,
+  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty,
                  fingers, slips, zone, walk, props, park, beachWalk };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
@@ -115380,6 +115773,18 @@ function harborBoatAddress(dateStr, runIndex, shop, from){
            door: { x: gx, y: edgeY - sd*gway.foot }, gway, dv, rv };
 }
 function inHarborRect(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
+/* how tall the harbor house stands at (x, y), or null off it (the x-ray's: builtHeightAt): the wing to its sign board,
+   the hall's roof from its eaves up to the ridge, the watch tower to its cap */
+function harborHouseHeightAt(x, y){
+  const hg = harborGeo(), P = PH_PLAN, a = x - hg.bldg.x0, b = y - hg.bldg.y1;
+  if(!harborHouseAt(x, y)) return null;
+  if(a >= P.TA0 - 34 && a <= P.TA1 + 34 && b >= P.TB0 - 34 && b <= P.TB1 + 34) return P.TZ + 230;
+  if(a < P.HA0) return P.WZ + 110;
+  const f = b >= P.RB ? (b - P.RB)/(P.HB - P.RB) : (P.RB - b)/(P.RB - P.HBB);
+  return P.RZ - (P.RZ - P.EZ)*Math.max(0, Math.min(1, f));
+}
+/* inside the harbor house's own footprint (harborGeo's house: the wing and the hall) */
+function harborHouseAt(x, y){ return harborGeo().house.some(r => inHarborRect(r, x, y)); }
 /* the turning circle: road, its kerb, then sidewalk -- asked before the
    lattice, as the estate's round is, because the street's own bands would
    call the bulb's asphalt pavement */
@@ -115425,7 +115830,7 @@ function harborBlocks(x, y, R){
                               Math.hypot(x - pr.x, y - pr.y) < pr.r + (R || 0)) return true;
   const on = (px, py) => {
     if(px > hg.zone.x1 || py > hg.zone.y1) return true;
-    for(const w of hg.walk) if(inHarborRect(w, px, py)) return !inHarborRect(hg.bldg, px, py);
+    for(const w of hg.walk) if(inHarborRect(w, px, py)) return !harborHouseAt(px, py);
     return Math.hypot(px - hg.jetty.land.x, py - hg.jetty.land.y) <= hg.jetty.land.r;
   };
   return !(on(x - r, y) && on(x + r, y) && on(x, y - r) && on(x, y + r));
@@ -116527,7 +116932,7 @@ function worldRegionIndex(grid){
       if(hs === 'boardwalk') return [R.PH, (inR(hg.beachWalk.west, x, y) || inR(hg.beachWalk.south, x, y)) ? 'boardwalk' : 'quay'];
       if(hs === 'lot' || hs === 'park' || hs === 'sidewalk') return [R.PH, 'quay']; }
     if(x <= X0 && y <= hg.zone.y1){
-      if(inR(hg.bldg, x, y)) return [R.PH, 'landmark'];
+      if(harborHouseAt(x, y)) return [R.PH, 'landmark'];
       if(inR(hg.basin, x, y)) return [R.PH, 'harbour'];
       if(inR(hg.arm, x, y) || Math.hypot(x - hg.light.x, y - hg.light.y) <= hg.light.r) return [R.PH, 'quay'];
       if(inR(hg.head, x, y)) return [R.PH, 'buildable'];

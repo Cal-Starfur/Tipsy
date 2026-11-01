@@ -31,6 +31,6 @@
 ## Known kit flaws
 1. **Who opens a door is a hand-written list in each door system**, so any group left off the list meets a shut door. Fix: every door asks `CITY_PEOPLE.near` plus Tipsey.
 2. **Five sliding-door drawings and about ten easings**, with no world list of doors.
-3. **`shopDoor` clamps silently and is fixed to b 0** (owned by the shop kit).
+3. **`shopDoor` clamps silently** (owned by the shop kit). It now records the set-back it is drawn at (`boff`, the entry's `BOFF` plus any wall set further back: Pelican Harbor's chandlery), and `drawDoorOpen` / `doorLeaves` / `doorOpening` replay it there.
 4. **The open-door interior is drawn per caller.** Fix: one `doorDepth(opening)` for every leaf drawer.
 5. **`wallFrames().doorF` is a copy of the door that never records itself**, so it never opens and the checkers can't see it.
