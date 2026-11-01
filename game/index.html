@@ -10023,7 +10023,7 @@ function owStep(scene, dt){
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
                             (beachBlocks(ow, W.grid, x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
-                            (owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim
+                            (!(FP.fly && flyFoothillCorridor(x, y)) && owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim (a flyer: over the Flats' stretch of them, flyFoothillCorridor)
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
   if(_full === OW_CURB_BLOCK && !FP.fly) owSplashCheck(scene, ow, D);
@@ -10754,6 +10754,17 @@ function rescueOffGridEdges(grid){
 function owNorthEdgeBlocks(W, x, y){
   if(!WORLDGEN_COAST || y >= -WG_COAST.EXT * BLOCK) return false;
   return W.surfaceAt(x, y) === 'void';
+}
+/* THE FLYER CORRIDOR OVER THE FOOTHILLS (area 10, the School hill: LETTERS ON THE HILL flies the heavy-lift drone up to
+   the letters on the first two shelves). A flyer may go out over the terraces behind the Flats -- the Flats' own x span,
+   past the rim, short of the mountains (flyEdgeBlocks: past the last shelf) -- where the north edge stops everything
+   that drives. Its height over them is the terraces' own (flyTerrainZ: flyHillsZ, each shelf from its riser's foot), so
+   the auto height climbs each riser and the floor keeps clear of the shelves. Ground vehicles are stopped as before */
+const FLY_HILL_CORRIDOR = { x1: 28560 };   // (west: the city's own edge, -WG_COAST.EXT*BLOCK)
+function flyFoothillCorridor(x, y){
+  if(!WORLDGEN_COAST || y >= -WG_COAST.EXT*BLOCK) return false;
+  const C = FLY_HILL_CORRIDOR;
+  return x > -WG_COAST.EXT*BLOCK && x < C.x1 && !flyEdgeBlocks(x, y);
 }
 function rescueEdges(grid){ return grid._rescueEdges || (grid._rescueEdges = grid.edges.concat(rescueOffGridEdges(grid))); }
 /* can one of the crew stand here? Where he could drive himself (owStep's
