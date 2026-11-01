@@ -44,6 +44,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'just-married': {priceCents: 0, unlockType: 'achievement'},
   /* Number 4 Builds a Winner's reward (the Pit Crew trophy, 'pit-crew') */
   'racing-stripe': {priceCents: 0, unlockType: 'achievement'},
+  /* Sunset Session's reward (the Sunset Session trophy, 'sunset-session') */
+  'board-shorts': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -121,7 +123,11 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       fob (a key item, rebuilt from this record: nwFobMigrate)
        sunset-salute  Sunset Salute (at dusk, the Veterans Memorial): Walt's
                       challenge coin (a key item, rebuilt from this record:
-                      ssCoinMigrate) and the autonomous shuttle (FLEET unlock) */
+                      ssCoinMigrate) and the autonomous shuttle (FLEET unlock)
+       sunset-session Sunset Session (at dusk, Sunset Shore Surf School): six
+                      foam boards down the sand in the lent cargo bot; the
+                      Sunset Session trophy (its claim grants the Board Shorts
+                      skin) and $50 once (GIFT_TIP_IDS 'surfschool') */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -134,6 +140,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'kart-winner': {bestMax: 1, completeAt: 1},
   'night-watch': {bestMax: 1, completeAt: 1},
   'sunset-salute': {bestMax: 1, completeAt: 1},
+  'sunset-session': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -238,6 +245,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'pit-crew': {
     rewardSkinId: 'racing-stripe',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'kart-winner'),
+  },
+  /* Sunset Session's trophy, the same way (the Board Shorts skin) */
+  'sunset-session': {
+    rewardSkinId: 'board-shorts',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'sunset-session'),
   },
 }
 

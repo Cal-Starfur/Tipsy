@@ -60,6 +60,7 @@
 | The Lighthouse Run (`lighthouse-run`) | any | $50 once, Ines's brass key (key item), the delivery drone (fleet unlock) | `TS_MISSIONS`, gift/tip `lighthouse`; the key rebuilt from the record (`lhKeyMigrate`) |
 | Catch of the Day (`catch-of-the-day`) | any | $50 once, the Catch of the Day trophy, the Fishmonger skin (worn), the market's delivery pod lent for the run | `TS_MISSIONS`, `catch-of-the-day` -> `fishmonger` (`TS_SKINS`), gift/tip `fishmkt` |
 | Adoption Day (`adoption-day`) | shops (9-16), after 5 dogs sheltered (`lock`) | the Adoption Day trophy, the Paw Print skin (worn), the Dog Rescuer's gold tag (key item; the Dog Rescuer trophy shows gold), the humanoid (fleet unlock, lent for the run) | `TS_MISSIONS`, `adoption-day` -> `pawprint` (`TS_SKINS`); the tag rebuilt from the record (`adTagMigrate`) |
+| Sunset Session (`sunset-session`) | dusk | $50 once, the Sunset Session trophy, the Board Shorts skin (worn); the fleet's cargo bot lent for the run | `TS_MISSIONS`, `sunset-session` -> `board-shorts` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`), gift/tip `surfschool` (db.ts `SURF_TIP_ID`) |
 | The Getaway (`the-getaway`) | day, after `cake-run` | $50 once, Wheels Up trophy, Just Married skin (tin cans), the robotaxi (fleet unlock); spends the Gala Pass | `TS_MISSIONS`, gift/tip `getaway`, `wheels-up` -> `just-married` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`); the pass is never rebuilt once spent (`galaPassMigrate` asks `tpCollect.used` and the record) |
 | Night Watch (`night-watch`, after `goth-uniform`) | night (19-6, "after dark"; keeps its night once started) | $40 once, Luna's spare gate fob (key item `vistafob`, meant to open Sierra Vista's side gate for later errands), the security patrol robot (fleet unlock, lent for the run) | `TS_MISSIONS`, gift/tip `nightwatch` (db.ts `NIGHTWATCH_TIP_ID`); the fob rebuilt from the record (`nwFobMigrate`) |
 | Sunset Salute (`sunset-salute`) | dusk | Walt's challenge coin (key item `coin`), the autonomous shuttle (fleet unlock) | `TS_MISSIONS`; the coin rebuilt from the record (`ssCoinMigrate`) |
@@ -84,6 +85,8 @@
 - `tpProfile.missionsCompleted.add('night-watch'); tpSaveProfile()` (done: the spare gate fob on the shelf, the patrol robot kept, the post's robot charged green)
 - `NIGHT_CLOCK.time = 19` (real dusk, 18:30-19:30: Sunset Salute offered; stop on the bay by Walt's bench at the Veterans Memorial, the middle of Veterans Memorial Park, cell 5,5; outside the window Walt says "Come back at dusk, son.")
 - `tpProfile.missionsCompleted.add('sunset-salute'); tpSaveProfile()` (done: Eddie Navarro's brass plate and the wreath on the wall, Walt's coin in the stash, the shuttle kept; Walt waves as Tipsey passes)
+- `NIGHT_CLOCK.time = 19` (real dusk: Sunset Session offered; Mele walks up to the top of the surf school's walk off Sunset Shore's boardwalk, y 12000, and the bay on the boardwalk beside it (x -1960, y 11800) gets its beacon; at other hours the bay alone and "Sunset Session: comes at dusk.")
+- `tpProfile.missionsCompleted.add('sunset-session'); tpSaveProfile()` (done: the bay gone; claim the Board Shorts in the Trophy Case)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -136,3 +139,10 @@ points are passes, not stops: a pair of the Cone Slalom's blue-banded cones each
 crossed northbound between them. After dark a torch (three glow layers and a pool, `glowInWorld`, keyed just under the
 robot) lights the gravel ahead. Someone met mid-patrol walks to the meet kit's spot beside the robot (`meetWalk`, side
 toward the wall) rather than being met where they stood behind it.
+**A fleet loan on the sand, two trips** (Sunset Session): the cargo bot called in from past the view's edge to a bay beside
+Tipsey (`FLEET_LOAN 'cargobot'`, Tipsey parked and cached, the camera kept), its lid opened on the story's own clock for a
+bulky load (`surfLid`, `SSN.lid`: open, the load in or out at the widest, back to resting) and resting open on what it carries
+(`surfBotData` -> the cargobot art's `data.boards`); whoever loads it walks round to its seen flank (`surfWalkToBot`). Keep
+the supplier within a couple of thousand of the bay when there are two trips: Palmline Surf Co.'s shop is 15.4k of road
+from the school each way (two trips about 14 minutes), so its beach stand up the sand supplies it (legs 1,220 by the GPS).
+

@@ -223,3 +223,38 @@ while the caretaker lowers the national flag and everyone salutes; Walt's challe
 (fleet unlock), server `TS_MISSIONS`. The brief's Seabreeze Library / Trophies / Florist were 33k-38k of road each from the
 memorial and shut at dusk (but the florist): swapped for the nearest of each kind (docs/kits/missions.md). Paw Point (cell
 1,2) untouched.
+
+**Sunset Shore Surf School + Sunset Session (2026-11-01, Flats build order area 16, "Sunset Shore sand"):** the Flats' stretch
+of Sunset Shore between Lifeguard Towers 1 and 2 (y 6256 / 18768), at y 12000 (`SURF`, one plan in world units). A new
+access walk off the boardwalk: a dune path through the dunes (`duneField`'s own path and ropes, key `'ss'`; the mounds that
+stood across it are left out, no other mound moves) and a plank walk across the sand (`buildShore`'s run `surfwalk`, so
+`classifyShore` calls it boardwalk) to a weathered aqua surf shack on a short raised deck (`classifyShore` calls the deck and
+its steps 'building', so `beachBlocks` keeps him off; not walk-in: a serving hatch, its shutter propped open 8-8, down at
+night); the school's board rack, the lesson circle traced in the sand by the water with six boards drawn in it (pop-ups are
+drilled on board shapes drawn in the sand), the junior-lifeguard flag post (red over yellow), a fire ring with two driftwood
+seats lit 7.15-11 p.m. (the lamp kit's glow), Palmline Surf Co.'s beach stand up the sand (umbrella, table, board rack, a
+feather flag; its clerk Kai), sunbathers on towels under umbrellas (9 to 7.45). Still pieces cached through `bcDraw`
+(`srf|...` keys by piece, place and board counts); live only the two flags, the fire, the people, the cargo bot coming and
+going, a dropped board. Solids: `surfBlocks` in owStep's blockAt. People (`ssnQueue`, CITY_PEOPLE 'Sunset Shore Surf
+School', latched while unseen: `SURF_LIFE`): Mele the instructor at her post facing the class, six kids in pairs doing
+pop-up drills on the drawn boards (prone paddling, the pop to a sideways stance, down again; `surfDrillAt`), the nearest
+tower's lifeguard at the flag post, two surfers carrying boards to the water and back (after dark on the logs by the fire),
+Kai at the stand. GPS: `gpsBeachNet` knows the walk and the sand legs (the boardwalk run between towers split at its head).
+SUNSET SESSION (`sunset-session`, window `dusk`; `SSN`): at dusk Mele walks up to the top of the walk; Tipsey on the bay on
+the boardwalk, she comes up the last of it to him (meetWalk on his left, meetTick); down to the bay by the circle, the
+fleet's cargo bot rolls down the sand from past the view's edge and is his (`FLEET_LOAN 'cargobot'`, Tipsey parked);
+Palmline Surf Co.'s stand: Kai brings three boards to its seen flank, the lid opens for the bulky load and rests open on
+them; back round the sunbathers to Mele, who lifts them out and lays them by the drawings; twice. A hard bump (over
+`SSN_RUN.bumpV`) drops a board on the sand (spill: a fail, Mele's sorry, the loan ends). After the second, the loan ends and
+the bot rolls off; Tipsey drives to the water's edge: the kids carry their boards in, paddle out and sit out past the
+break as the sun goes (the held sky set deeper over 14 s), the fire is lit, the lifeguard waves his flag; Mele's thanks face
+to face, the card. Reward $50 once (`surfschool`), the Sunset Session trophy -> Board Shorts skin (worn; `SK_BOARDSHORTS`,
+HULL_PRINTS 'shorts', emblem 'hibiscus'). Server: TS_MISSIONS, TS_SKINS 'board-shorts', TS_CLAIMABLE_TROPHIES
+'sunset-session', db.ts `SURF_TIP_ID`. Supplier: Palmline Surf Co.'s shop (0,7) is 15.4k of road from the walk's head each
+way (two trips about 14 minutes), so its beach stand on the sand supplies the boards. Seeds: `NIGHT_CLOCK.time = 19`;
+`tpProfile.missionsCompleted.add('sunset-session'); tpSaveProfile()`. Open: Kai and the stand have no door (a post, as the
+lifeguards'); the class is there all school day and its kids arrive and leave only while the sand is unseen (latched);
+sunbathers lie still but for a knee now and then.
+
+
+**Flats build order: where it stopped (2026-11-01, Sir: "Finish what we have started but don't open any new tasks"):** built and on consistency-pass, all on the test page: Sun Deck Motor Lodge + The Getaway (1), Tidewater Kart Works + Number 4 Builds a Winner (3), Pelican Fish Market + Catch of the Day (15), Paw Point + Adoption Day (5), the Veterans Memorial + Sunset Salute (4), Sunset Shore Surf School + Sunset Session (16), Vista Ridge Security Post + Night Watch (11). NOT started, waiting on Sir: KTDE radio + Request Line (2), the Fire Training Yard + Open House (7), the flyer corridor over the foothills and fly pads, then the School hill letters + Letters on the Hill (10), the Skate Park as scenery (6); no lookout (14); the pier (13) waits on the hood lock. None of this is on main yet: Sir says when to push. Open timing notes: Kart Works about 6.5-7 min, Night Watch about 4.5 min at a fair pace (7 by GPS ETA; the mall -> gate round leg is the long one). The plan text is in the dead-space report (scratchpad flats/eval_text.html, not in the repo).
