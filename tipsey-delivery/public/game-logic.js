@@ -1044,10 +1044,22 @@ try {
   window.NIGHT_CLOCK = NIGHT_CLOCK;
 } catch(e){}
 let _nightAt = -1e9, _nightL = 0;
+/* A STORY THAT KEEPS ITS DUSK (SUNSET SALUTE, R4: a started story keeps its time): v the level held from its start,
+   t when it let go (eased back to the clock over ms) */
+const NIGHT_HOLD = { v: null, t: 0, ms: 2500 };
 /* 0 = full day, 1 = full night, between = dusk or dawn. Looked at the
    clock at most once a second: an hour-long fade needs no finer step. */
 function nightLevel(){
   if(NIGHT_CLOCK.force === true || NIGHT_CLOCK.force === false) return NIGHT_CLOCK.force ? 1 : 0;
+  if(NIGHT_HOLD.v != null){
+    if(!NIGHT_HOLD.t) return NIGHT_HOLD.v;
+    const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
+    const u = (now - NIGHT_HOLD.t)/NIGHT_HOLD.ms, v = NIGHT_HOLD.v;
+    NIGHT_HOLD.v = null; _nightAt = -1e9;
+    if(u >= 1) return nightLevel();
+    const real = nightLevel(); NIGHT_HOLD.v = v;
+    return v + (real - v)*u*u*(3 - 2*u);
+  }
   const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
   if(now - _nightAt > 1000 || NIGHT_CLOCK.time != null){
     _nightAt = now;
@@ -2003,6 +2015,29 @@ const PARTY_HOLD = {
   cup1(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xf2c23a, 0xc8962a, 0xffe58a); },   // the derby's top three (DERBY_RACE)
   cup2(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xc3c9d1, 0x9aa1aa, 0xeef1f5); },
   cup3(g, p, K){ derbyCupIcon(g, p.x, p.y + 2*K, K, 0xd08a4a, 0xa8682e, 0xf0b47a); },          // number 4's, over his head (FOURTH)
+  /* THE VETERANS MEMORIAL's band and bugler (a horn up to the lips: its bell out in front of the face; at: the hull's
+     hand and mouth, as the microphone's) */
+  trumpet(g, p, K, at){
+    if(!at) return;
+    const m = at.G(at.a*0.25, at.mouth[0] + 1, at.mouth[1] - 1), e = at.G(at.a*0.25, at.mouth[0] + 30, at.mouth[1] - 4);
+    g.lineStyle(2.6*K, 0xc9a24a, 1); g.lineBetween(m.x, m.y, e.x, e.y); g.lineBetween(p.x, p.y, (m.x + e.x)/2, (m.y + e.y)/2);
+    g.fillStyle(0xe0bc5a, 1); g.fillEllipse(e.x, e.y, 5.5*K, 7*K); g.fillStyle(0x7a5a1a, 1); g.fillEllipse(e.x + 0.6*K, e.y, 3*K, 4.5*K);
+  },
+  trombone(g, p, K, at){
+    if(!at) return;
+    const m = at.G(at.a*0.25, at.mouth[0] + 1, at.mouth[1] - 1), e = at.G(at.a*0.25, at.mouth[0] + 26, at.mouth[1] - 2), s = at.G(at.a*0.25, at.mouth[0] + 52, at.mouth[1] - 14);
+    g.lineStyle(2.2*K, 0xc9a24a, 1); g.lineBetween(m.x, m.y, e.x, e.y); g.lineStyle(1.4*K, 0xd9b45a, 1); g.lineBetween(m.x, m.y + 3*K, s.x, s.y);
+    g.fillStyle(0xe0bc5a, 1); g.fillEllipse(e.x, e.y, 7*K, 8.5*K); g.fillStyle(0x7a5a1a, 1); g.fillEllipse(e.x + 0.8*K, e.y, 4*K, 5.5*K);
+  },
+  clarinet(g, p, K, at){
+    if(!at) return;
+    const m = at.G(at.a*0.25, at.mouth[0] + 1, at.mouth[1] - 1), e = at.G(at.a*0.25, at.mouth[0] + 16, at.mouth[1] - 30);
+    g.lineStyle(2.4*K, 0x1e1e22, 1); g.lineBetween(m.x, m.y, e.x, e.y); g.fillStyle(0x2a2a2e, 1); g.fillEllipse(e.x, e.y, 4.5*K, 3*K);
+  },
+  snare(g, p, K){
+    g.fillStyle(0xb8322a, 1); g.fillRect(p.x - 3*K, p.y + 4*K, 18*K, 7*K); g.fillStyle(0xe8e5dc, 1); g.fillEllipse(p.x + 6*K, p.y + 11*K, 18*K, 6*K);
+    g.fillStyle(0xf4f2ec, 1); g.fillEllipse(p.x + 6*K, p.y + 4*K, 18*K, 8*K); g.fillStyle(0xd8d4ca, 1); g.fillEllipse(p.x + 6*K, p.y + 4*K, 14*K, 5.5*K);
+  },
   glass(g, p, K){ g.fillStyle(0xdfe8ee, 0.9); g.fillRect(p.x - 2.2*K, p.y - 9*K, 4.4*K, 8*K); g.fillStyle(0xffffff, 1); g.fillRect(p.x - 3.2*K, p.y - 3*K, 6.4*K, 4*K); },
   /* MARINA GENERAL'S HALL CAST (HOSP_CAST): a visitor's bouquet -- its paper cone down from the fist, the blooms up out
      of it -- the clipboard a nurse or a paramedic carries, and a patient's drip stand rolled along beside them (its
@@ -3217,7 +3252,7 @@ const FLEET_MISSIONS = {
   "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night" },
   "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge", built: true },
   "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
-  "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk" },
+  "sunset-salute":   { name: "Sunset Salute",            place: "the Veterans Memorial", when: "dusk", built: true },
   "contest-day":     { name: "Contest Day",              place: "Driftwood Skate Park" },
   "letters-on-hill": { name: "Letters on the Hill",      place: "the hillside letters" },
   "topping-out":     { name: "Topping Out",              place: "Mirador Heights" },
@@ -5334,6 +5369,12 @@ function owBuildWorld(route){
       const x0 = yb.x0 + t.box.a0, x1 = yb.x0 + t.box.a1, y0 = yb.y0 + t.box.b0, y1 = yb.y0 + t.box.b1;
       blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: yb.x0, oy: yb.y0, sb: 1 } });
     } }
+  /* THE VETERANS MEMORIAL (VET_MEMORIAL): its pieces' solids, in the hub's frame (b south) */
+  { const C = vmOf(g2);
+    if(C) for(const t of parkLandmarkVol(VET_MEMORIAL.name) || []){
+      const x0 = C.x + t.box.a0, x1 = C.x + t.box.a1, y0 = C.y + t.box.b0, y1 = C.y + t.box.b1;
+      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, ox: C.x, oy: C.y, sb: 1 } });
+    } }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
     for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
@@ -6671,6 +6712,11 @@ const SHOP_ICONS = {
   testtube:  { col: 0x2f7f9e, s: [["r",0xd8eef5,-3,-12,6,20],["r",0xe2483d,-3,0,6,8],["c",0xe2483d,0,8,3],["r",0x8a5a32,-6,-12,12,2]] },
   house:     { col: 0xff7a1a, s: [["p",0xd8453a,[-12,-1,0,-11,12,-1]],["r",0xf2efe6,-8,-1,16,11],["r",0x7a4a2a,-2,3,4,7]] },
   flag:      { col: 0xd8352a, s: [["r",0x9aa1a8,-8,-11,2.5,23],["p",0xd8352a,[-5.5,-11,9,-6,-5.5,-1]]] },
+  /* SUNSET SALUTE: Walt's challenge coin (a bronze disc, an anchor on it), the 1952 roll, the brass plate, the wreath */
+  coin:      { col: 0xa8842a, s: [["c",0xb8902a,0,0,11],["c",0xd9b24a,0,0,8.5],["r",0x6b4a1a,-0.9,-6,1.8,11,"f"],["r",0x6b4a1a,-4,-4,8,1.6,"f"],["p",0x6b4a1a,[-5,2,0,6,5,2,3.5,2,0,4.2,-3.5,2],"f"]] },
+  roll:      { col: 0xc9b98a, s: [["r",0xf2e8cc,-10,-6,20,12],["c",0xe0d2a8,-10,0,6],["c",0xe0d2a8,10,0,6],["r",0x8a6a3a,-6,-1,12,1.4,"f"],["r",0xb8322a,-1.5,-6,3,12,"f"]] },
+  plate:     { col: 0xb8902a, s: [["r",0x8a6a24,-12,-6,24,12],["r",0xd9b04a,-11,-5,22,10],["r",0x6a4e1a,-8,-2,16,1.4,"f"],["r",0x6a4e1a,-6,1.5,12,1.4,"f"]] },
+  wreath:    { col: 0x3f7a3c, s: [["c",0x2f5a2e,0,-1,11],["c",0x3f7a3c,0,-1,8.5],["c","W",0,-1,4.5,"f"],["p",0xc8262c,[-4,6,0,3,4,6,4,11,0,8,-4,11]]] },
 };
 const ICON_BY_BASE = {
   "Coffee roaster":"cup", "Tea house":"teapot", "Juice bar":"juice", "Bakery":"croissant", "Ice cream":"cone",
@@ -8253,7 +8299,7 @@ function owStep(scene, dt){
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -15119,6 +15165,87 @@ function ferrisMonumentOf(grid){
   const posts = [-150, 0, 150].map(t => ({ x: x + h.x*t, y: y + h.y*t }));
   return (grid._ferrisMon = { anchor: a, x, y, h, s: sv, posts });
 }
+/* THE BRONZE (the Ferris Taylor monument's cast palette, shared: the memorial's flame bowl, seal and finials are the
+   same metal -- one kit, FERRIS_BRONZE) */
+const FERRIS_BRONZE = { face: 0x8f6e40, top: 0xa3804c, side: 0x6b5130, under: 0x4f3b22, line: 0x3f2f1b };
+const _bronzeCss = n => '#' + ((1 << 24) + n).toString(16).slice(1);
+/* ==================== THE VETERANS MEMORIAL (the Flats build order, area 4, "Veterans Park heart"; 2026-11-01) ====================
+   Veterans Memorial Park had seventeen cells of trail and lawn and no memorial. Its heart is cell 5,5, the trail's
+   four-way crossing (arms to 4,5, 5,4, 6,5 and 5,6), and the hub's chip disc becomes a paved granite circle:
+     THE NAME WALL     a curved wall of black granite on the plaza's far (north-west) side, its face to the plaza and the
+                       eye, rows of engraved names as fine lines, a bronze seal in its middle; five runs (each <= 150),
+                       its two real ends capped; uplights at its foot (the lamp kit)
+     THE ETERNAL FLAME in the middle of the crossing, on a granite drum: a bronze bowl and its flame (live), the trail's
+                       runs going round it
+     THREE FLAGS       on the plaza's north-east side in an arc: the national flag in the middle and tallest, the
+                       state's and Costa Palma's either side (the poles cached, the cloths live)
+     TWO BENCHES       facing the wall (the city's bench kit); Walt's is the one by the wall's west end
+     THE BANDSTAND     an octagonal bandstand on the lawn in the south-west quadrant, steps up on its plaza side, a green
+                       roof and cupola; its deck and far posts, and its near posts and roof, two pieces either side of the
+                       people on it
+   Frame: a = world x - the hub's x, b = world y - the hub's y (b south), z world: one plan read by the draw (LIB
+   'Veterans Memorial', queueVetMemorial), the collision (its pieces' solids, owBuildWorld), the ground (the plaza in
+   fillParkTrail), the planting (vetTrailOf keeps its trees and shrubs off it: vmReserved) and the people. */
+const VET_MEMORIAL = { cell: '5,5', name: 'Veterans Memorial', R: 600,
+  wall: { ri: 505, ro: 535, t0: 200, t1: 250, runs: 5, h: 110 },
+  flame: { r: 56, h: 40 },
+  /* the flags in a row across the eye (along the north-east radius: one screen line), the national one in the middle */
+  flags: [{ r: 380, h: 520, kind: 'state' }, { r: 470, h: 600, kind: 'nation' }, { r: 560, h: 520, kind: 'city' }], flagAng: 315,
+  benches: [{ at: [-360, -140], dv: 2 }, { at: [-140, -360], dv: 1 }],     // (dv: DIRV index -- -x faces north, +y faces west)
+  band: { at: [-640, 640], R: 190, deck: 40, eave: 330, apex: 470 },
+  plate: { ang: 236, z0: 40, z1: 58, w: 34 },                              // the brass plate Walt sets (SUNSET SALUTE)
+  /* the people's places (a, b): the caretaker's posts (by the national pole, by the flame), the wall's look spots */
+  care: [[350, -282, -1.92], [64, -64, 3*Math.PI/4]],
+  looks: [[-377, -254], [-322, -322], [-254, -377]],
+  bay: [-170, -40],                                                         // Tipsey's bay by Walt's bench (R2)
+  seat: [-360, -172]                                                        // where Walt sits on his bench (facing north, the wall)
+};
+/* the hub in the world, once per grid (null where the park is not there) */
+function vmOf(grid){
+  if(!grid || !grid.blockByIJ) return null;
+  if(grid._vm !== undefined) return grid._vm;
+  const M = grid.blockByIJ, b = M.get(VET_MEMORIAL.cell), pk = k => { const q = M.get(k); return q && q.type === "park"; };
+  if(!b || b.type !== "park" || !['4,5', '6,5', '5,4', '5,6'].every(pk)) return (grid._vm = null);
+  return (grid._vm = { x: b.cx, y: b.cy, blk: b });
+}
+/* the memorial's own ground: no tree or shrub of the trail's on the plaza or the bandstand's lawn */
+function vmReserved(grid, x, y, r){
+  const C = vmOf(grid);
+  if(!C) return false;
+  const V = VET_MEMORIAL, B = V.band;
+  return Math.hypot(x - C.x, y - C.y) < V.R + 70 + r || Math.hypot(x - C.x - B.at[0], y - C.y - B.at[1]) < B.R + 110 + r;
+}
+/* a point of the memorial's frame in the world */
+function vmW(a, b){ const s = (typeof scn === "function") ? scn() : null, C = s && s.route && vmOf(s.route.grid); return C ? { x: C.x + a, y: C.y + b } : null; }
+/* the wall's inner face at angle t (degrees), r out from the hub */
+function vmPolar(t, r){ const a = t*Math.PI/180; return [Math.cos(a)*r, Math.sin(a)*r]; }
+/* the three flags: where each pole stands, its height, and how far up its cloth is now (1 at the top; the national
+   flag comes down at the salute: SUNSET SALUTE) */
+function vmPoles(){
+  const V = VET_MEMORIAL;
+  return V.flags.map((f, i) => { const [a, b] = vmPolar(V.flagAng, f.r); return { a, b, h: f.h, kind: f.kind, i }; });
+}
+/* CONCERT NIGHTS (the community band in the bandstand): Fridays and Saturdays, 6 to 9 in the evening, on the device's
+   day and NIGHT_CLOCK's hour; latched while the bandstand is off the screen (vmLatch), so nobody pops */
+const VM_CONCERT = { days: [5, 6], from: 18, to: 21 };
+function vmConcertNow(){ const d = new Date().getDay(), h = walkinClockHour(); return VM_CONCERT.days.includes(d) && h >= VM_CONCERT.from && h < VM_CONCERT.to; }
+/* WHO IS ABOUT (latched while unseen, as the harbor's open: the world changes only while nobody sees it -- R13):
+   Walt on his bench every day, 8 to 9 at night; the caretaker 7 to 9; the visitors 8 to 8; the band on concert nights */
+const VM_LIFE = { walt: null, care: null, vis: null, band: null, t: 0, waveT: -1e9, waveNear: false, flagK: 1, visW: null };
+function vmLatch(scene){
+  const now = scene.time.now;
+  if(now - VM_LIFE.t < 400) return;
+  VM_LIFE.t = now;
+  const g = scene.route && scene.route.grid, C = g && vmOf(g);
+  if(!C) return;
+  const h = walkinClockHour(), seen = (a, b, r) => scene.visWorldPt(C.x + a, C.y + b, r, r);
+  const plaza = seen(0, -100, 900), band = seen(VET_MEMORIAL.band.at[0], VET_MEMORIAL.band.at[1], 600);
+  const busy = typeof SS !== 'undefined' && SS.stage !== 'idle';
+  const want = { walt: (h >= 8 && h < 21) || busy, care: (h >= 7 && h < 21) || busy, vis: h >= 8 && h < 20 && !busy, band: vmConcertNow() };
+  for(const k of ['walt', 'care', 'vis']) if(VM_LIFE[k] === null || (VM_LIFE[k] !== want[k] && (!plaza || (busy && want[k])))) VM_LIFE[k] = want[k];
+  if(VM_LIFE.band === null || (VM_LIFE.band !== want.band && !band)) VM_LIFE.band = want.band;
+  if(VM_LIFE.flagK < 1 && !plaza && (!busy || SS.stage === 'idle')) VM_LIFE.flagK = 1;    // (the flag back up for the morning, unseen)
+}
 /* VETERANS MEMORIAL PARK'S TRAIL (Sir, 2026-09-29, on the map: "lets
    rename this 'veterans Memorial Park' and put a wood chip running path
    were ive drawn the line in the center of it. i want it to be heavily
@@ -15242,6 +15369,7 @@ function vetTrailOf(grid){
   const put = (p, gap) => {
     const o = off(p.x, p.y);
     if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r)) return false;
+    if(vmReserved(grid, p.x, p.y, p.r)) return false;                    // (the Veterans Memorial's plaza and bandstand: VET_MEMORIAL)
     plants.push(p); return true;
   };
   const SHRUB = [0x4f7f45, 0x5d8f4c, 0x46743f, 0x6a9a52], BLOOM = [0xf2f0e6, 0xe86a8a, 0xf2c14e, 0xb07ad8, 0xe8743c];
@@ -17527,6 +17655,7 @@ function shopDoorWalkers(now){
   const g = annivBusy() ? annivGiverAt(now) : null;
   if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
   if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
+  if(typeof SS !== "undefined") for(const w of ssDoorWalkers(now)) out.push(w);   // (the Marina Office's, Cove Locksmith's, Tidewater & Co.'s: SUNSET SALUTE)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -29816,7 +29945,8 @@ const HOSP_GIFTS = (() => {
 const KEY_ITEMS = [
   { id: 'galapass', name: 'Gala Pass', icon: 'galapass', key: true, where: 'Seabreeze Ballroom · from Margot, the wedding planner' },
   { id: 'brasskey', name: 'Brass key to the light', icon: 'brasskey', key: true, where: 'The breakwater light · from Ines, the keeper' },
-  { id: 'bib4', name: "Number 4's race bib", icon: 'bib4', key: true, where: "Tidewater Green · from number 4, after his kart's first run" }
+  { id: 'bib4', name: "Number 4's race bib", icon: 'bib4', key: true, where: "Tidewater Green · from number 4, after his kart's first run" },
+  { id: 'coin', name: "Walt's challenge coin", icon: 'coin', key: true, where: "The Veterans Memorial · from Walt, after the sunset salute" }
 ];
 /* each errand's thanks (HOSP_ERRAND): a gift as the gift rooms' are -- no floor, so never lying about to be found */
 const HOSP_ERRAND_GIFTS = Object.keys(HOSP_ERRANDS).map(id => { const E = HOSP_ERRANDS[id], K = GIFT_KINDS[E.gift];
@@ -30865,7 +30995,10 @@ const MISSION_WINDOWS = {
   night: { from: 19, to: 5, say: 'after dark' },
   /* while the shops it goes to are open, with time to finish before they shut (Number 4 Builds a Winner: the Kart
      Works and Palmline Nursery 8 to 6, Dune Home & Garden 9 to 7 -- TP_PLACE_COPY) */
-  shops: { from: 9, to: 16, say: 'in shop hours' }
+  shops: { from: 9, to: 16, say: 'in shop hours' },
+  /* THE REAL DUSK: the sky's own fade (NIGHT_CLOCK: from - fade/2 to from + fade/2, 18:30 to 19:30) -- Sunset Salute, and
+     the Surf School next. Started, a story keeps it (its sky held: NIGHT_HOLD) */
+  dusk: { from: NIGHT_CLOCK.from - NIGHT_CLOCK.fade/2, to: NIGHT_CLOCK.from + NIGHT_CLOCK.fade/2, say: 'comes at dusk' }
 };
 function missionHour(){ return walkinClockHour(); }
 function missionInWindow(w){
@@ -30957,6 +31090,18 @@ const MISSIONS = {
                    mech2: 'The mechanic', build: 'The build', built: 'The mechanic', ramp: "Up the derby's ramp to number 4", ready: 'Number 4, in his new kart',
                    count: 'The test run', run: 'The test run', thanks: 'Number 4' })[KW.stage] || "Number 4, by the derby's course on Tidewater Green",
     start: () => { const B = kwKidBay(); return B && { x: B.x, y: B.y, name: 'Tidewater Green' }; } },
+  /* SUNSET SALUTE (THE VETERANS MEMORIAL): Walt's friend's name back on the wall, at sundown */
+  'sunset-salute': { name: 'Sunset Salute', giver: 'Walt, at the Veterans Memorial', window: 'dusk', places: ['the Veterans Memorial', 'Marina Office', 'Cove Locksmith', 'Tidewater & Co.'],
+    steps: ["Walt, on his bench by the memorial's wall", "The 1952 roll from the Marina Office", "Cove Locksmith cuts Eddie's name in brass", "A wreath from Tidewater & Co.", "Back to Walt: the salute at sundown"],
+    reward: { item: 'coin', fleet: 'avshuttle' },
+    busy: () => SS.stage !== 'idle',
+    item: () => ['lock', 'lockMeet', 'engrave'].includes(SS.stage) ? { id: 'roll', name: '1952 roll', tip: 'crewReturns' }
+              : SS.stage === 'store' || SS.stage === 'storeMeet' ? { id: 'plate', name: 'roll and brass plate', tip: 'crewReturns' }
+              : SS.stage === 'back' || SS.stage === 'home' ? { id: 'wreath', name: 'roll, plate and wreath', tip: 'crewReturns' } : null,
+    next: () => ({ ask: 'Hear Walt out', office: 'The Marina Office: the 1952 roll', officeMeet: 'The Marina Office has it', lock: 'Cove Locksmith: the brass plate', lockMeet: 'The locksmith',
+                   engrave: 'The locksmith is cutting it', store: "Tidewater & Co.'s flower counter: a wreath", storeMeet: 'The wreath', back: 'Back to Walt at the Veterans Memorial',
+                   home: 'Walt', salute: 'The salute', thanks: 'Walt' })[SS.stage] || "Walt, on his bench at the Veterans Memorial (at dusk)",
+    start: () => { const B = ssCorner(); return B && { x: B.x, y: B.y, name: 'Veterans Memorial Park' }; } },   // (the GPS to the park's corner, the beacon over the lawn: ssNavTo)
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -30965,6 +31110,9 @@ const MISSIONS = {
     next: () => ({ garage: 'The Flats Charging 4: the trophy off the wall', shop: 'Seabreeze Trophies', engrave: 'The engraver is at it', engraved: 'Back to the judge', deliver: 'Back to the judge' })[FOURTH.stage] || "The judges' tent at the derby",
     start: () => null }
 };
+/* A PLACE KEPT OPEN LATE FOR A STORY (its place card says so: R4, every place a story uses is open then) -- Sunset
+   Salute's shops stay open for Walt; the line, or null */
+function missionLatePlace(name){ return typeof ssLate === "function" && ssLate(name) ? "Open late tonight, for Walt" : null; }
 /* another story under way (R3): every start asks this first */
 function missionBusy(except){
   for(const id in MISSIONS) if(id !== except){ try { if(MISSIONS[id].busy()) return id; } catch(e){} }
@@ -31024,7 +31172,7 @@ function storiesHidden(except){
 /* no dog can be taken on during a story (one dog at a time is LOST's own: it holds one) */
 function dogsLocked(){ return !!storyFocus(); }
 /* the stories' own GPS legs (cakeNav, annivNav, gothNav, tixNav, fourthNav, hospNav, the lost dog's) */
-const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart']);
+const FOCUS_NAV_IDS = new Set(['heart', 'cake', 'anniv', 'goth', 'tix', 'fourth', 'lostdog', 'lighthouse', 'fishmkt', 'getaway', 'kart', 'salute']);
 /* a way to take a delivery, tried while focused: refused, said once a moment */
 function deliveryRefused(){
   const F = storyFocus();
@@ -47797,6 +47945,166 @@ function houseCanopy(fn){
       }});
       const [ba, bb] = KW_YARD.bin;
       items.push({ a: ba, b: bb, z: 0, solids: [{ name: 'bin', c: [ba, bb], r: 16, h: 50 }], draw: () => { cyl(ba, bb, 0, 46, 15, '#2c6a4f', '#24553f'); cyl(ba, bb, 46, 50, 16, '#1f4d39'); } }); }
+    depthSort(items);
+  }
+  },
+
+{
+  /* THE VETERANS MEMORIAL (VET_MEMORIAL: the Flats build order, area 4), in the hub's frame: a east, b south, world
+     units, z world. Each piece is a still one through the building cache at its own depth (queueVetMemorial ->
+     queueFramePieces), solid as drawn; only the three flags' cloths and the flame are live (the scene's). The plaza is
+     ground (fillParkTrail); the benches are the city's own bench (the scene's, cached). */
+  name:'Veterans Memorial', xh: 470, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1400, dd: 1400,
+  head:'A curved granite name wall, three flags, an eternal flame, benches and an octagonal bandstand',
+  tags:['memorial','name wall','eternal flame','flagpoles','bandstand'],
+  desc:'The heart of Veterans Memorial Park: a paved granite circle where the trail crosses, a curved wall of black granite engraved with the names of the city\'s fallen, an eternal flame in a bronze bowl, three flags, benches facing the wall and an octagonal bandstand on the lawn.',
+  /* AT NIGHT (the lamp kit): uplights along the wall's foot, the flame's own glow, a lamp on each flag, the bandstand's */
+  lamps: () => { const V = VET_MEMORIAL, L = [];
+    for(const t of [208, 220, 232, 244]){ const [a, b] = vmPolar(t, V.wall.ri - 26); L.push({ a, b, z: 26, r: 120, col: 0xffe6b8 }); }
+    L.push({ a: 0, b: 0, z: 74, r: 190, col: 0xffa040, d: 3 });
+    for(const p of vmPoles()) L.push({ a: p.a - 22, b: p.b + 22, z: 14, r: 80, col: 0xfff0cc });
+    const B = V.band; L.push({ a: B.at[0], b: B.at[1], z: B.eave - 20, r: 230, col: 0xffe2a8 });
+    return L; },
+  draw(p){
+    const V = VET_MEMORIAL, W0 = V.wall, items = [], rad = Math.PI/180;
+    const GRAN = '#34363b', GRANL = '#3f4247', GRAND = '#2a2c30', COPE = '#8f8b83', COPEL = '#a6a29a', COPED = '#76726b';
+    const BR = _bronzeCss(FERRIS_BRONZE.face), BRT = _bronzeCss(FERRIS_BRONZE.top), BRS = _bronzeCss(FERRIS_BRONZE.side), BRL = _bronzeCss(FERRIS_BRONZE.line);
+    const pt = (t, r, z) => P(Math.cos(t*rad)*r, Math.sin(t*rad)*r, z);
+    const lw = w => Math.max(0.5, w*K);
+    /* ---- THE NAME WALL: five runs along its arc (each <= 150), the inner face the plaza and the eye see, its coping, the
+       names in rows of fine lines (seeded per run, so they never change), the bronze seal in the middle; only the
+       arc's two real ends capped ---- */
+    const N = W0.runs, dt = (W0.t1 - W0.t0)/N, H = W0.h;
+    for(let k = 0; k < N; k++){
+      const t0 = W0.t0 + dt*k, t1 = t0 + dt, tm = (t0 + t1)/2, [ma, mb] = vmPolar(tm, (W0.ri + W0.ro)/2);
+      const arc = (r, n) => Array.from({ length: n + 1 }, (_, i) => vmPolar(t0 + (t1 - t0)*i/n, r));
+      const sector = arc(W0.ri, 6).concat(arc(W0.ro, 6).reverse());
+      items.push({ a: ma, b: mb, z: 0, solids: [{ name: 'name wall', poly: sector, h: H + 6 }], draw: () => {
+        const S = 6, st = (t1 - t0)/S, rng = mulberry32(0x7e11 + k*977);
+        for(let i = 0; i < S; i++){
+          const a0 = t0 + st*i, a1 = a0 + st + (i < S - 1 || k < N - 1 ? 0.15 : 0);
+          poly([pt(a0, W0.ri, H), pt(a1, W0.ri, H), pt(a1, W0.ri, 0), pt(a0, W0.ri, 0)], i % 2 ? GRAN : GRANL);
+          poly([pt(a0, W0.ri, 10), pt(a1, W0.ri, 10), pt(a1, W0.ri, 0), pt(a0, W0.ri, 0)], GRAND);        // the base course
+          /* the names: rows of short engraved lines, a gap between each name */
+          for(let z = 22; z <= H - 14; z += 7.5){
+            let u = 0.06 + rng()*0.1;
+            while(u < 0.94){ const len = 0.12 + rng()*0.22, u1 = Math.min(0.94, u + len);
+              poly([pt(a0 + (a1 - a0)*u, W0.ri - 0.4, z), pt(a0 + (a1 - a0)*u1, W0.ri - 0.4, z)], null, '#b9b8b0', lw(0.55));
+              u = u1 + 0.05 + rng()*0.08; }
+          }
+        }
+        if(k === 0) poly([pt(t0, W0.ri, H), pt(t0, W0.ro, H), pt(t0, W0.ro, 0), pt(t0, W0.ri, 0)], GRAND);   // its west end
+        if(k === N - 1) poly([pt(t1, W0.ri, H), pt(t1, W0.ro, H), pt(t1, W0.ro, 0), pt(t1, W0.ri, 0)], GRAND); // its east end
+        /* the coping: a granite cap, a hair proud of the face */
+        const ca = arc(W0.ri - 4, 6), cb = arc(W0.ro + 4, 6);
+        poly(ca.map(q => P(q[0], q[1], H + 6)).concat(cb.slice().reverse().map(q => P(q[0], q[1], H + 6))), COPEL);
+        poly(ca.map(q => P(q[0], q[1], H + 6)).concat(ca.slice().reverse().map(q => P(q[0], q[1], H))), COPE);
+        if(k === 0) poly([pt(t0, W0.ri - 4, H + 6), pt(t0, W0.ro + 4, H + 6), pt(t0, W0.ro + 4, H), pt(t0, W0.ri - 4, H)], COPED);
+        if(k === N - 1) poly([pt(t1, W0.ri - 4, H + 6), pt(t1, W0.ro + 4, H + 6), pt(t1, W0.ro + 4, H), pt(t1, W0.ri - 4, H)], COPED);
+        /* the uplights at its foot: small bronze cans on the paving */
+        for(const tl of [208, 220, 232, 244]) if(tl >= t0 && tl < t1){ const [la, lb] = vmPolar(tl, W0.ri - 22); cyl(la, lb, 0, 3, 6, '#4a4d52', '#2a2c30'); }
+        /* THE SEAL (the bronze kit's cast palette), in the middle of the wall, over a band left clear of names */
+        if(225 > t0 && 225 <= t1){
+          const r0 = W0.ri - 0.8, sp = 3.4;
+          poly([pt(225 - sp, r0, 104), pt(225 + sp, r0, 104), pt(225 + sp, r0, 64), pt(225 - sp, r0, 64)], GRAN);
+          const ring = (rr, zc, col, line) => { const pts = []; for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; pts.push(pt(225 + Math.cos(th)*rr/W0.ri/rad, r0 - 0.4, zc + Math.sin(th)*rr)); }
+            poly(pts, col, line, lw(0.8)); };
+          ring(17, 84, BR, BRL); ring(12, 84, BRT, null); ring(5, 84, BRS, null);
+        }
+      }});
+    }
+    /* THE BRASS PLATE (SUNSET SALUTE): Walt's friend's name, set on the wall at the salute -- there for good after */
+    { const PL = V.plate, half = PL.w/2/W0.ri/rad, [pa, pb] = vmPolar(PL.ang, W0.ri - 3);
+      items.push({ a: pa, b: pb, z: 0, dk: pa + pb + 40, when: () => typeof ssPlateOn === 'function' && ssPlateOn(), draw: () => {
+        const r0 = W0.ri - 1.2;
+        poly([pt(PL.ang - half, r0, PL.z1), pt(PL.ang + half, r0, PL.z1), pt(PL.ang + half, r0, PL.z0), pt(PL.ang - half, r0, PL.z0)], '#d9b04a', '#8a6a24', lw(0.8));
+        for(const z of [52, 47]) poly([pt(PL.ang - half*0.7, r0 - 0.4, z), pt(PL.ang + half*(z > 50 ? 0.7 : 0.45), r0 - 0.4, z)], null, '#6a4e1a', lw(0.7));
+      }}); }
+    /* THE WREATH Walt lays at the wall's foot (SUNSET SALUTE): a ring of green on a little easel, a red bow */
+    { const [wa, wb] = vmPolar(V.plate.ang + 4, W0.ri - 26);
+      items.push({ a: wa, b: wb, z: 0, when: () => typeof ssWreathOn === 'function' && ssWreathOn(), solids: [{ name: 'wreath', c: [wa, wb], r: 14, h: 46 }], draw: () => {
+        tube(wa - 6, wb - 6, 0, wa + 3, wb + 3, 40, 1.2, '#6b4a2a'); tube(wa + 6, wb - 2, 0, wa, wb + 2, 40, 1.2, '#6b4a2a');
+        const ring = (rr, col) => { const pts = []; for(let i = 0; i < 18; i++){ const th = i/18*Math.PI*2; pts.push(P(wa + 2 + Math.cos(th)*rr*0.7, wb + 2 - Math.cos(th)*rr*0.7, 30 + Math.sin(th)*rr)); } poly(pts, col); };
+        ring(16, '#2f5a2e'); ring(13, '#3f7a3c'); ring(7, null);
+        ball(wa + 2, wb + 2, 30, 6.5, '#3f7a3c', '#5a9a50');
+        ball(wa + 3, wb + 3, 17, 3.4, '#c8262c', '#e8464a');
+      }}); }
+    /* ---- THE ETERNAL FLAME's drum and bowl: granite, a bronze band, the bowl (its flame is live: the scene's) ---- */
+    { const F0 = V.flame;
+      items.push({ a: 0, b: 0, z: 0, solids: [{ name: 'eternal flame', c: [0, 0], r: F0.r + 4, h: 80 }], draw: () => {
+        cyl(0, 0, 0, 6, F0.r + 8, '#8f8b83', '#a6a29a');                     // its step
+        cyl(0, 0, 6, F0.h, F0.r, GRANL, '#4a4d52');                          // the drum
+        cyl(0, 0, F0.h - 7, F0.h - 3, F0.r + 0.5, BRS, BR);                 // a bronze band round its top
+        cyl(0, 0, F0.h, F0.h + 6, 30, BRS, BR);                              // the bowl's foot
+        cyl(0, 0, F0.h + 6, F0.h + 20, 42, BR, '#2a1a10');                   // the bowl, its dark mouth
+        plateCircle(0, 0, F0.h + 20.2, 34, '#3a2414', BRL, lw(0.8));
+      }}); }
+    /* ---- THE THREE FLAGPOLES: a granite collar, the pole, its gilt ball and the halyard to its cleat (the cloth is live) ---- */
+    for(const q of vmPoles()){
+      items.push({ a: q.a, b: q.b, z: 0, solids: [{ name: 'flagpole', c: [q.a, q.b], r: 18, h: q.h }], draw: () => {
+        cyl(q.a, q.b, 0, 12, 18, '#8f8b83', '#a6a29a');
+        tube(q.a, q.b, 12, q.a, q.b, q.h, 3.6, '#d9dcdf');
+        ball(q.a, q.b, q.h + 6, 6, '#c9a24a', '#f0d27a');
+        tube(q.a + 3, q.b, 96, q.a + 3, q.b, q.h, 0.5, '#f4f2ec');            // the halyard
+        tube(q.a + 4, q.b, 92, q.a + 4, q.b, 100, 1.2, '#7a7d80');           // its cleat
+      }});
+    }
+    /* ---- THE BENCHES: the city's bench kit draws them (the scene, cached); their solids here ---- */
+    for(const B of V.benches){
+      const dv = DIRV[B.dv], rv = DIRV[(B.dv + 1) % 4], hw = BENCH_ART.w/2, D = BENCH_ART.depth, [x, y] = B.at;
+      const c = [[-hw, 0], [hw, 0], [hw, D], [-hw, D]].map(([u, v]) => [x + dv.x*u + rv.x*v, y + dv.y*u + rv.y*v]);
+      items.push({ a: x, b: y, z: 0, ghost: true, solids: [{ name: 'bench', poly: c, h: 48 }], draw: () => {} });   // (drawn by the scene: queueVetMemorial)
+    }
+    /* ---- THE BANDSTAND: an octagon on the lawn, a deck 40 up behind a white lattice skirt, steps up on its plaza side
+       (the north-east face), eight white posts, a rail round the rest, a green roof and its cupola. Two pieces: the
+       deck, its far posts and rail (before anyone on it); its near posts and rail, the roof (after) ---- */
+    { const B = V.band, [ca, cb] = B.at, R = B.R, Z = B.deck;
+      const vx = i => ca + Math.cos((22.5 + 45*i)*rad)*R, vy = i => cb + Math.sin((22.5 + 45*i)*rad)*R;
+      const oct = Array.from({ length: 8 }, (_, i) => [vx(i), vy(i)]), STEP = 6;           // (face 6, vertices 6..7: the north-east, to the plaza)
+      const postAt = i => [ca + Math.cos((22.5 + 45*i)*rad)*(R - 8), cb + Math.sin((22.5 + 45*i)*rad)*(R - 8)];
+      const n = { x: Math.cos(315*rad), y: Math.sin(315*rad) }, u = { x: Math.cos(45*rad), y: Math.sin(45*rad) };
+      const sm = [ca + n.x*R*Math.cos(22.5*rad), cb + n.y*R*Math.cos(22.5*rad)], SW = 62;   // the middle of the steps' face, the steps' half-width
+      const q = (d, s) => [sm[0] + n.x*d + u.x*s, sm[1] + n.y*d + u.y*s];
+      const rail = i => { if(i === STEP) return; const [p0a, p0b] = postAt(i), [p1a, p1b] = postAt((i + 1) % 8);
+        tube(p0a, p0b, Z + 36, p1a, p1b, Z + 36, 2.2, '#f4f2ec');
+        for(let k = 1; k < 6; k++){ const t = k/6, a = p0a + (p1a - p0a)*t, b = p0b + (p1b - p0b)*t; tube(a, b, Z, a, b, Z + 36, 1.1, '#e8e5dc'); } };
+      const post = i => { const [pa, pb] = postAt(i); tube(pa, pb, Z, pa, pb, B.eave, 4.2, '#f4f2ec'); };
+      const faceNear = i => { const m = 45*(i + 1)*rad; return Math.cos(m) + Math.sin(m) > 0.01; };
+      items.push({ a: ca, b: cb, z: 0, dk: ca + cb - 160, solids: [{ name: 'bandstand', poly: oct, h: B.apex }, { name: 'bandstand steps', poly: [q(0, -SW), q(0, SW), q(92, SW), q(92, -SW)], h: 30 }], draw: () => {
+        /* the skirt on the faces toward the eye: white boards over a lattice */
+        for(let i = 0; i < 8; i++){ if(!faceNear(i)) continue; const j = (i + 1) % 8;
+          poly([P(vx(i), vy(i), Z), P(vx(j), vy(j), Z), P(vx(j), vy(j), 0), P(vx(i), vy(i), 0)], '#e9e6de');
+          for(let k = 1; k < 8; k++){ const t = k/8, ax = vx(i) + (vx(j) - vx(i))*t, ay = vy(i) + (vy(j) - vy(i))*t, bx = vx(i) + (vx(j) - vx(i))*(t - 0.07), by = vy(i) + (vy(j) - vy(i))*(t - 0.07);
+            poly([P(ax, ay, Z - 7), P(bx, by, 5)], null, '#a29e94', lw(0.8)); poly([P(bx, by, Z - 7), P(ax, ay, 5)], null, '#a29e94', lw(0.8)); }
+          poly([P(vx(i), vy(i), Z), P(vx(j), vy(j), Z), P(vx(j), vy(j), Z - 6), P(vx(i), vy(i), Z - 6)], '#f6f4ee'); }
+        poly(oct.map(p => P(p[0], p[1], Z)), '#c9a77a');                                         // the deck
+        for(let k = -5; k <= 5; k++){ const o = k*R/6, L = Math.sqrt(Math.max(0, R*R*0.84 - o*o));
+          poly([P(ca + u.x*o + n.x*L, cb + u.y*o + n.y*L, Z + 0.2), P(ca + u.x*o - n.x*L, cb + u.y*o - n.y*L, Z + 0.2)], null, '#a8875c', lw(0.6)); }
+        /* the steps: three treads down to the lawn, their side to the eye */
+        for(let k = 0; k < 3; k++){ const d0 = 30*k, d1 = 30*(k + 1), zt = Z - 10*(k + 1);
+          poly([q(d0, -SW), q(d0, SW), q(d1, SW), q(d1, -SW)].map(p => P(p[0], p[1], zt)), '#d8d4ca');
+          poly([q(d0, SW), q(d1, SW), q(d1, SW), q(d0, SW)].map((p, m) => P(p[0], p[1], m < 2 ? zt : 0)), '#bdb8ac'); }
+        for(const i of [3, 4, 5, 6]) post(i);
+        for(const i of [2, 3, 4, 5]) rail(i);
+      }});
+      items.push({ a: ca, b: cb, z: 0, dk: ca + cb + 300, draw: () => {
+        for(const i of [7, 0, 1]) rail(i);
+        for(const i of [7, 0, 1, 2]) post(i);
+        /* the roof: eight faces up to the cupola, far first; the fascia toward the eye; the cupola and its ball */
+        const RO = R + 26, ex = i => ca + Math.cos((22.5 + 45*i)*rad)*RO, ey = i => cb + Math.sin((22.5 + 45*i)*rad)*RO, AZ = B.apex - 40;
+        const faces = Array.from({ length: 8 }, (_, i) => { const m = 45*(i + 1)*rad; return { i, s: Math.cos(m) + Math.sin(m) }; }).sort((p1, p2) => p1.s - p2.s);
+        for(const f of faces){ const i = f.i, j = (i + 1) % 8;
+          poly([P(ex(i), ey(i), B.eave + 14), P(ex(j), ey(j), B.eave + 14), P(ca, cb, AZ)], f.s > 0.5 ? '#4b7a5a' : f.s > -0.5 ? '#3f6b4f' : '#355c43', '#2c4a37', lw(0.6)); }
+        for(let i = 0; i < 8; i++){ if(!faceNear(i)) continue; const j = (i + 1) % 8;
+          poly([P(ex(i), ey(i), B.eave + 14), P(ex(j), ey(j), B.eave + 14), P(ex(j), ey(j), B.eave), P(ex(i), ey(i), B.eave)], '#f4f2ec'); }
+        cyl(ca, cb, AZ - 4, AZ + 26, 22, '#f4f2ec', '#3f6b4f');
+        poly([P(ca - 28, cb, AZ + 26), P(ca, cb - 28, AZ + 26), P(ca + 28, cb, AZ + 26), P(ca, cb + 28, AZ + 26)], '#355c43');
+        poly([P(ca, cb + 28, AZ + 26), P(ca + 28, cb, AZ + 26), P(ca, cb, AZ + 52)], '#4b7a5a');
+        poly([P(ca - 28, cb, AZ + 26), P(ca, cb + 28, AZ + 26), P(ca, cb, AZ + 52)], '#3f6b4f');
+        ball(ca, cb, AZ + 58, 6, '#c9a24a', '#f0d27a');
+      }});
+    }
     depthSort(items);
   }
   },
@@ -77444,6 +77752,599 @@ CITY_PEOPLE.add({ name: 'Number 4 Builds a Winner', where: "Tidewater Green, by 
     const p = kwKidAt(scene.time.now);
     if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'number 4', look: partyLook(KW_RUN.look, 'kid') }));
   } });
+/* ==================== THE VETERANS MEMORIAL'S PEOPLE, AND SUNSET SALUTE (the Flats build order, area 4) ====================
+   THE PEOPLE (VET_MEMORIAL, VM_LIFE: each about by the clock, latched while the plaza is unseen -- R13):
+     Walt      91, a Navy veteran of '52, on his bench by the wall's west end every day (seated, facing the wall: the
+               seated pose); after his story he waves whenever Tipsey passes
+     caretaker the memorial's caretaker, at his post by the national flag and stepping over to tend the flame now and
+               then (W16 'post')
+     visitors  two pairs browsing (W16 looks): one along the wall's look spots, one between the flags and the flame,
+               dwelling 4-12 s, pointing, turned to each other as they talk
+     the band  the Costa Palma Community Band in the bandstand on concert nights (VM_CONCERT: Fridays and Saturdays, 6 to
+               9), on the near half of its deck (the eave is set so they show under it)
+   SUNSET SALUTE (MISSIONS 'sunset-salute', window 'dusk': only offered in the real dusk fade, 18:30 to 19:30 by the
+   device clock or NIGHT_CLOCK.time; once started the sky keeps its dusk to the end -- NIGHT_HOLD -- and the bugle waits
+   on the story's own clock, not the sky). Walt's best friend's name, Eddie Navarro, was left off when the wall was recut.
+     ask       Tipsey stops on the bay by Walt's bench; Walt gets up off it (the seated pose easing to standing), steps
+               round its end and tells him face to face (Accept / Not now); he sits back down
+     office    the Marina Office (4,7, the harbour's records): its clerk out of the door to a post on the pavement, the
+               1952 roll in hand
+     lock      Cove Locksmith next door: the locksmith reads the name, goes back in to cut it (SS_RUN.engraveMs, the
+               engraver heard), and comes out again with the brass plate
+     store     Tidewater & Co. round the corner, its flower counter: a small wreath. The autonomous shuttle sets off
+               now with Walt's old crew and the bugler; they get out at the corner and walk up to the plaza
+     back      back to the bay by Walt's bench; Walt takes the plate and the wreath face to face (For Eddie.)
+     salute    the story's own clock: Walt sets the plate on the wall and lays the wreath; the bugler plays Taps on the
+               bandstand (sfxTaps) while the caretaker lowers the national flag and everyone salutes
+     thanks    Walt back to him face to face: his challenge coin (KEY_ITEMS 'coin'); the shuttle joins the fleet
+   The shops are the Flats' own, the nearest of each kind (the Seabreeze Library, Trophies and Florist were 34k-38k of
+   road away): every handover face to face, each clerk out of a door that opens to a camera-facing post (kwPostAt's
+   pattern). They stay open late for Walt (missionLatePlace: the place card says so). What it gives is the server's
+   (missionComplete: 'sunset-salute' in TS_MISSIONS; the coin rebuilt from the record, ssCoinMigrate; the shuttle is
+   FLEET's unlock). Nothing of a run is saved: a reload starts it again at Walt's bench. Carried (R5): the roll, then the
+   plate, then the wreath -- crewReturns. */
+const SS_RUN = {
+  friend: 'Eddie Navarro',
+  seeds: { walt: 0x7a1b, care: 0x7a12, office: 0x7a61, lock: 0x7a62, store: 0x7a63, bugler: 0x7a40 },
+  vis: [[0x7a21, 0x7a22], [0x7a23, 0x7a24]],
+  band: [{ o: [-30, 70], hold: 'trumpet', seed: 0x7a31 }, { o: [40, 30], hold: 'trombone', seed: 0x7a32 }, { o: [90, -30], hold: 'clarinet', seed: 0x7a33 }, { o: [70, 100], hold: 'snare', seed: 0x7a34 }],
+  pals: [{ seed: 0x7a51, at: [-320, 260] }, { seed: 0x7a52, at: [-250, 190] }, { seed: 0x7a53, at: [-180, 120] }],   // (a row across the eye: x + y the same)
+  shops: { office: 'Marina Office', lock: 'Cove Locksmith', store: 'Tidewater & Co.' },
+  wallSpot: [-262, -386, -2.16],                     // where Walt stands to set the plate (facing the wall)
+  bugSpot: [-540, 540],                              // the bugler's place on the deck, by the steps
+  engraveMs: 7000, riseMs: 900,
+  /* THE SHUTTLE (the fleet's autonomous shuttle, AV_PODS 'avshuttle'): up the street from the south to the corner
+     past the park's south-west, a stop, then off west (hub frame: the corner's road is 1564 out, its lanes 184) */
+  shut: { from: [-1380, 5600], stop: [-1380, 1700], out: [[-1380, 1700], [-1380, 1480], [-1480, 1380], [-1700, 1380], [-6400, 1380]], v: 0.32, dwell: 4200 }
+};
+const VM_CARETAKER_UNIFORM = { shirt: { c:0x5f7a4a, dk:0x4a6038 }, pants: { c:0x4a4a3e, dk:0x38382e }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
+  cap: { c:0x3f5a34, dk:0x2f4427, top:0x4a6a3e, badge:0xe8c96a }, shoeKind: 'boot' };            // the park's green work shirt and cap
+const SS_OFFICE_UNIFORM = { shirt: { c:0xf2f0ea, dk:0xd6d3ca }, pants: { c:0x26355a, dk:0x1b2742 }, shoe: { c:0x1a1a1e, dk:0x101012 }, vest: { c:0x26355a, dk:0x1b2742 } };   // the harbour clerk's navy blazer
+const SS_LOCK_UNIFORM = { shirt: { c:0x8d949b, dk:0x6e757c }, pants: { c:0x3a3f46, dk:0x2a2e34 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 }, vest: { c:0x6b4a2a, dk:0x523820 }, shoeKind: 'boot' };   // a leather apron
+const SS_STORE_UNIFORM = { shirt: { c:0x1f2026, dk:0x141418 }, pants: { c:0x1f2026, dk:0x141418 }, shoe: { c:0x1a1a1e, dk:0x101012 }, vest: { c:0x3f7a46, dk:0x2f5c35 } };   // the flower counter's green apron
+const SS_BAND_UNIFORM = { shirt: { c:0xb8322a, dk:0x8e2620 }, pants: { c:0xf2f0ea, dk:0xd6d3ca }, shoe: { c:0x1a1a1e, dk:0x101012 },
+  cap: { c:0xf4f2ec, dk:0xd6d3ca, top:0xffffff, badge:0xe8c96a } };                                // the community band's red jackets, white caps
+const SS_BUGLER_UNIFORM = { shirt: { c:0xf6f4ee, dk:0xd8d5cc }, pants: { c:0xf2f0e8, dk:0xd2cfc6 }, shoe: { c:0x1a1a1e, dk:0x101012 },
+  cap: { c:0xf6f6f2, dk:0xd6d3ca, top:0xffffff, badge:0x1b2742 } };                                // Navy whites
+const VET_CAP = { c:0x1f2a44, dk:0x141c30, top:0x2a375a, badge:0xe8c96a };                         // a veteran's navy cap, its gold badge
+const SS = { stage: 'idle', walt: null, care: null, office: null, officeWalk: null, lock: null, lockWalk: null, store: null, storeWalk: null,
+             engT: 0, engSaid: 0, snooze: null, plate: false, wreath: false, shut: null, pals: null, bug: null, salT: 0, salSaid: 0, said: 0, after: false, tapsT: 0 };
+/* the sky keeps its dusk while the story runs (R4: a started story keeps its time) -- nightLevel reads it */
+function ssDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('sunset-salute')); }
+function ssPlateOn(){ return SS.plate || ssDone(); }
+function ssWreathOn(){ return SS.wreath || ssDone(); }
+function ssC(){ const s = (typeof scn === "function") ? scn() : null; return s && s.route ? vmOf(s.route.grid) : null; }
+function ssPW(a, b){ const C = ssC(); return C ? { x: C.x + a, y: C.y + b } : null; }
+function ssBay(){ const p = ssPW(VET_MEMORIAL.bay[0], VET_MEMORIAL.bay[1]); return p ? (SS._bay || (SS._bay = hospBay(p.x, p.y))) : null; }
+function ssNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "salute", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+/* THE GPS AND THE PARK (R7): the street's GPS knows no park paths, and the memorial is 1,600 of lawn from the nearest
+   pavement -- asked for the bay itself it found a dead-end edge and a 27k detour. So it leads to the park's south-west
+   corner (the street nearest the memorial, where the shuttle stops), and from there the bay's beacon over the lawn;
+   leaving, Tipsey is led to that corner first, then on to the shop */
+function ssCorner(){ return ssPW(-1180, 1180); }
+function ssInPark(ow){ const C = ssC(); return !!(C && ow && Math.abs(ow.px - C.x) < 1500 && Math.abs(ow.py - C.y) < 1500); }
+function ssNavTo(scene, to, name){
+  const ow = scene.ow;
+  if(to === 'memorial'){ SS.navVia = null; ssNav(scene, ssCorner(), "Veterans Memorial Park"); SS.navEnd = true; return; }
+  SS.navEnd = false;
+  if(ssInPark(ow)){ SS.navVia = { to, name }; ssNav(scene, ssCorner(), "Veterans Memorial Park's corner"); }
+  else { SS.navVia = null; ssNav(scene, to, name); }
+}
+function ssNavTick(scene, ow){
+  const c = ssCorner();
+  if(!c || !ow) return;
+  const d = Math.hypot(ow.px - c.x, ow.py - c.y);
+  if(SS.navVia && (d < 650 || !ssInPark(ow))){ const v = SS.navVia; SS.navVia = null; ssNav(scene, v.to, v.name); }
+  if(SS.navEnd && d < 650){ SS.navEnd = false; ssNavClear(scene); if(typeof tpToast === "function") tpToast("Across the lawn to Walt's bench, under the beacon."); }
+}
+function ssNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "salute"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+/* the places it goes to stay open late for Walt (the place card: missionLatePlace) */
+function ssLate(name){ return SS.stage !== 'idle' && Object.values(SS_RUN.shops).includes(name); }
+/* A CLERK'S POST (k: 'office', 'lock', 'store'): out of the shop's own door (shopDoorsOf, it opens for them) along the
+   pavement to a post where both faces show; Tipsey's bay beside it, along the frontage */
+function ssPost(k){
+  const c = SS._posts || (SS._posts = {});
+  if(c[k]) return c[k];
+  const s = (typeof scn === "function") ? scn() : null, S = s && shopDoorOf(s, SS_RUN.shops[k]);
+  if(!S) return null;
+  const rv = S.e.rv, dv = S.e.dv, at = (o, d) => ({ x: S.x + rv.x*o + dv.x*d, y: S.y + rv.y*o + dv.y*d });
+  const post = at(150, 0), bay = at(176, 128);
+  return (c[k] = { name: SS_RUN.shops[k], path: [at(-30, 0), at(70, 0), post], post, face: Math.atan2(bay.y - post.y, bay.x - post.x), bay: hospBay(bay.x, bay.y) });
+}
+function ssPostPath(k){ return ssPost(k).path.map(q => ({ x: q.x, y: q.y })); }
+/* a clerk now: walking out to his post (SS[k + 'Walk']), waiting there, meeting him (SS[k]), or back along his path */
+function ssClerkAt(k, now){
+  const wk = k + 'Walk', has = { office: 'roll', lock: 'plate', store: 'wreath' }[k];
+  if(SS[k]){ const p = hospWalkAt(SS[k], now); if(p) return Object.assign(p, { has: SS[k].has });
+    const f = SS[k].from; SS[k] = null; SS[wk] = { pts: [{ x: f.x, y: f.y }].concat(ssPostPath(k).slice(0, -1).reverse()), t0: now, leave: null, home: true, th0: f.th }; }
+  if(SS[wk]){ const p = walkPathAt(SS[wk], now);
+    if(p && p.there && SS[wk].home){ SS[wk] = null; return null; }
+    if(p){ if(p.there) p.th = lhGlance(ssPost(k).face, now, 9); return Object.assign(p, { has: SS[wk].home ? null : (k === 'lock' && !SS[wk].plate ? null : has) }); }
+    SS[wk] = null; }
+  return null;
+}
+function ssDoorWalkers(now){
+  const out = [], U = { office: SS_OFFICE_UNIFORM, lock: SS_LOCK_UNIFORM, store: SS_STORE_UNIFORM };
+  for(const k of ['office', 'lock', 'store']){ const p = ssClerkAt(k, now); if(p) out.push({ p, U: U[k], seed: SS_RUN.seeds[k] }); }
+  return out;
+}
+/* ---------- WALT ---------- */
+function ssWaltLook(){ return SS._wl || (SS._wl = Object.assign({}, streetLook(SS_RUN.seeds.walt, { type: 'elderMan', sex: 'm', heavy: false }))); }
+/* his standing uniform (the cap, and his cane), and seated (the cap only: the cane leans on the bench) */
+function ssWaltUniform(stand){ const k = stand ? '_wu1' : '_wu0';
+  return SS[k] || (SS[k] = stand ? { cap: VET_CAP, aid: { kind: 'cane', frame: AID_WOOD } } : { cap: VET_CAP }); }
+const SS_SEAT = 46;                                                     // his hips on the bench (BENCH_ART.seatH, its slats)
+/* where Walt is now and how: { x, y, th, moving, sit (null standing), drop (rising), lift, bend, has, wave } */
+function ssWaltAt(now){
+  const V = VET_MEMORIAL, W = SS.walt || (SS.walt = { st: 'seat' });
+  const seat = ssPW(V.seat[0], V.seat[1]), stand = ssPW(V.seat[0], V.seat[1] - 44);
+  if(!seat) return null;
+  const sm = u => { u = Math.max(0, Math.min(1, u)); return u*u*(3 - 2*u); };
+  if(W.st === 'seat'){
+    const o = { x: seat.x, y: seat.y, th: lhGlance(-Math.PI/2, now, 3)*0.25 - Math.PI/2*0.75, moving: false, sit: SS_SEAT, lift: [0.05, 0.06], bend: 0.25 };   // (his hands on the bench at his sides)
+    if(now - VM_LIFE.waveT < 4500){ const w = Math.sin((now - VM_LIFE.waveT)*0.012); o.lift = [0.3, 2.35 + 0.25*w]; o.bend = [0.9, 0.25 + 0.25*w]; o.th = VM_LIFE.waveTh; }
+    return o;
+  }
+  if(W.st === 'rise' || W.st === 'sitdown'){
+    let u = Math.min(1, (now - W.t0)/SS_RUN.riseMs); if(W.st === 'sitdown') u = 1 - u;
+    if(u < 0.45) return { x: seat.x, y: seat.y, th: -Math.PI/2, moving: false, sit: SS_SEAT, lift: [0.55*u/0.45 + 0.3, 0.55*u/0.45 + 0.3], bend: 0.9 - 0.5*u };
+    const k = sm((u - 0.45)/0.55);
+    return { x: seat.x + (stand.x - seat.x)*k, y: seat.y + (stand.y - seat.y)*k, th: -Math.PI/2, moving: false, sit: null, drop: 0.55*(1 - k), lift: [0.6*(1 - k), 0.6*(1 - k)], bend: 0.6*(1 - k) };
+  }
+  if(W.P){ const p = walkPathAt(W.P, now); if(p) return Object.assign(p, { has: W.has || null, sit: null }); }
+  if(W.M){ const p = hospWalkAt(W.M, now); if(p) return Object.assign(p, { has: W.has || null, sit: null }); }
+  if(W.at) return Object.assign({ moving: false, sit: null, has: W.has || null }, W.at, W.pose ? W.pose(now) : null);
+  return { x: stand.x, y: stand.y, th: -Math.PI/2, moving: false, sit: null };
+}
+/* up off his bench and round its east end to `to` (a meeting's from), then fn */
+function ssWaltUp(now, then){
+  const V = VET_MEMORIAL, a = ssPW(V.seat[0], V.seat[1] - 44), b = ssPW(-262, -236);
+  SS.walt = { st: 'rise', t0: now, then, pts: [a, b] };
+}
+/* back round the bench's end and down onto it */
+function ssWaltSit(now, from){
+  const V = VET_MEMORIAL, a = ssPW(V.seat[0], V.seat[1] - 44), b = ssPW(-262, -236);
+  SS.walt = { st: 'walk', P: { pts: [from, b, a], t0: now, leave: null, faceTh: -Math.PI/2, th0: from.th }, then: 'sit' };
+}
+/* every frame: his rise, walk, sit, and the hand-ons between them */
+function ssWaltTick(scene, now){
+  const W = SS.walt;
+  if(!W) return;
+  if(W.st === 'rise' && now - W.t0 >= SS_RUN.riseMs){
+    SS.walt = { st: 'walk', P: { pts: W.pts, t0: now, leave: null, faceTh: Math.atan2(W.pts[1].y - W.pts[0].y, W.pts[1].x - W.pts[0].x), th0: -Math.PI/2 }, then: W.then };
+    return;
+  }
+  if(W.st === 'sitdown' && now - W.t0 >= SS_RUN.riseMs){ SS.walt = { st: 'seat' }; return; }
+  if(W.st === 'walk' && W.P){ const p = walkPathAt(W.P, now);
+    if(p && p.there){
+      if(W.then === 'sit') SS.walt = { st: 'sitdown', t0: now };
+      else if(typeof W.then === 'function'){ const fn = W.then; W.then = null; fn(p); }
+    } }
+  if(W.st === 'meet' && W.M && W.M.leave != null && !hospWalkAt(W.M, now)){ const f = W.M.from; ssWaltSit(now, { x: f.x, y: f.y, th: W.M.faceTh + Math.PI }); }
+}
+/* Walt's meeting with him: from the bench's end, at his left (the open plaza; the flags and the wall are on his right) */
+function ssWaltMeet(scene, p){
+  const now = scene.time.now, M = Object.assign(meetWalk(scene.ow, { x: p.x, y: p.y }, now, -1, scene), { th0: p.th });
+  SS.walt = { st: 'meet', M, has: SS.walt && SS.walt.has };
+  return M;
+}
+/* WALT WAVES (after his story): whenever Tipsey comes past his bench, once a pass */
+function ssWaveTick(scene, ow, now){
+  if(!ssDone() || !ow || !SS.walt || SS.walt.st !== 'seat' || !VM_LIFE.walt) return;
+  const s = ssPW(VET_MEMORIAL.seat[0], VET_MEMORIAL.seat[1]), d = Math.hypot(ow.px - s.x, ow.py - s.y);
+  if(d < 520 && !VM_LIFE.waveNear){ VM_LIFE.waveNear = true; VM_LIFE.waveT = now;
+    const a = Math.atan2(ow.py - s.y, ow.px - s.x), da = Math.atan2(Math.sin(a + Math.PI/2), Math.cos(a + Math.PI/2));
+    VM_LIFE.waveTh = -Math.PI/2 + Math.max(-1.3, Math.min(1.3, da));                  // (turned his way, as far as a man on a bench turns)
+    if(typeof scene.npcSay === "function" && Math.random() < 0.5) scene.npcSay(VM_LIFE, () => ({ x: s.x, y: s.y, z: 0, h: 150 }), sayPick(["Evening, son!", "There he is!", "Fair winds, Tipsey!", "Ahoy, shipmate!"]), 1800); }
+  else if(d > 760) VM_LIFE.waveNear = false;
+}
+/* ---------- THE CARETAKER (W16 'post': at his post by the national flag, over to the flame now and then) ---------- */
+function ssCareAt(now){
+  const V = VET_MEMORIAL, C = SS.care || (SS.care = { k: 0, P: null, next: now + 22000 });
+  const at = k => ssPW(V.care[k][0], V.care[k][1]);
+  if(SS.stage === 'salute' && C.k !== 0 && !C.P){ const a = at(C.k), b = at(0); C.P = { pts: [a, b], t0: now, leave: null, faceTh: V.care[0][2] }; C.k = 0; }
+  if(C.P){ const p = walkPathAt(C.P, now); if(p && !p.there) return p; C.P = null; C.next = now + 18000 + ((now*7) % 16000); }
+  if(now > C.next && SS.stage !== 'salute' && SS.stage !== 'back'){ const k1 = 1 - C.k, a = at(C.k), b = at(k1); C.P = { pts: [a, b], t0: now, leave: null, faceTh: V.care[k1][2] }; C.k = k1; return walkPathAt(C.P, now); }
+  const p = at(C.k), haul = SS.stage === 'salute' && now > SS.tapsT && now < SS.tapsT + SS_TAPS.ms;
+  const w = Math.sin(now*0.004 + 1);
+  return { x: p.x, y: p.y, th: haul ? V.care[0][2] : lhGlance(V.care[C.k][2], now, 5), moving: false,
+           lift: haul ? [1.05 + 0.3*Math.sin(now*0.003), 1.05 - 0.3*Math.sin(now*0.003)] : C.k === 1 ? [0.12, 0.5 + 0.12*w] : null,   // (at the flame: a cloth to the bowl's bronze, round and round)
+           bend: haul ? [0.9, 0.9] : C.k === 1 ? [0.25, 0.55 + 0.2*Math.cos(now*0.004 + 1)] : 0 };
+}
+/* ---------- THE VISITORS (W16 looks: pairs from look spot to look spot, dwelling 4-12 s, pointing and talking) ---------- */
+const VM_VIS_ROUTES = [
+  { spots: [[-377, -254, -2.55], [-322, -322, -2.36], [-254, -377, -2.16]], via: null },
+  { spots: [[180, -200, -0.8], [150, -60, 2.76], [120, 200, -2.11]], via: null }
+];
+function ssVisAt(i, now){
+  const R = VM_VIS_ROUTES[i], S = (VM_LIFE.visW || (VM_LIFE.visW = [null, null]));
+  const st = S[i] || (S[i] = { at: i, P: null, until: now + 3000 + i*2500, dir: 1, ptT: 0 });
+  const spotW = k => { const q = R.spots[k]; return ssPW(q[0], q[1]); };
+  if(st.P){ const p = walkPathAt(st.P, now); if(p && !p.there) return p;
+    st.P = null; st.until = now + 4000 + ((now*13 + i*977) % 8000); st.ptT = now + 900 + ((now*3) % 2000); }
+  if(now > st.until){
+    let k1 = st.at + st.dir; if(k1 < 0 || k1 >= R.spots.length){ st.dir = -st.dir; k1 = st.at + st.dir; }
+    const via = R.via && R.via[st.at + '-' + k1], pts = [spotW(st.at)].concat(via ? [ssPW(via[0], via[1])] : [], [spotW(k1)]);
+    st.P = { pts, t0: now, leave: null, faceTh: R.spots[k1][2] }; st.at = k1;
+    return walkPathAt(st.P, now);
+  }
+  const p = spotW(st.at), u = now - st.ptT, point = u > 0 && u < 2600;
+  return { x: p.x, y: p.y, th: lhGlance(R.spots[st.at][2], now, 11 + i), moving: false, point };
+}
+/* the pair: the leader where the route says, the other beside them (24 either side, across the way they face), turned
+   to each other now and then as they talk */
+function ssVisPair(i, now){
+  const p = ssVisAt(i, now);
+  if(!p) return [];
+  const nx = -Math.sin(p.th), ny = Math.cos(p.th), talk = !p.moving && Math.sin(now*0.0009 + i*2) > 0.35;
+  const A = { x: p.x + nx*24, y: p.y + ny*24, th: talk ? p.th - 0.7 : p.th, moving: p.moving, lift: p.point ? [0.2, 1.35] : talk ? [0.3, 0.75 + 0.1*Math.sin(now*0.006)] : null, bend: p.point ? 0.1 : 0.8 };
+  const B = { x: p.x - nx*24, y: p.y - ny*24, th: talk ? p.th + 0.7 : lhGlance(p.th, now, 23 + i), moving: p.moving };
+  return [[A, SS_RUN.vis[i][0]], [B, SS_RUN.vis[i][1]]];
+}
+/* ---------- THE BAND (concert nights) and THE BUGLER (the salute) ---------- */
+function ssBandPos(o){ const B = VET_MEMORIAL.band; return ssPW(B.at[0] + o[0], B.at[1] + o[1]); }
+/* the bugler: out of the shuttle, round the bandstand's south side, up its steps to his place by them */
+function ssBugAt(now){
+  const G = SS.bug;
+  if(!G) return null;
+  if(G.P){ const p = walkPathAt(G.P, now); if(p) return Object.assign(p, { th: p.there ? -0.82 : p.th }); }
+  const s = ssPW(SS_RUN.bugSpot[0], SS_RUN.bugSpot[1]);
+  return { x: s.x, y: s.y, z: VET_MEMORIAL.band.deck, th: -0.82, moving: false };
+}
+/* Walt's old crew: out of the shuttle, up to the plaza, turned to the flags; they stay on till the plaza is unseen */
+function ssPalAt(k, now){
+  const P = SS.pals && SS.pals[k];
+  if(!P) return null;
+  const p = walkPathAt(P, now);
+  return p;
+}
+/* ---------- THE SHUTTLE (the fleet's autonomous shuttle) ---------- */
+function ssShutAt(now){
+  const S = SS.shut, R = SS_RUN.shut;
+  if(!S) return null;
+  const pts = n => n.map(q => ssPW(q[0], q[1]));
+  if(!S.inP){ S.inP = pts([R.from, R.stop]); S.outP = pts(R.out); S.inMs = fmPolyLen(S.inP)/R.v + 1500; S.outMs = fmPolyLen(S.outP)/R.v + 1500; }
+  const t = now - S.t0;
+  const along = (P, ms, u) => { const L = fmPolyLen(P), d = meetWalkFrac(u, ms)*L, q = walkPathPoint(P, d), a = walkPathPoint(P, Math.max(0, d - 30)), b = walkPathPoint(P, Math.min(L, d + 30)); return { x: q.x, y: q.y, yaw: Math.atan2(b.y - a.y, b.x - a.x) }; };
+  if(t < S.inMs){ const q = along(S.inP, S.inMs, t); return Object.assign(q, { moving: true, ph: 'in' }); }
+  if(t < S.inMs + R.dwell){ const q = S.inP[1]; return { x: q.x, y: q.y, yaw: -Math.PI/2, moving: false, ph: 'stop', door: Math.min(1, (t - S.inMs)/500, (S.inMs + R.dwell - t)/500) }; }
+  if(t < S.inMs + R.dwell + S.outMs){ const q = along(S.outP, S.outMs, t - S.inMs - R.dwell); return Object.assign(q, { moving: true, ph: 'out' }); }
+  SS.shut = null;
+  return null;
+}
+/* as it stops: its passengers step out of its kerb-side door, one by one, and walk to their places */
+function ssShutTick(scene, now){
+  const S = SS.shut;
+  if(!S) return;
+  const q = ssShutAt(now);
+  if(!q || q.ph !== 'stop' || S.out) return;
+  if(now - S.t0 - S.inMs < 700) return;
+  S.out = true;
+  const door = { x: q.x + 72, y: q.y - 20 }, mid = ssPW(-250, 900);
+  SS.pals = SS_RUN.pals.map((p, k) => ({ pts: [{ x: door.x, y: door.y + k*26 }, { x: mid.x + k*34, y: mid.y + k*20 }, ssPW(p.at[0], p.at[1])], t0: now + 300 + k*650, leave: null, v: 0.058,
+    faceTh: Math.atan2(-332 - p.at[1], 332 - p.at[0]), th0: 0 }));
+  const B = VET_MEMORIAL.band, foot = ssPW(-451, 451), top = ssPW(-516, 516), sp = ssPW(SS_RUN.bugSpot[0], SS_RUN.bugSpot[1]);
+  SS.bug = { P: { pts: [{ x: door.x, y: door.y - 26 }, { x: mid.x - 30, y: mid.y - 20 }, Object.assign(foot, { z: 0 }), Object.assign(top, { z: B.deck }), Object.assign(sp, { z: B.deck })], t0: now + 2200, leave: null, faceTh: -0.82, th0: 0 } };
+  if(typeof sfxVanHorn === "function" && scene.visWorldPt(q.x, q.y, 400, 300)) sfxVanHorn();
+}
+/* ---------- TAPS (the audio kit: a bugle's sawtooth through a horn's resonance, the call's 24 notes) ---------- */
+const SS_TAPS = { ms: 21500, notes: [[392, 0, 0.55], [392, 0.6, 0.2], [523, 0.85, 1.7], [392, 2.7, 0.55], [523, 3.3, 0.2], [659, 3.55, 1.7], [392, 5.4, 0.35], [523, 5.8, 0.35], [659, 6.2, 0.9],
+  [392, 7.2, 0.35], [523, 7.6, 0.35], [659, 8.0, 0.9], [392, 9.0, 0.35], [523, 9.4, 0.35], [659, 9.8, 1.6], [523, 11.6, 0.5], [659, 12.15, 0.5], [784, 12.7, 1.7],
+  [659, 14.6, 0.5], [523, 15.15, 0.5], [392, 15.7, 1.7], [392, 17.6, 0.55], [392, 18.2, 0.2], [523, 18.45, 2.8]] };
+function sfxTaps(){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try {
+    const t0 = c.currentTime + 0.05, out = c.createGain(); out.gain.value = 0.9;
+    const bp = c.createBiquadFilter(); bp.type = "peaking"; bp.frequency.value = 1300; bp.Q.value = 1.1; bp.gain.value = 6;
+    const lp = c.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+    bp.connect(lp).connect(out).connect(c.destination);
+    for(const [f, at, len] of SS_TAPS.notes){
+      const t = t0 + at, g = c.createGain(), o = c.createOscillator(), o2 = c.createOscillator(), vib = c.createOscillator(), vg = c.createGain();
+      o.type = "sawtooth"; o2.type = "triangle"; o.frequency.setValueAtTime(f*0.985, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+      o2.frequency.setValueAtTime(f, t); vib.frequency.value = 5.2; vg.gain.value = f*0.004; vib.connect(vg); vg.connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.05); g.gain.setValueAtTime(0.055, t + Math.max(0.06, len - 0.12)); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); o2.connect(g); g.connect(bp);
+      for(const n of [o, o2, vib]){ n.start(t); n.stop(t + len + 0.05); }
+    }
+  } catch(e){}
+}
+/* the engraver at work: a burr's whine in short passes */
+function sfxEngrave(){
+  const c = SFX.ctx;
+  if(!c || c.state !== "running") return;
+  try {
+    const t = c.currentTime, n = c.createBufferSource(), buf = c.createBuffer(1, Math.floor(c.sampleRate*0.7), c.sampleRate), d = buf.getChannelData(0);
+    for(let i = 0; i < d.length; i++) d[i] = (Math.random()*2 - 1)*Math.min(1, i/600, (d.length - i)/2000);
+    const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 3400; f.Q.value = 6;
+    const g = c.createGain(); g.gain.value = 0.08; n.buffer = buf; n.connect(f).connect(g).connect(c.destination); n.start(t);
+  } catch(e){}
+}
+/* ---------- THE STORY ---------- */
+function ssBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode) || !ssC()) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon });
+  const st = SS.stage;
+  if(st === 'idle'){
+    if(ssDone() || storiesHidden('sunset-salute') || !VM_LIFE.walt) return null;
+    return missionWindowOpen('sunset-salute') ? ic(ssBay(), 'flag') : Object.assign(ic(ssBay(), 'flag'), { noBeacon: true });
+  }
+  if(st === 'office') return ic(ssPost('office').bay, 'roll');
+  if(st === 'lock') return ic(ssPost('lock').bay, 'plate');
+  if(st === 'store') return ic(ssPost('store').bay, 'wreath');
+  if(st === 'back') return ic(ssBay(), 'flag');
+  return null;
+}
+function ssAccept(){
+  const scene = scn();
+  if(SS.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(SS.walt && SS.walt.M) SS.walt.M.leave = scene.time.now;
+  SS.stage = 'office';
+  NIGHT_HOLD.v = nightLevel(); NIGHT_HOLD.t = 0;                     // (the sky keeps its dusk to the end: R4)
+  const P = ssPost('office'); if(P) ssNavTo(scene, P.bay, P.name);
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The Marina Office, down Marina Way: the 1952 roll.");
+}
+function ssDecline(){
+  const scene = scn();
+  if(SS.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(SS.walt && SS.walt.M) SS.walt.M.leave = scene.time.now;
+  SS.stage = 'idle'; SS.snooze = ssBay();
+}
+/* a clerk's handover done: the next shop, or back to Walt */
+function ssGot(k){
+  const scene = scn();
+  if(!scene || SS.stage !== k + 'Meet') return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(SS[k]){ SS[k].has = null; SS[k].leave = now; }
+  if(k === 'office'){ SS.stage = 'lock'; const P = ssPost('lock'); ssNavTo(scene, P.bay, P.name);
+    if(typeof tpToast === "function") tpToast("The 1952 roll aboard. Next door: Cove Locksmith, to cut the name in brass."); }
+  else if(k === 'lock'){
+    if(!SS.plateCut){ SS.stage = 'engrave'; SS.engT = 0; SS.engSaid = 0; if(typeof tpToast === "function") tpToast("The locksmith takes the name back inside to his engraver."); }
+    else { SS.stage = 'store'; const P = ssPost('store'); ssNavTo(scene, P.bay, P.name);
+      if(typeof tpToast === "function") tpToast("The roll and the brass plate aboard. Round the corner: Tidewater & Co.'s flower counter, for a wreath."); }
+  }
+  else if(k === 'store'){
+    SS.stage = 'back'; ssNavTo(scene, 'memorial');
+    SS.shut = { t0: now, out: false };                                       // (Walt's crew set off in the shuttle)
+    if(typeof tpToast === "function") tpToast("Everything aboard. Back to Walt at the Veterans Memorial: his old crew are on their way.");
+  }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* back with it all: Walt takes the plate and the wreath, and the salute begins (the story's own clock) */
+function ssSaluteStart(){
+  const scene = scn();
+  if(!scene || SS.stage !== 'home') return;
+  hospSayCard(null);
+  const now = scene.time.now, W = SS.walt, from = W && W.M ? hospWalkAt(W.M, now) : null, ws = SS_RUN.wallSpot;
+  const a = from || ssPW(-230, 20), spot = ssPW(ws[0], ws[1]);
+  SS.walt = { st: 'walk', has: 'plate', P: { pts: [{ x: a.x, y: a.y }, ssPW(-240, -236), spot], t0: now, leave: null, faceTh: ws[2], th0: a.th }, then: () => {
+    const t = scene.time.now;
+    SS.walt = { st: 'wall', has: 'plate', at: { x: spot.x, y: spot.y, th: ws[2] }, pose: n => {
+      const u = n - t;
+      if(u < 1600) return { lift: [0.2, 0.95 + 0.1*Math.sin(u*0.01)], bend: 0.3, has: 'plate' };                     // the plate up to the wall
+      if(u < 3400) return { lift: [0.25, 0.4], bend: 0.3, drop: Math.sin(Math.PI*(u - 1600)/1800)*0.5, has: u < 2500 ? 'wreath' : null };   // down for the wreath
+      const sal = SS.tapsT && n > SS.tapsT && n < SS.tapsT + SS_TAPS.ms - 600;
+      return { th: sal ? 0.05 : ws[2], lift: sal ? [0.1, 2.25] : null, bend: sal ? [0, 2.3] : 0, has: null };
+    } };
+    SS.plate = true; if(typeof sfxThump === "function") sfxThump(0.15);
+    setTimeout(() => { SS.wreath = true; }, 2500);
+    SS.salT = t;
+  } };
+  SS.stage = 'salute'; SS.tapsT = 0; SS.salSaid = 0;
+  ssNavClear(scene);
+}
+function ssFinish(){
+  const scene = scn();
+  if(SS.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  if(SS.walt && SS.walt.M) SS.walt.M.leave = now;
+  SS.stage = 'idle'; SS.after = true;
+  NIGHT_HOLD.t = now;                                                        // (the sky eases back to the clock)
+  ssNavClear(scene);
+  missionComplete('sunset-salute');
+  ssCoinMigrate();
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard(['coin'], "Sunset Salute: done! Walt's challenge coin is yours, and the autonomous shuttle that brought his crew joins your fleet.");
+}
+/* THE COIN, the server's (R10): rebuilt from the record */
+function ssCoinMigrate(){
+  if(ssCoinMigrate.done || !ssDone()) return;
+  ssCoinMigrate.done = true;
+  if(!keyItemHeld('coin')){ tpCollect.stashed.push('coin'); collectSave(); }
+}
+/* every frame (after owStep) */
+function ssTick(scene, ow){
+  const now = scene.time.now;
+  ssCoinMigrate();
+  if(!ssC()) return;
+  vmLatch(scene);
+  ssWaltTick(scene, now);
+  ssShutTick(scene, now);
+  ssWaveTick(scene, ow, now);
+  /* the crew and the bugler go home once the plaza is out of sight (R13) */
+  if(SS.after && SS.stage === 'idle' && !scene.visWorldPt(ssC().x, ssC().y + 200, 1300, 1300)){ SS.after = false; SS.pals = null; SS.bug = null; }
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(SS.stage !== 'idle') ssNavTick(scene, ow);
+  if(SS.snooze && !owMatContains(scene, SS.snooze.mat)) SS.snooze = null;
+  const armed = B => !!B && !SS.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { if(now < M.t0){ ow.vel = 0; return; } meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  const W = SS.walt;
+  switch(SS.stage){
+    case 'idle': {
+      if(ssDone() || !VM_LIFE.walt || missionBusy('sunset-salute') || storiesHidden('sunset-salute')) return;
+      if(!armed(ssBay())) return;
+      if(!missionWindowOpen('sunset-salute')){
+        missionWindowSay('sunset-salute', scene);
+        if(now - SS.said > 30000 && typeof scene.npcSay === "function"){ SS.said = now; const s = ssPW(VET_MEMORIAL.seat[0], VET_MEMORIAL.seat[1]);
+          scene.npcSay(SS, () => ({ x: s.x, y: s.y, z: 0, h: 150 }), "Come back at dusk, son.", 2600); }
+        return;
+      }
+      if(!W || W.st !== 'seat') return;
+      SS.stage = 'ask'; ow.vel = 0; cineBars(true);
+      ssWaltUp(now, p => ssWaltMeet(scene, p));
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask':
+      ow.vel = 0;
+      if(W && W.st === 'meet' && W.M.leave == null) meet(W.M, () => hospSayCard({ who: "Walt", btn: "I'll get it, Walt.", ok: ssAccept, no: { btn: "Not now", ok: ssDecline }, at: ssWaltAt,
+        say: "Evening, son. Every name on this wall, I knew the face that went with it. But when they recut the wall last spring, they left one off: Eddie Navarro, my best friend. We shipped out of Pelican Harbor together in '52, and Eddie never came home. The Marina Office still keeps the old 1952 roll. Cove Locksmith next door could cut his name in brass, and Tidewater & Co. does a little wreath. Bring them by sundown, and we'll give Eddie his salute." }));
+      return;
+    case 'office': case 'lock': case 'store': {
+      /* (the clerk sets off out of his door as Tipsey comes near and waits at his post; stopped on the bay before he is
+         there, the meeting waits for him) */
+      const k = SS.stage, wk = k + 'Walk', P = ssPost(k);
+      if(!P) return;
+      if(!SS[wk] && !SS[k] && Math.hypot(ow.px - P.post.x, ow.py - P.post.y) < 7000)
+        SS[wk] = { pts: ssPostPath(k), t0: now, leave: null, faceTh: P.face, plate: k === 'lock' && SS.plateCut };
+      const at = SS[wk] && !SS[wk].home ? walkPathAt(SS[wk], now) : null;
+      if(at && at.there && armed(P.bay)){
+        SS.stage = k + 'Meet'; ow.vel = 0; cineBars(true);
+        const has = k === 'office' ? 'roll' : k === 'lock' ? (SS.plateCut ? 'plate' : null) : 'wreath';
+        /* (beside him across the eye, the screen's left first -- the shop's side, clear of the kerb's lamps and trees -- else
+           its right, else wherever meetSpot finds: both faces show) */
+        const clr = sd => owSpotClear(scene, ow.px + sd*MEET.gap/Math.SQRT2, ow.py - sd*MEET.gap/Math.SQRT2, 22) && !meetHiddenBy(scene, { x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 }, meetAvoidNear(scene, ow));
+        const side = clr(-1) ? -1 : clr(1) ? 1 : 0;
+        SS[k] = Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, side, scene), { has, th0: at.th });
+        SS[k].from.th = at.th; SS[wk] = null;
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    }
+    case 'officeMeet':
+      if(SS.office && SS.office.leave == null) meet(SS.office, () => hospSayCard({ who: "The Marina Office", btn: "Got it!", ok: () => ssGot('office'), at: n => ssClerkAt('office', n),
+        say: "The 1952 roll, for Walt? I kept it out the moment he called. Here: the men who sailed from Pelican Harbor that year. Navarro, Eduardo, Seaman, page four. Mind it, it's the only copy." }));
+      return;
+    case 'lockMeet':
+      if(SS.lock && SS.lock.leave == null) meet(SS.lock, () => hospSayCard({ who: "Cove Locksmith", btn: SS.plateCut ? "Thank you!" : "I'll wait.", ok: () => ssGot('lock'), at: n => ssClerkAt('lock', n),
+        say: SS.plateCut ? "There: Eddie Navarro, Seaman, 1952, in solid brass. Tell Walt it's on the house, and that I'll be there next Memorial Day."
+                         : "Eddie Navarro, Seaman, 1952. I'll cut it on the engraver right now, in brass. Wait right there, it won't take two minutes." }));
+      return;
+    case 'engrave': {
+      ow.vel = 0;
+      /* he goes back in; once he is in, the engraver is heard; then out again with the plate */
+      if(SS.lock || SS.lockWalk) return;
+      if(!SS.engT){ SS.engT = now; }
+      const u = now - SS.engT;
+      if(u > SS.engSaid*1600 && SS.engSaid < 5){ SS.engSaid++; if(typeof sfxEngrave === "function") sfxEngrave(); }
+      if(u > SS_RUN.engraveMs){ SS.plateCut = true; SS.stage = 'lock'; if(typeof tpToast === "function") tpToast("The locksmith comes back out with the plate."); }
+      return;
+    }
+    case 'storeMeet':
+      if(SS.store && SS.store.leave == null) meet(SS.store, () => hospSayCard({ who: "Tidewater & Co.", btn: "It's perfect.", ok: () => ssGot('store'), at: n => ssClerkAt('store', n),
+        say: "A wreath for the memorial? When Walt called, I made this one up myself: bay laurel and a red ribbon, small enough to stand at the wall. Give him our best." }));
+      return;
+    case 'back':
+      if(!armed(ssBay()) || !W || W.st !== 'seat') return;
+      SS.stage = 'home'; ow.vel = 0; cineBars(true);
+      ssWaltUp(now, p => ssWaltMeet(scene, p));
+      return;
+    case 'home': {
+      ow.vel = 0;
+      if(W && W.st === 'meet' && W.M.leave == null) meet(W.M, () => {
+        const here = SS.pals && SS.pals.every(P => { const p = walkPathAt(P, now); return p && p.there; });
+        hospSayCard({ who: "Walt", btn: "For Eddie.", ok: ssSaluteStart, at: ssWaltAt,
+          say: "You found him. Eddie Navarro, in brass, and a wreath besides. " + (here ? "And look who came on the shuttle: the last of the old crew. " : "That'll be the shuttle with the last of the old crew. ") + "Help me set it on the wall, son. Then we'll stand for the flag." }); });
+      return;
+    }
+    case 'salute': {
+      ow.vel = 0;
+      /* THE STORY'S OWN CLOCK: the plate and the wreath set (SS.salT), the crew and the bugler in their places, then
+         Taps and the flag down with it, every hand up; then Walt comes back to him */
+      const ready = SS.salT && now - SS.salT > 3600 && (!SS.pals || SS.pals.every(P => { const p = walkPathAt(P, now); return p && p.there; }));
+      const bugIn = !SS.bug || !SS.bug.P || !!(walkPathAt(SS.bug.P, now) || {}).there;
+      if(!SS.tapsT){
+        if(ready && bugIn){ SS.tapsT = now + 800; setTimeout(() => sfxTaps(), 800); if(typeof tpToast === "function") tpToast("Taps, for Eddie Navarro."); }
+        else if(SS.salT && now - SS.salT > 4000 && !SS.salSaid){ SS.salSaid = 1; if(typeof tpToast === "function") tpToast("The bugle waits for Walt's crew."); }
+        return;
+      }
+      const u = now - SS.tapsT;
+      if(u > 0 && u < SS_TAPS.ms) VM_LIFE.flagK = Math.max(0.06, 1 - 0.94*u/SS_TAPS.ms);
+      if(u > SS_TAPS.ms + 1800){
+        SS.stage = 'thanks'; cineBars(true);
+        const at = SS.walt && SS.walt.at ? SS.walt.at : ssPW(SS_RUN.wallSpot[0], SS_RUN.wallSpot[1]);
+        SS.walt = { st: 'meet', M: Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, -1, scene), { th0: 0.05, has: 'coin' }), has: 'coin' };
+      }
+      return;
+    }
+    case 'thanks':
+      if(W && W.st === 'meet' && W.M.leave == null) meet(W.M, () => hospSayCard({ who: "Walt", btn: "Thank you, Walt.", ok: ssFinish, at: ssWaltAt,
+        say: "Seventy-four years I waited to hear Taps for Eddie with his name up on that wall. Here: my challenge coin, from the old ship. A sailor gives it to someone he'd stand a watch with. You keep it, son." }));
+      return;
+  }
+}
+/* THE PEOPLE, DRAWN (ssQueue, beside kwQueue): Walt (seated, rising, walking, saluting, waving), the caretaker, the
+   visitors, the band and the bugler, Walt's crew -- each where they are now, on screen only, in the world's order; the
+   story's people through keyQueue while it has them (their ghost when hidden). The clerks are the shops' door walkers */
+function ssQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const C = ssC();
+  if(!C || scene._inside) return;
+  if(!scene.visWorldPt(C.x - 200, C.y + 200, 2400, 1600) && !SS.pals) return;
+  const now = scene.time.now, busy = SS.stage !== 'idle';
+  const person = (Q, p, L, U, pose, walkK) => {
+    if(!p || !scene.visProp("people", p.x, p.y, p.z || 0)) return;
+    Q(p.x, p.y, (g, tt) => {
+      const T0 = tt || now, has = p.has, thW = p.th - Math.PI/2, build = L.build;
+      const gift = has ? () => scene.drawHandGift(layerFor(p.x, p.y), scene.handWorldPos(p.x, p.y, thW, build, 0.3), has) : null;
+      const pz = L.dress && !(pose && pose.dress) ? Object.assign({}, pose || {}, { dress: L.dress }) : pose;
+      scene.drawPersonHull(layerFor(p.x, p.y), p.x, p.y, p.z || 0, thW, build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
+        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(walkK || 1)) : 0, !!p.moving, 0, has ? 0.3 : 0, gift, U || L.uniform, false, pz || null);
+    });
+  };
+  const poseOf = p => (p.sit != null || p.lift || p.drop || p.hold) ? { sit: p.sit != null ? p.sit : undefined, lift: p.lift || null, bend: p.bend || 0, drop: p.drop || 0, hold: p.hold || null, armLate: p.armLate } : null;
+  /* Walt */
+  if(VM_LIFE.walt || busy){
+    const p = ssWaltAt(now), L = ssWaltLook();
+    if(p){ const U = Object.assign({}, L.uniform || {}, ssWaltUniform(p.sit == null && !p.drop));
+      const pz = poseOf(p); if(pz && pz.sit === undefined) delete pz.sit;
+      person(busy ? keyQueue : queuePerson, p, L, Object.assign({ shirt: L.shirt, pants: L.pants, shoe: L.shoe }, U), pz, 0.8); }
+  }
+  /* the caretaker */
+  if(VM_LIFE.care || busy){ const p = ssCareAt(now), L = staffLook(SS_RUN.seeds.care); person(SS.stage === 'salute' ? keyQueue : queuePerson, p, L, VM_CARETAKER_UNIFORM, poseOf(p)); }
+  /* the visitors, in pairs */
+  if(VM_LIFE.vis) for(let i = 0; i < 2; i++) for(const [p, seed] of ssVisPair(i, now)){ const L = streetLook(seed, { adult: true, aid: 'none' }); person(queuePerson, p, L, null, poseOf(p)); }
+  /* the band, on concert nights: on the near half of the deck, turned to the plaza */
+  if(VM_LIFE.band){ const B = VET_MEMORIAL.band;
+    SS_RUN.band.forEach((m, k) => { const q = ssBandPos(m.o); if(!q) return;
+      const drum = m.hold === 'snare', ph = k*1.3, bt = now*0.0063 + ph, sw = Math.sin(bt*0.5);
+      const pose = drum ? { lift: [0.35 + 0.15*Math.max(0, Math.sin(bt*2)), 0.35 + 0.15*Math.max(0, Math.sin(bt*2 + Math.PI))], bend: 1.3, hold: PARTY_HOLD.snare }
+                        : { lift: [0.45, 0.4 + 0.04*sw], bend: [1.95, 2.05], hold: PARTY_HOLD[m.hold], armLate: true };          // (the singer's microphone arm: the horn up to the lips)
+      person(queuePerson, { x: q.x, y: q.y, z: B.deck + 0.8*Math.abs(Math.sin(bt)), th: 0.35 + 0.12*sw, moving: false }, staffLook(m.seed), SS_BAND_UNIFORM, pose); });   // (turned out to the lawn and the plaza's south side)
+  }
+  /* the bugler: up on the bandstand; Taps, then at ease */
+  if(SS.bug){ const p = ssBugAt(now); if(p){ const play = SS.tapsT && now > SS.tapsT - 600 && now < SS.tapsT + SS_TAPS.ms;
+    person(keyQueue, p, staffLook(SS_RUN.seeds.bugler), SS_BUGLER_UNIFORM, play ? { lift: [0.45, 0.4], bend: [1.95, 2.05], hold: PARTY_HOLD.trumpet, armLate: true } : null); } }
+  /* Walt's crew: from the shuttle to the plaza; saluting through Taps */
+  if(SS.pals) SS.pals.forEach((P, k) => { const p = ssPalAt(k, now); if(!p || now < P.t0) return;
+    const sal = SS.tapsT && now > SS.tapsT && now < SS.tapsT + SS_TAPS.ms - 600 && p.there;
+    const L = streetLook(SS_RUN.pals[k].seed, { type: k === 1 ? 'elderWoman' : 'elderMan', heavy: false }), U = Object.assign({}, L.uniform || {}, { cap: VET_CAP, shirt: L.shirt, pants: L.pants, shoe: L.shoe });
+    person(keyQueue, Object.assign({}, p, p.there && !sal ? { th: lhGlance(p.th, now, 31 + k) } : null), L, U, sal ? { lift: [0.1, 2.25], bend: [0, 2.3], dress: L.dress } : L.dress ? { dress: L.dress } : null, 0.8); });
+}
+/* HELD BY THEM (owStep's blockAt): Walt, the caretaker, the crew where they stand */
+function ssBlocks(x, y, r){
+  if(!ssC()) return false;
+  const now = performance.now(), hit = p => p && Math.hypot(x - p.x, y - p.y) < r + 15;
+  if((VM_LIFE.walt || SS.stage !== 'idle') && SS.walt && (SS.walt.st === 'seat' || SS.walt.st === 'wall') && hit(ssWaltAt(now))) return true;
+  if(VM_LIFE.care && SS.care && !SS.care.P && hit(ssCareAt(now))) return true;
+  return false;
+}
+CITY_PEOPLE.add({ name: 'Veterans Memorial', where: "Veterans Memorial Park's plaza: Walt on his bench, the caretaker, visitors at the wall, the band on concert nights; Sunset Salute's crew and bugler", solid: true,
+  each(scene, t, fn){
+    if(!ssC()) return;
+    const now = scene.time.now;
+    if(VM_LIFE.walt){ const p = ssWaltAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Walt', look: ssWaltLook() })); }
+    if(VM_LIFE.care){ const p = ssCareAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'caretaker' })); }
+    if(VM_LIFE.vis) for(let i = 0; i < 2; i++) for(const [p] of ssVisPair(i, now)) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'visitor' }));
+    if(VM_LIFE.band) for(const m of SS_RUN.band){ const q = ssBandPos(m.o); if(q) fn(cpEntry(this, { x: q.x, y: q.y, z: VET_MEMORIAL.band.deck, th: 0.35, moving: false, kind: 'band' })); }
+    if(SS.bug){ const p = ssBugAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'bugler' })); }
+    if(SS.pals) SS.pals.forEach((P, k) => { const p = ssPalAt(k, now); if(p && now >= P.t0) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: "Walt's crew" })); });
+  } });
 /* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
    The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
      open   the chandlery's lights on behind its windows and OPEN hung in the east one (the house's cached piece has an
@@ -78492,7 +79393,7 @@ CITY_PEOPLE.add({ name: 'street riders', where: 'the bike lanes', solid: false,
 CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true, each: null });
 CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
 /* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
-CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden', solid: true,
+CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden, the Marina Office, Cove Locksmith, Tidewater & Co.', solid: true,
   each(scene, t, fn){
     for(const w of shopDoorWalkers(t)){
       const p = w.p;
@@ -84599,6 +85500,107 @@ class WorldScene extends Phaser.Scene {
      (queueFramePieces, as a landmark's: the test chute, the kart bays, the plywood store, the tables), its barn's lamp at
      night (the lamp kit), and THE ROLL-UP's curtain -- down while the room is shut (locked: THE ROOM'S DAY), coiled up
      while it is open, eased between (live only while it moves; cached down) */
+  /* THE VETERANS MEMORIAL (VET_MEMORIAL): its pieces, each still one through the building cache at its own depth
+     (queueFramePieces: the wall's runs, the flame's drum, the poles, the bandstand's two halves), its two benches (the
+     city's bench, cached), its lamps at night (the lamp kit); live only the three flags' cloths and the flame; and
+     SUNSET SALUTE's shuttle, live while it moves, cached while it stands. Culled as one when it is far off */
+  queueVetMemorial(vq){
+    const g2 = this.route && this.route.grid, C = g2 && vmOf(g2);
+    if(!C) return;
+    const now = this.time.now;
+    /* the shuttle (it drives in from past the view's edge, so it is asked on its own) */
+    { const q = ssShutAt(now);
+      if(q && this.visProp("car", q.x, q.y)){
+        const f = q.yaw/(Math.PI/2), wh = (now*0.05) % 1000;
+        if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "avshuttle", q.x, q.y, t || 0, f, 0, wh, 0, null) });
+        else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "vm|shut|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "avshuttle", q.x, q.y, 0, f, 0, 0, 0, null)) });
+      } }
+    const span = (this.vpW() + this.vpH())/this.K + 600;
+    if(Math.abs(C.x - this.camX) + Math.abs(C.y - this.camY) > span + 1800) return;
+    const V = VET_MEMORIAL, ent = LIB.get(V.name);
+    this.queueFramePieces(vq, V.name, C.x, C.y, 1, "vm|" + V.name, C.x + C.y - 1300);
+    for(const B of V.benches){
+      const dv = DIRV[B.dv], rv = DIRV[(B.dv + 1) % 4], x = C.x + B.at[0], y = C.y + B.at[1], D = BENCH_ART.depth;
+      if(!this.visProp("bench", x, y)) continue;
+      vq.push({ depth: x + y + (rv.x + rv.y)*D/2, fn: (g0) => this.bcDraw(this.propLayer(g0, x, y), "vm|bench|" + x + "," + y, x, y, gg => this.drawBenchProp(gg, x, y, dv)) });
+    }
+    if(ent) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: C.x + a, y: C.y + b }), 1);
+    /* the flags: each cloth from its pole's top (the national one lowered at the salute: VM_LIFE.flagK) */
+    for(const q of vmPoles()){
+      const x = C.x + q.a, y = C.y + q.b;
+      if(!this.visWorldPt(x + 90, y, 260, q.h + 80)) continue;
+      vq.push({ depth: x + y + 0.5, fn: (g, t) => this.drawVmFlag(this.propLayer(g, x, y), x, y, q, t || now) });
+    }
+    /* the eternal flame, in its bowl */
+    if(this.visWorldPt(C.x, C.y, 140, 200)) vq.push({ depth: C.x + C.y + 1, fn: (g, t) => this.drawVmFlame(this.propLayer(g, C.x, C.y), C.x, C.y, t || now) });
+  }
+  /* A FLAG ON ITS POLE (live): the cloth in strips from the hoist to the fly, flying east, a wave running down it; its
+     design by kind -- 'nation' the stars and stripes, 'state' the bear flag, 'city' Costa Palma's (a gold sun over the
+     bay, on the teal of the sea, the sand below). Up its pole by VM_LIFE.flagK for the national one */
+  drawVmFlag(g, x, y, q, t){
+    const big = q.kind === 'nation', FW = big ? 150 : 128, FH = big ? 80 : 68, N = 10, ph = t/330 + q.i*1.7;
+    const up = big ? VM_LIFE.flagK : 1, top = 14 + (q.h - 18 - FH)*up + FH;
+    const wav = u => Math.sin(ph - u*5.2)*9*u, drp = u => 6*u*u*(0.6 + 0.4*Math.sin(ph*0.4));
+    const at = (u, v) => this.W(x + 5 + u*FW*(1 - 0.03*Math.sin(ph - u*5.2)), y + wav(u), top - v*FH - drp(u));
+    const lit = u => 0.86 + 0.18*Math.cos(ph - u*5.2);
+    const shadeC = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
+    const quad = (u0, u1, v0, v1, col) => this.quadOn(g, [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)], shadeC(col, lit((u0 + u1)/2)));
+    for(let i = 0; i < N; i++){
+      const u0 = i/N, u1 = (i + 1.04)/N;
+      if(q.kind === 'nation'){
+        for(let s = 0; s < 7; s++) quad(u0, u1, s/7, (s + 1.02)/7, s % 2 ? 0xf4f2ec : 0xb22234);
+        if(u0 < 0.42) quad(u0, Math.min(u1, 0.42), 0, 4/7, 0x3c3b6e);
+      } else if(q.kind === 'state'){
+        quad(u0, u1, 0, 0.84, 0xf6f4ee); quad(u0, u1, 0.84, 1, 0xc8262c);
+      } else {
+        quad(u0, u1, 0, 0.62, 0x1f7f86); quad(u0, u1, 0.62, 0.7, 0xf4f2ec); quad(u0, u1, 0.7, 1, 0xe2c26a);
+      }
+    }
+    const blob = (pts, col) => this.quadOn(g, pts.map(([u, v]) => at(u, v)), shadeC(col, lit(pts[0][0])));
+    if(q.kind === 'nation'){
+      g.fillStyle(0xf4f2ec, 1);
+      for(let r = 0; r < 4; r++) for(let c = 0; c < 5; c++){ const p = at(0.04 + c*0.08 + (r % 2)*0.04, 0.08 + r*0.13); g.fillCircle(p.x, p.y, 1.1*this.K); }
+    } else if(q.kind === 'state'){
+      blob([[0.08, 0.1], [0.12, 0.2], [0.04, 0.17], [0.12, 0.15], [0.05, 0.22]], 0xc8262c);              // the red star
+      blob([[0.3, 0.62], [0.36, 0.44], [0.5, 0.38], [0.62, 0.4], [0.7, 0.48], [0.72, 0.62], [0.66, 0.7], [0.36, 0.7]], 0x6b4a2a);   // the bear
+      blob([[0.25, 0.73], [0.78, 0.73], [0.78, 0.77], [0.25, 0.77]], 0x3f7a3c);                              // its grass
+    } else {
+      const S = []; for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2; S.push([0.28 + Math.cos(a)*0.11, 0.36 + Math.sin(a)*0.2]); }
+      blob(S, 0xf2c14e);                                                                                     // the sun
+      blob([[0.5, 0.2], [0.53, 0.2], [0.55, 0.62], [0.52, 0.62]], 0xf4f2ec);                                  // the palm's trunk
+      blob([[0.52, 0.2], [0.68, 0.14], [0.6, 0.24]], 0xf4f2ec); blob([[0.52, 0.2], [0.38, 0.12], [0.44, 0.24]], 0xf4f2ec); blob([[0.52, 0.2], [0.6, 0.06], [0.56, 0.2]], 0xf4f2ec);
+    }
+  }
+  /* THE ETERNAL FLAME (live): three tongues licking up out of the bowl, a hot core, flickering on their own clocks */
+  drawVmFlame(g, x, y, t){
+    const K = this.K, z0 = VET_MEMORIAL.flame.h + 20, b = this.W(x, y, z0);
+    const tongue = (dx, h, w, col, ph) => {
+      const s = Math.sin(t*0.011 + ph), s2 = Math.sin(t*0.017 + ph*2.1), hh = h*(0.85 + 0.15*s), sw = 4*s2;
+      const pts = [];
+      for(let k = 0; k <= 8; k++){ const u = k/8, ww = w*Math.sin(Math.PI*(0.15 + 0.85*u))*(1 - u*0.9);
+        pts.push({ x: b.x + (dx - ww + sw*u*u)*K, y: b.y - hh*u*K }); }
+      for(let k = 8; k >= 0; k--){ const u = k/8, ww = w*Math.sin(Math.PI*(0.15 + 0.85*u))*(1 - u*0.9);
+        pts.push({ x: b.x + (dx + ww + sw*u*u)*K, y: b.y - hh*u*K }); }
+      this.quadOn(g, pts, col);
+    };
+    tongue(-14, 48, 12, 0xe8541c, 0.3); tongue(13, 54, 13, 0xe8541c, 1.9); tongue(0, 72, 18, 0xf07a22, 0);
+    tongue(-3, 50, 11, 0xf7a43a, 2.6); tongue(1, 32, 7, 0xffe07a, 1.1);
+  }
+  /* THE VETERANS MEMORIAL'S PLAZA (VET_MEMORIAL, the ground pass): the hub's chip disc paved in granite -- a kerb ring,
+     the paving in rings, a band of dark granite round the flame, the joints -- over the chips where the four runs come in */
+  fillVmPlaza(g, C){
+    const R = VET_MEMORIAL.R, N = 72, z = 0.7, K = this.K;
+    const P = (r, t, zz) => this.W(C.x + Math.cos(t)*r, C.y + Math.sin(t)*r, zz);
+    const disc = (r, col, zz) => this.quadOn(g, Array.from({ length: N }, (_, k) => P(r, k/N*Math.PI*2, zz)), col);
+    const ring = (r0, r1, col, zz) => { for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.04)/N*Math.PI*2;
+      this.quadOn(g, [P(r0, t0, zz), P(r0, t1, zz), P(r1, t1, zz), P(r1, t0, zz)], col); } };
+    disc(R + 22, 0x9a958b, z); disc(R, 0xcfc8b8, z + 0.02);
+    for(let r = 150; r < R - 40; r += 120) ring(r, r + 54, 0xc7bfae, z + 0.03);
+    ring(68, 112, 0x56595f, z + 0.04);                                       // dark granite round the flame
+    ring(112, 118, 0xb3ab99, z + 0.04);
+    g.lineStyle(Math.max(0.6, 0.8*K), 0xb6ae9c, 1);
+    for(let k = 0; k < 36; k++){ const t = k/36*Math.PI*2, a = P(120, t, z + 0.05), b = P(R - 4, t, z + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+  }
   queueKartYard(vq){
     const O = kwYardO();
     if(!O) return;
@@ -87197,6 +88199,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) this.queueFishMarket(blockVQ);
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
+    this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
 
@@ -87405,6 +88408,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
     kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
+    ssQueue(this, t, queuePerson, keyQueue, layerFor); // THE VETERANS MEMORIAL's people (Walt, the caretaker, visitors, the band) and SUNSET SALUTE's
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -88219,6 +89223,14 @@ class WorldScene extends Phaser.Scene {
       }
       if(B && this.visProp("chargestation", B.x, B.y, B.z || 0)) queueBeacon(B.x, B.y, B.icon, B.z ? { s: 1, a: 1, dz: B.z, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: B.z } : undefined);
     }
+    /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
+       says to come back at dusk), each shop's pavement post -- cached, the ring and beacon live */
+    { const B = ssBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
        turning; near him, a soft glow of its colour on the ground. Live but tiny, culled off screen, ghosted when a
        building stands over it (tested once a spot, as a beacon is) */
@@ -91825,6 +92837,9 @@ class WorldScene extends Phaser.Scene {
         g.fillRect(p.x - 2.2*K, p.y - 0.9*K, 4.4*K, 1.8*K);
       }
     }
+    /* the hub of the crossing is the Veterans Memorial's plaza (VET_MEMORIAL), paved over the chips where the runs come in */
+    { const C = vmOf(this.route.grid), R = VET_MEMORIAL.R + 30;
+      if(C && near(C.x - R, C.y - R, C.x + R, C.y + R)) this.fillVmPlaza(g, C); }
   }
   /* ...and its planting: every plant whose nearest cell centre is this
      cell, each keyed at its own foot. Shrubs and shade trees are drawn
@@ -92013,7 +93028,7 @@ class WorldScene extends Phaser.Scene {
         const cap = (e, q, sgn) => { const d = Math.hypot(q[0] - e[0], q[1] - e[1]) || 1; return [e[0] + sgn*(e[0] - q[0])/d*e[2]*0.7, e[1] + sgn*(e[1] - q[1])/d*e[2]*0.7]; };
         return L.concat([cap(e1, P[P.length - 2], 1)], Rt.reverse(), [cap(e0, P[1], 1)]);
       };
-      const BRONZE = { face: 0x8f6e40, top: 0xa3804c, side: 0x6b5130, under: 0x4f3b22, line: 0x3f2f1b };
+      const BRONZE = FERRIS_BRONZE;                                   // (the shared cast palette: the Veterans Memorial's bronze too)
       const shadeHex = (c, k) => { const r = Math.min(255, ((c >> 16) & 255)*k)|0, g2 = Math.min(255, ((c >> 8) & 255)*k)|0, b2 = Math.min(255, (c & 255)*k)|0; return (r << 16) | (g2 << 8) | b2; };
       /* one sculpted piece: outline (a, z) metres, cast from b0 to b1
          across. A true solid, not a stack: its far face, then every piece
@@ -94593,7 +95608,7 @@ class WorldScene extends Phaser.Scene {
     const { build, skin, hair } = L || staffLook(seed);
     const thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     /* GUS'S ANNIVERSARY (ANNIV): roses and Rosa's note in the hand too; NUMBER 4 BUILDS A WINNER's wheel set and tin */
-    if(d.has === 'flowers' || d.has === 'note' || d.has === 'wheels' || d.has === 'paint'){
+    if(d.has === 'flowers' || d.has === 'note' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
         d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
@@ -94619,6 +95634,18 @@ class WorldScene extends Phaser.Scene {
      'note' a little blush envelope, sealed with a heart */
   drawHandGift(g, hp, kind){
     const P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), K = this.K;
+    /* SUNSET SALUTE: 'roll' the 1952 roll, a paper scroll tied with red; 'plate' the brass plate; 'wreath' a small
+       laurel wreath and its red bow; 'coin' Walt's challenge coin */
+    if(kind === 'roll'){ const a = this.W(hp.x - 10, hp.y + 4, hp.z - 4), b = this.W(hp.x + 10, hp.y - 4, hp.z - 4);
+      g.lineStyle(7*K, 0xe8dcb8, 1); g.lineBetween(a.x, a.y, b.x, b.y); g.fillStyle(0xd2c294, 1); g.fillEllipse(b.x, b.y, 5*K, 7*K);
+      const m = this.W(hp.x, hp.y, hp.z - 4); g.fillStyle(0xb8322a, 1); g.fillRect(m.x - 1*K, m.y - 3.6*K, 2*K, 7.2*K); return; }
+    if(kind === 'plate'){ const t = this.W(hp.x, hp.y + 3, hp.z + 2), b = this.W(hp.x, hp.y + 3, hp.z - 10);
+      g.fillStyle(0x8a6a24, 1); g.fillRect(t.x - 9*K, t.y, 18*K, b.y - t.y); g.fillStyle(0xd9b04a, 1); g.fillRect(t.x - 8*K, t.y + 1*K, 16*K, b.y - t.y - 2*K);
+      g.fillStyle(0x6a4e1a, 1); g.fillRect(t.x - 6*K, t.y + 3.5*K, 12*K, 1*K); g.fillRect(t.x - 4*K, t.y + 6.5*K, 8*K, 1*K); return; }
+    if(kind === 'wreath'){ const c = this.W(hp.x, hp.y + 4, hp.z - 6);
+      g.lineStyle(5*K, 0x2f5a2e, 1); g.strokeCircle(c.x, c.y, 9*K); g.lineStyle(3*K, 0x4f8a48, 1); g.strokeCircle(c.x - 0.6*K, c.y - 0.6*K, 8.4*K);
+      g.fillStyle(0xc8262c, 1); g.fillTriangle(c.x - 4*K, c.y + 12*K, c.x, c.y + 8*K, c.x + 4*K, c.y + 12*K); g.fillCircle(c.x, c.y + 8.5*K, 1.8*K); return; }
+    if(kind === 'coin'){ const c = this.W(hp.x, hp.y, hp.z + 3); g.fillStyle(0x8a6a24, 1); g.fillEllipse(c.x, c.y, 9*K, 9.5*K); g.fillStyle(0xd9b24a, 1); g.fillEllipse(c.x - 0.4*K, c.y - 0.4*K, 7.4*K, 7.8*K); return; }
     /* NUMBER 4 BUILDS A WINNER: 'wheels' a set of four pram wheels, tied in a stack; 'paint' a tin of racing red */
     if(kind === 'wheels'){
       for(let k = 0; k < 4; k++){ const z = hp.z - 14 + k*5.2, c = this.W(hp.x, hp.y, z);
@@ -110493,7 +111520,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); kwTick(this, this.ow); ssTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -120959,7 +121986,8 @@ function tpPlaceRender(pl){
   const offer = pl.kind === "shop" && typeof tpPickupOffers === "function"
     ? tpPickupOffers().find(o => o.shop === pl.name) : null;
   /* a shop holding an order for you is open for you, whatever the clock */
-  const hrs = (offer && !hrs0.open) ? { open: true, text: "Order ready for pickup" } : hrs0;
+  const late = !hrs0.open && typeof missionLatePlace === "function" && missionLatePlace(pl.name);
+  const hrs = (offer && !hrs0.open) ? { open: true, text: "Order ready for pickup" } : late ? { open: true, text: late } : hrs0;
   document.getElementById("tpPlaceHead").innerHTML =
     '<div class="tpPlHead"><div class="tpPlTitle">' + tpPlaceEsc(pl.name) + '</div>'
     + '<button class="tpPlIcon' + (saved ? " tpOn" : "") + '" id="tpPlSaveIc" aria-label="Save">' + TP_SVG.save(saved) + '</button>'
