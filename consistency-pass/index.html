@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ d27038a): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 465e85d): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'd27038a'; })();</script>
+  window.TIPSY_TEST_BUILD = '465e85d'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -5387,19 +5387,6 @@ function fleetLaunchPad(s){
   const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
   return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
 }
-/* THE SHOWROOM (Sir, 2026-11-01: "these interiors of tipsys new fleet stations are not very good ... we only need a
-   single vehicle in that garage ... we want the feel of the standard tipsy garage"). The garage used to be the real
-   hall with its roof lifted: the lanes next door, the deck over Marina Parking's forecourt, the city past the far
-   end of a long hall and the dark round a thin one all showed, and the planes had no hall at all. While the garage
-   is open on a vehicle that lives in a bay, the room behind the panel is its own showroom instead: one vehicle on a
-   turntable, two tall far walls and a floor that fill the frame (the garage draws it over the world, see drawMask),
-   in the depot room's own dark walls, wooden shelves and orange pad, with its bay kit's trim. Play shuts the
-   showroom and the vehicle is in its real lane, its door going up. Small robots keep Tipsey's depot room. */
-function fleetShowroomKind(s){
-  if(!s || !s._garage) return "";
-  const k = fleetCur(), F = FLEET[k];
-  return F && F.bay !== "station" ? k : "";
-}
 /* ==================== FLYING (fleet P2: docs/fleet-redesign.md §2, the rotor class) ====================
    "Flying height: this is a tuff one id need to test both ways to see what feels best" (Sir). ONE controller for
    the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
@@ -10018,7 +10005,7 @@ function owStep(scene, dt){
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -14179,6 +14166,15 @@ function gpsBeachNet(grid, C){
     prevA1 = A1;
     if(n) out.hooks.push([A0, n, 0], [A0, n, 3]);                     // the west street's pavement, either side
   }
+  /* SUNSET SHORE SURF SCHOOL (SURF): its walk off the boardwalk, across the sand to its bays (the lesson circle, the
+     water's edge, Palmline Surf Co.'s stand up the sand); the boardwalk's run between the towers split at its head */
+  { const Bb = SURF.bays, Hd = add(xb, SURF.y), F = add(SURF.walk.x0, SURF.y), E = add(-4300, SURF.y), S1 = add(-4300, Bb.shack[1]), SB = add(Bb.shack[0], Bb.shack[1]),
+          U0 = add(Bb.unload[0], Bb.shack[1]), RB = add(Bb.unload[0], Bb.unload[1]), ST = add(Bb.stand[0], Bb.stand[1]), W0 = add(Bb.water[0], Bb.shack[1]), WB = add(Bb.water[0], Bb.water[1]);
+    out.links.push([Hd, F], [F, E], [E, S1], [S1, SB], [SB, U0], [U0, RB], [RB, ST], [U0, W0], [W0, WB]);
+    const sts = lifeguardStations(grid), a = sts.filter(st => st.y < SURF.y).pop(), b = sts.find(st => st.y > SURF.y);
+    if(a && b){ const ia = out.pts.findIndex(p => p.x === xb && p.y === a.y), ib = out.pts.findIndex(p => p.x === xb && p.y === b.y);
+      const li = out.links.findIndex(l => (l[0] === ia && l[1] === ib) || (l[0] === ib && l[1] === ia));
+      if(li >= 0){ out.links.splice(li, 1, [ia, Hd], [Hd, ib]); } } }
   return out;
 }
 /* nearest point on the walk graph to a world point: { seg, t, x, y }.
@@ -18143,11 +18139,21 @@ function duneField(grid){
       }
       /* the draws the old ridge under them took, so every mound keeps its place */
       for(let i = 0, m = Math.max(2, Math.round((c1 - c0) / 160)); i <= m; i++) rnd();
-      for(const md of mounds){ md.k = _dune.mounds.length; _dune.mounds.push(md); }
+      for(const md of mounds){ md.k = _dune.mounds.length; md.gone = surfDuneGap(md); _dune.mounds.push(md); }   // (gone: across SUNSET SHORE SURF SCHOOL's walk -- kept in the list so every other mound and group keeps its place and key)
     }
   }
+  /* SUNSET SHORE SURF SCHOOL's access walk (SURF.y): a plank path as the towers', its rope on posts either side; its gap
+     is the mounds left out above (so no other mound moves) */
+  { const p = { y: SURF.y, x0: xIn, x1: DUNE_PATH_X1, k: 'ss' };
+    _dune.paths.push(p);
+    const xa = p.x1 + 20, xb = p.x0 - 40, n = Math.max(2, Math.round((xb - xa) / 170));
+    for(const side of [-1, 1]){
+      const yy = p.y + side*(DUNE_PATH_HW + DUNE_ROPE_DY);
+      for(let i = 0; i < n; i++) _dune.ropes.push({ k: p.k, side, i, y: yy, x0: xa + (xb - xa)*i/n, x1: xa + (xb - xa)*(i + 1)/n, last: i === n - 1 });
+    } }
   /* mounds bucketed by y for the point queries */
   for(const md of _dune.mounds){
+    if(md.gone) continue;
     for(let b = Math.floor((md.cy - md.ry) / 1000); b <= Math.floor((md.cy + md.ry) / 1000); b++){
       let a = _dune.idx.get(b); if(!a) _dune.idx.set(b, a = []); a.push(md);
     }
@@ -18165,11 +18171,13 @@ function duneField(grid){
     }
     const byRoot = new Map();
     for(let i = 0; i < M.length; i++){ const r = root(i); if(!byRoot.has(r)) byRoot.set(r, []); byRoot.get(r).push(M[i]); }
-    _dune.groups = [...byRoot.values()].map((ms, k) => {
+    _dune.groups = [...byRoot.values()].map((ms0, k) => {
+      const ms = ms0.filter(m => !m.gone);
+      if(!ms.length) return null;
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for(const m of ms){ x0 = Math.min(x0, m.cx - m.rx); x1 = Math.max(x1, m.cx + m.rx); y0 = Math.min(y0, m.cy - m.ry); y1 = Math.max(y1, m.cy + m.ry); }
       return { k, ms, ax: (x0 + x1)/2, ay: (y0 + y1)/2, hx: (x1 - x0)/2, hy: (y1 - y0)/2 };
-    });
+    }).filter(Boolean);
   }
   return _dune;
 }
@@ -32929,6 +32937,17 @@ const MISSIONS = {
                    engrave: 'The locksmith is cutting it', store: "Tidewater & Co.'s flower counter: a wreath", storeMeet: 'The wreath', back: 'Back to Walt at the Veterans Memorial',
                    home: 'Walt', salute: 'The salute', thanks: 'Walt' })[SS.stage] || "Walt, on his bench at the Veterans Memorial (at dusk)",
     start: () => { const B = ssCorner(); return B && { x: B.x, y: B.y, name: 'Veterans Memorial Park' }; } },   // (the GPS to the park's corner, the beacon over the lawn: ssNavTo)
+  /* SUNSET SESSION (SUNSET SHORE SURF SCHOOL): Mele's six foam boards down the sand in the cargo bot, at sundown */
+  'sunset-session': { name: 'Sunset Session', giver: 'Mele, Sunset Shore Surf School', window: 'dusk', places: ['Sunset Shore Surf School', "Palmline Surf Co.'s beach stand"],
+    steps: ["Mele, at the top of the surf school's walk off the boardwalk", "The lesson circle: the fleet's cargo bot", "Three boards from Palmline Surf Co.'s beach stand", "Down the sand to Mele",
+            "Three more", "The water's edge: the sunset session"],
+    reward: { cents: 5000, payId: 'surfschool', trophy: 'sunset-session', skin: 'board-shorts', wear: true },
+    busy: () => SSN.stage !== 'idle',
+    item: () => surfCarrying() ? { id: 'boards', name: 'foam boards', tip: 'spill', drop: surfSpillDrop } : null,
+    next: () => ({ ask: 'Hear Mele out', shack: "Down the walk to the surf school's lesson circle", call: 'The cargo bot is on its way', toStand: "Palmline Surf Co.'s beach stand, up the sand",
+                   kai: 'Kai has the boards', load: 'Kai has the boards', carry: 'Down the sand to Mele, easy over the bumps', mele: 'Mele', unload: 'Mele',
+                   toWater: "The water's edge", set: 'The sunset session', thanks: 'Mele', sorryBack: 'Back to Mele', sorry: 'Mele' })[SSN.stage] || "Mele, by the surf school's walk off the boardwalk (at dusk)",
+    start: () => ({ x: SURF_BAYS.ask.x, y: SURF_BAYS.ask.y, name: 'Sunset Shore Surf School' }) },
   'fourth-place': { name: 'Fourth Place', giver: 'the derby judges', window: 'any', places: ['the soapbox derby', 'The Flats Charging 4', 'Seabreeze Trophies'],
     steps: ["Overhear the judges under their tent", 'Your First Delivery trophy, off the garage wall', 'Seabreeze Trophies: the engraver', 'Back to the judge'],
     reward: { gives: 'first-run trophy' },
@@ -78195,14 +78214,6 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       state.partCol = (part && part.col !== undefined) ? part.col : null;   // one post of a split porch
-      /* THE REAR VIEW FLAG (Sir, 2026-11-01, the Miami Deco Tower House on an
-         away edge: "this house seems like is not drawing correctly"). The house
-         kit and the houses themselves pick their seen face from state.back
-         (houseYardFence, houseFace, every `state.back ? bb : bf`), which the lab
-         sets; the game called back() but left the flag false, so a house built
-         on it drew its FRONT fins, windows and porthole onto the hidden face and
-         they showed through its walls. Set it whenever back() is the elevation. */
-      state.back = !!(rear && shop.back);
       ctx.__bind(g);
       try {
         /* A HOUSE'S fore() IS PART OF THE HOUSE (Sir, on-device at Sierra
@@ -78216,7 +78227,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(layer !== 'fore') (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
         if(layer !== 'body' && !(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; state.back = false; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; }
       return true;
     }
   };
@@ -82157,6 +82168,908 @@ CITY_PEOPLE.add({ name: 'Veterans Memorial', where: "Veterans Memorial Park's pl
     if(VM_LIFE.band) for(const m of SS_RUN.band){ const q = ssBandPos(m.o); if(q) fn(cpEntry(this, { x: q.x, y: q.y, z: VET_MEMORIAL.band.deck, th: 0.35, moving: false, kind: 'band' })); }
     if(SS.bug){ const p = ssBugAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.z || 0, th: p.th, moving: !!p.moving, kind: 'bugler' })); }
     if(SS.pals) SS.pals.forEach((P, k) => { const p = ssPalAt(k, now); if(p && now >= P.t0) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: "Walt's crew" })); });
+  } });
+/* ==================== SUNSET SHORE SURF SCHOOL, AND SUNSET SESSION (the Flats build order, area 16: "Sunset Shore sand") ====================
+   THE PLACE (SURF, world units; the Flats' stretch of Sunset Shore, between Lifeguard Tower 1, y 6256, and Tower 2, y 18768,
+   across Palmline from Tidewater Green and the derby). Built from the shore lattice's own pieces:
+     the walk   a new access walk off the boardwalk at y SURF.y: a dune path through the dunes (duneField's own plank path,
+                its ropes and its gap in the mounds: the mounds that stood across it are left out, the rest keep their
+                places), then a low plank walk across the sand to the deck's steps (buildShore's run 'surfwalk', so
+                classifyShore calls it boardwalk; flat, drivable)
+     the shack  a weathered aqua surf shack on a short raised deck (classifyShore calls the deck and its steps 'building',
+                so beachBlocks makes it solid as it does the pier's rails); not walk-in: a serving hatch in its south face,
+                its shutter propped open in school hours (8 to 8), down at night; two longboards leaning by the hatch
+     the rack   the school's own rack of foam boards on the sand south of the deck (boards stood on their tails, edge on)
+     the circle the lesson circle traced in the sand by the water, six boards drawn in it (the real thing: a surf school's
+                pop-ups are drilled on board shapes drawn in the sand), and the six real boards laid by them once fetched
+     the post   the junior-lifeguard flag post (red over yellow) and the nearest tower's lifeguard at it in school hours
+     the fire   a ring of stones with two driftwood seats, lit after dark (7.15 p.m. to 11) and at the sunset session
+     the stand  Palmline Surf Co.'s beach stand up the sand (its striped umbrella, a table, its board rack, a feather flag),
+                its clerk Kai: the shop itself (0,7) is 15.4k of road away, so its stand on the beach is where the boards are
+                (the brief's Palmline Surf Co., nearer: a two-trip run from the shop would be about 14 minutes)
+     sunbathers on towels under umbrellas on the sand between the stand and the shack (they stay to watch the sunset)
+   Everything still is cached through bcDraw, keyed by what and where (and the board counts); live only the two flags, the
+   fire, the people, the cargo bot coming and going, and a dropped board.
+   THE PEOPLE (SURF_LIFE, latched while the sand is unseen -- R13):
+     Mele       the instructor, at her post on the circle's sea side facing the class (8 to 8); at dusk, before the
+                session, she waits at the top of the access walk for the class (walked there and back)
+     the class  six kids in pairs on the drawn boards, popping up in turn (prone, paddling, the pop, the stance, down again)
+     lifeguard  from the nearest tower, at the junior-lifeguard post, glancing over the class and the water
+     surfers    two, carrying their boards from the walk's end down to the water and back (patrol); after dark at the fire
+     Kai        Palmline Surf Co.'s clerk, at the stand (8 to 8)
+   SUNSET SESSION (MISSIONS 'sunset-session', window 'dusk': offered only in the real dusk fade, 18:30-19:30; once started
+   the sky keeps its dusk -- NIGHT_HOLD -- and sets on the story's own clock at its set piece):
+     ask        Tipsey stops on the bay on the boardwalk by the walk's top; Mele comes up the walk to him face to face
+     shack      down the walk and across the sand to the bay by the lesson circle; the fleet's cargo bot rolls down the sand to
+                his side (from past the view's edge) and is his for the run (FLEET_LOAN 'cargobot', Tipsey parked, cached)
+     stand      up the sand to Palmline Surf Co.'s stand: Kai brings three boards to the bot's seen side, the lid opens for the
+                bulky load, they go in, and the lid rests open on them; twice
+     carry      back down round the sunbathers to the bay by the circle; Mele takes them out of the hold and lays them by the
+                drawings. A hard bump drops a board (the spill rule: a fail, the board left on the sand): back to Mele
+     water      the loan ends beside Tipsey, the bot rolls off up the sand; he drives down to the water's edge
+     set piece  the kids carry their boards in and paddle out as the sun goes (the sky set deeper over the story's clock), the
+                fire ring is lit, the lifeguard waves his flag; then Mele's thanks face to face, the card
+   Reward: $50 once (gift/tip 'surfschool'), the Sunset Session trophy (claim -> the Board Shorts skin, worn).
+   Nothing of a run is saved: a reload starts it at the boardwalk's bay. Carried (R5): the boards -- spill. */
+const SURF = {
+  y: 12000,
+  walk: { x0: -3720, x1: -4380, hw: 60, z: 2 },
+  steps: { x0: -4420, x1: -4380, y0: 11950, y1: 12050 },
+  deck: { x0: -4820, x1: -4420, y0: 11860, y1: 12180, z: 30 },
+  shack: { x0: -4780, x1: -4470, y0: 11880, y1: 12090, h: 200 },
+  hatch: { x0: -4700, x1: -4560, z0: 80, z1: 152 },
+  rack: { x0: -4800, y: 12262, n: 7, own: 5 },
+  circle: { x: -5560, y: 12300, r: 380 },
+  spots: [[-150, -120], [30, -120], [210, -120], [-150, 120], [30, 120], [210, 120]],   // the six drawn boards (their middles, from the circle's centre); noses west
+  mele: { x: -5900, y: 12300, th: 0 },
+  wait: { x: -2440, y: 12000, z: 9, th: 0 },        // Mele at the walk's top, at dusk before the class (on the dune path)
+  fire: { x: -4560, y: 12620, r: 62 },
+  logs: [{ x: -4700, y: 12620, along: 'y' }, { x: -4560, y: 12760, along: 'x' }],
+  flag: { x: -5200, y: 12720, h: 300 },
+  guard: { x: -5262, y: 12768, th: -2.6 },
+  stand: { x: -5380, y: 11180, rackX: -5650, rackY: 11040, n: 6, table: [-5215, 11345], kai: { x: -5190, y: 11180, th: 0.15 }, flag: [-5150, 11050] },
+  bathers: [{ x: -5330, y: 11520, a: 0, um: [-5420, 11470] }, { x: -4760, y: 11520, a: 0.2, um: null }, { x: -4700, y: 11380, a: -0.15, um: [-4640, 11300] }, { x: -4600, y: 11650, a: 0.1, um: null }],
+  bays: { ask: [-1960, 11800], shack: [-4900, 12880], unload: [-5050, 12520], stand: [-5050, 11300], water: [-6250, 12700] },
+  water: { x: -6480, sit: -6900, mele: [-6420, 12560] },
+  surfers: [[[-4440, 11800], [-5600, 11700], [-6440, 11620]], [[-4440, 11760], [-5700, 11840], [-6440, 11880]]],
+  hours: [8, 20]
+};
+const SURF_BOARD_COLS = [0xf2c14e, 0x4fb3d9, 0xe8705a, 0x7fcf8a, 0xf08ab8, 0xf4f2ec, 0x5f8fe0, 0xffa64a];
+const SURF_RASH = [[0x2fa8c8, 0x23849e], [0xf05a7a, 0xc64462], [0xf2c14e, 0xc99c34], [0x4fbf7a, 0x3a9a5e], [0x8f6ad8, 0x7052b0], [0xff8a3a, 0xd06a24]];
+const SURF_MELE_UNIFORM = { shirt: { c: 0x1f8a96, dk: 0x166a74 }, pants: { c: 0xe8705a, dk: 0xc0563f, shorts: true }, shoe: { c: 0xc89a74, dk: 0xa87c58, kind: 'sandal' } };   // her long-sleeved rash guard, board shorts
+const SURF_KAI_UNIFORM = { shirt: { c: 0x48c2c0, dk: 0x34a09e }, pants: { c: 0x2b3a4a, dk: 0x1e2a36, shorts: true }, shoe: { c: 0x3a2e24, dk: 0x2a2018, kind: 'sandal' },
+  cap: { c: 0xf4f2ec, dk: 0xd6d3ca, top: 0xffffff, badge: 0x48c2c0 } };                                                                                         // Palmline Surf Co.'s aqua tee and cap
+const SURF_LIFE = { open: null, fire: null, frame: -1, seenT: 0, lastT: 0, kids: null, surfers: null, guardWave: 0 };
+const SSN_RUN = { bumpV: 0.16, lidMs: 1400, seeds: { mele: 0x5f01, kai: 0x5f02, guard: 0x5f03, kids: [0x5f11, 0x5f12, 0x5f13, 0x5f14, 0x5f15, 0x5f16], surf: [0x5f21, 0x5f22], bath: [0x5f31, 0x5f32, 0x5f33, 0x5f34] },
+  bot: { v: 0.2, from: 4200 }, paddleV: 0.03, sky: { add: 0.3, ms: 14000 } };
+const SSN = { stage: 'idle', trip: 0, mele: null, kai: null, bot: null, park: null, loan: false, snooze: null, said: 0, lid: null, aboard: 0, laid: 0, standN: SURF.stand.n,
+              spill: null, lastV: 0, lastC: false, setT: 0, kids: null, skyV0: null, failed: false, holdT: 0 };
+function ssnDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('sunset-session')); }
+const SURF_BAYS = (() => { const o = {}; for(const k in SURF.bays) o[k] = hospBay(SURF.bays[k][0], SURF.bays[k][1]); return o; })();
+/* the shore lattice's pieces (buildShore / classifyShore): the plank walk on the sand, and the deck with its steps */
+function surfShorePieces(){
+  const W = SURF.walk, D = SURF.deck, S = SURF.steps;
+  return { run: { id: "surfwalk", kind: "boardwalk", a: { x: W.x0, y: SURF.y }, b: { x: W.x1, y: SURF.y }, half: W.hw },
+           deck: [D.x0, Math.max(D.x1, S.x1), D.y0, D.y1], steps: [S.x0, S.x1, S.y0, S.y1] };
+}
+function surfOnDeck(x, y){ const D = SURF.deck, S = SURF.steps;
+  return (x >= D.x0 && x <= D.x1 && y >= D.y0 && y <= D.y1) || (x >= S.x0 && x <= S.x1 && y >= S.y0 && y <= S.y1); }
+/* the mounds kept off the walk (duneField: a gap as wide as a tower path's) */
+function surfDuneGap(md){ return Math.abs(md.cy - SURF.y) < md.ry*0.9 + DUNE_PATH_HW + 150 && md.cx - md.rx < -2189; }
+function surfHour(){ return walkinClockHour(); }
+function surfOpenNow(){ const h = surfHour(); return h >= SURF.hours[0] && h < SURF.hours[1]; }
+function surfFireNow(){ const h = surfHour(); return h >= 19.25 && h < 23; }
+function surfOpen(){ return SURF_LIFE.open == null ? surfOpenNow() : SURF_LIFE.open; }
+function surfFireLit(){ return (SURF_LIFE.fire == null ? surfFireNow() : SURF_LIFE.fire) || (SSN.setT && SSN.stage !== 'idle' && performance.now() > SSN.setT + 6000) || !!SURF_LIFE.fireHold; }
+function surfBathersOut(){ const h = surfHour(); return h >= 9 && h < 19.75; }
+/* the lesson circle's six drawn boards: their middles and the kid's feet (the tail end, east) */
+function surfSpot(k){ const s = SURF.spots[k], C = SURF.circle; return { x: C.x + s[0], y: C.y + s[1] }; }
+/* ---------- THE CLASS (pairs: 0-1, 2-3, 4-5, each pair taking turns) ---------- */
+const SURF_DRILL = { ms: 9000 };
+function surfKidLook(k){
+  const L = SURF_LIFE._kl || (SURF_LIFE._kl = []);
+  if(L[k]) return L[k];
+  const b = Object.assign({ kind: 'kid' }, partyLook(SSN_RUN.seeds.kids[k], 'kid')), R = SURF_RASH[k];
+  b.shirt = { c: R[0], dk: R[1] }; b.pants = Object.assign({}, _pcol([0x2b3a4a, 0x1f2026, 0x2f5fa8, 0x6b2a4a, 0x2a6a5a, 0x3a3a46][k]), { shorts: true }); b.dress = null;
+  b.shoe = Object.assign({}, b.skin ? { c: b.skin.c, dk: b.skin.dk } : _pcol(0xc89a74), { kind: 'flat' });     // (barefoot on the sand)
+  return (L[k] = b);
+}
+/* a kid at drill: { x, y, th, pose } -- prone on the drawn board paddling, the pop, the stance, standing, down again */
+function surfDrillAt(k, now){
+  const s = surfSpot(k), off = ((k % 2) ? SURF_DRILL.ms/2 : 0) + Math.floor(k/2)*1300, u = ((now + off) % SURF_DRILL.ms)/SURF_DRILL.ms*9;
+  const sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
+  const tail = { x: s.x + 72, y: s.y }, mid = { x: s.x + 6, y: s.y };
+  const prone = (pad) => ({ x: tail.x, y: tail.y, th: Math.PI, pose: { pitch: Math.PI/2, pitchLift: 7, lift: pad ? [1.6 + 0.9*Math.sin(now*0.006 + k), 1.6 - 0.9*Math.sin(now*0.006 + k)] : [2.2, 2.2], bend: 0.2 } });
+  if(u < 3.4) return prone(true);
+  if(u < 3.9){ const e = sm((u - 3.4)/0.5);
+    return { x: tail.x + (mid.x - tail.x)*e, y: tail.y, th: Math.PI - e*Math.PI/2*0.9, pose: { pitch: Math.PI/2*(1 - e), pitchLift: 7*(1 - e), drop: 24*e, lift: [1.4 - 0.5*e, 1.4 - 0.5*e], bend: 0.3 } }; }
+  if(u < 6.4) return { x: mid.x, y: mid.y, th: Math.PI - Math.PI/2*0.9, pose: { drop: 24 + 3*Math.sin(now*0.005 + k), lift: [0.95, 0.85], bend: 0.1 } };
+  if(u < 7.0){ const e = sm((u - 6.4)/0.6); return { x: mid.x, y: mid.y, th: Math.PI - Math.PI/2*0.9*(1 - e), pose: { drop: 24*(1 - e), lift: [0.9*(1 - e), 0.85*(1 - e)], bend: 0 } }; }
+  if(u < 7.7) return { x: mid.x, y: mid.y, th: Math.PI, pose: null, clap: k % 2 ? null : 1 };
+  if(u < 8.3){ const e = sm((u - 7.7)/0.6); return { x: mid.x + (tail.x - mid.x)*e, y: mid.y, th: Math.PI, pose: { pitch: Math.PI/2*e, pitchLift: 7*e, lift: [2.2*e, 2.2*e], bend: 0 } }; }
+  return prone(false);
+}
+/* a kid now: at drill, or the session's walk down to the water with a board, paddling out, sitting out there */
+function surfKidAt(k, now){
+  const K = SSN.kids && SSN.kids[k];
+  if(!K) return Object.assign(surfDrillAt(k, now), { k });
+  if(K.P && now < K.P.t0) return Object.assign(surfDrillAt(k, now), { k });
+  if(K.P){ const p = walkPathAt(K.P, now); if(p){ if(p.there && K.paddle == null && SSN.stage === 'set') K.paddle = now + 800 + k*500;
+    if(K.paddle == null || now < K.paddle) return { x: p.x, y: p.y, th: p.there ? Math.PI + lhGlance(0, now, k)*0.5 : p.th, moving: p.moving, board: 'arm', k, look: p.there }; } }
+  if(K.paddle != null){
+    const dx = SURF.water.x - SURF.water.sit, ms = dx/SSN_RUN.paddleV, u = Math.min(1, (now - K.paddle)/ms), e = u*u*(3 - 2*u)*0.5 + u*0.5;
+    const y0 = K.wy, x = SURF.water.x - dx*e - 40, y = y0 + 30*Math.sin(u*2);
+    const dn = Math.min(1, (now - K.paddle)/500);
+    if(u < 1) return { x, y, th: Math.PI, board: 'flat', k, pose: { pitch: Math.PI/2*dn, pitchLift: 15*dn, lift: [1.6 + 0.9*Math.sin(now*0.007 + k), 1.6 - 0.9*Math.sin(now*0.007 + k)], bend: 0.2 } };
+    const bob = 2*Math.sin(now*0.002 + k);
+    return { x: SURF.water.sit - 40, y: y0 + 30*Math.sin(2), z: bob, th: Math.PI - 0.35 + 0.2*k/5, board: 'flat', k, pose: { sit: 12, lift: [0.15, 0.15], bend: 0.2 }, sat: true };
+  }
+  return Object.assign(surfDrillAt(k, now), { k });
+}
+/* ---------- MELE ---------- */
+function surfMeleLook(){ return SURF_LIFE._ml || (SURF_LIFE._ml = Object.assign({}, streetLook(SSN_RUN.seeds.mele, { type: 'surfer', sex: 'f', adult: true }), { dress: null })); }
+/* the way between her post and the walk's top (round the circle's north, along the plank walk, up the dune path) */
+function surfMeleWay(){
+  const M = SURF.mele, W = SURF.wait;
+  return [{ x: M.x, y: M.y }, { x: M.x + 120, y: SURF.y - 60 }, { x: -4980, y: 11780 }, { x: -4400, y: SURF.y - 80 }, { x: SURF.walk.x1 + 20, y: SURF.y, z: 2 }, { x: SURF.walk.x0, y: SURF.y, z: 2 },
+          { x: DUNE_PATH_X1 + 70, y: SURF.y, z: DUNE_PATH_T }, { x: W.x, y: W.y, z: W.z }];
+}
+function surfMeleAt(now){
+  const S = SSN, M = S.mele;
+  if(M && M.P){ const p = walkPathAt(M.P, now); if(p) return Object.assign(p, { has: M.has || null, lift: p.there ? M.lift : null }); S.mele = null; }
+  if(M && M.at) return Object.assign({ moving: false, has: M.has || null }, M.at, M.pose ? M.pose(now) : null);
+  const P = SURF.mele, w = Math.sin(now*0.0011);
+  return { x: P.x, y: P.y, th: lhGlance(P.th, now, 41), moving: false, lift: w > 0.6 ? [0.3, 1.3] : null, bend: 0.2 };   // (now and then pointing to a kid)
+}
+/* round the circle's north side (never through the class) from her post, or none when she is not there */
+function surfMeleRound(p){ return p && p.x < -5600 ? [{ x: -5800, y: 11900 }, { x: -5150, y: 11890 }] : []; }
+/* her walk from where she is to a point (a path), standing at the end turned to `th` */
+function surfMeleGo(now, pts, th, extra){
+  const p = surfMeleAt(now);
+  SSN.mele = Object.assign({ P: { pts: [{ x: p.x, y: p.y, z: p.z || 0 }].concat(pts), t0: now, leave: null, faceTh: th, th0: p.th } }, extra || {});
+}
+/* ---------- THE BOT (the fleet's cargo bot): coming to him, and away ---------- */
+function surfBotAt(now){
+  const B = SSN.bot;
+  if(!B) return null;
+  const p = walkPathAt(B, now);
+  if(!p){ SSN.bot = null; return null; }
+  if(B.away && p.there){ SSN.bot = null; return null; }
+  B.gd = (B.gd || 0) + Math.hypot(p.x - (B.lx == null ? p.x : B.lx), p.y - (B.ly == null ? p.y : B.ly)); B.lx = p.x; B.ly = p.y;
+  return p;
+}
+/* the lid (the fleet avatar's data.lid while he has it): opening for a load, resting open on the boards */
+function surfLid(now){
+  const L = SSN.lid, rest = SSN.aboard > 0 ? 0.55 : 0;
+  if(!L) return rest;
+  const u = Math.max(0, Math.min(1, (now - L.t0)/SSN_RUN.lidMs)), o = u < 0.25 ? u/0.25 : u > 0.75 ? (1 - u)/0.25 : 1, e = o*o*(3 - 2*o);
+  return Math.max(rest, 1.35*e);
+}
+function surfLidTick(now){
+  const L = SSN.lid;
+  if(!L) return;
+  const u = (now - L.t0)/SSN_RUN.lidMs;
+  if(u > 0.5 && !L.midDone){ L.midDone = true; if(L.mid) L.mid(); }
+  if(u >= 1){ SSN.lid = null; if(L.done) L.done(); }
+}
+/* what the cargo bot's art shows (drawFleetAvatarAt, drawProp's cargobot): the lid and the boards in its hold */
+function surfBotData(lid0){
+  const sc = typeof scn === "function" ? scn() : null, now = sc ? sc.time.now : 0;
+  if(!SSN.loan) return null;
+  return { lid: Math.max(lid0 || 0, surfLid(now)), boards: SSN.aboard, boardCols: SURF_BOARD_COLS.slice(SSN.trip ? 3 : 0, (SSN.trip ? 3 : 0) + 3) };
+}
+/* the bot's seen flank (its side toward the eye) and a spot there: { x, y, th, nx, ny } */
+function surfBotSide(ow, gap){
+  const ux = Math.cos(ow.yaw), uy = Math.sin(ow.yaw);
+  let nx = -uy, ny = ux; if(nx + ny < 0){ nx = -nx; ny = -ny; }
+  const d = 44 + (gap || 52);
+  return { x: ow.px + nx*d, y: ow.py + ny*d, th: meetCheat(Math.atan2(-ny, -nx)), nx, ny, ux, uy };
+}
+/* a walk round the bot to its seen side from `from` (round its nearer end when she starts on the far side) */
+function surfWalkToBot(ow, from, now, extra){
+  const S = surfBotSide(ow), lab = p => ({ a: (p.x - ow.px)*S.ux + (p.y - ow.py)*S.uy, b: (p.x - ow.px)*S.nx + (p.y - ow.py)*S.ny });
+  const pts = [{ x: from.x, y: from.y, z: from.z || 0 }].concat(extra || []);
+  const f = lab(pts[pts.length - 1]);
+  if(f.b < 70){ const end = f.a >= 0 ? 50 + 60 : -50 - 60;
+    for(const b of [-(44 + 50), 44 + 50]) if(f.b < b) pts.push({ x: ow.px + S.ux*end + S.nx*b, y: ow.py + S.uy*end + S.ny*b }); }
+  pts.push({ x: S.x, y: S.y });
+  return { pts, t0: now, leave: null, faceTh: S.th, th0: from.th };
+}
+/* ---------- KAI (Palmline Surf Co.'s clerk, at the stand) ---------- */
+function surfKaiLook(){ return SURF_LIFE._kai || (SURF_LIFE._kai = Object.assign({}, streetLook(SSN_RUN.seeds.kai, { type: 'surfer', sex: 'm', adult: true }), { dress: null })); }
+function surfKaiAt(now){
+  const K = SSN.kai, P = SURF.stand.kai;
+  if(K){ const p = walkPathAt(K, now); if(p && !(K.home && p.there)) return Object.assign(p, { has: K.has || null }); SSN.kai = null; }
+  return { x: P.x, y: P.y, th: lhGlance(P.th, now, 43), moving: false, lift: Math.sin(now*0.0009 + 1) > 0.7 ? [0.25, 0.9] : null, bend: 0.6 };   // (waxing a board on the table now and then)
+}
+/* ---------- THE LIFEGUARD, THE SURFERS, THE SUNBATHERS ---------- */
+function surfGuardAt(now){
+  const G = SURF.guard, wave = SSN.stage === 'set' || SSN.stage === 'thanks' || (SSN.stage === 'idle' && now - SURF_LIFE.guardWave < 9000);
+  if(wave){ const w = Math.sin(now*0.012); return { x: G.x, y: G.y, th: -2.2, moving: false, lift: [0.2, 2.25 + 0.35*w], bend: [0.2, 0.15 + 0.2*w], flag: true }; }
+  return { x: G.x, y: G.y, th: lhGlance(G.th, now, 47), moving: false, lift: null };
+}
+const SURF_PATROL = { dwell: 7000, v: 0.062 };
+function surfSurferAt(i, now){
+  const pts = SURF.surfers[i].map(q => ({ x: q[0], y: q[1] })), L = fmPolyLen(pts), T = L/SURF_PATROL.v, D = SURF_PATROL.dwell, cyc = 2*(T + D);
+  const t = (now + i*cyc*0.37) % cyc;
+  const at = (d, back) => { const q = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 30)), b = walkPathPoint(pts, Math.min(L, d + 30));
+    const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0); return { x: q.x, y: q.y, th }; };
+  if(t < T) return Object.assign(at(meetWalkFrac(t, T)*L, false), { moving: true });
+  if(t < T + D) return Object.assign(at(L, false), { moving: false, th: Math.PI + lhGlance(0, now, 50 + i)*0.6 });
+  if(t < 2*T + D) return Object.assign(at(L - meetWalkFrac(t - T - D, T)*L, true), { moving: true });
+  return Object.assign(at(0, true), { moving: false, th: lhGlance(Math.PI*0.25, now, 52 + i) });
+}
+/* after dark, the two surfers on the logs by the fire */
+function surfSurferFire(i, now){
+  const L = SURF.logs[i], F = SURF.fire;
+  return { x: L.x + (L.along === 'y' ? -12 : 0), y: L.y + (L.along === 'x' ? 12 : 0), th: Math.atan2(F.y - L.y, F.x - L.x), moving: false, sit: 34, lift: [0.35, 0.5 + 0.1*Math.sin(now*0.002 + i)], bend: 0.9 };
+}
+/* ---------- THE STORY ---------- */
+function surfNav(scene, B, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "surf", name, B.x, B.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function surfNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "surf"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
+function surfCarrying(){ return SSN.loan && SSN.aboard > 0 && (SSN.stage === 'carry' || SSN.stage === 'toStand'); }
+/* the bay (and beacon) the story shows now (R7), or null */
+function surfBayNow(scene){
+  const ow = scene.ow, S = SSN;
+  if(!ow || !ow.on || !owTripMode(scene.mode) || !WORLDGEN_COAST) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon });
+  switch(S.stage){
+    case 'idle':
+      if(ssnDone() || storiesHidden('sunset-session') || !surfOpen()) return null;
+      return missionWindowOpen('sunset-session') ? ic(SURF_BAYS.ask, 'flag') : Object.assign(ic(SURF_BAYS.ask, 'flag'), { noBeacon: true });
+    case 'shack': return ic(SURF_BAYS.shack, 'flag');
+    case 'toStand': return ic(SURF_BAYS.stand, 'flag');
+    case 'carry': case 'sorryBack': return ic(SURF_BAYS.unload, 'flag');
+    case 'toWater': return ic(SURF_BAYS.water, 'flag');
+  }
+  return null;
+}
+function ssnAccept(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now;
+  S.stage = 'shack'; S.trip = 0; S.laid = 0; S.standN = SURF.stand.n; S.failed = false; S.spill = null;
+  NIGHT_HOLD.v = nightLevel(); NIGHT_HOLD.t = 0; NIGHT_HOLD.ms = 2500; S.skyV0 = NIGHT_HOLD.v;      // (the sky keeps its dusk till the set piece: R4)
+  /* back down the walk to her class */
+  const way = surfMeleWay().slice().reverse(); way.shift();
+  surfMeleGo(now, [{ x: SURF.wait.x - 40, y: SURF.y, z: SURF.wait.z }].concat(way.slice(1)), SURF.mele.th);
+  surfNav(scene, SURF_BAYS.shack, "Sunset Shore Surf School");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("Down the walk and across the sand to the surf school's lesson circle.");
+}
+function ssnDecline(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, W = SURF.wait;
+  surfMeleGo(now, [{ x: W.x, y: W.y, z: W.z }], W.th);
+  S.stage = 'idle'; S.snooze = SURF_BAYS.ask;
+}
+/* the cargo bot from past the view's edge, down the sand to the bay by the circle; then it is his */
+function surfCallBot(scene){
+  const now = scene.time.now, U = SURF_BAYS.unload;
+  let y0 = U.y - SSN_RUN.bot.from;
+  for(let d = 1400; d < 7000; d += 300){ if(!scene.visWorldPt(U.x, U.y - d, 200, 260)){ y0 = U.y - d; break; } }
+  SSN.bot = { pts: [{ x: U.x, y: y0 }, { x: U.x, y: U.y }], t0: now, leave: null, faceTh: Math.PI/2, v: SSN_RUN.bot.v, th0: Math.PI/2 };
+  SSN.stage = 'call';
+  if(typeof tpToast === "function") tpToast("Tipsey's calling the fleet: the cargo bot has a big hold.");
+}
+function surfLoan(scene){
+  const ow = scene.ow, S = SSN, U = SURF_BAYS.unload;
+  S.park = { x: ow.px, y: ow.py, a: ow.yaw };
+  FLEET_LOAN = 'cargobot'; S.loan = true; S.aboard = 0;
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, U.x, U.y, Math.PI/2);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;                               // (the camera eases across: R12)
+  S.bot = null;
+  S.stage = 'toStand';
+  surfNav(scene, SURF_BAYS.stand, "Palmline Surf Co.'s beach stand");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The cargo bot is yours. Up the sand to Palmline Surf Co.'s beach stand: three boards a trip.");
+}
+/* the loan ends beside Tipsey: he is himself again where he parked, the bot rolls off up the sand past the view's edge */
+function surfLoanEnd(scene){
+  const S = SSN, P = S.park, ow = scene.ow, now = scene.time.now;
+  const hx = ow.px, hy = ow.py, hth = ow.yaw;
+  FLEET_LOAN = null; S.loan = false; S.lid = null; S.aboard = 0;
+  if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
+  S.park = null;
+  let y1 = hy - SSN_RUN.bot.from;
+  for(let d = 1400; d < 7000; d += 300){ if(!scene.visWorldPt(hx, hy - d, 200, 260)){ y1 = hy - d - 200; break; } }
+  S.bot = { pts: [{ x: hx, y: hy }, { x: hx, y: hy - 160 }, { x: SURF_BAYS.unload.x, y: hy - 420 }, { x: SURF_BAYS.unload.x, y: y1 }], t0: now + 300, leave: null, v: SSN_RUN.bot.v, th0: hth, away: true };
+}
+/* a meeting at the bot: the walk there done, the card */
+function surfMeetBot(M, now, card){ if(M && !M.card){ const p = walkPathAt(M, now); if(p && p.there){ M.card = true; card(); } } }
+function ssnKaiLoad(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'kai' || !scene) return;
+  hospSayCard(null);
+  S.stage = 'load';
+  S.lid = { t0: scene.time.now, mid: () => { S.aboard = 3; if(S.kai) S.kai.has = null; }, done: () => {
+    cineBars(false);
+    const now = scene.time.now, K = SURF.stand.kai, p = surfKaiAt(now);
+    S.kai = { pts: [{ x: p.x, y: p.y }, { x: K.x, y: K.y }], t0: now, leave: null, faceTh: K.th, th0: p.th, home: true };
+    S.stage = 'carry';
+    surfNav(scene, SURF_BAYS.unload, "the surf school's lesson circle");
+    if(typeof tpToast === "function") tpToast("Three boards aboard. Down the sand to Mele, round the sunbathers: easy over the bumps!");
+  } };
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+function ssnMeleUnload(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'mele' || !scene) return;
+  hospSayCard(null);
+  S.stage = 'unload';
+  S.lid = { t0: scene.time.now, mid: () => { S.aboard = 0; if(S.mele) S.mele.has = 'boards3'; }, done: () => {
+    const now = scene.time.now, last = S.trip >= 1;
+    /* to the circle with them, laid by the drawings, then back to her post */
+    const C = SURF.circle, to = { x: C.x + 330, y: C.y + (last ? 40 : -40) };
+    surfMeleGo(now, [{ x: C.x + 420, y: C.y }, to], Math.PI, { has: 'boards3', lay: true });
+    S.trip++;
+    if(!last){
+      cineBars(false);
+      S.stage = 'toStand';
+      surfNav(scene, SURF_BAYS.stand, "Palmline Surf Co.'s beach stand");
+      if(typeof tpToast === "function") tpToast("Three down, three to go: back up the sand to Kai.");
+    } else {
+      cineBars(false);
+      surfLoanEnd(scene);
+      S.stage = 'toWater';
+      surfNav(scene, SURF_BAYS.water, "the water's edge");
+      if(typeof tpToast === "function") tpToast("All six boards! Down to the water's edge to watch the class go in.");
+    }
+  } };
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+/* the class to the water: each kid picks up their board (laid by their drawing) and walks down to the waterline */
+function surfClassGo(scene){
+  const now = scene.time.now, ys = [12120, 12200, 12280, 12360, 12440, 12520];
+  SSN.kids = [];
+  for(let k = 0; k < 6; k++){
+    /* each sets off as their drill has them standing (no pop from lying to walking) */
+    const s = surfSpot(k), off = ((k % 2) ? SURF_DRILL.ms/2 : 0) + Math.floor(k/2)*1300, stand = { x: s.x + 6, y: s.y - 46 };
+    let t0 = now + 1200 + k*300; for(let i = 0; i < 90; i++){ const u = ((t0 + off) % SURF_DRILL.ms)/SURF_DRILL.ms*9; if(u >= 7.05 && u < 7.6) break; t0 += 100; }
+    SSN.kids.push({ P: { pts: [{ x: s.x + 6, y: s.y }, stand, { x: SURF.water.x, y: ys[k] }], t0, leave: null, faceTh: Math.PI, th0: Math.PI }, wy: ys[k], paddle: null });
+  }
+}
+/* a board come off in the sand (R5's spill): left where it fell, a fail */
+function surfSpillDrop(scene){
+  const ow = scene && scene.ow, S = SSN;
+  if(!ow || !S.loan || S.aboard <= 0) return;
+  const nx = -Math.sin(ow.yaw), ny = Math.cos(ow.yaw);
+  S.spill = { x: ow.px + nx*90, y: ow.py + ny*90, a: ow.yaw + 0.4, col: SURF_BOARD_COLS[(S.trip ? 3 : 0) + S.aboard - 1], t0: scene.time.now };
+  S.aboard--;
+  S.failed = true; S.stage = 'sorryBack';
+  if(S.kai && S.kai.leave == null && !S.kai.home) S.kai.leave = scene.time.now;
+  hospSayCard(null); cineBars(false);
+  surfNav(scene, SURF_BAYS.unload, "the surf school's lesson circle");
+  if(typeof sfxThump === "function") sfxThump(0.5);
+  if(typeof tpToast === "function") tpToast("A board's come off in the sand! Back to Mele.");
+}
+function ssnSorry(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'sorry' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, P = SURF.mele;
+  surfMeleGo(now, [{ x: P.x, y: P.y }], P.th);
+  surfLoanEnd(scene);
+  S.stage = 'idle'; S.snooze = SURF_BAYS.ask; S.laid = 0; S.trip = 0; S.standN = SURF.stand.n;
+  NIGHT_HOLD.t = now;
+  surfNavClear(scene);
+}
+function ssnFinish(){
+  const scene = scn(), S = SSN;
+  if(S.stage !== 'thanks' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, first = !ssnDone(), Wm = SURF.water.mele;
+  if(S.mele && S.mele.P) S.mele.P.leave = now;
+  surfMeleGo(now + 50, [{ x: Wm[0], y: Wm[1] }], Math.PI);
+  S.stage = 'idle'; S.after = true; SURF_LIFE.fireHold = true;
+  NIGHT_HOLD.ms = 40000; NIGHT_HOLD.t = now;                                          // (the sky eases back to the clock, slowly)
+  surfNavClear(scene);
+  const rec = missionComplete('sunset-session');
+  surfWinShow({ first, missionP: rec });
+}
+function surfWinShow(T){
+  const el = document.getElementById("heartWin");
+  if(!el) return;
+  const skin = tpSkinById("board-shorts"), rows = [];
+  if(T.first){
+    rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("silver", 28)}</div><div><div class="hwName">Sunset Session</div><div class="hwNote">Silver trophy · six boards, six kids, one sunset</div></div></div>`);
+    if(skin) rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "board-shorts")}</div><div><div class="hwName">Board Shorts skin</div><div class="hwNote">The surf school's own, yours to wear: he's wearing it now</div></div></div>`);
+    rows.push(`<div class="hwRow"><div class="hwIcon hwCash">$</div><div><div class="hwTip">+${tpMoney(MISSIONS['sunset-session'].reward.cents)}</div><div class="hwNote">The class's whip-round, with Mele's thanks</div></div></div>`);
+  }
+  el.innerHTML = `
+    <div class="hwKick">MISSION COMPLETE</div>
+    <div class="hwTitle">SUNSET SESSION</div>
+    <div class="hwSub">${T.first ? "Six foam boards down the sand, and a class in the water as the sun went" : "Another class in the water at sundown"}</div>
+    ${rows.length ? `<div class="hwRows">${rows.join("")}</div>` : ""}
+    <div class="hwBtns"><button class="hwGo">Continue</button></div>`;
+  el.querySelector(".hwGo").addEventListener("click", () => { el.classList.add("hidden"); cineBars(false); });
+  el.classList.remove("hidden");
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+}
+/* the place's own life each frame: latched open / shut / fire while unseen; R13 for what the story leaves */
+function surfLifeTick(scene, now){
+  const L = SURF_LIFE, C = SURF.circle, seen = scene.visWorldPt(-5000, 12000, 2200, 400) || scene.visWorldPt(SURF.stand.x, SURF.stand.y, 700, 300);
+  if(!seen || L.open == null){ L.open = surfOpenNow(); L.fire = surfFireNow(); L.bathers = surfBathersOut(); }
+  if(!seen && SSN.stage === 'idle'){
+    if(SSN.after){ SSN.after = false; SSN.kids = null; SSN.laid = 0; SSN.standN = SURF.stand.n; SURF_LIFE.fireHold = false; const P = SURF.mele; SSN.mele = null; void P; }
+    if(SSN.spill) SSN.spill = null;
+    if(SSN.failed){ SSN.failed = false; SSN.kids = null; }
+  }
+  if(NIGHT_HOLD.v == null && NIGHT_HOLD.ms !== 2500) NIGHT_HOLD.ms = 2500;
+  void C;
+}
+/* every frame (after owStep) */
+function ssnTick(scene, ow){
+  if(!WORLDGEN_COAST) return;
+  const now = scene.time.now, S = SSN;
+  surfLifeTick(scene, now);
+  surfLidTick(now);
+  /* Mele lays the boards she carried as she gets to the circle */
+  if(S.mele && S.mele.lay && S.mele.P){ const p = walkPathAt(S.mele.P, now); if(p && p.there){ S.mele.lay = false; S.mele.has = null; S.laid = Math.min(6, S.laid + 3);
+    if(S.laid >= 6 && !S.kids) surfClassGo(scene);
+    surfMeleGo(now, S.laid >= 6 ? [{ x: -5200, y: 12560 }, { x: SURF.water.mele[0] + 120, y: SURF.water.mele[1] + 40 }, { x: SURF.water.mele[0], y: SURF.water.mele[1] }]
+                                : [{ x: -5180, y: 11890 }, { x: -5800, y: 11900 }, { x: SURF.mele.x, y: SURF.mele.y }], S.laid >= 6 ? Math.PI : SURF.mele.th); } }
+  /* Mele to the walk's top at dusk (before the class), and back to her post after it */
+  if(S.stage === 'idle' && !S.after && !ssnDone() && surfOpen()){
+    const want = missionWindowOpen('sunset-session') && !storiesHidden('sunset-session') && !S.failed;
+    const atWait = S.mele && S.mele.P && S.mele.wait;
+    if(want && !atWait && !(S.mele && S.mele.P && !walkPathAt(S.mele.P, now).there)){ const way = surfMeleWay(); way.shift(); surfMeleGo(now, way, SURF.wait.th, { wait: true }); }
+    if(!want && atWait && walkPathAt(S.mele.P, now).there){ const way = surfMeleWay().reverse(); way.shift(); surfMeleGo(now, way, SURF.mele.th); }
+  }
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(S.snooze && !owMatContains(scene, S.snooze.mat)) S.snooze = null;
+  const armed = B => !!B && !S.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  /* a hard bump with boards aboard drops one (the spill rule) */
+  if(surfCarrying()){
+    if(ow.inContact && !S.lastC && S.lastV > SSN_RUN.bumpV){ surfSpillDrop(scene); S.lastC = true; S.lastV = 0; return; }
+  }
+  S.lastC = !!ow.inContact; S.lastV = Math.abs(ow.vel || 0);
+  switch(S.stage){
+    case 'idle': {
+      if(ssnDone() || missionBusy('sunset-session') || storiesHidden('sunset-session') || fleetCur() || !surfOpen()) return;
+      if(!armed(SURF_BAYS.ask)) return;
+      if(!missionWindowOpen('sunset-session')){
+        missionWindowSay('sunset-session', scene);
+        return;
+      }
+      const m = surfMeleAt(now);
+      if(!(S.mele && S.mele.wait && m && m.there)) return;                                        // (she is still on her way up)
+      S.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* up the last of the walk to him (the meet kit: meetWalk's spot and meetTick's turn), at his left -- the walk's side;
+         her steps on the walk's deck keep its height (walkPathAt) */
+      const M = meetWalk(ow, { x: m.x, y: m.y }, now, -1, scene);
+      S.mele = { P: { pts: [{ x: m.x, y: m.y, z: m.z || 0 }, { x: -2170, y: SURF.y, z: 0.6 }, { x: M.to.x, y: M.to.y }], t0: now, leave: null, th0: m.th, faceTh: M.faceTh }, M };
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return;
+    }
+    case 'ask': {
+      ow.vel = 0;
+      const M = S.mele, p = M && M.P && walkPathAt(M.P, now);
+      if(M && M.M) meetTick(scene, ow, M.M);
+      if(p && p.there && M && !M.card){ M.card = true;
+        hospSayCard({ who: "Mele, Sunset Shore Surf School", btn: "Six boards, coming up!", ok: ssnAccept, no: { btn: "Not now", ok: ssnDecline }, at: surfMeleAt,
+          say: "Tipsey! Aloha. I'm Mele, I run the surf school down on the sand. Six kids signed up for tonight's sunset session, and they've been popping up on boards drawn in the sand all week. But their foam boards are still on the rack at Palmline Surf Co.'s beach stand, up the sand, and the sun won't wait. Could you bring them down in your cargo bot? Three fit a trip." }); }
+      return;
+    }
+    case 'shack':
+      if(armed(SURF_BAYS.shack)){ ow.vel = 0; surfNavClear(scene); surfCallBot(scene); }
+      return;
+    case 'call': {
+      ow.vel = 0;
+      const b = surfBotAt(now);
+      if(b && b.there) surfLoan(scene);
+      return;
+    }
+    case 'toStand':
+      if(armed(SURF_BAYS.stand)){
+        S.stage = 'kai'; ow.vel = 0; cineBars(true); surfNavClear(scene);
+        const p = surfKaiAt(now), R = SURF.stand;
+        S.standN = Math.max(0, S.standN - 3);                                                    // (three off the rack, in his arms)
+        S.kai = Object.assign(surfWalkToBot(ow, { x: p.x, y: p.y, th: p.th }, now, [{ x: R.rackX + 140, y: R.rackY + 70 }]), { has: 'boards3', card: false });
+        if(typeof sfxThump === "function") sfxThump(0.15);
+      }
+      return;
+    case 'kai':
+      ow.vel = 0;
+      surfMeetBot(S.kai, now, () => hospSayCard({ who: "Kai, Palmline Surf Co.", btn: S.trip ? "Thanks, Kai!" : "Load them in!", ok: ssnKaiLoad, at: surfKaiAt,
+        say: S.trip ? "The last three. Tell Mele the wax is on the house, and that I'll be down for the first wave." : "Mele's six? They're ready. Three fit your hold a trip: soft-tops, so they bounce, but don't go ramming anything on the way down. Pop the lid!" }));
+      return;
+    case 'load': case 'unload': ow.vel = 0; return;
+    case 'carry':
+      if(armed(SURF_BAYS.unload)){
+        S.stage = 'mele'; ow.vel = 0; cineBars(true); surfNavClear(scene);
+        const p = surfMeleAt(now);
+        S.mele = { P: Object.assign(surfWalkToBot(ow, { x: p.x, y: p.y, th: p.th }, now, surfMeleRound(p)), { card: false }) };
+      }
+      return;
+    case 'mele':
+      ow.vel = 0;
+      surfMeetBot(S.mele && S.mele.P, now, () => hospSayCard({ who: "Mele, Sunset Shore Surf School", btn: S.trip ? "On my way!" : "Back for the rest!", ok: ssnMeleUnload, at: surfMeleAt,
+        say: S.trip ? "That's all six! Thank you, Tipsey. Boards by your drawings, kids, nose to the sea. Come down to the water's edge with us: you'll want to see this." : "Three down! Lay them by the drawings, kids, nose to the sea. Three more and we're in the water." }));
+      return;
+    case 'sorryBack':
+      if(armed(SURF_BAYS.unload)){
+        S.stage = 'sorry'; ow.vel = 0; cineBars(true); surfNavClear(scene);
+        const p = surfMeleAt(now);
+        S.mele = { P: Object.assign(surfWalkToBot(ow, { x: p.x, y: p.y, th: p.th }, now, surfMeleRound(p)), { card: false }) };
+      }
+      return;
+    case 'sorry':
+      ow.vel = 0;
+      surfMeetBot(S.mele && S.mele.P, now, () => hospSayCard({ who: "Mele, Sunset Shore Surf School", btn: "Next time!", ok: ssnSorry, at: surfMeleAt,
+        say: "Oh, Tipsey, a board's come off in the sand. Soft-tops ding, and I can't send a kid out on a dinged board. Never mind: nobody's hurt. Leave the bot with me, and come back at dusk. We'll try again." }));
+      return;
+    case 'toWater':
+      if(armed(SURF_BAYS.water)){
+        S.stage = 'set'; ow.vel = 0; cineBars(true); surfNavClear(scene);
+        S.setT = now; S.skyV0 = NIGHT_HOLD.v != null ? NIGHT_HOLD.v : nightLevel(); SURF_LIFE.guardWave = now;
+        if(!S.kids) surfClassGo(scene);
+        if(typeof tpToast === "function") tpToast("The sunset session: in they go.");
+      }
+      return;
+    case 'set': {
+      ow.vel = 0;
+      /* THE STORY'S OWN CLOCK: the kids paddle out as the sun goes (the held sky set deeper), the fire lit, the flag
+         waved; then Mele comes to him */
+      const u = Math.min(1, (now - S.setT)/SSN_RUN.sky.ms);
+      if(S.skyV0 != null && NIGHT_HOLD.t === 0) NIGHT_HOLD.v = Math.min(0.92, S.skyV0 + SSN_RUN.sky.add*u*u*(3 - 2*u));
+      const out = S.kids && S.kids.every(K => K.paddle != null && now > K.paddle + (SURF.water.x - SURF.water.sit)/SSN_RUN.paddleV);
+      if(out && now - S.setT > SSN_RUN.sky.ms){
+        S.stage = 'thanks'; cineBars(true);
+        const m = surfMeleAt(now), M = meetWalk(ow, { x: m.x, y: m.y }, now, -1, scene);
+        S.mele = { P: { pts: [{ x: m.x, y: m.y }, M.to], t0: now, leave: null, faceTh: M.faceTh, th0: m.th }, M };
+      }
+      return;
+    }
+    case 'thanks': {
+      ow.vel = 0;
+      const M = S.mele, p = M && M.P && walkPathAt(M.P, now);
+      if(M && M.M) meetTick(scene, ow, M.M);
+      if(p && p.there && M && !M.card){ M.card = true;
+        hospSayCard({ who: "Mele, Sunset Shore Surf School", btn: "Mahalo, Mele!", ok: ssnFinish, at: surfMeleAt,
+          say: "Look at them out there, sitting on their boards in the gold. Every one of them popped up on the sand, and every one of them is out past the break tonight. Here: the school's board shorts, and the class's whip-round. You're an honorary instructor now." }); }
+      return;
+    }
+  }
+}
+/* HELD BY THEM (owStep's blockAt): the shack's furniture (the rack, the stand, the fire ring and its logs, the post, the
+   umbrellas, the towels with their sunbathers), the people where they stand, Tipsey parked, the bot coming */
+function surfSolids(){
+  if(SURF._sol) return SURF._sol;
+  const R = SURF.rack, ST = SURF.stand, out = [];
+  out.push({ r: [R.x0 - 16, R.x0 + R.n*30 + 8, R.y - 34, R.y + 34] });
+  out.push({ r: [ST.rackX - 16, ST.rackX + ST.n*30 + 8, ST.rackY - 34, ST.rackY + 34] });
+  out.push({ c: [ST.table[0], ST.table[1]], rr: 52 }, { c: [ST.x, ST.y], rr: 14 }, { c: ST.flag, rr: 10 });
+  out.push({ c: [SURF.fire.x, SURF.fire.y], rr: SURF.fire.r + 8 });
+  for(const L of SURF.logs) out.push({ r: L.along === 'y' ? [L.x - 22, L.x + 22, L.y - 90, L.y + 90] : [L.x - 90, L.x + 90, L.y - 22, L.y + 22] });
+  out.push({ c: [SURF.flag.x, SURF.flag.y], rr: 10 });
+  for(const b of SURF.bathers){ out.push({ c: [b.x, b.y], rr: 0, cap: { a: b.a, h: 92, w: 44 } }); if(b.um) out.push({ c: b.um, rr: 10 }); }
+  return (SURF._sol = out);
+}
+function surfBlocks(x, y, r){
+  if(!WORLDGEN_COAST || x > -3600 || x < -7200 || y < 10500 || y > 13300) return false;
+  for(const s of surfSolids()){
+    if(s.r){ if(x > s.r[0] - r && x < s.r[1] + r && y > s.r[2] - r && y < s.r[3] + r) return true; continue; }
+    if(s.cap){ const ca = Math.cos(s.cap.a), sa = Math.sin(s.cap.a), dx = x - s.c[0], dy = y - s.c[1], a = dx*ca + dy*sa, b = -dx*sa + dy*ca;
+      if(Math.abs(a) < s.cap.h + r && Math.abs(b) < s.cap.w + r && (!SURF_LIFE.bathers ? false : true)) return true; continue; }
+    if(Math.hypot(x - s.c[0], y - s.c[1]) < s.rr + r) return true;
+  }
+  const now = performance.now(), hit = p => p && Math.hypot(x - p.x, y - p.y) < r + 15;
+  if(SSN.park && Math.hypot(x - SSN.park.x, y - SSN.park.y) < r + 32) return true;
+  if(surfOpen()){
+    if(hit(surfGuardAt(now)) || (!SSN.kai && hit(surfKaiAt(now)))) return true;
+    if(!SSN.mele && hit(surfMeleAt(now))) return true;
+    if(!SSN.kids) for(let k = 0; k < 6; k++){ const p = surfDrillAt(k, now); if(Math.hypot(x - p.x, y - p.y) < r + 20) return true; }
+  }
+  return false;
+}
+/* ---------- THE STILL PIECES, DRAWN (cached: bcDraw keyed by piece and place) ---------- */
+function surfQueueStatic(sc, vq, grid){
+  if(!WORLDGEN_COAST) return;
+  const span = (sc.vpW() + sc.vpH())/sc.K + 1200;
+  if(Math.abs(-4900 - sc.camX) + Math.max(0, Math.abs(12000 - sc.camY) - 1400) > span + 1200) return;
+  const near = (x, y, r, h) => sc.visWorldPt(x, y, r, h);
+  const S = SURF, D = S.deck, W = S.walk;
+  /* flat: the plank walk on the sand, the lesson circle and its drawn boards (the ground's depth, as the dune paths') */
+  if(near((W.x0 + W.x1)/2, S.y, 400, 40)) vq.push({ depth: (W.x0 + W.x1)/2 + S.y - 1e6, fn: g => sc.bcDraw(g, "srf|walk", W.x0, S.y, gg => surfDrawWalk(sc, gg)) });
+  if(near(S.circle.x, S.circle.y, S.circle.r + 60, 30)) vq.push({ depth: S.circle.x + S.circle.y - 1e6, fn: g => sc.bcDraw(g, "srf|circle|" + SSN.laid, S.circle.x, S.circle.y, gg => surfDrawCircle(sc, gg)) });
+  for(const b of S.bathers) if(SURF_LIFE.bathers && near(b.x, b.y, 120, 20)) vq.push({ depth: b.x + b.y - 1e6, fn: g => sc.bcDraw(g, "srf|towel|" + b.x + "," + b.y, b.x, b.y, gg => surfDrawTowel(sc, gg, b)) });
+  /* standing: the deck and shack (one unit at its middle), the steps, the racks (each board its own run), the fire ring, logs, post, stand */
+  if(near((D.x0 + D.x1)/2, (D.y0 + D.y1)/2, 360, 300)){
+    vq.push({ depth: (D.x0 + D.x1)/2 + (D.y0 + D.y1)/2, fn: g => sc.bcDraw(g, "srf|shack|" + (surfOpen() ? 1 : 0), D.x0, D.y0, gg => surfDrawShack(sc, gg, surfOpen())) });
+    vq.push({ depth: S.steps.x1 + S.y, fn: g => sc.bcDraw(g, "srf|steps", S.steps.x0, S.y, gg => surfDrawSteps(sc, gg)) });
+  }
+  if(near(S.rack.x0 + 110, S.rack.y, 200, 200)) vq.push({ depth: S.rack.x0 + 110 + S.rack.y, fn: g => sc.bcDraw(g, "srf|rack", S.rack.x0, S.rack.y, gg => surfDrawRack(sc, gg, S.rack.x0, S.rack.y, S.rack.n, S.rack.own, 0)) });
+  { const T = S.stand;
+    if(near(T.rackX + 90, T.rackY, 200, 200)) vq.push({ depth: T.rackX + 90 + T.rackY, fn: g => sc.bcDraw(g, "srf|srack|" + SSN.standN, T.rackX, T.rackY, gg => surfDrawRack(sc, gg, T.rackX, T.rackY, T.n, SSN.standN, 3)) });
+    if(near(T.x, T.y, 220, 300)) vq.push({ depth: T.x + T.y + 160, fn: g => sc.bcDraw(g, "srf|umb|" + T.x, T.x, T.y, gg => surfDrawUmbrella(sc, gg, T.x, T.y, 160, 250, [0x48c2c0, 0xf4f2ec])) });
+    if(near(T.table[0], T.table[1], 80, 100)) vq.push({ depth: T.table[0] + T.table[1], fn: g => sc.bcDraw(g, "srf|table", T.table[0], T.table[1], gg => surfDrawTable(sc, gg, T.table[0], T.table[1])) });
+    if(near(T.flag[0], T.flag[1], 140, 300)) vq.push({ depth: T.flag[0] + T.flag[1] + 0.5, fn: (g, t) => surfDrawFeather(sc, g, T.flag[0], T.flag[1], t || sc.time.now) }); }
+  for(const b of S.bathers) if(b.um && SURF_LIFE.bathers && near(b.um[0], b.um[1], 160, 260)) vq.push({ depth: b.um[0] + b.um[1], fn: g => sc.bcDraw(g, "srf|umb|" + b.um[0], b.um[0], b.um[1], gg => surfDrawUmbrella(sc, gg, b.um[0], b.um[1], 120, 210, [0xe8705a, 0xf4f2ec])) });
+  const F = S.fire;
+  if(near(F.x, F.y, 260, 120)){
+    vq.push({ depth: F.x + F.y, fn: g => sc.bcDraw(g, "srf|fire", F.x, F.y, gg => surfDrawFireRing(sc, gg)) });
+    for(const L of S.logs) vq.push({ depth: L.x + L.y, fn: g => sc.bcDraw(g, "srf|log|" + L.x, L.x, L.y, gg => surfDrawLog(sc, gg, L)) });
+    if(surfFireLit()){ vq.push({ depth: F.x + F.y + 1, fn: (g, t) => surfDrawFlame(sc, g, t || sc.time.now) });
+      const nl = nightLevel(); if(nl > 0.05) vq.push({ depth: F.x + F.y + 2, fn: (g, t) => sc.glowInWorld((gg, fill) => { const K = sc.K, p = sc.W(F.x, F.y, 0), a = Math.min(1, nl*1.2);
+          for(const [k, al] of [[1, 0.08], [0.62, 0.1], [0.32, 0.14]]){ fill(gg, 0xff9a40, al*a); gg.fillEllipse(p.x, p.y, 2.83*280*k*K, 1.41*280*k*K); }   // (its pool on the sand, warm)
+        surfDrawFlame(sc, gg, t || sc.time.now, (c, a) => fill(gg, c, a*Math.min(1, nl*1.1))); }) }); }   // (the flames themselves in the glow too: they light, the night does not dim them)
+  }
+  const P = S.flag;
+  if(near(P.x, P.y, 160, P.h + 40)){
+    vq.push({ depth: P.x + P.y, fn: g => sc.bcDraw(g, "srf|pole", P.x, P.y, gg => { const k = sc.lgKit(gg, { x: P.x, y: P.y }); k.post(0, 0, 4, 0, P.h, 0xd6d3ca); }) });
+    vq.push({ depth: P.x + P.y + 0.5, fn: (g, t) => surfDrawFlag(sc, g, P.x, P.y + 4, P.h, t || sc.time.now) });
+  }
+  /* a board come off in the sand (live while the story leaves it: R13) */
+  const B = SSN.spill;
+  if(B && near(B.x, B.y, 120, 20)) vq.push({ depth: B.x + B.y, fn: g => surfDrawBoardFlat(sc, g, B.x, B.y, B.a, 2, B.col) });
+}
+/* the plank walk across the sand to the deck's steps: planks across it, its edge boards */
+function surfDrawWalk(sc, g){
+  const W = SURF.walk, y0 = SURF.y - W.hw, y1 = SURF.y + W.hw, z = W.z, P = (x, y, zz) => sc.W(x, y, zz);
+  const q = (pts, col, al) => { if(sc.ptsOnScreen(pts)) sc.quadOn(g, pts, col, al == null ? 1 : al); };
+  q([P(W.x0 + 20, y0 - 12, 0.3), P(W.x1, y0 - 12, 0.3), P(W.x1, y1 + 12, 0.3), P(W.x0 + 20, y1 + 12, 0.3)], 0xd9c48e, 0.55);
+  q([P(W.x0, y1, z), P(W.x1, y1, z), P(W.x1, y1, 0), P(W.x0, y1, 0)], 0x8f7050);
+  q([P(W.x0, y0, z), P(W.x1, y0, z), P(W.x1, y1, z), P(W.x0, y1, z)], 0xc8a678);
+  for(let x = W.x0 - 18; x > W.x1 + 8; x -= 32) q([P(x, y0, z + 0.3), P(x - 4, y0, z + 0.3), P(x - 4, y1, z + 0.3), P(x, y1, z + 0.3)], 0xa98a62);
+  q([P(W.x0, y0, z + 0.4), P(W.x1, y0, z + 0.4), P(W.x1, y0 + 6, z + 0.4), P(W.x0, y0 + 6, z + 0.4)], 0xb09068);
+  q([P(W.x0, y1 - 6, z + 0.4), P(W.x1, y1 - 6, z + 0.4), P(W.x1, y1, z + 0.4), P(W.x0, y1, z + 0.4)], 0xb09068);
+}
+/* a board's outline (a, b in its own frame: a along it, nose at +L/2) */
+function surfBoardPoly(L, Wd){
+  const out = [], n = 10, h = L/2, w = Wd/2;
+  for(let i = 0; i <= n; i++){ const t = i/n, a = -h*0.8 + (h*1.8)*t, bw = w*Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, (a - h*0.15)/(h*0.85)), 2)))*(a < -h*0.6 ? 0.85 + 0.15*(a + h*0.8)/(h*0.2) : 1); out.push([a, -bw]); }
+  for(let i = n; i >= 0; i--){ const t = i/n, a = -h*0.8 + (h*1.8)*t, bw = w*Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, (a - h*0.15)/(h*0.85)), 2)))*(a < -h*0.6 ? 0.85 + 0.15*(a + h*0.8)/(h*0.2) : 1); out.push([a, bw]); }
+  return out;
+}
+/* a board lying flat at (x, y), turned th, its deck at z */
+function surfDrawBoardFlat(sc, g, x, y, th, z, col){
+  const c = Math.cos(th), s = Math.sin(th), poly = surfBoardPoly(170, 54);
+  const at = (a, b, zz) => sc.W(x + a*c - b*s, y + a*s + b*c, zz);
+  const rim = poly.map(([a, b]) => at(a, b, z - 4)), top = poly.map(([a, b]) => at(a, b, z));
+  if(!sc.ptsOnScreen(top)) return;
+  sc.quadOn(g, rim, _pdk(col, 0.72)); sc.quadOn(g, top, col);
+  sc.quadOn(g, [at(-70, -1.5, z + 0.2), at(78, -1.5, z + 0.2), at(78, 1.5, z + 0.2), at(-70, 1.5, z + 0.2)], 0xf4f2ec, 0.8);
+}
+/* the lesson circle traced in the sand, six board shapes drawn in it; the real boards laid by them once fetched */
+function surfDrawCircle(sc, g){
+  const C = SURF.circle, N = 64, z = 0.35, K = sc.K;
+  const ring = (r0, r1, col, al) => { for(let k = 0; k < N; k++){ const t0 = k/N*Math.PI*2, t1 = (k + 1.05)/N*Math.PI*2;
+    sc.quadOn(g, [sc.W(C.x + Math.cos(t0)*r0, C.y + Math.sin(t0)*r0, z), sc.W(C.x + Math.cos(t1)*r0, C.y + Math.sin(t1)*r0, z), sc.W(C.x + Math.cos(t1)*r1, C.y + Math.sin(t1)*r1, z), sc.W(C.x + Math.cos(t0)*r1, C.y + Math.sin(t0)*r1, z)], col, al); } };
+  ring(C.r - 9, C.r + 9, 0xc4a970, 0.9); ring(C.r + 9, C.r + 13, 0xf2e6c4, 0.6);
+  g.lineStyle(Math.max(1, 2.6*K), 0xbda36a, 0.95);
+  const poly = surfBoardPoly(170, 54);
+  for(let k = 0; k < 6; k++){ const s = surfSpot(k);
+    const pts = poly.map(([a, b]) => sc.W(s.x - a, s.y + b, z));                                      // (nose west, to the sea)
+    g.strokePoints(pts, true);
+    const st = [sc.W(s.x - 70, s.y, z), sc.W(s.x + 78, s.y, z)]; g.lineBetween(st[0].x, st[0].y, st[1].x, st[1].y); }
+  /* the real boards, laid beside their drawings */
+  for(let k = 0; k < Math.min(6, SSN.laid); k++){ if(SSN.kids && SSN.kids[k] && SSN.kids[k].P && performance.now() > SSN.kids[k].P.t0) continue;
+    const s = surfSpot(k); surfDrawBoardFlat(sc, g, s.x + 4, s.y - 52, Math.PI, 4, SURF_BOARD_COLS[k]); }
+}
+/* a towel on the sand (a sunbather's): striped */
+function surfDrawTowel(sc, g, b){
+  const c = Math.cos(b.a), s = Math.sin(b.a), at = (a, bb) => sc.W(b.x + a*c - bb*s, b.y + a*s + bb*c, 0.4);
+  const cols = [[0xe8705a, 0xf4f2ec], [0x4fb3d9, 0xf2c14e], [0x7fcf8a, 0xf4f2ec], [0xf08ab8, 0xf6e7a8]][SURF.bathers.indexOf(b) % 4];
+  for(let i = 0; i < 6; i++){ const a0 = -95 + i*190/6, a1 = a0 + 190/6 + 0.5; sc.quadOn(g, [at(a0, -46), at(a1, -46), at(a1, 46), at(a0, 46)], cols[i % 2]); }
+}
+/* the shack on its deck: posts, the deck's planks, the board-and-batten walls, the hatch (its shutter propped open in
+   hours, down when shut), the roof, the sign (a striped longboard over the hatch), two longboards leaning by it */
+function surfDrawShack(sc, g, open){
+  const D = SURF.deck, H = SURF.shack, HT = SURF.hatch, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box, post } = k, z = D.z;
+  const WOOD = 0x9a8264, DECK = 0xc8ae86, WALL = 0x6fc2bf, WALLX = 0x58a6a3, TRIM = 0xf4f2ec, ROOF = 0x8a7458;
+  for(let x = D.x0 + 20; x <= D.x1 - 10; x += 95) post(x, D.y1 - 10, 7, 0, z, WOOD);
+  for(let y = D.y0 + 20; y < D.y1 - 20; y += 95) post(D.x1 - 10, y, 7, 0, z, WOOD);
+  box(D.x0, D.x1, D.y0, D.y1, z - 7, z, DECK, 0x8f7656, 0xa48a66);
+  for(let y = D.y0 + 16; y < D.y1; y += 26) q([P(D.x0, y, z + 0.3), P(D.x1, y, z + 0.3), P(D.x1, y + 2.5, z + 0.3), P(D.x0, y + 2.5, z + 0.3)], 0xae9470);
+  /* the shack's walls on the deck */
+  box(H.x0, H.x1, H.y0, H.y1, z, z + H.h, 0x7a6a52, WALLX, WALL);
+  /* board and batten on the two faces seen */
+  for(let x = H.x0 + 22; x < H.x1; x += 26) q([P(x, H.y1 + 0.5, z + 2), P(x + 3, H.y1 + 0.5, z + 2), P(x + 3, H.y1 + 0.5, z + H.h - 2), P(x, H.y1 + 0.5, z + H.h - 2)], 0x62b1ae);
+  for(let y = H.y0 + 22; y < H.y1; y += 26) q([P(H.x1 + 0.5, y, z + 2), P(H.x1 + 0.5, y + 3, z + 2), P(H.x1 + 0.5, y + 3, z + H.h - 2), P(H.x1 + 0.5, y, z + H.h - 2)], 0x4f9794);
+  /* the east face's window (a small one, its frame white) */
+  { const y0 = H.y0 + 60, y1 = H.y0 + 150, z0 = z + 90, z1 = z + 150;
+    q([P(H.x1 + 1, y0 - 6, z1 + 6), P(H.x1 + 1, y1 + 6, z1 + 6), P(H.x1 + 1, y1 + 6, z0 - 6), P(H.x1 + 1, y0 - 6, z0 - 6)], TRIM);
+    q([P(H.x1 + 1.5, y0, z1), P(H.x1 + 1.5, y1, z1), P(H.x1 + 1.5, y1, z0), P(H.x1 + 1.5, y0, z0)], 0x2e4d5a);
+    q([P(H.x1 + 1.8, y0 + 8, z1 - 6), P(H.x1 + 1.8, y0 + 30, z1 - 6), P(H.x1 + 1.8, y0 + 12, z0 + 8), P(H.x1 + 1.8, y0 - 0, z0 + 8)], 0x5f8794, 0.6); }
+  /* the hatch: its frame, the room behind it (dim, wetsuits on a rail), the counter; the shutter propped or down */
+  { const a0 = HT.x0, a1 = HT.x1, z0 = z + HT.z0, z1 = z + HT.z1, yb = H.y1 + 1;
+    q([P(a0 - 8, yb, z1 + 8), P(a1 + 8, yb, z1 + 8), P(a1 + 8, yb, z0 - 6), P(a0 - 8, yb, z0 - 6)], TRIM);
+    if(open){
+      q([P(a0, yb + 0.5, z1), P(a1, yb + 0.5, z1), P(a1, yb + 0.5, z0), P(a0, yb + 0.5, z0)], 0x2a3236);
+      for(let i = 0; i < 4; i++){ const x = a0 + 22 + i*30; q([P(x - 9, yb + 0.7, z1 - 10), P(x + 9, yb + 0.7, z1 - 10), P(x + 7, yb + 0.7, z0 + 14), P(x - 7, yb + 0.7, z0 + 14)], [0x1f2026, 0x1f8a96, 0x1f2026, 0xe8705a][i]); }
+      box(a0 - 10, a1 + 10, yb, yb + 22, z0 - 6, z0, 0xd8c09a, 0xa48a66, 0xb89c74);
+      /* the shutter, hinged at its head, propped out on two struts */
+      q([P(a0 - 10, yb, z1 + 8), P(a1 + 10, yb, z1 + 8), P(a1 + 10, yb + 64, z1 + 40), P(a0 - 10, yb + 64, z1 + 40)], 0x4f9794);
+      q([P(a0 - 10, yb + 64, z1 + 40), P(a1 + 10, yb + 64, z1 + 40), P(a1 + 10, yb + 66, z1 + 34), P(a0 - 10, yb + 66, z1 + 34)], 0x3f7f7c);
+      for(const a of [a0 - 4, a1 + 4]) q([P(a - 1.5, yb + 20, z0), P(a + 1.5, yb + 20, z0), P(a + 1.5, yb + 62, z1 + 38), P(a - 1.5, yb + 62, z1 + 38)], 0xd6d3ca);
+    } else {
+      q([P(a0, yb + 0.6, z1), P(a1, yb + 0.6, z1), P(a1, yb + 0.6, z0), P(a0, yb + 0.6, z0)], 0x4f9794);
+      for(let zz = z0 + 12; zz < z1; zz += 14) q([P(a0, yb + 0.8, zz), P(a1, yb + 0.8, zz), P(a1, yb + 0.8, zz - 2), P(a0, yb + 0.8, zz - 2)], 0x3f7f7c);
+    }
+  }
+  /* the sign over the hatch: a longboard on the wall, striped (the school's colours) */
+  { const c = (HT.x0 + HT.x1)/2, zc = z + H.h - 28, poly = surfBoardPoly(250, 40);
+    const pts = poly.map(([a, b]) => P(c + a, H.y1 + 2, zc + b*0.93));
+    q(pts, 0xf4f2ec); for(const [d, col] of [[-5, 0xe8705a], [0, 0xf2c14e], [5, 0x1f8a96]]) q([P(c - 100, H.y1 + 2.4, zc + d - 1.6), P(c + 104, H.y1 + 2.4, zc + d - 1.6), P(c + 104, H.y1 + 2.4, zc + d + 1.6), P(c - 100, H.y1 + 2.4, zc + d + 1.6)], col); }
+  /* the roof: a low slab with its fascia, overhanging */
+  box(H.x0 - 22, H.x1 + 22, H.y0 - 22, H.y1 + 26, z + H.h, z + H.h + 12, ROOF, 0x6a5a44, 0x7a6850);
+  q([P(H.x0 - 22, H.y1 + 26, z + H.h + 12.5), P(H.x1 + 22, H.y1 + 26, z + H.h + 12.5), P(H.x1 + 22, H.y1 + 20, z + H.h + 12.5), P(H.x0 - 22, H.y1 + 20, z + H.h + 12.5)], TRIM);
+  /* two longboards leaning on the wall west of the hatch */
+  for(const [x, col] of [[H.x0 + 28, 0xf2c14e], [H.x0 + 58, 0x4fb3d9]]){ const yb = H.y1 + 2;
+    const poly = surfBoardPoly(260, 50).map(([a, b]) => [a, b]);
+    q(poly.map(([a, b]) => P(x + b*0.9, yb + 14 - (a + 130)*0.05, z + 2 + (a + 130)*0.86)), col); }
+}
+function surfDrawSteps(sc, g){
+  const S = SURF.steps, k = sc.lgKit(g, { x: 0, y: 0 });
+  k.box(S.x0, S.x1, S.y0, S.y1, 0, 10, 0xc8ae86, 0x8f7656, 0xa48a66);
+  k.box(S.x0, S.x1 - 20, S.y0, S.y1, 10, 20, 0xc8ae86, 0x8f7656, 0xa48a66);
+}
+/* a rack of boards stood on their tails, edge on (n slots, the first `full` filled), along x at y */
+function surfDrawRack(sc, g, x0, y, n, full, colOff){
+  const k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, post, box } = k, WOOD = 0xa48c6c, poly = surfBoardPoly(176, 52);
+  post(x0 - 10, y - 28, 5, 0, 120, WOOD); post(x0 + n*30 + 2, y - 28, 5, 0, 120, WOOD);
+  box(x0 - 14, x0 + n*30 + 6, y - 32, y - 24, 54, 62, 0xb59a74, 0x8a7458, 0x9b8160);
+  for(let i = 0; i < full; i++){ const x = x0 + i*30, col = SURF_BOARD_COLS[(i + colOff) % SURF_BOARD_COLS.length];
+    const face = poly.map(([a, b]) => P(x + 8, y + b, 4 + (a + 88)*0.98)), edge = [P(x, y + 26, 6), P(x + 8, y + 26, 6), P(x + 8, y + 26, 150), P(x, y + 26, 150)];
+    q(poly.map(([a, b]) => P(x, y + b, 4 + (a + 88)*0.98)), _pdk(col, 0.78)); q(edge, _pdk(col, 0.86)); q(face, col);
+    q([P(x + 8.3, y - 1.2, 10), P(x + 8.3, y + 1.2, 10), P(x + 8.3, y + 1.2, 168), P(x + 8.3, y - 1.2, 168)], 0xf4f2ec, 0.7); }
+  post(x0 - 10, y + 28, 5, 0, 120, WOOD); post(x0 + n*30 + 2, y + 28, 5, 0, 120, WOOD);
+  box(x0 - 14, x0 + n*30 + 6, y + 24, y + 32, 54, 62, 0xb59a74, 0x8a7458, 0x9b8160);
+  box(x0 - 14, x0 + n*30 + 6, y + 24, y + 32, 112, 120, 0xb59a74, 0x8a7458, 0x9b8160);
+}
+/* a beach umbrella: its pole and a striped canopy (eight panels, far ones first) */
+function surfDrawUmbrella(sc, g, x, y, R, H, cols){
+  const k = sc.lgKit(g, { x, y }), { P, q, post } = k;
+  post(0, 0, 3, 0, H, 0xe8e4da);
+  const N = 8, rim = H - 46, tris = [];
+  for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2 + 0.2, t1 = (i + 1)/N*Math.PI*2 + 0.2, a = [Math.cos(t0)*R, Math.sin(t0)*R], b = [Math.cos(t1)*R, Math.sin(t1)*R];
+    tris.push({ d: (a[0] + b[0] + a[1] + b[1])/2, pts: [P(0, 0, H), P(a[0], a[1], rim), P(b[0], b[1], rim)], col: cols[i % 2], lit: Math.cos((t0 + t1)/2 - Math.PI/4) }); }
+  tris.sort((u, v) => u.d - v.d);
+  for(const t of tris) q(t.pts, _pdk(t.col, 0.86 + 0.14*t.lit));
+  for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2 + 0.2, t1 = (i + 1)/N*Math.PI*2 + 0.2; if(Math.cos((t0 + t1)/2 - Math.PI/4) < -0.2) continue;
+    q([P(Math.cos(t0)*R, Math.sin(t0)*R, rim), P(Math.cos(t1)*R, Math.sin(t1)*R, rim), P(Math.cos(t1)*R, Math.sin(t1)*R, rim - 9), P(Math.cos(t0)*R, Math.sin(t0)*R, rim - 9)], _pdk(cols[i % 2], 0.8)); }
+}
+function surfDrawTable(sc, g, x, y){
+  const k = sc.lgKit(g, { x, y }), { box, post } = k;
+  for(const [a, b] of [[-36, -22], [36, -22], [-36, 22], [36, 22]]) post(a, b, 3, 0, 72, 0xd6d3ca);
+  box(-42, 42, -28, 28, 72, 78, 0xf4f2ec, 0xc9c6bc, 0xdcd9cf);
+  box(-24, 18, -10, 8, 78, 86, 0x48c2c0, 0x34a09e, 0x3cb0ae);                                  // (a cash box in the shop's aqua)
+  box(22, 34, -6, 6, 78, 90, 0xf2c14e, 0xc99c34, 0xd8ac3e);                                     // (a block of wax)
+}
+function surfDrawFireRing(sc, g){
+  const F = SURF.fire, k = sc.lgKit(g, { x: F.x, y: F.y }), { P, q, box } = k, N = 11;
+  q(Array.from({ length: 20 }, (_, i) => P(Math.cos(i/20*Math.PI*2)*(F.r - 8), Math.sin(i/20*Math.PI*2)*(F.r - 8), 0.5)), 0x4a4440);
+  const st = [];
+  for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2, a = Math.cos(t)*F.r, b = Math.sin(t)*F.r; st.push({ a, b, d: a + b, s: 13 + (i*7 % 5) }); }
+  st.sort((u, v) => u.d - v.d);
+  for(const s of st) box(s.a - s.s, s.a + s.s, s.b - s.s*0.8, s.b + s.s*0.8, 0, 16 + (s.s - 13)*2, 0x9a958b, 0x77726a, 0x86817a);
+  for(const [a0, b0, a1, b1] of [[-26, -10, 24, 12], [-18, 18, 20, -16]]) q([P(a0, b0 - 4, 9), P(a1, b1 - 4, 9), P(a1, b1 + 4, 9), P(a0, b0 + 4, 9)], 0x5a3e28);
+}
+function surfDrawLog(sc, g, L){
+  const k = sc.lgKit(g, { x: L.x, y: L.y }), { box } = k;
+  if(L.along === 'y') box(-20, 20, -88, 88, 0, 32, 0xb8a888, 0x8a7a5e, 0x9c8a6c);
+  else box(-88, 88, -20, 20, 0, 32, 0xb8a888, 0x8a7a5e, 0x9c8a6c);
+}
+/* THE FIRE (live): tongues licking up from the logs, flickering */
+function surfDrawFlame(sc, g, t, fillA){
+  const F = SURF.fire, K = sc.K, b = sc.W(F.x, F.y, 10);
+  if(b.x < -100 || b.y < -150 || b.x > sc.vpW() + 100 || b.y > sc.vpH() + 100) return;
+  const tongue = (dx, h, w, col, ph) => {
+    const s = Math.sin(t*0.012 + ph), s2 = Math.sin(t*0.019 + ph*2.1), hh = h*(0.8 + 0.2*s), sw = 5*s2, pts = [];
+    for(let k = 0; k <= 8; k++){ const u = k/8, ww = w*Math.sin(Math.PI*(0.15 + 0.85*u))*(1 - u*0.9); pts.push({ x: b.x + (dx - ww + sw*u*u)*K, y: b.y - hh*u*K }); }
+    for(let k = 8; k >= 0; k--){ const u = k/8, ww = w*Math.sin(Math.PI*(0.15 + 0.85*u))*(1 - u*0.9); pts.push({ x: b.x + (dx + ww + sw*u*u)*K, y: b.y - hh*u*K }); }
+    if(fillA){ fillA(col, 0.55); g.fillPoints(pts, true); } else sc.quadOn(g, pts, col);
+  };
+  tongue(-24, 78, 20, 0xe8541c, 0.3); tongue(22, 90, 20, 0xe8541c, 1.9); tongue(0, 126, 30, 0xf07a22, 0); tongue(-6, 84, 17, 0xf7a43a, 2.6); tongue(3, 52, 11, 0xffe07a, 1.1);
+}
+/* THE JUNIOR-LIFEGUARD FLAG (live): red over yellow, flying east, a wave down it */
+function surfDrawFlag(sc, g, x, y, h, t){
+  const FW = 110, FH = 64, N = 9, ph = t/330;
+  const at = (u, v) => sc.W(x + 4 + u*FW*(1 - 0.03*Math.sin(ph - u*5.2)), y + Math.sin(ph - u*5.2)*8*u, h - 6 - v*FH - 5*u*u);
+  const lit = u => 0.86 + 0.18*Math.cos(ph - u*5.2), sh = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
+  for(let i = 0; i < N; i++){ const u0 = i/N, u1 = (i + 1.04)/N, L = lit((u0 + u1)/2);
+    sc.quadOn(g, [at(u0, 0), at(u1, 0), at(u1, 0.5), at(u0, 0.5)], sh(0xd8352a, L)); sc.quadOn(g, [at(u0, 0.5), at(u1, 0.5), at(u1, 1), at(u0, 1)], sh(0xf2c82a, L)); }
+}
+/* PALMLINE SURF CO.'S FEATHER FLAG (live): a tall aqua banner on its bent pole, rippling */
+function surfDrawFeather(sc, g, x, y, t){
+  const H = 270, N = 10, ph = t/420;
+  const at = (u, v) => { const zz = 30 + u*(H - 30), w = (0.25 + 0.75*Math.sin(Math.PI*Math.min(1, u*1.15)))*52*(1 - 0.08*Math.sin(ph - u*4)); return sc.W(x + v*w, y + 6*Math.sin(ph - u*4)*v, zz - v*v*10*u); };
+  g.lineStyle(Math.max(1, 1.6*sc.K), 0x8a8f96, 1); { const a = sc.W(x, y, 0), b = sc.W(x, y, H); g.lineBetween(a.x, a.y, b.x, b.y); }
+  for(let i = 0; i < N; i++){ const u0 = i/N, u1 = (i + 1.04)/N, L = 0.86 + 0.16*Math.cos(ph - u0*4);
+    sc.quadOn(g, [at(u0, 0), at(u1, 0), at(u1, 1), at(u0, 1)], _pdk(0x48c2c0, L));
+    if(i >= 3 && i <= 6) sc.quadOn(g, [at(u0, 0.3), at(u1, 0.3), at(u1, 0.6), at(u0, 0.6)], _pdk(0xf4f2ec, L)); }
+}
+/* a board carried under the far arm (or a bundle of n): upright beside them on the side away from the eye, along the way
+   they face -- drawn before them, so their face and front always show (a meeting with an armful of boards) */
+function surfDrawBoardCarry(sc, g, p, n, cols){
+  const ux = Math.cos(p.th), uy = Math.sin(p.th);
+  let nx = -uy, ny = ux; const far = nx + ny >= 0 ? -1 : 1; nx *= far; ny *= far;
+  const poly = surfBoardPoly(170, 54);
+  for(let i = n - 1; i >= 0; i--){
+    const o = 22 + i*9, cx = p.x + nx*o + ux*8, cy = p.y + ny*o + uy*8, z0 = (p.z || 0) + 74, col = cols[i % cols.length];
+    const pts = poly.map(([a, b]) => sc.W(cx + ux*a, cy + uy*a, z0 + b*0.95));
+    if(!sc.ptsOnScreen(pts)) continue;
+    sc.quadOn(g, pts.map(q => ({ x: q.x - nx*3*sc.K, y: q.y - ny*1.5*sc.K })), _pdk(col, 0.75)); sc.quadOn(g, pts, col);
+    const s0 = sc.W(cx + ux*-70, cy + uy*-70, z0), s1 = sc.W(cx + ux*78, cy + uy*78, z0); g.lineStyle(Math.max(1, 1.2*sc.K), 0xf4f2ec, 0.8); g.lineBetween(s0.x, s0.y, s1.x, s1.y);
+  }
+}
+/* THE PEOPLE AND THE BOT, DRAWN (beside ssQueue): each where they are now, on screen only, in the world's order; the
+   story's people through keyQueue while it has them */
+function ssnQueue(scene, t, queuePerson, keyQueue, layerFor){
+  if(!WORLDGEN_COAST || scene._inside) return;
+  const now = scene.time.now, busy = SSN.stage !== 'idle';
+  const seen = scene.visWorldPt(-5000, 12100, 2300, 500) || scene.visWorldPt(-2400, 12000, 500, 300) || scene.visWorldPt(SURF.stand.x, SURF.stand.y, 700, 300);
+  if(!seen) return;
+  const person = (Q, p, L, U, pose, extra) => {
+    if(!p || !scene.visProp("people", p.x, p.y, p.z || 0)) return;
+    Q(p.x, p.y, (g, tt) => {
+      const T0 = tt || now, thW = p.th - Math.PI/2, lg = layerFor(p.x, p.y);
+      if(extra && extra.under) extra.under(lg);
+      const pz = Object.assign({}, pose || {}, L.dress ? { dress: L.dress } : null);
+      if(extra && extra.hold) pz.hold = extra.hold;
+      scene.drawPersonHull(lg, p.x, p.y, p.z || 0, thW, L.build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
+        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U || L.uniform, false, Object.keys(pz).length ? pz : null);
+      if(extra && extra.over) extra.over(lg);
+    });
+  };
+  const poseOf = p => (p.lift || p.drop || p.sit != null || p.pose) ? Object.assign({ lift: p.lift || null, bend: p.bend || 0 }, p.sit != null ? { sit: p.sit } : null, p.pose || null) : null;
+  const flagHold = (g, hp, K) => { const s = Math.sin(now*0.012); g.lineStyle(Math.max(1, 1.4*K), 0x3a3a3a, 1); g.lineBetween(hp.x, hp.y, hp.x + 2*K, hp.y - 30*K);
+    scene.quadOn(g, [{ x: hp.x + 2*K, y: hp.y - 30*K }, { x: hp.x + (24 + 3*s)*K, y: hp.y - (28 + 2*s)*K }, { x: hp.x + (22 + 3*s)*K, y: hp.y - (19 + 2*s)*K }, { x: hp.x + 2*K, y: hp.y - 21*K }], 0xd8352a);
+    scene.quadOn(g, [{ x: hp.x + 2*K, y: hp.y - 21*K }, { x: hp.x + (22 + 3*s)*K, y: hp.y - (19 + 2*s)*K }, { x: hp.x + (20 + 3*s)*K, y: hp.y - (11 + 2*s)*K }, { x: hp.x + 2*K, y: hp.y - 12*K }], 0xf2c82a); };
+  const open = surfOpen();
+  /* Mele */
+  if(open || busy || SSN.after){ const p = surfMeleAt(now);
+    if(p) person(busy ? keyQueue : queuePerson, p, surfMeleLook(), SURF_MELE_UNIFORM, poseOf(p), p.has === 'boards3' ? { under: g => surfDrawBoardCarry(scene, g, p, 3, SURF_BOARD_COLS.slice(SSN.trip ? 3 : 0, (SSN.trip ? 3 : 0) + 3)) } : null); }
+  /* the class */
+  if(open || SSN.kids) for(let k = 0; k < 6; k++){ const p = surfKidAt(k, now), L = surfKidLook(k);
+    const under = p.board === 'flat' ? g => surfDrawBoardFlat(scene, g, p.x - 60, p.y, Math.PI, (p.z || 0) + 3, SURF_BOARD_COLS[k])
+                : p.board === 'arm' ? g => surfDrawBoardCarry(scene, g, p, 1, [SURF_BOARD_COLS[k]]) : null;
+    person(SSN.kids ? keyQueue : queuePerson, p, L, null, poseOf(p), { under }); }
+  /* the lifeguard */
+  if(open){ const p = surfGuardAt(now), L = SURF_LIFE._gl || (SURF_LIFE._gl = streetLook(SSN_RUN.seeds.guard, { type: 'lifeguard', adult: true }));
+    person(queuePerson, p, L, null, poseOf(p), p.flag ? { hold: flagHold } : null); }
+  /* the surfers: down to the water and back with their boards; after dark on the logs by the fire */
+  for(let i = 0; i < 2; i++){
+    const L = SURF_LIFE._sl && SURF_LIFE._sl[i] || ((SURF_LIFE._sl = SURF_LIFE._sl || [])[i] = Object.assign({}, streetLook(SSN_RUN.seeds.surf[i], { type: 'surfer', adult: true }), { dress: null }));
+    if(open && surfHour() < 19.25){ const p = surfSurferAt(i, now); person(queuePerson, p, L, null, null, { under: g => surfDrawBoardCarry(scene, g, p, 1, [[0xf4f2ec, 0x4fb3d9][i]]) }); }
+    else if(surfFireLit() && !SSN.kids){ const p = surfSurferFire(i, now); person(queuePerson, p, L, null, poseOf(p)); }
+  }
+  /* the sunbathers (on their backs, a knee up now and then) */
+  if(SURF_LIFE.bathers) SURF.bathers.forEach((b, i) => {
+    const L = SURF_LIFE._bl && SURF_LIFE._bl[i] || ((SURF_LIFE._bl = SURF_LIFE._bl || [])[i] = Object.assign({}, streetLook(SSN_RUN.seeds.bath[i], { type: i % 2 ? 'tourist' : 'surfer', adult: true }), { dress: null, uniform: null }));
+    const p = { x: b.x + Math.cos(b.a)*68, y: b.y + Math.sin(b.a)*68, th: b.a, moving: false };   // (their feet at the towel's east end: on their back, the head toward its west end)
+    const knee = Math.sin(now*0.0004 + i*2) > 0.6;
+    person(queuePerson, p, L, null, { pitch: -Math.PI/2, pitchLift: L.build.torsoD/2 + 1, headTilt: 0.5, lift: [0.1, i % 2 ? 2.6 : 0.1], bend: i % 2 ? 1.6 : 0, legs: knee ? { [-1]: [0, 0], [1]: [0.7, 1.3] } : null });
+  });
+  /* Kai, at Palmline Surf Co.'s stand */
+  if(open || busy){ const p = surfKaiAt(now);
+    if(p) person(busy ? keyQueue : queuePerson, p, surfKaiLook(), SURF_KAI_UNIFORM, poseOf(p), p.has === 'boards3' ? { under: g => surfDrawBoardCarry(scene, g, p, 3, SURF_BOARD_COLS.slice(SSN.trip ? 3 : 0, (SSN.trip ? 3 : 0) + 3)) } : null); }
+  /* the cargo bot, rolling down to him and off again */
+  { const b = surfBotAt(now);
+    if(b && scene.visProp("people", b.x, b.y)){ const B = SSN.bot, x = b.x, y = b.y, th = b.th;
+      keyQueue(x, y, (g, tt) => scene.drawProp(layerFor(x, y), "cargobot", x, y, tt || now, th/(Math.PI/2), 0, (B ? B.gd : 0)/11, 7, { lid: 0, lidFlip: false })); } }
+  /* Tipsey, parked still while he has the bot */
+  const Pk = SSN.park;
+  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
+    const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|srf|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+  }
+}
+CITY_PEOPLE.add({ name: 'Sunset Shore Surf School', where: "Sunset Shore's sand off the boardwalk at y 12000: Mele and her class of six in the lesson circle, the junior lifeguards' lifeguard, two surfers, sunbathers, Kai at Palmline Surf Co.'s beach stand", solid: true,
+  each(scene, t, fn){
+    if(!WORLDGEN_COAST) return;
+    const now = scene.time.now;
+    if(!surfOpen()) return;
+    { const p = surfMeleAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Mele', look: surfMeleLook() })); }
+    for(let k = 0; k < 6; k++){ const p = surfKidAt(k, now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'student' })); }
+    { const p = surfGuardAt(now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'lifeguard' })); }
+    { const p = surfKaiAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Kai', look: surfKaiLook() })); }
+    for(let i = 0; i < 2; i++){ const p = surfHour() < 19.25 ? surfSurferAt(i, now) : surfSurferFire(i, now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'surfer' })); }
   } });
 /* ==================== PELICAN HARBOR, OPEN (Sir, 2026-11-01: "the shop itself should be active") ====================
    The harbor house keeps the chandlery's hours (TP_PLACE_COPY's Chandlery: 8 to 6; the harbour office's are the same):
@@ -92208,7 +93121,7 @@ class WorldScene extends Phaser.Scene {
     this.queueKartYard(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
-    if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); }
+    if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); surfQueueStatic(this, blockVQ, r.grid); }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
        blockVQ SEPARATELY, with its own depth and its own layerFor — so
@@ -92418,6 +93331,7 @@ class WorldScene extends Phaser.Scene {
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
     kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
     ssQueue(this, t, queuePerson, keyQueue, layerFor); // THE VETERANS MEMORIAL's people (Walt, the caretaker, visitors, the band) and SUNSET SALUTE's
+    ssnQueue(this, t, queuePerson, keyQueue, layerFor); // SUNSET SHORE SURF SCHOOL's people (Mele, the class, the lifeguard, surfers, sunbathers, Kai), the cargo bot, and Tipsey parked
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
     lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
@@ -93254,6 +94168,14 @@ class WorldScene extends Phaser.Scene {
     /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
        says to come back at dusk), each shop's pavement post -- cached, the ring and beacon live */
     { const B = ssBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
+    /* SUNSET SESSION's bay (surfBayNow): on the boardwalk by the surf school's walk (at dusk with its beacon; at other times
+       the bay alone), the lesson circle's, Palmline Surf Co.'s stand, the water's edge -- cached, the ring and beacon live */
+    { const B = surfBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
@@ -102415,6 +103337,11 @@ class WorldScene extends Phaser.Scene {
       /* the hold, when the lid is up */
       if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx - k, -(hy - k), z1 + 0.5), P(hx - k, hy - k, z1 + 0.5), P(-(hx - k), hy - k, z1 + 0.5), P(-(hx - k), -(hy - k), z1 + 0.5)];
         this.quadOn(g, ring(4), 0x9ba1a9); this.quadOn(g, ring(10), 0x7b818a); }
+      /* a bulky load (SUNSET SESSION's foam boards, data.boards): lying along the hold, stacked, out over both ends, the lid
+         resting open on them */
+      if(data && data.boards > 0){ const bp = [[-70, -22], [44, -24], [68, -15], [80, 0], [68, 15], [44, 24], [-70, 22], [-76, 0]];
+        for(let i = 0; i < data.boards; i++){ const h0 = z1 - 16 + i*9, col = (data.boardCols || [])[i] || 0xf2c14e;
+          solid(prismH(bp.map(([a, b]) => [a + 4 - i*3, b*0.92 + (i - 1)*2]), h0, h0 + 7), col, null, false); } }
       if(lidTop) drawLid();
       for(const a of wa) V.wheel(a, nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
       const fa = -hx + 5, fb = -nearB*(hy - 5);                                                     // the flag, on the far back corner
@@ -104263,11 +105190,7 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), PK.finCol || STRIPE);
       const top = finProf[2], bc = P((finProf[2][0] + finProf[3][0])/2, 0, top[1] + 2.5); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.6*this.K*0.42);
     };
-    /* THE T: one tailplane across the fin's top (Sir, 2026-11-01: "the plane delivery drones are drawing their tail bad"):
-       the halves began 6 out on a fin 3.5 thick, nothing between them, and read as two loose plates. The centre
-       section joins them over the fin, the far half first, then the centre, then the near half */
-    const tailMid = () => solid(prismH([[TA + T.c, -6.5], [TA + T.c, 6.5], [TA - 2, 6.5], [TA - 2, -6.5]], tz, tz + 5), BODY);
-    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); parts.push({ d: 6650, draw: tailMid }); }
+    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); }
     else { for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: tailHalf(sb) }); parts.push({ d: 6500, draw: fin }); }
 
     /* ---- the prop ---- */
@@ -107145,7 +108068,7 @@ class WorldScene extends Phaser.Scene {
       this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = true;
       try { this.drawRobot(t, dt); }
       finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
-      if(!fleetShowroomKind(this)) this.drawFleetAvatar(t, dt, FK);   // (in the garage's showroom the garage draws it, over its room)
+      this.drawFleetAvatar(t, dt, FK);
       return;
     }
     if((!S || !S.hide) && !this._botAboard && !_ride) return this.drawRobot(t, dt);
@@ -107265,6 +108188,7 @@ class WorldScene extends Phaser.Scene {
     }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
+      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
@@ -115577,7 +116501,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -116341,6 +117265,18 @@ const HULL_PRINTS = {
       for(let k = 0; k < n; k += 2){ const x = k*w; L.side.push({ c: NV, pts: _prRect(x, 2, x + w, 12.6) }); }
       L.side.push({ c: [0xd8dcda, 0xf4f6f5], pts: _prRect(0, 12.6, L.per, 13.6) });
     } },
+  /* BOARD SHORTS: a hibiscus print round his body under the band (coral and cream on the teal), a white waistband with
+     its drawstring, and two hibiscus on his lid */
+  shorts: { id: 'shorts', seed: 0x5f0a,
+    build(L){
+      const CO = [0xc0563f, 0xe8705a], CR = [0xd8ccb0, 0xf6efdc], YE = [0xb8902a, 0xf2c14e], WB = [0xd8dcda, 0xf4f6f5];
+      const flower = (arr, x, y, r, c) => { for(let k = 0; k < 5; k++){ const a = k/5*Math.PI*2 + 0.3; arr.push({ c, pts: _prCirc(x + Math.cos(a)*r*0.8, y + Math.sin(a)*r*0.8, r*0.6, 8) }); }
+        arr.push({ c: YE, pts: _prCirc(x, y, r*0.32, 6) }); };
+      if(L.part === 'lid'){ flower(L.top, 6, -5, 3.4, CO); flower(L.top, -9, 8, 2.6, CR); return; }
+      for(let x = 3, k = 0; x < L.per - 3; x += 7.2, k++) flower(L.side, x, k % 2 ? 5 : 9.2, 1.8, k % 3 === 2 ? CR : CO);
+      L.side.push({ c: WB, pts: _prRect(0, 12.4, L.per, 14) });
+      for(const x of [L.per*0.25, L.per*0.75]) L.side.push({ c: WB, pts: [[x - 0.5, 8.6], [x + 0.5, 8.6], [x + 1.4, 12.4], [x + 0.4, 12.4]] });
+    } },
   /* PAW PRINT: a trail of brown paw prints walking round his body under the band, and another across his lid */
   paws: { id: 'paws', seed: 0x9a35,
     build(L){
@@ -116491,6 +117427,19 @@ const SK_FISHMONGER = {
   emblem:"fish", emblemColor:0x2f7f86,
   print:'apron'
 };
+/* BOARD SHORTS -- SUNSET SESSION's reward (SUNSET SHORE SURF SCHOOL, Mele's thanks): sand cream over a pair of teal board
+   shorts round his body, coral hibiscus in its print (HULL_PRINTS 'shorts'), a white waistband and its drawstring, a coral
+   band, a hibiscus on each side and a coral pennant */
+const SK_BOARDSHORTS = {
+  bodyTop:0xf6efdc, bodyRight:0x2f9aa6, bodyLeft:0x237c86, outline:0x16464c,
+  stripe:0xe8705a, stripeDk:0xc0563f,
+  lidInner:0xf6efdc, belly:0x16464c,
+  wheelHubFace:0xe8705a, wheelHub:0xf6efdc,
+  eye:0x9fe8ff, eyeAlert:0xff6a5a,
+  flag:0xe8705a, flagPole:0xc9d0d3,
+  emblem:"hibiscus", emblemColor:0xe8705a,
+  print:'shorts'
+};
 /* JUST MARRIED -- THE GETAWAY's thanks (the Wheels Up trophy): wedding white, a rose ribbon over a silver one, a rose
    heart on each side, a rose pennant -- and the cans (SKIN.cans: a string of tin cans tied on behind him, rattling along
    where he drives: drawCans) */
@@ -116584,6 +117533,8 @@ const DECAL_SHAPES = (() => {
     heart:   { def: 0xe0443c, polys: [{ p: heart(0, 0.2, 0.078), c: 'col' }] },
     bolt:    { def: 0xf6d04d, polys: [{ p: [[-0.1, 1.3], [0.85, 1.3], [0.3, 0.25], [0.95, 0.25], [-0.45, -1.3], [0.0, -0.1], [-0.65, -0.1]], c: 'col' }] },
     flames:  { def: 0xff6a1a, polys: [{ p: flame(1), c: 'col' }, { p: flame(0.55), c: 'hi' }] },
+    hibiscus: { def: 0xe8705a, polys: [0, 1, 2, 3, 4].map(k => ({ p: ell(Math.cos(k*1.2566 + 1.5708)*0.62, Math.sin(k*1.2566 + 1.5708)*0.62, 0.56, 0.56, 12), c: 'col' }))
+                                     .concat([{ p: ell(0, 0, 0.3, 0.3, 10), c: 0xf2c14e }]) },
     paw:     { polys: [{ p: ell(0, -0.4, 0.78, 0.62), c: 'col' }, { p: ell(-0.98, 0.3, 0.3, 0.4), c: 'col' }, { p: ell(0.98, 0.3, 0.3, 0.4), c: 'col' },
                        { p: ell(-0.38, 0.9, 0.3, 0.4), c: 'col' }, { p: ell(0.38, 0.9, 0.3, 0.4), c: 'col' }] },
     eightball: { polys: [{ p: ell(0, 0, 1.25, 1.25, 20), c: K }, { p: ell(0.1, 0.12, 0.62, 0.62), c: W },
@@ -116936,7 +117887,8 @@ const SKIN_PALETTES = {
   "fishmonger":     SK_FISHMONGER,
   "pawprint":       SK_PAWPRINT,
   "just-married":   SK_JUST_MARRIED,
-  "racing-stripe":  SK_RACING_STRIPE
+  "racing-stripe":  SK_RACING_STRIPE,
+  "board-shorts":   SK_BOARDSHORTS
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
@@ -123334,6 +124286,7 @@ function buildShore(grid){
       a:{ x:X0 - BOARD, y:sbY }, b:{ x:X1, y:sbY }, half:sbHalf },
     { id:"pier",  kind:"pier",
       a:{ x:pierX1, y:pierY }, b:{ x:pierX0, y:pierY }, half:PIER_W / 2 },
+    surfShorePieces().run,                      // SUNSET SHORE SURF SCHOOL's plank walk across the sand
   ];
   /* rInner is the octagon's CIRCUMRADIUS, not an inscribed circle: apothem
      is what the point test actually compares against and is derived below
@@ -123341,7 +124294,7 @@ function buildShore(grid){
   const ring = { id:"aquarium", kind:"deck", cx:pierX0, cy:pierY,
                  rOuter: W.AQ_DECK * B, rInner: W.AQ_ROOF * B,
                  sides: W.AQ_SIDES, rot: W.AQ_ROT };
-  return { runs, ring, X0, X1, Y0, Y1, BOARD, pierY, pierX0, pierX1, PIER_W };
+  return { runs, ring, X0, X1, Y0, Y1, BOARD, pierY, pierX0, pierX1, PIER_W, surf: surfShorePieces() };
 }
 
 /* Same along/perp test classifyAt uses, generalised to a per-run
@@ -123373,6 +124326,7 @@ function inRegularPoly(dx, dy, R, n, rot){
 }
 function classifyShore(sh, x, y){
   if(!sh) return null;
+  if(sh.surf && x < -4300 && x > -4900 && surfOnDeck(x, y)) return "building";   // (SUNSET SHORE SURF SCHOOL's deck and steps: beachBlocks keeps him off, as the pier's rails)
   const rx = x - sh.ring.cx, ry = y - sh.ring.cy;
   const d = Math.hypot(rx, ry);
   if(d <= sh.ring.rOuter)
@@ -127499,6 +128453,8 @@ const TP_SKINS = [
     filter:"none", desc:"Nell's striped apron, for three kitchens served before the ice gave out. The Pelican Fish Market's own." },
   { skinId:"pawprint",       displayName:"Paw Print",      unlockType:"achievement",  trophyId:"adoption-day",
     filter:"none", desc:"Shelter teal and a trail of paw prints, for walking Biscuit home to her family on adoption day." },
+  { skinId:"board-shorts",   displayName:"Board Shorts",   unlockType:"achievement",  trophyId:"sunset-session",
+    filter:"none", desc:"Teal board shorts with coral hibiscus, the surf school's own. Mele says he's an honorary instructor now." },
   { skinId:"racing-stripe",  displayName:"Racing Stripe",  unlockType:"achievement",  trophyId:"pit-crew",
     filter:"none", desc:"Racing red with the Kart Works' white stripe nose to tail and a 4 on each flank. Number 4's pit crew wears it." },
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
@@ -127598,6 +128554,8 @@ const TP_TROPHIES = [
      server-kept completion ('the-getaway') */
   { id:"wheels-up", name:"Wheels Up", desc:"Get the Holloways' passports from Sun Deck Motor Lodge to the terminal before check-in closes.", tier:"silver", reward:"just-married",
     progress:(h,t,missions)=>({current: (missions && missions.has("the-getaway")) ? 1 : 0, target:1}) },
+  { id:"sunset-session", name:"Sunset Session", desc:"Bring the surf school's six foam boards down the sand in the cargo bot, and see the class paddle out at sundown.", tier:"silver", reward:"board-shorts",
+    progress:(h,t,missions)=>({current: (missions && missions.has("sunset-session")) ? 1 : 0, target:1}) },
   { id:"pit-crew", name:"Pit Crew", desc:"Get number 4's new kart built at the Tidewater Kart Works and ride down the derby's ramp beside it.", tier:"silver", reward:"racing-stripe",
     progress:(h,t,missions)=>({current: (missions && missions.has("kart-winner")) ? 1 : 0, target:1}) },
   { id:"luna-favour", name:"One of Us", desc:"Get Luna's uniform from Sierra Vista to American Gothic without blowing her cover.", tier:"silver", reward:"goth",
@@ -129825,7 +130783,6 @@ requestTpProfile();
      keeps the tray along the bottom with him above it, as the artifact
      window has it (Sir, 2026-10-10: "i want my full screen to look more
      like the artifact window. i like the layout better") */
-  body.tpShowroom #npcSays{display:none}
   @media ${GR_SIDE_MQ}{
     #garage{display:none;flex-direction:row;flex-wrap:wrap}
     body.tpGarage #garage{display:grid;grid-template-columns:1fr min(46vw,440px);
@@ -129871,7 +130828,7 @@ requestTpProfile();
   const spinEl = $('grSpin');
   const yawOf = () => { const s = scn(); return (s && s.ow) ? s.ow.yaw : 0; };
   /* a fleet vehicle too long to turn round in its lane stands still, facing its door */
-  const setYaw = y => { const s = scn(); if (s && s.ow) { s.ow.yaw = y; s.ow.vel = 0; } };   // (a fleet vehicle turns on its showroom's turntable)
+  const setYaw = y => { const s = scn(); if (s && s.ow) { const L = s._garage && fleetBayByKey(s._garage.key); if (L && !L.spin) return; s.ow.yaw = y; s.ow.vel = 0; } };
 
   spinEl.addEventListener('pointerdown', e => {
     dragging = true; lastX = e.clientX; vel = 0; lastTouch = performance.now();
@@ -129901,7 +130858,8 @@ requestTpProfile();
     if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
     if (s && tab === 'wheels') s.wheelPhase = (s.wheelPhase || 0) - dt * 0.0018;   // roll them for the show
     if (s && s.ow) {
-      if (f && !dragging && t - lastTouch > 500) {
+      const _ln = s._garage && fleetBayByKey(s._garage.key);
+      if (f && !dragging && t - lastTouch > 500 && !(_ln && !_ln.spin)) {
         let d = f.yaw - s.ow.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));          // the short way round
         s.ow.yaw += d * Math.min(1, dt / 160);
@@ -130064,122 +131022,13 @@ requestTpProfile();
     pickEl.style.display = 'block';
     pickEl.style.left = Math.round(cr.left + p.x * kx) + 'px'; pickEl.style.top = Math.round(cr.top + p.y * ky) + 'px';
   }
-  /* ---- THE SHOWROOM (fleetShowroomKind): one vehicle's room, over the world ----
-     Built round the vehicle where it stands (its pad), square to the world's axes so its two far walls are the two
-     the camera looks into: the x = x0 wall (seen side +x, running down-left on screen) and the y = y0 wall (+y,
-     down-right), their corner straight over the vehicle. Both walls run far past the frame and stand far over it and
-     the floor runs out under the tray, so whatever the zoom there is no dark and no city. The Tipsey depot's feel:
-     slate walls, wooden shelves of parts round the corner, the orange pad ring, a charger post; the bay kit's trim
-     colour in a band round the walls. Its dressing is sized to the vehicle (sc), from the robotaxi up to the semi.
-     Drawn live into the mask's own layer (it moves only when the camera does: a few dozen fills), the vehicle after
-     it into a layer of its own above. */
-  const SHOW = { wall: 0x263a4c, wallS: 0x203242, top: 0x1b2836, skirt: 0x17222d, floor: 0x5a6672, joint: 0x4d5864,
-                 pad: 0x4c5763, ring: 0xf2a23a, plank: 0x8b6545, plankF: 0x6b4c33, bracket: 0x3a2a1e,
-                 box: 0xc9a26e, boxF: 0xae8655, boxS: 0x987347, tyre: 0x24272c, tyreS: 0x34383e, hub: 0x9aa3ab,
-                 post: 0xeceff1, postS: 0xc9cfd4, screen: 0xff7a1a, chest: 0xc8352e, chestS: 0xa22b25, lamp: 0xfff1c8 };
-  let gShow = null;
-  /* its size: R the turntable's reach (any way round), sc the dressing's scale, Rb the walls' distance from the
-     vehicle's middle, zSee how high up the corner the frame must show (fit: the middle shelf and its boxes) */
-  function showroomDims(F) {
-    const R = Math.hypot(F.body.len / 2, F.body.wid / 2), sc = Math.max(1, Math.min(2.4, R / 170));
-    return { R, sc, Rb: R + 50 * sc, zSee: 125 * sc };
-  }
-  function showroomPaint(s, g, kind) {
-    const F = FLEET[kind], spec = BAY_SPEC[F.bay] || BAY_SPEC.hangar, trim = Phaser.Display.Color.HexStringToColor(spec.trim).color;
-    const { R, sc, Rb } = showroomDims(F);
-    const bx = s.botX, by = s.botY, x0 = bx - Rb, y0 = by - Rb, L = 30000, HW = 30000, K = s.K;
-    const W = (x, y, z) => s.W(x, y, z || 0), q = (pts, c) => { g.fillStyle(c, 1); g.fillPoints(pts, true); };
-    /* the floor, its joints, the walls in two tones (a darker head), a skirting, the kit's band */
-    q([W(x0, y0), W(x0 + L, y0), W(x0 + L, y0 + L), W(x0, y0 + L)], SHOW.floor);
-    g.lineStyle(Math.max(1, 2 * K), SHOW.joint, 0.8);
-    const J = 240 * sc;
-    for (let i = 1; i < 40; i++) { const a = W(x0 + i * J, y0), b = W(x0 + i * J, y0 + L), c = W(x0, y0 + i * J), d = W(x0 + L, y0 + i * J); g.lineBetween(a.x, a.y, b.x, b.y); g.lineBetween(c.x, c.y, d.x, d.y); }
-    const ZT = 330 * sc;
-    const wallX = (z0, z1, c) => q([W(x0, y0, z0), W(x0, y0 + L, z0), W(x0, y0 + L, z1), W(x0, y0, z1)], c);
-    const wallY = (z0, z1, c) => q([W(x0, y0, z0), W(x0 + L, y0, z0), W(x0 + L, y0, z1), W(x0, y0, z1)], c);
-    wallX(0, ZT, SHOW.wall); wallX(ZT, HW, SHOW.top); wallY(0, ZT, SHOW.wallS); wallY(ZT, HW, SHOW.top);
-    wallX(0, 10 * sc, SHOW.skirt); wallY(0, 10 * sc, SHOW.skirt);
-    wallX(ZT - 14 * sc, ZT, trim); wallY(ZT - 14 * sc, ZT, trim);
-    /* a box on world axes: top, its +x face and its +y face (the three the camera sees) */
-    const box = (xa, xb, ya, yb, z0, z1, top, fx, fy) => {
-      q([W(xb, ya, z0), W(xb, yb, z0), W(xb, yb, z1), W(xb, ya, z1)], fx);
-      q([W(xa, yb, z0), W(xb, yb, z0), W(xb, yb, z1), W(xa, yb, z1)], fy);
-      q([W(xa, ya, z1), W(xb, ya, z1), W(xb, yb, z1), W(xa, yb, z1)], top);
-    };
-    /* SHELVES round the corner, as the depot's run round its corner: three planks on each wall from the corner out,
-       brackets under them, boxes and spare wheels on them */
-    const D = 26 * sc, run = Math.min(R * 1.5, 520 * sc), Zs = [80, 150, 220].map(z => z * sc);
-    for (const z of Zs) {
-      for (let k = 0; k <= 3; k++) { const yy = y0 + D + k * (run - D) / 3, xx = x0 + D + k * (run - D) / 3;
-        q([W(x0, yy - 2 * sc, z - 22 * sc), W(x0 + D * 0.9, yy - 2 * sc, z - 1), W(x0, yy - 2 * sc, z - 1)], SHOW.bracket);
-        q([W(xx - 2 * sc, y0, z - 22 * sc), W(xx - 2 * sc, y0 + D * 0.9, z - 1), W(xx - 2 * sc, y0, z - 1)], SHOW.bracket); }
-      box(x0, x0 + D, y0 + D, y0 + run, z - 6 * sc, z, SHOW.plank, SHOW.plankF, SHOW.plankF);
-      box(x0, x0 + run, y0, y0 + D, z - 6 * sc, z, SHOW.plank, SHOW.plankF, SHOW.plankF);
-    }
-    /* what stands on them: seeded off the kind, so each vehicle's room is its own and never changes */
-    let seed = 0; for (const ch of kind) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
-    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-    const wheelOn = (x, y, z, r, alongY) => {   // a spare wheel stood on its tread against the wall
-      const N = 12, ring = (rr, o) => { const pts = []; for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, u = Math.cos(a) * rr, h = Math.sin(a) * rr + r;
-        pts.push(alongY ? W(x + o, y + u, z + h) : W(x + u, y + o, z + h)); } return pts; };
-      q(ring(r, 0), SHOW.tyreS); q(ring(r, 6 * sc), SHOW.tyre); q(ring(r * 0.45, 6.5 * sc), SHOW.hub);
-    };
-    Zs.forEach((z, zi) => {
-      for (const side of [0, 1]) {
-        let u = D + 10 * sc;
-        while (u < run - 40 * sc) {
-          const w = (22 + rnd() * 26) * sc, h = (14 + rnd() * 22) * sc, d = Math.min(D - 4 * sc, (14 + rnd() * 10) * sc);
-          if (zi === 0 && rnd() < 0.35) { const r = 18 * sc; if (side) wheelOn(x0 + u + r, y0 + 4 * sc, z, r, false); else wheelOn(x0 + 4 * sc, y0 + u + r, z, r, true); u += 2 * r + 10 * sc; continue; }
-          if (rnd() < 0.2) { u += w; continue; }
-          if (side) box(x0 + u, x0 + u + w, y0 + 3 * sc, y0 + 3 * sc + d, z, z + h, SHOW.box, SHOW.boxF, SHOW.boxS);
-          else box(x0 + 3 * sc, x0 + 3 * sc + d, y0 + u, y0 + u + w, z, z + h, SHOW.box, SHOW.boxS, SHOW.boxF);
-          u += w + (4 + rnd() * 8) * sc;
-        }
-      }
-    });
-    /* THE CHARGER on the +y wall past the shelves (the hangar's own post: white, its orange screen) and a red tool
-       chest beyond it; a wall lamp over each run of shelves */
-    { const cx = x0 + run + 70 * sc, w = 34 * sc, d = 26 * sc, h = 150 * sc;
-      box(cx, cx + w, y0, y0 + d, 0, h, SHOW.postS, SHOW.postS, SHOW.post);
-      q([W(cx + 6 * sc, y0 + d + 0.5, h - 60 * sc), W(cx + w - 6 * sc, y0 + d + 0.5, h - 60 * sc), W(cx + w - 6 * sc, y0 + d + 0.5, h - 22 * sc), W(cx + 6 * sc, y0 + d + 0.5, h - 22 * sc)], SHOW.screen);
-      const tx = cx + w + 50 * sc;
-      box(tx, tx + 90 * sc, y0, y0 + 40 * sc, 0, 80 * sc, SHOW.chestS, SHOW.chestS, SHOW.chest);
-      g.lineStyle(Math.max(1, 1.5 * K), SHOW.chestS, 1);
-      for (const z of [26, 46, 64]) { const a = W(tx + 6 * sc, y0 + 40 * sc + 0.5, z * sc), b = W(tx + 84 * sc, y0 + 40 * sc + 0.5, z * sc); g.lineBetween(a.x, a.y, b.x, b.y); } }
-    for (const [ax, ay] of [[x0 + 0.5, y0 + run * 0.5], [x0 + run * 0.5, y0 + 0.5]]) {
-      const c = W(ax, ay, ZT - 50 * sc); g.fillStyle(SHOW.lamp, 0.12); g.fillEllipse(c.x, c.y + 40 * sc * K, 220 * sc * K, 120 * sc * K);
-      g.fillStyle(SHOW.lamp, 1); g.fillEllipse(c.x, c.y, 34 * sc * K, 12 * sc * K); }
-    /* THE PAD: the depot's turntable, a dark disc in its orange ring, round the vehicle any way it turns (a boat's
-       a pool in a stone rim) */
-    const disc = (r, z) => { const pts = []; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; pts.push(W(bx + Math.cos(a) * r, by + Math.sin(a) * r, z)); } return pts; };
-    const boat = F.cls === "sail", rp = R + 26 * sc;
-    if (boat) { q(disc(rp + 18 * sc, 0), 0x8c8a82); q(disc(rp, 0), 0x2f6f7e); q(disc(rp * 0.82, 0), 0x3a7f8d); }
-    else {
-      q(disc(rp + 10 * sc, 0), SHOW.ring); q(disc(rp, 0), SHOW.pad);
-      g.fillStyle(0xffffff, 0.05); g.fillPoints(disc(rp * 0.7, 0), true);
-    }
-  }
-  function drawShowroom(s, kind) {
-    showroomPaint(s, gMask, kind);
-    /* the vehicle, over its room: the world's own draw of it is skipped while the showroom has it (drawRobotOrSunk) */
-    if (!gShow || gShow.scene !== s || !gShow.active) { gShow = s.add.graphics(); gShow.setDepth(MASK.depth + 1); }
-    const g0 = s.g, xs0 = s._xraySkip;
-    s.g = gShow; s._xraySkip = true;
-    try { s.drawFleetAvatar(s.time.now, 0, kind); }
-    finally { s.g = g0; s._xraySkip = xs0; }
-  }
   function drawMask() {
     const s = scn();
     fourthPickPlace(s);
     if (!s) return;
     if (!gMask || gMask.scene !== s || !gMask.active) { gMask = s.add.graphics(); gMask.setDepth(MASK.depth); }
     gMask.clear();
-    if (gShow && gShow.active) gShow.clear();
-    /* the city's speech bubbles are the page's (npcSay), over any canvas layer: the showroom hides them */
-    const sk = open && s._garage ? fleetShowroomKind(s) : '';
-    document.body.classList.toggle('tpShowroom', !!sk);
     if (!open || !s._garage) return;
-    if (sk) return drawShowroom(s, sk);
     const H = roomHull(s); if (!H || H.length < 3) return;
     const L = 20000, n = H.length, V = (x, y) => new Phaser.Geom.Point(x, y);
     /* outward normal of edge i (hull is CCW on a y-down screen, so the
@@ -130247,7 +131096,7 @@ requestTpProfile();
        "i dont like the tiny versions" over "no black border"): a long hall
        is a thin diamond on screen, and a semi at full size cannot have the
        view inside it as well; a sliver of the dark round the room shows */
-    if (fleetShowroomKind(s)) return T;   // (the showroom fills any frame: nothing to keep inside)
+    if (s._garage && fleetBayByKey(s._garage.key)) return T;
     let lo = T.K, hi = T.K * 1.5;
     while (!legalAt(q, hi, T.cx, T.cy) && hi < T.K * 12) { lo = hi; hi *= 1.5; }
     for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (legalAt(q, m, T.cx, T.cy)) hi = m; else lo = m; }
@@ -130294,11 +131143,10 @@ requestTpProfile();
     const FK = fleetCur(), FE = FLEET[FK];
     s._garageScale = 1;
     if (FE) {
-      const spin = true;   // (the showroom's turntable: any vehicle, any way round)
+      const lane = s._garage && fleetBayByKey(s._garage.key), spin = !lane || lane.spin;
       const hl = FE.body.len / 2, hw = FE.body.wid / 2, h = Math.max(FE.body.h, FE.fit ? FE.fit.h : 0);
       let x0 = 0, x1 = 0, up = h, dn = 0;
-      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn;
-        if (fleetShowroomKind(s)) { const SD = showroomDims(FE); up = Math.max(up, SD.Rb + SD.zSee); } }   // (and the showroom's corner shelves over it)
+      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn; }
       else {
         const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
         for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) {
@@ -130335,7 +131183,7 @@ requestTpProfile();
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
-    $('grHint').style.opacity = 1;
+    { const L = fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (no "drag to turn" for a vehicle that cannot turn round in its lane)
     fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
@@ -130362,7 +131210,6 @@ requestTpProfile();
     open = false;
     if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
     if (s) { s._garage = null; s._lightsPreview = false; s._garageScale = 1; }
-    document.body.classList.remove('tpShowroom');
     /* Play: the door he came in behind rolls back up (the pad shut would
        otherwise hold it down until he drove off the pad, through it) */
     if (s && s._doorShut) s._doorShut = null;
@@ -131440,6 +132287,7 @@ requestTpProfile();
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
+      { const L = s && s._garage && fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (a vehicle that cannot turn round there: no "drag to turn")
       renderTab(); fit();
     };
   }
