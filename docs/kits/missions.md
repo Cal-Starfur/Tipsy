@@ -12,7 +12,7 @@
 |---|---|
 | `MISSIONS` | The registry (R9). One record per story: `name`, `giver`, `window`, `needs`, `places`, `steps`, `reward` (`cents` + `payId`, `trophy`, `skin`, `wear`, `item`, `credits`), and four functions: `busy()`, `item()` (what is carried now and its tip rule), `next()` (the next step, in words), `start(scene)` (where it begins). The mission board (`tpRenderMissions`, "Stories") reads it through `missionState(id)`. |
 | `missionBusy(except)` | One story at a time (R3). Every start asks it; the lost dogs' spawn and the shelter pickup wait while it is true. |
-| `MISSION_WINDOWS`, `missionWindowOpen(id)`, `missionWindowSay` | The real clock (R4), `NIGHT_CLOCK.time` when set: `any`, `day` 7-17, `evening` 17-20 ("comes at dusk"), `night` 19-5 ("after dark"), `shops` 9-16 ("in shop hours": a story whose places are shops that shut at 6). Offered only in its window; a started story keeps its time. `missionDayPart()` / `missionMeal()` for lines that name the time. |
+| `MISSION_WINDOWS`, `missionWindowOpen(id)`, `missionWindowSay` | The real clock (R4), `NIGHT_CLOCK.time` when set: `any`, `day` 7-17, `evening` 17-20 ("comes at dusk"), `night` 19-5 ("after dark"), `shops` 9-16 ("in shop hours": a story whose places are shops that shut at 6), `dusk` 18:30-19:30 ("comes at dusk": the sky's own fade, `NIGHT_CLOCK.from` +- `fade/2`; Sunset Salute, the Surf School next; started, the sky is held at its level by `NIGHT_HOLD` and eased back at the end). Offered only in its window; a started story keeps its time. `missionDayPart()` / `missionMeal()` for lines that name the time. |
 | `missionComplete(id)` | What it gives is the server's (R10): `tpCompleteMission(id, 1)` (local, and on Devvit `api/tipsy/mission/complete`, the id in `TS_MISSIONS`), the money once through the server (`missionPay` → `api/tipsy/gift/tip` by `payId`; db.ts `ONCE_TIP_CENTS`), the trophy's claim (`TS_CLAIMABLE_TROPHIES` grants the skin) and the skin worn when `reward.wear`. Prints the console seed line. |
 | `missionTipOver(scene)` | A tip-over with a mission's item aboard (R5): `spill` runs the item's `drop` (the heart, the cake), `crewReturns` is handed back by the crew as they lift him ("Dropped this, buddy."), `keep` stays. Called by `owDispatchTipFail`; a crew pass keeps everything. |
 | `missionSay` | The one speech card (`hospSayCard`): orange answer, no loop, a grey second answer (R8, R15). |
@@ -62,6 +62,7 @@
 | Adoption Day (`adoption-day`) | shops (9-16), after 5 dogs sheltered (`lock`) | the Adoption Day trophy, the Paw Print skin (worn), the Dog Rescuer's gold tag (key item; the Dog Rescuer trophy shows gold), the humanoid (fleet unlock, lent for the run) | `TS_MISSIONS`, `adoption-day` -> `pawprint` (`TS_SKINS`); the tag rebuilt from the record (`adTagMigrate`) |
 | The Getaway (`the-getaway`) | day, after `cake-run` | $50 once, Wheels Up trophy, Just Married skin (tin cans), the robotaxi (fleet unlock); spends the Gala Pass | `TS_MISSIONS`, gift/tip `getaway`, `wheels-up` -> `just-married` (`TS_CLAIMABLE_TROPHIES`, `TS_SKINS`); the pass is never rebuilt once spent (`galaPassMigrate` asks `tpCollect.used` and the record) |
 | Night Watch (`night-watch`, after `goth-uniform`) | night (19-6, "after dark"; keeps its night once started) | $40 once, Luna's spare gate fob (key item `vistafob`, meant to open Sierra Vista's side gate for later errands), the security patrol robot (fleet unlock, lent for the run) | `TS_MISSIONS`, gift/tip `nightwatch` (db.ts `NIGHTWATCH_TIP_ID`); the fob rebuilt from the record (`nwFobMigrate`) |
+| Sunset Salute (`sunset-salute`) | dusk | Walt's challenge coin (key item `coin`), the autonomous shuttle (fleet unlock) | `TS_MISSIONS`; the coin rebuilt from the record (`ssCoinMigrate`) |
 | Lost dogs, the shelter (free roam) | any | $20 a dog (capped a day), the homed and sheltered lists | `api/tipsy/dog/rescue` `{key}`, `api/tipsy/dog/shelter` `{key}`; the profile's `dogsHomed`, `shelteredDogs` |
 
 **Console seed lines** (the artifact boots with empty storage):
@@ -81,6 +82,8 @@
 - `tpProfile.missionsCompleted.add('kart-winner'); tpSaveProfile()` (done: number 4's bib in the stash, the Pit Crew trophy to claim, his red kart by his bale)
 - `tpProfile.missionsCompleted.add('mall-password'); tpProfile.missionsCompleted.add('goth-uniform'); tpSaveProfile(); NIGHT_CLOCK.time = 22` (Night Watch offered: stop on the bay on the Vista Ridge Security Post's forecourt, up the mall's west-end service way; by day the bay says "after dark")
 - `tpProfile.missionsCompleted.add('night-watch'); tpSaveProfile()` (done: the spare gate fob on the shelf, the patrol robot kept, the post's robot charged green)
+- `NIGHT_CLOCK.time = 19` (real dusk, 18:30-19:30: Sunset Salute offered; stop on the bay by Walt's bench at the Veterans Memorial, the middle of Veterans Memorial Park, cell 5,5; outside the window Walt says "Come back at dusk, son.")
+- `tpProfile.missionsCompleted.add('sunset-salute'); tpSaveProfile()` (done: Eddie Navarro's brass plate and the wreath on the wall, Walt's coin in the stash, the shuttle kept; Walt waves as Tipsey passes)
 - `NIGHT_CLOCK.time = 18` (dusk: the Cake Run and Gus's favour are offered), `NIGHT_CLOCK.time = null` (the real clock)
 
 ## Checks (headless, `tools/review/harness.js`)
@@ -113,6 +116,15 @@ by the story's bay (`KW_RUN.nur` / `KW_RUN.dune`: path, face, bay; `kwPostAt`, s
 bay arms only once the clerk is at his post), so the meeting shows both faces, even where the door itself faces away or
 sits back behind a gate; afterwards he walks back the same way and in. Keep a story's shops within a couple of blocks:
 Number 4 Builds a Winner went from about 112k units of road (Palmline Bikes, Breakwater Hardware) to about 35k.
+**A story at real dusk** (Sunset Salute): `window: 'dusk'` (`MISSION_WINDOWS.dusk`, the sky's 18:30-19:30 fade); outside it
+the bay is drawn without its beacon and the giver says when to come back. Once accepted the sky keeps its dusk to the end
+(`NIGHT_HOLD.v` held, eased back over 2.5 s at the end) and a set piece waits on the story's own clock (`SS.salT`,
+`SS.tapsT`), never on the sky. Shops a story needs after their hours stay open for it (`missionLatePlace`: the place card
+reads "Open late tonight"). Keep its shops near: the brief's Seabreeze Library / Trophies / Florist were 33k-38k of road
+from the memorial each; the Marina Office, Cove Locksmith and Tidewater & Co. on block 4,7 make the whole run about 17k (GPS legs 4.6k + 0.7k + 1.5k + 7.0k, and 1.6k of lawn each way between the park's corner and the bench).
+**A giver who sits** (Walt): seated on the city's bench (`pose.sit`), he rises over `SS_RUN.riseMs` (sitting, leaning
+forward, then standing with `pose.drop` easing out), walks round the bench's end (`walkPathAt`), and only then the meet kit
+takes him (`meetWalk` from the bench's end; `meetTick` waits for `M.t0`); afterwards back round the end and down again.
 **A story with a set piece on a slope** (its test run down the derby's ramp): the bay up on the start platform takes the
 deck's height (`drawPickupBay`'s `bz`, the beacon's `dz`), and the autopilot can take him at his full pace
 (`GOTH.auto.max`).

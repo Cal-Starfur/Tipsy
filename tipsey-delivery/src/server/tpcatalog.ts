@@ -118,7 +118,10 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       post's patrol robot (lent, kept: FLEET unlock
                       'patrolbot'), Luna's fob from the mall's lost property,
                       $40 once (GIFT_TIP_IDS 'nightwatch') and her spare gate
-                      fob (a key item, rebuilt from this record: nwFobMigrate) */
+                      fob (a key item, rebuilt from this record: nwFobMigrate)
+       sunset-salute  Sunset Salute (at dusk, the Veterans Memorial): Walt's
+                      challenge coin (a key item, rebuilt from this record:
+                      ssCoinMigrate) and the autonomous shuttle (FLEET unlock) */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -130,6 +133,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'the-getaway': {bestMax: 1, completeAt: 1},
   'kart-winner': {bestMax: 1, completeAt: 1},
   'night-watch': {bestMax: 1, completeAt: 1},
+  'sunset-salute': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
