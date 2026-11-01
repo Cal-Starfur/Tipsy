@@ -75145,6 +75145,8 @@ function kwSim(cruise, boost, seed){
 }
 /* the derby's winning time, the clock to beat (number 1's run: the race's own numbers) */
 function kwBest(){ if(!kwBest.v){ const k = DERBY_RACE.karts.find(q => q.no === 1); kwBest.v = kwSim(k.cruise, k.boost, k.seed).fin; } return kwBest.v; }
+/* a time as it is said ("11 point 4": the speech card cuts its sentences at a full stop) */
+function kwSecs(ms){ const t = (ms/1000).toFixed(1).split('.'); return t[0] + ' point ' + t[1]; }
 function kwSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
 function kwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "kart", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function kwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "kart"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
@@ -75432,7 +75434,7 @@ function kwTick(scene, ow){
       return;
     case 'ready':
       if(R.kid) meet(R.kid, () => hospSayCard({ who: "Number 4", btn: "Let's go!", ok: kwGo, at: kwKidAt,
-        say: "Tipsey! Look at her! Red like a winner. Will you ride down beside me on her first run? The derby's best time was " + (kwBest()/1000).toFixed(1) + " seconds. Watch this!" }));
+        say: "Tipsey! Look at her! Red like a winner. Will you ride down beside me on her first run? The derby's best time was " + kwSecs(kwBest()) + " seconds. Watch this!" }));
       return;
     case 'count': {
       ow.vel = 0;
@@ -75466,7 +75468,7 @@ function kwTick(scene, ow){
     }
     case 'thanks':
       if(R.kid && R.kid.leave == null) meet(R.kid, () => hospSayCard({ who: "Number 4", btn: "Thanks, champ!", ok: kwFinish, at: kwKidAt,
-        say: "Did you SEE that?! " + (R.run ? (R.run.fin/1000).toFixed(1) : '') + " seconds, faster than the winner! Next year that cup's mine. Here, my race bib, number 4: it's yours. And the Kart Works said to tell you: you're pit crew now. They've painted you a racing stripe!" }));
+        say: "Did you SEE that?! " + (R.run ? kwSecs(R.run.fin) : '') + " seconds, faster than the winner! Next year that cup's mine. Here, my race bib, number 4: it's yours. And the Kart Works said to tell you: you're pit crew now. They've painted you a racing stripe!" }));
       return;
   }
 }
