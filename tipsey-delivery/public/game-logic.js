@@ -17490,7 +17490,7 @@ function shopDoorWalkers(now){
   if(b) out.push({ p: b, U: BAKER_UNIFORM, seed: BAKER_SEED });
   const g = annivBusy() ? annivGiverAt(now) : null;
   if(g) out.push({ p: g, U: g.look, seed: g.look === BAKER_UNIFORM ? BAKER_SEED : 0xf10e5 });
-  if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Bikes' and Breakwater Hardware's clerks: NUMBER 4 BUILDS A WINNER)
+  if(typeof KW !== "undefined") for(const w of kwDoorWalkers(now)) out.push(w);   // (Palmline Nursery's and Dune Home & Garden's clerks: NUMBER 4 BUILDS A WINNER)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -30655,7 +30655,7 @@ const MISSION_WINDOWS = {
   evening: { from: 17, to: 20, say: 'comes at dusk' },   // (Sandpiper Bakery and Seabreeze Florist open till 20, the ballroom from 17: TP_PLACE_COPY)
   night: { from: 19, to: 5, say: 'after dark' },
   /* while the shops it goes to are open, with time to finish before they shut (Number 4 Builds a Winner: the Kart
-     Works, Palmline Bikes and Breakwater Hardware are 8 to 6 -- TP_PLACE_COPY) */
+     Works and Palmline Nursery 8 to 6, Dune Home & Garden 9 to 7 -- TP_PLACE_COPY) */
   shops: { from: 9, to: 16, say: 'in shop hours' }
 };
 function missionHour(){ return walkinClockHour(); }
@@ -30716,15 +30716,15 @@ const MISSIONS = {
                    thanks: 'The harbour master', sorry: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
     start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
   'kart-winner': { name: 'Number 4 Builds a Winner', giver: "Number 4, by the derby's course", window: 'shops', needs: 'fourth-place',
-    places: ['Tidewater Green', 'Tidewater Kart Works', 'Palmline Bikes', 'Breakwater Hardware'],
-    steps: ["Number 4, by his bale at the derby's course", 'The mechanic at the Tidewater Kart Works', 'A wheel set from Palmline Bikes', 'A tin of racing red from Breakwater Hardware',
+    places: ['Tidewater Green', 'Tidewater Kart Works', 'Palmline Nursery', 'Dune Home & Garden'],
+    steps: ["Number 4, by his bale at the derby's course", 'The mechanic at the Tidewater Kart Works', 'A wheel set from Palmline Nursery', 'A tin of racing red from Dune Home & Garden',
             'Back to the Kart Works: the build', 'The test run down the derby\'s ramp'],
     reward: { trophy: 'pit-crew', skin: 'racing-stripe', wear: true, item: 'bib4' },
     busy: () => KW.stage !== 'idle',
-    item: () => ['paint', 'hardware'].includes(KW.stage) ? { id: 'wheels', name: 'wheel set', tip: 'crewReturns' }
+    item: () => ['paint', 'garden'].includes(KW.stage) ? { id: 'wheels', name: 'wheel set', tip: 'crewReturns' }
               : ['back', 'mech2'].includes(KW.stage) ? { id: 'parts', name: 'wheel set and racing red', tip: 'crewReturns' } : null,
-    next: () => ({ ask: 'Hear number 4 out', shop: 'The Tidewater Kart Works: in through its roll-up', mech: 'The mechanic', wheels: 'Palmline Bikes: the wheel set',
-                   bikes: 'Palmline Bikes has them', paint: 'Breakwater Hardware: its clerk round the corner', hardware: 'The racing red', back: 'Back to the Tidewater Kart Works',
+    next: () => ({ ask: 'Hear number 4 out', shop: 'The Tidewater Kart Works: in through its roll-up', mech: 'The mechanic', wheels: 'Palmline Nursery: the wheel set',
+                   nursery: 'Palmline Nursery has them', paint: 'Dune Home & Garden: the racing red', garden: 'The racing red', back: 'Back to the Tidewater Kart Works',
                    mech2: 'The mechanic', build: 'The build', built: 'The mechanic', ramp: "Up the derby's ramp to number 4", ready: 'Number 4, in his new kart',
                    count: 'The test run', run: 'The test run', thanks: 'Number 4' })[KW.stage] || "Number 4, by the derby's course on Tidewater Green",
     start: () => { const B = kwKidBay(); return B && { x: B.x, y: B.y, name: 'Tidewater Green' }; } },
@@ -75034,10 +75034,10 @@ function lhQueue(scene, t, queuePerson, layerFor){
      shop      across the street to the Tidewater Kart Works: in through its roll-up (the walk-in), onto the bay inside;
      mech      the club's mechanic comes over from wherever he is (the room's own person: away / awayAt) -- a new kart:
                he has a chassis on the stand, but no wheel set and no paint
-     wheels    Palmline Bikes (3,1): its bay at the door; the clerk out of the shop's door with a wheel set in hand
-     paint     Breakwater Hardware (8,1): its door is on the north side, which the camera never sees (a building
-               stands between him and the eye), so its clerk walks out round the corner of the block to the east
-               pavement, where both faces show, and waits there by the bay; a tin of racing red in hand
+     wheels    Palmline Nursery (1,3, across the Kart Works' north street): its clerk out of the potting hut and
+               through the front gate to the pavement, where he waits by the bay; four barrow wheels in hand
+     paint     Dune Home & Garden (0,5): its clerk out of the slide doors into the forecourt, waiting by the bay
+               there; a tin of racing red in hand (both close by: the whole story runs about 5 minutes)
      back      back to the Kart Works, onto the bay inside: the mechanic takes them (Let's build!)
      build     THE BUILD: the mechanic at the stand with the two kids, the chassis taking its wheels, its racing red,
                its stripe and number (KW.stand: each a still piece of the room, its 'when'); then he comes over: meet
@@ -75057,7 +75057,7 @@ function lhQueue(scene, t, queuePerson, layerFor){
    their doors and back in. FLEET (Sir's tie-in, "only if cheap"): the warehouse robot carrying the chassis to the ramp is
    left for later -- the AMR would need a street route of its own across Tidewater Green's gate; the kart is rolled over
    unseen instead. */
-const KW = { stage: 'idle', stand: 'bare', kid: null, kidWalk: null, kidIn: false, mech: null, build: null, bikes: null, hw: null, hwWalk: null,
+const KW = { stage: 'idle', stand: 'bare', kid: null, kidWalk: null, kidIn: false, mech: null, build: null, nur: null, nurWalk: null, dune: null, duneWalk: null,
              snooze: null, run: null, arrived: false, kartAt: null, kidHere: null, propsOn: null, countT: 0, said: 0, clockT: 0, standSeen: 0 };
 const KW_RUN = {
   look: 0x5d04,                              // number 4 (DERBY_RACE.karts[0].seed: his look in his kart and out of it)
@@ -75070,13 +75070,16 @@ const KW_RUN = {
   runout: [1640, 4440],                      // where the autopilot takes him, beside the kart's stop
   home: [1985, 1250],                        // the new kart, once it is his for good (where the old one stood)
   inBay: [470, 380],                         // the bay inside the Kart Works, in the door's lane (room frame)
-  hw: { door: [26753, 3870], post: [27566, 4262], bay: [27640, 4430] },   // Breakwater Hardware: its north door, his corner post, the bay
-  bikes: 'Palmline Bikes', bikesOut: 172,    // the bay out from Palmline Bikes' door on its pavement
-  seeds: { bikes: 0x4b11, hw: 0x4b12 }, count: 3200, boost: 0.42, cruise: 0.372
+  /* THE TWO CLERKS (each out of his own door to a post where both faces show, and back in): the walk (world points,
+     the door first), his post's heading while he waits, the bay beside it */
+  nur: { name: 'Palmline Nursery', path: [[4692, 11590], [4692, 11776], [4692, 11872]], face: Math.PI/2, bay: [4692, 12010] },   // out of the potting hut, through the front gate onto the pavement
+  dune: { name: 'Dune Home & Garden', path: [[1475, 17200], [1475, 17330], [1540, 17470]], face: Math.PI/2, bay: [1640, 17580] }, // out of the slide doors into the forecourt
+  seeds: { nur: 0x4b11, dune: 0x4b12 }, count: 3200, boost: 0.42, cruise: 0.372
 };
-const KW_BIKES_UNIFORM = { shirt: { c:0x2f8f8a, dk:0x226a66 }, pants: { c:0x2c3038, dk:0x1e2127 }, shoe: { c:0x16181b, dk:0x0d0e10 }, shoeKind: 'sneaker' };   // Palmline Bikes' teal
-const KW_HARDWARE_UNIFORM = { shirt: { c:0x8d949b, dk:0x6e757c }, pants: { c:0x3a4658, dk:0x2a3442 }, shoe: { c:0x5c4530, dk:0x46331f },
-  vest: { c:0xc23a2e, dk:0x962c23 }, shoeKind: 'boot' };                                                // Breakwater Hardware's red apron
+const KW_NURSERY_UNIFORM = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
+  vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                                                // Palmline Nursery's green apron
+const KW_DUNE_UNIFORM = { shirt: { c:0x8d949b, dk:0x6e757c }, pants: { c:0x3a4658, dk:0x2a3442 }, shoe: { c:0x5c4530, dk:0x46331f },
+  vest: { c:0xd9772b, dk:0xa95a1f }, shoeKind: 'boot' };                                                // Dune Home & Garden's orange vest
 function kwDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('kart-winner')); }
 /* the park's lab (a, n) in the world (DERBY_O: the park's frame) */
 function kwPW(a, n){ return DERBY_O ? { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n } : null; }
@@ -75084,18 +75087,13 @@ function kwPW(a, n){ return DERBY_O ? { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 +
 function kwKidBay(){ const p = kwPW(KW_RUN.bay[0], KW_RUN.bay[1]); return p ? (KW._kb || (KW._kb = hospBay(p.x, p.y))) : null; }
 function kwTopBay(){ const p = kwPW(KW_RUN.top[0], KW_RUN.top[1]); if(!p) return null; const B = KW._tb || (KW._tb = Object.assign(hospBay(p.x, p.y), { zf: (x, y) => derbyZ(x, y) })); B.z = derbyZ(p.x, p.y); return B; }
 function kwInBay(){ return KW._ib || (KW._ib = hospBay(KW_IN.x0 + KW_RUN.inBay[0], KW_IN.y0 + KW_RUN.inBay[1])); }
-function kwBikesBay(scene){
-  if(KW._bb) return KW._bb;
-  const S = shopDoorOf(scene, KW_RUN.bikes);
-  return S ? (KW._bb = Object.assign(hospBay(S.x + S.e.rv.x*KW_RUN.bikesOut, S.y + S.e.rv.y*KW_RUN.bikesOut), { S })) : null;
-}
-function kwHwBay(){ return KW._hb || (KW._hb = hospBay(KW_RUN.hw.bay[0], KW_RUN.hw.bay[1])); }
+function kwPostBay(k){ const c = KW._pb || (KW._pb = {}); return c[k] || (c[k] = hospBay(KW_RUN[k].bay[0], KW_RUN[k].bay[1])); }
 /* the barn's roll-up, its world point on the gable's foot (the room's door), and a bay out on the pavement for the GPS */
 function kwDoorWorld(){ const d = KW_PK.doors[0], q = d.world && d.world(); return q || null; }
 /* offered: number 4 is about (kidHere, latched: he comes and goes only while nobody sees his bale), the derby's story done */
 function kwOffered(){ return fourthDone() && !!KW.kidHere; }
 /* the room needs its mechanic: kept open late while the story is in it (walkinShut) */
-function kwNeedsRoom(){ return ['shop', 'mech', 'wheels', 'bikes', 'paint', 'hardware', 'back', 'mech2', 'build', 'built'].includes(KW.stage); }
+function kwNeedsRoom(){ return ['shop', 'mech', 'wheels', 'nursery', 'paint', 'garden', 'back', 'mech2', 'build', 'built'].includes(KW.stage); }
 /* THE MECHANIC, borrowed by the story (walkinStaff away / awayAt): a meeting (KW.mech) or the build (KW.build) */
 function kwMechAway(){ return !!(KW.mech || KW.build); }
 function kwMechAt(now){
@@ -75162,31 +75160,29 @@ function kwBayNow(scene){
     if(scene._inside === KW_PK) return Object.assign(ic(kwInBay(), 'wrench'), { pocket: KW_PK });   // (drawn on the street's lines: POCKET_VIEW)
     const d = kwDoorNav(); return d ? { x: d.x, y: d.y, icon: 'wrench' } : null;   // (the beacon at the door; the bay is inside)
   }
-  if(R.stage === 'wheels') return ic(kwBikesBay(scene), 'bike');
-  if(R.stage === 'paint') return ic(kwHwBay(), 'wrench');
+  if(R.stage === 'wheels') return ic(kwPostBay('nur'), 'wrench');
+  if(R.stage === 'paint') return ic(kwPostBay('dune'), 'wrench');
   if(R.stage === 'ramp') return R.kartAt === 'top' ? ic(kwTopBay(), 'flag') : null;
   return null;
 }
-/* THE HARDWARE'S CLERK: out of the north door round the corner to his post on the east pavement, and back */
-function kwHwPath(){ const h = KW_RUN.hw, d = h.door, p = h.post;
-  return [{ x: d[0], y: d[1] }, { x: d[0], y: 3742 }, { x: 27530, y: 3742 }, { x: 27566, y: 3900 }, { x: p[0], y: p[1] }]; }
-function kwHwAt(now){
-  const R = KW;
-  /* the meeting, then home: from his post back round the corner and in at the door (gone in: null) */
-  if(R.hw){ const p = hospWalkAt(R.hw, now); if(p) return Object.assign(p, { has: R.hw.has });
-    const f = R.hw.from; R.hw = null; R.hwWalk = { pts: [{ x: f.x, y: f.y }].concat(kwHwPath().slice(0, -1).reverse()), t0: now, leave: null, home: true, th0: f.th }; }
-  if(R.hwWalk){ const p = walkPathAt(R.hwWalk, now);
-    if(p && p.there && R.hwWalk.home){ R.hwWalk = null; return null; }
-    if(p){ if(p.there) p.th = lhGlance(-Math.PI*0.25, now, 8); return Object.assign(p, { has: R.hwWalk.home ? null : 'paint' }); }
-    R.hwWalk = null; }
+/* A CLERK (k: 'nur' the nursery's, 'dune' the home store's): out of his door to his post, waiting there by the bay
+   (KW[k + 'Walk']); the meeting (KW[k]: meetWalk from his post); then home along his path and in at the door */
+function kwPostPath(k){ return KW_RUN[k].path.map(q => ({ x: q[0], y: q[1] })); }
+function kwPostAt(k, now){
+  const R = KW, wk = k + 'Walk', has = k === 'nur' ? 'wheels' : 'paint';
+  if(R[k]){ const p = hospWalkAt(R[k], now); if(p) return Object.assign(p, { has: R[k].has });
+    const f = R[k].from; R[k] = null; R[wk] = { pts: [{ x: f.x, y: f.y }].concat(kwPostPath(k).slice(0, -1).reverse()), t0: now, leave: null, home: true, th0: f.th }; }
+  if(R[wk]){ const p = walkPathAt(R[wk], now);
+    if(p && p.there && R[wk].home){ R[wk] = null; return null; }
+    if(p){ if(p.there) p.th = lhGlance(KW_RUN[k].face, now, 8); return Object.assign(p, { has: R[wk].home ? null : has }); }
+    R[wk] = null; }
   return null;
 }
-function kwBikesAt(now){ const R = KW; if(R.bikes){ const p = hospWalkAt(R.bikes, now); if(p) return Object.assign(p, { has: R.bikes.has }); R.bikes = null; } return null; }
 /* who of them is out of a shop's door for the story now (shopDoorWalkers: drawn with their door, it opens for them) */
 function kwDoorWalkers(now){
-  const out = [], b = kwBikesAt(now), h = kwHwAt(now);
-  if(b) out.push({ p: b, U: KW_BIKES_UNIFORM, seed: KW_RUN.seeds.bikes });
-  if(h) out.push({ p: h, U: KW_HARDWARE_UNIFORM, seed: KW_RUN.seeds.hw });
+  const out = [], n = kwPostAt('nur', now), d = kwPostAt('dune', now);
+  if(n) out.push({ p: n, U: KW_NURSERY_UNIFORM, seed: KW_RUN.seeds.nur });
+  if(d) out.push({ p: d, U: KW_DUNE_UNIFORM, seed: KW_RUN.seeds.dune });
   return out;
 }
 /* THE WORLD WAITS TILL HE CAN'T SEE IT (R13): number 4 comes to his bale in shop hours and goes after; his bale and his
@@ -75232,25 +75228,25 @@ function kwMechOk(){
   hospSayCard(null); cineBars(false);
   if(R.mech) R.mech.leave = scene.time.now;
   R.stage = 'wheels';
-  const B = kwBikesBay(scene); if(B) kwNav(scene, B, KW_RUN.bikes);
+  kwNav(scene, kwPostBay('nur'), KW_RUN.nur.name);
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("A wheel set from Palmline Bikes, then a tin of racing red from Breakwater Hardware.");
+  if(typeof tpToast === "function") tpToast("Wheels from Palmline Nursery, just up the street, then a tin of racing red from Dune Home & Garden.");
 }
 function kwGotWheels(){
   const scene = scn(), R = KW;
-  if(R.stage !== 'bikes' || !scene) return;
+  if(R.stage !== 'nursery' || !scene) return;
   hospSayCard(null); cineBars(false);
-  if(R.bikes){ R.bikes.has = null; R.bikes.leave = scene.time.now; }
+  if(R.nur){ R.nur.has = null; R.nur.leave = scene.time.now; }
   R.stage = 'paint';
-  kwNav(scene, kwHwBay(), "Breakwater Hardware");
+  kwNav(scene, kwPostBay('dune'), KW_RUN.dune.name);
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Wheel set aboard. Now Breakwater Hardware for the racing red: its clerk will meet you round the corner, on the east side.");
+  if(typeof tpToast === "function") tpToast("Wheel set aboard. Now Dune Home & Garden for the racing red: its clerk will meet you out front.");
 }
 function kwGotPaint(){
   const scene = scn(), R = KW;
-  if(R.stage !== 'hardware' || !scene) return;
+  if(R.stage !== 'garden' || !scene) return;
   hospSayCard(null); cineBars(false);
-  if(R.hw){ R.hw.has = null; R.hw.leave = scene.time.now; }
+  if(R.dune){ R.dune.has = null; R.dune.leave = scene.time.now; }
   R.stage = 'back';
   const d = kwDoorNav(); if(d) kwNav(scene, d, KW_PLAN.name);
   if(typeof sfxThump === "function") sfxThump(0.3);
@@ -75381,36 +75377,29 @@ function kwTick(scene, ow){
       return;
     case 'mech':
       if(R.mech && R.mech.leave == null) meet(R.mech, () => hospSayCard({ who: "The Kart Works' mechanic", btn: "On it!", ok: kwMechOk, at: kwMechAt,
-        say: "Number 4's kart? I watched that run-out. A bent axle is the end of that old tub, but we'll build him a new one: I've a chassis on the stand right there. What I haven't got is a wheel set, Palmline Bikes keeps the good ones, or paint: he'll want racing red, and Breakwater Hardware mixes it. Bring me both and we'll build it." }));
+        say: "Number 4's kart? I watched that run-out. A bent axle is the end of that old tub, but we'll build him a new one: I've a chassis on the stand right there. What I haven't got is a wheel set, Palmline Nursery up the street sells good stout barrow wheels, or paint: he'll want racing red, and Dune Home & Garden mixes it. Bring me both and we'll build it." }));
       return;
-    case 'wheels':
-      if(armed(kwBikesBay(scene))){
-        R.stage = 'bikes'; ow.vel = 0; cineBars(true);
-        const B = kwBikesBay(scene);
-        R.bikes = Object.assign(shopDoorMeet(ow, B.S, B, now, scene), { has: 'wheels' });
-        if(typeof sfxThump === "function") sfxThump(0.15);
-      }
-      return;
-    case 'bikes':
-      if(R.bikes && R.bikes.leave == null) meet(R.bikes, () => hospSayCard({ who: "Palmline Bikes", btn: "Got them!", ok: kwGotWheels, at: kwBikesAt,
-        say: "A wheel set for the Kart Works? For number 4! Here: four of our best, bearings greased and trued this morning. Tell him they're from the shop, and we'll be cheering at the bales next year." }));
-      return;
-    case 'paint': {
-      /* (the clerk sets off round the block as he comes near: he waits at his post by the bay) */
-      if(!R.hwWalk && !R.hw && Math.hypot(ow.px - KW_RUN.hw.bay[0], ow.py - KW_RUN.hw.bay[1]) < 7000)
-        R.hwWalk = { pts: kwHwPath(), t0: now, leave: null, faceTh: -Math.PI*0.25 };
-      /* (stopped on the bay before he is at his post: the meeting waits for him) */
-      const at = R.hwWalk && !R.hwWalk.home ? walkPathAt(R.hwWalk, now) : null;
-      if(at && at.there && armed(kwHwBay())){
-        R.stage = 'hardware'; ow.vel = 0; cineBars(true);
-        R.hw = Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, kwSide(ow, at), scene), { has: 'paint', th0: at.th });
-        R.hw.from.th = at.th; R.hwWalk = null;
+    case 'wheels': case 'paint': {
+      /* (his clerk sets off out of his door as Tipsey comes near: he waits at his post by the bay; stopped on the bay
+         before he is there, the meeting waits for him) */
+      const k = R.stage === 'wheels' ? 'nur' : 'dune', wk = k + 'Walk', bay = KW_RUN[k].bay;
+      if(!R[wk] && !R[k] && Math.hypot(ow.px - bay[0], ow.py - bay[1]) < 7000)
+        R[wk] = { pts: kwPostPath(k), t0: now, leave: null, faceTh: KW_RUN[k].face };
+      const at = R[wk] && !R[wk].home ? walkPathAt(R[wk], now) : null;
+      if(at && at.there && armed(kwPostBay(k))){
+        R.stage = k === 'nur' ? 'nursery' : 'garden'; ow.vel = 0; cineBars(true);
+        R[k] = Object.assign(meetWalk(ow, { x: at.x, y: at.y }, now, kwSide(ow, at), scene), { has: k === 'nur' ? 'wheels' : 'paint', th0: at.th });
+        R[k].from.th = at.th; R[wk] = null;
         if(typeof sfxThump === "function") sfxThump(0.15);
       }
       return;
     }
-    case 'hardware':
-      if(R.hw && R.hw.leave == null) meet(R.hw, () => hospSayCard({ who: "Breakwater Hardware", btn: "Thanks!", ok: kwGotPaint, at: kwHwAt,
+    case 'nursery':
+      if(R.nur && R.nur.leave == null) meet(R.nur, () => hospSayCard({ who: "Palmline Nursery", btn: "Got them!", ok: kwGotWheels, at: n => kwPostAt('nur', n),
+        say: "Wheels for the Kart Works? For number 4! Here: four of our barrow wheels, the stout ones with the good bearings, greased this morning. Tell him they're from the nursery, and we'll be cheering at the bales next year." }));
+      return;
+    case 'garden':
+      if(R.dune && R.dune.leave == null) meet(R.dune, () => hospSayCard({ who: "Dune Home & Garden", btn: "Thanks!", ok: kwGotPaint, at: n => kwPostAt('dune', n),
         say: "You're the one fetching for the Kart Works? Racing red, one tin, mixed and shaken this morning: the same red the derby winners wear. Tell the mechanic two thin coats, not one thick one!" }));
       return;
     case 'mech2':
@@ -76062,7 +76051,7 @@ CITY_PEOPLE.add({ name: 'street riders', where: 'the bike lanes', solid: false,
 CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true, each: null });
 CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
 /* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
-CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Bikes, Breakwater Hardware', solid: true,
+CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden', solid: true,
   each(scene, t, fn){
     for(const w of shopDoorWalkers(t)){
       const p = w.p;
@@ -85570,8 +85559,8 @@ class WorldScene extends Phaser.Scene {
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
-    /* NUMBER 4 BUILDS A WINNER's bay (kwBayNow): by number 4's bale, inside the Kart Works, Palmline Bikes', Breakwater
-       Hardware's round the corner, and up on the derby's start platform (its deck's height, B.z) -- cached, the ring and
+    /* NUMBER 4 BUILDS A WINNER's bay (kwBayNow): by number 4's bale, inside the Kart Works, Palmline Nursery's
+       pavement, Dune Home & Garden's forecourt, and up on the derby's start platform (its deck's height, B.z) -- cached, the ring and
        beacon live; the Kart Works' roll-up from outside has the beacon alone (its bay is inside) */
     { const B0 = kwBayNow(this), pv = B0 && B0.pocket && POCKET_VIEW && POCKET_VIEW.pk === B0.pocket ? POCKET_VIEW : null;
       const B = pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : B0;

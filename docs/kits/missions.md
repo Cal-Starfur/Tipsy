@@ -89,10 +89,12 @@
 4. The Costa Palma Animal Shelter's door is painted (the worker comes out of a door that does not open): the shelter's entry needs a live door piece (doors.md), out of this kit's reach.
 5. R6 on Tipsey himself: what he carries is not drawn on him (only the heart's and cake's spills are drawn).
 
-**A story that goes to a shop whose door the camera never sees** (Number 4 Builds a Winner, Breakwater Hardware on block
-8,1's north side): its clerk walks out of it, round the corner to the camera-facing pavement, and waits at a post by the
-story's bay there (`kwHwPath`, set off as he comes near; the bay arms only once the clerk is at his post), so the meeting
-shows both faces; afterwards he walks back the same way and in.
+**A clerk who waits at a post** (Number 4 Builds a Winner: Palmline Nursery's, out of the potting hut through the front
+gate; Dune Home & Garden's, out of the slide doors into the forecourt): he walks out of his door along a path to a post
+by the story's bay (`KW_RUN.nur` / `KW_RUN.dune`: path, face, bay; `kwPostAt`, set off as Tipsey comes within 7000; the
+bay arms only once the clerk is at his post), so the meeting shows both faces, even where the door itself faces away or
+sits back behind a gate; afterwards he walks back the same way and in. Keep a story's shops within a couple of blocks:
+Number 4 Builds a Winner went from about 112k units of road (Palmline Bikes, Breakwater Hardware) to about 35k.
 **A story with a set piece on a slope** (its test run down the derby's ramp): the bay up on the start platform takes the
 deck's height (`drawPickupBay`'s `bz`, the beacon's `dz`), and the autopilot can take him at his full pace
 (`GOTH.auto.max`).
