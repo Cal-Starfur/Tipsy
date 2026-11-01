@@ -3689,6 +3689,19 @@ function fleetLaunchPad(s){
   const st = nearestChargeStation(s.route.grid, s.botX, s.botY);
   return st && st.station ? { x: st.station.x, y: st.station.y, a: st.station.a } : null;
 }
+/* THE SHOWROOM (Sir, 2026-11-01: "these interiors of tipsys new fleet stations are not very good ... we only need a
+   single vehicle in that garage ... we want the feel of the standard tipsy garage"). The garage used to be the real
+   hall with its roof lifted: the lanes next door, the deck over Marina Parking's forecourt, the city past the far
+   end of a long hall and the dark round a thin one all showed, and the planes had no hall at all. While the garage
+   is open on a vehicle that lives in a bay, the room behind the panel is its own showroom instead: one vehicle on a
+   turntable, two tall far walls and a floor that fill the frame (the garage draws it over the world, see drawMask),
+   in the depot room's own dark walls, wooden shelves and orange pad, with its bay kit's trim. Play shuts the
+   showroom and the vehicle is in its real lane, its door going up. Small robots keep Tipsey's depot room. */
+function fleetShowroomKind(s){
+  if(!s || !s._garage) return "";
+  const k = fleetCur(), F = FLEET[k];
+  return F && F.bay !== "station" ? k : "";
+}
 /* ==================== FLYING (fleet P2: docs/fleet-redesign.md §2, the rotor class) ====================
    "Flying height: this is a tuff one id need to test both ways to see what feels best" (Sir). ONE controller for
    the delivery drone, the heavy-lift drone and the air taxi (FLEET_CTRL.rotor), owStep handing off to it at its top;
@@ -76516,6 +76529,14 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       state.part = part ? part.part : null;
       state.partW = part ? (part.w || null) : null;
       state.partCol = (part && part.col !== undefined) ? part.col : null;   // one post of a split porch
+      /* THE REAR VIEW FLAG (Sir, 2026-11-01, the Miami Deco Tower House on an
+         away edge: "this house seems like is not drawing correctly"). The house
+         kit and the houses themselves pick their seen face from state.back
+         (houseYardFence, houseFace, every `state.back ? bb : bf`), which the lab
+         sets; the game called back() but left the flag false, so a house built
+         on it drew its FRONT fins, windows and porthole onto the hidden face and
+         they showed through its walls. Set it whenever back() is the elevation. */
+      state.back = !!(rear && shop.back);
       ctx.__bind(g);
       try {
         /* A HOUSE'S fore() IS PART OF THE HOUSE (Sir, on-device at Sierra
@@ -76529,7 +76550,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(layer !== 'fore') (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
         if(layer !== 'body' && !(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; state.back = false; }
       return true;
     }
   };
@@ -103492,7 +103513,11 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), PK.finCol || STRIPE);
       const top = finProf[2], bc = P((finProf[2][0] + finProf[3][0])/2, 0, top[1] + 2.5); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.6*this.K*0.42);
     };
-    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); }
+    /* THE T: one tailplane across the fin's top (Sir, 2026-11-01: "the plane delivery drones are drawing their tail bad"):
+       the halves began 6 out on a fin 3.5 thick, nothing between them, and read as two loose plates. The centre
+       section joins them over the fin, the far half first, then the centre, then the near half */
+    const tailMid = () => solid(prismH([[TA + T.c, -6.5], [TA + T.c, 6.5], [TA - 2, 6.5], [TA - 2, -6.5]], tz, tz + 5), BODY);
+    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); parts.push({ d: 6650, draw: tailMid }); }
     else { for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: tailHalf(sb) }); parts.push({ d: 6500, draw: fin }); }
 
     /* ---- the prop ---- */
@@ -106370,7 +106395,7 @@ class WorldScene extends Phaser.Scene {
       this.g = gs; if(gb0) this.gBotGlow = gs; this._xraySkip = true;
       try { this.drawRobot(t, dt); }
       finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
-      this.drawFleetAvatar(t, dt, FK);
+      if(!fleetShowroomKind(this)) this.drawFleetAvatar(t, dt, FK);   // (in the garage's showroom the garage draws it, over its room)
       return;
     }
     if((!S || !S.hide) && !this._botAboard && !_ride) return this.drawRobot(t, dt);
@@ -129085,6 +129110,7 @@ requestTpProfile();
      keeps the tray along the bottom with him above it, as the artifact
      window has it (Sir, 2026-10-10: "i want my full screen to look more
      like the artifact window. i like the layout better") */
+  body.tpShowroom #npcSays{display:none}
   @media ${GR_SIDE_MQ}{
     #garage{display:none;flex-direction:row;flex-wrap:wrap}
     body.tpGarage #garage{display:grid;grid-template-columns:1fr min(46vw,440px);
@@ -129130,7 +129156,7 @@ requestTpProfile();
   const spinEl = $('grSpin');
   const yawOf = () => { const s = scn(); return (s && s.ow) ? s.ow.yaw : 0; };
   /* a fleet vehicle too long to turn round in its lane stands still, facing its door */
-  const setYaw = y => { const s = scn(); if (s && s.ow) { const L = s._garage && fleetBayByKey(s._garage.key); if (L && !L.spin) return; s.ow.yaw = y; s.ow.vel = 0; } };
+  const setYaw = y => { const s = scn(); if (s && s.ow) { s.ow.yaw = y; s.ow.vel = 0; } };   // (a fleet vehicle turns on its showroom's turntable)
 
   spinEl.addEventListener('pointerdown', e => {
     dragging = true; lastX = e.clientX; vel = 0; lastTouch = performance.now();
@@ -129160,8 +129186,7 @@ requestTpProfile();
     if (s && s._garage) s._garage.still = !!(f && f.still && !dragging);
     if (s && tab === 'wheels') s.wheelPhase = (s.wheelPhase || 0) - dt * 0.0018;   // roll them for the show
     if (s && s.ow) {
-      const _ln = s._garage && fleetBayByKey(s._garage.key);
-      if (f && !dragging && t - lastTouch > 500 && !(_ln && !_ln.spin)) {
+      if (f && !dragging && t - lastTouch > 500) {
         let d = f.yaw - s.ow.yaw;
         d = Math.atan2(Math.sin(d), Math.cos(d));          // the short way round
         s.ow.yaw += d * Math.min(1, dt / 160);
@@ -129324,13 +129349,122 @@ requestTpProfile();
     pickEl.style.display = 'block';
     pickEl.style.left = Math.round(cr.left + p.x * kx) + 'px'; pickEl.style.top = Math.round(cr.top + p.y * ky) + 'px';
   }
+  /* ---- THE SHOWROOM (fleetShowroomKind): one vehicle's room, over the world ----
+     Built round the vehicle where it stands (its pad), square to the world's axes so its two far walls are the two
+     the camera looks into: the x = x0 wall (seen side +x, running down-left on screen) and the y = y0 wall (+y,
+     down-right), their corner straight over the vehicle. Both walls run far past the frame and stand far over it and
+     the floor runs out under the tray, so whatever the zoom there is no dark and no city. The Tipsey depot's feel:
+     slate walls, wooden shelves of parts round the corner, the orange pad ring, a charger post; the bay kit's trim
+     colour in a band round the walls. Its dressing is sized to the vehicle (sc), from the robotaxi up to the semi.
+     Drawn live into the mask's own layer (it moves only when the camera does: a few dozen fills), the vehicle after
+     it into a layer of its own above. */
+  const SHOW = { wall: 0x263a4c, wallS: 0x203242, top: 0x1b2836, skirt: 0x17222d, floor: 0x5a6672, joint: 0x4d5864,
+                 pad: 0x4c5763, ring: 0xf2a23a, plank: 0x8b6545, plankF: 0x6b4c33, bracket: 0x3a2a1e,
+                 box: 0xc9a26e, boxF: 0xae8655, boxS: 0x987347, tyre: 0x24272c, tyreS: 0x34383e, hub: 0x9aa3ab,
+                 post: 0xeceff1, postS: 0xc9cfd4, screen: 0xff7a1a, chest: 0xc8352e, chestS: 0xa22b25, lamp: 0xfff1c8 };
+  let gShow = null;
+  /* its size: R the turntable's reach (any way round), sc the dressing's scale, Rb the walls' distance from the
+     vehicle's middle, zSee how high up the corner the frame must show (fit: the middle shelf and its boxes) */
+  function showroomDims(F) {
+    const R = Math.hypot(F.body.len / 2, F.body.wid / 2), sc = Math.max(1, Math.min(2.4, R / 170));
+    return { R, sc, Rb: R + 50 * sc, zSee: 125 * sc };
+  }
+  function showroomPaint(s, g, kind) {
+    const F = FLEET[kind], spec = BAY_SPEC[F.bay] || BAY_SPEC.hangar, trim = Phaser.Display.Color.HexStringToColor(spec.trim).color;
+    const { R, sc, Rb } = showroomDims(F);
+    const bx = s.botX, by = s.botY, x0 = bx - Rb, y0 = by - Rb, L = 30000, HW = 30000, K = s.K;
+    const W = (x, y, z) => s.W(x, y, z || 0), q = (pts, c) => { g.fillStyle(c, 1); g.fillPoints(pts, true); };
+    /* the floor, its joints, the walls in two tones (a darker head), a skirting, the kit's band */
+    q([W(x0, y0), W(x0 + L, y0), W(x0 + L, y0 + L), W(x0, y0 + L)], SHOW.floor);
+    g.lineStyle(Math.max(1, 2 * K), SHOW.joint, 0.8);
+    const J = 240 * sc;
+    for (let i = 1; i < 40; i++) { const a = W(x0 + i * J, y0), b = W(x0 + i * J, y0 + L), c = W(x0, y0 + i * J), d = W(x0 + L, y0 + i * J); g.lineBetween(a.x, a.y, b.x, b.y); g.lineBetween(c.x, c.y, d.x, d.y); }
+    const ZT = 330 * sc;
+    const wallX = (z0, z1, c) => q([W(x0, y0, z0), W(x0, y0 + L, z0), W(x0, y0 + L, z1), W(x0, y0, z1)], c);
+    const wallY = (z0, z1, c) => q([W(x0, y0, z0), W(x0 + L, y0, z0), W(x0 + L, y0, z1), W(x0, y0, z1)], c);
+    wallX(0, ZT, SHOW.wall); wallX(ZT, HW, SHOW.top); wallY(0, ZT, SHOW.wallS); wallY(ZT, HW, SHOW.top);
+    wallX(0, 10 * sc, SHOW.skirt); wallY(0, 10 * sc, SHOW.skirt);
+    wallX(ZT - 14 * sc, ZT, trim); wallY(ZT - 14 * sc, ZT, trim);
+    /* a box on world axes: top, its +x face and its +y face (the three the camera sees) */
+    const box = (xa, xb, ya, yb, z0, z1, top, fx, fy) => {
+      q([W(xb, ya, z0), W(xb, yb, z0), W(xb, yb, z1), W(xb, ya, z1)], fx);
+      q([W(xa, yb, z0), W(xb, yb, z0), W(xb, yb, z1), W(xa, yb, z1)], fy);
+      q([W(xa, ya, z1), W(xb, ya, z1), W(xb, yb, z1), W(xa, yb, z1)], top);
+    };
+    /* SHELVES round the corner, as the depot's run round its corner: three planks on each wall from the corner out,
+       brackets under them, boxes and spare wheels on them */
+    const D = 26 * sc, run = Math.min(R * 1.5, 520 * sc), Zs = [80, 150, 220].map(z => z * sc);
+    for (const z of Zs) {
+      for (let k = 0; k <= 3; k++) { const yy = y0 + D + k * (run - D) / 3, xx = x0 + D + k * (run - D) / 3;
+        q([W(x0, yy - 2 * sc, z - 22 * sc), W(x0 + D * 0.9, yy - 2 * sc, z - 1), W(x0, yy - 2 * sc, z - 1)], SHOW.bracket);
+        q([W(xx - 2 * sc, y0, z - 22 * sc), W(xx - 2 * sc, y0 + D * 0.9, z - 1), W(xx - 2 * sc, y0, z - 1)], SHOW.bracket); }
+      box(x0, x0 + D, y0 + D, y0 + run, z - 6 * sc, z, SHOW.plank, SHOW.plankF, SHOW.plankF);
+      box(x0, x0 + run, y0, y0 + D, z - 6 * sc, z, SHOW.plank, SHOW.plankF, SHOW.plankF);
+    }
+    /* what stands on them: seeded off the kind, so each vehicle's room is its own and never changes */
+    let seed = 0; for (const ch of kind) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const wheelOn = (x, y, z, r, alongY) => {   // a spare wheel stood on its tread against the wall
+      const N = 12, ring = (rr, o) => { const pts = []; for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2, u = Math.cos(a) * rr, h = Math.sin(a) * rr + r;
+        pts.push(alongY ? W(x + o, y + u, z + h) : W(x + u, y + o, z + h)); } return pts; };
+      q(ring(r, 0), SHOW.tyreS); q(ring(r, 6 * sc), SHOW.tyre); q(ring(r * 0.45, 6.5 * sc), SHOW.hub);
+    };
+    Zs.forEach((z, zi) => {
+      for (const side of [0, 1]) {
+        let u = D + 10 * sc;
+        while (u < run - 40 * sc) {
+          const w = (22 + rnd() * 26) * sc, h = (14 + rnd() * 22) * sc, d = Math.min(D - 4 * sc, (14 + rnd() * 10) * sc);
+          if (zi === 0 && rnd() < 0.35) { const r = 18 * sc; if (side) wheelOn(x0 + u + r, y0 + 4 * sc, z, r, false); else wheelOn(x0 + 4 * sc, y0 + u + r, z, r, true); u += 2 * r + 10 * sc; continue; }
+          if (rnd() < 0.2) { u += w; continue; }
+          if (side) box(x0 + u, x0 + u + w, y0 + 3 * sc, y0 + 3 * sc + d, z, z + h, SHOW.box, SHOW.boxF, SHOW.boxS);
+          else box(x0 + 3 * sc, x0 + 3 * sc + d, y0 + u, y0 + u + w, z, z + h, SHOW.box, SHOW.boxS, SHOW.boxF);
+          u += w + (4 + rnd() * 8) * sc;
+        }
+      }
+    });
+    /* THE CHARGER on the +y wall past the shelves (the hangar's own post: white, its orange screen) and a red tool
+       chest beyond it; a wall lamp over each run of shelves */
+    { const cx = x0 + run + 70 * sc, w = 34 * sc, d = 26 * sc, h = 150 * sc;
+      box(cx, cx + w, y0, y0 + d, 0, h, SHOW.postS, SHOW.postS, SHOW.post);
+      q([W(cx + 6 * sc, y0 + d + 0.5, h - 60 * sc), W(cx + w - 6 * sc, y0 + d + 0.5, h - 60 * sc), W(cx + w - 6 * sc, y0 + d + 0.5, h - 22 * sc), W(cx + 6 * sc, y0 + d + 0.5, h - 22 * sc)], SHOW.screen);
+      const tx = cx + w + 50 * sc;
+      box(tx, tx + 90 * sc, y0, y0 + 40 * sc, 0, 80 * sc, SHOW.chestS, SHOW.chestS, SHOW.chest);
+      g.lineStyle(Math.max(1, 1.5 * K), SHOW.chestS, 1);
+      for (const z of [26, 46, 64]) { const a = W(tx + 6 * sc, y0 + 40 * sc + 0.5, z * sc), b = W(tx + 84 * sc, y0 + 40 * sc + 0.5, z * sc); g.lineBetween(a.x, a.y, b.x, b.y); } }
+    for (const [ax, ay] of [[x0 + 0.5, y0 + run * 0.5], [x0 + run * 0.5, y0 + 0.5]]) {
+      const c = W(ax, ay, ZT - 50 * sc); g.fillStyle(SHOW.lamp, 0.12); g.fillEllipse(c.x, c.y + 40 * sc * K, 220 * sc * K, 120 * sc * K);
+      g.fillStyle(SHOW.lamp, 1); g.fillEllipse(c.x, c.y, 34 * sc * K, 12 * sc * K); }
+    /* THE PAD: the depot's turntable, a dark disc in its orange ring, round the vehicle any way it turns (a boat's
+       a pool in a stone rim) */
+    const disc = (r, z) => { const pts = []; for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; pts.push(W(bx + Math.cos(a) * r, by + Math.sin(a) * r, z)); } return pts; };
+    const boat = F.cls === "sail", rp = R + 26 * sc;
+    if (boat) { q(disc(rp + 18 * sc, 0), 0x8c8a82); q(disc(rp, 0), 0x2f6f7e); q(disc(rp * 0.82, 0), 0x3a7f8d); }
+    else {
+      q(disc(rp + 10 * sc, 0), SHOW.ring); q(disc(rp, 0), SHOW.pad);
+      g.fillStyle(0xffffff, 0.05); g.fillPoints(disc(rp * 0.7, 0), true);
+    }
+  }
+  function drawShowroom(s, kind) {
+    showroomPaint(s, gMask, kind);
+    /* the vehicle, over its room: the world's own draw of it is skipped while the showroom has it (drawRobotOrSunk) */
+    if (!gShow || gShow.scene !== s || !gShow.active) { gShow = s.add.graphics(); gShow.setDepth(MASK.depth + 1); }
+    const g0 = s.g, xs0 = s._xraySkip;
+    s.g = gShow; s._xraySkip = true;
+    try { s.drawFleetAvatar(s.time.now, 0, kind); }
+    finally { s.g = g0; s._xraySkip = xs0; }
+  }
   function drawMask() {
     const s = scn();
     fourthPickPlace(s);
     if (!s) return;
     if (!gMask || gMask.scene !== s || !gMask.active) { gMask = s.add.graphics(); gMask.setDepth(MASK.depth); }
     gMask.clear();
+    if (gShow && gShow.active) gShow.clear();
+    /* the city's speech bubbles are the page's (npcSay), over any canvas layer: the showroom hides them */
+    const sk = open && s._garage ? fleetShowroomKind(s) : '';
+    document.body.classList.toggle('tpShowroom', !!sk);
     if (!open || !s._garage) return;
+    if (sk) return drawShowroom(s, sk);
     const H = roomHull(s); if (!H || H.length < 3) return;
     const L = 20000, n = H.length, V = (x, y) => new Phaser.Geom.Point(x, y);
     /* outward normal of edge i (hull is CCW on a y-down screen, so the
@@ -129398,7 +129532,7 @@ requestTpProfile();
        "i dont like the tiny versions" over "no black border"): a long hall
        is a thin diamond on screen, and a semi at full size cannot have the
        view inside it as well; a sliver of the dark round the room shows */
-    if (s._garage && fleetBayByKey(s._garage.key)) return T;
+    if (fleetShowroomKind(s)) return T;   // (the showroom fills any frame: nothing to keep inside)
     let lo = T.K, hi = T.K * 1.5;
     while (!legalAt(q, hi, T.cx, T.cy) && hi < T.K * 12) { lo = hi; hi *= 1.5; }
     for (let k = 0; k < 14; k++) { const m = (lo + hi) / 2; if (legalAt(q, m, T.cx, T.cy)) hi = m; else lo = m; }
@@ -129445,10 +129579,11 @@ requestTpProfile();
     const FK = fleetCur(), FE = FLEET[FK];
     s._garageScale = 1;
     if (FE) {
-      const lane = s._garage && fleetBayByKey(s._garage.key), spin = !lane || lane.spin;
+      const spin = true;   // (the showroom's turntable: any vehicle, any way round)
       const hl = FE.body.len / 2, hw = FE.body.wid / 2, h = Math.max(FE.body.h, FE.fit ? FE.fit.h : 0);
       let x0 = 0, x1 = 0, up = h, dn = 0;
-      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn; }
+      if (spin) { const r = Math.hypot(hl, hw); x0 = -r * Math.SQRT2; x1 = -x0; dn = r / Math.SQRT2; up = h + dn;
+        if (fleetShowroomKind(s)) { const SD = showroomDims(FE); up = Math.max(up, SD.Rb + SD.zSee); } }   // (and the showroom's corner shelves over it)
       else {
         const y = s.ow ? s.ow.yaw : 0, c = Math.cos(y), sn = Math.sin(y);
         for (const [a, b] of [[hl, hw], [hl, -hw], [-hl, hw], [-hl, -hw]]) {
@@ -129485,7 +129620,7 @@ requestTpProfile();
     fit(s);
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
-    { const L = fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (no "drag to turn" for a vehicle that cannot turn round in its lane)
+    $('grHint').style.opacity = 1;
     fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
@@ -129512,6 +129647,7 @@ requestTpProfile();
     open = false;
     if (s && saved) { s.K = saved.K; s.cy = saved.cy; s.cx = saved.cx; s._cyBase = saved.cyB; }
     if (s) { s._garage = null; s._lightsPreview = false; s._garageScale = 1; }
+    document.body.classList.remove('tpShowroom');
     /* Play: the door he came in behind rolls back up (the pad shut would
        otherwise hold it down until he drove off the pad, through it) */
     if (s && s._doorShut) s._doorShut = null;
@@ -130589,7 +130725,6 @@ requestTpProfile();
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
-      { const L = s && s._garage && fleetBayByKey(s._garage.key); $('grHint').style.opacity = (L && !L.spin) ? 0 : 1; }   // (a vehicle that cannot turn round there: no "drag to turn")
       renderTab(); fit();
     };
   }

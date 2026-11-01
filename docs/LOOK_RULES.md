@@ -82,6 +82,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 
 ## 3. Faces, seams, attachment, contrast
 - The kit picks the seen faces (`box`, `slab`, `prism`, `body`, `houseFace`, `FLANK_RIGHT`). A building on an away edge draws its rear elevation (`back()`), and entrances face the camera.
+- **A rear view sets `state.back`** (2026-11-01, the Miami Deco Tower House: front fins, windows and porthole showed through its walls). `LIB.draw` sets it whenever it calls `back()`; anything drawn on one face picks `state.back ? bb : bf`, never a fixed front face.
 - **One piece, no seams.**
   - Trace joined shapes as one outline.
   - Bands of one elevation share one face plane.
