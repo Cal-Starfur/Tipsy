@@ -6747,7 +6747,7 @@ const ICON_BY_BASE = {
   "Music shop":"note", "Photo studio":"camera", "Optician":"glasses", "Milliner":"hat", "Goth shop":"note", "Shoe shop":"shoe", "Surf shop":"surf",
   "Bike shop":"bike", "Arcade":"joystick", "Game shop":"joystick", "Stationer":"pen", "Newsagent":"news", "Department store":"gift", "Florist":"flower",
   "Pottery":"vase", "Furniture showroom":"chair", "Antiques":"lamp", "Carpet shop":"rug", "Hardware":"wrench", "Pet shop":"paw",
-  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy", "Motor lodge":"key", "Kart workshop":"wrench",
+  "Drugstore":"cross", "Pharmacy":"cross", "Thrift shop":"shirt", "Chandlery":"anchor", "Bait shop":"hook", "Frame shop":"frame", "Trophy shop":"trophy", "Motor lodge":"key", "Radio station":"note", "Kart workshop":"wrench",
   "Fabric shop":"spool", "Tailor":"scissors", "Clockmaker":"clock", "Pawn shop":"ring", "Locksmith":"key", "Cobbler":"boot",
   "TV repair":"tv", "Post office":"envelope", "Home store":"plant",
 };
@@ -14113,7 +14113,7 @@ const SHOP_TALK_OF = {
   "Clockmaker": "errand", "Photo studio": "errand", "Print works": "errand", "Newspaper HQ": "errand",
   "Chambers": "errand", "Travel agent": "errand",
   "Police station": "civic", "Fire station": "civic",
-  "Apartments over shop": "homecoming", "Warehouse loft": "homecoming", "Rooming house": "homecoming", "Grand hotel": "homecoming", "Motor lodge": "homecoming",
+  "Apartments over shop": "homecoming", "Warehouse loft": "homecoming", "Rooming house": "homecoming", "Grand hotel": "homecoming", "Motor lodge": "homecoming", "Radio station": "errand",
   "Playhouse": "show", "Cinema": "show", "Tattoo parlour": "ink"
 };
 const SHOP_TALK = {
@@ -14771,6 +14771,7 @@ const HOOD_SHOP_SITES = [
   [0,5, 2, ["Dune Home & Garden"]],
   [6,4, 2, ["Pelican Drug"]],
   [8,5, 2, ["Sun Deck Motor Lodge"]],   // the Flats build order, area 1: Airfield Corner (MOTOR_LODGE)
+  [5,8, 2, ["KTDE 98.1 The Tide"]],     // the Flats build order, area 2: South Plaza (KTDE)
   [8,1, 0, ["The Flats Post Office", "Seabreeze Grocer", "Breakwater Hardware"]],
   [8,1, 1, ["The Tide Gazette"]],
   [8,1, 2, ["Seabreeze Playhouse"]],
@@ -14927,6 +14928,7 @@ const HOOD_SHOP_ICON = {
   "Chambers":"\u2696",
   "Grand hotel":"\u{1F3E8}",
   "Motor lodge":"\u{1F3E8}",
+  "Radio station":"\u{1F4FB}",
   "Warehouse loft":"\u{1F3E2}",
   "Library":"\u{1F4DA}",
   "Car park":"\u{1F17F}",
@@ -26842,6 +26844,43 @@ function motelPeopleBlock(x, y, r){
   if(hit(m.a, m.b, 15) || hit(m.a + m.dir*42, m.b, 22)) return OW_DECK_BLOCK;
   for(const g of MOTEL_GUESTS) if(hit(g.a, g.b, 15)) return OW_DECK_BLOCK;
   return null;
+}
+/* ==================== KTDE 98.1 THE TIDE (the Flats build order, area 2, "South Plaza"; KTDE is its plan) ====================
+   Block 5,8 was bare paving and a bench (a retired generic pickup block): houses on three sides, the University line to
+   the south. Now the Flats' own radio station since 1947: a two-storey Streamline Moderne block with a rounded corner
+   onto the camera's corner, speed lines wrapping it, ribbon windows, a glass-block stair tower at its west end, a lattice
+   mast on the roof with a red beacon, the on-air studio behind big street-facing glass with the ON AIR light over it, the
+   lobby's glass pair under a thin canopy, and a small lot on the east for the station's van. One plan (KTDE) for the
+   draw, the volume, the pocket, the people and the story. Lab frame: the block's own (edge 2, world x = 16376 + a,
+   y = 27416 + b, b negative into the block), z in lab units (x1.5 in the world). Nothing paints a lawn: the forecourt's
+   paving, the lot's asphalt and two planted beds are the site's own ground. */
+const KTDE = {
+  name: 'KTDE 98.1 The Tide', LOT: 1656,
+  B: { a0: 200, a1: 1260, b0: -1000, b1: -470 },        // the block of the building (b1 its street front)
+  RC: 160,                                               // the rounded corner's radius (at a1, b1)
+  GZ: 120, RZ: 236, PZ: 250,                             // the first floor's line, the roof, the parapet
+  stair: { a0: 206, a1: 296, out: 18, top: 292 },        // the glass-block stair tower, standing proud of the front
+  door: [470, 560],                                      // the lobby's glass pair
+  studio: [680, 1080],                                   // the on-air studio's street glass (z 16..110)
+  onAir: { a: 880, z0: 114, z1: 130 },                   // the ON AIR light over it
+  mast: { a: 560, b: -820, r0: 40, H: 460 },             // the lattice mast on the roof (its foot's half-width, its height over the roof)
+  lot: { a0: 1300, a1: 1641, b0: -1100, b1: 0 },         // the station's lot (asphalt), off the street by its drive
+  drive: [1370, 1590],
+  van: { a: 1470, b: -640 },                             // the station's van, parked nose to the street
+  bedW: [30, 180, -330, -60], bedE: [1140, 1280, -330, -60],
+  look: { recep: 0x9e1a1, dj: 0x9e2d7, prod: 0x9e3c2 }
+};
+/* lab to world (the block's frame: landmarkLabWorld, once the grid is there) */
+function ktdeW(a, b){
+  const L = ktdeW.L || (ktdeW.L = landmarkLabWorld(KTDE.name));
+  return L ? L(a, b) : { x: 16376 + a, y: 27416 + b };
+}
+/* the corner's outline (a0..a1 along the front and down the side, round the arc), for the roof, the volume, the x-ray */
+function ktdeOutline(n){
+  const B = KTDE.B, R = KTDE.RC, ca = B.a1 - R, cb = B.b1 - R, out = [[B.a0, B.b0], [B.a1, B.b0], [B.a1, cb]];
+  for(let i = 1; i < (n || 10); i++){ const t = i/(n || 10)*Math.PI/2; out.push([ca + R*Math.cos(t), cb + R*Math.sin(t)]); }
+  out.push([ca, B.b1], [B.a0, B.b1]);
+  return out;
 }
 /* ==================== THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01: "the soapbox
    club's garage: a barn-roofed workshop with a roll-up door on the camera-facing east edge, kart benches, wheels on the
@@ -41848,6 +41887,46 @@ function motelPylonLive(t, part){
   const fl = Math.sin(t*0.0131)*Math.sin(t*0.0047) > 0.9;
   F(A - 42, A + 36, 112, 130, fl ? 'rgba(255,80,110,.06)' : 'rgba(255,80,110,.20)', null, 0, B + 6.5);
   blockWordIn('VACANCY', A - 40, A + 34, 113, 129, B + 6.8, fl ? '#8a3a48' : '#ff5a78', null, 4);
+}
+/* KTDE 98.1 THE TIDE'S MAST (KTDE.mast; its entry's draw and `live`), lab units: a three-legged lattice tower in red and
+   white bands on a pad on the roof, tapering to a platform, a whip antenna and the beacon's housing. The cached piece has
+   the beacon dark; the live part lights it (a slow red flash, an aviation light) */
+function ktdeMastCached(){
+  const K = KTDE, M = K.mast, z0 = K.RZ, H = M.H, r1 = 6, N = 8, red = '#cf3a2c', wht = '#f1efe8';
+  box(M.a - M.r0 - 12, M.a + M.r0 + 12, M.b - M.r0 - 12, M.b + M.r0 + 12, z0, z0 + 8, '#cfcabd', '#b9b3a4', '#a59e8e');   // its pad
+  const legs = [Math.PI/2, Math.PI/2 + 2.094, Math.PI/2 + 4.189];
+  const at = (k, z) => { const r = M.r0 + (r1 - M.r0)*(z - z0)/H; return [M.a + r*Math.cos(legs[k]), M.b + r*Math.sin(legs[k])]; };
+  /* the three faces of the lattice, the far ones first (what P says is nearer: depthSort's own test) */
+  const faces = [[0, 1], [1, 2], [2, 0]].map(([i, j]) => { const pi = at(i, z0), pj = at(j, z0); return { i, j, k: P((pi[0] + pj[0])/2, (pi[1] + pj[1])/2, 0).y }; }).sort((m, n) => m.k - n.k);
+  for(const f of faces) for(let s = 0; s < N; s++){
+    const za = z0 + 8 + (H - 8)*s/N, zb = z0 + 8 + (H - 8)*(s + 1)/N, col = s % 2 ? wht : red;
+    const a0 = at(f.i, za), b0 = at(f.j, za), a1 = at(f.i, zb), b1 = at(f.j, zb);
+    tube(a0[0], a0[1], za, b1[0], b1[1], zb, 0.7, col); tube(b0[0], b0[1], za, a1[0], a1[1], zb, 0.7, col);   // its X brace
+    tube(a1[0], a1[1], zb, b1[0], b1[1], zb, 0.7, col);                                                         // its strut
+  }
+  for(let k = 0; k < 3; k++) for(let s = 0; s < N; s++){
+    const za = z0 + 8 + (H - 8)*s/N, zb = z0 + 8 + (H - 8)*(s + 1)/N, p = at(k, za), q = at(k, zb);
+    tube(p[0], p[1], za, q[0], q[1], zb, 1.8, s % 2 ? wht : red);                                               // the legs
+  }
+  /* the platform, a pair of dipoles, the whip, the beacon's housing */
+  box(M.a - 10, M.a + 10, M.b - 10, M.b + 10, z0 + H, z0 + H + 3, '#9aa0a2', '#7f8588', '#6c7275');
+  for(const dz of [-60, -110]) tube(M.a - 26, M.b, z0 + H + dz, M.a + 26, M.b, z0 + H + dz, 0.9, '#c9ced2');
+  tube(M.a, M.b, z0 + H + 3, M.a, M.b, z0 + H + 44, 1.0, '#c9ced2');
+  ball(M.a, M.b, z0 + H + 48, 4.2, '#6a2a26', '#8a3a34');
+}
+/* its live parts: the beacon, and the ON AIR light over the studio's glass (lit while the station is on air: dark a few
+   seconds at the top of each three minutes, the station's ident) */
+function ktdeLive(t, part){
+  const K = KTDE;
+  if(part === 'beacon'){
+    const M = K.mast, on = (t % 2400) < 900;
+    if(!on) return;
+    ball(M.a, M.b, K.RZ + M.H + 48, 9, 'rgba(255,60,40,.22)'); ball(M.a, M.b, K.RZ + M.H + 48, 4.6, '#ff3b2a', '#ffb0a0');
+    return;
+  }
+  const on = (t % 180000) > 4000, A = K.onAir.a, bF = K.B.b1 + 6.6;
+  F(A - 34, A + 34, K.onAir.z0 + 2, K.onAir.z1 - 2, on ? '#e8382e' : '#5a2420', null, 0, bF);
+  blockWordIn('ON AIR', A - 28, A + 28, K.onAir.z0 + 4, K.onAir.z1 - 4, bF + 0.2, on ? '#fff4e8' : '#8a5a50', null, 4);
 }
 const WALKIN_NEAR_RUN = 40;
 /* the room's people stand where he cannot drive through them: a solid round every post (WALKIN_STAFF), carried on
@@ -64534,6 +64613,153 @@ function houseCanopy(fn){
     /* its parked cars (motelLotCars), each a piece of its own */
     for(const q of motelLotCars()) if(q.car)
       items.push({ a: q.a, b: q.b, draw: () => gameCar(q.a, q.b, 0, q.fd, (q.n*2654435761) >>> 0, q.kind) });
+    depthSort(items);
+  },
+  back(p){ turned(1656, 1656, () => this.draw(p)); }
+},
+{
+  /* ==================== KTDE 98.1 THE TIDE (the Flats build order, area 2, "South Plaza"; KTDE is its plan) ====================
+     A whole-block landmark on its edge (HOOD_SHOP_SITES 5,8 edge 2), in pieces through depthSort: the building (one
+     piece: the walk-in's shell), the glass-block stair tower, the mast (its own tall piece, keyed over the roof), the
+     canopy, the beds, the van. Everything still is in the building cache; live: the lobby's glass pair (slideDoors), the
+     beacon and the ON AIR light (live), the night's lamps (the lamp kit). Lab z x1.5 in the world. */
+  name:'KTDE 98.1 The Tide', xh: 252, base:'Radio station', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
+  /* the lobby's glass pair, live (as the motor lodge's office): 90 across */
+  slideDoors: [{ a: 470, w: 90, b: -470.8, z0: 0, z1: 100, walk: -458, glass: 'rgba(150,190,206,.38)' }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#1f7a8c'); },
+  /* ITS LAMPS AT NIGHT (the lamp kit): the canopy's downlight, the studio's glow on the paving, the ribbon windows lit,
+     the lot's lamp, the beacon's own red */
+  lamps: () => { const K = KTDE, L = [];
+    L.push({ a: 515, b: K.B.b1 + 30, z: 104, r: 80, col: 0xffe6b0 });
+    L.push({ a: 880, b: K.B.b1 + 20, z: 60, r: 150, col: 0xffd9a0 });
+    for(const a of [520, 700, 880, 1040]) L.push({ a, b: K.B.b1 + 4, z: 160, r: 60, col: 0xffe2a8 });
+    L.push({ a: 1625, b: -1080, z: 180, r: 130, col: 0xffe9c0 });
+    L.push({ a: K.mast.a, b: K.mast.b, z: K.RZ + K.mast.H + 48, r: 60, col: 0xff4a3a, d: 302 });
+    return L; },
+  /* ITS MOVING PARTS, live (the hi queue's `live`): the beacon over the mast (a hair over the mast's piece), the ON AIR
+     light (a hair over the building's) */
+  live: [{ a: 560, b: -820, z: 700, r: 40, d: 302, draw: t => ktdeLive(t, 'beacon') },
+         { a: 880, b: -470, z: 122, r: 50, d: 1.5, draw: t => ktdeLive(t, 'onair') }],
+  /* THE GROUNDS ARE DRIVABLE: the building, the stair tower, the beds and the van are solid, each its own height; the
+     forecourt and the lot are not */
+  vol: (() => {
+    const K = KTDE, R = volRect, S = K.stair;
+    const solids = [
+      { name: 'radio station', poly: ktdeOutline(8), h: K.PZ },
+      { name: 'stair tower', poly: R(S.a0, S.a1, K.B.b1 - 20, K.B.b1 + S.out), h: S.top },
+      { name: 'bed', poly: R(K.bedW[0], K.bedW[1], K.bedW[2], K.bedW[3]), h: 12 },
+      { name: 'bed', poly: R(K.bedE[0], K.bedE[1], K.bedE[2], K.bedE[3]), h: 12 },
+      { name: 'station van', poly: R(K.van.a - 48, K.van.a + 48, K.van.b - 112, K.van.b + 112), h: 90, prop: true },
+      { name: 'lamp', c: [1625, -1080], r: 8, h: 180 },
+    ];
+    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [(K.door[0] + K.door[1])/2, K.B.b1] } };
+  })(),
+  /* the lot's drive, off the street front */
+  drive: [{ side:'front', from: 1370, to: 1590, col:'#5f6366', arrows:'both' }],
+  head:'KTDE 98.1 The Tide: a two-storey Streamline Moderne radio station with a lattice mast on its roof',
+  tags:['block landmark','radio station','streamline moderne','rounded corner','glass-block stair','lattice mast','on-air studio','station van'],
+  desc:'The Flats\' radio station: a cream Streamline Moderne block with its corner rounded onto the street corner and three teal speed lines wrapping it, ribbon windows upstairs, a glass-block stair tower at its west end, a red-and-white lattice mast on the roof with its beacon, the on-air studio behind big glass on the street with the ON AIR light over it, the lobby\'s glass doors under a thin canopy, and a small lot for the station\'s van.',
+  draw(p){
+    const K = KTDE, B = K.B, RC = K.RC, ca = B.a1 - RC, cb = B.b1 - RC, GZ = K.GZ, RZ = K.RZ, PZ = K.PZ;
+    const wall = '#f3eee2', wallS = shade(wall, 0.88), teal = '#1f7a8c', tealD = '#175e6c', navy = '#24405e', roofc = '#9a9c95';
+    const conc = '#c9c3b4', concD = '#b4ad9c', asph = '#5f6366', line = '#e8e4d8', glass = 'rgba(96,136,156,.86)', glassSee = 'rgba(126,166,186,.36)';
+    const leaf = ['#3f6b4a','#4e8058','#568a5e'];
+    const items = [];
+    /* one band round the building's seen faces: along the front from aF, round the corner, down the side to bS (off: how
+       far proud of the wall) -- the wall's own shade turns with the corner */
+    const band = (z0, z1, col, off, aF, bS) => {
+      const o = off || 0, r = RC + o, N = 10;
+      if(aF < ca) F(aF, ca + 0.5, z0, z1, col, null, 0, B.b1 + o);
+      for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI/2, t1 = (i + 1)/N*Math.PI/2, k = 0.88 + 0.12*Math.sin((t0 + t1)/2);
+        poly([P(ca + r*Math.cos(t0), cb + r*Math.sin(t0), z0), P(ca + r*Math.cos(t1), cb + r*Math.sin(t1), z0), P(ca + r*Math.cos(t1), cb + r*Math.sin(t1), z1), P(ca + r*Math.cos(t0), cb + r*Math.sin(t0), z1)], shade(col, k)); }
+      if(bS < cb) S(B.a1 + o, bS, cb + 0.5, z0, z1, shade(col, 0.88));
+    };
+    const bed = (q, trees) => { const [a0, a1, b0, b1] = q;
+      box(a0, a1, b0, b1, 0, 12, shade(conc,1.06), shade(conc,.84), shade(conc,.70));
+      T(a0+8, a1-8, b0+8, b1-8, 12.5, '#9a907c');                                     // gravel (no lawn: LOOK_RULES 4)
+      for(let k = 0; k < 5; k++){ const sa = a0 + 22 + ((k*53) % Math.max(1, a1 - a0 - 44)), sb = b0 + 24 + ((k*97) % Math.max(1, b1 - b0 - 48)); ball(sa, sb, 20, 11, leaf[k % 3]); }
+      if(state.props) for(const [ta, tb] of trees) items.push({ a: ta, b: tb, draw: () => {
+        tube(ta, tb, 12, ta + 4, tb, 150, 3.4, '#8a7258');
+        for(let k = 0; k < 7; k++){ const q2 = k/7*Math.PI*2; tube(ta + 4, tb, 150, ta + 4 + Math.cos(q2)*40, tb + Math.sin(q2)*40, 128, 4.5, leaf[k % 3]); }
+        ball(ta + 4, tb, 152, 6, '#4e8058'); } });
+    };
+
+    /* ---- THE GROUND: the forecourt's paving and its joints, the path to the doors, the lot's asphalt and its bays ---- */
+    T(0, K.LOT, -K.LOT, 0, 0, conc);
+    for(let a = 92; a < K.lot.a0; a += 92) T(a - 1, a + 1, B.b1, 0, 0.3, concD);
+    for(let b = -92; b > B.b1; b -= 92) T(0, K.lot.a0, b - 1, b + 1, 0.3, concD);
+    T(K.door[0] - 10, K.door[1] + 10, B.b1, 0, 0.5, shade(conc, 1.06));                 // the walk to the doors
+    { const L = K.lot; T(L.a0, L.a1, L.b0, L.b1, 0.4, asph);
+      for(const bb of [-470, -820]) T(L.a0 + 60, L.a1 - 20, bb - 3, bb + 3, 0.6, line);
+      for(let x = L.a0 + 60; x <= L.a1 - 20 + 0.1; x += 130) T(x - 3, x + 3, -820, -470, 0.6, line);
+      /* the van's place: a yellow box */
+      const v = K.van, a0 = v.a - 60, a1 = v.a + 60, b0 = v.b - 130, b1 = v.b + 130;
+      for(const [p0, p1, q0, q1] of [[a0, a1, b0, b0 + 5], [a0, a1, b1 - 5, b1], [a0, a0 + 5, b0, b1], [a1 - 5, a1, b0, b1]]) T(p0, p1, q0, q1, 0.7, '#f2c14e');
+    }
+    bed(K.bedW, [[100, -190]]); bed(K.bedE, [[1210, -200]]);
+
+    /* ---- THE BUILDING (the walk-in's shell: one piece). Cream stucco; the ground floor's lobby door and studio glass,
+       the floor line, ribbon windows upstairs, the station's name, three speed lines round the corner, the parapet ---- */
+    items.push({ a: (B.a0 + B.a1)/2, b: (B.b0 + B.b1)/2, shell: true, draw: () => {
+      /* the walls: the front, the corner, the east side */
+      band(0, RZ, wall, 0, B.a0, B.b0);
+      band(0, 12, shade(wall, 0.8), 0.3, B.a0, B.b0);                                   // the plinth
+      band(GZ - 3, GZ + 5, shade(wall, 0.9), 0.4, B.a0, B.b0);                          // the floor line
+      /* the roof, the parapet */
+      poly(ktdeOutline(10).map(([a, b]) => P(a, b, RZ)), roofc);
+      if(state.roof) for(const [ra, rb] of [[860, -880], [1000, -900]]) box(ra - 30, ra + 30, rb - 20, rb + 20, RZ, RZ + 24, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
+      box(B.a0, B.a1, B.b0, B.b0 + 8, RZ, PZ, shade(wall, 1.04), wallS, wallS);          // the back rim
+      box(B.a0, B.a0 + 8, B.b0, B.b1, RZ, PZ, shade(wall, 1.04), wallS, wallS);          // the west rim
+      band(RZ, PZ, wall, 0, B.a0, B.b0);
+      band(PZ - 4, PZ, teal, 0.3, B.a0, B.b0);                                          // its teal coping
+      /* the coping's top, round the corner */
+      { const pts = []; for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI/2; pts.push(P(ca + RC*Math.cos(t), cb + RC*Math.sin(t), PZ)); }
+        for(let i = 10; i >= 0; i--){ const t = i/10*Math.PI/2; pts.push(P(ca + (RC - 8)*Math.cos(t), cb + (RC - 8)*Math.sin(t), PZ)); }
+        poly(pts, shade(teal, 1.2)); T(B.a0, ca, B.b1 - 8, B.b1, PZ, shade(teal, 1.2)); poly([P(B.a1, B.b0, PZ), P(B.a1, cb, PZ), P(B.a1 - 8, cb, PZ), P(B.a1 - 8, B.b0, PZ)], shade(teal, 1.2)); }
+      /* THE SPEED LINES: three teal bands round the corner, from the ribbon windows' end down the side */
+      for(const z of [192, 204, 216]) band(z, z + 5, teal, 0.5, 1080, -900);
+      /* the station's name on the front, over the ribbon windows */
+      blockWordIn('KTDE 98.1 THE TIDE', 440, 1060, 190, 226, B.b1 + 0.6, navy, null, 16);
+      /* the ribbon windows upstairs: front and side, dark glass, a mullion every 62 */
+      F(440, 1060, 136, 180, shade(wall, 0.78), null, 0, B.b1 + 0.4); F(444, 1056, 139, 177, glass, null, 0, B.b1 + 0.6);
+      for(let a = 444 + 62; a < 1056; a += 62) F(a - 1.5, a + 1.5, 139, 177, shade(wall, 0.95), null, 0, B.b1 + 0.8);
+      S(B.a1 + 0.4, -900, -700, 136, 180, shade(wall, 0.7)); S(B.a1 + 0.6, -896, -704, 139, 177, glass);
+      for(let b = -896 + 64; b < -704; b += 64) S(B.a1 + 0.8, b - 1.5, b + 1.5, 139, 177, shade(wall, 0.84));
+      /* the ground floor's side windows (the studio's back of house) */
+      S(B.a1 + 0.4, -900, -700, 30, 100, shade(wall, 0.7)); S(B.a1 + 0.6, -896, -704, 33, 97, glass);
+      /* THE LOBBY'S DOOR: a teal surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
+      F(K.door[0] - 8, K.door[1] + 8, 0, 108, teal, null, 0, B.b1 + 0.5);
+      if(SEE) HOLE([P(K.door[0], B.b1 + 0.6, 100), P(K.door[1], B.b1 + 0.6, 100), P(K.door[1], B.b1 + 0.6, 0), P(K.door[0], B.b1 + 0.6, 0)]);
+      else F(K.door[0], K.door[1], 0, 100, '#2b3138', null, 0, B.b1 + 0.6);
+      /* THE STUDIO'S GLASS: a big pane in a teal frame, two mullions (the on-air studio behind it: W11) */
+      { const [w0, w1] = K.studio;
+        F(w0 - 7, w1 + 7, 10, 116, teal, null, 0, B.b1 + 0.5);
+        if(SEE) HOLE([P(w0, B.b1 + 0.6, 110), P(w1, B.b1 + 0.6, 110), P(w1, B.b1 + 0.6, 16), P(w0, B.b1 + 0.6, 16)]);
+        F(w0, w1, 16, 110, SEE ? glassSee : glass, null, 0, B.b1 + 0.6);
+        for(const k of [1, 2]) F(w0 + (w1 - w0)*k/3 - 2, w0 + (w1 - w0)*k/3 + 2, 16, 110, shade(teal, 1.1), null, 0, B.b1 + 0.8); }
+      /* the ON AIR light's box, over the glass (its lamp is live) */
+      slab(K.onAir.a - 38, K.onAir.a + 38, K.onAir.z0 - 2, K.onAir.z1 + 2, B.b1 + 6, B.b1, '#2b2a30', '#1f1e23', '#3a3940');
+      /* the porthole between the doors and the studio: a round window, Streamline's mark */
+      { const pa = 620, pz = 64, pts = [], pin = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; pts.push(P(pa + Math.cos(q)*24, B.b1 + 0.5, pz + Math.sin(q)*24/ZSCALE)); pin.push(P(pa + Math.cos(q)*18, B.b1 + 0.7, pz + Math.sin(q)*18/ZSCALE)); }
+        poly(pts, teal); poly(pin, glass); }
+      /* THE CANOPY over the lobby's doors, and THE GLASS-BLOCK STAIR TOWER at the west end (attachments: drawn with the
+         building, one piece -- never keyed apart from their host) */
+      box(K.door[0] - 30, K.door[1] + 30, B.b1, B.b1 + 44, 108, 114, '#f8f5ee', shade(wall, 0.86), shade(wall, 0.78));
+      F(K.door[0] - 30, K.door[1] + 30, 108, 114, teal, null, 0, B.b1 + 44.4);
+      { const S0 = K.stair, bf = B.b1 + S0.out, top = S0.top;
+        box(S0.a0, S0.a1, B.b1 - 20, bf, 0, top, shade(wall, 1.04), wall, wallS);
+        F(S0.a0 + 10, S0.a1 - 10, 16, top - 18, '#c4dde2', null, 0, bf + 0.4);
+        for(let a = S0.a0 + 10; a <= S0.a1 - 10 + 0.1; a += 10) F(a - 0.6, a + 0.6, 16, top - 18, '#9fbcc4', null, 0, bf + 0.6);
+        for(let z = 16; z <= top - 18 + 0.1; z += 10) F(S0.a0 + 10, S0.a1 - 10, z - 0.6, z + 0.6, '#9fbcc4', null, 0, bf + 0.6);
+        S(S0.a1 + 0.4, B.b1 + 2, bf - 2, 16, top - 18, '#b2ced4');
+        box(S0.a0 - 4, S0.a1 + 4, B.b1 - 24, bf + 4, top, top + 8, shade(teal, 1.2), teal, tealD); }
+    }});
+    /* ---- THE MAST: its own tall piece, keyed over the roof (z: it sorts after the building it stands on) ---- */
+    items.push({ a: K.mast.a, b: K.mast.b, z: 420, draw: () => ktdeMastCached() });
+    /* ---- THE STATION'S VAN, parked in its place, nose to the street ---- */
+    items.push({ a: K.van.a, b: K.van.b, draw: () => gameCar(K.van.a, K.van.b, 0, 1, 0x7d3e, 'van') });
+    /* ---- THE LOT'S LAMP ---- */
+    items.push({ a: 1625, b: -1080, draw: () => { cyl(1625, -1080, 0, 176, 3, '#6c7275'); box(1600, 1630, -1086, -1074, 172, 180, '#e9e6dc', '#c9c6bc', '#b4b1a8'); } });
     depthSort(items);
   },
   back(p){ turned(1656, 1656, () => this.draw(p)); }
@@ -124843,6 +125069,7 @@ const TP_PLACE_COPY = {
   "Department store": { price:"$$", hours:[9,19], blurb:"Grand old department store with a creaky lift, beachwear, homewares and a rooftop cafe with sea views.", tip:"Shoppers say the rooftop cafe is the best-kept secret in town.", reviews:["The rooftop cafe has an incredible view and the scones are delicious.","Tipsey delivered my new beach towels and a bucket hat in one neat parcel.","The lift is charming but slow. Take the stairs if you're in a hurry."] },
   "Chambers": { price:"$$$", hours:[9,17], blurb:"Stately offices of solicitors and advisers, with polished wood panelling and a calm, reassuring waiting room.", tip:"Clients say booking appointments ahead avoids long waits in reception.", reviews:["They helped with our house purchase and explained every step clearly.","Very professional and kind. The receptionist offered me tea straight away.","Impressive building, though the portraits in the hallway seem to watch you."] },
   "Security post": { price:"", hours:[0,24], blurb:"Vista Ridge Security: the little Mission-style post that watches Sierra Vista's walls, a CCTV mast over it and the patrol robots charging at its dock.", tip:"The night guard says the east wall's camera sees more coyotes than burglars.", reviews:["Found my dog's tag at their lost-and-found desk. Lovely guard, terrible coffee.","The patrol robots wave their lights at you if you wave first.","Best-kept little building on the hill."] },
+  "Radio station": { price:"", hours:[0,24], blurb:"KTDE 98.1 The Tide: the Flats' own radio station since 1947, a Streamline Moderne corner with its mast on the roof and the on-air studio behind the glass on the street. Requests by phone, or knock.", tip:"Locals say wave at the studio window: the DJ waves back between records.", reviews:["The DJ waved at my kid through the glass.", "Only plays vinyl. Wouldn't have it any other way.", "That red light on the mast is how I find my way home."] },
   "Motor lodge": { price:"$$", hours:[0,24], blurb:"The airport's 1958 motor court across the street from Sun Deck Airfield: rooms round a turquoise pool, the flight crews' van at the office and a neon pylon that hasn't missed a night since Eisenhower.", tip:"Guests say ask for a room on the pool side, and that the night manager makes the best coffee on the strip.", reviews:["Stayed here the night before an early flight. Walked to the terminal, swam before breakfast, slept like a log.","Half the Holloway wedding was in the rooms round the pool. The ice machine never stood a chance.","The VACANCY sign buzzes all night, and somehow that's part of the charm."] },
   "Grand hotel": { price:"$$$", hours:[0,24], blurb:"Elegant seafront hotel with a sweeping staircase, chandeliered ballroom and afternoon tea on the palm-lined terrace.", tip:"Guests recommend afternoon tea on the terrace, even if not staying.", reviews:["The sea-view room was stunning and the staff went above and beyond.","Tipsey dropped a room-service order at the door with the tiniest bow. Charming.","Beautiful hotel, but I got lost trying to find the breakfast room twice."] },
   "Warehouse loft": { price:"", hours:[0,24], blurb:"Converted warehouse lofts with exposed brick, huge arched windows and a shared rooftop garden overlooking the harbour.", tip:"Residents say the rooftop garden is perfect for summer sunsets.", reviews:["Huge windows and so much light. The rooftop garden is my favourite place in town.","Tipsey delivers here so often the neighbours wave at it by name.","Stylish flats, but the old freight lift has a mind of its own."] },
