@@ -31,8 +31,11 @@ function install(){
     const nm = l => { const m = l.match(/at (?:new )?(?:WorldScene\.|Object\.)?([\w$<>]+) /); return m ? m[1] : '?'; };
     const k = st.findIndex(l => /drawWorldIn|blockVQ|drawWorld /.test(l));
     const fr = k > 0 ? st.slice(0, k) : st.slice(0, 8);
-    const item = fr.length ? ln(fr[fr.length - 1]) : 0;
-    const via = fr.slice(1, -1).map(nm).filter(n => !/^(drawPersonHullBody|drawPersonHull|xrayMirror|withAlpha|apply|call|fn|\?|<anonymous>|inRoomCoords|layerFor|propLayer|drawProp)$/.test(n));
+    /* (a story's person is drawn through keyPerson -- PERSON_DRAW's ghost: their queue line is the one inside it) */
+    const kp = fr.findIndex(l => /\bkeyPerson\b/.test(l));
+    let ki = kp - 1; while(kp > 0 && ki > 0 && fr[kp + 1] && ln(fr[ki]) === ln(fr[kp + 1])) ki--;   // (past its own wrapper's line)
+    const item = kp > 0 ? ln(fr[ki]) : fr.length ? ln(fr[fr.length - 1]) : 0;
+    const via = fr.slice(1, -1).map(nm).filter(n => !/^(drawPersonHullBody|drawPersonHullBodyAt|drawPersonHull|drawPersonGhost|keyPerson|xrayPlain|xrayOnly|xrayMirror|withAlpha|apply|call|fn|\?|<anonymous>|inRoomCoords|layerFor|propLayer|drawProp)$/.test(n));
     return item + (via.length ? ' ' + [...new Set(via.reverse())].slice(-3).join('>') : '');
   };
   /* the drawn points of the call (height, footprint) */

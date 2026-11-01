@@ -3208,6 +3208,32 @@ function dogOwnerWorldAt(tms, hz, x, y){
    the flee finishes they settle and stand there for the rest of the
    route — re-armed if hit again. */
 const PEOPLE_ART = { walkStride: 8, walkSpeed: 0.006, shadow: 0x000000 };
+/* PEOPLE, DRAWN FOR WHAT SHOWS (Sir, 2026-11-01, the people's cost: every person was ~223 shapes at every zoom, 79-91%
+   of the mall's live commands, drawn off screen, drawn hidden, and drawn twice when x-rayed). drawPersonHull decides,
+   for everyone (docs/state/people.md, "Drawing cost"; LOOK_RULES section 7):
+     LOD     how much of the body is built, from the zoom: full at view 1 (close-ups, meetings), the fused level at
+             view 2 (each rounded piece its silhouette in its shade and one merged lit strip; hair 8 a ring, 4 rings),
+             the far level at view 3 (that, less the pieces under a pixel there: cuffs, knee and elbow hinges, hems,
+             the collar, toes and bands, the parting; hair 8 x 3)
+     cull    nobody whose box (feet to crown, with what they hold or ride) is past cullM px off the screen
+     hidden  what is drawn decides it, not the x-ray's block model: a person every one of whose sample points lies
+             under an opaque shape of a cached piece drawn after them (a building, a landmark, a walk-in's shell, its
+             openings cut out) is hidden; tested once a frame for the 23-unit cell they stand in, used the next
+     ghost   only people who matter to play (keyPerson: whoever talks to him or is within keyR of him, mission
+             givers and targets, a lost thing's owner, the lost dog's, William) ghost when their head is hidden -- and
+             then are drawn ONCE, as the ghost; anyone else wholly hidden is not drawn at all */
+const PERSON_DRAW = {
+  lodK1: 1.0,     // K at or over this: view 1's level (nearLod)
+  lodK2: 0.45,    // K at or over this, under lodK1: the fused level (1); under it the far level (2)
+  nearLod: 0,     // view 1: full detail (Sir's side-by-side, 2026-11-01: the fused pieces read flatter close up)
+  cullM: 70,      // px past the screen's edge a person's box may reach and still be drawn (nobody pops as it pans)
+  hw: 90, hwLie: 190, top: 240, foot: 34,   // the box round their feet, world units: half-width (laid over), up, down
+  keyR: 320,      // within this (Manhattan) of him they are talking to him, or about to: they keep their ghost
+  cell: 23,       // the cell a visibility answer is kept for (XRAY.curbCell)
+  ttl: 24,        // frames a "hidden" answer is used before it is asked again (a piece painted or evicted since)
+  ttl0: 6,        // ...and a "seen" one (what stands in front may still have been drawn live, not yet painted)
+  cull: true, hide: true   // (switches for a side-by-side: false draws everyone off screen / everyone hidden, as before)
+};
 /* THE WALK'S ANGLE (Sir, 2026-10-14: "I really like how he walks can we
    give this to our people"): a person's walk is handed to drawPersonHull
    as a displacement, sin(angle) -- but a stride needs the angle itself
@@ -12844,7 +12870,9 @@ const XRAY = {
   wardCol:  null,    // null: the x-ray's own colour (col)
   wardEdge: 0xffffff,
   wardEdgeW: 5,      // the white edge, each side of the line, world units
-  peopleR:  1400,    // anyone within this (Manhattan) of him ghosts when hidden (see drawPersonHull); 0 off
+  /* (people no longer ghost by this: PERSON_DRAW, 2026-11-01. peopleZ is still the height the review's checkers test a
+     spot at, xrayPersonHidden; peopleR is unused) */
+  peopleR:  1400,
   peopleZ:  125      // ...hidden meaning covered up to here: their head (a person stands ~150)
 };
 try { window.XRAY = XRAY; } catch(e){}
@@ -21926,6 +21954,7 @@ function hoopsGame(onDone){
     if(!scn || typeof scn.drawPersonHull !== 'function'){ hull = false; return hull; }
     hull = Object.create(scn);
     hull.drawClip = null; hull._personKick = false; hull.drawAngle = 0;
+    hull._pLodFix = 0; hull._inWorldFlush = false;   // (its own scale: full detail, never culled or ghosted -- PERSON_DRAW)
     hull.W = (wx, wy, wz) => { const q = pr((wx*hull._c - wy*hull._s)*U, wz*U, (wx*hull._s + wy*hull._c)*U); return { x: q[0], y: q[1] }; };
     hull.quadOn = (g, pts, col, al) => { g.fillStyle(col, al); g.fillPoints(pts); };
     hull.edgeOn = (g, pts, col, w) => { g.lineStyle(w == null ? 2 : w, col == null ? 0x1a1a1a : col, 1); g.strokePoints(pts); };
@@ -79062,31 +79091,33 @@ class WorldScene extends Phaser.Scene {
   /* the inverse, inside an xrayMirror: draw fn() once, as itself */
   xrayPlain(fn){
     if(!this._xrayInProp) return fn();
-    const own = Object.prototype.hasOwnProperty.call(this, "quadOn") ? this.quadOn : null;
+    const own = Object.prototype.hasOwnProperty.call(this, "quadOn") ? this.quadOn : null, cy = this._xrayCutY, md = this._xrayMode;
     if(own) delete this.quadOn;
-    this._xrayInProp = false;
-    try { return fn(); } finally { if(own) this.quadOn = own; this._xrayInProp = true; }
+    this._xrayInProp = false; this._xrayCutY = null; this._xrayMode = null;
+    try { return fn(); } finally { if(own) this.quadOn = own; this._xrayInProp = true; this._xrayCutY = cy; this._xrayMode = md; }
   }
   /* only the silhouette: every face into gXProp in the x-ray's teal, at a
      (scaled by k), nothing into the world -- a person under the mall's
      gallery seen through it (MALL_XRAY_UNDER). The caller hands the draw a
      hidden sink for anything drawn straight into its g. */
+  /* (_xrayMode names the wrapper a draw is inside -- 'only', 'mirror', or drawProp's 'cut' -- so drawPersonHull can
+     take it off a person and decide their ghost itself: PERSON_DRAW) */
   xrayOnly(k, fn){
-    const qp = this.quadOn, ep = this.edgeOn, a = XRAY.propMax*k;
+    const qp = this.quadOn, ep = this.edgeOn, a = XRAY.propMax*k, md = this._xrayMode;
     this.quadOn = (gg, pts) => qp.call(this, this.gXProp, pts, XRAY.col, a);
     this.edgeOn = () => {};
-    this._xrayInProp = true;
-    try { return fn(); } finally { delete this.quadOn; delete this.edgeOn; this._xrayInProp = false; }
+    this._xrayInProp = true; this._xrayMode = 'only';
+    try { return fn(); } finally { delete this.quadOn; delete this.edgeOn; this._xrayInProp = false; this._xrayMode = md; }
   }
   xrayMirror(fn){
     if(!(XRAY.propMax > 0) || this._xrayCap || this._xrayInProp) return fn();
-    const qp = this.quadOn;
+    const qp = this.quadOn, md = this._xrayMode;
     this.quadOn = (gg, pts, col, aa) => {
       qp.call(this, gg, pts, col, aa);
       qp.call(this, this.gXProp, pts, XRAY.col, XRAY.propMax);
     };
-    this._xrayInProp = true;
-    try { return fn(); } finally { delete this.quadOn; this._xrayInProp = false; }
+    this._xrayInProp = true; this._xrayMode = 'mirror';
+    try { return fn(); } finally { delete this.quadOn; this._xrayInProp = false; this._xrayMode = md; }
   }
 
   /* The hidden kerb and curb ramps around him, into gXWay -- see XRAY.xR.
@@ -80981,10 +81012,34 @@ class WorldScene extends Phaser.Scene {
     poly([[-130, -8], [-c.ri + 30, -8], [-c.ri + 30, 8], [-130, 8]], KH + 0.4, 0xd9d0bc);      // and a path out to each gate post
     poly([[130, -8], [c.ri - 30, -8], [c.ri - 30, 8], [130, 8]], KH + 0.4, 0xd9d0bc);
   }
+  /* LEAN SHAPES (Sir, 2026-11-01, the people's cost): the points go to fillPoints as they are -- no copy of each into
+     a Phaser.Geom.Point (it only reads .x and .y), and no closing point or closePath (a fill closes itself, in WebGL's
+     triangulation and on a canvas alike): -16% of the commands of every live shape, the picture unchanged */
   quadOn(g, pts, color, alpha=1){
     if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
     g.fillStyle(color, alpha);
-    g.fillPoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true, true);
+    g.fillPoints(pts, false, false);
+  }
+  /* A FUSED PIECE (PERSON_DRAW's LOD: the people's rounded pieces at views 2 and 3). A ring's side faces as runs: the
+     faces toward the light (tone 0-3 of the nine) one strip in lit; the rest left to the silhouette under them in its
+     shade -- or, with no silhouette (dark: a band round another piece, a hood open at the face), one strip in shade.
+     ti[i]: face i's tone (-1 not drawn); E0 / E1: the ring's points at its two ends (face i is points i and i + 1) */
+  hullRuns(g, n, ti, E0, E1, lit, shade, dark){
+    const cls = i => { const t = ti[i]; return t < 0 ? -1 : t <= 3 ? 0 : dark ? 1 : -1; };
+    let s0 = -1;
+    for(let i = 0; i < n; i++) if(cls(i) >= 0 && cls((i + n - 1) % n) !== cls(i)){ s0 = i; break; }
+    if(s0 < 0){                                                    // (one class all round, or nothing: face by face)
+      for(let i = 0; i < n; i++){ const c = cls(i); if(c >= 0) this.quadOn(g, [E0[i], E0[(i + 1) % n], E1[(i + 1) % n], E1[i]], c ? shade : lit); }
+      return;
+    }
+    for(let c = 0, i = s0; c < n; ){
+      const k = cls(i);
+      if(k < 0){ i = (i + 1) % n; c++; continue; }
+      const B = [E0[i]], T = [E1[i]];
+      while(c < n && cls(i) === k){ const j = (i + 1) % n; B.push(E0[j]); T.push(E1[j]); i = j; c++; }
+      for(let m = T.length - 1; m >= 0; m--) B.push(T[m]);
+      this.quadOn(g, B, k ? shade : lit);
+    }
   }
   /* OPEN outline for a depth-sliced side wall (2026-08-28, Sir
      on-device: "i see the art braking and showing lines through its
@@ -81833,6 +81888,10 @@ class WorldScene extends Phaser.Scene {
     if(e.tiles){ if(!this.bcTiles(e, X, Y, ax, ay, drawFn)){ bc.live++; return live(g); } }
     else { e.rt.setPosition(X - e.ox, Y - e.oy); e.rt.setAlpha(al); this.bcTintOf(e.rt); this.worldSegs.list.push(e.rt); bc.pxNow += e.px; }
     if(this._occBox) this.botOccluderImage(e.occ, X - e.C, Y - e.C);   // in front of him (night)
+    /* in the world's order, for who stands behind it (personVis): whole and untinted only -- a shell fading, the
+       mall's x-ray, are seen through */
+    const pv = this._pv;
+    if(pv && pv.log && this._inWorldFlush){ if(al >= 0.999 && this._bcTint == null && e.occ) pv.log.push({ e, dx: X - e.C, dy: Y - e.C }); else if(al < 0.999) pv.fade = true; }
     e.used = bc.frame; bc.placed++;
     this.bcNextSeg();
     this.g = this._segG;
@@ -81857,17 +81916,19 @@ class WorldScene extends Phaser.Scene {
     const pad = 6, w = Math.ceil(x1 - x0) + 2*pad, hh = Math.ceil(y1 - y0) + 2*pad;
     const bx = Math.floor(x0) - pad, by = Math.floor(y0) - pad;
     if(measure){ sc.__occ = null; sc.__holes = null; sc.clear(); return { ox: C - bx, oy: C - by, w, h: hh }; }   // the box alone (see NEVER SEEN AND FAR OFF)
+    /* (its holes, as its opaque shapes are kept: what is seen through them is not hidden by it -- personVis) */
+    const holes = (sc.__holes || []).map(h => ({ at: h.at, v: h.pts.flatMap(q => [q.x, q.y]) }));
     if(w > BC.maxSide || hh > BC.maxSide){
       /* too big for one image: kept as tiles, painted as they come on screen */
       const occ = sc.__occ; sc.__occ = null; sc.__holes = null; sc.clear();
-      return { tiles: new Map(), bx, by, w, hh, ox: C - bx, oy: C - by, C, occ, px: 0, used: 0 };
+      return { tiles: new Map(), bx, by, w, hh, ox: C - bx, oy: C - by, C, occ, holes, px: 0, used: 0 };
     }
     const rt = this.make.renderTexture({ x: 0, y: 0, width: w, height: hh }, false);
     rt.setOrigin(0, 0);
     this.bcDrawHoled(rt, sc, -bx, -by);
     sc.clear();
     const occ = sc.__occ; sc.__occ = null;
-    return { rt, ox: C - bx, oy: C - by, C, occ, px: w*hh, used: 0 };
+    return { rt, ox: C - bx, oy: C - by, C, occ, holes, px: w*hh, used: 0 };
   }
   /* A TILED BUILDING (one over maxSide -- the mall): the tiles of it on
      screen, each painted by running the building's draw again with the
@@ -81954,7 +82015,7 @@ class WorldScene extends Phaser.Scene {
     /* ...and, for his night light's mask (botOccluderImage), the opaque
        fills: the same test botOccluderWrap puts to a live fill */
     const occ = (t, v, x0, y0, x1, y1) => { const a = g.__mfa;
-      if(g.__occ && (a === undefined || a === null || a >= 0.85)) g.__occ.push({ t, v, b: [x0, y0, x1, y1] }); };
+      if(g.__occ && (a === undefined || a === null || a >= 0.85)) g.__occ.push({ t, v, b: [x0, y0, x1, y1], k: g.commandBuffer.length }); };   // (k: where in the paint, for the holes cut after it -- personVis)
     wrap("fillPoints", pts => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; const v = [];
       for(const p of pts){ grow(p.x, p.y); v.push(p.x, p.y); if(p.x < a) a = p.x; if(p.x > c) c = p.x; if(p.y < b) b = p.y; if(p.y > d) d = p.y; }
       if(pts.length > 2) occ(0, v, a, b, c, d); });
@@ -85066,11 +85127,13 @@ class WorldScene extends Phaser.Scene {
           0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
+    /* (the stories' people matter to play: their ghost when hidden, PERSON_DRAW) */
+    const keyQueue = (x, y, fn) => queuePerson(x, y, (g, tt) => this.keyPerson(() => fn(g, tt)));
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
-    lostDogQueue(this, t, queuePerson, layerFor);
-    lhQueue(this, t, queuePerson, layerFor);           // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
+    lostDogQueue(this, t, keyQueue, layerFor);
+    lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
-    lostItemQueue(this, t, queuePerson, layerFor);
+    lostItemQueue(this, t, keyQueue, layerFor);
     /* THE DERBY'S FAMILIES GOING HOME (DERBY_LEAVE), as they looked at the race, cups and all */
     for(const sp of DERBY_LEAVE.list){
       if(sp.knock) continue;                                                     // (down: the knocks list draws them)
@@ -85996,13 +86059,13 @@ class WorldScene extends Phaser.Scene {
     {
       const dc = this.ow && this.ow.on ? hospDocAt(this.time.now) : null;
       if(dc && this.visProp("chargestation", dc.x, dc.y))
-        hazVQ.push({ depth: dc.x + dc.y, fn: (gg, tt) => this.drawHospDoctor(layerFor(dc.x, dc.y), dc, tt || this.time.now) });
+        hazVQ.push({ depth: dc.x + dc.y, fn: (gg, tt) => this.keyPerson(() => this.drawHospDoctor(layerFor(dc.x, dc.y), dc, tt || this.time.now)) });
     }
     /* the heart run's flight medic, down from the twin to him and back (hospMedicAt) */
     {
       const md = this.ow && this.ow.on ? hospMedicAt(this.time.now) : null;
       if(md && this.visProp("chargestation", md.x, md.y))
-        hazVQ.push({ depth: md.x + md.y, fn: (gg, tt) => this.drawHospMedic(layerFor(md.x, md.y), md, tt || this.time.now) });
+        hazVQ.push({ depth: md.x + md.y, fn: (gg, tt) => this.keyPerson(() => this.drawHospMedic(layerFor(md.x, md.y), md, tt || this.time.now)) });
     }
     /* THE MALL'S GUARD (MALL_GUARD), at its front doors */
     if(this.ow && this.ow.on && (!this._inside || MALL_VIEW)){
@@ -86736,6 +86799,7 @@ class WorldScene extends Phaser.Scene {
     worldVQ.sort((a, b) => a.depth - b.depth);
     let _occ = false;
     this.bcFrameBegin();
+    this.personVisBegin();                 // who is hidden by what is drawn (PERSON_DRAW)
     this._inWorldFlush = true;             // glowInWorld places light in the order (see there)
     try {
     for(const item of worldVQ){
@@ -86759,7 +86823,7 @@ class WorldScene extends Phaser.Scene {
         try { item.fn(g, t); } finally { this._occSkip = false; }
       } else item.fn(g, t); // layer per item — layerFor/propLayer already split g vs gFront
     }
-    } finally { this._inWorldFlush = false; if(_occ) this.botOccluderCapture(false); this.bcFrameEnd(); g = this.gWorld; this.g = g; }
+    } finally { this._inWorldFlush = false; if(_occ) this.botOccluderCapture(false); this.personVisEnd(); this.bcFrameEnd(); g = this.gWorld; this.g = g; }
     /* no roofs pass any more -- they are in worldVQ above, so the sort
        that just ran placed them. Nothing draws after the world. */
 
@@ -88823,7 +88887,7 @@ class WorldScene extends Phaser.Scene {
           }
           const topCb = bagVisible ? () => this.drawBagTop(custG, bagX, bagY, bagZ, e.dv, e.rv) : null;
           const drawCust = () => {
-            this.drawPersonHull(custG, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null);
+            this.keyPerson(() => this.drawPersonHull(custG, cx, cy, dz, thW, cBuild, cSkin, cShirt, cPants, cHair, cShoe, walkPhase, moving, 0, liftT, topCb, CL.uniform, false, CL.dress ? { dress: CL.dress } : null));   // (the delivery's customer: PERSON_DRAW's ghost)
             if(bagVisible) this.drawBagBody(custG, bagX, bagY, bagZ, e.dv, e.rv);
           };
           /* which side of the door plane he's on decides draw order —
@@ -90890,6 +90954,15 @@ class WorldScene extends Phaser.Scene {
       const C = (q, e) => { const k = e ? taper : 1, P = e ? p1 : p0; let a = aC + q[0]*wa*k, h = P[1] + q[1]*wp*k*nh;
         if(LX.on){ const da = a - LX.a0, dh2 = h - LX.h0; a = LX.a0 + da*LX.c - dh2*LX.s; h = LX.h0 + da*LX.s + dh2*LX.c; }
         return G(a, P[0] + q[1]*wp*k*nb, h); };
+      /* FUSED (PERSON_DRAW's LOD 1 and 2): the silhouette in the shade, one strip over the faces toward the light */
+      if(this._pLod){ const E0 = [], E1 = [], ti = [];
+        for(let i = 0; i < 8; i++){ E0.push(C(R[i], 0)); E1.push(C(R[i], 1)); }
+        if(fill) this.quadOn(g, convexHull(E0.concat(E1)), ST[5]);
+        for(let i = 0; i < 8; i++){ const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mp = q0[1] + q1[1];
+          ti.push(sees(ma, mp*nb, mp*nh) ? Math.round(Math.abs(ma)/(Math.abs(ma) + Math.abs(mp))*8) : -1); }
+        this.hullRuns(g, 8, ti, E0, E1, ST[1], ST[5], !fill);
+        for(const e of [0, 1]){ const sg = e ? 1 : -1; if((caps & (e ? 1 : 2)) && sees(0, sg*ub, sg*uh)) this.quadOn(g, e ? E1 : E0, col); }
+        return; }
       /* the silhouette first (no seams) -- not for a band round another piece (fill false): it would fill a disc across it */
       if(fill){ const all = []; for(let i = 0; i < 8; i++){ all.push(C(R[i], 0)); all.push(C(R[i], 1)); } this.quadOn(g, convexHull(all), ST[3]); }
       for(let i = 0; i < 8; i++){
@@ -90947,18 +91020,132 @@ class WorldScene extends Phaser.Scene {
      was enough), mirrored into the ghost layer.
      A draw already inside a mirror or a ghost-only pass is left alone; so is one seen through a doorway (_seenThrough:
      queueHospThrough -- the cover test knows the building, not the hole in it) */
+  /* ...REPLACED (Sir, 2026-11-01: "too many people are x-rayed who don't need to be"; "don't draw x-rayed people
+     twice"). The test above was the robot's block model (builtHeightAt: a block's whole HOUSE_DEPTH band is a wall
+     minH tall), and a walker on the pavement beside a house, its side yard open lawn, read as behind it; drawProp's
+     cover line ghosted a dog's walker wherever the dog's feet were in that band, whoever was near; and every ghost
+     was the body drawn and then drawn again in teal. Now (PERSON_DRAW): culled off screen, hidden by what is drawn,
+     ghosted only when they matter, and once */
   drawPersonHull(g, ax, ay, z, ...rest){
-    if(XRAY.peopleR > 0 && this._inWorldFlush && !this._xrayInProp && !this._xrayCap && !this._mallKeep && !this._seenThrough && this._visBlocks
-       && !(this.ow && (this.ow.deck || this.ow.lift))
-       && Math.abs(ax - this.botX) + Math.abs(ay - this.botY) < XRAY.peopleR
-       && this.xrayPersonHidden(ax, ay, z || 0))
-      return this.xrayMirror(() => this.drawPersonHullBody(g, ax, ay, z, ...rest));
-    return this.drawPersonHullBody(g, ax, ay, z, ...rest);
+    if(!this._inWorldFlush) return this.drawPersonHullBody(g, ax, ay, z, ...rest);      // (a cache paint, a card, a lab)
+    const P = PERSON_DRAW, K = this.K, z0 = z || 0, pose = rest[14], lie = !!(pose && (pose.pitch || pose.roll));
+    /* OFF SCREEN: their box, feet to crown, with a margin (nobody pops at the edge while the camera moves) */
+    const A = this.W(ax, ay, z0), hw = (lie ? P.hwLie : P.hw)*K, M = P.cullM;
+    if(P.cull && (A.x + hw < -M || A.x - hw > this.vpW() + M || A.y + P.foot*K < -M || this.W(ax, ay, z0 + P.top).y > this.vpH() + M)) return;
+    const mode = this._xrayMode;
+    /* a ghost-only pass (xrayOnly: under the mall's gallery, behind a boat's cabin) or his own capture: as it was */
+    if(this._xrayCap || mode === 'only') return this.drawPersonHullBody(g, ax, ay, z, ...rest);
+    const key = this._keyP > 0 || mode === 'mirror' || Math.abs(ax - this.botX) + Math.abs(ay - this.botY) < P.keyR;
+    const vis = lie ? 0 : this.personVis(ax, ay, z0, pose);
+    if(vis === 2 && !key && P.hide) return;                                                        // wholly hidden, and nobody he needs: not drawn
+    const ghost = key && vis >= 1 && XRAY.propMax > 0;
+    /* an outer ghost wrapper (xrayMirror, drawProp's cover line) is taken off: they are drawn once, as decided here */
+    return this.xrayPlain(() => ghost ? this.drawPersonGhost(ax, ay, z, rest) : this.drawPersonHullBody(g, ax, ay, z, ...rest));
+  }
+  /* drawn ONCE, as the ghost: every face into gXProp in the x-ray's teal (xrayOnly), anything drawn straight into its
+     g into a hidden sink */
+  drawPersonGhost(ax, ay, z, rest){
+    const gs = this._gPSink || (this._gPSink = this.add.graphics().setVisible(false));
+    gs.clear();
+    return this.xrayOnly(1, () => this.drawPersonHullBody(gs, ax, ay, z, ...rest));
+  }
+  /* a person drawn in the context of someone who matters to play (PERSON_DRAW's ghost): their draw inside fn */
+  keyPerson(fn){ this._keyP = (this._keyP || 0) + 1; try { return fn(); } finally { this._keyP--; } }
+  /* HIDDEN BY WHAT IS DRAWN (PERSON_DRAW). 0 seen, 1 their head hidden, 2 wholly hidden -- the answer for the cell they
+     stand in, as last tested; a cell not yet tested (or stale) is asked: its sample points are kept with where in the
+     world's order they are drawn (the count of cached pieces placed so far), and personVisEval tests them against
+     the pieces placed after, at the end of the frame */
+  personVis(ax, ay, z, pose){
+    const pv = this._pv;
+    if(!pv || !pv.log) return 0;
+    const S = PERSON_DRAW.cell, sit = !!(pose && pose.sit != null);
+    const cx = Math.round(ax/S), cy = Math.round(ay/S), tail = "," + Math.round(z/20) + (sit ? "s" : "") + (this._seenThrough ? "t" : "") + (this._mallKeep ? "m" : "");
+    const k = cx + "," + cy + tail;
+    let e = pv.map.get(k);
+    /* a cell not yet asked: the answer of the one they walked in from (the freshest neighbour) until it is -- or a ghost
+       blinks off for a frame at every cell they step into */
+    let near = e;
+    if(!near) for(let dx = -1; dx <= 1; dx++) for(let dy = -1; dy <= 1; dy++){ const n = (dx || dy) && pv.map.get((cx + dx) + "," + (cy + dy) + tail); if(n && (!near || n.fr > near.fr)) near = n; }
+    if((!e || pv.fr - e.fr > (e.v ? PERSON_DRAW.ttl : PERSON_DRAW.ttl0)) && !pv.want.has(k)){   // (a "seen" asked again sooner: the piece in front may not have been painted yet)
+      pv.want.add(k);
+      const K = this.K, hk = sit ? 0.72 : 1, dx = 12*K, pts = [];
+      const at = (h, o) => { const p = this.W(ax, ay, z + h*hk); pts.push(p.x + o, p.y); };
+      at(152, 0); at(136, 0); at(108, 0);                                                 // the crown, the face, the chest: the head's three
+      at(108, -dx); at(108, dx); at(76, 0); at(76, -dx); at(76, dx); at(40, 0); at(6, -dx*0.6); at(6, dx*0.6);
+      pv.rec.push({ k, seq: pv.log.length, pts });
+    }
+    return near ? near.v : 0;
+  }
+  /* the frame's tests (personVis), against the cached pieces placed after each (their opaque shapes, bcBoundsGraphics'
+     occ, less the holes cut in them after: a walk-in's doorway and glass, W11) */
+  personVisEval(){
+    const pv = this._pv;
+    if(!pv || !pv.log) return;
+    const L = pv.log, B = 32;
+    const index = e => {
+      if(e._pvix) return e._pvix;
+      const ix = new Map(), occ = e.occ || [];
+      let X0 = Infinity, Y0 = Infinity, X1 = -Infinity, Y1 = -Infinity;
+      for(let i = 0; i < occ.length; i++){
+        const b = occ[i].b;
+        if(b[0] < X0) X0 = b[0]; if(b[1] < Y0) Y0 = b[1]; if(b[2] > X1) X1 = b[2]; if(b[3] > Y1) Y1 = b[3];
+        for(let by = Math.floor(b[1]/B); by <= Math.floor(b[3]/B); by++) for(let bx = Math.floor(b[0]/B); bx <= Math.floor(b[2]/B); bx++){
+          const kk = bx*65536 + by; let a = ix.get(kk); if(!a) ix.set(kk, a = []); a.push(i); }
+      }
+      return e._pvix = { ix, b: [X0, Y0, X1, Y1] };
+    };
+    const inPoly = (v, x, y) => { let c = false; for(let i = 0, j = v.length - 2; i < v.length; j = i, i += 2){
+      const yi = v[i + 1], yj = v[j + 1]; if((yi > y) !== (yj > y) && x < (v[j] - v[i])*(y - yi)/(yj - yi) + v[i]) c = !c; } return c; };
+    const inShape = (o, x, y) => { const v = o.v;
+      if(x < o.b[0] || x > o.b[2] || y < o.b[1] || y > o.b[3]) return false;
+      if(o.t === 0 || o.t === 2) return inPoly(v, x, y);
+      if(o.t === 1) return true;                                                          // (a rect: its box)
+      if(o.t === 3) return (x - v[0])*(x - v[0]) + (y - v[1])*(y - v[1]) <= v[2]*v[2];
+      const rx = v[2]/2, ry = v[3]/2; return rx > 0 && ry > 0 && ((x - v[0])/rx)**2 + ((y - v[1])/ry)**2 <= 1; };
+    const covered = (seq, x, y) => {
+      for(let i = seq; i < L.length; i++){
+        const it = L[i], lx = x - it.dx, ly = y - it.dy, X = index(it.e);
+        if(lx < X.b[0] || lx > X.b[2] || ly < X.b[1] || ly > X.b[3]) continue;
+        const cand = X.ix.get(Math.floor(lx/B)*65536 + Math.floor(ly/B));
+        if(!cand) continue;
+        const occ = it.e.occ, H = it.e.holes;
+        for(const n of cand){
+          const o = occ[n];
+          if(!inShape(o, lx, ly)) continue;
+          if(H && H.length && H.some(h => h.at > o.k && inPoly(h.v, lx, ly))) continue;  // (cut away after it was laid: seen through)
+          return true;
+        }
+      }
+      return false;
+    };
+    for(const r of pv.rec){
+      const P = r.pts; let n = 0, head = true;
+      for(let i = 0; i < P.length; i += 2){ if(covered(r.seq, P[i], P[i + 1])) n++; else if(i < 6) head = false; }
+      pv.map.set(r.k, { v: n === P.length/2 ? 2 : head ? 1 : 0, fr: pv.fr });
+    }
+  }
+  /* the world flush's start: a new frame's log; the answers kept while what decides them stands (the zoom, the room
+     he is in, the cache on, no piece fading -- a shell going, the mall's x-ray) */
+  personVisBegin(){
+    const pv = this._pv || (this._pv = { map: new Map(), fr: 0, sig: null, log: null, rec: [], want: new Set(), fade: false });
+    const sig = this.K + "|" + (this._inside ? this._inside.name : "") + "|" + (POCKET_VIEW ? POCKET_VIEW.pk.name : "") + "|" + (this._bcActive ? 1 : 0) + "|" + (pv.fade ? 1 : 0);
+    if(sig !== pv.sig){ pv.map.clear(); pv.sig = sig; }
+    if(pv.map.size > 20000) pv.map.clear();
+    pv.fr++; pv.log = this._bcActive ? [] : null; pv.rec.length = 0; pv.want.clear(); pv.fade = false;
+  }
+  personVisEnd(){
+    const pv = this._pv;
+    if(!pv) return;
+    try { this.personVisEval(); } finally { pv.log = null; pv.rec.length = 0; }
   }
   /* the city does not move, so where a person stands is hidden or not for
      good: asked once per curbCell square and height, then remembered (a
      march is up to a hundred samples, and there can be a crowd) */
+  /* (no longer the game's answer -- PERSON_DRAW's personVis is: kept for the review's checkers, tools/review/people.js
+     and vehicles.js, "could a pop here be seen", and true too where personVis found them wholly hidden) */
   xrayPersonHidden(x, y, z){
+    { const pv = this._pv, S0 = PERSON_DRAW.cell, e = pv && pv.map.get(Math.round(x/S0) + "," + Math.round(y/S0) + "," + Math.round((z || 0)/20));
+      if(e && e.v === 2) return true; }
     const S = XRAY.curbCell, c = this._xrayPersonCache || (this._xrayPersonCache = new Map());
     if(this._xrayPersonRoute !== this.route){ c.clear(); this._xrayPersonRoute = this.route; }
     const k = Math.round(x / S) + "," + Math.round(y / S) + "," + Math.round(z / 20);
@@ -90970,8 +91157,14 @@ class WorldScene extends Phaser.Scene {
     }
     return h;
   }
-  drawPersonHullBody(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false, pose=null){
-    const cs = Math.cos(thW), sn = Math.sin(thW);
+  /* the level of detail for this zoom (PERSON_DRAW): 0 full, 1 fused, 2 far -- or _pLodFix (a stand-in at its own scale) */
+  drawPersonHullBody(...a){
+    const P = PERSON_DRAW, l0 = this._pLod;
+    this._pLod = this._pLodFix != null ? this._pLodFix : this.K >= P.lodK1 ? P.nearLod : this.K >= P.lodK2 ? 1 : 2;
+    try { return this.drawPersonHullBodyAt(...a); } finally { this._pLod = l0; }
+  }
+  drawPersonHullBodyAt(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha=0, liftT=0, onBeforeCarryArm=null, uniform=null, bothArms=false, pose=null){
+    const cs = Math.cos(thW), sn = Math.sin(thW), LOD = this._pLod || 0, far = LOD === 2;
     /* GETTING ABOUT (uniform.aid, Sir, 2026-10-24: "we dont have any handicap representation"): a mobility aid drawn
        with the person -- 'wheelchair' (sat in it, the arms on its rims), 'cane', 'whiteCane', 'crutches', 'walker',
        'prosthetic' (one shin a pylon). The pose is the person's own copy, so the aid can set the arms (aidArms) */
@@ -91050,6 +91243,16 @@ class WorldScene extends Phaser.Scene {
       const T = hullTones(col), kT = o.top == null ? 1 : o.top, kB = o.bot == null ? 1 : o.bot, R = o.n === 6 ? _HULL_RING6 : o.n === 12 ? _HULL_RING12 : _HULL_RING, n = R.length;
       /* (o.jit: a factor a vertex, the plan made lumpy; o.ztop: a lift a vertex of the top ring, the top made uneven -- hair) */
       const P = (i, k, zz, top) => { const q = R[i % n], j = o.jit ? o.jit[i % n] : 1; return G(aC + q[0]*ra*k*j, bC + q[1]*rb*k*j, zz + (top && o.ztop ? o.ztop[i % n] : 0)); };
+      /* FUSED (PERSON_DRAW's LOD): the silhouette in the shade, one strip over the faces toward the light; a piece with no
+         silhouette (open at the face, a ring round another) its lit and its shaded runs */
+      if(this._pLod){ const E0 = [], E1 = [], ti = [], sil = !o.openFront && !o.ring;
+        for(let i = 0; i < n; i++){ E0.push(P(i, kB, z0)); E1.push(P(i, kT, z1, true)); }
+        if(sil) this.quadOn(g, convexHull(E0.concat(E1)), T.steps[5]);
+        for(let i = 0; i < n; i++){ const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
+          ti.push(!sees3(ma/ra, mb/rb, 0) || (o.openFront && mb/Math.hypot(ma, mb) > 0.3) ? -1 : Math.round(Math.abs(ma)/(Math.abs(ma) + Math.abs(mb))*8)); }
+        this.hullRuns(g, n, ti, E0, E1, T.steps[1], T.steps[5], !sil);
+        if(!o.noTop && sees3(0, 0, 1)){ this.quadOn(g, E1, o.topCol || T.lt); if(o.edge !== false) this.edgeOn(g, E1, T.dk, 1); }
+        return; }
       /* NO SEAMS (Sir, 2026-10-23: "these lines that make the body"): the piece's whole silhouette filled first, in its mid
          tone, so the hairline the anti-aliasing leaves between two faces shows body, not what is behind */
       if(!o.openFront && !o.ring){ const all = []; for(let i = 0; i < n; i++){ all.push(P(i, kB, z0)); all.push(P(i, kT, z1, true)); } this.quadOn(g, convexHull(all), T.steps[3]); }   // (not one open at the face: it would fill the face; nor a ring round another piece: it would fill a disc across it -- the headband, Sir, 2026-10-24)
@@ -91088,7 +91291,7 @@ class WorldScene extends Phaser.Scene {
       const hr = mulberry32(((hairHash + 1)*2654435761) >>> 0), partSide = hr() < 0.5 ? 1 : -1, curlPh = hr()*6;
       const cut = hat ? z0 + Hh*(uniform.bucket ? 0.78 : 0.5) : null, earZ = z0 + Hh*0.38;
       const loft = (o) => {
-        const n = 12, K = o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];
+        const n = LOD ? 8 : 12, K = LOD ? Math.min(o.K || 5, LOD === 1 ? 4 : 3) : o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];   // (8 a ring, 4 rings, 3 far: PERSON_DRAW's LOD)
         for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
           for(let i = 0; i < n; i++){ const th = (i + 0.5)/n*Math.PI*2, c = Math.cos(th), sn = Math.sin(th), R = o.rad(th, u, c, sn), z = o.z(th, u, c, sn);
             row.push({ a: o.ca + off[0] + c*R, b: o.cb + off[1] + sn*R, h: cut == null ? z : Math.min(z, cut) }); }
@@ -91129,7 +91332,7 @@ class WorldScene extends Phaser.Scene {
         /* the men's */
         case 'crop':   shell(lineOf(0.78, 0.55, 0.42), domeOf(1.05, 1.1, 0.3), r*0.5); break;
         case 'part':   shell(lineOf(0.76, 0.55, 0.42, 0.14), domeOf(1.05, 1.1, 0.3), r*0.5);                      // one side of the brow higher, a light line along the part
-                       if(cut == null) this.quadOn(g, [G(partSide*r*0.34, r*0.6, z1 + r*0.45), G(partSide*r*0.22, r*0.6, z1 + r*0.45), G(partSide*r*0.08, -r*0.3, z1 + r*0.47), G(partSide*r*0.2, -r*0.3, z1 + r*0.47)], ramp[0]); break;
+                       if(cut == null && !far) this.quadOn(g, [G(partSide*r*0.34, r*0.6, z1 + r*0.45), G(partSide*r*0.22, r*0.6, z1 + r*0.45), G(partSide*r*0.08, -r*0.3, z1 + r*0.47), G(partSide*r*0.2, -r*0.3, z1 + r*0.47)], ramp[0]); break;
         case 'quiff':  shell(lineOf(0.76, 0.55, 0.42), domeOf(1.05, 1.12, 0.36), r*0.8, { front: 0.14, o: { off: u => [0, r*0.32*u*u] } }); break;   // the crown swept up and forward
         case 'buzz':   shell(lineOf(0.8, 0.6, 0.5), domeOf(1.02, 1.04, 0.3), r*0.42, { o: { col: { c: _pmix(hairPair.c, pSkin.c, 0.4), dk: _pmix(hairPair.dk, pSkin.dk, 0.4) } } }); break;   // close to the skin
         case 'curls':  shell(lineOf(0.72, 0.5, 0.36), domeOf(1.14, 1.26, 0.5), r*0.72, { scallop: 0.07, o: { K: 7 } }); break;     // scalloped all round
@@ -91160,6 +91363,15 @@ class WorldScene extends Phaser.Scene {
     const ringSeg = (corner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper) => {
       const ST = hullSteps(cFront, cSide), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06;
       const Cq = (q, e) => { const k = e ? taper : 1; return corner(q[0]*wa*k, e ? p1 : p0, q[1]*wp*k); };
+      if(this._pLod){ const E0 = [], E1 = [], ti = [];                                  // (fused, as a limb: PERSON_DRAW's LOD)
+        for(let i = 0; i < 8; i++){ E0.push(Cq(R[i], 0)); E1.push(Cq(R[i], 1)); }
+        this.quadOn(g, convexHull(E0.concat(E1)), ST[5]);
+        for(let i = 0; i < 8; i++){ const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mp = q0[1] + q1[1];
+          ti.push(sees3(ma, mp*cT, mp*sT) ? Math.round(Math.abs(ma)/(Math.abs(ma) + Math.abs(mp))*8) : -1); }
+        this.hullRuns(g, 8, ti, E0, E1, ST[1], ST[5], false);
+        if((caps & 1) && sees3(0, sT, -cT)) this.quadOn(g, E1, cCap);
+        if((caps & 2) && sees3(0, -sT, cT)) this.quadOn(g, E0, cCap);
+        return; }
       { const all = []; for(let i = 0; i < 8; i++){ all.push(Cq(R[i], 0)); all.push(Cq(R[i], 1)); } this.quadOn(g, convexHull(all), ST[3]); }   // the silhouette first (no seams)
       for(let i = 0; i < 8; i++){
         const q0 = R[i], q1 = R[(i + 1) % 8], ma = q0[0] + q1[0], mp = q0[1] + q1[1];
@@ -91173,14 +91385,10 @@ class WorldScene extends Phaser.Scene {
 
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
 
-    const sh = (xf || drop || hover) ? this.W(ax, ay, z) : G(0,0,0);                     // (the shadow stays on the ground, however they roll, crouch or bounce)
     const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
     const noNear = noArms || !!(pose && pose.part === 'nonear');
-    if(!this.drawClip && (sit == null || rides) && !onlyArms && !(pose && pose.noShadow)){   // indoors (see drawClip) he casts none on the pavement; lying down, drawFallenHull's own
-      const shd = rides ? G(0, aidK === 'mobility' ? 12 : 8, hipH - sit) : sh, sk = aidK === 'mobility' ? 2.0 : rides ? 1.6 : 1;   // (a chair's, a scooter's: under it)
-      g.fillStyle(PEOPLE_ART.shadow, 0.18);
-      g.fillEllipse(shd.x, shd.y+1, 20*this.K*0.42*sk, 9*this.K*0.42*sk);
-    }
+    /* NO SHADOW ON PEOPLE (Sir, 2026-11-01): the disc at their feet is gone -- walkers, a room's people, staff, the
+       stories' people, riders, a chair's or a scooter's; and lying down too (drawFallenHull) */
 
     /* THE STRIDE (Sir, 2026-10-14: give the people the humanoid's walk): see gaitKit */
     const shoeH = Math.max(5, build.legH*0.13)*(pShoe && pShoe.platform ? 1.9 : 1);   // a platform boot's sole (the mall's goths)
@@ -91197,8 +91405,8 @@ class WorldScene extends Phaser.Scene {
       const b0 = A[0], h0 = A[1], S = pShoe, K = shoeKind, soleH = Math.max(1.5, shoeH*0.32), white = { c: _pmix(S.c, 0xf4f2ec, 0.78), dk: _pmix(S.dk, 0xd6d3ca, 0.65) };
       const sole = (bOff, hb, hh, col) => limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
       const upper = (bOff, hb, hbot, htop, taper, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, 1);
-      const toe = (bFrom, bTo, hbot, htop, ha, col) => limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);
-      const band = (bOff, hb, hbot, hh, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
+      const toe = (bFrom, bTo, hbot, htop, ha, col) => far ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);
+      const band = (bOff, hb, hbot, hh, col) => far ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
       switch(K){
         case 'sneaker':  sole(legD*0.38, legD*1.8, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.85, S);
                          band(legD*0.3, legD*1.52, h0 - shoeH + soleH*1.3, 1.6, { c: S.dk, dk: S.dk }); break;                               // a white sole, a band over it
@@ -91241,8 +91449,8 @@ class WorldScene extends Phaser.Scene {
           limb(aC, Sk, [K[0], K[1] + kneeW*0.9], kneeW*1.02, kneeD*1.02, AID_DARK.c, AID_DARK.dk, 1, 1);                  // the socket, up over the knee
         } else {
         limb(aC, ankle, shinTop, kneeW/1.15, kneeD/1.15, shinC.c, shinC.dk, 1.15, 0);
-        if(!bare && !RB) limb(aC, [A[0], A[1] + 0.5], [A[0], A[1] + 3], kneeW/1.15*1.04, kneeD/1.15*1.04, pPants.dk, _pdk(pPants.dk, 0.9), 1, 0, false);   // the trouser cuff
-        limb(aC, [K[0], K[1] - kneeW*0.9], [K[0], K[1] + kneeW*0.9], kneeW*0.98, kneeD*0.98, (RB ? jointP : thighC).c, (RB ? jointP : thighC).dk, 1, 0);   // the knee, a rounded hinge
+        if(!bare && !RB && !far) limb(aC, [A[0], A[1] + 0.5], [A[0], A[1] + 3], kneeW/1.15*1.04, kneeD/1.15*1.04, pPants.dk, _pdk(pPants.dk, 0.9), 1, 0, false);   // the trouser cuff
+        if(!far) limb(aC, [K[0], K[1] - kneeW*0.9], [K[0], K[1] + kneeW*0.9], kneeW*0.98, kneeD*0.98, (RB ? jointP : thighC).c, (RB ? jointP : thighC).dk, 1, 0);   // the knee, a rounded hinge
         }
         limb(aC, thighBot, H, kneeW, kneeD, thighC.c, thighC.dk, 1.18, 0);
       }
@@ -91309,7 +91517,7 @@ class WorldScene extends Phaser.Scene {
           this.quadOn(g, [P(-s2, -s2*0.7), P(s2, -s2*0.7), P(s2, s2*0.7), P(-s2, s2*0.7)], col);
         }
       }
-      if(!pShirt.tank && !RB) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
+      if(!pShirt.tank && !RB && !far) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
         prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest
         if(faceB < 0) robotPack();                                                                        // (facing the eye it went down before the body)
@@ -91474,7 +91682,7 @@ class WorldScene extends Phaser.Scene {
            arm, one hanging behind it goes under */
         /* the elbow: a hinge along the arm's bend, drawn FIRST, under both segments -- it only shows where neither covers, the
            outside of the bend (upright it stuck out of a level arm; over the sleeve it left a patch -- Sir, 2026-10-24) */
-        limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
+        if(!far) limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
         const fore = () => { limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
                              limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1); };   // the hand, from the wrist
         const raised = Math.abs(ang) > RAISED;
@@ -91482,7 +91690,7 @@ class WorldScene extends Phaser.Scene {
         if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
         /* the sleeve's hem last, over both: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that
            root painted a skin patch over the sleeve's end -- Sir, 2026-10-24) */
-        if(!pShirt.tank && !RB) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true);   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
+        if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true);   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
         aidHand(side, shoulderAx, Hd, ang + bend, E);
         if(raised) return false;
         /* what it holds: over the face when they face the eye (after the head) */
@@ -91502,11 +91710,11 @@ class WorldScene extends Phaser.Scene {
         /* swinging against its own side's leg, the elbow easing as it goes; the forearm first, the sleeve over its top */
         /* running (runK): the elbow bent near square and the arm driven further, pumping with the stride */
         const sw = -(0.42 + 0.25*runK)*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + (0.18 + 1.25*runK)*wk, Hd = along(E, fa, foreLen);
-        limb(shoulderAx, along(E, (sw + fa)/2, -elbowW*0.9), along(E, (sw + fa)/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);   // the elbow, a rounded hinge along the arm, under both segments
+        if(!far) limb(shoulderAx, along(E, (sw + fa)/2, -elbowW*0.9), along(E, (sw + fa)/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);   // the elbow, a rounded hinge along the arm, under both segments
         limb(shoulderAx, along(S, sw, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
         limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist
         limb(shoulderAx, S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
-        if(!pShirt.tank && !RB) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
+        if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
         aidHand(side, shoulderAx, Hd, fa, E);
         return;
       }
@@ -91966,14 +92174,7 @@ class WorldScene extends Phaser.Scene {
        feet (the sprawl draws the legs up the body), which read as a figure floating off its anchor. Here it is the
        hull's disc at the soles stretched out along the body's line, soles to crown, by how far over they are (ko), as
        the ground sees the figure; on the ground, however they bounce */
-    const ko = Math.max(Math.abs(S.pf), Math.abs(S.rf)), bodyL = FR.D.shoulderH + 2*FR.D.hr;
-    if(!this.drawClip){
-      const len = 10 + (bodyL*0.5 - 10)*ko, wid = 4.5 + 7*ko*(1 - 0.4*w) + 4*w*ko, cx = ox + uxw*len*0.92, cy = oy + uyw*len*0.92;   // (its middle up the body; the sprawl widens it)
-      const pts = [];
-      for(let i = 0; i < 14; i++){ const a = i/14*Math.PI*2, ca = Math.cos(a)*len, sa = Math.sin(a)*wid;
-        pts.push(this.W(cx + uxw*ca - uyw*sa, cy + uyw*ca + uxw*sa, z)); }
-      this.quadOn(g, pts, PEOPLE_ART.shadow, 0.18);
-    }
+    /* (...and none now, Sir, 2026-11-01: no shadows on people -- PERSON_DRAW) */
     P.noShadow = true;
     this.drawPersonHull(g, ox, oy, z, hth, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, 0, 0, null, uni || null, false, P);
     /* THE DUST of the landing (FALL_ANIM.dust): up off the ground round the body's middle, spreading and fading -- over
@@ -97188,7 +97389,8 @@ class WorldScene extends Phaser.Scene {
     };
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
       o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
-    const dog = () => this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data);
+    /* (the walked dog goes with its walker, PERSON_DRAW: no ghost of its own -- a teal dog on a lead to nobody) */
+    const dog = () => { const nx = this._noXray; this._noXray = true; try { this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data); } finally { this._noXray = nx; } };
     if(data._ownRef && data._ownRef.knock){ dog(); return; }                       // (the owner knocked down: drawn as they fall, updateKnocks)
     if(ow.x + ow.y < dx + dy){ owner(); dog(); } else { dog(); owner(); }
   }
@@ -97325,9 +97527,10 @@ class WorldScene extends Phaser.Scene {
            terminates. */
         this._xrayInProp = true;
         this._xrayCutY = yCut;               // for the strokes that ghost by hand (xrayGhost)
+        const md = this._xrayMode; this._xrayMode = 'cut';
         try {
           return this.drawProp(g, kind, x, y, t, fdir, z, wheelPhase, colorSeed, data);
-        } finally { delete this.quadOn; this._xrayInProp = false; this._xrayCutY = null; }
+        } finally { delete this.quadOn; this._xrayInProp = false; this._xrayCutY = null; this._xrayMode = md; }
       }
     }
     /* fdir may now be CONTINUOUS (a float, in quarter-turn units) --
@@ -108362,6 +108565,17 @@ class WorldScene extends Phaser.Scene {
         const mag = Math.abs(EG.off); chev.style.fill = mag > GPS_CHEV_BACK ? "#c2452e" : mag > GPS_CHEV_WARN ? "#ff7a1a" : "#3f7d43"; }
     }
   }
+}
+
+/* THE PEOPLE WHO MATTER TO PLAY (PERSON_DRAW's ghost: Sir, 2026-11-01, "only people that matter to play"): everyone
+   these draw -- William, a boat's customer, the rescue crew, the police, the stories' speakers (the cake run's, the
+   ballroom's doorman and planner, the mall's guard, Goth's mum, Rosa, Fourth Place's judge and engraver), the pickup's
+   worker -- keeps an x-ray ghost while hidden. Besides these: the delivery's customer, the heart run's doctor and
+   medic, the lost dog's owner, a lost thing's owner, the Lighthouse Run's people (keyPerson at their call), and
+   anyone within PERSON_DRAW.keyR of him */
+for(const n of ['drawWilliamHull', 'drawBoatCustomer', 'drawCrew', 'drawOfficer', 'drawCakePerson', 'drawAnnivRosa', 'drawFourthPerson', 'drawPickupUnit']){
+  const f = WorldScene.prototype[n];
+  if(typeof f === 'function') WorldScene.prototype[n] = function(...a){ return this.keyPerson(() => f.apply(this, a)); };
 }
 
 /* ---------- boot + panel ---------- */
