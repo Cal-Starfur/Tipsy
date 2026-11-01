@@ -455,6 +455,11 @@ export const FISHMKT_TIP_CENTS = 5000
  *  GETAWAY_TIP_ID). Keep in step with its reward.cents. */
 export const GETAWAY_TIP_ID = 'getaway'
 export const GETAWAY_TIP_CENTS = 5000
+/** SUNSET SESSION'S $50 (game/index.html SSN, MISSIONS 'sunset-session'):
+ *  the class's whip-round for Mele's boards, paid once per user, ever, on
+ *  the same claim (id SURF_TIP_ID). Keep in step with its reward.cents. */
+export const SURF_TIP_ID = 'surfschool'
+export const SURF_TIP_CENTS = 5000
 /** what each once-ever claim pays: the story missions' by id, every
  *  other id in GIFT_TIP_IDS an envelope's GIFT_TIP_CENTS */
 const ONCE_TIP_CENTS: Record<string, number> = {
@@ -463,6 +468,7 @@ const ONCE_TIP_CENTS: Record<string, number> = {
   [LIGHTHOUSE_TIP_ID]: LIGHTHOUSE_TIP_CENTS,
   [FISHMKT_TIP_ID]: FISHMKT_TIP_CENTS,
   [GETAWAY_TIP_ID]: GETAWAY_TIP_CENTS,
+  [SURF_TIP_ID]: SURF_TIP_CENTS,
 }
 export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   HEART_TIP_ID,
@@ -470,6 +476,7 @@ export const GIFT_TIP_IDS: ReadonlySet<string> = new Set([
   LIGHTHOUSE_TIP_ID,
   FISHMKT_TIP_ID,
   GETAWAY_TIP_ID,
+  SURF_TIP_ID,
   'g1tips',
   'g2tips',
   'g3tips',
