@@ -81488,8 +81488,9 @@ function cplQueueStory(scene, vq){
   const now = scene.time.now, T = CPL_RUN.truck;
   if(cplTruckHere() && scene.visWorldPt(T.x, T.y, 420, 600)){
     const sig = CPL.truck.map(c => c || '-').join('');
-    vq.push({ depth: T.x + T.y, fn: (g) => scene.bcDraw(g, "cpl|truck|" + sig, T.x, T.y, gg => {
-      scene.drawProp(gg, "flatbed", T.x, T.y, 0, T.fdir);
+    /* (the truck first, its rack of standing letters over it) */
+    vq.push({ depth: T.x + T.y - 1, fn: (g) => scene.bcDraw(g, "cpl|flatbed", T.x, T.y, gg => scene.drawProp(gg, "flatbed", T.x, T.y, 0, T.fdir)) });
+    vq.push({ depth: T.x + T.y, fn: (g) => scene.bcDraw(g, "cpl|rack|" + sig, T.x, T.y, gg => {
       /* the A-frame: two posts and a ridge over the bed, the letters standing against it, the farthest first */
       const K = scene.K, W = (x, y, z) => scene.W(x, y, z), z0 = T.bed;
       gg.lineStyle(Math.max(1, 4*K), 0x5f666c, 1);
