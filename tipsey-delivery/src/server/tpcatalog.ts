@@ -48,6 +48,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'board-shorts': {priceCents: 0, unlockType: 'achievement'},
   /* Open House's reward (the Open House trophy, 'open-house') */
   'engine-red': {priceCents: 0, unlockType: 'achievement'},
+  /* Letters on the Hill's reward (the Letters on the Hill trophy, 'letters-on-hill') */
+  'costa-palma': {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -138,7 +140,12 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       Yard): Tipsey's Fire helmet keepsake given to a junior
                       firefighter after a lap of the hose drill; the Open
                       House trophy (its claim grants the Engine Red skin) and
-                      $40 once (GIFT_TIP_IDS 'openhouse') */
+                      $40 once (GIFT_TIP_IDS 'openhouse')
+       letters-on-hill Letters on the Hill (at dusk, the Costa Palma hillside
+                      letters): the new A flown up on the Fleet's heavy-lift
+                      drone; the Letters on the Hill trophy (its claim grants
+                      the Costa Palma skin) and $50 once (GIFT_TIP_IDS
+                      'letters') */
   'cake-run': {bestMax: 1, completeAt: 1},
   'mall-password': {bestMax: 1, completeAt: 1},
   'goth-uniform': {bestMax: 1, completeAt: 1},
@@ -154,6 +161,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   'sunset-session': {bestMax: 1, completeAt: 1},
   'request-line': {bestMax: 1, completeAt: 1},
   'open-house': {bestMax: 1, completeAt: 1},
+  'letters-on-hill': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -268,6 +276,11 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'open-house': {
     rewardSkinId: 'engine-red',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'open-house'),
+  },
+  /* Letters on the Hill's trophy, the same way (the Costa Palma skin) */
+  'letters-on-hill': {
+    rewardSkinId: 'costa-palma',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'letters-on-hill'),
   },
 }
 
