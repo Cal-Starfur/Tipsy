@@ -6848,6 +6848,11 @@ function shadeN(c, m){
   return (f((c>>16)&255) << 16) | (f((c>>8)&255) << 8) | f(c&255);
 }
 function bayTintOf(shop){ return SHOP_ICONS[beaconIconOf(shop)].col; }
+/* the AR mat's dials (drawMatAR): far brackets, the rim's weight, the armed tint, the fade on arrival */
+/* on: EVERY mat and bay is this overlay (Sir, 2026-11-01: "lets do them all, the icon tells you the shop already"):
+   the red rug, the hatched pickup bays and the story bays paint nothing on the pavement (drawMatAt / drawPickupBay
+   return), and drawMatHighlight, which every mat already calls, draws drawMatAR. The slalom's checker finish stays */
+const MAT_AR = { on: true, farBite: 18, farW: 2.5, farA: 0.75, rimW: 3, tintA: 0.14, fadeMs: 600 };
 const MAT_HL = {
   near: 270,        // world units from the mat centre before it speaks up
   rimW: 8,          // band weight
@@ -19076,6 +19081,16 @@ function lostDogSays(D){
 }
 /* the dog's head, for the tag's card (hospSayCard's at) */
 function lostDogHeadAt(){ const D = LOST.dog; return D && !D.hidden ? { x: D.x, y: D.y, z: 0, h: 0 } : null; }
+/* ITS HOME'S MAT (Sir, 2026-11-01: "we need something other than just gps that indicates the home we are returning
+   dogs to, similar to the delivery mat"). The customer's red doormat, one tile out on the walk at the foot of the
+   house's path (annivHome's way), with the delivery's targeting ring and a paw beacon over it. Stopping on it, armed,
+   is the arrival (R2): the owner comes out from there. Built once per dog, from its home's own edge. */
+function lostDogHomeMat(D){
+  if(!D || D.shelter || !D.home || !D.home.e) return null;
+  if(D._mat) return D._mat;
+  const E = D.home.e, ax = E.ox + E.dv.x*D.home.along + E.rv.x*T2, ay = E.oy + E.dv.y*D.home.along + E.rv.y*T2;
+  return (D._mat = { ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2 });
+}
 /* the tag read: off home, the dog behind him, the GPS to its door */
 function lostDogTagRead(){
   const scene = (typeof scn === "function") ? scn() : null, R = LOST, D = R.dog;
@@ -19306,8 +19321,10 @@ function lostDogTick(scene, ow){
     const left = lostDogMoveTo(D, tx, ty, spd, dt);
     if(left < 4 && v < 0.01) D.th = ow.yaw;
     /* at the gate, stopped, the dog with him: the owner comes out */
-    const gate = D.shelter ? shelterW(SHELTER.door[0], SHELTER.gateB) : edgePt(D.home.e, D.home.along, 70);
-    if(Math.hypot(ow.px - gate.x, ow.py - gate.y) < P.homeR*(D.shelter ? 1.6 : 1) && v < 0.02 && dBot < 260){
+    const gate = D.shelter ? shelterW(SHELTER.door[0], SHELTER.gateB) : edgePt(D.home.e, D.home.along, 70), HM = lostDogHomeMat(D);
+    const there = HM ? matHighlightState(scene, HM.mat, scene.mode) === "armed"   // (home: stopped on its mat, as a delivery)
+                     : Math.hypot(ow.px - gate.x, ow.py - gate.y) < P.homeR*1.6 && v < 0.02;
+    if(there && dBot < 260){
       R.st = 'owner';
       const step = D.shelter ? shelterW(SHELTER.door[0], SHELTER.stepB) : edgePt(D.home.e, D.home.along, D.home.bDoor + 22);
       R.owner = { ...cakeMeet(ow, step, now, scene), card: false, seed: (D.seed ^ 0x0d06) >>> 0, step };
@@ -95026,6 +95043,20 @@ class WorldScene extends Phaser.Scene {
       if(rs && this.visProp("chargestation", rs.x, rs.y))
         hazVQ.push({ depth: rs.x + rs.y, fn: (gg, tt) => this.drawAnnivRosa(layerFor(rs.x, rs.y), rs, tt || now) });
     }
+    /* A RESCUED DOG'S HOME (LOST_DOG): the red doormat at its house, the delivery's targeting ring, a paw beacon --
+       while the dog follows him there. The mat is still (bcDraw); only its ring and the beacon draw live (R16) */
+    if(this.ow && this.ow.on && !this._inside && (LOST.st === 'follow' || LOST.st === 'owner')){   // (its ring eases off through the handover: no pop)
+      const H = lostDogHomeMat(LOST.dog), on = LOST.st === 'follow';
+      if(H){
+        /* the AR mat (drawMatAR): only the ring, in his view; on arrival it eases off rather than vanishing */
+        const k = on ? 1 : Math.max(0, 1 - (this.time.now - ((LOST.owner && LOST.owner.t0) || 0))/MAT_AR.fadeMs);
+        if(k > 0.01 && this.visProp("chargestation", H.x, H.y)){
+          const hl = on ? matHighlightState(this, H.mat, this.mode) : "armed";
+          hazVQ.push({ depth: H.x + H.y - T2, fn: (gg, tt) => this.drawMatAR(layerFor(H.x, H.y), H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt, k) });
+        }
+        if(on) queueBeacon(H.x, H.y, "paw");
+      }
+    }
     /* LUNA'S UNIFORM (GOTH): her mom's mat and beacon in Sierra Vista, and her mom with the bag */
     if(this.ow && this.ow.on && !this._inside && GOTH.stage === 'fetch' && gothHome(this)){
       const now = this.time.now, h = gothHome(this);
@@ -95845,10 +95876,12 @@ class WorldScene extends Phaser.Scene {
   /* bz: a bay up on a deck or a slope (the derby's ramp: NUMBER 4 BUILDS A WINNER) -- a height, or the ground's height
      at a world point, (x, y) => z */
   drawPickupBayCached(g, ox, oy, dv, rv, shop, heart = false, bz = 0){
+    if(MAT_AR.on) return;   // (the AR mat: nothing on the pavement)
     const key = "bay|" + Math.round(ox) + "," + Math.round(oy) + "|" + dv.x + "," + dv.y + "," + rv.x + "," + rv.y + "|" + (shop ? (shop.name || shop.base || shop) : "") + "|" + heart + (bz ? "|" + (typeof bz === 'function' ? 'f' : Math.round(bz)) : "");
     return this.bcDraw(g, key, ox, oy, gg => this.drawPickupBay(gg, ox, oy, dv, rv, shop, heart, bz));
   }
   drawPickupBay(g, ox, oy, dv, rv, shop, heart = false, bz = 0){
+    if(MAT_AR.on) return;   // (the AR mat: nothing on the pavement)
     const M = (a, b, z) => { const x = ox + dv.x*a + rv.x*b, y = oy + dv.y*a + rv.y*b; return this.W(x, y, z + (typeof bz === 'function' ? bz(x, y) : bz)); };
     const cake = heart === 'cake';
     const h = T2/2, tint = cake ? SHOP_ICONS.cake.col : heart ? SHOP_ICONS.heart.col : bayTintOf(shop), K = this.K;
@@ -95974,6 +96007,7 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, outer, MAT_ART.ckBorder, 1.4);
       return;
     }
+    if(MAT_AR.on) return;   // (the AR mat: no red rug, only its ring -- drawMatHighlight)
     const matFar = matNear + T2;
     const outer = [M(-half,matNear,0.6), M(half,matNear,0.6), M(half,matFar,0.6), M(-half,matFar,0.6)];
     this.quadOn(g, outer, MAT_ART.redDk);
@@ -95999,6 +96033,7 @@ class WorldScene extends Phaser.Scene {
      anchor and the same dv/rv drawMatAt uses, so the two cannot drift
      apart -- see MAT_HL for why apron 0 is the shipped look. */
   drawMatHighlight(g, ox, oy, dv, rv, alongC, dz, state, t){
+    if(MAT_AR.on) return this.drawMatAR(g, ox, oy, dv, rv, alongC, dz, state, t || 0);
     if(state === "far") return;
     /* SAME SHAPE AS drawMatAt, argument for argument -- alongC kept
        separate and dz carried through, so the highlight lands on the
@@ -96034,6 +96069,34 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* THE AR MAT (Sir, 2026-11-01: "more an AR overlay that tipsy can see but no one else ... just the ring that
+     surrounds the red mat, get rid of the red fill"). Nothing lies on the pavement: only the targeting ring, in
+     Tipsey's view. Far: four corner brackets, faint. Near: the rim, breathing. On: the rim and its corner ticks.
+     Armed: green, a light tint. k fades the whole overlay (it eases off on arrival instead of vanishing).
+     Same frame and shape as drawMatAt / drawMatHighlight, so the ring is exactly where the trigger is. */
+  drawMatAR(g, ox, oy, dv, rv, alongC, dz, state, t, k = 1){
+    if(k <= 0.01) return;
+    const M = (dx, dy) => { const x = ox + dv.x*(alongC+dx) + rv.x*dy, y = oy + dv.y*(alongC+dx) + rv.y*dy; return this.W(x, y, (typeof dz === 'function' ? dz(x, y) : dz) + 0.7); };
+    const half = T2/2, K = this.K, H = MAT_AR;
+    const tone = state === "armed" ? MAT_HL.toneArmed : state === "on" ? MAT_HL.toneOn : MAT_HL.toneNear;
+    const ph = (t % MAT_HL.pulseMs) / MAT_HL.pulseMs, breathe = 0.5 + 0.5*Math.sin(ph*Math.PI*2);
+    const R = [M(-half, 0), M(half, 0), M(half, T2), M(-half, T2)];
+    const corners = (len, w, a) => {
+      g.lineStyle(w*K, tone, a);
+      for(const [sx, sy] of [[-1,0],[1,0],[1,1],[-1,1]]){
+        const cx = sx*half, cy = sy*T2;
+        const p0 = M(cx - sx*len, cy), p1 = M(cx, cy), p2 = M(cx, cy + (sy ? -len : len));
+        g.strokePoints([p0, p1, p2].map(p => new Phaser.Geom.Point(p.x, p.y)), false);
+      }
+    };
+    this.withAlpha(g, k, () => {
+      if(state === "far"){ corners(H.farBite, H.farW, H.farA); return; }
+      if(state === "near"){ this.edgeOn(g, R, tone, H.rimW*K*(0.8 + 0.4*breathe)); corners(MAT_HL.bite, H.rimW + 1, 0.9); return; }
+      if(state === "armed") this.quadOn(g, R, tone, H.tintA);
+      this.edgeOn(g, R, tone, (H.rimW + (state === "armed" ? 1.5 : 0.5))*K);
+      corners(MAT_HL.bite, H.rimW + 1.5, 1);
+    });
+  }
   drawMatQuad(g, ox, oy, dv, rv, doorCenterX, dz){
     this.drawMatAt(g, ox, oy, dv, rv, doorCenterX, dz, this._slAPI ? "checker" : "rug");
     /* THE HOUSE MAT GETS THE SAME HIGHLIGHT (Sir's call, 2026-08-25:
