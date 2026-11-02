@@ -81193,26 +81193,64 @@ function cplConvoyReset(firstParked){
   CPL.trucks = CPL_RUN.load.map((ch, k) => ({ k, ch, st: k === 0 && firstParked ? 'parked' : 'wait', t0: 0, letter: true }));
   CPL.cur = 0;
 }
-/* where truck T is now (x along the kerb), and whether it moves */
+/* THE TRUCKS DRIVE THE STREET AS TRAFFIC DOES: in the westbound lane (TRAF_LANE off the street's middle), pulling over to
+   the kerb over its last 700 and out of it over its first 700. Each runs on its own clock (T.p, ms along its way), which
+   cplConvoyTraffic slows while it gives way to the street's cars (trafficGiveWay, the crew van's rule): a car in its way
+   waits for it, and it waits for a car in its way, never through one. Parked at the kerb it is out of the lane */
+function cplTruckPath(T){
+  const Kb = CPL_RUN.kerb, ly = -TRAF_LANE;
+  return T.st === 'in' ? [{ x: Kb.x + Kb.inFrom, y: ly }, { x: Kb.x + 700, y: ly }, { x: Kb.x, y: Kb.y }]
+                       : [{ x: Kb.x, y: Kb.y }, { x: Kb.x - 700, y: ly }, { x: Kb.x - Kb.outTo, y: ly }];
+}
+/* where truck T is now, its heading (quarter turns) and whether it moves */
 function cplTruckPos(T, now){
-  const Kb = CPL_RUN.kerb, ease = u => u*u*(3 - 2*u);
-  if(T.st === 'parked') return { x: Kb.x, y: Kb.y, moving: false };
-  if(T.st === 'in'){ const u = Math.min(1, (now - T.t0)/Kb.inMs), e = 1 - (1 - u)*(1 - u); return { x: Kb.x + Kb.inFrom*(1 - e), y: Kb.y, moving: u < 1, u }; }
-  if(T.st === 'out'){ const u = Math.min(1, (now - T.t0)/Kb.outMs); return { x: Kb.x - Kb.outTo*u*u, y: Kb.y, moving: u < 1, u }; }
-  return null;
+  const Kb = CPL_RUN.kerb;
+  if(T.st === 'parked') return { x: Kb.x, y: Kb.y, fdir: Kb.fdir, moving: false };
+  if(T.st !== 'in' && T.st !== 'out') return null;
+  const ms = T.st === 'in' ? Kb.inMs : Kb.outMs, u = Math.min(1, (T.p || 0)/ms), e = T.st === 'in' ? 1 - (1 - u)*(1 - u) : u*u;
+  const pts = cplTruckPath(T), L = walkPathLen({ pts }), d = e*L, q = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 120)), b = walkPathPoint(pts, Math.min(L, d + 120));
+  return { x: q.x, y: q.y, fdir: Math.atan2(b.y - a.y, b.x - a.x)/(Math.PI/2), moving: u < 1, u };
+}
+/* each frame, after the street's spacing pass: every truck on the move gives way and is given way to */
+function cplConvoyTraffic(scene, t){
+  const Tr = CPL.trucks;
+  if(!Tr) return;
+  for(const T of Tr){
+    const dt = T.ts === undefined ? 0 : Math.max(0, Math.min(250, t - T.ts)); T.ts = t;
+    if(T.st !== 'in' && T.st !== 'out') continue;
+    const p = cplTruckPos(T, t);
+    let blocked = p ? scene.trafficGiveWay(t, { x: p.x, y: p.y, fdir: p.fdir, parked: false, len: RIGS.semiflat.len }) : false;
+    /* and the street's riders, the cars' rule with them (updateRiderTraffic): a rider in its way, it waits; it in a rider's
+       way, the rider waits (carWait: the truck is the bigger) */
+    if(p && scene.ridersActive){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), H = RIGS.semiflat.len*0.45, BAND = STREET_RIDER.band;
+      const tPts = [-H, -H/2, 0, H/2, H].map(k => ({ x: p.x + hx*k, y: p.y + hy*k }));
+      const inWay = (ox, oy, ax, ay, pts, look) => pts.some(q => { const rx = q.x - ox, ry = q.y - oy, al = rx*ax + ry*ay; return al > 0 && al < look && Math.abs(rx*ay - ry*ax) < BAND; });
+      for(const rd of scene.ridersActive(t)){
+        const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, dx = wp.x - p.x, dy = wp.y - p.y;
+        if(dx*dx + dy*dy > 1100*1100) continue;
+        const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
+        if(inWay(wp.x, wp.y, rx, ry, tPts, STREET_RIDER.look + 30)) rd.carWait = t;
+        else if(inWay(p.x, p.y, hx, hy, rPts, H + TRAF_BRAKE_D + 90)) blocked = true;
+      } }
+    T.stall = blocked ? (T.stall || 0) + dt : 0;
+    if(T.stall > 30000) blocked = false;                    // (the crew van's: a wait that never clears is let go)
+    T.vf = blocked ? Math.max(0, (T.vf == null ? 1 : T.vf) - dt/350) : Math.min(1, (T.vf == null ? 1 : T.vf) + dt/900);
+    T.p = (T.p || 0) + dt*T.vf;
+  }
 }
 /* the letter on a truck's deck, standing on its A-frame: the bottom edge's middle (the deck's middle, the truck heading west) */
-function cplDeckLetter(x, y){ const D = rigDeck('semiflat'), am = (D.a0 + D.a1)/2; return { x: x - am, y: y + 13, z: D.h + 4 }; }
+function cplDeckLetter(x, y, fdir){ const D = rigDeck('semiflat'), am = (D.a0 + D.a1)/2, th = (fdir == null ? 2 : fdir)*Math.PI/2;
+  return { x: x + Math.cos(th)*am, y: y + Math.sin(th)*am + 13, z: D.h + 4 }; }
 /* the convoy's day: a truck in pulls up (and parks); one leaving goes; the next comes in once the last is on its way */
 function cplConvoyTick(now){
   const Tr = CPL.trucks;
   if(!Tr) return;
   for(const T of Tr){
-    if(T.st === 'in' && now - T.t0 >= CPL_RUN.kerb.inMs) T.st = 'parked';
-    if(T.st === 'out' && now - T.t0 >= CPL_RUN.kerb.outMs) T.st = 'gone';
+    if(T.st === 'in' && (T.p || 0) >= CPL_RUN.kerb.inMs) T.st = 'parked';
+    if(T.st === 'out' && (T.p || 0) >= CPL_RUN.kerb.outMs) T.st = 'gone';
   }
   const cur = Tr[CPL.cur];
-  if(cur && cur.st === 'wait'){ const prev = Tr[CPL.cur - 1]; if(!prev || prev.st === 'gone' || (prev.st === 'out' && now - prev.t0 > CPL_RUN.kerb.gapMs)){ cur.st = 'in'; cur.t0 = now; } }
+  if(cur && cur.st === 'wait'){ const prev = Tr[CPL.cur - 1]; if(!prev || prev.st === 'gone' || (prev.st === 'out' && (prev.p || 0) > CPL_RUN.kerb.gapMs)){ cur.st = 'in'; cur.t0 = now; cur.p = 0; cur.vf = 1; } }
 }
 /* the truck at the kerb, ready: parked with its letter on */
 function cplTruckReady(){ const T = CPL.trucks && CPL.trucks[CPL.cur]; return !!(T && T.st === 'parked' && T.letter); }
@@ -81225,8 +81263,8 @@ function cplQueueConvoy(scene, vq){
     if(!p || !scene.visWorldPt(p.x, p.y, 520, 560)) continue;
     const draw = (gg, t) => {
       const wp = p.moving ? ((p.x/40) % 1000) : 0;
-      scene.drawProp(gg, "semiflat", p.x, p.y, t || 0, CPL_RUN.kerb.fdir, 0, wp, 0x5e7 + T.k*977, null);
-      if(T.letter){ const Lp = cplDeckLetter(p.x, p.y), K = scene.K, W = (x, y, z) => scene.W(x, y, z);
+      scene.drawProp(gg, "semiflat", p.x, p.y, t || 0, p.fdir, 0, wp, 0x5e7 + T.k*977, null);
+      if(T.letter){ const Lp = cplDeckLetter(p.x, p.y, p.fdir), K = scene.K, W = (x, y, z) => scene.W(x, y, z);
         /* the A-frame behind it: two raked posts and a ridge, the letter standing against them */
         gg.lineStyle(Math.max(1, 4*K), 0x5f666c, 1);
         for(const dx of [-110, 110]){ const a = W(Lp.x + dx, Lp.y - 46, Lp.z), b = W(Lp.x + dx, Lp.y - 12, Lp.z + 300); gg.lineBetween(a.x, a.y, b.x, b.y); }
@@ -81468,7 +81506,7 @@ function cplTick(scene, ow){
       if(now > R.liftT0 + CPL_RUN.liftMs){
         R.stage = 'fly'; if(ow.fly) ow.fly.hold = null; cineBars(false);
         /* the empty truck pulls away; the next one comes once it is on its way */
-        const T = R.trucks[R.cur]; T.st = 'out'; T.t0 = now; R.cur++;
+        const T = R.trucks[R.cur]; T.st = 'out'; T.t0 = now; T.p = 0; T.vf = 0; R.cur++;   // (pulling away from rest)
         if(typeof tpToast === "function") tpToast(R.carry.ch === 'S' ? "The S: up the hill to COSTA, the first shelf." : "An A: up the hill to PALMA, the second shelf.");
       }
       return;
@@ -118449,11 +118487,29 @@ class WorldScene extends Phaser.Scene {
     if(!v) return;
     const dt = v.ts === undefined ? 0 : Math.max(0, t - v.ts);
     const at = v.route === this.route ? rescueVanAt(v, t) : null;
-    const traffic = at ? this.trafficActive(t) : null;
+    const blocked0 = at ? this.trafficGiveWay(t, at) : false;
+    let blocked = blocked0;
+    /* braked and pulled away like a car (TRAF_BRAKE_MS / ACCEL_MS); a
+       wait that never clears (a jam it cannot see the end of) lets it go
+       after 7s rather than leave him lying there */
+    v.stall = blocked ? (v.stall || 0) + dt : 0;
+    if(v.stall > 30000) blocked = false;   // (respects the traffic: only a wait that has not cleared in half a minute -- a jam it is part of -- is let go)
+    const vf = v.vf === undefined ? 1 : v.vf;
+    v.vf = blocked ? Math.max(0, vf - dt/350) : Math.min(1, vf + dt/900);
+    v.u0 = rescueClock(v, t) - dt*v.rate*(1 - v.vf);
+    v.ts = t;
+  }
+  /* GIVING WAY, BOTH WAYS (the crew's van's rule, factored out for every story vehicle on the street: the van, the police
+     cruiser, LETTERS ON THE HILL's semis): `at` is the vehicle now -- { x, y, fdir (quarter turns), parked, len } -- and
+     the street's cars round it each test the other's body inside a band ahead. A car in its way is stopped (stopAt,
+     braked by updateTrafficMotion); returns true when the vehicle itself must wait (its caller slows its own clock) */
+  trafficGiveWay(t, at){
+    const traffic = this.trafficActive(t);
     let blocked = false;
     if(traffic && traffic.length){
-      const vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = CARC.len*0.42;
-      const BAND = CARC.wid + 14, VLOOK = CARC.len + 170, CLOOK = CARC.len*1.15 + TRAF_BRAKE_D + 60;
+      const L = at.len || CARC.len;
+      const vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = L*0.42;
+      const BAND = CARC.wid + 14, VLOOK = L/2 + CARC.len/2 + 170, CLOOK = (L + CARC.len)/2*1.15 + TRAF_BRAKE_D + 60;
       const vPts = [-H, 0, H].map(a => ({ x: at.x + vx*a, y: at.y + vy*a }));
       const inWay = (ox, oy, hx, hy, pts, look) => pts.some(q => {
         const rx = q.x - ox, ry = q.y - oy, al = rx*hx + ry*hy;
@@ -118461,7 +118517,7 @@ class WorldScene extends Phaser.Scene {
       for(const tr of traffic){
         const { wp, fc } = trafficWorldAt(tr, t);
         const dx = wp.x - at.x, dy = wp.y - at.y;
-        if(dx*dx + dy*dy > 900*900) continue;
+        if(dx*dx + dy*dy > (900 + L/2)*(900 + L/2)) continue;
         const ch = fc*(Math.PI/2), cx = Math.cos(ch), cy = Math.sin(ch);
         const cH = (tr.len || CARC.len)*0.42, cPts = [-cH, 0, cH].map(a => ({ x: wp.x + cx*a, y: wp.y + cy*a }));
         const carWaits = inWay(wp.x, wp.y, cx, cy, vPts, CLOOK);
@@ -118474,15 +118530,7 @@ class WorldScene extends Phaser.Scene {
         else if(vanWaits) blocked = true;
       }
     }
-    /* braked and pulled away like a car (TRAF_BRAKE_MS / ACCEL_MS); a
-       wait that never clears (a jam it cannot see the end of) lets it go
-       after 7s rather than leave him lying there */
-    v.stall = blocked ? (v.stall || 0) + dt : 0;
-    if(v.stall > 30000) blocked = false;   // (respects the traffic: only a wait that has not cleared in half a minute -- a jam it is part of -- is let go)
-    const vf = v.vf === undefined ? 1 : v.vf;
-    v.vf = blocked ? Math.max(0, vf - dt/350) : Math.min(1, vf + dt/900);
-    v.u0 = rescueClock(v, t) - dt*v.rate*(1 - v.vf);
-    v.ts = t;
+    return blocked;
   }
 
   /* ---------- TRAFFIC SIM GATE ----------
@@ -119118,6 +119166,7 @@ class WorldScene extends Phaser.Scene {
     this.updateTrafficSpacing(t, dt);   // sets _trafHoldDt, which the signals reuse
     this.updateRescueVanTraffic(t);     // after spacing: the cars it stops stay stopped
     if(this._police && this._police.u0 !== undefined) this.updateRescueVanTraffic(t, this._police);
+    if(typeof cplConvoyTraffic === "function") cplConvoyTraffic(this, t);   // LETTERS ON THE HILL's semis, in the lane and at the kerb
     this.updateRiderTraffic(t);         // riders and cars give way to each other (before either moves)
     this.updateSignalHolds(t);
     this.updateWilliamIdle(t);
