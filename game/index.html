@@ -2206,7 +2206,7 @@ function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOC
                                  NOT saved -- the store path is below)
      HOOD_LOCK.active = false    no lock at all */
 const HOOD_LOCK = { active: true, owned: new Set([0]) };   // HOODS indices
-const CPL_ANNEX = { x0: 28100, x1: 32400, y1: 380 };        // (hoodLockAllows: the Costa Palma letters' park, the top street's kerb lane beside it and the hill)
+const CPL_ANNEX = { x0: 28100, x1: 32400, y1: 380, run: 29800 };        // (hoodLockAllows: the Costa Palma letters' park, the top street's kerb lane beside it and the hill)
 function hoodLockEdge(){ return ROAD_HALF + 40; }
 function hoodCellAt(x, y){
   const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK;
@@ -2220,6 +2220,7 @@ function hoodLockAllows(x, y){
      think that its fine"): the letters' park on the rim lot east of Tide Pool Elementary, its pavement and the hill behind
      it stand past the Flats' line, x 28560, and are played from the Flats */
   if(x > CPL_ANNEX.x0 && x < CPL_ANNEX.x1 && y < CPL_ANNEX.y1) return true;
+  if(x < CPL_ANNEX.run && typeof CPL !== "undefined" && CPL.stage !== 'idle' && FLEET_LOAN === 'dronelift') return true;   // (LETTERS ON THE HILL's flight up from the hangar)
   /* an interior (POCKETS) is in its landmark's hood: ask at its front door */
   const pk = typeof pocketAt === "function" ? pocketAt(x, y) : null;
   if(pk){ const d = pocketOutsideDoor(pk); if(d){ x = d.x; y = d.y; } }
@@ -81138,17 +81139,17 @@ const CPL = { stage: 'idle', rw: null, M: null, hw: null, park: null, bot: null,
               trucks: null, cur: 0, up: new Set(), carry: null, slot: -1, crew: null, wrongT: 0, boss: null, rig: null };
 const CPL_RUN = {
   gate: hospBay(29180, -620),               // the start: the pavement outside the letters' park, by its path in
-  cents: 5000, par: 480000,                 // the par: 8:00 from his yes (measured: docs/kits/missions.md)
+  cents: 5000, par: 360000,                 // the par: 6:00 from his yes (about 4:30 at a straight stick on a 60 fps device: docs/kits/missions.md)
   setMs: 4600, boltMs: 2200, litStep: 420, liftMs: 2400,
-  /* THE CONVOY: three semiflats, one letter each, parked in turn at the north kerb of the top street at the park's west end,
-     facing west with the traffic of the near lane; in from the east past the view's edge, away west past it. (Its letter's
-     x, 28441, is the hangar's own, 28390, near enough: the flight from Sun Deck Airfield runs straight up the Flats inside
-     its line, x 28560, and the hood lock lets the kerb lane and the park in: CPL_ANNEX) */
-  kerb: { x: 28300, y: -300, fdir: 2, inFrom: 6500, outTo: 7000, inMs: 13000, outMs: 12000, gapMs: 3500 },
+  /* THE CONVOY: three semiflats, one letter each, parked in turn at the north kerb of the top street beside the park's west
+     end (clear of the corner's zebra), facing west with the traffic of the near lane; in from the east past the view's edge,
+     away west past it. The flight from Sun Deck Airfield runs straight up the Flats' east edge to it: the hood lock lets the
+     kerb lane and the park in (CPL_ANNEX), and while the story is on, a strip past the Flats' line up to x 29800 too */
+  kerb: { x: 29300, y: -300, fdir: 2, inFrom: 6500, outTo: 7000, inMs: 13000, outMs: 12000, gapMs: 3500 },
   load: ['A', 'S', 'A'],
   hover: 690,                               // the drone's hover over a trailer (clear of the standing letter's top, 532)
   boss: { x: 29560, y: -560 },              // Hollis Vance's place: the pavement by the park's path in, watching the kerb
-  rigger: { x: 28260, y: -580 },            // Wren Ochoa's place: the pavement by the truck
+  rigger: { x: 29260, y: -580 },            // Wren Ochoa's place: the pavement by the truck
   botV: 0.22,                               // the drone's own pace flying home (its vMax)
   crew: [{ name: 'Pilar Quintero', post: [30760, -3470], shelf: 2, seed: 0xc7c52, sex: 'f' },
          { name: 'Lowell Duarte', post: [30900, -3480], shelf: 2, seed: 0xc7c94 }],
