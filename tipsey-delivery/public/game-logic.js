@@ -79087,7 +79087,7 @@ const CPL_PLAN = {
   ROWS: [{ word: 'COSTA', x0: 21300, yf: -2700, shelf: 1 }, { word: 'PALMA', x0: 23300, yf: -3600, shelf: 2 }],
   MISSING: 9,                                                   // the second A of PALMA (index into the ten)
   KIOSK: { x: 27140, y: -1615 },                                // the ranger's booth (drawGuardBooth's middle), inside the railing
-  RANGER: { x: 27120, y: -1500 },                               // her post, at the booth's window
+  RANGER: { x: 27150, y: -1580 },                               // her post: inside the booth at its front window, facing out over it (R19: the working side)
   STAIR: [[27150, -1700, 0], [27150, -1900, 0], [26900, -2130, 50], [27150, -2360, 100], [26900, -2590, 150]],
   PATH: { x0: 21200, x1: 26960, y0: -2625, y1: -2555 },         // the gravel path along the first shelf (its z: the shelf's)
   WALK: { x0: 27110, x1: 27190, y0: -1900, y1: -1662 },         // the gravel from the railing's back to the stair's foot
@@ -79234,7 +79234,7 @@ function cplQueueStatic(scene, vq){
   }
   /* the ranger's kiosk: the kit's guard booth */
   { const B = P.KIOSK;
-    if(scene.visWorldPt(B.x, B.y, 220, 260)) vq.push({ depth: B.x + B.y, fn: (g) => scene.bcDraw(g, "cpl|kiosk", B.x, B.y, gg => scene.drawGuardBooth(gg, B.x, B.y, 0)) }); }
+    if(scene.visWorldPt(B.x, B.y, 220, 260)) vq.push({ depth: B.x + B.y + 90, fn: (g) => scene.bcDraw(g, "cpl|kiosk|glass", B.x, B.y, gg => scene.drawGuardBooth(gg, B.x, B.y, 0, true)) }); }   // (its front's depth: she is drawn first, inside)
 }
 /* the gravel, in the ground pass: the walk from the railing's back to the stair's foot, the path along the first shelf */
 function cplFillGround(scene, g){
@@ -79254,7 +79254,13 @@ function cplHandPath(){
   pts.push({ x: 26900, y: -2590, z: z1 }, { x: 24600, y: -2590, z: z1 });
   return (CPL_HAND.pts = pts);
 }
+/* at dusk while the new A waits in the yard (LETTERS ON THE HILL), his place is by it (moved only while unseen: cplTick);
+   in the story he walks to the drone and back (CPL.hw) */
 function cplHandAt(now){
+  if(typeof CPL !== "undefined"){
+    if(CPL.hw){ const w = hospWalkAt(CPL.hw, now); if(w) return w; }
+    if(CPL.handAtYard){ const H = CPL_RUN.handPost, Y = CPL_RUN.yard; return { x: H.x, y: H.y, z: 0, th: lhGlance(Math.atan2(Y.y - H.y, Y.x - H.x), now, 9), moving: false }; }
+  }
   const pts = cplHandPath(), L = walkPathLen({ pts }), T = L/CPL_HAND.v, per = 2*(T + CPL_HAND.rest);
   let t = now % per, d, back = false, moving = true;
   if(t < CPL_HAND.rest){ d = 0; moving = false; }
@@ -79271,7 +79277,7 @@ function cplHandAt(now){
 const CPL_GATE_POST = { x: 25800, y: -900 };
 function cplRangerPost(now){
   if(typeof CPL !== "undefined" && CPL.atGate) return { x: CPL_GATE_POST.x, y: CPL_GATE_POST.y, th: lhGlance(Math.PI/2, now, 7), moving: false };
-  const R = CPL_PLAN.RANGER; return { x: R.x, y: R.y, th: lhGlance(Math.PI*0.62, now, 7), moving: false }; }
+  const R = CPL_PLAN.RANGER; return { x: R.x, y: R.y, th: lhGlance(Math.PI/2, now, 7), moving: false }; }
 const _cplLooks = {};
 function cplLook(k){
   if(_cplLooks[k]) return _cplLooks[k];
@@ -79296,7 +79302,7 @@ function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
         0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
-  person(cplRangerAt(now), cplLook('ranger'), null, keyQueue);
+  person(cplRangerAt(now), cplLook('ranger'), null, CPL.rw || CPL.atGate ? keyQueue : queuePerson);   // (at her kiosk, inside behind its glass: not the story's ghost)
   person(cplHandAt(now), cplLook('hand'));
   if(typeof cplKidAt === "function") for(let k = 0; k < 6; k++){ const p = cplKidAt(k, now);
     if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, cplLook('kid' + k), p.cheer ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
@@ -79310,40 +79316,52 @@ CITY_PEOPLE.add({ name: 'Costa Palma letters', where: "the hillside letters behi
   } });
 /* ==================== LETTERS ON THE HILL (area 10's story; FLEET_MISSIONS 'letters-on-hill': the heavy-lift drone) ====================
    The Santa Ana took the second A of PALMA off the hill in the night, and tonight is the town's birthday: the letters'
-   floods come on at dusk, and no truck can get up the terraces. It COMES AT DUSK (MISSION_WINDOWS.dusk) and, started,
-   keeps its dusk to the end (NIGHT_HOLD, as Sunset Salute):
-     ask      Tipsey stops on the bay on the pavement outside Tide Pool Elementary's east gate; the hill ranger comes
-              down from her kiosk, through the yard and out of the gate (it opens for her), face to face (meetWalk /
-              meetTick), and asks (On my way! / Not now)
-     drive    out to the Fleet's hangar at Sun Deck Airfield (F7), in at its own gate, onto the visitor bay
-     crew     the crew chief (the Lighthouse Run's Joss, from her post) comes over, face to face: the new panel is slung
-              flat under the heavy-lift drone (Let's fly!); the mission LENDS him the heavy-lift drone (FLEET_LOAN
-              'dronelift'), Tipsey parked still on the visitor bay, the drone out of its lane and up (flyOnPlay)
-     fly      north across the Flats to the hill behind the school (over the foothills: flyFoothillCorridor), the panel
-              swinging on its cables in the gusts (cplSway), the beacon over the gap after the M
-     set      over the gap it comes down to a hover; the panel is lowered and swung up onto its pegs (CPL_RUN.setMs); the
-              floods come on letter by letter, C to A (CPL_RUN.litStep); the playground below cheers (the kids, latched in
-              while the yard was unseen)
-     card     the par card (#heartWin, the heart run's): the time from her ask, the par, the Costa Palma skin, the tip
-     home     the drone home to its pad at the airfield: it lands, rolls into its lane, and he is Tipsey again on the
-              visitor bay (the loan ends)
+   floods come on at dusk. The parks department's truck dropped the new A in Tide Pool Elementary's yard this afternoon,
+   but no truck can get up the terraces. It COMES AT DUSK (MISSION_WINDOWS.dusk) and, started, keeps its dusk to the end
+   (NIGHT_HOLD, as Sunset Salute). The way Adoption Day and Sunset Session borrow the fleet: Tipsey calls it in.
+     ask      Tipsey stops on the bay on the pavement outside the school's east gate; the hill ranger, Imani Castillo, at
+              the gate at dusk, comes out through it (it opens for her), face to face (meetWalk / meetTick), and asks
+              (I'll call the Fleet! / Not now)
+     call     Tipsey calls the Fleet: the heavy-lift drone flies in from its hangar at Sun Deck Airfield on its own, from
+              past the view's edge, to a hover over the yard just inside the fence beside him (cplBotAt), and is his
+              (FLEET_LOAN 'dronelift'; Tipsey parked on the bay, cached)
+     yard     along the yard to its east end, where the new A lies flat on the grass: over it, it comes down to a hover
+     rig      the maintenance hand, waiting by the panel at dusk, comes over to the drone, standing off its rotors, face to
+              face: he hooks the A to the sling (Rigged!), and goes back to his post
+     lift     the panel comes up off the grass on its four cables, flat under the drone (CPL_RUN.liftMs)
+     fly      up the hill behind the school to the gap after the M, the panel swinging in the gusts (cplSway), the beacon
+              over the gap
+     set      over the gap it comes down to a hover; the A is lowered and swung up onto its pegs (CPL_RUN.setMs); the
+              floods come on letter by letter (CPL_RUN.litStep); the playground below cheers
+     card     the par card (#heartWin, the heart run's): the time from her ask and the par; the trophy, the skin, the tip
+              -- then the loan ends: he is Tipsey again on the bay at the gate, and the drone flies itself home, south past
+              the view's edge
    Reward: $50 once (server: 'letters'), the Letters on the Hill trophy -> the Costa Palma skin (worn). From then on the
-   letters are all up and lit every night (cplDone). Before it: the A missing, the floods off. Nothing of a run is saved
-   (R10): a reload starts it again at the gate; the panel is in the drone, which never tips. */
-const CPL = { atGate: false, stage: 'idle', rw: null, M: null, park: null, t0: 0, flyT0: 0, setT0: 0, aUp: false, litT0: 0, kidsOn: false, snooze: null, gate: false, win: null, kT: 0 };
+   letters are all up and lit every night (cplDone). Before it: the A missing, the floods off, the new A lying in the
+   yard. Nothing of a run is saved (R10): a reload starts it again at the gate; the panel rides in the drone, which never
+   tips. */
+const CPL = { atGate: false, handAtYard: false, stage: 'idle', rw: null, M: null, hw: null, park: null, bot: null, t0: 0, flyT0: 0, liftT0: 0,
+              setT0: 0, aUp: false, litT0: 0, kidsOn: false, snooze: null, gate: false };
 const CPL_RUN = {
   gate: hospBay(25990, -600),               // the start: the pavement outside the school's east gate (its gate's middle x 25768)
-  cents: 5000, par: 450000,                 // the par: 7:30 from her ask (the drive to the airfield is 30.4k of road: docs/kits/missions.md)
-  setMs: 5200, litStep: 420,
-  rangerPath: [[25768, -820], [25768, -690]]   // from her dusk post inside the gate: out through it (from the kiosk it is a 40 s walk: CPL_GATE_POST)
+  cents: 5000, par: 180000,                 // the par: 3:00 from her yes (measured 2:03 at a straight stick: docs/kits/missions.md)
+  setMs: 5200, litStep: 420, liftMs: 2600,
+  rangerPath: [[25768, -820], [25768, -690]],   // from her dusk post inside the gate: out through it
+  yard: { x: 27850, y: -1090 },             // the new A's middle, lying flat on the yard's east-end grass (its foot to the south)
+  hover: 300,                               // the drone's hover over it while it is rigged
+  arrive: { x: 26380, y: -600 },            // where the drone comes to him: over the pavement beside him, east of the gate
+  handPost: { x: 28060, y: -880 },          // the maintenance hand's place by it at dusk
+  botV: 0.22                                // the drone's own pace flying in and home (its vMax)
 };
 function cplBusy(){ return CPL.stage !== 'idle'; }
 /* the gap's hover: over the slot of the missing A, the panel flat under it */
 function cplSlot(){ const L = cplLetters()[CPL_PLAN.MISSING]; return { L, x: L.xc, y: L.yf - CPL_PLAN.H/2, z: L.z0 + CPL_PLAN.H + 150 }; }
 /* the school's east gate opens for her while she walks through (rimGateStep asks) */
 function cplGateOpen(name, g0){ return CPL.gate && name === "Tide Pool Elementary" && g0 === TPE_PLAN.GATES[1][0]; }
-/* the panel is slung under the drone */
-function cplCarrying(now){ return FLEET_LOAN === 'dronelift' && (CPL.stage === 'out' || CPL.stage === 'fly' || (CPL.stage === 'set' && now < CPL.setT0)); }
+/* the panel is slung under the drone (lifting off the grass, flying, held over the gap before it is lowered) */
+function cplCarrying(now){ return FLEET_LOAN === 'dronelift' && (CPL.stage === 'lift' || CPL.stage === 'fly' || (CPL.stage === 'set' && now < CPL.setT0)); }
+/* the new A on the grass, waiting: till it is lifted */
+function cplPanelOnGrass(){ return !cplDone() && !CPL.aUp && ['idle', 'ask', 'call', 'yard', 'rig'].includes(CPL.stage); }
 /* THE GUSTS: the slung panel's swing (world units off the drone's plumb line), a slow sway with a gust over it now and
    then -- the Santa Ana still blowing */
 function cplSway(now){
@@ -79370,11 +79388,15 @@ function cplDrawCables(scene, g, x, y, z, bx, by, bz, phi){
   g.lineStyle(Math.max(1, 1.6*K), 0x1d1f23, 1);
   for(const [u, v] of [[0, 0], [P.W, 0], [0, P.H], [P.W, P.H]]){ const p = scene.W(bx + u - P.W/2, by - v*c, bz + v*s); g.lineBetween(top.x, top.y, p.x, p.y); }
 }
-/* in flight, under the drone (the robot's draw calls it with the drone's own x, y, z) */
+/* slung under the drone (the robot's draw calls it with the drone's own x, y, z: the panel before the drone, the cables
+   after); lifting, it comes up off the grass to the sling's drop, the sway growing as it leaves the ground */
 function cplDrawSlung(scene, g, x, y, z, now, part){
-  const P = CPL_PLAN, w = cplSway(now), bx = x + w.dx, by = y + P.H/2 + w.dy, bz = z - 120;
+  const P = CPL_PLAN, w = cplSway(now);
+  let k = 1, bz = z - 120;
+  if(CPL.stage === 'lift'){ const u = Math.max(0, Math.min(1, (now - CPL.liftT0)/CPL_RUN.liftMs)); k = u*u*(3 - 2*u); bz = 2 + (z - 122)*k; }
+  const bx = x + w.dx*k, by = y + P.H/2 + w.dy*k;
   if(part === 'cables') cplDrawCables(scene, g, x, y, z + 40, bx, by, bz, 0);
-  else cplDrawPanel(scene, g, bx, by, bz, 0, w.tilt);
+  else cplDrawPanel(scene, g, bx, by, bz, 0, w.tilt*k);
 }
 /* the set piece's panel, live while it moves: lowered from under the drone to its pegs and swung up onto them */
 function cplSetPiece(now){
@@ -79385,6 +79407,22 @@ function cplSetPiece(now){
   const lz = Math.min(1, e*1.6), ph = Math.max(0, (e - 0.35)/0.65);
   return { bx: from.x + (to.x - from.x)*lz, by: from.y + (to.y - from.y)*lz, bz: from.z + (to.z - from.z)*lz, phi: ph*ph*(3 - 2*ph)*Math.PI/2, tilt: w.tilt*damp, S };
 }
+/* THE DRONE ON ITS OWN (in from the hangar, home after): a straight flight at its own pace and height, coming down over
+   the last third to its end (in), climbing away (home); null once home is past the view's edge */
+function cplBotAt(now){
+  const B = CPL.bot;
+  if(!B) return null;
+  const u = Math.max(0, Math.min(1, (now - B.t0)/B.ms));
+  if(u >= 1 && B.away){ CPL.bot = null; return null; }
+  const x = B.a.x + (B.b.x - B.a.x)*u, y = B.a.y + (B.b.y - B.a.y)*u;
+  const zu = B.away ? Math.min(1, u*3) : Math.max(0, (u - 0.66)/0.34), ze = zu*zu*(3 - 2*zu), z = B.a.z + (B.b.z - B.a.z)*ze;
+  return { x, y, z, yaw: Math.atan2(B.b.y - B.a.y, B.b.x - B.a.x), u, there: u >= 1 };
+}
+/* from or to the south past the view's edge (the hangar is south, across the Flats) */
+function cplBotOffscreen(scene, x, y){
+  for(let d = 1400; d < 9000; d += 300) if(!scene.visWorldPt(x, y + d, 300, 900)) return { x, y: y + d + 300 };
+  return { x, y: y + 9000 };
+}
 /* THE KIDS on the playground: six in the yard in front of the main block, there while the story is on (latched in and
    out only while the yard is unseen, R13); they cheer as the floods come on */
 const CPL_KIDS = [[23280, -880], [23460, -930], [23640, -870], [23820, -940], [24000, -880], [24180, -920]];
@@ -79393,7 +79431,6 @@ function cplKidAt(k, now){
   const q = CPL_KIDS[k], ch = CPL.litT0 > 0 && now > CPL.litT0;
   return { x: q[0], y: q[1], th: ch ? -Math.PI*0.75 + (k - 2.5)*0.08 : -Math.PI/2 + Math.sin(now/1900 + k)*0.5, moving: false, cheer: ch };
 }
-function cplNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && to && gpsNavTo(scene, "letters", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function cplNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "letters"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* the bay or beacon it shows now (R7) */
 function cplBayNow(scene){
@@ -79401,22 +79438,23 @@ function cplBayNow(scene){
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon, extra) => Object.assign({}, B, { icon }, extra || {});
   if(CPL.stage === 'idle') return cplDone() || fleetCur() || storiesHidden('letters-on-hill') ? null : ic(CPL_RUN.gate, 'flag', missionWindowOpen('letters-on-hill') ? null : { noBeacon: true });
-  if(CPL.stage === 'drive' || CPL.stage === 'crew') return ic(LH_RUN.visit, 'flag');
   if(CPL.stage === 'fly'){ const S = cplSlot(); return { x: S.x, y: S.y, icon: 'flag' }; }
-  if(CPL.stage === 'home'){ const P = flyApronPads().find(q => q.kind === 'dronelift'); return P ? { x: P.x, y: P.y, icon: 'flag' } : null; }
+  if(CPL.stage === 'yard') return { x: CPL_RUN.yard.x, y: CPL_RUN.yard.y, icon: 'flag' };
   return null;
 }
+/* her yes: back to her post at the gate, and Tipsey calls the Fleet: the drone flies in on its own to the yard */
 function cplAccept(){
   const scene = scn();
   if(CPL.stage !== 'ask' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  const now = scene.time.now;
-  if(CPL.rw) CPL.rw.leave = now;                       // back up to her kiosk, to watch for the drone
-  CPL.M = null; CPL.stage = 'drive'; CPL.t0 = now;
+  hospSayCard(null);
+  const now = scene.time.now, A = CPL_RUN.arrive, to = { x: A.x, y: A.y, z: CPL_RUN.hover }, a = cplBotOffscreen(scene, A.x, A.y);
+  if(CPL.rw) CPL.rw.leave = now;
+  CPL.M = null; CPL.stage = 'call'; CPL.t0 = now;
   NIGHT_HOLD.v = nightLevel(); NIGHT_HOLD.t = 0; NIGHT_HOLD.ms = 2500;   // (the sky keeps its dusk to the end: R4)
-  cplNav(scene, LH_RUN.visit, "Tipsey Fleet, Sun Deck Airfield");
+  const fromP = { x: a.x, y: a.y, z: 620 };
+  CPL.bot = { a: fromP, b: to, t0: now + 600, ms: Math.hypot(to.x - fromP.x, to.y - fromP.y)/CPL_RUN.botV };
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("The new A is at the Fleet's hangar at Sun Deck Airfield: its own gate, east of the terminal.");
+  if(typeof tpToast === "function") tpToast("Tipsey's calling the Fleet: the heavy-lift drone is on its way from Sun Deck Airfield.");
 }
 function cplDecline(){
   const scene = scn();
@@ -79425,36 +79463,43 @@ function cplDecline(){
   if(CPL.rw) CPL.rw.leave = scene.time.now;
   CPL.M = null; CPL.stage = 'idle'; CPL.snooze = CPL_RUN.gate;
 }
-function cplCrewOk(){
-  const scene = scn();
-  if(CPL.stage !== 'crew' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  if(LH.crew) LH.crew.leave = scene.time.now;
-  const ow = scene.ow, L = fleetBayOf('dronelift');
-  if(!L) return;
+/* THE LOAN: Tipsey stays on the bay at the gate, still; the drone, hovering over the panel, is his */
+function cplLoan(scene){
+  const ow = scene.ow, B = cplBotAt(scene.time.now) || { x: CPL_RUN.arrive.x, y: CPL_RUN.arrive.y, z: CPL_RUN.hover, yaw: -Math.PI/2 };
   CPL.park = { x: ow.px, y: ow.py, a: ow.yaw };
   FLEET_LOAN = 'dronelift';
-  const items = scene.items;
-  owStandUpAt(scene, L.x, L.y, L.a);
-  scene.items = items || [];
-  flyOnPlay(scene);
-  CPL.stage = 'out';
-  cplNavClear(scene);
-  if(typeof tpToast === "function") tpToast("The heavy-lift drone is yours for the run, the new A slung under her. Her hangar's opening.");
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, B.x, B.y, B.yaw);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;                                   // (the camera eases across: R12)
+  ow.fly = flyNew(ow); ow.fly.ph = 'air'; ow.fly.spin = 1; ow.z = B.z;
+  CPL.bot = null;
+  CPL.stage = 'yard';
+  if(typeof tpToast === "function") tpToast("The heavy-lift drone is yours. The new A is on the grass at the yard's east end.");
 }
-/* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
+/* the hand's yes: back to his post, and the panel comes up on the sling */
+function cplRigged(){
+  const scene = scn();
+  if(CPL.stage !== 'rig' || !scene) return;
+  hospSayCard(null);
+  const now = scene.time.now;
+  if(CPL.hw) CPL.hw.leave = now;
+  CPL.stage = 'lift'; CPL.liftT0 = now;
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* the loan ends: he is Tipsey again on the bay at the gate; the drone flies itself home, south past the view's edge */
 function cplLoanEnd(scene){
-  const P = CPL.park, L = fleetBayOf('dronelift');
-  if(L){ if(!scene._doorTs) scene._doorTs = new Map(); scene._doorShutFrom = scene._doorTs.get(L.key) || 1; scene._doorShutT0 = performance.now(); scene._doorShut = L.key; }
+  const ow = scene.ow, P = CPL.park, now = scene.time.now;
+  const from = { x: ow.px, y: ow.py, z: ow.z }, to = cplBotOffscreen(scene, ow.px, ow.py);
   FLEET_LOAN = null;
   if(P){ const items = scene.items; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; }
   CPL.park = null;
+  CPL.bot = { a: from, b: { x: to.x, y: to.y + 4000, z: 650 }, t0: now, ms: (Math.hypot(to.x - from.x, to.y + 4000 - from.y))/CPL_RUN.botV, away: true };
 }
 /* the par card (#heartWin, the heart run's): the time from her ask and the par; the trophy, the skin, the tip the first time */
 function cplWinShow(T){
   const el = document.getElementById("heartWin");
   if(!el) return;
-  const skin = tpSkinById("costa-palma"), rows = [];
+  const skin = tpSkinById("costa-palma"), rows = [], mm = ms => Math.floor(ms/60000) + ":" + String(Math.floor(ms/1000) % 60).padStart(2, "0");
   if(T.first){
     rows.push(`<div class="hwRow"><div class="hwIcon">${tpTrophySvg("silver", 28)}</div><div><div class="hwName">Letters on the Hill</div><div class="hwNote">Silver trophy · the A back on its pegs, the floods on for the birthday</div></div></div>`);
     if(skin) rows.push(`<div class="hwRow"><div class="hwIcon">${tpRobotSvg(skin.filter, 28, "costa-palma")}</div><div><div class="hwName">Costa Palma skin</div><div class="hwNote">The hillside letters' own, white on the hills: he's wearing it now</div></div></div>`);
@@ -79465,8 +79510,8 @@ function cplWinShow(T){
     <div class="hwTitle">LETTERS ON THE HILL</div>
     <div class="hwSub">${T.first ? "COSTA PALMA, all ten letters lit for the town's birthday" : "The letters lit again"}</div>
     ${rows.length ? `<div class="hwRows">${rows.join("")}</div>` : ""}
-    <div class="hwTime">Time <b>${Math.floor(T.ms/60000)}:${String(Math.floor(T.ms/1000) % 60).padStart(2, "0")}</b> · par ${Math.floor(CPL_RUN.par/60000)}:${String(Math.floor(CPL_RUN.par/1000) % 60).padStart(2, "0")}${T.ms <= CPL_RUN.par ? ' · <span class="par">under par</span>' : ""}</div>
-    <div class="hwBtns"><button class="hwGo">Fly her home</button></div>`;
+    <div class="hwTime">Time <b>${mm(T.ms)}</b> · par ${mm(CPL_RUN.par)}${T.ms <= CPL_RUN.par ? ' · <span class="par">under par</span>' : ""}</div>
+    <div class="hwBtns"><button class="hwGo">Continue</button></div>`;
   el.querySelector(".hwGo").addEventListener("click", cplCardDone);
   el.classList.remove("hidden");
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
@@ -79476,18 +79521,22 @@ function cplCardDone(){
   if(el) el.classList.add("hidden");
   cineBars(false);
   if(!scene || CPL.stage !== 'card') return;
-  if(scene.ow && scene.ow.fly) scene.ow.fly.hold = null;
-  CPL.stage = 'home';
-  if(typeof tpToast === "function") tpToast("Fly the heavy-lift drone home to its pad at Sun Deck Airfield.");
+  cplLoanEnd(scene);
+  CPL.stage = 'idle'; CPL.aUp = false; CPL.litT0 = 0; CPL.setT0 = 0; CPL.liftT0 = 0;
+  NIGHT_HOLD.t = scene.time.now;                                    // (the sky eases back to the clock)
+  cplNavClear(scene);
 }
 /* every frame (after owStep) */
 function cplTick(scene, ow){
   const R = CPL, now = scene.time.now;
   if(!ow || !ow.on || !WORLDGEN_COAST) return;
-  /* the kids come and go only while the yard is unseen */
+  /* who is where at dusk, moved only while unseen (R13): the kids on the playground, the ranger at the gate, the hand by
+     the new A */
   if(!scene.visWorldPt(23700, -900, 900, 200)) R.kidsOn = cplBusy() && R.stage !== 'ask';
-  if(!R.rw && !scene.visWorldPt(CPL_PLAN.RANGER.x, CPL_PLAN.RANGER.y, 300, 260) && !scene.visWorldPt(CPL_GATE_POST.x, CPL_GATE_POST.y, 300, 260))
-    R.atGate = !cplDone() && (cplBusy() || missionInWindow('dusk'));
+  const duskOn = !cplDone() && (cplBusy() || missionInWindow('dusk'));
+  if(!R.rw && !scene.visWorldPt(CPL_PLAN.RANGER.x, CPL_PLAN.RANGER.y, 300, 260) && !scene.visWorldPt(CPL_GATE_POST.x, CPL_GATE_POST.y, 300, 260)) R.atGate = duskOn;
+  if(!R.hw && !scene.visWorldPt(CPL_RUN.handPost.x, CPL_RUN.handPost.y, 300, 260) && !scene.visWorldPt(27000, -2200, 900, 400)) R.handAtYard = duskOn;
+  if(R.hw && R.hw.leave != null && !hospWalkAt(R.hw, now)) R.hw = null;
   if(scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
   const armed = B => !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
@@ -79506,28 +79555,34 @@ function cplTick(scene, ow){
       return;
     }
     case 'ask':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Imani Castillo, the hill ranger", btn: "On my way!", ok: cplAccept, no: { btn: "Not now", ok: cplDecline }, at: cplRangerAt,
-        say: "Tipsey! Look up the hill: COSTA PALM. The Santa Ana took the second A off its pegs in the night, and tonight's the town's birthday. The floods come on at dusk, letter by letter, and the whole Flats will be watching. No truck can get up those terraces. The Fleet's holding a new panel at its hangar at Sun Deck Airfield. Could you fly it up on their heavy-lift drone?" }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Imani Castillo, the hill ranger", btn: "I'll call the Fleet!", ok: cplAccept, no: { btn: "Not now", ok: cplDecline }, at: cplRangerAt,
+        say: "Tipsey! Look up the hill: COSTA PALM. The Santa Ana took the second A off its pegs in the night, and tonight's the town's birthday. The floods come on at dusk, letter by letter. The parks truck dropped a new A in the yard this afternoon, but no truck can get up those terraces. Could your Fleet fly it up?" }));
       return;
-    case 'drive':
+    case 'call': {
+      /* he stays turned to her as she goes back in; the drone flies in on its own and is his once it hovers over the A */
       if(R.rw && R.rw.leave != null && !walkPathAt(R.rw, now)) R.rw = null;
-      if(R.gate && (!R.rw || now - R.rw.leave > walkPathMs(R.rw)*0.4)) R.gate = false;
-      if(fleetCur()) return;
-      if(armed(LH_RUN.visit)){
-        R.stage = 'crew'; ow.vel = 0; cineBars(true);
-        const c = lhCrewAt(now);
-        LH.crew = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, lhSide(ow, c), scene), { has: null, th0: c.th });
-        if(typeof sfxThump === "function") sfxThump(0.15);
+      if(R.gate && (!R.rw || now - R.rw.leave > walkPathMs(R.rw)*0.6)) R.gate = false;
+      ow.vel = 0;
+      const B = cplBotAt(now);
+      if(B && B.there) cplLoan(scene);
+      return;
+    }
+    case 'yard':
+      /* over the A on the grass, in the air: it comes down to a hover there, and the hand comes over to it */
+      if(ow.fly && ow.fly.ph === 'air' && Math.hypot(ow.px - CPL_RUN.yard.x, ow.py - CPL_RUN.yard.y) < 200){
+        ow.fly.hold = { x: CPL_RUN.yard.x, y: CPL_RUN.yard.y, z: CPL_RUN.hover }; R.stage = 'rig'; R.rigT = now + 900; cineBars(true);
       }
       return;
-    case 'crew':
-      if(LH.crew && LH.crew.leave == null) meet(LH.crew, () => hospSayCard({ who: "Joss, the Fleet's crew chief", btn: "Let's fly!", ok: cplCrewOk, at: lhCrewAt,
-        say: "The ranger rang ahead. Hangar 3's heavy-lift drone is on her pad with the new A slung flat under her. It's gusty over the hills tonight, so the panel will swing: keep her moving and it settles. Straight up the Flats to the school, over the wings, and hover over the gap after the M." }));
+    case 'rig':
+      /* the hand comes over from the A to the drone, standing off its rotors (lhMeetWalk: a drone's gap) */
+      if(!R.hw && now > R.rigT){ const p = cplHandAt(now); R.hw = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, 1, 260), { th0: p.th }); }   // (on the drone's right: inside the yard, clear of the A)
+      if(R.hw && R.hw.leave == null) meet(R.hw, () => hospSayCard({ who: "Arturo Soto, school maintenance", btn: "Rigged!", ok: cplRigged, at: cplHandAt,
+        say: "There she is! Hold her right there... four shackles, one each corner, and the A's on your sling. She's a big sail in this wind, so she'll swing: keep moving and she settles. Up the hill to the gap after the M!" }));
       return;
-    case 'out':
-      if(ow.fly && ow.fly.ph === 'air'){
-        R.stage = 'fly'; R.flyT0 = now;
-        if(typeof tpToast === "function") tpToast("North across the Flats to the hill behind Tide Pool Elementary: the gap after the M.");
+    case 'lift':
+      if(now > R.liftT0 + CPL_RUN.liftMs){
+        R.stage = 'fly'; R.flyT0 = now; if(ow.fly) ow.fly.hold = null; cineBars(false);
+        if(typeof tpToast === "function") tpToast("Up the hill behind the school: the gap after the M.");
       }
       return;
     case 'fly': {
@@ -79552,21 +79607,22 @@ function cplTick(scene, ow){
         try { console.info("[letters] time " + (ms/1000).toFixed(1) + " s, flight " + (R.flyMs/1000).toFixed(1) + " s"); } catch(e){}
       }
       return;
-    case 'home': {
-      const fl = ow.fly, L = fleetBayOf('dronelift');
-      if(fl && fl.ph === 'ground' && L && Math.hypot(ow.px - L.x, ow.py - L.y) < 40){
-        cplLoanEnd(scene);
-        R.stage = 'idle'; R.aUp = false; R.litT0 = 0; R.setT0 = 0;
-        NIGHT_HOLD.t = now;                                    // (the sky eases back to the clock)
-        cplNavClear(scene);
-      }
-      return;
-    }
   }
 }
-/* the story's live pieces in the world: the panel while it is set, Tipsey parked on the visitor bay while he flies */
+/* the story's live pieces in the world: the new A on the grass (cached), the drone flying in or home on its own, the
+   panel while it is set, Tipsey parked on the bay while he flies */
 function cplQueueStory(scene, vq){
-  const now = scene.time.now, sp = cplSetPiece(now);
+  const now = scene.time.now;
+  if(cplPanelOnGrass()){ const Y = CPL_RUN.yard, by = Y.y + CPL_PLAN.H/2;
+    if(scene.visWorldPt(Y.x, Y.y, 420, 60)) vq.push({ depth: Y.x + Y.y, fn: (g) => scene.bcDraw(g, "cpl|panel|grass", Y.x, by, gg => cplDrawPanel(scene, gg, Y.x, by, 2, 0, 0)) }); }
+  const B = cplBotAt(now);
+  if(B && scene.visWorldPt(B.x, B.y, 300, B.z + 200)){
+    const f = B.yaw/(Math.PI/2);
+    vq.push({ depth: B.x + B.y, fn: (g, t) => {
+      scene.drawProp(g, "dronelift", B.x, B.y, t || now, f, 0, 0, 7, { hover: B.z + Math.sin(now/420)*5, rot: (now*0.04) % (Math.PI*2), spin: 1, noShadow: true, cargo: 'panel' });
+    } });
+  }
+  const sp = cplSetPiece(now);
   if(sp && scene.visWorldPt(sp.S.x, sp.S.y, 600, 1000)){
     const L = sp.S.L, ow = scene.ow;
     vq.push({ depth: L.xc + L.yf + 0.5, fn: (g) => { if(ow) cplDrawCables(scene, g, ow.px, ow.py, ow.z + 40, sp.bx, sp.by, sp.bz, sp.phi); cplDrawPanel(scene, g, sp.bx, sp.by, sp.bz, sp.phi, sp.tilt); } });
@@ -79577,14 +79633,14 @@ function cplQueueStory(scene, vq){
 }
 /* LETTERS ON THE HILL, IN THE REGISTRY (R9) */
 MISSIONS['letters-on-hill'] = { name: 'Letters on the Hill', giver: 'Imani Castillo, the hill ranger', window: 'dusk',
-  places: ['Tide Pool Elementary', 'Tipsey Fleet at Sun Deck Airfield', 'the hillside letters'],
-  steps: ["Stop on the bay outside Tide Pool Elementary's east gate", "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The new A up the hill on the heavy-lift drone',
-          'Over the gap after the M: the A onto its pegs', 'The drone home to its pad'],
+  places: ['Tide Pool Elementary', 'the school yard', 'the hillside letters'],
+  steps: ["Stop on the bay outside Tide Pool Elementary's east gate", "Call the Fleet's heavy-lift drone to the yard", 'The new A on the sling',
+          'Up the hill: the gap after the M', 'The A onto its pegs'],
   reward: { cents: CPL_RUN.cents, payId: 'letters', trophy: 'letters-on-hill', skin: 'costa-palma', wear: true, fleet: 'dronelift' },
   busy: () => cplBusy(),
   item: () => null,                                                     // (the panel rides in the drone, which never tips)
-  next: () => ({ ask: 'Hear the ranger out', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate", crew: "Joss, the Fleet's crew chief",
-                 out: 'Take off', fly: 'The hill behind the school: the gap after the M', set: 'Lowering the A', card: 'Lit!', home: 'The drone home to its pad' })[CPL.stage] || "Tide Pool Elementary's east gate, at dusk",
+  next: () => ({ ask: 'Hear the ranger out', call: 'The heavy-lift drone is on its way', yard: "The new A on the yard's grass", rig: 'The maintenance hand rigs the A', lift: 'Lifting the A',
+                 fly: 'The hill behind the school: the gap after the M', set: 'Lowering the A', card: 'Lit!' })[CPL.stage] || "Tide Pool Elementary's east gate, at dusk",
   start: () => ({ x: CPL_RUN.gate.x, y: CPL_RUN.gate.y, name: 'Tide Pool Elementary' }) };
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
@@ -88998,14 +89054,20 @@ class WorldScene extends Phaser.Scene {
   /* THE GUARD BOOTH (Sierra Vista's, on its gate round's island; the kit's one booth: the Costa Palma letters' ranger
      kiosk is the same booth): a stucco box glazed on the two faces the camera sees, under a hipped tile roof; z0 its
      floor. Into the g it is handed */
-  drawGuardBooth(gg, bx, by, z0){
-    const z1 = z0 + 150, Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(this.ptsOnScreen(P)) this.quadOn(gg, P, col); };
-    const x0 = bx - 90, x1 = bx + 90, y0 = by - 85, y1 = by + 85;
-    Qg([[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]], 0xd8ccb0);
-    Qg([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1]], 0xf2e8d6);
+  /* glass: its two windows see-through (whoever works in it shows behind them: the Costa Palma ranger's kiosk, W11/W19) --
+     the walls round them in pieces, the panes a light tint; drawn after whoever is inside */
+  drawGuardBooth(gg, bx, by, z0, glass){
+    const z1 = z0 + 150, Qg = (pts, col, a) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(this.ptsOnScreen(P)) this.quadOn(gg, P, col, a); };
+    const x0 = bx - 90, x1 = bx + 90, y0 = by - 85, y1 = by + 85, w0 = z0 + 60, w1 = z0 + 128;
+    const east = (ya, yb, za, zb) => Qg([[x1,ya,za],[x1,yb,za],[x1,yb,zb],[x1,ya,zb]], 0xd8ccb0);
+    const south = (xa, xb, za, zb) => Qg([[xa,y1,za],[xb,y1,za],[xb,y1,zb],[xa,y1,zb]], 0xf2e8d6);
+    if(glass){
+      east(y0, y1, z0, w0); east(y0, y1, w1, z1); east(y0, by - 65, w0, w1); east(by + 65, y1, w0, w1);
+      south(x0, x1, z0, w0); south(x0, x1, w1, z1); south(x0, bx - 70, w0, w1); south(bx + 70, x1, w0, w1);
+    } else { east(y0, y1, z0, z1); south(x0, x1, z0, z1); }
     Qg([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]], 0xefe6d2);          // the booth
-    Qg([[bx - 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 60],[bx + 70, by + 85.5, z0 + 128],[bx - 70, by + 85.5, z0 + 128]], 0x34424b);   // front window
-    Qg([[bx + 90.5, by - 65, z0 + 60],[bx + 90.5, by + 65, z0 + 60],[bx + 90.5, by + 65, z0 + 128],[bx + 90.5, by - 65, z0 + 128]], 0x2d3a42);   // side window
+    Qg([[bx - 70, by + 85.5, w0],[bx + 70, by + 85.5, w0],[bx + 70, by + 85.5, w1],[bx - 70, by + 85.5, w1]], 0x34424b, glass ? 0.28 : 1);   // front window
+    Qg([[bx + 90.5, by - 65, w0],[bx + 90.5, by + 65, w0],[bx + 90.5, by + 65, w1],[bx + 90.5, by - 65, w1]], 0x2d3a42, glass ? 0.28 : 1);   // side window
     Qg([[bx - 110, by - 105, z1],[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx - 110, by + 105, z1]], 0xb8583a);      // hipped tile roof, plate
     Qg([[bx - 110, by + 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55],[bx - 40, by, z1 + 55]], 0xc0613f);
     Qg([[bx + 110, by - 105, z1],[bx + 110, by + 105, z1],[bx + 40, by, z1 + 55]], 0xa84e34);
