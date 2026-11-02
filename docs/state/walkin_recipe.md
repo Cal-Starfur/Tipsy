@@ -360,6 +360,10 @@ Effort key:
    - `doors[{ id, side, at, half, seamless: true, glass, clear, keep: true, spawn, yaw, world() | mark:'door', out?() }]`;
    - for multi-floor, `z()` and `cut()`.
 5. **Optional:** a `POCKET_GATES[from|id]`; live people drawn at `+POCKET_VIEW.dx/dy`; a through-glass queue.
+6. **Two rules every room has broken once (walk-in kit W18, W19):**
+   - **The room is the shell's footprint.** Its outer walls on the shell's lines, following its outline (curved corners as curved runs); the landmark's ground does not paint under the building.
+   - **A worker works facing their work.** Each staff post stands on the working side of its equipment and faces it; turn the equipment's screens, meters, decks or till away from the camera, so we see its back and the worker's face. Check every worker with the shell faded, zoomed in.
+7. **Reuse before drawing (W20):** furniture, screens, shelves, vehicles (`gameCar` kinds), uniforms and props from the kits; new art only for what doesn't exist.
 
 ### 6.2 Name-specific code to fold into the kit (found in generic paths) [V]
 - **`pocketHandOff`:** branches on `'Maritime Mall Interior'` and `HOSP_IN` (L20004, 20007, 20029–20032).

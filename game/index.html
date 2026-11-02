@@ -28595,7 +28595,8 @@ const KTDE = {
   door: [560, 650],                                      // the lobby's glass pair
   studio: [900, 1340],                                   // the on-air studio's street glass (z 16..110)
   onAir: { a: 1120, z0: 121, z1: 137 },                  // the ON AIR light over it
-  mast: { a: 700, b: -900, r0: 40, H: 460 },             // the lattice mast on the roof (its foot's half-width, its height over the roof)
+  mast: { a: 700, b: -900, r0: 40, H: 460 },
+  sideWin: [[-1500, -1240], [-1160, -900], [-820, -560]],     // the ground floor's windows on the side street (into the newsroom and Studio B)             // the lattice mast on the roof (its foot's half-width, its height over the roof)
   look: { recep: 0x9e1a1, dj: 0x9e2d7, prod: 0x9e3c2 }
 };
 /* lab to world (the block's frame: landmarkLabWorld, once the grid is there) */
@@ -28610,31 +28611,35 @@ function ktdeOutline(n){
   out.push([ca, B.b1], [B.a0, B.b1]);
   return out;
 }
-/* (its interior: the LIB entry 'KTDE 98.1 The Tide Studios') -- the whole ground floor, 1250 x 1500 (Sir: "more room
-   inside too"): along the street the lobby (in through the glass pair; the reception desk, a couch, the station's gold
-   records; its window on the street) and the on-air studio behind a glass partition (its doorway at the back), seen from
-   the street through the big glass (W11); behind them, across a glass wall with a way through, the record library, Studio
-   B (the production room: the engineer's console, a vocal mic) and the newsroom with its couch for guests. Open round the
-   clock: a radio station is never off the air (the place card's 0-24) */
+/* (its interior: the LIB entry 'KTDE 98.1 The Tide Studios') -- the whole ground floor, wall to wall (Sir: "more room
+   inside too"; and, the shell faded, "the interior and exterior don't line up"): the room IS the building's footprint,
+   its walls' outer faces on the shell's lines (lab 40..1616 x -1616..-40, walls 30 thick inside them) and its rounded
+   corner a curved wall on the shell's own arc. Along the street the lobby (in through the glass pair; the reception
+   desk, a couch, the station's gold records; its window on the street) and the on-air studio behind a glass partition
+   (its doorway at the back), seen from the street through the big glass (W11); behind them, across a glass wall with a
+   way through, the record library, Studio B (the engineer's console, a vocal mic) and the newsroom with its couch for
+   guests, seen from the side street through its three windows. Open round the clock (the place card's 0-24) */
 const KTDE_IN = walkinDefine({ name: 'KTDE 98.1 The Tide Studios', from: KTDE.name, x0: 500000, y0: 440000,
-  lab: [150, 1400, -1540, -40], door: { a: 605, b: -42, half: 45 }, H: 180, out: 40, apron: 40, glass: 45,
+  lab: [70, 1586, -1586, -70], door: { a: 605, b: -72, half: 45 }, H: 180, out: 40, apron: 40, glass: 45,
   street: { to: [0, 120], routes: [[[-500, 120], [-500, 1600]], [[1300, 120], [1300, 1600]]] },
   openings: [{ lab: [[560, -39.4], [650, -39.4]], z: [0, 100] }, { lab: [[900, -39.4], [1340, -39.4]], z: [16, 110], glass: true },
-             { lab: [[244, -39.4], [476, -39.4]], z: [33, 97], glass: true }] });
-/* the room's plan, its own frame (a east, b south, 1250 x 1500; lab a = a + 150, lab b = b - 1540) */
-const KTDE_ROOM = { W: 1250, D: 1500, LH: 66,
-  back: { b: 900, gap: [470, 610] },                              // the glass wall between the front rooms and the back, its way through
-  part: { a: 620, gap: [930, 1070] },                             // the studio's glass partition from the lobby, its doorway at the back
-  backParts: [440, 860], backD: 700,                              // the back rooms' glass partitions (library | Studio B | newsroom), open to the corridor
-  desk: [60, 320, 1180, 1222],                                    // the reception desk
-  couch: [20, 62, 1260, 1440], table: [96, 136, 1300, 1370],
-  djDesk: [780, 836, 1350, 1480], board: [1000, 1180, 1060, 1110], studioShelf: [660, 900, 912, 940], speakers: [[1225, 940], [1225, 1460]],
-  libShelves: [140, 320, 500], libA: [40, 400],                   // the record library's rows of shelves
-  console: [560, 780, 300, 350], micB: [670, 520],                // Studio B
-  newsDesks: [[900, 1040], [1080, 1220]], newsB: [200, 250], newsCouch: [920, 1120, 600, 640],
-  recep: [190, 1145, Math.PI/2], dj: [866, 1442, 0.2], prod: [1090, 1030, Math.PI/2], prodShelf: [780, 975, -Math.PI/2],
-  eng: [670, 270, Math.PI/2], news: [970, 170, Math.PI/2],
-  lobbyBay: [330, 1290], studioBay: [990, 1318] };               // (the studio's bay: across the screen from the DJ, a + b the same)
+             { lab: [[244, -39.4], [476, -39.4]], z: [33, 97], glass: true },
+             ...KTDE.sideWin.map(([w0, w1]) => ({ lab: [[1617.4, w0 + 4], [1617.4, w1 - 4]], z: [33, 97], glass: true }))] });
+/* the room's plan, its own frame (a east, b south, 1516 x 1516; lab a = a + 70, lab b = b - 1586) */
+const KTDE_ROOM = { W: 1516, D: 1516, LH: 66,
+  arc: { c: 1346, r: 170, R: 200 },                               // the rounded corner: its centre (a = b), the wall's inner and outer radius (the shell's)
+  back: { b: 1000, gap: [540, 680] },                             // the glass wall between the front rooms and the corridor, its way through
+  part: { a: 700, gap: [1030, 1170] },                            // the studio's glass partition from the lobby, its doorway at the back
+  backParts: [500, 1000], backD: 800,                             // the back rooms' glass partitions (library | Studio B | newsroom), open to the corridor
+  desk: [70, 350, 1230, 1272],                                    // the reception desk
+  couch: [20, 62, 1300, 1480], table: [96, 136, 1340, 1410],
+  djDesk: [860, 1020, 1440, 1490], board: [1080, 1260, 1100, 1150], studioShelf: [740, 980, 1012, 1040], speakers: [[1300, 1040], [1280, 1460]],
+  libShelves: [160, 360, 560], libA: [40, 460],                   // the record library's rows of shelves
+  console: [640, 860, 340, 390], micB: [750, 600],                // Studio B
+  newsDesks: [[1060, 1220], [1260, 1420]], newsB: [240, 290], newsCouch: [1080, 1300, 680, 720],
+  recep: [210, 1195, Math.PI/2], dj: [940, 1405, Math.PI/2], prod: [1170, 1070, Math.PI/2], prodShelf: [860, 1075, -Math.PI/2],
+  eng: [750, 310, Math.PI/2], news: [1140, 210, Math.PI/2],
+  lobbyBay: [350, 1340], studioBay: [1055, 1290] };              // (the studio's bay: across the screen from the DJ, a + b the same)
 /* the station's people (W15: one to a station, staff only): the receptionist at the desk, the DJ at the mic in the
    booth (busy hands: the records, the faders), the producer stepping between the board and the studio's record shelf,
    the engineer at Studio B's console, the newsreader at her desk */
@@ -28647,19 +28652,19 @@ const KTDE_NEWS_UNIFORM = { shirt: { c:0xf4f1e8, dk:0xd8d3c4 }, pants: { c:0x2b2
   vest: { c:0x24405e, dk:0x1a2f45 }, shoeKind: 'dress' };                                    // a navy blazer
 walkinStaff('KTDE 98.1 The Tide Studios', [
   { id: 'receptionist', role: 'station receptionist', seed: KTDE.look.recep, U: KTDE_FRONT_UNIFORM, fixed: true,
-    posts: [[190, 1145, Math.PI/2, 9000, true], [160, 1150, 1.9, 4000, true]],
+    posts: [[210, 1195, Math.PI/2, 9000, true], [180, 1200, 1.9, 4000, true]],
     away: () => typeof RL !== 'undefined' && !!RL.recep, awayAt: now => (typeof rlRecepAt === 'function' ? rlRecepAt(now) : null) },
   { id: 'dj', role: 'on-air DJ', seed: KTDE.look.dj, U: KTDE_DJ_UNIFORM, fixed: true,
-    posts: [[866, 1442, 0.2, 9000, true], [866, 1400, -0.5, 5000, true]],
+    posts: [[940, 1405, Math.PI/2, 9000, true], [905, 1408, 1.75, 5000, true]],
     away: () => typeof RL !== 'undefined' && !!RL.dj, awayAt: now => (typeof rlDjAt === 'function' ? rlDjAt(now) : null) },
   { id: 'producer', role: 'station producer', seed: KTDE.look.prod, U: KTDE_PROD_UNIFORM,
-    posts: [[1090, 1030, Math.PI/2, 8000, true], [780, 975, -Math.PI/2, 6000, true], [860, 975, -Math.PI/2, 4000, true]] },
+    posts: [[1170, 1070, Math.PI/2, 8000, true], [860, 1075, -Math.PI/2, 6000, true], [940, 1075, -Math.PI/2, 4000, true]] },
   { id: 'engineer', role: 'station engineer', seed: 0x9e4e1, U: KTDE_ENG_UNIFORM, fixed: true,
-    posts: [[670, 270, Math.PI/2, 9000, true], [620, 272, 1.8, 5000, true]] },
+    posts: [[750, 310, Math.PI/2, 9000, true], [700, 312, 1.8, 5000, true]] },
   { id: 'newsreader', role: 'newsreader', seed: 0x9e5f2, U: KTDE_NEWS_UNIFORM, fixed: true,
-    posts: [[970, 170, Math.PI/2, 9000, true], [1000, 172, 1.3, 5000, true]] },
+    posts: [[1140, 210, Math.PI/2, 9000, true], [1170, 212, 1.3, 5000, true]] },
 ]);
-walkinLife('KTDE 98.1 The Tide Studios', { keep: [[415, 495, 1250, 1500], [600, 650, 930, 1070], [470, 610, 860, 940]], looks: [] });
+walkinLife('KTDE 98.1 The Tide Studios', { keep: [[495, 575, 1300, 1516], [680, 730, 1030, 1170], [540, 680, 960, 1040]], looks: [] });
 /* ==================== THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01: "the soapbox
    club's garage: a barn-roofed workshop with a roll-up door on the camera-facing east edge, kart benches, wheels on the
    wall, a paint corner, and a short test chute out front") ====================
@@ -51661,7 +51666,7 @@ function houseCanopy(fn){
      (the engineer's console, a vocal mic on its stand) and the newsroom (two desks with monitors, a couch for guests).
      Every long piece in runs (walls 80, shelves 60): about 90 pieces */
   name:'KTDE 98.1 The Tide Studios', xh: 180, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 1250, dd: 1500,
+  ww: 1516, dd: 1516,
   head:'Inside KTDE 98.1 The Tide: the lobby, the on-air studio behind glass, the record library, Studio B and the newsroom',
   tags:['interior','pocket','radio station','reception','on-air studio','record library','production room','newsroom'],
   desc:'The station\'s whole ground floor: a terrazzo lobby with the reception desk and the station\'s gold records, the on-air studio behind glass where the DJ spins vinyl at the street window under the ON AIR light, and behind them the record library, Studio B with its console and vocal mic, and the newsroom.',
@@ -51701,10 +51706,13 @@ function houseCanopy(fn){
 
     /* ---- THE FLOORS: the lobby's terrazzo, the studio's carpet, the library's boards, Studio B's and the newsroom's grey
        carpet, the corridor's terrazzo; the threshold and a mat at the door, the apron out ---- */
-    T(0, W, 0, D, 0, '#ece4d2');
+    /* (the floor follows the outline: square but for the rounded corner, a quarter round on the shell's arc) */
+    const AR = R.arc, arcPts = (r, z, from) => { const o = []; for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI/2; o.push(P(AR.c + r*Math.cos(t), AR.c + r*Math.sin(t), z)); } return o; };
+    const outline = (a0, b0, z, col) => poly([P(a0, b0, z), P(W, b0, z)].concat(arcPts(AR.r, z), [P(a0, D, z)]), col);
+    outline(0, 0, 0, '#ece4d2');
     for(let b = R.back.b + 20; b < D; b += 40) for(let a = 14 + (b % 80 ? 20 : 0); a < R.part.a; a += 40) T(a, a + 3, b, b + 2, 0.15, '#d6cbb4');
-    T(R.part.a, W, R.back.b, D, 0.2, carpet);
-    for(let a = R.part.a + 30; a < W; a += 60) T(a, a + 1.5, R.back.b, D, 0.25, shade(carpet, 1.08));
+    outline(R.part.a, R.back.b, 0.2, carpet);
+    for(let a = R.part.a + 30; a < AR.c; a += 60) T(a, a + 1.5, R.back.b, D, 0.25, shade(carpet, 1.08));
     T(0, R.backParts[0], 0, R.backD, 0.2, '#a87a50');
     for(let b = 40; b < R.backD; b += 40) T(0, R.backParts[0], b, b + 1.5, 0.25, '#8f6640');
     T(R.backParts[0], W, 0, R.backD, 0.2, '#5a6270');
@@ -51714,25 +51722,36 @@ function houseCanopy(fn){
 
     /* ---- THE WALLS (the kit's): back and west full height; south and east cut low, the lobby's window and the studio's
        glass in the south ---- */
-    walkinRoom(items, { W, D, H, LH, door, winS: [[750, 1190, 24], [94, 326, 50]],
+    walkinRoom(items, { W, D, H, LH, door, winS: [[830, 1270, 24], [174, 406, 50]], winE: KTDE.sideWin.map(([w0, w1]) => [w0 + 1586 + 4, w1 + 1586 - 4, 50]),
+      gapsS: [[door.at - door.half, door.at + door.half], [AR.c, W + 30]], gapsE: [[AR.c, D]],
       paintN: () => {
         F(-30, W + 30, 0, H, cream, null, 0, 0);
         F(-30, W + 30, 0, 12, tealD, null, 0, 0.2);
         /* the library: its name; Studio B: acoustic panels; the newsroom: NEWSROOM, the three clocks */
-        blockWordIn('RECORD LIBRARY', 60, 380, 150, 168, 0.4, navy, null, 8);
+        blockWordIn('RECORD LIBRARY', 70, 430, 150, 168, 0.4, navy, null, 8);
         for(let a = R.backParts[0] + 20; a < R.backParts[1] - 20; a += 64) F(a, a + 56, 60, 160, '#56607a', null, 0, 0.4);
-        blockWordIn('NEWSROOM', 900, 1200, 150, 168, 0.4, teal, null, 10);
-        for(const ca of [960, 1060, 1160]){ disc(ca, 0.4, 120, 14, '#f6f4ee'); F(ca - 1, ca + 1, 116, 130, dark, null, 0, 0.6); }
-        F(1180, 1240, 40, 90, '#2b2d33', null, 0, 0.4); F(1184, 1236, 44, 86, '#3a6f9e', null, 0, 0.5);   // a monitor with the weather
+        blockWordIn('NEWSROOM', 1080, 1380, 150, 168, 0.4, teal, null, 10);
+        for(const ca of [1140, 1240, 1340]){ disc(ca, 0.4, 120, 14, '#f6f4ee'); F(ca - 1, ca + 1, 116, 130, dark, null, 0, 0.6); }
+        F(1420, 1480, 40, 90, '#2b2d33', null, 0, 0.4); F(1424, 1476, 44, 86, '#3a6f9e', null, 0, 0.5);   // a monitor with the weather
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(cream, 0.93));
         S(0.2, -30, D + 30, 0, 12, shade(tealD, 0.9));
         /* the lobby: the station's gold records, framed; framed photographs of its DJs through the years */
-        for(const bb of [960, 1040, 1120]){ S(0.4, bb, bb + 50, 80, 140, '#2b2a30'); S(0.6, bb + 10, bb + 40, 94, 124, gold); }
-        for(const [b0, b1] of [[1220, 1280], [1300, 1360]]){ S(0.4, b0, b1, 80, 140, '#2b2a30'); S(0.6, b0 + 5, b1 - 5, 85, 135, '#c9c2b0'); S(0.8, b0 + 14, b1 - 14, 92, 122, '#8a8478'); }
+        for(const bb of [1060, 1140, 1220]){ S(0.4, bb, bb + 50, 80, 140, '#2b2a30'); S(0.6, bb + 10, bb + 40, 94, 124, gold); }
+        for(const [b0, b1] of [[1300, 1360], [1380, 1440]]){ S(0.4, b0, b1, 80, 140, '#2b2a30'); S(0.6, b0 + 5, b1 - 5, 85, 135, '#c9c2b0'); S(0.8, b0 + 14, b1 - 14, 92, 122, '#8a8478'); }
       },
       low: ['#efe8d8', '#ddd5c4', '#c9c0ac'], cap: [teal, tealD, shade(tealD, 0.85)], ftop: '#d8cfba', frame: teal });
+    /* ---- THE ROUNDED CORNER: the near walls' run round the shell's arc, cut low as they are (the kit's dado and cap),
+       in five pieces (63 along the outer face) ---- */
+    for(let i = 0; i < 5; i++){
+      const t0 = i/5*Math.PI/2, t1 = (i + 1)/5*Math.PI/2, tm = (t0 + t1)/2, pt = (r, t) => [AR.c + r*Math.cos(t), AR.c + r*Math.sin(t)];
+      const q = [pt(AR.r, t0), pt(AR.R, t0), pt(AR.R, t1), pt(AR.r, t1)], k = 0.86 + 0.14*Math.sin(tm), m = pt((AR.r + AR.R)/2, tm);
+      items.push({ a: m[0], b: m[1], z: 0, solids: [{ name: 'wall', poly: q, h: LH }], draw: () => {
+        const face = (r, z0, z1, col) => poly([P(...pt(r, t0), z0), P(...pt(r, t1), z0), P(...pt(r, t1), z1), P(...pt(r, t0), z1)], col);
+        face(AR.R + 0.3, 0, LH - 8, shade('#ddd5c4', k)); face(AR.R + 0.5, LH - 8, LH, shade(tealD, k));
+        poly(q.map(([a, b]) => P(a, b, LH)), teal); }});
+    }
 
     /* ---- THE GLASS WALLS: across the front rooms' backs (a way through to the corridor from the lobby), the studio's
        partition (its doorway at the back), the back rooms' partitions (open to the corridor) ---- */
@@ -51747,6 +51766,7 @@ function houseCanopy(fn){
         runBox(s0, s1, b0 - 3, b1 + 3, 68, 72, '#f8f4e8', '#e2dccb', '#cfc8b5', true, first, last);
         if(s0 <= 120 && s1 > 120) box(110, 134, b0 + 6, b0 + 22, 72, 78, dark, darkF, darkS);                 // the phone
         if(s0 <= 240 && s1 > 240){ box(232, 246, b0 + 8, b0 + 18, 72, 76, '#c9ced2', '#a9aeb2', '#959a9e'); ball(239, b0 + 13, 78, 3, '#e8382e'); }   // the studio's buzzer
+        if(s0 <= 190 && s1 > 190) box(176, 214, b1 - 12, b1 - 6, 72, 104, '#2b2d33', '#1e2024', '#16181b');   // her screen, on the desk's far edge, turned to her
       }}); }
     { const [a0, a1, b0, b1] = R.couch;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 70, 'couch')], draw: () => {
@@ -51763,22 +51783,24 @@ function houseCanopy(fn){
     { const [a0, a1, b0, b1] = R.board;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 80, 'board')], draw: () => {
         box(a0, a1, b0, b1, 0, 66, dark, darkF, darkS);
-        poly([P(a0, b0, 80), P(a1, b0, 80), P(a1, b1, 66), P(a0, b1, 66)], '#3b4248');
-        for(let a = a0 + 8; a < a1 - 6; a += 9){ const k = (a*13) % 7; poly([P(a, b0 + 8, 79), P(a + 2, b0 + 8, 79), P(a + 2, b1 - 8, 67.5), P(a, b1 - 8, 67.5)], '#1e2226');
-          T(a - 1.5, a + 3.5, b0 + 14 + k*3, b0 + 18 + k*3, 76 - k*1.5, '#e8e4da'); }
-        box(a0 + 10, a1 - 10, b0, b0 + 6, 80, 100, '#1e2226', '#2a2f33', '#16191c');
-        F(a0 + 14, a1 - 14, 84, 96, '#3fd17a', null, 0, b0 + 6.3); }}); }
-    /* THE DJ'S DESK by the street glass, run along the studio (he stands at its east side, turned to the window and the
-       street): two turntables, the mixer between, the mic on its boom in front of his face */
-    { const [a0, a1, b0, b1] = R.djDesk, mz = 74, dj = R.dj, mid = (b0 + b1)/2;
-      for(const [s0, s1, first, last] of runs(b0, b1, 46)) items.push({ a: (a0 + a1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(a0, a1, s0, s1, mz, 'desk')], draw: () => {
-        runBox(a0, a1, s0, s1, 0, mz - 4, '#3b4248', '#2f3439', '#262a2e', false, first, last);
-        runBox(a0 - 2, a1 + 2, s0, s1, mz - 4, mz, wood, woodD, woodD, false, first, last);
-        for(const tb of [b0 + 24, b1 - 24]) if(s0 <= tb && s1 > tb){ box(a0 + 6, a1 - 6, tb - 20, tb + 20, mz, mz + 6, '#c9ced2', '#a9aeb2', '#959a9e');
-          plateCircle((a0 + a1)/2, tb - 2, mz + 6.5, 15, '#1a1a1e'); plateCircle((a0 + a1)/2, tb - 2, mz + 6.8, 5, tb < mid ? '#e8382e' : '#e9c46a'); tube(a1 - 10, tb + 14, mz + 8, a0 + 12, tb + 8, mz + 8, 1, '#e8e4da'); }
-        if(s0 <= mid && s1 > mid){ box(a0 + 8, a1 - 8, mid - 14, mid + 14, mz, mz + 8, dark, darkF, darkS);
-          tube(a1 - 4, dj[1] - 2, mz, a1 - 4, dj[1] - 2, mz + 22, 1.4, '#9aa0a4'); tube(a1 - 4, dj[1] - 2, mz + 22, dj[0] + 4, dj[1] + 22, 104, 1.2, '#9aa0a4');
-          ball(dj[0] + 6, dj[1] + 24, 104, 4.5, '#2b2d33', '#4a4d55'); }
+        /* (its working face to the producer on its north side, away from the camera: the faders rise toward the street, the
+           meter bridge stands on its far edge with its lit face turned to him -- we see its back) */
+        poly([P(a0, b0, 66), P(a1, b0, 66), P(a1, b1, 80), P(a0, b1, 80)], '#3b4248');
+        for(let a = a0 + 8; a < a1 - 6; a += 9){ const k = (a*13) % 7; poly([P(a, b0 + 8, 67.5), P(a + 2, b0 + 8, 67.5), P(a + 2, b1 - 8, 79), P(a, b1 - 8, 79)], '#1e2226');
+          T(a - 1.5, a + 3.5, b1 - 18 - k*3, b1 - 14 - k*3, 70 + k*1.5, '#e8e4da'); }
+        box(a0 + 10, a1 - 10, b1 - 6, b1, 80, 100, '#1e2226', '#2a2f33', '#16191c'); }}); }
+    /* THE DJ'S DESK at the street glass, along it: he stands behind it on its north side, facing it, the street and the
+       camera (LOOK_RULES 8: a worker on the working side of what he works at); two turntables, the mixer between, the mic
+       on its boom from the desk's back edge to in front of his face */
+    { const [a0, a1, b0, b1] = R.djDesk, mz = 74, dj = R.dj, mid = (a0 + a1)/2;
+      for(const [s0, s1, first, last] of runs(a0, a1, 54)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, mz, 'desk')], draw: () => {
+        runBox(s0, s1, b0, b1, 0, mz - 4, '#3b4248', '#2f3439', '#262a2e', true, first, last);
+        runBox(s0, s1, b0 - 2, b1 + 2, mz - 4, mz, wood, woodD, woodD, true, first, last);
+        for(const ta of [a0 + 28, a1 - 28]) if(s0 <= ta && s1 > ta){ box(ta - 22, ta + 22, b0 + 5, b1 - 5, mz, mz + 6, '#c9ced2', '#a9aeb2', '#959a9e');
+          plateCircle(ta - 2, (b0 + b1)/2, mz + 6.5, 15, '#1a1a1e'); plateCircle(ta - 2, (b0 + b1)/2, mz + 6.8, 5, ta < mid ? '#e8382e' : '#e9c46a'); tube(ta + 16, b0 + 10, mz + 8, ta + 10, b1 - 12, mz + 8, 1, '#e8e4da'); }
+        if(s0 <= mid && s1 > mid){ box(mid - 14, mid + 14, b0 + 8, b1 - 8, mz, mz + 8, dark, darkF, darkS);
+          tube(mid + 18, b0 + 4, mz, mid + 18, b0 + 4, mz + 22, 1.4, '#9aa0a4'); tube(mid + 18, b0 + 4, mz + 22, dj[0] + 4, dj[1] + 22, 104, 1.2, '#9aa0a4');
+          ball(dj[0] + 4, dj[1] + 24, 104, 4.5, '#2b2d33', '#4a4d55'); }
       }}); }
     for(const [sa, sb] of R.speakers) items.push({ a: sa, b: sb, z: 0, solids: [solid(sa - 16, sa + 16, sb - 16, sb + 16, 130, 'speaker')], draw: () => {
       tube(sa, sb, 0, sa, sb, 84, 2, dark); box(sa - 14, sa + 14, sb - 14, sb + 14, 84, 130, '#2b2d33', '#1e2024', '#16181b');
@@ -51790,9 +51812,9 @@ function houseCanopy(fn){
     { const [a0, a1, b0, b1] = R.console;
       for(const [s0, s1, first, last] of runs(a0, a1, 110)) items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, 80, 'console')], draw: () => {
         runBox(s0, s1, b0, b1, 0, 66, dark, darkF, darkS, true, first, last);
-        poly([P(s0, b0, 80), P(s1, b0, 80), P(s1, b1, 66), P(s0, b1, 66)], '#3b4248');
-        for(let a = s0 + 6; a < s1 - 4; a += 9) T(a, a + 4, b0 + 16 + ((a*7) % 5)*4, b0 + 20 + ((a*7) % 5)*4, 75, '#e8e4da');
-        box(s0 + 10, s1 - 10, b0, b0 + 6, 80, 104, '#1e2226', '#2a2f33', '#16191c'); F(s0 + 14, s1 - 14, 86, 100, '#4a8ad0', null, 0, b0 + 6.3); }}); }
+        poly([P(s0, b0, 66), P(s1, b0, 66), P(s1, b1, 80), P(s0, b1, 80)], '#3b4248');   // (rising away from the engineer on its north side)
+        for(let a = s0 + 6; a < s1 - 4; a += 9) T(a, a + 4, b0 + 14 + ((a*7) % 5)*4, b0 + 18 + ((a*7) % 5)*4, 70 + ((a*7) % 5)*1.2, '#e8e4da');
+        box(s0 + 10, s1 - 10, b1 - 6, b1, 80, 104, '#1e2226', '#2a2f33', '#16191c'); }}); }   // (its monitors on the far edge, their screens to him)
     { const [ma, mb] = R.micB;
       items.push({ a: ma, b: mb, z: 0, solids: [solid(ma - 60, ma + 60, mb - 30, mb + 30, 150, 'vocal booth')], draw: () => {
         box(ma - 60, ma + 60, mb - 30, mb - 20, 0, 150, '#5a6478', '#4a5466', '#3e4757');                  // the padded screen
@@ -51804,8 +51826,8 @@ function houseCanopy(fn){
     for(const [a0, a1] of R.newsDesks) for(const [s0, s1, first, last] of runs(a0, a1, 70)){ const [b0, b1] = R.newsB;
       items.push({ a: (s0 + s1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(s0, s1, b0, b1, 72, 'desk')], draw: () => {
         runBox(s0, s1, b0, b1, 0, 72, '#f6f1e3', '#d8d0bc', '#c4bba6', true, first, last);
-        box(s0 + 14, s1 - 14, b0 + 4, b0 + 10, 72, 108, '#2b2d33', '#1e2024', '#16181b'); F(s0 + 17, s1 - 17, 76, 104, '#7fb7c4', null, 0, b0 + 10.3);
-        box(s0 + 20, s1 - 20, b0 + 20, b0 + 34, 72, 74, '#d8dce0', '#b8bcc0', '#a8acb0'); }}); }
+        box(s0 + 14, s1 - 14, b1 - 10, b1 - 4, 72, 108, '#2b2d33', '#1e2024', '#16181b');                    // (its monitor on the far edge, its screen to her)
+        box(s0 + 20, s1 - 20, b0 + 10, b0 + 24, 72, 74, '#d8dce0', '#b8bcc0', '#a8acb0'); }}); }
     { const [a0, a1, b0, b1] = R.newsCouch;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 70, 'couch')], draw: () => {
         box(a0, a1, b0, b1, 0, 34, '#c96a4a', '#a65538', '#8f4830');
@@ -66653,7 +66675,10 @@ function houseCanopy(fn){
     };
 
     /* ---- THE GROUND: the paving round it (its joints), the walk to the doors ---- */
-    T(0, K.LOT, -K.LOT, 0, 0, conc);
+    /* (only round the building: under it is the walk-in's own floor -- painted here, the paving drew over the room's floor
+       while he was in) */
+    T(0, K.LOT, B.b1, 0, 0, conc); T(0, K.LOT, -K.LOT, B.b0, 0, conc); T(0, B.a0, B.b0, B.b1, 0, conc); T(B.a1, K.LOT, B.b0, B.b1, 0, conc);
+    { const pts = []; for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI/2; pts.push(P(ca + RC*Math.cos(t), cb + RC*Math.sin(t), 0)); } pts.push(P(B.a1, B.b1, 0)); poly(pts, conc); }
     for(let a = 92; a < K.LOT; a += 92) T(a - 1, a + 1, B.b1, 0, 0.3, concD);
     T(K.door[0] - 10, K.door[1] + 10, B.b1, 0, 0.5, shade(conc, 1.06));
 
@@ -66685,7 +66710,9 @@ function houseCanopy(fn){
       S(B.a1 + 0.4, -1520, -260, 136, 180, shade(wall, 0.7)); S(B.a1 + 0.6, -1516, -264, 139, 177, glass);
       for(let b = -1516 + 64; b < -264; b += 64) S(B.a1 + 0.8, b - 1.5, b + 1.5, 139, 177, shade(wall, 0.84));
       /* the ground floor's side windows (the newsroom and the back of house), in three groups */
-      for(const [w0, w1] of [[-1500, -1240], [-1160, -900], [-820, -560]]){ S(B.a1 + 0.4, w0, w1, 30, 100, shade(wall, 0.7)); S(B.a1 + 0.6, w0 + 4, w1 - 4, 33, 97, glass);
+      for(const [w0, w1] of K.sideWin){ S(B.a1 + 0.4, w0, w1, 30, 100, teal);
+        if(SEE) HOLE([P(B.a1 + 0.6, w0 + 4, 97), P(B.a1 + 0.6, w1 - 4, 97), P(B.a1 + 0.6, w1 - 4, 33), P(B.a1 + 0.6, w0 + 4, 33)]);
+        S(B.a1 + 0.6, w0 + 4, w1 - 4, 33, 97, SEE ? glassSee : glass);
         S(B.a1 + 0.8, (w0 + w1)/2 - 1.5, (w0 + w1)/2 + 1.5, 33, 97, shade(wall, 0.84)); }
       /* a second porthole west of the doors, and the lobby's window between them */
       F(240, 480, 30, 100, teal, null, 0, B.b1 + 0.4);
@@ -72925,6 +72952,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(s0 <= a0 + 40 && s1 > a0 + 40) box(a0 + 30, a0 + 70, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214');   // a keyboard
         if(s0 <= a0 + 100 && s1 > a0 + 100) box(a0 + 92, a0 + 120, b0 + 6, b0 + 20, 75, 92, '#2f3438', '#24282b', '#1b1f23');   // the radio base
         if(s0 <= a1 - 40 && s1 > a1 - 40){ box(a1 - 70, a1 - 30, b0 + 10, b0 + 22, 75, 77, '#1d2126', '#16191c', '#101214'); cyl(a1 - 16, b0 + 26, 75, 86, 4, '#e8e2d4', '#cfc8b5'); }
+        /* (two monitors on its far edge, their screens turned to the guard behind it -- the wall's feeds at his desk; we see
+           their backs: LOOK_RULES 8, a worker on the working side of what he works at) */
+        for(const m of [a0 + 50, a1 - 50]) if(s0 <= m && s1 > m) box(m - 20, m + 20, b1 - 8, b1 - 2, 75, 104, '#2b2f35', '#22272c', '#1b1f23');
       }}); }
     /* ---- THE KEY CABINET and the spare batteries on the west wall; the coffee counter by the door ---- */
     { const [a0, a1, b0, b1] = R.cabinet;

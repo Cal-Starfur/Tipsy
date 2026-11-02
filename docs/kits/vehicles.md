@@ -6,6 +6,8 @@
 
 **Checker:** `--kit vehicles`.
 
+**Every vehicle is one of ours** (Sir, 2026-11-01, the training yard's hand-drawn 1950s pumper: "this is not our fire truck. you need to build but use things that exist if we already have them"): a parked, displayed, retired or story vehicle anywhere (a plinth, a showroom, a lot, a yard) is drawn with the game's own vehicle art, `gameCar(a, b, z, fdir, seed, kind)` with one of the existing kinds (the Fleet list in `index.html`: firetruck, laddertruck, boxtruck, ...); never a one-off look-alike. If no kind fits, add a kind to the vehicle art so the street can use it too.
+
 | ID | Rule | Ev | Status | Check |
 |---|---|---|---|---|
 | V1 | **No vehicle pops.** Layout decides what exists, before any culling. | 4 | part | ✅ (the traffic list rules out parked/moving switches) |

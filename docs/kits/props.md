@@ -4,6 +4,8 @@
 
 **Evidence:** 194 past corrections. No kit existed for these before.
 
+**Reuse what exists** (Sir, 2026-11-01): a hydrant, lamp, bench, bin, cone, sign, flag or planter on a new site is the kit's own, never redrawn; grep for the prop before drawing one.
+
 | ID | Rule | Ev | Status | Check |
 |---|---|---|---|---|
 | SP1 | **One registry.** Every placed prop lives in the city's list (`cityFurnitureForEdge` → `cityFurnitureNear`), and the art, solids, clear zones and culling all read it. What's drawn is solid, and what's solid is drawn. | 12 | part (the pier, park benches and library benches sit outside it) | ✅ L2 |
