@@ -81145,11 +81145,12 @@ const CPL_RUN = {
      end (clear of the corner's zebra), facing west with the traffic of the near lane; in from the east past the view's edge,
      away west past it. The flight from Sun Deck Airfield runs straight up the Flats' east edge to it: the hood lock lets the
      kerb lane and the park in (CPL_ANNEX), and while the story is on, a strip past the Flats' line up to x 29800 too */
-  kerb: { x: 29300, y: -300, fdir: 2, inFrom: 6500, outTo: 7000, inMs: 13000, outMs: 12000, gapMs: 3500 },
+  /* (x: its nose 610 short of the corner's box, past its stop line, STOP_LINE_D 454: pulling away, it stops at the light) */
+  kerb: { x: 29500, y: -300, fdir: 2, inFrom: 6500, outTo: 7000, v: 0.28, gapD: 900 },   // (v: a truck's cruise, under the cars' 0.32)
   load: ['A', 'S', 'A'],
   hover: 690,                               // the drone's hover over a trailer (clear of the standing letter's top, 532)
   boss: { x: 29560, y: -560 },              // Hollis Vance's place: the pavement by the park's path in, watching the kerb
-  rigger: { x: 29260, y: -580 },            // Wren Ochoa's place: the pavement by the truck
+  rigger: { x: 29460, y: -580 },            // Wren Ochoa's place: the pavement by the truck
   botV: 0.22,                               // the drone's own pace flying home (its vMax)
   crew: [{ name: 'Pilar Quintero', post: [30760, -3470], shelf: 2, seed: 0xc7c52, sex: 'f' },
          { name: 'Lowell Duarte', post: [30900, -3480], shelf: 2, seed: 0xc7c94 }],
@@ -81194,7 +81195,7 @@ function cplConvoyReset(firstParked){
   CPL.cur = 0;
 }
 /* THE TRUCKS DRIVE THE STREET AS TRAFFIC DOES: in the westbound lane (TRAF_LANE off the street's middle), pulling over to
-   the kerb over its last 700 and out of it over its first 700. Each runs on its own clock (T.p, ms along its way), which
+   the kerb over its last 700 and out of it over its first 700. Each moves as the street's cars do (T.s along its way at T.v, their ramps), which
    cplConvoyTraffic slows while it gives way to the street's cars (trafficGiveWay, the crew van's rule): a car in its way
    waits for it, and it waits for a car in its way, never through one. Parked at the kerb it is out of the lane */
 function cplTruckPath(T){
@@ -81207,9 +81208,8 @@ function cplTruckPos(T, now){
   const Kb = CPL_RUN.kerb;
   if(T.st === 'parked') return { x: Kb.x, y: Kb.y, fdir: Kb.fdir, moving: false };
   if(T.st !== 'in' && T.st !== 'out') return null;
-  const ms = T.st === 'in' ? Kb.inMs : Kb.outMs, u = Math.min(1, (T.p || 0)/ms), e = T.st === 'in' ? 1 - (1 - u)*(1 - u) : u*u;
-  const pts = cplTruckPath(T), L = walkPathLen({ pts }), d = e*L, q = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 120)), b = walkPathPoint(pts, Math.min(L, d + 120));
-  return { x: q.x, y: q.y, fdir: Math.atan2(b.y - a.y, b.x - a.x)/(Math.PI/2), moving: u < 1, u };
+  const pts = cplTruckPath(T), L = walkPathLen({ pts }), d = Math.min(L, T.s || 0), q = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 120)), b = walkPathPoint(pts, Math.min(L, d + 120));
+  return { x: q.x, y: q.y, fdir: Math.atan2(b.y - a.y, b.x - a.x)/(Math.PI/2), moving: d < L, L };
 }
 /* each frame, after the street's spacing pass: every truck on the move gives way and is given way to */
 function cplConvoyTraffic(scene, t){
@@ -81220,6 +81220,10 @@ function cplConvoyTraffic(scene, t){
     if(T.st !== 'in' && T.st !== 'out') continue;
     const p = cplTruckPos(T, t);
     let blocked = p ? scene.trafficGiveWay(t, { x: p.x, y: p.y, fdir: p.fdir, parked: false, len: RIGS.semiflat.len }) : false;
+    /* and the lights, as the street's riders and cars: short of a junction's stop line on red, it waits (signalStopsAhead) */
+    let light = false;
+    if(p){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), fr = RIGS.semiflat.len/2;
+      light = scene.signalStopsAhead(t, p.x + hx*fr, p.y + hy*fr, hx, hy); }
     /* and the street's riders, the cars' rule with them (updateRiderTraffic): a rider in its way, it waits; it in a rider's
        way, the rider waits (carWait: the truck is the bigger) */
     if(p && scene.ridersActive){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), H = RIGS.semiflat.len*0.45, BAND = STREET_RIDER.band;
@@ -81234,8 +81238,15 @@ function cplConvoyTraffic(scene, t){
       } }
     T.stall = blocked ? (T.stall || 0) + dt : 0;
     if(T.stall > 30000) blocked = false;                    // (the crew van's: a wait that never clears is let go)
-    T.vf = blocked ? Math.max(0, (T.vf == null ? 1 : T.vf) - dt/350) : Math.min(1, (T.vf == null ? 1 : T.vf) + dt/900);
-    T.p = (T.p || 0) + dt*T.vf;
+    if(light) blocked = true;                               // (never through a red: the walkers have the zebra)
+    /* moving as the street's cars do (updateTrafficMotion's ramps): a truck's cruise, braked to a stop over TRAF_BRAKE_MS,
+       pulled away over TRAF_ACCEL_MS; pulling in, it brakes to rest at the kerb */
+    const VM = CPL_RUN.kerb.v, v0 = T.v || 0, left = p ? p.L - (T.s || 0) : 0;
+    let want = blocked ? 0 : VM;
+    if(T.st === 'in') want = Math.min(want, Math.sqrt(Math.max(0, 2*left*VM/TRAF_BRAKE_MS)));
+    T.v = want < v0 ? Math.max(want, v0 - dt*VM/TRAF_BRAKE_MS) : Math.min(want, v0 + dt*VM/TRAF_ACCEL_MS);
+    T.s = (T.s || 0) + dt*T.v;
+    if(T.st === 'in' && left < 4){ T.s = p.L; T.v = 0; }
   }
 }
 /* the letter on a truck's deck, standing on its A-frame: the bottom edge's middle (the deck's middle, the truck heading west) */
@@ -81246,11 +81257,12 @@ function cplConvoyTick(now){
   const Tr = CPL.trucks;
   if(!Tr) return;
   for(const T of Tr){
-    if(T.st === 'in' && (T.p || 0) >= CPL_RUN.kerb.inMs) T.st = 'parked';
-    if(T.st === 'out' && (T.p || 0) >= CPL_RUN.kerb.outMs) T.st = 'gone';
+    const p = cplTruckPos(T, now);
+    if(T.st === 'in' && p && (T.s || 0) >= p.L) T.st = 'parked';
+    else if(T.st === 'out' && p && (T.s || 0) >= p.L) T.st = 'gone';
   }
   const cur = Tr[CPL.cur];
-  if(cur && cur.st === 'wait'){ const prev = Tr[CPL.cur - 1]; if(!prev || prev.st === 'gone' || (prev.st === 'out' && (prev.p || 0) > CPL_RUN.kerb.gapMs)){ cur.st = 'in'; cur.t0 = now; cur.p = 0; cur.vf = 1; } }
+  if(cur && cur.st === 'wait'){ const prev = Tr[CPL.cur - 1]; if(!prev || prev.st === 'gone' || (prev.st === 'out' && (prev.s || 0) > CPL_RUN.kerb.gapD)){ cur.st = 'in'; cur.t0 = now; cur.s = 0; cur.v = CPL_RUN.kerb.v; } }
 }
 /* the truck at the kerb, ready: parked with its letter on */
 function cplTruckReady(){ const T = CPL.trucks && CPL.trucks[CPL.cur]; return !!(T && T.st === 'parked' && T.letter); }
@@ -81506,7 +81518,7 @@ function cplTick(scene, ow){
       if(now > R.liftT0 + CPL_RUN.liftMs){
         R.stage = 'fly'; if(ow.fly) ow.fly.hold = null; cineBars(false);
         /* the empty truck pulls away; the next one comes once it is on its way */
-        const T = R.trucks[R.cur]; T.st = 'out'; T.t0 = now; T.p = 0; T.vf = 0; R.cur++;   // (pulling away from rest)
+        const T = R.trucks[R.cur]; T.st = 'out'; T.t0 = now; T.s = 0; T.v = 0; R.cur++;   // (pulling away from rest)
         if(typeof tpToast === "function") tpToast(R.carry.ch === 'S' ? "The S: up the hill to COSTA, the first shelf." : "An A: up the hill to PALMA, the second shelf.");
       }
       return;
@@ -118003,6 +118015,26 @@ class WorldScene extends Phaser.Scene {
      rider ahead of it, for Tipsey in front of it, and for a while after he
      bumps into it (and he feels the bump as a walker's). Pull-away and
      braking as a car's (updateTrafficMotion), through the same hold. */
+  /* THE LIGHT AHEAD, the riders' rule (below) for a vehicle on a straight run: from its front (x, y) along (hx, hy), the
+     next junction box within its stop line and band; red, or green for the other axis, and it is short of the line -- it
+     stops (so it never crosses a zebra while the walkers have it: they walk on the other axis's green). Past its line,
+     committed, it goes on. LETTERS ON THE HILL's semis */
+  signalStopsAhead(t, x, y, hx, hy){
+    if(!SIGNAL.aware) return false;
+    const grid = this.route && this.route.grid, LINE = STOP_LINE_D, LOOK = LINE + SIGNAL.stopBand + 20;
+    const boxOf = q => { const i = Math.round(q.x/BLOCK), j = Math.round(q.y/BLOCK);
+      if(!(Math.abs(q.x - i*BLOCK) < ROAD_HALF && Math.abs(q.y - j*BLOCK) < ROAD_HALF)) return null;
+      if(grid){ const n = grid.nodeAt(i, j); if(!n || n.harbor || n.svGate) return null; } return [i, j]; };
+    if(boxOf({ x, y })) return false;
+    for(let a = 20; a <= LOOK; a += 20){
+      const b = boxOf({ x: x + hx*a, y: y + hy*a });
+      if(!b) continue;
+      if(a < LINE) return false;
+      const axis = Math.abs(hx) >= Math.abs(hy) ? 0 : 1, ph = signalPhaseAt({ i: b[0], j: b[1] }, t);
+      return ph.axis !== axis || ph.state !== "green";
+    }
+    return false;
+  }
   updateStreetRiders(t){
     const riders = this.ridersActive(t);
     /* a rider having words with him who is out of range now (he was moved
