@@ -79506,7 +79506,7 @@ function cplTick(scene, ow){
       return;
     }
     case 'ask':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Rosa Delgado, the hill ranger", btn: "On my way!", ok: cplAccept, no: { btn: "Not now", ok: cplDecline }, at: cplRangerAt,
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Imani Castillo, the hill ranger", btn: "On my way!", ok: cplAccept, no: { btn: "Not now", ok: cplDecline }, at: cplRangerAt,
         say: "Tipsey! Look up the hill: COSTA PALM. The Santa Ana took the second A off its pegs in the night, and tonight's the town's birthday. The floods come on at dusk, letter by letter, and the whole Flats will be watching. No truck can get up those terraces. The Fleet's holding a new panel at its hangar at Sun Deck Airfield. Could you fly it up on their heavy-lift drone?" }));
       return;
     case 'drive':
@@ -79576,7 +79576,7 @@ function cplQueueStory(scene, vq){
     vq.push({ depth: P.x + P.y, fn: (g) => scene.bcDraw(g, "tpark|cpl|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)) });
 }
 /* LETTERS ON THE HILL, IN THE REGISTRY (R9) */
-MISSIONS['letters-on-hill'] = { name: 'Letters on the Hill', giver: 'Rosa Delgado, the hill ranger', window: 'dusk',
+MISSIONS['letters-on-hill'] = { name: 'Letters on the Hill', giver: 'Imani Castillo, the hill ranger', window: 'dusk',
   places: ['Tide Pool Elementary', 'Tipsey Fleet at Sun Deck Airfield', 'the hillside letters'],
   steps: ["Stop on the bay outside Tide Pool Elementary's east gate", "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The new A up the hill on the heavy-lift drone',
           'Over the gap after the M: the A onto its pegs', 'The drone home to its pad'],
