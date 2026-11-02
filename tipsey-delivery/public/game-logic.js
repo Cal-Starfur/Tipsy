@@ -79358,9 +79358,9 @@ function cplHandAt(now){
   if(!moving) th = d === 0 ? Math.PI/2 : -Math.PI/2 + 0.6*Math.sin(now/2300);   // (at the foot, looking out over the school; at the far end, up at the letters)
   return { x: p.x, y: p.y, z: p.z, th, moving };
 }
-/* her post: at the kiosk's window; at dusk while the A is still off (LETTERS ON THE HILL offered), down inside the
-   school's east gate, watching the street for help (moved only while both spots are unseen: cplTick, R13) */
-const CPL_GATE_POST = { x: 25800, y: -900 };
+/* her post: inside her kiosk at its front window, facing out over the park (R19); in the story she walks out to him
+   (CPL.rw). (CPL_GATE_POST: her old dusk post at the school's gate, kept only for cplTick's latch, which moves nothing now) */
+const CPL_GATE_POST = { x: 29360, y: -1022 };
 function cplRangerPost(now){
   const R = CPL_PLAN.RANGER; return { x: R.x, y: R.y, th: lhGlance(Math.PI/2, now, 7), moving: false }; }
 const _cplLooks = {};
@@ -79387,7 +79387,7 @@ function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
         0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
-  person(cplRangerAt(now), cplLook('ranger'), null, CPL.rw || CPL.atGate ? keyQueue : queuePerson);   // (at her kiosk, inside behind its glass: not the story's ghost)
+  person(cplRangerAt(now), cplLook('ranger'), null, CPL.rw ? keyQueue : queuePerson);   // (at her kiosk, inside behind its glass: not the story's ghost)
   person(cplHandAt(now), cplLook('hand'));
   if(typeof cplKidAt === "function") for(let k = 0; k < 6; k++){ const p = cplKidAt(k, now);
     if(p){ const b = Math.abs(Math.sin(now/260 + k*1.3)); person(p, cplLook('kid' + k), p.cheer ? { lift: [1.6 + 0.3*b, 1.6 + 0.3*(1 - b)], bend: [0.2, 0.2] } : null); } }
@@ -79404,13 +79404,13 @@ CITY_PEOPLE.add({ name: 'Costa Palma letters', where: "the hillside letters behi
    floods come on at dusk. The parks department's truck dropped the new A in Tide Pool Elementary's yard this afternoon,
    but no truck can get up the terraces. It COMES AT DUSK (MISSION_WINDOWS.dusk) and, started, keeps its dusk to the end
    (NIGHT_HOLD, as Sunset Salute). The way Adoption Day and Sunset Session borrow the fleet: Tipsey calls it in.
-     ask      Tipsey stops on the bay on the pavement outside the school's east gate; the hill ranger, Imani Castillo, at
-              the gate at dusk, comes out through it (it opens for her), face to face (meetWalk / meetTick), and asks
-              (I'll call the Fleet! / Not now)
+     ask      Tipsey stops on the bay on the pavement outside the letters' park (THE LETTERS' PARK, east of the school); the
+              hill ranger, Imani Castillo, comes out of her kiosk and down the path, face to face (meetWalk / meetTick),
+              and asks (I'll call the Fleet! / Not now)
      call     Tipsey calls the Fleet: the heavy-lift drone flies in from its hangar at Sun Deck Airfield on its own, from
               past the view's edge, to a hover over the yard just inside the fence beside him (cplBotAt), and is his
               (FLEET_LOAN 'dronelift'; Tipsey parked on the bay, cached)
-     yard     along the yard to its east end, where the new A lies flat on the grass: over it, it comes down to a hover
+     yard     across the park to Arturo's work pad at its east end, where the new A lies flat: over it, it comes down to a hover
      rig      the maintenance hand, waiting by the panel at dusk, comes over to the drone, standing off its rotors, face to
               face: he hooks the A to the sling (Rigged!), and goes back to his post
      lift     the panel comes up off the grass on its four cables, flat under the drone (CPL_RUN.liftMs)
@@ -79428,20 +79428,20 @@ CITY_PEOPLE.add({ name: 'Costa Palma letters', where: "the hillside letters behi
 const CPL = { atGate: false, handAtYard: false, stage: 'idle', rw: null, M: null, hw: null, park: null, bot: null, t0: 0, flyT0: 0, liftT0: 0,
               setT0: 0, aUp: false, litT0: 0, kidsOn: false, snooze: null, gate: false };
 const CPL_RUN = {
-  gate: hospBay(25990, -600),               // the start: the pavement outside the school's east gate (its gate's middle x 25768)
+  gate: hospBay(29180, -620),               // the start: the pavement outside the letters' park, by its path in
   cents: 5000, par: 180000,                 // the par: 3:00 from her yes (measured 2:03 at a straight stick: docs/kits/missions.md)
   setMs: 5200, litStep: 420, liftMs: 2600,
-  rangerPath: [[25768, -820], [25768, -690]],   // from her dusk post inside the gate: out through it
-  yard: { x: 27850, y: -1090 },             // the new A's middle, lying flat on the yard's east-end grass (its foot to the south)
+  rangerPath: [[29235, -1060], [29000, -1060], [29000, -800]],   // from her kiosk: out of its door (its west side), down the path in
+  yard: { x: 30750, y: -1015 },             // the new A's middle, lying flat on Arturo's work pad at the park's east end (its foot to the south)
   hover: 300,                               // the drone's hover over it while it is rigged
-  arrive: { x: 26380, y: -600 },            // where the drone comes to him: over the pavement beside him, east of the gate
-  handPost: { x: 28060, y: -880 },          // the maintenance hand's place by it at dusk
+  arrive: { x: 29600, y: -860 },            // where the drone comes to him: over the park's lawn beside the bay
+  handPost: { x: 31000, y: -1180 },         // the maintenance hand's place by it at dusk
   botV: 0.22                                // the drone's own pace flying in and home (its vMax)
 };
 function cplBusy(){ return CPL.stage !== 'idle'; }
 /* the gap's hover: over the slot of the missing A, the panel flat under it */
 function cplSlot(){ const L = cplLetters()[CPL_PLAN.MISSING]; return { L, x: L.xc, y: L.yf - CPL_PLAN.H/2, z: L.z0 + CPL_PLAN.H + 150 }; }
-/* the school's east gate opens for her while she walks through (rimGateStep asks) */
+/* the school's east gate, open for her (rimGateStep asks; unused since the ask moved to the letters' park: CPL.gate stays false) */
 function cplGateOpen(name, g0){ return CPL.gate && name === "Tide Pool Elementary" && g0 === TPE_PLAN.GATES[1][0]; }
 /* the panel is slung under the drone (lifting off the grass, flying, held over the gap before it is lowered) */
 function cplCarrying(now){ return FLEET_LOAN === 'dronelift' && (CPL.stage === 'lift' || CPL.stage === 'fly' || (CPL.stage === 'set' && now < CPL.setT0)); }
@@ -79559,7 +79559,7 @@ function cplLoan(scene){
   ow.fly = flyNew(ow); ow.fly.ph = 'air'; ow.fly.spin = 1; ow.z = B.z;
   CPL.bot = null;
   CPL.stage = 'yard';
-  if(typeof tpToast === "function") tpToast("The heavy-lift drone is yours. The new A is on the grass at the yard's east end.");
+  if(typeof tpToast === "function") tpToast("The heavy-lift drone is yours. The new A is on the work pad at the far end of the park.");
 }
 /* the hand's yes: back to his post, and the panel comes up on the sling */
 function cplRigged(){
@@ -79620,7 +79620,7 @@ function cplTick(scene, ow){
   if(!scene.visWorldPt(23700, -900, 900, 200)) R.kidsOn = cplBusy() && R.stage !== 'ask';
   const duskOn = !cplDone() && (cplBusy() || missionInWindow('dusk'));
   if(!R.rw && !scene.visWorldPt(CPL_PLAN.RANGER.x, CPL_PLAN.RANGER.y, 300, 260) && !scene.visWorldPt(CPL_GATE_POST.x, CPL_GATE_POST.y, 300, 260)) R.atGate = duskOn;
-  if(!R.hw && !scene.visWorldPt(CPL_RUN.handPost.x, CPL_RUN.handPost.y, 300, 260) && !scene.visWorldPt(27000, -2200, 900, 400)) R.handAtYard = duskOn;
+  if(!R.hw && !scene.visWorldPt(CPL_RUN.handPost.x, CPL_RUN.handPost.y, 300, 260) && !scene.visWorldPt(28600, -2100, 900, 400)) R.handAtYard = duskOn;
   if(R.hw && R.hw.leave != null && !hospWalkAt(R.hw, now)) R.hw = null;
   if(scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
@@ -79631,9 +79631,9 @@ function cplTick(scene, ow){
       if(cplDone() || fleetCur() || missionBusy('letters-on-hill') || storiesHidden('letters-on-hill')) return;
       if(!armed(CPL_RUN.gate)) return;
       if(!missionWindowOpen('letters-on-hill')){ missionWindowSay('letters-on-hill', scene); return; }
-      R.stage = 'ask'; ow.vel = 0; cineBars(true); R.gate = true;
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
       const p = cplRangerPost(now), G = CPL_RUN.rangerPath;
-      const M = meetWalk(ow, { x: G[G.length - 1][0], y: G[G.length - 1][1] }, now, -1, scene);   // (on his left: the gate's pier is on his right)
+      const M = meetWalk(ow, { x: G[G.length - 1][0], y: G[G.length - 1][1] }, now, 1, scene);   // (on his right: on the park's lawn, the kiosk behind her)
       R.rw = { pts: [{ x: p.x, y: p.y }].concat(G.map(q => ({ x: q[0], y: q[1] })), [{ x: M.to.x, y: M.to.y }]), t0: now, leave: null, faceTh: M.faceTh, th0: p.th };
       M.walkMs = walkPathMs(R.rw); R.M = M;
       if(typeof sfxThump === "function") sfxThump(0.2);
@@ -79641,7 +79641,7 @@ function cplTick(scene, ow){
     }
     case 'ask':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Imani Castillo, the hill ranger", btn: "I'll call the Fleet!", ok: cplAccept, no: { btn: "Not now", ok: cplDecline }, at: cplRangerAt,
-        say: "Tipsey! Look up the hill: COSTA PALM. The Santa Ana took the second A off its pegs in the night, and tonight's the town's birthday. The floods come on at dusk, letter by letter. The parks truck dropped a new A in the yard this afternoon, but no truck can get up those terraces. Could your Fleet fly it up?" }));
+        say: "Tipsey! Look up the hill: COSTA PALM. The Santa Ana took the second A off its pegs in the night, and tonight's the town's birthday. The floods come on at dusk, letter by letter. The parks truck dropped a new A at the far end of the park this afternoon, but no truck can get up those terraces. Could your Fleet fly it up?" }));
       return;
     case 'call': {
       /* he stays turned to her as she goes back in; the drone flies in on its own and is his once it hovers over the A */
@@ -79661,7 +79661,7 @@ function cplTick(scene, ow){
     case 'rig':
       /* the hand comes over from the A to the drone, standing off its rotors (lhMeetWalk: a drone's gap) */
       if(!R.hw && now > R.rigT){ const p = cplHandAt(now); R.hw = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, 1, 260), { th0: p.th }); }   // (on the drone's right: inside the yard, clear of the A)
-      if(R.hw && R.hw.leave == null) meet(R.hw, () => hospSayCard({ who: "Arturo Soto, school maintenance", btn: "Rigged!", ok: cplRigged, at: cplHandAt,
+      if(R.hw && R.hw.leave == null) meet(R.hw, () => hospSayCard({ who: "Arturo Soto, park maintenance", btn: "Rigged!", ok: cplRigged, at: cplHandAt,
         say: "There she is! Hold her right there... four shackles, one each corner, and the A's on your sling. She's a big sail in this wind, so she'll swing: keep moving and she settles. Up the hill to the gap after the M!" }));
       return;
     case 'lift':
@@ -79718,15 +79718,15 @@ function cplQueueStory(scene, vq){
 }
 /* LETTERS ON THE HILL, IN THE REGISTRY (R9) */
 MISSIONS['letters-on-hill'] = { name: 'Letters on the Hill', giver: 'Imani Castillo, the hill ranger', window: 'dusk',
-  places: ['Tide Pool Elementary', 'the school yard', 'the hillside letters'],
-  steps: ["Stop on the bay outside Tide Pool Elementary's east gate", "Call the Fleet's heavy-lift drone to the yard", 'The new A on the sling',
+  places: ["the letters' park", 'the hillside letters'],
+  steps: ["Stop on the bay outside the letters' park, east of Tide Pool Elementary", "Call the Fleet's heavy-lift drone to the park", 'The new A on the sling',
           'Up the hill: the gap after the M', 'The A onto its pegs'],
   reward: { cents: CPL_RUN.cents, payId: 'letters', trophy: 'letters-on-hill', skin: 'costa-palma', wear: true, fleet: 'dronelift' },
   busy: () => cplBusy(),
   item: () => null,                                                     // (the panel rides in the drone, which never tips)
-  next: () => ({ ask: 'Hear the ranger out', call: 'The heavy-lift drone is on its way', yard: "The new A on the yard's grass", rig: 'The maintenance hand rigs the A', lift: 'Lifting the A',
-                 fly: 'The hill behind the school: the gap after the M', set: 'Lowering the A', card: 'Lit!' })[CPL.stage] || "Tide Pool Elementary's east gate, at dusk",
-  start: () => ({ x: CPL_RUN.gate.x, y: CPL_RUN.gate.y, name: 'Tide Pool Elementary' }) };
+  next: () => ({ ask: 'Hear the ranger out', call: 'The heavy-lift drone is on its way', yard: "The new A on the park's work pad", rig: 'The maintenance hand rigs the A', lift: 'Lifting the A',
+                 fly: 'The hill behind the school: the gap after the M', set: 'Lowering the A', card: 'Lit!' })[CPL.stage] || "The letters' park, at dusk",
+  start: () => ({ x: CPL_RUN.gate.x, y: CPL_RUN.gate.y, name: "the letters' park" }) };
 /* ==================== PAW POINT DOG PARK (area 5, "Shelter lawn": the approved Flats build order) ====================
    Veterans Memorial Park's cell 1,2, beside the Costa Palma Animal Shelter (2,2), which took a Veterans cell the same
    way: Lagoon Baths (0,2) west across the street, Palmline Nursery (1,3) south, more trail north (1,1). The park stays
@@ -94770,7 +94770,7 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
-    /* LETTERS ON THE HILL's bay (cplBayNow): the school's east gate to start (out of its dusk the bay alone), the Fleet's
+    /* LETTERS ON THE HILL's bay (cplBayNow): the letters' park's pavement to start (out of its dusk the bay alone), the Fleet's
        visitor bay; the gap's hover and the drone's pad the beacon alone -- the bay cached, its ring and beacon live (R7) */
     { const B = cplBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
