@@ -2206,6 +2206,7 @@ function hoodAtWorld(x, y){ return hoodAt(Math.round(x/BLOCK), Math.round(y/BLOC
                                  NOT saved -- the store path is below)
      HOOD_LOCK.active = false    no lock at all */
 const HOOD_LOCK = { active: true, owned: new Set([0]) };   // HOODS indices
+const CPL_ANNEX = { x0: 28100, x1: 32400, y1: -520 };       // (hoodLockAllows: the Costa Palma letters' park and hill)
 function hoodLockEdge(){ return ROAD_HALF + 40; }
 function hoodCellAt(x, y){
   const E = hoodLockEdge(), SW = DISTRICT_W*BLOCK, SH = DISTRICT_H*BLOCK;
@@ -2215,6 +2216,10 @@ function hoodCellAt(x, y){
 }
 function hoodLockAllows(x, y){
   if(!HOOD_LOCK.active) return true;
+  /* THE COSTA PALMA LETTERS' ANNEX (Sir, 2026-11-02: "this is going to break the rules and pull this out of the Flats but i
+     think that its fine"): the letters' park on the rim lot east of Tide Pool Elementary, its pavement and the hill behind
+     it stand past the Flats' line, x 28560, and are played from the Flats */
+  if(x > CPL_ANNEX.x0 && x < CPL_ANNEX.x1 && y < CPL_ANNEX.y1) return true;
   /* an interior (POCKETS) is in its landmark's hood: ask at its front door */
   const pk = typeof pocketAt === "function" ? pocketAt(x, y) : null;
   if(pk){ const d = pocketOutsideDoor(pk); if(d){ x = d.x; y = d.y; } }
@@ -10769,7 +10774,7 @@ function owNorthEdgeBlocks(W, x, y){
    past the rim, short of the mountains (flyEdgeBlocks: past the last shelf) -- where the north edge stops everything
    that drives. Its height over them is the terraces' own (flyTerrainZ: flyHillsZ, each shelf from its riser's foot), so
    the auto height climbs each riser and the floor keeps clear of the shelves. Ground vehicles are stopped as before */
-const FLY_HILL_CORRIDOR = { x1: 28560 };   // (west: the city's own edge, -WG_COAST.EXT*BLOCK)
+const FLY_HILL_CORRIDOR = { x1: 32400 };   // (west: the city's own edge, -WG_COAST.EXT*BLOCK; east: past the Costa Palma letters, CPL_ANNEX)
 function flyFoothillCorridor(x, y){
   if(!WORLDGEN_COAST || y >= -WG_COAST.EXT*BLOCK) return false;
   const C = FLY_HILL_CORRIDOR;
@@ -80792,7 +80797,7 @@ MISSIONS['open-house'] = { name: 'Open House', giver: 'Captain Dana Brennan, The
                    hand walking the stair and the shelf path (a patrol, MAINT_UNIFORM), every hour of the day. */
 const CPL_PLAN = {
   H: 460, W: 320, T: 78, D: 26, PITCH: 420,
-  ROWS: [{ word: 'COSTA', x0: 21300, yf: -2700, shelf: 1 }, { word: 'PALMA', x0: 23300, yf: -3600, shelf: 2 }],
+  ROWS: [{ word: 'COSTA', x0: 27500, yf: -2700, shelf: 1 }, { word: 'PALMA', x0: 29700, yf: -3600, shelf: 2 }],
   MISSING: 9,                                                   // the second A of PALMA (index into the ten)
   KIOSK: { x: 27140, y: -1615 },                                // the ranger's booth (drawGuardBooth's middle), inside the railing
   RANGER: { x: 27150, y: -1580 },                               // her post: inside the booth at its front window, facing out over it (R19: the working side)
@@ -80911,7 +80916,7 @@ function cplDrawLanding(scene, g, p){
 }
 /* THE STILL PIECES and the floods' light (from the scene's world queue, beside the security post's) */
 function cplQueueStatic(scene, vq){
-  if(!WORLDGEN_COAST || !scene.visWorldPt(24300, -2600, 4200, 900)) return;
+  if(!WORLDGEN_COAST || !scene.visWorldPt(29600, -3000, 4400, 900)) return;
   const P = CPL_PLAN, now = scene.time.now, nl = nightLevel(), up = cplAUp();
   for(const L of cplLetters()){
     const isUp = L.i !== P.MISSING || up;
@@ -80946,7 +80951,7 @@ function cplQueueStatic(scene, vq){
 }
 /* the gravel, in the ground pass: the walk from the railing's back to the stair's foot, the path along the first shelf */
 function cplFillGround(scene, g){
-  if(!WORLDGEN_COAST || Math.abs(scene.camX - 24300) + Math.abs(scene.camY + 2300) > (scene.vpW() + scene.vpH())/scene.K + 6000) return;
+  if(!WORLDGEN_COAST || Math.abs(scene.camX - 29600) + Math.abs(scene.camY + 2000) > (scene.vpW() + scene.vpH())/scene.K + 6000) return;
   const P = CPL_PLAN, z1 = cplShelfZ(1);
   const rect = (r, col, z, p) => { const pts = [scene.W(r.x0 - p, r.y0 - p, z), scene.W(r.x1 + p, r.y0 - p, z), scene.W(r.x1 + p, r.y1 + p, z), scene.W(r.x0 - p, r.y1 + p, z)];
     if(scene.ptsOnScreen(pts)){ g.fillStyle(col, 1); g.fillPoints(pts, true); } };
@@ -81000,7 +81005,7 @@ function cplRangerAt(now){
   return cplRangerPost(now);
 }
 function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
-  if(!WORLDGEN_COAST || !scene.visWorldPt(25000, -1800, 3600, 600)) return;
+  if(!WORLDGEN_COAST || !scene.visWorldPt(28500, -1800, 4200, 600)) return;
   const now = scene.time.now;
   const person = (p, Lk, pose, q) => {
     if(!p || !scene.visProp("people", p.x, p.y)) return;
@@ -100096,6 +100101,11 @@ class WorldScene extends Phaser.Scene {
     }
     const list = vt._byCell.get(blk.i + "," + blk.j);
     if(!list) return;
+    this.queueParkPlants(vq, list);
+  }
+  /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
+     anything else through drawProp) -- the park kit, also the Costa Palma letters' park's (cplQueuePark) */
+  queueParkPlants(vq, list){
     const shadeC = (c, k) => ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0);
     /* EACH PLANT CULLED ON ITS OWN (Sir, 2026-09-30: "were running into
        alot of lag"). A park cell is in visBlocks whenever any of it is
