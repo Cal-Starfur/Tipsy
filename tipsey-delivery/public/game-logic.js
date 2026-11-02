@@ -3139,6 +3139,12 @@ function trafficSpriteKind(k){
   if(c) return !(c.add && c.add.includes("lightbar"));
   return !!((typeof RIGS !== "undefined" && RIGS[k]) || k === "fueltruck" || k === "flatbed" || k === "beertruck");
 }
+/* AN OPEN DECK'S SPAN (semiflat): from the rig's middle along its heading, a0 (rear) .. a1 (its headboard), and the deck's
+   height -- for whoever loads it (LETTERS ON THE HILL's letters) */
+function rigDeck(kind){
+  const RG = RIGS[kind], hl = RG.len/2, aC = hl - 116, aBk = aC - 88, aSl = RG.sleeper ? aBk - 62 : aBk;
+  return { a0: -hl + 2, a1: aSl - 18, h: 64 };
+}
 const RIGS = {
   boxtruck:    { cab: "van",     len: 400, body: "box",     pal: "fleet" },
   movingtruck: { cab: "van",     len: 392, body: "box",     pal: "rental", loft: true, swoosh: true },
@@ -3147,6 +3153,11 @@ const RIGS = {
   garbagetruck: { cab: "cabover", len: 410, body: "packer",  pal: "garbage" },
   recycletruck: { cab: "cabover", len: 410, body: "recycle", pal: "recycle" },
   semi:        { cab: "tractor", len: 780, body: "trailer", pal: "fleet", sleeper: true },
+  /* the 18-wheeler with an open flatbed trailer (Sir, 2026-11-02, LETTERS ON THE HILL: "it should be an 18 wheeler with a
+     flat bed open trailer"): the semi's tractor and running gear, the box swapped for an open deck -- a headboard behind
+     the tractor, stake pockets and a rub rail down each side, the landing gear, the lights and the underride bar. What it
+     carries is the caller's (drawn over the deck: rigDeck gives its span) */
+  semiflat:    { cab: "tractor", len: 780, body: "flatdeck", pal: "fleet", sleeper: true },
   carcarrier:  { cab: "tractor", len: 780, body: "carrier", pal: "fleet" },
   laddertruck: { cab: "cabover", len: 520, body: "aerial",  pal: "fire" },
   /* batch 5 (2026-10-11): the industrial trucks on the same kit */
@@ -3197,7 +3208,7 @@ function carPalette(kind){
 const VEHICLES = [
   { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Humanoid robot", "humanoid"]] },
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
-  { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
+  { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Semi with flatbed trailer", "semiflat"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
   { group: "Industrial", items: [["Cement mixer", "mixertruck"], ["Dump truck", "dumptruck"], ["Excavator", "excavator"], ["Bulldozer", "bulldozer"], ["Front loader", "frontloader"], ["Backhoe", "backhoe"], ["Crane truck", "cranetruck"], ["Forklift", "forklift"], ["Road roller", "roadroller"], ["Street sweeper", "sweeper"], ["Bucket truck", "buckettruck"], ["Baggage tug and carts", "bagtug"], ["Autonomous dump truck", "avdump"], ["Robo street sweeper", "avsweeper"], ["Driverless forklift", "avforklift"]] },
   { group: "Airplanes", items: [["Cessna 172", "cessna"], ["Twin", "twin"], ["Twin, door open", "twinopen"], ["Light jet", "jet"], ["Piper Cub", "pipercub"], ["Biplane crop duster", "cropduster"], ["Floatplane", "floatplane"], ["Turboprop cargo plane", "cargoprop"], ["Aerobatic stunt plane", "stuntplane"], ["Glider", "glider"], ["Delivery drone plane (autonomous)", "uavplane"], ["Long-range cargo drone", "uavcargo"]] },
@@ -104933,6 +104944,7 @@ class WorldScene extends Phaser.Scene {
                 mixer: [hl - 70, -hl + 92, -hl + 150], dump: [hl - 62, -hl + 72, -hl + 132], crane: [hl - 72, -hl + 102, -hl + 162],
                 bucket: [hl - 64, -hl + 84], sweeper: [hl - 62, -hl + 62], packer: [hl - 70, -hl + 118, -hl + 172], recycle: [hl - 70, -hl + 118, -hl + 172],
                 aerial: [hl - 72, -hl + 128, -hl + 184], trailer: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
+                flatdeck: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 carrier: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60] }[RG.body];
     for(const a of W) for(const sb of [-1, 1]){ const steer = a > hl - 100;
       parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw : null) }); }   // (the near steer tyre through its arch; the rest stand clear under the body)
@@ -105232,6 +105244,28 @@ class WorldScene extends Phaser.Scene {
             endQ(a0 - 0.8, sb*hw*0.7, sb*hw*0.94, h0 - 10, h0 - 2, CARC.tail); }
           solid(prismH([[a0 - 6, -hw*0.9], [a0, -hw*0.9], [a0, hw*0.9], [a0 - 6, hw*0.9]], 16, 24), TRIM);   // the underride bar
           for(const sb of [-1, 1]) line([a0 - 3, sb*hw*0.7, 24], [a0 - 3, sb*hw*0.7, h0], TRIM, 3);
+        }
+      }});
+    } else if(RG.body === "flatdeck"){
+      /* THE OPEN FLATBED TRAILER (semiflat): the semi's trailer without its box -- a deck of planks on the frame, a
+         headboard toward the tractor, stake pockets and a rub rail down each side, the landing gear, the tail lights
+         and the underride bar. Its load is the caller's (rigDeck: the deck's span and height in the rig's frame) */
+      const D = rigDeck(kind), a0 = D.a0, a1 = D.a1, h0 = D.h, fb2 = nearB*(hw + 2.6);
+      parts.push({ d: V.depth((a0 + a1)/2, 0, 40), draw: () => {
+        for(const sb of [-nearB, nearB]){ line([a1 - 64, sb*(hw - 16), h0 - 8], [a1 - 64, sb*(hw - 16), 10], STEEL, 4); solid(prismH([[a1 - 72, sb*(hw - 24)], [a1 - 56, sb*(hw - 24)], [a1 - 56, sb*(hw - 8)], [a1 - 72, sb*(hw - 8)]], 4, 10), TRIM); }
+        /* the frame rails and the deck */
+        solid(prismH([[a0, -hw*0.55], [a1, -hw*0.55], [a1, hw*0.55], [a0, hw*0.55]], h0 - 20, h0 - 8), TRIM);
+        solid(prismH([[a0, -hw - 2], [a1, -hw - 2], [a1, hw + 2], [a0, hw + 2]], h0 - 8, h0), 0x8a6a44, (i, n) => n[2] > 0.5 ? 0x9c7a50 : n[0] > 0.5 ? 0x6e5236 : 0x7a5c3c);
+        for(let a = a0 + 30; a < a1 - 6; a += 30) line([a, -hw, h0 + 0.4], [a, hw, h0 + 0.4], 0x6e5236, 1);      // the planks' seams
+        quad(a0, a1, h0 - 8, h0 - 3, fb2*1.001, STEEL);                                                          // the rub rail
+        for(let a = a0 + 24; a < a1 - 10; a += 48) quad(a, a + 6, h0 - 8, h0, fb2*1.002, 0x2a2c30);              // the stake pockets
+        /* the headboard at the front of the deck */
+        solid(prismH([[a1 - 8, -hw], [a1, -hw], [a1, hw], [a1 - 8, hw]], h0, h0 + 70), STEEL, (i, n) => n[2] > 0.5 ? 0xa3aab0 : 0x7a8188);
+        for(const bf of [-0.5, 0, 0.5]) line([a1 - 9, bf*hw, h0 + 4], [a1 - 9, bf*hw, h0 + 66], 0x6a7178, 1.6);
+        if(!nose){
+          for(const sb of [-1, 1]) endQ(a0 - 0.8, sb*hw*0.7, sb*hw*0.94, h0 - 14, h0 - 6, CARC.tail);
+          solid(prismH([[a0 - 6, -hw*0.9], [a0, -hw*0.9], [a0, hw*0.9], [a0 - 6, hw*0.9]], 16, 24), TRIM);   // the underride bar
+          for(const sb of [-1, 1]) line([a0 - 3, sb*hw*0.7, 24], [a0 - 3, sb*hw*0.7, h0 - 8], TRIM, 3);
         }
       }});
     } else if(RG.body === "carrier"){

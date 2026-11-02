@@ -30,6 +30,7 @@
 **Approved values:**
 - `CARC` 225 × 90 (chassis 42 + cabin 48, wheel radius 24).
 - Flatbed and beer truck: 280 long.
+- The 18-wheeler with an open flatbed trailer, `semiflat` (Sir, 2026-11-02, Letters on the Hill: "it should be an 18 wheeler with a flat bed open trailer"): `RIGS.semiflat`, the semi's tractor and running gear (780 long, 104 wide) with the box swapped for an open deck (`body: "flatdeck"`: planks on the frame, a headboard toward the tractor, stake pockets and a rub rail, landing gear, tail lights, the underride bar). Its deck's span and height for a load: `rigDeck('semiflat')` = a -388 (rear) .. 106 (headboard), h 64, in the rig's frame (a along its heading from its middle). In the vehicle picker as "Semi with flatbed trailer"; the street can use it as any RIGS kind.
 - Gap from a moving lane to parked bodies: 84; between opposing cars: 150.
 - Bays 120 × 260, aisles 240.
 - Exemplars:
