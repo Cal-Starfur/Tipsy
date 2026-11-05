@@ -490,6 +490,132 @@
 "status": "blocked",
 "note": "waits on University hood lock",
 "group": "Flats dead space"
+},
+{
+"id": "t-motel",
+"title": "Sun Deck Motor Lodge + The Getaway",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-kart",
+"title": "Tidewater Kart Works + Number 4 Builds a Winner",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-fish",
+"title": "Pelican Fish Market + Catch of the Day",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-paw",
+"title": "Paw Point Dog Park + Adoption Day",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-vet",
+"title": "Veterans Memorial + Sunset Salute",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-surf",
+"title": "Sunset Shore Surf School + Sunset Session",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-watch",
+"title": "Vista Ridge Security Post + Night Watch",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-ktde",
+"title": "KTDE 98.1 The Tide, whole block + Request Line",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-fire",
+"title": "Fire Training Yard + Open House",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-letters",
+"title": "Letters on the Hill",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-skate",
+"title": "Driftwood Skate Park",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060,-1.57&view=3",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-museum",
+"title": "Tidewater Maritime Museum (no drive, dimmer lanterns)",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-trophies",
+"title": "Seabreeze Trophies + Pelican Drug walk-ins",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-rules",
+"title": "Shared rules: one door rule, meet walk, crew pace, no fades, order/solids/cache",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2",
+"group": "Built, awaiting your test"
 }
 ]
 }
