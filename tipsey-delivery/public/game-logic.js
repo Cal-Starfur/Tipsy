@@ -16221,7 +16221,7 @@ function nssResidentAt(d, t, bx, by){
   let x = q.x, y = q.y;
   const ux = q.ux, uy = q.uy;
   /* past the front walk, a step aside round him (as the boardwalk's crowd do) */
-  if(q.seg >= 3 && q.moving && bx !== undefined){
+  if(q.moving && bx !== undefined){   // (every leg, the front walk too: it was only past it, so he stood on the path and they walked through him)
     const nx = -uy, ny = ux, dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny;
     if(Math.abs(da) < R.swerveR && Math.abs(dl) < R.swerveW){
       const w = 1 - Math.abs(da)/R.swerveR, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
