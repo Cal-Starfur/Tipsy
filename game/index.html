@@ -96523,7 +96523,20 @@ class WorldScene extends Phaser.Scene {
         else if(el < dn){ roll = 1; body = { down: 1, pose: 1, off: SR.offSide, rise: (el - dn + SR.getUpMs)/SR.getUpMs, land: el - SR.fallMs }; }   // up on their feet: push up, crouch, stand (FALL_ANIM)
         else if(el < dn + SR.upMs) lift((el - dn)/SR.upMs, standAt());
         else noRider = false; }
-      blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
+      /* A CAR IS LONG BUT SORTS BY ITS CENTRE, so a rider alongside its nose (or tail) sorted by his own x+y can land on the wrong
+         side of it and be painted over its front panel (Sir, 2026-11-05: "scooters painting over front panel of cars as they
+         go by"). Within a car's length, he sorts by which SIDE of it he is on: the far side behind it, the near side in front. */
+      let rdDepth = rx + ry;
+      for(const p of trafficPts){
+        if(!p.wp) continue;
+        const h = p.f*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), dx = rx - p.wp.x, dy = ry - p.wp.y;
+        if(Math.abs(dx*hx + dy*hy) > CARC.len*0.6 || Math.abs(dx*hy - dy*hx) > 130) continue;
+        const cd = p.wp.x + p.wp.y;
+        const along = dx*hx + dy*hy, side = (dx + dy) - along*(hx + hy);   // his depth less the car axis's depth at his place along it
+        if(side < 0 && rdDepth >= cd) rdDepth = cd - 0.5;
+        else if(side > 0 && rdDepth <= cd) rdDepth = cd + 0.5;
+      }
+      blockVQ.push({ depth: rdDepth, fn: (g, tt) => {
         const L = streetLook(rd.seed, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         /* KNOCKED OFF (STREET_RIDER.fallMs..): rider and scooter rolled over
            together about the ground line, onto the side away from him --
