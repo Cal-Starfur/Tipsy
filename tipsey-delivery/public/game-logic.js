@@ -5826,7 +5826,7 @@ if(typeof window !== 'undefined'){ window.owDbgArm = owDbgArm; window.owDbgSet =
    frame against OW_DBG, built the first time it is wanted. */
 function showroomButton(scene){
   let b = document.getElementById('tsrOpen');
-  const want = OW_DBG && !scene._sr;
+  const want = false; /* Vehicles button removed (Sir, 2026-11-05) */
   if(!want){ if(b) b.style.display = 'none'; return; }
   if(!b){
     b = document.createElement('button');
