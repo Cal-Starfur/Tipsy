@@ -25625,10 +25625,20 @@ function almsFolkAt(p, t, bx, by){
   else if(u < leg + p.pause){ s = p.L; moving = false; }
   else if(u < 2*leg + p.pause){ s = p.L - (u - leg - p.pause)*p.v; dir = -1; }
   else { s = 0; moving = false; }
-  let i = 1; while(i < p.cum.length - 1 && p.cum[i] < s) i++;
-  const a = p.pts[i - 1], b = p.pts[i], f = (s - p.cum[i - 1]) / ((p.cum[i] - p.cum[i - 1]) || 1);
-  let x = a.x + (b.x - a.x)*f, y = a.y + (b.y - a.y)*f;
-  const th = Math.atan2((b.y - a.y)*dir, (b.x - a.x)*dir);
+  /* the heading is the path's tangent averaged over 60 either side (a corner is turned through, not snapped), and at a
+     rest it swings round to the way back over the first 700 ms of it */
+  const seg = q => { q = Math.max(0, Math.min(p.L, q)); let k = 1; while(k < p.cum.length - 1 && p.cum[k] < q) k++;
+    const A0 = p.pts[k - 1], B0 = p.pts[k], f0 = (q - p.cum[k - 1]) / ((p.cum[k] - p.cum[k - 1]) || 1), d = Math.hypot(B0.x - A0.x, B0.y - A0.y) || 1;
+    return { x: A0.x + (B0.x - A0.x)*f0, y: A0.y + (B0.y - A0.y)*f0, tx: (B0.x - A0.x)/d, ty: (B0.y - A0.y)/d }; };
+  const here = seg(s);
+  let x = here.x, y = here.y;
+  const t0 = seg(s - 60*dir), t1 = seg(s + 60*dir);
+  let th = Math.atan2((t0.ty + t1.ty)*dir, (t0.tx + t1.tx)*dir);
+  if(!moving){
+    const atEnd = u < leg + p.pause, into = atEnd ? u - leg : u - (2*leg + p.pause), e = Math.max(0, Math.min(1, into/700)), sm = e*e*(3 - 2*e);
+    const tg = seg(atEnd ? p.L : 0);
+    th = Math.atan2(tg.ty, tg.tx) + (atEnd ? 0 : Math.PI) + Math.PI*sm;
+  }
   /* step round him, the way the boardwalk's walkers do */
   const dx = x - bx, dy = y - by, d = Math.hypot(dx, dy);
   if(d < 110 && d > 0.01){ const k = (110 - d)/d*0.7; x += dx*k; y += dy*k; }
