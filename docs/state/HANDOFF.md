@@ -14,7 +14,7 @@ Read first:
 
 ## Per-change routine (the user's rules + this pass)
 1. Edit `game/index.html`, then `python3 tools/build_devvit.py`.
-2. Boot headless with no page errors. Take photos, plus an MP4 clip for anything that moves.
+2. Boot headless with no page errors. Take photos. No MP4 clips unless asked.
 3. Gate the commit: `node tools/review/gate.js --rev <commit>` (about 40 min, one browser at a time). NEW findings must be explained, or
    fixed. Add explained ones to `tools/review/known.json` with a note.
 4. Merge `origin/main` into `consistency-pass` before publishing. Another session works on main.
