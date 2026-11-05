@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ d66e00f): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 8910a74): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'd66e00f'; })();</script>
+  window.TIPSY_TEST_BUILD = '8910a74'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -17919,7 +17919,7 @@ function nssResidentAt(d, t, bx, by){
   let x = q.x, y = q.y;
   const ux = q.ux, uy = q.uy;
   /* past the front walk, a step aside round him (as the boardwalk's crowd do) */
-  if(q.seg >= 3 && q.moving && bx !== undefined){
+  if(q.moving && bx !== undefined){   // (every leg, the front walk too: it was only past it, so he stood on the path and they walked through him)
     const nx = -uy, ny = ux, dx = x - bx, dy = y - by, da = dx*ux + dy*uy, dl = dx*nx + dy*ny;
     if(Math.abs(da) < R.swerveR && Math.abs(dl) < R.swerveW){
       const w = 1 - Math.abs(da)/R.swerveR, kk = w*w*(3 - 2*w), side = dl !== 0 ? Math.sign(dl) : 1;
