@@ -31,9 +31,15 @@ correct something it doesn't cover, add a one-line rule to it.
    (https://claude.ai/artifact/F5tLzKgJNZAsFTzPguT1qW, `<p class="jump">` after its
    `.where` line; read it first, then republish to that URL). Photos of the spots: run
    `node tools/snap_spots.js [--only <word>] [--view 1-3]` (view 3 by default; writes
-   `snaps/sheet.png`), or, to save tokens, fire the scheduled task "Tipsy test-spot
-   photos" (`trig_01C2paDJ2MB26zG4369n1VHf`, a fresh Haiku session; pass options as its
-   text). Don't list them in chat
+   `snaps/slides.html`) and republish it to the **Tipsy Spot Slides** artifact
+   (https://claude.ai/artifact/KK1mDFygtRiRHgzooG5ACm; read it first; never pass
+   `capabilities`), or, to save tokens, fire the scheduled task "Tipsy test-spot photos"
+   (`trig_01C2paDJ2MB26zG4369n1VHf`, a fresh Haiku session; pass options as its text).
+   Sir writes what needs fixing per spot on the slides; before fixing, read the open notes
+   with ArtifactData `query` on collection `fixes` (`status == open`; each has `label`,
+   `go`, `note`; Sir's pencil marks are `marks`, strokes in 0..1 photo coordinates, and
+   `markup`, a JPEG data URL of the photo with them drawn on: read it with `out_dir`,
+   decode and look at it), fix them, then set that note's `status` to `fixed`. Don't list them in chat
    each time: say they're logged. Links open in Safari (the home-screen app drops `?go=`).
 6. Wait. I test in the artifact. Do not commit or push until I say "push".
 
