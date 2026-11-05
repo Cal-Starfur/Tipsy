@@ -463,6 +463,33 @@
 "status": "blocked",
 "group": "Needs Sir",
 "note": "decision"
+},
+{
+"id": "da8",
+"title": "Flats dead-space area 8 (details only in the v3 report artifact; needs a look)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "confirm what area 8 is",
+"group": "Flats dead space"
+},
+{
+"id": "da9",
+"title": "Flats dead-space areas 9 + 12 (moved beyond the Flats)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "waiting on region decision",
+"group": "Flats dead space"
+},
+{
+"id": "da13",
+"title": "Sunset Pier, area 13 (an edge of University)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "waits on University hood lock",
+"group": "Flats dead space"
 }
 ]
 }

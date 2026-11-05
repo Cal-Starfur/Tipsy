@@ -96,3 +96,8 @@ graph LR
 ## Needs Sir
 - [!] `x1` Fleet lock flip; garage shows big vehicle on pick; pier access for Flats players (decision) [docs/state/HANDOFF.md]
 - [!] `x2` Region index follows the lock; Mirador developer; pier lamp + palm sizes (decision) [docs/state/HANDOFF.md]
+
+## Flats dead space
+- [!] `da8` Flats dead-space area 8 (details only in the v3 report artifact; needs a look) (confirm what area 8 is) [docs/state/HANDOFF.md]
+- [!] `da9` Flats dead-space areas 9 + 12 (moved beyond the Flats) (waiting on region decision) [docs/state/HANDOFF.md]
+- [!] `da13` Sunset Pier, area 13 (an edge of University) (waits on University hood lock) [docs/state/HANDOFF.md]
