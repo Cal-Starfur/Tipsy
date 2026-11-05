@@ -25567,26 +25567,39 @@ if(typeof window !== "undefined") window.ALMS_GATES = ALMS_GATES;
    middle (a = world x, b = world y from it), so the camera sees the +a and +b faces. Drawn through the building cache, a piece
    at a time, each at its own depth (queueGarden); what stands up is solid (gardenSolidAt), the paths and the gaps are not. */
 const GARDEN = (() => {
-  const ox = ALMS_PLAN.I*BLOCK + BLOCK/2, oy = (ALMS_PLAN.J - 1)*BLOCK + BLOCK/2;
-  const A0 = -720, A1 = 720, B0 = 380, B1 = 790, GAP = 60, rows = [[410, 530], [630, 750]];
+  const ox = ALMS_PLAN.I*BLOCK + BLOCK/2, oy = (ALMS_PLAN.J - 1)*BLOCK + BLOCK/2, GAP = 60;
+  const crops = ['lettuce', 'tomato', 'sunflower', 'pumpkin', 'corn', 'beans', 'cabbage', 'carrot', 'flowers'];
+  const beds = [], fence = [], ground = [];
+  let n = 0;
+  const addBeds = list => list.forEach(([a0, a1, b0, b1]) => beds.push({ a0, a1, b0, b1, crop: crops[(n++*4 + 1) % crops.length] }));
+  /* a plot: fenced, its main path along b with a gate gap at each end, a cross path across its middle */
+  const plot = (a0, a1, b0, b1, gc) => {
+    const cb = (b0 + b1)/2;
+    ground.push({ a0, a1, b0, b1, paths: [[gc - 45, gc + 45, b0, b1], [a0, a1, cb - 25, cb + 25], [gc - 70, gc + 70, b0 - 36, b0], [gc - 70, gc + 70, b1, b1 + 36]] });
+    fence.push([a0, gc - GAP, b0 - 3, b0 + 3], [gc + GAP, a1, b0 - 3, b0 + 3], [a0, gc - GAP, b1 - 3, b1 + 3], [gc + GAP, a1, b1 - 3, b1 + 3], [a0 - 3, a0 + 3, b0, b1], [a1 - 3, a1 + 3, b0, b1]);
+  };
   const cols = [[-590, -440], [-420, -270], [-250, -100], [100, 250], [270, 420], [440, 590]];
-  const crops = ['lettuce', 'tomato', 'sunflower', 'pumpkin', 'corn', 'beans', 'cabbage', 'carrot', 'flowers', 'tomato', 'lettuce', 'sunflower'];
-  const beds = []; rows.forEach(([b0, b1], r) => cols.forEach(([a0, a1], c) => beds.push({ a0, a1, b0, b1, crop: crops[(r*6 + c + r*3) % crops.length] })));
+  /* SOUTH (next to the almshouses' back lane) and NORTH: two rows of six beds either side of the path */
+  plot(-720, 720, 380, 790, 0); plot(-720, 720, -790, -380, 0);
+  for(const [b0, b1] of [[410, 530], [630, 750], [-530, -410], [-750, -630]]) cols.forEach(([a0, a1]) => addBeds([[a0, a1, b0, b1]]));
+  /* WEST and EAST, either side of the monument: two columns of four beds either side of a path along b */
+  for(const sg of [-1, 1]){
+    plot(sg < 0 ? -790 : 380, sg < 0 ? -380 : 790, -340, 340, sg*585);
+    for(const [b0, b1] of [[-320, -200], [-180, -60], [60, 180], [200, 320]]) for(const [x0, x1] of [[-755, -645], [-525, -415]])
+      addBeds([sg < 0 ? [x0, x1, b0, b1] : [-x1, -x0, b0, b1]]);
+  }
   const rects = [                                       // [name, a0, a1, b0, b1, h]: what stands up
     ['shed', 620, 710, 400, 490, 150], ['bin', 640, 700, 560, 620, 50], ['bin', 640, 700, 630, 690, 50], ['bin', 640, 700, 700, 760, 50],
     ['bench', -705, -655, 560, 650, 44], ['barrel', -700, -660, 700, 740, 46], ['barrel', -700, -660, 745, 785, 46], ['wheelbarrow', -700, -640, 440, 500, 40],
-    ['teepee', -50 + 0, 50, 0, 0, 0]
-  ].filter(r => r[5] > 0);
-  const fence = [                                       // [a0, a1, b0, b1]: thin runs, the two gate gaps left open
-    [A0, -GAP, B0 - 3, B0 + 3], [GAP, A1, B0 - 3, B0 + 3], [A0, -GAP, B1 - 3, B1 + 3], [GAP, A1, B1 - 3, B1 + 3],
-    [A0 - 3, A0 + 3, B0, B1], [A1 - 3, A1 + 3, B0, B1]
+    ['greenhouse', 590, 710, -500, -400, 120], ['hive', -705, -655, -570, -530, 44], ['hive', -705, -655, -520, -480, 44], ['hive', -705, -655, -470, -430, 44],
+    ['table', -700, -630, -730, -650, 40]
   ];
-  return { ox, oy, A0, A1, B0, B1, GAP, beds, rects, fence };
+  return { ox, oy, A0: -720, A1: 720, B0: 380, B1: 790, GAP, beds, rects, fence, ground };
 })();
-const GD_BLK = { type: "park", garden: true, x0: GARDEN.ox + GARDEN.A0 - 20, x1: GARDEN.ox + GARDEN.A1 + 20, y0: GARDEN.oy + GARDEN.B0 - 20, y1: GARDEN.oy + GARDEN.B1 + 20, cx: GARDEN.ox, cy: GARDEN.oy + 585 };
+const GD_BLK = { type: "park", garden: true, x0: GARDEN.ox - 840, x1: GARDEN.ox + 840, y0: GARDEN.oy - 840, y1: GARDEN.oy + 840, cx: GARDEN.ox, cy: GARDEN.oy };
 function gardenSolidAt(x, y, R){
   const G = GARDEN;
-  if(x < G.ox + G.A0 - R - 10 || x > G.ox + G.A1 + R + 10 || y < G.oy + G.B0 - R - 10 || y > G.oy + G.B1 + R + 10) return null;
+  if(x < G.ox - 840 - R || x > G.ox + 840 + R || y < G.oy - 840 - R || y > G.oy + 840 + R) return null;
   const hit = (a0, a1, b0, b1) => fmBodyHits(x, y, R, { x0: G.ox + a0, x1: G.ox + a1, y0: G.oy + b0, y1: G.oy + b1 });
   for(const b of G.beds) if(hit(b.a0, b.a1, b.b0, b.b1)) return GD_BLK;
   for(const r of G.rects) if(hit(r[1], r[2], r[3], r[4])) return GD_BLK;
@@ -25630,32 +25643,37 @@ function almsFolkList(){
   };
   const wstand = (kind, seed, dx, dy, fx, fy, extra) => { const q = P(dx, dy); L.push(Object.assign({ kind, seed, still: true, x: q.x, y: q.y, th: Math.atan2(fy - dy, fx - dx), look: null }, extra || {})); };
   const M = 330;                                              // round the monument's plaza
-  wroute('jogger', 0x42b1, [[-770, -770], [770, -770], [770, 770], [-770, 770], [-770, -770]], 0.085, 800, 0.05, { run: true });   // a jogger on the lawn's edge
-  wroute('jogger', 0x42b2, [[720, 720], [-720, 720], [-720, -720], [720, -720], [720, 720]], 0.080, 800, 0.60, { run: true });
+  wroute('jogger', 0x42b1, [[-812, -812], [812, -812], [812, 812], [-812, 812], [-812, -812]], 0.085, 800, 0.05, { run: true });   // a jogger round the lawn's edge, outside the plots' fences
+  wroute('jogger', 0x42b2, [[806, 806], [-806, 806], [-806, -806], [806, -806], [806, 806]], 0.080, 800, 0.60, { run: true });
   wroute('yoga',   0x42b3, [[-M, -M], [M, -M], [M, M], [-M, M], [-M, -M]], 0.034, 3000, 0.15);
   wroute('woman',  0x42b4, [[M, -M], [M, M], [-M, M], [-M, -M], [M, -M]], 0.030, 3500, 0.50);
-  wroute('elderMan',   0x42b5, [[-770, 0], [-340, 0]], 0.018, 7000, 0.35);
-  wroute('elderWoman', 0x42b6, [[770, 120], [340, 120]], 0.017, 8000, 0.75);
-  wroute('tourist', 0x42b7, [[300, 250], [700, 250]], 0.030, 6000, 0.25);                                          // to the garden's gate
-  wroute('tourist', 0x42b8, [[-60, -770], [-60, -340]], 0.028, 7000, 0.65);
-  wroute('cane',   0x42b9, [[680, -680], [680, -300]], 0.016, 8000, 0.10);
-  wroute('kid',    0x42bb, [[-760, -300], [-520, -300], [-520, 300], [-760, 300], [-760, -300]], 0.065, 1200, 0.30);
-  wroute('kid',    0x42bc, [[-760, 0], [-540, 0]], 0.070, 600, 0.70);
-  wstand('woman',  0x42bd, -640, 330, -640, 200);                                                                    // a parent watching them
-  wstand('man',    0x42be, -560, 340, -620, 220);
-  wstand('tourist', 0x42bf, 300, 420, 0, 0);                                                                        // photographing the bronze
-  wstand('yoga',   0x42c0, 700, -500, 790, -500);
-  wstand('business', 0x42c1, -300, -560, 0, -560);                                                                  // lunch on the grass
-  wstand('elderWoman', 0x42c2, 700, 300, 760, 340);
-  wstand('elderMan',   0x42c3, 740, 320, 700, 300);
-  /* ---- THE COMMUNITY GARDEN: its gardeners, on the paths and at the beds ---- */
-  wroute('elderWoman', 0x43c1, [[0, 400], [0, 770]], 0.016, 6000, 0.15);                                           // up and down the main path with her trug
-  wroute('woman',  0x43c2, [[-560, 580], [-80, 580]], 0.026, 4000, 0.45);                                          // along the cross path, west
-  wroute('man',    0x43c3, [[80, 580], [560, 580]], 0.026, 4500, 0.80);                                            // ...and east
-  wroute('kid',    0x43c4, [[-60, 400], [-60, 770]], 0.060, 2500, 0.60);                                           // a child with a watering can, running the path
-  wstand('elderMan', 0x43c5, -345, 580, -345, 520);                                                                  // looking over the lettuces
-  wstand('woman',  0x43c6, 345, 580, 345, 640);                                                                     // weeding the far beds
-  wstand('man',    0x43c7, 0, 790 + 60, 0, 700);                                                                    // at the south gate, with a barrow load
+  wroute('tourist', 0x42b7, [[0, -400], [0, -770]], 0.030, 6000, 0.25);                                            // up the north plot's path
+  wroute('tourist', 0x42b8, [[60, 300], [60, 250]], 0.020, 6000, 0.65);
+  wstand('woman',  0x42bd, -250, 350, -250, 300);                                                                    // chatting at the corner of the plaza walk
+  wstand('man',    0x42be, -200, 350, -250, 300);
+  wstand('tourist', 0x42bf, 300, 300, 0, 0);                                                                        // photographing the bronze
+  wstand('yoga',   0x42c0, -330, -250, -250, -250);
+  wstand('business', 0x42c1, 330, -250, 250, -250);                                                                 // lunch on the grass
+  wstand('elderWoman', 0x42c2, 300, -340, 330, -300);
+  wstand('elderMan',   0x42c3, 340, -330, 300, -340);
+  /* ---- THE COMMUNITY GARDEN: its gardeners, on the paths and at the beds, in all four plots ---- */
+  wroute('elderWoman', 0x43c1, [[0, 400], [0, 770]], 0.016, 6000, 0.15);                                           // up and down the south path with her trug
+  wroute('woman',  0x43c2, [[-560, 580], [-80, 580]], 0.026, 4000, 0.45);
+  wroute('man',    0x43c3, [[80, 580], [560, 580]], 0.026, 4500, 0.80);
+  wroute('kid',    0x43c4, [[-60, 400], [-60, 770]], 0.060, 2500, 0.60);                                           // a child with a watering can
+  wstand('elderMan', 0x43c5, -345, 580, -345, 520);
+  wstand('woman',  0x43c6, 345, 580, 345, 640);
+  wstand('man',    0x43c7, 0, 850, 0, 700);
+  wroute('elderMan',   0x43d1, [[-585, -320], [-585, 320]], 0.018, 6000, 0.35);                                    // the west plot's path
+  wroute('woman',  0x43d2, [[-760, 0], [-420, 0]], 0.026, 4000, 0.70);
+  wroute('elderWoman', 0x43d3, [[585, -320], [585, 320]], 0.017, 7000, 0.75);                                      // the east plot's
+  wroute('man',    0x43d4, [[420, 0], [760, 0]], 0.026, 4500, 0.20);
+  wroute('woman',  0x43d5, [[-560, -580], [-80, -580]], 0.026, 4000, 0.55);                                        // the north plot's cross path
+  wroute('elderMan',   0x43d6, [[80, -580], [560, -580]], 0.018, 6000, 0.90);
+  wroute('man',    0x43d7, [[60, -770], [60, -400]], 0.024, 5000, 0.40);
+  wstand('woman',  0x43d8, 640, -430, 640, -500);                                                                   // by the glasshouse
+  wstand('elderMan', 0x43d9, -620, -520, -690, -520);                                                               // watching the hives
+  wstand('kid',    0x43da, -580, -690, -660, -690);                                                                 // at the picnic table
   return (_almsFolk = L);
 }
 function almsLook(p){ return p.look || (p.look = streetLook(p.seed, p.kind === 'kid' ? { type: 'kid' } : { type: p.kind })); }
@@ -93238,18 +93256,17 @@ class WorldScene extends Phaser.Scene {
   /* THE COMMUNITY GARDEN (GARDEN): each piece cached at its own depth, sorted against him by where it stands */
   queueGarden(vq){
     const G = GARDEN, ox = G.ox, oy = G.oy;
-    if(!this.visWorldPt(ox, oy + 585, 900, 260)) return;
+    if(!this.visWorldPt(ox, oy, 1300, 260)) return;
     const wood = 0x9a7452, woodD = 0x6f5334, soil = 0x4a3524, soilL = 0x5a4430, path = 0xc8bda0, green = 0x5f9a4c, greenD = 0x477a3a;
     const kit = g => this.lgKit(g, { x: ox, y: oy });
     const item = (key, a, b, fn, dz) => vq.push({ depth: ox + a + oy + b + (dz || 0), fn: g => this.bcDraw(g, "gd|" + key, ox + a, oy + b, gg => fn(kit(gg))) });
     /* the ground: soil all over, the main and cross paths over it, a flagged apron at each gate */
-    vq.push({ depth: ox + G.A0 + oy + G.B0 - 4, fn: g => this.bcDraw(g, "gd|ground", ox + G.A0, oy + G.B0, gg => {
+    G.ground.forEach((pl, k) => vq.push({ depth: ox + pl.a0 + oy + pl.b0 - 4, fn: g => this.bcDraw(g, "gd|ground" + k, ox + pl.a0, oy + pl.b0, gg => {
       const { P, q } = kit(gg), T = (a0, a1, b0, b1, z, c) => q([P(a0, b0, z), P(a1, b0, z), P(a1, b1, z), P(a0, b1, z)], c);
-      T(G.A0, G.A1, G.B0, G.B1, 0.6, 0x6b5a3c);
-      T(-45, 45, G.B0, G.B1, 0.9, path); T(G.A0, G.A1, 555, 605, 0.9, path);
-      for(let k = 0; k < 90; k++){ const u = ((k*37) % 97)/97, v = ((k*61) % 89)/89; T(G.A0 + 20 + u*(G.A1 - G.A0 - 40), G.A0 + 28 + u*(G.A1 - G.A0 - 40), G.B0 + 14 + v*(G.B1 - G.B0 - 28), G.B0 + 20 + v*(G.B1 - G.B0 - 28), 1.0, 0x5d4c32); }
-      T(-70, 70, G.B0 - 36, G.B0, 0.9, path); T(-70, 70, G.B1, G.B1 + 36, 0.9, path);
-    }) });
+      T(pl.a0, pl.a1, pl.b0, pl.b1, 0.6, 0x6b5a3c);
+      for(let i = 0; i < 70; i++){ const u = ((i*37 + k*11) % 97)/97, v = ((i*61 + k*7) % 89)/89; T(pl.a0 + 20 + u*(pl.a1 - pl.a0 - 40), pl.a0 + 28 + u*(pl.a1 - pl.a0 - 40), pl.b0 + 14 + v*(pl.b1 - pl.b0 - 28), pl.b0 + 20 + v*(pl.b1 - pl.b0 - 28), 0.8, 0x5d4c32); }
+      for(const r of pl.paths) T(r[0], r[1], r[2], r[3], 0.9, path);
+    }) }));
     /* the beds: a timber frame, the soil, and its crop */
     G.beds.forEach((bd, k) => item("bed" + k, (bd.a0 + bd.a1)/2, bd.b1, ({ P, q, sh, box, post, bar }) => {
       box(bd.a0, bd.a1, bd.b0, bd.b1, 0, 30, sh(wood, 1.1), wood, woodD);
@@ -93305,6 +93322,26 @@ class WorldScene extends Phaser.Scene {
       q([P(646, b0 + 6, 50.4), P(694, b0 + 6, 50.4), P(694, b0 + 54, 50.4), P(646, b0 + 54, 50.4)], [0x5a4430, 0x6b5a3a, 0x4a6a3a][k]);
       for(let z = 12; z < 50; z += 12) q([P(640, b0 + 60.4, z + 1.4), P(700, b0 + 60.4, z + 1.4), P(700, b0 + 60.4, z), P(640, b0 + 60.4, z)], woodD);
     }));
+    /* THE NORTH PLOT'S: a glasshouse, three beehives, a picnic table */
+    item("glass", 650, -400, ({ P, q, sh, box, post }) => {
+      const a0 = 590, a1 = 710, b0 = -500, b1 = -400;
+      box(a0, a1, b0, b1, 0, 14, sh(0xb59468, 1.1), 0xb59468, 0x8c6f4a);
+      for(let i = 0; i < 4; i++){ const a = a0 + (a1 - a0)*i/3; post(a, b1, 2.4, 14, 100, 0xdfe8ec); post(a, b0, 2.4, 14, 100, 0xdfe8ec); }
+      q([P(a0, b1, 100), P(a1, b1, 100), P(a1, b1, 14), P(a0, b1, 14)], 0xbfe0ea, 0.45);
+      q([P(a1, b0, 100), P(a1, b1, 100), P(a1, b1, 14), P(a1, b0, 14)], 0xa5cdd8, 0.5);
+      q([P(a0, b1, 100), P(a1, b1, 100), P(a1, (b0 + b1)/2, 128), P(a0, (b0 + b1)/2, 128)], 0xd2ecf2, 0.55);
+      q([P(a0, b0, 100), P(a1, b0, 100), P(a1, (b0 + b1)/2, 128), P(a0, (b0 + b1)/2, 128)], 0xb4d6de, 0.5);
+      for(let i = 0; i < 6; i++) post(a0 + 14 + i*18, (b0 + b1)/2 + 18, 6, 14, 30 + (i % 2)*8, [0x5f9a4c, 0xe2483d, 0x7fbf5a][i % 3]);
+    });
+    [-550, -500, -450].forEach((b, k) => item("hive" + k, -680, b + 20, ({ P, q, sh, box }) => {
+      box(-705, -655, b - 20, b + 20, 12, 40, sh(0xf3efe2, 1.05), 0xf3efe2, 0xd8d2c0); box(-710, -650, b - 24, b + 24, 40, 46, 0x8a8f94, 0x7a8086, 0x6a7076);
+      box(-701, -659, b - 6, b + 6, 14, 18, 0x3a3a3a, 0x2a2a2a, 0x2a2a2a); box(-703, -657, b - 18, b + 18, 0, 12, sh(wood, 1.0), wood, woodD);
+    }));
+    item("table", -665, -690, ({ P, q, sh, box }) => {
+      box(-700, -630, -730, -650, 30, 36, sh(wood, 1.15), wood, woodD);
+      for(const [a, b] of [[-694, -724], [-636, -724], [-694, -656], [-636, -656]]) box(a - 3, a + 3, b - 3, b + 3, 0, 30, wood, wood, woodD);
+      box(-704, -626, -738, -730, 14, 18, sh(wood, 1.05), wood, woodD); box(-704, -626, -650, -642, 14, 18, sh(wood, 1.05), wood, woodD);
+    });
     /* a bench, two rain barrels, a wheelbarrow */
     item("bench", -680, 605, ({ P, q, sh, box }) => {
       box(-705, -655, 560, 650, 18, 24, sh(wood, 1.15), wood, woodD); box(-705, -699, 560, 650, 24, 52, sh(wood, 1.05), wood, woodD);
