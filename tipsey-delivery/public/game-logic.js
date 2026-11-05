@@ -2844,7 +2844,7 @@ const WHEEL_POLISH = { wall: _pmix(CARC.wheel, CARC.hubFace, 0.3), lip: _pmix(CA
    (an obtuse bend, a raked screen's foot) is left */
 const CHAMFER = { min: 18, k: 0.11, max: 10, bev: 0.85, straight: -0.82 };
 const FLEET_OUTLINE = 0x30343d;   // Tipsey's stock outline, round the autonomous fleet's bodies (vehKit's outline)
-const TRAFFIC_SPRITE = { headings: 48, max: 160 };
+const TRAFFIC_SPRITE = { headings: 48, max: 480, spin: 5 };
 /* the street's paints (Sir, 2026-10-11: "give each car the ability to have
    various colors"): every everyday car rolls one of these by its seed */
 const CAR_COLORS = [
@@ -37428,7 +37428,7 @@ function errandWorldAt(tr, t){
   if(hidden) return { wp: { x: -1e7, y: -1e7, z: 0 }, f: 0, fc: 0, trS: 0, straddle: 0, hidden: true, errand: e };
   const p = errandPose(e.path, st.s, st.stop !== null);
   /* backing out: the car faces the other way from the way it is going */
-  if(st.stop === null && e.legs[st.leg].rev) p.h += Math.PI;
+  if(e.legs[st.stop !== null ? st.stop : st.leg].rev) p.h += Math.PI;   // (stopped, it keeps the way it faced arriving: it flipped end for end at every stop)
   const fc = p.h/(Math.PI/2);
   /* any of it past a strand garage's door: the garage draws it, through its
      opening (queueNssGarages), and nothing on the street meets it */
@@ -37442,7 +37442,7 @@ function errandPoseAt(tr, t){
   const e = tr.errand, st = errandState(e, t);
   if(st.done) return null;
   const p = errandPose(e.path, st.s, st.stop !== null);
-  if(st.stop === null && e.legs[st.leg].rev) p.h += Math.PI;
+  if(e.legs[st.stop !== null ? st.stop : st.leg].rev) p.h += Math.PI;
   return { x: p.x, y: p.y, fc: p.h/(Math.PI/2), trS: e.trS0 + st.s, st };
 }
 /* the driver on foot at t, or null: out of the car and to the door after
@@ -90868,7 +90868,7 @@ class WorldScene extends Phaser.Scene {
           const half = (tr.len || vehLen(tr.kind))/2, inside = (q.x - g.faceX)*-g.inX;   // how far its centre is past the door
           if(st.stop === 0 || (st.stop === null && st.leg === 1)) want = true;          // pulling up, and in
           else if(st.stop === 1) want = st.left < 1600;                                // about to leave (and waiting on the street)
-          else if(st.stop === null && st.leg === 2) want = inside > -half - 30;         // backing out till its nose is clear
+          else if(st.stop === null && st.leg === 2) want = inside < half + 30;          // backing out, open till its tail is clear (it was inverted: the door stayed down on the car)
         }
       }
       let u = NSS_GDOOR.get(g.id) || 0;
@@ -94577,7 +94577,7 @@ class WorldScene extends Phaser.Scene {
       const gdep = p.parked ? null : groundGarageDepth(pwx, pwy), pdep = gdep !== null ? gdep : pwx + pwy;
       if(!p.parked && straight && trafficSpriteKind(pk) && !p.data){
         blockVQ.push({ depth: pdep, fn:(g,t)=>{
-          if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs)) return;
+          if(!(this.xrayPropCut(pk, pwx, pwy) > 0) && this.trafficSprite(pk, pwx, pwy, pwz, pf, pcs, pwp2)) return;
           this.drawProp(layerFor(pwx,pwy), pk, pwx, pwy, t, pf, pwz, pwp2, pcs); } });
         continue;
       }
@@ -107231,21 +107231,23 @@ class WorldScene extends Phaser.Scene {
      spent, or the paint came back empty. The wheels' turning bar is not
      drawn on a sprite (a still image); the hubs are. */
   /* (and see trafficSpriteKind: which kinds may be a sprite) */
-  trafficSprite(kind, x, y, z, fdir, colorSeed){
+  trafficSprite(kind, x, y, z, fdir, colorSeed, wheelPhase){
     const bc = this._bc, TS = TRAFFIC_SPRITE;
     if(!this._bcActive || !bc) return false;
     const ts = this._tsp || (this._tsp = { map: new Map(), pool: [], used: 0, frame: -1, n: 0 });
     if(ts.frame !== bc.frame){ ts.frame = bc.frame; ts.used = 0; }
     const N = TS.headings, bi = Math.round((((fdir % 4) + 4) % 4)*N/4) % N;
     const PAL = carPalette(kind), ci = PAL ? Math.floor(mulberry32(((colorSeed || 0) ^ 0x9c31) >>> 0)()*PAL.length) : 0;
-    const key = kind + "|" + ci + "|" + bi + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
+    /* the wheels turn: the spokes repeat every fifth of a turn, so a few phases of it are baked into the sprite (a still car, 0) */
+    const NP = TS.spin, pi = (wheelPhase === null || wheelPhase === undefined) ? 0 : Math.floor((((wheelPhase % (Math.PI*2/5)) + Math.PI*2/5) % (Math.PI*2/5))/(Math.PI*2/5)*NP) % NP;
+    const key = kind + "|" + ci + "|" + bi + "|" + pi + "|" + this.K + "|" + (isNightNow() ? 1 : 0);
     let e = ts.map.get(key);
     if(!e){
       if(bc.budget <= 0) return false;
       const t0 = performance.now();
       this._tspPainting = true;
       let p;
-      try { p = this.bcPaint(0, 0, gg => this.drawProp(gg, kind, 0, 0, 0, bi*4/N, 0, null, colorSeed)); }
+      try { p = this.bcPaint(0, 0, gg => this.drawProp(gg, kind, 0, 0, 0, bi*4/N, 0, pi*(Math.PI*2/5)/NP, colorSeed)); }
       finally { this._tspPainting = false; }
       const dt = performance.now() - t0;
       bc.budget -= dt; bc.painted++; bc.paintMs += dt;
