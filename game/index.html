@@ -135082,6 +135082,42 @@ requestTpProfile();
   window.garageOpen = () => garageOpen(scn());
   window.garageClose = garageClose;
 })();
+
+/* JUMP LINKS (2026-11-05): ?go=<spot> or ?go=<x>,<y>[,<yaw>] boots the
+   game, shuts the garage and stands Tipsey at that spot, so a test link
+   drops Sir straight onto the change. &view=1|2|3 sets the zoom.
+   tpGoHere() in the console gives the link for where he stands now.
+   Named spots are the perf check's (tools/perf_check.js SPOTS). */
+const GO_SPOTS = {
+  mall: [12600, -560], garage: [7800, -560], shops: [9179, 2493], gate: [8100, 560],
+  sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
+};
+(function(){
+  let q = null, v = null;
+  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); } catch(e){}
+  if(typeof window !== 'undefined') window.tpGoHere = function(){
+    const s = game.scene.getScene('world'), ow = s && s.ow;
+    if(!ow) return 'not in the city';
+    const base = location.href.split('?')[0];
+    return base + '?go=' + Math.round(ow.px) + ',' + Math.round(ow.py) + ',' + ow.yaw.toFixed(2) + '&view=' + zoomDepth;
+  };
+  if(!q) return;
+  let x, y, yaw = Math.PI;
+  if(GO_SPOTS[q]) [x, y] = GO_SPOTS[q];
+  else { const n = q.split(',').map(Number); if(n.length < 2 || n.some(isNaN)) return; [x, y] = n; if(n.length > 2) yaw = n[2]; }
+  const t0 = Date.now();
+  const tick = () => {
+    const s = typeof game !== 'undefined' && game.scene && game.scene.getScene('world');
+    if(!(s && s.route && s.ow)){ if(Date.now() - t0 < 60000) setTimeout(tick, 250); return; }
+    /* the garage opens a beat after boot: let it, then shut it and go */
+    setTimeout(() => {
+      try { window.garageClose(); } catch(e){}
+      owStandUpAt(s, x, y, yaw);
+      if(v) zoomSet(+v);
+    }, 1500);
+  };
+  tick();
+})();
 </script>
 </body>
 </html>
