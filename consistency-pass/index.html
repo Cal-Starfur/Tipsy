@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 853fce7): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 80db81d): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '853fce7'; })();</script>
+  window.TIPSY_TEST_BUILD = '80db81d'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -118769,7 +118769,8 @@ class WorldScene extends Phaser.Scene {
            lane it is pulling into) */
         const at = errandWorldAt(tr, t);
         if(at && !at.hidden){
-          const h = at.fc*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h);
+          /* (the way it is GOING: backing out, that is behind it -- it looked ahead of its nose and backed over the street's cars) */
+          const rv = e.legs[st.leg].rev ? -1 : 1, h = at.fc*Math.PI/2, hx = rv*Math.cos(h), hy = rv*Math.sin(h);
           const bx = this.botX - at.wp.x, by = this.botY - at.wp.y, bd = Math.hypot(bx, by);
           if(bd < ERRAND.stopBot && (bx*hx + by*hy) >= 0.6*bd) wait = true;
           if(!wait) for(const o of traffic){
@@ -118777,7 +118778,7 @@ class WorldScene extends Phaser.Scene {
             const oa = trafficWorldAt(o, t);
             if(oa.hidden) continue;
             const ox = oa.wp.x - at.wp.x, oy = oa.wp.y - at.wp.y, od = Math.hypot(ox, oy);
-            if(od > 280 || od < 1e-3 || (ox*hx + oy*hy) < 0.75*od) continue;
+            if(od > (rv < 0 ? 420 : 280) || od < 1e-3 || (ox*hx + oy*hy) < 0.75*od) continue;
             /* two errands head on: the one further along goes */
             const oh = oa.fc*Math.PI/2;
             if(o.errand && Math.cos(oh)*hx + Math.sin(oh)*hy < -0.5 && errandState(o.errand, t).s < st.s) continue;
