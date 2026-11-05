@@ -5176,7 +5176,12 @@ const BAY_SPEC = {
 };
 /* lanes: the resident vehicle, or [kind, width]; width W/lanes otherwise.
    name: the hall's own name on the card and its sign */
-const FLEET_HALL_DEFS = [
+/* THE DEPOTS ARE OFF (Sir, 2026-11-05: "these are placed very poorly lets get rid of them all for now"): every fleet
+   hall, its airfield compound (gate, apron, wall, fence opening) and its street drives are left out while this is
+   false; the definitions stay (FLEET_HALL_DEFS_ALL) to be re-sited. A fleet vehicle with no bay launches from a
+   charging station; The Lighthouse Run waits (it starts from the airfield hangar) */
+const FLEET_BAYS_BUILT = false;
+const FLEET_HALL_DEFS_ALL = [
   { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Boathouse", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
   { id: "F3s", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [1250, 20906], u: [0, 1], n: [-1, 0], W: 250, D: 460, lanes: ["avshuttle"] },
   { id: "F3t", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [2066, 21156], u: [1, 0], n: [0, -1], W: 320, D: 250, lanes: ["robotaxi", "avpod"] },
@@ -5188,6 +5193,7 @@ const FLEET_HALL_DEFS = [
      at the east end. The east wall stays inside the Flats (the hood line is x 28560) but for its last 70 */
   { id: "F7h", base: "F7", kit: "hangar",    name: "Tipsey Fleet at Sun Deck Airfield", sign: "TIPSEY FLEET", o: [27350, 20580], u: [1, 0], n: [0, -1], W: 1280, D: 420, lanes: [["airtaxi", 440], ["dronequad", 360], ["dronelift", 480]] }
 ];
+const FLEET_HALL_DEFS = FLEET_BAYS_BUILT ? FLEET_HALL_DEFS_ALL : [];
 /* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
    door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
    and edge lights round each apron pad (painted with the pad in the ground pass, n of them at r - inset). At night the
@@ -5325,7 +5331,7 @@ function fleetBayBuiltHeight(x, y, gkey){
 /* the drives off the street to a hall's doors (hoodDrivewaysOf): e is
    the block edge's frame, origin on the site line the pavement starts at,
    dv along it, rv out of the block */
-const FLEET_BAY_DRIVES = [
+const FLEET_BAY_DRIVES = !FLEET_BAYS_BUILT ? [] : [
   { e: { ox: 0, oy: 21160, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 2080, al1: 2350 },       // F3: the robotaxi's and the pod's
   { e: { ox: 0, oy: 27416, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 25872, al1: 26688 },     // F4: out, south
   { e: { ox: 0, oy: 25760, dv: { x: 1, y: 0 }, rv: { x: 0, y: -1 } }, al0: 25872, al1: 26688 },    // F4: in, north
@@ -30198,13 +30204,13 @@ const AIR = (() => {
      on the apron by the pier between the air taxi's door and the drone's. The hood line is x 28560: the gate and
      the bay are well inside it */
   const fleet = (() => {
-    const d = FLEET_HALL_DEFS.find(q => q.id === "F7h");
+    const d = FLEET_HALL_DEFS_ALL.find(q => q.id === "F7h");
     const hall = { x0: d.o[0], x1: d.o[0] + d.W, y0: d.o[1] - d.D, y1: d.o[1] };
     const wallX = hall.x1 + 4;
     return { hall, wallX, apron: [terminal.x1, wallX - 4, hall.y1, 21160], gate: { x0: 27810, x1: 28050 },
              visit: { x: 27780, y: 21040 }, post: { x: hall.x0 + 440, y: hall.y1 + 46 } };
   })();
-  drives.push({ x0: fleet.gate.x0, x1: fleet.gate.x1, y: 21160, out: 1, fleet: true });
+  if(FLEET_BAYS_BUILT) drives.push({ x0: fleet.gate.x0, x1: fleet.gate.x1, y: 21160, out: 1, fleet: true });
   const FH = 100, sign = [24420, 25700];                       // the wall's height; the airfield's name along it east of the gate
   /* THE PLANES, small ones only (Sir: "the jet is to big we just [want]
      the small planes but then need to be better"): the game's own vehicle
@@ -30244,9 +30250,9 @@ const AIR = (() => {
         for(let q = 0; q < ys.length - 1; q++){ const u0 = Math.max(ys[q], r[2]), u1 = Math.min(ys[q + 1], r[3]);
           if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
     }
-    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1], [fleet.gate.x0, fleet.gate.x1]], gapY = drives[0].y;
+    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]].concat(FLEET_BAYS_BUILT ? [[fleet.gate.x0, fleet.gate.x1]] : []), gapY = drives[0].y;
     /* the fleet's heavy hall stands in the fence on both its lines, its doors the way through (F4) */
-    const HALL = [25860, 26700], hallLines = new Set(["h|27416|1", "h|25760|-1"]);
+    const HALL = [25860, 26700], hallLines = FLEET_BAYS_BUILT ? new Set(["h|27416|1", "h|25760|-1"]) : new Set();
     const out = [];
     for(const [k, segs] of lines){
       const [hv, c, n] = k.split("|"), at = +c, nn = +n;
@@ -30265,7 +30271,7 @@ const AIR = (() => {
       }
     }
     /* the fleet compound's east side: from the hall's south-east corner to the street wall's centre line */
-    out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
+    if(FLEET_BAYS_BUILT) out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
     return out;
   })();
   return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H, fleet,
@@ -47741,7 +47747,7 @@ function houseCanopy(fn){
              (flyApronPads: a darker disc, the Fleet's orange ring, a white H square to the door, eight flush edge
              lights lit at night by queueFleetBays), a yellow lead-in line from each door to its pad, and the hold
              line across the fleet gate. Each cell paints its own share (a pad on the cells' line is cut at it) */
-          slabs(C.fleet.apron);
+          if(FLEET_BAYS_BUILT) slabs(C.fleet.apron);
           { const cr = [R[0] - 4, R[1] + 4, R[2] - 4, R[3] + 4];
             const cut = (pts) => {                                              // a polygon clipped to this cell
               let o = pts;
@@ -79337,7 +79343,7 @@ function lhBayNow(scene){
   const R = LH, ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => Object.assign({}, B, { icon });
-  if(R.stage === 'idle') return lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
+  if(R.stage === 'idle') return !FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
   if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
   if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
   if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');
@@ -79487,7 +79493,7 @@ function lhTick(scene, ow){
   const over = (B) => ow.fly && ow.fly.ph === 'air' && Math.hypot(ow.px - B.x, ow.py - B.y) < 150;
   switch(R.stage){
     case 'idle': {
-      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
+      if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
       if(!armed(LH_RUN.quay)) return;
       R.stage = 'ask'; ow.vel = 0; cineBars(true);
       const p = lhMasterAt(now);
@@ -125702,7 +125708,7 @@ function mapLandmarkFootprints(){
     for(const b of [AIR.hangar, AIR.hangar2, AIR.terminal, AIR.fire]) out.push([b.x0, b.x1, b.y0, b.y1, 1]);
     for(const [x, y] of AIR.tanks) out.push([x - AIR.TANK_R, x + AIR.TANK_R, y - AIR.TANK_R, y + AIR.TANK_R, 1]);
     out.push([AIR.tower.x0, AIR.tower.x1, AIR.tower.y0, AIR.tower.y1, 2]);
-    { const f = AIR.fleet; out.push([f.apron[0], f.apron[1], f.apron[2], f.apron[3], 0], [f.hall.x0, f.hall.x1, f.hall.y0, f.hall.y1, 1]); }   // the fleet's hangar and its apron
+    if(FLEET_BAYS_BUILT){ const f = AIR.fleet; out.push([f.apron[0], f.apron[1], f.apron[2], f.apron[3], 0], [f.hall.x0, f.hall.x1, f.hall.y0, f.hall.y1, 1]); }   // the fleet's hangar and its apron
   }
   { const g = MARINA.garage;                              // Marina Parking: its decks and its lift tower
     out.push([g.x0, g.x1, g.y0, g.y1, 1], [g.core[0], g.core[1], g.core[2], g.core[3], 2]); }
@@ -127041,7 +127047,7 @@ function harborGeo(){
     /* and none on the walk: the arm's middle rows are its crown now */
     const clear = (rk) => {
       for(const w of [jetty.north, jetty.arm]) if(rk.x > w.x0 - 20 && rk.x < w.x1 + 20 && rk.y > w.y0 - 20 && rk.y < w.y1 + 20) return false;
-      if(rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
+      if(FLEET_BAYS_BUILT && rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
       return Math.hypot(rk.x - jetty.land.x, rk.y - jetty.land.y) > jetty.land.r + 10;
     };
     for(let i = rocks.length - 1; i >= 0; i--) if(!clear(rocks[i])) rocks.splice(i, 1);
