@@ -33,5 +33,6 @@ if sys.argv[1:2] == ["next"]:
     r = ready(); print(json.dumps(r[0]) if r else "NONE READY")
 elif sys.argv[1:2] in (["built"], ["signoff"]):
     N[sys.argv[2]]["status"] = "built" if sys.argv[1] == "built" else "done"
-    if len(sys.argv) > 3: N[sys.argv[2]]["test"] = sys.argv[3]; J.write_text(json.dumps(q, indent=0)); md()
+    if len(sys.argv) > 3: N[sys.argv[2]]["test"] = sys.argv[3]
+    J.write_text(json.dumps(q, indent=0)); md()
 else: md()
