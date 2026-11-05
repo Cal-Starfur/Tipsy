@@ -10597,7 +10597,7 @@ const RESCUE_VAN = {
   /* (walkSpeed: units a second, at the street's pace -- Sir, 2026-10-30: "lets fix them to be normal speed"; it was
      300, and a jog of 1200 past jogFrom, eight and more times the street's, the legs far behind; walkMaxMs no longer
      cuts a long walk short by hurrying it) */
-  crew: { exitMs: 250, walkSpeed: PEOPLE_WALK_V*1000, walkMinMs: 600, walkMaxMs: Infinity,
+  crew: { exitMs: 250, walkSpeed: PEOPLE_WALK_V*2000, walkMinMs: 600, walkMaxMs: Infinity,
           /* THE LIFT IN BEATS (Sir, 2026-10-24: "improve the animation for when the team shows up to tip
              tipsy back up"): grabMs the grab -- a step in, hands down to his hull -- then the heave
              (rescueHeave) over the rest of liftMs: slow off the ground, up and a touch past upright,
@@ -10618,7 +10618,7 @@ const RESCUE_VAN = {
      pace (v, units a ms: the fleet's 0.26-0.32), queues behind them and gives way as they do (updateRescueVanTraffic),
      and slows to its slot over the last `brake` of the street */
   get lane(){ return TRAF_LANE; },
-  v: 0.29, brake: 520, slotR: 800,
+  v: 0.5, brake: 520, slotR: 800,
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // a kerb car's own stand-off (KERB_CAR_OUT)
   /* THE PULL TO THE KERB is over this much street, not a share of the
      drive's time: a time share swept the last ~200 of the approach
@@ -10748,7 +10748,7 @@ function rescueFishRod(f, sp, u){
        reach, the way is found over the ground, and the van parks where
        that walk is shortest. A long one they jog.
    The beaches are not this: the sand is the dune buggy's (a later stage). */
-const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: PEOPLE_WALK_V*1000, sample: 260 };   // (no jog: the street's pace all the way, as the crew's walk)
+const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: PEOPLE_WALK_V*2000, sample: 260 };   // (no jog: the street's pace all the way, as the crew's walk)
 /* the roads off the lattice, as square-cornered edges joined to it at a node */
 function rescueOffGridEdges(grid){
   const out = [];
