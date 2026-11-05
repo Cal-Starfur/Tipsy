@@ -30181,7 +30181,9 @@ const AIR = (() => {
   const fuelPad = [25850, 27330, 25850, 27330];
   /* the tanks in a row east of the fleet's heavy hall (FLEET_HALL_DEFS F4, x 25860..26700, fence to fence),
      the truck out on the south apron by the planes it fuels */
-  const tanks = [[27080, 26000], [27080, 26440], [27080, 26880]], TANK_R = 190, TANK_H = 150;
+  /* (with the depots off the tanks stand back on the fuel pad itself, in a row across its middle; the history
+     before the F4 hall does not give their old spot) */
+  const tanks = FLEET_BAYS_BUILT ? [[27080, 26000], [27080, 26440], [27080, 26880]] : [[26150, 26590], [26590, 26590], [27030, 26590]], TANK_R = 190, TANK_H = 150;
   const fuelTruck = [27640, 26600];
   const fire = { x0: 32150, x1: 33200, y0: 18150, y1: 18900, top: 130, bays: 3 };
   const fireApron = [32100, 33250, 18100, 19560];               // its concrete, under it and out to the runway
