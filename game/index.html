@@ -101833,14 +101833,15 @@ class WorldScene extends Phaser.Scene {
          a long coat with its skirts spread over the cantle, breeches, tall boots, a sabre at his hip; bare-headed with his hair and a
          short beard, his near arm flung out forward and up with his hat in his hand, the off hand low on the reins. Six tones
          (coat, breeches, boots, skin, hair, hat) so the pieces read apart, each lit by the one rule */
-      TONES.coat = { face: 0x6f8f6c, side: 0x4e6a50 }; TONES.skin = { face: 0xc9a46c, side: 0x9c7a48 }; TONES.hair = { face: 0x4a3a24, side: 0x372a1a };
-      TONES.breeches = { face: 0xb59460, side: 0x8a6f44 }; TONES.boot = { face: 0x3f2f1c, side: 0x2e2112 }; TONES.hat = { face: 0x5d4a2e, side: 0x42331f };
+      TONES.coat = { face: 0x9c7a4c, side: 0x755a36 }; TONES.skin = { face: 0x9c7a4c, side: 0x755a36 }; TONES.hair = { face: 0x7d6036, side: 0x5f482a };
+      TONES.breeches = { face: 0x8f6e40, side: 0x6b5030 }; TONES.boot = { face: 0x6b5030, side: 0x523e24 }; TONES.hat = { face: 0x7d6036, side: 0x5f482a };   // (all one bronze, as the horse: no colour added)
       S(15, () => piece(limb([[0.02, 2.0, 0.06], [0.18, 1.88, 0.052], [0.4, 1.8, 0.045]]), -0.27, -0.15, "coat"));                       // the off arm, down to the reins
       S(16, () => piece(CR([[0.38, 1.77], [0.46, 1.78], [0.47, 1.83], [0.4, 1.84]], 3), -0.26, -0.16, "skin"));   // the off hand
       S(17, () => piece(CR([[-0.18, 1.64], [-0.46, 1.66], [-0.58, 1.58], [-0.55, 1.44], [-0.4, 1.4], [-0.22, 1.5]], 4), -0.24, 0.24, "coat", 0.03));   // the coat's skirts over the cantle
-      S(18, () => piece(CR([[-0.2, 1.62], [0.2, 1.64], [0.26, 1.78], [0.25, 1.98], [0.2, 2.1], [0.06, 2.17], [-0.08, 2.12], [-0.15, 1.96], [-0.2, 1.78]], 5), -0.2, 0.2, "coat", 0.05));   // the body in its coat
+      S(18, () => piece(CR([[-0.2, 1.62], [0.2, 1.64], [0.26, 1.78], [0.25, 1.98], [0.2, 2.1], [0.06, 2.17], [-0.08, 2.12], [-0.15, 1.96], [-0.2, 1.78]], 5), -0.24, 0.24, "coat", 0.05));   // the body in its coat
+      S(18.5, () => piece(CR([[-0.22, 1.56], [0.24, 1.58], [0.26, 1.78], [-0.2, 1.8]], 4), -0.31, 0.31, "coat", 0.03));                        // the hips: the body's base, the width of both thighs, so the legs spring from it
       S(19, () => piece(CR([[0.06, 1.7], [0.22, 1.72], [0.22, 1.9], [0.15, 1.98], [0.06, 1.9]], 4), 0.19, 0.215, "breeches"));           // the waistcoat showing
-      S(20, () => piece(limb([[-0.02, 1.62, 0.1], [0.12, 1.52, 0.092], [0.26, 1.4, 0.078], [0.3, 1.24, 0.068]]), 0.28, 0.38, "breeches"));     // the near thigh and knee, over the flap
+      S(20, () => piece(limb([[-0.02, 1.62, 0.1], [0.12, 1.52, 0.092], [0.26, 1.4, 0.078], [0.3, 1.24, 0.068]]), 0.2, 0.37, "breeches"));     // the near thigh and knee, over the flap
       S(21, () => piece(limb([[0.3, 1.26, 0.07], [0.31, 1.06, 0.06], [0.36, 0.99, 0.054], [0.47, 0.99, 0.046]]), 0.29, 0.38, "boot"));        // the boot, turned forward in the iron
       S(22, () => piece(limb([[-0.08, 1.68, 0.016], [0.14, 1.34, 0.016], [0.3, 0.98, 0.016]]), 0.38, 0.4, "boot"));                          // the sabre in its scabbard
       S(23, () => piece(CR([[-0.02, 2.1], [0.1, 2.12], [0.1, 2.18], [0.0, 2.2]], 3), -0.07, 0.07, "skin"));                                 // the neck
