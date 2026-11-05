@@ -35,19 +35,32 @@ function loadPlaywright(){
   catch(e){ return require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); }
 }
 
-/* the doc's Test: lines -> [{ batch, label, go }] */
+/* the doc's Test: lines -> [{ batch, label, go, hint, changes }]. A link's
+   title is its "look for" hint: [label](url "what to check here"). changes is
+   the batch's own bullet list (top-level bullets, sub-bullets joined on), so
+   each slide says what that batch changed. */
+const plain = t => t.replace(/\*\*|`/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').trim();
 function spotsFromDoc(){
-  const out = [];
+  const out = [], bullets = {};
   let batch = '';
   for(const line of fs.readFileSync(DOC, 'utf8').split('\n')){
     const h = /^#{2,3}\s+(.*)/.exec(line);
-    if(h){ batch = h[1].trim(); continue; }
-    if(!/^\s*-\s*Test:/.test(line)) continue;
-    for(const m of line.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)){
-      const q = /[?&]go=([^&)\s]+)/.exec(m[2]);
-      if(q) out.push({ batch, label: m[1], go: decodeURIComponent(q[1]) });
+    if(h){ batch = h[1].trim(); bullets[batch] = bullets[batch] || []; continue; }
+    if(!batch) continue;
+    if(/^\s*-\s*Test:/.test(line)){
+      for(const m of line.matchAll(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g)){
+        const q = /[?&]go=([^&)\s]+)/.exec(m[2]);
+        if(q) out.push({ batch, label: m[1], go: decodeURIComponent(q[1]), hint: (m[3] || '').replace(/^look for:\s*/i, '') });
+      }
+      continue;
     }
+    const b = /^(\s*)-\s+(.*)/.exec(line);
+    if(!b) continue;
+    const list = bullets[batch];
+    if(b[1].length === 0 || !list.length) list.push(plain(b[2]));
+    else list[list.length - 1] += (/[.:]$/.test(list[list.length - 1]) ? ' ' : '; ') + plain(b[2]);
   }
+  for(const o of out) o.changes = [{ batch: o.batch, items: bullets[o.batch] || [] }];
   return out;
 }
 
@@ -70,7 +83,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '
   if(ONLY) spots = spots.filter(s => (s.label + ' ' + s.batch).toLowerCase().includes(ONLY));
   /* the same spot listed under two batches is photographed once */
   const seen = new Map();
-  for(const s of spots){ const k = s.go; if(seen.has(k)) seen.get(k).also.push(s.batch); else seen.set(k, { ...s, also: [] }); }
+  for(const s of spots){ const k = s.go; if(seen.has(k)){ const t = seen.get(k); t.also.push(s.batch); t.hints.push(s.hint); t.changes.push(...(s.changes || [])); } else seen.set(k, { ...s, also: [], hints: [s.hint], changes: s.changes || [] }); }
   spots = [...seen.values()];
   if(!spots.length){ console.log('no spots (check --only, or the doc has no "- Test:" lines)'); process.exit(1); }
   fs.mkdirSync(OUT, { recursive: true });
@@ -125,6 +138,7 @@ function slidesPage(shots){
   const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
   const data = shots.map(s => ({
     key: 'g-' + s.go.replace(/[^A-Za-z0-9.-]/g, '_'),
+    hints: s.hints.filter(Boolean), changes: s.changes,
     label: s.label, batch: s.batch + (s.also.length ? ' + ' + s.also.join(', ') : ''), go: s.go, errs: s.errs,
     link: `${TEST_PAGE}?go=${s.go}&view=${VIEW}`,
     img: s.pub,
@@ -134,7 +148,7 @@ function slidesPage(shots){
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;700&family=Source+Sans+3:wght@400;600&display=swap">
 <style>
 /* Layout: one photo at a time, its caption under it, a thumbnail strip to jump; single dark look so game shots read */
-:root{ --bg:#11151b; --panel:#1a2029; --fg:#eef1f5; --soft:#9aa6b6; --line:#2b3340; --accent:#f0772a; --warn:#ff6b5a; --ok:#4cc285; --ink:#ff2d3d;
+:root{ --bg:#11151b; --panel:#1a2029; --fg:#eef1f5; --soft:#9aa6b6; --line:#2b3340; --accent:#f0772a; --warn:#ff6b5a; --ok:#4cc285; --ready:#4aa3ff; --ink:#ff2d3d;
   --display:"Rubik",system-ui,-apple-system,sans-serif; --body:"Source Sans 3",system-ui,-apple-system,sans-serif; color-scheme:dark }
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font:16px/1.45 var(--body);margin:0}
@@ -164,6 +178,14 @@ h2{font:700 1.35rem/1.2 var(--display);margin:0;text-wrap:balance}
 .thumbs button[aria-current="true"] img{opacity:1}
 .thumbs span{position:absolute;left:4px;top:3px;font:700 .72rem var(--display);background:rgba(17,21,27,.8);border-radius:4px;padding:0 5px;font-variant-numeric:tabular-nums}
 .hint{color:var(--soft);font-size:.85rem;margin:0}
+.look{display:grid;gap:4px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:10px 14px}
+.look b{font:600 .8rem var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.look ul{margin:0;padding-left:18px;display:grid;gap:3px}
+.look p{margin:0;color:var(--soft)}
+details.changed{color:var(--soft);font-size:.95rem}
+details.changed summary{cursor:pointer;font:600 .9rem var(--display);color:var(--fg)}
+details.changed h3{font:600 .85rem var(--display);color:var(--fg);margin:10px 0 4px}
+details.changed ul{margin:0;padding-left:18px;display:grid;gap:4px;max-width:75ch}
 .fix{display:grid;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .fix label{font:600 .9rem var(--display)}
 .fix textarea{width:100%;box-sizing:border-box;min-height:84px;resize:vertical;font:16px/1.4 var(--body);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
@@ -182,6 +204,9 @@ h2{font:700 1.35rem/1.2 var(--display);margin:0;text-wrap:balance}
 .tally{font:600 .85rem var(--display);color:var(--accent)}
 .thumbs i{position:absolute;right:4px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
 .thumbs i.done{background:var(--ok)}
+.thumbs i.ready{background:var(--ready)}
+.fix .badge{font:600 .78rem var(--display);letter-spacing:.05em;text-transform:uppercase;border-radius:99px;padding:3px 10px;background:var(--line);color:var(--fg)}
+.fix .badge.open{background:var(--accent);color:#fff}.fix .badge.ready{background:var(--ready);color:#06213d}.fix .badge.fixed{background:var(--ok);color:#0d1a12}
 @media (max-width:520px){ .nav{width:40px;height:40px} h2{font-size:1.15rem} .thumbs button{width:88px} }
 </style>
 <div class="app">
@@ -196,6 +221,8 @@ h2{font:700 1.35rem/1.2 var(--display);margin:0;text-wrap:balance}
     <div class="txt"><span class="num" id="num"></span><h2 id="label"></h2><span class="batch" id="batch"></span><span class="err" id="err" hidden></span></div>
     <a class="go" id="go" target="_blank" rel="noopener">Open in game &#8599;</a>
   </div>
+  <div class="look" id="look"><b>Look for</b><ul id="lookList"></ul><p id="lookNone" hidden>No hint written for this spot yet; see what the batch changed below.</p></div>
+  <details class="changed" id="changed"><summary>What this batch changed</summary><div id="changedBody"></div></details>
   <div class="fix" id="fix">
     <label for="note">What needs fixing at this spot?</label>
     <textarea id="note" placeholder="e.g. the guard stands inside the booth wall; the bench overlaps the lamp"></textarea>
@@ -206,7 +233,8 @@ h2{font:700 1.35rem/1.2 var(--display);margin:0;text-wrap:balance}
     </div>
     <div class="fixrow">
       <button class="save" id="save" type="button">Save note</button>
-      <button id="done" type="button" aria-pressed="false">Fixed</button>
+      <button id="done" type="button" aria-pressed="false">Mark fixed</button>
+      <span class="badge" id="badge" hidden></span>
       <span class="state" id="state">Loading notes&hellip;</span>
     </div>
   </div>
@@ -229,6 +257,17 @@ function show(i){
   $('label').textContent = s.label; $('batch').textContent = s.batch;
   $('err').hidden = !s.errs.length; $('err').textContent = s.errs.length ? 'Page errors: ' + s.errs.join(' | ') : '';
   $('go').href = s.link;
+  const ll = $('lookList'); ll.textContent = '';
+  for(const h of s.hints){ const li = document.createElement('li'); li.textContent = h; ll.appendChild(li); }
+  $('lookNone').hidden = s.hints.length > 0; ll.hidden = !s.hints.length;
+  const cb = $('changedBody'); cb.textContent = '';
+  for(const c of s.changes){
+    if(s.changes.length > 1){ const h3 = document.createElement('h3'); h3.textContent = c.batch; cb.appendChild(h3); }
+    const ul = document.createElement('ul');
+    for(const it of c.items){ const li = document.createElement('li'); li.textContent = it; ul.appendChild(li); }
+    cb.appendChild(ul);
+  }
+  $('changed').hidden = !s.changes.some(c => c.items.length);
   $('prev').disabled = at === 0; $('next').disabled = at === S.length - 1;
   thumbs.forEach((b, k) => b.setAttribute('aria-current', k === at ? 'true' : 'false'));
   const t = thumbs[at], c = $('thumbs'); c.scrollLeft = t.offsetLeft - c.offsetLeft - (c.clientWidth - t.clientWidth)/2;
@@ -243,14 +282,19 @@ function renderNote(){
   if(n && !dirty[s.key]) { ink[s.key] = (n.marks || []).map(m => m.p || m); }
   const ta = $('note');
   if(document.activeElement !== ta) ta.value = n ? (n.note || '') : '';
-  $('done').setAttribute('aria-pressed', n && n.status === 'fixed' ? 'true' : 'false');
+  const st = n && (n.note || (n.marks && n.marks.length)) ? (n.status || 'open') : '';
+  $('done').setAttribute('aria-pressed', st === 'fixed' ? 'true' : 'false');
+  $('done').textContent = st === 'fixed' ? 'Reopen' : 'Mark fixed';
+  $('badge').hidden = !st; $('badge').className = 'badge ' + st;
+  $('badge').textContent = st === 'fixed' ? 'Fixed: you checked it' : st === 'ready' ? 'Ready to check' : st ? 'Open' : '';
   const on = dbState === 'ready';
   ta.disabled = !on; $('save').disabled = !on; $('done').disabled = !on || !n || !(n.note || (n.marks && n.marks.length));
   ['draw', 'undo', 'clear'].forEach(id => { $(id).disabled = !on; });
-  $('state').textContent = dbState === 'loading' ? 'Loading notes\u2026' : dbState === 'slow' ? "Notes can't be reached yet." : dbState === 'off' ? 'Notes work when this page is open in claude.ai.' : dbState === 'ro' ? 'You can read notes here but not change them.' : dirty[s.key] ? 'Unsaved marks: tap Save note.' : n && (n.note || (n.marks && n.marks.length)) ? (n.status === 'fixed' ? 'Marked fixed.' : 'Open: waiting for a fix.') : 'No note for this spot.';
-  thumbs.forEach((b, k) => { const m = notes[S[k].key], dot = b.querySelector('i'); dot.hidden = !(m && (m.note || (m.marks && m.marks.length))); dot.className = m && m.status === 'fixed' ? 'done' : ''; });
-  const open = Object.values(notes).filter(m => (m.note || (m.marks && m.marks.length)) && m.status !== 'fixed').length;
-  $('tally').textContent = open ? '\u00b7 ' + open + ' to fix' : '';
+  $('state').textContent = dbState === 'loading' ? 'Loading notes\u2026' : dbState === 'slow' ? "Notes can't be reached yet." : dbState === 'off' ? 'Notes work when this page is open in claude.ai.' : dbState === 'ro' ? 'You can read notes here but not change them.' : dirty[s.key] ? 'Unsaved marks: tap Save note.' : n && (n.note || (n.marks && n.marks.length)) ? (st === 'fixed' ? 'Claude removes this note next session.' : st === 'ready' ? 'Claude fixed this: check it in the game, then Mark fixed or add to the note.' : 'Waiting for a fix.') : 'No note for this spot.';
+  thumbs.forEach((b, k) => { const m = notes[S[k].key], dot = b.querySelector('i'); dot.hidden = !(m && (m.note || (m.marks && m.marks.length))); dot.className = m && m.status === 'fixed' ? 'done' : m && m.status === 'ready' ? 'ready' : ''; });
+  const live = Object.values(notes).filter(m => m.note || (m.marks && m.marks.length));
+  const open = live.filter(m => (m.status || 'open') === 'open').length, ready = live.filter(m => m.status === 'ready').length;
+  $('tally').textContent = [open ? open + ' to fix' : '', ready ? ready + ' to check' : ''].filter(Boolean).map(t => '\u00b7 ' + t).join(' ');
 }
 async function write(patch){
   const s = S[at], n = notes[s.key] || {};

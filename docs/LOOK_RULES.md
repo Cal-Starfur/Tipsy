@@ -136,6 +136,7 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Doors open live for anyone going through** and shut after. They're never baked into a cache. Automatic doors slide, and lift doors open at each landing.
 - **Nobody walks through a shut door.** A walker in a doorway is drawn between the room and the leaf.
 - **An open door shows depth** (a lit tunnel clipped to the opening). A shut solid door hides the room completely; a walk-in's doorway and glazed leaves show its live room (section 8).
+- **A walk-in's glazed pair slides and fills its opening to the head** (Sir, 2026-11-05, Seabreeze Trophies: "i can still see two sets of doors"). Leaves stopping short of the shell's hole, or swinging out across the doorway, read as a second door.
 
 ## 6. Collision matches the art (landmarks.md)
 - **One source.** Art, `vol`, x-ray, classifier, mats, spawn, routes and labs read one plan or entry. Never re-derive.

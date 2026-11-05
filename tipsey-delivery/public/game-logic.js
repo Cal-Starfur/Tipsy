@@ -42754,16 +42754,24 @@ function shopDoorOpen(d, t, between, leafOnly){
     if(between) between();                                                  // whoever is inside, behind the leaf
   }
   /* A WALK-IN'S PAIR (d.see): glazed leaves -- a frame of the trim and the glass the room is seen through -- shut or
-     open, always live */
+     open, always live. They SLIDE, as every other glass walk-in's pair does (the museum's, the mall's, the lobbies':
+     slidePairDraw): each leaf parts from the middle over the wall beside it. They swung out (Sir, 2026-11-05, the
+     trophy shop: "showing 2 doors one that opens one that doesnt") -- swung out toward the street, the near leaf lay
+     across the doorway and read as still shut */
   if(d.pair && d.see){
-    for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
-      const qq = Q(hingeA, sgn);
-      rect(qq, 5, ln - 5, z0 + 12, z1 - 6, 'rgba(150,186,200,.36)');
-      rect(qq, 0, 5, z0, z1, d.trim); rect(qq, ln - 5, ln, z0, z1, d.trim);
-      rect(qq, 0, ln, z1 - 6, z1, d.trim); rect(qq, 0, ln, z0, z0 + 12, d.trim);
-      rect(qq, 7, 14, z0 + 18, z1 - 12, 'rgba(255,255,255,.14)', null, 0, 0.1);
-      rect(qq, ln-10, ln-6, d.z+d.dH*0.36, d.z+d.dH*0.56, '#d8c28a', null, 0, 0.6);
-      edge(qq, ln, z0, z1);
+    /* ...and they fill the opening to its head: the shell's hole there is cut the door's full height (the pocket's
+       openings, dH), so leaves stopping 30 short, as a solid door's do in its surround, left a band of the room over
+       them that read as a second door behind (Sir, 2026-11-05: "i can still see two sets of doors on the building") */
+    const z1 = d.z + d.dH;
+    const half = (d.a1 - d.a0)/2, sh = (half - 3)*Math.max(0, Math.min(1, t));
+    const L = (a0, a1, za, zb, fill, off) => { const b = 0.6 + (off || 0); poly([P(a0,b,za), P(a1,b,za), P(a1,b,zb), P(a0,b,zb)], fill); };
+    for(const [l0, l1, s] of [[d.a0 + 2, d.a0 + half, -1], [d.a0 + half, d.a1 - 2, 1]]){
+      const A0 = l0 + s*sh, A1 = l1 + s*sh, meet = s < 0 ? A1 : A0, ms = s < 0 ? -1 : 1;   // (meet: the edge at the middle)
+      L(A0 + 5, A1 - 5, z0 + 12, z1 - 6, 'rgba(150,186,200,.36)');
+      L(A0, A0 + 5, z0, z1, d.trim); L(A1 - 5, A1, z0, z1, d.trim);
+      L(A0, A1, z1 - 6, z1, d.trim); L(A0, A1, z0, z0 + 12, d.trim);
+      L(meet + ms*8, meet + ms*14, z0 + 18, z1 - 12, 'rgba(255,255,255,.14)', 0.1);
+      L(meet + ms*6, meet + ms*10, d.z+d.dH*0.36, d.z+d.dH*0.56, '#d8c28a', 0.6);   // the pull, by the middle
     }
     return;
   }
@@ -77250,7 +77258,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
       BOFF = d.boff != null ? d.boff : (shop.boff || 0);
       SHOP_SLOT = { G };
-      try { return shopDoorLeaves(d).map(([h, sg, len]) => [P(h, 0.6, 0), P(h + sg*len*ca, 0.6 + len*sa, 0)]); }
+      try {
+        if(d.pair && d.see){                                                   // (a walk-in's glazed pair slides: its leaves stay in the glass line)
+          const half = (d.a1 - d.a0)/2, sh = (half - 3)*Math.max(0, Math.min(1, t));
+          return [[d.a0 + 2 - sh, d.a0 + half - sh], [d.a0 + half + sh, d.a1 - 2 + sh]].map(([a0, a1]) => [P(a0, 0.6, 0), P(a1, 0.6, 0)]);
+        }
+        return shopDoorLeaves(d).map(([h, sg, len]) => [P(h, 0.6, 0), P(h + sg*len*ca, 0.6 + len*sa, 0)]);
+      }
       finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
     },
     /* that door's opening as four screen points, in the same frame as
@@ -77265,7 +77279,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       BOFF = d.boff != null ? d.boff : (shop.boff || 0);
       SHOP_SLOT = { G };
       try {
-        const A0 = d.a0 + 2, A1 = d.a1 - 2, z0 = d.z, z1 = d.z + d.dH - 30;
+        const A0 = d.a0 + 2, A1 = d.a1 - 2, z0 = d.z, z1 = d.z + d.dH - (d.pair && d.see ? 0 : 30);   // (a walk-in's glazed pair: the full opening, as its leaves)
         return [P(A0, 0.62, z0), P(A1, 0.62, z0), P(A1, 0.62, z1), P(A0, 0.62, z1)].map(p => ({ x: p.x, y: p.y }));
       }
       finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }

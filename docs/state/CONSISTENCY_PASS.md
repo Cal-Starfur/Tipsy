@@ -27,7 +27,7 @@ Each batch is:
   - Their van drives in the traffic's lane at 0.29, brakes over its last 520, and gives way. A wait it is stuck in is let go only after 30 s.
   - It parks within 800 of the fall. With no kerb gap there, it double-parks by him.
   - The hospital crew's van and walk follow the same pace.
-- Test: [trophy shop door](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2) · [small shops](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2) · [Marina General (doctor and medic)](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1)
+- Test: [trophy shop door](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2 "Look for: one door in the trophy shop's front, opening for Tipsey (the only shop door he opens) and for anyone walking in") · [small shops](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2 "Look for: shop doors opening for people walking through them; walkers go in through an open door, never through a shut one") · [Marina General (doctor and medic)](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1 "Look for: the main entrance glass opening for the heart run's doctor and medic")
 
 ### Doors (batch 2)
 - **The mall's plaza doors (MALL_ENT)** are declared sliding pairs.
@@ -35,14 +35,14 @@ Each batch is:
   - Inside, the atrium pairs slide too; they stood painted open.
 - **The mall's street bays and Palmline Tower's stores** each have their own door state. They are parted for the crowd and anyone listed, and drawn live over the front while open.
 - **No pickup at a shop the kit cannot open** (Surfside Diner, Sandpiper Shoes).
-- Test: [mall plaza doors](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2) · [Palmline Tower stores](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5060,-560&view=2)
+- Test: [mall plaza doors](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2 "Look for: the plaza doors sliding apart for the crowd, and for Tipsey only once he has the password") · [Palmline Tower stores](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5060,-560&view=2 "Look for: each store's door opening for shoppers and staying drawn over the shopfront while open")
 
 ### Pops and fades (batch 3)
 - **Nobody fades.** The hospital cast's fade steps are cuts at the car, door, lift or street end they stand at.
 - **The ambulance and the hospital crew's van** drive in from x 26,400 and away out of sight, with no alpha.
 - **Posts, not pops.** The store reps stand at their tills when not out. The Sierra Vista guard stands at his booth's door; his walk is the street's, his run a jog, his legs at his pace.
 - **Seekers** come from off the screen or not at all, and ride on until out of sight.
-- Test: [Marina General](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1) · [Sierra Vista gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=3128,-3700&view=2) (Palmline Tower hides the guard booth from the south)
+- Test: [Marina General](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1 "Look for: no fading; the hospital's people arrive and leave by car, door or lift, and the ambulance drives in from off screen") · [Sierra Vista gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=3128,-3700&view=2 "Look for: the guard standing at his booth's door and walking at street pace (the tower hides the booth from the south)") (Palmline Tower hides the guard booth from the south)
 
 ### Order, solids, kits (batches 4-6, first part)
 - **Order.** A landmark drawn whole (Lagoon Market Hall) is keyed at the middle of what it draws, and the Pelican Harbor house at its footprint's middle; both were keyed at a far corner.
@@ -54,7 +54,7 @@ Each batch is:
   - Cones, planters and scooters lying where they were left are cached.
   - A seeker's parked scooter is cached.
   - Signal posts are cached, their heads live.
-- Test: [Lagoon Market Hall](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10900,27700&view=2) · [Pelican Harbor Port Office](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) · [Marina General drive](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1)
+- Test: [Lagoon Market Hall](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10900,27700&view=2 "Look for: the hall sorting in front of and behind things correctly (it was keyed at a far corner)") · [Pelican Harbor Port Office](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2 "Look for: the harbor house sorting in front of and behind things correctly") · [Marina General drive](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1 "Look for: ambulances and the crew van are solid while standing in the drive (Tipsey can't drive through them)")
 
 ### Driftwood Skate Park (Flats build order area 6, "Park south leaf", as scenery; 2026-11-05)
 - **Where.** Veterans Memorial Park's cell 5,6, the trail's dead-end leaf. The park fills the whole cell out to the pavement. No lawn or planting is left inside it. A chain-link fence runs round it, with a gateway north (the trail from the memorial ends there) and south (the street). One plan, `SK_PLAN`; LIB entry 'Driftwood Skate Park'.
