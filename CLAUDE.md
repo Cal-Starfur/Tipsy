@@ -22,7 +22,13 @@ correct something it doesn't cover, add a one-line rule to it.
    `tools/perf_baseline.json` with that change.
 4. Publish the full `game/index.html` as an Artifact so I can play it on my iPad.
    Keep ONE preview per session: republish to the same artifact after changes.
-5. Wait. I test in the artifact. Do not commit or push until I say "push".
+5. Jump links: for every spot the change touches, stand Tipsey there headless, take the
+   link from `tpGoHere()` (or `?go=<x>,<y>&view=<1-3>` / a `GO_SPOTS` name) and screenshot
+   it to confirm it lands on the change. Write them as a `- Test:` line at the end of that
+   change's heading in its checklist doc (the consistency pass:
+   `docs/state/CONSISTENCY_PASS.md`), on the test page's address. Don't list them in chat
+   each time: say they're logged. Links open in Safari (the home-screen app drops `?go=`).
+6. Wait. I test in the artifact. Do not commit or push until I say "push".
 
 ## On "push"
 - Commit and push straight to `main`. No side branches, no PRs.

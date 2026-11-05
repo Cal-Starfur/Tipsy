@@ -2,6 +2,8 @@
 
 This pass works on the `consistency-pass` branch. Its test page is https://cal-starfur.github.io/Tipsy/consistency-pass/: `main`'s `consistency-pass/` folder, built from a gated commit, with saves kept under their own `tipsy-consistency:` prefix. The live game and `main`'s game files are untouched until Sir says "push".
 
+**Jump links.** Each batch's `Test:` line opens the test page with Tipsey already standing at the change (`?go=<x>,<y>` or a named spot, `&view=` the zoom; `tpGoHere()` in the console gives the link for where he stands). Open them in Safari: the home-screen app drops the end of the link.
+
 Each batch is:
 1. rebuilt;
 2. booted headless (no page errors);
@@ -25,6 +27,7 @@ Each batch is:
   - Their van drives in the traffic's lane at 0.29, brakes over its last 520, and gives way. A wait it is stuck in is let go only after 30 s.
   - It parks within 800 of the fall. With no kerb gap there, it double-parks by him.
   - The hospital crew's van and walk follow the same pace.
+- Test: [trophy shop door](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2) · [small shops](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2) · [Marina General (doctor and medic)](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1)
 
 ### Doors (batch 2)
 - **The mall's plaza doors (MALL_ENT)** are declared sliding pairs.
@@ -32,12 +35,14 @@ Each batch is:
   - Inside, the atrium pairs slide too; they stood painted open.
 - **The mall's street bays and Palmline Tower's stores** each have their own door state. They are parted for the crowd and anyone listed, and drawn live over the front while open.
 - **No pickup at a shop the kit cannot open** (Surfside Diner, Sandpiper Shoes).
+- Test: [mall plaza doors](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2) · [Palmline Tower stores](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5060,-560&view=2)
 
 ### Pops and fades (batch 3)
 - **Nobody fades.** The hospital cast's fade steps are cuts at the car, door, lift or street end they stand at.
 - **The ambulance and the hospital crew's van** drive in from x 26,400 and away out of sight, with no alpha.
 - **Posts, not pops.** The store reps stand at their tills when not out. The Sierra Vista guard stands at his booth's door; his walk is the street's, his run a jog, his legs at his pace.
 - **Seekers** come from off the screen or not at all, and ride on until out of sight.
+- Test: [Marina General](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1) · [Sierra Vista gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=3128,-3700&view=2) (Palmline Tower hides the guard booth from the south)
 
 ### Order, solids, kits (batches 4-6, first part)
 - **Order.** A landmark drawn whole (Lagoon Market Hall) is keyed at the middle of what it draws, and the Pelican Harbor house at its footprint's middle; both were keyed at a far corner.
@@ -49,6 +54,7 @@ Each batch is:
   - Cones, planters and scooters lying where they were left are cached.
   - A seeker's parked scooter is cached.
   - Signal posts are cached, their heads live.
+- Test: [Lagoon Market Hall](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10900,27700&view=2) · [Pelican Harbor Port Office](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) · [Marina General drive](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1)
 
 ## Checked and left as they are
 - **The mall junction Sir circled** is fixed on `main` by the hospital session's 2026-10-29 clip (`shopsCut`). The mall body is still one 9,384-long image (U1l); splitting it waits for a fault that shows.
