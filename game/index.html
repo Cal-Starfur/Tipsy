@@ -101707,13 +101707,14 @@ class WorldScene extends Phaser.Scene {
         const shadeHex = (c, k) => { const r = Math.min(255, ((c >> 16) & 255)*k)|0, g2 = Math.min(255, ((c >> 8) & 255)*k)|0, b2 = Math.min(255, (c & 255)*k)|0; return (r << 16) | (g2 << 8) | b2; };
         const bz = (c, extra) => Object.assign({ c, dk: shadeHex(c, 0.78) }, extra || {});
         const skin = bz(0xa88458), shirt = bz(0x9c7a4c), pants = bz(0x8f6e40), hair = bz(0x6b5030, { style: 'part' }), shoe = bz(0x5f482a, { kind: 'dress' });
-        const uniform = { cap: { c: 0x7d6036, dk: 0x5f482a, top: 0x8f6e40, badge: 0x9c7a4c } };
-        const pose = { sit: sitH, astride: true, lift: [0.55, 1.45], bend: [0.9, 0.25] };
+        const uniform = null;
+        const pose = { sit: sitH, astride: true, lift: [0.6, 0.6], bend: [0.95, 0.95] };
         const W0 = this.W;
         this.W = (px, py, pz) => W0.call(this, rx + (px - rx)*S2, ry + (py - ry)*S2, z0 + (pz - z0)*S2);
         try { this.drawPersonHullBody(g, rx, ry, z0, -Math.PI/2, PEOPLE_BUILD[0], skin, shirt, pants, hair, shoe, 0, false, 0, 0, null, uniform, false, pose); }
         finally { delete this.W; }
       }
+      this.drawHorseHull(g, x, y, Z, M, 'hat');
     }});
   }
   /* THE HORSE, FRESH (Sir, 2026-11-05: "get rid of the whole statue and build it fresh ... I meant the horse too"): built the way the
@@ -101721,7 +101722,7 @@ class WorldScene extends Phaser.Scene {
      leg, the tail), each face drawn only when it is toward the eye, toned by which way it faces on the people's own ramp
      (hullSteps), the silhouette filled first so no seam shows. One bronze. Metres times M; a forward (+x), b across (+y, toward
      the camera), h up; a walking horse with its near foreleg raised, saddled, bridled, its tail and mane flowing. */
-  drawHorseHull(g, ax, ay, z, M){
+  drawHorseHull(g, ax, ay, z, M, mode){
     const G = (a, b, h) => this.W(ax + a*M, ay + b*M, z + h*M);
     const O3 = G(0,0,0), A3 = G(1,0,0), B3 = G(0,1,0), H3 = G(0,0,1);
     const ux3 = [A3.x - O3.x, B3.x - O3.x, H3.x - O3.x], uy3 = [A3.y - O3.y, B3.y - O3.y, H3.y - O3.y];
@@ -101795,8 +101796,16 @@ class WorldScene extends Phaser.Scene {
               ball([-0.02, 0, 1.76], 0.25, DARK, { rh: 0.28, ra: 1.3, n: 10, K: 5 });
               path([[0.08, 0.31, 1.6, 0.02, 0.025], [0.12, 0.33, 1.4, 0.02, 0.02]], LEATHER, { n: 5 });                                // the stirrup leather
               ball([0.14, 0.34, 1.36], 0.055, DARK, { rh: 0.5, n: 8, K: 4 }); },                                                       // and its iron
-      () => path([[0.14, 0.2, 1.1, 0.01, 0.01], [0.62, 0.02, 1.62, 0.01, 0.01], [1.06, 0.0, 2.1, 0.01, 0.01], [1.5, 0.0, 1.78, 0.012, 0.012]], LEATHER, { n: 4, cap0: false })   // the reins, hand to bit
+      () => path([[0.3, 0.13, 2.14, 0.012, 0.012], [0.8, 0.09, 2.08, 0.012, 0.012], [1.2, 0.07, 1.94, 0.012, 0.012], [1.5, 0.055, 1.77, 0.012, 0.012]], LEATHER, { n: 4, cap0: false })   // the reins, hand to bit
     ];
+    if(mode === 'hat'){                                                   // (drawn over the rider: a cowboy hat, brim curled at the sides, a creased crown and a band)
+      const HAT = { c: 0x7d6036, dk: 0x4a3822 }, BAND = { c: 0x4a3822, dk: 0x2b2012 }, ha = 0.04, hh = 2.5;
+      ball([ha, 0, hh], 0.27, HAT, { rh: 0.11, rb: 1.12, n: 12, K: 5 });
+      for(const s2 of [-1, 1]) ball([ha - 0.01, s2*0.25, hh + 0.05], 0.08, HAT, { rh: 0.6, n: 8, K: 4 });          // the brim turned up at each side
+      path([[ha, 0, hh + 0.02, 0.135, 0.14], [ha, 0, hh + 0.08, 0.13, 0.135]], BAND, { n: 12 });                   // the band
+      path([[ha, 0, hh + 0.08, 0.125, 0.13], [ha, 0, hh + 0.2, 0.108, 0.115], [ha, 0, hh + 0.26, 0.075, 0.09]], HAT, { n: 12 });   // the crown, pinched in at the top
+      return;
+    }
     for(const fn of parts) fn();
   }
   queueParkBlock(vq, blk){
