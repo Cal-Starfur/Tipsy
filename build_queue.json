@@ -1,20 +1,468 @@
-{"nodes":[
-{"id":"p1.1","title":"Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites","spec":"docs/people-unification.md#plan-by-risk","deps":[],"status":"pending"},
-{"id":"p1.2","title":"One loopWalkStep for ballroom + derby walkers (identical positions)","spec":"docs/people-unification.md","deps":["p1.1"],"status":"pending"},
-{"id":"p1.3","title":"One pathAt replacing mallStaffAt + hospWalkerAt","spec":"docs/people-unification.md","deps":["p1.2"],"status":"pending"},
-{"id":"p1.4","title":"One talkRun for ballroom/derby chatter (visible change)","spec":"docs/people-unification.md","deps":["p1.3"],"status":"pending"},
-{"id":"p1.5","title":"EXCUSE table + excuseSay (hospital visible change)","spec":"docs/people-unification.md","deps":["p1.4"],"status":"pending"},
-{"id":"p1.6","title":"Looks through partyLook, old generators as aliases","spec":"docs/people-unification.md","deps":["p1.5"],"status":"pending"},
-{"id":"p1.7","title":"Derby onto scene.time.now","spec":"docs/people-unification.md","deps":["p1.6"],"status":"pending"},
-{"id":"p2.8","title":"PEOPLE registry (updateKnocks, blockAt, hospital walkers solid)","spec":"docs/people-unification.md","deps":["p1.7"],"status":"pending"},
-{"id":"r1","title":"Dev challenge routes data plumbing","spec":"docs/roadmap.md#phase-1","deps":[],"status":"pending"},
-{"id":"r2a","title":"Ramp/kicker lab bench, all 4 headings","spec":"docs/ramp-jump-spec.md","deps":[],"status":"pending"},
-{"id":"r2b","title":"Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route","spec":"docs/ramp-jump-spec.md","deps":["r1","r2a"],"status":"pending"},
-{"id":"r3","title":"Community route editor","spec":"docs/roadmap.md#phase-3","deps":["r2b"],"status":"pending"},
-{"id":"s1","title":"Onboarding level 'Learn the Ropes'","spec":"docs/onboarding-spec.md","deps":[],"status":"blocked","note":"needs hazard choice, menu label"},
-{"id":"s2","title":"Skins redemption-code model","spec":"docs/skins-spec.md","deps":[],"status":"blocked","note":"needs price, launch count, code format"},
-{"id":"s3","title":"Keepsakes data shape + story 'Fourth Place'","spec":"docs/keepsakes.md","deps":[],"status":"blocked","note":"needs save-across-devices, mission data"},
-{"id":"w1","title":"robot.axle + robot.battery into game build","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"},
-{"id":"w2","title":"Building fronts behind the sidewalk","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"},
-{"id":"w3","title":"Wandering dog (prop.dog static)","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"}
-]}
+{
+"nodes": [
+{
+"id": "p1.1",
+"title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
+"spec": "docs/people-unification.md#plan-by-risk",
+"deps": [],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.2",
+"title": "One loopWalkStep for ballroom + derby walkers (identical positions)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.1"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.3",
+"title": "One pathAt replacing mallStaffAt + hospWalkerAt",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.2"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.4",
+"title": "One talkRun for ballroom/derby chatter (visible change)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.3"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.5",
+"title": "EXCUSE table + excuseSay (hospital visible change)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.4"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.6",
+"title": "Looks through partyLook, old generators as aliases",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.5"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p1.7",
+"title": "Derby onto scene.time.now",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.6"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "p2.8",
+"title": "PEOPLE registry (updateKnocks, blockAt, hospital walkers solid)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.7"
+],
+"status": "pending",
+"group": "People unification"
+},
+{
+"id": "r1",
+"title": "Dev challenge routes data plumbing",
+"spec": "docs/roadmap.md#phase-1",
+"deps": [],
+"status": "pending",
+"group": "Roadmap: routes, ramps, editor"
+},
+{
+"id": "r2a",
+"title": "Ramp/kicker lab bench, all 4 headings",
+"spec": "docs/ramp-jump-spec.md",
+"deps": [],
+"status": "pending",
+"group": "Roadmap: routes, ramps, editor"
+},
+{
+"id": "r2b",
+"title": "Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route",
+"spec": "docs/ramp-jump-spec.md",
+"deps": [
+"r1",
+"r2a"
+],
+"status": "pending",
+"group": "Roadmap: routes, ramps, editor"
+},
+{
+"id": "r3",
+"title": "Community route editor",
+"spec": "docs/roadmap.md#phase-3",
+"deps": [
+"r2b"
+],
+"status": "pending",
+"group": "Roadmap: routes, ramps, editor"
+},
+{
+"id": "s1",
+"title": "Onboarding level 'Learn the Ropes'",
+"spec": "docs/onboarding-spec.md",
+"deps": [],
+"status": "blocked",
+"note": "needs hazard choice, menu label",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "s2",
+"title": "Skins redemption-code model",
+"spec": "docs/skins-spec.md",
+"deps": [],
+"status": "blocked",
+"note": "needs price, launch count, code format",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "s3",
+"title": "Keepsakes data shape + story 'Fourth Place'",
+"spec": "docs/keepsakes.md",
+"deps": [],
+"status": "blocked",
+"note": "needs save-across-devices, mission data",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "w1",
+"title": "robot.axle + robot.battery into game build",
+"spec": "docs/ASSETS.md#known-gaps--wishlist",
+"deps": [],
+"status": "pending",
+"group": "Wishlist"
+},
+{
+"id": "w2",
+"title": "Building fronts behind the sidewalk",
+"spec": "docs/ASSETS.md#known-gaps--wishlist",
+"deps": [],
+"status": "pending",
+"group": "Wishlist"
+},
+{
+"id": "w3",
+"title": "Wandering dog (prop.dog static)",
+"spec": "docs/ASSETS.md#known-gaps--wishlist",
+"deps": [],
+"status": "pending",
+"group": "Wishlist"
+},
+{
+"id": "d1",
+"title": "Working door: Seabreeze Ballroom (doorF records itself)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d2",
+"title": "Working door: Animal Shelter (painted door today)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d3",
+"title": "Working door: harbour boat cabin",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d4",
+"title": "Working doors: Surfside Diner + Sandpiper Shoes",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d5",
+"title": "Kai + surf stand door; Low Tide Music door faces away",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: doors"
+},
+{
+"id": "b1",
+"title": "Tide Pool Elementary in pieces (U1k/U1c)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: buildings"
+},
+{
+"id": "b2",
+"title": "Palmline Tower key + vol, forecourt out of its one image",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: buildings"
+},
+{
+"id": "v1",
+"title": "One vehicleSolid(kind) for the ten parked-car boxes",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: vehicles"
+},
+{
+"id": "v2",
+"title": "Riders obstacle list + clearance",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: vehicles"
+},
+{
+"id": "v3",
+"title": "Parking rows cached, one bay size",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: vehicles"
+},
+{
+"id": "v4",
+"title": "Showroom cars on gameCar",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: vehicles"
+},
+{
+"id": "v5",
+"title": "Route car out of the far lane",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: vehicles"
+},
+{
+"id": "pe1",
+"title": "Legs driven by distance walked (47 walkSin calls)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: people"
+},
+{
+"id": "pe2",
+"title": "Unlisted populations into CITY_PEOPLE",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: people"
+},
+{
+"id": "pe3",
+"title": "Merge the two meet-spot pickers; meetCoverAt beyond street + mall",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: people"
+},
+{
+"id": "pe4",
+"title": "Forno cook counter post; R6 on Tipsey himself",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: people"
+},
+{
+"id": "pr1",
+"title": "Prop collision taken from the art (lamp, hydrant, palm, bin, bench)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: props"
+},
+{
+"id": "pr2",
+"title": "Keep-clear of doors and mats",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: props"
+},
+{
+"id": "pr3",
+"title": "Static prop shadows",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: props"
+},
+{
+"id": "pr4",
+"title": "Pier + harbour still props cached",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "pending",
+"group": "Consistency pass: props"
+},
+{
+"id": "wk1",
+"title": "Dune Home & Garden",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk2",
+"title": "Saltwater Brewing",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk3",
+"title": "Lagoon Baths",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk4",
+"title": "Driftwood Chapel",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk5",
+"title": "Palmline Nursery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk6",
+"title": "Animal Shelter interior",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk7",
+"title": "Lagoon Market Hall",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk8",
+"title": "Ferris Taylor Cottages",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk9",
+"title": "Cove Grove",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "wk10",
+"title": "Airfield terminal",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"group": "Walk-in landmarks"
+},
+{
+"id": "f2",
+"title": "Fleet P2: rotor flight + The Lighthouse Run",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "pending",
+"group": "Fleet and missions"
+},
+{
+"id": "m1",
+"title": "Trophies alley fence to 0.3 over the room",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "pending",
+"group": "Fleet and missions"
+},
+{
+"id": "m2",
+"title": "Open House: crosswalk for the captain, live fire on the burn prop",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "pending",
+"group": "Fleet and missions"
+},
+{
+"id": "m3",
+"title": "KTDE: DJ side missions over the air; station van drives off",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "pending",
+"group": "Fleet and missions"
+},
+{
+"id": "m4",
+"title": "Letters on the Hill: face wash under roof edges; ranger inside her kiosk",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "pending",
+"group": "Fleet and missions"
+},
+{
+"id": "x1",
+"title": "Fleet lock flip; garage shows big vehicle on pick; pier access for Flats players",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"group": "Needs Sir",
+"note": "decision"
+},
+{
+"id": "x2",
+"title": "Region index follows the lock; Mirador developer; pier lamp + palm sizes",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"group": "Needs Sir",
+"note": "decision"
+}
+]
+}
