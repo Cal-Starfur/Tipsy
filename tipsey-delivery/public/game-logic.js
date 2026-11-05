@@ -67107,8 +67107,8 @@ marinaEntry(),
   name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   see: true,   // (its doorway and its windows show the room inside: walkinThrough, museumOpenings)
   vol: TIDEWATER_MUSEUM.vol,
-  /* a drive to the gate, as Ferris Taylor Cottages' arch has (see hoodDrivewaysOf): the walk's width and stone */
-  drive:[{ side:'front', from: TIDEWATER_MUSEUM.WALK[0], to: TIDEWATER_MUSEUM.WALK[1], col:'#cdc6b4', arrows:'none' }],
+  /* NO DRIVE ACROSS THE FOOTWAY (Sir, 2026-11-05: "no need for this drive way"): a museum's gate is a walk, so the footway
+     stays plain pavement and the kerb runs on unbroken in front of it */
   /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
      bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
      and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
@@ -67118,8 +67118,9 @@ marinaEntry(),
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
      lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
   lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
-    return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 120 }))
-      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 105 }))); },
+    /* (Sir, 2026-11-05: "make the light from the lanterns smaller": half the throw, 120 -> 60 and 105 -> 52) */
+    return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 60 }))
+      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 52 }))); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
   head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',

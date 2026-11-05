@@ -68,6 +68,12 @@ Each batch is:
 - **Checked.** Booted headless with no page errors. Photographed by day and night, and filmed: the skaters, the bowl and the quarter pipe. The gate on the bleacher version passed (0 new).
 - Test: [whole park](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060,-1.57&view=3) · [north quarter pipe run-up](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17650,20250,-1.57&view=2) · [into the bowl](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17140,20800,-2.36&view=2) · [pyramid and north gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17200,19700,3.14&view=2)
 
+### Tidewater Maritime Museum: no drive, smaller lantern light (2026-11-05)
+- **Drive removed.** The museum's `drive` entry is gone (Sir: "no need for this drive way"). The footway in front of its gate is plain pavement and the kerb runs on unbroken. The gate and the walk inside the railing are unchanged.
+- **Lantern light halved.** The walk's four lamp standards went from a throw of 120 to 60, and the two bronze lanterns on the entrance bay from 105 to 52 (the `lamps` list, drawn at night by `queueLandmarkLamps`).
+- **Checked.** Booted headless with no page errors, photographed at night at the gate.
+- Test: [museum gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3)
+
 ## Checked and left as they are
 - **The mall junction Sir circled** is fixed on `main` by the hospital session's 2026-10-29 clip (`shopsCut`). The mall body is still one 9,384-long image (U1l); splitting it waits for a fault that shows.
 
