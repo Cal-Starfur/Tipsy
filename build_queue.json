@@ -1,0 +1,20 @@
+{"nodes":[
+{"id":"p1.1","title":"Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites","spec":"docs/people-unification.md#plan-by-risk","deps":[],"status":"pending"},
+{"id":"p1.2","title":"One loopWalkStep for ballroom + derby walkers (identical positions)","spec":"docs/people-unification.md","deps":["p1.1"],"status":"pending"},
+{"id":"p1.3","title":"One pathAt replacing mallStaffAt + hospWalkerAt","spec":"docs/people-unification.md","deps":["p1.2"],"status":"pending"},
+{"id":"p1.4","title":"One talkRun for ballroom/derby chatter (visible change)","spec":"docs/people-unification.md","deps":["p1.3"],"status":"pending"},
+{"id":"p1.5","title":"EXCUSE table + excuseSay (hospital visible change)","spec":"docs/people-unification.md","deps":["p1.4"],"status":"pending"},
+{"id":"p1.6","title":"Looks through partyLook, old generators as aliases","spec":"docs/people-unification.md","deps":["p1.5"],"status":"pending"},
+{"id":"p1.7","title":"Derby onto scene.time.now","spec":"docs/people-unification.md","deps":["p1.6"],"status":"pending"},
+{"id":"p2.8","title":"PEOPLE registry (updateKnocks, blockAt, hospital walkers solid)","spec":"docs/people-unification.md","deps":["p1.7"],"status":"pending"},
+{"id":"r1","title":"Dev challenge routes data plumbing","spec":"docs/roadmap.md#phase-1","deps":[],"status":"pending"},
+{"id":"r2a","title":"Ramp/kicker lab bench, all 4 headings","spec":"docs/ramp-jump-spec.md","deps":[],"status":"pending"},
+{"id":"r2b","title":"Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route","spec":"docs/ramp-jump-spec.md","deps":["r1","r2a"],"status":"pending"},
+{"id":"r3","title":"Community route editor","spec":"docs/roadmap.md#phase-3","deps":["r2b"],"status":"pending"},
+{"id":"s1","title":"Onboarding level 'Learn the Ropes'","spec":"docs/onboarding-spec.md","deps":[],"status":"blocked","note":"needs hazard choice, menu label"},
+{"id":"s2","title":"Skins redemption-code model","spec":"docs/skins-spec.md","deps":[],"status":"blocked","note":"needs price, launch count, code format"},
+{"id":"s3","title":"Keepsakes data shape + story 'Fourth Place'","spec":"docs/keepsakes.md","deps":[],"status":"blocked","note":"needs save-across-devices, mission data"},
+{"id":"w1","title":"robot.axle + robot.battery into game build","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"},
+{"id":"w2","title":"Building fronts behind the sidewalk","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"},
+{"id":"w3","title":"Wandering dog (prop.dog static)","spec":"docs/ASSETS.md#known-gaps--wishlist","deps":[],"status":"pending"}
+]}
