@@ -43,7 +43,7 @@
     "redis": true,
     "reddit": {
       "enable": true,
-      "asUser": ["SUBMIT_COMMENT", "SUBSCRIBE_TO_SUBREDDIT"]
+      "asUser": ["SUBMIT_COMMENT"]
     }
   }
 }

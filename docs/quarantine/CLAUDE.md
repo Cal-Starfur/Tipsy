@@ -1,15 +1,14 @@
 # Tipsy workflow
 
+Before building anything visible, read `docs/LOOK_RULES.md` (how the world must look,
+distilled from every past correction) and run its pre-flight before showing me. When I
+correct something it doesn't cover, add a one-line rule to it.
+
 ## Every change
 1. Edit only `game/index.html`. Then run `python3 tools/build_devvit.py`, which regenerates
    `tipsey-delivery/public/game-logic.js` and `game.html`. Never hand-edit those two files.
 2. Boot the game headless (Playwright + Chromium) and check: no page errors, and a
-   screenshot of the thing that changed. If the change moves (people, cars, animation),
-   also send a short MP4 clip of it: Playwright screenshots every ~250 ms, then
-   `ffmpeg -framerate 8 -i f%03d.png -vf scale=1180:-2 -c:v libx264 -pix_fmt yuv420p
-   -profile:v baseline -movflags +faststart clip.mp4`. MP4, not GIF or APNG (APNG
-   doesn't play in the app). Trim it to the action. When a lot is going on, send
-   several clips, one per spot or moment, rather than one long one.
+   screenshot of the thing that changed. No MP4 clip unless I ask for one.
 3. Only when I ask for a perf check: run `node tools/perf_check.js` (several
    minutes). Don't run it on every change. When it runs it must PASS. If it FAILS, run
    `node tools/perf_check.js --why <spot@view>` to see what is drawing, fix it, and
@@ -18,7 +17,31 @@
    `tools/perf_baseline.json` with that change.
 4. Publish the full `game/index.html` as an Artifact so I can play it on my iPad.
    Keep ONE preview per session: republish to the same artifact after changes.
-5. Wait. I test in the artifact. Do not commit or push until I say "push".
+5. Jump links: for every spot the change touches, stand Tipsey there headless, take the
+   link from `tpGoHere()` (or `?go=<x>,<y>&view=<1-3>` / a `GO_SPOTS` name) and screenshot
+   it to confirm it lands on the change. Write them as a `- Test:` line at the end of that
+   change's heading in its checklist doc (the consistency pass:
+   `docs/state/CONSISTENCY_PASS.md`), on the test page's address. Give every link a
+   "Look for" title saying what Sir should check there, in plain words:
+   `[label](url "Look for: …")`; the spot slides show it under the photo. Add the same links as
+   orange jump buttons under the feature's heading in the **Tipsy Test Checklist** artifact
+   (https://claude.ai/artifact/F5tLzKgJNZAsFTzPguT1qW, `<p class="jump">` after its
+   `.where` line; read it first, then republish to that URL). Photos of the spots: run
+   `node tools/snap_spots.js [--only <word>] [--view 1-3]` (view 3 by default; writes
+   `snaps/slides.html`) and republish it to the **Tipsy Spot Slides** artifact
+   (https://claude.ai/artifact/KK1mDFygtRiRHgzooG5ACm; read it first; never pass
+   `capabilities`), or, to save tokens, fire the scheduled task "Tipsy test-spot photos"
+   (`trig_01C2paDJ2MB26zG4369n1VHf`, a fresh Haiku session; pass options as its text).
+   Sir writes what needs fixing per spot on the slides; before fixing, read the open notes
+   with ArtifactData `query` on collection `fixes` (`status == open`; each has `label`,
+   `go`, `note`; Sir's pencil marks are `marks`, strokes in 0..1 photo coordinates, and
+   `markup`, a JPEG data URL of the photo with them drawn on: read it with `out_dir`,
+   decode and look at it), fix them, then set that note's `status` to `ready` (never
+   `fixed`: only Sir marks a note fixed, after checking it in the game). At the start of a
+   session, delete the notes Sir has marked `fixed` (query `status == fixed`, delete each,
+   pinned to its version) and tell him in one line which ones went. Don't list them in chat
+   each time: say they're logged. Links open in Safari (the home-screen app drops `?go=`).
+6. Wait. I test in the artifact. Do not commit or push until I say "push".
 
 ## On "push"
 - Commit and push straight to `main`. No side branches, no PRs.
