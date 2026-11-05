@@ -101689,147 +101689,7 @@ class WorldScene extends Phaser.Scene {
       const br = (ca, cb, cz, ha, hb, hz, pitch, dark) => { const k = dark ? BD : BZ;
         blk(ca*M, cb*M, Z + cz*M, ha*M, hb*M, hz*M, pitch, k[0], k[1], k[2]); };
       br(0, 0, -0.035, 1.25, 0.45, 0.035, 0, true);                  // the bronze's own base plate
-      /* THE BRONZE, SCULPTED (Sir, 2026-09-29: "the horse still looks bad
-         do we have to use voxel type paintings?" -- no). Each piece is a
-         smooth side outline in the monument's a-z plane (metres), given
-         its thickness across b by laying copies from its far side to its
-         near side: the far copies in shadow, the near face lit and
-         outlined -- a cast solid, seen from the one side the camera ever
-         sees. Pieces go down far to near, so the far legs sit behind the
-         barrel and the near leg and the rider in front of it. */
-      const CR = (pts, n) => {                                        // a closed Catmull-Rom loop through pts
-        const out = [], L = pts.length;
-        for(let i = 0; i < L; i++){
-          const p0 = pts[(i - 1 + L) % L], p1 = pts[i], p2 = pts[(i + 1) % L], p3 = pts[(i + 2) % L];
-          for(let k = 0; k < n; k++){ const t = k/n, t2 = t*t, t3 = t2*t;
-            out.push([0.5*((2*p1[0]) + (-p0[0] + p2[0])*t + (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0])*t2 + (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0])*t3),
-                      0.5*((2*p1[1]) + (-p0[1] + p2[1])*t + (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1])*t2 + (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1])*t3)]); }
-        }
-        return out;
-      };
-      /* a limb from its centreline: [a, z, half-width] joints, smoothed,
-         offset either side and capped round */
-      const limb = (joints) => {
-        const P = [];
-        for(let i = 0; i < joints.length - 1; i++){ const j0 = joints[i], j1 = joints[i + 1];
-          for(let k = 0; k < 4; k++){ const t = k/4; P.push([j0[0] + (j1[0]-j0[0])*t, j0[1] + (j1[1]-j0[1])*t, j0[2] + (j1[2]-j0[2])*t]); } }
-        P.push(joints[joints.length - 1]);
-        const L = [], Rt = [];
-        for(let i = 0; i < P.length; i++){
-          const q0 = P[Math.max(0, i - 1)], q1 = P[Math.min(P.length - 1, i + 1)];
-          let da = q1[0] - q0[0], dz = q1[1] - q0[1]; const d = Math.hypot(da, dz) || 1; da /= d; dz /= d;
-          L.push([P[i][0] - dz*P[i][2], P[i][1] + da*P[i][2]]); Rt.push([P[i][0] + dz*P[i][2], P[i][1] - da*P[i][2]]);
-        }
-        const e0 = P[0], e1 = P[P.length - 1];
-        const cap = (e, q, sgn) => { const d = Math.hypot(q[0] - e[0], q[1] - e[1]) || 1; return [e[0] + sgn*(e[0] - q[0])/d*e[2]*0.7, e[1] + sgn*(e[1] - q[1])/d*e[2]*0.7]; };
-        return L.concat([cap(e1, P[P.length - 2], 1)], Rt.reverse(), [cap(e0, P[1], 1)]);
-      };
-      const BRONZE = FERRIS_BRONZE;                                   // (the shared cast palette: the Veterans Memorial's bronze too)
-      const shadeHex = (c, k) => { const r = Math.min(255, ((c >> 16) & 255)*k)|0, g2 = Math.min(255, ((c >> 8) & 255)*k)|0, b2 = Math.min(255, (c & 255)*k)|0; return (r << 16) | (g2 << 8) | b2; };
-      /* one sculpted piece: outline (a, z) metres, cast from b0 to b1
-         across. A true solid, not a stack: its far face, then every piece
-         of its side wall that turns toward the camera -- lit on the top of
-         a curve, shadowed underneath -- then its near face, outlined. */
-      /* tone: dark (true) for the smaller shadowed parts; 'saddle' in the
-         deeper leather patina; 'rider' a shade lighter than the horse, so
-         the three read apart at a glance */
-      const TONES = { saddle: { face: 0x5c4326, side: 0x46331d }, rider: { face: 0x9c7a4c, side: 0x755a36 } };
-      const piece = (outline, b0, b1, dark, round) => {
-        const tn = typeof dark === "string" ? TONES[dark] : null;
-        const FACE = tn ? tn.face : dark ? BRONZE.side : BRONZE.face, SIDE = tn ? tn.side : dark ? BRONZE.side : BRONZE.face;
-        const n = outline.length;
-        let area = 0, ca = 0, cz = 0;
-        for(let i = 0; i < n; i++){ const p1 = outline[i], p2 = outline[(i + 1) % n]; area += p1[0]*p2[1] - p2[0]*p1[1]; ca += p1[0]; cz += p1[1]; }
-        ca /= n; cz /= n;
-        const sgn = area > 0 ? 1 : -1;                                // outward normal of an edge is (dz, -da) * sgn
-        /* ROUNDED (round = an inset in metres): the outline is full size at
-           the middle of its thickness and drawn in by `round` on its two
-           faces, so the solid curves away at its edges instead of ending
-           in a flat wall -- a barrel, not a tube */
-        const inset = d => outline.map((p0, i) => {
-          if(!d) return p0;
-          const pa = outline[(i - 1 + n) % n], pb = outline[(i + 1) % n];
-          let na = (pb[1] - pa[1])*sgn, nz = -(pb[0] - pa[0])*sgn; const l = Math.hypot(na, nz) || 1;
-          return [p0[0] - na/l*d, p0[1] - nz/l*d];
-        });
-        const bm = (b0 + b1)/2;
-        const layers = round ? [[inset(round), b0], [outline, bm], [inset(round), b1]] : [[outline, b0], [outline, b1]];
-        const L3 = layers.map(([o, b]) => o.map(q => [q[0], b, q[1]]));
-        const W3 = q => Wp(q[0]*M, q[1]*M, Z + q[2]*M);
-        this.quadOn(g, L3[0].map(W3), BRONZE.under);
-        for(let k = 0; k < L3.length - 1; k++){
-          const A = L3[k], Bq = L3[k + 1];
-          for(let i = 0; i < n; i++){
-            const j = (i + 1) % n, q1 = A[i], q2 = A[j], q3 = Bq[j], q4 = Bq[i];
-            /* the quad's normal, turned outward from the piece's middle */
-            const e = [q2[0] - q1[0], q2[1] - q1[1], q2[2] - q1[2]], c = [q4[0] - q1[0], q4[1] - q1[1], q4[2] - q1[2]];
-            let na = e[1]*c[2] - e[2]*c[1], nb = e[2]*c[0] - e[0]*c[2], nz = e[0]*c[1] - e[1]*c[0];
-            const mid = [(q1[0] + q3[0])/2 - ca, (q1[1] + q3[1])/2 - bm, (q1[2] + q3[2])/2 - cz];
-            if(na*mid[0] + nb*mid[1] + nz*mid[2] < 0){ na = -na; nb = -nb; nz = -nz; }
-            const l = Math.hypot(na, nb, nz) || 1; na /= l; nb /= l; nz /= l;
-            const nx = h.x*na + sv.x*nb, ny = h.y*na + sv.y*nb;
-            if(nx + ny + nz*1.2 <= 0) continue;                        // turned away
-            const lit = 0.72 + 0.34*Math.max(0, nz) - 0.12*Math.max(0, -nz) + 0.1*Math.max(0, nb);
-            this.quadOn(g, [q1, q2, q3, q4].map(W3), shadeHex(SIDE, lit));
-          }
-        }
-        const near = L3[L3.length - 1].map(W3);
-        this.quadOn(g, near, FACE);
-        this.edgeOn(g, near, BRONZE.line, 1);
-      };
-      const sculpt = [];
-      const S = (key, fn) => sculpt.push({ key, fn });
-      /* the legs: elbow/stifle to hoof, a bump at knee and fetlock, the hoof wider at the ground */
-      const foreStand = [[0.64, 1.02, 0.11], [0.66, 0.78, 0.085], [0.67, 0.55, 0.075], [0.68, 0.24, 0.052], [0.69, 0.13, 0.06], [0.72, 0.05, 0.068], [0.74, 0.0, 0.075]];
-      const foreRaised = [[0.66, 1.02, 0.11], [0.78, 0.8, 0.085], [0.86, 0.6, 0.078], [0.76, 0.42, 0.055], [0.69, 0.3, 0.058], [0.7, 0.22, 0.066]];
-      const hind = [[-0.66, 1.05, 0.15], [-0.74, 0.8, 0.11], [-0.82, 0.55, 0.075], [-0.76, 0.26, 0.052], [-0.72, 0.13, 0.06], [-0.69, 0.05, 0.068], [-0.67, 0.0, 0.075]];
-      const hindFar = hind.map(j => [j[0] + 0.06, j[1], j[2]]);
-      /* THE ORDER IS THE DEPTH (Sir, 2026-09-29: "there are some depth and
-         order issues"). Everything the barrel's near face stands in front
-         of goes down first -- all four legs, the tail, the neck and head --
-         so the barrel covers where they join it rather than a leg's top
-         painting over the flank. Then the saddle, which is wider than the
-         horse; then Taylor from the far side to the near, the reins last. */
-      S(0, () => piece(limb(foreStand), -0.24, -0.1, true));         // far foreleg
-      S(1, () => piece(limb(hindFar), -0.26, -0.1, true));           // far hind leg
-      S(2, () => piece(limb(hind), 0.1, 0.26));                      // near hind leg
-      S(3, () => piece(limb(foreRaised), 0.1, 0.24));                // near foreleg, raised
-      S(4, () => piece(limb([[-0.9, 1.5, 0.07], [-1.08, 1.58, 0.085], [-1.22, 1.48, 0.1], [-1.3, 1.24, 0.1], [-1.3, 0.98, 0.08], [-1.24, 0.78, 0.04]]), -0.07, 0.07, true));   // tail
-      /* the neck, broad where it meets the chest -- its front edge IS the
-         chest line, so the barrel no longer bulges out past it (Sir,
-         2026-09-29, marked up: "these things are looking funky") */
-      S(5, () => piece(limb([[0.78, 1.2, 0.27], [0.86, 1.52, 0.23], [0.95, 1.84, 0.16], [1.03, 2.06, 0.12]]), -0.22, 0.22, false, 0.06));   // neck and chest
-      S(6, () => { piece(CR([[0.98, 2.26], [1.1, 2.24], [1.26, 2.1], [1.42, 1.92], [1.54, 1.78], [1.6, 1.68], [1.58, 1.6], [1.5, 1.56], [1.4, 1.58], [1.3, 1.64], [1.2, 1.72], [1.1, 1.84], [1.0, 2.0]], 5), -0.115, 0.115, false, 0.04);   // head: poll, long face, muzzle, jaw
-                    piece(CR([[1.2, 1.98], [1.27, 2.0], [1.3, 1.94], [1.24, 1.9]], 3), 0.1, 0.125, "saddle");                                                          // the eye
-                    piece(CR([[1.54, 1.7], [1.58, 1.72], [1.59, 1.66], [1.55, 1.65]], 3), 0.1, 0.125, "saddle");                                                      // the nostril
-                    piece(limb([[1.08, 2.18, 0.012], [1.22, 1.96, 0.012], [1.4, 1.66, 0.012]]), 0.115, 0.13, "saddle"); });                                            // the bridle
-      S(7, () => { for(const eb of [-0.06, 0.08]) piece([[1.0, 2.16], [1.01, 2.34], [1.08, 2.2]], eb - 0.02, eb, true); });   // ears
-      S(8, () => piece(limb([[0.6, 1.64, 0.04], [0.8, 1.94, 0.05], [0.98, 2.18, 0.04]]), -0.05, 0.05, true));                 // mane
-      /* the barrel and quarters, over all of that */
-      S(9, () => piece(CR([[0.55, 1.62], [0.2, 1.54], [-0.22, 1.56], [-0.55, 1.62], [-0.8, 1.62], [-0.98, 1.5], [-1.03, 1.28],
-                           [-0.96, 1.08], [-0.72, 0.94], [-0.35, 0.9], [0.1, 0.88], [0.46, 0.92], [0.64, 0.98], [0.74, 1.1], [0.76, 1.32], [0.7, 1.52]], 6), -0.28, 0.28, false, 0.09));
-      /* THE MUSCLE OVER THE LEGS (Sir, 2026-09-29, tracing it on the
-         picture): a leg does not come out from under the belly, it comes
-         out of the quarters. The haunch sweeps from the croup round the
-         buttock and down into the gaskin; the shoulder runs from the
-         withers down the chest into the forearm. Both over the barrel on
-         the near side, so their outlines are the contour lines he drew. */
-      S(9.1, () => piece(CR([[-0.5, 1.52], [-0.78, 1.6], [-0.97, 1.46], [-1.03, 1.24], [-0.97, 1.02], [-0.88, 0.82], [-0.78, 0.7],
-                             [-0.68, 0.8], [-0.6, 1.0], [-0.5, 1.26]], 5), 0.12, 0.3, false, 0.05));          // near haunch
-      S(9.2, () => piece(CR([[0.34, 1.5], [0.58, 1.62], [0.74, 1.44], [0.8, 1.16], [0.76, 0.94], [0.68, 0.84], [0.58, 0.92],
-                             [0.5, 1.1], [0.4, 1.3]], 5), 0.12, 0.3, false, 0.05));                         // near shoulder
-      /* THE SADDLE (Sir: "there is no saddle"): the seat with its cantle
-         behind and pommel in front, wider than the horse; the flap down
-         its near side, the girth under the belly, the stirrup leather and
-         its iron */
-      S(10, () => piece(CR([[-0.4, 1.64], [-0.34, 1.76], [-0.26, 1.64], [-0.08, 1.6], [0.14, 1.62], [0.28, 1.68], [0.34, 1.78], [0.4, 1.7], [0.36, 1.56], [0.0, 1.53], [-0.36, 1.55]], 5), -0.32, 0.32, "saddle", 0.03));
-      S(11, () => piece(CR([[-0.2, 1.58], [0.28, 1.58], [0.3, 1.36], [0.2, 1.26], [-0.14, 1.28]], 4), 0.28, 0.315, "saddle"));      // flap
-      S(12, () => piece(limb([[0.16, 1.3, 0.035], [0.2, 1.1, 0.035], [0.22, 0.92, 0.03]]), 0.28, 0.3, "saddle"));                   // girth
-      S(13, () => piece(limb([[0.06, 1.44, 0.012], [0.3, 1.02, 0.012]]), 0.315, 0.33, "saddle"));                                   // stirrup leather
-      S(14, () => piece(CR([[0.26, 1.02], [0.38, 1.02], [0.4, 0.94], [0.36, 0.9], [0.28, 0.9], [0.24, 0.94]], 3), 0.3, 0.36, "saddle"));   // stirrup iron
-      /* Taylor, seated IN the saddle: hips on the seat, the thigh out of
-         the hip and over the flap, the shin down to the iron */
-      /* (Taylor is not a sculpted piece any more: he is a person, the game's own body in bronze, drawn after the horse below) */
+      /* (the horse is not sculpted pieces any more: drawHorseHull, below, lofted as the dogs are) */
       parts.sort((p1, p2) => p1.key - p2.key);
       for(const p of plinth) p.draw();
       /* the plaque, on the long face toward the street */
@@ -101838,12 +101698,13 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [Pq(-64, 184), Pq(64, 184), Pq(64, 106), Pq(-64, 106)], 0x8c6c3e);
       for(const z of [170, 156, 142, 128, 116]) this.quadOn(g, [Pq(-50, z + 3), Pq(50, z + 3), Pq(50, z), Pq(-50, z)], 0x5b4527);
       for(const p of parts) p.draw();
-      for(const sp of sculpt) sp.fn();
+      this.drawHorseHull(g, x, y, Z, M);
       /* TAYLOR, FRESH (Sir, 2026-11-05: "get rid of the whole statue and build it fresh using our people redesign"): the game's
          own body (drawPersonHullBody -- the one every person on the street is drawn with) in bronze, twice life size to go with
          the horse (the projection scaled about his own feet), sat astride it, hips on the saddle, the near arm flung forward
          and up, the off hand low on the reins, a cap on his head. Drawn last, so his near leg is over the horse's flank */
-      { const S2 = 1.75, rx = x + h.x*0.02*M, ry = y + h.y*0.02*M, sitH = 40, z0 = Z + 1.66*M - sitH*S2;
+      { const S2 = 1.75, rx = x + h.x*0.02*M, ry = y + h.y*0.02*M, sitH = 40, z0 = Z + 1.76*M - sitH*S2;
+        const shadeHex = (c, k) => { const r = Math.min(255, ((c >> 16) & 255)*k)|0, g2 = Math.min(255, ((c >> 8) & 255)*k)|0, b2 = Math.min(255, (c & 255)*k)|0; return (r << 16) | (g2 << 8) | b2; };
         const bz = (c, extra) => Object.assign({ c, dk: shadeHex(c, 0.78) }, extra || {});
         const skin = bz(0xa88458), shirt = bz(0x9c7a4c), pants = bz(0x8f6e40), hair = bz(0x6b5030, { style: 'part' }), shoe = bz(0x5f482a, { kind: 'dress' });
         const uniform = { cap: { c: 0x7d6036, dk: 0x5f482a, top: 0x8f6e40, badge: 0x9c7a4c } };
@@ -101854,6 +101715,89 @@ class WorldScene extends Phaser.Scene {
         finally { delete this.W; }
       }
     }});
+  }
+  /* THE HORSE, FRESH (Sir, 2026-11-05: "get rid of the whole statue and build it fresh ... I meant the horse too"): built the way the
+     dogs are (drawDogHull) and the people -- lofted rings along a path (a body from rump to chest, the neck, the head, each
+     leg, the tail), each face drawn only when it is toward the eye, toned by which way it faces on the people's own ramp
+     (hullSteps), the silhouette filled first so no seam shows. One bronze. Metres times M; a forward (+x), b across (+y, toward
+     the camera), h up; a walking horse with its near foreleg raised, saddled, bridled, its tail and mane flowing. */
+  drawHorseHull(g, ax, ay, z, M){
+    const G = (a, b, h) => this.W(ax + a*M, ay + b*M, z + h*M);
+    const O3 = G(0,0,0), A3 = G(1,0,0), B3 = G(0,1,0), H3 = G(0,0,1);
+    const ux3 = [A3.x - O3.x, B3.x - O3.x, H3.x - O3.x], uy3 = [A3.y - O3.y, B3.y - O3.y, H3.y - O3.y];
+    let eyeV = [ux3[1]*uy3[2] - ux3[2]*uy3[1], ux3[2]*uy3[0] - ux3[0]*uy3[2], ux3[0]*uy3[1] - ux3[1]*uy3[0]];
+    if(eyeV[2] < 0) eyeV = eyeV.map(v => -v);
+    const eL = Math.hypot(eyeV[0], eyeV[1], eyeV[2]) || 1; eyeV = eyeV.map(v => v/eL);
+    const sees = n => n[0]*eyeV[0] + n[1]*eyeV[1] + n[2]*eyeV[2] > 0;
+    const sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]], cross = (p, q) => [p[1]*q[2] - p[2]*q[1], p[2]*q[0] - p[0]*q[2], p[0]*q[1] - p[1]*q[0]];
+    const norm = p => { const l = Math.hypot(p[0], p[1], p[2]) || 1; return [p[0]/l, p[1]/l, p[2]/l]; }, dot = (p, q) => p[0]*q[0] + p[1]*q[1] + p[2]*q[2];
+    /* rings square to the path with their width always along b (every limb of a horse runs in the a-z plane), so a vertical leg and a level body twist no ring */
+    const basis = u => { const d = u[1]; let v = [-d*u[0], 1 - d*u[1], -d*u[2]]; v = norm(v); return [v, norm(cross(u, v))]; };
+    const ring = (c, u, rv, rw, n) => { const [v, w] = basis(u), pts = []; for(let i = 0; i < n; i++){ const th = (i + 0.5)/n*Math.PI*2, cc = Math.cos(th)*rv, ss = Math.sin(th)*rw;
+      pts.push([c[0] + v[0]*cc + w[0]*ss, c[1] + v[1]*cc + w[1]*ss, c[2] + v[2]*cc + w[2]*ss]); } return pts; };
+    const centre = r => r.reduce((c, p) => [c[0] + p[0]/r.length, c[1] + p[1]/r.length, c[2] + p[2]/r.length], [0, 0, 0]);
+    const shade = (n, ST) => { const lit = Math.max(0, Math.min(1, 0.52 + 0.46*n[2] + 0.08*n[1])); return ST[Math.round((1 - lit)*8)]; };
+    const STC = new Map(), ramp = pair => { const k = pair.c + "|" + pair.dk; let r = STC.get(k); if(!r){ r = hullSteps(pair.c, pair.dk); STC.set(k, r); } return r; };
+    const loft = (rings, pair, o = {}) => {
+      const ST = ramp(pair), n = rings[0].length, S = rings.map(r => r.map(p => G(p[0], p[1], p[2])));
+      const all = []; S.forEach(r => all.push(...r)); this.quadOn(g, convexHull(all), ST[3]);
+      const C = rings.map(centre);
+      for(let k = 0; k < rings.length - 1; k++){
+        const cm = [(C[k][0] + C[k + 1][0])/2, (C[k][1] + C[k + 1][1])/2, (C[k][2] + C[k + 1][2])/2];
+        for(let i = 0; i < n; i++){ const j = (i + 1) % n, q0 = rings[k][i], q1 = rings[k][j], q2 = rings[k + 1][j], q3 = rings[k + 1][i];
+          let nn = norm(cross(sub(q1, q0), sub(q3, q0)));
+          const fc = [(q0[0] + q2[0])/2, (q0[1] + q2[1])/2, (q0[2] + q2[2])/2];
+          if(dot(nn, sub(fc, cm)) < 0) nn = [-nn[0], -nn[1], -nn[2]];
+          if(!sees(nn)) continue;
+          const Q = [S[k][i], S[k][j], S[k + 1][j], S[k + 1][i]], cx = (Q[0].x + Q[1].x + Q[2].x + Q[3].x)/4, cy = (Q[0].y + Q[1].y + Q[2].y + Q[3].y)/4;
+          this.quadOn(g, Q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.6, y: p.y + dy/d*0.6 }; }), shade(nn, ST)); }
+      }
+      if(o.cap1){ const u = norm(sub(C[C.length - 1], C[C.length - 2])); if(sees(u)) this.quadOn(g, S[S.length - 1], shade(u, ST)); }
+      if(o.cap0){ const u = norm(sub(C[0], C[1])); if(sees(u)) this.quadOn(g, S[0], shade(u, ST)); }
+    };
+    /* a path of [a, b, h, lateral radius, vertical radius] stations, rings square to it */
+    const path = (st, pair, o = {}) => {
+      const n = o.n || 10, rings = st.map((p, i) => { const q0 = st[Math.max(0, i - 1)], q1 = st[Math.min(st.length - 1, i + 1)], u = norm(sub(q1, q0));
+        return ring([p[0], p[1], p[2]], u, p[3], p[4] == null ? p[3] : p[4], n); });
+      /* a segment at a time: the silhouette fill is the convex hull of what it lofts, which for a bent limb would fill the angle between its joints */
+      for(let k = 0; k < rings.length - 1; k++) loft([rings[k], rings[k + 1]], pair, { cap0: k === 0 && o.cap0 !== false, cap1: k === rings.length - 2 && o.cap1 !== false }); };
+    const ball = (c, r, pair, o = {}) => { const K = o.K || 5, rings = [];
+      for(let k = 0; k < K; k++){ const ph = -1.25 + 2.5*k/(K - 1), rr = r*Math.cos(ph); rings.push(ring([c[0], c[1], c[2] + r*Math.sin(ph)*(o.rh || 1)], [0, 0, 1], rr*(o.rb || 1), rr*(o.ra || 1), o.n || 8)); }
+      loft(rings, pair, { cap0: true, cap1: true }); };
+    const BODY = { c: 0x8f6e40, dk: 0x5f482a }, DARK = { c: 0x5f482a, dk: 0x3f2f1b }, LEATHER = { c: 0x6b5030, dk: 0x3f2f1b }, HOOF = { c: 0x4a3822, dk: 0x2b2012 };
+    /* the legs: a limb of stations, a joint ball at the knee and fetlock, a hoof */
+    const leg = (b, pts, pair) => { path(pts.map(([a, h, r]) => [a, b, h, r*0.92, r]), pair, { n: 8 });
+      for(const k of [Math.floor(pts.length/2), pts.length - 2]) if(pts[k]) ball([pts[k][0], b, pts[k][1]], pts[k][2]*1.12, pair, { n: 8, K: 4 });
+      const e = pts[pts.length - 1]; ball([e[0] + 0.02, b, e[1] + 0.02], e[2]*1.25, HOOF, { rh: 0.7, n: 8, K: 4 }); };
+    const foreS = [[0.5, 1.2, 0.13], [0.52, 0.9, 0.095], [0.53, 0.62, 0.065], [0.54, 0.34, 0.05], [0.55, 0.16, 0.052], [0.57, 0.05, 0.062]];
+    const foreUp = [[0.5, 1.2, 0.13], [0.62, 1.02, 0.1], [0.82, 0.96, 0.07], [0.8, 0.74, 0.056], [0.72, 0.6, 0.052], [0.7, 0.54, 0.06]];
+    const hindS = [[-0.72, 1.3, 0.17], [-0.84, 1.0, 0.115], [-0.98, 0.7, 0.065], [-0.9, 0.38, 0.05], [-0.88, 0.16, 0.052], [-0.87, 0.05, 0.062]];
+    const parts = [
+      () => leg(-0.18, hindS.map(([a, h, r]) => [a + 0.08, h, r]), DARK),                 // far hind
+      () => leg(-0.17, foreS, DARK),                                                      // far fore
+      () => path([[-1.0, 0, 1.5, 0.05, 0.05], [-1.2, 0.04, 1.44, 0.08, 0.09], [-1.34, 0.06, 1.22, 0.1, 0.1], [-1.4, 0.04, 0.92, 0.09, 0.09], [-1.38, 0.0, 0.62, 0.05, 0.05]], DARK, { n: 8 }),   // the tail
+      () => path([[-1.04, 0, 1.3, 0.2, 0.26], [-0.86, 0, 1.38, 0.28, 0.37], [-0.55, 0, 1.42, 0.3, 0.38], [-0.1, 0, 1.35, 0.29, 0.37], [0.3, 0, 1.36, 0.3, 0.4], [0.58, 0, 1.42, 0.27, 0.4], [0.78, 0, 1.52, 0.21, 0.32]], BODY, { n: 14 }),   // the body
+      () => { const hp = hindS; path(hp.map(([a, h, r]) => [a, 0.19, h, r*0.9, r]), BODY, { n: 8 });                   // near hind: thigh, hock, cannon, hoof
+              ball([-0.78, 0.2, 1.22], 0.2, BODY, { n: 10, K: 6, rb: 0.8 }); ball([hp[2][0], 0.19, hp[2][1]], hp[2][2]*1.15, BODY, { n: 8, K: 4 });
+              ball([hp[5][0] + 0.02, 0.19, hp[5][1] + 0.02], hp[5][2]*1.25, HOOF, { rh: 0.7, n: 8, K: 4 }); },
+      () => { path(foreUp.map(([a, h, r]) => [a, 0.19, h, r*0.9, r]), BODY, { n: 8 });                                  // near fore, raised and folded
+              ball([0.5, 0.2, 1.24], 0.17, BODY, { n: 10, K: 6, rb: 0.8 }); ball([foreUp[2][0], 0.19, foreUp[2][1]], 0.08, BODY, { n: 8, K: 4 });
+              ball([foreUp[5][0] + 0.02, 0.19, foreUp[5][1] - 0.02], 0.07, HOOF, { rh: 0.7, n: 8, K: 4 }); },
+      () => path([[0.58, 0, 1.52, 0.2, 0.26], [0.76, 0, 1.78, 0.17, 0.24], [0.92, 0, 2.02, 0.13, 0.2], [1.04, 0, 2.2, 0.11, 0.16]], BODY, { n: 12 }),   // the neck, arched
+      () => path([[0.62, 0, 1.66, 0.04, 0.06], [0.8, 0, 1.94, 0.045, 0.06], [0.95, 0, 2.2, 0.04, 0.05], [1.04, 0, 2.28, 0.035, 0.05]], DARK, { n: 6 }),     // the mane, along the crest
+      () => { path([[1.04, 0, 2.22, 0.11, 0.13], [1.16, 0, 2.1, 0.115, 0.15], [1.3, 0, 1.96, 0.095, 0.14], [1.46, 0, 1.82, 0.07, 0.1], [1.57, 0, 1.72, 0.06, 0.07]], BODY, { n: 10 });   // the head: poll, long face, muzzle
+              path([[1.5, 0.0, 1.64, 0.05, 0.05], [1.4, 0, 1.6, 0.05, 0.05]], DARK, { n: 6 });                                         // the chin
+              for(const s of [-1, 1]) path([[1.05, s*0.07, 2.28, 0.035, 0.04], [1.07, s*0.075, 2.46, 0.012, 0.014]], DARK, { n: 5 });  // the ears
+              ball([1.25, 0.105, 2.03], 0.03, DARK, { n: 6, K: 4 }); ball([1.57, 0.045, 1.74], 0.022, DARK, { n: 6, K: 4 });            // the eye, the nostril
+              path([[1.08, 0, 2.18, 0.118, 0.14], [1.22, 0, 2.02, 0.098, 0.14]], LEATHER, { n: 10, cap0: false, cap1: false });        // the browband and cheek strap
+              path([[1.5, 0, 1.76, 0.062, 0.075], [1.52, 0, 1.73, 0.064, 0.075]], LEATHER, { n: 8, cap0: false, cap1: false }); },      // the noseband
+      () => { ball([-0.02, 0, 1.7], 0.32, LEATHER, { rh: 0.3, ra: 1.25, rb: 1.05, n: 10, K: 5 });                                  // the saddle cloth, its seat
+              ball([-0.02, 0, 1.76], 0.25, DARK, { rh: 0.28, ra: 1.3, n: 10, K: 5 });
+              path([[0.08, 0.31, 1.6, 0.02, 0.025], [0.12, 0.33, 1.4, 0.02, 0.02]], LEATHER, { n: 5 });                                // the stirrup leather
+              ball([0.14, 0.34, 1.36], 0.055, DARK, { rh: 0.5, n: 8, K: 4 }); },                                                       // and its iron
+      () => path([[0.14, 0.2, 1.1, 0.01, 0.01], [0.62, 0.02, 1.62, 0.01, 0.01], [1.06, 0.0, 2.1, 0.01, 0.01], [1.5, 0.0, 1.78, 0.012, 0.012]], LEATHER, { n: 4, cap0: false })   // the reins, hand to bit
+    ];
+    for(const fn of parts) fn();
   }
   queueParkBlock(vq, blk){
     /* ---- THE LANDMARK CHECK, FIRST ----
