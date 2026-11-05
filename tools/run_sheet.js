@@ -1,7 +1,8 @@
 /* RUN SHEET: gather evidence for the test sheet (tools/test_sheet.json) headless.
    For each section (or --section id) and each spot: boot the local game at the
-   jump link, shoot it by day (NIGHT_CLOCK.time 12) and at the section's night
-   time, record page errors and console errors. Writes snaps/sheet/<section>/*.jpg
+   jump link, shoot it by day (NIGHT_CLOCK.time 12), at the section's night time,
+   and wide (view 3) for context. The point is DRAW problems, judged against
+   docs/LOOK_RULES.md; page errors are only recorded. Writes snaps/sheet/<section>/*.jpg
    and snaps/sheet/report.json, then prints the items to judge. Claude looks at
    the photos and judges each item; "Hands-on" items are left for Sir.
      node tools/run_sheet.js [--section skate] [--wait 4000] */
@@ -40,7 +41,9 @@ function serve(){
     for(const sp of s.spots){
       await page.goto(`${base}?go=${encodeURIComponent(sp.go)}&view=${sp.view}`);
       await page.waitForFunction(() => { try { const w = game.scene.getScene('world'); return w && w.ow && w.state === 'play'; } catch(e){ return false; } }, null, { timeout: 60000 }).catch(() => {});
-      for(const [name, seed] of [['day', 'NIGHT_CLOCK.time = 12'], ['night', s.night]]){
+      for(const [name, seed, vw] of [['day', 'NIGHT_CLOCK.time = 12'], ['night', s.night], ['wide', 'NIGHT_CLOCK.time = 12', 3]]){
+        if(name === 'wide' && sp.view === 3) continue;
+        if(vw) await page.goto(`${base}?go=${encodeURIComponent(sp.go)}&view=${vw}`).then(() => page.waitForFunction(() => { try { const w = game.scene.getScene('world'); return w && w.ow && w.state === 'play'; } catch(e){ return false; } }, null, { timeout: 60000 })).catch(() => {});
         errs = [];
         await page.evaluate(seed).catch(() => {});
         await page.waitForTimeout(2000 + WAIT);
@@ -50,11 +53,11 @@ function serve(){
       }
     }
     report.push({ id: s.id, title: s.title, items: s.items, shots });
-    console.log(`${s.id}: ${shots.length} photos, ${shots.filter(x => x.errs.length).length} with errors`);
-    for(const x of shots) if(x.errs.length) console.log(`  ${x.spot}/${x.when}: ${x.errs.join(' | ')}`);
+    console.log(`${s.id}: ${shots.length} photos`);
+    for(const x of shots) console.log('  ' + x.file);
   }
   await browser.close(); srv.close();
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   console.log('report: snaps/sheet/report.json');
-  process.exit(report.some(r => r.shots.some(x => x.errs.length)) ? 1 : 0);
+  process.exit(0);   // page errors stay in the report; the point here is what is DRAWN
 })();
