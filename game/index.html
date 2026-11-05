@@ -101829,30 +101829,7 @@ class WorldScene extends Phaser.Scene {
       S(14, () => piece(CR([[0.26, 1.02], [0.38, 1.02], [0.4, 0.94], [0.36, 0.9], [0.28, 0.9], [0.24, 0.94]], 3), 0.3, 0.36, "saddle"));   // stirrup iron
       /* Taylor, seated IN the saddle: hips on the seat, the thigh out of
          the hip and over the flap, the shin down to the iron */
-      /* TAYLOR, REDONE (Sir, 2026-11-05: "the rider ... looks horrible, I know we can do better"): a man sitting a horse, not a post --
-         a long coat with its skirts spread over the cantle, breeches, tall boots, a sabre at his hip; bare-headed with his hair and a
-         short beard, his near arm flung out forward and up with his hat in his hand, the off hand low on the reins. Six tones
-         (coat, breeches, boots, skin, hair, hat) so the pieces read apart, each lit by the one rule */
-      TONES.coat = { face: 0x9c7a4c, side: 0x755a36 }; TONES.skin = { face: 0x9c7a4c, side: 0x755a36 }; TONES.hair = { face: 0x7d6036, side: 0x5f482a };
-      TONES.breeches = { face: 0x8f6e40, side: 0x6b5030 }; TONES.boot = { face: 0x6b5030, side: 0x523e24 }; TONES.hat = { face: 0x7d6036, side: 0x5f482a };   // (all one bronze, as the horse: no colour added)
-      S(15, () => piece(limb([[0.02, 2.0, 0.06], [0.18, 1.88, 0.052], [0.4, 1.8, 0.045]]), -0.27, -0.15, "coat"));                       // the off arm, down to the reins
-      S(16, () => piece(CR([[0.38, 1.77], [0.46, 1.78], [0.47, 1.83], [0.4, 1.84]], 3), -0.26, -0.16, "skin"));   // the off hand
-      S(17, () => piece(CR([[-0.18, 1.64], [-0.46, 1.66], [-0.58, 1.58], [-0.55, 1.44], [-0.4, 1.4], [-0.22, 1.5]], 4), -0.24, 0.24, "coat", 0.03));   // the coat's skirts over the cantle
-      S(18, () => piece(CR([[-0.2, 1.62], [0.2, 1.64], [0.26, 1.78], [0.25, 1.98], [0.2, 2.1], [0.06, 2.17], [-0.08, 2.12], [-0.15, 1.96], [-0.2, 1.78]], 5), -0.24, 0.24, "coat", 0.05));   // the body in its coat
-      S(18.5, () => piece(CR([[-0.22, 1.56], [0.24, 1.58], [0.26, 1.78], [-0.2, 1.8]], 4), -0.31, 0.31, "coat", 0.03));                        // the hips: the body's base, the width of both thighs, so the legs spring from it
-      S(19, () => piece(CR([[0.06, 1.7], [0.22, 1.72], [0.22, 1.9], [0.15, 1.98], [0.06, 1.9]], 4), 0.19, 0.215, "breeches"));           // the waistcoat showing
-      S(20, () => piece(limb([[-0.02, 1.62, 0.1], [0.12, 1.52, 0.092], [0.26, 1.4, 0.078], [0.3, 1.24, 0.068]]), 0.2, 0.37, "breeches"));     // the near thigh and knee, over the flap
-      S(21, () => piece(limb([[0.3, 1.26, 0.07], [0.31, 1.06, 0.06], [0.36, 0.99, 0.054], [0.47, 0.99, 0.046]]), 0.29, 0.38, "boot"));        // the boot, turned forward in the iron
-      S(22, () => piece(limb([[-0.08, 1.68, 0.016], [0.14, 1.34, 0.016], [0.3, 0.98, 0.016]]), 0.38, 0.4, "boot"));                          // the sabre in its scabbard
-      S(23, () => piece(CR([[-0.02, 2.1], [0.1, 2.12], [0.1, 2.18], [0.0, 2.2]], 3), -0.07, 0.07, "skin"));                                 // the neck
-      S(24, () => piece(CR([[-0.06, 2.2], [-0.02, 2.17], [0.08, 2.18], [0.15, 2.24], [0.17, 2.34], [0.12, 2.42], [0.02, 2.44], [-0.05, 2.38], [-0.07, 2.28]], 5), -0.1, 0.1, "skin", 0.03));   // the head
-      S(25, () => piece(CR([[-0.08, 2.3], [0.0, 2.44], [0.1, 2.43], [0.1, 2.34], [0.04, 2.36], [-0.02, 2.24]], 4), -0.115, 0.115, "hair"));   // his hair, swept back
-      S(26, () => piece(CR([[0.1, 2.26], [0.17, 2.28], [0.16, 2.2], [0.1, 2.16], [0.05, 2.2]], 3), -0.085, 0.085, "hair"));                 // the short beard
-      S(27, () => piece(limb([[0.02, 2.06, 0.062], [0.16, 2.14, 0.054], [0.32, 2.24, 0.046], [0.5, 2.42, 0.04]]), 0.17, 0.3, "coat"));       // the near arm, flung forward and up
-      S(28, () => piece(CR([[0.48, 2.4], [0.57, 2.4], [0.59, 2.47], [0.52, 2.5], [0.46, 2.46]], 3), 0.18, 0.28, "skin"));                   // the hand
-      S(29, () => { piece(CR([[0.5, 2.5], [0.72, 2.47], [0.78, 2.52], [0.7, 2.57], [0.52, 2.57]], 4), 0.14, 0.3, "hat");                   // the hat held out: its brim...
-                    piece(CR([[0.56, 2.56], [0.69, 2.56], [0.68, 2.66], [0.58, 2.66]], 3), 0.17, 0.27, "hat", 0.03); });                         // ...and crown
-      S(30, () => piece(limb([[0.4, 1.8, 0.008], [1.16, 1.86, 0.008], [1.38, 1.7, 0.008]]), 0.12, 0.14, true));                         // the reins, over the neck to the bit
+      /* (Taylor is not a sculpted piece any more: he is a person, the game's own body in bronze, drawn after the horse below) */
       parts.sort((p1, p2) => p1.key - p2.key);
       for(const p of plinth) p.draw();
       /* the plaque, on the long face toward the street */
@@ -101862,6 +101839,20 @@ class WorldScene extends Phaser.Scene {
       for(const z of [170, 156, 142, 128, 116]) this.quadOn(g, [Pq(-50, z + 3), Pq(50, z + 3), Pq(50, z), Pq(-50, z)], 0x5b4527);
       for(const p of parts) p.draw();
       for(const sp of sculpt) sp.fn();
+      /* TAYLOR, FRESH (Sir, 2026-11-05: "get rid of the whole statue and build it fresh using our people redesign"): the game's
+         own body (drawPersonHullBody -- the one every person on the street is drawn with) in bronze, twice life size to go with
+         the horse (the projection scaled about his own feet), sat astride it, hips on the saddle, the near arm flung forward
+         and up, the off hand low on the reins, a cap on his head. Drawn last, so his near leg is over the horse's flank */
+      { const S2 = 1.75, rx = x + h.x*0.02*M, ry = y + h.y*0.02*M, sitH = 40, z0 = Z + 1.66*M - sitH*S2;
+        const bz = (c, extra) => Object.assign({ c, dk: shadeHex(c, 0.78) }, extra || {});
+        const skin = bz(0xa88458), shirt = bz(0x9c7a4c), pants = bz(0x8f6e40), hair = bz(0x6b5030, { style: 'part' }), shoe = bz(0x5f482a, { kind: 'dress' });
+        const uniform = { cap: { c: 0x7d6036, dk: 0x5f482a, top: 0x8f6e40, badge: 0x9c7a4c } };
+        const pose = { sit: sitH, astride: true, lift: [0.55, 1.45], bend: [0.9, 0.25] };
+        const W0 = this.W;
+        this.W = (px, py, pz) => W0.call(this, rx + (px - rx)*S2, ry + (py - ry)*S2, z0 + (pz - z0)*S2);
+        try { this.drawPersonHullBody(g, rx, ry, z0, -Math.PI/2, PEOPLE_BUILD[0], skin, shirt, pants, hair, shoe, 0, false, 0, 0, null, uniform, false, pose); }
+        finally { delete this.W; }
+      }
     }});
   }
   queueParkBlock(vq, blk){
