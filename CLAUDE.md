@@ -29,7 +29,11 @@ correct something it doesn't cover, add a one-line rule to it.
    `docs/state/CONSISTENCY_PASS.md`), on the test page's address. Add the same links as
    orange jump buttons under the feature's heading in the **Tipsy Test Checklist** artifact
    (https://claude.ai/artifact/F5tLzKgJNZAsFTzPguT1qW, `<p class="jump">` after its
-   `.where` line; read it first, then republish to that URL). Don't list them in chat
+   `.where` line; read it first, then republish to that URL). Photos of the spots: run
+   `node tools/snap_spots.js [--only <word>] [--view 1-3]` (view 3 by default; writes
+   `snaps/sheet.png`), or, to save tokens, fire the scheduled task "Tipsy test-spot
+   photos" (`trig_01C2paDJ2MB26zG4369n1VHf`, a fresh Haiku session; pass options as its
+   text). Don't list them in chat
    each time: say they're logged. Links open in Safari (the home-screen app drops `?go=`).
 6. Wait. I test in the artifact. Do not commit or push until I say "push".
 
