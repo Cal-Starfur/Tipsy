@@ -70097,10 +70097,11 @@ marinaEntry(),
     /* the far corners first: their keys put them behind, and the nearer ranges paint over their joins */
     const NEAR_A = sa > 0 ? CA1 - RD : CA0;                 // the near side's tower column
     const FARA = sa > 0 ? CA0 : CA1 - RD;
-    it(CA0 + RD/2, CB0 + RD/2, () => tower(CA0, CB0, false, false, false), 0);
-    it(CA1 - RD/2, CB0 + RD/2, () => tower(CA1 - RD, CB0, false, true, false), 0);
-    it(CA0 + RD/2, CB1 - RD/2, () => tower(CA0, CB1 - RD, true, false, true, false), 0);
-    it(CA1 - RD/2, CB1 - RD/2, () => tower(CA1 - RD, CB1 - RD, true, true, true, true), 0);
+    /* a tower's side face is painted only where the camera sees it AND it stands free: the near column's outer face */
+    it(CA0 + RD/2, CB0 + RD/2, () => tower(CA0, CB0, false, CA0 === NEAR_A, false), 0);
+    it(CA1 - RD/2, CB0 + RD/2, () => tower(CA1 - RD, CB0, false, CA1 - RD === NEAR_A, false), 0);
+    it(CA0 + RD/2, CB1 - RD/2, () => tower(CA0, CB1 - RD, true, CA0 === NEAR_A, true, false), 0);
+    it(CA1 - RD/2, CB1 - RD/2, () => tower(CA1 - RD, CB1 - RD, true, CA1 - RD === NEAR_A, true, true), 0);
 
     /* ============ THE STREET RANGE: two dwellings, the gatehouse between them ============ */
     for(const [x0, x1, flip] of [[CA0 + RD, A.GA0, false], [A.GA1, CA1 - RD, true]]){
