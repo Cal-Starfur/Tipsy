@@ -104,7 +104,7 @@
 ## Checks (headless, `tools/review/harness.js`)
 - Play each mission start to finish; `h.errs` is `[]`.
 - A screenshot at every card: both faces show (the speaker in one of the two side arcs, nothing drawn over either).
-- An MP4 of every walk (arrivals, leaves, Luna's escalator, the ER doctor).
+- A photo of every walk (arrivals, leaves, Luna's escalator, the ER doctor).
 - A tip-over at each carried step: `spill` fails it with the spill drawn, `crewReturns` says the line and keeps the step.
 - Quit (leave the mall, drive off) and reload: nothing of a run in progress is kept; everything earned is.
 - Devvit: `python3 tools/build_devvit.py`, `cd tipsey-delivery && npx tsc --build && npm run test:unit` (the 3 `server.test.ts` failures predate this kit: they need a live Redis).

@@ -295,7 +295,7 @@ Pocket frame = world-aligned. Take `MUS_IN = { x0: 450000, y0: 400000, W: 1370, 
    Optionally add a `POCKET_GATES` entry; with none, the door is open.
 6. **Nothing else is needed in `queueParkBlock`.** `pocketHiding('Tidewater Maritime Museum')` → the shell fades or skips, and builtHeightAt ignores its vol while he is inside (L75772).
 7. **Optional, W11:** windows showing the live interior. This means a `queueHospThrough`-style pass under the building piece, which needs the shell to have holes behind its windows.
-8. **Pre-flight:** a screenshot at the door from outside, a crossing clip (MP4), the inside at day and at night, a perf check if asked.
+8. **Pre-flight:** a screenshot at the door from outside, the inside at day and at night, a perf check if asked.
 
 ---
 

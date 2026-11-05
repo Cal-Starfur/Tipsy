@@ -249,8 +249,8 @@ Show Sir at each **gate**, and don't move on with a gate failing.
 3. **Shell.** Whole units keyed at their centre; split only long runs. Rims all round, heights declared. *Gate: 4 headings, day and night.*
 4. **Facade.** Set it out from the door, with real windows and fitted signs, all inside the lot. *Gate: the shop checker is clean; close-ups of every face.*
 5. **Interior from the same plan.** Faces cut to the dado, union walls, lower levels clipped, a complete hide list, see-through glass. *Gate: stand on every floor and room, cross every door both ways.*
-6. **Lifts and doors** from the one kit. *Gate: an MP4 of each state.*
-7. **Furniture and people.** Lanes clear, people arriving by doors. *Gate: an MP4 per room type; the people checker is clean.*
+6. **Lifts and doors** from the one kit. *Gate: a photo of each state.*
+7. **Furniture and people.** Lanes clear, people arriving by doors. *Gate: a photo per room type; the people checker is clean.*
 8. **Vehicles round it.** Bays sized from `CARC`, mouths clear. *Gate: the vehicle checker is clean.*
 9. **Perf:** one site cache, culled as one. Run the perf check when Sir asks.
 
