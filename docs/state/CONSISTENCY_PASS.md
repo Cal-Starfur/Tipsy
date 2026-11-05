@@ -56,6 +56,18 @@ Each batch is:
   - Signal posts are cached, their heads live.
 - Test: [Lagoon Market Hall](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10900,27700&view=2) · [Pelican Harbor Port Office](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) · [Marina General drive](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=18000,5670&view=1)
 
+### Driftwood Skate Park (Flats build order area 6, "Park south leaf", as scenery; 2026-11-05)
+- **Where.** Veterans Memorial Park's cell 5,6, the trail's dead-end leaf. The park fills the whole cell out to the pavement. No lawn or planting is left inside it. A chain-link fence runs round it, with a gateway north (the trail from the memorial ends there) and south (the street). One plan, `SK_PLAN`; LIB entry 'Driftwood Skate Park'.
+- **Obstacles.** Each has 3 to 6 m of open flat in front of every face it's ridden from (Sir: "realistic runup area"):
+  - a kidney bowl let into the pad, with blue pool tile under a steel coping;
+  - quarter pipes on the north and west edges;
+  - a fun box and a flat rail;
+  - a flat-top pyramid in the north-west corner (it replaced the bleacher).
+- **He rides them.** The bowl and the ramps are terrain (`skZ` in `coveZ`), and the grade pulls him downhill (`skGrade`, beside the soapbox ramp's). The bowl's near lip is pad drawn in the world's order, so down in the bowl his lower half is hidden. A ramp he is on goes under him.
+- **People.** Four skaters in the `skater` look on a new skateboard (`skDrawBoard`). The board tilts with the slope. One carves the bowl, one goes over the fun box and up the north quarter pipe, one pumps the west quarter pipe, and one goes over the pyramid. They hold when he's in the way. They are out 7am to 9pm, latched while the park is unseen. Two flood poles are lit at night.
+- **Checked.** Booted headless with no page errors. Photographed by day and night, and filmed: the skaters, the bowl and the quarter pipe. The gate on the bleacher version passed (0 new).
+- Test: [whole park](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060,-1.57&view=3) · [north quarter pipe run-up](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17650,20250,-1.57&view=2) · [into the bowl](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17140,20800,-2.36&view=2) · [pyramid and north gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17200,19700,3.14&view=2)
+
 ## Checked and left as they are
 - **The mall junction Sir circled** is fixed on `main` by the hospital session's 2026-10-29 clip (`shopsCut`). The mall body is still one 9,384-long image (U1l); splitting it waits for a fault that shows.
 

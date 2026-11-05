@@ -5460,6 +5460,8 @@ function owBuildWorld(route){
     { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
     /* THE FLATS FIRE TRAINING YARD: its fence, shut gate, tower, engine, burn prop, hydrants, poles and people */
     { const fy = fySolidAt(x, y, R); if(fy) return fy; }
+    /* DRIFTWOOD SKATE PARK: its quarter pipes' decks and sides, the fun box's sides, the rail, its poles and people */
+    { const sk = skSolidAt(x, y, R); if(sk) return sk; }
     /* VISTA RIDGE SECURITY POST: the post, its mast, the dock's posts, the beds, the robots and the story's people */
     { const sp = spSolidAt(x, y, R); if(sp) return sp; }
     /* THE LETTERS' PARK: the ranger's kiosk, the trees' trunks, the lamps */
@@ -8297,7 +8299,7 @@ function owStep(scene, dt){
   }
   /* THE SOAPBOX RAMP (DERBY): its grade pulls him down it, up to half as
      fast again as he can drive, and holds him back on the climb */
-  { const gr = derbyGrade(ow.px, ow.py, ow.yaw);
+  { const gr = derbyGrade(ow.px, ow.py, ow.yaw) + skGrade(ow.px, ow.py, ow.yaw);   // (and DRIFTWOOD SKATE PARK's bowl and ramps: SK_PLAN)
     if(gr){ ow.vel -= gr * DERBY.g * dt; if(ow.vel > D.vMax*1.5) ow.vel = D.vMax*1.5; }
     if(ow.vel > D.vMax && gr < 0) ow.derbyFast = true;
     else if(ow.vel <= D.vMax) ow.derbyFast = false; }
@@ -15612,6 +15614,23 @@ function vetTrailOf(grid){
       const inYard = (x, y, r) => x > F0.X0 - r - 90 && x < F0.X1 + r + 90 && y > F0.Y0 - r - 90 && y < F0.Y1 + r + 90;
       for(let i = plants.length - 1; i >= 0; i--){ const p = plants[i];
         if(inYard(p.x, p.y, p.r || 40) || (p.x < F0.X0 && p.x > c.x0 - 200 && Math.abs(p.y - (F0.GY0 + F0.GY1)/2) < 260) || off(p.x, p.y) < 10) plants.splice(i, 1); }
+    }
+  }
+  /* DRIFTWOOD SKATE PARK (SK_PLAN) ON CELL 5,6 (Sir, 2026-11-05: the park fills the cell, no landscaping): the leaf's
+     turnaround and its exit to the pavement go (the pad reaches the pavement); the run from the hub stops at the pad's
+     north gate; every plant in the cell and close to its edge goes -- every other cell's planting stays as it was */
+  { const K0 = typeof SK_PLAN !== "undefined" ? SK_PLAN : null, c = K0 && cells.get(K0.cell);
+    if(c){
+      const cx = c.cx, cy = c.cy;
+      for(let i = segs.length - 1; i >= 0; i--){ const s = segs[i];
+        if(s.spur) continue;
+        if(s.exit && s.x0 === cx && s.y0 === cy){ segs.splice(i, 1); continue; }
+        if(s.x0 === cx && s.x1 === cx && s.y1 === cy && s.y0 < cy) s.y1 = K0.Y0 + 8;
+      }
+      for(let i = nodes.length - 1; i >= 0; i--) if(nodes[i].x === cx && nodes[i].y === cy) nodes.splice(i, 1);
+      nodes.push({ x: cx, y: K0.Y0 + 8, end: false });
+      for(let i = plants.length - 1; i >= 0; i--){ const p = plants[i], m = p.kind === "tree" ? 110 : p.kind === "palm" || p.kind === "palmDwarf" ? 80 : 50;
+        if((p.x > K0.X0 - m && p.x < K0.X1 + m && p.y > K0.Y0 - m && p.y < K0.Y1 + m) || off(p.x, p.y) < 10) plants.splice(i, 1); }
     }
   }
   /* what stops him: trunks and shrubs, not the flower beds */
@@ -28315,6 +28334,7 @@ function fourthTick(scene, ow){
 function coveZ(x, y){
   if(x > MALL_IN.x0 + MALL_IN.AX0 - 1000) return mallInZ(x, y);   // (inside Maritime Mall: its two floors and escalators, its anchors' too)
   { const dz = derbyZ(x, y); if(dz) return dz; }                  // (Tidewater Green: the soapbox ramp, DERBY)
+  { const sz = skZ(x, y); if(sz) return sz; }                     // (DRIFTWOOD SKATE PARK: the bowl, the quarter pipes, the fun box)
   if(x < 2100 || x > 5640 || y < 24000 || y > 27520) return 0;
   const Hw = COVE.H * 1.5;
   for(const w of COVE.access){
@@ -71040,6 +71060,137 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     blockWordIn('AUTHORISED ONLY', S0.x0 + 16, S0.x1 - 16, 52, 64, y + 0.6, '#f2e6c8', null, 3);
   }
 },
+/* ---- DRIFTWOOD SKATE PARK (see DRIFTWOOD SKATE PARK, SK_PLAN): drawn in WORLD units (a is x, b is y, z world: zs 1),
+   one part at a time -- the scene sorts each into the world's order (queueSkatePark) and caches them all; the pad and the
+   bowl are the ground pass's (fillSkateGround), the bowl's near lip a piece of the pad in the world's order (lip). Poured
+   concrete, a shade warmer on the ramps than the pad, steel coping. ---- */
+{
+  name:'Driftwood Skate Park', xh: 96, base:'Skate park', hood:'The Flats', edited:true, zs:1, ww: 1656, dd: 1656, worldFrame: true,
+  head:'a poured-concrete skate park: a kidney bowl, two quarter pipes, a fun box, a flat rail and a pyramid',
+  tags:['skate park', 'skateboarding', 'bowl', 'quarter pipe', 'fun box', 'rail', 'pyramid'],
+  desc:'Driftwood Skate Park: a poured-concrete park on the south leaf of Veterans Memorial Park -- a kidney bowl with blue pool tile under its coping, quarter pipes on its north and west edges, a fun box and a flat rail in the middle, a flat-topped pyramid in the corner, flood poles for the evening sessions, chain-link round it all with a gateway to the trail and one to the street.',
+  C: { mesh:'rgba(150,158,164,.42)', pad:'#cdcac2', padE:'#b3afa5', ramp:'#d3cfc6', rampF:'#bdb8ad', rampS:'#a59f94', rampD:'#8f897e', cope:'#dfe4e8', copeD:'#9aa3ab',
+       alu:'#c9cfd4', aluD:'#a3abb2', aluS:'#868e96', post:'#8f979e', postL:'#a9b0b6', lamp:'#3a4046', lampD:'#2e3338',
+       sign:'#2f6f8f', signD:'#24566f', white:'#f4f2ec', sand:'#f2c14b', rail:'#5f676e', railL:'#8a9399' },
+  draw(p){
+    for(const r of skFenceRuns()) this.fence(r, 0, 1);
+    for(const [x, y] of skGatePosts()) this.gatePost(x, y);
+    this.qpn(); this.qpw(); this.funbox(); this.rail();
+    this.pyramid();
+    for(let k = 0; k < SK_PLAN.FLOODS.length; k++) this.flood(k);
+    this.sign(); for(const r of skLipRuns()) this.lip(r);
+  },
+  /* THE NORTH QUARTER PIPE (faces +b): the transition in strips up to the coping, the deck behind, its east end (the one
+     the eye sees) cut to the curve; angle iron down the transition's edges */
+  qpn(){
+    const C = this.C, P0 = SK_PLAN, Q = P0.QPN, H = P0.QH, yf = Q.yc + SK_QL, n = 10;
+    if(!inView(Q.x0 - 10, Q.x1 + 10, Q.yd - 10, yf + 10, 0, H + 20)) return;
+    const prof = []; for(let k = 0; k <= n; k++){ const d = SK_QL*k/n; prof.push([yf - d, skQz(d)]); }
+    poly([P(Q.x1, yf, 0)].concat(prof.map(([y, z]) => P(Q.x1, y, z)), [P(Q.x1, Q.yd, H), P(Q.x1, Q.yd, 0)]), C.rampS);   // the east end
+    for(let k = 0; k < n; k++){
+      const [ya, za] = prof[k], [yb, zb] = prof[k + 1], sl = (zb - za)/Math.max(1, ya - yb);
+      poly([P(Q.x0, ya, za), P(Q.x1, ya, za), P(Q.x1, yb, zb), P(Q.x0, yb, zb)], shade(C.ramp, 1 - 0.16*Math.min(2.5, sl)));
+    }
+    T(Q.x0, Q.x1, Q.yd, Q.yc, H, C.ramp);                                                                  // the deck
+    F(Q.x0, Q.x1, H - 6, H, C.rampD, null, 0, Q.yc);                                                       // the coping's block
+    tube(Q.x0, Q.yc + 3, H + 1, Q.x1, Q.yc + 3, H + 1, 3, C.cope);                                         // the coping
+    for(const x of [Q.x0 + 2, Q.x1 - 2]) for(let k = 0; k < n; k++){ const [ya, za] = prof[k], [yb, zb] = prof[k + 1]; tube(x, ya, za + 0.6, x, yb, zb + 0.6, 1.2, C.copeD); }
+  },
+  /* THE WEST QUARTER PIPE (faces +a): the same, turned; its south end the one seen */
+  qpw(){
+    const C = this.C, P0 = SK_PLAN, Q = P0.QPW, H = P0.QH, xf = Q.xc + SK_QL, n = 10;
+    if(!inView(Q.xd - 10, xf + 10, Q.y0 - 10, Q.y1 + 10, 0, H + 20)) return;
+    const prof = []; for(let k = 0; k <= n; k++){ const d = SK_QL*k/n; prof.push([xf - d, skQz(d)]); }
+    poly([P(xf, Q.y1, 0)].concat(prof.map(([x, z]) => P(x, Q.y1, z)), [P(Q.xd, Q.y1, H), P(Q.xd, Q.y1, 0)]), C.rampF);   // the south end
+    for(let k = 0; k < n; k++){
+      const [xa, za] = prof[k], [xb, zb] = prof[k + 1], sl = (zb - za)/Math.max(1, xa - xb);
+      poly([P(xa, Q.y0, za), P(xa, Q.y1, za), P(xb, Q.y1, zb), P(xb, Q.y0, zb)], shade(C.ramp, 0.94 - 0.18*Math.min(2.5, sl)));
+    }
+    T(Q.xd, Q.xc, Q.y0, Q.y1, H, C.ramp);
+    S(Q.xc, Q.y0, Q.y1, H - 6, H, C.rampD);
+    tube(Q.xc + 3, Q.y0, H + 1, Q.xc + 3, Q.y1, H + 1, 3, C.cope);
+    for(const y of [Q.y0 + 2, Q.y1 - 2]) for(let k = 0; k < n; k++){ const [xa, za] = prof[k], [xb, zb] = prof[k + 1]; tube(xa, y, za + 0.6, xb, y, zb + 0.6, 1.2, C.copeD); }
+  },
+  /* THE FUN BOX: a ramp up from the west, a flat deck, a ramp down to the east; its south face (seen) and angle iron
+     along the deck's edges */
+  funbox(){
+    const C = this.C, X = SK_PLAN.BOX, H = X.H;
+    if(!inView(X.r0 - 10, X.r1 + 10, X.y0 - 10, X.y1 + 10, 0, H + 10)) return;
+    poly([P(X.r0, X.y0, 0), P(X.d0, X.y0, H), P(X.d0, X.y1, H), P(X.r0, X.y1, 0)], shade(C.ramp, 0.97));   // up
+    poly([P(X.d1, X.y0, H), P(X.r1, X.y0, 0), P(X.r1, X.y1, 0), P(X.d1, X.y1, H)], shade(C.ramp, 0.86));   // down
+    T(X.d0, X.d1, X.y0, X.y1, H, C.ramp);
+    poly([P(X.r0, X.y1, 0), P(X.d0, X.y1, H), P(X.d1, X.y1, H), P(X.r1, X.y1, 0)], C.rampF);               // the south face
+    for(const y of [X.y0 + 2, X.y1 - 2]){ tube(X.d0, y, H + 0.5, X.d1, y, H + 0.5, 1.6, C.copeD);
+      tube(X.r0, y, 0.5, X.d0, y, H + 0.5, 1.2, C.copeD); tube(X.d1, y, H + 0.5, X.r1, y, 0.5, 1.2, C.copeD); }
+  },
+  /* THE FLAT RAIL: a square steel bar on two legs and their base plates */
+  rail(){
+    const C = this.C, L = SK_PLAN.RAIL;
+    if(!inView(L.x0 - 10, L.x1 + 10, L.y - 10, L.y + 10, 0, L.H + 6)) return;
+    for(const x of [L.x0 + 20, L.x1 - 20]){ box(x - 7, x + 7, L.y - 7, L.y + 7, 0, 1.5, C.railL, C.rail, shade(C.rail, 0.8)); box(x - 2.5, x + 2.5, L.y - 2.5, L.y + 2.5, 1.5, L.H - 4, C.railL, C.rail, shade(C.rail, 0.8)); }
+    box(L.x0, L.x1, L.y - 4, L.y + 4, L.H - 4, L.H, C.railL, C.rail, shade(C.rail, 0.8));
+  },
+  /* THE FENCE: a straight run of chain-link (along x or y), the piece from u0 to u1 -- the mesh, a top and a bottom
+     rail, its posts (galvanised, the city's park fence as Paw Point's and the fire yard's) */
+  fence(r, u0, u1){
+    const C = this.C, H = SK_PLAN.FENCE_H, ax = r.y0 === r.y1;
+    const x0 = r.x0 + (r.x1 - r.x0)*u0, x1 = r.x0 + (r.x1 - r.x0)*u1, y0 = r.y0 + (r.y1 - r.y0)*u0, y1 = r.y0 + (r.y1 - r.y0)*u1;
+    if(!inView(Math.min(x0, x1) - 10, Math.max(x0, x1) + 10, Math.min(y0, y1) - 10, Math.max(y0, y1) + 10, 0, H + 20)) return;
+    if(ax){ F(x0, x1, 0, H, C.mesh, null, 0, y0); F(x0, x1, H - 4, H, C.post, null, 0, y0 + 0.4); F(x0, x1, 4, 7, C.post, null, 0, y0 + 0.4); }
+    else { S(x0, y0, y1, 0, H, C.mesh); S(x0 + 0.4, y0, y1, H - 4, H, C.post); S(x0 + 0.4, y0, y1, 4, 7, C.post); }
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(L/110));
+    for(let k = 0; k <= n; k++){ if(k === n && u1 < 1) break;
+      const u = k/n; cyl(x0 + (x1 - x0)*u, y0 + (y1 - y0)*u, 0, H + 4, 3, C.post); }
+  },
+  /* a gateway's post: heavier, capped */
+  gatePost(x, y){
+    const C = this.C, H = SK_PLAN.FENCE_H;
+    if(!inView(x - 12, x + 12, y - 12, y + 12, 0, H + 24)) return;
+    cyl(x, y, 0, H + 14, 5.5, C.post); ball(x, y, H + 16, 6, C.postL);
+  },
+  /* THE PYRAMID: a flat-topped concrete pyramid, its four banks (the far two first: gentle, so all four are seen), its
+     top, steel angle round the top's edge and down its four hips */
+  pyramid(){
+    const C = this.C, Y = SK_PLAN.PYR, H = Y.H, r = Y.run, a0 = Y.x0 + r, a1 = Y.x1 - r, b0 = Y.y0 + r, b1 = Y.y1 - r;
+    if(!inView(Y.x0 - 10, Y.x1 + 10, Y.y0 - 10, Y.y1 + 10, 0, H + 6)) return;
+    poly([P(Y.x0, Y.y0, 0), P(Y.x1, Y.y0, 0), P(a1, b0, H), P(a0, b0, H)], shade(C.ramp, 1.04));          // north bank
+    poly([P(Y.x0, Y.y0, 0), P(a0, b0, H), P(a0, b1, H), P(Y.x0, Y.y1, 0)], shade(C.ramp, 1.0));           // west bank
+    T(a0, a1, b0, b1, H, C.ramp);                                                                           // the top
+    poly([P(Y.x0, Y.y1, 0), P(a0, b1, H), P(a1, b1, H), P(Y.x1, Y.y1, 0)], shade(C.ramp, 0.93));          // south bank
+    poly([P(Y.x1, Y.y0, 0), P(Y.x1, Y.y1, 0), P(a1, b1, H), P(a1, b0, H)], shade(C.ramp, 0.84));          // east bank
+    for(const [x, y, X, Yy] of [[a0, b0, a1, b0], [a1, b0, a1, b1], [a1, b1, a0, b1], [a0, b1, a0, b0]]) tube(x, y, H + 0.5, X, Yy, H + 0.5, 1.5, C.copeD);
+    for(const [x, y, X, Yy] of [[Y.x0, Y.y0, a0, b0], [Y.x1, Y.y0, a1, b0], [Y.x1, Y.y1, a1, b1], [Y.x0, Y.y1, a0, b1]]) tube(x, y, 0.5, X, Yy, H + 0.5, 1.1, C.copeD);
+  },
+  /* a flood pole: a galvanised pole on a concrete footing, two lamps on a cross arm turned to the park */
+  flood(k){
+    const C = this.C, q = SK_PLAN.FLOODS[k], x = q[0], y = q[1], h = SK_PLAN.FLOOD_H;
+    if(!inView(x - 40, x + 40, y - 40, y + 40, 0, h + 20)) return;
+    cyl(x, y, 0, 10, 11, '#bdb8ad'); cyl(x, y, 10, h, 3.8, C.post);
+    tube(x - 24, y + 24, h, x + 24, y - 24, h, 2.4, C.post);
+    for(const s of [-1, 1]) box(x + s*24 - 9, x + s*24 + 9, y - s*24 - 9, y - s*24 + 9, h - 14, h + 4, C.lamp, C.lampD, shade(C.lampD, 0.85));
+  },
+  /* the park's sign at its street end, facing the street: a blue board on two posts */
+  sign(){
+    const C = this.C, S0 = SK_PLAN.SIGN, y = S0.y;
+    if(!inView(S0.x0 - 10, S0.x1 + 10, y - 10, y + 10, 0, 120)) return;
+    for(const x of [S0.x0 + 12, S0.x1 - 12]) box(x - 4, x + 4, y - 4, y + 4, 0, 110, C.post, C.post, shade(C.post, 0.8));
+    box(S0.x0, S0.x1, y + 4, y + 9, 52, 108, C.sign, C.sign, C.signD);
+    F(S0.x0 + 5, S0.x1 - 5, 57, 103, C.signD, null, 0, y + 9.3);
+    blockWordIn('DRIFTWOOD', S0.x0 + 18, S0.x1 - 18, 82, 98, y + 9.6, C.white, null, 5);
+    blockWordIn('SKATE PARK', S0.x0 + 30, S0.x1 - 30, 66, 78, y + 9.6, C.sand, null, 4);
+  },
+  /* THE BOWL'S NEAR LIP, a run of it (skLipRuns): the pad's face from the rim down the bowl's depth -- the ground in
+     front of whatever is in the bowl -- and the coping along it */
+  lip(r){
+    const C = this.C, D = SK_PLAN.BOWL.D, pts = r.pts;
+    const X = r.ext || pts;                                              // (a segment over into each neighbour: no seam)
+    for(let i = 0; i + 1 < X.length; i++){ const a = X[i], b = X[i + 1];
+      poly([P(a.x, a.y, 0.2), P(b.x, b.y, 0.2), P(b.x, b.y, -D - 4), P(a.x, a.y, -D - 4)], C.pad); }
+    ctx.strokeStyle = C.cope; ctx.lineWidth = 5.2*K; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); X.forEach((q, i) => { const o = P(q.x, q.y, 1.2); i ? ctx.lineTo(o.x, o.y) : ctx.moveTo(o.x, o.y); }); ctx.stroke();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+  }
+},
 /* ---- VISTA RIDGE SECURITY POST (see VISTA RIDGE SECURITY POST, SP_PLAN): drawn in WORLD units (a is x, b is y, z
    world: zs 1), one part at a time -- the scene sorts each into the world's order (queueSecPost) and caches the still
    ones (bcDraw 'sp|...'); the CCTV head while it sweeps, the dock's lights, the door's leaves and the monitor room's
@@ -78837,6 +78988,295 @@ function fyTick(scene, ow){
   if(!ow || !ow.on) return;
   fyLifeTick(scene, now, dt);
   if(typeof ohTick === "function") ohTick(scene, ow);
+}
+/* ==================== DRIFTWOOD SKATE PARK (area 6, "Park south leaf": the approved Flats build order, as scenery) ====================
+   Veterans Memorial Park's cell 5,6, the trail's south leaf: a dead-end loop round a lawn island, houses across the
+   streets on three sides (4,6, 6,6, 5,7), the memorial's hub north (5,5). Nobody came here on purpose. Now a poured
+   concrete skate park fills the leaf: the trail from the hub ends at its north gate, and the cell's lawn and planting
+   are gone under the pad (vetTrailOf). Built from a real one (a city concrete park: a kidney bowl, quarter pipes, a fun box and a flat rail):
+     THE PAD        the whole cell of smooth concrete, out to the pavement (Sir, 2026-11-05: "expand the park to fill the
+                    area ... get rid of the land scaping and put a fence around the outside"), its edge a band of darker
+                    concrete; a chain-link fence round it 24 in, a gateway north (the trail from the hub) and south (the
+                    street). Every obstacle has its run-up ("all the obstacles need realistic runup area"): 3 to 6 m of
+                    open flat in front of each, the skaters' lines through them
+     THE BOWL       a kidney bowl let into the pad (72 deep, a flat floor and a cosine transition to the rim), blue pool
+                    tile under a steel coping, a drain in its floor. Terrain: he rolls in and the walls pull him back
+     TWO QUARTER PIPES on the north and west edges, facing into the park: a circular transition (radius 150) up to a
+                    steel coping at 95, a deck behind. Terrain up to the coping; the deck and the sides are solid
+     THE FUN BOX    a ramp up, a flat deck at 40, a ramp down, angle iron on its edges -- terrain from the ends
+     THE FLAT RAIL  a low steel bar on two legs beside the fun box
+     THE PYRAMID    a flat-topped concrete pyramid in the north-west corner (36 high, its four banks 55 long, steel
+                    angle round its top) -- terrain from every side
+     TWO FLOOD POLES and the park's sign at its street end
+     ITS PEOPLE     four skaters riding lines (a carver round the bowl, one over the fun box and up the north quarter
+                    pipe, one pumping the west quarter pipe, one over the pyramid), 7 in the morning to 9 at night (the floods on after dark),
+                    latched while the park is unseen, so nobody pops
+   Not walk-in. One plan in world units (SK_PLAN), read by the drawing (LIB 'Driftwood Skate Park', queueSkatePark,
+   fillSkateGround), the terrain (skZ, in coveZ: he rides it), the collision (skSolidAt, in solidAt), the x-ray and the
+   flyers (skHeightAt) and its life (skTick, skQueue). Still pieces cached through bcDraw ('sk|...'); live only the
+   people and their boards. */
+const SK_PLAN = {
+  name: 'Driftwood Skate Park', cell: '5,6', CX: 17204, CY: 20332,
+  X0: 16376, X1: 18032, Y0: 19504, Y1: 21160,                           // the pad: the whole cell, to the pavement
+  /* the fence, 24 in from the pad's edge, and its two gateways (north to the trail, south to the street) */
+  FX0: 16400, FX1: 18008, FY0: 19528, FY1: 21136, FENCE_H: 110, GX0: 17084, GX1: 17324,
+  BOWL: { x: 16840, y: 20780, ra: 270, rb: 175, D: 72, s0: 0.42, dent: 0.22, n: 64 },
+  QR: 150, QH: 95,                                                       // the quarter pipes' transition radius and coping height
+  QPN: { x0: 17400, x1: 17900, yc: 19708, yd: 19548 },                  // faces +y: coping at yc, deck back to yd (run-up 450 to the south)
+  QPW: { y0: 19960, y1: 20440, xc: 16580, xd: 16420 },                  // faces +x: coping at xc, deck back to xd (run-up 430 to the east)
+  BOX: { r0: 17330, d0: 17430, d1: 17570, r1: 17670, y0: 20540, y1: 20700, H: 40 },   // (330 to run up from the west, 338 to run out east)
+  RAIL: { x0: 17380, x1: 17620, y: 20900, H: 30 },
+  PYR: { x0: 16600, x1: 16930, y0: 19590, y1: 19730, H: 36, run: 55 },  // its footprint, its top's height, each bank's run
+  FLOODS: [[16430, 20540], [17980, 20200]], FLOOD_H: 360,
+  SIGN: { x0: 17380, x1: 17640, y: 21142 },                              // on the south fence's street side, by the gate
+  hours: [7, 21], g: 0.0018
+};
+const SK_BLK = { x0: SK_PLAN.X0, x1: SK_PLAN.X1, y0: SK_PLAN.Y0, y1: SK_PLAN.Y1, cx: SK_PLAN.CX, cy: SK_PLAN.CY, type: "park", skatePark: true };
+/* the quarter pipes' transition: its length along the ground, and its height d in from the foot */
+const SK_QL = Math.sqrt(SK_PLAN.QR*SK_PLAN.QR - (SK_PLAN.QR - SK_PLAN.QH)**2);
+function skQz(d){ const R = SK_PLAN.QR; d = Math.max(0, Math.min(SK_QL, d)); return R - Math.sqrt(R*R - d*d); }
+/* THE BOWL'S OUTLINE: an ellipse with a kidney's dent on its far (north) side, as r(theta) from its middle; s, how far
+   out a point is (1 at the rim); and its height there (negative: let into the pad) */
+function skBowlR(th){
+  const B = SK_PLAN.BOWL, c = Math.cos(th), s = Math.sin(th), e = 1/Math.sqrt(c*c/(B.ra*B.ra) + s*s/(B.rb*B.rb));
+  const d = Math.atan2(Math.sin(th + Math.PI/2), Math.cos(th + Math.PI/2));
+  return e*(1 - B.dent*Math.exp(-((d/0.55)**2)));
+}
+function skBowlS(x, y){ const B = SK_PLAN.BOWL, dx = x - B.x, dy = y - B.y; return Math.hypot(dx, dy)/skBowlR(Math.atan2(dy, dx)); }
+function skBowlZs(s){ const B = SK_PLAN.BOWL; return s >= 1 ? 0 : s <= B.s0 ? -B.D : -B.D*Math.cos(Math.PI/2*(s - B.s0)/(1 - B.s0)); }
+/* the outline's points, once (n round, counter-clockwise on screen) */
+function skBowlRim(){
+  if(skBowlRim.c) return skBowlRim.c;
+  const B = SK_PLAN.BOWL, out = [];
+  for(let i = 0; i < B.n; i++){ const t = i/B.n*Math.PI*2, r = skBowlR(t); out.push({ x: B.x + Math.cos(t)*r, y: B.y + Math.sin(t)*r, t }); }
+  return (skBowlRim.c = out);
+}
+/* THE GROUND HE RIDES (in coveZ): the bowl, the quarter pipes' transitions (their decks are solid), the fun box; 0 off
+   them */
+function skZ(x, y){
+  const P = SK_PLAN;
+  if(x < P.X0 || x > P.X1 || y < P.Y0 || y > P.Y1) return 0;
+  const B = P.BOWL;
+  if(Math.abs(x - B.x) < B.ra + 2 && Math.abs(y - B.y) < B.rb + 2){ const s = skBowlS(x, y); if(s < 1) return skBowlZs(s); }
+  { const Q = P.QPN, yf = Q.yc + SK_QL;
+    if(x >= Q.x0 && x <= Q.x1 && y >= Q.yd && y <= yf) return y <= Q.yc ? P.QH : skQz(yf - y); }
+  { const Q = P.QPW, xf = Q.xc + SK_QL;
+    if(y >= Q.y0 && y <= Q.y1 && x >= Q.xd && x <= xf) return x <= Q.xc ? P.QH : skQz(xf - x); }
+  { const X = P.BOX;
+    if(y >= X.y0 && y <= X.y1 && x >= X.r0 && x <= X.r1)
+      return x < X.d0 ? X.H*(x - X.r0)/(X.d0 - X.r0) : x > X.d1 ? X.H*(X.r1 - x)/(X.r1 - X.d1) : X.H; }
+  { const Y = P.PYR;
+    if(x >= Y.x0 && x <= Y.x1 && y >= Y.y0 && y <= Y.y1) return Y.H*Math.min(1, (x - Y.x0)/Y.run, (Y.x1 - x)/Y.run, (y - Y.y0)/Y.run, (Y.y1 - y)/Y.run); }
+  return 0;
+}
+/* the grade along a heading, positive uphill (as derbyGrade), held to 2 (the steep top of a wall) */
+function skGrade(x, y, yaw){
+  const P = SK_PLAN;
+  if(x < P.X0 - 30 || x > P.X1 + 30 || y < P.Y0 - 30 || y > P.Y1 + 30) return 0;
+  const c = Math.cos(yaw), s2 = Math.sin(yaw), gr = (skZ(x + c*24, y + s2*24) - skZ(x - c*24, y - s2*24))/48;
+  return Math.max(-2, Math.min(2, gr));
+}
+/* which ramp a point is on (its transition or deck): 'qpn', 'qpw', 'box', 'pyr', 'bowl' or null -- the drawing puts the ramp
+   under whoever is on it (as the soapbox ramp's deck: it.under) */
+function skRampAt(x, y, m){
+  const P = SK_PLAN; m = m || 0;
+  if(x < P.X0 - m || x > P.X1 + m || y < P.Y0 - m || y > P.Y1 + m) return null;
+  { const Q = P.QPN; if(x >= Q.x0 - m && x <= Q.x1 + m && y >= Q.yd - m && y <= Q.yc + SK_QL + m) return 'qpn'; }
+  { const Q = P.QPW; if(y >= Q.y0 - m && y <= Q.y1 + m && x >= Q.xd - m && x <= Q.xc + SK_QL + m) return 'qpw'; }
+  { const X = P.BOX; if(y >= X.y0 - m && y <= X.y1 + m && x >= X.r0 - m && x <= X.r1 + m) return 'box'; }
+  { const Y = P.PYR; if(y >= Y.y0 - m && y <= Y.y1 + m && x >= Y.x0 - m && x <= Y.x1 + m) return 'pyr'; }
+  if(skBowlS(x, y) < 1) return 'bowl';
+  return null;
+}
+/* THE BOWL'S NEAR LIP (the runs of the rim whose outward face is to the eye): below them on screen the pad stands in
+   front of whatever is down in the bowl, so each run is a piece of the pad drawn in the world's order (queueSkatePark:
+   the lip) -- under it, his lower half and a skater's, down in the bowl, are hidden as the real lip hides them. Runs of
+   four rim segments (about 60), each keyed at its nearest point */
+function skLipRuns(){
+  if(skLipRuns.c) return skLipRuns.c;
+  const R = skBowlRim(), n = R.length, near = [];
+  for(let i = 0; i < n; i++){ const a = R[i], b = R[(i + 1) % n], nx = b.y - a.y, ny = -(b.x - a.x); near.push(nx + ny > 0); }
+  const runs = [];
+  let cur = null;
+  for(let k = 0; k < n; k++){
+    const i = (k + n - 1) % n;
+    if(!near[i]){ cur = null; continue; }
+    if(!cur || cur.length >= 4){ cur = []; runs.push(cur); }
+    cur.push(i);
+  }
+  return (skLipRuns.c = runs.map((ix, k) => { const pts = ix.map(i => R[i]).concat([R[(ix[ix.length - 1] + 1) % n]]);
+    const ext = [R[(ix[0] + n - 1) % n]].concat(pts, [R[(ix[ix.length - 1] + 2) % n]]);
+    return { k, pts, ext, key: Math.max(...pts.map(p => p.x + p.y)), x: pts.reduce((s, p) => s + p.x, 0)/pts.length, y: pts.reduce((s, p) => s + p.y, 0)/pts.length }; }));
+}
+/* THE FENCE's straight runs, the two gateways left out, and the gateways' posts */
+function skFenceRuns(){
+  if(skFenceRuns.c) return skFenceRuns.c;
+  const P = SK_PLAN;
+  return (skFenceRuns.c = [
+    { k: 'n1', x0: P.FX0, y0: P.FY0, x1: P.GX0, y1: P.FY0 }, { k: 'n2', x0: P.GX1, y0: P.FY0, x1: P.FX1, y1: P.FY0 },
+    { k: 'e', x0: P.FX1, y0: P.FY0, x1: P.FX1, y1: P.FY1 }, { k: 'w', x0: P.FX0, y0: P.FY0, x1: P.FX0, y1: P.FY1 },
+    { k: 's1', x0: P.FX0, y0: P.FY1, x1: P.GX0, y1: P.FY1 }, { k: 's2', x0: P.GX1, y0: P.FY1, x1: P.FX1, y1: P.FY1 }
+  ]);
+}
+function skGatePosts(){ const P = SK_PLAN; return [[P.GX0, P.FY0], [P.GX1, P.FY0], [P.GX0, P.FY1], [P.GX1, P.FY1]]; }
+/* THE SOLIDS, from the plan: the quarter pipes' decks and the sides of their transitions (he rides on from the foot),
+   the fun box's sides (on from its ends), the rail, the flood poles, the sign's posts, the fence and its gate posts (the
+   pyramid is ridden from every side; the gateways are open) */
+function skSolids(){
+  if(skSolids.c) return skSolids.c;
+  const P = SK_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h }), D = (x, y, r, h) => out.push({ c: [x, y], r, h });
+  { const Q = P.QPN, yf = Q.yc + SK_QL; R(Q.x0, Q.x1, Q.yd, Q.yc - 4, P.QH); R(Q.x0 - 4, Q.x0 + 4, Q.yc - 4, yf - 30, P.QH); R(Q.x1 - 4, Q.x1 + 4, Q.yc - 4, yf - 30, P.QH); }
+  { const Q = P.QPW, xf = Q.xc + SK_QL; R(Q.xd, Q.xc - 4, Q.y0, Q.y1, P.QH); R(Q.xc - 4, xf - 30, Q.y0 - 4, Q.y0 + 4, P.QH); R(Q.xc - 4, xf - 30, Q.y1 - 4, Q.y1 + 4, P.QH); }
+  { const X = P.BOX; R(X.r0 + 50, X.r1 - 50, X.y0 - 4, X.y0 + 4, X.H); R(X.r0 + 50, X.r1 - 50, X.y1 - 4, X.y1 + 4, X.H); }
+  { const L = P.RAIL; R(L.x0 - 4, L.x1 + 4, L.y - 5, L.y + 5, L.H); }
+  for(const [x, y] of P.FLOODS) D(x, y, 11, P.FLOOD_H);
+  for(const x of [P.SIGN.x0 + 12, P.SIGN.x1 - 12]) D(x, P.SIGN.y, 6, 110);
+  for(const f of skFenceRuns()) R(Math.min(f.x0, f.x1) - 4, Math.max(f.x0, f.x1) + 4, Math.min(f.y0, f.y1) - 4, Math.max(f.y0, f.y1) + 4, P.FENCE_H);
+  for(const [x, y] of skGatePosts()) D(x, y, 8, P.FENCE_H + 14);
+  return (skSolids.c = out);
+}
+/* THE COLLISION (solidAt, as the fire yard's): SK_BLK where something stands, the park's people where they are; null
+   elsewhere (the pad, the bowl, the ramps he rides and the lawn are open ground) */
+function skSolidAt(x, y, R){
+  const P = SK_PLAN;
+  if(x < P.X0 - R - 60 || x > P.X1 + R + 60 || y < P.Y0 - R - 60 || y > P.Y1 + R + 60) return null;
+  for(const s of skSolids()) if(fmBodyHits(x, y, R, s)) return SK_BLK;
+  for(const b of SK_LIFE.bodies) if(fmBodyHits(x, y, R, { c: [b.x, b.y], r: 16 })) return SK_BLK;
+  return null;
+}
+/* for the x-ray and the flyers: the quarter pipes' decks; null off them */
+function skHeightAt(x, y){
+  const P = SK_PLAN, Q = P.QPN, W = P.QPW;
+  if(x > Q.x0 && x < Q.x1 && y > Q.yd && y < Q.yc) return P.QH + 4;
+  if(y > W.y0 && y < W.y1 && x > W.xd && x < W.xc) return P.QH + 4;
+  return null;
+}
+/* ==================== ITS DAY ==================== */
+const SK_LIFE = { on: null, lastT: 0, bodies: [], sk: null };
+function skSeen(scene){ return !!(scene && scene.visWorldPt && scene.visWorldPt(SK_PLAN.CX, SK_PLAN.CY, 1250, 500)); }
+/* THE SKATERS' LINES: closed loops through the park, smoothed (Catmull-Rom) and measured once; each skater's place on
+   theirs is how far along (s), held while Tipsey is in the way */
+const SK_LINES = [
+  { k: 'carve', v: 0.2, bowl: 0.7 },                                    // round the bowl, on its transition
+  /* west to east over the fun box (its run-up and run-out), round, and up the north quarter pipe to a kick turn */
+  { k: 'line', v: 0.17, pts: [[17020, 20620], [17330, 20620], [17670, 20620], [17880, 20600], [17920, 20420], [17780, 20160], [17690, 19900],
+                             [17672, 19748], [17636, 19752], [17600, 19880], [17420, 20200], [17150, 20480]] },
+  /* across the flat to the west quarter pipe, up to a kick turn under its coping, back */
+  { k: 'pump', v: 0.16, pts: [[17150, 20150], [16900, 20150], [16612, 20160], [16598, 20200], [16612, 20240], [16900, 20250], [17150, 20250], [17200, 20200]] },
+  /* east to west over the pyramid, its run-out by the west fence, back along the flat */
+  { k: 'pyr', v: 0.17, pts: [[17250, 19660], [16950, 19660], [16560, 19660], [16470, 19700], [16470, 19800], [16900, 19830], [17250, 19800], [17300, 19730]] }
+];
+function skLine(i){
+  const Ln = SK_LINES[i];
+  if(Ln._c) return Ln._c;
+  let pts = Ln.pts;
+  if(Ln.bowl){ const B = SK_PLAN.BOWL; pts = []; for(let k = 0; k < 24; k++){ const t = -k/24*Math.PI*2, r = skBowlR(t)*Ln.bowl; pts.push([B.x + Math.cos(t)*r, B.y + Math.sin(t)*r]); } }
+  const n = pts.length, dense = [];
+  for(let i2 = 0; i2 < n; i2++){
+    const p0 = pts[(i2 + n - 1) % n], p1 = pts[i2], p2 = pts[(i2 + 1) % n], p3 = pts[(i2 + 2) % n];
+    for(let k = 0; k < 12; k++){ const t = k/12, t2 = t*t, t3 = t2*t;
+      const f = (a, b, c, d) => 0.5*((2*b) + (-a + c)*t + (2*a - 5*b + 4*c - d)*t2 + (-a + 3*b - 3*c + d)*t3);
+      dense.push({ x: f(p0[0], p1[0], p2[0], p3[0]), y: f(p0[1], p1[1], p2[1], p3[1]) }); }
+  }
+  let L = 0; dense[0].s = 0;
+  for(let k = 1; k <= dense.length; k++){ const a = dense[k - 1], b = dense[k % dense.length]; L += Math.hypot(b.x - a.x, b.y - a.y); if(k < dense.length) b.s = L; }
+  return (Ln._c = { pts: dense, L });
+}
+/* a point s along a line: where, its heading, and the ground under it */
+function skLineAt(i, s){
+  const C = skLine(i), P = C.pts, n = P.length;
+  s = ((s % C.L) + C.L) % C.L;
+  let lo = 0, hi = n - 1;
+  while(lo < hi){ const m = (lo + hi + 1) >> 1; if(P[m].s <= s) lo = m; else hi = m - 1; }
+  const a = P[lo], b = P[(lo + 1) % n], seg = (lo + 1 < n ? b.s : C.L) - a.s, u = seg > 0 ? (s - a.s)/seg : 0;
+  const x = a.x + (b.x - a.x)*u, y = a.y + (b.y - a.y)*u;
+  return { x, y, z: skZ(x, y), th: Math.atan2(b.y - a.y, b.x - a.x) };
+}
+const _skLooks = {};
+function skLook(k){
+  if(_skLooks[k]) return _skLooks[k];
+  const seed = { carve: 0x5a7e1, line: 0x5a7f3, pump: 0x5a805, pyr: 0x5a817 }[k] || 0x5a800;
+  return (_skLooks[k] = streetLook(seed, { type: 'skater' }));
+}
+/* the skaters, now: where, the ground under them, their heading, and whether they are held up (stood on the board) */
+function skSkaterAt(i){
+  const S = SK_LIFE.sk && SK_LIFE.sk[i];
+  if(!S) return null;
+  const q = skLineAt(i, S.s);
+  return { x: q.x, y: q.y, z: q.z, th: q.th, held: S.held, k: SK_LINES[i].k, i };
+}
+function skLifeTick(scene, now, dt){
+  const L = SK_LIFE, P = SK_PLAN, seen = skSeen(scene), ow = scene.ow, h = walkinClockHour();
+  if(L.on == null || !seen) L.on = h >= P.hours[0] && h < P.hours[1];
+  if(L.on && !L.sk) L.sk = SK_LINES.map((Ln, i) => ({ s: skLine(i).L*(0.13 + 0.37*i), held: false }));
+  if(!L.on) L.sk = null;
+  const bx = ow ? ow.px : 1e9, by = ow ? ow.py : 1e9;
+  /* each rolls on unless he is in the way just ahead (held: stood on the board till he moves) */
+  if(L.sk) L.sk.forEach((S, i) => {
+    const v = SK_LINES[i].v, a = skLineAt(i, S.s + 70);
+    S.held = Math.hypot(a.x - bx, a.y - by) < 92;
+    if(!S.held) S.s += v*dt;
+  });
+  /* who stands where, solid to him */
+  const B = [];
+  if(L.sk) L.sk.forEach((S, i) => B.push(skSkaterAt(i)));
+  L.bodies = B.filter(b => b && Math.abs(b.x - bx) + Math.abs(b.y - by) < 500);
+}
+/* A SKATEBOARD under someone (or alone): a maple deck with grip on top and kicked-up ends, four wheels on two trucks,
+   along the heading th, its wheels on the ground under them (skZ: up a ramp it tilts with it); returns its top's height
+   at its middle (the rider stands there) */
+function skBoardZ(x, y, th){ const c = Math.cos(th), s = Math.sin(th), zA = skZ(x - c*20, y - s*20), zB = skZ(x + c*20, y + s*20); return { zA, zB, z: (zA + zB)/2 + 7 }; }
+function skDrawBoard(scene, g, x, y, th){
+  const c = Math.cos(th), s = Math.sin(th), K = scene.K, Z = skBoardZ(x, y, th);
+  const at = (a, b, h) => scene.W(x + c*a - s*b, y + s*a + c*b, Z.z + (Z.zB - Z.zA)*a/40 + h);
+  const hl = 30, hw = 8, kick = 26;
+  for(const a of [-20, 20]) for(const b of [-6.5, 6.5]){ const w = at(a, b, -4.2); g.fillStyle(0xeee8d8, 1); g.fillCircle(w.x, w.y, 2.6*K); }
+  for(const a of [-20, 20]){ const t0 = at(a, -6, -2.6), t1 = at(a, 6, -2.6); g.lineStyle(Math.max(1, 2.2*K), 0x9aa3ad, 1); g.lineBetween(t0.x, t0.y, t1.x, t1.y); }
+  const deck = (hz, col) => { g.fillStyle(col, 1); g.fillPoints([at(-hl, -hw, hz + 3), at(-kick, -hw, hz), at(kick, -hw, hz), at(hl, -hw, hz + 3), at(hl, hw, hz + 3), at(kick, hw, hz), at(-kick, hw, hz), at(-hl, hw, hz + 3)], true); };
+  deck(-1.6, 0xc49a62);                                                 // the maple's edge
+  deck(0, 0x2a2b30);                                                    // the grip
+}
+/* THE PARK'S PEOPLE, DRAWN (skQueue, from the people's pass beside fyQueue): the skaters on their boards (side on to the
+   way they ride, knees bent, arms out; stood up straight while held). Down in the bowl
+   they go before its near lip (it hides their lower half); up a ramp, after it (they are on it) */
+function skQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, P = SK_PLAN, L = SK_LIFE;
+  if(!scene.visWorldPt(P.CX, P.CY, 1300, 600)) return;
+  const lipMin = Math.min(...skLipRuns().map(r => r.key));
+  if(L.sk) L.sk.forEach((S, i) => {
+    const p = skSkaterAt(i);
+    if(!p || !scene.visProp("people", p.x, p.y, Math.max(0, p.z))) return;
+    const Lk = skLook(p.k), ramp = skRampAt(p.x, p.y), base = p.x + p.y;
+    const d = ramp === 'bowl' ? Math.min(base, lipMin - 2) : ramp ? Math.max(base, skRampKey(ramp) + 1) : base;
+    queuePerson(d/2, d/2, (g) => {
+      const gg = layerFor(p.x, p.y), lean = Math.sin(now/380 + i*1.7);
+      skDrawBoard(scene, gg, p.x, p.y, p.th);
+      const bz = skBoardZ(p.x, p.y, p.th).z;
+      const pose = p.held ? { lift: [0.12, 0.12], bend: [0.15, 0.15] } : { drop: 7 + 2*lean, lift: [0.55 + 0.1*lean, 0.55 - 0.1*lean], bend: [0.35, 0.35] };
+      scene.drawPersonHull(gg, p.x, p.y, bz, p.th + (i === 1 ? Math.PI : 0), Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, 0, false, 0, 0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose));
+    });
+  });
+}
+/* the depth keys of the still pieces (queueSkatePark keys them so; the people sort against them) */
+function skRampKey(r){
+  const P = SK_PLAN;
+  if(r === 'qpn'){ const Q = P.QPN; return (Q.x0 + Q.x1)/2 + (Q.yd + Q.yc + SK_QL)/2; }
+  if(r === 'qpw'){ const Q = P.QPW; return (Q.xd + Q.xc + SK_QL)/2 + (Q.y0 + Q.y1)/2; }
+  if(r === 'box'){ const X = P.BOX; return (X.r0 + X.r1)/2 + (X.y0 + X.y1)/2; }
+  if(r === 'pyr'){ const Y = P.PYR; return (Y.x0 + Y.x1)/2 + (Y.y0 + Y.y1)/2; }
+  return 0;
+}
+CITY_PEOPLE.add({ name: 'Driftwood Skate Park', where: 'the skate park on Veterans Memorial Park\'s cell 5,6', solid: true,
+  each(scene, t, fn){
+    const L = SK_LIFE;
+    if(L.sk) L.sk.forEach((S, i) => { const p = skSkaterAt(i); fn(cpEntry(this, { x: p.x, y: p.y, z: p.z, th: p.th, moving: !p.held, kind: 'skater', ref: S })); });
+  } });
+/* every frame (after owStep): the park's life */
+function skTick(scene, ow){
+  const now = scene.time.now, dt = Math.min(100, Math.max(0, now - (SK_LIFE.lastT || now)));
+  SK_LIFE.lastT = now;
+  if(!ow || !ow.on) return;
+  skLifeTick(scene, now, dt);
 }
 /* ==================== OPEN HOUSE (the Flats build order, area 7; MISSIONS 'open-house', in the daytime) ====================
    It's Junior Firefighter Day at the Flats Fire Training Yard, and the prize helmet never came. Offered 7 to 5 (MISSION_WINDOWS
@@ -87212,7 +87652,8 @@ class WorldScene extends Phaser.Scene {
     { const fh = fleetBayBuiltHeight(x, y, this._garage && this._garage.key); if(fh !== null) return fh; }   // a fleet hall (fleetBayBuiltHeight)
     { const fm = fmHeightAt(x, y); if(fm !== null) return fm; }                                            // THE PELICAN FISH MARKET's roof (open while he is under it)
     { const pp = ppHeightAt(x, y); if(pp !== null) return pp; }
-    { const fy = fyHeightAt(x, y); if(fy !== null) return fy; }                                            // THE FLATS FIRE TRAINING YARD's tower, engine and burn prop                                            // PAW POINT's pavilion roof (open while he is under it)
+    { const fy = fyHeightAt(x, y); if(fy !== null) return fy; }
+    { const sk = skHeightAt(x, y); if(sk !== null) return sk; }                                            // DRIFTWOOD SKATE PARK's quarter-pipe decks                                            // THE FLATS FIRE TRAINING YARD's tower, engine and burn prop                                            // PAW POINT's pavilion roof (open while he is under it)
     { const sp = spHeightAt(x, y); if(sp !== null) return sp; }                                            // VISTA RIDGE SECURITY POST's roof
     if(WORLDGEN_COAST){ const hh = harborHouseHeightAt(x, y); if(hh !== null) return hh; }               // the harbor house (its roof, from PH_PLAN)
     for(const b of blocks){
@@ -91039,6 +91480,79 @@ class WorldScene extends Phaser.Scene {
         pw.push(this.W(B0.x1 + 90 + Math.cos(a)*110, B0.y0 + 60 + Math.sin(a)*70, 0.72)); }
       quad(pts, 0x3a3632, 0.35); quad(pw, 0x7c858a, 0.3); }
   }
+  /* DRIFTWOOD SKATE PARK (SK_PLAN): every still piece its own cached image at its own depth ('sk|' + what + where) --
+     the quarter pipes and the fun box whole (raised ground he rides: under him while he is on one, as the soapbox ramp's
+     deck), the pyramid whole (the same), the fence in pieces of 120, the bowl's near lip in short runs (it stands in
+     front of what is down in the bowl, and after him while he is in it); the floods' lamps at night through the lamp kit */
+  queueSkatePark(vq){
+    const P = SK_PLAN, ent = LIB.get(P.name);
+    if(!ent || !this.visWorldPt(P.CX, P.CY, 1300, 500)) return;
+    const G = (a, b, h) => this.W(a, b, h);
+    const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "sk|" + key, x, y, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } }) });
+    const vis = (x, y, r, h) => this.visWorldPt(x, y, r, h);
+    const bot = this.ow && this.ow.on ? this.botX + this.botY : null, on = bot != null ? skRampAt(this.botX, this.botY) : null;
+    const under = (r, key) => on === r ? Math.min(key, bot - 0.5) : key;
+    { const Q = P.QPN, xm = (Q.x0 + Q.x1)/2, ym = (Q.yd + Q.yc + SK_QL)/2; if(vis(xm, ym, 260, 140)) item("qpn", xm, ym, under('qpn', skRampKey('qpn')), () => ent.qpn()); }
+    { const Q = P.QPW, xm = (Q.xd + Q.xc + SK_QL)/2, ym = (Q.y0 + Q.y1)/2; if(vis(xm, ym, 220, 140)) item("qpw", xm, ym, under('qpw', skRampKey('qpw')), () => ent.qpw()); }
+    { const X = P.BOX, xm = (X.r0 + X.r1)/2, ym = (X.y0 + X.y1)/2; if(vis(xm, ym, 200, 80)) item("box", xm, ym, under('box', skRampKey('box')), () => ent.funbox()); }
+    { const L = P.RAIL, xm = (L.x0 + L.x1)/2; if(vis(xm, L.y, 130, 60)) item("rail", xm, L.y, xm + L.y, () => ent.rail()); }
+    { const Y = P.PYR, xm = (Y.x0 + Y.x1)/2, ym = (Y.y0 + Y.y1)/2; if(vis(xm, ym, 200, 60)) item("pyr", xm, ym, under('pyr', skRampKey('pyr')), () => ent.pyramid()); }
+    P.FLOODS.forEach(([x, y], k) => { if(vis(x, y, 50, P.FLOOD_H + 20)) item("flood|" + k, x, y, x + y, () => ent.flood(k)); });
+    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 120)) item("sign", xm, S0.y, xm + S0.y, () => ent.sign()); }
+    /* the fence, each run in pieces of 120 or less keyed at their own middles (he rides along it), the gateways' posts */
+    for(const r of skFenceRuns()){
+      const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), n = Math.max(1, Math.ceil(L/120));
+      for(let i = 0; i < n; i++){ const u0 = i/n, u1 = (i + 1)/n, xm = r.x0 + (r.x1 - r.x0)*(u0 + u1)/2, ym = r.y0 + (r.y1 - r.y0)*(u0 + u1)/2;
+        if(vis(xm, ym, L/n/2 + 20, P.FENCE_H + 20)) item("fence|" + r.k + "|" + i, xm, ym, xm + ym, () => ent.fence(r, u0, u1)); }
+    }
+    for(const [x, y] of skGatePosts()) if(vis(x, y, 20, P.FENCE_H + 30)) item("gpost|" + x + "|" + y, x, y, x + y, () => ent.gatePost(x, y));
+    /* the bowl's near lip: after whoever is down in the bowl, before whoever stands on the pad in front of it */
+    const inBowl = on === 'bowl';
+    for(const r of skLipRuns()) if(vis(r.x, r.y, 60, 20)) item("lip|" + r.k, r.x, r.y, inBowl ? Math.max(r.key, bot + 0.5) : r.key, () => ent.lip(r));
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 560 })) };
+    this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
+  }
+  /* the park's ground, in the ground pass: the pad's smooth concrete and its low kerb, and the bowl let into it -- its
+     surface in rings from the rim to the floor, each facet shaded by the way it faces and drawn far to near (the ones
+     turned from the eye left out: the lip hides them), the pool tile under the rim, the coping along its far side (the
+     near side's is the lip's), the drain (the lawn round the pad is the park's own: no plate of grass) */
+  fillSkateGround(g){
+    const P = SK_PLAN;
+    if(Math.abs(this.camX - P.CX) + Math.abs(this.camY - P.CY) > (this.vpW() + this.vpH())/this.K + 2400) return;
+    const quad = (pts, col, a) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, a == null ? 1 : a); g.fillPoints(pts, true); };
+    const rect = (x0, x1, y0, y1, col, z) => quad([this.W(x0, y0, z), this.W(x1, y0, z), this.W(x1, y1, z), this.W(x0, y1, z)], col);
+    rect(P.X0, P.X1, P.Y0, P.Y1, 0xb3afa5, 0.5);                                         // the pad's edge band (under the fence)
+    rect(P.X0 + 40, P.X1 - 40, P.Y0 + 40, P.Y1 - 40, 0xcdcac2, 0.6);                     // the pad
+    rect(P.GX0, P.GX1, P.Y0, P.Y0 + 40, 0xcdcac2, 0.6); rect(P.GX0, P.GX1, P.Y1 - 40, P.Y1, 0xcdcac2, 0.6);   // through the gateways
+    /* the bowl: rings (u 0 at the rim, 1 at the floor's edge) by n round */
+    const B = P.BOWL, R = skBowlRim(), n = R.length, NR = 8, ring = [];
+    for(let k = 0; k <= NR; k++){
+      const s = 1 - (1 - B.s0)*k/NR, z = skBowlZs(s - 1e-6);
+      ring.push(R.map(p => ({ x: B.x + (p.x - B.x)*s, y: B.y + (p.y - B.y)*s, z: k === 0 ? 0 : z })));
+    }
+    const base = [0xbf, 0xbb, 0xb2], col = (m) => (Math.min(255, base[0]*m) << 16) | (Math.min(255, base[1]*m) << 8) | Math.min(255, base[2]*m);
+    const facets = [];
+    for(let k = 0; k < NR; k++) for(let i = 0; i < n; i++){
+      const a = ring[k][i], b = ring[k][(i + 1) % n], c = ring[k + 1][(i + 1) % n], d = ring[k + 1][i];
+      /* the facet's normal (from its two diagonals) */
+      const ux = c.x - a.x, uy = c.y - a.y, uz = c.z - a.z, vx = d.x - b.x, vy = d.y - b.y, vz = d.z - b.z;
+      let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      if(nz < 0){ nx = -nx; ny = -ny; nz = -nz; }
+      const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+      if(nx + ny + nz <= 0.02) continue;                                                   // turned from the eye
+      const lit = 0.78 + 0.22*nz + 0.12*ny - 0.08*nx, tile = k === 0;
+      facets.push({ d: (a.x + b.x + c.x + d.x + a.y + b.y + c.y + d.y)/4, pts: [a, b, c, d], c: tile ? 0x3f7fa3 : col(lit), tl: tile ? lit : 0 });
+    }
+    facets.sort((p, q) => p.d - q.d);
+    for(const f of facets){ const pts = f.pts.map(p => this.W(p.x, p.y, p.z)); if(f.tl){ quad(pts, 0x2f6f93); quad(pts, 0x4f8fb3, Math.max(0, Math.min(1, (f.tl - 0.75)*2))); } else quad(pts, f.c); }
+    /* the floor, the drain in its middle */
+    quad(ring[NR].map(p => this.W(p.x, p.y, p.z)), col(1.0));
+    { const pts = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; pts.push(this.W(B.x + Math.cos(a)*14, B.y + Math.sin(a)*14, -B.D + 0.3)); } quad(pts, 0x55524c); }
+    /* the coping along the far side of the rim (the lip's runs carry the near side's) */
+    { const K = this.K, nearIx = new Set(); for(const r of skLipRuns()) for(let i = 0; i + 1 < r.pts.length; i++) nearIx.add(R.indexOf(r.pts[i]));
+      for(let i = 0; i < n; i++){ if(nearIx.has(i)) continue; const a = this.W(R[i].x, R[i].y, 1.2), b = this.W(R[(i + 1) % n].x, R[(i + 1) % n].y, 1.2);
+        g.lineStyle(Math.max(1, 5.2*K), 0xdfe4e8, 1); g.lineBetween(a.x, a.y, b.x, b.y); } }
+  }
   /* PAW POINT DOG PARK (PP_PLAN): every still piece its own cached image at its own depth ('paw|' + what + where), the
      fence in pieces of 300 or less; the gate leaves live (they open), the banner live only while it drops; the roof over
      all of it, eased off while he is under it; the pavilion's lamp at night through the lamp kit */
@@ -93349,6 +93863,7 @@ class WorldScene extends Phaser.Scene {
     for(const blk of visBlocks) this.fillBlockGround(g, blk);
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
+    this.fillSkateGround(g);                // DRIFTWOOD SKATE PARK's pad and its bowl (SK_PLAN)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
@@ -93904,6 +94419,7 @@ class WorldScene extends Phaser.Scene {
     /* PAW POINT DOG PARK (queuePawPoint) */
     this.queuePawPoint(blockVQ);
     this.queueFireYard(blockVQ);            // THE FLATS FIRE TRAINING YARD (queueFireYard)
+    this.queueSkatePark(blockVQ);           // DRIFTWOOD SKATE PARK (queueSkatePark)
     /* VISTA RIDGE SECURITY POST (queueSecPost) */
     this.queueSecPost(blockVQ);
     cplQueueStatic(this, blockVQ);          // THE COSTA PALMA LETTERS, the stair, the ranger's kiosk; the floods at night
@@ -94120,6 +94636,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
+    skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
@@ -117445,7 +117962,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
