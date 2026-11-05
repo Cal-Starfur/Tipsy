@@ -116125,8 +116125,12 @@ class WorldScene extends Phaser.Scene {
         if(boxed) spdT = 0;
         target = Math.max(-MX, Math.min(MX, best));
         /* not into a wall or the road: the other way, or not at all */
+        /* (held up past stuckMs and on their way, they may step off the kerb to get round him: with the pavement walled in
+           and the road out of bounds the only "way" left was straight through him, and they vanished behind him and came out
+           the far side) */
+        const pushing = !!(w.obj._pushTill && t < w.obj._pushTill) && bands.some(bd => bd.bot);
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
-          return sf !== "road" && !W.solidAt(x, y, C.bodyR); };
+          return (pushing || sf !== "road") && !W.solidAt(x, y, C.bodyR); };
         if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
         /* (and no way round left that is clear of everyone -- the fallback above can step into his very path, Sir
            2026-10-30 -- then they wait in their lane for whoever is ahead, him or anyone) */
