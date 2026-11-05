@@ -7149,6 +7149,8 @@ function owBuildWorld(route){
     { const fm = fmSolidAt(x, y, R); if(fm) return fm; if(fm === false) return null; }
     /* PAW POINT DOG PARK: its fence, shut gates, agility set, fountain, pavilion and people (the rest is the park's lawn) */
     { const pp = ppSolidAt(x, y, R); if(pp) return pp; }
+    /* THE COMMUNITY GARDEN in Ferris Field: its beds, shed, bins and fence (the paths and the two gaps are open) */
+    { const gd = gardenSolidAt(x, y, R); if(gd) return gd; }
     /* THE FLATS FIRE TRAINING YARD: its fence, shut gate, tower, engine, burn prop, hydrants, poles and people */
     { const fy = fySolidAt(x, y, R); if(fy) return fy; }
     /* DRIFTWOOD SKATE PARK: its quarter pipes' decks and sides, the fun box's sides, the rail, its poles and people */
@@ -25558,6 +25560,40 @@ if(typeof window !== "undefined") window.ALMS_GATES = ALMS_GATES;
    rest at either end) or stands where they are put; where they are is a pure function of the clock (almsFolkAt), so
    there is nothing to spawn, move or save. Drawn through the one body (drawPersonHull), as the boardwalk's strollers
    (queueAlmsFolk); they step round him, and keep to the court's paths and the park's lawn, never through a gate. */
+/* ==================== THE COMMUNITY GARDEN (Sir, 2026-11-05: "build a community garden in the park behind the alms house") ====================
+   Ferris Field's south half, between the monument's plaza and the almshouses' back lane: a fenced allotment with a gate gap
+   at each end of its main path, twelve raised timber beds in two rows either side of it, a cross path, a tool shed, three
+   compost bins, rain barrels, a bench, a scarecrow and a bean teepee; sunflowers along the fence. Its frame is the park's
+   middle (a = world x, b = world y from it), so the camera sees the +a and +b faces. Drawn through the building cache, a piece
+   at a time, each at its own depth (queueGarden); what stands up is solid (gardenSolidAt), the paths and the gaps are not. */
+const GARDEN = (() => {
+  const ox = ALMS_PLAN.I*BLOCK + BLOCK/2, oy = (ALMS_PLAN.J - 1)*BLOCK + BLOCK/2;
+  const A0 = -720, A1 = 720, B0 = 380, B1 = 790, GAP = 60, rows = [[410, 530], [630, 750]];
+  const cols = [[-590, -440], [-420, -270], [-250, -100], [100, 250], [270, 420], [440, 590]];
+  const crops = ['lettuce', 'tomato', 'sunflower', 'pumpkin', 'corn', 'beans', 'cabbage', 'carrot', 'flowers', 'tomato', 'lettuce', 'sunflower'];
+  const beds = []; rows.forEach(([b0, b1], r) => cols.forEach(([a0, a1], c) => beds.push({ a0, a1, b0, b1, crop: crops[(r*6 + c + r*3) % crops.length] })));
+  const rects = [                                       // [name, a0, a1, b0, b1, h]: what stands up
+    ['shed', 620, 710, 400, 490, 150], ['bin', 640, 700, 560, 620, 50], ['bin', 640, 700, 630, 690, 50], ['bin', 640, 700, 700, 760, 50],
+    ['bench', -705, -655, 560, 650, 44], ['barrel', -700, -660, 700, 740, 46], ['barrel', -700, -660, 745, 785, 46], ['wheelbarrow', -700, -640, 440, 500, 40],
+    ['teepee', -50 + 0, 50, 0, 0, 0]
+  ].filter(r => r[5] > 0);
+  const fence = [                                       // [a0, a1, b0, b1]: thin runs, the two gate gaps left open
+    [A0, -GAP, B0 - 3, B0 + 3], [GAP, A1, B0 - 3, B0 + 3], [A0, -GAP, B1 - 3, B1 + 3], [GAP, A1, B1 - 3, B1 + 3],
+    [A0 - 3, A0 + 3, B0, B1], [A1 - 3, A1 + 3, B0, B1]
+  ];
+  return { ox, oy, A0, A1, B0, B1, GAP, beds, rects, fence };
+})();
+const GD_BLK = { type: "park", garden: true, x0: GARDEN.ox + GARDEN.A0 - 20, x1: GARDEN.ox + GARDEN.A1 + 20, y0: GARDEN.oy + GARDEN.B0 - 20, y1: GARDEN.oy + GARDEN.B1 + 20, cx: GARDEN.ox, cy: GARDEN.oy + 585 };
+function gardenSolidAt(x, y, R){
+  const G = GARDEN;
+  if(x < G.ox + G.A0 - R - 10 || x > G.ox + G.A1 + R + 10 || y < G.oy + G.B0 - R - 10 || y > G.oy + G.B1 + R + 10) return null;
+  const hit = (a0, a1, b0, b1) => fmBodyHits(x, y, R, { x0: G.ox + a0, x1: G.ox + a1, y0: G.oy + b0, y1: G.oy + b1 });
+  for(const b of G.beds) if(hit(b.a0, b.a1, b.b0, b.b1)) return GD_BLK;
+  for(const r of G.rects) if(hit(r[1], r[2], r[3], r[4])) return GD_BLK;
+  for(const f of G.fence) if(hit(f[0], f[1], f[2], f[3])) return GD_BLK;
+  if(fmBodyHits(x, y, R, { c: [G.ox - 345, G.oy + 690], r: 10 })) return GD_BLK;   // the scarecrow's pole
+  return null;
+}
 let _almsFolk = null;
 function almsFolkList(){
   if(_almsFolk) return _almsFolk;
@@ -25593,26 +25629,33 @@ function almsFolkList(){
     L.push(Object.assign({ kind, seed, pts, cum, L: cum[cum.length - 1], v, pause, ph, look: null }, extra || {}));
   };
   const wstand = (kind, seed, dx, dy, fx, fy, extra) => { const q = P(dx, dy); L.push(Object.assign({ kind, seed, still: true, x: q.x, y: q.y, th: Math.atan2(fy - dy, fx - dx), look: null }, extra || {})); };
-  const M = 520;                                              // round the monument's plaza
+  const M = 330;                                              // round the monument's plaza
   wroute('jogger', 0x42b1, [[-770, -770], [770, -770], [770, 770], [-770, 770], [-770, -770]], 0.085, 800, 0.05, { run: true });   // a jogger on the lawn's edge
   wroute('jogger', 0x42b2, [[720, 720], [-720, 720], [-720, -720], [720, -720], [720, 720]], 0.080, 800, 0.60, { run: true });
   wroute('yoga',   0x42b3, [[-M, -M], [M, -M], [M, M], [-M, M], [-M, -M]], 0.034, 3000, 0.15);
   wroute('woman',  0x42b4, [[M, -M], [M, M], [-M, M], [-M, -M], [M, -M]], 0.030, 3500, 0.50);
   wroute('elderMan',   0x42b5, [[-770, 0], [-340, 0]], 0.018, 7000, 0.35);
   wroute('elderWoman', 0x42b6, [[770, 120], [340, 120]], 0.017, 8000, 0.75);
-  wroute('tourist', 0x42b7, [[0, 770], [0, 340]], 0.030, 6000, 0.25);                                              // reading the plinth
+  wroute('tourist', 0x42b7, [[300, 250], [700, 250]], 0.030, 6000, 0.25);                                          // to the garden's gate
   wroute('tourist', 0x42b8, [[-60, -770], [-60, -340]], 0.028, 7000, 0.65);
   wroute('cane',   0x42b9, [[680, -680], [680, -300]], 0.016, 8000, 0.10);
-  wroute('walker', 0x42ba, [[-680, 680], [-680, 300]], 0.014, 9000, 0.40);
   wroute('kid',    0x42bb, [[-760, -300], [-520, -300], [-520, 300], [-760, 300], [-760, -300]], 0.065, 1200, 0.30);
   wroute('kid',    0x42bc, [[-760, 0], [-540, 0]], 0.070, 600, 0.70);
-  wstand('woman',  0x42bd, -640, 380, -640, 200);                                                                    // a parent watching them
-  wstand('man',    0x42be, -560, 400, -620, 220);
+  wstand('woman',  0x42bd, -640, 330, -640, 200);                                                                    // a parent watching them
+  wstand('man',    0x42be, -560, 340, -620, 220);
   wstand('tourist', 0x42bf, 300, 420, 0, 0);                                                                        // photographing the bronze
   wstand('yoga',   0x42c0, 700, -500, 790, -500);
   wstand('business', 0x42c1, -300, -560, 0, -560);                                                                  // lunch on the grass
-  wstand('elderWoman', 0x42c2, 740, 640, 780, 700);
-  wstand('elderMan',   0x42c3, 780, 660, 740, 640);
+  wstand('elderWoman', 0x42c2, 700, 300, 760, 340);
+  wstand('elderMan',   0x42c3, 740, 320, 700, 300);
+  /* ---- THE COMMUNITY GARDEN: its gardeners, on the paths and at the beds ---- */
+  wroute('elderWoman', 0x43c1, [[0, 400], [0, 770]], 0.016, 6000, 0.15);                                           // up and down the main path with her trug
+  wroute('woman',  0x43c2, [[-560, 580], [-80, 580]], 0.026, 4000, 0.45);                                          // along the cross path, west
+  wroute('man',    0x43c3, [[80, 580], [560, 580]], 0.026, 4500, 0.80);                                            // ...and east
+  wroute('kid',    0x43c4, [[-60, 400], [-60, 770]], 0.060, 2500, 0.60);                                           // a child with a watering can, running the path
+  wstand('elderMan', 0x43c5, -345, 580, -345, 520);                                                                  // looking over the lettuces
+  wstand('woman',  0x43c6, 345, 580, 345, 640);                                                                     // weeding the far beds
+  wstand('man',    0x43c7, 0, 790 + 60, 0, 700);                                                                    // at the south gate, with a barrow load
   return (_almsFolk = L);
 }
 function almsLook(p){ return p.look || (p.look = streetLook(p.seed, p.kind === 'kid' ? { type: 'kid' } : { type: p.kind })); }
@@ -93192,6 +93235,98 @@ class WorldScene extends Phaser.Scene {
       } });
     }
   }
+  /* THE COMMUNITY GARDEN (GARDEN): each piece cached at its own depth, sorted against him by where it stands */
+  queueGarden(vq){
+    const G = GARDEN, ox = G.ox, oy = G.oy;
+    if(!this.visWorldPt(ox, oy + 585, 900, 260)) return;
+    const wood = 0x9a7452, woodD = 0x6f5334, soil = 0x4a3524, soilL = 0x5a4430, path = 0xc8bda0, green = 0x5f9a4c, greenD = 0x477a3a;
+    const kit = g => this.lgKit(g, { x: ox, y: oy });
+    const item = (key, a, b, fn, dz) => vq.push({ depth: ox + a + oy + b + (dz || 0), fn: g => this.bcDraw(g, "gd|" + key, ox + a, oy + b, gg => fn(kit(gg))) });
+    /* the ground: soil all over, the main and cross paths over it, a flagged apron at each gate */
+    vq.push({ depth: ox + G.A0 + oy + G.B0 - 4, fn: g => this.bcDraw(g, "gd|ground", ox + G.A0, oy + G.B0, gg => {
+      const { P, q } = kit(gg), T = (a0, a1, b0, b1, z, c) => q([P(a0, b0, z), P(a1, b0, z), P(a1, b1, z), P(a0, b1, z)], c);
+      T(G.A0, G.A1, G.B0, G.B1, 0.6, 0x6b5a3c);
+      T(-45, 45, G.B0, G.B1, 0.9, path); T(G.A0, G.A1, 555, 605, 0.9, path);
+      for(let k = 0; k < 90; k++){ const u = ((k*37) % 97)/97, v = ((k*61) % 89)/89; T(G.A0 + 20 + u*(G.A1 - G.A0 - 40), G.A0 + 28 + u*(G.A1 - G.A0 - 40), G.B0 + 14 + v*(G.B1 - G.B0 - 28), G.B0 + 20 + v*(G.B1 - G.B0 - 28), 1.0, 0x5d4c32); }
+      T(-70, 70, G.B0 - 36, G.B0, 0.9, path); T(-70, 70, G.B1, G.B1 + 36, 0.9, path);
+    }) });
+    /* the beds: a timber frame, the soil, and its crop */
+    G.beds.forEach((bd, k) => item("bed" + k, (bd.a0 + bd.a1)/2, bd.b1, ({ P, q, sh, box, post, bar }) => {
+      box(bd.a0, bd.a1, bd.b0, bd.b1, 0, 30, sh(wood, 1.1), wood, woodD);
+      q([P(bd.a0 + 7, bd.b0 + 7, 30.4), P(bd.a1 - 7, bd.b0 + 7, 30.4), P(bd.a1 - 7, bd.b1 - 7, 30.4), P(bd.a0 + 7, bd.b1 - 7, 30.4)], soil);
+      const rn = (n) => ((k*131 + n*53) % 97)/97;
+      const rowsN = 3, colsN = Math.max(3, Math.round((bd.a1 - bd.a0)/34));
+      for(let r = 0; r < rowsN; r++) for(let c = 0; c < colsN; c++){
+        const a = bd.a0 + 16 + (bd.a1 - bd.a0 - 32)*(c + 0.5)/colsN, b = bd.b0 + 18 + (bd.b1 - bd.b0 - 36)*(r + 0.5)/rowsN, w = 0.8 + rn(r*9 + c)*0.4;
+        switch(bd.crop){
+          case 'lettuce': post(a, b, 9*w, 30, 42, 0x7fbf5a); post(a, b, 5*w, 42, 48, 0xa5d87a); break;
+          case 'cabbage': post(a, b, 11*w, 30, 46, 0x6fa86a); post(a, b, 7*w, 46, 52, 0xa8cfa0); break;
+          case 'carrot': post(a, b, 6*w, 30, 46, greenD); post(a + 4, b, 3, 46, 54, green); break;
+          case 'tomato': post(a, b, 1.6, 30, 96, 0x8a6a40); post(a, b, 9*w, 52, 88, green); post(a + 5, b + 4, 4, 60, 68, 0xd94a36); post(a - 4, b - 3, 4, 74, 82, 0xe2483d); break;
+          case 'sunflower': post(a, b, 2.4, 30, 116 + rn(c)*16, greenD); post(a, b + 1, 11, 126 + rn(c)*16, 134 + rn(c)*16, 0xf2c82a); post(a, b + 2, 5, 134 + rn(c)*16, 137 + rn(c)*16, 0x6b4a2a); break;
+          case 'corn': post(a, b, 3, 30, 110 + rn(r + c)*20, 0x7fa84a); post(a, b, 7*w, 70, 96, 0x6a9a3c); post(a, b, 2, 110 + rn(r + c)*20, 120 + rn(r + c)*20, 0xd8c070); break;
+          case 'pumpkin': post(a, b, 12*w, 30, 44, 0xe2842a); post(a + 9, b - 7, 6, 30, 38, green); break;
+          case 'beans': post(a, b, 1.6, 30, 100, 0x8a6a40); post(a, b, 6*w, 36, 94, 0x5f9a4c); post(a + 4, b, 3, 70, 78, 0xa5d87a); break;
+          default: post(a, b, 7*w, 30, 40, 0xf2b8c6 + ((r + c) % 3)*0x0b0800); post(a, b, 4, 40, 44, [0xf2c82a, 0xe2483d, 0xf6f0e4][(r + c) % 3]);
+        }
+      }
+    }));
+    /* the fence: posts, two rails, pickets; the nearer runs (south and east) drawn after the beds */
+    const run = (key, a0, a1, b0, b1) => item(key, (a0 + a1)/2, (b0 + b1)/2, ({ P, q, sh, post }) => {
+      const along = (a1 - a0) > (b1 - b0), n = Math.max(1, Math.round((along ? a1 - a0 : b1 - b0)/14)), z1 = 46, cA = (a0 + a1)/2, cB = (b0 + b1)/2;
+      for(let i = 0; i <= n; i++){ const t = i/n, a = along ? a0 + (a1 - a0)*t : cA, b = along ? cB : b0 + (b1 - b0)*t;
+        post(a, b, 1.8, 0, z1 - (i % 2)*4, i % 5 === 0 ? sh(wood, 1.1) : 0xe6dcc4); if(i % 5 === 0) post(a, b, 3.2, 0, z1 + 6, wood); }
+      const rail = z => along ? q([P(a0, cB, z + 3), P(a1, cB, z + 3), P(a1, cB, z), P(a0, cB, z)], woodD) : q([P(cA, b0, z + 3), P(cA, b1, z + 3), P(cA, b1, z), P(cA, b0, z)], woodD);
+      rail(14); rail(34);
+    });
+    G.fence.forEach((f, k) => { const along = (f[1] - f[0]) > (f[3] - f[2]), len = along ? f[1] - f[0] : f[3] - f[2], n = Math.max(1, Math.ceil(len/180));
+      for(let i = 0; i < n; i++){ const t0 = i/n, t1 = (i + 1)/n; run("fence" + k + "_" + i, along ? f[0] + (f[1] - f[0])*t0 : f[0] + 3, along ? f[0] + (f[1] - f[0])*t1 : f[1] - 3, along ? f[2] + 3 : f[2] + (f[3] - f[2])*t0, along ? f[3] - 3 : f[2] + (f[3] - f[2])*t1); } });
+    /* sunflowers along the west fence, the entrance posts and its board */
+    item("sun", -690, 600, ({ post }) => { for(let b = 410; b < 780; b += 52){ post(-696, b, 2.4, 0, 120, greenD); post(-696, b + 1, 11, 128, 136, 0xf2c82a); post(-696, b + 2, 5, 136, 139, 0x6b4a2a); } });
+    item("sign", 0, G.B0 - 6, ({ P, q, sh, box, post }) => {
+      post(-74, G.B0 - 6, 5, 0, 130, wood); post(74, G.B0 - 6, 5, 0, 130, wood);
+      box(-80, 80, G.B0 - 9, G.B0 - 3, 96, 124, 0xf3ecd8, 0xf3ecd8, 0xd8d0b8);
+      for(let i = 0; i < 5; i++){ post(-48 + i*24, G.B0 - 2, 6, 102, 118, [0x5f9a4c, 0xf2c82a, 0xe2483d, 0xf2c82a, 0x5f9a4c][i]); }
+    });
+    /* the shed: a boarded box, a pitched roof, a door, a window */
+    item("shed", 665, 490, ({ P, q, sh, box }) => {
+      const a0 = 620, a1 = 710, b0 = 400, b1 = 490, mid = (a0 + a1)/2;
+      box(a0, a1, b0, b1, 0, 96, sh(0xb59468, 1.1), 0xb59468, 0x8c6f4a);
+      for(let z = 14; z < 96; z += 14) q([P(a0, b1 + 0.4, z + 1), P(a1, b1 + 0.4, z + 1), P(a1, b1 + 0.4, z), P(a0, b1 + 0.4, z)], 0x8c6f4a);
+      q([P(a0 + 12, b1 + 0.6, 78), P(a0 + 44, b1 + 0.6, 78), P(a0 + 44, b1 + 0.6, 0), P(a0 + 12, b1 + 0.6, 0)], 0x4a3a2c);      // the door
+      q([P(a0 + 56, b1 + 0.6, 70), P(a1 - 10, b1 + 0.6, 70), P(a1 - 10, b1 + 0.6, 44), P(a0 + 56, b1 + 0.6, 44)], 0x9fc4d4);     // the window
+      q([P(a0 - 8, b1 + 6, 94), P(a1 + 8, b1 + 6, 94), P(a1 + 8, mid*0 + (b0 + b1)/2, 140), P(a0 - 8, (b0 + b1)/2, 140)], 0x7f8c91);
+      q([P(a1 + 8, b0 - 6, 94), P(a1 + 8, b1 + 6, 94), P(a1 + 8, (b0 + b1)/2, 140)], 0x6a766a);
+      q([P(a0 - 8, b0 - 6, 94), P(a1 + 8, b0 - 6, 94), P(a1 + 8, (b0 + b1)/2, 140), P(a0 - 8, (b0 + b1)/2, 140)], 0x6e7a80);
+    });
+    /* three compost bins, slatted, their heaps showing */
+    [560, 630, 700].forEach((b0, k) => item("bin" + k, 670, b0 + 60, ({ P, q, sh, box }) => {
+      box(640, 700, b0, b0 + 60, 0, 50, sh(wood, 1.05), wood, woodD);
+      q([P(646, b0 + 6, 50.4), P(694, b0 + 6, 50.4), P(694, b0 + 54, 50.4), P(646, b0 + 54, 50.4)], [0x5a4430, 0x6b5a3a, 0x4a6a3a][k]);
+      for(let z = 12; z < 50; z += 12) q([P(640, b0 + 60.4, z + 1.4), P(700, b0 + 60.4, z + 1.4), P(700, b0 + 60.4, z), P(640, b0 + 60.4, z)], woodD);
+    }));
+    /* a bench, two rain barrels, a wheelbarrow */
+    item("bench", -680, 605, ({ P, q, sh, box }) => {
+      box(-705, -655, 560, 650, 18, 24, sh(wood, 1.15), wood, woodD); box(-705, -699, 560, 650, 24, 52, sh(wood, 1.05), wood, woodD);
+      for(const b of [568, 640]) box(-702, -658, b, b + 6, 0, 18, 0x5d646b, 0x4f555b, 0x40454a);
+    });
+    [[720, -680], [765, -680]].forEach(([b, a], k) => item("barrel" + k, a, b + 20, ({ post, sh }) => { post(a, b + 20, 17, 0, 46, 0x3f6f9a); post(a, b + 20, 15, 46, 48, 0x7fb8e0); }));
+    item("barrow", -670, 470, ({ P, q, sh, box, post }) => {
+      box(-700, -640, 440, 500, 14, 30, 0x4f9a4f, 0x3f7a3f, 0x336633); post(-700, 470, 3, 0, 14, 0x40454a); post(-640, 470, 3, 0, 14, 0x40454a);
+      post(-662, 450, 6, 0, 8, 0x2b3036); post(-662, 490, 6, 0, 8, 0x2b3036);
+    });
+    /* the scarecrow in a bed, and a bean teepee by the cross path */
+    item("scare", -345, 690, ({ P, q, sh, box, post }) => {
+      post(-345, 690, 2.4, 30, 120, wood); q([P(-381, 690, 100), P(-309, 690, 100), P(-309, 690, 96), P(-381, 690, 96)], wood);
+      post(-345, 690, 9, 94, 100, 0xc8a050); post(-345, 690, 8, 100, 118, 0xe6d3a0); post(-345, 690, 12, 118, 122, 0x6b4a34); post(-345, 690, 6, 122, 134, 0x6b4a34);
+      post(-345, 690, 12, 56, 94, 0x4a6c9c);
+    });
+    item("teepee", -520, 520, ({ P, q, sh, bar, post }) => {
+      const cx = -520, cy = 520;
+      for(const [da, db] of [[-26, -26], [26, -26], [26, 26], [-26, 26]]) bar(cx + da, cy + db, 0, cx, cy, 126, 3, 0x8a6a40);
+      for(const [da, db] of [[-20, 20], [20, 20]]) post(cx + da, cy + db, 5, 30, 90, 0x5f9a4c);
+    });
+  }
   queueLifeguards(vq, grid){
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
     for(const s of lifeguardStations(grid)){
@@ -96492,6 +96627,7 @@ class WorldScene extends Phaser.Scene {
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     this.queueAlmsFolk(blockVQ, t);
+    this.queueGarden(blockVQ);
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); surfQueueStatic(this, blockVQ, r.grid); }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
