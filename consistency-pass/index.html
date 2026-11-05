@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 80db81d): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 332843d): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '80db81d'; })();</script>
+  window.TIPSY_TEST_BUILD = '332843d'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -17939,10 +17939,11 @@ function nssGarageSite(g){
     /* J: the lane it rejoins; tr: the car. Up to the door, a halt while it
        rolls up, in nose first; then backed out across the pavement into the
        street, swung round tail-first to face its lane's way, and off: its own
-       way out (noOut), not the site's mouth again */
+       way out (noOut), not the site's mouth again. (It halts no further out than the mouth: past it the path doubled back
+       on itself, and the car stood facing the street, then flipped round to go in.) */
     plan: (J, tr) => {
       const half = (tr && tr.len || 230)/2, dirJ = Math.sin(J.h) >= 0 ? 1 : -1;
-      const fx = g.faceX - g.inX*(half + 40), ix = g.faceX + g.inX*(half + 16);
+      const fx = g.faceX - g.inX*Math.min(half + 40, Math.abs(g.mouthX - g.faceX) - 2), ix = g.faceX + g.inX*(half + 16);
       return { noOut: true, inner: [
         { x: fx, y: g.yc, stop: 1300 },
         { x: ix, y: g.yc, stop: NSS_GARAGE.stay[0] + Math.random()*(NSS_GARAGE.stay[1] - NSS_GARAGE.stay[0]), rev: true, wait: true },
