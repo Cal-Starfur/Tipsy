@@ -26,7 +26,9 @@ correct something it doesn't cover, add a one-line rule to it.
    link from `tpGoHere()` (or `?go=<x>,<y>&view=<1-3>` / a `GO_SPOTS` name) and screenshot
    it to confirm it lands on the change. Write them as a `- Test:` line at the end of that
    change's heading in its checklist doc (the consistency pass:
-   `docs/state/CONSISTENCY_PASS.md`), on the test page's address. Add the same links as
+   `docs/state/CONSISTENCY_PASS.md`), on the test page's address. Give every link a
+   "Look for" title saying what Sir should check there, in plain words:
+   `[label](url "Look for: …")`; the spot slides show it under the photo. Add the same links as
    orange jump buttons under the feature's heading in the **Tipsy Test Checklist** artifact
    (https://claude.ai/artifact/F5tLzKgJNZAsFTzPguT1qW, `<p class="jump">` after its
    `.where` line; read it first, then republish to that URL). Photos of the spots: run
@@ -39,7 +41,10 @@ correct something it doesn't cover, add a one-line rule to it.
    with ArtifactData `query` on collection `fixes` (`status == open`; each has `label`,
    `go`, `note`; Sir's pencil marks are `marks`, strokes in 0..1 photo coordinates, and
    `markup`, a JPEG data URL of the photo with them drawn on: read it with `out_dir`,
-   decode and look at it), fix them, then set that note's `status` to `fixed`. Don't list them in chat
+   decode and look at it), fix them, then set that note's `status` to `ready` (never
+   `fixed`: only Sir marks a note fixed, after checking it in the game). At the start of a
+   session, delete the notes Sir has marked `fixed` (query `status == fixed`, delete each,
+   pinned to its version) and tell him in one line which ones went. Don't list them in chat
    each time: say they're logged. Links open in Safari (the home-screen app drops `?go=`).
 6. Wait. I test in the artifact. Do not commit or push until I say "push".
 
