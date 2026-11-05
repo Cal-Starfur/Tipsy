@@ -5,7 +5,7 @@
 "title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
 "spec": "docs/people-unification.md#plan-by-risk",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "People unification"
 },
 {
@@ -616,6 +616,17 @@
 "status": "built",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2",
 "group": "Built, awaiting your test"
+},
+{
+"id": "fx-test",
+"title": "demo",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Fixes from testing"
 }
-]
+],
+"meta": {
+"last": "build"
+}
 }

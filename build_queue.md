@@ -19,7 +19,7 @@ graph LR
 ```
 
 ## People unification
-- [ ] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
+- [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
 - [ ] `p1.2` One loopWalkStep for ballroom + derby walkers (identical positions) [docs/people-unification.md]
 - [ ] `p1.3` One pathAt replacing mallStaffAt + hospWalkerAt [docs/people-unification.md]
 - [ ] `p1.4` One talkRun for ballroom/derby chatter (visible change) [docs/people-unification.md]
@@ -117,3 +117,6 @@ graph LR
 - [?] `t-museum` Tidewater Maritime Museum (no drive, dimmer lanterns) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3) [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-trophies` Seabreeze Trophies + Pelican Drug walk-ins [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-rules` Shared rules: one door rule, meet walk, crew pace, no fades, order/solids/cache [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2) [docs/state/CONSISTENCY_PASS.md]
+
+## Fixes from testing
+- [ ] `fx-test` demo [found by test run]

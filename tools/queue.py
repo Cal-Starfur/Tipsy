@@ -4,7 +4,7 @@ and regenerates build_queue.md (graph for humans). Agents never need to read the
 import json, sys, pathlib
 R = pathlib.Path(__file__).resolve().parent.parent
 J = R / "build_queue.json"
-q = json.loads(J.read_text()); N = {n["id"]: n for n in q["nodes"]}
+q = json.loads(J.read_text()); q.setdefault("meta", {"last": "build"}); SH = R / "tools/test_sheet.json"; N = {n["id"]: n for n in q["nodes"]}
 
 def ready():
     return [n for n in q["nodes"] if n["status"] == "pending"
@@ -29,10 +29,24 @@ def md():
         L.append("")
     (R / "build_queue.md").write_text("\n".join(L))
 
+def sheet(): return json.loads(SH.read_text())
+
 if sys.argv[1:2] == ["next"]:
-    r = ready(); print(json.dumps(r[0]) if r else "NONE READY")
+    sh = sheet(); todo = [x for x in sh["sections"] if not x["reviewed"]]
+    r = ready(); r.sort(key=lambda n: n["group"] != "Fixes from testing")   # fixes first
+    if todo and (q["meta"]["last"] != "test" or not r):
+        print(json.dumps({"kind": "test", "section": todo[0]["id"], "title": todo[0]["title"], "unreviewed": [x["id"] for x in todo]}))
+    else: print(json.dumps(r[0]) if r else "NONE READY")
+elif sys.argv[1:2] == ["reviewed"]:      # reviewed <section-id>: test run done for that section
+    sh = sheet(); [x.update(reviewed=True) for x in sh["sections"] if x["id"] == sys.argv[2]]
+    SH.write_text(json.dumps(sh, indent=1)); q["meta"]["last"] = "test"; J.write_text(json.dumps(q, indent=0)); md()
+elif sys.argv[1:2] == ["fix"]:           # fix <id> "<what is wrong>" [spot-link]
+    q["nodes"].append({"id": sys.argv[2], "title": sys.argv[3], "spec": "found by test run", "deps": [], "status": "pending",
+                       "group": "Fixes from testing", **({"test": sys.argv[4]} if len(sys.argv) > 4 else {})})
+    J.write_text(json.dumps(q, indent=0)); md()
 elif sys.argv[1:2] in (["built"], ["signoff"]):
     N[sys.argv[2]]["status"] = "built" if sys.argv[1] == "built" else "done"
     if len(sys.argv) > 3: N[sys.argv[2]]["test"] = sys.argv[3]
+    if sys.argv[1] == "built": q["meta"]["last"] = "build"
     J.write_text(json.dumps(q, indent=0)); md()
 else: md()
