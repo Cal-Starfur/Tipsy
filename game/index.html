@@ -117696,9 +117696,20 @@ class WorldScene extends Phaser.Scene {
       this._crowdStat = { t, cell, bk };
     }
     const S = this._crowdStat;
+    const carsOnErrand = [];
+    for(const tr of (this.trafficActive(t) || [])){
+      if(!tr.errand) continue;
+      const a = errandWorldAt(tr, t);
+      if(!a || a.hidden || !(a.v > 0.01)) continue;   // (only while it moves: a parked one's own driver walks off its flank)
+      const hl = (tr.len || vehLen(tr.kind))/2, h = a.fc*Math.PI/2, cx = Math.cos(h), cy = Math.sin(h);
+      for(const k of [-0.6, 0, 0.6]) carsOnErrand.push({ x: a.wp.x + cx*hl*k, y: a.wp.y + cy*hl*k, r: 62 });
+    }
     const statNear = (x, y, out) => {
       const i = Math.floor(x/S.cell), j = Math.floor(y/S.cell);
       for(let a = -1; a <= 1; a++) for(let c = -1; c <= 1; c++){ const l = S.bk.get((i + a) + "," + (j + c)); if(l) for(const o of l) out.push(o); }
+      /* a car on an errand (backing out of a garage across the pavement) is in their way: the walkers step round it and slow for it
+         as for a post, as three rounds along its length (they were blind to it and walked into its tail) */
+      for(const c of carsOnErrand) if(Math.abs(c.x - x) < 520 && Math.abs(c.y - y) < 520) out.push(c);
       for(const o of W.sgNear(x, y)) out.push({ x: o.x, y: o.y, r: OW_HZ_R.signalpost });
       for(const o of W.poNear(x, y)){ const r = OW_HZ_R[o.kind] || OW_HZ_R.column; out.push({ x: o.x, y: o.y, r }); }
       return out;
