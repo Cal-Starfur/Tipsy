@@ -7170,6 +7170,7 @@ function owBuildWorld(route){
              the gate open. One that does not stays the solid cell it was. */
           { const _lv = hoodLandmarkVolAt(b);
             if(_lv){ const _p = _lv.fr.toLab(x, y); if(volBlockedAt(_lv.v, _p.a, _p.b, R, true)) return b;
+              if(_lv.name === ALMS_PLAN.name && almsGateBlocked(_p.a, _p.b, R)) return b;   // the almshouses' five iron gates, while they are shut (ALMS_GATES)
               if(typeof airGateBlocked === "function" && (airGateBlocked(x, y, R) || fleetGateBlocked(x, y, R))) return b;   // Sun Deck Airfield's gates, where their leaves are
               continue; } }
           /* and a rim landmark that declares one (the mall) is that volume */
@@ -25471,6 +25472,168 @@ function rimGateStep(scene, dt){
   }
 }
 if(typeof window !== "undefined") window.RIM_GATES = RIM_GATES;
+/* ==================== THE ALMSHOUSES' PLAN, GATES AND PEOPLE (Sir, 2026-11-05) ====================
+   "this place at Ferris Field ... needs a lot of attention ... lets do a make over and lets figure out a mission and a gate
+   situation in the front and through all the other side and back entrances. this park has no people either and that needs
+   to be remedied for the park and this building".
+
+   ALMS_PLAN is the one statement of the building's layout, in its cell's frame (a along the street, b 0 on the node and
+   negative into the cell): the draw (LIB, Ferris Taylor Cottages), its volume and its five gates all read it, so the iron
+   you see is the iron you hit. The cell is symmetric about GM, so the frame's mirror moves nothing but which faces the
+   camera sees: SA is the side of a it sees (+1 the high a), the one number the gates' places depend on.
+
+   THE GATES follow the other courtyards' rule (CY_GATES, RIM_GATES): shut and solid, they swing for him when he is near
+   one AND the building admits him -- debug on (the dev pass), or the trip he is on ends inside the lot (the pickup or
+   mission that first sends him there gets its gates opened by that test, with nothing else to wire) -- and close behind
+   him. Five ways in:
+     front   the carriage arch under the gatehouse's clock, on the street
+     near    the tunnel through the side range whose outer face the camera sees
+     far     the tunnel through the other side range, hung at its court mouth
+     backW, backE   a tunnel through each back lodge either side of the chapel, onto the back lane
+   each gate hangs at the mouth of its tunnel that the camera sees, and swings into the tunnel. */
+const ALMS_PLAN = (() => {
+  const GM = 1564, FGW = 190, SA = -1, CB0 = -2392, RD = 264;
+  const P = {
+    I: 8, J: 3, name: 'Ferris Taylor Cottages', SA,
+    CA0: 736, CA1: 2392, CB0, CB1: -736, GM, RD, H: 280, TH: 400,
+    GA0: GM - 260, GA1: GM + 260, FGW, FG0: GM - FGW, FG1: GM + FGW,         // the gatehouse, and its arch
+    SG0: -1664, SG1: -1464, CM: -1564,                                         // the side tunnels' span in b; the court's middle in b
+    CH0: GM - 260, CH1: GM + 260, CHB: -2020, CHH: 340,                        // the chapel: its wall's width, how far it stands into the court, its eaves
+    BW0: 1072, BW1: 1232, BE0: 2*GM - 1232, BE1: 2*GM - 1072,                  // the back tunnels
+    benches: [[GM - 236, -1564 - 236, false], [GM + 236, -1564 - 236, false], [GM - 236, -1564 + 236, false], [GM + 236, -1564 + 236, false]],
+    trees: [[1180, -1240], [2*GM - 1180, -1240], [1180, -1888], [2*GM - 1180, -1888]],
+    gateCentre(g){ return g.axis === 'b' ? { a: g.at, b: g.plane } : { a: g.plane, b: g.at }; },
+    /* the gate's rectangle in the cell's frame, solid while it is shut */
+    gateRect(g){ return g.axis === 'b' ? [g.at - g.hw, g.at + g.hw, g.plane - 8, g.plane + 8] : [g.plane - 8, g.plane + 8, g.at - g.hw, g.at + g.hw]; }
+  };
+  P.gates = [
+    { id: 'front', label: 'the carriage gate', axis: 'b', at: GM, hw: FGW, plane: P.CB1 - 24, swing: -1, h: 150 },
+    { id: 'backW', label: 'the west back gate', axis: 'b', at: (P.BW0 + P.BW1)/2, hw: (P.BW1 - P.BW0)/2, plane: CB0 + RD - 24, swing: -1, h: 124 },
+    { id: 'backE', label: 'the east back gate', axis: 'b', at: (P.BE0 + P.BE1)/2, hw: (P.BE1 - P.BE0)/2, plane: CB0 + RD - 24, swing: -1, h: 124 },
+    { id: 'near', label: 'the side gate', axis: 'a', at: (P.SG0 + P.SG1)/2, hw: (P.SG1 - P.SG0)/2, plane: SA > 0 ? P.CA1 - 24 : P.CA0 + 24, swing: -SA, h: 124 },
+    { id: 'far', label: 'the court side gate', axis: 'a', at: (P.SG0 + P.SG1)/2, hw: (P.SG1 - P.SG0)/2, plane: SA > 0 ? P.CA0 + RD - 24 : P.CA1 - RD + 24, swing: -SA, h: 124 }
+  ];
+  return P;
+})();
+const ALMS_GATES = new Map();                                  // gate id -> how open, 0..1
+const ALMS_ADMIT = { pass: false };                           // a mission sets pass to have its gates open for him (the way debug does)
+function almsFrame(){ return hoodLandmarkFrame(ALMS_PLAN.I, ALMS_PLAN.J); }
+function almsGateBlocked(a, b, R){
+  for(const g of ALMS_PLAN.gates){
+    if((ALMS_GATES.get(g.id) || 0) >= CY_GATE_SHUT) continue;
+    const r = ALMS_PLAN.gateRect(g);
+    if(a > r[0] - R && a < r[1] + R && b > r[2] - R && b < r[3] + R) return true;
+  }
+  return false;
+}
+function almsAdmits(){
+  if(OW_DBG || ALMS_ADMIT.pass) return true;
+  const n = typeof gpsNav !== "undefined" ? gpsNav : null;
+  return !!(n && Math.floor(n.tx / BLOCK) === ALMS_PLAN.I && Math.floor(n.ty / BLOCK) === ALMS_PLAN.J);   // the trip he is on ends inside the lot
+}
+function almsGateStep(scene, dt){
+  const A = ALMS_PLAN, fr = almsFrame(), bp = fr.toLab(scene.botX, scene.botY);
+  const far = bp.a < A.CA0 - 900 || bp.a > A.CA1 + 900 || bp.b > A.CB1 + 900 || bp.b < A.CB0 - 900;
+  if(far && !ALMS_GATES.size) return;
+  const k = 1 - Math.pow(0.92, dt / 16.7), want = new Map();
+  let admit = null;
+  if(!far) for(const g of A.gates){
+    const c = A.gateCentre(g);
+    if(Math.hypot(bp.a - c.a, bp.b - c.b) >= CY_GATE_NEAR) continue;
+    if(admit === null) admit = almsAdmits();
+    want.set(g.id, admit ? 1 : 0);
+    if(admit && OW_DBG && !ALMS_GATES.get(g.id)){ try { owDbgToast('gate: dev pass (debug on)'); } catch(e){} }
+  }
+  for(const id of new Set([...ALMS_GATES.keys(), ...want.keys()])){
+    const w = want.get(id) || 0;
+    let t = ALMS_GATES.get(id) || 0;
+    t += (w - t) * k;
+    if(Math.abs(w - t) < 0.004) t = w;
+    if(t === 0 && !w) ALMS_GATES.delete(id); else ALMS_GATES.set(id, t);
+  }
+}
+if(typeof window !== "undefined") window.ALMS_GATES = ALMS_GATES;
+/* ---------- THE PEOPLE: the court's residents and the park's visitors ----------
+   Ferris Field and the almshouses had nobody in them. Each person here keeps to a route (a ping-pong along a line, with a
+   rest at either end) or stands where they are put; where they are is a pure function of the clock (almsFolkAt), so
+   there is nothing to spawn, move or save. Drawn through the one body (drawPersonHull), as the boardwalk's strollers
+   (queueAlmsFolk); they step round him, and keep to the court's paths and the park's lawn, never through a gate. */
+let _almsFolk = null;
+function almsFolkList(){
+  if(_almsFolk) return _almsFolk;
+  const A = ALMS_PLAN, fr = almsFrame(), GM = A.GM, CM = A.CM, L = [];
+  const W = (a, b) => fr.toWorld(a, b);
+  const route = (kind, seed, labPts, v, pause, ph, extra) => {
+    const pts = labPts.map(([a, b]) => W(a, b)), cum = [0];
+    for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y));
+    L.push(Object.assign({ kind, seed, pts, cum, L: cum[cum.length - 1], v, pause, ph, look: null }, extra || {}));
+  };
+  const stand = (kind, seed, a, b, face, extra) => { const q = W(a, b), f = W(face[0], face[1]);
+    L.push(Object.assign({ kind, seed, still: true, x: q.x, y: q.y, th: Math.atan2(f.y - q.y, f.x - q.x), look: null }, extra || {})); };
+  /* ---- THE COURT: its residents ---- */
+  const R = 215;
+  route('elderWoman', 0x41a1, [[GM - R, CM - R], [GM + R, CM - R], [GM + R, CM + R], [GM - R, CM + R], [GM - R, CM - R]], 0.020, 5000, 0.10);    // her morning turn about the fountain
+  route('cane',       0x41a2, [[GM - 40, A.CB1 - A.RD - 70], [GM - 40, CM + 150]], 0.016, 7000, 0.55);                                           // out from the carriage arch to the fountain on her stick
+  route('walker',     0x41a3, [[A.CA0 + A.RD + 70, CM + 240], [A.CA0 + A.RD + 70, CM + 480]], 0.014, 9000, 0.30);                                  // along the front of the dwellings
+  route('elderMan',   0x41a4, [[GM + 40, CM - 150], [GM + 40, A.CHB + 50]], 0.018, 6000, 0.80);                                          // to the chapel and back
+  stand('elderWoman', 0x41a5, GM - 236, CM - 236 - 40, [GM - 236, CM - 236 + 40]);                                                                 // on a bench, talking
+  stand('elderMan',   0x41a6, GM - 236, CM - 236 + 38, [GM - 236, CM - 236 - 40]);
+  stand('elderMan',   0x41a7, GM + 236, CM + 236, [GM, CM]);                                                                                       // at the fountain
+  route('worker',     0x41a8, [[A.CA1 - A.RD - 110, CM - 380], [A.CA1 - A.RD - 110, CM - 120]], 0.026, 4000, 0.45);                              // the gardener, along the beds
+  route('kid',        0x41a9, [[GM - 120, CM - 180], [GM + 120, CM - 180], [GM + 120, CM + 180], [GM - 120, CM + 180], [GM - 120, CM - 180]], 0.060, 1500, 0.2);   // a grandchild running rings about the fountain
+  stand('business',   0x41aa, GM + 70, A.CHB + 46, [GM, A.CHB + 200]);                                                             // the chaplain at the chapel door
+  stand('business',   0x41ab, GM + 150, A.CB1 - A.RD - 60, [GM + 60, A.CB1 - A.RD - 200]);                                                       // the warden, by the gate
+  /* ---- THE STREET GATE: a caller waiting for the warden ---- */
+  stand('woman',      0x41ac, GM - 90, A.CB1 + 90, [GM, A.CB1 - 40]);
+  /* ---- FERRIS FIELD (cell 8,2, north of it): its visitors, round the monument and along the paths ---- */
+  const pk = { x: A.I*BLOCK + BLOCK/2, y: (A.J - 1)*BLOCK + BLOCK/2 }, P = (dx, dy) => ({ x: pk.x + dx, y: pk.y + dy });
+  const wroute = (kind, seed, dpts, v, pause, ph, extra) => {
+    const pts = dpts.map(([dx, dy]) => P(dx, dy)), cum = [0];
+    for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y));
+    L.push(Object.assign({ kind, seed, pts, cum, L: cum[cum.length - 1], v, pause, ph, look: null }, extra || {}));
+  };
+  const wstand = (kind, seed, dx, dy, fx, fy, extra) => { const q = P(dx, dy); L.push(Object.assign({ kind, seed, still: true, x: q.x, y: q.y, th: Math.atan2(fy - dy, fx - dx), look: null }, extra || {})); };
+  const M = 520;                                              // round the monument's plaza
+  wroute('jogger', 0x42b1, [[-770, -770], [770, -770], [770, 770], [-770, 770], [-770, -770]], 0.085, 800, 0.05, { run: true });   // a jogger on the lawn's edge
+  wroute('jogger', 0x42b2, [[720, 720], [-720, 720], [-720, -720], [720, -720], [720, 720]], 0.080, 800, 0.60, { run: true });
+  wroute('yoga',   0x42b3, [[-M, -M], [M, -M], [M, M], [-M, M], [-M, -M]], 0.034, 3000, 0.15);
+  wroute('woman',  0x42b4, [[M, -M], [M, M], [-M, M], [-M, -M], [M, -M]], 0.030, 3500, 0.50);
+  wroute('elderMan',   0x42b5, [[-770, 0], [-340, 0]], 0.018, 7000, 0.35);
+  wroute('elderWoman', 0x42b6, [[770, 120], [340, 120]], 0.017, 8000, 0.75);
+  wroute('tourist', 0x42b7, [[0, 770], [0, 340]], 0.030, 6000, 0.25);                                              // reading the plinth
+  wroute('tourist', 0x42b8, [[-60, -770], [-60, -340]], 0.028, 7000, 0.65);
+  wroute('cane',   0x42b9, [[680, -680], [680, -300]], 0.016, 8000, 0.10);
+  wroute('walker', 0x42ba, [[-680, 680], [-680, 300]], 0.014, 9000, 0.40);
+  wroute('kid',    0x42bb, [[-760, -300], [-520, -300], [-520, 300], [-760, 300], [-760, -300]], 0.065, 1200, 0.30);
+  wroute('kid',    0x42bc, [[-760, 0], [-540, 0]], 0.070, 600, 0.70);
+  wstand('woman',  0x42bd, -640, 380, -640, 200);                                                                    // a parent watching them
+  wstand('man',    0x42be, -560, 400, -620, 220);
+  wstand('tourist', 0x42bf, 300, 420, 0, 0);                                                                        // photographing the bronze
+  wstand('yoga',   0x42c0, 700, -500, 790, -500);
+  wstand('business', 0x42c1, -300, -560, 0, -560);                                                                  // lunch on the grass
+  wstand('elderWoman', 0x42c2, 740, 640, 780, 700);
+  wstand('elderMan',   0x42c3, 780, 660, 740, 640);
+  return (_almsFolk = L);
+}
+function almsLook(p){ return p.look || (p.look = streetLook(p.seed, p.kind === 'kid' ? { type: 'kid' } : { type: p.kind })); }
+function almsFolkAt(p, t, bx, by){
+  if(p.still) return { x: p.x, y: p.y, th: p.th, moving: false };
+  const leg = p.L / p.v, cyc = 2*(leg + p.pause);
+  const u = (t + p.ph*cyc) % cyc;
+  let s, moving = true, dir = 1;
+  if(u < leg) s = u*p.v;
+  else if(u < leg + p.pause){ s = p.L; moving = false; }
+  else if(u < 2*leg + p.pause){ s = p.L - (u - leg - p.pause)*p.v; dir = -1; }
+  else { s = 0; moving = false; }
+  let i = 1; while(i < p.cum.length - 1 && p.cum[i] < s) i++;
+  const a = p.pts[i - 1], b = p.pts[i], f = (s - p.cum[i - 1]) / ((p.cum[i] - p.cum[i - 1]) || 1);
+  let x = a.x + (b.x - a.x)*f, y = a.y + (b.y - a.y)*f;
+  const th = Math.atan2((b.y - a.y)*dir, (b.x - a.x)*dir);
+  /* step round him, the way the boardwalk's walkers do */
+  const dx = x - bx, dy = y - by, d = Math.hypot(dx, dy);
+  if(d < 110 && d > 0.01){ const k = (110 - d)/d*0.7; x += dx*k; y += dy*k; }
+  return { x, y, th, moving };
+}
 function hoodRimSiteOfLot(lot){
   for(const s of HOOD_RIM_SITES){
     if(s.axis === "x"){
@@ -69647,326 +69810,484 @@ marinaEntry(),
   }
 },
 {
-  name:'Ferris Taylor Cottages', xh: 300, base:'Almshouses', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
-  /* THE COURT IS DRIVEN (Sir, 2026-09-29: "i want to be able to drive in
-     there like with the houses"). Undeclared, the cell was one solid
-     block and the carriage arch was a picture of a way in. Now the eight
-     cottages, the two gate piers and the gate railings are the volume;
-     the arch and the court are ground. No foot mass -- the cottages are
-     separate buildings, so each is its own solid. Symmetric about GMID
-     1564, so the landmark frame's mirror does not move any of it. */
+  name:'Ferris Taylor Cottages', xh: 420, base:'Almshouses', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  /* THE ALMSHOUSES, REBUILT (Sir, 2026-11-05: "the building it self doesn't seem like it has enough character ... needs to
+     have some of its parts fused together ... the doors and windows on the inside are drawing through the building ...
+     a mission and a gate situation in the front and through all the other side and back entrances").
+
+     ONE BUILDING, not eight cottages in a ring: four corner towers, the gatehouse on the street, the chapel on the back
+     range, and the ranges of dwellings between them, all on the one plan (ALMS_PLAN). Every wall is shared, every eave is
+     the one course, and the roofs meet the towers' walls.
+
+     THE DRAW ORDER IS THE FIX FOR THE DOORS AND WINDOWS DRAWING THROUGH: an opening is painted ONLY on a face the camera
+     sees (the street face, the near side's outer face, the far side's court face, the back range's court face), after
+     the wall it is in and never before. The faces turned away are not painted at all, so there is nothing to bleed.
+
+     FIVE WAYS IN, each a tunnel through a range with an iron gate that swings (ALMS_GATES, almsGateStep): the carriage
+     gate on the street, one through each side range, and one either side of the chapel onto the back lane. They stay
+     shut and solid until the trip he is on ends inside (or debug is on), as the other courtyard gates. */
   vol: (() => {
-    const H = 380, bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: [[a0,b0],[a1,b0],[a1,b1],[a0,b1]] });
+    const A = ALMS_PLAN, R = volRect, { CA0, CA1, CB0, CB1, RD } = A;
+    const bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: R(a0, a1, b0, b1) });
+    const solids = [];
+    /* the four towers */
+    for(const [a0, b0] of [[CA0, CB1 - RD], [CA1 - RD, CB1 - RD], [CA0, CB0], [CA1 - RD, CB0]]) solids.push(bx('tower', a0, a0 + RD, b0, b0 + RD, A.TH + 172));   // (to the finial: the x-ray sees them as tall as they stand)
+    /* the street range: a dwelling either side of the gatehouse, and the gatehouse's two piers either side of its arch */
+    solids.push(bx('street range W', CA0 + RD, A.GA0, CB1 - RD, CB1, A.H + 80), bx('street range E', A.GA1, CA1 - RD, CB1 - RD, CB1, A.H + 80));
+    solids.push(bx('gatehouse W', A.GA0, A.FG0, CB1 - RD, CB1, A.TH + 160), bx('gatehouse E', A.FG1, A.GA1, CB1 - RD, CB1, A.TH + 160));
+    /* the side ranges, a tunnel through each */
+    for(const [a0, a1] of [[CA0, CA0 + RD], [CA1 - RD, CA1]]){
+      solids.push(bx('side range N', a0, a1, CB0 + RD, A.SG0, A.H + 80), bx('side range S', a0, a1, A.SG1, CB1 - RD, A.H + 80));
+    }
+    /* the back range: a tunnel through each wing and the chapel between */
+    for(const [u0, u1, g0, g1] of [[CA0 + RD, A.CH0, A.BW0, A.BW1], [A.CH1, CA1 - RD, A.BE0, A.BE1]]){
+      solids.push(bx('back lodge', u0, g0, CB0, CB0 + RD, A.H + 80), bx('back lodge', g1, u1, CB0, CB0 + RD, A.H + 80));
+    }
+    solids.push(bx('chapel', A.CH0, A.CH1, CB0, A.CHB, A.CHH + 150));
+    /* the court: the fountain, its four benches and the four trees */
+    solids.push({ name: 'fountain', c: [A.GM, A.CM], r: 94, h: 130, prop: true });
+    for(const [a, b, al] of A.benches) solids.push(al ? bx('bench', a - 52, a + 52, b - 17, b + 17, 44, true) : bx('bench', a - 17, a + 17, b - 52, b + 52, 44, true));
+    A.trees.forEach(([a, b], k) => solids.push({ name: 'tree ' + (k + 1), c: [a, b], r: 13, h: 212, prop: true }));
     return {
       foot: [[0,0],[0,0],[0,0]],
-      h: H,
-      solids: [
-        bx('street cottage L', 736, 1236, -1000, -736, H),  bx('street cottage R', 1892, 2392, -1000, -736, H),
-        bx('left cottage N', 736, 1000, -2392, -1752, H),   bx('left cottage S', 736, 1000, -1640, -1000, H),
-        bx('right cottage N', 2128, 2392, -2392, -1752, H), bx('right cottage S', 2128, 2392, -1640, -1000, H),
-        bx('back cottage L', 1000, 1528, -2392, -2128, H),  bx('back cottage R', 1600, 2128, -2392, -2128, H),
-        bx('gate pier L', 1344, 1404, -1000, -736, 250),    bx('gate pier R', 1724, 1784, -1000, -736, 250),
-        bx('gate rail L', 1236, 1344, -727, -717, 92),      bx('gate rail R', 1784, 1892, -727, -717, 92),
-        bx('pump', 1538, 1590, -1586, -1534, 134, true),
-        ...[[1180,-1240],[1950,-1240],[1180,-1880],[1950,-1880]].map(([a,b], k) => ({ name:'tree ' + (k+1), c:[a,b], r: 13, h: 212, prop: true }))
-      ],
-      zones: [{ name:'court', kind:'walk', poly: [[1000,-1000],[2128,-1000],[2128,-2128],[1000,-2128]] }],
-      marks: { gate: [1564, -736] }
+      h: A.TH + 172,
+      solids,
+      zones: [{ name:'court', kind:'walk', poly: R(CA0 + RD, CA1 - RD, CB0 + RD, CB1 - RD) }],
+      marks: { gate: [A.GM, CB1], door: [A.GM, CB1] }
     };
   })(),
   /* and the arch is reached from the road, like a house's garage */
-  drive:[{ side:'front', from:1404, to:1724, col:'#bdb299', arrows:'none' }],   // the court path's width and colour
-  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, arranged as three ranges round a court',
-  cTodo:'the three ranges, the gate piers and the court pump are volumes; the courtyard and the carriage arch are walkable',
-  head:'Three ranges round a court, the carriage arch on the street',
-  tags:['block landmark','the real BLOCK, 3128','ranges round a courtyard','carriage arch','dormers with cheeks'],
-  desc:'Almshouses as they are actually built: ranges of small dwellings round an open court, each with its own door, the side and back ranges opening onto the court and the street range reached through a carriage arch.',
+  drive:[{ side:'front', from:1404, to:1724, col:'#bdb299', arrows:'none' }],   // the carriage path's width and colour
+  wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground: one range-and-towers building round a court',
+  cTodo:'the towers, ranges, gatehouse and chapel are volumes; the court and the five tunnels are walkable; the gates swing (ALMS_GATES)',
+  head:'The Ferris Taylor almshouses: four towers, a gatehouse and a chapel round a paved court, five iron gates',
+  tags:['block landmark','the real BLOCK, 3128','towers and ranges round a courtyard','gatehouse with clock','chapel','five iron gates','dormers'],
+  desc:'Almshouses as a foundation really built them: one fused building round a court -- a tower at each corner, the gatehouse with its clock and carriage arch on the street, the chapel with its bellcote and rose window on the back range, and the ranges of small dwellings between, each with its own door, window box and dormer. A tunnel with an iron gate through each side range and either side of the chapel.',
+  /* ITS LAMPS AT NIGHT (the lamp kit): a lantern at each door on the street, the chapel's, and one over each gate's mouth */
+  lamps: () => { const A = ALMS_PLAN, L = [], col = 0xffe2a8;
+    for(const a of [1039, 2089, 816, 2312]) L.push({ a, b: A.CB1 + 8, z: 112, r: 70, col });
+    for(const a of [A.GM - 70, A.GM + 70]) L.push({ a, b: A.CHB + 10, z: 100, r: 70, col });
+    L.push({ a: A.GM, b: A.CB1 + 10, z: 354, r: 90, col: 0xfff2c8 });                      // the clock's lamp
+    for(const g of A.gates){ const c = A.gateCentre(g); L.push({ a: c.a, b: c.b, z: g.h + 36, r: 80, col }); }
+    return L; },
+  /* the gates' leaves, live (see ALMS_GATES); t is how open, 0 shut to 1 */
+  gateLeaves(g, t){
+    const A = ALMS_PLAN, iron = '#2b3036', gold = '#c9a24a', th = t*Math.PI*0.5, H = g.h, n = Math.max(4, Math.round(g.hw/14));
+    const ctr = A.gateCentre(g);
+    const at = (u, v, z) => g.axis === 'b' ? P(u, v, z) : P(v, u, z);        // u along the gate, v across it (toward the court / out)
+    const u0 = g.at - g.hw, u1 = g.at + g.hw;
+    for(const [hu, dir] of [[u0, 1], [u1, -1]]){
+      const eu = hu + dir*g.hw*Math.cos(th), ev = g.plane + g.swing*g.hw*Math.sin(th);
+      poly([at(hu, g.plane, H), at(eu, ev, H), at(eu, ev, 8), at(hu, g.plane, 8)], 'rgba(36,40,46,.20)');
+      /* the pickets, the rails, the spears */
+      for(let k = 1; k <= n; k++){
+        const f = k/(n + 0.4), pu = hu + (eu - hu)*f, pv = g.plane + (ev - g.plane)*f;
+        const p0 = at(pu, pv, 6), p1 = at(pu, pv, H - 6);
+        ctx.strokeStyle = iron; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+        const p2 = at(pu, pv, H + 4); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(p2.x, p2.y, 2.3, 0, 6.2832); ctx.fill();
+      }
+      for(const z of [H - 8, H*0.55, 12]){
+        const a0 = at(hu, g.plane, z), a1 = at(eu, ev, z);
+        ctx.strokeStyle = iron; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
+      }
+      /* the gate post it hangs on */
+      const pp = at(hu, g.plane, 0), pq = at(hu, g.plane, H + 22);
+      ctx.strokeStyle = shade(iron, 1.5); ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(pq.x, pq.y); ctx.stroke();
+      const pk = at(hu, g.plane, H + 28); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(pk.x, pk.y, 5, 0, 6.2832); ctx.fill();
+    }
+    if(ctr && g.lamp){ const q = at(g.at, g.plane, H + 40); ctx.fillStyle = '#f3dca0'; ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, 6.2832); ctx.fill(); }
+  },
   draw(p){
-    /* ============ THE FLATS PASS (2026-09-17) ============
-       Ferris Taylor Cottages. Sandstone goes whitewash, brown goes
-       sea blue, the red roof goes grey slate.
-       Geometry untouched: every edit is a colour. */
-    /* ============ AN ARCADE OF THREE DWELLINGS DOES NOT FIT 230 =======
-       The old entry got the doors right and the structure wrong. Three
-       shopDoors at W/6, W/2 and 5W/6 do fit -- surrounds 1.21..75.45,
-       77.88..152.12 and 154.55..228.79, with 10.4 of pier between -- and
-       its own comment says so. But that uses 222.7 of the 230, leaving
-       7.3 for FOUR arcade piers, so the piers were drawn r 11 at a 0,
-       76.7, 153.3 and 230:
+    const A = ALMS_PLAN, { CA0, CA1, CB0, CB1, RD, GM, H, TH } = A;
+    const RH = 80;                                                    // the ranges' roof rise (eaves at H, ridge at H + RH)
+    const wall = '#eee6d4', warm = '#e6dbc2', stone = '#c4b8a0', stoneD = '#9a8e78', trim = '#4d7f95', trimD = '#37647a',
+          roofc = '#7f8c91', ridgeC = '#a9b4b8', brick = '#a86a52', brickD = '#8f5a44', door = '#4a382c', dark = '#2a231c',
+          glassT = 'rgba(112,134,146,.9)', gold = '#c9a24a', iron = '#2b3036', leaf = '#5c8a52', leaf2 = '#6f9c5a';
+    /* WHICH FACES THE CAMERA SEES, asked of the projection and not assumed: sa is the side of a it sees (+1 the high a),
+       sb the same for b. The plan's gates are placed from them (ALMS_PLAN.SA), so the two must agree */
+    const o0 = P(0,0,0), pa0 = P(1,0,0), pb0 = P(0,1,0);
+    const sa = (pa0.y - o0.y) > 0 ? 1 : -1, sb = (pb0.y - o0.y) > 0 ? 1 : -1;
+    if(typeof window !== 'undefined' && window.__ALMS_LOG) console.log('ALMS faces', sa, sb, 'plan', A.SA);
+    const wallBox = (a0, a1, b0, b1, z0, z1, c) => { c = c || wall; box(a0, a1, b0, b1, z0, z1, shade(c, 1.04), c, shade(c, .84)); };
+    const word = (txt, a0, a1, ...rest) => { const m0 = MIRROR; MIRROR = m0 ? 0 : 2*GM; try { blockWordIn(txt, 2*GM - a1, 2*GM - a0, ...rest); } finally { MIRROR = m0; } };
 
-         pier 0  a -11.0.. 11.0   past the return
-         pier 1  a  65.7.. 87.7   through a door surround
-         pier 2  a 142.3..164.3   through a door surround
-         pier 3  a 219.0..241.0   past the return
-
-       AND THE ARCADE WAS INSIDE OUT, exactly like the Museum's portico:
-       the back face at F(0, W, 0, 118) sat at b +1, PROUD, while the
-       piers sat at b -8 -- nine units BEHIND the wall they are meant to
-       stand in front of. Tenth instance of wrong-sign-of-b.
-
-       THE ANSWER IS THE PLAN, not the elevation. Almshouses are a ROW
-       ROUND A COURT -- which the entry's own courtyard-gate tag already
-       said -- so they take a block cell and the dwellings face inward:
-
-         cell    a  736..2392   b -2392.. -736
-         street  a  736..2392   b -1000.. -736   with the carriage arch
-         left    a  736..1000   b -2392..-1000
-         right   a 2128..2392   b -2392..-1000
-         court   a 1000..2128   b -2128..-1000   1128 square
-
-       Each door now has a whole range to sit in instead of fighting a
-       pier for the same 76 units. The side and back ranges open onto the
-       court, which is what almshouses do; the street range keeps its
-       doors on the street because that face is the one the game's camera
-       actually sees, and a blank wall there would be accurate and
-       useless. The arch is the way through. */
-    const BLK = 3128, ROAD = 736;
-    const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);
-    const RD = 264, H = 300;
-    const SB0 = CB1 - RD, LA1 = CA0 + RD, RA0 = CA1 - RD;
-    const wall = '#eee6d4', trim = '#4d7f95', roofc = '#8a9699';
-    const glassT = 'rgba(122,138,146,.88)';
-    const GMID = (CA0+CA1)/2, GW = 190;
-    /* NO PAVEMENT ROUND THE CELL (2026-09-17, the fix the museum already
-       had: "drawing over the sidewalk"). This painted 0..BLK -- node to
-       node -- over half of every street round the lot and both pavements.
-       The city draws its own roads, kerbs and pavements; the entry's
-       ground is its lot, CA0..CA1, and nothing outside it. */
-    /* NO PAVING OVER THE LOT EITHER (Sir, 2026-09-29: "why dont they
-       have the grass from the park in their courtyard?"). The lot was
-       painted '#a99d86' node-edge to node-edge, which hid Ferris Field's
-       own grass under the court and between the cottages. The cell is
-       the park's, so its ground shows; only the path is laid on it. */
-    /* NO COURT LAWN (Sir, 2026-09-29: "sand piper cottages has its own
-       grass we need to get rid of that"). The court is the lot's own
-       paving, which is also what you drive in on; the path from the arch
-       stays as a lighter track across it. */
-    /* the drive carried on: through the arch and across the court to the
-       back row, the drive's own width and colour, so road to court is one
-       surface */
-    T(GMID-160, GMID+160, CB0+RD, CB1, 1.2, '#bdb299');        // the path from the arch
-
-    const items = [];
-
-    /* ============ AND THEY ARE COTTAGES, NOT RANGES ============
-       At Sir's direction, and it is how most foundations were actually
-       built: separate dwellings round a green rather than one long
-       terrace with doors punched in it. Each one is its own box with its
-       own roof and its own chimney, and the gaps between them are what
-       says there are sixteen households here rather than one building.
-
-         street  500 + 94 + gate 468 + 94 + 500 = 1656
-         sides   640 + 112 + 640                 = 1392
-         back    528 +  72 + 528                 = 1128
-
-       EIGHT, not sixteen. The first cut put sixteen 260-wide dwellings
-       on a 1656 cell, and at that pitch a row of separate cottages reads
-       as a terrace with gaps in it -- the gap has to be a fair fraction
-       of the house for the house to look detached. At roughly double the
-       width they read as eight buildings round a green, which is the
-       size an endowment of this kind actually was.
-
-       THE DOORS DO DIFFER, and it is worth writing down because it looks
-       like they do not. Street row onto the street; left row +a, right
-       row -a, back row +b -- all three onto the COURT. That is correct
-       almshouse planning, and because the court is the middle of the
-       picture it still reads as most doors pointing one way. Each
-       cottage also gets its window on the OTHER side of its door from
-       its neighbour's, so the pairs read as pairs. */
-    const cottage = (a0, a1, b0, b1, ax, fv, mir) => {
-      const along = ax === 'a', M = (mir === undefined ? 1 : mir);
-      /* WHICH SIDE OF ITS OWN BOX THE FACE IS ON DECIDES THE ORDER. This
-         camera sees the +a and +b sides, so a cottage's face is visible
-         only when that face is the HIGH coordinate of its own box. The
-         right range opens onto the court, which is on its LOW a -- so the
-         camera sees its back, and the door drawn after box() painted
-         straight through it. Correct position, wrong order: hidden faces
-         go before the box, visible ones after. */
-      const hidden = along ? (fv < b1) : (fv < a1);
-
-      const openings = () => {
-        if(along){
-          const c = (a0+a1)/2, d = fv > b0 ? 1 : -1;
-          F(c-M*140, c-M*44, 34, 128, glassT, trim, 2, fv + d*0.5);
-          F(c-M*140, c-M*44, 79, 83, trim, null, 0, fv + d*0.9);
-          F(c+M*22, c+M*94, 0, 132, '#3f342a', trim, 2, fv + d*0.5);
-          F(c+M*28, c+M*88, 96, 124, glassT, null, 0, fv + d*0.9);
-          F(c+M*84, c+M*88, 58, 70, '#c9a24a', null, 0, fv + d*1.3);
-          poly([P(c+M*12,fv,152),P(c+M*104,fv,152),
-                P(c+M*104,fv+d*26,138),P(c+M*12,fv+d*26,138)], shade(trim,1.1));
-          poly([P(c+M*12,fv+d*26,138),P(c+M*104,fv+d*26,138),
-                P(c+M*104,fv+d*26,130),P(c+M*12,fv+d*26,130)], shade(trim,.8));
-        } else {
-          const c = (b0+b1)/2, d = fv > a0 ? 1 : -1;
-          S(fv + d*0.5, c-M*140, c-M*44, 34, 128, glassT);
-          S(fv + d*0.9, c+M*22, c+M*94, 0, 132, '#3f342a');
-          poly([P(fv,c+M*12,152),P(fv,c+M*104,152),
-                P(fv+d*26,c+M*104,138),P(fv+d*26,c+M*12,138)], shade(trim,1.1));
-        }
+    /* ---------- A FACE: the plane a window or a door is painted on, with the way out of it ---------- */
+    const FC = (kind, plane, nrm) => {
+      const pt = (u, z, off) => kind === 'b' ? P(u, plane + nrm*(off || 0), z) : P(plane + nrm*(off || 0), u, z);
+      const pl = (pts, fill, stroke, lw) => poly(pts.map(([u, z, off]) => pt(u, z, off)), fill, stroke, lw);
+      const r = (u0, u1, z0, z1, fill, off, stroke, lw) => pl([[u0, z1, off], [u1, z1, off], [u1, z0, off], [u0, z0, off]], fill, stroke, lw);
+      /* a box standing out from the face by d */
+      const proj = (u0, u1, d, z0, z1, top, front, side) => {
+        const q0 = plane, q1 = plane + nrm*d, lo = Math.min(q0, q1), hi = Math.max(q0, q1);
+        if(kind === 'b') box(u0, u1, lo, hi, z0, z1, top, front, side); else box(lo, hi, u0, u1, z0, z1, top, front, side);
       };
-      /* and the back gets windows of its own, because a cottage has them
-         and because the right range would otherwise be 1392 of blank wall */
-      /* A BARE PANE IS NOT A WINDOW. The back windows were a single
-         translucent quad each -- no reveal behind, no surround, no cill
-         -- and S() takes no stroke, so on the 'b' faces they had not
-         even the trim outline the 'a' faces got. glassT is 88 per cent
-         opaque, so the wall read straight through and the pane looked
-         like a hole you could see the court through. They get the same
-         parts the front windows have: a dark reveal, the glass, a bar,
-         a surround and a cill. */
-      const back = () => {
-        const win = (plane, ax2, q0, q1) => {
-          const dk = '#2e2820';
-          if(ax2 === 'a'){
-            F(q0-5, q1+5, 38, 120, shade(wall,1.14), trim, 2, plane);
-            F(q0, q1, 44, 114, dk, null, 0, plane + (plane > b0 ? 0.4 : -0.4));
-            F(q0+2, q1-2, 46, 112, glassT, null, 0, plane + (plane > b0 ? 0.8 : -0.8));
-            F(q0+2, q1-2, 77, 81, trim, null, 0, plane + (plane > b0 ? 1.2 : -1.2));
-            F(q0-8, q1+8, 32, 38, trim, null, 0, plane + (plane > b0 ? 1.2 : -1.2));
-          } else {
-            const d = plane > a0 ? 1 : -1;
-            S(plane,           q0-5, q1+5, 38, 120, shade(wall,1.14));
-            S(plane + d*0.4,   q0, q1, 44, 114, dk);
-            S(plane + d*0.8,   q0+2, q1-2, 46, 112, glassT);
-            S(plane + d*1.2,   q0+2, q1-2, 77, 81, trim);
-            S(plane + d*1.2,   q0-8, q1+8, 32, 38, trim);
-          }
-        };
-        if(along){
-          const c = (a0+a1)/2, bb = (fv > b0 ? b0 : b1), o = (fv > b0 ? -0.5 : 0.5);
-          for(const q of [c-74, c+34]) win(bb + o, 'a', q, q+40);
-        } else {
-          const c = (b0+b1)/2, aa = (fv > a0 ? a0 : a1), o = (fv > a0 ? -0.5 : 0.5);
-          for(const q of [c-74, c+34]) win(aa + o, 'b', q, q+40);
-        }
-      };
+      const circ = (u, z, rad, fill, off) => { if(kind === 'b') faceCircle(u, plane + nrm*(off || 0), z, rad, fill); };
+      return { kind, plane, nrm, pt, pl, r, proj, circ };
+    };
+    /* a round-headed opening: jambs up to the springing z1, a half-ellipse over it */
+    const headed = (fc, c, hw, z0, z1, rise, fill, off, stroke, lw) => {
+      const pts = [[c - hw, z0, off], [c - hw, z1, off]];
+      for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([c + hw*Math.cos(t), z1 + rise*Math.sin(t), off]); }
+      pts.push([c + hw, z1, off], [c + hw, z0, off]);
+      fc.pl(pts, fill, stroke, lw);
+    };
+    /* ---------- THE PARTS OF A FRONT ---------- */
+    const window2 = (fc, c, ww, z0, z1, shutters) => {
+      const hw = ww/2;
+      fc.r(c - hw - 7, c + hw + 7, z0 - 7, z1 + 9, shade(stone, 1.12), 0.2);                               // the stone surround
+      fc.r(c - hw, c + hw, z0, z1, dark, 0.5);                                                             // the reveal
+      fc.r(c - hw + 3, c + hw - 3, z0 + 3, z1 - 3, glassT, 0.8);                                           // the glass
+      fc.r(c - 1.6, c + 1.6, z0 + 3, z1 - 3, trim, 1.1);                                                   // mullion
+      fc.r(c - hw + 3, c + hw - 3, (z0 + z1)/2 - 1.6, (z0 + z1)/2 + 1.6, trim, 1.1);                        // transom
+      fc.r(c - hw - 9, c + hw + 9, z1 + 3, z1 + 11, stone, 1.3);                                           // the lintel...
+      fc.r(c - 7, c + 7, z1 + 3, z1 + 15, shade(stone, 1.2), 1.5);                                         // ...and its keystone
+      fc.proj(c - hw - 10, c + hw + 10, 9, z0 - 10, z0 - 2, shade(stone, 1.1), stone, stoneD);             // the cill
+      if(shutters) for(const s of [-1, 1]){ const u0 = s < 0 ? c - hw - 22 : c + hw + 6; fc.r(u0, u0 + 16, z0, z1, trim, 0.9, trimD, 1);
+        for(let zz = z0 + 6; zz < z1; zz += 7) fc.r(u0 + 2, u0 + 14, zz, zz + 2.2, trimD, 1.0); }
+    };
+    const windowBox = (fc, c, ww, z) => {                                                                  // a box of flowers under a window
+      fc.proj(c - ww/2 - 8, c + ww/2 + 8, 14, z - 22, z - 6, '#7a4c34', '#8c5a3e', '#5f3a28');
+      const cols = ['#d94f6a', '#f2c94c', '#f7f2e4', '#e6683c'];
+      for(let k = 0; k < 7; k++){ const u = c - ww/2 - 4 + k*(ww + 8)/6; fc.r(u - 3, u + 3, z - 6, z + 3 + (k % 2)*3, k % 3 === 1 ? leaf2 : cols[k % 4], 1.2); }
+    };
+    const doorway = (fc, c, flip) => {
+      fc.r(c - 40, c + 40, 0, 156, shade(stone, 1.1), 0.2);                                                // the stone surround
+      headed(fc, c, 31, 0, 112, 30, dark, 0.5);                                                            // the opening
+      headed(fc, c, 27, 0, 110, 26, door, 0.8, shade(door, .7), 1);                                        // the door in it
+      fc.r(c - 1.4, c + 1.4, 0, 120, shade(door, .66), 1.0);                                                // its meeting stile
+      for(const s of [-1, 1]) fc.r(c + s*15 - 9, c + s*15 + 9, 22, 56, shade(door, 1.14), 1.0, shade(door, .64), 1);   // its panels
+      fc.r(c + (flip ? -13 : 13) - 2, c + (flip ? -13 : 13) + 2, 62, 70, gold, 1.3);                        // the handle
+      headed(fc, c, 22, 108, 112, 18, 'rgba(176,208,222,.78)', 1.1);                                       // the fanlight
+      fc.proj(c - 52, c + 52, 22, 0, 6, shade(stone, 1.12), stone, stoneD);                                // the step
+      /* the hood over it, on two brackets */
+      fc.proj(c - 52, c + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
+      for(const s of [-1, 1]) fc.proj(c + s*42 - 3, c + s*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);
+      fc.r(c + (flip ? 52 : -52) - 4, c + (flip ? 52 : -52) + 4, 100, 128, '#f3dca0', 1.4, iron, 1);       // its lantern
+    };
+    /* one dwelling's front: its door, its window with a flower box, the lantern; flip swaps them about its middle */
+    const dwelling = (fc, x0, x1, flip) => {
+      const c = (x0 + x1)/2, w = x1 - x0, s = flip ? -1 : 1;
+      doorway(fc, c - s*w*0.2, flip);
+      window2(fc, c + s*w*0.24, 56, 54, 130, true);
+      windowBox(fc, c + s*w*0.24, 56, 54);
+    };
+    /* a roof dormer on a gable range's visible slope, at u along it */
 
-      /* BOTH faces need ordering, not one. openings() sits on fv and
-         back() on the opposite face, so EXACTLY ONE of them is behind
-         the box on any given row -- and it is the back on three rows out
-         of four. Ordering only openings() left those three bleeding
-         through, which is the same fault one step along. */
-      if(hidden){ openings(); box(a0, a1, b0, b1, 0, H, shade(wall,1.04), wall, shade(wall,.86)); back(); }
-      else      { back();     box(a0, a1, b0, b1, 0, H, shade(wall,1.04), wall, shade(wall,.86)); openings(); }
-
-      /* THE EAVES COURSE GOES BEFORE THE ROOF. slab() is a solid BOX and
-         its top face is the full a x b rectangle at z = H -- the whole
-         roof footprint. Drawn after the slopes it painted over every one
-         of them, and only the strip rising above it survived. That is
-         what looked like missing roof pieces: the roof was there the
-         whole time, buried under its own eaves course. */
-      slab(a0-7, a1+7, H-9, H, b1+7, b0-7, trim);
-      if(along){
-        const m = (b0+b1)/2;
-        /* THE GABLE ENDS ARE WALL, not roof. In roofc they read as two
-           more slopes flying off the ends of the building instead of the
-           masonry carrying up to the ridge. The verge is the only roof
-           material that belongs on that edge. */
-        poly([P(a1,b0,H),P(a1,b1,H),P(a1,m,H+80)], shade(wall,1.04));
-        poly([P(a0,b0,H),P(a0,b1,H),P(a0,m,H+80)], shade(wall,.88));
-        poly([P(a0,b1,H),P(a1,b1,H),P(a1,m,H+80),P(a0,m,H+80)], shade(roofc,1.1));
-        poly([P(a0,b0,H),P(a1,b0,H),P(a1,m,H+80),P(a0,m,H+80)], shade(roofc,.82));
-        for(const [va, d] of [[a1, 1], [a0, -1]]){
-          poly([P(va,b1,H),P(va+d*9,b1,H),P(va+d*9,m,H+80),P(va,m,H+80)], shade(roofc,.72));
-          poly([P(va,b0,H),P(va+d*9,b0,H),P(va+d*9,m,H+80),P(va,m,H+80)], shade(roofc,.62));
-        }
-        const ca = (a0+a1)/2;
-        box(ca-22, ca+22, m-22, m+22, H+40, H+124, '#a86a52','#b8785e','#96604a');
-        slab(ca-26, ca+26, H+124, H+132, m+26, m-26, '#8f5540');
-        cyl(ca, m, H+132, H+152, 7, '#4a3a30');
-      } else {
-        const m = (a0+a1)/2;
-        poly([P(a0,b1,H),P(a1,b1,H),P(m,b1,H+80)], shade(wall,1.04));
-        poly([P(a0,b0,H),P(a1,b0,H),P(m,b0,H+80)], shade(wall,.88));
-        poly([P(a0,b0,H),P(a0,b1,H),P(m,b1,H+80),P(m,b0,H+80)], shade(roofc,.86));
-        poly([P(a1,b0,H),P(a1,b1,H),P(m,b1,H+80),P(m,b0,H+80)], shade(roofc,1.06));
-        for(const [vb, d] of [[b1, 1], [b0, -1]]){
-          poly([P(a0,vb,H),P(a0,vb+d*9,H),P(m,vb+d*9,H+80),P(m,vb,H+80)], shade(roofc,.72));
-          poly([P(a1,vb,H),P(a1,vb+d*9,H),P(m,vb+d*9,H+80),P(m,vb,H+80)], shade(roofc,.62));
-        }
-        const cb = (b0+b1)/2;
-        box(m-22, m+22, cb-22, cb+22, H+40, H+124, '#a86a52','#b8785e','#96604a');
-        slab(m-26, m+26, H+124, H+132, cb+26, cb-26, '#8f5540');
-        cyl(m, cb, H+132, H+152, 7, '#4a3a30');
+    /* ---------- A RANGE: the dwellings' run, its axis and its visible side ---------- */
+    const RG = (axis, u0, u1, v0, v1) => {
+      const vs = axis === 'a' ? sb : sa, vN = vs > 0 ? v1 : v0, vF = vs > 0 ? v0 : v1, vm = (v0 + v1)/2;
+      const L = axis === 'a' ? ((u, v, z) => P(u, v, z)) : ((u, v, z) => P(v, u, z));
+      const fc = FC(axis === 'a' ? 'b' : 'a', vN, vs);
+      const wb = (x0, x1, z0, z1, c) => axis === 'a' ? wallBox(x0, x1, v0, v1, z0, z1, c) : wallBox(v0, v1, x0, x1, z0, z1, c);
+      return { axis, u0, u1, v0, v1, vs, vN, vF, vm, L, fc, wb };
+    };
+    /* the roof over [x0, x1] of a range, gable ends only where asked (an end against a tower is hidden in its wall) */
+    const roof = (R, x0, x1, zb, rise, ends, over) => {
+      const { L, vN, vF, vm, vs } = R, ov = over === undefined ? 12 : over;
+      const half = Math.abs(vN - vm), drop = rise*ov/half, vo = vN + vs*ov, vfo = vF - vs*ov;
+      /* the far slope, then the near one; the eaves a little proud of the wall */
+      poly([L(x0, vfo, zb - drop), L(x1, vfo, zb - drop), L(x1, vm, zb + rise), L(x0, vm, zb + rise)], shade(roofc, .8));
+      poly([L(x0, vo, zb - drop), L(x1, vo, zb - drop), L(x1, vm, zb + rise), L(x0, vm, zb + rise)], shade(roofc, 1.06));
+      /* its slates: courses on the near slope */
+      for(let k = 1; k < 5; k++){ const f = k/5, vv = vo + (vm - vo)*f, zz = zb - drop + (rise + drop)*f;
+        const p0 = L(x0, vv, zz), p1 = L(x1, vv, zz); ctx.strokeStyle = 'rgba(40,52,58,.28)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke(); }
+      /* the ridge cap and the eaves trim */
+      const rp0 = L(x0, vm, zb + rise + 1.5), rp1 = L(x1, vm, zb + rise + 1.5); ctx.strokeStyle = ridgeC; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(rp0.x, rp0.y); ctx.lineTo(rp1.x, rp1.y); ctx.stroke();
+      const e0 = L(x0, vo, zb - drop), e1 = L(x1, vo, zb - drop); ctx.strokeStyle = trimD; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(e0.x, e0.y); ctx.lineTo(e1.x, e1.y); ctx.stroke();
+      /* a gable end that shows: the wall carried up to the ridge, its verge over it */
+      for(const [xe, show] of [[x0, ends && ends.lo], [x1, ends && ends.hi]]){
+        if(!show) continue;
+        poly([L(xe, v0r(R), zb), L(xe, v1r(R), zb), L(xe, vm, zb + rise)], shade(wall, xe === x1 ? .9 : 1.04));
+        poly([L(xe, vo, zb - drop), L(xe, vm, zb + rise), L(xe, vm, zb + rise - 6), L(xe, vo, zb - drop - 6)], shade(trimD, 1));
       }
     };
+    const v0r = R => Math.min(R.v0, R.v1), v1r = R => Math.max(R.v0, R.v1);
+    const chimney = (R, u, zb, big) => {
+      const w = big ? 26 : 20, c = R.vm;
+      const bx = (a0, a1, b0, b1, z0, z1, t, f, s) => R.axis === 'a' ? box(a0, a1, b0, b1, z0, z1, t, f, s) : box(b0, b1, a0, a1, z0, z1, t, f, s);
+      bx(u - w, u + w, c - w, c + w, zb - 10, zb + 74, brick, shade(brick, 1.06), brickD);
+      bx(u - w - 4, u + w + 4, c - w - 4, c + w + 4, zb + 74, zb + 84, shade(stone, 1.05), stone, stoneD);
+      const pa = R.axis === 'a' ? [u, c] : [c, u];
+      for(const d of (big ? [-11, 11] : [0])){ const q = R.axis === 'a' ? [pa[0] + d, pa[1]] : [pa[0], pa[1] + d]; cyl(q[0], q[1], zb + 84, zb + 108, 7, '#b4573e'); cyl(q[0], q[1], zb + 108, zb + 112, 8.5, '#8c4332'); }
+    };
+    /* a gable dormer at u on the visible slope: cheeks, front, its own little roof */
+    const dormer = (R, u) => {
+      const { vs, vN, vm, fc, L } = R, d0 = 46, d1 = 92, dw = 30;
+      const half = Math.abs(vN - vm), slope = RH/half;
+      const vf = vN - vs*d0, vb = vN - vs*d1, zf = H + slope*d0, zbk = H + slope*d1, zt = zf + 58;
+      /* the side that shows */
+      const sU = (R.axis === 'a' ? sa : sb) > 0 ? 1 : -1;
+      poly([L(u + sU*dw, vf, zf), L(u + sU*dw, vf, zt), L(u + sU*dw, vb, zt + 0), L(u + sU*dw, vb, zbk)], shade(wall, .86));
+      poly([L(u - dw, vf, zf), L(u + dw, vf, zf), L(u + dw, vf, zt), L(u - dw, vf, zt)], wall);                    // the front
+      poly([L(u - dw + 6, vf, zf + 8), L(u + dw - 6, vf, zf + 8), L(u + dw - 6, vf, zt - 6), L(u - dw + 6, vf, zt - 6)], glassT, shade(trim, 1), 1.4);
+      poly([L(u - 1.4, vf, zf + 8), L(u + 1.4, vf, zf + 8), L(u + 1.4, vf, zt - 6), L(u - 1.4, vf, zt - 6)], trim);
+      /* its roof: ridge back along the slope */
+      const zr = zt + 30;
+      poly([L(u - dw - 5, vf + vs*5, zt), L(u + dw + 5, vf + vs*5, zt), L(u, vf + vs*5, zr)], shade(wall, 1.02));                        // the gable
+      poly([L(u + sU*(dw + 5), vf + vs*5, zt), L(u, vf + vs*5, zr), L(u, vb, zr - 0), L(u + sU*(dw + 5), vb, zt - 0)], shade(roofc, sU > 0 ? 1.1 : .86));
+      poly([L(u - sU*(dw + 5), vf + vs*5, zt), L(u, vf + vs*5, zr), L(u, vb, zr), L(u - sU*(dw + 5), vb, zt)], shade(roofc, sU > 0 ? .86 : 1.1));
+    };
 
-    /* ---- the street row: two cottages and the carriage gate ---- */
-    for(const [a0, a1, m] of [[CA0, CA0+500, 1], [CA1-500, CA1, -1]])
-      items.push({ a:(a0+a1)/2, b:(SB0+CB1)/2, z:0,
-                   draw:() => cottage(a0, a1, SB0, CB1, 'a', CB1, m) });
-    items.push({ a:GMID, b:(SB0+CB1)/2, z:0, draw:() => {
-      /* the gate: two piers and a swept arch between them, in the gap the
-         middle cottage left. Nothing is drawn across it. */
-      for(const ga of [GMID-GW, GMID+GW])
-        box(ga-30, ga+30, SB0, CB1, 0, 250, shade(wall,1.08), shade(wall,1.0), shade(wall,.84));
-      const arc = (t, bb, ox, oz) => { const u = 1-t;
-        return P(u*u*(GMID-GW-ox) + 2*u*t*GMID + t*t*(GMID+GW+ox), bb,
-                 u*u*180 + 2*u*t*(276+oz) + t*t*180); };
-      const ring = (bb, ox, oz) => { const q = [];
-        for(let k=0;k<=14;k++) q.push(arc(k/14, bb, ox, oz));
-        q.push(P(GMID+GW+ox, bb, 180)); q.push(P(GMID-GW-ox, bb, 180)); return q; };
-      poly(ring(SB0, 0, -20), '#2e2820');
-      poly(ring(CB1-0.4, 0, -20), '#2e2820');
-      for(let k=0;k<14;k++){
-        const c0 = arc(k/14, CB1+1, 18, 0), c1 = arc((k+1)/14, CB1+1, 18, 0);
-        const d0 = arc(k/14, CB1+1, 0, -20), d1 = arc((k+1)/14, CB1+1, 0, -20);
-        poly([c0, c1, d1, d0], k % 2 ? shade(wall,1.16) : shade(wall,1.02));
+    /* ============ THE GROUND ============ */
+    const pave = '#c4b9a0', paveD = '#aca088', bed = '#6b5a3a';
+    /* the court's paths: from each gate to the fountain, and the ring round it */
+    T(GM - 70, GM + 70, A.CM, CB1 - RD, 1.0, pave);                                    // front gate to the fountain
+    T(GM - 70, GM + 70, CB0 + RD, A.CM, 1.0, pave);                                    // chapel's door to the fountain
+    T(CA0 + RD, GM, A.CM - 70, A.CM + 70, 1.0, pave);                                  // west gate
+    T(GM, CA1 - RD, A.CM - 70, A.CM + 70, 1.0, pave);                                  // east gate
+    T(GM - 150, GM + 150, A.CM - 150, A.CM + 150, 1.1, shade(pave, 1.06));            // the ring about the fountain
+    T(GM - 130, GM + 130, A.CM - 130, A.CM + 130, 1.15, paveD);
+    T(GM - 120, GM + 120, A.CM - 120, A.CM + 120, 1.2, shade(pave, 1.06));
+    /* a flagged walk along every range's fronts, so each door has its path */
+    T(CA0 + RD, CA0 + RD + 70, CB0 + RD, CB1 - RD, 0.9, pave); T(CA1 - RD - 70, CA1 - RD, CB0 + RD, CB1 - RD, 0.9, pave);
+    T(CA0 + RD, CA1 - RD, CB0 + RD, CB0 + RD + 70, 0.9, pave);
+    /* the tunnels' floors */
+    T(A.FG0, A.FG1, CB1 - RD, CB1, 1.2, '#a89d86');
+    for(const [a0, a1] of [[A.BW0, A.BW1], [A.BE0, A.BE1]]) T(a0, a1, CB0, CB0 + RD, 1.2, '#a89d86');
+    for(const [a0, a1] of [[CA0, CA0 + RD], [CA1 - RD, CA1]]) T(a0, a1, A.SG0, A.SG1, 1.2, '#a89d86');
+    /* flower beds under the windows of the two ranges that show their court face */
+    const bedRun = (a0, a1, b0, b1, seed) => {
+      T(a0, a1, b0, b1, 1.0, bed);
+      for(let k = 0; k < 26; k++){ const u = ((k*37 + seed) % 97)/97, v = ((k*61 + seed*3) % 89)/89;
+        const xa = a0 + 4 + u*(a1 - a0 - 8), xb = b0 + 4 + v*(b1 - b0 - 8);
+        T(xa, xa + 6, xb, xb + 6, 1.4, ['#d94f6a', '#f2c94c', '#f7f2e4', '#e6683c', '#8f6bb5'][k % 5]); }
+    };
+    const FAR_A = sa > 0 ? CA0 + RD : CA1 - RD;               // the far range's court face
+    if(sa > 0) bedRun(FAR_A + 70, FAR_A + 96, CB0 + RD + 100, A.SG0 - 10, 3); else bedRun(FAR_A - 96, FAR_A - 70, CB0 + RD + 100, A.SG0 - 10, 3);
+    if(sa > 0) bedRun(FAR_A + 70, FAR_A + 96, A.SG1 + 10, CB1 - RD - 100, 5); else bedRun(FAR_A - 96, FAR_A - 70, A.SG1 + 10, CB1 - RD - 100, 5);
+    bedRun(CA0 + RD + 100, A.BW0 - 6, CB0 + RD + 70, CB0 + RD + 96, 7); bedRun(A.BE1 + 6, CA1 - RD - 100, CB0 + RD + 70, CB0 + RD + 96, 9);
+
+    const items = [];
+    const it = (a, b, fn, z) => items.push({ a, b, z: z || 0, draw: fn });
+
+    /* ============ THE FOUR TOWERS ============ */
+    /* a tower: stone-quoined whitewash, a string course, a window on each face the camera sees, a hipped slate roof, a finial.
+       ext: which of its two seen faces stand free (not against a range) */
+    const tower = (a0, b0, extB, extA, door2, flip) => {
+      const a1 = a0 + RD, b1 = b0 + RD, cA = (a0 + a1)/2, cB = (b0 + b1)/2;
+      wallBox(a0, a1, b0, b1, 0, TH);
+      /* the stone plinth and the string course */
+      box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      box(a0 - 3, a1 + 3, b0 - 3, b1 + 3, 196, 206, shade(stone, 1.1), stone, stoneD);
+      box(a0 - 5, a1 + 5, b0 - 5, b1 + 5, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);
+      /* the corner quoins on the free edge */
+      const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
+      if(extB){ const f = FC('b', b1, 1);
+        for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
+          f.r(sa > 0 ? a1 - w : a0, sa > 0 ? a1 : a0 + w, z, z + 22, shade(stone, 1.04), 0.3, stoneD, 0.8); }
+        window2(f, cA, 52, 232, 318, false);
+        if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true);
+        windowBox(f, cA, 56, door2 ? 232 : 62);
       }
-      /* THE GATE ROOF WAS HALF A ROOF. It had one slope and one gable --
-         the +a slope and the street gable -- and nothing on the other
-         side, so the trim-topped eaves slab under it showed through as a
-         flat dark plate where the -a slope should be. Same shape as the
-         cottages' fault and the same fix: both slopes, both gables, and
-         the gables in WALL because they are the masonry carrying up to
-         the ridge. */
-      slab(GMID-GW-38, GMID+GW+38, 250, 272, CB1+8, SB0, shade(wall,1.1), null, shade(wall,1.16));
-      const GR = 318, GX0 = GMID-GW-38, GX1 = GMID+GW+38;
-      poly([P(GX0,CB1+8,272),P(GMID,CB1+8,GR),P(GX1,CB1+8,272)], shade(wall,1.06));
-      poly([P(GX0,SB0,272),P(GMID,SB0,GR),P(GX1,SB0,272)], shade(wall,.88));
-      poly([P(GX1,CB1+8,272),P(GMID,CB1+8,GR),P(GMID,SB0,GR),P(GX1,SB0,272)], shade(roofc,1.06));
-      poly([P(GX0,CB1+8,272),P(GMID,CB1+8,GR),P(GMID,SB0,GR),P(GX0,SB0,272)], shade(roofc,.84));
-      for(const [vb, d] of [[CB1+8, 1], [SB0, -1]]){          // the verge over each gable
-        poly([P(GX0,vb,272),P(GX0,vb+d*9,272),P(GMID,vb+d*9,GR),P(GMID,vb,GR)], shade(roofc,.7));
-        poly([P(GX1,vb,272),P(GX1,vb+d*9,272),P(GMID,vb+d*9,GR),P(GMID,vb,GR)], shade(roofc,.6));
+      if(extA){ const f = FC('a', sa > 0 ? a1 : a0, sa);
+        for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
+          f.r(b1 - w, b1, z, z + 22, shade(stone, 1.0), 0.3, stoneD, 0.8); }
+        window2(f, cB, 52, 232, 318, false);
+        window2(f, cB, 56, 62, 142, true); windowBox(f, cB, 56, 62);
       }
-      for(let k=0;k<4;k++) F(GMID-52+k*28, GMID-34+k*28, 256, 268, trim, null, 0, CB1+8.5);
-    }});
-    /* ---- the side rows, facing the court ---- */
-    for(const [b0, b1, m] of [[CB0, CB0+640, 1], [CB1-RD-640, CB1-RD, -1]]){
-      items.push({ a:CA0+RD/2, b:(b0+b1)/2, z:0,
-                   draw:() => cottage(CA0, CA0+RD, b0, b1, 'b', CA0+RD, m) });
-      items.push({ a:CA1-RD/2, b:(b0+b1)/2, z:0,
-                   draw:() => cottage(CA1-RD, CA1, b0, b1, 'b', CA1-RD, m) });
-    }
-    /* ---- the back row ---- */
-    for(const [a0, a1, m] of [[CA0+RD, CA0+RD+528, 1], [CA1-RD-528, CA1-RD, -1]])
-      items.push({ a:(a0+a1)/2, b:CB0+RD/2, z:0,
-                   draw:() => cottage(a0, a1, CB0, CB0+RD, 'a', CB0+RD, m) });
+      /* the hipped roof, its four faces, far two first */
+      const rb = TH, pk = TH + 138, ov = 2, ap = [cA, cB, pk];
+      const c0 = P(a0 - ov, b0 - ov, rb - 10), c1 = P(a1 + ov, b0 - ov, rb - 10), c2 = P(a1 + ov, b1 + ov, rb - 10), c3 = P(a0 - ov, b1 + ov, rb - 10), pa = P(ap[0], ap[1], ap[2]);
+      poly([c0, c1, pa], shade(roofc, .78)); poly([c0, c3, pa], shade(roofc, .84));
+      poly([c1, c2, pa], shade(roofc, sa > 0 ? 1.0 : .82)); poly([c3, c2, pa], shade(roofc, 1.08));
+      if(sa < 0) poly([c0, c3, pa], shade(roofc, 1.0));
+      for(const [x, y] of [[c0, c1], [c1, c2], [c2, c3], [c3, c0]]){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }
+      cyl(cA, cB, pk - 2, pk + 34, 2.6, gold); ball(cA, cB, pk + 38, 5, gold);
+    };
+    /* the far corners first: their keys put them behind, and the nearer ranges paint over their joins */
+    const NEAR_A = sa > 0 ? CA1 - RD : CA0;                 // the near side's tower column
+    const FARA = sa > 0 ? CA0 : CA1 - RD;
+    it(CA0 + RD/2, CB0 + RD/2, () => tower(CA0, CB0, false, false, false), 0);
+    it(CA1 - RD/2, CB0 + RD/2, () => tower(CA1 - RD, CB0, false, true, false), 0);
+    it(CA0 + RD/2, CB1 - RD/2, () => tower(CA0, CB1 - RD, true, false, true, false), 0);
+    it(CA1 - RD/2, CB1 - RD/2, () => tower(CA1 - RD, CB1 - RD, true, true, true, true), 0);
 
-    if(state.props){
-      items.push({ a:GMID, b:-1560, z:0, draw:() => {           // the court pump
-        box(GMID-26, GMID+26, -1586, -1534, 0, 20, shade(wall,1.02), shade(wall,.88), shade(wall,.8));
-        cyl(GMID, -1560, 20, 128, 11, trim);
-        ball(GMID, -1560, 134, 12, shade(trim,1.2));
-        tube(GMID, -1560, 104, GMID, -1520, 96, 4, trim);
-      }});
-      for(const [ta,tb] of [[1180,-1240],[1950,-1240],[1180,-1880],[1950,-1880]])
-        items.push({ a:ta, b:tb, z:0, draw:() => {
-          cyl(ta, tb, 0, 96, 13, '#6b5a3a');
-          for(let k=0;k<4;k++)
-            ball(ta + 40*Math.cos(k*1.57+0.4), tb + 40*Math.sin(k*1.57+0.4), 140, 40, ['#3f6b4a','#4e8058'][k%2]);
-          ball(ta, tb, 172, 38, '#4e8058');
-        }});
+    /* ============ THE STREET RANGE: two dwellings, the gatehouse between them ============ */
+    for(const [x0, x1, flip] of [[CA0 + RD, A.GA0, false], [A.GA1, CA1 - RD, true]]){
+      it((x0 + x1)/2, CB1 - RD/2, () => {
+        const R = RG('a', x0, x1, CB1 - RD, CB1);
+        R.wb(x0, x1, 0, H);
+        box(x0, x1, CB1 - RD, CB1 + 4, 0, 30, shade(stone, 1.06), stone, stoneD);
+        R.fc.r(x0, x1, 150, 158, stone, 0.3); R.fc.r(x0, x1, H - 12, H, shade(trim, 1.0), 0.5);
+        dwelling(R.fc, x0, x1, flip);
+        roof(R, x0, x1, H, RH, null);
+        dormer(R, (x0 + x1)/2 + (flip ? -30 : 30));
+        chimney(R, (x0 + x1)/2 + (flip ? 74 : -74), H + RH, false);
+      });
     }
-    for(const ga of [GMID-GW-30, GMID+GW+30])
-      items.push({ a:ga, b:CB1, z:0, draw:() => {
-        for(let k=0;k<5;k++) cyl(ga + (ga < GMID ? -1 : 1)*k*22, CB1+14, 0, 92, 3, trim);
-        tube(ga, CB1+14, 92, ga + (ga < GMID ? -1 : 1)*88, CB1+14, 92, 2.6, trim);
-      }});
 
+    /* ============ THE GATEHOUSE: the arch, the clock, the lettering, a hipped roof with its vane ============ */
+    it(GM, CB1 - RD/2, () => {
+      const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
+      /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
+      wallBox(g0, f0, CB1 - RD, CB1, 0, TH); wallBox(f1, g1, CB1 - RD, CB1, 0, TH); wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
+      box(g0 - 4, f0, CB1 - RD, CB1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD); box(f1, g1 + 4, CB1 - RD, CB1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      const f = FC('b', CB1, 1);
+      /* the arch: its stone ring, the dark opening, the voussoirs over it */
+      headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
+      headed(f, GM, A.FGW, 0, 182, 76, dark, 0.6);
+      for(let k = 0; k < 11; k++){
+        const t0 = Math.PI*(1 - k/11), t1 = Math.PI*(1 - (k + 1)/11), hw = A.FGW;
+        const q = (t, rr) => [GM + rr*Math.cos(t), 182 + (rr === hw ? 76 : 76*(rr/hw))*Math.sin(t) + (rr > hw ? 6 : 0), 0.9];
+        f.pl([q(t0, hw + 18), q(t1, hw + 18), q(t1, hw), q(t0, hw)], k % 2 ? shade(stone, 1.14) : shade(stone, .96), stoneD, 0.8);
+      }
+      f.r(GM - 12, GM + 12, 252, 270, shade(gold, .92), 1.1, shade(gold, .66), 1);
+      /* the buttresses either side, stepped */
+      for(const s of [-1, 1]){ const u = s < 0 ? g0 + 6 : g1 - 6;
+        f.proj(u - 14, u + 14, 10, 0, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
+      /* the lettering band, on a stone course over the arch */
+      f.r(g0 + 24, g1 - 24, 276, 312, shade(stone, 1.1), 0.5, stoneD, 1);
+      word('FERRIS TAYLOR ALMSHOUSES', g0 + 32, g1 - 32, 282, 306, CB1 + 1.2, trimD, null, 4);
+      /* the clock: a white face in a stone ring, its hands, the gold hours */
+      f.circ(GM, 354, 33, shade(stone, 1.12), 0.5); f.circ(GM, 354, 28, '#f6f1e2', 0.9);
+      for(let k = 0; k < 12; k++){ const t = k*Math.PI/6; f.r(GM + 22*Math.sin(t) - 1.6, GM + 22*Math.sin(t) + 1.6, 354 + 22*Math.cos(t) - 1.6, 354 + 22*Math.cos(t) + 1.6, gold, 1.2); }
+      { const hp = f.pt(GM, 354, 1.3), h1 = f.pt(GM + 4, 354 + 17, 1.3), h2 = f.pt(GM + 15, 354 - 5, 1.3);
+        ctx.strokeStyle = iron; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(hp.x, hp.y); ctx.lineTo(h1.x, h1.y); ctx.moveTo(hp.x, hp.y); ctx.lineTo(h2.x, h2.y); ctx.stroke(); }
+      /* a slit window either side of the clock */
+      for(const s of [-1, 1]) headed(f, GM + s*98, 9, 300, 332, 16, dark, 0.6);
+      box(g0 - 6, g1 + 6, CB1 - RD - 6, CB1 + 8, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);   // the cornice
+      /* the hipped roof, ridge along the street, with its vane */
+      const rb = TH, pk = TH + 150, ov = 2, rA0 = g0 + RD/2, rA1 = g1 - RD/2, rB = CB1 - RD/2;
+      const c0 = P(g0 - ov, CB1 - RD - ov, rb - 10), c1 = P(g1 + ov, CB1 - RD - ov, rb - 10), c2 = P(g1 + ov, CB1 + ov, rb - 10), c3 = P(g0 - ov, CB1 + ov, rb - 10);
+      const r0 = P(rA0, rB, pk), r1 = P(rA1, rB, pk);
+      poly([c0, c1, r1, r0], shade(roofc, .8));                                                    // the far slope
+      poly([c0, c3, r0], shade(roofc, sa > 0 ? .84 : 1.0)); poly([c1, c2, r1], shade(roofc, sa > 0 ? 1.0 : .84));
+      poly([c3, c2, r1, r0], shade(roofc, 1.08));                                                  // the street slope
+      for(const [x, y] of [[c0, c1], [c1, c2], [c2, c3], [c3, c0]]){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }
+      ctx.strokeStyle = ridgeC; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.moveTo(r0.x, r0.y); ctx.lineTo(r1.x, r1.y); ctx.stroke();
+      cyl(rA1, rB, pk, pk + 46, 2.6, iron); tube(rA1 - 22, rB, pk + 40, rA1 + 22, rB, pk + 40, 2, iron); poly([P(rA1 + 24, rB, pk + 40), P(rA1 + 38, rB, pk + 48), P(rA1 + 38, rB, pk + 32)], gold); ball(rA1, rB, pk + 50, 4.4, gold);
+    });
+
+    /* ============ THE SIDE RANGES: two runs of dwellings with a tunnel between, bridged over ============ */
+    const sideRange = (a0, a1, facing) => {
+      /* facing: 'out' for the range whose outer face the camera sees, 'in' for the one whose court face it sees, null for neither */
+      const R = RG('b', CB0 + RD, CB1 - RD, a0, a1), fc = R.fc;
+      const seg = (b0, b1, flipBase, dorm, chim) => it((a0 + a1)/2, (b0 + b1)/2, () => {
+        R.wb(b0, b1, 0, H);
+        box(a0 - 4, a1 + 4, b0, b1, 0, 30, shade(stone, 1.06), stone, stoneD);
+        if(facing){
+          fc.r(b0, b1, 150, 158, stone, 0.3); fc.r(b0, b1, H - 12, H, shade(trim, 1.0), 0.5);
+          const n = Math.round((b1 - b0)/232);
+          for(let k = 0; k < n; k++) dwelling(fc, b0 + (b1 - b0)*k/n, b0 + (b1 - b0)*(k + 1)/n, (k + flipBase) % 2 === 1);
+        }
+        roof(R, b0, b1, H, RH, null);
+        if(facing) for(const d of dorm) dormer(R, d);
+        for(const c of chim) chimney(R, c, H + RH, false);
+      });
+      const mid = (A.SG0 + A.SG1)/2;
+      seg(CB0 + RD, A.SG0, 0, [CB0 + RD + 116, A.SG0 - 116], [(CB0 + RD + A.SG0)/2]);
+      seg(A.SG1, CB1 - RD, 1, [A.SG1 + 116, CB1 - RD - 116], [(A.SG1 + CB1 - RD)/2]);
+      /* the bridge over the tunnel: its wall above the arch, the arch itself, the roof across */
+      it((a0 + a1)/2, mid, () => {
+        const hwG = (A.SG1 - A.SG0)/2;
+        R.wb(A.SG0, A.SG1, 150, H);
+        if(facing){
+          /* the opening in the face, the voussoirs and the keystone */
+          const arcPts = (rr, off) => { const pts = [[A.SG0, 0, off], [A.SG0, 118, off]]; for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([mid + rr*Math.cos(t), 118 + 54*Math.sin(t), off]); } pts.push([A.SG1, 118, off], [A.SG1, 0, off]); return pts; };
+          fc.pl(arcPts(hwG + 12, 0.25), shade(stone, 1.08));
+          fc.pl(arcPts(hwG, 0.6), dark);
+          fc.r(mid - 10, mid + 10, 178, 196, shade(gold, .92), 1.0, shade(gold, .66), 1);
+          fc.r(A.SG0 - 12, A.SG1 + 12, 150, 158, stone, 0.4);
+          fc.r(mid - 40, mid + 40, 214, 242, shade(stone, 1.1), 0.5, stoneD, 1);
+          fc.r(A.SG0 + 4, A.SG1 - 4, H - 12, H, shade(trim, 1.0), 0.5);
+        }
+        roof(R, A.SG0, A.SG1, H, RH, null);
+      });
+    };
+    sideRange(CA0, CA0 + RD, sa > 0 ? 'in' : 'out');
+    sideRange(CA1 - RD, CA1, sa > 0 ? 'out' : 'in');
+
+    /* ============ THE BACK RANGE: a lodge each side, a tunnel through each, and the chapel between ============ */
+    const backLodge = (x0, x1, g0, g1) => {
+      const R = RG('a', x0, x1, CB0, CB0 + RD), fc = R.fc, mid = (g0 + g1)/2;
+      it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); box(x0, g0, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
+        if(g0 - x0 > 60) window2(fc, (x0 + g0)/2, 36, 70, 140, true); roof(R, x0, g0, H, RH, null); });
+      it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); box(g1, x1, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
+        if(x1 - g1 > 60) window2(fc, (g1 + x1)/2, 36, 70, 140, true); roof(R, g1, x1, H, RH, null); });
+      it(mid, CB0 + RD/2, () => {
+        const hwG = (g1 - g0)/2;
+        R.wb(g0, g1, 150, H);
+        const arcPts = (rr, off) => { const pts = [[g0, 0, off], [g0, 112, off]]; for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([mid + rr*Math.cos(t), 112 + 44*Math.sin(t), off]); } pts.push([g1, 112, off], [g1, 0, off]); return pts; };
+        fc.pl(arcPts(hwG + 10, 0.25), shade(stone, 1.08)); fc.pl(arcPts(hwG, 0.6), dark);
+        fc.r(g0 - 10, g1 + 10, 150, 158, stone, 0.4); fc.r(g0, g1, H - 12, H, trim, 0.5);
+        roof(R, g0, g1, H, RH, null);
+      });
+      it((x0 + x1)/2, CB0 + 40, () => chimney(R, x0 + (x1 - x0)*0.18, H + RH, false), 40);
+    };
+    backLodge(CA0 + RD, A.CH0, A.BW0, A.BW1);
+    backLodge(A.CH1, CA1 - RD, A.BE0, A.BE1);
+
+    /* ============ THE CHAPEL: a taller nave, its gable on the court, the rose window, the door, the bellcote ============ */
+    it(GM, (CB0 + A.CHB)/2, () => {
+      const c0 = A.CH0, c1 = A.CH1, b0 = CB0, b1 = A.CHB, CHH = A.CHH, cA = GM;
+      wallBox(c0, c1, b0, b1, 0, CHH, '#f1e9d6');
+      box(c0 - 4, c1 + 4, b0, b1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      const f = FC('b', b1, 1), sd = FC('a', sa > 0 ? c1 : c0, sa);
+      /* the buttresses, the doorway in a pointed arch, the rose window in the gable */
+      for(const u of [c0 + 6, c1 - 6]) f.proj(u - 12, u + 12, 12, 0, CHH - 40, shade(stone, 1.1), stone, stoneD);
+      const pointed = (c, hw, z0, z1, rise, fill, off, stroke, lw) => { const pts = [[c - hw, z0, off], [c - hw, z1, off]];
+        for(let k = 1; k < 8; k++){ const t = k/8; pts.push([c - hw + hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
+        pts.push([c, z1 + rise, off]); for(let k = 7; k >= 1; k--){ const t = k/8; pts.push([c + hw - hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
+        pts.push([c + hw, z1, off], [c + hw, z0, off]); f.pl(pts, fill, stroke, lw); };
+      pointed(cA, 56, 0, 120, 78, shade(stone, 1.12), 0.25);
+      pointed(cA, 46, 0, 118, 66, dark, 0.6);
+      for(const s of [-1, 1]){ pointed(cA + s*23, 20, 0, 112, 36, shade(door, 1.0), 0.9, shade(door, .66), 1); f.r(cA + s*23 + (s < 0 ? 12 : -12) - 2, cA + s*23 + (s < 0 ? 12 : -12) + 2, 60, 70, gold, 1.3); }
+      f.r(cA - 1.6, cA + 1.6, 0, 150, shade(door, .66), 1.0);
+      f.proj(cA - 64, cA + 64, 26, 0, 8, shade(stone, 1.12), stone, stoneD);
+      for(const s of [-1, 1]) pointed(cA + s*128, 17, 70, 176, 60, glassT, 0.8, trim, 1.4);
+      for(const s of [-1, 1]) f.r(cA + s*128 - 1.4, cA + s*128 + 1.4, 70, 236, trim, 1.1);
+      /* the rose window: a stone ring, a coloured glass, spokes */
+      const rz = CHH + 78;
+      f.circ(cA, rz, 40, shade(stone, 1.1), 0.5); f.circ(cA, rz, 33, '#476f8c', 0.9); f.circ(cA, rz, 12, '#d9b24a', 1.1); f.circ(cA, rz, 5, '#c94f3a', 1.3);
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4, pp = f.pt(cA, rz, 1.2), qq = f.pt(cA + 33*Math.cos(t), rz + 33*Math.sin(t), 1.2);
+        ctx.strokeStyle = shade(stone, 1.1); ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(qq.x, qq.y); ctx.stroke(); }
+      for(let k = 0; k < 8; k++){ const t = k*Math.PI/4 + Math.PI/8; f.circ(cA + 22*Math.cos(t), rz + 22*Math.sin(t), 5.5, k % 2 ? '#c94f3a' : '#6aa6c0', 1.1); }
+      /* the side that shows: lancets between buttresses */
+      { const bm = b1 - 54; sd.r(bm - 14, bm + 14, 90, 198, dark, 0.5); sd.r(bm - 11, bm + 11, 94, 194, glassT, 0.8); sd.r(bm - 1.2, bm + 1.2, 94, 194, trim, 1.1);
+        sd.r(bm - 20, bm + 20, 198, 208, stone, 1.2); }
+      /* the nave's roof, ridge along b; the gable on the court */
+      const rb = CHH, rise = 140, half = (c1 - c0)/2, ov = 14;
+      const RC = RG('b', b0, b1, c0, c1);
+      roof(RC, b0, b1, rb, rise, { lo: false, hi: true }, 14);
+      /* the gable's stone coping and the cross at its apex */
+      cyl(cA, b1, rb + rise - 4, rb + rise + 4, 4, stone);
+      /* the bellcote on the gable: two posts, an arch, a bell, a little roof */
+      const bz = rb + rise - 6, bb1 = b1 - 18, bb0 = b1 - 60;
+      box(cA - 30, cA + 30, bb0, bb1, bz, bz + 62, shade(stone, 1.08), shade(stone, 1.0), shade(stone, .84));
+      const fb = FC('b', bb1, 1); headed(fb, cA, 16, bz + 8, bz + 36, 16, dark, 0.5);
+      cyl(cA, (bb0 + bb1)/2, bz + 24, bz + 44, 6, gold);
+      poly([P(cA - 38, bb1 + 3, bz + 62), P(cA + 38, bb1 + 3, bz + 62), P(cA, bb1 + 3, bz + 104)], shade(roofc, 1.08));
+      poly([P(cA - 38, bb0 - 3, bz + 62), P(cA - 38, bb1 + 3, bz + 62), P(cA, bb1 + 3, bz + 104), P(cA, bb0 - 3, bz + 104)], shade(roofc, .84));
+      poly([P(cA + 38, bb0 - 3, bz + 62), P(cA + 38, bb1 + 3, bz + 62), P(cA, bb1 + 3, bz + 104), P(cA, bb0 - 3, bz + 104)], shade(roofc, 1.0));
+      cyl(cA, (bb0 + bb1)/2, bz + 104, bz + 128, 2.4, gold); tube(cA - 12, (bb0 + bb1)/2, bz + 118, cA + 12, (bb0 + bb1)/2, bz + 118, 2.4, gold);
+    }, 0);
+
+    /* ============ THE COURT ============ */
+    /* the fountain: a stone basin, its water, a column and two bowls */
+    it(GM, A.CM, () => {
+      const cb = A.CM;
+      cyl(GM, cb, 0, 34, 94, shade(stone, 1.04), shade(stone, 1.14));
+      plateCircle(GM, cb, 34.5, 80, '#6aa6c0', shade(stone, .8), 2);
+      for(const [r, c] of [[56, 'rgba(255,255,255,.35)'], [34, 'rgba(255,255,255,.28)']]) plateCircle(GM, cb, 35, r, c, null, 0);
+      cyl(GM, cb, 34, 112, 14, stone); cyl(GM, cb, 100, 112, 38, shade(stone, 1.06), shade(stone, 1.14));
+      plateCircle(GM, cb, 112.5, 30, '#6aa6c0', stoneD, 1.5);
+      cyl(GM, cb, 112, 140, 6, stone); ball(GM, cb, 146, 8, shade(stone, 1.1));
+      for(let k = 0; k < 6; k++){ const t = k*Math.PI/3; tube(GM, cb, 146, GM + 24*Math.cos(t), cb + 24*Math.sin(t), 108, 1.6, 'rgba(210,236,246,.8)'); }
+    });
+    /* four stone benches round it, and the four trees in the court's corners */
+    for(const [ba, bb, al] of A.benches) it(ba, bb, () => {
+      const lo = al ? [ba - 52, ba + 52, bb - 17, bb + 17] : [ba - 17, ba + 17, bb - 52, bb + 52];
+      box(lo[0] + (al ? 6 : 0), lo[1] - (al ? 6 : 0), lo[2] + (al ? 0 : 6), lo[3] - (al ? 0 : 6), 0, 22, shade(stone, 1.08), stone, stoneD);
+      box(lo[0], lo[1], lo[2], lo[3], 22, 30, shade(stone, 1.16), shade(stone, 1.08), stoneD);
+    });
+    A.trees.forEach(([ta, tb]) => it(ta, tb, () => {
+      cyl(ta, tb, 0, 96, 13, '#6b5a3a');
+      for(let k = 0; k < 4; k++) ball(ta + 40*Math.cos(k*1.57 + 0.4), tb + 40*Math.sin(k*1.57 + 0.4), 140, 40, [leaf, '#4e8058'][k % 2]);
+      ball(ta, tb, 172, 38, '#4e8058');
+    }));
+    /* the gates' posts stand with the leaves (gateLeaves); here the lanterns over each mouth */
     depthSort(items);
-    kerb(p,'none');
+    kerb(p, 'none');
   }
 },
 {
@@ -87304,6 +87625,15 @@ CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwoo
       fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
     }
   } });
+/* the almshouses' court and Ferris Field's visitors (ALMS folk) */
+CITY_PEOPLE.add({ name: 'almshouse court and Ferris Field', where: 'Ferris Taylor almshouses and Ferris Field', solid: false,
+  each(scene, t, fn){
+    if(!scene.route || !scene.route.grid) return;
+    for(const p of almsFolkList()){
+      const q = almsFolkAt(p, t, scene.botX, scene.botY);
+      fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
+    }
+  } });
 CITY_PEOPLE.add({ name: 'derby racers and number 4', where: 'Tidewater Green', solid: true, each: null });
 CITY_PEOPLE.add({ name: 'landmark cast outside', where: 'cafes, parks, the pier', solid: true, each: null });
 
@@ -92837,6 +93167,20 @@ class WorldScene extends Phaser.Scene {
       } });
     }
   }
+  /* THE ALMSHOUSES' COURT AND FERRIS FIELD'S PEOPLE (almsFolkList): each a pure function of the clock */
+  queueAlmsFolk(vq, now){
+    const bx = this.botX, by = this.botY;
+    for(const p of almsFolkList()){
+      const q = almsFolkAt(p, now, bx, by);
+      if(!this.visProp("people", q.x, q.y, 0)) continue;
+      vq.push({ depth: q.x + q.y, fn: (g, tt) => {
+        const L = almsLook(p), ph = p.seed % 97;
+        this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.v ? Math.max(0.35, p.v/0.065) : 1) + ph) : 0, q.moving, 0, 0, null, L.uniform, false,
+          p.run && q.moving ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));
+      } });
+    }
+  }
   queueLifeguards(vq, grid){
     const span = (this.vpW() + this.vpH()) / this.K + 1200;
     for(const s of lifeguardStations(grid)){
@@ -96136,6 +96480,7 @@ class WorldScene extends Phaser.Scene {
     this.queueKartYard(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
+    this.queueAlmsFolk(blockVQ, t);
     if(WORLDGEN_COAST){ this.queueLifeguards(blockVQ, r.grid); this.queueDunes(blockVQ, r.grid); this.queueBoardwalkStrollers(blockVQ, r.grid, t); surfQueueStatic(this, blockVQ, r.grid); }
 
     /* CRIME SCENE bodies. Each cruiser and each officer is queued into
@@ -101359,7 +101704,17 @@ class WorldScene extends Phaser.Scene {
           if(_le && _le.live) for(const L of _le.live)
             vq.push({ depth: L._fp ? this.lmDepth(L.x + L.y + (L.d || 0), L) : L.x + L.y + (L.d || 0), fn: (g) => LIB.drawItem(_hl, g, G, this.K, { draw: () => L.draw(performance.now()) }, fr.flank) });
           /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps) */
-          if(_le && _le.lamps) this.queueLandmarkLamps(vq, _le, (a, b) => fr.toWorld(a, b)); }
+          if(_le && _le.lamps) this.queueLandmarkLamps(vq, _le, (a, b) => fr.toWorld(a, b));
+          /* THE ALMSHOUSES' GATES, which swing (ALMS_GATES): cached shut or open, live only while they move; each sorted at its
+             tunnel's mouth, over the building's own piece and across him as a footprint */
+          if(_le && _le.gateLeaves && _hl === ALMS_PLAN.name) for(const g of ALMS_PLAN.gates){
+            const c = ALMS_PLAN.gateCentre(g), q = fr.toWorld(c.a, c.b);
+            if(!this.visWorldPt(q.x, q.y, g.hw + 200, 300)) continue;
+            const t = ALMS_GATES.get(g.id) || 0, ra = ALMS_PLAN.gateRect(g), c0 = fr.toWorld(ra[0], ra[2]), c1 = fr.toWorld(ra[1], ra[3]);
+            const gi = g._it || (g._it = { _fp: { x0: Math.min(c0.x, c1.x) - 6, x1: Math.max(c0.x, c1.x) + 6, y0: Math.min(c0.y, c1.y) - 6, y1: Math.max(c0.y, c1.y) + 6, z1: g.h } });
+            const draw = gg => LIB.drawItem(_hl, gg, G, this.K, { draw: () => _le.gateLeaves(g, t) }, fr.flank);
+            vq.push({ depth: this.lmDepth(q.x + q.y + 0.6, gi, draw), fn: (gg) => (t === 0 || t === 1) ? this.bcDraw(gg, _lk + "|gate|" + g.id + "|" + t, q.x, q.y, draw) : draw(gg) });
+          } }
         /* ITS LIFT'S DOORS, live, and the canopy over them (as the mall
            garage's, see queueExteriorLot): over him while he is in the car,
            under him while he stands in front of them */
@@ -119700,7 +120055,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
