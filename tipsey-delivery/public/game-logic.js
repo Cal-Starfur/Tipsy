@@ -20018,7 +20018,7 @@ const TIX_FORNO = { a: 2040, b: 352 };   // Forno Marino's counter front in the 
 const TIX_CREDITS = 30, TIX_TOPUP = { credits: 10, cents: 500 };
 function tixState(){ try { return JSON.parse(localStorage.getItem(TIX_KEY) || '{}') || {}; } catch(e){ return {}; } }
 function tixSave(st){ try { localStorage.setItem(TIX_KEY, JSON.stringify(st)); } catch(e){} }
-function tixPass(){ return !!tixState().pass; }
+function tixPass(){ return !!tixState().pass || !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('arcade-pass')); }
 function tixCredits(){ return tixState().credits | 0; }
 /* a credit for a game; none left, PLAY tops the card up from his wallet */
 function tixSpend(){
@@ -20112,6 +20112,11 @@ function tixFinish(){
   hospSayCard(null); cineBars(false);
   if(TIX.who){ TIX.who.has = 'pizza'; TIX.who.leave = scene.time.now; }
   const st = tixState(); st.pass = true; st.credits = (st.credits | 0) + TIX_CREDITS; tixSave(st);
+  /* a MISSION, like the mall's front doors ('mall-password'): the errand is recorded in missionsCompleted */
+  if(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted){
+    tpProfile.missionsCompleted.add('arcade-pass');
+    if(typeof tpSaveProfile === "function") tpSaveProfile();
+  }
   TIX.stage = 'done';
   tixNavClear(scene);
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
