@@ -108959,7 +108959,7 @@ class WorldScene extends Phaser.Scene {
       if(!p || !p.rt) return false;
       const tk = "__tsp" + (ts.n++);
       p.rt.saveTexture(tk);
-      e = { tk, rt: p.rt, ox: p.ox, oy: p.oy, C: p.C, occ: p.occ, used: 0 };
+      e = { tk, rt: p.rt, ox: p.ox, oy: p.oy, C: p.C, occ: p.occ, used: bc.frame };   // (this frame's, so the cap below can never evict the sprite it was just painted for: its texture gone, the car drew as Phaser's missing-texture box, black with a green line)
       ts.map.set(key, e);
       /* past the cap, the least recently used go (never one placed this frame) */
       if(ts.map.size > TS.max){
