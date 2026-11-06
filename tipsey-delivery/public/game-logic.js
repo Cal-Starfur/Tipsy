@@ -3812,9 +3812,9 @@ function hillNotchToe(x, toePlain, B, gap, mE){
   let out = toePlain;
   for(const s of HOOD_RIM_SITES){
     if(s.name !== "Maritime Mall" && s.name !== "Tide Pool Elementary") continue;
-    const nt = s.notchTo || s.to, d = x < s.from ? s.from - x : x > nt ? x - nt : 0;
-    if(d >= mE) continue;
-    const mToe = s.at + s.out*s.depth - gap*B, t = d/mE, e = t*t*(3 - 2*t);
+    const nt = s.notchTo || s.to, d = x < s.from ? s.from - x : x > nt ? x - nt : 0, me = s.notchEase || mE;
+    if(d >= me) continue;
+    const mToe = s.at + s.out*s.depth - gap*B, t = d/me, e = t*t*(3 - 2*t);
     out = Math.min(out, mToe + (toePlain - mToe)*e);
   }
   return out;
@@ -23728,7 +23728,7 @@ function hoodLandmarkAtXY(x, y){
    tower keep the 940. */
 const MALL_DEP = 1880;
 const HOOD_RIM_SITES = [
-  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 6900,
+  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 8300, notchEase: 400,
     icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
   /* Maritime Mall (Sir, 2026-09-30): the three rim lots before the school,
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
@@ -23764,21 +23764,22 @@ const HOOD_RIM_SITES = [
 const TPE_PLAN = {
   LEN: 9384, DEP: 1880,                          // (the mall's depth: the hills are notched back behind it, hillNotchToe)
   WA: 1200, WB: 8184, MA0: 3200, MA1: 6200,      // the wings' outer ends and the main block
-  BB0: -840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
-  FB: -14, FBK: -1840, FBK2: -926, BX: 6900,     // the railing's pavement line, its back run behind the field (FBK), its back run behind the east wing
-                                                 // (FBK2), and the cross fence between them at a BX
-  /* THE BACK FIELD (2026-11-06, "as deep as the mall"): behind the range, inside the back railing -- a 400 m-ish running track round a
-     packed-earth pitch with a goal at each end, a row of raised garden beds behind the west wing, two portable classrooms, a row of
-     trees along the back fence. No lawn: earth, the terracotta track, planting only in beds. */
-  field: { cx: 3900, cy: -1385, rx: 2560, ry: 400, tw: 70 },
-  beds: [[220, -935], [380, -935], [540, -935], [700, -935], [860, -935], [1020, -935]],
-  portables: [[150, 640, -1650, -1520], [760, 1250, -1650, -1520]],
-  backTrees: [420, 980, 1540, 2100, 2660, 3220, 3780, 4340, 4900, 5460, 6020, 6580],
+  BB0: -1840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
+  FB: -14, FBK: -1872, FBK2: -1360, BX: 8200,    // the railing's pavement line, its back run (32 behind the building), its back run behind the east end
+                                                 // (FBK2: past it the foothills' first shelf begins), and the cross fence between them at a BX
+  /* THE BUILDING IS AS DEEP AS THE MALL (Sir, 2026-11-06: "i wanted the building that deep not the yard ... line up building to building
+     with the mall"): its front stays at BB1 and its back wall is the mall's (MALL_PLAN.BB, -1840): the range is 1540 deep. Beside it, the
+     two end strips: the west one is a school garden (raised beds, two portable classrooms, a row of trees), the east one a track and
+     pitch with a goal at each end. No lawn: earth, the terracotta track, planting only in beds. */
+  field: { cx: 8780, cy: -830, rx: 520, ry: 440, tw: 55 },
+  beds: [[200, -520], [360, -520], [520, -520], [200, -660], [360, -660], [520, -660]],
+  portables: [[110, 530, -1130, -1000], [110, 530, -1330, -1200]],
+  backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [6910, 7090]],           // pier centres; the gate hangs between them
   PIER: 26,
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
-  trees: [[420,-300],[760,-620],[300,-760],[8700,-300],[9040,-640],[8600,-780]],
+  trees: [[420,-300],[900,-450],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
   flag: [2260, -120],
   GYM1: 7700,                                    // where the gym ends and the art room begins, in the east wing
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
@@ -23818,7 +23819,26 @@ const TPE_IN = (() => {
   R.art.easels = [{ a: R.art.a0 + 50, b: 220, i: 0 }, { a: R.art.a0 + 280, b: 250, i: 1 }, { a: R.art.a0 + 360, b: 190, i: 2 }, { a: R.art.a0 + 430, b: 290, i: 3 }];
   /* the partitions between rooms (the lobby's two sides, and every other boundary) */
   const PARTS = [1500, 2000, 2750, 3330, 3670, 4170, 4700, 5000, 6500];
-  return { name: 'Tide Pool Elementary Interior', x0: 480000, y0: 400000, W, D, H: 250, LH: 80, PB, PT, AT: (PL.MA0 + PL.MA1)/2 - PL.WA, DOOR: 90, R, PARTS };
+  /* THE FRONT TIER (the building is the mall's depth: D 1540): the rooms above are the back tier, b 0..PB, on the middle corridor (b PB + PT ..
+     FT); the front tier is b FB0..D behind the building's front wall (D), a second partition band FT..FB0 between, with a doorway to each room.
+     The entrance hall (the spine, a 3330..3670) runs the whole depth, open to both. */
+  const FT = 540, FB0 = 552;
+  const R2 = {
+    audi: rm(0, 1500, [[620, 740]]), lab: rm(1500, 2300, [[1860, 1980]]), music: rm(2300, 3330, [[2800, 2920]]), spine: rm(3330, 3670, [[3345, 3655]]),
+    classC: rm(3670, 4300), classD: rm(4300, 5000), sports: rm(5000, 6500, [[5640, 5760]]), science: rm(6500, 6984, [[6700, 6820]])
+  };
+  /* the two front classrooms: four rows of four desks (the whiteboard on a stand on the partition side, north), a doorway in the aisle */
+  for(const r of [R2.classC, R2.classD]){
+    const w = r.a1 - r.a0, g = (w - 4*56)/5; r.desks = [];
+    for(let row = 0; row < 4; row++) for(let i = 0; i < 4; i++){ const a = r.a0 + g*(i + 1) + 56*i + 28, b = 760 + row*130; r.desks.push({ a, b, i: row*4 + i, seat: [a, b + 34] }); }
+    const c = r.a0 + g*2.5 + 56*2; r.doors = [[c - 60, c + 60]];
+  }
+  /* the computer lab: four long benches, six seats each (the screens face north: their backs to us) */
+  R2.lab.benches = [0, 1, 2, 3].map(k => ({ a0: R2.lab.a0 + 80, a1: R2.lab.a1 - 80, b: 800 + k*150 }));
+  /* the auditorium: the stage across the north (b FB0 + 8 .. 700), two blocks of eight rows of nine seats either side of a centre aisle */
+  R2.audi.blocks = [[110, 650], [850, 1390]]; R2.audi.rows = [0, 1, 2, 3, 4, 5, 6, 7].map(k => 800 + k*70);
+  R2.science.benches = [{ a0: 6560, a1: 6930, b: 760 }, { a0: 6560, a1: 6930, b: 960 }];
+  return { name: 'Tide Pool Elementary Interior', x0: 480000, y0: 400000, W, D, H: 250, LH: 80, PB, PT, FT, FB0, AT: (PL.MA0 + PL.MA1)/2 - PL.WA, DOOR: 90, R, R2, PARTS };
 })();
 /* the gate's own rectangle, which is solid while it is shut */
 function tpeGateRect(g0, g1){ const P = TPE_PLAN; return [g0 + P.PIER, g1 - P.PIER, P.FB - 6, P.FB + 6]; }
@@ -26199,7 +26219,7 @@ function walkinPath(R, p, q, avoid){
   const open = [s0]; gS[s0] = 0;
   const fS = new Float32Array(N).fill(Infinity); fS[s0] = hh(s0);
   let found = false, guard = 0;
-  while(open.length && guard++ < 20000){
+  while(open.length && guard++ < 70000){          // (70000: the school's grid is 466 x 103 cells)
     let bi = 0; for(let k = 1; k < open.length; k++) if(fS[open[k]] < fS[open[bi]]) bi = k;
     const c = open[bi]; open[bi] = open[open.length - 1]; open.pop();
     if(c === g0){ found = true; break; }
@@ -26936,7 +26956,7 @@ walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
    day (THE ROOM'S DAY; a short stagger, so they pour in and out), the janitor (keys) unlocks and locks. */
 const TPE_PK = walkinDefine({ name: TPE_IN.name, from: 'Tide Pool Elementary', x0: TPE_IN.x0, y0: TPE_IN.y0,
   lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1, half: TPE_IN.DOOR },
-  H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 650,
+  H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 420,
   /* (its way to and from the street, THE ROOM'S DAY: out of the porch, down the yard's walk and through the gate to the pavement, and along it either way) */
   street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] },
   night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 60, 66]] : []) });
@@ -27005,7 +27025,29 @@ const SCHOOL_ART_UNIFORM = { shirt: { c:0xf2eadf, dk:0xd6cdbf }, pants: { c:0x4a
   grown('janitor', 'school janitor', 0x5c70, SCHOOL_JANITOR_UNIFORM, [[3300, 500, 0, 0]], { keys: true, life: 'patrol', pace: 0.9,
     route: [[900, 500, 0, 3600], [1700, 500, 0, 3000], [2700, 500, 0, 3600], [3300, 500, 0, 4200], [4300, 500, 0, 3600], [5400, 500, 0, 3000], [6400, 500, 0, 3800], [4800, 500, Math.PI, 3200], [2300, 500, Math.PI, 3800]] });
   kid('hallpass-1', 0x5c71, [[2500, 500, 0, 0]], { life: 'browse', only: ['lockers', 'fountain'] }); kid('hallpass-2', 0x5c72, [[4300, 500, 0, 0]], { life: 'browse', only: ['lockers', 'trophies', 'fountain'] });
-  staff.push({ id: 'parent', role: 'parent', seed: 0x5c80, look: 'visitor', life: 'browse', only: ['trophies', 'counter', 'lockers'] }, { id: 'grandpa', role: 'visitor', seed: 0x5c81, look: 'visitor', life: 'browse', only: ['stacks', 'trophies'] });
+  /* THE FRONT TIER (the building is the mall's depth): the auditorium's assembly, the computer lab, the music room, two more classrooms, the
+     garden club in the greenhouse room, the science lab */
+  { const R2 = TPE_IN.R2, FB = TPE_IN.FB0;
+    grown('drama', 'drama teacher', 0x5d01, SCHOOL_TEACHER_UNIFORM, [[750, 672, H2, 9000, true], [420, 664, H2, 4000], [1080, 664, H2, 4000]]);
+    [[0, 0, 2], [0, 0, 3], [0, 1, 3], [0, 1, 4], [0, 2, 4], [1, 0, 5], [1, 0, 6], [1, 1, 5], [1, 2, 6], [1, 2, 7]].forEach(([bk, rw, j], n) => { const b0 = R2.audi.blocks[bk][0];
+      kid('aud-' + n, 0x5d10 + n*13, [[b0 + 540*(j + 0.5)/9, R2.audi.rows[rw], -H2, 0, true]], { sit: 30, hands: n % 4 === 1 }); });
+    grown('lab-teacher', 'computer teacher', 0x5d02, SCHOOL_TEACHER2_UNIFORM, [[1900, 1450, -H2, 9000, true], [1620, 880, 0, 5000], [2180, 1030, Math.PI, 5000]]);
+    [[0, 0], [0, 2], [1, 1], [1, 4], [2, 3], [3, 5]].forEach(([rw, j], n) => { const bn = R2.lab.benches[rw];
+      kid('lab-' + n, 0x5d30 + n*17, [[bn.a0 + 20 + (bn.a1 - bn.a0 - 40)*(j + 0.5)/6, bn.b + 37, -H2, 0, true]], { sit: 30, hands: n === 2 }); });
+    grown('music-teacher', 'music teacher', 0x5d03, SCHOOL_LIBRARIAN_UNIFORM, [[2620, 700, H2, 9000, true], [2840, 1000, -H2, 4000]]);
+    kid('pianist', 0x5d50, [[2450, 1458, H2, 0, true]], { sit: 28, work: true });
+    kid('drummer', 0x5d51, [[3050, 700, -H2, 0, true]], { sit: 28, work: true });
+    [[2540, 800], [2610, 800], [2680, 800], [2560, 880], [2630, 880], [2700, 880]].forEach(([a, b], n) => kid('choir-' + n, 0x5d60 + n*19, [[a, b, -H2, 0, true]], { hands: n % 3 === 0 }));
+    [['C', R2.classC, SCHOOL_TEACHER_UNIFORM, 0x5d70], ['D', R2.classD, SCHOOL_TEACHER2_UNIFORM, 0x5d71]].forEach(([k, r, U, sd]) => {
+      const c = (r.a0 + r.a1)/2, aisle = (r.doors[0][0] + r.doors[0][1])/2;
+      grown('teacher-' + k, 'teacher', sd, U, [[c, 640, H2, 9000, true], [r.a0 + 78, 1302, H2, 6000, true], [aisle, 1085, -H2 + 0.1, 5000], [r.a1 - 110, 960, H2*1.4, 5000]]);
+      [0, 2, 5, 8, 11, 14].forEach(n => { const d = r.desks[n]; kid('pupil-' + k + n, (sd << 8) + 0x80 + n*7, [[d.seat[0], d.seat[1], -H2, 0, true]], { sit: 30, hands: n % 3 === 0 }); }); });
+    const G = R2.sports;
+    grown('gardener', 'garden club teacher', 0x5d04, SCHOOL_ART_UNIFORM, [[5850, 1300, -H2, 6000, true], [5700, 640, H2, 4200], [6200, 1280, -H2*0.8, 4400, true]]);
+    [[5200, 700], [5400, 820], [6050, 940], [6300, 1060]].forEach(([a, b], n) => kid('garden-' + n, 0x5d80 + n*23, [[a, b + 44, -H2, 0, true]], { work: true }));
+    grown('science-teacher', 'science teacher', 0x5d05, SCHOOL_PE_UNIFORM, [[6760, 640, H2, 8000, true], [6760, 1300, -H2, 5000]]);
+    [[6600, 780 + 46], [6750, 980 + 46], [6890, 780 + 46]].forEach(([a, b], n) => kid('sci-' + n, 0x5d90 + n*29, [[a, b, -H2, 0, true]], { work: true })); }
+  staff.push({ id: 'parent', role: 'parent', seed: 0x5c80, look: 'visitor', life: 'browse', only: ['trophies', 'counter', 'lockers', 'tank'] }, { id: 'grandpa', role: 'visitor', seed: 0x5c81, look: 'visitor', life: 'browse', only: ['stacks', 'trophies'] });
   walkinStaff(TPE_IN.name, staff);
   /* (W16: the places they come to -- every spot off the solids and out of the door's lane, a 3450..3550 of the hall) */
   walkinLife(TPE_IN.name, { keep: [[3450, 3550, 0, TPE_IN.D]], looks: [
@@ -27019,7 +27061,8 @@ const SCHOOL_ART_UNIFORM = { shirt: { c:0xf2eadf, dk:0xd6cdbf }, pants: { c:0x4a
     { id: 'court-m', spots: [[5500, 150, 0.2], [5700, 260, -0.3], [5810, 160, 0.3], [5960, 240, Math.PI]] },
     { id: 'court-e', spots: [[6160, 150, Math.PI], [6310, 270, Math.PI], [6360, 190, Math.PI]] },
     { id: 'mats', spots: [[6000, 66, -H2]] },
-    { id: 'art-wall', spots: [[R.art.a0 + 150, 66, -H2]], up: 0.12 }
+    { id: 'art-wall', spots: [[R.art.a0 + 150, 66, -H2]], up: 0.12 },
+    { id: 'tank', spots: [[3565, 760, 0], [3565, 850, 0]] }
   ] });
 })();
 /* ==================== SUN DECK MOTOR LODGE (the Flats build order, area 1: Airfield Corner, block 8,5) ====================
@@ -68577,7 +68620,7 @@ marinaEntry(),
        gate, a terracotta rubber playground in front of the west wing, a painted basketball court and the games in front
        of the east one. NO SCHOOL LAWNS (Sir, 2026-10-07): the rim lots under it are the ground pass's. ---- */
     const paveP = '#cbc1aa', paveE = '#b3a894';
-    T(WA-40, WB+40, BB0, 0, 0.4, tar);
+    T(WA-40, WB+40, BB1, 0, 0.4, tar);
     /* THE BACK FIELD: the terracotta track in its white lane lines round a packed-earth pitch -- halfway line, centre circle, a penalty box at each
        end -- behind the range, inside the back railing */
     if(inView(PL.field.cx - PL.field.rx - 20, PL.field.cx + PL.field.rx + 20, PL.field.cy - PL.field.ry - 20, PL.field.cy + PL.field.ry + 20, 0, 2)){
@@ -68725,8 +68768,8 @@ marinaEntry(),
       for(let k = 0; k < 4; k++){ const w0 = WA + 90 + k*335, w1 = w0 + 270; winOne(w0, w1, 100, 232, wall); if(inView(w0, w1, BB1, BB1 + 60, 220, 300)) awning(w0 - 14, w1 + 14, 268, 238, 46); }
       winRow(PL.WA + 1500 + 60, MA0 - 60, 130, 220, 2, wall);
       /* the kitchen's flue and a roof unit */
-      if(state.roof){ box(WA+300, WA+450, -660, -600, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
-        cyl(WA + 1640, -700, WH, WH + 70, 14, '#8a9397', '#aeb6ba'); cyl(WA + 1640, -700, WH + 70, WH + 76, 17, '#6a7076', '#8a9397'); }
+      if(state.roof){ box(WA+300, WA+450, -1100, -1040, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
+        cyl(WA + 1640, -1100, WH, WH + 70, 14, '#8a9397', '#aeb6ba'); cyl(WA + 1640, -1100, WH + 70, WH + 76, 17, '#6a7076', '#8a9397'); }
     }, { shell: true });
     add([MA0, MA1, BB0-8, BB1+12], () => {
       blockOf(MA0, MA1, H, brick);
@@ -68770,7 +68813,7 @@ marinaEntry(),
         for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2, r0 = k % 3 ? 25 : 22; tube(DM + r0*Math.sin(t), BB1 + 9.6, cz + r0*Math.cos(t), DM + 27*Math.sin(t), BB1 + 9.6, cz + 27*Math.cos(t), 0.8, ink); }
         tube(DM, BB1 + 10, cz, DM + 4, BB1 + 10, cz + 21, 1.5, ink); tube(DM, BB1 + 10.4, cz, DM + 13, BB1 + 10.4, cz - 4, 1.9, ink);
         slab(pa0 - 8, pa1 + 8, pz0 - 10, pz0, BB1 + 12, BB1 - 26, stoneD, null, shade(stone, 1.06)); }
-      if(state.roof) box(MA0+260, MA0+460, -700, -620, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
+      if(state.roof) box(MA0+260, MA0+460, -1100, -1020, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
     }, { shell: true });
     add([MA1, WB+8, BB0-8, BB1+2], () => {
       /* the gym (taller, a clerestory under its eaves, the sign and its turtle) and the art room beside it */
@@ -68790,8 +68833,8 @@ marinaEntry(),
       blockOf(GE, WB, WH, wall);
       F(GE, WB, 26, 74, shade(brick, 1.0), null, 0, BB1+0.5); F(GE, WB, 74, 80, stone, null, 0, BB1+0.6); F(GE, WB, WH - 24, WH - 18, teal, null, 0, BB1+0.6);
       for(let k = 0; k < 2; k++){ const w0 = GE + 50 + k*(WB - GE - 100)/2, w1 = w0 + (WB - GE - 100)/2 - 30; winOne(w0, w1, 80, 236, wall); }
-      if(state.roof){ box(MA1+400, MA1+550, -660, -600, GH, GH+30, '#9aa0a6', '#7d838a', '#6a7076');
-        for(const sa of [GE + 40, GE + 250]){ box(sa, sa + 170, -740, -640, WH, WH + 30, '#9ad0e0', '#7ab0c0', '#6a9eae'); F(sa, sa + 170, WH, WH + 30, 'rgba(150,200,214,.55)', null, 0, -640 + 0.5); } }
+      if(state.roof){ box(MA1+400, MA1+550, -1100, -1040, GH, GH+30, '#9aa0a6', '#7d838a', '#6a7076');
+        for(const sa of [GE + 40, GE + 250]){ box(sa, sa + 170, -1200, -1100, WH, WH + 30, '#9ad0e0', '#7ab0c0', '#6a9eae'); F(sa, sa + 170, WH, WH + 30, 'rgba(150,200,214,.55)', null, 0, -1100 + 0.5); } }
     }, { shell: true });
     /* the porch's steps and its canopy on two posts, out over the doorstep (the shell's too) */
     add([EA0-70, EA1+70, BB1-2, BB1+76], () => {
@@ -68991,7 +69034,7 @@ marinaEntry(),
     const M = TPE_IN, W = M.W, D = M.D, H = M.H, LH = M.LH, AT = M.AT, PB = M.PB, PT = M.PT, R = M.R;
     const cream = '#f1e8d2', creamD = '#e2d8bd', teal = '#2f7f86', tealD = '#24626a', tealL = '#4c9ca3', brick = '#b06a4a', brickD = '#8f5238';
     const wood = '#b88a58', woodD = '#8f6a3f', woodL = '#d1a672', desk = '#d9b98a', steel = '#aeb6ba', steelD = '#8a9397', steelL = '#cfd6d9';
-    const blue = '#3f7fa8', blueD = '#2f6285', red = '#c2452e', yel = '#e8b54a', green = '#5a9a6a', paper = '#f7f4ea', ink = '#2b3138';
+    const blue = '#3f7fa8', blueD = '#2f6285', red = '#c2452e', yel = '#e8b54a', coral = '#e0674e', green = '#5a9a6a', paper = '#f7f4ea', ink = '#2b3138';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name, prop) => ({ name: name || 'furniture', poly: volRect(a0, a1, b0, b1), h, prop: prop || undefined });
     const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 60) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
@@ -69003,7 +69046,7 @@ marinaEntry(),
 
     /* ---------- THE FLOORS, wall to wall: each room its own, the corridor's linoleum under them all ---------- */
     T(0, W, 0, D, 0, '#cfc6ae');
-    for(let a = 0; a < W; a += 60) for(let b = PB; b < D; b += 55) if(((a/60 | 0) + ((b - PB)/55 | 0)) % 2) T(a, Math.min(W, a + 60), b, Math.min(D, b + 55), 0.15, '#c4bba2');
+    for(let a = 0; a < W; a += 60) for(let b = PB; b < M.FT; b += 55) if(((a/60 | 0) + ((b - PB)/55 | 0)) % 2) T(a, Math.min(W, a + 60), b, Math.min(M.FT, b + 55), 0.15, '#c4bba2');
     T(0, W, PB + PT, PB + PT + 6, 0.3, tealD);                                               // the skirting line under the partition
     const floorOf = (r, col, col2, sq) => {
       T(r.a0, r.a1, 0, PB, 0.2, col);
@@ -69029,7 +69072,7 @@ marinaEntry(),
         bar(sd ? x0 : x0 + 146, sd ? x0 + 4 : x0 + 150, PB/2 - 55, PB/2 + 55); }
     }
     /* the entrance hall's welcome mat and the school's crest let into the floor */
-    T(R.lobby.a0 + 20, R.lobby.a1 - 20, PB + PT + 10, D, 0.4, '#2f4a5a'); T(R.lobby.a0 + 26, R.lobby.a1 - 26, PB + PT + 16, D, 0.45, '#37596b');
+    T(R.lobby.a0 + 20, R.lobby.a1 - 20, PB + PT + 10, M.FT, 0.4, '#2f4a5a'); T(R.lobby.a0 + 26, R.lobby.a1 - 26, PB + PT + 16, M.FT, 0.45, '#37596b');
     plateCircle(AT, 250, 0.5, 70, tealD); plateCircle(AT, 250, 0.55, 62, '#f1e8d2');
     for(let k = 0; k < 6; k++){ const t = k*Math.PI/3 + 0.3; poly([P(AT + Math.cos(t)*14, 250 + Math.sin(t)*14, 0.6), P(AT + Math.cos(t + 0.5)*50, 250 + Math.sin(t + 0.5)*50, 0.6), P(AT + Math.cos(t - 0.5)*50, 250 + Math.sin(t - 0.5)*50, 0.6)], k % 2 ? teal : tealL); }
     plateCircle(AT, 250, 0.7, 12, yel);
@@ -69288,6 +69331,118 @@ marinaEntry(),
           for(let k = 0; k < 5; k++){ const a = a0 + 14 + k*26; cyl(a, b0 + 20, 44, 52, 5, ['#e0674e', yel, '#4ea0b6', green, '#d57ca6'][k], shade(['#e0674e', yel, '#4ea0b6', green, '#d57ca6'][k], 1.2)); } }); }
       for(const [s0, s1, first, last] of runs(r.a0 + 20, r.a0 + 210, 60)) furn(s0, s1, 4, 30, 110, 'shelves', () => { box(s0, s1, 4, 30, 0, 100, wood, woodL, woodD); for(const z of [28, 56, 84]){ F(s0, s1, z, z + 2, woodD, null, 0, 30.2); for(let a = s0 + 8; a < s1 - 10; a += 22){ cyl(a + 6, 18, z + 2, z + 2 + 14 + (hash(a) * 8 | 0), 6, ['#c2452e', '#d57ca6', '#4ea0b6', yel][(a/22 | 0) % 4], '#f4f0e6'); } } });
       furn(r.a1 - 56, r.a1 - 14, 360, 400, 80, 'sink', () => { box(r.a1 - 56, r.a1 - 14, 360, 400, 0, 70, steelL, steel, steelD); cyl(r.a1 - 35, 380, 70, 72, 14, '#7a8a90', '#aab3b8'); tube(r.a1 - 35, 366, 72, r.a1 - 35, 376, 86, 1.6, steelD); });
+    }
+    /* ================= THE FRONT TIER (the building runs the mall's depth: the rooms between the middle corridor and the front wall) =================
+       The auditorium, the computer lab, the music room, the entrance hall's spine, two more classrooms, the greenhouse room and the science
+       lab. A second partition band across the building (b FT..FB0) with a doorway to each, every wall at the dado as the rest. */
+    { const FT = M.FT, FB = M.FB0, R2 = M.R2;
+      const floor2 = (r, col, col2, sq) => { T(r.a0, r.a1, FB, D, 0.2, col);
+        if(col2) for(let a = r.a0; a < r.a1; a += sq) for(let b = FB; b < D; b += sq) if((((a - r.a0)/sq | 0) + ((b - FB)/sq | 0)) % 2) T(a, Math.min(r.a1, a + sq), b, Math.min(D, b + sq), 0.25, col2); };
+      floor2(R2.audi, '#7e3f4c', null); floor2(R2.lab, '#9fb3bf', '#93a8b4', 60); floor2(R2.music, '#c4a678', null);
+      floor2(R2.spine, '#ece4cc', '#ddd3b6', 55); floor2(R2.classC, '#c99d6a', null); floor2(R2.classD, '#c99d6a', null);
+      floor2(R2.sports, '#b9a78c', '#aa987d', 70); floor2(R2.science, '#dfe4e5', '#cfd5d7', 40);
+      for(const r of [R2.classC, R2.classD]) for(let b = FB + 16; b < D; b += 22) T(r.a0, r.a1, b - 0.5, b + 0.5, 0.3, '#b98c58');
+      for(let b = FB + 12; b < D; b += 24) T(R2.music.a0, R2.music.a1, b - 0.5, b + 0.5, 0.3, '#b3956a');
+      T(R2.audi.a0 + 640, R2.audi.a0 + 860, 700, D - 40, 0.4, '#a85a68'); T(R2.audi.a0 + 650, R2.audi.a0 + 850, 700, D - 40, 0.45, '#c47a86');         // the centre aisle's runner
+      T(R2.spine.a0 + 40, R2.spine.a1 - 40, FB, D, 0.4, '#2f4a5a'); T(R2.spine.a0 + 46, R2.spine.a1 - 46, FB, D, 0.45, '#37596b');                         // the hall's runner, to the door
+      T(R2.sports.a0 + 40, R2.sports.a1 - 40, FB + 20, D - 20, 0.3, '#a89678');
+      /* the partition band across the building: pieces between the doorways, a door frame at each */
+      { const gs = []; for(const r of Object.values(R2)) for(const d of r.doors || []) gs.push(d);
+        gs.sort((x, y) => x[0] - y[0]);
+        let at = 0; for(const [g0, g1] of gs){ if(g0 > at) partA(at, g0, FT, FB); at = g1; }
+        if(at < W) partA(at, W, FT, FB);
+        for(const [g0, g1] of gs) for(const ga of [g0, g1]) items.push({ a: ga, b: (FT + FB)/2, z: 0, draw: () => box(ga - 3, ga + 3, FT - 1, FB + 1, 0, LH + 4, tealL, tealD, tealD) }); }
+      for(const x of [1500, 2300, 3330, 3670, 4300, 5000, 6500]){ partB(x - 7, x + 7, FB, D);
+        items.push({ a: x, b: FB, z: 0, draw: () => box(x - 8, x + 8, FB - 2, FB + 10, 0, LH + 3, tealL, tealD, tealD) }); }
+      /* a whiteboard on its stand (the working face to the room: south), the foot's two legs */
+      const stand = (a, b, w) => furn(a - w/2, a + w/2, b - 6, b + 6, 190, 'board', () => {
+        for(const ea of [a - w/2 + 14, a + w/2 - 14]) box(ea - 2, ea + 2, b - 5, b + 5, 0, 96, steel, steelD, steelD);
+        box(a - w/2, a + w/2, b - 3, b + 3, 96, 196, '#9aa6ab', '#8a9397', '#6f787c'); F(a - w/2 + 4, a + w/2 - 4, 100, 192, '#fbfbf8', null, 0, b + 3.2);
+        for(const [q, col] of [[-0.3, '#2f6fb0'], [0.05, red], [0.32, green]]) F(a + q*w, a + q*w + 40, 150 + (q*50 | 0), 153 + (q*50 | 0), col, null, 0, b + 3.4);
+        F(a - w/2 + 4, a + w/2 - 4, 100, 104, '#c4cacc', null, 0, b + 3.5); });
+      /* ---------- THE TWO FRONT CLASSROOMS ---------- */
+      for(const r of [R2.classC, R2.classD]){
+        const c = (r.a0 + r.a1)/2;
+        for(const d of r.desks){ pupilDesk(d.a, d.b, d.i); chair(d.a, d.b + 34, [blue, teal, '#c2452e', '#e8b54a'][d.i % 4]); }
+        stand(c, 596, 260);
+        furn(r.a0 + 28, r.a0 + 128, 1320, 1356, 50, 'teacher desk', () => { const a0 = r.a0 + 28, a1 = r.a0 + 128, b0 = 1320, b1 = 1356;
+          for(const [ea, eb] of [[a0 + 4, b0 + 4], [a1 - 4, b0 + 4], [a0 + 4, b1 - 4], [a1 - 4, b1 - 4]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 42, woodD, woodD, woodD);
+          box(a0, a1, b0, b1, 42, 48, woodL, wood, woodD); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, 48.1, '#e0bf8a'); box(a0 + 12, a0 + 38, b0 + 8, b0 + 14, 48, 74, '#30353b', '#262a2f', '#1f2226');
+          for(let k = 0; k < 3; k++) box(a1 - 40 + k, a1 - 14 + k, b0 + 8 + k*3, b0 + 16 + k*3, 48 + k*5, 53 + k*5, [red, blue, yel][k], shade([red, blue, yel][k], 0.85), shade([red, blue, yel][k], 0.7)); });
+        for(const [s0, s1] of runs(660, 1100, 70)) furn(r.a0 + 9, r.a0 + 33, s0, s1, 90, 'bookcase', () => { box(r.a0 + 9, r.a0 + 33, s0, s1, 0, 90, wood, woodL, woodD);
+          for(const z of [24, 52, 80]) S(r.a0 + 33.2, s0 + 2, s1 - 2, z, z + 2, woodD);
+          for(const z of [26, 54]) for(let b = s0 + 3; b < s1 - 5; b += 7){ const k = hash(b*3 + z*7), h = 16 + (k*9 | 0); S(r.a0 + 33.4, b, b + 5.5, z, z + h, ['#e0674e', blue, yel, green, '#d57ca6', teal][(b/7 | 0) % 6]); } });
+        T(r.a1 - 200, r.a1 - 40, 1180, 1290, 0.5, '#4ea0b6'); T(r.a1 - 192, r.a1 - 48, 1188, 1282, 0.55, '#f1d27a');
+      }
+      /* ---------- THE AUDITORIUM ---------- */
+      { const r = R2.audi;
+        for(const [s0, s1, first, last] of runs(60, 1440, 90)) furn(s0, s1, 560, 700, 40, 'stage', () => {
+          box(s0, s1, 560, 700, 0, 34, '#b88a58', '#8a6a46', '#6f5334'); T(s0, s1, 560, 700, 34, '#c99a64'); for(let b = 570; b < 700; b += 20) T(s0, s1, b, b + 0.8, 34.1, '#a87f4c');
+          F(s0, s1, 4, 12, '#6f5334', null, 0, 700.2); }, { solids: [solid(s0, s1, 560, 700, 34, 'stage', true)] });
+        for(const [s0, s1] of runs(60, 1440, 60)) items.push({ a: (s0 + s1)/2, b: 565, z: 0, draw: () => { box(s0, s1, 561, 567, 34, 214, '#9a2f3c', '#7f2430', '#6a1e29');
+          for(let a = Math.ceil(s0/24)*24; a < s1; a += 24) F(a, a + 12, 34, 214, '#b23f4c', null, 0, 567.3); } });
+        blockWordIn('TIDE POOL ELEMENTARY', 520, 980, 190, 206, 568, '#e8b54a', null, 9);
+        furn(720, 780, 604, 640, 100, 'podium', () => { box(722, 778, 606, 638, 34, 90, woodL, wood, woodD); box(718, 782, 604, 640, 90, 96, wood, woodD, woodD); F(730, 770, 44, 84, tealD, null, 0, 638.2); });
+        for(const [b0] of r.blocks) for(const rb of r.rows) furn(b0, b0 + 540, rb - 14, rb + 14, 52, 'seats', () => {
+          for(let j = 0; j < 9; j++){ const x = b0 + 540*(j + 0.5)/9, col = (j + (rb/70 | 0)) % 2 ? '#9a2f3c' : '#7f2430';
+            box(x - 20, x + 20, rb - 10, rb + 12, 20, 26, shade(col, 1.12), col, shade(col, 0.8)); box(x - 19, x + 19, rb + 10, rb + 14, 26, 50, shade(col, 1.05), col, shade(col, 0.78));
+            for(const ea of [x - 18, x + 18]) box(ea - 1.5, ea + 1.5, rb + 8, rb + 12, 0, 20, steel, steelD, steelD); } }, { solids: [solid(b0, b0 + 540, rb - 14, rb + 14, 50, 'seats', true)] });
+        for(const a of [90, 1410]) furn(a - 12, a + 12, 1488, 1512, 90, 'plant', () => { cyl(a, 1500, 0, 24, 12, '#c2452e', '#d56a4e'); for(let k = 0; k < 6; k++){ const t = k*1.05; tube(a, 1500, 24, a + Math.cos(t)*18, 1500 + Math.sin(t)*18, 76 + (k % 3)*8, 2, '#4a8a52'); ball(a + Math.cos(t)*20, 1500 + Math.sin(t)*20, 82 + (k % 3)*8, 6, '#5aa064', '#7ac484'); } }); }
+      /* ---------- THE COMPUTER LAB ---------- */
+      { const r = R2.lab;
+        for(const bn of r.benches) furn(bn.a0, bn.a1, bn.b - 20, bn.b + 20, 50, 'computer bench', () => {
+          for(const [ea, eb] of [[bn.a0 + 6, bn.b - 16], [bn.a1 - 6, bn.b - 16], [bn.a0 + 6, bn.b + 16], [bn.a1 - 6, bn.b + 16]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, steel, steelD, steelD);
+          box(bn.a0, bn.a1, bn.b - 20, bn.b + 20, 38, 43, '#e9eef0', '#cfd6d9', '#a9b1b5');
+          for(let j = 0; j < 6; j++){ const x = bn.a0 + 20 + (bn.a1 - bn.a0 - 40)*(j + 0.5)/6;
+            box(x - 14, x + 14, bn.b - 12, bn.b - 6, 43, 70, '#30353b', '#262a2f', '#1f2226'); box(x - 6, x + 6, bn.b - 8, bn.b - 3, 43, 49, '#30353b', '#262a2f', '#1f2226');
+            box(x - 12, x + 12, bn.b + 4, bn.b + 12, 43, 45, '#f4f2ec', '#e4e0d6', '#d4d0c6'); } });
+        for(const bn of r.benches) for(let j = 0; j < 6; j++){ const x = bn.a0 + 20 + (bn.a1 - bn.a0 - 40)*(j + 0.5)/6; chair(x, bn.b + 37, [blue, teal, '#e8b54a'][(j + (bn.b/150 | 0)) % 3]); }
+        stand(r.a0 + 640, 596, 220);
+        furn(r.a1 - 100, r.a1 - 30, 560, 600, 130, 'printer', () => { box(r.a1 - 100, r.a1 - 30, 562, 598, 0, 46, '#cfd6d9', '#aab3b8', '#8a9397'); box(r.a1 - 96, r.a1 - 34, 566, 594, 46, 70, '#e9eef0', '#cfd6d9', '#a9b1b5'); });
+        for(const [s0, s1] of runs(r.a0 + 40, r.a0 + 400, 60)) furn(s0, s1, 1500, 1532, 90, 'cabinet', () => box(s0, s1, 1500, 1532, 0, 84, '#aeb6ba', '#8a9397', '#6f787c')); }
+      /* ---------- THE MUSIC ROOM ---------- */
+      { const r = R2.music;
+        T(r.a0 + 200, r.a1 - 200, 740, 1000, 0.5, '#8a2f3c'); T(r.a0 + 210, r.a1 - 210, 750, 990, 0.55, '#a8404e');
+        furn(2380, 2520, 1490, 1534, 130, 'piano', () => { box(2380, 2520, 1492, 1534, 0, 108, '#2b2a30', '#222126', '#1a191d'); box(2378, 2522, 1490, 1534, 108, 114, '#3a3940', '#2b2a30', '#222126');
+          F(2386, 2514, 20, 84, '#1f1e23', null, 0, 1492.4); box(2388, 2512, 1478, 1492, 56, 62, '#f4f2ec', '#e4e0d6', '#d4d0c6');
+          for(let a = 2392; a < 2510; a += 9) F(a, a + 0.8, 56, 62, '#2b2a30', null, 0, 1478.6); });
+        items.push({ a: 2450, b: 1458, z: 0, solids: [solid(2430, 2470, 1448, 1470, 30, 'stool', true)], draw: () => { cyl(2450, 1458, 0, 24, 14, '#6a4c30', '#8a6a46'); } });
+        furn(3000, 3110, 590, 660, 100, 'drums', () => { cyl(3050, 626, 0, 34, 24, '#c2452e', '#e8e4d6'); cyl(3010, 610, 40, 62, 12, '#2f7f86', '#e8e4d6'); cyl(3090, 610, 40, 62, 12, '#2f7f86', '#e8e4d6');
+          tube(3050, 600, 34, 3050, 600, 80, 1.2, steel); cyl(3050, 600, 78, 80, 18, '#d9ad3c', '#f1d27a'); tube(3030, 650, 0, 3030, 650, 60, 1.2, steel); cyl(3030, 650, 58, 60, 14, '#d9ad3c', '#f1d27a'); });
+        for(const [a, b] of [[2560, 760], [2680, 760], [2800 + 150, 760], [2600, 840], [2720, 840]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b + 14, 0, 4, 8, steel); tube(a, b + 14, 4, a, b + 14, 66, 1, steel); box(a - 10, a + 10, b + 11, b + 14, 62, 76, '#30353b', '#262a2f', '#1f2226'); F(a - 8, a + 8, 64, 74, '#f7f4ea', null, 0, b + 14.2); } });
+        for(const [s0, s1] of runs(r.a0 + 40, r.a0 + 160, 60)) furn(s0, s1, 580, 610, 70, 'cases', () => box(s0, s1, 580, 610, 0, 60, '#4a3a2a', '#5a4634', '#3a2c20')); }
+      /* ---------- THE ENTRANCE HALL'S SPINE: the touch tank, benches, plants, the school map ---------- */
+      { const r = R2.spine;
+        furn(3600, 3656, 620, 920, 80, 'tide pool tank', () => { for(const [s0, s1] of [[620, 920]]){ box(3600, 3656, s0, s1, 0, 40, '#8a6a46', '#7a5a38', '#654a2e'); box(3598, 3658, s0 - 2, s1 + 2, 40, 46, wood, woodD, woodD);
+            T(3604, 3652, s0 + 6, s1 - 6, 44, '#7ac0d0'); T(3608, 3648, s0 + 10, s1 - 10, 44.2, 'rgba(160,220,230,.6)');
+            for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
+            for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } });
+        for(const [b0, b1] of [[1000, 1028], [1100, 1128]]) bench(3600, 3656, b0, b1);
+        bench(3344, 3404, 1000, 1028); bench(3344, 3404, 1100, 1128);
+        for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
+          for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
+        /* the school's emblem let into the hall floor, and the name on a low board by the door */
+        plateCircle(AT, 1250, 0.5, 70, tealD); plateCircle(AT, 1250, 0.55, 62, '#f1e8d2');
+        for(let k = 0; k < 6; k++){ const t = k*Math.PI/3 + 0.3; poly([P(AT + Math.cos(t)*14, 1250 + Math.sin(t)*14, 0.6), P(AT + Math.cos(t + 0.5)*50, 1250 + Math.sin(t + 0.5)*50, 0.6), P(AT + Math.cos(t - 0.5)*50, 1250 + Math.sin(t - 0.5)*50, 0.6)], k % 2 ? teal : tealL); }
+        plateCircle(AT, 1250, 0.7, 12, yel); }
+      /* ---------- THE GREENHOUSE ROOM (the old gym is a small gym now; this is the garden club's) ---------- */
+      { const r = R2.sports;
+        for(const rb of [700, 820, 940, 1060, 1180]) for(const [a0, a1] of [[r.a0 + 80, r.a0 + 600], [r.a0 + 800, r.a1 - 80]]) furn(a0, a1, rb - 22, rb + 22, 56, 'planting bench', () => {
+          for(const [ea, eb] of [[a0 + 6, rb - 18], [a1 - 6, rb - 18], [a0 + 6, rb + 18], [a1 - 6, rb + 18]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 36, woodD, woodD, woodD);
+          box(a0, a1, rb - 22, rb + 22, 36, 44, wood, woodL, woodD); T(a0 + 3, a1 - 3, rb - 19, rb + 19, 44, '#4a3a2a');
+          for(let a = a0 + 14; a < a1 - 8; a += 26){ const k = hash(a*3 + rb); ball(a, rb - 4 + (k*10 | 0), 54 + (k*14 | 0), 9 + (k*4 | 0), ['#3f6b4a', '#4e8058', '#568a5e', '#6aa468'][(a/26 | 0) % 4]);
+            if(k > 0.55) ball(a + 3, rb - 2, 72 + (k*10 | 0), 4, [coral, yel, '#d57ca6'][(a/26 | 0) % 3], '#f6d27a'); } });
+        furn(r.a1 - 90, r.a1 - 30, 1480, 1534, 90, 'sink', () => { box(r.a1 - 90, r.a1 - 30, 1480, 1534, 0, 70, steelL, steel, steelD); cyl(r.a1 - 60, 1507, 70, 72, 16, '#7a8a90', '#aab3b8'); tube(r.a1 - 60, 1488, 72, r.a1 - 60, 1498, 90, 1.6, steelD); });
+        for(const [a, b] of [[r.a0 + 60, 1500], [r.a0 + 110, 1500], [r.a0 + 160, 1500]]) items.push({ a, b, z: 0, draw: () => { cyl(a, b, 0, 22, 14, '#c2452e', '#d56a4e'); cyl(a, b, 22, 24, 12, '#4a3a2a'); } }); }
+      /* ---------- THE SCIENCE LAB ---------- */
+      { const r = R2.science;
+        for(const bn of [{ a0: 6540, a1: 6670, b: 780 }, { a0: 6850, a1: 6940, b: 780 }, { a0: 6540, a1: 6670, b: 980 }, { a0: 6850, a1: 6940, b: 980 }]) furn(bn.a0, bn.a1, bn.b - 24, bn.b + 24, 70, 'lab bench', () => {
+          box(bn.a0, bn.a1, bn.b - 24, bn.b + 24, 0, 42, '#d9dedf', '#bcc4c6', '#a0a9ab'); box(bn.a0 - 2, bn.a1 + 2, bn.b - 26, bn.b + 26, 42, 48, '#2f3a40', '#262e33', '#1f262a');
+          for(let a = bn.a0 + 14; a < bn.a1 - 10; a += 30){ cyl(a, bn.b - 4, 48, 60, 6, 'rgba(160,220,230,.7)', 'rgba(200,240,246,.8)'); cyl(a + 12, bn.b + 8, 48, 54, 5, 'rgba(240,200,120,.7)', 'rgba(250,226,160,.8)'); } });
+        for(const bn of [{ a: 6600, b: 780 }, { a: 6700, b: 780 }].slice(0, 0)) {}
+        furn(6930, 6974, 570, 614, 170, 'skeleton', () => { cyl(6952, 592, 0, 4, 14, steelD, steel); tube(6952, 592, 4, 6952, 592, 150, 1.4, steel); ball(6952, 592, 156, 9, '#efe8d4', '#f8f2e2');
+          for(let z = 70; z < 146; z += 12) tube(6944, 592, z, 6960, 592, z, 1.2, '#efe8d4'); tube(6952, 592, 70, 6945, 592, 8, 1.8, '#efe8d4'); tube(6952, 592, 70, 6959, 592, 8, 1.8, '#efe8d4'); });
+        for(const [s0, s1] of runs(r.a0 + 20, r.a0 + 330, 60)) furn(s0, s1, 1500, 1534, 90, 'cabinet', () => box(s0, s1, 1500, 1534, 0, 84, '#f4f6f6', '#dfe4e5', '#c4cacc')); }
     }
     walkinStaffSolids(items, M.name);
     depthSort(items);
@@ -85079,13 +85234,13 @@ function tpeYardCast(){
   { const c = [[6595, -195], [6665, -195], [6595, -125], [6665, -125]];
     c.forEach(([a, b], i) => kid('four-' + i, 'B', now => ({ a: a + 2*Math.sin(now/1900 + i), b: b + 2*Math.cos(now/2300 + i), z: 0, th: Math.atan2(-160 - b, 6630 - a), moving: false, pose: { lift: [0.5 + 0.3*Math.sin(now/700 + i*2), 0.45], bend: [0.6, 0.6] } }))); }
   /* the back field: two runners round the track (the PE class), a pickup game on the pitch, a keeper, and at recess two at the garden beds */
-  { const F0 = PL.field, rxm = F0.rx - F0.tw/2, rym = F0.ry - F0.tw/2, W0 = 0.14/1850;
+  { const F0 = PL.field, rxm = F0.rx - F0.tw/2, rym = F0.ry - F0.tw/2, W0 = 0.14/560;
     [0, 2.3].forEach((th0, i) => kid('run-' + i, 'A', now => { const t = now*W0*(i ? 0.82 : 1) + th0;
       return { a: F0.cx + rxm*Math.cos(t), b: F0.cy + rym*Math.sin(t), z: 0, th: Math.atan2(rym*Math.cos(t), -rxm*Math.sin(t)), moving: true }; }));
-    kid('soccer-1', 'A', tpeShuttle(F0.cx - 1300, F0.cy - 120, F0.cx - 300, F0.cy + 110, 14000, 0.08, 0));
-    kid('soccer-2', 'A', tpeShuttle(F0.cx + 100, F0.cy + 90, F0.cx - 900, F0.cy - 100, 12500, 0.1, 4200));
-    kid('soccer-3', 'A', tpeShuttle(F0.cx + 1300, F0.cy - 100, F0.cx + 300, F0.cy + 120, 15500, 0.08, 7000));
-    kid('soccer-4', 'A', tpeShuttle(F0.cx + 700, F0.cy + 40, F0.cx + 1500, F0.cy - 60, 11000, 0.12, 1500));
+    kid('soccer-1', 'A', tpeShuttle(F0.cx - 330, F0.cy - 120, F0.cx - 60, F0.cy + 110, 11000, 0.08, 0));
+    kid('soccer-2', 'A', tpeShuttle(F0.cx + 60, F0.cy + 90, F0.cx - 280, F0.cy - 100, 10500, 0.1, 4200));
+    kid('soccer-3', 'A', tpeShuttle(F0.cx + 340, F0.cy - 100, F0.cx + 90, F0.cy + 120, 12500, 0.08, 7000));
+    kid('soccer-4', 'A', tpeShuttle(F0.cx + 180, F0.cy + 40, F0.cx + 380, F0.cy - 60, 9000, 0.12, 1500));
     kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
     [PL.beds[1], PL.beds[4]].forEach(([ba, bb], i) => kid('garden-' + i, 'B', now => ({ a: ba + 10, b: bb + 44, z: 0, th: -Math.PI/2, moving: false, pose: { lift: [0.65 + 0.1*Math.sin(now/800 + i), 0.65], bend: [1.2, 1.2] } }))); }
   PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
