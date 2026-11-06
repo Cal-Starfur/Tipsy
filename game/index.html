@@ -84748,7 +84748,7 @@ function spOnPath(x, y){
 /* the east wall's painted ground band, in runs (north to south), left out across the first terrace's side, where the lawn joins it */
 function sierraEastBands(){
   const S = sierraGeo(), G = sierraEastGap();
-  return [[S.e[4], G.y0], [G.y1, S.wallY]];
+  return [[S.e[4], G.y0], [SP_PLAN.SITE.y1, S.wallY]];   // (the south run stops at the platform's south face)
 }
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
@@ -93172,9 +93172,9 @@ class WorldScene extends Phaser.Scene {
     /* THE EAST WALL, SEEN NOW (2026-11-01, the Vista Ridge Security Post: the bench outside it is ground, and Night Watch's
        patrol walks it): the perimeter wall's own stone and cap along x = xe, from the front wall's corner up to the first
        terrace (the court's level), in runs keyed at their middles; its face (+x) is the one the eye sees */
-    const GAP = sierraEastGap();                                 // (open where the security post's lawn meets the court)
-    for(let y = yw; y > GAP.y1 + 1; y -= 420){
-      const ya = y, yb = Math.max(y - 420, GAP.y1), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
+    const CUT = SP_PLAN.SITE.y1;                                 // (the wall stops where the security post's platform begins: its south face takes over)
+    for(let y = yw; y > CUT + 1; y -= 420){
+      const ya = y, yb = Math.max(y - 420, CUT), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
       bodies.push({ depth: xe + (ya + yb)/2, fn: (gg) => {
         const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
         Qg([[xe + 8,ya,0],[xe + 8,yb,0],[xe + 8,yb,WALL_H],[xe + 8,ya,WALL_H]], shade(STONE, .9));
