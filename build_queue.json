@@ -861,8 +861,9 @@
 "deps": [
 "bb-ms1"
 ],
-"status": "pending",
-"group": "Brew & Bolt: Minding the Shop"
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
 },
 {
 "id": "bb-climb",

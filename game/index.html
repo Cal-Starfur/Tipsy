@@ -85788,6 +85788,7 @@ function msGidAt(now){
 }
 function msTipAt(now){
   const T = MS.tip; if(!T) return null;
+  if(MS.tipOut){ const p = walkPathAt(T, now); return p ? { x: p.x, y: p.y, th: p.th, moving: !p.there } : null; }   // (leaving: out along his own way in, and stands on his bay)
   if(!MS.tipArr){
     const p = walkPathAt(T, now);
     if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
@@ -85854,7 +85855,7 @@ function msBayNow(scene){
   if(MS.stage === 'shift') return ic(msLadderBay(), 'flag');
   if(MS.stage === 'roof') return MS.seen && !MS.carry ? ic(msHatchBay(), 'flag') : ic(msMastBay(), 'robot');   // (the parts in hand: the mast again)
   if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
-  if(MS.stage === 'return') return ic(MS.home, 'flag');
+  if(MS.stage === 'return' || MS.stage === 'out') return ic(MS.home, 'flag');
   return null;
 }
 function msAccept(){
@@ -85902,8 +85903,20 @@ function msFinish(){
   const first = !msDone();
   missionComplete('minding-the-shop');
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard([], first ? "Minding the Shop: done! The antenna's straight and Brew & Bolt's order screen is lit again." : "Minding the Shop: done again!");
-  MS.fin = false; msHandBack(scene);
+  collectCard([], first ? "Minding the Shop: done! The antenna's straight and Brew & Bolt's order screen is lit again. Tipsey's wheeling out: meet him at his bay." : "Minding the Shop: done again!");
+  MS.fin = false;
+  /* THE EXIT: Tipsey rolls out from behind the counter by the way he came in, and the loan ends where Gideon meets him at his bay */
+  const T = MS.tip, cur = msTipAt(scene.time.now);
+  if(T && cur){ const pts = T.pts.slice().reverse(); pts[0] = { x: T.pts[0].x, y: T.pts[0].y };
+    MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
+  MS.stage = 'out';
+  msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
+}
+/* a loan lost another way (he tipped, was towed, a reload's restart): nothing half-done, nothing kept */
+function msAbort(scene){
+  msNavClear(scene);
+  MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -85916,7 +85929,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -85940,6 +85953,7 @@ function msTick(scene, ow){
   msGidAt(now);
   if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  if(R.stage !== 'idle' && R.stage !== 'ask' && FLEET_LOAN !== 'humanoid'){ msAbort(scene); return; }   // (the loan went some other way: nothing half-done)
   const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
   const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
   switch(R.stage){
@@ -85975,6 +85989,10 @@ function msTick(scene, ow){
         hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "The order screen's alight, the mast's dead straight, and the shop's in one piece. Tipsey, you kept it all going while I was up there, and I couldn't have asked for better hands. Coffee's on me, next time you're past. Thank you." }); }
       return;
     case 'finCard': return;
+    case 'out': {
+      const T = MS.tip, p = T && walkPathAt(T, now);
+      if((!T || (p && p.there)) && armed(R.home)) msHandBack(scene);   // (Tipsey is on his bay and Gideon's beside him: the loan ends)
+      return; }
     case 'roofAsk': return;
     case 'parts': {
       const B = msHw(scene);
@@ -86008,7 +86026,7 @@ MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew 
   reward: {},
   busy: () => msBusy(),
   item: () => MS.carry === 'parts' ? { id: 'parts', name: 'mast bracket and coax connector', tip: 'crewReturns' } : null,
-  next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
+  next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon', out: 'Out to Tipsey, at his bay' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
   start: () => { const sc = scn(), B = sc && msBay(sc); return B ? { x: B.x, y: B.y, name: 'Brew & Bolt' } : null; } };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
