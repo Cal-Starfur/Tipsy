@@ -39,8 +39,12 @@ function install(){
     tPrev = tNow; tNow = new Map();
     try { for(const tr of s.trafficActive(t) || []){ const a = trafficWorldAt(tr, t); if(a && a.wp && !a.hidden) tNow.set(tr, a.wp); } } catch(e){}
   };
-  const stillThere = (x, y) => {
-    for(const [tr, p] of tNow) if(Math.abs(p.x - x) + Math.abs(p.y - y) < 160 && tPrev.has(tr)) return true;
+  /* (ms: how long since the track's last live draw. A slow frame, or three of them, lets the car drive on past a fixed
+     160 -- a street car does up to 0.32 a ms -- so the reach grows with the time, or a car the traffic still has reads
+     as gone: the tow trucks flagged along y 3248, every one of them still on the traffic list) */
+  const stillThere = (x, y, ms) => {
+    const reach = 160 + 0.35*Math.max(0, ms || 0);
+    for(const [tr, p] of tNow) if(Math.abs(p.x - x) + Math.abs(p.y - y) < reach && tPrev.has(tr)) return true;
     return false;
   };
   const onFrame = () => {
@@ -62,7 +66,7 @@ function install(){
     }
     for(const tr of R.tracks) if(!uT.has(tr) && ++tr.miss === 3){
       tr.dead = true;
-      if(R.frame > 40 && inner(tr.sx, tr.sy) && !stillThere(tr.x, tr.y)) R.ev.push({ kind: 'vanish', what: tr.kind, t: tr.last, x: tr.x, y: tr.y, sx: tr.sx, sy: tr.sy, cov: covered(tr.x, tr.y) });
+      if(R.frame > 40 && inner(tr.sx, tr.sy) && !stillThere(tr.x, tr.y, t - tr.last)) R.ev.push({ kind: 'vanish', what: tr.kind, t: tr.last, x: tr.x, y: tr.y, sx: tr.sx, sy: tr.sy, cov: covered(tr.x, tr.y) });
     }
     R.tracks = R.tracks.filter(tr => !tr.dead);
     /* V6: no vehicle stands in another -- two live vehicles' middles closer than 90, or a moving one over a car
@@ -84,7 +88,7 @@ function install(){
       const tr = { id: R.nextId++, kind: q.kind, x: q.x, y: q.y, sx: q.sx, sy: q.sy, miss: 0, last: t };
       R.tracks.push(tr);
       if(q.a < 0.97){ tr.faded = true; const ev = { kind: 'fade', what: q.kind, t, x: q.x, y: q.y, sx: q.sx, sy: q.sy, a: +q.a.toFixed(2), cov: covered(q.x, q.y) }; R.ev.push(ev); if(!ev.cov && inner(q.sx, q.sy)) snap(ev); }
-      if(R.frame > 40 && inner(q.sx, q.sy) && !stillThere(q.x, q.y)){ const ev = { kind: 'appear', what: q.kind, t, x: q.x, y: q.y, sx: q.sx, sy: q.sy, cov: covered(q.x, q.y) }; R.ev.push(ev); if(!ev.cov) snap(ev); }
+      if(R.frame > 40 && inner(q.sx, q.sy) && !stillThere(q.x, q.y, dt)){ const ev = { kind: 'appear', what: q.kind, t, x: q.x, y: q.y, sx: q.sx, sy: q.sy, cov: covered(q.x, q.y) }; R.ev.push(ev); if(!ev.cov) snap(ev); }
     });
   };
   game.events.on('postrender', onFrame);
