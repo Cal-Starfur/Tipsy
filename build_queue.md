@@ -29,7 +29,7 @@ graph LR
 - [?] `p2.8` PEOPLE registry (updateKnocks, blockAt, hospital walkers solid) [docs/people-unification.md]
 
 ## Roadmap: routes, ramps, editor
-- [ ] `r1` Dev challenge routes data plumbing [docs/roadmap.md#phase-1]
+- [?] `r1` Dev challenge routes data plumbing [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1) [docs/roadmap.md#phase-1]
 - [ ] `r2a` Ramp/kicker lab bench, all 4 headings [docs/ramp-jump-spec.md]
 - [ ] `r2b` Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route [docs/ramp-jump-spec.md]
 - [ ] `r3` Community route editor [docs/roadmap.md#phase-3]

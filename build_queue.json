@@ -85,8 +85,9 @@
 "title": "Dev challenge routes data plumbing",
 "spec": "docs/roadmap.md#phase-1",
 "deps": [],
-"status": "pending",
-"group": "Roadmap: routes, ramps, editor"
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1"
 },
 {
 "id": "r2a",
@@ -672,6 +673,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }
