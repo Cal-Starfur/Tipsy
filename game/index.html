@@ -25048,6 +25048,22 @@ function ballroomWalkerBlock(x, y, r){
   }
   return null;
 }
+/* loopWalkStep: one frame of a stateful loop walker (the ballroom's and the derby's). w = {i, x, y, th, wait, moving, stuck, excT}; P = its stops
+   (a, b, wait ms ...); toWorld(q) -> {x, y} of a stop; (bx, by) Tipsey; o = { stop: radius he holds them at, excuseMs: how long stuck before
+   they say so, hold(w, q): what they do while waiting at a stop, arrive(w): on reaching one, excuse(w): say excuse me }. Waits for him, never steps round. */
+function loopWalkStep(w, P, toWorld, bx, by, dt, t, o){
+  if(w.wait > 0){ const q = P[w.i]; w.moving = false; o.hold(w, q); w.wait -= dt; return; }
+  const nq = P[(w.i + 1) % P.length], tp = toWorld(nq);
+  const dx = tp.x - w.x, dy = tp.y - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
+  if(d <= st){ w.x = tp.x; w.y = tp.y; w.i = (w.i + 1) % P.length; w.wait = nq[2] || 0; if(o.arrive) o.arrive(w); return; }
+  const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
+  if(dn < o.stop && dn < Math.hypot(w.x - bx, w.y - by)){                   // he's in the way: wait for him
+    w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
+    if(w.stuck > o.excuseMs && t > w.excT){ o.excuse(w); w.excT = t + 6000; }
+    return;
+  }
+  w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+}
 function ballroomLifeTick(scene){
   const B = typeof cakeBallroom === 'function' ? cakeBallroom() : null;
   if(!B || !B.pk || scene._inside !== B.pk){ BALL_LIFE.lastT = 0; return; }
@@ -25059,29 +25075,21 @@ function ballroomLifeTick(scene){
                                        wait: d.path[0][2] || 0, moving: false, said: false, stuck: 0, excT: 0 }));
   /* THE WALKERS */
   const bx = scene.botX, by = scene.botY;
-  for(const w of L.w){
-    if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
-    const P = w.d.path;
-    if(w.wait > 0){
-      const q = P[w.i];
-      w.moving = false; if(q[3] != null) w.th = q[3];
+  const ballOpts = {
+    stop: 58, excuseMs: 1200,
+    hold(w, q){
+      if(q[3] != null) w.th = q[3];
       if(!w.said && q[4] && groups){
         w.said = true;
         L.convos.push({ grp: 'w|' + w.d.id, lines: q[4].map(l => l[1]), spk: q[4].map(l => ballSpeaker(l[0], w, groups, 0)), i: 0, at: t + 400 });
       }
-      w.wait -= dt;
-      continue;
-    }
-    const n = P[(w.i + 1) % P.length], tx = pk.x0 + n[0], ty = pk.y0 + n[1];
-    const dx = tx - w.x, dy = ty - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
-    if(d <= st){ w.x = tx; w.y = ty; w.i = (w.i + 1) % P.length; w.wait = n[2] || 0; w.said = false; continue; }
-    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
-    if(dn < 58 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
-      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
-      if(w.stuck > 1200 && t > w.excT){ const ex = BALL_EXCUSE[w.d.id]; say(ballSpeaker('self', w), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000; }
-      continue;
-    }
-    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+    },
+    arrive(w){ w.said = false; },
+    excuse(w){ const ex = BALL_EXCUSE[w.d.id]; say(ballSpeaker('self', w), ex[Math.floor(Math.random()*ex.length)], 2200); }
+  };
+  for(const w of L.w){
+    if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
+    loopWalkStep(w, w.d.path, q => ({ x: pk.x0 + q[0], y: pk.y0 + q[1] }), bx, by, dt, t, ballOpts);
   }
   if(!groups) return;
   /* THE CHATTER: a new conversation every few seconds, two at most at once */
@@ -29957,27 +29965,17 @@ function derbyLifeTick(scene, ow){
   if(!L.w) L.w = DERBY_WALK.map(d => { const p = derbyW(d.path[0][0], d.path[0][1]); return { d, i: 0, x: p.x, y: p.y, th: Math.PI/2, wait: (d.path[0][2] || 0)*Math.random(), moving: false, stuck: 0, excT: 0 }; });
   /* THE WALKERS */
   const bx = ow.px, by = ow.py;
+  const derbyOpts = {
+    stop: 70, excuseMs: 1100,
+    hold(w, q){ if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); } },
+    excuse(w){
+      const ex = DERBY_EXCUSE[w.d.kind === 'kid' ? 'kid' : 'adult'], h = w.d.kind === 'kid' ? 115 : 150;
+      say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), ex[Math.floor(Math.random()*ex.length)], 2200);
+    }
+  };
   for(const w of L.w){
     if(w.leave || w.knock) continue;                                      // (gone home: DERBY_LEAVE; knocked down: updateKnocks)
-    const P = w.d.path;
-    if(w.wait > 0){
-      const q = P[w.i]; w.moving = false;
-      if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); }
-      w.wait -= dt; continue;
-    }
-    const nq = P[(w.i + 1) % P.length], tp = derbyW(nq[0], nq[1]);
-    const dx = tp.x - w.x, dy = tp.y - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
-    if(d <= st){ w.x = tp.x; w.y = tp.y; w.i = (w.i + 1) % P.length; w.wait = nq[2] || 0; continue; }
-    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
-    if(dn < 70 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
-      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
-      if(w.stuck > 1100 && t > w.excT){
-        const ex = DERBY_EXCUSE[w.d.kind === 'kid' ? 'kid' : 'adult'], h = w.d.kind === 'kid' ? 115 : 150;
-        say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000;
-      }
-      continue;
-    }
-    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+    loopWalkStep(w, w.d.path, q => derbyW(q[0], q[1]), bx, by, dt, t, derbyOpts);
   }
   /* THE CHATTER */
   const up = id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
