@@ -93,6 +93,9 @@ Each batch is:
 ## Checked and left as they are
 - **The mall junction Sir circled** is fixed on `main` by the hospital session's 2026-10-29 clip (`shopsCut`). The mall body is still one 9,384-long image (U1l); splitting it waits for a fault that shows.
 
+## Build queue
+The work to do next, and the work built but not yet tested, is in `build_queue.md` (the readable plan) and `build_queue.json` (what the scheduled sessions read), both on this branch. `python3 tools/queue.py next` gives the next item. Test results and fixes from the scheduled look tests are in `docs/state/TEST_FINDINGS.md`. The test sheet the look tests use is `tools/test_sheet.json`.
+
 ## Still to do (each needs new art or a bigger change; Sir to see first)
 - **Working doors** for the Seabreeze Ballroom (its `doorF` must record itself), the Animal Shelter, the harbour boat's cabin, Surfside Diner and Sandpiper Shoes.
 - **Tide Pool Elementary in pieces** (U1k/U1c), and Palmline Tower's key and vol: its forecourt is in its one image.
