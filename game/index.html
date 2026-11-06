@@ -70042,7 +70042,8 @@ marinaEntry(),
         if(kind === 'b') box(u0, u1, lo, hi, z0, z1, top, front, side); else box(lo, hi, u0, u1, z0, z1, top, front, side);
       };
       const circ = (u, z, rad, fill, off) => { if(kind === 'b') faceCircle(u, plane + nrm*(off || 0), z, rad, fill); };
-      return { kind, plane, nrm, pt, pl, r, proj, circ };
+      const dp = (u, z, d) => kind === 'b' ? P(u, plane - nrm*d, z) : P(plane - nrm*d, u, z);          // a point d deep INTO the building from the face
+      return { kind, plane, nrm, pt, pl, r, proj, circ, dp };
     };
     /* a round-headed opening: jambs up to the springing z1, a half-ellipse over it */
     const headed = (fc, c, hw, z0, z1, rise, fill, off, stroke, lw) => {
@@ -70050,6 +70051,25 @@ marinaEntry(),
       for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([c + hw*Math.cos(t), z1 + rise*Math.sin(t), off]); }
       pts.push([c + hw, z1, off], [c + hw, z0, off]);
       fc.pl(pts, fill, stroke, lw);
+    };
+    /* A TUNNEL YOU CAN SEE INTO (not a flat dark fill): through a round-headed mouth in face fc, depth d deep -- the way out at
+       the far end lit, the vault's underside, the near wall of the passage (the camera sees the low-u one), the floor. All
+       clipped to the mouth, so nothing leaks onto the face. */
+    const tunnelView = (fc, c, hw, z1, rise, depth) => {
+      const ringP = d => { const pts = [[c - hw, 0], [c - hw, z1]];
+        for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([c + hw*Math.cos(t), z1 + rise*Math.sin(t)]); }
+        pts.push([c + hw, z1], [c + hw, 0]);
+        return pts.map(([u, z]) => d ? fc.dp(u, z, d) : fc.pt(u, z, 0.6)); };
+      const near = ringP(0), far = ringP(depth);
+      poly(near, '#1b1713');
+      ctx.save(); ctx.beginPath(); near.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.clip();
+      poly(far, '#bdb393');                                                                          // the court at the far end, in daylight
+      poly([fc.dp(c - hw, 0.5, depth), fc.dp(c + hw, 0.5, depth), fc.dp(c + hw, 24, depth), fc.dp(c - hw, 24, depth)], '#cfc4a4');
+      for(let k = 1; k < near.length - 2; k++) poly([near[k], near[k + 1], far[k + 1], far[k]], shade('#4c4236', k % 2 ? .92 : 1.04));   // the vault's underside, ribbed
+      poly([fc.dp(c - hw, 0, 0), fc.dp(c - hw, z1 + 4, 0), fc.dp(c - hw, z1 + 4, depth), fc.dp(c - hw, 0, depth)], shade(stone, .56));   // the passage's wall
+      poly([fc.dp(c - hw, 0, 0), fc.dp(c + hw, 0, 0), fc.dp(c + hw, 0, depth), fc.dp(c - hw, 0, depth)], shade('#a89d86', .8));            // its floor
+      poly([fc.dp(c - hw, 0, 0), fc.dp(c - hw, z1 + 4, 0), fc.dp(c - hw, z1 + 4, depth*0.35), fc.dp(c - hw, 0, depth*0.35)], 'rgba(12,10,8,.28)');   // shade at the mouth
+      ctx.restore();
     };
     /* ---------- THE PARTS OF A FRONT ---------- */
     const window2 = (fc, c, ww, z0, z1, shutters) => {
@@ -70250,7 +70270,7 @@ marinaEntry(),
       f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
-      headed(f, GM, A.FGW, 0, 182, 76, dark, 0.6);
+      tunnelView(f, GM, A.FGW, 182, 76, RD);
       for(let k = 0; k < 11; k++){
         const t0 = Math.PI*(1 - k/11), t1 = Math.PI*(1 - (k + 1)/11), hw = A.FGW;
         const q = (t, rr) => [GM + rr*Math.cos(t), 182 + (rr === hw ? 76 : 76*(rr/hw))*Math.sin(t) + (rr > hw ? 6 : 0), 0.9];
