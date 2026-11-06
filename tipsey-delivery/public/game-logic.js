@@ -27855,7 +27855,7 @@ const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D:
   BACK: { a: 416, b: 416, T: 16, door: [130, 250], h: 92 },
   TABLES: [ [110, 770, 2], [250, 770, 2], [586, 770, 2], [726, 770, 2],
             [90, 640, 4], [260, 640, 2], [590, 630, 4], [740, 630, 2],
-            [786, 90, 2], [786, 230, 2], [786, 360, 2], [600, 110, 4], [600, 300, 4] ] };
+            [786, 90, 2], [786, 230, 2], [786, 360, 2] ] };
 const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
   lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 0, half: 50 }, H: BB_IN.H, out: 60, apron: 60, glass: 60,
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
@@ -27872,9 +27872,9 @@ const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0
 const GIDEON_UNIFORM = { shirt: { c:0x6b4a32, dk:0x4f3624 }, pants: { c:0x2a2e34, dk:0x1c1f23 }, shoe: { c:0x1c1f23, dk:0x101214 },
   vest: { c:0xd9892b, dk:0xb06f20 }, shoeKind: 'dress' };
 walkinStaff(BB_IN.name, [
-  { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, life: 'patrol', pace: 0.85,
-    route: [[330, 330, Math.PI/2, 9000], [190, 380, Math.PI/2, 1200], [190, 470, 0, 800], [470, 470, 0, 1200], [470, 300, 0, 2400], [470, 130, -Math.PI/2, 2600], [470, 470, Math.PI, 600], [190, 470, Math.PI, 600]],
-    posts: [[330, 330, Math.PI/2, 9000, true]],
+  { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, pace: 0.85,
+    /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
+    posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     lookFn: () => { const B = rosterBody(0x61de0), U = GIDEON_UNIFORM;
       return { build: Object.assign({}, B.build, { hairStyle: 'none' }), skin: { c: 0xb9c4cd, dk: 0x8e9aa5 }, hair: 0x6e757c, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; } },
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
@@ -27887,7 +27887,7 @@ walkinLife(BB_IN.name, { keep: [[362, 474, 416, 836], [130, 506, 446, 500]], loo
   { id: 'win-e', spots: [[586, 718, -Math.PI/2], [726, 718, -Math.PI/2]] },
   { id: 'east-1', spots: [[738, 90, Math.PI]] },
   { id: 'east-2', spots: [[738, 360, Math.PI]] },
-  { id: 'mid', spots: [[548, 630, 0], [640, 300, Math.PI]] },
+  { id: 'mid', spots: [[548, 630, 0], [690, 300, Math.PI]] },
 ] });
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
@@ -49006,6 +49006,7 @@ function houseCanopy(fn){
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     const seeB1 = P(0, 1, 0).y > P(0, 0, 0).y;
+    const dark = '#2a1a11';
 
     /* ---- THE FLOOR: wide boards, a runner from the door, the back room's floor sealed concrete, the door's threshold (W13) ---- */
     T(0, W, 0, D, 0, wood);
@@ -49024,24 +49025,32 @@ function houseCanopy(fn){
       paintN: () => {
         F(-30, W + 30, 0, H, plaster, null, 0, 0);
         for(let a = -18; a < W + 30; a += 44) F(a, a + 1.4, 0, H, plasterD, null, 0, 0.1);
-        F(-30, W + 30, 0, 78, brown, null, 0, 0.2); F(-30, W + 30, 78, 83, brownD, null, 0, 0.3);
+        F(-30, W + 30, 0, 78, '#7a3f2a', null, 0, 0.2);
+        for(let z = 0, k = 0; z < 78; z += 6.5, k++) F(-30, W + 30, z + 5.6, z + 6.5, k % 2 ? '#5d2f1f' : '#6a3523', null, 0, 0.25);
+        F(-30, W + 30, 78, 83, brownD, null, 0, 0.3);
         F(-30, W + 30, H - 14, H, brownD, null, 0, 0.3);
         /* the chalkboard menu on the east leg's stretch of the north wall: BREW & BOLT, a copper rule, the board's lines */
-        { const a0 = 480, a1 = 760, z0 = 104, z1 = 196;
+        { const a0 = 520, a1 = 720, z0 = 104, z1 = 196;
           F(a0 - 5, a1 + 5, z0 - 5, z1 + 5, brownD, null, 0, 0.5); F(a0, a1, z0, z1, '#25302b', null, 0, 0.6);
           blockWordIn('BREW & BOLT', a0 + 24, a1 - 24, z1 - 28, z1 - 8, 0.9, cream, null, 3.4);
           F(a0 + 20, a1 - 20, z1 - 36, z1 - 34, copper, null, 0, 0.9);
           for(let k = 0; k < 4; k++){ const zl = z1 - 52 - k*13; F(a0 + 24, a0 + 24 + 120 - (k%2)*30, zl, zl + 3, 'rgba(241,230,207,.78)', null, 0, 0.9); F(a1 - 58, a1 - 24, zl, zl + 3, copper, null, 0, 0.9); } }
-        /* a shelf of cups over the dado, either side of it */
-        for(const [x0, x1] of [[436, 468], [772, 804]]){
-          F(x0, x1, 150, 154, woodL, null, 0, 1.2);
-          for(let a = x0 + 4; a < x1 - 4; a += 10) F(a, a + 6, 154, 162, cream, null, 0, 1.4);
-        }
+        /* the neon bolt, glowing, and Gideon painted on the wall (a copper ring, his dark face, amber eyes) */
+        { const q = (a, z) => P(a, 0.9, z), pts = [q(478, 198), q(450, 142), q(466, 142), q(448, 100), q(492, 160), q(474, 160)];
+          poly(pts, null, 'rgba(255,170,60,.30)', 11); poly(pts, '#ffb347', '#ffe2a8', 1.6); }
+        { const ma = 782, mz = 146;
+          faceCircle(ma, 0.6, mz, 34, '#b8702f', '#7a4a1d', 1.5); faceCircle(ma, 0.8, mz, 28, '#2a1a11', '#1f130c', 1);
+          faceCircle(ma - 10, 1.0, mz + 6, 5, '#ffcf5a'); faceCircle(ma + 10, 1.0, mz + 6, 5, '#ffcf5a');
+          for(let k = 0; k < 5; k++) F(ma - 14 + k*6, ma - 11 + k*6, mz - 14, mz - 8, '#ffcf5a', null, 0, 1.0);
+          F(ma - 40, ma - 34, mz - 6, mz + 14, '#e79a35', null, 0, 0.7); F(ma + 34, ma + 40, mz - 6, mz + 14, '#e79a35', null, 0, 0.7);
+          tube(ma, 1.2, mz + 33, ma, 1.2, mz + 52, 1.2, '#8d979f'); ball(ma, 1.4, mz + 54, 3, '#e5483b'); }
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, plaster);
         for(let b = -18; b < D + 30; b += 44) S(0.1, b, b + 1.4, 0, H, plasterD);
-        S(0.2, -30, D + 30, 0, 78, brown); S(0.3, -30, D + 30, 78, 83, brownD); S(0.3, -30, D + 30, H - 14, H, brownD);
+        S(0.2, -30, D + 30, 0, 78, '#7a3f2a');
+        for(let z = 0, k = 0; z < 78; z += 6.5, k++) S(0.25, -30, D + 30, z + 5.6, z + 6.5, k % 2 ? '#5d2f1f' : '#6a3523');
+        S(0.3, -30, D + 30, 78, 83, brownD); S(0.3, -30, D + 30, H - 14, H, brownD);
         /* the back room's side of the west wall: a pegboard over the bench with robot tools, a wall clock */
         S(0.4, 190, 340, 96, 176, '#b88f5e');
         for(let b = 198; b < 336; b += 9) for(let z = 102; z < 172; z += 9) S(0.5, b, b + 1.4, z, z + 1.4, '#9a7448');
@@ -49066,6 +49075,7 @@ function houseCanopy(fn){
     part(BK.door[1], BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2);
     T(BK.door[0], BK.door[1], BK.b - 8, BK.b + 8, 0.6, '#8f969d');   // the door's threshold
 
+    for(const [ta, tb, seats] of BB_IN.TABLES) if(seats === 4){ T(ta - 62, ta + 62, tb - 62, tb + 62, 0.42, '#7a3a2a'); T(ta - 56, ta + 56, tb - 56, tb + 56, 0.46, '#d9892b'); T(ta - 52, ta + 52, tb - 52, tb + 52, 0.5, '#efe2c8'); }
     /* ---- THE TABLES, round, with their chairs: a pedestal, a wooden top, two cups and a plate on it ---- */
     const chair = (ca, cb, back) => {   // back: where its back is (+1 north .. cb - 14, 0 east a, 2 west)
       items.push({ a: ca, b: cb, z: 0, solids: [], draw: () => {
@@ -49089,7 +49099,7 @@ function houseCanopy(fn){
       else { chair(ta, tb - o, 'n'); chair(ta, tb + o, 's'); }
     }
     /* two potted palms by the door, a planter at each window pier */
-    for(const [pa, pb] of [[338, 806], [498, 806]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', c: [pa, pb], r: 16, h: 70 }], draw: () => {
+    for(const [pa, pb] of [[338, 806], [498, 806], [26, 806], [818, 806]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', c: [pa, pb], r: 16, h: 70 }], draw: () => {
       box(pa - 14, pa + 14, pb - 14, pb + 14, 0, 26, '#8a5a3a', '#7a4e32', '#5b3d2a');
       for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*22, pb + Math.sin(t)*22, 60 + (k%2)*12, 2, '#3f8f4a'); } } });
 
@@ -49136,6 +49146,71 @@ function houseCanopy(fn){
     items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {
       box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350');
       box(354, 402, 168, 212, 24, 28, woodD, woodD, woodD); } });
+
+    /* ---- THE SERVICE COUNTER (2026-11-06: "counter and espresso bar"): a slatted copper-edged counter down the middle of the east
+       side, a 560..604, b 70..390, the staff's aisle behind it (a 452..560, Gideon at his till) and its stools on the customers' side.
+       Built in runs, the espresso machine, the cups and tip jar, the glass pastry case and the till each on the run they stand on ---- */
+    { const CA0 = 560, CA1 = 604, CZ = 96;
+      const pastry = ['#d98a3a', '#f0c46a', '#a85a3a', '#e8b7a0', '#c9794a'];
+      const feat = (s0, s1) => {
+        const has = c => c >= s0 && c < s1;
+        if(has(110)){                                                                   // the espresso machine
+          box(566, 598, 88, 134, CZ, CZ + 34, '#e8b46a', copper, copperD); box(566, 598, 88, 134, CZ + 34, CZ + 38, steel, steelD, steelS);
+          for(const b of [100, 122]){ cyl(596, b, CZ + 12, CZ + 22, 5, steel, '#c4cbd1'); tube(598, b, CZ + 12, 612, b, CZ + 10, 2, dark); cyl(606, b, CZ, CZ + 7, 4.5, cream, '#fff8e8'); }
+          cyl(580, 100, CZ + 38, CZ + 56, 9, copper, '#e8a550'); cyl(580, 124, CZ + 38, CZ + 56, 9, copper, '#e8a550');
+          tube(570, 134, CZ + 30, 570, 146, CZ + 8, 1.4, steel); }
+        if(has(168)) for(let k = 0; k < 3; k++) cyl(580, 168, CZ + k*5, CZ + 8 + k*5, 6, cream, '#fff8e8');       // a tower of cups
+        if(has(196)){ cyl(584, 196, CZ, CZ + 16, 6, 'rgba(207,227,232,.9)', '#e4f1f4'); cyl(584, 196, CZ + 16, CZ + 19, 6.6, copper, '#e8a550'); for(let k = 0; k < 4; k++) ball(582 + k, 196, CZ + 3 + k*3, 1.6, '#d8b24a'); }  // the tip jar
+        /* the pastry case, b 214..326: a dark base, the pastries on it, the glass over */
+        const c0 = Math.max(214, s0), c1 = Math.min(326, s1);
+        if(c1 > c0){
+          box(564, 598, c0, c1 + 0.5, CZ, CZ + 10, '#3b2619', dark, dark);
+          for(let b = 224; b < 326; b += 22) if(b >= s0 && b < s1){ const k = Math.floor(b/22), c = pastry[k % 5]; cyl(574, b, CZ + 10, CZ + 17, 8, c, shade(c, 1.2)); cyl(590, b + 6, CZ + 10, CZ + 15, 7, pastry[(k + 2) % 5], '#f4d9a8'); }
+          T(564, 598, c0, c1, CZ + 34, 'rgba(190,220,232,.30)');
+          S(598, c0, c1, CZ + 10, CZ + 34, 'rgba(190,220,232,.34)');
+          if(c1 === 326) F(564, 598, CZ + 10, CZ + 34, 'rgba(190,220,232,.38)', null, 0, 326);
+          if(c0 === 214) for(const a of [564, 598]) tube(a, 214, CZ + 10, a, 214, CZ + 34, 1, copper);
+          if(c1 === 326) for(const a of [564, 598]) tube(a, 326, CZ + 10, a, 326, CZ + 34, 1, copper);
+        }
+        if(has(358)){                                                                    // the till: a box, its screen tilted to the staff, a drawer
+          box(568, 596, 344, 374, CZ, CZ + 12, '#4a5660', '#3a4650', '#2c363e');
+          poly([P(572, 352, CZ + 12), P(590, 352, CZ + 12), P(590, 352, CZ + 30), P(572, 352, CZ + 28)], '#1f2a30');
+          poly([P(574, 352.3, CZ + 14), P(588, 352.3, CZ + 14), P(588, 352.3, CZ + 26), P(574, 352.3, CZ + 25)], '#5be37d'); }
+      };
+      const run = 40, n = Math.ceil(320/run);
+      for(let k = 0; k < n; k++){ const s0 = 70 + 320*k/n, s1 = 70 + 320*(k + 1)/n;
+        items.push({ a: (CA0 + CA1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(CA0, CA1, s0, s1, 100, 'counter')], draw: () => {
+          box(CA0, CA1, s0, s1 + 0.5, 0, CZ - 6, '#8a5b3a', '#7a4f33', '#5f3d27');
+          for(let b = Math.ceil(s0/8)*8; b < s1; b += 8) S(CA1 + 0.1, b, b + 1.2, 6, CZ - 8, '#5a3724');                 // the slats on the customers' face
+          S(CA1 + 0.15, s0, s1 + 0.5, 0, 6, copperD);                                                                    // the copper kick
+          box(CA0 - 4, CA1 + 4, s0, s1 + 0.5, CZ - 6, CZ, '#4a3020', copper, copperD);                                   // the top, a copper edge
+          feat(s0, s1); } }); }
+      /* the back bar against the partition: a cabinet with its grinders, the kettle and a row of jars */
+      for(let k = 0, m = Math.ceil(300/50); k < m; k++){ const s0 = 60 + 300*k/m, s1 = 60 + 300*(k + 1)/m;
+        items.push({ a: 440, b: (s0 + s1)/2, z: 0, solids: [solid(428, 452, s0, s1, 100, 'back bar')], draw: () => {
+          box(428, 452, s0, s1 + 0.5, 0, 88, '#8a5b3a', '#7a4f33', '#5f3d27'); box(426, 454, s0, s1 + 0.5, 88, 93, woodL, wood, woodD);
+          if(s0 <= 100 && s1 > 100){ box(432, 448, 88, 112, 93, 124, steelD, steel, steelS); cyl(440, 100, 124, 134, 8, '#c4cbd1', '#e4eaee'); }      // a grinder
+          if(s0 <= 160 && s1 > 160){ box(432, 448, 148, 172, 93, 124, steelD, steel, steelS); cyl(440, 160, 124, 134, 8, '#c4cbd1', '#e4eaee'); }
+          if(s0 <= 230 && s1 > 230){ cyl(440, 230, 93, 112, 9, copper, '#e8a550'); tube(449, 230, 106, 456, 230, 98, 1.6, copper); }                // the kettle
+          for(let b = Math.max(s0 + 6, 270); b < Math.min(s1 - 4, 354); b += 18) cyl(440, b, 93, 111, 6, 'rgba(207,227,232,.92)', cream);        // jars
+        } }); }
+      /* four stools down the customers' side */
+      for(const b of [100, 180, 260, 340]) items.push({ a: 628, b, z: 0, solids: [{ name: 'stool', c: [628, b], r: 14, h: 34 }], draw: () => {
+        cyl(628, b, 0, 3, 11, dark, dark); tube(628, b, 3, 628, b, 25, 2, dark); cyl(628, b, 25, 30, 11, copper, '#e8a550'); } });
+      /* copper pendants over the counter and the window tables: a cord to the ceiling, a shade, a warm bulb */
+      const pend = (a, b) => items.push({ a, b, z: 0, solids: [], draw: () => {
+        tube(a, b, H - 6, a, b, H - 56, 0.6, dark); cyl(a, b, H - 70, H - 56, 11, copper, '#e8a550'); ball(a, b, H - 70, 4.2, '#fff2c8'); } });
+      for(const b of [110, 230, 350]) pend(582, b);
+      for(const [ta, tb] of [[110, 770], [250, 770], [586, 770], [726, 770], [90, 640], [260, 640]]) pend(ta, tb);
+    }
+    /* the robots' charging nook against the east wall, b 440..540: a rubber mat with a bolt on it, three posts */
+    { const NA = 800;
+      T(NA - 30, NA + 34, 438, 546, 0.5, '#2b3138'); T(NA - 26, NA + 30, 442, 542, 0.6, '#3a444d');
+      poly([P(NA + 10, 462, 0.7), P(NA - 4, 484, 0.7), P(NA + 2, 484, 0.7), P(NA - 8, 520, 0.7), P(NA + 14, 490, 0.7), P(NA + 6, 490, 0.7)], copper);
+      for(const b of [454, 490, 526]) items.push({ a: NA + 22, b, z: 0, solids: [{ name: 'charge post', c: [NA + 22, b], r: 12, h: 110 }], draw: () => {
+        box(NA + 16, NA + 28, b - 6, b + 6, 0, 88, '#4a5660', '#3a4650', '#2c363e'); box(NA + 17, NA + 27, b - 5, b + 5, 88, 94, '#2b3138', '#222831', '#222831');
+        F(NA + 19, NA + 25, 60, 76, '#1b2329', null, 0, b + 6.2); faceCircle(NA + 22, b + 6.5, 68, 3, '#7ad37a', '#3d8a3d', 1);
+        tube(NA + 16, b, 40, NA + 4, b + 6, 4, 1.4, dark); } }); }
 
     walkinStaffSolids(items, BB_IN.name);
     depthSort(items);
