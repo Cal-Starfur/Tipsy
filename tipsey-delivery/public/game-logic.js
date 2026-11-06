@@ -23921,7 +23921,7 @@ const HOOD_RIM_SITES = [
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
      map fills it as the shops it is, not as the park green the school's
      grounds take. */
-  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 2240, a1: 7144, depth: MALL_DEPC, ease: 700 },
+  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 160, a1: 9224, depth: MALL_DEPC, ease: 700 },
     icon: "\u{1F6CD}\uFE0F", pin: "#23405e", kind: "landmark", mapType: "commercial" },
   /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
      between Veterans Memorial Park's lot and the mall */
@@ -35449,12 +35449,12 @@ function mallVol(){
   const P = MALL_PLAN, LEN = 9384, BB = P.BB, R = volRect, mp = mallProps();
   /* (its west end, a 0..WA[0], is open to the back line now: the service way up to the Vista Ridge Security Post's
      drive -- SP_PLAN.LANE -- where the back strip shut it 40 short of the bench) */
-  const foot = [[P.WA[0],-MALL_DEP],[P.CW[0],-MALL_DEP],[P.CW[0],-MALL_DEPC],[P.CE[1],-MALL_DEPC],[P.CE[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+  const foot = [[P.WA[0],-MALL_DEPC],[P.EA[1],-MALL_DEPC],[P.EA[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
                 [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
-    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 718 },
-    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 718 },
+    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], P.BBC, P.BF), h: 718 },
+    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], P.BBC, P.BF), h: 718 },
     { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 880 },
     ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
     ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
@@ -70940,9 +70940,9 @@ marinaEntry(),
   desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms and a tenant pylon at each end.',
   draw(p){
     const LEN = 9384, DEP = MALL_DEP;
-    const BF = MALL_PLAN.BF, BB = MALL_PLAN.BB;                 // the building's own band
-    const BBC = MALL_PLAN.BBC, CW0 = MALL_PLAN.CW[0], CE1 = MALL_PLAN.CE[1], DEPC = MALL_DEPC;   // (its centre, over the inside's span, is deeper)
-    const bbOf = (a0, a1) => (a0 >= CW0 - 1 && a1 <= CE1 + 1) ? BBC : BB;
+    const BF = MALL_PLAN.BF, BBC = MALL_PLAN.BBC, DEPC = MALL_DEPC;
+    const BB = BBC;                                             // the building's own band: all of it as deep as the inside (anchors too: their rooms are as deep)
+    const bbOf = () => BBC;
     const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
     const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
     /* THE OUTSIDE IS AS TALL AS THE INSIDE (Sir, 2026-11-06: "lets make the exterior taller then"): the room's upper shops end at
@@ -84002,6 +84002,21 @@ function msTipAt(now){
   const q = S(522, (k === 0 && now - MS.tipArr < 6000 ? 340 : b0 + (b1 - b0)*e));
   return { x: q.x, y: q.y, th: 0, moving: b0 !== b1 && f < 1 && !(k === 0 && now - MS.tipArr < 6000) };
 }
+/* Tipsey in the shop is drawn the way the room's own staff are (the walk-in kit's order): out on the pavement and in the doorway the
+   street's, whole; in the room under its shell, hidden by it, and seen only through its openings -- or whole once the shell has gone */
+function msTipQueue(scene, hazVQ, layerFor){
+  if(!MS.tip || !scene.ow || !scene.ow.on) return;
+  const now = scene.time.now, T = msTipAt(now), pk = POCKETS.find(q => q.name === BB_IN.name);
+  if(!T || !pk) return;
+  const V = walkinStaffView(scene, pk) || pk.view(), x = T.x, y = T.y, a = x - (pk.x0 + V.dx), b = y - (pk.y0 + V.dy);
+  if(!scene.visProp("chargestation", x, y)) return;
+  let sk = pk.hides && b <= BB_IN.D ? walkinShellK(scene, pk) : 0, al = sk > 0.002 ? 1 - sk : 1, dep = x + y;
+  if(sk > 0.002 && walkinSeenThrough(pk, a, b, 24, 170)){ const sh = scene._wkShell && scene._wkShell.get(pk.name);
+    if(sh && sh.fr === scene._wkFr){ dep = walkinUnderShell(sh.e.depth, a + b); al = 0.9999; } }
+  const th = T.th, mv = T.moving;
+  hazVQ.push({ depth: dep, fn: (gg, tt) => { const L = layerFor(x, y), st0 = scene._seenThrough; if(al < 1) scene._seenThrough = true;
+    try { scene.withAlpha(L, al, () => scene.drawTipseyParked(L, x, y, th, 0, mv ? { t: tt || now } : null)); } finally { scene._seenThrough = st0; } } });
+}
 function msGidAtDoor(p){ const B = MS._bay; return !!p && !!B && !!B.door && Math.hypot(p.x - B.door.x, p.y - B.door.y) < 220; }
 function msDoorWalkers(now){ const p = msGidAt(now); return p && msGidAtDoor(p) ? [{ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' }] : []; }
 /* the bay the story shows now (R7) */
@@ -84082,8 +84097,6 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
     queuePerson(x, y, (g, tt) => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
   }
-  const T = R.tip ? msTipAt(now) : null;
-  if(T && scene.visProp("people", T.x, T.y)){ const x = T.x, y = T.y, th = T.th, mv = T.moving; queuePerson(x, y, (g, tt) => scene.drawTipseyParked(layerFor(x, y), x, y, th, 0, mv ? { t: tt || now } : null)); }
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
   steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
@@ -99374,6 +99387,7 @@ class WorldScene extends Phaser.Scene {
       hazVQ.push({ depth: dep, fn: (gg, tt) => { const L = layerFor(x, y), st0 = this._seenThrough; if(al < 1) this._seenThrough = true;
         try { this.withAlpha(L, al, () => this.drawWalkinPerson(L, d, tt || now, s)); } finally { this._seenThrough = st0; } } });
     }
+    msTipQueue(this, hazVQ, layerFor);     // MINDING THE SHOP: Tipsey in the room, as its staff are -- under the shell, seen through its openings
     /* INSIDE SEABREEZE TROPHIES (TROPHY_IN): the engraver at the shelves,
        polishing, when not with him; at the bench, the cutter's sparks */
     if(this.ow && this.ow.on && inTrophy){
