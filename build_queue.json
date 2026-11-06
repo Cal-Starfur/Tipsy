@@ -896,9 +896,9 @@
 "bb-int",
 "bb-roof"
 ],
-"status": "pending",
+"status": "built",
 "group": "Brew & Bolt: Minding the Shop",
-"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1",
 "note": "NIGHT_CLOCK.time = 22"
 }
 ],

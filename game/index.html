@@ -51072,6 +51072,17 @@ function houseCanopy(fn){
             poly([P(L0 - 15, 6, hz + 2), P(L1 + 15, 6, hz + 2), P(L1 + 15, 10, hz + 40), P(L0 - 15, 10, hz + 40)], '#7a5a3c', '#4a3a2c', 1);   // the panel, up on its hinge
             poly([P(L0 - 15, 6, hz + 2), P(L0 - 15, 10, hz + 40), P(L0 - 10, 10, hz + 40), P(L0 - 10, 6, hz + 2)], '#5a4026');
           } } }); }
+    /* AFTER DARK (the night pass): the neon bolt throws a wide amber wash over the plaster and a pool on the floor under it, the counter's
+       base glows along the aisle, and the till's screen light spills on its top -- still pieces of the room, their 'when' */
+    { const night = () => typeof isNightNow === 'function' && isNightNow();
+      items.push({ a: 470, b: 6, z: 100, when: night, draw: () => {
+        const q = (a, z) => P(a, 0.95, z), pts = [q(478, 198), q(450, 142), q(466, 142), q(448, 100), q(492, 160), q(474, 160)];
+        poly(pts, null, 'rgba(255,170,60,.10)', 46); poly(pts, null, 'rgba(255,170,60,.14)', 30);
+        const ring = (r, k) => { const o = []; for(let i = 0; i < 18; i++){ const t = i/18*Math.PI*2; o.push(P(470 + Math.cos(t)*r*1.4, 70 + Math.sin(t)*r, 0.5)); } poly(o, 'rgba(255,170,60,' + k + ')'); };
+        ring(80, 0.05); ring(56, 0.06); ring(30, 0.07); } });
+      items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
+        T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
+        T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
     /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
     items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
       T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
@@ -51242,6 +51253,15 @@ function houseCanopy(fn){
        measuring them off the picture ---- */
     rpush({ a: 300, b: 660, z: 0, solids: [solid(190, 412, 620, 700, 40, 'roof unit')], draw: () => {} });
     rpush({ a: 653, b: 156, z: 0, solids: [solid(622, 684, 100, 213, 50, 'roof unit')], draw: () => {} });
+    /* ---- AFTER DARK (the night pass): a caged work lamp on a short post by the hatch, its pool of warm light on the tar reaching the mast
+       -- still pieces, their 'when' ---- */
+    rpush({ a: 270, b: 215, z: 0, solids: [{ name: 'work lamp', c: [270, 215], r: 8, h: 90 }], draw: () => {
+      cyl(270, 215, 0, 4, 9, steelD, steelS); tube(270, 215, 4, 270, 215, 84, 2.2, steel); box(260, 280, 207, 223, 82, 92, steelD, steelD, steelS);
+      const on = typeof isNightNow === 'function' && isNightNow();
+      T(262, 278, 209, 221, 82, on ? '#ffe2a8' : '#cfc7b4'); } });
+    rpush({ a: 270, b: 215, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
+      const ring = (r, k) => { const o = []; for(let i = 0; i < 20; i++){ const t = i/20*Math.PI*2; o.push(P(300 + Math.cos(t)*r, 250 + Math.sin(t)*r*0.9, 0.6)); } poly(o, 'rgba(255,214,140,' + k + ')'); };
+      ring(230, 0.05); ring(170, 0.06); ring(110, 0.07); ring(55, 0.08); } });
     /* ---- A VENT STACK with its cap, and an air-conditioning unit ---- */
     rpush({ a: 300, b: 560, z: 0, solids: [{ name: 'vent stack', c: [300, 560], r: 14, h: 90 }], draw: () => {
       cyl(300, 560, 0, 70, 8, steel, '#aab3ba'); cyl(300, 560, 70, 76, 12, steelD, '#838a90'); } });
