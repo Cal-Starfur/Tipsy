@@ -145,30 +145,6 @@
 "group": "Specs (waiting on decisions)"
 },
 {
-"id": "w1",
-"title": "robot.axle + robot.battery into game build",
-"spec": "docs/ASSETS.md#known-gaps--wishlist",
-"deps": [],
-"status": "pending",
-"group": "Wishlist"
-},
-{
-"id": "w2",
-"title": "Building fronts behind the sidewalk",
-"spec": "docs/ASSETS.md#known-gaps--wishlist",
-"deps": [],
-"status": "pending",
-"group": "Wishlist"
-},
-{
-"id": "w3",
-"title": "Wandering dog (prop.dog static)",
-"spec": "docs/ASSETS.md#known-gaps--wishlist",
-"deps": [],
-"status": "pending",
-"group": "Wishlist"
-},
-{
 "id": "d1",
 "title": "Working door: Seabreeze Ballroom (doorF records itself)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",

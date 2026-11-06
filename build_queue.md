@@ -40,11 +40,6 @@ graph LR
 - [!] `s3` Keepsakes data shape + story 'Fourth Place' (needs save-across-devices, mission data) [docs/keepsakes.md]
 - [!] `s4` Museum story 'The Last Bone' (needs story, pickup place, reward) [docs/museum-mission.md]
 
-## Wishlist
-- [ ] `w1` robot.axle + robot.battery into game build [docs/ASSETS.md#known-gaps--wishlist]
-- [ ] `w2` Building fronts behind the sidewalk [docs/ASSETS.md#known-gaps--wishlist]
-- [ ] `w3` Wandering dog (prop.dog static) [docs/ASSETS.md#known-gaps--wishlist]
-
 ## Consistency pass: doors
 - [ ] `d1` Working door: Seabreeze Ballroom (doorF records itself) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d2` Working door: Animal Shelter (painted door today) [docs/state/CONSISTENCY_PASS.md#still-to-do]
