@@ -12,8 +12,9 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..'), EPOCH = Date.parse('2026-09-30T15:00:00Z'), TOL = 24;
 const QUICK = process.argv.includes('--quick'), KNOWN_F = path.join(__dirname, 'crowd_census_known.json');
 function loadPlaywright(){ try { return require('playwright'); } catch(e){ return require(path.join(execSync('npm root -g').toString().trim(), 'playwright')); } }
+const ONLY = (process.argv.find(a => a.startsWith('--spots=')) || '').slice(8).split(',').filter(Boolean);
 const SPOTS = [['shops', 9179, 2493], ['homes', 17640, 2392], ['mall', 12600, -560], ['strand', 'nss'], ['boardwalk', 'bw'], ['almshouse', 'alms'], ['harbor', -3600, -9000], ['garage', 7800, -560]]
-  .slice(0, QUICK ? 3 : 8);
+  .slice(0, QUICK ? 3 : 8).filter(sp => !ONLY.length || ONLY.includes(sp[0]));
 const STEP = 40000, FIRST = 60000;
 async function boot(browser, url, delay){
   const p = await browser.newPage({ viewport: { width: 1180, height: 820 } });
@@ -75,14 +76,16 @@ async function run(p, spots, step, first){
       G.n += la.length + lb.length;
       let ok = la.length === lb.length;
       if(ok) for(const r of la){ const k = lb.findIndex(q => Math.hypot(q[1] - r[1], q[2] - r[2]) <= TOL && q[3] === r[3] && q[4] === r[4]); if(k < 0){ ok = false; break; } lb.splice(k, 1); }
-      if(!ok) G.bad.push(`${name} (${(a[gname] || []).length} vs ${(b[gname] || []).length})`);
+      if(!ok){ G.bad.push(`${name} (${(a[gname] || []).length} vs ${(b[gname] || []).length})`);
+        if(!G.ex){ const A0 = a[gname] || [], B0 = b[gname] || []; const r = A0.find(r => !B0.some(q => Math.hypot(q[1] - r[1], q[2] - r[2]) <= TOL && q[3] === r[3] && q[4] === r[4])) || A0[0];
+          if(r){ const near = B0.map(q => ({ q, d: Math.hypot(q[1] - r[1], q[2] - r[2]) })).sort((u, v) => u.d - v.d)[0]; G.ex = `e.g. ${JSON.stringify(r)} vs nearest ${near ? JSON.stringify(near.q) + ' d=' + Math.round(near.d) : 'none'}`; } } }
     }
   }
   let fail = 0;
   const lines = Object.keys(groups).sort().map(n => { const G = groups[n], k = known[n];
     const st = G.bad.length ? (k ? 'KNOWN ' : 'DIFF  ') : 'same  ';
     if(G.bad.length && !k) fail++;
-    return `${st} ${n}  [${G.n} seen]${G.bad.length ? '  at ' + G.bad.join(', ') : ''}${G.bad.length && k ? '  -- ' + k : ''}`; });
+    return `${st} ${n}  [${G.n} seen]${G.bad.length ? '  at ' + G.bad.join(', ') : ''}${G.bad.length && k ? '  -- ' + k : ''}${G.ex && !k ? '\n        ' + G.ex : ''}`; });
   const errs = [...A.errs, ...B.errs];
   console.log(lines.join('\n'));
   console.log(`\n${Object.keys(groups).length} groups seen at ${SPOTS.length} spots; ${fail} differ and are not known; page errors ${errs.length}`);
