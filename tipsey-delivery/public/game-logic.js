@@ -78641,13 +78641,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           if(doorMid){
             for(let z = 22; z < H - 24; z += 16) S(WW + 0.25, -DD, 0, z, z + 1.2, '#4a2f20');
             S(WW + 0.3, -DD, 0, 0, 22, brick);
-            for(const [b0, b1] of [[-36, -136], [-186, -286]]){
+            S(WW + 0.32, -DD, 0, 22, 122, '#6a4731');                                  // the shopfront band, as on the front
+            for(const [b0, b1] of [[-14, -154], [-169, -309]]){
               const qq = [P(WW + 0.4, b0, 104), P(WW + 0.4, b1, 104), P(WW + 0.4, b1, 22), P(WW + 0.4, b0, 22)];
-              S(WW + 0.45, b0 + 6, b1 - 6, 16, 110, cream);
               ctx.save(); poly(qq); ctx.clip(); HOLE(qq); ctx.restore();
               S(WW + 0.6, b0, b1, 22, 104, 'rgba(58,40,28,.50)');
               S(WW + 0.65, b0, b1, 22, 40, 'rgba(231,154,53,.20)');                      // the room's lamplight, low in the glass
-              const m = (b0 + b1)/2; S(WW + 0.8, m + 1.5, m - 1.5, 22, 104, cream); S(WW + 0.8, b0, b1, 62, 64.5, cream);
+              for(let k = 1; k < 3; k++){ const m = b0 + (b1 - b0)*k/3; S(WW + 0.8, m + 2.5, m - 2.5, 22, 104, '#7e5a43'); }   // thirds, as the front's panes
               box(WW, WW + 7, b1 - 4, b0 + 4, 16, 21, copper, copperD, copperD);
               /* the same striped canvas as the front, over each window, sloping out from the wall */
               const nA = 6;
@@ -78664,13 +78664,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               poly([P(WW + 0.7, b + 3, H - 15), P(WW + 0.7, b, H - 12), P(WW + 0.7, b - 3, H - 15), P(WW + 0.7, b, H - 18)], copper);
             }
             /* between and above the windows: a painted wall sign, the cup with its bolt, on a dark board with a copper rim */
-            { const bc = -161, bw = 34, zl = 112, zh = 150, q = (b, z) => P(WW + 0.9, bc + b, z);
-              S(WW + 0.8, bc + bw + 3, bc - bw - 3, zl - 3, zh + 3, copperD); S(WW + 0.85, bc + bw, bc - bw, zl, zh, '#3b2619');
+            { const bc = -DD/2, zl = 112, q = (b, z) => P(WW + 0.9, bc + b*0.75, 130 + (z - zl)*0.72);
+              S(WW + 0.7, -10, -DD + 10, 125, 152, '#2a1a11'); S(WW + 0.75, -14, -DD + 14, 128, 149, '#3b2619');   // the name board, as on the front
               poly([q(-17, zl + 6), q(17, zl + 6), q(13, zl + 24), q(-13, zl + 24)], copper);
               poly([q(-13, zl + 24), q(13, zl + 24), q(13, zl + 26), q(-13, zl + 26)], cream);
               poly([q(17, zl + 20), q(25, zl + 18), q(25, zl + 11), q(16, zl + 9), q(16, zl + 11), q(21, zl + 12), q(21, zl + 17), q(15, zl + 18)], copper);
               poly([q(3, zl + 24), q(-5, zl + 14), q(-1, zl + 14), q(-4, zl + 8), q(6, zl + 16), q(2, zl + 16)], cream);
-              for(const [da, h] of [[-8, 0], [2, 4], [11, 1]]) poly([q(da, zl + 29 + h), q(da + 2, zl + 33 + h), q(da - 1, zl + 37 + h), q(da + 1, zl + 40 + h), q(da - 2, zl + 37 + h), q(da, zl + 33 + h)], 'rgba(241,230,207,.7)'); }
+              for(const bs of [-DD*0.2, -DD*0.8]) poly([P(WW + 0.9, bs + 2, 143), P(WW + 0.9, bs - 5, 137.5), P(WW + 0.9, bs - 1, 137.5), P(WW + 0.9, bs - 4, 133), P(WW + 0.9, bs + 5, 139.5), P(WW + 0.9, bs + 1, 139.5)], copper); }
           }
         },
         mark(WW){
