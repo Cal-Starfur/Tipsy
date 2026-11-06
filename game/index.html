@@ -17246,9 +17246,14 @@ function vetTrailOf(grid){
   const rng = mulberry32(0x7e75a1);
   const plants = [];
   const clear = (x, y, r) => plants.every(p => Math.hypot(p.x - x, p.y - y) > (p.r + r)*0.8);
+  /* NOT IN A LANDMARK'S CELL (Sir, 2026-11-06, on the iPad at the Animal Shelter: "something around the shelter is knocking me over that I
+     can't see"): a landmark draws its own cell and the park's planting is never queued there (queueParkBlock hands it the whole block), but
+     the collision list was built from every plant, so the ones its cell would have drawn stood there unseen. A cell that is a hood landmark gets none. */
+  /* (each plant is drawn by the cell whose centre is nearest it -- queueParkTrail -- so that is the cell to ask, not the one it stands in) */
+  const inLandmark = (x, y) => { let best = null, bd = Infinity; for(const c of cells.values()){ const d = Math.abs(c.cx - x) + Math.abs(c.cy - y); if(d < bd){ bd = d; best = c; } } return !!best && best.i !== undefined && !!hoodLandmarkAtIJ(best.i, best.j); };
   const put = (p, gap) => {
     const o = off(p.x, p.y);
-    if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r)) return false;
+    if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r) || inLandmark(p.x, p.y)) return false;
     if(vmReserved(grid, p.x, p.y, p.r)) return false;                    // (the Veterans Memorial's plaza and bandstand: VET_MEMORIAL)
     plants.push(p); return true;
   };
