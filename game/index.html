@@ -34039,9 +34039,9 @@ function missionPay(payId, cents){
     .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
     .catch(() => {});
 }
-/* R6 ON TIPSEY HIMSELF (one item per step, seen): what a mission has him carry is strapped on the top of his lid while the lid is shut,
-   drawn with his body (drawMissionCarried). Each id is a few boxes { hx, hy, h (up from the lid), ox, oy, c: [top, right, left] }, small
-   enough to sit on the lid (hx 26, hy 20); an id with no art of its own rides as a plain brown parcel, so nothing carried is ever unseen. */
+/* R6 ON TIPSEY HIMSELF (one item per step, seen): what a mission has him carry is in his cargo cavity, seen whenever the lid is open (handing over,
+   taking on), drawn with his body (drawMissionCarried). Each id is a few boxes { hx, hy, h (up from the lid), ox, oy, c: [top, right, left] }, small
+   enough to sit in the cavity (hx 20, hy 14, the cavity floor); an id with no art of its own rides as a plain brown parcel, so nothing carried is ever unseen. */
 const MISSION_CARRY_ART = {
   heart:  [{ hx: 12, hy: 9, h: 9, c: [0xd9433a, 0xb23229, 0x932821] }, { hx: 12.6, hy: 9.6, h: 2, oz: 9, c: [0xf2f3f5, 0xd4d7dc, 0xbcc0c7] }],   // the donor heart's cool box
   cake:   [{ hx: 11, hy: 11, h: 9, c: [0xf7ecf0, 0xe3cdd5, 0xcfb4be] }, { hx: 11.4, hy: 11.4, h: 1.5, oz: 9, c: [0xf0a5bd, 0xd5879f, 0xbd6f89] }],   // the top tier's box
@@ -34053,10 +34053,10 @@ const MISSION_CARRY_ART = {
   pizza:  [{ hx: 12, hy: 12, h: 3, c: [0xe2b262, 0xc79a50, 0xab8442] }],
   lamp:   [{ hx: 6, hy: 6, h: 11, c: [0xf5d54e, 0xd3b43c, 0xb39830] }],
   fish:   [{ hx: 13, hy: 9, h: 8, c: [0x6f8fa8, 0x587588, 0x465f6f] }],
-  banner: [{ hx: 3, hy: 17, h: 3.5, c: [0xd9534f, 0xb4423f, 0x953633] }],
+  banner: [{ hx: 3, hy: 13, h: 3.5, c: [0xd9534f, 0xb4423f, 0x953633] }],
   pouch:  [{ hx: 8, hy: 6, h: 6, c: [0x4a4f5a, 0x393d46, 0x2c2f37] }],
   wheels: [{ hx: 6, hy: 3, h: 6, ox: -8, c: [0x2e3138, 0x22252a, 0x1a1c20] }, { hx: 6, hy: 3, h: 6, ox: 8, c: [0x2e3138, 0x22252a, 0x1a1c20] }],
-  boards: [{ hx: 20, hy: 5, h: 2.5, oy: -6, c: [0x35b6b0, 0x2a928d, 0x207673] }, { hx: 20, hy: 5, h: 2.5, oy: 6, oz: 2.5, c: [0xf08a3c, 0xc87030, 0xa05a26] }],
+  boards: [{ hx: 17, hy: 5, h: 2.5, oy: -6, c: [0x35b6b0, 0x2a928d, 0x207673] }, { hx: 17, hy: 5, h: 2.5, oy: 6, oz: 2.5, c: [0xf08a3c, 0xc87030, 0xa05a26] }],
   trophy: [{ hx: 5, hy: 5, h: 11, c: [0xe8b83c, 0xc49a30, 0xa07d26] }],
   fob:    [{ hx: 3.5, hy: 2.2, h: 1.6, c: [0x5fe8e0, 0x49b8b2, 0x3b9a95] }]
 };
@@ -113947,10 +113947,10 @@ class WorldScene extends Phaser.Scene {
         ];
         this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
         this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+        if(!npc && this.state !== "tipped") this.drawMissionCarried(bobZ);   // (R6: what a mission has him carry, in the cavity: seen when the lid opens)
       }
     }
     if(lidIsNear) this.drawLid(lidBox);
-    if(!npc && this.lidAng < 0.12 && this.state !== "tipped") this.drawMissionCarried(bobZ);   // (R6: what a mission has him carry, strapped on the lid)
 
     const fn = this.R(1, 0, 0);
     const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
@@ -118165,7 +118165,7 @@ class WorldScene extends Phaser.Scene {
     const it = missionCarriedNow();
     if(!it) return;
     for(const b of MISSION_CARRY_ART[it.id] || MISSION_CARRY_PLAIN){
-      const z0 = LID.z1 + bobZ + (b.oz || 0);
+      const z0 = LID.z0 + bobZ + 0.6 + (b.oz || 0);
       this.drawBox({ hx: b.hx, hy: b.hy, z0, z1: z0 + b.h, ox: b.ox || 0, oy: b.oy || 0 }, b.c[0], b.c[1], b.c[2], false);
     }
   }

@@ -123,7 +123,7 @@
 2. `meetCoverAt` knows the street's buildings and the mall's gallery and front row; other interiors (the ballroom, the hospital, a walk-in) are not yet asked.
 3. R2's bay arming is copied in each mission (`R.armed` + `matHighlightState`).
 4. The Costa Palma Animal Shelter's door is painted (the worker comes out of a door that does not open): the shelter's entry needs a live door piece (doors.md), out of this kit's reach.
-5. ~~R6 on Tipsey himself~~ (done: what a mission has him carry is strapped on his lid, `drawMissionCarried`; an item with no art of its own rides as a plain parcel).
+5. ~~R6 on Tipsey himself~~ (done: what a mission has him carry is drawn in his cargo cavity, seen when the lid opens, `drawMissionCarried`; an item with no art of its own rides as a plain parcel).
 
 **A clerk who waits at a post** (Number 4 Builds a Winner: Palmline Nursery's, out of the potting hut through the front
 gate; Dune Home & Garden's, out of the slide doors into the forecourt): he walks out of his door along a path to a post
