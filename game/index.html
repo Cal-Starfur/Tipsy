@@ -45979,10 +45979,13 @@ function flatsWallFrames(WW, DD, OA, OB){
      SHOP_DOOR_H so the openings on the flanks are the same door the
      front gets from shopDoor() -- the front still calls the kit, so
      the one the pickup worker walks out of stays canonical. */
-  const doorF = (fr, uMid, w, t) => {
+  /* rec: record the door (DOOR_REC) so LIB.doorOf / drawDoorOpen can swing it live, as shopDoor's are (a front's door; its place in the
+     entry's lab frame: this frame's origin oa, ob) */
+  const doorF = (fr, uMid, w, t, rec) => {
     const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
     const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
     const u0 = mid-hw, u1 = mid+hw;
+    if(rec && DOOR_REC && fr.kind === 'front') DOOR_REC.push({ a0: oa+u0, a1: oa+u1, z: 0, dH, trim: t, half: false, pair: false, see: false, boff: BOFF + ob });
     R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
     R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
     R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
@@ -70286,6 +70289,9 @@ marinaEntry(),
          solids: [{ name:'canopy post L', c:[736 + 828 - 350 + 30, -736 + 150 - 12], r: 9, h: 142 },
                   { name:'canopy post R', c:[736 + 828 + 350 - 30, -736 + 150 - 12], r: 9, h: 142 }],
          marks: { door: [736 + 828, -736] } },
+  /* its front door swings (recorded by doorF, drawn live by the landmark's queue): open for him once he may go in (the cake pass), and for anyone
+     listed who comes up to it; a, b the door's place in the lab (the door mark), sense how far out in front it feels them */
+  swingDoors: [{ a: 736 + 828, b: -736, sense: 70, gate: () => cakePassOwned() }],
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground, and the hall fills all of it',
   cTodo:'the hall and the two canopy posts are volumes; the canopy soffit is at 148, which is 222 game units, so it clears',
   head:'A block cell filled edge to edge: one hall, great arched windows all round',
@@ -70382,7 +70388,7 @@ marinaEntry(),
         bandF(fr, x0-5, x1+5, 132, 140, 4, -1, shade(wall,1.04));
       }
       if(fr !== FR_FRONT) { doorF(fr, DMID, wall, trim); return; }
-      doorF(fr, DMID, wall, trim);
+      doorF(fr, DMID, wall, trim, true);                        // (the way in: recorded, so it swings: swingDoors)
       for(let k=0;k<2;k++)                                     // poster frames
         bandF(fr, DMID + (k ? 150 : -230), DMID + (k ? 230 : -150), 40, 128, 6, -1,
               ['#8a2f3c','#2f5a6b'][k], null, trim);
@@ -104076,6 +104082,19 @@ class WorldScene extends Phaser.Scene {
               if(u === 0 || u === 1){ if(fa) this._bcAlpha = _hsk; try { this.bcDraw(g, _lk + "|door|" + i + "|" + u, q.x, q.y, draw); } finally { if(fa) this._bcAlpha = null; } }
               else if(fa) this.withAlpha(g, _hsk, () => draw(g)); else draw(g); } });
           }); }
+        /* ITS SWING DOORS, live (an entry's swingDoors, recorded by doorF: the Seabreeze Ballroom's front): the painted door is in the
+           building's piece; while anyone is at it (shopDoorOpen) the opening and its leaf are laid over it, swung (LIB.drawDoorOpen, as a
+           small shop's) -- shut, nothing is drawn and the painted door is the door */
+        { const _le = LIB.get(_hl);
+          if(_le && _le.swingDoors && _hsk > 0.002 && _cut <= 0) _le.swingDoors.forEach((d, i) => {
+            const q = fr.toWorld(d.a, d.b), qo = fr.toWorld(d.a, d.b + (d.sense || 0));
+            const u = this.shopDoorOpen(_lk + "|sw" + i, qo.x, qo.y, null, !d.gate || d.gate(), true);   // (a doorman stands by this one: only who is walking up opens it)
+            if(u < 0.001) return;
+            const c0 = fr.toWorld(d.a - 40, d.b), c1 = fr.toWorld(d.a + 40, d.b), it = d._it || (d._it = { _fp: {
+              x0: Math.min(c0.x, c1.x) - 4, x1: Math.max(c0.x, c1.x) + 4, y0: Math.min(c0.y, c1.y) - 4, y1: Math.max(c0.y, c1.y) + 4, z1: 170 } });
+            const draw = gg => LIB.drawDoorOpen(_hl, gg, G, this.K, fr.flank, d.a, u);
+            vq.push({ depth: this.lmDepth(q.x + q.y + 0.5, it, draw), fn: (g) => { if(_hsk < 1) this.withAlpha(g, _hsk, () => draw(g)); else draw(g); } });
+          }); }
         /* AN ENTRY'S MOVING PARTS (Sun Deck Airfield's windsock and beacon):
            small live items, each a hair over its own cached piece; the rest
            of the landmark stays in the cache (CLAUDE.md) */
@@ -121213,7 +121232,7 @@ class WorldScene extends Phaser.Scene {
   /* A SHOP'S SLIDING DOOR (slideDoors), at world (x, y): open while he or a
      shopper on foot (errandPerson) is near it, eased each frame it is drawn;
      0 shut .. 1 open */
-  shopDoorOpen(key, x, y, also, botOk = true){
+  shopDoorOpen(key, x, y, also, botOk = true, movingOnly = false){   // (movingOnly: not for someone standing by it -- a doorman)
     const t = this.time.now, M = this._doorOpen || (this._doorOpen = new Map());
     let d = M.get(key);
     if(!d){ d = { u: 0, t }; M.set(key, d); }
@@ -121225,7 +121244,7 @@ class WorldScene extends Phaser.Scene {
       const m = errandPerson(tr.errand, t);
       if(m && near(m.x, m.y)){ want = true; break; }
     }
-    if(!want) for(const p of this.doorPeople(t)) if(near(p.x, p.y)){ want = true; break; }   // (anyone listed: automatic doors part for whoever comes up to them)
+    if(!want) for(const p of this.doorPeople(t)) if((!movingOnly || p.moving) && near(p.x, p.y)){ want = true; break; }   // (anyone listed: automatic doors part for whoever comes up to them)
     { const pw = this._pickupWorkerAt;                                        // (today's pickup worker, out of an anchor's doors: drawPickupUnit)
       if(!want && pw && t - pw.t < 300 && (this.pickupWalk || 0) > 0.001 && near(pw.x, pw.y)) want = true; }
     if(!want && also) want = also(near);                                      // (whoever else comes through it: the mall's crowd, MALL_THROUGH)

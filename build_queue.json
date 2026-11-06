@@ -151,8 +151,9 @@
 "title": "Working door: Seabreeze Ballroom (doorF records itself)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: doors"
+"status": "built",
+"group": "Consistency pass: doors",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2812&view=3"
 },
 {
 "id": "d2",
@@ -701,6 +702,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }

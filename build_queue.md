@@ -41,7 +41,7 @@ graph LR
 - [!] `s4` Museum story 'The Last Bone' (needs story, pickup place, reward) [docs/museum-mission.md]
 
 ## Consistency pass: doors
-- [ ] `d1` Working door: Seabreeze Ballroom (doorF records itself) [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `d1` Working door: Seabreeze Ballroom (doorF records itself) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2812&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d2` Working door: Animal Shelter (painted door today) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d3` Working door: harbour boat cabin [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d4` Working doors: Surfside Diner + Sandpiper Shoes [docs/state/CONSISTENCY_PASS.md#still-to-do]
