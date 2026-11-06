@@ -13,6 +13,12 @@ Each batch is:
 
 ## Done
 
+### People registry and the strand's garages (2026-11-05)
+- Pavement walkers wait (`dly` hold, drawn standing) while a Strand garage's errand car is pulling in or backing out across the pavement (`holdForGarageCars`, `GAR_WAIT`). Anyone already across the car's line walks on out.
+- Listed in `CITY_PEOPLE`: food truck customers, the Sierra Vista gate guard, Marina General's walkers and pushed patients seen from the street, the derby's drivers, the pickup shop's worker, the park landmarks' cast.
+- Still `each: null`: beach waders, the drop-off customer (positions only exist inside their draws). Not listed on purpose: the food-truck vendor inside the hatch (a person in a vehicle).
+- Checker notes: run `--kit doors,people` together, since the people kit alone reports every door entry as a pop. In the headless run frames are ~600 ms apart, so a jogger (0.21 u/ms) shows as a 126-unit "jump" (P3): not real.
+
 ### The shared rules (batch 1)
 - **One door rule.**
   - Small shops' doors open for anyone listed in `CITY_PEOPLE` going through them (`doorPeople`, `shopDoorUsedBy`), and for anyone drawn in their doorway.
