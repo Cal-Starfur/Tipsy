@@ -20,3 +20,12 @@ Judged by eye from the sheet photos (snaps/sheet/walkins/). Nothing was fixed th
 ### Hands-on (cannot be judged from stills)
 - Walking through each door: the crossing is seamless and the shell eases off.
 - Walk-in people's life and facing (W16, W19).
+
+## museum-footprint follow-up (2026-11-06)
+Measured in world units: the shell rect (hoodLandmarkFrame toWorld of LAB) is x 10218..11678, y 832..1688, and the room's footprint
+(MUS_IN.x0/y0 + museumInShift, W 1460 x D 856) is the identical rect. LAB already IS the full shell, so the rear is part of the room
+and nothing needs resizing; the "front ~55% / 35 units forward" reading in the photo is the taller shell roof plus the portico, fence
+and hedge hiding the wall base. The one real mismatch is HEIGHT (W4): room walls MUS_IN.H = 340, the shell's cornice is 440 lab x 1.5 = 660 world
+(checked by drawing wall-top outlines at 340/440/510/660: the roof edge sits on 660). Raising H changes the whole interior's look
+(frieze, cornice, window heights up to 402 already exceed 340), so it is left for Sir to decide: keep the low-wall room, or raise H to 660.
+No game code changed.
