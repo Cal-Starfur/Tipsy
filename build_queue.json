@@ -5,7 +5,7 @@
 "title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
 "spec": "docs/people-unification.md#plan-by-risk",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "People unification"
 },
 {

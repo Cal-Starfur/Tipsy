@@ -19,7 +19,7 @@ graph LR
 ```
 
 ## People unification
-- [ ] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
+- [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
 - [ ] `p1.2` One loopWalkStep for ballroom + derby walkers (identical positions) [docs/people-unification.md]
 - [ ] `p1.3` One pathAt replacing mallStaffAt + hospWalkerAt [docs/people-unification.md]
 - [ ] `p1.4` One talkRun for ballroom/derby chatter (visible change) [docs/people-unification.md]
