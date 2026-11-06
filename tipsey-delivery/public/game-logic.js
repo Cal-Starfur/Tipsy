@@ -16202,13 +16202,25 @@ function nssGaragesOf(grid){
    taken off the clock they are read at: nssResAt, bwAt) so they get up where they fell and walk on from there. */
 const PASS_DODGE = { k: 1, tauMs: 350 };
 /* (A QUIET HOUSE, ADDR_QUIET: only the leg they were on when it went quiet, walked to its end; none after it) */
+/* (d._cw: the crowd steps them round others, and round him: updateCrowd -- their own step round him is off. _avX/_avY the
+   step, _dly the time given up for those ahead, _spd below CROWD.still standing: as shopperAt) */
+function crowdFrom(o, q){
+  if(q && !CROWD_RAW){
+    if(o._avX !== undefined){ q.x += o._avX; q.y += o._avY; }
+    if(o._spd !== undefined && o._spd < CROWD.still) q.moving = false;
+  }
+  return q;
+}
 function nssResAt(d, t, bx, by){
-  const q = nssResidentAt(d, t - (d.dly || 0), bx, by);
+  const q = crowdFrom(d, nssResidentAt(d, t - (d.dly || 0) - (d._dly || 0), d._cw ? undefined : bx, d._cw ? undefined : by));
   if(!addrQuiet.length || !addrQuietAt(d.x, d.y)){ d.qLeg = undefined; return q; }
   if(d.qLeg === undefined) d.qLeg = q ? q.leg : null;
   return q && q.leg === d.qLeg ? q : null;
 }
-function bwAt(p, t, bx, by){ const tt = t - (p.dly || 0); return p.R ? bwCrossAt(p, tt, bx, by) : bwStrollAt(p, tt, bx, by); }
+function bwAt(p, t, bx, by){
+  const tt = t - (p.dly || 0) - (p._dly || 0), cx = p._cw ? undefined : bx, cy = p._cw ? undefined : by;
+  return crowdFrom(p, p.R ? bwCrossAt(p, tt, cx, cy) : bwStrollAt(p, tt, cx, cy));
+}
 const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120,
                   beachP: 0.35, townP: 0.35, passR: 2600 };   // (townP: over the main street into town, AT THE LIGHTS)   // a trip to the beach through the nearest pass, if one is this near (THROUGH THE PASSES)
 let _nssHomeGrid = null, _nssHomes = null;
@@ -117136,6 +117148,23 @@ class WorldScene extends Phaser.Scene {
       };
       for(const p of (this._shoppers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
       for(const p of (this._seekers || [])) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));
+      /* the strand's residents and the boardwalk's strollers: they step round each other and round him as the shoppers do
+         (they only stepped round him: two joggers passed straight through each other) */
+      if(WORLDGEN_COAST){
+        const quit = o => { if(o._avX){ o._avX = o._avY = 0; o._avS = 0; o._avVX = o._avVY = 0; } o._spd = 1; o._cw = false; };
+        for(const p of boardwalkStrollers(grid)){
+          if(p.knock){ quit(p); continue; }
+          const q0 = bwAt(p, t);
+          if(!q0 || !near(q0.x, q0.y)){ if(p._cw) quit(p); continue; }
+          p._cw = true; addXY(p, tt => bwAt(p, tt), true, tt => bwAt(p, tt));
+        }
+        for(const d of nssHomeDoorsOf(grid)){
+          if(d.knock){ quit(d); continue; }
+          const q0 = nssResAt(d, t);
+          if(!q0 || !near(q0.x, q0.y)){ if(d._cw) quit(d); continue; }
+          d._cw = true; addXY(d, tt => nssResAt(d, tt), true, tt => nssResAt(d, tt));
+        }
+      }
       if(DERBY_LEAVE.on) for(const p of DERBY_LEAVE.list) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));   // (the derby's families going home: as the shoppers)
       for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt), false, tt => errandPerson(tr.errand, tt));
       /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
