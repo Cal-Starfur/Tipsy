@@ -39,7 +39,7 @@ async function run(p, spots, step, first){
                      : k === 'alms' ? (() => { const p = almsFolkList()[0]; return p ? (p.still ? p : p.pts[0]) : {}; })() : null;
     let pending = null;
     s.events.on('postupdate', () => { if(pending && s.time.now >= pending.T){ const { T, name } = pending; pending = null; const rows = [];
-      CITY_PEOPLE.each(s, T, e => { if(isFinite(e.x) && isFinite(e.y)) rows.push([e.group || '?', rd(e.x), rd(e.y), e.kind || '', e.hidden ? 1 : 0]); });
+      CITY_PEOPLE.each(s, T, e => { if(isFinite(e.x) && isFinite(e.y)) rows.push([e.group || '?', rd(e.x), rd(e.y), e.kind || '', e.hidden ? 1 : 0, e.ref && e.ref.vkey ? String(e.ref.vkey).slice(0, 60) : '']); });
       out[name] = rows; } });
     for(let i = 0; i < spots.length; i++){
       const [name, a, b] = spots[i], T = FIRST + i*STEP;
