@@ -30,6 +30,7 @@ const [X, Y] = process.argv.length > 3 ? [+process.argv[2], +process.argv[3]] : 
     await p.waitForFunction(() => typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && game.scene.getScene('world').route, null, { timeout: 60000 });
     await p.waitForTimeout(2000 + delay);
     await p.evaluate(() => { if(typeof window.garageClose === 'function') window.garageClose(); });
+    await p.evaluate(() => { HOME_SCHED.period = [30000, 50000]; HOME_SCHED.awayMs = [10000, 25000]; });   // (quick cycles, so a minute of looking holds some trips; the rates are not what is checked)
     const seen = await p.evaluate(async ([x, y]) => {
       const s = game.scene.getScene('world'), sleep = ms => new Promise(r => setTimeout(r, ms)), got = {};
       owStandUpAt(s, x, y, Math.PI);
