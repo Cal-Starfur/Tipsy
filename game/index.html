@@ -51098,8 +51098,12 @@ function houseCanopy(fn){
         if(has(358)){                                                                    // the till: a box, its screen tilted to the staff, a drawer
           box(568, 596, 344, 374, CZ, CZ + 12, '#4a5660', '#3a4650', '#2c363e');
           poly([P(572, 352, CZ + 12), P(590, 352, CZ + 12), P(590, 352, CZ + 30), P(572, 352, CZ + 28)], '#1f2a30');
-          poly([P(574, 352.3, CZ + 14), P(588, 352.3, CZ + 14), P(588, 352.3, CZ + 26), P(574, 352.3, CZ + 25)], '#5be37d'); }
+          }
       };
+      /* (the order screen, lit or dark: MINDING THE SHOP keeps it dark till the mast is mended -- still pieces of the room, their 'when') */
+      for(const lit of [true, false])
+        items.push({ a: 582, b: 371, z: CZ + 14, when: () => !(typeof msScreenDark === 'function' && msScreenDark()) === lit, draw: () => {
+          poly([P(574, 352.3, CZ + 14), P(588, 352.3, CZ + 14), P(588, 352.3, CZ + 26), P(574, 352.3, CZ + 25)], lit ? '#5be37d' : '#161c20'); } });
       const run = 40, n = Math.ceil(320/run);
       for(let k = 0; k < n; k++){ const s0 = 70 + 320*k/n, s1 = 70 + 320*(k + 1)/n;
         items.push({ a: (CA0 + CA1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(CA0, CA1, s0, s1, 100, 'counter')], draw: () => {
@@ -51188,7 +51192,7 @@ function houseCanopy(fn){
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
     { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
-    rpush({ a: ma, b: mb, z: 0, solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => {
+    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => {
       const A = d => ma + d, B = d => mb + d;
       box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
       for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
@@ -51199,6 +51203,18 @@ function houseCanopy(fn){
       tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
       tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36');   // the cable, snapped
       cyl(A(-20), B(56), 0.5, 2.5, 3, copper, '#e8a550'); } });
+    /* ... and mended (MINDING THE SHOP, the repair): the new bracket on the plate, the mast standing straight to 150 with its elements
+       along the top, the guy wires taut, the cable up the mast with its screw-on connector */
+    rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 150 }], draw: () => {
+      const A = d => ma + d, B = d => mb + d;
+      box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
+      box(A(-12), A(12), B(-12), B(12), 5, 16, copper, copperD, '#8c5618');                    // the new bracket
+      for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
+      tube(A(0), B(0), 5, A(0), B(0), 150, 3.6, steel);                                        // the mast, straight
+      for(const [z, len] of [[146, 34], [130, 28], [114, 22]]) tube(A(0), B(0) - len/2, z, A(0), B(0) + len/2, z, 1.4, '#c4cbd1');   // the elements
+      tube(A(0), B(0), 100, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(-60), B(70), 0, 0.6, '#4a4f55');
+      tube(A(4), B(4), 16, A(4), B(4), 140, 1.2, '#2a2f36');                                   // the cable, up the mast
+      cyl(A(4), B(4), 136, 142, 3, copper, '#e8a550'); } });
     }
     /* ---- A VENT STACK with its cap, and an air-conditioning unit ---- */
     rpush({ a: 300, b: 560, z: 0, solids: [{ name: 'vent stack', c: [300, 560], r: 14, h: 90 }], draw: () => {
@@ -85757,7 +85773,9 @@ function scootQueue(scene, t, queuePerson, layerFor){
    the PLAYER is Gideon (the fleet's humanoid, lent: FLEET_LOAN), Tipsey parked still on the bay; the same bay hands the shop
    back for now. Later phases: Tipsey serving inside, the ladder and hatch in the back room, the antenna, the errand to
    Breakwater Hardware for the parts, the repair. Gideon is away from his room (walkinStaff 'gideon': away) while any of it runs. */
-const MS = { stage: 'idle', gid: null, park: null, home: null, snooze: null, clerk: null, carry: null };
+const MS = { stage: 'idle', gid: null, park: null, home: null, snooze: null, clerk: null, carry: null, fixed: false, fin: false };
+function msMastFixed(){ return MS.fixed || msDone(); }
+function msScreenDark(){ return MS.stage !== 'idle' && !MS.fixed && !msDone(); }   // (the order screen is dark from the moment he takes the shop till the mast is mended)
 function msDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('minding-the-shop')); }
 function msBusy(){ return MS.stage !== 'idle'; }
 function msBay(scene){ return MS._bay || (MS._bay = adShopBay(scene, 'Brew & Bolt')); }
@@ -85834,7 +85852,7 @@ function msBayNow(scene){
   const ic = (B, icon) => B && Object.assign({}, B, { icon });
   if(MS.stage === 'idle') return msDone() || fleetCur() || storiesHidden('minding-the-shop') || missionBusy('minding-the-shop') ? null : ic(msBay(scene), 'robot');
   if(MS.stage === 'shift') return ic(msLadderBay(), 'flag');
-  if(MS.stage === 'roof') return ic(MS.seen ? msHatchBay() : msMastBay(), MS.seen ? 'flag' : 'robot');
+  if(MS.stage === 'roof') return MS.seen && !MS.carry ? ic(msHatchBay(), 'flag') : ic(msMastBay(), 'robot');   // (the parts in hand: the mast again)
   if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
   if(MS.stage === 'return') return ic(MS.home, 'flag');
   return null;
@@ -85869,6 +85887,24 @@ function msTake(){
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("A mast bracket and a coax connector aboard. Back to Brew & Bolt.");
 }
+/* the mast mended: bracket on, connector screwed home, the cable up to the plate */
+function msFixed(){
+  const scene = scn(); if(MS.stage !== 'roofFix' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  MS.fixed = true; MS.carry = null; MS.stage = 'roof';
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The mast's standing straight and the cable's on. Back down the hatch.");
+}
+/* the order screen alight, Gideon's thanks, and the one completion card; (for now the bay beside Tipsey hands the shop back) */
+function msFinish(){
+  const scene = scn(); if(MS.stage !== 'finCard' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const first = !msDone();
+  missionComplete('minding-the-shop');
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard([], first ? "Minding the Shop: done! The antenna's straight and Brew & Bolt's order screen is lit again." : "Minding the Shop: done again!");
+  MS.fin = false; msHandBack(scene);
+}
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
   hospSayCard(null); cineBars(false);
@@ -85880,7 +85916,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -85890,8 +85926,8 @@ function msClimb(scene, dir){
   const up = dir === 'up', dx = up ? BBR.x0 - BB_IN.x0 : BB_IN.x0 - BBR.x0, dy = up ? 60 : -60;
   if(up) MS.hatchOpen = true;
   if(typeof sfxThump === "function") sfxThump(0.2);
-  sceneDissolve(scene, 700, () => { pocketShift(scene, dx, dy); ow.yaw = up ? Math.PI/2 : -Math.PI/2; MS.stage = up ? 'roof' : (MS.seen ? 'parts' : 'shift'); MS.climbing = false;
-    if(!up && MS.seen) msNav(scene, msHw(scene), MS_HW); });
+  sceneDissolve(scene, 700, () => { pocketShift(scene, dx, dy); ow.yaw = up ? Math.PI/2 : -Math.PI/2; MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
+    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); });
 }
 function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
@@ -85928,8 +85964,17 @@ function msTick(scene, ow){
       if(!R.seen){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk';
           hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "There it is. The mast's bent right over, and the cable's snapped clean off at the connector. No wonder the order screen's dark. I need a new mast bracket and a coax connector, and neither's in the back room. Breakwater Hardware, then." }); }
+      } else if(R.carry === 'parts'){
+        if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
+          hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Right. The new bracket bolts to the plate, the mast goes in straight and tight, and the connector screws onto the cable, the proper kind this time. There. Nothing bent, nothing snapped. Let's see if that wakes the screen." }); }
       } else if(armed(msHatchBay())) msClimb(scene, 'down');
       return;
+    case 'roofFix': return;
+    case 'fin':
+      if(!R.fin){ R.fin = true; ow.vel = 0; cineBars(true); R.stage = 'finCard';
+        hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "The order screen's alight, the mast's dead straight, and the shop's in one piece. Tipsey, you kept it all going while I was up there, and I couldn't have asked for better hands. Coffee's on me, next time you're past. Thank you." }); }
+      return;
+    case 'finCard': return;
     case 'roofAsk': return;
     case 'parts': {
       const B = msHw(scene);
@@ -85943,7 +85988,8 @@ function msTick(scene, ow){
         say: "Gideon! Brew & Bolt's antenna again? I thought so. A heavy mast bracket and a coax connector, the right ones this time, in a paper bag. Tell Tipsey the connector's the screw-on kind, so it won't snap off the first time the wind gets under it. Mind the bag on the scooter." }));
       return;
     case 'return':
-      if(armed(R.home)) msHandBack(scene);   // (for now the bay beside Tipsey hands the shop back: bb-repair carries on from here, bb-exit replaces this)
+      if(armed(R.home)){ R.stage = 'shift'; msNavClear(scene);
+        if(typeof tpToast === "function") tpToast("In through Brew & Bolt's door and up the ladder: the mast's waiting."); }   // (the parts in hand; the ladder's mat as before)
       return;
   }
 }
@@ -85962,7 +86008,7 @@ MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew 
   reward: {},
   busy: () => msBusy(),
   item: () => MS.carry === 'parts' ? { id: 'parts', name: 'mast bracket and coax connector', tip: 'crewReturns' } : null,
-  next: () => ({ ask: 'Hear Gideon out', shift: 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts (for now the bay beside Tipsey hands the shop back)' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
+  next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
   start: () => { const sc = scn(), B = sc && msBay(sc); return B ? { x: B.x, y: B.y, name: 'Brew & Bolt' } : null; } };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
