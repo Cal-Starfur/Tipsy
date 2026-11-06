@@ -84637,8 +84637,8 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8450, x1: 10240, y0: -9800, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
-  AREA: { x0: 8602, x1: 10240, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
+  SITE: { x0: 8450, x1: 10900, y0: -9800, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
+  AREA: { x0: 8602, x1: 10900, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
   TRACK: { x0: 8602, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
@@ -84655,6 +84655,7 @@ const SP_PLAN = {
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
+  HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
 const SP_SHELL_D = (SP_PLAN.POST.x0 + SP_PLAN.POST.x1)/2 + (SP_PLAN.POST.y0 + SP_PLAN.POST.y1)/2;   // the post's depth key
@@ -84699,13 +84700,15 @@ walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
 /* WHAT HE STANDS ON (sierraSurface asks this first): the drive, the forecourt and the dock are paving ('sidewalk'), the
    gravel and the track are the site's ground ('lot'), the post is 'building'; null off the site (the bench beyond is the
    foothills' as before) */
+/* the lawn's east edge at y: the hill's foot, less a gap (so the lawn is never drawn over the mountain) */
+function spEastEdge(y){ const H = SP_PLAN.HILL; return H.x + (y - H.y)/H.k - H.gap; }
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
   const P = SP_PLAN;
   if(x < P.AREA.x0 || x > P.AREA.x1 || y < P.AREA.y0 || y > P.AREA.y1) return null;
   if(spIn(P.POST, x, y)) return 'building';
   if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) return 'sidewalk';
-  if(spIn(P.SITE, x, y) || spIn(P.TRACK, x, y)) return 'lot';
+  if((spIn(P.SITE, x, y) && x <= spEastEdge(y)) || spIn(P.TRACK, x, y)) return 'lot';
   return null;
 }
 /* THE SOLIDS, from the plan: the post (its door bay open 60 deep, where the room takes him in: SP_IN), the mast's footing,
@@ -95535,10 +95538,21 @@ class WorldScene extends Phaser.Scene {
     if(!WORLDGEN_COAST || Math.abs(this.camX - 9400) + Math.abs(this.camY + 6200) > (this.vpW() + this.vpH())/this.K + 4800) return;
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
-    rect(P.SITE, 0x9fbd6a, 0.6);                                                  // the lawn, the estate's own green, up to the wall's foot (Sir: grass, tied to the wall)
+    /* the lawn: the estate's own green and its mown stripes (same lattice: every 520 from its west wall, 260 wide), up to the wall's
+       foot, and stopping at the hill's foot (spEastEdge) */
+    { const S = P.SITE, e = spEastEdge, ys = []; for(let i = 0; i <= 12; i++) ys.push(S.y0 + (S.y1 - S.y0)*i/12);
+      const strip = (xa, xb, col, z) => {
+        const L = [], R = [];
+        for(const y of ys){ const r = Math.min(xb, e(y)); if(r <= xa) continue; L.push(this.W(xa, y, z)); R.push(this.W(r, y, z)); }
+        if(L.length > 1) quad(L.concat(R.reverse()), col);
+      };
+      strip(S.x0, 99999, 0x9fbd6a, 0.6);
+      const xw = sierraGeo().xw;
+      for(let x = xw + 520*Math.ceil((S.x0 - xw)/520 - 0.5); x < e(S.y1); x += 520) strip(Math.max(x, S.x0), x + 260, 0x97b563, 0.9);
+    }
     /* its tufts, fixed */
     if(!P._specks){ const rr = mulberry32(0x5ec7), out = [];
-      for(let k = 0; k < 5600; k++){ const inT = (rr(), false), R = inT ? P.TRACK : P.SITE; out.push(R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), R.y0 + 8 + rr()*(R.y1 - R.y0 - 16), rr() < 0.5 ? 0xaecb78 : 0x93b25f); }
+      for(let k = 0; k < 6500; k++){ const R = P.SITE, px = R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), py = R.y0 + 8 + rr()*(R.y1 - R.y0 - 16); if(px > spEastEdge(py)){ rr(); continue; } out.push(px, py, rr() < 0.5 ? 0xaecb78 : 0x93b25f); }
       P._specks = out; }
     const K = this.K, sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
@@ -127315,7 +127329,7 @@ function tpMiniDraw(scene){
       const wallC = "#8a7f68", t = 70;
       band(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
       band(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
-      band(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); band(S.xe - t, S.e[4], S.xe + t, S.wallY, wallC);
+      band(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); { const G = sierraEastGap(); band(S.xe - t, S.e[4], S.xe + t, G.y0, wallC); band(S.xe - t, G.y1, S.xe + t, S.wallY, wallC); }   // (the east wall's band, not across its opening)
       band(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
       for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
         band(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); band(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
@@ -132779,7 +132793,7 @@ function drawRouteMap(route){
         const wallC = "#8a7f68", t = 70;
         cband(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
         cband(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
-        cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); cband(S.xe - t, S.e[4], S.xe + t, S.wallY, wallC);
+        cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); { const G = sierraEastGap(); cband(S.xe - t, S.e[4], S.xe + t, G.y0, wallC); cband(S.xe - t, G.y1, S.xe + t, S.wallY, wallC); }   // (the east wall's band, not across its opening)
         cband(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
         for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
           cband(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); cband(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
