@@ -161,7 +161,7 @@
     "Hands-on: take-off, UP/DOWN buttons, too-tall slide, landing, the full Lighthouse Run, fog timer feel."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "skate",

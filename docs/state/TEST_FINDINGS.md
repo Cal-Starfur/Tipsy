@@ -103,3 +103,17 @@ Watch-points (judged OK, not defects):
 
 ### Hands-on (Sir)
 - Fleet tab grouping, launch and send-home.
+
+## flying: Flying and The Lighthouse Run (2026-11-06)
+
+Photos: snaps/sheet/flying/ (harbour master and museum, day, night, wide).
+
+**Problems:** none found in the draw. No fixes made.
+
+**Not judgeable (not a draw problem):** items 1-3 (fleet station behind the harbour house, hangar lights, van lane and drive) describe a station that is currently OFF. `FLEET_BAYS_BUILT = false` (Sir, 2026-11-05: depots "placed very poorly", left out until re-sited), so no hangar, pads, drive or compound are drawn. The harbour-master photos show the plaza with the pier, bench and sailor, and nothing is overlapping or cut off. Re-run this section once the depots are re-sited. The test sheet text is stale until then.
+
+**OK (from the photos):**
+- Harbour master plaza: bench, flagpoles and lamp are present and sorted correctly, pier and water edge are clean, kerb curve is clean, and the sailor and the cars are not overlapping scenery. Night lighting is consistent.
+- Museum: the fence, gate piers, lamps, anchor statue, steps and columns sort correctly. Cars, the van and the signal pole are in the right order. The night lamps and the street-light cone are present and there is no flat seam.
+
+**Hands-on (for Sir):** take-off, UP/DOWN buttons, too-tall slide, landing, the full Lighthouse Run (waits for the depots), fog timer feel.
