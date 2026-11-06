@@ -41308,7 +41308,8 @@ function generateRoute(dateStr, opts){
   /* only an ordinary delivery takes a challenge route; the frozen courses keep their own seeds */
   const cr = CHALLENGE_ROUTE_PICK;
   if(cr && !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null))){
-    const r = _generateRouteCached(cr.seed, opts);
+    /* (a copy: the cache is keyed by seed, so changing its object would hand the par scale, the name and the jumps to an ordinary route of the same date) */
+    const r = Object.assign({}, _generateRouteCached(cr.seed, opts));
     const m = cr.modifiers || {};
     if(cr.parTimeOverride != null) r.parMs = cr.parTimeOverride;
     else if(m.parScale) r.parMs = Math.round(r.parMs * m.parScale);
