@@ -5,7 +5,7 @@
 "title": "World clock + slot scheduler + seeded shoppers (pilot)",
 "spec": "docs/seeded-crowd.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -772,6 +772,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }

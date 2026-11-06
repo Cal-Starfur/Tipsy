@@ -24,7 +24,7 @@ graph LR
 ```
 
 ## People: seeded crowd
-- [ ] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
+- [?] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
 - [ ] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
 - [ ] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
 - [ ] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
