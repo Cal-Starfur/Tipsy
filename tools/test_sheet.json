@@ -132,7 +132,7 @@
     "Hands-on: Fleet tab grouping, launch and send-home."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "flying",

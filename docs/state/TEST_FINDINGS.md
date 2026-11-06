@@ -89,3 +89,17 @@ Watch-points (judged OK, not defects):
 - Luna's mom comes out of a real front door at 776 Marina Way (not on this sheet's spots).
 - Every speaker's face shows; nobody snaps round when they walk away.
 - Cake Run and Gus's favour only open at dusk.
+
+## fleet — Fleet bays and garage (2026-11-06)
+
+### Problems
+1. **Test spots miss the bays** (Marina-Parking-bays-*, fuel-farm-hall-*, harbour-boathouse-*): the three photos show a parking-garage ramp, fuel tanks and a yacht; no fleet bay, bay door or pad is in frame. Rule: test must show the item. NOT FIXED: needs Sir to give the real bay coordinates (spots in tools/test_sheet.json).
+2. **Marina Parking apron** (Marina-Parking-bays-wide.jpg, left of ENTER sign): a pale flat rectangle reads lighter than neighbouring slabs and the asphalt apron ends in a diagonal flat cut (LOOK_RULES 4 ground). NOT FIXED: may be intentional, needs Sir's eye.
+
+### OK
+- Garage ENTER/EXIT signs, lift canopy, barrier, lane arrows: clean, lit at night, no overlaps.
+- Fuel farm: tanks, pipes, fence, lamp and its night light cone, plane and tanker: correct depth order, no clipping.
+- Harbour: yacht, pier, bench, rocks, anchor: no sorting or seam problems; night tint fine.
+
+### Hands-on (Sir)
+- Fleet tab grouping, launch and send-home.
