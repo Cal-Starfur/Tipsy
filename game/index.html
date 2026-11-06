@@ -37151,9 +37151,9 @@ function mallVol(){
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
                 [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
-    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 418 },
-    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 418 },
-    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 650 },
+    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 718 },
+    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 718 },
+    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 880 },
     ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
     ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
     ...mp.palms.map(([a, b]) => ({ name: 'palm', poly: R(a - 46, a + 46, b - 46, b + 46), h: 300, prop: true })),
@@ -37161,7 +37161,7 @@ function mallVol(){
     ...mp.flags.map(([a, b]) => ({ name: 'flagpole', c: [a, b], r: 5, h: 460, prop: true })),
     ...mp.bollards.map(a => ({ name: 'bollard', c: [a, -24], r: 7, h: 42, prop: true }))
   ];
-  return { foot, h: 318, solids, marks: {} };
+  return { foot, h: 648, solids, marks: {} };   // (the runs: 630 + their coping)
 }
 
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
@@ -72643,7 +72643,11 @@ marinaEntry(),
     const bbOf = (a0, a1) => (a0 >= CW0 - 1 && a1 <= CE1 + 1) ? BBC : BB;
     const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
     const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
-    const HA = 400, HC = 300, HT = 520;                         // anchor, concourse, atrium heights
+    /* THE OUTSIDE IS AS TALL AS THE INSIDE (Sir, 2026-11-06: "lets make the exterior taller then"): the room's upper shops end at
+       Z2 + H2 = 630 (its roof) and its clerestory and glass roof stand to ZT = 750, so the concourse runs are 630 and the atrium 750
+       (they were 300 and 520: the room stood out over its own building); the anchors stay above the runs */
+    const HA = 700, HC = 630, HT = 750;                         // anchor, concourse, atrium heights
+    const FL2 = 330;                                            // the upper floor's level (MALL_IN.Z2): the floor line, the ribbon over it
     const pave = '#d3cab8', paveD = '#c2b8a4', paveL = '#e0d8c8', curbC = '#a9a294';
     const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(150,196,214,.85)', mull = '#e9eef0';
     const navy = '#23405e', teal = '#2f7f86', coral = '#e0674e', gold = '#e8b54a';
@@ -72874,9 +72878,9 @@ marinaEntry(),
       roofKit(a0, a1, HC);
       if(state.roof) for(let sb = -460; sb - 300 > bbOf(a0, a1) + 100; sb -= 470)
         for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, sb - 300, sb, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
-      F(a0, a1, 172, 186, '#d8d0c0', null, 0, BF + 0.6);                          // the floor line
-      F(a0 + 30, a1 - 30, 200, 278, glass, null, 0, BF + 0.8);                     // upper ribbon
-      for(let a = a0 + 30; a <= a1 - 30 + 0.1; a += (a1 - a0 - 60)/16) F(a - 3, a + 3, 200, 278, mull, null, 0, BF + 1.2);
+      F(a0, a1, FL2 - 14, FL2, '#d8d0c0', null, 0, BF + 0.6);                     // the floor line
+      F(a0 + 30, a1 - 30, FL2 + 36, HC - 40, glass, null, 0, BF + 0.8);            // upper ribbon
+      for(let a = a0 + 30; a <= a1 - 30 + 0.1; a += (a1 - a0 - 60)/16) F(a - 3, a + 3, FL2 + 36, HC - 40, mull, null, 0, BF + 1.2);
       /* THE INSIDE'S FRONT ROW, FROM THE STREET (MALL_PLAN.STREET): three shops
          a run, each on the inside's lines -- a pier at each party wall, its
          double door where the inside's street door is, glass either side with
@@ -72887,7 +72891,7 @@ marinaEntry(),
            eight, letters and all, whenever any of it was in view -- 13.8k
            draw commands a frame at the closest zoom, which shows one or two */
         if(!inView(b0, b1, BF, BF + 2, 0, 190)) continue;
-        F(b0, b0 + 16, 0, 172, '#d8d0c0', null, 0, BF + 0.8);                      // pier
+        F(b0, b0 + 16, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);                 // pier
         F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
         F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
         for(const a of [b0 + 28 + (dm - dw - b0 - 28)/2, dm + dw + (b1 - 12 - dm - dw)/2]) F(a - 3, a + 3, 14, 128, mull, null, 0, BF + 1.2);   // the inside's posts
@@ -72908,7 +72912,7 @@ marinaEntry(),
         for(let g0 = b0 + 44, m = 0; g0 + 34 < b1 - 20; g0 += 62, m++){ if(Math.abs(g0 + 17 - dm) < 92) continue;
           F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
       }
-      F(a1 - 16, a1, 0, 172, '#d8d0c0', null, 0, BF + 0.8);
+      F(a1 - 16, a1, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);
     };
     const awnings = (a0, a1, wing) => {
       const BF = MALL_PLAN.CF;
