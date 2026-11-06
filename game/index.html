@@ -575,6 +575,12 @@
     font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
     -webkit-tap-highlight-color:transparent;touch-action:none;}
   #flyBtn:active{transform:scale(0.96);}
+  #scootBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(160px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#1f8aa0;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #scootBtn:active{transform:scale(0.96);}
+  #scootBtn.hidden{display:none;}
   /* THE HEIGHT CONTROLS (fleet P2 fix, 2026-10-31): two big round orange buttons stacked on the right edge at mid
      height, UP over DOWN, press and hold to climb or come down; beside them the height bar: the craft (orange), the
      ceiling (red), what is under it and the tallest thing ahead (grey, red if over the ceiling), its height in m */
@@ -595,7 +601,7 @@
   #flyBar .fbCraft{position:absolute;left:-9px;width:0;height:0;margin-top:-8px;border:8px solid transparent;border-left:11px solid #ff7a1a;border-right:0;}
   #flyBar .fbM{position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);white-space:nowrap;color:#fff;
     font:800 13px/1 system-ui,-apple-system,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.7);}
-  body.tpPanelOpen #flyBtn, body.tpPanelOpen #flyAlt, body.tpGarage #flyBtn, body.tpGarage #flyAlt, body.attractBare #flyBtn, body.attractBare #flyAlt{display:none !important;}
+  body.tpPanelOpen #scootBtn, body.tpGarage #scootBtn, body.attractBare #scootBtn, body.tpPanelOpen #flyBtn, body.tpPanelOpen #flyAlt, body.tpGarage #flyBtn, body.tpGarage #flyAlt, body.attractBare #flyBtn, body.attractBare #flyAlt{display:none !important;}
   /* THE LIGHTHOUSE RUN: the fog bank, a sea-mist white thickest at the screen's edges, and the drone's time (a pill) */
   #lhFog{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;
     background:radial-gradient(ellipse 70% 62% at 50% 50%, rgba(232,237,240,.35) 0%, rgba(232,237,240,.82) 62%, rgba(236,240,242,.97) 100%);}
@@ -1623,6 +1629,7 @@
 <div id="kwClock" class="hidden"></div>
 <!-- FLYING (fleet P2): the context button (Take off / Land), the UP / DOWN buttons and the height bar -->
 <button id="flyBtn" class="hidden">Take off</button>
+<button id="scootBtn" class="hidden">Hop on</button>
 <div id="flyAlt" class="hidden"><div id="flyBar" aria-hidden="true"><div class="fbCeil"></div><div class="fbAhead"></div><div class="fbUnder"></div><div class="fbTgt"></div><div class="fbCraft"></div><div class="fbM">0 m</div></div><div id="flyUD"><button id="flyUp" aria-label="Climb"><span></span></button><button id="flyDn" aria-label="Descend"><span></span></button></div></div>
 <div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
@@ -5129,6 +5136,7 @@ function fleetBody(){
    shop columns, the monument -- solid to it still (the rest it flies over) */
 const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
 function fleetPhys(){
+  { const sc = typeof scn === "function" ? scn() : null; if(sc && sc.ow && sc.ow.scoot) return SCOOTR.phys(); }   // (HIM ON A SCOOTER: scootHop)
   const F = FLEET[fleetCur()];
   if(!F || !F.phys) return FLEET_PHYS_NONE;
   if(!F.phys.D) F.phys.D = Object.assign({}, OW_D, F.ctl);   // its driving numbers, made once
@@ -11987,6 +11995,7 @@ function owStandUpAt(scene, x, y, yaw){
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
   ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
+  ow.scoot = null;                      // (off a scooter: see scootHop)
   ow.fly = null; ow.z = 0;              // a rotorcraft set down on its skids (FLEET_CTRL.rotor makes its flight anew)
   scene.botX = x; scene.botY = y;
   /* SNAP THE CAMERA, do not ease it. camX/camY lerp toward the robot at
@@ -85448,6 +85457,64 @@ function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
 }
 const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}, streetLook(0x0d06e, { adult: true, aid: 'none', type: 'woman', sex: 'f' }),
   { shirt: SHELTER_UNIFORM.shirt, pants: SHELTER_UNIFORM.pants, shoe: SHELTER_UNIFORM.shoe, uniform: SHELTER_UNIFORM, dress: null })); })();
+/* ==================== THE HUMANOID ON A SCOOTER (Sir, 2026-11-06: "select a scooter and ride it") ====================
+   Whenever the player is the humanoid (fleetCur() === 'humanoid') and out of doors, any scooter in the city -- the dockless
+   ones stood on the pavements (cityFurnitureNear: type 'scooter') or one he set down himself -- can be ridden: a button by
+   the stick says Hop on within SCOOTR.near of one, Hop off while riding. No fleet kind: a flag on the player (ow.scoot) that
+   swaps his driving numbers (fleetPhys) and his draw (drawScooterRider under the humanoid's own body and robot skin). The
+   scooter he takes is hidden (pr.taken: not given back to the street) and set down where he gets off, live (SCOOTR.down). */
+const SCOOTR = { near: 130, down: [], _phys: null,
+  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.45, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*1.1 }) }); } };
+function scootCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'humanoid'); }
+/* the scooter nearest him within reach: {pr|d, x, y, brand}, or null */
+function scootNearest(s){
+  const ow = s.ow, grid = s.route && s.route.grid; let best = null;
+  const eat = (x, y, ref, brand) => { const d = Math.hypot(x - ow.px, y - ow.py); if(d <= SCOOTR.near && (!best || d < best.d)) best = Object.assign({ d, x, y, brand }, ref); };
+  if(grid){ const out = cityFurnitureNear(grid, ow.px, ow.py, SCOOTR.near*1.6, []);
+    for(const pr of out){ if(pr.type !== 'scooter' || pr.taken) continue; const w = hazSpotWorld(pr, 0, 0); if(w) eat(w.x, w.y, { pr }, pr.brand || BRANDS[0]); } }
+  for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
+  return best;
+}
+function scootHop(s){
+  const ow = s.ow; if(!ow) return;
+  if(ow.scoot){                                              // off: set it down where he stands, facing as he faced
+    SCOOTR.down.push({ x: ow.px, y: ow.py, th: ow.yaw, brand: ow.scoot.brand });
+    ow.scoot = null; ow.vel = 0;
+    if(typeof sfxThump === "function") sfxThump(0.15);
+    return;
+  }
+  const n = scootNearest(s); if(!n) return;
+  if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
+  if(n.down) SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1);
+  ow.scoot = { brand: n.brand || BRANDS[0] };
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
+function scootUiTick(){
+  const s = (typeof scn === "function") ? scn() : null, btn = document.getElementById("scootBtn");
+  if(!btn) return;
+  const ow = s && s.ow;
+  if(ow && ow.scoot && (!scootCan(s))){ ow.scoot = null; ow.vel = 0; }       // (the loan ended, or he went in: he is off it)
+  let verb = null;
+  if(scootCan(s)) verb = ow.scoot ? "Hop off" : (scootNearest(s) ? "Hop on" : null);
+  btn.classList.toggle("hidden", !verb);
+  if(verb && btn.textContent !== verb) btn.textContent = verb;
+}
+setInterval(scootUiTick, 200);
+(function scootBind(){
+  const btn = document.getElementById("scootBtn");
+  if(!btn){ setTimeout(scootBind, 300); return; }
+  btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); const s = scn(); if(s && scootCan(s)) scootHop(s); scootUiTick(); });
+  for(const ev of ["touchstart", "mousedown"]) btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  btn.addEventListener("contextmenu", e => e.preventDefault());
+})();
+/* the ones he has set down: still, live, on their own wheels */
+function scootQueue(scene, t, queuePerson, layerFor){
+  for(const d of SCOOTR.down){
+    if(!scene.visProp("people", d.x, d.y)) continue;
+    const x = d.x, y = d.y, th = d.th, br = d.brand;
+    queuePerson(x, y, (g) => scene.drawScooterRider(layerFor(x, y), x, y, 0, th - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, br, t, 0, null, true));
+  }
+}
 /* ==================== MINDING THE SHOP (Sir, 2026-11-06: Brew & Bolt's mission) ====================
    Gideon, the robot who owns Brew & Bolt, needs to get up to the roof and see to his antenna, and asks Tipsey to watch the
    shop. The mission's mat is the shop's own pickup mat (the shop takes no ordinary orders till it is done: shopTakesOrders),
@@ -99541,6 +99608,7 @@ class WorldScene extends Phaser.Scene {
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
+    scootQueue(this, t, queuePerson, layerFor);          // SCOOTERS the humanoid has set down
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
@@ -106794,7 +106862,7 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
-  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider){
+  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
     const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, line, wheel } = KV;
     /* where the hand is, in the scooter's frame: a forward from its middle, h up */
@@ -106817,7 +106885,7 @@ class WorldScene extends Phaser.Scene {
     };
     const rider = () => {
       const rx = ax + fc*R.riderA, ry = ay + fs*R.riderA;
-      this.drawPersonHull(g, rx, ry, z + R.deck, thW, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha, R.lift, null, null, true);
+      this.drawPersonHull(g, rx, ry, z + R.deck, thW, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha, R.lift, null, uni || null, true);
     };
     /* the stem is the nearer end when the scooter heads toward the eye (its x + y grows) */
     if(noRider) stem();                                     // the scooter alone, its rider off it
@@ -114562,6 +114630,13 @@ class WorldScene extends Phaser.Scene {
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'panel');
       this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'cables');
+      return;
+    }
+    if(kind === "humanoid" && this.ow && this.ow.scoot){       // HIM ON A SCOOTER (scootHop): the scooter's own art under the humanoid's body and robot skin, hands on the bar
+      const sp2 = Math.abs(this.speed || 0);
+      this._scootWheel = ((this._scootWheel || 0) + sp2*d*0.05) % 6283;
+      this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT,
+        this.ow.scoot.brand, t, 0, this._scootWheel, false, HUMANOID_SKIN);
       return;
     }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
