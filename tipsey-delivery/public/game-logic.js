@@ -83835,6 +83835,18 @@ function msGidAt(now){
   if(!p){ MS.gid = null; return null; }
   return p;
 }
+function msTipAt(now){
+  const T = MS.tip; if(!T) return null;
+  if(!MS.tipArr){
+    const p = walkPathAt(T, now);
+    if(p && !p.there) return { x: p.x, y: p.y, th: p.th };
+    MS.tipArr = now;
+  }
+  const S = T.S, posts = [340, 230, 120, 230], k = Math.floor((now - MS.tipArr)/6000), f = Math.min(1, ((now - MS.tipArr) % 6000)/1400);
+  const e = f*f*(3 - 2*f), b0 = posts[k % 4], b1 = posts[(k + 1) % 4];
+  const q = S(522, (k === 0 && now - MS.tipArr < 6000 ? 340 : b0 + (b1 - b0)*e));
+  return { x: q.x, y: q.y, th: 0 };
+}
 function msGidAtDoor(p){ const B = MS._bay; return !!p && !!B && !!B.door && Math.hypot(p.x - B.door.x, p.y - B.door.y) < 220; }
 function msDoorWalkers(now){ const p = msGidAt(now); return p && msGidAtDoor(p) ? [{ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' }] : []; }
 /* the bay the story shows now (R7) */
@@ -83858,6 +83870,11 @@ function msAccept(){
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
   MS.stage = 'shift';
+  /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
+     frame is the street's, so one path in street coordinates carries him the whole way) */
+  { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
+    const S = (a, b) => ({ x: BB_IN.x0 + a + V.dx, y: BB_IN.y0 + b + V.dy });
+    MS.tip = { pts: [{ x: MS.park.x, y: MS.park.y }, S(at, BB_IN.D + 90), S(at, BB_IN.D - 60), S(at, 540), S(500, 470), S(522, 420), S(522, 340)], t0: now + 600, faceTh: 0, v: 0.11, th0: MS.park.a, S }; }
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("You're Gideon now: Tipsey's minding the shop. (For now, the bay beside Tipsey gives it back.)");
 }
@@ -83872,7 +83889,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  MS.park = null; MS.home = null; MS.gid = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 function msTick(scene, ow){
@@ -83910,11 +83927,8 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
     queuePerson(x, y, (g, tt) => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
   }
-  const Pk = R.park;
-  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
-    const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
-    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|ms|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
-  }
+  const T = R.tip ? msTipAt(now) : null;
+  if(T && scene.visProp("people", T.x, T.y)){ const x = T.x, y = T.y, th = T.th; queuePerson(x, y, (g) => scene.drawTipseyParked(layerFor(x, y), x, y, th)); }
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
   steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
