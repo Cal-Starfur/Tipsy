@@ -25177,7 +25177,7 @@ function mallCrowdStep(scene, t, dt){
     }
     const line = Array.isArray(G.line) ? G.line : [G.line];
     const [m, q] = live[G.li % live.length];
-    scene.npcSay(m, say(m), line[G.lineK || 0], C.chatMs);
+    scene.npcSay(m, null, line[G.lineK || 0], C.chatMs);
     G.lineK = (G.lineK || 0) + 1; G.li++;
     if(G.lineK >= line.length){ G.line = null; G.lineK = 0; G.chatT = t + C.chatMs + C.chatGap[0] + Math.random()*(C.chatGap[1] - C.chatGap[0]); }
     else G.chatT = t + C.chatMs + 200;
@@ -25591,7 +25591,7 @@ function storeRepStep(scene, ow, R){
        the "stop!", and then the meeting -- him turned to them and held. Out of the store first, and they go back */
     R.W = mallJailWalk(0, R.home, bp, t, STORE_CHASE.v); R.face = null; R.replan = t; R.st = 'chase';
     R.k = (R.k == null ? 0 : R.k + 1) % R.lines.length;
-    if(typeof scene.npcSay === "function") scene.npcSay(R, () => { const p = storeRepAt(R, scene.time.now); return p ? { x: M.x0 + p.a, y: M.y0 + p.b, z: 0 } : null; }, sayPick(STORE_CHASE.call), 2200);
+    if(typeof scene.npcSay === "function") scene.npcSay(R, null, sayPick(STORE_CHASE.call), 2200);
     return;
   }
   if(R.st === 'chase'){
@@ -25609,7 +25609,7 @@ function storeRepStep(scene, ow, R){
     R.meet = Mt; R.face = Mt.faceTh;
     R.W = mallJailWalk(0, p, { a: Mt.to.x - M.x0, b: Mt.to.y - M.y0 }, t);
     Mt.walkMs = R.W.ms;
-    if(typeof scene.npcSay === "function") scene.npcSay(R, () => { const q = storeRepAt(R, scene.time.now); return q ? { x: M.x0 + q.a, y: M.y0 + q.b, z: 0 } : null; }, sayPick(STORE_CHASE.stop), 1400);
+    if(typeof scene.npcSay === "function") scene.npcSay(R, null, sayPick(STORE_CHASE.stop), 1400);
     R.st = 'come';
     return;
   }
@@ -28174,7 +28174,7 @@ function derbyLeaveTick(scene, ow){
     p._dly = (p._dly || 0) + dt; p.stuck = (p.stuck || 0) + dt;
     if(p.stuck > 1100 && t > (p.excT || 0)){
       const ex = DERBY_EXCUSE[p.kind === 'kid' ? 'kid' : 'adult'];
-      scene.npcSay(p, () => { const q = shopperAtRaw(p, scene.time.now); return q ? { x: q.x, y: q.y, z: 0, h: p.kind === 'kid' ? 115 : 150 } : null; }, ex[Math.floor(Math.random()*ex.length)], 2200);
+      scene.npcSay(p, null, ex[Math.floor(Math.random()*ex.length)], 2200);
       p.excT = t + 6000;
     }
   }
@@ -30415,9 +30415,7 @@ function hospHazRun(scene, ow, dt, H, free){
     if(p.hidden || p.alpha < 0.5) continue;                                      // (one of the cast out of sight, or only coming: HOSP_CAST)
     if(p.giveWay > 18 && !(w._sayT > t) && !(HOSP_GIVE._t > t) && pk && pk.name === HOSP_IN.name && typeof scene.npcSay === "function"){
       w._sayT = t + 15000; HOSP_GIVE._t = t + 3500;
-      const hv = () => POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
-      scene.npcSay(w, () => { const q = hospWalkerAt(w, scene.time.now), v = hv(); return q.hidden ? null : { x: q.x + v.dx, y: q.y + v.dy, z: hospInZ() }; },
-        sayPick(HOSP_GIVE.lines), 1900); }
+      scene.npcSay(w, null, sayPick(HOSP_GIVE.lines), 1900); }
     if(d >= WALK.r - 14) continue;
     if(v01 < 0.08) continue;                                                     // (he stands there: they go round him, no shove)
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
@@ -30435,8 +30433,8 @@ function hospHazRun(scene, ow, dt, H, free){
       ow.leanI = (ow.leanI || 0) + (Math.random() < 0.5 ? 1 : -1)*0.7*v01*v01;
       ow.vel = -0.25*(ow.vel || 0);
       if(typeof sfxThump === "function") sfxThump(0.25);
-      if(typeof scene.npcSay === "function" && pk){ const hv = () => POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
-        scene.npcSay(w, () => { const q = hospWalkerAt(w, scene.time.now), v = hv(); return q.hidden ? null : { x: q.x + v.dx, y: q.y + v.dy, z: hospInZ() }; },
+      if(typeof scene.npcSay === "function" && pk){
+        scene.npcSay(w, null,
           v01 > 0.45 ? sayPick(["Hey, careful!", "Slow down in the halls!", "Watch it!", "Whoa there!"]) : sayPick(SAY.polite), 1900, v01 > 0.45 ? "mad" : null); }
     }
   }
@@ -78406,6 +78404,28 @@ const CITY_PEOPLE = {
       catch(e){ if(!g._err){ g._err = true; console.warn("CITY_PEOPLE: " + g.name, e); } }
     }
   },
+  /* the entry for one person (their own record, the entry's ref), asked of the population that had them last time first */
+  find(scene, t, ref){
+    let hit = null;
+    const fn = e => { if(!hit && e.ref === ref) hit = e; };
+    const g0 = ref._cpGroup;
+    if(g0 && g0.each){ try { g0.each(scene, t, fn); } catch(e){} if(hit) return hit; }
+    for(const g of this.groups){
+      if(g === g0 || !g.each) continue;
+      try { g.each(scene, t, fn); } catch(e){}
+      if(hit){ try { ref._cpGroup = g; } catch(e){} return hit; }
+    }
+    return null;
+  },
+  /* WHERE A BUBBLE GOES over someone: { x, y, z, h } off their registry entry, or null when it should come down -- they are gone, hidden
+     (indoors, riding out of sight), hidden by a floor over them (entry.vis), or knocked down and speaking from the knocked-down group's entry.
+     entry.shift() is a room's view offset where it draws the room on the street's lines. h: the caller's, else off their build (cpBubbleH) */
+  posOf(scene, t, ref, h){
+    const e = this.find(scene, t, ref);
+    if(!e || e.hidden || (e.vis && !e.vis()) || (ref.knock && e.group !== 'knocked down')) return null;
+    const sh = e.shift ? e.shift() : null;
+    return { x: e.x + (sh ? sh.dx : 0), y: e.y + (sh ? sh.dy : 0), z: e.z || 0, h: h != null ? h : cpBubbleH(e) };
+  },
   /* everyone within R (Manhattan) of (x, y) who is not hidden */
   near(scene, t, x, y, R){ const out = []; this.each(scene, t, p => { if(!p.hidden && Math.abs(p.x - x) + Math.abs(p.y - y) <= R) out.push(p); }); return out; },
   /* the census: each population, how many out, how many of those hidden */
@@ -86465,7 +86485,7 @@ CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: 
       const q = mallWalkerAt(m.p, t);
       if(!q) continue;
       fn(cpEntry(this, { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z || 0, th: q.th, moving: !!q.moving && !m.held, hidden: !!q.hidden,
-                         kind: G.kind, look: m.look, ref: m, G, L: q.L, ride: !!q.ride, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
+                         kind: G.kind, look: m.look, ref: m, G, vis: () => inMall ? !mallHiddenByFloor(q) : mallStreetSeen(q), L: q.L, ride: !!q.ride, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
     }
   } });
 /* the play floors' staff: Shelly's server, Shelly, the arcade's attendant (MALL_STAFF) */
@@ -86729,7 +86749,7 @@ CITY_PEOPLE.add({ name: 'hospital hall walkers', where: 'Marina General\'s halls
     if(!hospInsideNow(scene)) return;
     for(const w of hospInHaz(HOSP_IN.floor).walk){
       const p = hospWalkerAt(w, t);
-      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: p.moving !== false, hidden: !!p.hidden, alpha: p.alpha, kind: p.cast ? p.cast.kind : 'walker', lookFn: () => hospWalkerLook(w, p), ref: w, q: p,
+      fn(cpEntry(this, { x: p.x, y: p.y, z: hospInZ(), th: p.th, moving: p.moving !== false, hidden: !!p.hidden, alpha: p.alpha, shift: () => POCKET_VIEW && POCKET_VIEW.pk === scene._inside ? POCKET_VIEW : null, kind: p.cast ? p.cast.kind : 'walker', lookFn: () => hospWalkerLook(w, p), ref: w, q: p,
                          hold: dt => { w.dly = (w.dly || 0) + dt; } }));
     }
   } });
@@ -116893,8 +116913,8 @@ class WorldScene extends Phaser.Scene {
     const ak = K.uni && K.uni.aid && K.uni.aid.kind;
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
     const md = o.mood;
-    if(o.chair) this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 160 }), sayPick(md === 'polite' ? SAY.chairBumpKind : SAY.chairBumpMad), 2200, md === 'polite' ? undefined : "mad");
-    else this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 110 }), sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad");
+    if(o.chair) this.npcSay(K, null, sayPick(md === 'polite' ? SAY.chairBumpKind : SAY.chairBumpMad), 2200, md === 'polite' ? undefined : "mad", 160);
+    else this.npcSay(K, null, sayPick(o.scoot ? SAY.riderDown : md === 'young' ? SAY.youngDown : md === 'polite' ? SAY.politeDown : SAY.walkDown), 2200, md === 'polite' ? undefined : "mad", 110);
     if(o.chair && typeof sfxThump === "function") sfxThump(0.25);               // (a fall's thump comes as they land: updateKnocks)
     /* the bump he feels, as a rider's */
     if(!o.noBump){                                     // (a route walker's bump is the hazard pass's own)
@@ -116949,7 +116969,7 @@ class WorldScene extends Phaser.Scene {
       if(!K.landed && el >= SR.fallMs){ K.landed = true; if(!K.chair && el < SR.fallMs + 400 && typeof sfxThump === "function") sfxThump(0.3); }   // the thump as they land
       /* far behind him (a new route, a teleport): over and done with */
       if(Math.hypot(K.x - this.botX, K.y - this.botY) > 6000){ this.knockEnd(K, t); list.splice(i, 1); continue; }
-      if(!K.upSaid && el > dn - SR.getUpMs*0.4){ K.upSaid = true; this.npcSay(K, () => ({ x: K.x, y: K.y, z: K.z || 0, h: 150 }), sayPick(K.mood === 'young' ? SAY.youngUp : K.mood === 'polite' ? SAY.politeUp : SAY.riderUp), 2000); }
+      if(!K.upSaid && el > dn - SR.getUpMs*0.4){ K.upSaid = true; this.npcSay(K, null, sayPick(K.mood === 'young' ? SAY.youngUp : K.mood === 'polite' ? SAY.politeUp : SAY.riderUp), 2000, undefined, 150); }
       if(el < dn) continue;
       if(K.wait && this.state !== "play" && el < dn + 20000) continue;                // (he is over too: words once the crew have him up)
       if(!K.confDone){
@@ -118286,9 +118306,10 @@ class WorldScene extends Phaser.Scene {
      they are gone. One per speaker (key): a second line replaces the first.
      tone: 'say', 'mad' (red) or 'horn' (yellow). Phaser text in screen
      pixels, as the "?!" is: W() is already the screen. */
-  npcSay(key, pos, text, ms, tone){
+  npcSay(key, pos, text, ms, tone, h){
     if(!this._says) this._says = new Map();
     /* a speaker that is an object (a car, a rider, a person) gets a string key of its own */
+    const key0 = key;
     if(key && typeof key === "object"){ if(!key._sayKey) key._sayKey = "npc" + (this._sayN = (this._sayN || 0) + 1); key = key._sayKey; }
     /* THE BUBBLES ARE THE PAGE'S, not Phaser's: a div each over the canvas,
        placed from W() through the canvas's own on-screen box -- crisp on
@@ -118311,7 +118332,8 @@ class WorldScene extends Phaser.Scene {
     const t = this.time.now;
     e.el.className = "npcSay " + (tone === "mad" ? "mad" : tone === "horn" ? "horn" : "say");
     e.el.textContent = text;
-    e.pos = pos; e.t0 = t; e.until = t + (ms || 2400);
+    /* no pos: the speaker is a person in the registry (CITY_PEOPLE), and the bubble follows their entry; h: how high, else off their build */
+    e.pos = pos || null; e.ref = pos ? null : key0; e.h = h; e.t0 = t; e.until = t + (ms || 2400);
   }
   updateSays(t){
     if(typeof hospSayCardPlace === "function") hospSayCardPlace(this);   // the heart run's card, over its speaker's head
@@ -118323,7 +118345,7 @@ class WorldScene extends Phaser.Scene {
     const kx = r ? r.width/this.scale.width : 1, ky = r ? r.height/this.scale.height : 1;
     for(const [k, e] of this._says){
       let p = null;
-      if(t < e.until){ try { p = e.pos(); } catch(err){ p = null; } }
+      if(t < e.until){ try { p = e.pos ? e.pos() : e.ref ? CITY_PEOPLE.posOf(this, t, e.ref, e.h) : null; } catch(err){ p = null; } }
       if(!p){ e.el.remove(); this._says.delete(k); continue; }
       const sp = this.W(p.x, p.y, (p.z || 0) + (p.h || 150));
       const x = (r ? r.left : 0) + sp.x*kx, y = (r ? r.top : 0) + sp.y*ky;
