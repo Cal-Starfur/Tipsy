@@ -6,7 +6,7 @@
    "title": "Every walk-in: outside vs inside",
    "spots": [],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false,
+   "reviewed": true,
    "items": [
     "FOOTPRINT: on the 'outside, room footprint in red' photos, the red outline (ground) and orange outline (wall top) are the interior room's own footprint. They must sit on the building's shell: same size, same corners, same side as the door. Flag any red or orange edge that sticks out past the shell or leaves part of the shell uncovered, and say by roughly how much.",
     "Compare the outside clean photo with the inside photo: same walls, door position, windows and floor extent? The inside must not read as a different-sized building.",
