@@ -27880,9 +27880,9 @@ walkinStaff(BB_IN.name, [
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
     away: () => typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
-    /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- in the shop's copper apron, his chest band the same copper) */
+    /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
     lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
-      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }), vest: GIDEON_UNIFORM.vest }) }) },
+      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }) }) }) },
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
   { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
 ]);
@@ -43427,6 +43427,7 @@ function body(wall, trim, H, wid, dep){
    the mirror. LIB.drawDoorOpen replays that one door, open, live, over
    the cached shop while the worker uses it (shopDoorOpen). */
 let DOOR_REC = null;
+const SHOP_GLAZED = 'rgba(130,170,186,.88)';   // the glass of a glazed leaf (shopDoor's glazed, shopDoorOpen)
 function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   /* wid: some shops are drawn on a narrower unit (Tailor WW=170,
      Newsstand WW=150), so the clamp has to be against THEIR frontage,
@@ -43438,10 +43439,10 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const z = base === undefined ? 0 : base;
   /* opts.w, opts.pair: a wider opening hung with a pair of full leaves, hinged at its two jambs (a shop he goes into:
      Seabreeze Trophies, its room's door the same width -- TROPHY_IN) */
-  const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair);
+  const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = (opts && opts.h) || SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair), glazed = !!(opts && opts.glazed);   // (opts.h: a taller door; opts.glazed: glass leaves with a push bar -- the Animal Shelter's)
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, see: SEE && pair, boff: BOFF });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, glazed, see: SEE && pair, boff: BOFF });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -43489,6 +43490,11 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
     const mA = (a0+a1)/2;
     for(const [la0, la1, ha] of [[a0+2, mA-0.5, mA-6], [mA+0.5, a1-2, mA+2]]){
       F(la0, la1, z, z+dH-30, trim, null, 0, 0.6);                // a leaf
+      if(glazed){                                                 // glass in the leaf, a push bar across it
+        F(la0+5, la1-5, z+10, z+dH-38, SHOP_GLAZED, null, 0, 0.9);
+        F(la0+10, la1-10, z+62, z+66, '#d8dde0', null, 0, 1.2);
+        continue;
+      }
       for(let k=0;k<2;k++)
         F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
       F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
@@ -43625,6 +43631,12 @@ function shopDoorOpen(d, t, between, leafOnly){
     for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){
       const qq = Q(hingeA, sgn);
       rect(qq, 0, ln, z0, z1, d.trim);
+      if(d.glazed){                                                         // (glass and a push bar, as shut)
+        rect(qq, 5, ln-5, d.z+10, z1-8, SHOP_GLAZED, null, 0, 0.3);
+        rect(qq, 10, ln-10, d.z+62, d.z+66, '#d8dde0', null, 0, 0.6);
+        edge(qq, ln, z0, z1);
+        continue;
+      }
       for(let k=0;k<2;k++) rect(qq, 4, ln-6, d.z+d.dH*0.07+k*d.dH*0.36, d.z+d.dH*0.30+k*d.dH*0.36, shade(d.trim,1.18), shade(d.trim,.7), 1.5, 0.3);
       rect(qq, ln-8, ln-4, d.z+d.dH*0.40, d.z+d.dH*0.53, '#d8c28a', null, 0, 0.6);
       edge(qq, ln, z0, z1);
@@ -69039,6 +69051,9 @@ marinaEntry(),
       marks: { door: [1564, -1000] }
     };
   })(),
+  /* its glazed double door swings (recorded by shopDoor): for the worker who brings a lost dog home or out to him, and the dog after them
+     (lostDogAtDoor), and for anyone listed who walks up to it */
+  swingDoors: [{ a: 1564, b: -1000, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
   head:'A low shelter, its canopy and double door on the street, dog runs either side',
   tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
@@ -69100,10 +69115,10 @@ marinaEntry(),
         F(c - 2, c + 2, 56, 130, trim, null, 0, FB + 1.6);
         F(c - 56, c + 56, 42, 48, trim, null, 0, FB + 1.6);
       }
-      /* the double door, glazed, a push bar on each leaf */
-      F(GM - 58, GM + 58, 0, 134, trimD, null, 0, FB + 0.4);
-      F(GM - 52, GM - 2, 4, 128, glass, null, 0, FB + 0.8); F(GM + 2, GM + 52, 4, 128, glass, null, 0, FB + 0.8);
-      F(GM - 40, GM - 10, 62, 66, '#d8dde0', null, 0, FB + 1.2); F(GM + 10, GM + 40, 62, 66, '#d8dde0', null, 0, FB + 1.2);
+      /* the double door, glazed, a push bar on each leaf: the kit's (shopDoor, a glazed pair), set back to the front by BOFF, so
+         it swings (swingDoors: LIB.drawDoorOpen) for the worker bringing a dog home and for anyone coming up to it */
+      { const b0 = BOFF; BOFF = b0 + FB;
+        try { shopDoor(GM, wall, trimD, glass, 3128, 0, { w: 116, h: 134, pair: true, glazed: true }); } finally { BOFF = b0; } }
       /* the fascia and its lettering, a paw on the front */
       slab(A0 + 40, A1 - 40, 156, 196, FB + 6, FB, trim, trimD);
       word('ANIMAL SHELTER', A0 + 70, A1 - 70, 162, 190, FB + 6, '#ffffff', trimD, 6);
@@ -102609,7 +102624,7 @@ class WorldScene extends Phaser.Scene {
         { const _le = LIB.get(_hl);
           if(_le && _le.swingDoors && _hsk > 0.002 && _cut <= 0) _le.swingDoors.forEach((d, i) => {
             const q = fr.toWorld(d.a, d.b), qo = fr.toWorld(d.a, d.b + (d.sense || 0));
-            const u = this.shopDoorOpen(_lk + "|sw" + i, qo.x, qo.y, null, !d.gate || d.gate(), true);   // (a doorman stands by this one: only who is walking up opens it)
+            const u = this.shopDoorOpen(_lk + "|sw" + i, qo.x, qo.y, d.also ? near => { const w = d.also(this.time.now); return !!w && near(w.x, w.y); } : null, !d.gate || d.gate(), true);   // (a doorman stands by this one: only who is walking up opens it)
             if(u < 0.001) return;
             const c0 = fr.toWorld(d.a - 40, d.b), c1 = fr.toWorld(d.a + 40, d.b), it = d._it || (d._it = { _fp: {
               x0: Math.min(c0.x, c1.x) - 4, x1: Math.max(c0.x, c1.x) + 4, y0: Math.min(c0.y, c1.y) - 4, y1: Math.max(c0.y, c1.y) + 4, z1: 170 } });

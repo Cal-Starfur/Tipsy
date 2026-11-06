@@ -29598,9 +29598,9 @@ walkinStaff(BB_IN.name, [
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
     away: () => typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
-    /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- in the shop's copper apron, his chest band the same copper) */
+    /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
     lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
-      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }), vest: GIDEON_UNIFORM.vest }) }) },
+      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }) }) }) },
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
   { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
 ]);
