@@ -846,13 +846,14 @@
 },
 {
 "id": "bb-server",
-"title": "Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Needs Sir: what the reward is (cents, trophy, skin, Gideon playable)",
+"title": "Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Reward decided (Sir): Gideon playable, the humanoid's fleet unlock; no trophy, skin or cash",
 "spec": "docs/kits/missions.md",
 "deps": [
 "bb-repair"
 ],
-"status": "pending",
-"group": "Brew & Bolt: Minding the Shop"
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
 },
 {
 "id": "bb-exit",
