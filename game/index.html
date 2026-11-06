@@ -17835,6 +17835,7 @@ function nssPathsOf(grid){
    out to the street, so its nose shows on the drive). */
 const NSS_GARAGE = { open: 1100, shut: 1400, p: 0.3, stay: [25000, 70000] };
 const NSS_GDOOR = new Map();
+const GAR_WAIT = { near: 75, far: 190 };   // (how far either side of a garage car's line, world y: inside near they walk on out; inside far they wait)
 let _nssGarGrid = null, _nssGarages = null;
 function nssGaragesOf(grid){
   if(_nssGarGrid === grid && _nssGarages) return _nssGarages;
@@ -92651,6 +92652,7 @@ class WorldScene extends Phaser.Scene {
     const dt = this._nssGarT === undefined ? 0 : Math.max(0, Math.min(250, t - this._nssGarT));
     this._nssGarT = t;
     const at = new Map();
+    let hz = null;
     for(const tr of this.trafficActive(t) || []) if(tr.errand && tr.errand.site.garage) at.set(tr.errand.site.garage, tr);
     for(const g of nssGaragesOf(grid)){
       if(Math.abs(g.faceX - this.botX) + Math.abs(g.yc - this.botY) > 4200 && !NSS_GDOOR.has(g.id)) continue;
@@ -92668,7 +92670,36 @@ class WorldScene extends Phaser.Scene {
       let u = NSS_GDOOR.get(g.id) || 0;
       u = want ? Math.min(1, u + dt/NSS_GARAGE.open) : Math.max(0, u - dt/NSS_GARAGE.shut);
       if(u > 0) NSS_GDOOR.set(g.id, u); else NSS_GDOOR.delete(g.id);
+      /* its car is out across the pavement (pulling up, in, backing out, swinging round): anyone on foot
+         heading for its drive waits their turn */
+      if(tr){ const st = (errandPoseAt(tr, t) || {}).st; if(st && !(st.stop === 1 && st.left >= 1600)) (hz || (hz = [])).push(g); }
     }
+    this.holdForGarageCars(hz, dt);
+  }
+  /* THE WALKERS WAIT FOR THE GARAGE CAR (Sir, 2026-11-05: "joggers running through cars that are backing out of
+     garages"). The pavement's people -- the boardwalk's crowd on their pass routes, the strand's residents -- are
+     pure functions of their clocks, so one can't be steered round a car; it waits instead, its clock held (dly,
+     as for a knock-down) and drawn standing, once it is coming at the drive and within GAR_WAIT.far of the car's
+     line. Anyone already across that line (GAR_WAIT.near) walks on out of it. Held till the car is done. */
+  holdForGarageCars(hz, dt){
+    const grid = this.route && this.route.grid, t = this.time.now;
+    const live = (p, q) => {
+      if(!q){ p._gh = false; return; }
+      let held = false;
+      if(hz && hz.length && q.x < -ROAD_HALF + 20) for(const g of hz){
+        const d = Math.abs(q.y - g.yc);
+        if(q.x < g.faceX - 60 || d > GAR_WAIT.far) continue;
+        if(p._gh) held = true;                                                      // (already waiting: stay till it is clear)
+        else if(d > GAR_WAIT.near && p._gd !== undefined && d < p._gd) held = true;   // (coming at the drive)
+        p._gd = d; break;
+      }
+      if(!held) p._gd = undefined;
+      p._gh = held;
+      if(held) p.dly = (p.dly || 0) + dt;
+    };
+    if(!grid) return;
+    for(const p of boardwalkStrollers(grid)){ if(p.knock) continue; live(p, p.R ? bwAt(p, t, this.botX, this.botY) : null); }
+    for(const d of nssHomeDoorsOf(grid)){ if(d.knock) continue; live(d, nssResAt(d, t, this.botX, this.botY)); }
   }
   /* an open garage, live over the cached house: through the opening, its
      inside; its car (clipped to the opening carried out to the street, so
@@ -92748,6 +92779,7 @@ class WorldScene extends Phaser.Scene {
       if(d.e !== row.e) continue;
       if(d.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
       const q = nssResAt(d, t, this.botX, this.botY);
+      if(q && d._gh) q.moving = false;                                             // (waiting for a garage car)
       if(!q || !this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true });
@@ -92930,6 +92962,7 @@ class WorldScene extends Phaser.Scene {
     for(const p of list){
       if(p.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
       const q = bwAt(p, now, bx, by);
+      if(p._gh) q.moving = false;                                                  // (waiting for a garage car)
       if(!this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = bwLook(p);

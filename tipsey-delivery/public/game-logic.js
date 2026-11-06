@@ -3485,7 +3485,12 @@ const BAY_SPEC = {
 };
 /* lanes: the resident vehicle, or [kind, width]; width W/lanes otherwise.
    name: the hall's own name on the card and its sign */
-const FLEET_HALL_DEFS = [
+/* THE DEPOTS ARE OFF (Sir, 2026-11-05: "these are placed very poorly lets get rid of them all for now"): every fleet
+   hall, its airfield compound (gate, apron, wall, fence opening) and its street drives are left out while this is
+   false; the definitions stay (FLEET_HALL_DEFS_ALL) to be re-sited. A fleet vehicle with no bay launches from a
+   charging station; The Lighthouse Run waits (it starts from the airfield hangar) */
+const FLEET_BAYS_BUILT = false;
+const FLEET_HALL_DEFS_ALL = [
   { id: "F2b", base: "F2", kit: "boathouse", name: "Tipsey Fleet Boathouse", sign: "BOATHOUSE", o: [-5850, -12042], u: [1, 0], n: [0, -1], W: 700, D: 1008, lanes: [["boat:drone", 300], ["boat:watertaxi", 400]] },
   { id: "F3s", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [1250, 20906], u: [0, 1], n: [-1, 0], W: 250, D: 460, lanes: ["avshuttle"] },
   { id: "F3t", base: "F3", kit: "road",      name: "Marina Parking", sign: "FLEET", o: [2066, 21156], u: [1, 0], n: [0, -1], W: 320, D: 250, lanes: ["robotaxi", "avpod"] },
@@ -3497,6 +3502,7 @@ const FLEET_HALL_DEFS = [
      at the east end. The east wall stays inside the Flats (the hood line is x 28560) but for its last 70 */
   { id: "F7h", base: "F7", kit: "hangar",    name: "Tipsey Fleet at Sun Deck Airfield", sign: "TIPSEY FLEET", o: [27350, 20580], u: [1, 0], n: [0, -1], W: 1280, D: 420, lanes: [["airtaxi", 440], ["dronequad", 360], ["dronelift", 480]] }
 ];
+const FLEET_HALL_DEFS = FLEET_BAYS_BUILT ? FLEET_HALL_DEFS_ALL : [];
 /* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
    door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
    and edge lights round each apron pad (painted with the pad in the ground pass, n of them at r - inset). At night the
@@ -3634,7 +3640,7 @@ function fleetBayBuiltHeight(x, y, gkey){
 /* the drives off the street to a hall's doors (hoodDrivewaysOf): e is
    the block edge's frame, origin on the site line the pavement starts at,
    dv along it, rv out of the block */
-const FLEET_BAY_DRIVES = [
+const FLEET_BAY_DRIVES = !FLEET_BAYS_BUILT ? [] : [
   { e: { ox: 0, oy: 21160, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 2080, al1: 2350 },       // F3: the robotaxi's and the pod's
   { e: { ox: 0, oy: 27416, dv: { x: 1, y: 0 }, rv: { x: 0, y: 1 } }, al0: 25872, al1: 26688 },     // F4: out, south
   { e: { ox: 0, oy: 25760, dv: { x: 1, y: 0 }, rv: { x: 0, y: -1 } }, al0: 25872, al1: 26688 },    // F4: in, north
@@ -16111,6 +16117,7 @@ function nssPathsOf(grid){
    out to the street, so its nose shows on the drive). */
 const NSS_GARAGE = { open: 1100, shut: 1400, p: 0.3, stay: [25000, 70000] };
 const NSS_GDOOR = new Map();
+const GAR_WAIT = { near: 75, far: 190 };   // (how far either side of a garage car's line, world y: inside near they walk on out; inside far they wait)
 let _nssGarGrid = null, _nssGarages = null;
 function nssGaragesOf(grid){
   if(_nssGarGrid === grid && _nssGarages) return _nssGarages;
@@ -28484,7 +28491,9 @@ const AIR = (() => {
   const fuelPad = [25850, 27330, 25850, 27330];
   /* the tanks in a row east of the fleet's heavy hall (FLEET_HALL_DEFS F4, x 25860..26700, fence to fence),
      the truck out on the south apron by the planes it fuels */
-  const tanks = [[27080, 26000], [27080, 26440], [27080, 26880]], TANK_R = 190, TANK_H = 150;
+  /* (with the depots off the tanks stand back on the fuel pad itself, two rows of three with a pipe run between; the history
+     before the F4 hall does not give their old spot) */
+  const tanks = FLEET_BAYS_BUILT ? [[27080, 26000], [27080, 26440], [27080, 26880]] : [[26150, 26230], [26590, 26230], [27030, 26230], [26150, 26950], [26590, 26950], [27030, 26950]], TANK_R = 190, TANK_H = 150;
   const fuelTruck = [27640, 26600];
   const fire = { x0: 32150, x1: 33200, y0: 18150, y1: 18900, top: 130, bays: 3 };
   const fireApron = [32100, 33250, 18100, 19560];               // its concrete, under it and out to the runway
@@ -28507,13 +28516,13 @@ const AIR = (() => {
      on the apron by the pier between the air taxi's door and the drone's. The hood line is x 28560: the gate and
      the bay are well inside it */
   const fleet = (() => {
-    const d = FLEET_HALL_DEFS.find(q => q.id === "F7h");
+    const d = FLEET_HALL_DEFS_ALL.find(q => q.id === "F7h");
     const hall = { x0: d.o[0], x1: d.o[0] + d.W, y0: d.o[1] - d.D, y1: d.o[1] };
     const wallX = hall.x1 + 4;
     return { hall, wallX, apron: [terminal.x1, wallX - 4, hall.y1, 21160], gate: { x0: 27810, x1: 28050 },
              visit: { x: 27780, y: 21040 }, post: { x: hall.x0 + 440, y: hall.y1 + 46 } };
   })();
-  drives.push({ x0: fleet.gate.x0, x1: fleet.gate.x1, y: 21160, out: 1, fleet: true });
+  if(FLEET_BAYS_BUILT) drives.push({ x0: fleet.gate.x0, x1: fleet.gate.x1, y: 21160, out: 1, fleet: true });
   const FH = 100, sign = [24420, 25700];                       // the wall's height; the airfield's name along it east of the gate
   /* THE PLANES, small ones only (Sir: "the jet is to big we just [want]
      the small planes but then need to be better"): the game's own vehicle
@@ -28553,9 +28562,9 @@ const AIR = (() => {
         for(let q = 0; q < ys.length - 1; q++){ const u0 = Math.max(ys[q], r[2]), u1 = Math.min(ys[q + 1], r[3]);
           if(u1 > u0 && !covered(x + n*2, (u0 + u1)/2)) add("v|" + x + "|" + n, u0, u1); }
     }
-    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1], [fleet.gate.x0, fleet.gate.x1]], gapY = drives[0].y;
+    const gaps = [[drives[0].x0, drives[0].x1], [terminal.x0, terminal.x1]].concat(FLEET_BAYS_BUILT ? [[fleet.gate.x0, fleet.gate.x1]] : []), gapY = drives[0].y;
     /* the fleet's heavy hall stands in the fence on both its lines, its doors the way through (F4) */
-    const HALL = [25860, 26700], hallLines = new Set(["h|27416|1", "h|25760|-1"]);
+    const HALL = [25860, 26700], hallLines = FLEET_BAYS_BUILT ? new Set(["h|27416|1", "h|25760|-1"]) : new Set();
     const out = [];
     for(const [k, segs] of lines){
       const [hv, c, n] = k.split("|"), at = +c, nn = +n;
@@ -28574,7 +28583,7 @@ const AIR = (() => {
       }
     }
     /* the fleet compound's east side: from the hall's south-east corner to the street wall's centre line */
-    out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
+    if(FLEET_BAYS_BUILT) out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
     return out;
   })();
   return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H, fleet,
@@ -46050,7 +46059,7 @@ function houseCanopy(fn){
              (flyApronPads: a darker disc, the Fleet's orange ring, a white H square to the door, eight flush edge
              lights lit at night by queueFleetBays), a yellow lead-in line from each door to its pad, and the hold
              line across the fleet gate. Each cell paints its own share (a pad on the cells' line is cut at it) */
-          slabs(C.fleet.apron);
+          if(FLEET_BAYS_BUILT) slabs(C.fleet.apron);
           { const cr = [R[0] - 4, R[1] + 4, R[2] - 4, R[3] + 4];
             const cut = (pts) => {                                              // a polygon clipped to this cell
               let o = pts;
@@ -46285,6 +46294,24 @@ function houseCanopy(fn){
             cyl(A(tx), B(ty), C.TANK_H - 40, C.TANK_H - 28, C.TANK_R + 1, '#2e5f9e', '#f4f5f4');
             cyl(A(tx), B(ty), C.TANK_H, C.TANK_H + 14, 40, '#c3c8cc');
             tube(A(tx + C.TANK_R*0.7), B(ty + C.TANK_R*0.7), 0, A(tx + C.TANK_R*0.7), B(ty + C.TANK_R*0.7), C.TANK_H, 2.5, '#8d959c');   // its ladder
+          }});
+        }
+        /* THE TANKS' PIPEWORK (with the depots off, two rows of three): a manifold on posts down the gap between the
+           rows, a branch to each tank's foot, and the pump skid at its east end */
+        if(!FLEET_BAYS_BUILT){
+          const my = 26590, mx0 = 25990, mx1 = 27120, zp = 36;
+          if(mine((mx0 + mx1)/2, my)) items.push({ a: A(mx1 + 140), b: B(my - 12), z: 0, draw: () => {
+            if(!inView(A(mx0) - 20, A(mx1 + 140), B(my) - 150, B(my) + 150, 0, 80)) return;
+            for(let x = mx0 + 40; x <= mx1; x += 220) tube(A(x), B(my), 0, A(x), B(my), zp, 3, '#7d858b');                // its posts
+            tube(A(mx0), B(my), zp, A(mx1), B(my), zp, 6, '#8d959c');                                                  // the manifold
+            for(const [tx, ty] of C.tanks){
+              const edge = ty < my ? ty + C.TANK_R : ty - C.TANK_R;
+              tube(A(tx), B(my), zp, A(tx), B(edge), zp, 4, '#8d959c'); tube(A(tx), B(edge), zp, A(tx), B(edge), 8, 4, '#8d959c');   // a branch to the tank's foot
+              cyl(A(tx), B(my), zp + 6, zp + 12, 9, '#2e5f9e');                                                         // its valve
+            }
+            box(A(mx1 + 10), A(mx1 + 140), B(my - 70), B(my + 70), 0, 80, '#cfd4d6', '#bfc4c6', '#a9aeb0');         // the pump skid
+            box(A(mx1 + 10), A(mx1 + 140), B(my - 70), B(my + 70), 80, 90, '#2e5f9e', '#2a558c', '#244a7c');
+            tube(A(mx1), B(my), zp, A(mx1 + 10), B(my), zp, 6, '#8d959c');
           }});
         }
         { const [fx, fy] = C.fuelTruck;                     // the fuel tanker, nose south (drawWorkTruck)
@@ -77615,6 +77642,7 @@ function lhClerkAt(now){
   return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
 }
 function lhCrewAt(now){
+  if(!FLEET_BAYS_BUILT) return null;               // (her hangar is off: she is not out on the bare field)
   const R = LH;
   if(R.crew){ const p = hospWalkAt(R.crew, now); if(p) return Object.assign(p, { has: null }); R.crew = null; }
   const c = LH_RUN.post, v = LH_RUN.visit;
@@ -77631,6 +77659,53 @@ CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, 
     for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
       if(at) fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
   } });
+/* ==================== SUN DECK AIRFIELD'S GROUND CREW (Sir, 2026-11-05: "add people to the air field") ====================
+   Hi-vis hands at work inside the fence: a fuel hand who walks the pipe run between the tank rows, one by the fuel truck,
+   a baggage handler at the tug, a loader at the cargo apron's forklift, a marshaller between the south apron's planes.
+   Each stands (glancing about) or walks a short line, pausing at its ends. Drawn live (afQueue), listed in CITY_PEOPLE */
+const AIR_CREW_UNIFORM = {
+  shirt: { c:0x3d4653, dk:0x2b313a }, pants: { c:0x2a2f36, dk:0x1d2126 }, shoe: { c:0x14161a, dk:0x0d0e11 },
+  vest:  { c:0xe6d22a, dk:0xa8981a }, cap: { c:0xf2f3f1, dk:0xc9ccc8, top:0xffffff, badge:0x3d4653 }, shoeKind: 'boot'
+};
+const AF_CREW = [
+  { kind: 'fuel hand',       seed: 0xaf01, sex: 'm', walk: [[26060, 26590], [27070, 26590]], dwell: 6000, off: 0 },
+  { kind: 'fuel truck hand', seed: 0xaf02, sex: 'f', at: [27520, 26430], face: [27640, 26600] },
+  { kind: 'baggage handler', seed: 0xaf03, sex: 'm', walk: [[30090, 20330], [30090, 20700]], dwell: 5000, off: 2300 },
+  { kind: 'cargo loader',    seed: 0xaf04, sex: 'm', at: [29330, 20990], face: [29400, 20860] },
+  { kind: 'ramp marshaller', seed: 0xaf05, sex: 'f', walk: [[28400, 26560], [28400, 26860]], dwell: 7000, off: 4100 }
+];
+function afLook(c){
+  if(!c._look){
+    const b = streetLook(c.seed, { adult: true, aid: 'none', sex: c.sex, type: c.sex === 'f' ? 'woman' : 'man' }), U = AIR_CREW_UNIFORM;
+    c._look = Object.assign({}, b, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+  }
+  return c._look;
+}
+function afAt(c, now){
+  if(!c.walk){ return { x: c.at[0], y: c.at[1], th: lhGlance(Math.atan2(c.face[1] - c.at[1], c.face[0] - c.at[0]), now, c.seed & 7), moving: false }; }
+  const [a, b] = c.walk, d = Math.hypot(b[0] - a[0], b[1] - a[1]), wk = d/PEOPLE_WALK_V + 500, T = 2*(wk + c.dwell);
+  const u = (((now + c.off) % T) + T) % T, th0 = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const at = (p, th) => ({ x: p[0], y: p[1], th: lhGlance(th, now, c.seed & 7), moving: false });
+  if(u < c.dwell) return at(a, th0);
+  if(u < c.dwell + wk){ const f = meetWalkFrac(u - c.dwell, wk); return { x: a[0] + (b[0] - a[0])*f, y: a[1] + (b[1] - a[1])*f, th: th0, moving: f > 0 && f < 1, gait: (u - c.dwell)*PEOPLE_ART.walkSpeed }; }
+  if(u < 2*c.dwell + wk) return at(b, th0 + Math.PI);
+  const f = meetWalkFrac(u - 2*c.dwell - wk, wk);
+  return { x: b[0] + (a[0] - b[0])*f, y: b[1] + (a[1] - b[1])*f, th: th0 + Math.PI, moving: f > 0 && f < 1, gait: (u - 2*c.dwell - wk)*PEOPLE_ART.walkSpeed };
+}
+CITY_PEOPLE.add({ name: "Sun Deck Airfield's ground crew", where: "inside the airfield's fence: the fuel farm, the cargo apron, the tug, the south apron", solid: false,
+  each(scene, t, fn){
+    const now = scene.time.now;
+    for(const c of AF_CREW){ const p = afAt(c, now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: p.moving, kind: c.kind, look: afLook(c) })); }
+  } });
+function afQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now;
+  for(const c of AF_CREW){
+    const p = afAt(c, now);
+    if(!scene.visProp("people", p.x, p.y)) continue;
+    const L = afLook(c), px = p.x, py = p.y, thW = p.th - Math.PI/2;
+    queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, p.moving, 0, 0, null, L.uniform, false, null));
+  }
+}
 /* SUN DECK MOTOR LODGE's people out in the court (MOTEL_MAID, MOTEL_GUESTS) */
 CITY_PEOPLE.add({ name: 'Sun Deck Motor Lodge', where: "the motor lodge's court, across from Sun Deck Airfield", solid: true,
   each(scene, t, fn){
@@ -77646,7 +77721,7 @@ function lhBayNow(scene){
   const R = LH, ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => Object.assign({}, B, { icon });
-  if(R.stage === 'idle') return lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
+  if(R.stage === 'idle') return !FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
   if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
   if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
   if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');
@@ -77796,7 +77871,7 @@ function lhTick(scene, ow){
   const over = (B) => ow.fly && ow.fly.ph === 'air' && Math.hypot(ow.px - B.x, ow.py - B.y) < 150;
   switch(R.stage){
     case 'idle': {
-      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
+      if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
       if(!armed(LH_RUN.quay)) return;
       R.stage = 'ask'; ow.vel = 0; cineBars(true);
       const p = lhMasterAt(now);
@@ -90858,6 +90933,7 @@ class WorldScene extends Phaser.Scene {
     const dt = this._nssGarT === undefined ? 0 : Math.max(0, Math.min(250, t - this._nssGarT));
     this._nssGarT = t;
     const at = new Map();
+    let hz = null;
     for(const tr of this.trafficActive(t) || []) if(tr.errand && tr.errand.site.garage) at.set(tr.errand.site.garage, tr);
     for(const g of nssGaragesOf(grid)){
       if(Math.abs(g.faceX - this.botX) + Math.abs(g.yc - this.botY) > 4200 && !NSS_GDOOR.has(g.id)) continue;
@@ -90875,7 +90951,36 @@ class WorldScene extends Phaser.Scene {
       let u = NSS_GDOOR.get(g.id) || 0;
       u = want ? Math.min(1, u + dt/NSS_GARAGE.open) : Math.max(0, u - dt/NSS_GARAGE.shut);
       if(u > 0) NSS_GDOOR.set(g.id, u); else NSS_GDOOR.delete(g.id);
+      /* its car is out across the pavement (pulling up, in, backing out, swinging round): anyone on foot
+         heading for its drive waits their turn */
+      if(tr){ const st = (errandPoseAt(tr, t) || {}).st; if(st && !(st.stop === 1 && st.left >= 1600)) (hz || (hz = [])).push(g); }
     }
+    this.holdForGarageCars(hz, dt);
+  }
+  /* THE WALKERS WAIT FOR THE GARAGE CAR (Sir, 2026-11-05: "joggers running through cars that are backing out of
+     garages"). The pavement's people -- the boardwalk's crowd on their pass routes, the strand's residents -- are
+     pure functions of their clocks, so one can't be steered round a car; it waits instead, its clock held (dly,
+     as for a knock-down) and drawn standing, once it is coming at the drive and within GAR_WAIT.far of the car's
+     line. Anyone already across that line (GAR_WAIT.near) walks on out of it. Held till the car is done. */
+  holdForGarageCars(hz, dt){
+    const grid = this.route && this.route.grid, t = this.time.now;
+    const live = (p, q) => {
+      if(!q){ p._gh = false; return; }
+      let held = false;
+      if(hz && hz.length && q.x < -ROAD_HALF + 20) for(const g of hz){
+        const d = Math.abs(q.y - g.yc);
+        if(q.x < g.faceX - 60 || d > GAR_WAIT.far) continue;
+        if(p._gh) held = true;                                                      // (already waiting: stay till it is clear)
+        else if(d > GAR_WAIT.near && p._gd !== undefined && d < p._gd) held = true;   // (coming at the drive)
+        p._gd = d; break;
+      }
+      if(!held) p._gd = undefined;
+      p._gh = held;
+      if(held) p.dly = (p.dly || 0) + dt;
+    };
+    if(!grid) return;
+    for(const p of boardwalkStrollers(grid)){ if(p.knock) continue; live(p, p.R ? bwAt(p, t, this.botX, this.botY) : null); }
+    for(const d of nssHomeDoorsOf(grid)){ if(d.knock) continue; live(d, nssResAt(d, t, this.botX, this.botY)); }
   }
   /* an open garage, live over the cached house: through the opening, its
      inside; its car (clipped to the opening carried out to the street, so
@@ -90955,6 +91060,7 @@ class WorldScene extends Phaser.Scene {
       if(d.e !== row.e) continue;
       if(d.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
       const q = nssResAt(d, t, this.botX, this.botY);
+      if(q && d._gh) q.moving = false;                                             // (waiting for a garage car)
       if(!q || !this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true });
@@ -91137,6 +91243,7 @@ class WorldScene extends Phaser.Scene {
     for(const p of list){
       if(p.knock) continue;                                                        // (knocked down: drawn as they fall, updateKnocks)
       const q = bwAt(p, now, bx, by);
+      if(p._gh) q.moving = false;                                                  // (waiting for a garage car)
       if(!this.visProp("people", q.x, q.y, 0)) continue;
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = bwLook(p);
@@ -94648,6 +94755,7 @@ class WorldScene extends Phaser.Scene {
     const keyQueue = (x, y, fn) => queuePerson(x, y, (g, tt) => this.keyPerson(() => fn(g, tt)));
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, keyQueue, layerFor);
+    afQueue(this, t, queuePerson, layerFor);           // SUN DECK AIRFIELD's ground crew
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
@@ -94832,7 +94940,20 @@ class WorldScene extends Phaser.Scene {
         else if(el < dn){ roll = 1; body = { down: 1, pose: 1, off: SR.offSide, rise: (el - dn + SR.getUpMs)/SR.getUpMs, land: el - SR.fallMs }; }   // up on their feet: push up, crouch, stand (FALL_ANIM)
         else if(el < dn + SR.upMs) lift((el - dn)/SR.upMs, standAt());
         else noRider = false; }
-      blockVQ.push({ depth: rx + ry, fn: (g, tt) => {
+      /* A CAR IS LONG BUT SORTS BY ITS CENTRE, so a rider alongside its nose (or tail) sorted by his own x+y can land on the wrong
+         side of it and be painted over its front panel (Sir, 2026-11-05: "scooters painting over front panel of cars as they
+         go by"). Within a car's length, he sorts by which SIDE of it he is on: the far side behind it, the near side in front. */
+      let rdDepth = rx + ry;
+      for(const p of trafficPts){
+        if(!p.wp) continue;
+        const h = p.f*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), dx = rx - p.wp.x, dy = ry - p.wp.y;
+        if(Math.abs(dx*hx + dy*hy) > CARC.len*0.6 || Math.abs(dx*hy - dy*hx) > 130) continue;
+        const cd = p.wp.x + p.wp.y;
+        const along = dx*hx + dy*hy, side = (dx + dy) - along*(hx + hy);   // his depth less the car axis's depth at his place along it
+        if(side < 0 && rdDepth >= cd) rdDepth = cd - 0.5;
+        else if(side > 0 && rdDepth <= cd) rdDepth = cd + 0.5;
+      }
+      blockVQ.push({ depth: rdDepth, fn: (g, tt) => {
         const L = streetLook(rd.seed, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         /* KNOCKED OFF (STREET_RIDER.fallMs..): rider and scooter rolled over
            together about the ground line, onto the side away from him --
@@ -107255,7 +107376,7 @@ class WorldScene extends Phaser.Scene {
       if(!p || !p.rt) return false;
       const tk = "__tsp" + (ts.n++);
       p.rt.saveTexture(tk);
-      e = { tk, rt: p.rt, ox: p.ox, oy: p.oy, C: p.C, occ: p.occ, used: 0 };
+      e = { tk, rt: p.rt, ox: p.ox, oy: p.oy, C: p.C, occ: p.occ, used: bc.frame };   // (this frame's, so the cap below can never evict the sprite it was just painted for: its texture gone, the car drew as Phaser's missing-texture box, black with a green line)
       ts.map.set(key, e);
       /* past the cap, the least recently used go (never one placed this frame) */
       if(ts.map.size > TS.max){
@@ -123998,7 +124119,7 @@ function mapLandmarkFootprints(){
     for(const b of [AIR.hangar, AIR.hangar2, AIR.terminal, AIR.fire]) out.push([b.x0, b.x1, b.y0, b.y1, 1]);
     for(const [x, y] of AIR.tanks) out.push([x - AIR.TANK_R, x + AIR.TANK_R, y - AIR.TANK_R, y + AIR.TANK_R, 1]);
     out.push([AIR.tower.x0, AIR.tower.x1, AIR.tower.y0, AIR.tower.y1, 2]);
-    { const f = AIR.fleet; out.push([f.apron[0], f.apron[1], f.apron[2], f.apron[3], 0], [f.hall.x0, f.hall.x1, f.hall.y0, f.hall.y1, 1]); }   // the fleet's hangar and its apron
+    if(FLEET_BAYS_BUILT){ const f = AIR.fleet; out.push([f.apron[0], f.apron[1], f.apron[2], f.apron[3], 0], [f.hall.x0, f.hall.x1, f.hall.y0, f.hall.y1, 1]); }   // the fleet's hangar and its apron
   }
   { const g = MARINA.garage;                              // Marina Parking: its decks and its lift tower
     out.push([g.x0, g.x1, g.y0, g.y1, 1], [g.core[0], g.core[1], g.core[2], g.core[3], 2]); }
@@ -125337,7 +125458,7 @@ function harborGeo(){
     /* and none on the walk: the arm's middle rows are its crown now */
     const clear = (rk) => {
       for(const w of [jetty.north, jetty.arm]) if(rk.x > w.x0 - 20 && rk.x < w.x1 + 20 && rk.y > w.y0 - 20 && rk.y < w.y1 + 20) return false;
-      if(rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
+      if(FLEET_BAYS_BUILT && rk.x > H.FLEET_BOAT.x0 - 60 && rk.x < H.FLEET_BOAT.x1 + 60 && rk.y > H.FLEET_BOAT.y0 && rk.y < H.FLEET_BOAT.y1 + 60) return false;   // the fleet's boathouse and its slipway
       return Math.hypot(rk.x - jetty.land.x, rk.y - jetty.land.y) > jetty.land.r + 10;
     };
     for(let i = rocks.length - 1; i >= 0; i--) if(!clear(rocks[i])) rocks.splice(i, 1);
