@@ -29568,8 +29568,9 @@ walkinStaff(BB_IN.name, [
   { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, pace: 0.85,
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
-    lookFn: () => { const B = rosterBody(0x61de0), U = GIDEON_UNIFORM;
-      return { build: Object.assign({}, B.build, { hairStyle: 'none' }), skin: { c: 0xb9c4cd, dk: 0x8e9aa5 }, hair: 0x6e757c, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; } },
+    /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- in the shop's copper apron, his chest band the same copper) */
+    lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
+      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }), vest: GIDEON_UNIFORM.vest }) }) },
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
   { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
 ]);
