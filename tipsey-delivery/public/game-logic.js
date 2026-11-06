@@ -49139,6 +49139,21 @@ function houseCanopy(fn){
           if(s0 <= 304 && s1 > 304){ ball(30, 304, 90, 12, '#c9d3da', '#e4eaee'); box(24, 36, 298, 310, 76, 80, steelD, steelD, steelS); cyl(30, 304, 92, 94, 3, '#3a8fd8', '#7fc4f0'); }   // a head, an eye
           if(s0 <= 332 && s1 > 332) cyl(40, 332, 76, 84, 8, '#c23a2e', '#d84a3e');                          // a coil of wire
         } }); } }
+    /* THE ROOF LADDER (2026-11-06, the antenna mission): on the north wall in the gap between the roaster and the bean shelves
+       (a 140..190): two steel rails, rungs, wall brackets, and at the top a roof hatch in the ceiling, a plank panel in a steel
+       frame with a pull ring. Closed for now; it opens for Gideon's climb */
+    { const L0 = 150, L1 = 180, rail = '#8f969d', railD = '#6e757c';
+      items.push({ a: (L0 + L1)/2, b: 6, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {
+        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
+        for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
+        for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
+        /* the hatch, seen from above: a steel frame round a plank panel with a ring, hinged on the north wall */
+        const hz = H - 3;
+        T(L0 - 20, L1 + 20, 0, 64, hz, '#4a3a2c');
+        T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
+        for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
+        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS);
+        cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550'); } }); }
     /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
     items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
       T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
