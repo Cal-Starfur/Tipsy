@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ d0bec9c): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 91a2bec): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'd0bec9c'; })();</script>
+  window.TIPSY_TEST_BUILD = '91a2bec'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -17488,6 +17488,9 @@ function commercialFootprintsOf(grid, blk){
         r.gate = courtyardGateKey(e, a0, a1); r.blk = blk;
         out.push(r);
       }
+      /* the yard's fence (KW_FENCE): solid always, a sliver in the gate's plane */
+      const fr = kwFenceRuns(blk);
+      if(fr && fr[ei]) for(const [a0, a1] of fr[ei]) out.push(rect(e, a0, a1, -8, -4));
     });
   }
   _cfMap.set(blk, out);
@@ -29436,6 +29439,14 @@ const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
      ribbon 2 x hw across; the start line across its west straight at b = start; the pit canopy and the benches on the infield */
   track: { a0: 150, a1: 520, b0: 190, b1: 560, R: 90, hw: 45, start: 330 },
   pit: [230, 370, 300, 490], benches: [[420, 262, 1], [420, 488, -1]] };
+/* THE YARD'S FENCE (Sir, 2026-11-06: "fence the rest of the block to match this gate"): the alley gate's own iron fence, in its
+   plane (b -6) along the block's three open frontages, as runs [a0, a1] on each edge's own frame (blockEdgesOf: 0 north, a east;
+   1 east, a south; 3 west, a north from the south corner). Shut and solid: the courtyard's way in stays the south gate.
+     north  0..1036      the barn's north wall takes it from there
+     east   760..1380    from the barn's south wall to the depot's north side
+     west   660..1656    from Seabreeze Trophies' west wall (996 in from the north) to the north corner */
+const KW_FENCE = { ij: '1,4', runs: { 0: [[0, 1036]], 1: [[760, 1380]], 3: [[660, 1656]] }, B: -6, panel: 150 };
+function kwFenceRuns(blk){ return blk && blk.i + ',' + blk.j === KW_FENCE.ij ? KW_FENCE.runs : null; }
 /* the yard's origin in the world (block 1,4's north-west corner), once the grid is known */
 function kwYardO(){
   if(kwYardO.o) return kwYardO.o;
@@ -95809,6 +95820,36 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(Math.max(0.6, 0.8*K), 0xb6ae9c, 1);
     for(let k = 0; k < 36; k++){ const t = k/36*Math.PI*2, a = P(120, t, z + 0.05), b = P(R - 4, t, z + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
   }
+  /* THE YARD'S FENCE (KW_FENCE): the alley gate's iron, in panels of 150 or less, each a still image keyed by where it stands */
+  queueYardFence(vq){
+    const g = this.route && this.route.grid, blk = g && g.blockByIJ && g.blockByIJ.get(KW_FENCE.ij), runs = blk && kwFenceRuns(blk);
+    if(!runs) return;
+    const es = blockEdgesOf(blk), span = (this.vpW() + this.vpH())/this.K + 700, B = KW_FENCE.B;
+    for(const ei of Object.keys(runs)){
+      const e = es[ei];
+      for(const [r0, r1] of runs[ei]){
+        const n = Math.ceil((r1 - r0)/KW_FENCE.panel);
+        for(let k = 0; k < n; k++){
+          const a0 = r0 + (r1 - r0)*k/n, a1 = r0 + (r1 - r0)*(k + 1)/n, mid = (a0 + a1)/2;
+          const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+          if(Math.abs(kx - this.camX) + Math.abs(ky - this.camY) > span) continue;
+          vq.push({ depth: kx + ky, fn: (gr) => this.bcDraw(gr, "yfence|" + Math.round(kx) + "," + Math.round(ky), kx, ky, gg => this.drawFencePanel(gg, e, a0, a1, B, k === 0, k === n - 1)) });
+        }
+      }
+    }
+  }
+  /* one panel of it: the alley gate's kick panel, bars, rails and spears, shut, posts at its ends (half a post at a join) */
+  drawFencePanel(g, e, a0, a1, B, first, last){
+    const STEEL = 0x8d949a, STEEL_DK = 0x5d646b, BLACK = 0x1b1d20, BAR = 0x2a2d31, GH = 300, KICK = 70, POST = 9;
+    const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
+    const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0, z1), Pt(x1, z1), Pt(x1, z0), Pt(x0, z0)], col);
+    const i0 = a0 + POST/2, i1 = a1 - POST/2, nb = Math.max(2, Math.round((i1 - i0)/15));
+    Q(i0, i1, 0, KICK, BLACK); Q(i0, i1, KICK - 6, KICK, STEEL_DK);
+    for(let k = 0; k <= nb; k++){ const c = i0 + (i1 - i0)*k/nb; Q(c - 2.2, c + 2.2, KICK, GH - 14, BAR); }
+    Q(i0, i1, GH*0.55 - 6, GH*0.55, STEEL); Q(i0, i1, GH - 16, GH - 6, STEEL);
+    for(let k = 0; k <= nb; k++){ const c = i0 + (i1 - i0)*k/nb; this.quadOn(g, [Pt(c - 3.5, GH - 6), Pt(c, GH + 12), Pt(c + 3.5, GH - 6), Pt(c, GH - 8)], STEEL); }
+    for(const [p0, p1] of [[a0 - (first ? 0 : 0), a0 + POST/2], [a1 - POST/2, a1]]){ Q(p0, p1, 0, GH + 4, STEEL); Q(p0, p1, GH + 4, GH + 8, STEEL_DK); }
+  }
   queueKartYard(vq){
     const O = kwYardO();
     if(!O) return;
@@ -98421,6 +98462,7 @@ class WorldScene extends Phaser.Scene {
     cplQueuePark(this, blockVQ);            // THE LETTERS' PARK: its plants, lamps and their light
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
+    this.queueYardFence(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     this.queueAlmsFolk(blockVQ, t);
