@@ -28467,7 +28467,7 @@ function walkinLifeTick(scene, pk){
   R.scene = scene;
   walkinDayStep(scene, R, now, fresh);
   for(const s of R.people){
-    if(s._gone) continue;
+    if(s._gone || s.knock || s._hold) continue;                                  // (knocked down, or walked by the ban's own sequence)
     walkinStep(R, s, dt, now, bot);
   }
   walkinDayAfter(scene, R, now);
@@ -28482,7 +28482,7 @@ function walkinDrawState(s, now, bot){
 function walkinPeopleBlock(x, y, r){
   for(const pk of POCKETS){
     const R = pk._life; if(!R || !R.t || x < pk.x0 - 400 || y < pk.y0 - 400 || x > pk.x0 + pk.w + 400 || y > pk.y0 + pk.d + 400) continue;
-    for(const s of R.people){ const m = s._m; if(!m || s._gone) continue; if(Math.hypot(x - pk.x0 - m.a, y - pk.y0 - m.b) < r + WALKIN_R) return BALL_PERSON_BLOCK; }
+    for(const s of R.people){ const m = s._m; if(!m || s._gone || s.knock) continue; if(Math.hypot(x - pk.x0 - m.a, y - pk.y0 - m.b) < r + WALKIN_R) return BALL_PERSON_BLOCK; }
   }
   return null;
 }
@@ -28696,10 +28696,12 @@ function walkinArrive(scene, R, s, t0, unlock, k){
   s._day = 'arriving'; s._gone = false;
 }
 /* the end of the way: in (to their post -- home first -- or the exhibits), or out of the view (gone) */
+/* a room's own pace for its visitors (pk.day: { visitMs, backMs }; the museum's is brisker: its door is seen all day) */
+function walkinDayT(R){ const d = R && R.pk && R.pk.day; return { visitMs: (d && d.visitMs) || WALKIN_DAY.visitMs, backMs: (d && d.backMs) || WALKIN_DAY.backMs }; }
 function walkinTripEnd(R, s, m, now){
   if(m.trip === 'arrive'){
     m.trip = null; s._day = 'in'; m.until = now;
-    if(s.look === 'visitor') s._visitEnd = now + WALKIN_DAY.visitMs[0] + m.rnd()*(WALKIN_DAY.visitMs[1] - WALKIN_DAY.visitMs[0]);
+    if(s.look === 'visitor') { const V = walkinDayT(R).visitMs; s._visitEnd = now + V[0] + m.rnd()*(V[1] - V[0]); }
     else if(m.life === 'patrol') m.k = -1;                                       // (their round from its start)
     else if(s.posts){ m.task = -1; }                                             // (home: walkinNext takes them to posts[0])
     return;
@@ -28711,7 +28713,7 @@ function walkinGoneHome(R, s, now){
   s._day = 'out'; s._gone = true;
   if(m){ m.trip = null; m.path = null; m.beat = null; m.moving = false; m.v = 0; }
   if(R.key === s && R.day && R.day.closing) R.day.locked = true;                 // (gone past the view before the lock's moment: it is locked)
-  if(s.look === 'visitor') s._back = now + WALKIN_DAY.backMs[0] + ((m && m.rnd) ? m.rnd() : Math.random())*(WALKIN_DAY.backMs[1] - WALKIN_DAY.backMs[0]);
+  if(s.look === 'visitor') { const B = walkinDayT(R).backMs; s._back = now + B[0] + ((m && m.rnd) ? m.rnd() : Math.random())*(B[1] - B[0]); }
 }
 /* a visitor and whoever is with them (a pair comes and goes together) */
 function walkinParty(R, s){ const f = R.people.filter(q => q.with === s.id); return [s].concat(f); }
@@ -28729,7 +28731,7 @@ function walkinDayStep(scene, R, now, fresh){
     for(const s of staff){ s._day = open ? 'in' : 'out'; s._gone = !open && !away(s); s._wait = false; s._m = null; if(open || away(s)) walkinLifeInit(R, s, now); }
     let want = open ? walkinVisitorsWant(pk, vis.length) : 0;
     for(const s of vis) if(!s.with){ const party = walkinParty(R, s), inn = party.length <= want; if(inn) want -= party.length;
-      for(const q of party){ q._day = inn ? 'in' : 'out'; q._gone = !inn; q._m = null; q._back = now + Math.random()*WALKIN_DAY.backMs[1]; q._visitEnd = now + WALKIN_DAY.visitMs[0]*Math.random() + WALKIN_DAY.visitMs[1]*Math.random(); } }
+      for(const q of party){ q._day = inn ? 'in' : 'out'; q._gone = !inn; q._m = null; { const T = walkinDayT(R); q._back = now + Math.random()*T.backMs[1]; q._visitEnd = now + T.visitMs[0]*Math.random() + T.visitMs[1]*Math.random(); } } }
     for(const s of vis) if(!s._gone && !s.with) walkinLifeInit(R, s, now);
     for(const s of vis) if(!s._gone && s.with) walkinLifeInit(R, s, now);
     return;
@@ -28801,9 +28803,10 @@ function walkinHourText(h){ const H = Math.floor(h), M = Math.round((h - H)*60),
 /* LOCKED (decision 1, "Lock when shut"): the door of a walk-in he would go in by, shut for the night -- held at it, and
    told when it opens. The door always lets him out */
 /* (shut to him from the moment it closes -- its people still going out through it -- till the keyholder has unlocked it) */
-function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && (walkinShut(scene, pk) || !walkinOpenNow(pk))); }
+function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && (pk._banned || walkinShut(scene, pk) || !walkinOpenNow(pk))); }
 function walkinLockedToast(scene, pk){
   const now = performance.now(); if(pk._lockSaid && now - pk._lockSaid < 5000) return; pk._lockSaid = now;
+  if(pk._banned){ if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " won't have you back."); return; }
   const [o] = walkinHours(pk);
   if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " is shut. It opens at " + walkinHourText(o) + ".");
 }
@@ -28829,6 +28832,84 @@ function walkinStreetBlock(x, y, r){
       if(Math.abs(x - ox - m.a) < r + WALKIN_R && Math.abs(y - oy - m.b) < r + WALKIN_R && Math.hypot(x - ox - m.a, y - oy - m.b) < r + WALKIN_R && walkinBeyond(R, m.a, m.b) > 0) return BALL_PERSON_BLOCK; }
   }
   return null;
+}
+/* A KNOCK-DOWN IN A ROOM THAT WILL NOT HAVE IT (Sir, 2026-11-06, the Tidewater Maritime Museum: "if tipsy knocks someone
+   down the worker should see tipsy out after a single knock down and then not let him back in"). A pocket with ban: true
+   (the museum) takes its people's knock-downs (the 'walk-in staff' registry entry's knock spec); once the one he has run
+   into is up and has had their say, the worker nearest -- the desk first -- walks up to him (meetWalk, meetTick holding him),
+   has a word (the one speech card), and sees him out: he is carried along the room's own paths to the doorway and out through
+   it, the worker a few steps behind to the door. From then on its door is locked to him (walkinLocked: it does not part, he is
+   held at it, and told why). For the rest of this visit to the game: nothing is saved. */
+const WALKIN_BAN = { st: null, pk: null, s: null, pend: null, t: 0 };
+function walkinBanBusy(){ return !!WALKIN_BAN.st || !!WALKIN_BAN.pend; }
+function walkinBanned(pk){ return !!(pk && pk._banned); }
+/* a polyline of room points, walked at one pace: { pts, cum, len } and where on it at d */
+function walkinPoly(pts){ const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return { pts, cum, len: cum[cum.length - 1] }; }
+function walkinPolyAt(Q, d){
+  const P = Q.pts; d = Math.max(0, Math.min(Q.len, d));
+  for(let i = 1; i < P.length; i++) if(d <= Q.cum[i] || i === P.length - 1){
+    const L = Q.cum[i] - Q.cum[i - 1] || 1, u = Math.min(1, (d - Q.cum[i - 1])/L);
+    return { a: P[i - 1][0] + (P[i][0] - P[i - 1][0])*u, b: P[i - 1][1] + (P[i][1] - P[i - 1][1])*u, th: Math.atan2(P[i][1] - P[i - 1][1], P[i][0] - P[i - 1][0]) };
+  }
+  return { a: P[0][0], b: P[0][1], th: 0 };
+}
+/* the worker walked along a polyline (their life held: s._hold) */
+function walkinBanMove(s, Q, d, face){
+  const m = s._m, p = walkinPolyAt(Q, d), moving = d > 0 && d < Q.len;
+  m.dist = (m.dist || 0) + Math.hypot(p.a - m.a, p.b - m.b);
+  m.a = p.a; m.b = p.b; m.th = moving || face == null ? p.th : face; m.moving = moving; m.v = moving ? PEOPLE_WALK_V : 0;
+}
+function walkinBanRelease(s, now){ const m = s && s._m; if(s) s._hold = null; if(m){ m.path = null; m.moving = false; m.v = 0; m.until = now; m.wait = 0; } }
+function walkinBanTick(scene, ow){
+  const B = WALKIN_BAN, t = scene.time.now;
+  if(!ow || scene.state !== 'play') return;
+  if(!B.st){
+    const pk = B.pend; if(!pk) return;
+    if(scene._knockMeet || (scene._knocks || []).some(K => K.kind === 'walkin')) return;           // (they are up, and have said their piece)
+    const R = pk._life, here = scene._inside === pk;
+    const cand = R ? R.people.filter(s => !s._gone && s._m && !s.knock && !s._hold && !s._m.trip && s.look !== 'visitor') : [];
+    if(!here || !cand.length){ pk._banned = true; B.pend = null; if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " won't have you back."); return; }
+    if(ow.deck || ow.lift) return;
+    const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 };
+    cand.sort((p, q) => (q.id === 'desk') - (p.id === 'desk') || Math.hypot(p._m.a - bot.a, p._m.b - bot.b) - Math.hypot(q._m.a - bot.a, q._m.b - bot.b));
+    const s = cand[0], m = s._m, G = walkinGrid(R);
+    let side = 1;
+    for(const sd of [1, -1]){ const to = [bot.a + sd*MEET.gap/Math.SQRT2, bot.b - sd*MEET.gap/Math.SQRT2]; if(to[0] > 30 && to[0] < pk.w - 30 && to[1] > 30 && to[1] < pk.d - 30 && walkinClear(G, [bot.a, bot.b], to, WALKIN_CLEAR - 3, null)){ side = sd; break; } }
+    const from = { x: pk.x0 + m.a, y: pk.y0 + m.b }, M = meetWalk(ow, from, t, side, scene);
+    const to = [M.to.x - pk.x0, M.to.y - pk.y0], path = walkinPath(R, [m.a, m.b], to, walkinAvoid(R, s, null, true)) || [to];
+    B.pk = pk; B.s = s; B.M = M; B.Q = walkinPoly([[m.a, m.b]].concat(path)); B.face = M.faceTh; B.t = t; B.st = 'come'; s._hold = true; m.path = null; m.beat = null;
+    return;
+  }
+  const pk = B.pk, s = B.s, m = s._m, R = pk._life;
+  if(!m || s._gone || !R){ walkinBanRelease(s, t); pk._banned = true; B.st = null; B.pend = null; return; }
+  const at = () => ({ x: pk.x0 + m.a, y: pk.y0 + m.b, z: 0 });
+  if(B.st === 'come'){
+    meetTick(scene, ow, B.M);
+    walkinBanMove(s, B.Q, (t - B.t)*PEOPLE_WALK_V, B.face);
+    if((t - B.t)*PEOPLE_WALK_V < B.Q.len) return;
+    B.st = 'told';
+    const who = s.id === 'desk' ? 'Museum Attendant' : 'Museum Guard';
+    hospSayCard({ who, say: "Excuse me! You've just knocked a person flat in my museum. I'm sorry, but I'll have to see you out, and I can't have you back in.", btn: "...Okay.", at, ok: () => {
+      hospSayCard(null);
+      const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 }, G = pk.doors[0], da = G.at, inn = [da, pk.d - 70];
+      const way = walkinPath(R, [bot.a, bot.b], inn, null) || [inn];
+      const Qb = walkinPoly([[bot.a, bot.b]].concat(way, [[da, pk.d + (pk.out || 100) + 70]]));
+      const Qw = walkinPoly([[m.a, m.b]].concat(walkinPath(R, [m.a, m.b], [da - 48, pk.d - 64], null) || [[da - 48, pk.d - 64]]));
+      B.Qb = Qb; B.Qw = Qw; B.t = scene.time.now; B.st = 'escort'; pk._banned = true; } });
+    return;
+  }
+  if(B.st === 'told'){ meetTick(scene, ow, B.M); walkinBanMove(s, B.Q, B.Q.len, B.face); return; }
+  if(B.st === 'escort'){
+    const el = t - B.t, d = el*PEOPLE_WALK_V*1.05;
+    walkinBanMove(s, B.Qw, Math.max(0, el - 500)*PEOPLE_WALK_V, null);
+    if(scene._inside === pk){
+      const p = walkinPolyAt(B.Qb, d);
+      ow.px = pk.x0 + p.a; ow.py = pk.y0 + p.b; ow.vel = 0; ow.yaw = p.th; scene.botX = ow.px; scene.botY = ow.py;
+      if(d < B.Qb.len + 400) return;
+    }
+    walkinBanRelease(s, t); B.st = null; B.pend = null; B.s = null;
+    if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " won't have you back.");
+  }
 }
 /* the shop door of a library entry a locked walk-in hides (its leaves do not part for him: walkinLocked) -- except just
    after he has been let out of it */
@@ -29428,10 +29509,13 @@ function museumOpenings(){
 }
 /* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
 POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
-  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true,   // (the kit's: its hours, its night)
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true, ban: true,   // (the kit's: its hours, its night; ban: a knock-down puts him out, WALKIN_BAN)
   /* (its way to and from the street, THE ROOM'S DAY: down the walk through the forecourt's gate to the pavement, and
      round either corner of the block -- the side streets' pavements, away from the door) */
   street: { to: [0, 888], routes: [[[-1012, 888], [-1012, -3600]], [[1012, 888], [1012, -3600]]] },
+  /* (Sir, 2026-11-06: "the people dont seem to be coming and going"): a visit of one to two and a half minutes, and the next in
+     soon after, where the kit's is two and a half to six -- with seven visitors on its books, someone is always at its door */
+  day: { visitMs: [50000, 150000], backMs: [6000, 30000] },
   openings: museumOpenings,
   night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
@@ -29453,6 +29537,9 @@ walkinStaff(MUS_IN.name, [
   { id: 'visitor-ship', role: 'visitor', seed: 0x3d7e6, look: 'visitor', life: 'browse' },
   { id: 'visitor-dino', role: 'visitor', seed: 0x3d7d5, look: 'visitor', life: 'browse' },
   { id: 'visitor-pal', role: 'visitor', seed: 0x3d7f9, look: 'visitor', life: 'browse', with: 'visitor-dino' },
+  { id: 'visitor-kings', role: 'visitor', seed: 0x3d81b, look: 'visitor', life: 'browse' },
+  { id: 'visitor-fossil', role: 'visitor', seed: 0x3d82c, look: 'visitor', life: 'browse' },
+  { id: 'visitor-fossil-pal', role: 'visitor', seed: 0x3d83d, look: 'visitor', life: 'browse', with: 'visitor-fossil' },
 ]);
 walkinLife(MUS_IN.name, { keep: [[690, 770, 0, MUS_IN.D]], looks: [
   { id: 'kings', spots: [[120, 196, -Math.PI/2], [205, 190, -Math.PI/2], [290, 196, -Math.PI/2]], up: 0.22 },
@@ -69395,7 +69482,7 @@ marinaEntry(),
   }
 },
 {
-  name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ground:'grass', ww: 3128, dd: 3128,
   see: true,   // (its doorway and its windows show the room inside: walkinThrough, museumOpenings)
   vol: TIDEWATER_MUSEUM.vol,
   /* NO DRIVE ACROSS THE FOOTWAY (Sir, 2026-11-05: "no need for this drive way"): a museum's gate is a walk, so the footway
@@ -69446,7 +69533,9 @@ marinaEntry(),
 
     /* ---- THE GROUND: the forecourt, and the walk from the gate up into the bay to the doors ---- */
     /* NO PAVEMENT ROUND THE CELL (Sir, 2026-09-17): the entry's ground is its lot, the forecourt below */
-    T(CA0, CA1, CB0, CB1, 0.6, '#bdb5a2');                     // the forecourt
+    /* GRASS, NOT GREY (Sir, 2026-11-06: "put grass on the ground instead of the grey"): the forecourt is the city's own lawn, laid
+       by the ground pass (the entry declares ground:'grass', hoodBlockGroundOf), so no plate is painted over it. The walk, the band at
+       the building's foot and the compass rose are laid on it. */
     /* a band of paving along the building's foot */
     T(BA0 - 24, BA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
     /* the walk: a border of darker stone, a field of big slabs, laid on to the doors (Sir, 2026-09-29: "the path is
@@ -88721,6 +88810,11 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
   } });
 /* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
 CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Maritime Museum', solid: true,
+  /* (a room with ban: true takes its people's knock-downs, and puts him out for it: WALKIN_BAN) */
+  knock: { kind: 'walkin', when: scene => !!(scene._inside && scene._inside.ban && !walkinBanBusy()),
+    test(p, scene, t, C){ return C.reach.hit(p.x, p.y) && !scene._knockMeet; },
+    make(p){ const L = cpLook(p); return { look: cpLookPlain(L), uni: L.uniform, mood: p.kind === 'visitor' || Math.random() < 0.5 ? 'polite' : 'mad' }; },
+    done(K, p, scene){ if(K && scene._inside) WALKIN_BAN.pend = scene._inside; } },
   each(scene, t, fn){
     for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s);
@@ -93918,7 +94012,7 @@ class WorldScene extends Phaser.Scene {
     tmp.shift();                                                                  // (its ground, apron and all: in its place, the floor inside its walls)
     const R = walkinLifeTick(this, pk), now = this.time.now;
     for(const s of R.people){
-      if(s._gone || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order)
+      if(s._gone || s.knock || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order; knocked down: the knocks' own draw)
       const q = walkinDrawState(s, now, null); if(!q || !vis(q.a, q.b, 24, 170)) continue;
       const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
       tmp.push({ depth: x + y, fn: (g, tt) => { const st0 = this._seenThrough; this._seenThrough = true; try { this.drawWalkinPerson(g, d, tt || now, s); } finally { this._seenThrough = st0; } } });
@@ -99642,7 +99736,7 @@ class WorldScene extends Phaser.Scene {
       const pk = walkinStaffPocket(s), vIn = pk && walkinStaffView(this, pk), street = !!pk && !vIn && walkinOnStreet(s), v = vIn || (street ? pk.view() : null);
       if(!v) continue;
       walkinLifeTick(this, pk);                                                 // (their room lives while it is seen: W16)
-      if(!walkinStaffHere(this, s, pk)) continue;
+      if(!walkinStaffHere(this, s, pk) || s.knock) continue;
       const now = this.time.now, bot = this._inside === pk ? { a: this.ow.px - pk.x0, b: this.ow.py - pk.y0 } : null;
       const q = walkinDrawState(s, now, bot); if(!q) continue;
       const x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
@@ -121651,7 +121745,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */

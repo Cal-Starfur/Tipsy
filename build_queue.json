@@ -652,6 +652,15 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20141,14064&view=2"
+},
+{
+"id": "s4",
+"title": "Museum story 'The Last Bone'",
+"spec": "docs/museum-mission.md",
+"deps": [],
+"status": "blocked",
+"note": "needs story, pickup place, reward",
+"group": "Specs (waiting on decisions)"
 }
 ],
 "meta": {
