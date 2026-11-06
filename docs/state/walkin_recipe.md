@@ -308,7 +308,7 @@ Sizes are world units. A "cell" is 3128 node to node, with 1656 buildable. **Ful
 | 1 | Tidewater Museum | hl [3,0] e2 (L19632; LIB L64163) | full lot (cell); bldg 1370×720 | yes | no | **M** (colonnade/door rework, new interior) |
 | 2 | Seabreeze Ballroom | hl [8,0] e2 (L19640; L64374) | full lot, hall 1656² | yes | **yes** (pocket + basement, seamless) | done |
 | 3 | Ferris Taylor Cottages | hl [8,3] e2 (L64819) | full lot; court driven | almshouses: one cottage could be | no | M |
-| 4 | Costa Palma Animal Shelter | hl [2,2] e2 (L64713) | full lot, with runs | yes (kennels / reception) | no | M |
+| 4 | Costa Palma Animal Shelter | hl [2,2] e2 (L64713) | full lot, with runs | yes (kennels / reception) | **yes** (2026-11-06: one 800 × 500 room, `SHELTER_IN` via walkinDefine; its body and canopy are `shell` pieces; glazed double door swings) | done |
 | 5 | Marina Parking | hl [0,6] (marinaEntry, L63603) | cell | garage (drive-on decks, `LIFT_SITES`) | n/a | – |
 | 6 | Crate Yard Building Site | hl [8,10] e2 (L66704) | full lot | no (open site, steel frame) | no | – |
 | 7 | Lagoon Market Hall | hl [3,8] e2 inset 736 (L63605, sc 0.6923) | full lot; nave 460 wide | yes (a nave + stalls) | no | M |

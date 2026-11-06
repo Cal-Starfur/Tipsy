@@ -356,8 +356,9 @@
 "title": "Animal Shelter interior",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7820,8444&view=3"
 },
 {
 "id": "wk7",
@@ -703,6 +704,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }

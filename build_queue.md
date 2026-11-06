@@ -76,7 +76,7 @@ graph LR
 - [ ] `wk3` Lagoon Baths [docs/state/walkin_recipe.md]
 - [ ] `wk4` Driftwood Chapel [docs/state/walkin_recipe.md]
 - [ ] `wk5` Palmline Nursery [docs/state/walkin_recipe.md]
-- [ ] `wk6` Animal Shelter interior [docs/state/walkin_recipe.md]
+- [?] `wk6` Animal Shelter interior [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7820,8444&view=3) [docs/state/walkin_recipe.md]
 - [ ] `wk7` Lagoon Market Hall [docs/state/walkin_recipe.md]
 - [ ] `wk8` Ferris Taylor Cottages [docs/state/walkin_recipe.md]
 - [ ] `wk9` Cove Grove [docs/state/walkin_recipe.md]
