@@ -16366,7 +16366,7 @@ const DEPOT_HOOD = 0;
    building on something else. [i, j, home]. */
 const DEPOT_SITES = [
   [2,0,1], [2,8], [7,4],               //  0 The Flats
-  [1,4],                               //    + The Flats 4: block 1,4 by Tidewater Green, its near corner,
+  [1,4,0,"nw"],                      //    + The Flats 4: block 1,4 by Tidewater Green, its near corner,
                                        //      the far end of the row from Seabreeze Trophies (Sir, 2026-10-16)
   [17,6], [10,2], [10,7],              //  1 Boardwalk
   [26,0], [19,0], [24,5],              //  2 Old Town
@@ -16386,7 +16386,7 @@ function depotsOf(grid){
   _depotsGrid = grid; _depots = []; _depotByBlock = new Map();
   const byIJ = new Map(grid.blocks.map(b => [b.i + "," + b.j, b]));
   const taken = new Set(getGenericPickupShops(grid).map(sh => sh.blockI + "," + sh.blockJ));
-  for(const [i, j, home] of DEPOT_SITES){
+  for(const [i, j, home, corner] of DEPOT_SITES){
     const key = i + "," + j, blk = byIJ.get(key);
     if(!blk || blk.type !== "commercial" || taken.has(key)){
       try { console.warn("depot site " + key + " is not a free commercial block; skipped"); } catch(e){}
@@ -16398,7 +16398,7 @@ function depotsOf(grid){
        no per-block street names to tell them apart -- column names repeat
        down a whole district. */
     const nth = _depots.filter(x => x.hoodIndex === hoodIndex).length + 1;
-    const lot = { key, blk, cu: depotFrameOf(blk), hoodIndex, home: !!home,
+    const lot = { key, blk, corner: corner || "se", cu: depotFrameOf(blk, corner), hoodIndex, home: !!home,
                   name: HOODS[hoodIndex].n + " Charging " + nth };
     _depots.push(lot);
     _depotByBlock.set(blk, lot);
@@ -16615,12 +16615,12 @@ const HOOD_SHOP_SITES = [
      shop, on its corner nearest the park (Sir, 2026-10-16). Edge 2 runs
      from the block's EAST corner (dv -x), so the row starts at the far end:
      1656 the edge, less the shop's width (820: its room's walls' outer faces, TROPHY_IN) */
-  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 820 }],   // (as wide as its inside with its walls, TROPHY_IN: 760 + 2 x 30)
+  [1,4, 2, ["Brew & Bolt", "Seabreeze Trophies"], { start: 0 }],   // (Brew & Bolt 836 along the south street from the corner, then the Trophies 820: 836 + 820 = the edge)   // (as wide as its inside with its walls, TROPHY_IN: 760 + 2 x 30)
   /* ...and its north-east three-quarters, bare paving till now: THE TIDEWATER KART WORKS (the Flats build order, area
      3, 2026-11-01), the soapbox club's barn on the corner, its roll-up door on the east street, as deep as its room
      (KW_PLAN: 631 x 523 lab, x 1.3 the room's 760 x 620 and its walls' 30 each side). It ends 560 short of the depot's side on
      this edge, so an alley gate closes the club's yard there as on the south (commercialEdgeGatesOf: none over 600) */
-  [1,4, 1, ["Tidewater Kart Works"], { start: 0 }],
+  [1,4, 1, ["Tidewater Kart Works", "Brew & Bolt East"], { start: 0 }],   // (the barn 820 from the north, then the east leg 416 to the corner square: 1236 = 1656 - 420)
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
    those edges draw, the block's other edges draw nothing */
@@ -16797,14 +16797,15 @@ function hoodShopsOf(grid){
               : taken.has(key) ? "pickup block" : list.some(lib => !LIB.get(lib)) ? "shop not in LIB" : null;
     const e = blk && blockEdgesOf(blk)[ei];
     const whole = list.some(n => { const x = LIB.get(n); return !!(x && x.block); });
-    const depot = !!(blk && typeof depotOnBlock === "function" && depotOnBlock(grid, blk));
+    const _dlot = blk && typeof depotOnBlock === "function" ? depotOnBlock(grid, blk) : null;
+    const depot = !!_dlot && _dlot.corner !== "nw", depotNW = !!_dlot && _dlot.corner === "nw";   // (the far corner touches no shop edge but 0 and 3: none stands there)
     const start = (opt && opt.start != null) ? opt.start : (!whole && ei === 2 && depot) ? 303.6 + 8 : 0;   // a row's own start (5th field), else clear of the depot
     const units = !bad ? packHoodShopEdge(e.len, list, start, whole) : null;
     if(bad || !units){
       try { console.warn("hood shop site " + key + "/" + ei + " skipped: " + (bad || "shops do not fit the edge")); } catch(err){}
       continue;
     }
-    if(!perBlock.has(key)) perBlock.set(key, { blk, depot, whole: false, edges: {} });
+    if(!perBlock.has(key)) perBlock.set(key, { blk, depot, depotNW, whole: false, edges: {} });
     const pb = perBlock.get(key); pb.edges[ei] = units; if(whole) pb.whole = true;
   }
   for(const [key, pb] of perBlock){
@@ -16814,6 +16815,7 @@ function hoodShopsOf(grid){
         const R = [];
         for(const ei in pb.edges) for(const u of pb.edges[ei]) R.push([+ei, hoodShopRect(E[ei], u), u.shop.lib]);
         if(pb.depot) R.push([-1, [blk.x1 - 295.6, blk.x1, blk.y1 - 276, blk.y1], "depot"]);   // depotFrameOf: flank on the block line
+        if(pb.depotNW) R.push([-1, [blk.x0, blk.x0 + 295.6, blk.y0, blk.y0 + 276], "depot"]);
         return R;
       };
       const crosses = () => {
@@ -29473,19 +29475,19 @@ const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
   bays: [{ at: [826, 1150], col: '#5aa05a', dk: '#447a44', no: 2 }, { at: [916, 1150], col: '#f2b544', dk: '#c48d2c', no: 3, stripe: '#1e1e22' },
          { at: [1006, 1150], col: '#e8e4da', dk: '#c4bfb2', no: 1, stripe: '#2a6fb0' }],
   tyres: [[1074, 1110, 4]],
-  store: [190, 390, 36, 104, 120],
+  store: [330, 530, 36, 104, 120],
   tables: [[700, 260], [700, 400]], board: [700, 150], bin: [790, 165],
   /* the practice loop on the yard's open middle: its centre line a rounded rectangle a0..a1 x b0..b1 (corner radius R), the
      ribbon 2 x hw across; the start line across its west straight at b = start; the pit canopy and the benches on the infield */
-  track: { a0: 150, a1: 520, b0: 190, b1: 560, R: 90, hw: 45, start: 330 },
-  pit: [230, 370, 300, 490], benches: [[420, 262, 1], [420, 488, -1]] };
+  track: { a0: 150, a1: 520, b0: 430, b1: 800, R: 90, hw: 45, start: 570 },
+  pit: [230, 370, 540, 730], benches: [[420, 502, 1], [420, 728, -1]] };
 /* THE YARD'S FENCE (Sir, 2026-11-06: "fence the rest of the block to match this gate"): the alley gate's own iron fence, in its
    plane (b -6) along the block's three open frontages, as runs [a0, a1] on each edge's own frame (blockEdgesOf: 0 north, a east;
    1 east, a south; 3 west, a north from the south corner). Shut and solid: the courtyard's way in stays the south gate.
-     north  0..976       the barn's north wall takes it from there
-     west   660..1656    from Seabreeze Trophies' west wall (996 in from the north) to the north corner
+     north  296..976     from the depot's wall (The Flats Charging 4 stands on the north-west corner, 296 wide) to the barn's north wall
+     west   660..1380    from Seabreeze Trophies' west wall (996 in from the north) up to the depot's wall (276 off the north corner)
    (the east frontage, from the barn's south wall to the depot, is an alley gate's own: commercialEdgeGatesOf, a span of 560) */
-const KW_FENCE = { ij: '1,4', runs: { 0: [[0, 976]], 3: [[660, 1656]] }, B: -6, panel: 150 };
+const KW_FENCE = { ij: '1,4', runs: { 0: [[296, 976]], 3: [[660, 1380]] }, B: -6, panel: 150 };
 function kwFenceRuns(blk){ return blk && blk.i + ',' + blk.j === KW_FENCE.ij ? KW_FENCE.runs : null; }
 /* the yard's origin in the world (block 1,4's north-west corner), once the grid is known */
 function kwYardO(){
@@ -36943,8 +36945,17 @@ function mallVol(){
    8-wide strip of block plaza between its wall and the pavement, running
    the whole flank and down the mat's side to the corner. So the flank
    sits on the block line too: a = WW is x1, the way b = 0 is y1. */
-function depotFrameOf(blk){
+function depotFrameOf(blk, corner){
   const WW = depotGeom().WW;
+  /* THE FAR (NORTH-WEST) CORNER (Sir, 2026-11-06, Tidewater Kart Works block: "give it a rear view so we lose this
+     limitation and place it there"): the same lot turned half a turn, so a = WW is the block's x0 line and b = 0 its
+     y0 line, the chamfer pointing out of the block's far corner. The camera sees its back (the entry's own
+     rear-view draw, STREET false) */
+  if(corner === "nw"){
+    const ux = blk.x0 + WW, uy = blk.y0;
+    return { e: { dv: DIRV[2], rv: DIRV[3] }, ux, uy, w: WW,
+             hx: ux - WW/2, hy: uy, kind: "depot" };
+  }
   const ux = blk.x1 - WW, uy = blk.y1;
   return { e: { dv: DIRV[0], rv: DIRV[1] }, ux, uy, w: WW,
            hx: ux + WW/2, hy: uy, kind: "depot" };
@@ -50847,8 +50858,8 @@ function houseCanopy(fn){
     const cone = (a, b) => items.push({ a, b, z: 0, solids: [{ name: 'cone', c: [a, b], r: 8, h: 26 }], draw: () => {
       box(a - 7, a + 7, b - 7, b + 7, 0, 2, '#d8631f', '#b8511a', '#98431a');
       cyl(a, b, 2, 9, 5.5, '#ee7b2d', '#ee7b2d'); cyl(a, b, 9, 13, 4.2, '#f4f2ec', '#f4f2ec'); cyl(a, b, 13, 21, 2.8, '#ee7b2d', '#ee7b2d'); } });
-    for(const b of [390, 430, 470]) cone(TR.a0 + TR.hw + 7, b);
-    for(const b of [300, 380, 460]) cone(TR.a1 - TR.hw - 7, b);
+    for(const b of [630, 670, 710]) cone(TR.a0 + TR.hw + 7, b);
+    for(const b of [540, 620, 700]) cone(TR.a1 - TR.hw - 7, b);
     for(const [a, b] of tyreSpots)
       items.push({ a, b, z: 0, solids: [{ name: 'tyre barrier', c: [a, b], r: 18, h: 22 }], draw: () => { for(let k = 0; k < 2; k++) cyl(a, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 1 ? '#1e1e22' : null); } });
     { const gb = TR.start + 14, ga0 = TR.a0 - TR.hw - 10, ga1 = TR.a0 + TR.hw + 10;
@@ -80054,6 +80065,28 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         poly([P(mid-7,7,134),P(mid+7,7,134),P(mid+7,7,131),P(mid-7,7,131)], '#3b2e24'); // the plinth
       },
       yard(WW){ crateStack(WW*0.3, '#c9a66b', 2, undefined, 16); wheelieBin(WW*0.1, '#24476b', 0); acUnit(WW*0.6, 120); } }));
+    /* BREW & BOLT (Sir, 2026-11-06: Gideon's coffee shop, "owned and operated by a humanoid robot", a playable character and a
+       story to come): block 1,4's south-east corner, where The Flats Charging 4 stood (it is on the far corner now, seen from
+       behind). An L of two buildings on ONE plan, one palette and one board: the long leg along the south street from the
+       corner to Seabreeze Trophies' east wall (836 = where the Trophies begin), and the short leg up the east street from the
+       corner's square to the Kart Works' yard (HOOD_SHOP_SITES, block 1,4 edges 1 and 2). Both are 420 deep, so the legs meet
+       in the corner square and every outside wall is a street face; no interior yet (it comes with Gideon) */
+    { const BB = { base:'Coffee roaster', wall:'#5b3d2a', trim:'#f1e6cf', sign:'#2a1a11', awn:['#2a1a11','#d9892b'], inner:'#2a1d15', H:176,
+        head:'Brew & Bolt: the coffee bar Gideon, a humanoid robot, owns and runs',
+        desc:'Brew & Bolt: coffee, pastries and a bolt of good news, owned and run by Gideon the robot',
+        tags:['coffee','robot owner','corner shop'],
+        mark(WW){
+          /* the one board across the fascia: BREW & BOLT in cream, a copper bolt at each end (a runs right to left here) */
+          const m0 = MIRROR; if(P(1, 0, 0).x < P(0, 0, 0).x) MIRROR = WW;
+          try {
+            F(20, WW - 20, 133, 147, '#2a1a11', null, 0, 6.8);
+            F(24, WW - 24, 135, 145, '#3b2619', null, 0, 6.9);
+            const bolt = a => poly([P(a + 2, 7.2, 145), P(a - 5, 7.2, 139.5), P(a - 1, 7.2, 139.5), P(a - 4, 7.2, 135), P(a + 5, 7.2, 141.5), P(a + 1, 7.2, 141.5)], '#e79a35');
+            bolt(36); bolt(WW - 36);
+            blockWordIn('BREW & BOLT', 54, WW - 54, 136, 144, 7.3, '#f1e6cf', null, 5.2);
+          } finally { MIRROR = m0; } } };
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3 }, BB)));
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:420/1.3 }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
     /* THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01): the soapbox club's garage on
        the north-east of block 1,4, across the street from the derby's course -- a red board-and-batten barn under a
        gambrel roof of grey tin, its gable end on the east street with a roll-up door in it (the way in: a walk-in, the
