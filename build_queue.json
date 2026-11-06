@@ -94,8 +94,9 @@
 "title": "Ramp/kicker lab bench, all 4 headings",
 "spec": "docs/ramp-jump-spec.md",
 "deps": [],
-"status": "pending",
-"group": "Roadmap: routes, ramps, editor"
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/labs/ramp-jump.html"
 },
 {
 "id": "r2b",
@@ -673,6 +674,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }

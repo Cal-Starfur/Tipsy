@@ -133,3 +133,14 @@ Only after the bench is clean at all 4 headings does this get ported into `game/
 - [ ] Depth-sort workaround vs. forcing the `setDepth()` rearchitecture now
 - [ ] Par-time formula changes — blocked on route-length regression being understood first
 - [ ] Ring-of-fire art scope (particle effect complexity)
+
+---
+
+## Bench result (r2a, `labs/ramp-jump.html`)
+Standalone bench built per §7 (does not touch `game/index.html`; `?h=0..3` for one heading big, `window.RJ` for headless runs).
+- Launch: `launchAngle` + approach speed -> `v0 = speed*tan(angle)` (or `launchPower` override), `h(t)=z0+v0t-.5gt²`, landing via `groundHeightAt(x,y)` stub. Kicker 17°: air 0.46 s, peak 15. Ramp 37°: air 1.39 s, peak 86 (incl. 48 lip). Below approach speed 90 = bump, no launch.
+- Depth (§2 option 1): rider key = `x+y+K*z` of its centre, K=0.8 (the camera's own depth axis). Checked every frame against the 3D box comparator for every rider/prop pair that overlaps on screen: **0 errors at all 4 headings at the nominal speed 180** (260 frames each), and at speed 215. Needs two extra rules: the ridden ramp is pinned before its rider once he is on it (a long wedge cannot be keyed by its centre), and the ring is split into far/near arcs sorted either side of the rider.
+- Where it still breaks: under-powered runs (speed 130) that land on the crate/curb stub show 6 bad frames at headings 2 and 3 (rider vs the obstacle he lands on, overlapping boxes: ambiguous by construction). That is the "landed on obstacle" bad-landing case, not a clean jump; flag for r2b, and if it shows in game it is the signal for `setDepth()`.
+- Heading read: a ramp seen from headings 0/1 shows its back wall, not the slope (tall ochre wall). It reads as a built thing but not as a ramp; consider a visible side/edge treatment in r2b art.
+- Bad landing: overshoot, undershoot or landing on an obstacle -> tip-over (rotates about the base, wobble). Gate hazard: ring passes if arc height is within the ring at its u; speed 130 gives "GATE MISS (arc height below)".
+- Open: kicker air time 0.46 s sits at the top of the spec's 0.3-0.5 band; ring art is a 3-stroke flicker, not particles.
