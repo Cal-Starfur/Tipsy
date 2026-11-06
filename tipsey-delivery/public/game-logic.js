@@ -17153,7 +17153,9 @@ function commercialScatterOf(grid, blk){
     const _wu = _we >= 0 ? hoodShopEdgeUnits(grid, blk, _we) : null;
     if(_wu && _wu.length) _wbRect = hoodShopRect(blockEdgesOf(blk)[_we], _wu[0]); }
   const onWhole = (x,y) => !!_wbRect && x > _wbRect[0]-30 && x < _wbRect[1]+30 && y > _wbRect[2]-30 && y < _wbRect[3]+30;
-  const clear = (x,y) => !onDepot(x, y) && !onWhole(x, y);
+  /* and off Brew & Bolt (block 1,4's south-east corner, its 836 x 836 room): a planter rolled there stands in the cafe */
+  const onBB = (x,y) => blk.i === 1 && blk.j === 4 && x > blk.x1 - 976 && y > blk.y1 - 976;
+  const clear = (x,y) => !onDepot(x, y) && !onWhole(x, y) && !onBB(x, y);
   const roll = () => {
     for(let tr = 0; tr < 6; tr++){
       const x = blk.x0 + rng()*(blk.x1-blk.x0), y = blk.y0 + rng()*(blk.y1-blk.y0);
@@ -17987,7 +17989,7 @@ function cakeBallroom(){
   const front = pocketOutsideDoor(pk, pk.doors[0]), back = vaultStreet(), base = baseRoom();
   if(!front || !back || !base) return null;
   return { pk, base, front, back,                                             // back: the sidewalk lift (VAULT)
-           post: { x: front.x - 130, y: front.y + 62 },                        // the doorman's spot, west of the door
+           post: { x: front.x - 130, y: front.y + 130 },                       // the doorman's spot, west of the door, out where the canopy (soffit 222, to 150 out) does not cover his head from the eye -- 62 out it did, and the x-ray drew him whole as a ghost
            planner: { x: base.x0 + 1220, y: base.y0 + 600 } };                // by the cake's table, in the kitchen downstairs
 }
 /* WALTER'S MAT (Sir, 2026-10-23: the ballroom's front as the mall's): the
