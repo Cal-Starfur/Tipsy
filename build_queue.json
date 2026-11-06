@@ -272,7 +272,8 @@
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
 "status": "pending",
-"group": "Consistency pass: people"
+"group": "Consistency pass: people",
+"note": "cook post built (tixCookAtPost); R6 on Tipsey himself still to do"
 },
 {
 "id": "pr1",

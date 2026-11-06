@@ -21326,6 +21326,12 @@ function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z
 function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
 /* the cook's way out: from the kitchen behind Forno's counter (which runs its whole front, the shopfront wall behind it) round its open west end; a beat to hand it over */
 const TIX_COOK_WAY = [{ a: 2070, b: 225 }, { a: 1888, b: 225 }, { a: 1888, b: 405 }], TIX_GIVE_MS = 900;
+/* THE COOK AT HIS POST (as Marisol's, tixHerAtWork: always at their place, R1): in the kitchen behind Forno's counter, where his walk out starts
+   and ends (TIX_COOK_WAY[0]), turned to the counter, working at the pass -- his hands busy. He is there whenever he is not out with the pizza */
+function tixCookAtPost(now){
+  const w = TIX_COOK_WAY[0], k = Math.sin(now*0.007), p = gothW(w.a, w.b);
+  return Object.assign(p, { th: Math.PI/2, moving: false, has: null, pose: { lift: [0.55 + 0.1*k, 0.55 - 0.1*k], bend: 0.3 } });
+}
 /* Forno's pickup bay: a mat on the counter's face, out toward the camera */
 function tixBay(){
   const ax = MALL_IN.x0 + TIX_FORNO.a, ay = MALL_IN.y0 + TIX_FORNO.b, dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 };
@@ -89018,7 +89024,7 @@ CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: tru
 CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
   each(scene, t, fn){
     if(!gothInMall(scene)) return;
-    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t);   // (at her counter when the story hasn't got her)
+    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t) || tixCookAtPost(t);   // (at her counter, and at his post, when the story hasn't got them)
     if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
     if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
   } });
@@ -107073,8 +107079,8 @@ class WorldScene extends Phaser.Scene {
       const lk = u > 0.86 ? (u - 0.86)/0.64 : u < 0.5 ? (u + 0.14)/0.64 : -1, lid = u > 0.86 ? n : n - 1;
       if(lk >= 0){ const w = along(OUT, lk); kid(lid, w.p, w.th, true, null, 'plush'); }
     }
-    const cp = tixCookAt(now);
-    if(cp) this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has);
+    const cp = tixCookAt(now) || tixCookAtPost(now);
+    this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has, cp.pose ? { pose: cp.pose } : undefined);
     /* Forno's pickup bay while he's on the lunch run: under the gallery, so after it and seen through it (MALL_XRAY_UNDER) */
     if((R.stage === 'lunch' || R.stage === 'pickup') && MALL_LVL === 0 && this.ow && this.ow.on){
       const B = tixBay(), hl = matHighlightState(this, B.mat, this.mode);

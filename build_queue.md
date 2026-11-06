@@ -62,7 +62,7 @@ graph LR
 - [ ] `pe1` Legs driven by distance walked (47 walkSin calls) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `pe2` Unlisted populations into CITY_PEOPLE (knockable batch: Sierra guard made knockable; duplicate food-truck entry removed; the rest were already listed (docs stale). Marisol/cook, hospital errand/jail/rescue: mission timelines, left) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `pe3` Merge the two meet-spot pickers; meetCoverAt beyond street + mall (meetSide: one side chooser (lhSide/ohSide/kwSide/rlSide, tix, lost item); meetSpot was already the one picker; meetCoverAt in other interiors left) [docs/state/CONSISTENCY_PASS.md#still-to-do]
-- [ ] `pe4` Forno cook counter post; R6 on Tipsey himself [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [ ] `pe4` Forno cook counter post; R6 on Tipsey himself (cook post built (tixCookAtPost); R6 on Tipsey himself still to do) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: props
 - [ ] `pr1` Prop collision taken from the art (lamp, hydrant, palm, bin, bench) [docs/state/CONSISTENCY_PASS.md#still-to-do]
