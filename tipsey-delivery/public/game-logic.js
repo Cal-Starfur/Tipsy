@@ -39371,7 +39371,34 @@ function harvestCityFurniture(grid, segs){
   return { hazards: out, taken };
 }
 
+/* ---------- DEV CHALLENGE ROUTES (roadmap Phase 1: data plumbing) ----------
+   A challenge route is a curated seed plus a modifier layer on the ordinary delivery generator: no new
+   rendering, no new physics. Shape: { id, seed, modifiers, parTimeOverride, name }.
+     seed             a date-style string handed to the generator in place of today's date (its layout)
+     modifiers        parScale (x par; <1 is tighter), weather/lighting flags are carried for later phases
+     parTimeOverride  par in ms, wins over parScale; null = the generated par
+   Picked with ?route=<id> (nothing else changes without it: the daily route is untouched). Rotation and
+   leaderboard scope are still open decisions, so the table is plain data and starts with one entry. */
+const CHALLENGE_ROUTES = [
+  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null }
+];
+function challengeRouteById(id){ return CHALLENGE_ROUTES.find(r => r.id === id) || null; }
+let CHALLENGE_ROUTE_PICK = null;
+try { CHALLENGE_ROUTE_PICK = challengeRouteById(new URLSearchParams(location.search).get("route")); } catch(e){}
 function generateRoute(dateStr, opts){
+  /* only an ordinary delivery takes a challenge route; the frozen courses keep their own seeds */
+  const cr = CHALLENGE_ROUTE_PICK;
+  if(cr && !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null))){
+    const r = _generateRouteCached(cr.seed, opts);
+    const m = cr.modifiers || {};
+    if(cr.parTimeOverride != null) r.parMs = cr.parTimeOverride;
+    else if(m.parScale) r.parMs = Math.round(r.parMs * m.parScale);
+    r.challengeRoute = cr.id;
+    return r;
+  }
+  return _generateRouteCached(dateStr, opts);
+}
+function _generateRouteCached(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
             + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge)
@@ -41266,6 +41293,7 @@ const SKIN = {
 };
 
 const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: the plan's corner chamfer; bev / bevIn: the top edge's bevel, that high and that far in (THE POLISHED HULL: drawHullPrism)
+const CAVITY_DEPTH = 18;   // how far down his cargo hollow goes below the top of his body (the body is 40 tall)
 const LID  = { hx:26, hy:20, z0:54, z1:61, ch:5, bev:2.5, bevIn:2 };   // the full width of his body (Sir, 2026-10-24), the body's own chamfer: one hull, a seam where the lid sits
 const STRIPE = { z0:20, z1:27 };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -112254,9 +112282,25 @@ class WorldScene extends Phaser.Scene {
         const ring = (hx, hy) => [
           this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
         ];
-        this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
-        this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
-        if(!npc && this.state !== "tipped") this.drawMissionCarried(bobZ);   // (R6: what a mission has him carry, in the cavity: seen when the lid opens)
+        this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);                  // (the lip round the opening)
+        /* A REAL HOLLOW (Sir, 2026-11-06: "give it actual empty volume"): the opening is a hole in the top, its four inner walls going down
+           to a floor CAVITY_DEPTH below, and everything inside is cut to the opening's outline (drawClip) -- so the near wall hides the
+           lower part of what stands on the floor, as it does looking down into a box. Only the walls that face the eye are drawn. */
+        const ohx = LID.hx - 6, ohy = LID.hy - 6, zf = zc - CAVITY_DEPTH, clip0 = this.drawClip;
+        const dk = (c, k = 0.78) => (Math.round((c >> 16 & 255)*k) << 16) | (Math.round((c >> 8 & 255)*k) << 8) | Math.round((c & 255)*k);
+        this.drawClip = ring(ohx, ohy);
+        try {
+          this.quadOn(g, [this.P(ohx,-ohy,zf), this.P(ohx,ohy,zf), this.P(-ohx,ohy,zf), this.P(-ohx,-ohy,zf)], dk(SKIN.cavityFloor, 0.7));
+          const wall = (nx, ny, a, b, c2, d2, col) => {           // (a wall's normal into the hollow, and its two top corners)
+            const w = this.R(nx, ny, 0); if(w.x + w.y + w.z <= 0) return;
+            this.quadOn(g, [this.P(a[0], a[1], zc), this.P(b[0], b[1], zc), this.P(b[0], b[1], zf), this.P(a[0], a[1], zf)], col);
+          };
+          wall(-1, 0, [ohx,-ohy], [ohx, ohy], 0, 0, dk(SKIN.cavityWall, 0.72));
+          wall( 1, 0, [-ohx,-ohy], [-ohx, ohy], 0, 0, dk(SKIN.cavityWall, 0.72));
+          wall( 0,-1, [-ohx, ohy], [ohx, ohy], 0, 0, dk(SKIN.cavityWall, 0.55));
+          wall( 0, 1, [-ohx,-ohy], [ohx,-ohy], 0, 0, dk(SKIN.cavityWall, 0.55));
+          if(!npc && this.state !== "tipped") this.drawMissionCarried(zf);   // (R6: what a mission has him carry, on the floor of it: seen when the lid opens)
+        } finally { this.drawClip = clip0; }
       }
     }
     if(lidIsNear) this.drawLid(lidBox);
@@ -116470,11 +116514,11 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawMissionCarried(bobZ){
+  drawMissionCarried(zFloor){
     const it = missionCarriedNow();
     if(!it) return;
     for(const b of MISSION_CARRY_ART[it.id] || MISSION_CARRY_PLAIN){
-      const z0 = LID.z0 + bobZ + 0.6 + (b.oz || 0);
+      const z0 = zFloor + 0.4 + (b.oz || 0);
       this.drawBox({ hx: b.hx, hy: b.hy, z0, z1: z0 + b.h, ox: b.ox || 0, oy: b.oy || 0 }, b.c[0], b.c[1], b.c[2], false);
     }
   }

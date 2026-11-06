@@ -41062,7 +41062,34 @@ function harvestCityFurniture(grid, segs){
   return { hazards: out, taken };
 }
 
+/* ---------- DEV CHALLENGE ROUTES (roadmap Phase 1: data plumbing) ----------
+   A challenge route is a curated seed plus a modifier layer on the ordinary delivery generator: no new
+   rendering, no new physics. Shape: { id, seed, modifiers, parTimeOverride, name }.
+     seed             a date-style string handed to the generator in place of today's date (its layout)
+     modifiers        parScale (x par; <1 is tighter), weather/lighting flags are carried for later phases
+     parTimeOverride  par in ms, wins over parScale; null = the generated par
+   Picked with ?route=<id> (nothing else changes without it: the daily route is untouched). Rotation and
+   leaderboard scope are still open decisions, so the table is plain data and starts with one entry. */
+const CHALLENGE_ROUTES = [
+  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null }
+];
+function challengeRouteById(id){ return CHALLENGE_ROUTES.find(r => r.id === id) || null; }
+let CHALLENGE_ROUTE_PICK = null;
+try { CHALLENGE_ROUTE_PICK = challengeRouteById(new URLSearchParams(location.search).get("route")); } catch(e){}
 function generateRoute(dateStr, opts){
+  /* only an ordinary delivery takes a challenge route; the frozen courses keep their own seeds */
+  const cr = CHALLENGE_ROUTE_PICK;
+  if(cr && !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null))){
+    const r = _generateRouteCached(cr.seed, opts);
+    const m = cr.modifiers || {};
+    if(cr.parTimeOverride != null) r.parMs = cr.parTimeOverride;
+    else if(m.parScale) r.parMs = Math.round(r.parMs * m.parScale);
+    r.challengeRoute = cr.id;
+    return r;
+  }
+  return _generateRouteCached(dateStr, opts);
+}
+function _generateRouteCached(dateStr, opts){
   const runIndex = (opts && opts.runIndex) || 1;
   const key = dateStr + "|" + (opts && opts.hoodIndex != null ? opts.hoodIndex : "")
             + "|" + !!(opts && opts.classic) + "|" + !!(opts && opts.challenge)
