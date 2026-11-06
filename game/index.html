@@ -84655,6 +84655,7 @@ const SP_PLAN = {
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
+  PATH: { w: 130, pts: [[8630, -8425], [8700, -8410], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew, from the wall's foot across the lawn to the post
   HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
@@ -84702,12 +84703,39 @@ walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
    foothills' as before) */
 /* the lawn's east edge at y: the hill's foot, less a gap (so the lawn is never drawn over the mountain) */
 function spEastEdge(y){ const H = SP_PLAN.HILL; return H.x + (y - H.y)/H.k - H.gap; }
+/* THE WALK across the lawn (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once */
+function spPathPts(){
+  const P = SP_PLAN.PATH;
+  if(P._d) return P._d;
+  const q = P.pts, d = [];
+  for(let i = 0; i < q.length - 1; i++){
+    const a = q[Math.max(0, i - 1)], b = q[i], c = q[i + 1], e = q[Math.min(q.length - 1, i + 2)];
+    for(let t = 0; t < 1; t += 0.125){
+      const t2 = t*t, t3 = t2*t, f = (p0, p1, p2, p3) => 0.5*((2*p1) + (-p0 + p2)*t + (2*p0 - 5*p1 + 4*p2 - p3)*t2 + (-p0 + 3*p1 - 3*p2 + p3)*t3);
+      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1])]);
+    }
+  }
+  d.push(q[q.length - 1]);
+  P._bb = { x0: Math.min(...d.map(p => p[0])) - P.w, x1: Math.max(...d.map(p => p[0])) + P.w, y0: Math.min(...d.map(p => p[1])) - P.w, y1: Math.max(...d.map(p => p[1])) + P.w };
+  return (P._d = d);
+}
+function spOnPath(x, y){
+  const P = SP_PLAN.PATH, d = spPathPts(), B = P._bb;
+  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return false;
+  const h = P.w/2;
+  for(let i = 0; i < d.length - 1; i++){
+    const ax = d[i][0], ay = d[i][1], bx = d[i + 1][0], by = d[i + 1][1], vx = bx - ax, vy = by - ay, L = vx*vx + vy*vy;
+    const t = L ? Math.max(0, Math.min(1, ((x - ax)*vx + (y - ay)*vy)/L)) : 0;
+    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return true;
+  }
+  return false;
+}
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
   const P = SP_PLAN;
   if(x < P.AREA.x0 || x > P.AREA.x1 || y < P.AREA.y0 || y > P.AREA.y1) return null;
   if(spIn(P.POST, x, y)) return 'building';
-  if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) return 'sidewalk';
+  if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) return 'sidewalk';
   if((spIn(P.SITE, x, y) && x <= spEastEdge(y)) || spIn(P.TRACK, x, y)) return 'lot';
   return null;
 }
@@ -95556,7 +95584,7 @@ class WorldScene extends Phaser.Scene {
       P._specks = out; }
     const K = this.K, sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
-      if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) continue;
+      if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) continue;
       const p = this.W(x, y, 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
       g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2*K, p.y - 0.8*K, 4*K, 1.6*K); }
     /* the drive and the forecourt: concrete in bays, a kerb-less joint line */
@@ -95565,6 +95593,16 @@ class WorldScene extends Phaser.Scene {
     for(let y = P.DRIVE.y1 - 160; y > P.DRIVE.y0; y -= 160){ const a = this.W(P.DRIVE.x0, y, 0.9), b = this.W(P.DRIVE.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, 0.9), b = this.W(x, P.COURT.y1, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     rect(P.DOCK, 0xbdb8ad, 0.8, 6);
+    /* the walk across the lawn: concrete, in a ribbon of quads along its smoothed centreline, a joint every 184 */
+    { const d = spPathPts(), h = P.PATH.w/2, L = [], R = [];
+      for(let i = 0; i < d.length; i++){
+        const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1, nx = -dy/n*h, ny = dx/n*h;
+        L.push([d[i][0] + nx, d[i][1] + ny]); R.push([d[i][0] - nx, d[i][1] - ny]);
+      }
+      for(let i = 0; i < d.length - 1; i++) quad([this.W(L[i][0], L[i][1], 0.95), this.W(L[i + 1][0], L[i + 1][1], 0.95), this.W(R[i + 1][0], R[i + 1][1], 0.95), this.W(R[i][0], R[i][1], 0.95)], 0xcfcac0);
+      g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
+      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], 1), b = this.W(R[i][0], R[i][1], 1); g.lineBetween(a.x, a.y, b.x, b.y); }
+    }
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
      (queueFramePieces, as a landmark's: the test chute, the kart bays, the plywood store, the tables), its barn's lamp at
