@@ -75,7 +75,7 @@
     "Cups behind both front windows; back door and window inside."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "stories",

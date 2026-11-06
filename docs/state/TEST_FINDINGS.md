@@ -49,3 +49,20 @@ Photos: snaps/sheet/drug/car-park-{day,night,wide}.jpg, snaps/sheet/walkins/peli
 
 ## trophies-footprint re-check (2026-11-06)
 Re-shot `--walkins --pocket "Seabreeze Trophies"` with the live-overlay run_sheet. Shell is 585x462 lab x1.3 = 760.5x600.6, room 760x600, door mid, both on the shell's wall plane (shopDoor b=0.4; flatsShop doorMid). At 3x zoom of the west end the red footprint's west corner and front edge sit on the shell's wall base (within ~3px). The earlier "~35 units forward" was the lagging-overlay artefact (see above). No game change needed; item left for Sir to confirm at the test link. Right/gate side is hidden behind the fence and was not judged.
+
+## trophies look test (2026-11-06)
+Photos: snaps/sheet/trophies/door-day.jpg, door-night.jpg, door-wide.jpg (the section has only street-side shots; no inside or footprint photos, so W4/W18 were not judged here; see the footprint re-check above).
+
+Problems: none found that need a fix.
+
+OK
+- Street door: glazed pair sits in the door line, nothing standing in the doorway in day; at night a visitor is seen through the glass inside the shop, behind the leaves, not in the opening.
+- Awning, sign band, trophy sign and corner pilaster line up; no seams or dark strips on the front or the east wall (wide shot).
+- Cups show behind both front windows at night (x-ray/night light), on glass shelves, correct side of the glass. Back-door/window inside not visible from these views.
+- Spiked alley gate reads at knee-to-hip height beside the shop; sorts behind the shop's corner properly. Still looks heavy (already listed as known open).
+- Lamp, palm, cars and bins sort correctly against the kerb and the shop; night lamp cones present.
+
+Watch (not changed): in the day shot the windows show only dark/reflective glass, no cups (they appear at night only). Looks deliberate (glare vs night glow) but Sir may want cups readable by day.
+In the day shot a pedestrian stands against the robot at the door, robot drawn in front; transient, not a draw bug.
+
+Hands-on (cannot judge from stills): engraver faces the camera at his bench; clerk at the till; one visitor browses; back door and window inside; alley gate dropping to knee height as the door opens.
