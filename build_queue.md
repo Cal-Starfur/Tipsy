@@ -38,6 +38,7 @@ graph LR
 - [!] `s1` Onboarding level 'Learn the Ropes' (needs hazard choice, menu label) [docs/onboarding-spec.md]
 - [!] `s2` Skins redemption-code model (needs price, launch count, code format) [docs/skins-spec.md]
 - [!] `s3` Keepsakes data shape + story 'Fourth Place' (needs save-across-devices, mission data) [docs/keepsakes.md]
+- [!] `s4` Museum story 'The Last Bone' (needs story, pickup place, reward) [docs/museum-mission.md]
 
 ## Wishlist
 - [ ] `w1` robot.axle + robot.battery into game build [docs/ASSETS.md#known-gaps--wishlist]

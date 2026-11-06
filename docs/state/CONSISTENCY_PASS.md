@@ -80,6 +80,11 @@ Each batch is:
 - **Checked.** Booted headless with no page errors, photographed at night at the gate.
 - Test: [museum gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3)
 
+### Tidewater Maritime Museum: knock-downs, a busier door, grass, a story (2026-11-06)
+- **Knocked down, and put out.** Its people can be knocked down (`ban: true` on the pocket; the walk-in staff's knock spec; kit rule W21). After one, once they are up and have had their say, the attendant walks up, speaks, and sees him out through the door; it is locked to him after (he is told why). Nothing is saved: it holds for the visit to the game.
+- **People come and go.** Its visitors were three, each staying two and a half to six minutes, so the door was quiet. Seven now (pairs among them), staying one to two and a half minutes, the next in soon after (`pk.day`, a room's own pace; `walkinDayT`).
+- **Grass, not grey.** The forecourt's painted grey plate is gone; the entry declares `ground:'grass'` and the ground pass lays the city's lawn (the Chapel's way). The walk, the band at the building's foot and the compass rose stay.
+- **A story, designed** (not built): [The Last Bone](../museum-mission.md), waiting on your decisions (queue `s4`).
 ### Tidewater Maritime Museum: footprint confirmed (2026-11-06)
 - **Columns no longer draw over the frieze.** The entablature and pediment are one item at the building's middle, and the world queue sorts by x + y + z, so the outer columns' capitals outranked it as he came up to the door. Its z is lifted (440 to 1040) so it draws after all six. Same change in `game/index.html`.
 - **Back fence behind the back corner.** The railing runs at the building's rear (the back run and the first segment of each side) are sent back past the building's depth (z -900), so they no longer draw over its back corner.
