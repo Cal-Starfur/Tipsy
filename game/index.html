@@ -18478,7 +18478,7 @@ function boardwalkStrollers(grid){
     for(let m = 0; m < size; m++){
       const om = Math.max(-0.4*path.half, Math.min(0.4*path.half, o + (m ? (m % 2 ? 46 : -46) : 0)));
       const lane = bwLane(path, om), back = m ? 34*Math.ceil(m/2) : 0;
-      const q = { kind, seed: (seed + m*977) >>> 0, v, stride, ph, back, lane, o: om, pph, look: null };
+      const q = { kind, seed: (seed + m*977) >>> 0, v, stride: stride*(v/v0), ph, back, lane, o: om, pph, look: null };   // (legs at their own pace: the stride follows the +-15% in speed, no sliding)
       if(ps) q.R = bwPassRoute(ps, Math.max(-ps.hw + 20, Math.min(ps.hw - 20, pl + (m ? (m % 2 ? 36 : -36) : 0))), om, ps.y + s0*d0, ps.y - s1*d1, grid, town);
       _bwList.push(q);
     }
