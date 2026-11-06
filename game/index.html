@@ -70194,7 +70194,8 @@ marinaEntry(),
       const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
       if(extB){ const f = FC('b', b1, 1);
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
-          f.r(sa > 0 ? a1 - w : a0, sa > 0 ? a1 : a0 + w, z, z + 22, shade(stone, 1.04), 0.3, stoneD, 0.8); }
+          const lowOuter = a0 === CA0;                                  // (the free corner is the building's outer edge, whichever side that is on the screen: never the edge against the range)
+          f.r(lowOuter ? a0 : a1 - w, lowOuter ? a0 + w : a1, z, z + 22, shade(stone, 1.04), 0.3, stoneD, 0.8); }
         window2(f, cA, 52, 232, 318, false);
         if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true);
         windowBox(f, cA, 56, door2 ? 232 : 62);
@@ -70322,7 +70323,7 @@ marinaEntry(),
     const backLodge = (x0, x1, g0, g1) => {
       const R = RG('a', x0, x1, CB0, CB0 + RD), fc = R.fc, mid = (g0 + g1)/2;
       it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); box(x0, g0, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
-        if(g0 - x0 > 60) window2(fc, (x0 + g0)/2, 36, 70, 140, true); roof(R, x0, g0, H, RH, null); });
+        if(g0 - x0 > 60) window2(fc, (x0 + g0)/2, 36, 70, 140, true); roof(R, x0, g0, H, RH, null); chimney(R, (x0 + g0)/2, H + RH, false); });   // (its chimney in its own piece: never a piece inside a piece)
       it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); box(g1, x1, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
         if(x1 - g1 > 60) window2(fc, (g1 + x1)/2, 36, 70, 140, true); roof(R, g1, x1, H, RH, null); });
       it(mid, CB0 + RD/2, () => {
@@ -70333,7 +70334,6 @@ marinaEntry(),
         fc.r(g0 - 10, g1 + 10, 150, 158, stone, 0.4); fc.r(g0, g1, H - 12, H, trim, 0.5);
         roof(R, g0, g1, H, RH, null);
       });
-      it((x0 + x1)/2, CB0 + 40, () => chimney(R, x0 + (x1 - x0)*0.18, H + RH, false), 40);
     };
     backLodge(CA0 + RD, A.CH0, A.BW0, A.BW1);
     backLodge(A.CH1, CA1 - RD, A.BE0, A.BE1);
