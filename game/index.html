@@ -70187,11 +70187,14 @@ marinaEntry(),
       const a1 = a0 + RD, b1 = b0 + RD, cA = (a0 + a1)/2, cB = (b0 + b1)/2;
       wallBox(a0, a1, b0, b1, 0, TH);
       /* the stone plinth and the string course */
-      box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
-      box(a0 - 3, a1 + 3, b0 - 3, b1 + 3, 196, 206, shade(stone, 1.1), stone, stoneD);
+      /* THE LEDGES ARE THIN SKINS ON THE TWO FACES THE CAMERA SEES, never whole boxes: a box's flat top is the tower's full
+         footprint, and painted after the wall it laid a grey slab over the face (the doors and windows sat on that) */
+      const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
+      const ledge = (z0, z1, out, top, front, side) => { fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); fcA.proj(b0 - out, b1 + out, out, z0, z1, top, front, side); };
+      ledge(0, 34, 4, shade(stone, 1.06), stone, stoneD);
+      ledge(196, 206, 3, shade(stone, 1.1), stone, stoneD);
       box(a0 - 5, a1 + 5, b0 - 5, b1 + 5, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);
       /* the corner quoins on the free edge */
-      const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
       if(extB){ const f = FC('b', b1, 1);
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
           const lowOuter = a0 === CA0;                                  // (the free corner is the building's outer edge, whichever side that is on the screen: never the edge against the range)
@@ -70229,7 +70232,7 @@ marinaEntry(),
       it((x0 + x1)/2, CB1 - RD/2, () => {
         const R = RG('a', x0, x1, CB1 - RD, CB1);
         R.wb(x0, x1, 0, H);
-        box(x0, x1, CB1 - RD, CB1 + 4, 0, 30, shade(stone, 1.06), stone, stoneD);
+        R.fc.proj(x0, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
         R.fc.r(x0, x1, 150, 158, stone, 0.3); R.fc.r(x0, x1, H - 12, H, shade(trim, 1.0), 0.5);
         dwelling(R.fc, x0, x1, flip);
         roof(R, x0, x1, H, RH, null);
@@ -70243,8 +70246,8 @@ marinaEntry(),
       const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
       /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
       wallBox(g0, f0, CB1 - RD, CB1, 0, TH); wallBox(f1, g1, CB1 - RD, CB1, 0, TH); wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
-      box(g0 - 4, f0, CB1 - RD, CB1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD); box(f1, g1 + 4, CB1 - RD, CB1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       const f = FC('b', CB1, 1);
+      f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
       headed(f, GM, A.FGW, 0, 182, 76, dark, 0.6);
@@ -70286,7 +70289,7 @@ marinaEntry(),
       const R = RG('b', CB0 + RD, CB1 - RD, a0, a1), fc = R.fc;
       const seg = (b0, b1, flipBase, dorm, chim) => it((a0 + a1)/2, (b0 + b1)/2, () => {
         R.wb(b0, b1, 0, H);
-        box(a0 - 4, a1 + 4, b0, b1, 0, 30, shade(stone, 1.06), stone, stoneD);
+        fc.proj(b0, b1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
         if(facing){
           fc.r(b0, b1, 150, 158, stone, 0.3); fc.r(b0, b1, H - 12, H, shade(trim, 1.0), 0.5);
           const n = Math.round((b1 - b0)/232);
@@ -70322,9 +70325,9 @@ marinaEntry(),
     /* ============ THE BACK RANGE: a lodge each side, a tunnel through each, and the chapel between ============ */
     const backLodge = (x0, x1, g0, g1) => {
       const R = RG('a', x0, x1, CB0, CB0 + RD), fc = R.fc, mid = (g0 + g1)/2;
-      it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); box(x0, g0, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
+      it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); fc.proj(x0, g0, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
         if(g0 - x0 > 60) window2(fc, (x0 + g0)/2, 36, 70, 140, true); roof(R, x0, g0, H, RH, null); chimney(R, (x0 + g0)/2, H + RH, false); });   // (its chimney in its own piece: never a piece inside a piece)
-      it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); box(g1, x1, CB0 - 4, CB0 + RD, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
+      it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); fc.proj(g1, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
         if(x1 - g1 > 60) window2(fc, (g1 + x1)/2, 36, 70, 140, true); roof(R, g1, x1, H, RH, null); });
       it(mid, CB0 + RD/2, () => {
         const hwG = (g1 - g0)/2;
@@ -70342,8 +70345,8 @@ marinaEntry(),
     it(GM, (CB0 + A.CHB)/2, () => {
       const c0 = A.CH0, c1 = A.CH1, b0 = CB0, b1 = A.CHB, CHH = A.CHH, cA = GM;
       wallBox(c0, c1, b0, b1, 0, CHH, '#f1e9d6');
-      box(c0 - 4, c1 + 4, b0, b1 + 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       const f = FC('b', b1, 1), sd = FC('a', sa > 0 ? c1 : c0, sa);
+      f.proj(c0 - 4, c1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD); sd.proj(b0, b1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);   // (the plinth a skin on the faces, not a box whose top slabs over the wall)
       /* the buttresses, the doorway in a pointed arch, the rose window in the gable */
       for(const u of [c0 + 6, c1 - 6]) f.proj(u - 12, u + 12, 12, 0, CHH - 40, shade(stone, 1.1), stone, stoneD);
       const pointed = (c, hw, z0, z1, rise, fill, off, stroke, lw) => { const pts = [[c - hw, z0, off], [c - hw, z1, off]];
