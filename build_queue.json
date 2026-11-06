@@ -769,6 +769,131 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3"
+},
+{
+"id": "bb-ext",
+"title": "Exterior character: copper-and-cream brick plinth, frieze, goosenecks, corner blade, rooftop cups; the east flank matches the front (shopfront band, awnings, glass, cornice)",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4700,15500&view=3"
+},
+{
+"id": "bb-int",
+"title": "Interior: service counter (espresso machine, pastry case, till, stools), back bar, brick dado, neon bolt and Gideon mural, rugs, robot charging nook; Gideon is the game's own humanoid; planters kept off the footprint",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460418,430450&view=2"
+},
+{
+"id": "bb-ms1",
+"title": "Mission opens: Brew & Bolt's mat is the mission's (robot-head icon, no ordinary orders); Gideon comes out and asks; Not now works; the player becomes Gideon (humanoid loan); Tipsey rolls in and works the counter",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-int"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2",
+"note": "NIGHT_CLOCK.time = 11"
+},
+{
+"id": "bb-scoot",
+"title": "The humanoid can hop on any city scooter (Hop on / Hop off button) and ride it",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2",
+"note": "needs the humanoid: start the mission, or FLEET_LOAN = 'humanoid'"
+},
+{
+"id": "bb-roof",
+"title": "The roof: the back room's ladder and hatch, a second room on the same square above the shop (Brew & Bolt Roof), bent antenna mast, the inspection card, back down the hatch",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-ms1"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2"
+},
+{
+"id": "bb-errand",
+"title": "The parts errand: Gideon rides a scooter to Breakwater Hardware (about 33,000 road units, 6.5 min by GPS: consider a nearer parts shop), the clerk hands over a mast bracket and a coax connector (carried item), beacon and GPS there and back",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-roof",
+"bb-scoot"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-repair",
+"title": "The repair and finish: back up the ladder, the mast straightened and the cable fixed, the order screen lights, Gideon's thanks, one completion card",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-errand"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-server",
+"title": "Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Needs Sir: what the reward is (cents, trophy, skin, Gideon playable)",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-repair"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-exit",
+"title": "Replace the temporary 'parts' bay that hands the shop back: Tipsey leaves the counter and the loan ends where Gideon finishes; abort and quit paths (leave mid-mission, tip over, reload) keep nothing half-done",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-ms1"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-climb",
+"title": "Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-roof"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-scoot2",
+"title": "Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-scoot"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop"
+},
+{
+"id": "bb-night",
+"title": "Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-int",
+"bb-roof"
+],
+"status": "pending",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2",
+"note": "NIGHT_CLOCK.time = 22"
 }
 ],
 "meta": {

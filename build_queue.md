@@ -21,6 +21,17 @@ graph LR
   r1 --> r2b
   r2a --> r2b
   r2b --> r3
+  bb-int --> bb-ms1
+  bb-ms1 --> bb-roof
+  bb-roof --> bb-errand
+  bb-scoot --> bb-errand
+  bb-errand --> bb-repair
+  bb-repair --> bb-server
+  bb-ms1 --> bb-exit
+  bb-roof --> bb-climb
+  bb-scoot --> bb-scoot2
+  bb-int --> bb-night
+  bb-roof --> bb-night
 ```
 
 ## People: seeded crowd
@@ -139,3 +150,17 @@ graph LR
 - [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
 - [?] `skate-sign` Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2) [found by test run]
 - [ ] `skate-lamps` Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3) [found by test run]
+
+## Brew & Bolt: Minding the Shop
+- [?] `bb-ext` Exterior character: copper-and-cream brick plinth, frieze, goosenecks, corner blade, rooftop cups; the east flank matches the front (shopfront band, awnings, glass, cornice) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4700,15500&view=3) [docs/kits/missions.md]
+- [?] `bb-int` Interior: service counter (espresso machine, pastry case, till, stools), back bar, brick dado, neon bolt and Gideon mural, rugs, robot charging nook; Gideon is the game's own humanoid; planters kept off the footprint [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460418,430450&view=2) [docs/kits/missions.md]
+- [?] `bb-ms1` Mission opens: Brew & Bolt's mat is the mission's (robot-head icon, no ordinary orders); Gideon comes out and asks; Not now works; the player becomes Gideon (humanoid loan); Tipsey rolls in and works the counter (NIGHT_CLOCK.time = 11) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-scoot` The humanoid can hop on any city scooter (Hop on / Hop off button) and ride it (needs the humanoid: start the mission, or FLEET_LOAN = 'humanoid') [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
+- [?] `bb-roof` The roof: the back room's ladder and hatch, a second room on the same square above the shop (Brew & Bolt Roof), bent antenna mast, the inspection card, back down the hatch [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
+- [ ] `bb-errand` The parts errand: Gideon rides a scooter to Breakwater Hardware (about 33,000 road units, 6.5 min by GPS: consider a nearer parts shop), the clerk hands over a mast bracket and a coax connector (carried item), beacon and GPS there and back [docs/kits/missions.md]
+- [ ] `bb-repair` The repair and finish: back up the ladder, the mast straightened and the cable fixed, the order screen lights, Gideon's thanks, one completion card [docs/kits/missions.md]
+- [ ] `bb-server` Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Needs Sir: what the reward is (cents, trophy, skin, Gideon playable) [docs/kits/missions.md]
+- [ ] `bb-exit` Replace the temporary 'parts' bay that hands the shop back: Tipsey leaves the counter and the loan ends where Gideon finishes; abort and quit paths (leave mid-mission, tip over, reload) keep nothing half-done [docs/kits/missions.md]
+- [ ] `bb-climb` Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking [docs/kits/missions.md]
+- [ ] `bb-scoot2` Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload [docs/kits/missions.md]
+- [ ] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
