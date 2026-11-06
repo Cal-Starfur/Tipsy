@@ -56,8 +56,9 @@
 "deps": [
 "p1.5"
 ],
-"status": "pending",
-"group": "People unification"
+"status": "done",
+"group": "People unification",
+"note": "already done in the code: staffLook and mallJailLook are rosterBody aliases, storeRepLook and tixLooks build on it, the inline lookOf is mallJailLook"
 },
 {
 "id": "p1.7",
