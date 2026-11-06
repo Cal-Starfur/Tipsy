@@ -15762,7 +15762,7 @@ function paveTo(E, ei, al, ej, bl, lat){
    it, or home, where it stands till he is well away. Of the doors the
    shoppers and residents pick, scootP go this way. */
 const SCOOT_TRIP = { scootP: 0.22, near: 900, stayHomeMs: 600000, parkStep: 60 };
-const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
+const SEEKERS = { max: 4, everyMs: 2600, spawnP: 0.55, R: 1300, far: 700, slotMs: 150000, slotP: 0.12, startSpread: 30000, farWalk: 1900, farRide: 3200, takeMs: 1300, rideV: 0.17, rideL: 1300, backMs: 60000, backR: 4500 };
 /* RESIDENTS (spawnResident): of those at a house's door, carP by car (a
    couple, coupleP, together), the rest on foot, dogP of those with the dog;
    dogLag how far behind them it trots, in ms of their walk */
@@ -39985,6 +39985,8 @@ function trafficWorldAt(tr, t){
    the normal INTO it), its way out (outM, and outN OUT of it), and plan(),
    the points a car drives between them this time (see errandPath for
    what a point may carry) -- a free bay, say -- or null when it is full. */
+/* the random the errand plans draw from: Math.random, but the seeded rng of the pass while one is planned (updateErrands, docs/seeded-crowd.md sc3) */
+let ERR_RND = Math.random;
 const ERRAND = {
   vc: 0.16,            // cruising through a site, u/ms (the street's is 0.26-0.32)
   vRev: 0.07,          // backing out of a bay
@@ -40357,7 +40359,7 @@ function errandKerbSites(grid, out){
         plan: () => { if(sp.busy) return null;
           sp.busy = true;
           const sg = d.along >= sp.al ? 1 : -1, gap = sp.al + sg*KERB_PARK.pitch/2;
-          return { slot: sp, inner: [unit({ stop: 14000 + Math.random()*22000, door: unit(null, inside.x, inside.y), exit: sg*KERB_PARK.pitch/2,
+          return { slot: sp, inner: [unit({ stop: 14000 + ERR_RND()*22000, door: unit(null, inside.x, inside.y), exit: sg*KERB_PARK.pitch/2,
             via: [edgePt(e, gap, SIDEWALK_W - 30), edgePt(d.e, d.along, 70)] }, sp.x, sp.y)] }; } });
     }
     /* THE FOOD TRUCKS' SPOTS (VEND_TRUCK): every free kerb space, shop or
@@ -40370,7 +40372,7 @@ function errandKerbSites(grid, out){
         plan: () => { if(sp.busy) return null;
           sp.busy = true;
           const [a, b] = VEND_TRUCK.stay;
-          return { slot: sp, inner: [unit({ stop: a + Math.random()*(b - a) }, sp.x, sp.y)] }; } });
+          return { slot: sp, inner: [unit({ stop: a + ERR_RND()*(b - a) }, sp.x, sp.y)] }; } });
     }
   }
 }
@@ -40400,15 +40402,15 @@ function errandSitesOf(grid, route){
       const LANE = 1178;
       site({ id: "drug-thru", cap: 2, p: 0.8, maxLen: 275,                // a second car queues behind the first (updateErrands' wait)
         inM: W(LANE, 0), inN: dirW(LANE, 0, LANE, -1), outM: W(LANE, -1656), outN: dirW(LANE, -1656, LANE, -1657),
-        plan: () => ({ inner: [W(LANE, -1050, { stop: 4500 + Math.random()*3000 })] }) });
+        plan: () => ({ inner: [W(LANE, -1050, { stop: 4500 + ERR_RND()*3000 })] }) });
       const AISLE = -440, bays = pelicanLotCars().filter(q => !q.car && !q.access && !q.robot && q.k <= 5).map(q => ({ a: q.a, b: q.b, taken: false }));
       site({ id: "drug-lot", cap: 1, p: 0.8,
         inM: W(0, AISLE), inN: dirW(0, AISLE, 1, AISLE), outM: W(0, AISLE), outN: dirW(1, AISLE, 0, AISLE),
         plan: () => {
           const free = bays.filter(q => !q.taken);
           if(!free.length) return null;
-          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
-          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + Math.random()*14000, rev: true, door: W(636.6, -826), exit: -Math.abs(q.b - AISLE),
+          const q = free[Math.floor(ERR_RND()*free.length)]; q.taken = true;
+          return { slot: q, inner: [W(q.a, AISLE), W(q.a, q.b, { stop: 9000 + ERR_RND()*14000, rev: true, door: W(636.6, -826), exit: -Math.abs(q.b - AISLE),
             via: [W(600, AISLE), W(600, -700)] }),
                                     W(q.a, AISLE), W(q.a + 240, AISLE, { stop: 500 })] };
         },
@@ -40433,7 +40435,7 @@ function errandSitesOf(grid, route){
       const GIN = 1233.6, GOUT = 390;
       const bs = { id: "brew-dock", cap: 1, p: 1, maxLen: 300, kinds: new Set(["beertruck"]), latMax: SIDEWALK_W + 2*ROAD_HALF,
         inM: W(GIN, 0), inN: dirW(GIN, 0, GIN, -1), outM: W(GOUT, 0), outN: dirW(GOUT, -1, GOUT, 0),
-        plan: () => ({ inner: [W(GIN, -110), W(1470, -220), W(1470, -440, { stop: 9000 + Math.random()*7000 }), W(1470, -1300),
+        plan: () => ({ inner: [W(GIN, -110), W(1470, -220), W(1470, -440, { stop: 9000 + ERR_RND()*7000 }), W(1470, -1300),
                                W(340, -1300), W(340, -760), W(GOUT, -620), W(GOUT, -60)] }) };
       site(bs);
       /* its trucks: a car on each of two loops that pass the gates, made a beer truck */
@@ -40474,11 +40476,11 @@ function errandSitesOf(grid, route){
       const plan = (mouth) => () => {
         const free = bays.filter(q => !q.taken);
         if(!free.length) return null;
-        const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+        const q = free[Math.floor(ERR_RND()*free.length)]; q.taken = true;
         /* it backs out and on along the aisle AWAY from its way out (the
            leg after a rev stop is all reversed), then drives off forward */
         const back = Math.max(200, Math.min(1500, q.a + (mouth.side || q.a > ENT ? 240 : -240)));
-        return { slot: q, inner: [...mouth.in, W(q.a, AISLE), W(q.a, q.b, { stop: 12000 + Math.random()*18000, rev: true, door: doorAt(q.a),
+        return { slot: q, inner: [...mouth.in, W(q.a, AISLE), W(q.a, q.b, { stop: 12000 + ERR_RND()*18000, rev: true, door: doorAt(q.a),
                                   exit: -Math.abs(q.b - AISLE), via: [W(730, AISLE), W(730, -700)] }),
                                   W(q.a, AISLE), W(back, AISLE, { stop: 500 }), ...mouth.out] };
       };
@@ -40513,10 +40515,10 @@ function errandSitesOf(grid, route){
       plan: () => {
         const free = bays.filter(q => !q.taken);
         if(!free.length) return null;
-        const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+        const q = free[Math.floor(ERR_RND()*free.length)]; q.taken = true;
         const back = q.x < OUTX ? -240 : 240;          // backed out with its tail away from the way out
         return { slot: q, inner: [unit({ stop: 1400 }, IN, Y + 200), unit(null, IN, AY), unit(null, q.x, AY),
-                                  unit({ stop: 20000 + Math.random()*40000, rev: true }, q.x, GG.backY),
+                                  unit({ stop: 20000 + ERR_RND()*40000, rev: true }, q.x, GG.backY),
                                   unit(null, q.x, AY), unit({ stop: 600 }, q.x + back, AY), unit(null, OUTX, AY),
                                   unit({ stop: 1100 }, OUTX, Y - 70)] };
       },
@@ -40534,10 +40536,10 @@ function errandSitesOf(grid, route){
           plan: () => {
             const free = mb.filter(q => !q.taken);
             if(!free.length) return null;
-            const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+            const q = free[Math.floor(ERR_RND()*free.length)]; q.taken = true;
             const back = q.a < OUTA ? -240 : 240;
             return { slot: q, inner: [WL(INA, 62, { stop: 1400 }), WL(INA, AB), WL(q.a, AB),
-                                      WL(q.a, MG.backB, { stop: 20000 + Math.random()*40000, rev: true }),
+                                      WL(q.a, MG.backB, { stop: 20000 + ERR_RND()*40000, rev: true }),
                                       WL(q.a, AB), WL(q.a + back, AB, { stop: 600 }), WL(OUTA, AB), WL(OUTA, -182, { stop: 1100 })] };
           },
           free: q => { q.taken = false; } });
@@ -40552,10 +40554,10 @@ function errandSitesOf(grid, route){
         plan: () => {
           const free = bays.filter(q => !q.taken);
           if(!free.length) return null;
-          const q = free[Math.floor(Math.random()*free.length)]; q.taken = true;
+          const q = free[Math.floor(ERR_RND()*free.length)]; q.taken = true;
           const back = q.x < OUTX ? -240 : 240;
           return { slot: q, inner: [unit({ stop: 1400 }, IN, Y + 200), unit(null, IN, AY), unit(null, q.x, AY),
-                                    unit({ stop: 20000 + Math.random()*40000, rev: true }, q.x, GG.backY),
+                                    unit({ stop: 20000 + ERR_RND()*40000, rev: true }, q.x, GG.backY),
                                     unit(null, q.x, AY), unit({ stop: 600 }, q.x + back, AY), unit(null, OUTX, AY),
                                     unit({ stop: 1100 }, OUTX, Y - 70)] };
         },
@@ -121517,37 +121519,47 @@ class WorldScene extends Phaser.Scene {
       if(!e || !e.site.vend || !e.slot || vendHatch(tr, t) < 1) continue;
       const sp = e.slot, E = sp.e;
       if(Math.abs(sp.x - this.botX) + Math.abs(sp.y - this.botY) > VC.R) continue;
-      if(tr._custT !== undefined && t - tr._custT < VC.everyMs) continue;
-      tr._custT = t;
+      if(CROWD_WORLD.epoch === undefined) continue;
+      /* SEEDED (sc3): a roll for each VC.everyMs of the world clock, off the daily seed and this truck (its loop and place in it) and
+         where it is posted -- who comes, from which side, how long they order are the seed's; whether the truck is posted is the traffic's */
+      const lpI = this.route.trafficFleet.loops.findIndex(l => l.cars.includes(tr));
+      if(lpI < 0) continue;
+      const tkey = lpI + "." + this.route.trafficFleet.loops[lpI].cars.indexOf(tr) + "|" + Math.round(sp.x) + "," + Math.round(sp.y);
+      const kNow = Math.floor(worldMs(t)/VC.everyMs);
+      if(tr._custK === undefined || kNow - tr._custK > 3) tr._custK = kNow - 1;
+      if(tr._custK >= kNow) continue;
+      const kRoll = ++tr._custK, rr = mulberry32(hashStr(routeSeedStr(this.route.dateStr, this.route.runIndex) + "|vend|" + tkey + "|" + kRoll)), tStart = kRoll*VC.everyMs - CROWD_WORLD.epoch;
       const mine = list.filter(c => c.tr === tr);
-      if(mine.length >= VC.max || Math.random() > VC.p) continue;
+      const pRoll = rr(), sideR = rr(), laInR = rr(), laOutR = rr(), awayR = rr(), orderR = rr(), seedR = rr();
+      if(mine.length >= VC.max || pRoll > VC.p) continue;
       const st = errandState(e, t);
       if(st.stop === null) continue;
       const shutAt = t + st.left - VEND_TRUCK.openMs - 1200;     // gone from the window before it shuts
-      const side = Math.random() < 0.5 ? -1 : 1, V = SHOPPERS.walkV;
-      /* NO ONE POPS IN OR OUT: in along the pavement round the block from
-         off the screen, and away off it again (paveRoute, as the shoppers) */
+      const side = sideR < 0.5 ? -1 : 1, V = SHOPPERS.walkV;
+      /* NO ONE POPS IN OR OUT: in along the pavement round the block from a fixed way off, and away to one (paveRoute, as the shoppers) */
+      const offScreen = q => Math.hypot(q.x - sp.x, q.y - sp.y) > CROWD_WORLD.farR;
       const blk = sp.blockKey !== undefined && grid && grid.blockByIJ && grid.blockByIJ.get(sp.blockKey);
       if(!blk) continue;
       const BE = blockEdgesOf(blk), ei = sp.fdir, wAl = sp.al + VC.winAl;
       const win = edgePt(E, wAl, VC.lat), queue = edgePt(E, wAl + side*VC.queueGap, VC.lat);
-      const laIn = VC.lat - 40 - Math.random()*60, laOut = VC.lat - 40 - Math.random()*60;
+      const laIn = VC.lat - 40 - laInR*60, laOut = VC.lat - 40 - laOutR*60;
       const inPath = paveRoute(BE, ei, wAl + side*VC.queueGap, laIn, side, 4500, offScreen).reverse();
-      const away = paveRoute(BE, ei, wAl, laOut, Math.random() < 0.7 ? -side : side, 4500, offScreen);
+      const away = paveRoute(BE, ei, wAl, laOut, awayR < 0.7 ? -side : side, 4500, offScreen);
       const plen = P => { let d = 0; for(let i = 1; i < P.length; i++) d += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); return d; };
       const face = Math.atan2(E.rv.y, E.rv.x);                                   // to the kerb: the hatch
-      const [o0, o1] = VC.orderMs, order = o0 + Math.random()*(o1 - o0);
+      const [o0, o1] = VC.orderMs, order = o0 + orderR*(o1 - o0);
       /* the window is free once the last one booked is through */
-      const free = Math.max(t, ...mine.map(c => c.winOut));
+      const free = Math.max(tStart, ...mine.map(c => c.winOut));
       const qEnd = inPath[inPath.length - 1];
-      const tQ = t + (plen(inPath) + Math.hypot(queue.x - qEnd.x, queue.y - qEnd.y))/V, step = VC.queueGap/V;
+      const tQ = tStart + (plen(inPath) + Math.hypot(queue.x - qEnd.x, queue.y - qEnd.y))/V, step = VC.queueGap/V;
       const pts = inPath.slice();
       let atWin = tQ + step;
       if(free > tQ + step){ pts.push(Object.assign({ wait: free - tQ - step, face }, queue)); atWin = free; }
       else pts.push(queue);
       if(atWin + order > shutAt) continue;
       pts.push(Object.assign({ wait: order, face }, win), ...away.slice(1));
-      list.push({ tr, t0: t, pts, winOut: atWin + order, seed: (Math.random()*4294967296) >>> 0 });
+      if(atWin + order + (plen(away))/V < t) continue;     // (over before it was looked at)
+      list.push({ tr, t0: tStart, pts, winOut: atWin + order, seed: (seedR*4294967296) >>> 0, vkey: "v|" + tkey + "|" + kRoll });
     }
   }
   updateShoppers(t){
@@ -121886,35 +121898,44 @@ class WorldScene extends Phaser.Scene {
       /* stood up and unlocked: off the pavement, under them */
       if(m.ride && p.pr && !p.pr.taken){ p.pr.taken = true; p.pr.takenT = t; p.pr.takenBy = p.vkey; taken.push(p.pr); }
     }
-    if(list.length >= SK.max || this.state !== "play") return;
-    if(this._seekT !== undefined && t - this._seekT < SK.everyMs) return;
+    if(this.state !== "play" || CROWD_WORLD.epoch === undefined) return;
+    if(this._seekT !== undefined && t - this._seekT < CROWD_WORLD.everyMs) return;
     this._seekT = t;
-    if(Math.random() > SK.spawnP) return;
-    /* the standing scooters near him: the route's and the city's */
+    /* SEEKERS OFF THE SEEDED CLOCK (docs/seeded-crowd.md, sc3): each standing scooter near him has its own visit slots
+       (SEEKERS.slotMs of the world clock); slot k rolls from mulberry32(seed | the scooter's place | k) -- whether someone comes for it,
+       from which side, how far the ride on -- and they walk in from, and ride off to, fixed distances along the pavement (not off the screen). */
+    const W = CROWD_WORLD, seed = routeSeedStr(this.route.dateStr, this.route.runIndex), vis = this._visits || (this._visits = new Map());
     const cands = [];
-    const ok = pr => pr && pr.type === "scooter" && !pr.taken && !(pr.phi > 0.3) && pr.wx !== undefined && !list.some(q => q.pr === pr);
-    for(const hz of (this.route && this.route.hazards) || []) if(ok(hz)) cands.push(hz);
-    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on) for(const cp of cityFurnitureNear(grid, this.botX, this.botY, SK.R, (this._seekBuf = this._seekBuf || []))) if(ok(cp)) cands.push(cp);
-    const near = cands.map(pr => ({ pr, w: hazSpotWorld(pr, 0, 0) })).filter(c => c.w && Math.hypot(c.w.x - this.botX, c.w.y - this.botY) < SK.R && Math.hypot(c.w.x - this.botX, c.w.y - this.botY) > 160);
-    if(!near.length) return;
-    const { pr, w } = near[Math.floor(Math.random()*near.length)];
-    const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
-    const seen = q => { const sp = this.W(q.x, q.y, 0); return sp.x > -40 && sp.x < vw + 40 && sp.y > -40 && sp.y < vh + 60; };
-    /* from along the pavement (off the screen if it can be), to stand by its deck, and on the same way */
-    let side = Math.random() < 0.5 ? -1 : 1;
-    let from = hazSpotWorld(pr, side*SK.far, 0);
-    const other = hazSpotWorld(pr, -side*SK.far, 0);
-    if(from && other && seen(from) && !seen(other)){ side = -side; from = other; }
-    if(!from) return;
-    /* IN AND OUT OF SIGHT, NEVER POPPING (the gate, 2026-10-30: seekers came and went on screen): from off the screen or
-       not at all (zoomed in, both ways in view: no seeker this time); and the ride on until out of sight */
-    if(seen(from)) return;
-    const by = hazSpotWorld(pr, side*34, 0);
-    let rl = SK.rideL, go = hazSpotWorld(pr, -side*rl, 0);
-    while(go && seen(go) && rl < 4800){ rl += 500; go = hazSpotWorld(pr, -side*rl, 0); }
-    if(!by || !go) return;
-    list.push({ pr, seed: (Math.random()*4294967296) >>> 0, brand: pr.brand || BRANDS[0], t0: t,
-                pts: [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go, v: SK.rideV, ride: true }] });
+    const ok0 = pr => pr && pr.type === "scooter" && pr.wx !== undefined;
+    for(const hz of (this.route && this.route.hazards) || []) if(ok0(hz)) cands.push(hz);
+    if(typeof CITY_FURN !== "undefined" && CITY_FURN.on) for(const cp of cityFurnitureNear(grid, this.botX, this.botY, SK.R, (this._seekBuf = this._seekBuf || []))) if(ok0(cp)) cands.push(cp);
+    const k0 = Math.floor(worldMs(t)/SK.slotMs);
+    for(const pr of cands){
+      const w = hazSpotWorld(pr, 0, 0);
+      if(!w) continue;
+      const dist = Math.hypot(w.x - this.botX, w.y - this.botY);
+      if(dist >= SK.R || dist <= 160) continue;
+      const pk = Math.round(w.x) + "," + Math.round(w.y);
+      for(let k = k0; k <= k0 + 1; k++){
+        const key = "s|" + pk + "|" + k;
+        if(vis.has(key)) continue;
+        const r = mulberry32(hashStr(seed + "|seek|" + pk + "|" + k)), go = r() < SK.slotP, start = k*SK.slotMs + r()*SK.startSpread;
+        const sd = (r()*4294967296) >>> 0, sideR = r();
+        if(!go){ vis.set(key, true); continue; }
+        const t0 = start - W.epoch;
+        if(t < t0 - W.leadMs) continue;
+        const side = sideR < 0.5 ? -1 : 1, from = hazSpotWorld(pr, side*SK.farWalk, 0), by = hazSpotWorld(pr, side*34, 0);
+        let go2 = null;
+        for(const L of [SK.farRide, SK.farRide*0.75, SK.farRide*0.5]){ go2 = hazSpotWorld(pr, -side*L, 0); if(go2) break; }
+        if(!from || !by || !go2 || pr.taken && pr.takenBy !== key || pr.phi > 0.3){ vis.set(key, true); continue; }
+        const pts = [from, { ...by, wait: SK.takeMs }, { x: w.x, y: w.y, v: 0.05, ride: true }, { ...go2, v: SK.rideV, ride: true }];
+        let dur = 0;
+        for(let i = 0; i < pts.length; i++){ if(i) dur += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)/(pts[i].v || SHOPPERS.walkV); dur += pts[i].wait || 0; }
+        if(t > t0 + dur){ vis.set(key, true); continue; }
+        const rec = { pr, seed: sd, brand: pr.brand || BRANDS[0], t0, pts, vkey: key };
+        list.push(rec); vis.set(key, [rec]);
+      }
+    }
   }
   /* A KERB-PARKED CAR DRIVES OFF (its driver got in): a car of the lane
      beside it, from far off where he cannot see it go, is put there in its
@@ -122391,12 +122412,18 @@ class WorldScene extends Phaser.Scene {
         const key = si.id + "|" + Math.round(si.inM.x) + "|" + Math.floor(t/20000);      // one roll a pass
         if(tr._errRoll === key) continue;
         tr._errRoll = key;
-        if(Math.random() >= si.p) continue;
+        /* SEEDED (sc3): the roll, the way out and the stay are the daily seed's, keyed on the site, this car (its loop and place in it) and
+           the 20 s of the world clock -- whether it stops is still where the traffic has put it (its holds are live) */
+        const lp = fleet.loops.find(l => l.walk === tr.walk && l.cars.includes(tr));
+        if(!lp || CROWD_WORLD.epoch === undefined){ if(Math.random() >= si.p) continue; }
+        const rr = lp && CROWD_WORLD.epoch !== undefined ? mulberry32(hashStr(routeSeedStr(this.route.dateStr, this.route.runIndex) + "|errand|" + si.id + "|" + Math.round(si.inM.x) + "," + Math.round(si.inM.y) + "|" + fleet.loops.indexOf(lp) + "." + lp.cars.indexOf(tr) + "|" + Math.floor(worldMs(t)/20000))) : Math.random;
+        if(lp && CROWD_WORLD.epoch !== undefined && rr() >= si.p) continue;
         const joins = errandJoins(si, fleet);
         if(!joins.length) continue;
-        const lp = fleet.loops.find(l => l.walk === tr.walk && l.cars.includes(tr));
-        const J = joins[Math.floor(Math.random()*joins.length)];
-        const plan = lp && si.plan(J, tr);
+        const J = joins[Math.floor(rr()*joins.length)];
+        ERR_RND = rr;
+        let plan = null;
+        try { plan = lp && si.plan(J, tr); } finally { ERR_RND = Math.random; }
         if(!plan) continue;
         errandStart(tr, lp, si, J, t, at, plan);
         break;

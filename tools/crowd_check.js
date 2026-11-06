@@ -35,7 +35,7 @@ const [X, Y] = process.argv.length > 3 ? [+process.argv[2], +process.argv[3]] : 
       const s = game.scene.getScene('world'), sleep = ms => new Promise(r => setTimeout(r, ms)), got = {};
       owStandUpAt(s, x, y, Math.PI);
       for(let i = 0; i < 240; i++){ await sleep(250);
-        for(const m of (s._shoppers || []).concat(s._seekers || [])) if(m.vkey && !got[m.vkey + '#' + (m.gk || 0)]) got[m.vkey + '#' + (m.gk || 0)] = { t0: Math.round(CROWD_WORLD.epoch + m.t0), pts: m.pts.map(q => [Math.round(q.x), Math.round(q.y), q.wait ? Math.round(q.wait) : 0]), car: !!m.car }; }
+        for(const m of (s._shoppers || []).concat(s._seekers || [], s._vendCust || [])) if(m.vkey && !got[m.vkey + '#' + (m.gk || 0)]) got[m.vkey + '#' + (m.gk || 0)] = { t0: Math.round(CROWD_WORLD.epoch + m.t0), pts: m.pts.map(q => [Math.round(q.x), Math.round(q.y), q.wait ? Math.round(q.wait) : 0]), car: !!m.car }; }
       return got; }, [X, Y]);
     runs.push({ seen, errs }); await p.close();
   }
