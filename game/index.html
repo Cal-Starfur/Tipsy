@@ -34039,6 +34039,33 @@ function missionPay(payId, cents){
     .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
     .catch(() => {});
 }
+/* R6 ON TIPSEY HIMSELF (one item per step, seen): what a mission has him carry is strapped on the top of his lid while the lid is shut,
+   drawn with his body (drawMissionCarried). Each id is a few boxes { hx, hy, h (up from the lid), ox, oy, c: [top, right, left] }, small
+   enough to sit on the lid (hx 26, hy 20); an id with no art of its own rides as a plain brown parcel, so nothing carried is ever unseen. */
+const MISSION_CARRY_ART = {
+  heart:  [{ hx: 12, hy: 9, h: 9, c: [0xd9433a, 0xb23229, 0x932821] }, { hx: 12.6, hy: 9.6, h: 2, oz: 9, c: [0xf2f3f5, 0xd4d7dc, 0xbcc0c7] }],   // the donor heart's cool box
+  cake:   [{ hx: 11, hy: 11, h: 9, c: [0xf7ecf0, 0xe3cdd5, 0xcfb4be] }, { hx: 11.4, hy: 11.4, h: 1.5, oz: 9, c: [0xf0a5bd, 0xd5879f, 0xbd6f89] }],   // the top tier's box
+  parcel: [{ hx: 11, hy: 11, h: 9, c: [0xf7ecf0, 0xe3cdd5, 0xcfb4be] }, { hx: 3, hy: 11.6, h: 9.6, c: [0xc2352e, 0xa12a24, 0x86221e] }],   // the cake, the roses tied on its box
+  roses:  [{ hx: 16, hy: 4, h: 3, c: [0x4f8a4a, 0x3f6f3b, 0x325a2f] }, { hx: 6, hy: 5, h: 3, ox: 8, oz: 3, c: [0xc2352e, 0xa12a24, 0x86221e] }],
+  note:   [{ hx: 8, hy: 5.5, h: 1.2, c: [0xfaf7ee, 0xe2ddd0, 0xcdc7b8] }],
+  note2:  [{ hx: 8, hy: 5.5, h: 1.2, c: [0xfaf7ee, 0xe2ddd0, 0xcdc7b8] }],
+  uniform:[{ hx: 10, hy: 8, h: 5, c: [0x6c4a9a, 0x553a7a, 0x452e64] }],
+  pizza:  [{ hx: 12, hy: 12, h: 3, c: [0xe2b262, 0xc79a50, 0xab8442] }],
+  lamp:   [{ hx: 6, hy: 6, h: 11, c: [0xf5d54e, 0xd3b43c, 0xb39830] }],
+  fish:   [{ hx: 13, hy: 9, h: 8, c: [0x6f8fa8, 0x587588, 0x465f6f] }],
+  banner: [{ hx: 3, hy: 17, h: 3.5, c: [0xd9534f, 0xb4423f, 0x953633] }],
+  pouch:  [{ hx: 8, hy: 6, h: 6, c: [0x4a4f5a, 0x393d46, 0x2c2f37] }],
+  wheels: [{ hx: 6, hy: 3, h: 6, ox: -8, c: [0x2e3138, 0x22252a, 0x1a1c20] }, { hx: 6, hy: 3, h: 6, ox: 8, c: [0x2e3138, 0x22252a, 0x1a1c20] }],
+  boards: [{ hx: 20, hy: 5, h: 2.5, oy: -6, c: [0x35b6b0, 0x2a928d, 0x207673] }, { hx: 20, hy: 5, h: 2.5, oy: 6, oz: 2.5, c: [0xf08a3c, 0xc87030, 0xa05a26] }],
+  trophy: [{ hx: 5, hy: 5, h: 11, c: [0xe8b83c, 0xc49a30, 0xa07d26] }],
+  fob:    [{ hx: 3.5, hy: 2.2, h: 1.6, c: [0x5fe8e0, 0x49b8b2, 0x3b9a95] }]
+};
+const MISSION_CARRY_PLAIN = [{ hx: 9, hy: 9, h: 7, c: [0xb88a55, 0x9a7144, 0x805c37] }];
+/* the item a mission has him carrying now ({ id, name, ... }), or null: the first mission that says so (one story at a time: missionBusy) */
+function missionCarriedNow(){
+  for(const id in MISSIONS){ let it = null; try { it = MISSIONS[id].item(); } catch(e){} if(it) return it; }
+  return null;
+}
 /* A TIP-OVER WITH SOMETHING ABOARD (R5): each mission's item says what happens -- spill (its drop: the heart and the
    cake, a fail), keep, or crewReturns (the crew pick it up and hand it back as they lift him). Returns what the crew
    hand back, for their line (owDispatchTipFail -> ow.rescue.keep) */
@@ -113923,6 +113950,7 @@ class WorldScene extends Phaser.Scene {
       }
     }
     if(lidIsNear) this.drawLid(lidBox);
+    if(!npc && this.lidAng < 0.12 && this.state !== "tipped") this.drawMissionCarried(bobZ);   // (R6: what a mission has him carry, strapped on the lid)
 
     const fn = this.R(1, 0, 0);
     const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
@@ -118133,6 +118161,14 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  drawMissionCarried(bobZ){
+    const it = missionCarriedNow();
+    if(!it) return;
+    for(const b of MISSION_CARRY_ART[it.id] || MISSION_CARRY_PLAIN){
+      const z0 = LID.z1 + bobZ + (b.oz || 0);
+      this.drawBox({ hx: b.hx, hy: b.hy, z0, z1: z0 + b.h, ox: b.ox || 0, oy: b.oy || 0 }, b.c[0], b.c[1], b.c[2], false);
+    }
+  }
   drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
     const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
     const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);

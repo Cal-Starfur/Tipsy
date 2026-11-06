@@ -271,9 +271,9 @@
 "title": "Forno cook counter post; R6 on Tipsey himself",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Consistency pass: people",
-"note": "cook post built (tixCookAtPost); R6 on Tipsey himself still to do"
+"note": "cook post and R6 on Tipsey (carried item on his lid) built"
 },
 {
 "id": "pr1",
