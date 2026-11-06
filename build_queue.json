@@ -616,9 +616,18 @@
 "status": "built",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2",
 "group": "Built, awaiting your test"
+},
+{
+"id": "walkin-overlay",
+"title": "run_sheet footprint outline drifted with camera (false Pelican/Motel/Vista/Kart mismatch); now redrawn per frame",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2"
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }

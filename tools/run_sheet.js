@@ -46,11 +46,13 @@ async function walkins(page, base, only){
       const snap = async (when) => { const f = path.join(OUT, 'walkins', `${slug}-v${view}-${when.replace(/[^a-z0-9]+/gi, "-")}.jpg`); await page.screenshot({ path: f, type: 'jpeg', quality: 80 }); shots.push({ when: `${when} (view ${view})`, file: path.relative(ROOT, f) }); };
       /* outside, with the room's footprint over it */
       await page.evaluate((name) => { const s = game.scene.getScene('world'), q = POCKETS.find(x => x.name === name), v = q.view();
-        const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, c = [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
+        /* redrawn every frame: drawn once it drifts off the shell while the camera is still settling (that read as a false mismatch) */
         const g = window.__fp = s.add.graphics().setDepth(1e9).setScrollFactor(0);
-        for(const [z, col, w] of [[0, 0xff0000, 3], [q.h, 0xff8800, 2]]){ g.lineStyle(w, col, 1); g.beginPath(); c.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } }, pk.name);
+        const draw = window.__fpDraw = () => { g.clear(); const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, c = [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
+          for(const [z, col, w] of [[0, 0xff0000, 3], [q.h, 0xff8800, 2]]){ g.lineStyle(w, col, 1); g.beginPath(); c.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } };
+        s.events.on('postupdate', draw); }, pk.name);
       await page.waitForTimeout(500); await snap('outside, room footprint in red');
-      await page.evaluate(() => window.__fp.destroy());
+      await page.evaluate(() => { game.scene.getScene('world').events.off('postupdate', window.__fpDraw); window.__fp.destroy(); });
       await page.waitForTimeout(300); await snap('outside, clean');
       /* inside: through the door, then to its spawn point */
       await page.evaluate((name) => { const s = game.scene.getScene('world'), q = POCKETS.find(x => x.name === name), d = q.doors[0];

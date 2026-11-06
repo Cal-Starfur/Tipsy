@@ -117,3 +117,6 @@ graph LR
 - [?] `t-museum` Tidewater Maritime Museum (no drive, dimmer lanterns) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3) [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-trophies` Seabreeze Trophies + Pelican Drug walk-ins [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-rules` Shared rules: one door rule, meet walk, crew pace, no fades, order/solids/cache [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2) [docs/state/CONSISTENCY_PASS.md]
+
+## Fixes from testing
+- [?] `walkin-overlay` run_sheet footprint outline drifted with camera (false Pelican/Motel/Vista/Kart mismatch); now redrawn per frame [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2) [found by test run]
