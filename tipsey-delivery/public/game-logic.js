@@ -15555,9 +15555,14 @@ function vetTrailOf(grid){
   const rng = mulberry32(0x7e75a1);
   const plants = [];
   const clear = (x, y, r) => plants.every(p => Math.hypot(p.x - x, p.y - y) > (p.r + r)*0.8);
+  /* NOT IN A LANDMARK'S CELL (Sir, 2026-11-06, on the iPad at the Animal Shelter: "something around the shelter is knocking me over that I
+     can't see"): a landmark draws its own cell and the park's planting is never queued there (queueParkBlock hands it the whole block), but
+     the collision list was built from every plant, so the ones its cell would have drawn stood there unseen. A cell that is a hood landmark gets none. */
+  /* (each plant is drawn by the cell whose centre is nearest it -- queueParkTrail -- so that is the cell to ask, not the one it stands in) */
+  const inLandmark = (x, y) => { let best = null, bd = Infinity; for(const c of cells.values()){ const d = Math.abs(c.cx - x) + Math.abs(c.cy - y); if(d < bd){ bd = d; best = c; } } return !!best && best.i !== undefined && !!hoodLandmarkAtIJ(best.i, best.j); };
   const put = (p, gap) => {
     const o = off(p.x, p.y);
-    if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r)) return false;
+    if(o < gap || !inPark(p.x, p.y) || !clear(p.x, p.y, p.r) || inLandmark(p.x, p.y)) return false;
     if(vmReserved(grid, p.x, p.y, p.r)) return false;                    // (the Veterans Memorial's plaza and bandstand: VET_MEMORIAL)
     plants.push(p); return true;
   };
@@ -19281,7 +19286,7 @@ function lostDogDone(){
    Costa Palma Animal Shelter (its block, SHELTER.i, j; its door, the entry's door mark). Stopped at its path with the
    dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
    time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
-const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -1000], gateB: -700, stepB: -978 };
+const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -736], gateB: -700, stepB: -714 };
 function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
 function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
 /* the loose dogs near him: a dog with no walker, not running off, not already taken */
@@ -27349,24 +27354,28 @@ walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
    the staff door at its end), reception east of the lane in front of the supplies, a play pen and the cat tree west, the adoption
    board on the west wall. Staff: the receptionist (behind her counter), a kennel hand (the kennels, the pen); one visitor. */
 const SHELTER_IN = walkinDefine({ name: 'Costa Palma Animal Shelter Interior', from: 'Costa Palma Animal Shelter', x0: 510000, y0: 400000,
-  lab: [1164, 1964, -1500, -1000], door: { a: 1564, b: -1000, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
+  lab: [1164, 1964, -1500, -736], door: { a: 1564, b: -736, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
   /* (its way to and from the street, THE ROOM'S DAY: down the path to the pavement, and along it round either corner) */
-  street: { to: [0, 450], routes: [[[-1012, 450], [-1012, -3600]], [[1012, 450], [1012, -3600]]] } });
+  street: { to: [0, 184], routes: [[[-1012, 184], [-1012, -3600]], [[1012, 184], [1012, -3600]]] } });
 const SHELTER_STAFF_UNIFORM = { shirt: { c:0x2f8a8a, dk:0x226a6a }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   shoeKind: 'sneaker' };                                                                  // the shelter's teal polo, dark trousers (as the pavilion volunteer's, SHELTER_UNIFORM, further on)
 walkinStaff(SHELTER_IN.name, [
   { id: 'reception', role: 'receptionist', seed: 0x5e17a, U: SHELTER_STAFF_UNIFORM, fixed: true, keys: true,
-    posts: [[650, 276, Math.PI/2, 7000, true], [604, 274, Math.PI/2, 4000, true]] },
+    posts: [[630, 496, Math.PI/2, 7000, true], [590, 494, Math.PI/2, 4000, true]] },
   { id: 'kennel-hand', role: 'kennel hand', seed: 0x5e28b, U: SHELTER_STAFF_UNIFORM,
-    posts: [[185, 132, -Math.PI/2, 6000, true], [625, 132, -Math.PI/2, 5000, true], [300, 300, 0, 3000, false]] },
+    posts: [[185, 132, -Math.PI/2, 6000, true], [625, 132, -Math.PI/2, 5000, true], [318, 300, 0, 3000, false]] },
   { id: 'visitor-1', role: 'visitor', seed: 0x5e39c, look: 'visitor', life: 'browse' },
+  { id: 'visitor-2', role: 'visitor', seed: 0x5e4ad, look: 'visitor', life: 'browse' },
 ]);
-walkinLife(SHELTER_IN.name, { keep: [[340, 460, 0, 500]], looks: [
+walkinLife(SHELTER_IN.name, { keep: [[340, 460, 0, 764]], looks: [
   { id: 'kennels-w', spots: [[180, 150, -Math.PI/2]] },
   { id: 'kennels-e', spots: [[620, 150, -Math.PI/2]] },
   { id: 'pen', spots: [[318, 250, Math.PI], [190, 440, -Math.PI/2]] },
   { id: 'board', spots: [[48, 330, Math.PI]] },
-  { id: 'counter', spots: [[650, 372, -Math.PI/2]] },
+  { id: 'cats', spots: [[500, 295, 0], [610, 405, -Math.PI/2]] },
+  { id: 'counter', spots: [[630, 590, -Math.PI/2]] },
+  { id: 'retail', spots: [[735, 660, 0]] },
+  { id: 'waiting', spots: [[220, 640, Math.PI]] },
 ] });
 const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
   lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 348, out: 40, apron: 40, glass: 4,
@@ -69061,21 +69070,23 @@ marinaEntry(),
    ground shows (NO SECONDARY GRASS); the runs are gravel. Loose dogs Tipsey brings here are taken in at the door
    (SHELTER). */
 {
-  /* THE ANIMAL SHELTER'S ROOM (SHELTER_IN, 800 x 500: a east, b south, world units):
+  /* THE ANIMAL SHELTER'S ROOM (SHELTER_IN, 800 x 764 -- the building runs out to the pavement, 2026-11-06: a east, b south, world units):
        a 340..460  the door's lane, door to the staff door in the back wall, kept clear
        b 6..100    the kennel banks, a 30..330 and 470..770: four kennels each, 75 wide, chain-link fronts
-       a 540..760  the reception counter, b 300..330, the receptionist behind it; the supplies east of it, a 735..795, b 130..250
+       a 540..720  the reception counter, b 520..550, the receptionist behind it; the stock room's bags east, a 735..795, b 130..250
+       a 520..700  the cat room, b 190..380: glass on four sides, its door on the west; the retail shelves, a 735..795, b 580..740
+       a 40..300   the waiting corner, b 560..752: a rug, a pamphlet table, two benches on the front wall
        a 90..290   the play pen, b 170..400, its gate on the east side (b 260..320); the cat tree west of it, a 12..62, b 130..180
-       a 40..150   the bench by the front, b 450..478 */
+       */
   name:'Costa Palma Animal Shelter Interior', xh: 315, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 800, dd: 500,
+  ww: 800, dd: 764,
   head:'Inside the Animal Shelter: a kennel bank either side of the lane, reception, a play pen and a cat tree',
   tags:['interior','pocket','animal shelter','kennels','reception','play pen','cat tree'],
   desc:'The shelter\'s one room: two banks of chain-link kennels along the back wall with the staff door between, the reception counter in the east front with its supplies behind, a fenced play pen and a cat tree in the west, and the adoption board on the west wall.',
   draw(p){
     const pl = (typeof SHELTER_IN !== 'undefined' && SHELTER_IN) || null;
     if(pl) pl.view();
-    const W = 800, D = 500, H = pl ? pl.H : 315, AP = pl ? pl.apron : 60, LH = 66;
+    const W = 800, D = 764, H = pl ? pl.H : 315, AP = pl ? pl.apron : 60, LH = 66;
     const door = (pl && pl.door) || { side: 's', at: 400, half: 58 };
     const DA0 = door.at - door.half, DA1 = door.at + door.half;
     const cream = '#f1e8d6', creamD = '#ddd2bc', teal = '#2f8a8a', tealD = '#226a6a', floorA = '#dcd5c5', floorB = '#cfc7b4', wood = '#b99a6b', woodD = '#9a7d52';
@@ -69154,17 +69165,17 @@ marinaEntry(),
       }
     }
 
-    /* ---- RECEPTION, east of the lane: the counter b 300..330 across a 540..760 (runs), its computer and a bell; the supplies behind the east kennels ---- */
-    for(const [s0, s1] of runs(540, 760, 37)) items.push({ a: (s0 + s1)/2, b: 315, z: 0, solids: [solid(s0, s1, 300, 330, 100, 'counter')], draw: () => {
-      box(s0, s1, 300, 330, 0, 96, wood, teal, tealD);
-      box(s0 - 0.5, s1 + 0.5, 298, 332, 96, 102, '#e4d3b0', '#cdb98f', '#b9a578');
+    /* ---- RECEPTION, east of the lane in the front: the counter b 520..550 across a 540..720 (runs), its computer, phone and bell; the stock room's bags behind the east kennels ---- */
+    for(const [s0, s1] of runs(540, 720, 36)) items.push({ a: (s0 + s1)/2, b: 535, z: 0, solids: [solid(s0, s1, 520, 550, 78, 'counter')], draw: () => {
+      box(s0, s1, 520, 550, 0, 66, wood, teal, tealD);                                // (a counter's height: 66 and its top, under the waist)
+      box(s0 - 0.5, s1 + 0.5, 518, 552, 66, 72, '#e4d3b0', '#cdb98f', '#b9a578');
     }});
-    items.push({ a: 600, b: 306, z: 0, draw: () => {
-      box(582, 618, 304, 322, 102, 104, '#40454c', '#40454c', '#30343a'); F(586, 614, 104, 134, '#2e3a40', null, 0, 305); F(588, 612, 107, 131, '#9fd0e0', null, 0, 305.4);   // a screen
-      box(676, 690, 310, 322, 102, 110, '#c24a3a', '#c24a3a', '#a03a2c');                                                                                                   // a phone
-      cyl(730, 318, 102, 108, 6, '#d9b44a', '#f0d27a');                                                                                                                     // the bell
+    items.push({ a: 600, b: 526, z: 0, draw: () => {
+      box(582, 618, 524, 542, 72, 74, '#40454c', '#40454c', '#30343a'); F(586, 614, 74, 100, '#2e3a40', null, 0, 525); F(588, 612, 77, 97, '#9fd0e0', null, 0, 525.4);   // a screen
+      box(660, 674, 530, 542, 72, 80, '#c24a3a', '#c24a3a', '#a03a2c');                                                                                                   // a phone
+      cyl(700, 538, 72, 78, 6, '#d9b44a', '#f0d27a');                                                                                                                     // the bell
     }});
-    for(const [s0, s1] of runs(735, 795, 30)) items.push({ a: (s0 + s1)/2, b: 190, z: 0, solids: [solid(s0, s1, 130, 250, 90, 'supplies')], draw: () => {
+    for(const [s0, s1] of runs(735, 795, 30)) items.push({ a: (s0 + s1)/2, b: 190, z: 0, solids: [solid(s0, s1, 130, 250, 90, 'stock')], draw: () => {
       for(const [b0, b1, c] of [[134, 168, '#c98a52'], [172, 206, '#b5651d'], [210, 246, '#d9c9a8']]){
         box(s0 + 2, s1 - 2, b0, b1, 0, 44, shade(c, 1.1), c, shade(c, .8)); box(s0 + 4, s1 - 4, b0 + 2, b1 - 2, 44, 80, shade(c, 1.08), shade(c, .96), shade(c, .76));
       }
@@ -69197,11 +69208,55 @@ marinaEntry(),
       pet(37, 152, 120, '#c98a52', false);
     }});
 
-    /* ---- THE BENCH by the front, west of the door ---- */
-    for(const [s0, s1] of runs(40, 150, 37)) items.push({ a: (s0 + s1)/2, b: 464, z: 0, solids: [solid(s0, s1, 450, 478, 44, 'bench')], draw: () => {
-      box(s0, s1, 452, 476, 36, 42, wood, shade(wood, .92), woodD);
-      if(s0 < 45) box(s0, s0 + 6, 454, 474, 0, 36, woodD, woodD, shade(woodD, .85));
-      if(s1 > 145) box(s1 - 6, s1, 454, 474, 0, 36, woodD, woodD, shade(woodD, .85));
+    /* ---- THE CAT ROOM, east of the lane: a glass room b 190..380, a 520..700, its door on the west side (b 270..320); a cat tree, a bed, cats ---- */
+    const glassC = 'rgba(190,220,232,.26)', frameC = '#8fa0a8';
+    for(const [s0, s1] of runs(520, 700, 45)) for(const bb of [190, 380]) items.push({ a: (s0 + s1)/2, b: bb, z: 0, solids: [solid(s0, s1, bb - 3, bb + 3, 90, 'cat room')], draw: () => {
+      F(s0, s1, 0, 90, glassC, null, 0, bb); F(s0, s1, 86, 90, frameC, null, 0, bb + 0.4); for(const aa of [s0, s1]) cyl(aa, bb, 0, 92, 2.4, frameC); } });
+    for(const [lo, hi] of [[190, 270], [320, 380]]) for(const [s0, s1] of runs(lo, hi, 40)) items.push({ a: 520, b: (s0 + s1)/2, z: 0, solids: [solid(517, 523, s0, s1, 90, 'cat room')], draw: () => {
+      S(520, s0, s1, 0, 90, glassC); S(520.4, s0, s1, 86, 90, frameC); for(const bb of [s0, s1]) cyl(520, bb, 0, 92, 2.4, frameC); } });
+    for(const [s0, s1] of runs(190, 380, 47)) items.push({ a: 700, b: (s0 + s1)/2, z: 0, solids: [solid(697, 703, s0, s1, 90, 'cat room')], draw: () => {
+      S(700, s0, s1, 0, 90, glassC); S(700.4, s0, s1, 86, 90, frameC); for(const bb of [s0, s1]) cyl(700, bb, 0, 92, 2.4, frameC); } });
+    T(522, 698, 192, 378, 0.5, '#bfb5a1');
+    items.push({ a: 640, b: 250, z: 0, solids: [solid(626, 654, 236, 264, 150, 'cat tree')], draw: () => {
+      cyl(640, 250, 0, 150, 5, '#c9a874'); box(626, 654, 236, 264, 0, 8, '#a89270', '#8f7b5a', '#7c6a4d');
+      box(622, 658, 232, 268, 58, 66, '#c0a47a', '#a98e66', '#8f7a56'); box(626, 654, 236, 264, 108, 116, '#c0a47a', '#a98e66', '#8f7a56');
+      pet(640, 248, 116, '#e8dcc4', false); pet(640, 250, 66, '#3d3a3a', false);
+    }});
+    items.push({ a: 560, b: 330, z: 0, draw: () => {
+      box(540, 590, 312, 348, 0, 22, '#a98e66', '#8f7a56', '#7c6a4d'); pet(566, 326, 22, '#b5651d', false);
+      cyl(676, 214, 0.6, 5, 7, '#3f7fb0', '#7fb8e0'); pet(668, 338, 0.6, '#8a8f94', false);
+    }});
+
+    /* ---- THE WAITING CORNER, west of the lane, in front of the pen: a rug, a pamphlet table, a plant, two benches on the front wall ---- */
+    T(70, 290, 580, 730, 0.5, '#b9a7c9'); T(78, 282, 588, 722, 0.6, '#cdbfdb'); T(100, 260, 610, 700, 0.7, '#b9a7c9');
+    items.push({ a: 160, b: 640, z: 0, solids: [solid(120, 200, 622, 658, 42, 'table')], draw: () => {
+      box(120, 200, 622, 658, 38, 44, wood, shade(wood, .92), woodD);
+      for(const [aa, bb] of [[124, 626], [194, 626], [124, 652], [194, 652]]) box(aa - 2, aa + 2, bb - 2, bb + 2, 0, 38, woodD, woodD, shade(woodD, .85));
+      for(let k = 0; k < 4; k++) box(130 + k*16, 140 + k*16, 632, 646, 44, 46, ['#2f8a8a', '#d9b44a', '#c24a3a', '#f4f1ea'][k], '#ddd', '#bbb');
+    }});
+    items.push({ a: 50, b: 590, z: 0, solids: [solid(38, 62, 578, 602, 60, 'plant')], draw: () => {
+      cyl(50, 590, 0, 28, 12, '#b0583a', '#c9694a');
+      for(const [da, db, h] of [[0, 0, 74], [-8, 4, 58], [8, -4, 62], [4, 8, 50]]) cyl(50 + da, 590 + db, 28, 28 + h, 3.5, '#4f7a4a', '#6aa05a');
+    }});
+    for(const [b0, b1] of [[40, 150], [190, 300]]) for(const [s0, s1] of runs(b0, b1, 37)) items.push({ a: (s0 + s1)/2, b: 738, z: 0, solids: [solid(s0, s1, 724, 752, 44, 'bench')], draw: () => {
+      box(s0, s1, 726, 750, 36, 42, wood, shade(wood, .92), woodD);
+      if(s0 < b0 + 1) box(s0, s0 + 6, 728, 748, 0, 36, woodD, woodD, shade(woodD, .85));
+      if(s1 > b1 - 1) box(s1 - 6, s1, 728, 748, 0, 36, woodD, woodD, shade(woodD, .85));
+    }});
+
+    /* ---- THE RETAIL SHELVES, along the east wall in front of reception: leads, toys, bagged food; a display and the donation box ---- */
+    for(const [s0, s1] of runs(580, 740, 40)) items.push({ a: 780, b: (s0 + s1)/2, z: 0, solids: [solid(765, 795, s0, s1, 150, 'shelving')], draw: () => {
+      box(765, 795, s0, s1, 0, 150, '#e4dcc8', '#cfc6ae', '#b9b098');
+      for(const z of [14, 56, 98]) for(let k = 0; k < 3; k++){ const c = ['#d8464a', '#3f7fb0', '#f2c14e', '#5aa36a', '#8a5aa8'][(Math.floor(s0/40) + k + z) % 5], bb = s0 + 4 + k*((s1 - s0 - 8)/3);
+        box(765 - 0.5, 765 + 8, bb, bb + (s1 - s0 - 8)/3 - 3, z, z + 26, shade(c, 1.1), c, shade(c, .8)); }
+    }});
+    items.push({ a: 600, b: 700, z: 0, solids: [solid(572, 632, 676, 724, 70, 'display')], draw: () => {
+      box(572, 632, 676, 724, 0, 30, '#e4dcc8', '#cfc6ae', '#b9b098'); box(580, 624, 684, 716, 30, 62, '#e4dcc8', '#cfc6ae', '#b9b098');
+      for(let k = 0; k < 4; k++){ const c = ['#d8464a', '#3f7fb0', '#f2c14e', '#5aa36a'][k]; ball(584 + k*13, 700, 66, 6, c); }
+    }});
+    items.push({ a: 500, b: 724, z: 0, solids: [solid(486, 514, 712, 740, 60, 'donations')], draw: () => {
+      box(486, 514, 712, 740, 0, 54, '#2f8a8a', '#277474', '#1f5e5e'); box(484, 516, 710, 742, 54, 60, '#e4d3b0', '#cdb98f', '#b9a578');
+      F(494, 506, 36, 44, '#1d2a2a', null, 0, 742.2); blockWordIn('GIVE', 490, 510, 14, 28, 742.4, '#ffffff', null, 2);
     }});
 
     walkinStaffSolids(items, 'Costa Palma Animal Shelter Interior');
@@ -69212,28 +69267,27 @@ marinaEntry(),
   name:'Costa Palma Animal Shelter', xh: 260, base:'Animal shelter', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   vol: (() => {
     const H = 210, bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: [[a0,b0],[a1,b0],[a1,b1],[a0,b1]] });
-    const run = (s, a0, a1) => [bx(s + ' run fence front', a0, a1, -864, -856, 96), bx(s + ' run fence back', a0, a1, -1484, -1476, 96),
-                                bx(s + ' run fence west', a0, a0 + 8, -1484, -856, 96), bx(s + ' run fence east', a1 - 8, a1, -1484, -856, 96)];
+    const run = (s, a0, a1) => [bx(s + ' run fence front', a0, a1, -748, -740, 96), bx(s + ' run fence back', a0, a1, -1484, -1476, 96),
+                                bx(s + ' run fence west', a0, a0 + 8, -1484, -740, 96), bx(s + ' run fence east', a1 - 8, a1, -1484, -740, 96)];
     return {
       foot: [[0,0],[0,0],[0,0]],
       h: H,
       solids: [
-        bx('shelter', 1164, 1964, -1500, -1000, H),
-        bx('canopy post W', 1452, 1464, -952, -940, 150, true), bx('canopy post E', 1664, 1676, -952, -940, 150, true),
-        bx('adopt sign', 1290, 1302, -790, -778, 150, true), bx('adopt sign 2', 1826, 1838, -790, -778, 150, true),
+        bx('shelter', 1164, 1964, -1500, -736, H),
+        bx('canopy post W', 1452, 1464, -688, -676, 150, true), bx('canopy post E', 1664, 1676, -688, -676, 150, true),
         ...run('west', 780, 1100), ...run('east', 2028, 2348)
       ],
-      marks: { door: [1564, -1000] }
+      marks: { door: [1564, -736] }
     };
   })(),
   /* its glazed double door swings (recorded by shopDoor): for the worker who brings a lost dog home or out to him, and the dog after them
      (lostDogAtDoor), and for anyone listed who walks up to it */
-  swingDoors: [{ a: 1564, b: -1000, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
+  swingDoors: [{ a: 1564, b: -736, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
   head:'A low shelter, its canopy and double door on the street, dog runs either side',
   tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
   draw(p){
-    const GM = 1564, H = 210, FB = -1000, BB = -1500, A0 = 1164, A1 = 1964;
+    const GM = 1564, H = 210, FB = -736, BB = -1500, A0 = 1164, A1 = 1964;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
     /* LETTERING READS THE RIGHT WAY ROUND: the frame's mirror turns the building about GM, which is nothing to a
        symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
        place turned over too, which the mirror turns back */
@@ -69241,11 +69295,9 @@ marinaEntry(),
     const wall = '#f1e8d6', trim = '#2f8a8a', trimD = '#226a6a', roofc = '#b7b0a2', glass = 'rgba(130,170,186,.88)';
     const items = [];
     /* the path, pavement to the door, and its apron at the door */
-    T(GM - 80, GM + 80, FB, -736, 1.0, '#d9d2c2');
-    T(GM - 140, GM + 140, FB + 70, FB, 1.2, '#cfc7b4');
     /* A DOG RUN: gravel, chain-link on posts round it, its kennel and its bowl */
     const dogRun = (a0, a1) => {
-      const b0 = -1484, b1 = -856, mid = (a0 + a1)/2;
+      const b0 = -1484, b1 = -740, mid = (a0 + a1)/2;
       items.push({ a: mid, b: b0, z: 0, draw: () => {
         T(a0, a1, b0, b1, 0.8, '#cdbf9e');                                   // gravel
         for(let k = 0; k < 14; k++){ const u = ((k*37) % 97)/97, v = ((k*61) % 89)/89;
@@ -69303,16 +69355,10 @@ marinaEntry(),
     }});
     /* the canopy over the door, on its two posts, in front of the front */
     items.push({ a: GM, b: FB + 60, z: 0, shell: true, draw: () => {   // (it goes with the shell)
-      cyl(1458, -946, 0, 138, 6, '#e8e2d4'); cyl(1670, -946, 0, 138, 6, '#e8e2d4');
-      slab(1430, 1698, 138, 150, -930, FB, trim, trimD);                          // (under the fascia, over the door: the lettering clear above it)
-      F(1430, 1698, 138, 150, trim, null, 0, -930);
-      word('COSTA PALMA', 1446, 1682, 140, 148, -929, '#ffffff', null, 3);
-    }});
-    /* the ADOPT ME signs by the path */
-    for(const sa of [1296, 1832]) items.push({ a: sa, b: -784, z: 0, draw: () => {
-      cyl(sa, -784, 0, 150, 4, '#7a6a58');
-      slab(sa - 56, sa + 56, 104, 148, -780, -788, '#ffffff', '#d8d2c4');
-      word('ADOPT ME', sa - 48, sa + 48, 112, 140, -780, trim, null, 4);
+      cyl(1458, FB + 54, 0, 138, 6, '#e8e2d4'); cyl(1670, FB + 54, 0, 138, 6, '#e8e2d4');
+      slab(1430, 1698, 138, 150, FB + 70, FB, trim, trimD);                       // (under the fascia, over the door: the lettering clear above it)
+      F(1430, 1698, 138, 150, trim, null, 0, FB + 70);
+      word('COSTA PALMA', 1446, 1682, 140, 148, FB + 71, '#ffffff', null, 3);
     }});
     depthSort(items);
   }
@@ -83233,7 +83279,7 @@ function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
 const AD_RUN = { fastV: 0.12, fastMs: 500, need: 5, leadGap: 74, bolt: 260 };
 const AD_PLAN = {
   shelter: hospBay(8010, 8830), gate: hospBay(4700, 8790), pav: hospBay(4880, 8420),
-  door: { x: 7820, y: 8362 }, path: { x: 7820, y: 8700 },
+  door: { x: 7820, y: 8626 }, path: { x: 7820, y: 8720 },
   kid: { x: 4734, y: 8560 }, parent: { x: 4750, y: 8703 }, biscuit: { x: 4686, y: 8608 },   // (the kid on Biscuit's screen-right, turned to her and the eye)
   hang: { x: 5220, y: 8446 }, mgr: { x: 4958, y: 8342 },
   BISCUIT_SEED: (3 << 12) | 7      // a golden, light gold (DOG_BREEDS[3], its second coat)
@@ -94584,7 +94630,8 @@ class WorldScene extends Phaser.Scene {
     { const L = P.RAIL, xm = (L.x0 + L.x1)/2; if(vis(xm, L.y, 130, 60)) item("rail", xm, L.y, xm + L.y, () => ent.rail()); }
     { const Y = P.PYR, xm = (Y.x0 + Y.x1)/2, ym = (Y.y0 + Y.y1)/2; if(vis(xm, ym, 200, 60)) item("pyr", xm, ym, under('pyr', skRampKey('pyr')), () => ent.pyramid()); }
     P.FLOODS.forEach(([x, y], k) => { if(vis(x, y, 50, P.FLOOD_H + 20)) item("flood|" + k, x, y, x + y, () => ent.flood(k)); });
-    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 120)) item("sign", xm, S0.y, xm + S0.y, () => ent.sign()); }
+    /* the sign is 260 wide and stands 6 outside the south fence: keyed at its RIGHT end so every fence piece along it sorts behind it */
+    { const S0 = P.SIGN, xm = (S0.x0 + S0.x1)/2; if(vis(xm, S0.y, 150, 120)) item("sign", xm, S0.y, S0.x1 + S0.y, () => ent.sign()); }
     /* the fence, each run in pieces of 120 or less keyed at their own middles (he rides along it), the gateways' posts */
     for(const r of skFenceRuns()){
       const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), n = Math.max(1, Math.ceil(L/120));

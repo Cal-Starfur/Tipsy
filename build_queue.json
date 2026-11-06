@@ -701,9 +701,27 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
+},
+{
+"id": "skate-sign",
+"title": "Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2"
+},
+{
+"id": "skate-lamps",
+"title": "Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3"
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }

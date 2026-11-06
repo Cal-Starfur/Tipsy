@@ -117,3 +117,15 @@ Photos: snaps/sheet/flying/ (harbour master and museum, day, night, wide).
 - Museum: the fence, gate piers, lamps, anchor statue, steps and columns sort correctly. Cars, the van and the signal pole are in the right order. The night lamps and the street-light cone are present and there is no flat seam.
 
 **Hands-on (for Sir):** take-off, UP/DOWN buttons, too-tall slide, landing, the full Lighthouse Run (waits for the depots), fog timer feel.
+
+## skate (Driftwood Skate Park) — 2026-11-06
+Photos: snaps/sheet/skate/
+
+**Problems**
+1. FIXED — bowl-day/night: sign "DRIFTWOOD SKATE PARK" had its right half painted over by the south fence (text cut at "DRIFTWOO"). Rule: LOOK_RULES 1 (draw order). Root cause: the 260-wide sign was keyed at its middle, so fence pieces to its right sorted after it. Now keyed at its right end (`S0.x1 + S0.y`). Re-shot: full text shows.
+2. NOT FIXED — whole-park-night, pyramid-and-gate-night, bowl-night: flood pole lamp heads show as tan boxes (cardboard look) when lit; day they are dark. It comes from the shared landmark-lamp glow (queueLandmarkLamps), also used by other landmarks, so it needs Sir's decision on the lit-lamp look.
+3. Minor, not resolved — faint post lines seem to show over the sign board in bowl-day; could not zoom (PIL unavailable).
+
+**OK**: fenced concrete fills the cell, no lawn inside; bowl with blue tile under coping; both quarter pipes, fun box, rail, pyramid with run-ups; four skaters tilting on boards; flood poles lit at night with light pools; gateway posts.
+
+**Hands-on (for Sir)**: Tipsey rides the bowl and ramps.

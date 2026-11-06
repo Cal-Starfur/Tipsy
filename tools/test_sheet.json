@@ -194,7 +194,7 @@
     "Hands-on: Tipsey rides the bowl and ramps."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "rules",
