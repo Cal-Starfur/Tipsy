@@ -95578,8 +95578,7 @@ class WorldScene extends Phaser.Scene {
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
     const K = this.K, S = P.SITE, e = spEastEdge, D = P.DRIVE, R0 = P.RAMP;
-    /* the bench's own strip along the wall below the platform (the patrol track): the estate's lawn */
-    rect(P.TRACK, 0x9fbd6a, 0.6);
+    /* (the patrol track along the wall below the platform is ground but not painted: it is the sand-coloured bench) */
     /* THE PLATFORM'S FACES, in the estate's own stone (STONE, coursed every 30, capped), down to the bench: its south edge, one
        straight line with the first ramp's block's face (the drive's way up left open), and the hill's side */
     { const STONE = 0xc9bd9f, CAP = 0xe2d8c0, shade = (c, k) => hillShade(c, k);
