@@ -87874,7 +87874,12 @@ CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid
     if(!w || w.th === undefined || scene.time.now - w.t > 250) return;               // (drawn this frame or just now: drawPickupUnit sets it)
     fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, kind: 'worker', look: w._cpLook || (w._cpLook = custLook(w.seed)), ref: w }));
   } });
-CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
+CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true,
+  each(scene, t, fn){
+    const c = scene._dropCustAt;
+    if(!c || scene.time.now - c.t > 250) return;                                       // (drawn this frame or just now: the address door's draw sets it)
+    fn(cpEntry(this, { x: c.x, y: c.y, th: c.th, moving: !!c.moving, kind: 'customer', look: c.look, ref: c }));
+  } });
 /* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
 CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden, the Marina Office, Cove Locksmith, Tidewater & Co.', solid: true,
   each(scene, t, fn){
@@ -88222,7 +88227,13 @@ CITY_PEOPLE.add({ name: 'hospital seen from the street', where: "Marina General'
    the people baked into the city's landmarks outside (sidewalk cafes, the
    parks: drawCast over each landmark's cast), the vendor in the ice cream
    truck's hatch, the garage's mechanic */
-CITY_PEOPLE.add({ name: 'beach waders', where: 'the beach', solid: false, each: null });
+/* the ball pit's kids, wading and sliding (the pit's draw, fx.kind 'pit', records where each stands this frame) */
+CITY_PEOPLE.add({ name: 'ball pit kids', where: 'the ball pit', solid: true,
+  each(scene, t, fn){
+    const K = scene._pitKids;
+    if(!K || scene.time.now - K.t > 250) return;
+    for(const c of K.list) fn(cpEntry(this, { x: c.x, y: c.y, z: c.z, th: c.th, moving: !!c.moving, kind: 'kid', look: c.look, ref: c }));
+  } });
 /* the strand's residents, out of their front doors and home again (nssResidentAt) */
 CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: false,   // (knockable: updateKnocks, PASS_DODGE)
   each(scene, t, fn){
@@ -101223,6 +101234,7 @@ class WorldScene extends Phaser.Scene {
           /* signed distance from the door plane, along rv — the same
              computed draw-order test as before, now taken from his
              actual position since the path is no longer a pure rv line. */
+          this._dropCustAt = { x: cx, y: cy, th: thW + Math.PI/2, moving, t: this.time.now, look: CL };   // (CITY_PEOPLE 'drop-off customer')
           const dy = (cx - doorPx)*e.rv.x + (cy - doorPy)*e.rv.y;
           const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
           /* dropoff bag: the pickup's arc run in reverse — rises out
@@ -105302,7 +105314,7 @@ class WorldScene extends Phaser.Scene {
       const hsh = (k, j) => (((k + 1)*2654435761) ^ ((j + 7)*40503)) >>> 0;
       const ballO = (a, b, z, c) => { const p = G(a, b, z); g.fillStyle(c, 1); g.fillCircle(p.x, p.y, 8.5*K);
         g.fillStyle(HL[c] || c, 1); g.fillCircle(p.x - 2.6*K, p.y - 2.6*K, 5.2*K); };
-      const people = [];
+      const people = [], kids = this._pitKids = { t: this.time.now, list: [] };   // (kids: CITY_PEOPLE 'ball pit kids' reads where they stand)
       /* the ring of balls round a kid in the heap; half: -1 the back, 1 the front */
       const ring = (k, a, b, va, vb, half, hot) => {
         const sp = Math.hypot(va, vb), mv = sp > 1e-3 ? Math.atan2(vb, va) : 0, n = [9, 13];
@@ -105333,6 +105345,7 @@ class WorldScene extends Phaser.Scene {
         const [a, b] = at(T), [pa, pb] = at(T - 16), va = (a - pa)/16, vb = (b - pb)/16;
         const L = partyLook(0x9170 + k*37, 'kid'), th = Math.atan2(vb, va);
         const splash = Math.sin(T*0.0013 + k*2.3) > 0.72, dz = 2.2*Math.sin(T*0.006 + k*2);
+        kids.list.push({ x: x0 + a, y: y0 + sb*b, z: wadeZ + dz, th: Math.atan2(sb*Math.sin(th), Math.cos(th)), moving: true, look: L, k });
         people.push({ d: a + sb*b, f: () => {
           ring(k, a, b, va, vb, -1, splash ? 1 : 0);
           this.drawPersonHull(g, x0 + a, y0 + sb*b, wadeZ + dz, thW(th), wadeOf(L.build), L.skin, L.shirt, L.pants, L.hair, L.shoe,
@@ -105371,6 +105384,7 @@ class WorldScene extends Phaser.Scene {
           walk = walkSin(T*PEOPLE_ART.walkSpeed*0.6 + k); va *= 0.05; vb *= 0.05;
           if(w > 0.96){ a = lerp(a, LAD[0], (w - 0.96)/0.04); b = lerp(b, LAD[1], (w - 0.96)/0.04); }
         }
+        kids.list.push({ x: x0 + a, y: y0 + sb*b, z, th: Math.atan2(sb*Math.sin(th), Math.cos(th)), moving, look: L, k: kk });
         people.push({ d: a + sb*b + (z > surf + 20 ? -40 : 0), f: () => {
           if(ringOn) ring(kk, a, b, va, vb, -1, burst);
           this.drawPersonHull(g, x0 + a, y0 + sb*b, z, thW(th), wade ? wadeOf(L.build) : L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
