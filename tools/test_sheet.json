@@ -111,18 +111,23 @@
    "title": "Fleet bays and garage",
    "spots": [
     {
-     "label": "Marina Parking bays",
-     "go": "1600,21300",
+     "label": "Marina Parking bays (F3s+F3t)",
+     "go": "1600,21031",
      "view": 2
     },
     {
-     "label": "fuel farm hall",
-     "go": "26280,26800",
+     "label": "fuel farm hall F4",
+     "go": "26280,26588",
      "view": 2
     },
     {
-     "label": "harbour boathouse",
-     "go": "-5500,-12150",
+     "label": "harbour boathouse F2b",
+     "go": "-5500,-12546",
+     "view": 2
+    },
+    {
+     "label": "Sun Deck hangar F7h",
+     "go": "27990,20420",
      "view": 2
     }
    ],
