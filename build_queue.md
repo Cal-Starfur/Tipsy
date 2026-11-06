@@ -23,7 +23,7 @@ graph LR
 - [?] `p1.2` One loopWalkStep for ballroom + derby walkers (identical positions) [docs/people-unification.md]
 - [x] `p1.3` One pathAt replacing mallStaffAt + hospWalkerAt (skipped: the hospital walk is a racetrack loop, not a two-point ping-pong) [docs/people-unification.md]
 - [?] `p1.4` One talkRun for ballroom/derby chatter (visible change) [docs/people-unification.md]
-- [ ] `p1.5` EXCUSE table + excuseSay (hospital visible change) [docs/people-unification.md]
+- [?] `p1.5` EXCUSE table + excuseSay (hospital visible change) [docs/people-unification.md]
 - [ ] `p1.6` Looks through partyLook, old generators as aliases [docs/people-unification.md]
 - [ ] `p1.7` Derby onto scene.time.now [docs/people-unification.md]
 - [ ] `p2.8` PEOPLE registry (updateKnocks, blockAt, hospital walkers solid) [docs/people-unification.md]

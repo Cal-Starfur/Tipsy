@@ -9472,14 +9472,12 @@ const SAY = {
   chairMad:      ["This is a wedding, not a racetrack!", "I nearly wore my champagne!", "Who invited you?", "Do you know how long I waited for this seat?"],
   chairLeaveKind: ["Enjoy the party!", "Back to my seat, then.", "Mind the dance floor!"],
   chairLeaveMad: ["Honestly. Robots at weddings.", "Hmph. My seat.", "Ruined my toast, that did."],
-  /* ROUND HIM ON THE PAVEMENT (BOT_PASS) */
-  passPolite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
   /* WILLIAM, face to face (WILLIAM_TALK) -- and what Tipsey says back */
   williamHi:    ["Well, well. The little toaster.", "You lost, tin can?", "Oh great. You again.", "Nice wheels. Shame about the rest.", "Look who it is. Mr. Beep Boop."],
   williamDig:   ["Back in my day we carried our own groceries!", "I've got my eye on you, robot.", "My sidewalk. My rules.", "One of these days, a clean shot...", "Robots. Taking all the good jobs."],
   williamBye:   ["Now beat it.", "Don't let me catch you rolling past.", "Go on. Scram.", "Hmph. Get outta here."],
   tipseyBeep:   ["Beep?", "Boop boop.", "...beep.", "Bzzt!", "Beep beep!"],
-  passRude:  ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."]
+  /* (excuse me, round him: EXCUSE) */
 };
 /* WHO STEPS ROUND HIM (Sir, 2026-10-20: "some people dont want to go around
    him and say something rude, some dont mind and dont say anything at all
@@ -9490,6 +9488,20 @@ const SAY = {
    group, one speaks for them. Each person is always the same sort (seed). */
 const BOT_PASS = { rudeP: 0.3, politeP: 0.35, againMs: 20000, sayMs: 1900 };
 function sayPick(list){ return list[Math.floor(Math.random()*list.length)]; }
+/* EXCUSE: every "excuse me" in the game, by who says it -- the street's moods (BOT_PASS: polite, rude), the ballroom's waiter and guests,
+   the derby's adults and kids, the hospital's halls (HOSP_GIVE). excuseSay puts one over their head (scene.npcSay), a "mad" one for rude */
+const EXCUSE = {
+  polite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
+  rude:   ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."],
+  waiter: ["Mind the tray, little robot!", "Coming through!"],
+  g1:     ["Oh! Excuse me, little robot.", "After you!"],
+  g2:     ["Pardon me!", "Beep beep, coming through!"],
+  adult:  ["Excuse me, little robot!", "After you!", "Pardon me!"],
+  kid:    ["Beep beep, robot!", "Coming through!", "Hey, move!"],
+  hall:   ["Excuse me!", "Pardon me, little guy!", "Coming through!", "Oh! Hello there.", "Mind if I squeeze by?", "After you -- oh, I'll go round.", "Busy day, huh?", "Morning, robot!", "Sorry, just passing!"]
+};
+function excuseLine(kind){ return sayPick(EXCUSE[kind]); }
+function excuseSay(scene, key, pos, kind, ms){ return scene.npcSay(key, pos, excuseLine(kind), ms || 2200, kind === 'rude' ? 'mad' : undefined); }
 /* A PERSON WHO KICKS BACK (one in PED_MOOD.kick bumped): turns to him, a
    wind-up and a kick as William's (his leg hinge, WILLIAM_ACT's angles), and
    over he goes if he is still in reach; then off they walk */
@@ -24920,7 +24932,6 @@ const BALL_WALK = [
            [1170, 865], [330, 865], [330, 400, 6000, Math.PI, [['self', "What's good tonight?"], ['bt11', "The Seabreeze Spritz. House special."]]],
            [330, 865], [1170, 865]] }
 ];
-const BALL_EXCUSE = { waiter: ["Mind the tray, little robot!", "Coming through!"], g1: ["Oh! Excuse me, little robot.", "After you!"], g2: ["Pardon me!", "Beep beep, coming through!"] };
 const BALL_CHAT = {
   table: [
     ["Didn't she look stunning?", "I cried all through the vows.", "So did the groom!"],
@@ -25109,7 +25120,7 @@ function ballroomLifeTick(scene){
       }
     },
     arrive(w){ w.said = false; },
-    excuse(w){ const ex = BALL_EXCUSE[w.d.id]; say(ballSpeaker('self', w), ex[Math.floor(Math.random()*ex.length)], 2200); }
+    excuse(w){ say(ballSpeaker('self', w), excuseLine(w.d.id), 2200); }
   };
   for(const w of L.w){
     if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
@@ -29945,7 +29956,6 @@ const DERBY_WALK = [
   { id: 'run2', kind: 'kid', seed: 0x5e04, v: 0.14, path: [[1115, 1600, 1800], [1115, 2500, 600], [1115, 3500, 2500]] },
   { id: 'walk1', kind: 'mom', seed: 0x5e05, v: 0.055, path: [[1120, 2300, 5000, [1330, 2300]], [1140, 3000, 5000, [1330, 3000]]] }
 ];
-const DERBY_EXCUSE = { adult: ["Excuse me, little robot!", "After you!", "Pardon me!"], kid: ["Beep beep, robot!", "Coming through!", "Hey, move!"] };
 const DERBY_CHAT = {
   wait:   { adult: [["When does it start?", "Any minute now."], ["Got a good spot here."], ["Lemonade, anyone?", "Yes please!"], ["Is that the ramp? It's huge!"]],
             kid:   [["I wanna race next year!"], ["Which one's the fastest?"], ["Can I have a lemonade?", "After the race."]] },
@@ -29986,8 +29996,8 @@ function derbyLifeTick(scene, ow){
     stop: 70, excuseMs: 1100,
     hold(w, q){ if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); } },
     excuse(w){
-      const ex = DERBY_EXCUSE[w.d.kind === 'kid' ? 'kid' : 'adult'], h = w.d.kind === 'kid' ? 115 : 150;
-      say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), ex[Math.floor(Math.random()*ex.length)], 2200);
+      const h = w.d.kind === 'kid' ? 115 : 150;
+      say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), excuseLine(w.d.kind === 'kid' ? 'kid' : 'adult'), 2200);
     }
   };
   for(const w of L.w){
@@ -30275,8 +30285,7 @@ function derbyLeaveTick(scene, ow){
     if(!p.yielding){ p.stuck = 0; continue; }
     p._dly = (p._dly || 0) + dt; p.stuck = (p.stuck || 0) + dt;
     if(p.stuck > 1100 && t > (p.excT || 0)){
-      const ex = DERBY_EXCUSE[p.kind === 'kid' ? 'kid' : 'adult'];
-      scene.npcSay(p, null, ex[Math.floor(Math.random()*ex.length)], 2200);
+      excuseSay(scene, p, null, p.kind === 'kid' ? 'kid' : 'adult');
       p.excT = t + 6000;
     }
   }
@@ -32417,8 +32426,7 @@ const HOSP_SEP = { r: 58, step: 30, max: 42 };
 /* ROUND HIM, NOT THROUGH HIM (Sir, 2026-10-29: "people are just pushing me around in the hospital they dont go around or
    say anything about me being in the way or being nice either"): the floor's walkers, coming up on him, step to their
    own right round him (as round each other) -- q.giveWay, how far they have had to (hospHazRun has them say so) */
-const HOSP_GIVE = { r: 230, clear: 82,
-  lines: ["Excuse me!", "Pardon me, little guy!", "Coming through!", "Oh! Hello there.", "Mind if I squeeze by?", "After you -- oh, I'll go round.", "Busy day, huh?", "Morning, robot!", "Sorry, just passing!"] };
+const HOSP_GIVE = { r: 230, clear: 82 };   // (what they say: EXCUSE.hall)
 function hospGiveWayOff(x, y, th, t){
   const S = typeof scn === "function" ? scn() : null, ow = S && S.ow, pk = S && S._inside, G = HOSP_GIVE;
   if(!ow || !pk || pk.name !== HOSP_IN.name || ow.lift) return null;
@@ -32517,7 +32525,7 @@ function hospHazRun(scene, ow, dt, H, free){
     if(p.hidden || p.alpha < 0.5) continue;                                      // (one of the cast out of sight, or only coming: HOSP_CAST)
     if(p.giveWay > 18 && !(w._sayT > t) && !(HOSP_GIVE._t > t) && pk && pk.name === HOSP_IN.name && typeof scene.npcSay === "function"){
       w._sayT = t + 15000; HOSP_GIVE._t = t + 3500;
-      scene.npcSay(w, null, sayPick(HOSP_GIVE.lines), 1900); }
+      excuseSay(scene, w, null, 'hall', 1900); }
     if(d >= WALK.r - 14) continue;
     if(v01 < 0.08) continue;                                                     // (he stands there: they go round him, no shove)
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
@@ -120108,7 +120116,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(!o._passMood || this.state !== "play" || !this.visProp("people", w.x, w.y)) return;
     const at = () => { const q = w.pos(this.time.now); return q && !q.hidden && !o.knock ? { x: q.x, y: q.y, z: 0, h: 160 } : null; };
-    this.npcSay(o, at, sayPick(o._passMood === "rude" ? SAY.passRude : SAY.passPolite), B.sayMs, o._passMood === "rude" ? "mad" : undefined);
+    excuseSay(this, o, at, o._passMood === "rude" ? "rude" : "polite", B.sayMs);
   }
   /* THE NEAREST OF HIM to (px, py): the point on his centre line, front to
      back, nearest it (fleetBody), and pad, how much wider than Tipsey he is
