@@ -80357,6 +80357,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
                 poly([P(WW + 26, bA, 98), P(WW + 26, bB, 98), P(WW + 26, bB, 90), P(WW + 26, bA, 90)], shade(c, .75));
               }
             }
+            /* the cornice runs round the corner too: the cream moulding along the flank's roof edge, as on the front */
+            S(WW + 4, 4, -DD, H, H + 10, cream);
+            poly([P(WW, 4, H + 10), P(WW + 4, 4, H + 10), P(WW + 4, -DD, H + 10), P(WW, -DD, H + 10)], shade(cream, 1.08));
             /* the frieze runs round the corner: the dark board under the cornice, a copper bolt head every 24 */
             S(WW + 0.35, -DD, 0, H - 24, H - 6, dark);
             for(let b = -12; b > -DD + 6; b -= 24){
