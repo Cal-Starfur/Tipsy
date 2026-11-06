@@ -19678,7 +19678,7 @@ function cakeBallroom(){
   const front = pocketOutsideDoor(pk, pk.doors[0]), back = vaultStreet(), base = baseRoom();
   if(!front || !back || !base) return null;
   return { pk, base, front, back,                                             // back: the sidewalk lift (VAULT)
-           post: { x: front.x - 130, y: front.y + 62 },                        // the doorman's spot, west of the door
+           post: { x: front.x - 130, y: front.y + 130 },                       // the doorman's spot, west of the door, out where the canopy (soffit 222, to 150 out) does not cover his head from the eye -- 62 out it did, and the x-ray drew him whole as a ghost
            planner: { x: base.x0 + 1220, y: base.y0 + 600 } };                // by the cake's table, in the kitchen downstairs
 }
 /* WALTER'S MAT (Sir, 2026-10-23: the ballroom's front as the mall's): the
