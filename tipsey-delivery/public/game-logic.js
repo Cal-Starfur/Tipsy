@@ -7781,14 +7781,12 @@ const SAY = {
   chairMad:      ["This is a wedding, not a racetrack!", "I nearly wore my champagne!", "Who invited you?", "Do you know how long I waited for this seat?"],
   chairLeaveKind: ["Enjoy the party!", "Back to my seat, then.", "Mind the dance floor!"],
   chairLeaveMad: ["Honestly. Robots at weddings.", "Hmph. My seat.", "Ruined my toast, that did."],
-  /* ROUND HIM ON THE PAVEMENT (BOT_PASS) */
-  passPolite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
   /* WILLIAM, face to face (WILLIAM_TALK) -- and what Tipsey says back */
   williamHi:    ["Well, well. The little toaster.", "You lost, tin can?", "Oh great. You again.", "Nice wheels. Shame about the rest.", "Look who it is. Mr. Beep Boop."],
   williamDig:   ["Back in my day we carried our own groceries!", "I've got my eye on you, robot.", "My sidewalk. My rules.", "One of these days, a clean shot...", "Robots. Taking all the good jobs."],
   williamBye:   ["Now beat it.", "Don't let me catch you rolling past.", "Go on. Scram.", "Hmph. Get outta here."],
   tipseyBeep:   ["Beep?", "Boop boop.", "...beep.", "Bzzt!", "Beep beep!"],
-  passRude:  ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."]
+  /* (excuse me, round him: EXCUSE) */
 };
 /* WHO STEPS ROUND HIM (Sir, 2026-10-20: "some people dont want to go around
    him and say something rude, some dont mind and dont say anything at all
@@ -7799,6 +7797,20 @@ const SAY = {
    group, one speaks for them. Each person is always the same sort (seed). */
 const BOT_PASS = { rudeP: 0.3, politeP: 0.35, againMs: 20000, sayMs: 1900 };
 function sayPick(list){ return list[Math.floor(Math.random()*list.length)]; }
+/* EXCUSE: every "excuse me" in the game, by who says it -- the street's moods (BOT_PASS: polite, rude), the ballroom's waiter and guests,
+   the derby's adults and kids, the hospital's halls (HOSP_GIVE). excuseSay puts one over their head (scene.npcSay), a "mad" one for rude */
+const EXCUSE = {
+  polite: ["Excuse me!", "Pardon me, little guy.", "'Scuse me.", "Sorry, just squeezing by.", "Coming past, buddy."],
+  rude:   ["Move, robot.", "You're in the way!", "Seriously? On the sidewalk?", "Ugh. Robots.", "Who parks a robot here?", "Some of us are walking!", "Shift it, tin can."],
+  waiter: ["Mind the tray, little robot!", "Coming through!"],
+  g1:     ["Oh! Excuse me, little robot.", "After you!"],
+  g2:     ["Pardon me!", "Beep beep, coming through!"],
+  adult:  ["Excuse me, little robot!", "After you!", "Pardon me!"],
+  kid:    ["Beep beep, robot!", "Coming through!", "Hey, move!"],
+  hall:   ["Excuse me!", "Pardon me, little guy!", "Coming through!", "Oh! Hello there.", "Mind if I squeeze by?", "After you -- oh, I'll go round.", "Busy day, huh?", "Morning, robot!", "Sorry, just passing!"]
+};
+function excuseLine(kind){ return sayPick(EXCUSE[kind]); }
+function excuseSay(scene, key, pos, kind, ms){ return scene.npcSay(key, pos, excuseLine(kind), ms || 2200, kind === 'rude' ? 'mad' : undefined); }
 /* A PERSON WHO KICKS BACK (one in PED_MOOD.kick bumped): turns to him, a
    wind-up and a kick as William's (his leg hinge, WILLIAM_ACT's angles), and
    over he goes if he is still in reach; then off they walk */
@@ -8394,11 +8406,11 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
-                            (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
+                            (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
@@ -14911,12 +14923,12 @@ const HOOD_SHOP_SITES = [
   /* 1,4 was bare paving, the one empty block by Tidewater Green: the trophy
      shop, on its corner nearest the park (Sir, 2026-10-16). Edge 2 runs
      from the block's EAST corner (dv -x), so the row starts at the far end:
-     1656 the edge, less the shop's width (585 x 1.3) */
-  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 585*1.3 }],   // (as wide as its inside, TROPHY_IN: 760)
+     1656 the edge, less the shop's width (820: its room's walls' outer faces, TROPHY_IN) */
+  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 820 }],   // (as wide as its inside with its walls, TROPHY_IN: 760 + 2 x 30)
   /* ...and its north-east three-quarters, bare paving till now: THE TIDEWATER KART WORKS (the Flats build order, area
      3, 2026-11-01), the soapbox club's barn on the corner, its roll-up door on the east street, as deep as its room
-     (KW_PLAN: 585 x 477 lab, x 1.3 the room's 760 x 620). It ends 620 short of the depot's side on this edge, so no
-     alley gate closes the club's yard (commercialEdgeGatesOf: none over 600) */
+     (KW_PLAN: 631 x 523 lab, x 1.3 the room's 760 x 620 and its walls' 30 each side). It ends 560 short of the depot's side on
+     this edge, so an alley gate closes the club's yard there as on the south (commercialEdgeGatesOf: none over 600) */
   [1,4, 1, ["Tidewater Kart Works"], { start: 0 }],
 ];
 /* the blocks whose site list includes a whole-block building (block:true):
@@ -15790,6 +15802,9 @@ function commercialFootprintsOf(grid, blk){
         r.gate = courtyardGateKey(e, a0, a1); r.blk = blk;
         out.push(r);
       }
+      /* the yard's fence (KW_FENCE): solid always, a sliver in the gate's plane */
+      const fr = kwFenceRuns(blk);
+      if(fr && fr[ei]) for(const [a0, a1] of fr[ei]) out.push(rect(e, a0, a1, -8, -4));
     });
   }
   _cfMap.set(blk, out);
@@ -19589,7 +19604,7 @@ function tixLooks(){
 /* a walk along a way (pts) to where they stand and, leaving, back along it */
 function tixWalk(ow, pts, now, scene){
   /* side by side across the screen, on the side they come from */
-  const last = pts[pts.length - 1], side = (last.x - last.y) > (ow.px - ow.py) ? 1 : -1, M = meetWalk(ow, last, now, side, scene);
+  const last = pts[pts.length - 1], side = meetSide(ow, last, scene), M = meetWalk(ow, last, now, side, scene);
   const way = pts.concat([M.to]);
   let L = 0; for(let i = 1; i < way.length; i++) L += Math.hypot(way[i].x - way[i - 1].x, way[i].y - way[i - 1].y);
   return Object.assign(M, { way, len: L, walkMs: walkPathMs({ pts: way }) });
@@ -19620,6 +19635,12 @@ function tixHerAt(now){ const p = tixWalkAt(TIX.who, now); if(p) p.z = MALL_IN.Z
 function tixCookAt(now){ const p = tixWalkAt(TIX.cook, now); if(!p && TIX.cook && TIX.cook.leave != null) TIX.cook = null; return p; }
 /* the cook's way out: from the kitchen behind Forno's counter (which runs its whole front, the shopfront wall behind it) round its open west end; a beat to hand it over */
 const TIX_COOK_WAY = [{ a: 2070, b: 225 }, { a: 1888, b: 225 }, { a: 1888, b: 405 }], TIX_GIVE_MS = 900;
+/* THE COOK AT HIS POST (as Marisol's, tixHerAtWork: always at their place, R1): in the kitchen behind Forno's counter, where his walk out starts
+   and ends (TIX_COOK_WAY[0]), turned to the counter, working at the pass -- his hands busy. He is there whenever he is not out with the pizza */
+function tixCookAtPost(now){
+  const w = TIX_COOK_WAY[0], k = Math.sin(now*0.007), p = gothW(w.a, w.b);
+  return Object.assign(p, { th: Math.PI/2, moving: false, has: null, pose: { lift: [0.55 + 0.1*k, 0.55 - 0.1*k], bend: 0.3 } });
+}
 /* Forno's pickup bay: a mat on the counter's face, out toward the camera */
 function tixBay(){
   const ax = MALL_IN.x0 + TIX_FORNO.a, ay = MALL_IN.y0 + TIX_FORNO.b, dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 };
@@ -23226,7 +23247,6 @@ const BALL_WALK = [
            [1170, 865], [330, 865], [330, 400, 6000, Math.PI, [['self', "What's good tonight?"], ['bt11', "The Seabreeze Spritz. House special."]]],
            [330, 865], [1170, 865]] }
 ];
-const BALL_EXCUSE = { waiter: ["Mind the tray, little robot!", "Coming through!"], g1: ["Oh! Excuse me, little robot.", "After you!"], g2: ["Pardon me!", "Beep beep, coming through!"] };
 const BALL_CHAT = {
   table: [
     ["Didn't she look stunning?", "I cried all through the vows.", "So did the groom!"],
@@ -23265,7 +23285,7 @@ const BALL_CHAT = {
     ["Who made the cake?", "Sandpiper Bakery, I heard.", "Not a rose out of place."]
   ]
 };
-const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0, groups: null };
+const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), lastT: 0, groups: null };
 /* who talks: the seated guests by group (their cast's grp: t0..t4 the
    tables, b1 b2 the pairs at the bar), and each bartender (bt + seed) */
 function ballGroups(scene, pk){
@@ -23354,6 +23374,46 @@ function ballroomWalkerBlock(x, y, r){
   }
   return null;
 }
+/* loopWalkStep: one frame of a stateful loop walker (the ballroom's and the derby's). w = {i, x, y, th, wait, moving, stuck, excT}; P = its stops
+   (a, b, wait ms ...); toWorld(q) -> {x, y} of a stop; (bx, by) Tipsey; o = { stop: radius he holds them at, excuseMs: how long stuck before
+   they say so, hold(w, q): what they do while waiting at a stop, arrive(w): on reaching one, excuse(w): say excuse me }. Waits for him, never steps round. */
+function loopWalkStep(w, P, toWorld, bx, by, dt, t, o){
+  if(w.wait > 0){ const q = P[w.i]; w.moving = false; o.hold(w, q); w.wait -= dt; return; }
+  const nq = P[(w.i + 1) % P.length], tp = toWorld(nq);
+  const dx = tp.x - w.x, dy = tp.y - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
+  if(d <= st){ w.x = tp.x; w.y = tp.y; w.i = (w.i + 1) % P.length; w.wait = nq[2] || 0; if(o.arrive) o.arrive(w); return; }
+  const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
+  if(dn < o.stop && dn < Math.hypot(w.x - bx, w.y - by)){                   // he's in the way: wait for him
+    w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
+    if(w.stuck > o.excuseMs && t > w.excT){ o.excuse(w); w.excT = t + 6000; }
+    return;
+  }
+  w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+}
+/* talkRun: the chatter of a place with its own people (the ballroom's guests, the derby's crowd), one runner for both. Under the town's
+   one count (crowdTalkFree: two at a time, a gap between, scene._crowdTalk) and its one memory of what was said lately (chatPick on
+   scene._chatRecent), as the shoppers' are. o = { gap: [min, spread] ms to the next, lineMs, hush: bool, pick(): who starts, pool(g): their
+   lines, make(g, lines): a convo {lines, i, at, ...} or null, held(c): wait this line, say(c): say it, done(c): after the last }.
+   t is L's own clock; the town's count runs on scene.time.now */
+function talkRun(scene, L, t, o){
+  const tn = scene.time.now;
+  if(t >= L.nextAt && !o.hush){
+    if(crowdTalkFree(scene, tn)){
+      const g = o.pick();
+      if(g){
+        const pool = o.pool(g), lines = chatPick([[pool, 1]], null, scene._chatRecent || (scene._chatRecent = []), pool), cv = o.make(g, lines);
+        if(cv){ L.convos.push(cv); crowdTalkBegin(scene, tn, cv.lines); }
+      }
+    }
+    L.nextAt = t + o.gap[0] + Math.random()*o.gap[1];
+  }
+  for(const c of L.convos){
+    if(t < c.at || c.i >= c.lines.length) continue;
+    if(o.held && o.held(c)){ c.at = t + 600; continue; }
+    o.say(c); c.i++; c.at = t + o.lineMs;
+  }
+  L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; o.done(c); return false; });
+}
 function ballroomLifeTick(scene){
   const B = typeof cakeBallroom === 'function' ? cakeBallroom() : null;
   if(!B || !B.pk || scene._inside !== B.pk){ BALL_LIFE.lastT = 0; return; }
@@ -23365,51 +23425,36 @@ function ballroomLifeTick(scene){
                                        wait: d.path[0][2] || 0, moving: false, said: false, stuck: 0, excT: 0 }));
   /* THE WALKERS */
   const bx = scene.botX, by = scene.botY;
-  for(const w of L.w){
-    if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
-    const P = w.d.path;
-    if(w.wait > 0){
-      const q = P[w.i];
-      w.moving = false; if(q[3] != null) w.th = q[3];
+  const ballOpts = {
+    stop: 58, excuseMs: 1200,
+    hold(w, q){
+      if(q[3] != null) w.th = q[3];
       if(!w.said && q[4] && groups){
         w.said = true;
         L.convos.push({ grp: 'w|' + w.d.id, lines: q[4].map(l => l[1]), spk: q[4].map(l => ballSpeaker(l[0], w, groups, 0)), i: 0, at: t + 400 });
       }
-      w.wait -= dt;
-      continue;
-    }
-    const n = P[(w.i + 1) % P.length], tx = pk.x0 + n[0], ty = pk.y0 + n[1];
-    const dx = tx - w.x, dy = ty - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
-    if(d <= st){ w.x = tx; w.y = ty; w.i = (w.i + 1) % P.length; w.wait = n[2] || 0; w.said = false; continue; }
-    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
-    if(dn < 58 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
-      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
-      if(w.stuck > 1200 && t > w.excT){ const ex = BALL_EXCUSE[w.d.id]; say(ballSpeaker('self', w), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000; }
-      continue;
-    }
-    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+    },
+    arrive(w){ w.said = false; },
+    excuse(w){ say(ballSpeaker('self', w), excuseLine(w.d.id), 2200); }
+  };
+  for(const w of L.w){
+    if(w.knock) continue;                                                      // (knocked down: where they fell, updateKnocks)
+    loopWalkStep(w, w.d.path, q => ({ x: pk.x0 + q[0], y: pk.y0 + q[1] }), bx, by, dt, t, ballOpts);
   }
   if(!groups) return;
-  /* THE CHATTER: a new conversation every few seconds, two at most at once */
+  /* THE CHATTER: a new conversation every few seconds, under the town's count (talkRun) */
   const card = document.getElementById('docCard'), cardUp = card && !card.classList.contains('hidden');
-  if(t >= L.nextAt && L.convos.filter(c => !c.grp.startsWith('w|')).length < 2 && !cardUp){
-    const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
-    if(free.length){
-      const grp = free[Math.floor(Math.random()*free.length)];
-      let pool = (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakeUpOnTable(performance.now()) ? BALL_CHAT.cake : []);
-      const fresh = pool.filter(l => !L.recent.includes(l)); if(fresh.length) pool = fresh;
-      const lines = pool[Math.floor(Math.random()*pool.length)], s0 = Math.floor(Math.random()*4);
-      L.recent.push(lines); if(L.recent.length > 8) L.recent.shift();
-      L.convos.push({ grp, lines, spk: lines.map((_, i) => ballSpeaker(grp, null, groups, s0 + i)), i: 0, at: t });
-    }
-    L.nextAt = t + 2200 + Math.random()*2600;
-  }
-  for(const c of L.convos){
-    if(t < c.at || c.i >= c.lines.length) continue;
-    say(c.spk[c.i], c.lines[c.i]);
-    c.i++; c.at = t + 2600;
-  }
-  L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; L.cool.set(c.grp, t + 9000); return false; });
+  talkRun(scene, L, t, {
+    gap: [2200, 2600], lineMs: 2600, hush: cardUp,
+    pick(){
+      const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
+      return free.length ? free[Math.floor(Math.random()*free.length)] : null;
+    },
+    pool: grp => (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakeUpOnTable(performance.now()) ? BALL_CHAT.cake : []),
+    make(grp, lines){ const s0 = Math.floor(Math.random()*4); return { grp, lines, spk: lines.map((_, i) => ballSpeaker(grp, null, groups, s0 + i)), i: 0, at: t }; },
+    say(c){ say(c.spk[c.i], c.lines[c.i]); },
+    done(c){ L.cool.set(c.grp, t + 9000); }
+  });
 }
 /* ==================== THE KITCHEN'S RUNNERS (Sir, 2026-10-18: "workers in
    there doing things and being sent upstairs with food for the party using
@@ -26184,7 +26229,7 @@ function trophyInShift(){
   const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
   const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
   if(!S) return null;
-  return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
+  return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D + 30) });   // (the room's outer walls stand 30 outside its floor: their faces are the shell's, 820 x 660)
 }
 /* the shop's door on its glass line, facing the street (the walk-in door's world point) */
 function trophyDoorWorld(){
@@ -26202,8 +26247,8 @@ POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-564, 184], [-564, -3600]], [[1460, 184], [1460, -3600]]] },
   /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
-  openings: [{ p: [[320.3, 600], [440, 600]], z: [0, 210.5] }, { p: [[18.2, 600], [299.65, 600]], z: [42.9, 202.8], glass: true },
-             { p: [[460.85, 600], [742.3, 600]], z: [42.9, 202.8], glass: true }],
+  openings: [{ p: [[320, 630], [440, 630]], z: [0, 210.5] }, { p: [[-11.8, 630], [299.4, 630]], z: [42.9, 202.8], glass: true },
+             { p: [[460.6, 630], [771.8, 630]], z: [42.9, 202.8], glass: true }],
   get night(){ return walkinNightBoxes(TROPHY_IN.W, TROPHY_IN.D, TROPHY_IN.H, 66); },
   /* (open late for him while Fourth Place needs its engraver: walkinShut) */
   late: () => typeof FOURTH !== 'undefined' && ['shop', 'engrave', 'engraved'].includes(FOURTH.stage),
@@ -27711,29 +27756,46 @@ walkinLife('KTDE 98.1 The Tide Studios', { keep: [[495, 575, 1300, 1516], [680, 
    shell easing off round him; its roll-up, its windows and its flank's windows holes the room shows through (W11); its
    hours the place card's (Kart workshop, 8 to 6), locked when shut, its people out of the door at closing and in at
    opening (W17): the roll-up comes down behind the last of them and goes up for the first (kwDoorT). */
-const KW_PLAN = { name: 'Tidewater Kart Works', WW: 585, DD: 477, HE: 110, AK: 100, HK: 158, HR: 190, DOOR: [222, 363], DH: 100,
-  WINF: [[40, 170], [415, 545]], WINS: [[-50, -150], [-190, -290], [-330, -430]], SILL: 20, HEAD: 92, SC: 1.3, ZK: 1.95,
-  LAMPS: [184, 401] };
+/* (Sir, 2026-11-06: "the shell of this building is too small too ... the interior is wider than the exterior"): the room's walls
+   stand WALL (30 world, as every room's) outside its floor, so the barn is as big as the room WITH them -- W0 x D0 is the floor
+   (585 x 477 lab, x 1.3 the room's 760 x 620) and WW x DD the shell, WALL more on every side; the door, windows and lamps are
+   the floor's, carried WALL along and in (a + WALL, b - WALL) */
+const KW_PLAN = (() => { const W0 = 585, D0 = 477, WALL = 30/1.3;
+  return { name: 'Tidewater Kart Works', W0, D0, WALL, WW: W0 + 2*WALL, DD: D0 + 2*WALL, HE: 110, AK: 100, HK: 158, HR: 190, DOOR: [222 + WALL, 363 + WALL], DH: 100,
+    WINF: [[40 + WALL, 170 + WALL], [415 + WALL, 545 + WALL]], WINS: [[-50 - WALL, -150 - WALL], [-190 - WALL, -290 - WALL], [-330 - WALL, -430 - WALL]],
+    SILL: 20, HEAD: 92, SC: 1.3, ZK: 1.95, LAMPS: [184 + WALL, 401 + WALL] }; })();
 const KW_IN = (() => {
   const P = KW_PLAN, s = P.SC, z = P.ZK;
-  return { name: 'Tidewater Kart Works Interior', x0: 440000, y0: 420000, W: P.DD*s, D: P.WW*s, H: P.HE*z, LH: 66,
-    door: { at: (P.DOOR[0] + P.DOOR[1])/2*s, half: (P.DOOR[1] - P.DOOR[0])/2*s },
-    winE: P.WINF.map(([a0, a1]) => [a0*s, a1*s, P.SILL*z]),
-    winS: P.WINS.map(([b0, b1]) => [(P.DD + b1)*s, (P.DD + b0)*s, P.SILL*z]).sort((m, n) => m[0] - n[0]),
+  return { name: 'Tidewater Kart Works Interior', x0: 440000, y0: 420000, W: P.D0*s, D: P.W0*s, H: P.HE*z, LH: 66,
+    door: { at: ((P.DOOR[0] + P.DOOR[1])/2 - P.WALL)*s, half: (P.DOOR[1] - P.DOOR[0])/2*s },
+    winE: P.WINF.map(([a0, a1]) => [(a0 - P.WALL)*s, (a1 - P.WALL)*s, P.SILL*z]),
+    winS: P.WINS.map(([b0, b1]) => [(P.D0 + b1 + P.WALL)*s, (P.D0 + b0 + P.WALL)*s, P.SILL*z]).sort((m, n) => m[0] - n[0]),
     stand: [320, 630] };
 })();
 /* the roll-up's curtain: t 0 down .. 1 coiled up, and how long it takes (queueKartYard) */
 const KW_DOOR = { t: null, ms: 1400 };
 /* number 4's new kart: racing red (the hardware's tin), the club's white stripe */
 const KW_KART = { col: '#d8352a', dk: '#a8281f' };
-/* THE YARD, in the block's frame (its north-west corner; a east, b south): the barn takes a 1036..1656, b 0..760 */
+/* THE YARD, in the block's frame (its north-west corner; a east, b south): the barn (KW_PLAN: 820 x 680) takes a 976..1656, b 0..820 */
 const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
   chute: { b: [842, 942], a: [830, 920, 1080, 1360, 1392], z: 45 },
   bays: [{ at: [826, 1150], col: '#5aa05a', dk: '#447a44', no: 2 }, { at: [916, 1150], col: '#f2b544', dk: '#c48d2c', no: 3, stripe: '#1e1e22' },
          { at: [1006, 1150], col: '#e8e4da', dk: '#c4bfb2', no: 1, stripe: '#2a6fb0' }],
   tyres: [[1074, 1110, 4]],
   store: [190, 390, 36, 104, 120],
-  tables: [[420, 330], [600, 330]], board: [510, 170], bin: [700, 180] };
+  tables: [[700, 260], [700, 400]], board: [700, 150], bin: [790, 165],
+  /* the practice loop on the yard's open middle: its centre line a rounded rectangle a0..a1 x b0..b1 (corner radius R), the
+     ribbon 2 x hw across; the start line across its west straight at b = start; the pit canopy and the benches on the infield */
+  track: { a0: 150, a1: 520, b0: 190, b1: 560, R: 90, hw: 45, start: 330 },
+  pit: [230, 370, 300, 490], benches: [[420, 262, 1], [420, 488, -1]] };
+/* THE YARD'S FENCE (Sir, 2026-11-06: "fence the rest of the block to match this gate"): the alley gate's own iron fence, in its
+   plane (b -6) along the block's three open frontages, as runs [a0, a1] on each edge's own frame (blockEdgesOf: 0 north, a east;
+   1 east, a south; 3 west, a north from the south corner). Shut and solid: the courtyard's way in stays the south gate.
+     north  0..976       the barn's north wall takes it from there
+     west   660..1656    from Seabreeze Trophies' west wall (996 in from the north) to the north corner
+   (the east frontage, from the barn's south wall to the depot, is an alley gate's own: commercialEdgeGatesOf, a span of 560) */
+const KW_FENCE = { ij: '1,4', runs: { 0: [[0, 976]], 3: [[660, 1656]] }, B: -6, panel: 150 };
+function kwFenceRuns(blk){ return blk && blk.i + ',' + blk.j === KW_FENCE.ij ? KW_FENCE.runs : null; }
 /* the yard's origin in the world (block 1,4's north-west corner), once the grid is known */
 function kwYardO(){
   if(kwYardO.o) return kwYardO.o;
@@ -27744,7 +27806,7 @@ function kwYardO(){
 function kwStandStage(){ return typeof KW !== 'undefined' ? KW.stand : 'bare'; }
 /* THE ROOM (the walk-in kit): the barn's lab rect, its roll-up's middle on the gable's foot */
 const KW_POCKET = walkinDefine({ name: KW_IN.name, from: KW_PLAN.name, x0: KW_IN.x0, y0: KW_IN.y0,
-  lab: [0, KW_PLAN.WW, -KW_PLAN.DD, 0], door: { a: (KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, b: 0, half: KW_IN.door.half }, H: KW_IN.H, out: 60, glass: 60,
+  lab: [KW_PLAN.WALL, KW_PLAN.WW - KW_PLAN.WALL, -(KW_PLAN.DD - KW_PLAN.WALL), -KW_PLAN.WALL], door: { a: (KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, b: 0, half: KW_IN.door.half }, H: KW_IN.H, out: 60, glass: 60,
   /* (its way to and from the street, THE ROOM'S DAY: out of the roll-up onto the east pavement's walking line, and along
      it round either corner of the block -- the north street west, the south street west past the depot) */
   street: { to: [184, 0], routes: [[[184, -564], [-3600, -564]], [[184, 1460], [-3600, 1460]]] },
@@ -28209,7 +28271,6 @@ const DERBY_WALK = [
   { id: 'run2', kind: 'kid', seed: 0x5e04, v: 0.14, path: [[1115, 1600, 1800], [1115, 2500, 600], [1115, 3500, 2500]] },
   { id: 'walk1', kind: 'mom', seed: 0x5e05, v: 0.055, path: [[1120, 2300, 5000, [1330, 2300]], [1140, 3000, 5000, [1330, 3000]]] }
 ];
-const DERBY_EXCUSE = { adult: ["Excuse me, little robot!", "After you!", "Pardon me!"], kid: ["Beep beep, robot!", "Coming through!", "Hey, move!"] };
 const DERBY_CHAT = {
   wait:   { adult: [["When does it start?", "Any minute now."], ["Got a good spot here."], ["Lemonade, anyone?", "Yes please!"], ["Is that the ramp? It's huge!"]],
             kid:   [["I wanna race next year!"], ["Which one's the fastest?"], ["Can I have a lemonade?", "After the race."]] },
@@ -28229,7 +28290,7 @@ const DERBY_CHAT = {
    people refer to #4 i dont like that the judge can say it but other people
    makes it seem weird"): the crowd's lines above name no driver by number
    but the winner; the judge and the starter's calls are the only ones who do. */
-const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0 };
+const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), lastT: 0 };
 let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fills it): who can speak
 /* THE DERBY'S PEOPLE KNOCKED DOWN (Sir, 2026-10-25: "the derby crowd and the people walking round Tidewater Green ...
    need to fall too"): who of the crowd is down (their k), not drawn in their place meanwhile (drawCast) nor met there
@@ -28237,7 +28298,7 @@ let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fil
 const DERBY_DOWN = new Set();
 function derbyW(a, n){ return { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n }; }
 function derbyLifeTick(scene, ow){
-  const L = DERBY_LIFE, t = performance.now();
+  const L = DERBY_LIFE, t = scene.time.now;
   const dt = L.lastT ? Math.min(100, t - L.lastT) : 0; L.lastT = t;
   if(!DERBY_O) return;
   const near = Math.abs(ow.px - (DERBY_O.x0 + 1564)) < 3200 && Math.abs(ow.py - (DERBY_O.y0 + 736 + 2400)) < 4600;
@@ -28246,57 +28307,43 @@ function derbyLifeTick(scene, ow){
   if(!L.w) L.w = DERBY_WALK.map(d => { const p = derbyW(d.path[0][0], d.path[0][1]); return { d, i: 0, x: p.x, y: p.y, th: Math.PI/2, wait: (d.path[0][2] || 0)*Math.random(), moving: false, stuck: 0, excT: 0 }; });
   /* THE WALKERS */
   const bx = ow.px, by = ow.py;
+  const derbyOpts = {
+    stop: 70, excuseMs: 1100,
+    hold(w, q){ if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); } },
+    excuse(w){
+      const h = w.d.kind === 'kid' ? 115 : 150;
+      say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), excuseLine(w.d.kind === 'kid' ? 'kid' : 'adult'), 2200);
+    }
+  };
   for(const w of L.w){
     if(w.leave || w.knock) continue;                                      // (gone home: DERBY_LEAVE; knocked down: updateKnocks)
-    const P = w.d.path;
-    if(w.wait > 0){
-      const q = P[w.i]; w.moving = false;
-      if(q[3]){ const f = derbyW(q[3][0], q[3][1]); w.th = Math.atan2(f.y - w.y, f.x - w.x); }
-      w.wait -= dt; continue;
-    }
-    const nq = P[(w.i + 1) % P.length], tp = derbyW(nq[0], nq[1]);
-    const dx = tp.x - w.x, dy = tp.y - w.y, d = Math.hypot(dx, dy), st = w.d.v*dt;
-    if(d <= st){ w.x = tp.x; w.y = tp.y; w.i = (w.i + 1) % P.length; w.wait = nq[2] || 0; continue; }
-    const nx = w.x + dx/d*st, ny = w.y + dy/d*st, dn = Math.hypot(nx - bx, ny - by);
-    if(dn < 70 && dn < Math.hypot(w.x - bx, w.y - by)){                     // he's in the way: wait for him
-      w.moving = false; w.th = Math.atan2(dy, dx); w.stuck += dt;
-      if(w.stuck > 1100 && t > w.excT){
-        const ex = DERBY_EXCUSE[w.d.kind === 'kid' ? 'kid' : 'adult'], h = w.d.kind === 'kid' ? 115 : 150;
-        say('w' + w.d.id, () => ({ x: w.x, y: w.y, z: 0, h }), ex[Math.floor(Math.random()*ex.length)], 2200); w.excT = t + 6000;
-      }
-      continue;
-    }
-    w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
+    loopWalkStep(w, w.d.path, q => derbyW(q[0], q[1]), bx, by, dt, t, derbyOpts);
   }
   /* THE CHATTER */
   const up = id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
   const cardUp = up('docCard') || !!document.getElementById('ideaCard');
   const hush = typeof FOURTH !== "undefined" && FOURTH.stage === 'ask';          // (the judges talking, Tipsey listening: FOURTH_TALK)
-  if(t >= L.nextAt && L.convos.length < 2 && !cardUp && !hush && DERBY_CROWD.length){
-    const S = derbyCrowdState(), pool = DERBY_CHAT[S.phase] || DERBY_CHAT.wait;
-    const vw = scene.scale.width, vh = scene.scale.height;
-    const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
-    const cand = DERBY_CROWD.filter(c => { if(DERBY_LEAVE.gone.has(c.k)) return false; const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
-    if(cand.length){
-      const c = cand[Math.floor(Math.random()*cand.length)], set = pool[c.kind === 'kid' ? 'kid' : 'adult'];
-      let lines = set.filter(l => !L.recent.includes(l)); if(!lines.length) lines = set;
-      const line = lines[Math.floor(Math.random()*lines.length)];
-      L.recent.push(line); if(L.recent.length > 6) L.recent.shift();
+  talkRun(scene, L, t, {
+    gap: [2400, 2400], lineMs: 2700, hush: cardUp || hush || !DERBY_CROWD.length,
+    pick(){
+      const vw = scene.scale.width, vh = scene.scale.height;
+      const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
+      const cand = DERBY_CROWD.filter(c => { if(DERBY_LEAVE.gone.has(c.k)) return false; const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
+      return cand.length ? cand[Math.floor(Math.random()*cand.length)] : null;
+    },
+    pool: c => { const S = derbyCrowdState(), P = DERBY_CHAT[S.phase] || DERBY_CHAT.wait; return P[c.kind === 'kid' ? 'kid' : 'adult']; },
+    make(c, line){
       let mate = null;
       if(line[1]) for(const o of DERBY_CROWD) if(o !== c && !DERBY_LEAVE.gone.has(o.k) && Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < 140 && (!mate || Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < Math.abs(mate.a - c.a) + Math.abs(mate.n - c.n))) mate = o;
-      const who = mate ? [c, mate] : [c];
-      L.convos.push({ who, lines: mate ? line : [line[0]], i: 0, at: t });
-    }
-    L.nextAt = t + 2400 + Math.random()*2400;
-  }
-  for(const v of L.convos){
-    if(t < v.at || v.i >= v.lines.length) continue;
-    if(cardUp){ v.at = t + 600; continue; }                               // (not over anyone's card: they wait)
-    const c = v.who[v.i], p = derbyW(c.a, c.n), h = c.kind === 'kid' ? 112 : 150;
-    say('c' + c.a + ',' + c.n, () => derbyOn() ? { x: p.x, y: p.y, z: 0, h } : null, v.lines[v.i]);
-    v.i++; v.at = t + 2700;
-  }
-  L.convos = L.convos.filter(v => { if(v.i < v.lines.length || t < v.at - 200) return true; for(const c of v.who) L.cool.set(c, t + 12000); return false; });
+      return { who: mate ? [c, mate] : [c], lines: mate ? line : [line[0]], i: 0, at: t };
+    },
+    held: () => cardUp,                                                   // (not over anyone's card: they wait)
+    say(v){
+      const c = v.who[v.i], p = derbyW(c.a, c.n), h = c.kind === 'kid' ? 112 : 150;
+      say('c' + c.a + ',' + c.n, () => derbyOn() ? { x: p.x, y: p.y, z: 0, h } : null, v.lines[v.i]);
+    },
+    done(v){ for(const c of v.who) L.cool.set(c, t + 12000); }
+  });
 }
 /* a walker is solid to him; so is the crowd, while they stand there (DERBY_LEAVE) */
 function derbyWalkerBlock(x, y, r){
@@ -28553,8 +28600,7 @@ function derbyLeaveTick(scene, ow){
     if(!p.yielding){ p.stuck = 0; continue; }
     p._dly = (p._dly || 0) + dt; p.stuck = (p.stuck || 0) + dt;
     if(p.stuck > 1100 && t > (p.excT || 0)){
-      const ex = DERBY_EXCUSE[p.kind === 'kid' ? 'kid' : 'adult'];
-      scene.npcSay(p, null, ex[Math.floor(Math.random()*ex.length)], 2200);
+      excuseSay(scene, p, null, p.kind === 'kid' ? 'kid' : 'adult');
       p.excT = t + 6000;
     }
   }
@@ -30695,8 +30741,7 @@ const HOSP_SEP = { r: 58, step: 30, max: 42 };
 /* ROUND HIM, NOT THROUGH HIM (Sir, 2026-10-29: "people are just pushing me around in the hospital they dont go around or
    say anything about me being in the way or being nice either"): the floor's walkers, coming up on him, step to their
    own right round him (as round each other) -- q.giveWay, how far they have had to (hospHazRun has them say so) */
-const HOSP_GIVE = { r: 230, clear: 82,
-  lines: ["Excuse me!", "Pardon me, little guy!", "Coming through!", "Oh! Hello there.", "Mind if I squeeze by?", "After you -- oh, I'll go round.", "Busy day, huh?", "Morning, robot!", "Sorry, just passing!"] };
+const HOSP_GIVE = { r: 230, clear: 82 };   // (what they say: EXCUSE.hall)
 function hospGiveWayOff(x, y, th, t){
   const S = typeof scn === "function" ? scn() : null, ow = S && S.ow, pk = S && S._inside, G = HOSP_GIVE;
   if(!ow || !pk || pk.name !== HOSP_IN.name || ow.lift) return null;
@@ -30795,7 +30840,7 @@ function hospHazRun(scene, ow, dt, H, free){
     if(p.hidden || p.alpha < 0.5) continue;                                      // (one of the cast out of sight, or only coming: HOSP_CAST)
     if(p.giveWay > 18 && !(w._sayT > t) && !(HOSP_GIVE._t > t) && pk && pk.name === HOSP_IN.name && typeof scene.npcSay === "function"){
       w._sayT = t + 15000; HOSP_GIVE._t = t + 3500;
-      scene.npcSay(w, null, sayPick(HOSP_GIVE.lines), 1900); }
+      excuseSay(scene, w, null, 'hall', 1900); }
     if(d >= WALK.r - 14) continue;
     if(v01 < 0.08) continue;                                                     // (he stands there: they go round him, no shove)
     /* NEVER INTO A WALL (Sir, 2026-10-10: "im getting stuck when the people
@@ -31559,10 +31604,7 @@ function lostItemTick(scene, ow){
     const step = edgePt(d.e, d.along, d.bDoor + 22);
     /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
        the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
-    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
-    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
-    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
-    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const side = meetSide(ow, step, scene);
     const M = meetWalk(ow, step, now, side, scene);
     M.look = folkLook(who); M.step = step;
     const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
@@ -31968,6 +32010,16 @@ function meetApproach(scene, at, from, dist, z){
   }
   return best.p;
 }
+/* WHICH SIDE OF HIM (meetWalk's side, so both faces show): the side they come from, across the screen; the other side if that spot is in
+   something or covered by what is drawn (meetCoverAt) and the other is not. One chooser for every caller (lhSide, ohSide, kwSide, rlSide, the
+   ticket exchange, a lost item's owner); a caller with its own reasons (trophyMeetSide) keeps them */
+function meetSide(ow, from, scene){
+  scene = scene || (typeof scn === "function" ? scn() : null);
+  const ok = sd => { const x = ow.px + sd*MEET.gap/Math.SQRT2, y = ow.py - sd*MEET.gap/Math.SQRT2; return owSpotClear(scene, x, y, 16) && !meetCoverAt(scene, x, y, 0); };
+  let side = (from.x - from.y) > (ow.px - ow.py) ? 1 : -1;
+  if(scene && !ok(side) && ok(-side)) side = -side;
+  return side;
+}
 /* their meeting, standing where they are: he turns to them (meetTick), they turn to him (cheated to the eye) */
 function meetStand(ow, at, now, th0){
   return { from: at, to: at, t0: now, walkMs: 1, th0: th0 != null ? th0 : (at.th != null ? at.th : null), leave: null, card: false, stay: true,
@@ -32295,6 +32347,33 @@ function missionPay(payId, cents){
     .then(r => r.ok ? r.json() : null)
     .then(d => { if(!d || typeof d.walletCents !== "number") return; tpProfile.walletCents = d.walletCents; tpSaveProfile(); if(typeof tpRender === "function") tpRender(); })
     .catch(() => {});
+}
+/* R6 ON TIPSEY HIMSELF (one item per step, seen): what a mission has him carry is in his cargo cavity, seen whenever the lid is open (handing over,
+   taking on), drawn with his body (drawMissionCarried). Each id is a few boxes { hx, hy, h (up from the lid), ox, oy, c: [top, right, left] }, small
+   enough to sit in the cavity (hx 20, hy 14, the cavity floor); an id with no art of its own rides as a plain brown parcel, so nothing carried is ever unseen. */
+const MISSION_CARRY_ART = {
+  heart:  [{ hx: 12, hy: 9, h: 9, c: [0xd9433a, 0xb23229, 0x932821] }, { hx: 12.6, hy: 9.6, h: 2, oz: 9, c: [0xf2f3f5, 0xd4d7dc, 0xbcc0c7] }],   // the donor heart's cool box
+  cake:   [{ hx: 11, hy: 11, h: 9, c: [0xf7ecf0, 0xe3cdd5, 0xcfb4be] }, { hx: 11.4, hy: 11.4, h: 1.5, oz: 9, c: [0xf0a5bd, 0xd5879f, 0xbd6f89] }],   // the top tier's box
+  parcel: [{ hx: 11, hy: 11, h: 9, c: [0xf7ecf0, 0xe3cdd5, 0xcfb4be] }, { hx: 3, hy: 11.6, h: 9.6, c: [0xc2352e, 0xa12a24, 0x86221e] }],   // the cake, the roses tied on its box
+  roses:  [{ hx: 16, hy: 4, h: 3, c: [0x4f8a4a, 0x3f6f3b, 0x325a2f] }, { hx: 6, hy: 5, h: 3, ox: 8, oz: 3, c: [0xc2352e, 0xa12a24, 0x86221e] }],
+  note:   [{ hx: 8, hy: 5.5, h: 1.2, c: [0xfaf7ee, 0xe2ddd0, 0xcdc7b8] }],
+  note2:  [{ hx: 8, hy: 5.5, h: 1.2, c: [0xfaf7ee, 0xe2ddd0, 0xcdc7b8] }],
+  uniform:[{ hx: 10, hy: 8, h: 5, c: [0x6c4a9a, 0x553a7a, 0x452e64] }],
+  pizza:  [{ hx: 12, hy: 12, h: 3, c: [0xe2b262, 0xc79a50, 0xab8442] }],
+  lamp:   [{ hx: 6, hy: 6, h: 11, c: [0xf5d54e, 0xd3b43c, 0xb39830] }],
+  fish:   [{ hx: 13, hy: 9, h: 8, c: [0x6f8fa8, 0x587588, 0x465f6f] }],
+  banner: [{ hx: 3, hy: 13, h: 3.5, c: [0xd9534f, 0xb4423f, 0x953633] }],
+  pouch:  [{ hx: 8, hy: 6, h: 6, c: [0x4a4f5a, 0x393d46, 0x2c2f37] }],
+  wheels: [{ hx: 6, hy: 3, h: 6, ox: -8, c: [0x2e3138, 0x22252a, 0x1a1c20] }, { hx: 6, hy: 3, h: 6, ox: 8, c: [0x2e3138, 0x22252a, 0x1a1c20] }],
+  boards: [{ hx: 17, hy: 5, h: 2.5, oy: -6, c: [0x35b6b0, 0x2a928d, 0x207673] }, { hx: 17, hy: 5, h: 2.5, oy: 6, oz: 2.5, c: [0xf08a3c, 0xc87030, 0xa05a26] }],
+  trophy: [{ hx: 5, hy: 5, h: 11, c: [0xe8b83c, 0xc49a30, 0xa07d26] }],
+  fob:    [{ hx: 3.5, hy: 2.2, h: 1.6, c: [0x5fe8e0, 0x49b8b2, 0x3b9a95] }]
+};
+const MISSION_CARRY_PLAIN = [{ hx: 9, hy: 9, h: 7, c: [0xb88a55, 0x9a7144, 0x805c37] }];
+/* the item a mission has him carrying now ({ id, name, ... }), or null: the first mission that says so (one story at a time: missionBusy) */
+function missionCarriedNow(){
+  for(const id in MISSIONS){ let it = null; try { it = MISSIONS[id].item(); } catch(e){} if(it) return it; }
+  return null;
 }
 /* A TIP-OVER WITH SOMETHING ABOARD (R5): each mission's item says what happens -- spill (its drop: the heart and the
    cake, a fail), keep, or crewReturns (the crew pick it up and hand it back as they lift him). Returns what the crew
@@ -48619,7 +48698,7 @@ function houseCanopy(fn){
     const cream = '#f3e7c9', navy = '#24476b', navyD = '#16304b', gold = '#e8c35a', goldD = '#b8902a';
     const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea', dark = '#30353b', darkF = '#262a2f', darkS = '#1f2226';
     const METAL = { gold: ['#ffe08a', '#e8bf48', '#b8902a', '#8a6a1c'], silver: ['#f6f8fb', '#cdd3da', '#9aa2ad', '#6d7580'], bronze: ['#f0bf8e', '#c98a52', '#9a6034', '#6e4224'] };
-    const WINS = [[18, 300], [461, 742]], SILL = 28.6;                                   // the shop's windows (14..230.5, 354.5..571 lab, x 1.3), their sill
+    const WINS = [[-11.8, 299.4], [460.6, 771.8]], SILL = 28.6;                           // the shop's windows (14..253.4, 377.4..616.8 lab, x 1.3, less the wall's 30), their sill
     const REAR_DOOR = [506, 590], REAR_WIN = [34, 125, 109, 172];                         // its rear door and window (rearDoor WW*0.72, rearWindow 26..96 x 84..132 lab, x 1.3)
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
@@ -48737,7 +48816,7 @@ function houseCanopy(fn){
       }}); }
 
     /* ---- THE WINDOWS' CUPS, inside the shop's two windows: stepped glass stands of cups, as the street sees them ---- */
-    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(w0 + 4, w1 - 4)) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
+    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(Math.max(w0 + 4, 6), Math.min(w1 - 4, W - 6))) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
       const tiers = [[D - 16, D - 2, 30], [D - 30, D - 16, 48], [D - 44, D - 30, 66]];
       for(const [t0, t1, z] of tiers){
         box(s0, s1, t0, t1, z - 3, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));
@@ -49021,6 +49100,61 @@ function houseCanopy(fn){
     const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', WOODD = ['#8a6446', '#6e4f38', '#5b412e'];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'yard', poly: volRect(a0, a1, b0, b1), h });
     const [B0, B1] = C.b, [A0, AD, AS, AR, AT] = C.a, Z = C.z, rz = a => a <= AD ? Z : a >= AS ? 0 : Z*(AS - a)/(AS - AD);
+
+    /* ---- THE PRACTICE LOOP (the club's, painted on the block's own paving: asphalt ribbon, white edge lines, a dashed
+       centre, the chequered start line) -- ground, drawn before any piece stands on it; then its cones, tyre barriers
+       at the corners, the start gantry, the pit canopy and two benches on the infield ---- */
+    const TR = KW_YARD.track, TP = [], tyreSpots = [];
+    { const { a0, a1, b0, b1, R } = TR;
+      const line = (pa, pb, qa, qb, na, nb) => { const n = Math.max(1, Math.ceil(Math.hypot(qa - pa, qb - pb)/45)); for(let k = 0; k < n; k++) TP.push({ a: pa + (qa - pa)*k/n, b: pb + (qb - pb)*k/n, na, nb }); };
+      const arc = (ca, cb, t0) => { for(let k = 0; k < 6; k++){ const t = t0 + Math.PI/2*k/6; TP.push({ a: ca + R*Math.cos(t), b: cb + R*Math.sin(t), na: Math.cos(t), nb: Math.sin(t) });
+        if(k % 2) tyreSpots.push([ca + (R + TR.hw + 24)*Math.cos(t), cb + (R + TR.hw + 24)*Math.sin(t)]); } };
+      line(a0 + R, b0, a1 - R, b0, 0, -1); arc(a1 - R, b0 + R, -Math.PI/2);
+      line(a1, b0 + R, a1, b1 - R, 1, 0); arc(a1 - R, b1 - R, 0);
+      line(a1 - R, b1, a0 + R, b1, 0, 1); arc(a0 + R, b1 - R, Math.PI/2);
+      line(a0, b1 - R, a0, b0 + R, -1, 0); arc(a0 + R, b0 + R, Math.PI); }
+    { const at = (q, d) => P(q.a + q.na*d, q.b + q.nb*d, 0.1);
+      const ring = (d0, d1, col) => {                                               // a closed band d0..d1 off the centre line, as one polygon (a slit joins its two edges)
+        const o = TP.map(q => at(q, d1)), i = TP.map(q => at(q, d0));
+        poly(o.concat([o[0], i[0]], i.slice().reverse()), col); };
+      ring(-TR.hw, TR.hw, '#4b4e55');
+      ring(TR.hw - 6, TR.hw - 1, '#f1efe8'); ring(-TR.hw + 1, -TR.hw + 6, '#f1efe8');
+      for(let k = 0; k < TP.length; k += 2){ const q = TP[k], r = TP[(k + 1) % TP.length];
+        poly([at(q, -1.4), at(q, 1.4), at(r, 1.4), at(r, -1.4)], '#d9d6cc'); }                // its dashed centre
+      const sb = TR.start, n = 8, w = (TR.hw*2 - 10)/n;
+      for(let c = 0; c < 2; c++) for(let k = 0; k < n; k++)                                 // the start line across the west straight, two rows of squares
+        T(TR.a0 - TR.hw + 5 + k*w, TR.a0 - TR.hw + 5 + (k + 1)*w, sb + c*14, sb + c*14 + 14, 0.2, (k + c) % 2 ? '#f6f4ee' : '#1e1e22'); }
+    /* a cone: a square foot, orange, a white band */
+    const cone = (a, b) => items.push({ a, b, z: 0, solids: [{ name: 'cone', c: [a, b], r: 8, h: 26 }], draw: () => {
+      box(a - 7, a + 7, b - 7, b + 7, 0, 2, '#d8631f', '#b8511a', '#98431a');
+      cyl(a, b, 2, 9, 5.5, '#ee7b2d', '#ee7b2d'); cyl(a, b, 9, 13, 4.2, '#f4f2ec', '#f4f2ec'); cyl(a, b, 13, 21, 2.8, '#ee7b2d', '#ee7b2d'); } });
+    for(const b of [390, 430, 470]) cone(TR.a0 + TR.hw + 7, b);
+    for(const b of [300, 380, 460]) cone(TR.a1 - TR.hw - 7, b);
+    for(const [a, b] of tyreSpots)
+      items.push({ a, b, z: 0, solids: [{ name: 'tyre barrier', c: [a, b], r: 18, h: 22 }], draw: () => { for(let k = 0; k < 2; k++) cyl(a, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 1 ? '#1e1e22' : null); } });
+    { const gb = TR.start + 14, ga0 = TR.a0 - TR.hw - 10, ga1 = TR.a0 + TR.hw + 10;
+      for(const ga of [ga0, ga1]) items.push({ a: ga, b: gb, z: 0, solids: [solid(ga - 4, ga + 4, gb - 4, gb + 4, 112, 'start gantry')], draw: () => box(ga - 4, ga + 4, gb - 4, gb + 4, 0, 112, '#e8e4da', '#c9c4b8', '#b0aa9c') });
+      items.push({ a: TR.a0, b: gb, z: 96, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
+        for(let k = 0; k < m; k++) box(ga0 + k*w, ga0 + (k + 1)*w, gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
+    { const [pa0, pa1, pb0, pb1] = KW_YARD.pit, ra = (pa0 + pa1)/2;
+      for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
+        items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
+      items.push({ a: ra, b: pb0 + 18, z: 0, solids: [solid(pa0 + 14, pa1 - 14, pb0 + 6, pb0 + 30, 42, 'pit bench')], draw: () => {            // the pit bench, paint cans and a rack of wheels
+        box(pa0 + 14, pa1 - 14, pb0 + 8, pb0 + 28, 36, 40, woodL, wood, woodD);
+        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        for(const [ca, col] of [[pa0 + 30, '#2a6fb0'], [pa0 + 44, '#f2b544'], [pa0 + 58, '#d8352a']]) cyl(ca, pb0 + 18, 40, 52, 6, col, shade(col, 0.8));
+        for(let k = 0; k < 3; k++) cyl(pa1 - 36, pb0 + 18, 40 + k*9, 48 + k*9, 12, k % 2 ? '#26282c' : '#2e3034', k === 2 ? '#1e1e22' : null); } });
+      items.push({ a: ra, b: pb1 - 76, z: 0, solids: [solid(ra - 50, ra + 50, pb1 - 148, pb1 - 12, 54, 'parked kart')], draw: () => soapKartS(ra, pb1 - 76, 0, '#e8e4da', '#c4bfb2', 5, null, { stripe: '#d8352a' }) });
+      items.push({ a: ra, b: pb1, z: 100, solids: [], draw: () => {                                                                                   // the striped roof, over the lot
+        const n = 6, w = (pa1 - pa0 + 16)/n;
+        for(let k = 0; k < n; k++){ const x0 = pa0 - 8 + k*w, x1 = x0 + w + (k < n - 1 ? 0.5 : 0), c = k % 2 ? '#f4f2ec' : '#d8352a';
+          poly([P(x0, pb0 - 8, 100), P(x1, pb0 - 8, 100), P(x1, pb1 + 8, 100), P(x0, pb1 + 8, 100)], c);
+          poly([P(x0, pb1 + 8, 100), P(x1, pb1 + 8, 100), P(x1, pb1 + 8, 94), P(x0, pb1 + 8, 94)], shade(c, 0.78)); } } }); }
+    for(const [a, b, d] of KW_YARD.benches)                                                                                                            // the infield benches, facing the straights
+      items.push({ a, b, z: 0, solids: [solid(a - 36, a + 36, b - 8, b + 8, 40, 'bench')], draw: () => {
+        for(const la of [a - 30, a + 30]) box(la - 3, la + 3, b - 6, b + 6, 0, 17, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        box(a - 36, a + 36, b - 7, b + 7, 17, 21, woodL, wood, woodD);
+        box(a - 36, a + 36, b + d*6, b + d*9, 21, 38, woodL, wood, woodD); } });
     /* ---- THE TEST CHUTE: its back board and start bar, the deck, the slope in runs, the rails stepped down it ---- */
     items.push({ a: (A0 + AD)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 6, AD, B0, B1, Z + 60, 'test chute deck')], draw: () => {
       box(A0 - 6, A0, B0, B1, 0, Z + 46, WOODD[0], WOODD[1], WOODD[2]);                                // its back board
@@ -78177,7 +78311,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        either side -- what the street sees is the room the inside is */
     /* (its door a pair, 92.3 lab -- 120 in the world, the room's own door: TROPHY_IN.DOOR; the shop's single 86 was
        a squeeze for him and did not match the room -- the review, 2026-10-30) */
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:820/1.3, dd:660/1.3, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
@@ -78958,8 +79092,7 @@ function xrayNearK(x, y, r, bx, by){
    and this section is one view over all of them. What reads the group,
    step by step after this: updateKnocks (who can be knocked down -- today
    six loops written by hand, so anyone left out cannot be), owStep's
-   blockAt (who is solid -- today ballroomWalkerBlock and derbyWalkerBlock by
-   name), the speech bubbles, and a headless people census.
+   blockAt (who is solid -- CITY_PEOPLE.blocks, done), the speech bubbles, and a headless people census.
 
    To look at it: CITY_PEOPLE.census() in the console lists each population
    and how many of its people are out right now.
@@ -79015,6 +79148,18 @@ const CITY_PEOPLE = {
   },
   /* everyone within R (Manhattan) of (x, y) who is not hidden */
   near(scene, t, x, y, R){ const out = []; this.each(scene, t, p => { if(!p.hidden && Math.abs(p.x - x) + Math.abs(p.y - y) <= R) out.push(p); }); return out; },
+  /* WHO HE CANNOT DRIVE THROUGH (owStep's blockAt): a population whose people are solid registers its test once, for the pockets (rooms) or
+     the world, and blockAt asks here instead of naming each. fn(x, y, r) -> a truthy block (or not); in the world a hit reads as `block`.
+     o.ground: not while he flies. First hit wins, in the order registered. */
+  blockers: { pocket: [], world: [] },
+  blocks(space, fn, o){ this.blockers[space].push(Object.assign({ fn, block: null, ground: false }, o)); },
+  blockAt(space, x, y, r, fly){
+    for(const b of this.blockers[space]){
+      if(b.ground && fly) continue;
+      const h = b.fn(x, y, r); if(h) return b.block || h;
+    }
+    return null;
+  },
   /* the census: each population, how many out, how many of those hidden */
   census(scene, t){
     const s = scene || (typeof scn === "function" ? scn() : null);
@@ -79030,6 +79175,12 @@ const CITY_PEOPLE = {
     return rows;
   }
 };
+/* the solid populations (see blockers): the ballroom's walkers, the kitchen's runners and the cake crew, and a walk-in's people held where
+   they stand, in the rooms; the derby's walkers and crowd, and Sun Deck Motor Lodge's people (not flying over them), in the world */
+CITY_PEOPLE.blocks('pocket', (x, y, r) => ballroomWalkerBlock(x, y, r));
+CITY_PEOPLE.blocks('pocket', (x, y, r) => walkinPeopleBlock(x, y, r));
+CITY_PEOPLE.blocks('world', (x, y, r) => derbyWalkerBlock(x, y, r), { block: OW_DECK_BLOCK });
+CITY_PEOPLE.blocks('world', (x, y, r) => motelPeopleBlock(x, y, r), { block: OW_DECK_BLOCK, ground: true });
 /* an entry with its defaults filled in */
 function cpEntry(g, o){ return Object.assign({ z: 0, h: null, moving: false, hidden: false, kind: 'walker', look: null, lookFn: null, ref: null, group: g.name, solid: !!g.solid, hold: null, ko: g.knock || null }, o); }
 /* their look (partyLook's shape), worked out only when asked: a population hands over lookFn, not a look it made for everyone each frame */
@@ -79241,7 +79392,7 @@ function lhMeetWalk(ow, from, t0, side, gap){
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
 }
 /* side by side across the screen, on the side they come from */
-function lhSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function lhSide(ow, from){ return meetSide(ow, from); }
 function lhAccept(){
   const scene = scn(), R = LH;
   if(R.stage !== 'ask' || !scene) return;
@@ -80933,7 +81084,7 @@ function ohClockOn(){ return OH.stage === 'drill' && OH.t0 > 0; }
 function ohSmokeOn(){ return OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
 function ohKidsWanted(){ return OH.stage === 'depot' || OH.stage === 'yard' || OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
 function ohKidHas(k){ return k === OH.kidHas ? 'helmet' : null; }
-function ohSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function ohSide(ow, from){ return meetSide(ow, from); }
 /* THE CAPTAIN, while the story has her: out of the station's door to him and back (a meeting: hospWalkAt), along a way
    (walkPathAt: across to the yard, to the fence), or standing at her post; null while she is in the station */
 function ohCaptAt(now){
@@ -82946,9 +83097,9 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8450, x1: 10900, y0: -9800, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
-  AREA: { x0: 8602, x1: 10900, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8602, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
+  SITE: { x0: 8596, x1: 10900, y0: -9660, y1: -5644 },        // (its south edge on the first ramp's block's south face, y = ramp.yF, so the two walls are one straight line)        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
+  AREA: { x0: 8596, x1: 10900, y0: -9700, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8602, x1: 8940, y0: -5644, y1: -4400 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
   COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
@@ -82956,18 +83107,19 @@ const SP_PLAN = {
   DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
   WIN_S: [9205, 9335], WIN_E: [-6360, -6170], SILL: 34, WIN_H: 104,
   PARA: [8995, 9185],                                          // the Mission parapet over the door bay
-  MAST: { x: 9432, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
-  DOCK: { x0: 9460, x1: 9860, y0: -6420, y1: -6080 },
-  PADS: [{ x: 9530, y: -6260 }, { x: 9660, y: -6260 }, { x: 9790, y: -6260 }],   // the charge pads (robots face south on them)
-  BEDS: [{ x: 9760, y: -5780, r: 110 }, { x: 10000, y: -6260, r: 140 }, { x: 9950, y: -5520, r: 100 }, { x: 9160, y: -5680, r: 96 },
-         { x: 9020, y: -6580, r: 110 }, { x: 9660, y: -6620, r: 120 }],
+  MAST: { x: 9300, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
+  DOCK: { x0: 9660, x1: 10060, y0: -6420, y1: -6080 },
+  PADS: [{ x: 9730, y: -6260 }, { x: 9860, y: -6260 }, { x: 9990, y: -6260 }],   // the charge pads (robots face south on them)
+  BEDS: [{ x: 9100, y: -5330, r: 110 }, { x: 9760, y: -5280, r: 120 }, { x: 10120, y: -5050, r: 140 }, { x: 10420, y: -5420, r: 100 },
+         { x: 9240, y: -4780, r: 100 }, { x: 9820, y: -4640, r: 120 }, { x: 10320, y: -4420, r: 110 }, { x: 9170, y: -4120, r: 120 },
+         { x: 9900, y: -3960, r: 100 }, { x: 10280, y: -3640, r: 130 }, { x: 9700, y: -3340, r: 110 }, { x: 9020, y: -3380, r: 90 }],   // the planted beds: down on the sand-coloured bench below the platform (not on the lawn)
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
-  PATH: { w: 130, z0: 180, flatX: 8680, ramp: 1100,
-          pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk, through a gate in the east wall (GATE), down a ramp (z0 to 0 over `ramp`) and across the lawn to the post
-  GATE: { y0: -8450, y1: -8310 },                             // the opening in the east wall's first-terrace face, where the walk goes through
-  HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
+  PATH: { w: 144, z0: 180, legs: [[8300, -8190, 9464, -8190], [9464, -8190, 9464, -5910]] },   // the concrete walk, two straight legs: out from the estate's first-terrace sidewalk (its north strip's middle) due east, then due south on the service drive's own line (x 9464) to the forecourt; level with the lawn
+  Z: 180,                                                     // the whole lawn (SITE) is graded to the first terrace's height, so it meets the estate's lawn level
+  RAMP: { y0: -4700, y1: -5644 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
+  HILL: { x: 10240, y: -9560, k: 5.55, gap: 230 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
 const SP_SHELL_D = (SP_PLAN.POST.x0 + SP_PLAN.POST.x1)/2 + (SP_PLAN.POST.y0 + SP_PLAN.POST.y1)/2;   // the post's depth key
@@ -83014,45 +83166,28 @@ walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
    foothills' as before) */
 /* the lawn's east edge at y: the hill's foot, less a gap (so the lawn is never drawn over the mountain) */
 function spEastEdge(y){ const H = SP_PLAN.HILL; return H.x + (y - H.y)/H.k - H.gap; }
-/* THE WALK (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once, each with its arc length s and its
-   height z: z0 (the first terrace's) while inside the wall and up to flatX, then down to the lawn's 0 over `ramp` of walk */
-function spPathPts(){
-  const P = SP_PLAN.PATH;
-  if(P._d) return P._d;
-  const q = P.pts, d = [];
-  for(let i = 0; i < q.length - 1; i++){
-    const a = q[Math.max(0, i - 1)], b = q[i], c = q[i + 1], e = q[Math.min(q.length - 1, i + 2)];
-    for(let t = 0; t < 1; t += 0.125){
-      const t2 = t*t, t3 = t2*t, f = (p0, p1, p2, p3) => 0.5*((2*p1) + (-p0 + p2)*t + (2*p0 - 5*p1 + 4*p2 - p3)*t2 + (-p0 + 3*p1 - 3*p2 + p3)*t3);
-      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1]), 0, 0]);
-    }
-  }
-  d.push([q[q.length - 1][0], q[q.length - 1][1], 0, 0]);
-  let sFlat = null;
-  for(let i = 1; i < d.length; i++){ d[i][3] = d[i - 1][3] + Math.hypot(d[i][0] - d[i - 1][0], d[i][1] - d[i - 1][1]); if(sFlat === null && d[i][0] >= P.flatX) sFlat = d[i][3]; }
-  for(const p of d) p[2] = P.z0*(1 - Math.max(0, Math.min(1, (p[3] - sFlat)/P.ramp)));
-  P._bb = { x0: Math.min(...d.map(p => p[0])) - P.w, x1: Math.max(...d.map(p => p[0])) + P.w, y0: Math.min(...d.map(p => p[1])) - P.w, y1: Math.max(...d.map(p => p[1])) + P.w };
-  return (P._d = d);
-}
-/* the walk's height at a world point on it (null off it) */
-function spPathZ(x, y){
-  const P = SP_PLAN.PATH, d = spPathPts(), B = P._bb;
-  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return null;
-  const h = P.w/2;
-  for(let i = 0; i < d.length - 1; i++){
-    const ax = d[i][0], ay = d[i][1], bx = d[i + 1][0], by = d[i + 1][1], vx = bx - ax, vy = by - ay, L = vx*vx + vy*vy;
-    const t = L ? Math.max(0, Math.min(1, ((x - ax)*vx + (y - ay)*vy)/L)) : 0;
-    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return d[i][2] + (d[i + 1][2] - d[i][2])*t;
-  }
+/* THE LAWN IS A PLATFORM (Sir, 2026-11-06: "the whole area planed to the same level as the highest point of the ramp"): SP_PLAN.Z
+   high, level with the first terrace it adjoins; the service drive rises onto it. spGroundZ(x, y): the height there if it is the
+   post's (the platform, or the drive's climb), else null */
+function spInPlate(x, y){ const S = SP_PLAN.SITE; return x >= S.x0 && y >= S.y0 && y <= S.y1 && x <= spEastEdge(y); }
+function spGroundZ(x, y){
+  const P = SP_PLAN;
+  if(spInPlate(x, y)) return P.Z;
+  const D = P.DRIVE;
+  if(x >= D.x0 && x <= D.x1 && y <= P.RAMP.y0 && y >= P.RAMP.y1) return P.Z*(P.RAMP.y0 - y)/(P.RAMP.y0 - P.RAMP.y1);
   return null;
 }
-function spOnPath(x, y){ return spPathZ(x, y) !== null; }
-/* the wall's opening for the walk (the first terrace's east face): is y in it */
-function spGateGap(y){ const G = SP_PLAN.GATE; return y > G.y0 && y < G.y1; }
-/* the east wall's painted ground band, in runs (north to south), left out across both openings */
+function spZ(x, y){ const z = spGroundZ(x, y); return z === null ? 0 : z; }
+/* THE WALK (SP_PLAN.PATH): straight legs, each a rectangle w wide round its line (so a corner is square); level, at Z */
+function spPathRects(){
+  const P = SP_PLAN.PATH;
+  return P._r || (P._r = P.legs.map(l => ({ x0: Math.min(l[0], l[2]) - P.w/2, x1: Math.max(l[0], l[2]) + P.w/2, y0: Math.min(l[1], l[3]) - P.w/2, y1: Math.max(l[1], l[3]) + P.w/2 })));
+}
+function spOnPath(x, y){ for(const r of spPathRects()) if(spIn(r, x, y)) return true; return false; }
+/* the east wall's painted ground band, in runs (north to south), left out across the first terrace's side, where the lawn joins it */
 function sierraEastBands(){
-  const S = sierraGeo(), G = sierraEastGap(), T = SP_PLAN.GATE;
-  return [[S.e[4], T.y0], [T.y1, G.y0], [G.y1, S.wallY]];
+  const S = sierraGeo(), G = sierraEastGap();
+  return [[S.e[4], G.y0], [SP_PLAN.SITE.y1, S.wallY]];   // (the south run stops at the platform's south face)
 }
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
@@ -83074,6 +83209,13 @@ function spSolids(){
   Dk(P.MAST.x, P.MAST.y, 18, P.MAST.h);
   for(const p of P.PADS) R(p.x - 24, p.x + 24, p.y - 92, p.y - 64, 118);
   for(const bd of P.BEDS) Dk(bd.x, bd.y, bd.r - 16, 40);
+  /* THE PLATFORM'S EDGES (it stands P.Z over the bench): its south edge but for the drive's way up, the drive's two sides while it climbs,
+     its north edge, and the hill's side (a chain of discs): he cannot step off into the drop */
+  { const S = P.SITE, D = P.DRIVE, R0 = P.RAMP, h = 600;
+    R(S.x0, D.x0, S.y1 - 12, S.y1 + 4, h); R(D.x1, spEastEdge(S.y1) + 40, S.y1 - 12, S.y1 + 4, h);
+    R(D.x0 - 30, D.x0, R0.y1, R0.y0, h); R(D.x1, D.x1 + 30, R0.y1, R0.y0, h);
+    R(S.x0, spEastEdge(S.y0) + 40, S.y0 - 4, S.y0 + 12, h);
+    for(let y = S.y0; y <= S.y1; y += 90) Dk(spEastEdge(y) + 30, y, 70, h); }
   return (spSolids.c = out);
 }
 function spSolidAt(x, y, R){
@@ -83085,7 +83227,7 @@ function spSolidAt(x, y, R){
   return null;
 }
 /* its roof, for the x-ray and the flyers; null off it */
-function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x < B.x1 + B.oh && y > B.y0 - B.oh && y < B.y1 + B.oh) ? B.ridge : null; }
+function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x < B.x1 + B.oh && y > B.y0 - B.oh && y < B.y1 + B.oh) ? B.ridge + SP_PLAN.Z : null; }
 /* THE WAY UP, FOR THE GPS (gpsTrailNet takes these with Veterans Memorial Park's trail): the service way from the
    pavement, the drive, the forecourt to the dock and to the track, the track up the wall; and 2nd St's east pavement up
    to the gate round (the walk graph stops at the top street: Sierra Vista's street is crossed, never walked) */
@@ -83452,7 +83594,7 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
     const fn = (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
         lift, gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     };
     if(depth != null) queuePerson(depth - y, y, (g, tt) => scene.keyPerson(() => fn(g, tt))); else q(x, y, fn);
@@ -83490,12 +83632,12 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
   }
   /* the dock's robot on pad 1 (charging, still: cached), while it is not his */
   if(!R.loan){ const P1 = SP_PLAN.PADS[0];
-    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, 0, 0, 7, null))); }
+    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, spZ(P1.x, P1.y), 0, 7, null))); }
   /* Tipsey, parked still on pad 2 while the patrol robot is his */
   const Pk = R.park;
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
     const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
-    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|nw|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|nw|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a, spZ(Pk.x, Pk.y))));
   }
 }
 /* the post's guards, the patrol robots aside (they are vehicles), and the story's people, listed */
@@ -83637,7 +83779,7 @@ function kwSim(cruise, boost, seed){
 function kwBest(){ if(!kwBest.v){ const k = DERBY_RACE.karts.find(q => q.no === 1); kwBest.v = kwSim(k.cruise, k.boost, k.seed).fin; } return kwBest.v; }
 /* a time as it is said ("11 point 4": the speech card cuts its sentences at a full stop) */
 function kwSecs(ms){ const t = (ms/1000).toFixed(1).split('.'); return t[0] + ' point ' + t[1]; }
-function kwSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function kwSide(ow, from){ return meetSide(ow, from); }
 function kwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "kart", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function kwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "kart"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* where the GPS takes him for the Kart Works: out on the pavement before its roll-up */
@@ -84107,7 +84249,7 @@ function rlLobbyBay(){ return RL._lb || (RL._lb = (() => { const q = rlRoomPt(KT
 function rlStudioBay(){ return RL._sb || (RL._sb = (() => { const q = rlRoomPt(KTDE_ROOM.studioBay[0], KTDE_ROOM.studioBay[1]); return hospBay(q.x, q.y); })()); }
 function rlNav(scene, to, name){ if(to && typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "request", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function rlNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "request"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
-function rlSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function rlSide(ow, from){ return meetSide(ow, from); }
 function rlClockOn(){ return RL.stage === 'song' && RL.t0 > 0; }
 function rlLeft(now){ return Math.max(0, RL_RUN.songMs - (now - RL.t0)); }
 /* THE PEOPLE, where they are now */
@@ -87218,7 +87360,7 @@ CITY_PEOPLE.add({ name: 'mall security', where: 'the mall\'s floors', solid: tru
 CITY_PEOPLE.add({ name: 'Marisol and the cook', where: 'High Tide Arcade, Forno Marino', solid: true,
   each(scene, t, fn){
     if(!gothInMall(scene)) return;
-    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t);   // (at her counter when the story hasn't got her)
+    const her = tixHerAt(t) || tixHerAtWork(t), cook = tixCookAt(t) || tixCookAtPost(t);   // (at her counter, and at his post, when the story hasn't got them)
     if(her) fn(cpEntry(this, { x: her.x, y: her.y, z: her.z || 0, th: her.th, moving: !!her.moving, kind: 'attendant', look: tixLooks().her, ref: TIX }));
     if(cook) fn(cpEntry(this, { x: cook.x, y: cook.y, z: cook.z || 0, th: cook.th, moving: !!cook.moving, kind: 'chef', look: tixLooks().cook, ref: TIX }));
   } });
@@ -87454,24 +87596,17 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
     }
   } });
 
-/* the food trucks' customers, walking up the pavement to a hatch, queueing and ordering (VEND_CUST: shopperAt's walkers) */
-CITY_PEOPLE.add({ name: 'food truck customers', where: 'the pavements by the posted-up food trucks', solid: false,
-  each(scene, t, fn){
-    for(const sp of scene._vendCust || []){
-      if(sp.knock) continue;                                                       // (down: the knocked-down group has them)
-      const m = shopperAt(sp, t);
-      if(!m) continue;
-      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: 'shopper',
-                         look: sp._cpLook || (sp._cpLook = streetLook(sp.seed ^ 0x7ac0)), ref: sp, hold: dt => { sp.t0 += dt; } }));
-    }
-  } });
 /* the Sierra Vista gate's guard: at his booth's door, or out on the pavement after someone (SV_GATE) */
 CITY_PEOPLE.add({ name: 'Sierra Vista gate guard', where: 'the Sierra Vista gate', solid: true,
+  /* (knockable out on the pavement, not in his booth; down, he stays where he fell -- sierraGateStep holds him -- and is back at his
+     post when he is up: the knocked-down group has him meanwhile) */
+  knock: { kind: 'guard', test(p, scene, t, C){ return SV_GATE.g.mode !== 'booth' && C.reach.hit(p.x, p.y); },
+    make(p){ const L = cpLook(p); return { look: cpLookPlain(L), uni: L.uniform, mood: Math.random() < 0.5 ? 'polite' : 'mad' }; } },
   each(scene, t, fn){
     const G = SV_GATE, gd = G.g;
-    if(!G.home) return;
+    if(!G.home || gd.knock) return;
     const bth = gd.mode === 'booth';
-    fn(cpEntry(this, { x: bth ? G.home.x : gd.x, y: bth ? G.home.y : gd.y, th: bth ? 0 : gd.th, moving: !bth && !!gd.moving, kind: 'guard',
+    fn(cpEntry(this, { x: bth ? G.home.x : gd.x, y: bth ? G.home.y : gd.y, th: bth ? 0 : gd.th + Math.PI/2, moving: !bth && !!gd.moving, kind: 'guard',
                        look: G._cpLook || (G._cpLook = (() => { const b = rosterBody(0x5e7a); return { build: b.build, skin: b.skin, hair: b.hair, shirt: SECURITY_UNIFORM.shirt, pants: SECURITY_UNIFORM.pants, shoe: SECURITY_UNIFORM.shoe, uniform: withAid(SECURITY_UNIFORM, b) }; })()), ref: G }));
   } });
 /* Marina General's ground floor seen from the street, through its glass and doors: the halls' walkers and the patients
@@ -91145,7 +91280,7 @@ class WorldScene extends Phaser.Scene {
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
-        const GT = SP_PLAN.GATE, runs = (y0 < GT.y0 && y1 > GT.y1) ? [[y0, GT.y0], [GT.y1, y1]] : [[y0, y1]];   // (the walk's gate cuts the face)
+        const runs = (z === S.z[1]) ? [] : [[y0, y1]];   // (the first terrace's face is buried: the security post's lawn is level with it)
         for(const [ya, yb] of runs){
           Q([[S.xe, ya, 0],[S.xe, yb, 0],[S.xe, yb, z],[S.xe, ya, z]], shade(STONE, .78));
           for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, ya, zz],[S.xe + 0.5, yb, zz],[S.xe + 0.5, yb, zz + 3],[S.xe + 0.5, ya, zz + 3]], shade(STONE, .7));
@@ -91217,7 +91352,7 @@ class WorldScene extends Phaser.Scene {
          where the cut runs out at the head */
       block(cut1, rp.b1, rp.yN);
       cutCap(cut1, cut1 + rp.t);
-      if(rp.b1 >= S.xe - 1){                                   // out to the estate's east flank: the flank rises with it
+      if(rp.b1 >= S.xe - 1 && rp.k !== 1){                     // out to the estate's east flank: the flank rises with it (not the first block's: the security post's platform is level with it and buries it)
         Q([[S.xe, rp.yF, 0],[S.xe, yw, 0],[S.xe, yw, z],[S.xe, rp.yF, z]], shade(STONE, .78));
         for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, rp.yF, zz],[S.xe + 0.5, yw, zz],[S.xe + 0.5, yw, zz + 3],[S.xe + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
       } else {
@@ -91469,9 +91604,9 @@ class WorldScene extends Phaser.Scene {
     /* THE EAST WALL, SEEN NOW (2026-11-01, the Vista Ridge Security Post: the bench outside it is ground, and Night Watch's
        patrol walks it): the perimeter wall's own stone and cap along x = xe, from the front wall's corner up to the first
        terrace (the court's level), in runs keyed at their middles; its face (+x) is the one the eye sees */
-    const GAP = sierraEastGap();                                 // (open where the security post's lawn meets the court)
-    for(let y = yw; y > GAP.y1 + 1; y -= 420){
-      const ya = y, yb = Math.max(y - 420, GAP.y1), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
+    const CUT = SP_PLAN.SITE.y1;                                 // (the wall stops where the security post's platform begins: its south face takes over)
+    for(let y = yw; y > CUT + 1; y -= 420){
+      const ya = y, yb = Math.max(y - 420, CUT), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
       bodies.push({ depth: xe + (ya + yb)/2, fn: (gg) => {
         const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
         Qg([[xe + 8,ya,0],[xe + 8,yb,0],[xe + 8,yb,WALL_H],[xe + 8,ya,WALL_H]], shade(STONE, .9));
@@ -91531,7 +91666,7 @@ class WorldScene extends Phaser.Scene {
     const gd = SV_GATE.g;
     /* IN HIS BOOTH HE STANDS AT ITS DOOR (the census, 2026-10-30: he was drawn only while out, so he appeared beside the
        booth and vanished there -- a post, as Gus's at the mall's doors): out and back from that spot */
-    { const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
+    if(!gd.knock){ const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
       const gz = Math.hypot(px - gx, py - yw) < RD.ri ? ISL : 0;
       bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
@@ -93831,7 +93966,7 @@ class WorldScene extends Phaser.Scene {
   queueSecPost(vq){
     const P = SP_PLAN, ent = LIB.get(P.name);
     if(!ent || !WORLDGEN_COAST || !this.visWorldPt(9300, -6200, 1500, 520)) return;
-    const G = (a, b, h) => this.W(a, b, h), now = this.time.now;
+    const G = (a, b, h) => this.W(a, b, h + P.Z), now = this.time.now;     // (all of it stands on the platform: P.Z up)
     const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
     const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "sp|" + key, x, y, gg => draw(gg, fn)) });
     const live = (depth, fn) => vq.push({ depth, fn: (g, t) => draw(g, () => fn(t || now)) });
@@ -93866,11 +94001,13 @@ class WorldScene extends Phaser.Scene {
         });
       } }
     /* the planted beds */
-    for(const bd of P.BEDS) if(vis(bd.x, bd.y, bd.r + 20, 80)) item("bed|" + bd.x + "," + bd.y, bd.x, bd.y, bd.x + bd.y, () => ent.bed(bd));
+    /* (the beds stand on the bench, at the ground: not lifted with the platform) */
+    const draw0 = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, (a, b, h) => this.W(a, b, h), this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
+    for(const bd of P.BEDS) if(vis(bd.x, bd.y, bd.r + 20, 80)) vq.push({ depth: bd.x + bd.y, fn: (g) => this.bcDraw(g, "sp|bed|" + bd.x + "," + bd.y, bd.x, bd.y, gg => draw0(gg, () => ent.bed(bd))) });
     /* THE PATROL'S CAMERA POINTS while it runs: each a pair of the slalom's blue-banded cones (cached) */
     if(typeof NW !== 'undefined' && NW.stage === 'patrol')
       for(const Gt of P.GATES) for(const s of [-1, 1]){ const x = Gt.x + s*P.GATE_W/2, y = Gt.y;
-        if(this.visProp("cone", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "sp|cone|" + x + "," + y, x, y, gg => this.drawProp(gg, "cone", x, y, 0, 0, 0, null, null, { cone: SP_CONE })) }); }
+        if(this.visProp("cone", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "sp|cone|" + x + "," + y, x, y, gg => this.drawProp(gg, "cone", x, y, 0, 0, spZ(x, y), null, null, { cone: SP_CONE })) }); }
     /* INSIDE: the screens' flicker -- one monitor rolls now and then -- and the console's REC light */
     if(pk && this._inside === pk){
       const v = pk.view(), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy, ph = Math.floor(now/2400), k = (ph*5 + 3) % 8, u = (now % 2400)/2400;
@@ -93883,59 +94020,75 @@ class WorldScene extends Phaser.Scene {
       } });
     }
     /* the lamps at night (the lamp kit): the door's lantern, the dock's flood under the mast's crossarm */
-    if(!ent._lamps) ent._lamps = { lamps: [{ a: P.DOOR.x1 + 26, b: P.POST.y1 + 16, z: 140, r: 200 }, { a: P.MAST.x, b: P.MAST.y + 10, z: P.MAST.h - 48, r: 380 }] };
+    if(!ent._lamps) ent._lamps = { lamps: [{ a: P.DOOR.x1 + 26, b: P.POST.y1 + 16, z: P.Z + 140, r: 200 }, { a: P.MAST.x, b: P.MAST.y + 10, z: P.Z + P.MAST.h - 48, r: 380 }] };
     if(!(pk && this._inside === pk)) this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);   // (not over the room while he is in it)
   }
   /* the post's ground, in the ground pass: the gravel round it and up the track (edged, flecked), the service drive's
      and the forecourt's concrete, the dock's pad under its own art -- no grass anywhere (the beds are planting in it) */
   fillSecPostGround(g){
-    const P = SP_PLAN;
+    const P = SP_PLAN, Z = P.Z;
     if(!WORLDGEN_COAST || Math.abs(this.camX - 9400) + Math.abs(this.camY + 6200) > (this.vpW() + this.vpH())/this.K + 4800) return;
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
+    const K = this.K, S = P.SITE, e = spEastEdge, D = P.DRIVE, R0 = P.RAMP;
+    /* (the patrol track along the wall below the platform is ground but not painted: it is the sand-coloured bench) */
+    /* THE PLATFORM'S FACES, in the estate's own stone (STONE, coursed every 30, capped), down to the bench: its south edge, one
+       straight line with the first ramp's block's face (the drive's way up left open), and the hill's side */
+    { const STONE = 0xc9bd9f, CAP = 0xe2d8c0, shade = (c, k) => hillShade(c, k);
+      const STN = STONE, STE = shade(STONE, .78);
+      const south = (xa, xb) => {
+        quad([this.W(xa, S.y1, Z), this.W(xb, S.y1, Z), this.W(xb, S.y1, 0.9), this.W(xa, S.y1, 0.9)], STN);
+        for(let zz = 30; zz < Z - 8; zz += 30) quad([this.W(xa, S.y1, zz), this.W(xb, S.y1, zz), this.W(xb, S.y1, zz + 3), this.W(xa, S.y1, zz + 3)], shade(STONE, .86));
+        quad([this.W(xa, S.y1, Z), this.W(xb, S.y1, Z), this.W(xb, S.y1 - 40, Z), this.W(xa, S.y1 - 40, Z)], CAP);
+      };
+      south(S.x0, D.x0); south(D.x1, e(S.y1));
+      /* the platform's east edge: its face, in stone (the edge stands 230 back from the mountain's foot, so the face never reaches it) */
+      quad([this.W(e(S.y1), S.y1, Z), this.W(e(S.y0), S.y0, Z), this.W(e(S.y0), S.y0, 0.9), this.W(e(S.y1), S.y1, 0.9)], STE);
+      for(let zz = 30; zz < Z - 8; zz += 30) quad([this.W(e(S.y1), S.y1, zz), this.W(e(S.y0), S.y0, zz), this.W(e(S.y0), S.y0, zz + 3), this.W(e(S.y1), S.y1, zz + 3)], shade(STONE, .7));
+      /* the drive's climb: its two stone sides, the slope's concrete (joints every 160) */
+      const zr = y => Z*(R0.y0 - y)/(R0.y0 - R0.y1);
+      for(const x of [D.x0, D.x1]) quad([this.W(x, R0.y0, 0.9), this.W(x, R0.y1, Z), this.W(x, R0.y1, 0.9)], x === D.x0 ? STN : STE);
+      quad([this.W(D.x0, R0.y0, 0.8), this.W(D.x1, R0.y0, 0.8), this.W(D.x1, R0.y1, Z + 0.8), this.W(D.x0, R0.y1, Z + 0.8)], 0xcfcac0);
+      g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
+      for(let y = R0.y0 - 160; y > R0.y1; y -= 160){ const a = this.W(D.x0, y, zr(y) + 0.9), b = this.W(D.x1, y, zr(y) + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    }
     /* the lawn: the estate's own green and its mown stripes (same lattice: every 520 from its west wall, 260 wide), up to the wall's
        foot, and stopping at the hill's foot (spEastEdge) */
-    { const S = P.SITE, e = spEastEdge, ys = []; for(let i = 0; i <= 12; i++) ys.push(S.y0 + (S.y1 - S.y0)*i/12);
+    { const ys = []; for(let i = 0; i <= 12; i++) ys.push(S.y0 + (S.y1 - S.y0)*i/12);
       const strip = (xa, xb, col, z) => {
         const L = [], R = [];
         for(const y of ys){ const r = Math.min(xb, e(y)); if(r <= xa) continue; L.push(this.W(xa, y, z)); R.push(this.W(r, y, z)); }
         if(L.length > 1) quad(L.concat(R.reverse()), col);
       };
-      strip(S.x0, 99999, 0x9fbd6a, 0.6);
+      strip(S.x0, 99999, 0x9fbd6a, Z + 0.6);
       const xw = sierraGeo().xw;
-      for(let x = xw + 520*Math.ceil((S.x0 - xw)/520 - 0.5); x < e(S.y1); x += 520) strip(Math.max(x, S.x0), x + 260, 0x97b563, 0.9);
+      for(let x = xw + 520*Math.ceil((S.x0 - xw)/520 - 0.5); x < e(S.y1); x += 520) strip(Math.max(x, S.x0), x + 260, 0x97b563, Z + 0.9);
     }
     /* its tufts, fixed */
     if(!P._specks){ const rr = mulberry32(0x5ec7), out = [];
       for(let k = 0; k < 6500; k++){ const R = P.SITE, px = R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), py = R.y0 + 8 + rr()*(R.y1 - R.y0 - 16); if(px > spEastEdge(py)){ rr(); continue; } out.push(px, py, rr() < 0.5 ? 0xaecb78 : 0x93b25f); }
       P._specks = out; }
-    const K = this.K, sp = P._specks;
+    const sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
       if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) continue;
-      const p = this.W(x, y, 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
+      const p = this.W(x, y, Z + 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
       g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2*K, p.y - 0.8*K, 4*K, 1.6*K); }
-    /* the drive and the forecourt: concrete in bays, a kerb-less joint line */
-    rect(P.DRIVE, 0xcfcac0, 0.8); rect(P.COURT, 0xcfcac0, 0.8);
+    /* the drive on the flat below its climb, the forecourt on the platform: concrete in bays, a kerb-less joint line */
+    quad([this.W(D.x0, D.y1, 0.8), this.W(D.x1, D.y1, 0.8), this.W(D.x1, R0.y0, 0.8), this.W(D.x0, R0.y0, 0.8)], 0xcfcac0);
+    quad([this.W(D.x0, R0.y1, Z + 0.8), this.W(D.x1, R0.y1, Z + 0.8), this.W(D.x1, D.y0, Z + 0.8), this.W(D.x0, D.y0, Z + 0.8)], 0xcfcac0);
+    rect(P.COURT, 0xcfcac0, Z + 0.8);
     g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
-    for(let y = P.DRIVE.y1 - 160; y > P.DRIVE.y0; y -= 160){ const a = this.W(P.DRIVE.x0, y, 0.9), b = this.W(P.DRIVE.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
-    for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, 0.9), b = this.W(x, P.COURT.y1, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
-    rect(P.DOCK, 0xbdb8ad, 0.8, 6);
-    /* the walk: concrete, in a ribbon of quads along its smoothed centreline at its own height (high inside the wall, down a
-       ramp outside it), a joint every few steps, and the ramp's stone sides down to the lawn */
-    { const d = spPathPts(), h = P.PATH.w/2, L = [], R = [];
-      for(let i = 0; i < d.length; i++){
-        const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1, nx = -dy/n*h, ny = dx/n*h;
-        L.push([d[i][0] + nx, d[i][1] + ny]); R.push([d[i][0] - nx, d[i][1] - ny]);
-      }
-      const zz = i => d[i][2] + 0.95;
-      for(let i = 0; i < d.length - 1; i++){
-        if(d[i][2] > 1 && d[i][0] > 8602){      // (outside the wall, raised: its sides, in stone, down to the lawn)
-          for(const E of [L, R]) quad([this.W(E[i][0], E[i][1], d[i][2]), this.W(E[i + 1][0], E[i + 1][1], d[i + 1][2]), this.W(E[i + 1][0], E[i + 1][1], 0.9), this.W(E[i][0], E[i][1], 0.9)], E === L ? 0xa89f89 : 0xb9b09a);
-        }
-        quad([this.W(L[i][0], L[i][1], zz(i)), this.W(L[i + 1][0], L[i + 1][1], zz(i + 1)), this.W(R[i + 1][0], R[i + 1][1], zz(i + 1)), this.W(R[i][0], R[i][1], zz(i))], 0xcfcac0);
-      }
+    for(let y = D.y1 - 160; y > R0.y0; y -= 160){ const a = this.W(D.x0, y, 0.9), b = this.W(D.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    for(let y = R0.y1 - 160; y > D.y0; y -= 160){ const a = this.W(D.x0, y, Z + 0.9), b = this.W(D.x1, y, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, Z + 0.9), b = this.W(x, P.COURT.y1, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    rect(P.DOCK, 0xbdb8ad, Z + 0.8, 6);
+    /* the walk: concrete, two straight legs, a joint every 184 along each */
+    { const zz = Z + 1;
+      for(const r of spPathRects()) rect(r, 0xcfcac0, zz);
       g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
-      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], zz(i) + 0.05), b = this.W(R[i][0], R[i][1], zz(i) + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+      const [A, B] = spPathRects();
+      for(let x = A.x0 + 184; x < A.x1 - 70; x += 184){ const a = this.W(x, A.y0, zz + 0.05), b = this.W(x, A.y1, zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+      for(let y = B.y0 + 184 + 144; y < B.y1; y += 184){ const a = this.W(B.x0, y, zz + 0.05), b = this.W(B.x1, y, zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
     }
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
@@ -94042,6 +94195,36 @@ class WorldScene extends Phaser.Scene {
     ring(112, 118, 0xb3ab99, z + 0.04);
     g.lineStyle(Math.max(0.6, 0.8*K), 0xb6ae9c, 1);
     for(let k = 0; k < 36; k++){ const t = k/36*Math.PI*2, a = P(120, t, z + 0.05), b = P(R - 4, t, z + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+  }
+  /* THE YARD'S FENCE (KW_FENCE): the alley gate's iron, in panels of 150 or less, each a still image keyed by where it stands */
+  queueYardFence(vq){
+    const g = this.route && this.route.grid, blk = g && g.blockByIJ && g.blockByIJ.get(KW_FENCE.ij), runs = blk && kwFenceRuns(blk);
+    if(!runs) return;
+    const es = blockEdgesOf(blk), span = (this.vpW() + this.vpH())/this.K + 700, B = KW_FENCE.B;
+    for(const ei of Object.keys(runs)){
+      const e = es[ei];
+      for(const [r0, r1] of runs[ei]){
+        const n = Math.ceil((r1 - r0)/KW_FENCE.panel);
+        for(let k = 0; k < n; k++){
+          const a0 = r0 + (r1 - r0)*k/n, a1 = r0 + (r1 - r0)*(k + 1)/n, mid = (a0 + a1)/2;
+          const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+          if(Math.abs(kx - this.camX) + Math.abs(ky - this.camY) > span) continue;
+          vq.push({ depth: kx + ky, fn: (gr) => this.bcDraw(gr, "yfence|" + Math.round(kx) + "," + Math.round(ky), kx, ky, gg => this.drawFencePanel(gg, e, a0, a1, B, k === 0, k === n - 1)) });
+        }
+      }
+    }
+  }
+  /* one panel of it: the alley gate's kick panel, bars, rails and spears, shut, posts at its ends (half a post at a join) */
+  drawFencePanel(g, e, a0, a1, B, first, last){
+    const STEEL = 0x8d949a, STEEL_DK = 0x5d646b, BLACK = 0x1b1d20, BAR = 0x2a2d31, GH = 300, KICK = 70, POST = 9;
+    const Pt = (a, z) => this.W(e.ox + e.dv.x*a + e.rv.x*B, e.oy + e.dv.y*a + e.rv.y*B, z);
+    const Q = (x0, x1, z0, z1, col) => this.quadOn(g, [Pt(x0, z1), Pt(x1, z1), Pt(x1, z0), Pt(x0, z0)], col);
+    const i0 = a0 + POST/2, i1 = a1 - POST/2, nb = Math.max(2, Math.round((i1 - i0)/15));
+    Q(i0, i1, 0, KICK, BLACK); Q(i0, i1, KICK - 6, KICK, STEEL_DK);
+    for(let k = 0; k <= nb; k++){ const c = i0 + (i1 - i0)*k/nb; Q(c - 2.2, c + 2.2, KICK, GH - 14, BAR); }
+    Q(i0, i1, GH*0.55 - 6, GH*0.55, STEEL); Q(i0, i1, GH - 16, GH - 6, STEEL);
+    for(let k = 0; k <= nb; k++){ const c = i0 + (i1 - i0)*k/nb; this.quadOn(g, [Pt(c - 3.5, GH - 6), Pt(c, GH + 12), Pt(c + 3.5, GH - 6), Pt(c, GH - 8)], STEEL); }
+    for(const [p0, p1] of [[a0 - (first ? 0 : 0), a0 + POST/2], [a1 - POST/2, a1]]){ Q(p0, p1, 0, GH + 4, STEEL); Q(p0, p1, GH + 4, GH + 8, STEEL_DK); }
   }
   queueKartYard(vq){
     const O = kwYardO();
@@ -96655,6 +96838,7 @@ class WorldScene extends Phaser.Scene {
     cplQueuePark(this, blockVQ);            // THE LETTERS' PARK: its plants, lamps and their light
     /* THE KART WORKS' YARD and its barn's roll-up (queueKartYard) */
     this.queueKartYard(blockVQ);
+    this.queueYardFence(blockVQ);
     this.queueVetMemorial(blockVQ);         // THE VETERANS MEMORIAL (VET_MEMORIAL): the wall, the flame, the flags, the bandstand
     /* THE LIFEGUARD STATIONS on Sunset Shore (see LIFEGUARD STATIONS) and its dunes */
     this.queueAlmsFolk(blockVQ, t);
@@ -105231,8 +105415,8 @@ class WorldScene extends Phaser.Scene {
       const lk = u > 0.86 ? (u - 0.86)/0.64 : u < 0.5 ? (u + 0.14)/0.64 : -1, lid = u > 0.86 ? n : n - 1;
       if(lk >= 0){ const w = along(OUT, lk); kid(lid, w.p, w.th, true, null, 'plush'); }
     }
-    const cp = tixCookAt(now);
-    if(cp) this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has);
+    const cp = tixCookAt(now) || tixCookAtPost(now);
+    this.queueRoomPerson(vq, t, sx, sy, cp, K.cook, cp.th, cp.moving, 5, cp.has, cp.pose ? { pose: cp.pose } : undefined);
     /* Forno's pickup bay while he's on the lunch run: under the gallery, so after it and seen through it (MALL_XRAY_UNDER) */
     if((R.stage === 'lunch' || R.stage === 'pickup') && MALL_LVL === 0 && this.ow && this.ow.on){
       const B = tixBay(), hl = matHighlightState(this, B.mat, this.mode);
@@ -111792,12 +111976,12 @@ class WorldScene extends Phaser.Scene {
   }
   /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
      building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
-  drawTipseyParked(g, x, y, a){
+  drawTipseyParked(g, x, y, a, zB = 0){
     const S = this, keep = {};
     for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
                     'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
                     '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
-    S.g = g; S.botX = x; S.botY = y; S.botZ = 0; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
+    S.g = g; S.botX = x; S.botY = y; S.botZ = zB; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
     S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
     S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
     S._gearWP = undefined; S._flagWind = 0; S._flagT = 0; S._lidClacked = true;
@@ -112072,6 +112256,7 @@ class WorldScene extends Phaser.Scene {
         ];
         this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);
         this.quadOn(g, ring(LID.hx-6, LID.hy-6), SKIN.cavityFloor);
+        if(!npc && this.state !== "tipped") this.drawMissionCarried(bobZ);   // (R6: what a mission has him carry, in the cavity: seen when the lid opens)
       }
     }
     if(lidIsNear) this.drawLid(lidBox);
@@ -116285,6 +116470,14 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  drawMissionCarried(bobZ){
+    const it = missionCarriedNow();
+    if(!it) return;
+    for(const b of MISSION_CARRY_ART[it.id] || MISSION_CARRY_PLAIN){
+      const z0 = LID.z0 + bobZ + 0.6 + (b.oz || 0);
+      this.drawBox({ hx: b.hx, hy: b.hy, z0, z1: z0 + b.h, ox: b.ox || 0, oy: b.oy || 0 }, b.c[0], b.c[1], b.c[2], false);
+    }
+  }
   drawBox(b, cTop, cRight, cLeft, outline=true, decal=false, cBottom=SKIN.belly){
     const {hx, hy, z0, z1} = b, ox = b.ox || 0, oy = b.oy || 0;
     const C = (sx, sy, sz) => this.P(ox + sx*hx, oy + sy*hy, sz === 1 ? z1 : z0);
@@ -118291,7 +118484,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(!o._passMood || this.state !== "play" || !this.visProp("people", w.x, w.y)) return;
     const at = () => { const q = w.pos(this.time.now); return q && !q.hidden && !o.knock ? { x: q.x, y: q.y, z: 0, h: 160 } : null; };
-    this.npcSay(o, at, sayPick(o._passMood === "rude" ? SAY.passRude : SAY.passPolite), B.sayMs, o._passMood === "rude" ? "mad" : undefined);
+    excuseSay(this, o, at, o._passMood === "rude" ? "rude" : "polite", B.sayMs);
   }
   /* THE NEAREST OF HIM to (px, py): the point on his centre line, front to
      back, nearest it (fleetBody), and pad, how much wider than Tipsey he is
@@ -126810,11 +127003,11 @@ function sierraGeo(){
    (a riser is a line, not a block), so a long frame step can land clean
    over one -- the city never needed this because its solids are whole
    blocks. Headless at swiftshader frame rates it tunnelled every wall. */
-/* THE EAST WALL'S OPENING (Sir, 2026-11-06): where the Vista Ridge Security Post's lawn meets the court, the perimeter wall
-   is not there -- no stone drawn, nothing solid. sierraEastGap() is its span {y0 north end, y1 south end}; with a y, whether
+/* THE EAST WALL'S OPENING (Sir, 2026-11-06): along the first terrace the east wall is not there (the security post's lawn is level with it and
+   joins it): no stone drawn, nothing solid. sierraEastGap() is its span {y0 north end, y1 south end}; with a y, whether
    that y is inside it */
 function sierraEastGap(y){
-  const S = sierraGeo(), G = { y0: S.e[1], y1: SP_PLAN.SITE.y1 };
+  const S = sierraGeo(), G = { y0: S.e[2], y1: S.e[1] };
   return y === undefined ? G : (y > G.y0 && y < G.y1);
 }
 function sierraCrosses(x0, y0, x1, y1, R){
@@ -126849,8 +127042,8 @@ function sierraCrosses(x0, y0, x1, y1, R){
     for(const bx of [rp.b0, rp.b1])
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
-  { const G = sierraEastGap(), T = SP_PLAN.GATE;
-    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, T.y1) || crossX(S.xe, T.y0, S.e[4])) return true; }
+  { const G = sierraEastGap();
+    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, S.e[4])) return true; }
   for(const rp of S.ramps) for(const xw of [rp.c0, rp.c1]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
 }
@@ -126963,9 +127156,9 @@ function sierraDriveAt(x, y){
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
 function sierraZ(x, y){
   if(!WORLDGEN_COAST) return 0;
-  { const pz = spPathZ(x, y); if(pz !== null) return pz; }      // (the security post's walk: down the ramp outside the east wall)
+  { const pz = spGroundZ(x, y); if(pz !== null) return pz; }      // (the security post's lawn, level with the first terrace, and its drive's climb)
   const S = sierraGeo();
-  if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall it is the bench: off the walk he is at the ground, not the terrace's height)
+  if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall past the lawn it is the bench, at the ground, not the terrace's height)
   if(y > S.wallY || y < S.e[4] - 200 || x < S.xw - 200 || x > S.xe + 200) return 0;
   for(const r of S.ramps)
     if(x >= r.c0 && x <= r.c1 && y <= r.yS && y >= r.yN)
@@ -127064,6 +127257,7 @@ function sierraGateStep(scene, dt){
     if(gd.mode === 'back') gd.mode = 'out';
     gd.side = side;
   } else if(gd.mode === 'out' && (gd.idleT += dt) > 1500) gd.mode = 'back';
+  if(gd.knock){ gd.moving = false; return; }                                       // (knocked down: where he fell, updateKnocks)
   if(gd.mode === 'booth'){ gd.posted = false; gd.moving = false; return; }
   /* his spot: on the gate line, a step inside it, between the robot and
      the gap -- anywhere along his side from the island to the pier */
@@ -127112,7 +127306,7 @@ function sierraBlocks(x, y, R){
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
   if(SV_GATE.g.mode !== 'booth' && Math.hypot(x - SV_GATE.g.x, y - SV_GATE.g.y) < SV_GUARD_R + R) return true;   // the guard himself
-  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y) && !spGateGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
+  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
     const rp = S.ramps[k-1];
