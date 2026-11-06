@@ -10097,11 +10097,11 @@ function owStep(scene, dt){
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
   const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || ballroomWalkerBlock(x, y, D.botR) || walkinPeopleBlock(x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
-                            (derbyKartBlocks(x, y, D.botR) || derbyWalkerBlock(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
-                            (!FP.fly && (motelPeopleBlock(x, y, D.botR) || gwBlocks(x, y, D.botR)) ? OW_DECK_BLOCK : null) ||   // Sun Deck Motor Lodge's people and van, THE GETAWAY's charter
+                            (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
@@ -80743,8 +80743,7 @@ function xrayNearK(x, y, r, bx, by){
    and this section is one view over all of them. What reads the group,
    step by step after this: updateKnocks (who can be knocked down -- today
    six loops written by hand, so anyone left out cannot be), owStep's
-   blockAt (who is solid -- today ballroomWalkerBlock and derbyWalkerBlock by
-   name), the speech bubbles, and a headless people census.
+   blockAt (who is solid -- CITY_PEOPLE.blocks, done), the speech bubbles, and a headless people census.
 
    To look at it: CITY_PEOPLE.census() in the console lists each population
    and how many of its people are out right now.
@@ -80800,6 +80799,18 @@ const CITY_PEOPLE = {
   },
   /* everyone within R (Manhattan) of (x, y) who is not hidden */
   near(scene, t, x, y, R){ const out = []; this.each(scene, t, p => { if(!p.hidden && Math.abs(p.x - x) + Math.abs(p.y - y) <= R) out.push(p); }); return out; },
+  /* WHO HE CANNOT DRIVE THROUGH (owStep's blockAt): a population whose people are solid registers its test once, for the pockets (rooms) or
+     the world, and blockAt asks here instead of naming each. fn(x, y, r) -> a truthy block (or not); in the world a hit reads as `block`.
+     o.ground: not while he flies. First hit wins, in the order registered. */
+  blockers: { pocket: [], world: [] },
+  blocks(space, fn, o){ this.blockers[space].push(Object.assign({ fn, block: null, ground: false }, o)); },
+  blockAt(space, x, y, r, fly){
+    for(const b of this.blockers[space]){
+      if(b.ground && fly) continue;
+      const h = b.fn(x, y, r); if(h) return b.block || h;
+    }
+    return null;
+  },
   /* the census: each population, how many out, how many of those hidden */
   census(scene, t){
     const s = scene || (typeof scn === "function" ? scn() : null);
@@ -80815,6 +80826,12 @@ const CITY_PEOPLE = {
     return rows;
   }
 };
+/* the solid populations (see blockers): the ballroom's walkers, the kitchen's runners and the cake crew, and a walk-in's people held where
+   they stand, in the rooms; the derby's walkers and crowd, and Sun Deck Motor Lodge's people (not flying over them), in the world */
+CITY_PEOPLE.blocks('pocket', (x, y, r) => ballroomWalkerBlock(x, y, r));
+CITY_PEOPLE.blocks('pocket', (x, y, r) => walkinPeopleBlock(x, y, r));
+CITY_PEOPLE.blocks('world', (x, y, r) => derbyWalkerBlock(x, y, r), { block: OW_DECK_BLOCK });
+CITY_PEOPLE.blocks('world', (x, y, r) => motelPeopleBlock(x, y, r), { block: OW_DECK_BLOCK, ground: true });
 /* an entry with its defaults filled in */
 function cpEntry(g, o){ return Object.assign({ z: 0, h: null, moving: false, hidden: false, kind: 'walker', look: null, lookFn: null, ref: null, group: g.name, solid: !!g.solid, hold: null, ko: g.knock || null }, o); }
 /* their look (partyLook's shape), worked out only when asked: a population hands over lookFn, not a look it made for everyone each frame */

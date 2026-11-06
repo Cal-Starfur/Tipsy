@@ -26,7 +26,7 @@ graph LR
 - [?] `p1.5` EXCUSE table + excuseSay (hospital visible change) [docs/people-unification.md]
 - [x] `p1.6` Looks through partyLook, old generators as aliases (already done in the code: staffLook and mallJailLook are rosterBody aliases, storeRepLook and tixLooks build on it, the inline lookOf is mallJailLook) [docs/people-unification.md]
 - [?] `p1.7` Derby onto scene.time.now [docs/people-unification.md]
-- [ ] `p2.8` PEOPLE registry (updateKnocks, blockAt, hospital walkers solid) [docs/people-unification.md]
+- [?] `p2.8` PEOPLE registry (updateKnocks, blockAt, hospital walkers solid) [docs/people-unification.md]
 
 ## Roadmap: routes, ramps, editor
 - [ ] `r1` Dev challenge routes data plumbing [docs/roadmap.md#phase-1]
