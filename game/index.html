@@ -21295,7 +21295,7 @@ function tixLooks(){
 /* a walk along a way (pts) to where they stand and, leaving, back along it */
 function tixWalk(ow, pts, now, scene){
   /* side by side across the screen, on the side they come from */
-  const last = pts[pts.length - 1], side = (last.x - last.y) > (ow.px - ow.py) ? 1 : -1, M = meetWalk(ow, last, now, side, scene);
+  const last = pts[pts.length - 1], side = meetSide(ow, last, scene), M = meetWalk(ow, last, now, side, scene);
   const way = pts.concat([M.to]);
   let L = 0; for(let i = 1; i < way.length; i++) L += Math.hypot(way[i].x - way[i - 1].x, way[i].y - way[i - 1].y);
   return Object.assign(M, { way, len: L, walkMs: walkPathMs({ pts: way }) });
@@ -33289,10 +33289,7 @@ function lostItemTick(scene, ow){
     const step = edgePt(d.e, d.along, d.bDoor + 22);
     /* SIDE BY SIDE ACROSS THE SCREEN (CLAUDE.md: meetWalk's side, so both faces show), on the side of him their door is;
        the other side if that spot is in something or covered by what is drawn (meetCoverAt) */
-    const spotAt = sd => ({ x: ow.px + sd*MEET.gap/Math.SQRT2, y: ow.py - sd*MEET.gap/Math.SQRT2 });
-    const spotOk = sd => { const q = spotAt(sd); return owSpotClear(scene, q.x, q.y, 16) && !meetCoverAt(scene, q.x, q.y, 0); };
-    let side = (step.x - step.y) > (ow.px - ow.py) ? 1 : -1;
-    if(!spotOk(side) && spotOk(-side)) side = -side;
+    const side = meetSide(ow, step, scene);
     const M = meetWalk(ow, step, now, side, scene);
     M.look = folkLook(who); M.step = step;
     const dogName = H.dog ? LOST_DOG_NAMES[(H.dog.seed >>> 3) % LOST_DOG_NAMES.length] : null;
@@ -33697,6 +33694,16 @@ function meetApproach(scene, at, from, dist, z){
     if(!best || score < best.score) best = { p, score };
   }
   return best.p;
+}
+/* WHICH SIDE OF HIM (meetWalk's side, so both faces show): the side they come from, across the screen; the other side if that spot is in
+   something or covered by what is drawn (meetCoverAt) and the other is not. One chooser for every caller (lhSide, ohSide, kwSide, rlSide, the
+   ticket exchange, a lost item's owner); a caller with its own reasons (trophyMeetSide) keeps them */
+function meetSide(ow, from, scene){
+  scene = scene || (typeof scn === "function" ? scn() : null);
+  const ok = sd => { const x = ow.px + sd*MEET.gap/Math.SQRT2, y = ow.py - sd*MEET.gap/Math.SQRT2; return owSpotClear(scene, x, y, 16) && !meetCoverAt(scene, x, y, 0); };
+  let side = (from.x - from.y) > (ow.px - ow.py) ? 1 : -1;
+  if(scene && !ok(side) && ok(-side)) side = -side;
+  return side;
 }
 /* their meeting, standing where they are: he turns to them (meetTick), they turn to him (cheated to the eye) */
 function meetStand(ow, at, now, th0){
@@ -81043,7 +81050,7 @@ function lhMeetWalk(ow, from, t0, side, gap){
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
 }
 /* side by side across the screen, on the side they come from */
-function lhSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function lhSide(ow, from){ return meetSide(ow, from); }
 function lhAccept(){
   const scene = scn(), R = LH;
   if(R.stage !== 'ask' || !scene) return;
@@ -82735,7 +82742,7 @@ function ohClockOn(){ return OH.stage === 'drill' && OH.t0 > 0; }
 function ohSmokeOn(){ return OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
 function ohKidsWanted(){ return OH.stage === 'depot' || OH.stage === 'yard' || OH.stage === 'brief' || OH.stage === 'drill' || OH.stage === 'present' || OH.stage === 'thanks' || (OH.stage === 'after' && OH.hold); }
 function ohKidHas(k){ return k === OH.kidHas ? 'helmet' : null; }
-function ohSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function ohSide(ow, from){ return meetSide(ow, from); }
 /* THE CAPTAIN, while the story has her: out of the station's door to him and back (a meeting: hospWalkAt), along a way
    (walkPathAt: across to the yard, to the fence), or standing at her post; null while she is in the station */
 function ohCaptAt(now){
@@ -85430,7 +85437,7 @@ function kwSim(cruise, boost, seed){
 function kwBest(){ if(!kwBest.v){ const k = DERBY_RACE.karts.find(q => q.no === 1); kwBest.v = kwSim(k.cruise, k.boost, k.seed).fin; } return kwBest.v; }
 /* a time as it is said ("11 point 4": the speech card cuts its sentences at a full stop) */
 function kwSecs(ms){ const t = (ms/1000).toFixed(1).split('.'); return t[0] + ' point ' + t[1]; }
-function kwSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function kwSide(ow, from){ return meetSide(ow, from); }
 function kwNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "kart", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function kwNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "kart"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* where the GPS takes him for the Kart Works: out on the pavement before its roll-up */
@@ -85900,7 +85907,7 @@ function rlLobbyBay(){ return RL._lb || (RL._lb = (() => { const q = rlRoomPt(KT
 function rlStudioBay(){ return RL._sb || (RL._sb = (() => { const q = rlRoomPt(KTDE_ROOM.studioBay[0], KTDE_ROOM.studioBay[1]); return hospBay(q.x, q.y); })()); }
 function rlNav(scene, to, name){ if(to && typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "request", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
 function rlNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "request"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
-function rlSide(ow, from){ return (from.x - from.y) > (ow.px - ow.py) ? 1 : -1; }
+function rlSide(ow, from){ return meetSide(ow, from); }
 function rlClockOn(){ return RL.stage === 'song' && RL.t0 > 0; }
 function rlLeft(now){ return Math.max(0, RL_RUN.songMs - (now - RL.t0)); }
 /* THE PEOPLE, where they are now */

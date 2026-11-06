@@ -262,8 +262,9 @@
 "title": "Merge the two meet-spot pickers; meetCoverAt beyond street + mall",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: people"
+"status": "built",
+"group": "Consistency pass: people",
+"note": "meetSide: one side chooser (lhSide/ohSide/kwSide/rlSide, tix, lost item); meetSpot was already the one picker; meetCoverAt in other interiors left"
 },
 {
 "id": "pe4",
