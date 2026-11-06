@@ -85686,6 +85686,42 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
     }
   } });
 
+/* the food trucks' customers, walking up the pavement to a hatch, queueing and ordering (VEND_CUST: shopperAt's walkers) */
+CITY_PEOPLE.add({ name: 'food truck customers', where: 'the pavements by the posted-up food trucks', solid: false,
+  each(scene, t, fn){
+    for(const sp of scene._vendCust || []){
+      if(sp.knock) continue;                                                       // (down: the knocked-down group has them)
+      const m = shopperAt(sp, t);
+      if(!m) continue;
+      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: 'shopper',
+                         look: sp._cpLook || (sp._cpLook = streetLook(sp.seed ^ 0x7ac0)), ref: sp, hold: dt => { sp.t0 += dt; } }));
+    }
+  } });
+/* the Sierra Vista gate's guard: at his booth's door, or out on the pavement after someone (SV_GATE) */
+CITY_PEOPLE.add({ name: 'Sierra Vista gate guard', where: 'the Sierra Vista gate', solid: true,
+  each(scene, t, fn){
+    const G = SV_GATE, gd = G.g;
+    if(!G.home) return;
+    const bth = gd.mode === 'booth';
+    fn(cpEntry(this, { x: bth ? G.home.x : gd.x, y: bth ? G.home.y : gd.y, th: bth ? 0 : gd.th, moving: !bth && !!gd.moving, kind: 'guard',
+                       look: G._cpLook || (G._cpLook = (() => { const b = rosterBody(0x5e7a); return { build: b.build, skin: b.skin, hair: b.hair, shirt: SECURITY_UNIFORM.shirt, pants: SECURITY_UNIFORM.pants, shoe: SECURITY_UNIFORM.shoe, uniform: withAid(SECURITY_UNIFORM, b) }; })()), ref: G }));
+  } });
+/* Marina General's ground floor seen from the street, through its glass and doors: the halls' walkers and the patients
+   the porters push, laid where the building stands (queueHospThrough). Inside the building 'hospital hall walkers' has them. */
+CITY_PEOPLE.add({ name: 'hospital seen from the street', where: "Marina General's ground floor, from outside", solid: true,
+  each(scene, t, fn){
+    if(hospInsideNow(scene)) return;
+    const v = hospInView();
+    if(Math.abs(HOSP_IN.PX0 + HOSP_IN.W/2 - scene.botX) + Math.abs(HOSP_IN.PY0 + HOSP_IN.D/2 - scene.botY) > 4200) return;
+    for(const w of hospInHaz(1).walk){
+      if(w.knock) continue;
+      const q = hospWalkerAt(w, t); if(q.hidden) continue;
+      fn(cpEntry(this, { x: q.x + v.dx, y: q.y + v.dy, th: q.th, moving: q.moving !== false, kind: q.cast ? q.cast.kind : 'walker', look: hospWalkerLook(w, q), ref: w }));
+      if(q.push && !(w._pushRef && w._pushRef.knock)){ const L = hospCastPushLook(q.cast, q.push.k);
+        fn(cpEntry(this, { x: q.push.x + v.dx, y: q.push.y + v.dy, th: q.push.th, kind: 'patient', look: L, ref: w._pushRef || w })); }
+    }
+  } });
+
 /* ---------------- NOT YET LISTED ---------------- */
 /* their places are only worked out inside their draws; each is the next
    step, not a new engine: the beach's waders (the beach's LIB entry), the
@@ -125100,6 +125136,7 @@ function sierraGateStep(scene, dt){
   const reach = RD.out + (gd.mode === 'out' ? 600 : 400);
   const trying = !admit && !inside && !G.leaving && d < reach && (ax > RD.r - 40 || by - yw < 220);
   const home = { x: gx, y: yw + 100 };
+  G.home = home;                                   // (where he stands in his booth: CITY_PEOPLE 'Sierra Vista gate guard' lists him there)
   if(trying){
     gd.idleT = 0;
     if(gd.mode === 'booth'){
