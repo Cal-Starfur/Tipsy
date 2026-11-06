@@ -66,3 +66,26 @@ Watch (not changed): in the day shot the windows show only dark/reflective glass
 In the day shot a pedestrian stands against the robot at the door, robot drawn in front; transient, not a draw bug.
 
 Hands-on (cannot judge from stills): engraver faces the camera at his bench; clerk at the till; one visitor browses; back door and window inside; alley gate dropping to knee height as the door opens.
+
+## Stories — 2026-11-06
+
+Photos: snaps/sheet/stories/ (heart run, cake run, gus mall; day, night, wide).
+
+### Problems
+None confirmed as DRAW problems. Nothing fixed, nothing left pending.
+
+Watch-points (judged OK, not defects):
+- heart-run-day: the grey-shirted bystander under the MAIN ENTRANCE canopy has his upper body covered by the canopy fascia. Reads as correct occlusion (he stands behind the canopy's front edge), not a depth error (LOOK_RULES 1).
+- cake-run-night: customer and the cake-drop scooters/bin sit close together but do not overlap wrongly.
+- The "night" photos at NIGHT_CLOCK.time = 18 are still bright (dusk), so night lighting (8b) can't be judged from this sheet; worth a later look at a later clock time.
+
+### OK
+- Heart run: Dr. Okafor, courier robot, signal pole and sign all sort correctly; speech bubbles/gate code show; faces visible.
+- Cake run: robot, cake, palm, tree grate, shops, vans and street all sit correctly; no seams or floating objects.
+- Gus mall: mall entrance, mats, Gus, pickup icon and neighbouring shops sort correctly.
+
+### Hands-on (Sir to test)
+- Heart run ends with Dr. Okafor meeting Tipsey face to face in the ER; no fade, no 'hours later'.
+- Luna's mom comes out of a real front door at 776 Marina Way (not on this sheet's spots).
+- Every speaker's face shows; nobody snaps round when they walk away.
+- Cake Run and Gus's favour only open at dusk.
