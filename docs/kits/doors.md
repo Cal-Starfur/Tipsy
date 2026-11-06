@@ -20,6 +20,7 @@
 | D8 | **A door sits on its own wall's set-back**, not at b 0. | 4 | C | shop kit K19 |
 | D9 | **Each unit declares exactly one working entrance**, used by the art, the walker and Tipsey, and facing the way in. | 5 | C | ☐ |
 | D10 | **Door pieces are layered in depth**, the glass is in the shop palette, and there is one surround per opening. | 6 | K (`shopDoor`) | shop kit |
+| D11 | **No flat dark fill for any doorway, archway or gateway** (Sir, 2026-11-06). A mouth you can see into gets a passage: near wall, vault, floor, lit far end, hung lantern (`tunnelView` in the almshouses). Anything hung inside it (gate leaves) is cut to the mouth, since `clip()` doesn't clip strokes here. | 1 | C | ☐ a doorway/arch filled with one dark colour |
 
 ## Approved values
 - **House doors:** open in 280 ms, shut in 480 ms (`HOUSE_DOOR_OPEN`).
