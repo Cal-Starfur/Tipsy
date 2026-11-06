@@ -679,6 +679,15 @@
 "status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4204,13628&view=2"
+},
+{
+"id": "kart-yard-fence",
+"title": "Kart Works block: the open frontages fenced in the alley gate's iron (north, west, east between barn and depot)",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4692,14076&view=3"
 }
 ],
 "meta": {
