@@ -70564,7 +70564,8 @@ marinaEntry(),
       poly([c0, c1, pa], shade(roofc, .78)); poly([c0, c3, pa], shade(roofc, .84));
       poly([c1, c2, pa], shade(roofc, sa > 0 ? 1.0 : .82)); poly([c3, c2, pa], shade(roofc, 1.08));
       if(sa < 0) poly([c0, c3, pa], shade(roofc, 1.0));
-      for(const [x, y] of [[c0, c1], [c1, c2], [c2, c3], [c3, c0]]){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }
+      /* THE EAVES LINE ON THE NEAR TWO EDGES ONLY: the far two lie behind the slopes, and stroked last they drew a blue frame across the roof */
+      for(const [x, y] of (sa > 0 ? [[c1, c2], [c2, c3]] : [[c3, c0], [c2, c3]])){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }
       cyl(cA, cB, pk - 2, pk + 34, 2.6, gold); ball(cA, cB, pk + 38, 5, gold);
     };
     /* the far corners first: their keys put them behind, and the nearer ranges paint over their joins */
@@ -70628,7 +70629,7 @@ marinaEntry(),
       poly([c0, c1, r1, r0], shade(roofc, .8));                                                    // the far slope
       poly([c0, c3, r0], shade(roofc, sa > 0 ? .84 : 1.0)); poly([c1, c2, r1], shade(roofc, sa > 0 ? 1.0 : .84));
       poly([c3, c2, r1, r0], shade(roofc, 1.08));                                                  // the street slope
-      for(const [x, y] of [[c0, c1], [c1, c2], [c2, c3], [c3, c0]]){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }
+      for(const [x, y] of (sa > 0 ? [[c1, c2], [c2, c3]] : [[c3, c0], [c2, c3]])){ ctx.strokeStyle = trimD; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(x.x, x.y); ctx.lineTo(y.x, y.y); ctx.stroke(); }   // (the near two edges only, as the towers')
       ctx.strokeStyle = ridgeC; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.moveTo(r0.x, r0.y); ctx.lineTo(r1.x, r1.y); ctx.stroke();
       cyl(rA1, rB, pk, pk + 46, 2.6, iron); tube(rA1 - 22, rB, pk + 40, rA1 + 22, rB, pk + 40, 2, iron); poly([P(rA1 + 24, rB, pk + 40), P(rA1 + 38, rB, pk + 48), P(rA1 + 38, rB, pk + 32)], gold); ball(rA1, rB, pk + 50, 4.4, gold);
     });
