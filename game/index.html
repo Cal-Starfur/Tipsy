@@ -51158,11 +51158,11 @@ function houseCanopy(fn){
     T(560, 770, 360, 400, 0.3, '#57524c');
     for(const [ga, gb] of [[120, 300], [310, 520], [470, 180], [700, 560], [220, 700], [610, 700], [80, 450]]) for(let k = 0; k < 7; k++) T(ga + k*9, ga + k*9 + 3, gb + (k%3)*7, gb + (k%3)*7 + 3, 0.35, '#6a655e');
     /* ---- THE PARAPET, all round: a brown wall with a cream cap, in runs ---- */
-    const par = (a0, a1, b0, b1, alongA) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
+    const par = (a0, a1, b0, b1, alongA, vis) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
-        rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: () => {
-          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } }); } };
-    par(0, W, 0, PT, true); par(0, PT, PT, D - PT, false); par(W - PT, W, PT, D - PT, false); par(0, W, D - PT, D, true);
+        rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
+          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
+    par(0, W, 0, PT, true, true); par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
     /* ---- THE HATCH, a 130..200 x 0..70: its curb, the dark opening, the lid thrown back against the north parapet, the rails coming up ---- */
     rpush({ a: 165, b: 36, z: 0, solids: [solid(126, 204, PT, 72, 22, 'roof hatch')], draw: () => {
       box(126, 204, PT, 72, 0, 18, '#6b5a48', '#5a4a3a', '#3d3328');
