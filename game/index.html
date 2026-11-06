@@ -84637,9 +84637,9 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8596, x1: 10900, y0: -9660, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
+  SITE: { x0: 8596, x1: 10900, y0: -9660, y1: -5644 },        // (its south edge on the first ramp's block's south face, y = ramp.yF, so the two walls are one straight line)        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
   AREA: { x0: 8596, x1: 10900, y0: -9700, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8602, x1: 8940, y0: -5820, y1: -4400 },        // the patrol track north up the east wall
+  TRACK: { x0: 8602, x1: 8940, y0: -5644, y1: -4400 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
   COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
@@ -84658,7 +84658,7 @@ const SP_PLAN = {
   PATH: { w: 130, z0: 180,
           pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk across the lawn, level with it, to the post
   Z: 180,                                                     // the whole lawn (SITE) is graded to the first terrace's height, so it meets the estate's lawn level
-  RAMP: { y0: -4700, y1: -5820 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
+  RAMP: { y0: -4700, y1: -5644 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
   HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
@@ -92920,7 +92920,7 @@ class WorldScene extends Phaser.Scene {
          where the cut runs out at the head */
       block(cut1, rp.b1, rp.yN);
       cutCap(cut1, cut1 + rp.t);
-      if(rp.b1 >= S.xe - 1){                                   // out to the estate's east flank: the flank rises with it
+      if(rp.b1 >= S.xe - 1 && rp.k !== 1){                     // out to the estate's east flank: the flank rises with it (not the first block's: the security post's platform is level with it and buries it)
         Q([[S.xe, rp.yF, 0],[S.xe, yw, 0],[S.xe, yw, z],[S.xe, rp.yF, z]], shade(STONE, .78));
         for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, rp.yF, zz],[S.xe + 0.5, yw, zz],[S.xe + 0.5, yw, zz + 3],[S.xe + 0.5, rp.yF, zz + 3]], shade(STONE, .7));
       } else {
@@ -95573,7 +95573,7 @@ class WorldScene extends Phaser.Scene {
     /* THE PATROL'S CAMERA POINTS while it runs: each a pair of the slalom's blue-banded cones (cached) */
     if(typeof NW !== 'undefined' && NW.stage === 'patrol')
       for(const Gt of P.GATES) for(const s of [-1, 1]){ const x = Gt.x + s*P.GATE_W/2, y = Gt.y;
-        if(this.visProp("cone", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "sp|cone|" + x + "," + y, x, y, gg => this.drawProp(gg, "cone", x, y, 0, 0, 0, null, null, { cone: SP_CONE })) }); }
+        if(this.visProp("cone", x, y)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "sp|cone|" + x + "," + y, x, y, gg => this.drawProp(gg, "cone", x, y, 0, 0, spZ(x, y), null, null, { cone: SP_CONE })) }); }
     /* INSIDE: the screens' flicker -- one monitor rolls now and then -- and the console's REC light */
     if(pk && this._inside === pk){
       const v = pk.view(), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy, ph = Math.floor(now/2400), k = (ph*5 + 3) % 8, u = (now % 2400)/2400;
@@ -95599,11 +95599,18 @@ class WorldScene extends Phaser.Scene {
     const K = this.K, S = P.SITE, e = spEastEdge, D = P.DRIVE, R0 = P.RAMP;
     /* the bench's own strip along the wall below the platform (the patrol track): the estate's lawn */
     rect(P.TRACK, 0x9fbd6a, 0.6);
-    /* THE PLATFORM'S FACES, in stone, down to the bench: its south edge (the drive's way up left open), and the hill's side */
-    { const STN = 0x9d9580, STE = 0x8c856f;
-      quad([this.W(S.x0, S.y1, Z), this.W(D.x0, S.y1, Z), this.W(D.x0, S.y1, 0.9), this.W(S.x0, S.y1, 0.9)], STN);
-      quad([this.W(D.x1, S.y1, Z), this.W(e(S.y1), S.y1, Z), this.W(e(S.y1), S.y1, 0.9), this.W(D.x1, S.y1, 0.9)], STN);
+    /* THE PLATFORM'S FACES, in the estate's own stone (STONE, coursed every 30, capped), down to the bench: its south edge, one
+       straight line with the first ramp's block's face (the drive's way up left open), and the hill's side */
+    { const STONE = 0xc9bd9f, CAP = 0xe2d8c0, shade = (c, k) => hillShade(c, k);
+      const STN = STONE, STE = shade(STONE, .78);
+      const south = (xa, xb) => {
+        quad([this.W(xa, S.y1, Z), this.W(xb, S.y1, Z), this.W(xb, S.y1, 0.9), this.W(xa, S.y1, 0.9)], STN);
+        for(let zz = 30; zz < Z - 8; zz += 30) quad([this.W(xa, S.y1, zz), this.W(xb, S.y1, zz), this.W(xb, S.y1, zz + 3), this.W(xa, S.y1, zz + 3)], shade(STONE, .86));
+        quad([this.W(xa, S.y1, Z), this.W(xb, S.y1, Z), this.W(xb, S.y1 - 40, Z), this.W(xa, S.y1 - 40, Z)], CAP);
+      };
+      south(S.x0, D.x0); south(D.x1, e(S.y1));
       quad([this.W(e(S.y1), S.y1, Z), this.W(e(S.y0), S.y0, Z), this.W(e(S.y0), S.y0, 0.9), this.W(e(S.y1), S.y1, 0.9)], STE);
+      for(let zz = 30; zz < Z - 8; zz += 30) quad([this.W(e(S.y1), S.y1, zz), this.W(e(S.y0), S.y0, zz), this.W(e(S.y0), S.y0, zz + 3), this.W(e(S.y1), S.y1, zz + 3)], shade(STONE, .7));
       /* the drive's climb: its two stone sides, the slope's concrete (joints every 160) */
       const zr = y => Z*(R0.y0 - y)/(R0.y0 - R0.y1);
       for(const x of [D.x0, D.x1]) quad([this.W(x, R0.y0, 0.9), this.W(x, R0.y1, Z), this.W(x, R0.y1, 0.9)], x === D.x0 ? STN : STE);
