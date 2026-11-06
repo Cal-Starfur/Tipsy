@@ -13599,7 +13599,7 @@ const STOP_LINE_D  = STOP_LINE_AT + ZEBRA.w + ZEBRA.nose - ROAD_HALF;    // nose
 function signalPhaseAt(node, t){
   const off = (((node.i*73856093) ^ (node.j*19349663)) >>> 0) % SIGNAL.cycle;
   const half = SIGNAL.cycle/2;
-  const u = (t + off) % SIGNAL.cycle;
+  const u = ((t > 1e11 ? t : trClock(t)) + off) % SIGNAL.cycle;      // (the world clock, whether asked in the scene's time or already in it: the strand's walkers wait at these lights on it, sc4)
   const axis = u < half ? 0 : 1;              // the axis holding green
   const inHalf = u % half;
   const g = half - SIGNAL.amber - SIGNAL.allRed;
@@ -18089,13 +18089,13 @@ function crowdFrom(o, q){
   return q;
 }
 function nssResAt(d, t, bx, by){
-  const q = crowdFrom(d, nssResidentAt(d, t - (d.dly || 0) - (d._dly || 0), d._cw ? undefined : bx, d._cw ? undefined : by));
+  const q = crowdFrom(d, nssResidentAt(d, trClock(t - (d.dly || 0) - (d._dly || 0)), d._cw ? undefined : bx, d._cw ? undefined : by));   // (the world clock: the same resident on the same trip for everyone, sc4)
   if(!addrQuiet.length || !addrQuietAt(d.x, d.y)){ d.qLeg = undefined; return q; }
   if(d.qLeg === undefined) d.qLeg = q ? q.leg : null;
   return q && q.leg === d.qLeg ? q : null;
 }
 function bwAt(p, t, bx, by){
-  const tt = t - (p.dly || 0) - (p._dly || 0), cx = p._cw ? undefined : bx, cy = p._cw ? undefined : by;
+  const tt = trClock(t - (p.dly || 0) - (p._dly || 0)), cx = p._cw ? undefined : bx, cy = p._cw ? undefined : by;   // (the world clock, sc4)
   return crowdFrom(p, p.R ? bwCrossAt(p, tt, cx, cy) : bwStrollAt(p, tt, cx, cy));
 }
 const NSS_RES = { v: 0.075, cycle: [80000, 150000], away: 3200, lane: SIDEWALK_W*0.55, swerveR: 200, swerveW: 120,
@@ -18190,7 +18190,7 @@ function nssGarageSite(g){
       const fx = g.faceX - g.inX*Math.min(half + 40, Math.abs(g.mouthX - g.faceX) - 2), ix = g.faceX + g.inX*(half + 16);
       return { noOut: true, inner: [
         { x: fx, y: g.yc, stop: 1300 },
-        { x: ix, y: g.yc, stop: NSS_GARAGE.stay[0] + Math.random()*(NSS_GARAGE.stay[1] - NSS_GARAGE.stay[0]), rev: true, wait: true },
+        { x: ix, y: g.yc, stop: NSS_GARAGE.stay[0] + ERR_RND()*(NSS_GARAGE.stay[1] - NSS_GARAGE.stay[0]), rev: true, wait: true },
         { x: g.mouthX, y: g.yc },
         { x: J.x, y: g.yc, r: 170 },
         { x: J.x, y: g.yc - dirJ*280, stop: 700 }] };
@@ -26114,7 +26114,7 @@ function almsLook(p){ return p.look || (p.look = streetLook(p.seed, p.kind === '
 function almsFolkAt(p, t, bx, by){
   if(p.still) return { x: p.x, y: p.y, th: p.th, moving: false };
   const leg = p.L / p.v, cyc = 2*(leg + p.pause);
-  const u = (t + p.ph*cyc) % cyc;
+  const u = (trClock(t) + p.ph*cyc) % cyc;      // (the world clock: the same people at the same places for everyone, sc4)
   let s, moving = true, dir = 1;
   if(u < leg) s = u*p.v;
   else if(u < leg + p.pause){ s = p.L; moving = false; }
@@ -27090,7 +27090,7 @@ function mallPaveFar(gate, side, seen){
 }
 function mallPaveSide(gate, k){ return ((gate.a*7 + k*13) & 1) ? 1 : -1; }
 function mallPlanArrive(G, gate, t, seen){
-  const far = gate.pave ? mallPaveFar(gate, Math.random() < 0.5 ? -1 : 1, seen) : null;
+  const far = gate.pave ? mallPaveFar(gate, (G.seed & 1) ? -1 : 1, seen) : null;
   G.mem.forEach((m, k) => {
     const lat = (k - (G.mem.length - 1)/2)*40;
     const pts = gate.bridge ? [{ a: gate.outA, b: gate.b + lat, L: 1 }, { a: gate.a + 60, b: gate.b + lat, L: 1 }]
@@ -27193,7 +27193,9 @@ function mallCrowdStep(scene, t, dt){
   if(!S){
     /* FIRST IN: the cliques at their places, and a few shoppers about */
     S = scene._mallCrowd = { groups: [], spawnT: t, n: 0 };
-    const rng = mulberry32((Date.now() & 0xffffff) >>> 0);
+    const mallSeed = routeSeedStr(scene.route.dateStr, scene.route.runIndex) + "|mall";
+    const rng = mulberry32(hashStr(mallSeed));      // (the daily seed's, not the clock's: sc4)
+    S.rng = mulberry32(hashStr(mallSeed + "|live"));
     for(const kind of Object.keys(MALL_KIDS)){
       const K = MALL_KIDS[kind], G = mallNewGroup(kind, (rng()*4294967296) >>> 0, K.n[0] + Math.floor(rng()*(K.n[1] - K.n[0] + 1)));
       const taken = new Set(S.groups.map(g => g.act)), s = mallPickSpot(K.spots, taken, rng);
@@ -27224,7 +27226,7 @@ function mallCrowdStep(scene, t, dt){
       }
     }
   }
-  const rng = Math.random;
+  const rng = S.rng;      // (the daily seed's stream: the mall's life is its own, sc4)
   /* the next act, for every group whose last one is over */
   for(let i = S.groups.length - 1; i >= 0; i--){
     const G = S.groups[i];
@@ -27270,7 +27272,7 @@ function mallCrowdStep(scene, t, dt){
     const short = MALL_QUOTA[id] - mallQuotaCount(S, id, t);
     if(short <= 0) continue;
     S.qT[id] = t;
-    const G = mallNewGroup('shopper', (Math.random()*4294967296) >>> 0, Math.min(short, 1 + Math.floor(rng()*rng()*3)));
+    const G = mallNewGroup('shopper', (rng()*4294967296) >>> 0, Math.min(short, 1 + Math.floor(rng()*rng()*3)));
     const gate = mallQuotaGate(id, rng);
     mallPlanArrive(G, gate, t, onScr);
     G.mem.forEach(m => { const e = m.p.pts[m.p.pts.length - 1]; m.a = e.a; m.b = e.b; m.L = e.L; });
@@ -27281,7 +27283,7 @@ function mallCrowdStep(scene, t, dt){
   const shoppers = S.groups.filter(g => g.kind === 'shopper' && !g.exit).length;
   if(shoppers < C.shopMax && t - S.spawnT > C.spawnMs){
     S.spawnT = t;
-    const G = mallNewGroup('shopper', (Math.random()*4294967296) >>> 0, 1 + Math.floor(rng()*rng()*3));
+    const G = mallNewGroup('shopper', (rng()*4294967296) >>> 0, 1 + Math.floor(rng()*rng()*3));
     const gate = sp.IN[Math.floor(rng()*sp.IN.length)];
     mallPlanArrive(G, gate, t, onScr);
     G.mem.forEach(m => { const e = m.p.pts[m.p.pts.length - 1]; m.a = e.a; m.b = e.b; m.L = e.L; });
@@ -30268,7 +30270,7 @@ function derbyLifeTick(scene, ow){
   const near = Math.abs(ow.px - (DERBY_O.x0 + 1564)) < 3200 && Math.abs(ow.py - (DERBY_O.y0 + 736 + 2400)) < 4600;
   if(!near){ L.convos.length = 0; return; }
   const say = (key, pos, text, ms) => scene.npcSay("derby|" + key, pos, text, ms || 2600);
-  if(!L.w) L.w = DERBY_WALK.map(d => { const p = derbyW(d.path[0][0], d.path[0][1]); return { d, i: 0, x: p.x, y: p.y, th: Math.PI/2, wait: (d.path[0][2] || 0)*Math.random(), moving: false, stuck: 0, excT: 0 }; });
+  if(!L.w) L.w = DERBY_WALK.map(d => { const p = derbyW(d.path[0][0], d.path[0][1]); return { d, i: 0, x: p.x, y: p.y, th: Math.PI/2, wait: (d.path[0][2] || 0)*mulberry32(hashStr('derby|' + d.path[0].join()))(), moving: false, stuck: 0, excT: 0 }; });
   /* THE WALKERS */
   const bx = ow.px, by = ow.py;
   const derbyOpts = {
@@ -90430,7 +90432,7 @@ CITY_PEOPLE.add({ name: 'strand residents', where: 'North Sunset Shore', solid: 
 /* the boardwalk's walkers, joggers and tourists (BW_STROLL) */
 CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwood Beach boardwalks', solid: false,
   knock: { kind: 'stroller', when: () => !!WORLDGEN_COAST,
-    make(p){ return { look: cpLookArr(cpLook(p)), mood: p.ref.kind === 'tourist' && Math.random() < 0.5 ? 'polite' : undefined }; } },
+    make(p){ return { look: cpLookArr(cpLook(p)), mood: p.ref.kind === 'tourist' && ((p.ref.seed >>> 3) & 1) ? 'polite' : undefined }; } },
   each(scene, t, fn){
     const grid = scene.route && scene.route.grid;
     if(!grid) return;

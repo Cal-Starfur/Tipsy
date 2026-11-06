@@ -36,6 +36,13 @@ const [X, Y] = process.argv.length > 3 ? [+process.argv[2], +process.argv[3]] : 
       owStandUpAt(s, x, y, Math.PI);
       for(let i = 0; i < 240; i++){ await sleep(250);
         for(const m of (s._shoppers || []).concat(s._seekers || [], s._vendCust || [])) if(m.vkey && !got[m.vkey + '#' + (m.gk || 0)]) got[m.vkey + '#' + (m.gk || 0)] = { t0: Math.round(CROWD_WORLD.epoch + m.t0), pts: m.pts.map(q => [Math.round(q.x), Math.round(q.y), q.wait ? Math.round(q.wait) : 0]), car: !!m.car }; }
+      /* the pure walkers (almshouse court, strand residents, boardwalk strollers) at fixed scene times: the same on the world clock in both boots */
+      const g = s.route.grid, rd = v => v === undefined ? null : Math.round(v);
+      for(const T of [900000, 905000, 1000000, 1234567]){
+        try { almsFolkList().forEach((p, i) => { const q = almsFolkAt(p, T); got['alms|' + i + '|' + T + '#0'] = { t0: 0, pts: [[rd(q.x), rd(q.y), 0]], car: false }; }); } catch(e){ got['ERR alms ' + e.message + '#0'] = {}; }
+        try { nssHomeDoorsOf(g).forEach((d, i) => { const q = nssResAt(d, T); got['nss|' + i + '|' + T + '#0'] = { t0: 0, pts: [q ? [rd(q.x), rd(q.y), 0] : null], car: false }; }); } catch(e){ got['ERR nss ' + e.message + '#0'] = {}; }
+        try { boardwalkStrollers(g).forEach((p, i) => { const q = bwAt(p, T); got['bw|' + i + '|' + T + '#0'] = { t0: 0, pts: [q ? [rd(q.x), rd(q.y), 0] : null], car: false }; }); } catch(e){ got['ERR bw ' + e.message + '#0'] = {}; }
+      }
       return got; }, [X, Y]);
     runs.push({ seen, errs }); await p.close();
   }
