@@ -29554,7 +29554,8 @@ const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0
   /* (seen through, W11: the glazed pair, the south wall's two windows -- flatsShop's, lab x1.3, z x1.95 -- and the east leg's one in the east wall) */
   openings: [{ lab: [[418/1.3 - 34.6, 0], [418/1.3 + 34.6, 0]], z: [0, 107.95] },
              { lab: [[14, 0], [418/1.3 - 62, 0]], z: [22, 104], glass: true }, { lab: [[418/1.3 + 62, 0], [836/1.3 - 14, 0]], z: [22, 104], glass: true },
-             { lab: [[836/1.3, -836/1.3 + 14], [836/1.3, -836/1.3 + 306]], z: [22, 104], glass: true }] });
+             { lab: [[836/1.3, -836/1.3 + 14], [836/1.3, -836/1.3 + 306]], z: [22, 104], glass: true },
+             { lab: [[836/1.3, -36], [836/1.3, -136]], z: [22, 104], glass: true }, { lab: [[836/1.3, -186], [836/1.3, -286]], z: [22, 104], glass: true }] });
 (() => { const pk = POCKETS[POCKETS.length - 1]; pk.hides = ['Brew & Bolt', 'Brew & Bolt East']; })();   // (both legs' shells ease off as he goes in)
 /* ITS PEOPLE: Gideon, the owner, a humanoid robot -- his look a placeholder (a roster body in a metal skin, no hair, the
    shop's copper apron) till his own is drawn; he walks the room's aisles with the coffee and rests at his dock in the back
@@ -50706,7 +50707,7 @@ function houseCanopy(fn){
 
     /* ---- THE WALLS (the kit's): plaster over a brown dado, the shop's cream cap; the glass in the street's two walls ---- */
     walkinRoom(items, { W, D, H, LH, door: { side: 's', at: DR.at, half: DR.half },
-      winS: [[18.2, 337.4, 40], [498.6, 817.8, 40]], winE: [[18.2, 397.8, 40]],
+      winS: [[18.2, 337.4, 40], [498.6, 817.8, 40]], winE: [[18.2, 397.8, 40], [464, 594, 40], [659, 789, 40]],
       glass: 'rgba(150,190,206,.42)', frame: cream,
       paintN: () => {
         F(-30, W + 30, 0, H, plaster, null, 0, 0);
@@ -79959,7 +79960,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const WINS = o.wins || (o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]]);
     return {
       name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}), ...(o.see ? { see: true } : {}),
-      head:o.head, tags:o.tags || [], desc:o.desc || o.head,
+      head:o.head, tags:o.tags || [], desc:o.desc || o.head, ...(o.lamps ? { lamps: o.lamps } : {}),
       draw(p){
         body(wall, trim, H, WW, DD);
         T(0, WW, -DD, 0, H+0.4, roof);
@@ -79999,6 +80000,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           }
           for(const ea of [w0 - 4, w1 + 4]) poly([P(ea,0,118),P(ea,26,98),P(ea,26,90),P(ea,0,110)], shade(wall,.6));
         }
+        if(o.extra) o.extra({ WW, DD, H, wall, trim, WINS });                                   // (a shop's own character: Brew & Bolt)
         if(state.roof) box(WW*0.22, WW*0.48, -170, -120, H, H+18, '#9aa0a6', '#7d838a', '#6a7076');
         kerb(p, 'none');
       },
@@ -80281,6 +80283,65 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         head:'Brew & Bolt: the coffee bar Gideon, a humanoid robot, owns and runs',
         desc:'Brew & Bolt: coffee, pastries and a bolt of good news, owned and run by Gideon the robot',
         tags:['coffee','robot owner','corner shop'],
+        /* THE SHOP'S CHARACTER (Sir, 2026-11-06: "more character"): a brick plinth under the glass, a frieze of copper bolt heads
+           under the cornice, goosenecks over the board (lit at night: lamps), a blade sign at the corner (a cup with a bolt for
+           its steam), a great cup on the roof with its own bolt, and -- on the south leg's east flank -- two windows into the room */
+        extra(X){
+          const { WW, DD, H } = X, doorMid = !!X.WINS && X.WINS.length === 2, mid0 = WW/2;
+          const copper = '#e79a35', copperD = '#b06f20', dark = '#2a1a11', cream = '#f1e6cf', brick = '#7a3f2a', brickD = '#5d2f1f';
+          const rev = P(1, 0, 0).x < P(0, 0, 0).x, seeA = P(1, 0, 0).y > P(0, 0, 0).y;
+          /* the plinth: brick under the glass, in runs either side of the door (K2: nothing over its surround) */
+          for(const [a0, a1] of (doorMid ? [[0, mid0 - 46], [mid0 + 46, WW]] : [[0, WW]])){
+            F(a0, a1, 0, 22, brick, null, 0, 0.45);
+            for(const z of [7, 14]) F(a0, a1, z - 0.5, z + 0.5, brickD, null, 0, 0.55);
+            for(let r = 0; r < 3; r++) for(let a = a0 + 8 + (r % 2)*10; a < a1 - 2; a += 20) F(a, a + 0.9, r*7 + 0.5, r*7 + 7, brickD, null, 0, 0.55);
+          }
+          /* the frieze: a dark board under the cornice, a row of copper bolt heads along it */
+          F(0, WW, H - 24, H - 6, dark, null, 0, 0.5);
+          for(let a = 12; a < WW - 6; a += 24){ faceCircle(a, 0.8, H - 15, 5.2, copperD); faceCircle(a, 1.0, H - 15, 3.6, copper); F(a - 2.4, a + 2.4, H - 15.6, H - 14.4, copperD, null, 0, 1.2); }
+          /* two goosenecks over the name board, their domes lit at night */
+          for(const a of (doorMid ? [64, WW - 64] : [WW*0.5])){
+            tube(a, 0.5, 150, a, 15, 163, 1.4, dark); box(a - 7, a + 7, 11, 23, 158, 168, copper, copperD, dark);
+            box(a - 3, a + 3, 14, 20, 154, 158, '#fff2c8', '#f2e2b0', '#e2d098');
+          }
+          /* the corner blade (the south leg's, on its east end): a thin board on an arm, a cup with a bolt for steam on its seen face */
+          if(doorMid){
+            const ab = WW - 8, z0 = 112, z1 = 150, pl = ab + (seeA ? 2.4 : -2.4);
+            tube(ab, 0.5, 148, ab, 36, 148, 1.6, dark); tube(ab, 0.5, 118, ab, 30, 138, 1.2, dark);
+            box(ab - 2, ab + 2, 4, 34, z0, z1, dark, '#3b2619', dark);
+            S(pl, 8, 30, z0 + 4, z1 - 4, '#3b2619');
+            const q = (b, z) => P(pl, b, z), cu = [q(11, 120), q(27, 120), q(25, 133), q(13, 133)];
+            poly(cu, copper); poly([q(13, 133), q(25, 133), q(25, 134.5), q(13, 134.5)], cream);
+            poly([q(27, 126), q(31, 126), q(31, 131), q(27, 131)], copperD); poly([q(14.5, 117.5), q(23.5, 117.5), q(25, 120), q(13, 120)], copperD);
+            poly([q(20, 143), q(17, 139), q(19.5, 139), q(17.5, 135), q(22.5, 140), q(20.5, 140)], '#f1e6cf');   // the bolt, steam
+          }
+          /* the great cup on the roof, set back, on its two posts: a copper cup on a dark board, a bolt cut through it, steam over */
+          { const ac = doorMid ? WW - 120 : 90, w = 52, zb = H + 6, zt = H + 96, bb = -44, cx = ac, sg = rev ? -1 : 1;
+            for(const da of [-w, w]) box(cx + da - 2, cx + da + 2, bb - 3, bb + 3, H, zb + 4, dark, dark, '#3b2619');
+            F(cx - w - 6, cx + w + 6, zb, zt, dark, null, 0, bb);
+            F(cx - w - 2, cx + w + 2, zb + 4, zt - 4, '#3b2619', null, 0, bb + 0.4);
+            const q = (a, z) => P(cx + a, bb + 1, z);
+            poly([q(-30, zb + 14), q(30, zb + 14), q(24, zb + 54), q(-24, zb + 54)], copper);
+            poly([q(-24, zb + 54), q(24, zb + 54), q(24, zb + 57), q(-24, zb + 57)], cream);
+            poly([q(-36, zb + 11), q(36, zb + 11), q(30, zb + 14), q(-30, zb + 14)], copperD);
+            poly([q(sg*30, zb + 46), q(sg*44, zb + 44), q(sg*44, zb + 28), q(sg*29, zb + 24), q(sg*29, zb + 28), q(sg*38, zb + 30), q(sg*38, zb + 42), q(sg*27, zb + 43)], copper);
+            poly([q(5, zb + 52), q(-9, zb + 36), q(-1, zb + 36), q(-8, zb + 18), q(12, zb + 40), q(3, zb + 40)], cream);   // the bolt
+            for(const [da, h] of [[-12, 0], [2, 8], [16, 2]]) poly([q(da, zb + 60 + h), q(da + 3, zb + 66 + h), q(da - 2, zb + 74 + h), q(da + 2, zb + 82 + h), q(da - 1, zb + 82 + h), q(da - 5, zb + 74 + h), q(da, zb + 66 + h), q(da - 3, zb + 60 + h)], 'rgba(241,230,207,.7)');   // steam
+          }
+          /* the south leg's east flank: clapboard lines, two tall windows into the room (the room through them, W11), a copper sill each */
+          if(doorMid){
+            for(let z = 22; z < H - 24; z += 16) S(WW + 0.25, -DD, 0, z, z + 1.2, '#4a2f20');
+            S(WW + 0.3, -DD, 0, 0, 22, brick);
+            for(const [b0, b1] of [[-36, -136], [-186, -286]]){
+              const qq = [P(WW + 0.4, b0, 104), P(WW + 0.4, b1, 104), P(WW + 0.4, b1, 22), P(WW + 0.4, b0, 22)];
+              S(WW + 0.45, b0 + 6, b1 - 6, 16, 110, cream);
+              ctx.save(); poly(qq); ctx.clip(); HOLE(qq); ctx.restore();
+              S(WW + 0.6, b0, b1, 22, 104, 'rgba(150,182,198,.38)');
+              const m = (b0 + b1)/2; S(WW + 0.8, m + 1.5, m - 1.5, 22, 104, cream); S(WW + 0.8, b0, b1, 62, 64.5, cream);
+              box(WW, WW + 7, b1 - 4, b0 + 4, 16, 21, copper, copperD, copperD);
+            }
+          }
+        },
         mark(WW){
           /* the one board across the fascia: BREW & BOLT in cream, a copper bolt at each end (a runs right to left here) */
           const m0 = MIRROR; if(P(1, 0, 0).x < P(0, 0, 0).x) MIRROR = WW;
@@ -80291,8 +80352,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             bolt(36); bolt(WW - 36);
             blockWordIn('BREW & BOLT', 54, WW - 54, 136, 144, 7.3, '#f1e6cf', null, 5.2);
           } finally { MIRROR = m0; } } };
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3, see:true }, BB)));
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:836/1.3, noDoor:true, wins:[[14, 416/1.3 - 14]], see:true }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3, see:true,
+        lamps:[64, 836/1.3 - 64].map(a => ({ a, b:15, z:158, r:110 })) }, BB)));
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:836/1.3, noDoor:true, wins:[[14, 416/1.3 - 14]], see:true, lamps:[{ a:416/2.6, b:15, z:158, r:110 }] }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
     /* THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01): the soapbox club's garage on
        the north-east of block 1,4, across the street from the derby's course -- a red board-and-batten barn under a
        gambrel roof of grey tin, its gable end on the east street with a roll-up door in it (the way in: a walk-in, the
@@ -103163,6 +103225,15 @@ class WorldScene extends Phaser.Scene {
            taken on the column line, where it sorts against him properly.
            The entry draws whichever part it is asked for (state.part). */
         const _e = LIB.get(lib);
+        /* ITS LAMPS AT NIGHT, a shop's own (the lamp kit: queueLandmarkLamps -- Brew & Bolt's goosenecks): the entry's `lamps` in
+           its frame, mapped as hoodShopLab does; not over its room while he is in it. (A whole-block entry's are queued below.) */
+        if(_e && _e.lamps && !_e.block && !rear){
+          const _lp = pocketHiding(lib);
+          if(!(_lp && this._inside === _lp)){
+            const _sc = _e.sc || 1, _mr = (e.dv.x + e.dv.y) <= 0 && _e.mirror !== false;
+            this.queueLandmarkLamps(vq, _e, (a, b) => { const al = (_mr ? _e.ww - a : a)*_sc; return { x: ux + e.dv.x*al + e.rv.x*b*_sc, y: uy + e.dv.y*al + e.rv.y*b*_sc }; });
+          }
+        }
         /* A WHOLE-BLOCK LANDMARK GOES IN PIECES (Sir, on-device: Tipsey
            inside the chapel's railing was painted over it). As one queue
            entry it had one depth -- the middle of a 1656 lot -- so in the
