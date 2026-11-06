@@ -6770,7 +6770,7 @@ const SHOP_ICONS = {
   shirt:     { col: 0x6a8a3a, s: [["p",0xe2a24a,[-4,-10,-11,-6,-9,-1,-6,-3,-6,10,6,10,6,-3,9,-1,11,-6,4,-10,0,-7]]] },
   plane:     { col: 0x4a6a9a, s: [["p",0xc9d0d8,[-11,0,-6,-1,0,-11,3,-11,1,-1,9,-1,11,-5,12,-5,11,0,12,5,11,5,9,1,1,1,3,11,0,11,-6,1]],["r",0xd8453a,-6,-1,3,2]] },
   plant:     { col: 0x2f7f5a, s: [["p",0xc8693e,[-6,3,6,3,4,11,-4,11]],["p",0x7fd36a,[0,3,-9,-6,-2,-2]],["p",0x7fd36a,[0,3,9,-7,2,-2]],["p",0x7fd36a,[0,3,-1,-12,2,-12]]] },
-  robot:     { col: 0x3a4048, s: [["r",0x8d979f,-0.8,-12,1.6,5],["c",0xe5483b,0,-12.5,1.8],["r",0xe79a35,-11,-3,3,6],["r",0xe79a35,8,-3,3,6],["r",0xeef0f2,-8,-7,16,14],["r",0x2a2f36,-6,-4.5,12,8],["c",0xffcf5a,-3,-0.5,1.7],["c",0xffcf5a,3,-0.5,1.7],["r",0xffcf5a,-3,3,6,1]] },
+  robot:     { col: 0x3a4048, s: [["r",0xeef0f2,-9,6,18,6],["r",0xe79a35,-9,8.5,18,1.7],["r",0x3a4048,-3,3.5,6,3],["c",0xc9ced3,0,-4,9.4],["c",0xeef0f2,0,-1.5,9],["r",0x1d2228,-7,-4,14,6.8],["c",0x5fe8e0,-3,-0.6,1.7],["c",0x5fe8e0,3,-0.6,1.7],["r",0x3a4048,-11.2,-3.5,2.6,6.5],["r",0x3a4048,8.6,-3.5,2.6,6.5]] },
   bolt:      { col: 0x1f8aa0, s: [["p",0xffd34a,[2,-12,-8,2,-1,2,-3,12,8,-3,1,-3]]] },
   bag:       { col: 0x3a6fb0, s: [["r",0xc8a06a,-8,-4,16,14],["p",0x8a5a32,[-5,-4,-5,-9,5,-9,5,-4,3,-4,3,-7,-3,-7,-3,-4]]] },
   /* the hospital's collectibles (COLLECT): the things themselves */
@@ -27341,6 +27341,33 @@ walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
 /* (the room runs out under the tower as its vestibule, apron 40 -- its floor was 110 out, a slab in the car park: the
    review, 2026-10-30. He is taken in at the pair, on the tower's front (glass 4: the street's foot is open
    across the pair, between the tower's piers), and out once 15 past it. Its walls the store's height, 232) */
+/* ==================== INSIDE THE COSTA PALMA ANIMAL SHELTER (Sir, 2026-11-06: "lets give it an interior") ====================
+   The walk-in kit's way (docs/state/walkin_recipe.md), for an hl landmark: a room off the map on the street's lines where the building
+   stands (walkinDefine: its LAB, the building's inside in the landmark's frame -- the exterior's A0..A1 x BB..FB), the shell (its body
+   and its canopy, `shell: true`) fading round him as he goes in, its glazed double door (the kit's shopDoor, swingDoors) the way in.
+   800 x 500, one room: a kennel bank along the back wall either side of the door's lane (a 340..460, door to back wall, kept clear:
+   the staff door at its end), reception east of the lane in front of the supplies, a play pen and the cat tree west, the adoption
+   board on the west wall. Staff: the receptionist (behind her counter), a kennel hand (the kennels, the pen); one visitor. */
+const SHELTER_IN = walkinDefine({ name: 'Costa Palma Animal Shelter Interior', from: 'Costa Palma Animal Shelter', x0: 510000, y0: 400000,
+  lab: [1164, 1964, -1500, -1000], door: { a: 1564, b: -1000, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
+  /* (its way to and from the street, THE ROOM'S DAY: down the path to the pavement, and along it round either corner) */
+  street: { to: [0, 450], routes: [[[-1012, 450], [-1012, -3600]], [[1012, 450], [1012, -3600]]] } });
+const SHELTER_STAFF_UNIFORM = { shirt: { c:0x2f8a8a, dk:0x226a6a }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  shoeKind: 'sneaker' };                                                                  // the shelter's teal polo, dark trousers (as the pavilion volunteer's, SHELTER_UNIFORM, further on)
+walkinStaff(SHELTER_IN.name, [
+  { id: 'reception', role: 'receptionist', seed: 0x5e17a, U: SHELTER_STAFF_UNIFORM, fixed: true, keys: true,
+    posts: [[650, 276, Math.PI/2, 7000, true], [604, 274, Math.PI/2, 4000, true]] },
+  { id: 'kennel-hand', role: 'kennel hand', seed: 0x5e28b, U: SHELTER_STAFF_UNIFORM,
+    posts: [[185, 132, -Math.PI/2, 6000, true], [625, 132, -Math.PI/2, 5000, true], [300, 300, 0, 3000, false]] },
+  { id: 'visitor-1', role: 'visitor', seed: 0x5e39c, look: 'visitor', life: 'browse' },
+]);
+walkinLife(SHELTER_IN.name, { keep: [[340, 460, 0, 500]], looks: [
+  { id: 'kennels-w', spots: [[180, 150, -Math.PI/2]] },
+  { id: 'kennels-e', spots: [[620, 150, -Math.PI/2]] },
+  { id: 'pen', spots: [[318, 250, Math.PI], [190, 440, -Math.PI/2]] },
+  { id: 'board', spots: [[48, 330, Math.PI]] },
+  { id: 'counter', spots: [[650, 372, -Math.PI/2]] },
+] });
 const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
   lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -840, half: 55 }, H: 348, out: 40, apron: 40, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park between the parked cars to the
@@ -69034,6 +69061,154 @@ marinaEntry(),
    ground shows (NO SECONDARY GRASS); the runs are gravel. Loose dogs Tipsey brings here are taken in at the door
    (SHELTER). */
 {
+  /* THE ANIMAL SHELTER'S ROOM (SHELTER_IN, 800 x 500: a east, b south, world units):
+       a 340..460  the door's lane, door to the staff door in the back wall, kept clear
+       b 6..100    the kennel banks, a 30..330 and 470..770: four kennels each, 75 wide, chain-link fronts
+       a 540..760  the reception counter, b 300..330, the receptionist behind it; the supplies east of it, a 735..795, b 130..250
+       a 90..290   the play pen, b 170..400, its gate on the east side (b 260..320); the cat tree west of it, a 12..62, b 130..180
+       a 40..150   the bench by the front, b 450..478 */
+  name:'Costa Palma Animal Shelter Interior', xh: 315, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 800, dd: 500,
+  head:'Inside the Animal Shelter: a kennel bank either side of the lane, reception, a play pen and a cat tree',
+  tags:['interior','pocket','animal shelter','kennels','reception','play pen','cat tree'],
+  desc:'The shelter\'s one room: two banks of chain-link kennels along the back wall with the staff door between, the reception counter in the east front with its supplies behind, a fenced play pen and a cat tree in the west, and the adoption board on the west wall.',
+  draw(p){
+    const pl = (typeof SHELTER_IN !== 'undefined' && SHELTER_IN) || null;
+    if(pl) pl.view();
+    const W = 800, D = 500, H = pl ? pl.H : 315, AP = pl ? pl.apron : 60, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 400, half: 58 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const cream = '#f1e8d6', creamD = '#ddd2bc', teal = '#2f8a8a', tealD = '#226a6a', floorA = '#dcd5c5', floorB = '#cfc7b4', wood = '#b99a6b', woodD = '#9a7d52';
+    const mesh = 'rgba(150,158,164,.34)', post = '#8f979e', conc = '#cfd2d4';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n]); return r; };
+    /* a dog (or a cat) facing south: its legs, body, head, ears and tail, in a coat; z its floor */
+    const pet = (a, b, z, coat, big, face) => {
+      const k = big ? 1 : 0.6, dk = shade(coat, 0.78);
+      for(const [da, db] of [[-6, -9], [6, -9], [-6, 7], [6, 7]]) box(a + da*k - 2*k, a + da*k + 2*k, b + db*k - 2*k, b + db*k + 2*k, z, z + 9*k, dk, dk, shade(dk, .8));
+      box(a - 8*k, a + 8*k, b - 13*k, b + 11*k, z + 8*k, z + 24*k, shade(coat, 1.1), coat, dk);                // body
+      box(a - 6*k, a + 6*k, b + 8*k, b + 20*k, z + 17*k, z + 32*k, shade(coat, 1.1), coat, dk);               // head
+      box(a - 4*k, a + 4*k, b + 16*k, b + 22*k, z + 18*k, z + 24*k, '#d8c2a6', '#c9b293', '#b9a283');          // muzzle
+      box(a - 8*k, a - 5*k, b + 10*k, b + 14*k, z + 26*k, z + 36*k, dk, dk, shade(dk, .8)); box(a + 5*k, a + 8*k, b + 10*k, b + 14*k, z + 26*k, z + 36*k, dk, dk, shade(dk, .8));   // ears
+      box(a - 1.5*k, a + 1.5*k, b - 19*k, b - 12*k, z + 18*k, z + 26*k, dk, dk, shade(dk, .8));                // tail
+      box(a - 4.5*k, a - 2*k, b + 19*k, b + 20.5*k, z + 26*k, z + 28*k, '#1d1d20', '#1d1d20', '#1d1d20'); box(a + 2*k, a + 4.5*k, b + 19*k, b + 20.5*k, z + 26*k, z + 28*k, '#1d1d20', '#1d1d20', '#1d1d20');   // eyes
+    };
+    const COATS = ['#c98a52', '#6b5a48', '#e8dcc4', '#3d3a3a', '#b5651d', '#d9c9a8', '#8a8f94'];
+
+    /* ---- THE FLOOR: pale vinyl, a darker tile every other; the threshold and a mat at the door ---- */
+    T(0, W, 0, D, 0, floorA);
+    for(let a = 0; a < W; a += 50) for(let b = 0; b < D; b += 50) if(((a + b)/50) % 2) T(a, Math.min(W, a + 50), b, Math.min(D, b + 50), 0.2, floorB);
+    T(DA0, DA1, D, D + AP, 0.3, '#d6d0c2');
+    T(DA0 + 8, DA1 - 8, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D + 10, D + AP - 12, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    /* the play pen's rug and the kennels' lane runner */
+    T(100, 280, 182, 392, 0.5, '#8fb0a0'); T(106, 274, 188, 386, 0.6, '#a6c3b4'); T(122, 258, 204, 370, 0.7, '#8fb0a0');
+
+    /* ---- THE WALLS (the kit's): back and west full height, cream over a teal band, south and east cut low, the front's windows in the south one ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      winS: [[68, 172, 34], [218, 322, 34], [478, 582, 34], [628, 732, 34]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 18, creamD, null, 0, 0.2);                                  // the skirting
+        F(-30, W + 30, 196, 238, teal, null, 0, 0.3);                                 // the band
+        F(-30, W + 30, 238, 242, tealD, null, 0, 0.35);
+        blockWordIn('ADOPT A FRIEND', 130, 670, 202, 232, 0.6, '#ffffff', null, 11);
+        /* the staff door, at the lane's end: its frame, the leaf, a kick plate and a push bar */
+        F(356, 444, 0, 206, shade(cream, 0.8), null, 0, 0.4);
+        F(362, 438, 0, 198, '#7a746a', null, 0, 0.6);
+        F(364, 436, 2, 16, '#9aa0a4', null, 0, 0.8); F(370, 430, 96, 101, '#c9cdc7', null, 0, 0.8);
+        F(376, 424, 150, 184, '#eef4f6', null, 0, 0.8); blockWordIn('STAFF ONLY', 380, 420, 156, 178, 0.9, '#30363b', null, 3);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.93));
+        S(0.2, -30, D + 30, 0, 18, shade(creamD, 0.9));
+        S(0.3, -30, D + 30, 196, 238, shade(teal, 0.9));
+        /* the adoption board: a cork panel, pinned photos and a card or two */
+        S(0.5, 250, 410, 90, 190, '#9a7a52'); S(0.7, 255, 405, 95, 185, '#c9a874');
+        const PIN = ['#e8dcc4', '#c98a52', '#6b5a48', '#d9c9a8', '#8a8f94', '#b5651d'];
+        for(let i = 0; i < 6; i++){ const bb = 262 + (i % 3)*46, zz = 150 - Math.floor(i/3)*50; S(1, bb, bb + 34, zz, zz + 36, '#f4f1ea'); S(1.2, bb + 3, bb + 31, zz + 10, zz + 33, PIN[i]); }
+        S(1, 380, 402, 98, 110, '#e8a0a0');
+      },
+      low: ['#f0e8d6', '#e2d9c4', '#cfc6af'], cap: [teal, tealD, shade(tealD, 0.85)], ftop: '#e6dec9', frame: '#b0a68e' });
+
+    /* ---- THE KENNEL BANKS, a bank either side of the lane: a kennel 75 wide, b 6..100, its chain-link front and posts, a bed, a bowl, its dog ---- */
+    let ki = 0;
+    for(const [lo, hi] of [[30, 330], [470, 770]]){
+      const n = 4;
+      for(let k = 0; k < n; k++){
+        const a0 = lo + (hi - lo)*k/n, a1 = lo + (hi - lo)*(k + 1)/n, mid = (a0 + a1)/2, kk = ki++, has = [0, 1, 3, 4, 6, 7].includes(kk);
+        items.push({ a: mid, b: 56, z: 0, solids: [solid(a0, a1, 6, 100, 112, 'kennel')], draw: () => {
+          T(a0, a1, 6, 100, 0.4, conc);                                                              // its floor
+          S(a0, 6, 100, 0, 108, mesh); S(a1, 6, 100, 0, 108, mesh);                                  // the dividers
+          box(mid - 24, mid + 24, 14, 54, 0.4, 7, '#b04a4a', '#9a3f3f', '#833434');                  // a bed
+          cyl(a0 + 14, 90, 0.4, 7, 6, '#3f7fb0', '#7fb8e0');                                         // a bowl
+          if(has) pet(mid, 44, 7, COATS[kk % COATS.length], true);
+          F(a0, a1, 0, 108, mesh, null, 0, 100);                                                     // the chain-link front
+          F(a0, a1, 100, 108, post, null, 0, 100.4);
+          for(const aa of [a0, a1]) cyl(aa, 100, 0, 112, 2.6, post);
+          F(a0 + 22, a1 - 22, 0, 80, 'rgba(60,66,72,.25)', post, 1, 100.6);                          // its gate
+          box(a1 - 22, a1 - 19, 99, 102, 38, 46, '#d8dde0', '#c9ced2', '#b6bbbf');                   // its latch
+          F(mid - 14, mid + 14, 80, 96, '#f4f1ea', '#c9c3b4', 1, 100.9);                             // its name card
+        }});
+      }
+    }
+
+    /* ---- RECEPTION, east of the lane: the counter b 300..330 across a 540..760 (runs), its computer and a bell; the supplies behind the east kennels ---- */
+    for(const [s0, s1] of runs(540, 760, 37)) items.push({ a: (s0 + s1)/2, b: 315, z: 0, solids: [solid(s0, s1, 300, 330, 100, 'counter')], draw: () => {
+      box(s0, s1, 300, 330, 0, 96, wood, teal, tealD);
+      box(s0 - 0.5, s1 + 0.5, 298, 332, 96, 102, '#e4d3b0', '#cdb98f', '#b9a578');
+    }});
+    items.push({ a: 600, b: 306, z: 0, draw: () => {
+      box(582, 618, 304, 322, 102, 104, '#40454c', '#40454c', '#30343a'); F(586, 614, 104, 134, '#2e3a40', null, 0, 305); F(588, 612, 107, 131, '#9fd0e0', null, 0, 305.4);   // a screen
+      box(676, 690, 310, 322, 102, 110, '#c24a3a', '#c24a3a', '#a03a2c');                                                                                                   // a phone
+      cyl(730, 318, 102, 108, 6, '#d9b44a', '#f0d27a');                                                                                                                     // the bell
+    }});
+    for(const [s0, s1] of runs(735, 795, 30)) items.push({ a: (s0 + s1)/2, b: 190, z: 0, solids: [solid(s0, s1, 130, 250, 90, 'supplies')], draw: () => {
+      for(const [b0, b1, c] of [[134, 168, '#c98a52'], [172, 206, '#b5651d'], [210, 246, '#d9c9a8']]){
+        box(s0 + 2, s1 - 2, b0, b1, 0, 44, shade(c, 1.1), c, shade(c, .8)); box(s0 + 4, s1 - 4, b0 + 2, b1 - 2, 44, 80, shade(c, 1.08), shade(c, .96), shade(c, .76));
+      }
+    }});
+
+    /* ---- THE PLAY PEN, west: a low fence round b 170..400, a 90..290, its gate on the east side; a puppy, a ball, a bone ---- */
+    const fence = (a0, a1, b0, b1, along) => {
+      const [x0, x1, y0, y1] = [a0, a1, b0, b1];
+      if(along === 'a'){ F(x0, x1, 0, 52, mesh, null, 0, y0); F(x0, x1, 48, 52, post, null, 0, y0 + 0.4); }
+      else { S(x0, y0, y1, 0, 52, mesh); S(x0 + 0.4, y0, y1, 48, 52, post); }
+    };
+    for(const [s0, s1] of runs(90, 290, 40)) for(const bb of [170, 400]) items.push({ a: (s0 + s1)/2, b: bb, z: 0, solids: [solid(s0, s1, bb - 3, bb + 3, 56, 'pen')], draw: () => {
+      fence(s0, s1, bb, bb, 'a'); for(const aa of [s0, s1]) cyl(aa, bb, 0, 56, 2.4, post); } });
+    for(const [s0, s1] of runs(170, 260, 45)) items.push({ a: 90, b: (s0 + s1)/2, z: 0, solids: [solid(87, 93, s0, s1, 56, 'pen')], draw: () => {
+      fence(90, 90, s0, s1, 'b'); for(const bb of [s0, s1]) cyl(90, bb, 0, 56, 2.4, post); } });
+    for(const [s0, s1] of runs(320, 400, 40)) items.push({ a: 290, b: (s0 + s1)/2, z: 0, solids: [solid(287, 293, s0, s1, 56, 'pen')], draw: () => {
+      fence(290, 290, s0, s1, 'b'); for(const bb of [s0, s1]) cyl(290, bb, 0, 56, 2.4, post); } });
+    for(const [s0, s1] of runs(260, 320, 30)) items.push({ a: 290, b: (s0 + s1)/2, z: 0, draw: () => { cyl(290, s0, 0, 56, 2.4, post); cyl(290, s1, 0, 56, 2.4, post); } });   // the gate's posts
+    items.push({ a: 190, b: 300, z: 0, draw: () => {
+      pet(176, 286, 0.7, '#d9c9a8', false);
+      ball(222, 318, 5, 5, '#d8464a'); box(196, 214, 340, 346, 0.7, 5, '#f4f1ea', '#e0dcd0', '#cdc8bb');
+      cyl(130, 240, 0.7, 5, 9, '#3f7fb0', '#7fb8e0');
+    }});
+
+    /* ---- THE CAT TREE, by the west wall: a post, three carpeted shelves, a cat on the top one ---- */
+    items.push({ a: 37, b: 155, z: 0, solids: [solid(14, 60, 132, 178, 150, 'cat tree')], draw: () => {
+      cyl(37, 155, 0, 150, 5, '#c9a874'); cyl(37, 155, 0, 150, 2, '#b8975d');
+      box(14, 60, 132, 178, 0, 10, '#a89270', '#8f7b5a', '#7c6a4d');
+      box(18, 56, 140, 170, 62, 70, '#c0a47a', '#a98e66', '#8f7a56'); box(14, 60, 132, 178, 112, 120, '#c0a47a', '#a98e66', '#8f7a56');
+      pet(37, 152, 120, '#c98a52', false);
+    }});
+
+    /* ---- THE BENCH by the front, west of the door ---- */
+    for(const [s0, s1] of runs(40, 150, 37)) items.push({ a: (s0 + s1)/2, b: 464, z: 0, solids: [solid(s0, s1, 450, 478, 44, 'bench')], draw: () => {
+      box(s0, s1, 452, 476, 36, 42, wood, shade(wood, .92), woodD);
+      if(s0 < 45) box(s0, s0 + 6, 454, 474, 0, 36, woodD, woodD, shade(woodD, .85));
+      if(s1 > 145) box(s1 - 6, s1, 454, 474, 0, 36, woodD, woodD, shade(woodD, .85));
+    }});
+
+    walkinStaffSolids(items, 'Costa Palma Animal Shelter Interior');
+    depthSort(items);
+  }
+},
+{
   name:'Costa Palma Animal Shelter', xh: 260, base:'Animal shelter', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   vol: (() => {
     const H = 210, bx = (name, a0, a1, b0, b1, h, prop) => ({ name, h, prop, poly: [[a0,b0],[a1,b0],[a1,b1],[a0,b1]] });
@@ -69100,7 +69275,7 @@ marinaEntry(),
     };
     dogRun(780, 1100); dogRun(2028, 2348);
     /* THE SHELTER: its body, the roof and parapet, the fascia and its lettering, the windows, the door and canopy */
-    items.push({ a: GM, b: FB - 250, z: 0, draw: () => {
+    items.push({ a: GM, b: FB - 250, z: 0, shell: true, draw: () => {   // (shell: the room inside, SHELTER_IN)
       box(A0, A1, BB, FB, 0, H, shade(wall, 1.04), wall, shade(wall, .86));
       T(A0 + 8, A1 - 8, BB + 8, FB - 8, H + 0.4, roofc);                        // the flat roof, inside its parapet
       slab(A0, A1, H, H + 16, FB, FB - 10, trim, trimD); slab(A0, A1, H, H + 16, BB + 10, BB, trim, trimD);
@@ -69127,7 +69302,7 @@ marinaEntry(),
       paw(A0 + 40, 100, 16); paw(A1 - 40, 100, 16);
     }});
     /* the canopy over the door, on its two posts, in front of the front */
-    items.push({ a: GM, b: FB + 60, z: 0, draw: () => {
+    items.push({ a: GM, b: FB + 60, z: 0, shell: true, draw: () => {   // (it goes with the shell)
       cyl(1458, -946, 0, 138, 6, '#e8e2d4'); cyl(1670, -946, 0, 138, 6, '#e8e2d4');
       slab(1430, 1698, 138, 150, -930, FB, trim, trimD);                          // (under the fascia, over the door: the lettering clear above it)
       F(1430, 1698, 138, 150, trim, null, 0, -930);
