@@ -84650,8 +84650,9 @@ const SP_PLAN = {
   MAST: { x: 9432, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
   DOCK: { x0: 9460, x1: 9860, y0: -6420, y1: -6080 },
   PADS: [{ x: 9530, y: -6260 }, { x: 9660, y: -6260 }, { x: 9790, y: -6260 }],   // the charge pads (robots face south on them)
-  BEDS: [{ x: 9760, y: -5780, r: 110 }, { x: 10000, y: -6260, r: 140 }, { x: 9950, y: -5520, r: 100 }, { x: 9160, y: -5680, r: 96 },
-         { x: 9020, y: -6580, r: 110 }, { x: 9660, y: -6620, r: 120 }],
+  BEDS: [{ x: 9100, y: -5330, r: 110 }, { x: 9760, y: -5280, r: 120 }, { x: 10120, y: -5050, r: 140 }, { x: 10420, y: -5420, r: 100 },
+         { x: 9240, y: -4780, r: 100 }, { x: 9820, y: -4640, r: 120 }, { x: 10320, y: -4420, r: 110 }, { x: 9170, y: -4120, r: 120 },
+         { x: 9900, y: -3960, r: 100 }, { x: 10280, y: -3640, r: 130 }, { x: 9700, y: -3340, r: 110 }, { x: 9020, y: -3380, r: 90 }],   // the planted beds: down on the sand-coloured bench below the platform (not on the lawn)
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
@@ -95569,7 +95570,9 @@ class WorldScene extends Phaser.Scene {
         });
       } }
     /* the planted beds */
-    for(const bd of P.BEDS) if(vis(bd.x, bd.y, bd.r + 20, 80)) item("bed|" + bd.x + "," + bd.y, bd.x, bd.y, bd.x + bd.y, () => ent.bed(bd));
+    /* (the beds stand on the bench, at the ground: not lifted with the platform) */
+    const draw0 = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, (a, b, h) => this.W(a, b, h), this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
+    for(const bd of P.BEDS) if(vis(bd.x, bd.y, bd.r + 20, 80)) vq.push({ depth: bd.x + bd.y, fn: (g) => this.bcDraw(g, "sp|bed|" + bd.x + "," + bd.y, bd.x, bd.y, gg => draw0(gg, () => ent.bed(bd))) });
     /* THE PATROL'S CAMERA POINTS while it runs: each a pair of the slalom's blue-banded cones (cached) */
     if(typeof NW !== 'undefined' && NW.stage === 'patrol')
       for(const Gt of P.GATES) for(const s of [-1, 1]){ const x = Gt.x + s*P.GATE_W/2, y = Gt.y;
