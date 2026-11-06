@@ -48964,7 +48964,7 @@ function houseCanopy(fn){
         S(seeA1 ? a1 + 0.3 : a0 - 0.3, s0, s1, 0, 8, bronzeD);
         runBox(a0 - 4, a1 + 4, s0, s1, 84, 92, '#ece6d8', '#ddd5c4', '#cfc6b2', false, false, false);
         if(s0 <= nearEnd && s1 >= nearEnd){ end(nearEnd); T(a0 - 4, a1 + 4, s0, s1, 92.05, '#ece6d8'); }
-        if(s0 <= b0 + 40 && s1 > b0 + 40){ box(a0 + 10, a0 + 22, b0 + 26, b0 + 56, 92, 96, '#30353b', '#262a2f', '#1f2226'); box(a0 + 6, a0 + 10, b0 + 28, b0 + 54, 96, 122, '#30353b', '#262a2f', '#1f2226'); S(a0 + 10.3, b0 + 30, b0 + 52, 99, 119, '#7fb2c9'); }
+        if(s0 <= b0 + 40 && s1 > b0 + 40){ box(a0 + 10, a0 + 22, b0 + 26, b0 + 56, 92, 96, '#30353b', '#262a2f', '#1f2226'); box(a0 + 6, a0 + 10, b0 + 28, b0 + 54, 96, 122, '#30353b', '#262a2f', '#1f2226'); if(!seeA1) S(a0 + 5.7, b0 + 30, b0 + 52, 99, 119, '#7fb2c9'); }   // (its screen on the attendant's side, the west: seen only from the west, else we see its back)
         if(s0 <= b0 + 100 && s1 > b0 + 100) for(let k = 0; k < 3; k++) box(a1 - 26, a1 - 8, b0 + 86 + k*12, b0 + 96 + k*12, 92, 94 + k, '#f4f2ec', '#e4e0d6', '#d4d0c6');   // leaflets
         if(s0 <= b1 - 30 && s1 > b1 - 30){ cyl(ac, b1 - 30, 92, 94, 6, bronzeD, bronze); cyl(ac, b1 - 30, 94, 118, 1.4, bronze); ball(ac, b1 - 30, 122, 7, '#fff1c4', '#fffbe8'); }
         if(s0 <= b0 + 70 && s1 > b0 + 70){ const sb = b0 + 70; cyl(ac + 8, sb, 92, 104, 1.2, bronze);                // a sign on the top, to the door

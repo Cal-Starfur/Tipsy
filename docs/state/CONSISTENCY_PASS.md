@@ -83,6 +83,7 @@ Each batch is:
 ### Tidewater Maritime Museum: footprint confirmed (2026-11-06)
 - **Columns no longer draw over the frieze.** The entablature and pediment are one item at the building's middle, and the world queue sorts by x + y + z, so the outer columns' capitals outranked it as he came up to the door. Its z is lifted (440 to 1040) so it draws after all six. Same change in `game/index.html`.
 - **Back fence behind the back corner.** The railing runs at the building's rear (the back run and the first segment of each side) are sent back past the building's depth (z -900), so they no longer draw over its back corner.
+- **Desk monitor faces the attendant.** Its screen was on the lane side, turned to visitors; it is now on the west face, toward the attendant, so from the street side of the room we see its back.
 - Test: [museum door](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1700,0.73&view=2)
 - **Decision (Sir):** the rear of the shell is not a room. `MUS_IN.LAB` (1460 x 856) stays as the room's footprint; no code change.
 
