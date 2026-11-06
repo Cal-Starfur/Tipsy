@@ -5968,8 +5968,14 @@ const POLICE_CALL = {
   hardV: 0.09,            // ~40% of his top speed: a hard hit, not a nudge
   coolMs: 20000,
   officers: ["Officer Reyes", "Officer Chen", "Officer Okafor", "Officer Bell"],
-  why: { car: "Reckless driving: collision with a vehicle", rider: "Reckless driving: struck a scooter rider" },
+  why: { car: "Reckless driving: collision with a vehicle", rider: "Reckless driving: struck a scooter rider", pile: "Reckless driving: ran down five pedestrians" },
+  /* FIVE DOWN OUT IN THE STREET (Sir, 2026-11-06: "if we run over 5 people the cops come and stop us and then the
+     crew has to come pick us up"): five of the crowd knocked down within windowMs outdoors (knockDown counts; the
+     mall's and the hospital's own security count indoors) and the cruiser comes as at a crash; after the officer's
+     word he is held where he stands, and once the cruiser has gone the crew's van tows him to a charger (owSendCrew's tow) */
+  pile: { need: 5, windowMs: 150000, n: 0, t: 0 },
   say: {
+    pile: "That's five people you've put on the ground. Driverless or not, you're done driving for today. I'm writing you a ticket and calling your crew to come and collect you.",
     car: "Everyone okay? Good. That was a hard hit. Driverless or not, this vehicle is your responsibility. I'm writing you a ticket for reckless driving.",
     rider: "You knocked that rider clean off their scooter. They're shaken up but okay. You need to watch the road. I'm writing you a ticket for reckless driving."
   }
@@ -117290,6 +117296,13 @@ class WorldScene extends Phaser.Scene {
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
     if(o.chair){ K.t0 = t - SR.fallMs - SR.downMs; K.upSaid = true; }              // (his bump on their chair: on their feet already, no fall -- the ballroom's guests)
     o.ref.knock = K; list.push(K);
+    /* five down out in the street: the police (POLICE_CALL.pile) */
+    if(!this._inside && this.state === "play" && this.ow && this.ow.on){
+      const PC = POLICE_CALL.pile;
+      if(t - PC.t > PC.windowMs) PC.n = 0;
+      PC.t = t; PC.n++;
+      if(PC.n >= PC.need && this.policeSummon(this.botX, this.botY, "pile", null)) PC.n = 0;
+    }
     /* out of a wheelchair or off a mobility scooter: the crew come to stand them back up (rescueSendForAid) */
     const ak = K.uni && K.uni.aid && K.uni.aid.kind;
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
@@ -117984,13 +117997,22 @@ class WorldScene extends Phaser.Scene {
   }
   policeSummon(x, y, why, car){
     const t = this.time.now, C = POLICE_CALL;
-    if(this._police || this._rescueVan || this.state !== "play") return;
-    if(this._policeCoolT && t - this._policeCoolT < C.coolMs) return;
+    if(this._police || this._rescueVan || this.state !== "play") return false;
+    if(this._policeCoolT && t - this._policeCoolT < C.coolMs && why !== "pile") return false;
     const plan = rescueVanPlan(this, x, y);
     const seed = (Math.random()*4294967296) >>> 0;
-    if(!plan){ this.policeTicket(why); this._policeCoolT = t; return; }   // nowhere for a cruiser to stand: the ticket comes by post
+    if(!plan){ this.policeTicket(why); this._policeCoolT = t; if(why === "pile") this.policeImpound(); return true; }   // nowhere for a cruiser to stand: the ticket comes by post
     this._police = { plan, t0: t, ts: t, u0: 0, rate: 1, crew: { leaveMs: 1e12 }, route: this.route, why, car, seed,
                      name: C.officers[seed % C.officers.length], M: null, card: false };
+    return true;
+  }
+  /* the crew come for him (battDie's tow): held where he stands till they do */
+  policeImpound(){
+    const ow = this.ow;
+    if(!ow || !ow.on || this.state !== "play") return;
+    this.state = "dead"; this.speed = 0; this.throttle = 0; ow.vel = 0; ow.failHold = true;
+    owSendCrew(this, true);
+    tpToast("Impounded. The Tipsy Crew is on the way.");
   }
   policeTicket(why){
     const C = POLICE_CALL, list = tpProfile.tickets || (tpProfile.tickets = []);
@@ -118034,7 +118056,7 @@ class WorldScene extends Phaser.Scene {
     /* parked: the officer out of the kerb-side door and over to him */
     if(!P.M && u >= parkedAt){
       if(this.state !== "play"){ P.crew.leaveMs = u + 200; P.gone = true; }
-      else P.M = this.policeMeet(ow, rescueDoorPt(P.plan), t);
+      else P.M = fleetPhys().big ? this.policeMeet(ow, rescueDoorPt(P.plan), t) : meetWalk(ow, rescueDoorPt(P.plan), t, 0, this);
     }
     if(P.M && !P.M.leave){
       meetTick(this, ow, P.M);                                  // face to face, and he holds still
@@ -118042,12 +118064,16 @@ class WorldScene extends Phaser.Scene {
         P.card = true;
         hospSayCard({ who: P.name + " \u00b7 Marina PD", say: POLICE_CALL.say[P.why], btn: "Understood, officer",
           at: now => hospWalkAt(P.M, now),
-          ok: () => { hospSayCard(null); this.policeTicket(P.why); P.M.leave = this.time.now; } });
+          ok: () => { hospSayCard(null); this.policeTicket(P.why); P.M.leave = this.time.now;
+            if(P.why === "pile" && this.state === "play"){ this.state = "dead"; this.speed = 0; this.throttle = 0; ow.vel = 0; ow.failHold = true; P.impound = true; } } });
       }
     }
     /* back in the cruiser: away it goes */
     if(P.M && P.M.leave && !P.gone && !hospWalkAt(P.M, t)){ P.crew.leaveMs = u + 300; P.gone = true; }
-    if(P.gone && !rescueVanAt(P, t)){ this._police = null; this._policeCoolT = t; }
+    if(P.gone && !rescueVanAt(P, t)){
+      this._police = null; this._policeCoolT = t;
+      if(P.impound){ this.state = "play"; this.policeImpound(); }   // (the cruiser has gone: now the crew)
+    }
   }
   /* VEND_CUST: walk-ups to the posted food trucks' hatches */
   updateVendCustomers(t){
