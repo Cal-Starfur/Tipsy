@@ -50891,11 +50891,6 @@ function houseCanopy(fn){
       /* four stools down the customers' side */
       for(const b of [100, 180, 260, 340]) items.push({ a: 628, b, z: 0, solids: [{ name: 'stool', c: [628, b], r: 14, h: 34 }], draw: () => {
         cyl(628, b, 0, 3, 11, dark, dark); tube(628, b, 3, 628, b, 25, 2, dark); cyl(628, b, 25, 30, 11, copper, '#e8a550'); } });
-      /* copper pendants over the counter and the window tables: a cord to the ceiling, a shade, a warm bulb */
-      const pend = (a, b) => items.push({ a, b, z: 0, solids: [], draw: () => {
-        tube(a, b, H - 6, a, b, H - 56, 0.6, dark); cyl(a, b, H - 70, H - 56, 11, copper, '#e8a550'); ball(a, b, H - 70, 4.2, '#fff2c8'); } });
-      for(const b of [110, 230, 350]) pend(582, b);
-      for(const [ta, tb] of [[110, 770], [250, 770], [586, 770], [726, 770], [90, 640], [260, 640]]) pend(ta, tb);
     }
     /* the robots' charging nook against the east wall, b 440..540: a rubber mat with a bolt on it, three posts */
     { const NA = 800;
