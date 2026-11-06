@@ -85723,7 +85723,7 @@ CITY_PEOPLE.add({ name: 'hospital seen from the street', where: "Marina General'
       const q = hospWalkerAt(w, t); if(q.hidden) continue;
       fn(cpEntry(this, { x: q.x + v.dx, y: q.y + v.dy, th: q.th, moving: q.moving !== false, kind: q.cast ? q.cast.kind : 'walker', look: hospWalkerLook(w, q), ref: w }));
       if(q.push && !(w._pushRef && w._pushRef.knock)){ const L = hospCastPushLook(q.cast, q.push.k);
-        fn(cpEntry(this, { x: q.push.x + v.dx, y: q.push.y + v.dy, th: q.push.th, kind: 'patient', look: L, ref: w._pushRef || w })); }
+        fn(cpEntry(this, { x: q.push.x + v.dx, y: q.push.y + v.dy, th: q.push.th, kind: 'patient', look: L, ref: w._pushRef || w._cpPatient || (w._cpPatient = { patientOf: w }) })); }
     }
   } });
 
