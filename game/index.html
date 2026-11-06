@@ -25619,7 +25619,7 @@ const HOOD_RIM_SITES = [
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
      map fills it as the shops it is, not as the park green the school's
      grounds take. */
-  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 2240, a1: 7144, depth: MALL_DEPC, ease: 700 },
+  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 160, a1: 9224, depth: MALL_DEPC, ease: 700 },
     icon: "\u{1F6CD}\uFE0F", pin: "#23405e", kind: "landmark", mapType: "commercial" },
   /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
      between Veterans Memorial Park's lot and the mall */
@@ -37147,12 +37147,12 @@ function mallVol(){
   const P = MALL_PLAN, LEN = 9384, BB = P.BB, R = volRect, mp = mallProps();
   /* (its west end, a 0..WA[0], is open to the back line now: the service way up to the Vista Ridge Security Post's
      drive -- SP_PLAN.LANE -- where the back strip shut it 40 short of the bench) */
-  const foot = [[P.WA[0],-MALL_DEP],[P.CW[0],-MALL_DEP],[P.CW[0],-MALL_DEPC],[P.CE[1],-MALL_DEPC],[P.CE[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+  const foot = [[P.WA[0],-MALL_DEPC],[P.EA[1],-MALL_DEPC],[P.EA[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
                 [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
-    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 718 },
-    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 718 },
+    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], P.BBC, P.BF), h: 718 },
+    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], P.BBC, P.BF), h: 718 },
     { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 880 },
     ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
     ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
@@ -72638,9 +72638,9 @@ marinaEntry(),
   desc:'A regional mall across the whole north rim strip between Veterans Memorial Park and Tide Pool Elementary: two anchor department stores, a two-storey concourse of shopfronts, and a tall glass atrium under a barrel vault, fronted by a paved plaza with palms and a tenant pylon at each end.',
   draw(p){
     const LEN = 9384, DEP = MALL_DEP;
-    const BF = MALL_PLAN.BF, BB = MALL_PLAN.BB;                 // the building's own band
-    const BBC = MALL_PLAN.BBC, CW0 = MALL_PLAN.CW[0], CE1 = MALL_PLAN.CE[1], DEPC = MALL_DEPC;   // (its centre, over the inside's span, is deeper)
-    const bbOf = (a0, a1) => (a0 >= CW0 - 1 && a1 <= CE1 + 1) ? BBC : BB;
+    const BF = MALL_PLAN.BF, BBC = MALL_PLAN.BBC, DEPC = MALL_DEPC;
+    const BB = BBC;                                             // the building's own band: all of it as deep as the inside (anchors too: their rooms are as deep)
+    const bbOf = () => BBC;
     const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
     const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
     /* THE OUTSIDE IS AS TALL AS THE INSIDE (Sir, 2026-11-06: "lets make the exterior taller then"): the room's upper shops end at
