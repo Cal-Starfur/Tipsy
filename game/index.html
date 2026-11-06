@@ -39164,8 +39164,7 @@ const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 12000,   // was 7000: fe
   activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500,
   /* KNOCKED OFF (Sir, 2026-10-12: "they don't get knocked down if I hit
      them"): over on the side away from him, down a while, then up again */
-  get knockV(){ try { const sc = scn(); return sc && sc.ow && sc.ow.scoot ? Infinity : 0.06; } catch(e){ return 0.06; } },   // (on a scooter he knocks no one down: they step round him, as when he is slow -- scootHop)
-  fallMs: 520, downMs: 3700, upMs: 620, fallAng: 1.5, getUpMs: 1900, offSide: 55,   // (fallMs/getUpMs: FALL_ANIM's beats)
+  knockV: 0.06, fallMs: 520, downMs: 3700, upMs: 620, fallAng: 1.5, getUpMs: 1900, offSide: 55,   // (fallMs/getUpMs: FALL_ANIM's beats)
   /* ...AND THEY COME AND HAVE A WORD (Sir: "the rider would fall off the
      scooter and then come talk to tipsy possibly tipping him over in
      return"): up off the ground, over to him face to face (meetWalk), a
