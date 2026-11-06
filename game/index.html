@@ -84637,9 +84637,9 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8640, x1: 10240, y0: -9800, y1: -5820 },        // the gravel bench Sir marked, outside the east wall, back to the hill's foot
-  AREA: { x0: 8640, x1: 10240, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8640, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
+  SITE: { x0: 8614, x1: 10240, y0: -9800, y1: -5820 },        // the gravel bench Sir marked, outside the east wall, back to the hill's foot
+  AREA: { x0: 8614, x1: 10240, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8614, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
   COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
@@ -95534,11 +95534,10 @@ class WorldScene extends Phaser.Scene {
     if(!WORLDGEN_COAST || Math.abs(this.camX - 9400) + Math.abs(this.camY + 6200) > (this.vpW() + this.vpH())/this.K + 4800) return;
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
-    rect(P.SITE, 0xa59c86, 0.5, 8); rect(P.TRACK, 0xa59c86, 0.5, 8);              // the steel edging round the gravel
-    rect(P.SITE, 0xc4bba4, 0.6); rect(P.TRACK, 0xc4bba4, 0.6);                    // the gravel
-    /* its flecks, fixed */
+    rect(P.SITE, 0x9fbd6a, 0.6);                                                  // the lawn, the estate's own green, up to the wall's foot (Sir: grass, tied to the wall)
+    /* its tufts, fixed */
     if(!P._specks){ const rr = mulberry32(0x5ec7), out = [];
-      for(let k = 0; k < 5600; k++){ const inT = (rr(), false), R = inT ? P.TRACK : P.SITE; out.push(R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), R.y0 + 8 + rr()*(R.y1 - R.y0 - 16), rr() < 0.5 ? 0xd8d0ba : 0x9d947e); }
+      for(let k = 0; k < 5600; k++){ const inT = (rr(), false), R = inT ? P.TRACK : P.SITE; out.push(R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), R.y0 + 8 + rr()*(R.y1 - R.y0 - 16), rr() < 0.5 ? 0xaecb78 : 0x93b25f); }
       P._specks = out; }
     const K = this.K, sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
