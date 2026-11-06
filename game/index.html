@@ -84659,7 +84659,7 @@ const SP_PLAN = {
           pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk across the lawn, level with it, to the post
   Z: 180,                                                     // the whole lawn (SITE) is graded to the first terrace's height, so it meets the estate's lawn level
   RAMP: { y0: -4700, y1: -5644 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
-  HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
+  HILL: { x: 10240, y: -9560, k: 5.55, gap: 230 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
 const SP_SHELL_D = (SP_PLAN.POST.x0 + SP_PLAN.POST.x1)/2 + (SP_PLAN.POST.y0 + SP_PLAN.POST.y1)/2;   // the post's depth key
@@ -95609,6 +95609,7 @@ class WorldScene extends Phaser.Scene {
         quad([this.W(xa, S.y1, Z), this.W(xb, S.y1, Z), this.W(xb, S.y1 - 40, Z), this.W(xa, S.y1 - 40, Z)], CAP);
       };
       south(S.x0, D.x0); south(D.x1, e(S.y1));
+      /* the platform's east edge: its face, in stone (the edge stands 230 back from the mountain's foot, so the face never reaches it) */
       quad([this.W(e(S.y1), S.y1, Z), this.W(e(S.y0), S.y0, Z), this.W(e(S.y0), S.y0, 0.9), this.W(e(S.y1), S.y1, 0.9)], STE);
       for(let zz = 30; zz < Z - 8; zz += 30) quad([this.W(e(S.y1), S.y1, zz), this.W(e(S.y0), S.y0, zz), this.W(e(S.y0), S.y0, zz + 3), this.W(e(S.y1), S.y1, zz + 3)], shade(STONE, .7));
       /* the drive's climb: its two stone sides, the slope's concrete (joints every 160) */
