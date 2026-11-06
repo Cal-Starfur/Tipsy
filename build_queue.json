@@ -1,6 +1,55 @@
 {
 "nodes": [
 {
+"id": "sc1",
+"title": "World clock + slot scheduler + seeded shoppers (pilot)",
+"spec": "docs/seeded-crowd.md",
+"deps": [],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc2",
+"title": "Seeded residents: houses, scooter trips, dog walkers",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc1"
+],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc3",
+"title": "Seeded seekers, errand drivers, food-truck customers",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc1"
+],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc4",
+"title": "Seeded strand, boardwalk, almshouse court and the other live populations",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc2",
+"sc3"
+],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc5",
+"title": "Census: same seed, two boots, every CITY_PEOPLE group the same",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc4"
+],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
 "id": "p1.1",
 "title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
 "spec": "docs/people-unification.md#plan-by-risk",
@@ -720,55 +769,6 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3"
-},
-{
-"id": "sc1",
-"title": "World clock + slot scheduler + seeded shoppers (pilot)",
-"spec": "docs/seeded-crowd.md",
-"deps": [],
-"status": "pending",
-"group": "People: seeded crowd"
-},
-{
-"id": "sc2",
-"title": "Seeded residents: houses, scooter trips, dog walkers",
-"spec": "docs/seeded-crowd.md",
-"deps": [
-"sc1"
-],
-"status": "pending",
-"group": "People: seeded crowd"
-},
-{
-"id": "sc3",
-"title": "Seeded seekers, errand drivers, food-truck customers",
-"spec": "docs/seeded-crowd.md",
-"deps": [
-"sc1"
-],
-"status": "pending",
-"group": "People: seeded crowd"
-},
-{
-"id": "sc4",
-"title": "Seeded strand, boardwalk, almshouse court and the other live populations",
-"spec": "docs/seeded-crowd.md",
-"deps": [
-"sc2",
-"sc3"
-],
-"status": "pending",
-"group": "People: seeded crowd"
-},
-{
-"id": "sc5",
-"title": "Census: same seed, two boots, every CITY_PEOPLE group the same",
-"spec": "docs/seeded-crowd.md",
-"deps": [
-"sc4"
-],
-"status": "pending",
-"group": "People: seeded crowd"
 }
 ],
 "meta": {

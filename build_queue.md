@@ -6,6 +6,11 @@ commit, push to `consistency-pass`. `[ ]` pending, `[?]` built, awaiting Sir's t
 ## Dependencies
 ```mermaid
 graph LR
+  sc1 --> sc2
+  sc1 --> sc3
+  sc2 --> sc4
+  sc3 --> sc4
+  sc4 --> sc5
   p1_1 --> p1_2
   p1_2 --> p1_3
   p1_3 --> p1_4
@@ -16,12 +21,14 @@ graph LR
   r1 --> r2b
   r2a --> r2b
   r2b --> r3
-  sc1 --> sc2
-  sc1 --> sc3
-  sc2 --> sc4
-  sc3 --> sc4
-  sc4 --> sc5
 ```
+
+## People: seeded crowd
+- [ ] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
+- [ ] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
+- [ ] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
+- [ ] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
+- [ ] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
 
 ## People unification
 - [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
@@ -132,10 +139,3 @@ graph LR
 - [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
 - [?] `skate-sign` Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2) [found by test run]
 - [ ] `skate-lamps` Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3) [found by test run]
-
-## People: seeded crowd
-- [ ] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
-- [ ] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
-- [ ] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
-- [ ] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
-- [ ] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
