@@ -84637,27 +84637,27 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8640, x1: 10100, y0: -4500, y1: -2596 },        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8640, x1: 8940, y0: -6100, y1: -4500 },        // the patrol track north up the east wall
+  SITE: { x0: 8640, x1: 10100, y0: -6800, y1: -2596 },        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8640, x1: 8940, y0: -8400, y1: -6800 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
-  DRIVE: { x0: 9392, x1: 9536, y0: -3610, y1: -2596 },        // the service drive, concrete, up from the service way
-  COURT: { x0: 8940, x1: 9860, y0: -3760, y1: -3610 },        // the forecourt
-  POST: { x0: 8960, x1: 9400, y0: -4120, y1: -3760, eave: 205, ridge: 292, oh: 28 },
+  DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
+  COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
+  POST: { x0: 8960, x1: 9400, y0: -6420, y1: -6060, eave: 205, ridge: 292, oh: 28 },
   DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
-  WIN_S: [9205, 9335], WIN_E: [-4060, -3870], SILL: 34, WIN_H: 104,
+  WIN_S: [9205, 9335], WIN_E: [-6360, -6170], SILL: 34, WIN_H: 104,
   PARA: [8995, 9185],                                          // the Mission parapet over the door bay
-  MAST: { x: 9432, y: -4156, h: 470, face: Math.PI*0.7, sweep: 0.55 },
-  DOCK: { x0: 9460, x1: 9860, y0: -4120, y1: -3780 },
-  PADS: [{ x: 9530, y: -3960 }, { x: 9660, y: -3960 }, { x: 9790, y: -3960 }],   // the charge pads (robots face south on them)
-  BEDS: [{ x: 9760, y: -3480, r: 110 }, { x: 10000, y: -3960, r: 140 }, { x: 9950, y: -3220, r: 100 }, { x: 9160, y: -3380, r: 96 },
-         { x: 9020, y: -4280, r: 110 }, { x: 9660, y: -4320, r: 120 }],
+  MAST: { x: 9432, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
+  DOCK: { x0: 9460, x1: 9860, y0: -6420, y1: -6080 },
+  PADS: [{ x: 9530, y: -6260 }, { x: 9660, y: -6260 }, { x: 9790, y: -6260 }],   // the charge pads (robots face south on them)
+  BEDS: [{ x: 9760, y: -5780, r: 110 }, { x: 10000, y: -6260, r: 140 }, { x: 9950, y: -5520, r: 100 }, { x: 9160, y: -5680, r: 96 },
+         { x: 9020, y: -6580, r: 110 }, { x: 9660, y: -6620, r: 120 }],
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
   hours: [0, 24]
 };
 const SP_SHELL_D = (SP_PLAN.POST.x0 + SP_PLAN.POST.x1)/2 + (SP_PLAN.POST.y0 + SP_PLAN.POST.y1)/2;   // the post's depth key
-/* THE MONITOR ROOM's plan (its own frame: a east, b south, 380 x 300; (0, 0) at world 8990, -4090) */
+/* THE MONITOR ROOM's plan (its own frame: a east, b south, 380 x 300; (0, 0) at world 8990, -6390) */
 const SP_ROOM = { W: 380, D: 300, door: 100, LH: 70, sill: 30,
   winS: [215, 345], winE: [30, 220],                            // the windows' spans along the south and east walls
   screens: [140, 372], cams: ['gate', 'dock', 'wall', 'wall', 'wall', 'pads', 'gate', 'wall'],
@@ -84670,10 +84670,10 @@ function spScreenBox(k){
   return { a0: m0 + c*w + 3, a1: m0 + (c + 1)*w - 3, z0: 132 - r*52, z1: 178 - r*52 };
 }
 const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
-  lab: [8990, 9400, -4090, -3760], door: { a: 9090, b: -3760, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
+  lab: [8990, 9400, -6390, -6060], door: { a: 9090, b: -6060, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
   /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
-  openings: [{ lab: [[9040, -3759.4], [9140, -3759.4]], z: [0, 112] }, { lab: [[9205, -3759.4], [9335, -3759.4]], z: [34, 104], glass: true },
-             { lab: [[9400.6, -4060], [9400.6, -3870]], z: [34, 104], glass: true }] });
+  openings: [{ lab: [[9040, -6059.4], [9140, -6059.4]], z: [0, 112] }, { lab: [[9205, -6059.4], [9335, -6059.4]], z: [34, 104], glass: true },
+             { lab: [[9400.6, -6360], [9400.6, -6170]], z: [34, 104], glass: true }] });
 const SP_GUARD_SEED = { night: 0x5e31, day: 0x5e47 };
 /* who is on: the night guard after dark (the mission window's, 19 to 6), the day guard by day -- changed over only while
    nobody can see the room (the motel's way: never in front of him) */
@@ -84682,7 +84682,7 @@ function spShiftNow(){
   const sc = typeof scn === "function" ? scn() : null, pk = POCKETS.find(p => p.name === SP_PLAN.room);
   if(S.v == null) S.v = want;
   if(S.v !== want && sc && pk && sc._inside !== pk && !(typeof nwBusy === "function" && nwBusy())){
-    if(!(sc.visWorldPt && sc.visWorldPt(9180, -3940, 500, 300))) S.v = want;
+    if(!(sc.visWorldPt && sc.visWorldPt(9180, -6240, 500, 300))) S.v = want;
   }
   return S.v;
 }
@@ -84709,7 +84709,7 @@ function spSurface(x, y){
 }
 /* THE SOLIDS, from the plan: the post (its door bay open 60 deep, where the room takes him in: SP_IN), the mast's footing,
    the charge posts, the beds; and live, the robots on the dock and the loop, the gate cones while the patrol runs */
-const SP_BLK = { x0: SP_PLAN.SITE.x0, x1: SP_PLAN.SITE.x1, y0: SP_PLAN.TRACK.y0, y1: SP_PLAN.SITE.y1, cx: 9300, cy: -3800, type: "landmark", secPost: true };
+const SP_BLK = { x0: SP_PLAN.SITE.x0, x1: SP_PLAN.SITE.x1, y0: SP_PLAN.TRACK.y0, y1: SP_PLAN.SITE.y1, cx: 9300, cy: -6100, type: "landmark", secPost: true };
 const SP_CONE = { ...CONE, band: 7, band_c: 0x2f6fd0 };
 function spSolids(){
   if(spSolids.c) return spSolids.c;
@@ -84735,7 +84735,7 @@ function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x 
    to the gate round (the walk graph stops at the top street: Sierra Vista's street is crossed, never walked) */
 function spGpsSegs(){
   const L = (x0, y0, x1, y1) => ({ x0, y0, x1, y1 });
-  return [L(9464, -660, 9464, -2600), L(9464, -2600, 9464, -3685), L(9464, -3685, 9660, -3685), L(9464, -3685, 8790, -3685), L(8790, -3685, 8790, -6000),
+  return [L(9464, -660, 9464, -2600), L(9464, -2600, 9464, -5985), L(9464, -5985, 9660, -5985), L(9464, -5985, 8790, -5985), L(8790, -5985, 8790, -4600),
           L(2560, -640, 2560, -1930)];
 }
 /* ==================== ITS LIFE: the dock's lights, the camera's sweep, the patrol robots ==================== */
@@ -84754,7 +84754,7 @@ function spLifeTick(scene, now, dt){
   const L = SP_LIFE, ow = scene.ow;
   if(!L.bots) L.bots = [{ s: 0, th: Math.PI, seed: 0x9a71, dist: 0 }, { s: spLoopAt(0).tot/2, th: 0, seed: 0x9a72, dist: 0 }];
   /* off where nobody can see the loop or the post: nothing to step (they keep their place) */
-  const near = scene.visWorldPt(9200, -3800, 2600, 400) || scene.visWorldPt(6500, -2980, 2800, 300);
+  const near = scene.visWorldPt(9200, -6200, 2600, 400) || scene.visWorldPt(6500, -2980, 2800, 300);
   const others = [];
   if(ow && ow.on) others.push({ x: ow.px, y: ow.py });
   for(const p of nwBodies(now)) others.push(p);
@@ -84814,11 +84814,11 @@ function spPadLight(k, now){
    nwFobMigrate), the patrol robot kept (FLEET 'patrolbot', unlock 'night-watch'). Nothing of a run is saved; a reload
    starts it again at the post. */
 const NW_PLAN = {
-  start: hospBay(9300, -3690),                                   // the forecourt, on the service drive's head
+  start: hospBay(9300, -5990),                                   // the forecourt, on the service drive's head
   pad2: hospBay(SP_PLAN.PADS[1].x, SP_PLAN.PADS[1].y - 20), pad1: hospBay(SP_PLAN.PADS[0].x, SP_PLAN.PADS[0].y - 20),
   mall: hospBay(14076, -880),                                   // before Maritime Mall's front doors, off Gus's mats
   round: hospBay(2560, -1900),                                  // 2nd St's west pavement, by the gate round (the east one is behind Palmline Tower)
-  door: { x: 9090, y: -3752 }, inner: { x: 9090, y: -3820 },
+  door: { x: 9090, y: -6052 }, inner: { x: 9090, y: -6120 },
   luna: { x: 8650, y: -5800 },                                  // at the east wall's foot, climbing
   lunaWait: { x: 2470, y: -2010 },                              // on the pavement by the round, waiting
   laneIn: { x: 3600, y: -2900 }, lineIn: { x: 3560, y: -3180 }, homeIn: { x: 3380, y: -3700 }, home: { x: 3330, y: -4700 },
@@ -84843,7 +84843,7 @@ function nwGuardRoomAt(now){
   if(!p || !v) return null;
   return { x: p.x - v.dx, y: p.y - v.dy, th: p.th };
 }
-function nwRoomW(a, b){ return { x: 8990 + a, y: -4090 + b }; }
+function nwRoomW(a, b){ return { x: 8990 + a, y: -6390 + b }; }
 function nwLunaAt(now){ const L = NW.luna; if(!L) return null; if(L.P){ const p = walkPathAt(L.P, now); if(p){ if(p.there && L.P.gone){ NW.luna = null; return null; } return Object.assign(p, { climb: false }); } }
   return { x: L.x, y: L.y, th: L.th, moving: false, climb: !!L.climb, there: true }; }
 function nwBodies(now){ const out = []; for(const f of [nwGuardAt, nwLunaAt]){ const p = f(now); if(p) out.push(p); } return out; }
@@ -84882,7 +84882,7 @@ function nwGuardBack(scene){
   const now = scene.time.now, p = nwGuardAt(now);
   if(!p){ NW.guard = null; return; }
   const desk = nwRoomW(SP_ROOM.guard[0], SP_ROOM.guard[1]);
-  NW.guard = { pts: [{ x: p.x, y: p.y }, NW_PLAN.door, NW_PLAN.inner, { x: 9150, y: -3900 }, desk], t0: now + 300, faceTh: SP_ROOM.guard[2], th0: p.th, home: true };
+  NW.guard = { pts: [{ x: p.x, y: p.y }, NW_PLAN.door, NW_PLAN.inner, { x: 9150, y: -6200 }, desk], t0: now + 300, faceTh: SP_ROOM.guard[2], th0: p.th, home: true };
   NW.guardM = null;
 }
 /* onto the dock: his charge shared with the flat robot, then the loan */
@@ -84991,7 +84991,7 @@ function spTick(scene, ow){
       /* out of his door to him (on his left: the door's side, so neither stands behind the mast or the dock's posts) */
       const M = meetWalk(ow, NW_PLAN.door, now, -1, scene), desk = nwRoomW(SP_ROOM.guard[0], SP_ROOM.guard[1]);
       R.guardM = M;
-      R.guard = { pts: [desk, { x: 9150, y: -3900 }, NW_PLAN.inner, NW_PLAN.door, M.to], t0: now, faceTh: M.faceTh, th0: SP_ROOM.guard[2] };
+      R.guard = { pts: [desk, { x: 9150, y: -6200 }, NW_PLAN.inner, NW_PLAN.door, M.to], t0: now, faceTh: M.faceTh, th0: SP_ROOM.guard[2] };
       if(typeof sfxThump === "function") sfxThump(0.2);
       return;
     }
@@ -85089,7 +85089,7 @@ function spTick(scene, ow){
    the parked Tipsey and the robots on the dock and the loop; the torch ahead of the patrol robot after dark */
 function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
   const now = scene.time.now, R = NW;
-  const near = scene.visWorldPt(9200, -3800, 2600, 500) || scene.visWorldPt(6500, -2980, 2800, 300);
+  const near = scene.visWorldPt(9200, -6200, 2600, 500) || scene.visWorldPt(6500, -2980, 2800, 300);
   const person = (p, L, q, extra, depth) => {
     if(!p || !scene.visProp("people", p.x, p.y)) return;
     const x = p.x, y = p.y, th = p.th, mv = !!p.moving, has = p.has;
@@ -95470,7 +95470,7 @@ class WorldScene extends Phaser.Scene {
      the door's leaves, and inside, the screens' flicker and the REC light; the lamps at night through the lamp kit */
   queueSecPost(vq){
     const P = SP_PLAN, ent = LIB.get(P.name);
-    if(!ent || !WORLDGEN_COAST || !this.visWorldPt(9300, -3900, 1500, 520)) return;
+    if(!ent || !WORLDGEN_COAST || !this.visWorldPt(9300, -6200, 1500, 520)) return;
     const G = (a, b, h) => this.W(a, b, h), now = this.time.now;
     const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
     const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "sp|" + key, x, y, gg => draw(gg, fn)) });
@@ -95530,7 +95530,7 @@ class WorldScene extends Phaser.Scene {
      and the forecourt's concrete, the dock's pad under its own art -- no grass anywhere (the beds are planting in it) */
   fillSecPostGround(g){
     const P = SP_PLAN;
-    if(!WORLDGEN_COAST || Math.abs(this.camX - 9300) + Math.abs(this.camY + 4100) > (this.vpW() + this.vpH())/this.K + 3000) return;
+    if(!WORLDGEN_COAST || Math.abs(this.camX - 9300) + Math.abs(this.camY + 4700) > (this.vpW() + this.vpH())/this.K + 4500) return;
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
     rect(P.SITE, 0xa59c86, 0.5, 8); rect(P.TRACK, 0xa59c86, 0.5, 8);              // the steel edging round the gravel

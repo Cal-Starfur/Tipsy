@@ -633,7 +633,7 @@
 "deps": [],
 "status": "built",
 "group": "Fixes from testing",
-"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9090,-3790&view=2"
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9090,-6090&view=2"
 },
 {
 "id": "trophies-footprint",
