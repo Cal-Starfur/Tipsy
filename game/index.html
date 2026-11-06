@@ -15852,7 +15852,7 @@ const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, d
 /* THE WORLD CLOCK AND THE VISIT SLOTS (docs/seeded-crowd.md): worldMs(t) is the clock everyone shares (UTC ms: the epoch is taken
    at the first look, as Date.now() less the scene's own clock; window.CROWD_EPOCH pins it for the headless double run). A door's
    visits are slots of slotMs; slot k's party starts startSpread-wide into it and has to be over by the slot's end. */
-const CROWD_WORLD = { epoch: undefined, slotMs: 150000, startSpread: 30000, visitP: 0.5, leadMs: 4000, farR: 2600, everyMs: 600, cap: 24, keep: 3 };
+const CROWD_WORLD = { epoch: undefined, slotMs: 150000, startSpread: 30000, visitP: 0.5, leadMs: 4000, farR: 2600, everyMs: 600, cap: 24, keep: 3, letGoR: 5200 };
 /* A HOUSEHOLD PERSON'S CYCLE (scheduleHomeVisits): every period they may go out once (goP), at a time in its first outFrac, and are
    away awayMs; keepMs how long after setting out a walk is still looked for (a scooter home stays in 10 min) */
 const HOME_SCHED = { period: [1200000, 2400000], goP: 0.85, outFrac: 0.4, awayMs: [120000, 540000], keepMs: 780000 };
@@ -15870,6 +15870,13 @@ function homeEventPlan(seed, d, H, i, c, P){
   return go ? { outAt: start, backAt: start + away, dogWalk, walker: hashStr(d.key + "|dog") % H.people.length, o, b } : null;
 }
 function worldMs(t){ return CROWD_WORLD.epoch + t; }
+/* the traffic's loop clock (sc6): a car's place on its loop is sBase + (trClock(t) - hold)*speed -- the world clock, so everyone's cars are
+   where the schedule has them; hold (stopped time) is only what has happened near him, and is let go once the car is far (trafficHoldLetGo).
+   The epoch is taken here the first time the clock is asked. */
+function trClock(t){
+  if(CROWD_WORLD.epoch === undefined) CROWD_WORLD.epoch = typeof window !== "undefined" && Number.isFinite(window.CROWD_EPOCH) ? window.CROWD_EPOCH : Date.now() - t;
+  return CROWD_WORLD.epoch + t;
+}
 /* slot k of a door (null: no party): every draw is always taken, in this order, so the stream never shifts */
 function shopVisitPlan(seed, doorKey, k){
   const r = mulberry32(hashStr(seed + "|shop|" + doorKey + "|" + k)), go = r() < CROWD_WORLD.visitP;
@@ -39913,7 +39920,7 @@ function trafficWorldAt(tr, t){
      car keeps driving and its hitbox keeps moving while the test that
      "proved" it stopped passes happily. Measure the thing the game
      actually reads. */
-  const te = t - (tr.hold || 0);
+  const te = trClock(t) - (tr.hold || 0);
   const trS = ((tr.sBase + te*tr.speed*tr.dir) % trTotal + trTotal) % trTotal;
   const hdg = segsHeadingAt(tr.walk.segs, trS) + (tr.dir < 0 ? Math.PI : 0);
   const fi = Math.round(hdg / (Math.PI/2));
@@ -40199,7 +40206,7 @@ function errandFinish(tr, e, tEnd){
   }
   tr.walk = J.lp.walk; tr.arcs = J.lp.walk.arcs; tr.dir = J.dir;
   tr.laneOffset = J.lp.walk.lane ? 0 : J.dir > 0 ? TRAF_LANE : -TRAF_LANE;
-  tr.hold = tEnd - (J.s - tr.sBase)*J.dir/tr.speed;
+  tr.hold = trClock(tEnd) - (J.s - tr.sBase)*J.dir/tr.speed;
   tr.errand = null; tr.errandNext = tEnd + (e.site.vend ? VEND_TRUCK.coolMs : ERRAND.coolMs);
   tr.v = 1; tr.jnKey = null; tr.claim = null;
   e.site.n = Math.max(0, e.site.n - 1);
@@ -40282,7 +40289,7 @@ function errandStart(tr, lp, site, J, t, at, plan){
     const g = errandLeg(Math.max(1, bounds[k+1] - bounds[k]), k === 0 ? v0 : 0, last ? tr.speed : 0, rev ? ERRAND.vRev : ERRAND.vc);
     g.s0 = bounds[k]; g.rev = rev; legs.push(g);
   }
-  const te0 = t - (tr.hold || 0);
+  const te0 = trClock(t) - (tr.hold || 0);
   tr.errand = { site, path, legs, t0: t, pause: 0, v: 1, go: false, join: J, fromLp: lp, te0, trS0: at.trS, Cx, slot: plan.slot };
   site.n++;
 }
@@ -121968,7 +121975,7 @@ class WorldScene extends Phaser.Scene {
       }
       const Cx = { x: K.x + e.rv.x*J.lat, y: K.y + e.rv.y*J.lat };
       tr.errand = { site: { id: "kerb-leave", n: 1, cap: 1, outM: { x: K.x, y: K.y }, free: null }, path, legs, t0: t, pause: 0, v: 1, go: false,
-                    join: J, fromLp: lp, te0: t - (tr.hold || 0), trS0: 0, Cx, slot: null };
+                    join: J, fromLp: lp, te0: trClock(t) - (tr.hold || 0), trS0: 0, Cx, slot: null };
       K.gone = true; K.goneT = t;
       return true;
     }
@@ -122444,7 +122451,25 @@ class WorldScene extends Phaser.Scene {
     }
     return true;
   }
+  /* HOLD LET GO (sc6): hold is stopped time -- what a car did near him (spacing, signals, him) -- and it puts the car off the world
+     clock's schedule. Once a car is far from him both where it is and where the schedule has it (so neither pops on screen), its
+     hold is zeroed, and it is back on the schedule everyone shares. */
+  trafficHoldLetGo(t){
+    if(this._holdGoT !== undefined && t - this._holdGoT < 400) return;
+    this._holdGoT = t;
+    const fleet = this.route && this.route.trafficFleet;
+    if(!fleet) return;
+    const sb = this.streetBot(), R = CROWD_WORLD.letGoR;
+    const far = at => !at.wp || at.hidden || Math.abs(at.wp.x - sb.x) + Math.abs(at.wp.y - sb.y) > R;
+    const each = tr => {
+      if(!tr.hold || tr.errand) return;
+      if(far(trafficWorldAt(tr, t)) && far(trafficWorldAt(Object.assign({}, tr, { hold: 0 }), t))) tr.hold = 0;
+    };
+    for(const tr of fleet.cars || []) each(tr);
+    for(const rd of fleet.riders || []) each(rd);
+  }
   updateTrafficMotion(t){
+    this.trafficHoldLetGo(t);
     const traffic = this.trafficActive(t);
     if(!traffic) return;
     const hDt = this._trafHoldDt !== undefined ? this._trafHoldDt : 0;
@@ -122748,7 +122773,7 @@ class WorldScene extends Phaser.Scene {
       const arcs = lp.walk.arcs, L = lp.walk.totalLen;
       for(const tr of lp.cars){
         if(tr.errand){ if(errNear(tr)) out.push(tr); continue; }
-        const te = tr.errand ? tr.errand.te0 : t - (tr.hold || 0);      // away on an errand: its loop clock is frozen
+        const te = tr.errand ? tr.errand.te0 : trClock(t) - (tr.hold || 0);      // away on an errand: its loop clock is frozen
         const s = ((tr.sBase + te*tr.speed*tr.dir) % L + L) % L;
         const a = arcs[(s / CITY_TRAFFIC.arcLen) | 0] || arcs[arcs.length - 1];
         if(Math.abs(a.cx - px) + Math.abs(a.cy - py) > R + a.r) continue;
