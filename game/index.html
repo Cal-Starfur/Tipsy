@@ -84647,17 +84647,16 @@ const SP_PLAN = {
   DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
   WIN_S: [9205, 9335], WIN_E: [-6360, -6170], SILL: 34, WIN_H: 104,
   PARA: [8995, 9185],                                          // the Mission parapet over the door bay
-  MAST: { x: 9432, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
-  DOCK: { x0: 9460, x1: 9860, y0: -6420, y1: -6080 },
-  PADS: [{ x: 9530, y: -6260 }, { x: 9660, y: -6260 }, { x: 9790, y: -6260 }],   // the charge pads (robots face south on them)
+  MAST: { x: 9300, y: -6456, h: 470, face: Math.PI*0.7, sweep: 0.55 },
+  DOCK: { x0: 9660, x1: 10060, y0: -6420, y1: -6080 },
+  PADS: [{ x: 9730, y: -6260 }, { x: 9860, y: -6260 }, { x: 9990, y: -6260 }],   // the charge pads (robots face south on them)
   BEDS: [{ x: 9100, y: -5330, r: 110 }, { x: 9760, y: -5280, r: 120 }, { x: 10120, y: -5050, r: 140 }, { x: 10420, y: -5420, r: 100 },
          { x: 9240, y: -4780, r: 100 }, { x: 9820, y: -4640, r: 120 }, { x: 10320, y: -4420, r: 110 }, { x: 9170, y: -4120, r: 120 },
          { x: 9900, y: -3960, r: 100 }, { x: 10280, y: -3640, r: 130 }, { x: 9700, y: -3340, r: 110 }, { x: 9020, y: -3380, r: 90 }],   // the planted beds: down on the sand-coloured bench below the platform (not on the lawn)
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
-  PATH: { w: 130, z0: 180,
-          pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk across the lawn, level with it, to the post
+  PATH: { w: 144, z0: 180, legs: [[8300, -8190, 9464, -8190], [9464, -8190, 9464, -5910]] },   // the concrete walk, two straight legs: out from the estate's first-terrace sidewalk (its north strip's middle) due east, then due south on the service drive's own line (x 9464) to the forecourt; level with the lawn
   Z: 180,                                                     // the whole lawn (SITE) is graded to the first terrace's height, so it meets the estate's lawn level
   RAMP: { y0: -4700, y1: -5644 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
   HILL: { x: 10240, y: -9560, k: 5.55, gap: 230 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
@@ -84719,33 +84718,12 @@ function spGroundZ(x, y){
   return null;
 }
 function spZ(x, y){ const z = spGroundZ(x, y); return z === null ? 0 : z; }
-/* THE WALK (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once; level, at Z */
-function spPathPts(){
+/* THE WALK (SP_PLAN.PATH): straight legs, each a rectangle w wide round its line (so a corner is square); level, at Z */
+function spPathRects(){
   const P = SP_PLAN.PATH;
-  if(P._d) return P._d;
-  const q = P.pts, d = [];
-  for(let i = 0; i < q.length - 1; i++){
-    const a = q[Math.max(0, i - 1)], b = q[i], c = q[i + 1], e = q[Math.min(q.length - 1, i + 2)];
-    for(let t = 0; t < 1; t += 0.125){
-      const t2 = t*t, t3 = t2*t, f = (p0, p1, p2, p3) => 0.5*((2*p1) + (-p0 + p2)*t + (2*p0 - 5*p1 + 4*p2 - p3)*t2 + (-p0 + 3*p1 - 3*p2 + p3)*t3);
-      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1]), P.z0, 0]);
-    }
-  }
-  d.push([q[q.length - 1][0], q[q.length - 1][1], P.z0, 0]);
-  P._bb = { x0: Math.min(...d.map(p => p[0])) - P.w, x1: Math.max(...d.map(p => p[0])) + P.w, y0: Math.min(...d.map(p => p[1])) - P.w, y1: Math.max(...d.map(p => p[1])) + P.w };
-  return (P._d = d);
+  return P._r || (P._r = P.legs.map(l => ({ x0: Math.min(l[0], l[2]) - P.w/2, x1: Math.max(l[0], l[2]) + P.w/2, y0: Math.min(l[1], l[3]) - P.w/2, y1: Math.max(l[1], l[3]) + P.w/2 })));
 }
-function spOnPath(x, y){
-  const P = SP_PLAN.PATH, d = spPathPts(), B = P._bb;
-  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return false;
-  const h = P.w/2;
-  for(let i = 0; i < d.length - 1; i++){
-    const ax = d[i][0], ay = d[i][1], bx = d[i + 1][0], by = d[i + 1][1], vx = bx - ax, vy = by - ay, L = vx*vx + vy*vy;
-    const t = L ? Math.max(0, Math.min(1, ((x - ax)*vx + (y - ay)*vy)/L)) : 0;
-    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return true;
-  }
-  return false;
-}
+function spOnPath(x, y){ for(const r of spPathRects()) if(spIn(r, x, y)) return true; return false; }
 /* the east wall's painted ground band, in runs (north to south), left out across the first terrace's side, where the lawn joins it */
 function sierraEastBands(){
   const S = sierraGeo(), G = sierraEastGap();
@@ -95652,17 +95630,13 @@ class WorldScene extends Phaser.Scene {
     for(let y = R0.y1 - 160; y > D.y0; y -= 160){ const a = this.W(D.x0, y, Z + 0.9), b = this.W(D.x1, y, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, Z + 0.9), b = this.W(x, P.COURT.y1, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     rect(P.DOCK, 0xbdb8ad, Z + 0.8, 6);
-    /* the walk across the lawn: concrete, in a ribbon of quads along its smoothed centreline, a joint every few steps */
-    { const d = spPathPts(), h = P.PATH.w/2, L = [], R = [];
-      for(let i = 0; i < d.length; i++){
-        const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1, nx = -dy/n*h, ny = dx/n*h;
-        L.push([d[i][0] + nx, d[i][1] + ny]); R.push([d[i][0] - nx, d[i][1] - ny]);
-      }
-      const zz = Z + 1;
-      for(let i = 0; i < d.length - 1; i++)
-        quad([this.W(L[i][0], L[i][1], zz), this.W(L[i + 1][0], L[i + 1][1], zz), this.W(R[i + 1][0], R[i + 1][1], zz), this.W(R[i][0], R[i][1], zz)], 0xcfcac0);
+    /* the walk: concrete, two straight legs, a joint every 184 along each */
+    { const zz = Z + 1;
+      for(const r of spPathRects()) rect(r, 0xcfcac0, zz);
       g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
-      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], zz + 0.05), b = this.W(R[i][0], R[i][1], zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+      const [A, B] = spPathRects();
+      for(let x = A.x0 + 184; x < A.x1 - 70; x += 184){ const a = this.W(x, A.y0, zz + 0.05), b = this.W(x, A.y1, zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+      for(let y = B.y0 + 184 + 144; y < B.y1; y += 184){ const a = this.W(B.x0, y, zz + 0.05), b = this.W(B.x1, y, zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
     }
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
