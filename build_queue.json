@@ -160,8 +160,9 @@
 "title": "Working door: Animal Shelter (painted door today)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: doors"
+"status": "built",
+"group": "Consistency pass: doors",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7860,8684&view=3"
 },
 {
 "id": "d3",
