@@ -144,3 +144,14 @@ Standalone bench built per §7 (does not touch `game/index.html`; `?h=0..3` for 
 - Heading read: a ramp seen from headings 0/1 shows its back wall, not the slope (tall ochre wall). It reads as a built thing but not as a ramp; consider a visible side/edge treatment in r2b art.
 - Bad landing: overshoot, undershoot or landing on an obstacle -> tip-over (rotates about the base, wobble). Gate hazard: ring passes if arc height is within the ring at its u; speed 130 gives "GATE MISS (arc height below)".
 - Open: kicker air time 0.46 s sits at the top of the spec's 0.3-0.5 band; ring art is a 3-stroke flicker, not particles.
+
+---
+
+## Port result (r2b, `game/index.html`)
+Ported from the bench (`owJumpTick`, `queuePlacedObjects`, `JUMP_PRESETS`); debut in the challenge route `tight-1` (`?route=tight-1`): a kicker, a ramp and a ring of fire on the north pavement along the shops west of the first crossing, heading east (`CHALLENGE_ROUTES[].placedObjects`, the spec's schema; `heading` is radians, 0 east).
+- Game units: footprints are larger than the bench's (kicker 45 x 60, ramp 96 x 84, lip 13.8 / 72.3) and `minSpeed` is 60: Tipsey's top speed is about 146 a second (measured off his position), so the ramp's arc at top speed is 1.3 s, peak 131, reach about 190; the ring (r 40, middle 127) is at that arc's apex.
+- Riding: `ow.jumpZ` (added to botZ, the shadow pinned to the ground and shrinking), the wedge only enterable by its low end; slow at the lip he is stopped (a bump), in from the side or back he is turned away; off the side he falls (`g` 400, no launch).
+- Air: heading and speed held, no steering; over the cones and bins (`owContact` skips above 24), over people's heads (no knock-downs above 40). Landing: clean = the kerb-drop bounce; on something solid = bad landing (damage 15, `owTip`).
+- Ring: crossing its plane airborne with his middle (base + 30) within r of its middle passes ("Ring of fire: cleared!"); on the ground, too low or too high fails (damage 28, a lean, a toast).
+- Depth: the robot's key is x + y + jumpZ (K = 1 for the game's projection, whose sight line is (1,1,1)); the ridden wedge is pinned before him; the ring is two arcs sorted either side of him as he passes.
+- Not done: ring art is a flickering band with flame licks, not particles; no par-time change (spec §6 stays blocked); bad landing has no landing-zone/tolerance model beyond "on something solid".

@@ -106,8 +106,9 @@
 "r1",
 "r2a"
 ],
-"status": "pending",
-"group": "Roadmap: routes, ramps, editor"
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1&go=10440,5720,0&view=2"
 },
 {
 "id": "r3",

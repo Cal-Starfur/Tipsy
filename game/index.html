@@ -7736,6 +7736,7 @@ if(typeof window !== 'undefined'){
 }
 
 function owContact(scene, ow, D, dYaw, key, type, hx, hy){
+  if(ow.jump && ow.jump.z > 24) return false;                             // (in the air over a jump: over the cones and bins, not through them)
   const dx = ow.px - hx, dy = ow.py - hy;
   const dist = Math.hypot(dx, dy) || 1e-6;
 
@@ -9545,6 +9546,113 @@ function owCurbDrop(scene, ow, W){
     scene.damage = Math.min(95, scene.damage + P.dmg * (v01 - P.dmgFrom)/(1 - P.dmgFrom) * (0.5 + 0.5*sq));
   sfxThump(0.25 + 0.75*v01);
 }
+/* ==================== RAMPS, KICKERS AND THE RING OF FIRE (queue r2b; docs/ramp-jump-spec.md, the bench labs/ramp-jump.html) ====================
+   One launch / arc / landing system, two magnitudes (a kicker, a ramp) and a gate hazard riding on it (the ring of fire). Placed objects
+   come from a challenge route's placedObjects ([{ id, type: 'kicker' | 'ramp' | 'firegate', position: { x, y }, heading (radians, 0 east),
+   presetOverrides }]) -- the same shape a player's editor will write later -- and live in route.placedObjects.
+   A kicker or ramp is a wedge: its low end at (x, y), rising along its heading over L to a lip of L*tan(angle), W wide. Riding it lifts him
+   (ow.jumpZ, added to botZ, and the shadow stays on the ground); going off the front fast enough LAUNCHES him: v0 = speed*tan(angle), then
+   h(t) = z0 + v0 t - g t^2/2, his heading and speed held (no air control), landing where the arc comes back to groundHeightAt. Slow, he is
+   stopped at the lip (a bump, not a launch); in from the side or the back he is turned away. A bad landing -- on something solid -- goes over
+   (owTip). A ring (firegate) is a pass-through plane: it passes him if he crosses it airborne with his middle inside the ring, and fails him
+   (a scorch: damage and a lean, a toast) if he is on the ground at it or crosses it too low or too high. */
+const JUMP_PRESETS = {
+  kicker:   { angle: 17, g: 330, L: 45, W: 60, minSpeed: 60 },           // a cracked slab's lip: frequent, subtle
+  ramp:     { angle: 37, g: 245, L: 96, W: 84, minSpeed: 60 },           // a built skate ramp: rare, dramatic
+  firegate: { r: 40, zc: 120 }                                           // the ring: its radius, its middle's height (his middle: base + JUMP_MID)
+};
+const JUMP_MID = 30;
+function groundHeightAt(x, y){ return 0; }                              // flat today; a heightmap later changes only this
+function jumpObjects(scene){
+  const R = scene && scene.route;
+  if(!R || !R.placedObjects || !R.placedObjects.length) return null;
+  if(R._placed) return R._placed;
+  return (R._placed = R.placedObjects.map(o => {
+    const P = Object.assign({}, JUMP_PRESETS[o.type] || {}, o.presetOverrides || {}), yaw = o.heading || 0;
+    for(const k in P) if(P[k] === null) delete P[k];
+    const base = JUMP_PRESETS[o.type] || {};
+    return { id: o.id, type: o.type, x: o.position.x, y: o.position.y, yaw, cs: Math.cos(yaw), sn: Math.sin(yaw), P: Object.assign({}, base, P), flare: -1e9 };
+  }));
+}
+function jumpLocal(o, x, y){ const dx = x - o.x, dy = y - o.y; return { u: dx*o.cs + dy*o.sn, v: -dx*o.sn + dy*o.cs }; }
+function jumpLip(o){ return o.P.L * Math.tan(o.P.angle*Math.PI/180); }
+function owJumpTick(scene, ow, dt){
+  const objs = jumpObjects(scene);
+  if(!objs || scene.state !== "play" || scene._inside || ow.deck || FP_FLY()){ if(ow.jump || ow.jumpZ){ ow.jump = null; ow.jumpZ = 0; ow._ramp = null; } ow._jpPrev = { x: ow.px, y: ow.py }; return; }
+  const pv = ow._jpPrev || { x: ow.px, y: ow.py }, mx = ow.px - pv.x, my = ow.py - pv.y, md = Math.hypot(mx, my);
+  const speed = dt > 0 ? md/dt*1000 : 0, now = scene.time.now;
+  const j = ow.jump;
+  /* the gates first (a ring is crossed riding, in the air or on the ground): the plane's u changes sign inside its width */
+  for(const o of objs){
+    if(o.type !== 'firegate') continue;
+    const a = jumpLocal(o, pv.x, pv.y), b = jumpLocal(o, ow.px, ow.py);
+    if(a.u < 0 && b.u >= 0 && md > 0.01){
+      const f = -a.u/(b.u - a.u), vAt = a.v + (b.v - a.v)*f;
+      if(Math.abs(vAt) < o.P.r + 14){
+        const z = ow.jumpZ || 0, mid = z + JUMP_MID, air = !!j && z > 2, ok = air && Math.abs(mid - o.P.zc) <= o.P.r;
+        o.flare = now; o.passed = ok;
+        if(ok){ if(typeof tpToast === "function") tpToast("Ring of fire: cleared!"); sfxThump(0.18); }
+        else {
+          if(typeof tpToast === "function") tpToast(!air ? "Missed the ring: you have to be in the air." : mid < o.P.zc ? "Missed the ring: too low." : "Missed the ring: too high.");
+          if(typeof scene.damage === "number") scene.damage = Math.min(95, scene.damage + 28);
+          owLeanKick(scene, ow, (vAt >= 0 ? 1 : -1)*0.5); sfxThump(0.7);
+        }
+      }
+    }
+  }
+  if(j){                                                                 // IN THE AIR: his heading and speed held, the arc runs
+    const s = dt/1000;
+    j.z += j.vz*s; j.vz -= j.g*s;
+    ow.yaw = j.yaw; ow.vel = j.vel;
+    if(j.z <= groundHeightAt(ow.px, ow.py)){                             // LANDING
+      const hit = !!(ow.world && ow.world.solidAt(ow.px, ow.py, OW_D.botR*0.9));
+      ow.jump = null; ow.jumpZ = 0; ow._ramp = null;
+      if(hit){                                                           // a bad landing: onto something solid
+        if(typeof scene.damage === "number") scene.damage = Math.min(95, scene.damage + 15);
+        owTip(scene, (Math.random() < 0.5 ? 1 : -1)); sfxThump(0.8);
+        if(typeof tpToast === "function") tpToast("Bad landing!");
+      } else {                                                           // a clean one: the bounce the kerb's drop has, by how hard
+        ow.drop = { t: 0, v01: Math.min(1, Math.abs(j.vz)/260), sq: 1 }; sfxThump(0.3 + 0.5*Math.min(1, Math.abs(j.vz)/260));
+      }
+    } else ow.jumpZ = j.z;
+    ow._jpPrev = { x: ow.px, y: ow.py };
+    return;
+  }
+  /* ON THE GROUND: riding a wedge? */
+  let on = null, loc = null;
+  for(const o of objs){
+    if(o.type === 'firegate') continue;
+    const l = jumpLocal(o, ow.px, ow.py);
+    if(l.u > -2 && l.u < o.P.L + 2 && Math.abs(l.v) < o.P.W/2){ on = o; loc = l; break; }
+  }
+  if(on){
+    if(ow._ramp !== on){                                                 // getting on: by the low end only
+      if(loc.u > 0.35*on.P.L){                                           // in from the side or the back: it is a wall -- turned away
+        ow.px = pv.x; ow.py = pv.y; ow.vel *= -0.2; owLeanKick(scene, ow, 0.18); sfxThump(0.3);
+        ow._jpPrev = { x: ow.px, y: ow.py }; return;
+      }
+      ow._ramp = on;
+    }
+    ow.jumpZ = Math.max(0, loc.u)*Math.tan(on.P.angle*Math.PI/180);
+    /* the lip: going off the front is a launch (or a stop, if too slow) -- decided on the step that would take him past it */
+    const nxu = loc.u + (mx*on.cs + my*on.sn);
+    if(nxu >= on.P.L && md > 0.01){
+      const dirCos = (mx*on.cs + my*on.sn)/md;
+      if(speed >= on.P.minSpeed && dirCos > 0.6 && Math.abs(loc.v) < on.P.W/2){
+        const v0 = (on.P.launchPower != null ? on.P.launchPower : speed*dirCos*Math.tan(on.P.angle*Math.PI/180));
+        ow.jump = { z: jumpLip(on), vz: v0, g: on.P.g, yaw: ow.yaw, vel: ow.vel, type: on.type };
+        ow._ramp = null; ow.jumpZ = ow.jump.z;
+        sfxThump(0.2);
+      } else { ow.px = pv.x; ow.py = pv.y; ow.vel = 0; sfxThump(0.15); }   // too slow at the lip: a bump, not a launch
+    }
+  } else if(ow._ramp){                                                   // off the side or the low end: down, a step from the ground
+    const z = ow.jumpZ || 0; ow._ramp = null;
+    if(z > 3) ow.jump = { z, vz: 0, g: 400, yaw: ow.yaw, vel: ow.vel, type: 'fall' };
+    else ow.jumpZ = 0;
+  } else ow.jumpZ = 0;
+  ow._jpPrev = { x: ow.px, y: ow.py };
+}
+function FP_FLY(){ const fp = fleetPhys(); return !!(fp && fp.fly); }
 /* the fall and bounce, advanced every step; everything reads ow.dropZ /
    dropPitch / dropJolt, all zero when no drop is running */
 function owDropTick(scene, ow, dt){
@@ -9955,7 +10063,7 @@ function owStep(scene, dt){
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
   /* SPUN OUT on a wet floor (hospHazTick): the stick does nothing till it ends */
-  if(ow.spin){ sx = sy = 0; }
+  if(ow.spin || ow.jump){ sx = sy = 0; }                                    // (spun out, or in the air: no steering till he lands)
   let mag = Math.hypot(sx, sy);
   if(mag < D.dead){ mag = 0; sx = sy = 0; }
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
@@ -10518,7 +10626,7 @@ function owStep(scene, dt){
     ow.sfcCommit = sfc;
   }
   if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
-  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); }
+  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); owJumpTick(scene, ow, dt); }
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
   scene.cy = scene._cyBase + (ow.dropJolt || 0);
@@ -41184,7 +41292,14 @@ function harvestCityFurniture(grid, segs){
    Picked with ?route=<id> (nothing else changes without it: the daily route is untouched). Rotation and
    leaderboard scope are still open decisions, so the table is plain data and starts with one entry. */
 const CHALLENGE_ROUTES = [
-  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null }
+  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null,
+    /* the first jumps (r2b): on the north pavement along the shops west of the first crossing (the lamps stand on the kerb side, y 5842), heading east -- a kicker to warm up on, then a ramp and a ring of fire at the
+       arc's apex for his top speed (about 146 a second: the ring's middle at the arc's height there) */
+    placedObjects: [
+      { id: "k1", type: "kicker",   position: { x: 10250, y: 5720 }, heading: 0 },
+      { id: "r1", type: "ramp",     position: { x: 10560, y: 5720 }, heading: 0 },
+      { id: "f1", type: "firegate", position: { x: 10722, y: 5720 }, heading: 0, presetOverrides: { zc: 127, r: 40 } }
+    ] }
 ];
 function challengeRouteById(id){ return CHALLENGE_ROUTES.find(r => r.id === id) || null; }
 let CHALLENGE_ROUTE_PICK = null;
@@ -41198,6 +41313,7 @@ function generateRoute(dateStr, opts){
     if(cr.parTimeOverride != null) r.parMs = cr.parTimeOverride;
     else if(m.parScale) r.parMs = Math.round(r.parMs * m.parScale);
     r.challengeRoute = cr.id;
+    r.placedObjects = cr.placedObjects || null;                  // (ramps, kickers and rings: owJumpTick)
     return r;
   }
   return _generateRouteCached(dateStr, opts);
@@ -101105,13 +101221,15 @@ class WorldScene extends Phaser.Scene {
        layer decision above it collapses because of this line. dt comes
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
+    this.queuePlacedObjects(worldVQ);                                            // (a route's ramps, kickers and rings of fire: owJumpTick)
     worldVQ.push({ depth: hospInGlass(this.ow) ? hospGlassDepth() + (this.ow.py < HOSP_LOWER.cars[1][2] ? 0.35 : 0.5)   // in the hospital's glass lift: in his car, either side of the partition
                         : hospOnBridge(this.ow) ? HOSP.skybridge.x1 + HOSP.skybridge.y0 + HOSP.skybridge.z0 - 0.5   // on the skybridge: after the podium roof under it, behind its glass
                         : this.ow && this.ow.deck && this.ow.deck.mid ? garageMidDepth()      // on the mall garage's level 2: under its decks (the x-ray shows him)
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
-                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0), isRobot: true,   // (in the air: past what it flies over)
+                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
+                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0), isRobot: true,   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
@@ -114737,9 +114855,10 @@ class WorldScene extends Phaser.Scene {
     const sp = this.pitch, srl = this.roll; this.pitch = 0; this.roll = 0;
     const sh = [];
     const SU = this.tipU || { a: 0, b: this.tipDir }, sE = this.tipT*26;   // (the shadow slides and stretches the way he falls)
+    const jz = (!npc && this.ow && this.ow.on) ? (this.ow.jumpZ || 0) : 0, jsk = 1 - Math.min(0.45, jz/260);   // (in the air off a ramp: pinned to the ground, smaller as he rises)
     for(let i=0;i<14;i++){
       const a=(i/14)*Math.PI*2;
-      sh.push(this.P(SU.a*sE + Math.cos(a)*(34 + (SU.a ? sE : 0)), (SU.a ? 0 : -sE*(this.tipDir||1)) + Math.sin(a)*(30 + (SU.a ? 0 : sE)), 0.5));
+      sh.push(this.P(SU.a*sE + Math.cos(a)*(34 + (SU.a ? sE : 0))*jsk, (SU.a ? 0 : -sE*(this.tipDir||1)) + Math.sin(a)*(30 + (SU.a ? 0 : sE))*jsk, 0.5 - jz));
     }
     /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
        every other robot part, so the silhouette wrap in drawWorld's
@@ -117867,6 +117986,7 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? beachZ(this.route.grid, this.botX, this.botY) : 0)    // SUNSET SHORE: the path decks, the dunes
               + (this.ow && this.ow.on ? coveZ(this.botX, this.botY) : 0)                     // COVE GROVE: the raised walk and its ramps
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
+              + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)             // on a ramp, or in the air off one (owJumpTick)
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
               + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
@@ -119080,6 +119200,73 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* PLACED JUMP OBJECTS (a route's ramps, kickers and rings of fire: owJumpTick), queued each frame -- a few small live solids, culled to what
+     is near the camera. Sorted by the bench's rules (labs/ramp-jump.html): a wedge is keyed at its middle and pinned before the rider while he
+     is on it or just off it; a ring is two arcs sorted either side of him as he passes through it (the far half under him, the near half over). */
+  queuePlacedObjects(vq){
+    const objs = jumpObjects(this);
+    if(!objs) return;
+    const ow = this.ow, now = this.time.now, cx = this.camX, cy = this.camY, span = (this.vpW() + this.vpH())/this.K + 600;
+    const rkey = this.botX + this.botY + (ow && ow.on ? (ow.jumpZ || 0) : 0);
+    const VIEW = [1, 1, 1];
+    const wl = (o, u, v, z) => this.W(o.x + o.cs*u - o.sn*v, o.y + o.sn*u + o.cs*v, z);
+    const wp = (o, u, v, z) => [o.x + o.cs*u - o.sn*v, o.y + o.sn*u + o.cs*v, z];
+    /* a convex solid from world points and faces (point indices, any winding): the faces that turn to the eye, shaded by the light */
+    const solid = (g, V, faces, cols) => {
+      const c = [0, 0, 0]; for(const q of V){ c[0] += q[0]; c[1] += q[1]; c[2] += q[2]; } c[0] /= V.length; c[1] /= V.length; c[2] /= V.length;
+      faces.forEach((f, i) => {
+        const a = V[f[0]], b = V[f[1]], d = V[f[2]];
+        let n = [(b[1]-a[1])*(d[2]-a[2]) - (b[2]-a[2])*(d[1]-a[1]), (b[2]-a[2])*(d[0]-a[0]) - (b[0]-a[0])*(d[2]-a[2]), (b[0]-a[0])*(d[1]-a[1]) - (b[1]-a[1])*(d[0]-a[0])];
+        const fc = [0, 0, 0]; for(const k of f){ fc[0] += V[k][0]; fc[1] += V[k][1]; fc[2] += V[k][2]; } fc[0] /= f.length; fc[1] /= f.length; fc[2] /= f.length;
+        if(n[0]*(fc[0]-c[0]) + n[1]*(fc[1]-c[1]) + n[2]*(fc[2]-c[2]) < 0) n = [-n[0], -n[1], -n[2]];
+        if(n[0]*VIEW[0] + n[1]*VIEW[1] + n[2]*VIEW[2] <= 1e-6) return;
+        const m = Math.hypot(n[0], n[1], n[2]) || 1, lit = 0.62 + 0.38*Math.max(0, (n[0]*0.35 + n[1]*0.2 + n[2]*0.9)/m);
+        const col = cols[i] !== undefined ? cols[i] : cols[0], k = lit;
+        this.quadOn(g, f.map(q => this.W(V[q][0], V[q][1], V[q][2])), (Math.min(255, ((col >> 16) & 255)*k)<<16) | (Math.min(255, ((col >> 8) & 255)*k)<<8) | Math.min(255, (col & 255)*k));
+      });
+    };
+    for(const o of objs){
+      const mx = o.x + o.cs*(o.P.L || 0)/2, my = o.y + o.sn*(o.P.L || 0)/2;
+      if(Math.abs(mx - cx) + Math.abs(my - cy) > span + 400) continue;
+      if(o.type === 'firegate'){
+        const r = o.P.r, zc = o.P.zc, near = Math.abs(o.x - this.botX) + Math.abs(o.y - this.botY) < 280, key = o.x + o.y;
+        const age = now - (o.flare || -1e9), fl = age < 700 ? 1 - age/700 : 0;
+        const side = (o.cs - o.sn) >= 0 ? 1 : -1;                      // which lateral sign is nearer the eye
+        const post = (g, sg) => { const bx = -o.sn*(r + 12)*sg, by = o.cs*(r + 12)*sg, w = 4;
+          const V = [[o.x + bx - w, o.y + by - w, 0], [o.x + bx + w, o.y + by - w, 0], [o.x + bx + w, o.y + by + w, 0], [o.x + bx - w, o.y + by + w, 0],
+                     [o.x + bx - w, o.y + by - w, zc + r*0.55], [o.x + bx + w, o.y + by - w, zc + r*0.55], [o.x + bx + w, o.y + by + w, zc + r*0.55], [o.x + bx - w, o.y + by + w, zc + r*0.55]];
+          solid(g, V, [[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]], [0x6e747c]); };
+        const arc = (g, sg) => {
+          const N = 28, t = now*0.012;
+          for(let i = 0; i < N; i++){
+            const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, am = (a0 + a1)/2;
+            if(Math.cos(am)*side*sg < 0) continue;                       // (this half only)
+            const fk = 1 + 0.12*Math.sin(t + i*1.7) + 0.5*fl, rr = (rr0 => rr0)(r);
+            const pt = (a, rad, e) => { const lat = Math.cos(a)*rad, zz = zc + Math.sin(a)*rad; return this.W(o.x - o.sn*lat + o.cs*e, o.y + o.cs*lat + o.sn*e, zz); };
+            const hot = fl > 0 ? (o.passed ? 0x9cffb0 : 0xff4a3a) : 0xffd23a;
+            this.quadOn(g, [pt(a0, rr + 9*fk, 0), pt(a1, rr + 9*fk, 0), pt(a1, rr - 9*fk, 0), pt(a0, rr - 9*fk, 0)], fl > 0 ? (o.passed ? 0x2fc86a : 0xd8321f) : 0xff7a1a, 0.95);
+            this.quadOn(g, [pt(a0, rr + 4*fk, 0.5), pt(a1, rr + 4*fk, 0.5), pt(a1, rr - 4*fk, 0.5), pt(a0, rr - 4*fk, 0.5)], hot, 1);
+            if((i + Math.floor(t)) % 3 === 0) this.quadOn(g, [pt(a0, rr + 16*fk, 0), pt(am, rr + 24*fk, 0), pt(a1, rr + 16*fk, 0)], 0xff9a3a, 0.8);   // a lick of flame off the outside
+          }
+        };
+        const farK = near ? Math.min(key, rkey - 0.2) : key - 0.05, nearK = near ? Math.max(key, rkey + 0.2) : key + 0.05;
+        vq.push({ depth: farK, fn: (g) => { post(g, -side); arc(g, -1); } });
+        vq.push({ depth: nearK, fn: (g) => { arc(g, 1); post(g, side); } });
+        continue;
+      }
+      const L = o.P.L, Wd = o.P.W/2, H = jumpLip(o), isRamp = o.type === 'ramp';
+      const V = [wp(o, 0, -Wd, 0), wp(o, L, -Wd, 0), wp(o, L, Wd, 0), wp(o, 0, Wd, 0), wp(o, L, -Wd, H), wp(o, L, Wd, H)];
+      const cols = isRamp ? [0xc9a15e, 0xa9824a, 0x8f6d3e, 0x8f6d3e] : [0xb9b4a6, 0x9d988a, 0x86816f, 0x86816f];
+      const lip = isRamp ? [wp(o, L - 8, -Wd, H - 8*Math.tan(o.P.angle*Math.PI/180)), wp(o, L, -Wd, H), wp(o, L, Wd, H), wp(o, L - 8, Wd, H - 8*Math.tan(o.P.angle*Math.PI/180))] : null;
+      const onIt = ow && (ow._ramp === o || (ow.jump && Math.abs(this.botX - mx) + Math.abs(this.botY - my) < 260));
+      const key = mx + my, k2 = onIt ? Math.min(key, rkey - 0.3) : key;
+      vq.push({ depth: k2, fn: (g) => {
+        solid(g, V, [[0,3,5,4], [1,2,5,4], [0,1,4], [3,2,5]], cols);
+        if(lip) this.quadOn(g, lip.map(q => this.W(q[0], q[1], q[2] + 0.4)), 0xd9dde0);                   // the metal lip
+        if(isRamp){ for(const uu of [L*0.3, L*0.55, L*0.8]) { const z0 = uu*Math.tan(o.P.angle*Math.PI/180); this.quadOn(g, [wp(o, uu, -Wd + 6, z0 + 0.4), wp(o, uu + 6, -Wd + 6, z0 + 6*Math.tan(o.P.angle*Math.PI/180) + 0.4), wp(o, uu + 6, Wd - 6, z0 + 6*Math.tan(o.P.angle*Math.PI/180) + 0.4), wp(o, uu, Wd - 6, z0 + 0.4)].map(q => this.W(q[0], q[1], q[2])), 0x7a5a32); } }   // grip battens across the slope
+      } });
+    }
+  }
   drawMissionCarried(zFloor){
     const it = missionCarriedNow();
     if(!it) return;
@@ -120581,7 +120768,7 @@ class WorldScene extends Phaser.Scene {
     /* (a beat after he was last going fast enough: something solid he hit -- a chair -- stops him dead the frame he meets
        it, and the bump is still the bump) */
     if(this.speed > SR.knockV) this._fastT = t;
-    if(this.state === "play" && ow && ow.on && (this.speed > SR.knockV || t - (this._fastT || -1e9) < 600) && !fleetPhys().fly){   // (flying: over their heads)
+    if(this.state === "play" && ow && ow.on && (this.speed > SR.knockV || t - (this._fastT || -1e9) < 600) && !fleetPhys().fly && !(ow.jump && ow.jump.z > 40)){   // (flying, or in the air off a ramp: over their heads)
       const circle = (r, box) => (x, y) => Math.abs(x - this.botX) < box && Math.abs(y - this.botY) < box && Math.hypot(x - this.botX, y - this.botY) < r;
       const inMallK = cpInMall(this);
       /* reach: 'hit' the street's; 'seat' a chair, met before it stops him; 'play' up against a game; 'hosp' the wards (the staff stand in the floor's volume as solids) */
