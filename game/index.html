@@ -25133,11 +25133,14 @@ function kitchenRunners(){
   };
   return (KITCHEN.runners = [mk(65, [470], [1110], 0), mk(66, [1110], [1250], 16)]);
 }
+/* where a runner is on its floor: its line (r.a, r.b: the raw walk) plus the step across it (oa, ob), as the street's shopperAt */
+function kitchenRunnerPos(r){ return { a: r.a + (r.oa || 0), b: r.b + (r.ob || 0) }; }
 /* where a runner stands in the world: its floor's room, the hall on the street's lines */
 function kitchenRunnerAt(r, scene){
   const base = baseRoom(), hall = POCKETS.find(p => p.from === "Seabreeze Ballroom" && p !== base);
   const pk = r.floor === 'b' ? base : hall;
-  return pk ? { x: pk.x0 + r.a + (r.oa || 0), y: pk.y0 + r.b + (r.ob || 0), pk } : null;
+  const w = kitchenRunnerPos(r);
+  return pk ? { x: pk.x0 + w.a, y: pk.y0 + w.b, pk } : null;
 }
 /* AWARE OF ONE ANOTHER (Sir, 2026-10-19: "fix it so that they cant go over
    one another not by timing just from awareness of one another"). Whoever
@@ -25154,7 +25157,7 @@ function awareOthers(f, self){
   const out = [];
   for(const r of kitchenRunners()){
     if(r === self || r.hidden || r.floor !== f) continue;
-    out.push({ a: r.a + (r.oa || 0), b: r.b + (r.ob || 0), r: 16, th: r.th, moving: r.moving, prio: 1, seed: r.seed });
+    out.push({ ...kitchenRunnerPos(r), r: 16, th: r.th, moving: r.moving, prio: 1, seed: r.seed });
   }
   const G = f === 'h' ? cakeUpGroup(performance.now()) : null;
   if(G){
@@ -25338,7 +25341,7 @@ function cakeUpTick(scene, ow){
     if(C.stage === 'out') nxt.push([cakeUpAlong(CAKE_UP_MARGOT, Math.min(LM, s1 + C.lead)), 16, G.margot]);
     for(const r of kitchenRunners()){
       if(r.hidden || r.floor !== 'h') continue;
-      const ra = r.a + (r.oa || 0), rb = r.b + (r.ob || 0);
+      const { a: ra, b: rb } = kitchenRunnerPos(r);
       for(const [p, rr, cur] of nxt){
         const dn = Math.hypot(p.a - ra, p.b - rb);
         if(cur && dn < rr + 16 + 6 && dn < Math.hypot(cur.a - ra, cur.b - rb)) return true;
@@ -26555,7 +26558,14 @@ function mallRoute(p, q){
   return leg(1, p, top).concat([{ a: la, b: M.SF1 - 4, L: 1 }, { a: la, b: M.b1 + 4, L: 0, ride: true, v: MALL_ESC_V }], leg(0, foot, q));
 }
 /* a member's place at t: room (a, b), floor height z, facing, moving; null once done */
-function mallWalkerAt(p, t){
+/* where a shopper is: mallWalkerAtRaw is the walk on its path; mallWalkerAt adds the sidestep (m.oa, m.ob) the
+   crowd eased it to, as the street's shopperAt does -- and CROWD_RAW reads it without (the sidestep's own solver) */
+function mallWalkerAt(m, t){
+  const q = mallWalkerAtRaw(m.p, t);
+  if(q && !CROWD_RAW && !q.ride && (m.oa || m.ob)){ q.a += m.oa || 0; q.b += m.ob || 0; }
+  return q;
+}
+function mallWalkerAtRaw(p, t){
   const M = MALL_IN;
   let el = Math.max(0, t - (p.dly || 0) - p.t0);              // not yet set off: where the walk starts (never behind it)
   const zOf = (o, q, u) => q && q.ride ? M.Z2*Math.max(0, Math.min(1, (M.b1 - (o.b + (q.b - o.b)*u))/M.L)) : (o.L ? M.Z2 : 0);
@@ -27073,7 +27083,7 @@ function mallCrowdStep(scene, t, dt){
   const all = [];
   for(const G of S.groups) for(const m of G.mem){
     if(!m.p || m.knock) continue;
-    const q = mallWalkerAt(m.p, t);
+    const q = mallWalkerAtRaw(m.p, t);
     if(q && !q.hidden && !q.ride) all.push({ G, m, q, a: q.a + (m.oa || 0), b: q.b + (m.ob || 0) });
   }
   const k = Math.min(1, dt*C.sideK);
@@ -27125,10 +27135,10 @@ function mallCrowdStep(scene, t, dt){
      talking bubbles through the floor"): someone the floor over them hides
      (mallHiddenByFloor, as queueMallCrowd skips them) neither starts a line
      nor keeps one up -- a null place takes the bubble down (npcSay) */
-  const say = m => () => { const q = m.p && mallWalkerAt(m.p, scene.time.now); return q && !q.hidden && seen(q) ? { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z, h: 160 } : null; };
+  const say = m => () => { const q = m.p && mallWalkerAt(m, scene.time.now); return q && !q.hidden && seen(q) ? { x: X0 + q.a, y: Y0 + q.b, z: q.z, h: 160 } : null; };
   for(const G of S.groups){
     if(t < G.chatT) continue;
-    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m.p, t)]).filter(([, q]) => q && !q.hidden && seen(q));
+    const live = G.mem.filter(m => !m.knock).map(m => [m, m.p && mallWalkerAt(m, t)]).filter(([, q]) => q && !q.hidden && seen(q));
     if(live.length < (G.mem.length > 1 ? 2 : 1)){ G.chatT = t + 900; continue; }
     const [m0, q0] = live[G.li % live.length];
     if(!G.line){
@@ -88750,9 +88760,9 @@ CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: 
     const X0 = M.x0 + (sh ? sh.dx : 0), Y0 = M.y0 + (sh ? sh.dy : 0);
     for(const G of S.groups) for(const m of G.mem){
       if(!m.p) continue;
-      const q = mallWalkerAt(m.p, t);
+      const q = mallWalkerAt(m, t);
       if(!q) continue;
-      fn(cpEntry(this, { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z || 0, th: q.th, moving: !!q.moving && !m.held, hidden: !!q.hidden,
+      fn(cpEntry(this, { x: X0 + q.a, y: Y0 + q.b, z: q.z || 0, th: q.th, moving: !!q.moving && !m.held, hidden: !!q.hidden,
                          kind: G.kind, look: m.look, ref: m, G, vis: () => inMall ? !mallHiddenByFloor(q) : mallStreetSeen(q), L: q.L, ride: !!q.ride, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
     }
   } });
@@ -93864,7 +93874,7 @@ class WorldScene extends Phaser.Scene {
     const S = this._mallCrowd, sh = mallInShift();
     if(!S || !sh) return false;
     const X0 = MALL_IN.x0 + sh.dx, Y0 = MALL_IN.y0 + sh.dy, t = this.time.now;
-    for(const G of S.groups) for(const m of G.mem){ const q = m.p && mallWalkerAt(m.p, t); if(q && !q.hidden && q.L === 0 && near(X0 + q.a, Y0 + q.b)) return true; }
+    for(const G of S.groups) for(const m of G.mem){ const q = m.p && mallWalkerAt(m, t); if(q && !q.hidden && q.L === 0 && near(X0 + q.a, Y0 + q.b)) return true; }
     return false;
   };
   queueMallThrough(vq, pk, near){
@@ -93900,11 +93910,11 @@ class WorldScene extends Phaser.Scene {
        2026-10-22, "i want to see if shoppers are popping in out of nowhere as tipsy moves") */
     const S = this._mallCrowd, t = this.time.now;
     if(S) for(const G of S.groups) for(const m of G.mem){
-      const q = m.p && !m.knock && mallWalkerAt(m.p, t);
+      const q = m.p && !m.knock && mallWalkerAt(m, t);
       if(!q || q.hidden || q.ride || q.L !== 0) continue;
       /* out: on the plaza or the pavement -- before an anchor's front or the entrance's glass, or out past the
          front row's (not inside one of its shops: drawn over its awning, they stood on it) */
-      const a = q.a + (m.oa || 0), b = q.b + (m.ob || 0), room = mallRoomOf(a);
+      const a = q.a, b = q.b, room = mallRoomOf(a);
       const out = b > M.D - 20 && (room !== 'M' || (a > M.CURTAIN[0] && a < M.CURTAIN[1]) || b > M.D + M.SOUT - 10);
       const inAtr = room === 'M' && a > C0 && a < C1 && b > ATD;                // (behind the main entrance's glass)
       if(!out && !inAtr && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
@@ -106093,7 +106103,7 @@ class WorldScene extends Phaser.Scene {
     const near = (a, b) => Math.abs(a - dm) < hw && Math.abs(b - bm) < 120;
     let want = near(this.botX - x0, (this.botY - y0)*sb);
     const S = this._mallCrowd;
-    if(!want && S) for(const G of S.groups){ for(const m of G.mem){ const q = m.p && mallWalkerAt(m.p, t); if(q && !q.hidden && q.L === 0 && near(q.a, q.b)){ want = true; break; } } if(want) break; }
+    if(!want && S) for(const G of S.groups){ for(const m of G.mem){ const q = m.p && mallWalkerAt(m, t); if(q && !q.hidden && q.L === 0 && near(q.a, q.b)){ want = true; break; } } if(want) break; }
     d.u = want ? Math.min(1, d.u + dt/380) : Math.max(0, d.u - dt/650);
     return d.u;
   }
@@ -106644,7 +106654,7 @@ class WorldScene extends Phaser.Scene {
     if(!S) return;
     for(const G of S.groups) for(const m of G.mem){
       if(m.knock) continue;                                     // down, or having words with him (queueKnocks draws them)
-      const q = m.p && mallWalkerAt(m.p, t);
+      const q = m.p && mallWalkerAt(m, t);
       if(!q || q.hidden) continue;
       /* (each room's upper floor over whoever is under it, as its pieces: mallRoomOf) */
       const room = mallRoomOf(q.a);
@@ -106656,8 +106666,8 @@ class WorldScene extends Phaser.Scene {
       let dk = q.a + q.b;
       if(q.L === 1 && !q.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(q.ride){ const e = M.ESC.find(e => q.a > e.up[0] - 4 && q.a < e.dn[1] + 4); if(e){ const l1 = q.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
-      if(q.L === 0 && !q.ride){ const fd = mallFrontDk(q.a + (m.oa || 0), q.b + (m.ob || 0)); if(fd !== null) dk = Math.max(dk, fd); }   // (before an anchor's front, or in its doorway: over its piece)
-      const L = m.look, qq = q.ride ? q : Object.assign({}, q, { a: q.a + (m.oa || 0), b: q.b + (m.ob || 0), moving: q.moving && !m.held });   // (off its path by its sidestep)
+      if(q.L === 0 && !q.ride){ const fd = mallFrontDk(q.a, q.b); if(fd !== null) dk = Math.max(dk, fd); }   // (before an anchor's front, or in its doorway: over its piece)
+      const L = m.look, qq = q.ride ? q : Object.assign({}, q, { moving: q.moving && !m.held });   // (off its path by its sidestep)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
         qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
       if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
