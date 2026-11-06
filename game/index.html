@@ -80115,8 +80115,16 @@ const CITY_PEOPLE = {
   }
 };
 /* an entry with its defaults filled in */
-function cpEntry(g, o){ return Object.assign({ z: 0, h: 150, moving: false, hidden: false, kind: 'walker', look: null, lookFn: null, ref: null, group: g.name, solid: !!g.solid, hold: null, ko: g.knock || null }, o); }
+function cpEntry(g, o){ return Object.assign({ z: 0, h: null, moving: false, hidden: false, kind: 'walker', look: null, lookFn: null, ref: null, group: g.name, solid: !!g.solid, hold: null, ko: g.knock || null }, o); }
 /* their look (partyLook's shape), worked out only when asked: a population hands over lookFn, not a look it made for everyone each frame */
+/* HOW HIGH A BUBBLE SITS over them: their own height off their build (leg + torso + head, as PERSON_H is made), and a head's room above it;
+   a population that knows better (seated: the seat's height, lying down) says h itself. A child's bubble is lower than a heavy man's. */
+const CP_BUBBLE_ROOM = 26;
+function cpBubbleH(p){
+  if(p.h != null) return p.h;
+  const L = cpLook(p), b = L && L.build;
+  return (b && b.legH ? b.legH + b.torsoH + 2*b.headR : PERSON_H) + CP_BUBBLE_ROOM;
+}
 function cpLook(p){ return p.look || (p.lookFn ? (p.look = p.lookFn()) : null); }
 /* KNOCK SPEC (Sir, 2026-10-20: "people in Shelly's and the arcade don't have collision" -- anyone not looped by hand in updateKnocks
    could not be knocked down; now a population says so itself, here, and updateKnocks only asks the group):
@@ -87990,7 +87998,7 @@ CITY_PEOPLE.add({ name: 'route walkers', where: 'the route\'s pavements', solid:
       if(h.type !== "people" && h.type !== "william") continue;
       const p = hazWorldAt(t, h);
       if(!p) continue;
-      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.type === "william" ? 'william' : (h.ride ? 'rider' : 'walker'), ref: h }));
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th + Math.PI/2, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.type === "william" ? 'william' : (h.ride ? 'rider' : 'walker'), ref: h }));
     }
   } });
 /* the city's frontage walkers past the route (WALK_PLAN: a call at a house, a shop, a phone stop) */
@@ -88000,7 +88008,7 @@ CITY_PEOPLE.add({ name: 'city walkers', where: 'every other street', solid: fals
       if(h.type !== "people") continue;
       const p = hazWorldAt(t, h);
       if(!p) continue;
-      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.ride ? 'rider' : 'walker', ref: h }));
+      fn(cpEntry(this, { x: p.x, y: p.y, th: p.th + Math.PI/2, moving: !!p.walk, hidden: p.b <= WALK_PLAN.hideB + 1, kind: h.ride ? 'rider' : 'walker', ref: h }));
     }
   } });
 /* the dog walkers: an owner on a leash behind half the walking dogs (DOG_PAIR) */
@@ -88010,7 +88018,7 @@ CITY_PEOPLE.add({ name: 'dog owners', where: 'the pavements', solid: false,
       if(h.type !== "dog" || !dogHasOwner(h) || (h._ownRef && h._ownRef.knock)) continue;   // (down: the knocked-down group has them)
       const o = dogOwnerAt(t, h), w = o && hazSpotWorld(h, o.a, o.b);
       if(!w) continue;
-      fn(cpEntry(this, { x: w.x, y: w.y, th: (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2 + (o.th || 0), moving: !!o.walk, kind: 'dog owner', ref: h }));
+      fn(cpEntry(this, { x: w.x, y: w.y, th: (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2 + (o.th || 0) + Math.PI/2, moving: !!o.walk, kind: 'dog owner', ref: h }));
     }
   } });
 /* the shoppers out of the shops, alone or in twos and threes (SHOPPERS, updateShoppers) */
@@ -88148,7 +88156,7 @@ CITY_PEOPLE.add({ name: 'mall crowd', where: 'Maritime Mall, the plaza', solid: 
       const q = mallWalkerAt(m.p, t);
       if(!q) continue;
       fn(cpEntry(this, { x: X0 + q.a + (m.oa || 0), y: Y0 + q.b + (m.ob || 0), z: q.z || 0, th: q.th, moving: !!q.moving && !m.held, hidden: !!q.hidden,
-                         h: 160, kind: G.kind, look: m.look, ref: m, G, L: q.L, ride: !!q.ride, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
+                         kind: G.kind, look: m.look, ref: m, G, L: q.L, ride: !!q.ride, hold: dt => { m.p.dly = (m.p.dly || 0) + dt; G.until += dt; } }));
     }
   } });
 /* the play floors' staff: Shelly's server, Shelly, the arcade's attendant (MALL_STAFF) */
@@ -88344,7 +88352,7 @@ CITY_PEOPLE.add({ name: 'derby walkers', where: 'Tidewater Green', solid: true,
     if(!DERBY_O || !derbyOn() || !DERBY_LIFE.w) return;
     for(const w of DERBY_LIFE.w){
       if(w.leave) continue;
-      fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, h: w.d.kind === 'kid' ? 115 : 150, kind: w.d.kind, lookFn: () => partyLook(w.d.seed, w.d.kind), ref: w }));
+      fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, kind: w.d.kind, lookFn: () => partyLook(w.d.seed, w.d.kind), ref: w }));
     }
   } });
 /* the crowd along the run and the judges under the tent (DERBY_CROWD, DERBY_JUDGES) */
@@ -88358,7 +88366,7 @@ CITY_PEOPLE.add({ name: 'derby crowd', where: 'Tidewater Green', solid: true,
     for(const c of DERBY_CROWD){
       if(DERBY_LEAVE.gone.has(c.k)) continue;
       const p = derbyW(c.a, c.n);
-      fn(cpEntry(this, { x: p.x, y: p.y, th: Math.atan2(-Math.sin(c.th || 0), Math.cos(c.th || 0)), h: c.kind === 'kid' ? 112 : 150, kind: c.kind, lookFn: () => partyLook(c.seed, c.kind), ref: c }));   // (the park's frame runs its b against y: drawCast's sb -1)
+      fn(cpEntry(this, { x: p.x, y: p.y, th: Math.atan2(-Math.sin(c.th || 0), Math.cos(c.th || 0)), kind: c.kind, lookFn: () => partyLook(c.seed, c.kind), ref: c }));   // (the park's frame runs its b against y: drawCast's sb -1)
     }
     DERBY_JUDGES.forEach((j, k) => {
       if(k === 0 && typeof FOURTH !== "undefined" && FOURTH.judge) return;
@@ -88375,7 +88383,7 @@ CITY_PEOPLE.add({ name: 'derby families', where: 'Tidewater Green\'s gates', sol
     for(const p of DERBY_LEAVE.list){
       if(p.knock) continue;
       const m = shopperAt(p, t);
-      if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, h: p.kind === 'kid' ? 115 : 150, kind: p.kind || 'walker',
+      if(m) fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: p.kind || 'walker',
                                lookFn: () => partyLook(p.seed, p.kind), ref: p, hold: dt => { p.t0 += dt; } }));
     }
   } });
