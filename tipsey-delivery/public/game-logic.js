@@ -82964,6 +82964,9 @@ const SP_PLAN = {
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
+  PATH: { w: 130, z0: 180, flatX: 8680, ramp: 1100,
+          pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk, through a gate in the east wall (GATE), down a ramp (z0 to 0 over `ramp`) and across the lawn to the post
+  GATE: { y0: -8450, y1: -8310 },                             // the opening in the east wall's first-terrace face, where the walk goes through
   HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
@@ -83011,12 +83014,52 @@ walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
    foothills' as before) */
 /* the lawn's east edge at y: the hill's foot, less a gap (so the lawn is never drawn over the mountain) */
 function spEastEdge(y){ const H = SP_PLAN.HILL; return H.x + (y - H.y)/H.k - H.gap; }
+/* THE WALK (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once, each with its arc length s and its
+   height z: z0 (the first terrace's) while inside the wall and up to flatX, then down to the lawn's 0 over `ramp` of walk */
+function spPathPts(){
+  const P = SP_PLAN.PATH;
+  if(P._d) return P._d;
+  const q = P.pts, d = [];
+  for(let i = 0; i < q.length - 1; i++){
+    const a = q[Math.max(0, i - 1)], b = q[i], c = q[i + 1], e = q[Math.min(q.length - 1, i + 2)];
+    for(let t = 0; t < 1; t += 0.125){
+      const t2 = t*t, t3 = t2*t, f = (p0, p1, p2, p3) => 0.5*((2*p1) + (-p0 + p2)*t + (2*p0 - 5*p1 + 4*p2 - p3)*t2 + (-p0 + 3*p1 - 3*p2 + p3)*t3);
+      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1]), 0, 0]);
+    }
+  }
+  d.push([q[q.length - 1][0], q[q.length - 1][1], 0, 0]);
+  let sFlat = null;
+  for(let i = 1; i < d.length; i++){ d[i][3] = d[i - 1][3] + Math.hypot(d[i][0] - d[i - 1][0], d[i][1] - d[i - 1][1]); if(sFlat === null && d[i][0] >= P.flatX) sFlat = d[i][3]; }
+  for(const p of d) p[2] = P.z0*(1 - Math.max(0, Math.min(1, (p[3] - sFlat)/P.ramp)));
+  P._bb = { x0: Math.min(...d.map(p => p[0])) - P.w, x1: Math.max(...d.map(p => p[0])) + P.w, y0: Math.min(...d.map(p => p[1])) - P.w, y1: Math.max(...d.map(p => p[1])) + P.w };
+  return (P._d = d);
+}
+/* the walk's height at a world point on it (null off it) */
+function spPathZ(x, y){
+  const P = SP_PLAN.PATH, d = spPathPts(), B = P._bb;
+  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return null;
+  const h = P.w/2;
+  for(let i = 0; i < d.length - 1; i++){
+    const ax = d[i][0], ay = d[i][1], bx = d[i + 1][0], by = d[i + 1][1], vx = bx - ax, vy = by - ay, L = vx*vx + vy*vy;
+    const t = L ? Math.max(0, Math.min(1, ((x - ax)*vx + (y - ay)*vy)/L)) : 0;
+    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return d[i][2] + (d[i + 1][2] - d[i][2])*t;
+  }
+  return null;
+}
+function spOnPath(x, y){ return spPathZ(x, y) !== null; }
+/* the wall's opening for the walk (the first terrace's east face): is y in it */
+function spGateGap(y){ const G = SP_PLAN.GATE; return y > G.y0 && y < G.y1; }
+/* the east wall's painted ground band, in runs (north to south), left out across both openings */
+function sierraEastBands(){
+  const S = sierraGeo(), G = sierraEastGap(), T = SP_PLAN.GATE;
+  return [[S.e[4], T.y0], [T.y1, G.y0], [G.y1, S.wallY]];
+}
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
   const P = SP_PLAN;
   if(x < P.AREA.x0 || x > P.AREA.x1 || y < P.AREA.y0 || y > P.AREA.y1) return null;
   if(spIn(P.POST, x, y)) return 'building';
-  if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) return 'sidewalk';
+  if(spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) return 'sidewalk';
   if((spIn(P.SITE, x, y) && x <= spEastEdge(y)) || spIn(P.TRACK, x, y)) return 'lot';
   return null;
 }
@@ -91102,8 +91145,11 @@ class WorldScene extends Phaser.Scene {
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
-        Q([[S.xe, y0, 0],[S.xe, y1, 0],[S.xe, y1, z],[S.xe, y0, z]], shade(STONE, .78));
-        for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, y0, zz],[S.xe + 0.5, y1, zz],[S.xe + 0.5, y1, zz + 3],[S.xe + 0.5, y0, zz + 3]], shade(STONE, .7));
+        const GT = SP_PLAN.GATE, runs = (y0 < GT.y0 && y1 > GT.y1) ? [[y0, GT.y0], [GT.y1, y1]] : [[y0, y1]];   // (the walk's gate cuts the face)
+        for(const [ya, yb] of runs){
+          Q([[S.xe, ya, 0],[S.xe, yb, 0],[S.xe, yb, z],[S.xe, ya, z]], shade(STONE, .78));
+          for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, ya, zz],[S.xe + 0.5, yb, zz],[S.xe + 0.5, yb, zz + 3],[S.xe + 0.5, ya, zz + 3]], shade(STONE, .7));
+        }
       }
     }
     /* THE RAMPS, AFTER EVERY SHELF (Sir, on-device, at the foot of R1:
@@ -93865,7 +93911,7 @@ class WorldScene extends Phaser.Scene {
       P._specks = out; }
     const K = this.K, sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
-      if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y)) continue;
+      if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) continue;
       const p = this.W(x, y, 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
       g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2*K, p.y - 0.8*K, 4*K, 1.6*K); }
     /* the drive and the forecourt: concrete in bays, a kerb-less joint line */
@@ -93874,6 +93920,23 @@ class WorldScene extends Phaser.Scene {
     for(let y = P.DRIVE.y1 - 160; y > P.DRIVE.y0; y -= 160){ const a = this.W(P.DRIVE.x0, y, 0.9), b = this.W(P.DRIVE.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, 0.9), b = this.W(x, P.COURT.y1, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
     rect(P.DOCK, 0xbdb8ad, 0.8, 6);
+    /* the walk: concrete, in a ribbon of quads along its smoothed centreline at its own height (high inside the wall, down a
+       ramp outside it), a joint every few steps, and the ramp's stone sides down to the lawn */
+    { const d = spPathPts(), h = P.PATH.w/2, L = [], R = [];
+      for(let i = 0; i < d.length; i++){
+        const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1, nx = -dy/n*h, ny = dx/n*h;
+        L.push([d[i][0] + nx, d[i][1] + ny]); R.push([d[i][0] - nx, d[i][1] - ny]);
+      }
+      const zz = i => d[i][2] + 0.95;
+      for(let i = 0; i < d.length - 1; i++){
+        if(d[i][2] > 1 && d[i][0] > 8602){      // (outside the wall, raised: its sides, in stone, down to the lawn)
+          for(const E of [L, R]) quad([this.W(E[i][0], E[i][1], d[i][2]), this.W(E[i + 1][0], E[i + 1][1], d[i + 1][2]), this.W(E[i + 1][0], E[i + 1][1], 0.9), this.W(E[i][0], E[i][1], 0.9)], E === L ? 0xa89f89 : 0xb9b09a);
+        }
+        quad([this.W(L[i][0], L[i][1], zz(i)), this.W(L[i + 1][0], L[i + 1][1], zz(i + 1)), this.W(R[i + 1][0], R[i + 1][1], zz(i + 1)), this.W(R[i][0], R[i][1], zz(i))], 0xcfcac0);
+      }
+      g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
+      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], zz(i) + 0.05), b = this.W(R[i][0], R[i][1], zz(i) + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+    }
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
      (queueFramePieces, as a landmark's: the test chute, the kart bays, the plywood store, the tables), its barn's lamp at
@@ -125638,7 +125701,7 @@ function tpMiniDraw(scene){
       const wallC = "#8a7f68", t = 70;
       band(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
       band(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
-      band(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); { const G = sierraEastGap(); band(S.xe - t, S.e[4], S.xe + t, G.y0, wallC); band(S.xe - t, G.y1, S.xe + t, S.wallY, wallC); }   // (the east wall's band, not across its opening)
+      band(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); for(const [ya, yb] of sierraEastBands()) band(S.xe - t, ya, S.xe + t, yb, wallC);   // (the east wall's band, not across its opening)
       band(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
       for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
         band(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); band(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
@@ -126786,8 +126849,8 @@ function sierraCrosses(x0, y0, x1, y1, R){
     for(const bx of [rp.b0, rp.b1])
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
-  { const G = sierraEastGap();
-    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, S.e[4])) return true; }
+  { const G = sierraEastGap(), T = SP_PLAN.GATE;
+    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, T.y1) || crossX(S.xe, T.y0, S.e[4])) return true; }
   for(const rp of S.ramps) for(const xw of [rp.c0, rp.c1]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
 }
@@ -126900,7 +126963,9 @@ function sierraDriveAt(x, y){
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
 function sierraZ(x, y){
   if(!WORLDGEN_COAST) return 0;
+  { const pz = spPathZ(x, y); if(pz !== null) return pz; }      // (the security post's walk: down the ramp outside the east wall)
   const S = sierraGeo();
+  if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall it is the bench: off the walk he is at the ground, not the terrace's height)
   if(y > S.wallY || y < S.e[4] - 200 || x < S.xw - 200 || x > S.xe + 200) return 0;
   for(const r of S.ramps)
     if(x >= r.c0 && x <= r.c1 && y <= r.yS && y >= r.yN)
@@ -127047,7 +127112,7 @@ function sierraBlocks(x, y, R){
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
   if(SV_GATE.g.mode !== 'booth' && Math.hypot(x - SV_GATE.g.x, y - SV_GATE.g.y) < SV_GUARD_R + R) return true;   // the guard himself
-  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
+  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y) && !spGateGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
     const rp = S.ramps[k-1];
@@ -131102,7 +131167,7 @@ function drawRouteMap(route){
         const wallC = "#8a7f68", t = 70;
         cband(S.xw, S.wallY - t, S.gate.x - S.gate.open, S.wallY + t, wallC);
         cband(S.gate.x + S.gate.open, S.wallY - t, S.xe, S.wallY + t, wallC);
-        cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); { const G = sierraEastGap(); cband(S.xe - t, S.e[4], S.xe + t, G.y0, wallC); cband(S.xe - t, G.y1, S.xe + t, S.wallY, wallC); }   // (the east wall's band, not across its opening)
+        cband(S.xw - t, S.e[4], S.xw + t, S.wallY, wallC); for(const [ya, yb] of sierraEastBands()) cband(S.xe - t, ya, S.xe + t, yb, wallC);   // (the east wall's band, not across its opening)
         cband(S.xw, S.e[4] - t, S.xe, S.e[4] + t, wallC);
         for(let k = 1; k <= 3; k++){ const rp = S.ramps[k-1];
           cband(S.xw, S.e[k] - 30, rp.b0, S.e[k] + 30, wallC); cband(rp.b1, S.e[k] - 30, S.xe, S.e[k] + 30, wallC);
