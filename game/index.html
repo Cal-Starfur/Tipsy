@@ -5516,6 +5516,14 @@ function hillNotchToe(x, toePlain, B, gap, mE){
     const mToe = s.at + s.out*s.depth - gap*B, t = d/me, e = t*t*(3 - 2*t);
     out = Math.min(out, mToe + (toePlain - mToe)*e);
   }
+  /* the mall's deeper centre (a site's `bump`): the hills are pushed back behind it too, over its span, easing back over bump.ease */
+  for(const s of HOOD_RIM_SITES){
+    if(!s.bump) continue;
+    const bx0 = s.from + s.bump.a0, bx1 = s.from + s.bump.a1, d = x < bx0 ? bx0 - x : x > bx1 ? x - bx1 : 0, me = s.bump.ease;
+    if(d >= me) continue;
+    const mToe = s.at + s.out*s.bump.depth - gap*B, t = d/me, e = t*t*(3 - 2*t);
+    out = Math.min(out, mToe + (out - mToe)*e);
+  }
   return out;
 }
 let _flyHills = null;
@@ -7149,7 +7157,7 @@ function owBuildWorld(route){
     } }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
-    for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
+    for(const r of hoodRimRects().concat(hoodRimBumpRects())) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
   /* HOW FAR A LANDMARK'S VOLUME REACHES PAST ITS BLOCK (Sir, on-device at
      the Seabreeze Ballroom, 2026-09-29: "the collision on these post isnt
      happening"). The rect test below gates the volume, and the ballroom's
@@ -25597,6 +25605,12 @@ function hoodLandmarkAtXY(x, y){
    room (see northHillPolys' mall notch). Its garage, the school and the
    tower keep the 940. */
 const MALL_DEP = 1880;
+/* THE MALL'S CENTRE IS DEEPER (Sir, 2026-11-06: "deepen the part of the mall exterior that isn't covering the interior"): the inside is
+   MALL_IN.D = 2790 deep and its front stands on the building's front (BF, -330), so its back wall is at -330 - 2790 = -3120; the
+   outside was only 1510 deep (BB, -1840), so the room stuck 1280 out behind the building (its back wall floated over the foothills).
+   The concourse runs and the atrium (the interior's span, a 2240..7144) now go back to MALL_PLAN.BBC with their lot (the site's
+   `bump`); the anchors keep their depth. */
+const MALL_DEPC = 3160;
 const HOOD_RIM_SITES = [
   { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 8300, notchEase: 400,
     icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
@@ -25604,7 +25618,7 @@ const HOOD_RIM_SITES = [
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
      map fills it as the shops it is, not as the park green the school's
      grounds take. */
-  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP,
+  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 2240, a1: 7144, depth: MALL_DEPC, ease: 700 },
     icon: "\u{1F6CD}\uFE0F", pin: "#23405e", kind: "landmark", mapType: "commercial" },
   /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
      between Veterans Memorial Park's lot and the mall */
@@ -26123,7 +26137,18 @@ function hoodRimSiteAt(x, y){
     const y0 = Math.min(s.at, s.at + s.out*s.depth), y1 = Math.max(s.at, s.at + s.out*s.depth);
     if(x >= s.from && x <= s.to && y >= y0 && y <= y1) return s;
   }
+  for(const r of hoodRimBumpRects()) if(x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) return HOOD_RIM_SITES.find(q => q.name === r.name);
   return null;
+}
+/* a site's deeper part (its `bump`), as a rect behind its run: the mall's centre, back to MALL_DEPC */
+function hoodRimBumpRects(){
+  const out = [];
+  for(const s of HOOD_RIM_SITES){
+    if(!s.bump) continue;
+    const ya = s.at + s.out*s.depth, yb = s.at + s.out*s.bump.depth;
+    out.push({ name: s.name, x0: s.from + s.bump.a0, x1: s.from + s.bump.a1, y0: Math.min(ya, yb), y1: Math.max(ya, yb), cx: s.from + (s.bump.a0 + s.bump.a1)/2, cy: (ya + yb)/2 });
+  }
+  return out;
 }
 function hoodRimRects(){
   return HOOD_RIM_SITES.map(s => ({ name: s.name,
@@ -26182,7 +26207,7 @@ const MALL_STORES = [
    glass 60 in from the lot line -- the awnings' depth, so each awning's
    lip is on the edge of the pavement and none hangs out over it, where
    the robot (drawn after the whole mall) would paint over it. */
-const MALL_PLAN = { BF: -330, CF: -60, BB: -(MALL_DEP - 40), WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8,
+const MALL_PLAN = { BF: -330, CF: -60, BB: -(MALL_DEP - 40), BBC: -(MALL_DEPC - 40), WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8,
   /* THE STREET FRONT IS THE INSIDE'S FRONT ROW (Sir, 2026-10-14: the shop
      fronts seen from inside "look wrong ... it needs to match", and the
      inside's shops set the size). Each run is three big shops, not eight
@@ -37121,13 +37146,13 @@ function mallVol(){
   const P = MALL_PLAN, LEN = 9384, BB = P.BB, R = volRect, mp = mallProps();
   /* (its west end, a 0..WA[0], is open to the back line now: the service way up to the Vista Ridge Security Post's
      drive -- SP_PLAN.LANE -- where the back strip shut it 40 short of the bench) */
-  const foot = [[P.WA[0],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+  const foot = [[P.WA[0],-MALL_DEP],[P.CW[0],-MALL_DEP],[P.CW[0],-MALL_DEPC],[P.CE[1],-MALL_DEPC],[P.CE[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
                 [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
     { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 418 },
     { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 418 },
-    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], BB, P.BF), h: 650 },
+    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 650 },
     ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
     ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
     ...mp.palms.map(([a, b]) => ({ name: 'palm', poly: R(a - 46, a + 46, b - 46, b + 46), h: 300, prop: true })),
@@ -72608,6 +72633,8 @@ marinaEntry(),
   draw(p){
     const LEN = 9384, DEP = MALL_DEP;
     const BF = MALL_PLAN.BF, BB = MALL_PLAN.BB;                 // the building's own band
+    const BBC = MALL_PLAN.BBC, CW0 = MALL_PLAN.CW[0], CE1 = MALL_PLAN.CE[1], DEPC = MALL_DEPC;   // (its centre, over the inside's span, is deeper)
+    const bbOf = (a0, a1) => (a0 >= CW0 - 1 && a1 <= CE1 + 1) ? BBC : BB;
     const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
     const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
     const HA = 400, HC = 300, HT = 520;                         // anchor, concourse, atrium heights
@@ -72619,7 +72646,7 @@ marinaEntry(),
     /* NOTHING AT ALL WHEN NONE OF IT CAN SHOW (2026-09-30, Sir: "the game
        is feeling a bit sluggish ... the same issue ... we had with the
        veterans park"): the whole site, vault and crown included */
-    if(!inView(0, LEN, -DEP, 0, 0, HT + 260)) return;
+    if(!inView(0, LEN, -DEPC, 0, 0, HT + 260)) return;
 
     /* ---- THE SITE ----
        THE FRONTAGE IS THE SIDEWALK (Sir, 2026-10-14: "lets make this
@@ -72690,14 +72717,15 @@ marinaEntry(),
 
     /* ---- THE MASSES, west to east ---- */
     const mass = (a0, a1, h, col, capCol, bf = BF) => {
-      box(a0, a1, BB, bf, 0, h, shade(col,1.05), col, shade(col,.78));
+      const bb = bbOf(a0, a1);
+      box(a0, a1, bb, bf, 0, h, shade(col,1.05), col, shade(col,.78));
       F(a0, a1, 0, 20, shade(col,.62), null, 0, bf + 0.4);                         // plinth
-      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, BB - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
+      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, bb - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
     };
     const roofKit = (a0, a1, h) => {
       if(!state.roof) return;
       /* a row of plant every 940 back, so the deeper roof is not bare */
-      for(let rb = -760; rb > BB + 200; rb -= 940)
+      for(let rb = -760; rb > bbOf(a0, a1) + 200; rb -= 940)
         for(let a = a0 + 200; a < a1 - 260; a += 620){
           box(a, a + 140, rb, rb + 100, h + 18, h + 52, '#a3a9ae', '#8a9095', '#737a80');
           cyl(a + 190, rb + 160, h + 18, h + 40, 22, '#9aa1a6');
@@ -72835,10 +72863,10 @@ marinaEntry(),
        left of the next mass on the screen, never under it. */
     const concourse = (a0, a1, wing) => {
       const BF = MALL_PLAN.CF;
-      if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HC + 60)) return;
+      if(!inView(a0 - 10, a1 + 10, bbOf(a0, a1) - 10, BF + 10, 0, HC + 60)) return;
       mass(a0, a1, HC, '#ece6da', '#cfc7b8', BF);
       roofKit(a0, a1, HC);
-      if(state.roof) for(let sb = -460; sb - 300 > BB + 100; sb -= 470)
+      if(state.roof) for(let sb = -460; sb - 300 > bbOf(a0, a1) + 100; sb -= 470)
         for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, sb - 300, sb, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
       F(a0, a1, 172, 186, '#d8d0c0', null, 0, BF + 0.6);                          // the floor line
       F(a0 + 30, a1 - 30, 200, 278, glass, null, 0, BF + 0.8);                     // upper ribbon
@@ -72892,16 +72920,16 @@ marinaEntry(),
     /* the atrium: a glass box taller than everything, a barrel vault of
        glass running back over it, and the crown with the name */
     const atrium = () => {
-      if(!inView(AT0 - 30, AT1 + 30, BB - 10, BF + 20, 0, HT + 220)) return;
+      if(!inView(AT0 - 30, AT1 + 30, BBC - 10, BF + 20, 0, HT + 220)) return;
       /* SEEN INTO, AS THE ANCHORS ARE (Sir, 2026-10-29: "the front of the main entrance to the mall its not see through and
          showing the interior like the anchor stores do"): no box -- its top and its end, and its front only round the
          curtain wall, so the concourse behind it (MALL_THROUGH, queued just under this) shows through the glass */
-      T(AT0, AT1, BB, BF, HT, '#dfe5e8'); S(AT1, BB, BF, 0, HT, '#aeb7bd');
+      T(AT0, AT1, BBC, BF, HT, '#dfe5e8'); S(AT1, BBC, BF, 0, HT, '#aeb7bd');
       F(AT0, AT0 + 30, 0, HT, '#cfd6da', null, 0, BF); F(AT1 - 30, AT1, 0, HT, '#cfd6da', null, 0, BF);
       F(AT0 + 30, AT1 - 30, 0, 10, '#cfd6da', null, 0, BF); F(AT0 + 30, AT1 - 30, HT - 30, HT, '#cfd6da', null, 0, BF);
       /* the vault, far half first so the near half covers it */
       if(state.roof){
-        const R = 380, N = 12, vb0 = BB + 60, vb1 = BF - 110, zb = HT;
+        const R = 380, N = 12, vb0 = BBC + 60, vb1 = BF - 110, zb = HT;
         const pt = (t, b) => P(AC - R*Math.cos(t), b, zb + R*Math.sin(t)*0.55);
         for(let k = 0; k < N; k++){
           const t0 = k/N*Math.PI, t1 = (k + 1)/N*Math.PI, lit = 0.8 + 0.4*(k/N);
