@@ -84637,9 +84637,9 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8450, x1: 10900, y0: -9800, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
-  AREA: { x0: 8602, x1: 10900, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8602, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
+  SITE: { x0: 8596, x1: 10900, y0: -9660, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
+  AREA: { x0: 8596, x1: 10900, y0: -9700, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8602, x1: 8940, y0: -5820, y1: -4400 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
   COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
@@ -84655,9 +84655,10 @@ const SP_PLAN = {
   GATES: [{ x: 8790, y: -4700 }, { x: 8790, y: -5250 }, { x: 8790, y: -5800 }], GATE_W: 136,   // the east wall's camera points
   WALL_X: 8602,                                                 // the estate's east wall (sierraGeo().xe)
   LOOP: { x0: 4420, x1: 8740, yN: -3030, yS: -2934 },          // the patrol robots' loop along the front wall
-  PATH: { w: 130, z0: 180, flatX: 8680, ramp: 1100,
-          pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk, through a gate in the east wall (GATE), down a ramp (z0 to 0 over `ramp`) and across the lawn to the post
-  GATE: { y0: -8450, y1: -8310 },                             // the opening in the east wall's first-terrace face, where the walk goes through
+  PATH: { w: 130, z0: 180,
+          pts: [[8372, -8380], [8500, -8380], [8640, -8385], [8800, -8395], [8992, -8335], [9205, -8076], [9324, -7504], [9392, -6935], [9451, -6649]] },   // the concrete walk Sir drew: from the end of the estate's first-terrace sidewalk across the lawn, level with it, to the post
+  Z: 180,                                                     // the whole lawn (SITE) is graded to the first terrace's height, so it meets the estate's lawn level
+  RAMP: { y0: -4700, y1: -5820 },                             // the service drive climbs 0 to Z between these (foot, head), so it rises onto the lawn
   HILL: { x: 10240, y: -9560, k: 5.55, gap: 40 },             // the foothill's foot east of the lawn (a slant: x grows 1 per 5.55 south); the lawn stops short of it
   hours: [0, 24]
 };
@@ -84705,8 +84706,19 @@ walkinLife(SP_PLAN.room, { keep: [[50, 150, 170, 300]], looks: [] });
    foothills' as before) */
 /* the lawn's east edge at y: the hill's foot, less a gap (so the lawn is never drawn over the mountain) */
 function spEastEdge(y){ const H = SP_PLAN.HILL; return H.x + (y - H.y)/H.k - H.gap; }
-/* THE WALK (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once, each with its arc length s and its
-   height z: z0 (the first terrace's) while inside the wall and up to flatX, then down to the lawn's 0 over `ramp` of walk */
+/* THE LAWN IS A PLATFORM (Sir, 2026-11-06: "the whole area planed to the same level as the highest point of the ramp"): SP_PLAN.Z
+   high, level with the first terrace it adjoins; the service drive rises onto it. spGroundZ(x, y): the height there if it is the
+   post's (the platform, or the drive's climb), else null */
+function spInPlate(x, y){ const S = SP_PLAN.SITE; return x >= S.x0 && y >= S.y0 && y <= S.y1 && x <= spEastEdge(y); }
+function spGroundZ(x, y){
+  const P = SP_PLAN;
+  if(spInPlate(x, y)) return P.Z;
+  const D = P.DRIVE;
+  if(x >= D.x0 && x <= D.x1 && y <= P.RAMP.y0 && y >= P.RAMP.y1) return P.Z*(P.RAMP.y0 - y)/(P.RAMP.y0 - P.RAMP.y1);
+  return null;
+}
+function spZ(x, y){ const z = spGroundZ(x, y); return z === null ? 0 : z; }
+/* THE WALK (SP_PLAN.PATH): its centreline smoothed (Catmull-Rom) into short segments, once; level, at Z */
 function spPathPts(){
   const P = SP_PLAN.PATH;
   if(P._d) return P._d;
@@ -84715,35 +84727,28 @@ function spPathPts(){
     const a = q[Math.max(0, i - 1)], b = q[i], c = q[i + 1], e = q[Math.min(q.length - 1, i + 2)];
     for(let t = 0; t < 1; t += 0.125){
       const t2 = t*t, t3 = t2*t, f = (p0, p1, p2, p3) => 0.5*((2*p1) + (-p0 + p2)*t + (2*p0 - 5*p1 + 4*p2 - p3)*t2 + (-p0 + 3*p1 - 3*p2 + p3)*t3);
-      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1]), 0, 0]);
+      d.push([f(a[0], b[0], c[0], e[0]), f(a[1], b[1], c[1], e[1]), P.z0, 0]);
     }
   }
-  d.push([q[q.length - 1][0], q[q.length - 1][1], 0, 0]);
-  let sFlat = null;
-  for(let i = 1; i < d.length; i++){ d[i][3] = d[i - 1][3] + Math.hypot(d[i][0] - d[i - 1][0], d[i][1] - d[i - 1][1]); if(sFlat === null && d[i][0] >= P.flatX) sFlat = d[i][3]; }
-  for(const p of d) p[2] = P.z0*(1 - Math.max(0, Math.min(1, (p[3] - sFlat)/P.ramp)));
+  d.push([q[q.length - 1][0], q[q.length - 1][1], P.z0, 0]);
   P._bb = { x0: Math.min(...d.map(p => p[0])) - P.w, x1: Math.max(...d.map(p => p[0])) + P.w, y0: Math.min(...d.map(p => p[1])) - P.w, y1: Math.max(...d.map(p => p[1])) + P.w };
   return (P._d = d);
 }
-/* the walk's height at a world point on it (null off it) */
-function spPathZ(x, y){
+function spOnPath(x, y){
   const P = SP_PLAN.PATH, d = spPathPts(), B = P._bb;
-  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return null;
+  if(x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1) return false;
   const h = P.w/2;
   for(let i = 0; i < d.length - 1; i++){
     const ax = d[i][0], ay = d[i][1], bx = d[i + 1][0], by = d[i + 1][1], vx = bx - ax, vy = by - ay, L = vx*vx + vy*vy;
     const t = L ? Math.max(0, Math.min(1, ((x - ax)*vx + (y - ay)*vy)/L)) : 0;
-    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return d[i][2] + (d[i + 1][2] - d[i][2])*t;
+    if(Math.hypot(x - (ax + vx*t), y - (ay + vy*t)) <= h) return true;
   }
-  return null;
+  return false;
 }
-function spOnPath(x, y){ return spPathZ(x, y) !== null; }
-/* the wall's opening for the walk (the first terrace's east face): is y in it */
-function spGateGap(y){ const G = SP_PLAN.GATE; return y > G.y0 && y < G.y1; }
-/* the east wall's painted ground band, in runs (north to south), left out across both openings */
+/* the east wall's painted ground band, in runs (north to south), left out across the first terrace's side, where the lawn joins it */
 function sierraEastBands(){
-  const S = sierraGeo(), G = sierraEastGap(), T = SP_PLAN.GATE;
-  return [[S.e[4], T.y0], [T.y1, G.y0], [G.y1, S.wallY]];
+  const S = sierraGeo(), G = sierraEastGap();
+  return [[S.e[4], G.y0], [G.y1, S.wallY]];
 }
 function spIn(r, x, y){ return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1; }
 function spSurface(x, y){
@@ -84765,6 +84770,13 @@ function spSolids(){
   Dk(P.MAST.x, P.MAST.y, 18, P.MAST.h);
   for(const p of P.PADS) R(p.x - 24, p.x + 24, p.y - 92, p.y - 64, 118);
   for(const bd of P.BEDS) Dk(bd.x, bd.y, bd.r - 16, 40);
+  /* THE PLATFORM'S EDGES (it stands P.Z over the bench): its south edge but for the drive's way up, the drive's two sides while it climbs,
+     its north edge, and the hill's side (a chain of discs): he cannot step off into the drop */
+  { const S = P.SITE, D = P.DRIVE, R0 = P.RAMP, h = 600;
+    R(S.x0, D.x0, S.y1 - 12, S.y1 + 4, h); R(D.x1, spEastEdge(S.y1) + 40, S.y1 - 12, S.y1 + 4, h);
+    R(D.x0 - 30, D.x0, R0.y1, R0.y0, h); R(D.x1, D.x1 + 30, R0.y1, R0.y0, h);
+    R(S.x0, spEastEdge(S.y0) + 40, S.y0 - 4, S.y0 + 12, h);
+    for(let y = S.y0; y <= S.y1; y += 90) Dk(spEastEdge(y) + 30, y, 70, h); }
   return (spSolids.c = out);
 }
 function spSolidAt(x, y, R){
@@ -84776,7 +84788,7 @@ function spSolidAt(x, y, R){
   return null;
 }
 /* its roof, for the x-ray and the flyers; null off it */
-function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x < B.x1 + B.oh && y > B.y0 - B.oh && y < B.y1 + B.oh) ? B.ridge : null; }
+function spHeightAt(x, y){ const B = SP_PLAN.POST; return (x > B.x0 - B.oh && x < B.x1 + B.oh && y > B.y0 - B.oh && y < B.y1 + B.oh) ? B.ridge + SP_PLAN.Z : null; }
 /* THE WAY UP, FOR THE GPS (gpsTrailNet takes these with Veterans Memorial Park's trail): the service way from the
    pavement, the drive, the forecourt to the dock and to the track, the track up the wall; and 2nd St's east pavement up
    to the gate round (the walk graph stops at the top street: Sierra Vista's street is crossed, never walked) */
@@ -85143,7 +85155,7 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
     const fn = (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
         lift, gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     };
     if(depth != null) queuePerson(depth - y, y, (g, tt) => scene.keyPerson(() => fn(g, tt))); else q(x, y, fn);
@@ -85181,12 +85193,12 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
   }
   /* the dock's robot on pad 1 (charging, still: cached), while it is not his */
   if(!R.loan){ const P1 = SP_PLAN.PADS[0];
-    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, 0, 0, 7, null))); }
+    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, spZ(P1.x, P1.y), 0, 7, null))); }
   /* Tipsey, parked still on pad 2 while the patrol robot is his */
   const Pk = R.park;
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
     const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
-    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|nw|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|nw|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a, spZ(Pk.x, Pk.y))));
   }
 }
 /* the post's guards, the patrol robots aside (they are vehicles), and the story's people, listed */
@@ -92836,7 +92848,7 @@ class WorldScene extends Phaser.Scene {
       }
       /* the estate's east flank at this shelf, down to the hillside floor */
       if(z > 0){
-        const GT = SP_PLAN.GATE, runs = (y0 < GT.y0 && y1 > GT.y1) ? [[y0, GT.y0], [GT.y1, y1]] : [[y0, y1]];   // (the walk's gate cuts the face)
+        const runs = (z === S.z[1]) ? [] : [[y0, y1]];   // (the first terrace's face is buried: the security post's lawn is level with it)
         for(const [ya, yb] of runs){
           Q([[S.xe, ya, 0],[S.xe, yb, 0],[S.xe, yb, z],[S.xe, ya, z]], shade(STONE, .78));
           for(let zz = 30; zz < z - 8; zz += 30) Q([[S.xe + 0.5, ya, zz],[S.xe + 0.5, yb, zz],[S.xe + 0.5, yb, zz + 3],[S.xe + 0.5, ya, zz + 3]], shade(STONE, .7));
@@ -95522,7 +95534,7 @@ class WorldScene extends Phaser.Scene {
   queueSecPost(vq){
     const P = SP_PLAN, ent = LIB.get(P.name);
     if(!ent || !WORLDGEN_COAST || !this.visWorldPt(9300, -6200, 1500, 520)) return;
-    const G = (a, b, h) => this.W(a, b, h), now = this.time.now;
+    const G = (a, b, h) => this.W(a, b, h + P.Z), now = this.time.now;     // (all of it stands on the platform: P.Z up)
     const draw = (gg, fn) => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } };
     const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "sp|" + key, x, y, gg => draw(gg, fn)) });
     const live = (depth, fn) => vq.push({ depth, fn: (g, t) => draw(g, () => fn(t || now)) });
@@ -95574,59 +95586,72 @@ class WorldScene extends Phaser.Scene {
       } });
     }
     /* the lamps at night (the lamp kit): the door's lantern, the dock's flood under the mast's crossarm */
-    if(!ent._lamps) ent._lamps = { lamps: [{ a: P.DOOR.x1 + 26, b: P.POST.y1 + 16, z: 140, r: 200 }, { a: P.MAST.x, b: P.MAST.y + 10, z: P.MAST.h - 48, r: 380 }] };
+    if(!ent._lamps) ent._lamps = { lamps: [{ a: P.DOOR.x1 + 26, b: P.POST.y1 + 16, z: P.Z + 140, r: 200 }, { a: P.MAST.x, b: P.MAST.y + 10, z: P.Z + P.MAST.h - 48, r: 380 }] };
     if(!(pk && this._inside === pk)) this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);   // (not over the room while he is in it)
   }
   /* the post's ground, in the ground pass: the gravel round it and up the track (edged, flecked), the service drive's
      and the forecourt's concrete, the dock's pad under its own art -- no grass anywhere (the beds are planting in it) */
   fillSecPostGround(g){
-    const P = SP_PLAN;
+    const P = SP_PLAN, Z = P.Z;
     if(!WORLDGEN_COAST || Math.abs(this.camX - 9400) + Math.abs(this.camY + 6200) > (this.vpW() + this.vpH())/this.K + 4800) return;
     const quad = (pts, col) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, 1); g.fillPoints(pts, true); };
     const rect = (r, col, z, pad) => { const p = pad || 0; quad([this.W(r.x0 - p, r.y0 - p, z), this.W(r.x1 + p, r.y0 - p, z), this.W(r.x1 + p, r.y1 + p, z), this.W(r.x0 - p, r.y1 + p, z)], col); };
+    const K = this.K, S = P.SITE, e = spEastEdge, D = P.DRIVE, R0 = P.RAMP;
+    /* the bench's own strip along the wall below the platform (the patrol track): the estate's lawn */
+    rect(P.TRACK, 0x9fbd6a, 0.6);
+    /* THE PLATFORM'S FACES, in stone, down to the bench: its south edge (the drive's way up left open), and the hill's side */
+    { const STN = 0x9d9580, STE = 0x8c856f;
+      quad([this.W(S.x0, S.y1, Z), this.W(D.x0, S.y1, Z), this.W(D.x0, S.y1, 0.9), this.W(S.x0, S.y1, 0.9)], STN);
+      quad([this.W(D.x1, S.y1, Z), this.W(e(S.y1), S.y1, Z), this.W(e(S.y1), S.y1, 0.9), this.W(D.x1, S.y1, 0.9)], STN);
+      quad([this.W(e(S.y1), S.y1, Z), this.W(e(S.y0), S.y0, Z), this.W(e(S.y0), S.y0, 0.9), this.W(e(S.y1), S.y1, 0.9)], STE);
+      /* the drive's climb: its two stone sides, the slope's concrete (joints every 160) */
+      const zr = y => Z*(R0.y0 - y)/(R0.y0 - R0.y1);
+      for(const x of [D.x0, D.x1]) quad([this.W(x, R0.y0, 0.9), this.W(x, R0.y1, Z), this.W(x, R0.y1, 0.9)], x === D.x0 ? STN : STE);
+      quad([this.W(D.x0, R0.y0, 0.8), this.W(D.x1, R0.y0, 0.8), this.W(D.x1, R0.y1, Z + 0.8), this.W(D.x0, R0.y1, Z + 0.8)], 0xcfcac0);
+      g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
+      for(let y = R0.y0 - 160; y > R0.y1; y -= 160){ const a = this.W(D.x0, y, zr(y) + 0.9), b = this.W(D.x1, y, zr(y) + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    }
     /* the lawn: the estate's own green and its mown stripes (same lattice: every 520 from its west wall, 260 wide), up to the wall's
        foot, and stopping at the hill's foot (spEastEdge) */
-    { const S = P.SITE, e = spEastEdge, ys = []; for(let i = 0; i <= 12; i++) ys.push(S.y0 + (S.y1 - S.y0)*i/12);
+    { const ys = []; for(let i = 0; i <= 12; i++) ys.push(S.y0 + (S.y1 - S.y0)*i/12);
       const strip = (xa, xb, col, z) => {
         const L = [], R = [];
         for(const y of ys){ const r = Math.min(xb, e(y)); if(r <= xa) continue; L.push(this.W(xa, y, z)); R.push(this.W(r, y, z)); }
         if(L.length > 1) quad(L.concat(R.reverse()), col);
       };
-      strip(S.x0, 99999, 0x9fbd6a, 0.6);
+      strip(S.x0, 99999, 0x9fbd6a, Z + 0.6);
       const xw = sierraGeo().xw;
-      for(let x = xw + 520*Math.ceil((S.x0 - xw)/520 - 0.5); x < e(S.y1); x += 520) strip(Math.max(x, S.x0), x + 260, 0x97b563, 0.9);
+      for(let x = xw + 520*Math.ceil((S.x0 - xw)/520 - 0.5); x < e(S.y1); x += 520) strip(Math.max(x, S.x0), x + 260, 0x97b563, Z + 0.9);
     }
     /* its tufts, fixed */
     if(!P._specks){ const rr = mulberry32(0x5ec7), out = [];
       for(let k = 0; k < 6500; k++){ const R = P.SITE, px = R.x0 + 8 + rr()*(R.x1 - R.x0 - 16), py = R.y0 + 8 + rr()*(R.y1 - R.y0 - 16); if(px > spEastEdge(py)){ rr(); continue; } out.push(px, py, rr() < 0.5 ? 0xaecb78 : 0x93b25f); }
       P._specks = out; }
-    const K = this.K, sp = P._specks;
+    const sp = P._specks;
     if(K > 0.2) for(let k = 0; k < sp.length; k += 3){ const x = sp[k], y = sp[k + 1];
       if(spIn(P.POST, x, y) || spIn(P.DRIVE, x, y) || spIn(P.COURT, x, y) || spIn(P.DOCK, x, y) || spOnPath(x, y)) continue;
-      const p = this.W(x, y, 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
+      const p = this.W(x, y, Z + 0.7); if(p.x < -10 || p.y < -10 || p.x > this.vpW() + 10 || p.y > this.vpH() + 10) continue;
       g.fillStyle(sp[k + 2], 1); g.fillRect(p.x - 2*K, p.y - 0.8*K, 4*K, 1.6*K); }
-    /* the drive and the forecourt: concrete in bays, a kerb-less joint line */
-    rect(P.DRIVE, 0xcfcac0, 0.8); rect(P.COURT, 0xcfcac0, 0.8);
+    /* the drive on the flat below its climb, the forecourt on the platform: concrete in bays, a kerb-less joint line */
+    quad([this.W(D.x0, D.y1, 0.8), this.W(D.x1, D.y1, 0.8), this.W(D.x1, R0.y0, 0.8), this.W(D.x0, R0.y0, 0.8)], 0xcfcac0);
+    quad([this.W(D.x0, R0.y1, Z + 0.8), this.W(D.x1, R0.y1, Z + 0.8), this.W(D.x1, D.y0, Z + 0.8), this.W(D.x0, D.y0, Z + 0.8)], 0xcfcac0);
+    rect(P.COURT, 0xcfcac0, Z + 0.8);
     g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
-    for(let y = P.DRIVE.y1 - 160; y > P.DRIVE.y0; y -= 160){ const a = this.W(P.DRIVE.x0, y, 0.9), b = this.W(P.DRIVE.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
-    for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, 0.9), b = this.W(x, P.COURT.y1, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
-    rect(P.DOCK, 0xbdb8ad, 0.8, 6);
-    /* the walk: concrete, in a ribbon of quads along its smoothed centreline at its own height (high inside the wall, down a
-       ramp outside it), a joint every few steps, and the ramp's stone sides down to the lawn */
+    for(let y = D.y1 - 160; y > R0.y0; y -= 160){ const a = this.W(D.x0, y, 0.9), b = this.W(D.x1, y, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    for(let y = R0.y1 - 160; y > D.y0; y -= 160){ const a = this.W(D.x0, y, Z + 0.9), b = this.W(D.x1, y, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    for(let x = P.COURT.x0 + 184; x < P.COURT.x1; x += 184){ const a = this.W(x, P.COURT.y0, Z + 0.9), b = this.W(x, P.COURT.y1, Z + 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
+    rect(P.DOCK, 0xbdb8ad, Z + 0.8, 6);
+    /* the walk across the lawn: concrete, in a ribbon of quads along its smoothed centreline, a joint every few steps */
     { const d = spPathPts(), h = P.PATH.w/2, L = [], R = [];
       for(let i = 0; i < d.length; i++){
         const a = d[Math.max(0, i - 1)], b = d[Math.min(d.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1, nx = -dy/n*h, ny = dx/n*h;
         L.push([d[i][0] + nx, d[i][1] + ny]); R.push([d[i][0] - nx, d[i][1] - ny]);
       }
-      const zz = i => d[i][2] + 0.95;
-      for(let i = 0; i < d.length - 1; i++){
-        if(d[i][2] > 1 && d[i][0] > 8602){      // (outside the wall, raised: its sides, in stone, down to the lawn)
-          for(const E of [L, R]) quad([this.W(E[i][0], E[i][1], d[i][2]), this.W(E[i + 1][0], E[i + 1][1], d[i + 1][2]), this.W(E[i + 1][0], E[i + 1][1], 0.9), this.W(E[i][0], E[i][1], 0.9)], E === L ? 0xa89f89 : 0xb9b09a);
-        }
-        quad([this.W(L[i][0], L[i][1], zz(i)), this.W(L[i + 1][0], L[i + 1][1], zz(i + 1)), this.W(R[i + 1][0], R[i + 1][1], zz(i + 1)), this.W(R[i][0], R[i][1], zz(i))], 0xcfcac0);
-      }
+      const zz = Z + 1;
+      for(let i = 0; i < d.length - 1; i++)
+        quad([this.W(L[i][0], L[i][1], zz), this.W(L[i + 1][0], L[i + 1][1], zz), this.W(R[i + 1][0], R[i + 1][1], zz), this.W(R[i][0], R[i][1], zz)], 0xcfcac0);
       g.lineStyle(Math.max(1, K), 0xb3aea2, 1);
-      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], zz(i) + 0.05), b = this.W(R[i][0], R[i][1], zz(i) + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
+      for(let i = 1; i < d.length - 1; i += 3){ const a = this.W(L[i][0], L[i][1], zz + 0.05), b = this.W(R[i][0], R[i][1], zz + 0.05); g.lineBetween(a.x, a.y, b.x, b.y); }
     }
   }
   /* THE KART WORKS' YARD (KW_YARD): its pieces, each still one through the building cache at its own depth
@@ -113483,12 +113508,12 @@ class WorldScene extends Phaser.Scene {
   }
   /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
      building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
-  drawTipseyParked(g, x, y, a){
+  drawTipseyParked(g, x, y, a, zB = 0){
     const S = this, keep = {};
     for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
                     'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
                     '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
-    S.g = g; S.botX = x; S.botY = y; S.botZ = 0; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
+    S.g = g; S.botX = x; S.botY = y; S.botZ = zB; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
     S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
     S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
     S._gearWP = undefined; S._flagWind = 0; S._flagT = 0; S._lidClacked = true;
@@ -128501,11 +128526,11 @@ function sierraGeo(){
    (a riser is a line, not a block), so a long frame step can land clean
    over one -- the city never needed this because its solids are whole
    blocks. Headless at swiftshader frame rates it tunnelled every wall. */
-/* THE EAST WALL'S OPENING (Sir, 2026-11-06): where the Vista Ridge Security Post's lawn meets the court, the perimeter wall
-   is not there -- no stone drawn, nothing solid. sierraEastGap() is its span {y0 north end, y1 south end}; with a y, whether
+/* THE EAST WALL'S OPENING (Sir, 2026-11-06): along the first terrace the east wall is not there (the security post's lawn is level with it and
+   joins it): no stone drawn, nothing solid. sierraEastGap() is its span {y0 north end, y1 south end}; with a y, whether
    that y is inside it */
 function sierraEastGap(y){
-  const S = sierraGeo(), G = { y0: S.e[1], y1: SP_PLAN.SITE.y1 };
+  const S = sierraGeo(), G = { y0: S.e[2], y1: S.e[1] };
   return y === undefined ? G : (y > G.y0 && y < G.y1);
 }
 function sierraCrosses(x0, y0, x1, y1, R){
@@ -128540,8 +128565,8 @@ function sierraCrosses(x0, y0, x1, y1, R){
     for(const bx of [rp.b0, rp.b1])
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
-  { const G = sierraEastGap(), T = SP_PLAN.GATE;
-    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, T.y1) || crossX(S.xe, T.y0, S.e[4])) return true; }
+  { const G = sierraEastGap();
+    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, S.e[4])) return true; }
   for(const rp of S.ramps) for(const xw of [rp.c0, rp.c1]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
 }
@@ -128654,9 +128679,9 @@ function sierraDriveAt(x, y){
 /* the ground height at (x, y): the shelf you stand on, or the ramp */
 function sierraZ(x, y){
   if(!WORLDGEN_COAST) return 0;
-  { const pz = spPathZ(x, y); if(pz !== null) return pz; }      // (the security post's walk: down the ramp outside the east wall)
+  { const pz = spGroundZ(x, y); if(pz !== null) return pz; }      // (the security post's lawn, level with the first terrace, and its drive's climb)
   const S = sierraGeo();
-  if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall it is the bench: off the walk he is at the ground, not the terrace's height)
+  if(x > S.xe + 12 && y < S.e[1] && y > S.e[4]) return 0;   // (outside the east wall past the lawn it is the bench, at the ground, not the terrace's height)
   if(y > S.wallY || y < S.e[4] - 200 || x < S.xw - 200 || x > S.xe + 200) return 0;
   for(const r of S.ramps)
     if(x >= r.c0 && x <= r.c1 && y <= r.yS && y >= r.yN)
@@ -128803,7 +128828,7 @@ function sierraBlocks(x, y, R){
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
   if(SV_GATE.g.mode !== 'booth' && Math.hypot(x - SV_GATE.g.x, y - SV_GATE.g.y) < SV_GUARD_R + R) return true;   // the guard himself
-  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y) && !spGateGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
+  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
     const rp = S.ramps[k-1];
