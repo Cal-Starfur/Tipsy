@@ -626,15 +626,6 @@
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4274,14974&view=2"
 },
 {
-"id": "pelican-walltop",
-"title": "Pelican Drug: footprint (lab 540x360) sits on the store box, front and right corners match, so the footprint is NOT out. But orange wall-top (H 232) sits ~80px (~110 units) below the shell's cornice, so the room's walls read shorter than the outside",
-"spec": "found by test run",
-"deps": [],
-"status": "pending",
-"group": "Fixes from testing",
-"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20141,14064&view=2"
-},
-{
 "id": "s4",
 "title": "Museum story 'The Last Bone'",
 "spec": "docs/museum-mission.md",
