@@ -688,6 +688,15 @@
 "status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4692,14076&view=3"
+},
+{
+"id": "kart-works-shell",
+"title": "Tidewater Kart Works: shell was smaller than its room's outer walls; widened to 820 x 680, east frontage becomes an alley gate",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5630,13658&view=3"
 }
 ],
 "meta": {
