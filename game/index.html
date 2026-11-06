@@ -80332,14 +80332,14 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           if(doorMid){
             for(let z = 22; z < H - 24; z += 16) S(WW + 0.25, -DD, 0, z, z + 1.2, '#4a2f20');
             S(WW + 0.3, -DD, 0, 0, 22, brick);
-            S(WW + 0.32, -DD, 0, 22, 122, '#6a4731');                                  // the shopfront band, as on the front
+            S(WW + 0.32, -DD, 0, 22, 122, '#6a4731'); S(WW + 0.36, -DD, 0, 120.5, 123, cream);    // (the band's cream top edge, as the front's)
+            for(const z of [7, 14]) S(WW + 0.34, -DD, 0, z - 0.5, z + 0.5, '#5d2f1f');                // the brick plinth's courses
+            for(let r = 0; r < 3; r++) for(let b = -8 - (r % 2)*10; b > -DD; b -= 20) S(WW + 0.34, b, b - 0.9, r*7 + 0.5, r*7 + 7, '#5d2f1f');                                  // the shopfront band, as on the front
             for(const [b0, b1] of [[-14, -154], [-169, -309]]){
               const qq = [P(WW + 0.4, b0, 104), P(WW + 0.4, b1, 104), P(WW + 0.4, b1, 22), P(WW + 0.4, b0, 22)];
               ctx.save(); poly(qq); ctx.clip(); HOLE(qq); ctx.restore();
-              S(WW + 0.6, b0, b1, 22, 104, 'rgba(58,40,28,.50)');
-              S(WW + 0.65, b0, b1, 22, 40, 'rgba(231,154,53,.20)');                      // the room's lamplight, low in the glass
+              S(WW + 0.6, b0, b1, 22, 104, 'rgba(120,150,166,.30)');
               for(let k = 1; k < 3; k++){ const m = b0 + (b1 - b0)*k/3; S(WW + 0.8, m + 2.5, m - 2.5, 22, 104, '#7e5a43'); }   // thirds, as the front's panes
-              box(WW, WW + 7, b1 - 4, b0 + 4, 16, 21, copper, copperD, copperD);
               /* the same striped canvas as the front, over each window, sloping out from the wall */
               const nA = 6;
               for(let i = 0; i < nA; i++){
