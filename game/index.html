@@ -11425,13 +11425,12 @@ function rescueCrewAt(v, t){
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
     let x, y, th, moving = false, lift = 0;
-    let rod = null, reach = null, pitch = 0, drop = 0;       // reach: both hands to [ahead, height] (drawPersonHull's pose.reach); pitch, drop: bent over to him (below)
-    /* BENT OVER TO HIM (Sir, 2026-11-06: "neither of the crew bends over to lift tipsy they just stick there arms out"):
-       the whole figure leans forward by p about the feet (pose.pitch) with the knees given (pose.drop), and the feet
-       stand back by how far that carries the shoulder, so the hands land where they did; the hands' target is the
-       hull's edge (db ahead of the feet, dh up), turned back through the lean so that is where they end up */
-    const bend = (p, db, dh) => { const s = 120*Math.sin(p), cp = Math.cos(p), sp = Math.sin(p);
-      pitch = p; drop = 22*Math.sin(p)/0.45; reach = [(db + s)*cp - dh*sp, (db + s)*sp + dh*cp]; return s; };
+    let rod = null, reach = null;                            // reach: both hands to [ahead, height] (drawPersonHull's pose.reach)
+    /* BENT OVER TO HIM (Sir, 2026-11-06: "you didnt make the bend at the waist you just tilted them"): a bend at the WAIST
+       (pose.waist: only the body above the hips turns, the legs stay upright, knees given), `want` where the hands go
+       (ahead of the feet, up from the ground) -- drawCrew works the arms and the stand-back out from the build */
+    let waist = 0, want = null;
+    const bend = (w, db, dh) => { waist = w; want = [db, dh]; return 0; };
     if(u < c.at){                                            // out to him (through the gate, in a courtyard)
       const k = (u - c.exit) / (c.at - c.exit);
       const a = c.pathOut ? polyAt(c.pathOut[i], k) : null;
@@ -11473,16 +11472,16 @@ function rescueCrewAt(v, t){
       const inx = Math.cos(th), iny = Math.sin(th);
       if(u < a){                                             // the grab: a step in to him, hands down to the edge of his hull
         const k = ez(Math.min(1, (u - c.lift0)/C.grabMs));
-        const bk = bend(0.5*k, 22 + 6*k, 70 - 38*k);
-        x = sp.x + inx*(8*k - bk); y = sp.y + iny*(8*k - bk); lift = 0.38*k;
+        bend(0.95*k, 36 + 6*k, 62 - 24*k);
+        x = sp.x + inx*8*k; y = sp.y + iny*8*k; lift = 0.38*k;
       } else if(u < c.lift1){                                // the heave: hands on his top edge, rising with it as he comes up
         const r = Math.min(1, rescueHeave(Math.min(1, (u - a)/(c.lift1 - a))));
-        const bk = bend(0.5 - 0.22*r, 28 + 6*r, 32 + 34*r);
-        x = sp.x + inx*(8 - bk); y = sp.y + iny*(8 - bk); lift = 0.38 + 0.47*r;
+        bend(0.95 - 0.45*r, 42 + 4*r, 38 + 30*r);
+        x = sp.x + inx*8; y = sp.y + iny*8; lift = 0.38 + 0.47*r;
       } else {                                               // hands off: a step back; the first of them gives him a wave
         const k = ez(Math.min(1, (u - c.lift1)/Math.max(1, C.backDelayMs*0.6)));
-        const e = 0.28, sb = 120*Math.sin(e*(1 - k)); pitch = e*(1 - k); drop = 22*Math.sin(pitch)/0.45;   // (straightening up as they step back)
-        x = sp.x + inx*(8 - 14*k - sb); y = sp.y + iny*(8 - 14*k - sb);
+        waist = 0.5*(1 - k);   // (straightening up as they step back)
+        x = sp.x + inx*(8 - 14*k); y = sp.y + iny*(8 - 14*k);
         lift = i === 0 ? 0.85 - 0.3*k : 0.85*(1 - k);
       }
     } else if(c.tow && c.carry){                             // a tow out through the alley: one ahead, one behind
@@ -11498,7 +11497,7 @@ function rescueCrewAt(v, t){
       moving = true;
       if(c.tow) lift = 0.8;
     }
-    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, reach, pitch, drop, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
+    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, reach, waist, want, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
   });
 }
 /* the crew at the depot: out to the rear doors, carrying him in between
@@ -102634,7 +102633,7 @@ class WorldScene extends Phaser.Scene {
      ghosted only when they matter, and once */
   drawPersonHull(g, ax, ay, z, ...rest){
     if(!this._inWorldFlush) return this.drawPersonHullBody(g, ax, ay, z, ...rest);      // (a cache paint, a card, a lab)
-    const P = PERSON_DRAW, K = this.K, z0 = z || 0, pose = rest[14], lie = !!(pose && (pose.pitch || pose.roll));
+    const P = PERSON_DRAW, K = this.K, z0 = z || 0, pose = rest[14], lie = !!(pose && (pose.pitch || pose.roll || pose.waist));
     /* OFF SCREEN: their box, feet to crown, with a margin (nobody pops at the edge while the camera moves) */
     const A = this.W(ax, ay, z0), hw = (lie ? P.hwLie : P.hw)*K, M = P.cullM;
     if(P.cull && (A.x + hw < -M || A.x - hw > this.vpW() + M || A.y + P.foot*K < -M || this.W(ax, ay, z0 + P.top).y > this.vpH() + M)) return;
@@ -102795,7 +102794,14 @@ class WorldScene extends Phaser.Scene {
     const pitchA = pose && pose.pitch || 0;
     if(Math.abs(pitchA) > 0.002){ const cp = Math.cos(pitchA), sp = Math.sin(pitchA), lf = (pose.pitchLift || 0)*Math.abs(sp);
       xfP = (a, b, h) => [a, b*cp + h*sp, -b*sp + h*cp + lf]; }
-    const xf = xfP && xfR ? (a, b, h) => { const q = xfP(a, b, h); return xfR(q[0], q[1], q[2]); } : (xfP || xfR);
+    let xf = xfP && xfR ? (a, b, h) => { const q = xfP(a, b, h); return xfR(q[0], q[1], q[2]); } : (xfP || xfR);
+    /* A WAIST BEND (pose.waist: the crew bent over to lift him, 2026-11-06): everything above the hips turned forward about
+       them (+: toward +b), the legs left as they stand -- before any pitch or roll, and with the hips where the crouch
+       (pose.drop) has put them */
+    const waistA = pose && pose.waist || 0;
+    if(Math.abs(waistA) > 0.002){ const cw = Math.cos(waistA), sw = Math.sin(waistA), xf0 = xf;
+      const xfW = (a, b, h) => { const hp = build.legH - (pose.drop || 0), dh = h - hp; return dh <= 0 ? [a, b, h] : [a, b*cw + dh*sw, hp - b*sw + dh*cw]; };
+      xf = xf0 ? (a, b, h) => { const q = xfW(a, b, h); return xf0(q[0], q[1], q[2]); } : xfW; }
     /* A CROUCH (pose.drop: the body let down by this, the legs bent to keep the soles on the ground -- the knees giving
        in a fall, a crouch on the way up, fallBodyState) and A HOVER (pose.hover: the whole figure off the ground, the
        bounce of a landing), both before any pitch or roll turns them */
@@ -105285,7 +105291,7 @@ class WorldScene extends Phaser.Scene {
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE,
-      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, d.tx || d.pitch ? { roll, reach: d.tx, pitch: d.pitch, drop: d.drop } : { roll });
+      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, d.tx || d.waist ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : { roll });
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
@@ -105294,14 +105300,25 @@ class WorldScene extends Phaser.Scene {
        crew walked and lifted side-on. */
     /* the humanoid (RESCUE_BOT): drawBot's, facing along th, striding at
        the crew's walking pace (a stride, two steps, every 84 as his own) */
+    /* THE BEND (rescueCrewAt's waist, want): the body above the hips turns forward by waist, the knees give, the feet
+       stand back by how far that carries the shoulder, and the hands' target (want: from the feet, in the world) is
+       turned back through the bend to the build's own frame so it is where they end up */
+    let bm = m;
+    if(m.waist){
+      const B = bot ? HUMANOID_BUILD : build, w = m.waist, sw = Math.sin(w), cw = Math.cos(w), drop = B.legH*0.22*sw, sb = (B.torsoH + B.headR)*0.5*sw*1.6;
+      bm = Object.assign({}, m, { x: m.x - Math.cos(m.th)*sb, y: m.y - Math.sin(m.th)*sb, drop });
+      if(m.want){ const hh = B.legH - drop, vb = m.want[0] + sb, vh = m.want[1] - hh;
+        bm.reach = [vb*cw - vh*sw, hh + vb*sw + vh*cw + drop]; }
+    }
+    m = bm;
     const draw = bot ? () => {
       const gait = t/1000*RESCUE_VAN.crew.walkSpeed*Math.min(2.2, m.pace || 1)*Math.PI*2/84;
-      this.drawProp(g, "humanoid", m.x, m.y, t, m.th/(Math.PI/2), m.z || 0, 0, 7, { walk: m.moving ? 1 : 0, gait, roll: 0, reach: Math.min(1, (m.lift || 0)/0.8), tx: m.reach, pitch: m.pitch, drop: m.drop });
+      this.drawProp(g, "humanoid", m.x, m.y, t, m.th/(Math.PI/2), m.z || 0, 0, 7, { walk: m.moving ? 1 : 0, gait, roll: 0, reach: Math.min(1, (m.lift || 0)/0.8), tx: m.reach, waist: m.waist, drop: m.drop });
       if(m.rod) this.drawFishRod(g, m.rod);
     } : () => {
       /* both hands to the lift (bothArms), and on his hull while they roll him up (m.reach: pose.reach) */
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.pitch ? { reach: m.reach, pitch: m.pitch, drop: m.drop } : null);
+        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.waist ? { reach: m.reach, waist: m.waist, drop: m.drop } : null);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
