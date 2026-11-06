@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ d370914): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ d0bec9c): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'd370914'; })();</script>
+  window.TIPSY_TEST_BUILD = 'd0bec9c'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -29431,7 +29431,11 @@ const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
          { at: [1006, 1150], col: '#e8e4da', dk: '#c4bfb2', no: 1, stripe: '#2a6fb0' }],
   tyres: [[1074, 1110, 4]],
   store: [190, 390, 36, 104, 120],
-  tables: [[420, 330], [600, 330]], board: [510, 170], bin: [700, 180] };
+  tables: [[700, 260], [700, 400]], board: [700, 150], bin: [790, 165],
+  /* the practice loop on the yard's open middle: its centre line a rounded rectangle a0..a1 x b0..b1 (corner radius R), the
+     ribbon 2 x hw across; the start line across its west straight at b = start; the pit canopy and the benches on the infield */
+  track: { a0: 150, a1: 520, b0: 190, b1: 560, R: 90, hw: 45, start: 330 },
+  pit: [230, 370, 300, 490], benches: [[420, 262, 1], [420, 488, -1]] };
 /* the yard's origin in the world (block 1,4's north-west corner), once the grid is known */
 function kwYardO(){
   if(kwYardO.o) return kwYardO.o;
@@ -50719,6 +50723,61 @@ function houseCanopy(fn){
     const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', WOODD = ['#8a6446', '#6e4f38', '#5b412e'];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'yard', poly: volRect(a0, a1, b0, b1), h });
     const [B0, B1] = C.b, [A0, AD, AS, AR, AT] = C.a, Z = C.z, rz = a => a <= AD ? Z : a >= AS ? 0 : Z*(AS - a)/(AS - AD);
+
+    /* ---- THE PRACTICE LOOP (the club's, painted on the block's own paving: asphalt ribbon, white edge lines, a dashed
+       centre, the chequered start line) -- ground, drawn before any piece stands on it; then its cones, tyre barriers
+       at the corners, the start gantry, the pit canopy and two benches on the infield ---- */
+    const TR = KW_YARD.track, TP = [], tyreSpots = [];
+    { const { a0, a1, b0, b1, R } = TR;
+      const line = (pa, pb, qa, qb, na, nb) => { const n = Math.max(1, Math.ceil(Math.hypot(qa - pa, qb - pb)/45)); for(let k = 0; k < n; k++) TP.push({ a: pa + (qa - pa)*k/n, b: pb + (qb - pb)*k/n, na, nb }); };
+      const arc = (ca, cb, t0) => { for(let k = 0; k < 6; k++){ const t = t0 + Math.PI/2*k/6; TP.push({ a: ca + R*Math.cos(t), b: cb + R*Math.sin(t), na: Math.cos(t), nb: Math.sin(t) });
+        if(k % 2) tyreSpots.push([ca + (R + TR.hw + 24)*Math.cos(t), cb + (R + TR.hw + 24)*Math.sin(t)]); } };
+      line(a0 + R, b0, a1 - R, b0, 0, -1); arc(a1 - R, b0 + R, -Math.PI/2);
+      line(a1, b0 + R, a1, b1 - R, 1, 0); arc(a1 - R, b1 - R, 0);
+      line(a1 - R, b1, a0 + R, b1, 0, 1); arc(a0 + R, b1 - R, Math.PI/2);
+      line(a0, b1 - R, a0, b0 + R, -1, 0); arc(a0 + R, b0 + R, Math.PI); }
+    { const at = (q, d) => P(q.a + q.na*d, q.b + q.nb*d, 0.1);
+      const ring = (d0, d1, col) => {                                               // a closed band d0..d1 off the centre line, as one polygon (a slit joins its two edges)
+        const o = TP.map(q => at(q, d1)), i = TP.map(q => at(q, d0));
+        poly(o.concat([o[0], i[0]], i.slice().reverse()), col); };
+      ring(-TR.hw, TR.hw, '#4b4e55');
+      ring(TR.hw - 6, TR.hw - 1, '#f1efe8'); ring(-TR.hw + 1, -TR.hw + 6, '#f1efe8');
+      for(let k = 0; k < TP.length; k += 2){ const q = TP[k], r = TP[(k + 1) % TP.length];
+        poly([at(q, -1.4), at(q, 1.4), at(r, 1.4), at(r, -1.4)], '#d9d6cc'); }                // its dashed centre
+      const sb = TR.start, n = 8, w = (TR.hw*2 - 10)/n;
+      for(let c = 0; c < 2; c++) for(let k = 0; k < n; k++)                                 // the start line across the west straight, two rows of squares
+        T(TR.a0 - TR.hw + 5 + k*w, TR.a0 - TR.hw + 5 + (k + 1)*w, sb + c*14, sb + c*14 + 14, 0.2, (k + c) % 2 ? '#f6f4ee' : '#1e1e22'); }
+    /* a cone: a square foot, orange, a white band */
+    const cone = (a, b) => items.push({ a, b, z: 0, solids: [{ name: 'cone', c: [a, b], r: 8, h: 26 }], draw: () => {
+      box(a - 7, a + 7, b - 7, b + 7, 0, 2, '#d8631f', '#b8511a', '#98431a');
+      cyl(a, b, 2, 9, 5.5, '#ee7b2d', '#ee7b2d'); cyl(a, b, 9, 13, 4.2, '#f4f2ec', '#f4f2ec'); cyl(a, b, 13, 21, 2.8, '#ee7b2d', '#ee7b2d'); } });
+    for(const b of [390, 430, 470]) cone(TR.a0 + TR.hw + 7, b);
+    for(const b of [300, 380, 460]) cone(TR.a1 - TR.hw - 7, b);
+    for(const [a, b] of tyreSpots)
+      items.push({ a, b, z: 0, solids: [{ name: 'tyre barrier', c: [a, b], r: 18, h: 22 }], draw: () => { for(let k = 0; k < 2; k++) cyl(a, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 1 ? '#1e1e22' : null); } });
+    { const gb = TR.start + 14, ga0 = TR.a0 - TR.hw - 10, ga1 = TR.a0 + TR.hw + 10;
+      for(const ga of [ga0, ga1]) items.push({ a: ga, b: gb, z: 0, solids: [solid(ga - 4, ga + 4, gb - 4, gb + 4, 112, 'start gantry')], draw: () => box(ga - 4, ga + 4, gb - 4, gb + 4, 0, 112, '#e8e4da', '#c9c4b8', '#b0aa9c') });
+      items.push({ a: TR.a0, b: gb, z: 96, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
+        for(let k = 0; k < m; k++) box(ga0 + k*w, ga0 + (k + 1)*w, gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
+    { const [pa0, pa1, pb0, pb1] = KW_YARD.pit, ra = (pa0 + pa1)/2;
+      for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
+        items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
+      items.push({ a: ra, b: pb0 + 18, z: 0, solids: [solid(pa0 + 14, pa1 - 14, pb0 + 6, pb0 + 30, 42, 'pit bench')], draw: () => {            // the pit bench, paint cans and a rack of wheels
+        box(pa0 + 14, pa1 - 14, pb0 + 8, pb0 + 28, 36, 40, woodL, wood, woodD);
+        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        for(const [ca, col] of [[pa0 + 30, '#2a6fb0'], [pa0 + 44, '#f2b544'], [pa0 + 58, '#d8352a']]) cyl(ca, pb0 + 18, 40, 52, 6, col, shade(col, 0.8));
+        for(let k = 0; k < 3; k++) cyl(pa1 - 36, pb0 + 18, 40 + k*9, 48 + k*9, 12, k % 2 ? '#26282c' : '#2e3034', k === 2 ? '#1e1e22' : null); } });
+      items.push({ a: ra, b: pb1 - 76, z: 0, solids: [solid(ra - 50, ra + 50, pb1 - 148, pb1 - 12, 54, 'parked kart')], draw: () => soapKartS(ra, pb1 - 76, 0, '#e8e4da', '#c4bfb2', 5, null, { stripe: '#d8352a' }) });
+      items.push({ a: ra, b: pb1, z: 100, solids: [], draw: () => {                                                                                   // the striped roof, over the lot
+        const n = 6, w = (pa1 - pa0 + 16)/n;
+        for(let k = 0; k < n; k++){ const x0 = pa0 - 8 + k*w, x1 = x0 + w + (k < n - 1 ? 0.5 : 0), c = k % 2 ? '#f4f2ec' : '#d8352a';
+          poly([P(x0, pb0 - 8, 100), P(x1, pb0 - 8, 100), P(x1, pb1 + 8, 100), P(x0, pb1 + 8, 100)], c);
+          poly([P(x0, pb1 + 8, 100), P(x1, pb1 + 8, 100), P(x1, pb1 + 8, 94), P(x0, pb1 + 8, 94)], shade(c, 0.78)); } } }); }
+    for(const [a, b, d] of KW_YARD.benches)                                                                                                            // the infield benches, facing the straights
+      items.push({ a, b, z: 0, solids: [solid(a - 36, a + 36, b - 8, b + 8, 40, 'bench')], draw: () => {
+        for(const la of [a - 30, a + 30]) box(la - 3, la + 3, b - 6, b + 6, 0, 17, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+        box(a - 36, a + 36, b - 7, b + 7, 17, 21, woodL, wood, woodD);
+        box(a - 36, a + 36, b + d*6, b + d*9, 21, 38, woodL, wood, woodD); } });
     /* ---- THE TEST CHUTE: its back board and start bar, the deck, the slope in runs, the rails stepped down it ---- */
     items.push({ a: (A0 + AD)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 6, AD, B0, B1, Z + 60, 'test chute deck')], draw: () => {
       box(A0 - 6, A0, B0, B1, 0, Z + 46, WOODD[0], WOODD[1], WOODD[2]);                                // its back board
