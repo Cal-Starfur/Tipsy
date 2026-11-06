@@ -107,7 +107,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt')
        adoption-day   Paw Point Dog Park's adoption day: the banner, the
                       treats, and Biscuit walked over by the fleet's humanoid
-                      (lent for the run, kept: FLEET unlock); the Adoption Day
+                      (lent for the run only; Minding the Shop keeps him); the Adoption Day
                       trophy (the Paw Print skin) and the Dog Rescuer's gold
                       tag (a key item, rebuilt from this record). Offered once
                       five strays are sheltered (dbShelterDog's count)
@@ -115,7 +115,7 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
                       shop while Gideon (the fleet's humanoid, lent) fetches
                       the parts from Breakwater Hardware and mends the mast.
                       Its reward is Gideon himself, playable (the humanoid's
-                      FLEET unlock): no trophy, skin or cash
+                      FLEET unlock, now this mission's alone): no trophy, skin or cash
        the-getaway    the Holloways' passports, Sun Deck Motor Lodge to the
                       airfield's terminal: the Wheels Up trophy (the Just
                       Married skin), $50 once (GIFT_TIP_IDS 'getaway'), the

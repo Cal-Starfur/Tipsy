@@ -4991,7 +4991,7 @@ const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
 const FLEET = {
   /* walk: Tipsey's owStep, his charging stations */
   humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
-                ctl: {}, bay: "station", unlock: "adoption-day", unlockAlso: ["minding-the-shop"], abilities: ["hands"], ambient: { walkins: true } },
+                ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
@@ -5087,7 +5087,7 @@ function fleetUnlocked(k){
   if(!F) return false;
   if(FLEET_TESTING || !F.unlock) return true;
   const mc = typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted;
-  return !!(mc && (mc.has(F.unlock) || (F.unlockAlso || []).some(id => mc.has(id))));   // (unlockAlso: a second mission that gives it too -- Gideon, from MINDING THE SHOP)
+  return !!(mc && mc.has(F.unlock));
 }
 /* the vehicle he is driving as: the garage's pick, or "" for Tipsey. A pick
    that is locked or gone falls back to Tipsey */
@@ -34061,7 +34061,7 @@ const MISSIONS = {
   /* ADOPTION DAY (PAW POINT DOG PARK): the banner, the treats, and Biscuit walked over by the fleet's humanoid */
   'adoption-day': { name: 'Adoption Day', giver: 'Maeve Ashby, Costa Palma Animal Shelter', window: 'shops', places: ['Costa Palma Animal Shelter', 'Pelican Photo', 'Pelican Pets', 'Paw Point Dog Park'],
     steps: ["Stop on the bay outside the animal shelter", "The banner from Pelican Photo", "The treats from Pelican Pets", "Back to the shelter: Biscuit", "Walk Biscuit to Paw Point on her lead, slowly", "Her family at the gate", "Maeve, under the banner", "The humanoid back to Tipsey"],
-    reward: { trophy: 'adoption-day', skin: 'pawprint', wear: true, item: 'rescuetag', fleet: 'humanoid' },
+    reward: { trophy: 'adoption-day', skin: 'pawprint', wear: true, item: 'rescuetag' },   // (the humanoid is lent for the run only; he is kept by MINDING THE SHOP)
     lock: () => adUnlocked() ? null : "After " + AD_RUN.need + " dogs at the shelter (" + Math.min(AD_RUN.need, (tpProfile && tpProfile.dogsSheltered) || 0) + " so far)",
     busy: () => adBusy(),
     item: () => ADOPT.carry === 'banner' ? { id: 'banner', name: 'banner', tip: 'crewReturns' } : ADOPT.carry === 'both' ? { id: 'banner', name: 'banner and treats', tip: 'crewReturns' }
@@ -85450,7 +85450,7 @@ function adThanks(){
   R.stage = 'home';
   adNav(scene, R.home, "Tipsey, at the shelter");
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard(['rescuetag'], (first ? "Adoption Day: done! Biscuit has a family, and the shelter's given you the Dog Rescuer's gold tag. The Paw Print skin is yours, and the humanoid is yours to walk any time. " : "Adoption Day: done again! ")
+  collectCard(['rescuetag'], (first ? "Adoption Day: done! Biscuit has a family, and the shelter's given you the Dog Rescuer's gold tag. The Paw Print skin is yours. " : "Adoption Day: done again! ")
     + "Walk the humanoid back to Tipsey at the shelter.");
 }
 /* the loan ends beside Tipsey: he is himself again where he parked, the humanoid walks off past the view's edge */
@@ -86024,7 +86024,7 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
   steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
-  reward: { fleet: 'humanoid' },   // (Gideon, playable: the humanoid's garage card, its FLEET.unlockAlso)
+  reward: { fleet: 'humanoid' },   // (Gideon, playable: the humanoid's garage card, FLEET.humanoid.unlock)
   busy: () => msBusy(),
   item: () => MS.carry === 'parts' ? { id: 'parts', name: 'mast bracket and coax connector', tip: 'crewReturns' } : null,
   next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon', out: 'Out to Tipsey, at his bay' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
