@@ -30,3 +30,6 @@ sc3 seeded who goes on an errand and what they do, but not whether a car is at t
 - Loop clocks on `worldMs`; `hold` applies only to cars near him and decays to zero once a car is far and out of sight, so it is back on the shared schedule before anyone sees it.
 - Errand starts only where the schedule has the car (the seeded roll from sc3); food-truck post-up sessions become scheduled events.
 - Risk: on the shared clock, cars on shared streets can overlap (what `hold` was hiding). Stagger loop offsets, or check no two schedules collide.
+
+## sc5 census (2026-11-06)
+`node tools/crowd_census.js [--quick] [--spots=a,b]` boots twice side by side on the pinned seed and clock, stands both at the same spots (shops, houses, mall, strand, boardwalk, almshouse, harbor, garage), lists every CITY_PEOPLE group at the same instant of the world clock and diffs them (24 units' tolerance). A group that differs fails the run unless it is in `tools/crowd_census_known.json` with why. First full run: 28 groups seen, 18 the same, 10 differ (all listed there; queue item sc7 takes them).

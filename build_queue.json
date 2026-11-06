@@ -46,7 +46,7 @@
 "deps": [
 "sc4"
 ],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -57,6 +57,16 @@
 "sc3"
 ],
 "status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc7",
+"title": "Census leftovers onto the seed: the groups in tools/crowd_census_known.json (skate park, Veterans Memorial, fish market, surf school, fire yard, mall crowd, street riders, walk-in staff; look into shoppers and boardwalk strollers intermittents)",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc5"
+],
+"status": "pending",
 "group": "People: seeded crowd"
 },
 {

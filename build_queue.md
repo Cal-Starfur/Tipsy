@@ -12,6 +12,7 @@ graph LR
   sc3 --> sc4
   sc4 --> sc5
   sc3 --> sc6
+  sc5 --> sc7
   p1_1 --> p1_2
   p1_2 --> p1_3
   p1_3 --> p1_4
@@ -29,8 +30,9 @@ graph LR
 - [?] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
 - [?] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
 - [?] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
-- [ ] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
+- [?] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
 - [?] `sc6` Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap [docs/seeded-crowd.md]
+- [ ] `sc7` Census leftovers onto the seed: the groups in tools/crowd_census_known.json (skate park, Veterans Memorial, fish market, surf school, fire yard, mall crowd, street riders, walk-in staff; look into shoppers and boardwalk strollers intermittents) [docs/seeded-crowd.md]
 
 ## People unification
 - [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
