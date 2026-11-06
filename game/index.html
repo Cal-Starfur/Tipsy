@@ -25611,6 +25611,7 @@ const MALL_DEP = 1880;
    The concourse runs and the atrium (the interior's span, a 2240..7144) now go back to MALL_PLAN.BBC with their lot (the site's
    `bump`); the anchors keep their depth. */
 const MALL_DEPC = 3160;
+let MALL_OUTSIDE_PASS = false;      // true while the interior's ground is drawn for the street's see-through (queueFramePieces)
 const HOOD_RIM_SITES = [
   { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 8300, notchEase: 400,
     icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
@@ -53316,11 +53317,13 @@ function houseCanopy(fn){
        down on the concourse and under him up on it) */
     /* over the upper shops: their roof, and the clerestory with its
        skylights and the mall's name */
+    if(!MALL_OUTSIDE_PASS){      // (not seen from outside: the building's own roof is there)
     T(0, W, 0, SF2, Z2 + H2, wallD);
     F(0, W, Z2 + H2, ZT, wall, null, 0, 0);
     for(let a = 160; a < W - 200; a += 420) F(a, a + 300, Z2 + H2 + 22, ZT - 34, 'rgba(176,214,230,.85)', null, 0, 0.3);
     F(1900, 2960, Z2 + H2 + 18, ZT - 30, navy, null, 0, 0.5);
     blockWordIn('MARITIME MALL', 1930, 2930, Z2 + H2 + 28, ZT - 40, 0.7, '#f6efe0', null, 10);
+    }
 
     /* ---- THE LOWER SHOPS, along SF1, the gallery's edge and glass rail over them ---- */
     const railRun = (a0, a1) => {                                                // the gallery's glass rail along SF1
@@ -95276,7 +95279,12 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk, x0, y0, gg => LIB.draw(name, gg, G, null, this.K)) });
       return;
     }
-    vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
+    vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => {
+      /* (the mall's room seen from OUTSIDE, MALL_THROUGH: its roof and clerestory are not drawn -- the building's own roof is the street's picture) */
+      const out = name === 'Maritime Mall Interior' && /^pkx\|/.test(lk);
+      if(out) MALL_OUTSIDE_PASS = true;
+      try { LIB.ground(name, gg, G, this.K); } finally { MALL_OUTSIDE_PASS = false; }
+    }) });
     const K = this.K, vw = this.vpW(), vh = this.vpH();
     const isMall = name === 'Maritime Mall Interior', xUnder = isMall ? mallXrayUnder(this) : 0;
     if(name === HOSP_IN.name && !/^pkx\|/.test(lk)) this._hospLk = lk;   // (hospHold's)
