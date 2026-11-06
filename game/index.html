@@ -696,7 +696,7 @@
      visibility: starting a route calls hide("titleOverlay") ->
      display:none !important, so the always-on robot button fired,
      tpOpenProfile() ran, .open was added -- to an element whose ancestor
-     was hard-hidden. The button "did nothing" during the daily route.
+     was hard-hidden. The button "did nothing" during the daily seed.
      Top-level + position:fixed means they answer to nothing but
      themselves. z-index 50 clears .overlay (10) and #hjUI (6); the robot
      stays above at 60. */
@@ -2543,7 +2543,7 @@ const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
 /* ====================== WORLD SCATTER: SWEPT ==========================
    The city used to drop ~24,800 props at random and call it furnished:
    16,752 on the grass verges (queueStreetFurniture) and 8,086 inside the
-   parks (queueParkBlock). Against 231 hazards on the daily route.
+   parks (queueParkBlock). Against 231 hazards on the daily seed.
 
    WHY IT IS OFF. Random is the problem, not the count. Route props obey
    real rules -- on the sidewalk, in a lane row, spaced along the street,
@@ -2720,7 +2720,7 @@ function palmSpec(P, x, y){
 
 /* ================= THE NIGHT (approved night-lab v1 + lamp lab v2,
    2026-07-28). Night is the player's own clock (isNightNow, below); it
-   was once a roll per daily route. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
+   was once a roll per daily seed. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
    the locked verdict) over every world layer, with warm accents
    ADD-blended above it. Lamps exist on ALL days; only the light is
    nocturnal. */
@@ -3141,7 +3141,7 @@ function dogSettledSpot(hz){
    Half of the dogs that WALK (have a walk range -- sitters and idle
    wanderers never get an owner) bring a person on a leash. Which half is
    a bit of dogSeed, NOT an rng draw: the route's stream and the city
-   table are untouched, so no daily route moves and no prop shifts.
+   table are untouched, so no daily seed moves and no prop shifts.
 
    The owner is part of the DOG, not a second hazard: same record, drawn
    by the dog's drawProp call and solid through the dog's contact (the
@@ -7991,7 +7991,7 @@ function owWrapAngle(a){
 
 /* ---------- DERIVED s (open-world step 4) ----------
    botS USED TO BE FROZEN under open world, and that freeze is what kept
-   free steering out of the daily route. Everything the delivery layer
+   free steering out of the daily seed. Everything the delivery layer
    does is keyed to s -- the door test, the GPS distance and turn arrow,
    the par clock, groundZ, the curb-ramp crossings -- so a frozen s does
    not mean "the rail is idle", it means all of that reads one stale
@@ -8146,7 +8146,7 @@ function owRailSync(scene){
 
    WHY THE FILTER IS NOT ENOUGH. hjBuildCourse drops everything between
    clearFrom and clearTo out of route.hazards and route.props. Those two
-   arrays are the DAILY ROUTE's own spawns. The ~14,700 permanent city
+   arrays are the DAILY SEED's own spawns. The ~14,700 permanent city
    props are not in either one -- they are a pure function of the
    frontage (cityFurnitureForEdge), materialized on demand, and reach
    the sim through cityFurnitureNear in the open-world contact pass.
@@ -8362,7 +8362,7 @@ function missionMatAtS(route, s, id, name, style, lane){
 /* DERIVED ONCE, THEN FROZEN -- and this is a measurement, not a
    preference. missionMatDerive below is the real derivation, and it
    costs two full route generations: 8.0s marginal on a warm grid in the
-   node harness, on top of the 3.3s the daily route already spends. That
+   node harness, on top of the 3.3s the daily seed already spends. That
    cannot sit on the draw path or in create(); it is a load-time freeze
    either way you slice it, for two numbers that CANNOT CHANGE -- the
    city is CITY_SEED and both missions are frozen dates.
@@ -10427,7 +10427,7 @@ function owStep(scene, dt){
      READ FROM THE TABLE, NOT FROM THE DRAW PASS. The swept world scatter
      had to record its collision from the render (see the old
      queueStreetFurniture note) because its rng consumed draws that
-     depended on the daily route, so any parallel generator would have
+     depended on the daily seed, so any parallel generator would have
      drifted from the art. This table has no such coupling -- it is a
      pure function of the frontage -- so the sim can ask it directly.
      That is both cheaper and, unlike the capture, not a frame stale.
@@ -12916,7 +12916,7 @@ const LOAD_ART = {
    Every calibrated number the burnout uses lives here, once. It started
    life inside Cone Slalom's SL block (2026-08-12) because the 3-2-1
    count was the only place in the game that held the robot still long
-   enough to spin the wheels against a locked chassis. The daily route
+   enough to spin the wheels against a locked chassis. The daily seed
    now has its own standing start (see "THE OPENING IS A STANDING
    START" in update), so the mechanic serves two callers and the
    constants can't sit in either one's closure. SL still exposes its
@@ -14177,7 +14177,7 @@ function buildGrid(cols, rows, seed=0, opts){
 
    Reads grid.nodes/conn ONLY. Not walk, not segs, not route: buildWalk
    rolls a random tourist stroll and cannot be asked for the way to a
-   specific place, which is why the daily route could never double as a
+   specific place, which is why the daily seed could never double as a
    GPS. conn is also the one structure the park-swallow pass edits when
    a street stops existing, so routing through it is automatically
    honest about which streets are actually there.
@@ -17764,7 +17764,7 @@ function houseVolBlocked(grid, blk, x, y, R, cuts){
    The Flats' last row: the nine perimeter lots (buildExteriorLots) between
    the west street's pavement and the boardwalk, j 0..8. They were zoned at
    random -- housing, shops -- and drew nothing (houses are the
-   neighbourhoods' own now). Their ZONING IS LEFT ALONE: the daily route,
+   neighbourhoods' own now). Their ZONING IS LEFT ALONE: the daily seed,
    the challenge seeds and the map's park names read lot types, so this
    only takes over what a lot DRAWS and what stops him there.
 
@@ -37647,7 +37647,7 @@ function hoodRoadblocks(grid, W){
    The whole city's sidewalks, furnished once and forever, instead of a
    strip of props rolled fresh for whichever route you happen to be on.
 
-   WHY IT IS NOT ONE BIG TABLE. At the daily route's own density the
+   WHY IT IS NOT ONE BIG TABLE. At the daily seed's own density the
    city's 3,640 block frontages (6,027,840 units of sidewalk) would hold
    ~53,000 props; generateRoute already blocks the main thread 1.6-3.9s
    to produce 231 of them. So "permanent" here means DETERMINISTIC, not
@@ -37692,7 +37692,7 @@ const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbegin
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
      query"). It was off while stages 1-2 were only inspectable through
-     ?cf=1, on the grounds that the daily route still rolls its OWN
+     ?cf=1, on the grounds that the daily seed still rolls its OWN
      ambient props and both sets at once double-furnishes the route's
      own corridor. That is still true and it is still the reason stage 4
      exists -- but it costs ~1.25x density over 25k units of one street
@@ -37711,7 +37711,7 @@ const CITY_FURN = {
      Censused before touching it: 1,287 lamps citywide, and a NOMINAL
      stride of 2,539 units that lands at 4,684 once corner clearance,
      off-walk and charging-pad rejections take their cut -- 2,810 ft
-     between lamps, about one every block and a half. The daily route
+     between lamps, about one every block and a half. The daily seed
      lights its own corridor at LAMP_ACT.spacing*T2 = 552 units, so the
      city was running roughly eight times darker than the street every
      other art decision in this game was made against.
@@ -37737,7 +37737,7 @@ const CITY_FURN = {
 
      And the reason this needed its own dial at all is worth recording,
      because the first diagnosis was wrong. The city was NOT eight times
-     darker than the daily route: that compared the city's ACTUAL
+     darker than the daily seed: that compared the city's ACTUAL
      spacing against the route's NOMINAL stride, and the route rejects
      about 87% of its own samples too. Measured like for like, the route
      places a lamp every 3,137-4,641 units against the city's 4,684 --
@@ -38515,7 +38515,7 @@ function cityFurnEdgeIndex(grid){
   /* the perimeter parks' frontages, in a hash of their own: only the
      contact queries read it (cityFurnitureNear's `contact`), never the
      route's harvest -- a perimeter prop harvested would be a different
-     daily route */
+     daily seed */
   const ext = [];
   for(const blk of cfExtParkRects(grid)){
     const es = blockEdgesOf(blk);
@@ -38627,7 +38627,7 @@ function cityFurnitureNear(grid, x, y, R, out, contact = false){
          a 250-unit flee). The line is fixed, so it is stamped once.
          OPT-IN (contact=true): the contact passes want it, and the route's
          harvest must NOT get it -- a different harvest is a different
-         daily route. */
+         daily seed. */
       if(!contact || !(pr.walkS1 > pr.walkS0)) continue;
       if(pr._wl === undefined){
         const p0 = hazSpotWorld(pr, pr.walkS0 - pr.s, 0), p1 = hazSpotWorld(pr, pr.walkS1 - pr.s, 0);
@@ -38644,7 +38644,7 @@ function cityFurnitureNear(grid, x, y, R, out, contact = false){
   return out;
 }
 /* ?cf=1 arms the render pass for a look on-device. Default OFF while the
-   daily route still rolls its OWN ambient props: both sets drawn at once
+   daily seed still rolls its OWN ambient props: both sets drawn at once
    is a double-furnished street, which is a preview artefact and not what
    the finished thing looks like. Stage 4 retires the route's passes and
    this becomes the only source. */
@@ -38742,7 +38742,7 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
   let cj = startOverride ? startOverride.j : 1 + Math.floor(rng()*(rows-2 || 1));
   let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
   /* startDir: forces the walk's first heading instead of rolling one --
-     used to anchor the daily route onto a fixed PICKUP_SHOPS landmark's
+     used to anchor the daily seed onto a fixed PICKUP_SHOPS landmark's
      own approach edge (see buildPickupShops). Every shop's startNode/f
      pair is verified connected at table-build time, so the while below
      never has to search when startDir is given -- it's here purely as
@@ -39253,7 +39253,7 @@ function buildLoopArcs(walk){
    unused streets at every turn. A purely random wander of the same total
    length covered 50%; this covers 67.7%.
 
-   Nothing here consumes the daily route's rng. buildCityTraffic owns its
+   Nothing here consumes the daily seed's rng. buildCityTraffic owns its
    own stream off SL_SEED_DATE, and buildWalk is untouched -- the player's
    route still builds through it exactly as before. */
 
@@ -41050,6 +41050,9 @@ function worldgenReconcile(grid){
    part (buildGrid/buildWalk/course search) never reruns for inputs it's
    already built. */
 const _routeGenCache = new Map();
+/* NAMING (2026-11-06): the DAILY SEED is today's date (clientTodayUTC()) plus the ladder's rung (routeSeedStr). It is not one route: it is what the
+   city's routes, their hazards and traffic, the daily-best board and the history are all keyed off. Every route the game rolls for a day is a route
+   off the daily seed; the frozen courses (Hill Jump, Cone Slalom) and the challenge routes use fixed seeds of their own instead. */
 /* THE DAILY IS A LADDER NOW (Sir's call, 2026-08-13). One route per
    calendar day is gone: beat a route and the engine rolls the next one,
    and every player walks the SAME ordered sequence. The ladder resets
@@ -41085,7 +41088,7 @@ function routeSeedStr(dateStr, runIndex){
 /* ---------- ONE PROP-STATE ROLL, TWO CALLERS ----------
    Everything a freshly spawned prop needs beyond its position: the
    pre-knocked coin, the seeds, the brand, the scooter's lie angle. It
-   was inline in the daily route's spawn loop and it is now also wanted
+   was inline in the daily seed's spawn loop and it is now also wanted
    by the permanent city-furniture pass below, and two copies of a
    pre-knocked probability is exactly how the route and the city start
    disagreeing about what a cone is.
@@ -41218,7 +41221,7 @@ function propSpawnState(type, hzObj, R, walkRange){
 }
 
 /* ---------- THE ROUTE READS THE CITY ----------
-   Stage 4. Until now the daily route ROLLED its own ambient props while
+   Stage 4. Until now the daily seed ROLLED its own ambient props while
    the permanent city furniture sat underneath on the same pavement, so
    its corridor carried both -- measured at about 1.25x density on one
    street against 6,002,000 units of frontage that were simply correct.
@@ -41314,7 +41317,7 @@ function harvestCityFurniture(grid, segs){
      seed             a date-style string handed to the generator in place of today's date (its layout)
      modifiers        parScale (x par; <1 is tighter), weather/lighting flags are carried for later phases
      parTimeOverride  par in ms, wins over parScale; null = the generated par
-   Picked with ?route=<id> (nothing else changes without it: the daily route is untouched). Rotation and
+   Picked with ?route=<id> (nothing else changes without it: the daily seed is untouched). Rotation and
    leaderboard scope are still open decisions, so the table is plain data and starts with one entry. */
 const CHALLENGE_ROUTES = [
   { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null,
@@ -41380,7 +41383,7 @@ function _generateRouteBody(dateStr, opts){
      city every day. That's the one thing this freezes: cols, rows, and
      buildGrid all read off CITY_SEED -- a fixed structural seed derived
      from SL_SEED_DATE, the same frozen date the slalom course already
-     builds its own city from -- so the daily route, Cone Slalom, and
+     builds its own city from -- so the daily seed, Cone Slalom, and
      Hydrant Challenge are all standing on the literal same streets and
      blocks, forever. `classic:true` is forced unconditionally too --
      the whole reason that flag exists is "a frozen seed always rebuilds
@@ -41437,7 +41440,7 @@ function _generateRouteBody(dateStr, opts){
      SWALLOW THEIR STREETS" comment) -- adjacent park blocks stopped
      fusing into one contiguous green space and started rendering as
      separate lots with a street still cutting through them, which is
-     NOT how the daily route ever looked before tonight. Both the daily
+     NOT how the daily seed ever looked before tonight. Both the daily
      route and Cone Slalom's own original generateRoute(SL_SEED_DATE)
      call were ALWAYS non-classic (only Hydrant Challenge's call ever
      passed classic:true, for its own precision-jump-course reasons) --
@@ -41448,7 +41451,7 @@ function _generateRouteBody(dateStr, opts){
      case, since every caller sharing one real grid is the whole point
      of the permanent map. */
   /* HJ DRIFT REDUX (reported 2026-08-10, same day as the revert above):
-     the revert fixed park-merging for the daily route and Cone Slalom,
+     the revert fixed park-merging for the daily seed and Cone Slalom,
      but it hardcoded classic:false for EVERY caller instead of reading
      opts.classic -- silently dropping the Hydrant Challenge's own
      classic:true request (still passed by loadRoute, see HJ_SEED_DATE's
@@ -41503,7 +41506,7 @@ function _generateRouteBody(dateStr, opts){
        and this search has to say so explicitly or the hydrant course can
        land in any of the twelve, unrelated to its own "Pelican St at 5th,
        The Flats" address. Only filters when the caller actually asked for
-       a hood (opts.hoodIndex != null) -- the daily route's own door-leg
+       a hood (opts.hoodIndex != null) -- the daily seed's own door-leg
        search reuses this same file's GOOD_LEG_HEADING rule elsewhere and
        was never hood-scoped, so it stays exactly as unconstrained as it
        always was. */
@@ -41556,7 +41559,7 @@ function _generateRouteBody(dateStr, opts){
     ? { i: (opts.hoodIndex % DISTRICT_COLS)*DISTRICT_W + Math.floor(DISTRICT_W/2),
         j: Math.floor(opts.hoodIndex/DISTRICT_COLS)*DISTRICT_H + Math.floor(DISTRICT_H/2) }
     : undefined;
-  /* the daily route's start is anchored to today's fixed pickup shop
+  /* the daily seed's start is anchored to today's fixed pickup shop
      (2026-08-12, Sir's call -- see buildPickupShops) so the walk's very
      first leg always traces that shop's own block edge. Cone Slalom
      used to share this same opts.hoodIndex-less path and drifted with
@@ -41592,7 +41595,7 @@ function _generateRouteBody(dateStr, opts){
     ? _shopPool.find(sh => sh.name === opts.pickupShop) : null;
   /* THE DAY'S OWN PICK leaves the mall's stores and the hood's extra
      shops out (see MALL_STORES, hoodExtraPickups): they arrived after the
-     daily routes were settled, and counting them would move every day's
+     daily seeds were settled, and counting them would move every day's
      shop. They are offered by name like the rest. */
   const _dayPool = _shopPool.filter(sh => !sh.mall && !sh.extra).length ? _shopPool.filter(sh => !sh.mall && !sh.extra) : _shopPool;
   const todaysShop = _named || _dayPool[seed % _dayPool.length];
@@ -41881,7 +41884,7 @@ function _generateRouteBody(dateStr, opts){
      point. Every one of these loops draws from the shared route rng, and
      they run UPSTREAM of the night roll and the address pick -- so
      simply deleting them would renumber the draw sequence and reshuffle
-     every daily route in the game. Worse, HJ_SEED_DATE and SL_SEED_DATE
+     every daily seed in the game. Worse, HJ_SEED_DATE and SL_SEED_DATE
      freeze the Hydrant Jump and Cone Slalom courses off that same
      stream, so the two side missions would silently rebuild themselves
      on different geometry and every posted best time would be a time on
@@ -42605,11 +42608,11 @@ function _generateRouteBody(dateStr, opts){
      everything generated after it (the crime scene, hazards, the
      furnish exclusions) draws from that same stream. Delete the call
      and every stream position downstream shifts, which silently
-     regenerates every daily route: different hazards, different
+     regenerates every daily seed: different hazards, different
      layout, and Past Routes replays that no longer match the run they
      are scoring against. The hazard oracle caught exactly that. So the
      call stays purely to consume its share of the stream, and its
-     result is thrown away. Drop this line the day changing daily route
+     result is thrown away. Drop this line the day changing daily seed
      generation is acceptable -- and expect every stored route to move
      when you do. */
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
@@ -43056,7 +43059,7 @@ function _generateRouteBody(dateStr, opts){
      fired on the thing it was written for. The two systems sit about a
      thousand units apart because the route anchors its ramps on its own
      crossing span and the world anchors on WORLD_RAMP.along/cross off
-     the node. So the daily route has been drawing two unrelated sets of
+     the node. So the daily seed has been drawing two unrelated sets of
      ramps at every crossing, neither aware of the other.
 
      Now that ramps are decoration everywhere (see CROSSING_PHYSICS),
@@ -43090,7 +43093,7 @@ function _generateRouteBody(dateStr, opts){
      THIS route is skipped by the draw and the free-roam contact pass, so
      a harvested prop is drawn and collided exactly once, by the rail
      side that now owns it. */
-  /* ...BUT NOT ON A DAILY ROUTE (2026-10-06, Sir: "the route doesnt
+  /* ...BUT NOT ON A DAILY SEED (2026-10-06, Sir: "the route doesnt
      need to generate the props anymore its just 1 world"). A delivery is
      driven in open world, the same as free roam, so a harvest there
      only moved the props along one walk from the city's draw and contact
@@ -91007,7 +91010,7 @@ class WorldScene extends Phaser.Scene {
     ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
     const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 5*T2;
     /* THE SAME WINDOW, IN WORLD SPACE. clearFrom/clearTo below sweep the
-       daily route's own arrays; the city's permanent props are not in
+       daily seed's own arrays; the city's permanent props are not in
        those arrays and have to be swept by geometry instead. Built from
        the identical two numbers so the two sweeps can never disagree
        about where the course is -- see OW_CORRIDOR for why this is
@@ -91063,7 +91066,7 @@ class WorldScene extends Phaser.Scene {
   /* back to the top of the run-up for another attempt */
   /* the challenge's own crash handling — the delivery fail overlay
      ("The pavement won") belongs to a delivery that went wrong, not to
-     a missed jump, and its Retry reloaded the daily route. */
+     a missed jump, and its Retry reloaded the daily seed. */
   hjOwnsTip(){ return this.mode === "challenge"; }
 
   /* ---------- ATTRACT MODE ----------
@@ -91707,7 +91710,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE MISSION ENDS HERE (Sir's report, 2026-08-14: "after beating
        the hydrant challenge I'm not being steered to another challenge
-       or the daily route, it just has a retry").
+       or the daily seed, it just has a retry").
 
        There was no terminal branch at all: clearing jump ten did exactly
        what clearing jump three does. hjLevel += 1 clamped 10 -> 10, the
@@ -91749,9 +91752,9 @@ class WorldScene extends Phaser.Scene {
     /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
        same day it was changed): this led with HJ_ADDRESS.hood ("The
        Flats — hydrant challenge at..."), which was made to match the
-       daily route's own "place leads" convention. Backwards -- side
+       daily seed's own "place leads" convention. Backwards -- side
        missions lead with their own NAME, the way Cone Slalom's card
-       always did ("Cone Slalom Challenge — ..."); the daily route is
+       always did ("Cone Slalom Challenge — ..."); the daily seed is
        the one case that's place-first, since it doesn't have a name of
        its own the way a mission does.
 
@@ -91788,7 +91791,7 @@ class WorldScene extends Phaser.Scene {
 
      WHY THE SCENE OWNS THIS ONE and the slalom's lives in a closure: the
      slalom is a lab that monkeypatches an existing route, so its ending
-     had to be self-contained and removable. The daily route IS the scene.
+     had to be self-contained and removable. The daily seed IS the scene.
      Two copies is the cost of not making the slalom depend on the daily's
      lifecycle -- flagged for Sir as the obvious later merge, once the
      hydrant needs a third and the shared shape is actually known.
@@ -92118,7 +92121,7 @@ class WorldScene extends Phaser.Scene {
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
     /* THE X-RAY'S CACHES ARE THE CITY'S, keyed by world position, so
-       they only go when the city does. Every daily route shares one grid
+       they only go when the city does. Every daily seed shares one grid
        now; clearing them on each pickup re-marched every visible prop and
        wall in the same frame as the load. */
     if(!_sameCity || !this._xrayPropCache){
@@ -105123,7 +105126,7 @@ class WorldScene extends Phaser.Scene {
     for(let fi = 0; fi < 4; fi++){
       for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
         if(GROUND_KINDS_CF[cp.type] || cp.taken) continue;
-        /* taken by the daily route (stage 4): it is in route.hazards now
+        /* taken by the daily seed (stage 4): it is in route.hazards now
            and the rail pass draws it, with the full interaction state
            that comes with being there. Drawing it here as well would
            paint two of everything along the corridor. */
@@ -105252,7 +105255,7 @@ class WorldScene extends Phaser.Scene {
            and that is the whole design. The rng sequence below is not a
            function of the block alone -- a slot skipped by routeCells
            does NOT consume a pick(), so which kinds land where shifts
-           with the daily route. Any parallel generator would drift from
+           with the daily seed. Any parallel generator would drift from
            the art the first time a route moved, and the robot would
            collide with lamps nobody can see. Taking the position off
            the same line that draws it makes that impossible.
@@ -117712,7 +117715,7 @@ class WorldScene extends Phaser.Scene {
         this.drawAngle = Math.round(this.drawAngle / (Math.PI/2)) * (Math.PI/2);
         /* the challenge resets the run itself (hjPendingReset); the
            delivery fail overlay would take over the screen and its
-           Retry reloads the daily route. */
+           Retry reloads the daily seed. */
         if(this.attractOwnsTip()){ this.attractRecycle(); }
         else if(this.slOwnsTip()){ this._slAPI.crash(this.tipCause); }
         else if(!this.hjOwnsTip()){ owDispatchTipFail(this); }
@@ -123431,7 +123434,7 @@ class WorldScene extends Phaser.Scene {
           : `${verb} in ${tpDistText(nt.dist)}`;
         /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27, revised the same
            day after Sir on-device: "the directions didn't seem to notice
-           if i was driving the wrong way during the daily route").
+           if i was driving the wrong way during the daily seed").
 
            The first cut reddened the strip on nt.uturn OR nt.lead, and
            lead was the wrong half of that pair. lead means "the path's
@@ -125360,7 +125363,7 @@ const SL = {
      UNTANGLED (2026-08-12, same day, Sir's follow-up: "it's a bug of
      the lab on top of the daily -- the daily always has a lag on
      launch, let's untangle these"): headless side-by-side confirmed
-     it -- the plain daily route, held at full throttle from a real
+     it -- the plain daily seed, held at full throttle from a real
      start, only reaches ~0.166 speed after a full 3 REAL SECONDS
      (0.00042/ms, unboosted, no vmul). That climb is the daily's own
      accepted baseline, not a bug in it. The partial burst above just
@@ -126714,7 +126717,7 @@ function tpSlalomOn(){
     /* THE TIP — the finish line is a real delivery stop, so a winning run
        pays like one: $3.00 base + $0.75 per second under par + $1.50 for
        a clean run. Wallet ONLY — never history/allTimeTotal, which belong
-       to the daily route and the leaderboard; mission money is spending
+       to the daily seed and the leaderboard; mission money is spending
        money. Anti-farming mirrors the replay delta rule: slPaid keeps a
        per-day high-water of what this course has already paid out, and a
        repeat run credits only the improvement — "run again" grinding pays
@@ -126917,7 +126920,7 @@ function tpSlalomOn(){
          send the player through a post gate and the corner icons instead.
          So on the one run that actually earns the skin, the one exit
          that reverts it is the one exit the player cannot take, and the
-         paint rode straight out into the daily route.
+         paint rode straight out into the daily seed.
 
          Now on the same latch the Fire Chief preview uses (tpSkinPreview,
          reverted at loadRoute -- see there), which covers EVERY exit
@@ -126978,7 +126981,7 @@ function tpSlalomOn(){
          WILLIAM_FAIL_LINES) -- a slalom tip-over and a delivery
          tip-over are the same underlying event, so sharing the joke
          pool is coherent, not just convenient. Retry restarts the
-         COURSE (slResetRun), not the daily route -- that's the one
+         COURSE (slResetRun), not the daily seed -- that's the one
          thing that can't be literally shared with the real
          failOverlay, whose retryBtn is wired to the delivery. */
       const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES
@@ -127404,7 +127407,7 @@ function tpSlalomOn(){
          comment for the "untangled" history), only if he actually
          held gas for it — a normal standing start (no throttle
          through the count) launches clean from zero, no mark, no
-         burst, same slow climb the daily route has always had. */
+         burst, same slow climb the daily seed has always had. */
       if (scene.peel.held) scene.peelLaunch(vTop(), run.course.spawnS);
     }
   };
@@ -127673,7 +127676,7 @@ function tpSlalomOn(){
   scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
                    showCard: slShowCard };
   scene._slRestore = () => {
-    /* Quit during the victory lap: hand the daily route back a state it
+    /* Quit during the victory lap: hand the daily seed back a state it
        can actually drive in. Same reasoning as slResetRun's own clear. */
     if (scene.state === 'victory') scene.state = 'play';
     run.victory = null;
@@ -127695,7 +127698,7 @@ function tpSlalomOn(){
       delete r._slDoor; delete r._slLoop; delete r._slEndS;
     }
     /* hand the look-ahead back before the slalom's own hooks come off --
-       a quit mid-launch must not leave the daily route driving with a
+       a quit mid-launch must not leave the daily seed driving with a
        shortened camera bias. */
     scene._camLead = null;
     delete scene._slAPI;
@@ -127807,7 +127810,7 @@ function slalomMapSelect(){
      swaps s.route to HJ_SEED_DATE, and drawRouteMap draws its route
      line/robot marker off WHATEVER route is currently loaded -- that's
      not special hydrant logic, it's just what loadRoute always does.
-     This never did that: s.route stayed on today's daily route, so the
+     This never did that: s.route stayed on today's daily seed, so the
      map kept showing wherever THAT route's robot/pickup was, nothing
      visibly changed. Loading SL_SEED_DATE here matches hydrant's own
      pattern exactly. tpSlalomStart() (below) still reloads it again on
@@ -127832,7 +127835,7 @@ function slalomMapSelect(){
      writing the card itself. */
   tpSyncOrderCard(s);
   /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
-     daily route's own pickupS/doorS span (what loadRoute above just framed
+     daily seed's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
      gate-to-finish span of the slalom course itself -- that's still
      tpSlalomPin()'s job, same as it already is for the passive map pin
@@ -127875,7 +127878,7 @@ function tpSlalomStart(){
    or crash is the only way out of a run in progress. tpSlalomUI is down
    to just the 3-2-1-GO countdown; nothing else lives on screen during
    play. tpSlalomQuit (the full restore: stop the tick, drop the card,
-   s._slRestore(), hjChrome(false), hand the daily route back, show the
+   s._slRestore(), hjChrome(false), hand the daily seed back, show the
    title) didn't go away with the button -- it's still the ONLY place
    that knows how to fully exit the mission, so slClose below now calls
    it directly instead of the old bare card.remove(). Skipping that
@@ -128300,7 +128303,7 @@ const FAIL_LINES = [
 /* Cause-specific pool: timing out on the slalom clock is not a crash --
    the robot never falls, so "the pavement won" is wrong the same way it
    would be wrong for WILLIAM_FAIL_LINES. Mirrors CANCEL_LINES' role
-   (the daily route's own non-crash timeout) but themed for the slalom's
+   (the daily seed's own non-crash timeout) but themed for the slalom's
    clock, not a canceled order. */
 /* Cause-specific pool: a plain tip-over on the slalom is not a botched
    delivery -- FAIL_LINES' "you had one address" / "the burrito never
@@ -128939,7 +128942,7 @@ function _bootLoaderDismiss(){
        launch and recovery now read as the same beat.
 
        Nearest pad to where the route put him, not a fixed one: that
-       keeps the district the daily route chose (the map, the GPS strip
+       keeps the district the daily seed chose (the map, the GPS strip
        and the shop are all still there, a block or two away) and it
        moves day to day with the seed, for free. Must run AFTER owInstall
        -- install seeds ow.px/py from botX/botY, so placing first would
@@ -131624,7 +131627,7 @@ function faceShade(pts, i, W, base, dk, sh) {
    a shared rng stream, so it is safe to call from anywhere and cached on
    the shore for free. That is the difference from the swept city scatter,
    which had to capture from the draw because its rng depended on the
-   daily route.
+   daily seed.
 
    ONE RUN, ONE STATION LIST, kept from the original: benches are derived
    FROM the lamp stations -- a bench sits at the MIDPOINT of a lamp gap,
@@ -133992,7 +133995,7 @@ function drawRouteMap(route){
      to find the real course. Two different positions on the same
      screen. route.dateStr === SL_SEED_DATE is the same unique-route
      signal tpMapView.stamp already trusts elsewhere -- true only for
-     the slalom's own frozen course, never the daily route or an atlas
+     the slalom's own frozen course, never the daily seed or an atlas
      jump -- so it's a safe, cheap way to detect "this is the slalom
      preview" without threading a new flag through loadRoute. */
   const slChain = (!ch && route.dateStr === SL_SEED_DATE) ? slFindChain(route) : null;
@@ -134808,7 +134811,7 @@ function drawRouteMap(route){
   if(!usingAtlas){
     /* ONE INSTRUCTION LINE AT A TIME (Sir on-device, 2026-08-26: "its
        giving me the new route on the map to my new selection but its
-       keeping the old daily route too").
+       keeping the old daily seed too").
 
        This stroke is today's pickup->door line, drawn out of samples[],
        and it knew nothing about gpsNav -- which is drawn ~50 lines
@@ -135577,7 +135580,7 @@ function tpSyncMapChrome(s){
   if(bb && typeof tpMapUp === "function" && tpMapUp()) bb.classList.add("hidden");
   /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
      showing the address of the pick up too for the free roam map, but
-     keep it when the daily route is selected"). Same test, same beat --
+     keep it when the daily seed is selected"). Same test, same beat --
      the card describes the errand GO would start, so a map with nothing
      to start has nothing to describe either, and the banner was covering
      four blocks of the city you opened the map to look at.
