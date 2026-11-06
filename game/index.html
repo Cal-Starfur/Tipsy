@@ -29471,10 +29471,11 @@ const KW_DOOR = { t: null, ms: 1400 };
 const KW_KART = { col: '#d8352a', dk: '#a8281f' };
 /* THE YARD, in the block's frame (its north-west corner; a east, b south): the barn (KW_PLAN: 820 x 680) takes a 976..1656, b 0..820 */
 const KW_YARD = { name: 'Tidewater Kart Works Yard', ij: '1,4',
-  chute: { b: [842, 942], a: [830, 920, 1080, 1360, 1392], z: 45 },
-  bays: [{ at: [826, 1150], col: '#5aa05a', dk: '#447a44', no: 2 }, { at: [916, 1150], col: '#f2b544', dk: '#c48d2c', no: 3, stripe: '#1e1e22' },
-         { at: [1006, 1150], col: '#e8e4da', dk: '#c4bfb2', no: 1, stripe: '#2a6fb0' }],
-  tyres: [[1074, 1110, 4]],
+  /* (Sir, 2026-11-06, Brew & Bolt: "fill up that whole area": the test chute, the three kart bays and their tyres stood where its
+     back room is now -- block 1,4's a 820..1236, b 820..1236 -- and are gone; the chute's code stays for a place to put it) */
+  chute: null,
+  bays: [],
+  tyres: [],
   store: [330, 530, 36, 104, 120],
   tables: [[700, 260], [700, 400]], board: [700, 150], bin: [790, 165],
   /* the practice loop on the yard's open middle: its centre line a rounded rectangle a0..a1 x b0..b1 (corner radius R), the
@@ -29529,6 +29530,55 @@ walkinStaff(KW_IN.name, [
   { id: 'kid-b', role: 'kart club kid', seed: 0x4b06, look: 'kid', with: 'kid-a', posts: [[416, 646, Math.PI, 0, true]] },
 ]);
 walkinLife(KW_IN.name, { keep: [[0, KW_IN.W, 300, 460]], looks: [] });
+/* ==================== INSIDE BREW & BOLT (Sir, 2026-11-06: "make it all seating ... a back room ... created by connecting
+   the building to make it a rectangle that new space will be the back room") ====================
+   ONE ROOM, the L's two legs and the corner they leave (the walk-in kit: walkinDefine on the south leg, whose lab frame is a
+   east, b north of the street, and a pocket that hides BOTH legs' shells). The shell is 836 x 836: the south leg 836 x 420
+   along the south street, the east leg 416 wide on the east street and 836 deep (its depth takes in the corner the L left
+   open, so the two make a rectangle). Room frame a east, b south, world units:
+     a 0..416, b 0..416     GIDEON'S BACK ROOM, the corner the L left: walled off by two low partitions, its door in the
+                            south one (a 130..250); a coffee roaster, a workbench of robot parts, bean shelves, his dock
+     the rest, an L         THE SEATING: round tables in twos and fours, chairs round them, along the windows (the south
+                            wall's two, the east wall's one); the front door in the south wall's middle (a 373..463)
+     a 330..506             the door's lane, kept clear from the door to the partition; b 416..500, a 130..506 the aisle to
+                            the back room's door */
+const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D: 836, H: 230, LH: 66, DOOR: { at: 418, half: 45 },
+  BACK: { a: 416, b: 416, T: 16, door: [130, 250], h: 92 },
+  TABLES: [ [110, 770, 2], [250, 770, 2], [586, 770, 2], [726, 770, 2],
+            [90, 640, 4], [260, 640, 2], [590, 630, 4], [740, 630, 2],
+            [786, 90, 2], [786, 230, 2], [786, 360, 2], [600, 110, 4], [600, 300, 4] ] };
+const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
+  lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 0, half: 50 }, H: BB_IN.H, out: 60, apron: 60, glass: 60,
+  /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
+  street: { to: [0, 184], routes: [[[-1400, 184], [-1400, -3600]], [[580, 184], [580, -3600]]] },
+  /* (seen through, W11: the glazed pair, the south wall's two windows -- flatsShop's, lab x1.3, z x1.95 -- and the east leg's one in the east wall) */
+  openings: [{ lab: [[418/1.3 - 34.6, 0], [418/1.3 + 34.6, 0]], z: [0, 107.95] },
+             { lab: [[14, 0], [418/1.3 - 62, 0]], z: [22, 104], glass: true }, { lab: [[418/1.3 + 62, 0], [836/1.3 - 14, 0]], z: [22, 104], glass: true },
+             { lab: [[836/1.3, -836/1.3 + 14], [836/1.3, -836/1.3 + 306]], z: [22, 104], glass: true }] });
+(() => { const pk = POCKETS[POCKETS.length - 1]; pk.hides = ['Brew & Bolt', 'Brew & Bolt East']; })();   // (both legs' shells ease off as he goes in)
+/* ITS PEOPLE: Gideon, the owner, a humanoid robot -- his look a placeholder (a roster body in a metal skin, no hair, the
+   shop's copper apron) till his own is drawn; he walks the room's aisles with the coffee and rests at his dock in the back
+   room. Two customers at their tables' look points (a room of 700,000 square: staff of one, a few visitors) */
+const GIDEON_UNIFORM = { shirt: { c:0x6b4a32, dk:0x4f3624 }, pants: { c:0x2a2e34, dk:0x1c1f23 }, shoe: { c:0x1c1f23, dk:0x101214 },
+  vest: { c:0xd9892b, dk:0xb06f20 }, shoeKind: 'dress' };
+walkinStaff(BB_IN.name, [
+  { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, life: 'patrol', pace: 0.85,
+    route: [[330, 330, Math.PI/2, 9000], [190, 380, Math.PI/2, 1200], [190, 470, 0, 800], [470, 470, 0, 1200], [470, 300, 0, 2400], [470, 130, -Math.PI/2, 2600], [470, 470, Math.PI, 600], [190, 470, Math.PI, 600]],
+    posts: [[330, 330, Math.PI/2, 9000, true]],
+    lookFn: () => { const B = rosterBody(0x61de0), U = GIDEON_UNIFORM;
+      return { build: Object.assign({}, B.build, { hairStyle: 'none' }), skin: { c: 0xb9c4cd, dk: 0x8e9aa5 }, hair: 0x6e757c, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; } },
+  { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
+  { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
+]);
+/* (W16: the guests go between the tables' look points; the door's lane, a 362..474 from the door to the partition (the planters stand either side), and the
+   aisle to the back room's door, kept clear) */
+walkinLife(BB_IN.name, { keep: [[362, 474, 416, 836], [130, 506, 446, 500]], looks: [
+  { id: 'win-w', spots: [[110, 718, -Math.PI/2], [250, 718, -Math.PI/2]] },
+  { id: 'win-e', spots: [[586, 718, -Math.PI/2], [726, 718, -Math.PI/2]] },
+  { id: 'east-1', spots: [[738, 90, Math.PI]] },
+  { id: 'east-2', spots: [[738, 360, Math.PI]] },
+  { id: 'mid', spots: [[548, 630, 0], [640, 300, Math.PI]] },
+] });
 /* ==================== INSIDE THE TIDEWATER MARITIME MUSEUM (Sir, 2026-10-30: "building out the interior of the
    museum. complete with an Egyptian exhibit and a dinosaur skeleton. make sure that the interior transitions how the
    hospital does") ====================
@@ -50626,6 +50676,160 @@ function houseCanopy(fn){
   },
 
 {
+  /* INSIDE BREW & BOLT (BB_IN: a rectangle, 836 x 836 -- the L's two legs and the corner they leave, the walk-in kit's walls,
+     walkinRoom). The street's view: the south wall's two windows and its glazed pair, the east wall's one window; the room's
+     own: a wooden floor, the north wall's chalkboard menu and shelf of cups, tables of two and four with their chairs, and
+     in the north-west corner Gideon's back room behind two low partitions -- the roaster, the bean shelves, a workbench of
+     robot parts, his charging dock. Lab frame a east, b south, z up, world units. */
+  name:'Brew & Bolt Interior', xh: 230, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: BB_IN.W, dd: BB_IN.D,
+  head:'Inside Brew & Bolt: tables and chairs along the windows, and Gideon\'s back room with the roaster and his dock',
+  tags:['interior','pocket','coffee','seating','robot owner','back room'],
+  desc:'The inside of Gideon\'s coffee shop: an L of tables and chairs along the street windows, a chalkboard menu on the north wall, and in the corner behind a low partition his back room: the coffee roaster, bags of beans, a workbench of robot parts and his charging dock.',
+  draw(p){
+    const W = BB_IN.W, D = BB_IN.D, H = BB_IN.H, LH = BB_IN.LH, DR = BB_IN.DOOR, BK = BB_IN.BACK;
+    const plaster = '#efe2c8', plasterD = '#dccdae', brown = '#5b3d2a', brownD = '#3b2619', cream = '#f1e6cf', copper = '#d9892b', copperD = '#b06f20';
+    const wood = '#b58a5c', woodD = '#8e6a43', woodL = '#c99a68', steel = '#8f969d', steelD = '#6e757c', steelS = '#596067', conc = '#b9b6ad';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const seeB1 = P(0, 1, 0).y > P(0, 0, 0).y;
+
+    /* ---- THE FLOOR: wide boards, a runner from the door, the back room's floor sealed concrete, the door's threshold (W13) ---- */
+    T(0, W, 0, D, 0, wood);
+    for(let b = 40; b < D; b += 40) T(0, W, b - 0.8, b + 0.8, 0.2, woodD);
+    for(let a = 90, k = 0; a < W; a += 118, k++) for(let b = 20 + (k % 2)*40; b < D; b += 80) T(a - 0.8, a + 0.8, b, b + 40, 0.2, woodD);
+    T(DR.at - 36, DR.at + 36, BK.b + 90, D, 0.3, '#7a3a2a'); T(DR.at - 30, DR.at + 30, BK.b + 90, D, 0.35, '#8e4a36');   // the runner
+    T(0, BK.a, 0, BK.b, 0.4, conc);
+    for(let a = 104; a < BK.a; a += 104) T(a - 1, a + 1, 0, BK.b, 0.5, shade(conc, 0.88));
+    for(let b = 104; b < BK.b; b += 104) T(0, BK.a, b - 1, b + 1, 0.5, shade(conc, 0.88));
+    T(DR.at - DR.half, DR.at + DR.half, D - 6, D + 8, 0.6, '#7f858c');
+
+    /* ---- THE WALLS (the kit's): plaster over a brown dado, the shop's cream cap; the glass in the street's two walls ---- */
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: DR.at, half: DR.half },
+      winS: [[18.2, 337.4, 40], [498.6, 817.8, 40]], winE: [[18.2, 397.8, 40]],
+      glass: 'rgba(150,190,206,.42)', frame: cream,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plaster, null, 0, 0);
+        for(let a = -18; a < W + 30; a += 44) F(a, a + 1.4, 0, H, plasterD, null, 0, 0.1);
+        F(-30, W + 30, 0, 78, brown, null, 0, 0.2); F(-30, W + 30, 78, 83, brownD, null, 0, 0.3);
+        F(-30, W + 30, H - 14, H, brownD, null, 0, 0.3);
+        /* the chalkboard menu on the east leg's stretch of the north wall: BREW & BOLT, a copper rule, the board's lines */
+        { const a0 = 480, a1 = 760, z0 = 104, z1 = 196;
+          F(a0 - 5, a1 + 5, z0 - 5, z1 + 5, brownD, null, 0, 0.5); F(a0, a1, z0, z1, '#25302b', null, 0, 0.6);
+          blockWordIn('BREW & BOLT', a0 + 24, a1 - 24, z1 - 28, z1 - 8, 0.9, cream, null, 3.4);
+          F(a0 + 20, a1 - 20, z1 - 36, z1 - 34, copper, null, 0, 0.9);
+          for(let k = 0; k < 4; k++){ const zl = z1 - 52 - k*13; F(a0 + 24, a0 + 24 + 120 - (k%2)*30, zl, zl + 3, 'rgba(241,230,207,.78)', null, 0, 0.9); F(a1 - 58, a1 - 24, zl, zl + 3, copper, null, 0, 0.9); } }
+        /* a shelf of cups over the dado, either side of it */
+        for(const [x0, x1] of [[436, 468], [772, 804]]){
+          F(x0, x1, 150, 154, woodL, null, 0, 1.2);
+          for(let a = x0 + 4; a < x1 - 4; a += 10) F(a, a + 6, 154, 162, cream, null, 0, 1.4);
+        }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, plaster);
+        for(let b = -18; b < D + 30; b += 44) S(0.1, b, b + 1.4, 0, H, plasterD);
+        S(0.2, -30, D + 30, 0, 78, brown); S(0.3, -30, D + 30, 78, 83, brownD); S(0.3, -30, D + 30, H - 14, H, brownD);
+        /* the back room's side of the west wall: a pegboard over the bench with robot tools, a wall clock */
+        S(0.4, 190, 340, 96, 176, '#b88f5e');
+        for(let b = 198; b < 336; b += 9) for(let z = 102; z < 172; z += 9) S(0.5, b, b + 1.4, z, z + 1.4, '#9a7448');
+        for(let k = 0; k < 5; k++){ const b = 206 + k*24; S(0.7, b, b + 4, 120 - k*4, 168, steel); }
+        S(0.7, 140, 160, 120, 140, cream); S(0.8, 148, 152, 122, 138, brownD);
+      },
+      low: ['#f2ead8', '#7a5238', '#5b3d2a'], cap: [cream, cream, '#d8cdb4'], ftop: shade(cream, 0.92) });
+
+    /* ---- THE BACK ROOM'S TWO LOW PARTITIONS (W6: one piece each, cut for the door): the east one a 408..424 down from the
+       north wall, the south one b 408..424 along to the east one, its door gap a 130..250 ---- */
+    const part = (a0, a1, b0, b1) => {
+      const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.max(1, Math.ceil((hi - lo)/WALKIN_NEAR_RUN - 1e-9));
+      for(let k = 0; k < n; k++){
+        const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, BK.h, 'partition')], draw: () => {
+          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, BK.h - 6, '#7a5238', '#7a5238', '#5b3d2a');
+          box(p0 - 1, p1 + (alongA && k < n - 1 ? 0.5 : 0) + 1, q0 - 1, q1 + (!alongA && k < n - 1 ? 0.5 : 0) + 1, BK.h - 6, BK.h, cream, '#e4d9c0', '#d0c4a8'); } });
+      }
+    };
+    part(BK.a - BK.T/2, BK.a + BK.T/2, 0, BK.b + BK.T/2);
+    part(0, BK.door[0], BK.b - BK.T/2, BK.b + BK.T/2);
+    part(BK.door[1], BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2);
+    T(BK.door[0], BK.door[1], BK.b - 8, BK.b + 8, 0.6, '#8f969d');   // the door's threshold
+
+    /* ---- THE TABLES, round, with their chairs: a pedestal, a wooden top, two cups and a plate on it ---- */
+    const chair = (ca, cb, back) => {   // back: where its back is (+1 north .. cb - 14, 0 east a, 2 west)
+      items.push({ a: ca, b: cb, z: 0, solids: [], draw: () => {
+        for(const [da, db] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) box(ca + da - 1.5, ca + da + 1.5, cb + db - 1.5, cb + db + 1.5, 0, 20, brownD, brownD, brownD);
+        box(ca - 13, ca + 13, cb - 13, cb + 13, 20, 24, woodL, wood, woodD);
+        if(back === 'n') box(ca - 13, ca + 13, cb - 14, cb - 11, 24, 52, woodL, wood, woodD);
+        else if(back === 's') box(ca - 13, ca + 13, cb + 11, cb + 14, 24, 52, woodL, wood, woodD);
+        else if(back === 'w') box(ca - 14, ca - 11, cb - 13, cb + 13, 24, 52, woodL, wood, woodD);
+        else box(ca + 11, ca + 14, cb - 13, cb + 13, 24, 52, woodL, wood, woodD); } });
+    };
+    for(const [ta, tb, seats] of BB_IN.TABLES){
+      const R = seats === 4 ? 36 : 30;
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: R + 18, h: 80 }], draw: () => {
+        cyl(ta, tb, 0, 3, 14, brownD, brownD); tube(ta, tb, 3, ta, tb, 36, 3, brownD);
+        cyl(ta, tb, 36, 40, R, woodL, '#d4a877');
+        cyl(ta + R*0.4, tb - R*0.2, 40, 47, 3.6, cream, '#e8dcc0');
+        if(seats === 4) cyl(ta - R*0.45, tb + R*0.25, 40, 47, 3.6, cream, '#e8dcc0');
+        cyl(ta - R*0.1, tb + R*0.1, 40, 41.5, 7, '#f6f0e0', '#fff8e8'); } });
+      const o = R + 20;
+      if(seats === 4){ chair(ta - o, tb, 'w'); chair(ta + o, tb, 'e'); chair(ta, tb - o, 'n'); chair(ta, tb + o, 's'); }
+      else { chair(ta, tb - o, 'n'); chair(ta, tb + o, 's'); }
+    }
+    /* two potted palms by the door, a planter at each window pier */
+    for(const [pa, pb] of [[338, 806], [498, 806]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'planter', c: [pa, pb], r: 16, h: 70 }], draw: () => {
+      box(pa - 14, pa + 14, pb - 14, pb + 14, 0, 26, '#8a5a3a', '#7a4e32', '#5b3d2a');
+      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*22, pb + Math.sin(t)*22, 60 + (k%2)*12, 2, '#3f8f4a'); } } });
+
+    /* ---- THE BACK ROOM'S FIXTURES (a 0..416, b 0..416) ----
+       THE ROASTER, the north-west: a steel base, the copper drum on it, its hopper over and its flue to the ceiling */
+    { const a0 = 36, a1 = 140, b0 = 36, b1 = 104;
+      items.push({ a: 88, b: 70, z: 0, solids: [solid(a0, a1, b0, b1, 130, 'roaster')], draw: () => {
+        box(a0, a1, b0, b1, 0, 34, steel, steelD, steelS);
+        cyl(88, 70, 34, 92, 30, copper, '#e8a550');
+        box(a0 + 8, a1 - 8, b0 + 4, b1 - 4, 92, 100, steelD, steelS, steelS);
+        poly([P(70, 60, 100), P(106, 60, 100), P(94, 66, 126), P(82, 66, 126)], '#8f969d');
+        tube(88, 70, 100, 88, 70, H - 6, 5, steelD);
+        box(a1 - 22, a1 - 6, b1 - 4, b1 + 4, 40, 70, '#1f2a30', '#19232a', '#141b20'); F(a1 - 20, a1 - 8, 46, 64, '#e79a35', null, 0, b1 + 4.3); } }); }
+    /* THE BEAN SHELVES on the north wall (a 190..390): sacks and tins, three shelves */
+    { const A0 = 190, A1 = 390, B1 = 30, ZS = [8, 60, 112];
+      for(let k = 0, n = Math.ceil((A1 - A0)/50); k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n;
+        items.push({ a: (s0 + s1)/2, b: B1/2, z: 0, solids: [solid(s0, s1, 0, B1, 140, 'bean shelves')], draw: () => {
+          F(s0, s1, 0, 134, shade(woodD, 0.8), null, 0, 0.5);
+          ZS.forEach((z, r) => {
+            box(s0, s1 + 0.5, 0, B1, z - 3, z, woodL, wood, woodD);
+            for(let a = s0 + 6; a < s1 - 4; a += 24){ const kk = Math.floor(a/24) + r;
+              if(kk % 3 === 2) cyl(a + 8, B1/2, z, z + 22, 9, '#d9892b', '#e8a550');
+              else box(a, a + 20, 5, B1 - 5, z, z + 28 + (kk%2)*6, '#c9a66b', '#b08e58', '#987a4a'); }
+          });
+          box(s0, s1 + 0.5, 0, B1, 134, 138, woodD, shade(woodD, 0.9), shade(woodD, 0.8)); } }); } }
+    /* THE WORKBENCH down the west wall (b 190..340): robot parts -- a torso shell, an arm, a head, a coil of wire -- and a lamp */
+    { const A1 = 56, B0 = 190, B1 = 340;
+      for(let k = 0, n = Math.ceil((B1 - B0)/50); k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
+        items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 84, 'workbench')], draw: () => {
+          for(const lb of [B0 + 5, B1 - 5]) if(lb >= s0 && lb < s1) for(const la of [6, A1 - 6]) box(la - 4, la + 4, lb - 4, lb + 4, 0, 70, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
+          box(0, A1, s0, s1 + 0.5, 70, 76, woodL, wood, woodD);
+          if(s0 <= 215 && s1 > 215) box(12, 44, 203, 232, 76, 112, '#aab4bd', '#8e9aa5', '#78848f');          // a torso shell
+          if(s0 <= 262 && s1 > 262){ tube(14, 262, 82, 46, 262, 82, 4, '#aab4bd'); ball(14, 262, 82, 6, '#78848f', '#8e9aa5'); }   // an arm
+          if(s0 <= 304 && s1 > 304){ ball(30, 304, 90, 12, '#c9d3da', '#e4eaee'); box(24, 36, 298, 310, 76, 80, steelD, steelD, steelS); cyl(30, 304, 92, 94, 3, '#3a8fd8', '#7fc4f0'); }   // a head, an eye
+          if(s0 <= 332 && s1 > 332) cyl(40, 332, 76, 84, 8, '#c23a2e', '#d84a3e');                          // a coil of wire
+        } }); } }
+    /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
+    items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
+      T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
+      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; box(330 + Math.cos(t)*28 - 2, 330 + Math.cos(t)*28 + 2, 330 + Math.sin(t)*28 - 2, 330 + Math.sin(t)*28 + 2, 0.8, 2.2, copper, copper, copperD); }
+      box(322, 338, 366, 380, 0, 100, steelD, steelS, steelS); box(324, 336, 368, 378, 100, 112, '#2b3138', '#222831', '#222831');
+      F(326, 334, 102, 110, '#5be37d', null, 0, seeB1 ? 380.3 : 366.3); } });
+    /* a stack of crates and a sack of beans by the partition */
+    items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {
+      box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350');
+      box(354, 402, 168, 212, 24, 28, woodD, woodD, woodD); } });
+
+    walkinStaffSolids(items, BB_IN.name);
+    depthSort(items);
+  }
+  },
+
+{
   /* INSIDE THE TIDEWATER KART WORKS (KW_IN, from KW_PLAN: the barn's own 620 x 760, its walls to the eaves 214.5 --
      the walk-in kit's walls, walkinRoom). Planned from who works here and what the street sees:
        the east wall   the barn's gable end on the street: the roll-up door in its middle (b 288..472) and a window of
@@ -50826,7 +51030,7 @@ function houseCanopy(fn){
   tags:['yard','soapbox club','test chute','kart bays'],
   desc:'The soapbox club\'s yard behind and beside its barn: a short test chute with its start deck and tyre wall, three finished karts parked in their bays, spare tyres, a lean-to of plywood sheets and two picnic tables by the club\'s notice board.',
   draw(p){
-    const C = KW_YARD.chute, items = [];
+    const C = KW_YARD.chute || { b: [0, 0], a: [0, 0, 0, 0, 0], z: 0 }, items = [];
     const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', WOODD = ['#8a6446', '#6e4f38', '#5b412e'];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'yard', poly: volRect(a0, a1, b0, b1), h });
     const [B0, B1] = C.b, [A0, AD, AS, AR, AT] = C.a, Z = C.z, rz = a => a <= AD ? Z : a >= AS ? 0 : Z*(AS - a)/(AS - AD);
@@ -50886,6 +51090,7 @@ function houseCanopy(fn){
         box(a - 36, a + 36, b - 7, b + 7, 17, 21, woodL, wood, woodD);
         box(a - 36, a + 36, b + d*6, b + d*9, 21, 38, woodL, wood, woodD); } });
     /* ---- THE TEST CHUTE: its back board and start bar, the deck, the slope in runs, the rails stepped down it ---- */
+    if(KW_YARD.chute){
     items.push({ a: (A0 + AD)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 6, AD, B0, B1, Z + 60, 'test chute deck')], draw: () => {
       box(A0 - 6, A0, B0, B1, 0, Z + 46, WOODD[0], WOODD[1], WOODD[2]);                                // its back board
       box(A0, AD, B0, B1, 0, Z, wood, woodD, shade(woodD, 0.85));                                        // the deck
@@ -50911,6 +51116,7 @@ function houseCanopy(fn){
       for(let b = B0 + 16; b < B1; b += 34) for(let k = 0; k < 4; k++) cyl((AR + AT)/2, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 3 ? '#1e1e22' : null);
       box(AR - 2, AR, B0, B1, 6, 40, '#c23a2e', '#a8352a', '#8c2e24');                                 // a red buffer board on its face
     }});
+    }   // (KW_YARD.chute: null since Brew & Bolt took the corner it ran down to)
     /* ---- THE KART BAYS: the club's three finished karts, noses to their wheel stops ---- */
     for(const k of KW_YARD.bays){
       const [a, b] = k.at;
@@ -79750,7 +79956,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const WW = o.ww || W, DD = o.dd || D, H = o.H || 160, wall = o.wall, trim = o.trim;
     const roof = o.roof || shade(wall, .82), sign = o.sign || shade(wall, .62);
     const winA1 = Math.round(WW*0.56), mid0 = WW/2;
-    const WINS = o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]];
+    const WINS = o.wins || (o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]]);
     return {
       name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}), ...(o.see ? { see: true } : {}),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head,
@@ -79770,7 +79976,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           glaze(w0, w1, 22, 104, null, o.glass || 'rgba(120,150,166,.30)');
           for(let k=1;k<3;k++){ const m = w0 + (w1-w0)*k/3; F(m-2.5, m+2.5, 22, 104, shade(wall,1.25), null,0,0.8); }
         }
-        shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW, undefined, o.doorW ? { w: o.doorW, pair: true } : undefined);
+        if(!o.noDoor) shopDoor(o.doorMid ? mid0 : Math.min(WW-40, winA1 + (WW-winA1)/2 + 4), wall, trim, null, WW, undefined, o.doorW ? { w: o.doorW, pair: true } : undefined);   // (noDoor: a leg of a room whose way in is another's -- Brew & Bolt East)
         /* the fascia: a board proud of the band, two name panels and the emblem between */
         slab(12, WW-12, 128, 152, 6, 0, sign);
         const mid = WW/2;
@@ -80085,8 +80291,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             bolt(36); bolt(WW - 36);
             blockWordIn('BREW & BOLT', 54, WW - 54, 136, 144, 7.3, '#f1e6cf', null, 5.2);
           } finally { MIRROR = m0; } } };
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3 }, BB)));
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:420/1.3 }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3, see:true }, BB)));
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:836/1.3, noDoor:true, wins:[[14, 416/1.3 - 14]], see:true }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
     /* THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01): the soapbox club's garage on
        the north-east of block 1,4, across the street from the derby's course -- a red board-and-batten barn under a
        gambrel roof of grey tin, its gable end on the east street with a roll-up door in it (the way in: a walk-in, the

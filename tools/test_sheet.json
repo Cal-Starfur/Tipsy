@@ -228,6 +228,36 @@
    ],
    "night": "NIGHT_CLOCK.time = 21",
    "reviewed": false
+  },
+  {
+   "id": "brewbolt",
+   "title": "Brew & Bolt and the far-corner depot",
+   "spots": [
+    {
+     "label": "Brew & Bolt corner",
+     "go": "5100,15000",
+     "view": 2
+    },
+    {
+     "label": "Brew & Bolt wide",
+     "go": "5100,14500",
+     "view": 3
+    },
+    {
+     "label": "Charging 4 far corner and yard",
+     "go": "4050,13420",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Brew & Bolt: the L-shaped front reads as one building (south leg, east leg), the roof a clean rectangle over the corner square, no seam or gap against the Trophies or the Kart Works.",
+    "The Kart Works yard clear of the depot and of Brew & Bolt: track, pit, store and fences do not touch either; no chute or kart bays left.",
+    "The Flats Charging 4 at the north-west corner of block 1,4, seen from behind: back walls, roof, x-ray on the pad; nothing painted through it.",
+    "Hands-on: drive into the south door (seamless), the seating L, the partition's door to Gideon's back room, Gideon's rounds, night.",
+    "Hands-on: Fourth Place and Open House still reach The Flats Charging 4 on the far-corner pad."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": false
   }
  ]
 }
