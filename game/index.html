@@ -87071,7 +87071,12 @@ CITY_PEOPLE.add({ name: 'street riders', where: 'the bike lanes', solid: false,
    the door: their places are worked out inside their draws (the pickup
    timeline, drawDropoffCustomer, boatCustomerPos) and not kept anywhere
    else yet. Listed; exposing them is the next step. */
-CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true, each: null });
+CITY_PEOPLE.add({ name: 'pickup worker', where: 'the pickup shop\'s door', solid: true,
+  each(scene, t, fn){
+    const w = scene._pickupWorkerAt;
+    if(!w || w.th === undefined || scene.time.now - w.t > 250) return;               // (drawn this frame or just now: drawPickupUnit sets it)
+    fn(cpEntry(this, { x: w.x, y: w.y, th: w.th, moving: !!w.moving, kind: 'worker', look: w._cpLook || (w._cpLook = custLook(w.seed)), ref: w }));
+  } });
 CITY_PEOPLE.add({ name: 'drop-off customer', where: 'the address door', solid: true, each: null });
 /* the baker and the florist out of their own shops' doors for a mission (CAKE_RUN, ANNIV) */
 CITY_PEOPLE.add({ name: 'shop door walkers', where: 'the bakery, the florist, Palmline Nursery, Dune Home & Garden, the Marina Office, Cove Locksmith, Tidewater & Co.', solid: true,
@@ -87443,8 +87448,46 @@ CITY_PEOPLE.add({ name: 'boardwalk strollers', where: 'Sunset Shore and Driftwoo
       fn(cpEntry(this, { x: q.x, y: q.y, th: q.th, moving: q.moving, kind: p.kind, look: p.look, ref: p }));
     }
   } });
-CITY_PEOPLE.add({ name: 'derby racers and number 4', where: 'Tidewater Green', solid: true, each: null });
-CITY_PEOPLE.add({ name: 'landmark cast outside', where: 'cafes, parks, the pier', solid: true, each: null });
+/* the derby's drivers: sat in their karts on the course, then out and walking over, or stood with their families (queueDerbyKarts;
+   number 4 and the judge are 'Number 4 Builds a Winner' and 'Fourth Place judge and engraver') */
+CITY_PEOPLE.add({ name: 'derby racers and number 4', where: 'Tidewater Green', solid: true,
+  each(scene, t, fn){
+    if(typeof derbyOn !== "function" || !derbyOn() || !DERBY_O) return;
+    if(Math.abs(DERBY_O.x0 - scene.botX) + Math.abs(DERBY_O.y0 - scene.botY) > 5200) return;
+    const x0 = DERBY_O.x0, y0 = DERBY_O.y0, now = performance.now();
+    for(const k of DERBY_RACE.karts){
+      const wk = DERBY_RACE.walk.find(w => w.no === k.no);
+      if(!(DERBY_RACE.st !== 'done' || !!(wk && now < wk.t0))) continue;            // (out of the kart: walking, below)
+      const q = derbyKartAt(k, now);
+      fn(cpEntry(this, { x: x0 + q.a, y: y0 - (-736 - q.n + 36), z: q.z*1.5 + 10, th: -Math.PI/2, kind: 'kid', look: k._cpLook || (k._cpLook = partyLook(k.seed, 'kid')), ref: k }));
+    }
+    for(const w of DERBY_RACE.walk){
+      if(w.gone) continue;
+      const q = derbyKidAt(w, now);
+      if(q === 'there' && w.off){ fn(cpEntry(this, { x: x0 + w.cast.a, y: y0 - w.cast.b, th: w.cast.th || 0, kind: 'kid', look: w._cpLook || (w._cpLook = partyLook(w.cast.seed, 'kid')), ref: w })); continue; }
+      if(!q || q === 'there') continue;
+      fn(cpEntry(this, { x: x0 + q.a, y: y0 + 736 + q.n, z: q.z*1.5, th: q.th, moving: true, kind: 'kid', look: w._cpLook || (w._cpLook = partyLook(w.seed, 'kid')), ref: w }));
+    }
+  } });
+/* the people baked into the park landmarks' pieces (a cafe's diners, a bench's sitters, the school's yard: it.cast, set in
+   queueFramePieces at lm.x0, lm.y0 mirrored), listed where they stand while he is near the landmark. Still: no `moving`. */
+CITY_PEOPLE.add({ name: 'landmark cast outside', where: 'cafes, parks, the pier', solid: true,
+  each(scene, t, fn){
+    const grid = scene.route && scene.route.grid, items = scene._lmItems;
+    if(!grid || !items) return;
+    const seen = new Set();
+    for(const lm of scene.parkLandmarkIndex(grid).values()){
+      if(seen.has(lm.name)) continue; seen.add(lm.name);
+      if(Math.abs(lm.x0 - scene.botX) + Math.abs(lm.y0 - scene.botY) > 4200) continue;
+      const its = items.get("pl|" + lm.name + "|" + parkLandmarkPhase(lm.name) + "|" + lm.x0 + "," + lm.y0);
+      if(!its) continue;
+      for(const it of its) for(const c of it.cast || []){
+        if(c.hide || c.lie || c.k === undefined && c.kind === 'couple') continue;
+        if(c.anim === 'crowd' && (DERBY_LEAVE.gone.has(c.k) || DERBY_DOWN.has(c.k))) continue;
+        fn(cpEntry(this, { x: lm.x0 + c.a, y: lm.y0 - c.b, th: c.th || 0, kind: c.kind || 'walker', look: c._cpLook || (c._cpLook = partyLook(c.seed, c.kind)), ref: c }));
+      }
+    }
+  } });
 
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
@@ -99758,6 +99801,7 @@ class WorldScene extends Phaser.Scene {
     // (cos,sin), hence the -PI/2 on the base term.
 
     const moving = walkT > 0.02 && walkT < 0.98;
+    Object.assign(this._pickupWorkerAt, { th: thW + Math.PI/2, moving, seed: this.pickupWorkerSeed });   // (CITY_PEOPLE 'pickup worker')
     const walkPhase = moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
     const liftT = this.pickupLiftT || 0, released = !!this.pickupReleased, loadFrac = this.pickupLoadFrac || 0;
 
