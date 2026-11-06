@@ -6770,6 +6770,7 @@ const SHOP_ICONS = {
   shirt:     { col: 0x6a8a3a, s: [["p",0xe2a24a,[-4,-10,-11,-6,-9,-1,-6,-3,-6,10,6,10,6,-3,9,-1,11,-6,4,-10,0,-7]]] },
   plane:     { col: 0x4a6a9a, s: [["p",0xc9d0d8,[-11,0,-6,-1,0,-11,3,-11,1,-1,9,-1,11,-5,12,-5,11,0,12,5,11,5,9,1,1,1,3,11,0,11,-6,1]],["r",0xd8453a,-6,-1,3,2]] },
   plant:     { col: 0x2f7f5a, s: [["p",0xc8693e,[-6,3,6,3,4,11,-4,11]],["p",0x7fd36a,[0,3,-9,-6,-2,-2]],["p",0x7fd36a,[0,3,9,-7,2,-2]],["p",0x7fd36a,[0,3,-1,-12,2,-12]]] },
+  robot:     { col: 0x3a4048, s: [["r",0x8d979f,-0.8,-12,1.6,5],["c",0xe5483b,0,-12.5,1.8],["r",0xe79a35,-11,-3,3,6],["r",0xe79a35,8,-3,3,6],["r",0xeef0f2,-8,-7,16,14],["r",0x2a2f36,-6,-4.5,12,8],["c",0xffcf5a,-3,-0.5,1.7],["c",0xffcf5a,3,-0.5,1.7],["r",0xffcf5a,-3,3,6,1]] },
   bolt:      { col: 0x1f8aa0, s: [["p",0xffd34a,[2,-12,-8,2,-1,2,-3,12,8,-3,1,-3]]] },
   bag:       { col: 0x3a6fb0, s: [["r",0xc8a06a,-8,-4,16,14],["p",0x8a5a32,[-5,-4,-5,-9,5,-9,5,-4,3,-4,3,-7,-3,-7,-3,-4]]] },
   /* the hospital's collectibles (COLLECT): the things themselves */
@@ -17917,7 +17918,7 @@ function cakeCarrying(){ return CAKE_RUN.stage === 'carry' || CAKE_RUN.stage ===
    offers no orders (tpPickupOffers): its only bay is the cake's. After it,
    its rug is out like any shop's. */
 /* (and while Gus's cake is waiting there, ANNIV: its bay is the same rug) */
-function shopTakesOrders(name){ return name !== CAKE_SHOP || (cakePassOwned() && !(typeof ANNIV !== "undefined" && ANNIV.stage === 'cake')); }
+function shopTakesOrders(name){ if(name === 'Brew & Bolt') return msDone(); return name !== CAKE_SHOP || (cakePassOwned() && !(typeof ANNIV !== "undefined" && ANNIV.stage === 'cake')); }
 /* THE BAKER (Sir, 2026-10-18: "is this mission baker the same as a general
    delivery worker from that shop? If not it should be"): one man, in his
    whites, whether he brings out the cake, Gus's cake or an order
@@ -17958,6 +17959,7 @@ function shopDoorWalkers(now){
   if(typeof SS !== "undefined") for(const w of ssDoorWalkers(now)) out.push(w);   // (the Marina Office's, Cove Locksmith's, Tidewater & Co.'s: SUNSET SALUTE)
   if(typeof RL !== "undefined") for(const w of rlDoorWalkers(now)) out.push(w);   // (Low Tide Music's clerk: REQUEST LINE)
   if(typeof OH !== "undefined") for(const w of ohDoorWalkers(now)) out.push(w);   // (Captain Brennan, out of The Flats Fire Station: OPEN HOUSE)
+  if(typeof MS !== "undefined") for(const w of msDoorWalkers(now)) out.push(w);   // (Gideon, out of Brew & Bolt's door: MINDING THE SHOP)
   return out;
 }
 /* the bakery's shop and the cake's bay: ON the shop's own pickup rug
@@ -27876,6 +27878,7 @@ const GIDEON_UNIFORM = { shirt: { c:0x6b4a32, dk:0x4f3624 }, pants: { c:0x2a2e34
 walkinStaff(BB_IN.name, [
   { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, pace: 0.85,
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
+    away: () => typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- in the shop's copper apron, his chest band the same copper) */
     lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
@@ -83518,6 +83521,112 @@ function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
 }
 const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}, streetLook(0x0d06e, { adult: true, aid: 'none', type: 'woman', sex: 'f' }),
   { shirt: SHELTER_UNIFORM.shirt, pants: SHELTER_UNIFORM.pants, shoe: SHELTER_UNIFORM.shoe, uniform: SHELTER_UNIFORM, dress: null })); })();
+/* ==================== MINDING THE SHOP (Sir, 2026-11-06: Brew & Bolt's mission) ====================
+   Gideon, the robot who owns Brew & Bolt, needs to get up to the roof and see to his antenna, and asks Tipsey to watch the
+   shop. The mission's mat is the shop's own pickup mat (the shop takes no ordinary orders till it is done: shopTakesOrders),
+   with the robot's head for its icon. PHASE 1: stop on it and Gideon comes out of his door to Tipsey and asks; say yes and
+   the PLAYER is Gideon (the fleet's humanoid, lent: FLEET_LOAN), Tipsey parked still on the bay; the same bay hands the shop
+   back for now. Later phases: Tipsey serving inside, the ladder and hatch in the back room, the antenna, the errand to
+   Breakwater Hardware for the parts, the repair. Gideon is away from his room (walkinStaff 'gideon': away) while any of it runs. */
+const MS = { stage: 'idle', gid: null, park: null, home: null, snooze: null };
+function msDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('minding-the-shop')); }
+function msBusy(){ return MS.stage !== 'idle'; }
+function msBay(scene){ return MS._bay || (MS._bay = adShopBay(scene, 'Brew & Bolt')); }
+function msGidLook(){ const st = WALKIN_STAFF.find(q => q.id === 'gideon' && q.room === BB_IN.name); return st ? walkinStaffLook(st) : null; }
+function msGidAt(now){
+  const M = MS.gid; if(!M) return null;
+  const p = hospWalkAt(M, now);
+  if(!p){ MS.gid = null; return null; }
+  return p;
+}
+function msGidAtDoor(p){ const B = MS._bay; return !!p && !!B && !!B.door && Math.hypot(p.x - B.door.x, p.y - B.door.y) < 220; }
+function msDoorWalkers(now){ const p = msGidAt(now); return p && msGidAtDoor(p) ? [{ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' }] : []; }
+/* the bay the story shows now (R7) */
+function msBayNow(scene){
+  const ow = scene.ow;
+  if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
+  const ic = (B, icon) => B && Object.assign({}, B, { icon });
+  if(MS.stage === 'idle') return msDone() || fleetCur() || storiesHidden('minding-the-shop') || missionBusy('minding-the-shop') ? null : ic(msBay(scene), 'robot');
+  if(MS.stage === 'shift') return ic(MS.home, 'flag');
+  return null;
+}
+function msAccept(){
+  const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const now = scene.time.now, ow = scene.ow, G = msGidAt(now) || { x: ow.px - 80, y: ow.py + 50, th: Math.PI };
+  MS.park = { x: ow.px, y: ow.py, a: ow.yaw };
+  MS.gid = null; FLEET_LOAN = 'humanoid';
+  const items = scene.items, cx = scene.camX, cy = scene.camY;
+  owStandUpAt(scene, G.x, G.y, G.th);
+  scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
+  const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
+  MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
+  MS.stage = 'shift';
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("You're Gideon now: Tipsey's minding the shop. (For now, the bay beside Tipsey gives it back.)");
+}
+function msDecline(){
+  const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  if(MS.gid){ MS.gid.leave = scene.time.now; MS.gid.inAfter = true; }
+  MS.stage = 'idle'; MS.snooze = msBay(scene);
+}
+/* the loan ends: Tipsey himself again where he parked */
+function msHandBack(scene){
+  const P = MS.park, ow = scene.ow;
+  FLEET_LOAN = null;
+  if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
+  MS.park = null; MS.home = null; MS.gid = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
+}
+function msTick(scene, ow){
+  const now = scene.time.now, R = MS;
+  msGidAt(now);
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
+  if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
+  switch(R.stage){
+    case 'idle': {
+      const B = msBay(scene);
+      if(msDone() || fleetCur() || missionBusy('minding-the-shop') || storiesHidden('minding-the-shop') || !armed(B)) return;
+      if(!missionWindowOpen('minding-the-shop')){ missionWindowSay('minding-the-shop', scene); R.snooze = B; return; }
+      R.stage = 'ask'; ow.vel = 0; cineBars(true);
+      /* out of the shop's own door to him (the door opens for him: shopDoorWalkers) */
+      R.gid = Object.assign(shopDoorMeet(ow, B.shopDoor, B.door, now, scene), { th0: B.door.th || 0 });
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return; }
+    case 'ask':
+      if(R.gid && R.gid.leave == null) meet(R.gid, () => hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Go on, I'll mind the shop", ok: msAccept, no: { btn: "Not now", ok: msDecline }, at: msGidAt,
+        say: "Tipsey! Perfect timing. My antenna's bent over again and the order screen's gone dark, so I have to get up on the roof and look at it. Could you watch the shop while I'm up there? I won't be long. I'll take the walking frame." }));
+      return;
+    case 'shift':
+      if(armed(R.home)) msHandBack(scene);
+      return;
+  }
+}
+/* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
+function msQueue(scene, t, queuePerson, keyQueue, layerFor){
+  const now = scene.time.now, R = MS;
+  const p = R.gid ? msGidAt(now) : null, L = p && msGidLook();
+  if(p && L && !msGidAtDoor(p) && scene.visProp("people", p.x, p.y)){
+    const x = p.x, y = p.y, th = p.th, mv = !!p.moving;
+    queuePerson(x, y, (g, tt) => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
+  }
+  const Pk = R.park;
+  if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
+    const sk = (typeof tpProfile !== "undefined" && tpProfile && tpProfile.equipped) || "";
+    queuePerson(Pk.x, Pk.y, (g) => scene.bcDraw(g, "tpark|ms|" + Math.round(Pk.x) + "," + Math.round(Pk.y) + "|" + Pk.a.toFixed(2) + "|" + sk, Pk.x, Pk.y, gg => scene.drawTipseyParked(gg, Pk.x, Pk.y, Pk.a)));
+  }
+}
+MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
+  steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
+  reward: {},
+  busy: () => msBusy(),
+  item: () => null,
+  next: () => ({ ask: 'Hear Gideon out', shift: 'Phase 1: the bay beside Tipsey hands the shop back' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
+  start: () => { const sc = scn(), B = sc && msBay(sc); return B ? { x: B.x, y: B.y, name: 'Brew & Bolt' } : null; } };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
    Sierra Vista notch, SV_X, eases back over SV_EASE): until now foothill ground nobody could drive onto (owNorthEdgeBlocks).
@@ -97504,6 +97613,7 @@ class WorldScene extends Phaser.Scene {
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
+    msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
@@ -98321,6 +98431,14 @@ class WorldScene extends Phaser.Scene {
        foot of Paw Point's path, the bay by its pavilion, and home beside Tipsey -- the stories' bay, cached, its ring and
        beacon live (R7) */
     { const B = adBayNow(this);
+      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
+        const hl = matHighlightState(this, B.mat, this.mode);
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+      }
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    }
+    /* MINDING THE SHOP's bay (msBayNow): Brew & Bolt's mat with the robot head, and Tipsey's own bay while the humanoid has the shop */
+    { const B = msBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
@@ -120824,7 +120942,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
