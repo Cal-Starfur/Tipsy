@@ -670,6 +670,15 @@
 "status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20141,14064&view=2"
+},
+{
+"id": "kart-yard",
+"title": "Kart Works yard: the block's bare brown-checker centre becomes the club's practice loop with cones, tyre barriers, start gantry, pit canopy and benches",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4204,13628&view=2"
 }
 ],
 "meta": {
