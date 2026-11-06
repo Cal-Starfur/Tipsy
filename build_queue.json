@@ -873,8 +873,9 @@
 "deps": [
 "bb-roof"
 ],
-"status": "pending",
-"group": "Brew & Bolt: Minding the Shop"
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2"
 },
 {
 "id": "bb-scoot2",

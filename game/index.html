@@ -51053,13 +51053,24 @@ function houseCanopy(fn){
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
-        /* the hatch, seen from above: a steel frame round a plank panel with a ring, hinged on the north wall */
+        /* the hatch, seen from above: a steel frame round the opening, hinged on the north wall (its panel: the two items below) */
         const hz = H - 3;
         T(L0 - 20, L1 + 20, 0, 64, hz, '#4a3a2c');
-        T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
-        for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
-        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS);
-        cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550'); } }); }
+        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS); } });
+      /* its panel, shut or open (MINDING THE SHOP: MS.hatchOpen, the climb): a plank panel with a pull ring over the opening, or thrown
+         back against the wall with the sky showing through */
+      for(const open of [false, true])
+        items.push({ a: (L0 + L1)/2, b: 32, z: H - 3, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, draw: () => {
+          const hz = H - 3;
+          if(!open){
+            T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
+            for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
+            cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550');
+          } else {
+            T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#9ec8e0');                                                                   // the sky through it
+            poly([P(L0 - 15, 6, hz + 2), P(L1 + 15, 6, hz + 2), P(L1 + 15, 10, hz + 40), P(L0 - 15, 10, hz + 40)], '#7a5a3c', '#4a3a2c', 1);   // the panel, up on its hinge
+            poly([P(L0 - 15, 6, hz + 2), P(L0 - 15, 10, hz + 40), P(L0 - 10, 10, hz + 40), P(L0 - 10, 6, hz + 2)], '#5a4026');
+          } } }); }
     /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
     items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
       T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
@@ -51184,12 +51195,21 @@ function houseCanopy(fn){
     } });
     /* ---- THE HATCH, a 130..200 x 0..70: its curb, the dark opening, the lid thrown back against the north parapet, the rails coming up ---- */
     rpush({ a: 165, b: 36, z: 0, solids: [solid(126, 204, PT, 72, 22, 'roof hatch')], draw: () => {
-      box(126, 204, PT, 72, 0, 18, '#6b5a48', '#5a4a3a', '#3d3328');
-      T(136, 194, PT + 8, 64, 18.3, '#14110e');
-      for(const x of [150, 180]) box(x - 2.2, x + 2.2, PT + 12, PT + 18, 0, 52, steel, steel, steelD);
-      for(let z = 24; z < 50; z += 12) tube(150, PT + 15, z, 180, PT + 15, z, 1.4, steelD);
-      poly([P(134, PT + 4, 18), P(196, PT + 4, 18), P(196, PT + 2, 62), P(134, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);
-      poly([P(134, PT + 4, 18), P(134, PT + 2, 62), P(134, PT + 8, 62), P(134, PT + 8, 18)], '#5a4026'); } });
+      box(126, 204, PT, 72, 0, 18, '#6b5a48', '#5a4a3a', '#3d3328'); } });
+    /* (the lid: shut over the opening, or thrown back with the ladder's rails coming up -- MS.hatchOpen, from the start of the climb) */
+    for(const open of [false, true])
+      rpush({ a: 165, b: 40, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {
+        if(!open){
+          T(132, 198, PT + 4, 68, 18.4, '#7a5a3c');
+          for(let a = 140; a < 198; a += 12) T(a, a + 1, PT + 4, 68, 18.8, '#5a4026');
+          cyl(165, 56, 18.6, 21, 3.2, copper, '#e8a550');
+          return;
+        }
+        T(136, 194, PT + 8, 64, 18.3, '#14110e');
+        for(const x of [150, 180]) box(x - 2.2, x + 2.2, PT + 12, PT + 18, 0, 52, steel, steel, steelD);
+        for(let z = 24; z < 50; z += 12) tube(150, PT + 15, z, 180, PT + 15, z, 1.4, steelD);
+        poly([P(134, PT + 4, 18), P(196, PT + 4, 18), P(196, PT + 2, 62), P(134, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);
+        poly([P(134, PT + 4, 18), P(134, PT + 2, 62), P(134, PT + 8, 62), P(134, PT + 8, 18)], '#5a4026'); } });
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
     { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
@@ -51217,6 +51237,10 @@ function houseCanopy(fn){
       tube(A(4), B(4), 16, A(4), B(4), 140, 1.2, '#2a2f36');                                   // the cable, up the mast
       cyl(A(4), B(4), 136, 142, 3, copper, '#e8a550'); } });
     }
+    /* ---- THE SHELL'S OWN ROOF UNITS (baked into its roof art: a long slab on the south side, a box by the east cup sign) solid, found by
+       measuring them off the picture ---- */
+    rpush({ a: 300, b: 660, z: 0, solids: [solid(190, 412, 620, 700, 40, 'roof unit')], draw: () => {} });
+    rpush({ a: 653, b: 156, z: 0, solids: [solid(622, 684, 100, 213, 50, 'roof unit')], draw: () => {} });
     /* ---- A VENT STACK with its cap, and an air-conditioning unit ---- */
     rpush({ a: 300, b: 560, z: 0, solids: [{ name: 'vent stack', c: [300, 560], r: 14, h: 90 }], draw: () => {
       cyl(300, 560, 0, 70, 8, steel, '#aab3ba'); cyl(300, 560, 70, 76, 12, steelD, '#838a90'); } });
@@ -85917,7 +85941,7 @@ function msFinish(){
 function msAbort(scene){
   msNavClear(scene);
   MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
-  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -85930,18 +85954,35 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
+/* A WALKED CLIMB: he turns to the wall and walks up to the ladder (or the hatch's curb) at a climbing pace, the hatch opening as he starts,
+   then the room is left by the old dissolve; coming down he is set at the ladder's foot and walks out from it. The walk is msTick's (MS.cl) */
+function msWalkTo(scene, to, yaw, ms, done){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done }; }
+function msWalkTick(scene, ow, now){
+  const C = MS.cl, k = Math.min(1, (now - C.t0)/C.ms), e = k*k*(3 - 2*k);
+  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e; ow.yaw = C.yaw; ow.vel = k < 1 ? 0.07 : 0;
+  scene.botX = ow.px; scene.botY = ow.py;
+  if(k >= 1){ MS.cl = null; C.done(); }
+}
 function msClimb(scene, dir){
   if(MS.climbing) return;
   MS.climbing = true; const ow = scene.ow; ow.vel = 0;
-  const up = dir === 'up', dx = up ? BBR.x0 - BB_IN.x0 : BB_IN.x0 - BBR.x0, dy = up ? 60 : -60;
-  if(up) MS.hatchOpen = true;
+  const up = dir === 'up', dx = up ? BBR.x0 - BB_IN.x0 : BB_IN.x0 - BBR.x0;
   if(typeof sfxThump === "function") sfxThump(0.2);
-  sceneDissolve(scene, 700, () => { pocketShift(scene, dx, dy); ow.yaw = up ? Math.PI/2 : -Math.PI/2; MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
-    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); });
+  const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
+    if(!up) MS.hatchOpen = false;
+    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); };
+  if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
+  /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
+  const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
+  msWalkTo(scene, { x: ow.px, y: y0 + (up ? 26 : 84) }, -Math.PI/2, up ? 1500 : 900, () => {
+    sceneDissolve(scene, 700, () => { pocketShift(scene, dx, y1 + (up ? 138 : 26) - ow.py);
+      if(up){ ow.yaw = Math.PI/2; settle(); }
+      else msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); });   // (down: out from the ladder's foot)
+  });
 }
 function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
@@ -85954,7 +85995,8 @@ function msTick(scene, ow){
   msGidAt(now);
   if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
-  if(R.stage !== 'idle' && R.stage !== 'ask' && FLEET_LOAN !== 'humanoid'){ msAbort(scene); return; }   // (the loan went some other way: nothing half-done)
+  if(R.stage !== 'idle' && R.stage !== 'ask' && FLEET_LOAN !== 'humanoid'){ msAbort(scene); return; }
+  if(R.cl){ msWalkTick(scene, ow, now); return; }   // (the loan went some other way: nothing half-done)
   const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
   const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
   switch(R.stage){
@@ -92918,7 +92960,7 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0)
+    const zh = XRAY.zhead + (this.ow && (this.ow.deck || (this._inside && this._inside.name === 'Brew & Bolt Roof')) ? owLiftZ(this.ow) : 0)   // (and on Brew & Bolt's roof: his head is up at the roof's height, not under it)
              + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
@@ -101529,7 +101571,8 @@ class WorldScene extends Phaser.Scene {
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
                           + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
-                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0), isRobot: true,   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
+                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)
+                          + (this._inside && this._inside.name === 'Brew & Bolt Roof' ? 4000 : 0), isRobot: true,   // (on Brew & Bolt's roof: after the shell's roof under him, as the roof's own pieces are, a + b + 4000)   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
