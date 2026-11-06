@@ -89247,24 +89247,17 @@ CITY_PEOPLE.add({ name: 'having words', where: 'beside him', solid: true,
     }
   } });
 
-/* the food trucks' customers, walking up the pavement to a hatch, queueing and ordering (VEND_CUST: shopperAt's walkers) */
-CITY_PEOPLE.add({ name: 'food truck customers', where: 'the pavements by the posted-up food trucks', solid: false,
-  each(scene, t, fn){
-    for(const sp of scene._vendCust || []){
-      if(sp.knock) continue;                                                       // (down: the knocked-down group has them)
-      const m = shopperAt(sp, t);
-      if(!m) continue;
-      fn(cpEntry(this, { x: m.x, y: m.y, th: m.th, moving: !!m.moving, hidden: !!m.hidden, kind: 'shopper',
-                         look: sp._cpLook || (sp._cpLook = streetLook(sp.seed ^ 0x7ac0)), ref: sp, hold: dt => { sp.t0 += dt; } }));
-    }
-  } });
 /* the Sierra Vista gate's guard: at his booth's door, or out on the pavement after someone (SV_GATE) */
 CITY_PEOPLE.add({ name: 'Sierra Vista gate guard', where: 'the Sierra Vista gate', solid: true,
+  /* (knockable out on the pavement, not in his booth; down, he stays where he fell -- sierraGateStep holds him -- and is back at his
+     post when he is up: the knocked-down group has him meanwhile) */
+  knock: { kind: 'guard', test(p, scene, t, C){ return SV_GATE.g.mode !== 'booth' && C.reach.hit(p.x, p.y); },
+    make(p){ const L = cpLook(p); return { look: cpLookPlain(L), uni: L.uniform, mood: Math.random() < 0.5 ? 'polite' : 'mad' }; } },
   each(scene, t, fn){
     const G = SV_GATE, gd = G.g;
-    if(!G.home) return;
+    if(!G.home || gd.knock) return;
     const bth = gd.mode === 'booth';
-    fn(cpEntry(this, { x: bth ? G.home.x : gd.x, y: bth ? G.home.y : gd.y, th: bth ? 0 : gd.th, moving: !bth && !!gd.moving, kind: 'guard',
+    fn(cpEntry(this, { x: bth ? G.home.x : gd.x, y: bth ? G.home.y : gd.y, th: bth ? 0 : gd.th + Math.PI/2, moving: !bth && !!gd.moving, kind: 'guard',
                        look: G._cpLook || (G._cpLook = (() => { const b = rosterBody(0x5e7a); return { build: b.build, skin: b.skin, hair: b.hair, shirt: SECURITY_UNIFORM.shirt, pants: SECURITY_UNIFORM.pants, shoe: SECURITY_UNIFORM.shoe, uniform: withAid(SECURITY_UNIFORM, b) }; })()), ref: G }));
   } });
 /* Marina General's ground floor seen from the street, through its glass and doors: the halls' walkers and the patients
@@ -93324,7 +93317,7 @@ class WorldScene extends Phaser.Scene {
     const gd = SV_GATE.g;
     /* IN HIS BOOTH HE STANDS AT ITS DOOR (the census, 2026-10-30: he was drawn only while out, so he appeared beside the
        booth and vanished there -- a post, as Gus's at the mall's doors): out and back from that spot */
-    { const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
+    if(!gd.knock){ const bth = gd.mode === 'booth', px = bth ? gx : gd.x, py = bth ? yw + 100 : gd.y, pth = bth ? 0 : gd.th, mv = !bth && gd.moving;
       const gz = Math.hypot(px - gx, py - yw) < RD.ri ? ISL : 0;
       bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
@@ -128906,6 +128899,7 @@ function sierraGateStep(scene, dt){
     if(gd.mode === 'back') gd.mode = 'out';
     gd.side = side;
   } else if(gd.mode === 'out' && (gd.idleT += dt) > 1500) gd.mode = 'back';
+  if(gd.knock){ gd.moving = false; return; }                                       // (knocked down: where he fell, updateKnocks)
   if(gd.mode === 'booth'){ gd.posted = false; gd.moving = false; return; }
   /* his spot: on the gate line, a step inside it, between the robot and
      the gap -- anywhere along his side from the island to the pier */
