@@ -11168,8 +11168,12 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   const sd = plan.walk || ((fx - P.x)*plan.n.x + (fy - P.y)*plan.n.y) >= 0 ? 1 : -1;   // a found walk starts on the pavement
   const n = { x: plan.n.x*sd, y: plan.n.y*sd };
   const out = CARC.wid/2 + C.doorOut;
-  const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 },     // the cab door
+  /* (Sir, 2026-11-06: "no one gets out from the driver side"): the driver's door is on the far side of the van from the
+     side door, and the driver walks round the nose to his side of him (and back round it) */
+  const doors = [{ x: P.x - n.x*out + T.x*30, y: P.y - n.y*out + T.y*30 },     // the cab door, the driver's
                  { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
+  const nose = (k) => ({ x: P.x + T.x*(CARC.len/2 + 40) + n.x*out*k, y: P.y + T.y*(CARC.len/2 + 40) + n.y*out*k });
+  const roundNose = (path) => [path[0], nose(-1), nose(1), ...path.slice(1)];
   /* A TOW LOADS AT THE BACK: the two of them carry him to the rear doors,
      one either side of the load point, and he goes in between them */
   const back = CARC.len/2 + 40, rear = { x: P.x - T.x*back, y: P.y - T.y*back };
@@ -11197,7 +11201,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   /* a walk found round what is in the way (OFF THE GRID): the shared way,
      past the van's side and short of him; each goes on to their own spot */
   const mid = !via && plan.walk ? plan.walk.slice(1, -1) : null;
-  const pathOut = [0, 1].map(i => { const l = lane(i); return l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; });
+  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return i ? q : roundNose(q); });
   const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
   /* the cap is for open ground; the walk round through an alley, or a
      found one, is paced to its real length -- jogged when it is long */
@@ -11214,7 +11218,8 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
       ? loads : [loads[1], loads[0]];
   }
   const wayBack = mid ? mid.slice().reverse() : null;
-  const pathBack = [0, 1].map(i => { const l = lane(i); return l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]]; });
+  const pathBack = [0, 1].map(i => { const l = lane(i); const q = l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]];
+    return i || loads ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
   /* a tow carried out through the alley (or along a found walk): him down
      its middle, one of them ahead and one behind -- three abreast does not
      fit an alley, nor a dock */
