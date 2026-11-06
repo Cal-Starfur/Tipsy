@@ -29983,7 +29983,7 @@ let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fil
 const DERBY_DOWN = new Set();
 function derbyW(a, n){ return { x: DERBY_O.x0 + a, y: DERBY_O.y0 + 736 + n }; }
 function derbyLifeTick(scene, ow){
-  const L = DERBY_LIFE, t = performance.now();
+  const L = DERBY_LIFE, t = scene.time.now;
   const dt = L.lastT ? Math.min(100, t - L.lastT) : 0; L.lastT = t;
   if(!DERBY_O) return;
   const near = Math.abs(ow.px - (DERBY_O.x0 + 1564)) < 3200 && Math.abs(ow.py - (DERBY_O.y0 + 736 + 2400)) < 4600;
