@@ -2219,6 +2219,13 @@ function williamLook(seed){
              turn running for it tips him no sooner than one at his everyday top speed (owStep) */
 const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.13, boost: 0.3, boostMs: 400, jogD: 240, fleeV: 0.09, near: 52,
                        kickR: 96, lungeV: 0.2, reach: 82, coolMs: 7000, tauntMs: [4500, 8000], r: 14 };
+/* THE KNOCKED-DOWN COME AFTER HIM (Sir, 2026-11-06: "if tipsy knocks someone over i no longer want tipsy to be stopped from
+   so far away i want it to be like the William action -- the person has to track tipsy down and get close to him to stop
+   him"): up off the ground, a knocked-down walker or rider no longer walks a straight line to where he was while he is held
+   still. They go after him as William does (WILLIAM_HUNT's paces), Tipsey free to drive off; only once they are within
+   `near` do they step up (meetWalk's spot) and hold him for their word or kick. Out past `lose`, or after `maxMs`, they let go
+   and walk back to where they stood. */
+const CONF_HUNT = { near: 130, lose: 1000, maxMs: 30000, walkV: 0.075, jogV: 0.12, jogD: 260, fleeV: 0.09 };
 const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
@@ -4277,8 +4284,14 @@ const POLICE_CALL = {
   hardV: 0.09,            // ~40% of his top speed: a hard hit, not a nudge
   coolMs: 20000,
   officers: ["Officer Reyes", "Officer Chen", "Officer Okafor", "Officer Bell"],
-  why: { car: "Reckless driving: collision with a vehicle", rider: "Reckless driving: struck a scooter rider" },
+  why: { car: "Reckless driving: collision with a vehicle", rider: "Reckless driving: struck a scooter rider", pile: "Reckless driving: ran down five pedestrians" },
+  /* FIVE DOWN OUT IN THE STREET (Sir, 2026-11-06: "if we run over 5 people the cops come and stop us and then the
+     crew has to come pick us up"): five of the crowd knocked down within windowMs outdoors (knockDown counts; the
+     mall's and the hospital's own security count indoors) and the cruiser comes as at a crash; after the officer's
+     word he is held where he stands, and once the cruiser has gone the crew's van tows him to a charger (owSendCrew's tow) */
+  pile: { need: 5, windowMs: 150000, n: 0, t: 0 },
   say: {
+    pile: "That's five people you've put on the ground. Driverless or not, you're done driving for today. I'm writing you a ticket and calling your crew to come and collect you.",
     car: "Everyone okay? Good. That was a hard hit. Driverless or not, this vehicle is your responsibility. I'm writing you a ticket for reckless driving.",
     rider: "You knocked that rider clean off their scooter. They're shaken up but okay. You need to watch the road. I'm writing you a ticket for reckless driving."
   }
@@ -8906,7 +8919,7 @@ const RESCUE_VAN = {
   /* (walkSpeed: units a second, at the street's pace -- Sir, 2026-10-30: "lets fix them to be normal speed"; it was
      300, and a jog of 1200 past jogFrom, eight and more times the street's, the legs far behind; walkMaxMs no longer
      cuts a long walk short by hurrying it) */
-  crew: { exitMs: 250, walkSpeed: PEOPLE_WALK_V*1000, walkMinMs: 600, walkMaxMs: Infinity,
+  crew: { exitMs: 250, walkSpeed: PEOPLE_WALK_V*2000, walkMinMs: 600, walkMaxMs: Infinity,
           /* THE LIFT IN BEATS (Sir, 2026-10-24: "improve the animation for when the team shows up to tip
              tipsy back up"): grabMs the grab -- a step in, hands down to his hull -- then the heave
              (rescueHeave) over the rest of liftMs: slow off the ground, up and a touch past upright,
@@ -8927,7 +8940,7 @@ const RESCUE_VAN = {
      pace (v, units a ms: the fleet's 0.26-0.32), queues behind them and gives way as they do (updateRescueVanTraffic),
      and slows to its slot over the last `brake` of the street */
   get lane(){ return TRAF_LANE; },
-  v: 0.29, brake: 520, slotR: 800,
+  v: 0.5, brake: 520, slotR: 800,
   get kerbOff(){ return ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4; },   // a kerb car's own stand-off (KERB_CAR_OUT)
   /* THE PULL TO THE KERB is over this much street, not a share of the
      drive's time: a time share swept the last ~200 of the approach
@@ -9057,7 +9070,7 @@ function rescueFishRod(f, sp, u){
        reach, the way is found over the ground, and the van parks where
        that walk is shortest. A long one they jog.
    The beaches are not this: the sand is the dune buggy's (a later stage). */
-const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: PEOPLE_WALK_V*1000, sample: 260 };   // (no jog: the street's pace all the way, as the crew's walk)
+const RESCUE_WALK = { cell: 90, reach: 8000, r: 22, jogFrom: 600, jogSpeed: PEOPLE_WALK_V*2000, sample: 260 };   // (no jog: the street's pace all the way, as the crew's walk)
 /* the roads off the lattice, as square-cornered edges joined to it at a node */
 function rescueOffGridEdges(grid){
   const out = [];
@@ -9471,8 +9484,12 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   const sd = plan.walk || ((fx - P.x)*plan.n.x + (fy - P.y)*plan.n.y) >= 0 ? 1 : -1;   // a found walk starts on the pavement
   const n = { x: plan.n.x*sd, y: plan.n.y*sd };
   const out = CARC.wid/2 + C.doorOut;
-  const doors = [{ x: P.x + n.x*out + T.x*30, y: P.y + n.y*out + T.y*30 },     // the cab door
+  /* (Sir, 2026-11-06: "no one gets out from the driver side"): the driver's door is on the far side of the van from the
+     side door, and the driver walks round the nose to his side of him (and back round it) */
+  const doors = [{ x: P.x - n.x*out + T.x*30, y: P.y - n.y*out + T.y*30 },     // the cab door, the driver's
                  { x: P.x + n.x*out - T.x*70, y: P.y + n.y*out - T.y*70 }];    // the side door
+  const nose = (k) => ({ x: P.x + T.x*(CARC.len/2 + 40) + n.x*out*k, y: P.y + T.y*(CARC.len/2 + 40) + n.y*out*k });
+  const roundNose = (path) => [path[0], nose(-1), nose(1), ...path.slice(1)];
   /* A TOW LOADS AT THE BACK: the two of them carry him to the rear doors,
      one either side of the load point, and he goes in between them */
   const back = CARC.len/2 + 40, rear = { x: P.x - T.x*back, y: P.y - T.y*back };
@@ -9500,7 +9517,7 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
   /* a walk found round what is in the way (OFF THE GRID): the shared way,
      past the van's side and short of him; each goes on to their own spot */
   const mid = !via && plan.walk ? plan.walk.slice(1, -1) : null;
-  const pathOut = [0, 1].map(i => { const l = lane(i); return l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; });
+  const pathOut = [0, 1].map(i => { const l = lane(i); const q = l ? [doors[i], l[0], l[1], spots[i]] : mid ? [doors[i], ...mid, spots[i]] : [doors[i], spots[i]]; return i ? q : roundNose(q); });
   const far = Math.max(polyLen(pathOut[0]), polyLen(pathOut[1]));
   /* the cap is for open ground; the walk round through an alley, or a
      found one, is paced to its real length -- jogged when it is long */
@@ -9517,7 +9534,8 @@ function rescueCrewPlan(plan, fx, fy, yaw, tow, via = null, wet = null){
       ? loads : [loads[1], loads[0]];
   }
   const wayBack = mid ? mid.slice().reverse() : null;
-  const pathBack = [0, 1].map(i => { const l = lane(i); return l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]]; });
+  const pathBack = [0, 1].map(i => { const l = lane(i); const q = l ? [spots[i], l[1], l[0], ends[i]] : wayBack ? [spots[i], ...wayBack, ends[i]] : [spots[i], ends[i]];
+    return i || loads ? q : [...q.slice(0, -1), nose(1), nose(-1), q[q.length - 1]]; });   // (a tow: the rear doors, not his door)
   /* a tow carried out through the alley (or along a found walk): him down
      its middle, one of them ahead and one behind -- three abreast does not
      fit an alley, nor a dock */
@@ -9716,7 +9734,13 @@ function rescueCrewAt(v, t){
   return c.spots.map((sp, i) => {
     const dr = c.doors[i];
     let x, y, th, moving = false, lift = 0;
-    let rod = null, reach = null;                            // reach: both hands to [ahead, height] (drawPersonHull's pose.reach)
+    let rod = null, reach = null, pitch = 0, drop = 0;       // reach: both hands to [ahead, height] (drawPersonHull's pose.reach); pitch, drop: bent over to him (below)
+    /* BENT OVER TO HIM (Sir, 2026-11-06: "neither of the crew bends over to lift tipsy they just stick there arms out"):
+       the whole figure leans forward by p about the feet (pose.pitch) with the knees given (pose.drop), and the feet
+       stand back by how far that carries the shoulder, so the hands land where they did; the hands' target is the
+       hull's edge (db ahead of the feet, dh up), turned back through the lean so that is where they end up */
+    const bend = (p, db, dh) => { const s = 120*Math.sin(p), cp = Math.cos(p), sp = Math.sin(p);
+      pitch = p; drop = 22*Math.sin(p)/0.45; reach = [(db + s)*cp - dh*sp, (db + s)*sp + dh*cp]; return s; };
     if(u < c.at){                                            // out to him (through the gate, in a courtyard)
       const k = (u - c.exit) / (c.at - c.exit);
       const a = c.pathOut ? polyAt(c.pathOut[i], k) : null;
@@ -9758,13 +9782,16 @@ function rescueCrewAt(v, t){
       const inx = Math.cos(th), iny = Math.sin(th);
       if(u < a){                                             // the grab: a step in to him, hands down to the edge of his hull
         const k = ez(Math.min(1, (u - c.lift0)/C.grabMs));
-        x = sp.x + inx*8*k; y = sp.y + iny*8*k; lift = 0.38*k; reach = [22 + 6*k, 70 - 28*k];
+        const bk = bend(0.5*k, 22 + 6*k, 70 - 38*k);
+        x = sp.x + inx*(8*k - bk); y = sp.y + iny*(8*k - bk); lift = 0.38*k;
       } else if(u < c.lift1){                                // the heave: hands on his top edge, rising with it as he comes up
         const r = Math.min(1, rescueHeave(Math.min(1, (u - a)/(c.lift1 - a))));
-        x = sp.x + inx*8; y = sp.y + iny*8; lift = 0.38 + 0.47*r; reach = [28 + 6*r, 42 + 24*r];
+        const bk = bend(0.5 - 0.22*r, 28 + 6*r, 32 + 34*r);
+        x = sp.x + inx*(8 - bk); y = sp.y + iny*(8 - bk); lift = 0.38 + 0.47*r;
       } else {                                               // hands off: a step back; the first of them gives him a wave
         const k = ez(Math.min(1, (u - c.lift1)/Math.max(1, C.backDelayMs*0.6)));
-        x = sp.x + inx*(8 - 14*k); y = sp.y + iny*(8 - 14*k);
+        const e = 0.28, sb = 120*Math.sin(e*(1 - k)); pitch = e*(1 - k); drop = 22*Math.sin(pitch)/0.45;   // (straightening up as they step back)
+        x = sp.x + inx*(8 - 14*k - sb); y = sp.y + iny*(8 - 14*k - sb);
         lift = i === 0 ? 0.85 - 0.3*k : 0.85*(1 - k);
       }
     } else if(c.tow && c.carry){                             // a tow out through the alley: one ahead, one behind
@@ -9780,7 +9807,7 @@ function rescueCrewAt(v, t){
       moving = true;
       if(c.tow) lift = 0.8;
     }
-    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, reach, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
+    return { x, y, z: WORLDGEN_COAST ? sierraZ(x, y) : 0, th, moving, lift, rod, reach, pitch, drop, pace: moving ? c.pace || 1 : 1, seed: 0x7c0e + i*977 };
   });
 }
 /* the crew at the depot: out to the rear doors, carrying him in between
@@ -31686,6 +31713,7 @@ function meetTick(scene, ow, M){
    from, to, t0, walkMs and leave (null till he goes back); faceTh, the way
    he looks once he stands (meetWalk), or face, a point he looks at. null once he is back where he came from */
 function hospWalkAt(W, now){
+  if(W.live) return W.live;                  // (on the chase: knockConfHunt's own position)
   const a = W.from, b = W.to;
   let k, back = false;
   if(W.leave == null) k = Math.min(1, (now - W.t0)/W.walkMs);
@@ -103486,7 +103514,7 @@ class WorldScene extends Phaser.Scene {
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE,
-      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, { roll });
+      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, d.tx || d.pitch ? { roll, reach: d.tx, pitch: d.pitch, drop: d.drop } : { roll });
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
@@ -103497,12 +103525,12 @@ class WorldScene extends Phaser.Scene {
        the crew's walking pace (a stride, two steps, every 84 as his own) */
     const draw = bot ? () => {
       const gait = t/1000*RESCUE_VAN.crew.walkSpeed*Math.min(2.2, m.pace || 1)*Math.PI*2/84;
-      this.drawProp(g, "humanoid", m.x, m.y, t, m.th/(Math.PI/2), m.z || 0, 0, 7, { walk: m.moving ? 1 : 0, gait, roll: 0, reach: Math.min(1, (m.lift || 0)/0.8) });
+      this.drawProp(g, "humanoid", m.x, m.y, t, m.th/(Math.PI/2), m.z || 0, 0, 7, { walk: m.moving ? 1 : 0, gait, roll: 0, reach: Math.min(1, (m.lift || 0)/0.8), tx: m.reach, pitch: m.pitch, drop: m.drop });
       if(m.rod) this.drawFishRod(g, m.rod);
     } : () => {
       /* both hands to the lift (bothArms), and on his hull while they roll him up (m.reach: pose.reach) */
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach ? { reach: m.reach } : null);
+        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.pitch ? { reach: m.reach, pitch: m.pitch, drop: m.drop } : null);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
@@ -115577,14 +115605,15 @@ class WorldScene extends Phaser.Scene {
      reach) or a while longer talking, back to the scooter, and up on it
      (C.upT: the scooter rolls back up under them over upMs) */
   riderConfTick(rd, t){
+    if(rd.conf.hunt && rd.conf.upT === undefined) this.confHunt(rd.conf, t);
     const SR = STREET_RIDER, C = rd.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
     const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: 0, h: 165 } : null; };
     if(C.upT !== undefined){
       if(t - C.upT >= SR.upMs){ rd.conf = null; rd.fallT = undefined; rd.hitT = t - SR.hitMs + 600; if(this._riderMeet === rd) this._riderMeet = null; }
       return;
     }
-    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
-    if(t >= arr && C.said === undefined){
+    if(M.leave == null && ow && this.state === "play" && !(C.hunt && C.hunt.stage === "chase")) meetTick(this, ow, M);
+    if(t >= arr && !C.hunt && C.said === undefined && M.leave == null){
       C.said = t;
       this.npcSay(rd, at, sayPick(SAY.riderMad), 2200, "mad");
       if(C.kick) C.kickT = t + 900;
@@ -115632,6 +115661,13 @@ class WorldScene extends Phaser.Scene {
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
     if(o.chair){ K.t0 = t - SR.fallMs - SR.downMs; K.upSaid = true; }              // (his bump on their chair: on their feet already, no fall -- the ballroom's guests)
     o.ref.knock = K; list.push(K);
+    /* five down out in the street: the police (POLICE_CALL.pile) */
+    if(!this._inside && this.state === "play" && this.ow && this.ow.on){
+      const PC = POLICE_CALL.pile;
+      if(t - PC.t > PC.windowMs) PC.n = 0;
+      PC.t = t; PC.n++;
+      if(PC.n >= PC.need && this.policeSummon(this.botX, this.botY, "pile", null)) PC.n = 0;
+    }
     /* out of a wheelchair or off a mobility scooter: the crew come to stand them back up (rescueSendForAid) */
     const ak = K.uni && K.uni.aid && K.uni.aid.kind;
     if(KNOCK_CHAIR[ak] && !K.z && K.kind !== "mall" && K.kind !== "staff" && K.kind !== "cast" && rescueSendForAid(this, K)){ K.van = this._rescueVan; K.wait = true; }
@@ -115885,6 +115921,7 @@ class WorldScene extends Phaser.Scene {
         const st = this.knockStand(K);
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && !(this._willMeet && this._willMeet.kst === "talk") && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
           K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' || K.chair ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };   // (a wedding guest has words, never a kick)
+          this.confChase(K.conf, t);
           this._knockMeet = K;
         }
       }
@@ -115894,11 +115931,40 @@ class WorldScene extends Phaser.Scene {
     }
   }
   /* having words (riderConfTick's, for anyone): true once they are back */
+  /* ...ON THE CHASE (CONF_HUNT): C.hunt { x, y, stage 'chase' | 'close', t0, last }, M.live their place meanwhile */
+  confHunt(C, t){
+    const H = C.hunt, M = C.M, ow = this.ow, W = CONF_HUNT, dt = Math.max(0, Math.min(100, t - H.last)); H.last = t;
+    const to = (x, y, v) => { const dx = x - H.x, dy = y - H.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, v*dt);
+      H.x += dx/d*st; H.y += dy/d*st; M.live = { x: H.x, y: H.y, th: Math.atan2(dy, dx), moving: true }; return d - st; };
+    const d = Math.hypot(this.botX - H.x, this.botY - H.y);
+    if(H.stage === "chase"){
+      if(this.state !== "play" || !ow || !ow.on || ow.lift || ow.deck || this._inside || d > W.lose || t - H.t0 > W.maxMs){
+        /* let go: back to where they stood, at a walk (hospWalkAt's leave) */
+        const w = M.live || { x: H.x, y: H.y };
+        M.to = { x: w.x, y: w.y }; M.walkMs = meetWalkMs(Math.hypot(M.to.x - M.from.x, M.to.y - M.from.y)); M.t0 = t - M.walkMs; M.leave = t;
+        M.faceTh = Math.atan2(M.to.y - M.from.y, M.to.x - M.from.x); M.live = null; C.hunt = null; C.kick = false; return;
+      }
+      if(d <= W.near){                                   // close enough: they step up, and he is held
+        const Mm = meetWalk(ow, { x: H.x, y: H.y }, t, 0, this);
+        M.to = Mm.to; M.faceTh = Mm.faceTh; M.botTh = Mm.botTh; M.botTh0 = Mm.botTh0; M.t0 = t;
+        M.walkMs = meetWalkMs(Math.hypot(M.to.x - M.from.x, M.to.y - M.from.y)); H.stage = "close"; return;
+      }
+      to(this.botX, this.botY, d > W.jogD || this.speed > W.fleeV ? W.jogV : W.walkV);
+    } else if(to(M.to.x, M.to.y, W.walkV) < 1){          // the last steps to his side
+      M.live = null; M.t0 = t - M.walkMs; C.hunt = null;
+    }
+  }
+  /* (their start: the walk back is meetWalk's, from the spot they stood up at, held by M.live till they reach him) */
+  confChase(C, t){
+    C.hunt = { x: C.M.from.x, y: C.M.from.y, stage: "chase", t0: t, last: t };
+    C.M.live = { x: C.M.from.x, y: C.M.from.y, th: 0, moving: true };
+  }
   knockConfTick(K, t){
+    if(K.conf.hunt) this.confHunt(K.conf, t);
     const C = K.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
     const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: K.z || 0, h: 165 } : null; };
-    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
-    if(t >= arr && C.said === undefined){
+    if(M.leave == null && ow && this.state === "play" && !(C.hunt && C.hunt.stage === "chase")) meetTick(this, ow, M);
+    if(t >= arr && !C.hunt && C.said === undefined && M.leave == null){
       C.said = t;
       if(K.mood === 'polite') this.npcSay(K, at, sayPick(K.chair ? SAY.chairKind : SAY.politeTalk), 2200);
       else this.npcSay(K, at, sayPick(K.chair ? SAY.chairMad : K.scoot ? SAY.riderMad : K.mood === 'young' ? SAY.youngMad : SAY.walkMad), 2200, "mad");
@@ -116326,13 +116392,22 @@ class WorldScene extends Phaser.Scene {
   }
   policeSummon(x, y, why, car){
     const t = this.time.now, C = POLICE_CALL;
-    if(this._police || this._rescueVan || this.state !== "play") return;
-    if(this._policeCoolT && t - this._policeCoolT < C.coolMs) return;
+    if(this._police || this._rescueVan || this.state !== "play") return false;
+    if(this._policeCoolT && t - this._policeCoolT < C.coolMs && why !== "pile") return false;
     const plan = rescueVanPlan(this, x, y);
     const seed = (Math.random()*4294967296) >>> 0;
-    if(!plan){ this.policeTicket(why); this._policeCoolT = t; return; }   // nowhere for a cruiser to stand: the ticket comes by post
+    if(!plan){ this.policeTicket(why); this._policeCoolT = t; if(why === "pile") this.policeImpound(); return true; }   // nowhere for a cruiser to stand: the ticket comes by post
     this._police = { plan, t0: t, ts: t, u0: 0, rate: 1, crew: { leaveMs: 1e12 }, route: this.route, why, car, seed,
                      name: C.officers[seed % C.officers.length], M: null, card: false };
+    return true;
+  }
+  /* the crew come for him (battDie's tow): held where he stands till they do */
+  policeImpound(){
+    const ow = this.ow;
+    if(!ow || !ow.on || this.state !== "play") return;
+    this.state = "dead"; this.speed = 0; this.throttle = 0; ow.vel = 0; ow.failHold = true;
+    owSendCrew(this, true);
+    tpToast("Impounded. The Tipsy Crew is on the way.");
   }
   policeTicket(why){
     const C = POLICE_CALL, list = tpProfile.tickets || (tpProfile.tickets = []);
@@ -116376,7 +116451,7 @@ class WorldScene extends Phaser.Scene {
     /* parked: the officer out of the kerb-side door and over to him */
     if(!P.M && u >= parkedAt){
       if(this.state !== "play"){ P.crew.leaveMs = u + 200; P.gone = true; }
-      else P.M = this.policeMeet(ow, rescueDoorPt(P.plan), t);
+      else P.M = fleetPhys().big ? this.policeMeet(ow, rescueDoorPt(P.plan), t) : meetWalk(ow, rescueDoorPt(P.plan), t, 0, this);
     }
     if(P.M && !P.M.leave){
       meetTick(this, ow, P.M);                                  // face to face, and he holds still
@@ -116384,12 +116459,16 @@ class WorldScene extends Phaser.Scene {
         P.card = true;
         hospSayCard({ who: P.name + " \u00b7 Marina PD", say: POLICE_CALL.say[P.why], btn: "Understood, officer",
           at: now => hospWalkAt(P.M, now),
-          ok: () => { hospSayCard(null); this.policeTicket(P.why); P.M.leave = this.time.now; } });
+          ok: () => { hospSayCard(null); this.policeTicket(P.why); P.M.leave = this.time.now;
+            if(P.why === "pile" && this.state === "play"){ this.state = "dead"; this.speed = 0; this.throttle = 0; ow.vel = 0; ow.failHold = true; P.impound = true; } } });
       }
     }
     /* back in the cruiser: away it goes */
     if(P.M && P.M.leave && !P.gone && !hospWalkAt(P.M, t)){ P.crew.leaveMs = u + 300; P.gone = true; }
-    if(P.gone && !rescueVanAt(P, t)){ this._police = null; this._policeCoolT = t; }
+    if(P.gone && !rescueVanAt(P, t)){
+      this._police = null; this._policeCoolT = t;
+      if(P.impound){ this.state = "play"; this.policeImpound(); }   // (the cruiser has gone: now the crew)
+    }
   }
   /* VEND_CUST: walk-ups to the posted food trucks' hatches */
   updateVendCustomers(t){
@@ -117075,6 +117154,7 @@ class WorldScene extends Phaser.Scene {
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
           const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true, aid: 'none' }).build).world(wp.x, wp.y);   // where they stood up (drawFallenHull)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
+          this.confChase(rd.conf, t);
           this._riderMeet = rd;
         }
       }
