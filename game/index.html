@@ -51149,7 +51149,7 @@ function houseCanopy(fn){
     const tar = '#4b4742', tarD = '#3d3935', cream = '#f1e6cf', brown = '#5b3d2a', brownD = '#3b2619', steel = '#8f969d', steelD = '#6e757c', steelS = '#596067', copper = '#d9892b', copperD = '#b06f20';
     const items = [];
     /* (every piece goes after the shell's baked roof: dk is its order in the frame, the shell standing under him -- a + b + 4000) */
-    const rpush = it => items.push(Object.assign(it, { dk: it.a + it.b + 4000 }));
+    const rpush = it => items.push(Object.assign(it, { dk: it.low ? 800 : it.a + it.b + 4000 }));   // (low: under the shell's baked art, which then draws over it -- the cup signs stand in front of the far parapet)
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     /* ---- THE ROOF: tar and gravel, its seams, a patched strip ---- */
     T(0, W, 0, D, 0, tar);
@@ -51158,11 +51158,25 @@ function houseCanopy(fn){
     T(560, 770, 360, 400, 0.3, '#57524c');
     for(const [ga, gb] of [[120, 300], [310, 520], [470, 180], [700, 560], [220, 700], [610, 700], [80, 450]]) for(let k = 0; k < 7; k++) T(ga + k*9, ga + k*9 + 3, gb + (k%3)*7, gb + (k%3)*7 + 3, 0.35, '#6a655e');
     /* ---- THE PARAPET, all round: a brown wall with a cream cap, in runs ---- */
-    const par = (a0, a1, b0, b1, alongA, vis) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
+    const par = (a0, a1, b0, b1, alongA, vis, low) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
-        rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
+        rpush({ low, a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
           box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
-    par(0, 440, 0, PT, true, true); par(440, W, 0, PT, true, false); par(0, PT, PT, D - PT, false, true);   // (the north parapet stops short of the east cup sign, which stands at that end) par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+    par(0, W, 0, PT, true, true); par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+    /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
+       neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
+       room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
+    rpush({ a: 779, b: 117, z: 0, solids: [], draw: () => {
+      const A = 779, bc = 117, dk2 = '#2a1a11', Q = (da, k) => P(A, bc - 1.3*da, 1.95*(6 + k)), SB = (da0, da1, k0, k1, c) => poly([Q(da0, k0), Q(da1, k0), Q(da1, k1), Q(da0, k1)], c);
+      for(const da of [-52, 52]) box(A - 2, A + 2, bc - 1.3*da - 3, bc - 1.3*da + 3, 0, 1.95*10, dk2, dk2, '#3b2619');          // the posts
+      SB(-58, 58, 0, 90, dk2); SB(-54, 54, 4, 86, '#3b2619');                                                                    // the board
+      poly([Q(-30, 14), Q(30, 14), Q(24, 54), Q(-24, 54)], '#e79a35');                                                           // the cup
+      poly([Q(-24, 54), Q(24, 54), Q(24, 57), Q(-24, 57)], cream);
+      poly([Q(-36, 11), Q(36, 11), Q(30, 14), Q(-30, 14)], '#b06f20');
+      poly([Q(30, 46), Q(44, 44), Q(44, 28), Q(29, 24), Q(29, 28), Q(38, 30), Q(38, 42), Q(27, 43)], '#e79a35');                // its handle
+      poly([Q(5, 52), Q(-9, 36), Q(-1, 36), Q(-8, 18), Q(12, 40), Q(3, 40)], cream);                                             // the bolt
+      for(const [da, h] of [[-12, 0], [2, 8], [16, 2]]) poly([Q(da, 60 + h), Q(da + 3, 66 + h), Q(da - 2, 74 + h), Q(da + 2, 82 + h), Q(da - 1, 82 + h), Q(da - 5, 74 + h), Q(da, 66 + h), Q(da - 3, 60 + h)], 'rgba(241,230,207,.7)');   // steam
+    } });
     /* ---- THE HATCH, a 130..200 x 0..70: its curb, the dark opening, the lid thrown back against the north parapet, the rails coming up ---- */
     rpush({ a: 165, b: 36, z: 0, solids: [solid(126, 204, PT, 72, 22, 'roof hatch')], draw: () => {
       box(126, 204, PT, 72, 0, 18, '#6b5a48', '#5a4a3a', '#3d3328');
