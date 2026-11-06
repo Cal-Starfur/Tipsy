@@ -640,7 +640,7 @@
 "title": "Seabreeze Trophies: red footprint sits ~25-30px (~35 units) forward of the shell wall base on the west end; size matches (760x600). Right/gate side hidden, not judged",
 "spec": "found by test run",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,14904&view=2"
 },
@@ -673,6 +673,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }
