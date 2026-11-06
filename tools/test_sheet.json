@@ -232,7 +232,7 @@
     "No missing-texture boxes, no flicker, nothing painted over the wrong layer."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "brewbolt",

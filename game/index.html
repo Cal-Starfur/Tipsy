@@ -44246,6 +44246,13 @@ function unitCircle(fill, stroke, lw, r){
   if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
 }
 function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* An arched head: only the HALF disc above z (the lower half would paint an ellipse back over the window or door under it).
+   ry < r squashes it into a shallow fanlight so it can sit under a sign. */
+function faceArch(a,b,z,r,fill,stroke,lw,ry){ faceT(a,b,z,r); ctx.scale(1, (ry||r)/r);
+  ctx.beginPath(); ctx.arc(0,0,1,Math.PI,0,true); ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
+  ctx.restore(); }
 function plateCircle(a,b,z,r,fill,stroke,lw){ if(CUT !== null && z > CUT) return; plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
 /* Drawn by the depot's room (lab primitives, lab units). st[i] is the
    slot's { tier, earned }: an earned trophy stands in the metal of its
@@ -73976,7 +73983,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(let a = HA0 + 120; a + 140 < HA1; a += 250){
       if(a + 140 > PA0 - 20 && a < PA1 + 20) continue;                            // the pavilion stands there
       win(a, a + 120, 40, 150, HB);                                                // ground floor
-      faceCircle(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                       // its arched head
+      faceArch(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                         // its arched head (the upper half only)
       win(a + 10, a + 110, 210, 300, HB);                                          // first floor
     }
     /* THE TIDE BOARD on the pier west of the pavilion: the day's tides and notices to mariners, under glass */
@@ -74020,7 +74027,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       F(ac - 110, ac + 110, 0, 250, TRIM, null, 0, PB + 0.3);                     // the doors
       F(ac - 100, ac - 4, 0, 240, GLASSL, null, 0, PB + 0.6);
       F(ac + 4, ac + 100, 0, 240, GLASSL, null, 0, PB + 0.6);
-      faceCircle(ac, PB + 0.7, 250, 104, GLASS, TRIM, 3);                          // the fanlight
+      faceArch(ac, PB + 0.7, 250, 104, GLASS, TRIM, 3, 30);                        // the fanlight: a shallow half-disc between the door head and the sign board
       F(ac - 150, ac + 150, 284, 340, TRIM, null, 0, PB + 1);                      // the clock board
       word('PORT OFFICE', ac, 326, 3.9, PB + 1.4, '#e8b54a', null);
       faceCircle(ac, PB + 0.8, 440, 50, '#f6f3ea', TRIM, 4);                      // the clock
