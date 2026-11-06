@@ -69988,7 +69988,8 @@ marinaEntry(),
     for(const a of [1039, 2089, 816, 2312]) L.push({ a, b: A.CB1 + 8, z: 112, r: 70, col });
     for(const a of [A.GM - 70, A.GM + 70]) L.push({ a, b: A.CHB + 10, z: 100, r: 70, col });
     L.push({ a: A.GM, b: A.CB1 + 10, z: 354, r: 90, col: 0xfff2c8 });                      // the clock's lamp
-    for(const g of A.gates){ const c = A.gateCentre(g); if(g.id === 'front') L.push({ a: c.a, b: A.CB1 - 60, z: 214, r: 80, col }); else L.push({ a: c.a, b: c.b, z: g.h + 36, r: 80, col }); }   // (the carriage arch's is the lantern hung from its vault)
+    for(const g of A.gates){ const c = A.gateCentre(g), fv = g.plane - g.swing*24 + g.swing*16, cr = { front: 258, backW: 156, backE: 156, near: 172, far: 172 }[g.id];   // (each tunnel's is the lantern hung from its vault, 16 in from its mouth)
+      L.push(g.axis === 'b' ? { a: c.a, b: fv, z: cr - 43, r: 80, col } : { a: fv, b: c.b, z: cr - 43, r: 80, col }); }
     return L; },
   /* the gates' leaves, live (see ALMS_GATES); t is how open, 0 shut to 1 */
   gateLeaves(g, t){
@@ -70081,6 +70082,10 @@ marinaEntry(),
       poly([fc.dp(c - hw, 0, 0), fc.dp(c + hw, 0, 0), fc.dp(c + hw, 0, depth), fc.dp(c - hw, 0, depth)], shade('#a89d86', .8));            // its floor
       poly([fc.dp(c - hw, 0, 0), fc.dp(c - hw, z1 + 4, 0), fc.dp(c - hw, z1 + 4, depth*0.35), fc.dp(c - hw, 0, depth*0.35)], 'rgba(12,10,8,.28)');   // shade at the mouth
       ctx.restore();
+      /* the lantern hung from the vault 16 in: its chain, cage and glass (its night light is in `lamps`) */
+      const lp = fc.kind === 'b' ? [c, fc.plane - fc.nrm*16] : [fc.plane - fc.nrm*16, c], cr = z1 + rise;
+      tube(lp[0], lp[1], cr - 26, lp[0], lp[1], cr, 1.4, iron); cyl(lp[0], lp[1], cr - 34, cr - 26, 6, iron);
+      cyl(lp[0], lp[1], cr - 52, cr - 34, 5, '#f3dca0'); cyl(lp[0], lp[1], cr - 56, cr - 52, 6.5, iron);
     };
     /* ---------- THE PARTS OF A FRONT ---------- */
     const window2 = (fc, c, ww, z0, z1, shutters) => {
@@ -70282,8 +70287,7 @@ marinaEntry(),
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
       tunnelView(f, GM, A.FGW, 182, 76, RD);
-      tube(GM, CB1 - 60, 232, GM, CB1 - 60, 258, 1.4, iron);                                          // the lantern hung from the vault: its chain, cage and glass
-      cyl(GM, CB1 - 60, 224, 232, 6, iron); cyl(GM, CB1 - 60, 206, 224, 5, '#f3dca0'); cyl(GM, CB1 - 60, 202, 206, 6.5, iron);
+
       for(let k = 0; k < 11; k++){
         const t0 = Math.PI*(1 - k/11), t1 = Math.PI*(1 - (k + 1)/11), hw = A.FGW;
         const q = (t, rr) => [GM + rr*Math.cos(t), 182 + (rr === hw ? 76 : 76*(rr/hw))*Math.sin(t) + (rr > hw ? 6 : 0), 0.9];
@@ -70343,7 +70347,7 @@ marinaEntry(),
           /* the opening in the face, the voussoirs and the keystone */
           const arcPts = (rr, off) => { const pts = [[A.SG0, 0, off], [A.SG0, 118, off]]; for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([mid + rr*Math.cos(t), 118 + 54*Math.sin(t), off]); } pts.push([A.SG1, 118, off], [A.SG1, 0, off]); return pts; };
           fc.pl(arcPts(hwG + 12, 0.25), shade(stone, 1.08));
-          fc.pl(arcPts(hwG, 0.6), dark);
+          tunnelView(fc, mid, hwG, 118, 54, RD);
           fc.r(mid - 10, mid + 10, 178, 196, shade(gold, .92), 1.0, shade(gold, .66), 1);
           fc.r(A.SG0 - 12, A.SG1 + 12, 150, 158, stone, 0.4);
           fc.r(mid - 40, mid + 40, 214, 242, shade(stone, 1.1), 0.5, stoneD, 1);
@@ -70366,7 +70370,7 @@ marinaEntry(),
         const hwG = (g1 - g0)/2;
         R.wb(g0, g1, 150, H);
         const arcPts = (rr, off) => { const pts = [[g0, 0, off], [g0, 112, off]]; for(let k = 1; k < 10; k++){ const t = Math.PI*(1 - k/10); pts.push([mid + rr*Math.cos(t), 112 + 44*Math.sin(t), off]); } pts.push([g1, 112, off], [g1, 0, off]); return pts; };
-        fc.pl(arcPts(hwG + 10, 0.25), shade(stone, 1.08)); fc.pl(arcPts(hwG, 0.6), dark);
+        fc.pl(arcPts(hwG + 10, 0.25), shade(stone, 1.08)); tunnelView(fc, mid, hwG, 112, 44, RD);
         fc.r(g0 - 10, g1 + 10, 150, 158, stone, 0.4); fc.r(g0, g1, H - 12, H, trim, 0.5);
         roof(R, g0, g1, H, RH, null);
       });
