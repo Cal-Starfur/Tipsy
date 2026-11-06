@@ -80,6 +80,9 @@ Each batch is:
 - **Checked.** Booted headless with no page errors, photographed at night at the gate.
 - Test: [museum gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3)
 
+### Tidewater Maritime Museum: footprint confirmed (2026-11-06)
+- **Decision (Sir):** the rear of the shell is not a room. `MUS_IN.LAB` (1460 x 856) stays as the room's footprint; no code change.
+
 ### Tide Pool Elementary: a walk-in school with its people, redesigned (2026-11-06)
 - **Walk-in.** The whole range (west wing, main block, east wing) is one room, 6984 x 540 (`TPE_IN`, `TPE_PK`, the LIB entry `Tide Pool Elementary Interior`), through the porch's glass doors. A corridor runs its length behind a low partition, with the rooms off it: the cafeteria and its kitchen, the library, two classrooms (desks, whiteboards, a reading rug), the entrance hall with its trophy case, the office, the nurse, the gym (court, hoops, bleachers) and the art room (easels). The three blocks, the porch steps and the canopy are the shell: they ease off as he goes in (`shell`, the generic `pocketShellK`, now used by a rim site's pieces too).
 - **Hours.** 8 to 4, the place card's. The gates open with them (`rimGateStep`); the door is locked outside them. Pupils and staff come in at the bell and go home at the end of the day, the janitor (`keys`) unlocking and locking.
