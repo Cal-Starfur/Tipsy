@@ -12102,6 +12102,7 @@ function owPlaceOnPad(scene, fromX, fromY){
 function owStandUpAt(scene, x, y, yaw){
   const ow = scene.ow;
   if(!ow) return;
+  if(ow.scoot && typeof scootDrop === "function") scootDrop(scene);   // (a teleport, a handed-back loan: the scooter stands where he was)
   ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
   ow.leanS = 0; ow.leanI = 0;   // stand him up on both channels
@@ -39163,7 +39164,8 @@ const STREET_RIDER = { lane: 222, speed: 0.27, spacing: 12000,   // was 7000: fe
   activeR: 5000, stopBot: 190, gap: 150, hitR: 30, hitMs: 2500,
   /* KNOCKED OFF (Sir, 2026-10-12: "they don't get knocked down if I hit
      them"): over on the side away from him, down a while, then up again */
-  knockV: 0.06, fallMs: 520, downMs: 3700, upMs: 620, fallAng: 1.5, getUpMs: 1900, offSide: 55,   // (fallMs/getUpMs: FALL_ANIM's beats)
+  get knockV(){ try { const sc = scn(); return sc && sc.ow && sc.ow.scoot ? Infinity : 0.06; } catch(e){ return 0.06; } },   // (on a scooter he knocks no one down: they step round him, as when he is slow -- scootHop)
+  fallMs: 520, downMs: 3700, upMs: 620, fallAng: 1.5, getUpMs: 1900, offSide: 55,   // (fallMs/getUpMs: FALL_ANIM's beats)
   /* ...AND THEY COME AND HAVE A WORD (Sir: "the rider would fall off the
      scooter and then come talk to tipsy possibly tipping him over in
      return"): up off the ground, over to him face to face (meetWalk), a
@@ -85739,8 +85741,18 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    the stick says Hop on within SCOOTR.near of one, Hop off while riding. No fleet kind: a flag on the player (ow.scoot) that
    swaps his driving numbers (fleetPhys) and his draw (drawScooterRider under the humanoid's own body and robot skin). The
    scooter he takes is hidden (pr.taken: not given back to the street) and set down where he gets off, live (SCOOTR.down). */
-const SCOOTR = { near: 130, down: [], _phys: null,
-  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.45, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*1.1 }) }); } };
+const SCOOTR_KEY = 'tipsy.scooters.down';
+const SCOOTR = { near: 130, down: (() => { try { const a = JSON.parse(localStorage.getItem(SCOOTR_KEY) || '[]'); return Array.isArray(a) ? a.filter(d => d && isFinite(d.x) && isFinite(d.y)).slice(-12) : []; } catch(e){ return []; } })(), _phys: null, last: null,
+  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.4, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*0.85 }) }); } };
+/* the ones he has set down stay where they are, through a reload */
+function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOOTR.down.slice(-12))); } catch(e){} }
+/* he is off it where he last was out of doors (a door he went in by, a loan that ended, a respawn): it stands there */
+function scootDrop(s, at){
+  const ow = s && s.ow; if(!ow || !ow.scoot) return;
+  const a = at || (s._inside || s._garage ? SCOOTR.last : { x: ow.px, y: ow.py, th: ow.yaw });
+  if(a) SCOOTR.down.push({ x: a.x, y: a.y, th: a.th, brand: ow.scoot.brand });
+  ow.scoot = null; ow.vel = 0; scootSave();
+}
 function scootCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'humanoid'); }
 /* the scooter nearest him within reach: {pr|d, x, y, brand}, or null */
 function scootNearest(s){
@@ -85754,14 +85766,13 @@ function scootNearest(s){
 function scootHop(s){
   const ow = s.ow; if(!ow) return;
   if(ow.scoot){                                              // off: set it down where he stands, facing as he faced
-    SCOOTR.down.push({ x: ow.px, y: ow.py, th: ow.yaw, brand: ow.scoot.brand });
-    ow.scoot = null; ow.vel = 0;
+    scootDrop(s);
     if(typeof sfxThump === "function") sfxThump(0.15);
     return;
   }
   const n = scootNearest(s); if(!n) return;
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
-  if(n.down) SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1);
+  if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
   ow.scoot = { brand: n.brand || BRANDS[0] };
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
@@ -85769,7 +85780,8 @@ function scootUiTick(){
   const s = (typeof scn === "function") ? scn() : null, btn = document.getElementById("scootBtn");
   if(!btn) return;
   const ow = s && s.ow;
-  if(ow && ow.scoot && (!scootCan(s))){ ow.scoot = null; ow.vel = 0; }       // (the loan ended, or he went in: he is off it)
+  if(ow && ow.scoot && scootCan(s)) SCOOTR.last = { x: ow.px, y: ow.py, th: ow.yaw };
+  if(ow && ow.scoot && (!scootCan(s))) scootDrop(s);                             // (the loan ended, or he went in: he is off it, and it stands where he last was outside)
   let verb = null;
   if(scootCan(s)) verb = ow.scoot ? "Hop off" : (scootNearest(s) ? "Hop on" : null);
   btn.classList.toggle("hidden", !verb);
@@ -121647,6 +121659,7 @@ class WorldScene extends Phaser.Scene {
   policeSummon(x, y, why, car){
     const t = this.time.now, C = POLICE_CALL;
     if(this._police || this._rescueVan || this.state !== "play") return false;
+    if(this.ow && this.ow.scoot) return false;                                   // (no one is called on a scooter ride: scootHop)
     if(this._policeCoolT && t - this._policeCoolT < C.coolMs && why !== "pile") return false;
     if(why === "pile"){                                  // the call goes out; the cruiser is sent in updatePolice, to where he is by then
       if(this._policePend) return true;
