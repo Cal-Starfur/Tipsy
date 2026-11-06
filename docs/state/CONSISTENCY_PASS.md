@@ -81,6 +81,8 @@ Each batch is:
 - Test: [museum gate](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3)
 
 ### Tidewater Maritime Museum: footprint confirmed (2026-11-06)
+- **Columns no longer draw over the frieze.** The entablature and pediment are one item at the building's middle, and the world queue sorts by x + y + z, so the outer columns' capitals outranked it as he came up to the door. Its z is lifted (440 to 1040) so it draws after all six. Same change in `game/index.html`.
+- Test: [museum door](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1700,0.73&view=2)
 - **Decision (Sir):** the rear of the shell is not a room. `MUS_IN.LAB` (1460 x 856) stays as the room's footprint; no code change.
 
 ### Tide Pool Elementary: a walk-in school with its people, redesigned (2026-11-06)

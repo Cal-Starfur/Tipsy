@@ -66628,7 +66628,10 @@ marinaEntry(),
       cyl(ca, cb, 266, 278, 19, stone, stoneL);                                                      // the echinus
       box(ca - 22, ca + 22, cb - 22, cb + 22, 278, 288, stoneL, stone, stoneD);                     // the abacus
     }});
-    items.push({ a: A(DMID), b: N(CN + 30), z: 440, shell: true, draw: () => {
+    /* THE ENTABLATURE DRAWS AFTER EVERY COLUMN (Sir, on-device: the outer columns' capitals drew over the frieze as he
+       came up to the door): it stands on all six, but its one item sits at the middle, and the world queue sorts by
+       x + y + z, so a column 450 out to the side outranked it by ~60. Its z is lifted past that spread. */
+    items.push({ a: A(DMID), b: N(CN + 30), z: 440 + 600, shell: true, draw: () => {
       const E0 = PA0 - 14, E1 = PA1 + 14, NF = 96;
       bandF(FR_FRONT, E0, E1, 288, 306, NF, 0, stoneL, stoneD, stone);                                // the architrave
       R(FR_FRONT, E0, E1, 296, 297.5, NF + 0.2, stoneD);
