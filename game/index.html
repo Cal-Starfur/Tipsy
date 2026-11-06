@@ -69988,7 +69988,7 @@ marinaEntry(),
     for(const a of [1039, 2089, 816, 2312]) L.push({ a, b: A.CB1 + 8, z: 112, r: 70, col });
     for(const a of [A.GM - 70, A.GM + 70]) L.push({ a, b: A.CHB + 10, z: 100, r: 70, col });
     L.push({ a: A.GM, b: A.CB1 + 10, z: 354, r: 90, col: 0xfff2c8 });                      // the clock's lamp
-    for(const g of A.gates){ const c = A.gateCentre(g); L.push({ a: c.a, b: c.b, z: g.h + 36, r: 80, col }); }
+    for(const g of A.gates){ const c = A.gateCentre(g); if(g.id === 'front') L.push({ a: c.a, b: A.CB1 - 60, z: 214, r: 80, col }); else L.push({ a: c.a, b: c.b, z: g.h + 36, r: 80, col }); }   // (the carriage arch's is the lantern hung from its vault)
     return L; },
   /* the gates' leaves, live (see ALMS_GATES); t is how open, 0 shut to 1 */
   gateLeaves(g, t){
@@ -70282,6 +70282,8 @@ marinaEntry(),
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
       tunnelView(f, GM, A.FGW, 182, 76, RD);
+      tube(GM, CB1 - 60, 232, GM, CB1 - 60, 258, 1.4, iron);                                          // the lantern hung from the vault: its chain, cage and glass
+      cyl(GM, CB1 - 60, 224, 232, 6, iron); cyl(GM, CB1 - 60, 206, 224, 5, '#f3dca0'); cyl(GM, CB1 - 60, 202, 206, 6.5, iron);
       for(let k = 0; k < 11; k++){
         const t0 = Math.PI*(1 - k/11), t1 = Math.PI*(1 - (k + 1)/11), hw = A.FGW;
         const q = (t, rr) => [GM + rr*Math.cos(t), 182 + (rr === hw ? 76 : 76*(rr/hw))*Math.sin(t) + (rr > hw ? 6 : 0), 0.9];
