@@ -23775,7 +23775,7 @@ const TPE_PLAN = {
   beds: [[200, -520], [360, -520], [520, -520], [200, -660], [360, -660], [520, -660]],
   portables: [[110, 530, -1130, -1000], [110, 530, -1330, -1200]],
   backTrees: [160, 430, 700, 970],
-  GATES: [[2310, 2490], [6910, 7090]],           // pier centres; the gate hangs between them
+  GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
@@ -68635,7 +68635,7 @@ marinaEntry(),
       for(const sd of [-1, 1]){ const e = X + sd*(ri - 50), i0 = e - sd*220;
         T(Math.min(e, i0), Math.max(e, i0), Y - 190, Y - 186, 0.9, ln); T(Math.min(e, i0), Math.max(e, i0), Y + 186, Y + 190, 0.9, ln); T(i0 - 2, i0 + 2, Y - 190, Y + 190, 0.9, ln); }
     }
-    { const g0 = PL.GATES[0][0], g1 = PL.GATES[1][1];
+    { const g0 = PL.GATES[0][0], g1 = PL.GATES[PL.GATES.length - 1][1];
       T(g0 - 60, g1 + 60, -176, -62, 0.8, paveE); T(g0 - 54, g1 + 54, -170, -68, 0.85, paveP);               // the promenade, its edging
       for(let a = g0; a < g1; a += 120) T(a, a + 1.4, -170, -68, 0.9, paveE);                                // its joints
       T(PL.EA0 - 70, PL.EA1 + 70, BB1, -170, 0.8, paveE); T(PL.EA0 - 64, PL.EA1 + 64, BB1, -170, 0.85, paveP);  // the entrance walk, wide as the porch
@@ -80867,7 +80867,7 @@ function cplSlot(i){ const L = cplLetters()[i]; return { L, x: L.xc, y: L.yf - C
 function cplOpenGaps(){ return CPL_PLAN.MISSING.filter(i => !CPL.up.has(i)); }
 function cplGapsFor(ch){ return cplOpenGaps().filter(i => cplLetters()[i].ch === ch); }
 /* the school's east gate (rimGateStep asks; no longer used: CPL.gate stays false) */
-function cplGateOpen(name, g0){ return CPL.gate && name === "Tide Pool Elementary" && g0 === TPE_PLAN.GATES[1][0]; }
+function cplGateOpen(name, g0){ return CPL.gate && name === "Tide Pool Elementary" && g0 === TPE_PLAN.GATES[2][0]; }
 /* a letter is slung under the drone (lifting off the deck, flying, held over the gap before it is lowered) */
 function cplCarrying(now){ return FLEET_LOAN === 'dronelift' && !!CPL.carry && (CPL.stage === 'lift' || CPL.stage === 'fly' || (CPL.stage === 'set' && (!CPL.setT0 || now < CPL.setT0))); }
 function cplSway(now){
