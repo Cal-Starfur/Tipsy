@@ -3917,6 +3917,7 @@ const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.1
    `near` do they step up (meetWalk's spot) and hold him for their word or kick. Out past `lose`, or after `maxMs`, they let go
    and walk back to where they stood. */
 const CONF_HUNT = { near: 130, lose: 1000, maxMs: 30000, walkV: 0.075, jogV: 0.12, jogD: 260, fleeV: 0.09 };
+const COP_HUNT = { near: 110, lose: 2400, maxMs: 60000, walkV: 0.11, jogV: 0.17, jogD: 150, fleeV: 0.05 };
 const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
@@ -5980,7 +5981,14 @@ const POLICE_CALL = {
      crew has to come pick us up"): five of the crowd knocked down within windowMs outdoors (knockDown counts; the
      mall's and the hospital's own security count indoors) and the cruiser comes as at a crash; after the officer's
      word he is held where he stands, and once the cruiser has gone the crew's van tows him to a charger (owSendCrew's tow) */
-  pile: { need: 5, windowMs: 150000, n: 0, t: 0 },
+  pile: { need: 5, windowMs: 150000, n: 0, t: 0,
+    /* ...AND HE CAN RUN (Sir, 2026-11-06: "the cops park so far from tipsy if he drives away ... he can run away from the cops like
+       he can flee from people, the cops are more persistent, they should see him from the car and stop by him like the crew
+       would and jump out and try to catch him"): the call takes callMs (the cruiser off screen, still on his trail), and
+       the cruiser comes in to where he will be by the time it gets there (lead: how far ahead of him, at his speed); the
+       officer then goes after him on foot (confHunt, COP_HUNT: faster, longer, harder to shake than a walker's) and holds him
+       once within reach. Out of sight (past lose), or after maxMs, they give up and he is away */
+    callMs: 2500, leadMs: 3000, leadMax: 900 },
   say: {
     pile: "That's five people you've put on the ground. Driverless or not, you're done driving for today. I'm writing you a ticket and calling your crew to come and collect you.",
     car: "Everyone okay? Good. That was a hard hit. Driverless or not, this vehicle is your responsibility. I'm writing you a ticket for reckless driving.",
@@ -117721,7 +117729,7 @@ class WorldScene extends Phaser.Scene {
   /* having words (riderConfTick's, for anyone): true once they are back */
   /* ...ON THE CHASE (CONF_HUNT): C.hunt { x, y, stage 'chase' | 'close', t0, last }, M.live their place meanwhile */
   confHunt(C, t){
-    const H = C.hunt, M = C.M, ow = this.ow, W = CONF_HUNT, dt = Math.max(0, Math.min(100, t - H.last)); H.last = t;
+    const H = C.hunt, M = C.M, ow = this.ow, W = C.W || CONF_HUNT, dt = Math.max(0, Math.min(100, t - H.last)); H.last = t;
     const to = (x, y, v) => { const dx = x - H.x, dy = y - H.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, v*dt);
       H.x += dx/d*st; H.y += dy/d*st; M.live = { x: H.x, y: H.y, th: Math.atan2(dy, dx), moving: true }; return d - st; };
     const d = Math.hypot(this.botX - H.x, this.botY - H.y);
@@ -118182,6 +118190,14 @@ class WorldScene extends Phaser.Scene {
     const t = this.time.now, C = POLICE_CALL;
     if(this._police || this._rescueVan || this.state !== "play") return false;
     if(this._policeCoolT && t - this._policeCoolT < C.coolMs && why !== "pile") return false;
+    if(why === "pile"){                                  // the call goes out; the cruiser is sent in updatePolice, to where he is by then
+      if(this._policePend) return true;
+      this._policePend = { t: t + C.pile.callMs, why, car }; return true;
+    }
+    return this.policeDispatch(x, y, why, car);
+  }
+  policeDispatch(x, y, why, car){
+    const t = this.time.now, C = POLICE_CALL;
     const plan = rescueVanPlan(this, x, y);
     const seed = (Math.random()*4294967296) >>> 0;
     if(!plan){ this.policeTicket(why); this._policeCoolT = t; if(why === "pile") this.policeImpound(); return true; }   // nowhere for a cruiser to stand: the ticket comes by post
@@ -118229,6 +118245,16 @@ class WorldScene extends Phaser.Scene {
     return M;
   }
   updatePolice(t, dt){
+    const pd = this._policePend;
+    if(pd && t >= pd.t){
+      this._policePend = null;
+      if(!this._police && !this._rescueVan && this.state === "play" && this.ow && this.ow.on){
+        const PC = POLICE_CALL.pile, ow = this.ow, lead = Math.min(PC.leadMax, Math.max(0, this.speed)*PC.leadMs);
+        const x = this.botX + Math.cos(ow.yaw)*lead, y = this.botY + Math.sin(ow.yaw)*lead;
+        const pl = rescueVanPlan(this, x, y) ? [x, y] : [this.botX, this.botY];   // (nowhere to stand ahead of him: where he is)
+        this.policeDispatch(pl[0], pl[1], pd.why, pd.car);
+      }
+    }
     const P = this._police;
     if(!P) return;
     const ow = this.ow;
@@ -118239,11 +118265,16 @@ class WorldScene extends Phaser.Scene {
     /* parked: the officer out of the kerb-side door and over to him */
     if(!P.M && u >= parkedAt){
       if(this.state !== "play"){ P.crew.leaveMs = u + 200; P.gone = true; }
-      else P.M = fleetPhys().big ? this.policeMeet(ow, rescueDoorPt(P.plan), t) : meetWalk(ow, rescueDoorPt(P.plan), t, 0, this);
+      else {
+        P.M = fleetPhys().big ? this.policeMeet(ow, rescueDoorPt(P.plan), t) : meetWalk(ow, rescueDoorPt(P.plan), t, 0, this);
+        if(P.why === "pile" && !fleetPhys().big){ P.hc = { M: P.M, W: COP_HUNT }; this.confChase(P.hc, t); }   // (out of the cruiser after him)
+      }
     }
+    if(P.hc && P.hc.hunt) this.confHunt(P.hc, t);
+    const chasing = !!(P.hc && P.hc.hunt && P.hc.hunt.stage === "chase");
     if(P.M && !P.M.leave){
-      meetTick(this, ow, P.M);                                  // face to face, and he holds still
-      if(!P.card && t - P.M.t0 > P.M.walkMs){
+      if(!chasing) meetTick(this, ow, P.M);                     // face to face, and he holds still
+      if(!P.card && !(P.hc && P.hc.hunt) && t - P.M.t0 > P.M.walkMs){
         P.card = true;
         hospSayCard({ who: P.name + " \u00b7 Marina PD", say: POLICE_CALL.say[P.why], btn: "Understood, officer",
           at: now => hospWalkAt(P.M, now),
