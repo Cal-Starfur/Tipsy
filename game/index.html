@@ -3910,6 +3910,13 @@ function williamLook(seed){
              turn running for it tips him no sooner than one at his everyday top speed (owStep) */
 const WILLIAM_HUNT = { see: 650, lose: 900, leash: 2600, walkV: 0.075, jogV: 0.13, boost: 0.3, boostMs: 400, jogD: 240, fleeV: 0.09, near: 52,
                        kickR: 96, lungeV: 0.2, reach: 82, coolMs: 7000, tauntMs: [4500, 8000], r: 14 };
+/* THE KNOCKED-DOWN COME AFTER HIM (Sir, 2026-11-06: "if tipsy knocks someone over i no longer want tipsy to be stopped from
+   so far away i want it to be like the William action -- the person has to track tipsy down and get close to him to stop
+   him"): up off the ground, a knocked-down walker or rider no longer walks a straight line to where he was while he is held
+   still. They go after him as William does (WILLIAM_HUNT's paces), Tipsey free to drive off; only once they are within
+   `near` do they step up (meetWalk's spot) and hold him for their word or kick. Out past `lose`, or after `maxMs`, they let go
+   and walk back to where they stood. */
+const CONF_HUNT = { near: 130, lose: 1000, maxMs: 30000, walkV: 0.075, jogV: 0.12, jogD: 260, fleeV: 0.09 };
 const WILLIAM_TALK = { r: 340, minR: 60, stillMs: 900, vStill: 0.02, againMs: 30000, beep: 2300, dig: 3900, bye: 6500 };
 const WILLIAM_ACT = {
   blockTrig: 180,   // he sees you coming: steps out into your lane
@@ -33396,6 +33403,7 @@ function meetTick(scene, ow, M){
    from, to, t0, walkMs and leave (null till he goes back); faceTh, the way
    he looks once he stands (meetWalk), or face, a point he looks at. null once he is back where he came from */
 function hospWalkAt(W, now){
+  if(W.live) return W.live;                  // (on the chase: knockConfHunt's own position)
   const a = W.from, b = W.to;
   let k, back = false;
   if(W.leave == null) k = Math.min(1, (now - W.t0)/W.walkMs);
@@ -117255,14 +117263,15 @@ class WorldScene extends Phaser.Scene {
      reach) or a while longer talking, back to the scooter, and up on it
      (C.upT: the scooter rolls back up under them over upMs) */
   riderConfTick(rd, t){
+    if(rd.conf.hunt && rd.conf.upT === undefined) this.confHunt(rd.conf, t);
     const SR = STREET_RIDER, C = rd.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
     const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: 0, h: 165 } : null; };
     if(C.upT !== undefined){
       if(t - C.upT >= SR.upMs){ rd.conf = null; rd.fallT = undefined; rd.hitT = t - SR.hitMs + 600; if(this._riderMeet === rd) this._riderMeet = null; }
       return;
     }
-    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
-    if(t >= arr && C.said === undefined){
+    if(M.leave == null && ow && this.state === "play" && !(C.hunt && C.hunt.stage === "chase")) meetTick(this, ow, M);
+    if(t >= arr && !C.hunt && C.said === undefined && M.leave == null){
       C.said = t;
       this.npcSay(rd, at, sayPick(SAY.riderMad), 2200, "mad");
       if(C.kick) C.kickT = t + 900;
@@ -117570,6 +117579,7 @@ class WorldScene extends Phaser.Scene {
         const st = this.knockStand(K);
         if(ow && ow.on && this.state === "play" && !ow.lift && !ow.deck && !this._riderMeet && !this._knockMeet && !(this._willMeet && this._willMeet.kst === "talk") && Math.hypot(this.botX - st.x, this.botY - st.y) < SR.confR){
           K.conf = { M: meetWalk(ow, { x: st.x, y: st.y }, t, 0, this), kick: K.mood === 'polite' || K.chair ? false : Math.random() < (K.mood === 'young' ? 0.7 : SR.kickP) };   // (a wedding guest has words, never a kick)
+          this.confChase(K.conf, t);
           this._knockMeet = K;
         }
       }
@@ -117579,11 +117589,40 @@ class WorldScene extends Phaser.Scene {
     }
   }
   /* having words (riderConfTick's, for anyone): true once they are back */
+  /* ...ON THE CHASE (CONF_HUNT): C.hunt { x, y, stage 'chase' | 'close', t0, last }, M.live their place meanwhile */
+  confHunt(C, t){
+    const H = C.hunt, M = C.M, ow = this.ow, W = CONF_HUNT, dt = Math.max(0, Math.min(100, t - H.last)); H.last = t;
+    const to = (x, y, v) => { const dx = x - H.x, dy = y - H.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, v*dt);
+      H.x += dx/d*st; H.y += dy/d*st; M.live = { x: H.x, y: H.y, th: Math.atan2(dy, dx), moving: true }; return d - st; };
+    const d = Math.hypot(this.botX - H.x, this.botY - H.y);
+    if(H.stage === "chase"){
+      if(this.state !== "play" || !ow || !ow.on || ow.lift || ow.deck || this._inside || d > W.lose || t - H.t0 > W.maxMs){
+        /* let go: back to where they stood, at a walk (hospWalkAt's leave) */
+        const w = M.live || { x: H.x, y: H.y };
+        M.to = { x: w.x, y: w.y }; M.walkMs = meetWalkMs(Math.hypot(M.to.x - M.from.x, M.to.y - M.from.y)); M.t0 = t - M.walkMs; M.leave = t;
+        M.faceTh = Math.atan2(M.to.y - M.from.y, M.to.x - M.from.x); M.live = null; C.hunt = null; C.kick = false; return;
+      }
+      if(d <= W.near){                                   // close enough: they step up, and he is held
+        const Mm = meetWalk(ow, { x: H.x, y: H.y }, t, 0, this);
+        M.to = Mm.to; M.faceTh = Mm.faceTh; M.botTh = Mm.botTh; M.botTh0 = Mm.botTh0; M.t0 = t;
+        M.walkMs = meetWalkMs(Math.hypot(M.to.x - M.from.x, M.to.y - M.from.y)); H.stage = "close"; return;
+      }
+      to(this.botX, this.botY, d > W.jogD || this.speed > W.fleeV ? W.jogV : W.walkV);
+    } else if(to(M.to.x, M.to.y, W.walkV) < 1){          // the last steps to his side
+      M.live = null; M.t0 = t - M.walkMs; C.hunt = null;
+    }
+  }
+  /* (their start: the walk back is meetWalk's, from the spot they stood up at, held by M.live till they reach him) */
+  confChase(C, t){
+    C.hunt = { x: C.M.from.x, y: C.M.from.y, stage: "chase", t0: t, last: t };
+    C.M.live = { x: C.M.from.x, y: C.M.from.y, th: 0, moving: true };
+  }
   knockConfTick(K, t){
+    if(K.conf.hunt) this.confHunt(K.conf, t);
     const C = K.conf, M = C.M, ow = this.ow, arr = M.t0 + M.walkMs;
     const at = () => { const p = hospWalkAt(M, this.time.now); return p ? { x: p.x, y: p.y, z: K.z || 0, h: 165 } : null; };
-    if(M.leave == null && ow && this.state === "play") meetTick(this, ow, M);
-    if(t >= arr && C.said === undefined){
+    if(M.leave == null && ow && this.state === "play" && !(C.hunt && C.hunt.stage === "chase")) meetTick(this, ow, M);
+    if(t >= arr && !C.hunt && C.said === undefined && M.leave == null){
       C.said = t;
       if(K.mood === 'polite') this.npcSay(K, at, sayPick(K.chair ? SAY.chairKind : SAY.politeTalk), 2200);
       else this.npcSay(K, at, sayPick(K.chair ? SAY.chairMad : K.scoot ? SAY.riderMad : K.mood === 'young' ? SAY.youngMad : SAY.walkMad), 2200, "mad");
@@ -118773,6 +118812,7 @@ class WorldScene extends Phaser.Scene {
           const f = rd._at.fc*Math.PI/2, side = rd.fallSide || 1, nx = -Math.sin(f)*side, ny = Math.cos(f)*side;
           const from = fallenFrame(f - Math.PI/2, side, rd.fallImp, SR.offSide, streetLook(rd.seed, { adult: true, aid: 'none' }).build).world(wp.x, wp.y);   // where they stood up (drawFallenHull)
           rd.conf = { M: meetWalk(ow, from, t, 0, this), kick: Math.random() < SR.kickP };
+          this.confChase(rd.conf, t);
           this._riderMeet = rd;
         }
       }
