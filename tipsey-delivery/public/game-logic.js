@@ -845,7 +845,7 @@ const DIRV = [{x:1,y:0},{x:0,y:1},{x:-1,y:0},{x:0,y:-1}];
 /* ====================== WORLD SCATTER: SWEPT ==========================
    The city used to drop ~24,800 props at random and call it furnished:
    16,752 on the grass verges (queueStreetFurniture) and 8,086 inside the
-   parks (queueParkBlock). Against 231 hazards on the daily route.
+   parks (queueParkBlock). Against 231 hazards on the daily seed.
 
    WHY IT IS OFF. Random is the problem, not the count. Route props obey
    real rules -- on the sidewalk, in a lane row, spaced along the street,
@@ -1022,7 +1022,7 @@ function palmSpec(P, x, y){
 
 /* ================= THE NIGHT (approved night-lab v1 + lamp lab v2,
    2026-07-28). Night is the player's own clock (isNightNow, below); it
-   was once a roll per daily route. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
+   was once a roll per daily seed. The look is ONE screen-space MULTIPLY rect (NAVY at 0.65,
    the locked verdict) over every world layer, with warm accents
    ADD-blended above it. Lamps exist on ALL days; only the light is
    nocturnal. */
@@ -1443,7 +1443,7 @@ function dogSettledSpot(hz){
    Half of the dogs that WALK (have a walk range -- sitters and idle
    wanderers never get an owner) bring a person on a leash. Which half is
    a bit of dogSeed, NOT an rng draw: the route's stream and the city
-   table are untouched, so no daily route moves and no prop shifts.
+   table are untouched, so no daily seed moves and no prop shifts.
 
    The owner is part of the DOG, not a second hazard: same record, drawn
    by the dog's drawProp call and solid through the dog's contact (the
@@ -3818,6 +3818,14 @@ function hillNotchToe(x, toePlain, B, gap, mE){
     const mToe = s.at + s.out*s.depth - gap*B, t = d/me, e = t*t*(3 - 2*t);
     out = Math.min(out, mToe + (toePlain - mToe)*e);
   }
+  /* the mall's deeper centre (a site's `bump`): the hills are pushed back behind it too, over its span, easing back over bump.ease */
+  for(const s of HOOD_RIM_SITES){
+    if(!s.bump) continue;
+    const bx0 = s.from + s.bump.a0, bx1 = s.from + s.bump.a1, d = x < bx0 ? bx0 - x : x > bx1 ? x - bx1 : 0, me = s.bump.ease;
+    if(d >= me) continue;
+    const mToe = s.at + s.out*s.bump.depth - gap*B, t = d/me, e = t*t*(3 - 2*t);
+    out = Math.min(out, mToe + (out - mToe)*e);
+  }
   return out;
 }
 let _flyHills = null;
@@ -5451,7 +5459,7 @@ function owBuildWorld(route){
     } }
   /* a rim landmark's run is as solid as a block (see HOOD_RIM_SITES) */
   if(typeof hoodRimRects === "function")
-    for(const r of hoodRimRects()) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
+    for(const r of hoodRimRects().concat(hoodRimBumpRects())) blocks.push({ x0:r.x0, x1:r.x1, y0:r.y0, y1:r.y1, cx:r.cx, cy:r.cy, type:"commercial", rim: r.name });
   /* HOW FAR A LANDMARK'S VOLUME REACHES PAST ITS BLOCK (Sir, on-device at
      the Seabreeze Ballroom, 2026-09-29: "the collision on these post isnt
      happening"). The rect test below gates the volume, and the ballroom's
@@ -6038,6 +6046,7 @@ if(typeof window !== 'undefined'){
 }
 
 function owContact(scene, ow, D, dYaw, key, type, hx, hy){
+  if(ow.jump && ow.jump.z > 24) return false;                             // (in the air over a jump: over the cones and bins, not through them)
   const dx = ow.px - hx, dy = ow.py - hy;
   const dist = Math.hypot(dx, dy) || 1e-6;
 
@@ -6284,7 +6293,7 @@ function owWrapAngle(a){
 
 /* ---------- DERIVED s (open-world step 4) ----------
    botS USED TO BE FROZEN under open world, and that freeze is what kept
-   free steering out of the daily route. Everything the delivery layer
+   free steering out of the daily seed. Everything the delivery layer
    does is keyed to s -- the door test, the GPS distance and turn arrow,
    the par clock, groundZ, the curb-ramp crossings -- so a frozen s does
    not mean "the rail is idle", it means all of that reads one stale
@@ -6439,7 +6448,7 @@ function owRailSync(scene){
 
    WHY THE FILTER IS NOT ENOUGH. hjBuildCourse drops everything between
    clearFrom and clearTo out of route.hazards and route.props. Those two
-   arrays are the DAILY ROUTE's own spawns. The ~14,700 permanent city
+   arrays are the DAILY SEED's own spawns. The ~14,700 permanent city
    props are not in either one -- they are a pure function of the
    frontage (cityFurnitureForEdge), materialized on demand, and reach
    the sim through cityFurnitureNear in the open-world contact pass.
@@ -6655,7 +6664,7 @@ function missionMatAtS(route, s, id, name, style, lane){
 /* DERIVED ONCE, THEN FROZEN -- and this is a measurement, not a
    preference. missionMatDerive below is the real derivation, and it
    costs two full route generations: 8.0s marginal on a warm grid in the
-   node harness, on top of the 3.3s the daily route already spends. That
+   node harness, on top of the 3.3s the daily seed already spends. That
    cannot sit on the draw path or in create(); it is a load-time freeze
    either way you slice it, for two numbers that CANNOT CHANGE -- the
    city is CITY_SEED and both missions are frozen dates.
@@ -7847,6 +7856,113 @@ function owCurbDrop(scene, ow, W){
     scene.damage = Math.min(95, scene.damage + P.dmg * (v01 - P.dmgFrom)/(1 - P.dmgFrom) * (0.5 + 0.5*sq));
   sfxThump(0.25 + 0.75*v01);
 }
+/* ==================== RAMPS, KICKERS AND THE RING OF FIRE (queue r2b; docs/ramp-jump-spec.md, the bench labs/ramp-jump.html) ====================
+   One launch / arc / landing system, two magnitudes (a kicker, a ramp) and a gate hazard riding on it (the ring of fire). Placed objects
+   come from a challenge route's placedObjects ([{ id, type: 'kicker' | 'ramp' | 'firegate', position: { x, y }, heading (radians, 0 east),
+   presetOverrides }]) -- the same shape a player's editor will write later -- and live in route.placedObjects.
+   A kicker or ramp is a wedge: its low end at (x, y), rising along its heading over L to a lip of L*tan(angle), W wide. Riding it lifts him
+   (ow.jumpZ, added to botZ, and the shadow stays on the ground); going off the front fast enough LAUNCHES him: v0 = speed*tan(angle), then
+   h(t) = z0 + v0 t - g t^2/2, his heading and speed held (no air control), landing where the arc comes back to groundHeightAt. Slow, he is
+   stopped at the lip (a bump, not a launch); in from the side or the back he is turned away. A bad landing -- on something solid -- goes over
+   (owTip). A ring (firegate) is a pass-through plane: it passes him if he crosses it airborne with his middle inside the ring, and fails him
+   (a scorch: damage and a lean, a toast) if he is on the ground at it or crosses it too low or too high. */
+const JUMP_PRESETS = {
+  kicker:   { angle: 17, g: 330, L: 45, W: 60, minSpeed: 60 },           // a cracked slab's lip: frequent, subtle
+  ramp:     { angle: 37, g: 245, L: 96, W: 84, minSpeed: 60 },           // a built skate ramp: rare, dramatic
+  firegate: { r: 40, zc: 120 }                                           // the ring: its radius, its middle's height (his middle: base + JUMP_MID)
+};
+const JUMP_MID = 30;
+function groundHeightAt(x, y){ return 0; }                              // flat today; a heightmap later changes only this
+function jumpObjects(scene){
+  const R = scene && scene.route;
+  if(!R || !R.placedObjects || !R.placedObjects.length) return null;
+  if(R._placed) return R._placed;
+  return (R._placed = R.placedObjects.map(o => {
+    const P = Object.assign({}, JUMP_PRESETS[o.type] || {}, o.presetOverrides || {}), yaw = o.heading || 0;
+    for(const k in P) if(P[k] === null) delete P[k];
+    const base = JUMP_PRESETS[o.type] || {};
+    return { id: o.id, type: o.type, x: o.position.x, y: o.position.y, yaw, cs: Math.cos(yaw), sn: Math.sin(yaw), P: Object.assign({}, base, P), flare: -1e9 };
+  }));
+}
+function jumpLocal(o, x, y){ const dx = x - o.x, dy = y - o.y; return { u: dx*o.cs + dy*o.sn, v: -dx*o.sn + dy*o.cs }; }
+function jumpLip(o){ return o.P.L * Math.tan(o.P.angle*Math.PI/180); }
+function owJumpTick(scene, ow, dt){
+  const objs = jumpObjects(scene);
+  if(!objs || scene.state !== "play" || scene._inside || ow.deck || FP_FLY()){ if(ow.jump || ow.jumpZ){ ow.jump = null; ow.jumpZ = 0; ow._ramp = null; } ow._jpPrev = { x: ow.px, y: ow.py }; return; }
+  const pv = ow._jpPrev || { x: ow.px, y: ow.py }, mx = ow.px - pv.x, my = ow.py - pv.y, md = Math.hypot(mx, my);
+  const speed = dt > 0 ? md/dt*1000 : 0, now = scene.time.now;
+  const j = ow.jump;
+  /* the gates first (a ring is crossed riding, in the air or on the ground): the plane's u changes sign inside its width */
+  for(const o of objs){
+    if(o.type !== 'firegate') continue;
+    const a = jumpLocal(o, pv.x, pv.y), b = jumpLocal(o, ow.px, ow.py);
+    if(a.u < 0 && b.u >= 0 && md > 0.01){
+      const f = -a.u/(b.u - a.u), vAt = a.v + (b.v - a.v)*f;
+      if(Math.abs(vAt) < o.P.r + 14){
+        const z = ow.jumpZ || 0, mid = z + JUMP_MID, air = !!j && z > 2, ok = air && Math.abs(mid - o.P.zc) <= o.P.r;
+        o.flare = now; o.passed = ok;
+        if(ok){ if(typeof tpToast === "function") tpToast("Ring of fire: cleared!"); sfxThump(0.18); }
+        else {
+          if(typeof tpToast === "function") tpToast(!air ? "Missed the ring: you have to be in the air." : mid < o.P.zc ? "Missed the ring: too low." : "Missed the ring: too high.");
+          if(typeof scene.damage === "number") scene.damage = Math.min(95, scene.damage + 28);
+          owLeanKick(scene, ow, (vAt >= 0 ? 1 : -1)*0.5); sfxThump(0.7);
+        }
+      }
+    }
+  }
+  if(j){                                                                 // IN THE AIR: his heading and speed held, the arc runs
+    const s = dt/1000;
+    j.z += j.vz*s; j.vz -= j.g*s;
+    ow.yaw = j.yaw; ow.vel = j.vel;
+    if(j.z <= groundHeightAt(ow.px, ow.py)){                             // LANDING
+      const hit = !!(ow.world && ow.world.solidAt(ow.px, ow.py, OW_D.botR*0.9));
+      ow.jump = null; ow.jumpZ = 0; ow._ramp = null;
+      if(hit){                                                           // a bad landing: onto something solid
+        if(typeof scene.damage === "number") scene.damage = Math.min(95, scene.damage + 15);
+        owTip(scene, (Math.random() < 0.5 ? 1 : -1)); sfxThump(0.8);
+        if(typeof tpToast === "function") tpToast("Bad landing!");
+      } else {                                                           // a clean one: the bounce the kerb's drop has, by how hard
+        ow.drop = { t: 0, v01: Math.min(1, Math.abs(j.vz)/260), sq: 1 }; sfxThump(0.3 + 0.5*Math.min(1, Math.abs(j.vz)/260));
+      }
+    } else ow.jumpZ = j.z;
+    ow._jpPrev = { x: ow.px, y: ow.py };
+    return;
+  }
+  /* ON THE GROUND: riding a wedge? */
+  let on = null, loc = null;
+  for(const o of objs){
+    if(o.type === 'firegate') continue;
+    const l = jumpLocal(o, ow.px, ow.py);
+    if(l.u > -2 && l.u < o.P.L + 2 && Math.abs(l.v) < o.P.W/2){ on = o; loc = l; break; }
+  }
+  if(on){
+    if(ow._ramp !== on){                                                 // getting on: by the low end only
+      if(loc.u > 0.35*on.P.L){                                           // in from the side or the back: it is a wall -- turned away
+        ow.px = pv.x; ow.py = pv.y; ow.vel *= -0.2; owLeanKick(scene, ow, 0.18); sfxThump(0.3);
+        ow._jpPrev = { x: ow.px, y: ow.py }; return;
+      }
+      ow._ramp = on;
+    }
+    ow.jumpZ = Math.max(0, loc.u)*Math.tan(on.P.angle*Math.PI/180);
+    /* the lip: going off the front is a launch (or a stop, if too slow) -- decided on the step that would take him past it */
+    const nxu = loc.u + (mx*on.cs + my*on.sn);
+    if(nxu >= on.P.L && md > 0.01){
+      const dirCos = (mx*on.cs + my*on.sn)/md;
+      if(speed >= on.P.minSpeed && dirCos > 0.6 && Math.abs(loc.v) < on.P.W/2){
+        const v0 = (on.P.launchPower != null ? on.P.launchPower : speed*dirCos*Math.tan(on.P.angle*Math.PI/180));
+        ow.jump = { z: jumpLip(on), vz: v0, g: on.P.g, yaw: ow.yaw, vel: ow.vel, type: on.type };
+        ow._ramp = null; ow.jumpZ = ow.jump.z;
+        sfxThump(0.2);
+      } else { ow.px = pv.x; ow.py = pv.y; ow.vel = 0; sfxThump(0.15); }   // too slow at the lip: a bump, not a launch
+    }
+  } else if(ow._ramp){                                                   // off the side or the low end: down, a step from the ground
+    const z = ow.jumpZ || 0; ow._ramp = null;
+    if(z > 3) ow.jump = { z, vz: 0, g: 400, yaw: ow.yaw, vel: ow.vel, type: 'fall' };
+    else ow.jumpZ = 0;
+  } else ow.jumpZ = 0;
+  ow._jpPrev = { x: ow.px, y: ow.py };
+}
+function FP_FLY(){ const fp = fleetPhys(); return !!(fp && fp.fly); }
 /* the fall and bounce, advanced every step; everything reads ow.dropZ /
    dropPitch / dropJolt, all zero when no drop is running */
 function owDropTick(scene, ow, dt){
@@ -8257,7 +8373,7 @@ function owStep(scene, dt){
   let sx = ow.stick.active ? ow.stick.dx / D.maxR : ow.keyv.x;
   let sy = ow.stick.active ? ow.stick.dy / D.maxR : ow.keyv.y;
   /* SPUN OUT on a wet floor (hospHazTick): the stick does nothing till it ends */
-  if(ow.spin){ sx = sy = 0; }
+  if(ow.spin || ow.jump){ sx = sy = 0; }                                    // (spun out, or in the air: no steering till he lands)
   let mag = Math.hypot(sx, sy);
   if(mag < D.dead){ mag = 0; sx = sy = 0; }
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
@@ -8613,7 +8729,7 @@ function owStep(scene, dt){
      READ FROM THE TABLE, NOT FROM THE DRAW PASS. The swept world scatter
      had to record its collision from the render (see the old
      queueStreetFurniture note) because its rng consumed draws that
-     depended on the daily route, so any parallel generator would have
+     depended on the daily seed, so any parallel generator would have
      drifted from the art. This table has no such coupling -- it is a
      pure function of the frontage -- so the sim can ask it directly.
      That is both cheaper and, unlike the capture, not a frame stale.
@@ -8820,7 +8936,7 @@ function owStep(scene, dt){
     ow.sfcCommit = sfc;
   }
   if(sfc === 'sidewalk' || sfc === 'curb') ow._lastOff = { x:ow.px, y:ow.py };   // the last bit of pavement he stood on
-  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); }
+  if(!FP.fly){ owDropTick(scene, ow, dt); owRampFeel(scene, ow, W, dt); owJumpTick(scene, ow, dt); }
   /* the jolt rides on the screen centre layout() set */
   if(scene._cyBase === undefined) scene._cyBase = scene.cy;
   scene.cy = scene._cyBase + (ow.dropJolt || 0);
@@ -11102,7 +11218,7 @@ const LOAD_ART = {
    Every calibrated number the burnout uses lives here, once. It started
    life inside Cone Slalom's SL block (2026-08-12) because the 3-2-1
    count was the only place in the game that held the robot still long
-   enough to spin the wheels against a locked chassis. The daily route
+   enough to spin the wheels against a locked chassis. The daily seed
    now has its own standing start (see "THE OPENING IS A STANDING
    START" in update), so the mechanic serves two callers and the
    constants can't sit in either one's closure. SL still exposes its
@@ -12363,7 +12479,7 @@ function buildGrid(cols, rows, seed=0, opts){
 
    Reads grid.nodes/conn ONLY. Not walk, not segs, not route: buildWalk
    rolls a random tourist stroll and cannot be asked for the way to a
-   specific place, which is why the daily route could never double as a
+   specific place, which is why the daily seed could never double as a
    GPS. conn is also the one structure the park-swallow pass edits when
    a street stops existing, so routing through it is automatically
    honest about which streets are actually there.
@@ -15950,7 +16066,7 @@ function houseVolBlocked(grid, blk, x, y, R, cuts){
    The Flats' last row: the nine perimeter lots (buildExteriorLots) between
    the west street's pavement and the boardwalk, j 0..8. They were zoned at
    random -- housing, shops -- and drew nothing (houses are the
-   neighbourhoods' own now). Their ZONING IS LEFT ALONE: the daily route,
+   neighbourhoods' own now). Their ZONING IS LEFT ALONE: the daily seed,
    the challenge seeds and the map's park names read lot types, so this
    only takes over what a lot DRAWS and what stops him there.
 
@@ -23791,6 +23907,13 @@ function hoodLandmarkAtXY(x, y){
    room (see northHillPolys' mall notch). Its garage, the school and the
    tower keep the 940. */
 const MALL_DEP = 1880;
+/* THE MALL'S CENTRE IS DEEPER (Sir, 2026-11-06: "deepen the part of the mall exterior that isn't covering the interior"): the inside is
+   MALL_IN.D = 2790 deep and its front stands on the building's front (BF, -330), so its back wall is at -330 - 2790 = -3120; the
+   outside was only 1510 deep (BB, -1840), so the room stuck 1280 out behind the building (its back wall floated over the foothills).
+   The concourse runs and the atrium (the interior's span, a 2240..7144) now go back to MALL_PLAN.BBC with their lot (the site's
+   `bump`); the anchors keep their depth. */
+const MALL_DEPC = 3160;
+let MALL_OUTSIDE_PASS = false;      // true while the interior's ground is drawn for the street's see-through (queueFramePieces)
 const HOOD_RIM_SITES = [
   { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 8300, notchEase: 400,
     icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
@@ -23798,7 +23921,7 @@ const HOOD_RIM_SITES = [
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
      map fills it as the shops it is, not as the park green the school's
      grounds take. */
-  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP,
+  { name: "Maritime Mall", axis: "x", at: -736, out: -1, from: 3*BLOCK, to: 6*BLOCK, depth: MALL_DEP, bump: { a0: 2240, a1: 7144, depth: MALL_DEPC, ease: 700 },
     icon: "\u{1F6CD}\uFE0F", pin: "#23405e", kind: "landmark", mapType: "commercial" },
   /* its garage (Sir, 2026-09-30): the commercial rim lot above block 2,
      between Veterans Memorial Park's lot and the mall */
@@ -24317,7 +24440,18 @@ function hoodRimSiteAt(x, y){
     const y0 = Math.min(s.at, s.at + s.out*s.depth), y1 = Math.max(s.at, s.at + s.out*s.depth);
     if(x >= s.from && x <= s.to && y >= y0 && y <= y1) return s;
   }
+  for(const r of hoodRimBumpRects()) if(x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) return HOOD_RIM_SITES.find(q => q.name === r.name);
   return null;
+}
+/* a site's deeper part (its `bump`), as a rect behind its run: the mall's centre, back to MALL_DEPC */
+function hoodRimBumpRects(){
+  const out = [];
+  for(const s of HOOD_RIM_SITES){
+    if(!s.bump) continue;
+    const ya = s.at + s.out*s.depth, yb = s.at + s.out*s.bump.depth;
+    out.push({ name: s.name, x0: s.from + s.bump.a0, x1: s.from + s.bump.a1, y0: Math.min(ya, yb), y1: Math.max(ya, yb), cx: s.from + (s.bump.a0 + s.bump.a1)/2, cy: (ya + yb)/2 });
+  }
+  return out;
 }
 function hoodRimRects(){
   return HOOD_RIM_SITES.map(s => ({ name: s.name,
@@ -24376,7 +24510,7 @@ const MALL_STORES = [
    glass 60 in from the lot line -- the awnings' depth, so each awning's
    lip is on the edge of the pavement and none hangs out over it, where
    the robot (drawn after the whole mall) would paint over it. */
-const MALL_PLAN = { BF: -330, CF: -60, BB: -(MALL_DEP - 40), WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8,
+const MALL_PLAN = { BF: -330, CF: -60, BB: -(MALL_DEP - 40), BBC: -(MALL_DEPC - 40), WA: [160, 2240], EA: [7144, 9224], CW: [2240, 4192], CE: [5192, 7144], BAYS: 8,
   /* THE STREET FRONT IS THE INSIDE'S FRONT ROW (Sir, 2026-10-14: the shop
      fronts seen from inside "look wrong ... it needs to match", and the
      inside's shops set the size). Each run is three big shops, not eight
@@ -35315,13 +35449,13 @@ function mallVol(){
   const P = MALL_PLAN, LEN = 9384, BB = P.BB, R = volRect, mp = mallProps();
   /* (its west end, a 0..WA[0], is open to the back line now: the service way up to the Vista Ridge Security Post's
      drive -- SP_PLAN.LANE -- where the back strip shut it 40 short of the bench) */
-  const foot = [[P.WA[0],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
+  const foot = [[P.WA[0],-MALL_DEP],[P.CW[0],-MALL_DEP],[P.CW[0],-MALL_DEPC],[P.CE[1],-MALL_DEPC],[P.CE[1],-MALL_DEP],[LEN,-MALL_DEP],[LEN,BB],[P.EA[1],BB],[P.EA[1],P.BF],[P.EA[0],P.BF],[P.EA[0],P.CF],
                 [P.CE[0],P.CF],[P.CE[0],P.BF],[P.CW[1],P.BF],[P.CW[1],P.CF],[P.CW[0],P.CF],
                 [P.CW[0],P.BF],[P.WA[0],P.BF]];
   const solids = [
-    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 418 },
-    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 418 },
-    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], BB, P.BF), h: 650 },
+    { name: 'west anchor', poly: R(P.WA[0], P.WA[1], BB, P.BF), h: 718 },
+    { name: 'east anchor', poly: R(P.EA[0], P.EA[1], BB, P.BF), h: 718 },
+    { name: 'atrium',      poly: R(P.CW[1], P.CE[0], P.BBC, P.BF), h: 880 },
     ...mp.cols.map(([a, b, r]) => ({ name: 'canopy column', c: [a, b], r, h: 150 })),
     ...mp.pylons.map(([a]) => ({ name: 'pylon', poly: R(a - 108, a + 108, -130, -50), h: 590 })),
     ...mp.palms.map(([a, b]) => ({ name: 'palm', poly: R(a - 46, a + 46, b - 46, b + 46), h: 300, prop: true })),
@@ -35329,7 +35463,7 @@ function mallVol(){
     ...mp.flags.map(([a, b]) => ({ name: 'flagpole', c: [a, b], r: 5, h: 460, prop: true })),
     ...mp.bollards.map(a => ({ name: 'bollard', c: [a, -24], r: 7, h: 42, prop: true }))
   ];
-  return { foot, h: 318, solids, marks: {} };
+  return { foot, h: 648, solids, marks: {} };   // (the runs: 630 + their coping)
 }
 
 /* THE NEAR CORNER, in the LAB'S OWN FRAME (Sir: "from this view i cant
@@ -35816,7 +35950,7 @@ function hoodRoadblocks(grid, W){
    The whole city's sidewalks, furnished once and forever, instead of a
    strip of props rolled fresh for whichever route you happen to be on.
 
-   WHY IT IS NOT ONE BIG TABLE. At the daily route's own density the
+   WHY IT IS NOT ONE BIG TABLE. At the daily seed's own density the
    city's 3,640 block frontages (6,027,840 units of sidewalk) would hold
    ~53,000 props; generateRoute already blocks the main thread 1.6-3.9s
    to produce 231 of them. So "permanent" here means DETERMINISTIC, not
@@ -35861,7 +35995,7 @@ const GROUND_KINDS_CF = { crack:1, sidewalkend:1, sidewalkbegin:1, sidewalkbegin
 const CITY_FURN = {
   /* ON BY DEFAULT (2026-08-21, Sir's call: "I don't want to type a
      query"). It was off while stages 1-2 were only inspectable through
-     ?cf=1, on the grounds that the daily route still rolls its OWN
+     ?cf=1, on the grounds that the daily seed still rolls its OWN
      ambient props and both sets at once double-furnishes the route's
      own corridor. That is still true and it is still the reason stage 4
      exists -- but it costs ~1.25x density over 25k units of one street
@@ -35880,7 +36014,7 @@ const CITY_FURN = {
      Censused before touching it: 1,287 lamps citywide, and a NOMINAL
      stride of 2,539 units that lands at 4,684 once corner clearance,
      off-walk and charging-pad rejections take their cut -- 2,810 ft
-     between lamps, about one every block and a half. The daily route
+     between lamps, about one every block and a half. The daily seed
      lights its own corridor at LAMP_ACT.spacing*T2 = 552 units, so the
      city was running roughly eight times darker than the street every
      other art decision in this game was made against.
@@ -35906,7 +36040,7 @@ const CITY_FURN = {
 
      And the reason this needed its own dial at all is worth recording,
      because the first diagnosis was wrong. The city was NOT eight times
-     darker than the daily route: that compared the city's ACTUAL
+     darker than the daily seed: that compared the city's ACTUAL
      spacing against the route's NOMINAL stride, and the route rejects
      about 87% of its own samples too. Measured like for like, the route
      places a lamp every 3,137-4,641 units against the city's 4,684 --
@@ -36684,7 +36818,7 @@ function cityFurnEdgeIndex(grid){
   /* the perimeter parks' frontages, in a hash of their own: only the
      contact queries read it (cityFurnitureNear's `contact`), never the
      route's harvest -- a perimeter prop harvested would be a different
-     daily route */
+     daily seed */
   const ext = [];
   for(const blk of cfExtParkRects(grid)){
     const es = blockEdgesOf(blk);
@@ -36796,7 +36930,7 @@ function cityFurnitureNear(grid, x, y, R, out, contact = false){
          a 250-unit flee). The line is fixed, so it is stamped once.
          OPT-IN (contact=true): the contact passes want it, and the route's
          harvest must NOT get it -- a different harvest is a different
-         daily route. */
+         daily seed. */
       if(!contact || !(pr.walkS1 > pr.walkS0)) continue;
       if(pr._wl === undefined){
         const p0 = hazSpotWorld(pr, pr.walkS0 - pr.s, 0), p1 = hazSpotWorld(pr, pr.walkS1 - pr.s, 0);
@@ -36813,7 +36947,7 @@ function cityFurnitureNear(grid, x, y, R, out, contact = false){
   return out;
 }
 /* ?cf=1 arms the render pass for a look on-device. Default OFF while the
-   daily route still rolls its OWN ambient props: both sets drawn at once
+   daily seed still rolls its OWN ambient props: both sets drawn at once
    is a double-furnished street, which is a preview artefact and not what
    the finished thing looks like. Stage 4 retires the route's passes and
    this becomes the only source. */
@@ -36911,7 +37045,7 @@ function buildWalk(grid, rng, startOverride, turnsRange, turnR = CORNER_R, start
   let cj = startOverride ? startOverride.j : 1 + Math.floor(rng()*(rows-2 || 1));
   let cur = nodeAt(ci, cj) || grid.nodes[Math.floor(rng()*grid.nodes.length)];
   /* startDir: forces the walk's first heading instead of rolling one --
-     used to anchor the daily route onto a fixed PICKUP_SHOPS landmark's
+     used to anchor the daily seed onto a fixed PICKUP_SHOPS landmark's
      own approach edge (see buildPickupShops). Every shop's startNode/f
      pair is verified connected at table-build time, so the while below
      never has to search when startDir is given -- it's here purely as
@@ -37422,7 +37556,7 @@ function buildLoopArcs(walk){
    unused streets at every turn. A purely random wander of the same total
    length covered 50%; this covers 67.7%.
 
-   Nothing here consumes the daily route's rng. buildCityTraffic owns its
+   Nothing here consumes the daily seed's rng. buildCityTraffic owns its
    own stream off SL_SEED_DATE, and buildWalk is untouched -- the player's
    route still builds through it exactly as before. */
 
@@ -39219,6 +39353,9 @@ function worldgenReconcile(grid){
    part (buildGrid/buildWalk/course search) never reruns for inputs it's
    already built. */
 const _routeGenCache = new Map();
+/* NAMING (2026-11-06): the DAILY SEED is today's date (clientTodayUTC()) plus the ladder's rung (routeSeedStr). It is not one route: it is what the
+   city's routes, their hazards and traffic, the daily-best board and the history are all keyed off. Every route the game rolls for a day is a route
+   off the daily seed; the frozen courses (Hill Jump, Cone Slalom) and the challenge routes use fixed seeds of their own instead. */
 /* THE DAILY IS A LADDER NOW (Sir's call, 2026-08-13). One route per
    calendar day is gone: beat a route and the engine rolls the next one,
    and every player walks the SAME ordered sequence. The ladder resets
@@ -39254,7 +39391,7 @@ function routeSeedStr(dateStr, runIndex){
 /* ---------- ONE PROP-STATE ROLL, TWO CALLERS ----------
    Everything a freshly spawned prop needs beyond its position: the
    pre-knocked coin, the seeds, the brand, the scooter's lie angle. It
-   was inline in the daily route's spawn loop and it is now also wanted
+   was inline in the daily seed's spawn loop and it is now also wanted
    by the permanent city-furniture pass below, and two copies of a
    pre-knocked probability is exactly how the route and the city start
    disagreeing about what a cone is.
@@ -39387,7 +39524,7 @@ function propSpawnState(type, hzObj, R, walkRange){
 }
 
 /* ---------- THE ROUTE READS THE CITY ----------
-   Stage 4. Until now the daily route ROLLED its own ambient props while
+   Stage 4. Until now the daily seed ROLLED its own ambient props while
    the permanent city furniture sat underneath on the same pavement, so
    its corridor carried both -- measured at about 1.25x density on one
    street against 6,002,000 units of frontage that were simply correct.
@@ -39483,10 +39620,17 @@ function harvestCityFurniture(grid, segs){
      seed             a date-style string handed to the generator in place of today's date (its layout)
      modifiers        parScale (x par; <1 is tighter), weather/lighting flags are carried for later phases
      parTimeOverride  par in ms, wins over parScale; null = the generated par
-   Picked with ?route=<id> (nothing else changes without it: the daily route is untouched). Rotation and
+   Picked with ?route=<id> (nothing else changes without it: the daily seed is untouched). Rotation and
    leaderboard scope are still open decisions, so the table is plain data and starts with one entry. */
 const CHALLENGE_ROUTES = [
-  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null }
+  { id: "tight-1", name: "Tight Squeeze", seed: "2026-09-14", modifiers: { parScale: 0.85 }, parTimeOverride: null,
+    /* the first jumps (r2b): on the north pavement along the shops west of the first crossing (the lamps stand on the kerb side, y 5842), heading east -- a kicker to warm up on, then a ramp and a ring of fire at the
+       arc's apex for his top speed (about 146 a second: the ring's middle at the arc's height there) */
+    placedObjects: [
+      { id: "k1", type: "kicker",   position: { x: 10250, y: 5720 }, heading: 0 },
+      { id: "r1", type: "ramp",     position: { x: 10560, y: 5720 }, heading: 0 },
+      { id: "f1", type: "firegate", position: { x: 10722, y: 5720 }, heading: 0, presetOverrides: { zc: 127, r: 40 } }
+    ] }
 ];
 function challengeRouteById(id){ return CHALLENGE_ROUTES.find(r => r.id === id) || null; }
 let CHALLENGE_ROUTE_PICK = null;
@@ -39495,11 +39639,13 @@ function generateRoute(dateStr, opts){
   /* only an ordinary delivery takes a challenge route; the frozen courses keep their own seeds */
   const cr = CHALLENGE_ROUTE_PICK;
   if(cr && !(opts && (opts.challenge || opts.unanchoredStart || opts.hoodIndex != null))){
-    const r = _generateRouteCached(cr.seed, opts);
+    /* (a copy: the cache is keyed by seed, so changing its object would hand the par scale, the name and the jumps to an ordinary route of the same date) */
+    const r = Object.assign({}, _generateRouteCached(cr.seed, opts));
     const m = cr.modifiers || {};
     if(cr.parTimeOverride != null) r.parMs = cr.parTimeOverride;
     else if(m.parScale) r.parMs = Math.round(r.parMs * m.parScale);
     r.challengeRoute = cr.id;
+    r.placedObjects = cr.placedObjects || null;                  // (ramps, kickers and rings: owJumpTick)
     return r;
   }
   return _generateRouteCached(dateStr, opts);
@@ -39540,7 +39686,7 @@ function _generateRouteBody(dateStr, opts){
      city every day. That's the one thing this freezes: cols, rows, and
      buildGrid all read off CITY_SEED -- a fixed structural seed derived
      from SL_SEED_DATE, the same frozen date the slalom course already
-     builds its own city from -- so the daily route, Cone Slalom, and
+     builds its own city from -- so the daily seed, Cone Slalom, and
      Hydrant Challenge are all standing on the literal same streets and
      blocks, forever. `classic:true` is forced unconditionally too --
      the whole reason that flag exists is "a frozen seed always rebuilds
@@ -39597,7 +39743,7 @@ function _generateRouteBody(dateStr, opts){
      SWALLOW THEIR STREETS" comment) -- adjacent park blocks stopped
      fusing into one contiguous green space and started rendering as
      separate lots with a street still cutting through them, which is
-     NOT how the daily route ever looked before tonight. Both the daily
+     NOT how the daily seed ever looked before tonight. Both the daily
      route and Cone Slalom's own original generateRoute(SL_SEED_DATE)
      call were ALWAYS non-classic (only Hydrant Challenge's call ever
      passed classic:true, for its own precision-jump-course reasons) --
@@ -39608,7 +39754,7 @@ function _generateRouteBody(dateStr, opts){
      case, since every caller sharing one real grid is the whole point
      of the permanent map. */
   /* HJ DRIFT REDUX (reported 2026-08-10, same day as the revert above):
-     the revert fixed park-merging for the daily route and Cone Slalom,
+     the revert fixed park-merging for the daily seed and Cone Slalom,
      but it hardcoded classic:false for EVERY caller instead of reading
      opts.classic -- silently dropping the Hydrant Challenge's own
      classic:true request (still passed by loadRoute, see HJ_SEED_DATE's
@@ -39663,7 +39809,7 @@ function _generateRouteBody(dateStr, opts){
        and this search has to say so explicitly or the hydrant course can
        land in any of the twelve, unrelated to its own "Pelican St at 5th,
        The Flats" address. Only filters when the caller actually asked for
-       a hood (opts.hoodIndex != null) -- the daily route's own door-leg
+       a hood (opts.hoodIndex != null) -- the daily seed's own door-leg
        search reuses this same file's GOOD_LEG_HEADING rule elsewhere and
        was never hood-scoped, so it stays exactly as unconstrained as it
        always was. */
@@ -39716,7 +39862,7 @@ function _generateRouteBody(dateStr, opts){
     ? { i: (opts.hoodIndex % DISTRICT_COLS)*DISTRICT_W + Math.floor(DISTRICT_W/2),
         j: Math.floor(opts.hoodIndex/DISTRICT_COLS)*DISTRICT_H + Math.floor(DISTRICT_H/2) }
     : undefined;
-  /* the daily route's start is anchored to today's fixed pickup shop
+  /* the daily seed's start is anchored to today's fixed pickup shop
      (2026-08-12, Sir's call -- see buildPickupShops) so the walk's very
      first leg always traces that shop's own block edge. Cone Slalom
      used to share this same opts.hoodIndex-less path and drifted with
@@ -39752,7 +39898,7 @@ function _generateRouteBody(dateStr, opts){
     ? _shopPool.find(sh => sh.name === opts.pickupShop) : null;
   /* THE DAY'S OWN PICK leaves the mall's stores and the hood's extra
      shops out (see MALL_STORES, hoodExtraPickups): they arrived after the
-     daily routes were settled, and counting them would move every day's
+     daily seeds were settled, and counting them would move every day's
      shop. They are offered by name like the rest. */
   const _dayPool = _shopPool.filter(sh => !sh.mall && !sh.extra).length ? _shopPool.filter(sh => !sh.mall && !sh.extra) : _shopPool;
   const todaysShop = _named || _dayPool[seed % _dayPool.length];
@@ -40041,7 +40187,7 @@ function _generateRouteBody(dateStr, opts){
      point. Every one of these loops draws from the shared route rng, and
      they run UPSTREAM of the night roll and the address pick -- so
      simply deleting them would renumber the draw sequence and reshuffle
-     every daily route in the game. Worse, HJ_SEED_DATE and SL_SEED_DATE
+     every daily seed in the game. Worse, HJ_SEED_DATE and SL_SEED_DATE
      freeze the Hydrant Jump and Cone Slalom courses off that same
      stream, so the two side missions would silently rebuild themselves
      on different geometry and every posted best time would be a time on
@@ -40765,11 +40911,11 @@ function _generateRouteBody(dateStr, opts){
      everything generated after it (the crime scene, hazards, the
      furnish exclusions) draws from that same stream. Delete the call
      and every stream position downstream shifts, which silently
-     regenerates every daily route: different hazards, different
+     regenerates every daily seed: different hazards, different
      layout, and Past Routes replays that no longer match the run they
      are scoring against. The hazard oracle caught exactly that. So the
      call stays purely to consume its share of the stream, and its
-     result is thrown away. Drop this line the day changing daily route
+     result is thrown away. Drop this line the day changing daily seed
      generation is acceptable -- and expect every stored route to move
      when you do. */
   const nTrafficRoutes = totalLen > 50000 ? 18 : totalLen > 30000 ? 15 : 12;
@@ -41216,7 +41362,7 @@ function _generateRouteBody(dateStr, opts){
      fired on the thing it was written for. The two systems sit about a
      thousand units apart because the route anchors its ramps on its own
      crossing span and the world anchors on WORLD_RAMP.along/cross off
-     the node. So the daily route has been drawing two unrelated sets of
+     the node. So the daily seed has been drawing two unrelated sets of
      ramps at every crossing, neither aware of the other.
 
      Now that ramps are decoration everywhere (see CROSSING_PHYSICS),
@@ -41250,7 +41396,7 @@ function _generateRouteBody(dateStr, opts){
      THIS route is skipped by the draw and the free-roam contact pass, so
      a harvested prop is drawn and collided exactly once, by the rail
      side that now owns it. */
-  /* ...BUT NOT ON A DAILY ROUTE (2026-10-06, Sir: "the route doesnt
+  /* ...BUT NOT ON A DAILY SEED (2026-10-06, Sir: "the route doesnt
      need to generate the props anymore its just 1 world"). A delivery is
      driven in open world, the same as free roam, so a harvest there
      only moved the props along one walk from the city's draw and contact
@@ -51473,11 +51619,13 @@ function houseCanopy(fn){
        down on the concourse and under him up on it) */
     /* over the upper shops: their roof, and the clerestory with its
        skylights and the mall's name */
+    if(!MALL_OUTSIDE_PASS){      // (not seen from outside: the building's own roof is there)
     T(0, W, 0, SF2, Z2 + H2, wallD);
     F(0, W, Z2 + H2, ZT, wall, null, 0, 0);
     for(let a = 160; a < W - 200; a += 420) F(a, a + 300, Z2 + H2 + 22, ZT - 34, 'rgba(176,214,230,.85)', null, 0, 0.3);
     F(1900, 2960, Z2 + H2 + 18, ZT - 30, navy, null, 0, 0.5);
     blockWordIn('MARITIME MALL', 1930, 2930, Z2 + H2 + 28, ZT - 40, 0.7, '#f6efe0', null, 10);
+    }
 
     /* ---- THE LOWER SHOPS, along SF1, the gallery's edge and glass rail over them ---- */
     const railRun = (a0, a1) => {                                                // the gallery's glass rail along SF1
@@ -70793,9 +70941,15 @@ marinaEntry(),
   draw(p){
     const LEN = 9384, DEP = MALL_DEP;
     const BF = MALL_PLAN.BF, BB = MALL_PLAN.BB;                 // the building's own band
+    const BBC = MALL_PLAN.BBC, CW0 = MALL_PLAN.CW[0], CE1 = MALL_PLAN.CE[1], DEPC = MALL_DEPC;   // (its centre, over the inside's span, is deeper)
+    const bbOf = (a0, a1) => (a0 >= CW0 - 1 && a1 <= CE1 + 1) ? BBC : BB;
     const WA0 = 160, WA1 = 2240, EA0 = 7144, EA1 = 9224;        // the two anchors
     const AT0 = 4192, AT1 = 5192, AC = (AT0 + AT1)/2;          // the atrium, on the middle of the run
-    const HA = 400, HC = 300, HT = 520;                         // anchor, concourse, atrium heights
+    /* THE OUTSIDE IS AS TALL AS THE INSIDE (Sir, 2026-11-06: "lets make the exterior taller then"): the room's upper shops end at
+       Z2 + H2 = 630 (its roof) and its clerestory and glass roof stand to ZT = 750, so the concourse runs are 630 and the atrium 750
+       (they were 300 and 520: the room stood out over its own building); the anchors stay above the runs */
+    const HA = 700, HC = 630, HT = 750;                         // anchor, concourse, atrium heights
+    const FL2 = 330;                                            // the upper floor's level (MALL_IN.Z2): the floor line, the ribbon over it
     const pave = '#d3cab8', paveD = '#c2b8a4', paveL = '#e0d8c8', curbC = '#a9a294';
     const glass = 'rgba(96,136,158,.90)', glassL = 'rgba(150,196,214,.85)', mull = '#e9eef0';
     const navy = '#23405e', teal = '#2f7f86', coral = '#e0674e', gold = '#e8b54a';
@@ -70804,7 +70958,7 @@ marinaEntry(),
     /* NOTHING AT ALL WHEN NONE OF IT CAN SHOW (2026-09-30, Sir: "the game
        is feeling a bit sluggish ... the same issue ... we had with the
        veterans park"): the whole site, vault and crown included */
-    if(!inView(0, LEN, -DEP, 0, 0, HT + 260)) return;
+    if(!inView(0, LEN, -DEPC, 0, 0, HT + 260)) return;
 
     /* ---- THE SITE ----
        THE FRONTAGE IS THE SIDEWALK (Sir, 2026-10-14: "lets make this
@@ -70875,14 +71029,15 @@ marinaEntry(),
 
     /* ---- THE MASSES, west to east ---- */
     const mass = (a0, a1, h, col, capCol, bf = BF) => {
-      box(a0, a1, BB, bf, 0, h, shade(col,1.05), col, shade(col,.78));
+      const bb = bbOf(a0, a1);
+      box(a0, a1, bb, bf, 0, h, shade(col,1.05), col, shade(col,.78));
       F(a0, a1, 0, 20, shade(col,.62), null, 0, bf + 0.4);                         // plinth
-      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, BB - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
+      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, bb - 6, capCol, shade(capCol,.72), shade(capCol,1.12));   // coping
     };
     const roofKit = (a0, a1, h) => {
       if(!state.roof) return;
       /* a row of plant every 940 back, so the deeper roof is not bare */
-      for(let rb = -760; rb > BB + 200; rb -= 940)
+      for(let rb = -760; rb > bbOf(a0, a1) + 200; rb -= 940)
         for(let a = a0 + 200; a < a1 - 260; a += 620){
           box(a, a + 140, rb, rb + 100, h + 18, h + 52, '#a3a9ae', '#8a9095', '#737a80');
           cyl(a + 190, rb + 160, h + 18, h + 40, 22, '#9aa1a6');
@@ -71020,14 +71175,14 @@ marinaEntry(),
        left of the next mass on the screen, never under it. */
     const concourse = (a0, a1, wing) => {
       const BF = MALL_PLAN.CF;
-      if(!inView(a0 - 10, a1 + 10, BB - 10, BF + 10, 0, HC + 60)) return;
+      if(!inView(a0 - 10, a1 + 10, bbOf(a0, a1) - 10, BF + 10, 0, HC + 60)) return;
       mass(a0, a1, HC, '#ece6da', '#cfc7b8', BF);
       roofKit(a0, a1, HC);
-      if(state.roof) for(let sb = -460; sb - 300 > BB + 100; sb -= 470)
+      if(state.roof) for(let sb = -460; sb - 300 > bbOf(a0, a1) + 100; sb -= 470)
         for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, sb - 300, sb, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
-      F(a0, a1, 172, 186, '#d8d0c0', null, 0, BF + 0.6);                          // the floor line
-      F(a0 + 30, a1 - 30, 200, 278, glass, null, 0, BF + 0.8);                     // upper ribbon
-      for(let a = a0 + 30; a <= a1 - 30 + 0.1; a += (a1 - a0 - 60)/16) F(a - 3, a + 3, 200, 278, mull, null, 0, BF + 1.2);
+      F(a0, a1, FL2 - 14, FL2, '#d8d0c0', null, 0, BF + 0.6);                     // the floor line
+      F(a0 + 30, a1 - 30, FL2 + 36, HC - 40, glass, null, 0, BF + 0.8);            // upper ribbon
+      for(let a = a0 + 30; a <= a1 - 30 + 0.1; a += (a1 - a0 - 60)/16) F(a - 3, a + 3, FL2 + 36, HC - 40, mull, null, 0, BF + 1.2);
       /* THE INSIDE'S FRONT ROW, FROM THE STREET (MALL_PLAN.STREET): three shops
          a run, each on the inside's lines -- a pier at each party wall, its
          double door where the inside's street door is, glass either side with
@@ -71038,7 +71193,7 @@ marinaEntry(),
            eight, letters and all, whenever any of it was in view -- 13.8k
            draw commands a frame at the closest zoom, which shows one or two */
         if(!inView(b0, b1, BF, BF + 2, 0, 190)) continue;
-        F(b0, b0 + 16, 0, 172, '#d8d0c0', null, 0, BF + 0.8);                      // pier
+        F(b0, b0 + 16, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);                 // pier
         F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
         F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
         for(const a of [b0 + 28 + (dm - dw - b0 - 28)/2, dm + dw + (b1 - 12 - dm - dw)/2]) F(a - 3, a + 3, 14, 128, mull, null, 0, BF + 1.2);   // the inside's posts
@@ -71059,7 +71214,7 @@ marinaEntry(),
         for(let g0 = b0 + 44, m = 0; g0 + 34 < b1 - 20; g0 += 62, m++){ if(Math.abs(g0 + 17 - dm) < 92) continue;
           F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
       }
-      F(a1 - 16, a1, 0, 172, '#d8d0c0', null, 0, BF + 0.8);
+      F(a1 - 16, a1, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);
     };
     const awnings = (a0, a1, wing) => {
       const BF = MALL_PLAN.CF;
@@ -71077,16 +71232,16 @@ marinaEntry(),
     /* the atrium: a glass box taller than everything, a barrel vault of
        glass running back over it, and the crown with the name */
     const atrium = () => {
-      if(!inView(AT0 - 30, AT1 + 30, BB - 10, BF + 20, 0, HT + 220)) return;
+      if(!inView(AT0 - 30, AT1 + 30, BBC - 10, BF + 20, 0, HT + 220)) return;
       /* SEEN INTO, AS THE ANCHORS ARE (Sir, 2026-10-29: "the front of the main entrance to the mall its not see through and
          showing the interior like the anchor stores do"): no box -- its top and its end, and its front only round the
          curtain wall, so the concourse behind it (MALL_THROUGH, queued just under this) shows through the glass */
-      T(AT0, AT1, BB, BF, HT, '#dfe5e8'); S(AT1, BB, BF, 0, HT, '#aeb7bd');
+      T(AT0, AT1, BBC, BF, HT, '#dfe5e8'); S(AT1, BBC, BF, 0, HT, '#aeb7bd');
       F(AT0, AT0 + 30, 0, HT, '#cfd6da', null, 0, BF); F(AT1 - 30, AT1, 0, HT, '#cfd6da', null, 0, BF);
       F(AT0 + 30, AT1 - 30, 0, 10, '#cfd6da', null, 0, BF); F(AT0 + 30, AT1 - 30, HT - 30, HT, '#cfd6da', null, 0, BF);
       /* the vault, far half first so the near half covers it */
       if(state.roof){
-        const R = 380, N = 12, vb0 = BB + 60, vb1 = BF - 110, zb = HT;
+        const R = 380, N = 12, vb0 = BBC + 60, vb1 = BF - 110, zb = HT;
         const pt = (t, b) => P(AC - R*Math.cos(t), b, zb + R*Math.sin(t)*0.55);
         for(let k = 0; k < N; k++){
           const t0 = k/N*Math.PI, t1 = (k + 1)/N*Math.PI, lit = 0.8 + 0.4*(k/N);
@@ -83839,13 +83994,13 @@ function msTipAt(now){
   const T = MS.tip; if(!T) return null;
   if(!MS.tipArr){
     const p = walkPathAt(T, now);
-    if(p && !p.there) return { x: p.x, y: p.y, th: p.th };
+    if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
     MS.tipArr = now;
   }
   const S = T.S, posts = [340, 230, 120, 230], k = Math.floor((now - MS.tipArr)/6000), f = Math.min(1, ((now - MS.tipArr) % 6000)/1400);
   const e = f*f*(3 - 2*f), b0 = posts[k % 4], b1 = posts[(k + 1) % 4];
   const q = S(522, (k === 0 && now - MS.tipArr < 6000 ? 340 : b0 + (b1 - b0)*e));
-  return { x: q.x, y: q.y, th: 0 };
+  return { x: q.x, y: q.y, th: 0, moving: b0 !== b1 && f < 1 && !(k === 0 && now - MS.tipArr < 6000) };
 }
 function msGidAtDoor(p){ const B = MS._bay; return !!p && !!B && !!B.door && Math.hypot(p.x - B.door.x, p.y - B.door.y) < 220; }
 function msDoorWalkers(now){ const p = msGidAt(now); return p && msGidAtDoor(p) ? [{ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' }] : []; }
@@ -83928,7 +84083,7 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
       mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
   }
   const T = R.tip ? msTipAt(now) : null;
-  if(T && scene.visProp("people", T.x, T.y)){ const x = T.x, y = T.y, th = T.th; queuePerson(x, y, (g) => scene.drawTipseyParked(layerFor(x, y), x, y, th)); }
+  if(T && scene.visProp("people", T.x, T.y)){ const x = T.x, y = T.y, th = T.th, mv = T.moving; queuePerson(x, y, (g, tt) => scene.drawTipseyParked(layerFor(x, y), x, y, th, 0, mv ? { t: tt || now } : null)); }
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
   steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
@@ -89178,7 +89333,7 @@ class WorldScene extends Phaser.Scene {
     ch.catchS = Math.round(lipS + (2.25 + (level-1)*HJ_CH.gap) * T);
     const clearFrom = ch.kickerS - HJ_GEOM.runup - T2, clearTo = ch.catchS + 5*T2;
     /* THE SAME WINDOW, IN WORLD SPACE. clearFrom/clearTo below sweep the
-       daily route's own arrays; the city's permanent props are not in
+       daily seed's own arrays; the city's permanent props are not in
        those arrays and have to be swept by geometry instead. Built from
        the identical two numbers so the two sweeps can never disagree
        about where the course is -- see OW_CORRIDOR for why this is
@@ -89234,7 +89389,7 @@ class WorldScene extends Phaser.Scene {
   /* back to the top of the run-up for another attempt */
   /* the challenge's own crash handling — the delivery fail overlay
      ("The pavement won") belongs to a delivery that went wrong, not to
-     a missed jump, and its Retry reloaded the daily route. */
+     a missed jump, and its Retry reloaded the daily seed. */
   hjOwnsTip(){ return this.mode === "challenge"; }
 
   /* ---------- ATTRACT MODE ----------
@@ -89878,7 +90033,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE MISSION ENDS HERE (Sir's report, 2026-08-14: "after beating
        the hydrant challenge I'm not being steered to another challenge
-       or the daily route, it just has a retry").
+       or the daily seed, it just has a retry").
 
        There was no terminal branch at all: clearing jump ten did exactly
        what clearing jump three does. hjLevel += 1 clamped 10 -> 10, the
@@ -89920,9 +90075,9 @@ class WorldScene extends Phaser.Scene {
     /* HEADLINE IS THE MISSION NAME (2026-08-10, Sir's call, reverted the
        same day it was changed): this led with HJ_ADDRESS.hood ("The
        Flats — hydrant challenge at..."), which was made to match the
-       daily route's own "place leads" convention. Backwards -- side
+       daily seed's own "place leads" convention. Backwards -- side
        missions lead with their own NAME, the way Cone Slalom's card
-       always did ("Cone Slalom Challenge — ..."); the daily route is
+       always did ("Cone Slalom Challenge — ..."); the daily seed is
        the one case that's place-first, since it doesn't have a name of
        its own the way a mission does.
 
@@ -89959,7 +90114,7 @@ class WorldScene extends Phaser.Scene {
 
      WHY THE SCENE OWNS THIS ONE and the slalom's lives in a closure: the
      slalom is a lab that monkeypatches an existing route, so its ending
-     had to be self-contained and removable. The daily route IS the scene.
+     had to be self-contained and removable. The daily seed IS the scene.
      Two copies is the cost of not making the slalom depend on the daily's
      lifecycle -- flagged for Sir as the obvious later merge, once the
      hydrant needs a third and the shared shape is actually known.
@@ -90289,7 +90444,7 @@ class WorldScene extends Phaser.Scene {
     this.crossZ = 0; this.crossSlope = 0; this.crossJitter = 0;
     this.cornerLean = 0;
     /* THE X-RAY'S CACHES ARE THE CITY'S, keyed by world position, so
-       they only go when the city does. Every daily route shares one grid
+       they only go when the city does. Every daily seed shares one grid
        now; clearing them on each pickup re-marched every visible prop and
        wall in the same frame as the load. */
     if(!_sameCity || !this._xrayPropCache){
@@ -93444,7 +93599,12 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk, x0, y0, gg => LIB.draw(name, gg, G, null, this.K)) });
       return;
     }
-    vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => LIB.ground(name, gg, G, this.K)) });
+    vq.push({ depth: groundDepth, fn: (g) => this.bcDraw(g, lk + "|ground", x0, y0, gg => {
+      /* (the mall's room seen from OUTSIDE, MALL_THROUGH: its roof and clerestory are not drawn -- the building's own roof is the street's picture) */
+      const out = name === 'Maritime Mall Interior' && /^pkx\|/.test(lk);
+      if(out) MALL_OUTSIDE_PASS = true;
+      try { LIB.ground(name, gg, G, this.K); } finally { MALL_OUTSIDE_PASS = false; }
+    }) });
     const K = this.K, vw = this.vpW(), vh = this.vpH();
     const isMall = name === 'Maritime Mall Interior', xUnder = isMall ? mallXrayUnder(this) : 0;
     if(name === HOSP_IN.name && !/^pkx\|/.test(lk)) this._hospLk = lk;   // (hospHold's)
@@ -99421,13 +99581,15 @@ class WorldScene extends Phaser.Scene {
        layer decision above it collapses because of this line. dt comes
        off the frame's own stash (see update) -- drawWorld is handed t
        only, and drawRobot needs both. */
+    this.queuePlacedObjects(worldVQ);                                            // (a route's ramps, kickers and rings of fire: owJumpTick)
     worldVQ.push({ depth: hospInGlass(this.ow) ? hospGlassDepth() + (this.ow.py < HOSP_LOWER.cars[1][2] ? 0.35 : 0.5)   // in the hospital's glass lift: in his car, either side of the partition
                         : hospOnBridge(this.ow) ? HOSP.skybridge.x1 + HOSP.skybridge.y0 + HOSP.skybridge.z0 - 0.5   // on the skybridge: after the podium roof under it, behind its glass
                         : this.ow && this.ow.deck && this.ow.deck.mid ? garageMidDepth()      // on the mall garage's level 2: under its decks (the x-ray shows him)
                         : this.ow && this.ow.deck ? garageDeckDepth(this.botX, this.botY)      // up on the garage roof: its own order
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
-                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0), isRobot: true,   // (in the air: past what it flies over)
+                          + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
+                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0), isRobot: true,   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
@@ -103292,7 +103454,7 @@ class WorldScene extends Phaser.Scene {
     for(let fi = 0; fi < 4; fi++){
       for(const cp of cityFurnitureForEdgeCached(grid, { blk, fi })){
         if(GROUND_KINDS_CF[cp.type] || cp.taken) continue;
-        /* taken by the daily route (stage 4): it is in route.hazards now
+        /* taken by the daily seed (stage 4): it is in route.hazards now
            and the rail pass draws it, with the full interaction state
            that comes with being there. Drawing it here as well would
            paint two of everything along the corridor. */
@@ -103421,7 +103583,7 @@ class WorldScene extends Phaser.Scene {
            and that is the whole design. The rng sequence below is not a
            function of the block alone -- a slot skipped by routeCells
            does NOT consume a pick(), so which kinds land where shifts
-           with the daily route. Any parallel generator would drift from
+           with the daily seed. Any parallel generator would drift from
            the art the first time a route moved, and the robot would
            collide with lamps nobody can see. Taking the position off
            the same line that draws it makes that impossible.
@@ -112879,7 +113041,7 @@ class WorldScene extends Phaser.Scene {
   }
   /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
      building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
-  drawTipseyParked(g, x, y, a, zB = 0){
+  drawTipseyParked(g, x, y, a, zB = 0, mv = null){      // (mv: { t, dir } -- rolling: wheels turning by t, the flag streaming; dir -1 backing)
     const S = this, keep = {};
     for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
                     'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
@@ -112887,8 +113049,9 @@ class WorldScene extends Phaser.Scene {
     S.g = g; S.botX = x; S.botY = y; S.botZ = zB; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
     S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
     S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
-    S._gearWP = undefined; S._flagWind = 0; S._flagT = 0; S._lidClacked = true;
-    try { S.drawBotBody(0, 16, true); }
+    S._gearWP = undefined; S._flagWind = mv ? 1 : 0; S._flagT = mv ? mv.t : 0; S._lidClacked = true;
+    if(mv){ S.speed = 0.1; S.wheelPhase = mv.t*0.03*(mv.dir || 1); S.flagLean = -0.2; }
+    try { S.drawBotBody(mv ? mv.t : 0, 16, true); }
     finally { for(const k of Object.keys(keep)) S[k] = keep[k]; }
   }
   /* THE BREAKWATER LIGHT, ON (lhLightOn): its lantern's glow (wash, mid, core) and the beam sweeping slowly round over
@@ -113053,9 +113216,10 @@ class WorldScene extends Phaser.Scene {
     const sp = this.pitch, srl = this.roll; this.pitch = 0; this.roll = 0;
     const sh = [];
     const SU = this.tipU || { a: 0, b: this.tipDir }, sE = this.tipT*26;   // (the shadow slides and stretches the way he falls)
+    const jz = (!npc && this.ow && this.ow.on) ? (this.ow.jumpZ || 0) : 0, jsk = 1 - Math.min(0.45, jz/260);   // (in the air off a ramp: pinned to the ground, smaller as he rises)
     for(let i=0;i<14;i++){
       const a=(i/14)*Math.PI*2;
-      sh.push(this.P(SU.a*sE + Math.cos(a)*(34 + (SU.a ? sE : 0)), (SU.a ? 0 : -sE*(this.tipDir||1)) + Math.sin(a)*(30 + (SU.a ? 0 : sE)), 0.5));
+      sh.push(this.P(SU.a*sE + Math.cos(a)*(34 + (SU.a ? sE : 0))*jsk, (SU.a ? 0 : -sE*(this.tipDir||1)) + Math.sin(a)*(30 + (SU.a ? 0 : sE))*jsk, 0.5 - jz));
     }
     /* EXCLUDED FROM THE X-RAY GHOST. This goes through quadOn like
        every other robot part, so the silhouette wrap in drawWorld's
@@ -115880,7 +116044,7 @@ class WorldScene extends Phaser.Scene {
         this.drawAngle = Math.round(this.drawAngle / (Math.PI/2)) * (Math.PI/2);
         /* the challenge resets the run itself (hjPendingReset); the
            delivery fail overlay would take over the screen and its
-           Retry reloads the daily route. */
+           Retry reloads the daily seed. */
         if(this.attractOwnsTip()){ this.attractRecycle(); }
         else if(this.slOwnsTip()){ this._slAPI.crash(this.tipCause); }
         else if(!this.hjOwnsTip()){ owDispatchTipFail(this); }
@@ -116183,6 +116347,7 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? beachZ(this.route.grid, this.botX, this.botY) : 0)    // SUNSET SHORE: the path decks, the dunes
               + (this.ow && this.ow.on ? coveZ(this.botX, this.botY) : 0)                     // COVE GROVE: the raised walk and its ramps
               + (this.ow && this.ow.on ? (this.ow.dropZ || 0) : 0)             // off the kerb: the fall and its bounce
+              + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)             // on a ramp, or in the air off one (owJumpTick)
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
               + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
@@ -117396,6 +117561,73 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
+  /* PLACED JUMP OBJECTS (a route's ramps, kickers and rings of fire: owJumpTick), queued each frame -- a few small live solids, culled to what
+     is near the camera. Sorted by the bench's rules (labs/ramp-jump.html): a wedge is keyed at its middle and pinned before the rider while he
+     is on it or just off it; a ring is two arcs sorted either side of him as he passes through it (the far half under him, the near half over). */
+  queuePlacedObjects(vq){
+    const objs = jumpObjects(this);
+    if(!objs) return;
+    const ow = this.ow, now = this.time.now, cx = this.camX, cy = this.camY, span = (this.vpW() + this.vpH())/this.K + 600;
+    const rkey = this.botX + this.botY + (ow && ow.on ? (ow.jumpZ || 0) : 0);
+    const VIEW = [1, 1, 1];
+    const wl = (o, u, v, z) => this.W(o.x + o.cs*u - o.sn*v, o.y + o.sn*u + o.cs*v, z);
+    const wp = (o, u, v, z) => [o.x + o.cs*u - o.sn*v, o.y + o.sn*u + o.cs*v, z];
+    /* a convex solid from world points and faces (point indices, any winding): the faces that turn to the eye, shaded by the light */
+    const solid = (g, V, faces, cols) => {
+      const c = [0, 0, 0]; for(const q of V){ c[0] += q[0]; c[1] += q[1]; c[2] += q[2]; } c[0] /= V.length; c[1] /= V.length; c[2] /= V.length;
+      faces.forEach((f, i) => {
+        const a = V[f[0]], b = V[f[1]], d = V[f[2]];
+        let n = [(b[1]-a[1])*(d[2]-a[2]) - (b[2]-a[2])*(d[1]-a[1]), (b[2]-a[2])*(d[0]-a[0]) - (b[0]-a[0])*(d[2]-a[2]), (b[0]-a[0])*(d[1]-a[1]) - (b[1]-a[1])*(d[0]-a[0])];
+        const fc = [0, 0, 0]; for(const k of f){ fc[0] += V[k][0]; fc[1] += V[k][1]; fc[2] += V[k][2]; } fc[0] /= f.length; fc[1] /= f.length; fc[2] /= f.length;
+        if(n[0]*(fc[0]-c[0]) + n[1]*(fc[1]-c[1]) + n[2]*(fc[2]-c[2]) < 0) n = [-n[0], -n[1], -n[2]];
+        if(n[0]*VIEW[0] + n[1]*VIEW[1] + n[2]*VIEW[2] <= 1e-6) return;
+        const m = Math.hypot(n[0], n[1], n[2]) || 1, lit = 0.62 + 0.38*Math.max(0, (n[0]*0.35 + n[1]*0.2 + n[2]*0.9)/m);
+        const col = cols[i] !== undefined ? cols[i] : cols[0], k = lit;
+        this.quadOn(g, f.map(q => this.W(V[q][0], V[q][1], V[q][2])), (Math.min(255, ((col >> 16) & 255)*k)<<16) | (Math.min(255, ((col >> 8) & 255)*k)<<8) | Math.min(255, (col & 255)*k));
+      });
+    };
+    for(const o of objs){
+      const mx = o.x + o.cs*(o.P.L || 0)/2, my = o.y + o.sn*(o.P.L || 0)/2;
+      if(Math.abs(mx - cx) + Math.abs(my - cy) > span + 400) continue;
+      if(o.type === 'firegate'){
+        const r = o.P.r, zc = o.P.zc, near = Math.abs(o.x - this.botX) + Math.abs(o.y - this.botY) < 280, key = o.x + o.y;
+        const age = now - (o.flare || -1e9), fl = age < 700 ? 1 - age/700 : 0;
+        const side = (o.cs - o.sn) >= 0 ? 1 : -1;                      // which lateral sign is nearer the eye
+        const post = (g, sg) => { const bx = -o.sn*(r + 12)*sg, by = o.cs*(r + 12)*sg, w = 4;
+          const V = [[o.x + bx - w, o.y + by - w, 0], [o.x + bx + w, o.y + by - w, 0], [o.x + bx + w, o.y + by + w, 0], [o.x + bx - w, o.y + by + w, 0],
+                     [o.x + bx - w, o.y + by - w, zc + r*0.55], [o.x + bx + w, o.y + by - w, zc + r*0.55], [o.x + bx + w, o.y + by + w, zc + r*0.55], [o.x + bx - w, o.y + by + w, zc + r*0.55]];
+          solid(g, V, [[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]], [0x6e747c]); };
+        const arc = (g, sg) => {
+          const N = 28, t = now*0.012;
+          for(let i = 0; i < N; i++){
+            const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, am = (a0 + a1)/2;
+            if(Math.cos(am)*side*sg < 0) continue;                       // (this half only)
+            const fk = 1 + 0.12*Math.sin(t + i*1.7) + 0.5*fl, rr = (rr0 => rr0)(r);
+            const pt = (a, rad, e) => { const lat = Math.cos(a)*rad, zz = zc + Math.sin(a)*rad; return this.W(o.x - o.sn*lat + o.cs*e, o.y + o.cs*lat + o.sn*e, zz); };
+            const hot = fl > 0 ? (o.passed ? 0x9cffb0 : 0xff4a3a) : 0xffd23a;
+            this.quadOn(g, [pt(a0, rr + 9*fk, 0), pt(a1, rr + 9*fk, 0), pt(a1, rr - 9*fk, 0), pt(a0, rr - 9*fk, 0)], fl > 0 ? (o.passed ? 0x2fc86a : 0xd8321f) : 0xff7a1a, 0.95);
+            this.quadOn(g, [pt(a0, rr + 4*fk, 0.5), pt(a1, rr + 4*fk, 0.5), pt(a1, rr - 4*fk, 0.5), pt(a0, rr - 4*fk, 0.5)], hot, 1);
+            if((i + Math.floor(t)) % 3 === 0) this.quadOn(g, [pt(a0, rr + 16*fk, 0), pt(am, rr + 24*fk, 0), pt(a1, rr + 16*fk, 0)], 0xff9a3a, 0.8);   // a lick of flame off the outside
+          }
+        };
+        const farK = near ? Math.min(key, rkey - 0.2) : key - 0.05, nearK = near ? Math.max(key, rkey + 0.2) : key + 0.05;
+        vq.push({ depth: farK, fn: (g) => { post(g, -side); arc(g, -1); } });
+        vq.push({ depth: nearK, fn: (g) => { arc(g, 1); post(g, side); } });
+        continue;
+      }
+      const L = o.P.L, Wd = o.P.W/2, H = jumpLip(o), isRamp = o.type === 'ramp';
+      const V = [wp(o, 0, -Wd, 0), wp(o, L, -Wd, 0), wp(o, L, Wd, 0), wp(o, 0, Wd, 0), wp(o, L, -Wd, H), wp(o, L, Wd, H)];
+      const cols = isRamp ? [0xc9a15e, 0xa9824a, 0x8f6d3e, 0x8f6d3e] : [0xb9b4a6, 0x9d988a, 0x86816f, 0x86816f];
+      const lip = isRamp ? [wp(o, L - 8, -Wd, H - 8*Math.tan(o.P.angle*Math.PI/180)), wp(o, L, -Wd, H), wp(o, L, Wd, H), wp(o, L - 8, Wd, H - 8*Math.tan(o.P.angle*Math.PI/180))] : null;
+      const onIt = ow && (ow._ramp === o || (ow.jump && Math.abs(this.botX - mx) + Math.abs(this.botY - my) < 260));
+      const key = mx + my, k2 = onIt ? Math.min(key, rkey - 0.3) : key;
+      vq.push({ depth: k2, fn: (g) => {
+        solid(g, V, [[0,3,5,4], [1,2,5,4], [0,1,4], [3,2,5]], cols);
+        if(lip) this.quadOn(g, lip.map(q => this.W(q[0], q[1], q[2] + 0.4)), 0xd9dde0);                   // the metal lip
+        if(isRamp){ for(const uu of [L*0.3, L*0.55, L*0.8]) { const z0 = uu*Math.tan(o.P.angle*Math.PI/180); this.quadOn(g, [wp(o, uu, -Wd + 6, z0 + 0.4), wp(o, uu + 6, -Wd + 6, z0 + 6*Math.tan(o.P.angle*Math.PI/180) + 0.4), wp(o, uu + 6, Wd - 6, z0 + 6*Math.tan(o.P.angle*Math.PI/180) + 0.4), wp(o, uu, Wd - 6, z0 + 0.4)].map(q => this.W(q[0], q[1], q[2])), 0x7a5a32); } }   // grip battens across the slope
+      } });
+    }
+  }
   drawMissionCarried(zFloor){
     const it = missionCarriedNow();
     if(!it) return;
@@ -118897,7 +119129,7 @@ class WorldScene extends Phaser.Scene {
     /* (a beat after he was last going fast enough: something solid he hit -- a chair -- stops him dead the frame he meets
        it, and the bump is still the bump) */
     if(this.speed > SR.knockV) this._fastT = t;
-    if(this.state === "play" && ow && ow.on && (this.speed > SR.knockV || t - (this._fastT || -1e9) < 600) && !fleetPhys().fly){   // (flying: over their heads)
+    if(this.state === "play" && ow && ow.on && (this.speed > SR.knockV || t - (this._fastT || -1e9) < 600) && !fleetPhys().fly && !(ow.jump && ow.jump.z > 40)){   // (flying, or in the air off a ramp: over their heads)
       const circle = (r, box) => (x, y) => Math.abs(x - this.botX) < box && Math.abs(y - this.botY) < box && Math.hypot(x - this.botX, y - this.botY) < r;
       const inMallK = cpInMall(this);
       /* reach: 'hit' the street's; 'seat' a chair, met before it stops him; 'play' up against a game; 'hosp' the wards (the staff stand in the floor's volume as solids) */
@@ -121531,7 +121763,7 @@ class WorldScene extends Phaser.Scene {
           : `${verb} in ${tpDistText(nt.dist)}`;
         /* WRONG WAY GETS SAID, NOT IMPLIED (2026-08-27, revised the same
            day after Sir on-device: "the directions didn't seem to notice
-           if i was driving the wrong way during the daily route").
+           if i was driving the wrong way during the daily seed").
 
            The first cut reddened the strip on nt.uturn OR nt.lead, and
            lead was the wrong half of that pair. lead means "the path's
@@ -123460,7 +123692,7 @@ const SL = {
      UNTANGLED (2026-08-12, same day, Sir's follow-up: "it's a bug of
      the lab on top of the daily -- the daily always has a lag on
      launch, let's untangle these"): headless side-by-side confirmed
-     it -- the plain daily route, held at full throttle from a real
+     it -- the plain daily seed, held at full throttle from a real
      start, only reaches ~0.166 speed after a full 3 REAL SECONDS
      (0.00042/ms, unboosted, no vmul). That climb is the daily's own
      accepted baseline, not a bug in it. The partial burst above just
@@ -124814,7 +125046,7 @@ function tpSlalomOn(){
     /* THE TIP — the finish line is a real delivery stop, so a winning run
        pays like one: $3.00 base + $0.75 per second under par + $1.50 for
        a clean run. Wallet ONLY — never history/allTimeTotal, which belong
-       to the daily route and the leaderboard; mission money is spending
+       to the daily seed and the leaderboard; mission money is spending
        money. Anti-farming mirrors the replay delta rule: slPaid keeps a
        per-day high-water of what this course has already paid out, and a
        repeat run credits only the improvement — "run again" grinding pays
@@ -125017,7 +125249,7 @@ function tpSlalomOn(){
          send the player through a post gate and the corner icons instead.
          So on the one run that actually earns the skin, the one exit
          that reverts it is the one exit the player cannot take, and the
-         paint rode straight out into the daily route.
+         paint rode straight out into the daily seed.
 
          Now on the same latch the Fire Chief preview uses (tpSkinPreview,
          reverted at loadRoute -- see there), which covers EVERY exit
@@ -125078,7 +125310,7 @@ function tpSlalomOn(){
          WILLIAM_FAIL_LINES) -- a slalom tip-over and a delivery
          tip-over are the same underlying event, so sharing the joke
          pool is coherent, not just convenient. Retry restarts the
-         COURSE (slResetRun), not the daily route -- that's the one
+         COURSE (slResetRun), not the daily seed -- that's the one
          thing that can't be literally shared with the real
          failOverlay, whose retryBtn is wired to the delivery. */
       const pool = run.fail === 'William got you' ? WILLIAM_FAIL_LINES
@@ -125504,7 +125736,7 @@ function tpSlalomOn(){
          comment for the "untangled" history), only if he actually
          held gas for it — a normal standing start (no throttle
          through the count) launches clean from zero, no mark, no
-         burst, same slow climb the daily route has always had. */
+         burst, same slow climb the daily seed has always had. */
       if (scene.peel.held) scene.peelLaunch(vTop(), run.course.spawnS);
     }
   };
@@ -125773,7 +126005,7 @@ function tpSlalomOn(){
   scene._slAPI = { run, reset: slResetRun, countdown: slCountdown, SL, crash: slCrash,
                    showCard: slShowCard };
   scene._slRestore = () => {
-    /* Quit during the victory lap: hand the daily route back a state it
+    /* Quit during the victory lap: hand the daily seed back a state it
        can actually drive in. Same reasoning as slResetRun's own clear. */
     if (scene.state === 'victory') scene.state = 'play';
     run.victory = null;
@@ -125795,7 +126027,7 @@ function tpSlalomOn(){
       delete r._slDoor; delete r._slLoop; delete r._slEndS;
     }
     /* hand the look-ahead back before the slalom's own hooks come off --
-       a quit mid-launch must not leave the daily route driving with a
+       a quit mid-launch must not leave the daily seed driving with a
        shortened camera bias. */
     scene._camLead = null;
     delete scene._slAPI;
@@ -125907,7 +126139,7 @@ function slalomMapSelect(){
      swaps s.route to HJ_SEED_DATE, and drawRouteMap draws its route
      line/robot marker off WHATEVER route is currently loaded -- that's
      not special hydrant logic, it's just what loadRoute always does.
-     This never did that: s.route stayed on today's daily route, so the
+     This never did that: s.route stayed on today's daily seed, so the
      map kept showing wherever THAT route's robot/pickup was, nothing
      visibly changed. Loading SL_SEED_DATE here matches hydrant's own
      pattern exactly. tpSlalomStart() (below) still reloads it again on
@@ -125932,7 +126164,7 @@ function slalomMapSelect(){
      writing the card itself. */
   tpSyncOrderCard(s);
   /* TIGHT ZOOM, NO PULSE (2026-08-10, updated 2026-08-11, Sir's call): the
-     daily route's own pickupS/doorS span (what loadRoute above just framed
+     daily seed's own pickupS/doorS span (what loadRoute above just framed
      the map on) is a normal delivery-length stretch, not the actual
      gate-to-finish span of the slalom course itself -- that's still
      tpSlalomPin()'s job, same as it already is for the passive map pin
@@ -125975,7 +126207,7 @@ function tpSlalomStart(){
    or crash is the only way out of a run in progress. tpSlalomUI is down
    to just the 3-2-1-GO countdown; nothing else lives on screen during
    play. tpSlalomQuit (the full restore: stop the tick, drop the card,
-   s._slRestore(), hjChrome(false), hand the daily route back, show the
+   s._slRestore(), hjChrome(false), hand the daily seed back, show the
    title) didn't go away with the button -- it's still the ONLY place
    that knows how to fully exit the mission, so slClose below now calls
    it directly instead of the old bare card.remove(). Skipping that
@@ -126400,7 +126632,7 @@ const FAIL_LINES = [
 /* Cause-specific pool: timing out on the slalom clock is not a crash --
    the robot never falls, so "the pavement won" is wrong the same way it
    would be wrong for WILLIAM_FAIL_LINES. Mirrors CANCEL_LINES' role
-   (the daily route's own non-crash timeout) but themed for the slalom's
+   (the daily seed's own non-crash timeout) but themed for the slalom's
    clock, not a canceled order. */
 /* Cause-specific pool: a plain tip-over on the slalom is not a botched
    delivery -- FAIL_LINES' "you had one address" / "the burrito never
@@ -127039,7 +127271,7 @@ function _bootLoaderDismiss(){
        launch and recovery now read as the same beat.
 
        Nearest pad to where the route put him, not a fixed one: that
-       keeps the district the daily route chose (the map, the GPS strip
+       keeps the district the daily seed chose (the map, the GPS strip
        and the shop are all still there, a block or two away) and it
        moves day to day with the seed, for free. Must run AFTER owInstall
        -- install seeds ow.px/py from botX/botY, so placing first would
@@ -129724,7 +129956,7 @@ function faceShade(pts, i, W, base, dk, sh) {
    a shared rng stream, so it is safe to call from anywhere and cached on
    the shore for free. That is the difference from the swept city scatter,
    which had to capture from the draw because its rng depended on the
-   daily route.
+   daily seed.
 
    ONE RUN, ONE STATION LIST, kept from the original: benches are derived
    FROM the lamp stations -- a bench sits at the MIDPOINT of a lamp gap,
@@ -132092,7 +132324,7 @@ function drawRouteMap(route){
      to find the real course. Two different positions on the same
      screen. route.dateStr === SL_SEED_DATE is the same unique-route
      signal tpMapView.stamp already trusts elsewhere -- true only for
-     the slalom's own frozen course, never the daily route or an atlas
+     the slalom's own frozen course, never the daily seed or an atlas
      jump -- so it's a safe, cheap way to detect "this is the slalom
      preview" without threading a new flag through loadRoute. */
   const slChain = (!ch && route.dateStr === SL_SEED_DATE) ? slFindChain(route) : null;
@@ -132908,7 +133140,7 @@ function drawRouteMap(route){
   if(!usingAtlas){
     /* ONE INSTRUCTION LINE AT A TIME (Sir on-device, 2026-08-26: "its
        giving me the new route on the map to my new selection but its
-       keeping the old daily route too").
+       keeping the old daily seed too").
 
        This stroke is today's pickup->door line, drawn out of samples[],
        and it knew nothing about gpsNav -- which is drawn ~50 lines
@@ -133677,7 +133909,7 @@ function tpSyncMapChrome(s){
   if(bb && typeof tpMapUp === "function" && tpMapUp()) bb.classList.add("hidden");
   /* THE BANNER GOES WITH IT (Sir, 2026-08-26: "remove the card that is
      showing the address of the pick up too for the free roam map, but
-     keep it when the daily route is selected"). Same test, same beat --
+     keep it when the daily seed is selected"). Same test, same beat --
      the card describes the errand GO would start, so a map with nothing
      to start has nothing to describe either, and the banner was covering
      four blocks of the city you opened the map to look at.
