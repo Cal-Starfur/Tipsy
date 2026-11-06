@@ -29,3 +29,7 @@ and hedge hiding the wall base. The one real mismatch is HEIGHT (W4): room walls
 (checked by drawing wall-top outlines at 340/440/510/660: the roof edge sits on 660). Raising H changes the whole interior's look
 (frieze, cornice, window heights up to 402 already exceed 340), so it is left for Sir to decide: keep the low-wall room, or raise H to 660.
 No game code changed.
+
+
+## Build: vista-footprint - 2026-11-06
+Vista Ridge Security Post room lab rect was [8990,9370,-4090,-3790]; the shell's south/east faces stand at -3760 / 9400 (its openings were already declared at 9400.6 and -3759.4, outside the room). Now [8990,9400,-4090,-3760] with the door at b -3760: red footprint's front and east corners sit on the shell's wall bases; interior content (anchored from the west/north) unchanged and still reads right. Remaining: the west/north edges still sit ~30 units inside the shell (parapet/plinth); not moved because it shifts every SP_ROOM constant.

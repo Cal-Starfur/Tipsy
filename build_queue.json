@@ -631,7 +631,7 @@
 "title": "Vista Ridge Security Post: red footprint ends ~45px (~55 units) short of the shell's east wall; rest matches",
 "spec": "found by test run",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9090,-3790&view=2"
 },
@@ -664,6 +664,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }
