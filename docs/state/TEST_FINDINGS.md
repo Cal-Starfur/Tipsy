@@ -33,3 +33,16 @@ No game code changed.
 
 ## Build: vista-footprint - 2026-11-06
 Vista Ridge Security Post room lab rect was [8990,9370,-4090,-3790]; the shell's south/east faces stand at -3760 / 9400 (its openings were already declared at 9400.6 and -3759.4, outside the room). Now [8990,9400,-4090,-3760] with the door at b -3760: red footprint's front and east corners sit on the shell's wall bases; interior content (anchored from the west/north) unchanged and still reads right. Remaining: the west/north edges still sit ~30 units inside the shell (parapet/plinth); not moved because it shifts every SP_ROOM constant.
+
+## drug (Pelican Drug) - 2026-11-06
+Photos: snaps/sheet/drug/car-park-{day,night,wide}.jpg, snaps/sheet/walkins/pelican-drug-interior-*.jpg.
+
+### Problems
+1. **Room walls shorter than the shell** (W4/W18, walkins photo `...v3-outside-room-footprint-in-red.jpg`, orange outline ~80px below the cornice). PELICAN_IN `H: 232` is in room units (zs 1); the shell's PZ 232 is kit units drawn at ZSCALE 1.5 = 348 world. **FIXED**: `H: 348` in the walkinDefine; re-shot inside day/night: the two far walls now rise to the cornice, floor/fixtures/night light unchanged, no voids.
+2. **Footprint "out" reading was a test-harness artefact.** The red/orange overlay was drawn once while the camera was still easing after the jump (camX drifts ~60 units over 4 s), so it sat ~(9,13) px off. Measured with live overlay: red sits exactly on the shell base (front, right and back corners; lab 540x360, door side matches). **FIXED in tools/run_sheet.js** (overlay redrawn every frame). The earlier "not fixed" footprint findings for Museum, Vista Ridge and Trophies were read from the lagging overlay and should be re-shot with the new script before anyone resizes a room.
+
+### OK
+- Car park drawn round the store; sliding doors and shopfront glass show the room (people at the desk visible from the car park); pharmacy corner/PHARMACY sign/pickup hatch inside; three masts glow at night.
+
+### Hands-on
+- Doors fade/slide as you drive up; walking through the door is seamless; staff life and facing.

@@ -57,7 +57,7 @@
     "Its three car-park light masts glow at night."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "trophies",

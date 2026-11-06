@@ -48,7 +48,9 @@ async function walkins(page, base, only){
       await page.evaluate((name) => { const s = game.scene.getScene('world'), q = POCKETS.find(x => x.name === name), v = q.view();
         const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, c = [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
         const g = window.__fp = s.add.graphics().setDepth(1e9).setScrollFactor(0);
-        for(const [z, col, w] of [[0, 0xff0000, 3], [q.h, 0xff8800, 2]]){ g.lineStyle(w, col, 1); g.beginPath(); c.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } }, pk.name);
+        /* redrawn every frame: the camera is still easing after the jump, and a one-off overlay lags it by ~10px (a false 'footprint out') */
+        const draw = () => { g.clear(); for(const [z, col, w] of [[0, 0xff0000, 3], [q.h*(q.zk || 1), 0xff8800, 2]]){ g.lineStyle(w, col, 1); g.beginPath(); c.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } };
+        s.events.on('postupdate', draw); g.once('destroy', () => s.events.off('postupdate', draw)); draw(); }, pk.name);
       await page.waitForTimeout(500); await snap('outside, room footprint in red');
       await page.evaluate(() => window.__fp.destroy());
       await page.waitForTimeout(300); await snap('outside, clean');

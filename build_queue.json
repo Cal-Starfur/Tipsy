@@ -661,9 +661,18 @@
 "status": "blocked",
 "note": "needs story, pickup place, reward",
 "group": "Specs (waiting on decisions)"
+},
+{
+"id": "pelican-walltop",
+"title": "Pelican room walls H 232 vs shell cornice 348 world (232 kit x ZSCALE 1.5): set PELICAN_IN H 348",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20141,14064&view=2"
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }
