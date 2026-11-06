@@ -229,7 +229,7 @@ The **Ballroom** (`POCKETS[0]`, L19805–19820; exterior hl entry L64374 with `s
 ## 4. THE MUSEUM TODAY, AND HOW TO MAKE IT A WALK-IN
 
 ### 4.1 Today [V]
-- **Placement:** `HOOD_BLOCK_LANDMARKS` row `[3,0, "Tidewater Maritime Museum", 2]` (L19632). It is block i 3, j 0, in the `hl` pipeline. Edge 2 frame (`hoodLandmarkFrame` L19714; `blockEdgesOf` L13908; DIRV L4551):
+- **Placement:** `HOOD_BLOCK_LANDMARKS` row `[3,0, "Tidewater Museum", 2]` (L19632). It is block i 3, j 0, in the `hl` pipeline. Edge 2 frame (`hoodLandmarkFrame` L19714; `blockEdgesOf` L13908; DIRV L4551):
   - origin (x1, y1) = (12512, 3128);
   - dv = (−1, 0), rv = (0, 1).
   - So **world x = 12512 − a and y = 3128 + b** (b negative into the cell). The front faces south, toward the camera.
@@ -283,7 +283,7 @@ Pocket frame = world-aligned. Take `MUS_IN = { x0: 450000, y0: 400000, W: 1370, 
    - Make the steps a ramp, or a walk/`opens` zone (the steps are a kerb today).
    - Move `marks.door` to the façade `[1565, −1480]`, or keep it at the portico with an apron.
    - [U] Whether `opens` is needed or splitting the solid is enough. Splitting is enough for `volBlockedAt`.
-4. **Interior LIB entry `'Tidewater Maritime Museum Interior'`:**
+4. **Interior LIB entry `'Tidewater Museum Interior'`:**
    - `place:'pocket', zs:1, mirror:false, ww 1370, dd 720`;
    - ground = the floor (stone or marble), wall to wall, with a threshold at the door (W13);
    - far walls (north and west) full height with their inside faces; near walls (south and east) at the dado (80) (the ballroom/trophies pattern);
@@ -291,9 +291,9 @@ Pocket frame = world-aligned. Take `MUS_IN = { x0: 450000, y0: 400000, W: 1370, 
    - `frontOf/backOf` for cases against walls;
    - optionally live staff (`it.live`) or visitors.
 5. **POCKETS.push** (top level, beside the trophies push):
-   `{ name, from: 'Tidewater Maritime Museum', x0, y0, w: 1370, d: 720, out: 100, h: 660, view: museumInView, hides: 'Tidewater Maritime Museum', night: [...], doors: [{ id:'front', mark:'door' (or world()), side:'s', at: 685, half: 80, seamless: true, glass: 45, clear: 44, keep: true, spawn: [685, 600], yaw: −π/2 }] }`.
+   `{ name, from: 'Tidewater Museum', x0, y0, w: 1370, d: 720, out: 100, h: 660, view: museumInView, hides: 'Tidewater Museum', night: [...], doors: [{ id:'front', mark:'door' (or world()), side:'s', at: 685, half: 80, seamless: true, glass: 45, clear: 44, keep: true, spawn: [685, 600], yaw: −π/2 }] }`.
    Optionally add a `POCKET_GATES` entry; with none, the door is open.
-6. **Nothing else is needed in `queueParkBlock`.** `pocketHiding('Tidewater Maritime Museum')` → the shell fades or skips, and builtHeightAt ignores its vol while he is inside (L75772).
+6. **Nothing else is needed in `queueParkBlock`.** `pocketHiding('Tidewater Museum')` → the shell fades or skips, and builtHeightAt ignores its vol while he is inside (L75772).
 7. **Optional, W11:** windows showing the live interior. This means a `queueHospThrough`-style pass under the building piece, which needs the shell to have holes behind its windows.
 8. **Pre-flight:** a screenshot at the door from outside, the inside at day and at night, a perf check if asked.
 
@@ -305,7 +305,7 @@ Sizes are world units. A "cell" is 3128 node to node, with 1656 buildable. **Ful
 
 | # | Name | Pipeline / placement (line) | Footprint | Enterable building? | Interior today | Effort |
 |---|---|---|---|---|---|---|
-| 1 | Tidewater Maritime Museum | hl [3,0] e2 (L19632; LIB L64163) | full lot (cell); bldg 1370×720 | yes | no | **M** (colonnade/door rework, new interior) |
+| 1 | Tidewater Museum | hl [3,0] e2 (L19632; LIB L64163) | full lot (cell); bldg 1370×720 | yes | no | **M** (colonnade/door rework, new interior) |
 | 2 | Seabreeze Ballroom | hl [8,0] e2 (L19640; L64374) | full lot, hall 1656² | yes | **yes** (pocket + basement, seamless) | done |
 | 3 | Ferris Taylor Cottages | hl [8,3] e2 (L64819) | full lot; court driven | almshouses: one cottage could be | no | M |
 | 4 | Costa Palma Animal Shelter | hl [2,2] e2 (L64713) | full lot, with runs | yes (kennels / reception) | no | M |

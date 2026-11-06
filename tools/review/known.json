@@ -49,7 +49,7 @@
   "note": "one piece 1668 long, 798 tall; its pipeline's pieces are 250 (median)",
   "since": "2026-10-30"
  },
- "U1l | hl|Tidewater Maritime Museum": {
+ "U1l | hl|Tidewater Museum": {
   "phase": "world",
   "note": "one piece 1382 long, 783 tall; its pipeline's pieces are 250 (median)",
   "since": "2026-10-30"
@@ -299,14 +299,14 @@
   "note": "rim|Tide Pool Elementary (9384 long, 1050 tall) stands round rim|Tide Pool Elementary|0: whichever draws second paints over the other",
   "since": "2026-10-30"
  },
- "U1o | hl|Tidewater Maritime Museum  over  hl|Tidewater Maritime Museum": {
+ "U1o | hl|Tidewater Museum  over  hl|Tidewater Museum": {
   "phase": "world",
-  "note": "hl|Tidewater Maritime Museum|3,0|0 stands behind hl|Tidewater Maritime Museum|3,0|33 but is keyed later (12235 > 12038)",
+  "note": "hl|Tidewater Museum|3,0|0 stands behind hl|Tidewater Museum|3,0|33 but is keyed later (12235 > 12038)",
   "since": "2026-10-30"
  },
- "U1c | hl|Tidewater Maritime Museum  holds  hl|Tidewater Maritime Museum": {
+ "U1c | hl|Tidewater Museum  holds  hl|Tidewater Museum": {
   "phase": "world",
-  "note": "hl|Tidewater Maritime Museum|3,0|3 (354 long, 174 tall) stands round hl|Tidewater Maritime Museum|3,0|24: whichever draws second paints over the other",
+  "note": "hl|Tidewater Museum|3,0|3 (354 long, 174 tall) stands round hl|Tidewater Museum|3,0|24: whichever draws second paints over the other",
   "since": "2026-10-30"
  },
  "U1c | hl|Marina General Tower  holds  hl|Marina General Tower": {
@@ -749,7 +749,7 @@
   "note": "flags its own open defects: the entrance steps are volumes: a 78..152 at b 0..22, on the line under the doorcase",
   "since": "2026-10-30"
  },
- "KC5 | Tidewater Maritime Museum": {
+ "KC5 | Tidewater Museum": {
   "phase": "library",
   "note": "flags its own open defects: the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable",
   "since": "2026-10-30"

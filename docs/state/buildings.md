@@ -54,7 +54,7 @@ Source: `/home/user/Tipsy/game/index.html` (line numbers as of this read), `docs
 ### 1.4 `hl`: hood block landmark, one cell per entry (NORM, landmark split; Marina General is the big-site template)
 - **Code:** `queueParkBlock` L85453–85583.
 - **Who uses it:** HOOD_BLOCK_LANDMARKS (L19433) [V]:
-  - Tidewater Maritime Museum, Seabreeze Ballroom, Ferris Taylor Cottages, Costa Palma Animal Shelter, Marina Parking, Crate Yard Building Site, **Lagoon Market Hall**;
+  - Tidewater Museum, Seabreeze Ballroom, Ferris Taylor Cottages, Costa Palma Animal Shelter, Marina Parking, Crate Yard Building Site, **Lagoon Market Hall**;
   - Cove Grove ×3; Marina General Parking/Hospital/Tower/ER; Sun Deck Airfield ×8.
 - **Split and key:**
   - Items are collected once per cell (L85466–85475).

@@ -67,7 +67,7 @@ Legend: W = working (opens live for its users), P = painted (never opens), W* = 
 | Lagoon Baths (L55989) | 4 entrances, arched portal (L56142, 56198) | none | P | none |
 | Palmline Nursery (L56627) | hut doorway (L56883) | none | P | none |
 | Saltwater Brewing (L58687) | tap-room door (L58969), personnel door (L58921), roller doors | none | P | beer trucks stop at the dock, nobody goes in |
-| Tidewater Maritime Museum (L63508) | `doorF` (L63595) | none | P | none |
+| Tidewater Museum (L63508) | `doorF` (L63595) | none | P | none |
 | **Seabreeze Ballroom** (L63719) | `doorF` front (L63823-63824), mark `door` (L63727) | pocket #12 `front` (seamless, gated `cakePassOwned`) | **P** | **Tipsey drives through a shut painted door**; doorman (Walter) stands beside it |
 | **Costa Palma Animal Shelter** (L64058) | glazed double door, push bars (L64136-64146) | none | **P** | **shelter worker walks out of / back into it with the dog** (SHELTER L21196, `stepB` -978, L21361-21397): appears and vanishes at a shut door |
 | Ferris Taylor Cottages (L64164) | a door per cottage | none | P | none |

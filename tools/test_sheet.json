@@ -16,7 +16,7 @@
   },
   {
    "id": "museum",
-   "title": "Tidewater Maritime Museum",
+   "title": "Tidewater Museum",
    "spots": [
     {
      "label": "forecourt",
@@ -38,7 +38,7 @@
     "Hands-on: doors slide as you drive up; room to drive round the T. rex; people give way; closing/opening times."
    ],
    "night": "NIGHT_CLOCK.time = 21",
-   "reviewed": false
+   "reviewed": true
   },
   {
    "id": "drug",

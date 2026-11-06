@@ -115,7 +115,7 @@ graph LR
 - [?] `t-fire` Fire Training Yard + Open House [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-letters` Letters on the Hill [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-skate` Driftwood Skate Park [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060,-1.57&view=3) [docs/state/CONSISTENCY_PASS.md]
-- [?] `t-museum` Tidewater Maritime Museum (no drive, dimmer lanterns) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3) [docs/state/CONSISTENCY_PASS.md]
+- [?] `t-museum` Tidewater Museum (no drive, dimmer lanterns) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3) [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-trophies` Seabreeze Trophies + Pelican Drug walk-ins [docs/state/CONSISTENCY_PASS.md]
 - [?] `t-rules` Shared rules: one door rule, meet walk, crew pace, no fades, order/solids/cache [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2) [docs/state/CONSISTENCY_PASS.md]
 

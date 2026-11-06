@@ -17390,7 +17390,7 @@ function hoodShopLive(route, sh){
    by GPS like any other place. Single-cell parks only: a merged park has
    no street between its cells, and the entry draws its own. */
 const HOOD_BLOCK_LANDMARKS = [
-  [3,0, "Tidewater Maritime Museum", 2],
+  [3,0, "Tidewater Museum", 2],
   /* ALL IN THE EDGE-2 FRAME (2026-09-17). A row without an edge used the
      old node-corner placement with b flipped, which is a mirror of the
      lab: the same handedness fault the museum had, on the other four.
@@ -17692,7 +17692,7 @@ function pocketDoorStep(scene){
     }
     return;
   }
-  /* A FLYER IN THE AIR TAKES NO DOOR (Sir's open item, 2026-10-31: over Tidewater Maritime Museum the delivery drone
+  /* A FLYER IN THE AIR TAKES NO DOOR (Sir's open item, 2026-10-31: over Tidewater Museum the delivery drone
      was carried in): the doors are on the ground, and the test was the plan's only, so crossing over the museum's
      front mat at any height handed it into the walk-in -- the shell cut away round it, the room under it. On its
      skids it goes in as he does */
@@ -27423,7 +27423,7 @@ walkinLife(KW_IN.name, { keep: [[0, KW_IN.W, 300, 460]], looks: [] });
      LOBBY       the middle, door to back wall: the runner, the desk, a model ship, two columns
      DINO        the east hall: a tyrannosaur's skeleton on its platform, roped off, a lane all round
    The room's frame is the world's (a east, b south), so the street's offset is all it takes. */
-const MUS_IN = { name: 'Tidewater Maritime Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
+const MUS_IN = { name: 'Tidewater Museum Interior', x0: 450000, y0: 400000, LAB: [834, 2294, -2296, -1440], H: 340,
   PORT: [280, 1180], PD: 176, BAY: [580, 880], SCREEN: [600, 860], DOOR: [660, 800],
   EGYPT: [0, 560], LOBBY: [560, 900], DINO: [900, 1460], OUT: 100, DZ: 150, TZ: 194 };
 MUS_IN.W = MUS_IN.LAB[1] - MUS_IN.LAB[0]; MUS_IN.D = MUS_IN.LAB[3] - MUS_IN.LAB[2];
@@ -27453,8 +27453,8 @@ function museumOpenings(){
   return out;
 }
 /* out: back past the hand-off line anywhere across the bay (its cheek walls hold him in it: the room's solids) */
-POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Maritime Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
-  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Maritime Museum', walkin: true,   // (the kit's: its hours, its night)
+POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Museum', x0: MUS_IN.x0, y0: MUS_IN.y0, w: MUS_IN.W, d: MUS_IN.D,
+  h: MUS_IN.H, out: MUS_IN.OUT, view: museumInShift, hides: 'Tidewater Museum', walkin: true,   // (the kit's: its hours, its night)
   /* (its way to and from the street, THE ROOM'S DAY: down the walk through the forecourt's gate to the pavement, and
      round either corner of the block -- the side streets' pavements, away from the door) */
   street: { to: [0, 888], routes: [[[-1012, 888], [-1012, -3600]], [[1012, 888], [1012, -3600]]] },
@@ -41151,7 +41151,7 @@ const SIERRA_ESTATE_SC = 2.2;
 /* ==================== MARITIME (Sir, 2026-09-28) ====================
    "lets use the costal set lets go with a color pallet for this neighbor
    hood and lets name the neighbor hood Maritime". Maritime is the strip of
-   The Flats between the Tidewater Maritime Museum and the Seabreeze
+   The Flats between the Tidewater Museum and the Seabreeze
    Ballroom, with Marina Commons in front of it: housing blocks 4..7,0 and
    2,1 (MARITIME_SITES). A harbour town's colours -- sail white and sea fog,
    weathered cedar, navy, sea glass, harbour red, a buoy's yellow -- and
@@ -42589,7 +42589,7 @@ function soapBale(a0, a1, b0, b1, z){
 }
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
-     the Tidewater Maritime Museum's rear railing, hedges and plinths drew
+     the Tidewater Museum's rear railing, hedges and plinths drew
      OVER its portico). a + b is "nearer" only in the lab's own frame. The
      game places a block landmark with b flipped -- W(x0 + a, y0 - b) --
      where nearer is a - b, so the old key drew the whole sculpture garden
@@ -48886,9 +48886,9 @@ function houseCanopy(fn){
      the near walls low (the kit's), the south one only where the facade is wall: the portico's wings stand outside it
      (the exterior's, drawn while he is in: their solids here as well) and the bronze screen is drawn here, its pair
      open, cut to the dado */
-  name:'Tidewater Maritime Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  name:'Tidewater Museum Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: MUS_IN.W, dd: MUS_IN.D,
-  head:'Inside the Tidewater Maritime Museum: an Egyptian gallery, a tyrannosaur, a model ship',
+  head:'Inside the Tidewater Museum: an Egyptian gallery, a tyrannosaur, a model ship',
   tags:['interior','pocket','museum','egypt','sarcophagus','dinosaur','skeleton'],
   desc:'The museum\'s hall: the Egyptian gallery to the west -- a gilded sarcophagus on its plinth behind a velvet rope, two seated kings against the back wall under a frieze of hieroglyphs, an obelisk, vitrines of jars and gold, a golden mask in its own case -- the lobby down the middle with its columns, a seascape, the desk and a model ship, and the dinosaur hall to the east, a tyrannosaur skeleton striding on its roped-off platform under the fossils on the wall.',
   draw(p){
@@ -67421,7 +67421,7 @@ marinaEntry(),
   }
 },
 {
-  name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  name:'Tidewater Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   see: true,   // (its doorway and its windows show the room inside: walkinThrough, museumOpenings)
   vol: TIDEWATER_MUSEUM.vol,
   /* NO DRIVE ACROSS THE FOOTWAY (Sir, 2026-11-05: "no need for this drive way"): a museum's gate is a walk, so the footway
@@ -86541,7 +86541,7 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
     }
   } });
 /* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
-CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Maritime Museum', solid: true,
+CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Museum', solid: true,
   each(scene, t, fn){
     for(const s of WALKIN_STAFF){
       const pk = walkinStaffPocket(s);
@@ -100998,7 +100998,7 @@ class WorldScene extends Phaser.Scene {
                          : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(_hl, gg, G, this.K, it, fr.flank)), fn: (g) => { if(_fa || _fu < 1) this._bcAlpha = (_fa ? _hsk : 1)*_fu; try { this.bcDraw(g, _lk + _dk + "|" + n + (_ct ? "|cut" + Math.round(_cut) : ""), q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); if(_ct) LIB.setCut(_cut); try { LIB.drawItem(_hl, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); if(_ct) LIB.setCut(null); } }); } finally { if(_fa || _fu < 1) this._bcAlpha = null; } } });
         });
-        /* ITS SLIDING DOORS, live (an entry's slideDoors: the Tidewater Maritime Museum's), as a block shop's are
+        /* ITS SLIDING DOORS, live (an entry's slideDoors: the Tidewater Museum's), as a block shop's are
            (Sir, 2026-10-30: "the door way doesnt have a door"): parted for him and anyone listed coming up to them
            (shopDoorOpen, sensed d.sense out in front of the glass), drawn just over the building's piece as a plane
            across its doorway (a footprint: he sorts against its face, not its middle), cached shut or open and live
@@ -108692,7 +108692,7 @@ class WorldScene extends Phaser.Scene {
        loadRoute, since a new route is a new city. */
     if(XRAY.propMax > 0 && !this._xrayCap && !this._xrayInProp && !this._tspPainting && this._visBlocks){
       /* THE COVER LINE IS A WORLD HEIGHT (Sir's open item, 2026-10-31: the delivery drone drew in the x-ray's teal over
-         Tidewater Maritime Museum's roof). xrayPropCut asks the coverage at world heights up its column, so zCut is how
+         Tidewater Museum's roof). xrayPropCut asks the coverage at world heights up its column, so zCut is how
          high the cover reaches there, from the ground: what of the prop is below it is hidden. The line was laid at
          z + zCut, as if the cover stood on the prop's own base -- right on the ground, but a rotorcraft drawn from the
          roof under it (z the roof, data.hover its height over it) had the museum's own height stacked on its roof and

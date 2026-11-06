@@ -49,7 +49,7 @@ At the lock flip: re-lock everyone, and missions already done still count (Sir: 
 | All | The swap happens in place, anywhere: a semi appears inside the charging station (`FLEET_FIT` shrinks it to fit). Missions never know which vehicle is out. There is one global kind. | `tpProfile.fleetKind` is read everywhere through `fleetPhys()`. |
 
 Screenshots (on the page):
-- the delivery drone stopped by the Maritime Museum it should fly over;
+- the delivery drone stopped by the Tidewater Museum it should fly over;
 - the air taxi pinned to a two-storey wall at the north rim;
 - the water taxi on the harbour road, and on the quay planks;
 - the autonomous semi swung rigid across a junction.
@@ -423,7 +423,7 @@ Sir, on the iPad at view 3, night: "the palcement of the drones bay is bad this 
 - **The hop over** (both modes): pushed into anything under its ceiling (`FLY_HIT.h` from `flyBlocked`), it climbs over at full rate and goes on (`fl.hopZ`; manual keeps the height). Over the ceiling it slides along and says "Too tall for the delivery drone. Go round." once a contact.
 - **The controls** (`#flyAlt`): two round orange buttons on the right edge at mid height, UP over DOWN, press and hold (72 px); beside them a height bar: the craft (orange), its ceiling (red), what is under it (grey) and the tallest thing ahead (light grey, red when over the ceiling), the target line, its height in m. Shown whenever it is up, in either mode. Keys: Q or Space climbs, E or Shift comes down. The slider is gone.
 - **The harbour's terraces** count for flight now (`flyHillsZ` west of X0, the harbour strip's toe), so it climbs over them rather than through.
-- **Measured** (headless, no input): over the shop row at x 1564 (roofs to 648) in auto: no wall hits, 67 clear over the roofs at least (the old build stopped dead at y 3918 for good). Over Tidewater Maritime Museum (its roof 660, x 10948) in manual with UP (held at 800), and down with DOWN. Into Marina General (1074): slides along, the toast. The Lighthouse Run from the new base: out over the harbor house at 500 (its roof 420), no wall hits, 11,770 there and 11,780 back (about 45 s each at the drone's pace); timer 90 s (was 75 s from the plaza). Tipsey's own driving: a scripted `owStep` run identical before and after (both builds).
+- **Measured** (headless, no input): over the shop row at x 1564 (roofs to 648) in auto: no wall hits, 67 clear over the roofs at least (the old build stopped dead at y 3918 for good). Over Tidewater Museum (its roof 660, x 10948) in manual with UP (held at 800), and down with DOWN. Into Marina General (1074): slides along, the toast. The Lighthouse Run from the new base: out over the harbor house at 500 (its roof 420), no wall hits, 11,770 there and 11,780 back (about 45 s each at the drone's pace); timer 90 s (was 75 s from the plaza). Tipsey's own driving: a scripted `owStep` run identical before and after (both builds).
 - **The Lighthouse Run:** the visitor bay at the drive's head; the harbour master waits on the plaza by the drive's mouth (`LH_RUN.wait`) and walks up it to thank him; his way back goes by the drive's mouth (`lhWalkHome`, a `via`), not through the house. `LH_RUN.limitMs` 90 s.
 
 **Done after (2026-10-31, the leftovers):**

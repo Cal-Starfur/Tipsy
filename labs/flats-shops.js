@@ -13649,7 +13649,7 @@ const SHOPS = [
   }
 },
 {
-  name:'Tidewater Maritime Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
+  name:'Tidewater Museum', xh: 440, base:'Museum', hood:'The Flats', edited:true, tall:true, block:true, ww: 3128, dd: 3128,
   vol: TIDEWATER_MUSEUM.vol,
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico columns, the forecourt railing and its gate piers, the plinths and their sculptures are volumes; the forecourt paving is walkable',
@@ -13658,7 +13658,7 @@ const SHOPS = [
   desc:'A museum arranged the way one is: the building set back across a forecourt, a real colonnade standing proud in front of it, and the space between given over to a sculpture garden behind a railing.',
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
-       Tidewater Maritime Museum. Stone brightens, grey trim goes
+       Tidewater Museum. Stone brightens, grey trim goes
        sea blue.
        Geometry untouched: every edit is a colour. */
     /* ============ THE PORTICO WAS INSIDE OUT ============

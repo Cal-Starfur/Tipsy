@@ -1,4 +1,4 @@
-# Tidewater Maritime Museum: a story mission (design, v1, for Sir's decisions)
+# Tidewater Museum: a story mission (design, v1, for Sir's decisions)
 
 The museum has a whole interior (Egyptian gallery, the T. rex hall, a model ship, a desk, guards) and no story. This is one, built from the missions kit (`docs/kits/missions.md`, R1-R20) and the walk-in kit (`docs/kits/walkin.md`).
 

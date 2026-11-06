@@ -592,7 +592,7 @@
 },
 {
 "id": "t-museum",
-"title": "Tidewater Maritime Museum (no drive, dimmer lanterns)",
+"title": "Tidewater Museum (no drive, dimmer lanterns)",
 "spec": "docs/state/CONSISTENCY_PASS.md",
 "deps": [],
 "status": "built",
@@ -664,6 +664,6 @@
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }
