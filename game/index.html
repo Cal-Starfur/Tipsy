@@ -24959,7 +24959,7 @@ const BALL_CHAT = {
     ["Who made the cake?", "Sandpiper Bakery, I heard.", "Not a rose out of place."]
   ]
 };
-const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0, groups: null };
+const BALL_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), lastT: 0, groups: null };
 /* who talks: the seated guests by group (their cast's grp: t0..t4 the
    tables, b1 b2 the pairs at the bar), and each bartender (bt + seed) */
 function ballGroups(scene, pk){
@@ -25064,6 +25064,30 @@ function loopWalkStep(w, P, toWorld, bx, by, dt, t, o){
   }
   w.stuck = 0; w.x = nx; w.y = ny; w.th = Math.atan2(dy, dx); w.moving = true;
 }
+/* talkRun: the chatter of a place with its own people (the ballroom's guests, the derby's crowd), one runner for both. Under the town's
+   one count (crowdTalkFree: two at a time, a gap between, scene._crowdTalk) and its one memory of what was said lately (chatPick on
+   scene._chatRecent), as the shoppers' are. o = { gap: [min, spread] ms to the next, lineMs, hush: bool, pick(): who starts, pool(g): their
+   lines, make(g, lines): a convo {lines, i, at, ...} or null, held(c): wait this line, say(c): say it, done(c): after the last }.
+   t is L's own clock; the town's count runs on scene.time.now */
+function talkRun(scene, L, t, o){
+  const tn = scene.time.now;
+  if(t >= L.nextAt && !o.hush){
+    if(crowdTalkFree(scene, tn)){
+      const g = o.pick();
+      if(g){
+        const pool = o.pool(g), lines = chatPick([[pool, 1]], null, scene._chatRecent || (scene._chatRecent = []), pool), cv = o.make(g, lines);
+        if(cv){ L.convos.push(cv); crowdTalkBegin(scene, tn, cv.lines); }
+      }
+    }
+    L.nextAt = t + o.gap[0] + Math.random()*o.gap[1];
+  }
+  for(const c of L.convos){
+    if(t < c.at || c.i >= c.lines.length) continue;
+    if(o.held && o.held(c)){ c.at = t + 600; continue; }
+    o.say(c); c.i++; c.at = t + o.lineMs;
+  }
+  L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; o.done(c); return false; });
+}
 function ballroomLifeTick(scene){
   const B = typeof cakeBallroom === 'function' ? cakeBallroom() : null;
   if(!B || !B.pk || scene._inside !== B.pk){ BALL_LIFE.lastT = 0; return; }
@@ -25092,26 +25116,19 @@ function ballroomLifeTick(scene){
     loopWalkStep(w, w.d.path, q => ({ x: pk.x0 + q[0], y: pk.y0 + q[1] }), bx, by, dt, t, ballOpts);
   }
   if(!groups) return;
-  /* THE CHATTER: a new conversation every few seconds, two at most at once */
+  /* THE CHATTER: a new conversation every few seconds, under the town's count (talkRun) */
   const card = document.getElementById('docCard'), cardUp = card && !card.classList.contains('hidden');
-  if(t >= L.nextAt && L.convos.filter(c => !c.grp.startsWith('w|')).length < 2 && !cardUp){
-    const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
-    if(free.length){
-      const grp = free[Math.floor(Math.random()*free.length)];
-      let pool = (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakeUpOnTable(performance.now()) ? BALL_CHAT.cake : []);
-      const fresh = pool.filter(l => !L.recent.includes(l)); if(fresh.length) pool = fresh;
-      const lines = pool[Math.floor(Math.random()*pool.length)], s0 = Math.floor(Math.random()*4);
-      L.recent.push(lines); if(L.recent.length > 8) L.recent.shift();
-      L.convos.push({ grp, lines, spk: lines.map((_, i) => ballSpeaker(grp, null, groups, s0 + i)), i: 0, at: t });
-    }
-    L.nextAt = t + 2200 + Math.random()*2600;
-  }
-  for(const c of L.convos){
-    if(t < c.at || c.i >= c.lines.length) continue;
-    say(c.spk[c.i], c.lines[c.i]);
-    c.i++; c.at = t + 2600;
-  }
-  L.convos = L.convos.filter(c => { if(c.i < c.lines.length || t < c.at - 200) return true; L.cool.set(c.grp, t + 9000); return false; });
+  talkRun(scene, L, t, {
+    gap: [2200, 2600], lineMs: 2600, hush: cardUp,
+    pick(){
+      const free = [...groups.keys()].filter(k => !k.startsWith('bt') && !L.convos.some(c => c.grp === k) && (L.cool.get(k) || 0) < t);
+      return free.length ? free[Math.floor(Math.random()*free.length)] : null;
+    },
+    pool: grp => (grp[0] === 'b' ? BALL_CHAT.bar : BALL_CHAT.table).concat(cakeUpOnTable(performance.now()) ? BALL_CHAT.cake : []),
+    make(grp, lines){ const s0 = Math.floor(Math.random()*4); return { grp, lines, spk: lines.map((_, i) => ballSpeaker(grp, null, groups, s0 + i)), i: 0, at: t }; },
+    say(c){ say(c.spk[c.i], c.lines[c.i]); },
+    done(c){ L.cool.set(c.grp, t + 9000); }
+  });
 }
 /* ==================== THE KITCHEN'S RUNNERS (Sir, 2026-10-18: "workers in
    there doing things and being sent upstairs with food for the party using
@@ -29948,7 +29965,7 @@ const DERBY_CHAT = {
    people refer to #4 i dont like that the judge can say it but other people
    makes it seem weird"): the crowd's lines above name no driver by number
    but the winner; the judge and the starter's calls are the only ones who do. */
-const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), recent: [], lastT: 0 };
+const DERBY_LIFE = { w: null, convos: [], nextAt: 0, cool: new Map(), lastT: 0 };
 let DERBY_CROWD = [];      // the crowd, frame a, n and kind (the park entry fills it): who can speak
 /* THE DERBY'S PEOPLE KNOCKED DOWN (Sir, 2026-10-25: "the derby crowd and the people walking round Tidewater Green ...
    need to fall too"): who of the crowd is down (their k), not drawn in their place meanwhile (drawCast) nor met there
@@ -29981,31 +29998,27 @@ function derbyLifeTick(scene, ow){
   const up = id => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
   const cardUp = up('docCard') || !!document.getElementById('ideaCard');
   const hush = typeof FOURTH !== "undefined" && FOURTH.stage === 'ask';          // (the judges talking, Tipsey listening: FOURTH_TALK)
-  if(t >= L.nextAt && L.convos.length < 2 && !cardUp && !hush && DERBY_CROWD.length){
-    const S = derbyCrowdState(), pool = DERBY_CHAT[S.phase] || DERBY_CHAT.wait;
-    const vw = scene.scale.width, vh = scene.scale.height;
-    const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
-    const cand = DERBY_CROWD.filter(c => { if(DERBY_LEAVE.gone.has(c.k)) return false; const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
-    if(cand.length){
-      const c = cand[Math.floor(Math.random()*cand.length)], set = pool[c.kind === 'kid' ? 'kid' : 'adult'];
-      let lines = set.filter(l => !L.recent.includes(l)); if(!lines.length) lines = set;
-      const line = lines[Math.floor(Math.random()*lines.length)];
-      L.recent.push(line); if(L.recent.length > 6) L.recent.shift();
+  talkRun(scene, L, t, {
+    gap: [2400, 2400], lineMs: 2700, hush: cardUp || hush || !DERBY_CROWD.length,
+    pick(){
+      const vw = scene.scale.width, vh = scene.scale.height;
+      const onScreen = (p, h) => { const q = scene.W(p.x, p.y, h); return q.x > 70 && q.x < vw - 70 && q.y > 70 && q.y < vh - 30; };   // (only who can be seen says anything)
+      const cand = DERBY_CROWD.filter(c => { if(DERBY_LEAVE.gone.has(c.k)) return false; const p = derbyW(c.a, c.n); return Math.hypot(p.x - bx, p.y - by) < 1400 && onScreen(p, 170) && (L.cool.get(c) || 0) < t && !L.convos.some(v => v.who.includes(c)); });
+      return cand.length ? cand[Math.floor(Math.random()*cand.length)] : null;
+    },
+    pool: c => { const S = derbyCrowdState(), P = DERBY_CHAT[S.phase] || DERBY_CHAT.wait; return P[c.kind === 'kid' ? 'kid' : 'adult']; },
+    make(c, line){
       let mate = null;
       if(line[1]) for(const o of DERBY_CROWD) if(o !== c && !DERBY_LEAVE.gone.has(o.k) && Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < 140 && (!mate || Math.abs(o.a - c.a) + Math.abs(o.n - c.n) < Math.abs(mate.a - c.a) + Math.abs(mate.n - c.n))) mate = o;
-      const who = mate ? [c, mate] : [c];
-      L.convos.push({ who, lines: mate ? line : [line[0]], i: 0, at: t });
-    }
-    L.nextAt = t + 2400 + Math.random()*2400;
-  }
-  for(const v of L.convos){
-    if(t < v.at || v.i >= v.lines.length) continue;
-    if(cardUp){ v.at = t + 600; continue; }                               // (not over anyone's card: they wait)
-    const c = v.who[v.i], p = derbyW(c.a, c.n), h = c.kind === 'kid' ? 112 : 150;
-    say('c' + c.a + ',' + c.n, () => derbyOn() ? { x: p.x, y: p.y, z: 0, h } : null, v.lines[v.i]);
-    v.i++; v.at = t + 2700;
-  }
-  L.convos = L.convos.filter(v => { if(v.i < v.lines.length || t < v.at - 200) return true; for(const c of v.who) L.cool.set(c, t + 12000); return false; });
+      return { who: mate ? [c, mate] : [c], lines: mate ? line : [line[0]], i: 0, at: t };
+    },
+    held: () => cardUp,                                                   // (not over anyone's card: they wait)
+    say(v){
+      const c = v.who[v.i], p = derbyW(c.a, c.n), h = c.kind === 'kid' ? 112 : 150;
+      say('c' + c.a + ',' + c.n, () => derbyOn() ? { x: p.x, y: p.y, z: 0, h } : null, v.lines[v.i]);
+    },
+    done(v){ for(const c of v.who) L.cool.set(c, t + 12000); }
+  });
 }
 /* a walker is solid to him; so is the crowd, while they stand there (DERBY_LEAVE) */
 function derbyWalkerBlock(x, y, r){
