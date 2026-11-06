@@ -50,6 +50,16 @@
 "group": "People: seeded crowd"
 },
 {
+"id": "sc6",
+"title": "Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc3"
+],
+"status": "pending",
+"group": "People: seeded crowd"
+},
+{
 "id": "p1.1",
 "title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
 "spec": "docs/people-unification.md#plan-by-risk",
