@@ -46,3 +46,6 @@ Photos: snaps/sheet/drug/car-park-{day,night,wide}.jpg, snaps/sheet/walkins/peli
 
 ### Hands-on
 - Doors fade/slide as you drive up; walking through the door is seamless; staff life and facing.
+
+## trophies-footprint re-check (2026-11-06)
+Re-shot `--walkins --pocket "Seabreeze Trophies"` with the live-overlay run_sheet. Shell is 585x462 lab x1.3 = 760.5x600.6, room 760x600, door mid, both on the shell's wall plane (shopDoor b=0.4; flatsShop doorMid). At 3x zoom of the west end the red footprint's west corner and front edge sit on the shell's wall base (within ~3px). The earlier "~35 units forward" was the lagging-overlay artefact (see above). No game change needed; item left for Sir to confirm at the test link. Right/gate side is hidden behind the fence and was not judged.
