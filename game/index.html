@@ -84637,9 +84637,9 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    meant to open Sierra Vista's side gate for later errands: the side gate is not built yet. */
 const SP_PLAN = {
   name: 'Vista Ridge Security Post', room: 'Vista Ridge Security Post Monitor Room',
-  SITE: { x0: 8614, x1: 10240, y0: -9800, y1: -5820 },        // the gravel bench Sir marked, outside the east wall, back to the hill's foot
-  AREA: { x0: 8614, x1: 10240, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
-  TRACK: { x0: 8614, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
+  SITE: { x0: 8450, x1: 10240, y0: -9800, y1: -5820 },        // the lawn bench Sir marked (painted back under the wall line, so no grey seam; ground only from x0 of AREA), outside the east wall, back to the hill's foot
+  AREA: { x0: 8602, x1: 10240, y0: -9800, y1: -2596 },        // everything of the post's: the bench and the service drive down to the service way        // the gravel round the post: his ground now ('lot')
+  TRACK: { x0: 8602, x1: 8940, y0: -9800, y1: -6800 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
   COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
@@ -93111,8 +93111,9 @@ class WorldScene extends Phaser.Scene {
     /* THE EAST WALL, SEEN NOW (2026-11-01, the Vista Ridge Security Post: the bench outside it is ground, and Night Watch's
        patrol walks it): the perimeter wall's own stone and cap along x = xe, from the front wall's corner up to the first
        terrace (the court's level), in runs keyed at their middles; its face (+x) is the one the eye sees */
-    for(let y = yw; y > S.e[1] + 1; y -= 420){
-      const ya = y, yb = Math.max(y - 420, S.e[1]), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
+    const GAP = sierraEastGap();                                 // (open where the security post's lawn meets the court)
+    for(let y = yw; y > GAP.y1 + 1; y -= 420){
+      const ya = y, yb = Math.max(y - 420, GAP.y1), xe = S.xe, c0 = ya === yw ? yw + 8 : ya;
       bodies.push({ depth: xe + (ya + yb)/2, fn: (gg) => {
         const Qg = (pts, col) => { const P = pts.map(p => this.W(p[0], p[1], p[2])); if(onScreen(P)) this.quadOn(gg, P, col); };
         Qg([[xe + 8,ya,0],[xe + 8,yb,0],[xe + 8,yb,WALL_H],[xe + 8,ya,WALL_H]], shade(STONE, .9));
@@ -128423,6 +128424,13 @@ function sierraGeo(){
    (a riser is a line, not a block), so a long frame step can land clean
    over one -- the city never needed this because its solids are whole
    blocks. Headless at swiftshader frame rates it tunnelled every wall. */
+/* THE EAST WALL'S OPENING (Sir, 2026-11-06): where the Vista Ridge Security Post's lawn meets the court, the perimeter wall
+   is not there -- no stone drawn, nothing solid. sierraEastGap() is its span {y0 north end, y1 south end}; with a y, whether
+   that y is inside it */
+function sierraEastGap(y){
+  const S = sierraGeo(), G = { y0: S.e[1], y1: SP_PLAN.SITE.y1 };
+  return y === undefined ? G : (y > G.y0 && y < G.y1);
+}
 function sierraCrosses(x0, y0, x1, y1, R){
   if(!WORLDGEN_COAST) return false;
   const S = sierraGeo();
@@ -128455,7 +128463,8 @@ function sierraCrosses(x0, y0, x1, y1, R){
     for(const bx of [rp.b0, rp.b1])
       if(bx > S.xw + 1 && bx < S.xe - 1 && crossX(bx, rp.yF, rp.yw)) return true;
   }
-  if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, S.e[4])) return true;
+  { const G = sierraEastGap();
+    if(crossX(S.xw, S.wallY, S.e[4]) || crossX(S.xe, S.wallY, G.y1) || crossX(S.xe, G.y0, S.e[4])) return true; }
   for(const rp of S.ramps) for(const xw of [rp.c0, rp.c1]) if(crossX(xw, rp.yS, rp.yN)) return true;
   return false;
 }
@@ -128715,7 +128724,7 @@ function sierraBlocks(x, y, R){
   if(Math.abs(y - S.wallY) < t && Math.abs(x - S.gate.x) > S.gate.open - R) return true;   // front wall, gate gap
   if(Math.abs(y - S.wallY) < t && sierraGateShut(x, R)) return true;                        // the booms, and the guard's side
   if(SV_GATE.g.mode !== 'booth' && Math.hypot(x - SV_GATE.g.x, y - SV_GATE.g.y) < SV_GUARD_R + R) return true;   // the guard himself
-  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || Math.abs(x - S.xe) < t)) return true;  // side walls
+  if(y < S.wallY - 1 && (Math.abs(x - S.xw) < t || (Math.abs(x - S.xe) < t && !sierraEastGap(y)))) return true;  // side walls (the east one open at the security post's lawn)
   if(Math.abs(y - S.e[4]) < t) return true;                                                // back wall
   for(let k = 1; k <= 3; k++){
     const rp = S.ramps[k-1];
