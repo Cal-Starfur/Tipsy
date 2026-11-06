@@ -16602,8 +16602,8 @@ const HOOD_SHOP_SITES = [
   /* 1,4 was bare paving, the one empty block by Tidewater Green: the trophy
      shop, on its corner nearest the park (Sir, 2026-10-16). Edge 2 runs
      from the block's EAST corner (dv -x), so the row starts at the far end:
-     1656 the edge, less the shop's width (585 x 1.3) */
-  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 585*1.3 }],   // (as wide as its inside, TROPHY_IN: 760)
+     1656 the edge, less the shop's width (820: its room's walls' outer faces, TROPHY_IN) */
+  [1,4, 2, ["Seabreeze Trophies"], { start: 1656 - 820 }],   // (as wide as its inside with its walls, TROPHY_IN: 760 + 2 x 30)
   /* ...and its north-east three-quarters, bare paving till now: THE TIDEWATER KART WORKS (the Flats build order, area
      3, 2026-11-01), the soapbox club's barn on the corner, its roll-up door on the east street, as deep as its room
      (KW_PLAN: 585 x 477 lab, x 1.3 the room's 760 x 620). It ends 620 short of the depot's side on this edge, so no
@@ -27875,7 +27875,7 @@ function trophyInShift(){
   const s = (typeof scn === "function") ? scn() : null, g = s && s.route && s.route.grid;
   const S = g ? shopDoorsOf(g).find(q => q.key === "Seabreeze Trophies") : null;
   if(!S) return null;
-  return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D) });
+  return (_trophyShift = { dx: S.x - (TROPHY_IN.x0 + (TROPHY_IN.DOOR[0] + TROPHY_IN.DOOR[1])/2), dy: S.y - (TROPHY_IN.y0 + TROPHY_IN.D + 30) });   // (the room's outer walls stand 30 outside its floor: their faces are the shell's, 820 x 660)
 }
 /* the shop's door on its glass line, facing the street (the walk-in door's world point) */
 function trophyDoorWorld(){
@@ -27893,8 +27893,8 @@ POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-564, 184], [-564, -3600]], [[1460, 184], [1460, -3600]]] },
   /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
-  openings: [{ p: [[320.3, 600], [440, 600]], z: [0, 210.5] }, { p: [[18.2, 600], [299.65, 600]], z: [42.9, 202.8], glass: true },
-             { p: [[460.85, 600], [742.3, 600]], z: [42.9, 202.8], glass: true }],
+  openings: [{ p: [[320, 630], [440, 630]], z: [0, 210.5] }, { p: [[-11.8, 630], [299.4, 630]], z: [42.9, 202.8], glass: true },
+             { p: [[460.6, 630], [771.8, 630]], z: [42.9, 202.8], glass: true }],
   get night(){ return walkinNightBoxes(TROPHY_IN.W, TROPHY_IN.D, TROPHY_IN.H, 66); },
   /* (open late for him while Fourth Place needs its engraver: walkinShut) */
   late: () => typeof FOURTH !== 'undefined' && ['shop', 'engrave', 'engraved'].includes(FOURTH.stage),
@@ -50310,7 +50310,7 @@ function houseCanopy(fn){
     const cream = '#f3e7c9', navy = '#24476b', navyD = '#16304b', gold = '#e8c35a', goldD = '#b8902a';
     const wood = '#b98a5a', woodL = '#c99a68', woodD = '#7e5a36', glass = '#cfe3ea', dark = '#30353b', darkF = '#262a2f', darkS = '#1f2226';
     const METAL = { gold: ['#ffe08a', '#e8bf48', '#b8902a', '#8a6a1c'], silver: ['#f6f8fb', '#cdd3da', '#9aa2ad', '#6d7580'], bronze: ['#f0bf8e', '#c98a52', '#9a6034', '#6e4224'] };
-    const WINS = [[18, 300], [461, 742]], SILL = 28.6;                                   // the shop's windows (14..230.5, 354.5..571 lab, x 1.3), their sill
+    const WINS = [[-11.8, 299.4], [460.6, 771.8]], SILL = 28.6;                           // the shop's windows (14..253.4, 377.4..616.8 lab, x 1.3, less the wall's 30), their sill
     const REAR_DOOR = [506, 590], REAR_WIN = [34, 125, 109, 172];                         // its rear door and window (rearDoor WW*0.72, rearWindow 26..96 x 84..132 lab, x 1.3)
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
@@ -50428,7 +50428,7 @@ function houseCanopy(fn){
       }}); }
 
     /* ---- THE WINDOWS' CUPS, inside the shop's two windows: stepped glass stands of cups, as the street sees them ---- */
-    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(w0 + 4, w1 - 4)) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
+    for(const [w0, w1] of WINS) for(const [s0, s1] of runs(Math.max(w0 + 4, 6), Math.min(w1 - 4, W - 6))) items.push({ a: (s0 + s1)/2, b: D - 22, z: 0, solids: [solid(s0, s1, D - 44, D, 84, 'window display')], draw: () => {
       const tiers = [[D - 16, D - 2, 30], [D - 30, D - 16, 48], [D - 44, D - 30, 66]];
       for(const [t0, t1, z] of tiers){
         box(s0, s1, t0, t1, z - 3, z, '#c9d6de', shade('#c9d6de', 0.92), shade('#c9d6de', 0.85));
@@ -79868,7 +79868,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        either side -- what the street sees is the room the inside is */
     /* (its door a pair, 92.3 lab -- 120 in the world, the room's own door: TROPHY_IN.DOOR; the shop's single 86 was
        a squeeze for him and did not match the room -- the review, 2026-10-30) */
-    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:585, dd:462, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
+    SHOPS.push(flatsShop({ name:'Seabreeze Trophies', base:'Trophy shop', ww:820/1.3, dd:660/1.3, doorMid:true, doorW: 120/1.3, see: true,   // (its door and windows show the room: W11)
       head:'Gold, silver and bronze cups on shelves in the window, a gold cup on the fascia, engraving bench out back',
       desc:'Trophies, plaques and engraving: every cup the town hands out is made here',
       tags:['trophy shelves','gold cup sign','engraving'],
