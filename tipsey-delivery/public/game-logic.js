@@ -3805,6 +3805,20 @@ function flyTerrainZ(scene, x, y){
 /* THE FOOTHILLS' TERRACES (WG_HILLS), as northHillPolys lays them for the city's strip (its toe, with the Sierra
    Vista and the mall's notches): each shelf's height from its riser's foot (eased up the riser), taken at the wobble's
    southern reach so the height is never under the drawn ground. 0 south of the rim and west of the city's X0 */
+/* THE FOOTHILLS' NOTCHES: behind a rim site that runs out past the city's edge (the mall's MALL_DEP, Tide Pool Elementary's back field)
+   the first riser stands TOE_GAP past the site's back line, easing back to the plain toe over `mE` either side of the notch's run
+   (a site's `notchTo`: where its deep part ends, so the Letters on the Hill, further east, keep their shelves) */
+function hillNotchToe(x, toePlain, B, gap, mE){
+  let out = toePlain;
+  for(const s of HOOD_RIM_SITES){
+    if(s.name !== "Maritime Mall" && s.name !== "Tide Pool Elementary") continue;
+    const nt = s.notchTo || s.to, d = x < s.from ? s.from - x : x > nt ? x - nt : 0;
+    if(d >= mE) continue;
+    const mToe = s.at + s.out*s.depth - gap*B, t = d/mE, e = t*t*(3 - 2*t);
+    out = Math.min(out, mToe + (toePlain - mToe)*e);
+  }
+  return out;
+}
 let _flyHills = null;
 function flyHillsGeo(){
   if(_flyHills) return _flyHills;
@@ -3812,10 +3826,8 @@ function flyHillsGeo(){
   const cum = [0], hgt = [0];
   for(let k = 0; k < n; k++){ cum.push(cum[k] + H.steps[k][0]*B); hgt.push(hgt[k] + H.steps[k][1]); }
   const toePlain = Y0 - H.TOE_GAP*B, toeSV = Y0 - H.SV_TOE*B, svX1 = X0 + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
-  const ms = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
-  const mToe = ms.at + ms.out*ms.depth - H.TOE_GAP*B, mE = H.MALL_EASE*B;
-  const mallToe = x => { const d = x < ms.from ? ms.from - x : x > ms.to ? x - ms.to : 0;
-    if(d >= mE) return toePlain; const t = d/mE, e = t*t*(3 - 2*t); return mToe + (toePlain - mToe)*e; };
+  const mE = H.MALL_EASE*B;
+  const mallToe = x => hillNotchToe(x, toePlain, B, H.TOE_GAP, mE);
   /* west of the city's X0, the harbour strip's toe (drawHarborGround's: 100 further back west of the park's old back
      path's end, eased to the city's at X0) */
   const hXa = HARBOR.BACK_PATH_X1;
@@ -23704,7 +23716,7 @@ function hoodLandmarkAtXY(x, y){
    tower keep the 940. */
 const MALL_DEP = 1880;
 const HOOD_RIM_SITES = [
-  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 940,
+  { name: "Tide Pool Elementary", axis: "x", at: -736, out: -1, from: 6*BLOCK, to: 9*BLOCK, depth: 1880, notchTo: 6*BLOCK + 6900,
     icon: "\u{1F3EB}", pin: "#b06a4a", kind: "school" },  // the same school pin Driftwood Elementary carries
   /* Maritime Mall (Sir, 2026-09-30): the three rim lots before the school,
      above blocks 3, 4 and 5 -- the same run, the same depth. mapType: the
@@ -23738,10 +23750,18 @@ const HOOD_RIM_SITES = [
    its gates (RIM_GATES) all read it, so the railing you see is the
    railing you hit. */
 const TPE_PLAN = {
-  LEN: 9384, DEP: 940,
+  LEN: 9384, DEP: 1880,                          // (the mall's depth: the hills are notched back behind it, hillNotchToe)
   WA: 1200, WB: 8184, MA0: 3200, MA1: 6200,      // the wings' outer ends and the main block
   BB0: -840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
-  FB: -14, FBK: -926,                            // the railing's pavement line and its back run
+  FB: -14, FBK: -1840, FBK2: -926, BX: 6900,     // the railing's pavement line, its back run behind the field (FBK), its back run behind the east wing
+                                                 // (FBK2), and the cross fence between them at a BX
+  /* THE BACK FIELD (2026-11-06, "as deep as the mall"): behind the range, inside the back railing -- a 400 m-ish running track round a
+     packed-earth pitch with a goal at each end, a row of raised garden beds behind the west wing, two portable classrooms, a row of
+     trees along the back fence. No lawn: earth, the terracotta track, planting only in beds. */
+  field: { cx: 3900, cy: -1385, rx: 2560, ry: 400, tw: 70 },
+  beds: [[220, -935], [380, -935], [540, -935], [700, -935], [860, -935], [1020, -935]],
+  portables: [[150, 640, -1650, -1520], [760, 1250, -1650, -1520]],
+  backTrees: [420, 980, 1540, 2100, 2660, 3220, 3780, 4340, 4900, 5460, 6020, 6580],
   GATES: [[2310, 2490], [6910, 7090]],           // pier centres; the gate hangs between them
   PIER: 26,
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
@@ -23795,9 +23815,13 @@ function tpeVol(){
   const solids = [
     { name: 'main block', poly: R(P.MA0, P.MA1, P.BB0, P.BB1), h: P.H + 130 },
     /* the railing: back run, both ends, and the pavement run between the piers */
-    { name: 'railing', poly: R(10, P.LEN - 10, P.FBK - 4, P.FBK + 4), h: 158 },
+    { name: 'railing', poly: R(10, P.BX, P.FBK - 4, P.FBK + 4), h: 158 },
+    { name: 'railing', poly: R(P.BX, P.LEN - 10, P.FBK2 - 4, P.FBK2 + 4), h: 158 },
+    { name: 'railing', poly: R(P.BX - 4, P.BX + 4, P.FBK, P.FBK2), h: 158 },
     { name: 'railing', poly: R(10, 18, P.FBK, P.FB), h: 158 },
-    { name: 'railing', poly: R(P.LEN - 18, P.LEN - 10, P.FBK, P.FB), h: 158 }
+    { name: 'railing', poly: R(P.LEN - 18, P.LEN - 10, P.FBK2, P.FB), h: 158 },
+    /* (the hillside behind the east wing, inside the site's rect but past its back fence: nobody's, as the north edge) */
+    { name: 'hillside', poly: R(P.BX, P.LEN, -P.DEP, P.FBK2 - 4), h: 400 }
   ];
   let cur = 0;
   for(const [g0, g1] of P.GATES){
@@ -23811,7 +23835,11 @@ function tpeVol(){
   solids.push({ name: 'flagpole', c: P.flag, r: 6, h: 300, prop: true });
   /* the yard's furniture: the sign wall, the swing set's frame, the sandbox, the slide's tower and its chute, the dome, the hoops'
      poles, the tetherball pole, the racks and the planters (each as it is drawn) */
-  { const S = P.sign, W = P.swing, D = P.sand, L = P.slide, [da, db, dr] = P.dome;
+  { const F0 = P.field, S = P.sign, W = P.swing, D = P.sand, L = P.slide, [da, db, dr] = P.dome;
+    for(const sd of [-1, 1]) solids.push({ name: 'goal', poly: R(F0.cx + sd*(F0.rx - F0.tw - 90) - 22, F0.cx + sd*(F0.rx - F0.tw - 90) + 22, F0.cy - 62, F0.cy + 62), h: 80, prop: true });
+    for(const [ba, bb] of P.beds) solids.push({ name: 'garden bed', poly: R(ba - 56, ba + 56, bb - 24, bb + 24), h: 40, prop: true });
+    for(const [q0, q1, r0, r1] of P.portables) solids.push({ name: 'portable classroom', poly: R(q0, q1, r0, r1), h: 130 });
+    for(const ta of P.backTrees) solids.push({ name: 'tree', c: [ta, P.FBK + 60], r: 20, h: 300, prop: true });
     solids.push({ name: 'school sign', poly: R(S.a0, S.a1, S.b0, S.b1), h: S.h, prop: true },
       { name: 'swing set', poly: R(W.a0 - 6, W.a1 + 6, W.b - 40, W.b + 40), h: 130, prop: true },
       { name: 'sandbox', poly: R(D.a0, D.a1, D.b0, D.b1), h: 22, prop: true },
@@ -68538,6 +68566,20 @@ marinaEntry(),
        of the east one. NO SCHOOL LAWNS (Sir, 2026-10-07): the rim lots under it are the ground pass's. ---- */
     const paveP = '#cbc1aa', paveE = '#b3a894';
     T(WA-40, WB+40, BB0, 0, 0.4, tar);
+    /* THE BACK FIELD: the terracotta track in its white lane lines round a packed-earth pitch -- halfway line, centre circle, a penalty box at each
+       end -- behind the range, inside the back railing */
+    if(inView(PL.field.cx - PL.field.rx - 20, PL.field.cx + PL.field.rx + 20, PL.field.cy - PL.field.ry - 20, PL.field.cy + PL.field.ry + 20, 0, 2)){
+      const F0 = PL.field, ell = (rx, ry, z) => { const q = []; for(let k = 0; k < 72; k++){ const t = k/72*Math.PI*2; q.push(P(F0.cx + rx*Math.cos(t), F0.cy + ry*Math.sin(t), z)); } return q; };
+      poly(ell(F0.rx + 14, F0.ry + 14, 0.5), '#8a8d86'); poly(ell(F0.rx, F0.ry, 0.6), '#b3654f');                       // its kerb, the track
+      for(let l = 1; l < 4; l++) poly(ell(F0.rx - l*F0.tw/4, F0.ry - l*F0.tw/4*0.8, 0.7), null, 'rgba(244,240,230,.85)', 1.1);   // its lanes
+      const ri = F0.rx - F0.tw, yi = F0.ry - F0.tw;
+      poly(ell(ri, yi, 0.8), '#cdbb8a');                                                                                   // the pitch
+      const ln = '#f4f0e6', X = F0.cx, Y = F0.cy;
+      T(X - 2.5, X + 2.5, Y - yi + 30, Y + yi - 30, 0.9, ln);
+      for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; T(X + 70*Math.cos(t) - 2.5, X + 70*Math.cos(t) + 2.5, Y + 70*Math.sin(t) - 2.5, Y + 70*Math.sin(t) + 2.5, 0.9, ln); }
+      for(const sd of [-1, 1]){ const e = X + sd*(ri - 50), i0 = e - sd*220;
+        T(Math.min(e, i0), Math.max(e, i0), Y - 190, Y - 186, 0.9, ln); T(Math.min(e, i0), Math.max(e, i0), Y + 186, Y + 190, 0.9, ln); T(i0 - 2, i0 + 2, Y - 190, Y + 190, 0.9, ln); }
+    }
     { const g0 = PL.GATES[0][0], g1 = PL.GATES[1][1];
       T(g0 - 60, g1 + 60, -176, -62, 0.8, paveE); T(g0 - 54, g1 + 54, -170, -68, 0.85, paveP);               // the promenade, its edging
       for(let a = g0; a < g1; a += 120) T(a, a + 1.4, -170, -68, 0.9, paveE);                                // its joints
@@ -68620,7 +68662,7 @@ marinaEntry(),
         add([a - 10, a + 10, c0 - 10, c1 + 10], () => mesh(a, c0, a, c1)); } };
 
     /* the back run and the west end: beyond the range or wide of it */
-    runA(14, LEN-14, PL.FBK);
+    runA(14, PL.BX, PL.FBK); runA(PL.BX, LEN-14, PL.FBK2); runB(PL.BX, PL.FBK, PL.FBK2);
     runB(14, PL.FBK, PL.FB);
 
     /* ---- THE RANGE (the redesign): a brick main block with a stone pediment and clock over its porch, a bellcote behind it, a
@@ -68836,6 +68878,26 @@ marinaEntry(),
         S(bx + dir*1.8, hb - 12, hb + 12, 128, 152, red); S(bx + dir*2, hb - 10, hb + 10, 130, 150, '#f4f6f6');
         const rx = bx + dir*16; for(let t = 0; t < 12; t++){ const q0 = t/12*Math.PI*2, q1 = (t + 1)/12*Math.PI*2; tube(rx + 14*Math.cos(q0), hb + 14*Math.sin(q0), 126, rx + 14*Math.cos(q1), hb + 14*Math.sin(q1), 126, 1.4, coral); }
         for(let t = 0; t < 8; t++){ const q = t/8*Math.PI*2; tube(rx + 14*Math.cos(q), hb + 14*Math.sin(q), 126, rx + 8*Math.cos(q), hb + 8*Math.sin(q), 104, 0.5, '#f4f0e6'); } });
+      /* ---- THE BACK FIELD'S FURNITURE: a goal at each end, the garden beds, the portable classrooms, the trees along the back fence ---- */
+      for(const sd of [-1, 1]){ const ga = PL.field.cx + sd*(PL.field.rx - PL.field.tw - 90), gb = PL.field.cy;
+        add([ga - 30, ga + 30, gb - 64, gb + 64], () => {
+          for(const q of [-60, 60]){ tube(ga - 20*sd*0, gb + q, 0, ga, gb + q, 76, 2.6, '#f4f6f6'); tube(ga, gb + q, 0, ga + sd*22, gb + q, 0, 1.6, '#f4f6f6'); tube(ga, gb + q, 76, ga + sd*22, gb + q, 8, 1.2, '#dfe3e4'); }
+          tube(ga, gb - 60, 76, ga, gb + 60, 76, 2.6, '#f4f6f6');
+          for(let q = -54; q <= 54; q += 12) tube(ga, gb + q, 76, ga + sd*22, gb + q, 8, 0.4, 'rgba(240,240,236,.7)');
+          for(let h = 14; h < 76; h += 14) tube(ga + sd*(22 - 22*h/76), gb - 60, h, ga + sd*(22 - 22*h/76), gb + 60, h, 0.4, 'rgba(240,240,236,.6)'); }); }
+      for(const [ba, bb] of PL.beds) add([ba - 58, ba + 58, bb - 26, bb + 26], () => {
+        box(ba - 56, ba + 56, bb - 24, bb + 24, 0, 26, '#9a7452', '#8a6a46', '#6f5334'); T(ba - 50, ba + 50, bb - 18, bb + 18, 26, '#4a3a2a');
+        for(let k = 0; k < 7; k++) ball(ba - 42 + k*14, bb - 6 + (k % 2)*10, 36 + (k % 3)*4, 8, ['#3f6b4a', '#4e8058', '#568a5e'][k % 3]);
+        for(const fa of [-30, 0, 30]) ball(ba + fa, bb + 4, 56, 4, [coral, yel, '#d57ca6'][(fa + 30)/30]); });
+      for(const [q0, q1, r0, r1] of PL.portables) add([q0 - 6, q1 + 6, r0 - 6, r1 + 60], () => {
+        box(q0, q1, r0, r1, 0, 110, '#ece3cc', wall, shade(wall, .78)); F(q0, q1, 0, 14, '#8a8d86', null, 0, r1 + 0.4); slab(q0 - 6, q1 + 6, 110, 120, r1 + 6, r0 - 6, '#8a8d86', null, '#a3a69f');
+        for(let k = 0; k < 4; k++){ const w0 = q0 + 40 + k*(q1 - q0 - 140)/3 + k*0, w1 = w0 + 70; if(w1 > q1 - 90) break; F(w0, w1, 40, 90, glassT, null, 0, r1 + 0.8); F(w0 - 3, w1 + 3, 36, 94, stoneD, null, 0, r1 + 0.5); }
+        F(q1 - 86, q1 - 40, 6, 94, '#2b3138', null, 0, r1 + 1.0); F(q1 - 82, q1 - 44, 14, 88, 'rgba(150,190,206,.7)', null, 0, r1 + 1.2);
+        box(q1 - 96, q1 - 30, r1, r1 + 54, 0, 8, stone, stoneD, stoneD); tube(q1 - 96, r1 + 54, 0, q1 - 96, r1 + 54, 44, 1.4, '#6a7076'); tube(q1 - 30, r1 + 54, 0, q1 - 30, r1 + 54, 44, 1.4, '#6a7076'); tube(q1 - 96, r1 + 54, 44, q1 - 30, r1 + 54, 44, 1.4, '#6a7076'); });
+      for(const ta of PL.backTrees) add([ta - 30, ta + 30, PL.FBK + 30, PL.FBK + 90], () => {
+        cyl(ta, PL.FBK + 60, 0, 230, 18, '#6b5a3a');
+        for(let k=0;k<5;k++) ball(ta + 58*Math.cos(k*1.26+0.4), PL.FBK + 60 + 58*Math.sin(k*1.26+0.4), 206, 62, ['#3f6b4a','#4e8058','#568a5e'][k%3]);
+        ball(ta, PL.FBK + 60, 254, 58, '#4e8058'); });
       { const [ta, tb] = PL.tether;
         add([ta - 30, ta + 30, tb - 30, tb + 30], () => { cyl(ta, tb, 0, 170, 4, stl, stlL); tube(ta, tb, 166, ta + 26, tb + 12, 70, 0.7, '#e8e4d6'); ball(ta + 26, tb + 12, 64, 8, yel, '#f6d27a'); }); }
       for(const [ra, rb] of PL.racks) add([ra - 10, ra + 66, rb - 18, rb + 18], () => {
@@ -68847,7 +68909,7 @@ marinaEntry(),
     }
 
     /* the east end, nearer than everything at its own b */
-    runB(LEN-14, PL.FBK, PL.FB);
+    runB(LEN-14, PL.FBK2, PL.FB);
     /* the pavement run between the gates, and the brick piers */
     { let cur = 0;
       for(const [g0, g1] of PL.GATES){ if(g0 - PL.PIER - cur > 30) runA(cur, g0 - PL.PIER, PL.FB); cur = g1 + PL.PIER; }
@@ -85004,6 +85066,16 @@ function tpeYardCast(){
     TPE_Y.rope = { a: ja, b: jb, w: 150, ph }; }
   { const c = [[6595, -195], [6665, -195], [6595, -125], [6665, -125]];
     c.forEach(([a, b], i) => kid('four-' + i, 'B', now => ({ a: a + 2*Math.sin(now/1900 + i), b: b + 2*Math.cos(now/2300 + i), z: 0, th: Math.atan2(-160 - b, 6630 - a), moving: false, pose: { lift: [0.5 + 0.3*Math.sin(now/700 + i*2), 0.45], bend: [0.6, 0.6] } }))); }
+  /* the back field: two runners round the track (the PE class), a pickup game on the pitch, a keeper, and at recess two at the garden beds */
+  { const F0 = PL.field, rxm = F0.rx - F0.tw/2, rym = F0.ry - F0.tw/2, W0 = 0.14/1850;
+    [0, 2.3].forEach((th0, i) => kid('run-' + i, 'A', now => { const t = now*W0*(i ? 0.82 : 1) + th0;
+      return { a: F0.cx + rxm*Math.cos(t), b: F0.cy + rym*Math.sin(t), z: 0, th: Math.atan2(rym*Math.cos(t), -rxm*Math.sin(t)), moving: true }; }));
+    kid('soccer-1', 'A', tpeShuttle(F0.cx - 1300, F0.cy - 120, F0.cx - 300, F0.cy + 110, 14000, 0.08, 0));
+    kid('soccer-2', 'A', tpeShuttle(F0.cx + 100, F0.cy + 90, F0.cx - 900, F0.cy - 100, 12500, 0.1, 4200));
+    kid('soccer-3', 'A', tpeShuttle(F0.cx + 1300, F0.cy - 100, F0.cx + 300, F0.cy + 120, 15500, 0.08, 7000));
+    kid('soccer-4', 'A', tpeShuttle(F0.cx + 700, F0.cy + 40, F0.cx + 1500, F0.cy - 60, 11000, 0.12, 1500));
+    kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
+    [PL.beds[1], PL.beds[4]].forEach(([ba, bb], i) => kid('garden-' + i, 'B', now => ({ a: ba + 10, b: bb + 44, z: 0, th: -Math.PI/2, moving: false, pose: { lift: [0.65 + 0.1*Math.sin(now/800 + i), 0.65], bend: [1.2, 1.2] } }))); }
   PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
   return (TPE_Y.list = L);
 }
@@ -85011,20 +85083,20 @@ function tpeYardCast(){
 function tpeYardOpen(scene){
   const pk = TPE_PK && POCKETS.find(p => p.name === TPE_IN.name), h = walkinClockHour();
   const open = !!(pk && !walkinShut(scene, pk)), rec = open && ((h >= 10 && h < 10.5) || (h >= 12 && h < 13) || (h >= 14.5 && h < 14.84) || (h >= 8 && h < 8.25) || (h >= 15.6 && h < 16));
-  const fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')), c = fr.toWorld(4700, -150);
-  const seen = scene.visWorldPt(c.x, c.y, 4800, 500);
+  const fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')), c = fr.toWorld(4700, -800);
+  const seen = scene.visWorldPt(c.x, c.y, 4800, 1300);
   if(TPE_Y.open === null || !seen){ TPE_Y.open = open; TPE_Y.rec = rec; }
   return TPE_Y;
 }
 function tpeYardAt(scene, p, now){
   const fr = tpeYardAt.fr || (tpeYardAt.fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')));
   const q = p.at(now), w = fr.toWorld(q.a, q.b);
-  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(p.id.startsWith('hoop') ? 1.5 : 1) };
+  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1) };
 }
 function tpeQueue(scene, t, queuePerson, layerFor){
   if(scene._inside) return;
-  const fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')), c = fr.toWorld(4700, -150);
-  if(!scene.visWorldPt(c.x, c.y, 4800, 500)) return;
+  const fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')), c = fr.toWorld(4700, -800);
+  if(!scene.visWorldPt(c.x, c.y, 4800, 1300)) return;
   const Y = tpeYardOpen(scene);
   if(!Y.open) return;
   const now = scene.time.now, list = tpeYardCast();
@@ -85032,9 +85104,11 @@ function tpeQueue(scene, t, queuePerson, layerFor){
     if(p.grp === 'B' && !Y.rec) continue;
     const d = tpeYardAt(scene, p, now);
     if(!scene.visProp("people", d.x, d.y, d.z)) continue;
-    queuePerson(d.x, d.y, (g, tt) => {
+    /* (the back field's people are behind the range: under its pieces, over the site's ground -- the site's own order, not x + y) */
+    const behind = d.y + 736 < TPE_PLAN.BB0 - 20;
+    queuePerson(behind ? fr.ox + fr.oy + 0.0004 : d.x, behind ? 0 : d.y, (g, tt) => {
       const T0 = tt || now, L = walkinStaffLook(p.s), lg = layerFor(d.x, d.y), thW = d.th - Math.PI/2;
-      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(p.id.startsWith('hoop') ? 1.5 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
         Object.assign({ dress: L.dress }, d.pose || null));
     });
   }
@@ -126077,14 +126151,8 @@ function northHillPolys(o){
      then its southernmost value, which the plateau is laid back from. */
   const toePlain = o.y0 - H.TOE_GAP*B, toeSV = o.toe ? o.toeSV : o.y0 - H.SV_TOE*B;
   const svX1 = o.xw + H.SV_X*B, svX2 = svX1 + H.SV_EASE*B;
-  const ms = HOOD_RIM_SITES.find(s => s.name === "Maritime Mall");
-  const mToe = ms.at + ms.out*ms.depth - H.TOE_GAP*B, mE = H.MALL_EASE*B;
-  const mallToe = x => {
-    const d = x < ms.from ? ms.from - x : x > ms.to ? x - ms.to : 0;
-    if(d >= mE) return toePlain;
-    const t = d/mE, e = t*t*(3 - 2*t);
-    return mToe + (toePlain - mToe)*e;
-  };
+  const mE = H.MALL_EASE*B;
+  const mallToe = x => hillNotchToe(x, toePlain, B, H.TOE_GAP, mE);
   const toe = x => {
     if(o.toe) return o.toe(x);
     if(x <= svX1) return toeSV;
