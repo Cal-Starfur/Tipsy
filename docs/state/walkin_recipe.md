@@ -324,7 +324,7 @@ Sizes are world units. A "cell" is 3128 node to node, with 1656 buildable. **Ful
 | 17 | Seabreeze Trophies | hs [1,4] e2 (L17347; L72330) | shop 760×600 | yes | **yes** (pocket, auto door, no fade) | **S** (§3) |
 | 18 | Maritime Mall | rim (L25801; L65446), 3 lots | 9384 × MALL_DEP | yes | **yes** | done (model debt) |
 | 19 | Maritime Mall Parking | rim (L25805; L66006) | 3128 × 940 (half/rim lot) | garage | n/a | – |
-| 20 | Tide Pool Elementary | rim (L25795; L65142, pieces) | 9384 × 940 (rim) | yes (school) | no | L (its body is `occ`-keyed at the origin; needs the hl-style rework first) |
+| 20 | Tide Pool Elementary | rim (L25795; L65142, pieces) | 9384 × 940 (rim) | yes (school) | **yes** (2026-11-06: one 6984 × 540 room, `TPE_IN`; its three blocks are `shell` pieces faded by the generic `pocketShellK`; `landmarkLabWorld` knows rim sites) | done |
 | 21 | Palmline Tower | rim (L25812; L66346) | 2392 × 940 (rim) | ground-floor shops | no | L (whole image, no items, no vol) |
 | 22 | Undertaker (Gantry Cemetery) | park landmark (L40222; L45465) | 4×5 cells | chapel/office only | no | L |
 | 23 | School (Driftwood Elementary) | park landmark (L40224; L45870) | 3×2 cells | yes | no | L |
