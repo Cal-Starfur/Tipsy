@@ -18783,7 +18783,7 @@ function bwCrossAt(p, t, bx, by){
   const R = p.R, v = p.v;
   let c = p._run;
   if(!c || t < c.out.T0){
-    const T0 = -p.ph*2*R.L/v - (p.back || 0)/v - 3*SIGNAL.cycle*(1 + p.ph);
+    const T0 = Math.floor(t/86400000)*86400000 - p.ph*2*R.L/v - (p.back || 0)/v - 3*SIGNAL.cycle*(1 + p.ph);   // (from the start of the world clock's day: the plan then runs on a round trip at a time, not from 1970, sc4)
     const out = pedPlan(R, v, T0, false);
     c = { out, back: pedPlan(R, v, out.end, true) };
   }
