@@ -69996,26 +69996,37 @@ marinaEntry(),
     const ctr = A.gateCentre(g);
     const at = (u, v, z) => g.axis === 'b' ? P(u, v, z) : P(v, u, z);        // u along the gate, v across it (toward the court / out)
     const u0 = g.at - g.hw, u1 = g.at + g.hw;
+    /* THE LEAVES HANG INSIDE THE TUNNEL, so they show only through its mouth: every stroke is cut to the mouth on the building's
+       face (24 out from the gate's plane), as the wall in front of them hides what is behind it. (Cut by hand: this canvas
+       emulates clip() for fills only, so a clip() leaves strokes whole.) */
+    const fv = g.plane - g.swing*24, m = 4;
+    const cq = [at(u0 - m, fv, 0), at(u1 + m, fv, 0), at(u1 + m, fv, H + 70), at(u0 - m, fv, H + 70)];
+    let ar = 0; for(let i = 0; i < 4; i++){ const a = cq[i], b = cq[(i + 1) % 4]; ar += a.x*b.y - b.x*a.y; }
+    const sg = ar > 0 ? 1 : -1;
+    const side = (i, p) => { const a = cq[i], b = cq[(i + 1) % 4]; return ((b.x - a.x)*(p.y - a.y) - (b.y - a.y)*(p.x - a.x))*sg; };
+    const inMouth = p => { for(let i = 0; i < 4; i++) if(side(i, p) < 0) return false; return true; };
+    const cut = (p0, p1) => { let t0 = 0, t1 = 1;
+      for(let i = 0; i < 4; i++){ const d0 = side(i, p0), d1 = side(i, p1);
+        if(d0 < 0 && d1 < 0) return null;
+        if(d0 < 0) t0 = Math.max(t0, d0/(d0 - d1)); else if(d1 < 0) t1 = Math.min(t1, d0/(d0 - d1)); }
+      if(t1 <= t0) return null;
+      return [{ x: p0.x + (p1.x - p0.x)*t0, y: p0.y + (p1.y - p0.y)*t0 }, { x: p0.x + (p1.x - p0.x)*t1, y: p0.y + (p1.y - p0.y)*t1 }]; };
+    const line = (p0, p1, w, col) => { const c = cut(p0, p1); if(!c) return; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(c[0].x, c[0].y); ctx.lineTo(c[1].x, c[1].y); ctx.stroke(); };
+    const dot = (q, r, col) => { if(!inMouth(q)) return; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, 6.2832); ctx.fill(); };
     for(const [hu, dir] of [[u0, 1], [u1, -1]]){
       const eu = hu + dir*g.hw*Math.cos(th), ev = g.plane + g.swing*g.hw*Math.sin(th);
-      poly([at(hu, g.plane, H), at(eu, ev, H), at(eu, ev, 8), at(hu, g.plane, 8)], 'rgba(36,40,46,.20)');
       /* the pickets, the rails, the spears */
       for(let k = 1; k <= n; k++){
         const f = k/(n + 0.4), pu = hu + (eu - hu)*f, pv = g.plane + (ev - g.plane)*f;
-        const p0 = at(pu, pv, 6), p1 = at(pu, pv, H - 6);
-        ctx.strokeStyle = iron; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-        const p2 = at(pu, pv, H + 4); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(p2.x, p2.y, 2.3, 0, 6.2832); ctx.fill();
+        line(at(pu, pv, 6), at(pu, pv, H - 6), 2.2, iron);
+        dot(at(pu, pv, H + 4), 2.3, gold);
       }
-      for(const z of [H - 8, H*0.55, 12]){
-        const a0 = at(hu, g.plane, z), a1 = at(eu, ev, z);
-        ctx.strokeStyle = iron; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.stroke();
-      }
+      for(const z of [H - 8, H*0.55, 12]) line(at(hu, g.plane, z), at(eu, ev, z), 3, iron);
       /* the gate post it hangs on */
-      const pp = at(hu, g.plane, 0), pq = at(hu, g.plane, H + 22);
-      ctx.strokeStyle = shade(iron, 1.5); ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(pq.x, pq.y); ctx.stroke();
-      const pk = at(hu, g.plane, H + 28); ctx.fillStyle = gold; ctx.beginPath(); ctx.arc(pk.x, pk.y, 5, 0, 6.2832); ctx.fill();
+      line(at(hu, g.plane, 0), at(hu, g.plane, H + 22), 7, shade(iron, 1.5));
+      dot(at(hu, g.plane, H + 28), 5, gold);
     }
-    if(ctr && g.lamp){ const q = at(g.at, g.plane, H + 40); ctx.fillStyle = '#f3dca0'; ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, 6.2832); ctx.fill(); }
+    if(ctr && g.lamp) dot(at(g.at, g.plane, H + 40), 4, '#f3dca0');
   },
   draw(p){
     const A = ALMS_PLAN, { CA0, CA1, CB0, CB1, RD, GM, H, TH } = A;
