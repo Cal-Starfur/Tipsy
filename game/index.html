@@ -53208,15 +53208,12 @@ function houseCanopy(fn){
         S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
       },
       low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d8d2', frame: '#b0aa9e' });
-    /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
-    /* (SLIM and JOINED, as the tower's own: the exterior's glass starts 14 in from its edge (EA0 + 14), so the door's gap is that glass's
-       122 (half 61) and the pier is the 14 of the tower's front either side of it, standing flush on the wall's end and on the
-       vestibule's floor -- not the 20 of block it was, nor a stub with a gap to the wall and no floor under it, Sir 2026-11-07) */
-    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
-      items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
-        box(j0, j1, D, D + AP, 0, LH - 8, '#e6e8e3', '#d6d9d3', '#c4c8c2');
-        box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
-      }});
+    /* THE TOWER'S PIERS are the front wall itself (Sir, 2026-11-07: "the blue should line up"): the wall runs on to the doorway's
+       edge and ends there, its cap and its face on one line, no block standing out in front of it. The tower's side walls out
+       to its glass (D + 30 .. D + AP) are the shell's (it fades with it); only their collision stays, so the lane holds him between
+       them, carried on the first wall piece as the staff's are */
+    { const host = items.find(it => it.solids);
+      if(host) for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]]) host.solids.push(solid(j0, j1, D + 30, D + AP, LH, 'wall')); }
 
     /* ---- SHELVING ALONG THE BACK WALL, either side of the staff door ---- */
     for(const [lo, hi] of [[0, 250 - 4], [292 + 4, PH[0]]])
