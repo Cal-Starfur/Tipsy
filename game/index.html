@@ -3312,7 +3312,8 @@ function gdHex(kind, v, dflt){
   return e[2];
 }
 function gdDk(c, f){ return (Math.round(((c >> 16) & 255)*f) << 16) | (Math.round(((c >> 8) & 255)*f) << 8) | Math.round((c & 255)*f); }
-let GD_LIVE = {};   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
+let GD_LIVE = {};
+const GD_DOOR = { t: 0, last: 0, force: null };   // (the back room's shutter: 0 up .. 1 down)   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
 function gideonParts(){
   const P = GD_LIVE || {}, D = GD_DEFAULT, pick = k => P[k] == null ? D[k] : P[k];
   const sh = gdHex('shell', pick('shell')), shell = pick('shell') === 'white' ? { c: 0xeef0f2, dk: 0xc9ced3 } : { c: sh, dk: gdDk(sh, 0.82) };
@@ -51266,6 +51267,19 @@ function houseCanopy(fn){
       items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
         T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
         T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
+    /* THE BACK ROOM'S DOOR (docs/gideon-dock.md): a roll-down shutter in the gap of the south partition (a 130..250, b 408..424), like Tipsey's garage door --
+       the frame is still art: two steel posts, a header with the shutter's drum and a BACK ROOM sign. The slats themselves are live (drawWorld: GD_DOOR),
+       up while he is out and about, down while his garage is open */
+    { const DA0 = 130, DA1 = 250, DB0 = 408, DB1 = 424, DH = 150;
+      for(const x of [DA0 - 8, DA1]) items.push({ a: x + 4, b: 416, z: 0, solids: [solid(x, x + 8, DB0, DB1, DH + 16, 'door post')], draw: () => {
+        box(x, x + 8, DB0, DB1, 0, DH + 16, steel, steelS, steelD); box(x - 1, x + 9, DB0 - 1, DB1 + 1, 0, 6, steelD, steelD, steelS);
+        box(x + 2, x + 6, DB0 - 0.6, DB0, 20, 60, '#252b31', '#252b31', '#1c2126'); } });
+      items.push({ a: (DA0 + DA1)/2, b: 416, z: DH, solids: [], draw: () => {
+        box(DA0 - 8, DA1 + 8, DB0 - 4, DB1 + 4, DH, DH + 22, '#3a444d', '#2c363e', '#232b32');                      // the drum's box
+        box(DA0 - 8, DA1 + 8, DB1 + 4, DB1 + 5.4, DH + 14, DH + 18, copper, copper, copperD);                         // its copper stripe
+        T(DA0, DA1, DB0, DB1, 0.9, '#6a727a');                                                                         // the sill
+        blockWordIn('BACK ROOM', DA0 + 12, DA1 - 12, DH + 4, DH + 12, DB1 + 5.6, '#f1e6cf', null, 2.4); } });        // (the sign, on the header's front)
+    }
     /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
        depot's `charger`: padR 44 -- an 88 circle -- a dark rim, the painted amber ring 5 wide, the grey pad inside; CH / CP in the Charge
        depot's drawing), on the back room's floor. The humanoid's own station: where he starts and ends as the player. Centre (124, 266). */
@@ -101293,6 +101307,19 @@ class WorldScene extends Phaser.Scene {
       hazVQ.push({ depth: cx + cy - 44, fn: (gg, tt) => {
         const ph = ((tt || 0) % CHARGE.pulseMs)/CHARGE.pulseMs, br = 0.5 + 0.5*Math.sin(ph*Math.PI*2), lg = layerFor(cx, cy), ring = r => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(this.W(cx + Math.cos(t)*r, cy + Math.sin(t)*r, 2.4)); } return o; };
         this.quadOn(lg, ring(44), 0xffb454, 0.10 + 0.14*br); this.edgeOn(lg, ring(44), 0xffd488, (1.6 + 1.6*br)*this.K); this.quadOn(lg, ring(24), 0xfff0c8, 0.05 + 0.10*br); } });
+    }
+    /* THE BACK ROOM'S SHUTTER (gd4, the door): slats from the header down, closing over 900 ms (DOOR_SHUT_MS) while Gideon's garage is open, up again on Play */
+    if(this._inside && this._inside.name === BB_IN.name){
+      const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 }, now = performance.now(), D = GD_DOOR;
+      const want = (this._garage && this._garage.key === 'gideon-pad') || D.force ? 1 : 0;
+      D.t = Math.max(0, Math.min(1, D.t + (want ? 1 : -1)*Math.min(100, now - (D.last || now))/900)); D.last = now;
+      if(D.force != null && D.force !== true && D.force !== false) D.t = D.force;
+      const x0 = pk.x0 + 130 + pv.dx, x1 = pk.x0 + 250 + pv.dx, y = pk.y0 + 416 + pv.dy, ZT = 150, cover = ZT*D.t;
+      if(cover > 0.5){
+        hazVQ.push({ depth: x1 + y + 0.2, fn: (gg, tt) => { const lg = layerFor(x1, y), q = (z0, z1, c) => this.quadOn(lg, [this.W(x0, y, z1), this.W(x1, y, z1), this.W(x1, y, z0), this.W(x0, y, z0)], c, 1);
+          for(let z = ZT, k = 0; z > ZT - cover + 0.01; z -= 10, k++) q(Math.max(z - 10, ZT - cover), z, k % 2 ? 0x8c97a1 : 0x9aa5af);
+          const zb = ZT - cover; q(zb, zb + 5, 0x5b636b); this.quadOn(lg, [this.W(x0 + 52, y - 1.2, zb + 18), this.W(x1 - 52, y - 1.2, zb + 18), this.W(x1 - 52, y - 1.2, zb + 8), this.W(x0 + 52, y - 1.2, zb + 8)], 0x3a444d, 1); } });
+      }
     }
     /* NIGHT WATCH's bay (nwBayNow): the post's forecourt, the dock's pads, the mall's front doors, the gate round's
        pavement -- cached, the ring and beacon live; a camera point on the patrol has the beacon alone (R7) */
