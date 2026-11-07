@@ -309,8 +309,9 @@
 "title": "Showroom cars on gameCar",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: vehicles"
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23764,18102&view=2"
 },
 {
 "id": "v5",

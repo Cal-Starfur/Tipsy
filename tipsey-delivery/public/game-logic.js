@@ -44398,16 +44398,6 @@ const FLATS_CHEMIST_LIVERY = {
 /* the Flats liveries, added alongside the forked base ones */
 FLATS_CHEMIST_LIVERY.seafoam = { trim:'#3f9e8a', inner:'#8fbcb2', glass:'rgba(150,205,200,.55)', cross:'#3fae9f' };
 FLATS_CHEMIST_LIVERY.coral   = { trim:'#d9735a', inner:'#c9a498', glass:'rgba(215,170,160,.55)', cross:'#e2574c' };
-const FLATS_CR = { len:225, wid:90, chassisH:42, cabinH:48, wheelR:24,
-    windshield:'#9fc4d6', windshieldEdge:'#6f8fa0', bumper:'#b8bcc2',
-    light:'#f4e9b0', tail:'#c94f4f', wheel:'#24262c', wheelDk:'#17191d',
-    hub:'#8a919c', hubFace:'#3d424c' };
-const FLATS_CAR_COLORS = [
-    { body:'#9aa7b5', bodyDk:'#76839a', roof:'#8695a5' },   // silver
-    { body:'#c45a4e', bodyDk:'#9c473d', roof:'#af4f44' },   // red
-    { body:'#5678a8', bodyDk:'#435e87', roof:'#4c6c99' },   // blue
-    { body:'#e4e6ea', bodyDk:'#c0c3c9', roof:'#d6d9dd' }    // white
-  ];
 function flatsDrawChemist(p, c){
     const wall = '#f0f2f0', trim = c.trim, H = 172;
     body(wall, trim, H);
@@ -44521,74 +44511,6 @@ function flatsChemistBack(p, c){
       box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     }
 }
-function flatsGameCar(cP, col){
-    const zk = 1/ZSCALE;
-    const hl = FLATS_CR.len/2, hw = FLATS_CR.wid/2, cz = FLATS_CR.wheelR*zk;
-    const chassisTop = (FLATS_CR.wheelR + FLATS_CR.chassisH)*zk;
-    const cabinTop   = (FLATS_CR.wheelR + FLATS_CR.chassisH + FLATS_CR.cabinH)*zk;
-    const cl = hl*0.62, roofF = -cl*0.55, roofR = cl*0.55;
-    const cd = (a,b,h) => cP(a,b,h).y;                    // nearer = larger screen y
-
-    const wheel = (a0, r, side) => {
-      const rz = r*zk;                                     // face-plane circle: z radius over ZSCALE
-      const ring = (bc, rr) => { const q = [];
-        for(let i=0;i<12;i++){ const t = i/12*Math.PI*2;
-          q.push(cP(a0 + Math.cos(t)*rr, bc, cz + Math.sin(t)*rr*zk)); }
-        return q; };
-      const bIn = side*(hw-1), bOut = side*(hw+5);
-      poly(ring(bIn, r), FLATS_CR.wheelDk);
-      const faceB = cd(a0,bOut,cz) > cd(a0,bIn,cz) ? bOut : bIn;
-      poly(ring(faceB, r), FLATS_CR.wheel);
-      poly(ring(faceB, r*0.5), FLATS_CR.hubFace);
-      const h = cP(a0, faceB, cz);
-      ctx.beginPath(); ctx.arc(h.x, h.y, r*0.30*K, 0, 7); ctx.fillStyle = FLATS_CR.hub; ctx.fill();
-    };
-    const chassis = () => {
-      const nb = cd(0,hw,chassisTop) > cd(0,-hw,chassisTop) ? hw : -hw;
-      const na = cd(hl,0,chassisTop) > cd(-hl,0,chassisTop) ? hl : -hl;
-      poly([cP(-hl,nb,cz),cP(hl,nb,cz),cP(hl,nb,chassisTop),cP(-hl,nb,chassisTop)], col.bodyDk);
-      poly([cP(na,-hw,cz),cP(na,hw,cz),cP(na,hw,chassisTop),cP(na,-hw,chassisTop)], shade(col.bodyDk,.90));
-      poly([cP(-hl,-hw,chassisTop),cP(hl,-hw,chassisTop),cP(hl,hw,chassisTop),cP(-hl,hw,chassisTop)], col.body);
-    };
-    const cabin = () => {
-      const roofPts = [cP(roofF,-hw*0.86,cabinTop),cP(roofR,-hw*0.86,cabinTop),
-                       cP(roofR, hw*0.86,cabinTop),cP(roofF, hw*0.86,cabinTop)];
-      const sg = cd(0,hw*0.9,cabinTop) > cd(0,-hw*0.9,cabinTop) ? 1 : -1;
-      const sgB = sg*hw*0.86, beltB = sg*hw*0.92;
-      const P4 = [[roofF,sgB,cabinTop],[roofR,sgB,cabinTop],[cl,beltB,chassisTop],[-cl,beltB,chassisTop]];
-      poly(P4.map(q => cP(q[0],q[1],q[2])), col.roof);                       // the greenhouse solid
-      poly(roofPts, col.roof, col.bodyDk, 1);
-      poly([cP(roofR,-hw*0.85,cabinTop),cP(roofR,hw*0.85,cabinTop),
-            cP(cl, hw*0.90,chassisTop),cP(cl,-hw*0.90,chassisTop)], FLATS_CR.windshield, FLATS_CR.windshieldEdge, 1);
-      poly([cP(roofF,-hw*0.86,cabinTop),cP(roofF,hw*0.86,cabinTop),
-            cP(-cl, hw*0.92,chassisTop),cP(-cl,-hw*0.92,chassisTop)], FLATS_CR.windshield, FLATS_CR.windshieldEdge, 1);
-      poly(roofPts, col.roof, col.bodyDk, 1);                                // the game's roof redraw
-      const c = [0,1,2].map(i => P4.reduce((t,q) => t+q[i], 0)/4);
-      poly(P4.map(q => cP(q[0],q[1],q[2])), col.body);
-      poly(P4.map(q => cP(c[0]+(q[0]-c[0])*0.7, c[1]+(q[1]-c[1])*0.7, c[2]+(q[2]-c[2])*0.7)), FLATS_CR.windshield);
-    };
-    const bumper = () => {
-      const front = cd(hl,0,cz) > cd(-hl,0,cz), e = front ? hl : -hl, i = front ? hl-0.3 : -hl+0.3;
-      poly([cP(i,-hw,cz),cP(e,-hw,cz+3*zk),cP(e,hw,cz+3*zk),cP(i,hw,cz)], FLATS_CR.bumper);
-      for(const sgn of [-1,1]){
-        const lp = cP(e - (front?0.4:-0.4), sgn*(hw-3), cz+5*zk);
-        ctx.beginPath(); ctx.arc(lp.x, lp.y, 2*K, 0, 7);
-        ctx.fillStyle = front ? FLATS_CR.light : FLATS_CR.tail; ctx.fill();
-      }
-    };
-    const rearNear  = cd(-hl*0.55,hw,cz) > cd(-hl*0.55,-hw,cz) ? 1 : -1;
-    const frontNear = cd( hl*0.55,hw,cz) > cd( hl*0.55,-hw,cz) ? 1 : -1;
-    const cabRef = cd(0,0,(chassisTop+cabinTop)/2);
-    wheel(-hl*0.55, FLATS_CR.wheelR,      -rearNear);
-    wheel( hl*0.55, FLATS_CR.wheelR*0.95, -frontNear);
-    chassis();
-    if(cd(-hl*0.55, hw*rearNear,  cz) <= cabRef) wheel(-hl*0.55, FLATS_CR.wheelR,      rearNear);
-    if(cd( hl*0.55, hw*frontNear, cz) <= cabRef) wheel( hl*0.55, FLATS_CR.wheelR*0.95, frontNear);
-    cabin();
-    bumper();
-    if(cd(-hl*0.55, hw*rearNear,  cz) >  cabRef) wheel(-hl*0.55, FLATS_CR.wheelR,      rearNear);
-    if(cd( hl*0.55, hw*frontNear, cz) >  cabRef) wheel( hl*0.55, FLATS_CR.wheelR*0.95, frontNear);
-  }
 function flatsWallFrames(WW, DD, OA, OB){
   const oa = OA || 0, ob = OB || 0;
   /* ---- the wall frames, and the primitives written against them ---- */
@@ -67177,8 +67099,14 @@ function houseCanopy(fn){
     /* the car is flatsGameCar() at file scope now -- the Car park is its
        second user, so it stopped being ours. The mapper is what places
        it: local (a along, b across, z up) into this frame's recess. */
-    const carIn = (fr, uc, nc, vf, col) =>
-      flatsGameCar((a,b,h) => Q(fr, uc+a, nc+b, vf+h), col);
+    /* THE STREET'S CAR (V4): gameCar(), the drawProp art, not the forked flatsGameCar.
+       fdir by frame: +u is +a on the front (0), -a on the back (2), -b on both flanks (3).
+       SHOW_SEED[liv] are seeds whose roll lands on silver, red, blue, white in CAR_COLORS. */
+    const SHOW_SEED = [8, 4, 9, 1], SHOW_FD = { front: 0, back: 2, flank: 3 };
+    const carIn = (fr, uc, nc, vf, liv) => {
+      const c = fr.P(uc, nc, vf);
+      gameCar(c[0], c[1], c[2], SHOW_FD[fr.kind], SHOW_SEED[liv], 'car');
+    };
 
     /* the showroom: one deep opening, floor, cars on it, then the glass
        and the mullions in front of the glass.
@@ -67249,7 +67177,7 @@ function houseCanopy(fn){
       /* the livery is named per car rather than derived: the first pass
          derived it and drew silver, white, silver, which is three of the
          four FLATS_CAR_COLORS being nearly the same colour. */
-      for(const [ua, liv] of show) carIn(fr, ua, -58, 20, FLATS_CAR_COLORS[liv]);
+      for(const [ua, liv] of show) carIn(fr, ua, -58, 20, liv);
       ctx.restore();
       /* NO BARS ACROSS THE GLASS. There were dark mullions on every bay
          line and a transom right through the middle, all in trim, which
