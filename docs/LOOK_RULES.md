@@ -180,6 +180,11 @@ How the world must look and be put together, distilled from **2,132 individual d
 - **Hidden people: decided by what is drawn**, never the block model (Sir, 2026-11-01: "too many people are x-rayed"). `personVis` tests 11 points of the body against the opaque shapes of the cached pieces drawn after them, holes (`HOLE`) cut out. Wholly hidden and nobody he needs: not drawn. That covers interiors: a room's people under its roof or behind its walls are not drawn while Tipsey is outside, and still are where its doorway or glass shows them.
 - **Talking to Tipsey:** `meetWalk` + `meetTick` (gap 85, turn 450 ms), from their own side, the short way round, with both faces showing.
 - **Speech** is `npcSay`, never through a floor.
+- **Hats and headwear are painter-ordered pieces** (Sir, 2026-11-07, Gideon's top hat, brim, band and headphones; the people's peaked cap already did this). Three rules, checked at all four headings (`faceB` is the sign: below zero, his back is to the eye):
+  1. **A brim, peak or any piece that sticks out past the crown goes down BEFORE the crown whenever it is on the far side** (a brim: always first, the crown stands on it; a peak: first when `faceB < 0`, or by the cap's `peakNearer` depth test). Drawn after, its far half paints over the crown.
+  2. **A band, cuff or sleeve on a crown is `noTop: true`.** A prism's lid is always drawn, so a band without one lays a disc across the crown (read as "the base showing through the top").
+  3. **A piece on the far side of the head (a headphone cup, an ear, an antenna's far half) goes down before the head** (`!sees3(side, 0, 0)`), the near side after. Build the piece as a function of its side, as `phones(sd)` does.
+  Check a new hat by rendering it facing the eye, away, and both sides, and look for a lid, a brim over the crown, or a far piece over the head.
 
 ## 8. Walk-in buildings (walkin.md)
 - **One plan for inside and outside.** Interior faces are the exterior's own drawing, cut to the dado, so doors, glass, piers, signs, footprint and floor heights line up.
