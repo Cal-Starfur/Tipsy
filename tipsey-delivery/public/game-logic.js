@@ -40818,11 +40818,12 @@ function _generateRouteBody(dateStr, opts){
     }
   }
 
-  /* parked car: on the road, off to one side (never blocking either
-     traffic lane's centerline). */
+  /* parked car: at the FAR kerb, the same stand-off as every kerb-parked car
+     (KERB_CAR_OUT), so it is out of the far traffic lane (bodies 75-165 off
+     the centre line) instead of sitting in it at -138. */
   if(rng() < 0.5){
     const cs = Math.round(SPAWN_S + 150 + rng()*(totalLen - 500));
-    const off = -1*(T2*1.5);
+    const off = -(ROAD_HALF - (KERB_CAR_OUT - SIDEWALK_W));
     if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) cfDrop({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 

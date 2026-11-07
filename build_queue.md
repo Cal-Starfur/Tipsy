@@ -93,7 +93,7 @@ graph LR
 - [?] `v2` Riders obstacle list + clearance [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `v3` Parking rows cached, one bay size [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29038,1564&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `v4` Showroom cars on gameCar [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23764,18102&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
-- [ ] `v5` Route car out of the far lane [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `v5` Route car out of the far lane [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: people
 - [ ] `pe1` Legs driven by distance walked (47 walkSin calls) [docs/state/CONSISTENCY_PASS.md#still-to-do]

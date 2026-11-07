@@ -318,8 +318,9 @@
 "title": "Route car out of the far lane",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: vehicles"
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 },
 {
 "id": "pe1",
