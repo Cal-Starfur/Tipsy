@@ -105378,12 +105378,13 @@ class WorldScene extends Phaser.Scene {
        a heel block under the back, a cuff up the shin, a strap over a bare foot. Drawn before the leg, so the shin goes down
        into the shoe's mouth and a boot's cuff shows as a ring round it */
     const shoeKind = pShoe.kind || (uniform && uniform.shoeKind) || (pShoe.platform ? 'platform' : (build.legH < 40 ? SHOES_K : build.hairStyle === "long" ? SHOES_W : SHOES_M)[(hairHash*7 + 3) % 5]);
-    const shoeOf = (aC, A, legW, legD, late) => {
+    const shoeOf = (aC, A, legW, legD, mode) => {   // mode 0: all of it, before the leg (his back to the eye); 1: the sole only, before the leg; 2: the rest, over the leg (facing the eye) -- a sole is a flat slab the leg STANDS on, so its top face must be under the leg, while the toe and the upper are nearer than the shin and go over it
+      const late = mode === 2;
       const b0 = A[0], h0 = A[1], S = pShoe, K = shoeKind, soleH = Math.max(1.5, shoeH*0.32), white = { c: _pmix(S.c, 0xf4f2ec, 0.78), dk: _pmix(S.dk, 0xd6d3ca, 0.65) };
-      const sole = (bOff, hb, hh, col) => limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
-      const upper = (bOff, hb, hbot, htop, taper, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1, !late);   // (drawn after the leg: no lid and NO silhouette fill -- it is a sleeve over the shin; the fill is a convex hull of both ends and painted a plane across the leg)
-      const toe = (bFrom, bTo, hbot, htop, ha, col) => far ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1, !late);
-      const band = (bOff, hb, hbot, hh, col) => far ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
+      const sole = (bOff, hb, hh, col) => late ? 0 : limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
+      const upper = (bOff, hb, hbot, htop, taper, col) => mode === 1 ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1, !late);   // (drawn after the leg: no lid and NO silhouette fill -- it is a sleeve over the shin; the fill is a convex hull of both ends and painted a plane across the leg)
+      const toe = (bFrom, bTo, hbot, htop, ha, col) => far || mode === 1 ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1, !late);
+      const band = (bOff, hb, hbot, hh, col) => far || mode === 1 ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
       switch(K){
         case 'sneaker':  sole(legD*0.38, legD*1.8, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.85, S);
                          band(legD*0.3, legD*1.52, h0 - shoeH + soleH*1.3, 1.6, { c: S.dk, dk: S.dk }); break;                               // a white sole, a band over it
@@ -105404,7 +105405,7 @@ class WorldScene extends Phaser.Scene {
       }
     };
     const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side);
-      if(faceB > 0 && !(aid && aid.cast === side)) shoeOf(side*build.hipW*0.3, STR[side].A, build.legW*0.55, build.legW*0.6, true);   // (facing the eye: the shoe over the foot of the leg, its toe nearer than the shin -- Sir, 2026-11-07, "the shoes are drawn over by the legs")
+      if(faceB > 0 && !(aid && aid.cast === side)) shoeOf(side*build.hipW*0.3, STR[side].A, build.legW*0.55, build.legW*0.6, 2);   // (facing the eye: the shoe over the foot of the leg, its toe nearer than the shin -- Sir, 2026-11-07, "the shoes are drawn over by the legs")
       LX.on = false; };
     const legDraw = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
@@ -105415,7 +105416,7 @@ class WorldScene extends Phaser.Scene {
       const thighC = pPants.shorts ? pPants : dress ? (dress.long ? null : pSkin) : pPants, shinC = bare ? pSkin : pPants;
       const pros = aidK === 'prosthetic' && side === (aid.side || 1);                 // A PROSTHETIC LEG: below the knee a pylon from a socket, the shoe on it
       const plaster = aid && aid.cast === side;                                    // A LEG IN PLASTER (aid.cast, Marina General's patients: HOSP_FOLK): knee to toes, white and thick
-      if(!plaster && !(faceB > 0)) shoeOf(aC, A, legW, legD);                      // (first, his back to the eye: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23; facing the eye the toe is nearer than the leg, so it goes down after it: leg())
+      if(!plaster) shoeOf(aC, A, legW, legD, faceB > 0 ? 1 : 0);                      // (first, his back to the eye: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23; facing the eye the toe is nearer than the leg, so it goes down after it: leg())
       if(!(dress && dress.long)){
         if(plaster){
           limb(aC, [A[0] + 4, A[1] - 3], [A[0] - 3, A[1] - 3], legW*1.3, legD*1.25, PLASTER.c, PLASTER.dk, 1.1, 0);            // the foot in it
