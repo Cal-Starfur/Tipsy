@@ -31745,6 +31745,12 @@ const MARINA_GARAGE_PLAN = (() => {
            carB: (BF + 12 + cb1)/2, board: [ac - 330, ac + 330] };
 })();
 const MARINA_LIFT_VIEW = { open: 0, up: false };
+/* THE ATTENDANT'S SHACK on the paving west of the ENTER lane (world units, lot line y 21160, garage face 20900), and its attendant
+   at the shack's lane-side corner, facing the lane; he glances about. Drawn live (marinaAttQueue), listed in CITY_PEOPLE */
+const MARINA_SHACK = { r: [850, 1226, 20906, 21062], h: 140 };
+const MARINA_ATTENDANT = { kind: 'parking attendant', seed: 0xa77d, sex: 'm', at: [1176, 20992], face: [1500, 20992],
+  uniform: { shirt: { c:0xe8e6dc, dk:0xbdbaae }, pants: { c:0x2b3640, dk:0x1e262d }, shoe: { c:0x14161a, dk:0x0d0e11 },
+             vest: { c:0x1f6f8b, dk:0x16526a }, cap: { c:0x1f6f8b, dk:0x16526a, top:0x2a87a8, badge:0xf2f3f1 }, shoeKind: 'boot' } };
 /* ==================== THE HEART RUN (Sir, 2026-10-09) ====================
    "lets make the sky way have an auto door that tipsey can drive into it
    and enter the hospital.. we will make the hospital an XRay mission where
@@ -48394,6 +48400,7 @@ function houseCanopy(fn){
     for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + a0, GP.X0 + a1, GP.Y0 + GP.cb0, GP.Y0 + GP.cb1]), h: GP.CH + 160 });
     solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + GP.CAR0, GP.X0 + GP.CAR1, GP.Y0 + GP.cb0, GP.Y0 + GP.CARB]), h: GP.CH + 160 });   // the car's back wall at ground
     for(const x of [Ln[0] + 30, Ln[1] - 30]) solids.push({ name: 'ticket post', c: [A(x), B(G_.y1 + 60)], r: 14, h: 46 });
+    solids.push({ name: 'attendant shack', poly: rectLab(MARINA_SHACK.r), h: 96, prop: true });
     /* THE BARRIER ARMS, live (GATE_ARMS, eased by updateErrands) */
     const live = [];
     { const L0 = A(Ln[0]), L1 = A(Ln[1]), mid = (L0 + L1)/2, pb = B(G_.y1 + 60);
@@ -48628,6 +48635,74 @@ function houseCanopy(fn){
                 out.push(at(Cc + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
               poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
               poly([at(SW, H - 2*R + Tk), ...arc(R - Tk, []), at(SW, H - Tk)], teal); }
+          }});
+        }
+        /* ================= THE ATTENDANT'S SHACK (Sir, 2026-11-06: "put an attendant shack on this spot with an attendant", then "give it an interior ... see from the outside ... the attendant in there") =================
+           On the pale paving west of the ENTER lane, glazed on the lane side (east) and the street (south) so the room
+           shows from outside: two pieces, the room (floor, the two back walls' inner faces, desk, monitor, chair, notice
+           board) keyed at the far corner, and the shell (sills, posts, door, glass, roof) at the near corner, so the
+           attendant (MARINA_ATTENDANT, inside at the east window) sorts between them and shows through the glass. */
+        { const R = MARINA_SHACK.r, a0 = A(R[0]), a1 = A(R[1]), b0 = B(R[3]), b1 = B(R[2]), H = MARINA_SHACK.h;
+          const sS = { pl:'F', at: b0, out: -1 }, sE = { pl:'S', at: a1, out: 1 };
+          const nW = { pl:'F', at: b1 - 0.4, out: 1 }, wW = { pl:'S', at: a0 + 0.4, out: -1 };   // the back walls' inner faces
+          const wall = '#e6e2d6', wallD = '#d3cebf', wallL = '#bdb8a9', inner = '#d9d3c1', innerD = '#c9c2ae', lamp = 'rgba(244,206,120,.30)';
+          const mid = (u0, u1) => (u0 + u1)/2;
+          items.push({ a: a0, b: b1, z: 0, draw: () => {
+            if(!inView(a0 - 8, a1 + 8, b0 - 8, b1 + 8, 0, H + 20)) return;
+            T(a0 - 10, a1 + 10, b0 - 10, b1 + 10, 0.6, '#b7b2a6');                          // its slab, a shade darker than the paving
+            T(a0, a1, b0, b1, 0.9, '#8f8676');                                                // the floor
+            T(a0 + 20, a1 - 20, b0 + 20, b1 - 20, 1.0, '#7d7566');                            // a mat
+            T(a1 - 140, a1 - 6, b0 + 6, b1 - 6, 1.1, lamp);                                   // the lamp's pool, at the window
+            fq(nW, a0, a1, 0, H, inner, 0); fq(nW, a0, a1, 0, 34, innerD, 0.2);               // north wall, with its dado
+            fq(wW, b0, b1, 0, H, inner, 0); fq(wW, b0, b1, 0, 34, innerD, 0.2);               // west wall
+            /* the notice board, the clock and the key rack on the north wall */
+            fq(nW, a0 + 40, a0 + 110, 56, 92, '#7a5d3e', 0.5); fq(nW, a0 + 44, a0 + 106, 60, 88, '#d8c79a', 0.7);
+            for(const [u, z, c] of [[52, 78, '#c2452e'], [70, 70, '#3f8a5a'], [86, 80, '#2f7f86']]) fq(nW, a0 + u, a0 + u + 12, z, z + 10, c, 0.9);
+            fq(nW, a0 + 150, a0 + 176, 70, 96, '#27313a', 0.5); fq(nW, a0 + 153, a0 + 173, 73, 93, '#f2ecd8', 0.7); fq(nW, a0 + 162, a0 + 164, 83, 91, '#27313a', 0.9); fq(nW, a0 + 162, a0 + 170, 83, 85, '#27313a', 0.9);
+            fq(nW, a1 - 110, a1 - 60, 60, 66, '#6d747c', 0.5); for(let k = 0; k < 4; k++) fq(nW, a1 - 106 + k*12, a1 - 102 + k*12, 48, 60, '#e8b54a', 0.7);   // key rack
+            /* the west wall's shelf with the ticket rolls */
+            fq(wW, mid(b0, b1) - 40, mid(b0, b1) + 40, 66, 70, '#8a6f4e', 0.5);
+            for(let k = 0; k < 4; k++) fq(wW, mid(b0, b1) - 34 + k*20, mid(b0, b1) - 20 + k*20, 70, 84, k % 2 ? '#f2ecd8' : '#c2452e', 0.8);
+            /* the desk along the north wall: top, drawers, the monitor, the ticket printer, a mug */
+            box(a0 + 60, a0 + 250, b1 - 40, b1 - 6, 0, 40, '#8a6f4e', '#6e573c', '#7d6345');
+            box(a0 + 56, a0 + 254, b1 - 44, b1 - 4, 38, 42, '#a58862', '#7d6345', '#8f7452');
+            box(a0 + 132, a0 + 172, b1 - 28, b1 - 20, 42, 46, '#3b4148', '#2b3036', '#33383e');
+            box(a0 + 118, a0 + 186, b1 - 26, b1 - 22, 46, 84, '#1d2226', '#15181b', '#101214');
+            fq({ pl:'F', at: b1 - 26.4, out: -1 }, a0 + 121, a0 + 183, 50, 81, '#7fd0e0', 0.3);
+            fq({ pl:'F', at: b1 - 26.4, out: -1 }, a0 + 127, a0 + 165, 66, 69, '#d6f1f6', 0.6);
+            box(a0 + 200, a0 + 232, b1 - 34, b1 - 12, 42, 54, '#d8d4cc', '#bdb8a9', '#c9c4ba');
+            fq({ pl:'F', at: b1 - 34.2, out: -1 }, a0 + 204, a0 + 228, 47, 51, '#1d2226', 0.3);
+            box(a0 + 80, a0 + 90, b1 - 28, b1 - 18, 42, 52, '#c2452e', '#9b3724', '#b03e2a');
+            /* the chair, pulled back from the desk */
+            box(a0 + 122, a0 + 156, b1 - 84, b1 - 52, 0, 28, '#2b3640', '#1f272e', '#252f38');
+            box(a0 + 122, a0 + 156, b1 - 54, b1 - 50, 28, 60, '#2b3640', '#1f272e', '#252f38');
+            /* a small fan heater and a bin by the door end */
+            box(a0 + 270, a0 + 296, b1 - 30, b1 - 10, 0, 24, '#8d959c', '#6f777e', '#7d858c');
+          }});
+          items.push({ a: a1, b: b0, z: 0, draw: () => {
+            if(!inView(a0 - 8, a1 + 8, b0 - 8, b1 + 8, 0, H + 20)) return;
+            const SILL = 30, HEAD = H - 12, glass = 'rgba(150,190,210,.16)', glassE = 'rgba(244,206,120,.14)';
+            /* STREET FACE (south): plinth and sill, corner posts, the door at the west end, glass, mullions */
+            fq(sS, a0, a1, 0, SILL, wall, 0.3); fq(sS, a0, a1, 0, 12, '#8d959c', 0.5); fq(sS, a0, a1, HEAD, H, wall, 0.3);
+            for(const [u0, u1] of [[a0, a0 + 8], [a1 - 8, a1]]) fq(sS, u0, u1, 0, H, wall, 0.4);
+            const d0 = a0 + 26, d1 = a0 + 86;
+            fq(sS, d0 - 4, d1 + 4, 0, HEAD, '#8d959c', 0.5); fq(sS, d0, d1, 0, HEAD - 4, '#1f6f8b', 0.8);
+            fq(sS, d0 + 8, d1 - 8, 52, HEAD - 14, 'rgba(244,206,120,.55)', 1.0); fq(sS, d1 - 12, d1 - 8, 34, 42, '#e8e2d0', 1.0);   // its window and handle
+            fq(sS, d1 + 4, a1 - 8, SILL, HEAD, glass, 0.6);
+            for(let a = d1 + 4 + (a1 - 8 - d1 - 4)/4; a < a1 - 8; a += (a1 - 8 - d1 - 4)/4) fq(sS, a - 1.5, a + 1.5, SILL, HEAD, wall, 0.9);
+            fq(sS, d1 + 4, a1 - 8, SILL, SILL + 3, '#aab2b9', 1.0);
+            /* LANE FACE (east): the same, one wide pane with a centre mullion, the counter ledge and the ticket slot */
+            fq(sE, b0, b1, 0, SILL, wall, 0.3); fq(sE, b0, b1, 0, 12, '#8d959c', 0.5); fq(sE, b0, b1, HEAD, H, wall, 0.3);
+            for(const [u0, u1] of [[b0, b0 + 8], [b1 - 8, b1]]) fq(sE, u0, u1, 0, H, wall, 0.4);
+            fq(sE, b0 + 8, b1 - 8, SILL, HEAD, glassE, 0.6);
+            fq(sE, mid(b0, b1) - 1.5, mid(b0, b1) + 1.5, SILL, HEAD, wall, 0.9);
+            fq(sE, b0 + 6, b1 - 6, SILL - 4, SILL + 1, '#aab2b9', 1.8);                       // the counter ledge
+            fq(sE, mid(b0, b1) + 10, mid(b0, b1) + 30, SILL + 8, SILL + 16, '#1d2226', 0.9);  // the ticket slot
+            /* the roof: teal cap, overhang, white fascia, vent */
+            box(a0 - 8, a1 + 8, b0 - 8, b1 + 8, H, H + 10, teal, shade(teal, .72), shade(teal, 1.2));
+            fq({ pl:'F', at: b0 - 8, out: -1 }, a0 - 8, a1 + 8, H + 4, H + 6, '#ffffff', 0.2);
+            fq({ pl:'S', at: a1 + 8, out: 1 }, b0 - 8, b1 + 8, H + 4, H + 6, '#ffffff', 0.2);
+            box(mid(a0, a1) - 12, mid(a0, a1) + 12, mid(b0, b1) - 12, mid(b0, b1) + 12, H + 10, H + 20, '#8f969d', '#787f86', '#697077');   // its vent
           }});
         }
         depthSort(items);
@@ -82098,6 +82173,27 @@ function afQueue(scene, t, queuePerson, layerFor){
     queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, p.moving, 0, 0, null, L.uniform, false, null));
   }
 }
+/* MARINA PARKING's attendant, at his shack (MARINA_ATTENDANT) */
+function marinaAttLook(){
+  const c = MARINA_ATTENDANT;
+  if(!c._look){
+    const b = streetLook(c.seed, { adult: true, aid: 'none', sex: c.sex, type: 'man' }), U = c.uniform;
+    c._look = Object.assign({}, b, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+  }
+  return c._look;
+}
+function marinaAttAt(now){
+  const c = MARINA_ATTENDANT;
+  return { x: c.at[0], y: c.at[1], th: lhGlance(Math.atan2(c.face[1] - c.at[1], c.face[0] - c.at[0]), now, c.seed & 7), moving: false };
+}
+CITY_PEOPLE.add({ name: "Marina Parking's attendant", where: "at his shack on the forecourt, west of the ENTER lane", solid: false,
+  each(scene, t, fn){ const p = marinaAttAt(scene.time.now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: MARINA_ATTENDANT.kind, look: marinaAttLook() })); } });
+function marinaAttQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, p = marinaAttAt(now);
+  if(!scene.visProp("people", p.x, p.y)) return;
+  const L = marinaAttLook(), px = p.x, py = p.y, thW = p.th - Math.PI/2;
+  queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false, null));
+}
 /* SUN DECK MOTOR LODGE's people out in the court (MOTEL_MAID, MOTEL_GUESTS) */
 CITY_PEOPLE.add({ name: 'Sun Deck Motor Lodge', where: "the motor lodge's court, across from Sun Deck Airfield", solid: true,
   each(scene, t, fn){
@@ -97595,6 +97691,11 @@ class WorldScene extends Phaser.Scene {
           /* on the aft deck in front of his door, of a boat south of the
              finger (which sorts at its near end): over the boat */
           const bt = hb.boat, front = cp && cp.aboard && cp.k <= 1 && cp.doorSeen && bt.side > 0;
+          /* the cabin door's opening and leaf, over the boat and under the one who comes through it (boatDoorStep) */
+          if(hb.gway && bt && BOAT_DOOR[bt.kind]){
+            const dd = bt.side > 0 ? bt.x + bt.y + bt.L/2 + 0.9 : (cp ? cp.x + cp.y : hb.gway.doorX + hb.gway.y) - 0.2;
+            vq.push({ depth: dd, fn: (g) => { this.boatDoorStep(hb); this.drawBoatDoorLive(g, hb); } });
+          }
           if(cp) vq.push({ depth: front ? bt.x + bt.y + bt.L/2 + 1 : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2, front) });
         }
       }
@@ -97961,10 +98062,41 @@ class WorldScene extends Phaser.Scene {
     for(const x of [x0 - 4, x1 + 4]){ const a = P(x, yT, zT), b = P(x, yT, zT + 48); g.lineBetween(a.x, a.y, b.x, b.y);
       g.fillStyle(WHITE, 1); g.fillCircle(b.x, b.y, Math.max(1.5, 3.4*this.K)); }
   }
+  /* THE CABIN DOOR WORKS (d3): the painted door in the boat's cached art is covered, live, by its opening and a leaf
+     swung out on a hinge, eased 280 ms open / 480 ms shut (the shop swing's rates) -- wanted open while the customer is
+     inside the cabin or within 90 of the door on the way out or back in. Drawn only where the stern is seen. Returns
+     how open it is (0 shut .. 1 open) */
+  boatDoorStep(hb){
+    const gw = hb.gway, bt = hb.boat, now = this.time.now;
+    if(!gw || !bt || !BOAT_DOOR[bt.kind]) return 0;
+    const cp = this.boatCustomerPos(hb);
+    const want = cp && cp.k <= 1 && Math.hypot(cp.x - gw.doorX, cp.y - gw.y) < 90 ? 1 : 0;
+    const dt = Math.min(100, Math.max(0, now - (hb._dtT == null ? now : hb._dtT)));
+    hb._dtT = now;
+    const k = hb._dk || 0;
+    hb._dk = want > k ? Math.min(1, k + dt/280) : Math.max(0, k - dt/480);
+    return hb._dk;
+  }
+  drawBoatDoorLive(g, hb){
+    const gw = hb.gway, bt = hb.boat, D = bt && BOAT_DOOR[bt.kind], k = hb._dk || 0;
+    if(!gw || !D || k < 0.01) return;
+    if(!(this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y)) return;   // the stern is turned from us
+    const SC = BOAT_SC, z0 = (D.hd + 6)*SC, z1 = (D.hd + D.top)*SC, hw = 16, x = gw.doorX - gw.bow*1.1*SC;
+    const quad = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(q => this.W(q[0], q[1], q[2])), true, true); };
+    /* the opening: the cabin dark, a warm strip of lamplight low in it */
+    quad([[x, gw.y - hw, z0], [x, gw.y + hw, z0], [x, gw.y + hw, z1], [x, gw.y - hw, z1]], 0x2a211b);
+    quad([[x - gw.bow*0.2, gw.y - hw, z0], [x - gw.bow*0.2, gw.y + hw, z0], [x - gw.bow*0.2, gw.y + hw, z0 + (z1 - z0)*0.35], [x - gw.bow*0.2, gw.y - hw, z0 + (z1 - z0)*0.35]], 0x6b5236);
+    /* the leaf, hinged on the side away from the way out, swung up to 90 degrees outboard (aft) */
+    const th = k*Math.PI*0.5*0.96, W = 2*hw, yh = gw.y + gw.sd*hw, xo = x - gw.bow*W*Math.sin(th) - gw.bow*0.4, yo = yh - gw.sd*W*Math.cos(th);
+    quad([[x - gw.bow*0.4, yh, z0], [xo, yo, z0], [xo, yo, z1], [x - gw.bow*0.4, yh, z1]], 0x8a6a44);
+    quad([[x - gw.bow*0.4, yh, z1 - 10], [xo, yo, z1 - 10], [xo, yo, z1], [x - gw.bow*0.4, yh, z1]], 0xf2efe6);               // the head rail
+    quad([[xo, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 + 3], [xo, yo, (z0 + z1)/2 + 3]], 0xd9b45a);   // its handle
+  }
   drawBoatCustomer(g, hb, t, front){
     const cp = this.boatCustomerPos(hb);
     if(!cp) return;
     cp.front = !!front;                                    // drawn over the boat: in plain view
+    if(cp.k === 0 && hb.gway && (hb._dk || 0) < 0.55 && Math.hypot(cp.x - hb.gway.doorX, cp.y - hb.gway.y) < 6) return;   // (still inside the cabin: he steps out once the door is open)
     const CL = custLook((hb.id*7919 ^ 0x4c75) >>> 0);                                             // (one of our people, off the roster)
     const cBuild = CL.build, cSkin = CL.skin, cShirt = hb.shirt || CL.shirt, cPants = hb.pants || CL.pants, cHair = CL.hair, cShoe = CL.shoe;
     const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;
@@ -100139,6 +100271,7 @@ class WorldScene extends Phaser.Scene {
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, keyQueue, layerFor);
     afQueue(this, t, queuePerson, layerFor);           // SUN DECK AIRFIELD's ground crew
+    marinaAttQueue(this, t, queuePerson, layerFor);    // MARINA PARKING's attendant
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
