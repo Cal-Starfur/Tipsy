@@ -28346,7 +28346,9 @@ function walkinNightBoxes(W, D, H, LH){
      rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
      below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
      walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
-  return [[-30, W, -30, D, LH || 66, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
+  /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
+     block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
+  return [[0, W, 0, D, LH || 66, LH || 66], [0, W, 0, 0, H], [0, 0, 0, D, H]];
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
