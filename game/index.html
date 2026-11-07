@@ -97691,6 +97691,11 @@ class WorldScene extends Phaser.Scene {
           /* on the aft deck in front of his door, of a boat south of the
              finger (which sorts at its near end): over the boat */
           const bt = hb.boat, front = cp && cp.aboard && cp.k <= 1 && cp.doorSeen && bt.side > 0;
+          /* the cabin door's opening and leaf, over the boat and under the one who comes through it (boatDoorStep) */
+          if(hb.gway && bt && BOAT_DOOR[bt.kind]){
+            const dd = bt.side > 0 ? bt.x + bt.y + bt.L/2 + 0.9 : (cp ? cp.x + cp.y : hb.gway.doorX + hb.gway.y) - 0.2;
+            vq.push({ depth: dd, fn: (g) => { this.boatDoorStep(hb); this.drawBoatDoorLive(g, hb); } });
+          }
           if(cp) vq.push({ depth: front ? bt.x + bt.y + bt.L/2 + 1 : cp.x + cp.y, fn: (g, t2) => this.drawBoatCustomer(g, hb, t2, front) });
         }
       }
@@ -98057,10 +98062,41 @@ class WorldScene extends Phaser.Scene {
     for(const x of [x0 - 4, x1 + 4]){ const a = P(x, yT, zT), b = P(x, yT, zT + 48); g.lineBetween(a.x, a.y, b.x, b.y);
       g.fillStyle(WHITE, 1); g.fillCircle(b.x, b.y, Math.max(1.5, 3.4*this.K)); }
   }
+  /* THE CABIN DOOR WORKS (d3): the painted door in the boat's cached art is covered, live, by its opening and a leaf
+     swung out on a hinge, eased 280 ms open / 480 ms shut (the shop swing's rates) -- wanted open while the customer is
+     inside the cabin or within 90 of the door on the way out or back in. Drawn only where the stern is seen. Returns
+     how open it is (0 shut .. 1 open) */
+  boatDoorStep(hb){
+    const gw = hb.gway, bt = hb.boat, now = this.time.now;
+    if(!gw || !bt || !BOAT_DOOR[bt.kind]) return 0;
+    const cp = this.boatCustomerPos(hb);
+    const want = cp && cp.k <= 1 && Math.hypot(cp.x - gw.doorX, cp.y - gw.y) < 90 ? 1 : 0;
+    const dt = Math.min(100, Math.max(0, now - (hb._dtT == null ? now : hb._dtT)));
+    hb._dtT = now;
+    const k = hb._dk || 0;
+    hb._dk = want > k ? Math.min(1, k + dt/280) : Math.max(0, k - dt/480);
+    return hb._dk;
+  }
+  drawBoatDoorLive(g, hb){
+    const gw = hb.gway, bt = hb.boat, D = bt && BOAT_DOOR[bt.kind], k = hb._dk || 0;
+    if(!gw || !D || k < 0.01) return;
+    if(!(this.W(gw.doorX - gw.bow*10, gw.y, 0).y > this.W(gw.doorX, gw.y, 0).y)) return;   // the stern is turned from us
+    const SC = BOAT_SC, z0 = (D.hd + 6)*SC, z1 = (D.hd + D.top)*SC, hw = 16, x = gw.doorX - gw.bow*1.1*SC;
+    const quad = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(q => this.W(q[0], q[1], q[2])), true, true); };
+    /* the opening: the cabin dark, a warm strip of lamplight low in it */
+    quad([[x, gw.y - hw, z0], [x, gw.y + hw, z0], [x, gw.y + hw, z1], [x, gw.y - hw, z1]], 0x2a211b);
+    quad([[x - gw.bow*0.2, gw.y - hw, z0], [x - gw.bow*0.2, gw.y + hw, z0], [x - gw.bow*0.2, gw.y + hw, z0 + (z1 - z0)*0.35], [x - gw.bow*0.2, gw.y - hw, z0 + (z1 - z0)*0.35]], 0x6b5236);
+    /* the leaf, hinged on the side away from the way out, swung up to 90 degrees outboard (aft) */
+    const th = k*Math.PI*0.5*0.96, W = 2*hw, yh = gw.y + gw.sd*hw, xo = x - gw.bow*W*Math.sin(th) - gw.bow*0.4, yo = yh - gw.sd*W*Math.cos(th);
+    quad([[x - gw.bow*0.4, yh, z0], [xo, yo, z0], [xo, yo, z1], [x - gw.bow*0.4, yh, z1]], 0x8a6a44);
+    quad([[x - gw.bow*0.4, yh, z1 - 10], [xo, yo, z1 - 10], [xo, yo, z1], [x - gw.bow*0.4, yh, z1]], 0xf2efe6);               // the head rail
+    quad([[xo, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 + 3], [xo, yo, (z0 + z1)/2 + 3]], 0xd9b45a);   // its handle
+  }
   drawBoatCustomer(g, hb, t, front){
     const cp = this.boatCustomerPos(hb);
     if(!cp) return;
     cp.front = !!front;                                    // drawn over the boat: in plain view
+    if(cp.k === 0 && hb.gway && (hb._dk || 0) < 0.55 && Math.hypot(cp.x - hb.gway.doorX, cp.y - hb.gway.y) < 6) return;   // (still inside the cabin: he steps out once the door is open)
     const CL = custLook((hb.id*7919 ^ 0x4c75) >>> 0);                                             // (one of our people, off the roster)
     const cBuild = CL.build, cSkin = CL.skin, cShirt = hb.shirt || CL.shirt, cPants = hb.pants || CL.pants, cHair = CL.hair, cShoe = CL.shoe;
     const walkPhase = cp.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0;

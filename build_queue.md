@@ -70,7 +70,7 @@ graph LR
 ## Consistency pass: doors
 - [?] `d1` Working door: Seabreeze Ballroom (doorF records itself) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2812&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `d2` Working door: Animal Shelter (painted door today) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7860,8684&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
-- [ ] `d3` Working door: harbour boat cabin [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `d3` Working door: harbour boat cabin [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d4` Working doors: Surfside Diner + Sandpiper Shoes [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `d5` Kai + surf stand door; Low Tide Music door faces away [docs/state/CONSISTENCY_PASS.md#still-to-do]
 

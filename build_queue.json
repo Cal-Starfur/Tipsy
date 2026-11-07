@@ -239,7 +239,7 @@
 "title": "Working door: harbour boat cabin",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Consistency pass: doors"
 },
 {
@@ -932,6 +932,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }
