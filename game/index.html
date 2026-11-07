@@ -5295,6 +5295,7 @@ function fleetPadAt(s){
   if(FLEET_LOAN) return null;                       // (a borrowed vehicle has no garage: the mission takes it home)
   const k = fleetCur(), F = FLEET[k];
   if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
+  { const g = typeof gideonPadAt === "function" ? gideonPadAt(s) : null; if(g) return g; }   // (Gideon's own pad in the cafe is his garage: gd4)
   const d = battPadAt(s);
   if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
   return d;
@@ -5417,7 +5418,7 @@ function fleetGarageCut(s){
    (fleetParkTipsey). A mission's loan of the humanoid is not this: it starts where the story puts him. */
 function gideonStart(s){
   if(!s || !s.ow || FLEET_LOAN || fleetCur() !== 'humanoid') return;
-  if(typeof BB_PK === "undefined" || s._inside === BB_PK) return;
+  if(s._inside && s._inside.name === BB_IN.name) return;
   const pk = POCKETS.find(q => q.name === BB_IN.name); if(!pk) return;
   sceneDissolve(s, 600, () => {
     const items = s.items;
