@@ -105851,11 +105851,14 @@ class WorldScene extends Phaser.Scene {
         const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
         /* THE BILL grows out of the crown's own rim: a fan from the crown's front arc out to a rounded edge, tipped down a touch, with a lip under it
            (it was a separate slab stood on the head) */
-        const bill = (len, top, edge) => { const N = 10, inn = [], out = [], out2 = [];
-          for(let i = 0; i <= N; i++){ const an = -1.1 + 2.2*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + len*Math.pow(Math.max(0, Math.cos(an*1.45)), 0.6);
+        const bill = (len, top, edge) => { const N = 12, inn = [], out = [], out2 = [];
+          for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.8 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
             inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
-          for(let i = 0; i < N; i++){ this.quadOn(g, [inn[i], inn[i + 1], out[i + 1], out[i]], i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
-            if(faceB >= 0 || true) this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); } };
+          for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
+            this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); }
+          /* far side: the head's crown stands in front of it, so it goes down again over the bill */
+          if(faceB < 0) prism(0, 0, r, r, zj, z1, pSkin, RB ? { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c } : { top: 0.7, edge: false, n: 12 }); };
+        const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
         if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
         else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
