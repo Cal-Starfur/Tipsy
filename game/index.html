@@ -5500,6 +5500,19 @@ function fleetGarageCut(s){
   if(!s || !s.ow || !s._garage) return false;
   const k = fleetCur(), cur = s._garage.key;
   if(k) fleetParkTipsey(s, cur);
+  /* THE HUMANOID'S GARAGE IS HIS BACK ROOM (Sir, 2026-11-07: "it should look exactly like his back room when we select him in the garage from the fleet options"):
+     picked in the Fleet tab, the room behind the turntable is the cafe's back room, he on his own pad in it, its doors swung shut (as the pad button does it in play).
+     No depot, so no room mask: the room is drawn as it is. Picking anything else cuts back to the depot below. */
+  if(k === 'humanoid' && !FLEET_LOAN){
+    const pk = POCKETS.find(q => q.name === BB_IN.name);
+    if(!pk || cur === 'gideon-pad') return false;
+    const items = s.items;
+    owStandUpAt(s, pk.x0 + BB_IN.PAD.a, pk.y0 + BB_IN.PAD.b, Math.PI/2);
+    s.items = items || [];
+    s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = 'gideon-pad';
+    s._garage.key = 'gideon-pad';
+    return true;
+  }
   const home = fleetHomeFor(s, k);
   if(!k) s._tpPark = null;
   if(!home || home.key === cur) return false;
@@ -25324,7 +25337,7 @@ function parkedScootersNow(sc){
   if(P && P.t === t) return P.list;
   const list = [], bx = sc.botX, by = sc.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 900;
   for(const p of sc._seekers || []){ const pk = p.park; if(!pk || p.knock || !near(pk.x, pk.y)) continue;
-    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1) list.push(parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0])); }
+    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1){ const pp = parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0]); if(!pp.taken) list.push(pp); } }
   const seen = new Set();
   for(const h of ((sc.route && sc.route.hazards) || []).concat(sc._crowdCity || [])){
     if(h.type !== 'people' || !h.ride || h.wx === undefined || seen.has(h) || !near(h.wx, h.wy)) continue;
@@ -25332,7 +25345,7 @@ function parkedScootersNow(sc){
     const sp = peopleSpotAt(t, h);
     if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
     const w = hazSpotWorld(h, sp.park.a, sp.park.b);
-    if(w) list.push(parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]));
+    if(w){ const pp = parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]); if(!pp.taken) list.push(pp); }
   }
   sc._parkScoot = { t, list };
   return list;
@@ -86058,6 +86071,8 @@ function scootNearest(s){
   const eat = (x, y, ref, brand) => { const d = Math.hypot(x - ow.px, y - ow.py); if(d <= SCOOTR.near && (!best || d < best.d)) best = Object.assign({ d, x, y, brand }, ref); };
   if(grid){ const out = cityFurnitureNear(grid, ow.px, ow.py, SCOOTR.near*1.6, []);
     for(const pr of out){ if(pr.type !== 'scooter' || pr.taken) continue; const w = hazSpotWorld(pr, 0, 0); if(w) eat(w.x, w.y, { pr }, pr.brand || BRANDS[0]); } }
+  /* (and one a rider has stood by the kerb to call at a door, or a scooter trip's: the props of parkedScootersNow -- taken, it is gone from the kerb (pp.taken) until its owner is back on one) */
+  for(const pp of parkedScootersNow(s)){ if(pp.taken || pp.phi > 0.3) continue; const w = hazSpotWorld(pp, 0, 0); if(w) eat(w.x, w.y, { pp }, pp.brand || BRANDS[0]); }
   for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
   return best;
 }
@@ -86069,6 +86084,7 @@ function scootHop(s){
     return;
   }
   const n = scootNearest(s); if(!n) return;
+  if(n.pp) n.pp.taken = true;                                // (a rider's, stood by the kerb: gone from it, and out of the props' loop)
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
   if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
   ow.scoot = { brand: n.brand || BRANDS[0] };
@@ -100583,10 +100599,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
       const pk = sp.park;
-      const ppk = pk && pk._pp, ppw = parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
+      const ppk = pk && pk._pp, gone = !!(ppk && ppk.taken), ppw = !gone && parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && ppw && this.visProp("scooter", ppw.x, ppw.y))
         blockVQ.push({ depth: ppw.x + ppw.y, fn: (g, tt) => this.drawProp(layerFor(ppw.x, ppw.y), "scooter", ppw.x, ppw.y, tt, ppk.f, 0, null, null, ppk) });
-      else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+      else if(!gone && m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
           /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
@@ -107408,13 +107424,23 @@ class WorldScene extends Phaser.Scene {
           if(sees3(na, nb, nh)) this.quadOn(g, [IN[i], IN[j], OUT[j], OUT[i]], EAR[Math.round((1 - nh)*4)]); }
         if(sees3(sd, 0, 0)){ this.quadOn(g, OUT, EAR[1]); this.quadOn(g, DOT, RB.joint); }
       };
+      const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
+      /* GIDEON'S HEADPHONES (gd4b), one side at a time: the cup and its half of the band. The FAR side goes down before the head (as the far ear does) so the head
+         covers it; the near side over it */
+      const phones = sd => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
+          path = [[r*0.88 + 2.4, hz2 + r*0.4], [r*0.74 + 1.8, hz2 + r*0.78], [r*0.42, zt + 1.6], [0, zt + 2.4]], qc = (pts, c) => this.quadOn(g, pts, c);
+        prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
+        for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
+          qc([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
+          qc([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } };
+      const isPhones = !!(RB && RB.hat === 'headphones');
+      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd);
       const noEars = !!(RB && RB.earStyle === 'none');
       if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
          the front (+b) toward +a, each piece drawn only while it faces the eye -- the robot's screen, a beard */
-      const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
       const wrap = (an0, an1, zA, zB, col, lift) => {
         const N = Math.max(1, Math.ceil(Math.abs(an1 - an0)/0.2));
         const P = (an, zz) => { const k = rAt(zz) + lift; return G(Math.sin(an)*k, Math.cos(an)*k, zz); };
@@ -107457,24 +107483,20 @@ class WorldScene extends Phaser.Scene {
       if(RB && RB.hat && RB.hat !== 'none'){
         const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
         const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
-        if(hh === 'cap'){ prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); }
+        /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
+        if(hh === 'cap'){ const pk = () => prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
         else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
             quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
-        else if(hh === 'bowler'){ prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
-        else if(hh === 'tophat'){ prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true }); prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
+        else if(hh === 'bowler'){ prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); }   // (the brim first: the crown stands on it, its far half is behind the crown)
+        else if(hh === 'tophat'){ prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true, noTop: true }); }   // (the band is a sleeve on the crown: no lid of its own, it lay a disc across the crown)
         else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
-        else if(hh === 'headphones'){
-          const hz2 = fz - r*0.05, path = [[r*0.88 + 2.4, hz2 + r*0.4], [r*0.74 + 1.8, hz2 + r*0.78], [r*0.42, zt + 1.6], [0, zt + 2.4]];
-          for(const sd of [-1, 1]){ prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
-            for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
-              quadC([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
-              quadC([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } } }
+        else if(hh === 'headphones'){ for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) phones(sd); }
         else if(hh === 'antenna' || hh === 'twin'){
           const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
           if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
-        else if(hh === 'visor'){ prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); }
+        else if(hh === 'visor'){ const pk = () => prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
         else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
         else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
           for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
@@ -114691,7 +114713,8 @@ class WorldScene extends Phaser.Scene {
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
         const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
-        if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
+        if(pp && pp.taken){ /* (the humanoid rode it off) */ }
+        else if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
         else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
