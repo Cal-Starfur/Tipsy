@@ -75498,7 +75498,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   tags:['skate park', 'skateboarding', 'bowl', 'quarter pipe', 'fun box', 'rail', 'pyramid'],
   desc:'Driftwood Skate Park: a poured-concrete park on the south leaf of Veterans Memorial Park -- a kidney bowl with blue pool tile under its coping, quarter pipes on its north and west edges, a fun box and a flat rail in the middle, a flat-topped pyramid in the corner, flood poles for the evening sessions, chain-link round it all with a gateway to the trail and one to the street.',
   C: { mesh:'rgba(150,158,164,.42)', pad:'#cdcac2', padE:'#b3afa5', ramp:'#d3cfc6', rampF:'#bdb8ad', rampS:'#a59f94', rampD:'#8f897e', cope:'#dfe4e8', copeD:'#9aa3ab',
-       alu:'#c9cfd4', aluD:'#a3abb2', aluS:'#868e96', post:'#8f979e', postL:'#a9b0b6', lamp:'#3a4046', lampD:'#2e3338',
+       alu:'#c9cfd4', aluD:'#a3abb2', aluS:'#868e96', post:'#8f979e', postL:'#a9b0b6', lamp:'#3a4046', lampD:'#2e3338', lens:'#fff4d2', lensD:'#d9b866',
        sign:'#2f6f8f', signD:'#24566f', white:'#f4f2ec', sand:'#f2c14b', rail:'#5f676e', railL:'#8a9399' },
   draw(p){
     for(const r of skFenceRuns()) this.fence(r, 0, 1);
@@ -75595,7 +75595,16 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     if(!inView(x - 40, x + 40, y - 40, y + 40, 0, h + 20)) return;
     cyl(x, y, 0, 10, 11, '#bdb8ad'); cyl(x, y, 10, h, 3.8, C.post);
     tube(x - 24, y + 24, h, x + 24, y - 24, h, 2.4, C.post);
-    for(const s of [-1, 1]) box(x + s*24 - 9, x + s*24 + 9, y - s*24 - 9, y - s*24 + 9, h - 14, h + 4, C.lamp, C.lampD, shade(C.lampD, 0.85));
+    /* each lamp head a real fixture, not a plain box: a dark housing, a pale hood plate over it, a bracket to the arm, and a
+       lit lens on the face turned to the park (the lamp kit's night glow sits on the lens) */
+    for(const s of [-1, 1]){
+      const cx = x + s*24, cy = y - s*24;
+      box(cx - 3, cx + 3, cy - 3, cy + 3, h - 2, h + 6, C.post, C.post, shade(C.post, 0.8));
+      box(cx - 11, cx + 11, cy - 7, cy + 7, h - 13, h + 1, C.lamp, C.lampD, shade(C.lampD, 0.85));
+      box(cx - 13, cx + 13, cy - 9, cy + 9, h + 1, h + 4, C.postL, C.post, shade(C.post, 0.85));
+      F(cx - 9, cx + 9, h - 11, h - 2, C.lensD, null, 0, cy + 7.2);
+      F(cx - 7.5, cx + 7.5, h - 9.5, h - 3.5, C.lens, null, 0, cy + 7.5);
+    }
   },
   /* the park's sign at its street end, facing the street: a blue board on two posts */
   sign(){
@@ -97258,7 +97267,7 @@ class WorldScene extends Phaser.Scene {
     /* the bowl's near lip: after whoever is down in the bowl, before whoever stands on the pad in front of it */
     const inBowl = on === 'bowl';
     for(const r of skLipRuns()) if(vis(r.x, r.y, 60, 20)) item("lip|" + r.k, r.x, r.y, inBowl ? Math.max(r.key, bot + 0.5) : r.key, () => ent.lip(r));
-    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 560 })) };
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 120 })) };
     this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
   }
   /* the park's ground, in the ground pass: the pad's smooth concrete and its low kerb, and the bowl let into it -- its
