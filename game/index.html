@@ -37987,6 +37987,7 @@ const CITY_FURN = {
   cornerClear: T2*2.5,   // keep the corners clear, same idea as inCorner()
   gap: 60,               // spawnBlocked's own floor between props
   padClear: 40,          // extra standoff around a charging pad, on top of padR
+  doorClear: T2*1.1,     // a door's way out to the kerb: this far either side of its centre, every lane (a doorstep, a pickup or customer mat)
 };
 
 /* the frontage's own seed: its origin corner and direction, quantized
@@ -38197,7 +38198,22 @@ function cityFurnitureForEdge(grid, blk, fi){
     }
     return false;
   };
-  const onPad = p => {
+  /* ---------- AND OFF THE DOORS (pr2: LOOK_RULES 4b, "doors out to the kerb, rugs and mats") ----------
+     A shop's or a house's door, and the mat at it, were never in the furniture's keep-clear list: a planter, bin, cone or scooter could stand
+     on the doorstep or the pickup mat. The door's own `along` (shopDoorsOf, homeDoorsOf: the same doors the crowds walk to) on THIS frontage;
+     clear that far either side of it, across every lane out to the kerb. The rolls run as ever (a rejected spot is a `continue`, as a pad's is). */
+  const _bk = blk.i !== undefined ? blk.i + "," + blk.j : null;
+  const _doors = _bk ? shopDoorsOf(grid).concat(homeDoorsOf(grid)).filter(d => d.blockKey === _bk && d.edge === fi) : [];
+  const onDoor = p => {
+    if(!_doors.length) return false;
+    const dx = p.x - e.ox, dy = p.y - e.oy, al = dx*e.dv.x + dy*e.dv.y, lat = dx*e.rv.x + dy*e.rv.y;
+    if(lat < -20 || lat > 4*T2 + 20) return false;
+    for(const d of _doors) if(Math.abs(al - d.along) < CITY_FURN.doorClear) return true;
+    return false;
+  };
+  /* (a lamp stands on the kerb, off the door's way: the lamps keep their stride, so they ask onPadL, which leaves the doors out) */
+  const onPad = p => onDoor(p) || onPadL(p);
+  const onPadL = p => {
     if(onRamp(p) || onDrive(p)) return true;
     if(!_dlot) return false;
     const q = depotLabXY(_dlot, p.x, p.y);
@@ -38426,7 +38442,7 @@ function cityFurnitureForEdge(grid, blk, fi){
       const aR = Math.round(a);
       if(inClear(aR)) continue;
       const p = pointAt(aR, lane);
-      if(!onWalk(p) || onPad(p) || blocked(aR, lane)) continue;
+      if(!onWalk(p) || onPadL(p) || blocked(aR, lane)) continue;
       place("lamp", aR, lane, p, { armSign,
         lampSeed: (R()*4294967296) >>> 0, mal: R() < LAMP_ACT.malRate });
     }

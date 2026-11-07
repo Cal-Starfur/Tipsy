@@ -120,7 +120,7 @@ The work to do next, and the work built but not yet tested, is in `build_queue.m
 - **Tide Pool Elementary in pieces** (U1k/U1c), and Palmline Tower's key and vol: its forecourt is in its one image.
 - **Props:**
   - collision taken from the art: lamp, hydrant, palm now a disc the size of the art (`OW_D.hz*`, `propWall` in the hazard loop; built, awaiting test). Bin's loop clearance and the bench capsule (O12) still to do;
-  - keep-clear of doors and mats;
+  - keep-clear of doors and mats (built, awaiting test: `onDoor` in `cityFurnitureForEdge`, doorClear T2*1.1 either side of each shop and house door, every lane to the kerb; lamps unchanged; 47 props in door zones before, 0 after);
   - static shadows;
   - the pier and harbour still props cached.
 - **Vehicles:**
