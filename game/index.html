@@ -59487,9 +59487,12 @@ function houseCanopy(fn){
        flutes stop with it and are continued round the drum as surface
        quads on the sweep plateSweep() reports, so the fluting carries
        through the corner instead of stopping dead at it. */
-    F(10, 162, 40, 104, '#7fb0c4', shade(wall,.62), 3);
-    for(let i=0;i<4;i++) F(10+152*(i+1)/5-1.5, 10+152*(i+1)/5+1.5, 40, 104, shade(wall,.6), null,0,-1);
-    for(let i=0;i<5;i++) faceCircle(26+i*28, -3, 58, 8, '#c2452e', '#8f2f22', 2);
+    /* THE DINER HAS A DOOR (d4): the kit's, at the flat wall's west end, so it swings for whoever comes to it (the pickup worker,
+       the shoppers) -- the window starts past it at 84 */
+    F(84, 162, 40, 104, '#7fb0c4', shade(wall,.62), 3);
+    for(let i=0;i<2;i++) F(84+78*(i+1)/3-1.5, 84+78*(i+1)/3+1.5, 40, 104, shade(wall,.6), null,0,-1);
+    for(let i=3;i<5;i++) faceCircle(26+i*28, -3, 58, 8, '#c2452e', '#8f2f22', 2);
+    shopDoor(46, wall, '#2f8a96', '#7fb0c4', W);
     /* THE GLAZING HUNG BELOW ITS OWN SILL LINE. The leaf ran z 16..96
        while the flat wall's window runs 40..104, so the glass on the
        curve started 24 units lower than the glass beside it and dropped
@@ -65844,15 +65847,10 @@ function houseCanopy(fn){
        Hand-rolled, because shopDoor draws a panelled timber door in a
        masonry surround and this frontage has neither. */
     reveal(262, 390, 0, 156, 18, shade(trim,1.45));
-    F(268, 384, 6, 148, 'rgba(150,168,180,.34)', null, 0, -17);
-    F(324, 328, 6, 148, shade(trim,1.2), null, 0, -16.6);
-    for(const [d0,d1] of [[268,324],[328,384]]){
-      F(d0, d0+4, 6, 148, shade(trim,1.35), null, 0, -16.6);
-      F(d1-4, d1, 6, 148, shade(trim,1.35), null, 0, -16.6);
-      F(d0, d1, 6, 10, shade(trim,1.35), null, 0, -16.6);
-      F(d0, d1, 144, 148, shade(trim,1.35), null, 0, -16.6);
-      F(d0+8, d1-8, 74, 80, shade(trim,2.2), null, 0, -16.2);          // push bars
-    }
+    /* THE ENTRANCE IS THE KIT'S NOW (d4): a glazed pair, set back to the portal's depth by BOFF, so it records itself and swings
+       (LIB.drawDoorOpen) for the shoppers and the pickup worker -- it was hand-rolled and nobody could open it */
+    { const b0 = BOFF; BOFF = b0 - 17;
+      try { shopDoor(326, wall, trim, 'rgba(150,168,180,.5)', WW, 0, { w: 116, h: 148, pair: true, glazed: true }); } finally { BOFF = b0; } }
     F(258, 394, 152, 168, shade(trim,1.3), null, 0, 4.6);              // the portal head
 
     /* ---- the fascia, and the winged shoe that is the sign ----
