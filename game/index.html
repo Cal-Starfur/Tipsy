@@ -25794,7 +25794,7 @@ const TPE_PLAN = {
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
      the west wing, the hoops at the east wing's court, the games, the bike racks, the planters by the porch */
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
-  swing: { a0: 170, a1: 430, b: -230 }, sand: { a0: 560, a1: 690, b0: -640, b1: -560 }, slide: { a: 170, b: -640 }, dome: [900, -250, 62],   // the playground takes the whole west strip, each piece with room round it
+  swing: { a0: 190, a1: 450, b: -300 }, sand: { a0: 600, a1: 730, b0: -640, b1: -560 }, slide: { a: 190, b: -660 }, dome: [900, -330, 62],   // the playground takes the whole west strip, each piece with room round it
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
   racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
 };
@@ -72172,7 +72172,7 @@ marinaEntry(),
       for(let a = x0, i = 0; a < x1; a += 80, i++) for(let b = y0, j = 0; b < y1; b += 80, j++) if((i + j) % 2) T(a, Math.min(a + 80, x1), b, Math.min(b + 80, y1), 0.45, '#528552');
     }
     /* the playground: a terracotta rubber floor in a teal edging, the sandbox, and the games' lines on it */
-    { const x0 = 24, x1 = 1186, y0 = -992, y1 = -44;
+    { const x0 = 100, x1 = 1110, y0 = -992, y1 = -140;   // (kept clear of the street fence and the wing's end: a grass margin round it)
       T(x0, x1, y0, y1, 0.6, '#2f7f86'); T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, 0.65, '#b3654f');
       for(let k = 0; k < 6; k++) T(x0 + 40 + k*140, x0 + 40 + k*140 + 60, y0 + 10, y0 + 16, 0.7, '#c97a62');     // its pattern
     }
