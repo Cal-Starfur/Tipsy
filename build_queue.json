@@ -940,6 +940,46 @@
 "status": "blocked",
 "group": "Brew & Bolt: Minding the Shop",
 "note": "needs the story"
+},
+{
+"id": "gd1",
+"title": "Gideon's charging pad in the back room (a floor pad like Tipsey's garage one; the roaster stays)",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd2",
+"title": "Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station)",
+"deps": [
+"gd1"
+],
+"status": "pending",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd3",
+"title": "The pad charges him: status strip amber/green, battery fills only on it",
+"deps": [
+"gd2"
+],
+"status": "pending",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd4",
+"title": "Customise Gideon (looks and parts): where, and what",
+"deps": [
+"gd2"
+],
+"status": "blocked",
+"note": "needs Sir: where the customising happens",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
 }
 ],
 "meta": {
