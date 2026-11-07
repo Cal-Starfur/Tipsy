@@ -1008,17 +1008,18 @@
 },
 {
 "id": "gd4d",
-"title": "Gideon's Finish and Decals tabs: gloss, matte, chrome, two-tone shell; stripes, stars, number, the shop's bolt",
+"title": "Gideon's Finish and Decals tabs: satin, matte, gloss, chrome, two-tone (second colour on the legs); racing stripes, chevron, star, bolt, heart, race numbers 1/4/7/9 in any colour",
 "spec": "docs/gideon-dock.md",
 "group": "Gideon's pad",
 "deps": [
 "gd4"
 ],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 },
 {
 "id": "gd4e",
-"title": "Gideon's Skins: ready-made looks (Barista, Night Shift, Chrome, Workshop, Sunset...), some earned in missions, some bought with tips, as Tipsey's",
+"title": "Gideon's Looks tab: 10 ready-made looks (Stock, Barista, Night Shift, Chrome, Workshop, Sunset, Racer, Chef, Royal, Party), tried on whole and added to the cart together at the parts' prices",
 "spec": "docs/gideon-dock.md",
 "group": "Gideon's pad",
 "deps": [
@@ -1026,7 +1027,8 @@
 "gd4c",
 "gd4d"
 ],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 }
 ],
 "meta": {
