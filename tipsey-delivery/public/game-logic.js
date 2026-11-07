@@ -4833,6 +4833,16 @@ const CURB_W = T2 * 0.5;
    of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
    of run to flare down in. */
 const KERB_ARC_R = 24;
+/* A PARKED CAR'S COLLISION BOX, one for every lot, deck and garage (was hand-copied eleven times, 48 x 112 at most, 114 at three).
+   `rect` is the caller's own box-maker: R(a0, a1, b0, b1), or rectLab([...]) with `arr` true. The car stands along b; its half
+   width and half length come from VEH_SOLID by kind, so a van or SUV is one line here, not eleven. */
+const VEH_SOLID = { car: [48, 112], pickup: [48, 112] };
+function vehicleSolid(rect, a, b, kind, prop, arr){
+  const v = VEH_SOLID[kind] || VEH_SOLID.car, box = [a - v[0], a + v[0], b - v[1], b + v[1]];
+  const o = { name: 'parked car', poly: arr ? rect(box) : rect(...box), h: 80 };
+  if(prop) o.prop = true;
+  return o;
+}
 /* THE KERB STONE, hoisted out of drawWorld (2026-10-06) so a parked car
    can repaint the stone in front of it (see KERB_PARK): 8 high, 22 wide,
    standing in the asphalt with its pavement face on ROAD_HALF; painted
@@ -29967,7 +29977,7 @@ function garageVol(){
               { name: 'garage wall', poly: R(LANE1, G.LEN, G.BF - 12, G.BF), h: 30 });
   for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
   for(const c of MG.cols) solids.push({ name: 'garage column', c: [c.a, c.b], r: 18, h: G.LH });
-  for(const st of MG.stalls) if(st.car) solids.push({ name: 'parked car', poly: R(st.a - 48, st.a + 48, st.b - 112, st.b + 112), h: 80, prop: true });
+  for(const st of MG.stalls) if(st.car) solids.push(vehicleSolid(R, st.a, st.b, 'car', true));
   return { foot, h: G.ROOF + 34, opens: [{ name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2), walk: true, see: 'always', h: 0 },   // he is in plain sight through its doorway
                                          { name: 'ground floor', poly: R(14, G.LEN - 14, G.BB, G.BF), walk: true, see: 'never' }],   // walked, never seen through: the decks are over him
            solids, marks: {} };
@@ -29985,7 +29995,7 @@ function mallGarageDeckVol(){
             /* the car as deep as at ground (garageVol): he boards at cb1 - 35,
                so a shallower car left him arriving inside its wall, stuck */
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
-    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })) };
+    solids: rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))) };
   return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
 }
 /* ON LEVEL 2 (ow.deck.mid): the open floor inside the walls, the lift's
@@ -30000,7 +30010,7 @@ function mallGarageMidVol(){
     if(a > G.CORE0 - 70 && a < G.CORE1 + 70) continue;
     if(a > G.CORE1 + 70) continue;                                    // the way out to the skybridge (the draw's too)
     if(garageHash(i*7 + 1*131 + 3) < 0.28) continue;   // (the draw's own hash for its deck: level index 1)
-    solids.push({ name: 'parked car', poly: R(a - 48, a + 48, G.BF - 128 - 114, G.BF - 128 + 114), h: 80 });
+    solids.push(vehicleSolid(R, a, G.BF - 128, 'car'));
   }
   for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
   const src = { foot: R(-400, G.LEN + 400, -1300, 300), h: 0,
@@ -33864,7 +33874,7 @@ function marinaGarageDeckVol(){
     opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 14, G.BF - 12) },
             { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
-    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 112, c.b + 112), h: 80 })) };
+    solids: rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))) };
   return (_marinaGarageDeckVol = volOf({ vol: src, ww: G.LEN + 400, dd: D }, null, { W: G.LEN + 400, D }));
 }
 /* (the mall garage's drive is mallGarageDrives; Marina Parking's is MARINA.drives) */
@@ -33906,7 +33916,7 @@ function hospGarageDeckVol(){
             /* (the ward and the glass lift are the interior's now, HOSP_IN: from the
                deck the tower is solid, the skybridge's end its door) */
             { name: 'entrance', poly: WR(HW.inside) }, { name: 'doorway', poly: WR(d) }, { name: 'skybridge', poly: WR(HW.bridge) }],
-    solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
+    solids: [...rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))),
              ...hospPeopleSolids(HOSP_PEOPLE.ward, WR), ...hospHazSolids(4, WR),
              /* the entrance's walls, the doorway left open in its south one */
              ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
@@ -46088,7 +46098,7 @@ function houseCanopy(fn){
         for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
         for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
         for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
-        for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
+        for(const st of GG.stalls) if(st.car) solids.push(vehicleSolid(rectLab, st.x, st.y, 'car', true, true)); }
       /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
       const GP = HOSP_GARAGE_PLAN, X0 = GP.X0, Y0 = GP.Y0;
       for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
@@ -46106,7 +46116,7 @@ function houseCanopy(fn){
     { const cn = C.er.canopy;
       for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]].concat((C.er.canopyMid || []).map(y => [cn[1] - 30, y]))) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
       /* (the ambulances come and go now: HOSP_AMB_RUN) */ }
-    for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
+    for(const c of cars) if(mine(c.x, c.y)) solids.push(vehicleSolid(rectLab, c.x, c.y, 'car', true, true));
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
     /* THE BARRIER ARMS, live: each swings up for a car coming through its
        lane (GATE_ARMS, eased by updateErrands) and down behind it; the post
@@ -46810,7 +46820,7 @@ function houseCanopy(fn){
       for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
       for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
       for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
-      for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
+      for(const st of GG.stalls) if(st.car) solids.push(vehicleSolid(rectLab, st.x, st.y, 'car', true, true)); }
     /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
     for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + a0, GP.X0 + a1, GP.Y0 + GP.cb0, GP.Y0 + GP.cb1]), h: GP.CH + 160 });
     solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + GP.CAR0, GP.X0 + GP.CAR1, GP.Y0 + GP.cb0, GP.Y0 + GP.CARB]), h: GP.CH + 160 });   // the car's back wall at ground
@@ -65652,7 +65662,7 @@ function houseCanopy(fn){
       bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
       bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
       { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
-      ...duneLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
+      ...duneLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
     return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
@@ -66028,7 +66038,7 @@ function houseCanopy(fn){
       bed(40, PK0-10, R1, R1-BD), bed(40, PK0-10, R2+BD, R2), bed(PK1+10, LA0-20, R1, R1-BD), bed(PK1+10, LA0-20, R2+BD, R2),
       bed(40, SA0-60, SB0-30, SB1+30), bed(LA1+60, LOT-60, -40, RA0-20),
       { poly: R(SA0+40, SA0+180, SB1-92, SB1-16), h: 74 },                  // bin store
-      ...pelicanLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
+      ...pelicanLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
     /* (the tower open across its sliding pair, between its piers (20 each): he drives in under it to the pair, where
@@ -66459,7 +66469,7 @@ function houseCanopy(fn){
       hA(0, O.door[0] - 10, -15), hA(O.door[1] + 10, M.mouthF[0] - 20, -15),            // the street's hedge, open at the office's path and the drive
       hA(0, M.LOT, -M.LOT + 15), hB(-40, -M.LOT + 40, 15),                              // the back street's, the side street's (no way in)
       hB(M.mouthE[1] - 20, -M.LOT + 40, M.LOT - 15),
-      ...motelLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),
+      ...motelLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),
     ];
     /* the walkways' posts (each one, a robot's width apart and more) */
     for(const a of motelPostsN()) solids.push({ name: 'post', c: [a, M.N.b1 + M.DECK - 4], r: 5, h: M.GZ });

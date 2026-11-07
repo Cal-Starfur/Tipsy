@@ -89,7 +89,7 @@ graph LR
 - [?] `b2` Palmline Tower key + vol, forecourt out of its one image [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5064,-560&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: vehicles
-- [ ] `v1` One vehicleSolid(kind) for the ten parked-car boxes [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `v1` One vehicleSolid(kind) for the ten parked-car boxes [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `v2` Riders obstacle list + clearance [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `v3` Parking rows cached, one bay size [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `v4` Showroom cars on gameCar [docs/state/CONSISTENCY_PASS.md#still-to-do]
