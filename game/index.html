@@ -3297,13 +3297,15 @@ const GD_COL = {   // [id, name, hex]
   screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
   part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
   ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
+  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a]],
   shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
 };
-const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod' };
+const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod', hat: 'none', hatCol: 'copper' };
 const GD_SHAPES = {
   eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
+  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap']],
   shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
 };
 function gdHex(kind, v, dflt){
@@ -3321,7 +3323,7 @@ function gideonParts(){
   const band = pick('band') === 'none' ? null : gdHex('band', pick('band'));
   const robot = { joint: gdHex('part', pick('joint')), hand: gdHex('part', pick('hand')), screen: gdHex('screen', pick('screen')), eye: gdHex('eye', pick('eye')),
                   band, pack: gdHex('part', pick('pack')), eyeShape: pick('eyeShape'), mouth: pick('mouth'),
-                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle') };
+                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle'), hat: pick('hat'), hatCol: gdHex('hat', pick('hatCol')) };
   return { shell, foot: { c: sc, dk: gdDk(sc, 0.7), kind }, uniform: { robot, shoeKind: kind } };
 }
 const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
@@ -107372,6 +107374,29 @@ class WorldScene extends Phaser.Scene {
           else if(mo === 'grille'){ for(const k of [0, 1, 2]) wrap(-0.37, 0.37, mz0 + k*r*0.045, mz0 + k*r*0.045 + r*0.03, RB.eye, 0.3); } }
         if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
+      /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
+         propeller cap, in his colour, on the crown (the face stays clear). Built of the hull's own prisms, so it turns with the head and shades as it does */
+      if(RB && RB.hat && RB.hat !== 'none'){
+        const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.86), dk: _pdk(HC, 0.66) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
+        const zb = zj + (z1 - zj)*0.5, rr = r*(1 - 0.3*(zb - zj)/(z1 - zj))*1.04, zt = z1, hh = RB.hat;
+        if(hh === 'cap'){ prism(0, 0, rr, rr, zb, zt + 1.5, HP, { top: 0.84, n: 12 }); prism(0, rr*0.66, rr*0.84, rr*0.72, zb - 0.5, zb + 1.8, HP2, { n: 8 }); }
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 2, zt + 3, HP, { top: 0.76, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 2, zb + 2.4, HP2, { n: 12 });
+          if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zt + 3, zt + 8.5, HP, { top: 0.7, n: 8 });
+          else { prism(0, 0, 1.2, 1.2, zt + 3, zt + 6, ST, { n: 6 }); this.quadOn(g, [G(-rr*0.9, -1.2, zt + 6.4), G(rr*0.9, -1.2, zt + 6.4), G(rr*0.9, 1.2, zt + 6.4), G(-rr*0.9, 1.2, zt + 6.4)], HC); this.quadOn(g, [G(-1.2, -rr*0.9, zt + 6.6), G(1.2, -rr*0.9, zt + 6.6), G(1.2, rr*0.9, zt + 6.6), G(-1.2, rr*0.9, zt + 6.6)], _pdk(HC, 0.8)); } }
+        else if(hh === 'bowler'){ prism(0, 0, rr*0.98, rr*0.98, zb, zt + 4.5, HP, { top: 0.62, n: 12 }); prism(0, 0, rr*1.3, rr*1.3, zb - 0.5, zb + 1.7, HP2, { n: 12 }); }
+        else if(hh === 'tophat'){ prism(0, 0, rr*0.78, rr*0.78, zb, zt + 17, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb + 1.8, zb + 5, HP2, { n: 12, ring: true }); prism(0, 0, rr*1.32, rr*1.32, zb - 0.5, zb + 1.8, HP2, { n: 12 }); }
+        else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 1, zb + 4, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 4, zt + 15, HP, { top: 1.22, n: 12 }); }
+        else if(hh === 'headphones'){
+          for(const sd of [-1, 1]){ prism(sd*(r + 3.6), 0, 3.6, r*0.5, hz - r*0.5, hz + r*0.5, HP, { n: 8 }); box(sd*(r + 1.2), 0, 1.4, 1.8, hz + r*0.45, zt + 3.2, HC, HC, _pdk(HC, 0.75)); }
+          box(0, 0, r + 2.6, 1.8, zt + 2.2, zt + 4.4, HC, HC, _pdk(HC, 0.75)); }
+        else if(hh === 'antenna' || hh === 'twin'){
+          const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 1, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
+          if(hh === 'antenna') ant(0, 22); else { ant(-r*0.42, 20); ant(r*0.42, 16); } }
+        else if(hh === 'visor'){ prism(0, 0, rr*1.0, rr*1.0, zb, zb + 4.5, HP2, { n: 12, ring: true, noTop: true }); prism(0, rr*0.9, rr*0.98, rr*0.78, zb, zb + 2.4, HP, { n: 8 }); }
+        else if(hh === 'party'){ prism(0, 0, rr*0.74, rr*0.74, zb, zt + 22, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zt + 21, zt + 26, HP2, { top: 0.8, n: 8 }); }
+        else if(hh === 'crown'){ prism(0, 0, rr, rr, zb, zb + 6, HP, { n: 12 });
+          for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.4, 2.4, zb + 6, zb + 14, HP, { top: 0.2, n: 6 }); } }
+      }
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
       if(uniform && uniform.beard){ wrap(-1.45, 1.45, z0 - 0.5, fz - r*0.3, uniform.beard, 0.5); wrap(-0.42, 0.42, fz - r*0.3, fz - r*0.16, uniform.beard, 0.6); }
@@ -138876,7 +138901,7 @@ requestTpProfile();
     tab = b.dataset.t; renderTab();
   });
   /* GIDEON'S TABS (gd4): the humanoid, chosen, has his own set -- Shell, Face, Band & pack, Feet -- then Fleet; Tipsey and every other vehicle keep the old */
-  const GD_TABS = [['g-shell', 'Shell'], ['g-face', 'Face'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
+  const GD_TABS = [['g-shell', 'Shell'], ['g-face', 'Face'], ['g-head', 'Head'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
   function syncTabs() {
     const T = $('grTabs'), gid = fleetCur() === 'humanoid';
     if (T._gid === gid && (T._gid !== undefined)) return;
@@ -139155,7 +139180,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind'];   // (GIDEON'S paint, on the same look)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol'];   // (GIDEON'S paint, on the same look)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -139169,13 +139194,14 @@ requestTpProfile();
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
-                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'] };
+                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'], gHatCol: ['hat', 'copper'] };
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
-  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400] };
-  for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : price })); }
-  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250 });
+  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0] };
+  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500 };
+  for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : (k === 'gHat' ? HAT_PRICE[id] || 400 : price) })); }
+  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
   /* an item by its field and id: a preset, a custom colour, or a skin */
   const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
@@ -139230,7 +139256,7 @@ requestTpProfile();
     if (bd) { delete SKIN.stars; SKIN.band = bd.id === 'none' ? null : bd.id; }
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
-                eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind };   // (Gideon's: null = stock, gideonParts)
+                eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol };   // (Gideon's: null = stock, gideonParts)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -139273,7 +139299,7 @@ requestTpProfile();
   const DEFAULT_OF = { finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
                        rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto',
                        gShell: 'white', gJoint: 'graphite', gHand: 'graphite', gEye: 'cyan', gScreen: 'dark', gBand: 'copper', gPack: 'graphite', gEar: 'stock', gShoeCol: 'graphite',
-                       gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat' };
+                       gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat', gHat: 'none', gHatCol: 'copper' };
   const wearing = (kind, id) => kind === 'skin'
     ? (tpProfile.equipped || 'classic') === id && !look.body && !look.stripe            // (a skin under a paint job is not the skin as it comes)
     : look[kind] === id || (look[kind] == null && DEFAULT_OF[kind] === id);
@@ -139296,7 +139322,7 @@ requestTpProfile();
   const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
                      topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals',
-                     gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet' };
+                     gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet', gHat: 'Head', gHatCol: 'Head' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
      a trip out to earn the money comes back to it */
   const CART_KEY = 'tipsy.cart';
@@ -139870,6 +139896,14 @@ requestTpProfile();
         smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
         grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
       return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
+    if (key === 'hat') { const C = '#d9892b', D = '#8f969d', H = '<rect x="13" y="12" width="14" height="14" rx="6" fill="#cfd3d8"/>';
+      const A = { none: '', cap: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="18" y="13" width="14" height="2.4" rx="1" fill="${C}"/>`, beanie: `<path d="M12 15a8 9 0 0 1 16 0z" fill="${C}"/><circle cx="20" cy="4" r="2.4" fill="${C}"/>`,
+        bowler: `<path d="M13 14a7 7 0 0 1 14 0z" fill="${C}"/><rect x="9" y="13" width="22" height="2.2" rx="1" fill="${C}"/>`, tophat: `<rect x="14" y="2" width="12" height="12" fill="${C}"/><rect x="10" y="13" width="20" height="2.2" rx="1" fill="${C}"/>`,
+        chef: `<rect x="13" y="12" width="14" height="3" fill="#cfd3d8"/><ellipse cx="20" cy="7" rx="10" ry="6.5" fill="#f2f2ee"/>`, headphones: `<path d="M11 18v-4a9 9 0 0 1 18 0v4" fill="none" stroke="${C}" stroke-width="2"/><rect x="9" y="16" width="4" height="8" rx="2" fill="${C}"/><rect x="27" y="16" width="4" height="8" rx="2" fill="${C}"/>`,
+        antenna: `<rect x="19.4" y="2" width="1.2" height="11" fill="${D}"/><circle cx="20" cy="2.5" r="2" fill="${C}"/>`, twin: `<rect x="15.4" y="4" width="1.2" height="9" fill="${D}"/><circle cx="16" cy="4" r="1.8" fill="${C}"/><rect x="24.4" y="6" width="1.2" height="7" fill="${D}"/><circle cx="25" cy="6" r="1.8" fill="${C}"/>`,
+        visor: `<rect x="12" y="12" width="16" height="2.4" rx="1" fill="${C}"/><rect x="18" y="14" width="14" height="2.2" rx="1" fill="${C}"/>`, party: `<path d="M20 1l8 13H12z" fill="${C}"/><circle cx="20" cy="1.6" r="1.8" fill="#f2f2ee"/>`,
+        crown: `<path d="M12 14V6l4 4 4-6 4 6 4-4v8z" fill="${C}"/>`, prop: `<path d="M12 15a8 8 0 0 1 16 0z" fill="${C}"/><rect x="11" y="6" width="18" height="1.8" rx=".9" fill="${D}"/><rect x="19.4" y="7" width="1.2" height="4" fill="${D}"/>` }[id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36">${H}${A}</svg>`; }
     if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
     const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
     return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
@@ -139893,6 +139927,7 @@ requestTpProfile();
     let h = '', cols = [];
     if (tab === 'g-shell') { cols = ['gShell', 'gJoint', 'gHand']; h = gColRow('SHELL', 'gShell') + gColRow('JOINTS', 'gJoint') + gColRow('HANDS', 'gHand'); }
     else if (tab === 'g-face') { cols = ['gEye', 'gScreen', 'gEar']; h = gColRow('EYES', 'gEye') + gCardRow('EYE SHAPE', 'gEyeShape', 'eyeShape') + gCardRow('MOUTH', 'gMouth', 'mouth') + gColRow('SCREEN', 'gScreen') + gCardRow('EARS', 'gEarStyle', 'earStyle') + gColRow('EAR COLOUR', 'gEar'); }
+    else if (tab === 'g-head') { cols = ['gHatCol']; h = gCardRow('HEADWEAR', 'gHat', 'hat') + gColRow('HAT COLOUR', 'gHatCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gColRow('BATTERY PACK', 'gPack'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;

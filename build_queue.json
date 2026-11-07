@@ -985,13 +985,14 @@
 },
 {
 "id": "gd4b",
-"title": "Gideon's Head tab: antennas, hats, caps, headphones, visors, ear plates (new head geometry)",
+"title": "Gideon's Head tab: 12 headwear styles (flat cap, beanie, bowler, top hat, chef's hat, headphones, antenna, twin antennas, visor, party hat, crown, propeller cap) in any colour, on Tipsey's paint system",
 "spec": "docs/gideon-dock.md",
 "group": "Gideon's pad",
 "deps": [
 "gd4"
 ],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 },
 {
 "id": "gd4c",
