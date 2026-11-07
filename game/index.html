@@ -107375,27 +107375,32 @@ class WorldScene extends Phaser.Scene {
         if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
-         propeller cap, in his colour, on the crown (the face stays clear). Built of the hull's own prisms, so it turns with the head and shades as it does */
+         propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
+         base ring the head's own radius at that height. Built of the hull's own prisms, so it turns with the head and shades as it does */
       if(RB && RB.hat && RB.hat !== 'none'){
-        const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.86), dk: _pdk(HC, 0.66) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
-        const zb = zj + (z1 - zj)*0.5, rr = r*(1 - 0.3*(zb - zj)/(z1 - zj))*1.04, zt = z1, hh = RB.hat;
-        if(hh === 'cap'){ prism(0, 0, rr, rr, zb, zt + 1.5, HP, { top: 0.84, n: 12 }); prism(0, rr*0.66, rr*0.84, rr*0.72, zb - 0.5, zb + 1.8, HP2, { n: 8 }); }
-        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 2, zt + 3, HP, { top: 0.76, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 2, zb + 2.4, HP2, { n: 12 });
-          if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zt + 3, zt + 8.5, HP, { top: 0.7, n: 8 });
-          else { prism(0, 0, 1.2, 1.2, zt + 3, zt + 6, ST, { n: 6 }); this.quadOn(g, [G(-rr*0.9, -1.2, zt + 6.4), G(rr*0.9, -1.2, zt + 6.4), G(rr*0.9, 1.2, zt + 6.4), G(-rr*0.9, 1.2, zt + 6.4)], HC); this.quadOn(g, [G(-1.2, -rr*0.9, zt + 6.6), G(1.2, -rr*0.9, zt + 6.6), G(1.2, rr*0.9, zt + 6.6), G(-1.2, rr*0.9, zt + 6.6)], _pdk(HC, 0.8)); } }
-        else if(hh === 'bowler'){ prism(0, 0, rr*0.98, rr*0.98, zb, zt + 4.5, HP, { top: 0.62, n: 12 }); prism(0, 0, rr*1.3, rr*1.3, zb - 0.5, zb + 1.7, HP2, { n: 12 }); }
-        else if(hh === 'tophat'){ prism(0, 0, rr*0.78, rr*0.78, zb, zt + 17, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb + 1.8, zb + 5, HP2, { n: 12, ring: true }); prism(0, 0, rr*1.32, rr*1.32, zb - 0.5, zb + 1.8, HP2, { n: 12 }); }
-        else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 1, zb + 4, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 4, zt + 15, HP, { top: 1.22, n: 12 }); }
+        const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
+        const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
+        if(hh === 'cap'){ prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); }
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
+          if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
+          else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
+            quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
+        else if(hh === 'bowler'){ prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
+        else if(hh === 'tophat'){ prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true }); prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
+        else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
         else if(hh === 'headphones'){
-          for(const sd of [-1, 1]){ prism(sd*(r + 3.6), 0, 3.6, r*0.5, hz - r*0.5, hz + r*0.5, HP, { n: 8 }); box(sd*(r + 1.2), 0, 1.4, 1.8, hz + r*0.45, zt + 3.2, HC, HC, _pdk(HC, 0.75)); }
-          box(0, 0, r + 2.6, 1.8, zt + 2.2, zt + 4.4, HC, HC, _pdk(HC, 0.75)); }
+          const hz2 = fz - r*0.05, path = [[r*0.88 + 2.4, hz2 + r*0.4], [r*0.74 + 1.8, hz2 + r*0.78], [r*0.42, zt + 1.6], [0, zt + 2.4]];
+          for(const sd of [-1, 1]){ prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
+            for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
+              quadC([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
+              quadC([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } } }
         else if(hh === 'antenna' || hh === 'twin'){
-          const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 1, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
-          if(hh === 'antenna') ant(0, 22); else { ant(-r*0.42, 20); ant(r*0.42, 16); } }
-        else if(hh === 'visor'){ prism(0, 0, rr*1.0, rr*1.0, zb, zb + 4.5, HP2, { n: 12, ring: true, noTop: true }); prism(0, rr*0.9, rr*0.98, rr*0.78, zb, zb + 2.4, HP, { n: 8 }); }
-        else if(hh === 'party'){ prism(0, 0, rr*0.74, rr*0.74, zb, zt + 22, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zt + 21, zt + 26, HP2, { top: 0.8, n: 8 }); }
-        else if(hh === 'crown'){ prism(0, 0, rr, rr, zb, zb + 6, HP, { n: 12 });
-          for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.4, 2.4, zb + 6, zb + 14, HP, { top: 0.2, n: 6 }); } }
+          const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
+          if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
+        else if(hh === 'visor'){ prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); }
+        else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
+        else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
+          for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
       }
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
