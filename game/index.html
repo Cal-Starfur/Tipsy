@@ -136261,7 +136261,7 @@ function tpLoadProfile(){
     lost: (raw && raw.lost) || 0,
     /* THE FLEET (garage Fleet tab): the autonomous vehicle he is driving
        as, or "" for Tipsey himself -- all unlocked for now, to try them */
-    fleetKind: (raw && raw.fleetKind) || "",
+    fleetKind: "",   /* (never kept between visits: every game starts as Tipsey, whoever he drove last -- the Fleet tab's pick holds for this visit only) */
     /* THE POLICE'S TICKETS (POLICE_CALL), newest last: { t, why, kind } */
     tickets: (raw && Array.isArray(raw.tickets)) ? raw.tickets.slice(-50) : [],
   };
@@ -136310,7 +136310,7 @@ function tpSaveProfile(){
   try {
     localStorage.setItem(TIPSY_PROFILE_KEY, JSON.stringify({
       walletCents: tpProfile.walletCents,
-      fleetKind: tpProfile.fleetKind || "",   // the garage Fleet tab's pick (see tpLoadProfile)
+      fleetKind: "",   // (the Fleet tab's pick is not saved: every game starts as Tipsey, see tpLoadProfile)
       tickets: (tpProfile.tickets || []).slice(-50),   // the police's tickets (POLICE_CALL)
       owned: [...tpProfile.owned],
       equipped: tpProfile.equipped,
@@ -139614,7 +139614,7 @@ requestTpProfile();
      unlocked now"; the redesign's P0): Tipsey himself, then the FLEET
      registry grouped by class, each card naming the base it launches from
      and the mission that keeps it; a tap puts it in his place at once
-     (saved: tpProfile.fleetKind). A locked one is a silhouette naming its
+     (held for this visit only: tpProfile.fleetKind, never saved). A locked one is a silhouette naming its
      mission and where it is played (FLEET_TESTING off, or ?fleet=locked) */
   /* THE POLICE'S TICKETS (POLICE_CALL), newest first: how many, and the last few */
   function tkRows() {
