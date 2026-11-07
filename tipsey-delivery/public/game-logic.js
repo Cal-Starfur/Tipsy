@@ -30049,8 +30049,8 @@ const MARINA_GARAGE_PLAN = (() => {
 const MARINA_LIFT_VIEW = { open: 0, up: false };
 /* THE ATTENDANT'S SHACK on the paving west of the ENTER lane (world units, lot line y 21160, garage face 20900), and its attendant
    at the shack's lane-side corner, facing the lane; he glances about. Drawn live (marinaAttQueue), listed in CITY_PEOPLE */
-const MARINA_SHACK = { r: [1100, 1204, 20962, 21046], h: 84 };
-const MARINA_ATTENDANT = { kind: 'parking attendant', seed: 0xa77d, sex: 'm', at: [1236, 21020], face: [1500, 21060],
+const MARINA_SHACK = { r: [850, 1226, 20906, 21062], h: 110 };
+const MARINA_ATTENDANT = { kind: 'parking attendant', seed: 0xa77d, sex: 'm', at: [1244, 21098], face: [1500, 21050],
   uniform: { shirt: { c:0xe8e6dc, dk:0xbdbaae }, pants: { c:0x2b3640, dk:0x1e262d }, shoe: { c:0x14161a, dk:0x0d0e11 },
              vest: { c:0x1f6f8b, dk:0x16526a }, cap: { c:0x1f6f8b, dk:0x16526a, top:0x2a87a8, badge:0xf2f3f1 }, shoeKind: 'boot' } };
 /* ==================== THE HEART RUN (Sir, 2026-10-09) ====================
