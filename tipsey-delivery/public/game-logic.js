@@ -105888,7 +105888,7 @@ class WorldScene extends Phaser.Scene {
       } else hairShell('high');
       /* CAT EARS (RB.earStyle 'cat'): two pricked ears on the crown in his ear colour, pink inside, standing on the head */
       if(RB && RB.earStyle === 'cat'){ const EC2 = { c: RB.ear, dk: _pdk(RB.ear, 0.78) };
-        for(const sd of [-1, 1]){ const ax2 = sd*r*0.36, zb0 = z1 + 0.15, tipz = z1 + 7, tx = ax2 + sd*0.9, hw = 3.3, Q2 = (pts, c) => this.quadOn(g, pts, c), front = faceB > 0;
+        for(const sd of [-1, 1]){ const ax2 = sd*r*0.4, zb0 = z1 + 0.15, tipz = z1 + 11, tx = ax2 + sd*1.2, hw = 4.1, Q2 = (pts, c) => this.quadOn(g, pts, c), front = faceB > 0;
           /* the base sunk into the head's upper side (inside its outline), the tip leaning out: a flat ear with thickness, outlined so it reads against a head of its own colour */
           const tri = (b, c, e) => Q2([G(ax2 - hw - e, b, zb0 - e), G(ax2 + hw + e, b, zb0 - e), G(tx + sd*e*0.6, b, tipz + e*1.6)], c);
           tri(front ? -1.1 : 1.1, EC2.dk, 0.45);                                                                // (the far face first)
