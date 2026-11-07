@@ -383,7 +383,8 @@
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
 "status": "built",
-"group": "Consistency pass: props"
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8372,2714&view=2"
 },
 {
 "id": "pr4",
@@ -391,15 +392,17 @@
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
 "status": "built",
-"group": "Consistency pass: props"
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2"
 },
 {
 "id": "wk1",
 "title": "Dune Home & Garden",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2"
 },
 {
 "id": "wk2",
