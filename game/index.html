@@ -5474,6 +5474,19 @@ function fleetGarageCut(s){
   if(!s || !s.ow || !s._garage) return false;
   const k = fleetCur(), cur = s._garage.key;
   if(k) fleetParkTipsey(s, cur);
+  /* THE HUMANOID'S GARAGE IS HIS BACK ROOM (Sir, 2026-11-07: "it should look exactly like his back room when we select him in the garage from the fleet options"):
+     picked in the Fleet tab, the room behind the turntable is the cafe's back room, he on his own pad in it, its doors swung shut (as the pad button does it in play).
+     No depot, so no room mask: the room is drawn as it is. Picking anything else cuts back to the depot below. */
+  if(k === 'humanoid' && !FLEET_LOAN){
+    const pk = POCKETS.find(q => q.name === BB_IN.name);
+    if(!pk || cur === 'gideon-pad') return false;
+    const items = s.items;
+    owStandUpAt(s, pk.x0 + BB_IN.PAD.a, pk.y0 + BB_IN.PAD.b, Math.PI/2);
+    s.items = items || [];
+    s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = 'gideon-pad';
+    s._garage.key = 'gideon-pad';
+    return true;
+  }
   const home = fleetHomeFor(s, k);
   if(!k) s._tpPark = null;
   if(!home || home.key === cur) return false;
