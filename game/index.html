@@ -89453,8 +89453,8 @@ CITY_PEOPLE.add({ name: 'Sunset Shore Surf School', where: "Sunset Shore's sand 
 /* ==================== TIDE POOL ELEMENTARY'S YARD, PEOPLE (Sir, 2026-11-06: "have people") ====================
    While the school is open (8 to 4, its place card's hours: walkinOpenNow of TPE_PK) its yard has its people, live, in the world's
    order, each on the apparatus the yard's furniture draws (TPE_PLAN): a crossing guard on the pavement by the west gate, a
-   teacher on yard duty walking the promenade, and the pupils at play -- two on the swings, one up the slide's ladder and down its
-   chute, two on the dome, one in the sandbox, three at jump rope (the rope turned between two of them), four at four-square, two at
+   teacher on yard duty walking the promenade, and the pupils at play -- two on the swings, two up the slide's ladder and down its
+   chute (half a cycle apart), four playing tag along the playground's lanes with a teacher pacing them, two on the dome, one in the sandbox, three at jump rope (the rope turned between two of them), four at four-square, two at
    tetherball, one hopscotching, four at basketball, two on the benches. Two cohorts: the PE class (basketball, tetherball, hopscotch,
    the duty teacher) is out all day, the rest only at recess (10 to 10:30, lunch 12 to 1, 2:30 to 2:50) and the first and last
    quarter hour; the sets change only while the yard is off the screen (nobody pops: LOOK_RULES 7). They are scenery -- not solid to him. */
@@ -89489,21 +89489,28 @@ function tpeYardCast(){
   kid('tether-2', 'A', tpeStill(PL.tether[0] + 36, PL.tether[1], Math.PI, { pose: { lift: [0.9, 1.0], bend: [0.35, 0.3] } }));
   { const hop = tpeShuttle(3830, -134, 4090, -134, 12000, 0.1, 0); kid('hopscotch', 'A', now => { const q = hop(now); return Object.assign(q, { z: q.moving ? 7*Math.abs(Math.sin(now/170)) : 0 }); }); }
   /* recess: the swings (still, sat on the cached seats, a sway), the slide, the dome, the sandbox, jump rope, four-square, the benches */
-  { const S = PL.swing; [0, 2].forEach(k => { const sa = S.a0 + (S.a1 - S.a0)*(k + 0.5)/3;
+  { const S = PL.swing; [0, 1, 2].forEach(k => { const sa = S.a0 + (S.a1 - S.a0)*(k + 0.5)/3;
       kid('swing-' + k, 'B', now => ({ a: sa, b: S.b + 2.5*Math.sin(now/1500 + k*2), z: 3 + 1.2*Math.sin(now/750 + k*2), th: Math.PI/2, moving: false, pose: { sit: 50, lift: [0.55, 0.55], bend: [0.9, 0.9] } })); }); }
   { const Sl = PL.slide, T = 15000;
-    kid('slide', 'B', now => {
-      const t = ((now % T) + T) % T;
+    [['slide', 0], ['slide-2', 7000]].forEach(([sid, off]) => kid(sid, 'B', now0 => {
+      const now = now0 + off, t = ((now % T) + T) % T;
       if(t < 3200){ const k = t/3200; return { a: Sl.a - 40 + 12*k, b: Sl.b, z: 150*k, th: 0, moving: false, pose: { lift: [1.1, 1.1], bend: [0.3, 0.3] } }; }
       if(t < 4400) return { a: Sl.a, b: Sl.b, z: 159, th: 0, moving: false };
       if(t < 6000){ const k = (t - 4400)/1600; return { a: Sl.a + 30 + 118*k, b: Sl.b, z: 159 - 136*k, th: 0, moving: false, pose: { sit: 6, lift: [0.6, 0.6], bend: [0.5, 0.5] } }; }
       if(t < 9400){ const k = (t - 6000)/3400, s = k*k*(3 - 2*k); return { a: Sl.a + 175 - 215*s, b: Sl.b + 50*Math.sin(Math.PI*s), z: 0, th: Math.PI, moving: true }; }
       return { a: Sl.a - 40, b: Sl.b, z: 0, th: 0, moving: false };
-    }); }
+    })); }
   { const [da, db, R] = PL.dome;
     kid('dome-1', 'B', now => ({ a: da + 0.8*R, b: db - 14, z: 2 + 52 + 1.5*Math.sin(now/900), th: Math.PI*1.1, moving: false, pose: { lift: [1.6, 1.4], bend: [0.25, 0.25] } }));
     kid('dome-2', 'B', now => { const az = 1.9 + 0.5*Math.sin(now/5200), el = 0.55 + 0.3*Math.sin(now/3100 + 1); return { a: da + R*0.95*Math.cos(el)*Math.cos(az), b: db + R*0.95*Math.cos(el)*Math.sin(az), z: 1.5*(3 + R*1.1*Math.sin(el)) - 6, th: az + Math.PI, moving: false, pose: { lift: [1.3, 1.5], bend: [0.3, 0.3] } }; }); }
-  { const S = PL.sand; kid('sand', 'B', now => ({ a: S.a0 + 34, b: S.b1 + 22, z: 0, th: -Math.PI/2*0.9, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } })); }
+  { const S = PL.sand; kid('sand-2', 'B', now => ({ a: S.a1 - 30, b: S.b0 + 24, z: 0, th: Math.PI*0.8, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } }));
+    kid('sand', 'B', now => ({ a: S.a0 + 34, b: S.b1 + 22, z: 0, th: -Math.PI/2*0.9, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } })); }
+  /* tag on the playground's open floor: four chasing along its lanes, and a teacher pacing the middle one */
+  kid('tag-0', 'B', tpeShuttle(200, -190, 1060, -215, 9000, 0.03, 0));
+  kid('tag-1', 'B', tpeShuttle(200, -190, 1060, -215, 9000, 0.03, 1300));
+  kid('tag-2', 'B', tpeShuttle(150, -850, 1050, -880, 10000, 0.03, 0));
+  kid('tag-3', 'B', tpeShuttle(520, -470, 1070, -480, 8000, 0.03, 3000));
+  add('duty-2', 'B', { U: SCHOOL_TEACHER2_UNIFORM, seed: 0x7ea3 }, tpeShuttle(300, -430, 1000, -440, 40000, 0.2, 9000));
   { const ja = 5900, jb = -205, ph = now => (now/620)*Math.PI*2;                       // jump rope: two turners (their hands at the rope's ends) and the jumper between them
     kid('rope-1', 'B', tpeStill(ja, jb, 0, { pose: { lift: [0.5, 0.5], bend: [0.9, 0.9] } }));
     kid('rope-2', 'B', tpeStill(ja + 150, jb, Math.PI, { pose: { lift: [0.5, 0.5], bend: [0.9, 0.9] } }));
@@ -89536,7 +89543,7 @@ function tpeYardOpen(scene){
 function tpeYardAt(scene, p, now){
   const fr = tpeYardAt.fr || (tpeYardAt.fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')));
   const q = p.at(now), w = fr.toWorld(q.a, q.b);
-  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1) };
+  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer|tag)/.test(p.id) ? 1.6 : 1) };
 }
 function tpeQueue(scene, t, queuePerson, layerFor){
   if(scene._inside) return;
@@ -89553,7 +89560,7 @@ function tpeQueue(scene, t, queuePerson, layerFor){
     const behind = d.y + 736 < TPE_PLAN.BB0 - 20;
     queuePerson(behind ? fr.ox + fr.oy + 0.0004 : d.x, behind ? 0 : d.y, (g, tt) => {
       const T0 = tt || now, L = walkinStaffLook(p.s), lg = layerFor(d.x, d.y), thW = d.th - Math.PI/2;
-      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer|tag)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
         Object.assign({ dress: L.dress }, d.pose || null));
     });
   }
