@@ -107451,8 +107451,8 @@ class WorldScene extends Phaser.Scene {
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
             quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
-        else if(hh === 'bowler'){ prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
-        else if(hh === 'tophat'){ prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true }); prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); }
+        else if(hh === 'bowler'){ prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); }   // (the brim first: the crown stands on it, its far half is behind the crown)
+        else if(hh === 'tophat'){ prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true }); }
         else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
         else if(hh === 'headphones'){ for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) phones(sd); }
         else if(hh === 'antenna' || hh === 'twin'){
