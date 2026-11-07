@@ -5012,7 +5012,7 @@ function carPalette(kind){
    to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
    showroom (?showroom) reads this; nothing in the city does. */
 const VEHICLES = [
-  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Humanoid robot", "humanoid"]] },
+  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Gideon", "humanoid"]] },
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Semi with flatbed trailer", "semiflat"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
@@ -5089,7 +5089,7 @@ const FLEET_MISSIONS = {
 const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
 const FLEET = {
   /* walk: Tipsey's owStep, his charging stations */
-  humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
+  humanoid:   { name: "Gideon", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
                 ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
@@ -140213,6 +140213,7 @@ requestTpProfile();
   function fleetLaunchName(k, B, bay) {
     const L = fleetBayOf(k);
     if (L) return L.name;
+    if (k === 'humanoid') return "his pad in Brew & Bolt's back room";   // (Gideon: gd2)
     return B ? B.name : bay.name.toLowerCase();
   }
   function renderFleet(P) {
