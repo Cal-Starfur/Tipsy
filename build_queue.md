@@ -192,3 +192,16 @@ graph LR
 - [?] `gd4c` Gideon's Outfit tab: apron, vest, scarf, bow tie, tie, 5 badges, 5 glasses, and 5 pack styles (Band & pack tab), each in any colour, on Tipsey's paint system [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
 - [?] `gd4d` Gideon's Finish and Decals tabs: satin, matte, gloss, chrome, two-tone (second colour on the legs); racing stripes, chevron, star, bolt, heart, race numbers 1/4/7/9 in any colour [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
 - [?] `gd4e` Gideon's Looks tab: 10 ready-made looks (Stock, Barista, Night Shift, Chrome, Workshop, Sunset, Racer, Chef, Royal, Party), tried on whole and added to the cart together at the parts' prices [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
+
+## Walk-in kit fit
+- [ ] `kf-dune` Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-tpe` Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-museum` Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-shelter` Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-brew` Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-ktde` KTDE 98.1 The Tide: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-motel` Sun Deck Motor Lodge Office: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-kart` Tidewater Kart Works: shell +30 on the front (check the other sides by eye), then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-vista` Vista Ridge Security Post: the room stands in front of the building, not under it: re-measure the footprint, then shell +30 and the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [ ] `kf-trophies` Seabreeze Trophies: shell fits; look inside at the door and the near walls for W23 and W24 [docs/state/walkin_kit_fit.md]
+- [ ] `kf-check` Kit check: every exterior declares its footprint so walkinCoverage() measures all eleven (seven read "not declared" today), and run_sheet --walkins fails on a SHORT [docs/state/walkin_kit_fit.md]

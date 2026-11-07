@@ -1043,6 +1043,94 @@
 ],
 "status": "built",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "kf-dune",
+"title": "Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-tpe",
+"title": "Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-museum",
+"title": "Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-shelter",
+"title": "Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-brew",
+"title": "Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-ktde",
+"title": "KTDE 98.1 The Tide: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-motel",
+"title": "Sun Deck Motor Lodge Office: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-kart",
+"title": "Tidewater Kart Works: shell +30 on the front (check the other sides by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-vista",
+"title": "Vista Ridge Security Post: the room stands in front of the building, not under it: re-measure the footprint, then shell +30 and the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-trophies",
+"title": "Seabreeze Trophies: shell fits; look inside at the door and the near walls for W23 and W24",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-check",
+"title": "Kit check: every exterior declares its footprint so walkinCoverage() measures all eleven (seven read \"not declared\" today), and run_sheet --walkins fails on a SHORT",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
 }
 ],
 "meta": {
