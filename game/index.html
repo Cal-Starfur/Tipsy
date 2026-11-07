@@ -88363,9 +88363,9 @@ const SURF = {
   flag: { x: -5200, y: 12720, h: 300 },
   guard: { x: -5262, y: 12768, th: -2.6 },
   stand: { x: -5380, y: 11180, rackX: -5650, rackY: 11040, n: 6, table: [-5215, 11345], kai: { x: -5190, y: 11180, th: 0.15 }, flag: [-5150, 11050],
-           hut: { x0: -5090, x1: -4720, y0: 10960, y1: 11120, h: 200, dx0: -5064, dx1: -5004, dh: 150 } },
+           hut: { x0: -5090, x1: -4720, y0: 10960, y1: 11280, h: 200, dx0: -5064, dx1: -5004, dh: 150 } },
   bathers: [{ x: -5330, y: 11520, a: 0, um: [-5420, 11470] }, { x: -4760, y: 11520, a: 0.2, um: null }, { x: -4700, y: 11380, a: -0.15, um: [-4640, 11300] }, { x: -4600, y: 11650, a: 0.1, um: null }],
-  bays: { ask: [-1960, 11800], shack: [-4900, 12880], unload: [-5050, 12520], stand: [-5050, 11300], water: [-6250, 12700] },
+  bays: { ask: [-1960, 11800], shack: [-4900, 12880], unload: [-5050, 12520], stand: [-5050, 11440], water: [-6250, 12700] },
   water: { x: -6480, sit: -6900, mele: [-6420, 12560] },
   surfers: [[[-4440, 11800], [-5600, 11700], [-6440, 11620]], [[-4440, 11760], [-5700, 11840], [-6440, 11880]]],
   hours: [8, 20]
@@ -89107,6 +89107,16 @@ function surfDrawHutRoom(sc, g){
   box(H.x0 + 150, H.x0 + 300, H.y0 + 60, H.y0 + 92, h0, h0 + 60, 0xd8c09a, 0xa48a66, 0xb89c74);
   box(H.x0 + 214, H.x0 + 244, H.y0 + 66, H.y0 + 84, h0 + 60, h0 + 74, 0x3b4148, 0x2b3036, 0x33383e);
   box(H.x1 - 90, H.x1 - 66, H.y0 + 84, H.y0 + 108, h0, h0 + 34, 0x8a6f4e, 0x6e573c, 0x7d6345);
+  /* the south half, the shop floor: a display island of boards on edge, a bench of wetsuits and sandals, a rack of rash guards, a mat */
+  q([P(H.x0 + 120, H.y0 + 170, h0 + 0.8), P(H.x1 - 60, H.y0 + 170, h0 + 0.8), P(H.x1 - 60, H.y0 + 250, h0 + 0.8), P(H.x0 + 120, H.y0 + 250, h0 + 0.8)], 0x7d7566);
+  box(H.x0 + 160, H.x0 + 330, H.y0 + 180, H.y0 + 196, h0, h0 + 36, 0xd8c09a, 0xa48a66, 0xb89c74);
+  for(let i = 0; i < 5; i++){ const x = H.x0 + 172 + i*32, col = SURF_BOARD_COLS[(i + 2) % SURF_BOARD_COLS.length];
+    q(surfBoardPoly(150, 48).map(([a, b]) => P(x + b*0.5, H.y0 + 182, h0 + 36 + (a + 75)*0.7)), col); }
+  box(H.x0 + 24, H.x0 + 140, H.y0 + 210, H.y0 + 238, h0, h0 + 28, 0x8a6f4e, 0x6e573c, 0x7d6345);
+  for(let i = 0; i < 4; i++) box(H.x0 + 34 + i*26, H.x0 + 52 + i*26, H.y0 + 216, H.y0 + 232, h0 + 28, h0 + 36, [0x1f8a96, 0xe8705a, 0x1f2026, 0xf2c14e][i], 0x333, 0x444);
+  box(H.x0 + 6, H.x0 + 18, H.y0 + 150, H.y0 + 300, h0 + 100, h0 + 106, 0x9b8160, 0x8a7458, 0x8a7458);                      // a rail on the west wall
+  for(let i = 0; i < 5; i++){ const y = H.y0 + 168 + i*26; q([P(H.x0 + 4, y - 10, h0 + 100), P(H.x0 + 4, y + 10, h0 + 100), P(H.x0 + 4, y + 8, h0 + 54), P(H.x0 + 4, y - 8, h0 + 54)], [0x48c2c0, 0xf2c14e, 0xe8705a, 0xf4f2ec, 0x1f8a96][i]); }
+  box(H.x1 - 140, H.x1 - 60, H.y0 + 236, H.y0 + 262, h0, h0 + 28, 0x8a6f4e, 0x6e573c, 0x7d6345);                              // the bench by the window
 }
 function surfDrawHutShell(sc, g){
   const H = SURF.stand.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box } = k, h0 = 8, T = h0 + H.h, yb = H.y1, xb = H.x1;
