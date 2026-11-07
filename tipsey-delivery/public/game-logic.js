@@ -105888,13 +105888,13 @@ class WorldScene extends Phaser.Scene {
       } else hairShell('high');
       /* CAT EARS (RB.earStyle 'cat'): two pricked ears on the crown in his ear colour, pink inside, standing on the head */
       if(RB && RB.earStyle === 'cat'){ const EC2 = { c: RB.ear, dk: _pdk(RB.ear, 0.78) };
-        for(const sd of [-1, 1]){ const ax2 = sd*r*0.56, zb0 = z1 - 4.5, tipz = z1 + 8.5, tx = ax2 + sd*1.0, Q2 = (pts, c) => this.quadOn(g, pts, c);
-          const tri = (b, c) => Q2([G(ax2 - 5.8, b, zb0), G(ax2 + 5.8, b, zb0), G(tx, b, tipz)], c);
-          const front = faceB > 0;
-          tri(front ? -1.3 : 1.3, front ? EC2.dk : EC2.c);                                                  // (the far face first)
-          Q2([G(ax2 - 5.8, -1.3, zb0), G(ax2 - 5.8, 1.3, zb0), G(tx, 1.3, tipz), G(tx, -1.3, tipz)], EC2.dk); Q2([G(ax2 + 5.8, -1.3, zb0), G(ax2 + 5.8, 1.3, zb0), G(tx, 1.3, tipz), G(tx, -1.3, tipz)], EC2.dk);
-          tri(front ? 1.3 : -1.3, EC2.c);                                                                    // (the near face over them)
-          if(front) Q2([G(ax2 - 3.2, 1.45, zb0 + 1.2), G(ax2 + 3.2, 1.45, zb0 + 1.2), G(tx - sd*0.1, 1.45, tipz - 3.2)], 0xf4a8b8); }
+        for(const sd of [-1, 1]){ const ax2 = sd*r*0.5, zb0 = z1 - 9.5, tipz = z1 + 7.5, tx = ax2 + sd*3.4, hw = 5.0, Q2 = (pts, c) => this.quadOn(g, pts, c), front = faceB > 0;
+          /* the base sunk into the head's upper side (inside its outline), the tip leaning out: a flat ear with thickness, outlined so it reads against a head of its own colour */
+          const tri = (b, c, e) => Q2([G(ax2 - hw - e, b, zb0 - e), G(ax2 + hw + e, b, zb0 - e), G(tx + sd*e*0.6, b, tipz + e*1.6)], c);
+          tri(front ? -1.4 : 1.4, EC2.dk, 0.5);                                                                // (the far face first)
+          Q2([G(ax2 - hw, -1.4, zb0), G(ax2 - hw, 1.4, zb0), G(tx, 1.4, tipz), G(tx, -1.4, tipz)], EC2.dk); Q2([G(ax2 + hw, -1.4, zb0), G(ax2 + hw, 1.4, zb0), G(tx, 1.4, tipz), G(tx, -1.4, tipz)], EC2.dk);
+          const nb = front ? 1.4 : -1.4; tri(nb, _pdk(RB.ear, 0.62), 0.55); tri(nb + (front ? 0.05 : -0.05), EC2.c, 0);                         // (the near face, with a dark rim round it)
+          if(front) Q2([G(ax2 - hw*0.6, 1.5, zb0 + 1.2), G(ax2 + hw*0.6, 1.5, zb0 + 1.2), G(tx - sd*0.3, 1.5, tipz - 3.6)], 0xf4a8b8); }
       }
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
          propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
