@@ -336,9 +336,10 @@
 "title": "Unlisted populations into CITY_PEOPLE",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Consistency pass: people",
-"note": "knockable batch: Sierra guard made knockable; duplicate food-truck entry removed; the rest were already listed (docs stale). Marisol/cook, hospital errand/jail/rescue: mission timelines, left"
+"note": "knockable batch: Sierra guard made knockable; duplicate food-truck entry removed; the rest were already listed (docs stale). Marisol/cook, hospital errand/jail/rescue: mission timelines, left",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17640,2392&view=2"
 },
 {
 "id": "pe3",
