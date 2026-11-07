@@ -3714,6 +3714,19 @@ function fleetGarageCut(s){
   s._garage.key = home.key;
   return true;
 }
+/* THE HUMANOID STARTS AS GIDEON (docs/gideon-dock.md, gd2): chosen in the Fleet tab and Play pressed, the street dissolves into the cafe's back room
+   and he stands on his own charging pad there, facing out into the room -- not on Tipsey's station. Tipsey stays parked in his garage
+   (fleetParkTipsey). A mission's loan of the humanoid is not this: it starts where the story puts him. */
+function gideonStart(s){
+  if(!s || !s.ow || FLEET_LOAN || fleetCur() !== 'humanoid') return;
+  if(typeof BB_PK === "undefined" || s._inside === BB_PK) return;
+  const pk = POCKETS.find(q => q.name === BB_IN.name); if(!pk) return;
+  sceneDissolve(s, 600, () => {
+    const items = s.items;
+    owStandUpAt(s, pk.x0 + BB_IN.PAD.a, pk.y0 + BB_IN.PAD.b, Math.PI/2);
+    s.items = items || [];
+  });
+}
 /* the pad he is on, facing out, for Play (garageClose): a lane or a station */
 function fleetLaunchPad(s){
   if(!s || !s.ow || !s.route || !s.route.grid) return null;
@@ -28071,6 +28084,8 @@ const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D:
   TABLES: [ [110, 770, 2], [250, 770, 2], [586, 770, 2], [726, 770, 2],
             [90, 640, 4], [260, 640, 2], [590, 630, 4], [740, 630, 2],
             [786, 90, 2], [786, 230, 2], [786, 360, 2] ] };
+/* GIDEON'S OWN CHARGING PAD (docs/gideon-dock.md), the room's frame: where he starts as the player */
+BB_IN.PAD = { a: 124, b: 266 };
 const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
   lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 0, half: 50 }, H: BB_IN.H, out: 60, apron: 60, glass: 60,
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
@@ -28096,8 +28111,8 @@ const GIDEON_UNIFORM = { shirt: { c:0x6b4a32, dk:0x4f3624 }, pants: { c:0x2a2e34
 walkinStaff(BB_IN.name, [
   { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, pace: 0.85,
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
-    away: () => typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
-    posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
+    away: () => (typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid)) || (typeof fleetCur === "function" && fleetCur() === 'humanoid'), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
+    posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [124, 266, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
     lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
       uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }) }) }) },
@@ -49506,12 +49521,15 @@ function houseCanopy(fn){
       items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
         T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
         T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
-    /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
-    items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
-      T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; box(330 + Math.cos(t)*28 - 2, 330 + Math.cos(t)*28 + 2, 330 + Math.sin(t)*28 - 2, 330 + Math.sin(t)*28 + 2, 0.8, 2.2, copper, copper, copperD); }
-      box(322, 338, 366, 380, 0, 100, steelD, steelS, steelS); box(324, 336, 368, 378, 100, 112, '#2b3138', '#222831', '#222831');
-      F(326, 334, 102, 110, '#5be37d', null, 0, seeB1 ? 380.3 : 366.3); } });
+    /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
+       depot's `charger`: padR 44 -- an 88 circle -- a dark rim, the painted amber ring 5 wide, the grey pad inside; CH / CP in the Charge
+       depot's drawing), on the back room's floor. The humanoid's own station: where he starts and ends as the player. Centre (124, 266). */
+    { const PC = [124, 266], PR = 44, RW = 5;
+      const disc = (r, z, fill) => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(P(PC[0] + Math.cos(t)*r, PC[1] + Math.sin(t)*r, z)); } poly(o, fill); };
+      items.push({ a: PC[0], b: PC[1], z: 0, solids: [], draw: () => { disc(PR, 0.8, '#565c6a'); disc(PR, 1.2, '#ffb454'); disc(PR - RW, 1.6, '#6d7484'); } });
+      items.push({ a: PC[0], b: PC[1] + 2, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
+        disc(PR + 34, 0.9, 'rgba(127,227,255,.05)'); disc(PR + 20, 0.9, 'rgba(127,227,255,.07)'); disc(PR + 8, 0.9, 'rgba(127,227,255,.09)'); } });   // (after dark, its cool wash, as Tipsey's glows)
+    }
     /* a stack of crates and a sack of beans by the partition */
     items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {
       box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350');
@@ -86637,7 +86655,8 @@ const SURF = {
   logs: [{ x: -4700, y: 12620, along: 'y' }, { x: -4560, y: 12760, along: 'x' }],
   flag: { x: -5200, y: 12720, h: 300 },
   guard: { x: -5262, y: 12768, th: -2.6 },
-  stand: { x: -5380, y: 11180, rackX: -5650, rackY: 11040, n: 6, table: [-5215, 11345], kai: { x: -5190, y: 11180, th: 0.15 }, flag: [-5150, 11050] },
+  stand: { x: -5380, y: 11180, rackX: -5650, rackY: 11040, n: 6, table: [-5215, 11345], kai: { x: -5190, y: 11180, th: 0.15 }, flag: [-5150, 11050],
+           hut: { x0: -5100, x1: -4960, y0: 11000, y1: 11120, h: 140, dx0: -5058, dx1: -5002, dh: 112 } },
   bathers: [{ x: -5330, y: 11520, a: 0, um: [-5420, 11470] }, { x: -4760, y: 11520, a: 0.2, um: null }, { x: -4700, y: 11380, a: -0.15, um: [-4640, 11300] }, { x: -4600, y: 11650, a: 0.1, um: null }],
   bays: { ask: [-1960, 11800], shack: [-4900, 12880], unload: [-5050, 12520], stand: [-5050, 11300], water: [-6250, 12700] },
   water: { x: -6480, sit: -6900, mele: [-6420, 12560] },
@@ -86790,7 +86809,39 @@ function surfKaiLook(){ return SURF_LIFE._kai || (SURF_LIFE._kai = Object.assign
 function surfKaiAt(now){
   const K = SSN.kai, P = SURF.stand.kai;
   if(K){ const p = walkPathAt(K, now); if(p && !(K.home && p.there)) return Object.assign(p, { has: K.has || null }); SSN.kai = null; }
+  /* HE GOES IN AND OUT OF THE HUT (d5: the stand's board hut, its door SURF.stand.hut): every so often he walks from the table to its
+     door, steps in (hidden, p.hidden) to see to the boards, and comes out and back to the table */
+  const hp = surfHutPath(now);
+  if(hp) return hp;
   return { x: P.x, y: P.y, th: lhGlance(P.th, now, 43), moving: false, lift: Math.sin(now*0.0009 + 1) > 0.7 ? [0.25, 0.9] : null, bend: 0.6 };   // (waxing a board on the table now and then)
+}
+/* the hut's door: its sill, where he stands outside it (the south face is the one seen), and just inside */
+function surfHutDoor(){
+  const T = SURF.stand, H = T.hut, cx = (H.dx0 + H.dx1)/2;
+  return { cx, out: { x: cx, y: H.y1 + 26 }, inn: { x: cx, y: H.y1 - 46 }, y: H.y1 };
+}
+function surfHutPath(now){
+  const T = SURF.stand, D = surfHutDoor(), P = T.kai, V = SURF_PATROL.v, REST = 30000, INSIDE = 8000;
+  const legs = [{ x: P.x, y: P.y }, { x: D.out.x, y: D.out.y }, { x: D.inn.x, y: D.inn.y }];
+  const L1 = Math.hypot(legs[1].x - legs[0].x, legs[1].y - legs[0].y), L2 = Math.hypot(legs[2].x - legs[1].x, legs[2].y - legs[1].y), W = (L1 + L2)/V;
+  const CYC = REST + 2*W + INSIDE, u = (((now + 11000) % CYC) + CYC) % CYC;
+  if(u < REST) return null;
+  const at = d => d <= L1 ? { x: legs[0].x + (legs[1].x - legs[0].x)*d/L1, y: legs[0].y + (legs[1].y - legs[0].y)*d/L1 }
+                          : { x: legs[1].x + (legs[2].x - legs[1].x)*(d - L1)/L2, y: legs[1].y + (legs[2].y - legs[1].y)*(d - L1)/L2 };
+  const mk = (d, back, moving) => { const q = at(d), a = at(Math.max(0, d - 20)), b = at(Math.min(L1 + L2, d + 20));
+    const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0);
+    return Object.assign(q, { th, moving, hidden: q.y < D.y - 4, gait: d/V*PEOPLE_ART.walkSpeed }); };
+  if(u < REST + W) return mk((u - REST)*V, false, true);
+  if(u < REST + W + INSIDE){ const q = at(L1 + L2); return Object.assign(q, { th: -Math.PI/2, moving: false, hidden: true }); }
+  return mk((L1 + L2) - (u - REST - W - INSIDE)*V, true, true);
+}
+/* the hut's door leaf: shut, or swung out as he is at it (eased 280 ms open / 480 ms shut, as the shop doors') */
+function surfHutDoorStep(now){
+  const L = SURF_LIFE, p = (surfOpen() || SSN.stage !== 'idle') ? surfKaiAt(now) : null, D = surfHutDoor();
+  const want = p && Math.hypot(p.x - D.cx, p.y - D.y) < 72 ? 1 : 0;
+  const dt = Math.min(100, Math.max(0, now - (L.hutT == null ? now : L.hutT))); L.hutT = now;
+  const k = L.hutK || 0;
+  return (L.hutK = want > k ? Math.min(1, k + dt/280) : Math.max(0, k - dt/480));
 }
 /* ---------- THE LIFEGUARD, THE SURFERS, THE SUNBATHERS ---------- */
 function surfGuardAt(now){
@@ -87154,6 +87205,7 @@ function surfSolids(){
   out.push({ r: [R.x0 - 16, R.x0 + R.n*30 + 8, R.y - 34, R.y + 34] });
   out.push({ r: [ST.rackX - 16, ST.rackX + ST.n*30 + 8, ST.rackY - 34, ST.rackY + 34] });
   out.push({ c: [ST.table[0], ST.table[1]], rr: 52 }, { c: [ST.x, ST.y], rr: 14 }, { c: ST.flag, rr: 10 });
+  out.push({ r: [ST.hut.x0 - 14, ST.hut.x1 + 14, ST.hut.y0 - 14, ST.hut.y1 + 14] });
   out.push({ c: [SURF.fire.x, SURF.fire.y], rr: SURF.fire.r + 8 });
   for(const L of SURF.logs) out.push({ r: L.along === 'y' ? [L.x - 22, L.x + 22, L.y - 90, L.y + 90] : [L.x - 90, L.x + 90, L.y - 22, L.y + 22] });
   out.push({ c: [SURF.flag.x, SURF.flag.y], rr: 10 });
@@ -87198,6 +87250,11 @@ function surfQueueStatic(sc, vq, grid){
     if(near(T.rackX + 90, T.rackY, 200, 200)) vq.push({ depth: T.rackX + 90 + T.rackY, fn: g => sc.bcDraw(g, "srf|srack|" + SSN.standN, T.rackX, T.rackY, gg => surfDrawRack(sc, gg, T.rackX, T.rackY, T.n, SSN.standN, 3)) });
     if(near(T.x, T.y, 220, 300)) vq.push({ depth: T.x + T.y + 160, fn: g => sc.bcDraw(g, "srf|umb|" + T.x, T.x, T.y, gg => surfDrawUmbrella(sc, gg, T.x, T.y, 160, 250, [0x48c2c0, 0xf4f2ec])) });
     if(near(T.table[0], T.table[1], 80, 100)) vq.push({ depth: T.table[0] + T.table[1], fn: g => sc.bcDraw(g, "srf|table", T.table[0], T.table[1], gg => surfDrawTable(sc, gg, T.table[0], T.table[1])) });
+    { const H = T.hut;
+      if(near((H.x0 + H.x1)/2, (H.y0 + H.y1)/2, 160, 260)){
+        vq.push({ depth: (H.x0 + H.x1)/2 + (H.y0 + H.y1)/2, fn: g => sc.bcDraw(g, "srf|hut", H.x0, H.y0, gg => surfDrawHut(sc, gg)) });
+        vq.push({ depth: surfHutDoor().cx + H.y1 + 1, fn: g => { const k = surfHutDoorStep(sc.time.now); if(k > 0.01) surfDrawHutDoor(sc, g, k); } });
+      } }
     if(near(T.flag[0], T.flag[1], 140, 300)) vq.push({ depth: T.flag[0] + T.flag[1] + 0.5, fn: (g, t) => surfDrawFeather(sc, g, T.flag[0], T.flag[1], t || sc.time.now) }); }
   for(const b of S.bathers) if(b.um && SURF_LIFE.bathers && near(b.um[0], b.um[1], 160, 260)) vq.push({ depth: b.um[0] + b.um[1], fn: g => sc.bcDraw(g, "srf|umb|" + b.um[0], b.um[0], b.um[1], gg => surfDrawUmbrella(sc, gg, b.um[0], b.um[1], 120, 210, [0xe8705a, 0xf4f2ec])) });
   const F = S.fire;
@@ -87313,6 +87370,42 @@ function surfDrawShack(sc, g, open){
   for(const [x, col] of [[H.x0 + 28, 0xf2c14e], [H.x0 + 58, 0x4fb3d9]]){ const yb = H.y1 + 2;
     const poly = surfBoardPoly(260, 50).map(([a, b]) => [a, b]);
     q(poly.map(([a, b]) => P(x + b*0.9, yb + 14 - (a + 130)*0.05, z + 2 + (a + 130)*0.86)), col); }
+}
+/* PALMLINE SURF CO.'S BOARD HUT at its stand (d5): a small board-and-batten shed in the shack's teal, a low roof, the door on the south
+   face (the seen one) shut here -- its opening and swung leaf are live (surfDrawHutDoor) -- a small window and a sign board */
+function surfDrawHut(sc, g){
+  const T = SURF.stand, H = T.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box } = k;
+  const WALL = 0x6fc2bf, WALLX = 0x58a6a3, TRIM = 0xf4f2ec, ROOF = 0x8a7458, z = 0, yb = H.y1;
+  box(H.x0 - 6, H.x1 + 6, H.y0 - 6, H.y1 + 6, 0, 8, 0xb59a74, 0x8f7656, 0xa48a66);                      // the sill beams it sits on
+  box(H.x0, H.x1, H.y0, H.y1, 8, 8 + H.h, 0x7a6a52, WALLX, WALL);
+  for(let x = H.x0 + 18; x < H.x1; x += 22) q([P(x, yb + 0.5, 10), P(x + 3, yb + 0.5, 10), P(x + 3, yb + 0.5, 6 + H.h), P(x, yb + 0.5, 6 + H.h)], 0x62b1ae);
+  for(let y = H.y0 + 18; y < H.y1; y += 22) q([P(H.x1 + 0.5, y, 10), P(H.x1 + 0.5, y + 3, 10), P(H.x1 + 0.5, y + 3, 6 + H.h), P(H.x1 + 0.5, y, 6 + H.h)], 0x4f9794);
+  /* the door's frame, and the dark of the opening: the leaf is live over it */
+  { const a0 = H.dx0, a1 = H.dx1, z1 = 8 + H.dh;
+    q([P(a0 - 6, yb + 0.8, z1 + 6), P(a1 + 6, yb + 0.8, z1 + 6), P(a1 + 6, yb + 0.8, 8), P(a0 - 6, yb + 0.8, 8)], TRIM);
+    q([P(a0, yb + 1.2, z1), P(a1, yb + 1.2, z1), P(a1, yb + 1.2, 8), P(a0, yb + 1.2, 8)], 0x4f9794);
+    for(let zz = 22; zz < z1; zz += 14) q([P(a0, yb + 1.4, zz), P(a1, yb + 1.4, zz), P(a1, yb + 1.4, zz - 2), P(a0, yb + 1.4, zz - 2)], 0x3f7f7c);
+    q([P(a1 - 12, yb + 1.8, 62), P(a1 - 7, yb + 1.8, 62), P(a1 - 7, yb + 1.8, 70), P(a1 - 12, yb + 1.8, 70)], 0xd9b45a); }                // its handle
+  /* the east face's small window */
+  { const y0 = H.y0 + 38, y1 = H.y0 + 82, z0 = 80, z1 = 124;
+    q([P(H.x1 + 1, y0 - 5, z1 + 5), P(H.x1 + 1, y1 + 5, z1 + 5), P(H.x1 + 1, y1 + 5, z0 - 5), P(H.x1 + 1, y0 - 5, z0 - 5)], TRIM);
+    q([P(H.x1 + 1.5, y0, z1), P(H.x1 + 1.5, y1, z1), P(H.x1 + 1.5, y1, z0), P(H.x1 + 1.5, y0, z0)], 0x2e4d5a); }
+  /* the sign board over the door: a striped longboard */
+  { const c = (H.dx0 + H.dx1)/2 - 22, zc = 8 + H.h - 16, poly = surfBoardPoly(120, 22);
+    q(poly.map(([a, b]) => P(c + a, yb + 2, zc + b*0.9)), 0xf4f2ec);
+    for(const [d, col] of [[-3, 0xe8705a], [0, 0xf2c14e], [3, 0x1f8a96]]) q([P(c - 48, yb + 2.4, zc + d - 1), P(c + 50, yb + 2.4, zc + d - 1), P(c + 50, yb + 2.4, zc + d + 1), P(c - 48, yb + 2.4, zc + d + 1)], col); }
+  box(H.x0 - 14, H.x1 + 14, H.y0 - 14, H.y1 + 18, 8 + H.h, 8 + H.h + 10, ROOF, 0x6a5a44, 0x7a6850);                  // the roof, overhanging
+  q([P(H.x0 - 14, H.y1 + 18, 8 + H.h + 10.5), P(H.x1 + 14, H.y1 + 18, 8 + H.h + 10.5), P(H.x1 + 14, H.y1 + 13, 8 + H.h + 10.5), P(H.x0 - 14, H.y1 + 13, 8 + H.h + 10.5)], TRIM);
+}
+/* the hut's door, live: the opening dark with the lit boards in it, and the leaf swung out on its west hinge (k 0 shut .. 1 open) */
+function surfDrawHutDoor(sc, g, kk){
+  const H = SURF.stand.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q } = k, a0 = H.dx0, a1 = H.dx1, z0 = 8, z1 = 8 + H.dh, yb = H.y1 + 2;
+  q([P(a0, yb, z1), P(a1, yb, z1), P(a1, yb, z0), P(a0, yb, z0)], 0x2a2420);
+  for(let i = 0; i < 3; i++){ const x = a0 + 10 + i*16; q([P(x - 5, yb + 0.3, z1 - 14), P(x + 5, yb + 0.3, z1 - 14), P(x + 4, yb + 0.3, z0 + 10), P(x - 4, yb + 0.3, z0 + 10)], [0x4fb3d9, 0xf2c14e, 0xe8705a][i]); }   // boards stood inside
+  const th = kk*Math.PI*0.5*0.94, W = a1 - a0, ox = a0 + W*Math.cos(th), oy = yb + W*Math.sin(th);
+  q([P(a0, yb + 0.5, z1), P(ox, oy, z1), P(ox, oy, z0), P(a0, yb + 0.5, z0)], 0x4f9794);
+  q([P(a0, yb + 0.5, z1), P(ox, oy, z1), P(ox, oy, z1 - 8), P(a0, yb + 0.5, z1 - 8)], 0xf4f2ec);                    // its head rail
+  q([P(ox - Math.cos(th)*10, oy - Math.sin(th)*10, 66), P(ox - Math.cos(th)*5, oy - Math.sin(th)*5, 66), P(ox - Math.cos(th)*5, oy - Math.sin(th)*5, 74), P(ox - Math.cos(th)*10, oy - Math.sin(th)*10, 74)], 0xd9b45a);
 }
 function surfDrawSteps(sc, g){
   const S = SURF.steps, k = sc.lgKit(g, { x: 0, y: 0 });
@@ -87458,7 +87551,7 @@ function ssnQueue(scene, t, queuePerson, keyQueue, layerFor){
   });
   /* Kai, at Palmline Surf Co.'s stand */
   if(open || busy){ const p = surfKaiAt(now);
-    if(p) person(busy ? keyQueue : queuePerson, p, surfKaiLook(), SURF_KAI_UNIFORM, poseOf(p), p.has === 'boards3' ? { under: g => surfDrawBoardCarry(scene, g, p, 3, SURF_BOARD_COLS.slice(SSN.trip ? 3 : 0, (SSN.trip ? 3 : 0) + 3)) } : null); }
+    if(p && !p.hidden) person(busy ? keyQueue : queuePerson, p, surfKaiLook(), SURF_KAI_UNIFORM, poseOf(p), p.has === 'boards3' ? { under: g => surfDrawBoardCarry(scene, g, p, 3, SURF_BOARD_COLS.slice(SSN.trip ? 3 : 0, (SSN.trip ? 3 : 0) + 3)) } : null); }
   /* the cargo bot, rolling down to him and off again */
   { const b = surfBotAt(now);
     if(b && scene.visProp("people", b.x, b.y)){ const B = SSN.bot, x = b.x, y = b.y, th = b.th;
@@ -87478,7 +87571,7 @@ CITY_PEOPLE.add({ name: 'Sunset Shore Surf School', where: "Sunset Shore's sand 
     { const p = surfMeleAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Mele', look: surfMeleLook() })); }
     for(let k = 0; k < 6; k++){ const p = surfKidAt(k, now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'student' })); }
     { const p = surfGuardAt(now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: 'lifeguard' })); }
-    { const p = surfKaiAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'Kai', look: surfKaiLook() })); }
+    { const p = surfKaiAt(now); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, hidden: !!p.hidden, kind: 'Kai', look: surfKaiLook() })); }
     for(let i = 0; i < 2; i++){ const p = surfHour() < 19.25 ? surfSurferAt(i, now) : surfSurferFire(i, now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: !!p.moving, kind: 'surfer' })); }
   } });
 /* ==================== TIDE POOL ELEMENTARY'S YARD, PEOPLE (Sir, 2026-11-06: "have people") ====================
@@ -136922,6 +137015,8 @@ requestTpProfile();
     }
     /* a rotorcraft in its hangar lane rolls out to its apron pad and takes off by itself (fleet P2: flyOnPlay) */
     if (s) flyOnPlay(s);
+    /* the humanoid is Gideon: Play starts him on his own pad in the cafe's back room (gideonStart) */
+    if (s) gideonStart(s);
     if (gMask) gMask.clear();
     document.body.classList.remove('tpGarage');
     /* you only leave wearing what you equipped */
