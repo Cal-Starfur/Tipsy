@@ -31745,6 +31745,12 @@ const MARINA_GARAGE_PLAN = (() => {
            carB: (BF + 12 + cb1)/2, board: [ac - 330, ac + 330] };
 })();
 const MARINA_LIFT_VIEW = { open: 0, up: false };
+/* THE ATTENDANT'S SHACK on the paving west of the ENTER lane (world units, lot line y 21160, garage face 20900), and its attendant
+   at the shack's lane-side corner, facing the lane; he glances about. Drawn live (marinaAttQueue), listed in CITY_PEOPLE */
+const MARINA_SHACK = { r: [1100, 1204, 20962, 21046], h: 84 };
+const MARINA_ATTENDANT = { kind: 'parking attendant', seed: 0xa77d, sex: 'm', at: [1236, 21020], face: [1500, 21060],
+  uniform: { shirt: { c:0xe8e6dc, dk:0xbdbaae }, pants: { c:0x2b3640, dk:0x1e262d }, shoe: { c:0x14161a, dk:0x0d0e11 },
+             vest: { c:0x1f6f8b, dk:0x16526a }, cap: { c:0x1f6f8b, dk:0x16526a, top:0x2a87a8, badge:0xf2f3f1 }, shoeKind: 'boot' } };
 /* ==================== THE HEART RUN (Sir, 2026-10-09) ====================
    "lets make the sky way have an auto door that tipsey can drive into it
    and enter the hospital.. we will make the hospital an XRay mission where
@@ -48394,6 +48400,7 @@ function houseCanopy(fn){
     for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + a0, GP.X0 + a1, GP.Y0 + GP.cb0, GP.Y0 + GP.cb1]), h: GP.CH + 160 });
     solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + GP.CAR0, GP.X0 + GP.CAR1, GP.Y0 + GP.cb0, GP.Y0 + GP.CARB]), h: GP.CH + 160 });   // the car's back wall at ground
     for(const x of [Ln[0] + 30, Ln[1] - 30]) solids.push({ name: 'ticket post', c: [A(x), B(G_.y1 + 60)], r: 14, h: 46 });
+    solids.push({ name: 'attendant shack', poly: rectLab(MARINA_SHACK.r), h: 96 });
     /* THE BARRIER ARMS, live (GATE_ARMS, eased by updateErrands) */
     const live = [];
     { const L0 = A(Ln[0]), L1 = A(Ln[1]), mid = (L0 + L1)/2, pb = B(G_.y1 + 60);
@@ -48628,6 +48635,32 @@ function houseCanopy(fn){
                 out.push(at(Cc + r*Math.cos(t), H - R + r*Math.sin(t))); } return out; };
               poly([at(0, 0), at(SW, 0), at(SW, H - 2*R), ...arc(R, []), at(0, H)], '#ffffff');
               poly([at(SW, H - 2*R + Tk), ...arc(R - Tk, []), at(SW, H - Tk)], teal); }
+          }});
+        }
+        /* ================= THE ATTENDANT'S SHACK (Sir, 2026-11-06: "put an attendant shack on this spot with an attendant") =================
+           On the pale paving west of the ENTER lane, its glass on the lane side (east) and on the street (south): a teal
+           roof, a lit counter, the ticket slot. The attendant (MARINA_ATTENDANT) stands at its lane-side corner. */
+        { const R = MARINA_SHACK.r, a0 = A(R[0]), a1 = A(R[1]), b0 = B(R[3]), b1 = B(R[2]), H = MARINA_SHACK.h;
+          const sS = { pl:'F', at: b0, out: -1 }, sE = { pl:'S', at: a1, out: 1 };
+          items.push({ a: a1, b: b0, z: 0, draw: () => {
+            if(!inView(a0 - 8, a1 + 8, b0 - 8, b1 + 8, 0, H + 20)) return;
+            T(a0 - 10, a1 + 10, b0 - 10, b1 + 10, 0.6, '#b7b2a6');                        // its slab, a shade darker than the paving
+            box(a0, a1, b0, b1, 0, H, '#e6e2d6', '#d3cebf', '#bdb8a9');                    // the walls
+            fq(sS, a0, a1, 0, 14, '#8d959c', 0.3); fq(sE, b0, b1, 0, 14, '#8d959c', 0.3);   // plinth
+            /* the glass, lit, with mullions */
+            fq(sE, b0 + 10, b1 - 10, 30, H - 12, '#27313a', 0.4);
+            fq(sE, b0 + 12, b1 - 12, 32, H - 14, 'rgba(244,206,120,.82)', 0.6);
+            fq(sE, (b0 + b1)/2 - 1.5, (b0 + b1)/2 + 1.5, 32, H - 14, '#e6e2d6', 0.8);
+            fq(sS, a0 + 10, a1 - 10, 30, H - 12, '#27313a', 0.4);
+            fq(sS, a0 + 12, a1 - 12, 32, H - 14, 'rgba(120,150,170,.78)', 0.6);
+            fq(sS, (a0 + a1)/2 - 1.5, (a0 + a1)/2 + 1.5, 32, H - 14, '#e6e2d6', 0.8);
+            fq(sE, b0 + 8, b1 - 8, 26, 31, '#aab2b9', 1.4);                                // the counter ledge
+            fq(sE, (b0 + b1)/2 + 8, (b0 + b1)/2 + 20, 38, 44, '#1d2226', 0.9);            // the ticket slot
+            /* roof: a teal cap that overhangs, a white fascia stripe */
+            box(a0 - 8, a1 + 8, b0 - 8, b1 + 8, H, H + 10, teal, shade(teal, .72), shade(teal, 1.2));
+            fq({ pl:'F', at: b0 - 8, out: -1 }, a0 - 8, a1 + 8, H + 4, H + 6, '#ffffff', 0.2);
+            fq({ pl:'S', at: a1 + 8, out: 1 }, b0 - 8, b1 + 8, H + 4, H + 6, '#ffffff', 0.2);
+            box((a0 + a1)/2 - 12, (a0 + a1)/2 + 12, (b0 + b1)/2 - 12, (b0 + b1)/2 + 12, H + 10, H + 20, '#8f969d', '#787f86', '#697077');   // its vent
           }});
         }
         depthSort(items);
@@ -82094,6 +82127,27 @@ function afQueue(scene, t, queuePerson, layerFor){
     queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, p.moving, 0, 0, null, L.uniform, false, null));
   }
 }
+/* MARINA PARKING's attendant, at his shack (MARINA_ATTENDANT) */
+function marinaAttLook(){
+  const c = MARINA_ATTENDANT;
+  if(!c._look){
+    const b = streetLook(c.seed, { adult: true, aid: 'none', sex: c.sex, type: 'man' }), U = c.uniform;
+    c._look = Object.assign({}, b, { shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U, dress: null });
+  }
+  return c._look;
+}
+function marinaAttAt(now){
+  const c = MARINA_ATTENDANT;
+  return { x: c.at[0], y: c.at[1], th: lhGlance(Math.atan2(c.face[1] - c.at[1], c.face[0] - c.at[0]), now, c.seed & 7), moving: false };
+}
+CITY_PEOPLE.add({ name: "Marina Parking's attendant", where: "at his shack on the forecourt, west of the ENTER lane", solid: false,
+  each(scene, t, fn){ const p = marinaAttAt(scene.time.now); fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: MARINA_ATTENDANT.kind, look: marinaAttLook() })); } });
+function marinaAttQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, p = marinaAttAt(now);
+  if(!scene.visProp("people", p.x, p.y)) return;
+  const L = marinaAttLook(), px = p.x, py = p.y, thW = p.th - Math.PI/2;
+  queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false, null));
+}
 /* SUN DECK MOTOR LODGE's people out in the court (MOTEL_MAID, MOTEL_GUESTS) */
 CITY_PEOPLE.add({ name: 'Sun Deck Motor Lodge', where: "the motor lodge's court, across from Sun Deck Airfield", solid: true,
   each(scene, t, fn){
@@ -100135,6 +100189,7 @@ class WorldScene extends Phaser.Scene {
     /* THE LOST DOG (LOST_DOG): the stray, its leash on the ground; following him; its owner out of the house */
     lostDogQueue(this, t, keyQueue, layerFor);
     afQueue(this, t, queuePerson, layerFor);           // SUN DECK AIRFIELD's ground crew
+    marinaAttQueue(this, t, queuePerson, layerFor);    // MARINA PARKING's attendant
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
