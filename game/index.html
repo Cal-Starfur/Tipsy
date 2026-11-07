@@ -37536,6 +37536,14 @@ function battPadAt(scene){
   }
   return null;
 }
+/* GIDEON'S OWN PAD (docs/gideon-dock.md, gd3): the humanoid, chosen in the Fleet tab, charges only on his pad in the cafe's back room (the same
+   round pad as Tipsey's, radius 44) -- not on the depots', which are Tipsey's. A mission's loan of him is not this. Returns the pad record, or null */
+function gideonHome(){ return typeof fleetCur === "function" && fleetCur() === 'humanoid' && !FLEET_LOAN; }
+function gideonPadAt(scene){
+  if(!gideonHome() || !scene || !scene.ow || !scene._inside || scene._inside.name !== BB_IN.name) return null;
+  const pk = scene._inside, ow = scene.ow;
+  return Math.hypot(ow.px - (pk.x0 + BB_IN.PAD.a), ow.py - (pk.y0 + BB_IN.PAD.b)) < 36 ? { key: 'gideon-pad', fleet: true, gideon: true } : null;
+}
 /* one frame, inside the play gate, trips only (free roam and delivery):
    missions run their own frozen worlds and the attract robot is nobody's */
 function battTick(scene, dt){
@@ -37553,7 +37561,7 @@ function battTick(scene, dt){
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
   /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (battPadAt(scene) || fleetPadAt(scene)) : null;
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (gideonHome() ? gideonPadAt(scene) : (battPadAt(scene) || fleetPadAt(scene))) : null;   // (Gideon: his own pad only)
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;
@@ -37603,6 +37611,7 @@ function battRouteToCharger(){
   if(battHasPack()){ collectPanelOpen("bag"); return; }
   const s = scn();
   if(!s || !s.route || !s.route.grid) return;
+  if(gideonHome()){ const B = typeof msBay === "function" ? msBay(s) : null; if(B) gpsNavToPlace('Brew & Bolt', B.x, B.y, "Routing home to Gideon's pad at Brew & Bolt."); return; }   // (his pad is in the cafe)
   const near = nearestChargeStation(s.route.grid, s.botX, s.botY);
   if(!near) return;
   const d = near.station.depot, q = depotDoorWorld(d);
@@ -101238,6 +101247,15 @@ class WorldScene extends Phaser.Scene {
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
     }
+    /* GIDEON'S PAD, charging (gd3): its amber ring breathes on Tipsey's own pulse while he stands on it and the battery fills; the pad itself is
+       the room's still art (BB_IN.PAD) */
+    if(tpBatt.charging && gideonPadAt(this)){
+      const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+      const cx = pk.x0 + BB_IN.PAD.a + pv.dx, cy = pk.y0 + BB_IN.PAD.b + pv.dy;
+      hazVQ.push({ depth: cx + cy - 44, fn: (gg, tt) => {
+        const ph = ((tt || 0) % CHARGE.pulseMs)/CHARGE.pulseMs, br = 0.5 + 0.5*Math.sin(ph*Math.PI*2), lg = layerFor(cx, cy), ring = r => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(this.W(cx + Math.cos(t)*r, cy + Math.sin(t)*r, 2.4)); } return o; };
+        this.quadOn(lg, ring(44), 0xffb454, 0.10 + 0.14*br); this.edgeOn(lg, ring(44), 0xffd488, (1.6 + 1.6*br)*this.K); this.quadOn(lg, ring(24), 0xfff0c8, 0.05 + 0.10*br); } });
+    }
     /* NIGHT WATCH's bay (nwBayNow): the post's forecourt, the dock's pads, the mall's front doors, the gate round's
        pavement -- cached, the ring and beacon live; a camera point on the patrol has the beacon alone (R7) */
     if(WORLDGEN_COAST){ const B = nwBayNow(this);
@@ -136371,7 +136389,7 @@ function tpLoadProfile(){
     lost: (raw && raw.lost) || 0,
     /* THE FLEET (garage Fleet tab): the autonomous vehicle he is driving
        as, or "" for Tipsey himself -- all unlocked for now, to try them */
-    fleetKind: (raw && raw.fleetKind) || "",
+    fleetKind: "",   /* (never kept between visits: every game starts as Tipsey, whoever he drove last -- the Fleet tab's pick holds for this visit only) */
     /* THE POLICE'S TICKETS (POLICE_CALL), newest last: { t, why, kind } */
     tickets: (raw && Array.isArray(raw.tickets)) ? raw.tickets.slice(-50) : [],
   };
@@ -136420,7 +136438,7 @@ function tpSaveProfile(){
   try {
     localStorage.setItem(TIPSY_PROFILE_KEY, JSON.stringify({
       walletCents: tpProfile.walletCents,
-      fleetKind: tpProfile.fleetKind || "",   // the garage Fleet tab's pick (see tpLoadProfile)
+      fleetKind: "",   // (the Fleet tab's pick is not saved: every game starts as Tipsey, see tpLoadProfile)
       tickets: (tpProfile.tickets || []).slice(-50),   // the police's tickets (POLICE_CALL)
       owned: [...tpProfile.owned],
       equipped: tpProfile.equipped,
@@ -139724,7 +139742,7 @@ requestTpProfile();
      unlocked now"; the redesign's P0): Tipsey himself, then the FLEET
      registry grouped by class, each card naming the base it launches from
      and the mission that keeps it; a tap puts it in his place at once
-     (saved: tpProfile.fleetKind). A locked one is a silhouette naming its
+     (held for this visit only: tpProfile.fleetKind, never saved). A locked one is a silhouette naming its
      mission and where it is played (FLEET_TESTING off, or ?fleet=locked) */
   /* THE POLICE'S TICKETS (POLICE_CALL), newest first: how many, and the last few */
   function tkRows() {
