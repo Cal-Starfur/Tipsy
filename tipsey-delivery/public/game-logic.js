@@ -105529,7 +105529,7 @@ class WorldScene extends Phaser.Scene {
              () => { disc(0, bR - 0.1, zc + 8, 3.8, TR); disc(0, bR - 0.2, zc + 8, 3.0, 0x1c2126);
                      if(faceB < 0) Q([G(-1.1, bR - 0.35, zc + 11), G(1.7, bR - 0.35, zc + 8.6), G(0.1, bR - 0.35, zc + 8.6), G(1.3, bR - 0.35, zc + 5), G(-1.7, bR - 0.35, zc + 7.8), G(-0.2, bR - 0.35, zc + 7.8)], 0xffffff);   // (his bolt on it)
                      rear(bR - 0.1, z1 - 5, z1 - 3.4, -2.2, 2.2, 0xc4cacf); }]);                                                                // (the latch)
-      } else return;
+      } else run([]);   // (no pack: the cape alone, if he wears one)
     };
     const torso = () => {
       const ra = build.torsoW/2, rb = build.torsoD/2;
@@ -105557,7 +105557,6 @@ class WorldScene extends Phaser.Scene {
       if(!pShirt.tank && !RB && !far) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
         if(RB.band != null) prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest (RB.band null: none)
-        if(faceB < 0) robotPack();                                                                        // (facing the eye it went down before the body)
       }
     };
     /* the shoulder: a dome on the sleeve's top, after the sleeve, so the sleeve has no open lid (Sir, 2026-10-23: "the shoulder and elbow") */
@@ -105861,7 +105860,7 @@ class WorldScene extends Phaser.Scene {
         const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
         if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
-        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12, noTop: true });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
             quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
@@ -106065,6 +106064,7 @@ class WorldScene extends Phaser.Scene {
        their own; drawn on the torso's front surface at each height (its own taper), only while he faces the eye */
     if(RB && RB.decal && RB.decal !== 'none' && faceB > 0) GS.decal(RB);
     if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
+    if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
     if(lapLate){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); }
     if(farFront && !noArms) arm(-nearSide, false);
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
@@ -106127,7 +106127,7 @@ class WorldScene extends Phaser.Scene {
           const m = Math.max(1, Math.ceil(span/(LOD ? 0.55 : 0.27)));
           for(let i = 0; i < m; i++){
             const u0 = i/m, u1 = (i + 1)/m, A0 = a0 + (a1 - a0)*u0, A1 = a0 + (a1 - a0)*u1, B0 = b0 + (b1 - b0)*u0, B1 = b0 + (b1 - b0)*u1, am = (A0 + A1 + B0 + B1)/4;
-            const th = PI/2 - am, c = Math.cos(th), s2 = Math.sin(th), vis = sees3(c/ax, s2/bx, 0);
+            const th = PI/2 - am, c = Math.cos(th), s2 = Math.sin(th), nrm = a => sees3(Math.cos(PI/2 - a)/ax, Math.sin(PI/2 - a)/bx, 0), vis = sees3(c/ax, s2/bx, 0) && nrm(A0) && nrm(A1) && nrm(B0) && nrm(B1);   // (all four corners toward the eye: nothing past the limb)
             if(o.inside ? vis : !vis) continue;
             const t = Math.abs(c)/(Math.abs(c) + Math.abs(s2) + 1e-6);
             quad(grow([P(A0, za, lift), P(A1, za, lift), P(B1, zb, lift), P(B0, zb, lift)], 0.4), o.tone != null ? o.tone : Tn.steps[Math.round(t*8)], o.al);
@@ -106144,9 +106144,31 @@ class WorldScene extends Phaser.Scene {
         if(seen && !seen((a0 + a1)/2)) continue;
         const dx = (a1 - a0)*ar, dzz = z1p - z0p, L = Math.hypot(dx, dzz) || 1, px = -dzz/L*w/2/ar, pz = dx/L*w/2;
         quad(grow([P(a0 + px, z0p + pz, lift), P(a1 + px, z1p + pz, lift), P(a1 - px, z1p - pz, lift), P(a0 - px, z0p - pz, lift)], 0.25), col, al);
+        if(i > 0 && w > 1.2){ const jp = []; for(let k = 0; k < 8; k++){ const t = k/8*PI*2; jp.push(P(a0 + Math.cos(t)*w/2/ar, z0p + Math.sin(t)*w/2, lift)); } quad(jp, col, al); }   // (a round joint where the stroke bends)
       }
     };
-    const patch = (P, pts, col, lift, al) => quad(pts.map(q => P(q[0], q[1], lift)), col, al);
+    /* a simple polygon, convex or not (a heart, a bolt, a star), cut into triangles by ear clipping on the screen points -- filled as one piece the concave ones tore */
+    const fillPoly = (pts, col, al) => {
+      if(pts.length < 5){ quad(pts, col, al); return; }
+      let area = 0; for(let i = 0; i < pts.length; i++){ const a = pts[i], b = pts[(i + 1) % pts.length]; area += a.x*b.y - b.x*a.y; }
+      const idx = pts.map((_, i) => i), sg = area >= 0 ? 1 : -1, cross = (a, b, c) => ((b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x))*sg;
+      let guard = 0;
+      while(idx.length > 3 && guard++ < 200){
+        let cut = false;
+        for(let k = 0; k < idx.length; k++){
+          const ia = idx[(k + idx.length - 1) % idx.length], ib = idx[k], ic = idx[(k + 1) % idx.length], a = pts[ia], b = pts[ib], c = pts[ic];
+          if(cross(a, b, c) <= 0) continue;
+          let inside = false;
+          for(const j of idx){ if(j === ia || j === ib || j === ic) continue; const p = pts[j];
+            if(cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0){ inside = true; break; } }
+          if(inside) continue;
+          quad([a, b, c], col, al); idx.splice(k, 1); cut = true; break;
+        }
+        if(!cut) break;
+      }
+      if(idx.length === 3) quad(idx.map(i => pts[i]), col, al);
+    };
+    const patch = (P, pts, col, lift, al) => fillPoly(pts.map(q => P(q[0], q[1], lift)), col, al);
     /* a superellipse's points about (an0, zc): ew radians wide, eh high, ex 2 an ellipse, 4+ a rounded rectangle */
     const ell = (an0, zc, ew, eh, n, ex, from, to) => { const o = [], e = 2/(ex || 2), a = from == null ? 0 : from, b = to == null ? PI*2 : to;
       for(let i = 0; i < n; i++){ const t = a + (b - a)*i/(n - (b - a < PI*2 - 0.01 ? 1 : 0)), c = Math.cos(t), s = Math.sin(t); o.push([an0 + Math.sign(c)*Math.pow(Math.abs(c), e)*ew, zc + Math.sign(s)*Math.pow(Math.abs(s), e)*eh]); }
@@ -106207,7 +106229,7 @@ class WorldScene extends Phaser.Scene {
       };
       if(gl === 'goggles'){
         const HP = pr(RB.hatCol != null ? RB.hatCol : 0xd9892b), strap = pr(0x2a2f36);
-        hSurf(-PI, PI, ez - 2.6, ez + 2.6, strap, { lift: 0.55, dz: 1.3 });                                                              // (the elastic round his head)
+        hSurf(-PI, PI, ez - 2.6, ez + 2.6, strap, { lift: 0.25, dz: 1.3 });                                                              // (the elastic round his head)
         for(const sd of [-1, 1]) lens(sd*0.5, 0.31, 3.9, 2.2, 1.4, 0xffb347, 0.55, true, HP.c);
         strip(hP, ar, [[-0.16, ez], [0.16, ez]], 2, HP.c, 0.9, 1, hSeen);
         return;
@@ -106336,11 +106358,11 @@ class WorldScene extends Phaser.Scene {
       }
       /* -- the BADGE: a pin on his chest with a rim, its symbol on it */
       if(front && RB.badge && RB.badge !== 'none'){
-        const BC = RB.badgeCol != null ? RB.badgeCol : 0xd9a23a, an0 = -0.5, cz = shoulderH - 14.5, bd = RB.badge, ar = rb*tk(cz), lf = 0.9;
+        const BC = RB.badgeCol != null ? RB.badgeCol : 0xd9a23a, an0 = -0.85, cz = shoulderH - 9, bd = RB.badge, ar = rb*tk(cz), lf = 0.9;
         const rim = pr(_pdk(BC, 0.6));
         if(tSeen(an0)){
-          patch(tP, ell(an0, cz, 5.4/ar, 5.4, 18, 2), rim.c, lf); patch(tP, ell(an0, cz, 4.6/ar, 4.6, 18, 2), mixc(BC, 0x1c1f23, 0.78), lf + 0.2);
-          const sc = 0.88; let shape = null;
+          patch(tP, ell(an0, cz, 4.5/ar, 4.5, 18, 2), rim.c, lf); patch(tP, ell(an0, cz, 3.8/ar, 3.8, 18, 2), mixc(BC, 0x1c1f23, 0.78), lf + 0.2);
+          const sc = 0.72; let shape = null;
           if(bd === 'dot') shape = ell(0, 0, 3.3, 3.3, 14, 2).map(([u, v]) => [u, v]); else if(bd === 'bolt') shape = bolt(sc, 0, 0); else if(bd === 'star') shape = star(sc, 0, 0); else if(bd === 'heart') shape = heart(sc*1.1, 0, 0);
           else if(bd === 'diamond') shape = [[0, 4], [3.4, 0], [0, -4], [-3.4, 0]]; else if(bd === 'shield') shape = [[-3.2, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4], [-3.2, 0.4]];
           if(bd === 'cross'){ patch(tP, lay(an0, cz, ar, [[-1.2, 3.8], [1.2, 3.8], [1.2, -3.8], [-1.2, -3.8]]), BC, lf + 0.4); patch(tP, lay(an0, cz, ar, [[-3.8, 1.2], [3.8, 1.2], [3.8, -1.2], [-3.8, -1.2]]), BC, lf + 0.4); }
