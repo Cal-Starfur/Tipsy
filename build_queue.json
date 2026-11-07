@@ -768,7 +768,7 @@
 "title": "Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir",
 "spec": "found by test run",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3"
 },
@@ -1027,6 +1027,6 @@
 }
 ],
 "meta": {
-"last": "test"
+"last": "build"
 }
 }
