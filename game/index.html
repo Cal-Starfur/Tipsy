@@ -38184,8 +38184,33 @@ function cityFurnitureForEdge(grid, blk, fi){
     }
     return false;
   };
+  /* ---------- AND OFF DOORS AND MATS (SP4; Sir: "placing randomly in front of doors") ----------
+     The placer used to know pads, ramps and drives but not the doors the shops and houses draw, nor
+     the rugs. Now it reads the same door lists the shoppers and residents walk to (shopDoorsOf,
+     homeDoorsOf; `along` is in this frontage's own dv, the placer's `a`), and keeps every lane clear
+     for DOOR_CLEAR either side of a door -- the door's out-to-the-kerb strip, doormat and a prop's
+     reach included -- and the challenges' frozen mat sites (MISSION_MAT_SITES) a mat's half plus
+     the same reach. Pickup and delivery mats sit at those doors, so the door strip covers them. */
+  const DOOR_CLEAR = T2;
+  const _bKey = blk.i + "," + blk.j;
+  const _doorAl = [];
+  for(const d of shopDoorsOf(grid)) if(d.blockKey === _bKey && d.edge === fi) _doorAl.push(d.along);
+  for(const d of homeDoorsOf(grid)) if(d.blockKey === _bKey && d.edge === fi) _doorAl.push(d.along);
+  const _mats = (typeof MISSION_MAT_SITES !== "undefined" ? MISSION_MAT_SITES : []).filter(st =>
+    Math.abs(st.ax - _eMidX) + Math.abs(st.ay - _eMidY) < e.len/2 + SIDEWALK_W + 300).map(st => owMatFrame(st.ax, st.ay, st.dv, st.rv));
+  const onDoor = p => {
+    if(_doorAl.length){
+      const al = (p.x - e.ox)*e.dv.x + (p.y - e.oy)*e.dv.y;
+      for(const da of _doorAl) if(Math.abs(al - da) < DOOR_CLEAR) return true;
+    }
+    for(const m of _mats){
+      const dx = p.x - m.x, dy = p.y - m.y;
+      if(Math.abs(dx*m.dvx + dy*m.dvy) < m.half + 50 && Math.abs(dx*m.rvx + dy*m.rvy) < m.half + 50) return true;
+    }
+    return false;
+  };
   const onPad = p => {
-    if(onRamp(p) || onDrive(p)) return true;
+    if(onRamp(p) || onDrive(p) || onDoor(p)) return true;
     if(!_dlot) return false;
     const q = depotLabXY(_dlot, p.x, p.y);
     return Math.hypot(q.a - 266, q.b + 30) < 150 + CITY_FURN.padClear;
