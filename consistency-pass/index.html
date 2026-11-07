@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 65a49c5): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 2cf87e1): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '65a49c5'; })();</script>
+  window.TIPSY_TEST_BUILD = '2cf87e1'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -3277,6 +3277,32 @@ const PERSON_DRAW = {
    value it was handed is that sin, and reads it from the sin otherwise */
 let _gaitAng = 0;
 function walkSin(a){ _gaitAng = a; return Math.sin(a); }
+/* THE WALK FROM THE DISTANCE WALKED (consistency pass, people): a leg cycle is the ground covered, not the clock -- a
+   walker who slows, stops short or is held back steps slower, never skates. walkAt(x, y, mult, ph) is walkSin of the
+   distance this person has walked, found by where they stand: whoever was within GAIT_R of (x, y) last frame is the same
+   person, and their distance grows by the step taken. (Callers build their person afresh each frame, so there is no
+   object to hang it on; the position is the one thing every caller has.) Drawn twice in a frame (a ghost) they are at
+   the same spot, so the step is 0. mult: strides per distance (a child's short legs take more); ph: an offset */
+const GAIT_R = 16, GAIT_CELL = 64, GAIT_PER_UNIT = PEOPLE_ART.walkSpeed/PEOPLE_WALK_V;
+let _gaitA = new Map(), _gaitB = new Map(), _gaitFrame = -1;
+function walkAt(x, y, mult = 1, ph = 0){
+  const f = _gaitNow();
+  if(f !== _gaitFrame){ _gaitFrame = f; const o = _gaitB; _gaitB = _gaitA; _gaitA = o; _gaitA.clear(); }   // (A: this frame's, B: last frame's)
+  const cx = Math.floor(x/GAIT_CELL), cy = Math.floor(y/GAIT_CELL);
+  let best = null, bd = GAIT_R*GAIT_R, from = null;
+  for(const M of [_gaitA, _gaitB]) for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++){
+    const L = M.get((cx + i)*100003 + cy + j); if(!L) continue;
+    for(const e of L){ const d2 = (e.x - x)*(e.x - x) + (e.y - y)*(e.y - y); if(d2 < bd){ bd = d2; best = e; from = M; } }
+  }
+  let e;
+  if(best && from === _gaitA){ e = best; }                                       // (already seen this frame: the same spot, the same phase)
+  else {
+    e = { x, y, d: best ? best.d + Math.sqrt(bd) : (x*7 + y*13) % 300 };      // (new: a spread start so a crowd isn't in step)
+    const k = cx*100003 + cy; let L = _gaitA.get(k); if(!L) _gaitA.set(k, L = []); L.push(e);
+  }
+  return walkSin(e.d*GAIT_PER_UNIT*mult + ph);
+}
+function _gaitNow(){ return (typeof game !== 'undefined' && game.loop) ? game.loop.frame : 0; }   // (the frame counter: this frame's draws vs last frame's)
 const PEOPLE_BUILD = [
   { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
   { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
@@ -3304,13 +3330,38 @@ const GD_COL = {   // [id, name, hex]
   screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
   part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
   ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
+  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a]],
   shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
 };
-const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod' };
+const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod', hat: 'none', hatCol: 'copper',
+                    apron: 'none', neck: 'none', badge: 'none', glasses: 'none', packStyle: 'box', outCol: 'copper', badgeCol: 'gold', glassCol: 'copper',
+                    finish: 'satin', shell2: 'navy', decal: 'none', decalCol: 'white' };
+/* GIDEON'S LOOKS (gd4e): ready-made looks, each a bundle of his paint fields (ids of GD_COL / GD_SHAPES); picking one tries the whole look on, and its unpaid
+   parts go to the cart together (Add all) -- as a Tipsey skin does, at the parts' own prices */
+const GD_PRESETS = [
+  { id: 'classic', name: 'Stock Gideon', set: {} },
+  { id: 'barista', name: 'Barista', set: { gShell: 'cream', gApron: 'apron', gOutCol: 'copper', gNeck: 'bowtie', gHat: 'cap', gHatCol: 'cream', gGlasses: 'round', gBand: 'copper', gMouth: 'smile' } },
+  { id: 'nightshift', name: 'Night Shift', set: { gShell: 'graphite', gBand: 'cyan', gEye: 'violet', gHat: 'headphones', gHatCol: 'black', gGlasses: 'visor', gPackStyle: 'twin', gDecal: 'bolt', gDecalCol: 'cyan' } },
+  { id: 'chrome', name: 'Chrome', set: { gShell: 'steel', gFinish: 'chrome', gBand: 'white', gEye: 'white', gEar: 'shell', gScreen: 'black', gPackStyle: 'round' } },
+  { id: 'workshop', name: 'Workshop', set: { gShell: 'tang', gApron: 'vest', gOutCol: 'navy', gGlasses: 'square', gGlassCol: 'black', gHat: 'beanie', gHatCol: 'navy', gHand: 'steel', gShoeKind: 'boot', gShoeCol: 'brown' } },
+  { id: 'sunset', name: 'Sunset', set: { gShell: 'tang', gBand: 'pink', gEye: 'amber', gNeck: 'scarf', gOutCol: 'pink', gDecal: 'chevron', gDecalCol: 'white', gHat: 'visor', gHatCol: 'pink', gFinish: 'gloss' } },
+  { id: 'racer', name: 'Racer', set: { gShell: 'crimson', gDecal: 'n7', gDecalCol: 'white', gHat: 'cap', gHatCol: 'white', gGlasses: 'shades', gBand: 'white', gShoeKind: 'sneaker', gShoeCol: 'white', gFinish: 'gloss' } },
+  { id: 'chef', name: 'Chef', set: { gShell: 'white', gApron: 'apron', gOutCol: 'white', gHat: 'chef', gHatCol: 'white', gNeck: 'tie', gBand: 'red', gBadge: 'dot', gBadgeCol: 'red' } },
+  { id: 'royal', name: 'Royal', set: { gShell: 'plum', gFinish: 'gloss', gHat: 'crown', gHatCol: 'gold', gBand: 'gold', gBadge: 'star', gBadgeCol: 'gold', gEye: 'gold', gNeck: 'scarf', gOutCol: 'red' } },
+  { id: 'party', name: 'Party', set: { gShell: 'lemon', gHat: 'party', gHatCol: 'pink', gNeck: 'bowtie', gOutCol: 'pink', gMouth: 'wide', gEyeShape: 'wide', gDecal: 'star', gDecalCol: 'pink', gBand: 'lime' } },
+];
 const GD_SHAPES = {
   eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
+  finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
+  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9']],
+  apron:    [['none','None'],['apron','Apron'],['vest','Vest']],
+  neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie']],
+  badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross']],
+  glasses:  [['none','None'],['round','Round'],['square','Square'],['shades','Shades'],['visor','Visor'],['monocle','Monocle']],
+  packStyle:[['box','Box'],['wide','Wide'],['round','Round'],['twin','Twin tanks'],['jet','Jet'],['none','None']],
+  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap']],
   shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
 };
 function gdHex(kind, v, dflt){
@@ -3318,18 +3369,27 @@ function gdHex(kind, v, dflt){
   const list = GD_COL[kind], e = list.find(q => q[0] === v) || list.find(q => q[0] === dflt) || list[0];
   return e[2];
 }
+function gdMix(a, b, t){ const m = sh => Math.round(((a >> sh) & 255)*(1 - t) + ((b >> sh) & 255)*t); return (m(16) << 16) | (m(8) << 8) | m(0); }
 function gdDk(c, f){ return (Math.round(((c >> 16) & 255)*f) << 16) | (Math.round(((c >> 8) & 255)*f) << 8) | Math.round((c & 255)*f); }
 let GD_LIVE = {};
 const GD_DOOR = { t: 0, last: 0, force: null };   // (the back room's shutter: 0 up .. 1 down)   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
 function gideonParts(){
   const P = GD_LIVE || {}, D = GD_DEFAULT, pick = k => P[k] == null ? D[k] : P[k];
-  const sh = gdHex('shell', pick('shell')), shell = pick('shell') === 'white' ? { c: 0xeef0f2, dk: 0xc9ced3 } : { c: sh, dk: gdDk(sh, 0.82) };
+  const sh = gdHex('shell', pick('shell')), fin = pick('finish');
+  let shell = pick('shell') === 'white' ? { c: 0xeef0f2, dk: 0xc9ced3 } : { c: sh, dk: gdDk(sh, 0.82) };
+  if(fin === 'matte'){ const c = gdMix(sh, 0x8a8d90, 0.2); shell = { c, dk: gdDk(c, 0.92) }; }                                              // flat: little between its light and its shade
+  else if(fin === 'gloss') shell = { c: gdMix(sh, 0xffffff, 0.14), dk: gdDk(sh, 0.6) };                                                        // a wide spread: a bright face, a deep shade
+  else if(fin === 'chrome') shell = { c: gdMix(sh, 0xf0f6fa, 0.62), dk: gdMix(sh, 0x4f5b68, 0.58) };                                          // mirror steel with the colour in it
+  const pants = fin === 'twotone' ? (() => { const c = gdHex('shell', pick('shell2')); return { c, dk: gdDk(c, 0.82) }; })() : shell;       // two-tone: the legs in the second colour
   const sc = gdHex('shoe', pick('shoeCol')), kind = (GD_SHAPES.shoeKind.find(q => q[0] === pick('shoeKind')) || GD_SHAPES.shoeKind[0])[0];
   const band = pick('band') === 'none' ? null : gdHex('band', pick('band'));
   const robot = { joint: gdHex('part', pick('joint')), hand: gdHex('part', pick('hand')), screen: gdHex('screen', pick('screen')), eye: gdHex('eye', pick('eye')),
                   band, pack: gdHex('part', pick('pack')), eyeShape: pick('eyeShape'), mouth: pick('mouth'),
-                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle') };
-  return { shell, foot: { c: sc, dk: gdDk(sc, 0.7), kind }, uniform: { robot, shoeKind: kind } };
+                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle'), hat: pick('hat'), hatCol: gdHex('hat', pick('hatCol')),
+                  apron: pick('apron'), neck: pick('neck'), badge: pick('badge'), glasses: pick('glasses'), packStyle: pick('packStyle'),
+                  outCol: gdHex('hat', pick('outCol')), badgeCol: gdHex('hat', pick('badgeCol')), glassCol: gdHex('hat', pick('glassCol')),
+                  decal: pick('decal'), decalCol: gdHex('hat', pick('decalCol')) };
+  return { shell, pants, foot: { c: sc, dk: gdDk(sc, 0.7), kind }, uniform: { robot, shoeKind: kind } };
 }
 const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
   torsoD: Math.round(b.torsoD*1.6), legW: Math.round(b.legW*1.3), armW: Math.round(b.armW*1.3), headR: b.headR + 0.5 }));
@@ -5447,6 +5507,19 @@ function fleetGarageCut(s){
   if(!s || !s.ow || !s._garage) return false;
   const k = fleetCur(), cur = s._garage.key;
   if(k) fleetParkTipsey(s, cur);
+  /* THE HUMANOID'S GARAGE IS HIS BACK ROOM (Sir, 2026-11-07: "it should look exactly like his back room when we select him in the garage from the fleet options"):
+     picked in the Fleet tab, the room behind the turntable is the cafe's back room, he on his own pad in it, its doors swung shut (as the pad button does it in play).
+     No depot, so no room mask: the room is drawn as it is. Picking anything else cuts back to the depot below. */
+  if(k === 'humanoid' && !FLEET_LOAN){
+    const pk = POCKETS.find(q => q.name === BB_IN.name);
+    if(!pk || cur === 'gideon-pad') return false;
+    const items = s.items;
+    owStandUpAt(s, pk.x0 + BB_IN.PAD.a, pk.y0 + BB_IN.PAD.b, Math.PI/2);
+    s.items = items || [];
+    s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = 'gideon-pad';
+    s._garage.key = 'gideon-pad';
+    return true;
+  }
   const home = fleetHomeFor(s, k);
   if(!k) s._tpPark = null;
   if(!home || home.key === cur) return false;
@@ -6504,6 +6577,16 @@ const CURB_W = T2 * 0.5;
    of the ramps"). 24 puts the tangent at 438, which leaves the pad 45
    of run to flare down in. */
 const KERB_ARC_R = 24;
+/* A PARKED CAR'S COLLISION BOX, one for every lot, deck and garage (was hand-copied eleven times, 48 x 112 at most, 114 at three).
+   `rect` is the caller's own box-maker: R(a0, a1, b0, b1), or rectLab([...]) with `arr` true. The car stands along b; its half
+   width and half length come from VEH_SOLID by kind, so a van or SUV is one line here, not eleven. */
+const VEH_SOLID = { car: [48, 112], pickup: [48, 112] };
+function vehicleSolid(rect, a, b, kind, prop, arr){
+  const v = VEH_SOLID[kind] || VEH_SOLID.car, box = [a - v[0], a + v[0], b - v[1], b + v[1]];
+  const o = { name: 'parked car', poly: arr ? rect(box) : rect(...box), h: 80 };
+  if(prop) o.prop = true;
+  return o;
+}
 /* THE KERB STONE, hoisted out of drawWorld (2026-10-06) so a parked car
    can repaint the stone in front of it (see KERB_PARK): 8 high, 22 wide,
    standing in the asphalt with its pavement face on ROAD_HALF; painted
@@ -7124,7 +7207,9 @@ const OW_D = {
      lateral work; in world space distance is the ONLY test, so a bare 14
      would let you clip through a lamp post sideways. Rail standoffs
      widened to the thing's actual footprint. */
-  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 60, hzPlanter: 44,
+  /* pr1: lamp, palm, hydrant and bin take their radius from the ART (PROP_FOOT: the drawn base
+     half-width plus a hair), not a padded number; owContact adds the body's reach (botR*0.72) */
+  hzLamp: 11, hzPalm: 9, hzHydrant: 10, hzBin: 28, hzPlanter: 44,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -13343,9 +13428,11 @@ function blockEdgesOf(blk){
    Sign convention (unchanged, and load-bearing): NEGATIVE b is "into the
    block", the same direction a house's back wall lies. Positive b would
    push the whole lot outward onto the sidewalk the robot walks. */
+/* ONE BAY SIZE for every cut-edge parking row (and the crime lot, which reads the same rows) */
+const PARK_BAY = { w: CARC.wid + 40, d: CARC.len + 50 };
 function parkingStallsAt(e, rng, wantN){
-  const stallW = CARC.wid + 40;
-  const stallDepth = CARC.len + 50;
+  const stallW = PARK_BAY.w;
+  const stallDepth = PARK_BAY.d;
   const nStalls = wantN || (2 + Math.floor(rng()*2));   // 2-3
   const clusterW = nStalls * stallW;
   if(e.len < clusterW + T2) return null;
@@ -21450,7 +21537,7 @@ function lostDogQueue(scene, t, queuePerson, layerFor){
     } : null;
     queuePerson(op.x, op.y, (g, tt) => {
       scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, leash ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        op.moving ? walkAt(op.x, op.y) : 0, op.moving, 0, leash ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   }
 }
@@ -25257,7 +25344,7 @@ function parkedScootersNow(sc){
   if(P && P.t === t) return P.list;
   const list = [], bx = sc.botX, by = sc.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 900;
   for(const p of sc._seekers || []){ const pk = p.park; if(!pk || p.knock || !near(pk.x, pk.y)) continue;
-    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1) list.push(parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0])); }
+    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1){ const pp = parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0]); if(!pp.taken) list.push(pp); } }
   const seen = new Set();
   for(const h of ((sc.route && sc.route.hazards) || []).concat(sc._crowdCity || [])){
     if(h.type !== 'people' || !h.ride || h.wx === undefined || seen.has(h) || !near(h.wx, h.wy)) continue;
@@ -25265,7 +25352,7 @@ function parkedScootersNow(sc){
     const sp = peopleSpotAt(t, h);
     if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
     const w = hazSpotWorld(h, sp.park.a, sp.park.b);
-    if(w) list.push(parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]));
+    if(w){ const pp = parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]); if(!pp.taken) list.push(pp); }
   }
   sc._parkScoot = { t, list };
   return list;
@@ -25754,20 +25841,21 @@ const TPE_PLAN = {
      two end strips: the west one is a school garden (raised beds, two portable classrooms, a row of trees), the east one a track and
      pitch with a goal at each end. No lawn: earth, the terracotta track, planting only in beds. */
   field: { cx: 8780, cy: -830, rx: 520, ry: 440, tw: 55 },
-  beds: [[200, -520], [360, -520], [520, -520], [200, -660], [360, -660], [520, -660]],
-  portables: [[110, 530, -1130, -1000], [110, 530, -1330, -1200]],
+  beds: [],                                      // (the garden beds are gone: the west strip is the playground)
+  portables: [[70, 450, -1130, -1000], [560, 940, -1130, -1000]],   // side by side along the garden (they stood one behind the other, 70 apart, and read as stacked)
   backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
+  VERGE: { a0: 14, a1: 1160, b0: -92, b1: 0 },    // the sidewalk row against the west strip's front fence, laid as lawn (fillSchoolVerge)
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
-  trees: [[420,-300],[900,-450],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
+  trees: [[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
   flag: [2260, -120],
   GYM1: 7700,                                    // where the gym ends and the art room begins, in the east wing
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
      the west wing, the hoops at the east wing's court, the games, the bike racks, the planters by the porch */
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
-  swing: { a0: 1340, a1: 1600, b: -180 }, sand: { a0: 1670, a1: 1800, b0: -230, b1: -130 }, slide: { a: 1900, b: -190 }, dome: [2150, -170, 62],
+  swing: { a0: 190, a1: 450, b: -300 }, sand: { a0: 600, a1: 730, b0: -640, b1: -560 }, slide: { a: 190, b: -660 }, dome: [900, -330, 62],   // the playground takes the whole west strip, each piece with room round it
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
   racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
 };
@@ -27938,7 +28026,20 @@ POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_I
    lobby's west or east; PALMLINE_PLAN is the podium's front, which the
    'Palmline Tower' entry draws from, so the door you see is the door the
    worker comes out of. */
-const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426 };
+const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
+  LEN: 2392, DEP: 940, PB: -900, PH: 190,                       // the lot, the podium's back and its roof
+  TA0: 340, TA1: 2052, TB: -820, TF: -300, TOP: 190 + 12*80, CROWN: 190 + 12*80 + 90 };   // the tower, set back on it (the draw and palmlineVol both read these)
+/* PALMLINE TOWER'S VOLUME (consistency pass b2): the podium and the tower are the solids; the forecourt in front of the shops is
+   GROUND now (it was inside the run's one solid rect), so Tipsey drives up to the shops' glass and the lobby. The podium's foot is
+   carried back to the lot's far edge (nobody drives round behind it); its two 60-wide side strips stay open to the forecourt. */
+function palmlineVol(){
+  const P = PALMLINE_PLAN, R = volRect;
+  return { foot: R(P.PA0, P.PA1, -P.DEP, P.PF), h: P.PH + 6, marks: {}, solids: [
+    { name: 'podium', poly: R(P.PA0, P.PA1, -P.DEP, P.PF), h: P.PH + 6 },
+    { name: 'tower', poly: R(P.TA0, P.TA1, P.TB, P.TF), h: P.CROWN },
+    ...[420, P.LOB0 - 60, P.LOB1 + 60, P.LEN - 400].map(a => ({ name: 'roof planter', poly: R(a - 60, a + 60, P.PF - 66, P.PF - 14), h: P.PH + 22 }))
+  ] };
+}
 const RIM_STORES = [
   { brand: "Coral Cafe",  base: "Coffee roaster", sign: "CORAL CAFE",  goods: "COFFEE",  col: "#c4603a", site: "Palmline Tower", side: "W", menu: "coffee" },
   { brand: "Marina Deli", base: "Deli",           sign: "MARINA DELI", goods: "DELI",    col: "#3f6b4a", site: "Palmline Tower", side: "E", menu: "deli" }
@@ -29859,7 +29960,7 @@ walkinStaff(BB_IN.name, [
     away: () => (typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid)) || (typeof fleetCur === "function" && fleetCur() === 'humanoid'), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [124, 266, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
-    lookFn: () => { const G = gideonParts(); return { build: HUMANOID_BUILD, skin: G.shell, hair: G.shell, shirt: G.shell, pants: G.shell, shoe: G.foot, uniform: G.uniform }; } },   // (his own look: gd4)
+    lookFn: () => { const G = gideonParts(); return { build: HUMANOID_BUILD, skin: G.shell, hair: G.shell, shirt: G.shell, pants: G.pants, shoe: G.foot, uniform: G.uniform }; } },   // (his own look: gd4)
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
   { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
 ]);
@@ -31624,7 +31725,7 @@ function garageVol(){
               { name: 'garage wall', poly: R(LANE1, G.LEN, G.BF - 12, G.BF), h: 30 });
   for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
   for(const c of MG.cols) solids.push({ name: 'garage column', c: [c.a, c.b], r: 18, h: G.LH });
-  for(const st of MG.stalls) if(st.car) solids.push({ name: 'parked car', poly: R(st.a - 48, st.a + 48, st.b - 112, st.b + 112), h: 80, prop: true });
+  for(const st of MG.stalls) if(st.car) solids.push(vehicleSolid(R, st.a, st.b, 'car', true));
   return { foot, h: G.ROOF + 34, opens: [{ name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2), walk: true, see: 'always', h: 0 },   // he is in plain sight through its doorway
                                          { name: 'ground floor', poly: R(14, G.LEN - 14, G.BB, G.BF), walk: true, see: 'never' }],   // walked, never seen through: the decks are over him
            solids, marks: {} };
@@ -31642,7 +31743,7 @@ function mallGarageDeckVol(){
             /* the car as deep as at ground (garageVol): he boards at cb1 - 35,
                so a shallower car left him arriving inside its wall, stuck */
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
-    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })) };
+    solids: rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))) };
   return (_garageDeckVol = volOf({ vol: src, ww: G.LEN, dd: 940 }, null, { W: G.LEN, D: 940 }));
 }
 /* ON LEVEL 2 (ow.deck.mid): the open floor inside the walls, the lift's
@@ -31657,7 +31758,7 @@ function mallGarageMidVol(){
     if(a > G.CORE0 - 70 && a < G.CORE1 + 70) continue;
     if(a > G.CORE1 + 70) continue;                                    // the way out to the skybridge (the draw's too)
     if(garageHash(i*7 + 1*131 + 3) < 0.28) continue;   // (the draw's own hash for its deck: level index 1)
-    solids.push({ name: 'parked car', poly: R(a - 48, a + 48, G.BF - 128 - 114, G.BF - 128 + 114), h: 80 });
+    solids.push(vehicleSolid(R, a, G.BF - 128, 'car'));
   }
   for(let a = 390; a < G.LEN; a += 390) solids.push({ name: 'garage column', c: [a, G.BF - 14], r: 16, h: G.LH });
   const src = { foot: R(-400, G.LEN + 400, -1300, 300), h: 0,
@@ -33673,7 +33774,7 @@ function lostItemQueue(scene, t, queuePerson, layerFor){
   const carry = icon ? () => { const hd = scene.handWorldPos(op.x, op.y, op.th - Math.PI/2, L.build, LOST_ITEMS.liftT); lostItemInHand(scene, layerFor(op.x, op.y), hd, icon); } : null;
   queuePerson(op.x, op.y, (g, tt) => {
     scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      op.moving ? walkAt(op.x, op.y) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
   });
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
@@ -35521,7 +35622,7 @@ function marinaGarageDeckVol(){
     opens: [{ name: 'deck', poly: R(14, G.LEN - 14, G.BB + 14, G.BF - 12) },
             { name: 'lift gap', poly: R(G.CAR0, G.CAR1, G.BF - 14, G.CARB + 2) },
             { name: 'lift car', poly: R(G.CAR0, G.CAR1, G.CARB, G.cb1 + 2) }],
-    solids: rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 112, c.b + 112), h: 80 })) };
+    solids: rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))) };
   return (_marinaGarageDeckVol = volOf({ vol: src, ww: G.LEN + 400, dd: D }, null, { W: G.LEN + 400, D }));
 }
 /* (the mall garage's drive is mallGarageDrives; Marina Parking's is MARINA.drives) */
@@ -35563,7 +35664,7 @@ function hospGarageDeckVol(){
             /* (the ward and the glass lift are the interior's now, HOSP_IN: from the
                deck the tower is solid, the skybridge's end its door) */
             { name: 'entrance', poly: WR(HW.inside) }, { name: 'doorway', poly: WR(d) }, { name: 'skybridge', poly: WR(HW.bridge) }],
-    solids: [...rf.cars.map(c => ({ name: 'parked car', poly: R(c.a - 48, c.a + 48, c.b - 114, c.b + 114), h: 80 })),
+    solids: [...rf.cars.map(c => (vehicleSolid(R, c.a, c.b, 'car'))),
              ...hospPeopleSolids(HOSP_PEOPLE.ward, WR), ...hospHazSolids(4, WR),
              /* the entrance's walls, the doorway left open in its south one */
              ...[[e[0], e[0] + 20, e[2], e[3]], [e[0], e[1], e[2], e[2] + 20], [e[0], d[0], d[2], d[3]], [d[1], e[1], d[2], d[3]]]
@@ -42463,11 +42564,12 @@ function _generateRouteBody(dateStr, opts){
     }
   }
 
-  /* parked car: on the road, off to one side (never blocking either
-     traffic lane's centerline). */
+  /* parked car: at the FAR kerb, the same stand-off as every kerb-parked car
+     (KERB_CAR_OUT), so it is out of the far traffic lane (bodies 75-165 off
+     the centre line) instead of sitting in it at -138. */
   if(rng() < 0.5){
     const cs = Math.round(SPAWN_S + 150 + rng()*(totalLen - 500));
-    const off = -1*(T2*1.5);
+    const off = -(ROAD_HALF - (KERB_CAR_OUT - SIDEWALK_W));
     if(!inCorner(cs) && onRoad(cs, off) && !spawnBlocked(cs, off)) cfDrop({ kind: rng() < 0.65 ? "car" : "truck", s: cs, roadOffset: off, f: facingAt(cs) });
   }
 
@@ -45218,7 +45320,9 @@ function slab(a0,a1,z0,z1,bFront,bBack,front,side,top){
    same treatment are culled before they are ever asked about. */
 function prism(pts, b0, b1, front, side, top){
   const n = pts.length;
-  const o = P(0,b0,0), q1 = P(0,b1,0);
+  /* (probed at the outline's own a, not at 0: only b0 against b1 is compared, and a probe at the site's origin read as a point of
+     the piece -- every pediment and gable stretched its footprint back to a = 0, Sir's U1c audit) */
+  const o = P(pts[0][0],b0,0), q1 = P(pts[0][0],b1,0);
   const nb = q1.y > o.y ? b1 : b0, fb = q1.y > o.y ? b0 : b1;
   const area = q => { let A = 0;
     for(let k=0;k<q.length;k++){ const p = q[k], r = q[(k+1)%q.length];
@@ -46041,16 +46145,6 @@ const FLATS_CHEMIST_LIVERY = {
 /* the Flats liveries, added alongside the forked base ones */
 FLATS_CHEMIST_LIVERY.seafoam = { trim:'#3f9e8a', inner:'#8fbcb2', glass:'rgba(150,205,200,.55)', cross:'#3fae9f' };
 FLATS_CHEMIST_LIVERY.coral   = { trim:'#d9735a', inner:'#c9a498', glass:'rgba(215,170,160,.55)', cross:'#e2574c' };
-const FLATS_CR = { len:225, wid:90, chassisH:42, cabinH:48, wheelR:24,
-    windshield:'#9fc4d6', windshieldEdge:'#6f8fa0', bumper:'#b8bcc2',
-    light:'#f4e9b0', tail:'#c94f4f', wheel:'#24262c', wheelDk:'#17191d',
-    hub:'#8a919c', hubFace:'#3d424c' };
-const FLATS_CAR_COLORS = [
-    { body:'#9aa7b5', bodyDk:'#76839a', roof:'#8695a5' },   // silver
-    { body:'#c45a4e', bodyDk:'#9c473d', roof:'#af4f44' },   // red
-    { body:'#5678a8', bodyDk:'#435e87', roof:'#4c6c99' },   // blue
-    { body:'#e4e6ea', bodyDk:'#c0c3c9', roof:'#d6d9dd' }    // white
-  ];
 function flatsDrawChemist(p, c){
     const wall = '#f0f2f0', trim = c.trim, H = 172;
     body(wall, trim, H);
@@ -46164,74 +46258,6 @@ function flatsChemistBack(p, c){
       box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
     }
 }
-function flatsGameCar(cP, col){
-    const zk = 1/ZSCALE;
-    const hl = FLATS_CR.len/2, hw = FLATS_CR.wid/2, cz = FLATS_CR.wheelR*zk;
-    const chassisTop = (FLATS_CR.wheelR + FLATS_CR.chassisH)*zk;
-    const cabinTop   = (FLATS_CR.wheelR + FLATS_CR.chassisH + FLATS_CR.cabinH)*zk;
-    const cl = hl*0.62, roofF = -cl*0.55, roofR = cl*0.55;
-    const cd = (a,b,h) => cP(a,b,h).y;                    // nearer = larger screen y
-
-    const wheel = (a0, r, side) => {
-      const rz = r*zk;                                     // face-plane circle: z radius over ZSCALE
-      const ring = (bc, rr) => { const q = [];
-        for(let i=0;i<12;i++){ const t = i/12*Math.PI*2;
-          q.push(cP(a0 + Math.cos(t)*rr, bc, cz + Math.sin(t)*rr*zk)); }
-        return q; };
-      const bIn = side*(hw-1), bOut = side*(hw+5);
-      poly(ring(bIn, r), FLATS_CR.wheelDk);
-      const faceB = cd(a0,bOut,cz) > cd(a0,bIn,cz) ? bOut : bIn;
-      poly(ring(faceB, r), FLATS_CR.wheel);
-      poly(ring(faceB, r*0.5), FLATS_CR.hubFace);
-      const h = cP(a0, faceB, cz);
-      ctx.beginPath(); ctx.arc(h.x, h.y, r*0.30*K, 0, 7); ctx.fillStyle = FLATS_CR.hub; ctx.fill();
-    };
-    const chassis = () => {
-      const nb = cd(0,hw,chassisTop) > cd(0,-hw,chassisTop) ? hw : -hw;
-      const na = cd(hl,0,chassisTop) > cd(-hl,0,chassisTop) ? hl : -hl;
-      poly([cP(-hl,nb,cz),cP(hl,nb,cz),cP(hl,nb,chassisTop),cP(-hl,nb,chassisTop)], col.bodyDk);
-      poly([cP(na,-hw,cz),cP(na,hw,cz),cP(na,hw,chassisTop),cP(na,-hw,chassisTop)], shade(col.bodyDk,.90));
-      poly([cP(-hl,-hw,chassisTop),cP(hl,-hw,chassisTop),cP(hl,hw,chassisTop),cP(-hl,hw,chassisTop)], col.body);
-    };
-    const cabin = () => {
-      const roofPts = [cP(roofF,-hw*0.86,cabinTop),cP(roofR,-hw*0.86,cabinTop),
-                       cP(roofR, hw*0.86,cabinTop),cP(roofF, hw*0.86,cabinTop)];
-      const sg = cd(0,hw*0.9,cabinTop) > cd(0,-hw*0.9,cabinTop) ? 1 : -1;
-      const sgB = sg*hw*0.86, beltB = sg*hw*0.92;
-      const P4 = [[roofF,sgB,cabinTop],[roofR,sgB,cabinTop],[cl,beltB,chassisTop],[-cl,beltB,chassisTop]];
-      poly(P4.map(q => cP(q[0],q[1],q[2])), col.roof);                       // the greenhouse solid
-      poly(roofPts, col.roof, col.bodyDk, 1);
-      poly([cP(roofR,-hw*0.85,cabinTop),cP(roofR,hw*0.85,cabinTop),
-            cP(cl, hw*0.90,chassisTop),cP(cl,-hw*0.90,chassisTop)], FLATS_CR.windshield, FLATS_CR.windshieldEdge, 1);
-      poly([cP(roofF,-hw*0.86,cabinTop),cP(roofF,hw*0.86,cabinTop),
-            cP(-cl, hw*0.92,chassisTop),cP(-cl,-hw*0.92,chassisTop)], FLATS_CR.windshield, FLATS_CR.windshieldEdge, 1);
-      poly(roofPts, col.roof, col.bodyDk, 1);                                // the game's roof redraw
-      const c = [0,1,2].map(i => P4.reduce((t,q) => t+q[i], 0)/4);
-      poly(P4.map(q => cP(q[0],q[1],q[2])), col.body);
-      poly(P4.map(q => cP(c[0]+(q[0]-c[0])*0.7, c[1]+(q[1]-c[1])*0.7, c[2]+(q[2]-c[2])*0.7)), FLATS_CR.windshield);
-    };
-    const bumper = () => {
-      const front = cd(hl,0,cz) > cd(-hl,0,cz), e = front ? hl : -hl, i = front ? hl-0.3 : -hl+0.3;
-      poly([cP(i,-hw,cz),cP(e,-hw,cz+3*zk),cP(e,hw,cz+3*zk),cP(i,hw,cz)], FLATS_CR.bumper);
-      for(const sgn of [-1,1]){
-        const lp = cP(e - (front?0.4:-0.4), sgn*(hw-3), cz+5*zk);
-        ctx.beginPath(); ctx.arc(lp.x, lp.y, 2*K, 0, 7);
-        ctx.fillStyle = front ? FLATS_CR.light : FLATS_CR.tail; ctx.fill();
-      }
-    };
-    const rearNear  = cd(-hl*0.55,hw,cz) > cd(-hl*0.55,-hw,cz) ? 1 : -1;
-    const frontNear = cd( hl*0.55,hw,cz) > cd( hl*0.55,-hw,cz) ? 1 : -1;
-    const cabRef = cd(0,0,(chassisTop+cabinTop)/2);
-    wheel(-hl*0.55, FLATS_CR.wheelR,      -rearNear);
-    wheel( hl*0.55, FLATS_CR.wheelR*0.95, -frontNear);
-    chassis();
-    if(cd(-hl*0.55, hw*rearNear,  cz) <= cabRef) wheel(-hl*0.55, FLATS_CR.wheelR,      rearNear);
-    if(cd( hl*0.55, hw*frontNear, cz) <= cabRef) wheel( hl*0.55, FLATS_CR.wheelR*0.95, frontNear);
-    cabin();
-    bumper();
-    if(cd(-hl*0.55, hw*rearNear,  cz) >  cabRef) wheel(-hl*0.55, FLATS_CR.wheelR,      rearNear);
-    if(cd( hl*0.55, hw*frontNear, cz) >  cabRef) wheel( hl*0.55, FLATS_CR.wheelR*0.95, frontNear);
-  }
 function flatsWallFrames(WW, DD, OA, OB){
   const oa = OA || 0, ob = OB || 0;
   /* ---- the wall frames, and the primitives written against them ---- */
@@ -47743,7 +47769,7 @@ function houseCanopy(fn){
         for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
         for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
         for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
-        for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
+        for(const st of GG.stalls) if(st.car) solids.push(vehicleSolid(rectLab, st.x, st.y, 'car', true, true)); }
       /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
       const GP = HOSP_GARAGE_PLAN, X0 = GP.X0, Y0 = GP.Y0;
       for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([X0 + a0, X0 + a1, Y0 + GP.cb0, Y0 + GP.cb1]), h: GP.CH + 160 });
@@ -47761,7 +47787,7 @@ function houseCanopy(fn){
     { const cn = C.er.canopy;
       for(const [x, y] of [[cn[0] + 30, cn[2] + 30], [cn[0] + 30, cn[3] - 30], [cn[1] - 30, cn[3] - 30], [cn[1] - 30, cn[2] + 30]].concat((C.er.canopyMid || []).map(y => [cn[1] - 30, y]))) if(mine(x, y)) solids.push({ name: 'canopy column', c: [A(x), B(y)], r: 12, h: 176 });
       /* (the ambulances come and go now: HOSP_AMB_RUN) */ }
-    for(const c of cars) if(mine(c.x, c.y)) solids.push({ name: 'parked car', poly: rectLab([c.x - 48, c.x + 48, c.y - 112, c.y + 112]), h: 80, prop: true });
+    for(const c of cars) if(mine(c.x, c.y)) solids.push(vehicleSolid(rectLab, c.x, c.y, 'car', true, true));
     for(const [px, py] of C.planters) if(mine(px, py)) solids.push({ name: 'planter', poly: rectLab([px - 90, px + 90, py - 40, py + 40]), h: 30, prop: true });
     /* THE BARRIER ARMS, live: each swings up for a car coming through its
        lane (GATE_ARMS, eased by updateErrands) and down behind it; the post
@@ -48465,7 +48491,7 @@ function houseCanopy(fn){
       for(let x = G_.x0 + 364; x < G_.x1; x += 364) solids.push({ name: 'garage column', c: [A(x), B(G_.y1 - 14)], r: 16, h: G_.LH });
       for(let y = G_.y1 - 324; y > G_.y0; y -= 324) solids.push({ name: 'garage column', c: [A(G_.x1 - 14), B(y)], r: 16, h: G_.LH });
       for(const c of GG.cols) solids.push({ name: 'garage column', c: [A(c.x), B(c.y)], r: 18, h: G_.LH });
-      for(const st of GG.stalls) if(st.car) solids.push({ name: 'parked car', poly: rectLab([st.x - 48, st.x + 48, st.y - 112, st.y + 112]), h: 80, prop: true }); }
+      for(const st of GG.stalls) if(st.car) solids.push(vehicleSolid(rectLab, st.x, st.y, 'car', true, true)); }
     /* the lift tower's two side walls; the car between them is open from its front door (see LIFT_SITES) */
     for(const [a0, a1] of [[GP.CORE0, GP.CAR0], [GP.CAR1, GP.CORE1]]) solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + a0, GP.X0 + a1, GP.Y0 + GP.cb0, GP.Y0 + GP.cb1]), h: GP.CH + 160 });
     solids.push({ name: 'lift tower', poly: rectLab([GP.X0 + GP.CAR0, GP.X0 + GP.CAR1, GP.Y0 + GP.cb0, GP.Y0 + GP.CARB]), h: GP.CH + 160 });   // the car's back wall at ground
@@ -67307,7 +67333,7 @@ function houseCanopy(fn){
       bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
       bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
       { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
-      ...duneLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
+      ...duneLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
     return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
@@ -67683,7 +67709,7 @@ function houseCanopy(fn){
       bed(40, PK0-10, R1, R1-BD), bed(40, PK0-10, R2+BD, R2), bed(PK1+10, LA0-20, R1, R1-BD), bed(PK1+10, LA0-20, R2+BD, R2),
       bed(40, SA0-60, SB0-30, SB1+30), bed(LA1+60, LOT-60, -40, RA0-20),
       { poly: R(SA0+40, SA0+180, SB1-92, SB1-16), h: 74 },                  // bin store
-      ...pelicanLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),   // its parked cars
+      ...pelicanLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
     /* (the tower open across its sliding pair, between its piers (20 each): he drives in under it to the pair, where
@@ -68114,7 +68140,7 @@ function houseCanopy(fn){
       hA(0, O.door[0] - 10, -15), hA(O.door[1] + 10, M.mouthF[0] - 20, -15),            // the street's hedge, open at the office's path and the drive
       hA(0, M.LOT, -M.LOT + 15), hB(-40, -M.LOT + 40, 15),                              // the back street's, the side street's (no way in)
       hB(M.mouthE[1] - 20, -M.LOT + 40, M.LOT - 15),
-      ...motelLotCars().filter(q => q.car).map(q => ({ name: 'parked car', poly: R(q.a - 48, q.a + 48, q.b - 112, q.b + 112), h: 80, prop: true })),
+      ...motelLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),
     ];
     /* the walkways' posts (each one, a robot's width apart and more) */
     for(const a of motelPostsN()) solids.push({ name: 'post', c: [a, M.N.b1 + M.DECK - 4], r: 5, h: M.GZ });
@@ -68820,8 +68846,14 @@ function houseCanopy(fn){
     /* the car is flatsGameCar() at file scope now -- the Car park is its
        second user, so it stopped being ours. The mapper is what places
        it: local (a along, b across, z up) into this frame's recess. */
-    const carIn = (fr, uc, nc, vf, col) =>
-      flatsGameCar((a,b,h) => Q(fr, uc+a, nc+b, vf+h), col);
+    /* THE STREET'S CAR (V4): gameCar(), the drawProp art, not the forked flatsGameCar.
+       fdir by frame: +u is +a on the front (0), -a on the back (2), -b on both flanks (3).
+       SHOW_SEED[liv] are seeds whose roll lands on silver, red, blue, white in CAR_COLORS. */
+    const SHOW_SEED = [8, 4, 9, 1], SHOW_FD = { front: 0, back: 2, flank: 3 };
+    const carIn = (fr, uc, nc, vf, liv) => {
+      const c = fr.P(uc, nc, vf);
+      gameCar(c[0], c[1], c[2], SHOW_FD[fr.kind], SHOW_SEED[liv], 'car');
+    };
 
     /* the showroom: one deep opening, floor, cars on it, then the glass
        and the mullions in front of the glass.
@@ -68892,7 +68924,7 @@ function houseCanopy(fn){
       /* the livery is named per car rather than derived: the first pass
          derived it and drew silver, white, silver, which is three of the
          four FLATS_CAR_COLORS being nearly the same colour. */
-      for(const [ua, liv] of show) carIn(fr, ua, -58, 20, FLATS_CAR_COLORS[liv]);
+      for(const [ua, liv] of show) carIn(fr, ua, -58, 20, liv);
       ctx.restore();
       /* NO BARS ACROSS THE GLASS. There were dark mullions on every bay
          line and a transom right through the middle, all in trim, which
@@ -72095,7 +72127,9 @@ marinaEntry(),
        gates read too. */
     const PL = TPE_PLAN, LEN = PL.LEN, DEP = PL.DEP;
     /* nothing when none of it can show, as the mall (2026-09-30) */
-    if(!inView(0, LEN, -DEP, 0, 0, 700)) return;
+    /* (the ground pass -- state.emit set, the standing items left to their own pieces -- is only the paving: culled as flat, so its
+       footprint is the paving's and not a slab 700 tall round every piece, Sir's U1 audit) */
+    if(!inView(0, LEN, -DEP, 0, 0, state.emit ? 2 : 700)) return;
     const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = PL.H, WH = PL.WH;
     const tar = '#6e6f6b', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
     const MA0 = PL.MA0, MA1 = PL.MA1, WA = PL.WA, WB = PL.WB;  // main range and the two wings
@@ -72134,8 +72168,14 @@ marinaEntry(),
       for(let b = BB1 + 24; b < -170; b += 24) T(PL.EA0 - 64, PL.EA1 + 64, b, b + 1.2, 0.9, paveE);
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
+    /* THE BACK YARD OF THE WEST STRIP, behind the playground and the portables: grass (Sir, 2026-11-07: "i want this back yard to be grass
+       not sand"), the ground pass's bare lot painted over in two greens, in 80 squares */
+    { const x0 = 24, x1 = 1186, y0 = -1868, y1 = -992;
+      T(x0, x1, y0, y1, 0.4, '#4a7a48');
+      for(let a = x0, i = 0; a < x1; a += 80, i++) for(let b = y0, j = 0; b < y1; b += 80, j++) if((i + j) % 2) T(a, Math.min(a + 80, x1), b, Math.min(b + 80, y1), 0.45, '#528552');
+    }
     /* the playground: a terracotta rubber floor in a teal edging, the sandbox, and the games' lines on it */
-    { const x0 = 1290, x1 = 2236, y0 = -292, y1 = -44;
+    { const x0 = 100, x1 = 1110, y0 = -992, y1 = -140;   // (kept clear of the street fence and the wing's end: a grass margin round it)
       T(x0, x1, y0, y1, 0.6, '#2f7f86'); T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, 0.65, '#b3654f');
       for(let k = 0; k < 6; k++) T(x0 + 40 + k*140, x0 + 40 + k*140 + 60, y0 + 10, y0 + 16, 0.7, '#c97a62');     // its pattern
     }
@@ -73870,12 +73910,14 @@ marinaEntry(),
    tower (behind the podium's front, over its roof), then the podium front
    and the awnings that stand out over the apron. Each run of
    it asks inView first, so the tiles of this image (it is taller than one)
-   paint only their own share. No vol: the run stays one solid rect, as the
-   school's did before it declared one. No lawn (CLAUDE.md): paved, green
+   paint only their own share. In PIECES now (b2): the apron is the ground image, and the
+   roof, the tower, the shopfront and each awning are items, depth-sorted; palmlineVol is its volume. No lawn (CLAUDE.md): paved, green
    only in the planters. ---- */
 {
-  name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true,
+  name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 2392, dd: 940,
+  groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
+  vol: palmlineVol(),
   head:'Palmline Tower, the rim lot west of the garage',
   tags:['one-lot footprint','retail podium','two pickup shops','office lobby','twelve office floors','plant crown and mast'],
   desc:"A glass office tower on the rim lot west of the Maritime Mall garage: a stone retail podium with two shops under striped awnings, Coral Cafe and Marina Deli, and a double-height lobby, and twelve floors of sea-green curtain wall set back above it, crowned with the tower's name and a mast.",
@@ -73888,6 +73930,7 @@ marinaEntry(),
     const stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c';
     const glass = '#5f8fa3', glassL = '#86b4c4', glassD = '#4b7688', mull = '#e6ebec', spand = '#d6d0c0';
     const pave = '#d8d2c4';
+    const items = [];
 
     /* ---- THE APRON: paved to the pavement, a band at the kerb ---- */
     if(inView(0, LEN, -DEP, 0, 0, 1)){
@@ -73897,6 +73940,7 @@ marinaEntry(),
     }
 
     /* ---- THE PODIUM: roof and seen end ---- */
+    items.push({ a: PA0, b: PB, view: true, fpLab: { a0: PA0, a1: PA1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
     if(inView(PA0, PA1, PB, PF, 0, PH + 30)){
       T(PA0, PA1, PB, PF, PH, '#bdb6a8');
       if(FLANK_RIGHT){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
@@ -73907,12 +73951,14 @@ marinaEntry(),
         for(let s = 0; s < 3; s++) ball(a - 40 + s*40, -195, PH + 34, 16, s % 2 ? '#4f7a4a' : '#5f8f58');
       }
     }
+    } });
 
     /* ---- THE TOWER ---- */
     const seenA = FLANK_RIGHT ? TA1 : TA0;
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    items.push({ a: TA0, b: TB, view: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -73954,6 +74000,7 @@ marinaEntry(),
       cyl(ma, mb, CROWN, CROWN + 220, 5, '#9aa3a8');
       ball(ma, mb, CROWN + 226, 7, '#d8483a', '#ff8a7a');
     }
+    } });
 
     /* ---- THE PODIUM FRONT: the stone, two shops and the lobby ----
        TWO STORES, ONE EACH SIDE OF THE LOBBY (Sir, 2026-10-08): their
@@ -73961,6 +74008,9 @@ marinaEntry(),
        PALMLINE_PLAN, which the pickups read too -- the worker walks out of
        the door drawn here */
     const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
+    const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
+    const slots = stores.map(palmlineStoreSpan);
+    items.push({ a: PA0, b: PF, view: true, fpLab: { a0: PA0, a1: PA1, b0: PF - 2, b1: PF + 8, z1: PH + 90 }, draw: () => {
     /* PLANTERS ALONG THE ROOF'S FRONT EDGE (Sir, 2026-10-08: "lets move
        these lower planters up"), over the shops rather than out on the
        apron: the roof's own style, after the tower (they stand in front
@@ -73970,8 +74020,6 @@ marinaEntry(),
       box(a - 60, a + 60, PF - 66, PF - 14, PH, PH + 22, stoneL, stone, stoneD);
       for(let s = 0; s < 3; s++) ball(a - 36 + s*36, PF - 40, PH + 34, 15, s % 2 ? '#4f7a4a' : '#5f8f58');
     }
-    const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
-    const slots = stores.map(palmlineStoreSpan);
     if(inView(PA0, PA1, PF, PF, 0, PH)){
       F(PA0, PA1, 0, PH, stone, null, 0, PF);
       F(PA0, PA1, GH, GH + 8, stoneL, null, 0, PF + 0.3);            // the string course over the shops
@@ -74036,9 +74084,10 @@ marinaEntry(),
         blockWordIn('PALMLINE TOWER', LOB0 + 30, LOB1 - 30, GT + 6, PH - 12, PF + 6.2, '#fbf7ee', null);
       }
     }
+    } });
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
     const AO = 40;                                                  // how far an awning stands out
-    slots.forEach(([a0, a1], k) => {
+    slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
       for(let s = 0; s < n; s++){
@@ -74049,13 +74098,15 @@ marinaEntry(),
       if(st.goods) blockWordIn(st.goods, c0 + 200, c1 - 200, zb - 7, zb - 1, PF + AO + 0.3, '#f3ecdc', null, 1.3);
       const endA = FLANK_RIGHT ? c1 : c0;
       poly([P(endA, PF, zt), P(endA, PF + AO, zb), P(endA, PF + AO, zb - 8), P(endA, PF, zt - 4)], shade(col, .6));
-    });
+    } }));
     /* the lobby's canopy: one slim slab out over its doors, cantilevered
        off the glass -- no posts, no rods */
+    items.push({ a: LOB0 + 40, b: PF + 48, view: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
     if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
       slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
       F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
-    }
+    } } });
+    depthSort(items);
     kerb(p,'none');
   }
 },
@@ -75471,7 +75522,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   tags:['skate park', 'skateboarding', 'bowl', 'quarter pipe', 'fun box', 'rail', 'pyramid'],
   desc:'Driftwood Skate Park: a poured-concrete park on the south leaf of Veterans Memorial Park -- a kidney bowl with blue pool tile under its coping, quarter pipes on its north and west edges, a fun box and a flat rail in the middle, a flat-topped pyramid in the corner, flood poles for the evening sessions, chain-link round it all with a gateway to the trail and one to the street.',
   C: { mesh:'rgba(150,158,164,.42)', pad:'#cdcac2', padE:'#b3afa5', ramp:'#d3cfc6', rampF:'#bdb8ad', rampS:'#a59f94', rampD:'#8f897e', cope:'#dfe4e8', copeD:'#9aa3ab',
-       alu:'#c9cfd4', aluD:'#a3abb2', aluS:'#868e96', post:'#8f979e', postL:'#a9b0b6', lamp:'#3a4046', lampD:'#2e3338',
+       alu:'#c9cfd4', aluD:'#a3abb2', aluS:'#868e96', post:'#8f979e', postL:'#a9b0b6', lamp:'#3a4046', lampD:'#2e3338', lens:'#fff4d2', lensD:'#d9b866',
        sign:'#2f6f8f', signD:'#24566f', white:'#f4f2ec', sand:'#f2c14b', rail:'#5f676e', railL:'#8a9399' },
   draw(p){
     for(const r of skFenceRuns()) this.fence(r, 0, 1);
@@ -75568,7 +75619,16 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     if(!inView(x - 40, x + 40, y - 40, y + 40, 0, h + 20)) return;
     cyl(x, y, 0, 10, 11, '#bdb8ad'); cyl(x, y, 10, h, 3.8, C.post);
     tube(x - 24, y + 24, h, x + 24, y - 24, h, 2.4, C.post);
-    for(const s of [-1, 1]) box(x + s*24 - 9, x + s*24 + 9, y - s*24 - 9, y - s*24 + 9, h - 14, h + 4, C.lamp, C.lampD, shade(C.lampD, 0.85));
+    /* each lamp head a real fixture, not a plain box: a dark housing, a pale hood plate over it, a bracket to the arm, and a
+       lit lens on the face turned to the park (the lamp kit's night glow sits on the lens) */
+    for(const s of [-1, 1]){
+      const cx = x + s*24, cy = y - s*24;
+      box(cx - 3, cx + 3, cy - 3, cy + 3, h - 2, h + 6, C.post, C.post, shade(C.post, 0.8));
+      box(cx - 11, cx + 11, cy - 7, cy + 7, h - 13, h + 1, C.lamp, C.lampD, shade(C.lampD, 0.85));
+      box(cx - 13, cx + 13, cy - 9, cy + 9, h + 1, h + 4, C.postL, C.post, shade(C.post, 0.85));
+      F(cx - 9, cx + 9, h - 11, h - 2, C.lensD, null, 0, cy + 7.2);
+      F(cx - 7.5, cx + 7.5, h - 9.5, h - 3.5, C.lens, null, 0, cy + 7.5);
+    }
   },
   /* the park's sign at its street end, facing the street: a blue board on two posts */
   sign(){
@@ -82249,7 +82309,7 @@ function afQueue(scene, t, queuePerson, layerFor){
     const p = afAt(c, now);
     if(!scene.visProp("people", p.x, p.y)) continue;
     const L = afLook(c), px = p.x, py = p.y, thW = p.th - Math.PI/2;
-    queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, p.moving, 0, 0, null, L.uniform, false, null));
+    queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkAt(px, py) : 0, p.moving, 0, 0, null, L.uniform, false, null));
   }
 }
 /* MARINA PARKING's attendant, at his shack (MARINA_ATTENDANT) */
@@ -82539,7 +82599,7 @@ function lhQueue(scene, t, queuePerson, layerFor){
     (L === K.clerk ? (x, y, fn) => scene.phPerson(x, y, fn, queuePerson) : queuePerson)(px, py, (g, tt) => {   // (the clerk: through its door, as its visitors)
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
       const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
-      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   };
   const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
@@ -83363,7 +83423,7 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
     q(px, py, (g, tt) => {
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = has ? 0.5 : 0;
       const bag = has ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawFmCarry(gg, hp.x, hp.y, hp.z - 8, has); } : null;
-      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false,
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false,
         Object.assign({ dress: L.dress }, has ? null : pz));
     });
   };
@@ -83597,7 +83657,7 @@ function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
     (q || queuePerson)(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.run ? 1.35 : 1)) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y, (p.run ? 1.35 : 1)) : 0, mv, 0,
         lift, gift, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
@@ -84490,7 +84550,7 @@ function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
     if(!p || !scene.visProp("people", p.x, p.y)) return;
     const x = p.x, y = p.y, z = p.z || 0, th = p.th, mv = !!p.moving;
     (q || queuePerson)(x, y, (g, tt) => {
-      scene.drawPersonHull(layerFor(x, y), x, y, z, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(layerFor(x, y), x, y, z, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
@@ -84631,18 +84691,7 @@ function cplConvoyTraffic(scene, t){
     let light = false;
     if(p){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), fr = RIGS.semiflat.len/2;
       light = scene.signalStopsAhead(t, p.x + hx*fr, p.y + hy*fr, hx, hy); }
-    /* and the street's riders, the cars' rule with them (updateRiderTraffic): a rider in its way, it waits; it in a rider's
-       way, the rider waits (carWait: the truck is the bigger) */
-    if(p && scene.ridersActive){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), H = RIGS.semiflat.len*0.45, BAND = STREET_RIDER.band;
-      const tPts = [-H, -H/2, 0, H/2, H].map(k => ({ x: p.x + hx*k, y: p.y + hy*k }));
-      const inWay = (ox, oy, ax, ay, pts, look) => pts.some(q => { const rx = q.x - ox, ry = q.y - oy, al = rx*ax + ry*ay; return al > 0 && al < look && Math.abs(rx*ay - ry*ax) < BAND; });
-      for(const rd of scene.ridersActive(t)){
-        const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, dx = wp.x - p.x, dy = wp.y - p.y;
-        if(dx*dx + dy*dy > 1100*1100) continue;
-        const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
-        if(inWay(wp.x, wp.y, rx, ry, tPts, STREET_RIDER.look + 30)) rd.carWait = t;
-        else if(inWay(p.x, p.y, hx, hy, rPts, H + TRAF_BRAKE_D + 90)) blocked = true;
-      } }
+    /* (and the street's riders: trafficGiveWay above, with the cars) */
     T.stall = blocked ? (T.stall || 0) + dt : 0;
     if(T.stall > 30000) blocked = false;                    // (the crew van's: a wait that never clears is let go)
     if(light) blocked = true;                               // (never through a red: the walkers have the zebra)
@@ -85458,7 +85507,7 @@ function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
     queuePerson(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2;
       const lead = onLead ? () => ppLeash(scene, gg, scene.handWorldPos(x, y, thW, Lk.build, DOG_PAIR.liftT), D) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         lead ? DOG_PAIR.liftT : 0, lead, Lk.uniform, false, Object.assign({ dress: Lk.dress }, bend ? { lift: [0.5, 0.2], bend: [0.7, 0.4] } : null));
     });
   }
@@ -85468,7 +85517,7 @@ function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
       const Lk = _ppVolLook(), x = v.x, y = v.y, th = v.th, mv = !!v.moving, work = v.work;
       queuePerson(x, y, (g, tt) => {
         const w = Math.abs(Math.sin(now*0.004)), pz = work ? { lift: [0.72, 0.6 + 0.2*w], bend: [0.95, 0.7 + 0.3*w] } : null;
-        scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, Lk.uniform, false,
+        scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0, 0, null, Lk.uniform, false,
           Object.assign({ dress: null }, pz));
       });
     } }
@@ -85932,7 +85981,7 @@ function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
     q(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : (extra && extra.lead ? extra.lead(gg, thW) : null);
-      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         has ? lift : (extra && extra.lead ? DOG_PAIR.liftT : 0), gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     });
   };
@@ -86004,6 +86053,8 @@ function scootNearest(s){
   const eat = (x, y, ref, brand) => { const d = Math.hypot(x - ow.px, y - ow.py); if(d <= SCOOTR.near && (!best || d < best.d)) best = Object.assign({ d, x, y, brand }, ref); };
   if(grid){ const out = cityFurnitureNear(grid, ow.px, ow.py, SCOOTR.near*1.6, []);
     for(const pr of out){ if(pr.type !== 'scooter' || pr.taken) continue; const w = hazSpotWorld(pr, 0, 0); if(w) eat(w.x, w.y, { pr }, pr.brand || BRANDS[0]); } }
+  /* (and one a rider has stood by the kerb to call at a door, or a scooter trip's: the props of parkedScootersNow -- taken, it is gone from the kerb (pp.taken) until its owner is back on one) */
+  for(const pp of parkedScootersNow(s)){ if(pp.taken || pp.phi > 0.3) continue; const w = hazSpotWorld(pp, 0, 0); if(w) eat(w.x, w.y, { pp }, pp.brand || BRANDS[0]); }
   for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
   return best;
 }
@@ -86015,6 +86066,7 @@ function scootHop(s){
     return;
   }
   const n = scootNearest(s); if(!n) return;
+  if(n.pp) n.pp.taken = true;                                // (a rider's, stood by the kerb: gone from it, and out of the props' loop)
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
   if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
   ow.scoot = { brand: n.brand || BRANDS[0] };
@@ -86317,7 +86369,7 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(p && L && !msGidAtDoor(p) && scene.visProp("people", p.x, p.y)){
     const x = p.x, y = p.y, th = p.th, mv = !!p.moving;
     queuePerson(x, y, (g, tt) => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
+      mv ? walkAt(x, y) : 0, mv, 0, 0, null, L.uniform, false, null));
   }
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
@@ -86854,7 +86906,7 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
     const fn = (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         lift, gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     };
     if(depth != null) queuePerson(depth - y, y, (g, tt) => scene.keyPerson(() => fn(g, tt))); else q(x, y, fn);
@@ -87393,7 +87445,7 @@ function kwQueue(scene, t, queuePerson, layerFor){
     const p = kwKidAt(now);
     if(p && scene.visProp("people", p.x, p.y, p.z || 0)) queuePerson(p.x, p.y, (g, tt) => {
       const gg = layerFor(p.x, p.y);
-      scene.drawPersonHull(gg, p.x, p.y, p.z || 0, p.th - Math.PI/2, kidL.build, kidL.skin, kidL.shirt, kidL.pants, kidL.hair, kidL.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, !!p.moving, 0, 0, null, kidL.uniform, false, null);
+      scene.drawPersonHull(gg, p.x, p.y, p.z || 0, p.th - Math.PI/2, kidL.build, kidL.skin, kidL.shirt, kidL.pants, kidL.hair, kidL.shoe, p.moving ? walkAt(p.x, p.y, 1.4) : 0, !!p.moving, 0, 0, null, kidL.uniform, false, null);
     });
   }
   /* the mechanic, while the story has him (the room's people are the kit's otherwise) -- drawn on the street's lines,
@@ -87741,7 +87793,7 @@ function rlQueue(scene, t, queuePerson, layerFor){
     queuePerson(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, mv, 0, lift, gift, Lk.uniform, false, null);
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y, 1.4) : 0, mv, 0, lift, gift, Lk.uniform, false, null);
     });
   };
   if(RL.kidHere && !scene._inside) person(rlKidAt(now), L.kid);
@@ -88307,7 +88359,7 @@ function ssQueue(scene, t, queuePerson, keyQueue, layerFor){
       const gift = has ? () => scene.drawHandGift(layerFor(p.x, p.y), scene.handWorldPos(p.x, p.y, thW, build, 0.3), has) : null;
       const pz = L.dress && !(pose && pose.dress) ? Object.assign({}, pose || {}, { dress: L.dress }) : pose;
       scene.drawPersonHull(layerFor(p.x, p.y), p.x, p.y, p.z || 0, thW, build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
-        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(walkK || 1)) : 0, !!p.moving, 0, has ? 0.3 : 0, gift, U || L.uniform, false, pz || null);
+        p.moving ? walkAt(p.x, p.y, (walkK || 1)) : 0, !!p.moving, 0, has ? 0.3 : 0, gift, U || L.uniform, false, pz || null);
     });
   };
   const poseOf = p => (p.sit != null || p.lift || p.drop || p.hold) ? { sit: p.sit != null ? p.sit : undefined, lift: p.lift || null, bend: p.bend || 0, drop: p.drop || 0, hold: p.hold || null, armLate: p.armLate } : null;
@@ -89322,7 +89374,7 @@ function ssnQueue(scene, t, queuePerson, keyQueue, layerFor){
       const pz = Object.assign({}, pose || {}, L.dress ? { dress: L.dress } : null);
       if(extra && extra.hold) pz.hold = extra.hold;
       scene.drawPersonHull(lg, p.x, p.y, p.z || 0, thW, L.build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
-        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U || L.uniform, false, Object.keys(pz).length ? pz : null);
+        p.moving ? walkAt(p.x, p.y) : 0, !!p.moving, 0, 0, null, U || L.uniform, false, Object.keys(pz).length ? pz : null);
       if(extra && extra.over) extra.over(lg);
     });
   };
@@ -89450,7 +89502,7 @@ function tpeYardCast(){
     kid('soccer-3', 'A', tpeShuttle(F0.cx + 340, F0.cy - 100, F0.cx + 90, F0.cy + 120, 12500, 0.08, 7000));
     kid('soccer-4', 'A', tpeShuttle(F0.cx + 180, F0.cy + 40, F0.cx + 380, F0.cy - 60, 9000, 0.12, 1500));
     kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
-    [PL.beds[1], PL.beds[4]].forEach(([ba, bb], i) => kid('garden-' + i, 'B', now => ({ a: ba + 10, b: bb + 44, z: 0, th: -Math.PI/2, moving: false, pose: { lift: [0.65 + 0.1*Math.sin(now/800 + i), 0.65], bend: [1.2, 1.2] } }))); }
+  }
   PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
   return (TPE_Y.list = L);
 }
@@ -89483,7 +89535,7 @@ function tpeQueue(scene, t, queuePerson, layerFor){
     const behind = d.y + 736 < TPE_PLAN.BB0 - 20;
     queuePerson(behind ? fr.ox + fr.oy + 0.0004 : d.x, behind ? 0 : d.y, (g, tt) => {
       const T0 = tt || now, L = walkinStaffLook(p.s), lg = layerFor(d.x, d.y), thW = d.th - Math.PI/2;
-      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
         Object.assign({ dress: L.dress }, d.pose || null));
     });
   }
@@ -90164,7 +90216,7 @@ function motelQueue(scene, t, queuePerson, layerFor){
     if(p.y < GW_RUN.door.y - 2 && p.x > 26000) return;
     const px = p.x, py = p.y, mv = !!p.moving;
     queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = p.th - Math.PI/2, lift = p.has ? 0.45 : 0;
-      scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, p.has ? pouch(gg, px, py, thW, Lk.build, lift) : null, Lk.uniform, false, Lk.dress ? { dress: Lk.dress } : null); });
+      scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, p.has ? pouch(gg, px, py, thW, Lk.build, lift) : null, Lk.uniform, false, Lk.dress ? { dress: Lk.dress } : null); });
   };
   one(gwBrideAt(now), G.bride); one(gwGroomAt(now), G.groom);
   /* the clerk, while the story has her (only drawn in the room: from the street she is behind its shell) */
@@ -90172,7 +90224,7 @@ function motelQueue(scene, t, queuePerson, layerFor){
     const c = gwClerkAt(now), s = gwClerkStaff();
     if(c && s){ const px = c.x + POCKET_VIEW.dx, py = c.y + POCKET_VIEW.dy, Lc = walkinStaffLook(s), mv = !!c.moving;
       queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = c.th - Math.PI/2, lift = c.has ? 0.45 : 0;
-        scene.drawPersonHull(gg, px, py, 0, thW, Lc.build, Lc.skin, Lc.shirt, Lc.pants, Lc.hair, Lc.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, c.has ? pouch(gg, px, py, thW, Lc.build, lift) : null, Lc.uniform || null, false, null); }); }
+        scene.drawPersonHull(gg, px, py, 0, thW, Lc.build, Lc.skin, Lc.shirt, Lc.pants, Lc.hair, Lc.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, c.has ? pouch(gg, px, py, thW, Lc.build, lift) : null, Lc.uniform || null, false, null); }); }
   }
   /* THE CHARTER: at its stand (cached, its door open) or going (live), drawn over what it climbs past */
   {
@@ -93484,7 +93536,7 @@ class WorldScene extends Phaser.Scene {
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
          the stride a swing through sin of the clock, as the pavement's */
-      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, walkSin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null));
+      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, walkAt(p.x, p.y), true, 0, 0, null, null));
     }
   }
   /* PEOPLE AS FAR AS THE WALLS (Sir, 2026-10-10, on a ward floor: "im
@@ -95051,7 +95103,7 @@ class WorldScene extends Phaser.Scene {
       bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
         const gb = rosterBody(0x5e7a), { build, skin, hair } = gb, GU = withAid(SECURITY_UNIFORM, gb);   // (off the roster)
-        const walk = mv ? walkSin(tt * PEOPLE_ART.walkSpeed * (gd.v || PEOPLE_WALK_V)/PEOPLE_WALK_V) : 0;   // (legs at his pace)
+        const walk = mv ? walkAt(px, py) : 0;   // (legs at his pace)
         this.drawPersonHull(gg, px, py, gz, pth, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
           walk, mv, 0, !bth && gd.posted ? 0.92 : 0, null, GU);
@@ -95797,7 +95849,7 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
       const draw = (g, tt) => { this._seenThrough = !out; try { this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null); } finally { this._seenThrough = false; } };   // (seen through the glass: not x-rayed)
+        mv ? walkAt(wx, wy, 1, m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null); } finally { this._seenThrough = false; } };   // (seen through the glass: not x-rayed)
       const fd = mallFrontDk(a, b);                                             // (before a front, or in its doorway: over its piece)
       (out || fd !== null ? vq : tmp).push({ depth: fd !== null ? Math.max(wx + wy, X0 + Y0 + fd) : wx + wy, fn: draw });
     }
@@ -96480,7 +96532,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true });
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + d.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+          q.moving ? walkAt(q.x, q.y, 1, d.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
     }
   }
@@ -96663,7 +96715,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = bwLook(p);
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*q.stride + p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false,
+          q.moving ? walkAt(q.x, q.y, q.stride, p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false,
           p.kind === 'jogger' ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));   // a jogger runs (pose.run)
       } });
     }
@@ -96677,7 +96729,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = almsLook(p), ph = p.seed % 97;
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.v ? Math.max(0.35, p.v/0.065) : 1) + ph) : 0, q.moving, 0, 0, null, L.uniform, false,
+          q.moving ? walkAt(q.x, q.y, (p.v ? Math.max(0.35, p.v/0.065) : 1), ph) : 0, q.moving, 0, 0, null, L.uniform, false,
           p.run && q.moving ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));
       } });
     }
@@ -97231,13 +97283,24 @@ class WorldScene extends Phaser.Scene {
     /* the bowl's near lip: after whoever is down in the bowl, before whoever stands on the pad in front of it */
     const inBowl = on === 'bowl';
     for(const r of skLipRuns()) if(vis(r.x, r.y, 60, 20)) item("lip|" + r.k, r.x, r.y, inBowl ? Math.max(r.key, bot + 0.5) : r.key, () => ent.lip(r));
-    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 560 })) };
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 120 })) };
     this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
   }
   /* the park's ground, in the ground pass: the pad's smooth concrete and its low kerb, and the bowl let into it -- its
      surface in rings from the rim to the floor, each facet shaded by the way it faces and drawn far to near (the ones
      turned from the eye left out: the lip hides them), the pool tile under the rim, the coping along its far side (the
      near side's is the lip's), the drain (the lawn round the pad is the park's own: no plate of grass) */
+  /* THE WEST STRIP'S FRONT VERGE (Sir, 2026-11-07: "an extra lane of grey sidewalk that should be green grass ... extend the existing grass"):
+     the sidewalk row against the playground's fence, laid as the world's own lawn -- fillBlockInterior with GRASS on the world lattice, so it
+     is the same two greens in the same checker as the lawn beside it (it paints after the roads and sidewalks, like the merged parks' grass) */
+  fillSchoolVerge(g){
+    const site = HOOD_RIM_SITES.find(q => q.name === "Tide Pool Elementary");
+    if(!site) return;
+    const fr = hoodRimFrame(site), V = TPE_PLAN.VERGE, p0 = fr.toWorld(V.a0, V.b0), p1 = fr.toWorld(V.a1, V.b1);
+    const rect = { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y) };
+    if(Math.abs(this.camX - (rect.x0 + rect.x1)/2) + Math.abs(this.camY - (rect.y0 + rect.y1)/2) > (this.vpW() + this.vpH())/this.K + 1600) return;
+    this.fillBlockInterior(g, rect, GRASS);
+  }
   fillSkateGround(g){
     const P = SK_PLAN;
     if(Math.abs(this.camX - P.CX) + Math.abs(this.camY - P.CY) > (this.vpW() + this.vpH())/this.K + 2400) return;
@@ -98102,7 +98165,7 @@ class WorldScene extends Phaser.Scene {
   drawHarborPerson(g, m, L, tt){
     const thW = m.th - Math.PI/2, carry = m.has, lift = carry ? 0.3 : 0;
     const bag = carry ? () => { const hp = this.handWorldPos(m.x, m.y, thW, L.build, lift); this.drawHarborBuy(g, hp.x, hp.y, hp.z + (m.z || 0), carry); } : null;
-    this.drawPersonHull(g, m.x, m.y, m.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!m.moving, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+    this.drawPersonHull(g, m.x, m.y, m.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, !!m.moving, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
   }
   /* what a chandlery customer comes out with: a coil of rope, a lifejacket, a bag with the shop's band on it */
   drawHarborBuy(g, x, y, z, kind){
@@ -99697,6 +99760,7 @@ class WorldScene extends Phaser.Scene {
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillSkateGround(g);                // DRIFTWOOD SKATE PARK's pad and its bowl (SK_PLAN)
+    this.fillSchoolVerge(g);                // TIDE POOL ELEMENTARY's west strip: the sidewalk row against its fence is lawn (TPE_PLAN.VERGE)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
@@ -100083,11 +100147,14 @@ class WorldScene extends Phaser.Scene {
            has to be able to land on the address block (the only cut
            block on some routes) without that block being retyped */
         if(blk.type === "commercial" || isCrime){
-          blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>{
-            const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t,
-                                             isCrime ? CRIME_STALLS : 0);
-            for(const c of cars) topLayer.push(c);
-          }});
+          /* cached: the stripes are one ground item and each car its own bcDraw item, both built from the
+             row (memoised by edge seed), never pushed from inside a draw callback */
+          const prow = this.parkingRowOf(e, eseed, isCrime ? CRIME_STALLS : 0);
+          if(prow){
+            const pk = "prow|" + Math.round(e.ox) + "," + Math.round(e.oy) + "|" + Math.round(e.dv.x) + "," + Math.round(e.dv.y);
+            blockVQ.push({ depth: ecx+ecy, fn:(g)=>this.bcDraw(g, pk + "|s", ecx, ecy, gg => this.drawParkingStripes(gg, e, prow.row)) });
+            for(const c of prow.cars) topLayer.push({ x: c.x, y: c.y, fdir: c.fdir, kind: c.kind, key: pk + "|" + Math.round(c.x) + "," + Math.round(c.y) });
+          }
         } else {
           /* sliced (stage 1): per-strip keys AND per-strip layerFor —
              the old single edge-center test classified a whole
@@ -100433,7 +100500,7 @@ class WorldScene extends Phaser.Scene {
       if(!m || tr.knock || !this.visProp("people", m.x, m.y)) continue;
       queuePerson(m.x, m.y, (g, tt) => {
         const L = streetLook(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0, { adult: true, aid: 'noWheel' });
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkSin(tt*PEOPLE_ART.walkSpeed), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkAt(m.x, m.y), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
@@ -100461,7 +100528,7 @@ class WorldScene extends Phaser.Scene {
       }
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5b0b, sp.dog ? { adult: true, aid: 'dog' } : null);   // (by whether they have a dog, not whether it is on screen: the look must not change)
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving,
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, m.moving,
           0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
@@ -100496,7 +100563,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = partyLook(sp.seed, sp.kind);
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          m.moving && !sp.yielding ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving && !sp.yielding, 0, 0, null, L.uniform, false,
+          m.moving && !sp.yielding ? walkAt(m.x, m.y) : 0, m.moving && !sp.yielding, 0, 0, null, L.uniform, false,
           { dress: L.dress, hold: sp.hold ? PARTY_HOLD[sp.hold] : null, lift: sp.hold ? [0.55, 0.15] : null, bend: sp.hold ? 0.9 : 0 });
       });
     }
@@ -100506,7 +100573,7 @@ class WorldScene extends Phaser.Scene {
       if(!m || sp.knock || !this.visProp("people", m.x, m.y)) continue;             // (knocked down: drawn as they fall, updateKnocks)
       queuePerson(m.x, m.y, (g, tt) => {
         const L = streetLook(sp.seed ^ 0x7ac0);
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
@@ -100514,10 +100581,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
       const pk = sp.park;
-      const ppk = pk && pk._pp, ppw = parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
+      const ppk = pk && pk._pp, gone = !!(ppk && ppk.taken), ppw = !gone && parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && ppw && this.visProp("scooter", ppw.x, ppw.y))
         blockVQ.push({ depth: ppw.x + ppw.y, fn: (g, tt) => this.drawProp(layerFor(ppw.x, ppw.y), "scooter", ppw.x, ppw.y, tt, ppk.f, 0, null, null, ppk) });
-      else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+      else if(!gone && m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
           /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
@@ -100530,7 +100597,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
-        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
@@ -100696,7 +100763,7 @@ class WorldScene extends Phaser.Scene {
         blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => {
           const L = streetLook(rd.seed, { adult: true, aid: 'none' });
           this._personKick = wk.kick || 0;
-          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, wk.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
+          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, wk.moving ? walkAt(wk.x, wk.y) : 0, wk.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
           finally { this._personKick = 0; }
         } });
       }
@@ -100951,7 +101018,7 @@ class WorldScene extends Phaser.Scene {
        IT. Its own sort is dropped: the merged sort does it. */
     for(const c of topLayer)
       worldVQ.push({ depth: c.x + c.y,
-                     fn: (gg, tt) => this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, tt, c.fdir, 0) });
+                     fn: (gg, tt) => this.bcDraw(layerFor(c.x, c.y), c.key, c.x, c.y, g3 => this.drawProp(g3, c.kind, c.x, c.y, 0, c.fdir, 0)) });
 
     /* volumetric props (and ground-kind hazards like curb ramps) are
        handled earlier now -- pushed into blockVQ before the body
@@ -101596,7 +101663,7 @@ class WorldScene extends Phaser.Scene {
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
           hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-            ph.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
+            ph.moving ? walkAt(x, y) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
       /* HOSPITAL SECURITY (HOSP_JAIL): the officer, and the crew come to collect him */
       { const J = HOSP_JAIL;
         if(J.st && J.f === f){
@@ -101607,7 +101674,7 @@ class WorldScene extends Phaser.Scene {
             const x = ox + p.a, y = oy + p.b, L = L0 || mallJailLook(seed), U = withAid(U0, L);
             if(!this.visProp("people", x, y, Z)) continue;
             hazVQ.push({ depth: this.hospHold(f, p.a, p.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-              p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U) });
+              p.moving ? walkAt(x, y) : 0, !!p.moving, 0, 0, null, U) });
           } } }
       /* THE LIFT'S RIDERS ON THIS FLOOR (HOSP_RIDERS): to the lobby, waiting, in and out of a car, on to a room, stood there */
       for(const R of HOSP_RIDERS){ const q = hospRiderAt(R, now); if(!q || q.f !== f) continue;
@@ -101620,7 +101687,7 @@ class WorldScene extends Phaser.Scene {
           const x = ox + c.a, y = oy + c.b, L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           if(!this.visProp("people", x, y, Z)) continue;
           hazVQ.push({ depth: this.hospHold(f, c.a, c.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-            c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!c.moving, 0, c.lift, null, U) }); } }
+            c.moving ? walkAt(x, y) : 0, !!c.moving, 0, c.lift, null, U) }); } }
       /* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS): two leaves in each, parted by k into the wall either side, at the
          wall's outer face -- in front of everything inside it */
       if(f === 1) for(const E of HOSP_EDOORS){
@@ -101688,7 +101755,7 @@ class WorldScene extends Phaser.Scene {
         if(!this.visProp("people", c.x, c.y)) continue;
         const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
         hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-          c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+          c.moving ? walkAt(c.x, c.y) : 0, c.moving, 0, 0, null, U) });
       }
     }
     for(const JJ of [MALL_JAIL, HOSP_JAIL]){ const V = JJ.van, now = this.time.now;   // (and the hospital's: HOSP_JAIL)
@@ -101700,7 +101767,7 @@ class WorldScene extends Phaser.Scene {
           if(!this.visProp("people", c.x, c.y)) continue;
           const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-            c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+            c.moving ? walkAt(c.x, c.y) : 0, c.moving, 0, 0, null, U) });
         }
       }
     }
@@ -103885,48 +103952,37 @@ class WorldScene extends Phaser.Scene {
      along the curb, some occupied — reads as "customer parking for
      the shop you can't currently see the front of" rather than a
      dead gap in the street. */
-  drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0, forceN=0){
-    /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide).
-       Two things fixed here after the first pass:
-       1. Sign — every other block-wrap element treats NEGATIVE b as
-          "into the block" (houses' back wall is at -D). The first
-          version positioned stalls at POSITIVE b, which extended the
-          whole lot outward onto the sidewalk/street instead of inward
-          — not a sizing issue, a flipped sign.
-       2. Position — stalls now start behind where the culled
-          building's own footprint was (STORE_DEPTH+margin), not right
-          at the edge line. Cars end up parked roughly where the house
-          used to be, not on the sidewalk path the robot walks.
-       3. Count — a small FIXED cluster (2-3), centered on the edge,
-          instead of packing however many fit across the whole block
-          face, which read as a parking garage rather than a few
-          customer spots for one small business. */
-    /* 4. Geometry — stall count, placement and nose-in facing now come
-          from parkingStallsAt (see there). It consumes the SAME single
-          rng draw this function used to make for nStalls, in the same
-          place, so the occupancy rolls below still read the identical
-          stream and every existing lot is unchanged. */
+  /* the row for one cut edge: stall geometry + which stalls hold a car. Built once per edge (memo), same rng
+     stream as before (one draw for the count, then one or two per stall), so every lot is unchanged. The crime
+     lot passes forceN and gets no civilian cars. */
+  parkingRowOf(e, seed, forceN=0){
+    const m = this._prowMemo || (this._prowMemo = new Map());
+    const k = seed + "|" + forceN;
+    let r = m.get(k);
+    if(r !== undefined) return r;
     const rng = mulberry32(seed);
-    const row = parkingStallsAt({ ox, oy, dv, rv, len: w }, rng, forceN || undefined);
-    if(!row) return [];
-    const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const row = parkingStallsAt({ ox: e.ox, oy: e.oy, dv: e.dv, rv: e.rv, len: e.len }, rng, forceN || undefined);
+    if(!row){ m.set(k, null); return null; }
+    const cars = [];
+    if(!forceN) for(const st of row.stalls){
+      if(rng() < 0.85){
+        const kind = rng() < 0.75 ? "car" : "truck";
+        cars.push({ x: st.x, y: st.y, fdir: st.fdir, kind });
+      }
+    }
+    r = { row, cars };
+    m.set(k, r);
+    return r;
+  }
+  /* the painted stall lines of a cut edge's row (still ground; cached by the caller) */
+  drawParkingStripes(g, e, row){
+    const G = (a,b,h) => this.W(e.ox + e.dv.x*a + e.rv.x*b, e.oy + e.dv.y*a + e.rv.y*b, h);
     g.lineStyle(2, 0xf0ece0, 0.75);
     for(let i=0; i<=row.nStalls; i++){
       const x = row.startAlong + i*row.stallW;
       const a = G(x, row.depthNear, 1), b = G(x, row.depthFar, 1);
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
-    const cars = [];
-    /* the crime scene supplies its own vehicles — no civilian occupancy
-       roll here, so nothing parks on top of a cruiser */
-    if(forceN) return cars;
-    for(const st of row.stalls){
-      if(rng() < 0.85){
-        const kind = rng() < 0.75 ? "car" : "truck";
-        cars.push({ x: st.x, y: st.y, fdir: st.fdir, kind });
-      }
-    }
-    return cars;
   }
 
   drawBenchProp(g, x, y, dv){
@@ -104997,7 +105053,7 @@ class WorldScene extends Phaser.Scene {
       if(w.leave || w.knock || !this.visProp("people", w.x, w.y, 0)) continue;     // (down: queueKnocks)
       const L = partyLook(w.d.seed, w.d.kind);
       vq.push({ depth: w.x + w.y, fn: (g, t) => this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        w.moving ? walkSin((t || now)*PEOPLE_ART.walkSpeed*(w.d.kind === 'kid' ? 1.6 : 1)) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
+        w.moving ? walkAt(w.x, w.y, w.d.kind === 'kid' ? 1.6 : 1) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
     }
     /* the drivers walking over after the race; the top three, down off the
        podium, standing with their families */
@@ -105014,7 +105070,7 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("people", wx, wy, q.z*1.5)) continue;
       const L = partyLook(w.seed, 'kid');
       vq.push({ depth: wx + wy + (q.z > 0 && q.n >= DERBY_STEP.n0 ? 200 : 0), fn: (g, t) => this.drawPersonHull(g, wx, wy, q.z*1.5, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,   // (on the back steps the podium is in front of him)
-        walkSin((t || now)*PEOPLE_ART.walkSpeed + w.no), true, 0, 0, null, L.uniform, false, null) });
+        walkAt(wx, wy, 1, w.no), true, 0, 0, null, L.uniform, false, null) });
     }
   }
   parkLandmarkAt(blk){
@@ -106155,7 +106211,7 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.arm(pa, -60, tipA, gateArmLift(key)) }, fr.flank) });
         }
       } else
-      vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + _cut, fr.ox, fr.oy, gg => {
+      vq.push({ depth: fr.ox + fr.oy + ((_ent && _ent.groundAt) || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + _cut, fr.ox, fr.oy, gg => {
         LIB.setView(this.vpW(), this.vpH());
         GARAGE_DECK_DRAW = deck;
         try { items ? LIB.ground(rim.name, gg, G, this.K, fr.flank) : LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
@@ -106192,8 +106248,8 @@ class WorldScene extends Phaser.Scene {
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
         if(sk < 0.002) return;
         vq.push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
-          gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
-                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
+          gg => { if(it.occ || it.view) LIB.setView(this.vpW(), this.vpH());
+                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
       });
       /* ITS GATES, which swing (RIM_GATES): cached shut or open, live
          only while they move */
@@ -107065,9 +107121,14 @@ class WorldScene extends Phaser.Scene {
        his chest): it is on his back, so it goes down before the body (and the far arm) when he faces the eye, and over the
        body only when his back is to it */
     const robotPack = () => {
-      const ra = build.torsoW/2, rb = build.torsoD/2, zm = hipH + build.torsoH*0.42;
-      box(0, -rb - 3.4, ra*0.5, 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);                                        // the battery pack on its back
-      if(faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
+      const ra = build.torsoW/2, rb = build.torsoD/2, zm = hipH + build.torsoH*0.42, ps = RB.packStyle || 'box', PK = { c: RB.pack, dk: _pdk(RB.pack, 0.8) };
+      if(ps === 'none') return;
+      if(ps === 'round') prism(0, -rb - 3.8, ra*0.4, 4, zm - 2, shoulderH - 5, PK, { n: 12 });                                            // one round tank on his back
+      else if(ps === 'twin' || ps === 'jet'){ const big = ps === 'jet';
+        for(const sd of [-1, 1]){ prism(sd*ra*0.36, -rb - 3.6, ra*(big ? 0.3 : 0.26), 3.4, zm - (big ? 6 : 2), shoulderH - 4, PK, { n: 12 });
+          if(big) prism(sd*ra*0.36, -rb - 3.6, 3.6, 3.6, zm - 13, zm - 6, { c: 0xff9a3a, dk: 0xd9701a }, { top: 1.2, bot: 0.4, n: 8 }); } }   // twin tanks; a jet's with its nozzles
+      else box(0, -rb - 3.4, ra*(ps === 'wide' ? 0.82 : 0.5), 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);        // the battery pack on his back
+      if((ps === 'box' || ps === 'wide') && faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
     };
     const torso = () => {
       const ra = build.torsoW/2, rb = build.torsoD/2;
@@ -107345,13 +107406,23 @@ class WorldScene extends Phaser.Scene {
           if(sees3(na, nb, nh)) this.quadOn(g, [IN[i], IN[j], OUT[j], OUT[i]], EAR[Math.round((1 - nh)*4)]); }
         if(sees3(sd, 0, 0)){ this.quadOn(g, OUT, EAR[1]); this.quadOn(g, DOT, RB.joint); }
       };
+      const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
+      /* GIDEON'S HEADPHONES (gd4b), one side at a time: the cup and its half of the band. The FAR side goes down before the head (as the far ear does) so the head
+         covers it; the near side over it */
+      const phones = sd => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
+          path = [[r*0.88 + 2.4, hz2 + r*0.4], [r*0.74 + 1.8, hz2 + r*0.78], [r*0.42, zt + 1.6], [0, zt + 2.4]], qc = (pts, c) => this.quadOn(g, pts, c);
+        prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
+        for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
+          qc([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
+          qc([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } };
+      const isPhones = !!(RB && RB.hat === 'headphones');
+      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd);
       const noEars = !!(RB && RB.earStyle === 'none');
       if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
          the front (+b) toward +a, each piece drawn only while it faces the eye -- the robot's screen, a beard */
-      const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
       const wrap = (an0, an1, zA, zB, col, lift) => {
         const N = Math.max(1, Math.ceil(Math.abs(an1 - an0)/0.2));
         const P = (an, zz) => { const k = rAt(zz) + lift; return G(Math.sin(an)*k, Math.cos(an)*k, zz); };
@@ -107377,8 +107448,41 @@ class WorldScene extends Phaser.Scene {
           else if(mo === 'smile'){ wrap(-0.34, 0.34, mz0 - r*0.04, mz1 - r*0.06, RB.eye, 0.3); for(const sd of [-1, 1]) wrap(Math.min(sd*0.34, sd*0.52), Math.max(sd*0.34, sd*0.52), mz0 + r*0.06, mz1 + r*0.02, RB.eye, 0.3); }
           else if(mo === 'dots'){ for(const c of [-0.3, 0, 0.3]) wrap(c - 0.07, c + 0.07, mz0 + r*0.02, mz1 - r*0.02, RB.eye, 0.3); }
           else if(mo === 'grille'){ for(const k of [0, 1, 2]) wrap(-0.37, 0.37, mz0 + k*r*0.045, mz0 + k*r*0.045 + r*0.03, RB.eye, 0.3); } }
+        /* GIDEON'S GLASSES (RB.glasses, RB.glassCol: gd4c): frames round his eyes, standing off the screen (lift .9), tinted lenses for shades, one wide lens for a visor,
+           a ring on one eye for a monocle */
+        if(RB.glasses && RB.glasses !== 'none'){
+          const gc = RB.glassCol != null ? RB.glassCol : 0x24272c, gz0 = fz + r*0.04, gz1 = fz + r*0.42, th = r*0.1, gl = RB.glasses, hw = gl === 'square' ? 0.3 : 0.26;
+          const frame = (c, w) => { wrap(c - w, c + w, gz1 - th, gz1, gc, 0.9); wrap(c - w, c + w, gz0, gz0 + th, gc, 0.9); wrap(c - w, c - w + 0.075, gz0, gz1, gc, 0.9); wrap(c + w - 0.075, c + w, gz0, gz1, gc, 0.9); };
+          if(gl === 'visor'){ wrap(-0.92, 0.92, gz0, gz1, 0x1a3a52, 0.8); frame(0, 0.92); }
+          else if(gl === 'monocle'){ frame(0.52, 0.26); wrap(0.52 - 0.26, 0.52 + 0.26, gz0 + th, gz1 - th, 0xbfe6f2, 0.7); }
+          else { for(const sd of [-1, 1]){ if(gl === 'shades') wrap(sd*0.52 - hw, sd*0.52 + hw, gz0, gz1, 0x15181c, 0.8); frame(sd*0.52, hw); } wrap(-0.26 + hw*0.0, 0.26, fz + r*0.26, fz + r*0.31, gc, 0.9); }
+        }
         if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
+      /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
+         propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
+         base ring the head's own radius at that height. Built of the hull's own prisms, so it turns with the head and shades as it does */
+      if(RB && RB.hat && RB.hat !== 'none'){
+        const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
+        const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
+        /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
+        if(hh === 'cap'){ const pk = () => prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
+          if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
+          else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
+            quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
+        else if(hh === 'bowler'){ prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); }   // (the brim first: the crown stands on it, its far half is behind the crown)
+        else if(hh === 'tophat'){ prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true, noTop: true }); }   // (the band is a sleeve on the crown: no lid of its own, it lay a disc across the crown)
+        else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
+        else if(hh === 'headphones'){ for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) phones(sd); }
+        else if(hh === 'antenna' || hh === 'twin'){
+          const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
+          if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
+        else if(hh === 'visor'){ const pk = () => prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
+        else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
+        else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
+          for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
+      }
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
       if(uniform && uniform.beard){ wrap(-1.45, 1.45, z0 - 0.5, fz - r*0.3, uniform.beard, 0.5); wrap(-0.42, 0.42, fz - r*0.3, fz - r*0.16, uniform.beard, 0.6); }
@@ -107559,6 +107663,53 @@ class WorldScene extends Phaser.Scene {
       const td = build.torsoD/2 + 0.6, w = build.torsoW*0.3, zt = shoulderH - 1, zb = shoulderH - build.torsoH*0.42;
       this.quadOn(g, [G(-w, td, zt), G(-w + 2.4, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
       this.quadOn(g, [G(w - 2.4, td, zt), G(w, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
+    }
+    /* GIDEON'S OUTFIT (RB.apron, RB.neck, RB.badge, RB.outCol, RB.badgeCol: gd4c): a vest or an apron, a scarf, bow tie or tie, a badge on the chest, worn over the
+       shell, over the torso and under the arms (as the stab vest and the chain are). The front pieces only while he faces the eye */
+    if(RB && ((RB.apron && RB.apron !== 'none') || (RB.neck && RB.neck !== 'none') || (RB.badge && RB.badge !== 'none'))){
+      const OC = RB.outCol != null ? RB.outCol : 0xd9892b, OP = { c: OC, dk: _pdk(OC, 0.78) }, ra0 = build.torsoW/2, rb0 = build.torsoD/2, zm0 = hipH + build.torsoH*0.42, hr = build.headR;
+      const kAt = zz => 0.86 + 0.14*Math.max(0, Math.min(1, (zz - zm0)/(shoulderH - zm0))), bAt = zz => rb0*kAt(zz)*1.02 + 0.9, front = faceB > 0, Q = (pts, c) => this.quadOn(g, pts, c);
+      if(RB.apron === 'vest'){ prism(0, 0, ra0*1.07, rb0*1.14, hipH + build.torsoH*0.12, shoulderH - 1.5, OP, { bot: 0.9, noTop: true, n: 12 });
+        if(front){ const vb = rb0*1.14*kAt(shoulderH - 1)*1.0 + 1.0; Q([G(-5.2, vb, shoulderH - 1.4), G(5.2, vb, shoulderH - 1.4), G(0.8, rb0*1.14*0.9 + 1.0, hipH + build.torsoH*0.2), G(-0.8, rb0*1.14*0.9 + 1.0, hipH + build.torsoH*0.2)], pShirt.c);   // the V of the shell showing down the front
+          Q([G(-1.1, vb + 0.2, shoulderH - 1.4), G(1.1, vb + 0.2, shoulderH - 1.4), G(1.1, vb + 0.2, hipH + build.torsoH*0.2), G(-1.1, vb + 0.2, hipH + build.torsoH*0.2)], _pdk(OC, 0.6));   // (a row of buttons' placket)
+          for(const sd of [-1, 1]) Q([G(sd*ra0*1.02, vb, hipH + build.torsoH*0.6), G(sd*ra0*0.6, vb, hipH + build.torsoH*0.6), G(sd*ra0*0.6, vb, hipH + build.torsoH*0.5), G(sd*ra0*1.02, vb, hipH + build.torsoH*0.5)], _pdk(OC, 0.72)); } }   // (a pocket flap each side)
+      if(RB.apron === 'apron' && front){
+        const zt = shoulderH - 7, zb2 = hipH - 26, w = ra0*0.8, wb = rb0*0.95 + 0.9;
+        Q([G(-w, bAt(zt), zt), G(w, bAt(zt), zt), G(w*1.02, wb, zb2), G(-w*1.02, wb, zb2)], OC);                                  // the bib and skirt
+        Q([G(-w*1.02, wb, zb2 + 3.2), G(w*1.02, wb, zb2 + 3.2), G(w*1.02, wb, zb2), G(-w*1.02, wb, zb2)], _pdk(OC, 0.74));         // its hem
+        Q([G(-w*0.5, wb, zb2 + 9), G(w*0.5, wb, zb2 + 9), G(w*0.5, wb, zb2 + 20), G(-w*0.5, wb, zb2 + 20)], _pdk(OC, 0.84));      // the pocket
+        Q([G(-w*1.1, bAt(zm0) + 0.2, zm0 + 1.6), G(w*1.1, bAt(zm0) + 0.2, zm0 + 1.6), G(w*1.1, bAt(zm0) + 0.2, zm0 - 0.4), G(-w*1.1, bAt(zm0) + 0.2, zm0 - 0.4)], _pdk(OC, 0.7));   // the waist tie
+        for(const sd of [-1, 1]) Q([G(sd*w*0.7, bAt(zt), zt), G(sd*w*0.7 - sd*2.2, bAt(zt), zt), G(sd*3.4 - sd*2.2, bAt(shoulderH) + 0.4, shoulderH + 0.4), G(sd*3.4, bAt(shoulderH) + 0.4, shoulderH + 0.4)], _pdk(OC, 0.8));   // the neck strap
+      }
+      if(RB.neck === 'scarf'){ prism(0, 0, hr*0.72, hr*0.72, shoulderH - 3, shoulderH + 3.4, OP, { n: 12 });
+        if(front){ const bz = bAt(shoulderH - 2) + 0.5; Q([G(hr*0.12, bz, shoulderH + 1), G(hr*0.62, bz, shoulderH + 1), G(hr*0.56, bz, shoulderH - 24), G(hr*0.08, bz, shoulderH - 24)], OC); Q([G(hr*0.08, bz, shoulderH - 20), G(hr*0.56, bz, shoulderH - 20), G(hr*0.56, bz, shoulderH - 24), G(hr*0.08, bz, shoulderH - 24)], _pdk(OC, 0.7)); } }
+      if(front && (RB.neck === 'bowtie' || RB.neck === 'tie')){ const bz = bAt(shoulderH - 2) + 0.4, zn = shoulderH - 3.5;
+        if(RB.neck === 'bowtie'){ for(const sd of [-1, 1]) Q([G(sd*1.2, bz, zn), G(sd*8, bz, zn + 4.2), G(sd*8, bz, zn - 4.2), G(sd*1.2, bz, zn)], OC); Q([G(-1.6, bz + 0.2, zn + 1.8), G(1.6, bz + 0.2, zn + 1.8), G(1.6, bz + 0.2, zn - 1.8), G(-1.6, bz + 0.2, zn - 1.8)], _pdk(OC, 0.7)); }
+        else { Q([G(-1.8, bz, zn + 1.4), G(1.8, bz, zn + 1.4), G(1.6, bz, zn - 2), G(-1.6, bz, zn - 2)], _pdk(OC, 0.7)); Q([G(-1.5, bz, zn - 1.6), G(1.5, bz, zn - 1.6), G(3.4, bz, zn - 19), G(0, bz, zn - 25), G(-3.4, bz, zn - 19)], OC); } }
+      if(front && RB.badge && RB.badge !== 'none'){ const BC2 = RB.badgeCol != null ? RB.badgeCol : 0xd9a23a, bz = bAt(shoulderH - 13) + 0.5, cz = shoulderH - 13, ca = -ra0*0.46, bd = RB.badge;
+        const pts = (list, sc) => list.map(([a, z]) => G(ca + a*sc, bz, cz + z*sc));
+        if(bd === 'dot'){ const o = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; o.push([Math.cos(t)*3.2, Math.sin(t)*3.2]); } Q(pts(o, 1), BC2); }
+        else if(bd === 'diamond') Q(pts([[0, 4], [3.4, 0], [0, -4], [-3.4, 0]], 1), BC2);
+        else if(bd === 'cross'){ Q(pts([[-1.2, 4], [1.2, 4], [1.2, -4], [-1.2, -4]], 1), BC2); Q(pts([[-4, 1.2], [4, 1.2], [4, -1.2], [-4, -1.2]], 1), BC2); }
+        else if(bd === 'bolt') Q(pts([[1.4, 4.6], [-2.6, -0.4], [-0.2, -0.4], [-1.6, -4.6], [2.8, 0.8], [0.4, 0.8]], 1), BC2);
+        else if(bd === 'star'){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, rr2 = k % 2 ? 1.7 : 4.2; o.push([Math.cos(t)*rr2, Math.sin(t)*rr2]); } Q(pts(o, 1), BC2); } }
+    }
+    /* GIDEON'S DECALS (RB.decal, RB.decalCol: gd4d): racing stripes down the front, a chevron, a star, bolt or heart, or a race number, on the chest, in a colour of
+       their own; drawn on the torso's front surface at each height (its own taper), only while he faces the eye */
+    if(RB && RB.decal && RB.decal !== 'none' && faceB > 0){
+      const DC = RB.decalCol != null ? RB.decalCol : 0xeef0f2, ra0 = build.torsoW/2, rb0 = build.torsoD/2, zm0 = hipH + build.torsoH*0.42, dz = RB.decal, Q = (pts, c) => this.quadOn(g, pts, c);
+      const kAt = zz => 0.86 + 0.14*Math.max(0, Math.min(1, (zz - zm0)/(shoulderH - zm0))), bAt = zz => rb0*kAt(zz)*1.02 + 0.5, cz = zm0 + 17;
+      if(dz === 'stripes') for(const sd of [-1, 1]) Q([G(sd*3.2, bAt(shoulderH - 3), shoulderH - 3), G(sd*5.6, bAt(shoulderH - 3), shoulderH - 3), G(sd*5.6, bAt(hipH + 2), hipH + 2), G(sd*3.2, bAt(hipH + 2), hipH + 2)], DC);
+      else if(dz === 'chevron'){ for(const k of [0, 1]){ const z0 = cz + 6 - k*7; for(const sd of [-1, 1]) Q([G(sd*0.4, bAt(z0), z0), G(sd*10, bAt(z0 + 6), z0 + 6), G(sd*10, bAt(z0 + 6), z0 + 3.2), G(sd*0.4, bAt(z0 - 2.8), z0 - 2.8)], DC); } }
+      else if(dz === 'star' || dz === 'bolt' || dz === 'heart'){
+        const bz = bAt(cz), pts = l => l.map(([a, z]) => G(a*1.7, bz, cz + z*1.7));
+        if(dz === 'bolt') Q(pts([[1.4, 4.6], [-2.6, -0.4], [-0.2, -0.4], [-1.6, -4.6], [2.8, 0.8], [0.4, 0.8]]), DC);
+        else if(dz === 'star'){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, rr2 = k % 2 ? 1.7 : 4.2; o.push([Math.cos(t)*rr2, Math.sin(t)*rr2]); } Q(pts(o), DC); }
+        else { const o = []; for(let k = 0; k <= 24; k++){ const t = k/24*Math.PI*2, hx = 16*Math.pow(Math.sin(t), 3), hy = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t); o.push([hx*0.26, hy*0.26 - 0.4]); } Q(pts(o), DC); } }
+      else if(/^n[0-9]$/.test(dz)){ const dg = +dz[1], seg = { 1: 'bc', 4: 'fgbc', 7: 'abc', 9: 'abcdfg' }[dg] || 'abc', bz = bAt(cz) + 0.2, w = 4.6, h = 6.4, t = 1.7;
+        const H = (zc) => Q([G(-w, bz, zc + t/2), G(w, bz, zc + t/2), G(w, bz, zc - t/2), G(-w, bz, zc - t/2)], DC), V = (ac, z0v, z1v) => Q([G(ac - t/2, bz, z1v), G(ac + t/2, bz, z1v), G(ac + t/2, bz, z0v), G(ac - t/2, bz, z0v)], DC);
+        if(seg.includes('a')) H(cz + h); if(seg.includes('g')) H(cz); if(seg.includes('d')) H(cz - h);
+        if(seg.includes('f')) V(-w + t/2, cz, cz + h); if(seg.includes('b')) V(w - t/2, cz, cz + h); if(seg.includes('e')) V(-w + t/2, cz - h, cz); if(seg.includes('c')) V(w - t/2, cz - h, cz); }
     }
     if(lapLate){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); }
     if(farFront && !noArms) arm(-nearSide, false);
@@ -107825,7 +107976,7 @@ class WorldScene extends Phaser.Scene {
     const L = okaforLook(), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0, Z = z || 0;
     const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, L.build, liftT, Z) : null;
     this.drawPersonHull(g, d.x, d.y, Z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, L.uniform);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, cooler, L.uniform);
   }
   /* the heart's cooler hanging from a carrying hand (the medic's, then Dr. Okafor's): white, a red lid, a red cross */
   drawHeartCooler(g, d, thW, build, liftT, Z){
@@ -107850,7 +108001,7 @@ class WorldScene extends Phaser.Scene {
     const b = rosterBody(0x3ed1c), { build, skin, hair } = b, U = withAid(MEDIC_UNIFORM, b), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;   // (off the roster)
     const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, build, liftT, 0) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, cooler, U);
   }
   /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
      face and hair, and the cake's box in the carrying hand while they have
@@ -107864,7 +108015,7 @@ class WorldScene extends Phaser.Scene {
     if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record' || d.has === 'stopwatch' || d.has === 'helmet'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-        d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
+        d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, gift, U);
       if(cryT0 != null) this.drawTears(g, d, build, t - cryT0);
       return;
     }
@@ -107880,7 +108031,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [P(h, -1.8, z1), P(h, 1.8, z1), P(h, 1.8, z0), P(h, -1.8, z0)], 0xc9708f);
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, box, U);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, box, U);
   }
   /* GUS'S ANNIVERSARY (ANNIV): what is carried, at the hand hp --
      'flowers' ten red roses in kraft paper, a sprig of lavender;
@@ -108002,7 +108153,7 @@ class WorldScene extends Phaser.Scene {
     const L = partyLook(0x7051, 'woman'), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     const gift = d.has ? () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, L.build, liftT), d.has) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, null, false, { dress: L.dress });
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, gift, null, false, { dress: L.dress });
   }
   /* FOURTH PLACE (FOURTH): the judge (his table cast's look) and the
      engraver in Seabreeze Trophies' blue apron, walking or standing with
@@ -108024,7 +108175,7 @@ class WorldScene extends Phaser.Scene {
     /* (work: at the shelves, polishing -- TROPHY_IN; at the bench, at the machine) */
     const w = Math.sin(t*0.009), at = !d.moving && (d.work || (who === 'eng' && FOURTH.stage === 'engrave' && d.there));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, U ? U.shirt : L.shirt, U ? U.pants : L.pants, L.hair, U ? U.shoe : L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -108505,7 +108656,7 @@ class WorldScene extends Phaser.Scene {
         people.push({ d: a + sb*b, f: () => {
           ring(k, a, b, va, vb, -1, splash ? 1 : 0);
           this.drawPersonHull(g, x0 + a, y0 + sb*b, wadeZ + dz, thW(th), wadeOf(L.build), L.skin, L.shirt, L.pants, L.hair, L.shoe,
-            walkSin(T*PEOPLE_ART.walkSpeed*0.6 + k), true, 0, 0, null, L.uniform, false,
+            walkAt(x0 + a, y0 + sb*b, 0.6, k), true, 0, 0, null, L.uniform, false,
             splash ? { lift: [1.6 + 0.25*Math.sin(T*0.02 + k), 1.6 - 0.25*Math.sin(T*0.02 + k)], bend: 0.2 } : { lift: [0.55 + 0.2*Math.sin(T*0.005 + k), 0.55 + 0.2*Math.cos(T*0.005 + k)], bend: 0.5 });
           ring(k, a, b, va, vb, 1, splash ? 1 : 0);
           flick(k, a, b, splash ? 5 : 2, splash ? 26 : 16, splash ? 26 : 12, splash ? 0.0016 : 0.0009);
@@ -108739,7 +108890,7 @@ class WorldScene extends Phaser.Scene {
       if(q.L === 0 && !q.ride){ const fd = mallFrontDk(q.a, q.b); if(fd !== null) dk = Math.max(dk, fd); }   // (before an anchor's front, or in its doorway: over its piece)
       const L = m.look, qq = q.ride ? q : Object.assign({}, q, { moving: q.moving && !m.held });   // (off its path by its sidestep)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
+        qq.moving ? walkAt(M.x0 + qq.a, M.y0 + qq.b, 1, m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
       if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
@@ -108755,7 +108906,7 @@ class WorldScene extends Phaser.Scene {
         if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
         const L = mallJailLook(p.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
         vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, p.z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-          p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, p.lift, null, U)) });
+          p.moving ? walkAt(M.x0 + p.a, M.y0 + p.b) : 0, !!p.moving, 0, p.lift, null, U)) });
       }
     }
     /* the anchors' reps, out on their floors (STORE_REPS) */
@@ -108764,7 +108915,7 @@ class WorldScene extends Phaser.Scene {
       if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
       const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
-        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, L.uniform)) });
+        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkAt(M.x0 + rp.a, M.y0 + rp.b) : 0, rp.moving, 0, 0, null, L.uniform)) });
     }
   }
   /* MALL SECURITY (MALL_JAIL): the guard, and the crew come for him -- on
@@ -108823,7 +108974,7 @@ class WorldScene extends Phaser.Scene {
       if(L === 1 && !p.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }   // (on an escalator: after its steps, as the crowd)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
-        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U));
+        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkAt(M.x0 + p.a, M.y0 + p.b) : 0, !!p.moving, 0, 0, null, U));
       vq.push({ depth: ox + oy + dk, fn: draw });
       /* in the office, behind its front: x-rayed too, as he and its furniture are (Sir, 2026-10-20, "lets see
          the security in there") */
@@ -108867,7 +109018,7 @@ class WorldScene extends Phaser.Scene {
         carry ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 2, z0 = z1 - 22;
         this.quadOn(g, [P(-9, 7, z1), P(9, 7, z1), P(9, 7, z0), P(-9, 7, z0)], 0xf6f0e4); this.quadOn(g, [P(9, -7, z1), P(9, 7, z1), P(9, 7, z0), P(9, -7, z0)], 0xd6ccbb);
         this.quadOn(g, [P(-6, 7.2, z1 - 4), P(6, 7.2, z1 - 4), P(6, 7.2, z1 - 14), P(-6, 7.2, z1 - 14)], 0xf28ab8); } : null;
-      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, opt && opt.pose ? Object.assign({}, L.dress ? { dress: L.dress } : null, opt.pose) : L.dress ? { dress: L.dress } : null);
+      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkAt(p.x, p.y, 1, ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, opt && opt.pose ? Object.assign({}, L.dress ? { dress: L.dress } : null, opt.pose) : L.dress ? { dress: L.dress } : null);
     });
     if(xu) vq.push({ depth: M.x0 + M.y0 + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6 + sx + sy, fn: (g, tt) => this.xrayOnly(xu, () => fn(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) });
     else vq.push({ depth: M.x0 + M.y0 + dk + sx + sy, fn });
@@ -109030,7 +109181,7 @@ class WorldScene extends Phaser.Scene {
   drawBallWalker(g, w, t){
     const L = partyLook(w.d.seed, w.d.kind);
     this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      w.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, w.moving, 0, 0, null, L.uniform, false,
+      w.moving ? walkAt(w.x, w.y) : 0, w.moving, 0, 0, null, L.uniform, false,
       { dress: L.dress, lift: w.d.lift || null, bend: w.d.bend || 0, hold: w.d.hold ? PARTY_HOLD[w.d.hold] : null });
   }
   /* THE CAKE'S TOPPER (Sir, 2026-10-13: "its a weding cake so it needs a
@@ -109199,7 +109350,7 @@ class WorldScene extends Phaser.Scene {
     const L = hospWalkerLook({ seed }, q), mv = q.moving !== false;
     const pose = { dress: L.dress, hold: q.hold ? PARTY_HOLD[q.hold] : null, lift: q.lift || null, bend: q.bend || 0 };
     this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawPersonHull(g, q.x, q.y, z0 || 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      mv ? walkSin(t*PEOPLE_ART.walkSpeed*(q.stride || 1) + (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
+      mv ? walkAt(q.x, q.y, (q.stride || 1), (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
   }
   /* THE AMBULANCE'S GURNEY (HOSP_AMB_RUN): its wheels and legs, its frame and mattress, the pillow at the end it is
      pushed from, and the patient on it on their back in their own clothes (brought in off the street), the head propped
@@ -109227,7 +109378,7 @@ class WorldScene extends Phaser.Scene {
      them), walking or stood */
   drawHospRider(g, R, x, y, z, th, moving, t){
     const L = partyLook(R.seed, R.kind);
-    this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, moving, 0, 0, null, L.uniform, false, { dress: L.dress });
+    this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkAt(x, y) : 0, moving, 0, 0, null, L.uniform, false, { dress: L.dress });
   }
   /* the patient a porter wheels (HOSP_CAST's push): sat in their chair just ahead of his hands */
   drawHospPushed(g, q, z0){
@@ -109263,7 +109414,7 @@ class WorldScene extends Phaser.Scene {
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
-    this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, SH, SH,
+    this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
       L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || d.waist ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : { roll });
   }
   drawCrew(g, m, t, bot){
@@ -109291,7 +109442,7 @@ class WorldScene extends Phaser.Scene {
     } : () => {
       /* both hands to the lift (bothArms), and on his hull while they roll him up (m.reach: pose.reach) */
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.waist ? { reach: m.reach, waist: m.waist, drop: m.drop } : null);
+        m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.waist ? { reach: m.reach, waist: m.waist, drop: m.drop } : null);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
@@ -109443,7 +109594,7 @@ class WorldScene extends Phaser.Scene {
     const walk = !!(opts && opts.walk);   // walking (the heart run's officer, hospCopAt): the crew's swing
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
-      walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, PU);
+      walk ? walkAt(x, y) : 0, walk, 0, liftT, null, PU);
   }
   /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
@@ -113093,7 +113244,7 @@ class WorldScene extends Phaser.Scene {
       g.strokePoints(pts, false);
     };
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
-      o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      o.walk ? walkAt(ow.x, ow.y) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     /* (the walked dog goes with its walker, PERSON_DRAW: no ghost of its own -- a teal dog on a lead to nobody) */
     const dog = () => { const nx = this._noXray; this._noXray = true; try { this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data); } finally { this._noXray = nx; } };
     if(data._ownRef && data._ownRef.knock){ dog(); return; }                       // (the owner knocked down: drawn as they fall, updateKnocks)
@@ -114544,7 +114695,8 @@ class WorldScene extends Phaser.Scene {
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
         const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
-        if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
+        if(pp && pp.taken){ /* (the humanoid rode it off) */ }
+        else if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
         else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
@@ -115550,7 +115702,7 @@ class WorldScene extends Phaser.Scene {
       const sp2 = Math.abs(this.speed || 0);
       this._scootWheel = ((this._scootWheel || 0) + sp2*d*0.05) % 6283;
       const GL = gideonParts();
-      this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, GL.shell, GL.shell, GL.shell, GL.shell, GL.foot,
+      this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, GL.shell, GL.shell, GL.pants, GL.shell, GL.foot,
         this.ow.scoot.brand, t, 0, this._scootWheel, false, GL.uniform);
       return;
     }
@@ -116925,6 +117077,20 @@ class WorldScene extends Phaser.Scene {
            (which is what an along-axis wall should do); a prop whose
            footprint moves ACROSS the path as well -- a barrel toppling
            sideways -- passes its own. */
+        /* pr1: A POST IS A DISC, THE SIZE OF ITS ART. On the rail it is the old box (kept byte-identical:
+           along the lane, |dx| < railR). Off it, the robot's reach is a circle round the post (foot +
+           botR*0.72, as owContact), and he is pushed straight out of it, so he no longer stops 46 out
+           sideways or sinks 12 into a pole along the street. Returns true while he is in contact. */
+        const propWall = (foot, railR) => {
+          if(!owSep){
+            if(!(onLaneHz() && hzWithin(railR))) return false;
+            hzWallStop(railR, hz.s - railR); return true;
+          }
+          const rr = foot + OW_D.botR*0.72, d = Math.hypot(owSep.dx, owSep.lat);
+          if(d >= rr) return false;
+          const ux = d > 1e-6 ? owSep.dx/d : 1, uy = d > 1e-6 ? owSep.lat/d : 0;
+          hzWallStopAt(ux*rr, 0, uy*rr); return true;
+        };
         const hzWallStopAt = (offA, railTarget, offB) => {
           if(!owSep){ this.botS = safeStop(railTarget); return; }
           const B = offB === undefined ? owSep.lat : offB;
@@ -117246,8 +117412,7 @@ class WorldScene extends Phaser.Scene {
         if(hz.type === "lamp"){
           /* the pole is a thin palm-contract wall: you stop, you do
              not pass; a fast approach bonks (softer than a trunk) */
-          if(onLaneHz() && hzWithin(LAMP_ACT.standoff)){
-            hzWallStop(LAMP_ACT.standoff, hz.s - LAMP_ACT.standoff);
+          if(propWall(OW_D.hzLamp, LAMP_ACT.standoff)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
@@ -117262,8 +117427,7 @@ class WorldScene extends Phaser.Scene {
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
-          if(onLaneHz() && hzWithin(30)){
-            hzWallStop(30, hz.s - 30);
+          if(propWall(OW_D.hzPalm, 30)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;                               // the bonk (once per approach)
@@ -117403,8 +117567,7 @@ class WorldScene extends Phaser.Scene {
              Arriving fast adds the bonk; past the burst threshold the
              nozzle shears: water arc + a flood that grows around the
              base and stays wet for the rest of the route. */
-          if(onLaneHz() && hzWithin(26)){
-            hzWallStop(26, hz.s - 26);
+          if(propWall(OW_D.hzHydrant, 26)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
@@ -121845,7 +122008,7 @@ class WorldScene extends Phaser.Scene {
       if(who && seen(who.x, who.y)){
         blockVQ.push({ depth: who.x + who.y + dOff, fn: (g, tt) => room(() => {
           this._personKick = who.kick || 0;
-          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0,
+          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkAt(who.x, who.y) : 0, !!who.moving, 0,
                                     0, null, K.uni || null, false, K.dress ? { dress: K.dress } : null); }
           finally { this._personKick = 0; }
         }) });
@@ -123403,6 +123566,22 @@ class WorldScene extends Phaser.Scene {
           if(inBox) blocked = true; else tr.stopAt = t;
         } else if(carWaits) tr.stopAt = t;
         else if(vanWaits) blocked = true;
+      }
+    }
+    /* AND THE STREET'S RIDERS, the same rule (STREET_RIDER: look, band -- updateRiderTraffic's): a rider in this vehicle's way,
+       it waits; the vehicle in a rider's way, the rider waits (carWait, read by updateStreetRiders: the vehicle is the bigger).
+       Every story vehicle gets it here, so none keeps a copy of its own (the semis' was one, the van and the cruiser had none:
+       the cruiser drove through riders). A parked one is only an obstacle for the rider, never held by one. */
+    if(this.ridersActive){
+      const SR = STREET_RIDER, L = at.len || CARC.len, vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = L*0.45;
+      const vPts = [-H, -H/2, 0, H/2, H].map(a => ({ x: at.x + vx*a, y: at.y + vy*a }));
+      const inWay = (ox, oy, hx, hy, pts, look) => pts.some(q => { const rx = q.x - ox, ry = q.y - oy, al = rx*hx + ry*hy; return al > 0 && al < look && Math.abs(rx*hy - ry*hx) < SR.band; });
+      for(const rd of this.ridersActive(t)){
+        const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, dx = wp.x - at.x, dy = wp.y - at.y;
+        if(dx*dx + dy*dy > (1100 + L/2)*(1100 + L/2)) continue;
+        const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
+        if(inWay(wp.x, wp.y, rx, ry, vPts, SR.look + 30)) rd.carWait = t;
+        else if(!at.parked && inWay(at.x, at.y, vx, vy, rPts, H + TRAF_BRAKE_D + 90)) blocked = true;
       }
     }
     return blocked;
@@ -138883,13 +139062,13 @@ requestTpProfile();
     tab = b.dataset.t; renderTab();
   });
   /* GIDEON'S TABS (gd4): the humanoid, chosen, has his own set -- Shell, Face, Band & pack, Feet -- then Fleet; Tipsey and every other vehicle keep the old */
-  const GD_TABS = [['g-shell', 'Shell'], ['g-face', 'Face'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
+  const GD_TABS = [['g-looks', 'Looks'], ['g-shell', 'Shell'], ['g-face', 'Face'], ['g-head', 'Head'], ['g-outfit', 'Outfit'], ['g-finish', 'Finish'], ['g-decals', 'Decals'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
   function syncTabs() {
     const T = $('grTabs'), gid = fleetCur() === 'humanoid';
     if (T._gid === gid && (T._gid !== undefined)) return;
     T._gid = gid;
     T.innerHTML = gid ? GD_TABS.map(([i, n], k) => `<button${k ? '' : ' class="on"'} data-t="${i}">${n}</button>`).join('') + '<button data-t="fleet">Fleet</button>' : TABS_TIPSEY;
-    if (gid) { if (!tab.startsWith('g-') && tab !== 'fleet') tab = 'g-shell'; }
+    if (gid) { if (!tab.startsWith('g-') && tab !== 'fleet') tab = 'g-looks'; }
     else if (tab.startsWith('g-')) tab = 'paint';
     for (const x of T.querySelectorAll('button[data-t]')) x.classList.toggle('on', x.dataset.t === tab);
   }
@@ -139162,7 +139341,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind'];   // (GIDEON'S paint, on the same look)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol'];   // (GIDEON'S paint, on the same look)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -139176,13 +139355,16 @@ requestTpProfile();
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
-                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'] };
+                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'], gHatCol: ['hat', 'copper'], gOutCol: ['hat', 'copper'], gBadgeCol: ['hat', 'gold'], gGlassCol: ['hat', 'copper'], gShell2: ['shell', 'navy'], gDecalCol: ['hat', 'white'] };
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
-  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400] };
-  for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : price })); }
-  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250 });
+  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
+                    gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
+  const GD_PRICE = { gApron: { vest: 700 }, gNeck: { scarf: 500 }, gGlasses: { shades: 700, visor: 600, monocle: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600 } };
+  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500 };
+  for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : (k === 'gHat' ? HAT_PRICE[id] || 400 : (GD_PRICE[k] && GD_PRICE[k][id]) || price) })); }
+  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250, gOutCol: 250, gBadgeCol: 200, gGlassCol: 200, gShell2: 500, gDecalCol: 200 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
   /* an item by its field and id: a preset, a custom colour, or a skin */
   const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
@@ -139237,7 +139419,8 @@ requestTpProfile();
     if (bd) { delete SKIN.stars; SKIN.band = bd.id === 'none' ? null : bd.id; }
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
-                eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind };   // (Gideon's: null = stock, gideonParts)
+                eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol,
+                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol };   // (Gideon's: null = stock, gideonParts)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -139280,7 +139463,9 @@ requestTpProfile();
   const DEFAULT_OF = { finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
                        rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto',
                        gShell: 'white', gJoint: 'graphite', gHand: 'graphite', gEye: 'cyan', gScreen: 'dark', gBand: 'copper', gPack: 'graphite', gEar: 'stock', gShoeCol: 'graphite',
-                       gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat' };
+                       gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat', gHat: 'none', gHatCol: 'copper',
+                       gApron: 'none', gNeck: 'none', gBadge: 'none', gGlasses: 'none', gPackStyle: 'box', gOutCol: 'copper', gBadgeCol: 'gold', gGlassCol: 'copper',
+                       gFinish: 'satin', gShell2: 'navy', gDecal: 'none', gDecalCol: 'white' };
   const wearing = (kind, id) => kind === 'skin'
     ? (tpProfile.equipped || 'classic') === id && !look.body && !look.stripe            // (a skin under a paint job is not the skin as it comes)
     : look[kind] === id || (look[kind] == null && DEFAULT_OF[kind] === id);
@@ -139303,7 +139488,8 @@ requestTpProfile();
   const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
                      topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals',
-                     gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet' };
+                     gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet', gHat: 'Head', gHatCol: 'Head',
+                     gApron: 'Outfit', gNeck: 'Outfit', gBadge: 'Outfit', gGlasses: 'Outfit', gOutCol: 'Outfit', gBadgeCol: 'Outfit', gGlassCol: 'Outfit', gPackStyle: 'Band & pack', gFinish: 'Finish', gShell2: 'Finish', gDecal: 'Decals', gDecalCol: 'Decals' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
      a trip out to earn the money comes back to it */
   const CART_KEY = 'tipsy.cart';
@@ -139877,6 +140063,26 @@ requestTpProfile();
         smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
         grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
       return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
+    if (key === 'apron' || key === 'neck' || key === 'badge' || key === 'glasses' || key === 'packStyle') { const C = '#d9892b', B = '<rect x="12" y="2" width="16" height="24" rx="5" fill="#cfd3d8"/>';
+      const A = { apron: { none: '', apron: `<path d="M14 8h12l2 18H12z" fill="${C}"/><rect x="16" y="15" width="8" height="5" fill="#b06f20"/>`, vest: `<path d="M12 4l6 0 2 8 2-8h6v22H12z" fill="${C}" opacity=".95"/><path d="M18 4l2 9 2-9z" fill="#cfd3d8"/>` },
+        neck: { none: '', scarf: `<rect x="11" y="3" width="18" height="5" rx="2" fill="${C}"/><rect x="21" y="6" width="5" height="16" fill="${C}"/>`, bowtie: `<path d="M20 8L12 4v8zM20 8l8-4v8z" fill="${C}"/><rect x="18.4" y="6" width="3.2" height="4" fill="#b06f20"/>`, tie: `<rect x="18" y="3" width="4" height="3" fill="#b06f20"/><path d="M18 6h4l2 14-4 4-4-4z" fill="${C}"/>` },
+        badge: { none: '', dot: '<circle cx="20" cy="14" r="5" fill="#d9a23a"/>', bolt: '<path d="M22 6l-8 9h5l-3 8 9-10h-5z" fill="#d9a23a"/>', star: '<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="#d9a23a"/>', diamond: '<path d="M20 5l7 9-7 9-7-9z" fill="#d9a23a"/>', cross: '<rect x="18" y="6" width="4" height="16" fill="#d9a23a"/><rect x="12" y="12" width="16" height="4" fill="#d9a23a"/>' },
+        glasses: { none: '', round: '<circle cx="15" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><circle cx="25" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="19" y="11.4" width="2" height="1.4" fill="#24272c"/>', square: '<rect x="10.4" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="21.2" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/>', shades: '<rect x="10.4" y="8" width="8.4" height="8" fill="#15181c"/><rect x="21.2" y="8" width="8.4" height="8" fill="#15181c"/><rect x="18.6" y="9.6" width="2.8" height="1.6" fill="#15181c"/>', visor: '<rect x="9" y="8" width="22" height="8" rx="2" fill="#1a3a52" stroke="#24272c" stroke-width="1.4"/>', monocle: '<circle cx="25" cy="12" r="4.6" fill="#bfe6f2" stroke="#24272c" stroke-width="1.6"/>' },
+        packStyle: { box: '<rect x="14" y="8" width="12" height="14" fill="#3a4048"/>', wide: '<rect x="10" y="8" width="20" height="14" fill="#3a4048"/>', round: '<rect x="15" y="6" width="10" height="18" rx="5" fill="#3a4048"/>', twin: '<rect x="11" y="7" width="8" height="17" rx="4" fill="#3a4048"/><rect x="21" y="7" width="8" height="17" rx="4" fill="#3a4048"/>', jet: '<rect x="11" y="5" width="8" height="15" rx="4" fill="#3a4048"/><rect x="21" y="5" width="8" height="15" rx="4" fill="#3a4048"/><path d="M12 20h6l-3 6zM22 20h6l-3 6z" fill="#ff9a3a"/>', none: '' } }[key][id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36">${key === 'glasses' ? '<rect x="9" y="2" width="22" height="22" rx="8" fill="#cfd3d8"/>' : B}${A}</svg>`; }
+    if (key === 'finish') { const G2 = { satin: ['#cfd3d8', '#fff', .35], matte: ['#b9bdc2', '#fff', .05], gloss: ['#d6dae0', '#fff', .85], chrome: ['#aeb8c2', '#f4f8fb', .9], twotone: ['#cfd3d8', '#2f4a86', 0] }[id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="3" width="22" height="22" rx="6" fill="${G2[0]}"/>${id === 'twotone' ? '<rect x="9" y="15" width="22" height="10" rx="4" fill="#2f4a86"/>' : ''}<path d="M12 5h9l-5 18h-4z" fill="${G2[1]}" opacity="${G2[2]}"/></svg>`; }
+    if (key === 'decal') { const C2 = '#e0453a', T2 = t => `<text x="20" y="21" text-anchor="middle" font-size="18" font-weight="700" fill="${C2}" font-family="sans-serif">${t}</text>`, D = { none: '', stripes: `<rect x="14" y="3" width="3.4" height="22" fill="${C2}"/><rect x="22.6" y="3" width="3.4" height="22" fill="${C2}"/>`, chevron: `<path d="M10 10l10 6 10-6v4l-10 6-10-6z" fill="${C2}"/>`, star: `<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="${C2}"/>`,
+        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9) }[id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="2" width="22" height="24" rx="6" fill="#cfd3d8"/>${D}</svg>`; }
+    if (key === 'hat') { const C = '#d9892b', D = '#8f969d', H = '<rect x="13" y="12" width="14" height="14" rx="6" fill="#cfd3d8"/>';
+      const A = { none: '', cap: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="18" y="13" width="14" height="2.4" rx="1" fill="${C}"/>`, beanie: `<path d="M12 15a8 9 0 0 1 16 0z" fill="${C}"/><circle cx="20" cy="4" r="2.4" fill="${C}"/>`,
+        bowler: `<path d="M13 14a7 7 0 0 1 14 0z" fill="${C}"/><rect x="9" y="13" width="22" height="2.2" rx="1" fill="${C}"/>`, tophat: `<rect x="14" y="2" width="12" height="12" fill="${C}"/><rect x="10" y="13" width="20" height="2.2" rx="1" fill="${C}"/>`,
+        chef: `<rect x="13" y="12" width="14" height="3" fill="#cfd3d8"/><ellipse cx="20" cy="7" rx="10" ry="6.5" fill="#f2f2ee"/>`, headphones: `<path d="M11 18v-4a9 9 0 0 1 18 0v4" fill="none" stroke="${C}" stroke-width="2"/><rect x="9" y="16" width="4" height="8" rx="2" fill="${C}"/><rect x="27" y="16" width="4" height="8" rx="2" fill="${C}"/>`,
+        antenna: `<rect x="19.4" y="2" width="1.2" height="11" fill="${D}"/><circle cx="20" cy="2.5" r="2" fill="${C}"/>`, twin: `<rect x="15.4" y="4" width="1.2" height="9" fill="${D}"/><circle cx="16" cy="4" r="1.8" fill="${C}"/><rect x="24.4" y="6" width="1.2" height="7" fill="${D}"/><circle cx="25" cy="6" r="1.8" fill="${C}"/>`,
+        visor: `<rect x="12" y="12" width="16" height="2.4" rx="1" fill="${C}"/><rect x="18" y="14" width="14" height="2.2" rx="1" fill="${C}"/>`, party: `<path d="M20 1l8 13H12z" fill="${C}"/><circle cx="20" cy="1.6" r="1.8" fill="#f2f2ee"/>`,
+        crown: `<path d="M12 14V6l4 4 4-6 4 6 4-4v8z" fill="${C}"/>`, prop: `<path d="M12 15a8 8 0 0 1 16 0z" fill="${C}"/><rect x="11" y="6" width="18" height="1.8" rx=".9" fill="${D}"/><rect x="19.4" y="7" width="1.2" height="4" fill="${D}"/>` }[id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36">${H}${A}</svg>`; }
     if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
     const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
     return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
@@ -139898,13 +140104,32 @@ requestTpProfile();
   function renderGideon(P) {
     P.className = 'grList';
     let h = '', cols = [];
-    if (tab === 'g-shell') { cols = ['gShell', 'gJoint', 'gHand']; h = gColRow('SHELL', 'gShell') + gColRow('JOINTS', 'gJoint') + gColRow('HANDS', 'gHand'); }
+    if (tab === 'g-looks') {
+      const Lw = pv || worn(), blank = {}; for (const k of GD_FIELDS) blank[k] = null;
+      const tot = set => { const un = []; let c = 0; for (const k in set) if (!ownsPaint(k, set[k])) { un.push(k + ':' + set[k]); c += priceOf(k, set[k]); } return { un, c }; };
+      const same = set => { const A = Object.assign({}, blank, set); return GD_FIELDS.every(k => (Lw[k] == null ? (DEFAULT_OF[k] || null) : Lw[k]) === (A[k] == null ? (DEFAULT_OF[k] || null) : A[k])); };
+      const icon = set => { const sc = hex(gdHex('shell', set.gShell || 'white')), bc = hex(gdHex('band', set.gBand || 'copper')), hc = set.gHat && set.gHat !== 'none' ? hex(gdHex('hat', set.gHatCol || 'copper')) : null;
+        return `<svg viewBox="0 0 40 40" width="52" height="52"><rect x="12" y="19" width="16" height="17" rx="4" fill="${sc}"/><rect x="12" y="25" width="16" height="3" fill="${bc}"/><circle cx="20" cy="13" r="7.5" fill="${sc}"/><rect x="15" y="11" width="10" height="4" rx="1.5" fill="#1d2228"/>${hc ? `<rect x="12.5" y="4" width="15" height="4" rx="2" fill="${hc}"/>` : ''}</svg>`; };
+      h = '<div class="grSec">LOOKS &mdash; try one on, then add its parts together</div><div class="grRow">' + GD_PRESETS.map(pr => { const t = tot(pr.set), on = same(pr.set);
+        const tag = !Object.keys(pr.set).length ? (on ? '<i class="own">Wearing</i>' : '<i>Free</i>') : on && !t.un.length ? '<i class="own">Wearing</i>' : !t.un.length ? '<i class="add" data-gequip="' + pr.id + '">Equip</i>' : '<i class="add" data-gadd="' + pr.id + '">Add all ' + tpMoney(t.c) + '</i>';
+        return `<button class="grSkin${on ? ' sel' : ''}" data-glook="${pr.id}">${icon(pr.set)}<span>${pr.name}</span>${tag}</button>`; }).join('') + '</div>';
+    }
+    else if (tab === 'g-shell') { cols = ['gShell', 'gJoint', 'gHand']; h = gColRow('SHELL', 'gShell') + gColRow('JOINTS', 'gJoint') + gColRow('HANDS', 'gHand'); }
     else if (tab === 'g-face') { cols = ['gEye', 'gScreen', 'gEar']; h = gColRow('EYES', 'gEye') + gCardRow('EYE SHAPE', 'gEyeShape', 'eyeShape') + gCardRow('MOUTH', 'gMouth', 'mouth') + gColRow('SCREEN', 'gScreen') + gCardRow('EARS', 'gEarStyle', 'earStyle') + gColRow('EAR COLOUR', 'gEar'); }
-    else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gColRow('BATTERY PACK', 'gPack'); }
+    else if (tab === 'g-head') { cols = ['gHatCol']; h = gCardRow('HEADWEAR', 'gHat', 'hat') + gColRow('HAT COLOUR', 'gHatCol'); }
+    else if (tab === 'g-outfit') { cols = ['gOutCol', 'gBadgeCol', 'gGlassCol']; h = gCardRow('APRON OR VEST', 'gApron', 'apron') + gCardRow('NECKWEAR', 'gNeck', 'neck') + gColRow('OUTFIT COLOUR', 'gOutCol') + gCardRow('BADGE', 'gBadge', 'badge') + gColRow('BADGE COLOUR', 'gBadgeCol') + gCardRow('GLASSES', 'gGlasses', 'glasses') + gColRow('GLASSES COLOUR', 'gGlassCol'); }
+    else if (tab === 'g-finish') { const Lf = pv || worn(); cols = Lf.gFinish === 'twotone' ? ['gShell2'] : []; h = gCardRow('SHELL FINISH', 'gFinish', 'finish') + (Lf.gFinish === 'twotone' ? gColRow('TWO-TONE: THE LEGS', 'gShell2') : '<div class="grSec">Pick Two-tone for a second colour on his legs</div>'); }
+    else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
+    else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
     for (const k of cols) gColBind(P, k);
+    const lookOf = id => GD_PRESETS.find(q => q.id === id), blankG = () => { const o = {}; for (const k of GD_FIELDS) o[k] = null; return o; };
+    for (const b of P.querySelectorAll('[data-glook]')) b.onclick = () => { const pr = lookOf(b.dataset.glook); tryOn(Object.assign({}, pv || worn(), blankG(), pr.set)); };
+    for (const b of P.querySelectorAll('[data-gadd]')) b.onclick = e => { e.stopPropagation(); const pr = lookOf(b.dataset.gadd); tryOn(Object.assign({}, pv || worn(), blankG(), pr.set));
+      for (const k in pr.set) if (!ownsPaint(k, pr.set[k])) cartAdd(k + ':' + pr.set[k]); renderTab(); renderBar(); };
+    for (const b of P.querySelectorAll('[data-gequip]')) b.onclick = e => { e.stopPropagation(); const pr = lookOf(b.dataset.gequip); const L = Object.assign(worn(), blankG(), pr.set); commit(L); if (pv) applyLook(pv); renderTab(); renderBar(); tpToast(pr.name + ' equipped'); };
     for (const b of P.querySelectorAll('[data-gcard]')) b.onclick = () => { const k = b.dataset.gcard.indexOf(':'), kind = b.dataset.gcard.slice(0, k), id = b.dataset.gcard.slice(k + 1);
       tryOn(Object.assign({}, pv || worn(), { [kind]: id === GD_SHAPE[kind][1] ? null : id })); };
     for (const b of P.querySelectorAll('[data-greset]')) b.onclick = () => { const o = {}; for (const k of GD_FIELDS) o[k] = null; tryOn(Object.assign({}, pv || worn(), o)); };
