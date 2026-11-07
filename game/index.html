@@ -88354,7 +88354,7 @@ const SURF = {
   flag: { x: -5200, y: 12720, h: 300 },
   guard: { x: -5262, y: 12768, th: -2.6 },
   stand: { x: -5380, y: 11180, rackX: -5650, rackY: 11040, n: 6, table: [-5215, 11345], kai: { x: -5190, y: 11180, th: 0.15 }, flag: [-5150, 11050],
-           hut: { x0: -5100, x1: -4960, y0: 11000, y1: 11120, h: 140, dx0: -5058, dx1: -5002, dh: 112 } },
+           hut: { x0: -5090, x1: -4720, y0: 10960, y1: 11120, h: 200, dx0: -5064, dx1: -5004, dh: 150 } },
   bathers: [{ x: -5330, y: 11520, a: 0, um: [-5420, 11470] }, { x: -4760, y: 11520, a: 0.2, um: null }, { x: -4700, y: 11380, a: -0.15, um: [-4640, 11300] }, { x: -4600, y: 11650, a: 0.1, um: null }],
   bays: { ask: [-1960, 11800], shack: [-4900, 12880], unload: [-5050, 12520], stand: [-5050, 11300], water: [-6250, 12700] },
   water: { x: -6480, sit: -6900, mele: [-6420, 12560] },
@@ -88516,22 +88516,21 @@ function surfKaiAt(now){
 /* the hut's door: its sill, where he stands outside it (the south face is the one seen), and just inside */
 function surfHutDoor(){
   const T = SURF.stand, H = T.hut, cx = (H.dx0 + H.dx1)/2;
-  return { cx, out: { x: cx, y: H.y1 + 26 }, inn: { x: cx, y: H.y1 - 46 }, y: H.y1 };
+  return { cx, out: { x: cx, y: H.y1 + 30 }, door: { x: cx, y: H.y1 - 36 }, inn: { x: H.x1 - 110, y: H.y1 - 64 }, y: H.y1 };
 }
 function surfHutPath(now){
-  const T = SURF.stand, D = surfHutDoor(), P = T.kai, V = SURF_PATROL.v, REST = 30000, INSIDE = 8000;
-  const legs = [{ x: P.x, y: P.y }, { x: D.out.x, y: D.out.y }, { x: D.inn.x, y: D.inn.y }];
-  const L1 = Math.hypot(legs[1].x - legs[0].x, legs[1].y - legs[0].y), L2 = Math.hypot(legs[2].x - legs[1].x, legs[2].y - legs[1].y), W = (L1 + L2)/V;
-  const CYC = REST + 2*W + INSIDE, u = (((now + 11000) % CYC) + CYC) % CYC;
+  const T = SURF.stand, D = surfHutDoor(), P = T.kai, V = SURF_PATROL.v, REST = 30000, INSIDE = 12000;
+  const pts = [{ x: P.x, y: P.y }, D.out, D.door, D.inn];
+  const seg = []; let tot = 0;
+  for(let k = 1; k < pts.length; k++){ const d = Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y); seg.push(d); tot += d; }
+  const W = tot/V, CYC = REST + 2*W + INSIDE, u = (((now + 11000) % CYC) + CYC) % CYC;
   if(u < REST) return null;
-  const at = d => d <= L1 ? { x: legs[0].x + (legs[1].x - legs[0].x)*d/L1, y: legs[0].y + (legs[1].y - legs[0].y)*d/L1 }
-                          : { x: legs[1].x + (legs[2].x - legs[1].x)*(d - L1)/L2, y: legs[1].y + (legs[2].y - legs[1].y)*(d - L1)/L2 };
-  const mk = (d, back, moving) => { const q = at(d), a = at(Math.max(0, d - 20)), b = at(Math.min(L1 + L2, d + 20));
-    const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0);
-    return Object.assign(q, { th, moving, hidden: q.y < D.y - 4, gait: d/V*PEOPLE_ART.walkSpeed }); };
-  if(u < REST + W) return mk((u - REST)*V, false, true);
-  if(u < REST + W + INSIDE){ const q = at(L1 + L2); return Object.assign(q, { th: -Math.PI/2, moving: false, hidden: true }); }
-  return mk((L1 + L2) - (u - REST - W - INSIDE)*V, true, true);
+  const at = d => { for(let k = 0; k < seg.length; k++){ if(d <= seg[k] || k === seg.length - 1){ const t = seg[k] ? Math.min(1, d/seg[k]) : 1; return { x: pts[k].x + (pts[k+1].x - pts[k].x)*t, y: pts[k].y + (pts[k+1].y - pts[k].y)*t }; } d -= seg[k]; } };
+  const mk = (d, back) => { const q = at(d), a = at(Math.max(0, d - 20)), b = at(Math.min(tot, d + 20));
+    return Object.assign(q, { th: Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0), moving: true }); };
+  if(u < REST + W) return mk((u - REST)*V, false);
+  if(u < REST + W + INSIDE){ const q = at(tot); return Object.assign(q, { th: lhGlance(0.2, now, 61), moving: false }); }   // (at the counter, looking out of the east window)
+  return mk(tot - (u - REST - W - INSIDE)*V, true);
 }
 /* the hut's door leaf: shut, or swung out as he is at it (eased 280 ms open / 480 ms shut, as the shop doors') */
 function surfHutDoorStep(now){
@@ -88949,9 +88948,11 @@ function surfQueueStatic(sc, vq, grid){
     if(near(T.x, T.y, 220, 300)) vq.push({ depth: T.x + T.y + 160, fn: g => sc.bcDraw(g, "srf|umb|" + T.x, T.x, T.y, gg => surfDrawUmbrella(sc, gg, T.x, T.y, 160, 250, [0x48c2c0, 0xf4f2ec])) });
     if(near(T.table[0], T.table[1], 80, 100)) vq.push({ depth: T.table[0] + T.table[1], fn: g => sc.bcDraw(g, "srf|table", T.table[0], T.table[1], gg => surfDrawTable(sc, gg, T.table[0], T.table[1])) });
     { const H = T.hut;
-      if(near((H.x0 + H.x1)/2, (H.y0 + H.y1)/2, 160, 260)){
-        vq.push({ depth: (H.x0 + H.x1)/2 + (H.y0 + H.y1)/2, fn: g => sc.bcDraw(g, "srf|hut", H.x0, H.y0, gg => surfDrawHut(sc, gg)) });
-        vq.push({ depth: surfHutDoor().cx + H.y1 + 1, fn: g => { const k = surfHutDoorStep(sc.time.now); if(k > 0.01) surfDrawHutDoor(sc, g, k); } });
+      if(near((H.x0 + H.x1)/2, (H.y0 + H.y1)/2, 260, 300)){
+        /* TWO PIECES, so Kai inside sorts between them and shows through the glass: the room at the far corner, the shell at the near */
+        vq.push({ depth: H.x0 + H.y0, fn: g => sc.bcDraw(g, "srf|hutB", H.x0, H.y0, gg => surfDrawHutRoom(sc, gg)) });
+        vq.push({ depth: H.x1 + H.y1, fn: g => sc.bcDraw(g, "srf|hutF", H.x1, H.y1, gg => surfDrawHutShell(sc, gg)) });
+        vq.push({ depth: H.x1 + H.y1 + 0.5, fn: g => { const k = surfHutDoorStep(sc.time.now); if(k > 0.01) surfDrawHutDoor(sc, g, k); } });
       } }
     if(near(T.flag[0], T.flag[1], 140, 300)) vq.push({ depth: T.flag[0] + T.flag[1] + 0.5, fn: (g, t) => surfDrawFeather(sc, g, T.flag[0], T.flag[1], t || sc.time.now) }); }
   for(const b of S.bathers) if(b.um && SURF_LIFE.bathers && near(b.um[0], b.um[1], 160, 260)) vq.push({ depth: b.um[0] + b.um[1], fn: g => sc.bcDraw(g, "srf|umb|" + b.um[0], b.um[0], b.um[1], gg => surfDrawUmbrella(sc, gg, b.um[0], b.um[1], 120, 210, [0xe8705a, 0xf4f2ec])) });
@@ -89069,36 +89070,70 @@ function surfDrawShack(sc, g, open){
     const poly = surfBoardPoly(260, 50).map(([a, b]) => [a, b]);
     q(poly.map(([a, b]) => P(x + b*0.9, yb + 14 - (a + 130)*0.05, z + 2 + (a + 130)*0.86)), col); }
 }
-/* PALMLINE SURF CO.'S BOARD HUT at its stand (d5): a small board-and-batten shed in the shack's teal, a low roof, the door on the south
-   face (the seen one) shut here -- its opening and swung leaf are live (surfDrawHutDoor) -- a small window and a sign board */
-function surfDrawHut(sc, g){
-  const T = SURF.stand, H = T.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box } = k;
-  const WALL = 0x6fc2bf, WALLX = 0x58a6a3, TRIM = 0xf4f2ec, ROOF = 0x8a7458, z = 0, yb = H.y1;
-  box(H.x0 - 6, H.x1 + 6, H.y0 - 6, H.y1 + 6, 0, 8, 0xb59a74, 0x8f7656, 0xa48a66);                      // the sill beams it sits on
-  box(H.x0, H.x1, H.y0, H.y1, 8, 8 + H.h, 0x7a6a52, WALLX, WALL);
-  for(let x = H.x0 + 18; x < H.x1; x += 22) q([P(x, yb + 0.5, 10), P(x + 3, yb + 0.5, 10), P(x + 3, yb + 0.5, 6 + H.h), P(x, yb + 0.5, 6 + H.h)], 0x62b1ae);
-  for(let y = H.y0 + 18; y < H.y1; y += 22) q([P(H.x1 + 0.5, y, 10), P(H.x1 + 0.5, y + 3, 10), P(H.x1 + 0.5, y + 3, 6 + H.h), P(H.x1 + 0.5, y, 6 + H.h)], 0x4f9794);
-  /* the door's frame, and the dark of the opening: the leaf is live over it */
-  { const a0 = H.dx0, a1 = H.dx1, z1 = 8 + H.dh;
-    q([P(a0 - 6, yb + 0.8, z1 + 6), P(a1 + 6, yb + 0.8, z1 + 6), P(a1 + 6, yb + 0.8, 8), P(a0 - 6, yb + 0.8, 8)], TRIM);
-    q([P(a0, yb + 1.2, z1), P(a1, yb + 1.2, z1), P(a1, yb + 1.2, 8), P(a0, yb + 1.2, 8)], 0x4f9794);
-    for(let zz = 22; zz < z1; zz += 14) q([P(a0, yb + 1.4, zz), P(a1, yb + 1.4, zz), P(a1, yb + 1.4, zz - 2), P(a0, yb + 1.4, zz - 2)], 0x3f7f7c);
-    q([P(a1 - 12, yb + 1.8, 62), P(a1 - 7, yb + 1.8, 62), P(a1 - 7, yb + 1.8, 70), P(a1 - 12, yb + 1.8, 70)], 0xd9b45a); }                // its handle
-  /* the east face's small window */
-  { const y0 = H.y0 + 38, y1 = H.y0 + 82, z0 = 80, z1 = 124;
-    q([P(H.x1 + 1, y0 - 5, z1 + 5), P(H.x1 + 1, y1 + 5, z1 + 5), P(H.x1 + 1, y1 + 5, z0 - 5), P(H.x1 + 1, y0 - 5, z0 - 5)], TRIM);
-    q([P(H.x1 + 1.5, y0, z1), P(H.x1 + 1.5, y1, z1), P(H.x1 + 1.5, y1, z0), P(H.x1 + 1.5, y0, z0)], 0x2e4d5a); }
-  /* the sign board over the door: a striped longboard */
-  { const c = (H.dx0 + H.dx1)/2 - 22, zc = 8 + H.h - 16, poly = surfBoardPoly(120, 22);
-    q(poly.map(([a, b]) => P(c + a, yb + 2, zc + b*0.9)), 0xf4f2ec);
-    for(const [d, col] of [[-3, 0xe8705a], [0, 0xf2c14e], [3, 0x1f8a96]]) q([P(c - 48, yb + 2.4, zc + d - 1), P(c + 50, yb + 2.4, zc + d - 1), P(c + 50, yb + 2.4, zc + d + 1), P(c - 48, yb + 2.4, zc + d + 1)], col); }
-  box(H.x0 - 14, H.x1 + 14, H.y0 - 14, H.y1 + 18, 8 + H.h, 8 + H.h + 10, ROOF, 0x6a5a44, 0x7a6850);                  // the roof, overhanging
-  q([P(H.x0 - 14, H.y1 + 18, 8 + H.h + 10.5), P(H.x1 + 14, H.y1 + 18, 8 + H.h + 10.5), P(H.x1 + 14, H.y1 + 13, 8 + H.h + 10.5), P(H.x0 - 14, H.y1 + 13, 8 + H.h + 10.5)], TRIM);
+/* PALMLINE SURF CO.'S BOARD HUT at its stand (d5): the size of the parking attendant's shack and built the same way -- glazed on its
+   south and east faces (the seen ones) so the room shows from outside: the room (floor, the two back walls' inner faces, the counter,
+   the board rack, the wetsuits, the wax table) is one piece at the far corner and the shell (sill, posts, door, glass, roof) another at
+   the near, so Kai, inside at its counter, sorts between and shows through. The door's opening and swung leaf are live (surfDrawHutDoor) */
+function surfDrawHutRoom(sc, g){
+  const H = SURF.stand.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box } = k, h0 = 8, T = h0 + H.h;
+  const fs = (y, x0, x1, z0, z1, c) => q([P(x0, y, z1), P(x1, y, z1), P(x1, y, z0), P(x0, y, z0)], c);          // a face on the plane y
+  const fe = (x, y0, y1, z0, z1, c) => q([P(x, y0, z1), P(x, y1, z1), P(x, y1, z0), P(x, y0, z0)], c);          // a face on the plane x
+  const yN = H.y0 + 2, xW = H.x0 + 2;
+  box(H.x0 - 8, H.x1 + 8, H.y0 - 8, H.y1 + 8, 0, h0, 0xb59a74, 0x8f7656, 0xa48a66);                         // the sill beams / its deck
+  q([P(H.x0, H.y0, h0 + 0.3), P(H.x1, H.y0, h0 + 0.3), P(H.x1, H.y1, h0 + 0.3), P(H.x0, H.y1, h0 + 0.3)], 0xc8ae86);   // the floor
+  for(let x = H.x0 + 26; x < H.x1; x += 26) q([P(x, H.y0, h0 + 0.6), P(x + 2, H.y0, h0 + 0.6), P(x + 2, H.y1, h0 + 0.6), P(x, H.y1, h0 + 0.6)], 0xae9470);
+  fs(yN, H.x0, H.x1, h0, T, 0xd9cdb4); fs(yN, H.x0, H.x1, h0, h0 + 44, 0xb59a74);                              // north wall, with its dado
+  fe(xW, H.y0, H.y1, h0, T, 0xcfc2a6); fe(xW, H.y0, H.y1, h0, h0 + 44, 0xb59a74);                              // west wall
+  /* the stock on the north wall: boards stood in a rack, a rail of wetsuits, the price board */
+  for(let i = 0; i < 6; i++){ const x = H.x0 + 40 + i*30, col = SURF_BOARD_COLS[i % SURF_BOARD_COLS.length];
+    q(surfBoardPoly(170, 52).map(([a, b]) => P(x + b*0.5, yN + 1, h0 + 100 + (a + 85)*0.8)), col); }
+  box(H.x0 + 24, H.x0 + 230, H.y0 + 2, H.y0 + 14, h0 + 40, h0 + 46, 0xb59a74, 0x8a7458, 0x9b8160);               // the rack's foot rail
+  box(H.x1 - 190, H.x1 - 30, H.y0 + 6, H.y0 + 12, h0 + 150, h0 + 154, 0x8a7458, 0x6a5a44, 0x7a6850);              // a rail
+  for(let i = 0; i < 5; i++){ const x = H.x1 - 176 + i*34; q([P(x - 11, yN + 4, h0 + 150), P(x + 11, yN + 4, h0 + 150), P(x + 9, yN + 4, h0 + 96), P(x - 9, yN + 4, h0 + 96)], [0x1f2026, 0x1f8a96, 0x1f2026, 0xe8705a, 0x1f2026][i]); }
+  q([P(H.x1 - 250, yN + 4, h0 + 130), P(H.x1 - 210, yN + 4, h0 + 130), P(H.x1 - 210, yN + 4, h0 + 96), P(H.x1 - 250, yN + 4, h0 + 96)], 0x2e4d5a);
+  /* the west wall: a shelf of wax, a coiled leash hook */
+  box(H.x0 + 3, H.x0 + 16, H.y0 + 40, H.y0 + 120, h0 + 90, h0 + 96, 0x9b8160, 0x8a7458, 0x8a7458);
+  for(let i = 0; i < 4; i++) box(H.x0 + 5, H.x0 + 14, H.y0 + 48 + i*18, H.y0 + 58 + i*18, h0 + 96, h0 + 108, [0xf2c14e, 0xe8705a, 0x4fb3d9, 0xf4f2ec][i], 0xaaa, 0xbbb);
+  /* the counter along the middle, a till on it, and a stool */
+  box(H.x0 + 150, H.x0 + 300, H.y0 + 60, H.y0 + 92, h0, h0 + 60, 0xd8c09a, 0xa48a66, 0xb89c74);
+  box(H.x0 + 214, H.x0 + 244, H.y0 + 66, H.y0 + 84, h0 + 60, h0 + 74, 0x3b4148, 0x2b3036, 0x33383e);
+  box(H.x1 - 90, H.x1 - 66, H.y0 + 84, H.y0 + 108, h0, h0 + 34, 0x8a6f4e, 0x6e573c, 0x7d6345);
+}
+function surfDrawHutShell(sc, g){
+  const H = SURF.stand.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q, box } = k, h0 = 8, T = h0 + H.h, yb = H.y1, xb = H.x1;
+  const WALL = 0x6fc2bf, WALLX = 0x58a6a3, TRIM = 0xf4f2ec, ROOF = 0x8a7458, SILL = h0 + 40, HEAD = T - 26;
+  const fs = (x0, x1, z0, z1, c, o) => q([P(x0, yb + (o || 0.5), z1), P(x1, yb + (o || 0.5), z1), P(x1, yb + (o || 0.5), z0), P(x0, yb + (o || 0.5), z0)], c);
+  const fe = (y0, y1, z0, z1, c, o) => q([P(xb + (o || 0.5), y0, z1), P(xb + (o || 0.5), y1, z1), P(xb + (o || 0.5), y1, z0), P(xb + (o || 0.5), y0, z0)], c);
+  const GL = 0x9fc6d4;
+  /* the street (south) face: the plinth and sill in board-and-batten, the posts, the door at the west end, glass, mullions */
+  fs(H.x0, xb, h0, SILL, WALL); for(let x = H.x0 + 16; x < xb; x += 22) fs(x, x + 3, h0 + 2, SILL - 2, 0x62b1ae, 0.8);
+  fs(H.x0, xb, HEAD, T, WALL);
+  for(const [a, b] of [[H.x0, H.x0 + 10], [xb - 10, xb]]) fs(a, b, h0, T, TRIM, 0.9);
+  const d0 = H.dx0, d1 = H.dx1, dz = h0 + H.dh;
+  fs(d0 - 6, d1 + 6, h0, dz + 6, TRIM, 0.8); fs(d0, d1, h0, dz, 0x4f9794, 1.2);
+  for(let zz = h0 + 22; zz < dz; zz += 14) fs(d0, d1, zz, zz + 2, 0x3f7f7c, 1.4);
+  fs(d1 - 12, d1 - 7, h0 + 62, h0 + 72, 0xd9b45a, 1.8);                                                       // handle
+  const gx0 = d1 + 10, gx1 = xb - 10;
+  q([P(gx0, yb + 0.3, HEAD), P(gx1, yb + 0.3, HEAD), P(gx1, yb + 0.3, SILL), P(gx0, yb + 0.3, SILL)], 0xfff2d0, 0.16);   // the glass: a faint warm wash over the room
+  for(let x = gx0 + (gx1 - gx0)/4; x < gx1 - 1; x += (gx1 - gx0)/4) fs(x - 2, x + 2, SILL, HEAD, TRIM, 1.0);
+  fs(gx0, gx1, SILL, SILL + 3, 0xcfd6d9, 1.2);
+  { const c = (d0 + d1)/2, zc = (dz + HEAD + 8)/2 + 4, poly = surfBoardPoly(120, 24);                              // the striped board over the door
+    q(poly.map(([a, b]) => P(c + a, yb + 1.6, zc + b*0.7)), 0xf4f2ec);
+    for(const [d, col] of [[-4, 0xe8705a], [0, 0xf2c14e], [4, 0x1f8a96]]) q([P(c - 48, yb + 2, zc + d - 1.2), P(c + 50, yb + 2, zc + d - 1.2), P(c + 50, yb + 2, zc + d + 1.2), P(c - 48, yb + 2, zc + d + 1.2)], col); }
+  /* the east face: sill, posts, one wide pane with a mullion, and a counter ledge */
+  fe(H.y0, yb, h0, SILL, WALLX); for(let y = H.y0 + 16; y < yb; y += 22) fe(y, y + 3, h0 + 2, SILL - 2, 0x4f9794, 0.8);
+  fe(H.y0, yb, HEAD, T, WALLX);
+  for(const [a, b] of [[H.y0, H.y0 + 10], [yb - 10, yb]]) fe(a, b, h0, T, TRIM, 0.9);
+  q([P(xb + 0.3, H.y0 + 10, HEAD), P(xb + 0.3, yb - 10, HEAD), P(xb + 0.3, yb - 10, SILL), P(xb + 0.3, H.y0 + 10, SILL)], 0xfff2d0, 0.16);
+  fe((H.y0 + yb)/2 - 2, (H.y0 + yb)/2 + 2, SILL, HEAD, TRIM, 1.0); fe(H.y0 + 6, yb - 6, SILL - 4, SILL + 1, 0xcfd6d9, 1.8);
+  /* the roof: a low slab with its fascia, overhanging */
+  box(H.x0 - 22, xb + 22, H.y0 - 22, yb + 26, T, T + 12, ROOF, 0x6a5a44, 0x7a6850);
+  q([P(H.x0 - 22, yb + 26, T + 12.5), P(xb + 22, yb + 26, T + 12.5), P(xb + 22, yb + 20, T + 12.5), P(H.x0 - 22, yb + 20, T + 12.5)], TRIM);
 }
 /* the hut's door, live: the opening dark with the lit boards in it, and the leaf swung out on its west hinge (k 0 shut .. 1 open) */
 function surfDrawHutDoor(sc, g, kk){
   const H = SURF.stand.hut, k = sc.lgKit(g, { x: 0, y: 0 }), { P, q } = k, a0 = H.dx0, a1 = H.dx1, z0 = 8, z1 = 8 + H.dh, yb = H.y1 + 2;
-  q([P(a0, yb, z1), P(a1, yb, z1), P(a1, yb, z0), P(a0, yb, z0)], 0x2a2420);
+  q([P(a0, yb, z1), P(a1, yb, z1), P(a1, yb, z0), P(a0, yb, z0)], 0x6b5a44);
   for(let i = 0; i < 3; i++){ const x = a0 + 10 + i*16; q([P(x - 5, yb + 0.3, z1 - 14), P(x + 5, yb + 0.3, z1 - 14), P(x + 4, yb + 0.3, z0 + 10), P(x - 4, yb + 0.3, z0 + 10)], [0x4fb3d9, 0xf2c14e, 0xe8705a][i]); }   // boards stood inside
   const th = kk*Math.PI*0.5*0.94, W = a1 - a0, ox = a0 + W*Math.cos(th), oy = yb + W*Math.sin(th);
   q([P(a0, yb + 0.5, z1), P(ox, oy, z1), P(ox, oy, z0), P(a0, yb + 0.5, z0)], 0x4f9794);
