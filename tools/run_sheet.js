@@ -31,6 +31,9 @@ async function walkins(page, base, only){
   await page.goto(`${base}?go=${encodeURIComponent('20140,14260')}&view=2`);
   await page.waitForFunction(WK_READY, null, { timeout: 60000 }).catch(() => {});
   const list = await page.evaluate(() => POCKETS.filter(p => p.walkin).map(p => { const v = p.view && p.view(); const d = p.doors[0].world && p.doors[0].world(); return { name: p.name, W: Math.round(p.w), D: Math.round(p.d), door: d && { x: Math.round(d.x), y: Math.round(d.y), ox: d.ox, oy: d.oy } }; }));
+  /* W22 (docs/kits/walkin.md): does each shell cover its room's walls? [west, north, east, south] units short, 0 or less is covered */
+  const cov = await page.evaluate(() => (typeof walkinCoverage === 'function' ? walkinCoverage() : []));
+  for(const c of cov) console.log('  cover', c.short === null ? 'not declared (look at the photo)' : c.covers ? 'ok' : 'SHORT ' + JSON.stringify(c.short), '-', c.name);
   const out = [];
   for(const pk of list.filter(p => !only || p.name.toLowerCase().includes(only.toLowerCase()))){
     if(!pk.door) continue;

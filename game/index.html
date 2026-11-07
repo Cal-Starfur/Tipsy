@@ -28384,6 +28384,7 @@ function walkinDefine(spec){
     /* (its openings, declared in the landmark's frame -- the foot's two ends, z in the entry's units -- into the room's) */
     if(spec.openings){ const ent = LIB.get(spec.from), zk = (ent && ent.zs !== undefined ? ent.zs : 1.5)*(ent && ent.sc || 1);
       plan.openings = spec.openings.map(o => ({ p: o.lab.map(([a, b]) => { const q = L(a, b); return [q.x - x0, q.y - y0]; }), z: o.z.map(z => z*zk), glass: !!o.glass })); }
+    plan.shell = { x0: x0 - 30, y0: y0 - 30, x1: x1 + 30, y1: y1 + 30 };            // (W22: the floor grown by the walls' thickness: what the exterior's body must cover)
     plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
                   ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
     return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
@@ -28404,6 +28405,26 @@ function walkinDefine(spec){
         return d.side === 's' ? b > plan.D + o && Math.abs(a - d.at) < w : d.side === 'e' ? a > plan.W + o && Math.abs(b - d.at) < w : a < -o && Math.abs(b - d.at) < w; } }] };
   POCKETS.push(pk);
   return plan;
+}
+/* W22: THE SHELL COVERS THE ROOM (Sir, 2026-11-07, Pelican Drug: "the shell isnt big enough to cover the interior"; "this is a kit
+   issue ... thats why ive been having to adjust every building"). The room's FLOOR is its lab rect, and walkinRoom stands its walls
+   WALKIN_WALL outside the floor on every side, so the shell's body must be at least the floor grown by WALKIN_WALL on all four
+   sides (the door's side too: the tower stands out in front of that). walkinCoverage() measures it for every walk-in whose exterior
+   declares its footprint (vol.foot): how far the shell falls short on each side [west, north, east, south], 0 or less when it
+   covers; null when the exterior declares none (measure it by eye). tools/run_sheet.js --walkins prints it. Build the shell from the
+   plan's `shell` rect (plan.shell, in the room's world: the floor grown by WALKIN_WALL), never from the floor's. */
+const WALKIN_WALL = 30;
+function walkinCoverage(){
+  return POCKETS.filter(p => p.walkin).map(pk => {
+    const v = pk.view && pk.view(), L = pk.from && typeof landmarkLabWorld === 'function' ? landmarkLabWorld(pk.from) : null, ent = LIB.get(pk.from);
+    const f = ent && ent.vol && ent.vol.foot;
+    if(!v || !L || !f) return { name: pk.name, short: null };
+    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy;
+    const sh = [X0 - WALKIN_WALL - Math.min(...q.map(r => r.x)), Y0 - WALKIN_WALL - Math.min(...q.map(r => r.y)),
+                Math.max(...q.map(r => r.x)) - (X0 + pk.w + WALKIN_WALL), Math.max(...q.map(r => r.y)) - (Y0 + pk.d + WALKIN_WALL)].map(n => Math.round(-n));
+    if(sh.some(n => Math.abs(n) > 300)) return { name: pk.name, short: null };         // (a foot in another frame than the lab's: not comparable)
+    return { name: pk.name, short: sh, covers: sh.every(n => n <= 0) };
+  });
 }
 /* THE WALK-IN KIT'S PEOPLE (Sir, 2026-10-30: "you aren't adding any people to the environments there should at least
    be staff ... people that fit the place and the correct amount and how they should be dressed and they need to be
