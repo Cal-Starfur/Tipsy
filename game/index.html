@@ -72165,6 +72165,12 @@ marinaEntry(),
       for(let b = BB1 + 24; b < -170; b += 24) T(PL.EA0 - 64, PL.EA1 + 64, b, b + 1.2, 0.9, paveE);
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
+    /* THE FRONT VERGE OF THE WEST STRIP: the sidewalk's outer row (the one against the fence) is grass here, the same greens as the back yard
+       (Sir, 2026-11-07: "an extra lane of grey sidewalk that should be green grass") */
+    { const x0 = 24, x1 = 1186, y0 = -44, y1 = 2*TILE;
+      T(x0, x1, y0, y1, 0.4, '#4a7a48');
+      for(let a = x0, i = 0; a < x1; a += 80, i++) for(let b = y0, j = 0; b < y1; b += 80, j++) if((i + j) % 2) T(a, Math.min(a + 80, x1), b, Math.min(b + 80, y1), 0.45, '#528552');
+    }
     /* THE BACK YARD OF THE WEST STRIP, behind the playground and the portables: grass (Sir, 2026-11-07: "i want this back yard to be grass
        not sand"), the ground pass's bare lot painted over in two greens, in 80 squares */
     { const x0 = 24, x1 = 1186, y0 = -1868, y1 = -992;
