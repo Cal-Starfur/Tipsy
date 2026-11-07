@@ -24,3 +24,12 @@ Sir's call: all the people tie to the daily seed (date + ladder rung, `routeSeed
 - Visits that depend on live state today (a parked car taken, a door busy, he is standing in the way) become schedule decisions; some visits will now be skipped or shifted by slot rather than by what happens to be free. That is the cost of "same for everyone".
 - Pop-in at arrival (people already out when he gets there): placed on the schedule, not faded; the first frame after a teleport shows the street as the clock has it.
 - `max` (8 shoppers at once) stops being a live cap; the slot rates are tuned so the near zone averages about what it does now.
+
+## sc6: seeded traffic (added 2026-11-06)
+sc3 seeded who goes on an errand and what they do, but not whether a car is at the site: a car's position is its loop clock minus `hold`, and `hold` comes from live yielding (spacing, signals, Tipsey), so it differs per player.
+- Loop clocks on `worldMs`; `hold` applies only to cars near him and decays to zero once a car is far and out of sight, so it is back on the shared schedule before anyone sees it.
+- Errand starts only where the schedule has the car (the seeded roll from sc3); food-truck post-up sessions become scheduled events.
+- Risk: on the shared clock, cars on shared streets can overlap (what `hold` was hiding). Stagger loop offsets, or check no two schedules collide.
+
+## sc5 census (2026-11-06)
+`node tools/crowd_census.js [--quick] [--spots=a,b]` boots twice side by side on the pinned seed and clock, stands both at the same spots (shops, houses, mall, strand, boardwalk, almshouse, harbor, garage), lists every CITY_PEOPLE group at the same instant of the world clock and diffs them (24 units' tolerance). A group that differs fails the run unless it is in `tools/crowd_census_known.json` with why. First full run: 28 groups seen, 18 the same, 10 differ (all listed there; queue item sc7 takes them).

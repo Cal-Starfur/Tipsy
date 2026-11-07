@@ -1,0 +1,12 @@
+{
+ "Driftwood Skate Park": "skaters are stepped live (skTick) off the session's own clock",
+ "Veterans Memorial": "Walt, the caretaker and visitors run on scene.time.now from their own t0s, not the world clock",
+ "Pelican Fish Market": "market staff and shoppers run on scene.time.now (fmNellAt etc.)",
+ "Sunset Shore Surf School": "Mele, the class and surfers run on scene.time.now",
+ "Flats Fire Training Yard": "the crew is stepped live (fyTick)",
+ "mall crowd": "seeded from the daily seed (sc4) but its groups plan acts off the session clock and where he is; who is in the mall depends on when he walked in",
+ "shoppers": "intermittent: one party more or fewer at the census instant (17 vs 18 at homes); to look into; not reproduced in a rerun at homes, shops and mall (same both boots)",
+ "street riders": "their stops (lights, him, each other) are live hold on the riders, near him",
+ "walk-in staff": "hidden/visible by the room he is in; seen in one boot only",
+ "boardwalk strollers": "intermittent under load (differed in the full run, same in the short one); to look into; not reproduced in a rerun at homes, shops and mall (same both boots)"
+}

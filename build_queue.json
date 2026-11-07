@@ -5,7 +5,7 @@
 "title": "World clock + slot scheduler + seeded shoppers (pilot)",
 "spec": "docs/seeded-crowd.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -15,7 +15,7 @@
 "deps": [
 "sc1"
 ],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -25,7 +25,7 @@
 "deps": [
 "sc1"
 ],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -36,7 +36,7 @@
 "sc2",
 "sc3"
 ],
-"status": "pending",
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -46,7 +46,27 @@
 "deps": [
 "sc4"
 ],
-"status": "pending",
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc6",
+"title": "Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc3"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc7",
+"title": "Census leftovers onto the seed: the groups in tools/crowd_census_known.json stay on the known list (decided: left)",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc5"
+],
+"status": "built",
 "group": "People: seeded crowd"
 },
 {
@@ -726,15 +746,6 @@
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5630,13658&view=3"
 },
 {
-"id": "fleet-spots",
-"title": "Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates.",
-"spec": "found by test run",
-"deps": [],
-"status": "pending",
-"group": "Fixes from testing",
-"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2"
-},
-{
 "id": "fleet-apron",
 "title": "Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye.",
 "spec": "found by test run",
@@ -742,15 +753,6 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3"
-},
-{
-"id": "fleet-spots",
-"title": "Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out.",
-"spec": "found by test run",
-"deps": [],
-"status": "pending",
-"group": "Fixes from testing",
-"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
 },
 {
 "id": "skate-sign",
@@ -900,9 +902,36 @@
 "group": "Brew & Bolt: Minding the Shop",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1",
 "note": "NIGHT_CLOCK.time = 22"
+},
+{
+"id": "port-fanlight",
+"title": "Port Office fanlight/window arch drawn as full ellipse: lower half painted over door glass and upper half over the PORT OFFICE sign",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2"
+},
+{
+"id": "fleet-spots",
+"title": "Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates.",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Parked (waiting on Sir)",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2"
+},
+{
+"id": "fleet-spots",
+"title": "Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out.",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Parked (waiting on Sir)",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }

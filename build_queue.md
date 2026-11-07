@@ -11,6 +11,8 @@ graph LR
   sc2 --> sc4
   sc3 --> sc4
   sc4 --> sc5
+  sc3 --> sc6
+  sc5 --> sc7
   p1_1 --> p1_2
   p1_2 --> p1_3
   p1_3 --> p1_4
@@ -35,11 +37,13 @@ graph LR
 ```
 
 ## People: seeded crowd
-- [ ] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
-- [ ] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
-- [ ] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
-- [ ] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
-- [ ] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
+- [?] `sc1` World clock + slot scheduler + seeded shoppers (pilot) [docs/seeded-crowd.md]
+- [?] `sc2` Seeded residents: houses, scooter trips, dog walkers [docs/seeded-crowd.md]
+- [?] `sc3` Seeded seekers, errand drivers, food-truck customers [docs/seeded-crowd.md]
+- [?] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
+- [?] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
+- [?] `sc6` Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap [docs/seeded-crowd.md]
+- [?] `sc7` Census leftovers onto the seed: the groups in tools/crowd_census_known.json stay on the known list (decided: left) [docs/seeded-crowd.md]
 
 ## People unification
 - [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
@@ -145,11 +149,10 @@ graph LR
 - [?] `kart-yard` Kart Works yard: the block's bare brown-checker centre becomes the club's practice loop with cones, tyre barriers, start gantry, pit canopy and benches [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4204,13628&view=2) [found by test run]
 - [?] `kart-yard-fence` Kart Works block: the open frontages fenced in the alley gate's iron (north, west, east between barn and depot) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4692,14076&view=3) [found by test run]
 - [?] `kart-works-shell` Tidewater Kart Works: shell was smaller than its room's outer walls; widened to 820 x 680, east frontage becomes an alley gate [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5630,13658&view=3) [found by test run]
-- [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
 - [ ] `fleet-apron` Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3) [found by test run]
-- [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
 - [?] `skate-sign` Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2) [found by test run]
 - [ ] `skate-lamps` Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3) [found by test run]
+- [?] `port-fanlight` Port Office fanlight/window arch drawn as full ellipse: lower half painted over door glass and upper half over the PORT OFFICE sign [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) [found by test run]
 
 ## Brew & Bolt: Minding the Shop
 - [?] `bb-ext` Exterior character: copper-and-cream brick plinth, frieze, goosenecks, corner blade, rooftop cups; the east flank matches the front (shopfront band, awnings, glass, cornice) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4700,15500&view=3) [docs/kits/missions.md]
@@ -164,3 +167,7 @@ graph LR
 - [?] `bb-climb` Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
 - [?] `bb-scoot2` Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
 - [?] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1) [docs/kits/missions.md]
+
+## Parked (waiting on Sir)
+- [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
+- [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
