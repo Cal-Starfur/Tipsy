@@ -29795,7 +29795,7 @@ walkinStaff(BB_IN.name, [
   { id: 'gideon', role: 'owner (a humanoid robot)', seed: 0x61de0, U: GIDEON_UNIFORM, keys: true, pace: 0.85,
     /* (THE COUNTER, 2026-11-06: home behind it at the till, a hand on the machine now and then, back to his dock and the roaster) */
     away: () => typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
-    posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [330, 330, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
+    posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [124, 266, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
     lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
       uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }) }) }) },
@@ -51204,12 +51204,15 @@ function houseCanopy(fn){
       items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
         T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
         T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
-    /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
-    items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
-      T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
-      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; box(330 + Math.cos(t)*28 - 2, 330 + Math.cos(t)*28 + 2, 330 + Math.sin(t)*28 - 2, 330 + Math.sin(t)*28 + 2, 0.8, 2.2, copper, copper, copperD); }
-      box(322, 338, 366, 380, 0, 100, steelD, steelS, steelS); box(324, 336, 368, 378, 100, 112, '#2b3138', '#222831', '#222831');
-      F(326, 334, 102, 110, '#5be37d', null, 0, seeB1 ? 380.3 : 366.3); } });
+    /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
+       depot's `charger`: padR 44 -- an 88 circle -- a dark rim, the painted amber ring 5 wide, the grey pad inside; CH / CP in the Charge
+       depot's drawing), on the back room's floor. The humanoid's own station: where he starts and ends as the player. Centre (124, 266). */
+    { const PC = [124, 266], PR = 44, RW = 5;
+      const disc = (r, z, fill) => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(P(PC[0] + Math.cos(t)*r, PC[1] + Math.sin(t)*r, z)); } poly(o, fill); };
+      items.push({ a: PC[0], b: PC[1], z: 0, solids: [], draw: () => { disc(PR, 0.8, '#565c6a'); disc(PR, 1.2, '#ffb454'); disc(PR - RW, 1.6, '#6d7484'); } });
+      items.push({ a: PC[0], b: PC[1] + 2, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
+        disc(PR + 34, 0.9, 'rgba(127,227,255,.05)'); disc(PR + 20, 0.9, 'rgba(127,227,255,.07)'); disc(PR + 8, 0.9, 'rgba(127,227,255,.09)'); } });   // (after dark, its cool wash, as Tipsey's glows)
+    }
     /* a stack of crates and a sack of beans by the partition */
     items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {
       box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350');

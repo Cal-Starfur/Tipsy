@@ -929,6 +929,57 @@
 "status": "pending",
 "group": "Parked (waiting on Sir)",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
+},
+{
+"id": "bb-m2",
+"title": "Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built)",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-night"
+],
+"status": "blocked",
+"group": "Brew & Bolt: Minding the Shop",
+"note": "needs the story"
+},
+{
+"id": "gd1",
+"title": "Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays)",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd2",
+"title": "Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station)",
+"deps": [
+"gd1"
+],
+"status": "pending",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd3",
+"title": "The pad charges him: its glow breathes, battery fills only on it",
+"deps": [
+"gd2"
+],
+"status": "pending",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd4",
+"title": "Customise Gideon (looks and parts): where, and what",
+"deps": [
+"gd2"
+],
+"status": "blocked",
+"note": "needs Sir: where the customising happens",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
 }
 ],
 "meta": {

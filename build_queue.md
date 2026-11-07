@@ -34,6 +34,10 @@ graph LR
   bb-scoot --> bb-scoot2
   bb-int --> bb-night
   bb-roof --> bb-night
+  bb-night --> bb-m2
+  gd1 --> gd2
+  gd2 --> gd3
+  gd2 --> gd4
 ```
 
 ## People: seeded crowd
@@ -167,7 +171,14 @@ graph LR
 - [?] `bb-climb` Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
 - [?] `bb-scoot2` Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
 - [?] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1) [docs/kits/missions.md]
+- [!] `bb-m2` Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built) (needs the story) [docs/kits/missions.md]
 
 ## Parked (waiting on Sir)
 - [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
 - [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
+
+## Gideon's pad
+- [?] `gd1` Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
+- [ ] `gd2` Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station) [docs/gideon-dock.md]
+- [ ] `gd3` The pad charges him: its glow breathes, battery fills only on it [docs/gideon-dock.md]
+- [!] `gd4` Customise Gideon (looks and parts): where, and what (needs Sir: where the customising happens) [docs/gideon-dock.md]
