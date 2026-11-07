@@ -26648,7 +26648,9 @@ function walkinNightBoxes(W, D, H, LH){
      rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
      below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
      walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
-  return [[-30, W, -30, D, LH || 66, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
+  /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
+     block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
+  return [[0, W, 0, D, LH || 66, LH || 66], [0, W, 0, 0, H], [0, 0, 0, D, H]];
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -27739,7 +27741,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
              { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 40, 66]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 20]] : []) });   // (the vestibule's light is the doorway's own width, not the walls' ends beside it: those stay night)
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -27775,7 +27777,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
   street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half, P.door.at + P.door.half, P.D, P.D + P.apron, 66]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 20]] : []) });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -27826,6 +27828,36 @@ walkinLife('Saltwater Brewing Interior', { keep: [[145, 277, 0, 560]], looks: [
   { id: 'bar', spots: [[122, 330, Math.PI], [122, 385, Math.PI]] },
   { id: 'still', spots: [[128, 470, Math.PI]] },
   { id: 'casks', spots: [[292, 466, 0]] },
+] });
+/* ==================== LAGOON BATHS, WALK-IN (wk3; the room: the LIB entry 'Lagoon Baths Interior') ====================
+   The bathhouse's one hall on the street's lines (walkinDefine, an hi landmark: the box 788.8 square, the room the floor of it less the
+   walls' 30 each side -- W22: lab 463.6..1192.4 x -888.8..-160, 728.8 square), the bathhouse (box, elevations, portal, dome and
+   drum: one `shell` piece) fading round him as he goes in at the front portal's sliding pair (76 across, centred, lane 316..412 in
+   the room), the apron the portal's recess and wall (36). The doorway shows the hall (walkinThrough). */
+const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Baths', x0: 540000, y0: 400000,
+  lab: [463.6, 1192.4, -888.8, -160], door: { a: 828, b: -141.2, half: 38 }, H: 336, out: 36, apron: 36, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
+  street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
+  /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
+  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+const BATHS_ATTENDANT = { shirt: { c:0x2f8f9e, dk:0x23707c }, pants: { c:0xe8e4da, dk:0xc9c4b6 }, shoe: { c:0xd9d5c8, dk:0xb5b1a4 }, shoeKind: 'sneaker' };   // a lagoon-teal tunic, white trousers
+const BATHS_GUARD = { shirt: { c:0xc9503a, dk:0x9e3b2a }, pants: { c:0x2b3a52, dk:0x1e2a3c }, shoe: { c:0xe8e4da, dk:0xc9c4b6 }, shoeKind: 'sneaker' };   // a red lifeguard's shirt, navy shorts
+/* its staff: the attendant behind the ticket desk by the door (keys), the pool attendant walking the west and east aisles; two bathers
+   (a floor of 531,000: staff and two visitors). Heading 0 faces east, PI/2 south */
+walkinStaff('Lagoon Baths Interior', [
+  { id: 'desk', role: 'attendant', seed: 0x1a6001, U: BATHS_ATTENDANT, fixed: true, keys: true,
+    posts: [[540, 585, Math.PI/2, 7000, true], [520, 585, Math.PI/2, 3600, true]] },
+  { id: 'pool', role: 'pool attendant', seed: 0x1a6002, U: BATHS_GUARD,
+    posts: [[70, 215, 0, 6000, false], [70, 420, 0, 5000, false], [640, 300, Math.PI, 4000, false]] },
+  { id: 'bather-1', role: 'bather', seed: 0x1a6003, look: 'visitor', life: 'browse' },
+  { id: 'bather-2', role: 'bather', seed: 0x1a6004, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Lagoon Baths Interior', { keep: [[316, 412, 0, 729]], looks: [
+  { id: 'west-pool', spots: [[72, 300, 0]] },
+  { id: 'east-pool', spots: [[640, 300, Math.PI]] },
+  { id: 'mosaic', spots: [[200, 70, -Math.PI/2], [530, 70, -Math.PI/2]] },
+  { id: 'lockers', spots: [[72, 480, Math.PI]] },
 ] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
@@ -52062,6 +52094,155 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== INSIDE LAGOON BATHS (wk3: the walk-in kit, an hi landmark) ====================
+     The bathhouse's one hall, 728.8 square (the exterior's box less the walls' 30: lab 463.6..1192.4 x -888.8..-160), its portal
+     door on the front (south) in the middle (a 326..402, the sliding pair 76 across; lane 316..412 to the back door). The plan is
+     LAGOON_IN (a east, b south, world units):
+       a 316..412   the lane, door to back wall: a mosaic runner over the marble, a medallion under the dome (364, 364), a column
+                    each side of it every 100 (b 160..460), the back entrance (the exterior's, closed) at the end
+       a 140..292   the west bath, b 130..500: a marble kerb 24 wide, the water, steps at its south end; the east bath mirrors it (437..589)
+       a 0..28      lockers on the west wall (b 140..310, 418..520), the west entrance (closed) between them
+       b 590..640   the ticket desk east of the lane (a 440..640): the attendant behind it, the till turned to her
+       a 10..34     a bench on the west wall (b 560..650); towel stack on the desk's end; palms in pots either side of the door */
+  name:'Lagoon Baths Interior', xh: 336, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 728.8, dd: 728.8,
+  head:'Inside Lagoon Baths: two marble baths either side of a mosaic walk under the dome, lockers on the west wall, a ticket desk by the door',
+  tags:['interior','pocket','bathhouse','baths','mosaic','columns','lockers'],
+  desc:'The bathhouse\'s one hall: a mosaic runner from the portal to the back entrance between two marble-kerbed baths, columns along the walk, a tiled medallion under the dome, lockers on the west wall and the ticket desk by the door.',
+  draw(p){
+    const pl = (typeof LAGOON_IN !== 'undefined' && LAGOON_IN) || null;
+    if(pl) pl.view();
+    const W = 728.8, D = 728.8, H = pl ? pl.H : 336, AP = pl ? pl.apron : 36, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 364.4, half: 38 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half, CX = W/2, CY = D/2;
+    const wall = '#dfe4e2', trim = '#2f8f9e', trimD = '#23707c', gold = '#c9a24a', marble = '#d8d4c6', marbleD = '#bdb8a8', marbleS = '#a8a392';
+    const MOS = ['#2a7a8c', '#c9a24a', '#7fa8b4', '#b4674a'];
+    const wood = '#8a6a46', woodF = '#6f5236', woodS = '#5b432b', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const pot = (ca, cb) => {
+      cyl(ca, cb, 0, 26, 17, '#b4674a'); plateCircle(ca, cb, 26, 17, '#4a3a2c', '#7a4a36', 1.2);
+      tube(ca, cb, 26, ca, cb, 92, 2.6, '#6b5a3a');
+      for(let k = 0; k < 6; k++){ const t = k*1.05; tube(ca, cb, 92, ca + 30*Math.cos(t), cb + 30*Math.sin(t), 74, 1.6, '#3f6b4a'); }
+      ball(ca, cb, 96, 9, '#4e8058', '#5f9a68');
+    };
+    const column = (ca, cb) => {
+      box(ca - 12, ca + 12, cb - 12, cb + 12, 14, 22, marble, marbleD, marbleS);                  // (on the kerb)
+      cyl(ca, cb, 22, 164, 8.5, '#e6e2d4');
+      for(const hz of [26, 160]) plateHoop(ca, cb, hz, 9.2, marbleD, 2);
+      box(ca - 13, ca + 13, cb - 13, cb + 13, 164, 174, trim, shade(trim, 0.85), trimD);
+    };
+    const arch = (a0, a1, zs, za, b, col) => {                                           // an arched recess on the north wall (b 0), spring zs, crown za
+      const pts = [P(a0, b, 0), P(a0, b, zs)];
+      for(let k = 1; k < 12; k++){ const t = k/12, u = 1 - t; pts.push(P(a0*u + a1*t, b, u*u*zs + 2*u*t*za + t*t*zs)); }
+      pts.push(P(a1, b, zs), P(a1, b, 0));
+      poly(pts, col);
+    };
+
+    /* ---- THE FLOOR: cream marble in 60 slabs, a teal mosaic runner down the lane (the exterior's four tesserae), the medallion under
+       the dome, the baths' water, a threshold at the portal and its mat (W13) ---- */
+    T(0, W, 0, D, 0, marble);
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, Math.min(W, a + 60), b, Math.min(D, b + 60), 0.2, '#cfcabb');
+    T(316, 412, 0, D, 0.3, shade(trim, 0.82)); T(320, 408, 0, D, 0.4, '#e3dfd0');
+    for(let b = 6, k = 0; b < D - 12; b += 22, k++){ T(324, 348, b, b + 14, 0.5, MOS[k % 4]); T(380, 404, b, b + 14, 0.5, MOS[(k + 2) % 4]); }
+    for(const [r, c] of [[78, shade(trim, 0.8)], [70, '#e3dfd0'], [56, trim], [44, gold], [32, '#e3dfd0']]) plateCircle(CX, CY, 0.6, r, c);
+    for(let k = 0; k < 8; k++){ const t = k*Math.PI/4; T(CX + 36*Math.cos(t) - 6, CX + 36*Math.cos(t) + 6, CY + 36*Math.sin(t) - 6, CY + 36*Math.sin(t) + 6, 0.8, MOS[k % 4]); }
+    for(const [x0, x1] of [[140, 292], [437, 589]]){
+      T(x0 - 24, x1 + 24, 106, 524, 0.3, marbleD);                                           // the surround, under the kerb
+      T(x0, x1, 130, 500, 10, '#3f8fa0'); T(x0 + 14, x1 - 14, 144, 486, 10.3, '#57a9b8');
+      for(let b = 150; b < 480; b += 40) T(x0 + 6, x1 - 6, b, b + 2, 10.5, 'rgba(255,255,255,.18)');   // the sun on the water
+      for(let k = 0; k < 3; k++) T(x0 + 24 + k*8, x1 - 24 - k*8, 486 - k*5, 491 - k*5, 10.4 + k*0.2, k % 2 ? '#d8d4c6' : '#bdb8a8');   // the steps, at the south end
+    }
+    T(DA0, DA1, D, D + AP, 0.3, '#8a7a5e');
+    T(DA0 + 10, DA1 - 10, D + 6, D + AP - 8, 0.5, '#3d3a34'); T(DA0 + 15, DA1 - 15, D + 10, D + AP - 12, 0.6, '#4a463e');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
+
+    /* ---- THE WALLS (the kit's): north and west full height in the exterior's pale wall (a teal tiled dado, the mosaic band, a
+       cornice, the back and west entrances closed), the south and east cut low ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, wall, null, 0, 0);
+        F(-30, W + 30, 0, 100, shade(trim, 0.9), null, 0, 0.2);                              // the teal tiled dado
+        for(let a = -30; a < W + 30; a += 24) F(a, a + 1.2, 0, 100, shade(trim, 0.7), null, 0, 0.3);
+        F(-30, W + 30, 100, 108, gold, null, 0, 0.4);
+        F(-30, W + 30, 0, 40, shade(wall, 0.72), null, 0, 0.5);                              // the plinth
+        for(const [a0, a1] of [[40, 130], [150, 240], [488, 578], [598, 688]]){                // blind arches either side of the back door
+          arch(a0, a1, 150, 262, 0.6, shade(wall, 0.82)); arch(a0 + 8, a1 - 8, 150, 250, 0.8, shade(wall, 0.9));
+        }
+        F(CX - 46, CX + 46, 0, 142, shade(trim, 1.1), null, 0, 1.0);                          // the back entrance (the exterior's, closed)
+        F(CX - 34, CX + 34, 0, 130, shade(wall, 0.55), null, 0, 1.2);
+        F(CX - 26, CX + 26, 6, 104, '#7fa8b4', null, 0, 1.4);
+        F(CX - 1.5, CX + 1.5, 6, 104, trim, null, 0, 1.6);
+        F(-30, W + 30, 262, 280, shade(trim, 0.75), null, 0, 1.8);                            // the mosaic band
+        for(let i = 0, a = 0; a < W; a += 17.3, i++) F(a, a + 12, 266, 276, MOS[(i*3) % 4], null, 0, 2.0);
+        F(-30, W + 30, 322, 336, trim, null, 0, 2.2);                                          // the cornice
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(wall, 0.93));
+        S(0.2, -30, D + 30, 0, 100, shade(trim, 0.8));
+        for(let b = -30; b < D + 30; b += 24) S(0.3, b, b + 1.2, 0, 100, shade(trim, 0.62));
+        S(0.4, -30, D + 30, 100, 108, gold);
+        S(0.5, -30, D + 30, 0, 40, shade(wall, 0.62));
+        S(0.7, CY - 42, CY + 42, 0, 130, shade(trim, 1.1));                                    // the west entrance (closed)
+        S(0.9, CY - 34, CY + 34, 0, 118, shade(wall, 0.55));
+        S(1.1, CY - 26, CY + 26, 6, 104, '#7fa8b4');
+        S(1.3, -30, D + 30, 262, 280, shade(trim, 0.62));
+        for(let i = 0, b = -14; b < D; b += 17.3, i++) S(1.5, b, b + 12, 266, 276, MOS[(i*3 + 2) % 4]);
+        S(1.7, -30, D + 30, 322, 336, trim);
+      },
+      low: ['#c9cfcc', '#aab2b0', '#8f9896'], cap: ['#2f8f9e', '#23707c', '#1c5a64'], ftop: '#3a9eb0', frame: '#23707c' });
+
+    /* ---- THE BATHS: a marble kerb round each (24 wide, 14 high), the sides in runs; the water between, a solid to him ---- */
+    for(const [x0, x1] of [[140, 292], [437, 589]]){
+      const k0 = x0 - 24, k1 = x1 + 24, y0 = 106, y1 = 524, mk = (a0, a1, b0, b1) => box(a0, a1, b0, b1, 0, 14, '#e6e2d4', marbleD, marbleS);
+      items.push({ a: (k0 + k1)/2, b: 118, z: 0, solids: [solid(k0, k1, y0, y1, 14, 'bath')], draw: () => mk(k0, k1, y0, 130) });     // the north kerb
+      items.push({ a: (k0 + k1)/2, b: 512, z: 0, solids: [], draw: () => mk(k0, k1, 500, y1) });                                       // the south kerb
+      for(const [s0, s1] of [[130, 255], [255, 380], [380, 500]]){
+        items.push({ a: k0 + 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk(k0, x0, s0, s1) });
+        items.push({ a: k1 - 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk(x1, k1, s0, s1) });
+      }
+    }
+    /* ---- THE COLONNADE: a column each side of the lane every 100 (a 304 and 424), b 160..460 ---- */
+    for(const cb of [160, 260, 360, 460]) for(const ca of [304, 425])
+      items.push({ a: ca, b: cb, z: 14, solids: [{ name: 'column', c: [ca, cb], r: 11, h: 174 }], draw: () => column(ca, cb) });
+
+    /* ---- LOCKERS on the west wall (a 0..28): two banks, the doors a hand-width each, teal, a vent and a handle ---- */
+    for(const [s0, s1] of [[140, 310], [418, 520]]) for(let b0 = s0; b0 < s1 - 0.5; b0 += 34) {
+      const b1 = Math.min(s1, b0 + 34);
+      items.push({ a: 14, b: (b0 + b1)/2, z: 0, solids: [solid(0, 28, b0, b1, 132, 'lockers')], draw: () => {
+        box(0, 28, b0, b1, 0, 132, shade(trim, 0.95), shade(trim, 0.85), shade(trim, 0.7));
+        S(28.2, b0 + 1.5, b1 - 1.5, 4, 126, shade(trim, 1.1));
+        S(28.4, b0 + 5, b1 - 5, 100, 108, shade(trim, 0.6));                                   // the vent
+        S(28.4, b1 - 7, b1 - 5, 58, 70, '#e6e2d4');                                           // the handle
+      }});
+    }
+    /* a bench on the west wall (a 10..34, b 560..650): slats on two cheeks */
+    items.push({ a: 22, b: 605, z: 0, solids: [solid(10, 34, 560, 650, 40, 'bench')], draw: () => {
+      for(const sb of [566, 636]) box(12, 32, sb, sb + 8, 0, 28, dark, darkF, darkS);
+      for(let k = 0; k < 4; k++) box(10, 34, 560 + k*23, 560 + k*23 + 20, 28, 33, wood, woodF, woodS);
+    }});
+    /* palms in pots either side of the door, clear of its lane (a 316..412) */
+    for(const [ca, cb] of [[270, 650], [458, 650]]) items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'palm', c: [ca, cb], r: 20, h: 100 }], draw: () => pot(ca, cb) });
+
+    /* ---- THE TICKET DESK east of the lane (a 440..640, b 600..650), in runs: its front to the door (south), the attendant behind
+       it at b 585, the till at its west end turned to her, a stack of towels at its east end ---- */
+    for(let a0 = 440; a0 < 640 - 0.5; a0 += 40){
+      const a1 = Math.min(640, a0 + 40), first = a0 === 440, last = a1 >= 640;
+      items.push({ a: (a0 + a1)/2, b: 625, z: 0, solids: [solid(a0, a1, 600, 650, 80, 'desk')], draw: () => {
+        box(a0, a1, 600, 650, 0, 72, wood, woodF, woodS);
+        box(a0 - (first ? 3 : 0), a1 + (last ? 3 : 0), 597, 653, 72, 78, '#e6e2d4', '#cfcabb', '#b6b1a0');
+        F(a0 + 3, a1 - 3, 10, 58, shade(wood, 0.82), null, 0, 650.2);
+        if(first) box(a0 + 8, a0 + 38, 606, 624, 78, 86, dark, darkF, darkS);                   // the till (its keys face the attendant, north)
+        if(last){ for(let k = 0; k < 4; k++) box(a1 - 34, a1 - 8, 610, 636, 78 + k*7, 85 + k*7, k % 2 ? '#e6e2d4' : '#cfe6ea', k % 2 ? '#cfcabb' : '#b0cdd2', '#a2bcc0'); }   // the towels
+        if(a0 === 520) { box(a0 + 6, a0 + 34, 618, 632, 78, 80, trim, trimD, trimD); }          // the ticket tray
+      }});
+    }
+
+    walkinStaffSolids(items, 'Lagoon Baths Interior');
+    depthSort(items);
+  }
+},
+{
   /* ==================== SUN DECK MOTOR LODGE, THE OFFICE (the walk-in: MOTEL_IN, MOTEL_ROOM) ====================
      420 x 340, world units, a east, b south; the glass door on the south wall at a 110. A 1958 lobby: terrazzo with
      brass strips, cream walls over a turquoise band; the check-in desk in the north-east corner, an L round the clerk
@@ -61307,8 +61488,16 @@ function houseCanopy(fn){
     for(const [ta, tb] of [[150,-1500],[150,-1200],[150,-420],[150,-160],[CA-420,-1520],[CA+420,-1520],[CA-420,bb1-120],[CA+420,bb1-120],
                            [bx1+180,-220],[bx1+180,CB-240],[bx1+180,CB+240],[bx1+180,-800],[LOT-150,-1500],[LOT-150,-1200],[CA-420,-60],[CA+420,-60]])
       solids.push({ c: [ta, tb], r: 14, h: 90, prop: true });
-    return { foot: R(bx0, bx1, bb1, bb0), h: 336, solids };
+    /* (the hall's door opens across its 76 and 30 deep into the front wall -- the room's own wall: LAGOON_IN -- so he drives up to the glass where the room takes him) */
+    const DA0 = CA-38, DA1 = CA+38, DN = bb0-30;
+    return { foot: [[bx0, bb1], [bx1, bb1], [bx1, bb0], [DA1, bb0], [DA1, DN], [DA0, DN], [DA0, bb0], [bx0, bb0]], h: 336, solids };
   })(),
+  /* THE HALL IS A WALK-IN (wk3, LAGOON_IN): the front portal's door, 76 across, a live sliding pair; the doorway shows the hall
+     (walkinThrough); a lantern either side of the portal glows at night */
+  slideDoors: [{ a: 790, w: 76, b: -141.2, z0: 0, z1: 132, glass: 'rgba(150,190,206,.38)' }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f8f9e'); },
+  see: true,
+  lamps: [{ a: 766, b: -124, z: 150, r: 90, col: 0xffe2a8 }, { a: 890, b: -124, z: 150, r: 90, col: 0xffe2a8 }],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Block landmark in its own yard, entrance on every street',
   tags:['block landmark','yard on four sides','four entrances','great arched portal','onion dome'],
@@ -61386,10 +61575,6 @@ function houseCanopy(fn){
     T(bx1, LOT, CB-46, CB+46, 0.5, '#cfc9b8');              // right walk
     T(CA-46, CA+46, -LOT, bb1, 0.5, '#cfc9b8');             // back walk
     T(0, bx0, CB-46, CB+46, 0.5, '#cfc9b8');                // left walk
-    for(let i=0;i<3;i++){                                   // steps up to the front door
-      const r = 12 - i*4;
-      T(CA-40+i*3, CA+40-i*3, bb0-r, bb0, 2+i*4, shade(wall,.92));
-    }
     /* ---- the grounds, far to near ---- */
     const leaf = ['#3f6b4a','#4e8058','#568a5e'], hedgeC = '#4e7a50';
     /* IN PIECES: what stands up is an item for depthSort(), sorted into
@@ -61430,7 +61615,7 @@ function houseCanopy(fn){
 
     /* ---- THE BATHHOUSE, one item: entrances, box, elevations, portal,
        band and dome keep their authored order inside it ---- */
-    items.push({ a: CA, b: CB, draw: () => {
+    items.push({ a: CA, b: CB, shell: true, draw: () => {   // (shell: the hall inside, LAGOON_IN)
     /* ---- the volume ----
        Drawn directly rather than through body(), which starts at b 0
        and runs to the fixed D. This one is set back 130 and is 788.8
@@ -61507,11 +61692,17 @@ function houseCanopy(fn){
        tall against SHOP_DOOR_W 66.2, because this is the principal
        entrance of a civic building at the head of a flight of steps,
        not a shop doorway. */
-    F(CA-46, CA+46, 0, 142, shade(trim,1.1), null,0, bb0-10.6);
-    F(CA-38, CA+38, 0, 132, shade(wall,.32), null,0, bb0-11.0);
-    F(CA-36, CA-2,  8, 124, shade(trim,.85), null,0, bb0-11.4);
-    F(CA+2,  CA+36, 8, 124, shade(trim,.85), null,0, bb0-11.4);
-    F(CA-3,  CA+3,  8, 124, shade(trim,.6),  null,0, bb0-11.6);
+    F(CA-46, CA-38, 0, 142, shade(trim,1.1), null,0, bb0-10.6);                 // the surround: two jambs and a head round the opening (the hall behind it: LAGOON_IN)
+    F(CA+38, CA+46, 0, 142, shade(trim,1.1), null,0, bb0-10.6);
+    F(CA-46, CA+46, 132, 142, shade(trim,1.1), null,0, bb0-10.6);
+    if(SEE) HOLE([P(CA-38,bb0-11.0,132),P(CA+38,bb0-11.0,132),P(CA+38,bb0-11.0,0),P(CA-38,bb0-11.0,0)]);     // (the opening shows the hall; its live pair, slideDoors)
+    else {
+      F(CA-38, CA+38, 0, 132, shade(wall,.32), null,0, bb0-11.0);
+      F(CA-36, CA-2,  8, 124, shade(trim,.85), null,0, bb0-11.4);
+      F(CA+2,  CA+36, 8, 124, shade(trim,.85), null,0, bb0-11.4);
+      F(CA-3,  CA+3,  8, 124, shade(trim,.6),  null,0, bb0-11.6);
+    }
+    for(const la of [CA-62, CA+62]){ cyl(la, bb0+6, 120, 142, 4, trim); ball(la, bb0+6, 146, 6, '#fff0c8'); }   // a lantern either side
 
     /* ---- the other three entrances ----
        Simpler than the front, because a bathhouse has one principal
