@@ -291,8 +291,9 @@
 "title": "Riders obstacle list + clearance",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: vehicles"
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2"
 },
 {
 "id": "v3",

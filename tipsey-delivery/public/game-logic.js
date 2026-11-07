@@ -83014,18 +83014,7 @@ function cplConvoyTraffic(scene, t){
     let light = false;
     if(p){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), fr = RIGS.semiflat.len/2;
       light = scene.signalStopsAhead(t, p.x + hx*fr, p.y + hy*fr, hx, hy); }
-    /* and the street's riders, the cars' rule with them (updateRiderTraffic): a rider in its way, it waits; it in a rider's
-       way, the rider waits (carWait: the truck is the bigger) */
-    if(p && scene.ridersActive){ const h = p.fdir*Math.PI/2, hx = Math.cos(h), hy = Math.sin(h), H = RIGS.semiflat.len*0.45, BAND = STREET_RIDER.band;
-      const tPts = [-H, -H/2, 0, H/2, H].map(k => ({ x: p.x + hx*k, y: p.y + hy*k }));
-      const inWay = (ox, oy, ax, ay, pts, look) => pts.some(q => { const rx = q.x - ox, ry = q.y - oy, al = rx*ax + ry*ay; return al > 0 && al < look && Math.abs(rx*ay - ry*ax) < BAND; });
-      for(const rd of scene.ridersActive(t)){
-        const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, dx = wp.x - p.x, dy = wp.y - p.y;
-        if(dx*dx + dy*dy > 1100*1100) continue;
-        const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
-        if(inWay(wp.x, wp.y, rx, ry, tPts, STREET_RIDER.look + 30)) rd.carWait = t;
-        else if(inWay(p.x, p.y, hx, hy, rPts, H + TRAF_BRAKE_D + 90)) blocked = true;
-      } }
+    /* (and the street's riders: trafficGiveWay above, with the cars) */
     T.stall = blocked ? (T.stall || 0) + dt : 0;
     if(T.stall > 30000) blocked = false;                    // (the crew van's: a wait that never clears is let go)
     if(light) blocked = true;                               // (never through a red: the walkers have the zebra)
@@ -121887,6 +121876,22 @@ class WorldScene extends Phaser.Scene {
           if(inBox) blocked = true; else tr.stopAt = t;
         } else if(carWaits) tr.stopAt = t;
         else if(vanWaits) blocked = true;
+      }
+    }
+    /* AND THE STREET'S RIDERS, the same rule (STREET_RIDER: look, band -- updateRiderTraffic's): a rider in this vehicle's way,
+       it waits; the vehicle in a rider's way, the rider waits (carWait, read by updateStreetRiders: the vehicle is the bigger).
+       Every story vehicle gets it here, so none keeps a copy of its own (the semis' was one, the van and the cruiser had none:
+       the cruiser drove through riders). A parked one is only an obstacle for the rider, never held by one. */
+    if(this.ridersActive){
+      const SR = STREET_RIDER, L = at.len || CARC.len, vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = L*0.45;
+      const vPts = [-H, -H/2, 0, H/2, H].map(a => ({ x: at.x + vx*a, y: at.y + vy*a }));
+      const inWay = (ox, oy, hx, hy, pts, look) => pts.some(q => { const rx = q.x - ox, ry = q.y - oy, al = rx*hx + ry*hy; return al > 0 && al < look && Math.abs(rx*hy - ry*hx) < SR.band; });
+      for(const rd of this.ridersActive(t)){
+        const a = rd._at || trafficWorldAt(rd, t), wp = a.wp, dx = wp.x - at.x, dy = wp.y - at.y;
+        if(dx*dx + dy*dy > (1100 + L/2)*(1100 + L/2)) continue;
+        const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
+        if(inWay(wp.x, wp.y, rx, ry, vPts, SR.look + 30)) rd.carWait = t;
+        else if(!at.parked && inWay(at.x, at.y, vx, vy, rPts, H + TRAF_BRAKE_D + 90)) blocked = true;
       }
     }
     return blocked;
