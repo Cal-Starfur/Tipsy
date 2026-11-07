@@ -25786,6 +25786,7 @@ const TPE_PLAN = {
   backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
+  VERGE: { a0: 14, a1: 1160, b0: -92, b1: 0 },    // the sidewalk row against the west strip's front fence, laid as lawn (fillSchoolVerge)
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
   trees: [[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
@@ -72165,12 +72166,6 @@ marinaEntry(),
       for(let b = BB1 + 24; b < -170; b += 24) T(PL.EA0 - 64, PL.EA1 + 64, b, b + 1.2, 0.9, paveE);
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
-    /* THE FRONT VERGE OF THE WEST STRIP: the existing grass margin carried on to the pavement line, over the grey lane inside the fence (Sir,
-       2026-11-07: "an extra lane of grey sidewalk that should be green grass"); the sidewalk outside the fence (b > 0) stays as it is */
-    { const x0 = 14, x1 = 1186, y0 = -140, y1 = 0;
-      T(x0, x1, y0, y1, 0.4, '#4a7a48');
-      for(let a = x0, i = 0; a < x1; a += 80, i++) for(let b = y0, j = 0; b < y1; b += 80, j++) if((i + j) % 2) T(a, Math.min(a + 80, x1), b, Math.min(b + 80, y1), 0.45, '#528552');
-    }
     /* THE BACK YARD OF THE WEST STRIP, behind the playground and the portables: grass (Sir, 2026-11-07: "i want this back yard to be grass
        not sand"), the ground pass's bare lot painted over in two greens, in 80 squares */
     { const x0 = 24, x1 = 1186, y0 = -1868, y1 = -992;
@@ -97290,6 +97285,17 @@ class WorldScene extends Phaser.Scene {
      surface in rings from the rim to the floor, each facet shaded by the way it faces and drawn far to near (the ones
      turned from the eye left out: the lip hides them), the pool tile under the rim, the coping along its far side (the
      near side's is the lip's), the drain (the lawn round the pad is the park's own: no plate of grass) */
+  /* THE WEST STRIP'S FRONT VERGE (Sir, 2026-11-07: "an extra lane of grey sidewalk that should be green grass ... extend the existing grass"):
+     the sidewalk row against the playground's fence, laid as the world's own lawn -- fillBlockInterior with GRASS on the world lattice, so it
+     is the same two greens in the same checker as the lawn beside it (it paints after the roads and sidewalks, like the merged parks' grass) */
+  fillSchoolVerge(g){
+    const site = HOOD_RIM_SITES.find(q => q.name === "Tide Pool Elementary");
+    if(!site) return;
+    const fr = hoodRimFrame(site), V = TPE_PLAN.VERGE, p0 = fr.toWorld(V.a0, V.b0), p1 = fr.toWorld(V.a1, V.b1);
+    const rect = { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y) };
+    if(Math.abs(this.camX - (rect.x0 + rect.x1)/2) + Math.abs(this.camY - (rect.y0 + rect.y1)/2) > (this.vpW() + this.vpH())/this.K + 1600) return;
+    this.fillBlockInterior(g, rect, GRASS);
+  }
   fillSkateGround(g){
     const P = SK_PLAN;
     if(Math.abs(this.camX - P.CX) + Math.abs(this.camY - P.CY) > (this.vpW() + this.vpH())/this.K + 2400) return;
@@ -99749,6 +99755,7 @@ class WorldScene extends Phaser.Scene {
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillSkateGround(g);                // DRIFTWOOD SKATE PARK's pad and its bowl (SK_PLAN)
+    this.fillSchoolVerge(g);                // TIDE POOL ELEMENTARY's west strip: the sidewalk row against its fence is lawn (TPE_PLAN.VERGE)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
