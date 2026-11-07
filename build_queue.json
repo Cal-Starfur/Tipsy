@@ -956,9 +956,10 @@
 "deps": [
 "gd1"
 ],
-"status": "pending",
+"status": "built",
 "spec": "docs/gideon-dock.md",
-"group": "Gideon's pad"
+"group": "Gideon's pad",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 },
 {
 "id": "gd3",

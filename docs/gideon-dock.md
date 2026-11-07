@@ -7,6 +7,6 @@ The same pad Tipsey has in his garage and at every street charging station (the 
 It sits in the open middle of the back room: clear of the roaster, the workbench and the bean shelves, so nothing needs moving. (An alcove on the north wall, with posts and a wardrobe locker, was tried and dropped: the roaster stands in front of that wall.)
 
 ## Still to build
-- **gd2 Start on the pad.** Fleet "Play" with the humanoid puts the player on the pad in the back room, facing out; the shop and the room are his world. His way out is the back room's door gap and the shop's front door.
+- **gd2 Start on the pad (built).** Fleet "Play" with the humanoid puts the player on the pad in the back room, facing out; the shop and the room are his world. His way out is the back room's door gap and the shop's front door.
 - **gd3 Charge on the pad.** The pad's glow is live: it breathes while he charges (battery rising); the battery bar fills only while he stands on it; going back to the pad is how he recharges, as Tipsey does at his station.
 - **gd4 Customise.** Where the humanoid's looks and parts are changed (the garage's Skins for him) -- a wardrobe/mirror, placement to decide.
