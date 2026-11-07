@@ -69,7 +69,7 @@ graph LR
 - [?] `r1` Dev challenge routes data plumbing [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1) [docs/roadmap.md#phase-1]
 - [?] `r2a` Ramp/kicker lab bench, all 4 headings [test](https://cal-starfur.github.io/Tipsy/consistency-pass/labs/ramp-jump.html) [docs/ramp-jump-spec.md]
 - [?] `r2b` Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1&go=10440,5720,0&view=2) [docs/ramp-jump-spec.md]
-- [ ] `r3` Community route editor [docs/roadmap.md#phase-3]
+- [x] `r3` Community route editor [docs/roadmap.md#phase-3]
 
 ## Specs (waiting on decisions)
 - [!] `s1` Onboarding level 'Learn the Ropes' (needs hazard choice, menu label) [docs/onboarding-spec.md]
