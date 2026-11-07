@@ -29405,7 +29405,7 @@ walkinLife(SHELTER_IN.name, { keep: [[340, 460, 0, 764]], looks: [
   { id: 'waiting', spots: [[220, 640, Math.PI]] },
 ] });
 const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican Drug', x0: 450000, y0: 410000,
-  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -810, half: 55 }, H: 348, out: 40, apron: 70, glass: 4,
+  lab: [523.6, 1063.6, -1240, -880], door: { a: 636.6, b: -810, half: 61 }, H: 348, out: 40, apron: 70, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park between the parked cars to the
      pavement, and along it round either corner) */
   street: { to: [0, 1024], routes: [[[-820, 1024], [-820, -3600]], [[1203, 1024], [1203, -3600]]] },
@@ -53140,7 +53140,7 @@ function houseCanopy(fn){
     if(pl) pl.view();
     const W = 540, D = 360, H = pl ? pl.H : 232, AP = pl ? pl.apron : 40, LH = 66;
     const door = (pl && pl.door) || { side: 's', at: 113, half: 55 };
-    const DA0 = door.at - door.half, DA1 = door.at + door.half, TJ = 20;                 // the tower's piers either side of the pair
+    const DA0 = door.at - door.half, DA1 = door.at + door.half, TJ = 14;                 // the tower's piers either side of the pair
     const PW = [128, 210], PH = [430, 540, 242];                                          // the window's b; the pharmacy's a0, a1, its counter's front
     const white = '#eef0ec', whiteD = '#d9dcd6', band = '#2f7f9e', bandD = '#22617a', grey = '#8d949a', greyD = '#6d747c';
     const shelfC = '#e4e6e2', shelfF = '#c9cdc7', shelfS = '#b3b8b2', glass = 'rgba(190,220,232,.50)', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
@@ -53182,7 +53182,7 @@ function houseCanopy(fn){
        thresholds at the store's wall and at the tower's sliding pair (W13) ---- */
     T(0, W, 0, D, 0, '#e9ebe6');
     for(let a = 0; a < W; a += 45) for(let b = 0; b < D; b += 45) if(((a + b)/45) % 2) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#dfe2dc');
-    T(DA0, DA1, D, D + AP, 0.3, '#d6d9d3');
+    T(DA0 - TJ, DA1 + TJ, D, D + AP, 0.3, '#d6d9d3');                                    // (under the piers as well: they stand on it)
     T(DA0 + 8, DA1 - 8, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D + 10, D + AP - 12, 0.6, '#48525a');
     T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
 
@@ -53209,9 +53209,10 @@ function houseCanopy(fn){
       },
       low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d8d2', frame: '#b0aa9e' });
     /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
-    /* (SLIM, as the tower's own: the exterior's glass starts 14 in from its edge (EA0 + 14), so the pier is the 14 of the tower's front
-       that stands either side of it, 6 clear of the pair's frame -- not the 20 of block it was, the little wall at the entry, Sir 2026-11-07) */
-    for(const [j0, j1] of [[DA0 - TJ, DA0 - 6], [DA1 + 6, DA1 + TJ]])
+    /* (SLIM and JOINED, as the tower's own: the exterior's glass starts 14 in from its edge (EA0 + 14), so the door's gap is that glass's
+       122 (half 61) and the pier is the 14 of the tower's front either side of it, standing flush on the wall's end and on the
+       vestibule's floor -- not the 20 of block it was, nor a stub with a gap to the wall and no floor under it, Sir 2026-11-07) */
+    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
       items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
         box(j0, j1, D, D + AP, 0, LH - 8, '#e6e8e3', '#d6d9d3', '#c4c8c2');
         box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
@@ -67739,7 +67740,7 @@ function houseCanopy(fn){
     for(let i=0;i<5;i++){ const ba = 250 + OA + i*118; if(!(ba > EA0-16 && ba < EA1+16)) solids.push({ c: [ba, EB+4], r: 7, h: 30, prop: true }); }
     /* (the tower open across its sliding pair, between its piers (20 each): he drives in under it to the pair, where
        the room takes him -- PELICAN_IN, glass 4; the tower was solid to its front, and he was taken in 60 out of it) */
-    const DP0 = EA0 + 20, DP1 = EA1 - 20;
+    const DP0 = EA0 + 14, DP1 = EA1 - 14;
     return { foot: [[BA0,BB0],[EA0,BB0],[EA0,EBF],[DP0,EBF],[DP0,BB0],[DP1,BB0],[DP1,EBF],[EA1,EBF],[EA1,BB0],[BA1,BB0],[BA1,BB1],[BA0,BB1]], h: 232, solids };
   })(),
   /* the drive lane's mouth, lab a -- see hoodDrivewaysOf */
