@@ -108,7 +108,7 @@ graph LR
 - [?] `pr4` Pier + harbour still props cached [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Walk-in landmarks
-- [ ] `wk1` Dune Home & Garden [docs/state/walkin_recipe.md]
+- [?] `wk1` Dune Home & Garden [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2) [docs/state/walkin_recipe.md]
 - [ ] `wk2` Saltwater Brewing [docs/state/walkin_recipe.md]
 - [ ] `wk3` Lagoon Baths [docs/state/walkin_recipe.md]
 - [ ] `wk4` Driftwood Chapel [docs/state/walkin_recipe.md]

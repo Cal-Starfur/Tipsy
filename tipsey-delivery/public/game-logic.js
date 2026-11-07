@@ -27737,6 +27737,36 @@ walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
   { id: 'pharmacy', spots: [[404, 230, 0]] },
   { id: 'till', spots: [[287, 250, Math.PI/2]] },
 ] });
+/* ==================== DUNE HOME & GARDEN, WALK-IN (wk1; the room: the LIB entry 'Dune Home & Garden Interior') ====================
+   The big-box store's one room on the street's lines (walkinDefine, an hi landmark: its LAB, the store box -- the exterior's
+   SA0..SA1 x SB1..SB0, 720 x 510), the shell (store box, dock and entrance tower: one `shell` piece) fading round him as he
+   goes in at the tower's sliding pair (one pair, 150 across, door lane 320..470 in the room), the apron the tower's 64. */
+const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune Home & Garden', x0: 520000, y0: 410000,
+  lab: [343.6, 1063.6, -1390, -880], door: { a: 738.6, b: -816, half: 75 }, H: 232, out: 64, apron: 64, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
+     round either corner) */
+  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 64, 66]] : []) });
+const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
+/* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
+   (the gondolas, the showroom); one shopper, a floor of 367,000 */
+walkinStaff('Dune Home & Garden Interior', [
+  { id: 'paint', role: 'paint clerk', seed: 0xd0a11, U: DUNE_UNIFORM, fixed: true,
+    posts: [[67, 150, 0, 7000, true], [67, 120, 0, 3600, true]] },
+  { id: 'cashier', role: 'cashier', seed: 0xd0a22, U: DUNE_UNIFORM, fixed: true, keys: true,
+    posts: [[538, 385, 0, 7000, true], [538, 350, 0, 3600, true]] },
+  { id: 'associate', role: 'floor associate', seed: 0xd0a33, U: DUNE_UNIFORM,
+    posts: [[285, 300, Math.PI, 5000, false], [200, 300, Math.PI, 3000, false], [610, 300, Math.PI, 3000, false]] },
+  { id: 'shopper-1', role: 'shopper', seed: 0xd0a44, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Dune Home & Garden Interior', { keep: [[320, 470, 0, 510]], looks: [
+  { id: 'paint-counter', spots: [[148, 150, Math.PI]] },
+  { id: 'gondola-w', spots: [[184, 180, 0], [285, 180, Math.PI]] },
+  { id: 'gondola-e', spots: [[505, 180, 0], [610, 180, Math.PI]] },
+  { id: 'sofas', spots: [[660, 125, -Math.PI/2]] },
+  { id: 'planters', spots: [[640, 260, 0]] },
+  { id: 'checkout', spots: [[615, 385, Math.PI]] },
+] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
    The range is one room on the street's lines (walkinDefine, a rim site's frame: landmarkLabWorld), its shell -- the three
@@ -38988,7 +39018,7 @@ function errandSitesOf(grid, route){
       const W = (a, b, o) => { const q = hoodShopWorld(e, u, dent, a, b); return unit(o, q.x, q.y); };
       const dirW = (a0, b0, a1, b1) => { const p = W(a0, b0), q = W(a1, b1), l = Math.hypot(q.x - p.x, q.y - p.y); return { x: (q.x - p.x)/l, y: (q.y - p.y)/l }; };
       const AISLE = -440, ENT = 800, bays = duneLotCars().filter(q => !q.car && !q.skip).map(q => ({ a: q.a, b: q.b, taken: false }));
-      const doorAt = a => { const D = dent.slideDoors, d = Math.abs(a - (D[0].a + D[0].w/2)) < Math.abs(a - (D[1].a + D[1].w/2)) ? D[0] : D[1]; return W(d.a + d.w/2, d.walk); };
+      const doorAt = a => { const d = dent.slideDoors[0]; return W(d.a + d.w/2, d.walk); };   // (one wide pair)
       const plan = (mouth) => () => {
         const free = bays.filter(q => !q.taken);
         if(!free.length) return null;
@@ -51641,6 +51671,191 @@ function houseCanopy(fn){
     depthSort(items);
   }
   },
+{
+  /* ==================== INSIDE DUNE HOME & GARDEN (wk1: the walk-in kit, an hi landmark) ====================
+     The store box, 720 x 510 (the exterior's SA0..SA1 x SB1..SB0), its door on the front (south) under the entrance tower
+     (a 290..500, 64 out, the one sliding pair 150 across between its 30 piers: a 320..470). The plan is DUNE_IN (a east,
+     b south, world units):
+       b 0         the back wall: the three roll-up dock doors the exterior shows (a 80..210, 280..410, 480..610), stock
+                   on pallets before the outer two
+       a 0..44     the paint wall down the west wall, b 40..230; the paint counter a 90..115 (b 70..230) with the mixer,
+                   the clerk between the two
+       a 210..245  a gondola of home goods, b 90..260; a 540..575 another
+       a 320..470  the door's lane, door to back wall, 150 clear
+       a 600..700  the showroom in the north-east corner: a rug, a sofa, a lamp (b 40..110)
+       a 676..718  planters and garden stock low along the east wall, b 190..300
+       a 560..590  the checkout, b 320..450, two tills facing west, the cashier between it and the lane
+       a 20..70    the trolleys, south-west, under the window */
+  name:'Dune Home & Garden Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 720, dd: 510,
+  head:'Inside Dune Home & Garden: a paint wall and counter, home-goods gondolas, a sofa showroom, planters and a checkout',
+  tags:['interior','pocket','home store','paint counter','showroom','checkout'],
+  desc:'The big-box store\'s one room: dock doors on the back wall, the paint wall and its counter with the mixer down the west side, two gondolas of home goods, a showroom with a sofa in the north-east corner, planters along the east wall and a two-till checkout beside the sliding doors.',
+  draw(p){
+    const pl = (typeof DUNE_IN !== 'undefined' && DUNE_IN) || null;
+    if(pl) pl.view();
+    const W = 720, D = 510, H = pl ? pl.H : 232, AP = pl ? pl.apron : 64, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 395, half: 75 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half, TJ = 30;                 // the tower's piers either side of the pair
+    const wall = '#ece6d6', wallD = '#d9d2c2', band = '#2f8a8f', bandD = '#22696d', grey = '#8d949a', greyD = '#6d747c';
+    const shelfC = '#d9d2c2', shelfF = '#c0b8a6', shelfS = '#a8a08e', dark = '#3b4248', darkF = '#30363b', darkS = '#2a2f33';
+    const STOCK = ['#d8464a', '#3f7fc4', '#f2c14e', '#5aa36a', '#f4f2ec', '#8a5aa8', '#ef7d2a', '#2f9e9a', '#e78fb3'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* EVERY LONG PIECE IN RUNS of 40 or less, each keyed at its own middle (as the kit's walls) */
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n, k === 0, k === n - 1]); return r; };
+    const o0 = P(0, 0, 0), seeA1 = P(1, 0, 0).y > o0.y, seeB1 = P(0, 1, 0).y > o0.y;
+    const runBox = (a0, a1, b0, b1, z0, z1, tp, fr, sd, alongA, first, last) => {
+      T(a0, a1, b0, b1, z1, tp);
+      const nb = seeB1 ? b1 : b0, ea = seeA1 ? a1 : a0;
+      if(alongA || (seeB1 ? last : first)) F(a0, a1, z0, z1, fr, null, 0, nb);
+      if(!alongA || (seeA1 ? last : first)) S(ea, b0, b1, z0, z1, sd);
+    };
+    const goods = (a0, a1, b0, b1, z, h, alongB, k0) => {
+      const L = alongB ? b1 - b0 : a1 - a0, n = Math.max(1, Math.floor(L/13));
+      for(let k = 0; k < n; k++){
+        const c = STOCK[(k*7 + (k0 || 0)*3 + ((k*k) % 5)) % STOCK.length], hh = h*(0.7 + 0.3*(((k + (k0 || 0))*5) % 3)/2);
+        const s0 = (alongB ? b0 : a0) + L*k/n + 1.5, s1 = (alongB ? b0 : a0) + L*(k + 1)/n - 1.5;
+        if(alongB) box(a0, a1, s0, s1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+        else box(s0, s1, b0, b1, z, z + hh, shade(c, 1.12), c, shade(c, 0.8));
+      }
+    };
+    /* a paint can: a tin with a lid, a label band */
+    const can = (ca, cb, z, c) => { cyl(ca, cb, z, z + 9, 4.2, '#c9ced2'); cyl(ca, cb, z + 2.5, z + 6.5, 4.3, c); cyl(ca, cb, z + 9, z + 9.8, 4.4, '#9aa0a4'); };
+
+    /* ---- THE FLOOR: sealed concrete in 60 slabs, a thin yellow safety line either side of the door's lane, the
+       tower's vestibule out to its front with a mat, thresholds at the wall and at the pair (W13) ---- */
+    T(0, W, 0, D, 0, '#cfcabd');
+    for(let a = 0; a < W; a += 60) for(let b = 0; b < D; b += 60) if(((a + b)/60) % 2) T(a, Math.min(W, a + 60), b, Math.min(D, b + 60), 0.2, '#c6c1b3');
+    T(DA0 - 4, DA0, 0, D, 0.4, '#e2b93b'); T(DA1, DA1 + 4, 0, D, 0.4, '#e2b93b');
+    T(DA0, DA1, D, D + AP, 0.3, '#bdb8aa');
+    T(DA0 + 10, DA1 - 10, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 15, DA1 - 15, D + 10, D + AP - 12, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
+
+    /* ---- THE WALLS (the kit's): back and west full height, cream over a lagoon-teal band, the three dock doors in the
+       back one; south and east cut low, the shopfront's two glazed runs in the south one ---- */
+    walkinRoom(items, { W, D, H, LH, door, winS: [[136, 278, 20], [516, 660, 20]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, wall, null, 0, 0);
+        F(-30, W + 30, 0, 18, greyD, null, 0, 0.2);                                  // the skirting
+        F(-30, W + 30, 186, 212, band, null, 0, 0.3);                                // the band
+        F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
+        blockWordIn('HOME & GARDEN', 30, 270, 190, 208, 0.6, '#eef4f6', null, 11);
+        blockWordIn('PAINT · TOOLS · PATIO', 440, 700, 190, 208, 0.6, '#eef4f6', null, 9);
+        /* the three dock doors the exterior shows (SA0 + 80, 280, 480 .. +130): a frame, the roll-up's slats */
+        for(const x0 of [80, 280, 480]){
+          F(x0 - 6, x0 + 136, 0, 118, shade(wall, 0.72), null, 0, 0.4);
+          F(x0, x0 + 130, 0, 112, '#20242a', null, 0, 0.7);
+          for(let z = 8; z < 112; z += 12) F(x0 + 2, x0 + 128, z, z + 2, '#2f353c', null, 0, 0.9);
+          F(x0 + 6, x0 + 124, 100, 108, '#e2b93b', null, 0, 1.0);                    // the hazard strip
+        }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(wall, 0.93));
+        S(0.2, -30, D + 30, 0, 18, shade(greyD, 0.9));
+        S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
+      },
+      low: ['#e6e1d2', '#d6d0c0', '#c4bead'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d0c2', frame: '#a8a08e' });
+    /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
+    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
+      items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
+        box(j0, j1, D, D + AP, 0, LH - 8, '#e6e1d2', '#d6d0c0', '#c4bead');
+        box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
+      }});
+
+    /* ---- STOCK ON PALLETS before the outer two dock doors ---- */
+    for(const [p0, p1] of [[88, 202], [488, 602]])
+      items.push({ a: (p0 + p1)/2, b: 34, z: 0, solids: [solid(p0, p1, 8, 62, 96, 'stock')], draw: () => {
+        box(p0, p1, 8, 62, 0, 8, '#a5834f', '#8a6a3c', '#725630');                    // the pallet
+        for(let k = 0; k < 3; k++){ const x0 = p0 + 3 + k*((p1 - p0 - 6)/3), x1 = x0 + (p1 - p0 - 6)/3 - 3;
+          box(x0, x1, 10, 60, 8, 48, k % 2 ? '#c9a877' : '#b99765', '#a8875a', '#8f7248');
+          if(k !== 1) box(x0 + 2, x1 - 2, 14, 56, 48, 84, '#c9a877', '#b99765', '#9a7c4e'); }
+      }});
+
+    /* ---- THE PAINT WALL, down the west wall (a 0..44, b 40..230): cans on four shelves, facing east ---- */
+    for(const [s0, s1, first, last] of runs(40, 230))
+      items.push({ a: 22, b: (s0 + s1)/2, z: 0, solids: [solid(0, 44, s0, s1, 150, 'paint wall')], draw: () => {
+        runBox(0, 44, s0, s1, 0, 150, shelfC, shelfF, shelfS, false, first, last);
+        for(const z of [16, 50, 84, 118]){
+          S(44.3, s0 + 1, s1 - 1, z - 3, z, shelfS);
+          for(let b = s0 + 6, k = 0; b < s1 - 3; b += 11, k++) can(34, b, z, STOCK[(k*3 + z) % STOCK.length]);
+          for(let b = s0 + 6, k = 0; b < s1 - 3; b += 11, k++) can(20, b, z, STOCK[(k*5 + z + 1) % STOCK.length]);
+        }
+        if(last) F(0, 44, 20, 150, shelfF, null, 0, s1 + 0.2);
+      }});
+    /* ---- THE PAINT COUNTER (a 90..115, b 70..230): its front to the store, the mixer and the tint wheel on it ---- */
+    for(const [s0, s1, first, last] of runs(70, 230))
+      items.push({ a: 102, b: (s0 + s1)/2, z: 0, solids: [solid(90, 115, s0, s1, 60, 'counter')], draw: () => {
+        runBox(90, 115, s0, s1, 0, 54, '#f1ede2', band, bandD, false, first, last);
+        runBox(88, 117, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 54, 58, '#3d4448', darkF, darkS, false, first, last);
+        if(s0 <= 130 && s1 > 130){                                                     // the shaker, a tall steel drum with a lid
+          cyl(102, 130, 58, 92, 14, '#b8bec3'); cyl(102, 130, 92, 96, 15, '#8d949a'); cyl(102, 130, 62, 66, 14.6, band);
+        }
+        if(s0 <= 190 && s1 > 190){                                                     // the swatch fan, a stand of colour cards
+          box(96, 108, 184, 198, 58, 62, dark, darkF, darkS);
+          for(let k = 0; k < 6; k++) box(97 + k*1.5, 99 + k*1.5, 186, 196, 62, 86 - k*2, STOCK[(k*2) % STOCK.length], STOCK[(k*2) % STOCK.length], shade(STOCK[(k*2) % STOCK.length], 0.8));
+        }
+        if(s0 <= 100 && s1 > 100) box(96, 108, 92, 108, 58, 74, dark, darkF, darkS);   // the till
+      }});
+
+    /* ---- TWO GONDOLAS of home goods, b 90..260: a spine, three shelves a side, an end cap at each end ---- */
+    for(const [g0, g1] of [[210, 245], [540, 575]])
+      for(const [s0, s1, first, last] of runs(90, 260)) items.push({ a: (g0 + g1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(g0, g1, s0, s1, 130, 'shelves')], draw: () => {
+        runBox(g0, g1, s0, s1, 0, 10, greyD, grey, shade(greyD, 0.85), false, first, last);
+        runBox(g0 + 15, g1 - 15, s0, s1, 10, 130, shelfC, shelfF, shelfS, false, first, last);
+        for(const z of [10, 50, 90]){
+          box(g0, g0 + 15, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g0 + 2, g0 + 13, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g0 + z + (s0 | 0));
+          box(g1 - 15, g1, s0, s1, z, z + 3, shelfC, shelfF, shelfS); goods(g1 - 13, g1 - 2, s0 + (first ? 3 : 0), s1 - (last ? 3 : 0), z + 3, 22, true, g1 + z + (s0 | 0));
+        }
+        runBox(g0 - 2, g1 + 2, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 130, 136, band, bandD, shade(bandD, 0.85), false, first, last);
+        if(last) box(g0, g1, s1 - 2, s1, 10, 130, band, band, bandD);
+      }});
+
+    /* ---- THE SHOWROOM, north-east corner (a 600..700, b 40..110): a rug, a sofa against the back, a floor lamp ---- */
+    T(596, 706, 36, 150, 0.3, '#b9674a'); T(602, 700, 42, 144, 0.5, '#d49a6a');
+    items.push({ a: 650, b: 66, z: 0, solids: [solid(610, 690, 40, 90, 60, 'sofa')], draw: () => {
+      box(610, 690, 40, 90, 0, 22, '#5d7f8a', '#4d6c76', '#3f5a63');                  // the base
+      box(610, 690, 40, 54, 22, 62, '#6a8e9a', '#557886', '#456470');                  // the back
+      box(610, 624, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470'); box(676, 690, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');   // the arms
+      box(624, 676, 54, 90, 22, 30, '#7fa2ae', '#6a8e9a', '#557886');                  // the cushions
+      box(632, 650, 56, 70, 30, 44, '#e2b93b', '#c9a02e', '#a8841f');                  // a scatter cushion
+    }});
+    items.push({ a: 702, b: 55, z: 0, solids: [{ name: 'lamp', c: [702, 55], r: 6, h: 150 }], draw: () => {
+      cyl(702, 55, 0, 3, 8, '#3d4448'); cyl(702, 55, 3, 140, 1.8, '#8d949a'); cyl(702, 55, 130, 156, 9, '#f4e7c4');
+    }});
+
+    /* ---- PLANTERS AND GARDEN STOCK, low along the east wall (a 676..718, b 190..300, in runs) ---- */
+    for(const [s0, s1] of runs(190, 300))
+      items.push({ a: 697, b: (s0 + s1)/2, z: 0, solids: [solid(676, 718, s0, s1, 56, 'planters')], draw: () => {
+        box(676, 718, s0, s1, 0, 28, '#a35f3c', '#8a4e30', '#6f3f26');
+        T(678, 716, s0 + 1, s1 - 1, 28.3, '#4a3a26');
+        for(let b = s0 + 8; b < s1 - 4; b += 18){ ball(697, b, 40, 10, ['#4e8058', '#3f6b4a', '#6b9a52'][((b/18) | 0) % 3]); ball(697, b + 4, 48, 7, ['#c26a7e', '#e8c34a', '#b4674a'][((b/18) | 0) % 3]); }
+      }});
+
+    /* ---- THE CHECKOUT (a 560..590, b 320..450): a counter along b, two tills facing the cashier's side (west), a belt on
+       the customers' side ---- */
+    for(const [s0, s1, first, last] of runs(320, 450))
+      items.push({ a: 575, b: (s0 + s1)/2, z: 0, solids: [solid(560, 590, s0, s1, 60, 'checkout')], draw: () => {
+        runBox(560, 590, s0, s1, 0, 54, '#f1ede2', band, bandD, false, first, last);
+        runBox(558, 592, s0 - (first ? 2 : 0), s1 + (last ? 2 : 0), 54, 58, '#3d4448', darkF, darkS, false, first, last);
+        T(572, 590, s0, s1, 58.3, '#22272b');                                           // the belt, the customers' side
+        for(const tb of [350, 400]) if(s0 <= tb && s1 > tb){
+          box(562, 580, tb - 14, tb + 14, 58, 70, dark, darkF, darkS);                  // the till
+          if(!seeA1) S(561.6, tb - 10, tb + 10, 72, 90, '#7fb2c9');                     // its screen, its face to her (west): seen only from her side
+          box(562, 567, tb - 12, tb + 12, 70, 92, dark, darkF, darkS);
+        }
+      }});
+
+    /* ---- TROLLEYS, south-west under the window (nested wire carts) ---- */
+    items.push({ a: 45, b: 455, z: 0, solids: [solid(22, 70, 432, 480, 40, 'trolleys')], draw: () => {
+      for(let k = 0; k < 3; k++) box(22 + k*5, 70 + k*5 - 10, 434, 478, 10 + k*3, 36 + k*3, '#c9ced2', '#9aa0a2', '#868c90');
+      box(20, 72, 430, 482, 4, 10, '#3d4448', darkF, darkS);
+    }});
+
+    walkinStaffSolids(items, 'Dune Home & Garden Interior');
+    depthSort(items);
+  }
+},
 {
   /* ==================== SUN DECK MOTOR LODGE, THE OFFICE (the walk-in: MOTEL_IN, MOTEL_ROOM) ====================
      420 x 340, world units, a east, b south; the glass door on the south wall at a 110. A 1958 lobby: terrazzo with
@@ -65656,7 +65871,9 @@ function houseCanopy(fn){
       ...duneLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
-    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
+    /* (the tower open across its sliding pair, between its piers (30 each): he drives in under it to the pair, where the room takes him -- DUNE_IN) */
+    const DP0 = EA0 + 30, DP1 = EA1 - 30;
+    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[DP0,EB],[DP0,SB0],[DP1,SB0],[DP1,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
   })(),
   drive: [
     { side:'front', from: 680, to: 920, col:'#6b6f6c', arrows:'both' },     // the car park
@@ -65667,7 +65884,8 @@ function houseCanopy(fn){
      them too"): the two pairs in the entrance tower, live, opened by the
      game for him and for the shoppers (shopDoorOpen). a, w: the pair's
      opening along lab a; b its plane; walk: where a shopper goes in. */
-  slideDoors: [{ a: 663.6, w: 62, b: -814, z0: 20, z1: 124, walk: -802 }, { a: 751.6, w: 62, b: -814, z0: 20, z1: 124, walk: -802 }],
+  /* (ONE PAIR, 150 across, the tower's width less its 30 piers: the way in -- DUNE_IN; the two 62 pairs were too narrow for him) */
+  slideDoors: [{ a: 663.6, w: 150, b: -814, z0: 20, z1: 124, walk: -802 }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#d9d2c2'); },
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
@@ -65823,7 +66041,7 @@ function houseCanopy(fn){
     bed(40, SA0-60, SB0-30, SB1+30, [[120, SB0-120], [220, SB0-260], [120, SB0-400]]);
 
     /* ---- THE STORE, one item: dock, box, front and entrance tower ---- */
-    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, draw: () => {
+    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, shell: true, draw: () => {   // (shell: the room inside, DUNE_IN)
     /* ---- the service dock, at the back ----
        Three of the four streets look at this side, so it is built even
        though this camera never sees it -- the Bathhouse's note about far
@@ -65870,7 +66088,7 @@ function houseCanopy(fn){
     F(EA0+8, EA1-8, 14, 164, shade(wall,.66), null, 0, EB+0.6);              // screen surround
     F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
     /* two door pairs: the openings here, the leaves live (slideDoors) */
-    for(const d0 of [EA0+30, EA0+118]) F(d0, d0+62, 20, 124, '#2b3138', null, 0, EB+1.6);
+    F(EA0+30, EA1-30, 20, 124, '#2b3138', null, 0, EB+1.6);              // one pair, 150 across (DUNE_IN)
     F(EA0+14, EA1-14, 194, 272, band, null, 0, EB+1.2);                      // the sign panel
     for(let k=0;k<4;k++) F(EA0+30+k*46, EA0+66+k*46, 208, 258, shade(wall,.40), null, 0, EB+1.7);
     /* THE CANOPY WAS INVERTED, and it is the same fault this entry's
