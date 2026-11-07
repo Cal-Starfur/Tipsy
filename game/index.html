@@ -101317,7 +101317,7 @@ class WorldScene extends Phaser.Scene {
        open (against the sides, out into the cafe) otherwise */
     if(this._inside && this._inside.name === BB_IN.name){
       const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 }, now = performance.now(), D = GD_DOOR;
-      const want = (this._garage && this._garage.key === 'gideon-pad') || D.force === true ? 1 : 0;
+      const want = this._doorShut === 'gideon-pad' || (this._garage && this._garage.key === 'gideon-pad') || D.force === true ? 1 : 0;   // (the button shuts them, then the garage opens)
       D.t = Math.max(0, Math.min(1, D.t + (want ? 1 : -1)*Math.min(100, now - (D.last || now))/900)); D.last = now;
       if(typeof D.force === 'number') D.t = D.force;
       const th = (Math.PI/2)*(1 - D.t)*(1 - D.t*0.0), y0 = pk.y0 + 416 + pv.dy, xL = pk.x0 + 130 + pv.dx, xR = pk.x0 + 250 + pv.dx, LL = 60;
@@ -137495,7 +137495,7 @@ setInterval(tpAvatarPadGate, 250);
          rolling door go close first then see the list"). Opens the moment
          the shutter is down; a safety cap in case frames stall; dropped if
          he drives off the pad before it lands. */
-      const from = (s._doorTs && s._doorTs.has(pd.key)) ? s._doorTs.get(pd.key) : 0;
+      const from = pd.gideon ? Math.max(0, 1 - GD_DOOR.t) : (s._doorTs && s._doorTs.has(pd.key)) ? s._doorTs.get(pd.key) : 0;   // (Gideon's: his back room's doors swing shut first, GD_DOOR)
       s._doorShutFrom = from; s._doorShutT0 = performance.now(); s._doorShut = pd.key;
       /* the same clock the door runs on: it is down after from*DOOR_SHUT_MS,
          plus a beat so the last frame of it is actually seen */
