@@ -24,3 +24,6 @@ Standing on his pad opens his garage (the avatar button, as Tipsey's); with the 
 
 ## His garage is the back room (Sir, 2026-11-07)
 Picking the humanoid in the garage's Fleet tab cuts the room behind the turntable to the cafe's back room: he stands on his own pad in it, the doors swung shut, no depot mask (`fleetGarageCut`, key `gideon-pad`). Picking Tipsey or any other vehicle cuts back to the depot.
+
+## gd4f Polish (Sir, 2026-11-07: "art floating off his body ... his mouth isn't on his head")
+`gdKit` (drawPersonHull's `GS`) lays everything on his body by (angle, height) on the hull's own 12-sided plan and taper: face (bezel, screen, eyes, mouth, glasses), apron, vest, scarf, ties, badge, decals, pack straps -- no flat plates at a fixed offset. Mouth now on the screen. New: Clothes (tool belt, sash, cape), neck (bandana, lanyard), badges (heart, shield), goggles, packs (backpack, satchel, solar panel, delivery box); looks Courier, Explorer, Hero. All packs sit on his back with straps over the shoulders.
