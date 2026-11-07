@@ -25781,20 +25781,20 @@ const TPE_PLAN = {
      two end strips: the west one is a school garden (raised beds, two portable classrooms, a row of trees), the east one a track and
      pitch with a goal at each end. No lawn: earth, the terracotta track, planting only in beds. */
   field: { cx: 8780, cy: -830, rx: 520, ry: 440, tw: 55 },
-  beds: [[200, -520], [360, -520], [520, -520], [200, -660], [360, -660], [520, -660]],
+  beds: [[700, -520], [860, -520], [1020, -520], [700, -660], [860, -660], [1020, -660]],   // (the garden beds sit east of the playground, in the strip's open ground)
   portables: [[70, 450, -1130, -1000], [560, 940, -1130, -1000]],   // side by side along the garden (they stood one behind the other, 70 apart, and read as stacked)
   backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
-  trees: [[420,-300],[900,-450],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
+  trees: [[260,-900],[1110,-900],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
   flag: [2260, -120],
   GYM1: 7700,                                    // where the gym ends and the art room begins, in the east wing
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
      the west wing, the hoops at the east wing's court, the games, the bike racks, the planters by the porch */
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
-  swing: { a0: 1330, a1: 1590, b: -220 }, sand: { a0: 1400, a1: 1530, b0: -150, b1: -70 }, slide: { a: 1800, b: -105 }, dome: [2010, -215, 62],   // two rows with room round each (they were one packed line along b -180)
+  swing: { a0: 180, a1: 440, b: -390 }, sand: { a0: 190, a1: 320, b0: -620, b1: -540 }, slide: { a: 430, b: -700 }, dome: [550, -440, 62],   // the playground sits in the open ground of the west garden strip (it was packed into the front yard, 286 deep)
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
   racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
 };
@@ -72166,7 +72166,7 @@ marinaEntry(),
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
     /* the playground: a terracotta rubber floor in a teal edging, the sandbox, and the games' lines on it */
-    { const x0 = 1290, x1 = 2236, y0 = -292, y1 = -44;
+    { const x0 = 140, x1 = 640, y0 = -810, y1 = -330;
       T(x0, x1, y0, y1, 0.6, '#2f7f86'); T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, 0.65, '#b3654f');
       for(let k = 0; k < 6; k++) T(x0 + 40 + k*140, x0 + 40 + k*140 + 60, y0 + 10, y0 + 16, 0.7, '#c97a62');     // its pattern
     }
