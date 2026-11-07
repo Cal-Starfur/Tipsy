@@ -78061,6 +78061,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   desc:'A coastal house lifted on timber piles: the living floor and its hip roof ride over a small enclosed ground-floor entry that carries the door, with a railed deck along the front, an open stair up the side and a kayak on a rack.',
   tags:['single','stilts','beach','deck'],
   door:[230, -150],
+  doorFront:[ { b:-90, z:104 } ],   // the deck's fascia, 60 out from the door: the live doorway stops under it
   liv:[ { wall:'#a8d0c8', trim:'#fbfaf6', roof:'#5a6a70', leaf:'#e46a5a', pile:'#a8906a' },
         { wall:'#f2d27a', trim:'#fbfaf6', roof:'#4a5a62', leaf:'#2e6f8a', pile:'#9c8462' },
         { wall:'#f2a890', trim:'#fbfaf6', roof:'#56606a', leaf:'#2f5a4a', pile:'#a88e68' } ],
@@ -100926,7 +100927,22 @@ class WorldScene extends Phaser.Scene {
         const P3 = (al, lt, z) => { const q = edgePt(e, al, lt); return this.W(q.x, q.y, z); };
         const Q = (pts, col) => this.quadOn(g, pts, col);
         const clip0 = this.drawClip;
-        this.drawClip = [pt(a0, 0), pt(a1, 0), pt(a1, h), pt(a0, h)];
+        /* WHAT STANDS IN FRONT OF THE DOOR (Sir, 2026-11-07: the Stilt House's
+           door cut through its deck, "a recurring issue"): the house's cached
+           image already has its deck / balcony / porch roof drawn over the door,
+           but this live doorway is painted on top of the whole image, so the
+           hall showed through them. An entry declares them as doorFront:
+           [{ b, z }] -- the plane b (entry units) and the lowest z of a piece
+           spanning the whole door. The opening is cut where that edge falls
+           on the door's own plane, so the hall stops under it */
+        let hc = h;
+        for(const f of (ent && ent.doorFront) || []){
+          const dl = (f.b + (ent.boff || 0)) * (ent.sc || 1) - d.bDoor;
+          if(dl <= 0) continue;                                              // behind the door plane: not in front
+          hc = Math.min(hc, f.z * (ent.sc || 1) * 1.5 - dl * (e.rv.x + e.rv.y) / 2);   // 1.5: ZSCALE, the lab's z
+        }
+        hc = Math.max(0, hc);
+        this.drawClip = [pt(a0, 0), pt(a1, 0), pt(a1, hc), pt(a0, hc)];
         try {
           Q([P3(a0 - 60, lat, 0), P3(a1 + 60, lat, 0), P3(a1 + 60, lb, 0), P3(a0 - 60, lb, 0)], 0x9a7350);          // the floor, oak
           Q([P3(d.along - 22, lat, 0.4), P3(d.along + 22, lat, 0.4), P3(d.along + 22, lb + 30, 0.4), P3(d.along - 22, lb + 30, 0.4)], 0x7a3f3a);   // a runner
