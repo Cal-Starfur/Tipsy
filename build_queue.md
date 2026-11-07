@@ -109,7 +109,7 @@ graph LR
 
 ## Walk-in landmarks
 - [?] `wk1` Dune Home & Garden [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2) [docs/state/walkin_recipe.md]
-- [ ] `wk2` Saltwater Brewing [docs/state/walkin_recipe.md]
+- [?] `wk2` Saltwater Brewing [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17101,8700&view=2) [docs/state/walkin_recipe.md]
 - [ ] `wk3` Lagoon Baths [docs/state/walkin_recipe.md]
 - [ ] `wk4` Driftwood Chapel [docs/state/walkin_recipe.md]
 - [ ] `wk5` Palmline Nursery [docs/state/walkin_recipe.md]
