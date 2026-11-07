@@ -327,8 +327,9 @@
 "title": "Legs driven by distance walked (47 walkSin calls)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: people"
+"status": "built",
+"group": "Consistency pass: people",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2"
 },
 {
 "id": "pe2",

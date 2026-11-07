@@ -3270,6 +3270,32 @@ const PERSON_DRAW = {
    value it was handed is that sin, and reads it from the sin otherwise */
 let _gaitAng = 0;
 function walkSin(a){ _gaitAng = a; return Math.sin(a); }
+/* THE WALK FROM THE DISTANCE WALKED (consistency pass, people): a leg cycle is the ground covered, not the clock -- a
+   walker who slows, stops short or is held back steps slower, never skates. walkAt(x, y, mult, ph) is walkSin of the
+   distance this person has walked, found by where they stand: whoever was within GAIT_R of (x, y) last frame is the same
+   person, and their distance grows by the step taken. (Callers build their person afresh each frame, so there is no
+   object to hang it on; the position is the one thing every caller has.) Drawn twice in a frame (a ghost) they are at
+   the same spot, so the step is 0. mult: strides per distance (a child's short legs take more); ph: an offset */
+const GAIT_R = 16, GAIT_CELL = 64, GAIT_PER_UNIT = PEOPLE_ART.walkSpeed/PEOPLE_WALK_V;
+let _gaitA = new Map(), _gaitB = new Map(), _gaitFrame = -1;
+function walkAt(x, y, mult = 1, ph = 0){
+  const f = _gaitNow();
+  if(f !== _gaitFrame){ _gaitFrame = f; const o = _gaitB; _gaitB = _gaitA; _gaitA = o; _gaitA.clear(); }   // (A: this frame's, B: last frame's)
+  const cx = Math.floor(x/GAIT_CELL), cy = Math.floor(y/GAIT_CELL);
+  let best = null, bd = GAIT_R*GAIT_R, from = null;
+  for(const M of [_gaitA, _gaitB]) for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++){
+    const L = M.get((cx + i)*100003 + cy + j); if(!L) continue;
+    for(const e of L){ const d2 = (e.x - x)*(e.x - x) + (e.y - y)*(e.y - y); if(d2 < bd){ bd = d2; best = e; from = M; } }
+  }
+  let e;
+  if(best && from === _gaitA){ e = best; }                                       // (already seen this frame: the same spot, the same phase)
+  else {
+    e = { x, y, d: best ? best.d + Math.sqrt(bd) : (x*7 + y*13) % 300 };      // (new: a spread start so a crowd isn't in step)
+    const k = cx*100003 + cy; let L = _gaitA.get(k); if(!L) _gaitA.set(k, L = []); L.push(e);
+  }
+  return walkSin(e.d*GAIT_PER_UNIT*mult + ph);
+}
+function _gaitNow(){ return (typeof game !== 'undefined' && game.loop) ? game.loop.frame : 0; }   // (the frame counter: this frame's draws vs last frame's)
 const PEOPLE_BUILD = [
   { n:"a", legH:52, legW:10, hipW:16, torsoW:34, torsoD:19, torsoH:44, headR:14, armW:7, armLen:40, hairStyle:"short" },
   { n:"b", legH:52, legW:10, hipW:19, torsoW:28, torsoD:19, torsoH:44, headR:13, armW:7, armLen:40, hairStyle:"long"  }
@@ -21489,7 +21515,7 @@ function lostDogQueue(scene, t, queuePerson, layerFor){
     } : null;
     queuePerson(op.x, op.y, (g, tt) => {
       scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, leash ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        op.moving ? walkAt(op.x, op.y) : 0, op.moving, 0, leash ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   }
 }
@@ -33726,7 +33752,7 @@ function lostItemQueue(scene, t, queuePerson, layerFor){
   const carry = icon ? () => { const hd = scene.handWorldPos(op.x, op.y, op.th - Math.PI/2, L.build, LOST_ITEMS.liftT); lostItemInHand(scene, layerFor(op.x, op.y), hd, icon); } : null;
   queuePerson(op.x, op.y, (g, tt) => {
     scene.drawPersonHull(layerFor(op.x, op.y), op.x, op.y, 0, op.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      op.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      op.moving ? walkAt(op.x, op.y) : 0, op.moving, 0, icon ? LOST_ITEMS.liftT : 0, carry, L.uniform, false, L.dress ? { dress: L.dress } : null);
   });
 }
 /* USING A COLLECTIBLE (Sir: "out side if im carrying a teddy bear i need a
@@ -82261,7 +82287,7 @@ function afQueue(scene, t, queuePerson, layerFor){
     const p = afAt(c, now);
     if(!scene.visProp("people", p.x, p.y)) continue;
     const L = afLook(c), px = p.x, py = p.y, thW = p.th - Math.PI/2;
-    queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, p.moving, 0, 0, null, L.uniform, false, null));
+    queuePerson(px, py, (g, tt) => scene.drawPersonHull(layerFor(px, py), px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, p.moving ? walkAt(px, py) : 0, p.moving, 0, 0, null, L.uniform, false, null));
   }
 }
 /* MARINA PARKING's attendant, at his shack (MARINA_ATTENDANT) */
@@ -82551,7 +82577,7 @@ function lhQueue(scene, t, queuePerson, layerFor){
     (L === K.clerk ? (x, y, fn) => scene.phPerson(x, y, fn, queuePerson) : queuePerson)(px, py, (g, tt) => {   // (the clerk: through its door, as its visitors)
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
       const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
-      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   };
   const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
@@ -83375,7 +83401,7 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
     q(px, py, (g, tt) => {
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = has ? 0.5 : 0;
       const bag = has ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawFmCarry(gg, hp.x, hp.y, hp.z - 8, has); } : null;
-      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, bag, L.uniform, false,
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false,
         Object.assign({ dress: L.dress }, has ? null : pz));
     });
   };
@@ -83609,7 +83635,7 @@ function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
     (q || queuePerson)(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.run ? 1.35 : 1)) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y, (p.run ? 1.35 : 1)) : 0, mv, 0,
         lift, gift, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
@@ -84502,7 +84528,7 @@ function cplQueuePeople(scene, t, queuePerson, keyQueue, layerFor){
     if(!p || !scene.visProp("people", p.x, p.y)) return;
     const x = p.x, y = p.y, z = p.z || 0, th = p.th, mv = !!p.moving;
     (q || queuePerson)(x, y, (g, tt) => {
-      scene.drawPersonHull(layerFor(x, y), x, y, z, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(layerFor(x, y), x, y, z, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         0, null, Lk.uniform, false, Object.assign({ dress: Lk.dress }, pose || null));
     });
   };
@@ -85459,7 +85485,7 @@ function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
     queuePerson(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2;
       const lead = onLead ? () => ppLeash(scene, gg, scene.handWorldPos(x, y, thW, Lk.build, DOG_PAIR.liftT), D) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         lead ? DOG_PAIR.liftT : 0, lead, Lk.uniform, false, Object.assign({ dress: Lk.dress }, bend ? { lift: [0.5, 0.2], bend: [0.7, 0.4] } : null));
     });
   }
@@ -85469,7 +85495,7 @@ function ppQueue(scene, t, queuePerson, keyQueue, layerFor){
       const Lk = _ppVolLook(), x = v.x, y = v.y, th = v.th, mv = !!v.moving, work = v.work;
       queuePerson(x, y, (g, tt) => {
         const w = Math.abs(Math.sin(now*0.004)), pz = work ? { lift: [0.72, 0.6 + 0.2*w], bend: [0.95, 0.7 + 0.3*w] } : null;
-        scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, Lk.uniform, false,
+        scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y) : 0, mv, 0, 0, null, Lk.uniform, false,
           Object.assign({ dress: null }, pz));
       });
     } }
@@ -85933,7 +85959,7 @@ function adQueue(scene, t, queuePerson, keyQueue, layerFor, dogQ){
     q(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : (extra && extra.lead ? extra.lead(gg, thW) : null);
-      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         has ? lift : (extra && extra.lead ? DOG_PAIR.liftT : 0), gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     });
   };
@@ -86318,7 +86344,7 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(p && L && !msGidAtDoor(p) && scene.visProp("people", p.x, p.y)){
     const x = p.x, y = p.y, th = p.th, mv = !!p.moving;
     queuePerson(x, y, (g, tt) => scene.drawPersonHull(layerFor(x, y), x, y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, 0, null, L.uniform, false, null));
+      mv ? walkAt(x, y) : 0, mv, 0, 0, null, L.uniform, false, null));
   }
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
@@ -86855,7 +86881,7 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
     const fn = (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, L.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0,
+      scene.drawPersonHull(gg, x, y, spZ(x, y), thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(x, y) : 0, mv, 0,
         lift, gift, L.uniform, false, Object.assign({ dress: L.dress }, extra && extra.pose || null));
     };
     if(depth != null) queuePerson(depth - y, y, (g, tt) => scene.keyPerson(() => fn(g, tt))); else q(x, y, fn);
@@ -87394,7 +87420,7 @@ function kwQueue(scene, t, queuePerson, layerFor){
     const p = kwKidAt(now);
     if(p && scene.visProp("people", p.x, p.y, p.z || 0)) queuePerson(p.x, p.y, (g, tt) => {
       const gg = layerFor(p.x, p.y);
-      scene.drawPersonHull(gg, p.x, p.y, p.z || 0, p.th - Math.PI/2, kidL.build, kidL.skin, kidL.shirt, kidL.pants, kidL.hair, kidL.shoe, p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, !!p.moving, 0, 0, null, kidL.uniform, false, null);
+      scene.drawPersonHull(gg, p.x, p.y, p.z || 0, p.th - Math.PI/2, kidL.build, kidL.skin, kidL.shirt, kidL.pants, kidL.hair, kidL.shoe, p.moving ? walkAt(p.x, p.y, 1.4) : 0, !!p.moving, 0, 0, null, kidL.uniform, false, null);
     });
   }
   /* the mechanic, while the story has him (the room's people are the kit's otherwise) -- drawn on the street's lines,
@@ -87742,7 +87768,7 @@ function rlQueue(scene, t, queuePerson, layerFor){
     queuePerson(x, y, (g, tt) => {
       const gg = layerFor(x, y), thW = th - Math.PI/2, lift = has ? 0.3 : 0;
       const gift = has ? () => scene.drawHandGift(gg, scene.handWorldPos(x, y, thW, Lk.build, lift), has) : null;
-      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*1.4) : 0, mv, 0, lift, gift, Lk.uniform, false, null);
+      scene.drawPersonHull(gg, x, y, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(x, y, 1.4) : 0, mv, 0, lift, gift, Lk.uniform, false, null);
     });
   };
   if(RL.kidHere && !scene._inside) person(rlKidAt(now), L.kid);
@@ -88308,7 +88334,7 @@ function ssQueue(scene, t, queuePerson, keyQueue, layerFor){
       const gift = has ? () => scene.drawHandGift(layerFor(p.x, p.y), scene.handWorldPos(p.x, p.y, thW, build, 0.3), has) : null;
       const pz = L.dress && !(pose && pose.dress) ? Object.assign({}, pose || {}, { dress: L.dress }) : pose;
       scene.drawPersonHull(layerFor(p.x, p.y), p.x, p.y, p.z || 0, thW, build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
-        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(walkK || 1)) : 0, !!p.moving, 0, has ? 0.3 : 0, gift, U || L.uniform, false, pz || null);
+        p.moving ? walkAt(p.x, p.y, (walkK || 1)) : 0, !!p.moving, 0, has ? 0.3 : 0, gift, U || L.uniform, false, pz || null);
     });
   };
   const poseOf = p => (p.sit != null || p.lift || p.drop || p.hold) ? { sit: p.sit != null ? p.sit : undefined, lift: p.lift || null, bend: p.bend || 0, drop: p.drop || 0, hold: p.hold || null, armLate: p.armLate } : null;
@@ -89323,7 +89349,7 @@ function ssnQueue(scene, t, queuePerson, keyQueue, layerFor){
       const pz = Object.assign({}, pose || {}, L.dress ? { dress: L.dress } : null);
       if(extra && extra.hold) pz.hold = extra.hold;
       scene.drawPersonHull(lg, p.x, p.y, p.z || 0, thW, L.build, L.skin, (U && U.shirt) || L.shirt, (U && U.pants) || L.pants, L.hair, (U && U.shoe) || L.shoe,
-        p.moving ? walkSin(T0*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U || L.uniform, false, Object.keys(pz).length ? pz : null);
+        p.moving ? walkAt(p.x, p.y) : 0, !!p.moving, 0, 0, null, U || L.uniform, false, Object.keys(pz).length ? pz : null);
       if(extra && extra.over) extra.over(lg);
     });
   };
@@ -89484,7 +89510,7 @@ function tpeQueue(scene, t, queuePerson, layerFor){
     const behind = d.y + 736 < TPE_PLAN.BB0 - 20;
     queuePerson(behind ? fr.ox + fr.oy + 0.0004 : d.x, behind ? 0 : d.y, (g, tt) => {
       const T0 = tt || now, L = walkinStaffLook(p.s), lg = layerFor(d.x, d.y), thW = d.th - Math.PI/2;
-      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkSin(T0*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
         Object.assign({ dress: L.dress }, d.pose || null));
     });
   }
@@ -90165,7 +90191,7 @@ function motelQueue(scene, t, queuePerson, layerFor){
     if(p.y < GW_RUN.door.y - 2 && p.x > 26000) return;
     const px = p.x, py = p.y, mv = !!p.moving;
     queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = p.th - Math.PI/2, lift = p.has ? 0.45 : 0;
-      scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, p.has ? pouch(gg, px, py, thW, Lk.build, lift) : null, Lk.uniform, false, Lk.dress ? { dress: Lk.dress } : null); });
+      scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, p.has ? pouch(gg, px, py, thW, Lk.build, lift) : null, Lk.uniform, false, Lk.dress ? { dress: Lk.dress } : null); });
   };
   one(gwBrideAt(now), G.bride); one(gwGroomAt(now), G.groom);
   /* the clerk, while the story has her (only drawn in the room: from the street she is behind its shell) */
@@ -90173,7 +90199,7 @@ function motelQueue(scene, t, queuePerson, layerFor){
     const c = gwClerkAt(now), s = gwClerkStaff();
     if(c && s){ const px = c.x + POCKET_VIEW.dx, py = c.y + POCKET_VIEW.dy, Lc = walkinStaffLook(s), mv = !!c.moving;
       queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = c.th - Math.PI/2, lift = c.has ? 0.45 : 0;
-        scene.drawPersonHull(gg, px, py, 0, thW, Lc.build, Lc.skin, Lc.shirt, Lc.pants, Lc.hair, Lc.shoe, mv ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, mv, 0, lift, c.has ? pouch(gg, px, py, thW, Lc.build, lift) : null, Lc.uniform || null, false, null); }); }
+        scene.drawPersonHull(gg, px, py, 0, thW, Lc.build, Lc.skin, Lc.shirt, Lc.pants, Lc.hair, Lc.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, c.has ? pouch(gg, px, py, thW, Lc.build, lift) : null, Lc.uniform || null, false, null); }); }
   }
   /* THE CHARTER: at its stand (cached, its door open) or going (live), drawn over what it climbs past */
   {
@@ -93485,7 +93511,7 @@ class WorldScene extends Phaser.Scene {
       /* the hull's angle is its shoulders' line: a heading less a quarter
          turn (as drawHospDoctor), or they walked sideways (Sir, 2026-10-10);
          the stride a swing through sin of the clock, as the pavement's */
-      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, walkSin(t*PEOPLE_ART.walkSpeed), true, 0, 0, null, null));
+      this.withAlpha(g, kf, () => this.drawPersonHull(g, p.x, p.y, z, p.th - Math.PI/2, build, TL, T, T, XD, T, walkAt(p.x, p.y), true, 0, 0, null, null));
     }
   }
   /* PEOPLE AS FAR AS THE WALLS (Sir, 2026-10-10, on a ward floor: "im
@@ -95052,7 +95078,7 @@ class WorldScene extends Phaser.Scene {
       bodies.push({ depth: px + py, fn: (gg, t) => {
         const tt = t || this.time.now;
         const gb = rosterBody(0x5e7a), { build, skin, hair } = gb, GU = withAid(SECURITY_UNIFORM, gb);   // (off the roster)
-        const walk = mv ? walkSin(tt * PEOPLE_ART.walkSpeed * (gd.v || PEOPLE_WALK_V)/PEOPLE_WALK_V) : 0;   // (legs at his pace)
+        const walk = mv ? walkAt(px, py) : 0;   // (legs at his pace)
         this.drawPersonHull(gg, px, py, gz, pth, build, skin,
           SECURITY_UNIFORM.shirt, SECURITY_UNIFORM.pants, hair, SECURITY_UNIFORM.shoe,
           walk, mv, 0, !bth && gd.posted ? 0.92 : 0, null, GU);
@@ -95798,7 +95824,7 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
       const draw = (g, tt) => { this._seenThrough = !out; try { this.drawPersonHull(g, wx, wy, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        mv ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null); } finally { this._seenThrough = false; } };   // (seen through the glass: not x-rayed)
+        mv ? walkAt(wx, wy, 1, m.ph) : 0, mv, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null); } finally { this._seenThrough = false; } };   // (seen through the glass: not x-rayed)
       const fd = mallFrontDk(a, b);                                             // (before a front, or in its doorway: over its piece)
       (out || fd !== null ? vq : tmp).push({ depth: fd !== null ? Math.max(wx + wy, X0 + Y0 + fd) : wx + wy, fn: draw });
     }
@@ -96481,7 +96507,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = q.who ? folkLook(q.who) : streetLook(d.seed, { adult: true });
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + d.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+          q.moving ? walkAt(q.x, q.y, 1, d.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       } });
     }
   }
@@ -96664,7 +96690,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = bwLook(p);
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*q.stride + p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false,
+          q.moving ? walkAt(q.x, q.y, q.stride, p.seed % 97) : 0, q.moving, 0, 0, null, L.uniform, false,
           p.kind === 'jogger' ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));   // a jogger runs (pose.run)
       } });
     }
@@ -96678,7 +96704,7 @@ class WorldScene extends Phaser.Scene {
       vq.push({ depth: q.x + q.y, fn: (g, tt) => {
         const L = almsLook(p), ph = p.seed % 97;
         this.drawPersonHull(g, q.x, q.y, 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          q.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed*(p.v ? Math.max(0.35, p.v/0.065) : 1) + ph) : 0, q.moving, 0, 0, null, L.uniform, false,
+          q.moving ? walkAt(q.x, q.y, (p.v ? Math.max(0.35, p.v/0.065) : 1), ph) : 0, q.moving, 0, 0, null, L.uniform, false,
           p.run && q.moving ? (L.dress ? { dress: L.dress, run: 1 } : { run: 1 }) : (L.dress ? { dress: L.dress } : null));
       } });
     }
@@ -98114,7 +98140,7 @@ class WorldScene extends Phaser.Scene {
   drawHarborPerson(g, m, L, tt){
     const thW = m.th - Math.PI/2, carry = m.has, lift = carry ? 0.3 : 0;
     const bag = carry ? () => { const hp = this.handWorldPos(m.x, m.y, thW, L.build, lift); this.drawHarborBuy(g, hp.x, hp.y, hp.z + (m.z || 0), carry); } : null;
-    this.drawPersonHull(g, m.x, m.y, m.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!m.moving, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
+    this.drawPersonHull(g, m.x, m.y, m.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, !!m.moving, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
   }
   /* what a chandlery customer comes out with: a coil of rope, a lifejacket, a bag with the shop's band on it */
   drawHarborBuy(g, x, y, z, kind){
@@ -100449,7 +100475,7 @@ class WorldScene extends Phaser.Scene {
       if(!m || tr.knock || !this.visProp("people", m.x, m.y)) continue;
       queuePerson(m.x, m.y, (g, tt) => {
         const L = streetLook(((tr.colorSeed || 0) ^ 0x5eed7) >>> 0, { adult: true, aid: 'noWheel' });
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkSin(tt*PEOPLE_ART.walkSpeed), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, walkAt(m.x, m.y), true, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SHOPPERS (SHOPPERS), live, their looks from their own seed; and
@@ -100477,7 +100503,7 @@ class WorldScene extends Phaser.Scene {
       }
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5b0b, sp.dog ? { adult: true, aid: 'dog' } : null);   // (by whether they have a dog, not whether it is on screen: the look must not change)
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving,
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, m.moving,
           0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
@@ -100512,7 +100538,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = partyLook(sp.seed, sp.kind);
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-          m.moving && !sp.yielding ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving && !sp.yielding, 0, 0, null, L.uniform, false,
+          m.moving && !sp.yielding ? walkAt(m.x, m.y) : 0, m.moving && !sp.yielding, 0, 0, null, L.uniform, false,
           { dress: L.dress, hold: sp.hold ? PARTY_HOLD[sp.hold] : null, lift: sp.hold ? [0.55, 0.15] : null, bend: sp.hold ? 0.9 : 0 });
       });
     }
@@ -100522,7 +100548,7 @@ class WorldScene extends Phaser.Scene {
       if(!m || sp.knock || !this.visProp("people", m.x, m.y)) continue;             // (knocked down: drawn as they fall, updateKnocks)
       queuePerson(m.x, m.y, (g, tt) => {
         const L = streetLook(sp.seed ^ 0x7ac0);
-        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     /* THE SCOOTER SEEKERS (SEEKERS): walking up, then riding off on it */
@@ -100546,7 +100572,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
-        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
@@ -100712,7 +100738,7 @@ class WorldScene extends Phaser.Scene {
         blockVQ.push({ depth: wk.x + wk.y, fn: (g, tt) => {
           const L = streetLook(rd.seed, { adult: true, aid: 'none' });
           this._personKick = wk.kick || 0;
-          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, wk.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, wk.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
+          try { this.drawPersonHull(layerFor(wk.x, wk.y), wk.x, wk.y, 0, wk.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, wk.moving ? walkAt(wk.x, wk.y) : 0, wk.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
           finally { this._personKick = 0; }
         } });
       }
@@ -101612,7 +101638,7 @@ class WorldScene extends Phaser.Scene {
       { const ph = HOSP_ERRAND.id && HOSP_ERRANDS[HOSP_ERRAND.id].floor === f ? hospErrandAt(now) : null;   // who an errand is for, out to him and back (HOSP_ERRAND)
         if(ph){ const x = ph.x + hv.dx, y = ph.y + hv.dy, L = partyLook(ph.seed, ph.kind);
           hazVQ.push({ depth: this.hospHold(f, x - ox, y - oy, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, ph.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-            ph.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
+            ph.moving ? walkAt(x, y) : 0, ph.moving, 0, 0, null, L.uniform, false, { dress: L.dress }) }); } }
       /* HOSPITAL SECURITY (HOSP_JAIL): the officer, and the crew come to collect him */
       { const J = HOSP_JAIL;
         if(J.st && J.f === f){
@@ -101623,7 +101649,7 @@ class WorldScene extends Phaser.Scene {
             const x = ox + p.a, y = oy + p.b, L = L0 || mallJailLook(seed), U = withAid(U0, L);
             if(!this.visProp("people", x, y, Z)) continue;
             hazVQ.push({ depth: this.hospHold(f, p.a, p.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-              p.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U) });
+              p.moving ? walkAt(x, y) : 0, !!p.moving, 0, 0, null, U) });
           } } }
       /* THE LIFT'S RIDERS ON THIS FLOOR (HOSP_RIDERS): to the lobby, waiting, in and out of a car, on to a room, stood there */
       for(const R of HOSP_RIDERS){ const q = hospRiderAt(R, now); if(!q || q.f !== f) continue;
@@ -101636,7 +101662,7 @@ class WorldScene extends Phaser.Scene {
           const x = ox + c.a, y = oy + c.b, L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           if(!this.visProp("people", x, y, Z)) continue;
           hazVQ.push({ depth: this.hospHold(f, c.a, c.b, x + y, ox, oy), fn: (gg, tt) => this.drawPersonHull(layerFor(x, y), x, y, Z, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-            c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, !!c.moving, 0, c.lift, null, U) }); } }
+            c.moving ? walkAt(x, y) : 0, !!c.moving, 0, c.lift, null, U) }); } }
       /* THE EMERGENCY ENTRANCES' GLASS (HOSP_EDOORS): two leaves in each, parted by k into the wall either side, at the
          wall's outer face -- in front of everything inside it */
       if(f === 1) for(const E of HOSP_EDOORS){
@@ -101704,7 +101730,7 @@ class WorldScene extends Phaser.Scene {
         if(!this.visProp("people", c.x, c.y)) continue;
         const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
         hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-          c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+          c.moving ? walkAt(c.x, c.y) : 0, c.moving, 0, 0, null, U) });
       }
     }
     for(const JJ of [MALL_JAIL, HOSP_JAIL]){ const V = JJ.van, now = this.time.now;   // (and the hospital's: HOSP_JAIL)
@@ -101716,7 +101742,7 @@ class WorldScene extends Phaser.Scene {
           if(!this.visProp("people", c.x, c.y)) continue;
           const L = mallJailLook(c.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
           hazVQ.push({ depth: c.x + c.y, fn: (gg, tt) => this.drawPersonHull(layerFor(c.x, c.y), c.x, c.y, 0, c.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-            c.moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed) : 0, c.moving, 0, 0, null, U) });
+            c.moving ? walkAt(c.x, c.y) : 0, c.moving, 0, 0, null, U) });
         }
       }
     }
@@ -105002,7 +105028,7 @@ class WorldScene extends Phaser.Scene {
       if(w.leave || w.knock || !this.visProp("people", w.x, w.y, 0)) continue;     // (down: queueKnocks)
       const L = partyLook(w.d.seed, w.d.kind);
       vq.push({ depth: w.x + w.y, fn: (g, t) => this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        w.moving ? walkSin((t || now)*PEOPLE_ART.walkSpeed*(w.d.kind === 'kid' ? 1.6 : 1)) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
+        w.moving ? walkAt(w.x, w.y, w.d.kind === 'kid' ? 1.6 : 1) : 0, w.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null) });
     }
     /* the drivers walking over after the race; the top three, down off the
        podium, standing with their families */
@@ -105019,7 +105045,7 @@ class WorldScene extends Phaser.Scene {
       if(!this.visProp("people", wx, wy, q.z*1.5)) continue;
       const L = partyLook(w.seed, 'kid');
       vq.push({ depth: wx + wy + (q.z > 0 && q.n >= DERBY_STEP.n0 ? 200 : 0), fn: (g, t) => this.drawPersonHull(g, wx, wy, q.z*1.5, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,   // (on the back steps the podium is in front of him)
-        walkSin((t || now)*PEOPLE_ART.walkSpeed + w.no), true, 0, 0, null, L.uniform, false, null) });
+        walkAt(wx, wy, 1, w.no), true, 0, 0, null, L.uniform, false, null) });
     }
   }
   parkLandmarkAt(blk){
@@ -107919,7 +107945,7 @@ class WorldScene extends Phaser.Scene {
     const L = okaforLook(), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0, Z = z || 0;
     const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, L.build, liftT, Z) : null;
     this.drawPersonHull(g, d.x, d.y, Z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, L.uniform);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, cooler, L.uniform);
   }
   /* the heart's cooler hanging from a carrying hand (the medic's, then Dr. Okafor's): white, a red lid, a red cross */
   drawHeartCooler(g, d, thW, build, liftT, Z){
@@ -107944,7 +107970,7 @@ class WorldScene extends Phaser.Scene {
     const b = rosterBody(0x3ed1c), { build, skin, hair } = b, U = withAid(MEDIC_UNIFORM, b), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;   // (off the roster)
     const cooler = d.has ? () => this.drawHeartCooler(g, d, thW, build, liftT, 0) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, cooler, U);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, cooler, U);
   }
   /* THE CAKE RUN'S PEOPLE (CAKE_RUN): one of its uniforms, a seed for the
      face and hair, and the cake's box in the carrying hand while they have
@@ -107958,7 +107984,7 @@ class WorldScene extends Phaser.Scene {
     if(d.has === 'flowers' || d.has === 'note' || d.has === 'banner' || d.has === 'treats' || d.has === 'both' || d.has === 'wheels' || d.has === 'paint' || d.has === 'roll' || d.has === 'plate' || d.has === 'wreath' || d.has === 'coin' || d.has === 'fob' || d.has === 'record' || d.has === 'stopwatch' || d.has === 'helmet'){
       const gift = () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, build, liftT), d.has);
       this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-        d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, U);
+        d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, gift, U);
       if(cryT0 != null) this.drawTears(g, d, build, t - cryT0);
       return;
     }
@@ -107974,7 +108000,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [P(h, -1.8, z1), P(h, 1.8, z1), P(h, 1.8, z0), P(h, -1.8, z0)], 0xc9708f);
     } : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, build, skin, U.shirt, U.pants, hair, U.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, box, U);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, box, U);
   }
   /* GUS'S ANNIVERSARY (ANNIV): what is carried, at the hand hp --
      'flowers' ten red roses in kraft paper, a sprig of lavender;
@@ -108096,7 +108122,7 @@ class WorldScene extends Phaser.Scene {
     const L = partyLook(0x7051, 'woman'), thW = d.th - Math.PI/2, liftT = d.has ? 0.3 : 0;
     const gift = d.has ? () => this.drawHandGift(g, this.handWorldPos(d.x, d.y, thW, L.build, liftT), d.has) : null;
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, liftT, gift, null, false, { dress: L.dress });
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, liftT, gift, null, false, { dress: L.dress });
   }
   /* FOURTH PLACE (FOURTH): the judge (his table cast's look) and the
      engraver in Seabreeze Trophies' blue apron, walking or standing with
@@ -108118,7 +108144,7 @@ class WorldScene extends Phaser.Scene {
     /* (work: at the shelves, polishing -- TROPHY_IN; at the bench, at the machine) */
     const w = Math.sin(t*0.009), at = !d.moving && (d.work || (who === 'eng' && FOURTH.stage === 'engrave' && d.there));
     this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, U ? U.shirt : L.shirt, U ? U.pants : L.pants, L.hair, U ? U.shoe : L.shoe,
-      d.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
+      d.moving ? walkAt(d.x, d.y) : 0, d.moving, 0, lift, at ? null : cup, U, false, at ? { lift: WALKIN_WORK.lift.map((l, i) => l + (i ? -1 : 1)*0.05*w), bend: WALKIN_WORK.bend } : null);
   }
   /* THE BALLROOM'S PEOPLE (partyLook, partyPose): one of a piece's cast,
      placed in its frame (x0, y0, sb as queueFramePieces), at time t -- or
@@ -108599,7 +108625,7 @@ class WorldScene extends Phaser.Scene {
         people.push({ d: a + sb*b, f: () => {
           ring(k, a, b, va, vb, -1, splash ? 1 : 0);
           this.drawPersonHull(g, x0 + a, y0 + sb*b, wadeZ + dz, thW(th), wadeOf(L.build), L.skin, L.shirt, L.pants, L.hair, L.shoe,
-            walkSin(T*PEOPLE_ART.walkSpeed*0.6 + k), true, 0, 0, null, L.uniform, false,
+            walkAt(x0 + a, y0 + sb*b, 0.6, k), true, 0, 0, null, L.uniform, false,
             splash ? { lift: [1.6 + 0.25*Math.sin(T*0.02 + k), 1.6 - 0.25*Math.sin(T*0.02 + k)], bend: 0.2 } : { lift: [0.55 + 0.2*Math.sin(T*0.005 + k), 0.55 + 0.2*Math.cos(T*0.005 + k)], bend: 0.5 });
           ring(k, a, b, va, vb, 1, splash ? 1 : 0);
           flick(k, a, b, splash ? 5 : 2, splash ? 26 : 16, splash ? 26 : 12, splash ? 0.0016 : 0.0009);
@@ -108833,7 +108859,7 @@ class WorldScene extends Phaser.Scene {
       if(q.L === 0 && !q.ride){ const fd = mallFrontDk(q.a, q.b); if(fd !== null) dk = Math.max(dk, fd); }   // (before an anchor's front, or in its doorway: over its piece)
       const L = m.look, qq = q.ride ? q : Object.assign({}, q, { moving: q.moving && !m.held });   // (off its path by its sidestep)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + qq.a, M.y0 + qq.b, qq.z, qq.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-        qq.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed + m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
+        qq.moving ? walkAt(M.x0 + qq.a, M.y0 + qq.b, 1, m.ph) : 0, qq.moving, 0, 0, null, L.uni, false, L.dress ? { dress: L.dress } : null));
       if(xu){ vq.push({ depth: ox + oy + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6, fn: (g, tt) => this.xrayOnly(xu, () => draw(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) }); continue; }
       vq.push({ depth: ox + oy + dk, fn: draw });
     }
@@ -108849,7 +108875,7 @@ class WorldScene extends Phaser.Scene {
         if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }
         const L = mallJailLook(p.seed), U = withAid(TIPSY_CREW_UNIFORM, L);
         vq.push({ depth: ox + oy + dk, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, p.z, p.th - Math.PI/2, L.build, L.skin, U.shirt, U.pants, L.hair, U.shoe,
-          p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, p.lift, null, U)) });
+          p.moving ? walkAt(M.x0 + p.a, M.y0 + p.b) : 0, !!p.moving, 0, p.lift, null, U)) });
       }
     }
     /* the anchors' reps, out on their floors (STORE_REPS) */
@@ -108858,7 +108884,7 @@ class WorldScene extends Phaser.Scene {
       if(!rp || !this.visProp("people", ox + rp.a, oy + rp.b, 0)) continue;
       const L = storeRepLook(R);
       vq.push({ depth: ox + oy + rp.a + rp.b, fn: (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + rp.a, M.y0 + rp.b, 0, rp.th - Math.PI/2,
-        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, rp.moving, 0, 0, null, L.uniform)) });
+        L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, rp.moving ? walkAt(M.x0 + rp.a, M.y0 + rp.b) : 0, rp.moving, 0, 0, null, L.uniform)) });
     }
   }
   /* MALL SECURITY (MALL_JAIL): the guard, and the crew come for him -- on
@@ -108917,7 +108943,7 @@ class WorldScene extends Phaser.Scene {
       if(L === 1 && !p.ride && mallDownIn(room)) dk = mallRoomA1(room) + M.SF1 + 2 + dk*1e-4;
       if(p.ride){ const e = M.ESC.find(e => p.a > e.up[0] - 4 && p.a < e.dn[1] + 4); if(e){ const l1 = p.a < e.c ? e.up[1] : e.dn[1]; dk = Math.max(dk, l1 + M.SF1 + 0.02); } }   // (on an escalator: after its steps, as the crowd)
       const draw = (g, tt) => this.inRoomCoords(() => this.drawPersonHull(g, M.x0 + p.a, M.y0 + p.b, z, p.th - Math.PI/2,
-        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkSin((tt || t)*PEOPLE_ART.walkSpeed) : 0, !!p.moving, 0, 0, null, U));
+        look.build, look.skin, U.shirt, U.pants, look.hair, U.shoe, p.moving ? walkAt(M.x0 + p.a, M.y0 + p.b) : 0, !!p.moving, 0, 0, null, U));
       vq.push({ depth: ox + oy + dk, fn: draw });
       /* in the office, behind its front: x-rayed too, as he and its furniture are (Sir, 2026-10-20, "lets see
          the security in there") */
@@ -108961,7 +108987,7 @@ class WorldScene extends Phaser.Scene {
         carry ? () => { const hp = this.handWorldPos(p.x, p.y, thW, L.build, lift), P = (a, b, z) => this.W(hp.x + a, hp.y + b, z), z1 = hp.z + pz + 2, z0 = z1 - 22;
         this.quadOn(g, [P(-9, 7, z1), P(9, 7, z1), P(9, 7, z0), P(-9, 7, z0)], 0xf6f0e4); this.quadOn(g, [P(9, -7, z1), P(9, 7, z1), P(9, 7, z0), P(9, -7, z0)], 0xd6ccbb);
         this.quadOn(g, [P(-6, 7.2, z1 - 4), P(6, 7.2, z1 - 4), P(6, 7.2, z1 - 14), P(-6, 7.2, z1 - 14)], 0xf28ab8); } : null;
-      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin((tt || now)*PEOPLE_ART.walkSpeed + ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, opt && opt.pose ? Object.assign({}, L.dress ? { dress: L.dress } : null, opt.pose) : L.dress ? { dress: L.dress } : null);
+      this.drawPersonHull(g, p.x, p.y, pz, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkAt(p.x, p.y, 1, ph) : 0, moving, 0, lift, bag, L.uni || L.uniform, false, opt && opt.pose ? Object.assign({}, L.dress ? { dress: L.dress } : null, opt.pose) : L.dress ? { dress: L.dress } : null);
     });
     if(xu) vq.push({ depth: M.x0 + M.y0 + mallRoomA1(room) + M.SF1 + 4 + dk*1e-6 + sx + sy, fn: (g, tt) => this.xrayOnly(xu, () => fn(this._gSink || (this._gSink = this.add.graphics().setVisible(false)), tt)) });
     else vq.push({ depth: M.x0 + M.y0 + dk + sx + sy, fn });
@@ -109124,7 +109150,7 @@ class WorldScene extends Phaser.Scene {
   drawBallWalker(g, w, t){
     const L = partyLook(w.d.seed, w.d.kind);
     this.drawPersonHull(g, w.x, w.y, 0, w.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      w.moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, w.moving, 0, 0, null, L.uniform, false,
+      w.moving ? walkAt(w.x, w.y) : 0, w.moving, 0, 0, null, L.uniform, false,
       { dress: L.dress, lift: w.d.lift || null, bend: w.d.bend || 0, hold: w.d.hold ? PARTY_HOLD[w.d.hold] : null });
   }
   /* THE CAKE'S TOPPER (Sir, 2026-10-13: "its a weding cake so it needs a
@@ -109293,7 +109319,7 @@ class WorldScene extends Phaser.Scene {
     const L = hospWalkerLook({ seed }, q), mv = q.moving !== false;
     const pose = { dress: L.dress, hold: q.hold ? PARTY_HOLD[q.hold] : null, lift: q.lift || null, bend: q.bend || 0 };
     this.withAlpha(g, q.alpha != null ? q.alpha : 1, () => this.drawPersonHull(g, q.x, q.y, z0 || 0, q.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      mv ? walkSin(t*PEOPLE_ART.walkSpeed*(q.stride || 1) + (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
+      mv ? walkAt(q.x, q.y, (q.stride || 1), (q.ph || 0)) : 0, mv, 0, 0, null, L.uniform, false, pose));
   }
   /* THE AMBULANCE'S GURNEY (HOSP_AMB_RUN): its wheels and legs, its frame and mattress, the pillow at the end it is
      pushed from, and the patient on it on their back in their own clothes (brought in off the street), the head propped
@@ -109321,7 +109347,7 @@ class WorldScene extends Phaser.Scene {
      them), walking or stood */
   drawHospRider(g, R, x, y, z, th, moving, t){
     const L = partyLook(R.seed, R.kind);
-    this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, moving, 0, 0, null, L.uniform, false, { dress: L.dress });
+    this.drawPersonHull(g, x, y, z, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, moving ? walkAt(x, y) : 0, moving, 0, 0, null, L.uniform, false, { dress: L.dress });
   }
   /* the patient a porter wheels (HOSP_CAST's push): sat in their chair just ahead of his hands */
   drawHospPushed(g, q, z0){
@@ -109385,7 +109411,7 @@ class WorldScene extends Phaser.Scene {
     } : () => {
       /* both hands to the lift (bothArms), and on his hull while they roll him up (m.reach: pose.reach) */
       this.drawPersonHull(g, m.x, m.y, m.z || 0, m.th - Math.PI/2, build, skin, U.shirt, U.pants, hair, U.shoe,
-        m.moving ? walkSin(t*PEOPLE_ART.walkSpeed*Math.min(2.2, m.pace || 1)) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.waist ? { reach: m.reach, waist: m.waist, drop: m.drop } : null);
+        m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, m.lift, null, U, true, m.reach || m.waist ? { reach: m.reach, waist: m.waist, drop: m.drop } : null);
       if(m.rod) this.drawFishRod(g, m.rod);
     };
     /* GHOSTED WHEN HIDDEN (Sir, 2026-10-07: "when the crew is picking me
@@ -109537,7 +109563,7 @@ class WorldScene extends Phaser.Scene {
     const walk = !!(opts && opts.walk);   // walking (the heart run's officer, hospCopAt): the crew's swing
     this.drawPersonHull(g, x, y, z, thW, build, skin,
       POLICE_UNIFORM.shirt, POLICE_UNIFORM.pants, hair, POLICE_UNIFORM.shoe,
-      walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, walk, 0, liftT, null, PU);
+      walk ? walkAt(x, y) : 0, walk, 0, liftT, null, PU);
   }
   /* the tree well for one palm -- see PALM_WELL. Ground paint:
      world-plane geometry through this.W, no heading term, so it reads the
@@ -113187,7 +113213,7 @@ class WorldScene extends Phaser.Scene {
       g.strokePoints(pts, false);
     };
     const owner = () => this.drawPersonHull(g, ow.x, ow.y, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe,
-      o.walk ? walkSin(t*PEOPLE_ART.walkSpeed) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+      o.walk ? walkAt(ow.x, ow.y) : 0, !!o.walk, o.startle, liftT, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
     /* (the walked dog goes with its walker, PERSON_DRAW: no ghost of its own -- a teal dog on a lead to nobody) */
     const dog = () => { const nx = this._noXray; this._noXray = true; try { this.drawProp(g, "dog", x, y, t, fdir, z, wheelPhase, colorSeed, data); } finally { this._noXray = nx; } };
     if(data._ownRef && data._ownRef.knock){ dog(); return; }                       // (the owner knocked down: drawn as they fall, updateKnocks)
@@ -121939,7 +121965,7 @@ class WorldScene extends Phaser.Scene {
       if(who && seen(who.x, who.y)){
         blockVQ.push({ depth: who.x + who.y + dOff, fn: (g, tt) => room(() => {
           this._personKick = who.kick || 0;
-          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkSin(tt*PEOPLE_ART.walkSpeed) : 0, !!who.moving, 0,
+          try { this.drawPersonHull(layerFor(who.x, who.y), who.x, who.y, kz, who.th - Math.PI/2, build, sk, sh, pa, ha, so, who.moving ? walkAt(who.x, who.y) : 0, !!who.moving, 0,
                                     0, null, K.uni || null, false, K.dress ? { dress: K.dress } : null); }
           finally { this._personKick = 0; }
         }) });
