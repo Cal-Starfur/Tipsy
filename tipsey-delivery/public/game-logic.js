@@ -1614,7 +1614,8 @@ function gdHex(kind, v, dflt){
   return e[2];
 }
 function gdDk(c, f){ return (Math.round(((c >> 16) & 255)*f) << 16) | (Math.round(((c >> 8) & 255)*f) << 8) | Math.round((c & 255)*f); }
-let GD_LIVE = {};   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
+let GD_LIVE = {};
+const GD_DOOR = { t: 0, last: 0, force: null };   // (the back room's shutter: 0 up .. 1 down)   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
 function gideonParts(){
   const P = GD_LIVE || {}, D = GD_DEFAULT, pick = k => P[k] == null ? D[k] : P[k];
   const sh = gdHex('shell', pick('shell')), shell = pick('shell') === 'white' ? { c: 0xeef0f2, dk: 0xc9ced3 } : { c: sh, dk: gdDk(sh, 0.82) };
@@ -49568,6 +49569,14 @@ function houseCanopy(fn){
       items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
         T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
         T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
+    /* THE BACK ROOM'S DOOR (docs/gideon-dock.md): a coffee shop's -- a pair of waist-high louvred swing doors, like a cafe's kitchen gate, in the gap of the south
+       partition (a 130..250, b 408..424): two wood posts with the partition's cream cap and a sill are still art here; the two leaves are live (drawWorld,
+       GD_DOOR): swung open against the sides while he is about, swinging shut while his garage is open */
+    { const DA0 = 130, DA1 = 250, DB0 = 408, DB1 = 424, DH = 98;
+      for(const x of [DA0 - 8, DA1]) items.push({ a: x + 4, b: 416, z: 0, solids: [solid(x, x + 8, DB0, DB1, DH, 'door post')], draw: () => {
+        box(x, x + 8, DB0, DB1, 0, DH - 6, '#7a5238', '#7a5238', '#5b3d2a'); box(x - 1, x + 9, DB0 - 1, DB1 + 1, DH - 6, DH, cream, '#e4d9c0', '#d0c4a8'); } });
+      items.push({ a: (DA0 + DA1)/2, b: 416, z: 0, solids: [], draw: () => { T(DA0, DA1, DB0, DB1, 0.9, '#8e6a43'); T(DA0 + 4, DA1 - 4, DB0 + 5, DB1 - 5, 1.0, '#a07a50'); } });
+    }
     /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
        depot's `charger`: padR 44 -- an 88 circle -- a dark rim, the painted amber ring 5 wide, the grey pad inside; CH / CP in the Charge
        depot's drawing), on the back room's floor. The humanoid's own station: where he starts and ends as the player. Centre (124, 266). */
@@ -99606,6 +99615,26 @@ class WorldScene extends Phaser.Scene {
         const ph = ((tt || 0) % CHARGE.pulseMs)/CHARGE.pulseMs, br = 0.5 + 0.5*Math.sin(ph*Math.PI*2), lg = layerFor(cx, cy), ring = r => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(this.W(cx + Math.cos(t)*r, cy + Math.sin(t)*r, 2.4)); } return o; };
         this.quadOn(lg, ring(44), 0xffb454, 0.10 + 0.14*br); this.edgeOn(lg, ring(44), 0xffd488, (1.6 + 1.6*br)*this.K); this.quadOn(lg, ring(24), 0xfff0c8, 0.05 + 0.10*br); } });
     }
+    /* THE BACK ROOM'S SWING DOORS (gd4, the door): two louvred leaves hinged on the posts, swinging shut over 900 ms (DOOR_SHUT_MS) while Gideon's garage is open,
+       open (against the sides, out into the cafe) otherwise */
+    if(this._inside && this._inside.name === BB_IN.name){
+      const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 }, now = performance.now(), D = GD_DOOR;
+      const want = this._doorShut === 'gideon-pad' || (this._garage && this._garage.key === 'gideon-pad') || D.force === true ? 1 : 0;   // (the button shuts them, then the garage opens)
+      D.t = Math.max(0, Math.min(1, D.t + (want ? 1 : -1)*Math.min(100, now - (D.last || now))/900)); D.last = now;
+      if(typeof D.force === 'number') D.t = D.force;
+      const th = (Math.PI/2)*(1 - D.t)*(1 - D.t*0.0), y0 = pk.y0 + 416 + pv.dy, xL = pk.x0 + 130 + pv.dx, xR = pk.x0 + 250 + pv.dx, LL = 60;
+      for(const [hx, dir] of [[xL, 1], [xR, -1]]){
+        const tx = hx + dir*LL*Math.cos(th), ty = y0 + LL*Math.sin(th), dep = Math.max(hx + y0, tx + ty) + 0.3;
+        hazVQ.push({ depth: dep, fn: (gg, tt) => { const lg = layerFor(hx, y0), Wp = (x, y, z) => this.W(x, y, z), z0 = 4, z1 = 94;
+          const quad = (za, zb, c, f0 = 0, f1 = 1) => this.quadOn(lg, [Wp(hx + (tx - hx)*f0, y0 + (ty - y0)*f0, zb), Wp(hx + (tx - hx)*f1, y0 + (ty - y0)*f1, zb), Wp(hx + (tx - hx)*f1, y0 + (ty - y0)*f1, za), Wp(hx + (tx - hx)*f0, y0 + (ty - y0)*f0, za)], c, 1);
+          quad(z0, z1, 0x7a5238);                                                    // the leaf's frame
+          quad(z0 + 4, z1 - 4, 0xb58a5c, 0.06, 0.94);                                // its panel
+          for(let z = z0 + 8; z < z1 - 8; z += 9) quad(z, z + 3.6, 0x8e6a43, 0.06, 0.94);   // the louvres
+          quad(z1 - 2, z1, 0xf1e6cf);                                                // the cream cap
+          const hf = 0.84; this.quadOn(lg, [Wp(hx + (tx - hx)*(hf - 0.05), y0 + (ty - y0)*(hf - 0.05), 58), Wp(hx + (tx - hx)*(hf + 0.05), y0 + (ty - y0)*(hf + 0.05), 58), Wp(hx + (tx - hx)*(hf + 0.05), y0 + (ty - y0)*(hf + 0.05), 48), Wp(hx + (tx - hx)*(hf - 0.05), y0 + (ty - y0)*(hf - 0.05), 48)], 0xd9892b, 1);   // the copper push plate
+        } });
+      }
+    }
     /* NIGHT WATCH's bay (nwBayNow): the post's forecourt, the dock's pads, the mall's front doors, the gate round's
        pavement -- cached, the ring and beacon live; a camera point on the patrol has the beacon alone (R7) */
     if(WORLDGEN_COAST){ const B = nwBayNow(this);
@@ -135768,7 +135797,7 @@ setInterval(tpAvatarPadGate, 250);
          rolling door go close first then see the list"). Opens the moment
          the shutter is down; a safety cap in case frames stall; dropped if
          he drives off the pad before it lands. */
-      const from = (s._doorTs && s._doorTs.has(pd.key)) ? s._doorTs.get(pd.key) : 0;
+      const from = pd.gideon ? Math.max(0, 1 - GD_DOOR.t) : (s._doorTs && s._doorTs.has(pd.key)) ? s._doorTs.get(pd.key) : 0;   // (Gideon's: his back room's doors swing shut first, GD_DOOR)
       s._doorShutFrom = from; s._doorShutT0 = performance.now(); s._doorShut = pd.key;
       /* the same clock the door runs on: it is down after from*DOOR_SHUT_MS,
          plus a beat so the last frame of it is actually seen */

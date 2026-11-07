@@ -82,7 +82,7 @@ graph LR
 - [?] `d2` Working door: Animal Shelter (painted door today) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7860,8684&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `d3` Working door: harbour boat cabin [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [?] `d4` Working doors: Surfside Diner + Sandpiper Shoes [docs/state/CONSISTENCY_PASS.md#still-to-do]
-- [?] `d5` Kai + surf stand door; Low Tide Music door faces away [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `d5` Kai + surf stand door; Low Tide Music door faces away [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4900,11450&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: buildings
 - [ ] `b1` Tide Pool Elementary in pieces (U1k/U1c) [docs/state/CONSISTENCY_PASS.md#still-to-do]
@@ -159,7 +159,7 @@ graph LR
 - [?] `kart-yard` Kart Works yard: the block's bare brown-checker centre becomes the club's practice loop with cones, tyre barriers, start gantry, pit canopy and benches [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4204,13628&view=2) [found by test run]
 - [?] `kart-yard-fence` Kart Works block: the open frontages fenced in the alley gate's iron (north, west, east between barn and depot) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4692,14076&view=3) [found by test run]
 - [?] `kart-works-shell` Tidewater Kart Works: shell was smaller than its room's outer walls; widened to 820 x 680, east frontage becomes an alley gate [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5630,13658&view=3) [found by test run]
-- [ ] `fleet-apron` Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3) [found by test run]
+- [?] `fleet-apron` Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3) [found by test run]
 - [?] `skate-sign` Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2) [found by test run]
 - [ ] `skate-lamps` Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3) [found by test run]
 - [?] `port-fanlight` Port Office fanlight/window arch drawn as full ellipse: lower half painted over door glass and upper half over the PORT OFFICE sign [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) [found by test run]

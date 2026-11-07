@@ -43,6 +43,13 @@ Each batch is:
 - **No pickup at a shop the kit cannot open** (Surfside Diner, Sandpiper Shoes).
 - Test: [mall plaza doors](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2 "Look for: the plaza doors sliding apart for the crowd, and for Tipsey only once he has the password") · [Palmline Tower stores](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5060,-560&view=2 "Look for: each store's door opening for shoppers and staying drawn over the shopfront while open")
 
+### Doors and a shack (d3-d5, fleet-apron; 2026-11-07)
+- **Marina Parking has an attendant shack** on the pale paving west of the ENTER lane (it replaces the grey rectangle): glazed on the lane and street faces, a room inside (desk, monitor, ticket printer, chair, notice board), and its attendant standing at the east window. Two pieces (the room at the far corner, the shell at the near) so he sorts between and shows through the glass; the shack's solid is `prop: true` and the roof is tall enough (140) that the people-visibility test does not ghost him. `MARINA_SHACK`, `MARINA_ATTENDANT`.
+- **d3, the harbour boat's cabin door works.** The painted door is covered live by its opening and a leaf swung out on a hinge (`boatDoorStep`, `drawBoatDoorLive`; 280 ms open, 480 ms shut), wanted open while the customer is inside or within 90 of it; he waits inside until it is open. Only where the stern is seen.
+- **d4, Surfside Diner and Sandpiper Shoes have kit doors** (a door on the diner's flat wall, a glazed pair at the shoe shop's portal), so they are offered as pickups. Both stand on rear-facing block edges today, so the game shows their backs and the new fronts are not seen in play.
+- **d5, Palmline Surf Co.'s stand has a board hut** (`SURF.stand.hut`), the attendant shack's size and built the same way, twice as deep, with a shop floor in its south half and a door that swings for Kai (`surfHutDoorStep`). Every so often Kai walks in and works at the counter, seen through the glass. The stand's bay moved to y 11440 to clear it. Low Tide Music's away-facing door is left as it is (Sir's call).
+- Test: [Marina Parking shack](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3 "Look for: the glazed shack on the paving west of the ENTER lane, its attendant inside") · [surf stand hut](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4900,11450&view=2 "Look for: the glazed hut with Kai going in and out of its door (daytime, 8 to 20)")
+
 ### Pops and fades (batch 3)
 - **Nobody fades.** The hospital cast's fade steps are cuts at the car, door, lift or street end they stand at.
 - **The ambulance and the hospital crew's van** drive in from x 26,400 and away out of sight, with no alpha.
@@ -109,7 +116,7 @@ Each batch is:
 The work to do next, and the work built but not yet tested, is in `build_queue.md` (the readable plan) and `build_queue.json` (what the scheduled sessions read), both on this branch. `python3 tools/queue.py next` gives the next item. Test results and fixes from the scheduled look tests are in `docs/state/TEST_FINDINGS.md`. The test sheet the look tests use is `tools/test_sheet.json`.
 
 ## Still to do (each needs new art or a bigger change; Sir to see first)
-- **Working doors** for the Seabreeze Ballroom (its `doorF` must record itself), the Animal Shelter, the harbour boat's cabin, Surfside Diner and Sandpiper Shoes.
+- **Working doors** for the Seabreeze Ballroom (its `doorF` must record itself). (The Animal Shelter's, the harbour boat's cabin, Surfside Diner's and Sandpiper Shoes' are done.)
 - **Tide Pool Elementary in pieces** (U1k/U1c), and Palmline Tower's key and vol: its forecourt is in its one image.
 - **Props:**
   - collision taken from the art (lamp, hydrant, palm, bin, the bench capsule);
