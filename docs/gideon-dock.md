@@ -13,3 +13,8 @@ It sits in the open middle of the back room: clear of the roaster, the workbench
 
 ## Rule (Sir, 2026-11-07)
 Every game starts as Tipsey, whoever was driven last: the Fleet tab's pick is held for the visit only and never saved (tpLoadProfile / tpSaveProfile). The humanoid is always chosen on purpose, and Play then starts Gideon on his pad.
+
+## gd4 Customising Gideon (Sir: "fully customisable like Tipsey, build out a lot of possibilities")
+Standing on his pad opens his garage (the avatar button, as Tipsey's); with the humanoid chosen its tabs are his own, not Tipsey's. Picks are kept in `tpProfile.gideon` and read by `gideonParts()` for every draw of him: the garage turntable, the street, the scooter, the Gideon NPC.
+**Tranche 1 (built):** Shell (16 shell colours, joints, hands), Face (eye colour, 6 eye shapes, 7 mouths, screen colour), Band & pack (the chest band or none, the battery pack), Feet (4 shoe kinds, 8 shoe colours); every colour row has a colour wheel of its own. Reset Gideon puts it all back to stock.
+**Still to build:** Head (antennas, hats, caps, headphones, visors) `gd4b`; Outfit (aprons, scarves, vests, badges, glasses) `gd4c`; Finish and Decals (gloss, matte, chrome, two-tone; stripes, stars, number, the bolt) `gd4d`; ready-made Skins, earned and bought, as Tipsey's `gd4e`.
