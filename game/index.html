@@ -53209,7 +53209,9 @@ function houseCanopy(fn){
       },
       low: ['#e6e8e3', '#d6d9d3', '#c4c8c2'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d8d2', frame: '#b0aa9e' });
     /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
-    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
+    /* (SLIM, as the tower's own: the exterior's glass starts 14 in from its edge (EA0 + 14), so the pier is the 14 of the tower's front
+       that stands either side of it, 6 clear of the pair's frame -- not the 20 of block it was, the little wall at the entry, Sir 2026-11-07) */
+    for(const [j0, j1] of [[DA0 - TJ, DA0 - 6], [DA1 + 6, DA1 + TJ]])
       items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
         box(j0, j1, D, D + AP, 0, LH - 8, '#e6e8e3', '#d6d9d3', '#c4c8c2');
         box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
