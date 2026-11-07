@@ -23,6 +23,17 @@ graph LR
   r1 --> r2b
   r2a --> r2b
   r2b --> r3
+  bb-int --> bb-ms1
+  bb-ms1 --> bb-roof
+  bb-roof --> bb-errand
+  bb-scoot --> bb-errand
+  bb-errand --> bb-repair
+  bb-repair --> bb-server
+  bb-ms1 --> bb-exit
+  bb-roof --> bb-climb
+  bb-scoot --> bb-scoot2
+  bb-int --> bb-night
+  bb-roof --> bb-night
 ```
 
 ## People: seeded crowd
@@ -32,7 +43,7 @@ graph LR
 - [?] `sc4` Seeded strand, boardwalk, almshouse court and the other live populations [docs/seeded-crowd.md]
 - [?] `sc5` Census: same seed, two boots, every CITY_PEOPLE group the same [docs/seeded-crowd.md]
 - [?] `sc6` Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap [docs/seeded-crowd.md]
-- [?] `sc7` Census leftovers onto the seed: the groups in tools/crowd_census_known.json (skate park, Veterans Memorial, fish market, surf school, fire yard, mall crowd, street riders, walk-in staff; look into shoppers and boardwalk strollers intermittents) [docs/seeded-crowd.md]
+- [?] `sc7` Census leftovers onto the seed: the groups in tools/crowd_census_known.json stay on the known list (decided: left) [docs/seeded-crowd.md]
 
 ## People unification
 - [?] `p1.1` Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites [docs/people-unification.md#plan-by-risk]
@@ -141,6 +152,21 @@ graph LR
 - [ ] `fleet-apron` Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3) [found by test run]
 - [?] `skate-sign` Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2) [found by test run]
 - [ ] `skate-lamps` Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3) [found by test run]
+- [?] `port-fanlight` Port Office fanlight/window arch drawn as full ellipse: lower half painted over door glass and upper half over the PORT OFFICE sign [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2) [found by test run]
+
+## Brew & Bolt: Minding the Shop
+- [?] `bb-ext` Exterior character: copper-and-cream brick plinth, frieze, goosenecks, corner blade, rooftop cups; the east flank matches the front (shopfront band, awnings, glass, cornice) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4700,15500&view=3) [docs/kits/missions.md]
+- [?] `bb-int` Interior: service counter (espresso machine, pastry case, till, stools), back bar, brick dado, neon bolt and Gideon mural, rugs, robot charging nook; Gideon is the game's own humanoid; planters kept off the footprint [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460418,430450&view=2) [docs/kits/missions.md]
+- [?] `bb-ms1` Mission opens: Brew & Bolt's mat is the mission's (robot-head icon, no ordinary orders); Gideon comes out and asks; Not now works; the player becomes Gideon (humanoid loan); Tipsey rolls in and works the counter (NIGHT_CLOCK.time = 11) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-scoot` The humanoid can hop on any city scooter (Hop on / Hop off button) and ride it (needs the humanoid: start the mission, or FLEET_LOAN = 'humanoid') [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
+- [?] `bb-roof` The roof: the back room's ladder and hatch, a second room on the same square above the shop (Brew & Bolt Roof), bent antenna mast, the inspection card, back down the hatch [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
+- [?] `bb-errand` The parts errand: Gideon rides a scooter to Breakwater Hardware (about 33,000 road units, 6.5 min by GPS: consider a nearer parts shop), the clerk hands over a mast bracket and a coax connector (carried item), beacon and GPS there and back [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-repair` The repair and finish: back up the ladder, the mast straightened and the cable fixed, the order screen lights, Gideon's thanks, one completion card [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-server` Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Reward decided (Sir): Gideon playable, the humanoid's fleet unlock; no trophy, skin or cash [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-exit` Replace the temporary 'parts' bay that hands the shop back: Tipsey leaves the counter and the loan ends where Gideon finishes; abort and quit paths (leave mid-mission, tip over, reload) keep nothing half-done [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2) [docs/kits/missions.md]
+- [?] `bb-climb` Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
+- [?] `bb-scoot2` Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
+- [?] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1) [docs/kits/missions.md]
 
 ## Parked (waiting on Sir)
 - [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]

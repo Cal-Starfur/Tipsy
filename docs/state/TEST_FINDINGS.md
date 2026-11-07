@@ -129,3 +129,16 @@ Photos: snaps/sheet/skate/
 **OK**: fenced concrete fills the cell, no lawn inside; bowl with blue tile under coping; both quarter pipes, fun box, rail, pyramid with run-ups; four skaters tilting on boards; flood poles lit at night with light pools; gateway posts.
 
 **Hands-on (for Sir)**: Tipsey rides the bowl and ramps.
+
+## Section: rules (Shared rules: doors, order, cache) , 2026-11-06
+
+### Problems
+1. **Pelican Harbor Port Office, door fanlight and window arched heads** (snaps/sheet/rules/Pelican-Harbor-Port-Office-day.jpg, top right and top centre). Rule: LOOK_RULES 5 (doors/windows painted wrong), 1 (draw order). The fanlight and window heads were drawn as FULL circles centred on the head line, so the lower half painted an ellipse back over the door glass / window pane and the upper half of the fanlight ran over the PORT OFFICE sign board. **FIXED**: new `faceArch` helper in game/index.html draws only the upper half-disc; the fanlight is squashed (ry 30) to fit between the door head and the sign. Re-shot day and wide views: clean arches, sign unobstructed.
+2. Minor, NOT FIXED (needs a decision): Palmline stores and mall plaza doors show no lit interior at night (trophy shop does). Teal pickup and yellow van at Lagoon Market Hall park bumper to bumper, nearly touching.
+
+### OK
+- Trophy door: shut/parted sensibly, lit at night, sorts correctly with awning and lamp post.
+- Mall plaza doors, Palmline stores, Lagoon Market Hall: no missing-texture boxes, depth order correct, no overlaps with scenery.
+
+### Hands-on (for Sir)
+- Flicker while moving past each spot; doors swinging open for walk-ins.

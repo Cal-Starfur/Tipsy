@@ -3274,6 +3274,7 @@ const FLEET_MISSIONS = {
   "lighthouse-run":  { name: "The Lighthouse Run",       place: "Pelican Harbor", built: true },
   "number-4-builds": { name: "Number 4 Builds a Winner", place: "Tidewater Kart Works" },
   "adoption-day":    { name: "Adoption Day",             place: "Paw Point Dog Park", built: true },
+  "minding-the-shop": { name: "Minding the Shop",        place: "Brew & Bolt", built: true },
   "night-watch":     { name: "Night Watch",              place: "Vista Ridge Security Post", when: "night", built: true },
   "the-getaway":     { name: "The Getaway",              place: "Sun Deck Motor Lodge", built: true },
   "beach-fest":      { name: "Beach Fest",               place: "Driftwood Beach Club" },
@@ -3292,7 +3293,7 @@ const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
 const FLEET = {
   /* walk: Tipsey's owStep, his charging stations */
   humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
-                ctl: {}, bay: "station", unlock: "adoption-day", abilities: ["hands"], ambient: { walkins: true } },
+                ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
@@ -10403,6 +10404,7 @@ function owPlaceOnPad(scene, fromX, fromY){
 function owStandUpAt(scene, x, y, yaw){
   const ow = scene.ow;
   if(!ow) return;
+  if(ow.scoot && typeof scootDrop === "function") scootDrop(scene);   // (a teleport, a handed-back loan: the scooter stands where he was)
   ow.px = x; ow.py = y; ow.yaw = yaw; ow.vel = 0;
   ow.reversing = false; ow.latchSign = 0; ow.inContact = false;
   ow.leanS = 0; ow.leanI = 0;   // stand him up on both channels
@@ -28041,7 +28043,14 @@ const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0
              { lab: [[14, 0], [418/1.3 - 62, 0]], z: [22, 104], glass: true }, { lab: [[418/1.3 + 62, 0], [836/1.3 - 14, 0]], z: [22, 104], glass: true },
              { lab: [[836/1.3, -836/1.3 + 14], [836/1.3, -836/1.3 + 306]], z: [22, 104], glass: true },
              { lab: [[836/1.3, -36], [836/1.3, -136]], z: [22, 104], glass: true }, { lab: [[836/1.3, -186], [836/1.3, -286]], z: [22, 104], glass: true }] });
-(() => { const pk = POCKETS[POCKETS.length - 1]; pk.hides = ['Brew & Bolt', 'Brew & Bolt East']; })();   // (both legs' shells ease off as he goes in)
+(() => { const pk = POCKETS[POCKETS.length - 1]; pk.hides = ['Brew & Bolt', 'Brew & Bolt East']; })();
+/* THE ROOF OF BREW & BOLT (the antenna mission): a second room off the map on the same square, up the back room's ladder through
+   its hatch. Open to the sky, drawn on the building's lines at the roof's height (z: the shell's flat roof, 176 x 1.95), the
+   building left standing under it (no hides), no door of its own: it is entered and left by the hatch (msClimb). */
+const BBR = { name: 'Brew & Bolt Roof', x0: 470000, y0: 430000, W: 836, D: 836, Z: 343 };
+POCKETS.push({ name: BBR.name, from: 'Brew & Bolt', x0: BBR.x0, y0: BBR.y0, w: BBR.W, d: BBR.D, out: 0, h: 80, doors: [],
+  view: () => { const v = BB_PK.view(); return { dx: v.dx + (BB_IN.x0 - BBR.x0), dy: v.dy + (BB_IN.y0 - BBR.y0) }; },
+  z: () => BBR.Z, night: [] });   // (both legs' shells ease off as he goes in)
 /* ITS PEOPLE: Gideon, the owner, a humanoid robot -- his look a placeholder (a roster body in a metal skin, no hair, the
    shop's copper apron) till his own is drawn; he walks the room's aisles with the coffee and rests at his dock in the back
    room. Two customers at their tables' look points (a room of 700,000 square: staff of one, a few visitors) */
@@ -29916,6 +29925,7 @@ function garageDeckDepth(x, y){ const p = liftSite().frame().toLab(x, y); return
 function owLiftZ(ow){
   if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
   if(hospInsideNow()) return hospInZ();                    // inside Marina General: the floor he is on (HOSP_IN)
+  { const sc = typeof scn === "function" ? scn() : null; if(sc && sc._inside && sc._inside.name === 'Brew & Bolt Roof') return BBR.Z; }   // on Brew & Bolt's roof
   const L = ow.lift, Z = liftSite().plan.DECK_Z;
   if(L && L.kind === 'mall'){                               // the mall garage's lift, floor to floor
     if(L.phase !== 'ride') return L.phase === 'open' ? L.z1 : L.z0;
@@ -32354,7 +32364,7 @@ const MISSIONS = {
   /* ADOPTION DAY (PAW POINT DOG PARK): the banner, the treats, and Biscuit walked over by the fleet's humanoid */
   'adoption-day': { name: 'Adoption Day', giver: 'Maeve Ashby, Costa Palma Animal Shelter', window: 'shops', places: ['Costa Palma Animal Shelter', 'Pelican Photo', 'Pelican Pets', 'Paw Point Dog Park'],
     steps: ["Stop on the bay outside the animal shelter", "The banner from Pelican Photo", "The treats from Pelican Pets", "Back to the shelter: Biscuit", "Walk Biscuit to Paw Point on her lead, slowly", "Her family at the gate", "Maeve, under the banner", "The humanoid back to Tipsey"],
-    reward: { trophy: 'adoption-day', skin: 'pawprint', wear: true, item: 'rescuetag', fleet: 'humanoid' },
+    reward: { trophy: 'adoption-day', skin: 'pawprint', wear: true, item: 'rescuetag' },   // (the humanoid is lent for the run only; he is kept by MINDING THE SHOP)
     lock: () => adUnlocked() ? null : "After " + AD_RUN.need + " dogs at the shelter (" + Math.min(AD_RUN.need, (tpProfile && tpProfile.dogsSheltered) || 0) + " so far)",
     busy: () => adBusy(),
     item: () => ADOPT.carry === 'banner' ? { id: 'banner', name: 'banner', tip: 'crewReturns' } : ADOPT.carry === 'both' ? { id: 'banner', name: 'banner and treats', tip: 'crewReturns' }
@@ -42538,6 +42548,13 @@ function unitCircle(fill, stroke, lw, r){
   if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
 }
 function faceCircle(a,b,z,r,fill,stroke,lw){ faceT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
+/* An arched head: only the HALF disc above z (the lower half would paint an ellipse back over the window or door under it).
+   ry < r squashes it into a shallow fanlight so it can sit under a sign. */
+function faceArch(a,b,z,r,fill,stroke,lw,ry){ faceT(a,b,z,r); ctx.scale(1, (ry||r)/r);
+  ctx.beginPath(); ctx.arc(0,0,1,Math.PI,0,true); ctx.closePath();
+  if(fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = (lw||1)/(r*K); ctx.stroke(); }
+  ctx.restore(); }
 function plateCircle(a,b,z,r,fill,stroke,lw){ if(CUT !== null && z > CUT) return; plateT(a,b,z,r); unitCircle(fill,stroke,lw,r); ctx.restore(); }
 /* Drawn by the depot's room (lab primitives, lab units). st[i] is the
    slot's { tier, earned }: an earned trophy stands in the metal of its
@@ -49346,13 +49363,35 @@ function houseCanopy(fn){
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
-        /* the hatch, seen from above: a steel frame round a plank panel with a ring, hinged on the north wall */
+        /* the hatch, seen from above: a steel frame round the opening, hinged on the north wall (its panel: the two items below) */
         const hz = H - 3;
         T(L0 - 20, L1 + 20, 0, 64, hz, '#4a3a2c');
-        T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
-        for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
-        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS);
-        cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550'); } }); }
+        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS); } });
+      /* its panel, shut or open (MINDING THE SHOP: MS.hatchOpen, the climb): a plank panel with a pull ring over the opening, or thrown
+         back against the wall with the sky showing through */
+      for(const open of [false, true])
+        items.push({ a: (L0 + L1)/2, b: 32, z: H - 3, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, draw: () => {
+          const hz = H - 3;
+          if(!open){
+            T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
+            for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
+            cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550');
+          } else {
+            T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#9ec8e0');                                                                   // the sky through it
+            poly([P(L0 - 15, 6, hz + 2), P(L1 + 15, 6, hz + 2), P(L1 + 15, 10, hz + 40), P(L0 - 15, 10, hz + 40)], '#7a5a3c', '#4a3a2c', 1);   // the panel, up on its hinge
+            poly([P(L0 - 15, 6, hz + 2), P(L0 - 15, 10, hz + 40), P(L0 - 10, 10, hz + 40), P(L0 - 10, 6, hz + 2)], '#5a4026');
+          } } }); }
+    /* AFTER DARK (the night pass): the neon bolt throws a wide amber wash over the plaster and a pool on the floor under it, the counter's
+       base glows along the aisle, and the till's screen light spills on its top -- still pieces of the room, their 'when' */
+    { const night = () => typeof isNightNow === 'function' && isNightNow();
+      items.push({ a: 470, b: 6, z: 100, when: night, draw: () => {
+        const q = (a, z) => P(a, 0.95, z), pts = [q(478, 198), q(450, 142), q(466, 142), q(448, 100), q(492, 160), q(474, 160)];
+        poly(pts, null, 'rgba(255,170,60,.10)', 46); poly(pts, null, 'rgba(255,170,60,.14)', 30);
+        const ring = (r, k) => { const o = []; for(let i = 0; i < 18; i++){ const t = i/18*Math.PI*2; o.push(P(470 + Math.cos(t)*r*1.4, 70 + Math.sin(t)*r, 0.5)); } poly(o, 'rgba(255,170,60,' + k + ')'); };
+        ring(80, 0.05); ring(56, 0.06); ring(30, 0.07); } });
+      items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
+        T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
+        T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
     /* GIDEON'S DOCK, the south-east of the back room: a pad, a post, a status light (his resting place, the staff's first post) */
     items.push({ a: 330, b: 330, z: 0, solids: [{ name: 'dock post', c: [330, 372], r: 12, h: 120 }], draw: () => {
       T(296, 364, 296, 364, 0.7, '#2b3138'); T(300, 360, 300, 360, 0.8, '#3a444d');
@@ -49392,8 +49431,12 @@ function houseCanopy(fn){
         if(has(358)){                                                                    // the till: a box, its screen tilted to the staff, a drawer
           box(568, 596, 344, 374, CZ, CZ + 12, '#4a5660', '#3a4650', '#2c363e');
           poly([P(572, 352, CZ + 12), P(590, 352, CZ + 12), P(590, 352, CZ + 30), P(572, 352, CZ + 28)], '#1f2a30');
-          poly([P(574, 352.3, CZ + 14), P(588, 352.3, CZ + 14), P(588, 352.3, CZ + 26), P(574, 352.3, CZ + 25)], '#5be37d'); }
+          }
       };
+      /* (the order screen, lit or dark: MINDING THE SHOP keeps it dark till the mast is mended -- still pieces of the room, their 'when') */
+      for(const lit of [true, false])
+        items.push({ a: 582, b: 371, z: CZ + 14, when: () => !(typeof msScreenDark === 'function' && msScreenDark()) === lit, draw: () => {
+          poly([P(574, 352.3, CZ + 14), P(588, 352.3, CZ + 14), P(588, 352.3, CZ + 26), P(574, 352.3, CZ + 25)], lit ? '#5be37d' : '#161c20'); } });
       const run = 40, n = Math.ceil(320/run);
       for(let k = 0; k < n; k++){ const s0 = 70 + 320*k/n, s1 = 70 + 320*(k + 1)/n;
         items.push({ a: (CA0 + CA1)/2, b: (s0 + s1)/2, z: 0, solids: [solid(CA0, CA1, s0, s1, 100, 'counter')], draw: () => {
@@ -49425,6 +49468,112 @@ function houseCanopy(fn){
         tube(NA + 16, b, 40, NA + 4, b + 6, 4, 1.4, dark); } }); }
 
     walkinStaffSolids(items, BB_IN.name);
+    depthSort(items);
+  }
+  },
+
+{
+  /* ON THE ROOF OF BREW & BOLT (the antenna mission): flat tar-and-gravel under the sky, a low parapet all round with a cream cap,
+     the roof hatch (its curb, the lid thrown back, the ladder's rails coming up), the bent antenna mast on its plate with its
+     snapped cable, a vent stack and an air-conditioning unit. Lab frame a east, b south, z up, world units. */
+  name:'Brew & Bolt Roof', xh: 60, tall:false, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: BBR.W, dd: BBR.D,
+  head:'On the roof of Brew & Bolt: the hatch, the bent antenna mast, a vent stack and an air-conditioning unit',
+  tags:['roof','pocket','antenna','hatch'],
+  desc:'The flat roof of Gideon\'s coffee shop: the hatch up from the back room, a parapet round the edge, and the antenna mast, bent right over, with its cable snapped.',
+  draw(p){
+    const W = BBR.W, D = BBR.D, PH = 34, PT = 14;
+    const tar = '#4b4742', tarD = '#3d3935', cream = '#f1e6cf', brown = '#5b3d2a', brownD = '#3b2619', steel = '#8f969d', steelD = '#6e757c', steelS = '#596067', copper = '#d9892b', copperD = '#b06f20';
+    const items = [];
+    /* (every piece goes after the shell's baked roof: dk is its order in the frame, the shell standing under him -- a + b + 4000) */
+    const rpush = it => items.push(Object.assign(it, { dk: it.low ? 800 : it.a + it.b + 4000 }));   // (low: under the shell's baked art, which then draws over it -- the cup signs stand in front of the far parapet)
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* ---- THE ROOF: tar and gravel, its seams, a patched strip ---- */
+    T(0, W, 0, D, 0, tar);
+    for(let a = 70; a < W; a += 140) T(a - 1, a + 1, 0, D, 0.2, tarD);
+    for(let b = 70; b < D; b += 140) T(0, W, b - 1, b + 1, 0.2, tarD);
+    T(560, 770, 360, 400, 0.3, '#57524c');
+    for(const [ga, gb] of [[120, 300], [310, 520], [470, 180], [700, 560], [220, 700], [610, 700], [80, 450]]) for(let k = 0; k < 7; k++) T(ga + k*9, ga + k*9 + 3, gb + (k%3)*7, gb + (k%3)*7 + 3, 0.35, '#6a655e');
+    /* ---- THE PARAPET, all round: a brown wall with a cream cap, in runs ---- */
+    const par = (a0, a1, b0, b1, alongA, vis, low) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
+      for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        rpush({ low, a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
+          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
+    par(0, W, 0, PT, true, true); par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+    /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
+       neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
+       room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
+    rpush({ a: 779, b: 117, z: 0, solids: [], draw: () => {
+      const A = 779, bc = 117, dk2 = '#2a1a11', Q = (da, k) => P(A, bc - 1.3*da, 1.95*(6 + k)), SB = (da0, da1, k0, k1, c) => poly([Q(da0, k0), Q(da1, k0), Q(da1, k1), Q(da0, k1)], c);
+      for(const da of [-52, 52]) box(A - 2, A + 2, bc - 1.3*da - 3, bc - 1.3*da + 3, 0, 1.95*10, dk2, dk2, '#3b2619');          // the posts
+      SB(-58, 58, 0, 90, dk2); SB(-54, 54, 4, 86, '#3b2619');                                                                    // the board
+      poly([Q(-30, 14), Q(30, 14), Q(24, 54), Q(-24, 54)], '#e79a35');                                                           // the cup
+      poly([Q(-24, 54), Q(24, 54), Q(24, 57), Q(-24, 57)], cream);
+      poly([Q(-36, 11), Q(36, 11), Q(30, 14), Q(-30, 14)], '#b06f20');
+      poly([Q(30, 46), Q(44, 44), Q(44, 28), Q(29, 24), Q(29, 28), Q(38, 30), Q(38, 42), Q(27, 43)], '#e79a35');                // its handle
+      poly([Q(5, 52), Q(-9, 36), Q(-1, 36), Q(-8, 18), Q(12, 40), Q(3, 40)], cream);                                             // the bolt
+      for(const [da, h] of [[-12, 0], [2, 8], [16, 2]]) poly([Q(da, 60 + h), Q(da + 3, 66 + h), Q(da - 2, 74 + h), Q(da + 2, 82 + h), Q(da - 1, 82 + h), Q(da - 5, 74 + h), Q(da, 66 + h), Q(da - 3, 60 + h)], 'rgba(241,230,207,.7)');   // steam
+    } });
+    /* ---- THE HATCH, a 130..200 x 0..70: its curb, the dark opening, the lid thrown back against the north parapet, the rails coming up ---- */
+    rpush({ a: 165, b: 36, z: 0, solids: [solid(126, 204, PT, 72, 22, 'roof hatch')], draw: () => {
+      box(126, 204, PT, 72, 0, 18, '#6b5a48', '#5a4a3a', '#3d3328'); } });
+    /* (the lid: shut over the opening, or thrown back with the ladder's rails coming up -- MS.hatchOpen, from the start of the climb) */
+    for(const open of [false, true])
+      rpush({ a: 165, b: 40, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {
+        if(!open){
+          T(132, 198, PT + 4, 68, 18.4, '#7a5a3c');
+          for(let a = 140; a < 198; a += 12) T(a, a + 1, PT + 4, 68, 18.8, '#5a4026');
+          cyl(165, 56, 18.6, 21, 3.2, copper, '#e8a550');
+          return;
+        }
+        T(136, 194, PT + 8, 64, 18.3, '#14110e');
+        for(const x of [150, 180]) box(x - 2.2, x + 2.2, PT + 12, PT + 18, 0, 52, steel, steel, steelD);
+        for(let z = 24; z < 50; z += 12) tube(150, PT + 15, z, 180, PT + 15, z, 1.4, steelD);
+        poly([P(134, PT + 4, 18), P(196, PT + 4, 18), P(196, PT + 2, 62), P(134, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);
+        poly([P(134, PT + 4, 18), P(134, PT + 2, 62), P(134, PT + 8, 62), P(134, PT + 8, 18)], '#5a4026'); } });
+    /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
+       bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
+    { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
+    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => {
+      const A = d => ma + d, B = d => mb + d;
+      box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
+      for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
+      tube(A(0), B(0), 5, A(0), B(0), 104, 3.6, steel);                                        // the mast
+      tube(A(0), B(0), 104, A(44), B(6), 128, 3.6, steel);                                     // the bend, over
+      tube(A(44), B(6), 128, A(88), B(10), 132, 3, steel);                                     // what is left of the upper mast, leaning
+      for(const [t, len] of [[0.25, 30], [0.5, 24], [0.75, 18]]){ const a = A(44 + 44*t), b = B(6 + 4*t), z = 128 + 4*t; tube(a, b - len/2, z, a, b + len/2, z, 1.4, '#c4cbd1'); }  // the elements
+      tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
+      tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36');   // the cable, snapped
+      cyl(A(-20), B(56), 0.5, 2.5, 3, copper, '#e8a550'); } });
+    /* ... and mended (MINDING THE SHOP, the repair): the new bracket on the plate, the mast standing straight to 150 with its elements
+       along the top, the guy wires taut, the cable up the mast with its screw-on connector */
+    rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 150 }], draw: () => {
+      const A = d => ma + d, B = d => mb + d;
+      box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
+      box(A(-12), A(12), B(-12), B(12), 5, 16, copper, copperD, '#8c5618');                    // the new bracket
+      for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
+      tube(A(0), B(0), 5, A(0), B(0), 150, 3.6, steel);                                        // the mast, straight
+      for(const [z, len] of [[146, 34], [130, 28], [114, 22]]) tube(A(0), B(0) - len/2, z, A(0), B(0) + len/2, z, 1.4, '#c4cbd1');   // the elements
+      tube(A(0), B(0), 100, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(-60), B(70), 0, 0.6, '#4a4f55');
+      tube(A(4), B(4), 16, A(4), B(4), 140, 1.2, '#2a2f36');                                   // the cable, up the mast
+      cyl(A(4), B(4), 136, 142, 3, copper, '#e8a550'); } });
+    }
+    /* ---- THE SHELL'S OWN ROOF UNITS (baked into its roof art: a long slab on the south side, a box by the east cup sign) solid, found by
+       measuring them off the picture ---- */
+    rpush({ a: 300, b: 660, z: 0, solids: [solid(190, 412, 620, 700, 40, 'roof unit')], draw: () => {} });
+    rpush({ a: 653, b: 156, z: 0, solids: [solid(622, 684, 100, 213, 50, 'roof unit')], draw: () => {} });
+    /* ---- AFTER DARK (the night pass): a caged work lamp on a short post by the hatch, its pool of warm light on the tar reaching the mast
+       -- still pieces, their 'when' ---- */
+    rpush({ a: 270, b: 215, z: 0, solids: [{ name: 'work lamp', c: [270, 215], r: 8, h: 90 }], draw: () => {
+      cyl(270, 215, 0, 4, 9, steelD, steelS); tube(270, 215, 4, 270, 215, 84, 2.2, steel); box(260, 280, 207, 223, 82, 92, steelD, steelD, steelS);
+      const on = typeof isNightNow === 'function' && isNightNow();
+      T(262, 278, 209, 221, 82, on ? '#ffe2a8' : '#cfc7b4'); } });
+    rpush({ a: 270, b: 215, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
+      const ring = (r, k) => { const o = []; for(let i = 0; i < 20; i++){ const t = i/20*Math.PI*2; o.push(P(300 + Math.cos(t)*r, 250 + Math.sin(t)*r*0.9, 0.6)); } poly(o, 'rgba(255,214,140,' + k + ')'); };
+      ring(230, 0.05); ring(170, 0.06); ring(110, 0.07); ring(55, 0.08); } });
+    /* ---- A VENT STACK with its cap, and an air-conditioning unit ---- */
+    rpush({ a: 300, b: 560, z: 0, solids: [{ name: 'vent stack', c: [300, 560], r: 14, h: 90 }], draw: () => {
+      cyl(300, 560, 0, 70, 8, steel, '#aab3ba'); cyl(300, 560, 70, 76, 12, steelD, '#838a90'); } });
     depthSort(items);
   }
   },
@@ -72136,7 +72285,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(let a = HA0 + 120; a + 140 < HA1; a += 250){
       if(a + 140 > PA0 - 20 && a < PA1 + 20) continue;                            // the pavilion stands there
       win(a, a + 120, 40, 150, HB);                                                // ground floor
-      faceCircle(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                       // its arched head
+      faceArch(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                         // its arched head (the upper half only)
       win(a + 10, a + 110, 210, 300, HB);                                          // first floor
     }
     /* THE TIDE BOARD on the pier west of the pavilion: the day's tides and notices to mariners, under glass */
@@ -72180,7 +72329,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       F(ac - 110, ac + 110, 0, 250, TRIM, null, 0, PB + 0.3);                     // the doors
       F(ac - 100, ac - 4, 0, 240, GLASSL, null, 0, PB + 0.6);
       F(ac + 4, ac + 100, 0, 240, GLASSL, null, 0, PB + 0.6);
-      faceCircle(ac, PB + 0.7, 250, 104, GLASS, TRIM, 3);                          // the fanlight
+      faceArch(ac, PB + 0.7, 250, 104, GLASS, TRIM, 3, 30);                        // the fanlight: a shallow half-disc between the door head and the sign board
       F(ac - 150, ac + 150, 284, 340, TRIM, null, 0, PB + 1);                      // the clock board
       word('PORT OFFICE', ac, 326, 3.9, PB + 1.4, '#e8b54a', null);
       faceCircle(ac, PB + 0.8, 440, 50, '#f6f3ea', TRIM, 4);                      // the clock
@@ -83655,7 +83804,7 @@ function adThanks(){
   R.stage = 'home';
   adNav(scene, R.home, "Tipsey, at the shelter");
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard(['rescuetag'], (first ? "Adoption Day: done! Biscuit has a family, and the shelter's given you the Dog Rescuer's gold tag. The Paw Print skin is yours, and the humanoid is yours to walk any time. " : "Adoption Day: done again! ")
+  collectCard(['rescuetag'], (first ? "Adoption Day: done! Biscuit has a family, and the shelter's given you the Dog Rescuer's gold tag. The Paw Print skin is yours. " : "Adoption Day: done again! ")
     + "Walk the humanoid back to Tipsey at the shelter.");
 }
 /* the loan ends beside Tipsey: he is himself again where he parked, the humanoid walks off past the view's edge */
@@ -83920,8 +84069,18 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    the stick says Hop on within SCOOTR.near of one, Hop off while riding. No fleet kind: a flag on the player (ow.scoot) that
    swaps his driving numbers (fleetPhys) and his draw (drawScooterRider under the humanoid's own body and robot skin). The
    scooter he takes is hidden (pr.taken: not given back to the street) and set down where he gets off, live (SCOOTR.down). */
-const SCOOTR = { near: 130, down: [], _phys: null,
-  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.45, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*1.1 }) }); } };
+const SCOOTR_KEY = 'tipsy.scooters.down';
+const SCOOTR = { near: 130, down: (() => { try { const a = JSON.parse(localStorage.getItem(SCOOTR_KEY) || '[]'); return Array.isArray(a) ? a.filter(d => d && isFinite(d.x) && isFinite(d.y)).slice(-12) : []; } catch(e){ return []; } })(), _phys: null, last: null,
+  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.4, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*0.85 }) }); } };
+/* the ones he has set down stay where they are, through a reload */
+function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOOTR.down.slice(-12))); } catch(e){} }
+/* he is off it where he last was out of doors (a door he went in by, a loan that ended, a respawn): it stands there */
+function scootDrop(s, at){
+  const ow = s && s.ow; if(!ow || !ow.scoot) return;
+  const a = at || (s._inside || s._garage ? SCOOTR.last : { x: ow.px, y: ow.py, th: ow.yaw });
+  if(a) SCOOTR.down.push({ x: a.x, y: a.y, th: a.th, brand: ow.scoot.brand });
+  ow.scoot = null; ow.vel = 0; scootSave();
+}
 function scootCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'humanoid'); }
 /* the scooter nearest him within reach: {pr|d, x, y, brand}, or null */
 function scootNearest(s){
@@ -83935,14 +84094,13 @@ function scootNearest(s){
 function scootHop(s){
   const ow = s.ow; if(!ow) return;
   if(ow.scoot){                                              // off: set it down where he stands, facing as he faced
-    SCOOTR.down.push({ x: ow.px, y: ow.py, th: ow.yaw, brand: ow.scoot.brand });
-    ow.scoot = null; ow.vel = 0;
+    scootDrop(s);
     if(typeof sfxThump === "function") sfxThump(0.15);
     return;
   }
   const n = scootNearest(s); if(!n) return;
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
-  if(n.down) SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1);
+  if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
   ow.scoot = { brand: n.brand || BRANDS[0] };
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
@@ -83950,7 +84108,8 @@ function scootUiTick(){
   const s = (typeof scn === "function") ? scn() : null, btn = document.getElementById("scootBtn");
   if(!btn) return;
   const ow = s && s.ow;
-  if(ow && ow.scoot && (!scootCan(s))){ ow.scoot = null; ow.vel = 0; }       // (the loan ended, or he went in: he is off it)
+  if(ow && ow.scoot && scootCan(s)) SCOOTR.last = { x: ow.px, y: ow.py, th: ow.yaw };
+  if(ow && ow.scoot && (!scootCan(s))) scootDrop(s);                             // (the loan ended, or he went in: he is off it, and it stands where he last was outside)
   let verb = null;
   if(scootCan(s)) verb = ow.scoot ? "Hop off" : (scootNearest(s) ? "Hop on" : null);
   btn.classList.toggle("hidden", !verb);
@@ -83979,7 +84138,9 @@ function scootQueue(scene, t, queuePerson, layerFor){
    the PLAYER is Gideon (the fleet's humanoid, lent: FLEET_LOAN), Tipsey parked still on the bay; the same bay hands the shop
    back for now. Later phases: Tipsey serving inside, the ladder and hatch in the back room, the antenna, the errand to
    Breakwater Hardware for the parts, the repair. Gideon is away from his room (walkinStaff 'gideon': away) while any of it runs. */
-const MS = { stage: 'idle', gid: null, park: null, home: null, snooze: null };
+const MS = { stage: 'idle', gid: null, park: null, home: null, snooze: null, clerk: null, carry: null, fixed: false, fin: false };
+function msMastFixed(){ return MS.fixed || msDone(); }
+function msScreenDark(){ return MS.stage !== 'idle' && !MS.fixed && !msDone(); }   // (the order screen is dark from the moment he takes the shop till the mast is mended)
 function msDone(){ return !!(typeof tpProfile !== "undefined" && tpProfile && tpProfile.missionsCompleted && tpProfile.missionsCompleted.has('minding-the-shop')); }
 function msBusy(){ return MS.stage !== 'idle'; }
 function msBay(scene){ return MS._bay || (MS._bay = adShopBay(scene, 'Brew & Bolt')); }
@@ -83992,6 +84153,7 @@ function msGidAt(now){
 }
 function msTipAt(now){
   const T = MS.tip; if(!T) return null;
+  if(MS.tipOut){ const p = walkPathAt(T, now); return p ? { x: p.x, y: p.y, th: p.th, moving: !p.there } : null; }   // (leaving: out along his own way in, and stands on his bay)
   if(!MS.tipArr){
     const p = walkPathAt(T, now);
     if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
@@ -84018,14 +84180,47 @@ function msTipQueue(scene, hazVQ, layerFor){
     try { scene.withAlpha(L, al, () => scene.drawTipseyParked(L, x, y, th, 0, mv ? { t: tt || now } : null)); } finally { scene._seenThrough = st0; } } });
 }
 function msGidAtDoor(p){ const B = MS._bay; return !!p && !!B && !!B.door && Math.hypot(p.x - B.door.x, p.y - B.door.y) < 220; }
-function msDoorWalkers(now){ const p = msGidAt(now); return p && msGidAtDoor(p) ? [{ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' }] : []; }
+function msDoorWalkers(now){
+  const out = [], p = msGidAt(now), c = msClerkAt(now);
+  if(p && msGidAtDoor(p)) out.push({ p, U: GIDEON_UNIFORM, seed: 0x61de0, L: msGidLook(), kind: 'humanoid robot' });
+  if(c && MS.clerk) out.push({ p: c, U: MS_CLERK_UNIFORM, seed: MS_CLERK_SEED, kind: 'hardware clerk' });   // (Breakwater Hardware's, out of its own door with the parts)
+  return out;
+}
+/* THE PARTS ERRAND (bb-errand): the hardware shop is the Flats' own, Breakwater Hardware (about 33,000 road units from Brew & Bolt: the
+   GPS leads him there and back); its clerk comes out of the shop's door with a mast bracket and a coax connector in a paper bag */
+const MS_HW = 'Breakwater Hardware', MS_CLERK_SEED = 0xb4ea1;
+const MS_CLERK_UNIFORM = { shirt: { c:0x8a6a2a, dk:0x6a501e }, pants: { c:0x3a3f46, dk:0x2a2e34 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xb8651e, dk:0x8e4c14 }, shoeKind: 'boot' };                                  // a mustard work shirt, the shop's rust-orange apron
+SHOP_STAFF[MS_HW] = { U: MS_CLERK_UNIFORM, seed: MS_CLERK_SEED };
+function msHw(scene){ return MS._hw || (MS._hw = adShopBay(scene, MS_HW)); }
+function msClerkAt(now){
+  const M = MS.clerk; if(!M) return null;
+  const p = hospWalkAt(M, now);
+  if(!p){ MS.clerk = null; return null; }
+  return Object.assign(p, { has: M.has || null });
+}
+function msNav(scene, to, name){ if(to && typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "minding", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+function msNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "minding"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* the bay the story shows now (R7) */
+/* a bay in one of the roof's two rooms (pocket frame: a east, b south): hospBay's, marked with its pocket, drawn on the street's lines */
+const msPkOf = name => POCKETS.find(q => q.name === name);
+function msPocketBay(name, a, b){
+  const pk = msPkOf(name); if(!pk) return null;
+  const B = hospBay(pk.x0 + a, pk.y0 + b);
+  return Object.assign(B, { pocket: pk });
+}
+function msLadderBay(){ return MS._lb || (MS._lb = msPocketBay(BB_IN.name, 165, 78)); }
+function msHatchBay(){ return MS._hb || (MS._hb = msPocketBay(BBR.name, 165, 118)); }
+function msMastBay(){ return MS._mb || (MS._mb = msPocketBay(BBR.name, 430, 400)); }
 function msBayNow(scene){
   const ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => B && Object.assign({}, B, { icon });
   if(MS.stage === 'idle') return msDone() || fleetCur() || storiesHidden('minding-the-shop') || missionBusy('minding-the-shop') ? null : ic(msBay(scene), 'robot');
-  if(MS.stage === 'shift') return ic(MS.home, 'flag');
+  if(MS.stage === 'shift') return ic(msLadderBay(), 'flag');
+  if(MS.stage === 'roof') return MS.seen && !MS.carry ? ic(msHatchBay(), 'flag') : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again)
+  if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
+  if(MS.stage === 'return' || MS.stage === 'out') return ic(MS.home, 'flag');
   return null;
 }
 function msAccept(){
@@ -84048,6 +84243,46 @@ function msAccept(){
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("You're Gideon now: Tipsey's minding the shop. (For now, the bay beside Tipsey gives it back.)");
 }
+/* the clerk's word heard: the bag is handed over and he goes back in; Gideon heads home with the parts */
+function msTake(){
+  const scene = scn(); if(MS.stage !== 'partsGive' || !scene || !MS.clerk || MS.clerk.leave != null) return;
+  hospSayCard(null); cineBars(false);
+  MS.clerk.has = null; MS.clerk.leave = scene.time.now;
+  MS.carry = 'parts'; MS.stage = 'return';
+  msNav(scene, MS.home, "Tipsey, at Brew & Bolt");
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("A mast bracket and a coax connector aboard. Back to Brew & Bolt.");
+}
+/* the mast mended: bracket on, connector screwed home, the cable up to the plate */
+function msFixed(){
+  const scene = scn(); if(MS.stage !== 'roofFix' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  MS.fixed = true; MS.carry = null; MS.stage = 'roof';
+  if(typeof sfxThump === "function") sfxThump(0.3);
+  if(typeof tpToast === "function") tpToast("The mast's standing straight and the cable's on. Back down the hatch.");
+}
+/* the order screen alight, Gideon's thanks, and the one completion card; (for now the bay beside Tipsey hands the shop back) */
+function msFinish(){
+  const scene = scn(); if(MS.stage !== 'finCard' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  const first = !msDone();
+  missionComplete('minding-the-shop');
+  if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+  collectCard([], first ? "Minding the Shop: done! The antenna's straight and Brew & Bolt's order screen is lit again, and Gideon is yours to drive: the humanoid is in your garage. Tipsey's wheeling out: meet him at his bay." : "Minding the Shop: done again!");
+  MS.fin = false;
+  /* THE EXIT: Tipsey rolls out from behind the counter by the way he came in, and the loan ends where Gideon meets him at his bay */
+  const T = MS.tip, cur = msTipAt(scene.time.now);
+  if(T && cur){ const pts = T.pts.slice().reverse(); pts[0] = { x: T.pts[0].x, y: T.pts[0].y };
+    MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
+  MS.stage = 'out';
+  msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
+}
+/* a loan lost another way (he tipped, was towed, a reload's restart): nothing half-done, nothing kept */
+function msAbort(scene){
+  msNavClear(scene);
+  MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+}
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
   hospSayCard(null); cineBars(false);
@@ -84059,14 +84294,49 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
+}
+/* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
+/* A WALKED CLIMB: he turns to the wall and walks up to the ladder (or the hatch's curb) at a climbing pace, the hatch opening as he starts,
+   then the room is left by the old dissolve; coming down he is set at the ladder's foot and walks out from it. The walk is msTick's (MS.cl) */
+function msWalkTo(scene, to, yaw, ms, done){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done }; }
+function msWalkTick(scene, ow, now){
+  const C = MS.cl, k = Math.min(1, (now - C.t0)/C.ms), e = k*k*(3 - 2*k);
+  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e; ow.yaw = C.yaw; ow.vel = k < 1 ? 0.07 : 0;
+  scene.botX = ow.px; scene.botY = ow.py;
+  if(k >= 1){ MS.cl = null; C.done(); }
+}
+function msClimb(scene, dir){
+  if(MS.climbing) return;
+  MS.climbing = true; const ow = scene.ow; ow.vel = 0;
+  const up = dir === 'up', dx = up ? BBR.x0 - BB_IN.x0 : BB_IN.x0 - BBR.x0;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
+    if(!up) MS.hatchOpen = false;
+    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); };
+  if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
+  /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
+  const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
+  msWalkTo(scene, { x: ow.px, y: y0 + (up ? 26 : 84) }, -Math.PI/2, up ? 1500 : 900, () => {
+    sceneDissolve(scene, 700, () => { pocketShift(scene, dx, y1 + (up ? 138 : 26) - ow.py);
+      if(up){ ow.yaw = Math.PI/2; settle(); }
+      else msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); });   // (down: out from the ladder's foot)
+  });
+}
+function msSeen(){
+  const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
+  hospSayCard(null); cineBars(false);
+  MS.seen = true; MS.stage = 'roof';
+  if(typeof tpToast === "function") tpToast("The mast's bent right over and the cable's snapped. Back down the hatch: it needs a new mast bracket and a coax connector.");
 }
 function msTick(scene, ow){
   const now = scene.time.now, R = MS;
   msGidAt(now);
   if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(R.snooze && !owMatContains(scene, R.snooze.mat)) R.snooze = null;
+  if(R.stage !== 'idle' && R.stage !== 'ask' && FLEET_LOAN !== 'humanoid'){ msAbort(scene); return; }
+  if(R.cl){ msWalkTick(scene, ow, now); return; }   // (the loan went some other way: nothing half-done)
   const armed = B => !!B && !R.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
   const meet = (M, card) => { meetTick(scene, ow, M); if(!M.card && now - M.t0 > M.walkMs){ M.card = true; card(); } };
   switch(R.stage){
@@ -84084,7 +84354,43 @@ function msTick(scene, ow){
         say: "Tipsey! Perfect timing. My antenna's bent over again and the order screen's gone dark, so I have to get up on the roof and look at it. Could you watch the shop while I'm up there? I won't be long. I'll take the walking frame." }));
       return;
     case 'shift':
-      if(armed(R.home)) msHandBack(scene);
+      if(!R.climbing && armed(msLadderBay())) msClimb(scene, 'up');
+      return;
+    case 'roof':
+      if(R.climbing) return;
+      if(!R.seen){
+        if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk';
+          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "There it is. The mast's bent right over, and the cable's snapped clean off at the connector. No wonder the order screen's dark. I need a new mast bracket and a coax connector, and neither's in the back room. Breakwater Hardware, then." }); }
+      } else if(R.carry === 'parts'){
+        if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
+          hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Right. The new bracket bolts to the plate, the mast goes in straight and tight, and the connector screws onto the cable, the proper kind this time. There. Nothing bent, nothing snapped. Let's see if that wakes the screen." }); }
+      } else if(armed(msHatchBay())) msClimb(scene, 'down');
+      return;
+    case 'roofFix': return;
+    case 'fin':
+      if(!R.fin){ R.fin = true; ow.vel = 0; cineBars(true); R.stage = 'finCard';
+        hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "The order screen's alight, the mast's dead straight, and the shop's in one piece. Tipsey, you kept it all going while I was up there, and I couldn't have asked for better hands. Coffee's on me, next time you're past. Thank you." }); }
+      return;
+    case 'finCard': return;
+    case 'out': {
+      const T = MS.tip, p = T && walkPathAt(T, now);
+      if((!T || (p && p.there)) && armed(R.home)) msHandBack(scene);   // (Tipsey is on his bay and Gideon's beside him: the loan ends)
+      return; }
+    case 'roofAsk': return;
+    case 'parts': {
+      const B = msHw(scene);
+      if(!armed(B)) return;
+      R.stage = 'partsGive'; ow.vel = 0; cineBars(true); msNavClear(scene);
+      R.clerk = Object.assign(shopDoorMeet(ow, B.shopDoor, B.door, now, scene), { has: 'parts' });
+      if(typeof sfxThump === "function") sfxThump(0.2);
+      return; }
+    case 'partsGive':
+      if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Breakwater Hardware", btn: "That's the lot!", ok: msTake, at: msClerkAt,
+        say: "Gideon! Brew & Bolt's antenna again? I thought so. A heavy mast bracket and a coax connector, the right ones this time, in a paper bag. Tell Tipsey the connector's the screw-on kind, so it won't snap off the first time the wind gets under it. Mind the bag on the scooter." }));
+      return;
+    case 'return':
+      if(armed(R.home)){ R.stage = 'shift'; msNavClear(scene);
+        if(typeof tpToast === "function") tpToast("In through Brew & Bolt's door and up the ladder: the mast's waiting."); }   // (the parts in hand; the ladder's mat as before)
       return;
   }
 }
@@ -84100,10 +84406,10 @@ function msQueue(scene, t, queuePerson, keyQueue, layerFor){
 }
 MISSIONS['minding-the-shop'] = { name: 'Minding the Shop', giver: 'Gideon, Brew & Bolt', window: 'day', places: ['Brew & Bolt', 'Breakwater Hardware'],
   steps: ["Stop on the robot-head mat outside Brew & Bolt", "Gideon's antenna: up the ladder and onto the roof", "Back to the shop: ask Tipsey for the parts", "Tipsey fetches the parts from Breakwater Hardware", "Gideon fixes the mast"],
-  reward: {},
+  reward: { fleet: 'humanoid' },   // (Gideon, playable: the humanoid's garage card, FLEET.humanoid.unlock)
   busy: () => msBusy(),
-  item: () => null,
-  next: () => ({ ask: 'Hear Gideon out', shift: 'Phase 1: the bay beside Tipsey hands the shop back' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
+  item: () => MS.carry === 'parts' ? { id: 'parts', name: 'mast bracket and coax connector', tip: 'crewReturns' } : null,
+  next: () => ({ ask: 'Hear Gideon out', shift: MS.carry ? 'The ladder in the back room: the parts to the mast' : 'The ladder in the back room, up to the roof', roof: 'The antenna mast', roofAsk: 'The antenna mast', parts: 'Breakwater Hardware: the parts (hop on a scooter)', partsGive: 'The clerk has the parts', 'return': 'Back to Brew & Bolt with the parts', roofFix: 'The antenna mast', fin: 'Gideon', finCard: 'Gideon', out: 'Out to Tipsey, at his bay' })[MS.stage] || "Stop on the robot-head mat outside Brew & Bolt",
   start: () => { const sc = scn(), B = sc && msBay(sc); return B ? { x: B.x, y: B.y, name: 'Brew & Bolt' } : null; } };
 /* ==================== VISTA RIDGE SECURITY POST (area 11, "Sierra Vista bench": the approved Flats build order) ====================
    The bare foothill bench east of Sierra Vista's east wall, over Maritime Mall's back (the wedge WG_HILLS leaves where the
@@ -90994,7 +91300,7 @@ class WorldScene extends Phaser.Scene {
     let onMat = false;
     try { onMat = (typeof owOnMat === "function" && owOnMat(this) === true) || !!owMissionMatAt(this); } catch(e){}
     /* his head's height: from the deck while he is on the garage roof */
-    const zh = XRAY.zhead + (this.ow && this.ow.deck ? owLiftZ(this.ow) : 0)
+    const zh = XRAY.zhead + (this.ow && (this.ow.deck || (this._inside && this._inside.name === 'Brew & Bolt Roof')) ? owLiftZ(this.ow) : 0)   // (and on Brew & Bolt's roof: his head is up at the roof's height, not under it)
              + (this.ow && this.ow.fly && flyCtl() ? Math.max(0, (this.ow.z || 0) - 40) : 0);   // (a rotorcraft's: at its height)
     return this.xrayCoverageAt(this.botX, this.botY, zh, blocks, lots, true, onMat ? XRAY.matHits : null);
   }
@@ -98923,12 +99229,14 @@ class WorldScene extends Phaser.Scene {
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
     /* MINDING THE SHOP's bay (msBayNow): Brew & Bolt's mat with the robot head, and Tipsey's own bay while the humanoid has the shop */
-    { const B = msBayNow(this);
+    { const B0 = msBayNow(this), pv = B0 && B0.pocket && POCKET_VIEW && POCKET_VIEW.pk === B0.pocket ? POCKET_VIEW : null;
+      const B = B0 && B0.pocket ? (pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : null) : B0;
+      const bz = B0 && B0.pocket && B0.pocket.z ? B0.pocket.z() : 0;
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 5000 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
       }
-      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
     }
     /* NIGHT WATCH's bay (nwBayNow): the post's forecourt, the dock's pads, the mall's front doors, the gate round's
        pavement -- cached, the ring and beacon live; a camera point on the patrol has the beacon alone (R7) */
@@ -99603,7 +99911,8 @@ class WorldScene extends Phaser.Scene {
                         : groundGarageDepth(this.botX, this.botY) !== null ? groundGarageDepth(this.botX, this.botY)   // on a garage's ground floor: under its decks
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
                           + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
-                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0), isRobot: true,   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
+                          + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)
+                          + (this._inside && this._inside.name === 'Brew & Bolt Roof' ? 4000 : 0), isRobot: true,   // (on Brew & Bolt's roof: after the shell's roof under him, as the roof's own pieces are, a + b + 4000)   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
@@ -119678,6 +119987,7 @@ class WorldScene extends Phaser.Scene {
   policeSummon(x, y, why, car){
     const t = this.time.now, C = POLICE_CALL;
     if(this._police || this._rescueVan || this.state !== "play") return false;
+    if(this.ow && this.ow.scoot) return false;                                   // (no one is called on a scooter ride: scootHop)
     if(this._policeCoolT && t - this._policeCoolT < C.coolMs && why !== "pile") return false;
     if(why === "pile"){                                  // the call goes out; the cruiser is sent in updatePolice, to where he is by then
       if(this._policePend) return true;
