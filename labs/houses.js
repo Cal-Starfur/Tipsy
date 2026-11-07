@@ -3927,6 +3927,7 @@ const HOUSES = [
   desc:'A coastal house lifted on timber piles: the living floor and its hip roof ride over a small enclosed ground-floor entry that carries the door, with a railed deck along the front, an open stair up the side and a kayak on a rack.',
   tags:['single','stilts','beach','deck'],
   door:[230, -150],
+  doorFront:[ { b:-90, z:88 } ],   // the deck's front edge, 60 out from the door; z tuned on screen (the formula puts the band's lower edge ~12 higher than it draws): the live doorway stops under it
   liv:[ { wall:'#a8d0c8', trim:'#fbfaf6', roof:'#5a6a70', leaf:'#e46a5a', pile:'#a8906a' },
         { wall:'#f2d27a', trim:'#fbfaf6', roof:'#4a5a62', leaf:'#2e6f8a', pile:'#9c8462' },
         { wall:'#f2a890', trim:'#fbfaf6', roof:'#56606a', leaf:'#2f5a4a', pile:'#a88e68' } ],
