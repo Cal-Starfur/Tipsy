@@ -25297,7 +25297,7 @@ function parkedScootersNow(sc){
   if(P && P.t === t) return P.list;
   const list = [], bx = sc.botX, by = sc.botY, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < 900;
   for(const p of sc._seekers || []){ const pk = p.park; if(!pk || p.knock || !near(pk.x, pk.y)) continue;
-    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1) list.push(parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0])); }
+    const m = shopperAt(p, t); if(m && m.i >= pk.i0 && m.i < pk.i1){ const pp = parkedScootProp(pk, pk.x, pk.y, pk.th, p.brand || BRANDS[0]); if(!pp.taken) list.push(pp); } }
   const seen = new Set();
   for(const h of ((sc.route && sc.route.hazards) || []).concat(sc._crowdCity || [])){
     if(h.type !== 'people' || !h.ride || h.wx === undefined || seen.has(h) || !near(h.wx, h.wy)) continue;
@@ -25305,7 +25305,7 @@ function parkedScootersNow(sc){
     const sp = peopleSpotAt(t, h);
     if(!sp || !sp.foot || !sp.park || peopleFleeAt(t, h)){ h._pp = null; continue; }   // (back on it: the next call's is a new one)
     const w = hazSpotWorld(h, sp.park.a, sp.park.b);
-    if(w) list.push(parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]));
+    if(w){ const pp = parkedScootProp(h, w.x, w.y, (((Math.round(h.f || 0) % 4) + 4) % 4)*Math.PI/2, BRANDS[(h.peopleSeed || 0) % BRANDS.length]); if(!pp.taken) list.push(pp); }
   }
   sc._parkScoot = { t, list };
   return list;
@@ -86053,6 +86053,8 @@ function scootNearest(s){
   const eat = (x, y, ref, brand) => { const d = Math.hypot(x - ow.px, y - ow.py); if(d <= SCOOTR.near && (!best || d < best.d)) best = Object.assign({ d, x, y, brand }, ref); };
   if(grid){ const out = cityFurnitureNear(grid, ow.px, ow.py, SCOOTR.near*1.6, []);
     for(const pr of out){ if(pr.type !== 'scooter' || pr.taken) continue; const w = hazSpotWorld(pr, 0, 0); if(w) eat(w.x, w.y, { pr }, pr.brand || BRANDS[0]); } }
+  /* (and one a rider has stood by the kerb to call at a door, or a scooter trip's: the props of parkedScootersNow -- taken, it is gone from the kerb (pp.taken) until its owner is back on one) */
+  for(const pp of parkedScootersNow(s)){ if(pp.taken || pp.phi > 0.3) continue; const w = hazSpotWorld(pp, 0, 0); if(w) eat(w.x, w.y, { pp }, pp.brand || BRANDS[0]); }
   for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
   return best;
 }
@@ -86064,6 +86066,7 @@ function scootHop(s){
     return;
   }
   const n = scootNearest(s); if(!n) return;
+  if(n.pp) n.pp.taken = true;                                // (a rider's, stood by the kerb: gone from it, and out of the props' loop)
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
   if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
   ow.scoot = { brand: n.brand || BRANDS[0] };
@@ -100563,10 +100566,10 @@ class WorldScene extends Phaser.Scene {
       const m = shopperAt(sp, t);
       /* a scooter trip's scooter (SCOOT_TRIP), stood by the kerb while they are off it */
       const pk = sp.park;
-      const ppk = pk && pk._pp, ppw = parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
+      const ppk = pk && pk._pp, gone = !!(ppk && ppk.taken), ppw = !gone && parkedScootHit(ppk) ? hazSpotWorld(ppk, 0, 0) : null;   // (knocked over: as the pavement's scooters are)
       if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && ppw && this.visProp("scooter", ppw.x, ppw.y))
         blockVQ.push({ depth: ppw.x + ppw.y, fn: (g, tt) => this.drawProp(layerFor(ppw.x, ppw.y), "scooter", ppw.x, ppw.y, tt, ppk.f, 0, null, null, ppk) });
-      else if(m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
+      else if(!gone && m && pk && !sp.knock && m.i >= pk.i0 && m.i < pk.i1 && this.visProp("scooter", pk.x, pk.y))
         blockVQ.push({ depth: pk.x + pk.y, fn: (g, tt) => {
           const build = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }).build;
           /* (stood still by the kerb: through the cache, as the city's own parked scooters -- it drew live every frame) */
@@ -114688,7 +114691,8 @@ class WorldScene extends Phaser.Scene {
 
       if(data && data.ride && spot.foot && spot.park && !flee){  // a rider off to call (WALK_PLAN): the scooter stood by the kerb, them on foot
         const brand = BRANDS[pSeed % BRANDS.length], pk = spot.park, pp = data._pp;
-        if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
+        if(pp && pp.taken){ /* (the humanoid rode it off) */ }
+        else if(parkedScootHit(pp)){ const w = hazSpotWorld(pp, 0, 0); this.drawProp(g, "scooter", w.x, w.y, t, pp.f, z, null, null, pp); }   // (knocked over: A RIDER'S SCOOTER STOOD BY THE KERB)
         else this.drawScooterRider(g, x + dv.x*pk.a + rv.x*pk.b, y + dv.y*pk.a + rv.y*pk.b, z, fdir*Math.PI/2 - Math.PI/2, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, 0, null, true);
         if(!spot.hidden) this.drawPersonHull(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, walkPhase, moving, startleAlpha, 0, null, L.uniform, false, pPose);
       } else if(data && data.ride){                                  // a rider, on their e-scooter
