@@ -119,7 +119,7 @@ The work to do next, and the work built but not yet tested, is in `build_queue.m
 - **Working doors** for the Seabreeze Ballroom (its `doorF` must record itself). (The Animal Shelter's, the harbour boat's cabin, Surfside Diner's and Sandpiper Shoes' are done.)
 - **Tide Pool Elementary in pieces** (U1k/U1c), and Palmline Tower's key and vol: its forecourt is in its one image.
 - **Props:**
-  - collision taken from the art (lamp, hydrant, palm, bin, the bench capsule);
+  - collision taken from the art: lamp, hydrant, palm now a disc the size of the art (`OW_D.hz*`, `propWall` in the hazard loop; built, awaiting test). Bin's loop clearance and the bench capsule (O12) still to do;
   - keep-clear of doors and mats;
   - static shadows;
   - the pier and harbour still props cached.

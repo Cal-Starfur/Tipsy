@@ -364,8 +364,9 @@
 "title": "Prop collision taken from the art (lamp, hydrant, palm, bin, bench)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: props"
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=11426,2640&view=2"
 },
 {
 "id": "pr2",

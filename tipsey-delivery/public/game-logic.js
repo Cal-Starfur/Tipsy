@@ -5489,7 +5489,9 @@ const OW_D = {
      lateral work; in world space distance is the ONLY test, so a bare 14
      would let you clip through a lamp post sideways. Rail standoffs
      widened to the thing's actual footprint. */
-  hzLamp: 22, hzPalm: 30, hzHydrant: 26, hzBin: 60, hzPlanter: 44,
+  /* pr1: lamp, palm, hydrant and bin take their radius from the ART (PROP_FOOT: the drawn base
+     half-width plus a hair), not a padded number; owContact adds the body's reach (botR*0.72) */
+  hzLamp: 11, hzPalm: 9, hzHydrant: 10, hzBin: 28, hzPlanter: 44,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -115347,6 +115349,20 @@ class WorldScene extends Phaser.Scene {
            (which is what an along-axis wall should do); a prop whose
            footprint moves ACROSS the path as well -- a barrel toppling
            sideways -- passes its own. */
+        /* pr1: A POST IS A DISC, THE SIZE OF ITS ART. On the rail it is the old box (kept byte-identical:
+           along the lane, |dx| < railR). Off it, the robot's reach is a circle round the post (foot +
+           botR*0.72, as owContact), and he is pushed straight out of it, so he no longer stops 46 out
+           sideways or sinks 12 into a pole along the street. Returns true while he is in contact. */
+        const propWall = (foot, railR) => {
+          if(!owSep){
+            if(!(onLaneHz() && hzWithin(railR))) return false;
+            hzWallStop(railR, hz.s - railR); return true;
+          }
+          const rr = foot + OW_D.botR*0.72, d = Math.hypot(owSep.dx, owSep.lat);
+          if(d >= rr) return false;
+          const ux = d > 1e-6 ? owSep.dx/d : 1, uy = d > 1e-6 ? owSep.lat/d : 0;
+          hzWallStopAt(ux*rr, 0, uy*rr); return true;
+        };
         const hzWallStopAt = (offA, railTarget, offB) => {
           if(!owSep){ this.botS = safeStop(railTarget); return; }
           const B = offB === undefined ? owSep.lat : offB;
@@ -115668,8 +115684,7 @@ class WorldScene extends Phaser.Scene {
         if(hz.type === "lamp"){
           /* the pole is a thin palm-contract wall: you stop, you do
              not pass; a fast approach bonks (softer than a trunk) */
-          if(onLaneHz() && hzWithin(LAMP_ACT.standoff)){
-            hzWallStop(LAMP_ACT.standoff, hz.s - LAMP_ACT.standoff);
+          if(propWall(OW_D.hzLamp, LAMP_ACT.standoff)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;
@@ -115684,8 +115699,7 @@ class WorldScene extends Phaser.Scene {
         }
         if(hz.type === "palm"){
           /* a trunk is a wall: you stop, you do not pass */
-          if(onLaneHz() && hzWithin(30)){
-            hzWallStop(30, hz.s - 30);
+          if(propWall(OW_D.hzPalm, 30)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;                               // the bonk (once per approach)
@@ -115825,8 +115839,7 @@ class WorldScene extends Phaser.Scene {
              Arriving fast adds the bonk; past the burst threshold the
              nozzle shears: water arc + a flood that grows around the
              base and stays wet for the rest of the route. */
-          if(onLaneHz() && hzWithin(26)){
-            hzWallStop(26, hz.s - 26);
+          if(propWall(OW_D.hzHydrant, 26)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;

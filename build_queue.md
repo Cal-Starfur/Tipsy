@@ -102,7 +102,7 @@ graph LR
 - [?] `pe4` Forno cook counter post; R6 on Tipsey himself (cook post and R6 on Tipsey (carried item on his lid) built) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: props
-- [ ] `pr1` Prop collision taken from the art (lamp, hydrant, palm, bin, bench) [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `pr1` Prop collision taken from the art (lamp, hydrant, palm, bin, bench) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=11426,2640&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `pr2` Keep-clear of doors and mats [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `pr3` Static prop shadows [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `pr4` Pier + harbour still props cached [docs/state/CONSISTENCY_PASS.md#still-to-do]
