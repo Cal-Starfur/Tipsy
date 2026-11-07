@@ -3314,7 +3314,7 @@ function carPalette(kind){
    to be built]. "boat:<kind>" is a Harbor Boat (LIB) of that kind. The
    showroom (?showroom) reads this; nothing in the city does. */
 const VEHICLES = [
-  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Humanoid robot", "humanoid"]] },
+  { group: "Robots", items: [["Cargo bot", "cargobot"], ["Courier bot", "courierbot"], ["Security patrol robot", "patrolbot"], ["Warehouse robot (AMR)", "amr"], ["Gideon", "humanoid"]] },
   { group: "Cars", items: [["Sedan", "car"], ["Police cruiser", "policecar"], ["E-scooter", "scooter"], ["Hatchback", "hatch"], ["Coupe", "coupe"], ["Convertible", "convertible"], ["Station wagon", "wagon"], ["Compact SUV", "suvsmall"], ["Full-size SUV", "suv"], ["Minivan", "minivan"], ["Sports car", "sportscar"], ["Muscle car", "musclecar"], ["50s classic cruiser", "classic50"], ["Taxi", "taxi"], ["Limousine", "limo"], ["Off-roader", "offroad"], ["Micro car", "microcar"], ["Electric hatch", "evhatch"], ["Robotaxi (autonomous)", "robotaxi"]] },
   { group: "Trucks", items: [["Pickup", "truck"], ["Fire engine", "firetruck"], ["Fuel tanker", "fueltruck"], ["Brewery flatbed", "flatbed"], ["Crew-cab pickup", "crewcab"], ["Lifted pickup", "liftedpickup"], ["Box truck", "boxtruck"], ["Moving truck", "movingtruck"], ["Refrigerated truck", "reefertruck"], ["Tow truck", "towtruck"], ["Garbage truck", "garbagetruck"], ["Recycling truck", "recycletruck"], ["Semi with trailer", "semi"], ["Semi with flatbed trailer", "semiflat"], ["Car carrier", "carcarrier"], ["Fire ladder truck", "laddertruck"], ["Autonomous semi", "avsemi"], ["Robo garbage truck", "avgarbage"]] },
   { group: "Vans", items: [["Van", "van"], ["Tipsey work van", "tipseyvan"], ["Ambulance", "ambulance"], ["High-roof delivery van", "hiroofvan"], ["Shuttle minibus", "minibus"], ["Ice cream truck", "icecreamtruck"], ["Taco food truck", "tacotruck"], ["Mail truck", "mailtruck"], ["Camper van", "campervan"], ["Shop-livery panel van", "shopvan"], ["Armoured car", "armouredcar"], ["Police wagon", "policewagon"], ["Delivery pod (autonomous)", "avpod"], ["Autonomous shuttle", "avshuttle"]] },
@@ -3391,7 +3391,7 @@ const FLEET_MISSIONS = {
 const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
 const FLEET = {
   /* walk: Tipsey's owStep, his charging stations */
-  humanoid:   { name: "Humanoid robot", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
+  humanoid:   { name: "Gideon", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
                 ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
@@ -87755,8 +87755,8 @@ CITY_PEOPLE.add({ name: 'Sunset Shore Surf School', where: "Sunset Shore's sand 
 /* ==================== TIDE POOL ELEMENTARY'S YARD, PEOPLE (Sir, 2026-11-06: "have people") ====================
    While the school is open (8 to 4, its place card's hours: walkinOpenNow of TPE_PK) its yard has its people, live, in the world's
    order, each on the apparatus the yard's furniture draws (TPE_PLAN): a crossing guard on the pavement by the west gate, a
-   teacher on yard duty walking the promenade, and the pupils at play -- two on the swings, one up the slide's ladder and down its
-   chute, two on the dome, one in the sandbox, three at jump rope (the rope turned between two of them), four at four-square, two at
+   teacher on yard duty walking the promenade, and the pupils at play -- two on the swings, two up the slide's ladder and down its
+   chute (half a cycle apart), four playing tag along the playground's lanes with a teacher pacing them, two on the dome, one in the sandbox, three at jump rope (the rope turned between two of them), four at four-square, two at
    tetherball, one hopscotching, four at basketball, two on the benches. Two cohorts: the PE class (basketball, tetherball, hopscotch,
    the duty teacher) is out all day, the rest only at recess (10 to 10:30, lunch 12 to 1, 2:30 to 2:50) and the first and last
    quarter hour; the sets change only while the yard is off the screen (nobody pops: LOOK_RULES 7). They are scenery -- not solid to him. */
@@ -87791,21 +87791,28 @@ function tpeYardCast(){
   kid('tether-2', 'A', tpeStill(PL.tether[0] + 36, PL.tether[1], Math.PI, { pose: { lift: [0.9, 1.0], bend: [0.35, 0.3] } }));
   { const hop = tpeShuttle(3830, -134, 4090, -134, 12000, 0.1, 0); kid('hopscotch', 'A', now => { const q = hop(now); return Object.assign(q, { z: q.moving ? 7*Math.abs(Math.sin(now/170)) : 0 }); }); }
   /* recess: the swings (still, sat on the cached seats, a sway), the slide, the dome, the sandbox, jump rope, four-square, the benches */
-  { const S = PL.swing; [0, 2].forEach(k => { const sa = S.a0 + (S.a1 - S.a0)*(k + 0.5)/3;
+  { const S = PL.swing; [0, 1, 2].forEach(k => { const sa = S.a0 + (S.a1 - S.a0)*(k + 0.5)/3;
       kid('swing-' + k, 'B', now => ({ a: sa, b: S.b + 2.5*Math.sin(now/1500 + k*2), z: 3 + 1.2*Math.sin(now/750 + k*2), th: Math.PI/2, moving: false, pose: { sit: 50, lift: [0.55, 0.55], bend: [0.9, 0.9] } })); }); }
   { const Sl = PL.slide, T = 15000;
-    kid('slide', 'B', now => {
-      const t = ((now % T) + T) % T;
+    [['slide', 0], ['slide-2', 7000]].forEach(([sid, off]) => kid(sid, 'B', now0 => {
+      const now = now0 + off, t = ((now % T) + T) % T;
       if(t < 3200){ const k = t/3200; return { a: Sl.a - 40 + 12*k, b: Sl.b, z: 150*k, th: 0, moving: false, pose: { lift: [1.1, 1.1], bend: [0.3, 0.3] } }; }
       if(t < 4400) return { a: Sl.a, b: Sl.b, z: 159, th: 0, moving: false };
       if(t < 6000){ const k = (t - 4400)/1600; return { a: Sl.a + 30 + 118*k, b: Sl.b, z: 159 - 136*k, th: 0, moving: false, pose: { sit: 6, lift: [0.6, 0.6], bend: [0.5, 0.5] } }; }
       if(t < 9400){ const k = (t - 6000)/3400, s = k*k*(3 - 2*k); return { a: Sl.a + 175 - 215*s, b: Sl.b + 50*Math.sin(Math.PI*s), z: 0, th: Math.PI, moving: true }; }
       return { a: Sl.a - 40, b: Sl.b, z: 0, th: 0, moving: false };
-    }); }
+    })); }
   { const [da, db, R] = PL.dome;
     kid('dome-1', 'B', now => ({ a: da + 0.8*R, b: db - 14, z: 2 + 52 + 1.5*Math.sin(now/900), th: Math.PI*1.1, moving: false, pose: { lift: [1.6, 1.4], bend: [0.25, 0.25] } }));
     kid('dome-2', 'B', now => { const az = 1.9 + 0.5*Math.sin(now/5200), el = 0.55 + 0.3*Math.sin(now/3100 + 1); return { a: da + R*0.95*Math.cos(el)*Math.cos(az), b: db + R*0.95*Math.cos(el)*Math.sin(az), z: 1.5*(3 + R*1.1*Math.sin(el)) - 6, th: az + Math.PI, moving: false, pose: { lift: [1.3, 1.5], bend: [0.3, 0.3] } }; }); }
-  { const S = PL.sand; kid('sand', 'B', now => ({ a: S.a0 + 34, b: S.b1 + 22, z: 0, th: -Math.PI/2*0.9, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } })); }
+  { const S = PL.sand; kid('sand-2', 'B', now => ({ a: S.a1 - 30, b: S.b0 + 24, z: 0, th: Math.PI*0.8, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } }));
+    kid('sand', 'B', now => ({ a: S.a0 + 34, b: S.b1 + 22, z: 0, th: -Math.PI/2*0.9, moving: false, pose: { sit: 14, lift: [0.5, 0.5], bend: [1.0, 1.0] } })); }
+  /* tag on the playground's open floor: four chasing along its lanes, and a teacher pacing the middle one */
+  kid('tag-0', 'B', tpeShuttle(200, -190, 1060, -215, 9000, 0.03, 0));
+  kid('tag-1', 'B', tpeShuttle(200, -190, 1060, -215, 9000, 0.03, 1300));
+  kid('tag-2', 'B', tpeShuttle(150, -850, 1050, -880, 10000, 0.03, 0));
+  kid('tag-3', 'B', tpeShuttle(520, -470, 1070, -480, 8000, 0.03, 3000));
+  add('duty-2', 'B', { U: SCHOOL_TEACHER2_UNIFORM, seed: 0x7ea3 }, tpeShuttle(300, -430, 1000, -440, 40000, 0.2, 9000));
   { const ja = 5900, jb = -205, ph = now => (now/620)*Math.PI*2;                       // jump rope: two turners (their hands at the rope's ends) and the jumper between them
     kid('rope-1', 'B', tpeStill(ja, jb, 0, { pose: { lift: [0.5, 0.5], bend: [0.9, 0.9] } }));
     kid('rope-2', 'B', tpeStill(ja + 150, jb, Math.PI, { pose: { lift: [0.5, 0.5], bend: [0.9, 0.9] } }));
@@ -87838,7 +87845,7 @@ function tpeYardOpen(scene){
 function tpeYardAt(scene, p, now){
   const fr = tpeYardAt.fr || (tpeYardAt.fr = hoodRimFrame(HOOD_RIM_SITES.find(s => s.name === 'Tide Pool Elementary')));
   const q = p.at(now), w = fr.toWorld(q.a, q.b);
-  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1) };
+  return { x: w.x, y: w.y, z: q.z || 0, th: q.th, moving: !!q.moving, pose: q.pose || null, gait: now*PEOPLE_ART.walkSpeed*(/^(hoop|run|soccer|tag)/.test(p.id) ? 1.6 : 1) };
 }
 function tpeQueue(scene, t, queuePerson, layerFor){
   if(scene._inside) return;
@@ -87855,7 +87862,7 @@ function tpeQueue(scene, t, queuePerson, layerFor){
     const behind = d.y + 736 < TPE_PLAN.BB0 - 20;
     queuePerson(behind ? fr.ox + fr.oy + 0.0004 : d.x, behind ? 0 : d.y, (g, tt) => {
       const T0 = tt || now, L = walkinStaffLook(p.s), lg = layerFor(d.x, d.y), thW = d.th - Math.PI/2;
-      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      scene.drawPersonHull(lg, d.x, d.y, d.z, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, d.moving ? walkAt(d.x, d.y, (/^(hoop|run|soccer|tag)/.test(p.id) ? 1.6 : 1)) : 0, d.moving, 0, 0, null, L.uniform || null, false,
         Object.assign({ dress: L.dress }, d.pose || null));
     });
   }
@@ -103516,7 +103523,7 @@ class WorldScene extends Phaser.Scene {
         const body = (g) => {
         const K = this.K;
         const dot = (wx, wy, wz, r, col, a = 1) => { const c = this.W(wx, wy, wz); g.fillStyle(col, a); g.fillCircle(c.x, c.y, r*K); };
-        const shadow = (r) => { const c = this.W(x + r*0.25, y + r*0.25, 0); g.fillStyle(0x2c4a24, 0.28); g.fillEllipse(c.x, c.y, r*2.3*K, r*1.15*K); };
+        const shadow = () => {};   // static props cast no shadow (SP6)
         const rr = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0);
         if(p.kind === "shrub"){
           const r = p.r;
@@ -112114,11 +112121,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
 
-      for(const it of items){
-        const sh = W(it.x + 1, it.y + 1, 0.3);
-        g.fillStyle(T3.shadow, 0.12);
-        g.fillEllipse(sh.x, sh.y, it.r*2.2*K*0.5, it.r*1.2*K*0.5);
-      }
+      /* no shadow under litter: static props cast none (LOOK_RULES 3, SP6) */
       items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
       for(const it of items) it.draw();
     } else if(kind === "cone"){
@@ -112323,9 +112326,7 @@ class WorldScene extends Phaser.Scene {
         return pts;
       };
 
-      const hsh = GG(0, 0, 0);
-      g.fillStyle(HH.shadow, 0.14);
-      g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
+      /* no ground shadow: static props cast none (SP6) */
 
       /* GALLERY RINGS ONLY. A LIVE flood (data.burst) is no longer drawn
          here at all -- it is its own ground kind, "hydrantFlood", queued
@@ -113177,11 +113178,7 @@ class WorldScene extends Phaser.Scene {
 
       const mid = tip(0, H*0.5);
       const kk = Math.min(1, sphi*1.1);
-      const sh = W((mid.u*kk + slide)*fc, (mid.u*kk + slide)*fsn, 0);
-      g.fillStyle(B.shadow, 0.14);
-      g.fillEllipse(sh.x, sh.y + 2,
-        (B.lidR*2.1 + (H + 20*bs - B.lidR*2.1)*kk) * K * 0.42,
-        (B.lidR*0.95 + (22*bs - B.lidR*0.95)*kk) * K * 0.42);
+      /* no ground shadow: static props cast none (SP6) */
 
       /* THE MOUTH IS THE END (Sir, 2026-09-29, marking up a knocked bin:
          "top opening" on the white rim, "remove" on the barrel past it).
@@ -138508,6 +138505,7 @@ requestTpProfile();
   function fleetLaunchName(k, B, bay) {
     const L = fleetBayOf(k);
     if (L) return L.name;
+    if (k === 'humanoid') return "his pad in Brew & Bolt's back room";   // (Gideon: gd2)
     return B ? B.name : bay.name.toLowerCase();
   }
   function renderFleet(P) {

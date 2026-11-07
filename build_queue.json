@@ -382,8 +382,9 @@
 "title": "Static prop shadows",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: props"
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8372,2714&view=2"
 },
 {
 "id": "pr4",

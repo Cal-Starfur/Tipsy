@@ -105221,7 +105221,7 @@ class WorldScene extends Phaser.Scene {
         const body = (g) => {
         const K = this.K;
         const dot = (wx, wy, wz, r, col, a = 1) => { const c = this.W(wx, wy, wz); g.fillStyle(col, a); g.fillCircle(c.x, c.y, r*K); };
-        const shadow = (r) => { const c = this.W(x + r*0.25, y + r*0.25, 0); g.fillStyle(0x2c4a24, 0.28); g.fillEllipse(c.x, c.y, r*2.3*K, r*1.15*K); };
+        const shadow = () => {};   // static props cast no shadow (SP6)
         const rr = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0);
         if(p.kind === "shrub"){
           const r = p.r;
@@ -113819,11 +113819,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
 
-      for(const it of items){
-        const sh = W(it.x + 1, it.y + 1, 0.3);
-        g.fillStyle(T3.shadow, 0.12);
-        g.fillEllipse(sh.x, sh.y, it.r*2.2*K*0.5, it.r*1.2*K*0.5);
-      }
+      /* no shadow under litter: static props cast none (LOOK_RULES 3, SP6) */
       items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
       for(const it of items) it.draw();
     } else if(kind === "cone"){
@@ -114028,9 +114024,7 @@ class WorldScene extends Phaser.Scene {
         return pts;
       };
 
-      const hsh = GG(0, 0, 0);
-      g.fillStyle(HH.shadow, 0.14);
-      g.fillEllipse(hsh.x, hsh.y + 2, HH.baseR*2.1*this.K*0.42, HH.baseR*0.95*this.K*0.42);
+      /* no ground shadow: static props cast none (SP6) */
 
       /* GALLERY RINGS ONLY. A LIVE flood (data.burst) is no longer drawn
          here at all -- it is its own ground kind, "hydrantFlood", queued
@@ -114882,11 +114876,7 @@ class WorldScene extends Phaser.Scene {
 
       const mid = tip(0, H*0.5);
       const kk = Math.min(1, sphi*1.1);
-      const sh = W((mid.u*kk + slide)*fc, (mid.u*kk + slide)*fsn, 0);
-      g.fillStyle(B.shadow, 0.14);
-      g.fillEllipse(sh.x, sh.y + 2,
-        (B.lidR*2.1 + (H + 20*bs - B.lidR*2.1)*kk) * K * 0.42,
-        (B.lidR*0.95 + (22*bs - B.lidR*0.95)*kk) * K * 0.42);
+      /* no ground shadow: static props cast none (SP6) */
 
       /* THE MOUTH IS THE END (Sir, 2026-09-29, marking up a knocked bin:
          "top opening" on the white rim, "remove" on the barrel past it).
