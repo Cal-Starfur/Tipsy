@@ -1050,7 +1050,7 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built"
 },
 {
 "id": "kf-tpe",

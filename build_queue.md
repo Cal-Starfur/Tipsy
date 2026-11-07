@@ -194,7 +194,7 @@ graph LR
 - [?] `gd4e` Gideon's Looks tab: 10 ready-made looks (Stock, Barista, Night Shift, Chrome, Workshop, Sunset, Racer, Chef, Royal, Party), tried on whole and added to the cart together at the parts' prices [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
 
 ## Walk-in kit fit
-- [ ] `kf-dune` Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [?] `kf-dune` Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-tpe` Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-museum` Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-shelter` Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
