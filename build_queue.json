@@ -373,8 +373,9 @@
 "title": "Keep-clear of doors and mats",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: props"
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8648,1597&view=2"
 },
 {
 "id": "pr3",
