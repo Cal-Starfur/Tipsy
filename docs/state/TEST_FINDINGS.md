@@ -142,3 +142,23 @@ Photos: snaps/sheet/skate/
 
 ### Hands-on (for Sir)
 - Flicker while moving past each spot; doors swinging open for walk-ins.
+
+## brewbolt: Brew & Bolt and the far-corner depot (2026-11-07)
+
+Photos: snaps/sheet/brewbolt/ (corner, wide, far corner and yard; day, night, view 3).
+
+### Problems
+None needing a fix. Two things looked at hard and judged to be by design:
+- **Mint chair-with-flag over Brew & Bolt's roof** (Brew-Bolt-wide-day/night, near the roof's north corner). It is the pad's beacon in the Charging 4 depot behind the cafe, ghosted in x-ray teal because the cafe's roof covers it (the beacon rule: "xray so we can see them through buildings"). Same object shows whole inside the depot in the far-corner shots. NOT A DEFECT, but Sir may want it off at that distance: it reads as a stray chair on the roof.
+- **Night door at the corner** (Brew-Bolt-corner-night): the glazed pair is slid open over the wall and window beside the opening, with the room's back wall in the gap. Day shot is the same door still shut (the sheet photographs day first). This is the walk-in pair sliding as W11/doors section 5 describe; no flat fill, no second door.
+
+### OK
+- L-shaped front reads as one building; south and east legs meet cleanly at the corner; roof is one clean rectangle; no seam or gap against Seabreeze Trophies or Kart Works.
+- Kart Works yard clear of the depot and Brew & Bolt: track, pit, store, fences touch neither; no chute or kart bays.
+- Flats Charging 4 from behind: back walls, roof, AC unit, x-ray on the pad; nothing painted through it (a fence post sits right at the depot's west wall edge, a few px, left as is).
+- Night: street lamps, corner lamps and awning lights glow with pools; nothing unlit that should glow.
+
+### Hands-on (for Sir)
+- Drive into the south door (seamless).
+- The seating L, the partition's door to Gideon's back room, Gideon's rounds, night.
+- Fourth Place and Open House still reach The Flats Charging 4 on the far-corner pad.
