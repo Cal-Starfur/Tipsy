@@ -1619,14 +1619,14 @@ const HUMANOID_SKIN = { robot: { joint: 0x3a4048, hand: 0x2a2f36, screen: 0x1d22
    gideonParts() resolves them to what drawPersonHull takes (the shell's tones, the shoes, the robot's skin). Every default is the stock look. */
 const GD_COL = {   // [id, name, hex]
   shell:  [['white','Stock white',0xeef0f2],['cream','Cream',0xf1e6cf],['sky','Sky',0xa8d4ee],['mint','Mint',0xa8e0c2],['blush','Blush',0xf4b8c4],['lemon','Lemon',0xf6e27a],['tang','Tangerine',0xff9a4a],
-           ['copper','Copper',0xd9892b],['steel','Steel',0x9aa4ad],['graphite','Graphite',0x4a5058],['black','Black',0x24272c],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['plum','Plum',0x6a3f7a],['crimson','Crimson',0xb8342e],['teal','Teal',0x2f8f8a]],
-  band:   [['copper','Copper',0xe79a35],['orange','Orange',0xff7a1a],['white','White',0xeef0f2],['cyan','Cyan',0x5fe8e0],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['red','Red',0xe0453a],['blue','Blue',0x3b8fe0],['gold','Gold',0xffcf5a],['violet','Violet',0x9a6ae0],['black','Black',0x1c2126]],
-  eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a]],
-  screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
-  part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
-  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
-  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a]],
-  shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
+           ['copper','Copper',0xd9892b],['steel','Steel',0x9aa4ad],['graphite','Graphite',0x4a5058],['black','Black',0x24272c],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['plum','Plum',0x6a3f7a],['crimson','Crimson',0xb8342e],['teal','Teal',0x2f8f8a],['rose','Rose',0xe0708a],['orange','Orange',0xf07a2a],['sand','Sand',0xd8c39a],['olive','Olive',0x7a8a3a],['slate','Slate',0x5a6a7c],['lavender','Lavender',0xb9a6e6],['gold','Gold',0xd9b23a],['royal','Royal blue',0x3a5ad0]],
+  band:   [['copper','Copper',0xe79a35],['orange','Orange',0xff7a1a],['white','White',0xeef0f2],['cyan','Cyan',0x5fe8e0],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['red','Red',0xe0453a],['blue','Blue',0x3b8fe0],['gold','Gold',0xffcf5a],['violet','Violet',0x9a6ae0],['black','Black',0x1c2126],['magenta','Magenta',0xd0309a],['mint','Mint',0x8ef0c8],['silver','Silver',0xc9ced3],['teal','Teal',0x2f8f8a],['plum','Plum',0x7a3f8a]],
+  eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a],['orange','Orange',0xff8a2a],['magenta','Magenta',0xff3ad0],['ice','Ice',0xbfefff],['teal','Teal',0x22c8b0],['yellow','Yellow',0xfff05a]],
+  screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11],['plum','Plum',0x2a1a3a],['steel','Steel',0x1a2a3a],['olive','Olive',0x232a14],['red','Red',0x3a1418]],
+  part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a],['orange','Orange',0xe0782a],['teal','Teal',0x2f8f8a],['plum','Plum',0x6a3f7a],['bronze','Bronze',0x8a5a2a],['rose','Rose',0xd9708a]],
+  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a],['teal','Teal',0x2f8f8a],['orange','Orange',0xe0782a],['plum','Plum',0x7a3f8a]],
+  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a],['teal','Teal',0x2f8f8a],['orange','Orange',0xe0782a],['sky','Sky',0x7ec8ee],['charcoal','Charcoal',0x3a3f46],['tan','Tan',0xc9a66b],['burgundy','Burgundy',0x7a2a3a]],
+  shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b],['orange','Orange',0xe0782a],['teal','Teal',0x2f8f8a],['grey','Grey',0x8a8f96],['gold','Gold',0xd9a23a]],
 };
 const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod', hat: 'none', hatCol: 'copper',
                     apron: 'none', neck: 'none', badge: 'none', glasses: 'none', packStyle: 'box', outCol: 'copper', badgeCol: 'gold', glassCol: 'copper',
@@ -1646,21 +1646,27 @@ const GD_PRESETS = [
   { id: 'courier', name: 'Courier', set: { gShell: 'navy', gPackStyle: 'delivery', gPack: 'copper', gHat: 'cap', gHatCol: 'copper', gNeck: 'lanyard', gOutCol: 'copper', gBand: 'orange', gShoeKind: 'sneaker', gShoeCol: 'white' } },
   { id: 'explorer', name: 'Explorer', set: { gShell: 'forest', gPackStyle: 'backpack', gPack: 'copper', gGlasses: 'goggles', gNeck: 'bandana', gOutCol: 'red', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown' } },
   { id: 'hero', name: 'Hero', set: { gShell: 'navy', gApron: 'cape', gOutCol: 'red', gBadge: 'shield', gBadgeCol: 'gold', gEye: 'white', gBand: 'gold', gShoeKind: 'boot', gShoeCol: 'red', gFinish: 'gloss' } },
+  { id: 'wizard', name: 'Wizard', set: { gShell: 'plum', gHat: 'wizard', gHatCol: 'plum', gApron: 'poncho', gOutCol: 'navy', gNeck: 'chain', gEye: 'violet', gMouth: 'smile', gBadge: 'moon', gBadgeCol: 'gold', gFinish: 'gloss' } },
+  { id: 'cowboy', name: 'Cowboy', set: { gShell: 'sand', gHat: 'cowboy', gHatCol: 'burgundy', gNeck: 'bandana', gOutCol: 'red', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown', gBadge: 'star', gBadgeCol: 'gold' } },
+  { id: 'mechanic', name: 'Mechanic', set: { gShell: 'slate', gHat: 'hardhat', gHatCol: 'yellow', gApron: 'coat', gOutCol: 'white', gGlasses: 'goggles', gShoeKind: 'boot', gShoeCol: 'black', gPackStyle: 'cells', gBadge: 'gear', gBadgeCol: 'copper' } },
+  { id: 'angel', name: 'Angel', set: { gShell: 'white', gPackStyle: 'wings', gPack: 'white', gEye: 'ice', gEyeShape: 'happy', gMouth: 'smile', gNeck: 'ascot', gOutCol: 'white', gFinish: 'chrome', gBand: 'gold' } },
+  { id: 'kitty', name: 'Kitty', set: { gShell: 'blush', gEarStyle: 'cat', gEar: 'pink', gEyeShape: 'happy', gMouth: 'grin', gEye: 'pink', gNeck: 'bandana', gOutCol: 'pink', gBadge: 'heart', gBadgeCol: 'pink' } },
+  { id: 'astro', name: 'Astronaut', set: { gShell: 'white', gGlasses: 'vr', gGlassCol: 'white', gPackStyle: 'dish', gNeck: 'collar', gOutCol: 'white', gApron: 'harness', gBadge: 'shield', gDecal: 'target', gDecalCol: 'red', gShoeKind: 'platform', gShoeCol: 'white' } },
   { id: 'party', name: 'Party', set: { gShell: 'lemon', gHat: 'party', gHatCol: 'pink', gNeck: 'bowtie', gOutCol: 'pink', gMouth: 'wide', gEyeShape: 'wide', gDecal: 'star', gDecalCol: 'pink', gBand: 'lime' } },
 ];
 const GD_SHAPES = {
-  eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
-  mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
-  earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
+  eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy'],['happy','Happy'],['angry','Angry'],['heart','Hearts'],['star','Stars']],
+  mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
+  earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
-  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9']],
-  apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['cape','Cape']],
-  neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['lanyard','Lanyard']],
-  badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross'],['heart','Heart'],['shield','Shield']],
-  glasses:  [['none','None'],['round','Round'],['square','Square'],['shades','Shades'],['visor','Visor'],['monocle','Monocle'],['goggles','Goggles']],
-  packStyle:[['box','Box'],['wide','Wide'],['round','Round'],['twin','Twin tanks'],['jet','Jet'],['backpack','Backpack'],['satchel','Satchel'],['solar','Solar panel'],['delivery','Delivery box'],['none','None']],
-  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap']],
-  shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
+  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
+  apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
+  neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
+  badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross'],['heart','Heart'],['shield','Shield'],['gear','Gear'],['drop','Drop'],['moon','Moon']],
+  glasses:  [['none','None'],['round','Round'],['square','Square'],['shades','Shades'],['visor','Visor'],['monocle','Monocle'],['aviator','Aviators'],['goggles','Goggles'],['eyepatch','Eyepatch'],['vr','VR headset']],
+  packStyle:[['box','Box'],['wide','Wide'],['round','Round'],['twin','Twin tanks'],['jet','Jet'],['backpack','Backpack'],['satchel','Satchel'],['solar','Solar panel'],['delivery','Delivery box'],['cells','Cell bank'],['wings','Wings'],['dish','Dish'],['none','None']],
+  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap'],['hardhat','Hard hat'],['bucket','Bucket hat'],['fez','Fez'],['wizard','Wizard hat'],['cowboy','Cowboy hat']],
+  shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes'],['platform','Platforms'],['sandal','Sandals']],
 };
 function gdHex(kind, v, dflt){
   if(typeof v === 'string' && v.indexOf('c:') === 0){ const n = parseInt(v.slice(2), 16); if(isFinite(n)) return n; }
@@ -105531,6 +105537,35 @@ class WorldScene extends Phaser.Scene {
              () => { disc(0, bR - 0.1, zc + 8, 3.8, TR); disc(0, bR - 0.2, zc + 8, 3.0, 0x1c2126);
                      if(faceB < 0) Q([G(-1.1, bR - 0.35, zc + 11), G(1.7, bR - 0.35, zc + 8.6), G(0.1, bR - 0.35, zc + 8.6), G(1.3, bR - 0.35, zc + 5), G(-1.7, bR - 0.35, zc + 7.8), G(-0.2, bR - 0.35, zc + 7.8)], 0xffffff);   // (his bolt on it)
                      rear(bR - 0.1, z1 - 5, z1 - 3.4, -2.2, 2.2, 0xc4cacf); }]);                                                                // (the latch)
+      } else if(ps === 'cells'){
+        const ha = 7.6, hb = 3.0, z0 = zm - 8, z1 = zT, bC = -(bkAt((z0 + z1)/2) + hb - 0.9), bR = bC - hb, tt = performance.now()/1000;
+        run([() => box(0, bC, ha*1.06, hb*0.92, z0 - 1.4, z0, PD.c, PD.dk, PD.c),
+             () => box(0, bC, ha, hb, z0, z1, PL.c, PK.dk, PK.c),
+             () => { box(0, bC, ha*0.82, hb*0.82, z1, z1 + 1.6, PD.c, PD.dk, PD.c); for(const sd of [-1, 1]) box(sd*ha*0.4, bC, 1.5, 1.5, z1 + 1.6, z1 + 3.4, MT.c, MT.dk, MT.c); },
+             () => { if(faceB >= 0) return; const n = 4, w = ha*2*0.8/n, a0 = -ha*0.8, bRR = bR - 0.14, zl0 = z0 + 2, zl1 = z1 - 2, lv = [0.92, 0.7, 0.45, 0.82];
+               for(let c = 0; c < n; c++){ const ca0 = a0 + c*w + 0.35, ca1 = a0 + (c + 1)*w - 0.35, segs = 6, h = (zl1 - zl0)/segs;
+                 Q([G(ca0 - 0.3, bRR, zl1 + 0.3), G(ca1 + 0.3, bRR, zl1 + 0.3), G(ca1 + 0.3, bRR, zl0 - 0.3), G(ca0 - 0.3, bRR, zl0 - 0.3)], PD.dk);
+                 const level = lv[c] + 0.06*Math.sin(tt*2 + c*1.7);
+                 for(let k = 0; k < segs; k++){ const on = (k + 0.5)/segs <= level; Q([G(ca0, bRR - 0.05, zl0 + (k + 0.88)*h), G(ca1, bRR - 0.05, zl0 + (k + 0.88)*h), G(ca1, bRR - 0.05, zl0 + (k + 0.12)*h), G(ca0, bRR - 0.05, zl0 + (k + 0.12)*h)], on ? _pmix(RB.eye, 0x10141a, k/segs*0.45) : 0x20262d); } } }]);
+      } else if(ps === 'wings'){
+        const bW = -(bkAt(84) + 2.2), zc = 86;
+        const wing = sd => { const feathers = [[-0.1, 25], [0.12, 23.5], [0.34, 21.5], [0.58, 19], [0.84, 16]];
+          for(let k = 0; k < feathers.length; k++){ const [dn, L] = feathers[k], r0 = sd*4.6, zr = zc + 5 - k*3.8, tipa = r0 + sd*Math.cos(0.5 - dn*0.62)*L, tipz = zr + Math.sin(0.5 - dn*0.62)*L*0.72, bb = bW - 2.2 - k*0.5, wd = 5.4;
+            Q([G(r0, bW, zr + wd*0.5), G(tipa, bb, tipz + wd*0.5), G(tipa + sd*1.6, bb, tipz - wd*0.2), G(r0, bW, zr - wd*0.7)], k % 2 ? PK.c : PL.c);
+            Q([G(r0, bW, zr - wd*0.7), G(tipa + sd*1.6, bb, tipz - wd*0.2), G(tipa, bb, tipz - wd*0.5), G(r0, bW, zr - wd*1.1)], PK.dk);
+            Q([G(r0, bW, zr + wd*0.5), G(tipa, bb, tipz + wd*0.5), G(tipa, bb, tipz + wd*0.5 - 0.7), G(r0, bW, zr + wd*0.5 - 0.7)], TRIM); } };
+        run([() => box(0, bW + 0.7, 5.2, 1.6, zc - 7, zc + 9, PD.c, PD.dk, PD.c), () => { wing(-1); wing(1); }, () => box(0, bW - 0.6, 2.6, 0.9, zc - 3, zc + 5, MT.c, MT.dk, MT.c)]);
+      } else if(ps === 'dish'){
+        const bm = -(bkAt(82) + 1.4), C = [5.5, bm - 6.2, 99], dl = Math.hypot(0.36, -0.62, 0.7), d = [0.36/dl, -0.62/dl, 0.7/dl], ul = Math.hypot(d[1], d[0]), u = [-d[1]/ul*-1 === 0 ? 1 : d[1]/ul*-1, d[0]/ul, 0];
+        const un = [d[1]/ul, -d[0]/ul, 0], vn = [un[1]*d[2] - 0*d[1], 0*d[0] - un[0]*d[2], un[0]*d[1] - un[1]*d[0]], PT = (rad, th, off) => G(C[0] + (un[0]*Math.cos(th) + vn[0]*Math.sin(th))*rad + d[0]*(off || 0), C[1] + (un[1]*Math.cos(th) + vn[1]*Math.sin(th))*rad + d[1]*(off || 0), C[2] + (un[2]*Math.cos(th) + vn[2]*Math.sin(th))*rad + d[2]*(off || 0));
+        const ring = (rad, off) => { const o = []; for(let i = 0; i < 16; i++) o.push(PT(rad, i/16*Math.PI*2, off)); return o; };
+        run([() => { box(0, bm + 0.4, 6.4, 1.4, zm - 4, zm + 4, PD.c, PD.dk, PD.c); box(C[0], bm - 0.4, 1.1, 1.1, zm + 3, C[2] - 0.6, MT.c, MT.dk, MT.c); box(C[0]*0.5, bm - 0.2, C[0]*0.5 + 1, 0.9, zm + 3, zm + 5.6, MT.c, MT.dk, MT.c); },
+             () => { const facing = sees3(d[0], d[1], d[2]);
+               if(!facing){ Q(ring(8.2, 0), PD.c); Q(ring(5.2, -0.6), PD.dk); }                                                              // (its back to the eye)
+               else { Q(ring(8.4, 0), MT.dk); Q(ring(7.6, 0.5), PL.c); Q(ring(5.2, 0.9), _pmix(RB.pack, 0xffffff, 0.3)); Q(ring(2.2, 1.2), PD.dk); }   // (its bowl toward the eye)
+               const p0 = PT(0, 0, 0.5), p1 = PT(0, 0, 10), dx = p1.x - p0.x, dy = p1.y - p0.y, L = Math.hypot(dx, dy) || 1, nx = -dy/L*0.55*this.K, ny = dx/L*0.55*this.K;
+               Q([{ x: p0.x + nx, y: p0.y + ny }, { x: p1.x + nx, y: p1.y + ny }, { x: p1.x - nx, y: p1.y - ny }, { x: p0.x - nx, y: p0.y - ny }], MT.c);
+               const tip = []; for(let i = 0; i < 8; i++){ const t = i/8*Math.PI*2; tip.push({ x: p1.x + Math.cos(t)*1.5*this.K, y: p1.y + Math.sin(t)*1.5*this.K }); } Q(tip, 0xd9453a); }]);
       } else run([]);   // (no pack: the cape alone, if he wears one)
     };
     const torso = () => {
@@ -105820,7 +105855,7 @@ class WorldScene extends Phaser.Scene {
           qc([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } };
       const isPhones = !!(RB && RB.hat === 'headphones');
       if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd, 'low');
-      const noEars = !!(RB && RB.earStyle === 'none');
+      const noEars = !!(RB && (RB.earStyle === 'none' || RB.earStyle === 'cat'));
       if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, RB ? { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c } : { top: 0.7, edge: false, n: 12 });   // the head, a crown under the hair (a robot's lid in its shell's own tone)
@@ -105845,6 +105880,16 @@ class WorldScene extends Phaser.Scene {
         if(RB.glasses && RB.glasses !== 'none') GS.glasses(RB);
         if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
+      /* CAT EARS (RB.earStyle 'cat'): two pricked ears on the crown in his ear colour, pink inside, standing on the head */
+      if(RB && RB.earStyle === 'cat'){ const EC2 = { c: RB.ear, dk: _pdk(RB.ear, 0.78) };
+        for(const sd of [-1, 1]){ const ax2 = sd*r*0.56, zb0 = z1 - 4.5, tipz = z1 + 8.5, tx = ax2 + sd*1.0, Q2 = (pts, c) => this.quadOn(g, pts, c);
+          const tri = (b, c) => Q2([G(ax2 - 5.8, b, zb0), G(ax2 + 5.8, b, zb0), G(tx, b, tipz)], c);
+          const front = faceB > 0;
+          tri(front ? -1.3 : 1.3, front ? EC2.dk : EC2.c);                                                  // (the far face first)
+          Q2([G(ax2 - 5.8, -1.3, zb0), G(ax2 - 5.8, 1.3, zb0), G(tx, 1.3, tipz), G(tx, -1.3, tipz)], EC2.dk); Q2([G(ax2 + 5.8, -1.3, zb0), G(ax2 + 5.8, 1.3, zb0), G(tx, 1.3, tipz), G(tx, -1.3, tipz)], EC2.dk);
+          tri(front ? 1.3 : -1.3, EC2.c);                                                                    // (the near face over them)
+          if(front) Q2([G(ax2 - 3.2, 1.45, zb0 + 1.2), G(ax2 + 3.2, 1.45, zb0 + 1.2), G(tx - sd*0.1, 1.45, tipz - 3.2)], 0xf4a8b8); }
+      }
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
          propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
          base ring the head's own radius at that height. Built of the hull's own prisms, so it turns with the head and shades as it does */
@@ -105878,6 +105923,38 @@ class WorldScene extends Phaser.Scene {
         else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
         else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
           for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
+        /* THE NEWER HATS: each stands on the crown, its brim down before the crown (it is behind it on the far side), any front piece after it only with his face to the eye */
+        else if(hh === 'hardhat'){
+          const lamp = () => { prism(0, rr*0.92, 2.8, 1.9, zb + 2.2, zb + 7.2, { c: 0xe9e6d8, dk: 0xb9b6a8 }, { n: 8 }); prism(0, rr*0.92 + 1.7, 1.7, 0.5, zb + 3.4, zb + 6, { c: 0xfff2a8, dk: 0xe0c850 }, { n: 8, edge: false }); };
+          if(faceB < 0) lamp();
+          prism(0, 0, rr*1.12, rr*1.12, zb - 1.4, zb + 0.9, HP2, { n: 12 });
+          prism(0, 0, rr*0.98, rr*0.98, zb - 0.6, zb + 10.5, HP, { top: 0.74, n: 12 });
+          prism(0, 0, 2.1, rr*0.78, zb + 9.6, zb + 12.4, HP2, { top: 0.9, n: 8 });
+          if(faceB >= 0) lamp(); }
+        else if(hh === 'bucket'){
+          prism(0, 0, rr*1.36, rr*1.36, zb - 2.6, zb - 0.2, HP2, { bot: 1, top: 0.72, n: 12 });
+          prism(0, 0, rr*0.98, rr*0.98, zb - 0.4, zb + 9.6, HP, { top: 0.86, n: 12 });
+          prism(0, 0, rr*1.0, rr*1.0, zb + 0.8, zb + 2.8, HP2, { n: 12, noTop: true, ring: true }); }
+        else if(hh === 'fez'){
+          const GLD = { c: 0xd9c27a, dk: 0xa8923f }, cord = () => { const pts = [[1.4, zb + 10.4], [rr*0.5, zb + 10.2], [rr*0.84, zb + 8], [rr*0.92, zb + 1.5]];
+            for(let k = 0; k < pts.length - 1; k++) quadC([G(pts[k][0], -0.55, pts[k][1]), G(pts[k + 1][0], -0.55, pts[k + 1][1]), G(pts[k + 1][0], 0.55, pts[k + 1][1]), G(pts[k][0], 0.55, pts[k][1])], 0x2a2418);
+            prism(rr*0.95, 0, 1.4, 1.4, zb - 2.8, zb + 1.6, GLD, { top: 0.8, n: 8 }); };
+          if(!sees3(1, 0, 0)) cord();
+          prism(0, 0, rr*0.94, rr*0.94, zb - 1.6, zb + 10, HP, { bot: 1, top: 0.8, n: 12, topCol: _pdk(HC, 0.86) });
+          prism(0, 0, 1.1, 1.1, zb + 10, zb + 11.6, GLD, { n: 8 });
+          if(sees3(1, 0, 0)) cord(); }
+        else if(hh === 'wizard'){
+          prism(0, 0, rr*1.62, rr*1.62, zb - 1.6, zb + 0.6, HP2, { n: 12 });
+          prism(0, 0, rr*0.86, rr*0.86, zb - 0.6, zb + 36, HP, { top: 0.04, n: 12 });
+          prism(0, 0, rr*0.9, rr*0.9, zb + 1, zb + 4.4, { c: 0xd9c27a, dk: 0xa8923f }, { n: 12, noTop: true, ring: true });
+          if(faceB > 0){ const rad = rr*0.86*(1 - 0.96*(16.6/36.6)) + 0.4, zc = zb + 16, o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, q = k % 2 ? 1.2 : 3; o.push(G(Math.cos(t)*q, rad, zc + Math.sin(t)*q*1.1)); } quadC(o, 0xf3e7a8);
+            quadC([G(-2.6, rr*0.9 + 0.5, zb + 1.2), G(2.6, rr*0.9 + 0.5, zb + 1.2), G(2.6, rr*0.9 + 0.5, zb + 4.2), G(-2.6, rr*0.9 + 0.5, zb + 4.2)], 0x6b5a1c); } }
+        else if(hh === 'cowboy'){
+          prism(0, 0, rr*1.55, rr*1.12, zb - 1.4, zb + 0.6, HP2, { n: 12 });
+          prism(0, 0, rr*0.86, rr*0.92, zb - 0.8, zb + 10.5, HP, { top: 0.92, n: 12 });
+          if(sees3(0, 0, 1)){ const o = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; o.push(G(Math.cos(t)*rr*0.52, Math.sin(t)*rr*0.2, zb + 10.55)); } quadC(o, _pdk(HC, 0.7)); }
+          prism(0, 0, rr*0.9, rr*0.95, zb + 0.6, zb + 3, HP2, { n: 12, noTop: true, ring: true });
+          if(faceB > 0){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; o.push(G(Math.cos(t)*1.7, rr*0.95 + 0.4, zb + 1.8 + Math.sin(t)*1.7)); } quadC(o, 0xd9c27a); } }
       }
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
@@ -106201,8 +106278,18 @@ class WorldScene extends Phaser.Scene {
       if(hSeen(0)) patch(hP, [[-0.68, zs1 - 1.2], [-0.4, zs1 - 1.2], [-0.78, zs0 + 3], [-0.9, zs0 + 3]], 0xffffff, 0.45, 0.07);           // (a streak of light across the glass)
       const EC = RB.eye, EH = mixc(RB.eye, 0xffffff, 0.7), ez = fz + r*0.2;
       const ES = { round: [0.18, 2.3, 2], wide: [0.27, 1.9, 2], tall: [0.12, 3.5, 3], slit: [0.28, 0.85, 3], dots: [0.09, 1.3, 2], sleepy: [0.23, 2.1, 2] }[RB.eyeShape] || [0.18, 2.3, 2];
+      const eyeAr = r*0.97, ES2 = RB.eyeShape;
       for(const sd of [-1, 1]){
         const an = sd*0.5; if(!hSeen(an)) continue;
+        if(ES2 === 'heart' || ES2 === 'star' || ES2 === 'angry' || ES2 === 'happy'){
+          let pts2 = null;
+          if(ES2 === 'heart') pts2 = heart(0.66, 0, 0).map(([u, v]) => [an + u/eyeAr, ez + v]);
+          else if(ES2 === 'star') pts2 = star(0.62, 0, 0).map(([u, v]) => [an + u/eyeAr, ez + v]);
+          else if(ES2 === 'angry') pts2 = [[an + sd*0.19, ez + 2.7], [an - sd*0.19, ez + 0.4], [an - sd*0.19, ez - 2.2], [an + sd*0.19, ez - 2.2]];
+          else { const o2 = ell(an, ez - 1.2, 0.2, 3.1, 14, 2, 0, PI), i2 = ell(an, ez - 1.2, 0.12, 1.7, 14, 2, 0, PI).reverse(); pts2 = o2.concat(i2); }
+          patch(hP, pts2.map(([a, z]) => [an + (a - an)*1.22, ez + (z - ez)*1.22]), EC, 0.35, 0.16);
+          patch(hP, pts2, EC, 0.5); continue;
+        }
         const pts = RB.eyeShape === 'sleepy' ? ell(an, ez - 0.2, ES[0], ES[1], 12, 2, PI, PI*2).concat([[an + ES[0], ez - 0.2]]) : ell(an, ez, ES[0], ES[1], 16, ES[2]);
         if(RB.eyeShape !== 'sleepy') patch(hP, ell(an, ez, ES[0]*1.5, ES[1]*1.5, 16, 2), EC, 0.35, 0.16);                                // (the glow round it)
         patch(hP, pts, EC, 0.5);
@@ -106219,6 +106306,11 @@ class WorldScene extends Phaser.Scene {
           strip(hP, ar, path, w, EC, 0.5, 1, null); for(const q of [path[0], path[10]]) patch(hP, ell(q[0], q[1], w/2/ar, w/2, 8, 2), EC, 0.5); }
         else if(mo === 'dots'){ for(const a of [-0.3, 0, 0.3]) patch(hP, ell(a, mz, 0.065, 0.95, 10, 2), EC, 0.5); }
         else if(mo === 'grille'){ for(const k of [-1, 0, 1]) bar(-0.33 + Math.abs(k)*0.04, 0.33 - Math.abs(k)*0.04, mz + k*1.5, 0.85); }
+        else if(mo === 'grin'){ const top = mz + 1.3, pts3 = []; for(let i = 0; i <= 12; i++){ const a = -0.58 + 1.16*i/12; pts3.push([a, top]); } for(let i = 12; i >= 0; i--){ const a = -0.58 + 1.16*i/12, u = a/0.58; pts3.push([a, top - 0.4 - 2.6*(1 - u*u)]); }
+          patch(hP, pts3, EC, 0.5); for(let k = -3; k <= 3; k++) strip(hP, ar, [[k*0.15, top - 0.3], [k*0.15, top - 2.9*(1 - Math.pow(k*0.15/0.58, 2))]], 0.45, RB.screen, 0.6, 1, null); }
+        else if(mo === 'zigzag'){ const path = []; for(let i = 0; i <= 8; i++) path.push([-0.46 + 0.92*i/8, mz + (i % 2 ? 1.1 : -1.1)]); strip(hP, ar, path, 1.2, EC, 0.5, 1, null); }
+        else if(mo === 'open'){ patch(hP, ell(0, mz - 0.4, 0.2, 2.5, 18, 2), EC, 0.5); patch(hP, ell(0, mz - 0.7, 0.14, 1.7, 16, 2), mixc(RB.eye, 0x000000, 0.72), 0.6); patch(hP, ell(0, mz - 1.5, 0.09, 0.8, 10, 2), mixc(RB.eye, 0xff5a7a, 0.4), 0.7); }
+        else if(mo === 'o'){ const o3 = ell(0, mz, 0.1, 2.1, 16, 2), i3 = ell(0, mz, 0.05, 1.0, 16, 2); for(let i = 0; i < 16; i++){ const j = (i + 1) % 16; patch(hP, [o3[i], o3[j], i3[j], i3[i]], EC, 0.5); } }
       }
     };
     /* GLASSES and GOGGLES: rings and lenses laid on the screen, a bridge, arms back to the ears (stood off the screen by a hair) */
@@ -106237,6 +106329,23 @@ class WorldScene extends Phaser.Scene {
         strip(hP, ar, [[-0.16, ez], [0.16, ez]], 2, HP.c, 0.9, 1, hSeen);
         return;
       }
+      if(gl === 'aviator'){
+        const tear = (an, ew, eh) => { const o4 = []; for(let k = 0; k < 24; k++){ const t = k/24*PI*2, sn2 = Math.sin(t); o4.push([an + ew*Math.cos(t)*(1 + 0.2*sn2), ez - 0.5 + eh*sn2]); } return o4; };
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; const out = tear(an, 0.3, 4.1), inn = tear(an, 0.3 - 0.9/ar, 3.3);
+          patch(hP, inn, 0x8c7a4a, 0.78, 0.5); patch(hP, [[an - 0.16, ez + 2.6], [an - 0.02, ez + 2.6], [an - 0.2, ez - 1], [an - 0.3, ez - 1]], 0xffffff, 0.85, 0.3); ring(out, inn, gc, 0.9); }
+        strip(hP, ar, [[-0.22, ez + 2.8], [0.22, ez + 2.8]], 0.7, gc, 0.9, 1, hSeen); strip(hP, ar, [[-0.2, ez + 1.4], [0.2, ez + 1.4]], 0.7, gc, 0.9, 1, hSeen);
+        for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.82, ez + 2], [sd*1.4, ez + 1.8]], 0.9, gc, 0.9, 1, hSeen);
+        return; }
+      if(gl === 'eyepatch'){ const an = -0.5;
+        strip(hP, ar, [[-0.18, ez + 3.4], [0.4, ez + 5.4], [1.2, ez + 5.8], [2.1, ez + 5.2], [PI, ez + 4.8]], 1.4, 0x1b1d21, 0.45, 1, hSeen);
+        strip(hP, ar, [[-0.82, ez - 1.4], [-1.4, ez - 2.6], [-2.1, ez - 3.2], [-PI, ez - 3.4]], 1.4, 0x1b1d21, 0.45, 1, hSeen);
+        if(hSeen(an)){ const out = ell(an, ez, 0.32, 4.2, 22, 2.4), inn = ell(an, ez, 0.27, 3.5, 22, 2.4); patch(hP, out, gc, 0.8); patch(hP, inn, 0x16181b, 0.95); patch(hP, [[an - 0.18, ez + 2.2], [an - 0.04, ez + 2.2], [an - 0.2, ez - 0.8], [an - 0.24, ez - 0.8]], 0xffffff, 1.0, 0.12); }
+        return; }
+      if(gl === 'vr'){ const zc2 = ez + 0.4, A = z => { const u = Math.abs(z - zc2)/5.4; return u >= 1 ? 0 : 1.02*Math.pow(1 - Math.pow(u, 3.4), 1/3.4); };
+        hSurf(-PI, PI, ez - 1.6, ez + 2.6, pr(0x3a4048), { lift: 0.3, dz: 1.3 });
+        hSurf(z => -A(z), A, zc2 - 5.4, zc2 + 5.4, pr(_pdk(gc, 0.6)), { lift: 1.0 }); hSurf(z => -A(z)*0.97, z => A(z)*0.97, zc2 - 5.4, zc2 + 5.4, pr(gc), { lift: 2.3 });
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; patch(hP, ell(an, ez + 0.2, 0.3, 3.5, 22, 2.2), 0x0b0f14, 2.5); patch(hP, ell(an, ez + 0.2, 0.3, 3.5, 22, 2.2).map(q => [q[0] - 0.05, q[1] + 0.6]), 0x22d3ee, 2.6, 0.25); patch(hP, [[an - 0.22, ez + 2.4], [an - 0.08, ez + 2.4], [an - 0.24, ez - 0.6], [an - 0.3, ez - 0.6]], 0xffffff, 2.7, 0.3); }
+        return; }
       if(gl === 'visor'){ const out = ell(0, ez, 0.98, 3.6, 28, 3), inn = ell(0, ez, 0.93, 3.1, 28, 3);
         if(hSeen(0)){ patch(hP, inn, 0x1a3a52, 0.78, 0.92); patch(hP, [[-0.7, ez + 2.4], [-0.4, ez + 2.4], [-0.62, ez - 2.4], [-0.9, ez - 2.4]], 0xffffff, 0.85, 0.22); ring(out, inn, gc, 0.9); } return; }
       if(gl === 'monocle'){ lens(0.5, 0.3, 4.2, 2, 0.9, 0xbfe6f2, 0.28, true, 0xd9a23a); if(hSeen(0.5)) strip(hP, ar, [[0.78, ez - 3.4], [0.92, ez - 8]], 0.5, 0xd9a23a, 0.9, 1, null); return; }
@@ -106278,6 +106387,45 @@ class WorldScene extends Phaser.Scene {
         cone(shoulderH - 3.4, hz0 + 0.4, hr*0.78, hr*0.68, OD); cone(shoulderH - 3.4, shoulderH - 1.6, hr*0.82, hr*0.8, OP);
         if(front){ strip(tP, rb, [[-0.62, shoulderH - 2.2], [-0.3, shoulderH - 3.6], [0.3, shoulderH - 3.6], [0.62, shoulderH - 2.2]], 1.2, 0xd9c27a, 1.0, 1, null);   // (the chain)
           patch(tP, ell(0, shoulderH - 4.4, 2.4/(rb*0.97), 2.4, 14, 2), 0xd9c27a, 1.2); patch(tP, ell(0, shoulderH - 4.4, 1.5/(rb*0.97), 1.5, 12, 2), OD.c, 1.5); }
+      }
+      /* -- the PONCHO: one cloth over his shoulders, flaring all round to the hips, a dark neck, a hem, two stripes */
+      if(ap === 'poncho'){
+        const zt2 = shoulderH + 0.3, zb2 = zm - 9, lf = 0.9, ponP = (an, z, l) => { const u = Math.max(0, Math.min(1, (zt2 - z)/(zt2 - zb2))), q = sp(ra*(1.03 + 0.42*u), rb*(1.03 + 0.78*u), an, l || 0); return Gf(q[0], q[1], z); };
+        if(sees3(0, 0, 1)){ const lid = []; for(let i = 0; i < 12; i++){ const t = (i + 0.5)/12*PI*2; lid.push(Gf(Math.cos(t)*ra*1.02, Math.sin(t)*rb*1.02, zt2 + 0.5)); } quad(lid, mixc(OC, 0xffffff, 0.12)); }
+        surf(ponP, ra, rb, -PI, PI, zb2, zt2, OP, { dz: 4, lift: 0 });
+        surf(ponP, ra, rb, -PI, PI, zb2, zb2 + 2.4, OD, { dz: 2.4, lift: 0.3 });
+        for(const zz of [zb2 + 6.5, zb2 + 10]) surf(ponP, ra, rb, -PI, PI, zz, zz + 1.7, OL, { dz: 1.7, lift: 0.25 });
+        cone(shoulderH - 0.4, hz0 + 1.2, hr*0.62, hr*0.58, OD);
+      }
+      /* -- the HARNESS: two straps crossing his chest and back, a ring where they meet, a belt strap at the hip */
+      if(ap === 'harness'){
+        const lf = 0.95, p1 = [], p2 = []; for(let a = -PI; a <= PI + 0.001; a += PI/18){ p1.push([a, zm + 5.5 + 16*Math.sin(a)]); p2.push([a, zm + 5.5 - 16*Math.sin(a)]); }
+        strip(tP, rb, p1, 3.2, OP.c, lf, 1, tSeen); strip(tP, rb, p2, 3.2, OP.c, lf + 0.1, 1, tSeen);
+        strip(tP, rb, p1.map(([a, z]) => [a, z + 1.2]), 0.4, OL.c, lf + 0.2, 1, tSeen); strip(tP, rb, p2.map(([a, z]) => [a, z + 1.2]), 0.4, OL.c, lf + 0.2, 1, tSeen);
+        tSurf(-PI, PI, zbot + 3, zbot + 6.4, OD, { lift: 1.0, dz: 3.4 });
+        if(front){ const zc = zm + 5.5; patch(tP, ell(0, zc, 3.2/(rb*0.97), 3.2, 18, 2), 0xc4cacf, lf + 0.7); patch(tP, ell(0, zc, 1.9/(rb*0.97), 1.9, 16, 2), OD.dk, lf + 0.9);
+          patch(tP, [[-0.1, zbot + 6.9], [0.1, zbot + 6.9], [0.1, zbot + 2.5], [-0.1, zbot + 2.5]], 0xd9c27a, 1.6); }
+        else { const zc = zm + 5.5; if(tSeen(PI)) patch(tP, ell(PI, zc, 3.2/(rb*0.97), 3.2, 18, 2), 0xc4cacf, lf + 0.7); }
+      }
+      /* -- the COAT: a long open coat, lapels, buttons, hip pockets, a vent up the back, a stand collar */
+      if(ap === 'coat'){
+        const zb3 = 36, lf = 1.0, sm = x => x*x*(3 - 2*x), cl = x => Math.max(0, Math.min(1, x));
+        const coatK = z => z >= zbot ? tk(z) : 0.9 + 0.12*(zbot - z)/(zbot - zb3), coatP = (an, z, l) => { const k = coatK(z), q = sp(ra*k, rb*k, an, l || 0); return Gf(q[0], q[1], z); };
+        const open = z => z >= 64 ? 0.05 + 0.4*Math.pow(Math.max(0, (z - 64)/(shoulderH - 64)), 1.2) : 0.05 + 0.3*Math.pow((64 - z)/(64 - zb3), 1.1);
+        const armF = z => z >= 84 ? 1.25 - 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.25 - 1.62)*sm((z - 77)/7) : 1.62, armB = z => z >= 84 ? 1.95 + 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.95 - 1.62)*sm((z - 77)/7) : 1.62;
+        const top = shoulderH - 0.3, br = [zm, zbot, 77, 84, 52];
+        if(front){ surf(coatP, ra, rb, z => open(z), armF, zb3, top, OP, { lift: lf, br }); surf(coatP, ra, rb, z => -armF(z), z => -open(z), zb3, top, OP, { lift: lf, br }); }
+        const vent = z => 0.05 + 0.06*cl((z - zb3)/18); surf(coatP, ra, rb, armB, z => PI - vent(z), zb3, top, OP, { lift: lf, br }); surf(coatP, ra, rb, z => -PI + vent(z), z => -armB(z), zb3, top, OP, { lift: lf, br });
+        surf(coatP, ra, rb, -PI, PI, zb3, zb3 + 2.2, OD, { lift: lf + 0.2, dz: 2.2, br: [] });
+        if(front){
+          for(const sd of [-1, 1]){ strip(coatP, rb, zrow(zb3 + 1, top, 4).map(z => [sd*(open(z) + 0.012), z]), 1.0, OL.c, lf + 0.3, 1, null);                                  // (piping)
+            strip(coatP, rb, [[sd*(open(shoulderH - 1) + 0.0), top], [sd*0.9, shoulderH - 5], [sd*(open(80) + 0.02), 80]], 3.4, OL.c, lf + 0.35, 1, null);                    // (the lapels)
+            patch(coatP, [[sd*0.62, 47], [sd*1.0, 47], [sd*1.0, 51.4], [sd*0.62, 51.4]], OD.c, lf + 0.4); strip(coatP, rb, [[sd*0.62, 51.3], [sd*1.0, 51.3]], 0.8, OL.c, lf + 0.5, 1, null); }   // (flap pockets)
+          for(const z of [60, 68, 76]) patch(coatP, ell(open(z) + 0.1, z, 0.1, 1.15, 8, 2), mixc(OC, 0x000000, 0.5), lf + 0.6);
+        }
+        strip(coatP, rb, vpath(PI, zb3 + 1, 56, 4), 0.7, OD.dk, lf + 0.15, 1, tSeen);
+        lidStrap(8.2, 12.2, OP.c); lidStrap(-12.2, -8.2, OP.c);
+        cone(shoulderH - 2.4, hz0 + 2.6, hr*0.74, hr*0.8, OL); cone(hz0 + 1.8, hz0 + 3, hr*0.8, hr*0.8, OD);
       }
       /* -- the VEST: a back and two fronts to a V, armholes, a hem, buttons, pockets */
       if(ap === 'vest'){
@@ -106346,6 +106494,21 @@ class WorldScene extends Phaser.Scene {
           tSurf(z => -tri(z), tri, 84.5, shoulderH - 1, OP, { lift: 1.0, dz: 3 }); tSurf(z => -tri(z), tri, shoulderH - 3.2, shoulderH - 1, OD, { lift: 1.1, dz: 2.2 });
           for(const [a, z] of [[0, 89.5], [-0.2, 91.8], [0.2, 91.8]]) patch(tP, ell(a, z, 0.06, 0.8, 8, 2), mixc(OC, 0xffffff, 0.8), 1.3); }
       }
+      if(nk === 'collar'){ cone(shoulderH - 2.4, hz0 + 3.2, hr*0.78, hr*0.88, OP); cone(hz0 + 2.2, hz0 + 3.5, hr*0.89, hr*0.89, OD); cone(shoulderH - 2.6, shoulderH - 1.2, hr*0.8, hr*0.8, OD); }
+      if(nk === 'chain'){
+        const GL = 0xd9c27a, GD = 0xa8923f; cone(shoulderH - 0.5, shoulderH + 0.9, hr*0.47, hr*0.46, pr(GL));
+        if(front){ const path = []; for(let i = 0; i <= 8; i++){ const u = i/8; path.push([0.36*(1 - u*u*0.9)*Math.sign(1) - 0.0, shoulderH - 0.3 - 14*u]); }
+          for(const sd of [-1, 1]){ const pp = path.map(([a, z]) => [sd*a*(1 - 0.0), z]); strip(tP, rb, pp, 0.9, GL, 0.85, 1, null); for(let i = 1; i < pp.length; i++) patch(tP, ell(pp[i][0], pp[i][1], 0.5/(rb*0.97), 0.55, 6, 2), GD, 0.95); }
+          const zc = shoulderH - 17; patch(tP, ell(0, zc, 3.6/(rb*0.97), 3.6, 18, 2), GD, 0.9); patch(tP, ell(0, zc, 2.9/(rb*0.97), 2.9, 18, 2), GL, 1.05);
+          patch(tP, [[0, zc + 1.9], [1.4/(rb*0.97), zc], [0, zc - 1.9], [-1.4/(rb*0.97), zc]], RB.eye, 1.2); }
+      }
+      if(nk === 'ascot'){
+        cone(shoulderH - 1.8, hz0 + 0.6, hr*0.7, hr*0.66, OP);
+        if(front){ const tri = z => 0.52*Math.max(0, (z - 82)/(shoulderH - 0.5 - 82));
+          tSurf(z => -tri(z), tri, 82, shoulderH - 0.5, OL, { lift: 1.0, dz: 3 });
+          strip(tP, rb, [[-0.5, shoulderH - 2], [0, 86.5], [0.5, shoulderH - 2]], 0.8, OD.c, 1.3, 1, null); strip(tP, rb, [[-0.3, shoulderH - 0.8], [0, 88.5]], 0.6, OD.c, 1.3, 1, null); strip(tP, rb, [[0.3, shoulderH - 0.8], [0, 88.5]], 0.6, OD.c, 1.3, 1, null);
+          patch(tP, ell(0, 87.4, 1.6/(rb*0.97), 1.6, 10, 2), 0xd9c27a, 1.6); }
+      }
       if(nk === 'lanyard'){
         const LC = OC, zc = shoulderH - 20, h = shoulderH + 0.55;
         cone(shoulderH - 0.6, shoulderH + 1.6, hr*0.47, hr*0.46, OP);                                                                        // (the loop round his neck)
@@ -106367,10 +106530,15 @@ class WorldScene extends Phaser.Scene {
           patch(tP, ell(an0, cz, 4.5/ar, 4.5, 18, 2), rim.c, lf); patch(tP, ell(an0, cz, 3.8/ar, 3.8, 18, 2), mixc(BC, 0x1c1f23, 0.78), lf + 0.2);
           const sc = 0.72; let shape = null;
           if(bd === 'dot') shape = ell(0, 0, 3.3, 3.3, 14, 2).map(([u, v]) => [u, v]); else if(bd === 'bolt') shape = bolt(sc, 0, 0); else if(bd === 'star') shape = star(sc, 0, 0); else if(bd === 'heart') shape = heart(sc*1.1, 0, 0);
+          else if(bd === 'gear'){ shape = []; for(let k = 0; k < 24; k++){ const t = k/24*PI*2 + 0.13, rd = (k % 4 < 2) ? 3.9 : 2.8; shape.push([Math.cos(t)*rd, Math.sin(t)*rd]); } }
+          else if(bd === 'drop'){ shape = [[0, 4.6]]; for(let k = 0; k <= 12; k++){ const ph = 0.6 - k/12*(PI + 1.2); shape.push([3.1*Math.cos(ph), -1 + 3.1*Math.sin(ph)]); } }
+          else if(bd === 'moon'){ shape = ell(0, 0, 3.8, 3.8, 18, 2).map(([u, v]) => [u, v]); }
           else if(bd === 'diamond') shape = [[0, 4], [3.4, 0], [0, -4], [-3.4, 0]]; else if(bd === 'shield') shape = [[-3.2, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4], [-3.2, 0.4]];
           if(bd === 'cross'){ patch(tP, lay(an0, cz, ar, [[-1.2, 3.8], [1.2, 3.8], [1.2, -3.8], [-1.2, -3.8]]), BC, lf + 0.4); patch(tP, lay(an0, cz, ar, [[-3.8, 1.2], [3.8, 1.2], [3.8, -1.2], [-3.8, -1.2]]), BC, lf + 0.4); }
           else if(shape){ patch(tP, lay(an0, cz, ar, shape), BC, lf + 0.4);
-            if(bd === 'shield') patch(tP, lay(an0, cz, ar, [[0, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4]]), _pdk(BC, 0.82), lf + 0.45); }
+            if(bd === 'shield') patch(tP, lay(an0, cz, ar, [[0, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4]]), _pdk(BC, 0.82), lf + 0.45);
+            if(bd === 'gear') patch(tP, lay(an0, cz, ar, ell(0, 0, 1.4, 1.4, 12, 2)), mixc(BC, 0x1c1f23, 0.78), lf + 0.6);
+            if(bd === 'moon') patch(tP, lay(an0, cz, ar, ell(1.7, 0.3, 3.2, 3.2, 18, 2)), mixc(BC, 0x1c1f23, 0.78), lf + 0.6); }
         }
       }
     };
@@ -106384,6 +106552,11 @@ class WorldScene extends Phaser.Scene {
       const dz = RB.decal, DC = RB.decalCol != null ? RB.decalCol : 0xeef0f2, cz = zm + 17, ar = rb*tk(cz), lf = 0.55;
       if(dz === 'stripes'){ for(const sd of [-1, 1]) strip(tP, rb, vpath(sd*0.3, shoulderH - 2.5, hipH + 1.5, 4), 2.7, DC, lf, 1, tSeen); }
       else if(dz === 'chevron'){ for(const k of [0, 1]){ const zc = cz + 5 - k*7; strip(tP, rb, [[-0.78, zc + 4.2], [-0.4, zc + 1.6], [0, zc - 1], [0.4, zc + 1.6], [0.78, zc + 4.2]], 2.5, DC, lf, 1, tSeen); } }
+      else if(dz === 'checker'){ const DK = mixc(DC, 0x101418, 0.82); for(let c = 0; c < 8; c++) for(let rw = 0; rw < 2; rw++){ const a0 = -0.8 + c*0.2, z0 = cz + 1 - rw*3.6; if(tSeen(a0 + 0.1)) patch(tP, [[a0, z0 + 3.6], [a0 + 0.2, z0 + 3.6], [a0 + 0.2, z0], [a0, z0]], (c + rw) % 2 ? DK : DC, lf); } }
+      else if(dz === 'flames'){ const zb4 = hipH + 4; for(const [a, h] of [[-0.5, 13], [0, 20], [0.5, 13]]){ if(!tSeen(a)) continue;
+          const fl = (k, col, lift) => patch(tP, [[a - 0.17*k, zb4], [a - 0.13*k, zb4 + h*0.5*k], [a - 0.03*k, zb4 + h*0.78*k], [a + 0.02*k, zb4 + h*k], [a + 0.1*k, zb4 + h*0.6*k], [a + 0.17*k, zb4 + h*0.36*k], [a + 0.17*k, zb4]], col, lift);
+          fl(1, DC, lf); fl(0.62, mixc(DC, 0xffffff, 0.55), lf + 0.1); } }
+      else if(dz === 'target' && tSeen(0)){ const DK = mixc(DC, 0x101418, 0.82); for(const [rd, col] of [[8.4, DC], [6.3, DK], [4.3, DC], [2.3, DK]]) patch(tP, lay(0, cz, ar, ell(0, 0, rd, rd, 22, 2)), col, lf + (8.4 - rd)*0.02); }
       else if(dz === 'star' || dz === 'bolt' || dz === 'heart'){ const sh = dz === 'star' ? star(1.7, 0, 0) : dz === 'bolt' ? bolt(1.7, 0, 0) : heart(1.7, 0, 0); if(tSeen(0)) patch(tP, lay(0, cz, ar, sh), DC, lf); }
       else if(/^n[0-9]$/.test(dz) && tSeen(0)){ const dg = +dz[1], seg = { 1: 'bc', 4: 'fgbc', 7: 'abc', 9: 'abcdfg' }[dg] || 'abc', w = 4.6, h = 6.4, t = 1.7;
         const H = zc => patch(tP, lay(0, cz, ar, [[-w, zc - cz + t/2], [w, zc - cz + t/2], [w, zc - cz - t/2], [-w, zc - cz - t/2]]), DC, lf), V = (ac, za, zb) => patch(tP, lay(0, cz, ar, [[ac - t/2, zb - cz], [ac + t/2, zb - cz], [ac + t/2, za - cz], [ac - t/2, za - cz]]), DC, lf);
@@ -138035,8 +138208,8 @@ requestTpProfile();
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
   const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
                     gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
-  const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400 }, gBadge: { heart: 350, shield: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600 } };
-  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500 };
+  const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
+  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
   for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : (k === 'gHat' ? HAT_PRICE[id] || 400 : (GD_PRICE[k] && GD_PRICE[k][id]) || price) })); }
   Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250, gOutCol: 250, gBadgeCol: 200, gGlassCol: 200, gShell2: 500, gDecalCol: 200 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
@@ -138731,30 +138904,37 @@ requestTpProfile();
   /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
   function gdCardIcon(key, id) {
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
+    if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+        angry: `<path d="M7 7l9 4v6H7z" fill="${eye}"/><path d="M33 7l-9 4v6h9z" fill="${eye}"/>`, heart: `<path d="M11 17C5 12 7 7 10 8c1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/><path d="M29 17c-6-5-4-10-1-9 1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/>`,
+        star: `<path d="M11 6l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8L5.5 10l3.9-.4z" fill="${eye}"/><path d="M29 6l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8L23.5 10l3.9-.4z" fill="${eye}"/>` }[id];
+      return S(P2 + `<rect x="13" y="20" width="14" height="2" rx="1" fill="${eye}"/>`); }
     if (key === 'eyeShape') { const E = { round: [[10, 7, 7, 8], [23, 7, 7, 8]], wide: [[7, 9, 11, 6], [22, 9, 11, 6]], tall: [[11, 4, 5, 13], [24, 4, 5, 13]], slit: [[6, 10, 12, 3], [22, 10, 12, 3]], dots: [[12, 9, 4, 4], [24, 9, 4, 4]], sleepy: [[8, 10, 9, 4], [23, 10, 9, 4]] }[id];
       return S(E.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${eye}"/>`).join('') + `<rect x="13" y="20" width="14" height="2" rx="1" fill="${eye}"/>`); }
     if (key === 'mouth') { const M = { bar: '<rect x="12" y="19" width="16" height="2.4" rx="1" fill="E"/>', wide: '<rect x="7" y="19" width="26" height="2.4" rx="1" fill="E"/>', small: '<rect x="16" y="19" width="8" height="2.4" rx="1" fill="E"/>',
         smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
-        grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
+        grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>',
+        grin: '<path d="M9 17h22c0 6-5 8-11 8s-11-2-11-8z" fill="E"/><path d="M15 17v7M20 17v8M25 17v7" stroke="#1d2228" stroke-width="1"/>', zigzag: '<path d="M9 21l3-3 3 3 3-3 3 3 3-3 3 3 3-3" stroke="E" stroke-width="2" fill="none"/>', open: '<ellipse cx="20" cy="21" rx="5" ry="4" fill="E"/><ellipse cx="20" cy="21.6" rx="3.4" ry="2.4" fill="#1d2228"/>', o: '<ellipse cx="20" cy="21" rx="3.2" ry="3.8" stroke="E" stroke-width="2" fill="none"/>', none: '' }[id].replace(/E/g, eye);
       return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
     if (key === 'apron' || key === 'neck' || key === 'badge' || key === 'glasses' || key === 'packStyle') { const C = '#d9892b', B = '<rect x="12" y="2" width="16" height="24" rx="5" fill="#cfd3d8"/>';
       const A = { apron: { none: '', apron: `<path d="M14 8h12l2 18H12z" fill="${C}"/><rect x="16" y="15" width="8" height="5" fill="#b06f20"/>`, vest: `<path d="M12 4l6 0 2 8 2-8h6v22H12z" fill="${C}" opacity=".95"/><path d="M18 4l2 9 2-9z" fill="#cfd3d8"/>`,
           toolbelt: `<rect x="11" y="16" width="18" height="3.4" fill="#6b4a2a"/><rect x="17.4" y="15.6" width="5" height="4.2" fill="#d9c27a"/><rect x="12" y="19" width="5" height="6" rx="1" fill="${C}"/><rect x="23" y="19" width="5" height="6" rx="1" fill="${C}"/><rect x="25" y="12" width="1.8" height="7" fill="#c4cacf"/>`,
-          sash: `<path d="M13 3l5 0 10 21-5 0z" fill="${C}"/><path d="M13 3l1.6 0 10 21-1.6 0z" fill="#f0c98a"/>`, cape: `<path d="M13 4h14l5 21H8z" fill="${C}"/><path d="M13 4h14l1 4H12z" fill="#b06f20"/><circle cx="20" cy="7.4" r="1.7" fill="#d9c27a"/>` },
+          harness: `<path d="M13 4l3 0 10 20-3 0zM27 4l-3 0-10 20 3 0z" fill="${C}"/><circle cx="20" cy="14" r="2.4" fill="#c4cacf"/>`, poncho: `<path d="M14 3h12l8 21H6z" fill="${C}"/><path d="M8 18h24M7 21h26" stroke="#f0c98a" stroke-width="1.2"/>`, coat: `<path d="M12 3h6l2 8 2-8h6l3 23H9z" fill="${C}"/><path d="M18 3l2 12 2-12" fill="#cfd3d8"/><path d="M15 17h-3M28 17h-3" stroke="#8a5a1a" stroke-width="1.6"/>`, sash: `<path d="M13 3l5 0 10 21-5 0z" fill="${C}"/><path d="M13 3l1.6 0 10 21-1.6 0z" fill="#f0c98a"/>`, cape: `<path d="M13 4h14l5 21H8z" fill="${C}"/><path d="M13 4h14l1 4H12z" fill="#b06f20"/><circle cx="20" cy="7.4" r="1.7" fill="#d9c27a"/>` },
         neck: { none: '', scarf: `<rect x="11" y="3" width="18" height="5" rx="2" fill="${C}"/><rect x="21" y="6" width="5" height="16" fill="${C}"/>`, bowtie: `<path d="M20 8L12 4v8zM20 8l8-4v8z" fill="${C}"/><rect x="18.4" y="6" width="3.2" height="4" fill="#b06f20"/>`, tie: `<rect x="18" y="3" width="4" height="3" fill="#b06f20"/><path d="M18 6h4l2 14-4 4-4-4z" fill="${C}"/>`,
-          bandana: `<rect x="11" y="3" width="18" height="3.6" rx="1.6" fill="${C}"/><path d="M12.4 6l15.2 0-7.6 14z" fill="${C}"/><circle cx="20" cy="10" r="1" fill="#fff" opacity=".8"/><circle cx="17" cy="8" r=".8" fill="#fff" opacity=".8"/><circle cx="23" cy="8" r=".8" fill="#fff" opacity=".8"/>`, lanyard: `<path d="M14 3l6 15M26 3l-6 15" stroke="${C}" stroke-width="1.8" fill="none"/><rect x="16" y="17" width="8" height="8" rx="1" fill="#e4e2da"/><rect x="16" y="17" width="8" height="2.4" fill="${C}"/>` },
+          bandana: `<rect x="11" y="3" width="18" height="3.6" rx="1.6" fill="${C}"/><path d="M12.4 6l15.2 0-7.6 14z" fill="${C}"/><circle cx="20" cy="10" r="1" fill="#fff" opacity=".8"/><circle cx="17" cy="8" r=".8" fill="#fff" opacity=".8"/><circle cx="23" cy="8" r=".8" fill="#fff" opacity=".8"/>`, ascot: `<rect x="12" y="3" width="16" height="3" rx="1.4" fill="${C}"/><path d="M14 6l12 0-6 11z" fill="#f0c98a"/><circle cx="20" cy="10" r="1.2" fill="#d9c27a"/>`, collar: `<path d="M10 4h20v8l-4 3h-12l-4-3z" fill="${C}"/><rect x="14" y="5" width="12" height="4" fill="#cfd3d8"/>`, chain: `<path d="M13 3q7 18 14 0" stroke="#d9c27a" stroke-width="1.6" fill="none" stroke-dasharray="2 1"/><circle cx="20" cy="17" r="4" fill="#d9c27a"/><circle cx="20" cy="17" r="1.8" fill="#5fe8e0"/>`, lanyard: `<path d="M14 3l6 15M26 3l-6 15" stroke="${C}" stroke-width="1.8" fill="none"/><rect x="16" y="17" width="8" height="8" rx="1" fill="#e4e2da"/><rect x="16" y="17" width="8" height="2.4" fill="${C}"/>` },
         badge: { none: '', dot: '<circle cx="20" cy="14" r="5" fill="#d9a23a"/>', bolt: '<path d="M22 6l-8 9h5l-3 8 9-10h-5z" fill="#d9a23a"/>', star: '<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="#d9a23a"/>', diamond: '<path d="M20 5l7 9-7 9-7-9z" fill="#d9a23a"/>', cross: '<rect x="18" y="6" width="4" height="16" fill="#d9a23a"/><rect x="12" y="12" width="16" height="4" fill="#d9a23a"/>',
-          heart: '<path d="M20 22C9 14 13 6 17.4 8c1.6.7 2.6 2.2 2.6 2.2s1-1.5 2.6-2.2C27 6 31 14 20 22z" fill="#d9a23a"/>', shield: '<path d="M12 6h16v8c0 5-4 8-8 10-4-2-8-5-8-10z" fill="#d9a23a"/>' },
+          heart: '<path d="M20 22C9 14 13 6 17.4 8c1.6.7 2.6 2.2 2.6 2.2s1-1.5 2.6-2.2C27 6 31 14 20 22z" fill="#d9a23a"/>', shield: '<path d="M12 6h16v8c0 5-4 8-8 10-4-2-8-5-8-10z" fill="#d9a23a"/>',
+          gear: '<circle cx="20" cy="14" r="6.2" fill="#d9a23a"/><path d="M20 5v3M20 20v3M11 14h3M26 14h3M13.6 7.6l2 2M24.4 18.4l2 2M26.4 7.6l-2 2M15.6 18.4l-2 2" stroke="#d9a23a" stroke-width="2.6"/><circle cx="20" cy="14" r="2.4" fill="#cfd3d8"/>', drop: '<path d="M20 4c4 6 7 9 7 13a7 7 0 0 1-14 0c0-4 3-7 7-13z" fill="#d9a23a"/>', moon: '<path d="M24 5a9 9 0 1 0 2 17A7 7 0 0 1 24 5z" fill="#d9a23a"/>' },
         glasses: { none: '', round: '<circle cx="15" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><circle cx="25" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="19" y="11.4" width="2" height="1.4" fill="#24272c"/>', square: '<rect x="10.4" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="21.2" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/>', shades: '<rect x="10.4" y="8" width="8.4" height="8" fill="#15181c"/><rect x="21.2" y="8" width="8.4" height="8" fill="#15181c"/><rect x="18.6" y="9.6" width="2.8" height="1.6" fill="#15181c"/>', visor: '<rect x="9" y="8" width="22" height="8" rx="2" fill="#1a3a52" stroke="#24272c" stroke-width="1.4"/>', monocle: '<circle cx="25" cy="12" r="4.6" fill="#bfe6f2" stroke="#24272c" stroke-width="1.6"/>',
+          aviator: '<path d="M9 8h9l-1 8-4 2-4-2z" fill="#8c7a4a" stroke="#d9892b" stroke-width="1.4"/><path d="M22 8h9l1 8-4 2-4-2z" fill="#8c7a4a" stroke="#d9892b" stroke-width="1.4"/>', eyepatch: '<path d="M8 8l24 4" stroke="#1b1d21" stroke-width="1.6"/><ellipse cx="14" cy="13" rx="5.4" ry="6" fill="#16181b" stroke="#d9892b" stroke-width="1.2"/>', vr: '<rect x="8" y="7" width="24" height="11" rx="4" fill="#d9892b"/><ellipse cx="15" cy="12.5" rx="4" ry="3.8" fill="#0b0f14"/><ellipse cx="25" cy="12.5" rx="4" ry="3.8" fill="#0b0f14"/>',
           goggles: '<rect x="9" y="9" width="22" height="6" fill="#2a2f36"/><circle cx="15" cy="12" r="5" fill="#ffb347" stroke="#d9892b" stroke-width="1.8"/><circle cx="25" cy="12" r="5" fill="#ffb347" stroke="#d9892b" stroke-width="1.8"/>' },
         packStyle: { box: '<rect x="14" y="8" width="12" height="14" fill="#3a4048"/>', wide: '<rect x="10" y="8" width="20" height="14" fill="#3a4048"/>', round: '<rect x="15" y="6" width="10" height="18" rx="5" fill="#3a4048"/>', twin: '<rect x="11" y="7" width="8" height="17" rx="4" fill="#3a4048"/><rect x="21" y="7" width="8" height="17" rx="4" fill="#3a4048"/>', jet: '<rect x="11" y="5" width="8" height="15" rx="4" fill="#3a4048"/><rect x="21" y="5" width="8" height="15" rx="4" fill="#3a4048"/><path d="M12 20h6l-3 6zM22 20h6l-3 6z" fill="#ff9a3a"/>',
           backpack: '<rect x="11" y="6" width="18" height="18" rx="6" fill="#3a4048"/><rect x="11" y="6" width="18" height="8" rx="5" fill="#262a30"/><rect x="14" y="17" width="12" height="6" rx="2" fill="#4a5058"/><rect x="18.4" y="11" width="3.2" height="3" fill="#c4cacf"/>', satchel: '<rect x="10" y="12" width="20" height="12" rx="2" fill="#3a4048"/><rect x="10" y="12" width="20" height="6" rx="2" fill="#262a30"/><path d="M12 3l16 11" stroke="#262a30" stroke-width="2.4"/>',
-          solar: '<rect x="10" y="4" width="20" height="20" fill="#aab2ba"/><rect x="11.4" y="5.4" width="17.2" height="17.2" fill="#27447f"/><path d="M11.4 11h17.2M11.4 16.8h17.2M17 5.4v17.2M23 5.4v17.2" stroke="#6f8fcf" stroke-width=".7"/>', delivery: '<rect x="10" y="4" width="20" height="20" fill="#3a4048"/><rect x="10" y="4" width="20" height="6" fill="#262a30"/><rect x="10" y="14" width="20" height="3" fill="#e79a35"/><circle cx="20" cy="19.5" r="2.4" fill="#e79a35"/>', none: '' } }[key][id];
+          solar: '<rect x="10" y="4" width="20" height="20" fill="#aab2ba"/><rect x="11.4" y="5.4" width="17.2" height="17.2" fill="#27447f"/><path d="M11.4 11h17.2M11.4 16.8h17.2M17 5.4v17.2M23 5.4v17.2" stroke="#6f8fcf" stroke-width=".7"/>', delivery: '<rect x="10" y="4" width="20" height="20" fill="#3a4048"/><rect x="10" y="4" width="20" height="6" fill="#262a30"/><rect x="10" y="14" width="20" height="3" fill="#e79a35"/><circle cx="20" cy="19.5" r="2.4" fill="#e79a35"/>', cells: '<rect x="12" y="5" width="16" height="19" rx="2" fill="#262a30"/><path d="M15.5 8v13M20 8v13M24.5 8v13" stroke="#5fe8e0" stroke-width="2.6" stroke-dasharray="2 1.2"/>', wings: '<path d="M19 12L3 6l3 5-4 2 5 2-2 4 10-3zM21 12l16-6-3 5 4 2-5 2 2 4-10-3z" fill="#cfd3d8" stroke="#8f969d"/><rect x="17" y="7" width="6" height="14" rx="2" fill="#3a4048"/>', dish: '<ellipse cx="24" cy="8" rx="8" ry="5" transform="rotate(-25 24 8)" fill="#b9c0c7" stroke="#8f969d"/><rect x="19" y="11" width="2.4" height="13" fill="#8f969d"/><rect x="13" y="21" width="14" height="4" fill="#3a4048"/><circle cx="30" cy="3" r="1.6" fill="#d9453a"/>', none: '' } }[key][id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${key === 'glasses' ? '<rect x="9" y="2" width="22" height="22" rx="8" fill="#cfd3d8"/>' : B}${A}</svg>`; }
     if (key === 'finish') { const G2 = { satin: ['#cfd3d8', '#fff', .35], matte: ['#b9bdc2', '#fff', .05], gloss: ['#d6dae0', '#fff', .85], chrome: ['#aeb8c2', '#f4f8fb', .9], twotone: ['#cfd3d8', '#2f4a86', 0] }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="3" width="22" height="22" rx="6" fill="${G2[0]}"/>${id === 'twotone' ? '<rect x="9" y="15" width="22" height="10" rx="4" fill="#2f4a86"/>' : ''}<path d="M12 5h9l-5 18h-4z" fill="${G2[1]}" opacity="${G2[2]}"/></svg>`; }
     if (key === 'decal') { const C2 = '#e0453a', T2 = t => `<text x="20" y="21" text-anchor="middle" font-size="18" font-weight="700" fill="${C2}" font-family="sans-serif">${t}</text>`, D = { none: '', stripes: `<rect x="14" y="3" width="3.4" height="22" fill="${C2}"/><rect x="22.6" y="3" width="3.4" height="22" fill="${C2}"/>`, chevron: `<path d="M10 10l10 6 10-6v4l-10 6-10-6z" fill="${C2}"/>`, star: `<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="${C2}"/>`,
-        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9) }[id];
+        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9), checker: `<path d="M10 11h4v4h-4zM18 11h4v4h-4zM26 11h4v4h-4zM14 15h4v4h-4zM22 15h4v4h-4z" fill="${C2}"/>`, flames: `<path d="M12 24c0-5 3-6 2-11 4 2 5 6 4 11zM20 24c-1-7 3-9 2-16 5 4 6 10 3 16zM27 24c0-3 2-4 1-8 3 1 4 5 2 8z" fill="${C2}"/>`, target: `<circle cx="20" cy="14" r="8" fill="${C2}"/><circle cx="20" cy="14" r="5.4" fill="#cfd3d8"/><circle cx="20" cy="14" r="3" fill="${C2}"/>` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="2" width="22" height="24" rx="6" fill="#cfd3d8"/>${D}</svg>`; }
     if (key === 'hat') { const C = '#d9892b', D = '#8f969d', H = '<rect x="13" y="12" width="14" height="14" rx="6" fill="#cfd3d8"/>';
       const A = { none: '', cap: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="18" y="13" width="14" height="2.4" rx="1" fill="${C}"/>`, beanie: `<path d="M12 15a8 9 0 0 1 16 0z" fill="${C}"/><circle cx="20" cy="4" r="2.4" fill="${C}"/>`,
@@ -138762,10 +138942,11 @@ requestTpProfile();
         chef: `<rect x="13" y="12" width="14" height="3" fill="#cfd3d8"/><ellipse cx="20" cy="7" rx="10" ry="6.5" fill="#f2f2ee"/>`, headphones: `<path d="M11 18v-4a9 9 0 0 1 18 0v4" fill="none" stroke="${C}" stroke-width="2"/><rect x="9" y="16" width="4" height="8" rx="2" fill="${C}"/><rect x="27" y="16" width="4" height="8" rx="2" fill="${C}"/>`,
         antenna: `<rect x="19.4" y="2" width="1.2" height="11" fill="${D}"/><circle cx="20" cy="2.5" r="2" fill="${C}"/>`, twin: `<rect x="15.4" y="4" width="1.2" height="9" fill="${D}"/><circle cx="16" cy="4" r="1.8" fill="${C}"/><rect x="24.4" y="6" width="1.2" height="7" fill="${D}"/><circle cx="25" cy="6" r="1.8" fill="${C}"/>`,
         visor: `<rect x="12" y="12" width="16" height="2.4" rx="1" fill="${C}"/><rect x="18" y="14" width="14" height="2.2" rx="1" fill="${C}"/>`, party: `<path d="M20 1l8 13H12z" fill="${C}"/><circle cx="20" cy="1.6" r="1.8" fill="#f2f2ee"/>`,
+        hardhat: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="10" y="13" width="20" height="2.2" rx="1" fill="${C}"/><rect x="18" y="4" width="4" height="3" fill="#b06f20"/>`, bucket: `<path d="M13 13a7 8 0 0 1 14 0z" fill="${C}"/><path d="M8 16l4-3h16l4 3z" fill="${C}" opacity=".85"/>`, fez: `<path d="M13 14l1-9h12l1 9z" fill="${C}"/><path d="M26 5q5 4 3 9" stroke="#2a2418" stroke-width="1" fill="none"/><circle cx="29" cy="14" r="1.4" fill="#d9c27a"/>`, wizard: `<path d="M20 0l7 14H13z" fill="${C}"/><rect x="7" y="13" width="26" height="2.4" rx="1.2" fill="${C}"/>`, cowboy: `<path d="M13 13V8a7 3 0 0 1 14 0v5z" fill="${C}"/><path d="M6 12q3 4 7 2h14q4 2 7-2l-2 4H8z" fill="${C}"/>`,
         crown: `<path d="M12 14V6l4 4 4-6 4 6 4-4v8z" fill="${C}"/>`, prop: `<path d="M12 15a8 8 0 0 1 16 0z" fill="${C}"/><rect x="11" y="6" width="18" height="1.8" rx=".9" fill="${D}"/><rect x="19.4" y="7" width="1.2" height="4" fill="${D}"/>` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${H}${A}</svg>`; }
-    if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
-    const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
+    if (key === 'earStyle') { const R = { pod: 5, big: 8, cat: 0, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="6" width="18" height="19" rx="7" fill="#cfd3d8"/>` + (id === 'cat' ? '<path d="M11 10l1-8 6 5zM29 10l-1-8-6 5z" fill="#e4e7ea" stroke="#8f969d"/><path d="M13 8l.6-4 3 2.4zM27 8l-.6-4-3 2.4z" fill="#f4a8b8"/>' : '') + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
+    const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>', platform: '<path d="M6 11h12l12 4v5H6z" fill="#cfd3d8"/><rect x="6" y="19" width="28" height="6" fill="#8f969d"/>', sandal: '<path d="M6 20h28v3H6z" fill="#cfd3d8"/><path d="M12 20l4-5M20 20l3-5M26 20l2-4" stroke="#8f969d" stroke-width="1.6"/>' }[id];
     return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
   }
   function gColRow(title, kind) {
