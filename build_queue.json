@@ -300,8 +300,9 @@
 "title": "Parking rows cached, one bay size",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: vehicles"
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29038,1564&view=2"
 },
 {
 "id": "v4",

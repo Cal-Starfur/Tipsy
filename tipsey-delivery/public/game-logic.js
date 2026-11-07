@@ -11682,9 +11682,11 @@ function blockEdgesOf(blk){
    Sign convention (unchanged, and load-bearing): NEGATIVE b is "into the
    block", the same direction a house's back wall lies. Positive b would
    push the whole lot outward onto the sidewalk the robot walks. */
+/* ONE BAY SIZE for every cut-edge parking row (and the crime lot, which reads the same rows) */
+const PARK_BAY = { w: CARC.wid + 40, d: CARC.len + 50 };
 function parkingStallsAt(e, rng, wantN){
-  const stallW = CARC.wid + 40;
-  const stallDepth = CARC.len + 50;
+  const stallW = PARK_BAY.w;
+  const stallDepth = PARK_BAY.d;
   const nStalls = wantN || (2 + Math.floor(rng()*2));   // 2-3
   const clusterW = nStalls * stallW;
   if(e.len < clusterW + T2) return null;
@@ -98467,11 +98469,14 @@ class WorldScene extends Phaser.Scene {
            has to be able to land on the address block (the only cut
            block on some routes) without that block being retyped */
         if(blk.type === "commercial" || isCrime){
-          blockVQ.push({ depth: ecx+ecy, fn:(g,t)=>{
-            const cars = this.drawParkingRow(g, e.ox, e.oy, e.dv, e.rv, e.len, eseed, t,
-                                             isCrime ? CRIME_STALLS : 0);
-            for(const c of cars) topLayer.push(c);
-          }});
+          /* cached: the stripes are one ground item and each car its own bcDraw item, both built from the
+             row (memoised by edge seed), never pushed from inside a draw callback */
+          const prow = this.parkingRowOf(e, eseed, isCrime ? CRIME_STALLS : 0);
+          if(prow){
+            const pk = "prow|" + Math.round(e.ox) + "," + Math.round(e.oy) + "|" + Math.round(e.dv.x) + "," + Math.round(e.dv.y);
+            blockVQ.push({ depth: ecx+ecy, fn:(g)=>this.bcDraw(g, pk + "|s", ecx, ecy, gg => this.drawParkingStripes(gg, e, prow.row)) });
+            for(const c of prow.cars) topLayer.push({ x: c.x, y: c.y, fdir: c.fdir, kind: c.kind, key: pk + "|" + Math.round(c.x) + "," + Math.round(c.y) });
+          }
         } else {
           /* sliced (stage 1): per-strip keys AND per-strip layerFor —
              the old single edge-center test classified a whole
@@ -99335,7 +99340,7 @@ class WorldScene extends Phaser.Scene {
        IT. Its own sort is dropped: the merged sort does it. */
     for(const c of topLayer)
       worldVQ.push({ depth: c.x + c.y,
-                     fn: (gg, tt) => this.drawProp(layerFor(c.x, c.y), c.kind, c.x, c.y, tt, c.fdir, 0) });
+                     fn: (gg, tt) => this.bcDraw(layerFor(c.x, c.y), c.key, c.x, c.y, g3 => this.drawProp(g3, c.kind, c.x, c.y, 0, c.fdir, 0)) });
 
     /* volumetric props (and ground-kind hazards like curb ramps) are
        handled earlier now -- pushed into blockVQ before the body
@@ -102269,48 +102274,37 @@ class WorldScene extends Phaser.Scene {
      along the curb, some occupied — reads as "customer parking for
      the shop you can't currently see the front of" rather than a
      dead gap in the street. */
-  drawParkingRow(g, ox, oy, dv, rv, w, seed, t=0, forceN=0){
-    /* nose-in, sized to the REAL car (CARC: 450 long x 180 wide).
-       Two things fixed here after the first pass:
-       1. Sign — every other block-wrap element treats NEGATIVE b as
-          "into the block" (houses' back wall is at -D). The first
-          version positioned stalls at POSITIVE b, which extended the
-          whole lot outward onto the sidewalk/street instead of inward
-          — not a sizing issue, a flipped sign.
-       2. Position — stalls now start behind where the culled
-          building's own footprint was (STORE_DEPTH+margin), not right
-          at the edge line. Cars end up parked roughly where the house
-          used to be, not on the sidewalk path the robot walks.
-       3. Count — a small FIXED cluster (2-3), centered on the edge,
-          instead of packing however many fit across the whole block
-          face, which read as a parking garage rather than a few
-          customer spots for one small business. */
-    /* 4. Geometry — stall count, placement and nose-in facing now come
-          from parkingStallsAt (see there). It consumes the SAME single
-          rng draw this function used to make for nStalls, in the same
-          place, so the occupancy rolls below still read the identical
-          stream and every existing lot is unchanged. */
+  /* the row for one cut edge: stall geometry + which stalls hold a car. Built once per edge (memo), same rng
+     stream as before (one draw for the count, then one or two per stall), so every lot is unchanged. The crime
+     lot passes forceN and gets no civilian cars. */
+  parkingRowOf(e, seed, forceN=0){
+    const m = this._prowMemo || (this._prowMemo = new Map());
+    const k = seed + "|" + forceN;
+    let r = m.get(k);
+    if(r !== undefined) return r;
     const rng = mulberry32(seed);
-    const row = parkingStallsAt({ ox, oy, dv, rv, len: w }, rng, forceN || undefined);
-    if(!row) return [];
-    const G = (a,b,h) => this.W(ox + dv.x*a + rv.x*b, oy + dv.y*a + rv.y*b, h);
+    const row = parkingStallsAt({ ox: e.ox, oy: e.oy, dv: e.dv, rv: e.rv, len: e.len }, rng, forceN || undefined);
+    if(!row){ m.set(k, null); return null; }
+    const cars = [];
+    if(!forceN) for(const st of row.stalls){
+      if(rng() < 0.85){
+        const kind = rng() < 0.75 ? "car" : "truck";
+        cars.push({ x: st.x, y: st.y, fdir: st.fdir, kind });
+      }
+    }
+    r = { row, cars };
+    m.set(k, r);
+    return r;
+  }
+  /* the painted stall lines of a cut edge's row (still ground; cached by the caller) */
+  drawParkingStripes(g, e, row){
+    const G = (a,b,h) => this.W(e.ox + e.dv.x*a + e.rv.x*b, e.oy + e.dv.y*a + e.rv.y*b, h);
     g.lineStyle(2, 0xf0ece0, 0.75);
     for(let i=0; i<=row.nStalls; i++){
       const x = row.startAlong + i*row.stallW;
       const a = G(x, row.depthNear, 1), b = G(x, row.depthFar, 1);
       g.lineBetween(a.x, a.y, b.x, b.y);
     }
-    const cars = [];
-    /* the crime scene supplies its own vehicles — no civilian occupancy
-       roll here, so nothing parks on top of a cruiser */
-    if(forceN) return cars;
-    for(const st of row.stalls){
-      if(rng() < 0.85){
-        const kind = rng() < 0.75 ? "car" : "truck";
-        cars.push({ x: st.x, y: st.y, fdir: st.fdir, kind });
-      }
-    }
-    return cars;
   }
 
   drawBenchProp(g, x, y, dv){
