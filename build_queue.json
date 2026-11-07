@@ -427,8 +427,9 @@
 "title": "Driftwood Chapel",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7821,11600&view=2"
 },
 {
 "id": "wk5",
