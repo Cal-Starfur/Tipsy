@@ -76363,7 +76363,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   desc:'A coastal house lifted on timber piles: the living floor and its hip roof ride over a small enclosed ground-floor entry that carries the door, with a railed deck along the front, an open stair up the side and a kayak on a rack.',
   tags:['single','stilts','beach','deck'],
   door:[230, -150],
-  doorFront:[ { b:-90, z:104 } ],   // the deck's fascia, 60 out from the door: the live doorway stops under it
+  doorFront:[ { b:-90, z:92 } ],   // the deck's front edge, 60 out from the door; z tuned on screen (the formula puts the band's lower edge ~12 higher than it draws): the live doorway stops under it
   liv:[ { wall:'#a8d0c8', trim:'#fbfaf6', roof:'#5a6a70', leaf:'#e46a5a', pile:'#a8906a' },
         { wall:'#f2d27a', trim:'#fbfaf6', roof:'#4a5a62', leaf:'#2e6f8a', pile:'#9c8462' },
         { wall:'#f2a890', trim:'#fbfaf6', roof:'#56606a', leaf:'#2f5a4a', pile:'#a88e68' } ],
@@ -99263,7 +99263,7 @@ class WorldScene extends Phaser.Scene {
           Q([P3(d.along - 30, lb + 1, 118), P3(d.along + 22, lb + 1, 118), P3(d.along + 22, lb + 1, 156), P3(d.along - 30, lb + 1, 156)], 0x2f3a3f);   // a picture
           Q([P3(d.along - 26, lb + 1.5, 122), P3(d.along + 18, lb + 1.5, 122), P3(d.along + 18, lb + 1.5, 152), P3(d.along - 26, lb + 1.5, 152)], 0x7fa7b0);   // a sea, in it
           Q([P3(d.along - 26, lb + 1.6, 122), P3(d.along + 18, lb + 1.6, 122), P3(d.along + 18, lb + 1.6, 133), P3(d.along - 26, lb + 1.6, 133)], 0xd8c79a);   // and its sand
-          g.fillStyle(0xfff1cc, 0.18); g.fillPoints(clipConvex([P3(d.along - 40, lat - 30, h), P3(d.along + 40, lat - 30, h), P3(d.along + 40, lat - 110, 0), P3(d.along - 40, lat - 110, 0)], this.drawClip) || [], true);   // the pendant's glow
+          g.fillStyle(0xfff1cc, 0.18); { const gl = clipConvex([P3(d.along - 40, lat - 30, h), P3(d.along + 40, lat - 30, h), P3(d.along + 40, lat - 110, 0), P3(d.along - 40, lat - 110, 0)], this.drawClip); if(gl && gl.length) g.fillPoints(gl, true); }   // the pendant's glow
           /* the leaf: hinged on the NEAR jamb, so it folds in against the near
              wall, mostly behind the front, and the hall shows past it; its
              free edge swung in through k of a right angle */
