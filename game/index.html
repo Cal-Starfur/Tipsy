@@ -28342,7 +28342,11 @@ function landmarkLabWorld(name){
    of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
    walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
 function walkinNightBoxes(W, D, H, LH){
-  return [[-30, W + 30, -30, D + 30, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
+  /* W25 (Sir, 2026-11-07, Dune Home: "day light is painting on the exterior walls and the cars"): the first box is only the RAISED
+     rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
+     below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
+     walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
+  return [[-30, W, -30, D, LH || 66, LH || 66], [-30, W + 30, -30, 0, H], [-30, 0, -30, D, H]];
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -29461,11 +29465,15 @@ walkinLife('Pelican Drug Interior', { keep: [[73, 153, 0, 360]], looks: [
    SA0..SA1 x SB1..SB0, 720 x 510), the shell (store box, dock and entrance tower: one `shell` piece) fading round him as he
    goes in at the tower's sliding pair (one pair, 150 across, door lane 320..470 in the room), the apron the tower's 64. */
 const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune Home & Garden', x0: 520000, y0: 410000,
-  lab: [343.6, 1063.6, -1390, -880], door: { a: 738.6, b: -816, half: 75 }, H: 232, out: 64, apron: 64, glass: 4,
+  lab: [343.6, 1063.6, -1390, -880], door: { a: 738.6, b: -786, half: 91 }, H: 232, out: 64, apron: 94, glass: 4,
+  /* (seen through, W11: the tower's glass, the gap the wall leaves at the door: 182 across, and the shopfront's two glazed runs, on
+     the body's front face 30 out from the floor's) */
+  openings: [{ lab: [[647.6, -784.8], [829.6, -784.8]], z: [20, 158] }, { lab: [[479.6, -842.5], [621.6, -842.5]], z: [20, 146], glass: true },
+             { lab: [[859.6, -842.5], [1003.6, -842.5]], z: [20, 146], glass: true }],
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
   street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 64, 66]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half, P.door.at + P.door.half, P.D, P.D + P.apron, 66]] : []) });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -53425,8 +53433,7 @@ function houseCanopy(fn){
      The store box, 720 x 510 (the exterior's SA0..SA1 x SB1..SB0), its door on the front (south) under the entrance tower
      (a 290..500, 64 out, the one sliding pair 150 across between its 30 piers: a 320..470). The plan is DUNE_IN (a east,
      b south, world units):
-       b 0         the back wall: the three roll-up dock doors the exterior shows (a 80..210, 280..410, 480..610), stock
-                   on pallets before the outer two
+       b 0         the back wall: plain (no dock doors: nothing could load in behind the store)
        a 0..44     the paint wall down the west wall, b 40..230; the paint counter a 90..115 (b 70..230) with the mixer,
                    the clerk between the two
        a 210..245  a gondola of home goods, b 90..260; a 540..575 another
@@ -53439,7 +53446,7 @@ function houseCanopy(fn){
   ww: 720, dd: 510,
   head:'Inside Dune Home & Garden: a paint wall and counter, home-goods gondolas, a sofa showroom, planters and a checkout',
   tags:['interior','pocket','home store','paint counter','showroom','checkout'],
-  desc:'The big-box store\'s one room: dock doors on the back wall, the paint wall and its counter with the mixer down the west side, two gondolas of home goods, a showroom with a sofa in the north-east corner, planters along the east wall and a two-till checkout beside the sliding doors.',
+  desc:'The big-box store\'s one room: the paint wall and its counter with the mixer down the west side, two gondolas of home goods, a showroom with a sofa in the north-east corner, planters along the east wall and a two-till checkout beside the sliding doors.',
   draw(p){
     const pl = (typeof DUNE_IN !== 'undefined' && DUNE_IN) || null;
     if(pl) pl.view();
@@ -53481,8 +53488,7 @@ function houseCanopy(fn){
     T(DA0 + 10, DA1 - 10, D + 6, D + AP - 8, 0.5, '#3d4448'); T(DA0 + 15, DA1 - 15, D + 10, D + AP - 12, 0.6, '#48525a');
     T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2'); T(DA0, DA1, D + AP - 4, D + AP, 0.7, '#a9aeb2');
 
-    /* ---- THE WALLS (the kit's): back and west full height, cream over a lagoon-teal band, the three dock doors in the
-       back one; south and east cut low, the shopfront's two glazed runs in the south one ---- */
+    /* ---- THE WALLS (the kit's): back and west full height, cream over a lagoon-teal band; south and east cut low, the shopfront's two glazed runs in the south one ---- */
     walkinRoom(items, { W, D, H, LH, door, winS: [[136, 278, 20], [516, 660, 20]],
       paintN: () => {
         F(-30, W + 30, 0, H, wall, null, 0, 0);
@@ -53491,13 +53497,6 @@ function houseCanopy(fn){
         F(-30, W + 30, 212, 216, bandD, null, 0, 0.35);
         blockWordIn('HOME & GARDEN', 30, 270, 190, 208, 0.6, '#eef4f6', null, 11);
         blockWordIn('PAINT · TOOLS · PATIO', 440, 700, 190, 208, 0.6, '#eef4f6', null, 9);
-        /* the three dock doors the exterior shows (SA0 + 80, 280, 480 .. +130): a frame, the roll-up's slats */
-        for(const x0 of [80, 280, 480]){
-          F(x0 - 6, x0 + 136, 0, 118, shade(wall, 0.72), null, 0, 0.4);
-          F(x0, x0 + 130, 0, 112, '#20242a', null, 0, 0.7);
-          for(let z = 8; z < 112; z += 12) F(x0 + 2, x0 + 128, z, z + 2, '#2f353c', null, 0, 0.9);
-          F(x0 + 6, x0 + 124, 100, 108, '#e2b93b', null, 0, 1.0);                    // the hazard strip
-        }
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wall, 0.93));
@@ -53505,21 +53504,8 @@ function houseCanopy(fn){
         S(0.3, -30, D + 30, 186, 212, shade(band, 0.9));
       },
       low: ['#e6e1d2', '#d6d0c0', '#c4bead'], cap: [band, bandD, shade(bandD, 0.85)], ftop: '#d4d0c2', frame: '#a8a08e' });
-    /* THE TOWER'S PIERS, either side of its pair, cut low as the walls (the tower is the shell's: it fades with it) */
-    for(const [j0, j1] of [[DA0 - TJ, DA0], [DA1, DA1 + TJ]])
-      items.push({ a: (j0 + j1)/2, b: D + AP/2, z: 0, solids: [solid(j0, j1, D, D + AP, LH, 'wall')], draw: () => {
-        box(j0, j1, D, D + AP, 0, LH - 8, '#e6e1d2', '#d6d0c0', '#c4bead');
-        box(j0, j1, D, D + AP, LH - 8, LH, band, bandD, shade(bandD, 0.85));
-      }});
-
-    /* ---- STOCK ON PALLETS before the outer two dock doors ---- */
-    for(const [p0, p1] of [[88, 202], [488, 602]])
-      items.push({ a: (p0 + p1)/2, b: 34, z: 0, solids: [solid(p0, p1, 8, 62, 96, 'stock')], draw: () => {
-        box(p0, p1, 8, 62, 0, 8, '#a5834f', '#8a6a3c', '#725630');                    // the pallet
-        for(let k = 0; k < 3; k++){ const x0 = p0 + 3 + k*((p1 - p0 - 6)/3), x1 = x0 + (p1 - p0 - 6)/3 - 3;
-          box(x0, x1, 10, 60, 8, 48, k % 2 ? '#c9a877' : '#b99765', '#a8875a', '#8f7248');
-          if(k !== 1) box(x0 + 2, x1 - 2, 14, 56, 48, 84, '#c9a877', '#b99765', '#9a7c4e'); }
-      }});
+    /* THE TOWER'S PIERS are the front wall itself (walk-in kit W23): it runs on to the doorway's edge (the glass's own 182) and stops there, its
+       face and its cap on one line; nothing stands out in front of it, drawn or solid. The tower's side walls are the shell's, which fades with it */
 
     /* ---- THE PAINT WALL, down the west wall (a 0..44, b 40..230): cans on four shelves, facing east ---- */
     for(const [s0, s1, first, last] of runs(40, 230))
@@ -53596,9 +53582,10 @@ function houseCanopy(fn){
       }});
 
     /* ---- TROLLEYS, south-west under the window (nested wire carts) ---- */
-    items.push({ a: 45, b: 455, z: 0, solids: [solid(22, 70, 432, 480, 40, 'trolleys')], draw: () => {
-      for(let k = 0; k < 3; k++) box(22 + k*5, 70 + k*5 - 10, 434, 478, 10 + k*3, 36 + k*3, '#c9ced2', '#9aa0a2', '#868c90');
-      box(20, 72, 430, 482, 4, 10, '#3d4448', darkF, darkS);
+    /* (60 clear of the front wall's inside face, b 380..430 of 510: nearer, the wall's cap covers it on screen -- W24) */
+    items.push({ a: 45, b: 405, z: 0, solids: [solid(22, 70, 382, 430, 40, 'trolleys')], draw: () => {
+      for(let k = 0; k < 3; k++) box(22 + k*5, 70 + k*5 - 10, 384, 428, 10 + k*3, 36 + k*3, '#c9ced2', '#9aa0a2', '#868c90');
+      box(20, 72, 380, 432, 4, 10, '#3d4448', darkF, darkS);
     }});
 
     walkinStaffSolids(items, 'Dune Home & Garden Interior');
@@ -67790,6 +67777,7 @@ function houseCanopy(fn){
     const LOT = 1656, OA = 303.6, DB = -380, BD = 260;
     const SA0 = 40+OA, SA1 = 760+OA, SB0 = -500+DB, SB1 = -1010+DB, GA1 = 1020+OA, GB1 = -860+DB;
     const EA0 = 330+OA, EA1 = 540+OA, EB = -436+DB, R1 = -60, R2 = SB0 + 60, DR0 = 680, DR1 = 920;
+    const BA0 = SA0 - 30, BA1 = SA1 + 30, BB0 = SB0 + 30, BB1 = SB1 - 30, EBF = EB + 30;   // (the shell covers its room: the body is 30 bigger on every side, DUNE_IN's walls stand 30 outside its floor)
     const R = volRect, hA = (a0, a1, bb) => ({ poly: R(a0, a1, bb-13, bb+13), h: 30 }), hB = (b0, b1, aa) => ({ poly: R(aa-13, aa+13, b1, b0), h: 30 });
     const bed = (a0, a1, b0, b1) => ({ poly: R(a0, a1, b1, b0), h: 12 });
     const solids = [
@@ -67798,13 +67786,12 @@ function houseCanopy(fn){
       bed(40, SA0-60, SB0-30, SB1+30), bed(GA1+60, LOT-60, SB0-30, SB1+30),
       bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
       bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
-      { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
       ...duneLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
     /* (the tower open across its sliding pair, between its piers (30 each): he drives in under it to the pair, where the room takes him -- DUNE_IN) */
     const DP0 = EA0 + 30, DP1 = EA1 - 30;
-    return { foot: [[SA0,SB0],[EA0,SB0],[EA0,EB],[DP0,EB],[DP0,SB0],[DP1,SB0],[DP1,EB],[EA1,EB],[EA1,SB0],[GA1,SB0],[GA1,GB1],[SA1,GB1],[SA1,SB1],[SA0,SB1]], h: 236, solids };
+    return { foot: [[BA0,BB0],[EA0,BB0],[EA0,EBF],[DP0,EBF],[DP0,BB0],[DP1,BB0],[DP1,EBF],[EA1,EBF],[EA1,BB0],[BA1,BB0],[BA1,SB0],[GA1,SB0],[GA1,GB1],[BA1,GB1],[BA1,BB1],[BA0,BB1]], h: 236, solids };
   })(),
   drive: [
     { side:'front', from: 680, to: 920, col:'#6b6f6c', arrows:'both' },     // the car park
@@ -67816,10 +67803,13 @@ function houseCanopy(fn){
      game for him and for the shoppers (shopDoorOpen). a, w: the pair's
      opening along lab a; b its plane; walk: where a shopper goes in. */
   /* (ONE PAIR, 150 across, the tower's width less its 30 piers: the way in -- DUNE_IN; the two 62 pairs were too narrow for him) */
-  slideDoors: [{ a: 663.6, w: 150, b: -814, z0: 20, z1: 124, walk: -802 }],
+  slideDoors: [{ a: 663.6, w: 150, b: -784, z0: 20, z1: 124, walk: -772, glass: 'rgba(150,190,206,.38)' }],   // (b: the tower stands 30 out with the body; glass the store is seen through: W11)
+  see: true,   // (its entrance and its shopfront show the room inside: walkinThrough, DUNE_IN's openings)
+  /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps): the car park's three light masts, two heads each (the draw's mast(): heads at a +-26, 172..180 up) */
+  lamps: [[110, -630], [1570, -630], [1590, -260]].flatMap(([a, b]) => [-26, 26].map(d => ({ a: a + d, b, z: 176, r: 150, col: 0xfff0d0 }))),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#d9d2c2'); },
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
-  cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
+  cTodo:'store box, entrance tower, garden cage, pylon sign, light masts and islands need volumes; the car park itself is drivable',
   head:'Big-box home store on a whole block: car park, garden centre, pylon sign',
   tags:['block landmark','drivable car park','painted bays','garden centre cage','pylon sign','entrance tower'],
   desc:'A warehouse retail shed set at the back of its own car park, which is the way the type is actually laid out: the building is a long blank box with one tall glazed entrance tower and a name band, and everything in front of it is ground -- painted bays, kerbed islands, light masts, trolley bays -- with a caged garden centre on the right flank and a pylon sign out on the corner.',
@@ -67896,8 +67886,13 @@ function houseCanopy(fn){
     const wall = '#d9d2c2', band = '#2f8a8f', conc = '#a2a6a4', asph = '#6b6f6c';
     const roofc = '#a3a89f', glass = 'rgba(126,166,186,.72)';
     const SA0 = 40+OA, SA1 = 760+OA, SB0 = -500+DB, SB1 = -1010+DB, PZ = 236, RD = 220;
-    const GA0 = 760+OA, GA1 = 1020+OA, GB0 = -500+DB, GB1 = -860+DB, GH = 148;
-    const EA0 = 330+OA, EA1 = 540+OA, EB = -436+DB, EZ = 288;   // entrance tower
+    /* THE SHELL COVERS THE ROOM (walk-in kit W22): DUNE_IN's floor is the box above (SA0..SA1 x SB1..SB0) and the kit's walls stand
+       GW = 30 outside it, so the store's body is that much bigger on every side (BA0..BA1 x BB1..BB0) and the tower stands out
+       64 in front of the new face. The lot (bays, aisle, hedges) stays where it was; the garden centre starts at the new flank. */
+    const GW = 30, BA0 = SA0 - GW, BA1 = SA1 + GW, BB0 = SB0 + GW, BB1 = SB1 - GW;
+    const GA0 = BA1, GA1 = 1020+OA, GB0 = -500+DB, GB1 = -860+DB, GH = 148;
+    const EA0 = 330+OA, EA1 = 540+OA, EB = -436+DB+GW, EZ = 288;   // entrance tower
+    const glassSee = 'rgba(126,166,186,.36)';                      // (what the store is seen through, W11)
     const R1 = -60, R2 = SB0 + 60;                              // the ranks' back lines
     const DR0 = 680, DR1 = 920;                                 // the front entrance, lab a
     const line = '#d9d5c6', leaf = ['#3f6b4a','#4e8058','#568a5e'];
@@ -67972,42 +67967,32 @@ function houseCanopy(fn){
     bed(40, SA0-60, SB0-30, SB1+30, [[120, SB0-120], [220, SB0-260], [120, SB0-400]]);
 
     /* ---- THE STORE, one item: dock, box, front and entrance tower ---- */
-    items.push({ a: (SA0+SA1)/2, b: (SB0+SB1)/2, shell: true, draw: () => {   // (shell: the room inside, DUNE_IN)
-    /* ---- the service dock, at the back ----
-       Three of the four streets look at this side, so it is built even
-       though this camera never sees it -- the Bathhouse's note about far
-       entrances, and the reason the depot's fence was drawn all the way
-       round. */
-    T(SA0, SA1, SB1, SB1+70, 46, shade(conc,1.10));
-    F(SA0, SA1, 0, 46, shade(conc,.70), null, 0, SB1+70);
-    for(let i=0;i<3;i++){
-      const x0 = 120 + OA + i*200;
-      F(x0, x0+130, 46, 158, '#20242a', null, 0, SB1+1);
-      slab(x0-7, x0+137, 158, 174, SB1-9, SB1+2, shade(wall,1.14));
-    }
+    items.push({ a: (BA0+BA1)/2, b: (BB0+BB1)/2, shell: true, draw: () => {   // (shell: the room inside, DUNE_IN)
+    /* (no service dock at the back: Sir, 2026-11-07, there is no room behind for a truck to load in, so no dock doors) */
 
     /* ---- the store: one volume to the parapet, roof deck inset ---- */
-    box(SA0, SA1, SB1, SB0, 0, PZ, shade(wall,1.16), wall, shade(wall,.80));
-    T(SA0+12, SA1-12, SB1+12, SB0-12, RD, roofc);
+    box(BA0, BA1, BB1, BB0, 0, PZ, shade(wall,1.16), wall, shade(wall,.80));
+    T(BA0+12, BA1-12, BB1+12, BB0-12, RD, roofc);
     if(state.roof){
       for(const [ra,rb] of [[180+OA,-620+DB],[340+OA,-780+DB],[520+OA,-640+DB],[640+OA,-840+DB]]){   // rooftop plant
         box(ra-46, ra+46, rb-34, rb+34, RD, RD+26, shade(roofc,1.30), shade(roofc,1.06), shade(roofc,.86));
         box(ra-30, ra+30, rb-20, rb+20, RD+26, RD+32, shade(roofc,1.40), shade(roofc,1.14), shade(roofc,.92));
       }
-      cyl(SA1-70, -900+DB, RD, RD+44, 7, '#6d747c');
+      cyl(BA1-70, -900+DB, RD, RD+44, 7, '#6d747c');
     }
 
     /* ---- the front elevation ---- */
-    F(SA0+2, SA1-2, 0, 20, shade(wall,.68), null, 0, SB0+0.6);              // plinth
+    F(BA0+2, BA1-2, 0, 20, shade(wall,.68), null, 0, BB0+0.6);              // plinth
     for(let i=0;i<=8;i++)                                                    // wall joints
-      F(SA0 + (SA1-SA0)*i/8 - 4, SA0 + (SA1-SA0)*i/8 + 4, 20, 224, shade(wall,1.07), null, 0, SB0+0.8);
-    F(SA0+2, SA1-2, 182, 218, band, null, 0, SB0+1.2);                       // the name band
-    for(let k=0;k<9;k++) F(SA0+34+k*76, SA0+86+k*76, 190, 210, shade(wall,.42), null, 0, SB0+1.7);
-    F(SA0+2, SA1-2, 218, 225, shade(band,.72), null, 0, SB0+1.2);
+      F(BA0 + (BA1-BA0)*i/8 - 4, BA0 + (BA1-BA0)*i/8 + 4, 20, 224, shade(wall,1.07), null, 0, BB0+0.8);
+    F(BA0+2, BA1-2, 182, 218, band, null, 0, BB0+1.2);                       // the name band
+    for(let k=0;k<9;k++) F(BA0+34+k*76, BA0+86+k*76, 190, 210, shade(wall,.42), null, 0, BB0+1.7);
+    F(BA0+2, BA1-2, 218, 225, shade(band,.72), null, 0, BB0+1.2);
     for(const [w0,w1] of [[176+OA,318+OA],[556+OA,700+OA]]){                             // glazed runs
-      slab(w0-6, w1+6, 14, 152, SB0+7, SB0-2, shade(wall,.72));
-      F(w0, w1, 20, 146, glass, null, 0, SB0+7.5);
-      for(let k=1;k<5;k++) F(w0+(w1-w0)*k/5-2, w0+(w1-w0)*k/5+2, 20, 146, shade(wall,1.2), null, 0, SB0+8);
+      slab(w0-6, w1+6, 14, 152, BB0+7, BB0-2, shade(wall,.72));
+      if(SEE) HOLE([P(w0,BB0+7.5,146),P(w1,BB0+7.5,146),P(w1,BB0+7.5,20),P(w0,BB0+7.5,20)]);   // (the store seen through its glass: W11)
+      F(w0, w1, 20, 146, SEE ? glassSee : glass, null, 0, BB0+7.5);
+      for(let k=1;k<5;k++) F(w0+(w1-w0)*k/5-2, w0+(w1-w0)*k/5+2, 20, 146, shade(wall,1.2), null, 0, BB0+8);
     }
 
     /* ---- the entrance tower ----
@@ -68015,11 +68000,17 @@ function houseCanopy(fn){
        which is what makes a blank 720 shed read as having a front door
        at all. Doors are openings cut in the glazed screen rather than
        panels painted on it. */
-    box(EA0, EA1, SB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.84));
+    box(EA0, EA1, BB0, EB, 0, EZ, shade(wall,1.20), shade(wall,1.06), shade(wall,.84));
     F(EA0+8, EA1-8, 14, 164, shade(wall,.66), null, 0, EB+0.6);              // screen surround
-    F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
-    /* two door pairs: the openings here, the leaves live (slideDoors) */
-    F(EA0+30, EA1-30, 20, 124, '#2b3138', null, 0, EB+1.6);              // one pair, 150 across (DUNE_IN)
+    if(SEE){                                                                 // (the vestibule and the store through it: W11)
+      HOLE([P(EA0+14,EB+1.2,158),P(EA1-14,EB+1.2,158),P(EA1-14,EB+1.2,20),P(EA0+14,EB+1.2,20)]);
+      F(EA0+14, EA1-14, 124, 158, glassSee, null, 0, EB+1.2);                // the transom
+      F(EA0+14, EA0+30, 20, 124, glassSee, null, 0, EB+1.2); F(EA1-30, EA1-14, 20, 124, glassSee, null, 0, EB+1.2);   // the sidelights
+      F(EA0+14, EA1-14, 122, 125, shade(wall,.66), null, 0, EB+1.4);        // its rail over the pair (one pair, 150 across: its leaves live, slideDoors)
+    } else {
+      F(EA0+14, EA1-14, 20, 158, glass, null, 0, EB+1.2);
+      F(EA0+30, EA1-30, 20, 124, '#2b3138', null, 0, EB+1.6);              // one pair, 150 across (DUNE_IN)
+    }
     F(EA0+14, EA1-14, 194, 272, band, null, 0, EB+1.2);                      // the sign panel
     for(let k=0;k<4;k++) F(EA0+30+k*46, EA0+66+k*46, 208, 258, shade(wall,.40), null, 0, EB+1.7);
     /* THE CANOPY WAS INVERTED, and it is the same fault this entry's
@@ -68119,7 +68110,7 @@ function houseCanopy(fn){
     /* the walk rank first (farther), then the street rank */
     bed(40, 180, R2+BD, R2, [[110, R2+80]]);  mast(110, R2+190);
     bed(1520, LOT-40, R2+BD, R2, [[1570, R2+80]]); mast(1570, R2+190);
-    corral(202, R2+130); corral(1402, R2+130);
+    /* (no trolley bays: Sir, 2026-11-07, their art was off) */
     bed(40, 180, R1, R1-BD, [[110, R1-215]]);
     bed(1540, LOT-40, R1, R1-BD, [[1590, R1-80]]); mast(1590, R1-200);
     bed(DR0-10+2, DR0-2, R1, R1-BD, []); bed(DR1+2, DR1+10-2, R1, R1-BD, []);

@@ -6,7 +6,7 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 |---|---|---|---|
 | Pelican Drug | **fits** (grown 30 each side 2026-11-07) | measured | fixed 2026-11-07 (piers gone, baskets moved) |
 | Seabreeze Trophies | **fits** | photo | not audited |
-| Dune Home & Garden | **short**, west and north 30 (east and south read covered, the tower masks them: check by eye) | measured | not audited |
+| Dune Home & Garden | **fits** (grown 30 each side 2026-11-07; `cover ok`) | measured | fixed 2026-11-07 (no piers, trolleys 60 clear); also given W11 see-through (entrance and shopfront show the room) and its car park's night lamps |
 | Tide Pool Elementary | **short**, 30 on all four sides | measured | not audited |
 | Tidewater Museum | **short**, 30 on all four sides | measured | not audited |
 | Costa Palma Animal Shelter | **short**, the body stands at the floor's line, the magenta is in front of it | photo | not audited |
@@ -16,6 +16,6 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Tidewater Kart Works | **short on the front** (the barn's front stands inside the magenta), the east end reads right | photo | not audited |
 | Vista Ridge Security Post | **does not fit at all**: the room's floor stands well in front of the building (it is outside it, not under it) | photo | not audited |
 
-Fits: 2 of 11. Short: 8. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
+Fits: 3 of 11 (Pelican Drug, Trophies, Dune Home). Short: 7. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
 
 The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell is 30 bigger on every side..."): grow the exterior's body 30 on every side from `plan.shell`; the tower or door follows it out; the glass openings, `slideDoors`, the collision `vol` and anything on the body's faces (the band, the sign) move with it; the lot (bays, lanes, hedges) stays where it was. Then look inside at the door for W23 and W24 and fix what shows.
