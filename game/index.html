@@ -5295,6 +5295,7 @@ function fleetPadAt(s){
   if(FLEET_LOAN) return null;                       // (a borrowed vehicle has no garage: the mission takes it home)
   const k = fleetCur(), F = FLEET[k];
   if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
+  { const g = typeof gideonPadAt === "function" ? gideonPadAt(s) : null; if(g) return g; }   // (Gideon's own pad in the cafe is his garage: gd4)
   const d = battPadAt(s);
   if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
   return d;
@@ -5417,7 +5418,7 @@ function fleetGarageCut(s){
    (fleetParkTipsey). A mission's loan of the humanoid is not this: it starts where the story puts him. */
 function gideonStart(s){
   if(!s || !s.ow || FLEET_LOAN || fleetCur() !== 'humanoid') return;
-  if(typeof BB_PK === "undefined" || s._inside === BB_PK) return;
+  if(s._inside && s._inside.name === BB_IN.name) return;
   const pk = POCKETS.find(q => q.name === BB_IN.name); if(!pk) return;
   sceneDissolve(s, 600, () => {
     const items = s.items;
@@ -37536,8 +37537,8 @@ function battPadAt(scene){
   }
   return null;
 }
-/* GIDEON'S OWN PAD (docs/gideon-dock.md, gd3): the humanoid, chosen in the Fleet tab, charges only on his pad in the cafe's back room (the same
-   round pad as Tipsey's, radius 44) -- not on the depots', which are Tipsey's. A mission's loan of him is not this. Returns the pad record, or null */
+/* GIDEON'S OWN PAD (docs/gideon-dock.md, gd3): the humanoid, chosen in the Fleet tab, charges on his pad in the cafe's back room (the same
+   round pad as Tipsey's, radius 44) as well as at any of Tipsey's charging stations. A mission's loan of him is not this. Returns the pad record, or null */
 function gideonHome(){ return typeof fleetCur === "function" && fleetCur() === 'humanoid' && !FLEET_LOAN; }
 function gideonPadAt(scene){
   if(!gideonHome() || !scene || !scene.ow || !scene._inside || scene._inside.name !== BB_IN.name) return null;
@@ -37561,7 +37562,7 @@ function battTick(scene, dt){
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
   /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (gideonHome() ? gideonPadAt(scene) : (battPadAt(scene) || fleetPadAt(scene))) : null;   // (Gideon: his own pad only)
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (gideonPadAt(scene) || battPadAt(scene) || fleetPadAt(scene)) : null;   // (his own pad in the cafe, or any of Tipsey's charging stations)
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;

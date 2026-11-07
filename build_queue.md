@@ -180,5 +180,5 @@ graph LR
 ## Gideon's pad
 - [?] `gd1` Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
 - [?] `gd2` Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
-- [?] `gd3` The pad charges him: its glow breathes, battery fills only on it [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
+- [?] `gd3` The pad charges him: its glow breathes, battery fills on it (and, as ever, at any of Tipsey's charging stations) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
 - [!] `gd4` Customise Gideon (looks and parts): where, and what (needs Sir: where the customising happens) [docs/gideon-dock.md]
