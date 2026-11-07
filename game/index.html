@@ -3295,12 +3295,14 @@ const GD_COL = {   // [id, name, hex]
   eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a]],
   screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
   part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
+  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
   shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
 };
-const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar' };
+const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod' };
 const GD_SHAPES = {
   eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
+  earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
   shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
 };
 function gdHex(kind, v, dflt){
@@ -3315,7 +3317,8 @@ function gideonParts(){
   const sc = gdHex('shoe', pick('shoeCol')), kind = (GD_SHAPES.shoeKind.find(q => q[0] === pick('shoeKind')) || GD_SHAPES.shoeKind[0])[0];
   const band = pick('band') === 'none' ? null : gdHex('band', pick('band'));
   const robot = { joint: gdHex('part', pick('joint')), hand: gdHex('part', pick('hand')), screen: gdHex('screen', pick('screen')), eye: gdHex('eye', pick('eye')),
-                  band, pack: gdHex('part', pick('pack')), eyeShape: pick('eyeShape'), mouth: pick('mouth') };
+                  band, pack: gdHex('part', pick('pack')), eyeShape: pick('eyeShape'), mouth: pick('mouth'),
+                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle') };
   return { shell, foot: { c: sc, dk: gdDk(sc, 0.7), kind }, uniform: { robot, shoeKind: kind } };
 }
 const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
@@ -107284,8 +107287,8 @@ class WorldScene extends Phaser.Scene {
          outer cap a little smaller (a rounded edge) with a dark disc in its middle. The band's faces are toned by which
          way they face, lit from above as the hull is; the silhouette is filled first, so no seam shows between them */
       const ear = sd => {
-        const hc = z0 + (z1 - z0)*0.52, re = r*0.36, k1 = 0.8, aIn = sd*r*0.84, aOut = sd*(r + 2.4), N = 12;
-        const EAR = hullSteps(0xe4e7ea, 0xa9afb5), IN = [], OUT = [], DOT = [];
+        const hc = z0 + (z1 - z0)*0.52, re = r*0.36*(RB && RB.earStyle === 'big' ? 1.4 : 1), k1 = 0.8, aIn = sd*r*0.84, aOut = sd*(r + 2.4), N = 12;
+        const EAR = RB && RB.ear != null && RB.ear !== 0xe4e7ea ? hullSteps(RB.ear, _pdk(RB.ear, 0.72)) : hullSteps(0xe4e7ea, 0xa9afb5), IN = [], OUT = [], DOT = [];   // (RB.ear: Gideon's own, gd4)
         for(let i = 0; i < N; i++){ const an = (i + 0.5)/N*Math.PI*2, c = Math.cos(an), sn2 = Math.sin(an);
           IN.push(G(aIn, c*re, hc + sn2*re)); OUT.push(G(aOut, c*re*k1, hc + sn2*re*k1)); DOT.push(G(aOut + sd*0.2, c*re*0.42, hc + sn2*re*0.42)); }
         this.quadOn(g, convexHull(IN.concat(OUT)), EAR[4]);
@@ -107294,7 +107297,8 @@ class WorldScene extends Phaser.Scene {
           if(sees3(na, nb, nh)) this.quadOn(g, [IN[i], IN[j], OUT[j], OUT[i]], EAR[Math.round((1 - nh)*4)]); }
         if(sees3(sd, 0, 0)){ this.quadOn(g, OUT, EAR[1]); this.quadOn(g, DOT, RB.joint); }
       };
-      if(RB) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
+      const noEars = !!(RB && RB.earStyle === 'none');
+      if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
@@ -107325,7 +107329,7 @@ class WorldScene extends Phaser.Scene {
           else if(mo === 'smile'){ wrap(-0.34, 0.34, mz0 - r*0.04, mz1 - r*0.06, RB.eye, 0.3); for(const sd of [-1, 1]) wrap(Math.min(sd*0.34, sd*0.52), Math.max(sd*0.34, sd*0.52), mz0 + r*0.06, mz1 + r*0.02, RB.eye, 0.3); }
           else if(mo === 'dots'){ for(const c of [-0.3, 0, 0.3]) wrap(c - 0.07, c + 0.07, mz0 + r*0.02, mz1 - r*0.02, RB.eye, 0.3); }
           else if(mo === 'grille'){ for(const k of [0, 1, 2]) wrap(-0.37, 0.37, mz0 + k*r*0.045, mz0 + k*r*0.045 + r*0.03, RB.eye, 0.3); } }
-        for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
+        if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
@@ -139818,6 +139822,7 @@ requestTpProfile();
         smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
         grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
       return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
+    if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
     const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
     return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
   }
@@ -139829,7 +139834,7 @@ requestTpProfile();
     P.className = 'grList';
     let h = '';
     if (tab === 'g-shell') h = gdSwRow('SHELL', 'shell', 'shell') + gdSwRow('JOINTS', 'joint', 'part') + gdSwRow('HANDS', 'hand', 'part');
-    else if (tab === 'g-face') h = gdSwRow('EYES', 'eye', 'eye') + gdCardRow('EYE SHAPE', 'eyeShape') + gdCardRow('MOUTH', 'mouth') + gdSwRow('SCREEN', 'screen', 'screen');
+    else if (tab === 'g-face') h = gdSwRow('EYES', 'eye', 'eye') + gdCardRow('EYE SHAPE', 'eyeShape') + gdCardRow('MOUTH', 'mouth') + gdSwRow('SCREEN', 'screen', 'screen') + gdCardRow('EARS', 'earStyle') + gdSwRow('EAR COLOUR', 'ear', 'ear');
     else if (tab === 'g-parts') h = gdSwRow('CHEST BAND', 'band', 'band', 'none') + gdSwRow('BATTERY PACK', 'pack', 'part');
     else h = gdCardRow('SHOES', 'shoeKind') + gdSwRow('SHOE COLOUR', 'shoeCol', 'shoe');
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-gdreset="1" style="flex:0 0 auto;padding:10px 14px"><span>Reset Gideon</span></button></div>`;
