@@ -97907,17 +97907,17 @@ class WorldScene extends Phaser.Scene {
        the deck. */
     for(const pp of harborPosts(hg)){
       if(!near(pp.x, pp.y)) continue;
-      vq.push({ depth: pp.x + pp.y, fn: (g) => post(g, pp.x, pp.y, pp.h, pp.deck, 14, 0x5a4330, 0x6e5236, 0x5d4530) });
+      vq.push({ depth: pp.x + pp.y, fn: (g) => this.bcDraw(g, "hb|pile|" + pp.x + "," + pp.y + "|" + pp.h + "|" + pp.deck, pp.x, pp.y, gg => post(gg, pp.x, pp.y, pp.h, pp.deck, 14, 0x5a4330, 0x6e5236, 0x5d4530)) });
     }
     /* the props on the quay and the plaza */
     for(const pr of hg.props){
       if(!near(pr.x, pr.y)) continue;
       const x = pr.x, y = pr.y;
-      if(pr.kind === 'lamp') vq.push({ depth: x + y, fn: (g, t2) => drawPierLamp(this, g, frameAt(x, y), t2, {}) });
-      else if(pr.kind === 'bollard') vq.push({ depth: x + y, fn: (g) => {
-        post(g, x, y, 34, 6, 12, 0x3b3f45, 0x2b2f36, 0x24272c);
-        post(g, x, y, 40, 30, 17, 0x3b3f45, 0x2b2f36, 0x24272c); } });
-      else if(pr.kind === 'bench') vq.push({ depth: x + y, fn: (g) => drawPierBench(this, g, Wr, x, y, 0, { facing: pr.facing || 1 }) });
+      if(pr.kind === 'lamp') vq.push({ depth: x + y, fn: (g, t2) => this.bcDraw(g, "hb|lamp|" + x + "," + y, x, y, gg => drawPierLamp(this, gg, frameAt(x, y), t2, {})) });
+      else if(pr.kind === 'bollard') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|bollard|" + x + "," + y, x, y, gg => {
+        post(gg, x, y, 34, 6, 12, 0x3b3f45, 0x2b2f36, 0x24272c);
+        post(gg, x, y, 40, 30, 17, 0x3b3f45, 0x2b2f36, 0x24272c); }) });
+      else if(pr.kind === 'bench') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|bench|" + x + "," + y + "|" + (pr.facing || 1), x, y, gg => drawPierBench(this, gg, Wr, x, y, 0, { facing: pr.facing || 1 })) });
       else if(pr.kind === 'flag') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|flag|" + x, x, y, gg => {
         post(gg, x, y, 18, 0.3, 30, 0xb9b2a4, 0xa39c8e, 0x8f887b);           // the footing
         post(gg, x, y, 560, 18, 5, 0xe6e6e2, 0xd8d8d4, 0xbfc3c6);           // the pole
@@ -97937,8 +97937,9 @@ class WorldScene extends Phaser.Scene {
       else if(pr.kind === 'picnic') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|picnic|" + x + "," + y, x, y, gg => this.drawHarborPicnic(gg, x, y)) });
       else if(pr.kind === 'bin') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|bin|" + x + "," + y, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, 0, 0)) });
       else if(pr.kind === 'palm') vq.push({ depth: x + y, fn: (g, t2) => {
-        post(g, x, y, 54, 0.3, 46, 0xb9b2a4, 0xa39c8e, 0x8f887b);           // the tub
-        post(g, x, y, 56, 54, 40, 0x6b5a44, 0x6b5a44, 0x6b5a44);
+        this.bcDraw(g, "hb|tub|" + x + "," + y, x, y, gg => {
+          post(gg, x, y, 54, 0.3, 46, 0xb9b2a4, 0xa39c8e, 0x8f887b);           // the tub
+          post(gg, x, y, 56, 54, 40, 0x6b5a44, 0x6b5a44, 0x6b5a44); });
         this.drawProp(g, 'palm', x, y, t2, 0, 56); } });
     }
     /* SEA LION POINT: the statue, its sign, the cypress and the agaves */
@@ -100308,11 +100309,11 @@ class WorldScene extends Phaser.Scene {
             for(let k = 0; k < n; k++){
               const xa = A.pierX1 + (meetX - A.pierX1) * (k / n);
               const xb = A.pierX1 + (meetX - A.pierX1) * ((k + 1) / n);
-              Q((xa + xb)/2 + y, (g) =>
-                drawPierRail(this, g, Wr, { x:xa, y }, { x:xb, y }, {}));
+              Q((xa + xb)/2 + y, (g) => this.bcDraw(g, "pier|rail|" + Math.round(xa) + "," + y, xa, y, gg =>
+                drawPierRail(this, gg, Wr, { x:xa, y }, { x:xb, y }, {})));
             }
           }
-          if(R > 0) Q(A.cx + A.cy + 1, (g) => deckRailArc(this, g, Wr, A, {}));
+          if(R > 0) Q(A.cx + A.cy + 1, (g) => this.bcDraw(g, "pier|arc", A.cx, A.cy, gg => deckRailArc(this, gg, Wr, A, {})));
 
           /* STATIONS COME FROM pierFurnitureOf, not from a second copy of
              the arithmetic. The sim reads that same table to make these
@@ -100321,11 +100322,11 @@ class WorldScene extends Phaser.Scene {
              derivation would produce. */
           for(const L of _pf.lamps){
             const x = L.x, y = L.y;
-            Q(x + y, (g, t2) => drawPierLamp(this, g, frameAt(x, y), t2, {}));
+            Q(x + y, (g, t2) => this.bcDraw(g, "pier|lamp|" + Math.round(x) + "," + Math.round(y), x, y, gg => drawPierLamp(this, gg, frameAt(x, y), t2, {})));
           }
           for(const Bh of _pf.benches){
             const x = Bh.x, y = Bh.y, fc = Bh.facing;
-            Q(x + y, (g) => drawPierBench(this, g, Wr, x, y, 0, { facing:fc }));
+            Q(x + y, (g) => this.bcDraw(g, "pier|bench|" + Math.round(x) + "," + Math.round(y) + "|" + fc, x, y, gg => drawPierBench(this, gg, Wr, x, y, 0, { facing:fc })));
           }
           for(const G of _pf.gulls){
             const x = G.x, y = G.y;
