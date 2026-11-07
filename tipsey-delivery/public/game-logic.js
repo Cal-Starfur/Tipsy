@@ -105809,14 +105809,15 @@ class WorldScene extends Phaser.Scene {
       const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
       /* GIDEON'S HEADPHONES (gd4b), one side at a time: the cup and its half of the band. The FAR side goes down before the head (as the far ear does) so the head
          covers it; the near side over it */
-      const phones = sd => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
+      const phones = (sd, part) => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
           path = [[r*0.88 + 2.0, hz2 + r*0.4], [r*0.76 + 0.9, hz2 + r*0.74], [r*0.46, zt + 0.5], [0, zt + 0.9]], qc = (pts, c) => this.quadOn(g, pts, c);
-        prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
-        for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
+        if(part !== 'high') prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
+        for(let k = 0; k < path.length - 1; k++){ if(part === 'high' ? k < 1 : k >= 1) continue;   // (the band's upper run goes down after the head, over the crown: drawn before it, the far half's tip was lost under the lid)
+ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
           qc([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
           qc([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } };
       const isPhones = !!(RB && RB.hat === 'headphones');
-      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd);
+      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd, 'low');
       const noEars = !!(RB && RB.earStyle === 'none');
       if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
@@ -105867,7 +105868,7 @@ class WorldScene extends Phaser.Scene {
         else if(hh === 'bowler'){ prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); }   // (the brim first: the crown stands on it, its far half is behind the crown)
         else if(hh === 'tophat'){ prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true, noTop: true }); }   // (the band is a sleeve on the crown: no lid of its own, it lay a disc across the crown)
         else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
-        else if(hh === 'headphones'){ for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) phones(sd); }
+        else if(hh === 'headphones'){ for(const sd of [-1, 1]){ if(sees3(sd, 0, 0)) phones(sd, 'low'); phones(sd, 'high'); } }
         else if(hh === 'antenna' || hh === 'twin'){
           const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
           if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
