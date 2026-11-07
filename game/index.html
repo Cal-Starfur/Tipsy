@@ -106610,6 +106610,9 @@ class WorldScene extends Phaser.Scene {
        shoulder, a leg out from its hip -- and its faces judged as turned (drawFallenHull's sprawl) */
     const LX = { on: false, a0: 0, h0: 0, c: 1, s: 0 };
     const sees0 = sees, seesL = (na, nb, nh) => LX.on ? sees0(na*LX.c - nh*LX.s, nb, na*LX.s + nh*LX.c) : sees0(na, nb, nh);
+    /* WHY THESE DRAW A DISC OVER WHAT THEY SIT ON (hat bands, cuffs, shoe uppers: Sir, 2026-11-07, "the same issue again"): limb and prism first fill the convex hull
+       of both ends in a mid tone (no seams), and nothing here has depth -- it is painter's order. For a piece that is a sleeve or ring round something drawn before it
+       (a band on a crown, a boot over a shin) that hull is a flat plane painted across it. Such a piece takes fill = false here, { ring: true } or noTop in prism, and caps 0. */
     const limb = (aC, p0, p1, ha, hb, col, colSide, taper = 1, caps = 3, fill = true) => {
       const db = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(db, dh) || 1, ub = db/L, uh = dh/L, nb = -uh, nh = ub;
       const ST = hullSteps(col, colSide), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06, sees = seesL;
@@ -107076,8 +107079,8 @@ class WorldScene extends Phaser.Scene {
     const shoeOf = (aC, A, legW, legD, late) => {
       const b0 = A[0], h0 = A[1], S = pShoe, K = shoeKind, soleH = Math.max(1.5, shoeH*0.32), white = { c: _pmix(S.c, 0xf4f2ec, 0.78), dk: _pmix(S.dk, 0xd6d3ca, 0.65) };
       const sole = (bOff, hb, hh, col) => limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
-      const upper = (bOff, hb, hbot, htop, taper, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1);   // (drawn after the leg: no lid, it is a sleeve over the shin)
-      const toe = (bFrom, bTo, hbot, htop, ha, col) => far ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);
+      const upper = (bOff, hb, hbot, htop, taper, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1, !late);   // (drawn after the leg: no lid and NO silhouette fill -- it is a sleeve over the shin; the fill is a convex hull of both ends and painted a plane across the leg)
+      const toe = (bFrom, bTo, hbot, htop, ha, col) => far ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1, !late);
       const band = (bOff, hb, hbot, hh, col) => far ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
       switch(K){
         case 'sneaker':  sole(legD*0.38, legD*1.8, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.85, S);
