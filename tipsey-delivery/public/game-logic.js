@@ -105908,7 +105908,7 @@ class WorldScene extends Phaser.Scene {
         const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
         if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
-        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12, noTop: true });
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12, noTop: true, ring: true });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
             quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
