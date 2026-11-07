@@ -963,7 +963,7 @@
 },
 {
 "id": "gd3",
-"title": "The pad charges him: its glow breathes, battery fills only on it",
+"title": "The pad charges him: its glow breathes, battery fills on it (and, as ever, at any of Tipsey's charging stations)",
 "deps": [
 "gd2"
 ],
@@ -974,17 +974,59 @@
 },
 {
 "id": "gd4",
-"title": "Customise Gideon (looks and parts): where, and what",
+"title": "Customise Gideon, tranche 1: his own garage tabs (Shell, Face, Band & pack, Feet) from his pad, 16 shells, colour wheels, 6 eye shapes, 7 mouths, bands, pack, joints, hands, 4 shoe kinds; kept in the profile and drawn on him everywhere",
 "deps": [
 "gd2"
 ],
-"status": "blocked",
-"note": "needs Sir: where the customising happens",
+"status": "built",
 "spec": "docs/gideon-dock.md",
-"group": "Gideon's pad"
+"group": "Gideon's pad",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4b",
+"title": "Gideon's Head tab: antennas, hats, caps, headphones, visors, ear plates (new head geometry)",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "pending"
+},
+{
+"id": "gd4c",
+"title": "Gideon's Outfit tab: aprons, scarves, vests, badges, glasses, backpack styles (worn over the shell, shown in the street and the cafe)",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "pending"
+},
+{
+"id": "gd4d",
+"title": "Gideon's Finish and Decals tabs: gloss, matte, chrome, two-tone shell; stripes, stars, number, the shop's bolt",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "pending"
+},
+{
+"id": "gd4e",
+"title": "Gideon's Skins: ready-made looks (Barista, Night Shift, Chrome, Workshop, Sunset...), some earned in missions, some bought with tips, as Tipsey's",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4b",
+"gd4c",
+"gd4d"
+],
+"status": "pending"
 }
 ],
 "meta": {
-"last": "build"
+"last": "test"
 }
 }

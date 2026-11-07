@@ -38,6 +38,12 @@ graph LR
   gd1 --> gd2
   gd2 --> gd3
   gd2 --> gd4
+  gd4 --> gd4b
+  gd4 --> gd4c
+  gd4 --> gd4d
+  gd4b --> gd4e
+  gd4c --> gd4e
+  gd4d --> gd4e
 ```
 
 ## People: seeded crowd
@@ -180,5 +186,9 @@ graph LR
 ## Gideon's pad
 - [?] `gd1` Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
 - [?] `gd2` Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
-- [?] `gd3` The pad charges him: its glow breathes, battery fills only on it [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
-- [!] `gd4` Customise Gideon (looks and parts): where, and what (needs Sir: where the customising happens) [docs/gideon-dock.md]
+- [?] `gd3` The pad charges him: its glow breathes, battery fills on it (and, as ever, at any of Tipsey's charging stations) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
+- [?] `gd4` Customise Gideon, tranche 1: his own garage tabs (Shell, Face, Band & pack, Feet) from his pad, 16 shells, colour wheels, 6 eye shapes, 7 mouths, bands, pack, joints, hands, 4 shoe kinds; kept in the profile and drawn on him everywhere [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
+- [ ] `gd4b` Gideon's Head tab: antennas, hats, caps, headphones, visors, ear plates (new head geometry) [docs/gideon-dock.md]
+- [ ] `gd4c` Gideon's Outfit tab: aprons, scarves, vests, badges, glasses, backpack styles (worn over the shell, shown in the street and the cafe) [docs/gideon-dock.md]
+- [ ] `gd4d` Gideon's Finish and Decals tabs: gloss, matte, chrome, two-tone shell; stripes, stars, number, the shop's bolt [docs/gideon-dock.md]
+- [ ] `gd4e` Gideon's Skins: ready-made looks (Barista, Night Shift, Chrome, Workshop, Sunset...), some earned in missions, some bought with tips, as Tipsey's [docs/gideon-dock.md]

@@ -3285,6 +3285,44 @@ const PEOPLE_CHILD = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "k", 
 const HUMANOID_BUILD = Object.assign({}, PEOPLE_BUILD[0], { n: "robot", hairStyle: "none" });
 const HUMANOID_WHITE = { c: 0xeef0f2, dk: 0xc9ced3 }, HUMANOID_FOOT = { c: 0x2a2f36, dk: 0x1c2026, kind: 'flat' };
 const HUMANOID_SKIN = { robot: { joint: 0x3a4048, hand: 0x2a2f36, screen: 0x1d2228, eye: 0x5fe8e0, band: 0xff7a1a, pack: 0x3a4048 }, shoeKind: 'flat' };
+/* GIDEON'S LOOK (docs/gideon-dock.md, gd4): the humanoid is fully customisable like Tipsey, from his own garage tabs, on Tipsey's own paint system (the
+   garage's paint look: fields gShell, gEye... try-on, prices, cart, the colour wheel). GD_LIVE holds the picks
+   ({ shell, band, eye, screen, joint, hand, pack, shoeCol: a catalog id or 'c:rrggbb' for a colour wheel's; shoeKind, eyeShape, mouth: an id });
+   gideonParts() resolves them to what drawPersonHull takes (the shell's tones, the shoes, the robot's skin). Every default is the stock look. */
+const GD_COL = {   // [id, name, hex]
+  shell:  [['white','Stock white',0xeef0f2],['cream','Cream',0xf1e6cf],['sky','Sky',0xa8d4ee],['mint','Mint',0xa8e0c2],['blush','Blush',0xf4b8c4],['lemon','Lemon',0xf6e27a],['tang','Tangerine',0xff9a4a],
+           ['copper','Copper',0xd9892b],['steel','Steel',0x9aa4ad],['graphite','Graphite',0x4a5058],['black','Black',0x24272c],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['plum','Plum',0x6a3f7a],['crimson','Crimson',0xb8342e],['teal','Teal',0x2f8f8a]],
+  band:   [['copper','Copper',0xe79a35],['orange','Orange',0xff7a1a],['white','White',0xeef0f2],['cyan','Cyan',0x5fe8e0],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['red','Red',0xe0453a],['blue','Blue',0x3b8fe0],['gold','Gold',0xffcf5a],['violet','Violet',0x9a6ae0],['black','Black',0x1c2126]],
+  eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a]],
+  screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
+  part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
+  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
+  shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
+};
+const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod' };
+const GD_SHAPES = {
+  eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
+  mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
+  earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
+  shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
+};
+function gdHex(kind, v, dflt){
+  if(typeof v === 'string' && v.indexOf('c:') === 0){ const n = parseInt(v.slice(2), 16); if(isFinite(n)) return n; }
+  const list = GD_COL[kind], e = list.find(q => q[0] === v) || list.find(q => q[0] === dflt) || list[0];
+  return e[2];
+}
+function gdDk(c, f){ return (Math.round(((c >> 16) & 255)*f) << 16) | (Math.round(((c >> 8) & 255)*f) << 8) | Math.round((c & 255)*f); }
+let GD_LIVE = {};   // (what he wears now, or is trying on in the garage: set by the garage's paintOver from the paint look -- the same system as Tipsey's)
+function gideonParts(){
+  const P = GD_LIVE || {}, D = GD_DEFAULT, pick = k => P[k] == null ? D[k] : P[k];
+  const sh = gdHex('shell', pick('shell')), shell = pick('shell') === 'white' ? { c: 0xeef0f2, dk: 0xc9ced3 } : { c: sh, dk: gdDk(sh, 0.82) };
+  const sc = gdHex('shoe', pick('shoeCol')), kind = (GD_SHAPES.shoeKind.find(q => q[0] === pick('shoeKind')) || GD_SHAPES.shoeKind[0])[0];
+  const band = pick('band') === 'none' ? null : gdHex('band', pick('band'));
+  const robot = { joint: gdHex('part', pick('joint')), hand: gdHex('part', pick('hand')), screen: gdHex('screen', pick('screen')), eye: gdHex('eye', pick('eye')),
+                  band, pack: gdHex('part', pick('pack')), eyeShape: pick('eyeShape'), mouth: pick('mouth'),
+                  ear: pick('ear') === 'shell' ? shell.c : gdHex('ear', pick('ear')), earStyle: pick('earStyle') };
+  return { shell, foot: { c: sc, dk: gdDk(sc, 0.7), kind }, uniform: { robot, shoeKind: kind } };
+}
 const PEOPLE_HEAVY = PEOPLE_BUILD.map(b => Object.assign({}, b, { n: b.n + "h", heavy: true, hipW: Math.round(b.hipW*1.4), torsoW: Math.round(b.torsoW*1.28),
   torsoD: Math.round(b.torsoD*1.6), legW: Math.round(b.legW*1.3), armW: Math.round(b.armW*1.3), headR: b.headR + 0.5 }));
 const PEOPLE_SKIN  = [{c:0xd9a774,dk:0xb98456},{c:0xf0c8a0,dk:0xc9a583},{c:0xc98a5a,dk:0xa8724a},{c:0x8a5a3a,dk:0x6e4830},{c:0x5c3d28,dk:0x4a3120}];
@@ -5295,6 +5333,7 @@ function fleetPadAt(s){
   if(FLEET_LOAN) return null;                       // (a borrowed vehicle has no garage: the mission takes it home)
   const k = fleetCur(), F = FLEET[k];
   if(F && F.bay !== "station") return fleetBayPadAt(s, F.bay);
+  { const g = typeof gideonPadAt === "function" ? gideonPadAt(s) : null; if(g) return g; }   // (Gideon's own pad in the cafe is his garage: gd4)
   const d = battPadAt(s);
   if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
   return d;
@@ -5417,7 +5456,7 @@ function fleetGarageCut(s){
    (fleetParkTipsey). A mission's loan of the humanoid is not this: it starts where the story puts him. */
 function gideonStart(s){
   if(!s || !s.ow || FLEET_LOAN || fleetCur() !== 'humanoid') return;
-  if(typeof BB_PK === "undefined" || s._inside === BB_PK) return;
+  if(s._inside && s._inside.name === BB_IN.name) return;
   const pk = POCKETS.find(q => q.name === BB_IN.name); if(!pk) return;
   sceneDissolve(s, 600, () => {
     const items = s.items;
@@ -29812,8 +29851,7 @@ walkinStaff(BB_IN.name, [
     away: () => (typeof MS !== "undefined" && (MS.stage !== 'idle' || !!MS.gid)) || (typeof fleetCur === "function" && fleetCur() === 'humanoid'), awayAt: () => ({ x: -90000, y: -90000, th: 0 }),   // (MINDING THE SHOP has him: out in the street, or he is the player)
     posts: [[522, 340, 0, 16000, true], [522, 120, 0, 9000, true], [522, 230, 0, 7000, true], [124, 266, Math.PI/2, 8000, true], [90, 150, -Math.PI/2, 9000, true]],
     /* (GIDEON IS THE GAME'S OWN HUMANOID -- Tipsey's walking sibling, drawHumanoid's body and skin -- no apron, his chest band copper) */
-    lookFn: () => ({ build: HUMANOID_BUILD, skin: HUMANOID_WHITE, hair: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, shoe: HUMANOID_FOOT,
-      uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { band: 0xe79a35 }) }) }) },
+    lookFn: () => { const G = gideonParts(); return { build: HUMANOID_BUILD, skin: G.shell, hair: G.shell, shirt: G.shell, pants: G.shell, shoe: G.foot, uniform: G.uniform }; } },   // (his own look: gd4)
   { id: 'guest-1', role: 'customer', seed: 0x61e11, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
   { id: 'guest-2', role: 'customer', seed: 0x61e22, look: 'visitor', life: 'browse', posts: [[560, 560, Math.PI, 0]] },
 ]);
@@ -37536,8 +37574,8 @@ function battPadAt(scene){
   }
   return null;
 }
-/* GIDEON'S OWN PAD (docs/gideon-dock.md, gd3): the humanoid, chosen in the Fleet tab, charges only on his pad in the cafe's back room (the same
-   round pad as Tipsey's, radius 44) -- not on the depots', which are Tipsey's. A mission's loan of him is not this. Returns the pad record, or null */
+/* GIDEON'S OWN PAD (docs/gideon-dock.md, gd3): the humanoid, chosen in the Fleet tab, charges on his pad in the cafe's back room (the same
+   round pad as Tipsey's, radius 44) as well as at any of Tipsey's charging stations. A mission's loan of him is not this. Returns the pad record, or null */
 function gideonHome(){ return typeof fleetCur === "function" && fleetCur() === 'humanoid' && !FLEET_LOAN; }
 function gideonPadAt(scene){
   if(!gideonHome() || !scene || !scene.ow || !scene._inside || scene._inside.name !== BB_IN.name) return null;
@@ -37561,7 +37599,7 @@ function battTick(scene, dt){
   tpBatt.lastScrapes = sc;
   /* CHARGE. Stopped on a pad. */
   /* (a fleet vehicle charges in its own kind of bay too: fleetPadAt) */
-  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (gideonHome() ? gideonPadAt(scene) : (battPadAt(scene) || fleetPadAt(scene))) : null;   // (Gideon: his own pad only)
+  const pad = Math.abs(ow.vel || 0) < BATT.stillV ? (gideonPadAt(scene) || battPadAt(scene) || fleetPadAt(scene)) : null;   // (his own pad in the cafe, or any of Tipsey's charging stations)
   if(pad){
     if(!tpBatt.charging){
       tpBatt.charging = true;
@@ -107020,7 +107058,7 @@ class WorldScene extends Phaser.Scene {
       }
       if(!pShirt.tank && !RB && !far) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
-        prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest
+        if(RB.band != null) prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest (RB.band null: none)
         if(faceB < 0) robotPack();                                                                        // (facing the eye it went down before the body)
       }
     };
@@ -107261,8 +107299,8 @@ class WorldScene extends Phaser.Scene {
          outer cap a little smaller (a rounded edge) with a dark disc in its middle. The band's faces are toned by which
          way they face, lit from above as the hull is; the silhouette is filled first, so no seam shows between them */
       const ear = sd => {
-        const hc = z0 + (z1 - z0)*0.52, re = r*0.36, k1 = 0.8, aIn = sd*r*0.84, aOut = sd*(r + 2.4), N = 12;
-        const EAR = hullSteps(0xe4e7ea, 0xa9afb5), IN = [], OUT = [], DOT = [];
+        const hc = z0 + (z1 - z0)*0.52, re = r*0.36*(RB && RB.earStyle === 'big' ? 1.4 : 1), k1 = 0.8, aIn = sd*r*0.84, aOut = sd*(r + 2.4), N = 12;
+        const EAR = RB && RB.ear != null && RB.ear !== 0xe4e7ea ? hullSteps(RB.ear, _pdk(RB.ear, 0.72)) : hullSteps(0xe4e7ea, 0xa9afb5), IN = [], OUT = [], DOT = [];   // (RB.ear: Gideon's own, gd4)
         for(let i = 0; i < N; i++){ const an = (i + 0.5)/N*Math.PI*2, c = Math.cos(an), sn2 = Math.sin(an);
           IN.push(G(aIn, c*re, hc + sn2*re)); OUT.push(G(aOut, c*re*k1, hc + sn2*re*k1)); DOT.push(G(aOut + sd*0.2, c*re*0.42, hc + sn2*re*0.42)); }
         this.quadOn(g, convexHull(IN.concat(OUT)), EAR[4]);
@@ -107271,7 +107309,8 @@ class WorldScene extends Phaser.Scene {
           if(sees3(na, nb, nh)) this.quadOn(g, [IN[i], IN[j], OUT[j], OUT[i]], EAR[Math.round((1 - nh)*4)]); }
         if(sees3(sd, 0, 0)){ this.quadOn(g, OUT, EAR[1]); this.quadOn(g, DOT, RB.joint); }
       };
-      if(RB) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
+      const noEars = !!(RB && RB.earStyle === 'none');
+      if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
       prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
       /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
@@ -107292,9 +107331,17 @@ class WorldScene extends Phaser.Scene {
            Sir, 2026-10-24), each strip at the head's own radius at its height (the jaw's taper below the jaw line, the crown's above)
            and drawn only while it faces the eye. wrap(from, to, zA, zB): angles round from the front (+b) toward +a */
         wrap(-0.96, 0.96, fz - r*0.12, fz + r*0.55, RB.screen, 0);
-        for(const sd of [-1, 1]) wrap(sd*0.52 - 0.15, sd*0.52 + 0.15, fz + r*0.1, fz + r*0.36, RB.eye, 0.3);
-        wrap(-0.37, 0.37, fz - r*0.42, fz - r*0.3, RB.eye, 0.3);
-        for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
+        /* (Gideon's face: RB.eyeShape and RB.mouth, gd4 -- the stock face is round eyes over a bar) */
+        const ES = ({ round: [0.15, 0.10, 0.36], wide: [0.22, 0.12, 0.30], tall: [0.10, 0.06, 0.42], slit: [0.24, 0.16, 0.24], dots: [0.08, 0.16, 0.30], sleepy: [0.18, 0.10, 0.20] })[RB.eyeShape] || [0.15, 0.10, 0.36];
+        for(const sd of [-1, 1]) wrap(sd*0.52 - ES[0], sd*0.52 + ES[0], fz + r*ES[1], fz + r*ES[2], RB.eye, 0.3);
+        { const mz0 = fz - r*0.42, mz1 = fz - r*0.3, mo = RB.mouth || 'bar';
+          if(mo === 'bar') wrap(-0.37, 0.37, mz0, mz1, RB.eye, 0.3);
+          else if(mo === 'wide') wrap(-0.6, 0.6, mz0, mz1, RB.eye, 0.3);
+          else if(mo === 'small') wrap(-0.18, 0.18, mz0, mz1, RB.eye, 0.3);
+          else if(mo === 'smile'){ wrap(-0.34, 0.34, mz0 - r*0.04, mz1 - r*0.06, RB.eye, 0.3); for(const sd of [-1, 1]) wrap(Math.min(sd*0.34, sd*0.52), Math.max(sd*0.34, sd*0.52), mz0 + r*0.06, mz1 + r*0.02, RB.eye, 0.3); }
+          else if(mo === 'dots'){ for(const c of [-0.3, 0, 0.3]) wrap(c - 0.07, c + 0.07, mz0 + r*0.02, mz1 - r*0.02, RB.eye, 0.3); }
+          else if(mo === 'grille'){ for(const k of [0, 1, 2]) wrap(-0.37, 0.37, mz0 + k*r*0.045, mz0 + k*r*0.045 + r*0.03, RB.eye, 0.3); } }
+        if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
@@ -109179,8 +109226,9 @@ class WorldScene extends Phaser.Scene {
   drawHumanoid(g, x, y, z, t, fdir, data){
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
-    this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE,
-      HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, HUMANOID_SKIN, true, d.tx || d.waist ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : { roll });
+    const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
+    this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, SH, SH,
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || d.waist ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : { roll });
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
@@ -115465,12 +115513,13 @@ class WorldScene extends Phaser.Scene {
     if(kind === "humanoid" && this.ow && this.ow.scoot){       // HIM ON A SCOOTER (scootHop): the scooter's own art under the humanoid's body and robot skin, hands on the bar
       const sp2 = Math.abs(this.speed || 0);
       this._scootWheel = ((this._scootWheel || 0) + sp2*d*0.05) % 6283;
-      this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT,
-        this.ow.scoot.brand, t, 0, this._scootWheel, false, HUMANOID_SKIN);
+      const GL = gideonParts();
+      this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, GL.shell, GL.shell, GL.shell, GL.shell, GL.foot,
+        this.ow.scoot.brand, t, 0, this._scootWheel, false, GL.uniform);
       return;
     }
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
-      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0 }   // (his roll: its fall)
+      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
@@ -138727,7 +138776,7 @@ requestTpProfile();
     s.camX = s.botX; s.camY = s.botY;
     document.body.classList.add('tpGarage');
     $('grHint').style.opacity = 1;
-    fr.init = false; pv = worn(); renderTab(); renderBar(); fit(s);
+    fr.init = false; pv = worn(); syncTabs(); renderTab(); renderBar(); fit(s);
     lastTouch = performance.now(); prevT = 0; vel = 0;
     requestAnimationFrame(loop);
   }
@@ -138791,10 +138840,23 @@ requestTpProfile();
   $('grItems').addEventListener('click', () => grItemsDock(true));
   $('grEdit').addEventListener('click', () => grItemsDock(false));
   let tab = 'paint';
-  for (const b of el.querySelectorAll('#grTabs button[data-t]')) b.addEventListener('click', () => {   // the tabs, not Buy at their end
+  const TABS_TIPSEY = $('grTabs').innerHTML;
+  $('grTabs').addEventListener('click', e => {   // the tabs, not Buy at their end (delegated: the humanoid has tabs of his own, syncTabs)
+    const b = e.target.closest && e.target.closest('button[data-t]'); if (!b) return;
     for (const x of el.querySelectorAll('#grTabs button[data-t]')) x.classList.toggle('on', x === b);
     tab = b.dataset.t; renderTab();
   });
+  /* GIDEON'S TABS (gd4): the humanoid, chosen, has his own set -- Shell, Face, Band & pack, Feet -- then Fleet; Tipsey and every other vehicle keep the old */
+  const GD_TABS = [['g-shell', 'Shell'], ['g-face', 'Face'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
+  function syncTabs() {
+    const T = $('grTabs'), gid = fleetCur() === 'humanoid';
+    if (T._gid === gid && (T._gid !== undefined)) return;
+    T._gid = gid;
+    T.innerHTML = gid ? GD_TABS.map(([i, n], k) => `<button${k ? '' : ' class="on"'} data-t="${i}">${n}</button>`).join('') + '<button data-t="fleet">Fleet</button>' : TABS_TIPSEY;
+    if (gid) { if (!tab.startsWith('g-') && tab !== 'fleet') tab = 'g-shell'; }
+    else if (tab.startsWith('g-')) tab = 'paint';
+    for (const x of T.querySelectorAll('button[data-t]')) x.classList.toggle('on', x.dataset.t === tab);
+  }
 
   /* =============================== THE LOOK =============================== */
   /* colour catalog. Stock white and stock red are free, so the defaults are
@@ -139064,6 +139126,8 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind'];   // (GIDEON'S paint, on the same look)
+  FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
   const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
@@ -139073,13 +139137,23 @@ requestTpProfile();
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
                   decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL };
+  /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
+     the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
+  const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
+                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'] };
+  for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
+    LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
+    if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
+  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400] };
+  for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : price })); }
+  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
   /* an item by its field and id: a preset, a custom colour, or a skin */
   const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
   /* FRESH PAINT ALWAYS COSTS (Sir, 2026-10-24): the paint job -- body colour, second colour, stripe, finish -- is
      never kept as owned. Only what he has on now is paid for; painting him again, even a colour he has worn before,
      is a fresh coat and goes through the cart */
-  const FRESH = new Set(['body', 'body2', 'stripe', 'finish']);
+  const FRESH = new Set(['body', 'body2', 'stripe', 'finish', 'gShell']);   // (Gideon's shell coat is fresh paint too)
   const ownsPaint = (kind, id) => { const c = itemOf(kind, id);
     if (FRESH.has(kind)) return !c || c.cents === 0 || look[kind] === id;
     if (kind === 'topper' && id === 'pirate' && tpProfile.owned.has('porch-pirate')) return true;   // the skin's flag, kept
@@ -139126,6 +139200,8 @@ requestTpProfile();
     if (dc) SKIN.emblem = dc.id === 'none' ? null : dc.id;
     if (bd) { delete SKIN.stars; SKIN.band = bd.id === 'none' ? null : bd.id; }
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
+    GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
+                eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind };   // (Gideon's: null = stock, gideonParts)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -139166,7 +139242,9 @@ requestTpProfile();
   }
   /* what a field reads as when it is null (the stock pick), for 'is he wearing it' */
   const DEFAULT_OF = { finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
-                       rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto' };
+                       rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto',
+                       gShell: 'white', gJoint: 'graphite', gHand: 'graphite', gEye: 'cyan', gScreen: 'dark', gBand: 'copper', gPack: 'graphite', gEar: 'stock', gShoeCol: 'graphite',
+                       gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat' };
   const wearing = (kind, id) => kind === 'skin'
     ? (tpProfile.equipped || 'classic') === id && !look.body && !look.stripe            // (a skin under a paint job is not the skin as it comes)
     : look[kind] === id || (look[kind] == null && DEFAULT_OF[kind] === id);
@@ -139188,7 +139266,8 @@ requestTpProfile();
   /* what tab a kind is sold on, for the cart's small print */
   const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
-                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals' };
+                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals',
+                     gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
      a trip out to earn the money comes back to it */
   const CART_KEY = 'tipsy.cart';
@@ -139713,6 +139792,7 @@ requestTpProfile();
     if (tab === 'antenna') { renderAntenna(P); return; }
     if (tab === 'decals') { renderDecals(P); return; }
     if (tab === 'fleet') { renderFleet(P); return; }
+    if (tab.startsWith('g-')) { renderGideon(P); return; }
     if (tab !== 'paint') {
       const names = { eyes: 'Eye shapes and colours', mouth: 'Mouths', wheels: 'Tyres and hubs',
         antenna: 'Poles and toppers', decals: 'Stars, skull and more' };
@@ -139746,6 +139826,52 @@ requestTpProfile();
     for (const b of P.querySelectorAll('#grRowStripe [data-col]')) b.onclick = () => pickStripe(b.dataset.col);
     bindColourRow(P.querySelector('#grRowBody'), 'body', 'white', pickBody);
     bindColourRow(P.querySelector('#grRowStripe'), 'stripe', 'red', pickStripe);
+  }
+
+  /* =============================== GIDEON'S TABS (gd4) =============================== */
+  /* Shell: his shell colour, joints, hands. Face: eye colour, eye shape, mouth, screen. Band & pack: the chest band (or none) and the pack.
+     Feet: the shoe kind and colour. Every row is a swatch row with a colour-wheel pick of its own, as Tipsey's; the shape rows are cards.
+     A pick is a try-on first (the turntable shows it live), then Add / Equip as Tipsey's are, kept in the paint look. */
+  /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
+  function gdCardIcon(key, id) {
+    const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
+    if (key === 'eyeShape') { const E = { round: [[10, 7, 7, 8], [23, 7, 7, 8]], wide: [[7, 9, 11, 6], [22, 9, 11, 6]], tall: [[11, 4, 5, 13], [24, 4, 5, 13]], slit: [[6, 10, 12, 3], [22, 10, 12, 3]], dots: [[12, 9, 4, 4], [24, 9, 4, 4]], sleepy: [[8, 10, 9, 4], [23, 10, 9, 4]] }[id];
+      return S(E.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${eye}"/>`).join('') + `<rect x="13" y="20" width="14" height="2" rx="1" fill="${eye}"/>`); }
+    if (key === 'mouth') { const M = { bar: '<rect x="12" y="19" width="16" height="2.4" rx="1" fill="E"/>', wide: '<rect x="7" y="19" width="26" height="2.4" rx="1" fill="E"/>', small: '<rect x="16" y="19" width="8" height="2.4" rx="1" fill="E"/>',
+        smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
+        grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
+      return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
+    if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
+    const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
+    return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
+  }
+  function gColRow(title, kind) {
+    const L = pv || worn(), stock = GD_KIND[kind][1], bgOf = kind === 'gEar' ? c => c.id === 'shell' ? 'conic-gradient(#eef0f2,#2f4a86,#eef0f2)' : hex(c.hex) : kind === 'gBand' ? c => c.id === 'none' ? 'linear-gradient(135deg,#2a2d33 46%,#e0453a 46%,#e0453a 54%,#2a2d33 54%)' : hex(c.hex) : null;
+    return `<div class="grSec">${title}</div><div class="grRow" id="grRow_${kind}">${colourRow(kind, L[kind], stock, bgOf)}</div>`;
+  }
+  function gColBind(P, kind) {
+    const stock = GD_KIND[kind][1], pickIt = id => tryOn(Object.assign({}, pv || worn(), { [kind]: id === stock ? null : id }));
+    for (const b of P.querySelectorAll(`#grRow_${kind} [data-col]`)) b.onclick = () => pickIt(b.dataset.col);
+    bindColourRow(P.querySelector(`#grRow_${kind}`), kind, stock, pickIt);
+  }
+  function gCardRow(title, kind, iconKey) {
+    const L = pv || worn(), stock = GD_SHAPE[kind][1], cur = L[kind] || stock;
+    return `<div class="grSec">${title}</div><div class="grRow">` + LISTS[kind].map(c => { const sel = cur === c.id;
+      return `<button class="grSkin${sel ? ' sel' : ''}" data-gcard="${kind}:${c.id}">${gdCardIcon(iconKey, c.id)}<span>${c.name}</span>${tagOf(kind, c.id, sel)}</button>`; }).join('') + '</div>';
+  }
+  function renderGideon(P) {
+    P.className = 'grList';
+    let h = '', cols = [];
+    if (tab === 'g-shell') { cols = ['gShell', 'gJoint', 'gHand']; h = gColRow('SHELL', 'gShell') + gColRow('JOINTS', 'gJoint') + gColRow('HANDS', 'gHand'); }
+    else if (tab === 'g-face') { cols = ['gEye', 'gScreen', 'gEar']; h = gColRow('EYES', 'gEye') + gCardRow('EYE SHAPE', 'gEyeShape', 'eyeShape') + gCardRow('MOUTH', 'gMouth', 'mouth') + gColRow('SCREEN', 'gScreen') + gCardRow('EARS', 'gEarStyle', 'earStyle') + gColRow('EAR COLOUR', 'gEar'); }
+    else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gColRow('BATTERY PACK', 'gPack'); }
+    else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
+    h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
+    P.innerHTML = h;
+    for (const k of cols) gColBind(P, k);
+    for (const b of P.querySelectorAll('[data-gcard]')) b.onclick = () => { const k = b.dataset.gcard.indexOf(':'), kind = b.dataset.gcard.slice(0, k), id = b.dataset.gcard.slice(k + 1);
+      tryOn(Object.assign({}, pv || worn(), { [kind]: id === GD_SHAPE[kind][1] ? null : id })); };
+    for (const b of P.querySelectorAll('[data-greset]')) b.onclick = () => { const o = {}; for (const k of GD_FIELDS) o[k] = null; tryOn(Object.assign({}, pv || worn(), o)); };
   }
 
   /* THE FLEET TAB (Sir, 2026-10-13: "make them selectable in the garage,
@@ -139833,7 +139959,7 @@ requestTpProfile();
       tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
-      renderTab(); fit();
+      syncTabs(); renderTab(); fit();
     };
   }
 
