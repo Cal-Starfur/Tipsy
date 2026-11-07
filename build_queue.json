@@ -750,7 +750,7 @@
 "title": "Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye.",
 "spec": "found by test run",
 "deps": [],
-"status": "pending",
+"status": "done",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3"
 },
