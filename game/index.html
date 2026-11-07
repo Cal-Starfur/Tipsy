@@ -29585,6 +29585,32 @@ walkinLife('Driftwood Chapel Interior', { keep: [[95, 175, 0, 600]], looks: [
   { id: 'font', spots: [[80, 530, Math.PI]] },
   { id: 'welcome', spots: [[196, 490, Math.PI/2]] },
 ] });
+/* ==================== PALMLINE NURSERY, WALK-IN (wk5; the room: the LIB entry 'Palmline Nursery Interior') ====================
+   The sales hut on the street's lines (walkinDefine, an hi landmark: the hut 340 x 280, a 658.6..998.6 x b -500..-220, the room the
+   floor of it less the walls' 30 each side -- W22: lab 688.6..968.6 x -470..-250, 280 x 220). The hut (box, roof and flue: one `shell`
+   piece) fades round him as he goes in at its front doorway (76 across, on the gate's axis, lane 100..180 in the room); the doorway's
+   plane is 6 back of the front (b -226, the wall's 30 round it). The doorway and the two front windows show the shop (walkinThrough). */
+const NURSERY_IN = walkinDefine({ name: 'Palmline Nursery Interior', from: 'Palmline Nursery', x0: 560000, y0: 400000,
+  lab: [688.6, 968.6, -470, -250], door: { a: 828.6, b: -226, half: 38 }, H: 150, out: 36, apron: 30, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door, through the front gate and along the pavement round either corner of the block) */
+  street: { to: [0, 340], routes: [[[-925, 340], [-925, 1600]], [[925, 340], [925, 1600]]] },
+  /* (seen through, W11: the doorway and the two windows -- the shell's z in the entry's units) */
+  openings: [{ lab: [[790.6, -226], [866.6, -226]], z: [0, 118] }, { lab: [[683.6, -226], [733.6, -226]], z: [50, 106], glass: true },
+             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+const NURSERY_CLERK = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
+  vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                         // the nursery's green apron (as KW_NURSERY_UNIFORM)
+const NURSERY_POTTER = { shirt: { c:0xc9a877, dk:0xa98a5c }, pants: { c:0x4a5a6a, dk:0x384553 }, shoe: { c:0x4a3a28, dk:0x35291b },
+  vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                         // a sand shirt and the same green apron
+/* its staff: the clerk behind the counter (keys), the potter at the bench (a floor of 61,600: staff only). Heading 0 faces east, PI/2
+   south, PI west: the clerk stands north of the counter and faces us, the potter east of the bench and faces it */
+walkinStaff('Palmline Nursery Interior', [
+  { id: 'counter', role: 'clerk', seed: 0x9a1701, U: NURSERY_CLERK, fixed: true, keys: true,
+    posts: [[140, 28, Math.PI/2, 8000, true], [96, 28, Math.PI/2, 4000, true]] },
+  { id: 'bench', role: 'potter', seed: 0x9a1702, U: NURSERY_POTTER,
+    posts: [[74, 124, Math.PI, 7000, true], [74, 148, Math.PI, 5000, true], [74, 110, Math.PI, 3000, true]] },
+]);
+walkinLife('Palmline Nursery Interior', { keep: [[100, 180, 0, 220]], looks: [] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
    The range is one room on the street's lines (walkinDefine, a rim site's frame: landmarkLabWorld), its shell -- the three
@@ -54102,6 +54128,125 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== INSIDE PALMLINE NURSERY (wk5: the walk-in kit, an hi landmark) ====================
+     The sales hut's one room, 280 x 220 (the exterior's box less the walls' 30: lab 688.6..968.6 x -470..-250), its doorway on the front
+     (south, room b 220..250) in the middle (a 102..178, the sliding pair 76 across; lane 100..180 to the counter). The plan is NURSERY_IN
+     (a east, b south, world units; the north wall is the back, the west wall the hut's flank; both timber, the south and east cut low):
+       b 0..30      the back wall: a pegboard of tools, shelves of seed packets and pots, the name board (painted on the wall)
+       b 52..88     the counter, a 44..220: a till turned away from us, a scale, a box of seed packets, a pot of herbs; the clerk behind it at b 28
+       a 12..52     the potting bench on the west wall (b 96..160): pots, a seed tray, a trowel, a bag of compost; the potter east of it at a 74
+       a 188..220   a three-tier plant stand (b 100..150) on the east; a watering can beside the bench; palms in tubs at the back corners
+       the two windows (a -5..45 and 235..285) and the door are the exterior's own */
+  name:'Palmline Nursery Interior', xh: 150, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 280, dd: 220,
+  head:'Inside Palmline Nursery: a plank-floored potting shed, a counter at the back, a bench of pots and a stand of plants',
+  tags:['interior','pocket','nursery','potting bench','counter','pegboard','plants'],
+  desc:'The sales hut\'s one room: timber walls with a green dado, a pegboard of tools and shelves of seed packets behind the counter, a potting bench of clay pots by the west wall, a three-tier stand of plants and palms in tubs.',
+  draw(p){
+    const pl = (typeof NURSERY_IN !== 'undefined' && NURSERY_IN) || null;
+    if(pl) pl.view();
+    const W = 280, D = 220, H = pl ? pl.H : 150, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 140, half: 38 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const tim = '#8a6f4e', trim = '#3f8a6a', trimD = '#2f6c52', pine = '#c9a877', pineD = '#a98a5c';
+    const oak = '#8a6a46', oakF = '#6f5236', oakS = '#5b432b', oakL = '#a98259';
+    const clay = '#b4674a', clayD = '#8f4f38', soil = '#5a4a30';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const pot = (ca, cb, z0, r, hh, col) => { cyl(ca, cb, z0, z0 + hh, r, clay); plateHoop(ca, cb, z0 + hh - 3, r + 1, clayD, 2); plateCircle(ca, cb, z0 + hh, r - 1, soil, soil, 1);
+      if(col) ball(ca, cb, z0 + hh + r*0.9, r*0.95, col); };
+    const GREENS = ['#4e8058', '#3f6b4a', '#568a5e', '#c26a7e', '#e8c34a'];
+    const palm = (ca, cb) => {
+      cyl(ca, cb, 0, 30, 15, '#8a5a3a'); plateCircle(ca, cb, 30, 13, soil, soil, 1);
+      cyl(ca, cb, 30, 96, 3, '#6b5a3a');
+      for(let k = 0; k < 6; k++){ const q = k*1.05; tube(ca, cb, 96, ca + 28*Math.cos(q), cb + 28*Math.sin(q), 84, 3.2, GREENS[k % 3]); ball(ca + 30*Math.cos(q), cb + 30*Math.sin(q), 80, 8, GREENS[k % 3]); }
+      ball(ca, cb, 102, 10, '#4e8058');
+    };
+
+    /* ---- THE FLOOR: plank boards along a (15 wide), a threshold and mat at the doorway (W13) ---- */
+    T(0, W, 0, D, 0, pine);
+    for(let b = 0; b < D; b += 15) T(0, W, b, b + 0.8, 0.3, pineD);
+    for(let b = 0; b < D; b += 15){ const j = (b/15 % 3)*70 + 40; T(j, j + 0.8, b, b + 15, 0.3, pineD); }
+    T(DA0, DA1, D, D + AP, 0.3, '#8a7a5e'); T(DA0 + 8, DA1 - 8, D + 4, D + AP - 6, 0.5, '#3d3a34');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    T(DA0 + 12, DA1 - 12, 168, 196, 0.5, shade(trim, 0.8)); T(DA0 + 16, DA1 - 16, 172, 192, 0.6, trim);       // the coir mat inside
+
+    /* ---- THE WALLS (the kit's): north and west full height in the exterior's boarding over a green dado, the pegboard and shelves on the
+       north one; the south and east cut low, the south with the two windows ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      winS: [[-5, 45, 46], [235, 285, 46]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, shade(tim, 1.1), null, 0, 0);
+        for(let z = 24; z < H; z += 17) F(-30, W + 30, z, z + 1.6, shade(tim, 0.78), null, 0, 0.2);          // the boarding
+        F(-30, W + 30, 0, 44, shade(trim, 0.9), null, 0, 0.3);                                                   // the green dado
+        F(-30, W + 30, 44, 50, shade(trim, 0.7), null, 0, 0.4);
+        F(-30, W + 30, 0, 8, shade(tim, 0.6), null, 0, 0.5);                                                      // the skirting
+        F(60, 220, 56, 138, shade(tim, 0.7), null, 0, 0.6);                                                       // the pegboard
+        for(let a = 66; a < 216; a += 14) for(let z = 62; z < 134; z += 14) F(a, a + 1.6, z, z + 1.6, shade(tim, 0.45), null, 0, 0.7);
+        const tool = (a, z0, z1, col) => { F(a - 1.5, a + 1.5, z0, z1, col, null, 0, 0.9); F(a - 5, a + 5, z0, z0 + 3, '#9aa3a8', null, 0, 1.0); };
+        for(const [a, z0, z1, col] of [[76, 72, 124, '#8a6a46'], [92, 78, 126, '#8a6a46'], [108, 70, 118, '#8a6a46'], [124, 74, 128, '#8a6a46']]) tool(a, z0, z1, col);
+        F(150, 166, 96, 130, '#b4674a', null, 0, 0.9); F(152, 164, 100, 128, '#9aa3a8', null, 0, 1.0);          // a can
+        F(176, 202, 90, 130, '#c26a7e', null, 0, 0.9);                                                           // a hat
+        F(-30, 54, 90, 94, oakL, null, 0, 0.9); F(-30, 54, 120, 124, oakL, null, 0, 0.9);                         // two shelves left of the pegboard
+        for(let k = 0; k < 5; k++){ F(-22 + k*13, -14 + k*13, 94, 104, ['#e8c34a', '#c26a7e', '#f2efe6', '#4e8058', '#e8c34a'][k], null, 0, 1.0); F(-23 + k*12, -13 + k*12, 124, 138, clay, null, 0, 1.0); }
+        F(W - 54, W + 30, 90, 94, oakL, null, 0, 0.9); F(W - 54, W + 30, 120, 124, oakL, null, 0, 0.9);          // and right of it
+        for(let k = 0; k < 5; k++){ F(W - 48 + k*14, W - 40 + k*14, 94, 106, clay, null, 0, 1.0); F(W - 47 + k*14, W - 41 + k*14, 106, 116, '#4e8058', null, 0, 1.1); F(W - 48 + k*14, W - 40 + k*14, 124, 134, ['#e8c34a', '#f2efe6', '#c26a7e', '#e8c34a', '#4e8058'][k], null, 0, 1.0); }
+        F(96, 184, 140, 148, trim, null, 0, 0.9); F(98, 182, 142, 146, shade(trim, 1.2), null, 0, 1.0);          // the name board
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(tim, 0.93));
+        for(let z = 24; z < H; z += 17) S(0.2, -30, D + 30, z, z + 1.6, shade(tim, 0.7));
+        S(0.3, -30, D + 30, 0, 44, shade(trim, 0.8)); S(0.4, -30, D + 30, 44, 50, shade(trim, 0.62));
+        S(0.5, -30, D + 30, 0, 8, shade(tim, 0.55));
+        S(0.6, 100, 200, 70, 74, oakL); S(0.6, 100, 200, 104, 108, oakL);                                         // two shelves of pots over the bench
+        for(let k = 0; k < 6; k++){ S(0.8, 106 + k*15, 116 + k*15, 74, 90, clay); S(0.9, 107 + k*15, 115 + k*15, 90, 98, ['#4e8058', '#c26a7e', '#4e8058', '#e8c34a', '#3f6b4a', '#c26a7e'][k]); S(0.8, 106 + k*15, 116 + k*15, 108, 120, clay); }
+      },
+      low: ['#d9c6a0', '#c9b58b', '#a99068'], cap: ['#3f8a6a', '#347358', '#2c6049'], ftop: '#4a9876', frame: '#2f6c52' });
+
+    /* ---- THE COUNTER (a 44..220, b 52..88, 82 high): a plank front on a green base, an oak top; on it a till with its keys turned to the clerk
+       (its back to us), a scale, a box of seed packets and a pot of herbs ---- */
+    items.push({ a: 132, b: 70, z: 0, solids: [solid(44, 220, 52, 88, 84, 'counter')], draw: () => {
+      box(44, 220, 52, 88, 0, 80, trim, trimD, shade(trim, 0.7));
+      box(42, 222, 50, 90, 80, 84, oakL, oak, oakF);
+      box(166, 196, 66, 80, 84, 96, '#c3cacf', '#a9b1b7', '#8f979e');                                             // the till
+      poly([P(166, 66, 98), P(196, 66, 98), P(196, 80, 108), P(166, 80, 108)], '#2b3540');                       // its keys, sloped up to the south (its face to the clerk)
+      poly([P(170, 68, 100), P(192, 68, 100), P(192, 78, 106), P(170, 78, 106)], '#d9dfe3');
+      box(72, 96, 64, 78, 84, 88, '#9aa3a8', '#7d868b', '#6a7378'); box(82, 86, 66, 70, 88, 100, '#7d868b', '#6a7378', '#5a6368');   // a scale
+      box(110, 140, 62, 76, 84, 96, '#f4f1e8', '#e2ddcf', '#cfc9b9');                                             // a box of seed packets
+      for(let k = 0; k < 5; k++) box(112 + k*5.5, 116 + k*5.5, 64, 74, 96, 100 + (k % 2)*3, ['#e8c34a', '#c26a7e', '#f2efe6', '#4e8058', '#e8c34a'][k], '#cfcabb', '#b0cdd2');
+      pot(54, 70, 84, 8, 14, '#568a5e');
+    }});
+
+    /* ---- THE POTTING BENCH on the west wall (a 12..52, b 96..160, 76 high): a plank top on trestles, pots, a seed tray, a trowel, a bag of
+       compost ---- */
+    items.push({ a: 32, b: 128, z: 0, solids: [solid(12, 52, 96, 160, 80, 'potting bench')], draw: () => {
+      for(const bb of [100, 156]){ box(14, 50, bb - 2, bb + 2, 0, 72, oak, oakF, oakS); }
+      box(12, 52, 96, 160, 72, 77, oakL, oak, oakF);
+      for(const [ca, cb] of [[24, 106], [40, 108], [24, 124], [38, 126]]) pot(ca, cb, 77, 7, 13, GREENS[(ca + cb) % 5]);
+      box(18, 46, 138, 154, 77, 81, '#7a6a52', '#5f5240', '#4d4333'); for(let k = 0; k < 4; k++) for(let j = 0; j < 2; j++) ball(23 + k*7.5, 143 + j*8, 85, 3.4, '#4e8058');   // a seed tray
+      box(16, 24, 132, 136, 77, 79, '#9aa3a8', '#7d868b', '#6a7378');                                              // a trowel
+    }});
+    /* a watering can on the floor beside it (a 62, b 150) */
+    items.push({ a: 62, b: 150, z: 0, solids: [{ name: 'watering can', c: [62, 150], r: 9, h: 24 }], draw: () => {
+      cyl(62, 150, 0, 22, 8, '#9aa3a8'); plateCircle(62, 150, 22, 7, '#4a7a96', '#4a7a96', 1); tube(62, 150, 12, 74, 150, 28, 2.2, '#9aa3a8');
+    }});
+
+    /* ---- THE PLANT STAND on the east (a 188..220, b 100..150, three tiers, the top 62 high), the pots on each ---- */
+    items.push({ a: 204, b: 125, z: 0, solids: [solid(188, 220, 100, 150, 66, 'plant stand')], draw: () => {
+      for(const [z, a0] of [[0, 188], [22, 196], [44, 204]]){
+        box(a0, 220, 100, 150, z + 16, z + 21, oakL, oak, oakF);
+        for(const aa of [a0 + 2, 218]) for(const bb of [102, 148]) cyl(aa, bb, z, z + 16, 2, oakF);
+      }
+      for(let j = 0; j < 4; j++){ pot(197, 108 + j*13, 21, 5, 10, GREENS[j % 5]); pot(207, 108 + j*13, 43, 5, 10, GREENS[(j + 2) % 5]); pot(214, 108 + j*13, 65, 4.5, 9, GREENS[(j + 4) % 5]); }
+    }});
+    items.push({ a: 24, b: 36, z: 0, solids: [{ name: 'palm tub', c: [24, 36], r: 15, h: 110 }], draw: () => palm(24, 36) });
+    items.push({ a: 256, b: 36, z: 0, solids: [{ name: 'palm tub', c: [256, 36], r: 15, h: 110 }], draw: () => palm(256, 36) });
+
+    walkinStaffSolids(items, 'Palmline Nursery Interior');
+    depthSort(items);
+  }
+},
+{
   /* ==================== SUN DECK MOTOR LODGE, THE OFFICE (the walk-in: MOTEL_IN, MOTEL_ROOM) ====================
      420 x 340, world units, a east, b south; the glass door on the south wall at a 110. A 1958 lobby: terrazzo with
      brass strips, cream walls over a turquoise band; the check-in desk in the north-east corner, an L round the clerk
@@ -63997,7 +64142,7 @@ function houseCanopy(fn){
      the ways in. Trees and small stock are props. */
   vol: (() => {
     const LOT = 1656, OA = 303.6, GB = -300, GAP0 = 780, GAP1 = 876, R = volRect;
-    const hA0 = 385+OA, hA1 = 665+OA, hB0 = -220, hB1 = -440;
+    const hA0 = 355+OA, hA1 = 695+OA, hB0 = -220, hB1 = -500;
     const rA = (bb, a0, a1) => ({ poly: R(a0-7, a1+7, bb-7, bb+7), h: 40 }), rB = (aa, b0, b1) => ({ poly: R(aa-7, aa+7, b1-7, b0+7), h: 40 });
     const solids = [
       rA(-LOT+18, 18, GAP0), rA(-LOT+18, GAP1, LOT-18), rA(-18, 18, GAP0), rA(-18, GAP1, LOT-18),
@@ -64008,8 +64153,16 @@ function houseCanopy(fn){
     for(let r=0;r<7;r++) for(let c=0;c<5;c++) solids.push({ c: [70 + c*90, -70 - r*110], r: 14, h: 140, prop: true });   // the grove
     for(let r=0;r<6;r++) for(const ta of [70, 170, 270]) solids.push({ c: [ta, -930 - r*110], r: 14, h: 140, prop: true });
     for(let r=0;r<3;r++) for(let c=0;c<20;c++){ const sa = 60 + c*78; if(!(sa > GAP0-30 && sa < GAP1+30)) solids.push({ c: [sa, -1600 + r*90], r: 12, h: 50, prop: true }); }
-    return { foot: R(hA0, hA1, hB1, hB0), h: 150, solids };
+    /* (the doorway opens across its 76 and 30 deep into the front wall -- the room's own wall: NURSERY_IN -- so he drives up to the glass where the room takes him) */
+    const DA0 = 490+OA, DA1 = 566+OA, DN = hB0-30;
+    return { foot: [[hA0,hB0],[DA0,hB0],[DA0,DN],[DA1,DN],[DA1,hB0],[hA1,hB0],[hA1,hB1],[hA0,hB1]], h: 150, solids };
   })(),
+  /* THE SALES HUT IS A WALK-IN (wk5, NURSERY_IN): its doorway, 76 across on the gate's axis, a live sliding pair set 6 back of the front; the doorway
+     and the two windows show the shop (walkinThrough); a lantern either side of the door glows at night */
+  slideDoors: [{ a: 490+303.6, w: 76, b: -226, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#3f8a6a'); },
+  see: true,
+  lamps: [{ a: 771.6, b: -214, z: 132, r: 80, col: 0xffe2a8 }, { a: 891.6, b: -214, z: 132, r: 80, col: 0xffe2a8 }],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   cTodo:'fence line, sales hut and two glasshouses need volumes; the yard itself is drivable',
   head:'Garden centre on a whole block: small hut, big yard, two glasshouses',
@@ -64093,7 +64246,7 @@ function houseCanopy(fn){
     /* ---- the ground: gravel, then the cross of paths on top of it ---- */
     T(0, LOT, -LOT, 0, 0, '#b3aa93');
     T(GAP0, GAP1, -220, 0, 0.5, '#d6d0bd');       // front gate to the hut door
-    T(GAP0, GAP1, -LOT, -440, 0.5, '#d6d0bd');    // back gate to the hut
+    T(GAP0, GAP1, -LOT, -500, 0.5, '#d6d0bd');    // back gate to the hut
     T(0, LOT, -GAP1, -GAP0, 0.5, '#d6d0bd');
 
     /* ---- the boundary, and the four gates ----
@@ -64194,7 +64347,7 @@ function houseCanopy(fn){
       }
       ball(ta, tb, th+6, 15, '#4e8058');
     } });
-    const hA0 = 385+OA, hA1 = 665+OA, hB0 = -220, hB1 = -440, hH = 150, FB = hB0 + 0.5;
+    const hA0 = 355+OA, hA1 = 695+OA, hB0 = -220, hB1 = -500, hH = 150, FB = hB0 + 0.5;   // (wk5: 340 x 280, so the room inside is 280 x 220 -- NURSERY_IN)
     /* the tree fields down the sides, behind the cross walk */
     if(state.props) for(let r=0;r<6;r++) for(const ta of [70, 170, 270]){
       const tb = -930 - r*110;
@@ -64238,19 +64391,27 @@ function houseCanopy(fn){
        280 x 220, timber, with a plain overhanging roof. Door and
        windows are drawn on the b = -220 face, which is the one turned
        toward the front street, at a b just proud of it. */
-    items.push({ a: (hA0+hA1)/2, b: (hB0+hB1)/2, draw: () => {
+    items.push({ a: (hA0+hA1)/2, b: (hB0+hB1)/2, shell: true, draw: () => {   // (shell: the shop inside, NURSERY_IN)
     box(hA0, hA1, hB1, hB0, 0, hH, shade(tim,1.1), tim, shade(tim,.78));
     slab(hA0-14, hA1+14, hH, hH+14, hB0+14, hB1-14, shade(trim,.9), null, shade(trim,1.1));
     F(hA0+4, hA1-4, 0, 20, shade(tim,.72), null, 0, FB);           // plinth
     for(let k=0;k<7;k++)                                            // boarding
       F(hA0+4, hA1-4, 24+k*17, 26+k*17, shade(tim,.86), null, 0, FB+0.2);
-    F(494+OA, 556+OA, 0, 108, '#2b2118', null, 0, FB+0.4);          // the doorway, on 525
-    F(498+OA, 552+OA, 0, 82, trim, null, 0, FB+0.9);                // leaf
-    F(498+OA, 552+OA, 84, 104, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
-    F(544+OA, 548+OA, 40, 52, '#d8c28a', null, 0, FB+1.2);          // handle
-    for(const w0 of [430+OA, 620+OA]){                              // two windows
+    /* the doorway, on 525: 76 across (490..566), two jambs and a head round the opening, the shop behind it (NURSERY_IN) */
+    F(484+OA, 490+OA, 0, 126, shade(trim,.9), null, 0, FB+0.4);
+    F(566+OA, 572+OA, 0, 126, shade(trim,.9), null, 0, FB+0.4);
+    F(484+OA, 572+OA, 118, 126, shade(trim,.9), null, 0, FB+0.4);
+    if(SEE) HOLE([P(490+OA,hB0-6,118),P(566+OA,hB0-6,118),P(566+OA,hB0-6,0),P(490+OA,hB0-6,0)]);     // (the opening shows the shop; its live pair, slideDoors)
+    else {
+      F(490+OA, 566+OA, 0, 118, '#2b2118', null, 0, FB+0.4);
+      F(494+OA, 562+OA, 0, 82, trim, null, 0, FB+0.9);                // leaf
+      F(494+OA, 562+OA, 84, 114, 'rgba(122,158,178,.72)', null, 0, FB+0.7); // fanlight
+    }
+    for(const la of [468+OA, 588+OA]){ cyl(la, hB0+6, 126, 142, 4, trim); ball(la, hB0+6, 146, 6, '#fff0c8'); }   // a lantern either side
+    for(const w0 of [405+OA, 645+OA]){                              // two windows
       slab(w0-30, w0+30, 44, 112, FB+1, FB-7, shade(trim,.9));
-      F(w0-25, w0+25, 50, 106, 'rgba(122,158,178,.72)', null, 0, FB+1.6);
+      if(SEE) HOLE([P(w0-25,hB0-6,106),P(w0+25,hB0-6,106),P(w0+25,hB0-6,50),P(w0-25,hB0-6,50)]);
+      F(w0-25, w0+25, 50, 106, 'rgba(122,158,178,.42)', null, 0, FB+1.6);
       F(w0-1.5, w0+1.5, 50, 106, shade(trim,.9), null, 0, FB+2);
     }
     poly([P(hA1+0.5,hB0,0),P(hA1+0.5,hB1,0),P(hA1+0.5,hB1,hH),P(hA1+0.5,hB0,hH)], shade(tim,.86));
