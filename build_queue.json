@@ -997,13 +997,14 @@
 },
 {
 "id": "gd4c",
-"title": "Gideon's Outfit tab: aprons, scarves, vests, badges, glasses, backpack styles (worn over the shell, shown in the street and the cafe)",
+"title": "Gideon's Outfit tab: apron, vest, scarf, bow tie, tie, 5 badges, 5 glasses, and 5 pack styles (Band & pack tab), each in any colour, on Tipsey's paint system",
 "spec": "docs/gideon-dock.md",
 "group": "Gideon's pad",
 "deps": [
 "gd4"
 ],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
 },
 {
 "id": "gd4d",
