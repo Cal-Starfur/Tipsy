@@ -273,8 +273,9 @@
 "title": "Palmline Tower key + vol, forecourt out of its one image",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: buildings"
+"status": "built",
+"group": "Consistency pass: buildings",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5064,-560&view=3"
 },
 {
 "id": "v1",

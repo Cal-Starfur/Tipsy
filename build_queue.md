@@ -86,7 +86,7 @@ graph LR
 
 ## Consistency pass: buildings
 - [?] `b1` Tide Pool Elementary in pieces (U1k/U1c) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=22900,-700&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
-- [ ] `b2` Palmline Tower key + vol, forecourt out of its one image [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `b2` Palmline Tower key + vol, forecourt out of its one image [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5064,-560&view=3) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: vehicles
 - [ ] `v1` One vehicleSolid(kind) for the ten parked-car boxes [docs/state/CONSISTENCY_PASS.md#still-to-do]

@@ -24083,20 +24083,21 @@ const TPE_PLAN = {
      two end strips: the west one is a school garden (raised beds, two portable classrooms, a row of trees), the east one a track and
      pitch with a goal at each end. No lawn: earth, the terracotta track, planting only in beds. */
   field: { cx: 8780, cy: -830, rx: 520, ry: 440, tw: 55 },
-  beds: [[200, -520], [360, -520], [520, -520], [200, -660], [360, -660], [520, -660]],
-  portables: [[110, 530, -1130, -1000], [110, 530, -1330, -1200]],
+  beds: [],                                      // (the garden beds are gone: the west strip is the playground)
+  portables: [[70, 450, -1130, -1000], [560, 940, -1130, -1000]],   // side by side along the garden (they stood one behind the other, 70 apart, and read as stacked)
   backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
+  VERGE: { a0: 14, a1: 1160, b0: -92, b1: 0 },    // the sidewalk row against the west strip's front fence, laid as lawn (fillSchoolVerge)
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
-  trees: [[420,-300],[900,-450],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
+  trees: [[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
   flag: [2260, -120],
   GYM1: 7700,                                    // where the gym ends and the art room begins, in the east wing
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
      the west wing, the hoops at the east wing's court, the games, the bike racks, the planters by the porch */
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
-  swing: { a0: 1340, a1: 1600, b: -180 }, sand: { a0: 1670, a1: 1800, b0: -230, b1: -130 }, slide: { a: 1900, b: -190 }, dome: [2150, -170, 62],
+  swing: { a0: 190, a1: 450, b: -300 }, sand: { a0: 600, a1: 730, b0: -640, b1: -560 }, slide: { a: 190, b: -660 }, dome: [900, -330, 62],   // the playground takes the whole west strip, each piece with room round it
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
   racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
 };
@@ -26267,7 +26268,20 @@ POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_I
    lobby's west or east; PALMLINE_PLAN is the podium's front, which the
    'Palmline Tower' entry draws from, so the door you see is the door the
    worker comes out of. */
-const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426 };
+const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
+  LEN: 2392, DEP: 940, PB: -900, PH: 190,                       // the lot, the podium's back and its roof
+  TA0: 340, TA1: 2052, TB: -820, TF: -300, TOP: 190 + 12*80, CROWN: 190 + 12*80 + 90 };   // the tower, set back on it (the draw and palmlineVol both read these)
+/* PALMLINE TOWER'S VOLUME (consistency pass b2): the podium and the tower are the solids; the forecourt in front of the shops is
+   GROUND now (it was inside the run's one solid rect), so Tipsey drives up to the shops' glass and the lobby. The podium's foot is
+   carried back to the lot's far edge (nobody drives round behind it); its two 60-wide side strips stay open to the forecourt. */
+function palmlineVol(){
+  const P = PALMLINE_PLAN, R = volRect;
+  return { foot: R(P.PA0, P.PA1, -P.DEP, P.PF), h: P.PH + 6, marks: {}, solids: [
+    { name: 'podium', poly: R(P.PA0, P.PA1, -P.DEP, P.PF), h: P.PH + 6 },
+    { name: 'tower', poly: R(P.TA0, P.TA1, P.TB, P.TF), h: P.CROWN },
+    ...[420, P.LOB0 - 60, P.LOB1 + 60, P.LEN - 400].map(a => ({ name: 'roof planter', poly: R(a - 60, a + 60, P.PF - 66, P.PF - 14), h: P.PH + 22 }))
+  ] };
+}
 const RIM_STORES = [
   { brand: "Coral Cafe",  base: "Coffee roaster", sign: "CORAL CAFE",  goods: "COFFEE",  col: "#c4603a", site: "Palmline Tower", side: "W", menu: "coffee" },
   { brand: "Marina Deli", base: "Deli",           sign: "MARINA DELI", goods: "DELI",    col: "#3f6b4a", site: "Palmline Tower", side: "E", menu: "deli" }
@@ -70467,8 +70481,14 @@ marinaEntry(),
       for(let b = BB1 + 24; b < -170; b += 24) T(PL.EA0 - 64, PL.EA1 + 64, b, b + 1.2, 0.9, paveE);
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
+    /* THE BACK YARD OF THE WEST STRIP, behind the playground and the portables: grass (Sir, 2026-11-07: "i want this back yard to be grass
+       not sand"), the ground pass's bare lot painted over in two greens, in 80 squares */
+    { const x0 = 24, x1 = 1186, y0 = -1868, y1 = -992;
+      T(x0, x1, y0, y1, 0.4, '#4a7a48');
+      for(let a = x0, i = 0; a < x1; a += 80, i++) for(let b = y0, j = 0; b < y1; b += 80, j++) if((i + j) % 2) T(a, Math.min(a + 80, x1), b, Math.min(b + 80, y1), 0.45, '#528552');
+    }
     /* the playground: a terracotta rubber floor in a teal edging, the sandbox, and the games' lines on it */
-    { const x0 = 1290, x1 = 2236, y0 = -292, y1 = -44;
+    { const x0 = 100, x1 = 1110, y0 = -992, y1 = -140;   // (kept clear of the street fence and the wing's end: a grass margin round it)
       T(x0, x1, y0, y1, 0.6, '#2f7f86'); T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, 0.65, '#b3654f');
       for(let k = 0; k < 6; k++) T(x0 + 40 + k*140, x0 + 40 + k*140 + 60, y0 + 10, y0 + 16, 0.7, '#c97a62');     // its pattern
     }
@@ -72203,12 +72223,14 @@ marinaEntry(),
    tower (behind the podium's front, over its roof), then the podium front
    and the awnings that stand out over the apron. Each run of
    it asks inView first, so the tiles of this image (it is taller than one)
-   paint only their own share. No vol: the run stays one solid rect, as the
-   school's did before it declared one. No lawn (CLAUDE.md): paved, green
+   paint only their own share. In PIECES now (b2): the apron is the ground image, and the
+   roof, the tower, the shopfront and each awning are items, depth-sorted; palmlineVol is its volume. No lawn (CLAUDE.md): paved, green
    only in the planters. ---- */
 {
-  name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true,
+  name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 2392, dd: 940,
+  groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
+  vol: palmlineVol(),
   head:'Palmline Tower, the rim lot west of the garage',
   tags:['one-lot footprint','retail podium','two pickup shops','office lobby','twelve office floors','plant crown and mast'],
   desc:"A glass office tower on the rim lot west of the Maritime Mall garage: a stone retail podium with two shops under striped awnings, Coral Cafe and Marina Deli, and a double-height lobby, and twelve floors of sea-green curtain wall set back above it, crowned with the tower's name and a mast.",
@@ -72221,6 +72243,7 @@ marinaEntry(),
     const stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c';
     const glass = '#5f8fa3', glassL = '#86b4c4', glassD = '#4b7688', mull = '#e6ebec', spand = '#d6d0c0';
     const pave = '#d8d2c4';
+    const items = [];
 
     /* ---- THE APRON: paved to the pavement, a band at the kerb ---- */
     if(inView(0, LEN, -DEP, 0, 0, 1)){
@@ -72230,6 +72253,7 @@ marinaEntry(),
     }
 
     /* ---- THE PODIUM: roof and seen end ---- */
+    items.push({ a: PA0, b: PB, view: true, fpLab: { a0: PA0, a1: PA1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
     if(inView(PA0, PA1, PB, PF, 0, PH + 30)){
       T(PA0, PA1, PB, PF, PH, '#bdb6a8');
       if(FLANK_RIGHT){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
@@ -72240,12 +72264,14 @@ marinaEntry(),
         for(let s = 0; s < 3; s++) ball(a - 40 + s*40, -195, PH + 34, 16, s % 2 ? '#4f7a4a' : '#5f8f58');
       }
     }
+    } });
 
     /* ---- THE TOWER ---- */
     const seenA = FLANK_RIGHT ? TA1 : TA0;
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+    items.push({ a: TA0, b: TB, view: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -72287,6 +72313,7 @@ marinaEntry(),
       cyl(ma, mb, CROWN, CROWN + 220, 5, '#9aa3a8');
       ball(ma, mb, CROWN + 226, 7, '#d8483a', '#ff8a7a');
     }
+    } });
 
     /* ---- THE PODIUM FRONT: the stone, two shops and the lobby ----
        TWO STORES, ONE EACH SIDE OF THE LOBBY (Sir, 2026-10-08): their
@@ -72294,6 +72321,9 @@ marinaEntry(),
        PALMLINE_PLAN, which the pickups read too -- the worker walks out of
        the door drawn here */
     const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
+    const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
+    const slots = stores.map(palmlineStoreSpan);
+    items.push({ a: PA0, b: PF, view: true, fpLab: { a0: PA0, a1: PA1, b0: PF - 2, b1: PF + 8, z1: PH + 90 }, draw: () => {
     /* PLANTERS ALONG THE ROOF'S FRONT EDGE (Sir, 2026-10-08: "lets move
        these lower planters up"), over the shops rather than out on the
        apron: the roof's own style, after the tower (they stand in front
@@ -72303,8 +72333,6 @@ marinaEntry(),
       box(a - 60, a + 60, PF - 66, PF - 14, PH, PH + 22, stoneL, stone, stoneD);
       for(let s = 0; s < 3; s++) ball(a - 36 + s*36, PF - 40, PH + 34, 15, s % 2 ? '#4f7a4a' : '#5f8f58');
     }
-    const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
-    const slots = stores.map(palmlineStoreSpan);
     if(inView(PA0, PA1, PF, PF, 0, PH)){
       F(PA0, PA1, 0, PH, stone, null, 0, PF);
       F(PA0, PA1, GH, GH + 8, stoneL, null, 0, PF + 0.3);            // the string course over the shops
@@ -72369,9 +72397,10 @@ marinaEntry(),
         blockWordIn('PALMLINE TOWER', LOB0 + 30, LOB1 - 30, GT + 6, PH - 12, PF + 6.2, '#fbf7ee', null);
       }
     }
+    } });
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
     const AO = 40;                                                  // how far an awning stands out
-    slots.forEach(([a0, a1], k) => {
+    slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
       for(let s = 0; s < n; s++){
@@ -72382,13 +72411,15 @@ marinaEntry(),
       if(st.goods) blockWordIn(st.goods, c0 + 200, c1 - 200, zb - 7, zb - 1, PF + AO + 0.3, '#f3ecdc', null, 1.3);
       const endA = FLANK_RIGHT ? c1 : c0;
       poly([P(endA, PF, zt), P(endA, PF + AO, zb), P(endA, PF + AO, zb - 8), P(endA, PF, zt - 4)], shade(col, .6));
-    });
+    } }));
     /* the lobby's canopy: one slim slab out over its doors, cantilevered
        off the glass -- no posts, no rods */
+    items.push({ a: LOB0 + 40, b: PF + 48, view: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
     if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
       slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
       F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
-    }
+    } } });
+    depthSort(items);
     kerb(p,'none');
   }
 },
@@ -87792,7 +87823,7 @@ function tpeYardCast(){
     kid('soccer-3', 'A', tpeShuttle(F0.cx + 340, F0.cy - 100, F0.cx + 90, F0.cy + 120, 12500, 0.08, 7000));
     kid('soccer-4', 'A', tpeShuttle(F0.cx + 180, F0.cy + 40, F0.cx + 380, F0.cy - 60, 9000, 0.12, 1500));
     kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
-    [PL.beds[1], PL.beds[4]].forEach(([ba, bb], i) => kid('garden-' + i, 'B', now => ({ a: ba + 10, b: bb + 44, z: 0, th: -Math.PI/2, moving: false, pose: { lift: [0.65 + 0.1*Math.sin(now/800 + i), 0.65], bend: [1.2, 1.2] } }))); }
+  }
   PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
   return (TPE_Y.list = L);
 }
@@ -95580,6 +95611,17 @@ class WorldScene extends Phaser.Scene {
      surface in rings from the rim to the floor, each facet shaded by the way it faces and drawn far to near (the ones
      turned from the eye left out: the lip hides them), the pool tile under the rim, the coping along its far side (the
      near side's is the lip's), the drain (the lawn round the pad is the park's own: no plate of grass) */
+  /* THE WEST STRIP'S FRONT VERGE (Sir, 2026-11-07: "an extra lane of grey sidewalk that should be green grass ... extend the existing grass"):
+     the sidewalk row against the playground's fence, laid as the world's own lawn -- fillBlockInterior with GRASS on the world lattice, so it
+     is the same two greens in the same checker as the lawn beside it (it paints after the roads and sidewalks, like the merged parks' grass) */
+  fillSchoolVerge(g){
+    const site = HOOD_RIM_SITES.find(q => q.name === "Tide Pool Elementary");
+    if(!site) return;
+    const fr = hoodRimFrame(site), V = TPE_PLAN.VERGE, p0 = fr.toWorld(V.a0, V.b0), p1 = fr.toWorld(V.a1, V.b1);
+    const rect = { x0: Math.min(p0.x, p1.x), x1: Math.max(p0.x, p1.x), y0: Math.min(p0.y, p1.y), y1: Math.max(p0.y, p1.y) };
+    if(Math.abs(this.camX - (rect.x0 + rect.x1)/2) + Math.abs(this.camY - (rect.y0 + rect.y1)/2) > (this.vpW() + this.vpH())/this.K + 1600) return;
+    this.fillBlockInterior(g, rect, GRASS);
+  }
   fillSkateGround(g){
     const P = SK_PLAN;
     if(Math.abs(this.camX - P.CX) + Math.abs(this.camY - P.CY) > (this.vpW() + this.vpH())/this.K + 2400) return;
@@ -98039,6 +98081,7 @@ class WorldScene extends Phaser.Scene {
     this.fillParkTrail(g);                  // Veterans Memorial Park's chips, over its grass (see vetTrailOf)
     this.fillFireYardGround(g);             // THE FLATS FIRE TRAINING YARD's concrete, drill lane, hoses and apron (FY_PLAN)
     this.fillSkateGround(g);                // DRIFTWOOD SKATE PARK's pad and its bowl (SK_PLAN)
+    this.fillSchoolVerge(g);                // TIDE POOL ELEMENTARY's west strip: the sidewalk row against its fence is lawn (TPE_PLAN.VERGE)
     this.fillPawPointGround(g);             // PAW POINT DOG PARK's run, pen, path and slabs (PP_PLAN)
     cplFillGround(this, g);                 // THE COSTA PALMA LETTERS' gravel: the walk to the stair, the shelf path
     this.fillSecPostGround(g);              // VISTA RIDGE SECURITY POST's gravel, drive, forecourt and dock (SP_PLAN)
@@ -104497,7 +104540,7 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: q.x + q.y + 0.5, fn: (g) => LIB.drawItem(rim.name, g, G, this.K, { draw: () => _ent.arm(pa, -60, tipA, gateArmLift(key)) }, fr.flank) });
         }
       } else
-      vq.push({ depth: fr.ox + fr.oy, fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + _cut, fr.ox, fr.oy, gg => {
+      vq.push({ depth: fr.ox + fr.oy + ((_ent && _ent.groundAt) || 0), fn: (g) => this.bcDraw(g, "rim|" + rim.name + _sk + _cut, fr.ox, fr.oy, gg => {
         LIB.setView(this.vpW(), this.vpH());
         GARAGE_DECK_DRAW = deck;
         try { items ? LIB.ground(rim.name, gg, G, this.K, fr.flank) : LIB.draw(rim.name, gg, G, null, this.K, null, fr.flank); }
@@ -104534,8 +104577,8 @@ class WorldScene extends Phaser.Scene {
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
         if(sk < 0.002) return;
         vq.push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
-          gg => { if(it.occ) LIB.setView(this.vpW(), this.vpH());
-                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
+          gg => { if(it.occ || it.view) LIB.setView(this.vpW(), this.vpH());
+                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
       });
       /* ITS GATES, which swing (RIM_GATES): cached shut or open, live
          only while they move */
