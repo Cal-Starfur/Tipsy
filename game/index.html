@@ -45245,7 +45245,9 @@ function slab(a0,a1,z0,z1,bFront,bBack,front,side,top){
    same treatment are culled before they are ever asked about. */
 function prism(pts, b0, b1, front, side, top){
   const n = pts.length;
-  const o = P(0,b0,0), q1 = P(0,b1,0);
+  /* (probed at the outline's own a, not at 0: only b0 against b1 is compared, and a probe at the site's origin read as a point of
+     the piece -- every pediment and gable stretched its footprint back to a = 0, Sir's U1c audit) */
+  const o = P(pts[0][0],b0,0), q1 = P(pts[0][0],b1,0);
   const nb = q1.y > o.y ? b1 : b0, fb = q1.y > o.y ? b0 : b1;
   const area = q => { let A = 0;
     for(let k=0;k<q.length;k++){ const p = q[k], r = q[(k+1)%q.length];
@@ -72122,7 +72124,9 @@ marinaEntry(),
        gates read too. */
     const PL = TPE_PLAN, LEN = PL.LEN, DEP = PL.DEP;
     /* nothing when none of it can show, as the mall (2026-09-30) */
-    if(!inView(0, LEN, -DEP, 0, 0, 700)) return;
+    /* (the ground pass -- state.emit set, the standing items left to their own pieces -- is only the paving: culled as flat, so its
+       footprint is the paving's and not a slab 700 tall round every piece, Sir's U1 audit) */
+    if(!inView(0, LEN, -DEP, 0, 0, state.emit ? 2 : 700)) return;
     const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = PL.H, WH = PL.WH;
     const tar = '#6e6f6b', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
     const MA0 = PL.MA0, MA1 = PL.MA1, WA = PL.WA, WB = PL.WB;  // main range and the two wings

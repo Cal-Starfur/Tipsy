@@ -85,7 +85,7 @@ graph LR
 - [?] `d5` Kai + surf stand door; Low Tide Music door faces away [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4900,11450&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: buildings
-- [ ] `b1` Tide Pool Elementary in pieces (U1k/U1c) [docs/state/CONSISTENCY_PASS.md#still-to-do]
+- [?] `b1` Tide Pool Elementary in pieces (U1k/U1c) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=22900,-700&view=2) [docs/state/CONSISTENCY_PASS.md#still-to-do]
 - [ ] `b2` Palmline Tower key + vol, forecourt out of its one image [docs/state/CONSISTENCY_PASS.md#still-to-do]
 
 ## Consistency pass: vehicles

@@ -264,8 +264,9 @@
 "title": "Tide Pool Elementary in pieces (U1k/U1c)",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: buildings"
+"status": "built",
+"group": "Consistency pass: buildings",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=22900,-700&view=2"
 },
 {
 "id": "b2",
