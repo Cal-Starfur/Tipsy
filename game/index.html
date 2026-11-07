@@ -51356,19 +51356,23 @@ function houseCanopy(fn){
       for(const [t, len] of [[0.25, 30], [0.5, 24], [0.75, 18]]){ const a = A(44 + 44*t), b = B(6 + 4*t), z = 128 + 4*t; tube(a, b - len/2, z, a, b + len/2, z, 1.4, '#c4cbd1'); }  // the elements
       tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
       tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36');   // the cable, snapped
-      cyl(A(-20), B(56), 0.5, 2.5, 3, copper, '#e8a550'); } });
+      cyl(A(-20), B(56), 0.5, 2.5, 3, copper, '#e8a550');
+      for(const [da, db, dz] of [[-24, 58, 6], [-17, 60, 9], [-21, 52, 11]]) tube(A(-20), B(56), 2, A(da), B(db), 2 + dz, 0.5, '#ffd25a');   // sparks off the snapped end
+      tube(A(44), B(6), 128, A(52), B(16), 100, 1.2, '#c4cbd1'); tube(A(70), B(8), 131, A(80), B(20), 104, 1.2, '#c4cbd1'); } });   // two elements hanging off the bend
     /* ... and mended (MINDING THE SHOP, the repair): the new bracket on the plate, the mast standing straight to 150 with its elements
        along the top, the guy wires taut, the cable up the mast with its screw-on connector */
-    rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 150 }], draw: () => {
+    rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 230 }], draw: () => {
       const A = d => ma + d, B = d => mb + d;
       box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
       box(A(-12), A(12), B(-12), B(12), 5, 16, copper, copperD, '#8c5618');                    // the new bracket
       for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
-      tube(A(0), B(0), 5, A(0), B(0), 150, 3.6, steel);                                        // the mast, straight
-      for(const [z, len] of [[146, 34], [130, 28], [114, 22]]) tube(A(0), B(0) - len/2, z, A(0), B(0) + len/2, z, 1.4, '#c4cbd1');   // the elements
-      tube(A(0), B(0), 100, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 100, A(-60), B(70), 0, 0.6, '#4a4f55');
-      tube(A(4), B(4), 16, A(4), B(4), 140, 1.2, '#2a2f36');                                   // the cable, up the mast
-      cyl(A(4), B(4), 136, 142, 3, copper, '#e8a550'); } });
+      tube(A(0), B(0), 5, A(0), B(0), 230, 4.6, '#b9c2c9');                                    // the mast, tall and straight
+      for(const [z, len, th] of [[222, 70, 2.2], [196, 58, 2], [170, 46, 1.8], [144, 36, 1.6]]) tube(A(0), B(0) - len/2, z, A(0), B(0) + len/2, z, th, '#f2f6f8');   // the elements, bright, a full Yagi
+      for(const z of [222, 196, 170, 144]) tube(A(0), B(0) - 3, z, A(0), B(0) + 3, z, 3.4, '#8d979f');                         // their clamps
+      tube(A(0), B(0), 150, A(-70), B(-80), 0, 0.8, '#6e757c'); tube(A(0), B(0), 150, A(80), B(-70), 0, 0.8, '#6e757c'); tube(A(0), B(0), 150, A(-70), B(80), 0, 0.8, '#6e757c');   // the guys, taut
+      tube(A(5), B(5), 16, A(5), B(5), 214, 1.3, '#2a2f36');                                   // the cable, up the mast
+      cyl(A(5), B(5), 196, 204, 3.2, copper, '#e8a550');                                       // the screw-on connector
+      ball(A(0), B(0), 234, 4.4, '#ffb347', '#ffe2a8'); } });
     }
     /* ---- THE SHELL'S OWN ROOF UNITS (baked into its roof art: a long slab on the south side, a box by the east cup sign) solid, found by
        measuring them off the picture ---- */
