@@ -400,8 +400,9 @@
 "title": "Dune Home & Garden",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2"
 },
 {
 "id": "wk2",
