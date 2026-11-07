@@ -51204,18 +51204,14 @@ function houseCanopy(fn){
       items.push({ a: 606, b: 230, z: 0, when: night, draw: () => {
         T(604, 616, 70, 390, 0.4, 'rgba(255,190,90,.20)'); T(604, 640, 70, 390, 0.3, 'rgba(255,190,90,.07)');
         T(560, 604, 346, 372, 96 + 12.2, 'rgba(120,255,160,.16)'); } }); }
-    /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): a pad on the back room's floor, like Tipsey's in his garage -- the humanoid's own station,
-       where he starts and ends as the player. A dark slab with a lighter inset, its ring of copper studs, the two contact plates his feet
-       find and a status strip along its front edge (green: charged; amber: charging -- live later). a 90..158, b 232..300; he stands at (124, 266). */
-    { const PA0 = 90, PA1 = 158, PB0 = 232, PB1 = 300, PC = [(PA0 + PA1)/2, (PB0 + PB1)/2], ok = '#5be37d';
-      items.push({ a: PC[0], b: PC[1], z: 0, solids: [], draw: () => {
-        T(PA0, PA1, PB0, PB1, 0.7, '#2b3138'); T(PA0 + 4, PA1 - 4, PB0 + 4, PB1 - 4, 0.8, '#3a444d');
-        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2, ca = PC[0] + Math.cos(t)*26, cb = PC[1] + Math.sin(t)*26; box(ca - 2, ca + 2, cb - 2, cb + 2, 0.8, 2.2, copper, copper, copperD); }
-        T(PC[0] - 12, PC[0] - 5, PC[1] - 5, PC[1] + 5, 0.9, copper); T(PC[0] + 5, PC[0] + 12, PC[1] - 5, PC[1] + 5, 0.9, copper);   // the contact plates
-        T(PA0 + 4, PA1 - 4, PB1 - 6, PB1 - 4, 0.9, ok); } });                                                              // the status strip, along its front edge
+    /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
+       depot's `charger`: padR 44 -- an 88 circle -- a dark rim, the painted amber ring 5 wide, the grey pad inside; CH / CP in the Charge
+       depot's drawing), on the back room's floor. The humanoid's own station: where he starts and ends as the player. Centre (124, 266). */
+    { const PC = [124, 266], PR = 44, RW = 5;
+      const disc = (r, z, fill) => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(P(PC[0] + Math.cos(t)*r, PC[1] + Math.sin(t)*r, z)); } poly(o, fill); };
+      items.push({ a: PC[0], b: PC[1], z: 0, solids: [], draw: () => { disc(PR, 0.8, '#565c6a'); disc(PR, 1.2, '#ffb454'); disc(PR - RW, 1.6, '#6d7484'); } });
       items.push({ a: PC[0], b: PC[1] + 2, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
-        const ring = (r, k) => { const o = []; for(let i = 0; i < 18; i++){ const t = i/18*Math.PI*2; o.push(P(PC[0] + Math.cos(t)*r*1.15, PC[1] + Math.sin(t)*r, 0.9)); } poly(o, 'rgba(91,227,125,' + k + ')'); };
-        ring(60, 0.05); ring(42, 0.07); ring(26, 0.09); } });   // (after dark, its green wash on the concrete)
+        disc(PR + 34, 0.9, 'rgba(127,227,255,.05)'); disc(PR + 20, 0.9, 'rgba(127,227,255,.07)'); disc(PR + 8, 0.9, 'rgba(127,227,255,.09)'); } });   // (after dark, its cool wash, as Tipsey's glows)
     }
     /* a stack of crates and a sack of beans by the partition */
     items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {

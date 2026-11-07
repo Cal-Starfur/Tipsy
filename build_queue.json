@@ -943,7 +943,7 @@
 },
 {
 "id": "gd1",
-"title": "Gideon's charging pad in the back room (a floor pad like Tipsey's garage one; the roaster stays)",
+"title": "Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays)",
 "deps": [],
 "status": "built",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2",
@@ -962,7 +962,7 @@
 },
 {
 "id": "gd3",
-"title": "The pad charges him: status strip amber/green, battery fills only on it",
+"title": "The pad charges him: its glow breathes, battery fills only on it",
 "deps": [
 "gd2"
 ],

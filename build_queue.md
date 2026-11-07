@@ -178,7 +178,7 @@ graph LR
 - [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
 
 ## Gideon's pad
-- [?] `gd1` Gideon's charging pad in the back room (a floor pad like Tipsey's garage one; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
+- [?] `gd1` Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
 - [ ] `gd2` Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station) [docs/gideon-dock.md]
-- [ ] `gd3` The pad charges him: status strip amber/green, battery fills only on it [docs/gideon-dock.md]
+- [ ] `gd3` The pad charges him: its glow breathes, battery fills only on it [docs/gideon-dock.md]
 - [!] `gd4` Customise Gideon (looks and parts): where, and what (needs Sir: where the customising happens) [docs/gideon-dock.md]
