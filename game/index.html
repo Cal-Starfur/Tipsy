@@ -67587,7 +67587,6 @@ function houseCanopy(fn){
       bed(40, SA0-60, SB0-30, SB1+30), bed(GA1+60, LOT-60, SB0-30, SB1+30),
       bed(40, 180, R2+BD, R2), bed(1520, LOT-40, R2+BD, R2), bed(40, 180, R1, R1-BD), bed(1540, LOT-40, R1, R1-BD),
       bed(DR0-8, DR0-2, R1, R1-BD), bed(DR1+2, DR1+8, R1, R1-BD),
-      { poly: R(202, 298, R2+100, R2+160), h: 62, prop: true }, { poly: R(1402, 1498, R2+100, R2+160), h: 62, prop: true },   // trolley bays
       ...duneLotCars().filter(q => q.car).map(q => (vehicleSolid(R, q.a, q.b, 'car', true))),   // its parked cars
     ];
     for(let i=0;i<9;i++){ const ba = SA0 + 30 + i*110; if(!(ba > EA0-30 && ba < EA1+30)) solids.push({ c: [ba, SB0+48], r: 7, h: 30, prop: true }); }
@@ -67611,7 +67610,7 @@ function houseCanopy(fn){
   lamps: [[110, -630], [1570, -630], [1590, -260]].flatMap(([a, b]) => [-26, 26].map(d => ({ a: a + d, b, z: 176, r: 150, col: 0xfff0d0 }))),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#d9d2c2'); },
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
-  cTodo:'store box, entrance tower, garden cage, pylon sign, light masts, islands and trolley bays need volumes; the car park itself is drivable',
+  cTodo:'store box, entrance tower, garden cage, pylon sign, light masts and islands need volumes; the car park itself is drivable',
   head:'Big-box home store on a whole block: car park, garden centre, pylon sign',
   tags:['block landmark','drivable car park','painted bays','garden centre cage','pylon sign','entrance tower'],
   desc:'A warehouse retail shed set at the back of its own car park, which is the way the type is actually laid out: the building is a long blank box with one tall glazed entrance tower and a name band, and everything in front of it is ground -- painted bays, kerbed islands, light masts, trolley bays -- with a caged garden centre on the right flank and a pylon sign out on the corner.',
@@ -67923,7 +67922,7 @@ function houseCanopy(fn){
     /* the walk rank first (farther), then the street rank */
     bed(40, 180, R2+BD, R2, [[110, R2+80]]);  mast(110, R2+190);
     bed(1520, LOT-40, R2+BD, R2, [[1570, R2+80]]); mast(1570, R2+190);
-    corral(202, R2+130); corral(1402, R2+130);
+    /* (no trolley bays: Sir, 2026-11-07, their art was off) */
     bed(40, 180, R1, R1-BD, [[110, R1-215]]);
     bed(1540, LOT-40, R1, R1-BD, [[1590, R1-80]]); mast(1590, R1-200);
     bed(DR0-10+2, DR0-2, R1, R1-BD, []); bed(DR1+2, DR1+10-2, R1, R1-BD, []);
