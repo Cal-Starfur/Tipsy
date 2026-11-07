@@ -97233,7 +97233,7 @@ class WorldScene extends Phaser.Scene {
     /* the bowl's near lip: after whoever is down in the bowl, before whoever stands on the pad in front of it */
     const inBowl = on === 'bowl';
     for(const r of skLipRuns()) if(vis(r.x, r.y, 60, 20)) item("lip|" + r.k, r.x, r.y, inBowl ? Math.max(r.key, bot + 0.5) : r.key, () => ent.lip(r));
-    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 560 })) };
+    if(!ent._lamps) ent._lamps = { lamps: P.FLOODS.map(([x, y]) => ({ a: x, b: y, z: P.FLOOD_H - 10, r: 120 })) };
     this.queueLandmarkLamps(vq, ent._lamps, (a, b) => ({ x: a, y: b }), 1);
   }
   /* the park's ground, in the ground pass: the pad's smooth concrete and its low kerb, and the bowl let into it -- its
