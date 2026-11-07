@@ -25781,20 +25781,20 @@ const TPE_PLAN = {
      two end strips: the west one is a school garden (raised beds, two portable classrooms, a row of trees), the east one a track and
      pitch with a goal at each end. No lawn: earth, the terracotta track, planting only in beds. */
   field: { cx: 8780, cy: -830, rx: 520, ry: 440, tw: 55 },
-  beds: [[700, -520], [860, -520], [1020, -520], [700, -660], [860, -660], [1020, -660]],   // (the garden beds sit east of the playground, in the strip's open ground)
+  beds: [],                                      // (the garden beds are gone: the west strip is the playground)
   portables: [[70, 450, -1130, -1000], [560, 940, -1130, -1000]],   // side by side along the garden (they stood one behind the other, 70 apart, and read as stacked)
   backTrees: [160, 430, 700, 970],
   GATES: [[2310, 2490], [4560, 4840], [6910, 7090]],   // pier centres; the middle one is the main entrance's (its walk meets the porch)           // pier centres; the gate hangs between them
   PIER: 26,
   get EA0(){ return (this.MA0 + this.MA1)/2 - 170; }, get EA1(){ return (this.MA0 + this.MA1)/2 + 170; },
   benches: [3700, 4200, 5200, 5700],             // against the main block, b = BB1 + 34
-  trees: [[260,-900],[1110,-900],[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
+  trees: [[1000,-1500],[8700,-300],[9340,-1300],[8300,-1300]],
   flag: [2260, -120],
   GYM1: 7700,                                    // where the gym ends and the art room begins, in the east wing
   /* THE YARD'S FURNITURE (the redesign, 2026-11-06: one list for the draw and tpeVol): the monument sign, the playground in front of
      the west wing, the hoops at the east wing's court, the games, the bike racks, the planters by the porch */
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
-  swing: { a0: 180, a1: 440, b: -390 }, sand: { a0: 190, a1: 320, b0: -620, b1: -540 }, slide: { a: 430, b: -700 }, dome: [550, -440, 62],   // the playground sits in the open ground of the west garden strip (it was packed into the front yard, 286 deep)
+  swing: { a0: 140, a1: 400, b: -220 }, sand: { a0: 540, a1: 670, b0: -520, b1: -440 }, slide: { a: 220, b: -600 }, dome: [760, -260, 62],   // the playground takes the whole west strip, where the school garden lawn was
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
   racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
 };
@@ -72166,7 +72166,7 @@ marinaEntry(),
       for(const [q0, q1] of PL.GATES){ const ga = (q0 + q1)/2; T(ga - 96, ga + 96, -62, -14, 0.8, paveE); T(ga - 90, ga + 90, -62, -14, 0.85, paveP); }   // from each gate
     }
     /* the playground: a terracotta rubber floor in a teal edging, the sandbox, and the games' lines on it */
-    { const x0 = 140, x1 = 640, y0 = -810, y1 = -330;
+    { const x0 = 24, x1 = 1186, y0 = -992, y1 = -44;
       T(x0, x1, y0, y1, 0.6, '#2f7f86'); T(x0 + 8, x1 - 8, y0 + 8, y1 - 8, 0.65, '#b3654f');
       for(let k = 0; k < 6; k++) T(x0 + 40 + k*140, x0 + 40 + k*140 + 60, y0 + 10, y0 + 16, 0.7, '#c97a62');     // its pattern
     }
@@ -89490,7 +89490,7 @@ function tpeYardCast(){
     kid('soccer-3', 'A', tpeShuttle(F0.cx + 340, F0.cy - 100, F0.cx + 90, F0.cy + 120, 12500, 0.08, 7000));
     kid('soccer-4', 'A', tpeShuttle(F0.cx + 180, F0.cy + 40, F0.cx + 380, F0.cy - 60, 9000, 0.12, 1500));
     kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
-    [PL.beds[1], PL.beds[4]].forEach(([ba, bb], i) => kid('garden-' + i, 'B', now => ({ a: ba + 10, b: bb + 44, z: 0, th: -Math.PI/2, moving: false, pose: { lift: [0.65 + 0.1*Math.sin(now/800 + i), 0.65], bend: [1.2, 1.2] } }))); }
+  }
   PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
   return (TPE_Y.list = L);
 }
