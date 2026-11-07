@@ -105849,8 +105849,15 @@ class WorldScene extends Phaser.Scene {
       if(RB && RB.hat && RB.hat !== 'none'){
         const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
         const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
+        /* THE BILL grows out of the crown's own rim: a fan from the crown's front arc out to a rounded edge, tipped down a touch, with a lip under it
+           (it was a separate slab stood on the head) */
+        const bill = (len, top, edge) => { const N = 10, inn = [], out = [], out2 = [];
+          for(let i = 0; i <= N; i++){ const an = -1.1 + 2.2*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + len*Math.pow(Math.max(0, Math.cos(an*1.45)), 0.6);
+            inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
+          for(let i = 0; i < N; i++){ this.quadOn(g, [inn[i], inn[i + 1], out[i + 1], out[i]], i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
+            if(faceB >= 0 || true) this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); } };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
-        if(hh === 'cap'){ const pk = () => prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
+        if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
         else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
@@ -105862,7 +105869,7 @@ class WorldScene extends Phaser.Scene {
         else if(hh === 'antenna' || hh === 'twin'){
           const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
           if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
-        else if(hh === 'visor'){ const pk = () => prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
+        else if(hh === 'visor'){ const pk = () => bill(8.5, HP, HP2); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
         else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
         else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
           for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
