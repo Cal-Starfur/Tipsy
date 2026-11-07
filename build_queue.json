@@ -929,6 +929,17 @@
 "status": "pending",
 "group": "Parked (waiting on Sir)",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
+},
+{
+"id": "bb-m2",
+"title": "Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built)",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-night"
+],
+"status": "blocked",
+"group": "Brew & Bolt: Minding the Shop",
+"note": "needs the story"
 }
 ],
 "meta": {

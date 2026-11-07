@@ -34,6 +34,7 @@ graph LR
   bb-scoot --> bb-scoot2
   bb-int --> bb-night
   bb-roof --> bb-night
+  bb-night --> bb-m2
 ```
 
 ## People: seeded crowd
@@ -167,6 +168,7 @@ graph LR
 - [?] `bb-climb` Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2) [docs/kits/missions.md]
 - [?] `bb-scoot2` Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2) [docs/kits/missions.md]
 - [?] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1) [docs/kits/missions.md]
+- [!] `bb-m2` Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built) (needs the story) [docs/kits/missions.md]
 
 ## Parked (waiting on Sir)
 - [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
