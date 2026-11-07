@@ -53324,9 +53324,11 @@ function houseCanopy(fn){
         goods(228, 240, s0 + 2, s1 - 2, 50, 9, true, 3 + (s0 | 0));
       }});
       /* a stack of red baskets by the door, west of its lane */
-      items.push({ a: 22, b: 318, z: 0, solids: [solid(8, 36, 304, 332, 44, 'baskets')], draw: () => {
-        for(let k = 0; k < 4; k++) box(8 - k*0.5, 36 + k*0.5, 304 - k*0.5, 332 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
-        box(6, 38, 302, 334, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
+      /* (30 further from the front wall, b 272..300: at 304..332 the wall's cap and the pier stood round it and it read as a wall
+         at the entry, which the street does not show -- Sir 2026-11-07) */
+      items.push({ a: 22, b: 286, z: 0, solids: [solid(8, 36, 272, 300, 44, 'baskets')], draw: () => {
+        for(let k = 0; k < 4; k++) box(8 - k*0.5, 36 + k*0.5, 272 - k*0.5, 300 + k*0.5, k*9, k*9 + 8, '#e35a4a', '#c8463a', '#a63a30');
+        box(6, 38, 270, 302, 36, 40, '#e35a4a', '#c8463a', '#a63a30');
       }}); }
 
     /* ---- THE MAGAZINES, low against the east wall in front of the pharmacy (in runs) ---- */
