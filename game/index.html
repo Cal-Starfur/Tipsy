@@ -109388,8 +109388,8 @@ class WorldScene extends Phaser.Scene {
         /* the elbow: a hinge along the arm's bend, drawn FIRST, under both segments -- it only shows where neither covers, the
            outside of the bend (upright it stuck out of a level arm; over the sleeve it left a patch -- Sir, 2026-10-24) */
         if(!far) limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
-        const fore = () => { limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
-                             limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1); };   // the hand, from the wrist
+        const fore = () => { limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist: FIRST -- it is lower, and its filled top (the hull of its two ends) is covered by the forearm that is drawn over it (rule 2c)
+                             limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0); };   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
         const raised = Math.abs(ang) > RAISED;
         const upper = () => limb(shoulderAx, raised ? ext(S, E, 3) : S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
@@ -109416,8 +109416,8 @@ class WorldScene extends Phaser.Scene {
         /* running (runK): the elbow bent near square and the arm driven further, pumping with the stride */
         const sw = -(0.42 + 0.25*runK)*wk*Math.sin(STR[side].p), S = [0, shoulderZ], E = along(S, sw, sleeveLen), fa = sw + (0.18 + 1.25*runK)*wk, Hd = along(E, fa, foreLen);
         if(!far) limb(shoulderAx, along(E, (sw + fa)/2, -elbowW*0.9), along(E, (sw + fa)/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);   // the elbow, a rounded hinge along the arm, under both segments
+        limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist: first, the forearm over its top (rule 2c)
         limb(shoulderAx, along(S, sw, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
-        limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist
         limb(shoulderAx, S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
         aidHand(side, shoulderAx, Hd, fa, E);
@@ -109433,8 +109433,8 @@ class WorldScene extends Phaser.Scene {
       const armCorner = (aOff, p, perp) => G(shoulderAx + aOff, p*sT + perp*cT, shoulderZ - p*cT + perp*sT);
       /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get one (Sir, 2026-10-11: "a weird elbow joint") */
       const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3, taper = 1) => ringSeg(armCorner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper);
+      seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, handP.dk, handP.c, handP.dk, 1, 0.85);   // the hand, from the wrist: first, the forearm over its top (rule 2c)
       seg(sleeveLen - 2, sleeveLen+foreLen, elbowW, elbowW, pSkin.dk, pSkin.c, pSkin.dk, 0, 0.82);
-      seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, handP.dk, handP.c, handP.dk, 1, 0.85);   // the hand, from the wrist
       const raised = theta > RAISED;
       seg(raised ? -3 : 0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
       if(raised) return false;
