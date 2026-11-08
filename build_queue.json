@@ -1160,6 +1160,14 @@
 "group": "Walk-in kit fit",
 "deps": [],
 "status": "pending"
+},
+{
+"id": "kf-big",
+"title": "Shell coverage and W23/W24 for the three rooms the walk-in sheet leaves out: the Seabreeze Ballroom, Marina General Hospital and the Maritime Mall (their exteriors are drawn in pieces on their own frames, so measure each against its walls' outer face by eye, then fix what is short)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
 }
 ],
 "meta": {

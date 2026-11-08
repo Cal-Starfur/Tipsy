@@ -35,3 +35,6 @@ The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell i
 | Seaglass Coffee | looks to fit (the glass front's base is on the magenta) | photo | not audited |
 | Cove Grove, Airfield terminal (`wk9`, `wk10`) | not in the walk-in sheet yet: no measurement | none | not audited |
 All of them take the kit's night cut (`night ok`).
+
+## Left out of the sheet (queue `kf-big`)
+The Seabreeze Ballroom, Marina General Hospital and the Maritime Mall are not `walkin` pockets (they predate the kit and keep their own frames), so `walkinCoverage()` does not read them and `run_sheet.js --walkins` does not photograph them. Their W22 (shell covers the walls) and W23/W24 are not audited. The Ballroom's night boxes are also in `kf-night`.
