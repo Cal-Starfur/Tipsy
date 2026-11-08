@@ -29444,7 +29444,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
              { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });   // (the doorway's light: the vestibule's floor, flat, and the opening itself in the wall's line -- what is seen through it, the floor behind -- both its own width, not the walls' ends beside it: those stay night)
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });   // (the doorway's light is the opening itself in the wall's line -- what is seen through it, the floor behind -- and nothing outside it: the vestibule, the mat and the wall ends beside the door stay night; its east edge 30 in, the east wall's face is that far over on screen)
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -29480,7 +29480,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
   street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
