@@ -29611,6 +29611,46 @@ walkinStaff('Palmline Nursery Interior', [
     posts: [[74, 124, Math.PI, 7000, true], [74, 148, Math.PI, 5000, true], [74, 110, Math.PI, 3000, true]] },
 ]);
 walkinLife('Palmline Nursery Interior', { keep: [[100, 180, 0, 220]], looks: [] });
+/* ==================== LAGOON MARKET HALL, WALK-IN (wk7; the room: the LIB entry 'Lagoon Market Hall Interior') ====================
+   The nave on the street's lines (walkinDefine, an hl landmark, drawn MIRRORED -- a -> 2392 - a -- so its lab here is in the lot's own frame, a
+   NOT mirrored: the hall 460 x 2392 (draw frame) stands at a 1932..2392, scaled 0.6923 into the cell's 1656). The room is the floor of it
+   less the walls' 30 each side (W22: 43.33 in from every side in the draw frame: a 1975.33..2348.67, b -2348.67..-43.33 -- 258 x 1596 in
+   the world). The hall (box, vault, flank, door, arch: one `shell` piece) fades round him as he goes in at its great door (110 across on
+   the gable's middle, draw a 175..285 = a 2107..2217 here, the plane 8 back of the front); the doorway shows the nave (walkinThrough). */
+const HALL_IN = walkinDefine({ name: 'Lagoon Market Hall Interior', from: 'Lagoon Market Hall', x0: 570000, y0: 400000,
+  lab: [1975.33, 2348.67, -2348.67, -43.33], door: { a: 2162, b: -8, half: 38.1 }, H: 374, out: 36, apron: 30, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the great door, across the pavement and along it round either corner of the lot --
+     the lot's west edge 159 from the door, its east 1497) */
+  street: { to: [0, 184], routes: [[[-343, 184], [-343, -3600]], [[1681, 184], [1681, -3600]]] },
+  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+const HALL_APRON = v => ({ shirt: { c: 0xf1ece0, dk: 0xd2cbb9 }, pants: { c: 0x4a4f58, dk: 0x383c44 }, shoe: { c: 0x2a2018, dk: 0x1a140e },
+  vest: { c: v, dk: (v >> 1) & 0x7f7f7f }, shoeKind: 'boot' });                  // a stallholder's white shirt and apron in the stall's colour
+/* its staff, a stallholder behind each counter (heading PI/2: south, facing us and the aisle) and the cook at the chowder stall (Amara, who keeps
+   the keys: the mission's chef). A floor of 412,000 square: staff and three browsers */
+walkinStaff('Lagoon Market Hall Interior', [
+  { id: 'chowder', role: 'cook', seed: 0x4a6d01, U: HALL_APRON(0x2f7f86), fixed: true, keys: true,
+    posts: [[129, 56, Math.PI/2, 8000, true], [100, 56, Math.PI/2, 4000, true], [158, 56, Math.PI/2, 4000, true]] },
+  { id: 'fish', role: 'fishmonger', seed: 0x4a6d02, U: HALL_APRON(0x4a7aa8), fixed: true,
+    posts: [[49, 466, Math.PI/2, 7000, true], [36, 466, Math.PI/2, 4000, true]] },
+  { id: 'greens', role: 'greengrocer', seed: 0x4a6d03, U: HALL_APRON(0x3f8f5a), fixed: true,
+    posts: [[49, 936, Math.PI/2, 7000, true], [62, 936, Math.PI/2, 4000, true]] },
+  { id: 'baker', role: 'baker', seed: 0x4a6d04, U: HALL_APRON(0xc9a24a), fixed: true,
+    posts: [[209, 466, Math.PI/2, 7000, true], [222, 466, Math.PI/2, 4000, true]] },
+  { id: 'cheese', role: 'cheesemonger', seed: 0x4a6d05, U: HALL_APRON(0xc2452e), fixed: true,
+    posts: [[209, 936, Math.PI/2, 7000, true], [196, 936, Math.PI/2, 4000, true]] },
+  { id: 'shopper-1', role: 'visitor', seed: 0x4a6d11, look: 'visitor', life: 'browse' },
+  { id: 'shopper-2', role: 'visitor', seed: 0x4a6d12, look: 'visitor', life: 'browse' },
+  { id: 'shopper-3', role: 'visitor', seed: 0x4a6d13, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Lagoon Market Hall Interior', { keep: [[91, 167, 104, 1596]], looks: [
+  { id: 'fish', spots: [[49, 546, -Math.PI/2]] },
+  { id: 'greens', spots: [[49, 1016, -Math.PI/2]] },
+  { id: 'baker', spots: [[209, 546, -Math.PI/2]] },
+  { id: 'cheese', spots: [[209, 1016, -Math.PI/2]] },
+  { id: 'tables', spots: [[28, 240, 0], [230, 240, Math.PI]] },
+  { id: 'chowder', spots: [[60, 130, -Math.PI/2], [198, 130, -Math.PI/2]] },
+] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
    The range is one room on the street's lines (walkinDefine, a rim site's frame: landmarkLabWorld), its shell -- the three
@@ -45286,7 +45326,9 @@ function walkinRoom(items, R){
   for(let k = 0, n = Math.ceil((W + 60)/150); k < n; k++){
     const s0 = -30 + (W + 60)*k/n, s1 = -30 + (W + 60)*(k + 1)/n, f0 = Math.max(0, s0);
     items.push({ a: (s0 + s1)/2, b: -30, z: 0, solids: [wallSolid(s0, s1, -30, 0, H)], draw: () => {
-      if(s1 > f0) clipped([P(f0, 0, -2), P(s1, 0, -2), P(s1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => R.paintN(f0, s1));
+      /* (its clip a hair into the next piece: two clips that only meet leave an antialiased hairline between them -- on a dark wall, a light line) */
+      const e1 = k < n - 1 ? s1 + 0.6 : s1;
+      if(s1 > f0) clipped([P(f0, 0, -2), P(e1, 0, -2), P(e1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => R.paintN(f0, s1));
       T(k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, -30, 0, H, ftop);
       if(k === n - 1) S(s1, -30, 0, 0, H, fside);                                 // its end, over the east wall
     }});
@@ -45294,7 +45336,8 @@ function walkinRoom(items, R){
   for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
     const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
     items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => {
-      clipped([P(0, f0, -2), P(0, s1, -2), P(0, s1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
+      const e1 = k < n - 1 ? s1 + 0.6 : s1;
+      clipped([P(0, f0, -2), P(0, e1, -2), P(0, e1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
       T(-30, 0, k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, H, ftop);
       if(k === n - 1) F(-30, 0, 0, H, fside, null, 0, s1);                         // its end, over the south wall
     }});
@@ -54243,6 +54286,159 @@ function houseCanopy(fn){
     items.push({ a: 256, b: 36, z: 0, solids: [{ name: 'palm tub', c: [256, 36], r: 15, h: 110 }], draw: () => palm(256, 36) });
 
     walkinStaffSolids(items, 'Palmline Nursery Interior');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE LAGOON MARKET HALL (wk7: the walk-in kit, an hl landmark) ====================
+     The nave, 258 x 1596 (the exterior's box less the walls' 30: draw frame a 43.33..416.67 x b -43.33..-2348.67, scaled 0.6923), its great
+     door on the gable (south, room b 1596..1626) in the middle (a 91..167, the sliding pair 76 across; the aisle runs from it to the chowder
+     stall, kept clear). The plan is HALL_IN (a east, b south, world units; the north wall is the back, the west wall the hall's far flank,
+     both full height in the exterior's stone, a teal dado and its bays of tall windows; the south and east cut low, the east is the arcade the
+     street sees):
+       a 91..167    the aisle, door to the chowder counter (b 104..1596): a brick runner on the flags
+       b 14..100    the chowder stall: a stove with three pots (a 86..172, b 14..44), Amara behind her counter (a 62..196, b 74..100); the menu boards
+                    and the great window on the north wall
+       b 170..250   a communal table either side (a 20..56 and 202..238)
+       b 430..514   a fishmonger west (a 14..84) and a baker east (a 174..244): a rack against the back, the stallholder between it and the counter
+       b 900..984   a greengrocer west and a cheesemonger east, the same
+       b 1440..1500 crates west, barrels east, by the door */
+  name:'Lagoon Market Hall Interior', xh: 374, tall:true, place:'pocket', zs: 1, mirror: false,
+  ww: 258.46, dd: 1595.9,
+  head:'Inside Lagoon Market Hall: a long nave of stalls either side of a brick aisle, a chowder stall at the far end',
+  tags:['interior','pocket','market hall','stalls','chowder','aisle','windows'],
+  desc:'The hall\'s nave: stone walls with a teal dado and thirteen bays of tall windows down the west side, a great window and two menu boards on the gable, a brick aisle between a fishmonger, a greengrocer, a baker and a cheesemonger, a communal table either side and the chowder stall at the end.',
+  draw(p){
+    const pl = (typeof HALL_IN !== 'undefined' && HALL_IN) || null;
+    if(pl) pl.view();
+    const W = pl ? pl.W : 258.46, D = pl ? pl.D : 1595.9, H = pl ? pl.H : 374, AP = pl ? pl.apron : 30, LH = 66, SCW = 0.6923;
+    const door = (pl && pl.door) || { side: 's', at: W/2, half: 38.1 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const wall = '#c4bda8', trim = '#2f7f86', trimD = '#26666c', glassW = 'rgba(127,152,160,.86)';
+    const oak = '#8a6a46', oakF = '#6f5236', oakS = '#5b432b', oakL = '#a98259';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    /* the nave's thirteen bays (the exterior's flank: window b -180 - 176 k .. -64 - 176 k in the draw frame) in the room's b */
+    const BAYS = []; for(let k = 0; k < 13; k++){ const q1 = -64 - k*176; BAYS.push([(q1 - 116 + 2348.67)*SCW, (q1 + 2348.67)*SCW]); }
+
+    /* ---- THE FLOOR: flags in 43 squares, a brick runner down the aisle, a threshold and mat at the great door (W13) ---- */
+    T(0, W, 0, D, 0, '#cdc6b2');
+    for(let a = 0; a < W; a += 43) for(let b = 0; b < D; b += 43) if(((a + b)/43) % 2) T(a, Math.min(W, a + 43), b, Math.min(D, b + 43), 0.2, '#c3bba5');
+    T(91, 167, 0, D, 0.3, '#a8704f');
+    for(let b = 0; b < D; b += 18) T(91, 167, b, b + 0.8, 0.4, '#8a5a40');
+    for(let b = 0; b < D; b += 36) T(129, 129.8, b, b + 18, 0.4, '#8a5a40');
+    T(91, 93, 0, D, 0.5, '#e3dfd0'); T(165, 167, 0, D, 0.5, '#e3dfd0');
+    T(DA0, DA1, D, D + AP, 0.3, '#8a7a5e'); T(DA0 + 8, DA1 - 8, D + 4, D + AP - 6, 0.5, '#3d3a34');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+
+    /* ---- THE WALLS (the kit's): north and west full height in the exterior's stone over a teal dado, the west with its thirteen bays of tall
+       windows and a clerestory over (the flank's), the north with the great window, the name and the two menu boards; the south and east
+       cut low, the south with the exterior's two front windows, the east with the arcade's bays ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      winS: [[-16, 70, 46], [189, 275, 46]],
+      winE: BAYS.map(([b0, b1]) => [b0, b1, 46]),
+      paintN: () => {
+        F(-30, W + 30, 0, H, wall, null, 0, 0);
+        F(-30, W + 30, 0, 70, shade(trim, 0.9), null, 0, 0.2);                                        // the teal dado
+        F(-30, W + 30, 70, 76, shade(wall, 0.78), null, 0, 0.3);
+        F(-30, W + 30, 0, 10, shade(wall, 0.62), null, 0, 0.4);                                        // the skirting
+        F(-30, W + 30, 203, 218, shade(wall, 0.84), null, 0, 0.5);                                     // the string course
+        F(-30, W + 30, H - 18, H, shade(wall, 1.04), null, 0, 0.6);                                    // the frieze
+        F(74, 184, 86, 318, shade(wall, 0.5), null, 0, 0.7);                                           // the great window: reveal, glass, mullions
+        F(78, 180, 90, 314, glassW, null, 0, 0.9);
+        for(let m = 1; m < 4; m++) F(78 + 102*m/4 - 2, 78 + 102*m/4 + 2, 90, 314, shade(wall, 1.10), null, 0, 1.0);
+        for(const z of [200, 262]) F(78, 180, z, z + 5, shade(wall, 1.10), null, 0, 1.0);
+        F(6, 70, 96, 176, '#2b3236', trim, 2, 0.8);                                                    // the menu boards
+        F(188, 252, 96, 176, '#2b3236', trim, 2, 0.8);
+        blockWordIn('SOUP', 12, 64, 120, 160, 1.0, '#f4f1e8', null, 4);
+        blockWordIn('CATCH', 194, 246, 120, 160, 1.0, '#f4f1e8', null, 4);
+        blockWordIn('LAGOON MARKET', 40, 218, 326, 352, 1.0, '#f4f1e8', shade(trim, 0.7), 4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(wall, 0.93));
+        S(0.2, -30, D + 30, 0, 70, shade(trim, 0.8));                                                   // the teal dado
+        S(0.3, -30, D + 30, 70, 76, shade(wall, 0.72));
+        S(0.4, -30, D + 30, 0, 10, shade(wall, 0.58));
+        S(0.5, -30, D + 30, 203, 218, shade(wall, 0.78));
+        S(0.5, -30, D + 30, H - 18, H, shade(wall, 0.96));
+        for(const [b0, b1] of BAYS){
+          S(0.6, b0 - 4, b1 + 4, 38, 192, shade(wall, 0.46));                                           // a window: reveal, glass, mullions, transom
+          S(0.8, b0, b1, 42, 188, glassW);
+          for(let m = 1; m < 3; m++) S(1.0, b0 + (b1 - b0)*m/3 - 2, b0 + (b1 - b0)*m/3 + 2, 42, 188, shade(wall, 1.10));
+          S(1.0, b0, b1, 112, 118, shade(wall, 1.10));
+          S(0.7, b0 - 12, b1 + 12, 222, 302, shade(wall, 0.98));                                         // the clerestory
+          S(0.9, b0 + 6, b1 - 6, 240, 298, glassW);
+        }
+      },
+      low: ['#e6e0cf', '#d3cbb7', '#b9b19d'], cap: ['#2f7f86', '#26666c', '#1f5358'], ftop: '#3b929a', frame: '#26666c' });
+
+    /* ---- THE CHOWDER STALL at the back: the stove (a 86..172, b 14..44, 66 high) with three pots, and the counter in front (a 62..196,
+       b 74..100, 72 high) with a pot of chowder, bowls and a ladle; Amara between them at b 56, facing us ---- */
+    items.push({ a: 129, b: 29, z: 0, solids: [solid(86, 172, 14, 44, 70, 'stove')], draw: () => {
+      box(86, 172, 14, 44, 0, 66, '#4a4f56', '#3a3e44', '#2a2d33');
+      box(84, 174, 12, 46, 66, 70, '#6d747c', '#575d64', '#464b51');
+      for(const [ca, r, hh, col] of [[106, 10, 16, '#9aa3a8'], [129, 12, 12, '#b5622c'], [152, 10, 16, '#9aa3a8']]){
+        cyl(ca, 29, 70, 70 + hh, r, col); plateCircle(ca, 29, 70 + hh, r - 1.5, '#c9894a', '#c9894a', 1); }
+    }});
+    items.push({ a: 129, b: 87, z: 0, solids: [solid(62, 196, 74, 100, 74, 'chowder counter')], draw: () => {
+      box(62, 196, 74, 100, 0, 68, trim, trimD, shade(trim, 0.7));
+      box(60, 198, 72, 102, 68, 74, oakL, oak, oakF);
+      cyl(96, 87, 74, 92, 11, '#6d747c'); plateCircle(96, 87, 92, 9, '#d9a55a', '#d9a55a', 1);
+      for(let k = 0; k < 4; k++){ cyl(142 + k*12, 90, 74, 78 + (k % 2)*2, 5, '#f4f1e8'); plateCircle(142 + k*12, 90, 78 + (k % 2)*2, 3.4, '#d9a55a', '#d9a55a', 1); }
+      tube(120, 84, 80, 134, 84, 84, 1.4, '#9aa3a8');
+    }});
+
+    /* ---- A COMMUNAL TABLE either side (a 20..56 and 202..238, b 170..250, 54 high), a loaf and a jug on each ---- */
+    for(const a0 of [20, 202]) items.push({ a: a0 + 18, b: 210, z: 0, solids: [solid(a0, a0 + 36, 170, 250, 56, 'table')], draw: () => {
+      for(const bb of [176, 244]) box(a0 + 4, a0 + 32, bb - 2, bb + 2, 0, 50, oak, oakF, oakS);
+      box(a0, a0 + 36, 170, 250, 50, 55, oakL, oak, oakF);
+      box(a0 + 8, a0 + 20, 190, 204, 55, 60, '#d9a55a', '#b88436', '#9a6b28'); cyl(a0 + 26, 226, 55, 68, 4, '#4a7a96');
+    }});
+
+    /* ---- THE FOUR STALLS: a rack at the back (b B..B+14, 100 high) with its sign and its wares on three shelves, the counter in front of the
+       stallholder (b B+58..B+84, 74 high) with the wares laid out on it; the stallholder at b B+36 facing south ---- */
+    const WARES = {
+      fish:   { sign: 'FISH',   top: (a0, a1, B) => { box(a0 + 6, a1 - 6, B + 62, B + 80, 74, 78, '#dfe7ea', '#c0ccd1', '#a9b6bc');
+                  for(let k = 0; k < 4; k++){ box(a0 + 10 + k*13, a0 + 20 + k*13, B + 66, B + 76, 78, 82, '#aab8c0', '#8fa0a9', '#788791'); ball(a0 + 12 + k*13, B + 66, 80, 1.2, '#2b3236'); } },
+                shelf: (a0, a1, b, z) => { for(let k = 0; k < 7; k++){ F(a0 + 6 + k*9, a0 + 13 + k*9, z, z + 6, '#aab8c0', null, 0, b); F(a0 + 13 + k*9, a0 + 15 + k*9, z + 1, z + 5, '#788791', null, 0, b); } } },
+      greens: { sign: 'GREENS', top: (a0, a1, B) => { for(let k = 0; k < 3; k++){ box(a0 + 6 + k*21, a0 + 24 + k*21, B + 62, B + 80, 74, 86, '#b98a52', '#9a6e3c', '#82592f');
+                  for(let j = 0; j < 2; j++) ball(a0 + 12 + k*21 + j*7, B + 71, 89, 4.6, ['#c2452e', '#4e8058', '#e8a43a'][(k + j) % 3]); } },
+                shelf: (a0, a1, b, z) => { for(let k = 0; k < 6; k++) F(a0 + 6 + k*10, a0 + 14 + k*10, z, z + 7, ['#c2452e', '#4e8058', '#e8a43a', '#7a4a8a', '#4e8058', '#c2452e'][k], null, 0, b); } },
+      baker:  { sign: 'BREAD',  top: (a0, a1, B) => { for(let k = 0; k < 4; k++){ box(a0 + 8 + k*15, a0 + 20 + k*15, B + 64, B + 78, 74, 82, '#d9a55a', '#b88436', '#9a6b28'); box(a0 + 10 + k*15, a0 + 18 + k*15, B + 66, B + 76, 82, 83, '#e8c07a', '#d9a55a', '#b88436'); } },
+                shelf: (a0, a1, b, z) => { for(let k = 0; k < 5; k++){ F(a0 + 6 + k*12, a0 + 15 + k*12, z, z + 8, '#d9a55a', null, 0, b); F(a0 + 8 + k*12, a0 + 13 + k*12, z + 5, z + 7, '#e8c07a', null, 0, b + 0.3); } } },
+      cheese: { sign: 'CHEESE', top: (a0, a1, B) => { for(let k = 0; k < 3; k++){ cyl(a0 + 14 + k*21, B + 71, 74, 84, 9, '#e8c34a'); plateCircle(a0 + 14 + k*21, B + 71, 84, 8, '#f2dc7a', '#f2dc7a', 1); }
+                  box(a0 + 56, a0 + 64, B + 66, B + 76, 74, 79, '#f2dc7a', '#e8c34a', '#c9a62c'); },
+                shelf: (a0, a1, b, z) => { for(let k = 0; k < 4; k++){ F(a0 + 6 + k*15, a0 + 18 + k*15, z, z + 9, '#e8c34a', null, 0, b); F(a0 + 6 + k*15, a0 + 18 + k*15, z + 4, z + 5, '#c9a62c', null, 0, b + 0.3); } } },
+    };
+    const stall = (a0, a1, B, kind, col) => {
+      const am = (a0 + a1)/2, w = WARES[kind];
+      items.push({ a: am, b: B + 7, z: 0, solids: [solid(a0 + 2, a1 - 2, B, B + 14, 100, 'rack')], draw: () => {
+        box(a0 + 2, a1 - 2, B, B + 14, 0, 100, oakL, oak, oakF);
+        F(a0 + 4, a1 - 4, 14, 98, shade(oak, 0.7), null, 0, B + 14.1);
+        for(const z of [30, 62, 94]){ F(a0 + 2, a1 - 2, z, z + 3, oakL, null, 0, B + 14.4); }
+        for(const z of [33, 65]) w.shelf(a0, a1, B + 14.6, z);
+        box(a0 + 6, a1 - 6, B + 1, B + 6, 100, 128, col, shade(col, 0.85), shade(col, 0.7));
+        blockWordIn(w.sign, a0 + 9, a1 - 9, 104, 124, B + 6.3, '#f4f1e8', null, 3);
+      }});
+      items.push({ a: am, b: B + 71, z: 0, solids: [solid(a0, a1, B + 58, B + 84, 74, 'counter')], draw: () => {
+        box(a0, a1, B + 58, B + 84, 0, 68, col, shade(col, 0.85), shade(col, 0.7));
+        box(a0 - 2, a1 + 2, B + 56, B + 86, 68, 74, oakL, oak, oakF);
+        w.top(a0, a1, B);
+      }});
+    };
+    stall(14, 84, 430, 'fish', '#4a7aa8'); stall(174, 244, 430, 'baker', '#c9a24a');
+    stall(14, 84, 900, 'greens', '#3f8f5a'); stall(174, 244, 900, 'cheese', '#c2452e');
+
+    /* ---- BY THE DOOR: crates west (a 16..46, b 1450..1490), barrels east ---- */
+    items.push({ a: 31, b: 1470, z: 0, solids: [solid(16, 46, 1450, 1490, 54, 'crates')], draw: () => {
+      box(16, 46, 1450, 1490, 0, 28, '#b98a52', '#9a6e3c', '#82592f'); box(20, 42, 1454, 1486, 28, 52, '#c99a5e', '#a97e48', '#8f6a3a');
+      for(let k = 0; k < 3; k++) ball(26 + k*8, 1470, 55, 4.6, ['#c2452e', '#e8a43a', '#4e8058'][k]);
+    }});
+    for(const [ca, cb] of [[228, 1466], [212, 1494]]) items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'barrel', c: [ca, cb], r: 14, h: 42 }], draw: () => {
+      cyl(ca, cb, 0, 40, 13, '#7a5a3a'); plateHoop(ca, cb, 10, 13.4, '#3a3e44', 2); plateHoop(ca, cb, 30, 13.4, '#3a3e44', 2); plateCircle(ca, cb, 40, 11, '#8a6a46', '#6f5236', 1);
+    }});
+
+    walkinStaffSolids(items, 'Lagoon Market Hall Interior');
     depthSort(items);
   }
 },
@@ -70986,7 +71182,25 @@ marinaEntry(),
 {
   name:'Lagoon Market Hall', xh: 360, base:'Market hall', hood:'The Flats', edited:true, tall:true, ww: 2392, dd: 2392, sc: 0.6923,   /* fitted: 2392 x 0.6923 = 1656, the buildable square a park cell now has (roads 368 + pavement 368 a side) -- at 1x it stood on the pavement */
   wTodo:'a whole block edge, 2392 = BLOCK - 2*ROAD_HALF, of which the hall is 460 and the market yard is the rest; the packer emits no wide slot',
-  cTodo:'the two stalls are volumes: a 88..134 and 326..372 at b 0..28, on the line and clear of the doorway',
+  cTodo:'(wk7) the hall is solid with its door notch, the yard solid to its edge; the covered rows and stalls are still volumes to declare',
+  /* ITS COLLISION (wk7: it was an undeclared block, solid whole): world units, in the lot's own frame (a along the street, b 0 on the
+     pavement and negative into the lot), NOT mirrored -- the hall is drawn mirrored (a -> 2392 - a, its a 0 the lot's far end), so
+     its 460 x 2392 stands at a 1337.4..1656 here. The hall is solid with a doorway notch 30 deep (the room's own front wall,
+     HALL_IN: he drives up to the glass where the room takes him); the market yard is solid to its edge, as it was (the fleet's
+     F5 bay in its corner answers first, fleetBaySolidAt) */
+  vol: (() => {
+    const SC = 0.6923, MW = 2392, R = volRect;
+    const hA0 = (MW - 460)*SC, hA1 = MW*SC, hB0 = 0, hB1 = -2392*SC, DM = (MW - 230)*SC, DHW = 55*SC, DN = -30;
+    return { foot: [[hA0,hB0],[DM-DHW,hB0],[DM-DHW,DN],[DM+DHW,DN],[DM+DHW,hB0],[hA1,hB0],[hA1,hB1],[hA0,hB1]], h: 300,                       // (heights are in the entry's units, x its zs 1.5: the hall 360 + its vault)
+      solids: [{ poly: R(470*SC, 2380*SC, -2380*SC, -10*SC), h: 100 }] };
+  })(),
+  /* THE HALL IS A WALK-IN (wk7, HALL_IN): its great door, 110 across on the gable's middle, a live sliding pair set 8 back of the
+     front (a, b in the lot's frame, world units -- the live pair is drawn unmirrored, the hl queue's frame; z in the entry's);
+     the doorway shows the nave (walkinThrough); a lantern on each pier glows at night */
+  slideDoors: [{ a: (2392 - 230 - 55)*0.6923, w: 110*0.6923, b: -8*0.6923, z0: 0, z1: 118, glass: 'rgba(150,190,206,.38)' }],
+  doorDraw(i, u){ const d = this.slideDoors[i], SC = 0.6923; slidePairDraw({ a: d.a/SC, w: d.w/SC, b: d.b/SC, z0: d.z0, z1: d.z1, glass: d.glass }, u, '#2f7f86'); },
+  see: true,
+  lamps: () => [(2392 - 164)*0.6923, (2392 - 296)*0.6923].map(a => ({ a, b: 2, z: 148, r: 80, col: 0xffe2a8 })),
   head:'A nave under one barrel vault, with the market yard filling the block',
   tags:['gable to the street','a block deep','barrel vault down the nave','market yard','covered stall rows'],
   desc:'A market hall shaped like one: a gable end on the street, a nave running a whole block back under one glasshouse barrel vault, and the rest of the block given over to the open market yard it serves.',
@@ -71051,8 +71265,23 @@ marinaEntry(),
          yard      a  470..2380 */
     const wall = '#c4bda8', trim = '#2f7f86', H = 360, steps = 14, RISE = 190;
     const WW = 460, DD = 2392, glassT = 'rgba(127,152,160,.86)';
-    const DMID = WW/2, S0 = DMID - 37.12, S1 = DMID + 37.12;
+    /* WK7: THE DOOR IS A WALK-IN'S -- 110 across (S0..S1, was 74), 120 high (DH), the relieving arch moved up to spring over it, the two
+       windows drawn in to make room for its piers (a 20..144 and 316..440), the hall's own nave inside (HALL_IN) */
+    const DMID = WW/2, DW = 110, S0 = DMID - DW/2, S1 = DMID + DW/2, DH = 120, SPR = DH + 14;
+    /* IN PIECES (wk7): the hall is `shell: true` (it fades round him as he goes in at the door); the yard's rows, rail, gate and stalls
+       are pieces of their own, in the world's order. This entry is drawn MIRRORED (its a is the lot's 2392 - a: the hall at the lot's far
+       end, the yard between it and the F5 bay), which the pieces' own drawing does not get from the queue (LIB.drawItem has no edge), so
+       each turns it on itself (M) and gives its place in the lot's own frame (K: a -> (2392 - a)*sc, b -> b*sc, world) */
+    const SCW = 0.6923, K = (a, b) => ({ a: (2392 - a)*SCW, b: b*SCW });
+    const M = fn => () => { const m0 = MIRROR, f0 = FLANK_RIGHT; MIRROR = 2392; FLANK_RIGHT = true; try { fn(); } finally { MIRROR = m0; FLANK_RIGHT = f0; } };
+    MIRROR = 2392; FLANK_RIGHT = true;                        // (the ground drawn below, direct)
+    const items = [];
+    /* THE YARD GOES SEE-THROUGH WHILE HE IS IN THE HALL (its covered rows stand 70 east of the nave's low east wall and, in this view, cover the
+       room's east side): each yard piece fades to 0.3 while he is anywhere over the hall's footprint (the hl queue's fadeUnder, world box) */
+    const FU = (() => { const L = typeof landmarkLabWorld === 'function' ? landmarkLabWorld('Lagoon Market Hall') : null; if(!L) return undefined;
+      const c = [L(1932, 0), L(2392, -2392)]; return [Math.min(c[0].x, c[1].x), Math.max(c[0].x, c[1].x), Math.min(c[0].y, c[1].y), Math.max(c[0].y, c[1].y)]; })();
 
+    items.push(Object.assign(K(230, -1196), { z: 0, shell: true, draw: M(() => {   // (shell: the nave inside, HALL_IN)
     body(wall, trim, H, WW, DD);
     T(0, WW, -DD, 0, H+0.4, '#9fa9a4');   // Flats roof, over body's trim-coloured plate
     /* ---- the flank. 2392 of blank wall is not a hall either: a nave
@@ -71127,7 +71356,7 @@ marinaEntry(),
     }
 
     /* ---- the ground: two windows, and the door under a relieving arch ---- */
-    for(const [x0,x1] of [[20, 170], [290, 440]]){
+    for(const [x0,x1] of [[20, 144], [316, 440]]){
       slab(x0-6, x1+6, 24, 32, 4, -1, shade(wall,.92));
       reveal(x0, x1, 32, 150, 10, shade(wall,.46));
       glaze(x0, x1, 32, 150, shade(wall,1.10), glassT);
@@ -71135,15 +71364,24 @@ marinaEntry(),
       slab(x0-5, x1+5, 150, 158, 4, -1, shade(wall,1.02));
     }
     for(const pa of [S0-18, S1+4])                          // the arch's piers
-      slab(pa, pa+14, 10, 122, 6, -1, shade(wall,1.06), null, shade(wall,1.2));
-    shopDoor(DMID, wall, trim);
-    /* the arch springs at 122, clear of the surround top at 114.95 */
-    const AX0 = S0-18, AX1 = S1+18, APEX = 190;
+      slab(pa, pa+14, 10, SPR, 6, -1, shade(wall,1.06), null, shade(wall,1.2));
+    for(const pa of [S0-11, S1+11]){ cyl(pa, 3, SPR, SPR+8, 4, shade(trim,.9)); ball(pa, 3, SPR+14, 6, '#fff0c8'); }   // a lantern on each pier (it glows at night: lamps)
+    /* the door: a painted surround and, SEE (a walk-in's), the opening a hole in this image -- the nave drawn under it, its live pair
+       (slideDoors) over -- else the shut leaves painted */
+    F(S0-4, S1+4, 0, DH+7, shade(wall,.90), null, 0, 0.3);
+    if(SEE) HOLE([P(S0,-8,DH),P(S1,-8,DH),P(S1,-8,0),P(S0,-8,0)]);
+    else {
+      F(S0, S1, 0, DH, '#2b2118', null, 0, 0.4);
+      F(S0+2, DMID-0.5, 0, DH-4, trim, null, 0, 0.6); F(DMID+0.5, S1-2, 0, DH-4, trim, null, 0, 0.6);
+    }
+    F(S0-4, S1+4, DH, DH+7, shade(wall,.78), null, 0, 0.5);   // the head over it
+    /* the arch springs at DH + 14, clear of the surround top (DH + 7) */
+    const AX0 = S0-18, AX1 = S1+18, APEX = 200;
     const arc = (t, ox, oz) => { const u = 1-t;
-      return [u*u*(AX0-ox) + 2*u*t*DMID + t*t*(AX1+ox), u*u*122 + 2*u*t*(APEX+oz) + t*t*122]; };
+      return [u*u*(AX0-ox) + 2*u*t*DMID + t*t*(AX1+ox), u*u*SPR + 2*u*t*(APEX+oz) + t*t*SPR]; };
     { const ring = (bb, ox, oz) => { const q = [];
         for(let k=0;k<=14;k++){ const c = arc(k/14, ox, oz); q.push(P(c[0], bb, c[1])); }
-        q.push(P(AX1+ox, bb, 122)); q.push(P(AX0-ox, bb, 122)); return q; };
+        q.push(P(AX1+ox, bb, SPR)); q.push(P(AX0-ox, bb, SPR)); return q; };
       poly(ring(-9, 0, -8), shade(wall,.46));               // the tympanum reveal
       poly(ring(-0.4, 0, -8), glassT);                      // glazed
       for(let k=0;k<14;k++){                                // voussoirs, proud
@@ -71152,6 +71390,7 @@ marinaEntry(),
         poly([P(c0[0],1,c0[1]),P(c1[0],1,c1[1]),P(d1[0],1,d1[1]),P(d0[0],1,d0[1])],
              k % 2 ? shade(wall,1.14) : shade(wall,1.02));
       } }
+    }) }));
 
     /* ================= THE MARKET YARD =================
        Open ground, a boundary rail on the street line with one gate, and
@@ -71161,7 +71400,8 @@ marinaEntry(),
     const YA0 = 470, YA1 = 2380, YB0 = -2380, YB1 = -10;
     T(YA0, YA1, YB0, YB1, 0.5, '#a89b86');
     for(let k=0;k<9;k++) T(YA0, YA1, YB1 - 40 - k*292, YB1 - 26 - k*292, 0.9, shade('#a89b86',.9));
-    for(const ra of [700, 1560]){                          // two covered rows
+    /* (the rows, the rail and the gate, the stalls: each a piece of its own, placed in the lot's frame) */
+    for(const ra of [700, 1560]) items.push(Object.assign(K(ra, -1200), { z: 0, fadeUnder: FU, draw: M(() => {   // two covered rows
       for(let k=0;k<8;k++){
         const rb = -160 - k*270;
         for(const [pa,pb] of [[ra-150,rb-90],[ra+150,rb-90],[ra-150,rb+90],[ra+150,rb+90]])
@@ -71179,24 +71419,24 @@ marinaEntry(),
           box(ra-110+m*58, ra-70+m*58, rb-30, rb+30, 64, 92,
               ['#c2452e','#e8c34a','#3f8f5a','#7a5a3a'][(k+m)%4], null, null);
       }
-    }
+    }) }));
     /* the boundary rail and its gate go LAST, because at b 6 they are
        the nearest thing on the lot -- drawn before the stall rows, the
        rows painted straight over them and the run east of the gate
-       vanished entirely. */
+       vanished entirely. (Pieces now: the street's cars sort against each.) */
     const GATE = [980, 1220];
-    for(const [g0,g1] of [[YA0, GATE[0]], [GATE[1], YA1]]){
+    for(const [g0,g1] of [[YA0, GATE[0]], [GATE[1], YA1]]) items.push(Object.assign(K((g0 + g1)/2, 6), { z: 0, fadeUnder: FU, draw: M(() => {
       tube(g0, 6, 104, g1, 6, 104, 5, trim);
       tube(g0, 6, 40,  g1, 6, 40,  4, trim);
       for(let k=0;k<=Math.round((g1-g0)/78);k++){
         const ga = g0 + (g1-g0)*k/Math.round((g1-g0)/78);
         cyl(ga, 6, 0, 112, 3.5, trim); ball(ga, 6, 116, 5, trim);
       }
-    }
-    for(const ga of GATE){
+    }) }));
+    for(const ga of GATE) items.push(Object.assign(K(ga, 6), { z: 0, fadeUnder: FU, draw: M(() => {
       box(ga-30, ga+30, -24, 36, 0, 190, shade(wall,1.05), wall, shade(wall,.78));
       ball(ga, 6, 208, 18, shade(trim,1.1));
-    }
+    }) }));
 
     if(state.props){
       /* the stalls. On the pavement, which is the type -- but on the
@@ -71204,7 +71444,7 @@ marinaEntry(),
          put the middle one straight across an entrance at 77.88..152.12:
          a market hall with its own stalls blocking the way in. Two,
          flanking, at b 0..28, so screen-a runs 2..228. */
-      for(const sa of [88, 326]){
+      for(const sa of [88, 326]) items.push(Object.assign(K(sa + 23, 14), { z: 0, fadeUnder: FU, draw: M(() => {
         const col = sa < 200 ? '#c2452e' : '#3f8f5a';
         for(const [la,lb] of [[sa+3,3],[sa+43,3],[sa+3,25],[sa+43,25]])
           cyl(la, lb, 0, 44, 2.4, '#8a7a5a');
@@ -71212,9 +71452,9 @@ marinaEntry(),
         poly([P(sa,2,64),P(sa+46,2,64),P(sa+46,26,54),P(sa,26,54)], col, shade(trim,.9), 1.5);
         poly([P(sa,26,54),P(sa+46,26,54),P(sa+46,26,48),P(sa,26,48)], shade(col,.75));
         for(let k=0;k<3;k++) ball(sa+10+k*13, 15, 50, 5, ['#c2452e','#e8c34a','#3f8f5a'][k]);
-      }
+      }) }));
     }
-    kerb(p,'none');
+    depthSort(items);
   }
 },
 {

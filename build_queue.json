@@ -454,8 +454,9 @@
 "title": "Lagoon Market Hall",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10279,27470&view=2"
 },
 {
 "id": "wk8",
