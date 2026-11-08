@@ -85460,6 +85460,28 @@ function fyQueue(scene, t, queuePerson, keyQueue, layerFor){
         for(let i = 0; i < 7; i++){ const ph = ((now/420) + i/7) % 1, a = i*2.3; const c = scene.W(tx + 4 + ph*18*Math.cos(a), ty + ph*26*Math.sin(a), tz + ph*30 - ph*ph*40);
           gg.fillStyle(0xe6f3fb, 0.7*(1 - ph)); gg.fillCircle(c.x, c.y, (2 + 3*ph)*K); }
       });
+    /* the burn prop's LIVE FIRE (the prop is the cached steel box; the flames are the live part): tongues of flame
+       rising off its open top, tallest at the west end, beaten down by the hose where the water lands at the east end,
+       with dark smoke lifting off them. Drawn after the prop in its own depth (xm + ym + 1), so the box stands under them. */
+    { const fxm = (B0.x0 + B0.x1)/2, fym = (B0.y0 + B0.y1)/2, fw = B0.x1 - B0.x0, fd = B0.y1 - B0.y0;
+      if(scene.visWorldPt(fxm, fym, 200, B0.h + 190))
+        queuePerson(fxm, fym + 1, (g) => { const gg = layerFor(fxm, fym), K = scene.K, z0 = B0.h - 6, NF = 11;
+          for(let i = 0; i < 5; i++){ const ph = ((now/2600) + i/5) % 1;
+            const c = scene.W(B0.x0 + fw*(0.15 + 0.12*i) + ph*50, fym + Math.sin(i*2.1)*fd*0.2 - ph*20, z0 + 40 + ph*210), r = (14 + ph*40)*K;
+            gg.fillStyle(0x3a3734, 0.5*(1 - ph)*Math.min(1, ph*5)); gg.fillCircle(c.x, c.y, r); }
+          for(let i = 0; i < NF; i++){
+            const u = i/(NF - 1), bx = B0.x0 + 24 + u*(fw - 48), by = fym + Math.sin(i*3.7)*fd*0.28, hose = 1 - 0.55*u*u,
+                  fl = (0.55 + 0.45*Math.abs(Math.sin(now/(110 + 13*(i % 4)) + i*1.9)))*(0.75 + 0.25*Math.sin(now/530 + i)),
+                  H = (46 + 62*(1 - u*0.5))*fl*hose, Wd = 15 + 7*Math.sin(i*1.3 + 1), sw = Math.sin(now/170 + i*2.3)*9 + 6;
+            const tongue = (k, col, a) => { const h = H*k, w = Wd*k, tx = bx + sw*k, pts = [];
+              pts.push(scene.W(bx - w, by, z0)); pts.push(scene.W(bx - w*0.9, by, z0 + h*0.35)); pts.push(scene.W(tx - w*0.35, by, z0 + h*0.78));
+              pts.push(scene.W(tx + sw*0.25, by, z0 + h)); pts.push(scene.W(tx + w*0.35, by, z0 + h*0.74));
+              pts.push(scene.W(bx + w*0.9, by, z0 + h*0.35)); pts.push(scene.W(bx + w, by, z0));
+              gg.fillStyle(col, a); gg.fillPoints(pts, true); };
+            tongue(1, 0xd9381c, 0.92); tongue(0.72, 0xf08a22, 0.95); tongue(0.42, 0xffe27a, 0.95);
+          }
+        });
+    }
   }
   { const c = fyCaptAt(now); if(c && !ohCaptAtDoor(c)) person(c, fyLook('capt'), c.has === 'stopwatch' && !c.moving ? { lift: [null, 0.5], bend: [0, 0.8] } : null, keyQueue); }
   for(let k = 0; k < FY_KIDS.length; k++){ const p = fyKidAt(k, now);
@@ -85804,6 +85826,7 @@ const OH_PLAN = {
   yard: hospBay(7250, 20300),                                    // inside the gate, on the lane's start, by the captain's post
   /* the captain's way across: out of the door, over the street at the yard's apron, in through the gate, to her post */
   across: [{ x: 5600, y: 20216 }, { x: 5600, y: 20300 }, { x: 6990, y: 20300 }, { x: 7120, y: 20300 }, { x: FY_PLAN.CAPT.x, y: FY_PLAN.CAPT.y }],
+  cross: { x0: 5890, x1: 6630, y: 20300, hw: 100 },              // the zebra over the street she crosses on (the road's kerbs), centred on her line
   fence: { x: 7560, y: 20972 },                                  // where she hands the helmet over the fence
   /* the drill's gates, round the lane clockwise from the start (ax: the way the lane runs there), the start line last */
   gates: [{ x: 7300, y: 19980, ax: 'y' }, { x: 7520, y: 19800, ax: 'x' }, { x: 7740, y: 20210, ax: 'y' }, { x: 7520, y: 20620, ax: 'x' }, { x: 7300, y: 20300, ax: 'y', line: true }],
@@ -99025,6 +99048,10 @@ class WorldScene extends Phaser.Scene {
     rect(P.X0 - 12, P.X1 + 12, P.Y0 - 12, P.Y1 + 12, 0xa9a49a);                         // the fence's footing
     rect(P.X0, P.X1, P.Y0, P.Y1, 0xc4bfb3);                                             // the yard's concrete
     rect(P.APRON.x0, P.APRON.x1 + 2, P.APRON.y0, P.APRON.y1, 0xc4bfb3, 0.62);            // the apron to the pavement
+    /* the captain's CROSSWALK over the street (the road runs x 5890..6630 here, her way along y 20300): a zebra in the street's
+       own paint, its bars along the traffic, from kerb to kerb, with a stop line a car's length either side */
+    { const C = OH_PLAN.cross; for(let x = C.x0 + 30; x + 34 <= C.x1 - 20; x += 78) rect(x, x + 34, C.y - C.hw, C.y + C.hw, 0xf1efe8, 0.06, 0.88);
+      for(const yy of [C.y - C.hw - 60, C.y + C.hw + 60]) rect(C.x0, C.x1, yy - 7, yy + 7, 0xf1efe8, 0.06, 0.8); }
     /* the concrete's joints */
     for(let x = P.X0 + 195; x < P.X1; x += 195) rect(x - 1.5, x + 1.5, P.Y0, P.Y1, 0xaea99d, 0.64);
     for(let y = P.Y0 + 230; y < P.Y1; y += 230) rect(P.X0, P.X1, y - 1.5, y + 1.5, 0xaea99d, 0.64);
