@@ -472,8 +472,9 @@
 "title": "Cove Grove",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1259,27300&view=2"
 },
 {
 "id": "wk10",

@@ -26371,7 +26371,7 @@ const COVE = (() => {
     { x0: 4042, x1: 5342, y0: 22812, y1: 24112, floors: 14, word: "COVE",  cell: 0, podium: "S",
       glass: "#4f7f8f", glassL: "#7fb0c0", glassD: "#3e6878", spand: "#d9ccb4", mast: true },
     { x0: 914,  x1: 2214, y0: 25938, y1: 27238, floors: 11, word: "GROVE", cell: 2, podium: "E",
-      glass: "#5a8c86", glassL: "#86b8b0", glassD: "#467570", spand: "#ddd2bd", mast: false }
+      glass: "#5a8c86", glassL: "#86b8b0", glassD: "#467570", spand: "#ddd2bd", mast: false, cvc: true }
   ];
   /* the podium: the corner cell, the strip above it to the north tower's
      face, the strip west of it to the west tower's face */
@@ -26446,7 +26446,11 @@ const COVE = (() => {
   const fountain = { x: 5080, y: 26990, r: 150 };
   const planters = [[4380, 24400], [5004, 24400], [4380, 24900], [5004, 24900], [4380, 25400], [5004, 25400],
                     [2600, 26300], [3200, 26300], [2600, 26880], [3200, 26880], [4180, 26100], [5180, 26100], [4180, 27060]];
-  return { H, cells, towers, podium, access, RL, WALL, walls, walk, walkEdges, walkCorner, planters, fountain, sculptures };
+  /* THE WALK-IN (wk9, CVC_IN): Seaglass Coffee, the west tower's south-west shop. The room is the shop's footprint less the walls' 30 each side
+     (W22): the shop is its span 954..1564 on the tower's south face (y 27238), 330 deep; the floor 984..1534 x 26878..27208, its door the shop's own
+     (94 across, in the middle, x 1212..1306) */
+  const coffee = { x0: 984, x1: 1534, y0: 26878, y1: 27208, door: 1259, half: 47 };
+  return { H, cells, towers, podium, access, RL, WALL, walls, walk, walkEdges, walkCorner, planters, fountain, sculptures, coffee };
 })();
 /* ITS STREET SHOPS, two to each street face of each tower: pickups like the
    mall's (every lookup below takes them), each on its cell's block edge (N 0,
@@ -26462,7 +26466,7 @@ const COVE_STORES = [
   { brand: "Pier Records",     base: "Record shop",    sign: "PIER RECORDS", goods: "RECORDS",  col: "#4a3a6a", menu: "mall_records", tower: 0, face: "N", span: [4692, 5302] },
   { brand: "Gull's Toys",      base: "Toy shop",       sign: "GULL'S TOYS",  goods: "TOYS",     col: "#b8423a", menu: "mall_toys",    tower: 0, face: "W", span: [22852, 23462] },
   { brand: "Cove Cycles",      base: "Bike shop",      sign: "COVE CYCLES",  goods: "BIKES",    col: "#2f5d4a", menu: "mall_bikes",   tower: 0, face: "W", span: [23462, 24072] },
-  { brand: "Seaglass Coffee",  base: "Coffee roaster", sign: "SEAGLASS",     goods: "COFFEE",   col: "#2f6f73", menu: "coffee",       tower: 1, face: "S", span: [954, 1564] },
+  { brand: "Seaglass Coffee",  base: "Coffee roaster", sign: "SEAGLASS",     goods: "COFFEE",   col: "#2f6f73", menu: "coffee",       tower: 1, face: "S", span: [954, 1564], cvc: true },
   { brand: "Sandbar Gelato",   base: "Ice cream",      sign: "SANDBAR",      goods: "GELATO",   col: "#b95f7e", menu: "creamery",     tower: 1, face: "S", span: [1564, 2174] },
   { brand: "Sun Hat Co.",      base: "Milliner",       sign: "SUN HAT CO",   goods: "HATS",     col: "#a2615f", menu: "mall_hats",    tower: 1, face: "N", span: [954, 1564] },
   { brand: "Cove Hardware",    base: "Hardware",       sign: "COVE HARDWARE", goods: "HARDWARE", col: "#5d646b", menu: "retail",      tower: 1, face: "N", span: [1564, 2174] },
@@ -26653,7 +26657,9 @@ function walkinNightBoxes(W, D, H, LH){
      walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
   /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
      block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W, 0, D, LH || 66, LH || 66], [0, W, 0, 0, H], [0, 0, 0, D, H]];
+  return [[0, W - 6, 0, D - 6, LH || 66, LH || 66],
+          [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
+          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];   // (6 in from the near walls' inner top edges: the hull's slivers beyond them lit the wall ends)
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -27744,7 +27750,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
              { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 20]] : []) });   // (the vestibule's light is the doorway's own width, not the walls' ends beside it: those stay night)
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });   // (the doorway's light: the vestibule's floor, flat, and the opening itself in the wall's line -- what is seen through it, the floor behind -- both its own width, not the walls' ends beside it: those stay night)
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -27780,7 +27786,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
   street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 20]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -27988,6 +27994,32 @@ function ctgGatehouseDepth(){
   const v = pk.view();
   return v ? pk.x0 + v.dx + pk.y0 + v.dy - 201 : undefined;
 }
+/* ==================== COVE GROVE, SEAGLASS COFFEE, WALK-IN (wk9; the room: the LIB entry 'Seaglass Coffee Interior') ====================
+   The west tower's south-west shop on the street's lines (walkinDefine, an hl landmark, the cell 'Cove Grove West Tower': its draw frame is the cell's
+   north-west, lab a = x, b = 25024 - y, so the room's south is lab b going DOWN). The shop is its span 954..1564 on the tower's south face (y 27238),
+   330 deep; the room is the floor of it less the walls' 30 each side (W22: x 984..1534, y 26878..27208 -- 550 x 330 in the world). The tower (its nine
+   tiles: `shell` pieces) eases off round him as he goes in at the shop's door (94 across, in the middle, x 1212..1306; the live pair is 6 back of the
+   face, y 27232); the doorway and the glass over the bulkhead (z 46..112) show the room (walkinThrough). In the room's own frame (a east, b south)
+   the door is at a 228..322, the lane to the back wall. */
+const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grove West Tower', x0: 590000, y0: 400000,
+  lab: [COVE.coffee.x0, COVE.coffee.x1, 25024 - COVE.coffee.y1, 25024 - COVE.coffee.y0], door: { a: COVE.coffee.door, b: 25024 - 27232, half: COVE.coffee.half },
+  H: 280, out: 36, apron: 30, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the forecourt to the pavement and along it either way) */
+  street: { to: [0, 210], routes: [[[-1100, 210]], [[1100, 210]]] },
+  /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
+  openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238]], z: [0, 115] },
+             { lab: [[COVE.coffee.x0, 25024 - 27238], [COVE.coffee.door - 52, 25024 - 27238]], z: [46, 112], glass: true },
+             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+const CVC_BARISTA = { shirt: { c:0x2f6f73, dk:0x235357 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };                      // a teal tee under a cream apron
+/* its barista, behind the counter (north of it, facing south: we see her face and the machine's and the till's backs, their working faces turned to her), now and
+   then at the back bar (facing it, north); a floor of 181,500 square: one person, no visitors */
+walkinStaff('Seaglass Coffee Interior', [
+  { id: 'counter', role: 'barista', seed: 0x5ea601, U: CVC_BARISTA, keys: true,
+    posts: [[100, 66, Math.PI/2, 9000, true], [172, 66, Math.PI/2, 6000, true], [120, 48, -Math.PI/2, 4000, true]] },
+]);
+walkinLife('Seaglass Coffee Interior', { keep: [[225, 325, 0, 330]], looks: [] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
    The range is one room on the street's lines (walkinDefine, a rim site's frame: landmarkLabWorld), its shell -- the three
@@ -45921,7 +45953,13 @@ function houseCanopy(fn){
     const towers = C.towers.filter(T => T.cell === k);
     /* the solids in this cell's share */
     const solids = [];
-    for(const T of towers) solids.push({ name: 'tower', poly: rectLab([T.x0, T.x1, T.y0, T.y1]), h: 600 });
+    for(const T of towers){
+      if(!T.cvc){ solids.push({ name: 'tower', poly: rectLab([T.x0, T.x1, T.y0, T.y1]), h: 600 }); continue; }
+      /* (wk9: Seaglass Coffee is a walk-in, CVC_IN: its door, 94 across, opens 30 deep into the face -- the room's own wall -- so he drives up to the glass where the room takes him) */
+      const cf = C.coffee, d0 = cf.door - cf.half, d1 = cf.door + cf.half;
+      solids.push({ name: 'tower', poly: rectLab([T.x0, d0, T.y0, T.y1]), h: 600 }, { name: 'tower', poly: rectLab([d1, T.x1, T.y0, T.y1]), h: 600 },
+                  { name: 'tower', poly: rectLab([d0, d1, T.y0, T.y1 - 30]), h: 600 });
+    }
     for(const w of C.walls) if(mine(...ctr(w))) solids.push({ name: 'podium edge', poly: rectLab(w), h: C.H + 10 });
     for(const w of C.access){
       for(const wr of w.walls) if(mine(...ctr(wr))) solids.push({ name: 'ramp wall', poly: rectLab(wr), h: C.H + 10 });
@@ -45936,6 +45974,12 @@ function houseCanopy(fn){
       tags: ['whole park', 'two towers', 'raised plaza and walk', 'ramps from four streets', 'twelve pickup shops'],
       desc: "Cove Grove: two glass towers at the ends of the park joined by a raised paved plaza and walk, with wide accessible ramps up from four streets and shops all round the towers' bases.",
       vol: { foot: [[0,0],[0,0],[0,0]], h: 600, solids, opens: [], marks: {} },
+      /* THE WEST TOWER'S SEAGLASS COFFEE IS A WALK-IN (wk9, CVC_IN): its door, 94 across, a live sliding pair set 6 back of the face (y 27232); the doorway and
+         the glass over the bulkhead show the room (walkinThrough); the tower's nine tiles are `shell` and fade round him */
+      ...(k === 2 ? {
+        see: true,
+        slideDoors: [{ a: C.coffee.door - C.coffee.half, w: C.coffee.half*2, b: 25024 - 27232 - 0.4, z0: 0, z1: 112, sense: -60, glass: 'rgba(150,190,206,.38)' }],
+        doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); } } : {}),
       draw(p){
         const H = C.H, GT = 190, FH = 80;
         const pave = '#d8d2c4', deck = '#d3c3a2', walkC = '#e8dcc0', walkE = '#a8916a', stone = '#e6d8bf', stoneD = '#c8b9a0', stoneL = '#f1e8d8', wallF = '#a8987c';
@@ -45970,18 +46014,33 @@ function houseCanopy(fn){
           const col = st.col, g0 = u0 + 22, g1 = u1 - 22, dm = (u0 + u1)/2;
           faceQ(f, u0 - 8, u0 + 8, zb, GT, stoneD, 0.6); faceQ(f, u1 - 8, u1 + 8, zb, GT, stoneD, 0.6);
           faceQ(f, g0, g1, zb, zb + 14, shade(stone, .78), 0.8);
-          faceQ(f, g0, g1, zb + 14, zb + 120, sGlass, 0.8);
+          const wk = st.cvc && SEE;       // (a walk-in's, CVC_IN: the doorway and the glass over the bulkhead are holes, the room drawn under them -- W11)
+          if(wk){
+            const hq = (h0, h1, z0, z1, o) => HOLE([facePt(f, h0, o, z1), facePt(f, h1, o, z1), facePt(f, h1, o, z0), facePt(f, h0, o, z0)]);
+            faceQ(f, g0, g1, zb + 14, zb + 46, shade(col, .62), 0.8);                       // the bulkhead under the glass (the room's low near wall stands behind it)
+            hq(g0 + 8, dm - 52, zb + 46, zb + 112, 0.8); hq(dm + 52, g1 - 8, zb + 46, zb + 112, 0.8);
+            faceQ(f, g0, g1, zb + 46, zb + 120, 'rgba(112,134,146,.38)', 0.8);
+          } else {
+            faceQ(f, g0, g1, zb + 14, zb + 120, sGlass, 0.8);
+          }
           faceQ(f, g0, g1, zb + 112, zb + 120, mull, 1.2);
           for(let u = dm - 52 - 150; u > g0 + 40; u -= 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
           for(let u = dm + 52 + 150; u < g1 - 40; u += 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
-          for(let m = 0, u = g0 + 30; u < g1 - 60; u += 92, m++){
+          if(!wk) for(let m = 0, u = g0 + 30; u < g1 - 60; u += 92, m++){
             if(Math.abs(u + 20 - dm) < 100) continue;
             faceQ(f, u, u + 40, zb + 14, zb + 34 + (m % 3)*16, shade(col, 1.2), 1.0);
           }
+          if(wk){
+            /* the doorway: the frame's two posts and its head round a hole 94 across (the live pair, slideDoors, is 6 back) */
+            HOLE([facePt(f, dm - 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb), facePt(f, dm - 47, 1.2, zb)]);
+            faceQ(f, dm - 52, dm - 47, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm + 47, dm + 52, zb, zb + 120, '#2b3540', 1.4);
+            faceQ(f, dm - 52, dm + 52, zb + 115, zb + 120, '#2b3540', 1.4);
+          } else {
           faceQ(f, dm - 52, dm + 52, zb, zb + 120, '#2b3540', 1.4);
           faceQ(f, dm - 47, dm - 2, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
           faceQ(f, dm + 2, dm + 47, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
           for(const hx of [dm - 7, dm + 5]) faceQ(f, hx, hx + 2, zb + 46, zb + 70, '#d8dde0', 2.2);
+          }
           faceQ(f, u0 + 24, u1 - 24, zb + 126, zb + 152, col, 1.0);
           faceQ(f, u0 + 24, u1 - 24, zb + 148, zb + 152, shade(col, 1.3), 1.1);
           faceWord(f, st.sign, u0 + 40, u1 - 40, zb + 129, zb + 149, '#fbf7ee', 1.2);
@@ -46127,7 +46186,7 @@ function houseCanopy(fn){
           const zbE = T.podium === 'E' ? H : 0, zbS = T.podium === 'S' ? H : 0, seed = T.cell*1000;
           for(let c = 0; c < n; c++) for(let r = 0; r < n; r++){
             const tx0 = T.x0 + c*tw, tx1 = tx0 + tw, ty0 = T.y0 + r*th, ty1 = ty0 + th;
-            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+            items.push({ a: A(tx1), b: B(ty0), z: 0, ...(T.cvc ? { shell: true } : {}), draw: () => {      // (shell: a walk-in's -- the west tower, CVC_IN -- fades round him as he goes in)
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, CROWN + 260)) return;
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               /* the south face, on the south row */
@@ -52735,6 +52794,119 @@ function houseCanopy(fn){
     items.push({ a: 256, b: 36, z: 0, solids: [{ name: 'palm tub', c: [256, 36], r: 15, h: 110 }], draw: () => palm(256, 36) });
 
     walkinStaffSolids(items, 'Palmline Nursery Interior');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE SEAGLASS COFFEE (wk9: the walk-in kit, an hl landmark) ====================
+     The shop's one room, 550 x 330 (the tower's south face shop less the walls' 30: x 984..1534 x y 26878..27208), its door on the front (south,
+     room b 330..360) in the middle (a 228..322, the sliding pair 94 across; the lane runs from it to the back wall, kept clear). The plan is CVC_IN
+     (a east, b south, world units; the north wall is the back, the west wall the tower's flank, both plaster over a teal dado; the south and east
+     cut low, the south with the shopfront's bulkhead):
+       b 0..28      the back bar (a 30..250): a grinder, a drip brewer and a jar of beans; shelves of cups and jars over it; the menu board
+       b 96..136    the counter, a 40..210: the espresso machine and the till on it, both with their working faces to the north, the barista at b 66
+       a 8..44      sacks of beans on the west wall (b 170..290); a pastry case at the counter's east end
+       a 380..520   three bistro tables with stools, east of the lane */
+  name:'Seaglass Coffee Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 550, dd: 330,
+  head:'Inside Seaglass Coffee: a plaster-and-teal coffee bar, an espresso counter, a back bar of cups and beans and a few bistro tables',
+  tags:['interior','pocket','coffee','espresso','counter','bistro tables','cove grove'],
+  desc:'The tower-base coffee shop\'s one room: cream plaster over a teal dado, a tiled floor, an espresso counter with its machine and till, a back bar with a grinder and shelves of cups, sacks of beans against the west wall and three bistro tables by the window.',
+  draw(p){
+    const pl = (typeof CVC_IN !== 'undefined' && CVC_IN) || null;
+    if(pl) pl.view();
+    const W = 550, D = 330, H = pl ? pl.H : 280, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 275, half: 47 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    /* (the exterior's own: the shop's teal '#2f6f73', the tower's stone '#e6d8bf' / '#c8b9a0') */
+    const teal = '#2f6f73', tealD = '#235357', tealL = '#4a9096', plas = '#efe9dc', stone = '#e6d8bf', stoneD = '#c8b9a0';
+    const oak = '#8a6a46', oakF = '#6f5236', oakS = '#5b432b', oakL = '#a98259', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const stool = (ca, cb) => { cyl(ca, cb, 0, 30, 2.4, '#3a3e46'); cyl(ca, cb, 30, 34, 9, teal, tealL); for(const q of [0, 2.1, 4.2]) tube(ca, cb, 14, ca + 8*Math.cos(q), cb + 8*Math.sin(q), 0, 1, '#3a3e46'); };
+
+    /* ---- THE FLOOR: 30-square tiles, cream and sea-glass, a threshold stone at the door (W13) and a coir mat just inside ---- */
+    T(0, W, 0, D, 0, '#e4dccb');
+    for(let b = 0, r = 0; b < D; b += 30, r++) for(let a = (r % 2 ? 30 : 0); a < W; a += 60) T(a, Math.min(W, a + 30), b, Math.min(D, b + 30), 0.2, '#c6d6d2');
+    T(DA0, DA1, D, D + AP, 0.3, stone); T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    T(DA0 + 10, DA1 - 10, 292, 320, 0.5, shade(teal, 0.8)); T(DA0 + 14, DA1 - 14, 296, 316, 0.6, teal);
+
+    /* ---- THE WALLS (the kit's): north and west plaster over the exterior's teal dado, the back bar's shelves and the menu board on the north
+       one; the south and east cut low ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 52, shade(teal, 0.92), null, 0, 0.3);                                                    // the dado
+        F(-30, W + 30, 52, 58, shade(teal, 0.7), null, 0, 0.4);
+        F(-30, W + 30, 0, 8, shade(stoneD, 0.8), null, 0, 0.5);                                                    // the skirting
+        F(-30, W + 30, H - 14, H, shade(stoneD, 0.95), null, 0, 0.5);                                              // the cornice
+        for(const z of [112, 146]){ F(34, 246, z, z + 4, oakL, null, 0, 0.9); F(34, 246, z - 2, z, oakF, null, 0, 0.95); }   // two shelves over the back bar
+        for(let k = 0; k < 9; k++){ const a = 42 + k*22; F(a, a + 12, 116, 128, '#f6f3ea', teal, 1, 1.0); F(a + 2, a + 10, 119, 125, '#7a4c34', null, 0, 1.1); }   // cups
+        for(let k = 0; k < 6; k++){ const a = 44 + k*34; F(a, a + 20, 150, 176, 'rgba(205,230,240,.55)', '#9aa3a8', 1, 1.0); F(a + 2, a + 18, 150, 166, ['#6b4a32', '#8a5a3a', '#5a3e2b'][k % 3], null, 0, 1.1); F(a + 3, a + 17, 176, 180, '#9aa3a8', null, 0, 1.1); }   // jars of beans
+        F(280, 480, 150, 250, shade(teal, 0.45), null, 0, 0.7); F(285, 475, 155, 245, shade(teal, 0.35), null, 0, 0.8);   // the menu board
+        blockWordIn('SEAGLASS', 296, 460, 206, 232, 0.9, '#fbf7ee', null, 4);
+        blockWordIn('COFFEE', 316, 440, 170, 194, 0.9, '#f3ecdc', null, 3);
+        F(500, 530, 130, 190, shade(stoneD, 0.9), null, 0, 0.7); F(504, 526, 134, 186, '#f6f3ea', null, 0, 0.8);          // a clock board
+        F(512, 514, 168, 182, '#2b3036', null, 0, 0.9); F(512, 522, 168, 170, '#2b3036', null, 0, 0.9);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, plas);
+        S(0.3, -30, D + 30, 0, 52, shade(teal, 0.8)); S(0.4, -30, D + 30, 52, 58, shade(teal, 0.62));
+        S(0.5, -30, D + 30, 0, 8, shade(stoneD, 0.7)); S(0.5, -30, D + 30, H - 14, H, shade(stoneD, 0.82));
+        S(0.6, 70, 300, 130, 134, oakL);                                                                          // a shelf of tins over the sacks
+        for(let k = 0; k < 8; k++) S(0.8, 76 + k*28, 96 + k*28, 134, 156, ['#c0602e', '#2f6f73', '#c9a24a', '#8a3a3a'][k % 4]);
+        S(0.6, 120, 180, 190, 238, oakF); S(0.7, 124, 176, 194, 234, '#a6c0b8'); S(0.8, 134, 166, 204, 224, teal);   // a framed print
+      },
+      low: ['#f3ecdc', '#e9e1d0', '#cfc6b4'], cap: ['#4a9096', '#2f6f73', '#235357'], ftop: '#5aa0a6', frame: '#235357' });
+
+    /* ---- THE BACK BAR (a 30..250, b 2..28, 90 high): a cabinet in teal, an oak top; a grinder with its hopper, a drip brewer, a jar of beans ---- */
+    items.push({ a: 140, b: 15, z: 0, solids: [solid(30, 250, 2, 28, 92, 'back bar')], draw: () => {
+      box(30, 250, 2, 28, 0, 86, teal, tealD, shade(teal, 0.7));
+      box(28, 252, 0, 30, 86, 90, oakL, oak, oakF);
+      for(const a of [34, 94, 154, 214]){ F(a + 3, a + 53, 8, 74, shade(teal, 1.12), shade(teal, 0.7), 1, 28.2); F(a + 24, a + 32, 40, 44, steel, null, 0, 28.4); }
+      box(50, 72, 6, 22, 90, 104, '#2b3138', '#23292f', '#1c2126'); cyl(61, 14, 104, 126, 8, 'rgba(205,230,240,.6)', '#6b4a32');    // the grinder, its hopper of beans
+      box(120, 150, 6, 22, 90, 118, steel, steelD, steelS); box(124, 146, 8, 20, 118, 124, '#2b3138', '#23292f', '#1c2126');        // a drip brewer
+      cyl(190, 14, 90, 108, 9, 'rgba(205,230,240,.6)', '#8a5a3a'); cyl(190, 14, 108, 111, 9.5, steelD, steelD);                   // a jar of beans
+    }});
+
+    /* ---- THE COUNTER (a 40..210, b 96..136, 84 high): teal front with a tile band, an oak top; the espresso machine and the till stand on it with their
+       working faces to the north, the barista's, so we see their backs; the pastry case at its east end ---- */
+    items.push({ a: 125, b: 116, z: 0, solids: [solid(40, 210, 96, 136, 86, 'counter')], draw: () => {
+      box(40, 210, 96, 136, 0, 80, teal, tealD, shade(teal, 0.7));
+      for(let a = 44; a < 208; a += 18) F(a, a + 16, 30, 62, '#c6d6d2', null, 0, 136.2);                                    // the tile band on its front
+      box(38, 212, 94, 138, 80, 84, oakL, oak, oakF);
+      /* the espresso machine (a 60..122, b 104..128): body, two group heads and a drip tray on its north side (the barista's), cups on its warmer */
+      box(60, 122, 104, 128, 84, 112, steel, steelD, steelS);
+      box(62, 120, 106, 126, 112, 116, steelD, steelD, steelS);
+      for(const a of [78, 104]){ box(a - 5, a + 5, 99, 106, 94, 102, '#2b3138', '#23292f', '#1c2126'); cyl(a, 102, 84, 92, 4, '#f6f3ea'); }    // group heads (north), cups under them
+      box(64, 118, 98, 104, 84, 87, '#8f969b', '#7d868b', '#6a7378');                                                       // the drip tray
+      box(70, 82, 126, 130, 100, 108, '#d8483a', '#b5382c', '#8f2b22');                                                      // its dial, on the back
+      /* the till (a 160..190, b 106..126): its keys and screen on the north side, the barista's; we see its back */
+      box(160, 190, 106, 126, 84, 92, '#2b3138', '#23292f', '#1c2126');
+      box(162, 188, 120, 126, 92, 106, '#3a3e46', '#2b3036', '#23292f');                                                    // (its screen and keys are on the north side, the barista's)
+      /* the pastry case at the east end (a 186..208, b 98..134), glass on a teal base, croissants and a tart */
+      box(186, 208, 98, 134, 84, 90, steelD, steelD, steelS); box(186, 208, 98, 134, 90, 112, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
+      for(const b of [104, 116, 128]){ cyl(197, b, 90, 94, 5, '#c98a4a', '#e0b27a'); }
+    }});
+
+    /* ---- THE SACKS on the west wall (a 8..44, b 170..290): burlap sacks of beans, three stacked, a scoop on one ---- */
+    items.push({ a: 26, b: 230, z: 0, solids: [solid(8, 44, 170, 290, 52, 'bean sacks')], draw: () => {
+      for(const b of [172, 208, 244]){ box(8, 42, b, b + 34, 0, 26, '#b49a6a', '#9a8254', '#7f6b44'); box(10, 40, b + 2, b + 32, 26, 28, '#9a8254', '#9a8254', '#7f6b44'); }
+      for(const b of [190, 226]){ box(12, 38, b, b + 30, 28, 52, '#bfa574', '#a58c5c', '#8a7449'); F(16, 34, 40, 46, '#6b4a32', null, 0, b + 30.1); }
+      cyl(30, 262, 0, 10, 8, '#8a6a46'); plateCircle(30, 262, 10, 7, '#6b4a32', '#6b4a32', 1);
+    }});
+
+    /* ---- THREE BISTRO TABLES east of the lane (round, 52 across, 60 high), two stools each ---- */
+    for(const [ta, tb] of [[440, 90], [490, 190], [400, 260]]){
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'bistro table', c: [ta, tb], r: 24, h: 62 }, { name: 'stool', c: [ta - 30, tb + 4], r: 10, h: 36 }, { name: 'stool', c: [ta + 28, tb - 12], r: 10, h: 36 }], draw: () => {
+        stool(ta - 30, tb + 4); stool(ta + 28, tb - 12);
+        cyl(ta, tb, 0, 56, 2.6, '#3a3e46'); cyl(ta, tb, 0, 3, 11, '#3a3e46');
+        cyl(ta, tb, 56, 60, 24, oakL, oakF); plateCircle(ta, tb, 60, 23, oakL, oak, 1);
+        cyl(ta - 6, tb + 4, 60, 66, 4, '#f6f3ea'); plateCircle(ta - 6, tb + 4, 66, 3, '#7a4c34', '#7a4c34', 1);
+      }});
+    }
+
+    walkinStaffSolids(items, 'Seaglass Coffee Interior');
     depthSort(items);
   }
 },
@@ -105375,7 +105547,7 @@ class WorldScene extends Phaser.Scene {
         if(ms && ms.block && storeSiteOf(ms) === _hl){
           const d = coveDoorWorld(ms), rv = DIRV[(ms.edge + 3) % 4], dv = DIRV[(ms.edge + 2) % 4];
           const qx = d.x + rv.x*T2, qy = d.y + rv.y*T2, seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
-          vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });
+          vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, d.x, d.y, dv, rv, 0, seed, t, ms.cvc ? true : this.glassPairDoor(g, d.x, d.y, dv, rv, 0, LIB.zs(_hl), { out: 40, z: 98 })) });   // (a walk-in's own pair opens: slideDoors)
         }
       } else {
         /* A WHOLE ONE IS A UNIT: keyed at the middle of what it draws (measured once), as a house or a shop is -- not at
