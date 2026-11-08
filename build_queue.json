@@ -508,8 +508,9 @@
 "title": "Open House: crosswalk for the captain, live fire on the burn prop",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2"
 },
 {
 "id": "m3",
