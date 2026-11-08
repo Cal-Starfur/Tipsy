@@ -117,12 +117,12 @@ graph LR
 - [?] `wk7` Lagoon Market Hall [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10279,27470&view=2) [docs/state/walkin_recipe.md]
 - [?] `wk8` Ferris Taylor Cottages [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26115,11880&view=2) [docs/state/walkin_recipe.md]
 - [?] `wk9` Cove Grove [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1259,27300&view=2) [docs/state/walkin_recipe.md]
-- [ ] `wk10` Airfield terminal [docs/state/walkin_recipe.md]
+- [?] `wk10` Airfield terminal [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26520,21330&view=2) [docs/state/walkin_recipe.md]
 
 ## Fleet and missions
-- [ ] `f2` Fleet P2: rotor flight + The Lighthouse Run [docs/state/HANDOFF.md]
-- [ ] `m1` Trophies alley fence to 0.3 over the room [docs/state/HANDOFF.md]
-- [ ] `m2` Open House: crosswalk for the captain, live fire on the burn prop [docs/state/HANDOFF.md]
+- [?] `f2` Fleet P2: rotor flight + The Lighthouse Run [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2) [docs/state/HANDOFF.md]
+- [?] `m1` Trophies alley fence to 0.3 over the room [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2) [docs/state/HANDOFF.md]
+- [?] `m2` Open House: crosswalk for the captain, live fire on the burn prop [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2) [docs/state/HANDOFF.md]
 - [ ] `m3` KTDE: DJ side missions over the air; station van drives off [docs/state/HANDOFF.md]
 - [ ] `m4` Letters on the Hill: face wash under roof edges; ranger inside her kiosk [docs/state/HANDOFF.md]
 

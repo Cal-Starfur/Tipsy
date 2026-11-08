@@ -481,32 +481,36 @@
 "title": "Airfield terminal",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26520,21330&view=2"
 },
 {
 "id": "f2",
 "title": "Fleet P2: rotor flight + The Lighthouse Run",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2"
 },
 {
 "id": "m1",
 "title": "Trophies alley fence to 0.3 over the room",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2"
 },
 {
 "id": "m2",
 "title": "Open House: crosswalk for the captain, live fire on the burn prop",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2"
 },
 {
 "id": "m3",
