@@ -22,3 +22,16 @@ The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell i
 
 ## Night cut (W25), 2026-11-08
 `walkinNightCheck()` over every walk-in: all pass but two that write their own boxes. Ten rooms that had hand-written night lines (the old door box reaching 30 to 60 over the near wall) now take the kit's default, which includes the doorway: Pelican Drug, Dune Home, the Animal Shelter, Tide Pool Elementary, Sun Deck Motor Lodge, KTDE, the Kart Works, Brew & Bolt and the others. Still to do (queue `kf-night`): the Seabreeze Ballroom (its hall's front strips reach over its near walls) and the Tidewater Museum (the portico bay box, b 856..956 past D).
+
+## Rooms built since (read 2026-11-08, `wk2`-`wk10` and Seaglass Coffee)
+| Room | W22 shell covers the walls | How | W23 / W24 |
+|---|---|---|---|
+| Saltwater Brewing | **fits** | measured (`cover ok`) | not audited |
+| Lagoon Baths | **fits** | measured (`cover ok`) | not audited |
+| Driftwood Chapel | **fits** | measured (`cover ok`) | not audited |
+| Palmline Nursery | **fits** | measured (`cover ok`) | not audited |
+| Lagoon Market Hall | looks to fit on the front (the facade's base is on the magenta); the market side not checked | photo | not audited |
+| Ferris Taylor Cottage | looks to fit (the shopfront's base is on the magenta) | photo | not audited |
+| Seaglass Coffee | looks to fit (the glass front's base is on the magenta) | photo | not audited |
+| Cove Grove, Airfield terminal (`wk9`, `wk10`) | not in the walk-in sheet yet: no measurement | none | not audited |
+All of them take the kit's night cut (`night ok`).
