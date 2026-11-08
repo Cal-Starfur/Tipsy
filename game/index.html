@@ -29891,7 +29891,7 @@ const MOTOR_LODGE = {
   ice: [1406, 1454, -1388, -1352],                      // the ice machine, at the north walkway's east end
   stairE: { a0: 1470, a1: 1534, b0: -1320, b1: -1150 },  // its stair, down south off the walkway's end
   stairW: { a0: 350, a1: 520, b0: -764, b1: -700 },      // the west wing's, down east off its walkway's end
-  office: { a0: 60, a1: 480, b0: -600, b1: -260, H: 130, roof: 172, door: [115, 225], glassS: [245, 465], glassE: [-560, -300] },
+  office: { a0: 60, a1: 480, b0: -600, b1: -260, sh: { a0: 30, a1: 510, b0: -630, b1: -230 }, H: 130, roof: 172, door: [115, 225], glassS: [245, 465], glassE: [-560, -300] },
   pool: { a0: 700, a1: 1180, b0: -1180, b1: -960 },
   court: { a0: 280, a1: 1641, b0: -1390, b1: -850 },     // its paving, wall to fence
   fence: { b: -850, a0: 350, a1: 1641, gate: [560, 650] },
@@ -29947,8 +29947,8 @@ const MOTEL_IN = walkinDefine({ name: 'Sun Deck Motor Lodge Office', from: 'Sun 
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, down its path to the pavement, and along it) */
   street: { to: [0, 250], routes: [[[-460, 250], [-460, 1600]], [[1400, 250], [1400, 1600]]] },
   /* (seen through, W11: the glass door, the storefront down the street front, the picture window onto the lot) */
-  openings: [{ lab: [[115, -259.4], [225, -259.4]], z: [0, 100] }, { lab: [[245, -259.4], [465, -259.4]], z: [16, 104], glass: true },
-             { lab: [[481.4, -300], [481.4, -560]], z: [16, 104], glass: true }] });
+  openings: [{ lab: [[115, -229.4], [225, -229.4]], z: [0, 100] }, { lab: [[245, -229.4], [465, -229.4]], z: [16, 104], glass: true },
+             { lab: [[511.4, -300], [511.4, -560]], z: [16, 104], glass: true }] });
 /* the room's plan, its own frame (a east, b south, 420 x 340): the desk, the back office, the lobby's things */
 const MOTEL_ROOM = { W: 420, D: 340, door: 110, LH: 66,
   desk: { s: [262, 368, 124, 150], w: [262, 288, 56, 150] },     // the counter: its south run and its west run (an L round the clerk; a way out past each end)
@@ -69840,7 +69840,7 @@ function houseCanopy(fn){
      lamps (the lamp kit). Lab z x1.5 in the world. */
   name:'Sun Deck Motor Lodge', xh: 248, base:'Motor lodge', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* the office's glass pair, live (as Pelican Drug's): 110 across, the walk-in's door */
-  slideDoors: [{ a: 115, w: 110, b: -260.8, z0: 0, z1: 100, walk: -248, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 115, w: 110, b: -230.8, z0: 0, z1: 100, walk: -218, glass: 'rgba(150,190,206,.38)' }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f9e9a'); },
   see: true,   // (the office's door, storefront and picture window show the lobby inside: MOTEL_IN's openings)
   /* ITS LAMPS AT NIGHT (the lamp kit): a sconce at every other door along both walkways, the pylon's starburst and
@@ -69865,7 +69865,7 @@ function houseCanopy(fn){
     const solids = [
       { name: 'north wing', poly: R(M.N.a0, M.N.a1, M.N.b0, M.N.b1), h: M.PZ },
       { name: 'west wing', poly: R(M.W.a0, M.W.a1, M.W.b0, M.W.b1), h: M.PZ },
-      { name: 'office', poly: R(O.a0, O.a1, O.b0, O.b1), h: O.roof },
+      { name: 'office', poly: R(O.sh.a0, O.sh.a1, O.sh.b0, O.sh.b1), h: O.roof },
       { name: 'ice machine', poly: R(M.ice[0], M.ice[1], M.ice[2], M.ice[3]), h: 62 },
       { name: 'stair', poly: R(M.stairE.a0, M.stairE.a1, M.stairE.b0, M.stairE.b1), h: M.GZ },
       { name: 'stair', poly: R(M.stairW.a0, M.stairW.a1, M.stairW.b0, M.stairW.b1), h: M.GZ },
@@ -69886,7 +69886,7 @@ function houseCanopy(fn){
     for(const [f0, f1] of [[M.fence.a0, M.fence.gate[0]], [M.fence.gate[1], M.fence.a1]]) solids.push({ name: 'fence', poly: R(f0, f1, M.fence.b - 4, M.fence.b + 4), h: 40 });
     /* the court's things: loungers, umbrellas (props) */
     for(const q of motelCourtProps()) solids.push({ name: q.kind, poly: R(q.a - q.w/2, q.a + q.w/2, q.b - q.d/2, q.b + q.d/2), h: q.h, prop: true });
-    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [O.door[0]/2 + O.door[1]/2, O.b1] } };
+    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [O.door[0]/2 + O.door[1]/2, O.sh.b1] } };
   })(),
   /* the lot's drives -- see hoodDrivewaysOf: in off the airfield's street into the aisle, and off the Boardwalk's */
   drive: [
@@ -69930,9 +69930,9 @@ function houseCanopy(fn){
       for(let a = C.a0 + 90; a < C.a1; a += 90) T(a - 1, a + 1, C.b0, C.b1, 0.45, concD);
       for(let b = C.b1 - 90; b > C.b0; b -= 90) T(C.a0, C.a1, b - 1, b + 1, 0.45, concD); }
     T(M.W.a1, M.W.a1 + DK, M.court.b1, M.W.b1, 0.6, shade(conc, 1.06));                   // the west gallery past the fence
-    T(O.a0, M.rankF.a0, O.b1, O.b1 + 64, 0.8, conc);                                      // the office's front walk
-    T(O.door[0], O.door[1], O.b1 + 64, -15, 0.8, conc);                                   // ...and its path out to the street
-    T(O.a1, O.a1 + 60, O.b0, O.b1, 0.8, conc);                                            // ...round its east side
+    T(O.sh.a0, M.rankF.a0, O.sh.b1, O.b1 + 64, 0.8, conc);                                      // the office's front walk
+    T(O.door[0], O.door[1], O.sh.b1, -15, 0.8, conc);                                   // ...and its path out to the street
+    T(O.sh.a1, O.a1 + 60, O.sh.b0, O.sh.b1, 0.8, conc);                                            // ...round its east side
     /* the bays: the street rank (noses to the hedge) and the court rank (noses to the fence) */
     const rank = (bBack, dir, a0, n) => { const bOpen = bBack + dir*M.BD, e1 = a0 + n*M.BW;
       T(a0, e1, bBack - 3, bBack + 3, 0.6, line);
@@ -70079,40 +70079,40 @@ function houseCanopy(fn){
        storefront of glass on the street, a picture window onto the lot, a clerestory under a roof that sweeps up to the
        front over a deep overhang, OFFICE on its turquoise fascia. Seen through (W11): the door, the storefront and the
        picture window are holes in it with the lobby drawn under them ---- */
-    items.push({ a: (O.a0 + O.a1)/2, b: (O.b0 + O.b1)/2, shell: true, draw: () => {
-      const H = O.H, glassSee = 'rgba(126,166,186,.36)', fl = '#a99a82';
-      box(O.a0, O.a1, O.b0, O.b1, 0, H, shade(wall, 1.08), wall, wallS);
+    items.push({ a: (O.sh.a0 + O.sh.a1)/2, b: (O.sh.b0 + O.sh.b1)/2, shell: true, draw: () => {
+      const H = O.H, Os = O.sh, glassSee = 'rgba(126,166,186,.36)', fl = '#a99a82';
+      box(Os.a0, Os.a1, Os.b0, Os.b1, 0, H, shade(wall, 1.08), wall, wallS);
       /* the base: flagstone to the sills */
-      F(O.a0, O.a1, 0, 16, fl, null, 0, O.b1 + 0.4); S(O.a1 + 0.4, O.b0, O.b1, 0, 16, shade(fl, 0.9));
-      for(let x = O.a0 + 18; x < O.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, O.b1 + 0.6);
+      F(Os.a0, Os.a1, 0, 16, fl, null, 0, Os.b1 + 0.4); S(Os.a1 + 0.4, Os.b0, Os.b1, 0, 16, shade(fl, 0.9));
+      for(let x = Os.a0 + 18; x < Os.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, Os.b1 + 0.6);
       /* the door: its turquoise surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
-      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, O.b1 + 0.5);
-      if(SEE) HOLE([P(O.door[0], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 0), P(O.door[0], O.b1 + 0.6, 0)]);
-      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, O.b1 + 0.6);
+      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, Os.b1 + 0.5);
+      if(SEE) HOLE([P(O.door[0], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 0), P(O.door[0], Os.b1 + 0.6, 0)]);
+      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, Os.b1 + 0.6);
       /* the storefront: framed glass, three mullions */
       { const [w0, w1] = O.glassS;
-        F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, O.b1 + 0.5);
-        if(SEE) HOLE([P(w0, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 16), P(w0, O.b1 + 0.6, 16)]);
-        F(w0, w1, 16, 104, SEE ? glassSee : glass, null, 0, O.b1 + 0.6);
-        for(let k = 1; k < 4; k++) F(w0 + (w1 - w0)*k/4 - 2, w0 + (w1 - w0)*k/4 + 2, 16, 104, shade(trim, 1.1), null, 0, O.b1 + 0.8); }
+        F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, Os.b1 + 0.5);
+        if(SEE) HOLE([P(w0, Os.b1 + 0.6, 104), P(w1, Os.b1 + 0.6, 104), P(w1, Os.b1 + 0.6, 16), P(w0, Os.b1 + 0.6, 16)]);
+        F(w0, w1, 16, 104, SEE ? glassSee : glass, null, 0, Os.b1 + 0.6);
+        for(let k = 1; k < 4; k++) F(w0 + (w1 - w0)*k/4 - 2, w0 + (w1 - w0)*k/4 + 2, 16, 104, shade(trim, 1.1), null, 0, Os.b1 + 0.8); }
       /* the picture window onto the lot */
       { const [b0, b1] = O.glassE;
-        S(O.a1 + 0.5, b0 - 6, b1 + 6, 12, 108, shade(trim, 0.9));
-        if(SEE) HOLE([P(O.a1 + 0.6, b0, 104), P(O.a1 + 0.6, b1, 104), P(O.a1 + 0.6, b1, 16), P(O.a1 + 0.6, b0, 16)]);
-        S(O.a1 + 0.6, b0, b1, 16, 104, SEE ? glassSee : glass);
-        for(let k = 1; k < 3; k++) S(O.a1 + 0.8, b0 + (b1 - b0)*k/3 - 2, b0 + (b1 - b0)*k/3 + 2, 16, 104, shade(trim, 1.0)); }
+        S(Os.a1 + 0.5, b0 - 6, b1 + 6, 12, 108, shade(trim, 0.9));
+        if(SEE) HOLE([P(Os.a1 + 0.6, b0, 104), P(Os.a1 + 0.6, b1, 104), P(Os.a1 + 0.6, b1, 16), P(Os.a1 + 0.6, b0, 16)]);
+        S(Os.a1 + 0.6, b0, b1, 16, 104, SEE ? glassSee : glass);
+        for(let k = 1; k < 3; k++) S(Os.a1 + 0.8, b0 + (b1 - b0)*k/3 - 2, b0 + (b1 - b0)*k/3 + 2, 16, 104, shade(trim, 1.0)); }
       /* THE ROOF: from the back at the walls' head up to the front's overhang (a plane through z = H at b0 - 20 and z =
          roof at b1 + 44), its underside seen from the street, a clerestory of glass between the walls' head and it */
-      const RB0 = O.b0 - 20, RB1 = O.b1 + 44, RA0 = O.a0 - 26, RA1 = O.a1 + 34, rz = b => H + (O.roof - H)*(b - RB0)/(RB1 - RB0);
-      F(O.a0, O.a1, H, rz(O.b1), '#bcd6dc', null, 0, O.b1 + 0.2);                                // the clerestory, south
-      for(let x = O.a0 + 40; x < O.a1; x += 52) F(x - 2, x + 2, H, rz(O.b1), shade(trim, 1.1), null, 0, O.b1 + 0.4);
-      poly([P(O.a1 + 0.2, O.b0, H), P(O.a1 + 0.2, O.b1, H), P(O.a1 + 0.2, O.b1, rz(O.b1)), P(O.a1 + 0.2, O.b0, rz(O.b0))], '#a9c7ce');   // ...and east
+      const RB0 = Os.b0 - 20, RB1 = Os.b1 + 44, RA0 = Os.a0 - 26, RA1 = Os.a1 + 34, rz = b => H + (O.roof - H)*(b - RB0)/(RB1 - RB0);
+      F(Os.a0, Os.a1, H, rz(Os.b1), '#bcd6dc', null, 0, Os.b1 + 0.2);                                // the clerestory, south
+      for(let x = Os.a0 + 40; x < Os.a1; x += 52) F(x - 2, x + 2, H, rz(Os.b1), shade(trim, 1.1), null, 0, Os.b1 + 0.4);
+      poly([P(Os.a1 + 0.2, Os.b0, H), P(Os.a1 + 0.2, Os.b1, H), P(Os.a1 + 0.2, Os.b1, rz(Os.b1)), P(Os.a1 + 0.2, Os.b0, rz(Os.b0))], '#a9c7ce');   // ...and east
       poly([P(RA0, RB1, O.roof + 5), P(RA1, RB1, O.roof + 5), P(RA1, RB0, H + 5), P(RA0, RB0, H + 5)], shade(roofc, 1.05));   // the top (its underside never faces the eye)
       F(RA0, RA1, O.roof - 3, O.roof + 9, trim, null, 0, RB1);                                   // the fascia
       poly([P(RA1, RB0, H - 3), P(RA1, RB1, O.roof - 3), P(RA1, RB1, O.roof + 9), P(RA1, RB0, H + 9)], trimD);
       blockWordIn('OFFICE', 300, 470, O.roof - 2, O.roof + 8, RB1 + 0.5, '#ffffff', null, 6);
       /* the canopy's two lights (the lamp kit glows them at night) */
-      for(const la of [140, 400]){ cyl(la, O.b1 + 24, O.roof - 10, O.roof - 4, 8, '#f6f2e0'); }
+      for(const la of [140, 400]){ cyl(la, Os.b1 + 24, O.roof - 10, O.roof - 4, 8, '#f6f2e0'); }
     }});
 
     /* ---- THE COURT'S THINGS: loungers along the pool's north side, umbrellas, the ladder, the diving board ---- */
