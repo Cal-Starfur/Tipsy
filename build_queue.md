@@ -179,10 +179,6 @@ graph LR
 - [?] `bb-night` Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark (NIGHT_CLOCK.time = 22) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1) [docs/kits/missions.md]
 - [!] `bb-m2` Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built) (needs the story) [docs/kits/missions.md]
 
-## Parked (waiting on Sir)
-- [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
-- [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
-
 ## Gideon's pad
 - [?] `gd1` Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2) [docs/gideon-dock.md]
 - [?] `gd2` Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2) [docs/gideon-dock.md]
@@ -208,3 +204,7 @@ graph LR
 - [ ] `kf-night` Night cut: the Seabreeze Ballroom and the Tidewater Museum write their own night boxes and reach over their near walls (walkinNightCheck says LEAK): move them to the kit's walkinNightBoxes or fix their boxes, then look inside at night (W25) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-new` The rooms built since the audit (Saltwater Brewing, Lagoon Baths, Driftwood Chapel, Palmline Nursery, Lagoon Market Hall, Ferris Taylor Cottage, Seaglass Coffee; Cove Grove and the Airfield terminal once they are in the sheet): look inside at the door and the near walls for W23 and W24, and confirm W22 by eye where it reads 'not declared' [docs/state/walkin_kit_fit.md]
 - [ ] `kf-big` Shell coverage and W23/W24 for the three rooms the walk-in sheet leaves out: the Seabreeze Ballroom, Marina General Hospital and the Maritime Mall (their exteriors are drawn in pieces on their own frames, so measure each against its walls' outer face by eye, then fix what is short) [docs/state/walkin_kit_fit.md]
+
+## Parked (waiting on Sir)
+- [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
+- [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
