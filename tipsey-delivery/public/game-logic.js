@@ -73070,8 +73070,7 @@ marinaEntry(),
             T(3604, 3652, s0 + 6, s1 - 6, 44, '#7ac0d0'); T(3608, 3648, s0 + 10, s1 - 10, 44.2, 'rgba(160,220,230,.6)');
             for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
             for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } });
-        for(const [b0, b1] of [[1000, 1028], [1100, 1128]]) bench(3600, 3656, b0, b1);
-        bench(3344, 3404, 1000, 1028); bench(3344, 3404, 1100, 1128);
+        // (the spine's benches are gone, Sir 2026-11-08: "these benches in the schools entry can be removed")
         for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
           for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
         /* the school's emblem let into the hall floor, and the name on a low board by the door */
