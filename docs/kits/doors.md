@@ -14,6 +14,7 @@
 | D2 | **Nobody walks through a shut door or its glass.** | 1+ | C | ☐ crossing the door plane while shut |
 | D3 | **An open door shows depth**: a short lit tunnel clipped to the opening. A shut door hides the interior completely. | 6 | C | ☐ black-hole pixels |
 | D4 | **Nothing crosses a door**: window, band, counter stripe, glazing bar, header, rail, plant, mat, canopy or parked person. | 24 | C | ✅ shop kit K2 |
+| D4a | **A piece in front of a house door (deck, balcony, porch roof) is declared** as `doorFront:[{ b, z }]` on the entry (plane b, lowest z of the piece, entry units; z is tuned on screen until the cut sits on the piece's lower edge). The live open door is drawn over the cached house, so without it the hall shows through the piece (Stilt House, 2026-11-07). The opening is cut where that edge falls on the door plane. | 1+ | C | ☐ a house with a deck/balcony/porch over its door and no `doorFront` |
 | D5 | **One door, one eased k, one leaf drawer per type** (swing, slide, roll-up, lift). The door keeps the same detail open and shut, and automatic doors slide. | 9 | C (5 slide drawers) | ☐ timing |
 | D6 | **A walker in a doorway is drawn between the room and the leaf**, by which side of the door plane they're on. | 6 | C | ☐ |
 | D7 | **Real size first:** shop 66.24 × 161.92, house 92 × 184, main entrances about 2 people wide. Only as many doors as fit with piers, and no silent clamp. | 17 | C | ✅ shop kit K12 |
