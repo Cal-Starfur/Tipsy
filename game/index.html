@@ -25844,7 +25844,7 @@ const HOOD_RIM_SITES = [
 const TPE_PLAN = {
   LEN: 9384, DEP: 1880,                          // (the mall's depth: the hills are notched back behind it, hillNotchToe)
   WA: 1200, WB: 8184, MA0: 3200, MA1: 6200,      // the wings' outer ends and the main block
-  BB0: -1840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
+  WALL: 30, BB0: -1840, BB1: -300, H: 470, WH: 330,         // the building's own band, main and wing heights
   FB: -14, FBK: -1872, FBK2: -1360, BX: 8200,    // the railing's pavement line, its back run (32 behind the building), its back run behind the east end
                                                  // (FBK2: past it the foothills' first shelf begins), and the cross fence between them at a BX
   /* THE BUILDING IS AS DEEP AS THE MALL (Sir, 2026-11-06: "i wanted the building that deep not the yard ... line up building to building
@@ -25868,7 +25868,7 @@ const TPE_PLAN = {
   sign: { a0: 2950, a1: 3530, b0: -80, b1: -52, h: 78 },
   swing: { a0: 190, a1: 450, b: -300 }, sand: { a0: 600, a1: 730, b0: -640, b1: -560 }, slide: { a: 190, b: -660 }, dome: [900, -330, 62],   // the playground takes the whole west strip, each piece with room round it
   hoops: [[7258, -167, 1], [8122, -167, -1]], tether: [6430, -150],
-  racks: [[3440, -262], [5930, -262]], planters: [[4380, -258], [5020, -258]]
+  racks: [[3440, -232], [5930, -232]], planters: [[4380, -228], [5020, -228]]   // (stand 30 off the grown shell's face, as they stood off the old one)
 };
 /* ==================== TIDE POOL ELEMENTARY, THE ROOM INSIDE IT (Sir, 2026-11-06: "the school ... as deep as the mall,
    with people, and the overall design better") ====================
@@ -25924,9 +25924,9 @@ const TPE_IN = (() => {
 /* the gate's own rectangle, which is solid while it is shut */
 function tpeGateRect(g0, g1){ const P = TPE_PLAN; return [g0 + P.PIER, g1 - P.PIER, P.FB - 6, P.FB + 6]; }
 function tpeVol(){
-  const P = TPE_PLAN, R = volRect, bb = P.BB1 + 34;
+  const P = TPE_PLAN, R = volRect, bb = P.BB1 + P.WALL + 34, W0 = P.WALL;
   const solids = [
-    { name: 'main block', poly: R(P.MA0, P.MA1, P.BB0, P.BB1), h: P.H + 130 },
+    { name: 'main block', poly: R(P.MA0, P.MA1, P.BB0 - W0, P.BB1 + W0), h: P.H + 130 },
     /* the railing: back run, both ends, and the pavement run between the piers */
     { name: 'railing', poly: R(10, P.BX, P.FBK - 4, P.FBK + 4), h: 158 },
     { name: 'railing', poly: R(P.BX, P.LEN - 10, P.FBK2 - 4, P.FBK2 + 4), h: 158 },
@@ -25943,7 +25943,7 @@ function tpeVol(){
     cur = g1 + P.PIER;
   }
   solids.push({ name: 'railing', poly: R(cur, P.LEN, P.FB - 4, P.FB + 4), h: 158 });
-  for(const ca of [P.EA0 - 10, P.EA1 + 10]) solids.push({ name: 'canopy column', c: [ca, P.BB1 + 58], r: 8, h: 250 });
+  for(const ca of [P.EA0 - 10, P.EA1 + 10]) solids.push({ name: 'canopy column', c: [ca, P.BB1 + W0 + 58], r: 8, h: 250 });
   for(const [ta, tb] of P.trees) solids.push({ name: 'tree', c: [ta, tb], r: 20, h: 300, prop: true });
   solids.push({ name: 'flagpole', c: P.flag, r: 6, h: 300, prop: true });
   /* the yard's furniture: the sign wall, the swing set's frame, the sandbox, the slide's tower and its chute, the dome, the hoops'
@@ -25967,7 +25967,7 @@ function tpeVol(){
   /* the mass is the range, wings and all, to the wings' height; the main
      block stands taller as its own solid. Everything else is ground:
      the yard, the grass ends and the strip behind the range. */
-  return { foot: R(P.WA, P.WB, P.BB0, P.BB1), h: P.WH + 16, solids, marks: {} };
+  return { foot: R(P.WA - W0, P.WB + W0, P.BB0 - W0, P.BB1 + W0), h: P.WH + 16, solids, marks: {} };
 }
 /* THE GATES (the courtyard gates' rule, see CY_GATES): how open each one
    is, 0..1, stepped once a frame, read by the collision (rimGateBlocked)
@@ -29760,8 +29760,8 @@ walkinLife('Seaglass Coffee Interior', { keep: [[225, 325, 0, 330]], looks: [] }
    to 4: the gates open with them, rimGateStep), its pupils and staff come in at the bell and go home at the end of the
    day (THE ROOM'S DAY; a short stagger, so they pour in and out), the janitor (keys) unlocks and locks. */
 const TPE_PK = walkinDefine({ name: TPE_IN.name, from: 'Tide Pool Elementary', x0: TPE_IN.x0, y0: TPE_IN.y0,
-  lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1, half: TPE_IN.DOOR },
-  H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 420,
+  lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1 + TPE_PLAN.WALL, half: TPE_IN.DOOR },
+  H: TPE_IN.H, out: 60, apron: 90, glass: 60, stagger: 420,
   /* (its way to and from the street, THE ROOM'S DAY: out of the porch, down the yard's walk and through the gate to the pavement, and along it either way) */
   street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] }, });
 /* the school's uniforms (the people set's, on the roster body): named after the place */
@@ -73950,7 +73950,11 @@ marinaEntry(),
     const wall = '#e6dcc4', trim = '#2f7f86', brick = '#b06a4a', H = PL.H, WH = PL.WH;
     const tar = '#6e6f6b', walk = '#b3a894', glassT = 'rgba(106,138,152,.86)';
     const MA0 = PL.MA0, MA1 = PL.MA1, WA = PL.WA, WB = PL.WB;  // main range and the two wings
-    const BB1 = PL.BB1, BB0 = PL.BB0;                          // the building's own band
+    const BB1 = PL.BB1, BB0 = PL.BB0;                          // the building's own band (the floor of the room inside)
+    /* THE SHELL COVERS THE ROOM (W22, Sir, 2026-11-07): TPE_PK's floor is WA..WB x BB0..BB1 and its walls stand 30 outside it, so the
+       three blocks are that much bigger on every side (the shell's own band SF0..SF1, its ends SWA..SWB); the porch and the canopy stand
+       out in front of the new face, the yard's benches, racks and planters with them. */
+    const SF1 = BB1 + PL.WALL, SF0 = BB0 - PL.WALL, SWA = WA - PL.WALL, SWB = WB + PL.WALL;
     /* the site: tarmac yard in front of the range, a walk in from each gate.
        NO SCHOOL LAWNS (Sir, 2026-10-07: "lets start by removing the fake
        grass"). The ends and the strip behind the range were painted
@@ -74076,29 +74080,29 @@ marinaEntry(),
        room inside (TPE_PK): `shell`, they ease off as he goes in. ---- */
     const stone = '#ece3cc', stoneD = '#cdbfa0', navy = '#27405a', coral = '#e0674e', ink = '#2b3138', teal = trim;
     const blockOf = (a0, a1, h, col) => {
-      box(a0, a1, BB0, BB1, 0, h, shade(col,1.06), col, shade(col,.78));
+      box(a0, a1, SF0, SF1, 0, h, shade(col,1.06), col, shade(col,.78));
       /* plinth and eaves */
-      F(a0, a1, 0, 26, shade(col,.66), null, 0, BB1+0.4);
-      slab(a0-8, a1+8, h, h+16, BB1+8, BB0-8, shade(col,.72), null, shade(col,1.1));
+      F(a0, a1, 0, 26, shade(col,.66), null, 0, SF1+0.4);
+      slab(a0-8, a1+8, h, h+16, SF1+8, SF0-8, shade(col,.72), null, shade(col,1.1));
     };
     /* one window on the front, in a stone surround: its reveal, the panes, the mullions and transom bar, a sill */
     const winOne = (w0, w1, z0, z1, col) => {
-      if(!inView(w0 - 14, w1 + 14, BB1, BB1 + 2, z0 - 16, z1 + 14)) return;
-      F(w0-8, w1+8, z0-10, z1+12, stone, null, 0, BB1+0.6);
-      F(w0-4, w1+4, z0-6, z1+8, shade(col,.55), null, 0, BB1+0.9);
-      F(w0, w1, z0, z1, glassT, null, 0, BB1+1.2);
-      F(w0, w0 + (w1-w0)*0.34, z0 + (z1-z0)*0.55, z1, 'rgba(206,226,236,.20)', null, 0, BB1+1.3);                  // a pale reflection
-      for(let m=1;m<3;m++) F(w0 + (w1-w0)*m/3 - 2.5, w0 + (w1-w0)*m/3 + 2.5, z0, z1, '#f2ede0', null, 0, BB1+1.6);
-      F(w0, w1, (z0+z1)/2 - 2.5, (z0+z1)/2 + 2.5, '#f2ede0', null, 0, BB1+1.6);
-      F(w0-10, w1+10, z0-14, z0-8, stoneD, null, 0, BB1+1.8);
+      if(!inView(w0 - 14, w1 + 14, SF1, SF1 + 2, z0 - 16, z1 + 14)) return;
+      F(w0-8, w1+8, z0-10, z1+12, stone, null, 0, SF1+0.6);
+      F(w0-4, w1+4, z0-6, z1+8, shade(col,.55), null, 0, SF1+0.9);
+      F(w0, w1, z0, z1, glassT, null, 0, SF1+1.2);
+      F(w0, w0 + (w1-w0)*0.34, z0 + (z1-z0)*0.55, z1, 'rgba(206,226,236,.20)', null, 0, SF1+1.3);                  // a pale reflection
+      for(let m=1;m<3;m++) F(w0 + (w1-w0)*m/3 - 2.5, w0 + (w1-w0)*m/3 + 2.5, z0, z1, '#f2ede0', null, 0, SF1+1.6);
+      F(w0, w1, (z0+z1)/2 - 2.5, (z0+z1)/2 + 2.5, '#f2ede0', null, 0, SF1+1.6);
+      F(w0-10, w1+10, z0-14, z0-8, stoneD, null, 0, SF1+1.8);
     };
     const winRow = (a0, a1, z0, z1, n, col) => { for(let k = 0; k < n; k++) winOne(a0 + (a1-a0)*(k+0.14)/n, a0 + (a1-a0)*(k+0.86)/n, z0, z1, col); };
     /* a coral awning over a window or a door: its slanted top, its front edge in stripes */
     const awning = (a0, a1, zTop, zBot, out) => {
-      poly([P(a0, BB1 + 0.8, zTop), P(a1, BB1 + 0.8, zTop), P(a1, BB1 + out, zBot), P(a0, BB1 + out, zBot)], shade(coral, 1.05));
-      for(let s = a0, i = 0; s < a1 - 1; s += 22, i++) if(i % 2) poly([P(s, BB1 + 0.9, zTop), P(Math.min(a1, s + 22), BB1 + 0.9, zTop), P(Math.min(a1, s + 22), BB1 + out, zBot), P(s, BB1 + out, zBot)], '#f4efe2');
-      poly([P(a0, BB1 + out, zBot), P(a1, BB1 + out, zBot), P(a1, BB1 + out, zBot - 10), P(a0, BB1 + out, zBot - 10)], shade(coral, 0.78));
-      for(const ea of [a0, a1]) poly([P(ea, BB1 + 0.8, zTop), P(ea, BB1 + out, zBot), P(ea, BB1 + out, zBot - 10), P(ea, BB1 + 0.8, zTop - 12)], shade(coral, 0.7));
+      poly([P(a0, SF1 + 0.8, zTop), P(a1, SF1 + 0.8, zTop), P(a1, SF1 + out, zBot), P(a0, SF1 + out, zBot)], shade(coral, 1.05));
+      for(let s = a0, i = 0; s < a1 - 1; s += 22, i++) if(i % 2) poly([P(s, SF1 + 0.9, zTop), P(Math.min(a1, s + 22), SF1 + 0.9, zTop), P(Math.min(a1, s + 22), SF1 + out, zBot), P(s, SF1 + out, zBot)], '#f4efe2');
+      poly([P(a0, SF1 + out, zBot), P(a1, SF1 + out, zBot), P(a1, SF1 + out, zBot - 10), P(a0, SF1 + out, zBot - 10)], shade(coral, 0.78));
+      for(const ea of [a0, a1]) poly([P(ea, SF1 + 0.8, zTop), P(ea, SF1 + out, zBot), P(ea, SF1 + out, zBot - 10), P(ea, SF1 + 0.8, zTop - 12)], shade(coral, 0.7));
     };
     const EA0 = PL.EA0, EA1 = PL.EA1, DM = (EA0 + EA1)/2, GH = WH + 56, GE = PL.GYM1;
     /* WEST WING, MAIN BLOCK, EAST WING -- in that order, because east is
@@ -74109,42 +74113,42 @@ marinaEntry(),
        Painted far-to-near it is covered to the wing's own roofline and
        only the part above it shows, which is what you would see. Each is
        its own item, so no one image runs the length of the site. */
-    add([WA-8, MA0, BB0-8, BB1+44], () => {
-      blockOf(WA, MA0, WH, wall);
-      F(WA, MA0, 26, 74, shade(brick, 1.0), null, 0, BB1+0.5); F(WA, MA0, 74, 80, stone, null, 0, BB1+0.6);          // the brick base, its cap
-      F(WA, MA0, WH - 24, WH - 18, teal, null, 0, BB1+0.6);                                                          // the teal band under the eaves
+    add([SWA-8, MA0, SF0-8, SF1+44], () => {
+      blockOf(SWA, MA0, WH, wall);
+      F(SWA, MA0, 26, 74, shade(brick, 1.0), null, 0, SF1+0.5); F(SWA, MA0, 74, 80, stone, null, 0, SF1+0.6);          // the brick base, its cap
+      F(SWA, MA0, WH - 24, WH - 18, teal, null, 0, SF1+0.6);                                                          // the teal band under the eaves
       /* the cafeteria: four tall windows, each under a coral awning; the kitchen: two small high ones */
-      for(let k = 0; k < 4; k++){ const w0 = WA + 90 + k*335, w1 = w0 + 270; winOne(w0, w1, 100, 232, wall); if(inView(w0, w1, BB1, BB1 + 60, 220, 300)) awning(w0 - 14, w1 + 14, 268, 238, 46); }
+      for(let k = 0; k < 4; k++){ const w0 = WA + 90 + k*335, w1 = w0 + 270; winOne(w0, w1, 100, 232, wall); if(inView(w0, w1, SF1, SF1 + 60, 220, 300)) awning(w0 - 14, w1 + 14, 268, 238, 46); }
       winRow(PL.WA + 1500 + 60, MA0 - 60, 130, 220, 2, wall);
       /* the kitchen's flue and a roof unit */
       if(state.roof){ box(WA+300, WA+450, -1100, -1040, WH, WH+30, '#9aa0a6', '#7d838a', '#6a7076');
         cyl(WA + 1640, -1100, WH, WH + 70, 14, '#8a9397', '#aeb6ba'); cyl(WA + 1640, -1100, WH + 70, WH + 76, 17, '#6a7076', '#8a9397'); }
     }, { shell: true });
-    add([MA0, MA1, BB0-8, BB1+12], () => {
+    add([MA0, MA1, SF0-8, SF1+12], () => {
       blockOf(MA0, MA1, H, brick);
       /* the stringcourse between the floors, the stone quoins at both ends, the dentils under the cornice */
-      F(MA0, MA1, 240, 252, stone, null, 0, BB1+0.5); F(MA0, MA1, 252, 256, stoneD, null, 0, BB1+0.7);
-      for(let q = 0; q < 8; q++){ const z0 = 30 + q*54, w = q % 2 ? 36 : 26; for(const [a0, a1] of [[MA0, MA0 + w], [MA1 - w, MA1]]) F(a0, a1, z0, z0 + 50, stone, null, 0, BB1+0.7); }
-      for(let a = MA0 + 8; a < MA1 - 14; a += 26) F(a, a + 13, H - 14, H - 2, stone, null, 0, BB1+8.4);
+      F(MA0, MA1, 240, 252, stone, null, 0, SF1+0.5); F(MA0, MA1, 252, 256, stoneD, null, 0, SF1+0.7);
+      for(let q = 0; q < 8; q++){ const z0 = 30 + q*54, w = q % 2 ? 36 : 26; for(const [a0, a1] of [[MA0, MA0 + w], [MA1 - w, MA1]]) F(a0, a1, z0, z0 + 50, stone, null, 0, SF1+0.7); }
+      for(let a = MA0 + 8; a < MA1 - 14; a += 26) F(a, a + 13, H - 14, H - 2, stone, null, 0, SF1+8.4);
       /* the windows: six bays above; below, four -- the porch takes the middle two */
       { const x0 = MA0 + 110, wd = (MA1 - 110 - x0)/6;
         for(const k of [0, 1, 4, 5]) winOne(x0 + wd*(k + 0.14), x0 + wd*(k + 0.86), 62, 205, brick);
         for(const k of [0, 1, 4, 5]) winOne(x0 + wd*(k + 0.14), x0 + wd*(k + 0.86), 272, 420, brick);
         winOne(DM - 100, DM + 100, 352, 442, brick); }
       /* the porch: a stone surround, a dark reveal, the pair of glass doors, their transom, the name board over it */
-      F(EA0-22, EA1+22, 0, 262, stone, null, 0, BB1+0.5); F(EA0-14, EA1+14, 0, 256, shade(brick,.5), null, 0, BB1+0.9);
+      F(EA0-22, EA1+22, 0, 262, stone, null, 0, SF1+0.5); F(EA0-14, EA1+14, 0, 256, shade(brick,.5), null, 0, SF1+0.9);
       for(const [d0,d1] of [[EA0+40, EA0+150],[EA1-150, EA1-40]]){
-        F(d0, d1, 10, 206, '#2b3138', null, 0, BB1+1.2);
-        F(d0+6, d1-6, 20, 198, 'rgba(150,190,206,.80)', null, 0, BB1+1.6);
-        F((d0+d1)/2-3, (d0+d1)/2+3, 10, 206, shade(wall,1.2), null, 0, BB1+2.0);
-        F(d0+10, d1-10, 98, 104, '#c9ccd0', null, 0, BB1+2.2);                                  // the push bar
+        F(d0, d1, 10, 206, '#2b3138', null, 0, SF1+1.2);
+        F(d0+6, d1-6, 20, 198, 'rgba(150,190,206,.80)', null, 0, SF1+1.6);
+        F((d0+d1)/2-3, (d0+d1)/2+3, 10, 206, shade(wall,1.2), null, 0, SF1+2.0);
+        F(d0+10, d1-10, 98, 104, '#c9ccd0', null, 0, SF1+2.2);                                  // the push bar
       }
-      F(EA0+34, EA1-34, 212, 248, 'rgba(150,190,206,.70)', null, 0, BB1+1.4); F(DM - 3, DM + 3, 212, 248, shade(wall,1.2), null, 0, BB1+1.8);   // the transom
-      F(EA0-22, EA1+22, 276, 340, navy, null, 0, BB1+0.8); F(EA0-18, EA1+18, 280, 336, shade(navy, 1.2), null, 0, BB1+1.0);
-      blockWordIn('TIDE POOL', EA0 - 8, EA1 + 8, 300, 330, BB1 + 1.4, '#f4efe2', null, 14);
-      blockWordIn('ELEMENTARY SCHOOL', EA0 - 12, EA1 + 12, 284, 296, BB1 + 1.4, '#e8b54a', null, 7);
+      F(EA0+34, EA1-34, 212, 248, 'rgba(150,190,206,.70)', null, 0, SF1+1.4); F(DM - 3, DM + 3, 212, 248, shade(wall,1.2), null, 0, SF1+1.8);   // the transom
+      F(EA0-22, EA1+22, 276, 340, navy, null, 0, SF1+0.8); F(EA0-18, EA1+18, 280, 336, shade(navy, 1.2), null, 0, SF1+1.0);
+      blockWordIn('TIDE POOL', EA0 - 8, EA1 + 8, 300, 330, SF1 + 1.4, '#f4efe2', null, 14);
+      blockWordIn('ELEMENTARY SCHOOL', EA0 - 12, EA1 + 12, 284, 296, SF1 + 1.4, '#e8b54a', null, 7);
       /* bellcote on the main roof, the way the elementary in Peddlers Square has one (behind the pediment: first) */
-      { const ba = DM, bz = H + 16, bb0 = BB1 - 130, bb1 = BB1 - 40;
+      { const ba = DM, bz = H + 16, bb0 = SF1 - 130, bb1 = SF1 - 40;
         box(ba-56, ba+56, bb0, bb1, bz, bz+76, shade(wall,1.04), wall, shade(wall,.8));
         F(ba-32, ba+32, bz+18, bz+60, '#2b3138', null, 0, bb1+0.6);
         for(let k=0;k<3;k++) F(ba-32, ba+32, bz+24+k*12, bz+29+k*12, shade(wall,1.1), null, 0, bb1+1.0);
@@ -74155,42 +74159,42 @@ marinaEntry(),
         ball(ba, (bb0+bb1)/2, bz+122, 9, trim); }
       /* the pediment over the porch bay, its clock in the tympanum, brick banding under it */
       { const pa0 = EA0 - 120, pa1 = EA1 + 120, pz0 = H + 16, pz1 = pz0 + 112, cz = pz0 + 46;
-        prism([[pa0, pz0], [pa1, pz0], [DM, pz1]], BB1 - 26, BB1 + 8, stone, stoneD, shade(stone, 1.06));
-        poly([P(pa0 + 26, BB1 + 8.2, pz0 + 6), P(pa1 - 26, BB1 + 8.2, pz0 + 6), P(DM, BB1 + 8.2, pz1 - 22)], shade(brick, 1.0));
-        poly([P(pa0 + 38, BB1 + 8.4, pz0 + 10), P(pa1 - 38, BB1 + 8.4, pz0 + 10), P(DM, BB1 + 8.4, pz1 - 34)], stone);
-        faceCircle(DM, BB1 + 9, cz, 30, '#f7f4ea', ink, 2.4);
-        for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2, r0 = k % 3 ? 25 : 22; tube(DM + r0*Math.sin(t), BB1 + 9.6, cz + r0*Math.cos(t), DM + 27*Math.sin(t), BB1 + 9.6, cz + 27*Math.cos(t), 0.8, ink); }
-        tube(DM, BB1 + 10, cz, DM + 4, BB1 + 10, cz + 21, 1.5, ink); tube(DM, BB1 + 10.4, cz, DM + 13, BB1 + 10.4, cz - 4, 1.9, ink);
-        slab(pa0 - 8, pa1 + 8, pz0 - 10, pz0, BB1 + 12, BB1 - 26, stoneD, null, shade(stone, 1.06)); }
+        prism([[pa0, pz0], [pa1, pz0], [DM, pz1]], SF1 - 26, SF1 + 8, stone, stoneD, shade(stone, 1.06));
+        poly([P(pa0 + 26, SF1 + 8.2, pz0 + 6), P(pa1 - 26, SF1 + 8.2, pz0 + 6), P(DM, SF1 + 8.2, pz1 - 22)], shade(brick, 1.0));
+        poly([P(pa0 + 38, SF1 + 8.4, pz0 + 10), P(pa1 - 38, SF1 + 8.4, pz0 + 10), P(DM, SF1 + 8.4, pz1 - 34)], stone);
+        faceCircle(DM, SF1 + 9, cz, 30, '#f7f4ea', ink, 2.4);
+        for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2, r0 = k % 3 ? 25 : 22; tube(DM + r0*Math.sin(t), SF1 + 9.6, cz + r0*Math.cos(t), DM + 27*Math.sin(t), SF1 + 9.6, cz + 27*Math.cos(t), 0.8, ink); }
+        tube(DM, SF1 + 10, cz, DM + 4, SF1 + 10, cz + 21, 1.5, ink); tube(DM, SF1 + 10.4, cz, DM + 13, SF1 + 10.4, cz - 4, 1.9, ink);
+        slab(pa0 - 8, pa1 + 8, pz0 - 10, pz0, SF1 + 12, SF1 - 26, stoneD, null, shade(stone, 1.06)); }
       if(state.roof) box(MA0+260, MA0+460, -1100, -1020, H, H+34, '#9aa0a6', '#7d838a', '#6a7076');
     }, { shell: true });
-    add([MA1, WB+8, BB0-8, BB1+2], () => {
+    add([MA1, SWB+8, SF0-8, SF1+2], () => {
       /* the gym (taller, a clerestory under its eaves, the sign and its turtle) and the art room beside it */
       blockOf(MA1, GE, GH, wall);
-      F(MA1, GE, 26, 74, shade(brick, 1.0), null, 0, BB1+0.5); F(MA1, GE, 74, 80, stone, null, 0, BB1+0.6); F(MA1, GE, GH - 24, GH - 18, teal, null, 0, BB1+0.6);
-      for(let k = 0; k < 10; k++){ const w0 = MA1 + 70 + k*(GE - MA1 - 140)/10 + 10, w1 = w0 + (GE - MA1 - 140)/10 - 20; if(!inView(w0, w1, BB1, BB1 + 2, 300, 360)) continue;
-        F(w0 - 4, w1 + 4, 296, 358, stone, null, 0, BB1 + 0.6); F(w0, w1, 300, 354, 'rgba(120,160,178,.88)', null, 0, BB1 + 1.2); F(w0, w1, 324, 328, '#f2ede0', null, 0, BB1 + 1.6); }
-      F(MA1 + 60, GE - 60, 140, 196, navy, null, 0, BB1 + 0.8); blockWordIn('GYMNASIUM', MA1 + 80, GE - 400, 150, 186, BB1 + 1.4, '#f4efe2', null, 12);
+      F(MA1, GE, 26, 74, shade(brick, 1.0), null, 0, SF1+0.5); F(MA1, GE, 74, 80, stone, null, 0, SF1+0.6); F(MA1, GE, GH - 24, GH - 18, teal, null, 0, SF1+0.6);
+      for(let k = 0; k < 10; k++){ const w0 = MA1 + 70 + k*(GE - MA1 - 140)/10 + 10, w1 = w0 + (GE - MA1 - 140)/10 - 20; if(!inView(w0, w1, SF1, SF1 + 2, 300, 360)) continue;
+        F(w0 - 4, w1 + 4, 296, 358, stone, null, 0, SF1 + 0.6); F(w0, w1, 300, 354, 'rgba(120,160,178,.88)', null, 0, SF1 + 1.2); F(w0, w1, 324, 328, '#f2ede0', null, 0, SF1 + 1.6); }
+      F(MA1 + 60, GE - 60, 140, 196, navy, null, 0, SF1 + 0.8); blockWordIn('GYMNASIUM', MA1 + 80, GE - 400, 150, 186, SF1 + 1.4, '#f4efe2', null, 12);
       { const ta = GE - 250, tz = 168;                                                              // the school's turtle, on the wall over the doors
-        faceCircle(ta, BB1 + 1.2, tz, 46, '#5a9a6a', ink, 2); faceCircle(ta, BB1 + 1.5, tz, 30, '#78b886'); faceCircle(ta, BB1 + 1.8, tz, 12, '#5a9a6a');
-        for(let k = 0; k < 6; k++){ const t = k*Math.PI/3; tube(ta + 12*Math.cos(t), BB1 + 2, tz + 12*Math.sin(t), ta + 30*Math.cos(t), BB1 + 2, tz + 30*Math.sin(t), 0.9, '#3f7a4a'); }
-        faceCircle(ta + 58, BB1 + 1.4, tz + 14, 13, '#5a9a6a', ink, 1.6); faceCircle(ta + 62, BB1 + 1.8, tz + 17, 2.4, ink);
-        for(const [da, dz] of [[-34, -40], [34, -40], [-38, 30], [40, 30]]) faceCircle(ta + da, BB1 + 1.2, tz + dz, 9, '#5a9a6a', ink, 1.4); }
+        faceCircle(ta, SF1 + 1.2, tz, 46, '#5a9a6a', ink, 2); faceCircle(ta, SF1 + 1.5, tz, 30, '#78b886'); faceCircle(ta, SF1 + 1.8, tz, 12, '#5a9a6a');
+        for(let k = 0; k < 6; k++){ const t = k*Math.PI/3; tube(ta + 12*Math.cos(t), SF1 + 2, tz + 12*Math.sin(t), ta + 30*Math.cos(t), SF1 + 2, tz + 30*Math.sin(t), 0.9, '#3f7a4a'); }
+        faceCircle(ta + 58, SF1 + 1.4, tz + 14, 13, '#5a9a6a', ink, 1.6); faceCircle(ta + 62, SF1 + 1.8, tz + 17, 2.4, ink);
+        for(const [da, dz] of [[-34, -40], [34, -40], [-38, 30], [40, 30]]) faceCircle(ta + da, SF1 + 1.2, tz + dz, 9, '#5a9a6a', ink, 1.4); }
       /* the gym's double doors, in the middle, under a small canopy */
-      for(const [d0, d1] of [[GE - 640, GE - 560], [GE - 540, GE - 460]]){ F(d0, d1, 6, 96, '#2b3138', null, 0, BB1 + 1.2); F(d0 + 5, d1 - 5, 14, 90, 'rgba(150,190,206,.70)', null, 0, BB1 + 1.6); }
-      F(GE - 650, GE - 450, 96, 102, stoneD, null, 0, BB1 + 1.8);
-      blockOf(GE, WB, WH, wall);
-      F(GE, WB, 26, 74, shade(brick, 1.0), null, 0, BB1+0.5); F(GE, WB, 74, 80, stone, null, 0, BB1+0.6); F(GE, WB, WH - 24, WH - 18, teal, null, 0, BB1+0.6);
-      for(let k = 0; k < 2; k++){ const w0 = GE + 50 + k*(WB - GE - 100)/2, w1 = w0 + (WB - GE - 100)/2 - 30; winOne(w0, w1, 80, 236, wall); }
+      for(const [d0, d1] of [[GE - 640, GE - 560], [GE - 540, GE - 460]]){ F(d0, d1, 6, 96, '#2b3138', null, 0, SF1 + 1.2); F(d0 + 5, d1 - 5, 14, 90, 'rgba(150,190,206,.70)', null, 0, SF1 + 1.6); }
+      F(GE - 650, GE - 450, 96, 102, stoneD, null, 0, SF1 + 1.8);
+      blockOf(GE, SWB, WH, wall);
+      F(GE, SWB, 26, 74, shade(brick, 1.0), null, 0, SF1+0.5); F(GE, SWB, 74, 80, stone, null, 0, SF1+0.6); F(GE, SWB, WH - 24, WH - 18, teal, null, 0, SF1+0.6);
+      for(let k = 0; k < 2; k++){ const w0 = GE + 50 + k*(SWB - GE - 100)/2, w1 = w0 + (SWB - GE - 100)/2 - 30; winOne(w0, w1, 80, 236, wall); }
       if(state.roof){ box(MA1+400, MA1+550, -1100, -1040, GH, GH+30, '#9aa0a6', '#7d838a', '#6a7076');
         for(const sa of [GE + 40, GE + 250]){ box(sa, sa + 170, -1200, -1100, WH, WH + 30, '#9ad0e0', '#7ab0c0', '#6a9eae'); F(sa, sa + 170, WH, WH + 30, 'rgba(150,200,214,.55)', null, 0, -1100 + 0.5); } }
     }, { shell: true });
     /* the porch's steps and its canopy on two posts, out over the doorstep (the shell's too) */
-    add([EA0-70, EA1+70, BB1-2, BB1+76], () => {
-      box(EA0 - 44, EA1 + 44, BB1, BB1 + 60, 0, 6, stone, shade(stone, 0.9), stoneD); box(EA0 - 44, EA1 + 44, BB1, BB1 + 34, 6, 12, shade(stone, 1.04), stone, stoneD);
-      slab(EA0-34, EA1+34, 250, 270, BB1+74, BB1-2, teal, shade(teal,.72), shade(teal,1.15));
-      for(const ca of [EA0-10, EA1+10]) cyl(ca, BB1+58, 0, 250, 7, shade(wall,.9));
-      for(const lx of [DM - 70, DM + 70]){ tube(lx, BB1 + 40, 250, lx, BB1 + 40, 236, 1.2, '#6a7076'); ball(lx, BB1 + 40, 232, 6, '#fff1c4', '#fffbe8'); }   // a lamp under it each side
+    add([EA0-70, EA1+70, SF1-2, SF1+76], () => {
+      box(EA0 - 44, EA1 + 44, SF1, SF1 + 60, 0, 6, stone, shade(stone, 0.9), stoneD); box(EA0 - 44, EA1 + 44, SF1, SF1 + 34, 6, 12, shade(stone, 1.04), stone, stoneD);
+      slab(EA0-34, EA1+34, 250, 270, SF1+74, SF1-2, teal, shade(teal,.72), shade(teal,1.15));
+      for(const ca of [EA0-10, EA1+10]) cyl(ca, SF1+58, 0, 250, 7, shade(wall,.9));
+      for(const lx of [DM - 70, DM + 70]){ tube(lx, SF1 + 40, 250, lx, SF1 + 40, 236, 1.2, '#6a7076'); ball(lx, SF1 + 40, 232, 6, '#fff1c4', '#fffbe8'); }   // a lamp under it each side
     }, { shell: true });
 
     if(state.props){
@@ -74210,7 +74214,7 @@ marinaEntry(),
         box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
         for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
       });
-      for(const ba of PL.benches) bench(ba, BB1 + 34);
+      for(const ba of PL.benches) bench(ba, SF1 + 34);
       /* TREES (2026-09-18, Sir: "the trees at the school are looking
          bad"). They were a 70-tall stub under one flat disc of #3f7a4a
          -- all but invisible, because that green and the yard grass
@@ -74327,7 +74331,7 @@ marinaEntry(),
       add([ga - 30, ga + 30, -44, 4], () => {
         box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
         T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
-      });
+      }, { pt: true });   // (pt: from inside the room it is ordered by its own point, not under everything: queueExteriorLot)
       if(ga !== g0) continue;
       items[items.length - 1].pier = g0;
       if(!state.emit) add([g0, g1, PL.FB - 80, PL.FB + 6], () => this.gateLeaves(g0, g1, 0));   // the lab: shut, in its slot
@@ -74766,8 +74770,7 @@ marinaEntry(),
             T(3604, 3652, s0 + 6, s1 - 6, 44, '#7ac0d0'); T(3608, 3648, s0 + 10, s1 - 10, 44.2, 'rgba(160,220,230,.6)');
             for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
             for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } });
-        for(const [b0, b1] of [[1000, 1028], [1100, 1128]]) bench(3600, 3656, b0, b1);
-        bench(3344, 3404, 1000, 1028); bench(3344, 3404, 1100, 1128);
+        // (the spine's benches are gone, Sir 2026-11-08: "these benches in the schools entry can be removed")
         for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
           for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
         /* the school's emblem let into the hall floor, and the name on a low board by the door */
@@ -91436,7 +91439,7 @@ function tpeYardCast(){
     kid('soccer-4', 'A', tpeShuttle(F0.cx + 180, F0.cy + 40, F0.cx + 380, F0.cy - 60, 9000, 0.12, 1500));
     kid('keeper', 'A', now => ({ a: F0.cx + F0.rx - F0.tw - 120, b: F0.cy + 30*Math.sin(now/2300), z: 0, th: Math.PI, moving: false, pose: { lift: [0.7, 0.7], bend: [0.5, 0.5] } }));
   }
-  PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
+  PL.benches.slice(1, 3).forEach((ba, i) => kid('bench-' + i, 'B', tpeStill(ba - 24 + i*48, PL.BB1 + PL.WALL + 34, Math.PI/2, { pose: { sit: 44, lift: [0.15, 0.15], bend: [0.5, 0.5] } })));
   return (TPE_Y.list = L);
 }
 /* which set is out, latched only while the yard is off the screen: [open at all, recess] */
@@ -108185,10 +108188,13 @@ class WorldScene extends Phaser.Scene {
       const bp = fr.toLab(this.botX, this.botY), bd = this.botX + this.botY, base = fr.ox + fr.oy;
       const nearSite = bp.a > -600 && bp.a < rim.to - rim.from + 600 && bp.b > -rim.depth - 600 && bp.b < 600;
       const under = nearSite ? Math.min(base, bd - 0.5) : base;
+      /* (FROM INSIDE ITS ROOM, a piece that is a point (`pt`: the gate piers) goes in at its own place among the room's walls, not at the
+         site's far corner under them: the room's near wall was painted over the brick pier at the school's door) */
+      const _rimPk = rim.name !== 'Maritime Mall' && typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
+      const inRoom = !!_rimPk && this._inside === _rimPk;
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       /* (a rim site with a walk-in room of its own -- Tide Pool Elementary: its `shell` pieces ease off with the generic
          pocket service, pocketShellK, as a hood landmark's; the mall keeps its own, mallShellK) */
-      const _rimPk = rim.name !== 'Maritime Mall' && typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
       if(items) items.forEach((it, n) => {
         /* (seen from inside, a prop that would stand between the camera and the room (cutHide): fading out with the
            anchors' shells, mallShellK, not gone in a frame -- Sir, 2026-10-22, "the tall part disappeared") */
@@ -108199,7 +108205,7 @@ class WorldScene extends Phaser.Scene {
           it._fp = { x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y), z1: F.z1 }; }
         /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
         const sk = it.shell ? (_rimPk ? pocketShellK(this, _rimPk) : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this) : 1;
-        const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
+        const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? (inRoom && it.pt ? q.x + q.y + n*1e-3 : occDepth(it.occ, n)) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
@@ -108215,7 +108221,7 @@ class WorldScene extends Phaser.Scene {
           const t = RIM_GATES.get(rimGateKey(rim.name, g0)) || 0, q = fr.toWorld((g0 + g1)/2, TPE_PLAN.FB);
           /* between its own two piers in the paint order (see the kit) */
           const pn = items ? items.findIndex(it => it.pier === g0) : -1;
-          const occ = [g0, g1, TPE_PLAN.FB - 80, TPE_PLAN.FB + 6], depth = occDepth(occ, pn >= 0 ? pn + 0.5 : (items ? items.length : 0) + k);
+          const occ = [g0, g1, TPE_PLAN.FB - 80, TPE_PLAN.FB + 6], depth = inRoom ? q.x + q.y + (pn >= 0 ? pn + 0.5 : k)*1e-3 : occDepth(occ, pn >= 0 ? pn + 0.5 : (items ? items.length : 0) + k);
           const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.gateLeaves(g0, g1, t) }, fr.flank);
           vq.push({ depth, fn: (g) => (t === 0 || t === 1) ? this.bcDraw(g, "rim|" + rim.name + "|gate|" + g0 + "|" + t, q.x, q.y, draw) : draw(g) });
         }); }
