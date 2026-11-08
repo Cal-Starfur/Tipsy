@@ -26657,9 +26657,9 @@ function walkinNightBoxes(W, D, H, LH){
      walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
   /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
      block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W - 6, 0, D - 6, LH || 66, LH || 66],
+  return [[0, W, 0, D, LH || 66, LH || 66],
           [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
-          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];   // (6 in from the near walls' inner top edges: the hull's slivers beyond them lit the wall ends)
+          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -27750,7 +27750,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
              { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });   // (the doorway's light: the vestibule's floor, flat, and the opening itself in the wall's line -- what is seen through it, the floor behind -- both its own width, not the walls' ends beside it: those stay night)
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });   // (the doorway's light is the opening itself in the wall's line -- what is seen through it, the floor behind -- and nothing outside it: the vestibule, the mat and the wall ends beside the door stay night; its east edge 30 in, the east wall's face is that far over on screen)
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -27786,7 +27786,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
   street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D + P.apron, 1], [P.door.at - P.door.half + 4, P.door.at + P.door.half - 4, P.D, P.D, 66, 0]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -29903,7 +29903,10 @@ const AIR = (() => {
                  links: [[23050, 23160], [28150, 28260], [33140, 33250]] };
   const apron = [23540, 25900, 20110, 20900];                  // the heart's apron: the hangar's doors to the terminal's west wall
   const hangar = { x0: 22720, x1: 23540, y0: 20180, y1: 21000, wall: 150, rise: 90, door: [20260, 20920], label: 'HANGAR 1' };
-  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21160, top: 120, door: [26420, 26620] };   // its front on the pavement line (Sir: "on the sidewalk line not in from it")
+  const terminal = { x0: 25980, x1: 27300, y0: 20420, y1: 21160, top: 120, door: [26420, 26620] };
+  /* THE WALK-IN (wk10, TERM_IN): the terminal's one hall. The room is the shell's footprint less the walls' 30 on every side (W22: x 26010..27270,
+     y 20450..21130 -- 1260 x 680); its door is the shell's own (200 across, x 26420..26620, in the front face at y 21160) */
+  const termIn = { x0: 26010, x1: 27270, y0: 20450, y1: 21130, door: 26520, half: 100 };   // its front on the pavement line (Sir: "on the sidewalk line not in from it")
   const tower = { x0: 26960, x1: 27160, y0: 20470, y1: 20670, cab: 300, cabTop: 360 };
   /* the east end and the south arm */
   const cargo = [28950, 30480, 20110, 21000];
@@ -30009,9 +30012,45 @@ const AIR = (() => {
     if(FLEET_BAYS_BUILT) out.push([fleet.wallX, fleet.hall.y1, fleet.wallX, gapY - 8]);
     return out;
   })();
-  return { cells, site, runway, taxi, apron, hangar, terminal, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H, fleet,
+  return { cells, site, runway, taxi, apron, hangar, terminal, termIn, tower, cargo, spur, hangar2, tiedown, south, fuelPad, tanks, TANK_R, TANK_H, fleet,
            fuelTruck, fire, fireApron, radarPad, radar, drives, FH, sign, planes, heartPlane, tugs, forklift, crates, windsocks, walls, fenceY: drives[0].y - 4 };
 })();
+/* ==================== SUN DECK AIRFIELD, THE TERMINAL, WALK-IN (wk10; the room: the LIB entry 'Sun Deck Airfield Terminal Interior') ====================
+   The terminal on the street's lines (walkinDefine, an hl landmark: the cell 'Sun Deck Airfield Terminal' (8,6), its draw frame the cell's north-west:
+   lab a = x - 25024, b = 18768 - y, so the room's south is lab b going DOWN). The shell is AIR.terminal (x 25980..27300, y 20420..21160); the room is
+   its floor less the walls' 30 (W22: x 26010..27270, y 20450..21130 -- 1260 x 680). The shell's eight tiles and the control tower on its roof are
+   `shell` pieces: they ease off round him as he goes in at the door (200 across, x 26420..26620, the live sliding pair set 6 back of the face, y 21154);
+   the doorway and the glass over the bulkhead (z 46..88) show the room (walkinThrough). In the room's own frame (a east, b south) the door is at
+   a 410..610, the lane to the back wall. */
+const TERM_IN = walkinDefine({ name: 'Sun Deck Airfield Terminal Interior', from: 'Sun Deck Airfield Terminal', x0: 590000, y0: 410000,
+  lab: [AIR.termIn.x0 - 25024, AIR.termIn.x1 - 25024, 18768 - AIR.termIn.y1, 18768 - AIR.termIn.y0], door: { a: AIR.termIn.door - 25024, b: 18768 - 21154, half: AIR.termIn.half },
+  H: 300, out: 36, apron: 30, glass: 4,
+  /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the pavement and along it either way) */
+  street: { to: [0, 210], routes: [[[-1100, 210]], [[1100, 210]]] },
+  /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
+  openings: [{ lab: [[AIR.termIn.door - 25024 - AIR.termIn.half, 18768 - 21160], [AIR.termIn.door - 25024 + AIR.termIn.half, 18768 - 21160]], z: [0, 88] },
+             { lab: [[AIR.terminal.x0 + 40 - 25024, 18768 - 21160], [AIR.termIn.door - 25024 - AIR.termIn.half - 6, 18768 - 21160]], z: [46, 88], glass: true },
+             { lab: [[AIR.termIn.door - 25024 + AIR.termIn.half + 6, 18768 - 21160], [AIR.terminal.x1 - 40 - 25024, 18768 - 21160]], z: [46, 88], glass: true }],
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+const TERM_AGENT = { shirt: { c:0x2e5f9e, dk:0x244a7c }, pants: { c:0x2b2f35, dk:0x1e2126 }, shoe: { c:0x1a1a1a, dk:0x101010 },
+  vest: { c:0xf4f1ea, dk:0xd4d1ca }, shoeKind: 'dress' };                         // a blue shirt under a white waistcoat
+const TERM_BARISTA = { shirt: { c:0xc8352e, dk:0x9a2823 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };
+/* the check-in agent behind the desk (north of it, facing south), the barista behind the cafe counter in the north-east; a floor of 856,800 square: two
+   travellers waiting in the lounge */
+walkinStaff('Sun Deck Airfield Terminal Interior', [
+  { id: 'checkin', role: 'check-in agent', seed: 0x7e1001, U: TERM_AGENT, fixed: true, keys: true,
+    posts: [[170, 98, Math.PI/2, 9000, true], [250, 98, Math.PI/2, 6000, true], [210, 82, -Math.PI/2, 4000, true]] },
+  { id: 'cafe', role: 'barista', seed: 0x7e1002, U: TERM_BARISTA, fixed: true,
+    posts: [[1040, 70, Math.PI/2, 8000, true], [1110, 70, Math.PI/2, 5000, true]] },
+  { id: 'traveller-1', role: 'visitor', seed: 0x7e1011, look: 'visitor', life: 'browse' },
+  { id: 'traveller-2', role: 'visitor', seed: 0x7e1012, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Sun Deck Airfield Terminal Interior', { keep: [[400, 620, 0, 680]], looks: [
+  { id: 'board', spots: [[760, 130, -Math.PI/2], [1000, 130, -Math.PI/2]] },
+  { id: 'lounge', spots: [[900, 380, 0], [1100, 380, Math.PI]] },
+  { id: 'cafe', spots: [[1075, 130, -Math.PI/2]] },
+] });
 /* THE APRON'S GATE (Sir, 2026-10-09: "weve got to put a gate that opens and
    closes on the entrance"): one corrugated steel leaf the gateway's width on
    a track just inside the wall, sliding east behind the wall to open. open
@@ -47469,7 +47508,9 @@ function houseCanopy(fn){
       if(q[1] > q[0] && q[3] > q[2]) solids.push({ name, poly: rectLab(q), h }); };
     const addC = (name, x, y, r, h) => { if(mine(x, y)) solids.push({ name, c: [A(x), B(y)], r, h }); };
     for(const H of [C.hangar, C.hangar2]) addR('hangar', [H.x0, H.x1, H.y0, H.y1], H.wall + H.rise + 10);
-    addR('terminal', [TM.x0, TM.x1, TM.y0, TM.y1], TM.top + 20);
+    /* (wk10: the terminal is a walk-in, TERM_IN: its door, 200 across, opens 30 deep into the face -- the room's own wall -- so he drives up to the glass where the room takes him) */
+    addR('terminal', [TM.x0, TM.door[0], TM.y0, TM.y1], TM.top + 20); addR('terminal', [TM.door[1], TM.x1, TM.y0, TM.y1], TM.top + 20);
+    addR('terminal', [TM.door[0], TM.door[1], TM.y0, TM.y1 - 30], TM.top + 20);
     addR('control tower', [TW.x0, TW.x1, TW.y0, TW.y1], TW.cabTop + 40);
     addR('fire station', [C.fire.x0, C.fire.x1, C.fire.y0, C.fire.y1], C.fire.top + 20);
     /* a plane: its body and tail; the twin's low wing and nacelles too
@@ -47575,6 +47616,7 @@ function houseCanopy(fn){
       /* THE TERMINAL'S DOORS, a sliding glass pair, live (the hl queue's slideDoors, as the museum's): they part for
          whoever comes up to them (THE GETAWAY's newlyweds, out to him and back in) and shut behind them */
       ...(cell.name === 'Sun Deck Airfield Terminal' ? {
+        see: true,      // (wk10: the doorway and the glass over the bulkhead show the room inside: walkinThrough, TERM_IN's openings)
         slideDoors: [{ a: A(TM.door[0]) + 6, w: TM.door[1] - TM.door[0] - 12, b: B(TM.y1) - 1.2, z0: 2, z1: 86, sense: -60, glass: 'rgba(170,206,220,.75)' }],
         doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#e9eef0'); } } : {}),
       draw(p){
@@ -47770,16 +47812,25 @@ function houseCanopy(fn){
           for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
             const tx0 = TM.x0 + c*tw, tx1 = tx0 + tw, ty0 = TM.y0 + r*th, ty1 = ty0 + th;
             if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
-            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+            items.push({ a: A(tx1), b: B(ty0), z: 0, shell: true, draw: () => {      // (shell: a walk-in's -- the terminal, TERM_IN -- fades round him as he goes in)
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, TOP + 20)) return;
               T(A(tx0), A(tx1), B(ty1), B(ty0), TOP, '#c4c6c4');
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               if(r === ny - 1){
                 fq(tS, A(TM.x0), A(TM.x1), 0, TOP, wall, 0);
-                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 14, 88, glass, 0.3);
-                for(let x = TM.x0 + 40 + 80; x < TM.x1 - 40; x += 80) fq(tS, A(x) - 3, A(x) + 3, 14, 88, mull, 0.5);
+                /* (wk10, TERM_IN: the doorway and the glass over the bulkhead are holes, the room drawn under them -- W11; the bulkhead under the glass stays solid) */
+                const hq = (u0, u1, z0, z1, o) => { [u0, u1] = clip(tS, u0, u1); if(u1 <= u0) return;
+                  HOLE([P(u0, tS.at + tS.out*o, z1), P(u1, tS.at + tS.out*o, z1), P(u1, tS.at + tS.out*o, z0), P(u0, tS.at + tS.out*o, z0)]); };
+                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 14, 46, shade(blue, .7), 0.3);
+                if(SEE){ hq(A(TM.x0) + 40, A(TM.door[0]) - 6, 46, 88, 0.3); hq(A(TM.door[1]) + 6, A(TM.x1) - 40, 46, 88, 0.3); }
+                fq(tS, A(TM.x0) + 40, A(TM.x1) - 40, 46, 88, SEE ? 'rgba(95,143,163,.40)' : glass, 0.3);
+                for(let x = TM.x0 + 40 + 80; x < TM.x1 - 40; x += 80){ if(x > TM.door[0] - 8 && x < TM.door[1] + 8) continue; fq(tS, A(x) - 3, A(x) + 3, 14, 88, mull, 0.5); }
                 const dm = (TM.door[0] + TM.door[1])/2;
-                fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);   // (its glass pair is live: slideDoors -- THE GETAWAY's couple come and go through it)
+                /* the doorway: a hole 200 across (the live pair, slideDoors, is 6 back), the frame's two posts and its head round it */
+                if(SEE) hq(A(TM.door[0]), A(TM.door[1]), 0, 88, 0.6);
+                else fq(tS, A(TM.door[0]), A(TM.door[1]), 0, 88, '#2b3540', 0.6);
+                fq(tS, A(TM.door[0]) - 5, A(TM.door[0]), 0, 94, '#2b3540', 0.8); fq(tS, A(TM.door[1]), A(TM.door[1]) + 5, 0, 94, '#2b3540', 0.8);
+                fq(tS, A(TM.door[0]) - 5, A(TM.door[1]) + 5, 88, 94, '#2b3540', 0.8);
                 fq(tS, A(TM.x0), A(TM.x1), 94, TOP, blue, 0.6);
                 fword(tS, 'SUN DECK AIR', A(TM.x0) + 120, A(TM.x1) - 120, 97, TOP - 3, '#ffffff', 0.9);
               }
@@ -47797,7 +47848,7 @@ function houseCanopy(fn){
           /* ---- the control tower on its roof: a white shaft, the glass cab,
              its roof, the beacon's housing (the beacon itself is live) ----
              keyed a hair past the tile under it, so its base sits on that roof */
-          if(mine((TW.x0 + TW.x1)/2, (TW.y0 + TW.y1)/2)) items.push({ a: A(TM.x1), b: B(TM.y0), z: 1, draw: () => {
+          if(mine((TW.x0 + TW.x1)/2, (TW.y0 + TW.y1)/2)) items.push({ a: A(TM.x1), b: B(TM.y0), z: 1, shell: true, draw: () => {
             if(!inView(A(TW.x0) - 30, A(TW.x1) + 30, B(TW.y1) - 30, B(TW.y0) + 30, TOP, TW.cabTop + 120)) return;
             const a0 = A(TW.x0), a1 = A(TW.x1), b0 = B(TW.y1), b1 = B(TW.y0), O = 22;
             box(a0, a1, b0, b1, TOP, TW.cab, wallL, wall, wallD);
@@ -52907,6 +52958,143 @@ function houseCanopy(fn){
     }
 
     walkinStaffSolids(items, 'Seaglass Coffee Interior');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE SUN DECK AIRFIELD'S TERMINAL (wk10: the walk-in kit, an hl landmark) ====================
+     The terminal's one hall, 1260 x 680 (the shell's footprint less the walls' 30: x 26010..27270, y 20450..21130), its door on the front (south, room b
+     680..710) at a 410..610 (the sliding pair, 200 across; the lane runs from it to the back wall, kept clear). The plan is TERM_IN (a east, b south,
+     world units; the north wall is the airside back, the west wall the terminal's flank, both plaster over the exterior's blue dado; the south and east cut
+     low, the south with the shopfront's bulkhead under its glass):
+       b 20..96     the check-in desk's agent (north of the desk, facing south), the CHECK-IN sign on the wall over it
+       b 110..150   the check-in desk, a 60..370: two monitors with their backs to us, a baggage scale in front of it with a case on it
+       a 650..960   the departures board on the north wall; a 960..1230 the cafe: back bar on the wall, the counter at b 100..140, its barista behind it
+       a 700..1200  the lounge: four rows of two benches, facing the board, on a blue carpet
+       the trolley of cases by the west wall, two tubs of palms flanking the lane */
+  name:'Sun Deck Airfield Terminal Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1260, dd: 680,
+  head:'Inside the Sun Deck Airfield terminal: a check-in desk, a departures board, a small cafe and a lounge of benches',
+  tags:['interior','pocket','airfield','terminal','check-in','departures board','cafe','lounge','sun deck airfield'],
+  desc:'The private airfield terminal\'s one hall: cream plaster over a blue dado, a terrazzo floor, the check-in desk with its scale, a departures board, a cafe counter with its espresso machine and a lounge of benches on a blue carpet.',
+  draw(p){
+    const pl = (typeof TERM_IN !== 'undefined' && TERM_IN) || null;
+    if(pl) pl.view();
+    const W = 1260, D = 680, H = pl ? pl.H : 300, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 510, half: 100 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    /* (the exterior's own: the terminal's white wall '#eef0ec' / '#cfd4d2', its blue fascia '#2e5f9e', the mullion white '#e9eef0') */
+    const blue = '#2e5f9e', blueD = '#244b7e', blueL = '#4a7fc0', plas = '#eef0ec', plasD = '#cfd4d2', stone = '#c4c6c4', mull = '#e9eef0';
+    const oak = '#8a6a46', oakF = '#6f5236', oakL = '#a98259', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b', red = '#c8352e', dark = '#2b3138';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: pale terrazzo in 60-square joints, a blue carpet under the lounge, a threshold stone at the door and a mat just inside (W13) ---- */
+    T(0, W, 0, D, 0, '#dcd9cf');
+    for(let a = 60; a < W; a += 60) T(a - 0.6, a + 0.6, 0, D, 0.15, '#c3c0b5');
+    for(let b = 60; b < D; b += 60) T(0, W, b - 0.6, b + 0.6, 0.15, '#c3c0b5');
+    T(670, 1230, 230, 590, 0.3, shade(blue, 0.85)); T(676, 1224, 236, 584, 0.4, blue);
+    T(DA0, DA1, D, D + AP, 0.3, stone); T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    T(DA0 + 14, DA1 - 14, 630, 668, 0.5, shade(blue, 0.8)); T(DA0 + 18, DA1 - 18, 634, 664, 0.6, blue);
+
+    /* ---- THE WALLS (the kit's): north and west plaster over the exterior's blue dado, the sign, the board and the posters on them; the south and
+       east cut low ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 58, shade(blue, 0.9), null, 0, 0.3);                                                      // the dado
+        F(-30, W + 30, 58, 64, shade(blue, 0.68), null, 0, 0.4);
+        F(-30, W + 30, 0, 8, shade(plasD, 0.8), null, 0, 0.5);                                                      // the skirting
+        F(-30, W + 30, H - 14, H, shade(plasD, 0.95), null, 0, 0.5);                                                // the cornice
+        F(60, 370, 190, 236, blue, plasD, 1, 0.7); F(64, 366, 194, 232, shade(blue, 1.1), null, 0, 0.8);            // the CHECK-IN sign over the desk
+        blockWordIn('CHECK-IN', 84, 346, 202, 224, 0.9, '#ffffff', null, 3);
+        blockWordIn('SUN DECK AIR', 410, 640, 214, 240, 0.9, blue, null, 3);                                        // the airline's name over the lane
+        F(650, 960, 120, 262, shade(dark, 0.9), plasD, 1, 0.7); F(656, 954, 126, 256, '#161b21', null, 0, 0.8);     // the departures board
+        blockWordIn('DEPARTURES', 672, 820, 238, 250, 0.9, '#e8b54a', null, 2);
+        const rows = [['0815', 'RUNWAY 09', '#7fe08a'], ['0940', 'MARINA', '#e8b54a'], ['1105', 'LIGHTHOUSE', '#7fe08a'], ['1230', 'MIRADOR', '#e8b54a'], ['1400', 'HARBOR', '#e8564a']];
+        rows.forEach(([t, d, c], k) => { const z = 212 - k*20; blockWordIn(t, 668, 712, z, z + 10, 0.9, '#e8b54a', null, 2); blockWordIn(d, 724, 868, z, z + 10, 0.9, '#f4f1ea', null, 2); F(890, 940, z + 1, z + 9, c, null, 0, 0.9); });
+        F(985, 1215, 190, 236, red, shade(red, 0.7), 1, 0.7); blockWordIn('CAFE', 1040, 1160, 200, 226, 0.9, '#ffffff', null, 3);   // the cafe's sign
+        for(const [a, z] of [[1000, 150], [1100, 150], [1200, 150]]){ F(a - 12, a + 12, z, z + 16, '#f6f3ea', steelS, 1, 0.8); }   // (cups on the back bar's shelf, seen over it)
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, plas);
+        S(0.3, -30, D + 30, 0, 58, shade(blue, 0.8)); S(0.4, -30, D + 30, 58, 64, shade(blue, 0.6));
+        S(0.5, -30, D + 30, 0, 8, shade(plasD, 0.7)); S(0.5, -30, D + 30, H - 14, H, shade(plasD, 0.82));
+        S(0.6, 250, 400, 140, 230, shade(plasD, 0.85)); S(0.7, 254, 396, 144, 226, '#9fc2d6');                      // a framed chart of the airfield
+        S(0.8, 262, 388, 188, 192, '#3a5a74'); S(0.8, 300, 304, 152, 220, '#3a5a74'); S(0.9, 330, 360, 160, 176, '#d8cfa8');
+        F(-30, -30, 0, 0, plas, null, 0, 0);
+        S(0.7, 480, 520, 190, 230, '#f4f1ea'); S(0.8, 484, 516, 194, 226, '#2b3036'); S(0.9, 498, 502, 200, 220, '#f4f1ea'); S(0.9, 498, 508, 208, 212, '#f4f1ea');   // a clock
+      },
+      low: ['#f3f4f0', '#e7e9e4', '#c9cdc8'], cap: ['#4a7fc0', '#2e5f9e', '#244b7e'], ftop: '#5b8fcd', frame: '#244b7e', glass: 'rgba(150,190,206,.5)' });
+
+    /* ---- THE CHECK-IN DESK (a 60..370, b 110..150, 90 high): a blue front with a white band, an oak top; two monitors with their backs to us (their screens
+       face the agent), a baggage scale in front of it with a case on it ---- */
+    items.push({ a: 215, b: 130, z: 0, solids: [solid(60, 370, 110, 150, 92, 'check-in desk'), solid(100, 190, 165, 215, 24, 'baggage scale')], draw: () => {
+      box(60, 370, 110, 150, 0, 84, blue, blueD, shade(blue, 0.7));
+      F(66, 364, 40, 60, '#f4f1ea', null, 0, 150.2); blockWordIn('SDA', 150, 280, 42, 58, 150.4, blue, null, 2);
+      box(56, 374, 106, 154, 84, 90, oakL, oak, oakF);
+      for(const a of [120, 260]){ box(a - 22, a + 22, 116, 130, 90, 128, dark, '#23292f', '#1c2126'); box(a - 14, a + 14, 120, 124, 128, 130, '#8f969b', '#7d868b', '#6a7378'); box(a - 8, a + 8, 123, 127, 90, 96, steelD, steelD, steelS); }
+      box(310, 346, 118, 136, 90, 98, '#f6f3ea', steelD, steelS); cyl(328, 127, 98, 104, 5, '#c8352e');              // the tag printer, a stamp
+      box(100, 190, 165, 215, 0, 10, steelD, steelS, '#7d868b'); T(104, 186, 169, 211, 10.2, '#2b3138');            // the scale's platform
+      box(112, 176, 176, 206, 10, 44, '#8a3a3a', shade('#8a3a3a', 0.85), shade('#8a3a3a', 0.7)); F(120, 168, 20, 30, '#d8dde0', null, 0, 206.2);   // a hard case on it, a strap
+      box(138, 150, 176, 206, 44, 48, '#2b3138', '#23292f', '#1c2126');
+    }});
+
+    /* ---- THE CAFE (a 960..1230): the back bar on the north wall (b 2..30, 90 high) and the counter at b 100..140 (84 high) with its espresso machine, till and
+       a pastry case; the barista stands between them, north of the counter ---- */
+    items.push({ a: 1095, b: 16, z: 0, solids: [solid(960, 1230, 2, 30, 92, 'cafe back bar')], draw: () => {
+      box(960, 1230, 2, 30, 0, 86, shade(red, 0.9), shade(red, 0.75), shade(red, 0.6));
+      box(958, 1232, 0, 32, 86, 90, oakL, oak, oakF);
+      for(const a of [966, 1048, 1130, 1198]){ F(a, a + 28, 8, 74, shade(red, 1.15), shade(red, 0.7), 1, 32.2); }
+      box(990, 1020, 6, 26, 90, 112, '#2b3138', '#23292f', '#1c2126'); cyl(1005, 16, 112, 130, 8, 'rgba(205,230,240,.6)', '#6b4a32');   // a grinder with its hopper
+      box(1090, 1124, 6, 26, 90, 120, steel, steelD, steelS);                                                                              // a drip brewer
+    }});
+    items.push({ a: 1095, b: 120, z: 0, solids: [solid(960, 1230, 100, 140, 86, 'cafe counter')], draw: () => {
+      box(960, 1230, 100, 140, 0, 80, red, shade(red, 0.8), shade(red, 0.65));
+      for(let a = 966; a < 1226; a += 20) F(a, a + 16, 24, 56, '#f4f1ea', null, 0, 140.2);                                              // the tile band on its front
+      box(958, 1232, 98, 142, 80, 84, oakL, oak, oakF);
+      box(986, 1050, 106, 132, 84, 112, steel, steelD, steelS); box(988, 1048, 108, 130, 112, 116, steelD, steelD, steelS);              // the espresso machine
+      for(const a of [1004, 1032]){ box(a - 5, a + 5, 101, 108, 94, 102, '#2b3138', '#23292f', '#1c2126'); cyl(a, 104, 84, 92, 4, '#f6f3ea'); }
+      box(1100, 1130, 108, 128, 84, 92, '#2b3138', '#23292f', '#1c2126'); box(1102, 1128, 122, 128, 92, 106, '#3a3e46', '#2b3036', '#23292f');   // the till, its back to us
+      box(1170, 1226, 102, 138, 84, 90, steelD, steelD, steelS); box(1170, 1226, 102, 138, 90, 114, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');   // the pastry case
+      for(const a of [1184, 1204]) for(const b of [114, 128]) cyl(a, b, 90, 94, 5, '#c98a4a', '#e0b27a');
+    }});
+
+    /* ---- THE LOUNGE (a 700..1200, b 300..540): four rows of two benches facing the board, a blue cushion on a steel frame with a back, a low table between ---- */
+    for(const bb of [290, 370, 450, 530]){
+      for(const a0 of [710, 1040]){
+        items.push({ a: a0 + 80, b: bb + 20, z: 0, solids: [solid(a0, a0 + 160, bb, bb + 42, 46, 'bench')], draw: () => {
+          for(const lx of [a0 + 8, a0 + 146]) box(lx, lx + 6, bb + 8, bb + 36, 0, 20, steelD, steelD, steelS);
+          box(a0, a0 + 160, bb, bb + 10, 20, 62, shade(blueL, 0.92), shade(blueL, 0.78), shade(blueL, 0.64));                // the back (north side)
+          box(a0, a0 + 160, bb + 10, bb + 42, 20, 34, blueL, shade(blueL, 0.85), shade(blueL, 0.7));                           // the seat
+          for(const m of [a0 + 80]) F(m - 1, m + 1, 22, 34, shade(blueD, 0.9), null, 0, bb + 42.1);
+        }});
+      }
+    }
+    items.push({ a: 960, b: 420, z: 0, solids: [{ name: 'coffee table', c: [960, 420], r: 30, h: 38 }], draw: () => {
+      cyl(960, 420, 0, 34, 3, '#3a3e46'); cyl(960, 420, 0, 3, 18, '#3a3e46'); cyl(960, 420, 34, 38, 30, oakL, oakF); plateCircle(960, 420, 38, 29, oakL, oak, 1);
+      box(946, 962, 410, 424, 38, 40, '#f4f1ea', '#d8d5ce', '#c3c0b5'); box(964, 976, 424, 434, 38, 40, '#e8b54a', '#c99a38', '#a98225');   // a magazine, a leaflet
+    }});
+
+    /* ---- THE TROLLEY of cases by the west wall (a 40..130, b 400..460): a steel cart, three cases stacked ---- */
+    items.push({ a: 85, b: 430, z: 0, solids: [solid(40, 130, 400, 460, 70, 'luggage trolley')], draw: () => {
+      box(42, 128, 402, 458, 8, 12, steelD, steelS, '#7d868b'); for(const [wa, wb] of [[50, 410], [120, 410], [50, 450], [120, 450]]) cyl(wa, wb, 0, 8, 5, '#2b3138');
+      tube(46, 404, 12, 46, 404, 70, 2, steelD); tube(46, 456, 12, 46, 456, 70, 2, steelD); tube(46, 404, 70, 46, 456, 70, 2, steelD);
+      box(60, 124, 408, 452, 12, 38, '#3a5a74', shade('#3a5a74', 0.85), shade('#3a5a74', 0.7)); box(66, 118, 414, 446, 38, 58, '#8a3a3a', shade('#8a3a3a', 0.85), shade('#8a3a3a', 0.7));
+      box(76, 108, 420, 440, 58, 70, '#c9a24a', shade('#c9a24a', 0.85), shade('#c9a24a', 0.7));
+    }});
+
+    /* ---- TWO TUBS OF PALMS flanking the lane (a 360 and a 660, b 600) ---- */
+    for(const ta of [350, 670]){
+      items.push({ a: ta, b: 600, z: 0, solids: [{ name: 'palm tub', c: [ta, 600], r: 24, h: 120 }], draw: () => {
+        cyl(ta, 600, 0, 34, 22, '#5a6a72', '#7a8a92'); plateCircle(ta, 600, 34, 20, '#4a3a2a', '#4a3a2a', 1);
+        tube(ta, 600, 34, ta, 600, 92, 2.4, '#7a5a3a');
+        for(let k = 0; k < 6; k++){ const q = k*Math.PI/3; tube(ta, 600, 92, ta + 34*Math.cos(q), 600 + 34*Math.sin(q), 78, 2.4, '#3f8f4f'); }
+        ball(ta, 600, 90, 6, '#4aa05a', '#357a42');
+      }});
+    }
+
+    walkinStaffSolids(items, 'Sun Deck Airfield Terminal Interior');
     depthSort(items);
   }
 },
