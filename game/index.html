@@ -74329,7 +74329,7 @@ marinaEntry(),
       add([ga - 30, ga + 30, -44, 4], () => {
         box(ga-26, ga+26, -40, 0, 0, 200, shade(brick,1.08), brick, shade(brick,.8));
         T(ga-30, ga+30, -44, 4, 204, shade(brick,.72));
-      });
+      }, { pt: true });   // (pt: from inside the room it is ordered by its own point, not under everything: queueExteriorLot)
       if(ga !== g0) continue;
       items[items.length - 1].pier = g0;
       if(!state.emit) add([g0, g1, PL.FB - 80, PL.FB + 6], () => this.gateLeaves(g0, g1, 0));   // the lab: shut, in its slot
@@ -108187,10 +108187,13 @@ class WorldScene extends Phaser.Scene {
       const bp = fr.toLab(this.botX, this.botY), bd = this.botX + this.botY, base = fr.ox + fr.oy;
       const nearSite = bp.a > -600 && bp.a < rim.to - rim.from + 600 && bp.b > -rim.depth - 600 && bp.b < 600;
       const under = nearSite ? Math.min(base, bd - 0.5) : base;
+      /* (FROM INSIDE ITS ROOM, a piece that is a point (`pt`: the gate piers) goes in at its own place among the room's walls, not at the
+         site's far corner under them: the room's near wall was painted over the brick pier at the school's door) */
+      const _rimPk = rim.name !== 'Maritime Mall' && typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
+      const inRoom = !!_rimPk && this._inside === _rimPk;
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       /* (a rim site with a walk-in room of its own -- Tide Pool Elementary: its `shell` pieces ease off with the generic
          pocket service, pocketShellK, as a hood landmark's; the mall keeps its own, mallShellK) */
-      const _rimPk = rim.name !== 'Maritime Mall' && typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
       if(items) items.forEach((it, n) => {
         /* (seen from inside, a prop that would stand between the camera and the room (cutHide): fading out with the
            anchors' shells, mallShellK, not gone in a frame -- Sir, 2026-10-22, "the tall part disappeared") */
@@ -108201,7 +108204,7 @@ class WorldScene extends Phaser.Scene {
           it._fp = { x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y), z1: F.z1 }; }
         /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
         const sk = it.shell ? (_rimPk ? pocketShellK(this, _rimPk) : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this) : 1;
-        const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? occDepth(it.occ, n) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
+        const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? (inRoom && it.pt ? q.x + q.y + n*1e-3 : occDepth(it.occ, n)) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
@@ -108217,7 +108220,7 @@ class WorldScene extends Phaser.Scene {
           const t = RIM_GATES.get(rimGateKey(rim.name, g0)) || 0, q = fr.toWorld((g0 + g1)/2, TPE_PLAN.FB);
           /* between its own two piers in the paint order (see the kit) */
           const pn = items ? items.findIndex(it => it.pier === g0) : -1;
-          const occ = [g0, g1, TPE_PLAN.FB - 80, TPE_PLAN.FB + 6], depth = occDepth(occ, pn >= 0 ? pn + 0.5 : (items ? items.length : 0) + k);
+          const occ = [g0, g1, TPE_PLAN.FB - 80, TPE_PLAN.FB + 6], depth = inRoom ? q.x + q.y + (pn >= 0 ? pn + 0.5 : k)*1e-3 : occDepth(occ, pn >= 0 ? pn + 0.5 : (items ? items.length : 0) + k);
           const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.gateLeaves(g0, g1, t) }, fr.flank);
           vq.push({ depth, fn: (g) => (t === 0 || t === 1) ? this.bcDraw(g, "rim|" + rim.name + "|gate|" + g0 + "|" + t, q.x, q.y, draw) : draw(g) });
         }); }
