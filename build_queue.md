@@ -194,7 +194,7 @@ graph LR
 - [?] `kf-tpe` Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23468,-1006&view=2) [docs/state/walkin_kit_fit.md]
 - [?] `kf-museum` Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1688&view=2) [docs/state/walkin_kit_fit.md]
 - [?] `kf-shelter` Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1564,-706&view=2) [docs/state/walkin_kit_fit.md]
-- [ ] `kf-brew` Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
+- [?] `kf-brew` Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24) [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,14934&view=2) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-ktde` KTDE 98.1 The Tide: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-motel` Sun Deck Motor Lodge Office: shell +30 on every side, then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-kart` Tidewater Kart Works: shell +30 on the front (check the other sides by eye), then the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]

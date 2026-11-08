@@ -10,7 +10,7 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Tide Pool Elementary | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: the doorway is the wall's own end, nothing near the near wall |
 | Tidewater Museum | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: portico, bay and doors read right against the room; night box still in `kf-night` |
 | Costa Palma Animal Shelter | **fits** (grown 30 each side 2026-11-08; body reaches the magenta in the photo) | photo | looked at inside at the door 2026-11-08: the front wall runs to the gap; door, canopy, windows, vol, swing door and the worker's step/gate marks follow the new front |
-| Brew & Bolt | **short**, the base stands at the floor's line | photo | not audited |
+| Brew & Bolt | **fits** (grown 30 each side 2026-11-08, both legs; the body reaches the magenta in the photo) | photo | looked at inside at the door: the front wall runs to the gap; door, pair, windows and flank glass follow the new front |
 | KTDE 98.1 The Tide | **short**, the street wall stands at the floor's line | photo | not audited |
 | Sun Deck Motor Lodge Office | **short**, the office's base is at about the floor's line | photo | not audited |
 | Tidewater Kart Works | **short on the front** (the barn's front stands inside the magenta), the east end reads right | photo | not audited |
