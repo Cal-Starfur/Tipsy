@@ -105360,7 +105360,8 @@ class WorldScene extends Phaser.Scene {
     };
 
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
-    const GS = RB ? this.gdKit(g, (a, b, h) => G(a, b, h), sees3, build, hipH, shoulderH, LOD) : null;   // (the robot's surfaces: gdKit)
+    const seesE = (na, nb, nh, e) => (na*eye3[0] + nb*eye3[1] + nh*eye3[2])/(Math.hypot(na, nb, nh)*Math.hypot(eye3[0], eye3[1], eye3[2]) || 1) > e;   // (a face toward the eye by at least e: edge-on faces are slivers)
+    const GS = RB ? this.gdKit(g, (a, b, h) => G(a, b, h), sees3, build, hipH, shoulderH, LOD, seesE) : null;   // (the robot's surfaces: gdKit)
 
     const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
     const noNear = noArms || !!(pose && pose.part === 'nonear');
@@ -105384,7 +105385,7 @@ class WorldScene extends Phaser.Scene {
       const sole = (bOff, hb, hh, col) => late ? 0 : limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
       const upper = (bOff, hb, hbot, htop, taper, col) => { if(mode === 1) return; if(late) LX.eps = 0.22; limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1, !late); LX.eps = 0; };   // (drawn after the leg: no lid and NO silhouette fill -- it is a sleeve over the shin; the fill is a convex hull of both ends and painted a plane across the leg)
       const toe = (bFrom, bTo, hbot, htop, ha, col) => far || (mode === 1 && faceB > 0) || (mode === 2 && !(faceB > 0)) ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);   // (filled: a small capsule low over the sole; unfilled its tapered faces showed as spikes)
-      const band = (bOff, hb, hbot, hh, col) => far || mode === 1 ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
+      const band = (bOff, hb, hbot, hh, col) => { if(far || mode === 1) return; LX.eps = 0.22; limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false); LX.eps = 0; };
       switch(K){
         case 'sneaker':  sole(legD*0.42, legD*1.62, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.97, S);
                          toe(legD*0.9, legD*2.05, h0 - shoeH + soleH*1.3, h0 - shoeH*0.3, legW*1.0, S);                                  // a toe cap over the front of the sole (without it the sole's top showed as a bare shelf)
@@ -105899,9 +105900,9 @@ class WorldScene extends Phaser.Scene {
         for(const sd of [-1, 1]){ const ax2 = sd*r*0.4, zb0 = z1 + 0.15, tipz = z1 + 11, tx = ax2 + sd*1.2, hw = 4.1, Q2 = (pts, c) => this.quadOn(g, pts, c), front = faceB > 0;
           /* the base sunk into the head's upper side (inside its outline), the tip leaning out: a flat ear with thickness, outlined so it reads against a head of its own colour */
           const tri = (b, c, e) => Q2([G(ax2 - hw - e, b, zb0 - e), G(ax2 + hw + e, b, zb0 - e), G(tx + sd*e*0.6, b, tipz + e*1.6)], c);
-          tri(front ? -1.1 : 1.1, EC2.dk, 0.45);                                                                // (the far face first)
+          tri(front ? -1.1 : 1.1, EC2.dk, 0.9);                                                                // (the far face first)
           Q2([G(ax2 - hw, -1.1, zb0), G(ax2 - hw, 1.1, zb0), G(tx, 1.1, tipz), G(tx, -1.1, tipz)], EC2.dk); Q2([G(ax2 + hw, -1.1, zb0), G(ax2 + hw, 1.1, zb0), G(tx, 1.1, tipz), G(tx, -1.1, tipz)], EC2.dk);
-          const nb = front ? 1.1 : -1.1; tri(nb, _pdk(RB.ear, 0.62), 0.45); tri(nb + (front ? 0.05 : -0.05), EC2.c, 0);                         // (the near face, with a dark rim round it)
+          const nb = front ? 1.1 : -1.1; tri(nb, _pdk(RB.ear, 0.62), 0.9); tri(nb + (front ? 0.05 : -0.05), EC2.c, 0);                         // (the near face, with a dark rim round it)
           if(front) Q2([G(ax2 - hw*0.6, 1.2, zb0 + 1), G(ax2 + hw*0.6, 1.2, zb0 + 1), G(tx - sd*0.2, 1.2, tipz - 2.4)], 0xf4a8b8); }
       }
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
@@ -106191,7 +106192,7 @@ class WorldScene extends Phaser.Scene {
      small lift for the thickness of the cloth. A garment is cells of that surface (surf), a strap or seam a stroke along it (strip), a badge or a
      decal a patch on it (patch); a cell is drawn only while its outward normal faces the eye (as the hull's own faces are) and toned by which way it
      faces, so it turns with him at every heading and never shows through him. Built only for the robot (drawPersonHull's GS). */
-  gdKit(g, Gf, sees3, build, hipH, shoulderH, LOD){
+  gdKit(g, Gf, sees3, build, hipH, shoulderH, LOD, seesE){
     const T = this, PI = Math.PI, ra = build.torsoW/2, rb = build.torsoD/2, r = build.headR;
     const zm = hipH + build.torsoH*0.42, zbot = hipH - 1.5, hz0 = shoulderH + r*0.28, hz1 = shoulderH + r*2, zj = hz0 + (hz1 - hz0)*0.42, fz = hz0 + (hz1 - hz0)*0.5;
     const tk = z => z <= zm ? 0.9 - 0.04*Math.max(0, z - zbot)/(zm + 1 - zbot) : 0.86 + 0.14*Math.min(1, (z - zm)/(shoulderH - zm));      // (the torso's taper: the hips in to the waist, out to the chest)
@@ -106221,7 +106222,7 @@ class WorldScene extends Phaser.Scene {
           const m = Math.max(1, Math.ceil(span/(LOD ? 0.55 : 0.27)));
           for(let i = 0; i < m; i++){
             const u0 = i/m, u1 = (i + 1)/m, A0 = a0 + (a1 - a0)*u0, A1 = a0 + (a1 - a0)*u1, B0 = b0 + (b1 - b0)*u0, B1 = b0 + (b1 - b0)*u1, am = (A0 + A1 + B0 + B1)/4;
-            const th = PI/2 - am, c = Math.cos(th), s2 = Math.sin(th), nrm = a => sees3(Math.cos(PI/2 - a)/ax, Math.sin(PI/2 - a)/bx, 0), vis = sees3(c/ax, s2/bx, 0) && nrm(A0) && nrm(A1) && nrm(B0) && nrm(B1);   // (all four corners toward the eye: nothing past the limb)
+            const th = PI/2 - am, c = Math.cos(th), s2 = Math.sin(th), nrm = a => sees3(Math.cos(PI/2 - a)/ax, Math.sin(PI/2 - a)/bx, 0), vis = seesE(c/ax, s2/bx, 0, o.eps == null ? 0.1 : o.eps) && nrm(A0) && nrm(A1) && nrm(B0) && nrm(B1);   // (all four corners toward the eye: nothing past the limb)
             if(o.inside ? vis : !vis) continue;
             const t = Math.abs(c)/(Math.abs(c) + Math.abs(s2) + 1e-6);
             quad(grow([P(A0, za, lift), P(A1, za, lift), P(B1, zb, lift), P(B0, zb, lift)], 0.4), o.tone != null ? o.tone : Tn.steps[Math.round(t*8)], o.al);
@@ -106347,8 +106348,8 @@ class WorldScene extends Phaser.Scene {
         const tear = (an, ew, eh) => { const o4 = []; for(let k = 0; k < 24; k++){ const t = k/24*PI*2, sn2 = Math.sin(t); o4.push([an + ew*Math.cos(t)*(1 + 0.2*sn2), ez - 0.5 + eh*sn2]); } return o4; };
         for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; const out = tear(an, 0.3, 4.1), inn = tear(an, 0.3 - 0.9/ar, 3.3);
           patch(hP, inn, 0x8c7a4a, 0.78, 0.5); patch(hP, [[an - 0.16, ez + 2.6], [an - 0.02, ez + 2.6], [an - 0.2, ez - 1], [an - 0.3, ez - 1]], 0xffffff, 0.85, 0.3); ring(out, inn, gc, 0.9); }
-        strip(hP, ar, [[-0.22, ez + 2.8], [0.22, ez + 2.8]], 0.7, gc, 0.9, 1, hSeen); strip(hP, ar, [[-0.2, ez + 1.4], [0.2, ez + 1.4]], 0.7, gc, 0.9, 1, hSeen);
-        for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.82, ez + 2], [sd*1.4, ez + 1.8]], 0.9, gc, 0.9, 1, hSeen);
+        strip(hP, ar, [[-0.22, ez + 2.8], [0.22, ez + 2.8]], 1.0, gc, 0.9, 1, hSeen); strip(hP, ar, [[-0.2, ez + 1.4], [0.2, ez + 1.4]], 1.0, gc, 0.9, 1, hSeen);
+        for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.82, ez + 2], [sd*1.4, ez + 1.8]], 1.1, gc, 0.9, 1, hSeen);
         return; }
       if(gl === 'eyepatch'){ const an = -0.5;
         strip(hP, ar, [[-0.18, ez + 3.4], [0.4, ez + 5.4], [1.2, ez + 5.8], [2.1, ez + 5.2], [PI, ez + 4.8]], 1.4, 0x1b1d21, 0.45, 1, hSeen);
@@ -106363,13 +106364,13 @@ class WorldScene extends Phaser.Scene {
       /* THE FRAME STYLES: each a lens outline and an inner edge laid on the screen (a rim of the frame's own thickness between them) */
       const SE = (an, zc, ew, eh, n, ex, skew, tilt, sd) => { const o5 = [], e5 = 2/ex; for(let k = 0; k < n; k++){ const t = k/n*PI*2, c = Math.cos(t), sn2 = Math.sin(t), xr = Math.sign(c)*Math.pow(Math.abs(c), e5);
           o5.push([an + ew*xr*(1 + skew*sn2), zc + eh*Math.sign(sn2)*Math.pow(Math.abs(sn2), e5) + tilt*sd*xr]); } return o5; };
-      const STY = { wayfarer: [0.32, 3.7, 5, 0.17, 0, 1.7, 24], cateye: [0.31, 3.5, 2.4, 0, 1.5, 1.0, 24], halfrim: [0.3, 3.9, 2.2, 0, 0, 1.0, 24], hex: [0.3, 4.0, 2, 0, 0, 1.1, 6], rimless: [0.3, 3.7, 2.2, 0, 0, 0.45, 24] };
+      const STY = { wayfarer: [0.32, 3.7, 5, 0.17, 0, 1.7, 24], cateye: [0.31, 3.5, 2.4, 0, 1.5, 1.0, 24], halfrim: [0.3, 3.9, 2.2, 0, 0, 1.0, 24], hex: [0.3, 4.0, 2, 0, 0, 1.1, 6], rimless: [0.3, 3.7, 2.2, 0, 0, 0.75, 24] };
       if(STY[gl]){ const [ew, eh, ex, skew, tilt, th, n] = STY[gl];
         for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue;
           const out = SE(an, ez, ew, eh, n, ex, skew, tilt, sd), inn = SE(an, ez, Math.max(0.03, ew - th/ar), Math.max(0.5, eh - th), n, ex, skew, tilt, sd);
           patch(hP, inn, gl === 'wayfarer' ? 0x14171b : 0xcfeaf5, 0.78, gl === 'wayfarer' ? 0.9 : 0.22);
           patch(hP, [[an - ew*0.55, ez + eh*0.7], [an - ew*0.15, ez + eh*0.7], [an - ew*0.55, ez - eh*0.15], [an - ew*0.78, ez - eh*0.15]], 0xffffff, 0.85, 0.26);
-          if(gl === 'halfrim'){ for(let i = 0; i < n/2; i++){ const j = i + 1; if(j >= out.length) break; patch(hP, [out[i], out[j], inn[j], inn[i]], gc, 0.9); } strip(hP, ar, [[an - ew, ez], [an, ez - eh + 0.5], [an + ew, ez]], 0.35, 0xd8dde2, 0.9, 1, null); }
+          if(gl === 'halfrim'){ for(let i = 0; i < n/2; i++){ const j = i + 1; if(j >= out.length) break; patch(hP, [out[i], out[j], inn[j], inn[i]], gc, 0.9); } strip(hP, ar, [[an - ew, ez], [an, ez - eh + 0.5], [an + ew, ez]], 0.7, 0xd8dde2, 0.9, 1, null); }
           else ring(out, inn, gc, 0.9);
           if(gl === 'rimless') for(const q of [[an - ew, ez + eh*0.5], [an + ew, ez + eh*0.5]]) patch(hP, ell(q[0], q[1], 0.5/ar, 0.5, 6, 2), 0xd9c27a, 1.0); }
         strip(hP, ar, [[-0.24, ez + (gl === 'cateye' ? 1.2 : 1.0)], [0.24, ez + (gl === 'cateye' ? 1.2 : 1.0)]], gl === 'rimless' ? 0.5 : gl === 'wayfarer' ? 1.5 : 1.0, gc, 0.9, 1, hSeen);
@@ -106579,7 +106580,7 @@ class WorldScene extends Phaser.Scene {
     };
     /* a ring of cloth round the neck from z0 to z1, its radius k0 below and k1 above (a scarf, a bandana, a lanyard's loop) */
     const cone = (z0, z1, k0, k1, col) => { const T0 = hullTones(col); for(let i = 0; i < 12; i++){ const t0 = (i + 0.5)/12*PI*2, t1 = (i + 1.5)/12*PI*2, mA = Math.cos((t0 + t1)/2), mB = Math.sin((t0 + t1)/2);
-      if(!sees3(mA, mB, 0)) continue; const tt = Math.abs(mA)/(Math.abs(mA) + Math.abs(mB));
+      if(!seesE(mA, mB, 0, 0.12)) continue; const tt = Math.abs(mA)/(Math.abs(mA) + Math.abs(mB));
       quad(grow([Gf(Math.cos(t0)*k0, Math.sin(t0)*k0, z0), Gf(Math.cos(t1)*k0, Math.sin(t1)*k0, z0), Gf(Math.cos(t1)*k1, Math.sin(t1)*k1, z1), Gf(Math.cos(t0)*k1, Math.sin(t0)*k1, z1)], 0.4), T0.steps[Math.round(tt*8)]); } };
 
     /* ------------------------------------------------------------------- DECALS, laid on his chest */
