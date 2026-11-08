@@ -363,6 +363,10 @@ Effort key:
 6. **Two rules every room has broken once (walk-in kit W18, W19):**
    - **The room is the shell's footprint.** Its outer walls on the shell's lines, following its outline (curved corners as curved runs); the landmark's ground does not paint under the building.
    - **A worker works facing their work.** Each staff post stands on the working side of its equipment and faces it; turn the equipment's screens, meters, decks or till away from the camera, so we see its back and the worker's face. Check every worker with the shell faded, zoomed in.
+8. **Three rules from Pelican Drug (2026-11-07, walk-in kit W22-W24):**
+   - **The shell covers the room.** Walls stand 30 outside the floor, so the exterior's body is the floor grown by 30 on every side (`plan.shell`); check with `node tools/run_sheet.js --walkins` (`cover ok`).
+   - **The doorway is the wall's own end:** the front wall stops at the glass's width, cap and face on one line, no pier or stub, drawn or solid.
+   - **Nothing floats; fixtures keep 60 clear of a low near wall.**
 7. **Reuse before drawing (W20):** furniture, screens, shelves, vehicles (`gameCar` kinds), uniforms and props from the kits; new art only for what doesn't exist.
 
 ### 6.2 Name-specific code to fold into the kit (found in generic paths) [V]

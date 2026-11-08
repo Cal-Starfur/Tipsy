@@ -382,56 +382,63 @@
 "title": "Static prop shadows",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: props"
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8372,2714&view=2"
 },
 {
 "id": "pr4",
 "title": "Pier + harbour still props cached",
 "spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
 "deps": [],
-"status": "pending",
-"group": "Consistency pass: props"
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2"
 },
 {
 "id": "wk1",
 "title": "Dune Home & Garden",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2"
 },
 {
 "id": "wk2",
 "title": "Saltwater Brewing",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17101,8700&view=2"
 },
 {
 "id": "wk3",
 "title": "Lagoon Baths",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1564,8577&view=2"
 },
 {
 "id": "wk4",
 "title": "Driftwood Chapel",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7821,11600&view=2"
 },
 {
 "id": "wk5",
 "title": "Palmline Nursery",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4693,11600&view=2"
 },
 {
 "id": "wk6",
@@ -447,72 +454,81 @@
 "title": "Lagoon Market Hall",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10279,27470&view=2"
 },
 {
 "id": "wk8",
 "title": "Ferris Taylor Cottages",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26115,11880&view=2"
 },
 {
 "id": "wk9",
 "title": "Cove Grove",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1259,27300&view=2"
 },
 {
 "id": "wk10",
 "title": "Airfield terminal",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
-"group": "Walk-in landmarks"
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26520,21330&view=2"
 },
 {
 "id": "f2",
 "title": "Fleet P2: rotor flight + The Lighthouse Run",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2"
 },
 {
 "id": "m1",
 "title": "Trophies alley fence to 0.3 over the room",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2"
 },
 {
 "id": "m2",
 "title": "Open House: crosswalk for the captain, live fire on the burn prop",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2"
 },
 {
 "id": "m3",
 "title": "KTDE: DJ side missions over the air; station van drives off",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17776,27858&view=2"
 },
 {
 "id": "m4",
 "title": "Letters on the Hill: face wash under roof edges; ranger inside her kiosk",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29330,-800&view=2"
 },
 {
 "id": "x1",
@@ -1040,6 +1056,102 @@
 ],
 "status": "built",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "kf-dune",
+"title": "Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built"
+},
+{
+"id": "kf-tpe",
+"title": "Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-museum",
+"title": "Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-shelter",
+"title": "Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-brew",
+"title": "Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-ktde",
+"title": "KTDE 98.1 The Tide: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-motel",
+"title": "Sun Deck Motor Lodge Office: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-kart",
+"title": "Tidewater Kart Works: shell +30 on the front (check the other sides by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-vista",
+"title": "Vista Ridge Security Post: the room stands in front of the building, not under it: re-measure the footprint, then shell +30 and the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-trophies",
+"title": "Seabreeze Trophies: shell fits; look inside at the door and the near walls for W23 and W24",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-check",
+"title": "Kit check: every exterior declares its footprint so walkinCoverage() measures all eleven (seven read \"not declared\" today), and run_sheet --walkins fails on a SHORT",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "kf-night",
+"title": "Night cut: the Seabreeze Ballroom and the Tidewater Museum write their own night boxes and reach over their near walls (walkinNightCheck says LEAK): move them to the kit's walkinNightBoxes or fix their boxes, then look inside at night (W25)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
 }
 ],
 "meta": {

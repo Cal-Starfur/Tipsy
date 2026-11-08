@@ -31,6 +31,12 @@ async function walkins(page, base, only){
   await page.goto(`${base}?go=${encodeURIComponent('20140,14260')}&view=2`);
   await page.waitForFunction(WK_READY, null, { timeout: 60000 }).catch(() => {});
   const list = await page.evaluate(() => POCKETS.filter(p => p.walkin).map(p => { const v = p.view && p.view(); const d = p.doors[0].world && p.doors[0].world(); return { name: p.name, W: Math.round(p.w), D: Math.round(p.d), door: d && { x: Math.round(d.x), y: Math.round(d.y), ox: d.ox, oy: d.oy } }; }));
+  /* W22 (docs/kits/walkin.md): does each shell cover its room's walls? [west, north, east, south] units short, 0 or less is covered */
+  const cov = await page.evaluate(() => (typeof walkinCoverage === 'function' ? walkinCoverage() : []));
+  for(const c of cov) console.log('  cover', c.short === null ? 'not declared (look at the photo)' : c.covers ? 'ok' : 'SHORT ' + JSON.stringify(c.short), '-', c.name);
+  /* W25 (docs/kits/walkin.md): does any room's night cut reach over its near walls? (its tops, outer faces and parked cars would be lit) */
+  const nc = await page.evaluate(() => (typeof walkinNightCheck === 'function' ? walkinNightCheck() : []));
+  for(const c of nc) console.log('  night', c.problems === null ? 'not declared' : c.problems.length ? 'LEAK ' + c.problems.join('; ') : 'ok', '-', c.name);
   const out = [];
   for(const pk of list.filter(p => !only || p.name.toLowerCase().includes(only.toLowerCase()))){
     if(!pk.door) continue;
@@ -49,7 +55,10 @@ async function walkins(page, base, only){
         const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, c = [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
         const g = window.__fp = s.add.graphics().setDepth(1e9).setScrollFactor(0);
         /* redrawn every frame: the camera is still easing after the jump, and a one-off overlay lags it by ~10px (a false 'footprint out') */
-        const draw = () => { g.clear(); for(const [z, col, w] of [[0, 0xff0000, 3], [q.h*(q.zk || 1), 0xff8800, 2]]){ g.lineStyle(w, col, 1); g.beginPath(); c.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } };
+        const draw = () => { g.clear();
+          /* (W22: the walls' OUTER face is the floor grown by WALKIN_WALL: the shell must reach the magenta lines) */
+          const o = [[X0 - 30, Y0 - 30], [X0 + q.w + 30, Y0 - 30], [X0 + q.w + 30, Y0 + q.d + 30], [X0 - 30, Y0 + q.d + 30]];
+          for(const [z, col, w, pts] of [[0, 0xff0000, 3, c], [q.h*(q.zk || 1), 0xff8800, 2, c], [0, 0xff00ff, 3, o], [q.h*(q.zk || 1), 0xff00ff, 2, o]]){ g.lineStyle(w, col, 1); g.beginPath(); pts.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } };
         s.events.on('postupdate', draw); g.once('destroy', () => s.events.off('postupdate', draw)); draw(); }, pk.name);
       await page.waitForTimeout(500); await snap('outside, room footprint in red');
       await page.evaluate(() => window.__fp.destroy());
