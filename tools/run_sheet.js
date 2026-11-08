@@ -34,6 +34,9 @@ async function walkins(page, base, only){
   /* W22 (docs/kits/walkin.md): does each shell cover its room's walls? [west, north, east, south] units short, 0 or less is covered */
   const cov = await page.evaluate(() => (typeof walkinCoverage === 'function' ? walkinCoverage() : []));
   for(const c of cov) console.log('  cover', c.short === null ? 'not declared (look at the photo)' : c.covers ? 'ok' : 'SHORT ' + JSON.stringify(c.short), '-', c.name);
+  /* W25 (docs/kits/walkin.md): does any room's night cut reach over its near walls? (its tops, outer faces and parked cars would be lit) */
+  const nc = await page.evaluate(() => (typeof walkinNightCheck === 'function' ? walkinNightCheck() : []));
+  for(const c of nc) console.log('  night', c.problems === null ? 'not declared' : c.problems.length ? 'LEAK ' + c.problems.join('; ') : 'ok', '-', c.name);
   const out = [];
   for(const pk of list.filter(p => !only || p.name.toLowerCase().includes(only.toLowerCase()))){
     if(!pk.door) continue;

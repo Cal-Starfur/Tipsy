@@ -19,3 +19,6 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 Fits: 3 of 11 (Pelican Drug, Trophies, Dune Home). Short: 7. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
 
 The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell is 30 bigger on every side..."): grow the exterior's body 30 on every side from `plan.shell`; the tower or door follows it out; the glass openings, `slideDoors`, the collision `vol` and anything on the body's faces (the band, the sign) move with it; the lot (bays, lanes, hedges) stays where it was. Then look inside at the door for W23 and W24 and fix what shows.
+
+## Night cut (W25), 2026-11-08
+`walkinNightCheck()` over every walk-in: all pass but two that write their own boxes. Ten rooms that had hand-written night lines (the old door box reaching 30 to 60 over the near wall) now take the kit's default, which includes the doorway: Pelican Drug, Dune Home, the Animal Shelter, Tide Pool Elementary, Sun Deck Motor Lodge, KTDE, the Kart Works, Brew & Bolt and the others. Still to do (queue `kf-night`): the Seabreeze Ballroom (its hall's front strips reach over its near walls) and the Tidewater Museum (the portico bay box, b 856..956 past D).

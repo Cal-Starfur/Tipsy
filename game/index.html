@@ -28342,22 +28342,47 @@ function landmarkLabWorld(name){
      spec.apron    how far the room's floor runs out past its wall (the entrance's own depth: Pelican's tower, 40);
                    the floor beyond is the street's, drawn round the room (default out)
      spec.glass    how far out of the door's line he is taken in (60: at the glass, the street holding him there)
-     spec.night    the boxes the night's cut takes ([a0, a1, b0, b1, z]: the room's own walls and the apron's)
+     spec.night    (leave it out: the kit's own, walkinNightBoxes, doorway included -- W25. A room that writes its own is checked by
+                   walkinNightCheck: no box may reach over the near walls)
    Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
 /* THE NIGHT'S CUT OF A WALK-IN ROOM (docs/LOOK_RULES.md 8b: "up to its real wall heights, the street stays night"):
    its floor up to the near walls' height, and its two far walls full height -- every point of the room seen is in one
    of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
    walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
-function walkinNightBoxes(W, D, H, LH){
-  /* W25 (Sir, 2026-11-07, Dune Home: "day light is painting on the exterior walls and the cars"): the first box is only the RAISED
-     rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
-     below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
-     walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
-  /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
-     block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W, 0, D, LH || 66, LH || 66],
-          [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
-          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];
+function walkinNightBoxes(W, D, H, LH, door){
+  /* W25 (Sir, 2026-11-07, Dune Home and Pelican Drug: "day light is painting on the exterior walls and the cars", "light leaking out"):
+     the room's night hole is ONLY what is seen INTO the room -- the raised floor rectangle at the near walls' height (z0 = z1 = LH), its
+     near edges the near walls' INNER top edges (a LH wall hides ~3 x LH of floor behind it, so nothing is lost); the far walls' INNER faces
+     (the planes a = 0 and b = 0), above LH all along and below it only where a near wall does not hide them (~200 short of the near
+     walls); and the doorway's OPENING (the plane in the near wall's line, between the wall's ends). Never a box reaching out over the
+     near walls (a > W or b > D), and no inset from their edges (that left a dark strip of floor along their tops). Everything outside
+     that -- the near walls' tops and outer faces, their ends beside the door, the vestibule and its mat, the cars parked against
+     them -- stays the street's night. A room does not write its own: walkinDefine gives it this one, door included (walkinNightCheck
+     reports any room that does) */
+  const L = LH || 66, out = [[0, W, 0, D, L, L],
+    [0, W, 0, 0, H, L], [0, Math.max(0, W - 200), 0, 0, L],
+    [0, 0, 0, D, H, L], [0, 0, 0, Math.max(0, D - 200), L]];
+  /* (the opening: its far end 30 in from the wall's end on the side the wall's outer face lies over on screen) */
+  if(door && door.side === 's') out.push([door.at - door.half + 4, door.at + door.half - 34, D, D, L, 0]);
+  else if(door && door.side === 'e') out.push([W, W, door.at - door.half + 4, door.at + door.half - 34, L, 0]);
+  return out;
+}
+/* W25's check: every room's night boxes, the problems each has (none: ok). A box that reaches over the near walls (a > W or b > D) lights
+   their tops and outer faces and the cars beside them; a plane exactly at W or D is a doorway's opening and is the one thing that may. */
+function walkinNightCheck(){
+  const out = [];
+  for(const pk of POCKETS){
+    if(!pk.walkin && !pk.night) continue;
+    let boxes = null; try { boxes = typeof pk.night === 'function' ? pk.night() : pk.night; } catch(e){}
+    if(!boxes){ out.push({ name: pk.name, problems: null }); continue; }
+    const W = pk.w, D = pk.d, bad = [];
+    for(const [a0, a1, b0, b1, z1] of boxes){
+      const plane = (a0 === a1 && Math.abs(a1 - W) < 0.5) || (b0 === b1 && Math.abs(b1 - D) < 0.5);
+      if(!plane && (a1 > W + 0.5 || b1 > D + 0.5)) bad.push('a box reaches over the near walls: a ' + a0 + '..' + a1 + ' b ' + b0 + '..' + b1 + ' z ' + z1);
+    }
+    out.push({ name: pk.name, problems: bad });
+  }
+  return out;
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -28409,7 +28434,7 @@ function walkinDefine(spec){
     h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
     late: spec.late,                                                             // (kept open for a story: walkinOpenNow)
     stagger: spec.stagger,                                                       // (a crowd's: how far apart their goings and comings are, ms -- the school's bell)
-    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
+    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH, plan.door); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
       get half(){ meas(); return plan.door ? plan.door.half : 80; },
@@ -29447,8 +29472,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   street: { to: [0, 1024], routes: [[[-820, 1024], [-820, -3600]], [[1203, 1024], [1203, -3600]]] },
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
-             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });   // (the doorway's light is the opening itself in the wall's line -- what is seen through it, the floor behind -- and nothing outside it: the vestibule, the mat and the wall ends beside the door stay night; its east edge 30 in, the east wall's face is that far over on screen)
+             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }], });
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -29483,8 +29507,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
              { lab: [[859.6, -842.5], [1003.6, -842.5]], z: [20, 146], glass: true }],
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
-  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });
+  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] }, });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -29516,8 +29539,7 @@ const SALT_IN = walkinDefine({ name: 'Saltwater Brewing Interior', from: 'Saltwa
   street: { to: [0, 150], routes: [[[-820, 150], [-820, 1600]], [[1050, 150], [1050, 1600]]] },
   /* (seen through, W11: the doorway and the two tap-room windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[664.6, -33.4], [784.6, -33.4]], z: [0, 112] }, { lab: [[519.6, -39.6], [649.6, -39.6]], z: [24, 140], glass: true },
-             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }], });
 const SALT_BARMAN = { shirt: { c:0xe9e4d6, dk:0xc9c3b2 }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0x7a4a26, dk:0x5c3719 }, shoeKind: 'dress' };                       // a white shirt, a brown leather apron
 const SALT_BREWER = { shirt: { c:0x3f6272, dk:0x2f4b58 }, pants: { c:0x4a4640, dk:0x37332e }, shoe: { c:0x2f5a3a, dk:0x214228 }, shoeKind: 'boot' };   // a sea-blue work shirt, green rubber boots
@@ -29546,8 +29568,7 @@ const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Ba
   /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
   /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }], });
 const BATHS_ATTENDANT = { shirt: { c:0x2f8f9e, dk:0x23707c }, pants: { c:0xe8e4da, dk:0xc9c4b6 }, shoe: { c:0xd9d5c8, dk:0xb5b1a4 }, shoeKind: 'sneaker' };   // a lagoon-teal tunic, white trousers
 const BATHS_GUARD = { shirt: { c:0xc9503a, dk:0x9e3b2a }, pants: { c:0x2b3a52, dk:0x1e2a3c }, shoe: { c:0xe8e4da, dk:0xc9c4b6 }, shoeKind: 'sneaker' };   // a red lifeguard's shirt, navy shorts
 /* its staff: the attendant behind the ticket desk by the door (keys), the pool attendant walking the west and east aisles; two bathers
@@ -29576,8 +29597,7 @@ const CHAPEL_IN = walkinDefine({ name: 'Driftwood Chapel Interior', from: 'Drift
   /* (its way to and from the street, THE ROOM'S DAY: down the west walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 290], routes: [[[-925, 290], [-925, 1600]], [[925, 290], [925, 1600]]] },
   /* (seen through, W11: the great door's opening -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }], });
 const CHAPEL_MINISTER = { shirt: { c:0x2b2d33, dk:0x1e2024 }, pants: { c:0x23252a, dk:0x181a1d }, shoe: { c:0x1c1815, dk:0x120f0d }, shoeKind: 'dress' };   // a black cassock shirt, dark trousers
 const CHAPEL_VERGER = { shirt: { c:0x7a2f3c, dk:0x5c222d }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'dress' };   // a burgundy cardigan
 /* its staff: the minister behind the lectern (keys), the verger seeing to the font, the candles and the welcome table; one worshipper
@@ -29605,8 +29625,7 @@ const NURSERY_IN = walkinDefine({ name: 'Palmline Nursery Interior', from: 'Palm
   street: { to: [0, 340], routes: [[[-925, 340], [-925, 1600]], [[925, 340], [925, 1600]]] },
   /* (seen through, W11: the doorway and the two windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[790.6, -226], [866.6, -226]], z: [0, 118] }, { lab: [[683.6, -226], [733.6, -226]], z: [50, 106], glass: true },
-             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }], });
 const NURSERY_CLERK = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                         // the nursery's green apron (as KW_NURSERY_UNIFORM)
 const NURSERY_POTTER = { shirt: { c:0xc9a877, dk:0xa98a5c }, pants: { c:0x4a5a6a, dk:0x384553 }, shoe: { c:0x4a3a28, dk:0x35291b },
@@ -29631,8 +29650,7 @@ const HALL_IN = walkinDefine({ name: 'Lagoon Market Hall Interior', from: 'Lagoo
   /* (its way to and from the street, THE ROOM'S DAY: out of the great door, across the pavement and along it round either corner of the lot --
      the lot's west edge 159 from the door, its east 1497) */
   street: { to: [0, 184], routes: [[[-343, 184], [-343, -3600]], [[1681, 184], [1681, -3600]]] },
-  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }], });
 const HALL_APRON = v => ({ shirt: { c: 0xf1ece0, dk: 0xd2cbb9 }, pants: { c: 0x4a4f58, dk: 0x383c44 }, shoe: { c: 0x2a2018, dk: 0x1a140e },
   vest: { c: v, dk: (v >> 1) & 0x7f7f7f }, shoeKind: 'boot' });                  // a stallholder's white shirt and apron in the stall's colour
 /* its staff, a stallholder behind each counter (heading PI/2: south, facing us and the aisle) and the cook at the chowder stall (Amara, who keeps
@@ -29673,8 +29691,7 @@ const CTG_IN = walkinDefine({ name: 'Ferris Taylor Cottage Interior', from: 'Fer
      west edge 355 from the door, its east 1301, the side street's pavement 184 beyond) */
   street: { to: [0, 190], routes: [[[-539, 190], [-539, -3600]], [[1485, 190], [1485, -3600]]] },
   /* (seen through, W11: the doorway under its round head, and the window to the east of it -- the shell's z in the entry's units) */
-  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }], });
 const CTG_RESIDENT = { shirt: { c:0x8a6a8e, dk:0x6f5473 }, pants: { c:0x4a4f58, dk:0x383c44 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0xc9bfa0, dk:0xa59c80 }, shoeKind: 'flat' };                      // a plum blouse under a fawn cardigan
 /* its resident, at the hearth (facing it, north: we see her back and the fire in front of her) and the dresser, now and then; the almshouses are
@@ -29707,8 +29724,7 @@ const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grov
   /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
   openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238]], z: [0, 115] },
              { lab: [[COVE.coffee.x0, 25024 - 27238], [COVE.coffee.door - 52, 25024 - 27238]], z: [46, 112], glass: true },
-             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }], });
 const CVC_BARISTA = { shirt: { c:0x2f6f73, dk:0x235357 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };                      // a teal tee under a cream apron
 /* its barista, behind the counter (north of it, facing south: we see her face and the machine's and the till's backs, their working faces turned to her), now and
@@ -29729,8 +29745,7 @@ const TPE_PK = walkinDefine({ name: TPE_IN.name, from: 'Tide Pool Elementary', x
   lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1, half: TPE_IN.DOOR },
   H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 420,
   /* (its way to and from the street, THE ROOM'S DAY: out of the porch, down the yard's walk and through the gate to the pavement, and along it either way) */
-  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 60, 66]] : []) });
+  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] }, });
 /* the school's uniforms (the people set's, on the roster body): named after the place */
 const SCHOOL_TEACHER_UNIFORM = { shirt: { c:0xf2eadf, dk:0xd6cdbf }, pants: { c:0x3c4a5c, dk:0x2c3745 }, shoe: { c:0x3a2a20, dk:0x241a14 },
   vest: { c:0x2f7f86, dk:0x24626a }, shoeKind: 'dress' };                                  // a teal cardigan over a cream blouse

@@ -1138,6 +1138,14 @@
 "group": "Walk-in kit fit",
 "deps": [],
 "status": "pending"
+},
+{
+"id": "kf-night",
+"title": "Night cut: the Seabreeze Ballroom and the Tidewater Museum write their own night boxes and reach over their near walls (walkinNightCheck says LEAK): move them to the kit's walkinNightBoxes or fix their boxes, then look inside at night (W25)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "pending"
 }
 ],
 "meta": {

@@ -205,3 +205,4 @@ graph LR
 - [ ] `kf-vista` Vista Ridge Security Post: the room stands in front of the building, not under it: re-measure the footprint, then shell +30 and the door and fixtures (W22-W24) [docs/state/walkin_kit_fit.md]
 - [ ] `kf-trophies` Seabreeze Trophies: shell fits; look inside at the door and the near walls for W23 and W24 [docs/state/walkin_kit_fit.md]
 - [ ] `kf-check` Kit check: every exterior declares its footprint so walkinCoverage() measures all eleven (seven read "not declared" today), and run_sheet --walkins fails on a SHORT [docs/state/walkin_kit_fit.md]
+- [ ] `kf-night` Night cut: the Seabreeze Ballroom and the Tidewater Museum write their own night boxes and reach over their near walls (walkinNightCheck says LEAK): move them to the kit's walkinNightBoxes or fix their boxes, then look inside at night (W25) [docs/state/walkin_kit_fit.md]
