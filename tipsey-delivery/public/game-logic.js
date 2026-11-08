@@ -15098,6 +15098,7 @@ function kerbCarsOf(grid, W){
         const al = a0 + k*KERB_PARK.pitch;
         if(myDrives.some(d => al + half > d.al0 - KERB_PARK.drivePad && al - half < d.al1 + KERB_PARK.drivePad)) continue;
         const x = e.ox + e.dv.x*al + e.rv.x*out, y = e.oy + e.dv.y*al + e.rv.y*out;
+        if(Math.hypot(x - (16376 + KTDE_VAN.a), y - (27416 + out)) < KERB_PARK.pitch*0.9) continue;   // (KTDE's own van's place: no kerb car on it)
         let ok = road(x, y);
         for(const [sa, sb] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
           if(!ok) break;
@@ -26644,22 +26645,47 @@ function landmarkLabWorld(name){
      spec.apron    how far the room's floor runs out past its wall (the entrance's own depth: Pelican's tower, 40);
                    the floor beyond is the street's, drawn round the room (default out)
      spec.glass    how far out of the door's line he is taken in (60: at the glass, the street holding him there)
-     spec.night    the boxes the night's cut takes ([a0, a1, b0, b1, z]: the room's own walls and the apron's)
+     spec.night    (leave it out: the kit's own, walkinNightBoxes, doorway included -- W25. A room that writes its own is checked by
+                   walkinNightCheck: no box may reach over the near walls)
    Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
 /* THE NIGHT'S CUT OF A WALK-IN ROOM (docs/LOOK_RULES.md 8b: "up to its real wall heights, the street stays night"):
    its floor up to the near walls' height, and its two far walls full height -- every point of the room seen is in one
    of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
    walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
-function walkinNightBoxes(W, D, H, LH){
-  /* W25 (Sir, 2026-11-07, Dune Home: "day light is painting on the exterior walls and the cars"): the first box is only the RAISED
-     rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
-     below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
-     walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
-  /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
-     block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W, 0, D, LH || 66, LH || 66],
-          [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
-          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];
+function walkinNightBoxes(W, D, H, LH, door){
+  /* W25 (Sir, 2026-11-07, Dune Home and Pelican Drug: "day light is painting on the exterior walls and the cars", "light leaking out"):
+     the room's night hole is ONLY what is seen INTO the room -- the raised floor rectangle at the near walls' height (z0 = z1 = LH), its
+     near edges the near walls' INNER top edges (a LH wall hides ~3 x LH of floor behind it, so nothing is lost); the far walls' INNER faces
+     (the planes a = 0 and b = 0), above LH all along and below it only where a near wall does not hide them (~200 short of the near
+     walls); and the doorway's OPENING (the plane in the near wall's line, between the wall's ends). Never a box reaching out over the
+     near walls (a > W or b > D), and no inset from their edges (that left a dark strip of floor along their tops). Everything outside
+     that -- the near walls' tops and outer faces, their ends beside the door, the vestibule and its mat, the cars parked against
+     them -- stays the street's night. A room does not write its own: walkinDefine gives it this one, door included (walkinNightCheck
+     reports any room that does) */
+  const L = LH || 66, out = [[0, W, 0, D, L, L],
+    [0, W, 0, 0, H, L], [0, Math.max(0, W - 200), 0, 0, L],
+    [0, 0, 0, D, H, L], [0, 0, 0, Math.max(0, D - 200), L]];
+  /* (the opening: its far end 30 in from the wall's end on the side the wall's outer face lies over on screen) */
+  if(door && door.side === 's') out.push([door.at - door.half + 4, door.at + door.half - 34, D, D, L, 0]);
+  else if(door && door.side === 'e') out.push([W, W, door.at - door.half + 4, door.at + door.half - 34, L, 0]);
+  return out;
+}
+/* W25's check: every room's night boxes, the problems each has (none: ok). A box that reaches over the near walls (a > W or b > D) lights
+   their tops and outer faces and the cars beside them; a plane exactly at W or D is a doorway's opening and is the one thing that may. */
+function walkinNightCheck(){
+  const out = [];
+  for(const pk of POCKETS){
+    if(!pk.walkin && !pk.night) continue;
+    let boxes = null; try { boxes = typeof pk.night === 'function' ? pk.night() : pk.night; } catch(e){}
+    if(!boxes){ out.push({ name: pk.name, problems: null }); continue; }
+    const W = pk.w, D = pk.d, bad = [];
+    for(const [a0, a1, b0, b1, z1] of boxes){
+      const plane = (a0 === a1 && Math.abs(a1 - W) < 0.5) || (b0 === b1 && Math.abs(b1 - D) < 0.5);
+      if(!plane && (a1 > W + 0.5 || b1 > D + 0.5)) bad.push('a box reaches over the near walls: a ' + a0 + '..' + a1 + ' b ' + b0 + '..' + b1 + ' z ' + z1);
+    }
+    out.push({ name: pk.name, problems: bad });
+  }
+  return out;
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -26711,7 +26737,7 @@ function walkinDefine(spec){
     h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
     late: spec.late,                                                             // (kept open for a story: walkinOpenNow)
     stagger: spec.stagger,                                                       // (a crowd's: how far apart their goings and comings are, ms -- the school's bell)
-    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
+    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH, plan.door); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
       get half(){ meas(); return plan.door ? plan.door.half : 80; },
@@ -27749,8 +27775,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   street: { to: [0, 1024], routes: [[[-820, 1024], [-820, -3600]], [[1203, 1024], [1203, -3600]]] },
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
-             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });   // (the doorway's light is the opening itself in the wall's line -- what is seen through it, the floor behind -- and nothing outside it: the vestibule, the mat and the wall ends beside the door stay night; its east edge 30 in, the east wall's face is that far over on screen)
+             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }], });
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -27785,8 +27810,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
              { lab: [[859.6, -842.5], [1003.6, -842.5]], z: [20, 146], glass: true }],
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
-  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });
+  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] }, });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -27818,8 +27842,7 @@ const SALT_IN = walkinDefine({ name: 'Saltwater Brewing Interior', from: 'Saltwa
   street: { to: [0, 150], routes: [[[-820, 150], [-820, 1600]], [[1050, 150], [1050, 1600]]] },
   /* (seen through, W11: the doorway and the two tap-room windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[664.6, -33.4], [784.6, -33.4]], z: [0, 112] }, { lab: [[519.6, -39.6], [649.6, -39.6]], z: [24, 140], glass: true },
-             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }], });
 const SALT_BARMAN = { shirt: { c:0xe9e4d6, dk:0xc9c3b2 }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0x7a4a26, dk:0x5c3719 }, shoeKind: 'dress' };                       // a white shirt, a brown leather apron
 const SALT_BREWER = { shirt: { c:0x3f6272, dk:0x2f4b58 }, pants: { c:0x4a4640, dk:0x37332e }, shoe: { c:0x2f5a3a, dk:0x214228 }, shoeKind: 'boot' };   // a sea-blue work shirt, green rubber boots
@@ -27848,8 +27871,7 @@ const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Ba
   /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
   /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }], });
 const BATHS_ATTENDANT = { shirt: { c:0x2f8f9e, dk:0x23707c }, pants: { c:0xe8e4da, dk:0xc9c4b6 }, shoe: { c:0xd9d5c8, dk:0xb5b1a4 }, shoeKind: 'sneaker' };   // a lagoon-teal tunic, white trousers
 const BATHS_GUARD = { shirt: { c:0xc9503a, dk:0x9e3b2a }, pants: { c:0x2b3a52, dk:0x1e2a3c }, shoe: { c:0xe8e4da, dk:0xc9c4b6 }, shoeKind: 'sneaker' };   // a red lifeguard's shirt, navy shorts
 /* its staff: the attendant behind the ticket desk by the door (keys), the pool attendant walking the west and east aisles; two bathers
@@ -27878,8 +27900,7 @@ const CHAPEL_IN = walkinDefine({ name: 'Driftwood Chapel Interior', from: 'Drift
   /* (its way to and from the street, THE ROOM'S DAY: down the west walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 290], routes: [[[-925, 290], [-925, 1600]], [[925, 290], [925, 1600]]] },
   /* (seen through, W11: the great door's opening -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }], });
 const CHAPEL_MINISTER = { shirt: { c:0x2b2d33, dk:0x1e2024 }, pants: { c:0x23252a, dk:0x181a1d }, shoe: { c:0x1c1815, dk:0x120f0d }, shoeKind: 'dress' };   // a black cassock shirt, dark trousers
 const CHAPEL_VERGER = { shirt: { c:0x7a2f3c, dk:0x5c222d }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'dress' };   // a burgundy cardigan
 /* its staff: the minister behind the lectern (keys), the verger seeing to the font, the candles and the welcome table; one worshipper
@@ -27907,8 +27928,7 @@ const NURSERY_IN = walkinDefine({ name: 'Palmline Nursery Interior', from: 'Palm
   street: { to: [0, 340], routes: [[[-925, 340], [-925, 1600]], [[925, 340], [925, 1600]]] },
   /* (seen through, W11: the doorway and the two windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[790.6, -226], [866.6, -226]], z: [0, 118] }, { lab: [[683.6, -226], [733.6, -226]], z: [50, 106], glass: true },
-             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }], });
 const NURSERY_CLERK = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                         // the nursery's green apron (as KW_NURSERY_UNIFORM)
 const NURSERY_POTTER = { shirt: { c:0xc9a877, dk:0xa98a5c }, pants: { c:0x4a5a6a, dk:0x384553 }, shoe: { c:0x4a3a28, dk:0x35291b },
@@ -27933,8 +27953,7 @@ const HALL_IN = walkinDefine({ name: 'Lagoon Market Hall Interior', from: 'Lagoo
   /* (its way to and from the street, THE ROOM'S DAY: out of the great door, across the pavement and along it round either corner of the lot --
      the lot's west edge 159 from the door, its east 1497) */
   street: { to: [0, 184], routes: [[[-343, 184], [-343, -3600]], [[1681, 184], [1681, -3600]]] },
-  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }], });
 const HALL_APRON = v => ({ shirt: { c: 0xf1ece0, dk: 0xd2cbb9 }, pants: { c: 0x4a4f58, dk: 0x383c44 }, shoe: { c: 0x2a2018, dk: 0x1a140e },
   vest: { c: v, dk: (v >> 1) & 0x7f7f7f }, shoeKind: 'boot' });                  // a stallholder's white shirt and apron in the stall's colour
 /* its staff, a stallholder behind each counter (heading PI/2: south, facing us and the aisle) and the cook at the chowder stall (Amara, who keeps
@@ -27975,8 +27994,7 @@ const CTG_IN = walkinDefine({ name: 'Ferris Taylor Cottage Interior', from: 'Fer
      west edge 355 from the door, its east 1301, the side street's pavement 184 beyond) */
   street: { to: [0, 190], routes: [[[-539, 190], [-539, -3600]], [[1485, 190], [1485, -3600]]] },
   /* (seen through, W11: the doorway under its round head, and the window to the east of it -- the shell's z in the entry's units) */
-  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }], });
 const CTG_RESIDENT = { shirt: { c:0x8a6a8e, dk:0x6f5473 }, pants: { c:0x4a4f58, dk:0x383c44 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0xc9bfa0, dk:0xa59c80 }, shoeKind: 'flat' };                      // a plum blouse under a fawn cardigan
 /* its resident, at the hearth (facing it, north: we see her back and the fire in front of her) and the dresser, now and then; the almshouses are
@@ -28009,8 +28027,7 @@ const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grov
   /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
   openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238]], z: [0, 115] },
              { lab: [[COVE.coffee.x0, 25024 - 27238], [COVE.coffee.door - 52, 25024 - 27238]], z: [46, 112], glass: true },
-             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }], });
 const CVC_BARISTA = { shirt: { c:0x2f6f73, dk:0x235357 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };                      // a teal tee under a cream apron
 /* its barista, behind the counter (north of it, facing south: we see her face and the machine's and the till's backs, their working faces turned to her), now and
@@ -28031,8 +28048,7 @@ const TPE_PK = walkinDefine({ name: TPE_IN.name, from: 'Tide Pool Elementary', x
   lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1, half: TPE_IN.DOOR },
   H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 420,
   /* (its way to and from the street, THE ROOM'S DAY: out of the porch, down the yard's walk and through the gate to the pavement, and along it either way) */
-  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 60, 66]] : []) });
+  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] }, });
 /* the school's uniforms (the people set's, on the roster body): named after the place */
 const SCHOOL_TEACHER_UNIFORM = { shirt: { c:0xf2eadf, dk:0xd6cdbf }, pants: { c:0x3c4a5c, dk:0x2c3745 }, shoe: { c:0x3a2a20, dk:0x241a14 },
   vest: { c:0x2f7f86, dk:0x24626a }, shoeKind: 'dress' };                                  // a teal cardigan over a cream blouse
@@ -87610,7 +87626,7 @@ CITY_PEOPLE.add({ name: 'Number 4 Builds a Winner', where: "Tidewater Green, by 
    What it gives is the server's (missionComplete: 'request-line' in TS_MISSIONS, $40 once by 'requestline', db.ts
    REQUEST_TIP_ID; the station's sticker, KEY_ITEMS 'ktdesticker', rebuilt from the record: rlStickerMigrate). Nothing
    of a run is saved: a reload starts it over at Ollie. Carried (R5): the note, then the record and the note, then
-   Maya's note -- crewReturns. Not built: the DJ calling in side missions over the air (later work). */
+   Maya's note -- crewReturns. The DJ's call-ins (RLC) and the station van (KTDE_VAN) follow after it. */
 const RL = { stage: 'idle', kid: null, kidHere: null, clerk: null, clerkWalk: null, recep: null, dj: null, maya: null, t0: 0, snooze: null };
 const RL_RUN = {
   kidName: 'Ollie', friend: 'Maya', song: 'Sea of Love',
@@ -87707,6 +87723,7 @@ function rlBayNow(scene){
   const ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => B && Object.assign({}, B, { icon }), K = rlKidSpot(scene), pk = rlPocket();
+  if(RL.stage === 'idle' && RLC.live) return ic(rlcBay(scene), 'note');   // (a DJ call-in out: its listener's bay)
   if(RL.stage === 'idle') return rlDone() || !RL.kidHere || !missionWindowOpen('request-line') || storiesHidden('request-line') || !K ? null : ic(K.bay, 'note');
   if(RL.stage === 'music') return ic(rlClerkBay(), 'note');
   if(RL.stage === 'station' || RL.stage === 'studio'){
@@ -87796,9 +87813,80 @@ function rlStickerMigrate(){
 function rlTimerTick(scene, now){
   const tm = document.getElementById("lhTimer");
   if(!tm) return;
-  if(rlClockOn()){ const s = Math.ceil(rlLeft(now)/1000), txt = "Maya's song: " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0") + " left";
+  if(rlClockOn() || RLC.live){ const s = Math.ceil((rlClockOn() ? rlLeft(now) : RLC.ms - (now - RLC.t0))/1000), txt = (rlClockOn() ? "Maya's song: " : "KTDE call-in: ") + Math.floor(s/60) + ":" + String(Math.max(0, s) % 60).padStart(2, "0") + " left";
     tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._rl = true; }
   else if(tm._rl){ tm._rl = false; tm.classList.add("hidden"); }
+}
+/* ---- THE STATION'S VAN (Sir: "the station van drives off"): the outside-broadcast van at the kerb in front of the
+   station, parked (cached); it pulls out along the street when the DJ sends a call-in out (and now and then, a crew going
+   off to a job), and is back in its place once nobody sees it (R13). Held as the motel crew van is (rlBlocks). ---- */
+const KTDE_VAN = { mode: 'parked', t0: 0, since: 0, seed: 0x7d3, v: 0.16, go: false, a: 1400 };
+function ktdeVanPath(){
+  if(ktdeVanPath.c) return ktdeVanPath.c;
+  /* (lab b grows out across the street: the kerb car stands at KERB_CAR_OUT, the centreline kerbOff beyond it, and traffic
+     in front of the station runs +a in the near lane TRAF_LANE short of it, as the kerb cars face) */
+  const K = KTDE_VAN, o = KERB_CAR_OUT, lane = o + (ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4) - TRAF_LANE, w = (a, b) => ktdeW(a, b);
+  const pts = [w(K.a, o), w(K.a + 200, o), w(K.a + 420, lane), w(K.a + 700, lane), w(K.a + 3400, lane)];
+  let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  return (ktdeVanPath.c = { pts, L });
+}
+function ktdeVanAt(now){
+  const V = KTDE_VAN; if(V.mode === 'away') return null;
+  const P = ktdeVanPath(), q = P.pts[0], q1 = P.pts[1];
+  if(V.mode === 'parked') return { x: q.x, y: q.y, th: Math.atan2(q1.y - q.y, q1.x - q.x), moving: false };
+  const at = s => { let acc = 0; for(let i = 1; i < P.pts.length; i++){ const a = P.pts[i-1], b = P.pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+    if(s <= acc + l){ const k = (s - acc)/l; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k }; } acc += l; } return P.pts[P.pts.length - 1]; };
+  const u = now - V.t0, ramp = 2500, s = u < ramp ? 0.5*V.v*u*u/ramp : V.v*(u - ramp/2);
+  if(s >= P.L){ V.mode = 'away'; return null; }
+  const p = at(s), a0 = at(Math.max(0, s - 70)), a1 = at(Math.min(P.L, s + 70));
+  return { x: p.x, y: p.y, th: Math.atan2(a1.y - a0.y, a1.x - a0.x), moving: true, s };
+}
+function ktdeVanTick(scene, now){
+  const V = KTDE_VAN, home = ktdeVanPath().pts[0], seen = !!(scene.visWorldPt && scene.visWorldPt(home.x, home.y, 240, 240));
+  if(!V.since) V.since = now;
+  if(V.mode === 'away' && !seen){ V.mode = 'parked'; V.since = now; }
+  if(V.mode !== 'parked') return;
+  const near = Math.hypot(scene.botX - home.x, scene.botY - home.y) < 300;
+  if(((V.go && seen) || (seen && now - V.since > 120000)) && !near){ V.mode = 'out'; V.t0 = now; V.go = false; }
+}
+/* ---- THE DJ'S CALL-INS (Sir: "the DJ calling in side missions over the air"): once Request Line is done, now and then,
+   with nothing else on, KTDE cuts in over the radio: a listener (Maya at her gate, Ollie outside Tidewater & Co., the
+   Low Tide Music corner) wants Tipsey to drop by before the call ends. The listener's bay and beacon (R7), the GPS, the
+   clock in the timer pill; there the listener thanks the station on air. Free to do (no payout: money is the server's,
+   R10, and a call-in has no id there); a reload starts the wait over. ---- */
+const RLC = { live: false, t0: 0, ms: 150000, next: 0, n: 0, tgt: 0, last: 0 };
+const RLC_CALLS = [
+  { who: 'Maya', line: "KTDE 98.1, the request show. Maya, up on the hill behind the station, wants a wave from the little robot: drop by her gate, Tipsey!", thanks: "Maya waves from her porch: \"He came by! Thanks, KTDE!\"", at: sc => rlHome(sc) },
+  { who: 'Ollie', line: "A shout-out for Ollie outside Tidewater & Co. He heard his song and says thanks: drop by and say hi, Tipsey!", thanks: "Ollie grins: \"The DJ said you'd come!\"", at: sc => { const K = rlKidSpot(sc); return K && K.bay; } },
+  { who: 'the Low Tide Music clerk', line: "Low Tide Music has the next record on the corner for the request show. Swing by the post on the east pavement, Tipsey!", thanks: "The clerk waves the sleeve: \"Next week's pick! Thanks, KTDE!\"", at: sc => rlClerkBay() }
+];
+function rlcBay(scene){ const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length]; return c.at(scene); }
+function rlcEnd(scene, msg){
+  RLC.live = false; RLC.next = scene.time.now + 150000; rlNavClear(scene);
+  if(msg && typeof tpToast === "function") tpToast(msg);
+}
+function rlcTick(scene, ow, now){
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode) || scene.mode !== "freeroam") return;
+  if(RLC.live){
+    if(RL.stage !== 'idle' || missionBusy('request-line')){ RLC.live = false; rlNavClear(scene); return; }
+    if(now - RLC.t0 > RLC.ms){ rlcEnd(scene, "KTDE: the call ended before Tipsey got there. Maybe next time."); return; }
+    const B = rlcBay(scene);
+    if(B && B.mat && matHighlightState(scene, B.mat, scene.mode) === "armed"){
+      const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length]; RLC.n++; RLC.tgt++;
+      if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+      rlcEnd(scene, c.thanks);
+    }
+    return;
+  }
+  if(!rlDone() || RL.stage !== 'idle' || scene._inside || missionBusy('request-line') || storiesHidden('request-line')) return;
+  if(!RLC.next) RLC.next = now + 60000;
+  if(now < RLC.next) return;
+  const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length], B = c.at(scene);
+  if(!B){ RLC.next = now + 30000; return; }
+  RLC.live = true; RLC.t0 = now; KTDE_VAN.go = true;
+  rlNav(scene, B, c.who);
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  if(typeof tpToast === "function") tpToast("On the radio, KTDE's DJ: " + c.line);
 }
 /* every frame (after owStep) */
 function rlTick(scene, ow){
@@ -87806,6 +87894,8 @@ function rlTick(scene, ow){
   rlStickerMigrate();
   rlLatch(scene);
   rlTimerTick(scene, now);
+  ktdeVanTick(scene, now);
+  rlcTick(scene, ow, now);
   if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(RL.snooze && !owMatContains(scene, RL.snooze.mat)) RL.snooze = null;
   const armed = B => !!B && !RL.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
@@ -87908,6 +87998,13 @@ function rlQueue(scene, t, queuePerson, layerFor){
   };
   if(RL.kidHere && !scene._inside) person(rlKidAt(now), L.kid);
   if(RL.maya && !scene._inside) person(rlMayaAt(now), L.maya);
+  /* the station's van at the kerb (parked: cached; driving off: live) */
+  { const v = ktdeVanAt(now);
+    if(v && !scene._inside && scene.visProp("people", v.x, v.y)){
+      const fd = v.th/(Math.PI/2);
+      queuePerson(v.x, v.y, (g, tt) => { const gg = layerFor(v.x, v.y);
+        if(v.moving) scene.drawProp(gg, 'van', v.x, v.y, tt || now, fd, 0, (v.s || 0)*0.05, KTDE_VAN.seed);
+        else scene.bcDraw(g, "ktdevan|parked", v.x, v.y, g2 => scene.drawProp(g2, 'van', v.x, v.y, 0, fd, 0, 0, KTDE_VAN.seed)); }); } }
   const pk = rlPocket(), pv = scene._inside === pk && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : null;
   if(pv) for(const [id, fn] of [['receptionist', rlRecepAt], ['dj', rlDjAt]]){
     const p0 = fn(now), s = rlStaff(id); if(!p0 || !s) continue;
@@ -87917,6 +88014,10 @@ function rlQueue(scene, t, queuePerson, layerFor){
 }
 /* HELD BY THEM (owStep's blockAt): Ollie standing at his spot */
 function rlBlocks(x, y, r){
+  { const sc0 = typeof scn === "function" ? scn() : null, v = sc0 ? ktdeVanAt(sc0.time.now) : null;
+    if(v && Math.abs(x - v.x) < 400 && Math.abs(y - v.y) < 400){
+      const c = Math.cos(v.th), si = Math.sin(v.th), dx = x - v.x, dy = y - v.y;
+      if(Math.abs(dx*c + dy*si) < 112 + r && Math.abs(-dx*si + dy*c) < 46 + r) return true; } }
   if(!RL.kidHere || RL.kid) return false;
   const s = typeof scn === "function" ? scn() : null, K = s && rlKidSpot(s);
   return !!(K && Math.hypot(x - K.spot.x, y - K.spot.y) < r + 15);
