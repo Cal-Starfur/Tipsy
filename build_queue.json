@@ -490,8 +490,9 @@
 "title": "Fleet P2: rotor flight + The Lighthouse Run",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2"
 },
 {
 "id": "m1",
