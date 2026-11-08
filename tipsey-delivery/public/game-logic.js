@@ -107149,7 +107149,7 @@ class WorldScene extends Phaser.Scene {
       if(!o.openFront && !o.ring){ const all = []; for(let i = 0; i < n; i++){ all.push(P(i, kB, z0)); all.push(P(i, kT, z1, true)); } this.quadOn(g, convexHull(all), T.steps[3]); }   // (not one open at the face: it would fill the face; nor a ring round another piece: it would fill a disc across it -- the headband, Sir, 2026-10-24)
       for(let i = 0; i < n; i++){
         const q0 = R[i], q1 = R[(i + 1) % n], ma = q0[0] + q1[0], mb = q0[1] + q1[1];
-        if(!sees3(ma/ra, mb/rb, 0)) continue;
+        if(!(o.eps ? seesE(ma/ra, mb/rb, 0, o.eps) : sees3(ma/ra, mb/rb, 0))) continue;   // (o.eps: a ring's near edge-on faces are slivers -- they showed as horns)
         if(o.openFront && mb/Math.hypot(ma, mb) > 0.3) continue;                       // (open at the face: hair round the back and sides)
         const t = Math.abs(ma)/(Math.abs(ma) + Math.abs(mb));                                       // (0 the front, 1 the side: a smooth ramp between)
         this.quadOn(g, [P(i, kB, z0), P(i + 1, kB, z0), P(i + 1, kT, z1, true), P(i, kT, z1, true)], T.steps[Math.round(t*8)]);
@@ -107426,14 +107426,18 @@ class WorldScene extends Phaser.Scene {
       } else if(ps === 'twin' || ps === 'jet'){
         const big = ps === 'jet', rad = big ? 4.1 : 3.8, z0 = zm - (big ? 1 : 3), z1 = zT, ax = ra*0.36, bC = -(bkAt(80) + rad - 0.9), bR = bC - rad*0.966;
         run([() => box(0, bC, ax + 1.6, 1.1, z1 - 8.5, z1 - 6, PD.c, PD.dk, PD.c),                                                           // the yoke tying them
-             () => { for(const sd of [-1, 1]){ prism(sd*ax, bC, rad, rad, z0, z1, PK, { top: big ? 0.4 : 0.66, bot: 0.97, n: 12 });          // a tank (a jet's, nosed)
-                     for(const z of [z0 + 4.5, z1 - 5.5]) prism(sd*ax, bC, rad*1.04, rad*1.04, z, z + 1.6, PD, { noTop: true, n: 12 });
-                     if(!big){ prism(sd*ax, bC, 1.2, 1.2, z1 - 0.2, z1 + 2, MT, { n: 8 }); }
-                     else { prism(sd*ax, bC, 3.5, 3.5, z0 - 7, z0, { c: 0x59616a, dk: 0x3d444b }, { bot: 1.3, top: 0.95, n: 12 });             // the nozzle, flared
-                            { const zn = z0 - 7, tt = performance.now()/1000, L = 7.5 + 2.2*Math.sin(tt*31 + sd*1.7) + 1.2*Math.sin(tt*53 + sd);   // the flame: three nested tongues, flickering, from the nozzle's mouth
+             /* EACH TANK IS A COLUMN, drawn from the bottom up (the eye looks down on it, so what is higher is nearer): the flame, then the nozzle -- NO lid, the tank stands on it --
+                then the tank with its lid, then its bands and valve; the far tank before the near one. Drawn the other way round (the tank, then the nozzle) the nozzle's lid was
+                painted across the foot of the tank above it. */
+             () => { for(const sd of (faceA > 0 ? [-1, 1] : [1, -1])){
+                     if(big){ const zn = z0 - 7, tt = performance.now()/1000, L = 7.5 + 2.2*Math.sin(tt*31 + sd*1.7) + 1.2*Math.sin(tt*53 + sd);   // the flame: three nested tongues, flickering, from the nozzle's mouth
                               const ring = (rad, z) => { const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push(G(sd*ax + Math.cos(t)*rad, bC + Math.sin(t)*rad, z)); } return o; };
                               const tongue = (rad, len, col) => this.quadOn(g, convexHull(ring(rad, zn).concat([G(sd*ax + Math.sin(tt*40 + sd)*0.5, bC, zn - len)])), col);
-                              tongue(3.1, L, 0xff7a1a); tongue(2.2, L*0.72, 0xffc23a); tongue(1.2, L*0.45, 0xfff3c4); } } } },
+                              tongue(3.1, L, 0xff7a1a); tongue(2.2, L*0.72, 0xffc23a); tongue(1.2, L*0.45, 0xfff3c4);
+                              prism(sd*ax, bC, 3.5, 3.5, z0 - 7, z0, { c: 0x59616a, dk: 0x3d444b }, { bot: 1.3, top: 0.95, n: 12, noTop: true }); }                                  // the nozzle, flared, lidless
+                     prism(sd*ax, bC, rad, rad, z0, z1, PK, { top: big ? 0.4 : 0.66, bot: 0.97, n: 12 });                                                                  // the tank (a jet's, nosed)
+                     for(const z of [z0 + 4.5, z1 - 5.5]) prism(sd*ax, bC, rad*1.04, rad*1.04, z, z + 1.6, PD, { noTop: true, ring: true, eps: 0.25, n: 12 });                // its bands, over it: a ring (no filled hull) without its edge-on faces
+                     if(!big) prism(sd*ax, bC, 1.2, 1.2, z1 - 0.2, z1 + 2, MT, { n: 8 }); } },
              () => { if(!big) rear(bR, z1 - 3.8, z1 - 2.8, -ax, ax, MT.c); else rear(bR, z1 - 4, z1 - 2.6, -ax - 2, ax + 2, TRIM); }]);
       } else if(ps === 'backpack'){
         const z0 = zm - 8, z1 = shoulderH - 2.5, rbk = 5.6, bC = -(bkAt(80) + rbk - 0.9), bR = bC - rbk*0.966, pk = bC - 4.6, pR = pk - 2.5*0.966;
