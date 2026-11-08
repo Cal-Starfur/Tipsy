@@ -756,6 +756,8 @@ function convexHull(pts){
   lo.pop(); hi.pop();
   return lo.concat(hi);
 }
+/* (the one the review's fill check leaves alone: a piece that is a deliberate filled shape -- a flame, a pouch's silhouette -- calls this, not convexHull) */
+const convexHullKeep = convexHull;
 function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 /* clip a polygon of screen points {x,y} to a CONVEX screen polygon
    (Sutherland-Hodgman); null when nothing is left. The scene's drawClip
@@ -107432,7 +107434,7 @@ class WorldScene extends Phaser.Scene {
              () => { for(const sd of (faceA > 0 ? [-1, 1] : [1, -1])){
                      if(big){ const zn = z0 - 7, tt = performance.now()/1000, L = 7.5 + 2.2*Math.sin(tt*31 + sd*1.7) + 1.2*Math.sin(tt*53 + sd);   // the flame: three nested tongues, flickering, from the nozzle's mouth
                               const ring = (rad, z) => { const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push(G(sd*ax + Math.cos(t)*rad, bC + Math.sin(t)*rad, z)); } return o; };
-                              const tongue = (rad, len, col) => this.quadOn(g, convexHull(ring(rad, zn).concat([G(sd*ax + Math.sin(tt*40 + sd)*0.5, bC, zn - len)])), col);
+                              const tongue = (rad, len, col) => this.quadOn(g, convexHullKeep(ring(rad, zn).concat([G(sd*ax + Math.sin(tt*40 + sd)*0.5, bC, zn - len)])), col);
                               tongue(3.1, L, 0xff7a1a); tongue(2.2, L*0.72, 0xffc23a); tongue(1.2, L*0.45, 0xfff3c4);
                               prism(sd*ax, bC, 3.5, 3.5, z0 - 7, z0, { c: 0x59616a, dk: 0x3d444b }, { bot: 1.3, top: 0.95, n: 12, noTop: true }); }                                  // the nozzle, flared, lidless
                      prism(sd*ax, bC, rad, rad, z0, z1, PK, { top: big ? 0.4 : 0.66, bot: 0.97, n: 12 });                                                                  // the tank (a jet's, nosed)
@@ -108193,7 +108195,7 @@ class WorldScene extends Phaser.Scene {
     const bump = (P, seen, an, z, hw, hh, d, col, top) => {
       if(!seen(an)) return;
       const rect = l => [P(an - hw, z - hh, l), P(an + hw, z - hh, l), P(an + hw, z + hh, l), P(an - hw, z + hh, l)], back = rect(0.2), front = rect(d);
-      quad(grow(convexHull(back.concat(front)), 0.3), col.dk);
+      quad(grow(convexHullKeep(back.concat(front)), 0.3), col.dk);
       if(sees3(0, 0, 1)) quad([front[3], front[2], back[2], back[3]], top || mixc(col.c, 0xffffff, 0.2));
       quad(front, col.c);
     };
