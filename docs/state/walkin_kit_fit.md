@@ -9,14 +9,14 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Dune Home & Garden | **fits** (grown 30 each side 2026-11-07; `cover ok`) | measured | fixed 2026-11-07 (no piers, trolleys 60 clear); also given W11 see-through (entrance and shopfront show the room) and its car park's night lamps |
 | Tide Pool Elementary | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: the doorway is the wall's own end, nothing near the near wall |
 | Tidewater Museum | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: portico, bay and doors read right against the room; night box still in `kf-night` |
-| Costa Palma Animal Shelter | **short**, the body stands at the floor's line, the magenta is in front of it | photo | not audited |
+| Costa Palma Animal Shelter | **fits** (grown 30 each side 2026-11-08; body reaches the magenta in the photo) | photo | looked at inside at the door 2026-11-08: the front wall runs to the gap; door, canopy, windows, vol, swing door and the worker's step/gate marks follow the new front |
 | Brew & Bolt | **short**, the base stands at the floor's line | photo | not audited |
 | KTDE 98.1 The Tide | **short**, the street wall stands at the floor's line | photo | not audited |
 | Sun Deck Motor Lodge Office | **short**, the office's base is at about the floor's line | photo | not audited |
 | Tidewater Kart Works | **short on the front** (the barn's front stands inside the magenta), the east end reads right | photo | not audited |
 | Vista Ridge Security Post | **does not fit at all**: the room's floor stands well in front of the building (it is outside it, not under it) | photo | not audited |
 
-Fits: 4 of 11 (Pelican Drug, Trophies, Dune Home, Tide Pool). Short: 6. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
+Fits: 5 of 11 (Pelican Drug, Trophies, Dune Home, Tide Pool, Animal Shelter). Short: 5. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
 
 The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell is 30 bigger on every side..."): grow the exterior's body 30 on every side from `plan.shell`; the tower or door follows it out; the glass openings, `slideDoors`, the collision `vol` and anything on the body's faces (the band, the sign) move with it; the lot (bays, lanes, hedges) stays where it was. Then look inside at the door for W23 and W24 and fix what shows.
 

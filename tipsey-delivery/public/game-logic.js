@@ -19599,7 +19599,7 @@ function lostDogDone(){
    Costa Palma Animal Shelter (its block, SHELTER.i, j; its door, the entry's door mark). Stopped at its path with the
    dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
    time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
-const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -736], gateB: -700, stepB: -714 };
+const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -706], gateB: -670, stepB: -684 };   // (door on the shell's front, 30 past the room's floor line, W22)
 function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
 function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
 /* the loose dogs near him: a dog with no walker, not running off, not already taken */
@@ -71582,21 +71582,22 @@ marinaEntry(),
       foot: [[0,0],[0,0],[0,0]],
       h: H,
       solids: [
-        bx('shelter', 1164, 1964, -1500, -736, H),
-        bx('canopy post W', 1452, 1464, -688, -676, 150, true), bx('canopy post E', 1664, 1676, -688, -676, 150, true),
+        bx('shelter', 1134, 1994, -1530, -706, H),
+        bx('canopy post W', 1452, 1464, -658, -646, 150, true), bx('canopy post E', 1664, 1676, -658, -646, 150, true),
         ...run('west', 780, 1100), ...run('east', 2028, 2348)
       ],
-      marks: { door: [1564, -736] }
+      marks: { door: [1564, -706] }
     };
   })(),
   /* its glazed double door swings (recorded by shopDoor): for the worker who brings a lost dog home or out to him, and the dog after them
      (lostDogAtDoor), and for anyone listed who walks up to it */
-  swingDoors: [{ a: 1564, b: -736, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
+  swingDoors: [{ a: 1564, b: -706, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
   head:'A low shelter, its canopy and double door on the street, dog runs either side',
   tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
   draw(p){
-    const GM = 1564, H = 210, FB = -736, BB = -1500, A0 = 1164, A1 = 1964;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
+    /* W22: the shell is the room's floor (1164..1964, -1500..-736) grown 30 on every side; the door, canopy and windows follow the new front */
+    const GM = 1564, H = 210, FB = -706, BB = -1530, A0 = 1134, A1 = 1994;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
     /* LETTERING READS THE RIGHT WAY ROUND: the frame's mirror turns the building about GM, which is nothing to a
        symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
        place turned over too, which the mirror turns back */
@@ -71644,7 +71645,7 @@ marinaEntry(),
       box(GM - 120, GM - 40, -1300, -1220, H, H + 34, '#9aa1a8', '#8a9198', '#7a8188');   // a rooftop unit
       F(A0, A1, 0, 14, shade(wall, .8), null, 0, FB + 0.4);                      // the plinth
       /* the windows either side of the door: a reveal, the glass, a bar, a cill */
-      for(const c of [A0 + 120, A0 + 270, A1 - 270, A1 - 120]){
+      for(const c of [A0 + 150, A0 + 300, A1 - 300, A1 - 150]){
         F(c - 52, c + 52, 48, 138, shade(wall, 1.12), trim, 2, FB + 0.4);
         F(c - 46, c + 46, 54, 132, '#2e3a40', null, 0, FB + 0.8);
         F(c - 44, c + 44, 56, 130, glass, null, 0, FB + 1.2);
@@ -71656,11 +71657,11 @@ marinaEntry(),
       { const b0 = BOFF; BOFF = b0 + FB;
         try { shopDoor(GM, wall, trimD, glass, 3128, 0, { w: 116, h: 134, pair: true, glazed: true }); } finally { BOFF = b0; } }
       /* the fascia and its lettering, a paw on the front */
-      slab(A0 + 40, A1 - 40, 156, 196, FB + 6, FB, trim, trimD);
-      word('ANIMAL SHELTER', A0 + 70, A1 - 70, 162, 190, FB + 6, '#ffffff', trimD, 6);
+      slab(A0 + 70, A1 - 70, 156, 196, FB + 6, FB, trim, trimD);
+      word('ANIMAL SHELTER', A0 + 100, A1 - 100, 162, 190, FB + 6, '#ffffff', trimD, 6);
       const paw = (a, z, r) => { faceCircle(a, FB + 0.8, z, r, '#c86b3c');
         for(const [da, dz] of [[-r*1.1, r*1.05], [-r*0.4, r*1.55], [r*0.4, r*1.55], [r*1.1, r*1.05]]) faceCircle(a + da, FB + 0.8, z + dz, r*0.42, '#c86b3c'); };
-      paw(A0 + 40, 100, 16); paw(A1 - 40, 100, 16);
+      paw(A0 + 70, 100, 16); paw(A1 - 70, 100, 16);
     }});
     /* the canopy over the door, on its two posts, in front of the front */
     items.push({ a: GM, b: FB + 60, z: 0, shell: true, draw: () => {   // (it goes with the shell)
