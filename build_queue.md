@@ -115,7 +115,7 @@ graph LR
 - [?] `wk5` Palmline Nursery [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4693,11600&view=2) [docs/state/walkin_recipe.md]
 - [?] `wk6` Animal Shelter interior [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7820,8444&view=3) [docs/state/walkin_recipe.md]
 - [?] `wk7` Lagoon Market Hall [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10279,27470&view=2) [docs/state/walkin_recipe.md]
-- [ ] `wk8` Ferris Taylor Cottages [docs/state/walkin_recipe.md]
+- [?] `wk8` Ferris Taylor Cottages [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26115,11880&view=2) [docs/state/walkin_recipe.md]
 - [ ] `wk9` Cove Grove [docs/state/walkin_recipe.md]
 - [ ] `wk10` Airfield terminal [docs/state/walkin_recipe.md]
 
