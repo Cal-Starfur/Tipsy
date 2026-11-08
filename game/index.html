@@ -28355,9 +28355,9 @@ function walkinNightBoxes(W, D, H, LH){
      walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
   /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
      block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W - 6, 0, D - 6, LH || 66, LH || 66],
+  return [[0, W, 0, D, LH || 66, LH || 66],
           [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
-          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];   // (6 in from the near walls' inner top edges: the hull's slivers beyond them lit the wall ends)
+          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
