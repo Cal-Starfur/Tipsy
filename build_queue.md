@@ -123,8 +123,8 @@ graph LR
 - [?] `f2` Fleet P2: rotor flight + The Lighthouse Run [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2) [docs/state/HANDOFF.md]
 - [?] `m1` Trophies alley fence to 0.3 over the room [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2) [docs/state/HANDOFF.md]
 - [?] `m2` Open House: crosswalk for the captain, live fire on the burn prop [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2) [docs/state/HANDOFF.md]
-- [ ] `m3` KTDE: DJ side missions over the air; station van drives off [docs/state/HANDOFF.md]
-- [ ] `m4` Letters on the Hill: face wash under roof edges; ranger inside her kiosk [docs/state/HANDOFF.md]
+- [?] `m3` KTDE: DJ side missions over the air; station van drives off [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17776,27858&view=2) [docs/state/HANDOFF.md]
+- [?] `m4` Letters on the Hill: face wash under roof edges; ranger inside her kiosk [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29330,-800&view=2) [docs/state/HANDOFF.md]
 
 ## Needs Sir
 - [!] `x1` Fleet lock flip; garage shows big vehicle on pick; pier access for Flats players (decision) [docs/state/HANDOFF.md]

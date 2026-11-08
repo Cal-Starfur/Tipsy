@@ -1619,19 +1619,19 @@ const HUMANOID_SKIN = { robot: { joint: 0x3a4048, hand: 0x2a2f36, screen: 0x1d22
    gideonParts() resolves them to what drawPersonHull takes (the shell's tones, the shoes, the robot's skin). Every default is the stock look. */
 const GD_COL = {   // [id, name, hex]
   shell:  [['white','Stock white',0xeef0f2],['cream','Cream',0xf1e6cf],['sky','Sky',0xa8d4ee],['mint','Mint',0xa8e0c2],['blush','Blush',0xf4b8c4],['lemon','Lemon',0xf6e27a],['tang','Tangerine',0xff9a4a],
-           ['copper','Copper',0xd9892b],['steel','Steel',0x9aa4ad],['graphite','Graphite',0x4a5058],['black','Black',0x24272c],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['plum','Plum',0x6a3f7a],['crimson','Crimson',0xb8342e],['teal','Teal',0x2f8f8a]],
-  band:   [['copper','Copper',0xe79a35],['orange','Orange',0xff7a1a],['white','White',0xeef0f2],['cyan','Cyan',0x5fe8e0],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['red','Red',0xe0453a],['blue','Blue',0x3b8fe0],['gold','Gold',0xffcf5a],['violet','Violet',0x9a6ae0],['black','Black',0x1c2126]],
-  eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a]],
-  screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11]],
-  part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a]],
-  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a]],
-  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a]],
-  shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b]],
+           ['copper','Copper',0xd9892b],['steel','Steel',0x9aa4ad],['graphite','Graphite',0x4a5058],['black','Black',0x24272c],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['plum','Plum',0x6a3f7a],['crimson','Crimson',0xb8342e],['teal','Teal',0x2f8f8a],['rose','Rose',0xe0708a],['orange','Orange',0xf07a2a],['sand','Sand',0xd8c39a],['olive','Olive',0x7a8a3a],['slate','Slate',0x5a6a7c],['lavender','Lavender',0xb9a6e6],['gold','Gold',0xd9b23a],['royal','Royal blue',0x3a5ad0]],
+  band:   [['copper','Copper',0xe79a35],['orange','Orange',0xff7a1a],['white','White',0xeef0f2],['cyan','Cyan',0x5fe8e0],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['red','Red',0xe0453a],['blue','Blue',0x3b8fe0],['gold','Gold',0xffcf5a],['violet','Violet',0x9a6ae0],['black','Black',0x1c2126],['magenta','Magenta',0xd0309a],['mint','Mint',0x8ef0c8],['silver','Silver',0xc9ced3],['teal','Teal',0x2f8f8a],['plum','Plum',0x7a3f8a]],
+  eye:    [['cyan','Cyan',0x5fe8e0],['amber','Amber',0xffb347],['green','Green',0x5be37d],['red','Red',0xff5a4a],['pink','Pink',0xff6fa8],['violet','Violet',0xb08cff],['white','White',0xf2f6f8],['blue','Blue',0x5aa8ff],['lime','Lime',0xc8ff5a],['gold','Gold',0xffd23a],['orange','Orange',0xff8a2a],['magenta','Magenta',0xff3ad0],['ice','Ice',0xbfefff],['teal','Teal',0x22c8b0],['yellow','Yellow',0xfff05a]],
+  screen: [['dark','Dark',0x1d2228],['black','Black',0x0b0d10],['navy','Navy',0x18233a],['forest','Forest',0x14291d],['wine','Wine',0x2a1620],['teal','Teal',0x10282a],['grey','Grey',0x3a4048],['brown','Brown',0x2a1a11],['plum','Plum',0x2a1a3a],['steel','Steel',0x1a2a3a],['olive','Olive',0x232a14],['red','Red',0x3a1418]],
+  part:   [['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['steel','Steel',0x8f969d],['silver','Silver',0xc9ced3],['white','White',0xeef0f2],['copper','Copper',0xb8702f],['gold','Gold',0xd9a23a],['navy','Navy',0x2f4a86],['red','Red',0xb8342e],['forest','Forest',0x3f6b4a],['orange','Orange',0xe0782a],['teal','Teal',0x2f8f8a],['plum','Plum',0x6a3f7a],['bronze','Bronze',0x8a5a2a],['rose','Rose',0xd9708a]],
+  ear:    [['stock','Stock',0xe4e7ea],['shell','Match shell',0],['white','White',0xf4f6f8],['graphite','Graphite',0x3a4048],['black','Black',0x1c2126],['copper','Copper',0xd9892b],['gold','Gold',0xd9a23a],['red','Red',0xe0453a],['cyan','Cyan',0x5fe8e0],['pink','Pink',0xff6fa8],['navy','Navy',0x2f4a86],['lime','Lime',0x8ee05a],['teal','Teal',0x2f8f8a],['orange','Orange',0xe0782a],['plum','Plum',0x7a3f8a]],
+  hat:    [['copper','Copper',0xd9892b],['black','Black',0x24272c],['white','White',0xf1ede4],['red','Red',0xc2352e],['navy','Navy',0x2f4a86],['forest','Forest',0x3f6b4a],['cream','Cream',0xf1e6cf],['plum','Plum',0x6a3f7a],['lime','Lime',0x8ee05a],['pink','Pink',0xff6fa8],['yellow','Yellow',0xf6d04d],['gold','Gold',0xd9a23a],['teal','Teal',0x2f8f8a],['orange','Orange',0xe0782a],['sky','Sky',0x7ec8ee],['charcoal','Charcoal',0x3a3f46],['tan','Tan',0xc9a66b],['burgundy','Burgundy',0x7a2a3a]],
+  shoe:   [['graphite','Graphite',0x2a2f36],['black','Black',0x16181b],['white','White',0xf2f0e8],['copper','Copper',0xb8702f],['brown','Brown',0x5c4530],['red','Red',0xb8342e],['navy','Navy',0x2f4a86],['tan','Tan',0xc9a66b],['orange','Orange',0xe0782a],['teal','Teal',0x2f8f8a],['grey','Grey',0x8a8f96],['gold','Gold',0xd9a23a]],
 };
 const GD_DEFAULT = { shell: 'white', band: 'copper', eye: 'cyan', screen: 'dark', joint: 'graphite', hand: 'graphite', pack: 'graphite', shoeCol: 'graphite', shoeKind: 'flat', eyeShape: 'round', mouth: 'bar', ear: 'stock', earStyle: 'pod', hat: 'none', hatCol: 'copper',
                     apron: 'none', neck: 'none', badge: 'none', glasses: 'none', packStyle: 'box', outCol: 'copper', badgeCol: 'gold', glassCol: 'copper',
                     finish: 'satin', shell2: 'navy', decal: 'none', decalCol: 'white' };
-/* GIDEON'S LOOKS (gd4e): ready-made looks, each a bundle of his paint fields (ids of GD_COL / GD_SHAPES); picking one tries the whole look on, and its unpaid
+/* GIDEON'S SKINS (gd4e; called Looks until 2026-11-07): ready-made skins, each a bundle of his paint fields (ids of GD_COL / GD_SHAPES); picking one tries the whole look on, and its unpaid
    parts go to the cart together (Add all) -- as a Tipsey skin does, at the parts' own prices */
 const GD_PRESETS = [
   { id: 'classic', name: 'Stock Gideon', set: {} },
@@ -1643,21 +1643,36 @@ const GD_PRESETS = [
   { id: 'racer', name: 'Racer', set: { gShell: 'crimson', gDecal: 'n7', gDecalCol: 'white', gHat: 'cap', gHatCol: 'white', gGlasses: 'shades', gBand: 'white', gShoeKind: 'sneaker', gShoeCol: 'white', gFinish: 'gloss' } },
   { id: 'chef', name: 'Chef', set: { gShell: 'white', gApron: 'apron', gOutCol: 'white', gHat: 'chef', gHatCol: 'white', gNeck: 'tie', gBand: 'red', gBadge: 'dot', gBadgeCol: 'red' } },
   { id: 'royal', name: 'Royal', set: { gShell: 'plum', gFinish: 'gloss', gHat: 'crown', gHatCol: 'gold', gBand: 'gold', gBadge: 'star', gBadgeCol: 'gold', gEye: 'gold', gNeck: 'scarf', gOutCol: 'red' } },
+  { id: 'courier', name: 'Courier', set: { gShell: 'navy', gPackStyle: 'delivery', gPack: 'copper', gHat: 'cap', gHatCol: 'copper', gNeck: 'lanyard', gOutCol: 'copper', gBand: 'orange', gShoeKind: 'sneaker', gShoeCol: 'white' } },
+  { id: 'explorer', name: 'Explorer', set: { gShell: 'forest', gPackStyle: 'backpack', gPack: 'copper', gGlasses: 'goggles', gNeck: 'bandana', gOutCol: 'red', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown' } },
+  { id: 'hero', name: 'Hero', set: { gShell: 'navy', gApron: 'cape', gOutCol: 'red', gBadge: 'shield', gBadgeCol: 'gold', gEye: 'white', gBand: 'gold', gShoeKind: 'boot', gShoeCol: 'red', gFinish: 'gloss' } },
+  { id: 'wizard', name: 'Wizard', set: { gShell: 'plum', gHat: 'wizard', gHatCol: 'plum', gApron: 'poncho', gOutCol: 'navy', gNeck: 'chain', gEye: 'violet', gMouth: 'smile', gBadge: 'moon', gBadgeCol: 'gold', gFinish: 'gloss' } },
+  { id: 'cowboy', name: 'Cowboy', set: { gShell: 'sand', gHat: 'cowboy', gHatCol: 'burgundy', gNeck: 'bandana', gOutCol: 'red', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown', gBadge: 'star', gBadgeCol: 'gold' } },
+  { id: 'mechanic', name: 'Mechanic', set: { gShell: 'slate', gHat: 'hardhat', gHatCol: 'yellow', gApron: 'coat', gOutCol: 'white', gGlasses: 'goggles', gShoeKind: 'boot', gShoeCol: 'black', gPackStyle: 'cells', gBadge: 'gear', gBadgeCol: 'copper' } },
+  { id: 'angel', name: 'Angel', set: { gShell: 'white', gPackStyle: 'wings', gPack: 'white', gEye: 'ice', gEyeShape: 'happy', gMouth: 'smile', gNeck: 'ascot', gOutCol: 'white', gFinish: 'chrome', gBand: 'gold' } },
+  { id: 'kitty', name: 'Kitty', set: { gShell: 'blush', gEarStyle: 'cat', gEar: 'pink', gEyeShape: 'happy', gMouth: 'grin', gEye: 'pink', gNeck: 'bandana', gOutCol: 'pink', gBadge: 'heart', gBadgeCol: 'pink' } },
+  { id: 'astro', name: 'Astronaut', set: { gShell: 'white', gGlasses: 'vr', gGlassCol: 'white', gPackStyle: 'dish', gNeck: 'collar', gOutCol: 'white', gApron: 'harness', gBadge: 'shield', gDecal: 'target', gDecalCol: 'red', gShoeKind: 'platform', gShoeCol: 'white' } },
+  { id: 'pirate', name: 'Pirate', set: { gShell: 'graphite', gGlasses: 'eyepatch', gNeck: 'bandana', gOutCol: 'red', gHat: 'cowboy', gHatCol: 'black', gApron: 'sash', gShoeKind: 'boot', gShoeCol: 'black', gEye: 'amber', gMouth: 'grin', gBadge: 'cross', gBadgeCol: 'gold' } },
+  { id: 'pilot', name: 'Pilot', set: { gShell: 'sand', gGlasses: 'aviator', gHat: 'cap', gHatCol: 'tan', gApron: 'harness', gOutCol: 'tan', gNeck: 'ascot', gShoeKind: 'boot', gShoeCol: 'brown', gBadge: 'star', gBadgeCol: 'gold', gMouth: 'smile' } },
+  { id: 'rockstar', name: 'Rockstar', set: { gShell: 'black', gGlasses: 'wayfarer', gGlassCol: 'black', gNeck: 'chain', gDecal: 'bolt', gDecalCol: 'red', gEye: 'red', gMouth: 'grin', gBand: 'red', gFinish: 'gloss', gPackStyle: 'none', gShoeKind: 'platform', gShoeCol: 'black' } },
+  { id: 'detective', name: 'Detective', set: { gShell: 'cream', gHat: 'bowler', gHatCol: 'charcoal', gApron: 'coat', gOutCol: 'tan', gGlasses: 'monocle', gNeck: 'tie', gMouth: 'small', gShoeKind: 'dress', gShoeCol: 'brown', gPackStyle: 'none' } },
+  { id: 'popstar', name: 'Pop Star', set: { gShell: 'rose', gGlasses: 'heartglass', gHat: 'headphones', gHatCol: 'pink', gDecal: 'star', gDecalCol: 'white', gEye: 'magenta', gMouth: 'smile', gBand: 'magenta', gFinish: 'gloss', gShoeKind: 'platform', gShoeCol: 'white', gPackStyle: 'wings', gPack: 'white' } },
+  { id: 'scout', name: 'Scout', set: { gShell: 'olive', gHat: 'bucket', gHatCol: 'tan', gPackStyle: 'backpack', gPack: 'bronze', gGlasses: 'hex', gNeck: 'bandana', gOutCol: 'lime', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown', gBadge: 'drop', gBadgeCol: 'copper' } },
   { id: 'party', name: 'Party', set: { gShell: 'lemon', gHat: 'party', gHatCol: 'pink', gNeck: 'bowtie', gOutCol: 'pink', gMouth: 'wide', gEyeShape: 'wide', gDecal: 'star', gDecalCol: 'pink', gBand: 'lime' } },
 ];
 const GD_SHAPES = {
-  eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy']],
-  mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['none','None']],
-  earStyle: [['pod','Pods'],['big','Big pods'],['none','None']],
+  eyeShape: [['round','Round'],['wide','Wide'],['tall','Tall'],['slit','Slit'],['dots','Dots'],['sleepy','Sleepy'],['happy','Happy'],['angry','Angry'],['heart','Hearts'],['star','Stars']],
+  mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
+  earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
-  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9']],
-  apron:    [['none','None'],['apron','Apron'],['vest','Vest']],
-  neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie']],
-  badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross']],
-  glasses:  [['none','None'],['round','Round'],['square','Square'],['shades','Shades'],['visor','Visor'],['monocle','Monocle']],
-  packStyle:[['box','Box'],['wide','Wide'],['round','Round'],['twin','Twin tanks'],['jet','Jet'],['none','None']],
-  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap']],
-  shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes']],
+  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
+  apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
+  neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
+  badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross'],['heart','Heart'],['shield','Shield'],['gear','Gear'],['drop','Drop'],['moon','Moon']],
+  glasses:  [['none','None'],['round','Round'],['square','Square'],['shades','Shades'],['visor','Visor'],['monocle','Monocle'],['aviator','Aviators'],['goggles','Goggles'],['eyepatch','Eyepatch'],['vr','VR headset'],['wayfarer','Wayfarers'],['cateye','Cat-eye'],['halfrim','Half-rims'],['hex','Hexagon'],['rimless','Rimless'],['heartglass','Heart shades'],['starglass','Star shades']],
+  packStyle:[['box','Box'],['wide','Wide'],['round','Round'],['twin','Twin tanks'],['jet','Jet'],['backpack','Backpack'],['satchel','Satchel'],['solar','Solar panel'],['delivery','Delivery box'],['cells','Cell bank'],['wings','Wings'],['dish','Dish'],['none','None']],
+  hat:      [['none','None'],['cap','Flat cap'],['beanie','Beanie'],['bowler','Bowler'],['tophat','Top hat'],['chef','Chef\'s hat'],['headphones','Headphones'],['antenna','Antenna'],['twin','Twin antennas'],['visor','Visor'],['party','Party hat'],['crown','Crown'],['prop','Propeller cap'],['hardhat','Hard hat'],['bucket','Bucket hat'],['fez','Fez'],['wizard','Wizard hat'],['cowboy','Cowboy hat']],
+  shoeKind: [['flat','Flats'],['sneaker','Sneakers'],['boot','Boots'],['dress','Dress shoes'],['platform','Platforms'],['sandal','Sandals']],
 };
 function gdHex(kind, v, dflt){
   if(typeof v === 'string' && v.indexOf('c:') === 0){ const n = parseInt(v.slice(2), 16); if(isFinite(n)) return n; }
@@ -15098,6 +15113,7 @@ function kerbCarsOf(grid, W){
         const al = a0 + k*KERB_PARK.pitch;
         if(myDrives.some(d => al + half > d.al0 - KERB_PARK.drivePad && al - half < d.al1 + KERB_PARK.drivePad)) continue;
         const x = e.ox + e.dv.x*al + e.rv.x*out, y = e.oy + e.dv.y*al + e.rv.y*out;
+        if(Math.hypot(x - (16376 + KTDE_VAN.a), y - (27416 + out)) < KERB_PARK.pitch*0.9) continue;   // (KTDE's own van's place: no kerb car on it)
         let ok = road(x, y);
         for(const [sa, sb] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
           if(!ok) break;
@@ -26644,22 +26660,47 @@ function landmarkLabWorld(name){
      spec.apron    how far the room's floor runs out past its wall (the entrance's own depth: Pelican's tower, 40);
                    the floor beyond is the street's, drawn round the room (default out)
      spec.glass    how far out of the door's line he is taken in (60: at the glass, the street holding him there)
-     spec.night    the boxes the night's cut takes ([a0, a1, b0, b1, z]: the room's own walls and the apron's)
+     spec.night    (leave it out: the kit's own, walkinNightBoxes, doorway included -- W25. A room that writes its own is checked by
+                   walkinNightCheck: no box may reach over the near walls)
    Returns the plan { W, D, door: { side, at, half }, view() }, for the interior's own drawing to read. */
 /* THE NIGHT'S CUT OF A WALK-IN ROOM (docs/LOOK_RULES.md 8b: "up to its real wall heights, the street stays night"):
    its floor up to the near walls' height, and its two far walls full height -- every point of the room seen is in one
    of them (looked back along the view it meets the floor's box or a far wall's), and the street seen over the near
    walls is not: one box up to H over the whole of it lit the cars parked in front of Pelican Drug */
-function walkinNightBoxes(W, D, H, LH){
-  /* W25 (Sir, 2026-11-07, Dune Home: "day light is painting on the exterior walls and the cars"): the first box is only the RAISED
-     rectangle of the floor, at the near walls' height (z0 = z1 = LH), its near edges the near walls' INNER top edges. The floor
-     below that line is hidden by the walls (a wall LH high hides ~3 x LH of floor behind it), so nothing is lost; and the near
-     walls' tops and outer faces, and what is parked against them, lie below it, in the street's night, not in the room's hole */
-  /* (and the far walls are only their INNER faces, the planes a = 0 and b = 0 up to H: their tops and their end faces -- the north-east
-     block's east face, the west wall's south end -- are the outside's, and were lit: "light leaking out", Sir 2026-11-07) */
-  return [[0, W, 0, D, LH || 66, LH || 66],
-          [0, W, 0, 0, H, LH || 66], [0, Math.max(0, W - 200), 0, 0, LH || 66],      // (the north wall's inner face: above the near walls' height all along it, below it only where the east wall does not hide it: a 66 wall hides ~200 of what is behind it)
-          [0, 0, 0, D, H, LH || 66], [0, 0, 0, Math.max(0, D - 200), LH || 66]];
+function walkinNightBoxes(W, D, H, LH, door){
+  /* W25 (Sir, 2026-11-07, Dune Home and Pelican Drug: "day light is painting on the exterior walls and the cars", "light leaking out"):
+     the room's night hole is ONLY what is seen INTO the room -- the raised floor rectangle at the near walls' height (z0 = z1 = LH), its
+     near edges the near walls' INNER top edges (a LH wall hides ~3 x LH of floor behind it, so nothing is lost); the far walls' INNER faces
+     (the planes a = 0 and b = 0), above LH all along and below it only where a near wall does not hide them (~200 short of the near
+     walls); and the doorway's OPENING (the plane in the near wall's line, between the wall's ends). Never a box reaching out over the
+     near walls (a > W or b > D), and no inset from their edges (that left a dark strip of floor along their tops). Everything outside
+     that -- the near walls' tops and outer faces, their ends beside the door, the vestibule and its mat, the cars parked against
+     them -- stays the street's night. A room does not write its own: walkinDefine gives it this one, door included (walkinNightCheck
+     reports any room that does) */
+  const L = LH || 66, out = [[0, W, 0, D, L, L],
+    [0, W, 0, 0, H, L], [0, Math.max(0, W - 200), 0, 0, L],
+    [0, 0, 0, D, H, L], [0, 0, 0, Math.max(0, D - 200), L]];
+  /* (the opening: its far end 30 in from the wall's end on the side the wall's outer face lies over on screen) */
+  if(door && door.side === 's') out.push([door.at - door.half + 4, door.at + door.half - 34, D, D, L, 0]);
+  else if(door && door.side === 'e') out.push([W, W, door.at - door.half + 4, door.at + door.half - 34, L, 0]);
+  return out;
+}
+/* W25's check: every room's night boxes, the problems each has (none: ok). A box that reaches over the near walls (a > W or b > D) lights
+   their tops and outer faces and the cars beside them; a plane exactly at W or D is a doorway's opening and is the one thing that may. */
+function walkinNightCheck(){
+  const out = [];
+  for(const pk of POCKETS){
+    if(!pk.walkin && !pk.night) continue;
+    let boxes = null; try { boxes = typeof pk.night === 'function' ? pk.night() : pk.night; } catch(e){}
+    if(!boxes){ out.push({ name: pk.name, problems: null }); continue; }
+    const W = pk.w, D = pk.d, bad = [];
+    for(const [a0, a1, b0, b1, z1] of boxes){
+      const plane = (a0 === a1 && Math.abs(a1 - W) < 0.5) || (b0 === b1 && Math.abs(b1 - D) < 0.5);
+      if(!plane && (a1 > W + 0.5 || b1 > D + 0.5)) bad.push('a box reaches over the near walls: a ' + a0 + '..' + a1 + ' b ' + b0 + '..' + b1 + ' z ' + z1);
+    }
+    out.push({ name: pk.name, problems: bad });
+  }
+  return out;
 }
 /* A ROOM'S OPENINGS (W11, Sir, 2026-10-30: "we should see the interior through the door. it shouldn't be a dark
    rectangle"): every way into a walk-in the street sees through -- its doorway, its shopfront glass, a window into it --
@@ -26711,7 +26752,7 @@ function walkinDefine(spec){
     h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
     late: spec.late,                                                             // (kept open for a story: walkinOpenNow)
     stagger: spec.stagger,                                                       // (a crowd's: how far apart their goings and comings are, ms -- the school's bell)
-    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH); },
+    get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH, plan.door); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
       get side(){ meas(); return plan.door ? plan.door.side : 's'; }, get at(){ meas(); return plan.door ? plan.door.at : 0; },
       get half(){ meas(); return plan.door ? plan.door.half : 80; },
@@ -27749,8 +27790,7 @@ const PELICAN_IN = walkinDefine({ name: 'Pelican Drug Interior', from: 'Pelican 
   street: { to: [0, 1024], routes: [[[-820, 1024], [-820, -3600]], [[1203, 1024], [1203, -3600]]] },
   /* (seen through, W11: the entrance tower's pair and its transom, the storefront's glass, the pickup window in the flank) */
   openings: [{ lab: [[575.6, -808.8], [697.6, -808.8]], z: [18, 154] }, { lab: [[737.6, -841.5], [1065.6, -841.5]], z: [18, 144], glass: true },
-             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });   // (the doorway's light is the opening itself in the wall's line -- what is seen through it, the floor behind -- and nothing outside it: the vestibule, the mat and the wall ends beside the door stay night; its east edge 30 in, the east wall's face is that far over on screen)
+             { lab: [[1095.4, -1030], [1095.4, -1112]], z: [40, 124], glass: true }], });
 /* its staff (540 x 360, a shop: staff only, one to a counter): the pharmacist between her screen, the shelves and the
    pickup end, behind the counter; the cashier at the till and bagging at the checkout's other end */
 /* (re-planned with the room, the review 2026-10-30: the pharmacist inside the pharmacy -- at her screen on the counter
@@ -27785,8 +27825,7 @@ const DUNE_IN = walkinDefine({ name: 'Dune Home & Garden Interior', from: 'Dune 
              { lab: [[859.6, -842.5], [1003.6, -842.5]], z: [20, 146], glass: true }],
   /* (its way to and from the street, THE ROOM'S DAY: out of the tower, across the car park to the pavement, and along it
      round either corner) */
-  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half + 4, P.door.at + P.door.half - 34, P.D, P.D, 66, 0]] : []) });
+  street: { to: [0, 1000], routes: [[[-921, 1000], [-921, -3600]], [[1100, 1000], [1100, -3600]]] }, });
 const DUNE_UNIFORM = { shirt: { c:0xd9772b, dk:0xa95a1f }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'boot' };   // the store's orange vest (as its reps', KW_RUN.dune)
 /* its staff: the paint desk's clerk between her rack and counter, the cashier behind the checkout (keys), an associate on the floor
    (the gondolas, the showroom); one shopper, a floor of 367,000 */
@@ -27818,8 +27857,7 @@ const SALT_IN = walkinDefine({ name: 'Saltwater Brewing Interior', from: 'Saltwa
   street: { to: [0, 150], routes: [[[-820, 150], [-820, 1600]], [[1050, 150], [1050, 1600]]] },
   /* (seen through, W11: the doorway and the two tap-room windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[664.6, -33.4], [784.6, -33.4]], z: [0, 112] }, { lab: [[519.6, -39.6], [649.6, -39.6]], z: [24, 140], glass: true },
-             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+             { lab: [[799.6, -39.6], [929.6, -39.6]], z: [24, 140], glass: true }], });
 const SALT_BARMAN = { shirt: { c:0xe9e4d6, dk:0xc9c3b2 }, pants: { c:0x2b2d33, dk:0x1e2024 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0x7a4a26, dk:0x5c3719 }, shoeKind: 'dress' };                       // a white shirt, a brown leather apron
 const SALT_BREWER = { shirt: { c:0x3f6272, dk:0x2f4b58 }, pants: { c:0x4a4640, dk:0x37332e }, shoe: { c:0x2f5a3a, dk:0x214228 }, shoeKind: 'boot' };   // a sea-blue work shirt, green rubber boots
@@ -27848,8 +27886,7 @@ const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Ba
   /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
   /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 36, 66]] : []) });
+  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }], });
 const BATHS_ATTENDANT = { shirt: { c:0x2f8f9e, dk:0x23707c }, pants: { c:0xe8e4da, dk:0xc9c4b6 }, shoe: { c:0xd9d5c8, dk:0xb5b1a4 }, shoeKind: 'sneaker' };   // a lagoon-teal tunic, white trousers
 const BATHS_GUARD = { shirt: { c:0xc9503a, dk:0x9e3b2a }, pants: { c:0x2b3a52, dk:0x1e2a3c }, shoe: { c:0xe8e4da, dk:0xc9c4b6 }, shoeKind: 'sneaker' };   // a red lifeguard's shirt, navy shorts
 /* its staff: the attendant behind the ticket desk by the door (keys), the pool attendant walking the west and east aisles; two bathers
@@ -27878,8 +27915,7 @@ const CHAPEL_IN = walkinDefine({ name: 'Driftwood Chapel Interior', from: 'Drift
   /* (its way to and from the street, THE ROOM'S DAY: down the west walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 290], routes: [[[-925, 290], [-925, 1600]], [[925, 290], [925, 1600]]] },
   /* (seen through, W11: the great door's opening -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[790.6, -176], [866.6, -176]], z: [0, 142] }], });
 const CHAPEL_MINISTER = { shirt: { c:0x2b2d33, dk:0x1e2024 }, pants: { c:0x23252a, dk:0x181a1d }, shoe: { c:0x1c1815, dk:0x120f0d }, shoeKind: 'dress' };   // a black cassock shirt, dark trousers
 const CHAPEL_VERGER = { shirt: { c:0x7a2f3c, dk:0x5c222d }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e }, shoeKind: 'dress' };   // a burgundy cardigan
 /* its staff: the minister behind the lectern (keys), the verger seeing to the font, the candles and the welcome table; one worshipper
@@ -27907,8 +27943,7 @@ const NURSERY_IN = walkinDefine({ name: 'Palmline Nursery Interior', from: 'Palm
   street: { to: [0, 340], routes: [[[-925, 340], [-925, 1600]], [[925, 340], [925, 1600]]] },
   /* (seen through, W11: the doorway and the two windows -- the shell's z in the entry's units) */
   openings: [{ lab: [[790.6, -226], [866.6, -226]], z: [0, 118] }, { lab: [[683.6, -226], [733.6, -226]], z: [50, 106], glass: true },
-             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[923.6, -226], [973.6, -226]], z: [50, 106], glass: true }], });
 const NURSERY_CLERK = { shirt: { c:0xe8e0cc, dk:0xc9c0a9 }, pants: { c:0x5a4a36, dk:0x463928 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0x3f7a46, dk:0x2f5c35 }, shoeKind: 'boot' };                         // the nursery's green apron (as KW_NURSERY_UNIFORM)
 const NURSERY_POTTER = { shirt: { c:0xc9a877, dk:0xa98a5c }, pants: { c:0x4a5a6a, dk:0x384553 }, shoe: { c:0x4a3a28, dk:0x35291b },
@@ -27933,8 +27968,7 @@ const HALL_IN = walkinDefine({ name: 'Lagoon Market Hall Interior', from: 'Lagoo
   /* (its way to and from the street, THE ROOM'S DAY: out of the great door, across the pavement and along it round either corner of the lot --
      the lot's west edge 159 from the door, its east 1497) */
   street: { to: [0, 184], routes: [[[-343, 184], [-343, -3600]], [[1681, 184], [1681, -3600]]] },
-  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2107, -8], [2217, -8]], z: [0, 120] }], });
 const HALL_APRON = v => ({ shirt: { c: 0xf1ece0, dk: 0xd2cbb9 }, pants: { c: 0x4a4f58, dk: 0x383c44 }, shoe: { c: 0x2a2018, dk: 0x1a140e },
   vest: { c: v, dk: (v >> 1) & 0x7f7f7f }, shoeKind: 'boot' });                  // a stallholder's white shirt and apron in the stall's colour
 /* its staff, a stallholder behind each counter (heading PI/2: south, facing us and the aisle) and the cook at the chowder stall (Amara, who keeps
@@ -27975,8 +28009,7 @@ const CTG_IN = walkinDefine({ name: 'Ferris Taylor Cottage Interior', from: 'Fer
      west edge 355 from the door, its east 1301, the side street's pavement 184 beyond) */
   street: { to: [0, 190], routes: [[[-539, 190], [-539, -3600]], [[1485, 190], [1485, -3600]]] },
   /* (seen through, W11: the doorway under its round head, and the window to the east of it -- the shell's z in the entry's units) */
-  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  openings: [{ lab: [[2005.8, -742], [2067.8, -742]], z: [0, 142] }, { lab: [[1875.04, -742], [1931.04, -742]], z: [54, 130], glass: true }], });
 const CTG_RESIDENT = { shirt: { c:0x8a6a8e, dk:0x6f5473 }, pants: { c:0x4a4f58, dk:0x383c44 }, shoe: { c:0x3a2c1e, dk:0x2a1f14 },
   vest: { c:0xc9bfa0, dk:0xa59c80 }, shoeKind: 'flat' };                      // a plum blouse under a fawn cardigan
 /* its resident, at the hearth (facing it, north: we see her back and the fire in front of her) and the dresser, now and then; the almshouses are
@@ -28009,8 +28042,7 @@ const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grov
   /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
   openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238]], z: [0, 115] },
              { lab: [[COVE.coffee.x0, 25024 - 27238], [COVE.coffee.door - 52, 25024 - 27238]], z: [46, 112], glass: true },
-             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }], });
 const CVC_BARISTA = { shirt: { c:0x2f6f73, dk:0x235357 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };                      // a teal tee under a cream apron
 /* its barista, behind the counter (north of it, facing south: we see her face and the machine's and the till's backs, their working faces turned to her), now and
@@ -28031,8 +28063,7 @@ const TPE_PK = walkinDefine({ name: TPE_IN.name, from: 'Tide Pool Elementary', x
   lab: [TPE_PLAN.WA, TPE_PLAN.WB, TPE_PLAN.BB0, TPE_PLAN.BB1], door: { a: (TPE_PLAN.MA0 + TPE_PLAN.MA1)/2, b: TPE_PLAN.BB1, half: TPE_IN.DOOR },
   H: TPE_IN.H, out: 60, apron: 60, glass: 60, stagger: 420,
   /* (its way to and from the street, THE ROOM'S DAY: out of the porch, down the yard's walk and through the gate to the pavement, and along it either way) */
-  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] },
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 20, P.door.at + P.door.half + 20, P.D, P.D + 60, 66]] : []) });
+  street: { to: [0, 450], routes: [[[-4500, 450]], [[4500, 450]]] }, });
 /* the school's uniforms (the people set's, on the roster body): named after the place */
 const SCHOOL_TEACHER_UNIFORM = { shirt: { c:0xf2eadf, dk:0xd6cdbf }, pants: { c:0x3c4a5c, dk:0x2c3745 }, shoe: { c:0x3a2a20, dk:0x241a14 },
   vest: { c:0x2f7f86, dk:0x24626a }, shoeKind: 'dress' };                                  // a teal cardigan over a cream blouse
@@ -87610,7 +87641,7 @@ CITY_PEOPLE.add({ name: 'Number 4 Builds a Winner', where: "Tidewater Green, by 
    What it gives is the server's (missionComplete: 'request-line' in TS_MISSIONS, $40 once by 'requestline', db.ts
    REQUEST_TIP_ID; the station's sticker, KEY_ITEMS 'ktdesticker', rebuilt from the record: rlStickerMigrate). Nothing
    of a run is saved: a reload starts it over at Ollie. Carried (R5): the note, then the record and the note, then
-   Maya's note -- crewReturns. Not built: the DJ calling in side missions over the air (later work). */
+   Maya's note -- crewReturns. The DJ's call-ins (RLC) and the station van (KTDE_VAN) follow after it. */
 const RL = { stage: 'idle', kid: null, kidHere: null, clerk: null, clerkWalk: null, recep: null, dj: null, maya: null, t0: 0, snooze: null };
 const RL_RUN = {
   kidName: 'Ollie', friend: 'Maya', song: 'Sea of Love',
@@ -87707,6 +87738,7 @@ function rlBayNow(scene){
   const ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => B && Object.assign({}, B, { icon }), K = rlKidSpot(scene), pk = rlPocket();
+  if(RL.stage === 'idle' && RLC.live) return ic(rlcBay(scene), 'note');   // (a DJ call-in out: its listener's bay)
   if(RL.stage === 'idle') return rlDone() || !RL.kidHere || !missionWindowOpen('request-line') || storiesHidden('request-line') || !K ? null : ic(K.bay, 'note');
   if(RL.stage === 'music') return ic(rlClerkBay(), 'note');
   if(RL.stage === 'station' || RL.stage === 'studio'){
@@ -87796,9 +87828,80 @@ function rlStickerMigrate(){
 function rlTimerTick(scene, now){
   const tm = document.getElementById("lhTimer");
   if(!tm) return;
-  if(rlClockOn()){ const s = Math.ceil(rlLeft(now)/1000), txt = "Maya's song: " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0") + " left";
+  if(rlClockOn() || RLC.live){ const s = Math.ceil((rlClockOn() ? rlLeft(now) : RLC.ms - (now - RLC.t0))/1000), txt = (rlClockOn() ? "Maya's song: " : "KTDE call-in: ") + Math.floor(s/60) + ":" + String(Math.max(0, s) % 60).padStart(2, "0") + " left";
     tm.classList.remove("hidden"); if(tm.textContent !== txt) tm.textContent = txt; tm._rl = true; }
   else if(tm._rl){ tm._rl = false; tm.classList.add("hidden"); }
+}
+/* ---- THE STATION'S VAN (Sir: "the station van drives off"): the outside-broadcast van at the kerb in front of the
+   station, parked (cached); it pulls out along the street when the DJ sends a call-in out (and now and then, a crew going
+   off to a job), and is back in its place once nobody sees it (R13). Held as the motel crew van is (rlBlocks). ---- */
+const KTDE_VAN = { mode: 'parked', t0: 0, since: 0, seed: 0x7d3, v: 0.16, go: false, a: 1400 };
+function ktdeVanPath(){
+  if(ktdeVanPath.c) return ktdeVanPath.c;
+  /* (lab b grows out across the street: the kerb car stands at KERB_CAR_OUT, the centreline kerbOff beyond it, and traffic
+     in front of the station runs +a in the near lane TRAF_LANE short of it, as the kerb cars face) */
+  const K = KTDE_VAN, o = KERB_CAR_OUT, lane = o + (ROAD_HALF - KERB_STONE.w - 2 - CARC.wid/2 - 5.4) - TRAF_LANE, w = (a, b) => ktdeW(a, b);
+  const pts = [w(K.a, o), w(K.a + 200, o), w(K.a + 420, lane), w(K.a + 700, lane), w(K.a + 3400, lane)];
+  let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+  return (ktdeVanPath.c = { pts, L });
+}
+function ktdeVanAt(now){
+  const V = KTDE_VAN; if(V.mode === 'away') return null;
+  const P = ktdeVanPath(), q = P.pts[0], q1 = P.pts[1];
+  if(V.mode === 'parked') return { x: q.x, y: q.y, th: Math.atan2(q1.y - q.y, q1.x - q.x), moving: false };
+  const at = s => { let acc = 0; for(let i = 1; i < P.pts.length; i++){ const a = P.pts[i-1], b = P.pts[i], l = Math.hypot(b.x - a.x, b.y - a.y);
+    if(s <= acc + l){ const k = (s - acc)/l; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k }; } acc += l; } return P.pts[P.pts.length - 1]; };
+  const u = now - V.t0, ramp = 2500, s = u < ramp ? 0.5*V.v*u*u/ramp : V.v*(u - ramp/2);
+  if(s >= P.L){ V.mode = 'away'; return null; }
+  const p = at(s), a0 = at(Math.max(0, s - 70)), a1 = at(Math.min(P.L, s + 70));
+  return { x: p.x, y: p.y, th: Math.atan2(a1.y - a0.y, a1.x - a0.x), moving: true, s };
+}
+function ktdeVanTick(scene, now){
+  const V = KTDE_VAN, home = ktdeVanPath().pts[0], seen = !!(scene.visWorldPt && scene.visWorldPt(home.x, home.y, 240, 240));
+  if(!V.since) V.since = now;
+  if(V.mode === 'away' && !seen){ V.mode = 'parked'; V.since = now; }
+  if(V.mode !== 'parked') return;
+  const near = Math.hypot(scene.botX - home.x, scene.botY - home.y) < 300;
+  if(((V.go && seen) || (seen && now - V.since > 120000)) && !near){ V.mode = 'out'; V.t0 = now; V.go = false; }
+}
+/* ---- THE DJ'S CALL-INS (Sir: "the DJ calling in side missions over the air"): once Request Line is done, now and then,
+   with nothing else on, KTDE cuts in over the radio: a listener (Maya at her gate, Ollie outside Tidewater & Co., the
+   Low Tide Music corner) wants Tipsey to drop by before the call ends. The listener's bay and beacon (R7), the GPS, the
+   clock in the timer pill; there the listener thanks the station on air. Free to do (no payout: money is the server's,
+   R10, and a call-in has no id there); a reload starts the wait over. ---- */
+const RLC = { live: false, t0: 0, ms: 150000, next: 0, n: 0, tgt: 0, last: 0 };
+const RLC_CALLS = [
+  { who: 'Maya', line: "KTDE 98.1, the request show. Maya, up on the hill behind the station, wants a wave from the little robot: drop by her gate, Tipsey!", thanks: "Maya waves from her porch: \"He came by! Thanks, KTDE!\"", at: sc => rlHome(sc) },
+  { who: 'Ollie', line: "A shout-out for Ollie outside Tidewater & Co. He heard his song and says thanks: drop by and say hi, Tipsey!", thanks: "Ollie grins: \"The DJ said you'd come!\"", at: sc => { const K = rlKidSpot(sc); return K && K.bay; } },
+  { who: 'the Low Tide Music clerk', line: "Low Tide Music has the next record on the corner for the request show. Swing by the post on the east pavement, Tipsey!", thanks: "The clerk waves the sleeve: \"Next week's pick! Thanks, KTDE!\"", at: sc => rlClerkBay() }
+];
+function rlcBay(scene){ const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length]; return c.at(scene); }
+function rlcEnd(scene, msg){
+  RLC.live = false; RLC.next = scene.time.now + 150000; rlNavClear(scene);
+  if(msg && typeof tpToast === "function") tpToast(msg);
+}
+function rlcTick(scene, ow, now){
+  if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode) || scene.mode !== "freeroam") return;
+  if(RLC.live){
+    if(RL.stage !== 'idle' || missionBusy('request-line')){ RLC.live = false; rlNavClear(scene); return; }
+    if(now - RLC.t0 > RLC.ms){ rlcEnd(scene, "KTDE: the call ended before Tipsey got there. Maybe next time."); return; }
+    const B = rlcBay(scene);
+    if(B && B.mat && matHighlightState(scene, B.mat, scene.mode) === "armed"){
+      const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length]; RLC.n++; RLC.tgt++;
+      if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
+      rlcEnd(scene, c.thanks);
+    }
+    return;
+  }
+  if(!rlDone() || RL.stage !== 'idle' || scene._inside || missionBusy('request-line') || storiesHidden('request-line')) return;
+  if(!RLC.next) RLC.next = now + 60000;
+  if(now < RLC.next) return;
+  const c = RLC_CALLS[RLC.tgt % RLC_CALLS.length], B = c.at(scene);
+  if(!B){ RLC.next = now + 30000; return; }
+  RLC.live = true; RLC.t0 = now; KTDE_VAN.go = true;
+  rlNav(scene, B, c.who);
+  if(typeof sfxThump === "function") sfxThump(0.2);
+  if(typeof tpToast === "function") tpToast("On the radio, KTDE's DJ: " + c.line);
 }
 /* every frame (after owStep) */
 function rlTick(scene, ow){
@@ -87806,6 +87909,8 @@ function rlTick(scene, ow){
   rlStickerMigrate();
   rlLatch(scene);
   rlTimerTick(scene, now);
+  ktdeVanTick(scene, now);
+  rlcTick(scene, ow, now);
   if(!ow || !ow.on || scene.state !== "play" || !owTripMode(scene.mode)) return;
   if(RL.snooze && !owMatContains(scene, RL.snooze.mat)) RL.snooze = null;
   const armed = B => !!B && !RL.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
@@ -87908,6 +88013,13 @@ function rlQueue(scene, t, queuePerson, layerFor){
   };
   if(RL.kidHere && !scene._inside) person(rlKidAt(now), L.kid);
   if(RL.maya && !scene._inside) person(rlMayaAt(now), L.maya);
+  /* the station's van at the kerb (parked: cached; driving off: live) */
+  { const v = ktdeVanAt(now);
+    if(v && !scene._inside && scene.visProp("people", v.x, v.y)){
+      const fd = v.th/(Math.PI/2);
+      queuePerson(v.x, v.y, (g, tt) => { const gg = layerFor(v.x, v.y);
+        if(v.moving) scene.drawProp(gg, 'van', v.x, v.y, tt || now, fd, 0, (v.s || 0)*0.05, KTDE_VAN.seed);
+        else scene.bcDraw(g, "ktdevan|parked", v.x, v.y, g2 => scene.drawProp(g2, 'van', v.x, v.y, 0, fd, 0, 0, KTDE_VAN.seed)); }); } }
   const pk = rlPocket(), pv = scene._inside === pk && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : null;
   if(pv) for(const [id, fn] of [['receptionist', rlRecepAt], ['dj', rlDjAt]]){
     const p0 = fn(now), s = rlStaff(id); if(!p0 || !s) continue;
@@ -87917,6 +88029,10 @@ function rlQueue(scene, t, queuePerson, layerFor){
 }
 /* HELD BY THEM (owStep's blockAt): Ollie standing at his spot */
 function rlBlocks(x, y, r){
+  { const sc0 = typeof scn === "function" ? scn() : null, v = sc0 ? ktdeVanAt(sc0.time.now) : null;
+    if(v && Math.abs(x - v.x) < 400 && Math.abs(y - v.y) < 400){
+      const c = Math.cos(v.th), si = Math.sin(v.th), dx = x - v.x, dy = y - v.y;
+      if(Math.abs(dx*c + dy*si) < 112 + r && Math.abs(-dx*si + dy*c) < 46 + r) return true; } }
   if(!RL.kidHere || RL.kid) return false;
   const s = typeof scn === "function" ? scn() : null, K = s && rlKidSpot(s);
   return !!(K && Math.hypot(x - K.spot.x, y - K.spot.y) < r + 15);
@@ -106709,8 +106825,11 @@ class WorldScene extends Phaser.Scene {
     /* AN OUTWARD SWING (LX, Sir, 2026-10-25: the fallen "pose is too stiff"): while LX.on, every limb drawn is turned
        about (a0, h0) in the a-h plane by the angle whose cos and sin are c and s -- an arm flung out to the side from its
        shoulder, a leg out from its hip -- and its faces judged as turned (drawFallenHull's sprawl) */
-    const LX = { on: false, a0: 0, h0: 0, c: 1, s: 0 };
-    const sees0 = sees, seesL = (na, nb, nh) => LX.on ? sees0(na*LX.c - nh*LX.s, nb, na*LX.s + nh*LX.c) : sees0(na, nb, nh);
+    const LX = { on: false, a0: 0, h0: 0, c: 1, s: 0, eps: 0 };   // (eps: a face must face the eye by at least this (cosine) to be drawn -- an open sleeve's near edge-on faces showed as slivers)
+    const sees0 = (na, nb, nh) => LX.eps ? (na*eye[0] + nb*eye[1] + nh*eye[2])/(Math.hypot(na, nb, nh)*Math.hypot(eye[0], eye[1], eye[2]) || 1) > LX.eps : sees(na, nb, nh), seesL = (na, nb, nh) => LX.on ? sees0(na*LX.c - nh*LX.s, nb, na*LX.s + nh*LX.c) : sees0(na, nb, nh);
+    /* WHY THESE DRAW A DISC OVER WHAT THEY SIT ON (hat bands, cuffs, shoe uppers: Sir, 2026-11-07, "the same issue again"): limb and prism first fill the convex hull
+       of both ends in a mid tone (no seams), and nothing here has depth -- it is painter's order. For a piece that is a sleeve or ring round something drawn before it
+       (a band on a crown, a boot over a shin) that hull is a flat plane painted across it. Such a piece takes fill = false here, { ring: true } or noTop in prism, and caps 0. */
     const limb = (aC, p0, p1, ha, hb, col, colSide, taper = 1, caps = 3, fill = true) => {
       const db = p1[0] - p0[0], dh = p1[1] - p0[1], L = Math.hypot(db, dh) || 1, ub = db/L, uh = dh/L, nb = -uh, nh = ub;
       const ST = hullSteps(col, colSide), R = _HULL_RING, wa = ha*1.06, wp = hb*1.06, sees = seesL;
@@ -107156,6 +107275,8 @@ class WorldScene extends Phaser.Scene {
     };
 
     const hipH = build.legH, shoulderH = hipH+build.torsoH, headH = shoulderH+build.headR*2;
+    const seesE = (na, nb, nh, e) => (na*eye3[0] + nb*eye3[1] + nh*eye3[2])/(Math.hypot(na, nb, nh)*Math.hypot(eye3[0], eye3[1], eye3[2]) || 1) > e;   // (a face toward the eye by at least e: edge-on faces are slivers)
+    const GS = RB ? this.gdKit(g, (a, b, h) => G(a, b, h), sees3, build, hipH, shoulderH, LOD, seesE) : null;   // (the robot's surfaces: gdKit)
 
     const onlyArms = !!(pose && (pose.part === 'armNear' || pose.part === 'armFar' || pose.part === 'head')), noArms = !!(pose && pose.part === 'noarms');
     const noNear = noArms || !!(pose && pose.part === 'nonear');
@@ -107173,15 +107294,17 @@ class WorldScene extends Phaser.Scene {
        a heel block under the back, a cuff up the shin, a strap over a bare foot. Drawn before the leg, so the shin goes down
        into the shoe's mouth and a boot's cuff shows as a ring round it */
     const shoeKind = pShoe.kind || (uniform && uniform.shoeKind) || (pShoe.platform ? 'platform' : (build.legH < 40 ? SHOES_K : build.hairStyle === "long" ? SHOES_W : SHOES_M)[(hairHash*7 + 3) % 5]);
-    const shoeOf = (aC, A, legW, legD) => {
+    const shoeOf = (aC, A, legW, legD, mode) => {   // mode 0: all of it (seated); 1: before the leg -- the sole (a flat slab the leg STANDS on: its top face must be under the leg) and, with his back to the eye, the toe (behind the leg); 2: over the leg -- the upper (a sleeve round the shin, from either side) and, facing the eye, the toe (nearer than the shin)
+      const late = mode === 2;
       const b0 = A[0], h0 = A[1], S = pShoe, K = shoeKind, soleH = Math.max(1.5, shoeH*0.32), white = { c: _pmix(S.c, 0xf4f2ec, 0.78), dk: _pmix(S.dk, 0xd6d3ca, 0.65) };
-      const sole = (bOff, hb, hh, col) => limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
-      const upper = (bOff, hb, hbot, htop, taper, col) => limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, 1);
-      const toe = (bFrom, bTo, hbot, htop, ha, col) => far ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);
-      const band = (bOff, hb, hbot, hh, col) => far ? 0 : limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false);
+      const sole = (bOff, hb, hh, col) => late ? 0 : limb(aC, [b0 + bOff, h0 - shoeH], [b0 + bOff, h0 - shoeH + hh], legW*1.25, hb, col.c, col.dk, 1, 3);
+      const upper = (bOff, hb, hbot, htop, taper, col) => { if(mode === 1) return; if(late) LX.eps = 0.22; limb(aC, [b0 + bOff, hbot], [b0 + bOff, htop], legW*1.2, hb, col.c, col.dk, taper, late ? 0 : 1, !late); LX.eps = 0; };   // (drawn after the leg: no lid and NO silhouette fill -- it is a sleeve over the shin; the fill is a convex hull of both ends and painted a plane across the leg)
+      const toe = (bFrom, bTo, hbot, htop, ha, col) => far || (mode === 1 && faceB > 0) || (mode === 2 && !(faceB > 0)) ? 0 : limb(aC, [b0 + bFrom, (hbot + htop)/2], [b0 + bTo, (hbot + htop)/2], ha, (htop - hbot)/2, col.c, col.dk, 0.55, 1);   // (filled: a small capsule low over the sole; unfilled its tapered faces showed as spikes)
+      const band = (bOff, hb, hbot, hh, col) => { if(far || mode === 1) return; LX.eps = 0.22; limb(aC, [b0 + bOff, hbot], [b0 + bOff, hbot + hh], legW*1.24, hb, col.c, col.dk, 1, 0, false); LX.eps = 0; };
       switch(K){
-        case 'sneaker':  sole(legD*0.38, legD*1.8, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.85, S);
-                         band(legD*0.3, legD*1.52, h0 - shoeH + soleH*1.3, 1.6, { c: S.dk, dk: S.dk }); break;                               // a white sole, a band over it
+        case 'sneaker':  sole(legD*0.42, legD*1.62, soleH*1.3, white); upper(legD*0.3, legD*1.5, h0 - shoeH + soleH*1.3, h0, 0.97, S);
+                         toe(legD*0.9, legD*2.05, h0 - shoeH + soleH*1.3, h0 - shoeH*0.3, legW*1.0, S);                                  // a toe cap over the front of the sole (without it the sole's top showed as a bare shelf)
+                         break;
         case 'dress':    sole(legD*0.4, legD*1.7, soleH*0.8, S); upper(legD*0.3, legD*1.3, h0 - shoeH + soleH*0.8, h0 - 1, 0.8, S);
                          toe(legD*0.9, legD*2.1, h0 - shoeH, h0 - shoeH*0.45, legW*1.0, S); break;                                        // low, a pointed toe
         case 'flat':     sole(legD*0.4, legD*1.7, soleH*0.7, S); upper(legD*0.3, legD*1.35, h0 - shoeH + soleH*0.7, h0 - shoeH*0.35, 0.85, S);
@@ -107198,7 +107321,9 @@ class WorldScene extends Phaser.Scene {
         default:         sole(legD*0.38, legD*1.8, soleH, S); upper(legD*0.3, legD*1.55, h0 - shoeH + soleH, h0, 0.85, S);
       }
     };
-    const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side); LX.on = false; };
+    const leg = side => { lxOn(side, pose && pose.legOut, side*build.hipW*0.3, hipH); legDraw(side);
+      if(!(aid && aid.cast === side)) shoeOf(side*build.hipW*0.3, STR[side].A, build.legW*0.55, build.legW*0.6, 2);   // (facing the eye: the shoe over the foot of the leg, its toe nearer than the shin -- Sir, 2026-11-07, "the shoes are drawn over by the legs")
+      LX.on = false; };
     const legDraw = side => {
       const legW = build.legW*0.55, legD = build.legW*0.6, aC = side*build.hipW*0.3, { K, A } = STR[side];
       /* the shin and the thigh meet at the knee at one width (kneeW), the shin run on past it under the thigh and down
@@ -107208,7 +107333,7 @@ class WorldScene extends Phaser.Scene {
       const thighC = pPants.shorts ? pPants : dress ? (dress.long ? null : pSkin) : pPants, shinC = bare ? pSkin : pPants;
       const pros = aidK === 'prosthetic' && side === (aid.side || 1);                 // A PROSTHETIC LEG: below the knee a pylon from a socket, the shoe on it
       const plaster = aid && aid.cast === side;                                    // A LEG IN PLASTER (aid.cast, Marina General's patients: HOSP_FOLK): knee to toes, white and thick
-      if(!plaster) shoeOf(aC, A, legW, legD);                                      // (first: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23)
+      if(!plaster) shoeOf(aC, A, legW, legD, 1);                      // (first, his back to the eye: the shin goes down into its mouth, as the hand's wrist -- Sir, 2026-10-23; facing the eye the toe is nearer than the leg, so it goes down after it: leg())
       if(!(dress && dress.long)){
         if(plaster){
           limb(aC, [A[0] + 4, A[1] - 3], [A[0] - 3, A[1] - 3], legW*1.3, legD*1.25, PLASTER.c, PLASTER.dk, 1.1, 0);            // the foot in it
@@ -107262,14 +107387,116 @@ class WorldScene extends Phaser.Scene {
        his chest): it is on his back, so it goes down before the body (and the far arm) when he faces the eye, and over the
        body only when his back is to it */
     const robotPack = () => {
-      const ra = build.torsoW/2, rb = build.torsoD/2, zm = hipH + build.torsoH*0.42, ps = RB.packStyle || 'box', PK = { c: RB.pack, dk: _pdk(RB.pack, 0.8) };
-      if(ps === 'none') return;
-      if(ps === 'round') prism(0, -rb - 3.8, ra*0.4, 4, zm - 2, shoulderH - 5, PK, { n: 12 });                                            // one round tank on his back
-      else if(ps === 'twin' || ps === 'jet'){ const big = ps === 'jet';
-        for(const sd of [-1, 1]){ prism(sd*ra*0.36, -rb - 3.6, ra*(big ? 0.3 : 0.26), 3.4, zm - (big ? 6 : 2), shoulderH - 4, PK, { n: 12 });
-          if(big) prism(sd*ra*0.36, -rb - 3.6, 3.6, 3.6, zm - 13, zm - 6, { c: 0xff9a3a, dk: 0xd9701a }, { top: 1.2, bot: 0.4, n: 8 }); } }   // twin tanks; a jet's with its nozzles
-      else box(0, -rb - 3.4, ra*(ps === 'wide' ? 0.82 : 0.5), 3.2, zm - 2, shoulderH - 5, RB.pack, _pdk(RB.pack, 0.8), RB.pack);        // the battery pack on his back
-      if((ps === 'box' || ps === 'wide') && faceB < 0) this.quadOn(g, [G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.3), G(ra*0.28, -rb - 6.8, zm + build.torsoH*0.25), G(-ra*0.28, -rb - 6.8, zm + build.torsoH*0.25)], RB.eye);   // lit cyan
+      const ps = RB.packStyle || 'box', cape = RB.apron === 'cape'; if(ps === 'none' && !cape) return;
+      const ra = build.torsoW/2, rb = build.torsoD/2, zm = hipH + build.torsoH*0.42, zT = shoulderH - 3.5, bkAt = z => rb*GS.tk(z)*0.985 + (cape ? 3.4 : 0);   // (a pack on a cape stands off it)
+      const PK = { c: RB.pack, dk: _pdk(RB.pack, 0.8) }, PD = { c: _pdk(RB.pack, 0.68), dk: _pdk(RB.pack, 0.52) }, PL = { c: _pmix(RB.pack, 0xffffff, 0.14), dk: RB.pack };
+      const MT = { c: 0xb9c0c7, dk: 0x8f969d }, TRIM = RB.band != null ? RB.band : 0xe79a35, Q = (pts, c) => this.quadOn(g, pts, c);
+      /* what is farther from his back goes down last when his back is to the eye, first when his front is (it is behind him then) */
+      const run = list => { if(cape) list = [capeDraw].concat(list); if(faceB > 0) list = list.slice().reverse(); for(const f of list) f(); };
+      /* THE CAPE (his Clothes, 'cape'): from his shoulders down his back, flaring as it falls, a darker hem; his lining shows from the front */
+      const capeDraw = () => {
+        const OC = RB.outCol != null ? RB.outCol : 0xd9892b, OP = { c: OC, dk: _pdk(OC, 0.78) }, LN = { c: _pmix(OC, 0xffffff, 0.22), dk: _pmix(OC, 0xffffff, 0.04) }, OD = { c: _pdk(OC, 0.7), dk: _pdk(OC, 0.54) }, zt = shoulderH - 1.6, zb = 38;
+        const capeP = (an, z, l) => { const u = Math.max(0, Math.min(1, (zt - z)/(zt - zb))), ax = ra*(0.99 + 0.5*u), bx = rb*(0.99 + 0.95*u), q = GS.sp(ax, bx, an, l || 0); return G(q[0], q[1] - 0.9 - 3.2*u, z); };
+        const A0 = Math.PI - 1.5, A1 = Math.PI + 1.5, ins = faceB > 0;
+        GS.surf(capeP, ra, rb, A0, A1, zb, zt, ins ? LN : OP, { lift: 1.0, dz: 5, inside: ins });
+        GS.surf(capeP, ra, rb, A0, A1, zb, zb + 2.6, ins ? { c: OD.c, dk: OD.dk } : OD, { lift: 1.1, dz: 2.6, inside: ins });
+        if(!ins) for(const sd of [-1, 1]) GS.strip(capeP, rb*1.4, GS.vpath(Math.PI + sd*0.32, zt - 4, zb + 3, 6), 0.55, _pdk(OC, 0.7), 1.2, 1, GS.tSeen);   // (the folds)
+      };
+      /* a flat on a pack's rear face (only while that face is toward the eye), at depth bR, a0..a1 across, z0..z1 up */
+      const rear = (bR, z0, z1, a0, a1, c) => { if(faceB < 0) Q([G(a0, bR - 0.12, z1), G(a1, bR - 0.12, z1), G(a1, bR - 0.12, z0), G(a0, bR - 0.12, z0)], c); };
+      const disc = (a, bR, zc, rr, c) => { if(faceB >= 0) return; const pts = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; pts.push(G(a + Math.cos(t)*rr, bR - 0.12, zc + Math.sin(t)*rr)); } Q(pts, c); };
+      if(ps === 'box' || ps === 'wide'){
+        const wide = ps === 'wide', ha = ra*(wide ? 0.84 : 0.5), z0 = zm - (wide ? 3 : 2), z1 = zT - (wide ? 3 : 0), hb = wide ? 3.1 : 3.4, bC = -(bkAt((z0 + z1)/2) + hb - 0.9), zc = (z0 + z1)/2, bR = bC - hb;
+        const latch = sd => box(sd*(ha + 0.5), bC, 0.7, hb*0.55, zc + 2, zc + 7, PD.c, PD.dk, PD.c);   // (a latch on a side: the FAR side's goes down before the case -- it is behind its rear face -- the near side's after)
+        run([() => latch(-faceA),
+             () => box(0, bC, ha*0.96, hb*0.96, z0 - 1.3, z0, PD.c, PD.dk, PD.c),                                                          // the base plate
+             () => box(0, bC, ha, hb, z0, z1, PL.c, PK.dk, PK.c),                                                                           // the case
+             () => { box(0, bC, ha*0.92, hb*0.92, z1, z1 + 1.5, PL.c, PD.dk, PD.c); box(0, bC, ha*0.32, 1.0, z1 + 1.5, z1 + 3.2, PD.c, PD.dk, PD.c); },   // its lid and a carrying handle
+             () => latch(faceA),
+             () => { for(let i = 0; i < 3; i++) rear(bR, zc + 2.6 - i*2.6, zc + 3.6 - i*2.6, -ha*0.62, ha*0.62, PD.dk);                         // vents
+                     rear(bR, z1 - 4.6, z1 - 3.4, -ha*0.45, ha*0.45, RB.eye);                                                                  // the light
+                     if(wide) rear(bR, zc - 9.4, zc - 7.6, -ha*0.95, ha*0.95, TRIM); }]);                                                      // (a band across the wide one)
+      } else if(ps === 'round'){
+        const rad = 4.9, z0 = zm - 6, z1 = zT, bC = -(bkAt(80) + rad - 0.9), bR = bC - rad*0.966;
+        run([() => prism(0, bC, rad*1.02, rad*1.02, z0 - 1.6, z0 + 0.8, PD, { n: 12 }),                                                      // the foot
+             () => prism(0, bC, rad, rad, z0, z1, PK, { top: 0.62, bot: 0.97, n: 12 }),                                                        // one round tank on his back
+             () => { for(const z of [z0 + 5, z0 + 15]) prism(0, bC, rad*1.04, rad*1.04, z, z + 1.8, PD, { noTop: true, n: 12 });   // its bands
+                     prism(0, bC, 1.5, 1.5, z1 - 0.2, z1 + 2.4, MT, { n: 8 }); prism(0, bC, 0.8, 0.8, z1 + 2.4, z1 + 4.2, PD, { n: 6 }); },   // the valve
+             () => { disc(0, bR, z0 + 10.5, 2.1, MT.dk); disc(0, bR, z0 + 10.5, 1.5, 0xe9ecef); rear(bR - 0.1, z0 + 10.1, z0 + 12.4, -0.12, 0.12, 0xd9453a); }]);   // a gauge
+      } else if(ps === 'twin' || ps === 'jet'){
+        const big = ps === 'jet', rad = big ? 4.1 : 3.8, z0 = zm - (big ? 1 : 3), z1 = zT, ax = ra*0.36, bC = -(bkAt(80) + rad - 0.9), bR = bC - rad*0.966;
+        run([() => box(0, bC, ax + 1.6, 1.1, z1 - 8.5, z1 - 6, PD.c, PD.dk, PD.c),                                                           // the yoke tying them
+             () => { for(const sd of [-1, 1]){ prism(sd*ax, bC, rad, rad, z0, z1, PK, { top: big ? 0.4 : 0.66, bot: 0.97, n: 12 });          // a tank (a jet's, nosed)
+                     for(const z of [z0 + 4.5, z1 - 5.5]) prism(sd*ax, bC, rad*1.04, rad*1.04, z, z + 1.6, PD, { noTop: true, n: 12 });
+                     if(!big){ prism(sd*ax, bC, 1.2, 1.2, z1 - 0.2, z1 + 2, MT, { n: 8 }); }
+                     else { prism(sd*ax, bC, 3.5, 3.5, z0 - 7, z0, { c: 0x59616a, dk: 0x3d444b }, { bot: 1.3, top: 0.95, n: 12 });             // the nozzle, flared
+                            { const zn = z0 - 7, tt = performance.now()/1000, L = 7.5 + 2.2*Math.sin(tt*31 + sd*1.7) + 1.2*Math.sin(tt*53 + sd);   // the flame: three nested tongues, flickering, from the nozzle's mouth
+                              const ring = (rad, z) => { const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push(G(sd*ax + Math.cos(t)*rad, bC + Math.sin(t)*rad, z)); } return o; };
+                              const tongue = (rad, len, col) => this.quadOn(g, convexHull(ring(rad, zn).concat([G(sd*ax + Math.sin(tt*40 + sd)*0.5, bC, zn - len)])), col);
+                              tongue(3.1, L, 0xff7a1a); tongue(2.2, L*0.72, 0xffc23a); tongue(1.2, L*0.45, 0xfff3c4); } } } },
+             () => { if(!big) rear(bR, z1 - 3.8, z1 - 2.8, -ax, ax, MT.c); else rear(bR, z1 - 4, z1 - 2.6, -ax - 2, ax + 2, TRIM); }]);
+      } else if(ps === 'backpack'){
+        const z0 = zm - 8, z1 = shoulderH - 2.5, rbk = 5.6, bC = -(bkAt(80) + rbk - 0.9), bR = bC - rbk*0.966, pk = bC - 4.6, pR = pk - 2.5*0.966;
+        run([() => prism(0, bC, 9.6, rbk, z0, z1, PK, { bot: 0.94, top: 0.84, n: 12 }),                                                       // the rucksack
+             () => { for(const sd of [-1, 1]) prism(sd*9.8, bC + 0.5, 2.3, 3.4, z0 + 2, z0 + 11, PL, { top: 0.94, n: 8 }); },                   // a side pocket each
+             () => prism(0, pk, 7.4, 2.5, z0 + 0.8, z0 + 14, PL, { top: 0.96, n: 12 }),                                                      // the front pocket
+             () => prism(0, bC - 0.3, 9.9, rbk + 0.3, z1 - 11.5, z1 + 0.6, PD, { bot: 1, top: 0.8, n: 12 }),                                   // the flap, over the top and down his back
+             () => { box(0, bC, 2.2, 0.8, z1 + 0.6, z1 + 2.8, PD.c, PD.dk, PD.c);                                                              // its grab loop
+                     rear(pR, z0 + 12, z0 + 12.9, -5.4, 5.4, PD.dk); rear(pR, z0 + 6, z0 + 6.7, -4.6, 4.6, PD.dk);                              // the pocket's zip and a seam
+                     const fR = bC - 0.3 - (rbk + 0.3)*0.966; rear(fR, z1 - 13.5, z1 - 6, -1.1, 1.1, PD.dk); rear(fR - 0.1, z1 - 12.6, z1 - 10.4, -2.0, 2.0, 0xc4cacf); }]);   // (the strap down the flap and its buckle)
+      } else if(ps === 'satchel'){
+        const ha = 8.6, hb = 2.8, z0 = zm - 14, z1 = zm + 2.6, bC = -(bkAt(z0 + 8) + hb - 0.9), bR = bC - hb, zc = (z0 + z1)/2;
+        run([() => box(0, bC, ha, hb, z0, z1, PL.c, PK.dk, PK.c),                                                                          // the bag
+             () => { box(0, bC - 0.25, ha + 0.3, hb + 0.3, zc + 0.8, z1 + 1.4, PD.c, PD.dk, PD.c);                                           // its flap, over the top
+                     box(0, bC - 0.3, ha*0.4, hb*0.3, z0 + 2.6, z0 + 11, PL.c, PK.dk, PK.c); },                                              // (a gusset pocket)
+             () => { rear(bR - 0.55, zc - 0.5, zc + 0.8, -ha, ha, PD.dk); rear(bR - 0.55, zc - 4.6, zc + 1.8, -1.4, 1.4, PD.dk); rear(bR - 0.65, zc - 3.6, zc - 1.6, -2.0, 2.0, 0xc4cacf); }]);   // (its strap down the flap, a buckle)
+      } else if(ps === 'solar'){
+        const ha = 11.2, hb = 0.9, z0 = zm - 6, z1 = zT + 2, d = 2.3, bC = -(bkAt(80) + d + hb - 0.9), bR = bC - hb, FR = 0xaab2ba;
+        run([() => { for(const zz of [z0 + 2, z1 - 8]) box(0, -(bkAt(80) + d/2 - 0.9), ha*0.7, d/2 + 0.4, zz, zz + 4.4, PD.c, PD.dk, PD.c); },                                      // the mount
+             () => box(0, bC, ha, hb, z0, z1, FR, 0x7d858d, 0x9aa2aa),                                                                       // the panel's frame
+             () => { if(faceB >= 0) return; const pw = ha - 1.1, z0i = z0 + 1.1, z1i = z1 - 1.1, cols = 4, rows = 5, bRR = bR - 0.14;
+                     Q([G(-pw, bRR, z1i), G(pw, bRR, z1i), G(pw, bRR, z0i), G(-pw, bRR, z0i)], 0x1f3a73);
+                     for(let c = 0; c < cols; c++) for(let rw = 0; rw < rows; rw++){ const a0 = -pw + (c + 0.04)*2*pw/cols, a1 = -pw + (c + 0.96)*2*pw/cols, zz0 = z0i + (rw + 0.05)*(z1i - z0i)/rows, zz1 = z0i + (rw + 0.95)*(z1i - z0i)/rows;
+                       Q([G(a0, bRR - 0.05, zz1), G(a1, bRR - 0.05, zz1), G(a1, bRR - 0.05, zz0), G(a0, bRR - 0.05, zz0)], (c + rw) % 2 ? 0x2c4d93 : 0x27447f); }
+                     this.quadOn(g, [G(-pw*0.78, bRR - 0.1, z1i - 1), G(-pw*0.4, bRR - 0.1, z1i - 1), G(-pw*0.95, bRR - 0.1, z0i + 6), G(-pw, bRR - 0.1, z0i + 6)], 0xffffff, 0.2); }]);   // (the cells, and a glint)
+      } else if(ps === 'delivery'){
+        const ha = 8.8, hb = 5.6, z0 = zm - 10, z1 = zT + 1.5, bC = -(bkAt(80) + hb - 0.9), bR = bC - hb, zc = (z0 + z1)/2, TR = TRIM;
+        run([() => box(0, bC, ha, hb, z0, z1, PL.c, PK.dk, PK.c),                                                                           // the insulated box
+             () => { box(0, bC, ha + 0.12, hb + 0.12, zc - 3, zc, TR, _pdk(TR, 0.78), TR, true); },                                                // the band round it
+             () => { box(0, bC, ha + 0.18, hb + 0.18, z1 - 7, z1, PD.c, PD.dk, PD.c); box(0, bC, ha*0.36, 1.0, z1, z1 + 2.4, PD.c, PD.dk, PD.c); },   // the lid and a handle
+             () => { disc(0, bR - 0.1, zc + 8, 3.8, TR); disc(0, bR - 0.2, zc + 8, 3.0, 0x1c2126);
+                     if(faceB < 0) Q([G(-1.1, bR - 0.35, zc + 11), G(1.7, bR - 0.35, zc + 8.6), G(0.1, bR - 0.35, zc + 8.6), G(1.3, bR - 0.35, zc + 5), G(-1.7, bR - 0.35, zc + 7.8), G(-0.2, bR - 0.35, zc + 7.8)], 0xffffff);   // (his bolt on it)
+                     rear(bR - 0.1, z1 - 5, z1 - 3.4, -2.2, 2.2, 0xc4cacf); }]);                                                                // (the latch)
+      } else if(ps === 'cells'){
+        const ha = 7.6, hb = 3.0, z0 = zm - 8, z1 = zT, bC = -(bkAt((z0 + z1)/2) + hb - 0.9), bR = bC - hb, tt = performance.now()/1000;
+        run([() => box(0, bC, ha*1.06, hb*0.92, z0 - 1.4, z0, PD.c, PD.dk, PD.c),
+             () => box(0, bC, ha, hb, z0, z1, PL.c, PK.dk, PK.c),
+             () => { box(0, bC, ha*0.82, hb*0.82, z1, z1 + 1.6, PD.c, PD.dk, PD.c); for(const sd of [-1, 1]) box(sd*ha*0.4, bC, 1.5, 1.5, z1 + 1.6, z1 + 3.4, MT.c, MT.dk, MT.c); },
+             () => { if(faceB >= 0) return; const n = 4, w = ha*2*0.8/n, a0 = -ha*0.8, bRR = bR - 0.14, zl0 = z0 + 2, zl1 = z1 - 2, lv = [0.92, 0.7, 0.45, 0.82];
+               for(let c = 0; c < n; c++){ const ca0 = a0 + c*w + 0.35, ca1 = a0 + (c + 1)*w - 0.35, segs = 6, h = (zl1 - zl0)/segs;
+                 Q([G(ca0 - 0.3, bRR, zl1 + 0.3), G(ca1 + 0.3, bRR, zl1 + 0.3), G(ca1 + 0.3, bRR, zl0 - 0.3), G(ca0 - 0.3, bRR, zl0 - 0.3)], PD.dk);
+                 const level = lv[c] + 0.06*Math.sin(tt*2 + c*1.7);
+                 for(let k = 0; k < segs; k++){ const on = (k + 0.5)/segs <= level; Q([G(ca0, bRR - 0.05, zl0 + (k + 0.88)*h), G(ca1, bRR - 0.05, zl0 + (k + 0.88)*h), G(ca1, bRR - 0.05, zl0 + (k + 0.12)*h), G(ca0, bRR - 0.05, zl0 + (k + 0.12)*h)], on ? _pmix(RB.eye, 0x10141a, k/segs*0.45) : 0x20262d); } } }]);
+      } else if(ps === 'wings'){
+        const bW = -(bkAt(84) + 2.2), zc = 86;
+        const wing = sd => { const feathers = [[-0.1, 25], [0.12, 23.5], [0.34, 21.5], [0.58, 19], [0.84, 16]];
+          for(let k = 0; k < feathers.length; k++){ const [dn, L] = feathers[k], r0 = sd*4.6, zr = zc + 5 - k*3.8, tipa = r0 + sd*Math.cos(0.5 - dn*0.62)*L, tipz = zr + Math.sin(0.5 - dn*0.62)*L*0.72, bb = bW - 2.2 - k*0.5, wd = 5.4;
+            Q([G(r0, bW, zr + wd*0.5), G(tipa, bb, tipz + wd*0.5), G(tipa + sd*1.6, bb, tipz - wd*0.2), G(r0, bW, zr - wd*0.7)], k % 2 ? PK.c : PL.c);
+            Q([G(r0, bW, zr - wd*0.7), G(tipa + sd*1.6, bb, tipz - wd*0.2), G(tipa, bb, tipz - wd*0.5), G(r0, bW, zr - wd*1.1)], PK.dk);
+            Q([G(r0, bW, zr + wd*0.5), G(tipa, bb, tipz + wd*0.5), G(tipa, bb, tipz + wd*0.5 - 0.7), G(r0, bW, zr + wd*0.5 - 0.7)], TRIM); } };
+        run([() => box(0, bW + 0.7, 5.2, 1.6, zc - 7, zc + 9, PD.c, PD.dk, PD.c), () => { wing(-1); wing(1); }, () => box(0, bW - 0.6, 2.6, 0.9, zc - 3, zc + 5, MT.c, MT.dk, MT.c)]);
+      } else if(ps === 'dish'){
+        const bm = -(bkAt(82) + 1.4), C = [5.5, bm - 6.2, 99], dl = Math.hypot(0.36, -0.62, 0.7), d = [0.36/dl, -0.62/dl, 0.7/dl], ul = Math.hypot(d[1], d[0]), u = [-d[1]/ul*-1 === 0 ? 1 : d[1]/ul*-1, d[0]/ul, 0];
+        const un = [d[1]/ul, -d[0]/ul, 0], vn = [un[1]*d[2] - 0*d[1], 0*d[0] - un[0]*d[2], un[0]*d[1] - un[1]*d[0]], PT = (rad, th, off) => G(C[0] + (un[0]*Math.cos(th) + vn[0]*Math.sin(th))*rad + d[0]*(off || 0), C[1] + (un[1]*Math.cos(th) + vn[1]*Math.sin(th))*rad + d[1]*(off || 0), C[2] + (un[2]*Math.cos(th) + vn[2]*Math.sin(th))*rad + d[2]*(off || 0));
+        const ring = (rad, off) => { const o = []; for(let i = 0; i < 16; i++) o.push(PT(rad, i/16*Math.PI*2, off)); return o; };
+        run([() => { box(0, bm + 0.4, 6.4, 1.4, zm - 4, zm + 4, PD.c, PD.dk, PD.c); box(C[0], bm - 0.4, 1.1, 1.1, zm + 3, C[2] - 0.6, MT.c, MT.dk, MT.c); box(C[0]*0.5, bm - 0.2, C[0]*0.5 + 1, 0.9, zm + 3, zm + 5.6, MT.c, MT.dk, MT.c); },
+             () => { const facing = sees3(d[0], d[1], d[2]);
+               if(!facing){ Q(ring(8.2, 0), PD.c); Q(ring(5.2, -0.6), PD.dk); }                                                              // (its back to the eye)
+               else { Q(ring(8.4, 0), MT.dk); Q(ring(7.6, 0.5), PL.c); Q(ring(5.2, 0.9), _pmix(RB.pack, 0xffffff, 0.3)); Q(ring(2.2, 1.2), PD.dk); }   // (its bowl toward the eye)
+               const p0 = PT(0, 0, 0.5), p1 = PT(0, 0, 10), dx = p1.x - p0.x, dy = p1.y - p0.y, L = Math.hypot(dx, dy) || 1, nx = -dy/L*0.55*this.K, ny = dx/L*0.55*this.K;
+               Q([{ x: p0.x + nx, y: p0.y + ny }, { x: p1.x + nx, y: p1.y + ny }, { x: p1.x - nx, y: p1.y - ny }, { x: p0.x - nx, y: p0.y - ny }], MT.c);
+               const tip = []; for(let i = 0; i < 8; i++){ const t = i/8*Math.PI*2; tip.push({ x: p1.x + Math.cos(t)*1.5*this.K, y: p1.y + Math.sin(t)*1.5*this.K }); } Q(tip, 0xd9453a); }]);
+      } else run([]);   // (no pack: the cape alone, if he wears one)
     };
     const torso = () => {
       const ra = build.torsoW/2, rb = build.torsoD/2;
@@ -107297,7 +107524,6 @@ class WorldScene extends Phaser.Scene {
       if(!pShirt.tank && !RB && !far) prism(0, 0, build.headR*0.62, build.headR*0.6, shoulderH - 0.5, shoulderH + 1.4, { c: hullTones(pShirt).dk, dk: _pdk(hullTones(pShirt).dk, 0.85) }, { topCol: hullTones(pShirt).mid, edge: false });   // the collar, a crew neck
       if(RB){
         if(RB.band != null) prism(0, 0, ra*0.95, rb*0.95, zm + build.torsoH*0.1, zm + build.torsoH*0.22, { c: RB.band, dk: _pdk(RB.band, 0.8) }, { noTop: true, n: 12, ring: true });   // his orange across the chest (RB.band null: none)
-        if(faceB < 0) robotPack();                                                                        // (facing the eye it went down before the body)
       }
     };
     /* the shoulder: a dome on the sleeve's top, after the sleeve, so the sleeve has no open lid (Sir, 2026-10-23: "the shoulder and elbow") */
@@ -107550,18 +107776,19 @@ class WorldScene extends Phaser.Scene {
       const fz = z0 + (z1 - z0)*0.5, kc = build.heavy ? 0.92 : 0.78, rAt = zz => (zz <= zj ? r*(kc + (1 - kc)*Math.max(0, zz - z0)/(zj - z0)) : r*(1 - 0.3*(zz - zj)/(z1 - zj)))*1.03;   // (the jaw in to the chin below, the crown in above)
       /* GIDEON'S HEADPHONES (gd4b), one side at a time: the cup and its half of the band. The FAR side goes down before the head (as the far ear does) so the head
          covers it; the near side over it */
-      const phones = sd => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
-          path = [[r*0.88 + 2.4, hz2 + r*0.4], [r*0.74 + 1.8, hz2 + r*0.78], [r*0.42, zt + 1.6], [0, zt + 2.4]], qc = (pts, c) => this.quadOn(g, pts, c);
-        prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
-        for(let k = 0; k < path.length - 1; k++){ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
+      const phones = (sd, part) => { const hz2 = fz - r*0.05, HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, zt = z1,
+          path = [[r*0.88 + 2.0, hz2 + r*0.4], [r*0.76 + 0.9, hz2 + r*0.74], [r*0.46, zt + 0.5], [0, zt + 0.9]], qc = (pts, c) => this.quadOn(g, pts, c);
+        if(part !== 'high') prism(sd*(r*0.9 + 2.4), 0, 3.6, r*0.46, hz2 - r*0.46, hz2 + r*0.46, HP, { n: 8 });
+        for(let k = 0; k < path.length - 1; k++){ if(part === 'high' ? k < 1 : k >= 1) continue;   // (the band's upper run goes down after the head, over the crown: drawn before it, the far half's tip was lost under the lid)
+ const [a0, z0p] = path[k], [a1, z1p] = path[k + 1];
           qc([G(sd*a0, -1.5, z0p), G(sd*a0, 1.5, z0p), G(sd*a1, 1.5, z1p), G(sd*a1, -1.5, z1p)], HC);
           qc([G(sd*a0 + 1.4, 0, z0p), G(sd*a0 - 1.4, 0, z0p), G(sd*a1 - 1.4, 0, z1p), G(sd*a1 + 1.4, 0, z1p)], _pdk(HC, 0.8)); } };
       const isPhones = !!(RB && RB.hat === 'headphones');
-      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd);
-      const noEars = !!(RB && RB.earStyle === 'none');
+      if(isPhones) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) phones(sd, 'low');
+      const noEars = !!(RB && (RB.earStyle === 'none' || RB.earStyle === 'cat'));
       if(RB && !noEars) for(const sd of [-1, 1]) if(!sees3(sd, 0, 0)) ear(sd);
       prism(0, 0, r, r, z0, zj, pSkin, { bot: build.heavy ? 0.92 : 0.78, noTop: true, n: 12 });            // the jaw, in to the chin (fuller on a heavier build)
-      prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12 });                                  // the head, a crown under the hair
+      prism(0, 0, r, r, zj, z1, pSkin, RB ? { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c } : { top: 0.7, edge: false, n: 12 });   // the head, a crown under the hair (a robot's lid in its shell's own tone)
       /* wrap(from, to, zA, zB, col, lift): a strip round the face at the head's own radius at its height, angles round from
          the front (+b) toward +a, each piece drawn only while it faces the eye -- the robot's screen, a beard */
       const wrap = (an0, an1, zA, zB, col, lift) => {
@@ -107578,51 +107805,86 @@ class WorldScene extends Phaser.Scene {
            The face is wrapped round the head (a flat plate across the front stood out past the round head as he turned:
            Sir, 2026-10-24), each strip at the head's own radius at its height (the jaw's taper below the jaw line, the crown's above)
            and drawn only while it faces the eye. wrap(from, to, zA, zB): angles round from the front (+b) toward +a */
-        wrap(-0.96, 0.96, fz - r*0.12, fz + r*0.55, RB.screen, 0);
-        /* (Gideon's face: RB.eyeShape and RB.mouth, gd4 -- the stock face is round eyes over a bar) */
-        const ES = ({ round: [0.15, 0.10, 0.36], wide: [0.22, 0.12, 0.30], tall: [0.10, 0.06, 0.42], slit: [0.24, 0.16, 0.24], dots: [0.08, 0.16, 0.30], sleepy: [0.18, 0.10, 0.20] })[RB.eyeShape] || [0.15, 0.10, 0.36];
-        for(const sd of [-1, 1]) wrap(sd*0.52 - ES[0], sd*0.52 + ES[0], fz + r*ES[1], fz + r*ES[2], RB.eye, 0.3);
-        { const mz0 = fz - r*0.42, mz1 = fz - r*0.3, mo = RB.mouth || 'bar';
-          if(mo === 'bar') wrap(-0.37, 0.37, mz0, mz1, RB.eye, 0.3);
-          else if(mo === 'wide') wrap(-0.6, 0.6, mz0, mz1, RB.eye, 0.3);
-          else if(mo === 'small') wrap(-0.18, 0.18, mz0, mz1, RB.eye, 0.3);
-          else if(mo === 'smile'){ wrap(-0.34, 0.34, mz0 - r*0.04, mz1 - r*0.06, RB.eye, 0.3); for(const sd of [-1, 1]) wrap(Math.min(sd*0.34, sd*0.52), Math.max(sd*0.34, sd*0.52), mz0 + r*0.06, mz1 + r*0.02, RB.eye, 0.3); }
-          else if(mo === 'dots'){ for(const c of [-0.3, 0, 0.3]) wrap(c - 0.07, c + 0.07, mz0 + r*0.02, mz1 - r*0.02, RB.eye, 0.3); }
-          else if(mo === 'grille'){ for(const k of [0, 1, 2]) wrap(-0.37, 0.37, mz0 + k*r*0.045, mz0 + k*r*0.045 + r*0.03, RB.eye, 0.3); } }
-        /* GIDEON'S GLASSES (RB.glasses, RB.glassCol: gd4c): frames round his eyes, standing off the screen (lift .9), tinted lenses for shades, one wide lens for a visor,
-           a ring on one eye for a monocle */
-        if(RB.glasses && RB.glasses !== 'none'){
-          const gc = RB.glassCol != null ? RB.glassCol : 0x24272c, gz0 = fz + r*0.04, gz1 = fz + r*0.42, th = r*0.1, gl = RB.glasses, hw = gl === 'square' ? 0.3 : 0.26;
-          const frame = (c, w) => { wrap(c - w, c + w, gz1 - th, gz1, gc, 0.9); wrap(c - w, c + w, gz0, gz0 + th, gc, 0.9); wrap(c - w, c - w + 0.075, gz0, gz1, gc, 0.9); wrap(c + w - 0.075, c + w, gz0, gz1, gc, 0.9); };
-          if(gl === 'visor'){ wrap(-0.92, 0.92, gz0, gz1, 0x1a3a52, 0.8); frame(0, 0.92); }
-          else if(gl === 'monocle'){ frame(0.52, 0.26); wrap(0.52 - 0.26, 0.52 + 0.26, gz0 + th, gz1 - th, 0xbfe6f2, 0.7); }
-          else { for(const sd of [-1, 1]){ if(gl === 'shades') wrap(sd*0.52 - hw, sd*0.52 + hw, gz0, gz1, 0x15181c, 0.8); frame(sd*0.52, hw); } wrap(-0.26 + hw*0.0, 0.26, fz + r*0.26, fz + r*0.31, gc, 0.9); }
-        }
+        /* (his screen, eyes, mouth and glasses are laid on the head's own surface: gdKit's face and glasses -- the mouth stood below the screen, on the chin) */
+        GS.face(RB);
+        if(RB.glasses && RB.glasses !== 'none') GS.glasses(RB);
         if(!noEars) for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) ear(sd);
       } else hairShell('high');
+      /* CAT EARS (RB.earStyle 'cat'): two pricked ears on the crown in his ear colour, pink inside, standing on the head */
+      if(RB && RB.earStyle === 'cat'){ const EC2 = { c: RB.ear, dk: _pdk(RB.ear, 0.78) };
+        for(const sd of [-1, 1]){ const ax2 = sd*r*0.4, zb0 = z1 + 0.15, tipz = z1 + 11, tx = ax2 + sd*1.2, hw = 4.1, Q2 = (pts, c) => this.quadOn(g, pts, c), front = faceB > 0;
+          /* the base sunk into the head's upper side (inside its outline), the tip leaning out: a flat ear with thickness, outlined so it reads against a head of its own colour */
+          const tri = (b, c, e) => Q2([G(ax2 - hw - e, b, zb0 - e), G(ax2 + hw + e, b, zb0 - e), G(tx + sd*e*0.6, b, tipz + e*1.6)], c);
+          tri(front ? -1.1 : 1.1, EC2.dk, 0.9);                                                                // (the far face first)
+          Q2([G(ax2 - hw, -1.1, zb0), G(ax2 - hw, 1.1, zb0), G(tx, 1.1, tipz), G(tx, -1.1, tipz)], EC2.dk); Q2([G(ax2 + hw, -1.1, zb0), G(ax2 + hw, 1.1, zb0), G(tx, 1.1, tipz), G(tx, -1.1, tipz)], EC2.dk);
+          const nb = front ? 1.1 : -1.1; tri(nb, _pdk(RB.ear, 0.62), 0.9); tri(nb + (front ? 0.05 : -0.05), EC2.c, 0);                         // (the near face, with a dark rim round it)
+          if(front) Q2([G(ax2 - hw*0.6, 1.2, zb0 + 1), G(ax2 + hw*0.6, 1.2, zb0 + 1), G(tx - sd*0.2, 1.2, tipz - 2.4)], 0xf4a8b8); }
+      }
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
          propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
          base ring the head's own radius at that height. Built of the hull's own prisms, so it turns with the head and shades as it does */
       if(RB && RB.hat && RB.hat !== 'none'){
         const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
         const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
+        /* THE BILL grows out of the crown's own rim: a fan from the crown's front arc out to a rounded edge, tipped down a touch, with a lip under it
+           (it was a separate slab stood on the head) */
+        const bill = (len, top, edge) => { const N = 12, inn = [], out = [], out2 = [];
+          for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.8 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
+            inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
+          for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
+            this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); }
+          /* far side: the head's crown stands in front of it, so it goes down again over the bill */
+          if(faceB < 0) prism(0, 0, r, r, zj, z1, pSkin, RB ? { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c } : { top: 0.7, edge: false, n: 12 }); };
+        const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
-        if(hh === 'cap'){ const pk = () => prism(0, rr*0.7, rr*0.86, rr*0.7, zb - 1, zb + 1.6, HP2, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
-        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12 });
+        if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
+        else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12, noTop: true, ring: true });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
             quadC([G(-rr*0.95, -1.6, bz), G(rr*0.95, -1.6, bz), G(rr*0.95, 1.6, bz), G(-rr*0.95, 1.6, bz)], HC); quadC([G(-1.6, -rr*0.95, bz + 0.3), G(1.6, -rr*0.95, bz + 0.3), G(1.6, rr*0.95, bz + 0.3), G(-1.6, rr*0.95, bz + 0.3)], _pdk(HC, 0.8)); } }
         else if(hh === 'bowler'){ prism(0, 0, rr*1.3, rr*1.3, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb - 1, zb + 11, HP, { top: 0.6, n: 12 }); }   // (the brim first: the crown stands on it, its far half is behind the crown)
         else if(hh === 'tophat'){ prism(0, 0, rr*1.34, rr*1.34, zb - 1.5, zb + 1.2, HP2, { n: 12 }); prism(0, 0, rr*0.8, rr*0.8, zb - 1, zb + 24, HP, { top: 0.96, n: 12 }); prism(0, 0, rr*0.82, rr*0.82, zb + 1.2, zb + 5.6, HP2, { n: 12, ring: true, noTop: true }); }   // (the band is a sleeve on the crown: no lid of its own, it lay a disc across the crown)
         else if(hh === 'chef'){ prism(0, 0, rr*0.92, rr*0.92, zb - 3, zb + 3, { c: 0xdfe3e6, dk: 0xb4babf }, { n: 12 }); prism(0, 0, rr*0.96, rr*0.96, zb + 3, zb + 23, HP, { top: 1.28, n: 12 }); }
-        else if(hh === 'headphones'){ for(const sd of [-1, 1]) if(sees3(sd, 0, 0)) phones(sd); }
+        else if(hh === 'headphones'){ for(const sd of [-1, 1]){ if(sees3(sd, 0, 0)) phones(sd, 'low'); phones(sd, 'high'); } }
         else if(hh === 'antenna' || hh === 'twin'){
           const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
           if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
-        else if(hh === 'visor'){ const pk = () => prism(0, rr*0.92, rr*0.98, rr*0.8, zb - 1, zb + 1.6, HP, { n: 8 }); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
+        else if(hh === 'visor'){ const pk = () => bill(8.5, HP, HP2); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
         else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
         else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
           for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
+        /* THE NEWER HATS: each stands on the crown, its brim down before the crown (it is behind it on the far side), any front piece after it only with his face to the eye */
+        else if(hh === 'hardhat'){
+          const lamp = () => { prism(0, rr*0.92, 2.8, 1.9, zb + 2.2, zb + 7.2, { c: 0xe9e6d8, dk: 0xb9b6a8 }, { n: 8 }); prism(0, rr*0.92 + 1.7, 1.7, 0.5, zb + 3.4, zb + 6, { c: 0xfff2a8, dk: 0xe0c850 }, { n: 8, edge: false }); };
+          if(faceB < 0) lamp();
+          prism(0, 0, rr*1.12, rr*1.12, zb - 1.4, zb + 0.9, HP2, { n: 12 });
+          prism(0, 0, rr*0.98, rr*0.98, zb - 0.6, zb + 10.5, HP, { top: 0.74, n: 12 });
+          prism(0, 0, 2.1, rr*0.78, zb + 9.6, zb + 12.4, HP2, { top: 0.9, n: 8 });
+          if(faceB >= 0) lamp(); }
+        else if(hh === 'bucket'){
+          prism(0, 0, rr*1.36, rr*1.36, zb - 2.6, zb - 0.2, HP2, { bot: 1, top: 0.72, n: 12 });
+          prism(0, 0, rr*0.98, rr*0.98, zb - 0.4, zb + 9.6, HP, { top: 0.86, n: 12 });
+          prism(0, 0, rr*1.0, rr*1.0, zb + 0.8, zb + 2.8, HP2, { n: 12, noTop: true, ring: true }); }
+        else if(hh === 'fez'){
+          const GLD = { c: 0xd9c27a, dk: 0xa8923f }, cord = () => { const pts = [[1.4, zb + 10.4], [rr*0.5, zb + 10.2], [rr*0.84, zb + 8], [rr*0.92, zb + 1.5]];
+            for(let k = 0; k < pts.length - 1; k++) quadC([G(pts[k][0], -0.55, pts[k][1]), G(pts[k + 1][0], -0.55, pts[k + 1][1]), G(pts[k + 1][0], 0.55, pts[k + 1][1]), G(pts[k][0], 0.55, pts[k][1])], 0x2a2418);
+            prism(rr*0.95, 0, 1.4, 1.4, zb - 2.8, zb + 1.6, GLD, { top: 0.8, n: 8 }); };
+          if(!sees3(1, 0, 0)) cord();
+          prism(0, 0, rr*0.94, rr*0.94, zb - 1.6, zb + 10, HP, { bot: 1, top: 0.8, n: 12, topCol: _pdk(HC, 0.86) });
+          prism(0, 0, 1.1, 1.1, zb + 10, zb + 11.6, GLD, { n: 8 });
+          if(sees3(1, 0, 0)) cord(); }
+        else if(hh === 'wizard'){
+          prism(0, 0, rr*1.62, rr*1.62, zb - 1.6, zb + 0.6, HP2, { n: 12 });
+          prism(0, 0, rr*0.86, rr*0.86, zb - 0.6, zb + 36, HP, { top: 0.04, n: 12 });
+          prism(0, 0, rr*0.9, rr*0.9, zb + 1, zb + 4.4, { c: 0xd9c27a, dk: 0xa8923f }, { n: 12, noTop: true, ring: true });
+          if(faceB > 0){ const rad = rr*0.86*(1 - 0.96*(16.6/36.6)) + 0.4, zc = zb + 16, o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, q = k % 2 ? 1.2 : 3; o.push(G(Math.cos(t)*q, rad, zc + Math.sin(t)*q*1.1)); } quadC(o, 0xf3e7a8);
+            quadC([G(-2.6, rr*0.9 + 0.5, zb + 1.2), G(2.6, rr*0.9 + 0.5, zb + 1.2), G(2.6, rr*0.9 + 0.5, zb + 4.2), G(-2.6, rr*0.9 + 0.5, zb + 4.2)], 0x6b5a1c); } }
+        else if(hh === 'cowboy'){
+          prism(0, 0, rr*1.55, rr*1.12, zb - 1.4, zb + 0.6, HP2, { n: 12 });
+          prism(0, 0, rr*0.86, rr*0.92, zb - 0.8, zb + 10.5, HP, { top: 0.92, n: 12 });
+          if(sees3(0, 0, 1)){ const o = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; o.push(G(Math.cos(t)*rr*0.52, Math.sin(t)*rr*0.2, zb + 10.55)); } quadC(o, _pdk(HC, 0.7)); }
+          prism(0, 0, rr*0.9, rr*0.95, zb + 0.6, zb + 3, HP2, { n: 12, noTop: true, ring: true });
+          if(faceB > 0){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; o.push(G(Math.cos(t)*1.7, rr*0.95 + 0.4, zb + 1.8 + Math.sin(t)*1.7)); } quadC(o, 0xd9c27a); } }
       }
       /* WILLIAM'S FACE (uniform.beard): a beard round the jaw from ear to ear, up over the lip -- no shades, no eyes (Sir,
          2026-10-27): the face bare as everyone's. Wrapped (wrap), so it turns with the head and never shows through it */
@@ -107807,51 +108069,12 @@ class WorldScene extends Phaser.Scene {
     }
     /* GIDEON'S OUTFIT (RB.apron, RB.neck, RB.badge, RB.outCol, RB.badgeCol: gd4c): a vest or an apron, a scarf, bow tie or tie, a badge on the chest, worn over the
        shell, over the torso and under the arms (as the stab vest and the chain are). The front pieces only while he faces the eye */
-    if(RB && ((RB.apron && RB.apron !== 'none') || (RB.neck && RB.neck !== 'none') || (RB.badge && RB.badge !== 'none'))){
-      const OC = RB.outCol != null ? RB.outCol : 0xd9892b, OP = { c: OC, dk: _pdk(OC, 0.78) }, ra0 = build.torsoW/2, rb0 = build.torsoD/2, zm0 = hipH + build.torsoH*0.42, hr = build.headR;
-      const kAt = zz => 0.86 + 0.14*Math.max(0, Math.min(1, (zz - zm0)/(shoulderH - zm0))), bAt = zz => rb0*kAt(zz)*1.02 + 0.9, front = faceB > 0, Q = (pts, c) => this.quadOn(g, pts, c);
-      if(RB.apron === 'vest'){ prism(0, 0, ra0*1.07, rb0*1.14, hipH + build.torsoH*0.12, shoulderH - 1.5, OP, { bot: 0.9, noTop: true, n: 12 });
-        if(front){ const vb = rb0*1.14*kAt(shoulderH - 1)*1.0 + 1.0; Q([G(-5.2, vb, shoulderH - 1.4), G(5.2, vb, shoulderH - 1.4), G(0.8, rb0*1.14*0.9 + 1.0, hipH + build.torsoH*0.2), G(-0.8, rb0*1.14*0.9 + 1.0, hipH + build.torsoH*0.2)], pShirt.c);   // the V of the shell showing down the front
-          Q([G(-1.1, vb + 0.2, shoulderH - 1.4), G(1.1, vb + 0.2, shoulderH - 1.4), G(1.1, vb + 0.2, hipH + build.torsoH*0.2), G(-1.1, vb + 0.2, hipH + build.torsoH*0.2)], _pdk(OC, 0.6));   // (a row of buttons' placket)
-          for(const sd of [-1, 1]) Q([G(sd*ra0*1.02, vb, hipH + build.torsoH*0.6), G(sd*ra0*0.6, vb, hipH + build.torsoH*0.6), G(sd*ra0*0.6, vb, hipH + build.torsoH*0.5), G(sd*ra0*1.02, vb, hipH + build.torsoH*0.5)], _pdk(OC, 0.72)); } }   // (a pocket flap each side)
-      if(RB.apron === 'apron' && front){
-        const zt = shoulderH - 7, zb2 = hipH - 26, w = ra0*0.8, wb = rb0*0.95 + 0.9;
-        Q([G(-w, bAt(zt), zt), G(w, bAt(zt), zt), G(w*1.02, wb, zb2), G(-w*1.02, wb, zb2)], OC);                                  // the bib and skirt
-        Q([G(-w*1.02, wb, zb2 + 3.2), G(w*1.02, wb, zb2 + 3.2), G(w*1.02, wb, zb2), G(-w*1.02, wb, zb2)], _pdk(OC, 0.74));         // its hem
-        Q([G(-w*0.5, wb, zb2 + 9), G(w*0.5, wb, zb2 + 9), G(w*0.5, wb, zb2 + 20), G(-w*0.5, wb, zb2 + 20)], _pdk(OC, 0.84));      // the pocket
-        Q([G(-w*1.1, bAt(zm0) + 0.2, zm0 + 1.6), G(w*1.1, bAt(zm0) + 0.2, zm0 + 1.6), G(w*1.1, bAt(zm0) + 0.2, zm0 - 0.4), G(-w*1.1, bAt(zm0) + 0.2, zm0 - 0.4)], _pdk(OC, 0.7));   // the waist tie
-        for(const sd of [-1, 1]) Q([G(sd*w*0.7, bAt(zt), zt), G(sd*w*0.7 - sd*2.2, bAt(zt), zt), G(sd*3.4 - sd*2.2, bAt(shoulderH) + 0.4, shoulderH + 0.4), G(sd*3.4, bAt(shoulderH) + 0.4, shoulderH + 0.4)], _pdk(OC, 0.8));   // the neck strap
-      }
-      if(RB.neck === 'scarf'){ prism(0, 0, hr*0.72, hr*0.72, shoulderH - 3, shoulderH + 3.4, OP, { n: 12 });
-        if(front){ const bz = bAt(shoulderH - 2) + 0.5; Q([G(hr*0.12, bz, shoulderH + 1), G(hr*0.62, bz, shoulderH + 1), G(hr*0.56, bz, shoulderH - 24), G(hr*0.08, bz, shoulderH - 24)], OC); Q([G(hr*0.08, bz, shoulderH - 20), G(hr*0.56, bz, shoulderH - 20), G(hr*0.56, bz, shoulderH - 24), G(hr*0.08, bz, shoulderH - 24)], _pdk(OC, 0.7)); } }
-      if(front && (RB.neck === 'bowtie' || RB.neck === 'tie')){ const bz = bAt(shoulderH - 2) + 0.4, zn = shoulderH - 3.5;
-        if(RB.neck === 'bowtie'){ for(const sd of [-1, 1]) Q([G(sd*1.2, bz, zn), G(sd*8, bz, zn + 4.2), G(sd*8, bz, zn - 4.2), G(sd*1.2, bz, zn)], OC); Q([G(-1.6, bz + 0.2, zn + 1.8), G(1.6, bz + 0.2, zn + 1.8), G(1.6, bz + 0.2, zn - 1.8), G(-1.6, bz + 0.2, zn - 1.8)], _pdk(OC, 0.7)); }
-        else { Q([G(-1.8, bz, zn + 1.4), G(1.8, bz, zn + 1.4), G(1.6, bz, zn - 2), G(-1.6, bz, zn - 2)], _pdk(OC, 0.7)); Q([G(-1.5, bz, zn - 1.6), G(1.5, bz, zn - 1.6), G(3.4, bz, zn - 19), G(0, bz, zn - 25), G(-3.4, bz, zn - 19)], OC); } }
-      if(front && RB.badge && RB.badge !== 'none'){ const BC2 = RB.badgeCol != null ? RB.badgeCol : 0xd9a23a, bz = bAt(shoulderH - 13) + 0.5, cz = shoulderH - 13, ca = -ra0*0.46, bd = RB.badge;
-        const pts = (list, sc) => list.map(([a, z]) => G(ca + a*sc, bz, cz + z*sc));
-        if(bd === 'dot'){ const o = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; o.push([Math.cos(t)*3.2, Math.sin(t)*3.2]); } Q(pts(o, 1), BC2); }
-        else if(bd === 'diamond') Q(pts([[0, 4], [3.4, 0], [0, -4], [-3.4, 0]], 1), BC2);
-        else if(bd === 'cross'){ Q(pts([[-1.2, 4], [1.2, 4], [1.2, -4], [-1.2, -4]], 1), BC2); Q(pts([[-4, 1.2], [4, 1.2], [4, -1.2], [-4, -1.2]], 1), BC2); }
-        else if(bd === 'bolt') Q(pts([[1.4, 4.6], [-2.6, -0.4], [-0.2, -0.4], [-1.6, -4.6], [2.8, 0.8], [0.4, 0.8]], 1), BC2);
-        else if(bd === 'star'){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, rr2 = k % 2 ? 1.7 : 4.2; o.push([Math.cos(t)*rr2, Math.sin(t)*rr2]); } Q(pts(o, 1), BC2); } }
-    }
+    if(RB && ((RB.apron && RB.apron !== 'none') || (RB.neck && RB.neck !== 'none') || (RB.badge && RB.badge !== 'none'))) GS.wear(RB, faceB > 0);   // (gdKit: on his surface, not stood off it)
     /* GIDEON'S DECALS (RB.decal, RB.decalCol: gd4d): racing stripes down the front, a chevron, a star, bolt or heart, or a race number, on the chest, in a colour of
        their own; drawn on the torso's front surface at each height (its own taper), only while he faces the eye */
-    if(RB && RB.decal && RB.decal !== 'none' && faceB > 0){
-      const DC = RB.decalCol != null ? RB.decalCol : 0xeef0f2, ra0 = build.torsoW/2, rb0 = build.torsoD/2, zm0 = hipH + build.torsoH*0.42, dz = RB.decal, Q = (pts, c) => this.quadOn(g, pts, c);
-      const kAt = zz => 0.86 + 0.14*Math.max(0, Math.min(1, (zz - zm0)/(shoulderH - zm0))), bAt = zz => rb0*kAt(zz)*1.02 + 0.5, cz = zm0 + 17;
-      if(dz === 'stripes') for(const sd of [-1, 1]) Q([G(sd*3.2, bAt(shoulderH - 3), shoulderH - 3), G(sd*5.6, bAt(shoulderH - 3), shoulderH - 3), G(sd*5.6, bAt(hipH + 2), hipH + 2), G(sd*3.2, bAt(hipH + 2), hipH + 2)], DC);
-      else if(dz === 'chevron'){ for(const k of [0, 1]){ const z0 = cz + 6 - k*7; for(const sd of [-1, 1]) Q([G(sd*0.4, bAt(z0), z0), G(sd*10, bAt(z0 + 6), z0 + 6), G(sd*10, bAt(z0 + 6), z0 + 3.2), G(sd*0.4, bAt(z0 - 2.8), z0 - 2.8)], DC); } }
-      else if(dz === 'star' || dz === 'bolt' || dz === 'heart'){
-        const bz = bAt(cz), pts = l => l.map(([a, z]) => G(a*1.7, bz, cz + z*1.7));
-        if(dz === 'bolt') Q(pts([[1.4, 4.6], [-2.6, -0.4], [-0.2, -0.4], [-1.6, -4.6], [2.8, 0.8], [0.4, 0.8]]), DC);
-        else if(dz === 'star'){ const o = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2 + Math.PI/2, rr2 = k % 2 ? 1.7 : 4.2; o.push([Math.cos(t)*rr2, Math.sin(t)*rr2]); } Q(pts(o), DC); }
-        else { const o = []; for(let k = 0; k <= 24; k++){ const t = k/24*Math.PI*2, hx = 16*Math.pow(Math.sin(t), 3), hy = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t); o.push([hx*0.26, hy*0.26 - 0.4]); } Q(pts(o), DC); } }
-      else if(/^n[0-9]$/.test(dz)){ const dg = +dz[1], seg = { 1: 'bc', 4: 'fgbc', 7: 'abc', 9: 'abcdfg' }[dg] || 'abc', bz = bAt(cz) + 0.2, w = 4.6, h = 6.4, t = 1.7;
-        const H = (zc) => Q([G(-w, bz, zc + t/2), G(w, bz, zc + t/2), G(w, bz, zc - t/2), G(-w, bz, zc - t/2)], DC), V = (ac, z0v, z1v) => Q([G(ac - t/2, bz, z1v), G(ac + t/2, bz, z1v), G(ac + t/2, bz, z0v), G(ac - t/2, bz, z0v)], DC);
-        if(seg.includes('a')) H(cz + h); if(seg.includes('g')) H(cz); if(seg.includes('d')) H(cz - h);
-        if(seg.includes('f')) V(-w + t/2, cz, cz + h); if(seg.includes('b')) V(w - t/2, cz, cz + h); if(seg.includes('e')) V(-w + t/2, cz - h, cz); if(seg.includes('c')) V(w - t/2, cz - h, cz); }
-    }
+    if(RB && RB.decal && RB.decal !== 'none' && faceB > 0) GS.decal(RB);
+    if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
+    if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
     if(lapLate){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); }
     if(farFront && !noArms) arm(-nearSide, false);
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
@@ -107876,6 +108099,440 @@ class WorldScene extends Phaser.Scene {
                       hp.x + Math.sin(aoff)*9, hp.y - Math.cos(aoff)*9);
       }
     }
+  }
+
+  /* GIDEON'S SURFACES (Sir, 2026-11-07: "a lot of his art is floating off of his body like the apron ... even his mouth isn't on his actual head").
+     Everything he wears or shows is laid ON his body, not stood off it by a fixed number: a point on the torso or the head is found by (an, z) --
+     an the angle round from his front (+ toward his +a side), z the height -- on the very 12-sided plan (and the same taper) the hull draws, plus a
+     small lift for the thickness of the cloth. A garment is cells of that surface (surf), a strap or seam a stroke along it (strip), a badge or a
+     decal a patch on it (patch); a cell is drawn only while its outward normal faces the eye (as the hull's own faces are) and toned by which way it
+     faces, so it turns with him at every heading and never shows through him. Built only for the robot (drawPersonHull's GS). */
+  gdKit(g, Gf, sees3, build, hipH, shoulderH, LOD, seesE){
+    const T = this, PI = Math.PI, ra = build.torsoW/2, rb = build.torsoD/2, r = build.headR;
+    const zm = hipH + build.torsoH*0.42, zbot = hipH - 1.5, hz0 = shoulderH + r*0.28, hz1 = shoulderH + r*2, zj = hz0 + (hz1 - hz0)*0.42, fz = hz0 + (hz1 - hz0)*0.5;
+    const tk = z => z <= zm ? 0.9 - 0.04*Math.max(0, z - zbot)/(zm + 1 - zbot) : 0.86 + 0.14*Math.min(1, (z - zm)/(shoulderH - zm));      // (the torso's taper: the hips in to the waist, out to the chest)
+    const hk = z => z <= zj ? 0.78 + 0.22*Math.max(0, z - hz0)/(zj - hz0) : 1 - 0.3*(z - zj)/(hz1 - zj);                                  // (the head's: the jaw in to the chin, the crown in above)
+    const rho = th => { const p = PI/6; let f = th % p; if(f < 0) f += p; if(f > p/2) f -= p; return Math.cos(PI/12)/Math.cos(f); };       // (the 12-gon's radius at an angle: vertices at 15 + 30n degrees)
+    const sp = (ax, bx, an, lift) => { const th = PI/2 - an, c = Math.cos(th), s = Math.sin(th), q = rho(th); let nx = c/ax, ny = s/bx; const nl = Math.hypot(nx, ny) || 1; return [ax*c*q + nx/nl*lift, bx*s*q + ny/nl*lift]; };
+    const pr = c => ({ c, dk: _pdk(c, 0.78) }), mixc = (a, b, t) => _pmix(a, b, t);
+    const quad = (pts, col, al) => T.quadOn(g, pts, col, al == null ? 1 : al);
+    const grow = (pts, e) => { let cx = 0, cy = 0; for(const p of pts){ cx += p.x; cy += p.y; } cx /= pts.length; cy /= pts.length;
+      return pts.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*e, y: p.y + dy/d*e }; }); };
+    const tP = (an, z, l) => { const k = tk(z), q = sp(ra*k, rb*k, an, l || 0); return Gf(q[0], q[1], z); };
+    const hP = (an, z, l) => { const k = hk(z), q = sp(r*k, r*k, an, l || 0); return Gf(q[0], q[1], z); };
+    const tSeen = an => sees3(Math.cos(PI/2 - an)/ra, Math.sin(PI/2 - an)/rb, 0), hSeen = an => sees3(Math.sin(an), Math.cos(an), 0);
+    /* cells of a surface between two angles (numbers, or functions of z) and two heights; o: lift, dz, br (extra row breaks), inside, tone, al */
+    const surf = (P, ax, bx, an0, an1, zA, zB, col, o) => {
+      o = o || {};
+      const Tn = hullTones(col), f0 = typeof an0 === 'function' ? an0 : () => an0, f1 = typeof an1 === 'function' ? an1 : () => an1;
+      const dz = o.dz || (LOD ? 10 : 4.5), lift = o.lift || 0, zs = [zA, zB];
+      if(o.br) for(const q of o.br) if(q > zA + 0.01 && q < zB - 0.01) zs.push(q);
+      zs.sort((p, q) => p - q);
+      for(let s = 0; s < zs.length - 1; s++){
+        const n = Math.max(1, Math.ceil((zs[s + 1] - zs[s])/dz));
+        for(let j = 0; j < n; j++){
+          const za = zs[s] + (zs[s + 1] - zs[s])*j/n, zb = zs[s] + (zs[s + 1] - zs[s])*(j + 1)/n;
+          const a0 = f0(za), a1 = f1(za), b0 = f0(zb), b1 = f1(zb), span = Math.max(Math.abs(a1 - a0), Math.abs(b1 - b0));
+          if(!(span > 0.002)) continue;
+          const m = Math.max(1, Math.ceil(span/(LOD ? 0.55 : 0.27)));
+          for(let i = 0; i < m; i++){
+            const u0 = i/m, u1 = (i + 1)/m, A0 = a0 + (a1 - a0)*u0, A1 = a0 + (a1 - a0)*u1, B0 = b0 + (b1 - b0)*u0, B1 = b0 + (b1 - b0)*u1, am = (A0 + A1 + B0 + B1)/4;
+            const th = PI/2 - am, c = Math.cos(th), s2 = Math.sin(th), nrm = a => sees3(Math.cos(PI/2 - a)/ax, Math.sin(PI/2 - a)/bx, 0), vis = seesE(c/ax, s2/bx, 0, o.eps == null ? 0.1 : o.eps) && nrm(A0) && nrm(A1) && nrm(B0) && nrm(B1);   // (all four corners toward the eye: nothing past the limb)
+            if(o.inside ? vis : !vis) continue;
+            const t = Math.abs(c)/(Math.abs(c) + Math.abs(s2) + 1e-6);
+            quad(grow([P(A0, za, lift), P(A1, za, lift), P(B1, zb, lift), P(B0, zb, lift)], 0.4), o.tone != null ? o.tone : Tn.steps[Math.round(t*8)], o.al);
+          }
+        }
+      }
+    };
+    const tSurf = (an0, an1, zA, zB, col, o) => surf(tP, ra, rb, an0, an1, zA, zB, col, Object.assign({}, o, { br: ((o && o.br) || []).concat([zm]) }));
+    const hSurf = (an0, an1, zA, zB, col, o) => surf(hP, 1, 1, an0, an1, zA, zB, col, Object.assign({ dz: LOD ? 4 : 1.3 }, o, { br: ((o && o.br) || []).concat([zj]) }));
+    /* a stroke along the surface (path of [an, z]; w wide in surface units; ar the arc radius there) */
+    const strip = (P, ar, path, w, col, lift, al, seen) => {
+      for(let i = 0; i < path.length - 1; i++){
+        const [a0, z0p] = path[i], [a1, z1p] = path[i + 1];
+        if(seen && !seen((a0 + a1)/2)) continue;
+        const dx = (a1 - a0)*ar, dzz = z1p - z0p, L = Math.hypot(dx, dzz) || 1, px = -dzz/L*w/2/ar, pz = dx/L*w/2;
+        quad(grow([P(a0 + px, z0p + pz, lift), P(a1 + px, z1p + pz, lift), P(a1 - px, z1p - pz, lift), P(a0 - px, z0p - pz, lift)], 0.25), col, al);
+        if(i > 0 && w > 1.2){ const jp = []; for(let k = 0; k < 8; k++){ const t = k/8*PI*2; jp.push(P(a0 + Math.cos(t)*w/2/ar, z0p + Math.sin(t)*w/2, lift)); } quad(jp, col, al); }   // (a round joint where the stroke bends)
+      }
+    };
+    /* a simple polygon, convex or not (a heart, a bolt, a star), cut into triangles by ear clipping on the screen points -- filled as one piece the concave ones tore */
+    const fillPoly = (pts, col, al) => {
+      if(pts.length < 5){ quad(pts, col, al); return; }
+      let area = 0; for(let i = 0; i < pts.length; i++){ const a = pts[i], b = pts[(i + 1) % pts.length]; area += a.x*b.y - b.x*a.y; }
+      const idx = pts.map((_, i) => i), sg = area >= 0 ? 1 : -1, cross = (a, b, c) => ((b.x - a.x)*(c.y - a.y) - (b.y - a.y)*(c.x - a.x))*sg;
+      let guard = 0;
+      while(idx.length > 3 && guard++ < 200){
+        let cut = false;
+        for(let k = 0; k < idx.length; k++){
+          const ia = idx[(k + idx.length - 1) % idx.length], ib = idx[k], ic = idx[(k + 1) % idx.length], a = pts[ia], b = pts[ib], c = pts[ic];
+          if(cross(a, b, c) <= 0) continue;
+          let inside = false;
+          for(const j of idx){ if(j === ia || j === ib || j === ic) continue; const p = pts[j];
+            if(cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0){ inside = true; break; } }
+          if(inside) continue;
+          quad([a, b, c], col, al); idx.splice(k, 1); cut = true; break;
+        }
+        if(!cut) break;
+      }
+      if(idx.length === 3) quad(idx.map(i => pts[i]), col, al);
+    };
+    const patch = (P, pts, col, lift, al) => fillPoly(pts.map(q => P(q[0], q[1], lift)), col, al);
+    /* a superellipse's points about (an0, zc): ew radians wide, eh high, ex 2 an ellipse, 4+ a rounded rectangle */
+    const ell = (an0, zc, ew, eh, n, ex, from, to) => { const o = [], e = 2/(ex || 2), a = from == null ? 0 : from, b = to == null ? PI*2 : to;
+      for(let i = 0; i < n; i++){ const t = a + (b - a)*i/(n - (b - a < PI*2 - 0.01 ? 1 : 0)), c = Math.cos(t), s = Math.sin(t); o.push([an0 + Math.sign(c)*Math.pow(Math.abs(c), e)*ew, zc + Math.sign(s)*Math.pow(Math.abs(s), e)*eh]); }
+      return o; };
+    const zrow = (z0, z1, step) => { const o = [], n = Math.max(1, Math.ceil(Math.abs(z1 - z0)/(step || 4))); for(let i = 0; i <= n; i++) o.push(z0 + (z1 - z0)*i/n); if(z0 > zm && z1 < zm || z0 < zm && z1 > zm){ o.push(zm); o.sort((p, q) => z0 < z1 ? p - q : q - p); } return o; };
+    const vpath = (an, z0, z1, step) => zrow(z0, z1, step).map(z => [an, z]);
+    /* a block standing out of the surface (a pouch, a plate): the hull of its back and front, its top, its front */
+    const bump = (P, seen, an, z, hw, hh, d, col, top) => {
+      if(!seen(an)) return;
+      const rect = l => [P(an - hw, z - hh, l), P(an + hw, z - hh, l), P(an + hw, z + hh, l), P(an - hw, z + hh, l)], back = rect(0.2), front = rect(d);
+      quad(grow(convexHull(back.concat(front)), 0.3), col.dk);
+      if(sees3(0, 0, 1)) quad([front[3], front[2], back[2], back[3]], top || mixc(col.c, 0xffffff, 0.2));
+      quad(front, col.c);
+    };
+    const bolt = (sc, ox, oy) => [[1.4, 4.6], [-2.6, -0.4], [-0.2, -0.4], [-1.6, -4.6], [2.8, 0.8], [0.4, 0.8]].map(([u, v]) => [ox + u*sc, oy + v*sc]);
+    const star = (sc, ox, oy) => { const o = []; for(let k = 0; k < 10; k++){ const t = k/10*PI*2 + PI/2, q = k % 2 ? 1.7 : 4.2; o.push([ox + Math.cos(t)*q*sc, oy + Math.sin(t)*q*sc]); } return o; };
+    const heart = (sc, ox, oy) => { const o = []; for(let k = 0; k <= 24; k++){ const t = k/24*PI*2, hx = 16*Math.pow(Math.sin(t), 3), hy = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t); o.push([ox + hx*0.26*sc, oy + (hy*0.26 - 0.4)*sc]); } return o; };
+    /* a shape in surface units (u along the arc, v up) laid at (an0, zc) on the torso */
+    const lay = (an0, zc, ar, shape) => shape.map(([u, v]) => [an0 + u/ar, zc + v]);
+
+    /* ---------------------------------------------------------------- THE FACE */
+    const sq = (zc, hh, A, ex) => z => { const u = Math.abs(z - zc)/hh; return u >= 1 ? 0 : A*Math.pow(1 - Math.pow(u, ex), 1/ex); };
+    const face = RB => {
+      const zs0 = fz - r*0.5, zs1 = fz + r*0.56, zc = (zs0 + zs1)/2, hh = (zs1 - zs0)/2, wS = sq(zc, hh, 0.98, 4.5), wB = sq(zc, hh + 0.8, 1.06, 4.5);
+      hSurf(z => -wB(z), z => wB(z), zs0 - 0.8, zs1 + 0.8, pr(RB.joint), { lift: 0.1 });                                              // (the bezel round his screen)
+      hSurf(z => -wS(z), z => wS(z), zs0, zs1, pr(RB.screen), { lift: 0.3 });                                                           // (the screen, a rounded visor in the head's own skin)
+      if(hSeen(0)) patch(hP, [[-0.68, zs1 - 1.2], [-0.4, zs1 - 1.2], [-0.78, zs0 + 3], [-0.9, zs0 + 3]], 0xffffff, 0.45, 0.07);           // (a streak of light across the glass)
+      const EC = RB.eye, EH = mixc(RB.eye, 0xffffff, 0.7), ez = fz + r*0.2;
+      const ES = { round: [0.18, 2.3, 2], wide: [0.27, 1.9, 2], tall: [0.12, 3.5, 3], slit: [0.28, 0.85, 3], dots: [0.09, 1.3, 2], sleepy: [0.23, 2.1, 2] }[RB.eyeShape] || [0.18, 2.3, 2];
+      const eyeAr = r*0.97, ES2 = RB.eyeShape;
+      for(const sd of [-1, 1]){
+        const an = sd*0.5; if(!hSeen(an)) continue;
+        if(ES2 === 'heart' || ES2 === 'star' || ES2 === 'angry' || ES2 === 'happy'){
+          let pts2 = null;
+          if(ES2 === 'heart') pts2 = heart(0.66, 0, 0).map(([u, v]) => [an + u/eyeAr, ez + v]);
+          else if(ES2 === 'star') pts2 = star(0.62, 0, 0).map(([u, v]) => [an + u/eyeAr, ez + v]);
+          else if(ES2 === 'angry') pts2 = [[an + sd*0.19, ez + 2.7], [an - sd*0.19, ez + 0.4], [an - sd*0.19, ez - 2.2], [an + sd*0.19, ez - 2.2]];
+          else { const o2 = ell(an, ez - 1.2, 0.2, 3.1, 14, 2, 0, PI), i2 = ell(an, ez - 1.2, 0.12, 1.7, 14, 2, 0, PI).reverse(); pts2 = o2.concat(i2); }
+          patch(hP, pts2.map(([a, z]) => [an + (a - an)*1.22, ez + (z - ez)*1.22]), EC, 0.35, 0.16);
+          patch(hP, pts2, EC, 0.5); continue;
+        }
+        const pts = RB.eyeShape === 'sleepy' ? ell(an, ez - 0.2, ES[0], ES[1], 12, 2, PI, PI*2).concat([[an + ES[0], ez - 0.2]]) : ell(an, ez, ES[0], ES[1], 16, ES[2]);
+        if(RB.eyeShape !== 'sleepy') patch(hP, ell(an, ez, ES[0]*1.5, ES[1]*1.5, 16, 2), EC, 0.35, 0.16);                                // (the glow round it)
+        patch(hP, pts, EC, 0.5);
+        if(RB.eyeShape !== 'slit' && RB.eyeShape !== 'dots') patch(hP, ell(an - ES[0]*0.35, ez + ES[1]*0.38, ES[0]*0.3, ES[1]*0.26, 8, 2), EH, 0.6);   // (a glint)
+      }
+      /* THE MOUTH, on the screen under the eyes (it was below the screen, on the chin, off his face) */
+      const mz = fz - r*0.24, mo = RB.mouth || 'bar', w = 1.5, ar = r*0.97, seen = hSeen;
+      const bar = (a0, a1, z, ww) => { strip(hP, ar, [[a0, z], [a1, z]], ww || w, EC, 0.5, 1, null); patch(hP, ell(a0, z, (ww || w)/2/ar, (ww || w)/2, 8, 2), EC, 0.5); patch(hP, ell(a1, z, (ww || w)/2/ar, (ww || w)/2, 8, 2), EC, 0.5); };
+      if(hSeen(0)){
+        if(mo === 'bar') bar(-0.34, 0.34, mz);
+        else if(mo === 'wide') bar(-0.62, 0.62, mz);
+        else if(mo === 'small') bar(-0.16, 0.16, mz);
+        else if(mo === 'smile'){ const path = []; for(let i = 0; i <= 10; i++){ const a = -0.5 + i/10; path.push([a, mz - 0.6 + 2.2*Math.pow(a/0.5, 2)]); }
+          strip(hP, ar, path, w, EC, 0.5, 1, null); for(const q of [path[0], path[10]]) patch(hP, ell(q[0], q[1], w/2/ar, w/2, 8, 2), EC, 0.5); }
+        else if(mo === 'dots'){ for(const a of [-0.3, 0, 0.3]) patch(hP, ell(a, mz, 0.065, 0.95, 10, 2), EC, 0.5); }
+        else if(mo === 'grille'){ for(const k of [-1, 0, 1]) bar(-0.33 + Math.abs(k)*0.04, 0.33 - Math.abs(k)*0.04, mz + k*1.5, 0.85); }
+        else if(mo === 'grin'){ const top = mz + 1.3, pts3 = []; for(let i = 0; i <= 12; i++){ const a = -0.58 + 1.16*i/12; pts3.push([a, top]); } for(let i = 12; i >= 0; i--){ const a = -0.58 + 1.16*i/12, u = a/0.58; pts3.push([a, top - 0.4 - 2.6*(1 - u*u)]); }
+          patch(hP, pts3, EC, 0.5); for(let k = -3; k <= 3; k++) strip(hP, ar, [[k*0.15, top - 0.3], [k*0.15, top - 2.9*(1 - Math.pow(k*0.15/0.58, 2))]], 0.45, RB.screen, 0.6, 1, null); }
+        else if(mo === 'zigzag'){ const path = []; for(let i = 0; i <= 8; i++) path.push([-0.46 + 0.92*i/8, mz + (i % 2 ? 1.1 : -1.1)]); strip(hP, ar, path, 1.2, EC, 0.5, 1, null); }
+        else if(mo === 'open'){ patch(hP, ell(0, mz - 0.4, 0.2, 2.5, 18, 2), EC, 0.5); patch(hP, ell(0, mz - 0.7, 0.14, 1.7, 16, 2), mixc(RB.eye, 0x000000, 0.72), 0.6); patch(hP, ell(0, mz - 1.5, 0.09, 0.8, 10, 2), mixc(RB.eye, 0xff5a7a, 0.4), 0.7); }
+        else if(mo === 'o'){ const o3 = ell(0, mz, 0.1, 2.1, 16, 2), i3 = ell(0, mz, 0.05, 1.0, 16, 2); for(let i = 0; i < 16; i++){ const j = (i + 1) % 16; patch(hP, [o3[i], o3[j], i3[j], i3[i]], EC, 0.5); } }
+      }
+    };
+    /* GLASSES and GOGGLES: rings and lenses laid on the screen, a bridge, arms back to the ears (stood off the screen by a hair) */
+    const glasses = RB => {
+      const gl = RB.glasses, gc = RB.glassCol != null ? RB.glassCol : 0x24272c, GP = pr(gc), ez = fz + r*0.2, ar = r*0.97, ring = (outer, inner, col, lift) => { for(let i = 0; i < outer.length; i++){ const j = (i + 1) % outer.length; patch(hP, [outer[i], outer[j], inner[j], inner[i]], col, lift); } };
+      const lens = (an, ew, eh, ex, thick, lensCol, lensAl, gloss, frameCol) => {
+        if(!hSeen(an)) return; const th = thick, out = ell(an, ez, ew, eh, 22, ex), inn = ell(an, ez, Math.max(0.02, ew - th/ar), Math.max(0.4, eh - th), 22, ex);
+        if(lensCol != null) patch(hP, inn, lensCol, 0.78, lensAl);
+        if(gloss) patch(hP, [[an - ew*0.55, ez + eh*0.7], [an - ew*0.15, ez + eh*0.7], [an - ew*0.55, ez - eh*0.15], [an - ew*0.78, ez - eh*0.15]], 0xffffff, 0.85, 0.28);
+        ring(out, inn, frameCol == null ? gc : frameCol, 0.9);
+      };
+      if(gl === 'goggles'){
+        const HP = pr(RB.hatCol != null ? RB.hatCol : 0xd9892b), strap = pr(0x2a2f36);
+        hSurf(-PI, PI, ez - 2.6, ez + 2.6, strap, { lift: 0.25, dz: 1.3 });                                                              // (the elastic round his head)
+        for(const sd of [-1, 1]) lens(sd*0.5, 0.31, 3.9, 2.2, 1.4, 0xffb347, 0.55, true, HP.c);
+        strip(hP, ar, [[-0.16, ez], [0.16, ez]], 2, HP.c, 0.9, 1, hSeen);
+        return;
+      }
+      if(gl === 'aviator'){
+        const tear = (an, ew, eh) => { const o4 = []; for(let k = 0; k < 24; k++){ const t = k/24*PI*2, sn2 = Math.sin(t); o4.push([an + ew*Math.cos(t)*(1 + 0.2*sn2), ez - 0.5 + eh*sn2]); } return o4; };
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; const out = tear(an, 0.3, 4.1), inn = tear(an, 0.3 - 0.9/ar, 3.3);
+          patch(hP, inn, 0x8c7a4a, 0.78, 0.5); patch(hP, [[an - 0.16, ez + 2.6], [an - 0.02, ez + 2.6], [an - 0.2, ez - 1], [an - 0.3, ez - 1]], 0xffffff, 0.85, 0.3); ring(out, inn, gc, 0.9); }
+        strip(hP, ar, [[-0.22, ez + 2.8], [0.22, ez + 2.8]], 1.0, gc, 0.9, 1, hSeen); strip(hP, ar, [[-0.2, ez + 1.4], [0.2, ez + 1.4]], 1.0, gc, 0.9, 1, hSeen);
+        for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.82, ez + 2], [sd*1.4, ez + 1.8]], 1.1, gc, 0.9, 1, hSeen);
+        return; }
+      if(gl === 'eyepatch'){ const an = -0.5;
+        strip(hP, ar, [[-0.18, ez + 3.4], [0.4, ez + 5.4], [1.2, ez + 5.8], [2.1, ez + 5.2], [PI, ez + 4.8]], 1.4, 0x1b1d21, 0.45, 1, hSeen);
+        strip(hP, ar, [[-0.82, ez - 1.4], [-1.4, ez - 2.6], [-2.1, ez - 3.2], [-PI, ez - 3.4]], 1.4, 0x1b1d21, 0.45, 1, hSeen);
+        if(hSeen(an)){ const out = ell(an, ez, 0.32, 4.2, 22, 2.4), inn = ell(an, ez, 0.27, 3.5, 22, 2.4); patch(hP, out, gc, 0.8); patch(hP, inn, 0x16181b, 0.95); patch(hP, [[an - 0.18, ez + 2.2], [an - 0.04, ez + 2.2], [an - 0.2, ez - 0.8], [an - 0.24, ez - 0.8]], 0xffffff, 1.0, 0.12); }
+        return; }
+      if(gl === 'vr'){ const zc2 = ez + 0.4, A = z => { const u = Math.abs(z - zc2)/5.4; return u >= 1 ? 0 : 1.02*Math.pow(1 - Math.pow(u, 3.4), 1/3.4); };
+        hSurf(-PI, PI, ez - 1.6, ez + 2.6, pr(0x3a4048), { lift: 0.3, dz: 1.3 });
+        hSurf(z => -A(z), A, zc2 - 5.4, zc2 + 5.4, pr(_pdk(gc, 0.6)), { lift: 1.0 }); hSurf(z => -A(z)*0.97, z => A(z)*0.97, zc2 - 5.4, zc2 + 5.4, pr(gc), { lift: 2.3 });
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; patch(hP, ell(an, ez + 0.2, 0.3, 3.5, 22, 2.2), 0x0b0f14, 2.5); patch(hP, ell(an, ez + 0.2, 0.3, 3.5, 22, 2.2).map(q => [q[0] - 0.05, q[1] + 0.6]), 0x22d3ee, 2.6, 0.25); patch(hP, [[an - 0.22, ez + 2.4], [an - 0.08, ez + 2.4], [an - 0.24, ez - 0.6], [an - 0.3, ez - 0.6]], 0xffffff, 2.7, 0.3); }
+        return; }
+      /* THE FRAME STYLES: each a lens outline and an inner edge laid on the screen (a rim of the frame's own thickness between them) */
+      const SE = (an, zc, ew, eh, n, ex, skew, tilt, sd) => { const o5 = [], e5 = 2/ex; for(let k = 0; k < n; k++){ const t = k/n*PI*2, c = Math.cos(t), sn2 = Math.sin(t), xr = Math.sign(c)*Math.pow(Math.abs(c), e5);
+          o5.push([an + ew*xr*(1 + skew*sn2), zc + eh*Math.sign(sn2)*Math.pow(Math.abs(sn2), e5) + tilt*sd*xr]); } return o5; };
+      const STY = { wayfarer: [0.32, 3.7, 5, 0.17, 0, 1.7, 24], cateye: [0.31, 3.5, 2.4, 0, 1.5, 1.0, 24], halfrim: [0.3, 3.9, 2.2, 0, 0, 1.0, 24], hex: [0.3, 4.0, 2, 0, 0, 1.1, 6], rimless: [0.3, 3.7, 2.2, 0, 0, 0.75, 24] };
+      if(STY[gl]){ const [ew, eh, ex, skew, tilt, th, n] = STY[gl];
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue;
+          const out = SE(an, ez, ew, eh, n, ex, skew, tilt, sd), inn = SE(an, ez, Math.max(0.03, ew - th/ar), Math.max(0.5, eh - th), n, ex, skew, tilt, sd);
+          patch(hP, inn, gl === 'wayfarer' ? 0x14171b : 0xcfeaf5, 0.78, gl === 'wayfarer' ? 0.9 : 0.22);
+          patch(hP, [[an - ew*0.55, ez + eh*0.7], [an - ew*0.15, ez + eh*0.7], [an - ew*0.55, ez - eh*0.15], [an - ew*0.78, ez - eh*0.15]], 0xffffff, 0.85, 0.26);
+          if(gl === 'halfrim'){ for(let i = 0; i < n/2; i++){ const j = i + 1; if(j >= out.length) break; patch(hP, [out[i], out[j], inn[j], inn[i]], gc, 0.9); } strip(hP, ar, [[an - ew, ez], [an, ez - eh + 0.5], [an + ew, ez]], 0.7, 0xd8dde2, 0.9, 1, null); }
+          else ring(out, inn, gc, 0.9);
+          if(gl === 'rimless') for(const q of [[an - ew, ez + eh*0.5], [an + ew, ez + eh*0.5]]) patch(hP, ell(q[0], q[1], 0.5/ar, 0.5, 6, 2), 0xd9c27a, 1.0); }
+        strip(hP, ar, [[-0.24, ez + (gl === 'cateye' ? 1.2 : 1.0)], [0.24, ez + (gl === 'cateye' ? 1.2 : 1.0)]], gl === 'rimless' ? 0.5 : gl === 'wayfarer' ? 1.5 : 1.0, gc, 0.9, 1, hSeen);
+        for(const sd of [-1, 1]) strip(hP, ar, [[sd*(0.5 + ew + 0.02), ez + 0.8 + (gl === 'cateye' ? 1.4 : 0)], [sd*1.4, ez + 0.5]], gl === 'wayfarer' ? 1.5 : 1.0, gc, 0.9, 1, hSeen);
+        return; }
+      if(gl === 'heartglass' || gl === 'starglass'){
+        for(const sd of [-1, 1]){ const an = sd*0.5; if(!hSeen(an)) continue; const mk = (sc, dz) => (gl === 'heartglass' ? heart(sc, 0, 0) : star(sc, 0, 0)).map(([u, v]) => [an + u/ar, ez + v + dz]);
+          const out = mk(gl === 'heartglass' ? 1.12 : 1.0, gl === 'heartglass' ? 0.2 : 0), inn = mk(gl === 'heartglass' ? 0.78 : 0.56, gl === 'heartglass' ? 0.1 : 0);
+          patch(hP, out, gc, 0.9); patch(hP, inn, gl === 'heartglass' ? 0xe8a0c0 : 0xf3e7a8, 1.0, 0.55); patch(hP, [[an - 0.2, ez + 1.8], [an - 0.05, ez + 1.8], [an - 0.22, ez - 0.4], [an - 0.3, ez - 0.4]], 0xffffff, 1.1, 0.35); }
+        strip(hP, ar, [[-0.24, ez + 1.2], [0.24, ez + 1.2]], 1.0, gc, 0.9, 1, hSeen); for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.88, ez + 0.8], [sd*1.4, ez + 0.5]], 1.0, gc, 0.9, 1, hSeen);
+        return; }
+      if(gl === 'visor'){ const out = ell(0, ez, 0.98, 3.6, 28, 3), inn = ell(0, ez, 0.93, 3.1, 28, 3);
+        if(hSeen(0)){ patch(hP, inn, 0x1a3a52, 0.78, 0.92); patch(hP, [[-0.7, ez + 2.4], [-0.4, ez + 2.4], [-0.62, ez - 2.4], [-0.9, ez - 2.4]], 0xffffff, 0.85, 0.22); ring(out, inn, gc, 0.9); } return; }
+      if(gl === 'monocle'){ lens(0.5, 0.3, 4.2, 2, 0.9, 0xbfe6f2, 0.28, true, 0xd9a23a); if(hSeen(0.5)) strip(hP, ar, [[0.78, ez - 3.4], [0.92, ez - 8]], 0.5, 0xd9a23a, 0.9, 1, null); return; }
+      const sq4 = gl === 'square', shades = gl === 'shades';
+      for(const sd of [-1, 1]) lens(sd*0.5, sq4 ? 0.31 : 0.29, sq4 ? 3.6 : 4.0, sq4 ? 5 : 2, 0.95, shades ? 0x14171b : 0xcfeaf5, shades ? 0.96 : 0.2, true);
+      strip(hP, ar, [[-0.24, ez + 0.9], [0.24, ez + 0.9]], 1.1, gc, 0.9, 1, hSeen);                                                    // (the bridge)
+      for(const sd of [-1, 1]) strip(hP, ar, [[sd*0.8, ez + 0.6], [sd*1.4, ez + 0.5]], 1.1, gc, 0.9, 1, hSeen);                         // (the arms, back to the ears)
+    };
+
+    /* ------------------------------------------------------- THE OUTFIT (front pieces and what shows from behind) */
+    const wear = (RB, front) => {
+      const OC = RB.outCol != null ? RB.outCol : 0xd9892b, OP = pr(OC), OD = pr(_pdk(OC, 0.7)), OL = pr(mixc(OC, 0xffffff, 0.25)), ap = RB.apron, nk = RB.neck, hr = r;
+      const zt = shoulderH - 7.5, zs0 = 35, zw0 = zm - 0.4, zw1 = zm + 2.2, back = an => Math.abs(an) > PI*0.5;
+      const lidStrap = (a0, a1, col) => { if(!sees3(0, 0, 1)) return; const h = shoulderH + 0.55, b0 = 8.7; quad(grow([Gf(a0, b0, h), Gf(a1, b0, h), Gf(a1, -b0, h), Gf(a0, -b0, h)], 0.3), col); };
+      /* -- the APRON: a bib on the chest, a skirt that hangs on his thighs, a tie at the waist and straps crossing his back */
+      if(ap === 'apron'){
+        const skK = z => 0.9 - 0.11*(zbot - z)/(zbot - zs0), skP = (an, z, l) => { const k = z >= zbot ? tk(z) : skK(z), q = sp(ra*k, rb*k, an, l || 0); return Gf(q[0], q[1], z); };
+        const bibA = z => z >= zw1 ? 0.6 + 0.42*Math.pow(Math.max(0, (zt - z)/(zt - zw1)), 1.5) : 1.22, lf = 0.95;
+        if(front){
+          tSurf(z => -bibA(z), bibA, zw0, zt, OP, { lift: lf });
+          surf(skP, ra, rb, -1.22, 1.22, zs0, zbot, OP, { lift: lf, dz: 5 });
+          tSurf(z => -bibA(z), bibA, zbot, zw0, OP, { lift: lf });
+          surf(skP, ra, rb, -1.22, 1.22, zs0, zs0 + 2, OD, { lift: lf + 0.15, dz: 2 });                                                // (the hem)
+          tSurf(z => -bibA(z), bibA, zt - 1.7, zt, OD, { lift: lf + 0.1, dz: 1.7 });                                                    // (the bib's top hem)
+          surf(skP, ra, rb, -0.42, 0.42, 38.5, 47.5, OD, { lift: lf + 0.5, dz: 3 });                                                    // (the pocket)
+          strip(skP, rb*0.8, [[-0.42, 47.3], [0.42, 47.3]], 0.6, OL.c, lf + 0.7, 1, null);
+          strip(skP, rb*0.8, [[0, 47.3], [0, 43]], 0.5, OD.dk, lf + 0.7, 1, null);                                                      // (the split pocket)
+          for(const sd of [-1, 1]) strip(tP, rb, [[sd*0.52, zt - 0.5], [sd*0.4, shoulderH - 0.6]], 2.6, OD.c, lf - 0.35, 1, null);       // (the neck straps up the front)
+        }
+        tSurf(-PI, PI, zw0, zw1, OD, { lift: lf + 0.45, dz: 2.6 });                                                                     // (the tie round the waist)
+        lidStrap(5.9, 9.2, OD.c); lidStrap(-9.2, -5.9, OD.c);
+        for(const sd of [-1, 1]) strip(tP, rb, [[PI - sd*0.5, shoulderH - 0.6], [PI - sd*0.38, 88], [PI + sd*0.26, zw1 + 0.4]], 2.6, OD.c, lf - 0.2, 1, tSeen);   // (crossed straps down his back)
+        if(!front){ const bk = PI;
+          strip(tP, rb, [[bk - 0.08, zw0 + 0.4], [bk - 0.3, 60], [bk - 0.34, 56.5]], 2.8, OP.c, lf + 0.7, 1, null); strip(tP, rb, [[bk + 0.08, zw0 + 0.4], [bk + 0.26, 61], [bk + 0.4, 57.5]], 2.8, OP.c, lf + 0.7, 1, null);
+          patch(tP, ell(bk, zw0 + 1.2, 0.17, 2, 10, 2), OL.c, lf + 1.5); }                                                               // (the bow, and its two ends)
+      }
+      /* -- the CAPE's collar and clasp, at his neck and chest (the cape itself hangs behind him: robotPack) */
+      if(ap === 'cape'){
+        cone(shoulderH - 3.4, hz0 + 0.4, hr*0.78, hr*0.68, OD); cone(shoulderH - 3.4, shoulderH - 1.6, hr*0.82, hr*0.8, OP);
+        if(front){ strip(tP, rb, [[-0.62, shoulderH - 2.2], [-0.3, shoulderH - 3.6], [0.3, shoulderH - 3.6], [0.62, shoulderH - 2.2]], 1.2, 0xd9c27a, 1.0, 1, null);   // (the chain)
+          patch(tP, ell(0, shoulderH - 4.4, 2.4/(rb*0.97), 2.4, 14, 2), 0xd9c27a, 1.2); patch(tP, ell(0, shoulderH - 4.4, 1.5/(rb*0.97), 1.5, 12, 2), OD.c, 1.5); }
+      }
+      /* -- the PONCHO: one cloth over his shoulders, flaring all round to the hips, a dark neck, a hem, two stripes */
+      if(ap === 'poncho'){
+        const zt2 = shoulderH + 0.3, zb2 = zm - 9, lf = 0.9, ponP = (an, z, l) => { const u = Math.max(0, Math.min(1, (zt2 - z)/(zt2 - zb2))), q = sp(ra*(1.03 + 0.42*u), rb*(1.03 + 0.78*u), an, l || 0); return Gf(q[0], q[1], z); };
+        if(sees3(0, 0, 1)){ const lid = []; for(let i = 0; i < 12; i++){ const t = (i + 0.5)/12*PI*2; lid.push(Gf(Math.cos(t)*ra*1.02, Math.sin(t)*rb*1.02, zt2 + 0.5)); } quad(lid, mixc(OC, 0xffffff, 0.12)); }
+        surf(ponP, ra, rb, -PI, PI, zb2, zt2, OP, { dz: 4, lift: 0 });
+        surf(ponP, ra, rb, -PI, PI, zb2, zb2 + 2.4, OD, { dz: 2.4, lift: 0.3 });
+        for(const zz of [zb2 + 6.5, zb2 + 10]) surf(ponP, ra, rb, -PI, PI, zz, zz + 1.7, OL, { dz: 1.7, lift: 0.25 });
+        cone(shoulderH - 0.4, hz0 + 1.2, hr*0.62, hr*0.58, OD);
+      }
+      /* -- the HARNESS: two straps crossing his chest and back, a ring where they meet, a belt strap at the hip */
+      if(ap === 'harness'){
+        const lf = 0.95, p1 = [], p2 = []; for(let a = -PI; a <= PI + 0.001; a += PI/18){ p1.push([a, zm + 5.5 + 16*Math.sin(a)]); p2.push([a, zm + 5.5 - 16*Math.sin(a)]); }
+        strip(tP, rb, p1, 3.2, OP.c, lf, 1, tSeen); strip(tP, rb, p2, 3.2, OP.c, lf + 0.1, 1, tSeen);
+        strip(tP, rb, p1.map(([a, z]) => [a, z + 1.2]), 0.4, OL.c, lf + 0.2, 1, tSeen); strip(tP, rb, p2.map(([a, z]) => [a, z + 1.2]), 0.4, OL.c, lf + 0.2, 1, tSeen);
+        tSurf(-PI, PI, zbot + 3, zbot + 6.4, OD, { lift: 1.0, dz: 3.4 });
+        if(front){ const zc = zm + 5.5; patch(tP, ell(0, zc, 3.2/(rb*0.97), 3.2, 18, 2), 0xc4cacf, lf + 0.7); patch(tP, ell(0, zc, 1.9/(rb*0.97), 1.9, 16, 2), OD.dk, lf + 0.9);
+          patch(tP, [[-0.1, zbot + 6.9], [0.1, zbot + 6.9], [0.1, zbot + 2.5], [-0.1, zbot + 2.5]], 0xd9c27a, 1.6); }
+        else { const zc = zm + 5.5; if(tSeen(PI)) patch(tP, ell(PI, zc, 3.2/(rb*0.97), 3.2, 18, 2), 0xc4cacf, lf + 0.7); }
+      }
+      /* -- the COAT: a long open coat, lapels, buttons, hip pockets, a vent up the back, a stand collar */
+      if(ap === 'coat'){
+        const zb3 = 36, lf = 1.0, sm = x => x*x*(3 - 2*x), cl = x => Math.max(0, Math.min(1, x));
+        const coatK = z => z >= zbot ? tk(z) : 0.9 + 0.12*(zbot - z)/(zbot - zb3), coatP = (an, z, l) => { const k = coatK(z), q = sp(ra*k, rb*k, an, l || 0); return Gf(q[0], q[1], z); };
+        const open = z => z >= 64 ? 0.05 + 0.4*Math.pow(Math.max(0, (z - 64)/(shoulderH - 64)), 1.2) : 0.05 + 0.3*Math.pow((64 - z)/(64 - zb3), 1.1);
+        const armF = z => z >= 84 ? 1.25 - 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.25 - 1.62)*sm((z - 77)/7) : 1.62, armB = z => z >= 84 ? 1.95 + 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.95 - 1.62)*sm((z - 77)/7) : 1.62;
+        const top = shoulderH - 0.3, br = [zm, zbot, 77, 84, 52];
+        if(front){ surf(coatP, ra, rb, z => open(z), armF, zb3, top, OP, { lift: lf, br }); surf(coatP, ra, rb, z => -armF(z), z => -open(z), zb3, top, OP, { lift: lf, br }); }
+        const vent = z => 0.05 + 0.06*cl((z - zb3)/18); surf(coatP, ra, rb, armB, z => PI - vent(z), zb3, top, OP, { lift: lf, br }); surf(coatP, ra, rb, z => -PI + vent(z), z => -armB(z), zb3, top, OP, { lift: lf, br });
+        surf(coatP, ra, rb, -PI, PI, zb3, zb3 + 2.2, OD, { lift: lf + 0.2, dz: 2.2, br: [] });
+        if(front){
+          for(const sd of [-1, 1]){ strip(coatP, rb, zrow(zb3 + 1, top, 4).map(z => [sd*(open(z) + 0.012), z]), 1.0, OL.c, lf + 0.3, 1, null);                                  // (piping)
+            strip(coatP, rb, [[sd*(open(shoulderH - 1) + 0.0), top], [sd*0.9, shoulderH - 5], [sd*(open(80) + 0.02), 80]], 3.4, OL.c, lf + 0.35, 1, null);                    // (the lapels)
+            patch(coatP, [[sd*0.62, 47], [sd*1.0, 47], [sd*1.0, 51.4], [sd*0.62, 51.4]], OD.c, lf + 0.4); strip(coatP, rb, [[sd*0.62, 51.3], [sd*1.0, 51.3]], 0.8, OL.c, lf + 0.5, 1, null); }   // (flap pockets)
+          for(const z of [60, 68, 76]) patch(coatP, ell(open(z) + 0.1, z, 0.1, 1.15, 8, 2), mixc(OC, 0x000000, 0.5), lf + 0.6);
+        }
+        strip(coatP, rb, vpath(PI, zb3 + 1, 56, 4), 0.7, OD.dk, lf + 0.15, 1, tSeen);
+        lidStrap(8.2, 12.2, OP.c); lidStrap(-12.2, -8.2, OP.c);
+        cone(shoulderH - 2.4, hz0 + 2.6, hr*0.74, hr*0.8, OL); cone(hz0 + 1.8, hz0 + 3, hr*0.8, hr*0.8, OD);
+      }
+      /* -- the VEST: a back and two fronts to a V, armholes, a hem, buttons, pockets */
+      if(ap === 'vest'){
+        const zb = zm - 13.5, lf = 1.0, open = z => 0.05 + 0.4*Math.pow(Math.max(0, (z - 64)/(shoulderH - 64)), 1.2), sm = x => x*x*(3 - 2*x), cl = x => Math.max(0, Math.min(1, x));
+        const armF = z => z >= 84 ? 1.25 - 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.25 - 1.62)*sm((z - 77)/7) : 1.62, armB = z => z >= 84 ? 1.95 + 0.4*sm(cl((z - 88)/7.6)) : z >= 77 ? 1.62 + (1.95 - 1.62)*sm((z - 77)/7) : 1.62;
+        const top = shoulderH - 0.3;
+        if(front){ tSurf(z => open(z), armF, zb, top, OP, { lift: lf, br: [77, 84] }); tSurf(z => -armF(z), z => -open(z), zb, top, OP, { lift: lf, br: [77, 84] }); }
+        tSurf(armB, PI, zb, top, OP, { lift: lf, br: [77, 84] }); tSurf(-PI, z => -armB(z), zb, top, OP, { lift: lf, br: [77, 84] });
+        tSurf(-PI, PI, zb, zb + 1.8, OD, { lift: lf + 0.25, dz: 1.8 });                                                                // (the hem all round, a hair proud)
+        if(front){
+          for(const sd of [-1, 1]) strip(tP, rb, zrow(zb + 1, top, 4).map(z => [sd*(open(z) + 0.012), z]), 1.0, OL.c, lf + 0.3, 1, null);   // (piping along the V)
+          for(const z of [66, 72, 78]) patch(tP, ell(open(z) + 0.1, z, 0.1, 1.15, 8, 2), mixc(OC, 0x000000, 0.5), lf + 0.6);                                 // (the buttons)
+          for(const sd of [-1, 1]){ patch(tP, [[sd*0.5, zb + 5.5], [sd*0.94, zb + 5.5], [sd*0.94, zb + 9.5], [sd*0.5, zb + 9.5]], OD.c, lf + 0.35);
+            strip(tP, rb, [[sd*0.5, zb + 9.4], [sd*0.94, zb + 9.4]], 0.8, OL.c, lf + 0.5, 1, null); }                                       // (a flap pocket each side)
+        }
+        const bk = PI; strip(tP, rb, vpath(bk, zb + 1, top, 4), 0.8, OD.dk, lf + 0.15, 1, tSeen);                                // (the seam down the back)
+        strip(tP, rb, [[bk - 1.0, zb + 5.2], [bk + 1.0, zb + 5.2]], 2.4, OD.c, lf + 0.35, 1, tSeen); if(!front) patch(tP, [[bk - 0.1, zb + 3.8], [bk + 0.1, zb + 3.8], [bk + 0.1, zb + 6.6], [bk - 0.1, zb + 6.6]], 0xd9c27a, lf + 0.7);   // (the back strap and its buckle)
+        lidStrap(8.2, 12.2, OP.c); lidStrap(-12.2, -8.2, OP.c);
+      }
+      /* -- the TOOL BELT: a leather belt on his hips, a buckle, pouches, a wrench and a screwdriver in them */
+      if(ap === 'toolbelt'){
+        const zb0 = zbot + 4.2, zb1 = zbot + 8.4, lf = 1.0, LP = pr(mixc(OC, 0x2a1a0c, 0.62)), POUCH = pr(OC);
+        tSurf(-PI, PI, zb0, zb1, LP, { lift: lf, dz: 2.1 }); tSurf(-PI, PI, zb0, zb0 + 0.7, OD, { lift: lf + 0.1, dz: 0.7 }); tSurf(-PI, PI, zb1 - 0.7, zb1, OD, { lift: lf + 0.1, dz: 0.7 });
+        if(front){ patch(tP, [[-0.17, zb0 - 0.3], [0.17, zb0 - 0.3], [0.17, zb1 + 0.3], [-0.17, zb1 + 0.3]], 0xd9c27a, lf + 0.5); patch(tP, [[-0.09, zb0 + 1], [0.09, zb0 + 1], [0.09, zb1 - 1], [-0.09, zb1 - 1]], LP.dk, lf + 0.7); }
+        const zc = (zb0 + zb1)/2;
+        bump(tP, tSeen, -0.78, zc - 2, 0.3, 4.6, 3.2, POUCH); bump(tP, tSeen, 0.74, zc - 2.5, 0.22, 3.4, 2.7, OD);
+        bump(tP, tSeen, -2.45, zc - 2, 0.3, 4.4, 3.0, POUCH); bump(tP, tSeen, 2.45, zc - 2, 0.3, 4.4, 3.0, POUCH);
+        bump(tP, tSeen, PI, zc - 2.5, 0.42, 4.2, 3.2, POUCH);
+        if(tSeen(0.74)){ const a = 0.74; strip(tP, rb, [[a, zc + 0.8], [a, zc + 8.4]], 1.5, 0xc4cacf, 2.9, 1, null); patch(tP, ell(a, zc + 9.4, 0.14, 1.9, 10, 2), 0x9aa4ad, 2.9); }
+        if(tSeen(-0.78)){ const a = -0.78; strip(tP, rb, [[a - 0.05, zc + 1.8], [a - 0.05, zc + 9.5]], 1.2, 0xe0653a, 3.3, 1, null); patch(tP, ell(a - 0.05, zc + 9.8, 0.1, 1.1, 8, 2), 0x2a2f36, 3.3); }
+      }
+      /* -- the SASH: a band across his chest and back, shoulder to hip, a pin at the shoulder */
+      if(ap === 'sash'){
+        const lf = 0.95, path = []; for(let a = -PI; a <= PI + 0.001; a += PI/18) path.push([a, zm + 5.5 + 16*Math.sin(a)]);
+        strip(tP, rb, path, 6.2, OP.c, lf, 1, tSeen);
+        strip(tP, rb, path.map(([a, z]) => [a, z + 2.9]), 0.7, OL.c, lf + 0.15, 1, tSeen); strip(tP, rb, path.map(([a, z]) => [a, z - 2.9]), 0.7, OD.c, lf + 0.15, 1, tSeen);
+        const a0 = -0.9; if(tSeen(a0)){ patch(tP, ell(a0, zm + 5.5 + 16*Math.sin(a0), 0.2, 3.2, 14, 2), 0xd9c27a, lf + 0.6); patch(tP, ell(a0, zm + 5.5 + 16*Math.sin(a0), 0.11, 1.8, 12, 2), OD.c, lf + 0.9); }
+      }
+      /* -- the NECK: a scarf, a bow tie, a tie, a bandana, a lanyard, each on the shoulders and chest */
+      if(nk === 'scarf'){
+        const sz0 = shoulderH - 3.2, sz1 = hz0 + 1.2;
+        cone(sz0, sz0 + 3.2, hr*0.82, hr*0.78, OP); cone(sz0 + 3.2, sz1, hr*0.76, hr*0.7, OL);
+        if(sees3(0, 0, 1)) quad(Array.from({ length: 12 }, (_, i) => { const t = (i + 0.5)/12*PI*2; return Gf(Math.cos(t)*hr*0.7, Math.sin(t)*hr*0.7, sz1); }), mixc(OC, 0xffffff, 0.18));
+        if(front){
+          const a0 = 0.34, zt0 = shoulderH - 1.5, tail = [[a0 - 0.2, zt0], [a0 + 0.22, zt0], [a0 + 0.2, shoulderH - 24], [a0 - 0.2, shoulderH - 24]];
+          tSurf(a0 - 0.21, a0 + 0.22, shoulderH - 24, zt0, OP, { lift: 1.0, dz: 4 });                                                      // (the tail laid down his chest)
+          tSurf(a0 - 0.21, a0 + 0.22, shoulderH - 12.5, shoulderH - 11.2, OD, { lift: 1.1, dz: 1.3 }); tSurf(a0 - 0.21, a0 + 0.22, shoulderH - 17.2, shoulderH - 15.9, OD, { lift: 1.1, dz: 1.3 });
+          for(let k = 0; k < 6; k++) strip(tP, rb, [[a0 - 0.18 + k*0.075, shoulderH - 24], [a0 - 0.18 + k*0.075, shoulderH - 26.6]], 0.8, OD.c, 1.0, 1, null);   // (its fringe)
+        }
+      }
+      if(front && (nk === 'bowtie' || nk === 'tie')){
+        const zn = shoulderH - 3.8, lf = 0.85;
+        if(nk === 'bowtie'){
+          for(const sd of [-1, 1]){ patch(tP, [[sd*0.05, zn], [sd*0.5, zn + 4.4], [sd*0.5, zn - 4.4]], OC, lf + 0.2); patch(tP, [[sd*0.05, zn], [sd*0.5, zn + 4.4], [sd*0.3, zn + 0.3]], mixc(OC, 0xffffff, 0.2), lf + 0.3); patch(tP, [[sd*0.05, zn], [sd*0.5, zn - 4.4], [sd*0.3, zn - 0.3]], _pdk(OC, 0.78), lf + 0.3); }
+          patch(tP, ell(0, zn, 0.1, 2, 10, 3), _pdk(OC, 0.66), lf + 0.8);
+        } else {
+          patch(tP, [[-0.11, zn + 1.6], [0.11, zn + 1.6], [0.09, zn - 2.2], [-0.09, zn - 2.2]], _pdk(OC, 0.7), lf + 0.6);                  // (the knot)
+          const blade = [[-0.085, zn - 1.8], [0.085, zn - 1.8], [0.17, zn - 18], [0, zn - 24.5], [-0.17, zn - 18]]; patch(tP, blade, OC, lf + 0.4);
+          patch(tP, [[0, zn - 1.8], [0.085, zn - 1.8], [0.17, zn - 18], [0, zn - 24.5]], _pdk(OC, 0.86), lf + 0.45);                      // (its shaded side)
+          for(const z of [8, 13, 18]) strip(tP, rb, [[-0.11 - (z - 8)*0.003, zn - z], [0.11 + (z - 8)*0.003, zn - z - 1.7]], 0.9, mixc(OC, 0xffffff, 0.3), lf + 0.6, 1, null);   // (a stripe or two)
+        }
+      }
+      if(nk === 'bandana'){
+        cone(shoulderH - 2.4, hz0 + 0.8, hr*0.72, hr*0.68, OP);
+        if(front){ const tri = z => 0.84*Math.max(0, (z - 84.5)/(shoulderH - 1 - 84.5));
+          tSurf(z => -tri(z), tri, 84.5, shoulderH - 1, OP, { lift: 1.0, dz: 3 }); tSurf(z => -tri(z), tri, shoulderH - 3.2, shoulderH - 1, OD, { lift: 1.1, dz: 2.2 });
+          for(const [a, z] of [[0, 89.5], [-0.2, 91.8], [0.2, 91.8]]) patch(tP, ell(a, z, 0.06, 0.8, 8, 2), mixc(OC, 0xffffff, 0.8), 1.3); }
+      }
+      if(nk === 'collar'){ cone(shoulderH - 2.4, hz0 + 3.2, hr*0.78, hr*0.88, OP); cone(hz0 + 2.2, hz0 + 3.5, hr*0.89, hr*0.89, OD); cone(shoulderH - 2.6, shoulderH - 1.2, hr*0.8, hr*0.8, OD); }
+      if(nk === 'chain'){
+        const GL = 0xd9c27a, GD = 0xa8923f; cone(shoulderH - 0.5, shoulderH + 0.9, hr*0.47, hr*0.46, pr(GL));
+        if(front){ const path = []; for(let i = 0; i <= 8; i++){ const u = i/8; path.push([0.36*(1 - u*u*0.9)*Math.sign(1) - 0.0, shoulderH - 0.3 - 14*u]); }
+          for(const sd of [-1, 1]){ const pp = path.map(([a, z]) => [sd*a*(1 - 0.0), z]); strip(tP, rb, pp, 0.9, GL, 0.85, 1, null); for(let i = 1; i < pp.length; i++) patch(tP, ell(pp[i][0], pp[i][1], 0.5/(rb*0.97), 0.55, 6, 2), GD, 0.95); }
+          const zc = shoulderH - 17; patch(tP, ell(0, zc, 3.6/(rb*0.97), 3.6, 18, 2), GD, 0.9); patch(tP, ell(0, zc, 2.9/(rb*0.97), 2.9, 18, 2), GL, 1.05);
+          patch(tP, [[0, zc + 1.9], [1.4/(rb*0.97), zc], [0, zc - 1.9], [-1.4/(rb*0.97), zc]], RB.eye, 1.2); }
+      }
+      if(nk === 'ascot'){
+        cone(shoulderH - 1.8, hz0 + 0.6, hr*0.7, hr*0.66, OP);
+        if(front){ const tri = z => 0.52*Math.max(0, (z - 82)/(shoulderH - 0.5 - 82));
+          tSurf(z => -tri(z), tri, 82, shoulderH - 0.5, OL, { lift: 1.0, dz: 3 });
+          strip(tP, rb, [[-0.5, shoulderH - 2], [0, 86.5], [0.5, shoulderH - 2]], 0.8, OD.c, 1.3, 1, null); strip(tP, rb, [[-0.3, shoulderH - 0.8], [0, 88.5]], 0.6, OD.c, 1.3, 1, null); strip(tP, rb, [[0.3, shoulderH - 0.8], [0, 88.5]], 0.6, OD.c, 1.3, 1, null);
+          patch(tP, ell(0, 87.4, 1.6/(rb*0.97), 1.6, 10, 2), 0xd9c27a, 1.6); }
+      }
+      if(nk === 'lanyard'){
+        const LC = OC, zc = shoulderH - 20, h = shoulderH + 0.55;
+        cone(shoulderH - 0.6, shoulderH + 1.6, hr*0.47, hr*0.46, OP);                                                                        // (the loop round his neck)
+        if(sees3(0, 0, 1)) for(const sd of [-1, 1]){ quad([Gf(sd*2.4, 5.4, h), Gf(sd*4.2, 5.4, h), Gf(sd*4.7, 9.0, h), Gf(sd*2.9, 9.0, h)], LC); quad([Gf(sd*2.4, -5.4, h), Gf(sd*4.2, -5.4, h), Gf(sd*4.7, -9.0, h), Gf(sd*2.9, -9.0, h)], LC); }
+        if(front){
+          for(const sd of [-1, 1]) strip(tP, rb, [[sd*0.3, shoulderH - 0.3], [sd*0.26, shoulderH - 6], [sd*0.08, zc + 4]], 1.6, LC, 0.85, 1, null);
+          patch(tP, [[-0.16, zc + 4.4], [0.16, zc + 4.4], [0.16, zc + 3], [-0.16, zc + 3]], 0xc4cacf, 1.0);                                // (the clip)
+          patch(tP, [[-0.4, zc + 3], [0.4, zc + 3], [0.4, zc - 8.6], [-0.4, zc - 8.6]], 0xe4e2da, 0.95);                                     // (the card)
+          patch(tP, [[-0.4, zc + 3], [0.4, zc + 3], [0.4, zc + 0.4], [-0.4, zc + 0.4]], LC, 1.0);
+          patch(tP, [[-0.17, zc - 1.2], [0.17, zc - 1.2], [0.17, zc - 4.6], [-0.17, zc - 4.6]], 0x4a5058, 1.0);
+          for(const z of [-6, -7.6]) strip(tP, rb, [[-0.28, zc + z], [0.28, zc + z]], 0.6, 0x8f969d, 1.0, 1, null); }
+        for(const sd of [-1, 1]) strip(tP, rb, [[PI - sd*0.3, shoulderH - 0.3], [PI - sd*0.2, 90]], 1.6, LC, 0.85, 1, tSeen);
+      }
+      /* -- the BADGE: a pin on his chest with a rim, its symbol on it */
+      if(front && RB.badge && RB.badge !== 'none'){
+        const BC = RB.badgeCol != null ? RB.badgeCol : 0xd9a23a, an0 = -0.85, cz = shoulderH - 9, bd = RB.badge, ar = rb*tk(cz), lf = 0.9;
+        const rim = pr(_pdk(BC, 0.6));
+        if(tSeen(an0)){
+          patch(tP, ell(an0, cz, 4.5/ar, 4.5, 18, 2), rim.c, lf); patch(tP, ell(an0, cz, 3.8/ar, 3.8, 18, 2), mixc(BC, 0x1c1f23, 0.78), lf + 0.2);
+          const sc = 0.72; let shape = null;
+          if(bd === 'dot') shape = ell(0, 0, 3.3, 3.3, 14, 2).map(([u, v]) => [u, v]); else if(bd === 'bolt') shape = bolt(sc, 0, 0); else if(bd === 'star') shape = star(sc, 0, 0); else if(bd === 'heart') shape = heart(sc*1.1, 0, 0);
+          else if(bd === 'gear'){ shape = []; for(let k = 0; k < 24; k++){ const t = k/24*PI*2 + 0.13, rd = (k % 4 < 2) ? 3.9 : 2.8; shape.push([Math.cos(t)*rd, Math.sin(t)*rd]); } }
+          else if(bd === 'drop'){ shape = [[0, 4.6]]; for(let k = 0; k <= 12; k++){ const ph = 0.6 - k/12*(PI + 1.2); shape.push([3.1*Math.cos(ph), -1 + 3.1*Math.sin(ph)]); } }
+          else if(bd === 'moon'){ shape = ell(0, 0, 3.8, 3.8, 18, 2).map(([u, v]) => [u, v]); }
+          else if(bd === 'diamond') shape = [[0, 4], [3.4, 0], [0, -4], [-3.4, 0]]; else if(bd === 'shield') shape = [[-3.2, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4], [-3.2, 0.4]];
+          if(bd === 'cross'){ patch(tP, lay(an0, cz, ar, [[-1.2, 3.8], [1.2, 3.8], [1.2, -3.8], [-1.2, -3.8]]), BC, lf + 0.4); patch(tP, lay(an0, cz, ar, [[-3.8, 1.2], [3.8, 1.2], [3.8, -1.2], [-3.8, -1.2]]), BC, lf + 0.4); }
+          else if(shape){ patch(tP, lay(an0, cz, ar, shape), BC, lf + 0.4);
+            if(bd === 'shield') patch(tP, lay(an0, cz, ar, [[0, 3.6], [3.2, 3.6], [3.2, 0.4], [0, -4]]), _pdk(BC, 0.82), lf + 0.45);
+            if(bd === 'gear') patch(tP, lay(an0, cz, ar, ell(0, 0, 1.4, 1.4, 12, 2)), mixc(BC, 0x1c1f23, 0.78), lf + 0.6);
+            if(bd === 'moon') patch(tP, lay(an0, cz, ar, ell(1.7, 0.3, 3.2, 3.2, 18, 2)), mixc(BC, 0x1c1f23, 0.78), lf + 0.6); }
+        }
+      }
+    };
+    /* a ring of cloth round the neck from z0 to z1, its radius k0 below and k1 above (a scarf, a bandana, a lanyard's loop) */
+    const cone = (z0, z1, k0, k1, col) => { const T0 = hullTones(col); for(let i = 0; i < 12; i++){ const t0 = (i + 0.5)/12*PI*2, t1 = (i + 1.5)/12*PI*2, mA = Math.cos((t0 + t1)/2), mB = Math.sin((t0 + t1)/2);
+      if(!seesE(mA, mB, 0, 0.12)) continue; const tt = Math.abs(mA)/(Math.abs(mA) + Math.abs(mB));
+      quad(grow([Gf(Math.cos(t0)*k0, Math.sin(t0)*k0, z0), Gf(Math.cos(t1)*k0, Math.sin(t1)*k0, z0), Gf(Math.cos(t1)*k1, Math.sin(t1)*k1, z1), Gf(Math.cos(t0)*k1, Math.sin(t0)*k1, z1)], 0.4), T0.steps[Math.round(tt*8)]); } };
+
+    /* ------------------------------------------------------------------- DECALS, laid on his chest */
+    const decal = RB => {
+      const dz = RB.decal, DC = RB.decalCol != null ? RB.decalCol : 0xeef0f2, cz = zm + 17, ar = rb*tk(cz), lf = 0.55;
+      if(dz === 'stripes'){ for(const sd of [-1, 1]) strip(tP, rb, vpath(sd*0.3, shoulderH - 2.5, hipH + 1.5, 4), 2.7, DC, lf, 1, tSeen); }
+      else if(dz === 'chevron'){ for(const k of [0, 1]){ const zc = cz + 5 - k*7; strip(tP, rb, [[-0.78, zc + 4.2], [-0.4, zc + 1.6], [0, zc - 1], [0.4, zc + 1.6], [0.78, zc + 4.2]], 2.5, DC, lf, 1, tSeen); } }
+      else if(dz === 'checker'){ const DK = mixc(DC, 0x101418, 0.82); for(let c = 0; c < 8; c++) for(let rw = 0; rw < 2; rw++){ const a0 = -0.8 + c*0.2, z0 = cz + 1 - rw*3.6; if(tSeen(a0 + 0.1)) patch(tP, [[a0, z0 + 3.6], [a0 + 0.2, z0 + 3.6], [a0 + 0.2, z0], [a0, z0]], (c + rw) % 2 ? DK : DC, lf); } }
+      else if(dz === 'flames'){ const zb4 = hipH + 4; for(const [a, h] of [[-0.5, 13], [0, 20], [0.5, 13]]){ if(!tSeen(a)) continue;
+          const fl = (k, col, lift) => patch(tP, [[a - 0.17*k, zb4], [a - 0.13*k, zb4 + h*0.5*k], [a - 0.03*k, zb4 + h*0.78*k], [a + 0.02*k, zb4 + h*k], [a + 0.1*k, zb4 + h*0.6*k], [a + 0.17*k, zb4 + h*0.36*k], [a + 0.17*k, zb4]], col, lift);
+          fl(1, DC, lf); fl(0.62, mixc(DC, 0xffffff, 0.55), lf + 0.1); } }
+      else if(dz === 'target' && tSeen(0)){ const DK = mixc(DC, 0x101418, 0.82); for(const [rd, col] of [[8.4, DC], [6.3, DK], [4.3, DC], [2.3, DK]]) patch(tP, lay(0, cz, ar, ell(0, 0, rd, rd, 22, 2)), col, lf + (8.4 - rd)*0.02); }
+      else if(dz === 'star' || dz === 'bolt' || dz === 'heart'){ const sh = dz === 'star' ? star(1.7, 0, 0) : dz === 'bolt' ? bolt(1.7, 0, 0) : heart(1.7, 0, 0); if(tSeen(0)) patch(tP, lay(0, cz, ar, sh), DC, lf); }
+      else if(/^n[0-9]$/.test(dz) && tSeen(0)){ const dg = +dz[1], seg = { 1: 'bc', 4: 'fgbc', 7: 'abc', 9: 'abcdfg' }[dg] || 'abc', w = 4.6, h = 6.4, t = 1.7;
+        const H = zc => patch(tP, lay(0, cz, ar, [[-w, zc - cz + t/2], [w, zc - cz + t/2], [w, zc - cz - t/2], [-w, zc - cz - t/2]]), DC, lf), V = (ac, za, zb) => patch(tP, lay(0, cz, ar, [[ac - t/2, zb - cz], [ac + t/2, zb - cz], [ac + t/2, za - cz], [ac - t/2, za - cz]]), DC, lf);
+        if(seg.includes('a')) H(cz + h); if(seg.includes('g')) H(cz); if(seg.includes('d')) H(cz - h);
+        if(seg.includes('f')) V(-w + t/2, cz, cz + h); if(seg.includes('b')) V(w - t/2, cz, cz + h); if(seg.includes('e')) V(-w + t/2, cz - h, cz); if(seg.includes('c')) V(w - t/2, cz - h, cz); }
+    };
+    /* THE PACK'S STRAPS, over his shoulders and down his chest, a sternum strap, a satchel's sash across him (the pack itself: robotPack) */
+    const straps = (RB, ps, front) => {
+      if(!ps || ps === 'none') return;
+      const PC = pr(_pdk(RB.pack, 0.86)), lf = 1.5, h = shoulderH + 0.7;
+      if(ps === 'satchel'){
+        const path = []; for(let a = -PI; a <= PI + 0.001; a += PI/18) path.push([a, zm + 5.5 + 16*Math.sin(a)]);
+        strip(tP, rb, path, 3.4, PC.c, lf, 1, tSeen); strip(tP, rb, path.map(([a, z]) => [a, z + 1.2]), 0.45, mixc(PC.c, 0xffffff, 0.3), lf + 0.1, 1, tSeen);
+        const a0 = -0.15, z0 = zm + 5.5 + 16*Math.sin(a0); if(tSeen(a0)) patch(tP, [[a0 - 0.09, z0 + 2.4], [a0 + 0.09, z0 + 2.4], [a0 + 0.09, z0 - 2.4], [a0 - 0.09, z0 - 2.4]], 0xc4cacf, lf + 0.5);
+        if(sees3(0, 0, 1)) quad([Gf(10.4, 8.3, h), Gf(13.4, 8.3, h), Gf(13.4, -8.3, h), Gf(10.4, -8.3, h)], PC.c);
+        return;
+      }
+      if(sees3(0, 0, 1)) for(const sd of [-1, 1]){ const a0 = sd*9.8, a1 = sd*12.4; quad(grow([Gf(a0, 8.1, h), Gf(a1, 7.2, h), Gf(a1, -7.2, h), Gf(a0, -8.1, h)], 0.3), PC.c); }
+      if(front){
+        for(const sd of [-1, 1]){ strip(tP, rb, [[sd*0.66, shoulderH - 0.5], [sd*0.74, 88], [sd*1.0, 79], [sd*1.3, 72]], 2.7, PC.c, lf, 1, tSeen);
+          strip(tP, rb, [[sd*0.66 - sd*0.07, shoulderH - 0.5], [sd*0.74 - sd*0.07, 88], [sd*1.0 - sd*0.07, 79], [sd*1.3 - sd*0.07, 72]], 0.4, mixc(PC.c, 0xffffff, 0.3), lf + 0.1, 1, tSeen); }          // (a stitched edge)
+        if(ps === 'backpack' || ps === 'delivery'){ strip(tP, rb, [[-0.82, 83], [0.82, 83]], 1.4, PC.c, lf + 0.2, 1, tSeen); patch(tP, [[-0.08, 84.3], [0.08, 84.3], [0.08, 81.7], [-0.08, 81.7]], 0xc4cacf, lf + 0.6); }   // (the sternum strap, and its buckle)
+      }
+    };
+    return { sp, tk, hk, tP, hP, tSeen, hSeen, surf, tSurf, hSurf, strip, patch, ell, bump, pr, zrow, vpath, face, glasses, wear, decal, straps, quad, grow, lay, zm, zbot, fz, zj, hz0, hz1 };
   }
 
   /* hand world position — mirrors arm()'s exact shoulder-pivot
@@ -139190,7 +139847,7 @@ requestTpProfile();
     tab = b.dataset.t; renderTab();
   });
   /* GIDEON'S TABS (gd4): the humanoid, chosen, has his own set -- Shell, Face, Band & pack, Feet -- then Fleet; Tipsey and every other vehicle keep the old */
-  const GD_TABS = [['g-looks', 'Looks'], ['g-shell', 'Shell'], ['g-face', 'Face'], ['g-head', 'Head'], ['g-outfit', 'Outfit'], ['g-finish', 'Finish'], ['g-decals', 'Decals'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
+  const GD_TABS = [['g-looks', 'Skins'], ['g-shell', 'Shell'], ['g-face', 'Face'], ['g-head', 'Head'], ['g-outfit', 'Outfit'], ['g-finish', 'Finish'], ['g-decals', 'Decals'], ['g-parts', 'Band & pack'], ['g-feet', 'Feet']];
   function syncTabs() {
     const T = $('grTabs'), gid = fleetCur() === 'humanoid';
     if (T._gid === gid && (T._gid !== undefined)) return;
@@ -139489,8 +140146,8 @@ requestTpProfile();
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
   const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
                     gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
-  const GD_PRICE = { gApron: { vest: 700 }, gNeck: { scarf: 500 }, gGlasses: { shades: 700, visor: 600, monocle: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600 } };
-  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500 };
+  const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200, wayfarer: 700, cateye: 700, halfrim: 600, hex: 600, rimless: 500, heartglass: 800, starglass: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
+  const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
   for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : (k === 'gHat' ? HAT_PRICE[id] || 400 : (GD_PRICE[k] && GD_PRICE[k][id]) || price) })); }
   Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250, gOutCol: 250, gBadgeCol: 200, gGlassCol: 200, gShell2: 500, gDecalCol: 200 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
@@ -140185,23 +140842,40 @@ requestTpProfile();
   /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
   function gdCardIcon(key, id) {
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
+    if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+        angry: `<path d="M7 7l9 4v6H7z" fill="${eye}"/><path d="M33 7l-9 4v6h9z" fill="${eye}"/>`, heart: `<path d="M11 17C5 12 7 7 10 8c1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/><path d="M29 17c-6-5-4-10-1-9 1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/>`,
+        star: `<path d="M11 6l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8L5.5 10l3.9-.4z" fill="${eye}"/><path d="M29 6l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8L23.5 10l3.9-.4z" fill="${eye}"/>` }[id];
+      return S(P2 + `<rect x="13" y="20" width="14" height="2" rx="1" fill="${eye}"/>`); }
     if (key === 'eyeShape') { const E = { round: [[10, 7, 7, 8], [23, 7, 7, 8]], wide: [[7, 9, 11, 6], [22, 9, 11, 6]], tall: [[11, 4, 5, 13], [24, 4, 5, 13]], slit: [[6, 10, 12, 3], [22, 10, 12, 3]], dots: [[12, 9, 4, 4], [24, 9, 4, 4]], sleepy: [[8, 10, 9, 4], [23, 10, 9, 4]] }[id];
       return S(E.map(([x, y, w, h]) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${eye}"/>`).join('') + `<rect x="13" y="20" width="14" height="2" rx="1" fill="${eye}"/>`); }
     if (key === 'mouth') { const M = { bar: '<rect x="12" y="19" width="16" height="2.4" rx="1" fill="E"/>', wide: '<rect x="7" y="19" width="26" height="2.4" rx="1" fill="E"/>', small: '<rect x="16" y="19" width="8" height="2.4" rx="1" fill="E"/>',
         smile: '<rect x="13" y="20" width="14" height="2.2" rx="1" fill="E"/><rect x="9" y="17.5" width="5" height="2.2" rx="1" fill="E"/><rect x="26" y="17.5" width="5" height="2.2" rx="1" fill="E"/>', dots: '<circle cx="13" cy="20" r="1.6" fill="E"/><circle cx="20" cy="20" r="1.6" fill="E"/><circle cx="27" cy="20" r="1.6" fill="E"/>',
-        grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>', none: '' }[id].replace(/E/g, eye);
+        grille: '<rect x="12" y="17" width="16" height="1.4" fill="E"/><rect x="12" y="20" width="16" height="1.4" fill="E"/><rect x="12" y="23" width="16" height="1.4" fill="E"/>',
+        grin: '<path d="M9 17h22c0 6-5 8-11 8s-11-2-11-8z" fill="E"/><path d="M15 17v7M20 17v8M25 17v7" stroke="#1d2228" stroke-width="1"/>', zigzag: '<path d="M9 21l3-3 3 3 3-3 3 3 3-3 3 3 3-3" stroke="E" stroke-width="2" fill="none"/>', open: '<ellipse cx="20" cy="21" rx="5" ry="4" fill="E"/><ellipse cx="20" cy="21.6" rx="3.4" ry="2.4" fill="#1d2228"/>', o: '<ellipse cx="20" cy="21" rx="3.2" ry="3.8" stroke="E" stroke-width="2" fill="none"/>', none: '' }[id].replace(/E/g, eye);
       return S(`<rect x="9" y="6" width="7" height="7" rx="2" fill="${eye}"/><rect x="24" y="6" width="7" height="7" rx="2" fill="${eye}"/>` + M); }
     if (key === 'apron' || key === 'neck' || key === 'badge' || key === 'glasses' || key === 'packStyle') { const C = '#d9892b', B = '<rect x="12" y="2" width="16" height="24" rx="5" fill="#cfd3d8"/>';
-      const A = { apron: { none: '', apron: `<path d="M14 8h12l2 18H12z" fill="${C}"/><rect x="16" y="15" width="8" height="5" fill="#b06f20"/>`, vest: `<path d="M12 4l6 0 2 8 2-8h6v22H12z" fill="${C}" opacity=".95"/><path d="M18 4l2 9 2-9z" fill="#cfd3d8"/>` },
-        neck: { none: '', scarf: `<rect x="11" y="3" width="18" height="5" rx="2" fill="${C}"/><rect x="21" y="6" width="5" height="16" fill="${C}"/>`, bowtie: `<path d="M20 8L12 4v8zM20 8l8-4v8z" fill="${C}"/><rect x="18.4" y="6" width="3.2" height="4" fill="#b06f20"/>`, tie: `<rect x="18" y="3" width="4" height="3" fill="#b06f20"/><path d="M18 6h4l2 14-4 4-4-4z" fill="${C}"/>` },
-        badge: { none: '', dot: '<circle cx="20" cy="14" r="5" fill="#d9a23a"/>', bolt: '<path d="M22 6l-8 9h5l-3 8 9-10h-5z" fill="#d9a23a"/>', star: '<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="#d9a23a"/>', diamond: '<path d="M20 5l7 9-7 9-7-9z" fill="#d9a23a"/>', cross: '<rect x="18" y="6" width="4" height="16" fill="#d9a23a"/><rect x="12" y="12" width="16" height="4" fill="#d9a23a"/>' },
-        glasses: { none: '', round: '<circle cx="15" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><circle cx="25" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="19" y="11.4" width="2" height="1.4" fill="#24272c"/>', square: '<rect x="10.4" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="21.2" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/>', shades: '<rect x="10.4" y="8" width="8.4" height="8" fill="#15181c"/><rect x="21.2" y="8" width="8.4" height="8" fill="#15181c"/><rect x="18.6" y="9.6" width="2.8" height="1.6" fill="#15181c"/>', visor: '<rect x="9" y="8" width="22" height="8" rx="2" fill="#1a3a52" stroke="#24272c" stroke-width="1.4"/>', monocle: '<circle cx="25" cy="12" r="4.6" fill="#bfe6f2" stroke="#24272c" stroke-width="1.6"/>' },
-        packStyle: { box: '<rect x="14" y="8" width="12" height="14" fill="#3a4048"/>', wide: '<rect x="10" y="8" width="20" height="14" fill="#3a4048"/>', round: '<rect x="15" y="6" width="10" height="18" rx="5" fill="#3a4048"/>', twin: '<rect x="11" y="7" width="8" height="17" rx="4" fill="#3a4048"/><rect x="21" y="7" width="8" height="17" rx="4" fill="#3a4048"/>', jet: '<rect x="11" y="5" width="8" height="15" rx="4" fill="#3a4048"/><rect x="21" y="5" width="8" height="15" rx="4" fill="#3a4048"/><path d="M12 20h6l-3 6zM22 20h6l-3 6z" fill="#ff9a3a"/>', none: '' } }[key][id];
+      const A = { apron: { none: '', apron: `<path d="M14 8h12l2 18H12z" fill="${C}"/><rect x="16" y="15" width="8" height="5" fill="#b06f20"/>`, vest: `<path d="M12 4l6 0 2 8 2-8h6v22H12z" fill="${C}" opacity=".95"/><path d="M18 4l2 9 2-9z" fill="#cfd3d8"/>`,
+          toolbelt: `<rect x="11" y="16" width="18" height="3.4" fill="#6b4a2a"/><rect x="17.4" y="15.6" width="5" height="4.2" fill="#d9c27a"/><rect x="12" y="19" width="5" height="6" rx="1" fill="${C}"/><rect x="23" y="19" width="5" height="6" rx="1" fill="${C}"/><rect x="25" y="12" width="1.8" height="7" fill="#c4cacf"/>`,
+          harness: `<path d="M13 4l3 0 10 20-3 0zM27 4l-3 0-10 20 3 0z" fill="${C}"/><circle cx="20" cy="14" r="2.4" fill="#c4cacf"/>`, poncho: `<path d="M14 3h12l8 21H6z" fill="${C}"/><path d="M8 18h24M7 21h26" stroke="#f0c98a" stroke-width="1.2"/>`, coat: `<path d="M12 3h6l2 8 2-8h6l3 23H9z" fill="${C}"/><path d="M18 3l2 12 2-12" fill="#cfd3d8"/><path d="M15 17h-3M28 17h-3" stroke="#8a5a1a" stroke-width="1.6"/>`, sash: `<path d="M13 3l5 0 10 21-5 0z" fill="${C}"/><path d="M13 3l1.6 0 10 21-1.6 0z" fill="#f0c98a"/>`, cape: `<path d="M13 4h14l5 21H8z" fill="${C}"/><path d="M13 4h14l1 4H12z" fill="#b06f20"/><circle cx="20" cy="7.4" r="1.7" fill="#d9c27a"/>` },
+        neck: { none: '', scarf: `<rect x="11" y="3" width="18" height="5" rx="2" fill="${C}"/><rect x="21" y="6" width="5" height="16" fill="${C}"/>`, bowtie: `<path d="M20 8L12 4v8zM20 8l8-4v8z" fill="${C}"/><rect x="18.4" y="6" width="3.2" height="4" fill="#b06f20"/>`, tie: `<rect x="18" y="3" width="4" height="3" fill="#b06f20"/><path d="M18 6h4l2 14-4 4-4-4z" fill="${C}"/>`,
+          bandana: `<rect x="11" y="3" width="18" height="3.6" rx="1.6" fill="${C}"/><path d="M12.4 6l15.2 0-7.6 14z" fill="${C}"/><circle cx="20" cy="10" r="1" fill="#fff" opacity=".8"/><circle cx="17" cy="8" r=".8" fill="#fff" opacity=".8"/><circle cx="23" cy="8" r=".8" fill="#fff" opacity=".8"/>`, ascot: `<rect x="12" y="3" width="16" height="3" rx="1.4" fill="${C}"/><path d="M14 6l12 0-6 11z" fill="#f0c98a"/><circle cx="20" cy="10" r="1.2" fill="#d9c27a"/>`, collar: `<path d="M10 4h20v8l-4 3h-12l-4-3z" fill="${C}"/><rect x="14" y="5" width="12" height="4" fill="#cfd3d8"/>`, chain: `<path d="M13 3q7 18 14 0" stroke="#d9c27a" stroke-width="1.6" fill="none" stroke-dasharray="2 1"/><circle cx="20" cy="17" r="4" fill="#d9c27a"/><circle cx="20" cy="17" r="1.8" fill="#5fe8e0"/>`, lanyard: `<path d="M14 3l6 15M26 3l-6 15" stroke="${C}" stroke-width="1.8" fill="none"/><rect x="16" y="17" width="8" height="8" rx="1" fill="#e4e2da"/><rect x="16" y="17" width="8" height="2.4" fill="${C}"/>` },
+        badge: { none: '', dot: '<circle cx="20" cy="14" r="5" fill="#d9a23a"/>', bolt: '<path d="M22 6l-8 9h5l-3 8 9-10h-5z" fill="#d9a23a"/>', star: '<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="#d9a23a"/>', diamond: '<path d="M20 5l7 9-7 9-7-9z" fill="#d9a23a"/>', cross: '<rect x="18" y="6" width="4" height="16" fill="#d9a23a"/><rect x="12" y="12" width="16" height="4" fill="#d9a23a"/>',
+          heart: '<path d="M20 22C9 14 13 6 17.4 8c1.6.7 2.6 2.2 2.6 2.2s1-1.5 2.6-2.2C27 6 31 14 20 22z" fill="#d9a23a"/>', shield: '<path d="M12 6h16v8c0 5-4 8-8 10-4-2-8-5-8-10z" fill="#d9a23a"/>',
+          gear: '<circle cx="20" cy="14" r="6.2" fill="#d9a23a"/><path d="M20 5v3M20 20v3M11 14h3M26 14h3M13.6 7.6l2 2M24.4 18.4l2 2M26.4 7.6l-2 2M15.6 18.4l-2 2" stroke="#d9a23a" stroke-width="2.6"/><circle cx="20" cy="14" r="2.4" fill="#cfd3d8"/>', drop: '<path d="M20 4c4 6 7 9 7 13a7 7 0 0 1-14 0c0-4 3-7 7-13z" fill="#d9a23a"/>', moon: '<path d="M24 5a9 9 0 1 0 2 17A7 7 0 0 1 24 5z" fill="#d9a23a"/>' },
+        glasses: { none: '', round: '<circle cx="15" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><circle cx="25" cy="12" r="4.4" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="19" y="11.4" width="2" height="1.4" fill="#24272c"/>', square: '<rect x="10.4" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/><rect x="21.2" y="8" width="8.4" height="8" fill="none" stroke="#24272c" stroke-width="1.6"/>', shades: '<rect x="10.4" y="8" width="8.4" height="8" fill="#15181c"/><rect x="21.2" y="8" width="8.4" height="8" fill="#15181c"/><rect x="18.6" y="9.6" width="2.8" height="1.6" fill="#15181c"/>', visor: '<rect x="9" y="8" width="22" height="8" rx="2" fill="#1a3a52" stroke="#24272c" stroke-width="1.4"/>', monocle: '<circle cx="25" cy="12" r="4.6" fill="#bfe6f2" stroke="#24272c" stroke-width="1.6"/>',
+          aviator: '<path d="M9 8h9l-1 8-4 2-4-2z" fill="#8c7a4a" stroke="#d9892b" stroke-width="1.4"/><path d="M22 8h9l1 8-4 2-4-2z" fill="#8c7a4a" stroke="#d9892b" stroke-width="1.4"/>', eyepatch: '<path d="M8 8l24 4" stroke="#1b1d21" stroke-width="1.6"/><ellipse cx="14" cy="13" rx="5.4" ry="6" fill="#16181b" stroke="#d9892b" stroke-width="1.2"/>', vr: '<rect x="8" y="7" width="24" height="11" rx="4" fill="#d9892b"/><ellipse cx="15" cy="12.5" rx="4" ry="3.8" fill="#0b0f14"/><ellipse cx="25" cy="12.5" rx="4" ry="3.8" fill="#0b0f14"/>',
+          wayfarer: '<path d="M8 8h10l-1 8H9zM22 8h10l-1 8h-8z" fill="#14171b" stroke="#24272c" stroke-width="1.6"/>', cateye: '<path d="M8 11q5-2 10 0l-2 6H11zM32 11q-5-2-10 0l2 6h5z" fill="none" stroke="#24272c" stroke-width="1.6"/>', halfrim: '<path d="M9 12a5 5 0 0 1 10 0M21 12a5 5 0 0 1 10 0" fill="none" stroke="#24272c" stroke-width="1.8"/><path d="M9 12q5 8 10 0M21 12q5 8 10 0" stroke="#aab" stroke-width=".6" fill="none"/>',
+          hex: '<path d="M10 12l2.5-4h5l2.5 4-2.5 4h-5zM20 12l2.5-4h5l2.5 4-2.5 4h-5z" fill="none" stroke="#24272c" stroke-width="1.6"/>', rimless: '<circle cx="15" cy="12" r="4.6" fill="#cfeaf5" opacity=".5"/><circle cx="25" cy="12" r="4.6" fill="#cfeaf5" opacity=".5"/><circle cx="10.6" cy="9" r=".7" fill="#d9c27a"/><circle cx="29.4" cy="9" r=".7" fill="#d9c27a"/>',
+          heartglass: '<path d="M15 18C8 13 10 8 13 9c1 .4 2 1.4 2 1.4s1-1 2-1.4c3-1 5 4-2 9z" fill="#e8a0c0" stroke="#24272c" stroke-width="1.2"/><path d="M26 18c-7-5-5-10-2-9 1 .4 2 1.4 2 1.4s1-1 2-1.4c3-1 5 4-2 9z" fill="#e8a0c0" stroke="#24272c" stroke-width="1.2"/>', starglass: '<path d="M15 7l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8-2.9-2.6 3.9-.4z" fill="#f3e7a8" stroke="#24272c" stroke-width="1.2"/><path d="M26 7l1.6 3.6 3.9.4-2.9 2.6.8 3.8-3.4-2-3.4 2 .8-3.8-2.9-2.6 3.9-.4z" fill="#f3e7a8" stroke="#24272c" stroke-width="1.2"/>',
+          goggles: '<rect x="9" y="9" width="22" height="6" fill="#2a2f36"/><circle cx="15" cy="12" r="5" fill="#ffb347" stroke="#d9892b" stroke-width="1.8"/><circle cx="25" cy="12" r="5" fill="#ffb347" stroke="#d9892b" stroke-width="1.8"/>' },
+        packStyle: { box: '<rect x="14" y="8" width="12" height="14" fill="#3a4048"/>', wide: '<rect x="10" y="8" width="20" height="14" fill="#3a4048"/>', round: '<rect x="15" y="6" width="10" height="18" rx="5" fill="#3a4048"/>', twin: '<rect x="11" y="7" width="8" height="17" rx="4" fill="#3a4048"/><rect x="21" y="7" width="8" height="17" rx="4" fill="#3a4048"/>', jet: '<rect x="11" y="5" width="8" height="15" rx="4" fill="#3a4048"/><rect x="21" y="5" width="8" height="15" rx="4" fill="#3a4048"/><path d="M12 20h6l-3 6zM22 20h6l-3 6z" fill="#ff9a3a"/>',
+          backpack: '<rect x="11" y="6" width="18" height="18" rx="6" fill="#3a4048"/><rect x="11" y="6" width="18" height="8" rx="5" fill="#262a30"/><rect x="14" y="17" width="12" height="6" rx="2" fill="#4a5058"/><rect x="18.4" y="11" width="3.2" height="3" fill="#c4cacf"/>', satchel: '<rect x="10" y="12" width="20" height="12" rx="2" fill="#3a4048"/><rect x="10" y="12" width="20" height="6" rx="2" fill="#262a30"/><path d="M12 3l16 11" stroke="#262a30" stroke-width="2.4"/>',
+          solar: '<rect x="10" y="4" width="20" height="20" fill="#aab2ba"/><rect x="11.4" y="5.4" width="17.2" height="17.2" fill="#27447f"/><path d="M11.4 11h17.2M11.4 16.8h17.2M17 5.4v17.2M23 5.4v17.2" stroke="#6f8fcf" stroke-width=".7"/>', delivery: '<rect x="10" y="4" width="20" height="20" fill="#3a4048"/><rect x="10" y="4" width="20" height="6" fill="#262a30"/><rect x="10" y="14" width="20" height="3" fill="#e79a35"/><circle cx="20" cy="19.5" r="2.4" fill="#e79a35"/>', cells: '<rect x="12" y="5" width="16" height="19" rx="2" fill="#262a30"/><path d="M15.5 8v13M20 8v13M24.5 8v13" stroke="#5fe8e0" stroke-width="2.6" stroke-dasharray="2 1.2"/>', wings: '<path d="M19 12L3 6l3 5-4 2 5 2-2 4 10-3zM21 12l16-6-3 5 4 2-5 2 2 4-10-3z" fill="#cfd3d8" stroke="#8f969d"/><rect x="17" y="7" width="6" height="14" rx="2" fill="#3a4048"/>', dish: '<ellipse cx="24" cy="8" rx="8" ry="5" transform="rotate(-25 24 8)" fill="#b9c0c7" stroke="#8f969d"/><rect x="19" y="11" width="2.4" height="13" fill="#8f969d"/><rect x="13" y="21" width="14" height="4" fill="#3a4048"/><circle cx="30" cy="3" r="1.6" fill="#d9453a"/>', none: '' } }[key][id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${key === 'glasses' ? '<rect x="9" y="2" width="22" height="22" rx="8" fill="#cfd3d8"/>' : B}${A}</svg>`; }
     if (key === 'finish') { const G2 = { satin: ['#cfd3d8', '#fff', .35], matte: ['#b9bdc2', '#fff', .05], gloss: ['#d6dae0', '#fff', .85], chrome: ['#aeb8c2', '#f4f8fb', .9], twotone: ['#cfd3d8', '#2f4a86', 0] }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="3" width="22" height="22" rx="6" fill="${G2[0]}"/>${id === 'twotone' ? '<rect x="9" y="15" width="22" height="10" rx="4" fill="#2f4a86"/>' : ''}<path d="M12 5h9l-5 18h-4z" fill="${G2[1]}" opacity="${G2[2]}"/></svg>`; }
     if (key === 'decal') { const C2 = '#e0453a', T2 = t => `<text x="20" y="21" text-anchor="middle" font-size="18" font-weight="700" fill="${C2}" font-family="sans-serif">${t}</text>`, D = { none: '', stripes: `<rect x="14" y="3" width="3.4" height="22" fill="${C2}"/><rect x="22.6" y="3" width="3.4" height="22" fill="${C2}"/>`, chevron: `<path d="M10 10l10 6 10-6v4l-10 6-10-6z" fill="${C2}"/>`, star: `<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="${C2}"/>`,
-        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9) }[id];
+        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9), checker: `<path d="M10 11h4v4h-4zM18 11h4v4h-4zM26 11h4v4h-4zM14 15h4v4h-4zM22 15h4v4h-4z" fill="${C2}"/>`, flames: `<path d="M12 24c0-5 3-6 2-11 4 2 5 6 4 11zM20 24c-1-7 3-9 2-16 5 4 6 10 3 16zM27 24c0-3 2-4 1-8 3 1 4 5 2 8z" fill="${C2}"/>`, target: `<circle cx="20" cy="14" r="8" fill="${C2}"/><circle cx="20" cy="14" r="5.4" fill="#cfd3d8"/><circle cx="20" cy="14" r="3" fill="${C2}"/>` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="2" width="22" height="24" rx="6" fill="#cfd3d8"/>${D}</svg>`; }
     if (key === 'hat') { const C = '#d9892b', D = '#8f969d', H = '<rect x="13" y="12" width="14" height="14" rx="6" fill="#cfd3d8"/>';
       const A = { none: '', cap: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="18" y="13" width="14" height="2.4" rx="1" fill="${C}"/>`, beanie: `<path d="M12 15a8 9 0 0 1 16 0z" fill="${C}"/><circle cx="20" cy="4" r="2.4" fill="${C}"/>`,
@@ -140209,10 +140883,11 @@ requestTpProfile();
         chef: `<rect x="13" y="12" width="14" height="3" fill="#cfd3d8"/><ellipse cx="20" cy="7" rx="10" ry="6.5" fill="#f2f2ee"/>`, headphones: `<path d="M11 18v-4a9 9 0 0 1 18 0v4" fill="none" stroke="${C}" stroke-width="2"/><rect x="9" y="16" width="4" height="8" rx="2" fill="${C}"/><rect x="27" y="16" width="4" height="8" rx="2" fill="${C}"/>`,
         antenna: `<rect x="19.4" y="2" width="1.2" height="11" fill="${D}"/><circle cx="20" cy="2.5" r="2" fill="${C}"/>`, twin: `<rect x="15.4" y="4" width="1.2" height="9" fill="${D}"/><circle cx="16" cy="4" r="1.8" fill="${C}"/><rect x="24.4" y="6" width="1.2" height="7" fill="${D}"/><circle cx="25" cy="6" r="1.8" fill="${C}"/>`,
         visor: `<rect x="12" y="12" width="16" height="2.4" rx="1" fill="${C}"/><rect x="18" y="14" width="14" height="2.2" rx="1" fill="${C}"/>`, party: `<path d="M20 1l8 13H12z" fill="${C}"/><circle cx="20" cy="1.6" r="1.8" fill="#f2f2ee"/>`,
+        hardhat: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="10" y="13" width="20" height="2.2" rx="1" fill="${C}"/><rect x="18" y="4" width="4" height="3" fill="#b06f20"/>`, bucket: `<path d="M13 13a7 8 0 0 1 14 0z" fill="${C}"/><path d="M8 16l4-3h16l4 3z" fill="${C}" opacity=".85"/>`, fez: `<path d="M13 14l1-9h12l1 9z" fill="${C}"/><path d="M26 5q5 4 3 9" stroke="#2a2418" stroke-width="1" fill="none"/><circle cx="29" cy="14" r="1.4" fill="#d9c27a"/>`, wizard: `<path d="M20 0l7 14H13z" fill="${C}"/><rect x="7" y="13" width="26" height="2.4" rx="1.2" fill="${C}"/>`, cowboy: `<path d="M13 13V8a7 3 0 0 1 14 0v5z" fill="${C}"/><path d="M6 12q3 4 7 2h14q4 2 7-2l-2 4H8z" fill="${C}"/>`,
         crown: `<path d="M12 14V6l4 4 4-6 4 6 4-4v8z" fill="${C}"/>`, prop: `<path d="M12 15a8 8 0 0 1 16 0z" fill="${C}"/><rect x="11" y="6" width="18" height="1.8" rx=".9" fill="${D}"/><rect x="19.4" y="7" width="1.2" height="4" fill="${D}"/>` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${H}${A}</svg>`; }
-    if (key === 'earStyle') { const R = { pod: 5, big: 8, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="3" width="18" height="22" rx="7" fill="#cfd3d8"/>` + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
-    const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>' }[id];
+    if (key === 'earStyle') { const R = { pod: 5, big: 8, cat: 0, none: 0 }[id]; return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="11" y="6" width="18" height="19" rx="7" fill="#cfd3d8"/>` + (id === 'cat' ? '<path d="M11 10l1-8 6 5zM29 10l-1-8-6 5z" fill="#e4e7ea" stroke="#8f969d"/><path d="M13 8l.6-4 3 2.4zM27 8l-.6-4-3 2.4z" fill="#f4a8b8"/>' : '') + (R ? `<circle cx="9" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/><circle cx="31" cy="14" r="${R}" fill="#e4e7ea" stroke="#8f969d"/>` : '') + '</svg>'; }
+    const K = { flat: '<path d="M6 18h28v5H6z" fill="#cfd3d8"/>', sneaker: '<path d="M6 14l8 2 20 0 0 7H6z" fill="#cfd3d8"/><rect x="6" y="21" width="28" height="3" fill="#eef0f2"/>', boot: '<path d="M8 6h12v12h14v6H8z" fill="#cfd3d8"/>', dress: '<path d="M6 17h18l10 3v4H6z" fill="#cfd3d8"/><rect x="6" y="23" width="6" height="2" fill="#8f969d"/>', platform: '<path d="M6 11h12l12 4v5H6z" fill="#cfd3d8"/><rect x="6" y="19" width="28" height="6" fill="#8f969d"/>', sandal: '<path d="M6 20h28v3H6z" fill="#cfd3d8"/><path d="M12 20l4-5M20 20l3-5M26 20l2-4" stroke="#8f969d" stroke-width="1.6"/>' }[id];
     return `<svg viewBox="0 0 40 28" width="52" height="36">${K}</svg>`;
   }
   function gColRow(title, kind) {
@@ -140238,14 +140913,14 @@ requestTpProfile();
       const same = set => { const A = Object.assign({}, blank, set); return GD_FIELDS.every(k => (Lw[k] == null ? (DEFAULT_OF[k] || null) : Lw[k]) === (A[k] == null ? (DEFAULT_OF[k] || null) : A[k])); };
       const icon = set => { const sc = hex(gdHex('shell', set.gShell || 'white')), bc = hex(gdHex('band', set.gBand || 'copper')), hc = set.gHat && set.gHat !== 'none' ? hex(gdHex('hat', set.gHatCol || 'copper')) : null;
         return `<svg viewBox="0 0 40 40" width="52" height="52"><rect x="12" y="19" width="16" height="17" rx="4" fill="${sc}"/><rect x="12" y="25" width="16" height="3" fill="${bc}"/><circle cx="20" cy="13" r="7.5" fill="${sc}"/><rect x="15" y="11" width="10" height="4" rx="1.5" fill="#1d2228"/>${hc ? `<rect x="12.5" y="4" width="15" height="4" rx="2" fill="${hc}"/>` : ''}</svg>`; };
-      h = '<div class="grSec">LOOKS &mdash; try one on, then add its parts together</div><div class="grRow">' + GD_PRESETS.map(pr => { const t = tot(pr.set), on = same(pr.set);
+      h = '<div class="grSec">SKINS &mdash; try one on, then add its parts together</div><div class="grRow">' + GD_PRESETS.map(pr => { const t = tot(pr.set), on = same(pr.set);
         const tag = !Object.keys(pr.set).length ? (on ? '<i class="own">Wearing</i>' : '<i>Free</i>') : on && !t.un.length ? '<i class="own">Wearing</i>' : !t.un.length ? '<i class="add" data-gequip="' + pr.id + '">Equip</i>' : '<i class="add" data-gadd="' + pr.id + '">Add all ' + tpMoney(t.c) + '</i>';
         return `<button class="grSkin${on ? ' sel' : ''}" data-glook="${pr.id}">${icon(pr.set)}<span>${pr.name}</span>${tag}</button>`; }).join('') + '</div>';
     }
     else if (tab === 'g-shell') { cols = ['gShell', 'gJoint', 'gHand']; h = gColRow('SHELL', 'gShell') + gColRow('JOINTS', 'gJoint') + gColRow('HANDS', 'gHand'); }
     else if (tab === 'g-face') { cols = ['gEye', 'gScreen', 'gEar']; h = gColRow('EYES', 'gEye') + gCardRow('EYE SHAPE', 'gEyeShape', 'eyeShape') + gCardRow('MOUTH', 'gMouth', 'mouth') + gColRow('SCREEN', 'gScreen') + gCardRow('EARS', 'gEarStyle', 'earStyle') + gColRow('EAR COLOUR', 'gEar'); }
     else if (tab === 'g-head') { cols = ['gHatCol']; h = gCardRow('HEADWEAR', 'gHat', 'hat') + gColRow('HAT COLOUR', 'gHatCol'); }
-    else if (tab === 'g-outfit') { cols = ['gOutCol', 'gBadgeCol', 'gGlassCol']; h = gCardRow('APRON OR VEST', 'gApron', 'apron') + gCardRow('NECKWEAR', 'gNeck', 'neck') + gColRow('OUTFIT COLOUR', 'gOutCol') + gCardRow('BADGE', 'gBadge', 'badge') + gColRow('BADGE COLOUR', 'gBadgeCol') + gCardRow('GLASSES', 'gGlasses', 'glasses') + gColRow('GLASSES COLOUR', 'gGlassCol'); }
+    else if (tab === 'g-outfit') { cols = ['gOutCol', 'gBadgeCol', 'gGlassCol']; h = gCardRow('CLOTHES', 'gApron', 'apron') + gCardRow('NECKWEAR', 'gNeck', 'neck') + gColRow('OUTFIT COLOUR', 'gOutCol') + gCardRow('BADGE', 'gBadge', 'badge') + gColRow('BADGE COLOUR', 'gBadgeCol') + gCardRow('GLASSES', 'gGlasses', 'glasses') + gColRow('GLASSES COLOUR', 'gGlassCol'); }
     else if (tab === 'g-finish') { const Lf = pv || worn(); cols = Lf.gFinish === 'twotone' ? ['gShell2'] : []; h = gCardRow('SHELL FINISH', 'gFinish', 'finish') + (Lf.gFinish === 'twotone' ? gColRow('TWO-TONE: THE LEGS', 'gShell2') : '<div class="grSec">Pick Two-tone for a second colour on his legs</div>'); }
     else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
