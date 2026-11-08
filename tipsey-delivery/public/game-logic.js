@@ -45068,6 +45068,10 @@ const TIDEWATER_MUSEUM = (() => {
   const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
   /* the building: MUS_IN's plan (one rect for the outside, its volume and the room inside) */
   const [BA0, BA1, BB0, BB1] = MUS_IN.LAB, H = 440;
+  /* THE SHELL COVERS THE ROOM (W22, Sir, 2026-11-07): the room's floor is LAB and its walls stand 30 outside it, so the body is
+     the floor grown by G on every side (SA0..SA1, SB0..SB1); the portico, the doorcase and the walk start from the new face.
+     BA0..BB1 stay the floor (the room's origin, the door's u). */
+  const G = 30, SA0 = BA0 - G, SA1 = BA1 + G, SB0 = BB0 - G, SB1 = BB1 + G;
   const BW = BA1 - BA0, DMID = BW/2, [PA0, PA1] = MUS_IN.PORT, PD = MUS_IN.PD, [BAY0, BAY1] = MUS_IN.BAY;
   /* THE PORTICO (Sir, 2026-10-30: "the ramp you cut through the steps could have been better"): a podium PZ high
      across PA0..PA1, its deck PDK deep, four steps down its front either side of the ENTRANCE BAY -- the middle, at
@@ -45096,13 +45100,13 @@ const TIDEWATER_MUSEUM = (() => {
   const box = (name, a, b, ha, hb, h, prop) => ({ name, h, prop, poly: [[a-ha,b-hb],[a+ha,b-hb],[a+ha,b+hb],[a-ha,b+hb]] });
   const vol = {
     /* the building is the mass; the forecourt, lawns and walk are open */
-    foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
+    foot: [[SA0,SB1],[SA1,SB1],[SA1,SB0],[SA0,SB0]],
     h: H,
     solids: [
       /* the portico's two wings -- podium, steps, cheek walls and the colonnade on them -- either side of the bay, which
          is open at grade from the gate's walk to the doors (Sir, 2026-10-30: the museum one goes into: MUS_IN) */
-      { name:'portico W', h: 410, poly: [[BA0+PA0, BB1],[BA0+BAY0, BB1],[BA0+BAY0, BB1+PD],[BA0+PA0, BB1+PD]] },
-      { name:'portico E', h: 410, poly: [[BA0+BAY1, BB1],[BA0+PA1, BB1],[BA0+PA1, BB1+PD],[BA0+BAY1, BB1+PD]] },
+      { name:'portico W', h: 410, poly: [[BA0+PA0, SB1],[BA0+BAY0, SB1],[BA0+BAY0, SB1+PD],[BA0+PA0, SB1+PD]] },
+      { name:'portico E', h: 410, poly: [[BA0+BAY1, SB1],[BA0+PA1, SB1],[BA0+PA1, SB1+PD],[BA0+BAY1, SB1+PD]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -45118,9 +45122,9 @@ const TIDEWATER_MUSEUM = (() => {
       ...LAMPS.map(([a,b], k) => ({ name:'lamp ' + (k+1), c:[a,b], r: 13, h: 200, prop:true }))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
-    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, SB1] }
   };
-  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, G, SA0, SA1, SB0, SB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
            PLINTHS, TREES, HEDGES, LAMPS, vol };
 })();
 if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;
@@ -70632,15 +70636,15 @@ marinaEntry(),
   /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
      bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
      and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
-  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.BB1 - 7, z0: 0, z1: 150,
-                 walk: TIDEWATER_MUSEUM.BB1 + 40, sense: 70 }],
+  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.SB1 - 7, z0: 0, z1: 150,
+                 walk: TIDEWATER_MUSEUM.SB1 + 40, sense: 70 }],
   doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
      lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
   lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
     /* (Sir, 2026-11-05: "make the light from the lanterns smaller": half the throw, 120 -> 60 and 105 -> 52) */
     return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 60 }))
-      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 52 }))); },
+      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.SB1 + T.PD - 18, z: T.PZ + 130, r: 52 }))); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
   head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',
@@ -70660,12 +70664,16 @@ marinaEntry(),
        along each cheek and a lantern on each cheek's pedestal; a bronze screen in a stone doorcase at its head, the
        sliding pair live (slideDoors). The frieze carries the museum's name, the pediment a gilded wheel; the facade a
        banner to each gallery inside (EGYPT to the west, T. REX to the east, as the room lays them out). */
-    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
-    const BW = BA1 - BA0, BD = BB1 - BB0;
+    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1: FB1, G, SA0, SA1, SB0, SB1: BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
+    const BW = BA1 - BA0, BD = FB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
     const stone = '#e6dfcf', stoneL = '#f4efe3', stoneD = '#c9c0ac', stoneDD = '#aea591';
     const bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', paneG = 'rgba(150,186,196,.62)', lampG = '#ffe7a8';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, revOpen, glz } = flatsWallFrames(BW, BD, BA0, BB1);
+    const WF = flatsWallFrames(BW + 2*G, BD + 2*G, SA0, BB1), { Q, R, bandF, rev, revOpen, glz } = WF;
+    /* (the frames' u is the FLOOR's: each is the shell's, moved in by G, so every u below is the room's and the walls run G past both ends) */
+    const wrapFr = fr => ({ P:(u,n,v) => fr.P(u + G, n, v), len: fr.len - 2*G, kind: fr.kind });
+    const FR_FRONT = wrapFr(WF.FR_FRONT), FR_RIGHT = wrapFr(WF.FR_RIGHT), FR_LEFT = wrapFr(WF.FR_LEFT), FR_BACK = wrapFr(WF.FR_BACK);
+    const NEAR = WF.NEAR === WF.FR_RIGHT ? FR_RIGHT : FR_LEFT, FAR = WF.FAR === WF.FR_RIGHT ? FR_RIGHT : FR_LEFT;
     const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = MUS_IN.DZ, TZ = MUS_IN.TZ;   // (symmetric about the middle: the facade's u is the room's a)
     const A = u => BA0 + u, N = n => BB1 + n;
     /* LETTERING READS THE RIGHT WAY ROUND (the Animal Shelter's way): this frame runs a to the west, so a word laid
@@ -70679,7 +70687,7 @@ marinaEntry(),
        by the ground pass (the entry declares ground:'grass', hoodBlockGroundOf), so no plate is painted over it. The walk, the band at
        the building's foot and the compass rose are laid on it. */
     /* a band of paving along the building's foot */
-    T(BA0 - 24, BA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
+    T(SA0 - 24, SA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
     /* the walk: a border of darker stone, a field of big slabs, laid on to the doors (Sir, 2026-09-29: "the path is
        disconnected and different colors" -- one stone, the drive's, gate to door) */
     const [W0, W1] = WALK;
@@ -70716,11 +70724,11 @@ marinaEntry(),
     };
     const elevation = fr => {
       const L = fr.len;
-      bandF(fr, -6, L+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
-      bandF(fr, -5, L+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
-      bandF(fr, -5, L+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
-      bandF(fr, -4, L+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
-      bandF(fr, -4, L+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
+      bandF(fr, -G-6, L+G+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
+      bandF(fr, -G-5, L+G+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
+      bandF(fr, -G-5, L+G+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
+      bandF(fr, -G-4, L+G+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
+      bandF(fr, -G-4, L+G+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
       const nb = fr.kind === 'flank' ? 5 : 9;
       for(let i=0;i<nb;i++){
         const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
@@ -70782,14 +70790,14 @@ marinaEntry(),
         R(f, uc - 15, uc + 15, 262, 266, n, bone);
       });
     };
-    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
+    items.push({ a:(SA0+SA1)/2, b:(SB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
-      T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
-      S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
-      F(BA0, BA1, 0, H, wall, null, 0, BB1);
+      T(SA0, SA1, SB0, BB1, H, shade(wall,1.02));
+      S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, BB1, 0, H, shade(wall,.78));
+      F(SA0, SA1, 0, H, wall, null, 0, BB1);
       elevation(NEAR); elevation(FR_FRONT);
       if(state.roof){
-        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD+160;
+        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD-2*G+160;
         F(l0,l1, H+16, H+38, shade(wall,1.02), null,0, q0);
         poly([P(l0,q0,H+38),P(l1,q0,H+38),P(l1,q0-30,H+74),P(l0,q0-30,H+74)], 'rgba(160,196,206,.85)');
         poly([P(l0,q1,H+38),P(l1,q1,H+38),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(140,176,188,.8)');

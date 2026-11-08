@@ -8,7 +8,7 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Seabreeze Trophies | **fits** | photo | not audited |
 | Dune Home & Garden | **fits** (grown 30 each side 2026-11-07; `cover ok`) | measured | fixed 2026-11-07 (no piers, trolleys 60 clear); also given W11 see-through (entrance and shopfront show the room) and its car park's night lamps |
 | Tide Pool Elementary | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: the doorway is the wall's own end, nothing near the near wall |
-| Tidewater Museum | **short**, 30 on all four sides | measured | not audited |
+| Tidewater Museum | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: portico, bay and doors read right against the room; night box still in `kf-night` |
 | Costa Palma Animal Shelter | **short**, the body stands at the floor's line, the magenta is in front of it | photo | not audited |
 | Brew & Bolt | **short**, the base stands at the floor's line | photo | not audited |
 | KTDE 98.1 The Tide | **short**, the street wall stands at the floor's line | photo | not audited |

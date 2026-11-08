@@ -1062,7 +1062,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1688&view=2"
 },
 {
 "id": "kf-shelter",
