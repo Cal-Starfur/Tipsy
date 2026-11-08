@@ -1053,7 +1053,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23468,-1006&view=2"
 },
 {
 "id": "kf-museum",
