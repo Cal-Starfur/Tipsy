@@ -526,8 +526,9 @@
 "title": "Letters on the Hill: face wash under roof edges; ranger inside her kiosk",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29330,-800&view=2"
 },
 {
 "id": "x1",
