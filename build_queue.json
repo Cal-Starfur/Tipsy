@@ -499,8 +499,9 @@
 "title": "Trophies alley fence to 0.3 over the room",
 "spec": "docs/state/HANDOFF.md",
 "deps": [],
-"status": "pending",
-"group": "Fleet and missions"
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2"
 },
 {
 "id": "m2",
