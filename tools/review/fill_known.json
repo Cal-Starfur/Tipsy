@@ -1,1 +1,5 @@
-{}
+{
+  "bots:courierbot": { "note": "a 5 px sliver of the body's seam fill along its outline edge (score 460-490, just over 400); no disc over anything, looked at 2026-11-08" },
+  "bots:patrolbot": { "note": "the same outline sliver on the capsule's silhouette (474 at every heading); nothing painted over a neighbour, looked at 2026-11-08" },
+  "bots:amr": { "note": "the same outline sliver along the pallet and boxes' edge (400-460); nothing painted over a neighbour, looked at 2026-11-08" }
+}
