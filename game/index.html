@@ -76723,23 +76723,27 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
    beak of an arrow pointing up the road. a runs east, the board faces the
    city (+b). Game units. ---- */
 {
-  name:'Harbor Sign', xh: 320, base:'Sign', hood:'The Flats', edited:true, zs:1, ww: 600, dd: 40,
+  name:'Harbor Sign', xh: 640, base:'Sign', hood:'The Flats', edited:true, zs:1, ww: 1240, dd: 40,
   head:'the Pelican Harbor sign at the foot of Harbor Road', tags:['sign'], desc:'The Pelican Harbor sign.',
   draw(p){
-    if(!inView(-320, 320, -20, 20, 0, 330)) return;
+    if(!inView(-620, 620, -20, 20, 0, 660)) return;
     const NAVY = '#1f3a4d', GOLD = '#e8b54a', WHITE = '#f3efe6';
-    for(const a of [-250, 250]) box(a - 12, a + 12, -12, 12, 0, 300, '#e8e4da', WHITE, '#d6d0c2');
+    /* OVER THE ROAD (Sir, 2026-11-09: "I want it to be over the road and I want the arrow removed"): a gantry. Centred on
+       the road's centreline, its two white posts stand on the sidewalks (560 either side) and a beam carries the board
+       290 up, clear of the trucks. The arrow is gone. */
+    const LIFT = 290;
+    for(const a of [-560, 560]) box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
+    box(-572, 572, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
     /* the board holds both lines (Sir, 2026-10-02: "the pelican harbor
        signe doesnt fit the words" -- HARBOR, 7 x 9 = 63 tall from 186,
        hung 27 below a board that stopped at 150). A blockWord is 7 x px
        tall from its top: PELICAN 288..218, the rule 206..212, HARBOR
        196..133, on a board 110..300 */
-    slab(-300, 300, 110, 300, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
-    F(-286, 286, 206, 212, GOLD, null, 0, 14.4);
-    blockWord('PELICAN', 0, 288, 10, 14.6, WHITE, null);
-    blockWord('HARBOR', 0, 196, 9, 14.6, GOLD, null);
-    poly([P(200, 14.8, 172), P(236, 14.8, 172), P(236, 14.8, 184), P(254, 14.8, 166), P(236, 14.8, 148), P(236, 14.8, 160), P(200, 14.8, 160)], WHITE);
-    for(const a of [-250, 250]) ball(a, 0, 306, 14, GOLD);
+    slab(-300, 300, 110 + LIFT, 300 + LIFT, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
+    F(-286, 286, 206 + LIFT, 212 + LIFT, GOLD, null, 0, 14.4);
+    blockWord('PELICAN', 0, 288 + LIFT, 10, 14.6, WHITE, null);
+    blockWord('HARBOR', 0, 196 + LIFT, 9, 14.6, GOLD, null);
+    for(const a of [-560, 560]) ball(a, 0, 626, 14, GOLD);
   }
 },
 /* ---- THE BAIT & TACKLE KIOSK on the harbor apron: a clapboard hut under
@@ -134122,8 +134126,12 @@ function harborGeo(){
   /* the apron: the harbor's sign at the foot of the road (solid at its two
      posts), boats on trailers, a kayak rack, the bait kiosk, palms in tubs */
   const AX = (apron.x0 + apron.x1)/2;
-  props.push({ kind:'sign', x: AX, y: -1150, r: 0 });
-  for(const sd of [-1, 1]) props.push({ kind:'post', x: AX + sd*250, y: -1150, r: 18 });
+  /* the sign is a gantry over the road now (Sir, 2026-11-09): centred on the road, its posts on the two sidewalks; and
+     the apron strip it stood on takes another boat on a trailer */
+  props.push({ kind:'sign', x: RX, y: -1150, r: 0 });
+  for(const sd of [-1, 1]) props.push({ kind:'post', x: RX + sd*560, y: -1150, r: 18 });
+  props.push({ kind:'trailer', x: AX - 20, y: -1150, r: 170, k: 11 });
+  for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: -1150 + d, r: 150 });
   /* the trailers lie along the apron now, at twice the size (see
      drawHarborTrailer): bays of 950, solid down their length as three discs */
   for(let k = 0, y = -2900; y > -6200; y -= 950, k++){
