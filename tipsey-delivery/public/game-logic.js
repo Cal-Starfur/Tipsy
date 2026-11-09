@@ -54032,6 +54032,7 @@ function houseCanopy(fn){
        back on the concourse at D - SD -- glass with an open doorway (its
        way in from the mall) under its sign. Each piece its own item. */
     for(const sh of M.FRONT){
+      const _n0 = items.length;                                                  // (its pieces are tagged `fr` below: the street sees into them, queueMallThrough)
       const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bS = D + M.SOUT, bF = bS - M.SD, ZS = 170, dw = 56;   // its street wall on the street's shop line, SD deep
       const fl = sh.food ? '#efe6da' : '#e6dccb';
       /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) */
@@ -54048,7 +54049,7 @@ function houseCanopy(fn){
          the double door, the sign board and the awning -- cut at the board's
          top. The glass is lighter than outside's so the shop shows through. */
       const bay = mallStreetBay(st), ea = x => x - MALL_ENT.AC + 2430;
-      items.push({ a: mid, b: bS + 15, z: 0, solids: [wallSolid(a0, a1, bS, bS + 30, DZ)], draw: () => {
+      items.push({ a: mid, b: bS + 15, z: 0, streetWall: true, solids: [wallSolid(a0, a1, bS, bS + 30, DZ)], draw: () => {
         const FB = bS + 30, F0 = (x0, x1, z0, z1, c, o) => F(x0, x1, AXZ(z0), AXZ(z1), c, null, 0, FB + o);
         if(!bay){ F(a0, a1, 0, DZ, wallD, null, 0, FB); return; }
         const [b0x, b1x, , dmx] = bay, b0 = ea(b0x), b1 = ea(b1x), dm = ea(dmx), dwx = 56;
@@ -54253,6 +54254,20 @@ function houseCanopy(fn){
           for(let b = bF + 150; b < bS - 150; b += 70) fit(R0 + 160, R0 + 180, b - 10, b + 10, 40, null, null, () => cyl(R0 + 170, b, 0, 40, 10, '#c0602e', '#e07a44'));
         } else for(const [ta, tb] of [[R0 + 60, bF + 150], [R1 - 50, bF + 260], [R0 + 60, bF + 370]]) stoolTable(ta, tb, 2);
       }
+      /* THE WINDOW DISPLAY (Sir, 2026-11-09: "we want to see the interior of these shops through the windows"): the strip of
+         floor behind the street glass is all the camera sees of a shop from the pavement, so it is dressed -- a low plinth
+         either side of the doorway with the brand's goods on it, as the outside once painted on the glass. The way through
+         (|a - mid| < 90) stays clear; the right-hand one stops short of the till's end where a trade stacks things there */
+      const display = (da0, da1, seed) => { if(da1 - da0 < 70) return;
+        fit(da0, da1, bS - 74, bS - 34, 22, '#f1ead9', shade(col, 0.7), () => {
+          const n = Math.max(2, Math.floor((da1 - da0)/62));
+          for(let m = 0; m < n; m++){
+            const ga = da0 + 31 + m*((da1 - da0 - 62)/Math.max(1, n - 1)), gb = bS - 54, kind = (st.k + m + seed) % 3, h = 30 + ((st.k + m + seed) % 3)*14, c = shade(col, 1.1 + 0.12*((m + seed) % 3));
+            if(kind === 1) cyl(ga, gb, 22, 22 + h, 11, c, shade(c, 1.15));
+            else if(kind === 2) ball(ga, gb, 22 + h*0.6, 14, c, shade(c, 1.15));
+            else box(ga - 12, ga + 12, gb - 12, gb + 12, 22, 22 + h, shade(c, 1.1), c, shade(c, 0.8)); } }); };
+      display(L0 + 6, L1 - 6, 0); display(R0 + 6, R1 - 80, 1);
+      for(let q = _n0; q < items.length; q++) items[q].fr = true;
     }
     /* THE ENTRANCE, FROM INSIDE, AS IT IS OUTSIDE (Sir, 2026-10-14: "we still
        need to match the interior mall entrance to the exterior mall
@@ -73303,7 +73318,11 @@ marinaEntry(),
     /* AND THE PLAZA'S OWN DOORS (MALL_ENT), the main entrance's two pairs (the census, 2026-10-30: painted shut, the
        crowd and Tipsey walked through the glass): they part for the crowd, and for him once he has the password
        (ent: POCKET_GATES' rule); their glass as see-through as the painted pair was */
-    .concat(MALL_ENT.doors.map(([d0, d1]) => ({ a: d0 + 4, w: d1 - d0 - 8, b: MALL_PLAN.BF + 1.9, z0: 3, z1: MALL_ENT.H - 4, walk: MALL_PLAN.BF + 40, ent: true, glass: 'rgba(170,210,224,.40)' }))),
+    .concat(MALL_ENT.doors.map(([d0, d1]) => ({ a: d0 + 4, w: d1 - d0 - 8, b: MALL_PLAN.BF + 1.9, z0: 3, z1: MALL_ENT.H - 4, walk: MALL_PLAN.BF + 40, ent: true, glass: 'rgba(170,210,224,.40)' })))
+    /* AND THE FRONT ROW'S SIX STREET DOORS (the census's O2, 2026-11-09: painted, a black rectangle that only opened for
+       the pickup worker, and the shop behind it nothing): the same sliding pair as the anchors', parting for the crowd and
+       the pickup worker (not for him: he cannot go in -- bay), the shop seen through it */
+    .concat(['W', 'E'].flatMap(w => MALL_PLAN.STREET[w].map(([, , , dm]) => ({ a: dm - 48, w: 96, b: MALL_PLAN.CF + 1.2, z0: 3, z1: 115, walk: MALL_PLAN.CF + 40, bay: true, glass: 'rgba(170,210,224,.34)' })))),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#27313a'); },
   vol: mallVol(),
   head:'Maritime Mall, three rim lots wide along the top of The Flats',
@@ -73353,7 +73372,7 @@ marinaEntry(),
     /* (and the anchors' rooms either side, to their building line: they are
        the interior's too now, MALL_IN.ANCH) */
     const CUTS = MALL_SHELL_CUT ? [[0, _ia(0), BF], [_ia(0), _ia(_cw[0]), MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF],
-                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [[WA0, WA1, BF], [_ia(_cw[0]), _ia(_cw[1]), BF], [EA0, EA1, BF]];   // (and the concourse's behind the main entrance's glass: Sir, 2026-10-29)   // (from the street, the anchors' stores show through their fronts: MALL_THROUGH)   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
+                                  [_ia(_cw[1]), _ia(MALL_IN.W), MALL_PLAN.CF], [_ia(MALL_IN.W), LEN, BF]] : [[WA0, WA1, BF], [MALL_PLAN.CW[0], MALL_PLAN.CW[1], MALL_PLAN.CF], [_ia(_cw[0]), _ia(_cw[1]), BF], [MALL_PLAN.CE[0], MALL_PLAN.CE[1], MALL_PLAN.CF], [EA0, EA1, BF]];   // (and under the front row's shops, seen into from the street: their floors, queueMallThrough)   // (and the concourse's behind the main entrance's glass: Sir, 2026-10-29)   // (from the street, the anchors' stores show through their fronts: MALL_THROUGH)   // (the anchors' to the site's ends: a strip of paving left past Tidewater's west wall painted over its mezzanine)
     const CUT = CUTS.length ? [CUTS[0][0], CUTS[CUTS.length - 1][1], MALL_PLAN.CF] : null;   // the joints' simple bound
     const Tc = (a0, a1, b0, b1, z, col, k = 0) => {
       if(a1 <= a0 || b1 <= b0) return;
@@ -73544,10 +73563,31 @@ marinaEntry(),
        own BF inside these two. Painted west to east it still hides right:
        each run's seen end, now standing out past the building line, is
        left of the next mass on the screen, never under it. */
+    /* THE FRONT ROW IS SEEN INTO (Sir, 2026-11-09: "a simple black shape in the mall shops from the sidewalk ... we want
+       to see the interior of these shops through the windows and door"): the street shops' glass and doorway are holes
+       in the concourse's front, not paint over a solid wall -- the shop behind them is the inside's own front row, drawn
+       live under the building (queueMallThrough, `fr` pieces and the shoppers in them), as the anchors' stores are */
+    const bayHoles = wing => MALL_PLAN.STREET[wing].flatMap(([b0, b1, , dm]) => [[b0 + 28, b1 - 12, 14, 128], [dm - 52, dm + 52, 0, 120]]);
+    const holedF = (holes, u0, u1, z0, z1, c, bf, o) => {                         // a face u0..u1 x z0..z1 on bf + o, less the holes
+      const zs = [z0, z1]; for(const h of holes){ if(h[2] > z0 && h[2] < z1) zs.push(h[2]); if(h[3] > z0 && h[3] < z1) zs.push(h[3]); }
+      zs.sort((p, q) => p - q);
+      for(let i = 0; i + 1 < zs.length; i++){ const za = zs[i], zb = zs[i + 1]; if(zb - za < 0.01) continue;
+        const cut = holes.filter(h => h[2] <= za && h[3] >= zb && h[1] > u0 && h[0] < u1).sort((p, q) => p[0] - q[0]);
+        let u = u0; for(const h of cut){ if(h[0] > u) F(u, h[0], za, zb, c, null, 0, bf + o); u = Math.max(u, h[1]); }
+        if(u < u1) F(u, u1, za, zb, c, null, 0, bf + o); }
+    };
+    /* (mass(), its front face holed: top, the seen end, the front round the holes, plinth, coping) */
+    const massHoled = (a0, a1, h, col, capCol, bf, holes) => {
+      const bb = bbOf(a0, a1), o = P(a0, bb, 0), pa = P(a0 + 1, bb, 0), endA = (pa.y - o.y) > 0 ? a1 : a0;
+      T(a0, a1, bb, bf, h, shade(col, 1.05)); S(endA, bb, bf, 0, h, shade(col, .78));
+      holedF(holes, a0, a1, 0, h, col, bf, 0);
+      holedF(holes, a0, a1, 0, 20, shade(col, .62), bf, 0.4);
+      slab(a0 - 6, a1 + 6, h, h + 18, bf + 8, bb - 6, capCol, shade(capCol, .72), shade(capCol, 1.12));
+    };
     const concourse = (a0, a1, wing) => {
       const BF = MALL_PLAN.CF;
       if(!inView(a0 - 10, a1 + 10, bbOf(a0, a1) - 10, BF + 10, 0, HC + 60)) return;
-      mass(a0, a1, HC, '#ece6da', '#cfc7b8', BF);
+      massHoled(a0, a1, HC, '#ece6da', '#cfc7b8', BF, bayHoles(wing));
       roofKit(a0, a1, HC);
       if(state.roof) for(let sb = -460; sb - 300 > bbOf(a0, a1) + 100; sb -= 470)
         for(let a = a0 + 120; a < a1 - 120; a += 360) T(a, a + 200, sb - 300, sb, HC + 1, 'rgba(150,196,214,.75)', '#8fa6b0', 1);  // skylights
@@ -73565,7 +73605,8 @@ marinaEntry(),
            draw commands a frame at the closest zoom, which shows one or two */
         if(!inView(b0, b1, BF, BF + 2, 0, 190)) continue;
         F(b0, b0 + 16, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);                 // pier
-        F(b0 + 28, b1 - 12, 14, 128, glass, null, 0, BF + 0.8);                    // shop glass
+        /* the shop glass, light: the shop is behind it (the pane stops at the doorway, whose leaves are live: slideDoors) */
+        for(const [g0, g1] of [[b0 + 28, dm - 52], [dm + 52, b1 - 12]]) F(g0, g1, 14, 128, 'rgba(150,196,214,.26)', null, 0, BF + 0.8);
         F(b0 + 28, b1 - 12, 120, 128, mull, null, 0, BF + 1.2);
         for(const a of [b0 + 28 + (dm - dw - b0 - 28)/2, dm + dw + (b1 - 12 - dm - dw)/2]) F(a - 3, a + 3, 14, 128, mull, null, 0, BF + 1.2);   // the inside's posts
         /* THE DOOR, to a person's scale (Sir, 2026-09-30, a worker in the
@@ -73574,16 +73615,13 @@ marinaEntry(),
            worker standing in it. Now a pair of glass leaves from the
            ground to the transom, 104 across by 180 -- a shop's double
            door, about one and a half times the person in it. */
-        {
-          F(dm - 52, dm + 52, 0, 120, '#2b3540', null, 0, BF + 1.2);
-          for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]])
-            F(l0, l1, 3, 115, 'rgba(170,206,220,.75)', null, 0, BF + 1.6);
-          for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, BF + 2.0); }
+        {                                                                          // the doorway: its frame only -- the leaves are live (slideDoors), the shop shows through
+          F(dm - 52, dm - 47, 0, 120, '#2b3540', null, 0, BF + 1.2); F(dm + 47, dm + 52, 0, 120, '#2b3540', null, 0, BF + 1.2);
+          F(dm - 52, dm + 52, 115, 120, '#2b3540', null, 0, BF + 1.2);
+          F(dm - 47, dm + 47, 0, 3, '#c9cfd4', null, 0, BF + 1.4); }              // the track
         F(b0 + 40, b1 - 24, 138, 166, col, null, 0, BF + 1.0);                     // sign board
         if(st.sign) blockWordIn(st.sign, b0 + 52, b1 - 36, 143, 161, BF + 0.4, '#fbf7ee', null, 4);
-        /* goods in the window: a few coloured blocks behind the glass */
-        for(let g0 = b0 + 44, m = 0; g0 + 34 < b1 - 20; g0 += 62, m++){ if(Math.abs(g0 + 17 - dm) < 92) continue;
-          F(g0, g0 + 34, 20, 40 + ((k + m) % 3)*18, shade(col,1.2), null, 0, BF + 1.0); }
+        /* (no goods painted in the window: the shop's own fittings are behind the glass now) */
       }
       F(a1 - 16, a1, 0, FL2 - 14, '#d8d0c0', null, 0, BF + 0.8);
     };
@@ -96231,6 +96269,10 @@ class WorldScene extends Phaser.Scene {
     const M = MALL_IN, X0 = pk.x0 + sh.dx, Y0 = pk.y0 + sh.dy;
     const C0 = M.CURTAIN[0] - 60, C1 = M.CURTAIN[1] + 60, ATD = M.D - 1900;   // (the main entrance's glass and the concourse behind it, as the anchors': Sir, 2026-10-29)
     const anch = M.ANCH.some(R => near(Math.max(X0 + R.a0, Math.min(X0 + R.a1, this.camX)), Y0 + M.D)) || near(Math.max(X0 + C0, Math.min(X0 + C1, this.camX)), Y0 + M.D);
+    /* THE FRONT ROW (M.FRONT), seen through its street glass and doorways: the six shops' own pieces, and the shoppers in
+       them (Sir, 2026-11-09: "we want to see the interior of these shops through the windows and door") */
+    const bSt = M.D + M.SOUT, front = M.FRONT.some(sh => near(Math.max(X0 + sh.a0, Math.min(X0 + sh.a1, this.camX)), Y0 + bSt - M.SD/2));
+    const inFront = (a, b) => b > bSt - M.SD - 10 && b < bSt - 10 && M.FRONT.some(sh => a > sh.a0 && a < sh.a1);   // (inside one of them, behind its glass)
     const fr = hoodRimFrame(site), tmp = [], keep = MALL_HERE;
     /* WHILE ITS SHELL FADES BACK IN ROUND HIM (he has just come out of it: MALL_SHELL.room), the store as he left it:
        down in that room, its floor over it off, the whole ground floor and its walls; then, the shell whole, in none
@@ -96239,9 +96281,11 @@ class WorldScene extends Phaser.Scene {
     if(sk >= 1) MALL_SHELL.room = null;
     MALL_HERE = fading ? MALL_SHELL.room : 'OUT';
     const lvl0 = MALL_LVL; MALL_LVL = 0;
-    if(anch || fading) try {
+    if(anch || fading || front) try {
       this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => {
         const a = it.a || 0, atr = a > C0 && a < C1 && it.b > ATD;
+        if(it.fr) return front && !fading && !it.streetWall;                    // (a front-row shop's: not its street wall, the building's own front is that)
+        if(!(anch || fading)) return false;
         if(!(a < -15 || a > M.W + 15 || atr) || it.fx) return false;
         if(fading) return it.lvl !== 1 && !it.up && (it.b < M.D - 5 || it.shellIn);   // (its front cut down to the band too, going as the shell comes: shellIn)
         if(it.b >= M.D - 5) return false;
@@ -96265,7 +96309,8 @@ class WorldScene extends Phaser.Scene {
       const a = q.a, b = q.b, room = mallRoomOf(a);
       const out = b > M.D - 20 && (room !== 'M' || (a > M.CURTAIN[0] && a < M.CURTAIN[1]) || b > M.D + M.SOUT - 10);
       const inAtr = room === 'M' && a > C0 && a < C1 && b > ATD;                // (behind the main entrance's glass)
-      if(!out && !inAtr && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
+      const inShop = front && !fading && room === 'M' && inFront(a, b);          // (in a front-row shop: its glass and doorway show them)
+      if(!out && !inAtr && !inShop && (room === 'M' || (b < M.D - 450 && !(fading && room === MALL_SHELL.room)))) continue;   // (the concourse's: no glass to see them through; an anchor's, too deep in to show through its glass -- but all of the one he has just come out of, while its shell fades in)
       const wx = X0 + a, wy = Y0 + b;
       if(!this.visProp("people", wx, wy, 0)) continue;
       const L = m.look, mv = q.moving && !m.held;
@@ -106780,16 +106825,19 @@ class WorldScene extends Phaser.Scene {
          its shoppers, a hair in front of the building */
       if(_ent && _ent.slideDoors) _ent.slideDoors.forEach((d, i) => {             // (from inside the mall too: the anchors' doors are these, MALL_SHELL_CUT)
         const q = fr.toWorld(d.a + d.w/2, d.b), u = this.shopDoorOpen("rim|" + rim.name + "|d" + i, q.x, q.y, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null,
-          !d.ent || mallPasswordOwned());                                         // (the main entrance: him only with the password, POCKET_GATES)
+          !d.bay && (!d.ent || mallPasswordOwned()));                             // (the main entrance: him only with the password, POCKET_GATES; a street shop's: never, he cannot go in)
         /* (cached shut or open, live only while they move, as RIM_GATES: four pairs live were 336 draws a frame) */
         const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
-        vq.push({ depth: q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
+        /* (a street shop's pair goes in the hole the building's front leaves for it, so just under the building's image and
+           over the shop seen through it: its awning and frame are the building's, over the leaves, not the leaves' over them) */
+        vq.push({ depth: d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
       /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
          into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
          shut glass): each its own door state, parted for the crowd and anyone listed coming up to it (shopDoorOpen),
          not for him (he cannot go in); drawn live over the front only while open -- shut, the painted pair is it */
-      if((rim.name === 'Maritime Mall' || rim.name === 'Palmline Tower') && typeof ALL_RIM_STORES !== "undefined"){
+      /* (the mall's own street bays are slideDoors now, above: Palmline Tower's pairs are the ones left here) */
+      if(rim.name === 'Palmline Tower' && typeof ALL_RIM_STORES !== "undefined"){
         const pk = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName), rvv = { x: fr.rv.x, y: fr.rv.y };
         for(const st of ALL_RIM_STORES){
           if(storeSiteOf(st) !== rim.name || !(st.site || mallStreetBay(st)) || st === pk) continue;   // (today's pickup: drawPickupUnit has its door)
@@ -106832,7 +106880,7 @@ class WorldScene extends Phaser.Scene {
         const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
         /* a street shop's or Palmline's own glass pair opens for him (glassPairDoor); an anchor's is live
            already (slideDoors, which open for him: shopDoorOpen), and the atrium's are the pocket's */
-        const pair = !!(ms.site || mallStreetBay(ms));
+        const pair = !!ms.site;                                                   // (the mall's street bays too are slideDoors now: they part for the worker, shopDoorOpen)
         vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t,
           pair ? this.glassPairDoor(g, u.x + fr.dv.x*da, u.y + fr.dv.y*da, fr.dv, rv, 0, LIB.zs(rim.name), ms.site ? { out: 40, z: 98 } : { out: 60, z: 104 }) : true) });
       }
