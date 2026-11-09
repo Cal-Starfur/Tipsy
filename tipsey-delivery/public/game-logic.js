@@ -26759,7 +26759,10 @@ function walkinDefine(spec){
     plan.shell = { x0: x0 - 30, y0: y0 - 30, x1: x1 + 30, y1: y1 + 30 };            // (W22: the floor grown by the walls' thickness: what the exterior's body must cover)
     plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
                   ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
-    return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
+    /* (spec.rise: the building stands that high over z 0 -- the security post's graded lawn. The room is drawn at z 0, so it is
+       moved up the screen by the same: a step of -rise on both axes lifts it rise*K and leaves x alone, the iso's own algebra) */
+    const rz = spec.rise || 0;
+    return (plan._view = { dx: x0 - spec.x0 - rz, dy: y0 - spec.y0 - rz, rise: rz });
   };
   plan.view = meas;
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
@@ -26791,7 +26794,7 @@ function walkinCoverage(){
     const v = pk.view && pk.view(), L = pk.from && typeof landmarkLabWorld === 'function' ? landmarkLabWorld(pk.from) : null, ent = LIB.get(pk.from);
     const f = ent && ent.vol && ent.vol.foot;
     if(!v || !L || !f) return { name: pk.name, short: null };
-    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy;
+    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx + (v.rise || 0), Y0 = pk.y0 + v.dy + (v.rise || 0);
     const sh = [X0 - WALKIN_WALL - Math.min(...q.map(r => r.x)), Y0 - WALKIN_WALL - Math.min(...q.map(r => r.y)),
                 Math.max(...q.map(r => r.x)) - (X0 + pk.w + WALKIN_WALL), Math.max(...q.map(r => r.y)) - (Y0 + pk.d + WALKIN_WALL)].map(n => Math.round(-n));
     if(sh.some(n => Math.abs(n) > 300)) return { name: pk.name, short: null };         // (a foot in another frame than the lab's: not comparable)
@@ -27258,7 +27261,7 @@ function walkinLifeTick(scene, pk){
   for(const s of R.people) if(s.with){ const L = R.people.find(q => q.id === s.with); if(L) L._pair = s; }
   /* him, in the room's frame: in it, or out on the street (its street's lines: the view) */
   const ow = scene.ow, v = pk.view && pk.view();
-  const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx, b: ow.py - pk.y0 - v.dy } : null;
+  const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx - (v.rise || 0), b: ow.py - pk.y0 - v.dy - (v.rise || 0) } : null;
   R.scene = scene;
   walkinDayStep(scene, R, now, fresh);
   for(const s of R.people){
@@ -27324,7 +27327,7 @@ function walkinDoorPlane(R){
   if(R.door) return R.door;
   const pk = R.pk, v = pk.view && pk.view(), dr = pk.doors && pk.doors[0], d = dr && (dr.world ? dr.world() : pocketOutsideDoor(pk, dr));
   if(!v || !d) return null;
-  const P0 = [d.x - pk.x0 - v.dx, d.y - pk.y0 - v.dy], n = [Math.round(d.ox), Math.round(d.oy)], t = [-n[1], n[0]];
+  const P0 = [d.x - pk.x0 - v.dx - (v.rise || 0), d.y - pk.y0 - v.dy - (v.rise || 0)], n = [Math.round(d.ox), Math.round(d.oy)], t = [-n[1], n[0]];
   const ax = n[0] ? 0 : 1, wall = n[ax] > 0 ? (ax ? pk.d : pk.w) : 0, deep = Math.abs(P0[ax] - wall) + WALKIN_DAY.inner;
   return (R.door = { P0, n, t, w: d, inner: [P0[0] - n[0]*deep, P0[1] - n[1]*deep], half: dr.half || 60 });
 }
@@ -27345,7 +27348,7 @@ function walkinStreetPlan(scene, R){
   if(R.plan) return R.plan;
   const pk = R.pk, D = walkinDoorPlane(R), S = pk.street, v = pk.view && pk.view();
   if(!D || !S || !v || !scene || !scene.ow) return null;
-  const d = D.w, toR = q => [q[0] - pk.x0 - v.dx, q[1] - pk.y0 - v.dy];
+  const d = D.w, toR = q => [q[0] - pk.x0 - v.dx - (v.rise || 0), q[1] - pk.y0 - v.dy - (v.rise || 0)];
   const o0 = [d.x + D.n[0]*WALKIN_DAY.out, d.y + D.n[1]*WALKIN_DAY.out], to = [d.x + S.to[0], d.y + S.to[1]];
   const C = WALKIN_DAY.cell, M = 700, x0 = Math.min(o0[0], to[0]) - M, y0 = Math.min(o0[1], to[1]) - M;
   const nx = Math.ceil((Math.max(o0[0], to[0]) + M - x0)/C), ny = Math.ceil((Math.max(o0[1], to[1]) + M - y0)/C);
@@ -86623,6 +86626,7 @@ function spScreenBox(k){
   return { a0: m0 + c*w + 3, a1: m0 + (c + 1)*w - 3, z0: 132 - r*52, z1: 178 - r*52 };
 }
 const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
+  rise: SP_PLAN.Z,
   lab: [8990, 9400, -6390, -6060], door: { a: 9090, b: -6030, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
   /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
   openings: [{ lab: [[9040, -6029.4], [9140, -6029.4]], z: [0, 112] }, { lab: [[9205, -6029.4], [9335, -6029.4]], z: [34, 104], glass: true },
@@ -86826,7 +86830,7 @@ function nwGuardAt(now){ const G = NW.guard; if(!G) return null; const p = walkP
 function nwGuardRoomAt(now){
   const p = nwGuardAt(now), pk = POCKETS.find(q => q.name === SP_PLAN.room), v = pk && pk.view();
   if(!p || !v) return null;
-  return { x: p.x - v.dx, y: p.y - v.dy, th: p.th };
+  return { x: p.x - v.dx - (v.rise || 0), y: p.y - v.dy - (v.rise || 0), th: p.th };
 }
 function nwRoomW(a, b){ return { x: 8990 + a, y: -6390 + b }; }
 function nwLunaAt(now){ const L = NW.luna; if(!L) return null; if(L.P){ const p = walkPathAt(L.P, now); if(p){ if(p.there && L.P.gone){ NW.luna = null; return null; } return Object.assign(p, { climb: false }); } }
