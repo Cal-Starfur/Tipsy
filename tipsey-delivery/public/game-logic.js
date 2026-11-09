@@ -74783,7 +74783,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       S(a - 0.8, 4, 6.5, hz - 1.2, hz + 1.2, '#d9b45a');
     };
     /* the shadow on the water, and the lap of lighter water round the hull */
-    poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
+    /* (the shadow on the water only afloat: on a trailer it hung in the air under the hull, and read as a see-through hull) */
+    if(afloat) poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
     if(afloat) poly(bot.map(([a, b]) => P(a*1.04 + (a > 0 ? 4 : -4), b*1.22, 0.4)), 'rgba(214,236,244,.55)');
     /* a side face is seen when its outward normal steps DOWN the screen */
     const seen = (q0, q1) => { const ma = (q0[0] + q1[0])/2, mb = (q0[1] + q1[1])/2;
@@ -74800,7 +74801,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
       /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
       const z12 = 12/Hd;
-      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], dark ? '#e8e2d4' : TRIM);
+      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], !afloat ? '#7d2f2a' : dark ? '#e8e2d4' : TRIM);   // (the boot stripe; a trailered hull shows its red bottom paint)
       poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
       /* portholes down the long flank of a cabin boat */
@@ -75023,8 +75024,17 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(-20, 20, -hb*0.75, hb*0.75, Hd - 14, Hd - 2, TEAK, '#a8865a', '#8e7048');  // the thwart
       box(-L*0.4, -L*0.4 + 26, -hb*0.5, -hb*0.5 + 16, Hd - 14, Hd - 2, '#c8423a', '#a8352e', '#8f2d27');   // the fuel tank
       box(L/2 - 40, L/2 - 30, -4, 4, Hd, Hd + 4, '#d8dde2', '#aab2ba', '#959ea7');  // the bow cleat
-      box(-L/2 - 26, -L/2 + 6, -16, 16, Hd - 10, Hd + 34, '#2b2f36', '#3b3f45', '#24272c'); // the outboard
-      box(-L/2 - 22, -L/2 - 8, -6, 6, Hd - 40, Hd - 10, '#3b3f45', '#2b2f36', '#24272c');   // its leg into the water
+      /* THE OUTBOARD, PASSED (Sir, 2026-11-09: "they suck"): a white cowl with a coloured stripe and a dark cap on the
+         transom bracket, a leg with a cavitation plate and a prop, tilted up when the boat is on its trailer */
+      box(-L/2 - 4, -L/2 + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                  // the transom bracket
+      box(-L/2 - 28, -L/2 + 2, -13, 13, Hd + 8, Hd + 40, '#eef1f3', '#cdd3d8', '#aab1b7');                 // the cowl
+      box(-L/2 - 28, -L/2 + 2, -13.6, 13.6, Hd + 20, Hd + 25, TRIM, shade(TRIM, .85), shade(TRIM, .7));    // its stripe
+      box(-L/2 - 26, -L/2, -11, 11, Hd + 40, Hd + 45, '#2c3338', '#22282c', '#1a1f22');                    // its cap
+      const lz = afloat ? Hd - 38 : Hd - 4;                                                                // (trailered: the leg is tilted up)
+      box(-L/2 - 22, -L/2 - 6, -6, 6, lz, Hd + 8, '#dfe4e7', '#bcc3c8', '#9ea6ac');                        // its leg
+      box(-L/2 - 34, -L/2 - 4, -9, 9, lz - 3, lz + 2, '#9aa1a6', '#7d858b', '#697076');                    // the cavitation plate
+      box(-L/2 - 30, -L/2 - 26, -2, 2, lz - 12, lz + 2, '#b8bec3', '#9aa1a6', '#80878d');                  // the prop's boss
+      box(-L/2 - 32, -L/2 - 28, -14, 14, lz - 7, lz - 3, '#b8bec3', '#9aa1a6', '#80878d');                 // and its blades
       return;
     }
     if(kind === 'sail'){
@@ -75134,23 +75144,27 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
    beak of an arrow pointing up the road. a runs east, the board faces the
    city (+b). Game units. ---- */
 {
-  name:'Harbor Sign', xh: 320, base:'Sign', hood:'The Flats', edited:true, zs:1, ww: 600, dd: 40,
+  name:'Harbor Sign', xh: 640, base:'Sign', hood:'The Flats', edited:true, zs:1, ww: 1240, dd: 40,
   head:'the Pelican Harbor sign at the foot of Harbor Road', tags:['sign'], desc:'The Pelican Harbor sign.',
   draw(p){
-    if(!inView(-320, 320, -20, 20, 0, 330)) return;
+    if(!inView(-620, 620, -20, 20, 0, 660)) return;
     const NAVY = '#1f3a4d', GOLD = '#e8b54a', WHITE = '#f3efe6';
-    for(const a of [-250, 250]) box(a - 12, a + 12, -12, 12, 0, 300, '#e8e4da', WHITE, '#d6d0c2');
+    /* OVER THE ROAD (Sir, 2026-11-09: "I want it to be over the road and I want the arrow removed"): a gantry. Centred on
+       the road's centreline, its two white posts stand on the sidewalks (560 either side) and a beam carries the board
+       290 up, clear of the trucks. The arrow is gone. */
+    const LIFT = 290;
+    for(const a of [-560, 560]) box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
+    box(-572, 572, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
     /* the board holds both lines (Sir, 2026-10-02: "the pelican harbor
        signe doesnt fit the words" -- HARBOR, 7 x 9 = 63 tall from 186,
        hung 27 below a board that stopped at 150). A blockWord is 7 x px
        tall from its top: PELICAN 288..218, the rule 206..212, HARBOR
        196..133, on a board 110..300 */
-    slab(-300, 300, 110, 300, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
-    F(-286, 286, 206, 212, GOLD, null, 0, 14.4);
-    blockWord('PELICAN', 0, 288, 10, 14.6, WHITE, null);
-    blockWord('HARBOR', 0, 196, 9, 14.6, GOLD, null);
-    poly([P(200, 14.8, 172), P(236, 14.8, 172), P(236, 14.8, 184), P(254, 14.8, 166), P(236, 14.8, 148), P(236, 14.8, 160), P(200, 14.8, 160)], WHITE);
-    for(const a of [-250, 250]) ball(a, 0, 306, 14, GOLD);
+    slab(-300, 300, 110 + LIFT, 300 + LIFT, 14, -6, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
+    F(-286, 286, 206 + LIFT, 212 + LIFT, GOLD, null, 0, 14.4);
+    blockWord('PELICAN', 0, 288 + LIFT, 10, 14.6, WHITE, null);
+    blockWord('HARBOR', 0, 196 + LIFT, 9, 14.6, GOLD, null);
+    for(const a of [-560, 560]) ball(a, 0, 626, 14, GOLD);
   }
 },
 /* ---- THE BAIT & TACKLE KIOSK on the harbor apron: a clapboard hut under
@@ -98437,18 +98451,83 @@ class WorldScene extends Phaser.Scene {
       q([P(a1, b0, z1), P(a1, b1, z1), P(a1, b1, z0), P(a1, b0, z0)], fx);
       q([P(a0, b0, z1), P(a1, b0, z1), P(a1, b1, z1), P(a0, b1, z1)], top);
     };
-    for(const sd of [-1, 1]) bx(-40, 40, sd*70 - 12, sd*70 + 12, 0, 56, 0x3b3f45, 0x2b2f36, 0x24272c);   // the wheels
-    bx(-200, 170, -50, 50, 34, 44, 0x9aa1a6, 0x80878d, 0x6d747c);                                       // the frame
-    bx(-260, -200, -6, 6, 30, 40, 0x9aa1a6, 0x80878d, 0x6d747c);                                        // the tongue
+    /* THE TRAILER, PASSED (Sir, 2026-11-09: "these boats and trailers need a pass ... they suck"): galvanised side rails
+       and cross members under carpeted bunks the hull lies on, a bow stop and winch post, a drawbar A-frame to a coupler
+       with a jack, round tyres on hubs under mudguards, tail lights. a runs along the boat (tongue and bow at -a). */
+    const GAL = [0xc4cbd0, 0xa9b1b7, 0x8f979e], DK = [0x6f777e, 0x5b6269, 0x4a5056], BUNK = [0x3f5f68, 0x32505a, 0x274047];
+    const TYRE = 0x1d2024, TYRE2 = 0x2a2e33, HUB = 0xaab2b8, HUB2 = 0x7d858c;
+    const wheel = (b0, b1, a0, zc, r, outer) => {       // a round tyre on its hub: ring segments, then the faces
+      const N = 14, ring = [];
+      for(let i = 0; i < N; i++){
+        const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2, tm = (t0 + t1)/2;
+        if(Math.cos(tm) + Math.sin(tm) < -0.35) continue;                                   // turned from the camera
+        q([P(a0 + r*Math.cos(t0), b0, zc + r*Math.sin(t0)), P(a0 + r*Math.cos(t1), b0, zc + r*Math.sin(t1)),
+           P(a0 + r*Math.cos(t1), b1, zc + r*Math.sin(t1)), P(a0 + r*Math.cos(t0), b1, zc + r*Math.sin(t0))], i % 2 ? TYRE : TYRE2);
+      }
+      const disc = (rr, col) => { const pts = []; for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2; pts.push(P(a0 + rr*Math.cos(t), b1, zc + rr*Math.sin(t))); } q(pts, col); };
+      disc(r, TYRE); disc(r*0.72, 0x2f3338); disc(r*0.5, HUB); disc(r*0.2, HUB2);
+      if(outer) for(let i = 0; i < 5; i++){                                               // the wheel nuts
+        const t = i/5*Math.PI*2 + 0.3;
+        q([P(a0 + r*0.36*Math.cos(t) - 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) - 1.2), P(a0 + r*0.36*Math.cos(t) + 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) - 1.2),
+           P(a0 + r*0.36*Math.cos(t) + 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) + 1.2), P(a0 + r*0.36*Math.cos(t) - 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) + 1.2)], HUB2);
+      }
+    };
     const rr = mulberry32(0x5eed + k*131);
     const kind = rr() < 0.55 ? 'skiff' : 'motor';
+    const SE = kind === 'skiff' ? 140 : 190;                                               // the frame's stern end: just past the transom
+    const WA = kind === 'skiff' ? 38 : 55, WR = 27;                                        // the axle: aft of the middle
+    const fender = (b0, b1) => {                                                           // an arched mudguard over the tyre
+      for(let i = 0; i < 6; i++){
+        const t0 = Math.PI*(0.08 + 0.84*i/6), t1 = Math.PI*(0.08 + 0.84*(i + 1)/6), r0 = WR + 3, r1 = WR + 6;
+        q([P(WA + r0*Math.cos(t0), b0, WR + r0*Math.sin(t0)), P(WA + r0*Math.cos(t1), b0, WR + r0*Math.sin(t1)),
+           P(WA + r1*Math.cos(t1), b0, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b0, WR + r1*Math.sin(t0))], GAL[1]);
+        q([P(WA + r1*Math.cos(t0), b0, WR + r1*Math.sin(t0)), P(WA + r1*Math.cos(t1), b0, WR + r1*Math.sin(t1)),
+           P(WA + r1*Math.cos(t1), b1, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b1, WR + r1*Math.sin(t0))], i % 2 ? GAL[0] : GAL[1]);
+      }
+    };
+    /* the shadow on the paving: under the trailer and the boat on it, a little toward the camera */
+    this.quadOn(g, [P(-270, -74, 0), P(SE + 14, -74, 0), P(SE + 14, 86, 0), P(-270, 86, 0)], 0x000000, 0.14);
+    /* ---- the back: far wheel, tongue, frame, bunks, bow post ---- */
+    wheel(-66, -52, WA, WR, WR, false);
+    fender(-70, -48);
+    const bar = (b0, b1, b2, b3) => {                                                       // a drawbar leg, rail to coupler
+      q([P(-190, b0, 40), P(-190, b1, 40), P(-252, b3, 40), P(-252, b2, 40)], GAL[0]);
+      q([P(-190, b1, 40), P(-190, b1, 34), P(-252, b3, 34), P(-252, b3, 40)], GAL[1]);
+    };
+    bar(-42, -34, -9, -3); bar(34, 42, 3, 9);
+    bx(-276, -250, -9, 9, 32, 50, DK[0], DK[1], DK[2]);                                     // the coupler
+    bx(-268, -258, -3, 3, 50, 56, GAL[0], GAL[1], GAL[2]);                                  // its latch
+    bx(-236, -230, -3, 3, 2, 34, GAL[0], GAL[1], GAL[2]);                                   // the jack's leg...
+    bx(-242, -224, -9, 9, 0, 3, DK[0], DK[1], DK[2]);                                       // ...and its foot
+    bx(-205, -195, -44, 44, 34, 42, GAL[0], GAL[1], GAL[2]);                                // the front cross member
+    for(const sb of [-1, 1]) bx(-200, SE, sb*40 - 4, sb*40 + 4, 32, 42, GAL[0], GAL[1], GAL[2]);   // the side rails
+    for(const a of kind === 'skiff' ? [-120, -40, 30, 100] : [-120, -30, 40, 110]) bx(a - 4, a + 4, -40, 40, 33, 40, GAL[0], GAL[1], GAL[2]); // the cross members
+    bx(WA - 3, WA + 3, -66, 66, WR - 3, WR + 3, DK[0], DK[1], DK[2]);                       // the axle
+    for(const sb of [-1, 1]){                                                                // the bunks, on their posts
+      for(const a of [-140, -40, 60, SE - 50]) bx(a - 3, a + 3, sb*22 - 2, sb*22 + 2, 40, 44, DK[0], DK[1], DK[2]);
+      bx(-170, SE - 30, sb*22 - 7, sb*22 + 7, 44, 49, BUNK[0], BUNK[1], BUNK[2]);
+    }
+    bx(-176, -160, -22, 22, 42, 54, GAL[0], GAL[1], GAL[2]);                                // the bow stop's frame...
+    bx(-168, -160, -14, 14, 54, 66, 0x2a2e33, 0x1d2024, 0x14171a);                          // ...and its rubber
+    bx(-188, -172, -4, 4, 42, 78, GAL[0], GAL[1], GAL[2]);                                  // the winch post
+    bx(-190, -170, -10, 10, 70, 80, DK[0], DK[1], DK[2]);                                   // its winch
+    bx(-186, -176, 10, 14, 72, 78, 0xe0b23c, 0xc29a30, 0xa3822a);                           // its handle
+    /* ---- the boat, bow north, lowered onto the bunks ---- */
     /* at the fleet's size: L in world units, and no `side` -- not afloat */
     const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#f6f3ea', '#2f5f6e', '#7a2f2c', '#e9eef2'][Math.floor(rr()*4)],
                  trim: ['#1f3a4d', '#2f7f86', '#b8423a', '#c9a043'][Math.floor(rr()*4)] };
     const sh = LIB.get('Harbor Boat');
     if(sh) sh._boat = bt;
-    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x + b, y - a, h + 46*TS), null, this.K*BOAT_SC, null, true); }   // bow north, with the tongue
+    try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x + b, y - a, h + 49*TS), null, this.K*BOAT_SC, null, true); }   // bow north, with the tongue
     finally { if(sh) sh._boat = null; }
+    /* ---- the front: the camera-side wheel and mudguard, the tail lights ---- */
+    fender(48, 70);
+    wheel(52, 66, WA, WR, WR, true);
+    bx(WA - 12, WA + 12, 60, 71, 6, 24, 0x2a2e33, 0x1d2024, 0x14171a);                       // the mud flap
+    for(const sb of [-1, 1]){
+      bx(SE - 2, SE + 3, sb*40 - 7, sb*40 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
+      bx(SE - 2, SE + 3, sb*40 - 3, sb*40 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
+    }
   }
   /* the kayak rack: a timber frame and three tiers of kayaks */
   drawHarborRack(g, x, y){
@@ -132534,8 +132613,12 @@ function harborGeo(){
   /* the apron: the harbor's sign at the foot of the road (solid at its two
      posts), boats on trailers, a kayak rack, the bait kiosk, palms in tubs */
   const AX = (apron.x0 + apron.x1)/2;
-  props.push({ kind:'sign', x: AX, y: -1150, r: 0 });
-  for(const sd of [-1, 1]) props.push({ kind:'post', x: AX + sd*250, y: -1150, r: 18 });
+  /* the sign is a gantry over the road now (Sir, 2026-11-09): centred on the road, its posts on the two sidewalks; and
+     the apron strip it stood on takes another boat on a trailer */
+  props.push({ kind:'sign', x: RX, y: -1150, r: 0 });
+  for(const sd of [-1, 1]) props.push({ kind:'post', x: RX + sd*560, y: -1150, r: 18 });
+  props.push({ kind:'trailer', x: AX - 20, y: -1150, r: 170, k: 11 });
+  for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: -1150 + d, r: 150 });
   /* the trailers lie along the apron now, at twice the size (see
      drawHarborTrailer): bays of 950, solid down their length as three discs */
   for(let k = 0, y = -2900; y > -6200; y -= 950, k++){
