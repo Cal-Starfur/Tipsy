@@ -1,5 +1,7 @@
 # Walk-in kit fit: every built interior against W22-W24 (2026-11-07)
 
+**kf-check (2026-11-09):** every walk-in now declares its exterior's body (`body`, read by `walkinBody()` from the exterior's own constants), so `walkinCoverage()` measures all 19 rooms (`cover ok` on each, none short, none undeclared) and `run_sheet.js --walkins` exits 1 on a SHORT or a NOT DECLARED. The "photo" entries below were read by eye before; the measure agrees with every one.
+
 Method: `node tools/run_sheet.js --walkins` photographs each room from its door with the room's floor in red, the wall-top in orange and the WALLS' OUTER FACE (floor + `WALKIN_WALL` 30 on every side) in magenta, and prints `walkinCoverage()`. **W22: the shell's body must reach the magenta lines.** "Measured" = `walkinCoverage()` from the exterior's declared footprint; "photo" = read by eye from the outside photo (the exterior declares no comparable footprint). W23 (the doorway is the wall's own end) and W24 (nothing floats; fixtures 60 clear of a low near wall) are looked at inside, at the door, zoomed.
 
 | Room | W22 shell covers the walls | How | W23 / W24 |

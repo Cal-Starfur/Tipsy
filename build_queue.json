@@ -1134,7 +1134,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "node tools/run_sheet.js --walkins: 19 of 19 'cover ok', exits 1 on a SHORT or NOT DECLARED"
 },
 {
 "id": "kf-night",
