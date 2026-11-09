@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ a678831): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 34158b9): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'a678831'; })();</script>
+  window.TIPSY_TEST_BUILD = '34158b9'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -29623,7 +29623,7 @@ walkinLife('Dune Home & Garden Interior', { keep: [[320, 470, 0, 510]], looks: [
    `shell` piece) fading round him as he goes in at the tap room's sliding pair (120 across between its two windows, lane 151..271
    in the room), the apron the frontage's 36. The windows and the doorway show the room (walkinThrough). */
 const SALT_IN = walkinDefine({ name: 'Saltwater Brewing Interior', from: 'Saltwater Brewing', x0: 530000, y0: 400000,
-  lab: [513.6, 933.6, -630, -70], door: { a: 724.6, b: -33.4, half: 60 }, H: 300, out: 36, apron: 36, glass: 4,
+  lab: [513.6, 933.6, -630, -70], door: { a: 724.6, b: -33.4, half: 60 }, H: 300, out: 60, apron: 60, glass: 46,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, onto the pavement and along it round either corner of the lot) */
   street: { to: [0, 150], routes: [[[-820, 150], [-820, 1600]], [[1050, 150], [1050, 1600]]] },
   /* (seen through, W11: the doorway and the two tap-room windows -- the shell's z in the entry's units) */
@@ -29653,7 +29653,7 @@ walkinLife('Saltwater Brewing Interior', { keep: [[145, 277, 0, 560]], looks: [
    drum: one `shell` piece) fading round him as he goes in at the front portal's sliding pair (76 across, centred, lane 316..412 in
    the room), the apron the portal's recess and wall (36). The doorway shows the hall (walkinThrough). */
 const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Baths', x0: 540000, y0: 400000,
-  lab: [463.6, 1192.4, -888.8, -160], door: { a: 828, b: -141.2, half: 38 }, H: 336, out: 36, apron: 36, glass: 4,
+  lab: [463.6, 1192.4, -888.8, -160], door: { a: 828, b: -141.2, half: 38 }, H: 336, out: 60, apron: 60, glass: 46,
   /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
   /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
@@ -29682,7 +29682,7 @@ walkinLife('Lagoon Baths Interior', { keep: [[316, 412, 0, 729]], looks: [
    spire: one `shell` piece) fades round him as he goes in at the west front's great door (76 across, centred, lane 95..175 in the
    room); the door's plane is 6 back of the front (b -176, the wall's 30 round it). The doorway shows the nave (walkinThrough). */
 const CHAPEL_IN = walkinDefine({ name: 'Driftwood Chapel Interior', from: 'Driftwood Chapel', x0: 550000, y0: 400000,
-  lab: [693.6, 963.6, -800, -200], door: { a: 828.6, b: -176, half: 38 }, H: 300, out: 36, apron: 30, glass: 4,
+  lab: [693.6, 963.6, -800, -200], door: { a: 828.6, b: -176, half: 38 }, H: 300, out: 60, apron: 60, glass: 46,
   /* (its way to and from the street, THE ROOM'S DAY: down the west walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 290], routes: [[[-925, 290], [-925, 1600]], [[925, 290], [925, 1600]]] },
   /* (seen through, W11: the great door's opening -- the shell's z in the entry's units) */
@@ -29709,7 +29709,7 @@ walkinLife('Driftwood Chapel Interior', { keep: [[95, 175, 0, 600]], looks: [
    piece) fades round him as he goes in at its front doorway (76 across, on the gate's axis, lane 100..180 in the room); the doorway's
    plane is 6 back of the front (b -226, the wall's 30 round it). The doorway and the two front windows show the shop (walkinThrough). */
 const NURSERY_IN = walkinDefine({ name: 'Palmline Nursery Interior', from: 'Palmline Nursery', x0: 560000, y0: 400000,
-  lab: [688.6, 968.6, -470, -250], door: { a: 828.6, b: -226, half: 38 }, H: 150, out: 36, apron: 30, glass: 4,
+  lab: [688.6, 968.6, -470, -250], door: { a: 828.6, b: -226, half: 38 }, H: 150, out: 60, apron: 60, glass: 46,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, through the front gate and along the pavement round either corner of the block) */
   street: { to: [0, 340], routes: [[[-925, 340], [-925, 1600]], [[925, 340], [925, 1600]]] },
   /* (seen through, W11: the doorway and the two windows -- the shell's z in the entry's units) */
@@ -63195,9 +63195,8 @@ function houseCanopy(fn){
     ];
     for(const [ya, yb] of [[120,-160],[120,-1500],[CA-300,-1560],[CA+300,-1560],[LOT-120,-700],[LOT-120,-1500]])
       solids.push({ c: [ya, yb], r: 30, h: 130, prop: true });
-    /* (the great door opens across its 76 and 30 deep into the front wall -- the room's own wall: CHAPEL_IN -- so he drives up to the glass where the room takes him) */
-    const DA0 = CA-60, DA1 = CA+60, DN = nB0-50;
-    return { foot: [[nA0,nB0],[DA0,nB0],[DA0,DN],[DA1,DN],[DA1,nB0],[tA1,nB0],[tA1,tB1],[nA1,tB1],[nA1,nB1],[nA0,nB1]], h: 300, solids };
+    /* (no notch cut into the front: his collision is the drawn face, and the door takes him from it -- the room's glass 46, his centre stops 30 off the wall: LOOK_RULES 6) */
+    return { foot: [[nA0,nB0],[tA1,nB0],[tA1,tB1],[nA1,tB1],[nA1,nB1],[nA0,nB1]], h: 300, solids };
   })(),
   /* THE NAVE IS A WALK-IN (wk4, CHAPEL_IN): the great door, 76 across, a live sliding pair set 6 back of the west front; the doorway shows
      the nave (walkinThrough); a lantern either side of the door glows at night */
@@ -64414,9 +64413,8 @@ function houseCanopy(fn){
     for(const [ta, tb] of [[150,-1500],[150,-1200],[150,-420],[150,-160],[CA-420,-1520],[CA+420,-1520],[CA-420,bb1-120],[CA+420,bb1-120],
                            [bx1+180,-220],[bx1+180,CB-240],[bx1+180,CB+240],[bx1+180,-800],[LOT-150,-1500],[LOT-150,-1200],[CA-420,-60],[CA+420,-60]])
       solids.push({ c: [ta, tb], r: 14, h: 90, prop: true });
-    /* (the hall's door opens across its 76 and 30 deep into the front wall -- the room's own wall: LAGOON_IN -- so he drives up to the glass where the room takes him) */
-    const DA0 = CA-60, DA1 = CA+60, DN = bb0-50;
-    return { foot: [[bx0, bb1], [bx1, bb1], [bx1, bb0], [DA1, bb0], [DA1, DN], [DA0, DN], [DA0, bb0], [bx0, bb0]], h: 336, solids };
+    /* (no notch cut into the front: his collision is the drawn face, and the door takes him from it -- the room's glass 46, his centre stops 30 off the wall: LOOK_RULES 6) */
+    return { foot: [[bx0, bb1], [bx1, bb1], [bx1, bb0], [bx0, bb0]], h: 336, solids };
   })(),
   /* THE HALL IS A WALK-IN (wk3, LAGOON_IN): the front portal's door, 76 across, a live sliding pair; the doorway shows the hall
      (walkinThrough); a lantern either side of the portal glows at night */
@@ -65062,9 +65060,8 @@ function houseCanopy(fn){
     for(let r=0;r<7;r++) for(let c=0;c<5;c++) solids.push({ c: [70 + c*90, -70 - r*110], r: 14, h: 140, prop: true });   // the grove
     for(let r=0;r<6;r++) for(const ta of [70, 170, 270]) solids.push({ c: [ta, -930 - r*110], r: 14, h: 140, prop: true });
     for(let r=0;r<3;r++) for(let c=0;c<20;c++){ const sa = 60 + c*78; if(!(sa > GAP0-30 && sa < GAP1+30)) solids.push({ c: [sa, -1600 + r*90], r: 12, h: 50, prop: true }); }
-    /* (the doorway opens 30 deep into the front wall, a 120 wide notch round its 76, 50 deep: his centre can only come within his 30 radius of the notch's end, and the glass is 11 in, so a 30 deep notch stopped him at the wall face -- the room's own wall: NURSERY_IN -- so he drives up to the glass where the room takes him) */
-    const DA0 = 468+OA, DA1 = 588+OA, DN = hB0-50;
-    return { foot: [[hA0,hB0],[DA0,hB0],[DA0,DN],[DA1,DN],[DA1,hB0],[hA1,hB0],[hA1,hB1],[hA0,hB1]], h: 150, solids };
+    /* (no notch cut into the front: his collision is the drawn face, and the door takes him from it -- the room's glass 46, his centre stops 30 off the wall: LOOK_RULES 6) */
+    return { foot: [[hA0,hB0],[hA1,hB0],[hA1,hB1],[hA0,hB1]], h: 150, solids };
   })(),
   /* THE SALES HUT IS A WALK-IN (wk5, NURSERY_IN): its doorway, 76 across on the gate's axis, a live sliding pair set 6 back of the front; the doorway
      and the two windows show the shop (walkinThrough); a lantern either side of the door glows at night */
@@ -67143,9 +67140,8 @@ function houseCanopy(fn){
       solids.push({ c: [ca, cb], r: 12, h: 34 });
     for(let r=0;r<4;r++) for(const ta of [110, 240]) solids.push({ poly: R(ta-48, ta+48, -120 - r*130 - 44, -120 - r*130 + 44), h: 46, prop: true });
     for(const pb of [-70, -640]) solids.push({ poly: R(60, 290, pb-18, pb+18), h: 50, prop: true });
-    /* (the tap room's door open across its 120 and 36 deep into the wall, so he drives up to the glass where the room takes him: SALT_IN) */
-    const DA0 = 664.6, DA1 = 784.6, DN = FB - 36;
-    return { foot: [[BA0, BB], [BA1, BB], [BA1, FB], [DA1, FB], [DA1, DN], [DA0, DN], [DA0, FB], [BA0, FB]], h: 420, solids };
+    /* (no notch cut into the front: his collision is the drawn face, and the door takes him from it -- the room's glass 46, his centre stops 30 off the wall: LOOK_RULES 6) */
+    return { foot: [[BA0, BB], [BA1, BB], [BA1, FB], [BA0, FB]], h: 420, solids };
   })(),
   drive: [
     { side:'front', from: 1169.6, to: 1297.6, col:'#9a917f', arrows:'in' },   // the cart gate, by the dock
