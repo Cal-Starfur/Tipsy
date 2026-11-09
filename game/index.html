@@ -140191,6 +140191,12 @@ setInterval(tpAvatarPadGate, 250);
     const now = performance.now();
     if(now - last < 700) return;          // pointerdown + click both fired
     last = now;
+    /* ON THE MAP the robot is Exit map (Sir, 2026-11-09): the profile is no
+       use there. Same condition as the marker's own "Exit map" pill. */
+    { const to = document.getElementById("titleOverlay"), pp = document.getElementById("tpProfilePanel");
+      if(to && !to.classList.contains("hidden") && !(pp && pp.classList.contains("open"))
+         && ((typeof tpSearchMap !== "undefined" && tpSearchMap) || (typeof tpPausedWorld !== "undefined" && tpPausedWorld))
+         && typeof tpMapResumeDriving === "function" && tpMapResumeDriving()) return; }
     /* OFF THE PAD THE ROBOT IS THE STASH (Sir, 2026-10-12: "will just use
        the robot here for the stash when we are out of the garage, no
        number indicated, the player just opens to see what they are
@@ -140203,12 +140209,6 @@ setInterval(tpAvatarPadGate, 250);
       return;
     }
     const s = scn();
-    /* ON THE MAP the robot is Exit map (Sir, 2026-11-09): the profile is no
-       use there. Same condition as the marker's own "Exit map" pill. */
-    { const to = document.getElementById("titleOverlay"), pp = document.getElementById("tpProfilePanel");
-      if(to && !to.classList.contains("hidden") && !(pp && pp.classList.contains("open"))
-         && ((typeof tpSearchMap !== "undefined" && tpSearchMap) || (typeof tpPausedWorld !== "undefined" && tpPausedWorld))
-         && typeof tpMapResumeDriving === "function" && tpMapResumeDriving()) return; }
     hide("failOverlay");
     /* !s._slAPI excludes Cone Slalom (2026-08-10, reported on-device):
        slalom ALSO sets mode:"challenge" (it reuses hjChrome's quiet
