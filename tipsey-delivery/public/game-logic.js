@@ -1049,6 +1049,9 @@ const NIGHT_CLOCK = { from: 19, to: 6, fade: 1, force: null, time: null };
 try {
   const q = new URLSearchParams(location.search).get("night");
   if(q === "1") NIGHT_CLOCK.force = true; else if(q === "0") NIGHT_CLOCK.force = false;
+  /* TO TEST A ROOM'S HOURS: ?hour=12 stands the clock at noon (any hour, decimals for minutes), so a shop is open whatever your own time is */
+  const hq = new URLSearchParams(location.search).get("hour");
+  if(hq !== null && hq !== "" && isFinite(+hq)) NIGHT_CLOCK.time = +hq;
   window.NIGHT_CLOCK = NIGHT_CLOCK;
 } catch(e){}
 let _nightAt = -1e9, _nightL = 0;
