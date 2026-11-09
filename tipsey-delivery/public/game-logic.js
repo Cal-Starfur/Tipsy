@@ -86622,8 +86622,8 @@ const SP_PLAN = {
   TRACK: { x0: 8602, x1: 8940, y0: -5644, y1: -4400 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
-  COURT: { x0: 8940, x1: 9860, y0: -6030, y1: -5910 },        // the forecourt
-  POST: { x0: 8960, x1: 9430, y0: -6420, y1: -6030, eave: 205, ridge: 292, oh: 28 },
+  COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
+  POST: { x0: 8960, x1: 9400, y0: -6420, y1: -6060, eave: 205, ridge: 292, oh: 28 },
   DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
   WIN_S: [9205, 9335], WIN_E: [-6360, -6170], SILL: 34, WIN_H: 104,
   PARA: [8995, 9185],                                          // the Mission parapet over the door bay
@@ -86657,10 +86657,10 @@ function spScreenBox(k){
 }
 const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
   rise: SP_PLAN.Z,
-  lab: [8990, 9400, -6390, -6060], body: [[SP_PLAN.POST.x0, SP_PLAN.POST.x1, SP_PLAN.POST.y0, SP_PLAN.POST.y1]], door: { a: 9090, b: -6030, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
+  lab: [8990, 9370, -6390, -6090], body: [[SP_PLAN.POST.x0, SP_PLAN.POST.x1, SP_PLAN.POST.y0, SP_PLAN.POST.y1]], door: { a: 9090, b: -6060, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
   /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
-  openings: [{ lab: [[9040, -6029.4], [9140, -6029.4]], z: [0, 112] }, { lab: [[9205, -6029.4], [9335, -6029.4]], z: [34, 104], glass: true },
-             { lab: [[9430.6, -6360], [9430.6, -6170]], z: [34, 104], glass: true }] });
+  openings: [{ lab: [[9040, -6059.4], [9140, -6059.4]], z: [0, 112] }, { lab: [[9205, -6059.4], [9335, -6059.4]], z: [34, 104], glass: true },
+             { lab: [[9400.6, -6360], [9400.6, -6170]], z: [34, 104], glass: true }] });
 const SP_GUARD_SEED = { night: 0x5e31, day: 0x5e47 };
 /* who is on: the night guard after dark (the mission window's, 19 to 6), the day guard by day -- changed over only while
    nobody can see the room (the motel's way: never in front of him) */
