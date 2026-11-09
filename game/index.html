@@ -142977,12 +142977,18 @@ const GO_SPOTS = {
   const tick = () => {
     const s = typeof game !== 'undefined' && game.scene && game.scene.getScene('world');
     if(!(s && s.route && s.ow)){ if(Date.now() - t0 < 60000) setTimeout(tick, 250); return; }
-    /* the garage opens a beat after boot: let it, then shut it and go */
-    setTimeout(() => {
-      try { window.garageClose(); } catch(e){}
-      owStandUpAt(s, x, y, yaw);
-      if(v) zoomSet(+v);
-    }, 1500);
+    /* the garage opens when the boot finishes (the loader's 'done'), not at a fixed beat: on a slow load a fixed 1.5 s shut it
+       before it opened and the garage then swallowed the spot. Wait for the loader, let the garage open, then shut it and go */
+    const go = () => {
+      const bl = document.getElementById("bootLoader");
+      if(bl && !bl.classList.contains("done") && Date.now() - t0 < 90000){ setTimeout(go, 250); return; }
+      setTimeout(() => {
+        try { window.garageClose(); } catch(e){}
+        owStandUpAt(s, x, y, yaw);
+        if(v) zoomSet(+v);
+      }, 1000);
+    };
+    go();
   };
   tick();
 })();
