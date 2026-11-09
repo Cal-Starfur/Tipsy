@@ -19599,7 +19599,7 @@ function lostDogDone(){
    Costa Palma Animal Shelter (its block, SHELTER.i, j; its door, the entry's door mark). Stopped at its path with the
    dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
    time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
-const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -736], gateB: -700, stepB: -714 };
+const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -706], gateB: -670, stepB: -684 };   // (door on the shell's front, 30 past the room's floor line, W22)
 function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
 function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
 /* the loose dogs near him: a dog with no walker, not running off, not already taken */
@@ -28193,7 +28193,7 @@ const MOTOR_LODGE = {
   ice: [1406, 1454, -1388, -1352],                      // the ice machine, at the north walkway's east end
   stairE: { a0: 1470, a1: 1534, b0: -1320, b1: -1150 },  // its stair, down south off the walkway's end
   stairW: { a0: 350, a1: 520, b0: -764, b1: -700 },      // the west wing's, down east off its walkway's end
-  office: { a0: 60, a1: 480, b0: -600, b1: -260, H: 130, roof: 172, door: [115, 225], glassS: [245, 465], glassE: [-560, -300] },
+  office: { a0: 60, a1: 480, b0: -600, b1: -260, sh: { a0: 30, a1: 510, b0: -630, b1: -230 }, H: 130, roof: 172, door: [115, 225], glassS: [245, 465], glassE: [-560, -300] },
   pool: { a0: 700, a1: 1180, b0: -1180, b1: -960 },
   court: { a0: 280, a1: 1641, b0: -1390, b1: -850 },     // its paving, wall to fence
   fence: { b: -850, a0: 350, a1: 1641, gate: [560, 650] },
@@ -28249,8 +28249,8 @@ const MOTEL_IN = walkinDefine({ name: 'Sun Deck Motor Lodge Office', from: 'Sun 
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, down its path to the pavement, and along it) */
   street: { to: [0, 250], routes: [[[-460, 250], [-460, 1600]], [[1400, 250], [1400, 1600]]] },
   /* (seen through, W11: the glass door, the storefront down the street front, the picture window onto the lot) */
-  openings: [{ lab: [[115, -259.4], [225, -259.4]], z: [0, 100] }, { lab: [[245, -259.4], [465, -259.4]], z: [16, 104], glass: true },
-             { lab: [[481.4, -300], [481.4, -560]], z: [16, 104], glass: true }] });
+  openings: [{ lab: [[115, -229.4], [225, -229.4]], z: [0, 100] }, { lab: [[245, -229.4], [465, -229.4]], z: [16, 104], glass: true },
+             { lab: [[511.4, -300], [511.4, -560]], z: [16, 104], glass: true }] });
 /* the room's plan, its own frame (a east, b south, 420 x 340): the desk, the back office, the lobby's things */
 const MOTEL_ROOM = { W: 420, D: 340, door: 110, LH: 66,
   desk: { s: [262, 368, 124, 150], w: [262, 288, 56, 150] },     // the counter: its south run and its west run (an L round the clerk; a way out past each end)
@@ -28544,14 +28544,14 @@ const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D:
 /* GIDEON'S OWN CHARGING PAD (docs/gideon-dock.md), the room's frame: where he starts as the player */
 BB_IN.PAD = { a: 124, b: 266 };
 const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
-  lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 0, half: 50 }, H: BB_IN.H, out: 60, apron: 60, glass: 60,
+  lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 30/1.3, half: 50 }, H: BB_IN.H, out: 60, apron: 90, glass: 60,   // (W22: the shell stands 30 out past the floor: the door on its front, b +30/1.3)
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-1400, 184], [-1400, -3600]], [[580, 184], [580, -3600]]] },
   /* (seen through, W11: the glazed pair, the south wall's two windows -- flatsShop's, lab x1.3, z x1.95 -- and the east leg's one in the east wall) */
-  openings: [{ lab: [[418/1.3 - 34.6, 0], [418/1.3 + 34.6, 0]], z: [0, 107.95] },
-             { lab: [[14, 0], [418/1.3 - 62, 0]], z: [22, 104], glass: true }, { lab: [[418/1.3 + 62, 0], [836/1.3 - 14, 0]], z: [22, 104], glass: true },
-             { lab: [[836/1.3, -836/1.3 + 14], [836/1.3, -836/1.3 + 306]], z: [22, 104], glass: true },
-             { lab: [[836/1.3, -36], [836/1.3, -136]], z: [22, 104], glass: true }, { lab: [[836/1.3, -186], [836/1.3, -286]], z: [22, 104], glass: true }] });
+  openings: [{ lab: [[418/1.3 - 34.6, 30/1.3], [418/1.3 + 34.6, 30/1.3]], z: [0, 107.95] },
+             { lab: [[14, 30/1.3], [418/1.3 - 62, 30/1.3]], z: [22, 104], glass: true }, { lab: [[418/1.3 + 62, 30/1.3], [836/1.3 - 14, 30/1.3]], z: [22, 104], glass: true },
+             { lab: [[836/1.3 + 30/1.3, -836/1.3 + 14], [836/1.3 + 30/1.3, -836/1.3 + 306]], z: [22, 104], glass: true },
+             { lab: [[836/1.3 + 30/1.3, -36], [836/1.3 + 30/1.3, -136]], z: [22, 104], glass: true }, { lab: [[836/1.3 + 30/1.3, -186], [836/1.3 + 30/1.3, -286]], z: [22, 104], glass: true }] });
 (() => { const pk = POCKETS[POCKETS.length - 1]; pk.hides = ['Brew & Bolt', 'Brew & Bolt East']; })();
 /* THE ROOF OF BREW & BOLT (the antenna mission): a second room off the map on the same square, up the back room's ladder through
    its hatch. Open to the sky, drawn on the building's lines at the roof's height (z: the shell's flat roof, 176 x 1.95), the
@@ -42601,6 +42601,9 @@ const LIB = (function(){
      shop line is moved back onto it, so a colonnade that stood on the
      footway stands with the neighbours' glass instead. */
   let BOFF = 0;
+  /* AOFF -- the entry's own slide along its frame (`aoff`), added to a before the mirror: a body grown past its lot on the a ends
+     (a walk-in's shell, W22) keeps its art on the grown frame. 0 for every other entry. */
+  let AOFF = 0;
   const NOPLATE = false;
   /* VIEW -- the screen the caller is drawing to, { w, h }, or null. Set
      only around a draw that asks for it (LIB.setView); an entry as long
@@ -42627,6 +42630,7 @@ const LIB = (function(){
   let CITY_PAVE = null;
   function P(a, b, z){
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
+    a += AOFF;
     if(MIRROR) a = MIRROR - a;
     b += BOFF;
     let cut = false;
@@ -44238,7 +44242,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = (opts && opts.h) || SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair), glazed = !!(opts && opts.glazed);   // (opts.h: a taller door; opts.glazed: glass leaves with a push bar -- the Animal Shelter's)
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0, a1, z, dH, trim, half: !!(opts && opts.half), pair, glazed, see: SEE && pair, boff: BOFF });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -45030,7 +45034,7 @@ function flatsWallFrames(WW, DD, OA, OB){
     const hw = SHOP_DOOR_W/2, dH = SHOP_DOOR_H/ZSCALE;
     const mid = Math.max(hw+5, Math.min(fr.len-hw-5, uMid));
     const u0 = mid-hw, u1 = mid+hw;
-    if(rec && DOOR_REC && fr.kind === 'front') DOOR_REC.push({ a0: oa+u0, a1: oa+u1, z: 0, dH, trim: t, half: false, pair: false, see: false, boff: BOFF + ob });
+    if(rec && DOOR_REC && fr.kind === 'front') DOOR_REC.push({ a0: oa+u0+AOFF, a1: oa+u1+AOFF, z: 0, dH, trim: t, half: false, pair: false, see: false, boff: BOFF + ob, aoff: 0 });
     R(fr,u0-4,u1+4, 0, dH+7, 0.3, shade(w,.90));
     R(fr,u0,u1, 0, dH, 0.4, '#2b2118');
     R(fr,u0+2,u1-2, dH-26, dH-4, 0.45, 'rgba(96,132,152,.94)');
@@ -45068,6 +45072,10 @@ const TIDEWATER_MUSEUM = (() => {
   const CA0 = ROAD, CA1 = BLK - ROAD, CB1 = -ROAD, CB0 = -(BLK - ROAD);   // the forecourt lot
   /* the building: MUS_IN's plan (one rect for the outside, its volume and the room inside) */
   const [BA0, BA1, BB0, BB1] = MUS_IN.LAB, H = 440;
+  /* THE SHELL COVERS THE ROOM (W22, Sir, 2026-11-07): the room's floor is LAB and its walls stand 30 outside it, so the body is
+     the floor grown by G on every side (SA0..SA1, SB0..SB1); the portico, the doorcase and the walk start from the new face.
+     BA0..BB1 stay the floor (the room's origin, the door's u). */
+  const G = 30, SA0 = BA0 - G, SA1 = BA1 + G, SB0 = BB0 - G, SB1 = BB1 + G;
   const BW = BA1 - BA0, DMID = BW/2, [PA0, PA1] = MUS_IN.PORT, PD = MUS_IN.PD, [BAY0, BAY1] = MUS_IN.BAY;
   /* THE PORTICO (Sir, 2026-10-30: "the ramp you cut through the steps could have been better"): a podium PZ high
      across PA0..PA1, its deck PDK deep, four steps down its front either side of the ENTRANCE BAY -- the middle, at
@@ -45096,13 +45104,13 @@ const TIDEWATER_MUSEUM = (() => {
   const box = (name, a, b, ha, hb, h, prop) => ({ name, h, prop, poly: [[a-ha,b-hb],[a+ha,b-hb],[a+ha,b+hb],[a-ha,b+hb]] });
   const vol = {
     /* the building is the mass; the forecourt, lawns and walk are open */
-    foot: [[BA0,BB1],[BA1,BB1],[BA1,BB0],[BA0,BB0]],
+    foot: [[SA0,SB1],[SA1,SB1],[SA1,SB0],[SA0,SB0]],
     h: H,
     solids: [
       /* the portico's two wings -- podium, steps, cheek walls and the colonnade on them -- either side of the bay, which
          is open at grade from the gate's walk to the doors (Sir, 2026-10-30: the museum one goes into: MUS_IN) */
-      { name:'portico W', h: 410, poly: [[BA0+PA0, BB1],[BA0+BAY0, BB1],[BA0+BAY0, BB1+PD],[BA0+PA0, BB1+PD]] },
-      { name:'portico E', h: 410, poly: [[BA0+BAY1, BB1],[BA0+PA1, BB1],[BA0+PA1, BB1+PD],[BA0+BAY1, BB1+PD]] },
+      { name:'portico W', h: 410, poly: [[BA0+PA0, SB1],[BA0+BAY0, SB1],[BA0+BAY0, SB1+PD],[BA0+PA0, SB1+PD]] },
+      { name:'portico E', h: 410, poly: [[BA0+BAY1, SB1],[BA0+PA1, SB1],[BA0+PA1, SB1+PD],[BA0+BAY1, SB1+PD]] },
       /* the railing, closed on three sides, open at the gate */
       rail('railing front L', CA0, CB1, GATE[0]-28, CB1),
       rail('railing front R', GATE[1]+28, CB1, CA1, CB1),
@@ -45118,9 +45126,9 @@ const TIDEWATER_MUSEUM = (() => {
       ...LAMPS.map(([a,b], k) => ({ name:'lamp ' + (k+1), c:[a,b], r: 13, h: 200, prop:true }))
     ],
     zones: [{ name:'forecourt', kind:'walk', poly: [[CA0,CB1],[CA1,CB1],[CA1,CB0],[CA0,CB0]] }],
-    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, BB1] }
+    marks: { gate: [BA0 + DMID, CB1], door: [BA0 + DMID, SB1] }
   };
-  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
+  return { BLK, ROAD, CA0, CA1, CB0, CB1, BA0, BA1, BB0, BB1, G, SA0, SA1, SB0, SB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK, GATE,
            PLINTHS, TREES, HEDGES, LAMPS, vol };
 })();
 if(typeof window !== 'undefined') window.__TIDEWATER_MUSEUM = TIDEWATER_MUSEUM;
@@ -68134,7 +68142,7 @@ function houseCanopy(fn){
      lamps (the lamp kit). Lab z x1.5 in the world. */
   name:'Sun Deck Motor Lodge', xh: 248, base:'Motor lodge', hood:'The Flats', edited:true, block:true, ww: 1656, dd: 1656,
   /* the office's glass pair, live (as Pelican Drug's): 110 across, the walk-in's door */
-  slideDoors: [{ a: 115, w: 110, b: -260.8, z0: 0, z1: 100, walk: -248, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 115, w: 110, b: -230.8, z0: 0, z1: 100, walk: -218, glass: 'rgba(150,190,206,.38)' }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f9e9a'); },
   see: true,   // (the office's door, storefront and picture window show the lobby inside: MOTEL_IN's openings)
   /* ITS LAMPS AT NIGHT (the lamp kit): a sconce at every other door along both walkways, the pylon's starburst and
@@ -68159,7 +68167,7 @@ function houseCanopy(fn){
     const solids = [
       { name: 'north wing', poly: R(M.N.a0, M.N.a1, M.N.b0, M.N.b1), h: M.PZ },
       { name: 'west wing', poly: R(M.W.a0, M.W.a1, M.W.b0, M.W.b1), h: M.PZ },
-      { name: 'office', poly: R(O.a0, O.a1, O.b0, O.b1), h: O.roof },
+      { name: 'office', poly: R(O.sh.a0, O.sh.a1, O.sh.b0, O.sh.b1), h: O.roof },
       { name: 'ice machine', poly: R(M.ice[0], M.ice[1], M.ice[2], M.ice[3]), h: 62 },
       { name: 'stair', poly: R(M.stairE.a0, M.stairE.a1, M.stairE.b0, M.stairE.b1), h: M.GZ },
       { name: 'stair', poly: R(M.stairW.a0, M.stairW.a1, M.stairW.b0, M.stairW.b1), h: M.GZ },
@@ -68180,7 +68188,7 @@ function houseCanopy(fn){
     for(const [f0, f1] of [[M.fence.a0, M.fence.gate[0]], [M.fence.gate[1], M.fence.a1]]) solids.push({ name: 'fence', poly: R(f0, f1, M.fence.b - 4, M.fence.b + 4), h: 40 });
     /* the court's things: loungers, umbrellas (props) */
     for(const q of motelCourtProps()) solids.push({ name: q.kind, poly: R(q.a - q.w/2, q.a + q.w/2, q.b - q.d/2, q.b + q.d/2), h: q.h, prop: true });
-    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [O.door[0]/2 + O.door[1]/2, O.b1] } };
+    return { foot: [[0,0],[0,0],[0,0]], h: 0, solids, opens: [], marks: { door: [O.door[0]/2 + O.door[1]/2, O.sh.b1] } };
   })(),
   /* the lot's drives -- see hoodDrivewaysOf: in off the airfield's street into the aisle, and off the Boardwalk's */
   drive: [
@@ -68224,9 +68232,9 @@ function houseCanopy(fn){
       for(let a = C.a0 + 90; a < C.a1; a += 90) T(a - 1, a + 1, C.b0, C.b1, 0.45, concD);
       for(let b = C.b1 - 90; b > C.b0; b -= 90) T(C.a0, C.a1, b - 1, b + 1, 0.45, concD); }
     T(M.W.a1, M.W.a1 + DK, M.court.b1, M.W.b1, 0.6, shade(conc, 1.06));                   // the west gallery past the fence
-    T(O.a0, M.rankF.a0, O.b1, O.b1 + 64, 0.8, conc);                                      // the office's front walk
-    T(O.door[0], O.door[1], O.b1 + 64, -15, 0.8, conc);                                   // ...and its path out to the street
-    T(O.a1, O.a1 + 60, O.b0, O.b1, 0.8, conc);                                            // ...round its east side
+    T(O.sh.a0, M.rankF.a0, O.sh.b1, O.b1 + 64, 0.8, conc);                                      // the office's front walk
+    T(O.door[0], O.door[1], O.sh.b1, -15, 0.8, conc);                                   // ...and its path out to the street
+    T(O.sh.a1, O.a1 + 60, O.sh.b0, O.sh.b1, 0.8, conc);                                            // ...round its east side
     /* the bays: the street rank (noses to the hedge) and the court rank (noses to the fence) */
     const rank = (bBack, dir, a0, n) => { const bOpen = bBack + dir*M.BD, e1 = a0 + n*M.BW;
       T(a0, e1, bBack - 3, bBack + 3, 0.6, line);
@@ -68373,40 +68381,40 @@ function houseCanopy(fn){
        storefront of glass on the street, a picture window onto the lot, a clerestory under a roof that sweeps up to the
        front over a deep overhang, OFFICE on its turquoise fascia. Seen through (W11): the door, the storefront and the
        picture window are holes in it with the lobby drawn under them ---- */
-    items.push({ a: (O.a0 + O.a1)/2, b: (O.b0 + O.b1)/2, shell: true, draw: () => {
-      const H = O.H, glassSee = 'rgba(126,166,186,.36)', fl = '#a99a82';
-      box(O.a0, O.a1, O.b0, O.b1, 0, H, shade(wall, 1.08), wall, wallS);
+    items.push({ a: (O.sh.a0 + O.sh.a1)/2, b: (O.sh.b0 + O.sh.b1)/2, shell: true, draw: () => {
+      const H = O.H, Os = O.sh, glassSee = 'rgba(126,166,186,.36)', fl = '#a99a82';
+      box(Os.a0, Os.a1, Os.b0, Os.b1, 0, H, shade(wall, 1.08), wall, wallS);
       /* the base: flagstone to the sills */
-      F(O.a0, O.a1, 0, 16, fl, null, 0, O.b1 + 0.4); S(O.a1 + 0.4, O.b0, O.b1, 0, 16, shade(fl, 0.9));
-      for(let x = O.a0 + 18; x < O.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, O.b1 + 0.6);
+      F(Os.a0, Os.a1, 0, 16, fl, null, 0, Os.b1 + 0.4); S(Os.a1 + 0.4, Os.b0, Os.b1, 0, 16, shade(fl, 0.9));
+      for(let x = Os.a0 + 18; x < Os.a1; x += 38) F(x, x + 2, 0, 16, shade(fl, 0.8), null, 0, Os.b1 + 0.6);
       /* the door: its turquoise surround, the opening (the lobby behind it: W11), its live pair (slideDoors) */
-      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, O.b1 + 0.5);
-      if(SEE) HOLE([P(O.door[0], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 100), P(O.door[1], O.b1 + 0.6, 0), P(O.door[0], O.b1 + 0.6, 0)]);
-      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, O.b1 + 0.6);
+      F(O.door[0] - 8, O.door[1] + 8, 0, 108, trim, null, 0, Os.b1 + 0.5);
+      if(SEE) HOLE([P(O.door[0], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 100), P(O.door[1], Os.b1 + 0.6, 0), P(O.door[0], Os.b1 + 0.6, 0)]);
+      else F(O.door[0], O.door[1], 0, 100, '#2b3138', null, 0, Os.b1 + 0.6);
       /* the storefront: framed glass, three mullions */
       { const [w0, w1] = O.glassS;
-        F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, O.b1 + 0.5);
-        if(SEE) HOLE([P(w0, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 104), P(w1, O.b1 + 0.6, 16), P(w0, O.b1 + 0.6, 16)]);
-        F(w0, w1, 16, 104, SEE ? glassSee : glass, null, 0, O.b1 + 0.6);
-        for(let k = 1; k < 4; k++) F(w0 + (w1 - w0)*k/4 - 2, w0 + (w1 - w0)*k/4 + 2, 16, 104, shade(trim, 1.1), null, 0, O.b1 + 0.8); }
+        F(w0 - 6, w1 + 6, 12, 108, trim, null, 0, Os.b1 + 0.5);
+        if(SEE) HOLE([P(w0, Os.b1 + 0.6, 104), P(w1, Os.b1 + 0.6, 104), P(w1, Os.b1 + 0.6, 16), P(w0, Os.b1 + 0.6, 16)]);
+        F(w0, w1, 16, 104, SEE ? glassSee : glass, null, 0, Os.b1 + 0.6);
+        for(let k = 1; k < 4; k++) F(w0 + (w1 - w0)*k/4 - 2, w0 + (w1 - w0)*k/4 + 2, 16, 104, shade(trim, 1.1), null, 0, Os.b1 + 0.8); }
       /* the picture window onto the lot */
       { const [b0, b1] = O.glassE;
-        S(O.a1 + 0.5, b0 - 6, b1 + 6, 12, 108, shade(trim, 0.9));
-        if(SEE) HOLE([P(O.a1 + 0.6, b0, 104), P(O.a1 + 0.6, b1, 104), P(O.a1 + 0.6, b1, 16), P(O.a1 + 0.6, b0, 16)]);
-        S(O.a1 + 0.6, b0, b1, 16, 104, SEE ? glassSee : glass);
-        for(let k = 1; k < 3; k++) S(O.a1 + 0.8, b0 + (b1 - b0)*k/3 - 2, b0 + (b1 - b0)*k/3 + 2, 16, 104, shade(trim, 1.0)); }
+        S(Os.a1 + 0.5, b0 - 6, b1 + 6, 12, 108, shade(trim, 0.9));
+        if(SEE) HOLE([P(Os.a1 + 0.6, b0, 104), P(Os.a1 + 0.6, b1, 104), P(Os.a1 + 0.6, b1, 16), P(Os.a1 + 0.6, b0, 16)]);
+        S(Os.a1 + 0.6, b0, b1, 16, 104, SEE ? glassSee : glass);
+        for(let k = 1; k < 3; k++) S(Os.a1 + 0.8, b0 + (b1 - b0)*k/3 - 2, b0 + (b1 - b0)*k/3 + 2, 16, 104, shade(trim, 1.0)); }
       /* THE ROOF: from the back at the walls' head up to the front's overhang (a plane through z = H at b0 - 20 and z =
          roof at b1 + 44), its underside seen from the street, a clerestory of glass between the walls' head and it */
-      const RB0 = O.b0 - 20, RB1 = O.b1 + 44, RA0 = O.a0 - 26, RA1 = O.a1 + 34, rz = b => H + (O.roof - H)*(b - RB0)/(RB1 - RB0);
-      F(O.a0, O.a1, H, rz(O.b1), '#bcd6dc', null, 0, O.b1 + 0.2);                                // the clerestory, south
-      for(let x = O.a0 + 40; x < O.a1; x += 52) F(x - 2, x + 2, H, rz(O.b1), shade(trim, 1.1), null, 0, O.b1 + 0.4);
-      poly([P(O.a1 + 0.2, O.b0, H), P(O.a1 + 0.2, O.b1, H), P(O.a1 + 0.2, O.b1, rz(O.b1)), P(O.a1 + 0.2, O.b0, rz(O.b0))], '#a9c7ce');   // ...and east
+      const RB0 = Os.b0 - 20, RB1 = Os.b1 + 44, RA0 = Os.a0 - 26, RA1 = Os.a1 + 34, rz = b => H + (O.roof - H)*(b - RB0)/(RB1 - RB0);
+      F(Os.a0, Os.a1, H, rz(Os.b1), '#bcd6dc', null, 0, Os.b1 + 0.2);                                // the clerestory, south
+      for(let x = Os.a0 + 40; x < Os.a1; x += 52) F(x - 2, x + 2, H, rz(Os.b1), shade(trim, 1.1), null, 0, Os.b1 + 0.4);
+      poly([P(Os.a1 + 0.2, Os.b0, H), P(Os.a1 + 0.2, Os.b1, H), P(Os.a1 + 0.2, Os.b1, rz(Os.b1)), P(Os.a1 + 0.2, Os.b0, rz(Os.b0))], '#a9c7ce');   // ...and east
       poly([P(RA0, RB1, O.roof + 5), P(RA1, RB1, O.roof + 5), P(RA1, RB0, H + 5), P(RA0, RB0, H + 5)], shade(roofc, 1.05));   // the top (its underside never faces the eye)
       F(RA0, RA1, O.roof - 3, O.roof + 9, trim, null, 0, RB1);                                   // the fascia
       poly([P(RA1, RB0, H - 3), P(RA1, RB1, O.roof - 3), P(RA1, RB1, O.roof + 9), P(RA1, RB0, H + 9)], trimD);
       blockWordIn('OFFICE', 300, 470, O.roof - 2, O.roof + 8, RB1 + 0.5, '#ffffff', null, 6);
       /* the canopy's two lights (the lamp kit glows them at night) */
-      for(const la of [140, 400]){ cyl(la, O.b1 + 24, O.roof - 10, O.roof - 4, 8, '#f6f2e0'); }
+      for(const la of [140, 400]){ cyl(la, Os.b1 + 24, O.roof - 10, O.roof - 4, 8, '#f6f2e0'); }
     }});
 
     /* ---- THE COURT'S THINGS: loungers along the pool's north side, umbrellas, the ladder, the diving board ---- */
@@ -70632,15 +70640,15 @@ marinaEntry(),
   /* ITS DOORS, live (Sir, 2026-10-30: "the door way doesnt have a door"): one sliding pair of bronze-framed glass in the
      bronze screen at the head of the entrance bay, parting for him (shopDoorOpen) over the fixed sidelights either side
      and shutting behind him; they go with the shell as he goes in (the hl queue's slideDoors) */
-  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.BB1 - 7, z0: 0, z1: 150,
-                 walk: TIDEWATER_MUSEUM.BB1 + 40, sense: 70 }],
+  slideDoors: [{ a: TIDEWATER_MUSEUM.BA0 + MUS_IN.DOOR[0], w: MUS_IN.DOOR[1] - MUS_IN.DOOR[0], b: TIDEWATER_MUSEUM.SB1 - 7, z0: 0, z1: 150,
+                 walk: TIDEWATER_MUSEUM.SB1 + 40, sense: 70 }],
   doorDraw(i, u){ museumDoorLeaves(this.slideDoors[i], u); },
   /* ITS LAMPS AT NIGHT (the lamp kit, queueLandmarkLamps; Sir, 2026-10-30: "YES add this"): the walk's four lamp standards (their
      lanterns 156..180 up) and the two bronze lanterns on the bay's cheek pedestals (PZ + 116..144) -- the draw's own numbers */
   lamps: () => { const T = TIDEWATER_MUSEUM, [B0, B1] = MUS_IN.BAY;
     /* (Sir, 2026-11-05: "make the light from the lanterns smaller": half the throw, 120 -> 60 and 105 -> 52) */
     return T.LAMPS.map(([a, b]) => ({ a, b, z: 168, r: 60 }))
-      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.BB1 + T.PD - 18, z: T.PZ + 130, r: 52 }))); },
+      .concat([B1 + T.CHK/2, B0 - T.CHK/2].map(u => ({ a: T.BA0 + u, b: T.SB1 + T.PD - 18, z: T.PZ + 130, r: 52 }))); },
   wTodo:'a FULL block cell -- BLOCK 3128 with ROAD_HALF 368 each side, so 1656 square of buildable ground; the packer places no landmark',
   cTodo:'the building, the portico\'s two wings (podium, steps, cheek walls), the forecourt railing and its gate piers, the plinths, lamps and planters are volumes; the forecourt paving, the walk and the entrance bay between the wings are walkable',
   head:'A block cell: a portico of six columns over an entrance bay at grade, set back behind its sculpture garden',
@@ -70660,12 +70668,16 @@ marinaEntry(),
        along each cheek and a lantern on each cheek's pedestal; a bronze screen in a stone doorcase at its head, the
        sliding pair live (slideDoors). The frieze carries the museum's name, the pediment a gilded wheel; the facade a
        banner to each gallery inside (EGYPT to the west, T. REX to the east, as the room lays them out). */
-    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
-    const BW = BA1 - BA0, BD = BB1 - BB0;
+    const { CA0, CA1, CB1, CB0, BA0, BA1, BB0, BB1: FB1, G, SA0, SA1, SB0, SB1: BB1, H, DMID, PA0, PA1, PD, PZ, PDK, CHK, BAY0, BAY1, WALK } = TIDEWATER_MUSEUM;
+    const BW = BA1 - BA0, BD = FB1 - BB0;
     const wall = '#eee9dc', trim = '#2f5a6b', glassT = 'rgba(95,114,116,.86)';
     const stone = '#e6dfcf', stoneL = '#f4efe3', stoneD = '#c9c0ac', stoneDD = '#aea591';
     const bronze = '#8a6a3a', bronzeD = '#5e4626', bronzeL = '#c49a58', paneG = 'rgba(150,186,196,.62)', lampG = '#ffe7a8';
-    const { FR_FRONT, FR_RIGHT, FR_LEFT, FR_BACK, NEAR, FAR, Q, R, bandF, rev, revOpen, glz } = flatsWallFrames(BW, BD, BA0, BB1);
+    const WF = flatsWallFrames(BW + 2*G, BD + 2*G, SA0, BB1), { Q, R, bandF, rev, revOpen, glz } = WF;
+    /* (the frames' u is the FLOOR's: each is the shell's, moved in by G, so every u below is the room's and the walls run G past both ends) */
+    const wrapFr = fr => ({ P:(u,n,v) => fr.P(u + G, n, v), len: fr.len - 2*G, kind: fr.kind });
+    const FR_FRONT = wrapFr(WF.FR_FRONT), FR_RIGHT = wrapFr(WF.FR_RIGHT), FR_LEFT = wrapFr(WF.FR_LEFT), FR_BACK = wrapFr(WF.FR_BACK);
+    const NEAR = WF.NEAR === WF.FR_RIGHT ? FR_RIGHT : FR_LEFT, FAR = WF.FAR === WF.FR_RIGHT ? FR_RIGHT : FR_LEFT;
     const [S0, S1] = MUS_IN.SCREEN, [D0, D1] = MUS_IN.DOOR, DZ = MUS_IN.DZ, TZ = MUS_IN.TZ;   // (symmetric about the middle: the facade's u is the room's a)
     const A = u => BA0 + u, N = n => BB1 + n;
     /* LETTERING READS THE RIGHT WAY ROUND (the Animal Shelter's way): this frame runs a to the west, so a word laid
@@ -70679,7 +70691,7 @@ marinaEntry(),
        by the ground pass (the entry declares ground:'grass', hoodBlockGroundOf), so no plate is painted over it. The walk, the band at
        the building's foot and the compass rose are laid on it. */
     /* a band of paving along the building's foot */
-    T(BA0 - 24, BA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
+    T(SA0 - 24, SA1 + 24, BB1, BB1 + 34, 0.8, '#c9c1ae');
     /* the walk: a border of darker stone, a field of big slabs, laid on to the doors (Sir, 2026-09-29: "the path is
        disconnected and different colors" -- one stone, the drive's, gate to door) */
     const [W0, W1] = WALK;
@@ -70716,11 +70728,11 @@ marinaEntry(),
     };
     const elevation = fr => {
       const L = fr.len;
-      bandF(fr, -6, L+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
-      bandF(fr, -5, L+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
-      bandF(fr, -5, L+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
-      bandF(fr, -4, L+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
-      bandF(fr, -4, L+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
+      bandF(fr, -G-6, L+G+6, H, H+16, 6, -1, shade(wall,.76), null, null, 0);
+      bandF(fr, -G-5, L+G+5, H-24, H, 4, 0, shade(wall,1.08), null, shade(wall,1.2), 0);
+      bandF(fr, -G-5, L+G+5, 300, 350, 5, 0, shade(wall,1.04), null, shade(wall,1.18), 0);
+      bandF(fr, -G-4, L+G+4, 40, 48, 5, 0, shade(wall,.9), null, shade(wall,1.1), 0);
+      bandF(fr, -G-4, L+G+4, 0, 10, 6, 0, shade(wall,.84), null, shade(wall,1.0), 0);       // the plinth course
       const nb = fr.kind === 'flank' ? 5 : 9;
       for(let i=0;i<nb;i++){
         const c = 60 + (L-120)*(i+0.5)/nb, x0 = c-40, x1 = c+40;
@@ -70782,14 +70794,14 @@ marinaEntry(),
         R(f, uc - 15, uc + 15, 262, 266, n, bone);
       });
     };
-    items.push({ a:(BA0+BA1)/2, b:(BB0+BB1)/2, z:0, shell: true, draw:() => {
+    items.push({ a:(SA0+SA1)/2, b:(SB0+BB1)/2, z:0, shell: true, draw:() => {
       elevation(FR_BACK); elevation(FAR);
-      T(BA0, BA1, BB0, BB1, H, shade(wall,1.02));
-      S((NEAR === FR_RIGHT) ? BA1 : BA0, BB0, BB1, 0, H, shade(wall,.78));
-      F(BA0, BA1, 0, H, wall, null, 0, BB1);
+      T(SA0, SA1, SB0, BB1, H, shade(wall,1.02));
+      S((NEAR === FR_RIGHT) ? SA1 : SA0, SB0, BB1, 0, H, shade(wall,.78));
+      F(SA0, SA1, 0, H, wall, null, 0, BB1);
       elevation(NEAR); elevation(FR_FRONT);
       if(state.roof){
-        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD+160;
+        const l0 = BA0+BW*0.22, l1 = BA0+BW*0.78, q0 = BB1-160, q1 = BB1-BD-2*G+160;
         F(l0,l1, H+16, H+38, shade(wall,1.02), null,0, q0);
         poly([P(l0,q0,H+38),P(l1,q0,H+38),P(l1,q0-30,H+74),P(l0,q0-30,H+74)], 'rgba(160,196,206,.85)');
         poly([P(l0,q1,H+38),P(l1,q1,H+38),P(l1,q1+30,H+74),P(l0,q1+30,H+74)], 'rgba(140,176,188,.8)');
@@ -71574,21 +71586,22 @@ marinaEntry(),
       foot: [[0,0],[0,0],[0,0]],
       h: H,
       solids: [
-        bx('shelter', 1164, 1964, -1500, -736, H),
-        bx('canopy post W', 1452, 1464, -688, -676, 150, true), bx('canopy post E', 1664, 1676, -688, -676, 150, true),
+        bx('shelter', 1134, 1994, -1530, -706, H),
+        bx('canopy post W', 1452, 1464, -658, -646, 150, true), bx('canopy post E', 1664, 1676, -658, -646, 150, true),
         ...run('west', 780, 1100), ...run('east', 2028, 2348)
       ],
-      marks: { door: [1564, -736] }
+      marks: { door: [1564, -706] }
     };
   })(),
   /* its glazed double door swings (recorded by shopDoor): for the worker who brings a lost dog home or out to him, and the dog after them
      (lostDogAtDoor), and for anyone listed who walks up to it */
-  swingDoors: [{ a: 1564, b: -736, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
+  swingDoors: [{ a: 1564, b: -706, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
   head:'A low shelter, its canopy and double door on the street, dog runs either side',
   tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
   draw(p){
-    const GM = 1564, H = 210, FB = -736, BB = -1500, A0 = 1164, A1 = 1964;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
+    /* W22: the shell is the room's floor (1164..1964, -1500..-736) grown 30 on every side; the door, canopy and windows follow the new front */
+    const GM = 1564, H = 210, FB = -706, BB = -1530, A0 = 1134, A1 = 1994;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
     /* LETTERING READS THE RIGHT WAY ROUND: the frame's mirror turns the building about GM, which is nothing to a
        symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
        place turned over too, which the mirror turns back */
@@ -71636,7 +71649,7 @@ marinaEntry(),
       box(GM - 120, GM - 40, -1300, -1220, H, H + 34, '#9aa1a8', '#8a9198', '#7a8188');   // a rooftop unit
       F(A0, A1, 0, 14, shade(wall, .8), null, 0, FB + 0.4);                      // the plinth
       /* the windows either side of the door: a reveal, the glass, a bar, a cill */
-      for(const c of [A0 + 120, A0 + 270, A1 - 270, A1 - 120]){
+      for(const c of [A0 + 150, A0 + 300, A1 - 300, A1 - 150]){
         F(c - 52, c + 52, 48, 138, shade(wall, 1.12), trim, 2, FB + 0.4);
         F(c - 46, c + 46, 54, 132, '#2e3a40', null, 0, FB + 0.8);
         F(c - 44, c + 44, 56, 130, glass, null, 0, FB + 1.2);
@@ -71648,11 +71661,11 @@ marinaEntry(),
       { const b0 = BOFF; BOFF = b0 + FB;
         try { shopDoor(GM, wall, trimD, glass, 3128, 0, { w: 116, h: 134, pair: true, glazed: true }); } finally { BOFF = b0; } }
       /* the fascia and its lettering, a paw on the front */
-      slab(A0 + 40, A1 - 40, 156, 196, FB + 6, FB, trim, trimD);
-      word('ANIMAL SHELTER', A0 + 70, A1 - 70, 162, 190, FB + 6, '#ffffff', trimD, 6);
+      slab(A0 + 70, A1 - 70, 156, 196, FB + 6, FB, trim, trimD);
+      word('ANIMAL SHELTER', A0 + 100, A1 - 100, 162, 190, FB + 6, '#ffffff', trimD, 6);
       const paw = (a, z, r) => { faceCircle(a, FB + 0.8, z, r, '#c86b3c');
         for(const [da, dz] of [[-r*1.1, r*1.05], [-r*0.4, r*1.55], [r*0.4, r*1.55], [r*1.1, r*1.05]]) faceCircle(a + da, FB + 0.8, z + dz, r*0.42, '#c86b3c'); };
-      paw(A0 + 40, 100, 16); paw(A1 - 40, 100, 16);
+      paw(A0 + 70, 100, 16); paw(A1 - 70, 100, 16);
     }});
     /* the canopy over the door, on its two posts, in front of the front */
     items.push({ a: GM, b: FB + 60, z: 0, shell: true, draw: () => {   // (it goes with the shell)
@@ -80980,12 +80993,15 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        2026-10-17, Seabreeze Trophies: "lets make the exterior of our shop
        match the interior foot print"). show(WW, a1, a0) is then called for
        each window, a0..a1 */
-    const WW = o.ww || W, DD = o.dd || D, H = o.H || 160, wall = o.wall, trim = o.trim;
+    /* grow: THE SHELL COVERS THE ROOM (W22): the body is the lot's rect grown by `grow` world units on every side (a walk-in's walls
+       stand 30 outside its floor), its art on the grown frame (aoff, boff slide the entry: the lot, the layout and the room stay put) */
+    const GR = (o.grow || 0) / 1.3, WW0 = o.ww || W;
+    const WW = WW0 + 2*GR, DD = (o.dd || D) + 2*GR, H = o.H || 160, wall = o.wall, trim = o.trim;
     const roof = o.roof || shade(wall, .82), sign = o.sign || shade(wall, .62);
     const winA1 = Math.round(WW*0.56), mid0 = WW/2;
-    const WINS = o.wins || (o.doorMid ? [[14, mid0 - 62], [mid0 + 62, WW - 14]] : [[14, winA1]]);
+    const WINS = o.wins ? o.wins.map(w => [w[0] + GR, w[1] + GR]) : (o.doorMid ? [[14 + GR, mid0 - 62], [mid0 + 62, WW - 14 - GR]] : [[14, winA1]]);   // (windows stay where the room's glass is; the grown ends are plain wall)
     return {
-      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW, ...(o.dd ? { dd: o.dd } : {}), ...(o.see ? { see: true } : {}),
+      name:o.name, xh:H, base:o.base, hood:'The Flats', edited:true, sc:1.3, ww:WW0, ...(o.dd ? { dd: o.dd } : {}), ...(GR ? { aoff: -GR, boff: GR } : {}), ...(o.see ? { see: true } : {}),
       head:o.head, tags:o.tags || [], desc:o.desc || o.head, ...(o.lamps ? { lamps: o.lamps } : {}),
       draw(p){
         body(wall, trim, H, WW, DD);
@@ -81009,7 +81025,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         const mid = WW/2;
         F(22, mid-20, 134, 146, trim, null, 0, 6.5);
         F(mid+20, WW-22, 134, 146, trim, null, 0, 6.5);
-        if(o.mark) o.mark(WW, mid);
+        if(o.mark) o.mark(WW, mid, GR);
         if(H > 175){                                                   // an upper floor's windows
           for(const [a0,a1] of [[24, WW*0.42], [WW*0.58, WW-24]]){
             F(a0-4, a1+4, 164, H-12, shade(wall,.82), null, 0, 0.3);
@@ -81396,9 +81412,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
               for(const bs of [-DD*0.2, -DD*0.8]) poly([P(WW + 0.9, bs + 2, 143), P(WW + 0.9, bs - 5, 137.5), P(WW + 0.9, bs - 1, 137.5), P(WW + 0.9, bs - 4, 133), P(WW + 0.9, bs + 5, 139.5), P(WW + 0.9, bs + 1, 139.5)], copper); }
           }
         },
-        mark(WW){
+        mark(WW, mid, GR){
           /* the one board across the fascia: BREW & BOLT in cream, a copper bolt at each end (a runs right to left here) */
-          const m0 = MIRROR; if(P(1, 0, 0).x < P(0, 0, 0).x) MIRROR = WW;
+          const m0 = MIRROR; if(P(1, 0, 0).x < P(0, 0, 0).x) MIRROR = WW - 2*(GR || 0);
           try {
             F(20, WW - 20, 133, 147, '#2a1a11', null, 0, 6.8);
             F(24, WW - 24, 135, 145, '#3b2619', null, 0, 6.9);
@@ -81406,9 +81422,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
             bolt(36); bolt(WW - 36);
             blockWordIn('BREW & BOLT', 54, WW - 54, 136, 144, 7.3, '#f1e6cf', null, 5.2);
           } finally { MIRROR = m0; } } };
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3, see:true,
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt', grow:30, ww:836/1.3, dd:420/1.3, doorMid:true, doorW:90/1.3, see:true,
         lamps:[64, 836/1.3 - 64].map(a => ({ a, b:15, z:158, r:110 })) }, BB)));
-      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', ww:416/1.3, dd:836/1.3, noDoor:true, wins:[[14, 416/1.3 - 14]], see:true, lamps:[{ a:416/2.6, b:15, z:158, r:110 }] }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
+      SHOPS.push(flatsShop(Object.assign({ name:'Brew & Bolt East', grow:30, ww:416/1.3, dd:836/1.3, noDoor:true, wins:[[14, 416/1.3 - 14]], see:true, lamps:[{ a:416/2.6, b:15, z:158, r:110 }] }, BB, { head:'Brew & Bolt, the east leg: the coffee bar window on the Kart Works street' }))); }
     /* THE TIDEWATER KART WORKS (the Flats build order, area 3; Sir's plan, 2026-11-01): the soapbox club's garage on
        the north-east of block 1,4, across the street from the derby's course -- a red board-and-batten barn under a
        gambrel roof of grey tin, its gable end on the east street with a roll-up door in it (the way in: a walk-in, the
@@ -81888,7 +81904,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       HOUSE_FACE_REC = rec;
       try { shop.draw.call(shop, PAL[0]); if(shop.fore) shop.fore.call(shop, PAL[0]); }
       catch(e){ rec.length = 0; }
-      finally { HOUSE_FACE_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { HOUSE_FACE_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return (shop._roofF = roofFacesFrom(rec));
     },
     /* the entry's doors (see DOOR_REC), recorded once */
@@ -81903,7 +81919,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       DOOR_REC = rec;
       try { shop.draw.call(shop, PAL[0]); }
       catch(e){ rec.length = 0; }
-      finally { DOOR_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { DOOR_REC = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return (shop._doorRec = rec);
     },
     /* the door nearest lab `a` along its frontage, or null */
@@ -81924,12 +81940,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0); AOFF = d.aoff != null ? d.aoff : (shop.aoff || 0);
       SEE = !!shop.see;
       SHOP_SLOT = { G };
       ctx.__bind(g);
       try { shopDoorOpen(d, t, between, leafOnly); }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return true;
     },
     /* that door's swung leaves at ground level, open by t, as [p0, p1]
@@ -81942,7 +81958,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0); AOFF = d.aoff != null ? d.aoff : (shop.aoff || 0);
       SHOP_SLOT = { G };
       try {
         if(d.pair && d.see){                                                   // (a walk-in's glazed pair slides: its leaves stay in the glass line)
@@ -81951,7 +81967,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         }
         return shopDoorLeaves(d).map(([h, sg, len]) => [P(h, 0.6, 0), P(h + sg*len*ca, 0.6 + len*sa, 0)]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
     },
     /* that door's opening as four screen points, in the same frame as
        drawDoorOpen -- the window someone inside is seen through */
@@ -81962,13 +81978,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       SC = shop.sc || 1;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       MIRROR = (flank === false && shop.mirror !== false) ? (shop.ww || W) : 0;
-      BOFF = d.boff != null ? d.boff : (shop.boff || 0);
+      BOFF = d.boff != null ? d.boff : (shop.boff || 0); AOFF = d.aoff != null ? d.aoff : (shop.aoff || 0);
       SHOP_SLOT = { G };
       try {
         const A0 = d.a0 + 2, A1 = d.a1 - 2, z0 = d.z, z1 = d.z + d.dH - (d.pair && d.see ? 0 : 30);   // (a walk-in's glazed pair: the full opening, as its leaves)
         return [P(A0, 0.62, z0), P(A1, 0.62, z0), P(A1, 0.62, z1), P(A0, 0.62, z1)].map(p => ({ x: p.x, y: p.y }));
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
     },
     /* the entry's roof height at lab (a, b), or null where it has none */
     roofAt(name, a, b){ return roofHeightAt(this.roofOf(name) || [], a, b); },
@@ -82024,7 +82040,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       state.emit = (items) => { got = items; };
       ctx.__bind(NULL_GFX);
       try { shop.draw(PAL[0]); }
-      finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return got;
     },
     drawItem(name, g, G, k, item, flank, edge){
@@ -82033,7 +82049,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       if(!ctx) ctx = makeCtx2Phaser();
       this._enter(shop, G, k, flank, edge);
       ctx.__bind(g);
-      try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; }
+      try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return true;
     },
     /* clip: [a0, a1, b0, b1] in the entry's frame -- only the ground inside it (a walk-in's floor seen from the
@@ -82048,14 +82064,14 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       if(clip) ctx.__clipTo([P(clip[0], clip[2], 0), P(clip[1], clip[2], 0), P(clip[1], clip[3], 0), P(clip[0], clip[3], 0)].map(q => ({ x: q.x, y: q.y })));
       /* (its clip let go after: left set, the next piece painted -- a walk-in's wall seen through its glass, Sun Deck Motor
          Lodge's office -- was clipped to this floor's outline, and its last colour filled the whole opening) */
-      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; if(clip) ctx.__clipTo(null); }
+      try { shop.draw(PAL[0]); } finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; if(clip) ctx.__clipTo(null); }
       return true;
     },
     _enter(shop, G, k, flank, edge){
       SEE = !!shop.see;
       K = k || 1;
       SC = shop.sc || 1;
-      BOFF = shop.boff || 0;
+      BOFF = shop.boff || 0; AOFF = shop.aoff || 0;
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       const mirrored = !!edge && flank === false && shop.mirror !== false;
       MIRROR = mirrored ? (shop.ww || W) : 0;
@@ -82079,7 +82095,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       ZSCALE = shop.zs === undefined ? 1.5 : shop.zs;
       const mirrored = flank === false && shop.mirror !== false;
       MIRROR = mirrored ? (shop.ww || W) : 0;
-      BOFF = shop.boff || 0;
+      BOFF = shop.boff || 0; AOFF = shop.aoff || 0;
       SEE = !!shop.see && !rear;
       FLANK_RIGHT = mirrored ? true : (flank === undefined ? true : !!flank);
       SHOP_SLOT = { G };
@@ -82107,7 +82123,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         if(layer !== 'fore') (rear && shop.back ? shop.back : shop.draw).call(shop, pal || PAL[0]);
         if(layer !== 'body' && !(rear && shop.back) && shop.fore) shop.fore.call(shop, pal || PAL[0]);
       }
-      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; state.part = null; state.partW = null; state.partCol = null; state.back = false; }
+      finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; state.part = null; state.partW = null; state.partCol = null; state.back = false; }
       return true;
     }
   };

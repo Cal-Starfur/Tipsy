@@ -8,15 +8,15 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Seabreeze Trophies | **fits** | photo | not audited |
 | Dune Home & Garden | **fits** (grown 30 each side 2026-11-07; `cover ok`) | measured | fixed 2026-11-07 (no piers, trolleys 60 clear); also given W11 see-through (entrance and shopfront show the room) and its car park's night lamps |
 | Tide Pool Elementary | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: the doorway is the wall's own end, nothing near the near wall |
-| Tidewater Museum | **short**, 30 on all four sides | measured | not audited |
-| Costa Palma Animal Shelter | **short**, the body stands at the floor's line, the magenta is in front of it | photo | not audited |
-| Brew & Bolt | **short**, the base stands at the floor's line | photo | not audited |
-| KTDE 98.1 The Tide | **short**, the street wall stands at the floor's line | photo | not audited |
-| Sun Deck Motor Lodge Office | **short**, the office's base is at about the floor's line | photo | not audited |
-| Tidewater Kart Works | **short on the front** (the barn's front stands inside the magenta), the east end reads right | photo | not audited |
+| Tidewater Museum | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: portico, bay and doors read right against the room; night box still in `kf-night` |
+| Costa Palma Animal Shelter | **fits** (grown 30 each side 2026-11-08; body reaches the magenta in the photo) | photo | looked at inside at the door 2026-11-08: the front wall runs to the gap; door, canopy, windows, vol, swing door and the worker's step/gate marks follow the new front |
+| Brew & Bolt | **fits** (grown 30 each side 2026-11-08, both legs; the body reaches the magenta in the photo) | photo | looked at inside at the door: the front wall runs to the gap; door, pair, windows and flank glass follow the new front |
+| KTDE 98.1 The Tide | **fits** (read 2026-11-08: the body's four corners, lab 40..1616 x -1616..-40, land exactly on the magenta world 16416..17992 x 25800..27376; the earlier 'short' was a misread of the photo, the exterior already stood on the walls' outer face; its rounded corner sits inside the magenta's square corner as it should) | measured by hand (the entry declares no `vol.foot`) | looked at inside at the door 2026-11-08: lobby glass pair, doorway at the wall's own end, desk 244 and couch clear of the near wall, studio glass and DJ desk read right against the room; no change needed |
+| Sun Deck Motor Lodge Office | **fits** (grown 30 each side 2026-11-08, `office.sh`; the body's corners land on the magenta in the photo) | photo | looked at inside at the door 2026-11-08: front wall runs to the gap; glass door, storefront, picture window, slide pair, walk, vol and openings follow the new face |
+| Tidewater Kart Works | **fits** (measured 2026-11-09 with `landmarkLabWorld` against the magenta box: the body's four corners land exactly on world 4839.9..5520 x 13248..14068.5; the earlier 'short on the front' was a misread of the photo, Brew & Bolt hides the barn's near corner) | measured by hand (no `vol.foot`) | looked at inside at the door 2026-11-09: front wall runs to the roll-up's gap, nothing stands out in front of it, bench, counter and mechanic's bench clear of the near walls; no change needed |
 | Vista Ridge Security Post | **does not fit at all**: the room's floor stands well in front of the building (it is outside it, not under it) | photo | not audited |
 
-Fits: 4 of 11 (Pelican Drug, Trophies, Dune Home, Tide Pool). Short: 6. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
+Fits: 10 of 11 (Pelican Drug, Trophies, Dune Home, Tide Pool, Museum, Animal Shelter, Brew & Bolt, KTDE, Sun Deck Office, Kart Works). Short: 0. Does not fit: 1 (Vista Ridge, a footprint error, not a 30 growth).
 
 The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell is 30 bigger on every side..."): grow the exterior's body 30 on every side from `plan.shell`; the tower or door follows it out; the glass openings, `slideDoors`, the collision `vol` and anything on the body's faces (the band, the sign) move with it; the lot (bays, lanes, hedges) stays where it was. Then look inside at the door for W23 and W24 and fix what shows.
 
