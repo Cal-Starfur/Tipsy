@@ -27,13 +27,14 @@ function serve(){
    the exterior's shell -- if the shell is bigger, smaller or elsewhere, it shows. Inside: Tipsey in the room.
    Also records W x D and the door; photos at view 2 and 3, the inside also at night. */
 const WK_READY = () => { try { const w = game.scene.getScene('world'); return w && w.ow && w.state === 'play'; } catch(e){ return false; } };
+let WK_BAD = 0;   // (kf-check: rooms whose shell is SHORT of the walls, or whose exterior declares no body: the run exits 1)
 async function walkins(page, base, only){
   await page.goto(`${base}?go=${encodeURIComponent('20140,14260')}&view=2`);
   await page.waitForFunction(WK_READY, null, { timeout: 60000 }).catch(() => {});
   const list = await page.evaluate(() => POCKETS.filter(p => p.walkin).map(p => { const v = p.view && p.view(); const d = p.doors[0].world && p.doors[0].world(); return { name: p.name, W: Math.round(p.w), D: Math.round(p.d), door: d && { x: Math.round(d.x), y: Math.round(d.y), ox: d.ox, oy: d.oy } }; }));
   /* W22 (docs/kits/walkin.md): does each shell cover its room's walls? [west, north, east, south] units short, 0 or less is covered */
   const cov = await page.evaluate(() => (typeof walkinCoverage === 'function' ? walkinCoverage() : []));
-  for(const c of cov) console.log('  cover', c.short === null ? 'not declared (look at the photo)' : c.covers ? 'ok' : 'SHORT ' + JSON.stringify(c.short), '-', c.name);
+  for(const c of cov){ console.log('  cover', c.short === null ? 'NOT DECLARED (give the pocket a `body`, walkinBody)' : c.covers ? 'ok' : 'SHORT ' + JSON.stringify(c.short), '-', c.name); if(c.short === null || !c.covers) WK_BAD++; }
   /* W25 (docs/kits/walkin.md): does any room's night cut reach over its near walls? (its tops, outer faces and parked cars would be lit) */
   const nc = await page.evaluate(() => (typeof walkinNightCheck === 'function' ? walkinNightCheck() : []));
   for(const c of nc) console.log('  night', c.problems === null ? 'not declared' : c.problems.length ? 'LEAK ' + c.problems.join('; ') : 'ok', '-', c.name);
@@ -115,5 +116,6 @@ async function walkins(page, base, only){
   await browser.close(); srv.close();
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   console.log('report: snaps/sheet/report.json');
-  process.exit(0);   // page errors stay in the report; the point here is what is DRAWN
+  if(WK_BAD) console.log(`FAIL: ${WK_BAD} walk-in(s) short or undeclared (W22, docs/kits/walkin.md)`);
+  process.exit(WK_BAD ? 1 : 0);   // page errors stay in the report; the point here is what is DRAWN
 })();

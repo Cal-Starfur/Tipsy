@@ -1,5 +1,7 @@
 # Walk-in kit fit: every built interior against W22-W24 (2026-11-07)
 
+**kf-check (2026-11-09):** every walk-in now declares its exterior's body (`body`, read by `walkinBody()` from the exterior's own constants), so `walkinCoverage()` measures all 19 rooms (`cover ok` on each, none short, none undeclared) and `run_sheet.js --walkins` exits 1 on a SHORT or a NOT DECLARED. The "photo" entries below were read by eye before; the measure agrees with every one.
+
 Method: `node tools/run_sheet.js --walkins` photographs each room from its door with the room's floor in red, the wall-top in orange and the WALLS' OUTER FACE (floor + `WALKIN_WALL` 30 on every side) in magenta, and prints `walkinCoverage()`. **W22: the shell's body must reach the magenta lines.** "Measured" = `walkinCoverage()` from the exterior's declared footprint; "photo" = read by eye from the outside photo (the exterior declares no comparable footprint). W23 (the doorway is the wall's own end) and W24 (nothing floats; fixtures 60 clear of a low near wall) are looked at inside, at the door, zoomed.
 
 | Room | W22 shell covers the walls | How | W23 / W24 |
@@ -38,3 +40,13 @@ All of them take the kit's night cut (`night ok`).
 
 ## Left out of the sheet (queue `kf-big`)
 The Seabreeze Ballroom, Marina General Hospital and the Maritime Mall are not `walkin` pockets (they predate the kit and keep their own frames), so `walkinCoverage()` does not read them and `run_sheet.js --walkins` does not photograph them. Their W22 (shell covers the walls) and W23/W24 are not audited. The Ballroom's night boxes are also in `kf-night`.
+
+## W26 audit, neighbours over the room (2026-11-09)
+Every walk-in's inside photo (view 2, `run_sheet.js --walkins`) looked at for a neighbouring building standing over its floor or walls. Found and fixed: the Tidewater Kart Works (`ghosts` Brew & Bolt, Brew & Bolt East) and Seabreeze Trophies (same two, Brew's roof and east leg covered its east end, the engraver bench and ribbons). Clear, nothing to list: Brew & Bolt, Costa Palma Animal Shelter, Driftwood Chapel, Dune Home & Garden, Ferris Taylor Cottage, KTDE, Lagoon Baths, Lagoon Market Hall, Palmline Nursery, Pelican Drug, Saltwater Brewing, Seaglass Coffee, Sun Deck Airfield Terminal, Sun Deck Motor Lodge Office, Tide Pool Elementary, Tidewater Museum, Vista Ridge Security Post. Not covered: the Ballroom, Marina General Hospital and the Maritime Mall (not `walkin` pockets, queue `kf-big`); Cove Grove (not in the sheet); views at other camera angles (only view 2 and 3 photographed, view 3 not re-read for this).
+
+## kf-new audit (2026-11-09)
+`run_sheet.js --walkins`: `cover ok` and `night ok` on all 17 declared rooms, including the Airfield terminal (now in the sheet). Looked at the inside photo (view 2, from the door) of the seven rooms built since the audit, for W22 (red footprint in the shell), W23 (doorway is the wall's own end) and W24 (nothing floats, fixtures 60 clear of the near wall):
+- Saltwater Brewing, Lagoon Baths, Driftwood Chapel, Palmline Nursery, Seaglass Coffee: front wall runs to the gap with its own cap, nothing stands in front of it, fixtures clear of the near walls. OK.
+- Ferris Taylor Cottage: cutaway room sits on the shell, doorway is the wall's end, table and dresser clear of the near wall. OK.
+- Lagoon Market Hall: the room is an open market, its front is a low glass rail with the gap; stalls clear. Far side is ghosted by see-through (W11), as intended. OK.
+No change to the game. Not done: Cove Grove is still not in the walk-in sheet. The sheet run crashed (page closed) partway through the later pockets (after Tide Pool), so Tidewater Museum, Airfield and Security Post photos were not re-read this pass.

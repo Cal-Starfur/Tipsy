@@ -1134,7 +1134,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "node tools/run_sheet.js --walkins: 19 of 19 'cover ok', exits 1 on a SHORT or NOT DECLARED"
 },
 {
 "id": "kf-night",
@@ -1142,7 +1143,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "node tools/run_sheet.js --walkins: every night line ok; look inside the Ballroom, Museum and Terminal at night (not looked at yet)"
 },
 {
 "id": "kf-new",
@@ -1150,7 +1152,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2"
 },
 {
 "id": "kf-big",

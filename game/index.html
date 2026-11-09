@@ -12592,8 +12592,9 @@ function owInstall(scene){
       owPaintStick(ow);
     }
   };
-  ow.onKeyDown = e => { if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
-  ow.onKeyUp   = e => { if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
+  const owTyping = e => { const t = e.target; return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
+  ow.onKeyDown = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
+  ow.onKeyUp   = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
 
   const cv = scene.game.canvas;
   ow.canvas = cv;
@@ -19609,8 +19610,8 @@ const POCKETS = [
     /* its night cut (pocketNightCut): the hall to its walls' tops; the front
        strip to the coat check's partition and its stepped west wall (176),
        the elevator's car to its cornice, the foyer and lounge a little over */
-    night: [[-30, 1630, -30, 1230, 380], [-30, 690, 1230, 1626, 176], [690, 1630, 1230, 1626, 200],
-            [-30, 246, 1364, 1626, 236], [-30, 252, 1358, 1632, 244, 228]],     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
+    night: [[-30, 1600, -30, 1230, 380], [-30, 690, 1230, 1596, 176], [690, 1600, 1230, 1596, 200],
+            [-30, 246, 1364, 1596, 236], [-30, 252, 1358, 1596, 244, 228]],   // (kf-night: stopped at the near walls, a 1600 / b 1596 -- they reached 30 over)     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
     view: ballroomInShift, hides: 'Seabreeze Ballroom',
     /* HE DRIVES IN HIMSELF (Sir, 2026-10-23: "you drive", as the mall's
        front doors): seamless, the doorway's width (the room's 720..880),
@@ -21297,6 +21298,7 @@ function lostDogDone(){
    Costa Palma Animal Shelter (its block, SHELTER.i, j; its door, the entry's door mark). Stopped at its path with the
    dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
    time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
+const SHELTER_BODY = [1134, 1994, -1530, -706];   // (the building's body in the lot's frame: a0, a1, b0, b1 -- the exterior's solid and the room's W22 check both read it)
 const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -706], gateB: -670, stepB: -684 };   // (door on the shell's front, 30 past the room's floor line, W22)
 function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
 function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
@@ -26052,7 +26054,7 @@ const ALMS_PLAN = (() => {
     trees: [[1180, -1240], [2*GM - 1180, -1240], [1180, -1888], [2*GM - 1180, -1888]],
     /* THE WALK-IN COTTAGE (wk8, CTG_IN): the street range's east dwelling, a 1824..2128 (the lot's own frame, as drawn: the hl queue collects unmirrored),
        its door 62 across at 2036.8 on the front's plane b -736, its window at 1903, the room 244 x 204 inside it */
-    CTG: { a0: 1824, a1: 2128, doorLab: 2036.8, half: 31, win: [1875.04, 1931.04] },
+    CTG: { a0: 1824, a1: 2128, b0: -736 - RD, b1: -736, doorLab: 2036.8, half: 31, win: [1875.04, 1931.04] },
     gateCentre(g){ return g.axis === 'b' ? { a: g.at, b: g.plane } : { a: g.plane, b: g.at }; },
     /* the gate's rectangle in the cell's frame, solid while it is shut */
     gateRect(g){ return g.axis === 'b' ? [g.at - g.hw, g.at + g.hw, g.plane - 8, g.plane + 8] : [g.plane - 8, g.plane + 8, g.at - g.hw, g.at + g.hw]; }
@@ -28318,7 +28320,8 @@ function trophyDoorWorld(){
    he is), the shop's shell fading off round him (pocketShellK, the street's pipeline) and the street staying where it
    is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
-  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true,
+  h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true, body: ['lot'],   // (the shop fills its lot: walkinBody)
+  ghosts: ['Brew & Bolt', 'Brew & Bolt East'],   // (W26: Brew & Bolt's roof stands over the shop's east end on screen)
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-564, 184], [-564, -3600]], [[1460, 184], [1460, -3600]]] },
   /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
@@ -28466,6 +28469,7 @@ function walkinDefine(spec){
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
     h: plan.H, out: plan.out, view: meas, hides: spec.from, walkin: true, street: spec.street, openings: () => (meas(), plan.openings || null),
     late: spec.late,                                                             // (kept open for a story: walkinOpenNow)
+    body: spec.body,                                                             // (kf-check: the exterior's declared body, walkinBody)
     stagger: spec.stagger,                                                       // (a crowd's: how far apart their goings and comings are, ms -- the school's bell)
     get night(){ meas(); return spec.night ? spec.night(plan) : walkinNightBoxes(plan.W, plan.D, plan.H, spec.LH, plan.door); },
     doors: [{ id: 'front', seamless: true, nofade: true, keep: true, glass: spec.glass != null ? spec.glass : 60, clear: 50,
@@ -28483,19 +28487,38 @@ function walkinDefine(spec){
    issue ... thats why ive been having to adjust every building"). The room's FLOOR is its lab rect, and walkinRoom stands its walls
    WALKIN_WALL outside the floor on every side, so the shell's body must be at least the floor grown by WALKIN_WALL on all four
    sides (the door's side too: the tower stands out in front of that). walkinCoverage() measures it for every walk-in whose exterior
-   declares its footprint (vol.foot): how far the shell falls short on each side [west, north, east, south], 0 or less when it
+   declares its footprint (a `body`, or an authored vol.foot): how far the shell falls short on each side [west, north, east, south], 0 or less when it
    covers; null when the exterior declares none (measure it by eye). tools/run_sheet.js --walkins prints it. Build the shell from the
    plan's `shell` rect (plan.shell, in the room's world: the floor grown by WALKIN_WALL), never from the floor's. */
 const WALKIN_WALL = 30;
+/* (kf-check) THE BODY AN EXTERIOR DECLARES: the corners, in world, of what the shell is made of. A walk-in's `body` (walkinDefine's spec, or
+   the pocket) lists it from the exterior's own numbers: a rect [a0, a1, b0, b1] in the landmark's lab frame (the one `lab` is in), or the name of
+   a LIB entry whose lot is the body ('lot': this pocket's own entry -- a shop that fills its lot). Without a `body`, the entry's authored
+   vol.foot is read (a foot of no extent is the placeholder of a landmark that declares none). null when nothing is declared. */
+function walkinBody(pk){
+  const pts = [], addFoot = (name, f) => { const L = typeof landmarkLabWorld === 'function' ? landmarkLabWorld(name) : null; if(!L) return false; for(const [a, b] of f) pts.push(L(a, b)); return true; };
+  if(pk.body){
+    for(const it of pk.body){
+      if(Array.isArray(it)){ const [a0, a1, b0, b1] = it; if(!addFoot(pk.from, [[a0, b0], [a1, b0], [a1, b1], [a0, b1]])) return null; }
+      else {   // (a lot's entry: the lot, grown by what the entry says it grew -- flatsShop's `grow` is aoff/boff, the body out past the lot on every side)
+        const nm = it === 'lot' ? pk.from : it, e = LIB.get(nm), v = e && LIB.vol(nm), g = e && e.aoff ? -e.aoff : 0;
+        if(!v || !addFoot(nm, [[v.lot.a0 - g, v.lot.b0 - g], [v.lot.a1 + g, v.lot.b0 - g], [v.lot.a1 + g, v.lot.b1 + g], [v.lot.a0 - g, v.lot.b1 + g]])) return null; }
+    }
+    return pts;
+  }
+  const ent = LIB.get(pk.from), f = ent && ent.vol && ent.vol.foot;
+  if(!f || !addFoot(pk.from, f)) return null;
+  const xs = f.map(q => q[0]), ys = f.map(q => q[1]);
+  return Math.max(...xs) > Math.min(...xs) && Math.max(...ys) > Math.min(...ys) ? pts : null;
+}
 function walkinCoverage(){
   return POCKETS.filter(p => p.walkin).map(pk => {
-    const v = pk.view && pk.view(), L = pk.from && typeof landmarkLabWorld === 'function' ? landmarkLabWorld(pk.from) : null, ent = LIB.get(pk.from);
-    const f = ent && ent.vol && ent.vol.foot;
-    if(!v || !L || !f) return { name: pk.name, short: null };
-    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx + (v.rise || 0), Y0 = pk.y0 + v.dy + (v.rise || 0);
+    const v = pk.view && pk.view(), q = v ? walkinBody(pk) : null;
+    if(!v || !q) return { name: pk.name, short: null };
+    const X0 = pk.x0 + v.dx + (v.rise || 0), Y0 = pk.y0 + v.dy + (v.rise || 0);
     const sh = [X0 - WALKIN_WALL - Math.min(...q.map(r => r.x)), Y0 - WALKIN_WALL - Math.min(...q.map(r => r.y)),
-                Math.max(...q.map(r => r.x)) - (X0 + pk.w + WALKIN_WALL), Math.max(...q.map(r => r.y)) - (Y0 + pk.d + WALKIN_WALL)].map(n => Math.round(-n));
-    if(sh.some(n => Math.abs(n) > 300)) return { name: pk.name, short: null };         // (a foot in another frame than the lab's: not comparable)
+                Math.max(...q.map(r => r.x)) - (X0 + pk.w + WALKIN_WALL), Math.max(...q.map(r => r.y)) - (Y0 + pk.d + WALKIN_WALL)].map(n => Math.abs(n) < 1 ? 0 : Math.round(-n));   // (under a unit is the view's rounding: the Kart Works' barn stands at y 14068.5)
+    if(sh.some(n => n > 300)) return { name: pk.name, short: null };                   // (a foot in another frame than the lab's lands far short on a side: not comparable. Far past is fine: a tower round a shop)
     return { name: pk.name, short: sh, covers: sh.every(n => n <= 0) };
   });
 }
@@ -29475,7 +29498,7 @@ walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
    the staff door at its end), reception east of the lane in front of the supplies, a play pen and the cat tree west, the adoption
    board on the west wall. Staff: the receptionist (behind her counter), a kennel hand (the kennels, the pen); one visitor. */
 const SHELTER_IN = walkinDefine({ name: 'Costa Palma Animal Shelter Interior', from: 'Costa Palma Animal Shelter', x0: 510000, y0: 400000,
-  lab: [1164, 1964, -1500, -736], door: { a: 1564, b: -736, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
+  lab: [1164, 1964, -1500, -736], body: [SHELTER_BODY], door: { a: 1564, b: -736, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
   /* (its way to and from the street, THE ROOM'S DAY: down the path to the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-1012, 184], [-1012, -3600]], [[1012, 184], [1012, -3600]]] } });
 const SHELTER_STAFF_UNIFORM = { shirt: { c:0x2f8a8a, dk:0x226a6a }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
@@ -29678,8 +29701,9 @@ walkinLife('Palmline Nursery Interior', { keep: [[100, 180, 0, 220]], looks: [] 
    less the walls' 30 each side (W22: 43.33 in from every side in the draw frame: a 1975.33..2348.67, b -2348.67..-43.33 -- 258 x 1596 in
    the world). The hall (box, vault, flank, door, arch: one `shell` piece) fades round him as he goes in at its great door (110 across on
    the gable's middle, draw a 175..285 = a 2107..2217 here, the plane 8 back of the front); the doorway shows the nave (walkinThrough). */
+const HALL_BODY = [2392 - 460, 2392, -2392, 0];   // (the hall in its draw frame, before the entry's 0.6923: the exterior's foot and the room's W22 check both read it)
 const HALL_IN = walkinDefine({ name: 'Lagoon Market Hall Interior', from: 'Lagoon Market Hall', x0: 570000, y0: 400000,
-  lab: [1975.33, 2348.67, -2348.67, -43.33], door: { a: 2162, b: -8, half: 38.1 }, H: 374, out: 36, apron: 30, glass: 4,
+  lab: [1975.33, 2348.67, -2348.67, -43.33], body: [HALL_BODY], door: { a: 2162, b: -8, half: 38.1 }, H: 374, out: 36, apron: 30, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the great door, across the pavement and along it round either corner of the lot --
      the lot's west edge 159 from the door, its east 1497) */
   street: { to: [0, 184], routes: [[[-343, 184], [-343, -3600]], [[1681, 184], [1681, -3600]]] },
@@ -29719,7 +29743,7 @@ walkinLife('Lagoon Market Hall Interior', { keep: [[91, 167, 104, 1596]], looks:
    plane 6 back of the front, b -742); the doorway and the window (lab a 1875..1931) show the room (walkinThrough). In the room's own frame (a east,
    b south) the door is at a 30..92, at the west end, under the chimney's breast (the hearth, a 34..90). */
 const CTG_IN = walkinDefine({ name: 'Ferris Taylor Cottage Interior', from: 'Ferris Taylor Cottages', x0: 580000, y0: 400000,
-  lab: [1854, 2098, -970, -766], door: { a: 2036.8, b: -742, half: 31 }, H: 280, out: 36, apron: 30, glass: 4,
+  lab: [1854, 2098, -970, -766], body: [[ALMS_PLAN.CTG.a0, ALMS_PLAN.CTG.a1, ALMS_PLAN.CTG.b0, ALMS_PLAN.CTG.b1]], door: { a: 2036.8, b: -742, half: 31 }, H: 280, out: 36, apron: 30, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the pavement and along it round either corner of the lot -- the lot's
      west edge 355 from the door, its east 1301, the side street's pavement 184 beyond) */
   street: { to: [0, 190], routes: [[[-539, 190], [-539, -3600]], [[1485, 190], [1485, -3600]]] },
@@ -29750,7 +29774,7 @@ function ctgGatehouseDepth(){
    face, y 27232); the doorway and the glass over the bulkhead (z 46..112) show the room (walkinThrough). In the room's own frame (a east, b south)
    the door is at a 228..322, the lane to the back wall. */
 const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grove West Tower', x0: 590000, y0: 400000,
-  lab: [COVE.coffee.x0, COVE.coffee.x1, 25024 - COVE.coffee.y1, 25024 - COVE.coffee.y0], door: { a: COVE.coffee.door, b: 25024 - 27232, half: COVE.coffee.half },
+  lab: [COVE.coffee.x0, COVE.coffee.x1, 25024 - COVE.coffee.y1, 25024 - COVE.coffee.y0], body: COVE.towers.filter(T => T.cvc).map(T => [T.x0, T.x1, 25024 - T.y1, 25024 - T.y0]), door: { a: COVE.coffee.door, b: 25024 - 27232, half: COVE.coffee.half },
   H: 280, out: 36, apron: 30, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the forecourt to the pavement and along it either way) */
   street: { to: [0, 210], routes: [[[-1100, 210]], [[1100, 210]]] },
@@ -29958,7 +29982,7 @@ const MOTEL_MAID_UNIFORM = { shirt: { c:0xe8826e, dk:0xc4664f }, pants: { c:0xe8
    the street front; the lobby to the front, the check-in desk in the north-east corner, the back office behind a half
    wall to the north-west. Always open: a motor lodge's desk is staffed round the clock (the place card's 0-24) */
 const MOTEL_IN = walkinDefine({ name: 'Sun Deck Motor Lodge Office', from: 'Sun Deck Motor Lodge', x0: 460000, y0: 400000,
-  lab: [60, 480, -600, -260], door: { a: 170, b: -262, half: 55 }, H: 195, out: 40, apron: 40, glass: 45,
+  lab: [60, 480, -600, -260], body: [[MOTOR_LODGE.office.sh.a0, MOTOR_LODGE.office.sh.a1, MOTOR_LODGE.office.sh.b0, MOTOR_LODGE.office.sh.b1]], door: { a: 170, b: -262, half: 55 }, H: 195, out: 40, apron: 40, glass: 45,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, down its path to the pavement, and along it) */
   street: { to: [0, 250], routes: [[[-460, 250], [-460, 1600]], [[1400, 250], [1400, 1600]]] },
   /* (seen through, W11: the glass door, the storefront down the street front, the picture window onto the lot) */
@@ -30093,7 +30117,7 @@ function ktdeOutline(n){
    way through, the record library, Studio B (the engineer's console, a vocal mic) and the newsroom with its couch for
    guests, seen from the side street through its three windows. Open round the clock (the place card's 0-24) */
 const KTDE_IN = walkinDefine({ name: 'KTDE 98.1 The Tide Studios', from: KTDE.name, x0: 500000, y0: 440000,
-  lab: [70, 1586, -1586, -70], door: { a: 605, b: -72, half: 45 }, H: 180, out: 40, apron: 40, glass: 45,
+  lab: [70, 1586, -1586, -70], body: [[KTDE.B.a0, KTDE.B.a1, KTDE.B.b0, KTDE.B.b1]], door: { a: 605, b: -72, half: 45 }, H: 180, out: 40, apron: 40, glass: 45,
   street: { to: [0, 120], routes: [[[-500, 120], [-500, 1600]], [[1300, 120], [1300, 1600]]] },
   openings: [{ lab: [[560, -39.4], [650, -39.4]], z: [0, 100] }, { lab: [[900, -39.4], [1340, -39.4]], z: [16, 110], glass: true },
              { lab: [[244, -39.4], [476, -39.4]], z: [33, 97], glass: true },
@@ -30207,7 +30231,7 @@ function kwYardO(){
 function kwStandStage(){ return typeof KW !== 'undefined' ? KW.stand : 'bare'; }
 /* THE ROOM (the walk-in kit): the barn's lab rect, its roll-up's middle on the gable's foot */
 const KW_POCKET = walkinDefine({ name: KW_IN.name, from: KW_PLAN.name, x0: KW_IN.x0, y0: KW_IN.y0,
-  lab: [KW_PLAN.WALL, KW_PLAN.WW - KW_PLAN.WALL, -(KW_PLAN.DD - KW_PLAN.WALL), -KW_PLAN.WALL], door: { a: (KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, b: 0, half: KW_IN.door.half }, H: KW_IN.H, out: 60, glass: 60,
+  lab: [KW_PLAN.WALL, KW_PLAN.WW - KW_PLAN.WALL, -(KW_PLAN.DD - KW_PLAN.WALL), -KW_PLAN.WALL], body: [[0, KW_PLAN.WW, -KW_PLAN.DD, 0]], door: { a: (KW_PLAN.DOOR[0] + KW_PLAN.DOOR[1])/2, b: 0, half: KW_IN.door.half }, H: KW_IN.H, out: 60, glass: 60,
   /* (its way to and from the street, THE ROOM'S DAY: out of the roll-up onto the east pavement's walking line, and along
      it round either corner of the block -- the north street west, the south street west past the depot) */
   street: { to: [184, 0], routes: [[[184, -564], [-3600, -564]], [[184, 1460], [-3600, 1460]]] },
@@ -30258,7 +30282,7 @@ const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D:
 /* GIDEON'S OWN CHARGING PAD (docs/gideon-dock.md), the room's frame: where he starts as the player */
 BB_IN.PAD = { a: 124, b: 266 };
 const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
-  lab: [0, 836/1.3, -836/1.3, 0], door: { a: 418/1.3, b: 30/1.3, half: 50 }, H: BB_IN.H, out: 60, apron: 90, glass: 60,   // (W22: the shell stands 30 out past the floor: the door on its front, b +30/1.3)
+  lab: [0, 836/1.3, -836/1.3, 0], body: ['lot', 'Brew & Bolt East'], door: { a: 418/1.3, b: 30/1.3, half: 50 }, H: BB_IN.H, out: 60, apron: 90, glass: 60,   // (W22: the shell stands 30 out past the floor: the door on its front, b +30/1.3)
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-1400, 184], [-1400, -3600]], [[580, 184], [580, -3600]]] },
   /* (seen through, W11: the glazed pair, the south wall's two windows -- flatsShop's, lab x1.3, z x1.95 -- and the east leg's one in the east wall) */
@@ -30360,7 +30384,7 @@ POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Museum', x0: MUS_IN.x0, y0: M
      soon after, where the kit's is two and a half to six -- with seven visitors on its books, someone is always at its door */
   day: { visitMs: [50000, 150000], backMs: [6000, 30000] },
   openings: museumOpenings,
-  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
+  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72),   // (kf-night: the kit's, as the rest -- the portico bay box reached 100 over the near wall and lit its outer face)
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
             spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
@@ -31770,7 +31794,7 @@ const AIR = (() => {
    the doorway and the glass over the bulkhead (z 46..88) show the room (walkinThrough). In the room's own frame (a east, b south) the door is at
    a 410..610, the lane to the back wall. */
 const TERM_IN = walkinDefine({ name: 'Sun Deck Airfield Terminal Interior', from: 'Sun Deck Airfield Terminal', x0: 590000, y0: 410000,
-  lab: [AIR.termIn.x0 - 25024, AIR.termIn.x1 - 25024, 18768 - AIR.termIn.y1, 18768 - AIR.termIn.y0], door: { a: AIR.termIn.door - 25024, b: 18768 - 21154, half: AIR.termIn.half },
+  lab: [AIR.termIn.x0 - 25024, AIR.termIn.x1 - 25024, 18768 - AIR.termIn.y1, 18768 - AIR.termIn.y0], body: [[AIR.terminal.x0 - 25024, AIR.terminal.x1 - 25024, 18768 - AIR.terminal.y1, 18768 - AIR.terminal.y0]], door: { a: AIR.termIn.door - 25024, b: 18768 - 21154, half: AIR.termIn.half },
   H: 300, out: 36, apron: 30, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the pavement and along it either way) */
   street: { to: [0, 210], routes: [[[-1100, 210]], [[1100, 210]]] },
@@ -31778,7 +31802,7 @@ const TERM_IN = walkinDefine({ name: 'Sun Deck Airfield Terminal Interior', from
   openings: [{ lab: [[AIR.termIn.door - 25024 - AIR.termIn.half, 18768 - 21160], [AIR.termIn.door - 25024 + AIR.termIn.half, 18768 - 21160]], z: [0, 88] },
              { lab: [[AIR.terminal.x0 + 40 - 25024, 18768 - 21160], [AIR.termIn.door - 25024 - AIR.termIn.half - 6, 18768 - 21160]], z: [46, 88], glass: true },
              { lab: [[AIR.termIn.door - 25024 + AIR.termIn.half + 6, 18768 - 21160], [AIR.terminal.x1 - 40 - 25024, 18768 - 21160]], z: [46, 88], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66, P.door) });   // (kf-night: the kit's, doorway included -- the extra box over the near wall lit its outer face)
 const TERM_AGENT = { shirt: { c:0x2e5f9e, dk:0x244a7c }, pants: { c:0x2b2f35, dk:0x1e2126 }, shoe: { c:0x1a1a1a, dk:0x101010 },
   vest: { c:0xf4f1ea, dk:0xd4d1ca }, shoeKind: 'dress' };                         // a blue shirt under a white waistcoat
 const TERM_BARISTA = { shirt: { c:0xc8352e, dk:0x9a2823 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
@@ -71754,7 +71778,7 @@ marinaEntry(),
      F5 bay in its corner answers first, fleetBaySolidAt) */
   vol: (() => {
     const SC = 0.6923, MW = 2392, R = volRect;
-    const hA0 = (MW - 460)*SC, hA1 = MW*SC, hB0 = 0, hB1 = -2392*SC, DM = (MW - 230)*SC, DHW = 55*SC, DN = -30;
+    const hA0 = HALL_BODY[0]*SC, hA1 = HALL_BODY[1]*SC, hB0 = 0, hB1 = HALL_BODY[2]*SC, DM = (MW - 230)*SC, DHW = 55*SC, DN = -30;
     return { foot: [[hA0,hB0],[DM-DHW,hB0],[DM-DHW,DN],[DM+DHW,DN],[DM+DHW,hB0],[hA1,hB0],[hA1,hB1],[hA0,hB1]], h: 300,                       // (heights are in the entry's units, x its zs 1.5: the hall 360 + its vault)
       solids: [{ poly: R(470*SC, 2380*SC, -2380*SC, -10*SC), h: 100 }] };
   })(),
@@ -73300,7 +73324,7 @@ marinaEntry(),
       foot: [[0,0],[0,0],[0,0]],
       h: H,
       solids: [
-        bx('shelter', 1134, 1994, -1530, -706, H),
+        bx('shelter', SHELTER_BODY[0], SHELTER_BODY[1], SHELTER_BODY[2], SHELTER_BODY[3], H),
         bx('canopy post W', 1452, 1464, -658, -646, 150, true), bx('canopy post E', 1664, 1676, -658, -646, 150, true),
         ...run('west', 780, 1100), ...run('east', 2028, 2348)
       ],
@@ -73315,7 +73339,7 @@ marinaEntry(),
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
   draw(p){
     /* W22: the shell is the room's floor (1164..1964, -1500..-736) grown 30 on every side; the door, canopy and windows follow the new front */
-    const GM = 1564, H = 210, FB = -706, BB = -1530, A0 = 1134, A1 = 1994;   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
+    const GM = 1564, H = 210, FB = SHELTER_BODY[3], BB = SHELTER_BODY[2], A0 = SHELTER_BODY[0], A1 = SHELTER_BODY[1];   // (FB: the building's front, on the lot's front, the pavement's edge -- 2026-11-06, was -1000 behind a lawn)
     /* LETTERING READS THE RIGHT WAY ROUND: the frame's mirror turns the building about GM, which is nothing to a
        symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
        place turned over too, which the mirror turns back */
@@ -88325,7 +88349,7 @@ function spScreenBox(k){
 }
 const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
   rise: SP_PLAN.Z,
-  lab: [8990, 9370, -6390, -6090], door: { a: 9090, b: -6060, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
+  lab: [8990, 9370, -6390, -6090], body: [[SP_PLAN.POST.x0, SP_PLAN.POST.x1, SP_PLAN.POST.y0, SP_PLAN.POST.y1]], door: { a: 9090, b: -6060, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
   /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
   openings: [{ lab: [[9040, -6059.4], [9140, -6059.4]], z: [0, 112] }, { lab: [[9205, -6059.4], [9335, -6059.4]], z: [34, 104], glass: true },
              { lab: [[9400.6, -6360], [9400.6, -6170]], z: [34, 104], glass: true }] });
@@ -121203,6 +121227,15 @@ class WorldScene extends Phaser.Scene {
       if(gpsNav){
         gpsNavReplot(this);
         if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
+        /* ARRIVED AT A PLACE: a place trip has no mat to arm, so it never
+           ended (Sir, 2026-11-09: "it doesn't drop the gps"). Within ~15 ft
+           of the end of the line, the trip is over. */
+        if(gpsNav && gpsNav.id === "place" && gpsNav.path && gpsNav.distU != null && gpsNav.distU < 25){
+          const nm = gpsNav.name;
+          gpsNavClear();
+          if(typeof tpToast === "function") tpToast("You've arrived at " + nm + ".");
+          if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(this);
+        }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -138870,6 +138903,19 @@ function tpMissionById(id){ return TP_SIDE_MISSIONS.find(m=>m.id===id); }
 function tpSheetStatusEl(){
   return tpSheetStatusEl.el || (tpSheetStatusEl.el = document.getElementById("sheetStatus"));
 }
+function tpCancelRoute(){
+  const s = scn();
+  if(typeof gpsNav === "undefined" || !gpsNav || gpsNav.id === "dropoff") return;
+  const det = gpsNav.detour && s && s.mode === "delivery" && s.route && s.route.addressMat;
+  if(det){ const am = s.route.addressMat; gpsNavTo(s, "dropoff", s.route.address, am.x, am.y); }
+  else { gpsNavClear(); tpGoneNav = null; tpGoneKey = null; }
+  if(s && typeof tpSyncOrderCard === "function") tpSyncOrderCard(s);
+  if(s && typeof tpSyncMapChrome === "function") tpSyncMapChrome(s);
+}
+document.addEventListener("click", e => {
+  const b = e.target && e.target.closest && e.target.closest(".tpCancelRoute");
+  if(b){ e.preventDefault(); e.stopPropagation(); tpCancelRoute(); }
+}, true);
 function tpSyncOrderCard(s){
   tpSyncOrderCardBody(s);
   const card = document.getElementById("orderCard"), st = tpSheetStatusEl();
@@ -138914,6 +138960,9 @@ function tpSyncOrderCardBody(s){
     card.innerHTML = _det
       ? tag("ADD A STOP") + `<b>${gpsNav.shop || name}</b> — press GO, stop on its rug, then on to <b>${s.route.address}</b>`
       : tag(_drop ? "DELIVER" : "ROUTING") + `<b>${name}</b> — ${(m && m.card) || (_drop ? "stop at the door" + _then : "drive there, then press GO")}`;
+    /* CANCEL ROUTE: a stand-alone way to drop the trip (Sir, 2026-11-09).
+       Not offered for the drop-off, which is the order aboard's own leg. */
+    if(!_drop) card.innerHTML += `<button type="button" class="tpCancelRoute" aria-label="Cancel route" style="position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:999px;border:1px solid rgba(181,84,14,.5);background:rgba(255,255,255,.7);color:#b5540e;font:700 12px sans-serif;cursor:pointer">\u2715 Cancel route</button>`;
     const bits = [];
     if(gpsNav.distU != null) bits.push(tpDistText(gpsNav.distU));
     if(gpsNav.etaMs != null) bits.push("ETA " + tpClockText(gpsNav.etaMs));
@@ -140176,6 +140225,12 @@ setInterval(tpAvatarPadGate, 250);
       return;
     }
     const s = scn();
+    /* ON THE MAP the robot is Exit map (Sir, 2026-11-09): the profile is no
+       use there. Same condition as the marker's own "Exit map" pill. */
+    { const to = document.getElementById("titleOverlay"), pp = document.getElementById("tpProfilePanel");
+      if(to && !to.classList.contains("hidden") && !(pp && pp.classList.contains("open"))
+         && ((typeof tpSearchMap !== "undefined" && tpSearchMap) || (typeof tpPausedWorld !== "undefined" && tpPausedWorld))
+         && typeof tpMapResumeDriving === "function" && tpMapResumeDriving()) return; }
     hide("failOverlay");
     /* !s._slAPI excludes Cone Slalom (2026-08-10, reported on-device):
        slalom ALSO sets mode:"challenge" (it reuses hjChrome's quiet
