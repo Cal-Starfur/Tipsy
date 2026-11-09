@@ -128892,6 +128892,11 @@ if(typeof window !== "undefined"){ window.tpPerf = tpPerf; requestAnimationFrame
    own search box was removed 2026-08-11, see tpRenderMissions). */
 function tpKeyboardCaptureGuard(el){
   if(!el) return;
+  /* Phaser's key capture preventDefaults W/A/S/D at the window even with
+     the plugin disabled, so the keys never reach the field. Typing keys
+     stop at the field instead (Escape still bubbles). */
+  for(const ev of ["keydown", "keyup", "keypress"])
+    el.addEventListener(ev, e => { if(e.key !== "Escape") e.stopPropagation(); });
   el.addEventListener("focus", () => {
     const s = scn();
     if(s && s.input && s.input.keyboard) s.input.keyboard.enabled = false;
