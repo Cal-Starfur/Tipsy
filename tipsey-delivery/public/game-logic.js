@@ -107444,7 +107444,7 @@ class WorldScene extends Phaser.Scene {
         const rad = 4.9, z0 = zm - 6, z1 = zT, bC = -(bkAt(80) + rad - 0.9), bR = bC - rad*0.966;
         run([() => prism(0, bC, rad*1.02, rad*1.02, z0 - 1.6, z0 + 0.8, PD, { n: 12 }),                                                      // the foot
              () => prism(0, bC, rad, rad, z0, z1, PK, { top: 0.62, bot: 0.97, n: 12 }),                                                        // one round tank on his back
-             () => { for(const z of [z0 + 5, z0 + 15]) prism(0, bC, rad*1.04, rad*1.04, z, z + 1.8, PD, { noTop: true, n: 12 });   // its bands
+             () => { for(const z of [z0 + 5, z0 + 15]) prism(0, bC, rad*1.04, rad*1.04, z, z + 1.8, PD, { noTop: true, ring: true, n: 12 });   // its bands (rings round the tank: no hull fill)
                      prism(0, bC, 1.5, 1.5, z1 - 0.2, z1 + 2.4, MT, { n: 8 }); prism(0, bC, 0.8, 0.8, z1 + 2.4, z1 + 4.2, PD, { n: 6 }); },   // the valve
              () => { disc(0, bR, z0 + 10.5, 2.1, MT.dk); disc(0, bR, z0 + 10.5, 1.5, 0xe9ecef); rear(bR - 0.1, z0 + 10.1, z0 + 12.4, -0.12, 0.12, 0xd9453a); }]);   // a gauge
       } else if(ps === 'twin' || ps === 'jet'){
@@ -108087,7 +108087,7 @@ class WorldScene extends Phaser.Scene {
        rather than painted on. Uses the hull's own box() so it inherits
        the same face-selection as everything else. */
     if(uniform && uniform.vest){
-      prism(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14, hipH + build.torsoH*0.16, shoulderH - 1.5, uniform.vest, { bot: 0.9, noTop: true });
+      prism(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14, hipH + build.torsoH*0.16, shoulderH - 1.5, uniform.vest, { bot: 0.9, noTop: true, ring: true });   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
     if(uniform && uniform.chain && faceB > 0){
@@ -112143,7 +112143,7 @@ class WorldScene extends Phaser.Scene {
       const side = bc >= 0 ? 1 : -1, bOut = bc + side*wd/2;
       let bIn = bc - side*wd/2;
       if(wall != null && side*bIn < wall) bIn = side*Math.min(wall, side*bOut - 0.5);
-      this.quadOn(g, convexHull(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);
+      this.quadOn(g, convexHullKeep(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);   // (the tyre's tread: a deliberate filled drum)
       const faceB = sees(0, side, 0) ? bOut : bIn;
       /* THE POLISHED WHEEL (as Tipsey's, drawWheel): the tread's face, a sidewall a shade up from it, the rim's lit lip,
          a dished well, five spokes that turn with the phase (parked: still), and a cap with its glint */
