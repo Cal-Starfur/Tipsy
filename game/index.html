@@ -28458,7 +28458,10 @@ function walkinDefine(spec){
     plan.shell = { x0: x0 - 30, y0: y0 - 30, x1: x1 + 30, y1: y1 + 30 };            // (W22: the floor grown by the walls' thickness: what the exterior's body must cover)
     plan.door = { side, at: side === 's' ? dq.x - x0 : dq.y - y0, half: spec.door.half || 80, x: dq.x, y: dq.y,
                   ox: side === 's' ? 0 : side === 'e' ? 1 : -1, oy: side === 's' ? 1 : 0 };
-    return (plan._view = { dx: x0 - spec.x0, dy: y0 - spec.y0 });
+    /* (spec.rise: the building stands that high over z 0 -- the security post's graded lawn. The room is drawn at z 0, so it is
+       moved up the screen by the same: a step of -rise on both axes lifts it rise*K and leaves x alone, the iso's own algebra) */
+    const rz = spec.rise || 0;
+    return (plan._view = { dx: x0 - spec.x0 - rz, dy: y0 - spec.y0 - rz, rise: rz });
   };
   plan.view = meas;
   const pk = { name: spec.name, from: spec.from, x0: spec.x0, y0: spec.y0, get w(){ meas(); return plan.W || 1; }, get d(){ meas(); return plan.D || 1; },
@@ -28490,7 +28493,7 @@ function walkinCoverage(){
     const v = pk.view && pk.view(), L = pk.from && typeof landmarkLabWorld === 'function' ? landmarkLabWorld(pk.from) : null, ent = LIB.get(pk.from);
     const f = ent && ent.vol && ent.vol.foot;
     if(!v || !L || !f) return { name: pk.name, short: null };
-    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx, Y0 = pk.y0 + v.dy;
+    const q = f.map(([a, b]) => L(a, b)), X0 = pk.x0 + v.dx + (v.rise || 0), Y0 = pk.y0 + v.dy + (v.rise || 0);
     const sh = [X0 - WALKIN_WALL - Math.min(...q.map(r => r.x)), Y0 - WALKIN_WALL - Math.min(...q.map(r => r.y)),
                 Math.max(...q.map(r => r.x)) - (X0 + pk.w + WALKIN_WALL), Math.max(...q.map(r => r.y)) - (Y0 + pk.d + WALKIN_WALL)].map(n => Math.round(-n));
     if(sh.some(n => Math.abs(n) > 300)) return { name: pk.name, short: null };         // (a foot in another frame than the lab's: not comparable)
@@ -28957,7 +28960,7 @@ function walkinLifeTick(scene, pk){
   for(const s of R.people) if(s.with){ const L = R.people.find(q => q.id === s.with); if(L) L._pair = s; }
   /* him, in the room's frame: in it, or out on the street (its street's lines: the view) */
   const ow = scene.ow, v = pk.view && pk.view();
-  const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx, b: ow.py - pk.y0 - v.dy } : null;
+  const bot = !ow ? null : scene._inside === pk ? { a: ow.px - pk.x0, b: ow.py - pk.y0 } : !scene._inside && v ? { a: ow.px - pk.x0 - v.dx - (v.rise || 0), b: ow.py - pk.y0 - v.dy - (v.rise || 0) } : null;
   R.scene = scene;
   walkinDayStep(scene, R, now, fresh);
   for(const s of R.people){
@@ -29023,7 +29026,7 @@ function walkinDoorPlane(R){
   if(R.door) return R.door;
   const pk = R.pk, v = pk.view && pk.view(), dr = pk.doors && pk.doors[0], d = dr && (dr.world ? dr.world() : pocketOutsideDoor(pk, dr));
   if(!v || !d) return null;
-  const P0 = [d.x - pk.x0 - v.dx, d.y - pk.y0 - v.dy], n = [Math.round(d.ox), Math.round(d.oy)], t = [-n[1], n[0]];
+  const P0 = [d.x - pk.x0 - v.dx - (v.rise || 0), d.y - pk.y0 - v.dy - (v.rise || 0)], n = [Math.round(d.ox), Math.round(d.oy)], t = [-n[1], n[0]];
   const ax = n[0] ? 0 : 1, wall = n[ax] > 0 ? (ax ? pk.d : pk.w) : 0, deep = Math.abs(P0[ax] - wall) + WALKIN_DAY.inner;
   return (R.door = { P0, n, t, w: d, inner: [P0[0] - n[0]*deep, P0[1] - n[1]*deep], half: dr.half || 60 });
 }
@@ -29044,7 +29047,7 @@ function walkinStreetPlan(scene, R){
   if(R.plan) return R.plan;
   const pk = R.pk, D = walkinDoorPlane(R), S = pk.street, v = pk.view && pk.view();
   if(!D || !S || !v || !scene || !scene.ow) return null;
-  const d = D.w, toR = q => [q[0] - pk.x0 - v.dx, q[1] - pk.y0 - v.dy];
+  const d = D.w, toR = q => [q[0] - pk.x0 - v.dx - (v.rise || 0), q[1] - pk.y0 - v.dy - (v.rise || 0)];
   const o0 = [d.x + D.n[0]*WALKIN_DAY.out, d.y + D.n[1]*WALKIN_DAY.out], to = [d.x + S.to[0], d.y + S.to[1]];
   const C = WALKIN_DAY.cell, M = 700, x0 = Math.min(o0[0], to[0]) - M, y0 = Math.min(o0[1], to[1]) - M;
   const nx = Math.ceil((Math.max(o0[0], to[0]) + M - x0)/C), ny = Math.ceil((Math.max(o0[1], to[1]) + M - y0)/C);
@@ -88288,8 +88291,8 @@ const SP_PLAN = {
   TRACK: { x0: 8602, x1: 8940, y0: -5644, y1: -4400 },        // the patrol track north up the east wall
   LANE: { x0: 9384, x1: 9544, y0: -2620, y1: -1066 },         // the mall's west-end service way (MALL_PLAN.WA[0] wide)
   DRIVE: { x0: 9392, x1: 9536, y0: -5910, y1: -2596 },        // the service drive, concrete, up from the service way
-  COURT: { x0: 8940, x1: 9860, y0: -6060, y1: -5910 },        // the forecourt
-  POST: { x0: 8960, x1: 9400, y0: -6420, y1: -6060, eave: 205, ridge: 292, oh: 28 },
+  COURT: { x0: 8940, x1: 9860, y0: -6030, y1: -5910 },        // the forecourt
+  POST: { x0: 8960, x1: 9430, y0: -6420, y1: -6030, eave: 205, ridge: 292, oh: 28 },
   DOOR: { x0: 9040, x1: 9140, h: 116 },                       // the door bay on the south face (the room's door: SP_IN)
   WIN_S: [9205, 9335], WIN_E: [-6360, -6170], SILL: 34, WIN_H: 104,
   PARA: [8995, 9185],                                          // the Mission parapet over the door bay
@@ -88322,10 +88325,11 @@ function spScreenBox(k){
   return { a0: m0 + c*w + 3, a1: m0 + (c + 1)*w - 3, z0: 132 - r*52, z1: 178 - r*52 };
 }
 const SP_IN = walkinDefine({ name: SP_PLAN.room, from: SP_PLAN.name, x0: 490000, y0: 430000,
-  lab: [8990, 9400, -6390, -6060], door: { a: 9090, b: -6060, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
+  rise: SP_PLAN.Z,
+  lab: [8990, 9400, -6390, -6060], door: { a: 9090, b: -6030, half: 50 }, H: 200, out: 40, apron: 30, glass: 45,
   /* (seen through, W11: the door bay, the arched window on the south face, the one on the east face) */
-  openings: [{ lab: [[9040, -6059.4], [9140, -6059.4]], z: [0, 112] }, { lab: [[9205, -6059.4], [9335, -6059.4]], z: [34, 104], glass: true },
-             { lab: [[9400.6, -6360], [9400.6, -6170]], z: [34, 104], glass: true }] });
+  openings: [{ lab: [[9040, -6029.4], [9140, -6029.4]], z: [0, 112] }, { lab: [[9205, -6029.4], [9335, -6029.4]], z: [34, 104], glass: true },
+             { lab: [[9430.6, -6360], [9430.6, -6170]], z: [34, 104], glass: true }] });
 const SP_GUARD_SEED = { night: 0x5e31, day: 0x5e47 };
 /* who is on: the night guard after dark (the mission window's, 19 to 6), the day guard by day -- changed over only while
    nobody can see the room (the motel's way: never in front of him) */
@@ -88525,7 +88529,7 @@ function nwGuardAt(now){ const G = NW.guard; if(!G) return null; const p = walkP
 function nwGuardRoomAt(now){
   const p = nwGuardAt(now), pk = POCKETS.find(q => q.name === SP_PLAN.room), v = pk && pk.view();
   if(!p || !v) return null;
-  return { x: p.x - v.dx, y: p.y - v.dy, th: p.th };
+  return { x: p.x - v.dx - (v.rise || 0), y: p.y - v.dy - (v.rise || 0), th: p.th };
 }
 function nwRoomW(a, b){ return { x: 8990 + a, y: -6390 + b }; }
 function nwLunaAt(now){ const L = NW.luna; if(!L) return null; if(L.P){ const p = walkPathAt(L.P, now); if(p){ if(p.there && L.P.gone){ NW.luna = null; return null; } return Object.assign(p, { climb: false }); } }
@@ -112895,7 +112899,7 @@ class WorldScene extends Phaser.Scene {
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), L.trim);
+      Q(convexHullKeep(cs), L.trim);
       const lit = !!(data && data.beacon), ph = ((t/1000)*2.4) % 1 < 0.5;
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, -bb*0.08, h1), P(a0, -bb*0.08, h1)], lit && ph ? L.redHot : L.red);
       Q([P(a0, bb*0.08, h1), P(a1, bb*0.08, h1), P(a1, bb, h1), P(a0, bb, h1)], lit && !ph ? L.blueHot : L.blue);
@@ -112905,7 +112909,7 @@ class WorldScene extends Phaser.Scene {
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*B.b, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), VAN_LIVERY.trim);
+      Q(convexHullKeep(cs), VAN_LIVERY.trim);
       const on = !!(data && data.beacon) && ((t/1000)*B.hz) % 1 < 0.5;
       const lens = on ? L.amberHot : (data && data.beacon ? L.amber : L.amberDim);
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, bb, h1), P(a0, bb, h1)], lens);
@@ -113152,7 +113156,7 @@ class WorldScene extends Phaser.Scene {
       const B = VANC.beacon, bc = aRise - 12, a0 = bc - B.a, a1 = bc + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), 0x1f262e);
+      Q(convexHullKeep(cs), 0x1f262e);
       const lit = !!(data && data.beacon), ph = ((t/1000)*2.4) % 1 < 0.5;
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, -bb*0.08, h1), P(a0, -bb*0.08, h1)], lit && ph ? POLC.redHot : POLC.red);
       Q([P(a0, bb*0.08, h1), P(a1, bb*0.08, h1), P(a1, bb, h1), P(a0, bb, h1)], lit && !ph ? POLC.blueHot : POLC.blue);
@@ -113705,7 +113709,7 @@ class WorldScene extends Phaser.Scene {
             if(!convex) break; }
           if(!convex) break; }
         if(convex){ const all = []; for(const v of vis) for(const q of v.pts) all.push(q);
-          this.quadOn(g, convexHull(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
+          this.quadOn(g, convexHullKeep(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
         if(convex && ST.outline != null && !faces.noRing) ringFaces = faces;
       }
       for(const v of vis){
@@ -116123,7 +116127,7 @@ class WorldScene extends Phaser.Scene {
           }
           return pts;
         };
-        this.quadOn(g, convexHull(ringR(-WW/2, r).concat(ringR(WW/2, r))), S.wheelDk);
+        this.quadOn(g, convexHullKeep(ringR(-WW/2, r).concat(ringR(WW/2, r))), S.wheelDk);
         const kF = dRAW(hub.a, hub.b + (WW/2)*ebB, hub.h + (WW/2)*ebH) >
                    dRAW(hub.a, hub.b - (WW/2)*ebB, hub.h - (WW/2)*ebH) ? WW/2 : -WW/2;
         this.quadOn(g, ringR(kF, r), S.wheel);
@@ -116135,7 +116139,7 @@ class WorldScene extends Phaser.Scene {
         for(const bc of [[-20,-7],[16,-7],[16,7],[-20,7]]){
           top.push(GG(bc[0], bc[1], 5.2)); bot.push(GG(bc[0], bc[1], 0.8));
         }
-        this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
+        this.quadOn(g, convexHullKeep(top.concat(bot)), brand.cDk);
         const topVisible = layAmount < 0.5 ? true : (ssn - scs) > 0;
         if(topVisible){
           this.quadOn(g, top, brand.c);
@@ -116148,13 +116152,13 @@ class WorldScene extends Phaser.Scene {
         const perp = {a:-dh/slen, b:0, h:da/slen};
         const base = ringAt(stemBaseA, 0, stemBaseH, 3.1, VV, perp, 10);
         const tip  = ringAt(stemTipA, 0, stemTipH, 2.0, VV, perp, 10);
-        this.quadOn(g, convexHull(base.concat(tip)), brand.c);
+        this.quadOn(g, convexHullKeep(base.concat(tip)), brand.c);
       };
       const sbar = () => {
         const capsule = (b0, b1, r, col) => {
           const e0 = ringAt(stemTipA, b0, stemTipH, r, U, HHH, 8);
           const e1 = ringAt(stemTipA, b1, stemTipH, r, U, HHH, 8);
-          this.quadOn(g, convexHull(e0.concat(e1)), col);
+          this.quadOn(g, convexHullKeep(e0.concat(e1)), col);
         };
         capsule(-S.barW, S.barW, 1.6, S.metal);
         capsule(-S.barW, -S.barW + 6, 2.5, S.deck);
@@ -116400,7 +116404,7 @@ class WorldScene extends Phaser.Scene {
         for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
           pts.push(L(bc[0], bc[1], 0)); pts.push(L(bc[0], bc[1], 3));
         }
-        this.quadOn(g, convexHull(pts), C.bodyDk);
+        this.quadOn(g, convexHullKeep(pts), C.bodyDk);
         const nu = sphi, nz = cphi;
         if(nu*fc + nu*fsn + nz > 0.05){
           const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
@@ -116409,10 +116413,10 @@ class WorldScene extends Phaser.Scene {
         }
       };
       const body = () => {
-        this.quadOn(g, convexHull(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
         if(C.band > 0){
           const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
-          this.quadOn(g, convexHull(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+          this.quadOn(g, convexHullKeep(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
         }
         this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
       };
@@ -116570,11 +116574,11 @@ class WorldScene extends Phaser.Scene {
       const hbarrel = () => {
         const n = 6, all = [];
         for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
-        this.quadOn(g, convexHull(all), HH.cap);
+        this.quadOn(g, convexHullKeep(all), HH.cap);
       };
       const hshoulder = () => {
         const h0 = height*0.75, h1 = height*0.9;
-        this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+        this.quadOn(g, convexHullKeep(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
       };
       const hdome = () => {
         const domeBase = height*0.9, domeR = HH.domeR;
@@ -116584,7 +116588,7 @@ class WorldScene extends Phaser.Scene {
           rings.push(place(domeBase + u*domeR*0.9, r2));
         }
         const all = []; for(const r2 of rings) all.push(...r2);
-        this.quadOn(g, convexHull(all), HH.cap);
+        this.quadOn(g, convexHullKeep(all), HH.cap);
         const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
         g.fillStyle(HH.capDk, 1);
         g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
@@ -116622,7 +116626,7 @@ class WorldScene extends Phaser.Scene {
           }
           return pts;
         };
-        this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
+        this.quadOn(g, convexHullKeep(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
         const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
         if(!facing) return;
         if(bursting && breakable){
@@ -117404,17 +117408,17 @@ class WorldScene extends Phaser.Scene {
       const bbody = () => {
         const n = 6, all = [];
         for(let i=0; i<=n; i++) all.push(...place(i/n*HB, binR(i/n*HB)));
-        this.quadOn(g, convexHull(all), B.body);
+        this.quadOn(g, convexHullKeep(all), B.body);
         const ribN = 6, ribs = [];
         for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*HB, binR(i/ribN*HB)));
         for(let i=0; i<ribN; i++){
-          this.quadOn(g, convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
+          this.quadOn(g, convexHullKeep(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
         }
         const lowerN = 3, lower = [];
         for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
-        this.quadOn(g, convexHull(lower), B.bodyDk, 0.2);
+        this.quadOn(g, convexHullKeep(lower), B.bodyDk, 0.2);
         if(B.band > 0){
-          this.quadOn(g, convexHull(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
+          this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
           this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
         }
         /* liner lip: camera-facing test, same pattern used everywhere
