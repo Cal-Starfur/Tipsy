@@ -21,7 +21,7 @@
 const fs = require('fs'), path = require('path'), os = require('os');
 const H = require('./harness');
 const args = process.argv.slice(2), opt = k => args.includes(k) ? args[args.indexOf(k) + 1] : null;
-const SETS = (opt('--set') || 'gideon,people,bots,props,shops').split(','), ONLY = opt('--only'), THR = +(opt('--thr') || 400), REV = opt('--rev');
+const SETS = (opt('--set') || 'gideon,people,bots,props,shops,harbor').split(','), ONLY = opt('--only'), THR = +(opt('--thr') || 400), REV = opt('--rev');
 const OUT = opt('--out') || fs.mkdtempSync(path.join(os.tmpdir(), 'tipsy-fill-'));
 let KNOWN = {}; try { KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, 'fill_known.json'), 'utf8')); } catch(e){}
 const src = fs.readFileSync(path.join(H.ROOT, 'game/index.html'), 'utf8');
@@ -56,6 +56,13 @@ const UNIFORMS = [...new Set([...src.matchAll(/const ([A-Z][A-Z0-9_]*_UNIFORM) =
       /* every street prop and vehicle drawProp dispatches by kind (ground marks, people and animals are other sets' or have no hull) */
       const KINDS = ['ambulance', 'beertruck', 'bin', 'cessna', 'cone', 'firetruck', 'flatbed', 'fueltruck', 'hydrant', 'hydrantBurst', 'hydrantFlood', 'jet', 'lamp', 'palm', 'palmDwarf', 'planter', 'scooter', 'signalpost', 'tipseyvan', 'trash', 'twin', 'twinopen', 'van', 'semiflat', 'robotaxi', 'avpod', 'dronelift'];
       for(const k of KINDS) CASES.push([`props:${k}`, f => { s.drawProp(g, k, px, py, 0, f, 0, 0, 7, null); }]);
+    }
+    if(SETS.includes('harbor')){
+      /* the harbor's dry-docked boats on their trailers (drawHarborTrailer, 12 seeds: skiffs and cruisers) and each boat kind afloat */
+      for(let k = 0; k < 12; k++) CASES.push([`harbor:trailer${k}`, f => { s.drawHarborTrailer(g, px, py, k); }, 1]);
+      for(const kind of ['skiff', 'motor', 'sail', 'yacht', 'pontoon', 'tug', 'trawler', 'ferry', 'jetski', 'drone', 'watertaxi']) CASES.push([`harbor:boat-${kind}`, f => {
+        const sh = LIB.get('Harbor Boat'); if(sh) sh._boat = { kind, L: 800, hull: '#f6f3ea', trim: '#1f3a4d', side: f % 2 ? 1 : -1 };
+        try { LIB.draw('Harbor Boat', g, (a, b, h) => s.W(px + b, py - a, h), null, s.K*2, null, true); } finally { if(sh) sh._boat = null; } }, 2]);
     }
     if(SETS.includes('shops') && window.__RVK_shops){
       /* every entry of the shop library (shops, houses, landmarks), drawn alone at its own scale (the entry fitted to the frame, never smaller than 0.3 so a
