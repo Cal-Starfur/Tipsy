@@ -28319,6 +28319,7 @@ function trophyDoorWorld(){
    is round the room -- no crossfade (nofade), no mat that drives him in. Open any time: a shop he can walk into */
 POCKETS.push({ name: TROPHY_IN.name, from: 'Seabreeze Trophies', x0: TROPHY_IN.x0, y0: TROPHY_IN.y0, w: TROPHY_IN.W, d: TROPHY_IN.D,
   h: TROPHY_IN.H, out: 60, view: trophyInShift, hides: 'Seabreeze Trophies', walkin: true,
+  ghosts: ['Brew & Bolt', 'Brew & Bolt East'],   // (W26: Brew & Bolt's roof stands over the shop's east end on screen)
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-564, 184], [-564, -3600]], [[1460, 184], [1460, -3600]]] },
   /* (seen through, W11: its glazed pair and its two windows of cups -- flatsShop's, lab x1.3, z x1.95: TROPHY_OPENINGS) */
