@@ -60,3 +60,6 @@ No change to the game. Not done: Cove Grove is still not in the walk-in sheet. T
 
 ## Ferris Taylor Cottage is an L (2026-11-09, W27)
 The room is now the whole corner: the street dwelling, the corner tower and the side range's dwelling, 508 x 668 less a 304 x 464 notch (the court's corner). `cover ok`, `night ok`. Body: two rects. Shell pieces: the dwelling, the tower and the side range's dwelling (all fade with the room); the gatehouse ghosts. The tall wall along the notch hid half the leg from the camera, so the notch's edges are low walls and the hearth is a free-standing breast (150, hides none of the leg). Photographed at view 2 and 3 (day and night). Not done: driving into the leg and the tower end by hand (the walls' solids are the kit's, listed and checked: a closed ring round the L).
+
+## kf-night (2026-11-09)
+`walkinNightCheck()` is clean on every room, the Ballroom and the Museum included (the Ballroom's hall boxes stop at its near walls, a 1600 / b 1596; the Museum's portico box no longer passes D). Looked inside at night (view 2, from the door): Ballroom, Tidewater Museum and Airfield terminal. The room is lit to its walls, the pavement, near wall tops, outer faces and street lamps outside stay night-dark, no lit strip over the near walls. No change to the game.

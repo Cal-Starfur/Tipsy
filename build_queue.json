@@ -1144,7 +1144,7 @@
 "group": "Walk-in kit fit",
 "deps": [],
 "status": "built",
-"test": "node tools/run_sheet.js --walkins: every night line ok; look inside the Ballroom, Museum and Terminal at night (not looked at yet)"
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2462&view=2"
 },
 {
 "id": "kf-new",
