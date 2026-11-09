@@ -24977,6 +24977,18 @@ function pocketShellK(scene, pk){
   if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; }
   return cur;
 }
+/* A NEIGHBOUR GHOSTED WHILE HE IS IN A ROOM (Sir, 2026-11-08, the Kart Works: "it doesn't cutaway the portion of Brew and Bolt, so we
+   can't see all of the interior"): a room lists the buildings that stand over its view in pk.ghosts; while he is inside it each of
+   them eases down to SHELL_GHOST and back (the same ease as the shell's own, pocketShellK). One factor per lib, 1 when none applies. */
+const SHELL_GHOST = 0.14, GHOST_K = {};
+function shellGhostK(scene, lib){
+  const pk = scene && scene._inside, want = pk && pk.ghosts && pk.ghosts.indexOf(lib) >= 0 ? SHELL_GHOST : 1;
+  let c = GHOST_K[lib];
+  if(!c){ if(want === 1) return 1; c = GHOST_K[lib] = { want: 1, from: 1, t0: performance.now() - MALL_CUT_MS }; }
+  const now = performance.now(), u = Math.max(0, Math.min(1, (now - c.t0)/MALL_CUT_MS)), e = u*u*(3 - 2*u), cur = c.from + (c.want - c.from)*e;
+  if(want !== c.want){ c.from = cur; c.want = want; c.t0 = now; }
+  return cur;
+}
 function mallInZ(x, y){
   const M = MALL_IN, a = x - M.x0, b = y - M.y0;
   if(a < M.AX0 - 400 || a > M.AX1 + 400 || b < -400 || b > M.D + 400) return 0;
@@ -28505,6 +28517,7 @@ const KW_POCKET = walkinDefine({ name: KW_IN.name, from: KW_PLAN.name, x0: KW_IN
   /* (open late for him while Number 4 Builds a Winner needs its mechanic: walkinShut) */
   late: () => typeof KW !== 'undefined' && kwNeedsRoom() });
 const KW_PK = POCKETS[POCKETS.length - 1];
+KW_PK.ghosts = ['Brew & Bolt', 'Brew & Bolt East'];   // (Brew & Bolt's roof stands over the barn's south wall and floor on screen: it ghosts while he is in the barn)
 /* ITS PEOPLE (760 x 620, a workshop of 471,000 square): the club's mechanic, between his bench, the wheel wall and the
    build stand (the keyholder: he locks up last and opens first); the parts clerk behind the counter (fixed: a post at
    her till and one at the shelves); two of the club's kids building the kart on the stand together (a pair, with: they
@@ -100875,7 +100888,7 @@ class WorldScene extends Phaser.Scene {
       /* A SHOP WITH ITS ROOM IN IT (pocketHiding: Seabreeze Trophies): its door is the shell's, going with it as he
          goes in (the review, 2026-10-30: its open leaf and dark box stood on in the doorway with him inside, and him
          hidden behind them -- he was its user, shifted onto the street) */
-      const _dp = pocketHiding(d.lib), _dk = _dp ? pocketShellK(this, _dp) : 1;
+      const _dp = pocketHiding(d.lib), _dk = Math.min(_dp ? pocketShellK(this, _dp) : 1, shellGhostK(this, d.lib));
       if(_dk < 0.002) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       /* (a walk-in's glazed pair is never in the cache: drawn here shut too -- W11, its opening a hole the room shows in) */
@@ -104835,7 +104848,7 @@ class WorldScene extends Phaser.Scene {
        the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
     units.forEach((u, idx) => {
       /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
-      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = Math.min(hp ? pocketShellK(this, hp) : 1, u.shop ? shellGhostK(this, u.shop.lib) : 1);
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
@@ -105132,7 +105145,7 @@ class WorldScene extends Phaser.Scene {
        the Trophy shop more like the cutaway with the exterior persisting like our mall and hospital do") */
     units.forEach((u, idx) => {
       /* (not a whole-block landmark's: it fades only its shell pieces, in _unit, its lot staying -- Pelican Drug's car park went with its store) */
-      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = hp ? pocketShellK(this, hp) : 1;
+      const _ue = u.shop && LIB.get(u.shop.lib), hp = u.shop && !(_ue && _ue.block) ? pocketHiding(u.shop.lib) : null, sk = Math.min(hp ? pocketShellK(this, hp) : 1, u.shop ? shellGhostK(this, u.shop.lib) : 1);
       if(sk < 0.002) return;
       const n0 = vq.length;
       _unit(u, idx);
