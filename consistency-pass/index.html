@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ e77c425): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 010d0b0): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'e77c425'; })();</script>
+  window.TIPSY_TEST_BUILD = '010d0b0'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -142990,9 +142990,17 @@ const GO_SPOTS = {
       const bl = document.getElementById("bootLoader");
       if(bl && !bl.classList.contains("done") && Date.now() - t0 < 90000){ setTimeout(go, 250); return; }
       setTimeout(() => {
-        try { window.garageClose(); } catch(e){}
-        owStandUpAt(s, x, y, yaw);
+        const jump = () => { try { window.garageClose(); } catch(e){} owStandUpAt(s, x, y, yaw); };
+        jump();
         if(v) zoomSet(+v);
+        /* (anything that lands later -- the garage opening late, a pad placement after the title -- is undone for 10 s, until he drives off or
+           the stick moves: the spot is where he asked to be) */
+        let n = 0;
+        const hold = setInterval(() => {
+          const ow = s.ow, drove = !ow || ow.stick && ow.stick.active || (ow.keyv && (ow.keyv.x || ow.keyv.y)) || Math.abs(ow.vel || 0) > 0.5;
+          if(++n > 25 || drove){ clearInterval(hold); return; }
+          if(document.body.classList.contains('tpGarage') || Math.hypot(ow.px - x, ow.py - y) > 60) jump();
+        }, 400);
       }, 1000);
     };
     go();
