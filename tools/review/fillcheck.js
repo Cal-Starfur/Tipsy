@@ -21,7 +21,7 @@
 const fs = require('fs'), path = require('path'), os = require('os');
 const H = require('./harness');
 const args = process.argv.slice(2), opt = k => args.includes(k) ? args[args.indexOf(k) + 1] : null;
-const SETS = (opt('--set') || 'gideon,people,bots,props,shops,harbor').split(','), ONLY = opt('--only'), THR = +(opt('--thr') || 400), REV = opt('--rev');
+const SETS = (opt('--set') || 'gideon,people,bots,props,shops,harbor,fleet').split(','), ONLY = opt('--only'), THR = +(opt('--thr') || 400), REV = opt('--rev');
 const OUT = opt('--out') || fs.mkdtempSync(path.join(os.tmpdir(), 'tipsy-fill-'));
 let KNOWN = {}; try { KNOWN = JSON.parse(fs.readFileSync(path.join(__dirname, 'fill_known.json'), 'utf8')); } catch(e){}
 const src = fs.readFileSync(path.join(H.ROOT, 'game/index.html'), 'utf8');
@@ -56,6 +56,16 @@ const UNIFORMS = [...new Set([...src.matchAll(/const ([A-Z][A-Z0-9_]*_UNIFORM) =
       /* every street prop and vehicle drawProp dispatches by kind (ground marks, people and animals are other sets' or have no hull) */
       const KINDS = ['ambulance', 'beertruck', 'bin', 'cessna', 'cone', 'firetruck', 'flatbed', 'fueltruck', 'hydrant', 'hydrantBurst', 'hydrantFlood', 'jet', 'lamp', 'palm', 'palmDwarf', 'planter', 'scooter', 'signalpost', 'tipseyvan', 'trash', 'twin', 'twinopen', 'van', 'semiflat', 'robotaxi', 'avpod', 'dronelift'];
       for(const k of KINDS) CASES.push([`props:${k}`, f => { s.drawProp(g, k, px, py, 0, f, 0, 0, 7, null); }]);
+    }
+    if(SETS.includes('fleet')){
+      /* every vehicle of the Fleet tab (FLEET), drawn as the avatar is: drawProp for the road, heavy, site, air and wing kinds, the Harbor Boat for the boats */
+      for(const k of Object.keys(FLEET)){
+        if(k.startsWith('boat:')) CASES.push([`fleet:${k}`, f => {
+          const sh = LIB.get('Harbor Boat'), L = BOAT_LEN[k.slice(5)]*BOAT_SC, c = Math.cos(f*Math.PI/2), s2 = Math.sin(f*Math.PI/2); if(!sh) return;
+          sh._boat = { kind: k.slice(5), L, hull: '#f6f3ea', trim: '#ff7a1a', side: 0, bow: 1, x: 0, y: 0 };
+          try { LIB.draw('Harbor Boat', g, (a, b, h) => s.W(px + a*c - b*s2, py + a*s2 + b*c, h), null, s.K*BOAT_SC, null, true); } finally { sh._boat = null; } }]);
+        else CASES.push([`fleet:${k}`, f => { s.drawProp(g, k, px, py, 0, f, 0, 0, 7, null); }]);
+      }
     }
     if(SETS.includes('harbor')){
       /* the harbor's dry-docked boats on their trailers (drawHarborTrailer, 12 seeds: skiffs and cruisers) and each boat kind afloat */

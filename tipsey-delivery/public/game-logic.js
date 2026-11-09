@@ -3459,6 +3459,29 @@ const FLEET = {
                       ctl: {}, bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
 };
 for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe", "livery"]; }
+/* THE GROUND VEHICLES STEER LIKE THEMSELVES (Sir, 2026-11-09: "we want each to drive as it would in the real world, not be on a
+   center point"; fleet redesign P3/P4): the road, heavy and site kinds leave Tipsey's pivot. A wheel angle that turns at a
+   limited rate (steer.rate) to at most dmax, a heading that changes only while it rolls (yaw rate = v / L x tan(angle)), so no
+   turning on the spot and a least turning circle of L / tan(dmax); they back out to turn round. The art's middle stays on
+   ow, so the body slips as a real one does (slipAngle): the nose leads on a car, the tail swings out on the rear-steered
+   forklift. L the wheelbase, R the least turning radius it gives. Their collision is a capsule on the body's own centre line
+   (botR the half-width, fleetBody's half the run), judged at each of its points. Not these (still Tipsey's): the sidewalk
+   robots, who are his kind, and the flyers (FLEET_CTRL.rotor). The boats and the planes wait for P5 and P9. */
+const FLEET_STEER = {
+  robotaxi:   { L: 130, R: 420, vMax: 0.30, accel: 0.00034, brake: 0.00070, vRev: 0.10 },
+  avpod:      { L: 118, R: 380, vMax: 0.28, accel: 0.00032, brake: 0.00068, vRev: 0.10 },
+  avshuttle:  { L: 190, R: 650, vMax: 0.26, accel: 0.00026, brake: 0.00060, vRev: 0.09 },
+  avsemi:     { L: 187, R: 800, vMax: 0.20, accel: 0.00016, brake: 0.00042, vRev: 0.06, trail: { mid: 234, kp: 150, Lt: 454, back: 538 } },
+  avgarbage:  { L: 240, R: 700, vMax: 0.22, accel: 0.00020, brake: 0.00048, vRev: 0.07 },
+  avdump:     { L: 250, R: 800, vMax: 0.21, accel: 0.00018, brake: 0.00046, vRev: 0.07 },
+  avsweeper:  { L: 180, R: 600, vMax: 0.22, accel: 0.00022, brake: 0.00050, vRev: 0.08 },
+  avforklift: { L: 90,  R: 150, vMax: 0.11, accel: 0.00022, brake: 0.00060, vRev: 0.08, rear: true }
+};
+for(const k in FLEET_STEER){
+  const F = FLEET[k], S = FLEET_STEER[k];
+  F.ctl = Object.assign({}, F.ctl, { vMax: S.vMax, accel: S.accel, brake: S.brake, vRev: S.vRev, botR: F.body.wid/2,
+    steer: { L: S.L, dmax: Math.atan(S.L/S.R), gain: 2.2, rate: 0.0035, rear: !!S.rear, trail: S.trail || null } });
+}
 /* THE BAYS (P1 builds them): each a LIB entry with the depot's marks
    (depotVol: spawn pad, mat, room, door), its own door and size. need(k)
    is the biggest body its vehicles bring, so a bay frames them at full
@@ -3540,7 +3563,7 @@ function fleetCur(){
 const FLEET_PHYS_NONE = {};
 for(const k in FLEET){
   const c = FLEET[k].cls;
-  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" ? { big: true } : null;
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : null;   // (the site machine too: a forklift never tips, FLEET_STEER)
 }
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
@@ -8506,6 +8529,14 @@ function owCurbSign(ow, toSfc){
    ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
    from update() BEFORE drawWorld, so the pose is fresh when the pose
    block reads it a few thousand lines later. */
+/* THE SEMI'S TRAILER (FLEET_STEER.avsemi.trail): its heading and where the kingpin was last step. Made straight behind the tractor
+   when it is picked, or when the rig has been set down somewhere else (the garage, a bay) */
+function owTrailer(ow, SV){
+  const kx = ow.px + Math.cos(ow.yaw)*SV.trail.kp, ky = ow.py + Math.sin(ow.yaw)*SV.trail.kp;
+  let T = ow.trailer;
+  if(!T || Math.hypot(T.kx - kx, T.ky - ky) > 300) T = ow.trailer = { yaw: ow.yaw, kx, ky };
+  return T;
+}
 function owStep(scene, dt){
   const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: fleetPhys, the FLEET registry)
 
@@ -8589,8 +8620,23 @@ function owStep(scene, dt){
      live in corner radius now lives in the thumb. */
   const sev = Math.min(1, errDeg / 90);
   const dir = ow.latchSign || Math.sign(err);
-  const dYaw = mag > 0 ? dir * Math.min(Math.abs(err), rate * sev * dt) : 0;
+  let dYaw = mag > 0 ? dir * Math.min(Math.abs(err), rate * sev * dt) : 0, slip = 0;
+  /* A STEERED VEHICLE (FLEET_STEER): the stick names where it should go and the wheels turn toward it, at a limited rate and
+     angle; it turns only while it rolls, about its wheelbase, and backing up the same wheels swing the tail */
+  const SV = D.steer || null;
+  if(SV && !ow.spin){
+    const rv = ow.reversing ? -1 : 1;
+    const want = mag > 0 ? Math.max(-SV.dmax, Math.min(SV.dmax, err*SV.gain))*rv : 0;
+    ow.steer = (ow.steer || 0) + (want - (ow.steer || 0))*Math.min(1, SV.rate*dt);
+    const tn = Math.tan(ow.steer);
+    slip = Math.atan((SV.rear ? -0.5 : 0.5)*tn);
+    dYaw = ow.vel*Math.cos(slip)/SV.L*tn*dt;
+  } else if(!SV) ow.steer = 0;
+  const _yaw0 = ow.yaw;
   ow.yaw = owWrapAngle(ow.yaw + dYaw);
+  /* A TRACTOR TURNS ABOUT ITS WHEELBASE'S MIDDLE (trail.mid, ahead of the rig's middle where ow is): ow moves so that point holds */
+  let _pv = null;
+  if(SV && SV.trail && dYaw){ _pv = [SV.trail.mid*(Math.cos(_yaw0) - Math.cos(ow.yaw)), SV.trail.mid*(Math.sin(_yaw0) - Math.sin(ow.yaw))]; ow.px += _pv[0]; ow.py += _pv[1]; }
   /* ...and the pirouette itself: the heading wheels round, fast then
      easing, and the speed bleeds away (WET) */
   if(ow.spin){
@@ -8608,7 +8654,7 @@ function owStep(scene, dt){
   /* throttle. Forward magnitude is the component of the stick along the
      robot's own heading once it is roughly pointed the right way —
      shoving sideways should turn you, not launch you. */
-  const align = mag > 0 ? Math.max(0, Math.cos(err)) : 0;   // err is aim-relative: correct in reverse too
+  const align = mag > 0 ? (SV ? (errDeg <= 100 ? 1 - 0.4*errDeg/100 : 0) : Math.max(0, Math.cos(err))) : 0;   // err is aim-relative: correct in reverse too (a steered vehicle cannot turn on the spot, so it drives off at any angle short of behind it)
   if(ow.reversing){
     ow.vel -= D.accel * 0.6 * mag * dt;
     /* the geofence's autopilot backs him out at twice the player's
@@ -8653,8 +8699,8 @@ function owStep(scene, dt){
      what makes a speed-dependent clip behave the way it should: driving
      parallel to a wall and brushing it is nearly free, while going
      straight into it at pace puts you down. */
-  const stepX = Math.cos(ow.yaw) * ow.vel * dt;
-  const stepY = Math.sin(ow.yaw) * ow.vel * dt;
+  let stepX = Math.cos(ow.yaw + slip) * ow.vel * dt;
+  let stepY = Math.sin(ow.yaw + slip) * ow.vel * dt;
   let hitNormal = 0;                       // 0 none, 1 x-face, 2 y-face, 3 hazard disc
 
   /* THE KERB JOINS THIS TEST rather than getting a pass of its own. The
@@ -8682,7 +8728,7 @@ function owStep(scene, dt){
   /* IN AN INTERIOR (POCKETS) the room is his whole world: its walls and
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
-  const blockAt = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
+  const blockAt0 = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
@@ -8694,6 +8740,27 @@ function owStep(scene, dt){
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
                             (beachBlocks(ow, W.grid, x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
                             (!(FP.fly && flyFoothillCorridor(x, y)) && owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim (a flyer: over the Flats' stretch of them, flyFoothillCorridor)
+  /* A STEERED VEHICLE'S BODY (fleetBody): the capsule along its centre line, a disc of its half-width at every point of it */
+  const _fb = SV ? fleetBody() : null, _tr = SV && SV.trail ? owTrailer(ow, SV) : null;
+  const blockAt = _tr ? (x, y, ox, oy) => {
+    /* an articulated rig: the tractor's body from the kingpin's end forward, and the trailer's behind the kingpin, on its own line */
+    const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), ct = Math.cos(_tr.yaw), st = Math.sin(_tr.yaw), hw = _fb.hw*1.1;
+    const kx = x + c*SV.trail.kp, ky = y + s*SV.trail.kp;
+    for(let d = 100; d <= 390; d += hw){ const r = blockAt0(x + c*d, y + s*d, ox, oy); if(r) return r; }
+    for(let d = 0; d <= SV.trail.back; d += hw){ const r = blockAt0(kx - ct*d, ky - st*d, ox, oy); if(r) return r; }
+    return null;
+  } : !_fb || _fb.half < 1 ? blockAt0 : (x, y, ox, oy) => {
+    const r = blockAt0(x, y, ox, oy); if(r) return r;
+    const n = Math.ceil(_fb.half/(_fb.hw*1.1)), c = Math.cos(ow.yaw), s = Math.sin(ow.yaw);
+    for(let k = 1; k <= n; k++){ const d = _fb.half*k/n; const r2 = blockAt0(x + c*d, y + s*d, ox, oy) || blockAt0(x - c*d, y - s*d, ox, oy); if(r2) return r2; }
+    return null;
+  };
+  /* it never turns itself into a wall: a turn that would put its body in one is not made */
+  if(SV && dYaw && blockAt(ow.px, ow.py, 0, 0)){
+    ow.yaw = owWrapAngle(ow.yaw - dYaw); dYaw = 0; slip = 0; ow.steer *= 0.5;
+    if(_pv){ ow.px -= _pv[0]; ow.py -= _pv[1]; }
+    stepX = Math.cos(ow.yaw) * ow.vel * dt; stepY = Math.sin(ow.yaw) * ow.vel * dt;
+  }
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
   if(_full === OW_CURB_BLOCK && !FP.fly) owSplashCheck(scene, ow, D);
@@ -8804,6 +8871,16 @@ function owStep(scene, dt){
     }
   }
 
+  /* THE TRAILER FOLLOWS ITS KINGPIN (owTrailer): the trailer's axle can only roll along the trailer, so its heading turns by
+     how far the kingpin moved across it, over the length from the kingpin to that axle; backed far enough round to
+     jackknife, the rig stops */
+  if(SV && SV.trail){
+    const T = owTrailer(ow, SV), kx = ow.px + Math.cos(ow.yaw)*SV.trail.kp, ky = ow.py + Math.sin(ow.yaw)*SV.trail.kp;
+    const dkx = kx - T.kx, dky = ky - T.ky;
+    T.yaw = owWrapAngle(T.yaw + (-Math.sin(T.yaw)*dkx + Math.cos(T.yaw)*dky)/SV.trail.Lt);
+    T.kx = kx; T.ky = ky;
+    if(ow.reversing && Math.abs(owWrapAngle(ow.yaw - T.yaw)) > 1.0) ow.vel = 0;
+  }
   /* NOSE AGAINST THE KERB, ASKED SEPARATELY FROM THE STOP.
      Reusing the resolve's own blocked flag made the "?!" flicker and
      never build: the stop leaves him a botR short of the step, so the
@@ -111123,10 +111200,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the arches: dark round the near wheels (the far ones sit behind the body) */
     for(const a0 of wA){
-      const R = r + 5, ac = r - lift, pts = [[a0 + R, 21]];
-      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push([a0 + Math.cos(ph)*R, ac + Math.sin(ph)*R]); }
-      pts.push([a0 - R, 21]);
-      flank(pts, ARCH, nearB*(hw + 0.6));
+      KV.well(a0, nearB*(hw + 0.6), r + 4, r - lift, 21);
     }
     /* the second pass (2026-10-11): a chrome belt strip under the glass, an
        amber repeater on the front wing, the filler flap on the rear quarter */
@@ -111474,10 +111548,7 @@ class WorldScene extends Phaser.Scene {
       Q([P(-hl + 2, fb*1.003, cz + 14), P(-hl + 8, fb*1.003, cz + 14), P(-hl + 8, fb*1.003, cz + 18), P(-hl + 2, fb*1.003, cz + 18)], CR.tail);
       /* the arches round the near wheels */
       for(const fa of V.wheelA){
-        const a0 = fa*hl, R = cz + 5, pts = [P(a0 + R, nearB*hw*1.012, cz - 2)];
-        for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R, nearB*hw*1.012, cz + Math.sin(ph)*R)); }
-        pts.push(P(a0 - R, nearB*hw*1.012, cz - 2));
-        Q(pts, 0x17191d);
+        KV.well(fa*hl, nearB*hw*1.012, cz + 4, cz, cz - 2);
       }
       if(amb){
         /* the red band, and a red cross in the middle of the cargo panel */
@@ -111888,7 +111959,7 @@ class WorldScene extends Phaser.Scene {
     this.drawVehicleShadow(g, P, hl, hw);
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
     const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
-    const wA = [hl*0.66, -hl*0.66];
+    const wA = [hl*0.66, -hl*0.66], sw = (data && data.steer) || 0, wst = a => a > 0 ? sw : 0;   // (its front pair steer: data.steer, FLEET_STEER)
     /* the profile: rounded where the roof meets the ends; the robotaxi's
        the same both ways, the pod's front a steep blank face */
     const pr = AP.sym
@@ -111898,7 +111969,7 @@ class WorldScene extends Phaser.Scene {
        until the near wheels are down (see below): a near wheel sits in
        front of the flank but behind the end, so painted after the whole
        body it showed over the nose from a three-quarter view */
-    for(const a of wA) V.wheel(a, -nearB*(hw - 4), r, 9, cz, wheelPhase);
+    for(const a of wA) V.wheel(a, -nearB*(hw - 6), r, 9, cz, wheelPhase, undefined, wst(a));
     const bodyCol = n => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE, isEnd = n => Math.abs(n[0]) > 0.3;
     /* CHAMFERED, AS TIPSEY (Sir, 2026-10-25): the two passes leave each other's faces out with false, not null -- null
        makes the kit build the solid sharp (for a face its caller paints to fit), and the vans had come out as sharp boxes.
@@ -111947,16 +112018,14 @@ class WorldScene extends Phaser.Scene {
         }
       }
       /* dark arches round the near wheels */
-      for(const a0 of wA){ const R_ = r + 5, pts = [P(a0 + R_, fb*1.003, 12)];
-        for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R_, fb*1.003, cz + Math.sin(ph)*R_)); }
-        pts.push(P(a0 - R_, fb*1.003, 12)); Q(pts, 0x17191d); }
+      for(const a0 of wA) V.well(a0, fb*1.003, r + 3, cz, 12);
     }
     /* the near wheels in their arches, then the end over them. Seen dead on
        from an end they are still drawn: only their feet show, under it */
-    for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase);
+    for(const a of wA) V.wheel(a, nearB*(hw - 6), r, 9, cz, wheelPhase, undefined, wst(a));
     solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEndI(i) ? bodyCol(n) : false);
     V.outlineOf(prismB(pr, -hw, hw));                                                              // (its two passes ringed as one body)
-    for(const a of wA) V.wheel(a, nearB*(hw - 4), r, 9, cz, wheelPhase, hw);                       // (its ring ran across the near tyres: their outer faces back over it -- outside the body, so over no end)
+    for(const a of wA) V.wheel(a, nearB*(hw - 6), r, 9, cz, wheelPhase, hw, wst(a));                       // (its ring ran across the near tyres: their outer faces back over it -- outside the body, so over no end)
     /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
        blank sensor face, lit cyan across */
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
@@ -112137,7 +112206,7 @@ class WorldScene extends Phaser.Scene {
          and its forks at the front, a pallet of boxes on them */
       const W = 64;
       shadow(80, W/2);
-      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase); };   // (flush outside the body, not sunk in it: see the cargobot)
+      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase, undefined, a < 0 ? -((data && data.steer) || 0) : 0); };   // (its rear wheels steer it: data.steer)   // (flush outside the body, not sunk in it: see the cargobot)
       wheels(-nearB);
       /* ONE CHAMFERED BODY, as Tipsey's (Sir, 2026-10-24): it was three slabs, each split into flanks and ends round the
          near wheels so the kit built it sharp; with its tyres flush outside it nothing has to go between, so the body is
@@ -112554,14 +112623,18 @@ class WorldScene extends Phaser.Scene {
     /* wall: a tyre seen through an ARCH (Sir, 2026-10-25, the trucks' snap): its tread drawn only from the body's side
        (|b| = wall) out -- the rest is in the wheel well, behind the arch -- so a near tyre painted after the body no
        longer shows its sunk inner half over the cab's corner the moment that side turns to the eye */
-    const wheel = (a0, bc, r, wd, hc, phase, wall) => {
+    /* stw: the wheel steered by that angle about the vertical through its middle (a front wheel in a turn); + turns its
+       front toward +b. The whole wheel is built in its own frame (da along it, db across) and set down turned */
+    const wheelRaw = (a0, bc, r, wd, hc, phase, wall, stw) => {
       hc = hc === undefined ? r : hc;
-      const ring = (bb, rad, n = 12) => { const pts = []; for(let i = 0; i < n; i++){ const ph = i/n*Math.PI*2; pts.push(P(a0 + Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
+      const cs = stw ? Math.cos(stw) : 1, sn = stw ? Math.sin(stw) : 0;
+      const Pw = (da, bb, h) => stw ? P(a0 + da*cs - (bb - bc)*sn, bc + da*sn + (bb - bc)*cs, h) : P(a0 + da, bb, h);
+      const ring = (bb, rad, n = 12) => { const pts = []; for(let i = 0; i < n; i++){ const ph = i/n*Math.PI*2; pts.push(Pw(Math.cos(ph)*rad, bb, hc + Math.sin(ph)*rad)); } return pts; };
       const side = bc >= 0 ? 1 : -1, bOut = bc + side*wd/2;
       let bIn = bc - side*wd/2;
       if(wall != null && side*bIn < wall) bIn = side*Math.min(wall, side*bOut - 0.5);
       this.quadOn(g, convexHullKeep(ring(bIn, r).concat(ring(bOut, r))), CARC.wheelDk);   // (the tyre's tread: a deliberate filled drum)
-      const faceB = sees(0, side, 0) ? bOut : bIn;
+      const faceB = (stw ? sees(-side*sn, side*cs, 0) : sees(0, side, 0)) ? bOut : bIn;
       /* THE POLISHED WHEEL (as Tipsey's, drawWheel): the tread's face, a sidewall a shade up from it, the rim's lit lip,
          a dished well, five spokes that turn with the phase (parked: still), and a cap with its glint */
       this.quadOn(g, ring(faceB, r, 16), CARC.wheel);
@@ -112571,16 +112644,68 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, ring(faceB, r*0.58, 14), WHEEL_POLISH.well);
       const wp = (phase === undefined || phase === null ? 0 : phase) + a0*0.02;
       for(let k = 0; k < 5; k++){ const q = wp + k*Math.PI*2/5, cq = Math.cos(q), sq = Math.sin(q), w0 = r*0.07, w1 = r*0.12, r0 = r*0.14, r1 = r*0.56;
-        this.quadOn(g, [P(a0 + cq*r0 - sq*w0, faceB, hc + sq*r0 + cq*w0), P(a0 + cq*r1 - sq*w1, faceB, hc + sq*r1 + cq*w1),
-                        P(a0 + cq*r1 + sq*w1, faceB, hc + sq*r1 - cq*w1), P(a0 + cq*r0 + sq*w0, faceB, hc + sq*r0 - cq*w0)], WHEEL_POLISH.spoke); }
+        this.quadOn(g, [Pw(cq*r0 - sq*w0, faceB, hc + sq*r0 + cq*w0), Pw(cq*r1 - sq*w1, faceB, hc + sq*r1 + cq*w1),
+                        Pw(cq*r1 + sq*w1, faceB, hc + sq*r1 - cq*w1), Pw(cq*r0 + sq*w0, faceB, hc + sq*r0 - cq*w0)], WHEEL_POLISH.spoke); }
       this.quadOn(g, ring(faceB, r*0.2, 10), CARC.hub);
-      const hub = P(a0 + r*0.05, faceB, hc + r*0.06); g.fillStyle(0xe8ecf0, 0.8); g.fillCircle(hub.x, hub.y, r*0.06*this.K*0.42 + 0.4);
+      const hub = Pw(r*0.05, faceB, hc + r*0.06); g.fillStyle(0xe8ecf0, 0.8); g.fillCircle(hub.x, hub.y, r*0.06*this.K*0.42 + 0.4);
+    };
+    /* A TYRE IN ITS WELL IS CUT TO IT (Sir, 2026-11-09: "the wheels still paint over the body"): the wheels are painted after the
+       body, so a tyre's tread -- which stands out along b -- showed past the arch's opening on the flank. A wheel whose well
+       was cut (well, below) is drawn only inside that opening, run on down below the body where nothing hides it */
+    const wellClip = {};
+    const wheel = (a0, bc, r, wd, hc, phase, wall, stw) => {
+      const wc = wellClip[Math.round(a0) + ':' + (bc >= 0 ? 1 : -1)], keep = this.drawClip;
+      if(wc){ const c = keep ? clipConvex(wc, keep) : wc; if(!c) return; this.drawClip = c; }
+      try { wheelRaw(a0, bc, r, wd, hc, phase, wall, stw); } finally { this.drawClip = keep; }
     };
     const line = (p, q, col, w) => { const A = P(p[0], p[1], p[2]), B = P(q[0], q[1], q[2]); g.lineStyle(Math.max(1, w*this.K*0.42), col, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
     /* the eye's depth of a local point: draw the far parts first */
     const depth = (a, b, h) => a*eye[0] + b*eye[1] + h*eye[2];
     const paint = parts => parts.sort((p, q) => p.d - q.d).forEach(p => p.draw());
-    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, line, depth, paint, shadeC, outlineOf, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
+    /* A WHEEL WELL (Sir, 2026-11-09: "none of the wheel wells are actually wells, they are just a black shape"): a recess in the
+       flank, not a dark patch on it. The opening is the half-disc round the wheel (a0, its middle at height hc, radius R, down to
+       base) on the flank plane bb; behind it the well goes D into the body -- a back wall in the dark, and the arch's curved liner
+       and its sides, each lit by which way it faces the eye -- all cut to the opening, so what shows is what a look into it shows;
+       the tyre (drawn after, through it) stands in it. The lip is a line round the opening's edge */
+    const well = (a0, bb, R, hc, base, D = 26) => {
+      const sd = bb >= 0 ? 1 : -1, bi = bb - sd*D, arc = [[a0 + R, base]];
+      for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI; arc.push([a0 + Math.cos(ph)*R, hc + Math.sin(ph)*R]); }
+      arc.push([a0 - R, base]);
+      const at = (b) => arc.map(q => P(q[0], b, q[1]));
+      const open = at(bb), keep = this.drawClip, clip = keep ? clipConvex(open, keep) : open;
+      wellClip[Math.round(a0) + ':' + sd] = [[a0 + R, -40]].concat(arc.slice(1, -1), [[a0 - R, -40]]).map(q => P(q[0], bb, q[1]));   // (its tyre: cut to this, and on below the body)
+      if(!clip) return;
+      this.drawClip = clip;
+      try {
+        this.quadOn(g, at(bi), 0x0d0e10);                                                       // the back wall
+        for(let i = 0; i + 1 < arc.length; i++){
+          const [a1, h1] = arc[i], [a2, h2] = arc[i + 1], ta = a2 - a1, th = h2 - h1;
+          let na = th, nh = -ta; const L = Math.hypot(na, nh) || 1; na /= L; nh /= L;
+          if(na*(a0 - (a1 + a2)/2) + nh*(hc - (h1 + h2)/2) < 0){ na = -na; nh = -nh; }          // into the well
+          if(!sees(na, 0, nh)) continue;
+          this.quadOn(g, [P(a1, bb, h1), P(a2, bb, h2), P(a2, bi, h2), P(a1, bi, h1)], nh > 0.35 ? 0x5a616b : nh < -0.35 ? 0x181a1e : 0x343840);
+        }
+      } finally { this.drawClip = keep; }
+      g.lineStyle(Math.max(1, this.kw(2.2)), 0x4b515a, 1);
+      g.strokePoints(open.slice(1, -1).map(q => new Phaser.Geom.Point(q.x, q.y)), false);       // the lip
+    };
+    /* THE VAN'S CAB, ONE BODY (Sir, 2026-11-09: "the cab of the truck is so janky and the edges don't make sense"): it was two solids
+       -- a cab box and a bonnet narrower than it -- each chamfered on its own, a wedge of cowl between them, and the whole raked
+       screen painted glass out to the pillars. Now the one side profile (tail, nose, bonnet, screen, roof) swept across, so the
+       kit's bevels run unbroken from the bonnet over the screen's foot and the roof; the screen is glass INSET in its rake, with
+       the body's own pillars at each side, the head above and the cowl below */
+    const vanCab = (K) => {
+      const { aBk, aC, aW, hR, hH, hF, hl, hw, cz, col } = K;
+      /* the screen's face (profile edge 3, face 5) is left to this function, which builds the body SHARP: the cab's trim -- pillar line,
+         door glass, sill, band, lamps -- is laid out on its sharp edges, and a bevel would pull the body's faces in from under it */
+      solid(prismB([[aBk, cz], [hl, cz], [hl, hF], [aC, hH], [aW, hR], [aBk, hR]], -hw, hw), col, (i, n) => i === 5 ? null : col);
+      const dA = aW - aC, dH = hR - hH, nl = Math.hypot(dH, dA) || 1;
+      if(!sees(dH, 0, -dA)) return;                                                    // the raked face turned away
+      const on = (t, b) => P(aC + dA*t, b, hH + dH*t), k = lit([dH/nl, 0, -dA/nl]);
+      this.quadOn(g, [on(0, -hw), on(0, hw), on(1, hw), on(1, -hw)], shadeC(col, k));   // the face, in the body's paint
+      this.quadOn(g, [on(0.06, -hw + 6), on(0.06, hw - 6), on(0.94, hw - 6), on(0.94, -hw + 6)], CARC.windshield);   // the glass, to the pillars
+    };
+    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, well, vanCab, line, depth, paint, shadeC, outlineOf, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
              get outline(){ return ST.outline; }, set outline(c){ ST.outline = c; } };
   }
   /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
@@ -112603,9 +112728,7 @@ class WorldScene extends Phaser.Scene {
     if(edgeOn) for(const p of parts) if(p.d > 8000) p.d -= 18000;
     const fb = nearB*(hw + 0.6);
     /* a dark wheel arch on the near flank, round wheel a0 */
-    const arch = (a0, bb) => { if(edgeOn) return; const R = r + 6, pts = [P(a0 + R, bb, cz - 4)];
-      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R, bb, cz + Math.sin(ph)*R)); }
-      pts.push(P(a0 - R, bb, cz - 4)); Q(pts, 0x17191d); };
+    const arch = (a0, bb) => { if(edgeOn) return; V.well(a0, bb, r + 4, cz, cz - 4); };
     /* a tall west-coast mirror on its arm, on side sb at a */
     const mirror = (a, sb, h0, h1) => { line([a, sb*(hw - 1), h0 + 8], [a, sb*(hw + 7), h0 + 8], 0x8d959c, 2);
       line([a, sb*(hw - 1), h1 - 6], [a, sb*(hw + 7), h1 - 6], 0x8d959c, 2);
@@ -112638,9 +112761,8 @@ class WorldScene extends Phaser.Scene {
           Q([P(a + 0.1, sb*w*0.58, cz + 23), P(a + 0.1, sb*w*0.84, cz + 23), P(a + 0.1, sb*w*0.84, cz + 34), P(a + 0.1, sb*w*0.58, cz + 34)], CARC.light);
           Q([P(a + 0.1, sb*w*0.86, cz + 23), P(a + 0.1, sb*w*0.95, cz + 23), P(a + 0.1, sb*w*0.95, cz + 34), P(a + 0.1, sb*w*0.86, cz + 34)], 0xf0a33a);
         }
-        if(band) Q([P(a, -w, cz + 38), P(a, w, cz + 38), P(a, w, cz + 44), P(a, -w, cz + 44)], band);
-        solid(prismH([[hl - 8, -w], [hl + 4, -w + 3], [hl + 4, w - 3], [hl - 8, w]], cz - 4, cz + 10), 0x2a2f36);
-        Q([P(hl + 4.5, -10, cz - 2), P(hl + 4.5, 10, cz - 2), P(hl + 4.5, 10, cz + 6), P(hl + 4.5, -10, cz + 6)], 0xe9e6d8);
+        solid(prismH([[hl, -hw], [hl + 7, -hw], [hl + 7, hw], [hl, hw]], cz - 4, cz + 10), 0x2a2f36);   // (the body's own width and square at both ends, and only the 7 that stands out in front of its face: a bumper running back along the flank painted its end cap over the flank and hung out when the truck turned)
+        Q([P(hl + 7.5, -10, cz - 2), P(hl + 7.5, 10, cz - 2), P(hl + 7.5, 10, cz + 6), P(hl + 7.5, -10, cz + 6)], 0xe9e6d8);
       }
       { const k = 0.86, g0 = hH + 4, g1 = hR - 5;                // the screen's glint, over its own face
         if(nose) for(const [b0, b1] of [[-0.5, -0.28], [-0.22, -0.14]])
@@ -112740,12 +112862,9 @@ class WorldScene extends Phaser.Scene {
       }});
       /* the cab: the van's bonnet and screen, in the dray's slate */
       parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
-        const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
-        const cabS = () => solid(prismB(box, -hw, hw), SLATE, (i, n) => i === 4 ? CARC.windshield : SLATE);
-        const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), SLATE);
         const C = { aBk, aC, aW, hR, hH, aRake };
         cabTrim({ ...C, far: true }, SLATE);
-        if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
+        V.vanCab({ aBk, aC, aW, hR, hH, hF, hl, hw, cz, col: SLATE });
         const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
         Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
         Q([P(aBk, fb, cz), P(aC, fb, cz), P(aC, fb, cz + CAB.sill), P(aBk, fb, cz + CAB.sill)], 0x2a2f36);
@@ -112802,16 +112921,12 @@ class WorldScene extends Phaser.Scene {
     }});
     /* the cab: the van's bonnet and screen, in white with the blue band */
     parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
-      const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
-      const cabS = () => solid(prismB(box, -hw, hw), WHITE, (i, n) => i === 4 ? CARC.windshield : WHITE);
-      const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), WHITE);
       const C = { aBk, aC, aW, hR, hH, aRake };
       cabTrim({ ...C, far: true }, WHITE);
-      if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
+      V.vanCab({ aBk, aC, aW, hR, hH, hF, hl, hw, cz, col: WHITE });
       const fb = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
       Q([P(aBk + 8, fb, h0), P(aRake(h0) - 5, fb, h0), P(aRake(h1) - 5, fb, h1), P(aBk + 8, fb, h1)], CARC.glass);
       Q([P(aBk, fb, 66), P(aC, fb, 66), P(aC, fb, 74), P(aBk, fb, 74)], BLUE);
-      Q([P(aC, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 62), P(hl, nearB*hw*0.966, 70), P(aC, nearB*hw*0.966, 70)], BLUE);
       cabTrim(C, WHITE, BLUE);
       /* its beacon bar, as the work van's: a dark housing on two feet, an amber lens each end */
       { const b0 = aW - 34, b1 = aW - 14, bb = hw*0.62;
@@ -112839,7 +112954,12 @@ class WorldScene extends Phaser.Scene {
     /* side on to the eye: every wheel behind the body, no arches (see drawCar) */
     const edgeOn = Math.abs(V.eye[1]) < 0.12;
     const fb = nearB*(hw + 0.6);
-    this.drawVehicleShadow(g, P, hl, hw);
+    /* ONE HALF OF AN ARTICULATED RIG (data.part, the autonomous semi's kingpin: FLEET_STEER.avsemi.trail): 'tractor' is the pod, the
+       steer axle and the two drive axles; 'trailer' the box and its tandem. Each is drawn at its own pose, the trailer's front
+       face on the kingpin; its own shadow under it */
+    const only = (data && data.part) || null, TK = RG.body === "trailer" && only;
+    if(!only) this.drawVehicleShadow(g, P, hl, hw);
+    else { const sc_ = only === "tractor" ? 240 : -110, sh_ = only === "tractor" ? 150 : 278; this.drawVehicleShadow(g, (a, b, h) => P(a + sc_, b, h), sh_, hw); }
     const parts = [];
     /* flat panels: one on a flank (at b = bb), one on an end (at a) */
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
@@ -112860,22 +112980,25 @@ class WorldScene extends Phaser.Scene {
                 aerial: [hl - 72, -hl + 128, -hl + 184], trailer: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 flatdeck: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 carrier: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60] }[RG.body];
-    for(const a of W) for(const sb of [-1, 1]){ const steer = a > hl - 100;
-      parts.push({ d: V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw : null) }); }   // (the near steer tyre through its arch; the rest stand clear under the body)
+    for(const [wi, a] of W.entries()) for(const sb of [-1, 1]){ const steer = a > hl - 100;
+      if(TK && (only === "tractor") !== (wi < 3)) continue;
+      /* A BOX DRAWS OVER ITS REAR TYRES (Sir, 2026-11-09: "the box doesn't need a wheel well, it should draw over the wheels"): the
+         tyres stand 11 up into the box's floor, so the near rear ones go down just over the chassis and before the box, which
+         covers their tops */
+      parts.push({ d: RG.body === "box" && wi >= 1 && sb === nearB ? -7000 : V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw - 11 : null, steer ? (data && data.steer) || 0 : 0) }); }   // (the near steer tyre's tread shows through its arch from 11 inside the flank: from the flank itself it was a 1-thick disc)   // (the near steer tyre through its arch; the rest stand clear under the body)
     if(edgeOn) for(const p of parts) if(p.d > 8000) p.d -= 18000;
     /* a dark wheel arch on the near flank, round wheel a0 */
-    const arch = (a0, bb) => { if(edgeOn) return; const R_ = r + 6, pts = [P(a0 + R_, bb, cz - 4)];
-      for(let k = 0; k <= 8; k++){ const ph = k/8*Math.PI; pts.push(P(a0 + Math.cos(ph)*R_, bb, cz + Math.sin(ph)*R_)); }
-      pts.push(P(a0 - R_, bb, cz - 4)); Q(pts, 0x17191d); };
+    const arch = (a0, bb) => { if(edgeOn) return; V.well(a0, bb, r + 4, cz, cz - 4); };
     /* a tall west-coast mirror on its arm, on side sb at a */
     const mirror = (a, sb, h0, h1) => { line([a, sb*(hw - 1), h0 + 8], [a, sb*(hw + 7), h0 + 8], STEEL, 2);
       line([a, sb*(hw - 1), h1 - 6], [a, sb*(hw + 7), h1 - 6], STEEL, 2);
       solid(prismH([[a - 3, sb*(hw + 6)], [a + 3, sb*(hw + 6)], [a + 3, sb*(hw + 11)], [a - 3, sb*(hw + 11)]], h0, h1), 0x23262c); };
     /* mudflaps behind the last axle, either side */
-    const flaps = () => { const fa = Math.min(...W) - r - 6;
+    const flaps = () => { if(only === "tractor") return; const fa = Math.min(...W) - r - 6;
       for(const sb of [-nearB, nearB]) solid(prismH([[fa - 2, sb*(hw - 18)], [fa, sb*(hw - 18)], [fa, sb*(hw - 1)], [fa - 2, sb*(hw - 1)]], 6, cz + 14), 0x1b1d21); };
     /* the chassis under it all */
-    parts.push({ d: -8000, draw: () => { solid(prismH([[-hl + 8, -hw + 22], [hl - 30, -hw + 22], [hl - 30, hw - 22], [-hl + 8, hw - 22]], cz - 6, cz + 10), DARK); flaps(); } });
+    { const c0 = TK && only === "tractor" ? 90 : -hl + 8, c1 = TK && only === "trailer" ? 150 : hl - 30;
+      parts.push({ d: -8000, draw: () => { solid(prismH([[c0, -hw + 22], [c1, -hw + 22], [c1, hw - 22], [c0, hw - 22]], cz - 6, cz + 10), DARK); flaps(); } }); }
     /* reflective tape along a flank's foot, red and white */
     const tape = (a0, a1, h, bb) => { for(let a = a0, k = 0; a < a1 - 10; a += 22, k++) quad(a, a + 11, h, h + 4, bb, k % 2 ? 0xf4f5f2 : 0xd8402f); };
     /* a work beacon bar on a roof (the tanker's), its lenses lit */
@@ -112894,7 +113017,8 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[a - 6, -hw*0.92], [a + 2, -hw*0.92], [a + 2, hw*0.92], [a - 6, hw*0.92]], cz - 8, cz), TRIM); };
 
     /* ===== THE CABS ===== */
-    if(RG.cab === "van"){
+    if(only === "trailer"){ /* (a trailer has no cab) */ }
+    else if(RG.cab === "van"){
       const { aC, aW, hR, hH, hF, aRake } = C;
       /* the tanker's dressing: arch, glint, door, handle, step, mirrors, and at the nose grille, lamps, bumper, plate */
       const cabTrim = far => {
@@ -112917,20 +113041,16 @@ class WorldScene extends Phaser.Scene {
             Q([P(a + 0.1, sb*w*0.58, cz + 23), P(a + 0.1, sb*w*0.84, cz + 23), P(a + 0.1, sb*w*0.84, cz + 34), P(a + 0.1, sb*w*0.58, cz + 34)], CARC.light);
             Q([P(a + 0.1, sb*w*0.86, cz + 23), P(a + 0.1, sb*w*0.95, cz + 23), P(a + 0.1, sb*w*0.95, cz + 34), P(a + 0.1, sb*w*0.86, cz + 34)], AMBER);
           }
-          if(col.band !== col.body) Q([P(a, -w, cz + 38), P(a, w, cz + 38), P(a, w, cz + 44), P(a, -w, cz + 44)], col.band);
-          solid(prismH([[hl - 8, -w], [hl + 4, -w + 3], [hl + 4, w - 3], [hl - 8, w]], cz - 4, cz + 10), 0x2a2f36);
-          Q([P(hl + 4.5, -10, cz - 2), P(hl + 4.5, 10, cz - 2), P(hl + 4.5, 10, cz + 6), P(hl + 4.5, -10, cz + 6)], 0xe9e6d8);
+          solid(prismH([[hl, -hw], [hl + 7, -hw], [hl + 7, hw], [hl, hw]], cz - 4, cz + 10), 0x2a2f36);   // (the body's own width and square at both ends, and only the 7 that stands out in front of its face: a bumper running back along the flank painted its end cap over the flank and hung out when the truck turned)
+          Q([P(hl + 7.5, -10, cz - 2), P(hl + 7.5, 10, cz - 2), P(hl + 7.5, 10, cz + 6), P(hl + 7.5, -10, cz + 6)], 0xe9e6d8);
           const k = 0.86, g0 = hH + 4, g1 = hR - 5;              // the screen's glint
           for(const [b0, b1] of [[-0.5, -0.28], [-0.22, -0.14]])
             Q([P(aRake(g0) + 0.4, hw*k*b0, g0), P(aRake(g0) + 0.4, hw*k*b1, g0), P(aRake(g1) + 0.4, hw*k*(b1 + 0.4), g1), P(aRake(g1) + 0.4, hw*k*(b0 + 0.4), g1)], 0xc6e0ea);
         }
       };
       parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
-        const box = [[aBk, cz], [aC, cz], [aC, hH], [aW, hR], [aBk, hR]], nose_ = [[aC, cz], [hl, cz], [hl, hF], [aC, hH]];
-        const cabS = () => solid(prismB(box, -hw, hw), col.body, (i, n) => i === 4 ? CARC.windshield : col.body);
-        const noseS = () => solid(prismB(nose_, -hw*0.96, hw*0.96), col.body);
         cabTrim(true);
-        if(nose){ cabS(); noseS(); } else { noseS(); cabS(); }
+        V.vanCab({ aBk, aC, aW, hR, hH, hF, hl, hw, cz, col: col.body });
         const fg = nearB*hw*1.006, h0 = hH + 6, h1 = hR - 12;
         Q([P(aBk + 8, fg, h0), P(aRake(h0) - 5, fg, h0), P(aRake(h1) - 5, fg, h1), P(aBk + 8, fg, h1)], CARC.glass);
         Q([P(aBk, fg, cz), P(aC, fg, cz), P(aC, fg, cz + VANC.sill), P(aBk, fg, cz + VANC.sill)], 0x2a2f36);
@@ -113040,7 +113160,8 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* ===== THE BODIES ===== */
-    if(RG.body === "box"){
+    if(only === "tractor"){ /* (a tractor carries no body) */ }
+    else if(RG.body === "box"){
       const a0 = -hl + 2, a1 = aBk - 8, h0 = cz + 16, H = 194, fb2 = nearB*(hw + 2.6);
       parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
         solid(prismB([[a0, h0], [a1, h0], [a1, H], [a0, H]], -hw - 2, hw + 2), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : col.box);
@@ -116939,12 +117060,24 @@ class WorldScene extends Phaser.Scene {
         this.ow.scoot.brand, t, 0, this._scootWheel, false, GL.uniform);
       return;
     }
+    /* THE FRONT WHEELS' ANGLE (FLEET_STEER: ow.steer, shown 1.6 times as far as it is so it reads at the game's zoom) */
+    const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
-    this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, data);
+    /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
+       kingpin; the nearer drawn last */
+    const SS = kind === "avsemi" && this.ow && this.ow.on ? FLEET_STEER.avsemi : null;
+    if(SS && !this._garage){
+      const T = owTrailer(this.ow, SS), c = Math.cos(yaw), s2 = Math.sin(yaw), ct = Math.cos(T.yaw), st = Math.sin(T.yaw), kp = SS.trail.kp;
+      const tr = [x + c*kp - ct*kp, y + s2*kp - st*kp], ft = T.yaw/(Math.PI/2);
+      const pieces = [[x + c*240 + y + s2*240, x, y, f, "tractor"], [tr[0] - ct*110 + tr[1] - st*110, tr[0], tr[1], ft, "trailer"]].sort((p, q) => p[0] - q[0]);
+      for(const [, px_, py_, f_, part] of pieces) this.drawProp(g, kind, px_, py_, t, f_, z, this._fleetWheel, 7, { part, steer: SWH });
+      return;
+    }
+    this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, SWH ? Object.assign({}, data, { steer: SWH }) : data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
   drawSplash(g, S){

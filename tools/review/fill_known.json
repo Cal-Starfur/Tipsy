@@ -16,5 +16,23 @@
   },
   "harbor:trailer0": {
     "note": "a thin outline sliver along the mudguard and tyre edge (725 at heading 0); the pink is edge lines only, nothing painted over a neighbour, looked at 2026-11-09"
+  },
+  "bots:cargobot": {
+    "note": "the same outline sliver along the body's edge, heading 0 only (1354: the biggest bot, so the longest edge); the magenta is a 1-2 px line round the hull and the roof panel, nothing painted over a neighbour, looked at 2026-11-09 (fleet pass)"
+  },
+  "fleet:courierbot": {
+    "note": "as bots:courierbot (the fleet set draws the same art through drawProp)"
+  },
+  "fleet:patrolbot": {
+    "note": "as bots:patrolbot (the fleet set draws the same art through drawProp)"
+  },
+  "fleet:amr": {
+    "note": "as bots:amr (the fleet set draws the same art through drawProp)"
+  },
+  "fleet:dronelift": {
+    "note": "as props:dronelift (the same outline sliver along the body's and crate's edge)"
+  },
+  "fleet:humanoid": {
+    "note": "Gideon through drawProp with no data: 1-2 px ticks along his cuff, knee and shoe edges at heading 0 (529); no disc over a neighbour, looked at 2026-11-09 (fleet pass); --set gideon is the full check"
   }
 }
