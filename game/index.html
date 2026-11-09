@@ -76372,7 +76372,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       S(a - 0.8, 4, 6.5, hz - 1.2, hz + 1.2, '#d9b45a');
     };
     /* the shadow on the water, and the lap of lighter water round the hull */
-    poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
+    /* (the shadow on the water only afloat: on a trailer it hung in the air under the hull, and read as a see-through hull) */
+    if(afloat) poly(bot.map(([a, b]) => P(a + 18, b + 18, 0.3)), 'rgba(20,48,70,.28)');
     if(afloat) poly(bot.map(([a, b]) => P(a*1.04 + (a > 0 ? 4 : -4), b*1.22, 0.4)), 'rgba(214,236,244,.55)');
     /* a side face is seen when its outward normal steps DOWN the screen */
     const seen = (q0, q1) => { const ma = (q0[0] + q1[0])/2, mb = (q0[1] + q1[1])/2;
@@ -76389,7 +76390,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
       /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
       const z12 = 12/Hd;
-      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], dark ? '#e8e2d4' : TRIM);
+      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], !afloat ? '#7d2f2a' : dark ? '#e8e2d4' : TRIM);   // (the boot stripe; a trailered hull shows its red bottom paint)
       poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
       /* portholes down the long flank of a cabin boat */
@@ -100073,6 +100074,8 @@ class WorldScene extends Phaser.Scene {
            P(WA + r1*Math.cos(t1), b1, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b1, WR + r1*Math.sin(t0))], i % 2 ? GAL[0] : GAL[1]);
       }
     };
+    /* the shadow on the paving: under the trailer and the boat on it, a little toward the camera */
+    this.quadOn(g, [P(-270, -74, 0), P(SE + 14, -74, 0), P(SE + 14, 86, 0), P(-270, 86, 0)], 0x000000, 0.14);
     /* ---- the back: far wheel, tongue, frame, bunks, bow post ---- */
     wheel(-66, -52, WA, WR, WR, false);
     fender(-70, -48);
