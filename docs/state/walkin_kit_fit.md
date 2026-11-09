@@ -5,7 +5,7 @@ Method: `node tools/run_sheet.js --walkins` photographs each room from its door 
 | Room | W22 shell covers the walls | How | W23 / W24 |
 |---|---|---|---|
 | Pelican Drug | **fits** (grown 30 each side 2026-11-07) | measured | fixed 2026-11-07 (piers gone, baskets moved) |
-| Seabreeze Trophies | **fits** | photo | not audited |
+| Seabreeze Trophies | **fits** | photo (red footprint inside the magenta shell, 2026-11-09) | looked at inside at the door 2026-11-09: the front wall runs to the gap with its own gold cap, nothing stands out in front of it, rug and counter clear of the near walls; no change needed |
 | Dune Home & Garden | **fits** (grown 30 each side 2026-11-07; `cover ok`) | measured | fixed 2026-11-07 (no piers, trolleys 60 clear); also given W11 see-through (entrance and shopfront show the room) and its car park's night lamps |
 | Tide Pool Elementary | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: the doorway is the wall's own end, nothing near the near wall |
 | Tidewater Museum | **fits** (grown 30 each side 2026-11-08; `cover ok`) | measured | looked at inside at the door 2026-11-08: portico, bay and doors read right against the room; night box still in `kf-night` |
