@@ -128974,6 +128974,11 @@ if(typeof window !== "undefined"){ window.tpPerf = tpPerf; requestAnimationFrame
    own search box was removed 2026-08-11, see tpRenderMissions). */
 function tpKeyboardCaptureGuard(el){
   if(!el) return;
+  /* Phaser's key capture preventDefaults W/A/S/D at the window even with
+     the plugin disabled, so the keys never reach the field. Typing keys
+     stop at the field instead (Escape still bubbles). */
+  for(const ev of ["keydown", "keyup", "keypress"])
+    el.addEventListener(ev, e => { if(e.key !== "Escape") e.stopPropagation(); });
   el.addEventListener("focus", () => {
     const s = scn();
     if(s && s.input && s.input.keyboard) s.input.keyboard.enabled = false;
@@ -136703,9 +136708,9 @@ function tpMapExplore(){
   const GLASS = "border:1px solid rgba(54,59,70,.35);background:rgba(240,236,224,.62);"
     + "-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);"
     + "box-shadow:0 2px 6px rgba(0,0,0,.25);color:#2e3138;";
-  const ZOOMBTN = 'style="width:38px;height:38px;border-radius:50%;padding:0;' + GLASS
-    + 'font:700 18px/1 ui-monospace,monospace"';
-  ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:10px;z-index:6">'
+  const ZOOMBTN = 'style="width:48px;height:48px;border-radius:50%;padding:0;' + GLASS
+    + 'background:rgba(240,236,224,.92);font:700 24px/1 ui-monospace,monospace;touch-action:manipulation"';
+  ui.innerHTML = '<div style="position:absolute;right:10px;bottom:64px;display:flex;flex-direction:column;gap:12px;z-index:6">'
     + '<button id="tpMapPlus"  ' + ZOOMBTN + '>+</button>'
     + '<button id="tpMapMinus" ' + ZOOMBTN + '>\u2212</button>'
     /* RECENTER (2026-08-27). Tapping empty map already did this, which
@@ -136723,7 +136728,7 @@ function tpMapExplore(){
        visible mismatch. right:62px = 14 + the robot's 38 + a 10px gap. */
     + '<div id="tpMapSearchWrap" style="position:absolute;left:14px;right:62px;'
     + 'top:calc(12px + env(safe-area-inset-top));z-index:6">'
-    + '<button id="tpMapSearchIcon" aria-label="Side missions" style="position:absolute;left:13px;top:50%;'
+    + '<button id="tpMapSearchIcon" aria-label="Side missions" style="position:absolute;left:13px;top:19px;'
     + 'transform:translateY(-50%);width:22px;height:22px;padding:0;border:0;background:none;display:flex;'
     + 'align-items:center;justify-content:center;z-index:7">' + tpSearchSvg("#6b6f78", 16) + '</button>'
     + '<input id="tpMapSearch" type="text" placeholder="Find a place or mission\u2026" autocomplete="off" '
@@ -136814,6 +136819,15 @@ function tpMapExplore(){
     const hits = all.filter(h => h.kind !== "charging")
       .concat(all.filter(h => h.kind === "charging").sort((a, b) => blk(a) - blk(b)))
       .slice(0, 8);
+    /* ONE ROW PER PLACE: a shop also arrives as a pickup and as "Pickup \u2014 name";
+       keep the place itself, drop the same-named duplicates. */
+    { const seen = new Set(), rank = h => h.kind === "pickup" ? 1 : 0;
+      const base = h => h.name.replace(/^Pickup\s+\u2014\s+/, "").toLowerCase();
+      const uniq = [];
+      for(const h of hits.slice().sort((a, b) => rank(a) - rank(b))){
+        const k = base(h); if(seen.has(k)) continue; seen.add(k); uniq.push(h);
+      }
+      const keep = uniq.sort((a, b) => hits.indexOf(a) - hits.indexOf(b)); hits.length = 0; for(const h of keep) hits.push(h); }
     if(!hits.length) return;
     res.style.display = "block";
     for(const h of hits){
@@ -137688,6 +137702,8 @@ if(typeof window !== "undefined"){ window.tpPlaceOpen = tpPlaceOpen; window.tpPl
    #mapCard, which is position:relative), placed each time the map draws.
    Pointer-transparent, so the tap still lands on the canvas pin. */
 function tpMapSyncPulses(list){
+  if(list.length > 4){ const c = list.reduce((a, q) => ({ x: a.x + q.x / list.length, y: a.y + q.y / list.length }), { x: 0, y: 0 });
+    list = list.slice().sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, 4); }   // overlapping rings read as noise: keep the 4 nearest the middle
   const mc = document.getElementById("mapCard");
   if(!mc) return;
   let layer = document.getElementById("tpPulseLayer");
@@ -138169,10 +138185,11 @@ function drawRouteMap(route){
   const blocksVisible = spanX / BLOCK;
   const SHOW_STREETS_MAX_BLOCKS = DISTRICT_W + 2;   // ~one district + a little slack
   if(blocksVisible <= SHOW_STREETS_MAX_BLOCKS){
-    ctx.font = "11px sans-serif";
+    ctx.font = "600 12px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "#5a5448";
+    ctx.fillStyle = "#f1ecde";
+    ctx.strokeStyle = "rgba(30,32,38,.85)"; ctx.lineWidth = 3; ctx.lineJoin = "round";
     const labeledRows = new Set(), labeledCols = new Set();
     for(const e of bgRoute.grid.edges){
       const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
@@ -138183,12 +138200,12 @@ function drawRouteMap(route){
         labeledRows.add(e.a.j);
         const segHood = hoodAt(e.a.i, e.a.j);
         const name = segHood.streets[e.a.j % segHood.streets.length];
-        ctx.save(); ctx.translate(p.x, p.y-7); ctx.fillText(name, 0, 0); ctx.restore();
+        ctx.save(); ctx.translate(p.x, p.y-7); ctx.strokeText(name, 0, 0); ctx.fillText(name, 0, 0); ctx.restore();
       } else {
         if(labeledCols.has(e.a.i)) continue;
         labeledCols.add(e.a.i);
         const n = e.a.i+1, suffix = (n%10===1&&n!==11) ? "st" : (n%10===2&&n!==12) ? "nd" : (n%10===3&&n!==13) ? "rd" : "th";
-        ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
+        ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.strokeText(n+suffix+" St", 0, 0); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
       }
     }
   } else {
@@ -138360,10 +138377,7 @@ function drawRouteMap(route){
        and any future in-world drawing of this line share one geometry. */
     const pts = gpsWalkPts(gpsNav.path.pts);
     ctx.save();
-    ctx.setLineDash([7, 6]);
-    ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(255,122,26,.92)";
-    ctx.beginPath();
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
     /* YOU ARE HERE is the same point the robot marker below is drawn
        at -- read off the scene, not off samples[0], for the reason that
        marker's own comment gives. Guarded: drawRouteMap also runs on
@@ -138372,14 +138386,24 @@ function drawRouteMap(route){
     const _s = (typeof scn === "function") ? scn() : null;
     const from = _s ? { x: _s.botX, y: _s.botY } : pts[0];
     const s0 = toScreen(from);
-    ctx.moveTo(s0.x, s0.y);
-    for(let q = 0; q < pts.length; q++){
-      const sp = toScreen(pts[q]);
-      ctx.lineTo(sp.x, sp.y);
-    }
     const sEnd = toScreen({ x: gpsNav.tx, y: gpsNav.ty });
-    ctx.lineTo(sEnd.x, sEnd.y);
-    ctx.stroke();
+    const _trace = () => {
+      ctx.beginPath(); ctx.moveTo(s0.x, s0.y);
+      for(let q = 0; q < pts.length; q++){ const sp = toScreen(pts[q]); ctx.lineTo(sp.x, sp.y); }
+      ctx.lineTo(sEnd.x, sEnd.y);
+    };
+    /* a white casing under the dashes so the line reads on dark asphalt */
+    ctx.setLineDash([]); ctx.lineWidth = 8; ctx.strokeStyle = "rgba(255,255,255,.9)";
+    _trace(); ctx.stroke();
+    ctx.setLineDash([8, 6]); ctx.lineWidth = 4.5; ctx.strokeStyle = "#ff7a1a";
+    _trace(); ctx.stroke();
+    ctx.restore();
+    /* destination flag */
+    ctx.save(); ctx.translate(sEnd.x, sEnd.y);
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#ff7a1a"; ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "#2e3138"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -20); ctx.stroke();
+    ctx.fillStyle = "#e0262b"; ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(13, -15.5); ctx.lineTo(0, -11); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
@@ -138636,45 +138660,19 @@ function drawRouteMap(route){
        when the stick is bound, drawAngle otherwise. null on the boot
        draw, which drawRobotMarker treats as "no cone". */
     const hereYaw = _s ? ((_s.ow && _s.ow.on) ? _s.ow.yaw : _s.drawAngle) : null;
+    /* a soft ring behind him so he stands out from pins and labels */
+    ctx.save();
+    ctx.fillStyle = "rgba(127,227,255,.20)"; ctx.strokeStyle = "rgba(60,170,210,.75)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(herePt.x, herePt.y, 17, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
     drawRobotMarker(ctx, herePt.x, herePt.y, hereYaw);
-    /* ...AND HE IS A BUTTON (see tpMapResumeDriving). Only when there is
-       a world to go back TO: the map raised over a live run, which is
-       either the glass holding it up or a scene we paused to show it.
-       On the boot title screen neither is true -- nothing is running,
-       GO is the way in, and a marker that resumed a world that had
-       never started would be a trap rather than an exit.
-
-       The caption is the whole discoverability budget. A marker that
-       silently accepts taps is a secret; two words under it is not, and
-       it costs nothing on a screen that already labels every pin. */
+    /* "You", on a halo like every other map label. The old "Exit map" pill is
+       gone: the orange robot button is Exit map now. The marker stays a button. */
+    tpMapLabel(ctx, "You", herePt.x, herePt.y - 26, 11, true);
+    {
     const _canReturn = (typeof tpSearchMap    !== "undefined" && tpSearchMap)
                     || (typeof tpPausedWorld  !== "undefined" && tpPausedWorld);
-    if(_canReturn){
-      /* on a PILL, not bare on the map. Every other label here sits on
-         a block -- pale, and big enough to read against. This one sits
-         wherever the robot happens to be, which is the road: dark grey
-         asphalt under the heading cone, the worst background the map
-         has. Same cream the map's own chrome uses, so it reads as a
-         control rather than another street name. y+26 clears the cone's
-         throat; the marker box is only 12 tall but the cone is not. */
-      const _cap = "Exit map";   // Sir, 2026-09-29: was "Tap to drive"
-      ctx.font = "700 10px sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const _cw = ctx.measureText(_cap).width + 12, _cy = herePt.y + 26;
-      ctx.fillStyle = "rgba(240,236,224,.92)";
-      ctx.strokeStyle = "rgba(54,59,70,.35)"; ctx.lineWidth = 1;
-      if(ctx.roundRect){
-        ctx.beginPath(); ctx.roundRect(herePt.x - _cw/2, _cy - 8, _cw, 16, 8);
-        ctx.fill(); ctx.stroke();
-      } else {
-        ctx.fillRect(herePt.x - _cw/2, _cy - 8, _cw, 16);
-        ctx.strokeRect(herePt.x - _cw/2, _cy - 8, _cw, 16);
-      }
-      ctx.fillStyle = "#2e3138";
-      ctx.fillText(_cap, herePt.x, _cy);
-      /* the pill is part of the target -- a thumb aiming at the words is
-         aiming at the control, so the hit box covers both. */
-      tpMapMissionPins.push({ id: "you", x: herePt.x, y: herePt.y + 8, r: 26 });
+    if(_canReturn) tpMapMissionPins.push({ id: "you", x: herePt.x, y: herePt.y + 6, r: 26 });
     }
   }
   /* THE DROP-OFF PIN: with an order aboard, its door (tpDropoffPin), in
