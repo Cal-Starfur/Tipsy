@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 34158b9): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 06fb470): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '34158b9'; })();</script>
+  window.TIPSY_TEST_BUILD = '06fb470'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -29650,14 +29650,14 @@ walkinLife('Saltwater Brewing Interior', { keep: [[145, 277, 0, 560]], looks: [
 /* ==================== LAGOON BATHS, WALK-IN (wk3; the room: the LIB entry 'Lagoon Baths Interior') ====================
    The bathhouse's one hall on the street's lines (walkinDefine, an hi landmark: the box 788.8 square, the room the floor of it less the
    walls' 30 each side -- W22: lab 463.6..1192.4 x -888.8..-160, 728.8 square), the bathhouse (box, elevations, portal, dome and
-   drum: one `shell` piece) fading round him as he goes in at the front portal's sliding pair (76 across, centred, lane 316..412 in
+   drum: one `shell` piece) fading round him as he goes in at the front portal's sliding pair (132 across, the recess's width, centred, lane 298..430 in
    the room), the apron the portal's recess and wall (36). The doorway shows the hall (walkinThrough). */
 const LAGOON_IN = walkinDefine({ name: 'Lagoon Baths Interior', from: 'Lagoon Baths', x0: 540000, y0: 400000,
-  lab: [463.6, 1192.4, -888.8, -160], door: { a: 828, b: -141.2, half: 38 }, H: 336, out: 60, apron: 60, glass: 46,
+  lab: [463.6, 1192.4, -888.8, -160], door: { a: 828, b: -141.2, half: 66 }, H: 336, out: 60, apron: 60, glass: 46,
   /* (its way to and from the street, THE ROOM'S DAY: down the front walk to the pavement and along it round either corner of the block) */
   street: { to: [0, 250], routes: [[[-923, 250], [-923, 1600]], [[947, 250], [947, 1600]]] },
   /* (seen through, W11: the portal's doorway -- the shell's z in the entry's units) */
-  openings: [{ lab: [[790, -141.2], [866, -141.2]], z: [0, 132] }], });
+  openings: [{ lab: [[762, -141.2], [894, -141.2]], z: [0, 152] }, { lab: [[762, -141.2], [894, -141.2]], z: [158, 290], glass: true }], });
 const BATHS_ATTENDANT = { shirt: { c:0x2f8f9e, dk:0x23707c }, pants: { c:0xe8e4da, dk:0xc9c4b6 }, shoe: { c:0xd9d5c8, dk:0xb5b1a4 }, shoeKind: 'sneaker' };   // a lagoon-teal tunic, white trousers
 const BATHS_GUARD = { shirt: { c:0xc9503a, dk:0x9e3b2a }, pants: { c:0x2b3a52, dk:0x1e2a3c }, shoe: { c:0xe8e4da, dk:0xc9c4b6 }, shoeKind: 'sneaker' };   // a red lifeguard's shirt, navy shorts
 /* its staff: the attendant behind the ticket desk by the door (keys), the pool attendant walking the west and east aisles; two bathers
@@ -29670,7 +29670,7 @@ walkinStaff('Lagoon Baths Interior', [
   { id: 'bather-1', role: 'bather', seed: 0x1a6003, look: 'visitor', life: 'browse' },
   { id: 'bather-2', role: 'bather', seed: 0x1a6004, look: 'visitor', life: 'browse' },
 ]);
-walkinLife('Lagoon Baths Interior', { keep: [[316, 412, 0, 729]], looks: [
+walkinLife('Lagoon Baths Interior', { keep: [[298, 430, 0, 729]], looks: [
   { id: 'west-pool', spots: [[72, 300, 0]] },
   { id: 'east-pool', spots: [[640, 300, Math.PI]] },
   { id: 'mosaic', spots: [[200, 70, -Math.PI/2], [530, 70, -Math.PI/2]] },
@@ -64416,12 +64416,12 @@ function houseCanopy(fn){
     /* (no notch cut into the front: his collision is the drawn face, and the door takes him from it -- the room's glass 46, his centre stops 30 off the wall: LOOK_RULES 6) */
     return { foot: [[bx0, bb1], [bx1, bb1], [bx1, bb0], [bx0, bb0]], h: 336, solids };
   })(),
-  /* THE HALL IS A WALK-IN (wk3, LAGOON_IN): the front portal's door, 76 across, a live sliding pair; the doorway shows the hall
+  /* THE HALL IS A WALK-IN (wk3, LAGOON_IN): the front portal's door, 132 across to the springing, a live sliding pair, the glazed arch above it open to the hall too; the doorway shows the hall
      (walkinThrough); a lantern either side of the portal glows at night */
-  slideDoors: [{ a: 790, w: 76, b: -141.2, z0: 0, z1: 132, glass: 'rgba(150,190,206,.38)' }],
+  slideDoors: [{ a: 762, w: 132, b: -141.2, z0: 0, z1: 152, glass: 'rgba(150,190,206,.38)' }],
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2f8f9e'); },
   see: true,
-  lamps: [{ a: 766, b: -124, z: 150, r: 90, col: 0xffe2a8 }, { a: 890, b: -124, z: 150, r: 90, col: 0xffe2a8 }],
+  lamps: [{ a: 740, b: -124, z: 150, r: 90, col: 0xffe2a8 }, { a: 916, b: -124, z: 150, r: 90, col: 0xffe2a8 }],
   wTodo:'a whole block edge -- five packing slots, and the packer places none of them',
   head:'Block landmark in its own yard, entrance on every street',
   tags:['block landmark','yard on four sides','four entrances','great arched portal','onion dome'],
@@ -64598,12 +64598,14 @@ function houseCanopy(fn){
     };
     F(ax0-12, ax1+12, 0, 150, trim, null,0, bb0);
     ring(ax0-12, ax1+12, 150, 334, bb0, bb0-12, trim, shade(trim,1.25));
-    F(ax0, ax1, 0, 144, shade(wall,.55), null,0, bb0-11);
-    ring(ax0, ax1, 144, 304, bb0-11, bb0-11, shade(wall,.55), null);
-    ring(ax0+14, ax1-14, 152, 284, bb0-11.5, bb0-11.5, '#7fa8b4', null);
-    for(let k=1;k<4;k++){
-      const g = arcAZ(k/4, ax0+14, ax1-14, 152, 284);
-      F(g.a-2.5, g.a+2.5, 152, g.z, trim, null,0, bb0-12);
+    F(ax0, ax1, 0, 144, shade(wall,.82), null,0, bb0-11);                         // (the recess face: the wall's own tone, LOOK_RULES 5 -- no flat dark fill)
+    ring(ax0, ax1, 144, 304, bb0-11, bb0-11, shade(wall,.82), null);
+    if(!SEE){
+      ring(ax0+14, ax1-14, 152, 284, bb0-11.5, bb0-11.5, '#7fa8b4', null);
+      for(let k=1;k<4;k++){
+        const g = arcAZ(k/4, ax0+14, ax1-14, 152, 284);
+        F(g.a-2.5, g.a+2.5, 152, g.z, trim, null,0, bb0-12);
+      }
     }
     /* THE DOOR CANNOT BE shopDoor HERE, and that is worth stating. The
        kit's shopDoor draws at b 0 -- the frontage plane -- because every
@@ -64616,17 +64618,27 @@ function houseCanopy(fn){
        tall against SHOP_DOOR_W 66.2, because this is the principal
        entrance of a civic building at the head of a flight of steps,
        not a shop doorway. */
-    F(CA-46, CA-38, 0, 142, shade(trim,1.1), null,0, bb0-10.6);                 // the surround: two jambs and a head round the opening (the hall behind it: LAGOON_IN)
-    F(CA+38, CA+46, 0, 142, shade(trim,1.1), null,0, bb0-10.6);
-    F(CA-46, CA+46, 132, 142, shade(trim,1.1), null,0, bb0-10.6);
-    if(SEE) HOLE([P(CA-38,bb0-11.0,132),P(CA+38,bb0-11.0,132),P(CA+38,bb0-11.0,0),P(CA-38,bb0-11.0,0)]);     // (the opening shows the hall; its live pair, slideDoors)
-    else {
-      F(CA-38, CA+38, 0, 132, shade(wall,.32), null,0, bb0-11.0);
-      F(CA-36, CA-2,  8, 124, shade(trim,.85), null,0, bb0-11.4);
-      F(CA+2,  CA+36, 8, 124, shade(trim,.85), null,0, bb0-11.4);
-      F(CA-3,  CA+3,  8, 124, shade(trim,.6),  null,0, bb0-11.6);
+    /* THE DOORWAY IS THE WHOLE RECESS (Sir, 2026-11-09: "this is not how the doorway should look when the door is open"): the pair 132
+       across, the glazing's own width, to the springing (152), a bar, and the glazed arch above it -- both open to the hall (HOLE), the
+       arch a tint (.38) over the live room, not an opaque pane. The jambs are the recess's sides (LOOK_RULES 5, 8: "fills its opening to the head") */
+    const dx = 66, dz = 152, gz = 158;
+    F(CA-dx-8, CA-dx, 0, gz, shade(trim,1.1), null,0, bb0-10.6);
+    F(CA+dx, CA+dx+8, 0, gz, shade(trim,1.1), null,0, bb0-10.6);
+    F(CA-dx-8, CA+dx+8, dz, gz, shade(trim,1.1), null,0, bb0-10.6);
+    if(SEE){
+      HOLE([P(CA-dx,bb0-11.0,dz),P(CA+dx,bb0-11.0,dz),P(CA+dx,bb0-11.0,0),P(CA-dx,bb0-11.0,0)]);     // (the pair's opening shows the hall; its live pair, slideDoors)
+      const hp = []; for(let k=0;k<=16;k++){ const q = arcAZ(k/16, ax0+14, ax1-14, gz, gz + 132); hp.push(P(q.a, bb0-11.0, q.z)); }
+      HOLE(hp);                                                                                   // (and the arch above it)
+      ring(ax0+14, ax1-14, gz, gz + 132, bb0-11.5, bb0-11.5, 'rgba(150,190,206,.38)', null);
+      for(let k=1;k<4;k++){ const g = arcAZ(k/4, ax0+14, ax1-14, gz, gz + 132); F(g.a-2, g.a+2, gz, g.z, trim, null,0, bb0-12); }
     }
-    for(const la of [CA-62, CA+62]){ cyl(la, bb0+6, 120, 142, 4, trim); ball(la, bb0+6, 146, 6, '#fff0c8'); }   // a lantern either side
+    else {
+      F(CA-dx, CA+dx, 0, dz, shade(wall,.32), null,0, bb0-11.0);
+      F(CA-dx+2, CA-2, 8, dz-8, shade(trim,.85), null,0, bb0-11.4);
+      F(CA+2,  CA+dx-2, 8, dz-8, shade(trim,.85), null,0, bb0-11.4);
+      F(CA-3,  CA+3,  8, dz-8, shade(trim,.6),  null,0, bb0-11.6);
+    }
+    for(const la of [CA-dx-22, CA+dx+22]){ cyl(la, bb0+6, 120, 142, 4, trim); ball(la, bb0+6, 146, 6, '#fff0c8'); }   // a lantern either side
 
     /* ---- the other three entrances ----
        Simpler than the front, because a bathhouse has one principal
