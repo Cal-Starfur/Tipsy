@@ -12592,8 +12592,9 @@ function owInstall(scene){
       owPaintStick(ow);
     }
   };
-  ow.onKeyDown = e => { if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
-  ow.onKeyUp   = e => { if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
+  const owTyping = e => { const t = e.target; return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
+  ow.onKeyDown = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
+  ow.onKeyUp   = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
 
   const cv = scene.game.canvas;
   ow.canvas = cv;
