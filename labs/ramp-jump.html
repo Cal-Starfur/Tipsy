@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<!--
+  TIPSY — Ramp/Kicker jump bench (queue r2a, spec: docs/ramp-jump-spec.md §7).
+  Standalone on purpose (the spec says so): it does NOT touch game/index.html.
+  It uses the game's 2:1 iso look but its own tiny projection, so it can be
+  judged at all four headings side by side before anything is ported (r2b).
+
+  What it proves, in the spec's order:
+   1. one parametrised launch: launchAngle + launchPower (+ approach speed) in,
+      arc / hang time / landing out; h(t)=z0+v0 t-.5 g t^2, landing plane via
+      groundHeightAt(x,y) (a stub that returns 0, never a magic 0).
+   2. kicker preset and ramp preset side by side, same code, same frame.
+   3. sprite height offset + ground shadow pinned to the true (x,y).
+   4. depth sort across 4 headings: option 1 (height-biased depth key). The
+      readout counts, per heading, every frame where a drawn pair that overlaps
+      on screen is ordered differently from the 3D box truth. That count is
+      the pass/fail gate; non-zero = stop patching, do setDepth() for real.
+   5. bad-landing tip-over hook, and a generic gate hazard (ring of fire).
+
+  Headless API: window.RJ  (see bottom).  ?h=0..3 shows one heading big.
+-->
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIPSY — Ramp/Kicker Jump Bench</title>
+<style>
+  html,body{margin:0;background:#14161b;color:#e8eaef;font-family:-apple-system,Helvetica,Arial,sans-serif;}
+  #hdr{padding:8px 14px;font-size:12px;letter-spacing:2px;color:#8f95a1;text-transform:uppercase}
+  #hdr b{color:#ff9c4d}
+  #grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 6px}
+  .pn{position:relative;background:#1d2a22;border-radius:8px;overflow:hidden}
+  .pn canvas{width:100%;display:block}
+  .pn span{position:absolute;left:8px;top:6px;font-size:12px;color:#cfe;letter-spacing:1px}
+  #ctl{display:flex;flex-wrap:wrap;gap:10px;padding:8px 10px;font-size:12px;align-items:center}
+  #ctl label{display:flex;gap:6px;align-items:center}
+  button{background:#262a33;color:#e8eaef;border:1px solid #363b46;border-radius:8px;padding:6px 10px;font-weight:600}
+  #out{padding:4px 12px 14px;font:11px/1.5 ui-monospace,Menlo,monospace;color:#9fb;white-space:pre-wrap}
+</style></head><body>
+<div id="hdr"><b>TIPSY</b> · ramp / kicker jump bench · 4 headings · r2a</div>
+<div id="grid"></div>
+<div id="ctl">
+  <label>approach speed <input id="spd" type="range" min="60" max="260" value="180"><b id="spdv">180</b></label>
+  <label>kicker angle <input id="ka" type="range" min="8" max="30" value="17"><b id="kav">17</b></label>
+  <label>ramp angle <input id="ra" type="range" min="25" max="55" value="37"><b id="rav">37</b></label>
+  <label>depth bias K <input id="kk" type="range" min="0" max="2" step="0.05" value="0.8"><b id="kkv">0.8</b></label>
+  <button id="rerun">RUN AGAIN</button><button id="dtest">DEPTH TEST</button>
+</div>
+<div id="out"></div>
+<script>
+"use strict";
+/* ---------- projection (2:1 iso, camera fixed; x -> down-right, y -> down-left) ---------- */
+const A = 0.8;                                   // screen px per world unit along an axis
+const VIEW = [1, 1, A];                          // direction toward the camera (the invariant line)
+const proj = (x, y, z) => [(x - y) * A, (x + y) * A / 2 - z];
+const depthOf = (x, y, z, K) => x + y + K * z;   // painter key: bigger = nearer
+
+/* ---------- 1. launch physics (the shared system) ---------- */
+const GRAV_STUB = 0;
+function groundHeightAt(x, y){ return GRAV_STUB; }   // flat today; a heightmap later changes only this
+const PRESETS = {
+  kicker: { launchAngle: 17, g: 330, tol: 40, L: 30, W: 40 },   // natural slab lip
+  ramp:   { launchAngle: 37, g: 245, tol: 28, L: 64, W: 56 },   // built structure
+};
+const THRESH = 90;                                // below this approach speed = bump, not a launch
+const tanD = a => Math.tan(a * Math.PI / 180);
+function lipHeight(p, o){ return p.L * tanD(o.launchAngle ?? p.launchAngle); }
+function launchOf(type, speed, over){
+  const p = PRESETS[type], ang = over?.launchAngle ?? p.launchAngle;
+  const v0 = over?.launchPower ?? speed * tanD(ang), z0 = lipHeight(p, { launchAngle: ang });
+  const g = p.g, air = (v0 + Math.sqrt(v0 * v0 + 2 * g * z0)) / g;     // solve z0+v0t-.5gt^2=0
+  return { v0, z0, g, air, peak: z0 + v0 * v0 / (2 * g), reach: speed * air };
+}
+const NOMINAL = 180;
+
+/* ---------- solids (3D polygon meshes with outward culling) ---------- */
+const boxVerts = (a, b) => [[a[0],a[1],a[2]],[b[0],a[1],a[2]],[b[0],b[1],a[2]],[a[0],b[1],a[2]],
+                            [a[0],a[1],b[2]],[b[0],a[1],b[2]],[b[0],b[1],b[2]],[a[0],b[1],b[2]]];
+const BOXF = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+function drawSolid(g, verts, faces, cols){
+  const c = [0, 0, 0]; verts.forEach(v => { c[0]+=v[0]; c[1]+=v[1]; c[2]+=v[2]; });
+  c[0]/=verts.length; c[1]/=verts.length; c[2]/=verts.length;
+  faces.forEach((f, i) => {
+    const p0 = verts[f[0]], p1 = verts[f[1]], p2 = verts[f[2]];
+    let n = cross(sub(p1, p0), sub(p2, p0));
+    const fc = [0, 0, 0]; f.forEach(k => { fc[0]+=verts[k][0]; fc[1]+=verts[k][1]; fc[2]+=verts[k][2]; });
+    fc[0]/=f.length; fc[1]/=f.length; fc[2]/=f.length;
+    if (dot(n, sub(fc, c)) < 0) n = [-n[0], -n[1], -n[2]];
+    if (dot(n, VIEW) <= 1e-6) return;                       // faces away from the camera
+    const m = Math.hypot(n[0], n[1], n[2]) || 1, nn = [n[0]/m, n[1]/m, n[2]/m];
+    const lit = 0.55 + 0.45 * Math.max(0, dot(nn, [0.35, 0.2, 0.9]) / 1.0);
+    g.beginPath();
+    f.forEach((k, j) => { const s = proj(verts[k][0], verts[k][1], verts[k][2]); j ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1]); });
+    g.closePath(); g.fillStyle = shade(cols[i] || cols[0], lit); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1; g.stroke();
+  });
+}
+function shade(hex, k){ const n = parseInt(hex.slice(1), 16);
+  return `rgb(${Math.min(255,(n>>16&255)*k|0)},${Math.min(255,(n>>8&255)*k|0)},${Math.min(255,(n&255)*k|0)})`; }
+
+/* ---------- a lane: one prop + obstacles + landing zone, in heading-local (u,v) ---------- */
+function mkPanel(heading){
+  const d = [[1,0],[0,1],[-1,0],[0,-1]][heading], p = [-d[1], d[0]];
+  const W = (u, v) => [d[0]*u + p[0]*v, d[1]*u + p[1]*v];             // local -> world xy
+  /* axis-aligned world box from a local rect + z range */
+  const box = (u0, u1, v0, v1, z0, z1) => {
+    const a = W(u0, v0), b = W(u1, v1);
+    return { min: [Math.min(a[0], b[0]), Math.min(a[1], b[1]), z0], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1]), z1],
+             u0, u1, v0, v1, h: z1 };
+  };
+  const lanes = [];
+  for (const [type, v] of [['kicker', -75], ['ramp', 75]]){
+    const P = PRESETS[type], H = lipHeight(P, {});
+    const lane = { type, v, P, H, obst: [], items: [] };
+    lane.prop = { kind: 'prop', box: box(0, P.L, v - P.W/2, v + P.W/2, 0, H), wedge: true, name: type };
+    lane.items.push(lane.prop);
+    const nom = launchOf(type, NOMINAL), landU = P.L + nom.reach;
+    lane.zone = [landU - P.tol, landU + P.tol];
+    /* things under the arc (rider flies over) and beside it (draw order only) */
+    if (type === 'kicker'){
+      lane.obst.push({ kind: 'cone', box: box(70, 82, v - 6, v + 6, 0, 4), name: 'low curb stub' });
+      lane.obst.push({ kind: 'pillar', box: box(96, 112, v - 55, v - 39, 0, 60), name: 'post (near side)' });
+      lane.obst.push({ kind: 'pillar', box: box(96, 112, v + 39, v + 55, 0, 60), name: 'post (far side)' });
+    } else {
+      lane.obst.push({ kind: 'crate', box: box(215, 245, v - 15, v + 15, 0, 22), name: 'crate under arc' });
+      lane.obst.push({ kind: 'pillar', box: box(150, 168, v - 60, v - 42, 0, 78), name: 'tall post (near)' });
+      lane.obst.push({ kind: 'pillar', box: box(150, 168, v + 42, v + 60, 0, 78), name: 'tall post (far)' });
+      lane.gate = { u: P.L + nom.v0 / nom.g * NOMINAL, zc: 0, r: 26, v };      // ring at the nominal apex
+      lane.gate.zc = nom.z0 + nom.v0 * (lane.gate.u - P.L) / NOMINAL - 0.5 * nom.g * ((lane.gate.u - P.L) / NOMINAL) ** 2;
+    }
+    lane.obst.forEach(o => lane.items.push(o));
+    lanes.push(lane);
+  }
+  return { heading, d, p, W, lanes, box };
+}
+
+/* ---------- riders ---------- */
+function mkRider(panel, lane, opt){
+  return { lane, u: -130, z: 0, vz: 0, speed: 0, target: opt.speed, st: 'run', air: false, t: 0, tip: 0, tipT: -1,
+           over: lane.type === 'kicker' ? { launchAngle: opt.ka } : { launchAngle: opt.ra }, result: '', gate: '', landU: null, trail: [] };
+}
+const SZ = 11;                                                   // rider half footprint
+function stepRider(r, dt, panel){
+  const L = r.lane, P = L.P; r.t += dt;
+  if (r.st === 'down'){ r.tipT += dt; r.tip = Math.min(1, r.tipT / 0.5); r.speed = Math.max(0, r.speed - 160 * dt); r.u += r.speed * dt; return; }
+  if (r.st === 'bump'){ r.speed = 0; return; }
+  if (!r.air){
+    r.speed = r.st === 'roll' ? Math.max(0, r.speed - 110 * dt) : Math.min(r.target, r.speed + 420 * dt);
+    const un = r.u + r.speed * dt;
+    if (r.st === 'run' && r.u < 0 && un >= 0 && r.speed < THRESH){ r.st = 'bump'; r.result = 'BUMP (below launch threshold)'; r.u = -1; return; }
+    r.u = un;
+    r.z = r.u >= 0 && r.u <= P.L ? L.H * (r.u / P.L) : groundHeightAt(0, 0);
+    if (r.st === 'run' && r.u > P.L){                              // off the lip: launch
+      const o = launchOf(L.type, r.speed, r.over); r.vz = o.v0; r.z = o.z0; r.g = o.g; r.air = true; r.airT = 0; r.o = o;
+    }
+    if (r.st === 'roll' && r.speed === 0) r.st = 'stopped';
+    return;
+  }
+  r.u += r.speed * dt; r.vz -= r.g * dt; r.z += r.vz * dt; r.airT += dt;
+  if (L.gate && !r.gate && r.u >= L.gate.u){
+    const dz = r.z - L.gate.zc;
+    r.gate = Math.abs(dz) <= L.gate.r - 6 ? 'GATE PASS' : 'GATE MISS (arc height ' + (dz < 0 ? 'below' : 'above') + ')';
+  }
+  const gy = groundHeightAt(0, 0);
+  if (r.z <= gy && r.vz < 0){
+    r.z = gy; r.air = false; r.landU = r.u;
+    const inZone = r.u >= L.zone[0] && r.u <= L.zone[1];
+    const hit = L.obst.some(o => o.kind !== 'pillar' && r.u + SZ > o.box.u0 && r.u - SZ < o.box.u1 && o.box.h > 2);
+    if (inZone && !hit){ r.st = 'roll'; r.result = 'CLEAN'; }
+    else { r.st = 'down'; r.tipT = 0; r.result = hit ? 'BAD (landed on obstacle)' : (r.u > L.zone[1] ? 'BAD (overshot)' : 'BAD (undershot)'); }
+  }
+}
+function newRun(panel, opt){ panel.riders = panel.lanes.map(l => mkRider(panel, l, opt)); panel.t = 0; }
+function stepPanel(panel, dt){ panel.t += dt; panel.riders.forEach(r => stepRider(r, dt, panel)); }
+const settled = pn => pn.riders.every(r => r.st === 'stopped' || r.st === 'bump' || (r.st === 'down' && r.tip >= 1 && r.speed === 0));
+
+/* ---------- scene items for drawing (each: depth key + draw fn + 3D box for the truth test) ---------- */
+const ROBOT_H = 38;
+function riderBox(panel, r){
+  const w = panel.W(r.u, r.lane.v);
+  return { min: [w[0]-SZ, w[1]-SZ, r.z], max: [w[0]+SZ, w[1]+SZ, r.z + ROBOT_H] };
+}
+function drawWedge(g, panel, lane, tone){
+  const P = lane.P, H = lane.H, W = panel.W, v0 = lane.v - P.W/2, v1 = lane.v + P.W/2;
+  const q = (u, v, z) => { const w = W(u, v); return [w[0], w[1], z]; };
+  const verts = [q(0,v0,0), q(P.L,v0,0), q(P.L,v1,0), q(0,v1,0), q(P.L,v0,H), q(P.L,v1,H)];
+  /* 0 entry-left 1 exit-left 2 exit-right 3 entry-right 4 exit-left top 5 exit-right top */
+  const faces = [[0,3,5,4],[1,0,4],[3,2,5],[1,2,5,4],[0,1,2,3]];
+  drawSolid(g, verts, faces, [tone, tone, tone, tone, tone]);
+  /* grip stripes along the slope */
+  g.strokeStyle = 'rgba(0,0,0,.28)'; g.lineWidth = 1.5;
+  for (let i = 1; i < 6; i++){
+    const u = P.L * i / 6, z = H * i / 6, a = proj(...q(u, v0 + 3, z)), b = proj(...q(u, v1 - 3, z));
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  }
+}
+function drawBoxObj(g, o, tone){
+  const verts = boxVerts(o.box.min, o.box.max);
+  drawSolid(g, verts, BOXF, [tone]);
+}
+function drawRobot(g, panel, r){
+  const w = panel.W(r.u, r.lane.v), d = panel.d, tipA = r.tip * 1.45 + (r.tip >= 1 ? 0 : Math.sin(r.tipT * 18) * 0.05 * r.tip);
+  /* tip about the base along heading: rotate (along d, z) plane about the foot */
+  const T = (x, y, z) => {
+    const a = (x - w[0]) * d[0] + (y - w[1]) * d[1], s = Math.sin(tipA), c = Math.cos(tipA);
+    const a2 = a * c - z * s, z2 = a * s + z * c;                   // a toward heading, z up
+    return [w[0] + d[0]*a2 + (-(d[1]))*0 + (x - w[0] - d[0]*a), w[1] + d[1]*a2 + (y - w[1] - d[1]*a), r.z + z2];
+  };
+  const part = (hw, z0, z1, col, front) => {
+    const m = boxVerts([w[0]-hw, w[1]-hw, 0], [w[0]+hw, w[1]+hw, 0]);
+    const vs = boxVerts([w[0]-hw, w[1]-hw, z0], [w[0]+hw, w[1]+hw, z1]).map(v => T(v[0], v[1], v[2]));
+    drawSolid(g, vs, BOXF, [col]);
+  };
+  part(SZ, 0, 8, '#555d6b');                                         // treads
+  part(SZ - 2, 8, 28, '#e8a33d');                                    // body
+  part(SZ - 4, 28, ROBOT_H, '#d9dde4');                              // head
+  /* heading marker: a visor stripe on the head top + chevron, so the facing reads at every heading */
+  const head = (a, b, z) => T(w[0] + d[0]*a - d[1]*b, w[1] + d[1]*a + d[0]*b, z);
+  const f = [head(-3,-5,ROBOT_H+.2), head(7,0,ROBOT_H+.2), head(-3,5,ROBOT_H+.2)].map(v => proj(v[0], v[1], v[2]));
+  g.beginPath(); g.moveTo(f[0][0], f[0][1]); g.lineTo(f[1][0], f[1][1]); g.lineTo(f[2][0], f[2][1]); g.closePath();
+  g.fillStyle = '#d33'; g.fill();
+}
+function drawShadow(g, panel, r){
+  const w = panel.W(r.u, r.lane.v), gy = groundHeightAt(w[0], w[1]), h = Math.max(0, r.z - gy);
+  const s = 1 / (1 + h / 70), c = proj(w[0], w[1], gy);
+  g.fillStyle = `rgba(0,0,0,${0.38 * (0.35 + 0.65 * s)})`;
+  g.beginPath(); g.ellipse(c[0], c[1], 17 * s * A + 2, 8.5 * s * A + 1, 0, 0, 6.3); g.fill();
+}
+/* ring of fire = generic gate hazard: two arcs (far / near), the rider sorts between them */
+function ringPts(panel, gate, th0, th1){
+  const c = panel.W(gate.u, gate.v), p = panel.p, pts = [];
+  for (let i = 0; i <= 18; i++){
+    const th = th0 + (th1 - th0) * i / 18;
+    pts.push([c[0] + p[0] * Math.cos(th) * gate.r, c[1] + p[1] * Math.cos(th) * gate.r, gate.zc + Math.sin(th) * gate.r]);
+  }
+  return pts;
+}
+function drawRing(g, panel, gate, near, tm){
+  /* depth along view of ring point = (x+y)+A*z ; near half is where it's bigger than centre */
+  const c = panel.W(gate.u, gate.v), cd = c[0] + c[1] + A * gate.zc, p = panel.p;
+  const sgn = Math.sign(p[0] + p[1]) || 1;
+  /* theta where depth derivative >0: cos*(p0+p1) + sin*A > 0 */
+  const phi = Math.atan2(A, (p[0] + p[1])), a0 = phi - Math.PI / 2, a1 = phi + Math.PI / 2;
+  const pts = near ? ringPts(panel, gate, a0, a1) : ringPts(panel, gate, a1, a0 + 2 * Math.PI);
+  g.lineCap = 'round';
+  for (let k = 0; k < 3; k++){
+    g.beginPath();
+    pts.forEach((v, i) => { const s = proj(v[0], v[1], v[2]); const fl = Math.sin(tm * 9 + i * 1.3 + k) * (2 + k); i ? g.lineTo(s[0], s[1] + fl) : g.moveTo(s[0], s[1] + fl); });
+    g.strokeStyle = ['#ff3b12', '#ff9a1a', '#ffe36a'][k]; g.lineWidth = [7, 4, 1.8][k]; g.stroke();
+  }
+}
+
+/* ---------- depth sort: the thing under test ---------- */
+let KBIAS = 0.8;
+function buildItems(panel){
+  const items = [];
+  panel.lanes.forEach(l => {
+    const pb = l.prop.box;
+    items.push({ ref: l.prop, box: pb, key: depthOf((pb.min[0]+pb.max[0])/2, (pb.min[1]+pb.max[1])/2, 0, 0) + 0, draw: g => drawWedge(g, panel, l, l.type === 'ramp' ? '#c9764a' : '#b9a58a') });
+    l.obst.forEach(o => {
+      const b = o.box, cx = (b.min[0]+b.max[0])/2, cy = (b.min[1]+b.max[1])/2;
+      items.push({ ref: o, box: b, key: depthOf(cx, cy, b.h / 2, KBIAS), draw: g => drawBoxObj(g, o, o.kind === 'pillar' ? '#8a93a6' : o.kind === 'crate' ? '#b58b4c' : '#aaaaaa') });
+    });
+    if (l.gate){
+      const c = panel.W(l.gate.u, l.gate.v), cd = depthOf(c[0], c[1], l.gate.zc, KBIAS);
+      items.push({ ref: 'ringfar', ring: true, key: cd - 0.01, draw: (g, tm) => drawRing(g, panel, l.gate, false, tm) });
+      items.push({ ref: 'ringnear', ring: true, key: cd + 0.01, draw: (g, tm) => drawRing(g, panel, l.gate, true, tm) });
+    }
+  });
+  panel.riders.forEach(r => {
+    const b = riderBox(panel, r), ridden = r.u >= 0 && r.u <= r.lane.P.L && !r.air;
+    items.push({ ref: r, rider: true, box: b, key: depthOf((b.min[0]+b.max[0])/2, (b.min[1]+b.max[1])/2, r.z + ROBOT_H / 2, KBIAS) + (ridden ? 1000 : 0) * 0,
+                 draw: g => drawRobot(g, panel, r) });
+  });
+  /* the rider's own ramp is ridden: it must always draw before him (no bias maths can do that for a long wedge) */
+  items.forEach(it => { if (it.rider){ const lp = it.ref.lane.prop; const w = items.find(x => x.ref === lp); if (w && it.ref.u >= 0) w.key = Math.min(w.key, it.key - 0.5); } });
+  return items.sort((a, b) => a.key - b.key);
+}
+
+/* ---------- truth: the 3D box comparator (what setDepth would do) ---------- */
+function inFront(a, b){          // 1: a in front of b, -1: b in front, 0: ambiguous/overlapping
+  const af = a.min[0] >= b.max[0] - 1e-6 ? 1 : a.min[1] >= b.max[1] - 1e-6 ? 1 : a.min[2] >= b.max[2] - 1e-6 ? 1 : 0;
+  const bf = b.min[0] >= a.max[0] - 1e-6 ? 1 : b.min[1] >= a.max[1] - 1e-6 ? 1 : b.min[2] >= a.max[2] - 1e-6 ? 1 : 0;
+  if (af && !bf) return 1; if (bf && !af) return -1; return 0;
+}
+function screenRect(b){
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  boxVerts(b.min, b.max).forEach(v => { const s = proj(v[0], v[1], v[2]); x0 = Math.min(x0, s[0]); x1 = Math.max(x1, s[0]); y0 = Math.min(y0, s[1]); y1 = Math.max(y1, s[1]); });
+  return [x0, y0, x1, y1];
+}
+const ovl = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+function checkDepth(panel, items){
+  const bad = [], pos = new Map(items.map((it, i) => [it, i]));
+  items.filter(i => i.rider).forEach(rd => {
+    items.forEach(o => {
+      if (o === rd || o.ring || !o.box) return;
+      /* his own ridden ramp is excluded from "ambiguous" by the explicit pin above; test it too */
+      if (!ovl(screenRect(rd.box), screenRect(o.box))) return;
+      const t = inFront(rd.box, o.box); if (t === 0) return;
+      const keyed = pos.get(rd) > pos.get(o) ? 1 : -1;
+      if (t !== keyed) bad.push({ rider: rd.ref.lane.type, vs: o.ref.name || o.ref.kind, u: +rd.ref.u.toFixed(0), z: +rd.ref.z.toFixed(0), truth: t > 0 ? 'rider in front' : 'rider behind' });
+    });
+  });
+  return bad;
+}
+
+/* ---------- panels + loop ---------- */
+const OPT = { speed: 180, ka: 17, ra: 37 };
+const PW = 590, PH = 430;
+const panels = [];
+const grid = document.getElementById('grid');
+const only = new URLSearchParams(location.search).get('h');
+for (let h = 0; h < 4; h++){
+  if (only !== null && +only !== h) continue;
+  const div = document.createElement('div'); div.className = 'pn';
+  const cv = document.createElement('canvas'); cv.width = PW * 2; cv.height = PH * 2; div.appendChild(cv);
+  const sp = document.createElement('span'); sp.textContent = 'HEADING ' + h + '  ' + ['+x (down-right)', '+y (down-left)', '-x (up-left)', '-y (up-right)'][h]; div.appendChild(sp);
+  if (only !== null) div.style.gridColumn = '1 / span 2';
+  grid.appendChild(div);
+  const pn = mkPanel(h); pn.cv = cv; pn.g = cv.getContext('2d'); pn.dbg = []; pn.bad = 0; pn.frames = 0; newRun(pn, OPT); panels.push(pn);
+}
+function drawPanel(pn, tm){
+  const g = pn.g; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, pn.cv.width, pn.cv.height);
+  g.fillStyle = '#2b3b2d'; g.fillRect(0, 0, pn.cv.width, pn.cv.height);
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  const cw = pn.W(150, 0), cs = proj(cw[0], cw[1], 20);
+  g.translate(PW / 2 - cs[0], PH / 2 - cs[1] + 10);
+  /* ground layer: pavement strip per lane, landing zones, shadows (flat things never sorted) */
+  pn.lanes.forEach(l => {
+    const w0 = l.v - 46, w1 = l.v + 46, quad = (u0, u1, v0, v1, col) => {
+      const q = [[u0,v0],[u1,v0],[u1,v1],[u0,v1]].map(([u, v]) => { const w = pn.W(u, v); return proj(w[0], w[1], 0); });
+      g.beginPath(); q.forEach((s, i) => i ? g.lineTo(s[0], s[1]) : g.moveTo(s[0], s[1])); g.closePath(); g.fillStyle = col; g.fill(); };
+    quad(-150, 400, w0, w1, '#8b8f97');
+    quad(-150, 400, w0, w0 + 3, '#6d7179'); quad(-150, 400, w1 - 3, w1, '#6d7179');
+    const rd = pn.riders[pn.lanes.indexOf(l)];
+    quad(l.zone[0], l.zone[1], l.v - 30, l.v + 30, rd.result === 'CLEAN' ? 'rgba(80,220,110,.55)' : rd.result.startsWith('BAD') ? 'rgba(230,70,60,.55)' : 'rgba(120,230,150,.28)');
+  });
+  pn.riders.forEach(r => drawShadow(g, pn, r));
+  pn.items = buildItems(pn);
+  pn.items.forEach(it => it.draw(g, tm));
+  /* readout */
+  g.setTransform(2, 0, 0, 2, 0, 0); g.font = '11px ui-monospace,Menlo,monospace'; g.fillStyle = '#fff';
+  pn.riders.forEach((r, i) => { const o = r.o; g.fillText(`${r.lane.type}: ${r.result || (r.air ? 'airborne' : r.st)} ${r.gate}  ` + (o ? `v0=${o.v0 | 0} air=${o.air.toFixed(2)}s peak=${o.peak | 0}` : ''), 8, PH - 28 + i * 14); });
+}
+function frame(dt, tm){
+  panels.forEach(pn => {
+    stepPanel(pn, dt);
+    const items = buildItems(pn), bad = checkDepth(pn, items);
+    pn.frames++; if (bad.length){ pn.bad++; if (pn.dbg.length < 6) pn.dbg.push(bad[0]); }
+  });
+}
+let last = 0, T = 0, hold = 0;
+function loop(ts){
+  const dt = Math.min(0.05, last ? (ts - last) / 1000 : 0.016); last = ts; T += dt;
+  frame(dt, T); panels.forEach(pn => drawPanel(pn, T));
+  if (panels.every(settled)){ hold += dt; if (hold > 1.4){ hold = 0; panels.forEach(pn => newRun(pn, OPT)); } }
+  report(); requestAnimationFrame(loop);
+}
+function report(){
+  document.getElementById('out').textContent = panels.map(pn =>
+    `heading ${pn.heading}: ${pn.frames} frames checked, ${pn.bad} with a rider/prop draw-order error vs 3D truth` +
+    (pn.dbg[0] ? '  e.g. ' + JSON.stringify(pn.dbg[0]) : '')).join('\n');
+}
+['spd', 'ka', 'ra', 'kk'].forEach(id => document.getElementById(id).addEventListener('input', e => {
+  document.getElementById(id + 'v').textContent = e.target.value;
+  if (id === 'spd') OPT.speed = +e.target.value; if (id === 'ka') OPT.ka = +e.target.value; if (id === 'ra') OPT.ra = +e.target.value; if (id === 'kk') KBIAS = +e.target.value;
+  panels.forEach(pn => { pn.bad = 0; pn.frames = 0; pn.dbg = []; newRun(pn, OPT); });
+}));
+document.getElementById('rerun').onclick = () => panels.forEach(pn => newRun(pn, OPT));
+
+/* ---------- headless API ---------- */
+window.RJ = {
+  PRESETS, launchOf, OPT, panels,
+  /* run one scenario to the end at fixed dt, return per-heading results + depth mismatch counts */
+  run(opts = {}, shotAt = []){
+    Object.assign(OPT, opts); KBIAS = opts.K ?? KBIAS;
+    panels.forEach(pn => { newRun(pn, OPT); pn.bad = 0; pn.frames = 0; pn.dbg = []; });
+    const out = [], dt = 1 / 60; let t = 0, shots = {};
+    while (t < 9 && !panels.every(settled)){
+      frame(dt, t); t += dt;
+      shotAt.forEach(s => { if (!shots[s] && t >= s){ shots[s] = 1; panels.forEach(pn => drawPanel(pn, t)); window.__shot && window.__shot(s); } });
+    }
+    panels.forEach(pn => drawPanel(pn, t));
+    return panels.map(pn => ({ heading: pn.heading, frames: pn.frames, badFrames: pn.bad, firstBad: pn.dbg[0] || null,
+      riders: pn.riders.map(r => ({ lane: r.lane.type, result: r.result, gate: r.gate, landU: r.landU && +r.landU.toFixed(0), zone: r.lane.zone.map(Math.round), air: r.o && +r.o.air.toFixed(2), peak: r.o && Math.round(r.o.peak) })) }));
+  },
+  stepTo(opts, tSec){ Object.assign(OPT, opts); panels.forEach(pn => { newRun(pn, OPT); pn.bad = 0; pn.frames = 0; });
+    for (let t = 0; t < tSec; t += 1/60) frame(1/60, t); panels.forEach(pn => drawPanel(pn, tSec)); },
+  freeze(){ window.__frozen = true; },
+};
+let running = true;
+document.getElementById('dtest').onclick = () => { const r = RJ.run({}); document.getElementById('out').textContent = JSON.stringify(r, null, 1); };
+if (!new URLSearchParams(location.search).has('manual')) requestAnimationFrame(loop);
+</script></body></html>

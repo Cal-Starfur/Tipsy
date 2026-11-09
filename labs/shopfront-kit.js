@@ -373,7 +373,7 @@ function glaze(a0, a1, z0, z1, frame, tint){
    shelf still paints over the shelf. */
 function depthSort(items){
   /* SORTED BY WHAT P() SAYS IS NEARER, not by a + b (Sir, 2026-09-17:
-     the Tidewater Maritime Museum's rear railing, hedges and plinths drew
+     the Tidewater Museum's rear railing, hedges and plinths drew
      OVER its portico). a + b is "nearer" only in the lab's own frame. The
      game places a block landmark with b flipped -- W(x0 + a, y0 - b) --
      where nearer is a - b, so the old key drew the whole sculpture garden

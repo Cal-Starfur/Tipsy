@@ -1,0 +1,268 @@
+{
+ "note": "Mirrors the Tipsy Test Checklist artifact. Evidence runner: node tools/run_sheet.js [--section id]. 'Hands-on' items cannot be judged headless; list them for Sir.",
+ "sections": [
+  {
+   "id": "walkins",
+   "title": "Every walk-in: outside vs inside",
+   "spots": [],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true,
+   "items": [
+    "FOOTPRINT: on the 'outside, room footprint in red' photos, the red outline (ground) and orange outline (wall top) are the interior room's own footprint. They must sit on the building's shell: same size, same corners, same side as the door. Flag any red or orange edge that sticks out past the shell or leaves part of the shell uncovered, and say by roughly how much.",
+    "Compare the outside clean photo with the inside photo: same walls, door position, windows and floor extent? The inside must not read as a different-sized building.",
+    "Inside: floor runs wall to wall, walls have tops and thickness, nothing floats or has a dark gap, furniture and people stand on the floor, nothing sits in the doorway.",
+    "Inside at night: lit sensibly, no black voids, nothing glowing through walls."
+   ]
+  },
+  {
+   "id": "museum",
+   "title": "Tidewater Museum",
+   "spots": [
+    {
+     "label": "forecourt",
+     "go": "11200,2300",
+     "view": 2
+    },
+    {
+     "label": "gate",
+     "go": "10948,2700",
+     "view": 3
+    }
+   ],
+   "items": [
+    "The front: name on the frieze, pediment with gilded ship's wheel, EGYPT and T. REX banners, compass rose and lamps on the walk.",
+    "Entrance bay: low stone side walls with bronze handrails and lanterns, steps either side, no flat cut through the steps.",
+    "From outside, the doorway and front windows show the room, not a dark hole.",
+    "Art reads rounded and finished: fluted columns, seated kings, gold mask case, glass wall cases, benches.",
+    "At night the four lamp posts and two bronze lanterns glow with a pool of light (lantern light was halved on purpose).",
+    "Hands-on: doors slide as you drive up; room to drive round the T. rex; people give way; closing/opening times."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "drug",
+   "title": "Pelican Drug",
+   "spots": [
+    {
+     "label": "car park",
+     "go": "20140,14260",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Car park stays drawn round the store; the sliding doors fade with the walls.",
+    "Pharmacy in the corner behind the drive-through window, pickup hatch under it, PHARMACY on the wall.",
+    "From the car park you can see in through the doors and shopfront glass.",
+    "Its three car-park light masts glow at night."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "trophies",
+   "title": "Seabreeze Trophies",
+   "spots": [
+    {
+     "label": "door",
+     "go": "4244,15060",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Street door no longer stands in the doorway; spiked alley gate drops to knee height inside (known open: still looks heavy).",
+    "Engraver faces the camera at his bench; clerk at the till; one visitor browses.",
+    "Cups behind both front windows; back door and window inside."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "stories",
+   "title": "Stories",
+   "spots": [
+    {
+     "label": "heart run",
+     "go": "18000,5670",
+     "view": 1
+    },
+    {
+     "label": "cake run",
+     "go": "7938,2585",
+     "view": 2
+    },
+    {
+     "label": "gus mall",
+     "go": "14076,-746",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Heart run ends with Dr. Okafor meeting Tipsey face to face in the ER; no fade, no 'hours later' (hands-on).",
+    "Luna's mom comes out of a real front door at 776 Marina Way.",
+    "Every speaker's face shows; nobody snaps round when they walk away (hands-on).",
+    "Cake Run and Gus's favour only open at dusk (hands-on)."
+   ],
+   "night": "NIGHT_CLOCK.time = 18",
+   "reviewed": true
+  },
+  {
+   "id": "fleet",
+   "title": "Fleet bays and garage",
+   "spots": [
+    {
+     "label": "Marina Parking bays (F3s+F3t)",
+     "go": "1600,21031",
+     "view": 2
+    },
+    {
+     "label": "fuel farm hall F4",
+     "go": "26280,26588",
+     "view": 2
+    },
+    {
+     "label": "harbour boathouse F2b",
+     "go": "-5500,-12546",
+     "view": 2
+    },
+    {
+     "label": "Sun Deck hangar F7h",
+     "go": "27990,20420",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Bays read cleanly: big vehicle full size with neighbours parked beside it, nothing overlapping.",
+    "Bay doors and pads look right by day and lit at night.",
+    "Hands-on: Fleet tab grouping, launch and send-home."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "flying",
+   "title": "Flying and The Lighthouse Run",
+   "spots": [
+    {
+     "label": "harbour master",
+     "go": "-4064,-12290",
+     "view": 2
+    },
+    {
+     "label": "museum",
+     "go": "11200,2300",
+     "view": 2
+    }
+   ],
+   "items": [
+    "New fleet station behind the harbour house: nothing overlapping, pads clear, a drive in, plaza back as it was (benches, flags).",
+    "At night the hangar is lit: floodlight bar over each door, edge lights round each pad; no dark seam along the house.",
+    "Rescue van's lane runs along the house front and up the new drive; three plaza flags back.",
+    "Hands-on: take-off, UP/DOWN buttons, too-tall slide, landing, the full Lighthouse Run, fog timer feel."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "skate",
+   "title": "Driftwood Skate Park",
+   "spots": [
+    {
+     "label": "whole park",
+     "go": "17204,21060",
+     "view": 3
+    },
+    {
+     "label": "north quarter pipe",
+     "go": "17650,20250",
+     "view": 2
+    },
+    {
+     "label": "bowl",
+     "go": "17140,20800",
+     "view": 2
+    },
+    {
+     "label": "pyramid and gate",
+     "go": "17200,19700",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Fenced concrete park fills the cell: bowl, two quarter pipes, fun box, flat rail, pyramid, each with 3-6 m run-up; no lawn left inside.",
+    "Four skaters on boards, tilting with the slope; flood poles lit at night.",
+    "Hands-on: Tipsey rides the bowl and ramps."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "rules",
+   "title": "Shared rules (doors, order, cache)",
+   "spots": [
+    {
+     "label": "trophy door",
+     "go": "4244,15060",
+     "view": 2
+    },
+    {
+     "label": "mall plaza doors",
+     "go": "14076,-746",
+     "view": 2
+    },
+    {
+     "label": "Palmline stores",
+     "go": "5060,-560",
+     "view": 2
+    },
+    {
+     "label": "Lagoon Market Hall",
+     "go": "10900,27700",
+     "view": 2
+    },
+    {
+     "label": "Pelican Harbor Port Office",
+     "go": "-3500,-13800",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Doors drawn sensibly: shut or parted, never half-painted or floating.",
+    "Lagoon Market Hall and Port Office sort in front of and behind things correctly.",
+    "No missing-texture boxes, no flicker, nothing painted over the wrong layer."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  },
+  {
+   "id": "brewbolt",
+   "title": "Brew & Bolt and the far-corner depot",
+   "spots": [
+    {
+     "label": "Brew & Bolt corner",
+     "go": "5100,15000",
+     "view": 2
+    },
+    {
+     "label": "Brew & Bolt wide",
+     "go": "5100,14500",
+     "view": 3
+    },
+    {
+     "label": "Charging 4 far corner and yard",
+     "go": "4050,13420",
+     "view": 2
+    }
+   ],
+   "items": [
+    "Brew & Bolt: the L-shaped front reads as one building (south leg, east leg), the roof a clean rectangle over the corner square, no seam or gap against the Trophies or the Kart Works.",
+    "The Kart Works yard clear of the depot and of Brew & Bolt: track, pit, store and fences do not touch either; no chute or kart bays left.",
+    "The Flats Charging 4 at the north-west corner of block 1,4, seen from behind: back walls, roof, x-ray on the pad; nothing painted through it.",
+    "Hands-on: drive into the south door (seamless), the seating L, the partition's door to Gideon's back room, Gideon's rounds, night.",
+    "Hands-on: Fourth Place and Open House still reach The Flats Charging 4 on the far-corner pad."
+   ],
+   "night": "NIGHT_CLOCK.time = 21",
+   "reviewed": true
+  }
+ ]
+}

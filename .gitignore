@@ -28,3 +28,7 @@ dist/
 
 # OS junk
 .DS_Store
+.review/
+
+# tools/snap_spots.js photos
+snaps/

@@ -34,17 +34,23 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'fire-chief': {priceCents: 0, unlockType: 'achievement'},
   'cone-dodger': {priceCents: 0, unlockType: 'achievement'},
   medic: {priceCents: 0, unlockType: 'achievement'},
+  /* Luna's uniform's reward (the One of Us trophy, 'luna-favour') */
+  goth: {priceCents: 0, unlockType: 'achievement'},
+  /* Catch of the Day's reward (the Catch of the Day trophy, 'catch-of-the-day') */
+  fishmonger: {priceCents: 0, unlockType: 'achievement'},
+  /* Adoption Day's reward (the Adoption Day trophy, 'adoption-day') */
+  pawprint: {priceCents: 0, unlockType: 'achievement'},
+  /* The Getaway's reward (the Wheels Up trophy, 'wheels-up') */
+  'just-married': {priceCents: 0, unlockType: 'achievement'},
+  /* Number 4 Builds a Winner's reward (the Pit Crew trophy, 'pit-crew') */
+  'racing-stripe': {priceCents: 0, unlockType: 'achievement'},
+  /* Sunset Session's reward (the Sunset Session trophy, 'sunset-session') */
+  'board-shorts': {priceCents: 0, unlockType: 'achievement'},
+  /* Open House's reward (the Open House trophy, 'open-house') */
+  'engine-red': {priceCents: 0, unlockType: 'achievement'},
+  /* Letters on the Hill's reward (the Letters on the Hill trophy, 'letters-on-hill') */
+  'costa-palma': {priceCents: 0, unlockType: 'achievement'},
 }
-
-/** Price of a Continue, in cents. Mirrors TP_CONT_CENTS in
- *  game/index.html and must be changed in the same commit as it (same
- *  known duplication cost this file's header describes).
- *
- *  IT LIVES HERE BECAUSE THE CLIENT MUST NOT NAME THE PRICE. The debit
- *  endpoint takes no amount -- a request that carried one could carry
- *  zero. Same reason TS_SKINS holds priceCents rather than trusting
- *  PurchaseSkinReq. */
-export const TS_CONTINUE_CENTS = 100
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
 
@@ -81,6 +87,87 @@ export const TS_MISSIONS: Record<string, TsMissionDef> = {
   /* the heart run at Marina General: pass/fail, reported once the donor
      heart is on the ER's mat */
   'heart-run': {bestMax: 1, completeAt: 1},
+  /* THE STORY MISSIONS (game/index.html MISSIONS, docs/kits/missions.md;
+     LOOK_RULES 10, R10: what a mission gives is the server's). Each is
+     pass/fail and played once; the client reports it with best 1 when its
+     giver thanks Tipsey (missionComplete), and rebuilds what it gave from
+     this record on every requestTpProfile:
+       cake-run       the Gala Pass (a key item) and the bakery's orders
+       mall-password  Gus's password: the mall's front doors
+       goth-uniform   Luna's favour: the One of Us trophy (the Goth skin)
+                      and her $100 (GIFT_TIP_IDS 'luna', paid once)
+       arcade-card    High Tide's game card (its credits: dbArcade)
+       fourth-place   the First Delivery trophy given to number 4
+       lighthouse-run the first mission flown in a fleet vehicle (the
+                      delivery drone, lent at the Fleet Station): Ines's
+                      brass key (a key item), $50 once (GIFT_TIP_IDS
+                      'lighthouse'), and the drone it keeps (FLEET unlock)
+       catch-of-the-day  Nell's three kitchens in the Pelican Fish Market's
+                      delivery pod: the Catch of the Day trophy (the
+                      Fishmonger skin) and $50 once (GIFT_TIP_IDS 'fishmkt')
+       adoption-day   Paw Point Dog Park's adoption day: the banner, the
+                      treats, and Biscuit walked over by the fleet's humanoid
+                      (lent for the run only; Minding the Shop keeps him); the Adoption Day
+                      trophy (the Paw Print skin) and the Dog Rescuer's gold
+                      tag (a key item, rebuilt from this record). Offered once
+                      five strays are sheltered (dbShelterDog's count)
+       minding-the-shop  Gideon's antenna at Brew & Bolt: Tipsey minds the
+                      shop while Gideon (the fleet's humanoid, lent) fetches
+                      the parts from Breakwater Hardware and mends the mast.
+                      Its reward is Gideon himself, playable (the humanoid's
+                      FLEET unlock, now this mission's alone): no trophy, skin or cash
+       the-getaway    the Holloways' passports, Sun Deck Motor Lodge to the
+                      airfield's terminal: the Wheels Up trophy (the Just
+                      Married skin), $50 once (GIFT_TIP_IDS 'getaway'), the
+                      robotaxi (FLEET unlock); it spends the Gala Pass
+       kart-winner    Number 4 Builds a Winner (after fourth-place): number
+                      4's race bib (a key item, rebuilt from this record:
+                      kwBibMigrate) and the Pit Crew trophy, whose claim
+                      grants the Racing Stripe skin
+       night-watch    Night Watch at the Vista Ridge Security Post, after
+                      dark (after goth-uniform): the east wall walked in the
+                      post's patrol robot (lent, kept: FLEET unlock
+                      'patrolbot'), Luna's fob from the mall's lost property,
+                      $40 once (GIFT_TIP_IDS 'nightwatch') and her spare gate
+                      fob (a key item, rebuilt from this record: nwFobMigrate)
+       sunset-salute  Sunset Salute (at dusk, the Veterans Memorial): Walt's
+                      challenge coin (a key item, rebuilt from this record:
+                      ssCoinMigrate) and the autonomous shuttle (FLEET unlock)
+       sunset-session Sunset Session (at dusk, Sunset Shore Surf School): six
+                      foam boards down the sand in the lent cargo bot; the
+                      Sunset Session trophy (its claim grants the Board Shorts
+                      skin) and $50 once (GIFT_TIP_IDS 'surfschool')
+       request-line   Request Line (KTDE 98.1 The Tide): Ollie's song for Maya
+                      on the request show; $40 once (GIFT_TIP_IDS
+                      'requestline') and the station's sticker (a key item,
+                      rebuilt from this record: rlStickerMigrate)
+       open-house     Open House (in the daytime, the Flats Fire Training
+                      Yard): Tipsey's Fire helmet keepsake given to a junior
+                      firefighter after a lap of the hose drill; the Open
+                      House trophy (its claim grants the Engine Red skin) and
+                      $40 once (GIFT_TIP_IDS 'openhouse')
+       letters-on-hill Letters on the Hill (at dusk, the Costa Palma hillside
+                      letters): the new A flown up on the Fleet's heavy-lift
+                      drone; the Letters on the Hill trophy (its claim grants
+                      the Costa Palma skin) and $50 once (GIFT_TIP_IDS
+                      'letters') */
+  'cake-run': {bestMax: 1, completeAt: 1},
+  'mall-password': {bestMax: 1, completeAt: 1},
+  'goth-uniform': {bestMax: 1, completeAt: 1},
+  'arcade-card': {bestMax: 1, completeAt: 1},
+  'fourth-place': {bestMax: 1, completeAt: 1},
+  'lighthouse-run': {bestMax: 1, completeAt: 1},
+  'catch-of-the-day': {bestMax: 1, completeAt: 1},
+  'adoption-day': {bestMax: 1, completeAt: 1},
+  'the-getaway': {bestMax: 1, completeAt: 1},
+  'kart-winner': {bestMax: 1, completeAt: 1},
+  'night-watch': {bestMax: 1, completeAt: 1},
+  'sunset-salute': {bestMax: 1, completeAt: 1},
+  'sunset-session': {bestMax: 1, completeAt: 1},
+  'request-line': {bestMax: 1, completeAt: 1},
+  'open-house': {bestMax: 1, completeAt: 1},
+  'letters-on-hill': {bestMax: 1, completeAt: 1},
+  'minding-the-shop': {bestMax: 1, completeAt: 1},
 }
 
 /** missionId -> best count recorded for this player. */
@@ -161,7 +248,54 @@ export const TS_CLAIMABLE_TROPHIES: Record<
     rewardSkinId: 'medic',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'heart-run'),
   },
+  /* Luna's uniform's trophy (One of Us), the same way */
+  'luna-favour': {
+    rewardSkinId: 'goth',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'goth-uniform'),
+  },
+  /* Catch of the Day's trophy, the same way (the Fishmonger skin) */
+  'catch-of-the-day': {
+    rewardSkinId: 'fishmonger',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'catch-of-the-day'),
+  },
+  /* Adoption Day's trophy, the same way (the Paw Print skin) */
+  'adoption-day': {
+    rewardSkinId: 'pawprint',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'adoption-day'),
+  },
+  /* The Getaway's trophy (Wheels Up), the same way */
+  'wheels-up': {
+    rewardSkinId: 'just-married',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'the-getaway'),
+  },
+  /* Number 4 Builds a Winner's trophy (Pit Crew), the same way */
+  'pit-crew': {
+    rewardSkinId: 'racing-stripe',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'kart-winner'),
+  },
+  /* Sunset Session's trophy, the same way (the Board Shorts skin) */
+  'sunset-session': {
+    rewardSkinId: 'board-shorts',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'sunset-session'),
+  },
+  /* Open House's trophy, the same way (the Engine Red skin) */
+  'open-house': {
+    rewardSkinId: 'engine-red',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'open-house'),
+  },
+  /* Letters on the Hill's trophy, the same way (the Costa Palma skin) */
+  'letters-on-hill': {
+    rewardSkinId: 'costa-palma',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'letters-on-hill'),
+  },
 }
+
+/** HIGH TIDE'S GAME CARD (game/index.html TIX): the credits Marisol puts on
+ *  it once (grant, once per user, ever, after 'arcade-card' is recorded),
+ *  and the top-up PLAY sells when it is empty -- the price and the count
+ *  are the server's, never the client's. Keep in step with TIX_CREDITS
+ *  and TIX_TOPUP in game/index.html. */
+export const TS_ARCADE = {grantCredits: 30, topupCredits: 10, topupCents: 500}
 
 /** Server-side mirror of HOOD_TIERS / HOOD_TIER_OF in game/index.html
  *  (search "THE HOOD STORE"). Same doctrine as TS_SKINS: price AND the

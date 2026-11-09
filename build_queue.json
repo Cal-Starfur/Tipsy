@@ -1,0 +1,1189 @@
+{
+"nodes": [
+{
+"id": "sc1",
+"title": "World clock + slot scheduler + seeded shoppers (pilot)",
+"spec": "docs/seeded-crowd.md",
+"deps": [],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc2",
+"title": "Seeded residents: houses, scooter trips, dog walkers",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc1"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc3",
+"title": "Seeded seekers, errand drivers, food-truck customers",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc1"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc4",
+"title": "Seeded strand, boardwalk, almshouse court and the other live populations",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc2",
+"sc3"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc5",
+"title": "Census: same seed, two boots, every CITY_PEOPLE group the same",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc4"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc6",
+"title": "Seeded traffic: loop clocks on the world clock, hold only near him and decayed to zero out of sight, errand cars and food-truck sessions scheduled; loop offsets staggered so shared streets don't overlap",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc3"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "sc7",
+"title": "Census leftovers onto the seed: the groups in tools/crowd_census_known.json stay on the known list (decided: left)",
+"spec": "docs/seeded-crowd.md",
+"deps": [
+"sc5"
+],
+"status": "built",
+"group": "People: seeded crowd"
+},
+{
+"id": "p1.1",
+"title": "Fold mall offset into mallWalkerAt return; drop m.oa/m.ob at 3 call sites",
+"spec": "docs/people-unification.md#plan-by-risk",
+"deps": [],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "p1.2",
+"title": "One loopWalkStep for ballroom + derby walkers (identical positions)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.1"
+],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "p1.3",
+"title": "One pathAt replacing mallStaffAt + hospWalkerAt",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.2"
+],
+"status": "done",
+"group": "People unification",
+"note": "skipped: the hospital walk is a racetrack loop, not a two-point ping-pong"
+},
+{
+"id": "p1.4",
+"title": "One talkRun for ballroom/derby chatter (visible change)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.3"
+],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "p1.5",
+"title": "EXCUSE table + excuseSay (hospital visible change)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.4"
+],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "p1.6",
+"title": "Looks through partyLook, old generators as aliases",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.5"
+],
+"status": "done",
+"group": "People unification",
+"note": "already done in the code: staffLook and mallJailLook are rosterBody aliases, storeRepLook and tixLooks build on it, the inline lookOf is mallJailLook"
+},
+{
+"id": "p1.7",
+"title": "Derby onto scene.time.now",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.6"
+],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "p2.8",
+"title": "PEOPLE registry (updateKnocks, blockAt, hospital walkers solid)",
+"spec": "docs/people-unification.md",
+"deps": [
+"p1.7"
+],
+"status": "built",
+"group": "People unification"
+},
+{
+"id": "r1",
+"title": "Dev challenge routes data plumbing",
+"spec": "docs/roadmap.md#phase-1",
+"deps": [],
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1"
+},
+{
+"id": "r2a",
+"title": "Ramp/kicker lab bench, all 4 headings",
+"spec": "docs/ramp-jump-spec.md",
+"deps": [],
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/labs/ramp-jump.html"
+},
+{
+"id": "r2b",
+"title": "Port ramp/kicker + ring of fire into game/index.html, debut in a challenge route",
+"spec": "docs/ramp-jump-spec.md",
+"deps": [
+"r1",
+"r2a"
+],
+"status": "built",
+"group": "Roadmap: routes, ramps, editor",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?route=tight-1&go=10440,5720,0&view=2"
+},
+{
+"id": "r3",
+"title": "Community route editor",
+"spec": "docs/roadmap.md#phase-3",
+"deps": [
+"r2b"
+],
+"status": "dead",
+"group": "Roadmap: routes, ramps, editor"
+},
+{
+"id": "s1",
+"title": "Onboarding level 'Learn the Ropes'",
+"spec": "docs/onboarding-spec.md",
+"deps": [],
+"status": "blocked",
+"note": "needs hazard choice, menu label",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "s2",
+"title": "Skins redemption-code model",
+"spec": "docs/skins-spec.md",
+"deps": [],
+"status": "blocked",
+"note": "needs price, launch count, code format",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "s3",
+"title": "Keepsakes data shape + story 'Fourth Place'",
+"spec": "docs/keepsakes.md",
+"deps": [],
+"status": "blocked",
+"note": "needs save-across-devices, mission data",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "d1",
+"title": "Working door: Seabreeze Ballroom (doorF records itself)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: doors",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2812&view=3"
+},
+{
+"id": "d2",
+"title": "Working door: Animal Shelter (painted door today)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: doors",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7860,8684&view=3"
+},
+{
+"id": "d3",
+"title": "Working door: harbour boat cabin",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d4",
+"title": "Working doors: Surfside Diner + Sandpiper Shoes",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: doors"
+},
+{
+"id": "d5",
+"title": "Kai + surf stand door; Low Tide Music door faces away",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: doors",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4900,11450&view=2"
+},
+{
+"id": "b1",
+"title": "Tide Pool Elementary in pieces (U1k/U1c)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: buildings",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=22900,-700&view=2"
+},
+{
+"id": "b2",
+"title": "Palmline Tower key + vol, forecourt out of its one image",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: buildings",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5064,-560&view=3"
+},
+{
+"id": "v1",
+"title": "One vehicleSolid(kind) for the ten parked-car boxes",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2"
+},
+{
+"id": "v2",
+"title": "Riders obstacle list + clearance",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4244,15060&view=2"
+},
+{
+"id": "v3",
+"title": "Parking rows cached, one bay size",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29038,1564&view=2"
+},
+{
+"id": "v4",
+"title": "Showroom cars on gameCar",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23764,18102&view=2"
+},
+{
+"id": "v5",
+"title": "Route car out of the far lane",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: vehicles",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "pe1",
+"title": "Legs driven by distance walked (47 walkSin calls)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: people",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=14076,-746&view=2"
+},
+{
+"id": "pe2",
+"title": "Unlisted populations into CITY_PEOPLE",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: people",
+"note": "knockable batch: Sierra guard made knockable; duplicate food-truck entry removed; the rest were already listed (docs stale). Marisol/cook, hospital errand/jail/rescue: mission timelines, left",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17640,2392&view=2"
+},
+{
+"id": "pe3",
+"title": "Merge the two meet-spot pickers; meetCoverAt beyond street + mall",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: people",
+"note": "meetSide: one side chooser (lhSide/ohSide/kwSide/rlSide, tix, lost item); meetSpot was already the one picker; meetCoverAt in other interiors left"
+},
+{
+"id": "pe4",
+"title": "Forno cook counter post; R6 on Tipsey himself",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: people",
+"note": "cook post and R6 on Tipsey (carried item on his lid) built"
+},
+{
+"id": "pr1",
+"title": "Prop collision taken from the art (lamp, hydrant, palm, bin, bench)",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=11426,2640&view=2"
+},
+{
+"id": "pr2",
+"title": "Keep-clear of doors and mats",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8648,1597&view=2"
+},
+{
+"id": "pr3",
+"title": "Static prop shadows",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=8372,2714&view=2"
+},
+{
+"id": "pr4",
+"title": "Pier + harbour still props cached",
+"spec": "docs/state/CONSISTENCY_PASS.md#still-to-do",
+"deps": [],
+"status": "built",
+"group": "Consistency pass: props",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2"
+},
+{
+"id": "wk1",
+"title": "Dune Home & Garden",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1475,17216&view=2"
+},
+{
+"id": "wk2",
+"title": "Saltwater Brewing",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17101,8700&view=2"
+},
+{
+"id": "wk3",
+"title": "Lagoon Baths",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1564,8577&view=2"
+},
+{
+"id": "wk4",
+"title": "Driftwood Chapel",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7821,11600&view=2"
+},
+{
+"id": "wk5",
+"title": "Palmline Nursery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4693,11600&view=2"
+},
+{
+"id": "wk6",
+"title": "Animal Shelter interior",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=7820,8444&view=3"
+},
+{
+"id": "wk7",
+"title": "Lagoon Market Hall",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10279,27470&view=2"
+},
+{
+"id": "wk8",
+"title": "Ferris Taylor Cottages",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26115,11880&view=2"
+},
+{
+"id": "wk9",
+"title": "Cove Grove",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1259,27300&view=2"
+},
+{
+"id": "wk10",
+"title": "Airfield terminal",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "built",
+"group": "Walk-in landmarks",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26520,21330&view=2"
+},
+{
+"id": "f2",
+"title": "Fleet P2: rotor flight + The Lighthouse Run",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-4064,-12290&view=2"
+},
+{
+"id": "m1",
+"title": "Trophies alley fence to 0.3 over the room",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=410000,400000&view=2"
+},
+{
+"id": "m2",
+"title": "Open House: crosswalk for the captain, live fire on the burn prop",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=6260,20300&view=2"
+},
+{
+"id": "m3",
+"title": "KTDE: DJ side missions over the air; station van drives off",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17776,27858&view=2"
+},
+{
+"id": "m4",
+"title": "Letters on the Hill: face wash under roof edges; ranger inside her kiosk",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "built",
+"group": "Fleet and missions",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=29330,-800&view=2"
+},
+{
+"id": "x1",
+"title": "Fleet lock flip; garage shows big vehicle on pick; pier access for Flats players",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"group": "Needs Sir",
+"note": "decision"
+},
+{
+"id": "x2",
+"title": "Region index follows the lock; Mirador developer; pier lamp + palm sizes",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"group": "Needs Sir",
+"note": "decision"
+},
+{
+"id": "da8",
+"title": "Flats dead-space area 8 (details only in the v3 report artifact; needs a look)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "confirm what area 8 is",
+"group": "Flats dead space"
+},
+{
+"id": "da9",
+"title": "Flats dead-space areas 9 + 12 (moved beyond the Flats)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "waiting on region decision",
+"group": "Flats dead space"
+},
+{
+"id": "da13",
+"title": "Sunset Pier, area 13 (an edge of University)",
+"spec": "docs/state/HANDOFF.md",
+"deps": [],
+"status": "blocked",
+"note": "waits on University hood lock",
+"group": "Flats dead space"
+},
+{
+"id": "t-motel",
+"title": "Sun Deck Motor Lodge + The Getaway",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-kart",
+"title": "Tidewater Kart Works + Number 4 Builds a Winner",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-fish",
+"title": "Pelican Fish Market + Catch of the Day",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-paw",
+"title": "Paw Point Dog Park + Adoption Day",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-vet",
+"title": "Veterans Memorial + Sunset Salute",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-surf",
+"title": "Sunset Shore Surf School + Sunset Session",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-watch",
+"title": "Vista Ridge Security Post + Night Watch",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-ktde",
+"title": "KTDE 98.1 The Tide, whole block + Request Line",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-fire",
+"title": "Fire Training Yard + Open House",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-letters",
+"title": "Letters on the Hill",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-skate",
+"title": "Driftwood Skate Park",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060,-1.57&view=3",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-museum",
+"title": "Tidewater Museum (no drive, dimmer lanterns)",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,2700,0.73&view=3",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-trophies",
+"title": "Seabreeze Trophies + Pelican Drug walk-ins",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "",
+"group": "Built, awaiting your test"
+},
+{
+"id": "t-rules",
+"title": "Shared rules: one door rule, meet walk, crew pace, no fades, order/solids/cache",
+"spec": "docs/state/CONSISTENCY_PASS.md",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=shops&view=2",
+"group": "Built, awaiting your test"
+},
+{
+"id": "museum-footprint",
+"title": "Maritime Museum: red footprint (LAB 1460x856) covers only the front ~55% of the shell's depth; inside photo shows the whole building. Red also sits ~25px (~35 units) out in front of the long face wall base. Needs a decision: make LAB the full shell or confirm the rear is not a room",
+"spec": "found by test run",
+"deps": [],
+"status": "done",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1688&view=3"
+},
+{
+"id": "vista-footprint",
+"title": "Vista Ridge Security Post: red footprint ends ~45px (~55 units) short of the shell's east wall; rest matches",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9090,-6090&view=2"
+},
+{
+"id": "trophies-footprint",
+"title": "Seabreeze Trophies: red footprint sits ~25-30px (~35 units) forward of the shell wall base on the west end; size matches (760x600). Right/gate side hidden, not judged",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4274,14974&view=2"
+},
+{
+"id": "s4",
+"title": "Museum story 'The Last Bone'",
+"spec": "docs/museum-mission.md",
+"deps": [],
+"status": "blocked",
+"note": "needs story, pickup place, reward",
+"group": "Specs (waiting on decisions)"
+},
+{
+"id": "pelican-walltop",
+"title": "Pelican room walls H 232 vs shell cornice 348 world (232 kit x ZSCALE 1.5): set PELICAN_IN H 348",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20141,14064&view=2"
+},
+{
+"id": "kart-yard",
+"title": "Kart Works yard: the block's bare brown-checker centre becomes the club's practice loop with cones, tyre barriers, start gantry, pit canopy and benches",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4204,13628&view=2"
+},
+{
+"id": "kart-yard-fence",
+"title": "Kart Works block: the open frontages fenced in the alley gate's iron (north, west, east between barn and depot)",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4692,14076&view=3"
+},
+{
+"id": "kart-works-shell",
+"title": "Tidewater Kart Works: shell was smaller than its room's outer walls; widened to 820 x 680, east frontage becomes an alley gate",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5630,13658&view=3"
+},
+{
+"id": "fleet-apron",
+"title": "Marina Parking: pale flat paving rectangle left of the garage entry reads lighter than neighbouring slabs, and the asphalt apron ends in a diagonal flat cut against the paving (wide photo, left of ENTER sign). May be intentional; needs Sir's eye.",
+"spec": "found by test run",
+"deps": [],
+"status": "done",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=3"
+},
+{
+"id": "skate-sign",
+"title": "Driftwood Skate Park street sign: board keyed at its middle, so fence pieces to its right painted over the text ('DRIFTWOO' cut off); keyed at its right end now",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17510,21142&view=2"
+},
+{
+"id": "skate-lamps",
+"title": "Flood pole lamp heads read as tan cardboard boxes at night (shared queueLandmarkLamps glow, also on other landmarks); needs a decision/art from Sir",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=17204,21060&view=3"
+},
+{
+"id": "bb-ext",
+"title": "Exterior character: copper-and-cream brick plinth, frieze, goosenecks, corner blade, rooftop cups; the east flank matches the front (shopfront band, awnings, glass, cornice)",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4700,15500&view=3"
+},
+{
+"id": "bb-int",
+"title": "Interior: service counter (espresso machine, pastry case, till, stools), back bar, brick dado, neon bolt and Gideon mural, rugs, robot charging nook; Gideon is the game's own humanoid; planters kept off the footprint",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460418,430450&view=2"
+},
+{
+"id": "bb-ms1",
+"title": "Mission opens: Brew & Bolt's mat is the mission's (robot-head icon, no ordinary orders); Gideon comes out and asks; Not now works; the player becomes Gideon (humanoid loan); Tipsey rolls in and works the counter",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-int"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2",
+"note": "NIGHT_CLOCK.time = 11"
+},
+{
+"id": "bb-scoot",
+"title": "The humanoid can hop on any city scooter (Hop on / Hop off button) and ride it",
+"spec": "docs/kits/missions.md",
+"deps": [],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2",
+"note": "needs the humanoid: start the mission, or FLEET_LOAN = 'humanoid'"
+},
+{
+"id": "bb-roof",
+"title": "The roof: the back room's ladder and hatch, a second room on the same square above the shop (Brew & Bolt Roof), bent antenna mast, the inspection card, back down the hatch",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-ms1"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2"
+},
+{
+"id": "bb-errand",
+"title": "The parts errand: Gideon rides a scooter to Breakwater Hardware (about 33,000 road units, 6.5 min by GPS: consider a nearer parts shop), the clerk hands over a mast bracket and a coax connector (carried item), beacon and GPS there and back",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-roof",
+"bb-scoot"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
+},
+{
+"id": "bb-repair",
+"title": "The repair and finish: back up the ladder, the mast straightened and the cable fixed, the order screen lights, Gideon's thanks, one completion card",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-errand"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
+},
+{
+"id": "bb-server",
+"title": "Mission records: TS_MISSIONS 'minding-the-shop' (tipsey-delivery/src/server/tpcatalog.ts), reward ids (db.ts), trophy and skin entries if any, MISSIONS reward, mission-board listing and place-card text, missions.md row and seed line. Reward decided (Sir): Gideon playable, the humanoid's fleet unlock; no trophy, skin or cash",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-repair"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
+},
+{
+"id": "bb-exit",
+"title": "Replace the temporary 'parts' bay that hands the shop back: Tipsey leaves the counter and the loan ends where Gideon finishes; abort and quit paths (leave mid-mission, tip over, reload) keep nothing half-done",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-ms1"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2"
+},
+{
+"id": "bb-climb",
+"title": "Climb polish: the ladder art stretched to the real 343 climb, the hatch opens visibly from inside, a walked climb instead of the dissolve, roof collisions (parapet, mast, vent, hatch curb) checked by walking",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-roof"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=470300,430250&view=2"
+},
+{
+"id": "bb-scoot2",
+"title": "Scooter polish: tune top speed and turning, gate pedestrian knocks and police while riding, dismount rules (doors, loans ending), scooters set down stay put on reload",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-scoot"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9000,9000&view=2"
+},
+{
+"id": "bb-night",
+"title": "Night pass: the interior's neon bolt and counter, the exterior lamps, the roof, the robot-head beacon after dark",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-int",
+"bb-roof"
+],
+"status": "built",
+"group": "Brew & Bolt: Minding the Shop",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,15097&view=2&night=1",
+"note": "NIGHT_CLOCK.time = 22"
+},
+{
+"id": "port-fanlight",
+"title": "Port Office fanlight/window arch drawn as full ellipse: lower half painted over door glass and upper half over the PORT OFFICE sign",
+"spec": "found by test run",
+"deps": [],
+"status": "built",
+"group": "Fixes from testing",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-3500,-13800&view=2"
+},
+{
+"id": "bb-m2",
+"title": "Second Gideon / Brew & Bolt mission (story, giver, place, reward and window still to decide with Sir; Gideon is playable now, the shop and roof are built)",
+"spec": "docs/kits/missions.md",
+"deps": [
+"bb-night"
+],
+"status": "blocked",
+"group": "Brew & Bolt: Minding the Shop",
+"note": "needs the story"
+},
+{
+"id": "gd1",
+"title": "Gideon's charging pad in the back room (the same round pad as Tipsey's; the roaster stays)",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=460124,430266&view=2",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad"
+},
+{
+"id": "gd2",
+"title": "Choosing the humanoid in the fleet starts you as Gideon on his pad in the back room (not Tipsey's station)",
+"deps": [
+"gd1"
+],
+"status": "built",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd3",
+"title": "The pad charges him: its glow breathes, battery fills on it (and, as ever, at any of Tipsey's charging stations)",
+"deps": [
+"gd2"
+],
+"status": "built",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4",
+"title": "Customise Gideon, tranche 1: his own garage tabs (Shell, Face, Band & pack, Feet) from his pad, 16 shells, colour wheels, 6 eye shapes, 7 mouths, bands, pack, joints, hands, 4 shoe kinds; kept in the profile and drawn on him everywhere",
+"deps": [
+"gd2"
+],
+"status": "built",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4b",
+"title": "Gideon's Head tab: 12 headwear styles (flat cap, beanie, bowler, top hat, chef's hat, headphones, antenna, twin antennas, visor, party hat, crown, propeller cap) in any colour, on Tipsey's paint system",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4c",
+"title": "Gideon's Outfit tab: apron, vest, scarf, bow tie, tie, 5 badges, 5 glasses, and 5 pack styles (Band & pack tab), each in any colour, on Tipsey's paint system",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4d",
+"title": "Gideon's Finish and Decals tabs: satin, matte, gloss, chrome, two-tone (second colour on the legs); racing stripes, chevron, star, bolt, heart, race numbers 1/4/7/9 in any colour",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4"
+],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "gd4e",
+"title": "Gideon's Looks tab: 10 ready-made looks (Stock, Barista, Night Shift, Chrome, Workshop, Sunset, Racer, Chef, Royal, Party), tried on whole and added to the cart together at the parts' prices",
+"spec": "docs/gideon-dock.md",
+"group": "Gideon's pad",
+"deps": [
+"gd4b",
+"gd4c",
+"gd4d"
+],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?view=2"
+},
+{
+"id": "kf-dune",
+"title": "Dune Home & Garden: shell +30 west and north (check east and south by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built"
+},
+{
+"id": "kf-tpe",
+"title": "Tide Pool Elementary: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=23468,-1006&view=2"
+},
+{
+"id": "kf-museum",
+"title": "Tidewater Museum: shell +30 on all four sides, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=10948,1688&view=2"
+},
+{
+"id": "kf-shelter",
+"title": "Costa Palma Animal Shelter: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1564,-706&view=2"
+},
+{
+"id": "kf-brew",
+"title": "Brew & Bolt: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5102,14934&view=2"
+},
+{
+"id": "kf-ktde",
+"title": "KTDE 98.1 The Tide: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=16981,27344&view=2"
+},
+{
+"id": "kf-motel",
+"title": "Sun Deck Motor Lodge Office: shell +30 on every side, then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=25930,17770&view=2"
+},
+{
+"id": "kf-kart",
+"title": "Tidewater Kart Works: shell +30 on the front (check the other sides by eye), then the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=5520,13658&view=2"
+},
+{
+"id": "kf-vista",
+"title": "Vista Ridge Security Post: the room stands in front of the building, not under it: re-measure the footprint, then shell +30 and the door and fixtures (W22-W24)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=9090,-5960&view=2"
+},
+{
+"id": "kf-trophies",
+"title": "Seabreeze Trophies: shell fits; look inside at the door and the near walls for W23 and W24",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=4274,14904&view=2"
+},
+{
+"id": "kf-check",
+"title": "Kit check: every exterior declares its footprint so walkinCoverage() measures all eleven (seven read \"not declared\" today), and run_sheet --walkins fails on a SHORT",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "node tools/run_sheet.js --walkins: 19 of 19 'cover ok', exits 1 on a SHORT or NOT DECLARED"
+},
+{
+"id": "kf-night",
+"title": "Night cut: the Seabreeze Ballroom and the Tidewater Museum write their own night boxes and reach over their near walls (walkinNightCheck says LEAK): move them to the kit's walkinNightBoxes or fix their boxes, then look inside at night (W25)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2462&view=2"
+},
+{
+"id": "kf-new",
+"title": "The rooms built since the audit (Saltwater Brewing, Lagoon Baths, Driftwood Chapel, Palmline Nursery, Lagoon Market Hall, Ferris Taylor Cottage, Seaglass Coffee; Cove Grove and the Airfield terminal once they are in the sheet): look inside at the door and the near walls for W23 and W24, and confirm W22 by eye where it reads 'not declared'",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=20140,14260&view=2"
+},
+{
+"id": "kf-big",
+"title": "Shell coverage and W23/W24 for the three rooms the walk-in sheet leaves out: the Seabreeze Ballroom, Marina General Hospital and the Maritime Mall (their exteriors are drawn in pieces on their own frames, so measure each against its walls' outer face by eye, then fix what is short)",
+"spec": "docs/state/walkin_kit_fit.md",
+"group": "Walk-in kit fit",
+"deps": [],
+"status": "built",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26588,2462&view=2"
+},
+{
+"id": "fleet-spots",
+"title": "Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates.",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Parked (waiting on Sir)",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2"
+},
+{
+"id": "fleet-spots",
+"title": "Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out.",
+"spec": "found by test run",
+"deps": [],
+"status": "pending",
+"group": "Parked (waiting on Sir)",
+"test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2"
+}
+],
+"meta": {
+"last": "build"
+}
+}

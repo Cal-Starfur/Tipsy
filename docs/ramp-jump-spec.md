@@ -133,3 +133,25 @@ Only after the bench is clean at all 4 headings does this get ported into `game/
 - [ ] Depth-sort workaround vs. forcing the `setDepth()` rearchitecture now
 - [ ] Par-time formula changes — blocked on route-length regression being understood first
 - [ ] Ring-of-fire art scope (particle effect complexity)
+
+---
+
+## Bench result (r2a, `labs/ramp-jump.html`)
+Standalone bench built per §7 (does not touch `game/index.html`; `?h=0..3` for one heading big, `window.RJ` for headless runs).
+- Launch: `launchAngle` + approach speed -> `v0 = speed*tan(angle)` (or `launchPower` override), `h(t)=z0+v0t-.5gt²`, landing via `groundHeightAt(x,y)` stub. Kicker 17°: air 0.46 s, peak 15. Ramp 37°: air 1.39 s, peak 86 (incl. 48 lip). Below approach speed 90 = bump, no launch.
+- Depth (§2 option 1): rider key = `x+y+K*z` of its centre, K=0.8 (the camera's own depth axis). Checked every frame against the 3D box comparator for every rider/prop pair that overlaps on screen: **0 errors at all 4 headings at the nominal speed 180** (260 frames each), and at speed 215. Needs two extra rules: the ridden ramp is pinned before its rider once he is on it (a long wedge cannot be keyed by its centre), and the ring is split into far/near arcs sorted either side of the rider.
+- Where it still breaks: under-powered runs (speed 130) that land on the crate/curb stub show 6 bad frames at headings 2 and 3 (rider vs the obstacle he lands on, overlapping boxes: ambiguous by construction). That is the "landed on obstacle" bad-landing case, not a clean jump; flag for r2b, and if it shows in game it is the signal for `setDepth()`.
+- Heading read: a ramp seen from headings 0/1 shows its back wall, not the slope (tall ochre wall). It reads as a built thing but not as a ramp; consider a visible side/edge treatment in r2b art.
+- Bad landing: overshoot, undershoot or landing on an obstacle -> tip-over (rotates about the base, wobble). Gate hazard: ring passes if arc height is within the ring at its u; speed 130 gives "GATE MISS (arc height below)".
+- Open: kicker air time 0.46 s sits at the top of the spec's 0.3-0.5 band; ring art is a 3-stroke flicker, not particles.
+
+---
+
+## Port result (r2b, `game/index.html`)
+Ported from the bench (`owJumpTick`, `queuePlacedObjects`, `JUMP_PRESETS`); debut in the challenge route `tight-1` (`?route=tight-1`): a kicker, a ramp and a ring of fire on the north pavement along the shops west of the first crossing, heading east (`CHALLENGE_ROUTES[].placedObjects`, the spec's schema; `heading` is radians, 0 east).
+- Game units: footprints are larger than the bench's (kicker 45 x 60, ramp 96 x 84, lip 13.8 / 72.3) and `minSpeed` is 60: Tipsey's top speed is about 146 a second (measured off his position), so the ramp's arc at top speed is 1.3 s, peak 131, reach about 190; the ring (r 40, middle 127) is at that arc's apex.
+- Riding: `ow.jumpZ` (added to botZ, the shadow pinned to the ground and shrinking), the wedge only enterable by its low end; slow at the lip he is stopped (a bump), in from the side or back he is turned away; off the side he falls (`g` 400, no launch).
+- Air: heading and speed held, no steering; over the cones and bins (`owContact` skips above 24), over people's heads (no knock-downs above 40). Landing: clean = the kerb-drop bounce; on something solid = bad landing (damage 15, `owTip`).
+- Ring: crossing its plane airborne with his middle (base + 30) within r of its middle passes ("Ring of fire: cleared!"); on the ground, too low or too high fails (damage 28, a lean, a toast).
+- Depth: the robot's key is x + y + jumpZ (K = 1 for the game's projection, whose sight line is (1,1,1)); the ridden wedge is pinned before him; the ring is two arcs sorted either side of him as he passes.
+- Not done: ring art is a flickering band with flame licks, not particles; no par-time change (spec §6 stays blocked); bad landing has no landing-zone/tolerance model beyond "on something solid".
