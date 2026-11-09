@@ -50,3 +50,6 @@ Every walk-in's inside photo (view 2, `run_sheet.js --walkins`) looked at for a 
 - Ferris Taylor Cottage: cutaway room sits on the shell, doorway is the wall's end, table and dresser clear of the near wall. OK.
 - Lagoon Market Hall: the room is an open market, its front is a low glass rail with the gap; stalls clear. Far side is ghosted by see-through (W11), as intended. OK.
 No change to the game. Not done: Cove Grove is still not in the walk-in sheet. The sheet run crashed (page closed) partway through the later pockets (after Tide Pool), so Tidewater Museum, Airfield and Security Post photos were not re-read this pass.
+
+## Ferris Taylor Cottage is an L (2026-11-09, W27)
+The room is now the whole corner: the street dwelling, the corner tower and the side range's dwelling, 508 x 668 less a 304 x 464 notch (the court's corner). `cover ok`, `night ok`. Body: two rects. Shell pieces: the dwelling, the tower and the side range's dwelling (all fade with the room); the gatehouse ghosts. The tall wall along the notch hid half the leg from the camera, so the notch's edges are low walls and the hearth is a free-standing breast (150, hides none of the leg). Photographed at view 2 and 3 (day and night). Not done: driving into the leg and the tower end by hand (the walls' solids are the kit's, listed and checked: a closed ring round the L).

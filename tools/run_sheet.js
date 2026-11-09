@@ -53,12 +53,14 @@ async function walkins(page, base, only){
       const snap = async (when) => { const f = path.join(OUT, 'walkins', `${slug}-v${view}-${when.replace(/[^a-z0-9]+/gi, "-")}.jpg`); await page.screenshot({ path: f, type: 'jpeg', quality: 80 }); shots.push({ when: `${when} (view ${view})`, file: path.relative(ROOT, f) }); };
       /* outside, with the room's footprint over it */
       await page.evaluate((name) => { const s = game.scene.getScene('world'), q = POCKETS.find(x => x.name === name), v = q.view();
-        const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, c = [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
+        const X0 = q.x0 + v.dx, Y0 = q.y0 + v.dy, N = q.notch;
+        /* (an L-shaped room, W27: the floor less its notch at the north-east corner, and the walls' outer face round that) */
+        const c = N ? [[X0, Y0], [X0 + N.a, Y0], [X0 + N.a, Y0 + N.b], [X0 + q.w, Y0 + N.b], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]] : [[X0, Y0], [X0 + q.w, Y0], [X0 + q.w, Y0 + q.d], [X0, Y0 + q.d]];
         const g = window.__fp = s.add.graphics().setDepth(1e9).setScrollFactor(0);
         /* redrawn every frame: the camera is still easing after the jump, and a one-off overlay lags it by ~10px (a false 'footprint out') */
         const draw = () => { g.clear();
           /* (W22: the walls' OUTER face is the floor grown by WALKIN_WALL: the shell must reach the magenta lines) */
-          const o = [[X0 - 30, Y0 - 30], [X0 + q.w + 30, Y0 - 30], [X0 + q.w + 30, Y0 + q.d + 30], [X0 - 30, Y0 + q.d + 30]];
+          const o = N ? [[X0 - 30, Y0 - 30], [X0 + N.a + 30, Y0 - 30], [X0 + N.a + 30, Y0 + N.b - 30], [X0 + q.w + 30, Y0 + N.b - 30], [X0 + q.w + 30, Y0 + q.d + 30], [X0 - 30, Y0 + q.d + 30]] : [[X0 - 30, Y0 - 30], [X0 + q.w + 30, Y0 - 30], [X0 + q.w + 30, Y0 + q.d + 30], [X0 - 30, Y0 + q.d + 30]];
           for(const [z, col, w, pts] of [[0, 0xff0000, 3, c], [q.h*(q.zk || 1), 0xff8800, 2, c], [0, 0xff00ff, 3, o], [q.h*(q.zk || 1), 0xff00ff, 2, o]]){ g.lineStyle(w, col, 1); g.beginPath(); pts.map(p => s.W(p[0], p[1], z)).forEach((p, i) => i ? g.lineTo(p.x, p.y) : g.moveTo(p.x, p.y)); g.closePath(); g.strokePath(); } };
         s.events.on('postupdate', draw); g.once('destroy', () => s.events.off('postupdate', draw)); draw(); }, pk.name);
       await page.waitForTimeout(500); await snap('outside, room footprint in red');
