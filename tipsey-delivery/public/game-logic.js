@@ -111183,7 +111183,7 @@ class WorldScene extends Phaser.Scene {
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), L.trim);
+      Q(convexHullKeep(cs), L.trim);
       const lit = !!(data && data.beacon), ph = ((t/1000)*2.4) % 1 < 0.5;
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, -bb*0.08, h1), P(a0, -bb*0.08, h1)], lit && ph ? L.redHot : L.red);
       Q([P(a0, bb*0.08, h1), P(a1, bb*0.08, h1), P(a1, bb, h1), P(a0, bb, h1)], lit && !ph ? L.blueHot : L.blue);
@@ -111193,7 +111193,7 @@ class WorldScene extends Phaser.Scene {
       const B = V.beacon, a0 = aW - 8 - B.a, a1 = aW - 8 + B.a, bb = hw*B.b, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), VAN_LIVERY.trim);
+      Q(convexHullKeep(cs), VAN_LIVERY.trim);
       const on = !!(data && data.beacon) && ((t/1000)*B.hz) % 1 < 0.5;
       const lens = on ? L.amberHot : (data && data.beacon ? L.amber : L.amberDim);
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, bb, h1), P(a0, bb, h1)], lens);
@@ -111440,7 +111440,7 @@ class WorldScene extends Phaser.Scene {
       const B = VANC.beacon, bc = aRise - 12, a0 = bc - B.a, a1 = bc + B.a, bb = hw*0.78, h0 = hR, h1 = hR + B.h;
       const cs = [];
       for(const a of [a0, a1]) for(const b of [-bb, bb]) for(const h of [h0, h1]) cs.push(P(a, b, h));
-      Q(convexHull(cs), 0x1f262e);
+      Q(convexHullKeep(cs), 0x1f262e);
       const lit = !!(data && data.beacon), ph = ((t/1000)*2.4) % 1 < 0.5;
       Q([P(a0, -bb, h1), P(a1, -bb, h1), P(a1, -bb*0.08, h1), P(a0, -bb*0.08, h1)], lit && ph ? POLC.redHot : POLC.red);
       Q([P(a0, bb*0.08, h1), P(a1, bb*0.08, h1), P(a1, bb, h1), P(a0, bb, h1)], lit && !ph ? POLC.blueHot : POLC.blue);
@@ -111993,7 +111993,7 @@ class WorldScene extends Phaser.Scene {
             if(!convex) break; }
           if(!convex) break; }
         if(convex){ const all = []; for(const v of vis) for(const q of v.pts) all.push(q);
-          this.quadOn(g, convexHull(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
+          this.quadOn(g, convexHullKeep(all), flat ? vis[0].col : shadeC(col, (kLo + kHi)/2)); }
         if(convex && ST.outline != null && !faces.noRing) ringFaces = faces;
       }
       for(const v of vis){
@@ -114411,7 +114411,7 @@ class WorldScene extends Phaser.Scene {
           }
           return pts;
         };
-        this.quadOn(g, convexHull(ringR(-WW/2, r).concat(ringR(WW/2, r))), S.wheelDk);
+        this.quadOn(g, convexHullKeep(ringR(-WW/2, r).concat(ringR(WW/2, r))), S.wheelDk);
         const kF = dRAW(hub.a, hub.b + (WW/2)*ebB, hub.h + (WW/2)*ebH) >
                    dRAW(hub.a, hub.b - (WW/2)*ebB, hub.h - (WW/2)*ebH) ? WW/2 : -WW/2;
         this.quadOn(g, ringR(kF, r), S.wheel);
@@ -114423,7 +114423,7 @@ class WorldScene extends Phaser.Scene {
         for(const bc of [[-20,-7],[16,-7],[16,7],[-20,7]]){
           top.push(GG(bc[0], bc[1], 5.2)); bot.push(GG(bc[0], bc[1], 0.8));
         }
-        this.quadOn(g, convexHull(top.concat(bot)), brand.cDk);
+        this.quadOn(g, convexHullKeep(top.concat(bot)), brand.cDk);
         const topVisible = layAmount < 0.5 ? true : (ssn - scs) > 0;
         if(topVisible){
           this.quadOn(g, top, brand.c);
@@ -114436,13 +114436,13 @@ class WorldScene extends Phaser.Scene {
         const perp = {a:-dh/slen, b:0, h:da/slen};
         const base = ringAt(stemBaseA, 0, stemBaseH, 3.1, VV, perp, 10);
         const tip  = ringAt(stemTipA, 0, stemTipH, 2.0, VV, perp, 10);
-        this.quadOn(g, convexHull(base.concat(tip)), brand.c);
+        this.quadOn(g, convexHullKeep(base.concat(tip)), brand.c);
       };
       const sbar = () => {
         const capsule = (b0, b1, r, col) => {
           const e0 = ringAt(stemTipA, b0, stemTipH, r, U, HHH, 8);
           const e1 = ringAt(stemTipA, b1, stemTipH, r, U, HHH, 8);
-          this.quadOn(g, convexHull(e0.concat(e1)), col);
+          this.quadOn(g, convexHullKeep(e0.concat(e1)), col);
         };
         capsule(-S.barW, S.barW, 1.6, S.metal);
         capsule(-S.barW, -S.barW + 6, 2.5, S.deck);
@@ -114688,7 +114688,7 @@ class WorldScene extends Phaser.Scene {
         for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
           pts.push(L(bc[0], bc[1], 0)); pts.push(L(bc[0], bc[1], 3));
         }
-        this.quadOn(g, convexHull(pts), C.bodyDk);
+        this.quadOn(g, convexHullKeep(pts), C.bodyDk);
         const nu = sphi, nz = cphi;
         if(nu*fc + nu*fsn + nz > 0.05){
           const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
@@ -114697,10 +114697,10 @@ class WorldScene extends Phaser.Scene {
         }
       };
       const body = () => {
-        this.quadOn(g, convexHull(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
         if(C.band > 0){
           const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
-          this.quadOn(g, convexHull(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+          this.quadOn(g, convexHullKeep(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
         }
         this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
       };
@@ -114858,11 +114858,11 @@ class WorldScene extends Phaser.Scene {
       const hbarrel = () => {
         const n = 6, all = [];
         for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
-        this.quadOn(g, convexHull(all), HH.cap);
+        this.quadOn(g, convexHullKeep(all), HH.cap);
       };
       const hshoulder = () => {
         const h0 = height*0.75, h1 = height*0.9;
-        this.quadOn(g, convexHull(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+        this.quadOn(g, convexHullKeep(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
       };
       const hdome = () => {
         const domeBase = height*0.9, domeR = HH.domeR;
@@ -114872,7 +114872,7 @@ class WorldScene extends Phaser.Scene {
           rings.push(place(domeBase + u*domeR*0.9, r2));
         }
         const all = []; for(const r2 of rings) all.push(...r2);
-        this.quadOn(g, convexHull(all), HH.cap);
+        this.quadOn(g, convexHullKeep(all), HH.cap);
         const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
         g.fillStyle(HH.capDk, 1);
         g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
@@ -114910,7 +114910,7 @@ class WorldScene extends Phaser.Scene {
           }
           return pts;
         };
-        this.quadOn(g, convexHull(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
+        this.quadOn(g, convexHullKeep(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
         const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
         if(!facing) return;
         if(bursting && breakable){
@@ -115692,17 +115692,17 @@ class WorldScene extends Phaser.Scene {
       const bbody = () => {
         const n = 6, all = [];
         for(let i=0; i<=n; i++) all.push(...place(i/n*HB, binR(i/n*HB)));
-        this.quadOn(g, convexHull(all), B.body);
+        this.quadOn(g, convexHullKeep(all), B.body);
         const ribN = 6, ribs = [];
         for(let i=0; i<=ribN; i++) ribs.push(place(i/ribN*HB, binR(i/ribN*HB)));
         for(let i=0; i<ribN; i++){
-          this.quadOn(g, convexHull(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
+          this.quadOn(g, convexHullKeep(ribs[i].concat(ribs[i+1])), i % 2 === 0 ? B.body : B.bodyDk);
         }
         const lowerN = 3, lower = [];
         for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
-        this.quadOn(g, convexHull(lower), B.bodyDk, 0.2);
+        this.quadOn(g, convexHullKeep(lower), B.bodyDk, 0.2);
         if(B.band > 0){
-          this.quadOn(g, convexHull(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
+          this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
           this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
         }
         /* liner lip: camera-facing test, same pattern used everywhere
