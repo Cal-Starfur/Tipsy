@@ -142983,9 +142983,17 @@ const GO_SPOTS = {
       const bl = document.getElementById("bootLoader");
       if(bl && !bl.classList.contains("done") && Date.now() - t0 < 90000){ setTimeout(go, 250); return; }
       setTimeout(() => {
-        try { window.garageClose(); } catch(e){}
-        owStandUpAt(s, x, y, yaw);
+        const jump = () => { try { window.garageClose(); } catch(e){} owStandUpAt(s, x, y, yaw); };
+        jump();
         if(v) zoomSet(+v);
+        /* (anything that lands later -- the garage opening late, a pad placement after the title -- is undone for 10 s, until he drives off or
+           the stick moves: the spot is where he asked to be) */
+        let n = 0;
+        const hold = setInterval(() => {
+          const ow = s.ow, drove = !ow || ow.stick && ow.stick.active || (ow.keyv && (ow.keyv.x || ow.keyv.y)) || Math.abs(ow.vel || 0) > 0.5;
+          if(++n > 25 || drove){ clearInterval(hold); return; }
+          if(document.body.classList.contains('tpGarage') || Math.hypot(ow.px - x, ow.py - y) > 60) jump();
+        }, 400);
       }, 1000);
     };
     go();
