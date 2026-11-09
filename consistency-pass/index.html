@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 010d0b0): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 4891d1d): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = '010d0b0'; })();</script>
+  window.TIPSY_TEST_BUILD = '4891d1d'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -142986,22 +142986,27 @@ const GO_SPOTS = {
     if(!(s && s.route && s.ow)){ if(Date.now() - t0 < 60000) setTimeout(tick, 250); return; }
     /* the garage opens when the boot finishes (the loader's 'done'), not at a fixed beat: on a slow load a fixed 1.5 s shut it
        before it opened and the garage then swallowed the spot. Wait for the loader, let the garage open, then shut it and go */
+    /* WAIT FOR PLAY: the garage opens over the pad at launch and Play (garageClose) is his to press; the jump is made once it is shut --
+       by him, since a jump made under the open garage was undone by Play. If no garage opens (4 s after the boot), go at once */
+    let seen = false, tDone = 0;
+    const jump = () => { try { window.garageClose(); } catch(e){} owStandUpAt(s, x, y, yaw); };
+    const hold = () => {            // (anything that lands later is undone for 10 s, until he drives off or the stick moves)
+      let n = 0;
+      const iv = setInterval(() => {
+        const ow = s.ow, drove = !ow || ow.stick && ow.stick.active || (ow.keyv && (ow.keyv.x || ow.keyv.y)) || Math.abs(ow.vel || 0) > 0.5;
+        if(++n > 25 || drove){ clearInterval(iv); return; }
+        if(document.body.classList.contains('tpGarage')) return;
+        if(Math.hypot(ow.px - x, ow.py - y) > 60) jump();
+      }, 400);
+    };
     const go = () => {
       const bl = document.getElementById("bootLoader");
       if(bl && !bl.classList.contains("done") && Date.now() - t0 < 90000){ setTimeout(go, 250); return; }
-      setTimeout(() => {
-        const jump = () => { try { window.garageClose(); } catch(e){} owStandUpAt(s, x, y, yaw); };
-        jump();
-        if(v) zoomSet(+v);
-        /* (anything that lands later -- the garage opening late, a pad placement after the title -- is undone for 10 s, until he drives off or
-           the stick moves: the spot is where he asked to be) */
-        let n = 0;
-        const hold = setInterval(() => {
-          const ow = s.ow, drove = !ow || ow.stick && ow.stick.active || (ow.keyv && (ow.keyv.x || ow.keyv.y)) || Math.abs(ow.vel || 0) > 0.5;
-          if(++n > 25 || drove){ clearInterval(hold); return; }
-          if(document.body.classList.contains('tpGarage') || Math.hypot(ow.px - x, ow.py - y) > 60) jump();
-        }, 400);
-      }, 1000);
+      if(!tDone) tDone = Date.now();
+      const open = document.body.classList.contains('tpGarage');
+      if(open) seen = true;
+      if(open || (!seen && Date.now() - tDone < 4000)){ setTimeout(go, 250); return; }
+      setTimeout(() => { jump(); if(v) zoomSet(+v); hold(); }, seen ? 600 : 0);   // (Play's own turn and door settle first)
     };
     go();
   };
