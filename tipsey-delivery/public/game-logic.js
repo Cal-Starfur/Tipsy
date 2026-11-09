@@ -17911,8 +17911,8 @@ const POCKETS = [
     /* its night cut (pocketNightCut): the hall to its walls' tops; the front
        strip to the coat check's partition and its stepped west wall (176),
        the elevator's car to its cornice, the foyer and lounge a little over */
-    night: [[-30, 1630, -30, 1230, 380], [-30, 690, 1230, 1626, 176], [690, 1630, 1230, 1626, 200],
-            [-30, 246, 1364, 1626, 236], [-30, 252, 1358, 1632, 244, 228]],     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
+    night: [[-30, 1600, -30, 1230, 380], [-30, 690, 1230, 1596, 176], [690, 1600, 1230, 1596, 200],
+            [-30, 246, 1364, 1596, 236], [-30, 252, 1358, 1596, 244, 228]],   // (kf-night: stopped at the near walls, a 1600 / b 1596 -- they reached 30 over)     // (the elevator's car: its walls, and its cornice over them, exactly -- Sir, 2026-10-18: day-lit round it)
     view: ballroomInShift, hides: 'Seabreeze Ballroom',
     /* HE DRIVES IN HIMSELF (Sir, 2026-10-23: "you drive", as the mall's
        front doors): seamless, the doorway's width (the room's 720..880),
@@ -28685,7 +28685,7 @@ POCKETS.push({ name: MUS_IN.name, from: 'Tidewater Museum', x0: MUS_IN.x0, y0: M
      soon after, where the kit's is two and a half to six -- with seven visitors on its books, someone is always at its door */
   day: { visitMs: [50000, 150000], backMs: [6000, 30000] },
   openings: museumOpenings,
-  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72).concat([[MUS_IN.BAY[0], MUS_IN.BAY[1], MUS_IN.D, MUS_IN.D + MUS_IN.OUT, 72]]),
+  night: walkinNightBoxes(MUS_IN.W, MUS_IN.D, MUS_IN.H, 72),   // (kf-night: the kit's, as the rest -- the portico bay box reached 100 over the near wall and lit its outer face)
   doors: [{ id: 'front', world: museumDoorWorld, side: 's', at: (MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, seamless: true, nofade: true, keep: true,
             half: (MUS_IN.DOOR[1] - MUS_IN.DOOR[0])/2, glass: 60, clear: 50,
             spawn: [(MUS_IN.DOOR[0] + MUS_IN.DOOR[1])/2, MUS_IN.D - 120], yaw: -Math.PI/2,
@@ -30103,7 +30103,7 @@ const TERM_IN = walkinDefine({ name: 'Sun Deck Airfield Terminal Interior', from
   openings: [{ lab: [[AIR.termIn.door - 25024 - AIR.termIn.half, 18768 - 21160], [AIR.termIn.door - 25024 + AIR.termIn.half, 18768 - 21160]], z: [0, 88] },
              { lab: [[AIR.terminal.x0 + 40 - 25024, 18768 - 21160], [AIR.termIn.door - 25024 - AIR.termIn.half - 6, 18768 - 21160]], z: [46, 88], glass: true },
              { lab: [[AIR.termIn.door - 25024 + AIR.termIn.half + 6, 18768 - 21160], [AIR.terminal.x1 - 40 - 25024, 18768 - 21160]], z: [46, 88], glass: true }],
-  night: P => walkinNightBoxes(P.W, P.D, P.H, 66).concat(P.door ? [[P.door.at - P.door.half - 30, P.door.at + P.door.half + 30, P.D, P.D + 30, 66]] : []) });
+  night: P => walkinNightBoxes(P.W, P.D, P.H, 66, P.door) });   // (kf-night: the kit's, doorway included -- the extra box over the near wall lit its outer face)
 const TERM_AGENT = { shirt: { c:0x2e5f9e, dk:0x244a7c }, pants: { c:0x2b2f35, dk:0x1e2126 }, shoe: { c:0x1a1a1a, dk:0x101010 },
   vest: { c:0xf4f1ea, dk:0xd4d1ca }, shoeKind: 'dress' };                         // a blue shirt under a white waistcoat
 const TERM_BARISTA = { shirt: { c:0xc8352e, dk:0x9a2823 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },

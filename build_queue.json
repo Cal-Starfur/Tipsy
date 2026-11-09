@@ -1143,7 +1143,8 @@
 "spec": "docs/state/walkin_kit_fit.md",
 "group": "Walk-in kit fit",
 "deps": [],
-"status": "pending"
+"status": "built",
+"test": "node tools/run_sheet.js --walkins: every night line ok; look inside the Ballroom, Museum and Terminal at night (not looked at yet)"
 },
 {
 "id": "kf-new",
