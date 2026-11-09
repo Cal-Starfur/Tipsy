@@ -38,6 +38,13 @@ The fix for each short room is Pelican Drug's (commit "Pelican Drug: the shell i
 | Cove Grove, Airfield terminal (`wk9`, `wk10`) | not in the walk-in sheet yet: no measurement | none | not audited |
 All of them take the kit's night cut (`night ok`).
 
+## kf-big audit (2026-11-09): Ballroom, Marina General, Maritime Mall
+Read by eye with the room's red footprint and the walls' magenta outer face drawn over each exterior (corners and front, views 2 and 3), then inside at the door. Nothing short; no change to the game.
+- **Seabreeze Ballroom** (1600 x 1596): fits. Its front wall's face is at d + 30 (the magenta), and the shell's front base, west corner and canopy sit on it. Inside at the door: front wall runs to the doorway with its gold cap, coat check, rug and lounge clear of the near wall. Night boxes still in `kf-night`.
+- **Marina General** (6050 x 1656, the podium): fits. Its walls stand inside the floor rect (the door's glass is at the podium's face, HOSP.podium.y1 + 6), so the shell's face is the red line, and the west end and the ER end land on it. The magenta is not the measure here. Inside at the door: low walls, doorway, chairs and desk clear.
+- **Maritime Mall** (door row 4800 x 2790, anchors ax0..ax1): fits once the footprint is the anchors' whole run (ax0..ax1, not 0..w: the first look at 0..w seemed to leave the Tidewater and Dune Home ends sticking out). The front, the west anchor's corner and the east anchor's wall all land on the lines. Inside at the door: the glass pair, mats and fountain read right against the room.
+Not done: walls above the first floor of the mall, Hospital floors 2 and up, and the Ballroom basement were not looked at.
+
 ## Left out of the sheet (queue `kf-big`)
 The Seabreeze Ballroom, Marina General Hospital and the Maritime Mall are not `walkin` pockets (they predate the kit and keep their own frames), so `walkinCoverage()` does not read them and `run_sheet.js --walkins` does not photograph them. Their W22 (shell covers the walls) and W23/W24 are not audited. The Ballroom's night boxes are also in `kf-night`.
 
