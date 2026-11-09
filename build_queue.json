@@ -1190,6 +1190,73 @@
 "status": "pending",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-2076,-1150,3.14&view=2"
+},
+{
+"id": "pt1",
+"title": "Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [],
+"status": "pending"
+},
+{
+"id": "pt2",
+"title": "Coral Cafe and Marina Deli as real rooms (the mall's coffee and deli fittings), barista and deli clerk, their doors become slideDoors",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt1"
+],
+"status": "pending"
+},
+{
+"id": "pt3",
+"title": "Palmline Tower lifts: lobby, podium roof terrace and tenant-floor stops, floor changes fade (garage/hospital lift kit)",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt1"
+],
+"status": "pending"
+},
+{
+"id": "pt4",
+"title": "Palmline Tower tenant floors, three or four of the twelve (office suite, dental practice, newsroom or studio, roof gym), each with a front desk and staff. Needs Sir to choose the tenants",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt3"
+],
+"status": "pending"
+},
+{
+"id": "pt5",
+"title": "Palmline Tower roof and crown: plant room, mast light at night",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt3"
+],
+"status": "pending"
+},
+{
+"id": "pt6",
+"title": "Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt1",
+"pt2"
+],
+"status": "pending"
+},
+{
+"id": "cove-flush-s",
+"title": "Cove Grove West Tower's south shops (Seaglass Coffee, Sandbar Gelato) flush to the pavement like the north tower's east shops (coveFlushE): a plinth out from the face, doors and awnings on it. Seaglass is a walk-in (CVC_IN: its room, door holes and slideDoors stand on the tower's face), so its room and door move out with the plinth; the north and west faces are unseen and can follow",
+"spec": "found by test run",
+"group": "Flats dead space",
+"deps": [],
+"status": "built"
 }
 ],
 "meta": {

@@ -44,6 +44,12 @@ graph LR
   gd4b --> gd4e
   gd4c --> gd4e
   gd4d --> gd4e
+  pt1 --> pt2
+  pt1 --> pt3
+  pt3 --> pt4
+  pt3 --> pt5
+  pt1 --> pt6
+  pt2 --> pt6
 ```
 
 ## People: seeded crowd
@@ -134,6 +140,7 @@ graph LR
 - [!] `da8` Flats dead-space area 8 (details only in the v3 report artifact; needs a look) (confirm what area 8 is) [docs/state/HANDOFF.md]
 - [!] `da9` Flats dead-space areas 9 + 12 (moved beyond the Flats) (waiting on region decision) [docs/state/HANDOFF.md]
 - [!] `da13` Sunset Pier, area 13 (an edge of University) (waits on University hood lock) [docs/state/HANDOFF.md]
+- [?] `cove-flush-s` Cove Grove West Tower's south shops (Seaglass Coffee, Sandbar Gelato) flush to the pavement like the north tower's east shops (coveFlushE): a plinth out from the face, doors and awnings on it. Seaglass is a walk-in (CVC_IN: its room, door holes and slideDoors stand on the tower's face), so its room and door move out with the plinth; the north and west faces are unseen and can follow [found by test run]
 
 ## Built, awaiting your test
 - [?] `t-motel` Sun Deck Motor Lodge + The Getaway [docs/state/CONSISTENCY_PASS.md]
@@ -209,3 +216,11 @@ graph LR
 ## Parked (waiting on Sir)
 - [ ] `fleet-spots` Fleet test spots (Marina Parking bays 1600,21300; fuel farm hall 26280,26800; harbour boathouse -5500,-12150) frame a garage ramp, fuel tanks and a yacht, not fleet bays; no bay doors/pads/big-vehicle bays visible in any photo, so item 1-2 could not be judged. Needs Sir to give the real bay coordinates. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=1600,21300&view=2) [found by test run]
 - [ ] `fleet-spots` Spots now point at the real hall centres from FLEET_HALL_DEFS (F3 1020/2226,21031; F4 26280,26588; F2b -5500,-12546; F7h 27990,20420), but no bays draw anywhere because FLEET_BAYS_BUILT=false (game/index.html:5191) switches all fleet halls off. Needs Sir: flip it on (re-test) or leave the bays out. [test](https://cal-starfur.github.io/Tipsy/consistency-pass/?go=26280,26588&view=2) [found by test run]
+
+## Palmline Tower interior
+- [ ] `pt1` Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk [docs/palmline-tower-plan.md]
+- [ ] `pt2` Coral Cafe and Marina Deli as real rooms (the mall's coffee and deli fittings), barista and deli clerk, their doors become slideDoors [docs/palmline-tower-plan.md]
+- [ ] `pt3` Palmline Tower lifts: lobby, podium roof terrace and tenant-floor stops, floor changes fade (garage/hospital lift kit) [docs/palmline-tower-plan.md]
+- [ ] `pt4` Palmline Tower tenant floors, three or four of the twelve (office suite, dental practice, newsroom or studio, roof gym), each with a front desk and staff. Needs Sir to choose the tenants [docs/palmline-tower-plan.md]
+- [ ] `pt5` Palmline Tower roof and crown: plant room, mast light at night [docs/palmline-tower-plan.md]
+- [ ] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]

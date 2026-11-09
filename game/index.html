@@ -28057,7 +28057,7 @@ POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_I
    lobby's west or east; PALMLINE_PLAN is the podium's front, which the
    'Palmline Tower' entry draws from, so the door you see is the door the
    worker comes out of. */
-const PALMLINE_PLAN = { PF: -90, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
+const PALMLINE_PLAN = { PF: -30, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
   LEN: 2392, DEP: 940, PB: -900, PH: 190,                       // the lot, the podium's back and its roof
   TA0: 340, TA1: 2052, TB: -820, TF: -300, TOP: 190 + 12*80, CROWN: 190 + 12*80 + 90 };   // the tower, set back on it (the draw and palmlineVol both read these)
 /* PALMLINE TOWER'S VOLUME (consistency pass b2): the podium and the tower are the solids; the forecourt in front of the shops is
@@ -28182,7 +28182,8 @@ const COVE = (() => {
   /* THE WALK-IN (wk9, CVC_IN): Seaglass Coffee, the west tower's south-west shop. The room is the shop's footprint less the walls' 30 each side
      (W22): the shop is its span 954..1564 on the tower's south face (y 27238), 330 deep; the floor 984..1534 x 26878..27208, its door the shop's own
      (94 across, in the middle, x 1212..1306) */
-  const coffee = { x0: 984, x1: 1534, y0: 26878, y1: 27208, door: 1259, half: 47 };
+  /* (FLUSH TO THE PAVEMENT, Sir, 2026-11-09: the whole south face stands 148 out on a plinth, so the room, its door and its glass move out with it, `out`) */
+  const out = 148, coffee = { x0: 984, x1: 1534, y0: 26878 + out, y1: 27208 + out, door: 1259, half: 47, out };
   return { H, cells, towers, podium, access, RL, WALL, walls, walk, walkEdges, walkCorner, planters, fountain, sculptures, coffee };
 })();
 /* ITS STREET SHOPS, two to each street face of each tower: pickups like the
@@ -28218,9 +28219,25 @@ const COVE_PLAZA_SHOPS = [
 ];
 /* a store's door on its tower's face, and the face's set-back from the
    cell's buildable edge (its forecourt) */
+/* THE TOWER'S EAST SHOPS STAND FLUSH TO THE PAVEMENT (Sir, 2026-11-09: "extended to the sidewalk and not have that grey
+   piece that stops them short of being flush"): a ground-floor plinth carries their fronts out from the tower's face to
+   COVE_FLUSH short of the lot line (the kerb band, as Palmline Tower's podium), their doors and awnings on its face. Only the
+   faces the camera sees (the east), and not Seaglass's tower (a walk-in room is built on its face: CVC_IN) */
+const COVE_FLUSH = 30;
+/* (the shop beside a podium corner stays on the tower's face, set back: a flush plinth would end in a blank wall beside the podium's
+   corner shops -- Sir, 2026-11-09, "leave the last shop set back") */
+const COVE_SETBACK = new Set(["Grove Market", "Sandbar Gelato"]);
+function coveFlushE(st){ const T = st && COVE.towers[st.tower]; return !!T && !COVE_SETBACK.has(st.name) && ((st.face === "E" && T.podium !== "E") || (st.face === "S" && T.podium !== "S")); }
+/* where a tower's flush plinth ends on a face (world y for the east, x for the south): its last flush shop's far end and a pier */
+function coveFlushEnd(T, face){
+  let e = null;
+  for(const q of COVE_STORES) if(COVE.towers[q.tower] === T && q.face === face && coveFlushE(q)) e = e === null ? q.span[1] : Math.max(e, q.span[1]);
+  return e === null ? null : e + 22;
+}
 function coveDoorWorld(st){
   const T = COVE.towers[st.tower], u = (st.span[0] + st.span[1])/2, c = COVE.cells[T.cell];
   const bx0 = c.i*BLOCK + 736, bx1 = bx0 + 1656, by0 = c.j*BLOCK + 736, by1 = by0 + 1656;
+  if(coveFlushE(st)) return st.face === "S" ? { x: u, y: by1 - COVE_FLUSH, set: COVE_FLUSH } : { x: bx1 - COVE_FLUSH, y: u, set: COVE_FLUSH };
   if(st.face === "S") return { x: u, y: T.y1, set: by1 - T.y1 };
   if(st.face === "N") return { x: u, y: T.y0, set: T.y0 - by0 };
   if(st.face === "E") return { x: T.x1, y: u, set: bx1 - T.x1 };
@@ -29807,14 +29824,14 @@ function ctgGatehouseDepth(){
    face, y 27232); the doorway and the glass over the bulkhead (z 46..112) show the room (walkinThrough). In the room's own frame (a east, b south)
    the door is at a 228..322, the lane to the back wall. */
 const CVC_IN = walkinDefine({ name: 'Seaglass Coffee Interior', from: 'Cove Grove West Tower', x0: 590000, y0: 400000,
-  lab: [COVE.coffee.x0, COVE.coffee.x1, 25024 - COVE.coffee.y1, 25024 - COVE.coffee.y0], body: COVE.towers.filter(T => T.cvc).map(T => [T.x0, T.x1, 25024 - T.y1, 25024 - T.y0]), door: { a: COVE.coffee.door, b: 25024 - 27232, half: COVE.coffee.half },
+  lab: [COVE.coffee.x0, COVE.coffee.x1, 25024 - COVE.coffee.y1, 25024 - COVE.coffee.y0], body: COVE.towers.filter(T => T.cvc).map(T => [T.x0, T.x1, 25024 - T.y1 - COVE.coffee.out, 25024 - T.y0]), door: { a: COVE.coffee.door, b: 25024 - 27232 - COVE.coffee.out, half: COVE.coffee.half },
   H: 280, out: 36, apron: 30, glass: 4,
   /* (its way to and from the street, THE ROOM'S DAY: out of the door, across the forecourt to the pavement and along it either way) */
-  street: { to: [0, 210], routes: [[[-1100, 210]], [[1100, 210]]] },
+  street: { to: [0, 62], routes: [[[-1100, 62]], [[1100, 62]]] },
   /* (seen through, W11: the doorway, and the glass over the bulkhead either side of it -- the shell's z in the entry's units) */
-  openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238]], z: [0, 115] },
-             { lab: [[COVE.coffee.x0, 25024 - 27238], [COVE.coffee.door - 52, 25024 - 27238]], z: [46, 112], glass: true },
-             { lab: [[COVE.coffee.door + 52, 25024 - 27238], [COVE.coffee.x1, 25024 - 27238]], z: [46, 112], glass: true }], });
+  openings: [{ lab: [[COVE.coffee.door - COVE.coffee.half, 25024 - 27238 - COVE.coffee.out], [COVE.coffee.door + COVE.coffee.half, 25024 - 27238 - COVE.coffee.out]], z: [0, 115] },
+             { lab: [[COVE.coffee.x0, 25024 - 27238 - COVE.coffee.out], [COVE.coffee.door - 52, 25024 - 27238 - COVE.coffee.out]], z: [46, 112], glass: true },
+             { lab: [[COVE.coffee.door + 52, 25024 - 27238 - COVE.coffee.out], [COVE.coffee.x1, 25024 - 27238 - COVE.coffee.out]], z: [46, 112], glass: true }], });
 const CVC_BARISTA = { shirt: { c:0x2f6f73, dk:0x235357 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
   vest: { c:0xe9e2d2, dk:0xc9c2b2 }, shoeKind: 'sneaker' };                      // a teal tee under a cream apron
 /* its barista, behind the counter (north of it, facing south: we see her face and the machine's and the till's backs, their working faces turned to her), now and
@@ -44757,6 +44774,93 @@ function slidePairDraw(d, u, frame){
 function T(a0,a1,b0,b1,z,fill,stroke,lw){
   poly([P(a0,b0,z),P(a1,b0,z),P(a1,b1,z),P(a0,b1,z)], fill, stroke, lw);
 }
+/* A SHOP SEEN THROUGH ITS GLASS (Sir, 2026-11-09, after the mall's front row: "there are other shops similar to these ...
+   see if we can do the same fix"): the street shops with no room of their own (Palmline Tower's two, Cove Grove's) painted
+   their goods on opaque glass over a solid wall -- a black shape. This lays a lit room behind the glass, in the same
+   cached image: floor, back and side walls, the brand's shelving on the back wall, a counter beside the door's lane (the
+   way in, |u - dm| < 70, stays clear). pt(u, depth, z): a point u along the frontage, depth in behind the glass plane, up z
+   (the caller's own projection: a lab frame's P, or a Cove face's facePt, depth being its offset the other way). The window
+   is zA..zB over g0..g1; the room is clipped to it */
+function shopRoomPaint(pt, g0, g1, zA, zB, col, dm, k){
+  /* (twice: through the window's glass, and through the doorway, which stands lower than the glass) */
+  for(const [c0, c1, z0, z1] of [[g0, g1, zA, zB], [dm - 47, dm + 47, 3, 115]]) shopRoomIn(pt, g0, g1, c0, c1, z0, z1, col, dm, k);
+}
+function shopRoomIn(pt, g0, g1, c0, c1, zA, zB, col, dm, k){
+  const D = 240, wall = '#c9bba2', floor = '#e4dac7', Q = (pts, c) => poly(pts, c);
+  ctx.save();
+  poly([pt(c0, 0, zB), pt(c1, 0, zB), pt(c1, 0, zA), pt(c0, 0, zA)]); ctx.clip();
+  try {
+    Q([pt(g0, 0, 0), pt(g1, 0, 0), pt(g1, D, 0), pt(g0, D, 0)], floor);
+    Q([pt(g0, D, 0), pt(g1, D, 0), pt(g1, D, 160), pt(g0, D, 160)], wall);
+    Q([pt(g0, 0, 0), pt(g0, D, 0), pt(g0, D, 160), pt(g0, 0, 160)], shade(wall, .86));
+    Q([pt(g1, 0, 0), pt(g1, D, 0), pt(g1, D, 160), pt(g1, 0, 160)], shade(wall, .78));
+    ctx.strokeStyle = shade(floor, .9); ctx.lineWidth = 1; ctx.beginPath();
+    for(let d = 60; d < D; d += 60){ const a = pt(g0, d, 0), b = pt(g1, d, 0); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+    ctx.stroke();
+    /* shelving on the back wall: bays in the brand's colour, three shelves of goods */
+    for(let u = g0 + 18, m = 0; u + 44 < g1 - 10; u += 52, m++){
+      const c = shade(col, 0.62 + 0.1*((m + k) % 3));
+      Q([pt(u, D - 2, 20), pt(u + 44, D - 2, 20), pt(u + 44, D - 2, 118), pt(u, D - 2, 118)], c);
+      for(let r = 0; r < 3; r++){ const z = 28 + r*32;
+        Q([pt(u + 3, D - 3, z + 24), pt(u + 41, D - 3, z + 24), pt(u + 41, D - 3, z + 2), pt(u + 3, D - 3, z + 2)], shade(col, 1.05 + 0.1*((m + r + k) % 3)));
+        Q([pt(u, D - 3, z + 1), pt(u + 44, D - 3, z + 1), pt(u + 44, D - 3, z - 2), pt(u, D - 3, z - 2)], '#f4efe4'); }
+    }
+    /* the way in, seen down: a runner in the brand's colour along the lane, and a back door in the rear wall, so the doorway
+       reads as depth and not a flat panel */
+    Q([pt(dm - 36, 0, 0), pt(dm + 36, 0, 0), pt(dm + 36, D, 0), pt(dm - 36, D, 0)], shade(col, 1.05));
+    Q([pt(dm - 34, D - 1, 0), pt(dm + 34, D - 1, 0), pt(dm + 34, D - 1, 104), pt(dm - 34, D - 1, 104)], '#3a3f45');
+    Q([pt(dm - 28, D - 2, 0), pt(dm + 28, D - 2, 0), pt(dm + 28, D - 2, 96), pt(dm - 28, D - 2, 96)], shade(col, .55));
+    /* a window display just inside the glass, where the camera sees most: a low plinth either side of the lane, goods on it */
+    for(const [d0, d1] of [[g0 + 14, dm - 80], [dm + 80, g1 - 14]]) if(d1 - d0 > 60){
+      const pb = 34, pf = 70;
+      Q([pt(d0, pb, 24), pt(d1, pb, 24), pt(d1, pf, 24), pt(d0, pf, 24)], '#f4efe4');
+      Q([pt(d0, pf, 0), pt(d1, pf, 0), pt(d1, pf, 24), pt(d0, pf, 24)], shade(col, .75));
+      for(let u = d0 + 20, m = 0; u + 26 < d1 - 6; u += 50, m++){
+        const h = 30 + ((m + k) % 3)*16, c = shade(col, 1.1 + 0.12*((m + k) % 3));
+        Q([pt(u, pf - 8, 24), pt(u + 26, pf - 8, 24), pt(u + 26, pf - 8, 24 + h), pt(u, pf - 8, 24 + h)], c);
+        Q([pt(u, pf - 8, 24 + h), pt(u + 26, pf - 8, 24 + h), pt(u + 26, pb + 8, 24 + h), pt(u, pb + 8, 24 + h)], shade(c, 1.2)); }
+    }
+    /* a counter on the side away from the door, its top light, a till on it */
+    const c0 = dm + 78, c1 = Math.min(g1 - 24, c0 + 190);
+    if(c1 - c0 > 60){
+      Q([pt(c0, 110, 0), pt(c1, 110, 0), pt(c1, 110, 46), pt(c0, 110, 46)], shade(col, .85));
+      Q([pt(c0, 110, 46), pt(c1, 110, 46), pt(c1, 150, 46), pt(c0, 150, 46)], '#f4efe4');
+      Q([pt(c0 + 20, 118, 46), pt(c0 + 52, 118, 46), pt(c0 + 52, 118, 66), pt(c0 + 20, 118, 66)], '#2b3138');
+    }
+  } finally { ctx.restore(); }
+}
+/* THE TOWER'S LOBBY SEEN THROUGH ITS GLASS (Sir, 2026-11-09: "the palm line tower entrance, lets fix that to meet our look"): a
+   lit hall behind the glass wall -- polished floor, a teal runner down the lane to the lifts, the lift bank in the back
+   wall, a reception desk and a bench either side -- painted once in the cached front, as shopRoomPaint's shops. pt(u, depth,
+   z) as there; the wall is G0..G1 and zT high; mid the middle of the doors */
+function lobbyRoomPaint(pt, G0, G1, zT, mid){
+  const D = 320, wall = '#d6cebb', floor = '#e9e3d5', Q = (pts, c) => poly(pts, c), teal = '#2f7f86';
+  ctx.save();
+  poly([pt(G0, 0, zT), pt(G1, 0, zT), pt(G1, 0, 0), pt(G0, 0, 0)]); ctx.clip();
+  try {
+    Q([pt(G0, 0, 0), pt(G1, 0, 0), pt(G1, D, 0), pt(G0, D, 0)], floor);
+    Q([pt(G0, D, 0), pt(G1, D, 0), pt(G1, D, 200), pt(G0, D, 200)], wall);
+    Q([pt(G0, 0, 0), pt(G0, D, 0), pt(G0, D, 200), pt(G0, 0, 200)], shade(wall, .88));
+    Q([pt(G1, 0, 0), pt(G1, D, 0), pt(G1, D, 200), pt(G1, 0, 200)], shade(wall, .78));
+    ctx.strokeStyle = shade(floor, .9); ctx.lineWidth = 1; ctx.beginPath();
+    for(let d = 80; d < D; d += 80){ const a = pt(G0, d, 0), b = pt(G1, d, 0); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+    ctx.stroke();
+    Q([pt(mid - 60, 0, 0), pt(mid + 60, 0, 0), pt(mid + 60, D, 0), pt(mid - 60, D, 0)], teal);                 // the runner to the lifts
+    Q([pt(mid - 52, 0, 0.2), pt(mid + 52, 0, 0.2), pt(mid + 52, D, 0.2), pt(mid - 52, D, 0.2)], shade(teal, 1.2));
+    /* the lift bank in the back wall: four steel doors in a dark surround, their call lights over them */
+    Q([pt(mid - 150, D - 1, 0), pt(mid + 150, D - 1, 0), pt(mid + 150, D - 1, 128), pt(mid - 150, D - 1, 128)], '#3a4148');
+    for(let i = 0; i < 4; i++){ const u0 = mid - 144 + i*72;
+      Q([pt(u0, D - 2, 0), pt(u0 + 66, D - 2, 0), pt(u0 + 66, D - 2, 112), pt(u0, D - 2, 112)], '#b7bfc5');
+      Q([pt(u0 + 32, D - 3, 0), pt(u0 + 34, D - 3, 0), pt(u0 + 34, D - 3, 112), pt(u0 + 32, D - 3, 112)], '#7c858c');
+      Q([pt(u0 + 28, D - 3, 118), pt(u0 + 38, D - 3, 118), pt(u0 + 38, D - 3, 124), pt(u0 + 28, D - 3, 124)], '#f3c552'); }
+    /* a reception desk to the one side, its front in the tower's teal, a bench to the other */
+    Q([pt(G0 + 40, 150, 0), pt(G0 + 190, 150, 0), pt(G0 + 190, 150, 50), pt(G0 + 40, 150, 50)], teal);
+    Q([pt(G0 + 40, 150, 50), pt(G0 + 190, 150, 50), pt(G0 + 190, 205, 50), pt(G0 + 40, 205, 50)], '#f4efe4');
+    Q([pt(G0 + 100, 175, 50), pt(G0 + 128, 175, 50), pt(G0 + 128, 175, 70), pt(G0 + 100, 175, 70)], '#2b3138');
+    Q([pt(G1 - 190, 110, 0), pt(G1 - 40, 110, 0), pt(G1 - 40, 110, 26), pt(G1 - 190, 110, 26)], '#6b4a32');
+    Q([pt(G1 - 190, 110, 26), pt(G1 - 40, 110, 26), pt(G1 - 40, 150, 26), pt(G1 - 190, 150, 26)], '#c9a26e');
+  } finally { ctx.restore(); }
+}
 /* a small solid box sitting on the roof or the pavement */
 /* THE SERVICE ELEVATOR'S CAR (SVC), for the floor that draws it: its
    floor, its north wall, its door jambs and header in its east face (the
@@ -47816,11 +47920,14 @@ function houseCanopy(fn){
     /* the solids in this cell's share */
     const solids = [];
     for(const T of towers){
-      if(!T.cvc){ solids.push({ name: 'tower', poly: rectLab([T.x0, T.x1, T.y0, T.y1]), h: 600 }); continue; }
+      if(!T.cvc){ solids.push({ name: 'tower', poly: rectLab([T.x0, T.x1, T.y0, T.y1]), h: 600 });
+        if(T.podium !== 'E'){ const cc = C.cells[T.cell], px = cc.i*BLOCK + 736 + 1656 - COVE_FLUSH, pe = coveFlushEnd(T, 'E'); if(pe !== null) solids.push({ name: 'shop plinth', poly: rectLab([T.x1, px, T.y0, pe]), h: 170 }); }   // (its east shops' plinth, out to the pavement: coveFlushE)
+        continue; }
       /* (wk9: Seaglass Coffee is a walk-in, CVC_IN: its door, 94 across, opens 30 deep into the face -- the room's own wall -- so he drives up to the glass where the room takes him) */
       const cf = C.coffee, d0 = cf.door - cf.half, d1 = cf.door + cf.half;
       solids.push({ name: 'tower', poly: rectLab([T.x0, d0, T.y0, T.y1]), h: 600 }, { name: 'tower', poly: rectLab([d1, T.x1, T.y0, T.y1]), h: 600 },
-                  { name: 'tower', poly: rectLab([d0, d1, T.y0, T.y1 - 30]), h: 600 });
+                  { name: 'tower', poly: rectLab([d0, d1, T.y0, T.y1 + cf.out - 30]), h: 600 },
+                  { name: 'shop plinth', poly: rectLab([T.x0, d0, T.y1, T.y1 + cf.out]), h: 170 }, { name: 'shop plinth', poly: rectLab([d1, coveFlushEnd(T, 'S'), T.y1, T.y1 + cf.out]), h: 170 });   // (the south shops' plinth, out to the pavement: coveFlushE)
     }
     for(const w of C.walls) if(mine(...ctr(w))) solids.push({ name: 'podium edge', poly: rectLab(w), h: C.H + 10 });
     for(const w of C.access){
@@ -47840,7 +47947,7 @@ function houseCanopy(fn){
          the glass over the bulkhead show the room (walkinThrough); the tower's nine tiles are `shell` and fade round him */
       ...(k === 2 ? {
         see: true,
-        slideDoors: [{ a: C.coffee.door - C.coffee.half, w: C.coffee.half*2, b: 25024 - 27232 - 0.4, z0: 0, z1: 112, sense: -60, glass: 'rgba(150,190,206,.38)' }],
+        slideDoors: [{ a: C.coffee.door - C.coffee.half, w: C.coffee.half*2, b: 25024 - 27232 - C.coffee.out - 0.4, z0: 0, z1: 112, sense: -60, glass: 'rgba(150,190,206,.38)' }],
         doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); } } : {}),
       draw(p){
         const H = C.H, GT = 190, FH = 80;
@@ -47883,24 +47990,22 @@ function houseCanopy(fn){
             hq(g0 + 8, dm - 52, zb + 46, zb + 112, 0.8); hq(dm + 52, g1 - 8, zb + 46, zb + 112, 0.8);
             faceQ(f, g0, g1, zb + 46, zb + 120, 'rgba(112,134,146,.38)', 0.8);
           } else {
-            faceQ(f, g0, g1, zb + 14, zb + 120, sGlass, 0.8);
+            const [r0, r1] = clip(f, g0, g1);
+            if(r1 > r0) shopRoomPaint((u, d, z) => facePt(f, u, -d, zb + z), r0, r1, 14, 120, col, dm, st.span ? st.span[0] % 7 : 0);   // (a lit shop behind the glass, not a black pane)
+            faceQ(f, g0, g1, zb + 14, zb + 120, 'rgba(112,134,146,.30)', 0.8);
           }
           faceQ(f, g0, g1, zb + 112, zb + 120, mull, 1.2);
           for(let u = dm - 52 - 150; u > g0 + 40; u -= 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
           for(let u = dm + 52 + 150; u < g1 - 40; u += 150) faceQ(f, u - 3, u + 3, zb + 14, zb + 112, mull, 1.2);
-          if(!wk) for(let m = 0, u = g0 + 30; u < g1 - 60; u += 92, m++){
-            if(Math.abs(u + 20 - dm) < 100) continue;
-            faceQ(f, u, u + 40, zb + 14, zb + 34 + (m % 3)*16, shade(col, 1.2), 1.0);
-          }
           if(wk){
             /* the doorway: the frame's two posts and its head round a hole 94 across (the live pair, slideDoors, is 6 back) */
             HOLE([facePt(f, dm - 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb + 115), facePt(f, dm + 47, 1.2, zb), facePt(f, dm - 47, 1.2, zb)]);
             faceQ(f, dm - 52, dm - 47, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm + 47, dm + 52, zb, zb + 120, '#2b3540', 1.4);
             faceQ(f, dm - 52, dm + 52, zb + 115, zb + 120, '#2b3540', 1.4);
           } else {
-          faceQ(f, dm - 52, dm + 52, zb, zb + 120, '#2b3540', 1.4);
-          faceQ(f, dm - 47, dm - 2, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
-          faceQ(f, dm + 2, dm + 47, zb + 3, zb + 115, 'rgba(170,206,220,.75)', 1.8);
+          faceQ(f, dm - 52, dm - 47, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm + 47, dm + 52, zb, zb + 120, '#2b3540', 1.4); faceQ(f, dm - 52, dm + 52, zb + 115, zb + 120, '#2b3540', 1.4);
+          faceQ(f, dm - 47, dm - 2, zb + 3, zb + 115, 'rgba(170,206,220,.28)', 1.8);
+          faceQ(f, dm + 2, dm + 47, zb + 3, zb + 115, 'rgba(170,206,220,.28)', 1.8);
           for(const hx of [dm - 7, dm + 5]) faceQ(f, hx, hx + 2, zb + 46, zb + 70, '#d8dde0', 2.2);
           }
           faceQ(f, u0 + 24, u1 - 24, zb + 126, zb + 152, col, 1.0);
@@ -47922,13 +48027,15 @@ function houseCanopy(fn){
           if(!faceView(f, u0, u1, zb, GT, 50)) return;
           const mid = (u0 + u1)/2, g0 = u0 + 24, g1 = u1 - 24, gt = zb + 150;
           faceQ(f, u0 - 8, g0, zb, GT, stoneD, 0.6); faceQ(f, g1, u1 + 8, zb, GT, stoneD, 0.6);
-          faceQ(f, g0, g1, zb, gt, sGlass, 0.8);
+          { const [r0, r1] = clip(f, g0, g1);                                          // (the hall behind the glass, lit, seen through it: lobbyRoomPaint)
+            if(r1 > r0) lobbyRoomPaint((u, d, z) => facePt(f, u, -d, zb + z), r0, r1, gt - zb, mid); }
+          faceQ(f, g0, g1, zb, gt, 'rgba(112,134,146,.26)', 0.8);
           faceQ(f, g0, g1, zb + 117, zb + 123, mull, 1.2);
           for(const u of [mid - 120, mid - 40, mid + 40, mid + 120]) faceQ(f, u - 3, u + 3, zb, gt, mull, 1.2);
           for(const dm of [mid - 80, mid + 80]){
-            faceQ(f, dm - 36, dm + 36, zb, zb + 117, '#2b3540', 1.4);
-            faceQ(f, dm - 32, dm - 2, zb + 3, zb + 112, 'rgba(170,206,220,.75)', 1.8);
-            faceQ(f, dm + 2, dm + 32, zb + 3, zb + 112, 'rgba(170,206,220,.75)', 1.8);
+            faceQ(f, dm - 36, dm - 32, zb, zb + 117, '#2b3540', 1.4); faceQ(f, dm + 32, dm + 36, zb, zb + 117, '#2b3540', 1.4); faceQ(f, dm - 36, dm + 36, zb + 112, zb + 117, '#2b3540', 1.4);
+            faceQ(f, dm - 32, dm - 2, zb + 3, zb + 112, 'rgba(170,206,220,.24)', 1.8);
+            faceQ(f, dm + 2, dm + 32, zb + 3, zb + 112, 'rgba(170,206,220,.24)', 1.8);
           }
           faceQ(f, u0 - 8, u1 + 8, gt, GT, teal, 1.6);
           faceWord(f, word, u0 + 20, u1 - 20, gt + 6, GT - 6, '#fbf7ee', 1.8);
@@ -48012,7 +48119,7 @@ function houseCanopy(fn){
             const thinX = (wr[1] - wr[0]) < (wr[3] - wr[2]);
             if(thinX && wr[1] === 5520){ S(A(5520), B(wr[3]), B(wr[2]), 0, H + 10, wallF); S(A(5520) + 0.3, B(wr[3]), B(wr[2]), H + 4, H + 10, stoneL); }
             if(!thinX && wr[3] === 27416){ F(A(wr[0]), A(wr[1]), 0, H + 10, wallF, null, 0, B(27416)); F(A(wr[0]), A(wr[1]), H + 4, H + 10, stoneL, null, 0, B(27416) - 0.3); }
-            box(A(wr[0]), A(wr[1]), B(wr[3]), B(wr[2]), H, H + 10, stoneL, stone, stoneD);
+            box(A(wr[0] + (wr[0] === 5342 && wr[2] === 24112 ? 16 : 0)), A(wr[1]), B(wr[3]), B(wr[2]), H, H + 10, stoneL, stone, stoneD);   // (the north tower's east stub starts a hair off its corner pier, so its end is not a notch at the pier's foot)
           }
           /* the ways up: each ramp, and its cut walls */
           for(const w of C.access){
@@ -48040,11 +48147,28 @@ function houseCanopy(fn){
           }
         }
 
+        /* A PLINTH'S END ON THE PODIUM, GLAZED (Sir, 2026-11-09: the blank stone end of a flush plinth stood as a wall beside the
+           podium's corner shops, "they need to all look like the one I circled"): the last shop wraps the corner -- its stone
+           piers, its lit room behind a window on the end, standing on the deck -- so the corner reads as a shop, not a wall.
+           f the end's face; u0..u1 along it; the room drawn with the shop's colour */
+        const cornerWin = (f, u0, u1, col, k, zb = H) => {
+          const ca = CLIPA, cb = CLIPB; CLIPA = CLIPB = null;
+          try {
+            faceQ(f, u0, u1, zb, GT, stone, 0); faceQ(f, u0, u1, GT - 10, GT, stoneL, 0.3);
+            faceQ(f, u0, u0 + 22, zb, GT, stoneD, 0.6); faceQ(f, u1 - 22, u1, zb, GT, stoneD, 0.6);
+            shopRoomPaint((u, d, z) => facePt(f, u, -d, zb + z), u0 + 22, u1 - 22, 14, 112, col, (u0 + u1)/2 + 400, k);
+            faceQ(f, u0 + 22, u1 - 22, zb + 14, zb + 112, 'rgba(112,134,146,.30)', 0.8);
+            faceQ(f, u0 + 22, u1 - 22, zb + 106, zb + 112, mull, 1.2);
+            faceQ(f, (u0 + u1)/2 - 3, (u0 + u1)/2 + 3, zb + 14, zb + 106, mull, 1.2);
+          } finally { CLIPA = ca; CLIPB = cb; }
+        };
         /* ================= THE PIECES ================= */
         const items = [];
         towers.forEach((T) => {
           const TOP = GT + T.floors*FH, CROWN = TOP + 90, n = 3, tw = (T.x1 - T.x0)/n, th = (T.y1 - T.y0)/n;
           const eastF = { pl:'S', at: A(T.x1), out: 1 }, southF = { pl:'F', at: B(T.y1), out: -1 };
+          const PLX = C.cells[T.cell].i*BLOCK + 736 + 1656 - COVE_FLUSH, eastP = { pl:'S', at: A(PLX), out: 1 };   // (the east shops' plinth face, coveFlushE)
+          const PLY = C.cells[T.cell].j*BLOCK + 736 + 1656 - COVE_FLUSH, southP = { pl:'F', at: B(PLY), out: -1 };   // (and the south shops')
           const zbE = T.podium === 'E' ? H : 0, zbS = T.podium === 'S' ? H : 0, seed = T.cell*1000;
           for(let c = 0; c < n; c++) for(let r = 0; r < n; r++){
             const tx0 = T.x0 + c*tw, tx1 = tx0 + tw, ty0 = T.y0 + r*th, ty1 = ty0 + th;
@@ -48053,32 +48177,47 @@ function houseCanopy(fn){
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               /* the south face, on the south row */
               if(r === n - 1){
+                { const pe = T.podium !== 'S' ? coveFlushEnd(T, 'S') : null;                // (the south shops' plinth, flush to the pavement, ending at its last flush shop: coveFlushE)
+                  if(pe !== null){
+                    if(tx0 < pe) T_(tx0, Math.min(tx1, pe), T.y1, PLY, GT, stoneL);
+                    if(tx0 <= pe && pe < tx1){ const mk = COVE_STORES.filter(q => C.towers[q.tower] === T && coveFlushE(q) && q.face === 'S').pop(); cornerWin({ pl:'S', at: A(pe), out: 1 }, B(PLY), B(T.y1), mk.col, 5, 0); }   // (its end, glazed)
+                    faceQ(southP, A(T.x0), A(pe), 0, GT, stone, 0);
+                    faceQ(southP, A(T.x0), A(pe), GT - 10, GT, stoneL, 0.3);
+                  } }
                 faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);
                 faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'S'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(southF, A(sh.span[0]), A(sh.span[1]), H, sh.lobby) : shopfront(southF, A(sh.span[0]), A(sh.span[1]), H, sh);
-                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'S') shopfront(southF, A(st.span[0]), A(st.span[1]), 0, st);
+                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'S') shopfront(coveFlushE(st) ? southP : southF, A(st.span[0]), A(st.span[1]), 0, st);
                 curtain(southF, A(T.x0), A(T.x1), TOP, T, seed + 7);
               }
               /* the east face, on the east column */
               if(c === n - 1){
+                /* (the east shops' plinth, flush to the pavement, ending at its last flush shop: its top, its end, its face -- coveFlushE) */
+                { const pe = T.podium !== 'E' ? coveFlushEnd(T, 'E') : null;
+                  if(pe !== null){
+                    if(ty0 < pe) T_(T.x1, PLX, ty0, Math.min(ty1, pe), GT, stoneL);
+                    if(ty0 <= pe && pe < ty1){ const mk = COVE_STORES.filter(q => C.towers[q.tower] === T && coveFlushE(q) && q.face === 'E').pop(); cornerWin({ pl:'F', at: B(pe), out: -1 }, A(T.x1), A(PLX), mk.col, 3, 0); }   // (its end, glazed: the last shop wraps the corner)
+                    faceQ(eastP, B(pe), B(T.y0), 0, GT, stone, 0);
+                    faceQ(eastP, B(pe), B(T.y0), GT - 10, GT, stoneL, 0.3);
+                  } }
                 faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);
                 faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'E'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(eastF, B(sh.span[1]), B(sh.span[0]), H, sh.lobby) : shopfront(eastF, B(sh.span[1]), B(sh.span[0]), H, sh);
-                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'E') shopfront(eastF, B(st.span[1]), B(st.span[0]), 0, st);
+                } else for(const st of COVE_STORES) if(C.towers[st.tower] === T && st.face === 'E') shopfront(coveFlushE(st) ? eastP : eastF, B(st.span[1]), B(st.span[0]), 0, st);
                 curtain(eastF, B(T.y1), B(T.y0), TOP, T, seed + 503);
               }
               /* the awnings over what is below them */
               if(r === n - 1){
                 for(const sh of (T.podium === 'S' ? COVE_PLAZA_SHOPS : COVE_STORES))
-                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'S' || sh.face === 'S')) awning(southF, A(sh.span[0]), A(sh.span[1]), zbS, sh);
+                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'S' || sh.face === 'S')) awning(coveFlushE(sh) ? southP : southF, A(sh.span[0]), A(sh.span[1]), zbS, sh);
               }
               if(c === n - 1){
                 for(const sh of (T.podium === 'E' ? COVE_PLAZA_SHOPS : COVE_STORES))
-                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'E' || sh.face === 'E')) awning(eastF, B(sh.span[1]), B(sh.span[0]), zbE, sh);
+                  if(C.towers[sh.tower] === T && !sh.lobby && (T.podium === 'E' || sh.face === 'E')) awning(coveFlushE(sh) ? eastP : eastF, B(sh.span[1]), B(sh.span[0]), zbE, sh);
               }
               CLIPA = CLIPB = null;
               /* the roof, its parapet and the crown */
@@ -76059,19 +76198,15 @@ marinaEntry(),
         F(a0 - 8, a0 + 8, 0, GH, stoneD, null, 0, PF + 0.6);                     // the piers
         F(a1 - 8, a1 + 8, 0, GH, stoneD, null, 0, PF + 0.6);
         F(g0, g1, 0, 14, shade(stone, .78), null, 0, PF + 0.8);                   // the stall riser
-        F(g0, g1, 14, 120, sGlass, null, 0, PF + 0.8);                             // the glass
+        shopRoomPaint((u, d, z) => P(u, PF - d, z), g0, g1, 14, 120, col, dm, k);   // the shop behind the glass (lit, seen through it)
+        F(g0, g1, 14, 120, 'rgba(112,134,146,.30)', null, 0, PF + 0.8);            // the glass, light
         F(g0, g1, 112, 120, sMull, null, 0, PF + 1.2);                             // the transom bar
         /* the bays: mullions out from the door each way */
         for(let a = dm - 52 - 150; a > g0 + 40; a -= 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
         for(let a = dm + 52 + 150; a < g1 - 40; a += 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
-        /* goods in the windows: a few blocks in the shop's colour, clear of the door */
-        for(let m = 0, a = g0 + 30; a < g1 - 60; a += 92, m++){
-          if(Math.abs(a + 20 - dm) < 100) continue;
-          F(a, a + 40, 14, 34 + ((k + m) % 3)*16, shade(col, 1.2), null, 0, PF + 1.0);
-        }
-        /* the doors, to a person's scale (the mall's: 104 across, to the transom) */
-        F(dm - 52, dm + 52, 0, 120, '#2b3540', null, 0, PF + 1.4);
-        for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+        /* the doors, to a person's scale (the mall's: 104 across, to the transom): the frame, the leaves clear glass over the room */
+        F(dm - 52, dm - 47, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm + 47, dm + 52, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm - 52, dm + 52, 115, 120, '#2b3540', null, 0, PF + 1.4);
+        for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.28)', null, 0, PF + 1.8);
         for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
         /* the sign board and its name */
         F(a0 + 30, a1 - 30, 126, GH - 2, col, null, 0, PF + 1.0);
@@ -76087,19 +76222,20 @@ marinaEntry(),
       { const lGlass = 'rgba(96,136,158,.90)', lMull = '#e9eef0', mid = (LOB0 + LOB1)/2, G0 = LOB0 + 26, G1 = LOB1 - 26, GT = PH - 34;
         F(LOB0 - 8, G0, 0, PH, stoneD, null, 0, PF + 0.6);                      // the piers
         F(G1, LOB1 + 8, 0, PH, stoneD, null, 0, PF + 0.6);
-        F(G0, G1, 0, GT, lGlass, null, 0, PF + 0.8);                             // the glass wall
+        lobbyRoomPaint((u, d, z) => P(u, PF - d, z), G0, G1, GT, mid);           // the hall behind the glass, lit
+        F(G0, G1, 0, GT, 'rgba(112,134,146,.26)', null, 0, PF + 0.8);            // the glass wall, light
         F(G0, G1, 0, GT, null, lMull, 1.2, PF + 1.0);
         for(const z of [120, 150]) F(G0, G1, z - 3, z + 3, lMull, null, 0, PF + 1.2);   // the transoms
         for(const a of [mid - 150, mid - 75, mid + 75, mid + 150]) F(a - 3, a + 3, 0, GT, lMull, null, 0, PF + 1.2);
         /* the revolving door: its drum's dark frame, three leaves seen
            through the glass, a canopy disc over it */
-        F(mid - 62, mid + 62, 0, 117, '#2b3540', null, 0, PF + 1.4);
-        F(mid - 56, mid + 56, 3, 112, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+        F(mid - 62, mid - 56, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid + 56, mid + 62, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid - 62, mid + 62, 112, 117, '#2b3540', null, 0, PF + 1.4);
+        F(mid - 56, mid + 56, 3, 112, 'rgba(170,206,220,.24)', null, 0, PF + 1.8);
         for(const a of [mid - 28, mid, mid + 28]) F(a - 1.5, a + 1.5, 3, 112, '#8fa3ad', null, 0, PF + 2.0);
-        /* a pair of doors each side of it */
+        /* a pair of doors each side of it: their frames, the leaves clear glass over the hall */
         for(const dm of [mid - 112, mid + 112]){
-          F(dm - 34, dm + 34, 0, 117, '#2b3540', null, 0, PF + 1.4);
-          for(const [l0, l1] of [[dm - 30, dm - 1.5], [dm + 1.5, dm + 30]]) F(l0, l1, 3, 112, 'rgba(170,206,220,.75)', null, 0, PF + 1.8);
+          F(dm - 34, dm - 30, 0, 117, '#2b3540', null, 0, PF + 1.4); F(dm + 30, dm + 34, 0, 117, '#2b3540', null, 0, PF + 1.4); F(dm - 34, dm + 34, 112, 117, '#2b3540', null, 0, PF + 1.4);
+          for(const [l0, l1] of [[dm - 30, dm - 1.5], [dm + 1.5, dm + 30]]) F(l0, l1, 3, 112, 'rgba(170,206,220,.24)', null, 0, PF + 1.8);
           for(const hx of [dm - 6, dm + 4]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
         }
         /* the name band, proud of the wall */
@@ -76109,7 +76245,7 @@ marinaEntry(),
     }
     } });
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
-    const AO = 40;                                                  // how far an awning stands out
+    const AO = 30;                                                  // how far an awning stands out (its lip on the lot line: the podium's front is flush to the pavement, PF -30)
     slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
@@ -106002,7 +106138,7 @@ class WorldScene extends Phaser.Scene {
     };
     const fn = (k, between) => {
       const s = 45*Math.max(0, Math.min(1, k));
-      q(-47, 47, 3, 115, 0x1d252c, 1);                                    // the shop behind the doorway
+      /* (no fill behind the leaves: the shop behind the doorway is painted in the cached front now, shopRoomPaint) */
       if(between) between();
       for(const sg of [-1, 1]){
         const l0 = sg < 0 ? -47 - s : 2 + s, l1 = sg < 0 ? -2 - s : 47 + s;
