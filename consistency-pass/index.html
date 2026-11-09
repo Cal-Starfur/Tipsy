@@ -102500,6 +102500,15 @@ class WorldScene extends Phaser.Scene {
       if(gpsNav){
         gpsNavReplot(this);
         if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
+        /* ARRIVED AT A PLACE: a place trip has no mat to arm, so it never
+           ended (Sir, 2026-11-09: "it doesn't drop the gps"). Within ~15 ft
+           of the end of the line, the trip is over. */
+        if(gpsNav && gpsNav.id === "place" && gpsNav.path && gpsNav.distU != null && gpsNav.distU < 25){
+          const nm = gpsNav.name;
+          gpsNavClear();
+          if(typeof tpToast === "function") tpToast("You've arrived at " + nm + ".");
+          if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(this);
+        }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
