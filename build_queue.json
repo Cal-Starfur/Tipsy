@@ -1257,6 +1257,735 @@
 "group": "Flats dead space",
 "deps": [],
 "status": "built"
+},
+{
+"id": "wi-palmline-garage",
+"title": "Walk-in interior: Palmline Garage",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-palmline-savings",
+"title": "Walk-in interior: Palmline Savings",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-tea-house",
+"title": "Walk-in interior: Tidewater Tea House",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-driftwood-books",
+"title": "Walk-in interior: Driftwood Books",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-optical",
+"title": "Walk-in interior: Marina Optical",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-lagoon-coffee-roasters",
+"title": "Walk-in interior: Lagoon Coffee Roasters",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandpiper-bakery",
+"title": "Walk-in interior: Sandpiper Bakery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-florist",
+"title": "Walk-in interior: Seabreeze Florist",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-juice-bar",
+"title": "Walk-in interior: Low Tide Juice Bar",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-surfside-fitness",
+"title": "Walk-in interior: Surfside Fitness",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,0 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-driftwood-home",
+"title": "Walk-in interior: Driftwood Home",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandpiper-shoes",
+"title": "Walk-in interior: Sandpiper Shoes",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandcastle-toys",
+"title": "Walk-in interior: Sandcastle Toys",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-pottery",
+"title": "Walk-in interior: Cove Pottery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-pelican-pets",
+"title": "Walk-in interior: Pelican Pets",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-creamery",
+"title": "Walk-in interior: Cove Creamery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-palmline-bikes",
+"title": "Walk-in interior: Palmline Bikes",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-pelican-photo",
+"title": "Walk-in interior: Pelican Photo",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-records",
+"title": "Walk-in interior: Low Tide Records",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandpiper-suds",
+"title": "Walk-in interior: Sandpiper Suds",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 3,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-flats-post-office",
+"title": "Walk-in interior: The Flats Post Office",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-grocer",
+"title": "Walk-in interior: Seabreeze Grocer",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-breakwater-hardware",
+"title": "Walk-in interior: Breakwater Hardware",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-tide-gazette",
+"title": "Walk-in interior: The Tide Gazette",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-playhouse",
+"title": "Walk-in interior: Seabreeze Playhouse",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-barbers",
+"title": "Walk-in interior: Low Tide Barbers",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-apothecary",
+"title": "Walk-in interior: Cove Apothecary",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-pharmacy",
+"title": "Walk-in interior: Marina Pharmacy",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-lagoon-noodle-bar",
+"title": "Walk-in interior: Lagoon Noodle Bar",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 8,1 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-tv-radio",
+"title": "Walk-in interior: Low Tide TV & Radio",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-surfside-diner",
+"title": "Walk-in interior: Surfside Diner",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-picture-house",
+"title": "Walk-in interior: Seabreeze Picture House",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-flats-fire-station",
+"title": "Walk-in interior: The Flats Fire Station",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-hats",
+"title": "Walk-in interior: Seabreeze Hats",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-press",
+"title": "Walk-in interior: Tidewater Press",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandpiper-guest-house",
+"title": "Walk-in interior: Sandpiper Guest House",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-fish-co",
+"title": "Walk-in interior: Cove Fish Co.",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-pelican-cantina",
+"title": "Walk-in interior: Pelican Cantina",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-news",
+"title": "Walk-in interior: Tidewater News",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 1,6 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-sandpiper-arms",
+"title": "Walk-in interior: The Sandpiper Arms",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-saltwater-sweets",
+"title": "Walk-in interior: Saltwater Sweets",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-clocks",
+"title": "Walk-in interior: Tidewater Clocks",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-breakwater-ironworks",
+"title": "Walk-in interior: Breakwater Ironworks",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sea-glass-exchange",
+"title": "Walk-in interior: Sea Glass Exchange",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-flats",
+"title": "Walk-in interior: Marina Flats",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sunfish-arcade",
+"title": "Walk-in interior: Sunfish Arcade",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-butchers",
+"title": "Walk-in interior: Cove Butchers",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,4 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-fabrics",
+"title": "Walk-in interior: Seabreeze Fabrics",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-lagoon-kite-co",
+"title": "Walk-in interior: Lagoon Kite Co.",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-breakwater-bait-tackle",
+"title": "Walk-in interior: Breakwater Bait & Tackle",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-pelican-shoe-repair",
+"title": "Walk-in interior: Pelican Shoe Repair",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-driftwood-antiques",
+"title": "Walk-in interior: Driftwood Antiques",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-tailors",
+"title": "Walk-in interior: Marina Tailors",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-palmline-motors",
+"title": "Walk-in interior: Palmline Motors",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-tacos",
+"title": "Walk-in interior: Low Tide Tacos",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-wine-merchant",
+"title": "Walk-in interior: Tidewater Wine Merchant",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandpiper-frames",
+"title": "Walk-in interior: Sandpiper Frames",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-travel",
+"title": "Walk-in interior: Marina Travel",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 7,5 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-low-tide-music",
+"title": "Walk-in interior: Low Tide Music",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 4,7 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-office",
+"title": "Walk-in interior: Marina Office",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 4,7 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-locksmith",
+"title": "Walk-in interior: Cove Locksmith",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 4,7 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-tidewater-co",
+"title": "Walk-in interior: Tidewater & Co.",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 4,7 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-rugs",
+"title": "Walk-in interior: Cove Rugs",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 0,7 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-palmline-surf-co",
+"title": "Walk-in interior: Palmline Surf Co.",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 0,7 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-marina-chandlery",
+"title": "Walk-in interior: Marina Chandlery",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 0,7 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-grand-pelican",
+"title": "Walk-in interior: The Grand Pelican",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 0,7 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-driftwood-comics",
+"title": "Walk-in interior: Driftwood Comics",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-cove-pizza",
+"title": "Walk-in interior: Cove Pizza",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-palmline-dry-cleaners",
+"title": "Walk-in interior: Palmline Dry Cleaners",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seawall-deli",
+"title": "Walk-in interior: Seawall Deli",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 0",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seawall-chambers",
+"title": "Walk-in interior: Seawall Chambers",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-driftwood-lofts",
+"title": "Walk-in interior: Driftwood Lofts",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-library",
+"title": "Walk-in interior: Seabreeze Library",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-the-flats-police",
+"title": "Walk-in interior: The Flats Police",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 1",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-gull-loft",
+"title": "Walk-in interior: Gull Loft",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-dance",
+"title": "Walk-in interior: Seabreeze Dance",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-kelp-ink",
+"title": "Walk-in interior: Kelp & Ink",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-sandcastle-models",
+"title": "Walk-in interior: Sandcastle Models",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 2",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-seabreeze-stationers",
+"title": "Walk-in interior: Seabreeze Stationers",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-lagoon-thrift",
+"title": "Walk-in interior: Lagoon Thrift",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 3",
+"group": "Walk-in interiors: Flats shops"
+},
+{
+"id": "wi-surfside-yoga",
+"title": "Walk-in interior: Surfside Yoga",
+"spec": "docs/state/walkin_recipe.md",
+"deps": [],
+"status": "pending",
+"note": "block 2,8 edge 3",
+"group": "Walk-in interiors: Flats shops"
 }
 ],
 "meta": {
