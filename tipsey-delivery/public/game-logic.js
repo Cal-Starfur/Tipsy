@@ -10894,8 +10894,9 @@ function owInstall(scene){
       owPaintStick(ow);
     }
   };
-  ow.onKeyDown = e => { if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
-  ow.onKeyUp   = e => { if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
+  const owTyping = e => { const t = e.target; return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable); };
+  ow.onKeyDown = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.add(e.key); recalc(); e.preventDefault(); } };
+  ow.onKeyUp   = e => { if(owTyping(e)) return; if(KEYMAP[e.key]){ ow.held.delete(e.key); recalc(); } };
 
   const cv = scene.game.canvas;
   ow.canvas = cv;
@@ -28059,6 +28060,11 @@ walkinStaff('Ferris Taylor Cottage Interior', [
     posts: [[62, 44, -Math.PI/2, 9000, true], [148, 52, -Math.PI/2, 6000, true]] },
 ]);
 walkinLife('Ferris Taylor Cottage Interior', { keep: [[30, 93, 70, 204]], looks: [] });
+/* (the gatehouse, 400 high, stands over the room's east wall and hearth on screen; the room used to be painted over it at full strength, so the
+   room's walls cut across the arch and its clock. It ghosts instead while he is in the room, as W26's neighbours do: the hl queue reads
+   `ghostLib` on the gatehouse piece and eases it with shellGhostK) */
+const ALMS_GATEHOUSE_GHOST = 'Almshouses gatehouse';
+POCKETS.find(q => q.name === 'Ferris Taylor Cottage Interior').ghosts = [ALMS_GATEHOUSE_GHOST];
 /* the gatehouse's depth while the cottage's room is open (undefined otherwise: the hl queue sorts it as always) -- just under the room's ground */
 function ctgGatehouseDepth(){
   const sc = typeof scn === 'function' ? scn() : null, pk = sc && POCKETS.find(q => q.name === 'Ferris Taylor Cottage Interior');
@@ -72275,6 +72281,7 @@ marinaEntry(),
        east: its hearth, dresser and table): while he is in the room, or its shell is still fading, the gatehouse is sorted just under the room's
        floor, so the room is drawn over it as a room is drawn over the street (the explicit depth: the hl queue takes `depth` when it is given) */
     { const gh = items.find(q => q.a === GM && q.b === CB1 - RD/2);
+      if(gh) gh.ghostLib = ALMS_GATEHOUSE_GHOST;
       if(gh) Object.defineProperty(gh, 'depth', { get: ctgGatehouseDepth, enumerable: true, configurable: true });
       /* (the court's trees stand behind the gatehouse: they stay behind it, just under it, while it is under the room) */
       for(const [ta, tb] of A.trees){ const tr = items.find(q => q.a === ta && q.b === tb);
@@ -105845,7 +105852,8 @@ class WorldScene extends Phaser.Scene {
           if(it.shell && _cut <= 0 && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
           if(it.shell && it.cutTop && _cut > 0 && _cut < it.cutTop) return;   // (whole or not at all: the ER's canopy)
           const _fa = it.shell && _cut <= 0 && _hsk < 1, _ct = it.shell && _cut > 0;
-          const _fu = it.fadeUnder && !_ct && !(this.ow && this.ow.deck) && this.botX > it.fadeUnder[0] && this.botX < it.fadeUnder[1] && this.botY > it.fadeUnder[2] && this.botY < it.fadeUnder[3] ? 0.3 : 1;   // (him under it: see-through)
+          const _gk = it.ghostLib ? shellGhostK(this, it.ghostLib) : 1;   // (a neighbour over the room, ghosted while he is in it: pk.ghosts)
+          const _fu = _gk < 1 ? _gk : it.fadeUnder && !_ct && !(this.ow && this.ow.deck) && this.botX > it.fadeUnder[0] && this.botX < it.fadeUnder[1] && this.botY > it.fadeUnder[2] && this.botY < it.fadeUnder[3] ? 0.3 : 1;   // (him under it: see-through)
           const q = fr.toWorld(it.a || 0, it.b);
           /* (cut: the tiles under the tower go before the whole room; the podium's wings beside it sort by their own
              place -- after the street's cars and palms behind them -- but never past him: Sir, 2026-10-26, "the world
@@ -119528,6 +119536,15 @@ class WorldScene extends Phaser.Scene {
       if(gpsNav){
         gpsNavReplot(this);
         if(gpsNavArrived(this)){ gpsNavLaunch(this); return; }
+        /* ARRIVED AT A PLACE: a place trip has no mat to arm, so it never
+           ended (Sir, 2026-11-09: "it doesn't drop the gps"). Within ~15 ft
+           of the end of the line, the trip is over. */
+        if(gpsNav && gpsNav.id === "place" && gpsNav.path && gpsNav.distU != null && gpsNav.distU < 25){
+          const nm = gpsNav.name;
+          gpsNavClear();
+          if(typeof tpToast === "function") tpToast("You've arrived at " + nm + ".");
+          if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(this);
+        }
       }
       /* CANCELLATION: par + grace expired -> the order dies. A fail
          with the robot upright: the state gate stops the sim, input
@@ -137195,6 +137212,19 @@ function tpMissionById(id){ return TP_SIDE_MISSIONS.find(m=>m.id===id); }
 function tpSheetStatusEl(){
   return tpSheetStatusEl.el || (tpSheetStatusEl.el = document.getElementById("sheetStatus"));
 }
+function tpCancelRoute(){
+  const s = scn();
+  if(typeof gpsNav === "undefined" || !gpsNav || gpsNav.id === "dropoff") return;
+  const det = gpsNav.detour && s && s.mode === "delivery" && s.route && s.route.addressMat;
+  if(det){ const am = s.route.addressMat; gpsNavTo(s, "dropoff", s.route.address, am.x, am.y); }
+  else { gpsNavClear(); tpGoneNav = null; tpGoneKey = null; }
+  if(s && typeof tpSyncOrderCard === "function") tpSyncOrderCard(s);
+  if(s && typeof tpSyncMapChrome === "function") tpSyncMapChrome(s);
+}
+document.addEventListener("click", e => {
+  const b = e.target && e.target.closest && e.target.closest(".tpCancelRoute");
+  if(b){ e.preventDefault(); e.stopPropagation(); tpCancelRoute(); }
+}, true);
 function tpSyncOrderCard(s){
   tpSyncOrderCardBody(s);
   const card = document.getElementById("orderCard"), st = tpSheetStatusEl();
@@ -137239,6 +137269,9 @@ function tpSyncOrderCardBody(s){
     card.innerHTML = _det
       ? tag("ADD A STOP") + `<b>${gpsNav.shop || name}</b> — press GO, stop on its rug, then on to <b>${s.route.address}</b>`
       : tag(_drop ? "DELIVER" : "ROUTING") + `<b>${name}</b> — ${(m && m.card) || (_drop ? "stop at the door" + _then : "drive there, then press GO")}`;
+    /* CANCEL ROUTE: a stand-alone way to drop the trip (Sir, 2026-11-09).
+       Not offered for the drop-off, which is the order aboard's own leg. */
+    if(!_drop) card.innerHTML += `<button type="button" class="tpCancelRoute" aria-label="Cancel route" style="position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:999px;border:1px solid rgba(181,84,14,.5);background:rgba(255,255,255,.7);color:#b5540e;font:700 12px sans-serif;cursor:pointer">\u2715 Cancel route</button>`;
     const bits = [];
     if(gpsNav.distU != null) bits.push(tpDistText(gpsNav.distU));
     if(gpsNav.etaMs != null) bits.push("ETA " + tpClockText(gpsNav.etaMs));
@@ -138501,6 +138534,12 @@ setInterval(tpAvatarPadGate, 250);
       return;
     }
     const s = scn();
+    /* ON THE MAP the robot is Exit map (Sir, 2026-11-09): the profile is no
+       use there. Same condition as the marker's own "Exit map" pill. */
+    { const to = document.getElementById("titleOverlay"), pp = document.getElementById("tpProfilePanel");
+      if(to && !to.classList.contains("hidden") && !(pp && pp.classList.contains("open"))
+         && ((typeof tpSearchMap !== "undefined" && tpSearchMap) || (typeof tpPausedWorld !== "undefined" && tpPausedWorld))
+         && typeof tpMapResumeDriving === "function" && tpMapResumeDriving()) return; }
     hide("failOverlay");
     /* !s._slAPI excludes Cone Slalom (2026-08-10, reported on-device):
        slalom ALSO sets mode:"challenge" (it reuses hjChrome's quiet
