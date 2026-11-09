@@ -136030,8 +136030,27 @@ function tpMapSyncPulses(list){
    grass, pavement and road, the same mid tones as the text. Now a size
    up and drawn the way map apps do: a white halo stroked first, the dark
    name filled over it, so the letters never touch what is underneath. */
-function tpMapLabel(ctx, text, x, y, px, bold){
+/* LABEL BOXES: every label placed this draw, so later labels can dodge them. */
+let tpLblBoxes = [];
+let tpStreetLbls = [];
+function tpLblHit(b){ for(const o of tpLblBoxes) if(b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0) return true; return false; }
+function tpLblReserve(x, y, w, h){ tpLblBoxes.push({ x0: x - w/2, x1: x + w/2, y0: y - h/2, y1: y + h/2 }); }
+/* opts.skip: drop the label instead of moving it when it would collide */
+function tpMapLabel(ctx, text, x, y, px, bold, opts){
   ctx.save();
+  ctx.font = (bold ? "700 " : "600 ") + px + "px sans-serif";
+  { const w = ctx.measureText(text).width + 4, h = px + 3;
+    let box = { x0: x - w/2, x1: x + w/2, y0: y - h/2, y1: y + h/2 };
+    if(tpLblHit(box)){
+      if(opts && opts.skip){ ctx.restore(); return false; }
+      let moved = false;
+      for(const dy of [h, -h, 2*h, -2*h]){
+        const b2 = { x0: box.x0, x1: box.x1, y0: box.y0 + dy, y1: box.y1 + dy };
+        if(!tpLblHit(b2)){ box = b2; y += dy; moved = true; break; }
+      }
+      if(!moved && opts && opts.skip){ ctx.restore(); return false; }
+    }
+    tpLblBoxes.push(box); }
   ctx.font = (bold ? "700 " : "600 ") + px + "px sans-serif";
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.lineJoin = "round"; ctx.miterLimit = 2;
@@ -136045,6 +136064,7 @@ function drawRouteMap(route){
   const canvas = document.getElementById("routeMap");
   if(!canvas) return;
   tpMapSyncPulses([]);        // an early return below must not leave last draw's rings up
+  tpLblBoxes = []; tpStreetLbls = [];
   const ctx = canvas.getContext("2d");
   const W = canvas.clientWidth, H = canvas.clientHeight;
   ctx.clearRect(0, 0, W, H);
@@ -136493,6 +136513,9 @@ function drawRouteMap(route){
     ctx.fillStyle = "#f1ecde";
     ctx.strokeStyle = "rgba(30,32,38,.85)"; ctx.lineWidth = 3; ctx.lineJoin = "round";
     const labeledRows = new Set(), labeledCols = new Set();
+    /* collected here, drawn at the end (tpFlushStreetLabels) so they can dodge
+       every place label; one per street NAME, the one nearest the middle */
+    const _cx0 = W / 2, _cy0 = H / 2, _best = new Map();
     for(const e of bgRoute.grid.edges){
       const midX = (e.a.x+e.b.x)/2, midY = (e.a.y+e.b.y)/2;
       if(!inView(midX, midY)) continue;
@@ -136502,14 +136525,17 @@ function drawRouteMap(route){
         labeledRows.add(e.a.j);
         const segHood = hoodAt(e.a.i, e.a.j);
         const name = segHood.streets[e.a.j % segHood.streets.length];
-        ctx.save(); ctx.translate(p.x, p.y-7); ctx.strokeText(name, 0, 0); ctx.fillText(name, 0, 0); ctx.restore();
+        { const d = Math.hypot(p.x - _cx0, p.y - _cy0), o = _best.get(name);
+          if(!o || d < o.d) _best.set(name, { d, text: name, x: p.x, y: p.y - 7, rot: false }); }
       } else {
         if(labeledCols.has(e.a.i)) continue;
         labeledCols.add(e.a.i);
         const n = e.a.i+1, suffix = (n%10===1&&n!==11) ? "st" : (n%10===2&&n!==12) ? "nd" : (n%10===3&&n!==13) ? "rd" : "th";
-        ctx.save(); ctx.translate(p.x-7, p.y); ctx.rotate(-Math.PI/2); ctx.strokeText(n+suffix+" St", 0, 0); ctx.fillText(n+suffix+" St", 0, 0); ctx.restore();
+        { const nm = n + suffix + " St", d = Math.hypot(p.x - _cx0, p.y - _cy0), o = _best.get(nm);
+          if(!o || d < o.d) _best.set(nm, { d, text: nm, x: p.x - 7, y: p.y, rot: true }); }
       }
     }
+    tpStreetLbls = [..._best.values()].sort((a, b) => a.d - b.d);
   } else {
     /* neighborhood names instead — one per district, centered on that
        district's own block. hoodAt/HOODS/DISTRICT_* are the permanent,
@@ -136533,8 +136559,9 @@ function drawRouteMap(route){
         if(!inView(wx, wy)) continue;
         const p = toScreen({x:wx, y:wy});
         const name = HOODS[dr*DISTRICT_COLS + dc].n;
-        ctx.strokeText(name, p.x, p.y);
+        ctx.lineWidth = 4.5; ctx.strokeText(name, p.x, p.y);
         ctx.fillText(name, p.x, p.y);
+        tpLblReserve(p.x, p.y, ctx.measureText(name).width + 6, 18);
       }
     }
   }
@@ -136554,9 +136581,10 @@ function drawRouteMap(route){
       ctx.save();
       ctx.font = "italic 700 15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       if("letterSpacing" in ctx) ctx.letterSpacing = "3px";
-      ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.fillStyle = MARITIME_PAL.nauticalNavy;
+      ctx.lineWidth = 5; ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.fillStyle = MARITIME_PAL.nauticalNavy;
       ctx.strokeText(name.toUpperCase(), p.x, p.y);
       ctx.fillText(name.toUpperCase(), p.x, p.y);
+      tpLblReserve(p.x, p.y, ctx.measureText(name.toUpperCase()).width + 8, 22);
       ctx.restore();
     }
     /* North Sunset Shore runs down the west rim, so its name runs down it */
@@ -136819,6 +136847,7 @@ function drawRouteMap(route){
         ctx.strokeStyle = "#fff"; ctx.lineWidth = pr < 6 ? 1 : 1.2; ctx.stroke();
         ctx.font = Math.round(pr * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(sh.icon, pp.x, pp.y);
+        if(sp >= 11) tpMapLabel(ctx, sh.name, pp.x, pp.y + pr + 8, 10, false, { skip: true });   // names only where they fit
         tpMapMissionPins.push({ id: "shop:" + sh.key, x: pp.x, y: pp.y, r: 9 });
       } else {
         const rk = sh.blockKey, r = rows.get(rk);   // per BLOCK: its two rows sat on top of each other
@@ -137021,6 +137050,22 @@ function drawRouteMap(route){
       }
   }
   if(tpPlaceSel && !usingAtlas) tpPlaceDrawPin(ctx, toScreen(tpPlaceSel));
+  /* STREET NAMES LAST: drawn only where they do not sit on a place or district label */
+  if(tpStreetLbls.length){
+    ctx.save();
+    ctx.font = "600 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#f1ecde"; ctx.strokeStyle = "rgba(30,32,38,.85)"; ctx.lineWidth = 3; ctx.lineJoin = "round";
+    for(const L of tpStreetLbls){
+      const w = ctx.measureText(L.text).width + 4, h = 15;
+      const bw = L.rot ? h : w, bh = L.rot ? w : h;
+      const box = { x0: L.x - bw/2, x1: L.x + bw/2, y0: L.y - bh/2, y1: L.y + bh/2 };
+      if(tpLblHit(box)) continue;
+      tpLblBoxes.push(box);
+      ctx.save(); ctx.translate(L.x, L.y); if(L.rot) ctx.rotate(-Math.PI/2);
+      ctx.strokeText(L.text, 0, 0); ctx.fillText(L.text, 0, 0); ctx.restore();
+    }
+    ctx.restore();
+  }
   tpMapSyncPulses(_pulses);
   bootLoaderDone();
 }
