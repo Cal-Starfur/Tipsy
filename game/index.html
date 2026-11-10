@@ -113832,10 +113832,11 @@ class WorldScene extends Phaser.Scene {
     horns.sort((p, q) => V.depth(p[0], p[1]*hw, H) - V.depth(q[0], q[1]*hw, H));
     for(const [a, sb] of horns){
       const bb = sb*(hw - 6), s2 = Math.sign(a);
-      solid(prismH([[a - 10, bb - 8], [a + 10, bb - 8], [a + 10, bb + 8], [a - 10, bb + 8]], H - 18, H + 4), DARK);
-      this.avLathe(V, a + s2*2, bb, [[H + 4, 6], [H + 9, 6]], DARK, null, 10);
-      this.avLathe(V, a + s2*2, bb, [[H + 9, 6.3], [H + 11, 6.3]], CYAN, () => CYAN, 10);
-      this.avLathe(V, a + s2*2, bb, [[H + 11, 6], [H + 14, 4.5]], 0x2d3238, null, 10);
+      /* the small lidar (Sir, 2026-11-10: "too big, just use the small version"): a low plate and the puck with its cyan ring, as the sensor kit's, no box under it */
+      solid(prismH([[a - 4.5, bb - 4.5], [a + 4.5, bb - 4.5], [a + 4.5, bb + 4.5], [a - 4.5, bb + 4.5]], H - 2, H + 1.5), DARK);
+      this.avLathe(V, a, bb, [[H + 1.5, 4.6], [H + 5.5, 4.6]], DARK, null, 10);
+      this.avLathe(V, a, bb, [[H + 5.5, 4.9], [H + 7, 4.9]], CYAN, () => CYAN, 10);
+      this.avLathe(V, a, bb, [[H + 7, 4.6], [H + 9.5, 3.4]], 0x2d3238, null, 10);
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
