@@ -3416,7 +3416,7 @@ const FLEET = {
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: { botR: 44 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
-                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
+                ctl: { botR: 28 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
   patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
                 ctl: {}, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
   amr:        { name: "Warehouse robot", cls: "walk", art: "amr", body: { len: BOTS.amr.len, wid: 76, h: 80, cap: true }, fit: { r: 55, h: 80 },
@@ -108488,9 +108488,9 @@ class WorldScene extends Phaser.Scene {
              to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade -- as Gideon's 'cap' (RB.hat) */
           const rr = cR*0.98, zb = cz0 + 1, HP = { c: cap.c, dk: cap.dk }, HP2 = { c: _pdk(cap.c, 0.84), dk: _pdk(cap.c, 0.64) };
           const grow4 = q => { let cx = 0, cy = 0; for(const q0 of q){ cx += q0.x; cy += q0.y; } cx /= 4; cy /= 4; return q.map(q0 => { const dx = q0.x - cx, dy = q0.y - cy, d = Math.hypot(dx, dy) || 1; return { x: q0.x + dx/d*0.4, y: q0.y + dy/d*0.4 }; }); };
-          const bill = () => { const N = 12, len = build.headR*0.9, inn = [], out = [], out2 = [];
-            for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.8 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
-              inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
+          const bill = () => { const N = 12, len = build.headR*0.6, inn = [], out = [], out2 = [];                  // (a shorter bill, set a little lower on the crown's rim)
+            for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.5 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
+              inn.push(G(sn2*rr*0.97, c*rr*0.97, zb + 0.4)); out.push(G(sn2*ro, c*ro, zb - 1.6)); out2.push(G(sn2*ro, c*ro, zb - 2.8)); }
             for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
               this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], HP.dk); } };
           const crown = () => { prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, topCol: cap.top, n: 12 });
