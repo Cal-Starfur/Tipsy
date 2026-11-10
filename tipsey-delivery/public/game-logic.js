@@ -112710,8 +112710,8 @@ class WorldScene extends Phaser.Scene {
     const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q } = V;
     V.outline = FLEET_OUTLINE;
     /* THE PLAYER'S OWN PAINT (the standing rules): the drone he flies (data.paint) wears his equipped look -- body colour, finish and print on
-       the pod's flank, his stripe (and the second band under it), the stripe's pattern and badge, his flag or a skin's topper on a whip
-       over the canopy, his eyes in the face. The ones in the sky keep the stock white and orange */
+       the pod's flank, his stripe (and the second band under it), the stripe's pattern and badge, and the propeller holders
+       in his colours (no flag or topper), his eyes in the face. The ones in the sky keep the stock white and orange */
     const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
     const BODY = WEAR ? BPW.top : 0xf2f3f1, ORANGE = WEAR ? SKIN.stripe : 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [], edgeOn = Math.abs(V.eye[1]) < 0.12;
@@ -112747,7 +112747,9 @@ class WorldScene extends Phaser.Scene {
     for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH), draw: () => {
       const r0 = D.ring ? 10 : 24*ps, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
-      this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
+      this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], WEAR ? BODY : DARK, null, 10);   // (worn: the propeller holders take his body colour, his stripe round each and his second band's tone on the cap, in place of a flag)
+      if(WEAR){ this.avLathe(V, A.a, A.b, [[AH, 7.5], [AH + 4.5, 7.5]], ORANGE, null, 10);
+        this.avLathe(V, A.a, A.b, [[AH + 8, 7.2], [AH + 10, 4.2], [AH + 11, 4.2]], SKIN.stripe2 != null ? SKIN.stripe2 : DARK, null, 10); }
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
       const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
       if(spin > 0.05) Q(ring, 0xd9dde0, 0.12*Math.min(1, spin*1.4));
@@ -112801,14 +112803,6 @@ class WorldScene extends Phaser.Scene {
       if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34, 1.3, { mouthZ: HB + 10 });
       else this.tipseyFace(V, 38*ps, HB + 17*ps, 0.6*ps, { mouthZ: HB + 4*ps });
     } });
-    /* HIS FLAG (or a skin's topper) on a whip over the canopy's tail, clear of the rotors (their discs start 44 out) */
-    if(WEAR && !D.ring){
-      const wa = -24*ps, wz0 = HT + 6, wz1 = HT + 6 + 34*ps;
-      parts.push({ d: V.depth(wa, 0, wz1), draw: () => {
-        line([wa, 0, wz0], [wa, 0, wz1], SKIN.flagPole, 2.6);
-        if(!this.botTopper(g, V, wa, 0, wz1)) Q([P(wa, 0, wz1), P(wa - 16, 0, wz1 - 5), P(wa, 0, wz1 - 10)], SKIN.flag);
-      } });
-    }
     V.paint(parts);
   }
   /* TIPSEY'S FACE, THE BRAND (Sir, 2026-10-13: "they all need the tipsey
