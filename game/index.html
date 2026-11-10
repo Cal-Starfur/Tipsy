@@ -113808,9 +113808,24 @@ class WorldScene extends Phaser.Scene {
           for(const Lk of (data && (data.lockers || (data.locker ? [data.locker] : []))) || []){
             if(!(Lk.open > 0.01)) continue;
             const s2 = Lk.s != null ? Lk.s : Lk.k, a0 = -hl + 14 + (s2 % 3)*44, a1 = a0 + 40, h0 = s2 < 3 ? 86 : 50, h1 = h0 + 32, ph = Lk.open*Math.PI*0.55;
-            Q([P(a0 + 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h1 - 2), P(a0 + 2, fb*1.002, h1 - 2)], 0x1b1f24);
-            if(Lk.full){ Q([P(a0 + 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 20), P(a0 + 6, fb*1.004, h0 + 20)], 0xf4f6f6);
-                         Q([P(a0 + 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 20), P(a0 + 8, fb*1.005, h0 + 20)], 0xcfe3ec); }
+            /* THE LOCKER IS A CAVITY (Sir, 2026-11-10: "not just a dark shape"): a real box let into the flank, 54 deep, drawn through the door's
+               opening (clipped to it): the back wall, the floor, and the side wall that faces the eye, so it changes with the heading; the order
+               stands on the floor in it, on ice. Its door is drawn over it, swung out */
+            { const A0 = a0 + 2, A1 = a1 - 2, H0 = h0 + 2, H1 = h1 - 2, far = fb - nearB*54, fo = fb*1.002, clip0 = this.drawClip;
+              if(!clip0) this.drawClip = [P(A0, fo, H0), P(A1, fo, H0), P(A1, fo, H1), P(A0, fo, H1)];
+              try {
+                Q([P(A0, far, H0), P(A1, far, H0), P(A1, far, H1), P(A0, far, H1)], 0x3a414c);          // the back wall
+                Q([P(A0, fb, H0), P(A1, fb, H0), P(A1, far, H0), P(A0, far, H0)], 0x7a818c);              // the floor
+                Q([P(A0, far, H1 - 4), P(A1, far, H1 - 4), P(A1, far, H1), P(A0, far, H1)], 0xcfd8e2);    // a light along the top of the back wall
+                if(sees(-1, 0, 0)) Q([P(A1, fb, H0), P(A1, far, H0), P(A1, far, H1), P(A1, fb, H1)], 0x2c3138);   // the side walls that face the eye
+                if(sees(1, 0, 0)) Q([P(A0, fb, H0), P(A0, far, H0), P(A0, far, H1), P(A0, fb, H1)], 0x2c3138);
+                if(Lk.full){                                                                              // (an order, boxed, on ice)
+                  const ob = fb - nearB*12, of = fb - nearB*40;
+                  solid(prismH([[A0 + 6, ob], [A1 - 6, ob], [A1 - 6, of], [A0 + 6, of]], H0, H0 + 14), 0xf4f6f6);
+                  solid(prismH([[A0 + 8, ob], [A1 - 8, ob], [A1 - 8, of], [A0 + 8, of]], H0 + 14, H0 + 17), 0xcfe3ec);
+                }
+                Q([P(A0, fo, H0), P(A0 + 5, fo, H0), P(A0 + 5, fo, H1), P(A0, fo, H1)], 0x14171c, 0.4);   // (a shade down the near jamb: the depth)
+              } finally { this.drawClip = clip0; } }
             const ea = a0 + 40*Math.cos(ph), eb = fb + nearB*40*Math.sin(ph);
             Q([P(a0, fb*1.003, h0), P(ea, eb, h0), P(ea, eb, h1), P(a0, fb*1.003, h1)], shadeC(WHITE, 0.88));
             line([ea, eb, h0], [ea, eb, h1], shadeC(WHITE, 0.7), 1);
