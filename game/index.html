@@ -114448,12 +114448,13 @@ class WorldScene extends Phaser.Scene {
     const RD = data && data.rider ? data.rider : null;
     const riderDraw = () => {
       const th0 = fdir*(Math.PI/2), c0 = Math.cos(th0), s0 = Math.sin(th0), sb = sees(0, 1, 0) ? 1 : -1, b = sb*RD.d, B = rosterBody(RD.seed || 7), U = withAid(TIPSY_CREW_UNIFORM, B);
-      const th = RD.along ? Math.atan2(s0, c0) : Math.atan2(-sb*c0, sb*s0), w = RD.waist || 0,   // (RD.along: turned to walk along the cabin toward its nose, once in)
+      const th = Math.atan2(-sb*c0, sb*s0) + Math.PI*(RD.turn || 0), w = RD.waist || 0,   // (RD.turn 0..1: about face, to sit facing the door)
+          // (RD.along: turned to walk along the cabin toward its nose, once in)
          bk = (B.build.torsoH + B.build.headR)*0.5*Math.sin(w)*1.6;
       const wx = x + RD.a*c0 - b*s0 - Math.cos(th)*bk, wy = y + RD.a*s0 + b*c0 - Math.sin(th)*bk;
       const st = this._seenThrough; this._seenThrough = true;
-      try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 6), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
-        RD.moving ? Math.sin(RD.gait || 0) : 0, !!RD.moving, 0, 0, null, U, true, w || RD.drop ? { waist: w, drop: RD.drop || 0 } : null); }
+      try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 2), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
+        RD.moving ? Math.sin(RD.gait || 0) : 0, !!RD.moving, 0, 0, null, U, true, w || RD.drop || RD.sit != null ? { waist: w, drop: RD.drop || 0, sit: RD.sit } : null); }
       finally { this._seenThrough = st; }
     };
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
@@ -114535,9 +114536,9 @@ class WorldScene extends Phaser.Scene {
       if(D.load === "cabin"){
         const g0 = HB + 22, g1 = HT - 8;
         solid(prismH(pod, HB, g0 - 6), BODY); solid(prismH(pod, g0 - 6, g0), ORANGE);
-        solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);
-        solid(prismH(pod, g1, HT), BODY);
-        wearPod(HB, g0 - 6, g0 - 6, g0, HB + 2.5, HB + 5.5, HB + 8, 0.3*ps, false);   // (the glazed cabin: the print on the 16-high panel under the band)
+        solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);   // (the roof's ledge, g1..HT, is painted after the rider: they are seen through the glass, under it)
+        wearPod(HB, g0 - 6, g0 - 6, g0, HB + 2.5, HB + 5.5, HB + 8, 0.3*ps, false);
+        if(edgeOn) solid(prismH(pod, g1, HT), BODY);   // (the glazed cabin: the print on the 16-high panel under the band)
         /* THE CABIN DOOR (Sir, 2026-11-10: "how do people get in and out? ... a sliding door system like the robo taxi"): as the robotaxi's, a
            door in the near flank, two leaves in the flank's own colour with a window each, meeting at a seam; open (data.door 0..1: wide while it
            sits landed and still) they slide apart, one to the tail and one to the nose, over the flank, and through the opening, clipped to it, a
@@ -114546,30 +114547,31 @@ class WorldScene extends Phaser.Scene {
         if(!edgeOn){
           const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bAt = (a, o) => sb*((16 + (a - aR)/(aF - aR)*4)*ps + (o || 0));
           const du = Math.max(0, Math.min(1, (data && data.door) || 0));
-          const d0 = -34, d1 = 14, dh0 = HB + 6, dh1 = g1, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
+          const d0 = -34, d1 = 14, dh0 = HB + 2, dh1 = HT - 3, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
           const fl = shadeC(BODY, V.lit([0, sb, 0])), seam = shadeC(BODY, V.lit([0, sb, 0])*0.6);
           const fQ = (a0, a1, h0, h1, o, c, al) => Q([P(a0, bAt(a0, o), h0), P(a1, bAt(a1, o), h0), P(a1, bAt(a1, o), h1), P(a0, bAt(a0, o), h1)], c, al);
-          const opening = [P(d0, bAt(d0, 0.3), dh0), P(d1, bAt(d1, 0.3), dh0), P(d1, bAt(d1, 0.3), dh1), P(d0, bAt(d0, 0.3), dh1)], clip0 = this.drawClip;
+          const opening = [P(d0, bAt(d0, 0.3), dh0), P(d1, bAt(d1, 0.3), dh0), P(d1, bAt(d1, 0.3), dh1 + 70), P(d0, bAt(d0, 0.3), dh1 + 70)], clip0 = this.drawClip;   // (up through the glass above the door: a rider deep in the cabin shows there)
           if(du > 0.02){
             if(!clip0) this.drawClip = opening;
             try {
-              const ia0 = aR + 8, ia1 = aF - 8, far = -sb*(15*ps), fz = dh0, ct = dh1 + 6;
+              const ia0 = aR + 8, ia1 = aF - 8, far = -sb*(15*ps), fz = dh0, ct = dh1;
               Q([P(ia0, far, fz), P(ia1, far, fz), P(ia1, far, ct), P(ia0, far, ct)], 0x4a5160);                       // the far wall
               Q([P(ia0, far, fz + 22), P(ia1, far, fz + 22), P(ia1, far, ct - 8), P(ia0, far, ct - 8)], 0x2a3a52);     // its window
               Q([P(ia0, far, ct - 4), P(ia1, far, ct - 4), P(ia1, far, ct), P(ia0, far, ct)], 0xcfd8e2);              // the cabin light
               Q([P(ia0, bAt(ia0, 0), fz), P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia0, far, fz)], 0x5d646f);        // the floor
               if(sees(-1, 0, 0)) Q([P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, bAt(ia1, 0), ct)], 0x2c3138);
               if(sees(1, 0, 0)) Q([P(ia0, bAt(ia0, 0), fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, bAt(ia0, 0), ct)], 0x2c3138);
-              const sb1 = far + sb*20*ps/2.1, bk = far + sb*7;                                                           // a bench along the far wall
+              const sbf = sb*2, sb1 = sb*28, bk = sb*8;   // (a bench inside the door, its back toward the cabin's middle and its seat out toward the door: a rider on it sits facing out, where the opening shows them)                                                           // a bench along the far wall
               for(const [x0, x1] of [[ia0 + 8, mid - 4], [mid + 4, ia1 - 8]]){
-                solid(prismH([[x0, far], [x1, far], [x1, sb1], [x0, sb1]], fz, fz + 12), 0x5d6672);
-                solid(prismH([[x0, far], [x1, far], [x1, bk], [x0, bk]], fz + 12, fz + 38), 0x48505c);
-                solid(prismH([[x0, far + (sb1 - far)*0.1], [x1, far + (sb1 - far)*0.1], [x1, sb1], [x0, sb1]], fz + 12, fz + 14.5), ORANGE);
+                solid(prismH([[x0, sbf], [x1, sbf], [x1, sb1], [x0, sb1]], fz, fz + 24), 0x5d6672);
+                solid(prismH([[x0, sbf], [x1, sbf], [x1, bk], [x0, bk]], fz + 24, fz + 58), 0x48505c);
+                solid(prismH([[x0, bk], [x1, bk], [x1, sb1], [x0, sb1]], fz + 24, fz + 26.5), ORANGE);
               }
               if(RD && RD.d < bAt(RD.a, 0)*sb - 1) riderDraw();                                                           // (a rider inside the door plane, through the opening)
               fQ(d0, d0 + 4, dh0, dh1, 0.3, 0x14171c, 0.45);                                                         // a shade down the near jamb
             } finally { this.drawClip = clip0; }
           }
+          solid(prismH(pod, g1, HT), BODY);
           const lo = 0.3 + Math.min(1, du/0.25)*3, printed = WEAR && (BPW.print || BPW.fin);
           for(const [l0, l1] of [[d0 - sh, mid - sh], [mid + sh, d1 + sh]]){
             if(printed) fQ(l0, l1, dh0, g0 - 6, lo, 0x000000, 0.07); else fQ(l0, l1, dh0, g0 - 6, lo, fl);            // (a worn print shows through the leaf: a shade over it, never a solid panel)
