@@ -112830,9 +112830,9 @@ class WorldScene extends Phaser.Scene {
       if(D.load === "cabin"){
         const kh = (HT - HB)/74, kp = ps/2.1, g0 = HB + 22*kh, g1 = HT - 6, gb = g0 - 6*kh;   // (the roof's ledge 6 thick: the door runs right up to it, never into it)   // (the cabin's rhythm, kept as it grows: kh up, kp along)
         solid(prismH(pod, HB, gb), BODY); solid(prismH(pod, gb, g0), ORANGE);
-        solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);   // (the roof's ledge, g1..HT, is painted after the rider: they are seen through the glass, under it)
+        solid(prismH(pod, g0, g1), GLASS);   // (the roof's ledge, g1..HT, is painted after the rider: they are seen through the glass, under it)
         wearPod(HB, gb, gb, g0, HB + 2.5*kh, HB + 5.5*kh, HB + 8*kh, 0.3*ps*kh/1.0*0.5, false);
-        if(edgeOn) solid(prismH(pod, g1, HT), BODY);   // (the glazed cabin: the print on the 16-high panel under the band)
+        if(edgeOn) solid(prismH(pod, g1 - 5, HT), BODY);   // (the glazed cabin: the print on the 16-high panel under the band)
         /* THE CABIN DOOR (Sir, 2026-11-10: "how do people get in and out? ... a sliding door system like the robo taxi"): as the robotaxi's, a
            door in the near flank, two leaves in the flank's own colour with a window each, meeting at a seam; open (data.door 0..1: wide while it
            sits landed and still) they slide apart, one to the tail and one to the nose, over the flank, and through the opening, clipped to it, a
@@ -112865,7 +112865,7 @@ class WorldScene extends Phaser.Scene {
               fQ(d0, d0 + 4, dh0, dh1, 0.3, 0x14171c, 0.45);                                                         // a shade down the near jamb
             } finally { this.drawClip = clip0; }
           }
-          solid(prismH(pod, g1, HT), BODY);
+          solid(prismH(pod, g1 - 5, HT), BODY);                                                                       // (the roof sits 5 down over the glass's top, so the two meet with no light band or gap between them)
           const lo = 0.3 + Math.min(1, du/0.25)*3, printed = WEAR && (BPW.print || BPW.fin);
           for(const [l0, l1] of [[d0 - sh, mid - sh], [mid + sh, d1 + sh]]){
             if(printed) fQ(l0, l1, dh0, gb, lo, 0x000000, 0.07); else fQ(l0, l1, dh0, gb, lo, fl);            // (a worn print shows through the leaf: a shade over it, never a solid panel)
