@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ e5e4e16): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ f9fd0ca): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'e5e4e16'; })();</script>
+  window.TIPSY_TEST_BUILD = 'f9fd0ca'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -28781,7 +28781,7 @@ function walkinLifeInit(R, s, now){
               rnd, spot: null, look: null, k: 0, task: null, life };
   if(life === 'patrol'){ const p = s.route[0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2], until: now + (p[3] || 4000)*rnd() }); }
   else if(life === 'browse' && !s.with && s.bather && R.pools.length && rnd() < 0.6){
-    const P = R.pools[(s.seed >>> 2) % R.pools.length]; Object.assign(m, { a: P.entry[0], b: P.entry[1], th: -Math.PI/2, face: -Math.PI/2 }); walkinSwimStart(R, s, m, P, now, true); }
+    const P = R.pools[(s.seed >>> 2) % R.pools.length]; Object.assign(m, { a: P.entry[0], b: P.entry[1], th: -Math.PI/2, face: -Math.PI/2 }); if(!walkinSwimStart(R, s, m, P, now, true)){ const sp = walkinFreeSpots(R, s, null, 1)[0]; if(sp) Object.assign(m, { a: sp.p[0], b: sp.p[1], th: sp.p[2], face: sp.p[2], spot: sp.key, look: sp.look, up: sp.up }); } }
   else if(life === 'browse' && !s.with){ const sp = walkinFreeSpots(R, s, null, 1)[0] || null;
     if(sp){ Object.assign(m, { a: sp.p[0], b: sp.p[1], th: sp.p[2], face: sp.p[2], spot: sp.key, look: sp.look, up: sp.up }); }
     else { const p = s.posts ? s.posts[0] : [R.pk.w/2, R.pk.d/2, 0]; Object.assign(m, { a: p[0], b: p[1], th: p[2], face: p[2] }); } }
@@ -28888,32 +28888,31 @@ function walkinNext(R, s, m, now, bot){
   if(m.task != null){ if(walkinGo(R, s, m, home, home[2], walkinAvoid(R, s, bot))){ m.task = null; m.dwell = 12000 + rnd()*18000; m.workAt = !!home[4]; return; } }
   m.until = now + 6000 + rnd()*12000; m.work = !!home[4];
 }
-/* ==================== THE BATHS' BATHERS (Sir, 2026-11-09: "inside of the baths we need bathers, the people are currently just
-   walking around") ====================
-   A visitor with `bather: true` (a look of the surf school's own swimwear) walks to the bath's steps, wades in over the kerb,
-   lies down and swims or floats, comes back to the steps and walks off again -- on the room's own clock (visitors come and go
-   by its hours, THE ROOM'S DAY). The room declares each bath in walkinLife: `pools: [{ entry: [a, b] (the deck at the steps),
-   way: [[a, b, z], ...] (walked in, entry to the last step), home: [a, b] (where they lie down), reach: [bMin, aSpan] }]`.
-   A bather swims prone (arms alternating, the surf school's paddling pose) or floats on their back (seeded); the swim is a closed
-   loop out from `home` and back, slow. Someone leaving mid-swim (closing) comes out first (walkinLeave waits for it). */
-const WALKIN_SWIM = { walkV: 0.065, wadeV: 0.04, rampMs: 1400, swimV: 0.03, lie: 7.5, half: 36 };
-function walkinSwimStart(R, s, m, P, now, floating){
-  const rnd = m.rnd, n = P.way.length;
-  m.swim = { P, ph: floating ? 'float' : 'in', t: now, tl: now, i: 1, style: (s.seed >>> 0) & 1 ? 'back' : 'crawl', dur: 30000 + rnd()*50000, c1: 1 + Math.floor(rnd()*2), c2: 1 + Math.floor(rnd()*2), ph0: rnd()*6.283,
-             hd: null, out: false, leave: null, tf: floating ? now - (0.1 + 0.8*rnd())*30000 : 0 };
+/* ==================== THE BATHS' BATHERS (Sir, 2026-11-09: "inside of the baths we need bathers"; 2026-11-10: "people would just be sitting
+   in the water, not swimming around -- they would be swimming in the full size pool out back" -- BATHS_YARD) ====================
+   A visitor with `bather: true` (a look of the surf school's own swimwear) walks to the bath's steps, wades in over the kerb to one of
+   the bath's soaking places, stands in it to the waist (the ball pit's waders: legs let down to stubs, the waterline over them), faces
+   across the bath and soaks -- a glance now and then, a hand up -- then wades back to the steps and walks off. All on the room's own
+   clock (visitors come and go by its hours, THE ROOM'S DAY). The room declares each bath in walkinLife: `pools: [{ entry: [a, b] (the
+   deck at the steps), way: [[a, b, z], ...] (walked in, entry to the last step), spots: [[a, b, facing], ...] (the soaking places) }]`.
+   Someone leaving mid-soak (closing) comes out first (walkinLeave waits for it). */
+const WALKIN_SWIM = { walkV: 0.065, wadeV: 0.04, soak: [40000, 110000], sink: 1.4, surf: 10.3 };
+function walkinSwimStart(R, s, m, P, now, soaking){
+  const rnd = m.rnd, taken = new Set();
+  for(const o of R.people) if(o !== s && o._m && o._m.swim && o._m.swim.P === P) taken.add(o._m.swim.spot);
+  const free = P.spots.map((q, i) => i).filter(i => !taken.has(i));
+  if(!free.length) return false;
+  const spot = free[Math.floor(rnd()*free.length)], W = WALKIN_SWIM;
+  m.swim = { P, spot, ph: soaking ? 'soak' : 'in', t: now, tl: now, i: 1, dur: W.soak[0] + rnd()*(W.soak[1] - W.soak[0]), out: false, leave: null, ts: soaking ? now - (0.1 + 0.7*rnd())*W.soak[0] : 0 };
   m.path = null; m.moving = false; m.v = 0; m.goal = null; m.spot = null; m.look = null; m.bathe = null; m.task = null; m.talk = false;
+  if(soaking){ const q = P.spots[spot]; m.a = q[0]; m.b = q[1]; m.th = q[2]; m.face = q[2]; m.z = WALKIN_SWIM.surf - 1.4; m.dist = 0; }
   walkinSwimStep(R, s, m, now);
-}
-/* the loop out from home and back (closed: u 0..1) */
-function walkinSwimAt(sw, u){
-  const P = sw.P, ay = Math.max(40, P.home[1] - P.reach[0]), ax = P.reach[1];
-  return [P.home[0] + ax*(Math.sin(6.2832*sw.c1*u + sw.ph0) - Math.sin(sw.ph0)), P.home[1] - ay*(1 - Math.cos(6.2832*sw.c2*u))/2];
+  return true;
 }
 function walkinSwimStep(R, s, m, now){
   const sw = m.swim, P = sw.P, dt = Math.min(100, Math.max(0, now - sw.tl)); sw.tl = now;
-  const W = WALKIN_SWIM, n = P.way.length, sm = v => { v = Math.max(0, Math.min(1, v)); return v*v*(3 - 2*v); };
-  const prone = sw.style === 'crawl', H = [P.home[0], P.home[1]];
-  let a = m.a, b = m.b, z = 0, k = 0, th = m.th, C = null, T = null;
+  const W = WALKIN_SWIM, n = P.way.length, S = P.spots[sw.spot], last = P.way[n - 1];
+  let a = m.a, b = m.b, z = m.z || 0, th = m.th;
   const ease = (to, rate) => { const d = walkinAng(to - th); th = walkinAng(th + Math.sign(d)*Math.min(Math.abs(d), rate*dt)); };
   const walkTo = (j, from) => {                                              // (toward the way's point j from point `from`: true when there)
     const q = P.way[j], r = P.way[from], dx = q[0] - a, dy = q[1] - b, L = Math.hypot(dx, dy), seg = Math.hypot(q[0] - r[0], q[1] - r[1]) || 1;
@@ -28922,50 +28921,32 @@ function walkinSwimStep(R, s, m, now){
     a += dx/L*v; b += dy/L*v; z = r[2] + (q[2] - r[2])*Math.max(0, Math.min(1, 1 - (L - v)/seg));
     ease(Math.atan2(dy, dx), 0.006); return false;
   };
-  if(sw.ph === 'in'){
-    if(walkTo(sw.i, sw.i - 1)){ if(++sw.i >= n){ sw.ph = 'push'; sw.t = now; } }
-    m.moving = true; m.dist += Math.hypot(a - m.a, b - m.b);
+  const wadeTo = (q, v) => { const dx = q[0] - a, dy = q[1] - b, L = Math.hypot(dx, dy); if(L <= v*dt){ a = q[0]; b = q[1]; return true; } a += dx/L*v*dt; b += dy/L*v*dt; ease(Math.atan2(dy, dx), 0.005); return false; };
+  m.moving = false;
+  if(sw.ph === 'in'){ if(walkTo(sw.i, sw.i - 1)){ if(++sw.i >= n){ sw.ph = 'wade'; } } m.moving = true; }
+  else if(sw.ph === 'wade'){ z = W.surf - W.sink; m.moving = !wadeTo(S, W.wadeV); if(!m.moving){ sw.ph = 'soak'; sw.ts = now; } }
+  else if(sw.ph === 'soak'){
+    z = W.surf - W.sink; ease(S[2], 0.0012);
+    if(now - sw.ts > sw.dur || sw.out){ sw.ph = 'back'; }
   }
-  else if(sw.ph === 'out'){
-    if(walkTo(sw.i, Math.min(n - 1, sw.i + 1))){ if(--sw.i < 0) return walkinSwimEnd(R, s, m, now); }
-    m.moving = true; m.dist += Math.hypot(a - m.a, b - m.b);
-  }
-  else {
-    const last = P.way[n - 1], T0 = prone ? -Math.PI/2 : Math.PI/2;                         // (prone: head north; on their back: facing south, head north)
-    if(sw.ph === 'push' || sw.ph === 'pull'){
-      const e = sm((now - sw.t)/W.rampMs); k = sw.ph === 'push' ? e : 1 - e;
-      C = [last[0] + (H[0] - last[0])*k, last[1] + (H[1] - last[1])*k]; th = th + walkinAng(T0 - th)*Math.min(1, dt/260);
-      if(e >= 1){ if(sw.ph === 'push'){ sw.ph = 'float'; sw.tf = now; sw.hd = T0; } else { sw.ph = 'out'; sw.i = n - 1; a = last[0]; b = last[1]; } }
-    }
-    else if(sw.ph === 'back'){
-      const dx = H[0] - sw.cx, dy = H[1] - sw.cy, L = Math.hypot(dx, dy), v = W.swimV*dt; k = 1;
-      if(L <= v){ sw.cx = H[0]; sw.cy = H[1]; sw.ph = 'pull'; sw.t = now; } else { sw.cx += dx/L*v; sw.cy += dy/L*v; ease(prone ? Math.atan2(dy, dx) : Math.atan2(dy, dx) + Math.PI, 0.0035); }
-      C = [sw.cx, sw.cy];
-    }
-    else {                                                                                  // 'float'
-      const u = (now - sw.tf)/sw.dur; k = 1;
-      if(u >= 1 || sw.out){ const c = walkinSwimAt(sw, Math.min(1, Math.max(0, u))); sw.cx = c[0]; sw.cy = c[1]; sw.ph = 'back'; C = c; }
-      else {
-        C = walkinSwimAt(sw, u); const c2 = walkinSwimAt(sw, u + 0.004), tt = Math.atan2(c2[1] - C[1], c2[0] - C[0]);
-        sw.hd = sw.hd == null ? tt : sw.hd; const d = walkinAng(tt - sw.hd); sw.hd = walkinAng(sw.hd + Math.sign(d)*Math.min(Math.abs(d), 0.0022*dt));
-        th = prone ? sw.hd : walkinAng(sw.hd + Math.PI);
-      }
-    }
-    if(C){ const ofs = (prone ? -1 : 1)*W.half*k; a = C[0] + Math.cos(th)*ofs; b = C[1] + Math.sin(th)*ofs; z = P.way[n - 1][2]*(1 - k) + W.lie*k; }
-    m.moving = false;
-  }
-  m.a = a; m.b = b; m.z = z; m.th = th; m.face = th;
-  const t = now*0.0034 + (s.seed & 63), L = walkinStaffLook(s), build = L.build;
-  m.swimPose = !k ? null : prone
-    ? { pitch: Math.PI/2*k, pitchLift: 8*k, lift: [1.6 + 0.9*Math.sin(t)*k, 1.6 - 0.9*Math.sin(t)*k], bend: 0.2, noShadow: true, headTilt: -0.25*k }
-    : { pitch: -Math.PI/2*k, pitchLift: (build.torsoD/2 + 1)*k, headTilt: 0.5*k, lift: [0.35 + 0.25*Math.sin(t*0.6), 0.35 - 0.25*Math.sin(t*0.6)], bend: 0.3, noShadow: true };
-  m.swimIn = k > 0;
+  else if(sw.ph === 'back'){ z = W.surf - W.sink; m.moving = !wadeTo(last, W.wadeV); if(!m.moving){ sw.ph = 'out'; sw.i = n - 2; } }
+  else if(sw.ph === 'out'){ if(walkTo(sw.i, Math.min(n - 1, sw.i + 1))){ if(--sw.i < 0) return walkinSwimEnd(R, s, m, now); } m.moving = true; }
+  if(m.moving) m.dist += Math.hypot(a - m.a, b - m.b);
+  const wade = b < 498 && sw.ph !== 'out' || (sw.ph === 'out' && b < 498) || (sw.ph === 'in' && b < 498);
+  if(wade && (sw.ph === 'in' || sw.ph === 'out')) z = W.surf - W.sink + (z - 10.4)*0.5;      // (down the steps into it, up out of it)
+  m.a = a; m.b = b; m.z = z; m.th = th; m.face = th; m.wade = wade;
+  /* the pose: standing in it to the waist, hands about on the water; soaking: a glance (the idle pose's), a hand up now and then */
+  const t = now*0.0021 + (s.seed & 63), soaking = sw.ph === 'soak';
+  const base = soaking ? walkinIdlePose(s, m, now, null) : {};
+  m.swimPose = wade ? Object.assign(base, { legs: null, lift: soaking ? [0.3 + 0.08*Math.sin(t), 0.3 + 0.08*Math.cos(t*0.8)] : [0.55 + 0.2*Math.sin(t*2.4), 0.55 + 0.2*Math.cos(t*2.4)], bend: soaking ? 0.5 : 0.5 }) : null;
 }
 function walkinSwimEnd(R, s, m, now){
   const sw = m.swim, e = sw.P.way[0];
-  m.swim = null; m.swimPose = null; m.z = 0; m.a = e[0]; m.b = e[1]; m.th = Math.PI/2; m.face = Math.PI/2; m.moving = false; m.v = 0; m.until = now + 4000 + m.rnd()*8000; m.bathe = null;
+  m.swim = null; m.swimPose = null; m.z = 0; m.wade = false; m.a = e[0]; m.b = e[1]; m.th = Math.PI/2; m.face = Math.PI/2; m.moving = false; m.v = 0; m.until = now + 4000 + m.rnd()*8000; m.bathe = null;
   if(sw.leave){ const [sc, RR, ss, t0, lock, k] = sw.leave; walkinLeave(sc, RR, ss, t0, lock, k); }
 }
+/* the build in the water: the ball pit's waders -- the legs let down to stubs, so nothing pokes out under the waterline */
+function walkinWadeBuild(L){ return L._wb || (L._wb = Object.assign({}, L.build, { legH: 3 })); }
 /* ONE STEP of one of them (dt ms) */
 function walkinStep(R, s, dt, now, bot){
   const m = s._m || walkinLifeInit(R, s, now);
@@ -29109,7 +29090,7 @@ function walkinLifeTick(scene, pk){
 /* what of them is drawn: { x, y } in the room's frame, heading, moving, the leg phase, the pose */
 function walkinDrawState(s, now, bot){
   const m = s._m; if(!m) return null;
-  return { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.swim && m.swimPose ? m.swimPose : m.moving ? null : walkinIdlePose(s, m, now, bot), z: m.swim ? m.z : 0 };
+  return { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.swim ? m.swimPose : m.moving ? null : walkinIdlePose(s, m, now, bot), z: m.swim ? m.z : 0, wade: !!(m.swim && m.wade) };
 }
 /* HE IS HELD BY THEM (the pocket's movement): whoever of a room's people stands where he would be */
 function walkinPeopleBlock(x, y, r){
@@ -29762,7 +29743,8 @@ walkinStaff('Lagoon Baths Interior', [
   { id: 'bather-4', role: 'bather', seed: 0x1a6006, look: 'visitor', life: 'browse', bather: true },
 ]);
 /* (the two baths: the deck at each one's steps, the way in over the kerb and down the steps, where they lie down) */
-const BATHS_POOLS = [216, 513].map(a => ({ entry: [a, 548], way: [[a, 548, 0], [a, 527, 0], [a, 512, 14], [a, 496, 10.8], [a, 476, 10.4]], home: [a, 430], reach: [200, 30] }));
+const BATHS_POOLS = [216, 513].map(a => ({ entry: [a, 548], way: [[a, 548, 0], [a, 527, 0], [a, 512, 14], [a, 496, 10.8], [a, 476, 10.4]],
+  spots: [[a - 52, 250, 0], [a - 52, 350, 0], [a + 52, 220, Math.PI], [a + 52, 320, Math.PI], [a + 52, 420, Math.PI]] }));   // (against the long sides, facing across the bath)
 walkinLife('Lagoon Baths Interior', { pools: BATHS_POOLS, keep: [[298, 430, 0, 729]], looks: [
   { id: 'west-pool', spots: [[72, 300, 0]] },
   { id: 'east-pool', spots: [[640, 300, Math.PI]] },
@@ -91574,6 +91556,87 @@ function surfDrawBoardCarry(sc, g, p, n, cols){
 }
 /* THE PEOPLE AND THE BOT, DRAWN (beside ssQueue): each where they are now, on screen only, in the world's order; the
    story's people through keyQueue while it has them */
+/* ==================== THE BATHS' YARD: swimmers in the full-size pool out back ====================
+   (Sir, 2026-11-10: "they would be swimming in the full size pool out back"). The bathhouse's reflecting pool behind the back
+   entrance (lab a 568..1088, b -1388.8..-1068.8, the water 20 in) has lap swimmers while the baths are open (the place card's
+   hours, 8 to 9): each in the surf school's own swimwear, out of the back door, across the deck, over the kerb and in, a few
+   lengths prone -- arms alternating -- a turn at each end, out again and back in. A cycle of a few minutes each, a new bather
+   every time, worked out from the clock alone (nothing stored); the back door is on the far side of the bathhouse from the
+   street, so they come and go behind it, not out of nowhere. Listed in CITY_PEOPLE (Lagoon Baths pool swimmers). */
+const BATHS_YARD = { lib: 'Lagoon Baths', n: 3, cycle: 175000, lo: 8.2, hi: 20.85, a0: 612, a1: 1044, door: [828, -944], deck: -1032, kerb: -1060, water: -1096, z: { kerb: 21, water: 18.45, sink: 5 },
+                     walkV: 0.065, wadeV: 0.04, swimV: 0.042, ramp: 1300, turn: 700, skew: 0, cache: new Map() };
+function bathsYardPlan(k, c){
+  const Y = BATHS_YARD, key = k*1000003 + c;
+  let pl = Y.cache.get(key); if(pl) return pl;
+  const rnd = mulberry32((0x1a7001 + k*977 + c*131) >>> 0), W = Y.walkV, V = Y.wadeV;
+  const ae = 690 + k*130 + Math.floor(rnd()*40), lane = -1128 - k*66, legs = 3 + Math.floor(rnd()*3), segs = [];
+  let t = 20000 + rnd()*50000, pos = [Y.door[0] + (k - 1)*14, Y.door[1], 0];                  // (in the bathhouse till then)
+  const go = (kind, to, v, extra) => { const L = Math.hypot(to[0] - pos[0], to[1] - pos[1]); const d = Math.max(1, L/v); segs.push(Object.assign({ kind, t0: t, t1: t + d, from: pos, to }, extra)); t += d; pos = to; };
+  const hold = (kind, d, extra) => { segs.push(Object.assign({ kind, t0: t, t1: t + d, from: pos, to: pos }, extra)); t += d; };
+  go('walk', [ae, Y.deck, 0], W); go('walk', [ae, Y.kerb, Y.z.kerb], W*0.7); go('wade', [ae, Y.water, Y.z.water - Y.z.sink], V);
+  hold('drop', Y.ramp);                                                                  // (lies down)
+  go('swim', [ae, lane, Y.z.water - Y.z.sink], Y.swimV);
+  let dir = ae < (Y.a0 + Y.a1)/2 ? 1 : -1;
+  for(let i = 0; i < legs; i++){ go('swim', [dir > 0 ? Y.a1 : Y.a0, lane, Y.z.water - Y.z.sink], Y.swimV, { dir }); dir = -dir; if(i < legs - 1) hold('turn', Y.turn, { dir }); }
+  go('swim', [ae, lane, Y.z.water - Y.z.sink], Y.swimV, { dir: pos[0] > ae ? -1 : 1 }); go('swim', [ae, Y.water, Y.z.water - Y.z.sink], Y.swimV);
+  hold('rise', Y.ramp);
+  go('wade', [ae, Y.kerb, Y.z.kerb], V); go('walk', [ae, Y.deck, 0], W*0.7); go('walk', [Y.door[0] + (k - 1)*14, Y.door[1], 0], W);
+  pl = { segs, end: t, seed: (0x1a7101 + k*977 + c*131) >>> 0 };
+  if(Y.cache.size > 60) Y.cache.clear();
+  Y.cache.set(key, pl); return pl;
+}
+/* who is in the yard at time t (the scene clock): [{ a, b, z, th (lab heading), kind, k, u (the kind's own 0..1), seed, look: fn }] */
+function bathsYardNow(t){
+  const Y = BATHS_YARD, out = [], hour = walkinClockHour(); t += Y.skew;
+  for(let k = 0; k < Y.n; k++){
+    const off = k*Y.cycle/Y.n, c = Math.floor((t + off)/Y.cycle), e = (t + off) - c*Y.cycle, h0 = hour - e/3600000;
+    if(!(h0 >= Y.lo && h0 < Y.hi)) continue;
+    const pl = bathsYardPlan(k, c); if(e >= pl.end) continue;
+    const sg = pl.segs.find(q => e >= q.t0 && e < q.t1); if(!sg) continue;
+    const u = Math.max(0, Math.min(1, (e - sg.t0)/(sg.t1 - sg.t0))), a = sg.from[0] + (sg.to[0] - sg.from[0])*u, b = sg.from[1] + (sg.to[1] - sg.from[1])*u, z = sg.from[2] + (sg.to[2] - sg.from[2])*u;
+    let th = Math.atan2(sg.to[1] - sg.from[1], sg.to[0] - sg.from[0]);
+    if(sg.kind === 'swim' && sg.dir){ th = sg.dir > 0 ? 0 : Math.PI; const e0 = Math.min(1, (e - sg.t0)/Y.turn), ease = e0*e0*(3 - 2*e0); if(e0 < 1){ const from = sg.dir > 0 ? Math.PI : 0; th = from + (th - from)*ease; } }
+    else if(sg.kind === 'drop' || sg.kind === 'rise') th = sg.dir ? (sg.dir > 0 ? 0 : Math.PI) : -Math.PI/2;
+    else if(sg.kind === 'turn'){ const e0 = u*u*(3 - 2*u), from = sg.dir > 0 ? 0 : Math.PI, to = sg.dir > 0 ? Math.PI : 0; th = from + (to - from)*e0; }
+    out.push({ a, b, z, th, kind: sg.kind, k, u, seed: pl.seed, id: k });
+  }
+  return out;
+}
+function bathsYardQueue(scene, t, queuePerson, layerFor){
+  if(scene._inside || !scene.route) return;
+  const L = landmarkLabWorld(BATHS_YARD.lib); if(!L) return;
+  const mid = L(828, -1230);
+  if(!scene.visWorldPt(mid.x, mid.y, 700, 500)) return;
+  const now = scene.time.now, Y = BATHS_YARD, K = scene.K;
+  for(const q of bathsYardNow(now)){
+    const p = L(q.a, q.b), p2 = L(q.a + Math.cos(q.th), q.b + Math.sin(q.th)), thw = Math.atan2(p2.y - p.y, p2.x - p.x);
+    const pose0 = q.kind === 'swim' || q.kind === 'turn' || q.kind === 'drop' || q.kind === 'rise';
+    const kk = q.kind === 'drop' ? Math.min(1, q.u*1) : q.kind === 'rise' ? 1 - q.u : pose0 ? 1 : 0, sm = kk*kk*(3 - 2*kk);
+    const Lk = BATHS_YARD._look || (BATHS_YARD._look = new Map());
+    let look = Lk.get(q.seed); if(!look){ look = Object.assign({}, streetLook(q.seed, { type: 'surfer', adult: true, aid: 'none' }), { dress: null }); if(Lk.size > 40) Lk.clear(); Lk.set(q.seed, look); }
+    const water = q.kind !== 'walk' && !(q.kind === 'wade' && q.z > Y.z.water - 3);
+    const wadeB = (q.kind === 'wade' && q.b > Y.water - 18 && q.z < Y.z.kerb - 1) || ((q.kind === 'drop' || q.kind === 'rise') && sm < 0.05);
+    const ph = now*0.0036 + q.seed % 63, half = 36;
+    // (prone: feet behind the body's middle along its heading; the lab-to-world heading thw)
+    const fx = p.x - Math.cos(thw)*half*sm, fy = p.y - Math.sin(thw)*half*sm;
+    const pose = sm > 0.02 ? { pitch: Math.PI/2*sm, pitchLift: 8*sm, lift: [1.6 + 0.9*Math.sin(ph)*sm, 1.6 - 0.9*Math.sin(ph)*sm], bend: 0.2, noShadow: true, headTilt: -0.25*sm } : (q.kind === 'wade' ? { lift: [0.55 + 0.2*Math.sin(ph*2), 0.55 + 0.2*Math.cos(ph*2)], bend: 0.5 } : null);
+    const zz = q.z*1.5/1.5, moving = q.kind === 'walk' || (q.kind === 'wade' && sm < 0.02);
+    queuePerson(fx, fy, (g, tt) => {
+      const lg = layerFor(fx, fy), B = (wadeB && sm < 0.05) ? walkinWadeBuild(look) : look.build;
+      scene.drawPersonHull(lg, fx, fy, zz, thw - Math.PI/2, B, look.skin, look.shirt, look.pants, look.hair, look.shoe, moving ? walkAt(fx, fy) : 0, moving, 0, 0, null, look.uniform, false, pose);
+      if(water && sm > 0.5){ const c = scene.W(p.x, p.y, Y.z.water + 0.4), w = 0.5 + 0.2*Math.sin(now*0.004 + q.id);    // (foam about the swimmer: a wake)
+        lg.fillStyle(0xffffff, 0.22*w); lg.fillEllipse(c.x, c.y + 1*K, 70*K, 20*K); }
+      else if(wadeB){ const c = scene.W(p.x, p.y, Y.z.water + 0.4); lg.fillStyle(0x57a9b8, 0.55); lg.fillEllipse(c.x, c.y + 1*K, 30*K, 15*K); }
+    });
+  }
+}
+CITY_PEOPLE.add({ name: 'Lagoon Baths pool swimmers', where: "the Lagoon Baths' yard: the full-size pool behind the bathhouse", solid: false,
+  each(scene, t, fn){
+    const L = landmarkLabWorld(BATHS_YARD.lib); if(!L) return;
+    for(const q of bathsYardNow(scene.time.now)){ const p = L(q.a, q.b), Lk = BATHS_YARD._look && BATHS_YARD._look.get(q.seed);
+      fn(cpEntry(this, { x: p.x, y: p.y, z: q.z*1.5, th: q.th, moving: q.kind === 'walk' || q.kind === 'swim', kind: 'bather', lookFn: () => Lk || streetLook(q.seed, { type: 'surfer', adult: true, aid: 'none' }), ref: q })); }
+  } });
+
 function ssnQueue(scene, t, queuePerson, keyQueue, layerFor){
   if(!WORLDGEN_COAST || scene._inside) return;
   const now = scene.time.now, busy = SSN.stage !== 'idle';
@@ -98173,7 +98236,7 @@ class WorldScene extends Phaser.Scene {
     for(const s of R.people){
       if(s._gone || s.knock || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order; knocked down: the knocks' own draw)
       const q = walkinDrawState(s, now, null); if(!q || !vis(q.a, q.b, 24, 170)) continue;
-      const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose, z: q.z };
+      const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose, z: q.z, wade: q.wade };
       tmp.push({ depth: x + y, fn: (g, tt) => { const st0 = this._seenThrough; this._seenThrough = true; try { this.drawWalkinPerson(g, d, tt || now, s); } finally { this._seenThrough = st0; } } });
     }
     tmp.sort((p, q) => p.depth - q.depth);
@@ -102781,6 +102844,7 @@ class WorldScene extends Phaser.Scene {
     rlQueue(this, t, queuePerson, layerFor);           // REQUEST LINE: Ollie, Maya; the station's receptionist and DJ while the story has them
     kwQueue(this, t, queuePerson, layerFor);           // NUMBER 4 BUILDS A WINNER: number 4, his bale and karts at the course, the mechanic while the story has him
     ssQueue(this, t, queuePerson, keyQueue, layerFor); // THE VETERANS MEMORIAL's people (Walt, the caretaker, visitors, the band) and SUNSET SALUTE's
+    bathsYardQueue(this, t, queuePerson, layerFor);   // THE LAGOON BATHS' pool swimmers (BATHS_YARD)
     ssnQueue(this, t, queuePerson, keyQueue, layerFor); // SUNSET SHORE SURF SCHOOL's people (Mele, the class, the lifeguard, surfers, sunbathers, Kai), the cargo bot, and Tipsey parked
     tpeQueue(this, t, queuePerson, layerFor);          // TIDE POOL ELEMENTARY's yard: the crossing guard, the teacher on duty, the pupils at play (while the school is open)
     /* A LOST THING'S OWNER (LOST_ITEMS): out of their door to him, and back in with it */
@@ -104098,7 +104162,7 @@ class WorldScene extends Phaser.Scene {
       const q = walkinDrawState(s, now, bot); if(!q) continue;
       const x = pk.x0 + q.a + v.dx, y = pk.y0 + q.b + v.dy;
       if(!this.visProp("chargestation", x, y)) continue;
-      const d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose, z: q.z };
+      const d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose, z: q.z, wade: q.wade };
       /* (while the shell is there at all they come and go with the room, eased as it is, walkinShellK -- and are seen
          through nothing: no x-ray ghost of them behind the shell coming back, _seenThrough -- but out on the street,
          past its door, they are the street's own: whole) */
@@ -110958,9 +111022,12 @@ class WorldScene extends Phaser.Scene {
   /* (W16: walking, the legs from the distance walked, d.gait; standing, their idle pose -- walkinIdlePose) */
   drawWalkinPerson(g, d, t, s){
     const L = walkinStaffLook(s), thW = d.th - Math.PI/2;
-    this.drawPersonHull(g, d.x, d.y, d.z || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+    this.drawPersonHull(g, d.x, d.y, d.z || 0, thW, d.wade ? walkinWadeBuild(L) : L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
       Object.assign({ dress: L.dress }, d.pose || null));
+    if(d.wade){ const K = this.K, c = this.W(d.x, d.y, WALKIN_SWIM.surf + 0.4), w = 0.55 + 0.1*Math.sin(t*0.004 + (s.seed & 15));     // (the waterline over their hips, a ring of ripple)
+      g.fillStyle(0x57a9b8, 0.55); g.fillEllipse(c.x, c.y + 1*K, 30*K, 15*K);
+      g.lineStyle(Math.max(1, 1.2*K), 0xffffff, 0.45*w); g.strokeEllipse(c.x, c.y + 1*K, 33*K, 17*K); }
   }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
