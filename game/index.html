@@ -113753,6 +113753,46 @@ class WorldScene extends Phaser.Scene {
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
   }
+  /* TIPSEY'S SKIN ON A SIBLING (Sir, 2026-11-10: "get the skins to actually fit both bots, not just print on them"): what a skin
+     adds to Tipsey beyond paint -- the pattern on his stripe (stars, chevrons, checks...), the badge on his flanks (skull,
+     rocket, flames...), the topper on his flag -- drawn on a bot's body. Those drawers (drawBandPattern, drawStripeStars,
+     drawSideDecal, drawSkullEmblem, drawFlagCloth, drawTopper) work in Tipsey's own frame, so a bot lends them its own for
+     the call: its V.P and V.sees for P and R, its hull's size for BODY, its band for STRIPE, the handed g. S: { hx, hy, ch,
+     s0, s1 (its stripe's z range), dz (the z its badge is centred on) }. Put back whatever happens */
+  botSkinWear(g, V, S){
+    if(!(SKIN.band || SKIN.stars || SKIN.emblem)) return;
+    const g0 = this.g, bd = { hx: BODY.hx, hy: BODY.hy, ch: BODY.ch }, st = { z0: STRIPE.z0, z1: STRIPE.z1 };
+    this.P = (a, b, h) => V.P(a, b, h); this.R = (x, y, z) => ({ x: V.sees(x, y, z) ? 1 : -1, y: 0, z: 0 }); this.g = g;
+    BODY.hx = S.hx; BODY.hy = S.hy; BODY.ch = S.ch; STRIPE.z0 = S.s0; STRIPE.z1 = S.s1;
+    try {
+      const band = SKIN.band || (SKIN.stars ? "stars" : null);
+      if(band){
+        const col = SKIN.decalCol != null ? SKIN.decalCol : SKIN.stars != null ? SKIN.stars : (decalLum(SKIN.stripe) > 0.55 ? 0x1b1c20 : 0xffffff);
+        if(band === "stars") this.drawStripeStars(0, col); else this.drawBandPattern(0, band, col);
+      }
+      const dz = S.dz - 36.5;                                       // (Tipsey's badge is centred on z 36.5 / 37)
+      if(SKIN.emblem === "skull") this.drawSkullEmblem(dz - 0.5);
+      else if(SKIN.emblem && DECAL_SHAPES[SKIN.emblem]) this.drawSideDecal(dz, DECAL_SHAPES[SKIN.emblem]);
+    } finally {
+      delete this.P; delete this.R; this.g = g0;
+      BODY.hx = bd.hx; BODY.hy = bd.hy; BODY.ch = bd.ch; STRIPE.z0 = st.z0; STRIPE.z1 = st.z1;
+    }
+  }
+  /* the skin's topper (a beacon, a helmet, the Jolly Roger...) on a bot's pole tip (a, b, h in its frame), as drawFlag puts
+     it on Tipsey's. Returns false when the skin has none, and the bot keeps its own flag */
+  botTopper(g, V, a, b, h){
+    const pirate = SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper);
+    const top = pirate ? 'pirate' : (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : (!SKIN.topper && SKIN.skinTop) || null);
+    if(!top) return false;
+    const p = V.P(a, b, h), q = V.P(a, b, h - 14);
+    let dx = p.x - q.x, dy = p.y - q.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const ks = this.kScale(), g0 = this.g; this.g = g;
+    try {
+      const cloth = top === 'pirate' || top === 'square' || top === 'swallow' || top === 'checker';
+      if(cloth) this.drawFlagCloth(top, p, dx, dy, ks); else this.drawTopper(top, p, dx, dy, ks);
+    } finally { this.g = g0; }
+    return true;
+  }
   /* TIPSEY'S HULL ON A SIBLING (Sir, 2026-10-24: "the fleet never got the lid expansion for lidded or the chamfered
      geometry to match tipsy"): drawHullPrism -- his chamfered, bevelled, ramp-shaded prism -- in a bot's own frame
      (a forward, b across, h up) about (x, y, z) facing fdir. lid: { A (the hinge's angle, his lidAng), flip, yh, zh }
@@ -113838,6 +113878,7 @@ class WorldScene extends Phaser.Scene {
         line([a1, bb, h1], [a0, bb, h1], ln, 1.1); line([a0, bb, h1], [a0, bb, h0], ln, 1.1);
         line([a1 - 6, bb + sb*1.4, h0 + 9], [a1 - 6, bb + sb*1.4, h1 - 9], DARK, 2.2);                // the grab bar
       }
+      if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 9, s0: z0 + 10, s1: z0 + 20, dz: 60 });          // (his skin's stripe pattern and badge)
       this.tipseyFace(V, hx, z1 - 15, 1.6, { mouthZ: z0 + 15 });                                  // his face, grown with him
       if(back) for(const sb of [-1, 1]) endQ(-hx - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
       /* the hold, when the lid is up */
@@ -113852,7 +113893,7 @@ class WorldScene extends Phaser.Scene {
       for(const a of wa) V.wheel(a, nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
       const fa = -hx + 5, fb = -nearB*(hy - 5);                                                     // the flag, on the far back corner
       line([fa, fb, z1], [fa, fb, z1 + 58], DARK, 1.4);
-      Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], FLAGC);
+      if(!(WEAR && this.botTopper(g, V, fa, fb, z1 + 58))) Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], FLAGC);   // (a skin's topper in place of the pennant)
       return;
     }
     if(kind === "courierbot"){
@@ -113870,7 +113911,7 @@ class WorldScene extends Phaser.Scene {
       const drawLid = () => {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid')), LD);
       };
-      const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); const tp = P(-21, 0, zb + 47); g.fillStyle(FLAGC, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
+      const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); if(WEAR && this.botTopper(g, V, -21, 0, zb + 47)) return; const tp = P(-21, 0, zb + 47); g.fillStyle(FLAGC, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
       const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
       if(!backNear) aerial();
       if(!lidTop) drawLid();
@@ -113888,6 +113929,7 @@ class WorldScene extends Phaser.Scene {
         line([a1, bb, h1], [a0, bb, h1], ln, 1); line([a0, bb, h1], [a0, bb, h0], ln, 1);
         line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
       }
+      if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 8, s0: 44, s1: 52, dz: 77 });
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
       /* the hold, when the lid is up: Tipsey's own (a real hollow, no lip round it: its four inner walls down
          to a floor, all cut to the opening so the near wall hides the foot of what lies inside) */
