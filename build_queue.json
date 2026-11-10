@@ -1,6 +1,14 @@
 {
 "nodes": [
 {
+"id": "fleet-polish",
+"title": "Polish the fleet vehicles' looks, one vehicle at a time (a vehicle per pass: draw, screenshot, Sir signs off, then the next). Start with the ones that look roughest; list in docs/fleet-redesign.md (FLEET).",
+"spec": "docs/fleet-redesign.md",
+"deps": [],
+"status": "pending",
+"group": "Fixes from testing"
+},
+{
 "id": "sc1",
 "title": "World clock + slot scheduler + seeded shoppers (pilot)",
 "spec": "docs/seeded-crowd.md",
