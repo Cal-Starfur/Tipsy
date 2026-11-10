@@ -115110,8 +115110,11 @@ class WorldScene extends Phaser.Scene {
        steer axle and the two drive axles; 'trailer' the box and its tandem. Each is drawn at its own pose, the trailer's front
        face on the kingpin; its own shadow under it */
     const only = (data && data.part) || null, TK = RG.body === "trailer" && only;
+    /* the rig's tractor comes whole ('tractor': bobtail, the garage) or in two for the coupled rig, so the trailer can sit between them in the painter's order:
+       'tractorU' what lies under the trailer's nose (the drive axles, the frame, the fifth wheel, the fenders) and 'tractorP' the pod and its steer axle */
+    const tU = only === "tractorU", tP = only === "tractorP", tAny = only === "tractor" || tU || tP;
     if(!only) this.drawVehicleShadow(g, P, hl, hw);
-    else { const sc_ = only === "tractor" ? 240 : -110, sh_ = only === "tractor" ? 150 : 278; this.drawVehicleShadow(g, (a, b, h) => P(a + sc_, b, h), sh_, hw); }
+    else if(!tP){ const sc_ = tAny ? 240 : -110, sh_ = tAny ? 150 : 278; this.drawVehicleShadow(g, (a, b, h) => P(a + sc_, b, h), sh_, hw); }
     const parts = [];
     /* flat panels: one on a flank (at b = bb), one on an end (at a) */
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
@@ -115143,7 +115146,7 @@ class WorldScene extends Phaser.Scene {
       C.aC = hl - VANC.hoodLen - 6; C.aW = C.aC - VANC.rake; C.aBk = C.aW - VANC.pillar - 16;
       C.aRake = h => C.aC - (h - C.hH)/(C.hR - C.hH)*(C.aC - C.aW);
     } else if(RG.cab === "cabover"){ C.aBk = hl - 128; C.H = RG.body === "aerial" ? 176 : 164; }
-    else { C.aC = hl - 116; C.aBk = RG.podLen ? hl - RG.podLen : C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : RG.body === "trailer" && RG.podLen ? 186 : C.aBk; }   // (a driverless pod's own length, podLen)
+    else { C.aC = hl - 116; C.aBk = RG.podLen ? hl - RG.podLen : C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : RG.body === "trailer" && RG.podLen ? 176 : C.aBk; }   // (a driverless pod's own length, podLen)
     const aBk = C.aBk;
     /* the axles: the steer axle under the cab, then the body's */
     const W = { box: [hl - 64, -hl + 92], tow: [hl - 64, -hl + 70],
@@ -115153,7 +115156,7 @@ class WorldScene extends Phaser.Scene {
                 flatdeck: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60],
                 carrier: [hl - 62, C.aSl - 18, C.aSl - 72, -hl + 112, -hl + 60] }[RG.body];
     for(const [wi, a] of W.entries()) for(const sb of [-1, 1]){ const steer = a > hl - 100;
-      if(TK && (only === "tractor") !== (wi < 3)) continue;
+      if(TK && !(only === "trailer" ? wi >= 3 : tU ? (wi === 1 || wi === 2) : tP ? wi === 0 : wi < 3)) continue;
       /* A BOX DRAWS OVER ITS REAR TYRES (Sir, 2026-11-09: "the box doesn't need a wheel well, it should draw over the wheels"): the
          tyres stand 11 up into the box's floor, so the near rear ones go down just over the chassis and before the box, which
          covers their tops */
@@ -115166,10 +115169,10 @@ class WorldScene extends Phaser.Scene {
       line([a, sb*(hw - 1), h1 - 6], [a, sb*(hw + 7), h1 - 6], STEEL, 2);
       solid(prismH([[a - 3, sb*(hw + 6)], [a + 3, sb*(hw + 6)], [a + 3, sb*(hw + 11)], [a - 3, sb*(hw + 11)]], h0, h1), 0x23262c); };
     /* mudflaps behind the last axle, either side */
-    const flaps = () => { if(only === "tractor") return; const fa = Math.min(...W) - r - 6;
+    const flaps = () => { if(tAny) return; const fa = Math.min(...W) - r - 6;
       for(const sb of [-nearB, nearB]) solid(prismH([[fa - 2, sb*(hw - 18)], [fa, sb*(hw - 18)], [fa, sb*(hw - 1)], [fa - 2, sb*(hw - 1)]], 6, cz + 14), 0x1b1d21); };
     /* the chassis under it all */
-    { const c0 = TK && only === "tractor" ? 90 : -hl + 8, c1 = TK && only === "trailer" ? 150 : hl - 30;
+    if(!tP){ const c0 = TK && tAny ? 90 : -hl + 8, c1 = TK && only === "trailer" ? 150 : hl - 30;
       parts.push({ d: -8000, draw: () => { solid(prismH([[c0, -hw + 22], [c1, -hw + 22], [c1, hw - 22], [c0, hw - 22]], cz - 6, cz + 10), DARK); flaps(); } }); }
     /* reflective tape along a flank's foot, red and white */
     const tape = (a0, a1, h, bb) => { for(let a = a0, k = 0; a < a1 - 10; a += 22, k++) quad(a, a + 11, h, h + 4, bb, k % 2 ? 0xf4f5f2 : 0xd8402f); };
@@ -115266,7 +115269,7 @@ class WorldScene extends Phaser.Scene {
          lit cyan across, camera pods at its front corners, Tipsey's orange
          down its flanks and the line's lidar on its back */
       const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, 100], [hl - 36, top], [aBk, top]];
-      parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
+      if(!tU) parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
         solid(prismB(pr, -hw, hw), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);
         wearFlank(hl, aBk, cz + 6, top - 12, hw);                                                  // (his print and finish, the stripe and the arch over them)
         const tb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) tb.push([cz + 2, cz + 6, SKIN.stripe2]);   // (14 thick: the face's mouth light rides inside it)
@@ -115284,7 +115287,7 @@ class WorldScene extends Phaser.Scene {
       }});
       /* THE SMALL LIDAR UNITS, on the roof only (Sir, 2026-11-10: the line's small type, as the pod's -- no ears on the corners, no array and no rails): a low plate and a
          puck with its cyan ring at each corner of the flat of the roof, nearest the eye last */
-      parts.push({ d: V.depth(aBk + 60, 0, top + 40), draw: () => {
+      if(!tU) parts.push({ d: V.depth(aBk + 60, 0, top + 40), draw: () => {
         const hz = [];
         for(const a of [hl - 56, aBk + 22]) for(const sb of [-1, 1]) hz.push([a, sb*(hw - 16)]);
         hz.sort((p, q) => V.depth(p[0], p[1], top) - V.depth(q[0], q[1], top));
@@ -115298,14 +115301,14 @@ class WorldScene extends Phaser.Scene {
       } });
       /* THE FRAME BEHIND THE POD, finished: the fifth wheel (a plate and its bright ring) at the kingpin (FLEET_STEER.avsemi.trail.kp 150), and a fender over each
          pair of drive tyres in the body's colour, so the axles stand under the rig and not on a bare black slab */
-      if(RG.body === "trailer"){
+      if(RG.body === "trailer" && !tP){
         parts.push({ d: V.depth(150, 0, cz + 20), draw: () => {
           solid(prismH([[116, -32], [184, -32], [184, 32], [116, 32]], cz + 10, cz + 17), 0x3b4148);
           solid(prismH([[124, -24], [176, -24], [176, 24], [124, 24]], cz + 17, cz + 20), 0x6a7178);
         } });
         for(const sb of [-1, 1]) parts.push({ d: V.depth(140, sb*hw, cz + 34) + (sb === nearB ? 60 : -60), draw: () => {
-          solid(prismH([[84, sb*(hw - 28)], [aBk + 2, sb*(hw - 28)], [aBk + 2, sb*(hw + 3)], [84, sb*(hw + 3)]], cz + 30, cz + 36), shadeC(col.body, 0.88));
-          if(sb === nearB && !edgeOn){ quad(84, aBk + 2, cz + 30, cz + 36, sb*(hw + 3.1), shadeC(col.body, 0.8)); }
+          solid(prismH([[84, sb*(hw - 28)], [aBk - 2, sb*(hw - 28)], [aBk - 2, sb*(hw + 3)], [84, sb*(hw + 3)]], cz + 30, cz + 36), shadeC(col.body, 0.88));
+          if(sb === nearB && !edgeOn){ quad(84, aBk - 2, cz + 30, cz + 36, sb*(hw + 3.1), shadeC(col.body, 0.8)); }
         } });
       }
     } else {
@@ -115357,7 +115360,7 @@ class WorldScene extends Phaser.Scene {
     }
 
     /* ===== THE BODIES ===== */
-    if(only === "tractor"){ /* (a tractor carries no body) */ }
+    if(tAny){ /* (a tractor carries no body) */ }
     else if(RG.body === "box"){
       const a0 = -hl + 2, a1 = aBk - 8, h0 = cz + 16, H = 194, fb2 = nearB*(hw + 2.6);
       parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
@@ -119279,8 +119282,12 @@ class WorldScene extends Phaser.Scene {
       if(SEMT.bob){ this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, { part: "tractor", steer: SWH, paint: true }); return; }   // (bobtail: the pod alone)
       const T = owTrailer(this.ow, SS), c = Math.cos(yaw), s2 = Math.sin(yaw), ct = Math.cos(T.yaw), st = Math.sin(T.yaw), kp = SS.trail.kp;
       const tr = [x + c*kp - ct*kp, y + s2*kp - st*kp], ft = T.yaw/(Math.PI/2);
-      const pieces = [[x + c*240 + y + s2*240, x, y, f, "tractor"], [tr[0] - ct*110 + tr[1] - st*110, tr[0], tr[1], ft, "trailer"]].sort((p, q) => p[0] - q[0]);
-      for(const [, px_, py_, f_, part] of pieces) this.drawProp(g, kind, px_, py_, t, f_, z, this._fleetWheel, 7, { part, steer: SWH, paint: true });   // (his own paint, a half each)
+      /* THE PAINTER'S ORDER OF A COUPLED RIG: the pod and the trailer are apart (the pod's rear face and the trailer's cut nose are a plane's width off each other), so which is nearer
+         the eye is a plane's question -- the pod's, when the tractor's axis points toward it (cos + sin > 0). What lies under the trailer's nose (the drive axles, frame, fifth
+         wheel, fenders: 'tractorU') is always below it and goes before it. So: U, trailer, pod from the front; pod, U, trailer from behind */
+      const order = c + s2 > 0 ? ["tractorU", "trailer", "tractorP"] : ["tractorP", "tractorU", "trailer"];
+      for(const part of order){ const tl = part === "trailer";
+        this.drawProp(g, kind, tl ? tr[0] : x, tl ? tr[1] : y, t, tl ? ft : f, z, this._fleetWheel, 7, { part, steer: SWH, paint: true }); }   // (his own paint, a part each)
       return;
     }
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, kind === "avsemi" && SEMT.bob ? { part: "tractor", paint: true } : SWH ? Object.assign({}, data, { steer: SWH }) : data);
