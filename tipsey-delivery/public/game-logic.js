@@ -126804,6 +126804,25 @@ const HULL_PRINTS = {
       const [a, b] = L.face(4);
       for(let x = a - 30; x < b + 4; x += 7) L.side.push({ c: BLK, pts: L.clip([[x, 13], [x + 3.2, 13], [x + 3.2 + 24, L.H], [x + 24, L.H]], _prRect(a, 13, b, L.H)) });
     } },
+  /* PRIME MOVER (the big rig's): hot-rod flames licking back along each flank from the front, red under orange under yellow, tallest at the nose and dying away
+     toward the tail. A flank is a long face of the ring; its front is the end with the larger first (along-the-body) coordinate */
+  flames: { id: 'flames', seed: 0xf1a3,
+    build(L){
+      if(L.part === 'lid') return;
+      const RED = [0x7a0e0e, 0xc8201a], ORG = [0xb84e0c, 0xf08a1c], YEL = [0xc79618, 0xffd84a];
+      for(let k = 0; k < L.ring.length; k++){
+        const [a, b] = L.face(k), len = b - a; if(len < 60) continue;
+        const dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b;           // (s runs front to rear on this face when dir is +1)
+        const n = Math.max(3, Math.round(len/55));
+        for(let i = 0; i < n; i++){
+          const u = i/n, ht = L.H*(0.62 - 0.4*u), bw = len*0.11, tl = len*0.07 + (1 - u)*len*0.05, xs = x0 + dir*len*0.5*u*1.2;
+          for(const [sc, c] of [[1, RED], [0.72, ORG], [0.42, YEL]]){
+            const h = ht*sc, w = bw*sc, t = tl*sc, X = (d) => xs + dir*d;
+            L.side.push({ c, pts: [[X(0), -1], [X(w), -1], [X(w*0.9 + t*0.35), h*0.34], [X(w + t), h], [X(w*0.4 + t*0.5), h*0.6], [X(w*0.1), h*0.46], [X(-w*0.1), h*0.2]] });
+          }
+        }
+      }
+    } },
   /* DAREDEVIL: twin blue racing stripes with red pinstripes, over the lid and down his back */
   racing: { id: 'racing', seed: 0xdd,
     build(L){
@@ -127530,7 +127549,7 @@ const SK_PRIME_MOVER = {
   bodyTop:0xc8302e, bodyRight:0xa8262a, bodyLeft:0x831d20, outline:0x2a0c0e,
   stripe:0x2a4fb0, stripeDk:0x1d3a86, stripe2:0xdfe6f2, stripe2Dk:0xb4bdd0, lidInner:0xc8302e, belly:0x2a0c0e,
   wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0x9fe8ff, eyeAlert:0xff4a4a,
-  flag:0x2a4fb0, flagPole:0x2a0c0e, emblem:'heart', decalCol:0xdfe6f2, band:'chevrons'
+  flag:0x2a4fb0, flagPole:0x2a0c0e, emblem:'heart', decalCol:0xdfe6f2, band:'chevrons', print:'flames'
 };
 const SK_RUBBER_DUCK = {
   bodyTop:0xf08a1c, bodyRight:0xd1720f, bodyLeft:0xa85a0b, outline:0x3a2004,
