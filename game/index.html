@@ -5137,7 +5137,7 @@ const FLEET = {
   /* heavy: never tips (big); P3's long-wheelbase controller, the semi's trailer joint */
   avsemi:     { name: "Autonomous semi", cls: "heavy", art: "avsemi", body: { len: RIGS.avsemi.len, wid: 108, h: 180, cap: true }, fit: { r: 390, h: 180 },
                 ctl: {}, bay: "heavy", unlock: "moving-day", abilities: ["dock"], cargo: "trailer", ambient: { traffic: true } },
-  avgarbage:  { name: "Robo garbage truck", cls: "heavy", art: "avgarbage", body: { len: RIGS.avgarbage.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 205, h: 175 },
+  avgarbage:  { name: "Robo garbage truck", cls: "heavy", art: "avgarbage", body: { len: RIGS.avgarbage.len, wid: 106, h: 175, cap: true }, fit: { r: 205, h: 175 },
                 ctl: {}, bay: "heavy", unlock: "contest-day", abilities: ["binArm"], ambient: { traffic: true, dawn: true } },
   avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 210, h: 175 },
                 ctl: {}, bay: "heavy", unlock: "topping-out", abilities: ["tip"], cargo: "spoil", ambient: { site: "crate-yard" } },
@@ -115440,9 +115440,13 @@ class WorldScene extends Phaser.Scene {
       const a0 = -hl + 64, a1 = aBk - 6, sec = oct(hw - 1, cz + 14, 206, 0, 0.55);
       parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
         solid(loftSeg(a0, sec, a1, sec, 3), col.box);
-        const fs = nearB*(hw - 0.4);
-        for(let a = a0 + 24; a < a1 - 10; a += 44) quad(a, a + 5, 74, 174, fs, shadeC(col.box, 0.84));    // its ribs
-        if(col.band !== col.box) quad(a0 + 4, a1 - 4, 100, 114, fs*1.002, col.band);
+        const fs = nearB*(hw - 0.4), pr_ = WEAR && (BPW.print || BPW.fin);
+        wearFlank(a1, a0, 74, 174, hw - 1);                                                                    // (his print and finish over the body's flank, the ribs a shade over it)
+        for(let a = a0 + 24; a < a1 - 10; a += 44){ if(pr_) Q([P(a, fs, 74), P(a + 5, fs, 74), P(a + 5, fs, 174), P(a, fs, 174)], 0x14171c, 0.16); else quad(a, a + 5, 74, 174, fs, shadeC(col.box, 0.84)); }   // its ribs
+        /* THE STRIPE at the pod's height, run on along the body and the tailgate (a, b: his stripe and second band; the pattern and badge by botSkinWear), under the arches */
+        const gb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) gb.push([cz + 2, cz + 6, SKIN.stripe2]);
+        for(const [z0, z1, c] of gb) quad(-hl + 6, a1 - 2, z0, z1, fs*1.002, c);
+        skinOn((a0 + a1)/2, { hx: (a1 - a0)/2, hy: hw - 1, ch: 6, s0: cz + 9, s1: cz + 23, dz: 140, da: 0, dk: 2.4 });
         tape(a0 + 4, a1 - 4, cz + 26, fs*1.003);
         for(const wa of W.slice(1)) arch(wa, nearB*(hw - 0.2));
       }});
@@ -115451,7 +115455,18 @@ class WorldScene extends Phaser.Scene {
         solid(prismB([[-hl + 64, cz + 10], [-hl + 64, 212], [-hl + 34, 208], [-hl + 2, 134], [-hl + 2, cz + 24], [-hl + 20, cz + 10]], -hw + 1, hw - 1), shadeC(col.box, 0.9));
         quad(-hl + 64, -hl + 66, cz + 12, 210, nearB*(hw - 0.6), TRIM);
         if(!nose){
-          endQ(-hl + 1.4, -hw*0.8, hw*0.8, cz + 30, 122, 0x1d2024);
+          /* THE HOPPER IS A CAVITY (not a dark shape): a box let into the tailgate 64 deep, drawn through its opening (clipped to it) -- the back wall, the floor, the
+             side wall that faces the eye, a lip of steel at the sill, and the packer's blade standing in it, so it changes with the heading */
+          { const w0 = hw*0.8, z0 = cz + 30, z1 = 122, ab = -hl + 1.4, ad = ab + 64, c0 = this.drawClip, op = [P(ab, -w0, z0), P(ab, w0, z0), P(ab, w0, z1), P(ab, -w0, z1)];
+            if(!c0) this.drawClip = op;
+            try {
+              Q([P(ad, -w0, z0), P(ad, w0, z0), P(ad, w0, z1), P(ad, -w0, z1)], 0x2c3138);                    // the back wall
+              Q([P(ab, -w0, z0), P(ab, w0, z0), P(ad, w0, z0), P(ad, -w0, z0)], 0x4a5058);                    // the floor
+              Q([P(ab, -w0, z1 - 4), P(ab, w0, z1 - 4), P(ad, w0, z1 - 4), P(ad, -w0, z1 - 4)], 0x1d2024, 0.0);
+              if(sees(0, -1, 0)) Q([P(ab, w0, z0), P(ad, w0, z0), P(ad, w0, z1), P(ab, w0, z1)], 0x23272d);   // the side walls that face the eye
+              if(sees(0, 1, 0)) Q([P(ab, -w0, z0), P(ad, -w0, z0), P(ad, -w0, z1), P(ab, -w0, z1)], 0x23272d);
+              solid(prismH([[ad - 14, -w0 + 4], [ad - 4, -w0 + 4], [ad - 4, w0 - 4], [ad - 14, w0 - 4]], z0, z0 + 46), 0x3b4148);   // the packer blade standing in the back
+            } finally { this.drawClip = c0; } }
           endQ(-hl + 1.2, -hw*0.84, hw*0.84, cz + 26, cz + 30, STEEL);
           for(const sb of [-1, 1]){ endQ(-hl + 1.4, sb*hw*0.82, sb*hw*0.96, 124, 132, AMBER);
             line([-hl + 1, sb*hw*0.9, cz + 36], [-hl + 1, sb*hw*0.9, 112], STEEL, 2.4);
@@ -119293,7 +119308,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "avsemi" ? { paint: true }
+      : kind === "avsemi" || kind === "avgarbage" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
