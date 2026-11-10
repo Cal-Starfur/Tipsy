@@ -3295,7 +3295,7 @@ const RIGS = {
   buckettruck: { cab: "van",     len: 380, body: "bucket",  pal: "utility" },
   sweeper:     { cab: "cabover", len: 300, body: "sweeper", pal: "sweeper" },
   /* the autonomous line (see CAR_KINDS' robotaxi): a driverless semi, and a driverless dump truck for the sites */
-  avsemi:      { cab: "pod", len: 780, body: "trailer", pal: "av", podLen: 180 },   // (the pod 180 long: its rear face 60 ahead of the kingpin, so the trailer can swing up to 70 degrees without its corner touching it)
+  avsemi:      { cab: "pod", len: 780, body: "trailer", pal: "av", podLen: 200 },   // (the pod 200 long: its rear face 40 ahead of the kingpin, close to the trailer, whose front corners are cut 22 so it swings up to 0.85 rad (the jackknife stop) clear of it)
   avdump:      { cab: "pod", len: 420, body: "dump",    pal: "avdump" },
   avsweeper:   { cab: "pod", len: 300, body: "sweeper", pal: "av", podLen: 128 },
   avgarbage:   { cab: "pod", len: 410, body: "packer",  pal: "av", podLen: 140 }
@@ -8954,7 +8954,7 @@ function owStep(scene, dt){
     const dkx = kx - T.kx, dky = ky - T.ky;
     T.yaw = owWrapAngle(T.yaw + (-Math.sin(T.yaw)*dkx + Math.cos(T.yaw)*dky)/SV.trail.Lt);
     T.kx = kx; T.ky = ky;
-    if(ow.reversing && Math.abs(owWrapAngle(ow.yaw - T.yaw)) > 1.0) ow.vel = 0;
+    if(ow.reversing && Math.abs(owWrapAngle(ow.yaw - T.yaw)) > 0.85) ow.vel = 0;   // (the jackknife stop: the cut corners of the trailer's nose clear the pod to here)
   }
   /* NOSE AGAINST THE KERB, ASKED SEPARATELY FROM THE STOP.
      Reusing the resolve's own blocked flag made the "?!" flicker and
@@ -113419,10 +113419,10 @@ class WorldScene extends Phaser.Scene {
       if(BPW.print){ const Lay = this.printLayout(BPW.print, [[aF, -bw], [aF, bw], [aR, bw], [aR, -bw]], hh, 'body'); this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, hh, 1, 'body'); }
       if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3);
     };
-    const wrapBand = (aF, aR, bw, cw, bands) => {
+    const wrapBand = (aF, aR, bw, cwR, bands, cwF) => {
       for(const [z0, z1, c] of bands) for(const e of [1, -1]){
         if(!sees(e, 0, 0)) continue;
-        const ae = e > 0 ? aF + 0.3 : aR - 0.3, ew = bw - cw;
+        const cw = e > 0 && cwF != null ? cwF : cwR, ae = e > 0 ? aF + 0.3 : aR - 0.3, ew = bw - cw;
         Q([P(ae, -ew, z0), P(ae, ew, z0), P(ae, ew, z1), P(ae, -ew, z1)], c);
         if(cw > 0) for(const sb of [-1, 1]) if(sees(e, sb, 0)){ const o = 0.3/Math.SQRT2, ax = e > 0 ? aF : aR;
           Q([P(ax - e*cw + e*o, sb*(bw + o), z0), P(ax + e*o, sb*(ew + o), z0), P(ax + e*o, sb*(ew + o), z1), P(ax - e*cw + e*o, sb*(bw + o), z1)], c); }
@@ -113759,15 +113759,16 @@ class WorldScene extends Phaser.Scene {
         /* the landing gear legs, then the box */
         for(const sb of [-nearB, nearB]){ line([a1 - 64, sb*(hw - 16), h0], [a1 - 64, sb*(hw - 16), 10], STEEL, 4); solid(prismH([[a1 - 72, sb*(hw - 24)], [a1 - 56, sb*(hw - 24)], [a1 - 56, sb*(hw - 8)], [a1 - 72, sb*(hw - 8)]], 4, 10), TRIM); }
         /* its front face, toward the tractor, in the tractor's shadow */
-        solid(prismB([[a0, h0], [a1, h0], [a1, H], [a0, H]], -hw - 2, hw + 2), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : n[0] > 0.5 ? shadeC(col.box, 0.62) : col.box);
-        wearFlank(a1, a0, h0 + 8, H - 8, hw + 2);                                                                      // (his print and finish over the box's flank)
-        for(let a = a0 + 46; a < a1 - 10; a += 46){ if(WEAR && (BPW.print || BPW.fin)) Q([P(a, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, H - 4), P(a, fb2*1.0005, H - 4)], 0x14171c, 0.16); else quad(a, a + 2.4, h0 + 6, H - 4, fb2*1.0005, shadeC(col.box, 0.86)); }   // its posts, under the livery (a shade over his print)
+        const wB = hw + 2, cF = 22;                                                                                      // (its nose's two vertical corners cut 22, as a real trailer's: it swings clear of the pod's rear face)
+        solid(prismH([[a0, -wB], [a1 - cF, -wB], [a1, -wB + cF], [a1, wB - cF], [a1 - cF, wB], [a0, wB]], h0, H), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : n[0] > 0.5 ? shadeC(col.box, 0.62) : col.box);
+        wearFlank(a1 - cF, a0, h0 + 8, H - 8, hw + 2);                                                                      // (his print and finish over the box's flank)
+        for(let a = a0 + 46; a < a1 - cF - 6; a += 46){ if(WEAR && (BPW.print || BPW.fin)) Q([P(a, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, h0 + 6), P(a + 2.4, fb2*1.0005, H - 4), P(a, fb2*1.0005, H - 4)], 0x14171c, 0.16); else quad(a, a + 2.4, h0 + 6, H - 4, fb2*1.0005, shadeC(col.box, 0.86)); }   // its posts, under the livery (a shade over his print)
         if(col.band !== col.box || WEAR){ const tb = [[112, 126, col.band], [132, 136, WEAR && SKIN.stripe2 ? SKIN.stripe2 : col.band]];
-          for(const [z0, z1, c] of tb) quad(a0 + 9.3, a1 - 9.3, z0, z1, fb2*1.001, c);                                // (the stripe runs the box's length and round its ends)
-          wrapBand(a1, a0, hw + 2, 9.3, tb);
-          skinOn((a0 + a1)/2, { hx: (a1 - a0)/2, hy: hw + 2, ch: 9.3, s0: 112, s1: 126, dz: 170, da: 0, dk: 3 }); }
-        quad(a0, a1, h0, h0 + 6, fb2*1.001, STEEL);
-        tape(a0 + 6, a1 - 6, h0 + 8, fb2*1.002);
+          for(const [z0, z1, c] of tb) quad(a0 + 9.3, a1 - cF, z0, z1, fb2*1.001, c);                                // (the stripe runs the box's length and round its ends)
+          wrapBand(a1, a0, hw + 2, 9.3, tb, cF);
+          skinOn((a0 + a1 - cF)/2, { hx: (a1 - cF - a0)/2, hy: hw + 2, ch: 9.3, s0: 112, s1: 126, dz: 170, da: 0, dk: 3 }); }
+        quad(a0, a1 - cF, h0, h0 + 6, fb2*1.001, STEEL);
+        tape(a0 + 6, a1 - cF - 4, h0 + 8, fb2*1.002);
         if(!nose){
           for(const sb of [-1, 1]){ endQ(a0 - 0.6, sb*1, sb*hw*0.96, h0 + 6, H - 6, shadeC(col.box, 0.9));
             for(const bf of [0.3, 0.7]) line([a0 - 0.8, sb*hw*bf, h0 + 8], [a0 - 0.8, sb*hw*bf, H - 8], STEEL, 1.6);
