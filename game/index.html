@@ -34988,6 +34988,8 @@ function missionComplete(id){
   const M = MISSIONS[id], r = (M && M.reward) || {}, first = !tpProfile.missionsCompleted.has(id);
   const rec = tpCompleteMission(id, 1);
   if(first && r.cents) missionPay(r.payId || id, r.cents);
+  if(first && r.skins){ for(const k of r.skins) tpProfile.owned.add(k); tpSaveProfile(); if(typeof tpRender === "function") tpRender();   // (the vehicle's own skins, owned not worn)
+    if(IS_DEVVIT_BUILD) Promise.resolve(rec).catch(() => {}).then(() => Promise.all(r.skins.map(k => { const sk = tpSkinById(k); return sk && sk.trophyId ? tpSubmitClaim(sk.trophyId) : null; }))).catch(() => {}); }
   if(first && r.skin && r.wear){
     tpProfile.owned.add(r.skin); tpProfile.equipped = r.skin;
     if(typeof tpApplySkin === "function") tpApplySkin(r.skin);
@@ -89044,6 +89046,7 @@ function nwThanks(){
 function nwFobMigrate(){
   if(nwFobMigrate.done || !nwDone()) return;
   nwFobMigrate.done = true;
+  for(const k of MISSIONS['night-watch'].reward.skins) if(!tpProfile.owned.has(k)){ tpProfile.owned.add(k); tpSaveProfile(); }   // (the patrol robot's skins, for those who finished it before they came)
   if(!keyItemHeld('vistafob')){ tpCollect.stashed.push('vistafob'); collectSave(); }
 }
 /* the gate's east boom up for her while she goes through (sierraGateStep's crew rule) */
@@ -89241,7 +89244,7 @@ MISSIONS['night-watch'] = { name: 'Night Watch', giver: 'Ray Dominguez, Vista Ri
   places: ['Vista Ridge Security Post', 'the east wall', 'Maritime Mall', "Sierra Vista's gate round"],
   steps: ["Stop on the bay on the security post's forecourt", 'Onto the dock: share your charge with the patrol robot', "The east wall's three cameras, in the patrol robot",
           'The patrol robot home to its dock', "Gus at the mall's front doors: lost property", 'Luna, at the gate round'],
-  reward: { cents: NW_PLAN.cents, payId: 'nightwatch', item: 'vistafob', fleet: 'patrolbot' },
+  reward: { cents: NW_PLAN.cents, payId: 'nightwatch', item: 'vistafob', fleet: 'patrolbot', skins: ['police', 'sheriff', 'security'] },
   busy: () => nwBusy() && NW.stage !== 'logIn',
   item: () => NW.carry === 'fob' ? { id: 'fob', name: "Luna's fob", tip: 'crewReturns' } : null,
   next: () => ({ ask: 'Hear the night guard out', dock: 'Onto the dock, beside the flat robot', share: 'Sharing charge', patrol: 'The east wall: camera ' + (NW.gate + 1),
@@ -114008,19 +114011,30 @@ class WorldScene extends Phaser.Scene {
          bots'. A lathe has no flat face to print on, so a skin's print and a chameleon/flake finish do not reach it. Its pieces are
          painted far to near by their depth through the fall (a stack painted bottom to top is right only while it stands) */
       shadow(32, 32);
+      const LB = WEAR && SKIN.lightbar || null;
       const bodyC = WEAR ? BPW.top : WHITE, upperC = WEAR && BPW.split ? BPW.split.cTop : bodyC, bandC = WEAR ? SKIN.stripe : 0x2e6fd1;
       const parts = [
         { h: 7, draw: () => this.avLathe(V, 0, 0, [[2, 26], [12, 30]], DARK, null, 16) },
         { h: 34, draw: () => this.avLathe(V, 0, 0, [[12, 30], [56, 31]], bodyC, null, 16) },
-        { h: 63, draw: () => { this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16);
-          if(WEAR && SKIN.stripe2) this.avLathe(V, 0, 0, [[47, 31.3], [53, 31.3]], SKIN.stripe2, null, 16); } },
+        { h: 50, draw: () => { if(WEAR && SKIN.stripe2) this.avLathe(V, 0, 0, [[47, 31.3], [53, 31.3]], SKIN.stripe2, null, 16); } },   // (the second band under the stripe, painted before it: its top cap would cover the stripe)
+        { h: 63, draw: () => this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16) },
         { h: 87, draw: () => { this.avLathe(V, 0, 0, [[70, 30], [104, 25]], upperC, null, 16);
           this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: 63 });                                         // (his face, on the upper body)
           if(WEAR) this.botSkinWear(g, V, { hx: 27.5, hy: 27.5, ch: 17, s0: 56, s1: 70, dz: 80 }); } },
         { h: 110, draw: () => { this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
           this.avLathe(V, 0, 0, [[109, 25.3], [111, 25.1]], CYAN, () => CYAN, 16); } },
-        { h: 127, draw: () => this.avLathe(V, 0, 0, [[116, 23], [128, 17], [136, 8], [138, 0]], upperC, null, 16) },
-        { h: 141, draw: () => { if(!(WEAR && this.botTopper(g, V, 0, 0, 144))) this.avLathe(V, 0, 0, [[137, 4], [142, 4], [144, 0]], WEAR ? FLAGC : 0x2e6fd1, null, 8); } }
+        { h: 127, draw: () => this.avLathe(V, 0, 0, LB ? [[116, 23], [121, 21.5], [122, 0]] : [[116, 23], [128, 17], [136, 8], [138, 0]], upperC, null, 16) },
+        { h: 141, draw: () => {
+          if(LB){                                                                                       // A LIGHT BAR AND A CAMERA ON A FLAT CROWN
+            const ph = Math.floor(t/230) % 2, ON = LB === 'amber' ? [0xffb200, 0xffb200] : LB === 'redblue' ? [0xff4a4a, 0x4aa3ff] : [0x4aa3ff, 0xff4a4a];
+            const OFF = LB === 'amber' ? [0x5a4410, 0x5a4410] : LB === 'redblue' ? [0x5a1c1c, 0x1d3a6b] : [0x1d3a6b, 0x5a1c1c];
+            box(-12, -2, -17, 17, 122, 126, 0x15181d);                                                  // the bar
+            box(8, 17, -5, 5, 122, 130, 0x15181d);                                                      // the camera, forward of it
+            if(sees(1, 0, 0)) V.Q([P(17.2, -2.6, 124.5), P(17.2, 2.6, 124.5), P(17.2, 2.6, 128), P(17.2, -2.6, 128)], CYAN);   // (its lens)
+            for(let i = 0; i < 2; i++){ const sb = i ? 1 : -1, lit = (ph === i) || LB === 'amber' && ph === 0, col = lit ? ON[i] : OFF[i];
+              this.avLathe(V, -7, sb*10, [[126, 4.2], [128, 4.6], [131.5, 3.6], [134, 0]], col, () => col, 10);
+              if(lit){ const c = P(-7, sb*10, 130), r = 15*this.kScale(); g.fillStyle(col, 0.18); g.fillCircle(c.x, c.y, r); g.fillStyle(col, 0.12); g.fillCircle(c.x, c.y, r*1.7); } }
+          } else if(!(WEAR && this.botTopper(g, V, 0, 0, 144))) this.avLathe(V, 0, 0, [[137, 4], [142, 4], [144, 0]], WEAR ? FLAGC : 0x2e6fd1, null, 8); } }
       ];
       parts.sort((p, q) => V.depth(0, 0, p.h) - V.depth(0, 0, q.h));
       for(const pt of parts) pt.draw();
@@ -128784,7 +128798,35 @@ function gearSpecRaw(){
 
 /* ---------- SKIN EQUIP ---------- */
 const SKIN_BASE = {...SKIN};
+/* THE PATROL ROBOT'S OWN SKINS (Sir, 2026-11-10: "the patrol bot needs specific law enforcement skins"; scope: the patrol robot only
+   for now, TP_SKINS' `fleet`): finishing NIGHT WATCH hands over all three -- POLICE (navy, a gold band over a blue one, a gold star,
+   the blue beacon), SHERIFF (tan and brown, a gold band, a gold star) and SECURITY (charcoal with a hazard-yellow band and a yellow
+   pennant) */
+const SK_POLICE = {
+  bodyTop:0x24305a, bodyRight:0x1c2748, bodyLeft:0x141c36, outline:0x0c1020,
+  stripe:0xe8c96a, stripeDk:0xb89a3e, stripe2:0x3b6fd1, stripe2Dk:0x2a52a0,
+  lidInner:0x24305a, belly:0x0c1020, wheelHubFace:0xe8c96a, wheelHub:0xb89a3e,
+  eye:0x9fe8ff, eyeAlert:0xff4a4a, flag:0x3b6fd1, flagPole:0x0c1020,
+  emblem:"star", emblemColor:0xe8c96a, lightbar:'bluered'     // (a flashing light bar and a camera on the patrol robot's crown, in place of its dome and light)
+};
+const SK_SHERIFF = {
+  bodyTop:0xc9a46a, bodyRight:0xb08a52, bodyLeft:0x8f6e3e, outline:0x3a2812,
+  stripe:0x5a3b1e, stripeDk:0x3f2a14, stripe2:0xe8c96a, stripe2Dk:0xb89a3e,
+  lidInner:0xc9a46a, belly:0x3a2812, wheelHubFace:0xe8c96a, wheelHub:0xb89a3e,
+  eye:0x9fe8ff, eyeAlert:0xff4a4a, flag:0x5a3b1e, flagPole:0x3a2812,
+  emblem:"star", emblemColor:0xe8c96a, lightbar:'redblue'
+};
+const SK_SECURITY = {
+  bodyTop:0x2c3038, bodyRight:0x23262d, bodyLeft:0x1a1c22, outline:0x0c0d10,
+  stripe:0xf2c14e, stripeDk:0xc79a2f, stripe2:0xf2c14e, stripe2Dk:0xc79a2f,
+  lidInner:0x2c3038, belly:0x0c0d10, wheelHubFace:0xf2c14e, wheelHub:0x8a919c,
+  eye:0x9fe8ff, eyeAlert:0xff4a4a, flag:0xf2c14e, flagPole:0x0c0d10,
+  lightbar:'amber'
+};
 const SKIN_PALETTES = {
+  "police":         SK_POLICE,
+  "sheriff":        SK_SHERIFF,
+  "security":       SK_SECURITY,
   "sunset-cruiser": SK_SUNSET_CRUISER,
   "neon-courier":   SK_NEON_COURIER,
   "chrome-plate":   SK_CHROME_PLATE,
@@ -128808,6 +128850,8 @@ const SKIN_PALETTES = {
    own/equip flow — it just set tpProfile.equipped to a string that
    NOTHING read, so equipping changed a badge and nothing else. */
 function tpApplySkin(id){
+  /* a vehicle's own skin (TP_SKINS' fleet) is worn only while he is that vehicle: as anyone else he is in the classic */
+  { const k = typeof tpSkinById === "function" ? tpSkinById(id) : null; if(k && k.fleet && (typeof fleetCur !== "function" || fleetCur() !== k.fleet)) id = "classic"; }
   /* Object.assign alone can't UNSET a key. Fire Chief adds `stars`,
      Daredevil adds `stripe2`/`stripe2Dk` — none of which exist on
      SKIN_BASE, so switching back to stock (or to the other skin) left
@@ -139429,6 +139473,13 @@ const TP_SKINS = [
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
   /* THE GETAWAY's (Wheels Up): wedding white, a rose ribbon, and the tin cans the Holloways tied on behind him */
+  /* THE PATROL ROBOT'S (fleet: it shows in the garage and is worn only while he is the patrol robot): all three come with NIGHT WATCH */
+  { skinId:"police",         displayName:"Police",         unlockType:"achievement",  trophyId:"night-watch", fleet:"patrolbot", lockText:"Night Watch",
+    filter:"none", desc:"Navy with a gold band over a blue one, a gold star and the blue beacon. The patrol robot's, for finishing Night Watch." },
+  { skinId:"sheriff",        displayName:"Sheriff",        unlockType:"achievement",  trophyId:"night-watch-sheriff", fleet:"patrolbot", lockText:"Night Watch",
+    filter:"none", desc:"Desert tan and saddle brown with a gold star. The patrol robot's, for finishing Night Watch." },
+  { skinId:"security",       displayName:"Security",       unlockType:"achievement",  trophyId:"night-watch-security", fleet:"patrolbot", lockText:"Night Watch",
+    filter:"none", desc:"Charcoal with a hazard-yellow band and pennant. The patrol robot's, for finishing Night Watch." },
   { skinId:"just-married",   displayName:"Just Married",   unlockType:"achievement",  trophyId:"wheels-up",
     filter:"none", desc:"Wedding white with a rose ribbon and a string of tin cans rattling along behind. The Holloways insisted." },
 ];
@@ -139527,6 +139578,13 @@ const TP_TROPHIES = [
     progress:(h,t,missions)=>({current: (missions && missions.has("letters-on-hill")) ? 1 : 0, target:1}) },
   { id:"open-house", name:"Open House", desc:"Bring your Fire helmet to the training yard, run the hose drill against the clock, and see a junior firefighter crowned.", tier:"silver", reward:"engine-red",
     progress:(h,t,missions)=>({current: (missions && missions.has("open-house")) ? 1 : 0, target:1}) },
+  /* NIGHT WATCH's three (the patrol robot's own skins, TP_SKINS' fleet): one mission, three trophies, so each skin is claimed as any other */
+  { id:"night-watch", name:"Night Watch", desc:"Walk the east wall with the patrol robot, and get Luna's fob back from the mall. The Police skin is the patrol robot's.", tier:"silver", reward:"police",
+    progress:(h,t,missions)=>({current: (missions && missions.has("night-watch")) ? 1 : 0, target:1}) },
+  { id:"night-watch-sheriff", name:"Night Watch: Sheriff", desc:"The same night's round, and the Sheriff skin for the patrol robot.", tier:"silver", reward:"sheriff",
+    progress:(h,t,missions)=>({current: (missions && missions.has("night-watch")) ? 1 : 0, target:1}) },
+  { id:"night-watch-security", name:"Night Watch: Security", desc:"The same night's round, and the Security skin for the patrol robot.", tier:"silver", reward:"security",
+    progress:(h,t,missions)=>({current: (missions && missions.has("night-watch")) ? 1 : 0, target:1}) },
   { id:"sunset-session", name:"Sunset Session", desc:"Bring the surf school's six foam boards down the sand in the cargo bot, and see the class paddle out at sundown.", tier:"silver", reward:"board-shorts",
     progress:(h,t,missions)=>({current: (missions && missions.has("sunset-session")) ? 1 : 0, target:1}) },
   { id:"pit-crew", name:"Pit Crew", desc:"Get number 4's new kart built at the Tidewater Kart Works and ride down the derby's ramp beside it.", tier:"silver", reward:"racing-stripe",
@@ -142953,7 +143011,7 @@ requestTpProfile();
       if (sel) return '<i class="add" data-equip="' + kind + ':' + id + '">Equip</i>';   // tried on, owned, not worn: wear it
       return '<i class="own">' + (ownLabel != null ? ownLabel : 'Owned') + '</i>';
     }
-    if (kind === 'skin') { const k = tpSkinById(id); if (k && k.unlockType === 'achievement') return '<i class="lock">Trophy</i>'; }
+    if (kind === 'skin') { const k = tpSkinById(id); if (k && k.unlockType === 'achievement') return '<i class="lock">' + (k.lockText || 'Trophy') + '</i>'; }
     const price = tpMoney(priceOf(kind, id));
     if (!sel) return '<i>' + price + '</i>';
     if (cart.has(kind + ':' + id)) return '<i class="inc">In cart</i>';
@@ -143320,7 +143378,7 @@ requestTpProfile();
     }
     P.className = 'grList';
     const L = pv || worn();
-    const skins = TP_SKINS.map(k => {
+    const skins = TP_SKINS.filter(k => !k.fleet || k.fleet === fleetCur()).map(k => {
       const sel = L.skin === k.skinId && !L.body && !L.stripe;
       return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tagOf('skin', k.skinId, L.skin === k.skinId)}</button>`;
     }).join('');
@@ -143534,7 +143592,7 @@ requestTpProfile();
     for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
     /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
-      tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile();
+      tpProfile.fleetKind = b.dataset.fleet; tpApplySkin(tpProfile.equipped); tpSaveProfile();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
       syncTabs(); renderTab(); fit();

@@ -50,6 +50,10 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'engine-red': {priceCents: 0, unlockType: 'achievement'},
   /* Letters on the Hill's reward (the Letters on the Hill trophy, 'letters-on-hill') */
   'costa-palma': {priceCents: 0, unlockType: 'achievement'},
+  /* Night Watch's three, the patrol robot's own skins (TP_SKINS' fleet: worn only as the patrol robot), one trophy each */
+  police: {priceCents: 0, unlockType: 'achievement'},
+  sheriff: {priceCents: 0, unlockType: 'achievement'},
+  security: {priceCents: 0, unlockType: 'achievement'},
 }
 
 export type TsHistoryEntry = {dateStr: string; tip: number; ms: number}
@@ -287,6 +291,19 @@ export const TS_CLAIMABLE_TROPHIES: Record<
   'letters-on-hill': {
     rewardSkinId: 'costa-palma',
     check: (_h, _t, missions) => tsMissionComplete(missions, 'letters-on-hill'),
+  },
+  /* Night Watch's three trophies, the same way (the Police, Sheriff and Security skins: the patrol robot's own) */
+  'night-watch': {
+    rewardSkinId: 'police',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'night-watch'),
+  },
+  'night-watch-sheriff': {
+    rewardSkinId: 'sheriff',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'night-watch'),
+  },
+  'night-watch-security': {
+    rewardSkinId: 'security',
+    check: (_h, _t, missions) => tsMissionComplete(missions, 'night-watch'),
   },
 }
 
