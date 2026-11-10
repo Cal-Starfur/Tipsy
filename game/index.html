@@ -5152,7 +5152,7 @@ const FLEET = {
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
                 ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: DRONES.dronelift.ARMR + DRONES.dronelift.RR /* its farthest rotor tip from its middle, 164 */ } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["airfield-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
-                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
+                ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: DRONES.airtaxi.ARMR + DRONES.airtaxi.RR /* its farthest rotor tip from its middle, 190 */ } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
                 ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
@@ -114492,32 +114492,34 @@ class WorldScene extends Phaser.Scene {
       const pod = podPlan;
       /* the sensor ball first: it hangs under the floor, so from above the pod covers it */
       this.avLathe(V, 26*ps, 0, [[HB, 8], [HB - 6, 9], [HB - 12, 7], [HB - 15, 0]], DARK, null, 10);
+      /* HIS PRINT AND FINISH on the pod's near flank (the edge from the tail to the shoulder, leaning 4*ps out) between z0 and z1, then his stripe
+         (rows s0..s1; laid flat only where the print would hide the solid one) and second band (t0..t1) back over them, then his skin's pattern
+         and badge (centred at dz, dk its size) */
+      const wearPod = (z0, z1, s0, s1, t0, t1, dz, dk, laySt) => {
+        if(!WEAR || edgeOn) return;
+        const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bR = sb*16*ps, bF = sb*20*ps, bw = 18*ps;
+        const fq = (za, zb, o) => [P(aR, bR + sb*o, za), P(aF, bF + sb*o, za), P(aF, bF + sb*o, zb), P(aR, bR + sb*o, zb)];
+        const lit0 = Math.max(0, Math.min(1, (V.lit([0, sb, 0]) - 0.66)/0.31));
+        if(BPW.print || BPW.fin){
+          const bq = sb > 0 ? [P(aF, bF + 0.3, z0), P(aR, bR + 0.3, z0), P(aR, bR + 0.3, z1), P(aF, bF + 0.3, z1)] : [P(aR, bR - 0.3, z0), P(aF, bF - 0.3, z0), P(aF, bF - 0.3, z1), P(aR, bR - 0.3, z1)], hh = z1 - z0;
+          if(BPW.print){ const Lay = this.printLayout(BPW.print, [[aF, -bw], [aF, bw], [aR, bw], [aR, -bw]], hh, 'body'); this.printSide(g, BPW.print, Lay, sb > 0 ? 1 : 3, bq, lit0, hh, 1, 'body'); }
+          if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, sb > 0 ? 1 : 3);
+          if(laySt) Q(fq(s0, s1, 0.5), ORANGE);
+        }
+        if(SKIN.stripe2 && (BPW.print || BPW.fin)) Q(fq(t0, t1, 0.5), SKIN.stripe2);
+        const ac = -5*ps;
+        this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: 29*ps, hy: bw, ch: 4, s0, s1, dz, dk });
+      };
       if(D.load === "cabin"){
         const g0 = HB + 22, g1 = HT - 8;
         solid(prismH(pod, HB, g0 - 6), BODY); solid(prismH(pod, g0 - 6, g0), ORANGE);
         solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);
         solid(prismH(pod, g1, HT), BODY);
+        wearPod(HB, g0 - 6, g0 - 6, g0, HB + 2.5, HB + 5.5, HB + 8, 0.3*ps, false);   // (the glazed cabin: the print on the 16-high panel under the band)
       } else {
         solid(prismH(pod, HB, HB + 8*ps), BODY); solid(prismH(pod, HB + 8*ps, HB + 13*ps), ORANGE); solid(prismH(pod, HB + 13*ps, HT), BODY);
         solid(prismH(pod.map(([a, b]) => [a*0.7, b*0.7]), HT, HT + 6), 0x2a3440);
-        if(WEAR && !edgeOn){
-          /* his print and finish on the pod's near flank (the edge from the tail to the shoulder, 58 long and leaning 4 out), then his stripe and
-             second band laid back over them, then his skin's pattern and badge */
-          const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bR = sb*16*ps, bF = sb*20*ps, bw = 18*ps, z0 = HB, z1 = HT;
-          const fq = (za, zb, o) => [P(aR, bR + sb*o, za), P(aF, bF + sb*o, za), P(aF, bF + sb*o, zb), P(aR, bR + sb*o, zb)];
-          const lit0 = Math.max(0, Math.min(1, (V.lit([0, sb, 0]) - 0.66)/0.31));
-          if(BPW.print || BPW.fin){
-            const bq = sb > 0 ? [P(aF, bF + 0.3, z0), P(aR, bR + 0.3, z0), P(aR, bR + 0.3, z1), P(aF, bF + 0.3, z1)] : [P(aR, bR - 0.3, z0), P(aF, bF - 0.3, z0), P(aF, bF - 0.3, z1), P(aR, bR - 0.3, z1)], hh = z1 - z0;
-            if(BPW.print){ const Lay = this.printLayout(BPW.print, [[aF, -bw], [aF, bw], [aR, bw], [aR, -bw]], hh, 'body'); this.printSide(g, BPW.print, Lay, sb > 0 ? 1 : 3, bq, lit0, hh, 1, 'body'); }
-            if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, sb > 0 ? 1 : 3);
-          }
-          if(BPW.print || BPW.fin){
-            if(SKIN.stripe2) Q(fq(HB + 2.5*ps, HB + 6*ps, 0.5), SKIN.stripe2);
-            Q(fq(HB + 8*ps, HB + 13*ps, 0.5), ORANGE);
-          }
-          const ac = -5*ps;
-          this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: 29*ps, hy: bw, ch: 4, s0: HB + 8*ps, s1: HB + 13*ps, dz: HB + 18*ps, dk: 0.42*ps });
-        }
+        wearPod(HB, HT, HB + 8*ps, HB + 13*ps, HB + 2.5*ps, HB + 6*ps, HB + 18*ps, 0.42*ps, true);
       }
       if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34, 1.3, { mouthZ: HB + 10 });
       else this.tipseyFace(V, 38*ps, HB + 17*ps, 0.6*ps, { mouthZ: HB + 4*ps });

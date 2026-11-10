@@ -160,8 +160,9 @@
 "deps": [
 "fp-dronelift"
 ],
-"status": "pending",
-"group": "Fleet polish (in order)"
+"status": "built",
+"group": "Fleet polish (in order)",
+"test": "https://claude.ai/artifact/FHpe69GyRvdJXt8RowGhoN"
 },
 {
 "id": "fp-uavplane",
