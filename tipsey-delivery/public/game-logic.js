@@ -112066,7 +112066,13 @@ class WorldScene extends Phaser.Scene {
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
     /* Tipsey's face on its front (Sir, 2026-10-13: not on the backs), its tail lights on the back */
     if(AP.sym){
-      endQ(eA, -hw + 10, hw - 10, AP.glass[0], AP.glass[1] - 4, GLASS);
+      /* THE WINDSCREEN LIES ON THE NOSE'S OWN SLOPE (it was a flat vertical plate at the nose's full length, standing off the leaning face
+         above 70): its corners are taken along the profile `pr` (the same edges the body is swept from), plus a hair out, with a corner at
+         each bend between its top and bottom */
+      { const aOf = h => { for(let j = 0; j + 1 < pr.length; j++){ const p0 = pr[j], p1 = pr[j + 1]; if(p0[0] > 0 && p1[0] > 0 && h >= p0[1] && h <= p1[1] && p1[1] > p0[1]) return p0[0] + (p1[0] - p0[0])*(h - p0[1])/(p1[1] - p0[1]); } return hl; };
+        const hs = [AP.glass[0], ...pr.filter(q => q[0] > 0 && q[1] > AP.glass[0] && q[1] < AP.glass[1] - 4).map(q => q[1]), AP.glass[1] - 4];
+        const bw = hw - 10, side = sb => hs.map(h => P(eS*(aOf(h) + 0.4), sb*bw, h));
+        Q([...side(-1), ...side(1).reverse()], GLASS); }
       endQ(eA + eS*0.1, -hw + 8, hw - 8, 22, 34, 0x2a2f36);
       if(front) this.tipseyFace(V, hl, 58, 1.9, { mouthZ: 28 });                                  // the face on the front only
       else for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 24), sb*(hw - 10), 50, 64, CARC.tail);   // tail lights on the back
