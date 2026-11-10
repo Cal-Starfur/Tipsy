@@ -112009,28 +112009,41 @@ class WorldScene extends Phaser.Scene {
         quad(-hl + 18, hl - 18, g0, g1, fb, GLASS);
         quad(-hl + 18, hl - 18, g0 - 10, g0 - 3, fb*1.001, ORANGE);                                // the orange line under it (his stripe when worn)
         if(WEAR && SKIN.stripe2) quad(-hl + 18, hl - 18, g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
-        /* THE PASSENGER DOOR (Sir, 2026-11-10: "add the door and riders, we'll start with doors"): a front-hinged door between the wheels, on both
-           flanks, shut as a seam round it and a handle, open (data.door 0..1) swung out on its hinge about a vertical line at its front edge, the dark
-           of the cabin and its bench seat in the opening. Its frame posts stand either side of it */
-        const DR = { a0: -hl*0.18 - 28, a1: -hl*0.18 + 34, h0: 24, h1: g1 + 4 }, du = Math.max(0, Math.min(1, (data && data.door) || 0));
-        const dseam = shadeC(WHITE, 0.72), qd = (a0, a1, h0, h1, bb, c) => quad(a0, a1, h0, h1, bb, c);
-        for(const pa of [DR.a0, DR.a1]) qd(pa - 1.5, pa + 1.5, g0, g1, fb*1.002, WHITE);           // (its frame posts, over the glass)
-        if(du < 0.02){
-          for(const [p0, p1] of [[[DR.a0, DR.h0], [DR.a1, DR.h0]], [[DR.a1, DR.h0], [DR.a1, DR.h1]], [[DR.a1, DR.h1], [DR.a0, DR.h1]], [[DR.a0, DR.h1], [DR.a0, DR.h0]]])
-            line([p0[0], fb*1.003, p0[1]], [p1[0], fb*1.003, p1[1]], dseam, 1.2);
-          line([DR.a0 + 7, fb*1.004, 58], [DR.a0 + 7, fb*1.004, 70], 0x8d959c, 1.8);             // its handle, at the rear edge
-        } else {
-          qd(DR.a0, DR.a1, DR.h0, DR.h1, fb*1.002, 0x14171c);                                      // the cabin
-          const ib = fb - nearB*18;                                                                 // its bench seat, inside
-          Q([P(DR.a0 + 6, ib, 40), P(DR.a1 - 6, ib, 40), P(DR.a1 - 6, ib, 56), P(DR.a0 + 6, ib, 56)], 0x353b44);
-          Q([P(DR.a0 + 6, ib, 56), P(DR.a1 - 6, ib, 56), P(DR.a1 - 6, ib, 104), P(DR.a0 + 6, ib, 104)], 0x2b3037);
-          const th = du*1.75, W = DR.a1 - DR.a0, at = (f, h) => P(DR.a1 - W*f*Math.cos(th), fb*1.003 + nearB*W*f*Math.sin(th), h);   // (f along the door from its hinge)
-          const dc = th < Math.PI/2 ? WHITE : shadeC(WHITE, 0.8);
-          Q([at(0, DR.h0), at(1, DR.h0), at(1, DR.h1), at(0, DR.h1)], dc);
-          Q([at(0.1, g0 + 2), at(0.9, g0 + 2), at(0.9, DR.h1 - 6), at(0.1, DR.h1 - 6)], GLASS);   // its window
-          for(const [f0, f1, h0, h1] of [[0, 1, DR.h0, DR.h0], [1, 1, DR.h0, DR.h1], [1, 0, DR.h1, DR.h1], [0, 0, DR.h1, DR.h0]]){ const A = at(f0, h0), B = at(f1, h1);
-            g.lineStyle(this.kw(1.2), dseam, 1); g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.strokePath(); }
-        }
+        /* THE PASSENGER DOORS (Sir, 2026-11-10: "sliding doors, part of the vehicle, then slide open, and the interior needs a cavity inside, not a
+           dark shape"): two leaves of the flank itself, in its own colour with a window each, meeting at a seam; open (data.door 0..1) they slide apart
+           INTO the frame (drawn clipped to the opening, so they vanish into the wall at its edges, as a tram's do). Through the opening, a real cabin
+           volume, clipped to it: a floor, the far wall, the end walls that face the eye and a bench along the far wall, so it changes with the heading */
+        const DR = { a0: -hl*0.18 - 30, a1: -hl*0.18 + 34, h0: 26, h1: g1 + 4 }, du = Math.max(0, Math.min(1, (data && data.door) || 0));
+        const qd = (a0, a1, h0, h1, bb, c) => quad(a0, a1, h0, h1, bb, c);
+        const flank = shadeC(WHITE, V.lit([0, nearB, 0])), seam = shadeC(WHITE, V.lit([0, nearB, 0])*0.6);
+        const opening = [P(DR.a0, fb, DR.h0), P(DR.a1, fb, DR.h0), P(DR.a1, fb, DR.h1), P(DR.a0, fb, DR.h1)], clip0 = this.drawClip;
+        if(!clip0) this.drawClip = opening;
+        try {
+          if(du > 0.02){
+            const ia0 = -hl + 22, ia1 = hl - 22, far = -nearB*(hw - 6), fz = DR.h0, ct = DR.h1 + 8, ink = 0x30363e;
+            Q([P(ia0, far, fz), P(ia1, far, fz), P(ia1, far, ct), P(ia0, far, ct)], 0x4a5160);          // the far wall
+            Q([P(ia0, far, fz + 52), P(ia1, far, fz + 52), P(ia1, far, ct - 12), P(ia0, far, ct - 12)], 0x2a3a52);   // its window, the street dim behind it
+            Q([P(ia0, far, ct - 6), P(ia1, far, ct - 6), P(ia1, far, ct), P(ia0, far, ct)], 0xcfd8e2);       // the cabin light, along the top
+            Q([P(ia0, fb, fz), P(ia1, fb, fz), P(ia1, far, fz), P(ia0, far, fz)], 0x7a818c);              // the floor
+            if(sees(-1, 0, 0)) Q([P(ia1, fb, fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, fb, ct)], 0x2c3138);   // the end walls that face the eye
+            if(sees(1, 0, 0)) Q([P(ia0, fb, fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, fb, ct)], 0x2c3138);
+            const sb0 = far, sb1 = far + nearB*20, bk = far + nearB*7;                                      // a bench along the far wall, its back to it
+            solid(prismH([[-52, sb0], [48, sb0], [48, sb1], [-52, sb1]], fz, fz + 20), 0x5d6672);
+            solid(prismH([[-52, sb0], [48, sb0], [48, bk], [-52, bk]], fz + 20, fz + 66), 0x48505c);
+            solid(prismH([[-52, sb0 + (sb1 - sb0)*0.1], [48, sb0 + (sb1 - sb0)*0.1], [48, sb1], [-52, sb1]], fz + 20, fz + 24), ORANGE);   // (his stripe on the cushion's edge)
+            const pole = (DR.a0 + DR.a1)/2, pb = fb - nearB*10;                                              // a hand pole by the doors
+            Q([P(pole - 1.3, pb, fz), P(pole + 1.3, pb, fz), P(pole + 1.3, pb, ct), P(pole - 1.3, pb, ct)], 0xd3d8de);
+            Q([P(DR.a0, fb, fz), P(DR.a0 + 7, fb, fz), P(DR.a0 + 7, fb, ct), P(DR.a0, fb, ct)], 0x14171c, 0.45);     // (a shade down the near jamb: the depth)
+          }
+          const Wh = (DR.a1 - DR.a0)/2, mid = (DR.a0 + DR.a1)/2, sh = du*(Wh + 3), lb = fb*1.003;
+          for(const [l0, l1] of [[DR.a0 - sh, mid - sh], [mid + sh, DR.a1 + sh]]){
+            Q([P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)], flank);              // the leaf
+            const w0 = l0 + 5, w1 = l1 - 5; if(w1 > w0) Q([P(w0, lb, g0 + 2), P(w1, lb, g0 + 2), P(w1, lb, DR.h1 - 6), P(w0, lb, DR.h1 - 6)], GLASS);   // its window
+            Q([P(l0 - 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h1), P(l0 - 0.5, lb, DR.h1)], seam);   // its edges
+            Q([P(l1 - 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h1), P(l1 - 0.5, lb, DR.h1)], seam); }
+        } finally { this.drawClip = clip0; }
+        for(const pa of [DR.a0, DR.a1]){ qd(pa - 1.5, pa + 1.5, DR.h0, DR.h1, fb*1.004, WHITE); }              // (the frame's posts, over the leaves' edges)
+        qd(DR.a0, DR.a1, DR.h1, DR.h1 + 2.5, fb*1.004, WHITE); qd(DR.a0, DR.a1, DR.h0 - 2.5, DR.h0, fb*1.004, WHITE);   // (its head and sill)
       } else {
         quad(-hl + 6, hl - 10, 40, 46, fb, ORANGE);                                                // the orange line low
         if(AP.lockers){                                                                             // two rows of locker doors
