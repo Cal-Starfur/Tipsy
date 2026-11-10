@@ -3448,8 +3448,8 @@ const FLEET = {
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 230 }, fit: { r: 200, h: 240 },
                 ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: DRONES.airtaxi.ARMR + DRONES.airtaxi.RR /* its farthest rotor tip from its middle, 190 */ } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
-  uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
-                ctl: { vMax: 0.30 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
+  uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 660, h: 132 }, fit: { r: 330, h: 205 },   // (wid the wings' full 660, not their half-span; its hit box botR 196, half its fuselage's length: the wings are thin and high, overhanging it, until P9's flight controller)
+                ctl: { vMax: 0.30, botR: 196 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
   uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 420, h: 200 }, fit: { r: 288, h: 275 },
                 ctl: { vMax: 0.28 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
   /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
@@ -4672,10 +4672,10 @@ const PLANES = {
     /* no propeller at the nose: a big blunt sensor nose, Tipsey's face on its front (Sir, 2026-10-13) */
     st: [[-200, 3, 70, 76], [-120, 7, 64, 82], [-30, 13, 56, 94], [40, 16, 52, 102], [110, 18, 50, 104], [150, 20, 50, 106], [178, 19, 52, 104], [192, 17, 56, 100]],
     wing: { pos: "high", a0: -6, a1: 44, span: 330, h: 102 }, tail: { t: true, c: 46, span: 88, h: 132, fin: [[50, 74], [2, 72], [-12, 132], [18, 132]] },
-    prop: null, face: 1.15, gear: "trike", gearAt: [[130, 0, 9], [10, -38, 11], [10, 38, 11]] },
+    prop: null, face: 1.15, wear: [-30, 150], gear: "trike", gearAt: [[130, 0, 9], [10, -38, 11], [10, 38, 11]] },
   /* the long-range cargo drone: the cargo plane's airframe with no one in
      it -- no windows, a belly pod, the sensor ball and satcom dome */
-  uavcargo: { pal: "av", add: ["avBall", "pod"], face: 1.6,
+  uavcargo: { pal: "av", add: ["avBall", "pod"], face: 1.6, wear: [-60, 170],
     st: [[-280, 6, 90, 102], [-180, 18, 72, 110], [-60, 30, 56, 128], [60, 32, 50, 140], [170, 30, 50, 136], [236, 29, 54, 128], [272, 27, 58, 116], [288, 24, 64, 108]],
     wing: { pos: "high", a0: 40, a1: 130, span: 420, h: 140 }, tail: { t: true, c: 80, span: 130, h: 200, fin: [[90, 102], [2, 100], [-14, 200], [30, 200]] },
     prop: null, gear: "trike", gearAt: [[244, 0, 14], [30, -84, 18], [30, 84, 18]], struts: [[40, 30, 56, 70, 220, 140]] },
@@ -114605,7 +114605,11 @@ class WorldScene extends Phaser.Scene {
     const seed = colorSeed !== null && colorSeed !== undefined ? (colorSeed ^ 0x9c31) >>> 0
       : ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x9c31) >>> 0;
     const PAL = PLANE_PAINT[PK.pal], col = PAL[this._paintIdx != null ? this._paintIdx % PAL.length : Math.floor(mulberry32(seed)()*PAL.length)];
-    const BODY = col.body, STRIPE = col.stripe, GLASS = 0x2f4250, STEEL = 0x9aa1a6, DARK = 0x2a2c30;
+    /* THE PLAYER'S OWN PAINT (the standing rules): the plane he flies (data.paint) wears his equipped look -- body colour (wings, tail, fuselage),
+       finish and print on the fuselage's flank, his stripe (and the second band under it), the wing tips and fin in his stripe colour, the
+       stripe's pattern and the badge, his eyes in the face. No flag or topper (as the drones): a plane has no pole to carry one */
+    const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
+    const BODY = WEAR ? BPW.top : col.body, STRIPE = WEAR ? SKIN.stripe : col.stripe, GLASS = 0x2f4250, STEEL = 0x9aa1a6, DARK = 0x2a2c30;
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0), has = f => PK.add.includes(f);
     const lift = PK.gear === "floats" ? 70 : 0;
     /* a taildragger sits tail down: behind the wing its body drops, to SAG
@@ -114637,6 +114641,25 @@ class WorldScene extends Phaser.Scene {
           Q([P(wa0, nearB*(w0 + 0.3), hb), P(wa1, nearB*(w0 + 0.3), hb + 2), P(wa1, nearB*(w0 + 0.3), ht), P(wa0, nearB*(w0 + 0.3), ht - 4)], GLASS); }
       }});
     }
+    /* HIS PRINT, FINISH, STRIPE, PATTERN AND BADGE on the fuselage's flank between a run of stations (PK.wear), after the body's own stripe */
+    if(WEAR && Math.abs(V.eye[1]) >= 0.12) parts.push({ d: 1000, draw: () => {
+      const [aR, aF] = PK.wear || [ST[2][0], ST[ST.length - 3][0]], SR = stAt(aR), SF = stAt(aF), nb = nearB, [f0, f1] = PK.band || [0.36, 0.46];
+      const zl = Math.max(SR[1], SF[1]) + 5, zh = Math.min(SR[2], SF[2]) - 5, wR = SR[0] + 0.5, wF = SF[0] + 0.5, bw = (wR + wF)/2, hh = zh - zl;
+      const lit0 = Math.max(0, Math.min(1, (V.lit([0, nb, 0]) - 0.66)/0.31));
+      if(BPW.print || BPW.fin){
+        const bq = nb > 0 ? [P(aF, wF, zl), P(aR, wR, zl), P(aR, wR, zh), P(aF, wF, zh)] : [P(aR, -wR, zl), P(aF, -wF, zl), P(aF, -wF, zh), P(aR, -wR, zh)];
+        if(BPW.print){ const Lay = this.printLayout(BPW.print, [[aF, -bw], [aF, bw], [aR, bw], [aR, -bw]], hh, 'body'); this.printSide(g, BPW.print, Lay, nb > 0 ? 1 : 3, bq, lit0, hh, 1, 'body'); }
+        if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, nb > 0 ? 1 : 3);
+        /* the stripe and its second band laid back over the print, along the run */
+        const N = 6, at = (k, f) => { const a = aR + (aF - aR)*k/N, S = stAt(a); return P(a, nb*(S[0] + 0.7), S[1] + (S[2] - S[1])*f); };
+        for(let k = 0; k < N; k++){
+          Q([at(k, f0), at(k + 1, f0), at(k + 1, f1), at(k, f1)], STRIPE);
+          if(SKIN.stripe2) Q([at(k, f0 - 0.11), at(k + 1, f0 - 0.11), at(k + 1, f0 - 0.03), at(k, f0 - 0.03)], SKIN.stripe2);
+        }
+      }
+      const ac = (aR + aF)/2, Sc = stAt(ac), hz = Sc[2] - Sc[1];
+      this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: (aF - aR)/2, hy: Sc[0], ch: 4, s0: Sc[1] + hz*f0, s1: Sc[1] + hz*f1, dz: Sc[1] + hz*0.78, dk: 0.45*hz/50 });
+    }});
     /* marks that run across segments, on the seen flank, after the body */
     const fl = (a, h, k = 0.8) => P(a, nearB*(stAt(a)[0] + k), h + lift);
     if(has("bolt") || has("cargoDoor")) parts.push({ d: 1000, draw: () => {
@@ -117745,7 +117768,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" ? { paint: true }
+      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" || kind === "uavplane" || kind === "uavcargo" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
