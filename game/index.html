@@ -10269,6 +10269,19 @@ function semiToggle(s){
   }
   if(typeof sfxThump === "function") sfxThump(0.3);
 }
+/* THE RIG'S BODIES AS THE TRAFFIC AND THE PEOPLE SEE THEM (botAxisPt, botBodyHas): not one straight 780-long box along the tractor's heading (the trailer swings
+   away from it, and bobtail has no trailer), but each real piece on its own line -- the pod (190..390 ahead of the middle), the coupled trailer on its own heading,
+   and every trailer left standing -- as oriented boxes { x, y, th, hl (half the run), hw } */
+function semiRects(ow){
+  const out = [], SV = FLEET_STEER.avsemi, hw = 54, c = Math.cos(ow.yaw), s2 = Math.sin(ow.yaw);
+  out.push({ x: ow.px + c*290, y: ow.py + s2*290, th: ow.yaw, hl: 100, hw });                              // the pod
+  if(!SEMT.bob){
+    const T = owTrailer(ow, SV), ct = Math.cos(T.yaw), st = Math.sin(T.yaw), tx = ow.px + c*SV.trail.kp - ct*SV.trail.kp, ty = ow.py + s2*SV.trail.kp - st*SV.trail.kp;
+    out.push({ x: tx - ct*110, y: ty - st*110, th: T.yaw, hl: 278, hw });                                  // the trailer (its art spans -388..168 about its middle)
+  }
+  for(const D of SEMT.down) out.push({ x: D.x - Math.cos(D.th)*110, y: D.y - Math.sin(D.th)*110, th: D.th, hl: 278, hw });   // the ones left standing
+  return out;
+}
 /* is (x, y), with a disc of r, on a standing trailer? (its body behind the front 68, whole width) */
 function semiParkBlocks(x, y, r){
   for(const D of SEMT.down){
@@ -125874,6 +125887,14 @@ class WorldScene extends Phaser.Scene {
   botAxisPt(px, py){
     const B = this.ow && this.ow.on ? fleetBody() : null;
     if(!B) return { x: this.botX, y: this.botY, pad: 0 };
+    if(fleetCur() === "avsemi"){                                  // the rig: the nearest point on any of its real pieces' centre lines
+      let best = null, bd = 1e18;
+      for(const R of semiRects(this.ow)){
+        const hx = Math.cos(R.th), hy = Math.sin(R.th), half = Math.max(0, R.hl - R.hw), s3 = Math.max(-half, Math.min(half, (px - R.x)*hx + (py - R.y)*hy)),
+          qx = R.x + hx*s3, qy = R.y + hy*s3, d = (px - qx)*(px - qx) + (py - qy)*(py - qy);
+        if(d < bd){ bd = d; best = { x: qx, y: qy, pad: Math.max(0, R.hw - 30) }; } }
+      return best;
+    }
     const hx = Math.cos(this.ow.yaw), hy = Math.sin(this.ow.yaw);
     const s2 = Math.max(-B.half, Math.min(B.half, (px - this.botX)*hx + (py - this.botY)*hy));
     return { x: this.botX + hx*s2, y: this.botY + hy*s2, pad: Math.max(0, B.hw - 30) };
@@ -125882,6 +125903,11 @@ class WorldScene extends Phaser.Scene {
   botBodyHas(px, py, m){
     const B = this.ow && this.ow.on ? fleetBody() : null;
     if(!B) return false;
+    if(fleetCur() === "avsemi"){
+      for(const R of semiRects(this.ow)){ const hx = Math.cos(R.th), hy = Math.sin(R.th), dx = px - R.x, dy = py - R.y;
+        if(Math.abs(dx*hx + dy*hy) < R.hl + m && Math.abs(-dx*hy + dy*hx) < R.hw + m) return true; }
+      return false;
+    }
     const hx = Math.cos(this.ow.yaw), hy = Math.sin(this.ow.yaw), dx = px - this.botX, dy = py - this.botY;
     return Math.abs(dx*hx + dy*hy) < B.hl + m && Math.abs(-dx*hy + dy*hx) < B.hw + m;
   }
