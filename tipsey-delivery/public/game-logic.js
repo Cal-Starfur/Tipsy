@@ -8538,6 +8538,7 @@ function owTrailer(ow, SV){
   return T;
 }
 function owStep(scene, dt){
+  if(typeof window !== "undefined" && window.tpLookForCurrent) window.tpLookForCurrent();   // (the look of the vehicle he is in, swapped in as he changes)
   const ow = scene.ow, FP = fleetPhys(), D = FP.D || OW_D, W = ow.world;   // (a fleet vehicle's own numbers: fleetPhys, the FLEET registry)
 
   /* CATCH-ALL, ARMED BEFORE ANYTHING ELSE RUNS. Position at the end of
@@ -111971,7 +111972,11 @@ class WorldScene extends Phaser.Scene {
     const AP = AV_PODS[kind], V = this.vehKit(g, x, y, z, fdir), { P, sees, solid, prismB, prismH, Q, line, shadeC } = V;
     V.outline = FLEET_OUTLINE;                                                                     // (Tipsey's outline: the autonomous line)
     const hl = AP.len/2, hw = AP.wid/2, r = AP.wheelR, cz = r, H = AP.H;
-    const WHITE = 0xf2f3f1, ROOF = 0xe4e7ea, GLASS = 0x26313b, ORANGE = 0xff7a1a, CYAN = 0x5fe8e0, DARK = 0x23272d;
+    /* THE PLAYER'S OWN PAINT (the standing rules): the one he drives wears Tipsey's equipped look -- his body colour, his stripe in the line
+       along its flank, the print on the flank under the glass and his finish on it, his badge and stripe pattern, a topper on the roof,
+       his eyes for the lidar rings. The ones on the road keep the stock white and orange (no data.paint) */
+    const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
+    const WHITE = WEAR ? BPW.top : 0xf2f3f1, ROOF = WEAR ? BPW.lt : 0xe4e7ea, GLASS = 0x26313b, ORANGE = WEAR ? SKIN.stripe : 0xff7a1a, CYAN = WEAR ? SKIN.eye : 0x5fe8e0, DARK = 0x23272d;
     const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), fb = nearB*(hw + 0.5);
     const edgeOn = Math.abs(V.eye[1]) < 0.12;
     this.drawVehicleShadow(g, P, hl, hw);
@@ -112003,7 +112008,8 @@ class WorldScene extends Phaser.Scene {
         const [g0, g1] = AP.glass, ins = a => a;   // glass all along the cabin, a pillar mid way
         quad(-hl + 18, hl - 18, g0, g1, fb, GLASS);
         quad(-2, 2, g0, g1, fb*1.001, WHITE);
-        quad(-hl + 18, hl - 18, g0 - 7, g0 - 3, fb*1.001, ORANGE);                                 // the orange line under it
+        quad(-hl + 18, hl - 18, g0 - 10, g0 - 3, fb*1.001, ORANGE);                                // the orange line under it (his stripe when worn)
+        if(WEAR && SKIN.stripe2) quad(-hl + 18, hl - 18, g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
         line([-hl + 40, fb*1.002, g0 - 30], [-hl + 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2); // the doors' seams
         line([hl - 40, fb*1.002, g0 - 30], [hl - 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2);
       } else {
@@ -112034,6 +112040,17 @@ class WorldScene extends Phaser.Scene {
             const at = ([u, v]) => P(wa0 + dir*(i*28 + u)*wsc, fb*1.004, hb0 + v*wsc);
             Q(gl.out.map(at), ORANGE); if(gl.cut) Q(gl.cut.map(at), WHITE); });
         }
+      }
+      /* HIS SKIN ON THE FLANK: the print and finish on the plain panel under the glass (low, the same full length, so nothing of the profile's
+         corners is covered), then the stripe's pattern and the badge as the bots' */
+      if(WEAR){
+        const flatH0 = 16, flatH1 = AP.glass ? AP.glass[0] - 16 : 40, lit0 = Math.max(0, Math.min(1, (V.lit([0, nearB, 0]) - 0.66)/0.31));
+        const bq = nearB > 0 ? [P(hl, hw, flatH0), P(-hl, hw, flatH0), P(-hl, hw, flatH1), P(hl, hw, flatH1)] : [P(-hl, -hw, flatH0), P(hl, -hw, flatH0), P(hl, -hw, flatH1), P(-hl, -hw, flatH1)];
+        if(BPW.print){ const ringR = [[hl, -hw], [hl, hw], [-hl, hw], [-hl, -hw]], Lay = this.printLayout(BPW.print, ringR, flatH1 - flatH0, 'body');
+          this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, flatH1 - flatH0, 1, 'body'); }
+        if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3);
+        const s0 = AP.glass ? AP.glass[0] - 10 : 40, s1 = AP.glass ? AP.glass[0] - 3 : 46;
+        this.botSkinWear(g, V, { hx: hl, hy: hw, ch: 16, s0, s1, dz: (flatH0 + flatH1)/2 });
       }
       /* dark arches round the near wheels */
       for(const a0 of wA) V.well(a0, fb*1.003, r + 3, cz, 12);
@@ -112072,6 +112089,8 @@ class WorldScene extends Phaser.Scene {
       this.avLathe(V, a + s2*2, bb, [[H + 11, 6], [H + 14, 4.5]], 0x2d3238, null, 10);
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
+    /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
+    if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22; line([ta, 0, H], [ta, 0, H + 26], DARK, 1.6); this.botTopper(g, V, ta, 0, H + 28); }
   }
   /* A BOT'S HOLD, AS TIPSEY'S (a real hollow): the opening is the body's own chamfered octagon drawn in (inset k), so it lies
      wholly inside the top and clear of its black outline; four inner walls go down depth to a floor, all cut to the opening so
@@ -117258,7 +117277,8 @@ class WorldScene extends Phaser.Scene {
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
-      : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
+      : kind === "avpod" && typeof fmPodData === "function" ? Object.assign({ paint: true }, fmPodData())                // (a locker open for CATCH OF THE DAY, in his paint)
+      : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
     const SS = kind === "avsemi" && this.ow && this.ow.on ? FLEET_STEER.avsemi : null;
@@ -141032,6 +141052,21 @@ requestTpProfile();
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
   const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(pick(look)));
                                  localStorage.setItem(OWN_KEY, JSON.stringify([...paintOwned])); } catch (e) {} };
+  /* A LOOK OF ITS OWN FOR EVERY VEHICLE (Sir, 2026-11-10: "if the player paints his Tipsey bot it should be independent of his other fleet bots, they get
+     their own paint jobs"): `look` and tpProfile.equipped are the look of whoever he is driving (lookOwner: '' Tipsey, else the vehicle's kind), swapped
+     as he changes vehicle (tpLookForCurrent, from the Fleet tab and every frame's owStep). Each vehicle's is kept in fleetLooks (localStorage), a vehicle
+     he has not painted starts in the classic, Gideon's starts with the look he had on Tipsey's (his g* fields lived there before). The paints, skins and
+     prices are the same and owned once. While a vehicle's is on, nothing is told to the server (its equipped skin is Tipsey's); `_away` marks that the
+     profile on disk holds a vehicle's, so a reload puts Tipsey's own back */
+  const FLEETLOOK_KEY = 'tipsy.fleetLooks';
+  const fleetLooks = load(FLEETLOOK_KEY, {});
+  const saveFleetLooks = () => { try { localStorage.setItem(FLEETLOOK_KEY, JSON.stringify(fleetLooks)); } catch (e) {} };
+  let lookOwner = '';
+  if (fleetLooks._away) {
+    const T = fleetLooks.tipsey;
+    if (T) { tpProfile.equipped = T.skin || 'classic'; look = Object.assign(pick({}), T.look); saveLook(); tpSaveProfile(); }
+    fleetLooks._away = false; saveFleetLooks();
+  }
   const LISTS = { body: BODY, finish: FINISH_LIST, body2: BODY, stripe: STRIPE, eyeShape: EYE_SHAPE_LIST, eyeCol: EYE_COL, eyeProj: EYE_PROJ_LIST,
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
@@ -141120,6 +141155,18 @@ requestTpProfile();
   /* ============================ TRY-ON STATE ============================ */
   let pv = null;                       // what he is wearing in the garage
   const worn = () => Object.assign({ skin: tpProfile.equipped || 'classic' }, pick(look));
+  window.tpLookForCurrent = function () {
+    const kind = (typeof fleetCur === 'function' && fleetCur()) || '';
+    if (kind === lookOwner) return;
+    const key = k => k || 'tipsey';
+    fleetLooks[key(lookOwner)] = { skin: tpProfile.equipped || 'classic', look: pick(look) };
+    let S = fleetLooks[key(kind)];
+    if (!S) { S = { skin: 'classic', look: {} }; if (kind === 'humanoid') for (const k of GD_FIELDS) S.look[k] = look[k] || null; }   // (Gideon's, from where they lived)
+    tpProfile.equipped = S.skin; look = Object.assign(pick({}), S.look);
+    lookOwner = kind; fleetLooks._away = kind !== '';
+    saveFleetLooks(); saveLook(); tpSaveProfile();
+    pv = null; tpApplySkin(tpProfile.equipped);
+  };
   function unpaid(L) {
     const out = [];
     if (!ownsSkin(L.skin)) out.push({ kind: 'skin', id: L.skin, item: tpSkinById(L.skin) });
@@ -141129,7 +141176,7 @@ requestTpProfile();
   function commit(L) {                  // everything in L is owned: wear it
     if (L.skin !== tpProfile.equipped) {
       tpProfile.equipped = L.skin; tpSaveProfile();
-      try { tpSubmitEquip(L.skin); } catch (e) {}
+      if (!lookOwner) try { tpSubmitEquip(L.skin); } catch (e) {}   // (a vehicle's own look is not Tipsey's: the server keeps his)
     }
     Object.assign(look, pick(L)); saveLook();
     tpApplySkin(tpProfile.equipped);
@@ -141921,7 +141968,7 @@ requestTpProfile();
     for (const b of P.querySelectorAll('[data-fly]')) b.onclick = () => { flyModeSet(b.dataset.fly); renderTab(); };
     /* the pick cuts the room to its bay (fleetGarageCut): a new frame, snapped, not eased */
     for (const b of P.querySelectorAll('[data-fleet]')) b.onclick = () => {
-      tpProfile.fleetKind = b.dataset.fleet; tpApplySkin(tpProfile.equipped); tpSaveProfile();
+      tpProfile.fleetKind = b.dataset.fleet; tpSaveProfile(); if (window.tpLookForCurrent) window.tpLookForCurrent();
       const s = scn();
       if (fleetGarageCut(s)) { fr.init = false; vel = 0; }
       syncTabs(); renderTab(); fit();
