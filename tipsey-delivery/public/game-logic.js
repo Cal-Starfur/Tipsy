@@ -113466,7 +113466,7 @@ class WorldScene extends Phaser.Scene {
     const flaps = () => { if(tAny) return; const fa = Math.min(...W) - r - 6;
       for(const sb of [-nearB, nearB]) solid(prismH([[fa - 2, sb*(hw - 18)], [fa, sb*(hw - 18)], [fa, sb*(hw - 1)], [fa - 2, sb*(hw - 1)]], 6, cz + 14), 0x1b1d21); };
     /* the chassis under it all */
-    if(!tP){ const c0 = TK && tAny ? 90 : -hl + 8, c1 = TK && only === "trailer" ? 150 : hl - 30;
+    if(!tP){ const c0 = TK && tAny ? 90 : -hl + 8, c1 = TK && only === "trailer" ? 150 : tU ? aBk : hl - 30;   // (the under-part's frame ends at the pod's rear face: it ran on under the pod and painted over it from behind)
       parts.push({ d: -8000, draw: () => { solid(prismH([[c0, -hw + 22], [c1, -hw + 22], [c1, hw - 22], [c0, hw - 22]], cz - 6, cz + 10), DARK); flaps(); } }); }
     /* reflective tape along a flank's foot, red and white */
     const tape = (a0, a1, h, bb) => { for(let a = a0, k = 0; a < a1 - 10; a += 22, k++) quad(a, a + 11, h, h + 4, bb, k % 2 ? 0xf4f5f2 : 0xd8402f); };
