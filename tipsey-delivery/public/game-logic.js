@@ -112650,8 +112650,8 @@ class WorldScene extends Phaser.Scene {
     }
     if(kind === "avforklift"){
       /* THE DRIVERLESS FORKLIFT: no seat, no cage. Tipsey's hull (botHull: the chamfered, bevelled prism, so his paint, finish, print and
-         two-tone reach it) for the chassis, his stripe a band round it, a lower hood over the counterweight at the tail, a sensor tower
-         standing on it with his face, his flag (or a skin's topper) on a whip behind, two lidar pucks on the nose, the mast, carriage and
+         two-tone reach it) for the chassis, his stripe a band round it, a lower hood over the counterweight at the tail, a sensor mast
+         on it with a lidar and, over it, his flag (or a skin's topper), his face on the mast carriage, two lidar pucks on the nose, the mast, carriage and
          forks at the front. It runs empty: a pallet rides the forks only when a mission or a working scene hands it one (data.load).
          Drawn about its own middle (tail -98, fork tips 98, the 196 of its FLEET body), so its hit box (fleetBody) is the machine, not
          a run 28 further back; tyres flush outside the chassis, 84 over them (botR 42) */
@@ -112659,11 +112659,6 @@ class WorldScene extends Phaser.Scene {
       shadow(98, 42);
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       const wheels = sb => { for(const [a, r] of [[2, 13], [-74, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase, undefined, a < -30 ? -((data && data.steer) || 0) : 0); };   // (its rear wheels steer it: data.steer)
-      /* THE FLAG, AS TIPSEY'S (flagNear): on a whip at the hood's far back corner; in front of the body when its rear face is toward the eye */
-      const flagNear = sees(-1, 0, 0);
-      const drawFlag = () => { const fa = -94, fb = -nearB*(HH - 5);
-        line([fa, fb, ZH], [fa, fb, ZH + 66], DARK, 1.4);
-        if(!(WEAR && this.botTopper(g, V, fa, fb, ZH + 66))) Q([P(fa, fb, ZH + 66), P(fa - 18, fb, ZH + 60), P(fa, fb, ZH + 54)], FLAGC); };
       const puck = (a, b, h, s) => { this.avLathe(V, a, b, [[h, 5*s], [h + 4*s, 5*s]], DARK, null, 10);
         this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
         this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
@@ -112678,6 +112673,8 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-1, 1]) puck(-10, sb*24, ZT, 0.75);                                                               // lidar on the nose
         line([-62, 0, ZH], [-62, 0, 88], DARK, 3);                                                                          // the sensor mast: just its lidar on top, his face is on the front (the carriage)
         puck(-62, 0, 88, 1.1);
+        line([-62, 0, 97], [-62, 0, 126], DARK, 1.4);                                                                       // his flag (or a skin's topper) on the mast's tip, over the lidar
+        if(!(WEAR && this.botTopper(g, V, -62, 0, 126))) Q([P(-62, 0, 126), P(-80, 0, 120), P(-62, 0, 114)], FLAGC);
         wheels(nearB);
       };
       const mast = () => {
@@ -112691,9 +112688,7 @@ class WorldScene extends Phaser.Scene {
           box(32, 92, -28, 28, 24, 70, 0xc98a4a); box(32.2, 92.2, -3, 3, 24, 70, STRIPEC);
         }
       };
-      if(!flagNear) drawFlag();
       if(front){ body(); mast(); } else { mast(); body(); }
-      if(flagNear) drawFlag();
       return;
     }
   }
