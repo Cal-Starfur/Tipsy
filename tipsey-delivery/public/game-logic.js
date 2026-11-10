@@ -3420,7 +3420,7 @@ const FLEET = {
   patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
                 ctl: { botR: 31 }, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
   amr:        { name: "Warehouse robot", cls: "walk", art: "amr", body: { len: BOTS.amr.len, wid: 76, h: 80, cap: true }, fit: { r: 55, h: 80 },
-                ctl: {}, bay: "station", unlock: "number-4-builds", abilities: ["platform"], cargo: "pallet", ambient: { yards: true } },
+                ctl: { botR: 38 }, bay: "station", unlock: "number-4-builds", abilities: ["platform"], cargo: "pallet", ambient: { yards: true } },
   /* road: never tips (big); P3's bicycle controller */
   robotaxi:   { name: "Robotaxi", cls: "road", art: "robotaxi", body: { len: AV_PODS.robotaxi.len, wid: AV_PODS.robotaxi.wid, h: AV_PODS.robotaxi.H, cap: true }, fit: { r: 107, h: 150 },
                 ctl: {}, bay: "road", unlock: "the-getaway", abilities: ["passengers"], ambient: { traffic: true } },
@@ -112175,11 +112175,11 @@ class WorldScene extends Phaser.Scene {
     /* THE LIDDED BOTS GO OVER TOO (Sir, 2026-11-10: "make sure these bots tip over properly"): the cargo bot and the courier roll
        about their outer wheel's foot (ROLL_PIVOT, half their track), as Gideon about his outer foot; botHull reads the same roll
        (this._botRoll) so their hulls and lids turn with them */
-    const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28, patrolbot: 30 };
+    const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28, patrolbot: 30, amr: 38 };
     const roll = ROLL_PIVOT[kind] && data ? (data.roll || 0) : 0;
     /* ... and over their nose or tail (THE FOUR-WAY FALL: tipU.a): a pitch about the end of the footprint they fall over
        (PITCH_PIVOT, half their length), the same pose Tipsey takes (this.pitch, its sign data.pitchSg) */
-    const PITCH_PIVOT = { cargobot: 50, courierbot: 22, patrolbot: 30 };
+    const PITCH_PIVOT = { cargobot: 50, courierbot: 22, patrolbot: 30, amr: 55 };
     const pitch = PITCH_PIVOT[kind] && data ? (data.pitch || 0) : 0;
     let xf = null;
     this._botRoll = null;
@@ -112353,20 +112353,33 @@ class WorldScene extends Phaser.Scene {
       return;
     }
     if(kind === "amr"){
-      /* THE WAREHOUSE AMR: a low dark platform, lit cyan round its skirt,
-         a lidar bump at its nose, carrying a pallet of boxes */
-      const L = 110, W = 76;
+      /* THE WAREHOUSE AMR: a low platform on Tipsey's hull (the chamfered, bevelled prism, so a skin's paint, finish, print and two-tone
+         reach it), a lit band round its skirt (his stripe when worn: cyan stock), a lidar bump at its nose, a safety whip flag at its
+         tail (his flag, or a skin's topper), carrying a pallet of boxes. Worn as Tipsey's, as the others (the standing rules) */
+      const L = 110, W = 76, hx = L/2, hy = W/2;
       shadow(L/2, W/2);
-      box(-L/2, L/2, -W/2, W/2, 4, 10, 0x3a4048); box(-L/2, L/2, -W/2, W/2, 10, 13, CYAN, true); box(-L/2, L/2, -W/2, W/2, 13, 28, 0x3a4048);
-      box(-L/2 + 4, L/2 - 4, -W/2 + 4, W/2 - 4, 28, 31, 0x9aa1a6);
+      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0x474e57, lt: 0x3a4048, dk: 0x2b3037 };
+      const LEDC = WEAR ? STRIPEC : CYAN, LEDD = WEAR ? STRIPED : _pdk(CYAN, 0.8);
+      /* THE FLAG, AS TIPSEY'S (flagNear): in front of the body when its rear face is toward the eye, behind it when away */
+      const flagNear = sees(-1, 0, 0);
+      const drawFlag = () => { const fa = -hx + 5, fb = -nearB*(hy - 6), fz = 31;
+        line([fa, fb, fz], [fa, fb, fz + 62], DARK, 1.4);
+        if(!(WEAR && this.botTopper(g, V, fa, fb, fz + 62))) Q([P(fa, fb, fz + 62), P(fa - 16, fb, fz + 57), P(fa, fb, fz + 52)], WEAR ? FLAGC : 0xff7a1a); };
+      if(!flagNear) drawFlag();
+      this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 4, z1: 28, ch: 10, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0x23272d }, paintOf(4, 28, 'body')));
+      if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 5, z1: 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 10, z1: 13, band: true, cLt: LEDC, cDk: LEDD });          // the lit band round its skirt
+      this.botHull(g, x, y, z, fdir, { hx: hx - 4, hy: hy - 4, z0: 28, z1: 31, ch: 8, cTop: WEAR ? BODYC.top : 0xb4bbc0, cLt: WEAR ? BODYC.lt : 0x9aa1a6, cDk: WEAR ? BODYC.dk : 0x7e858a, cBottom: 0x23272d });   // its top plate
+      if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 10, s0: 10, s1: 13, dz: 19 });                    // (his skin's stripe pattern and badge)
       this.tipseyFace(V, L/2, 20, 0.7);
       box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                                    // the pallet
       if(!front) puck(L/2 - 10, 0, 31, 0.9);                                                     // its lidar, behind the load from here
       /* its boxes, far to near */
       const crates = [[-40, -4, -28, 28, 77, 0xc98a4a, true], [0, 32, -28, 4, 67, 0xc98a4a, true], [0, 32, 6, 28, 71, 0xb97b40, false]];
       crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
-      for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, ORANGE, true); }
+      for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, STRIPEC, true); }
       if(front) puck(L/2 - 10, 0, 31, 0.9);
+      if(flagNear) drawFlag();
       return;
     }
     if(kind === "avforklift"){
@@ -117239,7 +117252,7 @@ class WorldScene extends Phaser.Scene {
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
-      : kind === "patrolbot" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
+      : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
