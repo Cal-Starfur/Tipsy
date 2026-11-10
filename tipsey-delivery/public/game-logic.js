@@ -122734,6 +122734,10 @@ class WorldScene extends Phaser.Scene {
     const F = SKIN.flag, dark = SKIN.flagPole;
     const lighten = (col, k) => { const f = v => Math.min(255, Math.round(v + (255 - v)*k)); return (f(col >> 16 & 255) << 16) | (f(col >> 8 & 255) << 8) | f(col & 255); };
     const night = this.isNightLit && this.isNightLit();
+    /* THE POLE RUNS UP INTO IT (Sir, 2026-11-10: the toppers float off the pole a bit): a topper's own base stands up to 2.2 above the
+       pole's tip (the helmet's chin, a beacon's foot...), so with the pole ending at the tip there was a gap. A stub of the pole's own
+       colour and width carries it up to 4 (the topper paints over it where its base is lower), for Tipsey and for every fleet vehicle */
+    { const a0 = c(0, -1), a1 = c(0, 4); g.lineStyle(Math.max(1, 3.2*ks0), dark, 1); g.beginPath(); g.moveTo(a0.x, a0.y); g.lineTo(a1.x, a1.y); g.strokePath(); }
     /* VOLUME (Sir, 2026-09-24: "make sure they have volume"). Three tools:
        extrude() stacks darker copies of a flat shape toward the back --
        "back" is his own forward axis on screen, pointed away from the
