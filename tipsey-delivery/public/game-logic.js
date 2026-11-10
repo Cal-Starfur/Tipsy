@@ -112366,13 +112366,13 @@ class WorldScene extends Phaser.Scene {
   }
   /* the skin's topper (a beacon, a helmet, the Jolly Roger...) on a bot's pole tip (a, b, h in its frame), as drawFlag puts
      it on Tipsey's. Returns false when the skin has none, and the bot keeps its own flag */
-  botTopper(g, V, a, b, h){
+  botTopper(g, V, a, b, h, sc){
     const pirate = SKIN.topper === 'pirate' || (SKIN.jolly && !SKIN.topper);
     const top = pirate ? 'pirate' : (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : (!SKIN.topper && SKIN.skinTop) || null);
     if(!top) return false;
     const p = V.P(a, b, h), q = V.P(a, b, h - 14);
     let dx = p.x - q.x, dy = p.y - q.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-    const ks = this.kScale(), g0 = this.g; this.g = g;
+    const ks = this.kScale()*(sc || 1), g0 = this.g; this.g = g;
     try {
       const cloth = top === 'pirate' || top === 'square' || top === 'swallow' || top === 'checker';
       if(cloth) this.drawFlagCloth(top, p, dx, dy, ks); else this.drawTopper(top, p, dx, dy, ks);
@@ -113574,10 +113574,15 @@ class WorldScene extends Phaser.Scene {
         skinOn((aBk + hl)/2, { hx: (hl - aBk)/2, hy: hw, ch: 9.3, s0: cz + 9, s1: cz + 23, dz: 100, da: 0, dk: 1 });
         arch(W[0], fb);
         quad(aBk + 4, hl - 40, top - 10, top - 7, fb*1.002, shadeC(col.body, 0.8));                 // a seam under the roof
-        if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = aBk + 16, low = (SKIN.skinTop === 'sk-taxisign' || SKIN.skinTop === 'sk-andon') && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, top], [ta, 0, top + st], 0x23272d, 1.6); this.botTopper(g, V, ta, 0, top + st + 2); }   // (a skin's topper on a stalk on the pod's roof)
+        if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = aBk + 16, low = (SKIN.skinTop === 'sk-taxisign' || SKIN.skinTop === 'sk-andon') && !SKIN.topper, st = low ? 1 : 40; if(!low) line([ta, 0, top], [ta, 0, top + st], 0x23272d, 1.6); this.botTopper(g, V, ta, 0, top + st + 2, 2.2); }   // (a skin's topper on a stalk on the pod's roof)
         if(nose){
           const a = hl + 0.4;
           this.tipseyFace(V, hl, 80, 2.6, { mouthZ: cz + 16 });                                     // Tipsey's face, the brand
+          if(WEAR && SKIN.scanner){                                                                  // SCANNER: a red light sweeping a dark bar across the nose
+            const zs0 = cz + 25, zs1 = cz + 33, k = (Math.sin((t || 0)/300) + 1)/2, ex = hw*0.66;
+            endQ(a + 0.1, -ex, ex, zs0, zs1, 0x2a0a0c);
+            for(const [wd, c] of [[22, 0x7a1018], [14, 0xe0202a], [6, 0xffb0b0]]){ const cx = -ex + wd/2 + k*(2*ex - wd); endQ(a + 0.2, cx - wd/2, cx + wd/2, zs0, zs1, c); }
+          }
           endQ(a, -hw*0.6, hw*0.6, cz - 2, cz + 6, 0x2a2f36);
         }
       }});
@@ -127518,10 +127523,55 @@ const SK_AIRPORT_SHUTTLE = {
   wheelHubFace:0x1f5fbf, wheelHub:0xe4e9ef, eye:0x9fe8ff, eyeAlert:0xff4a4a,
   flag:0x1f5fbf, flagPole:0x2a3340, emblem:'plane', decalCol:0x1f5fbf, roofrack:true
 };
+/* THE BIG RIG'S OWN (Sir, 2026-11-10: "trucker skins, pop culture references"; the autonomous semi's, TP_SKINS' fleet 'avsemi', free): six homages by their own names.
+   PRIME MOVER (the hero truck: red, blue, a heart, flames), RUBBER DUCK (the 1970s CB convoy: orange, a rubber duck on the roof), BANDIT RUN (black and gold, a
+   firebird), WASTELAND RIG (rust, grime, a skull), SCANNER (black, a red light sweeping the pod's nose: `scanner`), THE DUEL (a filthy, faceless pursuer) */
+const SK_PRIME_MOVER = {
+  bodyTop:0xc8302e, bodyRight:0xa8262a, bodyLeft:0x831d20, outline:0x2a0c0e,
+  stripe:0x2a4fb0, stripeDk:0x1d3a86, stripe2:0xdfe6f2, stripe2Dk:0xb4bdd0, lidInner:0xc8302e, belly:0x2a0c0e,
+  wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0x9fe8ff, eyeAlert:0xff4a4a,
+  flag:0x2a4fb0, flagPole:0x2a0c0e, emblem:'heart', decalCol:0xdfe6f2, band:'chevrons'
+};
+const SK_RUBBER_DUCK = {
+  bodyTop:0xf08a1c, bodyRight:0xd1720f, bodyLeft:0xa85a0b, outline:0x3a2004,
+  stripe:0xffd23a, stripeDk:0xd6aa22, stripe2:0x5a3414, stripe2Dk:0x3e240d, lidInner:0xf08a1c, belly:0x3a2004,
+  wheelHubFace:0xffd23a, wheelHub:0xd9dde2, eye:0xfff0a0, eyeAlert:0xff4a4a,
+  flag:0xffd23a, flagPole:0x3a2004, topper:'duck'
+};
+const SK_BANDIT_RUN = {
+  bodyTop:0x1a1b20, bodyRight:0x131418, bodyLeft:0x0c0d10, outline:0x050506,
+  stripe:0xe8b923, stripeDk:0xb8921a, stripe2:0xe8b923, stripe2Dk:0xb8921a, lidInner:0x1a1b20, belly:0x050506,
+  wheelHubFace:0xe8b923, wheelHub:0x8a919c, eye:0xffe27a, eyeAlert:0xff4a4a,
+  flag:0xe8b923, flagPole:0x050506, emblem:'flames', emblemColor:0xe8b923, decalCol:0xe8b923
+};
+const SK_WASTELAND_RIG = {
+  bodyTop:0x8a5a34, bodyRight:0x704626, bodyLeft:0x55341a, outline:0x1e1208,
+  stripe:0x3a2a1e, stripeDk:0x241810, stripe2:0xc99a4a, stripe2Dk:0x9a7430, lidInner:0x8a5a34, belly:0x1e1208,
+  wheelHubFace:0x5a4a2a, wheelHub:0xc9a349, eye:0xffb23a, eyeAlert:0xff5a3c,
+  flag:0x3a2a1e, flagPole:0x1e1208, emblem:'skull', emblemColor:0xe8e2d0, emblemDark:0x101014, topper:'skull', print:'weathered'
+};
+const SK_SCANNER = {
+  bodyTop:0x14151a, bodyRight:0x0e0f13, bodyLeft:0x08090b, outline:0x040405,
+  stripe:0xe0202a, stripeDk:0xa51820, stripe2:0x5a0d12, stripe2Dk:0x3a080b, lidInner:0x14151a, belly:0x040405,
+  wheelHubFace:0xe0202a, wheelHub:0x8a919c, eye:0xff3a3a, eyeAlert:0xff9a3a,
+  flag:0xe0202a, flagPole:0x040405, scanner:true
+};
+const SK_THE_DUEL = {
+  bodyTop:0x6e5a3c, bodyRight:0x594830, bodyLeft:0x433623, outline:0x18110a,
+  stripe:0x3b2c1e, stripeDk:0x261c12, lidInner:0x6e5a3c, belly:0x18110a,
+  wheelHubFace:0x4a4030, wheelHub:0x7a7262, eye:0x5a3a14, eyeAlert:0xff7a2a,
+  flag:0x3b2c1e, flagPole:0x18110a, print:'weathered'
+};
 const SKIN_PALETTES = {
   "tokyo-taxi":     SK_TOKYO_TAXI,
   "airport-shuttle":SK_AIRPORT_SHUTTLE,
   "yellow-cab":     SK_YELLOW_CAB,
+  "prime-mover":    SK_PRIME_MOVER,
+  "rubber-duck":    SK_RUBBER_DUCK,
+  "bandit-run":     SK_BANDIT_RUN,
+  "wasteland-rig":  SK_WASTELAND_RIG,
+  "scanner":        SK_SCANNER,
+  "the-duel":       SK_THE_DUEL,
   "police":         SK_POLICE,
   "sheriff":        SK_SHERIFF,
   "security":       SK_SECURITY,
@@ -138178,6 +138228,19 @@ const TP_SKINS = [
     filter:"none", desc:"White with a blue band, a jet on the flank and a roof rack, for the airport run." },
   { skinId:"yellow-cab",     displayName:"Yellow Cab",     unlockType:"free",         fleet:"robotaxi",
     filter:"none", desc:"A 1970s New York cab: taxi yellow, the black checker band, the lit TAXI sign on the roof." },
+  /* THE BIG RIG'S OWN (fleet: the autonomous semi; free): six homages */
+  { skinId:"prime-mover",    displayName:"Prime Mover",    unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Red cab, blue stripe, chevrons and a heart on the trailer: the hero truck who turns out to be a robot." },
+  { skinId:"rubber-duck",    displayName:"Rubber Duck",    unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Convoy orange and yellow with a rubber duck on the roof, breaker one-nine, good buddy." },
+  { skinId:"bandit-run",     displayName:"Bandit Run",     unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Black with a gold band and a firebird on the trailer. Eastbound and down." },
+  { skinId:"wasteland-rig",  displayName:"Wasteland Rig",  unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Rust, grime, a skull on the trailer and another on the roof. Witness." },
+  { skinId:"scanner",        displayName:"Scanner",        unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Black with a red band and a red light that sweeps across the pod's nose." },
+  { skinId:"the-duel",       displayName:"The Duel",       unlockType:"free",         fleet:"avsemi",
+    filter:"none", desc:"Filthy, weathered and faceless. It has been behind you for a while now." },
   /* THE PATROL ROBOT'S (fleet: it shows in the garage and is worn only while he is the patrol robot): all three come with NIGHT WATCH */
   { skinId:"police",         displayName:"Police",         unlockType:"achievement",  trophyId:"night-watch", fleet:"patrolbot", lockText:"Night Watch",
     filter:"none", desc:"Navy with a gold band over a blue one, a gold star and the blue beacon. The patrol robot's, for finishing Night Watch." },

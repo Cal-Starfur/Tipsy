@@ -54,6 +54,13 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'yellow-cab': {priceCents: 0, unlockType: 'free'},
   'tokyo-taxi': {priceCents: 0, unlockType: 'free'},
   'airport-shuttle': {priceCents: 0, unlockType: 'free'},
+  /* the big rig's own (game/index.html TP_SKINS, fleet 'avsemi': worn only as the autonomous semi), six free homages */
+  'prime-mover': {priceCents: 0, unlockType: 'free'},
+  'rubber-duck': {priceCents: 0, unlockType: 'free'},
+  'bandit-run': {priceCents: 0, unlockType: 'free'},
+  'wasteland-rig': {priceCents: 0, unlockType: 'free'},
+  'scanner': {priceCents: 0, unlockType: 'free'},
+  'the-duel': {priceCents: 0, unlockType: 'free'},
   /* Night Watch's three, the patrol robot's own skins (TP_SKINS' fleet: worn only as the patrol robot), one trophy each */
   police: {priceCents: 0, unlockType: 'achievement'},
   sheriff: {priceCents: 0, unlockType: 'achievement'},
