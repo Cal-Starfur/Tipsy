@@ -113854,13 +113854,13 @@ class WorldScene extends Phaser.Scene {
          round it, and its lid his -- on his hinge, opening with his lid (data.lid). The whip aerial stands on the body
          behind the lid (on the lid it swung out flat as the lid opened) */
       const R = 22, hx = 22, hy = 19, zb = 102, zl = 108;
-      const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy*0.82 : -hy*0.82, zh: zb };
+      const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: zb };
       const BODYC = { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
       const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));
       const drawLid = () => {
-        this.botHull(g, x, y, z, fdir, { hx: hx*0.82, hy: hy*0.82, z0: zb, z1: zl, ch: 7, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, LD);
+        this.botHull(g, x, y, z, fdir, { hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, LD);
       };
       const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); const tp = P(-21, 0, zb + 47); g.fillStyle(ORANGE, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
       const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
@@ -113879,7 +113879,7 @@ class WorldScene extends Phaser.Scene {
         line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
       }
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
-      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx*0.82 - k, -(hy*0.82 - k), zb + 0.5), P(hx*0.82 - k, hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), -(hy*0.82 - k), zb + 0.5)];
+      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx - k, -(hy - k), zb + 0.5), P(hx - k, hy - k, zb + 0.5), P(-(hx - k), hy - k, zb + 0.5), P(-(hx - k), -(hy - k), zb + 0.5)];
         this.quadOn(g, ring(2), 0x9ba1a9); this.quadOn(g, ring(5), 0x7b818a); }
       if(lidTop) drawLid();
       if(backNear) aerial();
