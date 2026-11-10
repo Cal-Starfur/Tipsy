@@ -113679,7 +113679,7 @@ class WorldScene extends Phaser.Scene {
     const edgeOn = Math.abs(V.eye[1]) < 0.12;
     /* the passenger doors' opening: the whole flank between the wheel arches (Sir, 2026-11-10: wider), its sill 26 up, to just over the glass */
     const dA = hl*0.66 - 27, DRW = AP.glass ? { a0: -dA, a1: dA, h0: 26, h1: AP.glass[1] + 4 } : null;
-    let doorLeaves = null;                                    // (the door leaves, painted last: open, they slide out over the cab and the tyres)
+    let doorLeaves = null, glassLast = null;                                    // (the door leaves, painted last: open, they slide out over the cab and the tyres)
     this.drawVehicleShadow(g, P, hl, hw);
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
     const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
@@ -113708,9 +113708,22 @@ class WorldScene extends Phaser.Scene {
     if(!edgeOn){
       if(AP.glass){
         const [g0, g1] = AP.glass, ins = a => a;   // glass all along the cabin, a pillar mid way
-        quad(-hl + 18, hl - 18, g0, g1, fb, GLASS);
-        quad(-hl + 18, hl - 18, g0 - 10, g0 - 3, fb*1.001, ORANGE);                                // the orange line under it (his stripe when worn)
-        if(WEAR && SKIN.stripe2) quad(-hl + 18, hl - 18, g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
+        /* THE GLASS FILLS THE FLANK'S FLAT TO ITS EDGE (Sir, 2026-11-10: the window did not reach the corner): the flat of the flank ends 9.5 in from the
+           profile's edge (the bevel round it), and the profile leans in above 70, so the glass is a trapezoid, wide at its foot and narrower at the top,
+           hugging that edge -- a straight cut at 18 in left a sliver short of it at the foot and hung over the bevel at the top */
+        const aEnd = h => { for(let j = 0; j + 1 < pr.length; j++){ const p0 = pr[j], p1 = pr[j + 1]; if(p0[0] > 0 && p1[0] > 0 && p1[1] > p0[1] && h >= p0[1] && h <= p1[1]) return p0[0] + (p1[0] - p0[0])*(h - p0[1])/(p1[1] - p0[1]) - 9.5; } return hl - 9.5; };
+        /* ...and painted LAST (glassLast, at the end): the end pass lays the corner's chamfer and bevel over the flank after the panels, and cut a light wedge out
+           of the window's corner, leaving a stray piece of glass beyond it. Over them, the window runs on to a 5-unit frame inside the outline */
+        glassLast = () => {
+          const gE = h => aEnd(h) + 9.5 - (12 - 8*Math.max(0, Math.min(1, (h - g0)/(g1 - g0)))), c0 = this.drawClip,   // (a frame 12 wide at its foot, 4 at its top: it ran into a thin tail down the outline there)
+          sil = c0 ? null : V.silhouette(prismB(pr, -hw, hw));     // (clipped to the outline: it cannot stand outside it)
+          if(sil) this.drawClip = sil;
+          try {                                                                                                          // (the panels either side of the doors: over the opening it is the cabin that shows)
+            Q([P(-gE(g0), fb, g0), P(DRW.a0, fb, g0), P(DRW.a0, fb, g1), P(-gE(g1), fb, g1)], GLASS);
+            Q([P(DRW.a1, fb, g0), P(gE(g0), fb, g0), P(gE(g1), fb, g1), P(DRW.a1, fb, g1)], GLASS);
+          } finally { this.drawClip = c0; } };
+        quad(-aEnd(g0 - 3), aEnd(g0 - 3), g0 - 10, g0 - 3, fb*1.001, ORANGE);                      // the orange line under it (his stripe when worn)
+        if(WEAR && SKIN.stripe2) quad(-aEnd(g0 - 12), aEnd(g0 - 12), g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
         /* THE PASSENGER DOORS (Sir, 2026-11-10: "sliding doors, part of the vehicle, then slide open, and the interior needs a cavity inside, not a
            dark shape"): two leaves of the flank itself, in its own colour with a window each, meeting at a seam; open (data.door 0..1) they slide apart
            INTO the frame (drawn clipped to the opening, so they vanish into the wall at its edges, as a tram's do). Through the opening, a real cabin
@@ -113842,6 +113855,7 @@ class WorldScene extends Phaser.Scene {
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
     if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22; line([ta, 0, H], [ta, 0, H + 26], DARK, 1.6); this.botTopper(g, V, ta, 0, H + 28); }
+    if(glassLast) glassLast();
     if(doorLeaves) doorLeaves();
   }
   /* A BOT'S HOLD, AS TIPSEY'S (a real hollow): the opening is the body's own chamfered octagon drawn in (inset k), so it lies
@@ -114670,7 +114684,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [on(0, -hw), on(0, hw), on(1, hw), on(1, -hw)], shadeC(col, k));   // the face, in the body's paint
       this.quadOn(g, [on(0.06, -hw + 6), on(0.06, hw - 6), on(0.94, hw - 6), on(0.94, -hw + 6)], CARC.windshield);   // the glass, to the pillars
     };
-    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, well, vanCab, line, depth, paint, shadeC, outlineOf, fillSilhouette, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
+    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, well, vanCab, line, depth, paint, shadeC, outlineOf, fillSilhouette, silhouette: silhouetteOf, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
              get outline(){ return ST.outline; }, set outline(c){ ST.outline = c; } };
   }
   /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
