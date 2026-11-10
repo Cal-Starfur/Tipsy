@@ -114011,10 +114011,10 @@ class WorldScene extends Phaser.Scene {
          each front corner */
       const a0 = -hl + 2, a1 = aBk - 6, H = 150, fs = nearB*(hw + 0.6);
       for(const sb of [-1, 1]) parts.push({ d: V.depth(hl - 40, sb*hw*1.2, 0) + (sb === nearB ? 9100 : -9100), draw: () => {
-        const ac = hl - 26, bc = sb*(hw - 6), R = 24, pl = [];
+        const ac = hl + 2, bc = sb*(hw - 6), R = 20, pl = [];   // (forward of the front tyre, clear of it: at hl - 26 the pad lay across the wheel and drew over it)
         for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; pl.push([ac + Math.cos(ph)*R, bc + Math.sin(ph)*R]); }
         solid(prismH(pl, 2, 7), 0x6b4f2a, (i, n) => n[2] > 0.5 ? 0x8a6a3a : 0x4f3a1e);
-        line([ac, bc, 7], [ac - 10, sb*(hw - 14), cz + 8], TRIM, 3);
+        line([ac, bc, 7], [ac - 16, sb*(hw - 14), cz + 8], TRIM, 3);
       }});
       parts.push({ d: V.depth((a0 + a1)/2, 0, 90), draw: () => {
         solid(prismH([[a0 + 70, -hw + 8], [a0 + 120, -hw + 8], [a0 + 120, hw - 8], [a0 + 70, hw - 8]], 3, cz - 4), DARK);   // the pick-up head, under it
