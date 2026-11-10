@@ -112007,11 +112007,30 @@ class WorldScene extends Phaser.Scene {
       if(AP.glass){
         const [g0, g1] = AP.glass, ins = a => a;   // glass all along the cabin, a pillar mid way
         quad(-hl + 18, hl - 18, g0, g1, fb, GLASS);
-        quad(-2, 2, g0, g1, fb*1.001, WHITE);
         quad(-hl + 18, hl - 18, g0 - 10, g0 - 3, fb*1.001, ORANGE);                                // the orange line under it (his stripe when worn)
         if(WEAR && SKIN.stripe2) quad(-hl + 18, hl - 18, g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
-        line([-hl + 40, fb*1.002, g0 - 30], [-hl + 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2); // the doors' seams
-        line([hl - 40, fb*1.002, g0 - 30], [hl - 40, fb*1.002, 22], shadeC(WHITE, 0.75), 1.2);
+        /* THE PASSENGER DOOR (Sir, 2026-11-10: "add the door and riders, we'll start with doors"): a front-hinged door between the wheels, on both
+           flanks, shut as a seam round it and a handle, open (data.door 0..1) swung out on its hinge about a vertical line at its front edge, the dark
+           of the cabin and its bench seat in the opening. Its frame posts stand either side of it */
+        const DR = { a0: -hl*0.18 - 28, a1: -hl*0.18 + 34, h0: 24, h1: g1 + 4 }, du = Math.max(0, Math.min(1, (data && data.door) || 0));
+        const dseam = shadeC(WHITE, 0.72), qd = (a0, a1, h0, h1, bb, c) => quad(a0, a1, h0, h1, bb, c);
+        for(const pa of [DR.a0, DR.a1]) qd(pa - 1.5, pa + 1.5, g0, g1, fb*1.002, WHITE);           // (its frame posts, over the glass)
+        if(du < 0.02){
+          for(const [p0, p1] of [[[DR.a0, DR.h0], [DR.a1, DR.h0]], [[DR.a1, DR.h0], [DR.a1, DR.h1]], [[DR.a1, DR.h1], [DR.a0, DR.h1]], [[DR.a0, DR.h1], [DR.a0, DR.h0]]])
+            line([p0[0], fb*1.003, p0[1]], [p1[0], fb*1.003, p1[1]], dseam, 1.2);
+          line([DR.a0 + 7, fb*1.004, 58], [DR.a0 + 7, fb*1.004, 70], 0x8d959c, 1.8);             // its handle, at the rear edge
+        } else {
+          qd(DR.a0, DR.a1, DR.h0, DR.h1, fb*1.002, 0x14171c);                                      // the cabin
+          const ib = fb - nearB*18;                                                                 // its bench seat, inside
+          Q([P(DR.a0 + 6, ib, 40), P(DR.a1 - 6, ib, 40), P(DR.a1 - 6, ib, 56), P(DR.a0 + 6, ib, 56)], 0x353b44);
+          Q([P(DR.a0 + 6, ib, 56), P(DR.a1 - 6, ib, 56), P(DR.a1 - 6, ib, 104), P(DR.a0 + 6, ib, 104)], 0x2b3037);
+          const th = du*1.75, W = DR.a1 - DR.a0, at = (f, h) => P(DR.a1 - W*f*Math.cos(th), fb*1.003 + nearB*W*f*Math.sin(th), h);   // (f along the door from its hinge)
+          const dc = th < Math.PI/2 ? WHITE : shadeC(WHITE, 0.8);
+          Q([at(0, DR.h0), at(1, DR.h0), at(1, DR.h1), at(0, DR.h1)], dc);
+          Q([at(0.1, g0 + 2), at(0.9, g0 + 2), at(0.9, DR.h1 - 6), at(0.1, DR.h1 - 6)], GLASS);   // its window
+          for(const [f0, f1, h0, h1] of [[0, 1, DR.h0, DR.h0], [1, 1, DR.h0, DR.h1], [1, 0, DR.h1, DR.h1], [0, 0, DR.h1, DR.h0]]){ const A = at(f0, h0), B = at(f1, h1);
+            g.lineStyle(this.kw(1.2), dseam, 1); g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.strokePath(); }
+        }
       } else {
         quad(-hl + 6, hl - 10, 40, 46, fb, ORANGE);                                                // the orange line low
         if(AP.lockers){                                                                             // two rows of locker doors
@@ -117284,7 +117303,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? Object.assign({ paint: true }, fmPodData())                // (a locker open for CATCH OF THE DAY, in his paint)
-      : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true } : null;                                   // (a locker open for CATCH OF THE DAY)
+      : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
     const SS = kind === "avsemi" && this.ow && this.ow.on ? FLEET_STEER.avsemi : null;
