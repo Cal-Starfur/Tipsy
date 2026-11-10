@@ -114406,7 +114406,7 @@ class WorldScene extends Phaser.Scene {
      it off the ground (its shadow stays). */
   /* THE AIR TAXI'S DOOR (0..1): open while it sits landed and still (rotors stopped, not rolling), eased shut again as they spin up */
   _airDoor(fl, t){
-    const ow = this.ow, tg = fl && fl.ph === "ground" && fl.spin < 0.05 && Math.abs((ow && ow.vel) || 0) < 0.01 ? 1 : 0, now = this.time.now, dtF = Math.min(60, now - (this._atT || now));
+    const ow = this.ow, tg = this._airDoorTarget != null ? this._airDoorTarget : fl && fl.ph === "ground" && fl.spin < 0.05 && Math.abs((ow && ow.vel) || 0) < 0.01 ? 1 : 0, now = this.time.now, dtF = Math.min(60, now - (this._atT || now));
     this._atT = now; this._atDoor = (this._atDoor || 0) + (tg - (this._atDoor || 0))*Math.min(1, dtF/280);
     return this._atDoor < 0.01 ? 0 : this._atDoor;
   }
@@ -114442,6 +114442,19 @@ class WorldScene extends Phaser.Scene {
         if(Math.abs(den) < 1e-6) continue; const t = (x0*ey - y0*ex)/den, u = (x0*cb - y0*ca)/den;
         if(t > 0 && u >= 0 && u <= 1){ best = t; break; } }
       return best; };
+    /* A RIDER (data.rider: { a, d (out from the cabin's middle on the door's side), step (0..1, up into the cabin), waist, drop (the duck under
+       the roof, the crew's bend), moving, gait, seed }): a person of the street's own build, walking in at the door, in the kit's frame -- drawn
+       through the opening (clipped to it) once inside the door plane, outside it live. Ducking, since a person is 125 tall and the cabin 74 */
+    const RD = data && data.rider ? data.rider : null;
+    const riderDraw = () => {
+      const th0 = fdir*(Math.PI/2), c0 = Math.cos(th0), s0 = Math.sin(th0), sb = sees(0, 1, 0) ? 1 : -1, b = sb*RD.d, B = rosterBody(RD.seed || 7), U = withAid(TIPSY_CREW_UNIFORM, B);
+      const th = Math.atan2(-sb*c0, sb*s0), w = RD.waist || 0, bk = (B.build.torsoH + B.build.headR)*0.5*Math.sin(w)*1.6;
+      const wx = x + RD.a*c0 - b*s0 - Math.cos(th)*bk, wy = y + RD.a*s0 + b*c0 - Math.sin(th)*bk;
+      const st = this._seenThrough; this._seenThrough = true;
+      try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 6), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
+        RD.moving ? Math.sin(RD.gait || 0) : 0, !!RD.moving, 0, 0, null, U, true, w || RD.drop ? { waist: w, drop: RD.drop || 0 } : null); }
+      finally { this._seenThrough = st; }
+    };
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
     /* the legs on their skids */
     const LW = 26*ps, LA = 36*ps;
@@ -114552,6 +114565,7 @@ class WorldScene extends Phaser.Scene {
                 solid(prismH([[x0, far], [x1, far], [x1, bk], [x0, bk]], fz + 12, fz + 38), 0x48505c);
                 solid(prismH([[x0, far + (sb1 - far)*0.1], [x1, far + (sb1 - far)*0.1], [x1, sb1], [x0, sb1]], fz + 12, fz + 14.5), ORANGE);
               }
+              if(RD && RD.d < bAt(RD.a, 0)*sb - 1) riderDraw();                                                           // (a rider inside the door plane, through the opening)
               fQ(d0, d0 + 4, dh0, dh1, 0.3, 0x14171c, 0.45);                                                         // a shade down the near jamb
             } finally { this.drawClip = clip0; }
           }
@@ -114563,6 +114577,7 @@ class WorldScene extends Phaser.Scene {
             const ring = du > 0.02 ? FLEET_OUTLINE : seam, pts = [P(l0, bAt(l0, lo), dh0), P(l1, bAt(l1, lo), dh0), P(l1, bAt(l1, lo), dh1), P(l0, bAt(l0, lo), dh1)];
             g.lineStyle(this.kw(du > 0.02 ? 1.6 : 1), ring, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath();
           }
+          if(RD && RD.d >= bAt(RD.a, 0)*sb - 1) riderDraw();                                                           // (and outside it, live)
         }
       } else {
         solid(prismH(pod, HB, HB + 8*ps), BODY); solid(prismH(pod, HB + 8*ps, HB + 13*ps), ORANGE); solid(prismH(pod, HB + 13*ps, HT), BODY);
@@ -119413,7 +119428,7 @@ class WorldScene extends Phaser.Scene {
       const cargo = FLEET_LOAN && (LH.stage === 'out' || LH.stage === 'fly' || LH.stage === 'keeper') ? 'lamp' : null;   // (THE LIGHTHOUSE RUN's lamp)
       const slung = kind === 'dronelift' && cplCarrying(t);                // (LETTERS ON THE HILL's A panel, slung under it on cables: the panel under the drone, the cables over it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'panel');
-      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, door: kind === 'airtaxi' ? this._airDoor(fl, t) : 0, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, door: kind === 'airtaxi' ? this._airDoor(fl, t) : 0, rider: kind === 'airtaxi' ? this._airRider || null : null, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'cables');
       return;
     }
