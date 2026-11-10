@@ -112184,9 +112184,9 @@ class WorldScene extends Phaser.Scene {
       /* the hold, when the lid is up: Tipsey's own (a real hollow, no lip round it: its four inner walls down
          to a floor, all cut to the opening so the near wall hides the foot of what lies inside) */
       if(A > 0.12 && sees(0, 0, 1)){
-        /* the opening is the body's own chamfered octagon drawn in (its corners cut as the body's, 3 in from its skin), so it
+        /* the opening is the body's own chamfered octagon drawn in (its corners cut as the body's, 4.5 in from its skin, clear of its black outline), so it
            lies wholly inside the top: a plain rectangle's corners stuck out past the chamfers */
-        const k = 3, qx = hx - k, qy = hy - k, c = 8 - k*0.41, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
+        const k = 4.5, qx = hx - k, qy = hy - k, c = 8 - k*0.41, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
         const oct = [[qx, -(qy - c)], [qx, qy - c], [qx - c, qy], [-(qx - c), qy], [-qx, qy - c], [-qx, -(qy - c)], [-(qx - c), -qy], [qx - c, -qy]];
         const dk = (c0, f) => (Math.round((c0 >> 16 & 255)*f) << 16) | (Math.round((c0 >> 8 & 255)*f) << 8) | Math.round((c0 & 255)*f);
         this.drawClip = oct.map(([a0, b0]) => P(a0, b0, zc));
