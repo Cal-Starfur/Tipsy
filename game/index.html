@@ -9042,14 +9042,15 @@ if(typeof window !== "undefined") window.tpPickupOffers = tpPickupOffers;
    STOPS IN THE QUICKEST ORDER from the driven door onward: nearest next,
    greedily. The driven order is always stop 1 -- it is the loaded route,
    and swapping it out would reset its clock. */
-const TP_CARRY_MAX = 3;                 // orders aboard at once, the driven one included
+const TP_CARRY_MAX = 3;                 // orders aboard at once, the driven one included (the delivery pod's six lockers: tpCarryMax)
+function tpCarryMax(){ return typeof fleetCur === "function" && fleetCur() === "avpod" ? 6 : TP_CARRY_MAX; }
 let tpCarry = [];
 function tpCarryHeld(scene){
   const held = tpCarry.map(o => o.shop);
   if(scene && scene.mode === "delivery" && scene.route && scene.route.pickupShopName) held.push(scene.route.pickupShopName);
   return held;
 }
-function tpCarryRoom(scene){ return tpCarryHeld(scene).length < TP_CARRY_MAX; }
+function tpCarryRoom(scene){ return tpCarryHeld(scene).length < tpCarryMax(); }
 function tpCarryOrder(scene){
   const am = scene && scene.route && scene.route.addressMat;
   let x = am ? am.x : (scene ? scene.botX : 0), y = am ? am.y : (scene ? scene.botY : 0);
@@ -85378,6 +85379,22 @@ function fmPodData(){
   const open = u < 0.25 ? u/0.25 : u > 0.75 ? (1 - u)/0.25 : 1;
   return { locker: { k: L.k, open: open*open*(3 - 2*open), full: L.full ? (u < 0.5 ? L.full[0] : L.full[1]) : false } };
 }
+/* THE DELIVERY POD'S SIX LOCKERS (tpCarryMax 6): each order aboard has a locker of its own, the first free one when it is picked
+   up (podSlotOf, keyed by its shop), freed when it is handed in; a lamp shows on a full one, and the locker of the order being loaded
+   or handed over swings open with Tipsey's own lid (scene.lidAng, 0..LOAD_ART.lidOpenAngle) */
+const podSlotOf = {};
+function podLockerData(scene){
+  if(!scene || scene.mode !== "delivery") return null;
+  const held = tpCarryHeld(scene), now = {};
+  for(const k of Object.keys(podSlotOf)) if(!held.includes(k)) delete podSlotOf[k];
+  for(const shop of held){
+    if(podSlotOf[shop] == null){ for(let s = 0; s < 6; s++) if(!Object.values(podSlotOf).includes(s)){ podSlotOf[shop] = s; break; } }
+    if(podSlotOf[shop] != null) now[podSlotOf[shop]] = true;
+  }
+  const out = { held: [0, 1, 2, 3, 4, 5].map(s => !!now[s]) }, R = scene.route, shop = R && (R.pickupShopReq || R.pickupShopName), u = Math.min(1, (scene.lidAng || 0)/LOAD_ART.lidOpenAngle);
+  if(u > 0.02 && shop && podSlotOf[shop] != null) out.lockers = [{ s: podSlotOf[shop], open: u*u*(3 - 2*u), full: false }];
+  return out;
+}
 function fmLoaded(){
   const scene = scn(), R = FMR;
   if(R.stage !== 'load' || !scene) return;
@@ -113781,10 +113798,16 @@ class WorldScene extends Phaser.Scene {
             line([a0, fb*1.002, h0], [a1, fb*1.002, h0], shadeC(WHITE, 0.72), 1); line([a1, fb*1.002, h0], [a1, fb*1.002, h1], shadeC(WHITE, 0.72), 1);
             line([a1 - 6, fb*1.003, h0 + 15], [a1 - 6, fb*1.003, h0 + 21], 0x8d959c, 1.6);       // a handle
           }
-          /* A LOCKER OPEN (data.locker: CATCH OF THE DAY's handovers): upper row k, its door swung out on its hinge
-             (the tail side) toward the eye, the dark of the locker behind it, and what is in it (an order on ice) */
-          if(data && data.locker && data.locker.open > 0.01){
-            const Lk = data.locker, a0 = -hl + 14 + Lk.k*44, a1 = a0 + 40, h0 = 86, h1 = 118, ph = Lk.open*Math.PI*0.55;
+          /* THE SIX LOCKERS ARE EACH THEIR OWN (Sir, 2026-11-10): slot s 0-2 the upper row, 3-5 the lower, left to right. A lamp on the door
+             of one with an order aboard (data.held[s]); open (data.lockers [{ s, open 0..1, full }], or CATCH OF THE DAY's single data.locker
+             { k, ... } for upper slot k), its door swung out on its hinge (the tail side) toward the eye, the dark of the locker behind it,
+             and what is in it (an order on ice) */
+          if(data && data.held) for(let s2 = 0; s2 < 6; s2++) if(data.held[s2]){
+            const a0 = -hl + 14 + (s2 % 3)*44, h1 = (s2 < 3 ? 86 : 50) + 32;
+            Q([P(a0 + 4, fb*1.003, h1 - 8), P(a0 + 8, fb*1.003, h1 - 8), P(a0 + 8, fb*1.003, h1 - 4), P(a0 + 4, fb*1.003, h1 - 4)], 0x4ade80); }
+          for(const Lk of (data && (data.lockers || (data.locker ? [data.locker] : []))) || []){
+            if(!(Lk.open > 0.01)) continue;
+            const s2 = Lk.s != null ? Lk.s : Lk.k, a0 = -hl + 14 + (s2 % 3)*44, a1 = a0 + 40, h0 = s2 < 3 ? 86 : 50, h1 = h0 + 32, ph = Lk.open*Math.PI*0.55;
             Q([P(a0 + 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h0 + 2), P(a1 - 2, fb*1.002, h1 - 2), P(a0 + 2, fb*1.002, h1 - 2)], 0x1b1f24);
             if(Lk.full){ Q([P(a0 + 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 4), P(a1 - 6, fb*1.004, h0 + 20), P(a0 + 6, fb*1.004, h0 + 20)], 0xf4f6f6);
                          Q([P(a0 + 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 16), P(a1 - 8, fb*1.005, h0 + 20), P(a0 + 8, fb*1.005, h0 + 20)], 0xcfe3ec); }
@@ -119062,7 +119085,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
-      : kind === "avpod" && typeof fmPodData === "function" ? Object.assign({ paint: true }, fmPodData())                // (a locker open for CATCH OF THE DAY, in his paint)
+      : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
