@@ -114464,7 +114464,9 @@ class WorldScene extends Phaser.Scene {
       for(const sa of [-1, 0, 1]) line([sa*18, -22.4, 6], [sa*18, -22.4, 34], 0x6f4a26, 1); } });
     /* the arms, motors and rotors: each its own part, so the near ones cover the pod */
     const hub = D.load === "cabin" ? AH : AH;
-    for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH), draw: () => {
+    /* THE AIR TAXI'S ARMS STAND ABOVE ITS ROOF (116 over its 104): never behind it, so they are painted after the cabin from every side (UP) */
+    const UP = D.ring ? 1e5 : 0;
+    for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH) + UP, draw: () => {
       const r0 = D.ring ? 10 : podWall(A.ca, A.cb) - 1.5, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], WEAR ? BODY : DARK, null, 10);   // (worn: the propeller holders take his body colour, his stripe round each and his second band's tone on the cap, in place of a flag)
@@ -114485,10 +114487,10 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(lc, 1); g.fillCircle(lp.x, lp.y, 2.2*this.K*0.42);
     } });
     /* the air taxi's ring tying its rotor arms together */
-    if(D.ring) parts.push({ d: V.depth(0, 0, AH) - 1, draw: () => {
+    if(D.ring) parts.push({ d: V.depth(0, 0, AH) - 1 + UP, draw: () => {
       for(let k = 0; k < n; k++){ const A = arms[k], B = arms[(k + 1) % n]; line([A.a, A.b, AH], [B.a, B.b, AH], ARM, 2.6); } } });
     /* its hub over the cabin, the arms meeting in it, on a pylon down to the roof */
-    if(D.ring) parts.push({ d: V.depth(0, 0, AH) + 1, draw: () => {
+    if(D.ring) parts.push({ d: V.depth(0, 0, AH) + 1 + UP, draw: () => {
       solid(prismH([[-12, -4], [12, -4], [12, 4], [-12, 4]], HT, AH - 4), ARM);
       this.avLathe(V, 0, 0, [[AH - 5, 14], [AH + 4, 14], [AH + 7, 9]], ARM, null, 12); } });
     /* the pod: stacked (white, its orange band, white), the dark canopy on
