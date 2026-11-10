@@ -112181,8 +112181,24 @@ class WorldScene extends Phaser.Scene {
         line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
       }
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
-      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx - k, -(hy - k), zb + 0.5), P(hx - k, hy - k, zb + 0.5), P(-(hx - k), hy - k, zb + 0.5), P(-(hx - k), -(hy - k), zb + 0.5)];
-        this.quadOn(g, ring(2), 0x9ba1a9); this.quadOn(g, ring(5), 0x7b818a); }
+      /* the hold, when the lid is up: Tipsey's own (the lip round the opening, then a real hollow: its four inner walls down
+         to a floor, all cut to the opening so the near wall hides the foot of what lies inside) */
+      if(A > 0.12 && sees(0, 0, 1)){
+        const ring = (k) => [P(hx - k, -(hy - k), zb + 0.5), P(hx - k, hy - k, zb + 0.5), P(-(hx - k), hy - k, zb + 0.5), P(-(hx - k), -(hy - k), zb + 0.5)];
+        this.quadOn(g, ring(2), 0x9ba1a9);                                                          // the lip
+        const ohx = hx - 5, ohy = hy - 5, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
+        const dk = (c, k) => (Math.round((c >> 16 & 255)*k) << 16) | (Math.round((c >> 8 & 255)*k) << 8) | Math.round((c & 255)*k);
+        this.drawClip = ring(5);
+        try {
+          this.quadOn(g, [P(ohx, -ohy, zf), P(ohx, ohy, zf), P(-ohx, ohy, zf), P(-ohx, -ohy, zf)], dk(0x7b818a, 0.7));
+          const wall = (nx, ny, a0, b0, col) => { if(!sees(nx, ny, 0)) return;
+            this.quadOn(g, [P(a0[0], a0[1], zc), P(b0[0], b0[1], zc), P(b0[0], b0[1], zf), P(a0[0], a0[1], zf)], col); };
+          wall(-1, 0, [ohx, -ohy], [ohx, ohy], dk(0x9ba1a9, 0.72));
+          wall(1, 0, [-ohx, -ohy], [-ohx, ohy], dk(0x9ba1a9, 0.72));
+          wall(0, -1, [-ohx, ohy], [ohx, ohy], dk(0x9ba1a9, 0.55));
+          wall(0, 1, [-ohx, -ohy], [ohx, -ohy], dk(0x9ba1a9, 0.55));
+        } finally { this.drawClip = clip0; }
+      }
       if(lidTop) drawLid();
       if(backNear) aerial();
       V.wheel(0, nearB*24, R, 8, R, wheelPhase);
