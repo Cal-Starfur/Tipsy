@@ -111981,6 +111981,7 @@ class WorldScene extends Phaser.Scene {
     const edgeOn = Math.abs(V.eye[1]) < 0.12;
     /* the passenger doors' opening: the whole flank between the wheel arches (Sir, 2026-11-10: wider), its sill 26 up, to just over the glass */
     const dA = hl*0.66 - 27, DRW = AP.glass ? { a0: -dA, a1: dA, h0: 26, h1: AP.glass[1] + 4 } : null;
+    let doorLeaves = null;                                    // (the door leaves, painted last: open, they slide out over the cab and the tyres)
     this.drawVehicleShadow(g, P, hl, hw);
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
     const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
@@ -112035,15 +112036,21 @@ class WorldScene extends Phaser.Scene {
             solid(prismH([[-52, sb0 + (sb1 - sb0)*0.1], [48, sb0 + (sb1 - sb0)*0.1], [48, sb1], [-52, sb1]], fz + 20, fz + 24), ORANGE);   // (his stripe on the cushion's edge)
             Q([P(DR.a0, fb, fz), P(DR.a0 + 7, fb, fz), P(DR.a0 + 7, fb, ct), P(DR.a0, fb, ct)], 0x14171c, 0.45);     // (a shade down the near jamb: the depth)
           }
-          const Wh = (DR.a1 - DR.a0)/2, mid = (DR.a0 + DR.a1)/2, sh = du*Wh*0.58, lb = fb*1.003;   // (they part by little over half their width: the leaves stay in view, stacked at either edge)
+        } finally { this.drawClip = clip0; }
+        /* THE LEAVES SLIDE FOR REAL (Sir, 2026-11-10: "the doors are this size ... slide them for real, they can draw over the exterior of the cab,
+           tyres and all"): each leaf comes out from the skin a little, then runs along the outside clear of the opening -- one to the rear, one to
+           the front -- over the panels, the glass and the tyres, so they are painted last (doorLeaves, at the end) */
+        const Wh = (DR.a1 - DR.a0)/2, mid = (DR.a0 + DR.a1)/2, sh = du*(Wh + 4), lb = fb + nearB*(0.3 + Math.min(1, du/0.25)*4.5);
+        doorLeaves = () => {
           for(const [l0, l1] of [[DR.a0 - sh, mid - sh], [mid + sh, DR.a1 + sh]]){
             Q([P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)], flank);              // the leaf
             const w0 = l0 + 5, w1 = l1 - 5; if(w1 > w0) Q([P(w0, lb, g0 + 2), P(w1, lb, g0 + 2), P(w1, lb, DR.h1 - 6), P(w0, lb, DR.h1 - 6)], GLASS);   // its window
             Q([P(l0, lb, g0 - 10), P(l1, lb, g0 - 10), P(l1, lb, g0 - 3), P(l0, lb, g0 - 3)], ORANGE);           // THE STRIPE RUNS ON THE LEAVES, sliding with them
             if(WEAR && SKIN.stripe2) Q([P(l0, lb, g0 - 15), P(l1, lb, g0 - 15), P(l1, lb, g0 - 12), P(l0, lb, g0 - 12)], SKIN.stripe2);
-            Q([P(l0 - 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h1), P(l0 - 0.5, lb, DR.h1)], seam);   // its edges
-            Q([P(l1 - 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h1), P(l1 - 0.5, lb, DR.h1)], seam); }
-        } finally { this.drawClip = clip0; }
+            const ring = du > 0.02 ? FLEET_OUTLINE : seam, rw = du > 0.02 ? 1.6 : 1, pts = [P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)];
+            g.lineStyle(this.kw(rw), ring, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath(); }
+        };
+
         for(const pa of [DR.a0, DR.a1]){ qd(pa - 1.5, pa + 1.5, DR.h0, DR.h1, fb*1.004, WHITE); }              // (the frame's posts, over the leaves' edges)
         qd(DR.a0, DR.a1, DR.h1, DR.h1 + 2.5, fb*1.004, WHITE); qd(DR.a0, DR.a1, DR.h0 - 2.5, DR.h0, fb*1.004, WHITE);   // (its head and sill)
       } else {
@@ -112135,6 +112142,7 @@ class WorldScene extends Phaser.Scene {
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
     if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22; line([ta, 0, H], [ta, 0, H + 26], DARK, 1.6); this.botTopper(g, V, ta, 0, H + 28); }
+    if(doorLeaves) doorLeaves();
   }
   /* A BOT'S HOLD, AS TIPSEY'S (a real hollow): the opening is the body's own chamfered octagon drawn in (inset k), so it lies
      wholly inside the top and clear of its black outline; four inner walls go down depth to a floor, all cut to the opening so
