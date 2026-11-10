@@ -111979,6 +111979,8 @@ class WorldScene extends Phaser.Scene {
     const WHITE = WEAR ? BPW.top : 0xf2f3f1, ROOF = WEAR ? BPW.lt : 0xe4e7ea, GLASS = 0x26313b, ORANGE = WEAR ? SKIN.stripe : 0xff7a1a, CYAN = WEAR ? SKIN.eye : 0x5fe8e0, DARK = 0x23272d;
     const nearB = sees(0, 1, 0) ? 1 : -1, front = sees(1, 0, 0), fb = nearB*(hw + 0.5);
     const edgeOn = Math.abs(V.eye[1]) < 0.12;
+    /* the passenger doors' opening: the whole flank between the wheel arches (Sir, 2026-11-10: wider), its sill 26 up, to just over the glass */
+    const dA = hl*0.66 - 27, DRW = AP.glass ? { a0: -dA, a1: dA, h0: 26, h1: AP.glass[1] + 4 } : null;
     this.drawVehicleShadow(g, P, hl, hw);
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
     const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
@@ -112013,7 +112015,7 @@ class WorldScene extends Phaser.Scene {
            dark shape"): two leaves of the flank itself, in its own colour with a window each, meeting at a seam; open (data.door 0..1) they slide apart
            INTO the frame (drawn clipped to the opening, so they vanish into the wall at its edges, as a tram's do). Through the opening, a real cabin
            volume, clipped to it: a floor, the far wall, the end walls that face the eye and a bench along the far wall, so it changes with the heading */
-        const DR = { a0: -hl*0.18 - 30, a1: -hl*0.18 + 34, h0: 26, h1: g1 + 4 }, du = Math.max(0, Math.min(1, (data && data.door) || 0));
+        const DR = DRW, du = Math.max(0, Math.min(1, (data && data.door) || 0));
         const qd = (a0, a1, h0, h1, bb, c) => quad(a0, a1, h0, h1, bb, c);
         const flank = shadeC(WHITE, V.lit([0, nearB, 0])), seam = shadeC(WHITE, V.lit([0, nearB, 0])*0.6);
         const opening = [P(DR.a0, fb, DR.h0), P(DR.a1, fb, DR.h0), P(DR.a1, fb, DR.h1), P(DR.a0, fb, DR.h1)], clip0 = this.drawClip;
@@ -112039,6 +112041,8 @@ class WorldScene extends Phaser.Scene {
           for(const [l0, l1] of [[DR.a0 - sh, mid - sh], [mid + sh, DR.a1 + sh]]){
             Q([P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)], flank);              // the leaf
             const w0 = l0 + 5, w1 = l1 - 5; if(w1 > w0) Q([P(w0, lb, g0 + 2), P(w1, lb, g0 + 2), P(w1, lb, DR.h1 - 6), P(w0, lb, DR.h1 - 6)], GLASS);   // its window
+            Q([P(l0, lb, g0 - 10), P(l1, lb, g0 - 10), P(l1, lb, g0 - 3), P(l0, lb, g0 - 3)], ORANGE);           // THE STRIPE RUNS ON THE LEAVES, sliding with them
+            if(WEAR && SKIN.stripe2) Q([P(l0, lb, g0 - 15), P(l1, lb, g0 - 15), P(l1, lb, g0 - 12), P(l0, lb, g0 - 12)], SKIN.stripe2);
             Q([P(l0 - 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h0), P(l0 + 0.5, lb, DR.h1), P(l0 - 0.5, lb, DR.h1)], seam);   // its edges
             Q([P(l1 - 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h0), P(l1 + 0.5, lb, DR.h1), P(l1 - 0.5, lb, DR.h1)], seam); }
         } finally { this.drawClip = clip0; }
@@ -112078,11 +112082,15 @@ class WorldScene extends Phaser.Scene {
       if(WEAR){
         const flatH0 = 16, flatH1 = AP.glass ? AP.glass[0] - 16 : 40, lit0 = Math.max(0, Math.min(1, (V.lit([0, nearB, 0]) - 0.66)/0.31));
         const bq = nearB > 0 ? [P(hl, hw, flatH0), P(-hl, hw, flatH0), P(-hl, hw, flatH1), P(hl, hw, flatH1)] : [P(-hl, -hw, flatH0), P(hl, -hw, flatH0), P(hl, -hw, flatH1), P(-hl, -hw, flatH1)];
+        /* round the doors, not over them (the leaves slide: print and finish on the panels either side, clipped to them) */
+        const around = fn => { if(!DRW || this.drawClip) return fn();
+          const c0 = this.drawClip; try { for(const [x0, x1] of [[-hl, DRW.a0], [DRW.a1, hl]]){ this.drawClip = [P(x0, fb, 14), P(x1, fb, 14), P(x1, fb, flatH1 + 2), P(x0, fb, flatH1 + 2)]; fn(); } } finally { this.drawClip = c0; } };
         if(BPW.print){ const ringR = [[hl, -hw], [hl, hw], [-hl, hw], [-hl, -hw]], Lay = this.printLayout(BPW.print, ringR, flatH1 - flatH0, 'body');
-          this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, flatH1 - flatH0, 1, 'body'); }
-        if(BPW.fin) this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3);
+          around(() => this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, flatH1 - flatH0, 1, 'body')); }
+        if(BPW.fin) around(() => this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3));
         const s0 = AP.glass ? AP.glass[0] - 10 : 40, s1 = AP.glass ? AP.glass[0] - 3 : 46;
-        this.botSkinWear(g, V, { hx: hl, hy: hw, ch: 16, s0, s1, dz: (flatH0 + flatH1)/2 });
+        const wearSpec = { hx: hl, hy: hw, ch: 16, s0, s1, dz: (flatH0 + flatH1)/2 };
+        if(DRW && ((data && data.door) || 0) > 0.02) around(() => this.botSkinWear(g, V, wearSpec)); else this.botSkinWear(g, V, wearSpec);   // (open doors: the badge and pattern wait either side)
       }
       /* dark arches round the near wheels */
       for(const a0 of wA) V.well(a0, fb*1.003, r + 3, cz, 12);
