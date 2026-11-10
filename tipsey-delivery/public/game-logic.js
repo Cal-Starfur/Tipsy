@@ -112184,18 +112184,19 @@ class WorldScene extends Phaser.Scene {
       /* the hold, when the lid is up: Tipsey's own (a real hollow, no lip round it: its four inner walls down
          to a floor, all cut to the opening so the near wall hides the foot of what lies inside) */
       if(A > 0.12 && sees(0, 0, 1)){
-        const ring = (k) => [P(hx - k, -(hy - k), zb + 0.5), P(hx - k, hy - k, zb + 0.5), P(-(hx - k), hy - k, zb + 0.5), P(-(hx - k), -(hy - k), zb + 0.5)];
-        const ohx = hx - 2, ohy = hy - 2, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
-        const dk = (c, k) => (Math.round((c >> 16 & 255)*k) << 16) | (Math.round((c >> 8 & 255)*k) << 8) | Math.round((c & 255)*k);
-        this.drawClip = ring(2);
+        /* the opening is the body's own chamfered octagon drawn in (its corners cut as the body's, 3 in from its skin), so it
+           lies wholly inside the top: a plain rectangle's corners stuck out past the chamfers */
+        const k = 3, qx = hx - k, qy = hy - k, c = 8 - k*0.41, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
+        const oct = [[qx, -(qy - c)], [qx, qy - c], [qx - c, qy], [-(qx - c), qy], [-qx, qy - c], [-qx, -(qy - c)], [-(qx - c), -qy], [qx - c, -qy]];
+        const dk = (c0, f) => (Math.round((c0 >> 16 & 255)*f) << 16) | (Math.round((c0 >> 8 & 255)*f) << 8) | Math.round((c0 & 255)*f);
+        this.drawClip = oct.map(([a0, b0]) => P(a0, b0, zc));
         try {
-          this.quadOn(g, [P(ohx, -ohy, zf), P(ohx, ohy, zf), P(-ohx, ohy, zf), P(-ohx, -ohy, zf)], dk(0x7b818a, 0.7));
-          const wall = (nx, ny, a0, b0, col) => { if(!sees(nx, ny, 0)) return;
-            this.quadOn(g, [P(a0[0], a0[1], zc), P(b0[0], b0[1], zc), P(b0[0], b0[1], zf), P(a0[0], a0[1], zf)], col); };
-          wall(-1, 0, [ohx, -ohy], [ohx, ohy], dk(0x9ba1a9, 0.72));
-          wall(1, 0, [-ohx, -ohy], [-ohx, ohy], dk(0x9ba1a9, 0.72));
-          wall(0, -1, [-ohx, ohy], [ohx, ohy], dk(0x9ba1a9, 0.55));
-          wall(0, 1, [-ohx, -ohy], [ohx, -ohy], dk(0x9ba1a9, 0.55));
+          this.quadOn(g, oct.map(([a0, b0]) => P(a0, b0, zf)), dk(0x7b818a, 0.7));
+          for(let i = 0; i < 8; i++){
+            const [a0, b0] = oct[i], [a1, b1] = oct[(i + 1) % 8], nx = b1 - b0, ny = -(a1 - a0);     // (the wall's outward normal)
+            if(!sees(-nx, -ny, 0)) continue;
+            this.quadOn(g, [P(a0, b0, zc), P(a1, b1, zc), P(a1, b1, zf), P(a0, b0, zf)], dk(0x9ba1a9, Math.abs(ny) > Math.abs(nx) ? 0.55 : 0.72));
+          }
         } finally { this.drawClip = clip0; }
       }
       if(lidTop) drawLid();
