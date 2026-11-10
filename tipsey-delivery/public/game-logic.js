@@ -112133,7 +112133,7 @@ class WorldScene extends Phaser.Scene {
          its front edge), so the long sides read as a delivery pod's and not a blank wall; still, so it never moves */
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){
         const bb = sb*(hy + 0.35), a0 = -34, a1 = 24, h0 = z0 + 26, h1 = z1 - 9, near = sb === nearB;
-        if(WEAR) this.quadOn(g, [P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], 0x000000, near ? 0.2 : 0.28);   // (worn paint: a shade over it, so the print runs on across the recess)
+        if(WEAR) this.quadOn(g, [P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], 0x000000, near ? 0.06 : 0.09);   // (worn paint: a shade over it, so the print runs on across the recess)
         else sideQ(a0, a1, bb, h0, h1, shadeC(0xd2d7dc, near ? 1 : 0.86));
         const ln = WEAR ? _pdk(BODYC.dk, near ? 0.85 : 0.75) : near ? 0xa9afb7 : 0x9aa0a8;
         line([a0, bb, h0], [a1, bb, h0], ln, 1.1); line([a1, bb, h0], [a1, bb, h1], ln, 1.1);
@@ -112183,7 +112183,7 @@ class WorldScene extends Phaser.Scene {
          grab bar on its front edge), so the tall sides read as a courier's locker and not a blank tube; still */
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){
         const bb = sb*(hy + 0.3), a0 = -11, a1 = 9, h0 = 58, h1 = 96, near = sb === nearB;
-        if(WEAR) this.quadOn(g, [P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], 0x000000, near ? 0.2 : 0.28);   // (worn paint: a shade over it, so the print runs on across the recess)
+        if(WEAR) this.quadOn(g, [P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], 0x000000, near ? 0.06 : 0.09);   // (worn paint: a shade over it, so the print runs on across the recess)
         else sideQ(a0, a1, bb, h0, h1, shadeC(0xd2d7dc, near ? 1 : 0.86));
         const ln = WEAR ? _pdk(BODYC.dk, near ? 0.85 : 0.75) : near ? 0xa9afb7 : 0x9aa0a8;
         line([a0, bb, h0], [a1, bb, h0], ln, 1); line([a1, bb, h0], [a1, bb, h1], ln, 1);
