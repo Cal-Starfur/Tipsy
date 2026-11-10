@@ -115157,7 +115157,7 @@ class WorldScene extends Phaser.Scene {
       /* A BOX DRAWS OVER ITS REAR TYRES (Sir, 2026-11-09: "the box doesn't need a wheel well, it should draw over the wheels"): the
          tyres stand 11 up into the box's floor, so the near rear ones go down just over the chassis and before the box, which
          covers their tops */
-      parts.push({ d: RG.body === "box" && wi >= 1 && sb === nearB ? -7000 : V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw - 11 : null, steer ? (data && data.steer) || 0 : 0) }); }   // (the near steer tyre's tread shows through its arch from 11 inside the flank: from the flank itself it was a 1-thick disc)   // (the near steer tyre through its arch; the rest stand clear under the body)
+      parts.push({ d: (RG.body === "box" && wi >= 1 || RG.body === "trailer" && wi >= 3) && sb === nearB ? -7000 : V.depth(a, sb*hw*1.2, 0) + (sb === nearB ? 9000 : -9000), draw: () => wheel(a, sb*(hw - (steer ? 6 : 8)), r, steer ? 14 : 18, r, wheelPhase, steer && sb === nearB && !edgeOn ? hw - 11 : null, steer ? (data && data.steer) || 0 : 0) }); }   // (the near steer tyre's tread shows through its arch from 11 inside the flank: from the flank itself it was a 1-thick disc)   // (the near steer tyre through its arch; the rest stand clear under the body)
     if(edgeOn) for(const p of parts) if(p.d > 8000) p.d -= 18000;
     /* a dark wheel arch on the near flank, round wheel a0 */
     const arch = (a0, bb) => { if(edgeOn) return; V.well(a0, bb, r + 4, cz, cz - 4); };
