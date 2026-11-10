@@ -113407,8 +113407,10 @@ class WorldScene extends Phaser.Scene {
     /* the rig's tractor comes whole ('tractor': bobtail, the garage) or in two for the coupled rig, so the trailer can sit between them in the painter's order:
        'tractorU' what lies under the trailer's nose (the drive axles, the frame, the fifth wheel, the fenders) and 'tractorP' the pod and its steer axle */
     const tU = only === "tractorU", tP = only === "tractorP", tAny = only === "tractor" || tU || tP;
+    const shOnly = only === "tractorS" || only === "trailerS", noShade = !!(data && data.noShade);       // (a coupled rig's shadows go down first, apart from its parts: 'tractorS', 'trailerS')
     if(!only) this.drawVehicleShadow(g, P, hl, hw);
-    else if(!tP){ const sc_ = tAny ? 240 : -110, sh_ = tAny ? 150 : 278; this.drawVehicleShadow(g, (a, b, h) => P(a + sc_, b, h), sh_, hw); }
+    else if(shOnly || (!tP && !noShade)){ const tr_ = only === "tractorS" || tAny, sc_ = tr_ ? 240 : -110, sh_ = tr_ ? 150 : 278; this.drawVehicleShadow(g, (a, b, h) => P(a + sc_, b, h), sh_, hw); }
+    if(shOnly) return;
     const parts = [];
     /* flat panels: one on a flank (at b = bb), one on an end (at a) */
     const quad = (a0, a1, h0, h1, bb, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
@@ -117580,8 +117582,10 @@ class WorldScene extends Phaser.Scene {
          the eye is a plane's question -- the pod's, when the tractor's axis points toward it (cos + sin > 0). What lies under the trailer's nose (the drive axles, frame, fifth
          wheel, fenders: 'tractorU') is always below it and goes before it. So: U, trailer, pod from the front; pod, U, trailer from behind */
       const order = c + s2 > 0 ? ["tractorU", "trailer", "tractorP"] : ["tractorP", "tractorU", "trailer"];
+      this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, { part: "tractorS" });     // (both shadows on the ground first: a part's own, drawn after the pod, lay over its body)
+      this.drawProp(g, kind, tr[0], tr[1], t, ft, z, this._fleetWheel, 7, { part: "trailerS" });
       for(const part of order){ const tl = part === "trailer";
-        this.drawProp(g, kind, tl ? tr[0] : x, tl ? tr[1] : y, t, tl ? ft : f, z, this._fleetWheel, 7, { part, steer: SWH, paint: true }); }   // (his own paint, a part each)
+        this.drawProp(g, kind, tl ? tr[0] : x, tl ? tr[1] : y, t, tl ? ft : f, z, this._fleetWheel, 7, { part, steer: SWH, paint: true, noShade: true }); }   // (his own paint, a part each)
       return;
     }
     this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, kind === "avsemi" && SEMT.bob ? { part: "tractor", paint: true } : SWH ? Object.assign({}, data, { steer: SWH }) : data);
