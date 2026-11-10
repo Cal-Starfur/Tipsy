@@ -5141,7 +5141,7 @@ const FLEET = {
                 ctl: {}, bay: "heavy", unlock: "contest-day", abilities: ["binArm"], ambient: { traffic: true, dawn: true } },
   avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: 106, h: 175, cap: true }, fit: { r: 210, h: 175 },
                 ctl: {}, bay: "heavy", unlock: "topping-out", abilities: ["tip"], cargo: "spoil", ambient: { site: "crate-yard" } },
-  avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: _RIG_W, h: 155, cap: true }, fit: { r: 150, h: 155 },
+  avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: 106, h: 155, cap: true }, fit: { r: 150, h: 155 },
                 ctl: {}, bay: "heavy", unlock: "sunset-salute", abilities: ["sweep"], ambient: { traffic: true, night: true } },
   /* site: P4's rear-steer controller inside a site */
   avforklift: { name: "Driverless forklift", cls: "site", art: "avforklift", body: { len: BOTS.avforklift.len, wid: 84, h: 156, cap: true }, fit: { r: 80, h: 112 },   // (64 wide, its tyres outside; mast 156)
@@ -115725,8 +115725,13 @@ class WorldScene extends Phaser.Scene {
       parts.push({ d: V.depth((a0 + a1)/2, 0, 90), draw: () => {
         solid(prismH([[a0 + 70, -hw + 8], [a0 + 120, -hw + 8], [a0 + 120, hw - 8], [a0 + 70, hw - 8]], 3, cz - 4), DARK);   // the pick-up head, under it
         solid(prismB([[a0 + 4, cz + 8], [a1, cz + 8], [a1, H], [a0 + 30, H], [a0, H - 30]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 0.95) : col.box);
-        solid(loftSeg(a0 + 40, oct(hw - 10, H, H + 26), a1 - 6, oct(hw - 10, H, H + 26), 3), 0xe4e6e8);                // the water tank
-        quad(a0 + 6, a1, cz + 30, cz + 40, fs*1.002, col.band !== col.box ? col.band : shadeC(col.box, 0.8));
+        solid(loftSeg(a0 + 40, oct(hw - 10, H, H + 26), a1 - 6, oct(hw - 10, H, H + 26), 3), WEAR ? shadeC(col.box, 1.06) : 0xe4e6e8);                // the water tank
+        wearFlank(a1, a0 + 4, cz + 26, H - 6, hw);                                                              // (his print and finish over the body's flank)
+        /* THE STRIPE at the pod's height, run on along the body and round its tail (his stripe; the pattern and badge by botSkinWear), under the arches */
+        { const tb = [[cz + 9, cz + 23, col.band]];
+          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(a0 + 4, a1 - 2, z0, z1, fs*1.002, c);
+            wrapBand(a1, a0 + 4, hw, 9.3, tb);
+            skinOn((a0 + a1)/2, { hx: (a1 - a0)/2, hy: hw, ch: 9.3, s0: cz + 9, s1: cz + 23, dz: 96, da: 0, dk: 2.6 }); } }
         line([a0 + 70, fs*1.003, cz + 44], [a0 + 70, fs*1.003, H - 6], shadeC(col.box, 0.7), 1.4);                       // the hopper door
         quad(a0 + 50, a0 + 62, H - 30, H - 26, fs*1.004, CHROME);
         for(const wa of W.slice(1)) arch(wa, fs*1.004);
@@ -119330,7 +119335,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" ? { paint: true }
+      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
