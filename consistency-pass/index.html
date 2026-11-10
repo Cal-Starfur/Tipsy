@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ f9fd0ca): saves kept apart from the live game */
+<script>/* CONSISTENCY PASS TEST BUILD (tools/publish_consistency.py, consistency-pass @ 4763336): saves kept apart from the live game */
 (function(){ var P = 'tipsy-consistency:', S = Storage.prototype, g = S.getItem, s = S.setItem, r = S.removeItem;
   S.getItem = function(k){ return g.call(this, P + k); };
   S.setItem = function(k, v){ return s.call(this, P + k, v); };
   S.removeItem = function(k){ return r.call(this, P + k); };
-  window.TIPSY_TEST_BUILD = 'f9fd0ca'; })();</script>
+  window.TIPSY_TEST_BUILD = '4763336'; })();</script>
 
 <meta charset="utf-8">
 <!-- home-screen icon: the robot's flat face, drawn from the game's own
@@ -91626,7 +91626,7 @@ function bathsYardQueue(scene, t, queuePerson, layerFor){
       scene.drawPersonHull(lg, fx, fy, zz, thw - Math.PI/2, B, look.skin, look.shirt, look.pants, look.hair, look.shoe, moving ? walkAt(fx, fy) : 0, moving, 0, 0, null, look.uniform, false, pose);
       if(water && sm > 0.5){ const c = scene.W(p.x, p.y, Y.z.water + 0.4), w = 0.5 + 0.2*Math.sin(now*0.004 + q.id);    // (foam about the swimmer: a wake)
         lg.fillStyle(0xffffff, 0.22*w); lg.fillEllipse(c.x, c.y + 1*K, 70*K, 20*K); }
-      else if(wadeB){ const c = scene.W(p.x, p.y, Y.z.water + 0.4); lg.fillStyle(0x57a9b8, 0.55); lg.fillEllipse(c.x, c.y + 1*K, 30*K, 15*K); }
+      else if(wadeB){ const c = scene.W(p.x, p.y, Y.z.water + 0.4), hp = []; for(let i = 0; i <= 12; i++){ const an = Math.PI*i/12; hp.push(new Phaser.Geom.Point(c.x + Math.cos(an)*15*K, c.y + Math.sin(an)*7.5*K)); } lg.fillStyle(0x57a9b8, 0.92); lg.fillPoints(hp, true); }
     });
   }
 }
@@ -111026,8 +111026,10 @@ class WorldScene extends Phaser.Scene {
       d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
       Object.assign({ dress: L.dress }, d.pose || null));
     if(d.wade){ const K = this.K, c = this.W(d.x, d.y, WALKIN_SWIM.surf + 0.4), w = 0.55 + 0.1*Math.sin(t*0.004 + (s.seed & 15));     // (the waterline over their hips, a ring of ripple)
-      g.fillStyle(0x57a9b8, 0.55); g.fillEllipse(c.x, c.y + 1*K, 30*K, 15*K);
-      g.lineStyle(Math.max(1, 1.2*K), 0xffffff, 0.45*w); g.strokeEllipse(c.x, c.y + 1*K, 33*K, 17*K); }
+      /* (the water in front of them, not a disc on them: the near half of a ring, in the baths' water, over the stubs of their legs) */
+      const hp = []; for(let i = 0; i <= 12; i++){ const an = Math.PI*i/12; hp.push(new Phaser.Geom.Point(c.x + Math.cos(an)*15*K, c.y + Math.sin(an)*7.5*K)); }
+      g.fillStyle(0x57a9b8, 0.92); g.fillPoints(hp, true);
+      g.lineStyle(Math.max(1, 1.2*K), 0xffffff, 0.5*w); g.beginPath(); hp.forEach((q, i) => i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)); g.strokePath(); }
   }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
