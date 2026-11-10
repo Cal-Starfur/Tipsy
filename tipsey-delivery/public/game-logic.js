@@ -112183,7 +112183,14 @@ class WorldScene extends Phaser.Scene {
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
     const endQ = (a, b0, b1, h0, h1, c) => Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], c);
     const sideQ = (a0, a1, bb, h0, h1, c) => Q([P(a0, bb, h0), P(a1, bb, h0), P(a1, bb, h1), P(a0, bb, h1)], c);
-    const shadow = (hl, hw) => this.drawVehicleShadow(g, P, hl, hw);
+    /* THE SHADOW STAYS ON THE GROUND (Tipsey's: "never pitches or rolls"; it slides and stretches the way he falls): a tipping bot's is
+       drawn in its own un-tipped frame, shifted and lengthened by the fall (tipT, tipU) */
+    const shadow = (hl, hw) => {
+      if(!this._botRoll) return this.drawVehicleShadow(g, P, hl, hw);
+      const V0 = this.vehKit(g, x, y, z, fdir, null), SU = this.tipU || { a: 0, b: this.tipDir || 1 }, sE = (this.tipT || 0)*26*(hl/34);
+      const da = (SU.a || 0)*sE, db = SU.a ? 0 : -sE*(this.tipDir || 1);
+      this.drawVehicleShadow(g, (a, b, h) => V0.P(a + da, b + db, 0), hl + (SU.a ? sE : 0), hw + (SU.a ? 0 : sE));
+    };
     const puck = (a, b, h, s) => { this.avLathe(V, a, b, [[h, 5*s], [h + 4*s, 5*s]], DARK, null, 10);
       this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
       this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
@@ -112202,10 +112209,17 @@ class WorldScene extends Phaser.Scene {
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: z1 };
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(L/2, W/2);
+      /* THE FLAG, AS TIPSEY'S (flagNear): the whip stands off the back face, so it is in front of the body when that face is toward the
+         eye and behind it when it is away -- the rear face's normal, through the fall and the heading, no depth comparison */
+      const flagNear = sees(-1, 0, 0);
+      const drawFlag = () => { const fa = -hx + 5, fb = -nearB*(hy - 5);                            // the flag, on the far back corner
+        line([fa, fb, z1], [fa, fb, z1 + 58], DARK, 1.4);
+        if(!(WEAR && this.botTopper(g, V, fa, fb, z1 + 58))) Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], FLAGC); };   // (a skin's topper in place of the pennant)
+      if(!flagNear) drawFlag();
       /* its tyres flush outside the body (b W/2 + 4, 8 wide), not sunk 7 into it: sunk, the near row's rim painted over
          the body's corner and flipped back under it as that side turned away (Tipsey's own snap, gearSpec) */
       for(const a of wa) V.wheel(a, -nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
-      const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));                         // (the lid's top, turned on its hinge, toward the eye)
+      const lidTop = sees(0, 0, 1);                                                                 // (TIPSEY'S lidNear: the body's top face toward the eye, whatever angle the lid is at)
       const drawLid = () => {
         const VL = this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: z1, z1: zl, ch: 9, bev: 4, bevIn: 3.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(z1, zl, 'lid')), LD);
         /* the lidar rides the lid: drawn through its hinge */
@@ -112241,9 +112255,7 @@ class WorldScene extends Phaser.Scene {
           solid(prismH(bp.map(([a, b]) => [a + 4 - i*3, b*0.92 + (i - 1)*2]), h0, h0 + 7), col, null, false); } }
       if(lidTop) drawLid();
       for(const a of wa) V.wheel(a, nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
-      const fa = -hx + 5, fb = -nearB*(hy - 5);                                                     // the flag, on the far back corner
-      line([fa, fb, z1], [fa, fb, z1 + 58], DARK, 1.4);
-      if(!(WEAR && this.botTopper(g, V, fa, fb, z1 + 58))) Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], FLAGC);   // (a skin's topper in place of the pennant)
+      if(flagNear) drawFlag();                                                                      // (Tipsey's flagNear: in front of the body when its rear face is toward the eye)
       return;
     }
     if(kind === "courierbot"){
@@ -112257,7 +112269,7 @@ class WorldScene extends Phaser.Scene {
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
-      const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));
+      const lidTop = sees(0, 0, 1);                                                                 // (Tipsey's lidNear)
       const drawLid = () => {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid')), LD);
       };
@@ -112526,7 +112538,12 @@ class WorldScene extends Phaser.Scene {
     const O = P(0, 0, 0), ja = P(1, 0, 0), jb = P(0, 1, 0), jh = P(0, 0, 1);
     const ux = [ja.x - O.x, jb.x - O.x, jh.x - O.x], uy = [ja.y - O.y, jb.y - O.y, jh.y - O.y];
     let eye = [ux[1]*uy[2] - ux[2]*uy[1], ux[2]*uy[0] - ux[0]*uy[2], ux[0]*uy[1] - ux[1]*uy[0]];
-    { const L = Math.hypot(eye[0], eye[1], eye[2]) || 1, sg = eye[2] < 0 ? -1 : 1; eye = eye.map(v => sg*v/L); }
+    /* (the sense that is above: its WORLD height must be positive. The body's own up (eye[2]) tells it only while the body is the
+       right way up: pitched or rolled past a right angle (the lidded bots' fall, xf) its up no longer faces the sky, and reading
+       the eye off it picked the far faces -- the nose's eyes painted on a nose lying down. So the height is taken through xf) */
+    { const L = Math.hypot(eye[0], eye[1], eye[2]) || 1, q0 = xf ? xf(0, 0, 0) : [0, 0, 0],
+        zv = xf ? [xf(1, 0, 0)[2] - q0[2], xf(0, 1, 0)[2] - q0[2], xf(0, 0, 1)[2] - q0[2]] : [0, 0, 1],
+        sg = eye[0]*zv[0] + eye[1]*zv[1] + eye[2]*zv[2] < 0 ? -1 : 1; eye = eye.map(v => sg*v/L); }
     const sees = (na, nb, nh) => na*eye[0] + nb*eye[1] + nh*eye[2] > 1e-6*Math.hypot(na, nb, nh);
     /* THE POLISHED SHADING (Sir, 2026-10-24: "an art upgrade on the cars trucks vans and all the vehicles like we did for
        people and tipsy"): the hulls' light -- from the screen's right, a little toward the eye, as Tipsey's hull is lit
