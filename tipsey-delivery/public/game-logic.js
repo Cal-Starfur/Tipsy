@@ -112091,8 +112091,8 @@ class WorldScene extends Phaser.Scene {
            print, never a solid panel) and the wordmark go over them, and the badge and pattern last */
         podFlank = () => {
         const printed = WEAR && (BPW.print || BPW.fin);
-        quad(-hl + 9.3, hl - 9.3, 40, 46, fb*1.001, ORANGE);                                          // the orange line low (his stripe when worn)
-        if(WEAR && SKIN.stripe2) quad(-hl + 9.3, hl - 9.3, 35, 38, fb*1.001, SKIN.stripe2);          // (the second band, under it)
+        quad(-hl + 9.3, hl - 9.3, 33, 47, fb*1.001, ORANGE);                                          // the orange line low (his stripe when worn)
+        if(WEAR && SKIN.stripe2) quad(-hl + 9.3, hl - 9.3, 28, 31, fb*1.001, SKIN.stripe2);          // (the second band, under it)
         if(AP.lockers){                                                                             // two rows of locker doors
           for(let k = 0; k < 3; k++) for(let j = 0; j < 2; j++){
             const a0 = -hl + 14 + k*44, a1 = a0 + 40, h0 = 50 + j*36, h1 = h0 + 32;
@@ -112154,7 +112154,7 @@ class WorldScene extends Phaser.Scene {
           around(() => this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, flatH1 - flatH0, 1, 'body')); }
         if(BPW.fin) around(() => this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3));
         if(podFlank){ podFlank(); podFlank = null; }                                                  // (the pod's stripe, lockers and wordmark over his print)
-        const s0 = AP.glass ? AP.glass[0] - 10 : 40, s1 = AP.glass ? AP.glass[0] - 3 : 46;
+        const s0 = AP.glass ? AP.glass[0] - 10 : 33, s1 = AP.glass ? AP.glass[0] - 3 : 47;
         const wearSpec = { hx: hl, hy: hw, ch: 16, s0, s1, dz: DRW ? 57 : 84, da: DRW ? -hl*0.7 : hl*0.66, dk: DRW ? 1.25 : 1 };   // (the badge on the panel behind the doors, above the wheel)
         if(DRW && ((data && data.door) || 0) > 0.02) around(() => this.botSkinWear(g, V, wearSpec)); else this.botSkinWear(g, V, wearSpec);   // (open doors: the badge and pattern wait either side)
       }
@@ -112174,7 +112174,7 @@ class WorldScene extends Phaser.Scene {
     /* THE STRIPE WRAPS THE WHOLE POD, as the bots' (Sir, 2026-11-10): from the flank round the corner's chamfer and across the end the eye
        sees (under the face and the tail lights, which are drawn after), and round the far corner when that faces the eye */
     if(AP.lockers){
-      const bands = [[40, 46, ORANGE]]; if(WEAR && SKIN.stripe2) bands.push([35, 38, SKIN.stripe2]);
+      const bands = [[33, 47, ORANGE]]; if(WEAR && SKIN.stripe2) bands.push([28, 31, SKIN.stripe2]);   // (14 thick: the face's mouth light, 10 tall, rides inside it)
       const cw = 9.3, ew = hw - cw, ea = eS*(hl + 0.3);
       for(const [z0, z1, c] of bands){
         Q([P(ea, -ew, z0), P(ea, ew, z0), P(ea, ew, z1), P(ea, -ew, z1)], c);
@@ -112197,7 +112197,7 @@ class WorldScene extends Phaser.Scene {
     } else if(front){
       this.tipseyFace(V, hl, 72, 2.2, { mouthZ: 40 });
     } else {
-      endQ(eA, -hw + 8, hw - 8, 30, 38, 0x2a2f36);
+      endQ(eA, -hw + 8, hw - 8, 36, 44, 0x2a2f36);   // (the tail's dark bar, inside the stripe as the face's mouth is)
       for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 20), sb*(hw - 8), 60, 74, CARC.tail);
     }
     /* the sensor horns on the top corners (both ends for the robotaxi), each with its cyan-ringed lidar */
