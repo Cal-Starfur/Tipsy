@@ -3295,7 +3295,7 @@ const RIGS = {
   buckettruck: { cab: "van",     len: 380, body: "bucket",  pal: "utility" },
   sweeper:     { cab: "cabover", len: 300, body: "sweeper", pal: "sweeper" },
   /* the autonomous line (see CAR_KINDS' robotaxi): a driverless semi, and a driverless dump truck for the sites */
-  avsemi:      { cab: "pod", len: 780, body: "trailer", pal: "av" },
+  avsemi:      { cab: "pod", len: 780, body: "trailer", pal: "av", podLen: 180 },   // (the pod 180 long: its rear face 60 ahead of the kingpin, so the trailer can swing up to 70 degrees without its corner touching it)
   avdump:      { cab: "pod", len: 420, body: "dump",    pal: "avdump" },
   avsweeper:   { cab: "pod", len: 300, body: "sweeper", pal: "av", podLen: 128 },
   avgarbage:   { cab: "pod", len: 410, body: "packer",  pal: "av", podLen: 140 }
@@ -8530,6 +8530,73 @@ function owCurbSign(ow, toSfc){
    ow.px/py/yaw/vel and the scene fields the renderer consumes. Called
    from update() BEFORE drawWorld, so the pose is fresh when the pose
    block reads it a few thousand lines later. */
+/* DROPPING AND PICKING UP TRAILERS (Sir, 2026-11-10: "that should be possible but not when its connected to the lead ... this vehicle will need to be able to
+   drop and pick up trailers"): the rig only comes apart on purpose. A "Drop trailer" button (stopped, in the rig) leaves the trailer standing where it
+   is on its landing gear (SEMT.down: its art's centre x, y and heading th) and the tractor drives off bobtail (SEMT.bob: just the pod, its own hit box);
+   back the pin under a standing trailer's nose, lined up with it, and "Hitch trailer" joins it to the kingpin again. A standing trailer is solid
+   (semiParkBlocks, its front 68 left open for the tractor to back under). Kept for the session, not saved */
+const SEMT = { down: [], bob: false, kp: 150, len: 556, a0: -388, solid1: 100, hw: 54 };
+function semiCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'avsemi'); }
+function semiNearest(s){
+  const ow = s.ow, c = Math.cos(ow.yaw), sn = Math.sin(ow.yaw), kx = ow.px + c*SEMT.kp, ky = ow.py + sn*SEMT.kp; let best = null;
+  for(const D of SEMT.down){
+    const sx = D.x + Math.cos(D.th)*SEMT.kp, sy = D.y + Math.sin(D.th)*SEMT.kp, d = Math.hypot(sx - kx, sy - ky), ang = Math.abs(owWrapAngle(ow.yaw - D.th));
+    if(d < 80 && ang < 0.5 && (!best || d < best.d)) best = { D, d, kx, ky };
+  }
+  return best;
+}
+function semiVerb(s){
+  if(!semiCan(s)) return null;
+  if(SEMT.bob) return semiNearest(s) ? "Hitch trailer" : null;
+  return Math.abs(s.ow.vel) < 0.02 && SEMT.down.length < 6 ? "Drop trailer" : null;
+}
+function semiToggle(s){
+  const ow = s.ow, v = semiVerb(s); if(!v) return;
+  if(v === "Drop trailer"){
+    const SV = FLEET_STEER.avsemi, T = owTrailer(ow, SV), c = Math.cos(ow.yaw), sn = Math.sin(ow.yaw), ct = Math.cos(T.yaw), st = Math.sin(T.yaw), kp = SV.trail.kp;
+    SEMT.down.push({ x: ow.px + c*kp - ct*kp, y: ow.py + sn*kp - st*kp, th: T.yaw });
+    SEMT.bob = true; ow.trailer = null;
+  } else {
+    const n = semiNearest(s); if(!n) return;
+    SEMT.down.splice(SEMT.down.indexOf(n.D), 1); SEMT.bob = false;
+    ow.trailer = { yaw: n.D.th, kx: n.kx, ky: n.ky };
+  }
+  if(typeof sfxThump === "function") sfxThump(0.3);
+}
+/* is (x, y), with a disc of r, on a standing trailer? (its body behind the front 68, whole width) */
+function semiParkBlocks(x, y, r){
+  for(const D of SEMT.down){
+    const dx = x - D.x, dy = y - D.y; if(Math.abs(dx) + Math.abs(dy) > 700) continue;
+    const c = Math.cos(D.th), sn = Math.sin(D.th), u = dx*c + dy*sn, v = -dx*sn + dy*c;
+    const qu = Math.max(SEMT.a0, Math.min(SEMT.solid1, u)), qv = Math.max(-SEMT.hw, Math.min(SEMT.hw, v));
+    if(Math.hypot(u - qu, v - qv) < r) return true;
+  }
+  return false;
+}
+function semiUiTick(){
+  const s = (typeof scn === "function") ? scn() : null, btn = document.getElementById("trailerBtn");
+  if(!btn) return;
+  const verb = semiVerb(s);
+  btn.classList.toggle("hidden", !verb);
+  if(verb && btn.textContent !== verb) btn.textContent = verb;
+}
+setInterval(semiUiTick, 200);
+(function semiBind(){
+  const btn = document.getElementById("trailerBtn");
+  if(!btn){ setTimeout(semiBind, 300); return; }
+  btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); const s = scn(); if(s && semiCan(s)) semiToggle(s); semiUiTick(); });
+  for(const ev of ["touchstart", "mousedown"]) btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  btn.addEventListener("contextmenu", e => e.preventDefault());
+})();
+/* the ones left standing: still, cached where they are, in his own paint; culled by the middle and the two ends */
+function semiQueue(scene, t, queuePerson){
+  for(const D of SEMT.down){
+    const c = Math.cos(D.th), sn = Math.sin(D.th);
+    if(!(scene.visProp("car", D.x, D.y) || scene.visProp("car", D.x + c*220, D.y + sn*220) || scene.visProp("car", D.x - c*220, D.y - sn*220))) continue;
+    const x = D.x, y = D.y, f = D.th/(Math.PI/2);
+    queuePerson(x, y, (g) => scene.bcDraw(g, "semit|" + Math.round(x) + "," + Math.round(y) + "|" + f.toFixed(2), x, y, gg => scene.drawProp(gg, "avsemi", x, y, 0, f, 0, 0, 7, { part: "trailer", paint: true })));
+  }
+}
 /* THE SEMI'S TRAILER (FLEET_STEER.avsemi.trail): its heading and where the kingpin was last step. Made straight behind the tractor
    when it is picked, or when the rig has been set down somewhere else (the garage, a bay) */
 function owTrailer(ow, SV){
@@ -8735,6 +8802,7 @@ function owStep(scene, dt){
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
+                            (semiParkBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing
                             (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
                             (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -8743,8 +8811,13 @@ function owStep(scene, dt){
                             (beachBlocks(ow, W.grid, x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
                             (!(FP.fly && flyFoothillCorridor(x, y)) && owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim (a flyer: over the Flats' stretch of them, flyFoothillCorridor)
   /* A STEERED VEHICLE'S BODY (fleetBody): the capsule along its centre line, a disc of its half-width at every point of it */
-  const _fb = SV || (FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk") ? fleetBody() : null, _tr = SV && SV.trail ? owTrailer(ow, SV) : null;
-  const blockAt = _tr ? (x, y, ox, oy) => {
+  const _fb = SV || (FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk") ? fleetBody() : null, _tr = SV && SV.trail && !SEMT.bob ? owTrailer(ow, SV) : null;
+  const blockAt = SV && SV.trail && SEMT.bob ? (x, y, ox, oy) => {
+    /* BOBTAIL: just the pod, from its rear face (210 ahead of the middle) to its nose */
+    const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), hw = _fb.hw*1.1;
+    for(let d = 210; d <= 390; d += hw){ const r = blockAt0(x + c*d, y + s*d, ox, oy); if(r) return r; }
+    return blockAt0(x + c*390, y + s*390, ox, oy);
+  } : _tr ? (x, y, ox, oy) => {
     /* an articulated rig: the tractor's body from the kingpin's end forward, and the trailer's behind the kingpin, on its own line */
     const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), ct = Math.cos(_tr.yaw), st = Math.sin(_tr.yaw), hw = _fb.hw*1.1;
     const kx = x + c*SV.trail.kp, ky = y + s*SV.trail.kp;
@@ -8876,7 +8949,7 @@ function owStep(scene, dt){
   /* THE TRAILER FOLLOWS ITS KINGPIN (owTrailer): the trailer's axle can only roll along the trailer, so its heading turns by
      how far the kingpin moved across it, over the length from the kingpin to that axle; backed far enough round to
      jackknife, the rig stops */
-  if(SV && SV.trail){
+  if(SV && SV.trail && !SEMT.bob){
     const T = owTrailer(ow, SV), kx = ow.px + Math.cos(ow.yaw)*SV.trail.kp, ky = ow.py + Math.sin(ow.yaw)*SV.trail.kp;
     const dkx = kx - T.kx, dky = ky - T.ky;
     T.yaw = owWrapAngle(T.yaw + (-Math.sin(T.yaw)*dkx + Math.cos(T.yaw)*dky)/SV.trail.Lt);
@@ -101317,6 +101390,7 @@ class WorldScene extends Phaser.Scene {
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
     scootQueue(this, t, queuePerson, layerFor);          // SCOOTERS the humanoid has set down
+    semiQueue(this, t, queuePerson);                     // TRAILERS the semi has dropped
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
@@ -113363,7 +113437,7 @@ class WorldScene extends Phaser.Scene {
       C.aC = hl - VANC.hoodLen - 6; C.aW = C.aC - VANC.rake; C.aBk = C.aW - VANC.pillar - 16;
       C.aRake = h => C.aC - (h - C.hH)/(C.hR - C.hH)*(C.aC - C.aW);
     } else if(RG.cab === "cabover"){ C.aBk = hl - 128; C.H = RG.body === "aerial" ? 176 : 164; }
-    else { C.aC = hl - 116; C.aBk = RG.podLen ? hl - RG.podLen : C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : C.aBk; }   // (a driverless pod's own length, podLen)
+    else { C.aC = hl - 116; C.aBk = RG.podLen ? hl - RG.podLen : C.aC - 88; C.roof = 196; C.bH = 112; C.aSl = RG.sleeper ? C.aBk - 62 : RG.body === "trailer" && RG.podLen ? 186 : C.aBk; }   // (a driverless pod's own length, podLen)
     const aBk = C.aBk;
     /* the axles: the steer axle under the cab, then the body's */
     const W = { box: [hl - 64, -hl + 92], tow: [hl - 64, -hl + 70],
@@ -113516,8 +113590,8 @@ class WorldScene extends Phaser.Scene {
           solid(prismH([[124, -24], [176, -24], [176, 24], [124, 24]], cz + 17, cz + 20), 0x6a7178);
         } });
         for(const sb of [-1, 1]) parts.push({ d: V.depth(140, sb*hw, cz + 34) + (sb === nearB ? 60 : -60), draw: () => {
-          solid(prismH([[84, sb*(hw - 28)], [196, sb*(hw - 28)], [196, sb*(hw + 3)], [84, sb*(hw + 3)]], cz + 30, cz + 36), shadeC(col.body, 0.88));
-          if(sb === nearB && !edgeOn){ quad(84, 196, cz + 30, cz + 36, sb*(hw + 3.1), shadeC(col.body, 0.8)); }
+          solid(prismH([[84, sb*(hw - 28)], [aBk + 2, sb*(hw - 28)], [aBk + 2, sb*(hw + 3)], [84, sb*(hw + 3)]], cz + 30, cz + 36), shadeC(col.body, 0.88));
+          if(sb === nearB && !edgeOn){ quad(84, aBk + 2, cz + 30, cz + 36, sb*(hw + 3.1), shadeC(col.body, 0.8)); }
         } });
       }
     } else {
@@ -117487,13 +117561,14 @@ class WorldScene extends Phaser.Scene {
        kingpin; the nearer drawn last */
     const SS = kind === "avsemi" && this.ow && this.ow.on ? FLEET_STEER.avsemi : null;
     if(SS && !this._garage){
+      if(SEMT.bob){ this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, { part: "tractor", steer: SWH, paint: true }); return; }   // (bobtail: the pod alone)
       const T = owTrailer(this.ow, SS), c = Math.cos(yaw), s2 = Math.sin(yaw), ct = Math.cos(T.yaw), st = Math.sin(T.yaw), kp = SS.trail.kp;
       const tr = [x + c*kp - ct*kp, y + s2*kp - st*kp], ft = T.yaw/(Math.PI/2);
       const pieces = [[x + c*240 + y + s2*240, x, y, f, "tractor"], [tr[0] - ct*110 + tr[1] - st*110, tr[0], tr[1], ft, "trailer"]].sort((p, q) => p[0] - q[0]);
       for(const [, px_, py_, f_, part] of pieces) this.drawProp(g, kind, px_, py_, t, f_, z, this._fleetWheel, 7, { part, steer: SWH, paint: true });   // (his own paint, a half each)
       return;
     }
-    this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, SWH ? Object.assign({}, data, { steer: SWH }) : data);
+    this.drawProp(g, kind, x, y, t, f, z, this._fleetWheel, 7, kind === "avsemi" && SEMT.bob ? { part: "tractor", paint: true } : SWH ? Object.assign({}, data, { steer: SWH }) : data);
   }
   /* the splash itself, live (it moves every frame), into the g it is handed */
   drawSplash(g, S){

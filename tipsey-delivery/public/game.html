@@ -602,6 +602,13 @@
   #flyBar .fbCraft{position:absolute;left:-9px;width:0;height:0;margin-top:-8px;border:8px solid transparent;border-left:11px solid #ff7a1a;border-right:0;}
   #flyBar .fbM{position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);white-space:nowrap;color:#fff;
     font:800 13px/1 system-ui,-apple-system,sans-serif;text-shadow:0 1px 3px rgba(0,0,0,.7);}
+  #trailerBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(160px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#c9650f;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #trailerBtn:active{transform:scale(0.96);}
+  #trailerBtn.hidden{display:none;}
+  body.tpPanelOpen #trailerBtn, body.tpGarage #trailerBtn, body.attractBare #trailerBtn{display:none;}
   body.tpPanelOpen #scootBtn, body.tpGarage #scootBtn, body.attractBare #scootBtn, body.tpPanelOpen #flyBtn, body.tpPanelOpen #flyAlt, body.tpGarage #flyBtn, body.tpGarage #flyAlt, body.attractBare #flyBtn, body.attractBare #flyAlt{display:none !important;}
   /* THE LIGHTHOUSE RUN: the fog bank, a sea-mist white thickest at the screen's edges, and the drone's time (a pill) */
   #lhFog{position:fixed;inset:0;z-index:4;pointer-events:none;opacity:0;
@@ -1631,6 +1638,7 @@
 <!-- FLYING (fleet P2): the context button (Take off / Land), the UP / DOWN buttons and the height bar -->
 <button id="flyBtn" class="hidden">Take off</button>
 <button id="scootBtn" class="hidden">Hop on</button>
+<button id="trailerBtn" class="hidden">Drop trailer</button>
 <div id="flyAlt" class="hidden"><div id="flyBar" aria-hidden="true"><div class="fbCeil"></div><div class="fbAhead"></div><div class="fbUnder"></div><div class="fbTgt"></div><div class="fbCraft"></div><div class="fbM">0 m</div></div><div id="flyUD"><button id="flyUp" aria-label="Climb"><span></span></button><button id="flyDn" aria-label="Descend"><span></span></button></div></div>
 <div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
