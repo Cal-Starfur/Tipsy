@@ -113564,7 +113564,7 @@ class WorldScene extends Phaser.Scene {
          and bonnet were, its nose a sloped fairing over a dark sensor visor
          lit cyan across, camera pods at its front corners, Tipsey's orange
          down its flanks and the line's lidar on its back */
-      const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, 100], [hl - 36, top], [aBk, top]];
+      const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, 114], [hl - 16, top], [aBk, top]];   // (the nose's roll over to the roof short: it overhung the face)
       if(!tU) parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
         solid(prismB(pr, -hw, hw), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);
         wearFlank(hl, aBk, cz + 6, top - 12, hw);                                                  // (his print and finish, the stripe and the arch over them)
