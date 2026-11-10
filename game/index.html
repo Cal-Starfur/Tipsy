@@ -115622,8 +115622,11 @@ class WorldScene extends Phaser.Scene {
          behind the cab, a heap of gravel in it and the tailgate on its hinge */
       const a0 = -hl + 4, a1 = aBk - 10, aHd = a1 - 12, h0 = cz + 22, H = 156, fs = nearB*(hw + 0.6);
       parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
+        /* the headboard stands behind the load: from the tub's end of the truck (the eye toward the tail) it is the farther, so it goes first; from the cab's end it is nearer and goes over */
+        const board = () => solid(prismB([[aHd, h0], [a1, h0], [a1, H + 34], [aHd, H + 34]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 1.05) : col.box), boardFirst = sees(-1, 0, 0);
+        if(boardFirst) board();
         solid(prismB([[a0, h0], [aHd, h0], [aHd, H], [a0 - 8, H]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? 0x3b3a36 : col.box);
-        solid(prismB([[aHd, h0], [a1, h0], [a1, H + 34], [aHd, H + 34]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 1.05) : col.box);
+        if(!boardFirst) board();
         /* THE TUB IS A CAVITY (not a dark top): its mouth is the rim inset 9, drawn through (clipped to it) -- the floor, the headboard's inner face, the tailgate's, the
            side wall that faces the eye -- and the load of gravel standing in it, drawn up through the mouth (clipped to the mouth and the heap's height above it) */
         { const w0 = hw - 9, ar = a0 + 4, af = aHd - 9, zf = h0 + 14, c0 = this.drawClip, mouth = [P(ar, -w0, H), P(af, -w0, H), P(af, w0, H), P(ar, w0, H)];
