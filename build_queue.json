@@ -94,7 +94,7 @@
 "deps": [
 "fp-avsemi"
 ],
-"status": "built",
+"status": "done",
 "group": "Fleet polish (in order)",
 "test": "https://claude.ai/artifact/2gwNg67gKaYXjWHAjAZHBi"
 },
@@ -105,8 +105,9 @@
 "deps": [
 "fp-avgarbage"
 ],
-"status": "pending",
-"group": "Fleet polish (in order)"
+"status": "built",
+"group": "Fleet polish (in order)",
+"test": "https://claude.ai/artifact/2gwNg67gKaYXjWHAjAZHBi"
 },
 {
 "id": "fp-avsweeper",

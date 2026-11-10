@@ -5139,7 +5139,7 @@ const FLEET = {
                 ctl: {}, bay: "heavy", unlock: "moving-day", abilities: ["dock"], cargo: "trailer", ambient: { traffic: true } },
   avgarbage:  { name: "Robo garbage truck", cls: "heavy", art: "avgarbage", body: { len: RIGS.avgarbage.len, wid: 106, h: 175, cap: true }, fit: { r: 205, h: 175 },
                 ctl: {}, bay: "heavy", unlock: "contest-day", abilities: ["binArm"], ambient: { traffic: true, dawn: true } },
-  avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: _RIG_W, h: 175, cap: true }, fit: { r: 210, h: 175 },
+  avdump:     { name: "Autonomous dump truck", cls: "heavy", art: "avdump", body: { len: RIGS.avdump.len, wid: 106, h: 175, cap: true }, fit: { r: 210, h: 175 },
                 ctl: {}, bay: "heavy", unlock: "topping-out", abilities: ["tip"], cargo: "spoil", ambient: { site: "crate-yard" } },
   avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: _RIG_W, h: 155, cap: true }, fit: { r: 150, h: 155 },
                 ctl: {}, bay: "heavy", unlock: "sunset-salute", abilities: ["sweep"], ambient: { traffic: true, night: true } },
@@ -115624,10 +115624,29 @@ class WorldScene extends Phaser.Scene {
       parts.push({ d: V.depth((a0 + a1)/2, 0, 100), draw: () => {
         solid(prismB([[a0, h0], [aHd, h0], [aHd, H], [a0 - 8, H]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? 0x3b3a36 : col.box);
         solid(prismB([[aHd, h0], [a1, h0], [a1, H + 34], [aHd, H + 34]], -hw, hw), col.box, (i, n) => n[2] > 0.5 ? shadeC(col.box, 1.05) : col.box);
-        solid(prismB([[a0 + 18, H], [aHd - 24, H], [aHd - 40, H + 16], [a0 + 38, H + 16]], -hw + 10, hw - 10), 0x9a8f7e, (i, n) => n[2] > 0.5 ? 0xa89c88 : 0x8a7f6e);
-        for(let a = a0 + 30; a < aHd - 10; a += 36) quad(a, a + 6, h0 + 4, H - 2, fs, shadeC(col.box, 0.82));     // its ribs
+        /* THE TUB IS A CAVITY (not a dark top): its mouth is the rim inset 9, drawn through (clipped to it) -- the floor, the headboard's inner face, the tailgate's, the
+           side wall that faces the eye -- and the load of gravel standing in it, drawn up through the mouth (clipped to the mouth and the heap's height above it) */
+        { const w0 = hw - 9, ar = a0 + 4, af = aHd - 9, zf = h0 + 14, c0 = this.drawClip, mouth = [P(ar, -w0, H), P(af, -w0, H), P(af, w0, H), P(ar, w0, H)];
+          if(!c0) this.drawClip = mouth;
+          try {
+            Q([P(ar, -w0, zf), P(af, -w0, zf), P(af, w0, zf), P(ar, w0, zf)], 0x44484f);                         // the floor
+            if(sees(-1, 0, 0)) Q([P(af, -w0, zf), P(af, w0, zf), P(af, w0, H), P(af, -w0, H)], 0x7a8089);          // the headboard's inner face
+            if(sees(1, 0, 0)) Q([P(ar, -w0, zf), P(ar, w0, zf), P(ar, w0, H), P(ar, -w0, H)], 0x626771);           // the tailgate's
+            if(sees(0, -1, 0)) Q([P(ar, w0, zf), P(af, w0, zf), P(af, w0, H), P(ar, w0, H)], 0x565b64);            // the side walls that face the eye
+            if(sees(0, 1, 0)) Q([P(ar, -w0, zf), P(af, -w0, zf), P(af, -w0, H), P(ar, -w0, H)], 0x565b64);
+          } finally { this.drawClip = c0; }
+          if(!c0){ const hp = [[a0 + 22, -w0 + 6], [aHd - 28, -w0 + 6], [aHd - 28, w0 - 6], [a0 + 22, w0 - 6]], pts = [];
+            for(const [aa, bb] of hp){ pts.push(P(aa, bb, zf), P(aa, bb, H + 18)); }
+            this.drawClip = convexHullKeep([...mouth, ...hp.map(([aa, bb]) => P(aa, bb, H + 18))]);
+            try { solid(prismB([[a0 + 22, zf], [aHd - 28, zf], [aHd - 44, H + 18], [a0 + 42, H + 18]], -w0 + 6, w0 - 6), 0x9a8f7e, (i, n) => n[2] > 0.5 ? 0xa89c88 : 0x8a7f6e); }
+            finally { this.drawClip = c0; } } }
+        wearFlank(aHd, a0, h0 + 24, H - 8, hw);                                                                  // (his print and finish over the tub's flank)
+        for(let a = a0 + 30; a < aHd - 10; a += 36){ if(WEAR && (BPW.print || BPW.fin)) Q([P(a, fs, h0 + 4), P(a + 6, fs, h0 + 4), P(a + 6, fs, H - 2), P(a, fs, H - 2)], 0x14171c, 0.16); else quad(a, a + 6, h0 + 4, H - 2, fs, shadeC(col.box, 0.82)); }     // its ribs
         quad(a0, aHd, H - 8, H, fs*1.002, shadeC(col.box, 0.78));                                              // the top rail
-        if(col.band !== col.box) quad(a0 + 8, aHd - 8, h0 + 10, h0 + 18, fs*1.003, col.band);
+        { const tb = [[h0 + 6, h0 + 20, col.band]]; if(WEAR && SKIN.stripe2) tb.push([h0 + 22, h0 + 25, SKIN.stripe2]);
+          if(col.band !== col.box || WEAR){ for(const [z0, z1, c] of tb) quad(a0 + 2, aHd - 8, z0, z1, fs*1.003, c);
+            wrapBand(aHd, a0, hw, 6, tb);
+            skinOn((a0 + aHd)/2, { hx: (aHd - a0)/2, hy: hw, ch: 6, s0: h0 + 6, s1: h0 + 20, dz: h0 + 70, da: 0, dk: 3 }); } }
         quad(a0, a1, h0 - 6, h0, fs, DARK);
         tape(a0 + 8, aHd - 8, h0 + 2, fs*1.004);
         for(const wa of W.slice(1)) arch(wa, fs*1.004);
@@ -119308,7 +119327,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "avsemi" || kind === "avgarbage" ? { paint: true }
+      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
