@@ -112698,6 +112698,12 @@ class WorldScene extends Phaser.Scene {
      a crate on four cables under taller legs; the air taxi is a glazed
      two-seat cabin under a ring of eight rotors, on skids. data.hover lifts
      it off the ground (its shadow stays). */
+  /* THE AIR TAXI'S DOOR (0..1): open while it sits landed and still (rotors stopped, not rolling), eased shut again as they spin up */
+  _airDoor(fl, t){
+    const ow = this.ow, tg = fl && fl.ph === "ground" && fl.spin < 0.05 && Math.abs((ow && ow.vel) || 0) < 0.01 ? 1 : 0, now = this.time.now, dtF = Math.min(60, now - (this._atT || now));
+    this._atT = now; this._atDoor = (this._atDoor || 0) + (tg - (this._atDoor || 0))*Math.min(1, dtF/280);
+    return this._atDoor < 0.01 ? 0 : this._atDoor;
+  }
   drawDrone(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     const D = DRONES[kind], lift = (data && data.hover) || 0;
     /* FLYING (fleet P2): banked (roll, about its nose-to-tail line) and pitched (about its beam) round its middle */
@@ -112707,7 +112713,7 @@ class WorldScene extends Phaser.Scene {
       const hm = (D.HB + D.HT)/2, cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt);
       xf = (a, b, h) => { const hh = h - hm, b1 = b*cr - hh*sr, h1 = b*sr + hh*cr, a2 = a*cp - h1*sp, h2 = a*sp + h1*cp; return [a2, b1, h2 + hm]; };
     }
-    const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q } = V;
+    const V = this.vehKit(g, x, y, z + lift, fdir, xf), { P, sees, solid, prismH, line, Q, shadeC } = V;
     V.outline = FLEET_OUTLINE;
     /* THE PLAYER'S OWN PAINT (the standing rules): the drone he flies (data.paint) wears his equipped look -- body colour, finish and print on
        the pod's flank, his stripe (and the second band under it), the stripe's pattern and badge, and the propeller holders
@@ -112810,6 +112816,46 @@ class WorldScene extends Phaser.Scene {
         solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);
         solid(prismH(pod, g1, HT), BODY);
         wearPod(HB, g0 - 6, g0 - 6, g0, HB + 2.5, HB + 5.5, HB + 8, 0.3*ps, false);   // (the glazed cabin: the print on the 16-high panel under the band)
+        /* THE CABIN DOOR (Sir, 2026-11-10: "how do people get in and out? ... a sliding door system like the robo taxi"): as the robotaxi's, a
+           door in the near flank, two leaves in the flank's own colour with a window each, meeting at a seam; open (data.door 0..1: wide while it
+           sits landed and still) they slide apart, one to the tail and one to the nose, over the flank, and through the opening, clipped to it, a
+           real cabin: a floor, the far wall with its window, the end walls the eye sees, a bench along the far wall and the light along the roof.
+           The flank leans (b = 16 at the tail to 20 at the shoulder, times ps), so b is a function of a */
+        if(!edgeOn){
+          const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bAt = (a, o) => sb*((16 + (a - aR)/(aF - aR)*4)*ps + (o || 0));
+          const du = Math.max(0, Math.min(1, (data && data.door) || 0));
+          const d0 = -34, d1 = 14, dh0 = HB + 6, dh1 = g1, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
+          const fl = shadeC(BODY, V.lit([0, sb, 0])), seam = shadeC(BODY, V.lit([0, sb, 0])*0.6);
+          const fQ = (a0, a1, h0, h1, o, c, al) => Q([P(a0, bAt(a0, o), h0), P(a1, bAt(a1, o), h0), P(a1, bAt(a1, o), h1), P(a0, bAt(a0, o), h1)], c, al);
+          const opening = [P(d0, bAt(d0, 0.3), dh0), P(d1, bAt(d1, 0.3), dh0), P(d1, bAt(d1, 0.3), dh1), P(d0, bAt(d0, 0.3), dh1)], clip0 = this.drawClip;
+          if(du > 0.02){
+            if(!clip0) this.drawClip = opening;
+            try {
+              const ia0 = aR + 8, ia1 = aF - 8, far = -sb*(15*ps), fz = dh0, ct = dh1 + 6;
+              Q([P(ia0, far, fz), P(ia1, far, fz), P(ia1, far, ct), P(ia0, far, ct)], 0x4a5160);                       // the far wall
+              Q([P(ia0, far, fz + 22), P(ia1, far, fz + 22), P(ia1, far, ct - 8), P(ia0, far, ct - 8)], 0x2a3a52);     // its window
+              Q([P(ia0, far, ct - 4), P(ia1, far, ct - 4), P(ia1, far, ct), P(ia0, far, ct)], 0xcfd8e2);              // the cabin light
+              Q([P(ia0, bAt(ia0, 0), fz), P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia0, far, fz)], 0x5d646f);        // the floor
+              if(sees(-1, 0, 0)) Q([P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, bAt(ia1, 0), ct)], 0x2c3138);
+              if(sees(1, 0, 0)) Q([P(ia0, bAt(ia0, 0), fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, bAt(ia0, 0), ct)], 0x2c3138);
+              const sb1 = far + sb*20*ps/2.1, bk = far + sb*7;                                                           // a bench along the far wall
+              for(const [x0, x1] of [[ia0 + 8, mid - 4], [mid + 4, ia1 - 8]]){
+                solid(prismH([[x0, far], [x1, far], [x1, sb1], [x0, sb1]], fz, fz + 12), 0x5d6672);
+                solid(prismH([[x0, far], [x1, far], [x1, bk], [x0, bk]], fz + 12, fz + 38), 0x48505c);
+                solid(prismH([[x0, far + (sb1 - far)*0.1], [x1, far + (sb1 - far)*0.1], [x1, sb1], [x0, sb1]], fz + 12, fz + 14.5), ORANGE);
+              }
+              fQ(d0, d0 + 4, dh0, dh1, 0.3, 0x14171c, 0.45);                                                         // a shade down the near jamb
+            } finally { this.drawClip = clip0; }
+          }
+          const lo = 0.3 + Math.min(1, du/0.25)*3, printed = WEAR && (BPW.print || BPW.fin);
+          for(const [l0, l1] of [[d0 - sh, mid - sh], [mid + sh, d1 + sh]]){
+            if(printed) fQ(l0, l1, dh0, g0 - 6, lo, 0x000000, 0.07); else fQ(l0, l1, dh0, g0 - 6, lo, fl);            // (a worn print shows through the leaf: a shade over it, never a solid panel)
+            fQ(l0, l1, g0 - 6, g0, lo, ORANGE);                                                                         // his stripe runs on the leaves
+            fQ(l0 + 4, l1 - 4, g0, dh1 - 5, lo, GLASS);                                                                 // the window
+            const ring = du > 0.02 ? FLEET_OUTLINE : seam, pts = [P(l0, bAt(l0, lo), dh0), P(l1, bAt(l1, lo), dh0), P(l1, bAt(l1, lo), dh1), P(l0, bAt(l0, lo), dh1)];
+            g.lineStyle(this.kw(du > 0.02 ? 1.6 : 1), ring, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath();
+          }
+        }
       } else {
         solid(prismH(pod, HB, HB + 8*ps), BODY); solid(prismH(pod, HB + 8*ps, HB + 13*ps), ORANGE); solid(prismH(pod, HB + 13*ps, HT), BODY);
         solid(prismH(pod.map(([a, b]) => [a*0.7, b*0.7]), HT, HT + 6), 0x2a3440);
@@ -117659,7 +117705,7 @@ class WorldScene extends Phaser.Scene {
       const cargo = FLEET_LOAN && (LH.stage === 'out' || LH.stage === 'fly' || LH.stage === 'keeper') ? 'lamp' : null;   // (THE LIGHTHOUSE RUN's lamp)
       const slung = kind === 'dronelift' && cplCarrying(t);                // (LETTERS ON THE HILL's A panel, slung under it on cables: the panel under the drone, the cables over it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'panel');
-      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, door: kind === 'airtaxi' ? this._airDoor(fl, t) : 0, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'cables');
       return;
     }
