@@ -112140,11 +112140,11 @@ class WorldScene extends Phaser.Scene {
       xf = (a, bb, h) => { const dy = bb - yh, dz = h - zh; return [a, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA]; };
       const r0 = rotN; rotN = (nx, ny, nz) => r0(nx, ny*cA - nz*sA, ny*sA + nz*cA);
     }
-    const RB = this._botRoll;                      // (the bot on its side: its roll after the lid's own hinge, normals turned with it)
+    const RB = this._botRoll;                      // (the bot on its side or nose: its roll and pitch after the lid's own hinge, normals turned with it)
     if(RB){
-      const x0 = xf, r1 = rotN, { sg, cr, sr, pb } = RB;
-      xf = (a, bb, h) => { const q = x0 ? x0(a, bb, h) : [a, bb, h], db = q[1] - pb; return [q[0], pb + db*cr + q[2]*sr*sg, -db*sr*sg + q[2]*cr]; };
-      rotN = (nx, ny, nz) => r1(nx, ny*cr + nz*sr*sg, -ny*sr*sg + nz*cr);
+      const x0 = xf, r1 = rotN, { sg, cr, sr, pb, cp, sp, pa } = RB;
+      xf = (a, bb, h) => { const q = x0 ? x0(a, bb, h) : [a, bb, h], db = q[1] - pb, b1 = pb + db*cr + q[2]*sr*sg, h1 = -db*sr*sg + q[2]*cr, da = q[0] - pa; return [pa + da*cp - h1*sp, b1, h1*cp + da*sp]; };
+      rotN = (nx, ny, nz) => { const y1 = ny*cr + nz*sr*sg, z1 = -ny*sr*sg + nz*cr; return r1(nx*cp - z1*sp, y1, z1*cp + nx*sp); };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf);
     this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
@@ -112164,12 +112164,17 @@ class WorldScene extends Phaser.Scene {
        (this._botRoll) so their hulls and lids turn with them */
     const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28 };
     const roll = ROLL_PIVOT[kind] && data ? (data.roll || 0) : 0;
+    /* ... and over their nose or tail (THE FOUR-WAY FALL: tipU.a): a pitch about the end of the footprint they fall over
+       (PITCH_PIVOT, half their length), the same pose Tipsey takes (this.pitch, its sign data.pitchSg) */
+    const PITCH_PIVOT = { cargobot: 50, courierbot: 22 };
+    const pitch = PITCH_PIVOT[kind] && data ? (data.pitch || 0) : 0;
     let xf = null;
     this._botRoll = null;
-    if(Math.abs(roll) > 0.002){
-      const sg = Math.sign(roll), cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = sg*ROLL_PIVOT[kind];
-      xf = (a, b, h) => { const db = b - pb; return [a, pb + db*cr + h*sr*sg, -db*sr*sg + h*cr]; };
-      this._botRoll = { sg, cr, sr, pb };
+    if(Math.abs(roll) > 0.002 || Math.abs(pitch) > 0.002){
+      const sg = Math.sign(roll) || 1, cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = Math.abs(roll) > 0.002 ? sg*ROLL_PIVOT[kind] : 0;
+      const cp = Math.cos(pitch), sp = Math.sin(pitch), pa = pitch ? (data.pitchSg || 0)*PITCH_PIVOT[kind] : 0;
+      xf = (a, b, h) => { const db = b - pb, b1 = pb + db*cr + h*sr*sg, h1 = -db*sr*sg + h*cr, da = a - pa; return [pa + da*cp - h1*sp, b1, h1*cp + da*sp]; };
+      this._botRoll = { sg, cr, sr, pb, cp, sp, pa };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
     V.outline = FLEET_OUTLINE;
@@ -117178,8 +117183,8 @@ class WorldScene extends Phaser.Scene {
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
-      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
-      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0 }   // (a lidded one opens with his lid)
+      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
+      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
