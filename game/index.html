@@ -123171,8 +123171,16 @@ class WorldScene extends Phaser.Scene {
         if(ly.frond) for(const f of frond(cx, cy, ly.r, rng()*Math.PI*2)) top.push({ c: ly.c, pts: f });
         else top.push({ c: ly.c, pts: blob(cx, cy, ly.r, 1.2) }); }
     });
+    const nTop0 = top.length;
     if(PR.build) PR.build({ S, per, H, part, ring, x0, x1, y0, y1, rng, side, top, blob, frond, smooth,
       face: k => [S[k], S[k + 1]], clip: (poly, clipRing) => this.printClip(poly, clipRing) });
+    /* a lid's print is laid out for Tipsey's own lid (his plan 26 x 20 half-sizes): on a bigger or smaller lid (a fleet bot's) what
+       the print built for the top (the ladder, the sunset's bands, the racing stripes) is stretched to the lid's own plan, so
+       it fits it and does not sit small in the middle (the layers' blobs already spread over the whole plan) */
+    if(part === 'lid' && top.length > nTop0){
+      const kx = (x1 - x0)/2/LID.hx, ky = (y1 - y0)/2/LID.hy;
+      if(Math.abs(kx - 1) > 0.02 || Math.abs(ky - 1) > 0.02) for(let i = nTop0; i < top.length; i++) top[i] = Object.assign({}, top[i], { pts: top[i].pts.map(q => [q[0]*kx, q[1]*ky]) });
+    }
     L = { S, per, nAng, side, top };
     if(C.size > 32) C.clear();
     C.set(key, L);
