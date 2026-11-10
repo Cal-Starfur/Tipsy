@@ -3444,7 +3444,7 @@ const FLEET = {
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
                 ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: DRONES.dronequad.ARMR + DRONES.dronequad.RR /* its farthest rotor tip from its middle, 120, not the 70 of its pod */ } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["airfield-marina", "airfield-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
-                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: 95 } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["airfield-marina"] } },
+                ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: DRONES.dronelift.ARMR + DRONES.dronelift.RR /* its farthest rotor tip from its middle, 164 */ } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["airfield-marina"] } },
   airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
                 ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: 110 } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
@@ -112722,6 +112722,14 @@ class WorldScene extends Phaser.Scene {
     const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
     g.fillStyle(0x000000, 0.16);
     g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, p = S.P(Math.cos(ph)*sr, Math.sin(ph)*sr, 0); return new Phaser.Geom.Point(p.x, p.y); }), true); }
+    /* WHERE THE POD'S WALL IS along an arm's direction (a ray from its middle to its plan): the arm starts there, so it neither floats off the
+       pod (the six-rotor lifter's arm out the side) nor runs in over its canopy (the quad's diagonals) */
+    const podPlan = [[-34, -16], [24, -20], [38, -12], [38, 12], [24, 20], [-34, 16]].map(([a, b]) => [a*ps, b*ps]);
+    const podWall = (ca, cb) => { let best = 24*ps;
+      for(let i = 0; i < podPlan.length; i++){ const [x0, y0] = podPlan[i], [x1, y1] = podPlan[(i + 1) % podPlan.length], ex = x1 - x0, ey = y1 - y0, den = ca*ey - cb*ex;
+        if(Math.abs(den) < 1e-6) continue; const t = (x0*ey - y0*ex)/den, u = (x0*cb - y0*ca)/den;
+        if(t > 0 && u >= 0 && u <= 1){ best = t; break; } }
+      return best; };
     const arms = [...Array(n)].map((_, k) => { const ph = (k + 0.5)/n*Math.PI*2; return { a: Math.cos(ph)*ARMR, b: Math.sin(ph)*ARMR, ca: Math.cos(ph), cb: Math.sin(ph), k }; });
     /* the legs on their skids */
     const LW = 26*ps, LA = 36*ps;
@@ -112745,7 +112753,7 @@ class WorldScene extends Phaser.Scene {
     /* the arms, motors and rotors: each its own part, so the near ones cover the pod */
     const hub = D.load === "cabin" ? AH : AH;
     for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH), draw: () => {
-      const r0 = D.ring ? 10 : 24*ps, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
+      const r0 = D.ring ? 10 : podWall(A.ca, A.cb) - 1.5, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], WEAR ? BODY : DARK, null, 10);   // (worn: the propeller holders take his body colour, his stripe round each and his second band's tone on the cap, in place of a flag)
       if(WEAR){ this.avLathe(V, A.a, A.b, [[AH, 7.5], [AH + 4.5, 7.5]], ORANGE, null, 10);
@@ -112775,7 +112783,7 @@ class WorldScene extends Phaser.Scene {
        top, the sensor ball under its nose -- or the air taxi's cabin, glazed
        all round over its band */
     parts.push({ d: V.depth(0, 0, (HB + HT)/2), draw: () => {
-      const pod = [[-34, -16], [24, -20], [38, -12], [38, 12], [24, 20], [-34, 16]].map(([a, b]) => [a*ps, b*ps]);
+      const pod = podPlan;
       /* the sensor ball first: it hangs under the floor, so from above the pod covers it */
       this.avLathe(V, 26*ps, 0, [[HB, 8], [HB - 6, 9], [HB - 12, 7], [HB - 15, 0]], DARK, null, 10);
       if(D.load === "cabin"){
