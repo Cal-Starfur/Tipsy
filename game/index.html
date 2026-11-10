@@ -113789,8 +113789,8 @@ class WorldScene extends Phaser.Scene {
            print, never a solid panel) and the wordmark go over them, and the badge and pattern last */
         podFlank = () => {
         const printed = WEAR && (BPW.print || BPW.fin);
-        quad(-hl + 6, hl - 10, 40, 46, fb*1.001, ORANGE);                                          // the orange line low (his stripe when worn)
-        if(WEAR && SKIN.stripe2) quad(-hl + 6, hl - 10, 35, 38, fb*1.001, SKIN.stripe2);          // (the second band, under it)
+        quad(-hl + 9.3, hl - 9.3, 40, 46, fb*1.001, ORANGE);                                          // the orange line low (his stripe when worn)
+        if(WEAR && SKIN.stripe2) quad(-hl + 9.3, hl - 9.3, 35, 38, fb*1.001, SKIN.stripe2);          // (the second band, under it)
         if(AP.lockers){                                                                             // two rows of locker doors
           for(let k = 0; k < 3; k++) for(let j = 0; j < 2; j++){
             const a0 = -hl + 14 + k*44, a1 = a0 + 40, h0 = 50 + j*36, h1 = h0 + 32;
@@ -113869,6 +113869,17 @@ class WorldScene extends Phaser.Scene {
     /* the end the eye sees: glass and a light bar (robotaxi), or the pod's
        blank sensor face, lit cyan across */
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
+    /* THE STRIPE WRAPS THE WHOLE POD, as the bots' (Sir, 2026-11-10): from the flank round the corner's chamfer and across the end the eye
+       sees (under the face and the tail lights, which are drawn after), and round the far corner when that faces the eye */
+    if(AP.lockers){
+      const bands = [[40, 46, ORANGE]]; if(WEAR && SKIN.stripe2) bands.push([35, 38, SKIN.stripe2]);
+      const cw = 9.3, ew = hw - cw, ea = eS*(hl + 0.3);
+      for(const [z0, z1, c] of bands){
+        Q([P(ea, -ew, z0), P(ea, ew, z0), P(ea, ew, z1), P(ea, -ew, z1)], c);
+        for(const sb of [-1, 1]) if(sees(eS, sb, 0)){ const o = 0.3/Math.SQRT2, a0 = eS*(hl - cw) + eS*o, b0 = sb*hw + sb*o, a1 = eS*(hl + o*0.0) + eS*o, b1 = sb*ew + sb*o;
+          Q([P(a0, b0, z0), P(a1, b1, z0), P(a1, b1, z1), P(a0, b0, z1)], c); }
+      }
+    }
     /* Tipsey's face on its front (Sir, 2026-10-13: not on the backs), its tail lights on the back */
     if(AP.sym){
       /* THE WINDSCREEN LIES ON THE NOSE'S OWN SLOPE (it was a flat vertical plate at the nose's full length, standing off the leaning face
