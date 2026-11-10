@@ -114377,7 +114377,7 @@ class WorldScene extends Phaser.Scene {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx: HH, hy: HH - 1, da: HX, z0: ZT, z1: ZH, ch: 8, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(ZT, ZH, 'lid')));   // the hood over the counterweight
         if(back) for(const sb of [-1, 1]) endQ(-98.3, sb*20 - 5, sb*20 + 5, 36, 42, CARC.tail);
         for(const sb of [-1, 1]) puck(-10, sb*24, ZT, 0.75);                                                               // lidar on the nose
-        line([-62, 0, ZH], [-62, 0, 126], DARK, 1.6);                                                                       // his flag (or a skin's topper) on a whip standing on the hood
+        line([-62, 0, ZH], [-62, 0, 126], WEAR ? SKIN.flagPole : DARK, WEAR ? 2.6 : 1.6);                                                                       // his flag (or a skin's topper) on a whip standing on the hood
         if(!(WEAR && this.botTopper(g, V, -62, 0, 126))) Q([P(-62, 0, 126), P(-80, 0, 120), P(-62, 0, 114)], FLAGC);
         wheels(nearB);
       };
