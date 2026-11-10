@@ -115270,9 +115270,9 @@ class WorldScene extends Phaser.Scene {
          and bonnet were, its nose a sloped fairing over a dark sensor visor
          lit cyan across, camera pods at its front corners, Tipsey's orange
          down its flanks and the line's lidar on its back */
-      const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, top], [aBk, top]];   // (a square nose: no roll over to the roof, it overhung the face)
+      const top = 146, pr = [[aBk, cz + 4], [hl - 6, cz + 4], [hl, cz + 18], [hl, top], [aBk, top]];   // (a square nose: no roll over to the roof)
       if(!tU) parts.push({ d: V.depth((aBk + hl)/2, 0, 80), draw: () => {
-        solid(prismB(pr, -hw, hw), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);
+        solid(prismB(pr, -hw, hw).raw(), col.body, (i, n) => i === 4 ? shadeC(col.body, 0.93) : n[2] > 0.5 ? shadeC(col.body, 0.97) : col.body);   // (SQUARE, not cut and bevelled: the roof's bevel strips read as a lid wider than the walls on a flat nose)
         wearFlank(hl, aBk, cz + 6, top - 12, hw);                                                  // (his print and finish, the stripe and the arch over them)
         const tb = [[cz + 9, cz + 23, col.band]]; if(WEAR && SKIN.stripe2) tb.push([cz + 2, cz + 6, SKIN.stripe2]);   // (14 thick: the face's mouth light rides inside it)
         for(const [z0, z1, c] of tb) quad(aBk + 9.3, hl - 9.3, z0, z1, fb*1.002, c);              // the orange down its flank, round the corners
