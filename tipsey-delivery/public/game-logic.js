@@ -112062,9 +112062,14 @@ class WorldScene extends Phaser.Scene {
             if(sees(-1, 0, 0)) Q([P(ia1, fb, fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, fb, ct)], 0x2c3138);   // the end walls that face the eye
             if(sees(1, 0, 0)) Q([P(ia0, fb, fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, fb, ct)], 0x2c3138);
             const sb0 = far, sb1 = far + nearB*20, bk = far + nearB*7;                                      // a bench along the far wall, its back to it
-            solid(prismH([[-52, sb0], [48, sb0], [48, sb1], [-52, sb1]], fz, fz + 20), 0x5d6672);
-            solid(prismH([[-52, sb0], [48, sb0], [48, bk], [-52, bk]], fz + 20, fz + 66), 0x48505c);
-            solid(prismH([[-52, sb0 + (sb1 - sb0)*0.1], [48, sb0 + (sb1 - sb0)*0.1], [48, sb1], [-52, sb1]], fz + 20, fz + 24), ORANGE);   // (his stripe on the cushion's edge)
+            /* the bench runs the length of the cabin (the shuttle's 300: three seats with a gap between; the robotaxi's one) */
+            const bh = hl - 55, nb = Math.max(1, Math.round(bh/35)), gp = 8, sl = (2*bh - (nb - 1)*gp)/nb;
+            for(let k = 0; k < nb; k++){
+              const x0 = -bh + k*(sl + gp), x1 = x0 + sl, sbk = sb0 + (sb1 - sb0)*0.1;
+              solid(prismH([[x0, sb0], [x1, sb0], [x1, sb1], [x0, sb1]], fz, fz + 20), 0x5d6672);
+              solid(prismH([[x0, sb0], [x1, sb0], [x1, bk], [x0, bk]], fz + 20, fz + 66), 0x48505c);
+              solid(prismH([[x0, sbk], [x1, sbk], [x1, sb1], [x0, sb1]], fz + 20, fz + 24), ORANGE);   // (his stripe on the cushion's edge)
+            }
             Q([P(DR.a0, fb, fz), P(DR.a0 + 7, fb, fz), P(DR.a0 + 7, fb, ct), P(DR.a0, fb, ct)], 0x14171c, 0.45);     // (a shade down the near jamb: the depth)
           }
         } finally { this.drawClip = clip0; }
@@ -112173,13 +112178,16 @@ class WorldScene extends Phaser.Scene {
     const eA = front ? hl + 0.4 : -hl - 0.4, eS = front ? 1 : -1;
     /* THE STRIPE WRAPS THE WHOLE POD, as the bots' (Sir, 2026-11-10): from the flank round the corner's chamfer and across the end the eye
        sees (under the face and the tail lights, which are drawn after), and round the far corner when that faces the eye */
-    if(AP.lockers){
-      const bands = [[33, 47, ORANGE]]; if(WEAR && SKIN.stripe2) bands.push([28, 31, SKIN.stripe2]);   // (14 thick: the face's mouth light, 10 tall, rides inside it)
-      const cw = 9.3, ew = hw - cw, ea = eS*(hl + 0.3);
+    { const g0 = AP.glass ? AP.glass[0] : 0;                                   // (the pod's stripe low, the cabin's under its glass)
+      const bands = AP.glass ? [[g0 - 10, g0 - 3, ORANGE]] : [[33, 47, ORANGE]];   // (the pod's 14 thick: the face's mouth light, 10 tall, rides inside it)
+      if(WEAR && SKIN.stripe2) bands.push(AP.glass ? [g0 - 15, g0 - 12, SKIN.stripe2] : [28, 31, SKIN.stripe2]);
+      const aOfH = h => { for(let j = 0; j + 1 < pr.length; j++){ const p0 = pr[j], p1 = pr[j + 1]; if(Math.abs(p0[0]) > 0.5*hl && Math.abs(p1[0]) > 0.5*hl && p0[0]*p1[0] > 0 && p1[1] > p0[1] && h >= p0[1] && h <= p1[1] && (p0[0] > 0) === (eS > 0)) return Math.abs(p0[0] + (p1[0] - p0[0])*(h - p0[1])/(p1[1] - p0[1])); } return hl; };
+      const cw = 9.3, ew = hw - cw;
       for(const [z0, z1, c] of bands){
-        Q([P(ea, -ew, z0), P(ea, ew, z0), P(ea, ew, z1), P(ea, -ew, z1)], c);
-        for(const sb of [-1, 1]) if(sees(eS, sb, 0)){ const o = 0.3/Math.SQRT2, a0 = eS*(hl - cw) + eS*o, b0 = sb*hw + sb*o, a1 = eS*(hl + o*0.0) + eS*o, b1 = sb*ew + sb*o;
-          Q([P(a0, b0, z0), P(a1, b1, z0), P(a1, b1, z1), P(a0, b0, z1)], c); }
+        const e0 = eS*(aOfH(z0) + 0.3), e1 = eS*(aOfH(z1) + 0.3);                                  // (laid on the nose's own slope where it leans)
+        Q([P(e0, -ew, z0), P(e0, ew, z0), P(e1, ew, z1), P(e1, -ew, z1)], c);
+        for(const sb of [-1, 1]) if(sees(eS, sb, 0)){ const o = 0.3/Math.SQRT2, f0 = eS*(aOfH(z0) - cw + o), f1 = eS*(aOfH(z1) - cw + o), t0 = eS*(aOfH(z0) + o), t1 = eS*(aOfH(z1) + o), bf = sb*(hw + o), bt = sb*(ew + o);
+          Q([P(f0, bf, z0), P(t0, bt, z0), P(t1, bt, z1), P(f1, bf, z1)], c); }
       }
     }
     /* Tipsey's face on its front (Sir, 2026-10-13: not on the backs), its tail lights on the back */
