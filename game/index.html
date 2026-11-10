@@ -113888,7 +113888,7 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 20), sb*(hw - 8), 60, 74, CARC.tail);
     }
     /* the sensor horns on the top corners (both ends for the robotaxi), each with its cyan-ringed lidar */
-    const hornA = AP.sym ? [hl - 46, -hl + 46] : [hl - 46];                                         // (on the flat of the roof, which ends 32 in from each end: they stood on its slopes)
+    const hornA = [hl - 46, -hl + 46];                                         // (on the flat of the roof, which ends 32 in from each end: they stood on its slopes)
     const horns = [];
     for(const a of hornA) for(const sb of [-1, 1]) horns.push([a, sb]);
     horns.sort((p, q) => V.depth(p[0], p[1]*hw, H) - V.depth(q[0], q[1]*hw, H));
@@ -113900,7 +113900,6 @@ class WorldScene extends Phaser.Scene {
       this.avLathe(V, a, bb, [[H + 5.5, 4.9], [H + 7, 4.9]], CYAN, () => CYAN, 10);
       this.avLathe(V, a, bb, [[H + 7, 4.6], [H + 9.5, 3.4]], 0x2d3238, null, 10);
     }
-    if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
     if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22, low = (SKIN.skinTop === 'sk-taxisign' || SKIN.skinTop === 'sk-andon') && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, H], [ta, 0, H + st], DARK, 1.6); this.botTopper(g, V, ta, 0, H + st + 2); }   // (the cab's sign sits on the roof; the rest on a stalk)
     if(WEAR && SKIN.roofrack){                                                                     // a roof rack (AIRPORT SHUTTLE): two rails and crossbars on the flat of the roof
