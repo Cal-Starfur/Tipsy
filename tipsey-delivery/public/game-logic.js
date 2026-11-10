@@ -112110,7 +112110,7 @@ class WorldScene extends Phaser.Scene {
           around(() => this.printSide(g, BPW.print, Lay, nearB > 0 ? 1 : 3, bq, lit0, flatH1 - flatH0, 1, 'body')); }
         if(BPW.fin) around(() => this.hullFinish(g, BPW.fin, bq, lit0, nearB > 0 ? 1 : 3));
         const s0 = AP.glass ? AP.glass[0] - 10 : 40, s1 = AP.glass ? AP.glass[0] - 3 : 46;
-        const wearSpec = { hx: hl, hy: hw, ch: 16, s0, s1, dz: (flatH0 + flatH1)/2 };
+        const wearSpec = { hx: hl, hy: hw, ch: 16, s0, s1, dz: DRW ? 57 : (flatH0 + flatH1)/2, da: DRW ? -hl*0.7 : 0, dk: DRW ? 1.25 : 1 };   // (the badge on the panel behind the doors, above the wheel)
         if(DRW && ((data && data.door) || 0) > 0.02) around(() => this.botSkinWear(g, V, wearSpec)); else this.botSkinWear(g, V, wearSpec);   // (open doors: the badge and pattern wait either side)
       }
       /* dark arches round the near wheels */
@@ -112158,7 +112158,12 @@ class WorldScene extends Phaser.Scene {
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
-    if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22, low = SKIN.skinTop === 'sk-taxisign' && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, H], [ta, 0, H + st], DARK, 1.6); this.botTopper(g, V, ta, 0, H + st + 2); }   // (the cab's sign sits on the roof; the rest on a stalk)
+    if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22, low = (SKIN.skinTop === 'sk-taxisign' || SKIN.skinTop === 'sk-andon') && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, H], [ta, 0, H + st], DARK, 1.6); this.botTopper(g, V, ta, 0, H + st + 2); }   // (the cab's sign sits on the roof; the rest on a stalk)
+    if(WEAR && SKIN.roofrack){                                                                     // a roof rack (AIRPORT SHUTTLE): two rails and crossbars on the flat of the roof
+      const RK = 0x2a2f36, ra = hl - 56;
+      for(const sb of [-1, 1]) solid(prismH([[-ra, sb*24 - 1.6], [ra, sb*24 - 1.6], [ra, sb*24 + 1.6], [-ra, sb*24 + 1.6]], H, H + 3.5), RK);
+      for(const k of [-1, 0, 1]) solid(prismH([[k*ra*0.8 - 1.8, -26], [k*ra*0.8 + 1.8, -26], [k*ra*0.8 + 1.8, 26], [k*ra*0.8 - 1.8, 26]], H + 3.5, H + 6), RK);
+    }
     if(glassLast) glassLast();
     if(doorLeaves) doorLeaves();
   }
@@ -112197,6 +112202,7 @@ class WorldScene extends Phaser.Scene {
         if(band === "stars") this.drawStripeStars(0, col); else this.drawBandPattern(0, band, col);
       }
       const dz = S.dz - 36.5;                                       // (Tipsey's badge is centred on z 36.5 / 37)
+      if(S.da || S.dk) this.P = (a, b, h) => { const k = S.dk || 1; return V.P(a*k + (S.da || 0), b, S.dz + (h - S.dz)*k); };   // (the badge on a panel of its own, S.da along the flank, S.dk times its size: the robotaxi's, clear of its doors)
       if(SKIN.emblem === "skull") this.drawSkullEmblem(dz - 0.5);
       else if(SKIN.emblem && DECAL_SHAPES[SKIN.emblem]) this.drawSideDecal(dz, DECAL_SHAPES[SKIN.emblem]);
     } finally {
@@ -122499,6 +122505,14 @@ class WorldScene extends Phaser.Scene {
       case 'sk-beacon-blue': {                   // MEDIC: a blue light, double-flashing
         const ph = t % 1400; return beacon(0x2f72ff, ph < 110 || (ph > 220 && ph < 330), null);
       }
+      case 'sk-andon': {                         // TOKYO TAXI: the roof lantern, a rounded light glowing pale green (1.8x, as the cab's sign)
+        const K = 1.8;
+        extrude([rrect(-7*K, -0.6*K, 7*K, 1.8*K, 0.6*K)], 0x20262c, 2.4*K);
+        sphere(0, 8.2*K, 7.2*K, 0xb4f2c4);
+        poly(Lc([[-3.2*K, 4.4*K], [3.2*K, 4.4*K], [3.2*K, 5.4*K], [-3.2*K, 5.4*K]]), 0x20262c);
+        poly(Lc([[-1.4*K, 8.4*K], [1.4*K, 8.4*K], [1.4*K, 11.2*K], [-1.4*K, 11.2*K]]), 0x1f8f55);
+        return 15*K*TOPPER_K;
+      }
       case 'sk-taxisign': {                      // YELLOW CAB: the cab's lit roof sign, TAXI on it (bigger: 1.8x the first, Sir 2026-11-10)
         const K = 1.8, sc = pts => pts.map(([x, y]) => [x*K, y*K]);
         extrude([rrect(-9*K, -0.6*K, 9*K, 1.8*K, 0.6*K)], 0x1b1c1f, 2.4*K);
@@ -126909,7 +126923,12 @@ const DECAL_SHAPES = (() => {
     rocket:  { polys: [{ p: [[-1.4, 0.4], [-2.25, 1.15], [-1.2, 1.15], [-0.3, 0.4]], c: 0xc8322a }, { p: [[-1.4, -0.4], [-2.25, -1.15], [-1.2, -1.15], [-0.3, -0.4]], c: 0xc8322a },
                        { p: smooth([[-1.6, 0.5], [1.0, 0.62], [2.5, 0], [1.0, -0.62], [-1.6, -0.5]], 4), c: 'col' },
                        { p: ell(0.75, 0, 0.3, 0.3, 12), c: 0x7fe3ff },
-                       { p: smooth([[-1.6, 0.36], [-2.6, 0.2], [-3.3, 0], [-2.6, -0.2], [-1.6, -0.36]], 3), c: 0xff9b3d }] }
+                       { p: smooth([[-1.6, 0.36], [-2.6, 0.2], [-3.3, 0], [-2.6, -0.2], [-1.6, -0.36]], 3), c: 0xff9b3d }] },
+    /* a jet seen from the side: the fuselage, its tail fin, a swept wing and a row of windows (AIRPORT SHUTTLE's badge) */
+    plane:   { polys: [{ p: [[-2.4, 0.3], [-3.1, 1.6], [-2.2, 1.6], [-1.3, 0.4]], c: 'col' },
+                       { p: [[-0.3, 0.05], [-1.5, -1.05], [-0.6, -1.05], [0.7, 0.05]], c: 'col' },
+                       { p: smooth([[-2.6, 0.38], [0.8, 0.58], [3.0, 0.1], [0.8, -0.5], [-2.6, -0.32]], 4), c: 'col' },
+                       ...[0, 1, 2, 3, 4].map(i => ({ p: ell(-1.2 + i*0.5, 0.18, 0.11, 0.11, 8), c: 'dark' }))] }
   };
 })();
 const DECAL_R = 6, DECAL_ZC = 36.5;
@@ -127265,7 +127284,23 @@ const SK_YELLOW_CAB = {
   wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0xfff0a0, eyeAlert:0xff6a3a,
   flag:0x1b1c1f, flagPole:0x2a2205, band:'checks', skinTop:'sk-taxisign'
 };
+/* TOKYO TAXI (the robotaxi's): pearl white, a green band over a gold one, silver hubs, the rounded roof lantern. AIRPORT SHUTTLE (the robotaxi's): white, a blue
+   band over a sky one, a jet on its flank (HULL decal 'plane'), a roof rack. Both free, fleet 'robotaxi' */
+const SK_TOKYO_TAXI = {
+  bodyTop:0xf3f5ef, bodyRight:0xe0e4dc, bodyLeft:0xc5ccc2, outline:0x2b3a2c,
+  stripe:0x1f8f55, stripeDk:0x176b40, stripe2:0xe0b341, stripe2Dk:0xb38d2a, lidInner:0xf3f5ef, belly:0x2b3a2c,
+  wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0xb4f2c4, eyeAlert:0xff6a3a,
+  flag:0x1f8f55, flagPole:0x2b3a2c, skinTop:'sk-andon'
+};
+const SK_AIRPORT_SHUTTLE = {
+  bodyTop:0xf8fafc, bodyRight:0xe4e9ef, bodyLeft:0xcad2dc, outline:0x2a3340,
+  stripe:0x1f5fbf, stripeDk:0x174a93, stripe2:0x7fc8f0, stripe2Dk:0x5aa6d4, lidInner:0xf8fafc, belly:0x2a3340,
+  wheelHubFace:0x1f5fbf, wheelHub:0xe4e9ef, eye:0x9fe8ff, eyeAlert:0xff4a4a,
+  flag:0x1f5fbf, flagPole:0x2a3340, emblem:'plane', decalCol:0x1f5fbf, roofrack:true
+};
 const SKIN_PALETTES = {
+  "tokyo-taxi":     SK_TOKYO_TAXI,
+  "airport-shuttle":SK_AIRPORT_SHUTTLE,
   "yellow-cab":     SK_YELLOW_CAB,
   "police":         SK_POLICE,
   "sheriff":        SK_SHERIFF,
@@ -137917,6 +137952,10 @@ const TP_SKINS = [
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
   /* THE GETAWAY's (Wheels Up): wedding white, a rose ribbon, and the tin cans the Holloways tied on behind him */
   /* THE ROBOTAXI'S OWN (fleet: it shows in the garage and is worn only as the robotaxi), free */
+  { skinId:"tokyo-taxi",     displayName:"Tokyo Taxi",     unlockType:"free",         fleet:"robotaxi",
+    filter:"none", desc:"Pearl white with a green band over a gold one and the rounded roof lantern, as the cabs of Tokyo." },
+  { skinId:"airport-shuttle", displayName:"Airport Shuttle", unlockType:"free",      fleet:"robotaxi",
+    filter:"none", desc:"White with a blue band, a jet on the flank and a roof rack, for the airport run." },
   { skinId:"yellow-cab",     displayName:"Yellow Cab",     unlockType:"free",         fleet:"robotaxi",
     filter:"none", desc:"A 1970s New York cab: taxi yellow, the black checker band, the lit TAXI sign on the roof." },
   /* THE PATROL ROBOT'S (fleet: it shows in the garage and is worn only while he is the patrol robot): all three come with NIGHT WATCH */
