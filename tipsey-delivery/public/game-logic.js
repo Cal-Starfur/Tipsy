@@ -112752,10 +112752,15 @@ class WorldScene extends Phaser.Scene {
         this.avLathe(V, A.a, A.b, [[AH + 8, 7.2], [AH + 10, 4.2], [AH + 11, 4.2]], SKIN.stripe2 != null ? SKIN.stripe2 : DARK, null, 10); }
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
       const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
-      if(spin > 0.05) Q(ring, 0xd9dde0, 0.12*Math.min(1, spin*1.4));
+      if(spin > 0.05) Q(ring, 0xd9dde0, 0.17*Math.min(1, spin*1.4));
       const sp = (data && data.rot != null ? data.rot : (t || 0)*0.04)*(A.k % 2 ? 1 : -1);
-      for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k);
-        line([A.a, A.b, AH + 11.2], [A.a + c*RR, A.b + s2*RR, AH + 11.2], 0x4a5058, 2.4); }
+      /* ROBUST BLADES (Sir, 2026-11-10): each a broad tapered paddle, 9 wide at the hub and 6 at a squared tip with a tip band, on a fat hub
+         and nut, in place of a 2.4 hair line. The blur disc under them a little denser */
+      for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k), nx = -s2, ny = c, hz = AH + 11.2;
+        const pt = (r, w) => P(A.a + c*r + nx*w, A.b + s2*r + ny*w, hz);
+        Q([pt(5, -4.5), pt(RR, -3), pt(RR, 3), pt(5, 4.5)], 0x4a5058);
+        Q([pt(RR - 7, -3.2), pt(RR, -3), pt(RR, 3), pt(RR - 7, 3.2)], WEAR ? ORANGE : 0xd9dde0); }
+      this.avLathe(V, A.a, A.b, [[AH + 10, 6.5], [AH + 13.5, 6.5], [AH + 15, 3]], 0x2d3238, null, 10);
       const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
       g.fillStyle(lc, 1); g.fillCircle(lp.x, lp.y, 2.2*this.K*0.42);
     } });
