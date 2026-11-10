@@ -111986,7 +111986,7 @@ class WorldScene extends Phaser.Scene {
     /* the profile: rounded where the roof meets the ends; the robotaxi's
        the same both ways, the pod's front a steep blank face */
     const pr = AP.sym
-      ? [[-hl, 16], [hl, 16], [hl, 70], [hl - 8, 84], [hl - 14, 132], [hl - 32, H], [-hl + 32, H], [-hl + 14, 132], [-hl + 8, 84], [-hl, 70]]
+      ? [[-hl, 16], [hl, 16], [hl, 70], [hl - 14, 132], [hl - 32, H], [-hl + 32, H], [-hl + 14, 132], [-hl, 70]]   // (CONVEX: it had a bend in at 84 that was no part of the nose, so the body was not convex and its outline, its bevels and its seams went wrong there)
       : [[-hl, 16], [hl - 6, 16], [hl, 28], [hl, 92], [hl - 20, 136], [hl - 36, H], [-hl + 10, H], [-hl, H - 10]];
     /* the far wheels first, the body over them. The body's END faces wait
        until the near wheels are down (see below): a near wheel sits in
