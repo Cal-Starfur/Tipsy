@@ -112676,16 +112676,15 @@ class WorldScene extends Phaser.Scene {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx: HH, hy: HH - 1, da: HX, z0: ZT, z1: ZH, ch: 8, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(ZT, ZH, 'lid')));   // the hood over the counterweight
         if(back) for(const sb of [-1, 1]) endQ(-98.3, sb*20 - 5, sb*20 + 5, 36, 42, CARC.tail);
         for(const sb of [-1, 1]) puck(-10, sb*24, ZT, 0.75);                                                               // lidar on the nose
-        line([-62, 0, ZH], [-62, 0, 84], DARK, 3);                                                                          // the sensor tower, Tipsey's head on it
-        box(-74, -50, -15, 15, 84, 106, BODYC.top); box(-72, -52, -13, 13, 106, 109, GREY);
-        this.tipseyFace(V, -50, 98, 0.85, { mouthZ: 89 });
-        puck(-62, 0, 109, 1.1);
+        line([-62, 0, ZH], [-62, 0, 88], DARK, 3);                                                                          // the sensor mast: just its lidar on top, his face is on the front (the carriage)
+        puck(-62, 0, 88, 1.1);
         wheels(nearB);
       };
       const mast = () => {
         for(const sb of [-1, 1]) box(12, 20, sb*22 - 3, sb*22 + 3, 8, 156, 0x3a4048);              // the mast's uprights, on the chassis' front
         box(12, 20, -25, 25, 150, 156, 0x3a4048);                                                   // their cross-head
-        box(20, 26, -24, 24, 14, 54, 0x3a4048);                                                     // the carriage
+        box(20, 26, -24, 24, 14, 54, 0x3a4048);                                                     // the carriage, Tipsey's face on its front
+        this.tipseyFace(V, 26, 41, 1.3, { mouthZ: 27 });
         for(const sb of [-1, 1]) box(26, 98, sb*14 - 4, sb*14 + 4, 12, 16, DARK);                  // the forks
         if(data && data.load){
           box(28, 96, -32, 32, 16, 24, 0xa07a4e);                                                   // a pallet on them
