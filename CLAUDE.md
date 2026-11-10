@@ -18,9 +18,7 @@
    `tools/perf_baseline.json` with that change.
 4. Publish the full `game/index.html` as an Artifact so I can play it on my iPad.
    Keep ONE preview per session: republish to the same artifact after changes.
-5. Wait. I test in the artifact. Do not commit or push until I say "push".
-
-## On "push"
+## Pushing
 - Commit and push straight to `main`. No side branches, no PRs.
 - Several sessions push to `main`, so expect it to have moved. Fetch and rebase
   this session's commit onto `origin/main`:

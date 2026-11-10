@@ -113820,6 +113820,16 @@ class WorldScene extends Phaser.Scene {
       this.botHull(g, x, y, z, fdir, { hx: 46, hy: 30, z0: 8, z1: z0 + 1, ch: 8, cTop: 0x3f434c, cLt: 0x3a3d45, cDk: 0x2e3138, cBottom: DARK, outline: false, topEdge: false });   // the tray
       this.botHull(g, x, y, z, fdir, { hx, hy, z0, z1, ch: 9, bev: 5, bevIn: 4, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
       this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: z0 + 10, z1: z0 + 20, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });   // his stripe, a band round it
+      /* a parcel hatch let into each flank above the stripe (a darker recessed panel, its edge a thin line, a grab bar on
+         its front edge), so the long sides read as a delivery pod's and not a blank wall; still, so it never moves */
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){
+        const bb = sb*(hy + 0.35), a0 = -34, a1 = 24, h0 = z0 + 26, h1 = z1 - 9, near = sb === nearB;
+        sideQ(a0, a1, bb, h0, h1, shadeC(0xd2d7dc, near ? 1 : 0.86));
+        const ln = near ? 0xa9afb7 : 0x9aa0a8;
+        line([a0, bb, h0], [a1, bb, h0], ln, 1.1); line([a1, bb, h0], [a1, bb, h1], ln, 1.1);
+        line([a1, bb, h1], [a0, bb, h1], ln, 1.1); line([a0, bb, h1], [a0, bb, h0], ln, 1.1);
+        line([a1 - 6, bb + sb*1.4, h0 + 9], [a1 - 6, bb + sb*1.4, h1 - 9], DARK, 2.2);                // the grab bar
+      }
       this.tipseyFace(V, hx, z1 - 15, 1.6, { mouthZ: z0 + 15 });                                  // his face, grown with him
       if(back) for(const sb of [-1, 1]) endQ(-hx - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
       /* the hold, when the lid is up */
