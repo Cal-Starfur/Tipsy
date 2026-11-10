@@ -3160,7 +3160,7 @@ const CAR_KINDS = {
 const AV_PODS = {
   robotaxi:  { len: 214, wid: 100, wheelR: 23, H: 150, glass: [80, 130], sym: true },
   avpod:     { len: 196, wid: 82,  wheelR: 21, H: 146, glass: null, sym: false, lockers: true },
-  avshuttle: { len: 300, wid: 108, wheelR: 24, H: 172, glass: [84, 152], sym: true }
+  avshuttle: { len: 380, wid: 108, wheelR: 25, H: 176, glass: [84, 156], sym: true, bus: true }
 };
 /* THE DRONES (drawDrone): HB / HT the pod's bottom and top, AH the arms'
    height, ARMR their reach, RR a rotor's radius, n the rotors, ps the
@@ -3426,7 +3426,7 @@ const FLEET = {
                 ctl: {}, bay: "road", unlock: "the-getaway", abilities: ["passengers"], ambient: { traffic: true } },
   avpod:      { name: "Delivery pod", cls: "road", art: "avpod", body: { len: AV_PODS.avpod.len, wid: AV_PODS.avpod.wid, h: AV_PODS.avpod.H, cap: true }, fit: { r: 98, h: 146 },
                 ctl: {}, bay: "road", unlock: "beach-fest", abilities: ["lockers"], cargo: "lockers", ambient: { traffic: true, kerb: true } },
-  avshuttle:  { name: "Autonomous shuttle", cls: "road", art: "avshuttle", body: { len: AV_PODS.avshuttle.len, wid: AV_PODS.avshuttle.wid, h: AV_PODS.avshuttle.H, cap: true }, fit: { r: 150, h: 172 },
+  avshuttle:  { name: "Autonomous shuttle", cls: "road", art: "avshuttle", body: { len: AV_PODS.avshuttle.len, wid: AV_PODS.avshuttle.wid, h: AV_PODS.avshuttle.H, cap: true }, fit: { r: 195, h: 176 },
                 ctl: {}, bay: "road", unlock: "sunset-salute", abilities: ["passengers"], ambient: { traffic: true, route: "airfield-motorlodge" } },
   /* heavy: never tips (big); P3's long-wheelbase controller, the semi's trailer joint */
   avsemi:     { name: "Autonomous semi", cls: "heavy", art: "avsemi", body: { len: RIGS.avsemi.len, wid: _RIG_W, h: 180, cap: true }, fit: { r: 390, h: 180 },
@@ -3470,7 +3470,7 @@ for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe
 const FLEET_STEER = {
   robotaxi:   { L: 130, R: 420, vMax: 0.30, accel: 0.00034, brake: 0.00070, vRev: 0.10 },
   avpod:      { L: 118, R: 380, vMax: 0.28, accel: 0.00032, brake: 0.00068, vRev: 0.10 },
-  avshuttle:  { L: 190, R: 650, vMax: 0.26, accel: 0.00026, brake: 0.00060, vRev: 0.09 },
+  avshuttle:  { L: 250, R: 820, vMax: 0.26, accel: 0.00024, brake: 0.00058, vRev: 0.09 },
   avsemi:     { L: 187, R: 800, vMax: 0.20, accel: 0.00016, brake: 0.00042, vRev: 0.06, trail: { mid: 234, kp: 150, Lt: 454, back: 538 } },
   avgarbage:  { L: 240, R: 700, vMax: 0.22, accel: 0.00020, brake: 0.00048, vRev: 0.07 },
   avdump:     { L: 250, R: 800, vMax: 0.21, accel: 0.00018, brake: 0.00046, vRev: 0.07 },
@@ -38183,7 +38183,7 @@ const TRAFFIC_MIX = {
            ["mixertruck", 1], ["dumptruck", 1], ["cranetruck", 0.5], ["buckettruck", 1], ["sweeper", 0.5]]
 };
 const _vehLen = new Map();
-const VEH_LEN_DRAWN = { firetruck: 400, fueltruck: 420, avshuttle: 300 };
+const VEH_LEN_DRAWN = { firetruck: 400, fueltruck: 420, avshuttle: 380 };
 function vehLen(kind){
   let L = _vehLen.get(kind);
   if(L === undefined && (kind === "flatbed" || kind === "beertruck")){ L = 280; _vehLen.set(kind, L); }
@@ -112005,7 +112005,9 @@ class WorldScene extends Phaser.Scene {
     const wA = [hl*0.66, -hl*0.66], sw = (data && data.steer) || 0, wst = a => a > 0 ? sw : 0;   // (its front pair steer: data.steer, FLEET_STEER)
     /* the profile: rounded where the roof meets the ends; the robotaxi's
        the same both ways, the pod's front a steep blank face */
-    const pr = AP.sym
+    const pr = AP.bus
+      ? [[-hl, 16], [hl, 16], [hl, 120], [hl - 10, H - 14], [hl - 22, H], [-hl + 22, H], [-hl + 10, H - 14], [-hl, 120]]   // (A BUS: a near-upright flat nose, a short roll over to the roof -- convex)
+      : AP.sym
       ? [[-hl, 16], [hl, 16], [hl, 70], [hl - 14, 132], [hl - 32, H], [-hl + 32, H], [-hl + 14, 132], [-hl, 70]]   // (CONVEX: it had a bend in at 84 that was no part of the nose, so the body was not convex and its outline, its bevels and its seams went wrong there)
       : [[-hl, 16], [hl - 6, 16], [hl, 28], [hl, 92], [hl - 20, 136], [hl - 36, H], [-hl + 10, H], [-hl, H - 10]];
     /* the far wheels first, the body over them. The body's END faces wait
@@ -112040,6 +112042,10 @@ class WorldScene extends Phaser.Scene {
           try {                                                                                                          // (the panels either side of the doors: over the opening it is the cabin that shows)
             Q([P(-gE(g0), fb, g0), P(DRW.a0, fb, g0), P(DRW.a0, fb, g1), P(-gE(g1), fb, g1)], GLASS);
             Q([P(DRW.a1, fb, g0), P(gE(g0), fb, g0), P(gE(g1), fb, g1), P(DRW.a1, fb, g1)], GLASS);
+            if(AP.bus){                                                                                              // (a bus's windows: a pillar every 52, between the doors and each end)
+              const pc = shadeC(WHITE, V.lit([0, nearB, 0])), pil = (x0, x1) => { const n = Math.max(1, Math.round(Math.abs(x1 - x0)/52)); for(let k = 1; k < n; k++){ const x = x0 + (x1 - x0)*k/n; Q([P(x - 1.8, fb, g0), P(x + 1.8, fb, g0), P(x + 1.8, fb, g1), P(x - 1.8, fb, g1)], pc); } };
+              pil(-gE((g0 + g1)/2), DRW.a0); pil(DRW.a1, gE((g0 + g1)/2));
+            }
           } finally { this.drawClip = c0; } };
         quad(-aEnd(g0 - 3), aEnd(g0 - 3), g0 - 10, g0 - 3, fb*1.001, ORANGE);                      // the orange line under it (his stripe when worn)
         if(WEAR && SKIN.stripe2) quad(-aEnd(g0 - 12), aEnd(g0 - 12), g0 - 15, g0 - 12, fb*1.001, SKIN.stripe2);   // (the second band, under it)
@@ -112189,6 +112195,12 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-1, 1]) if(sees(eS, sb, 0)){ const o = 0.3/Math.SQRT2, f0 = eS*(aOfH(z0) - cw + o), f1 = eS*(aOfH(z1) - cw + o), t0 = eS*(aOfH(z0) + o), t1 = eS*(aOfH(z1) + o), bf = sb*(hw + o), bt = sb*(ew + o);
           Q([P(f0, bf, z0), P(t0, bt, z0), P(t1, bt, z1), P(f1, bf, z1)], c); }
       }
+      if(AP.bus){                                                                                  // THE DESTINATION BOARD over the windscreen: a dark panel on the nose's slope, a row of amber lamps
+        const sa = h => eS*(aOfH(h) + 0.3), z0 = AP.glass[1] + 2, z1 = z0 + 12, sw2 = hw - 26;
+        Q([P(sa(z0), -sw2, z0), P(sa(z0), sw2, z0), P(sa(z1), sw2, z1), P(sa(z1), -sw2, z1)], 0x14171c);
+        for(let k = 0; k < 11; k++){ const b0 = -sw2 + 6 + k*((2*sw2 - 12)/11), b1 = b0 + 4.2, h0 = z0 + 4, h1 = z1 - 4;
+          Q([P(sa(h0), b0, h0), P(sa(h0), b1, h0), P(sa(h1), b1, h1), P(sa(h1), b0, h1)], 0xffb43a); }
+      }
     }
     /* Tipsey's face on its front (Sir, 2026-10-13: not on the backs), its tail lights on the back */
     if(AP.sym){
@@ -112223,6 +112235,10 @@ class WorldScene extends Phaser.Scene {
     }
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
     if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22, low = (SKIN.skinTop === 'sk-taxisign' || SKIN.skinTop === 'sk-andon') && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, H], [ta, 0, H + st], DARK, 1.6); this.botTopper(g, V, ta, 0, H + st + 2); }   // (the cab's sign sits on the roof; the rest on a stalk)
+    if(AP.bus && !(WEAR && SKIN.roofrack)){                                                          // a bus's roof air unit, two grilles on a low box
+      solid(prismH([[-20, -30], [90, -30], [90, 30], [-20, 30]], H, H + 9), shadeC(ROOF, 0.93));
+      for(const k of [0, 1]) solid(prismH([[-14 + k*52, -22], [32 + k*52, -22], [32 + k*52, 22], [-14 + k*52, 22]], H + 9, H + 11), DARK);
+    }
     if(WEAR && SKIN.roofrack){                                                                     // a roof rack (AIRPORT SHUTTLE): two rails and crossbars on the flat of the roof
       const RK = 0x2a2f36, ra = hl - 56;
       for(const sb of [-1, 1]) solid(prismH([[-ra, sb*24 - 1.6], [ra, sb*24 - 1.6], [ra, sb*24 + 1.6], [-ra, sb*24 + 1.6]], H, H + 3.5), RK);
