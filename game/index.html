@@ -128855,6 +128855,9 @@ const DECAL_SHAPES = (() => {
     cross:   { def: 0xd8282f, polys: [{ p: [[-0.42, 1.25], [0.42, 1.25], [0.42, -1.25], [-0.42, -1.25]], c: 'col' },
                                       { p: [[-1.25, 0.42], [1.25, 0.42], [1.25, -0.42], [-1.25, -0.42]], c: 'col' }] },
     heart:   { def: 0xe0443c, polys: [{ p: heart(0, 0.2, 0.078), c: 'col' }] },
+    /* a smile that ends in an arrowhead: a crescent that thickens toward the right, and the head */
+    smilearrow: { def: 0xffffff, polys: [{ p: (() => { const n = 16, o = [], q = []; for(let k = 0; k <= n; k++){ const t = k/n, x = -1.3 + 2.4*t, y = 0.45 - 1.0*Math.sin(Math.PI*t*0.96 + 0.06); o.push([x, y]); q.push([x, y + 0.16 + 0.34*t]); } return o.concat(q.reverse()); })(), c: 'col' },
+                                      { p: [[0.7, 0.62], [1.5, 0.74], [1.2, -0.08]], c: 'col' }] },
     bolt:    { def: 0xf6d04d, polys: [{ p: [[-0.1, 1.3], [0.85, 1.3], [0.3, 0.25], [0.95, 0.25], [-0.45, -1.3], [0.0, -0.1], [-0.65, -0.1]], c: 'col' }] },
     flames:  { def: 0xff6a1a, polys: [{ p: flame(1), c: 'col' }, { p: flame(0.55), c: 'hi' }] },
     hibiscus: { def: 0xe8705a, polys: [0, 1, 2, 3, 4].map(k => ({ p: ell(Math.cos(k*1.2566 + 1.5708)*0.62, Math.sin(k*1.2566 + 1.5708)*0.62, 0.56, 0.56, 12), c: 'col' }))
@@ -129255,7 +129258,7 @@ const SK_PRIME_MOVER = {
   bodyTop:0xc8302e, bodyRight:0xa8262a, bodyLeft:0x831d20, outline:0x2a0c0e,
   stripe:0x2a4fb0, stripeDk:0x1d3a86, stripe2:0xdfe6f2, stripe2Dk:0xb4bdd0, lidInner:0xc8302e, belly:0x2a0c0e,
   wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0x9fe8ff, eyeAlert:0xff4a4a,
-  flag:0x2a4fb0, flagPole:0x2a0c0e, emblem:'heart', decalCol:0xdfe6f2, band:'chevrons', print:'flames'
+  flag:0x2a4fb0, flagPole:0x2a0c0e, emblem:'smilearrow', decalCol:0xdfe6f2, band:'chevrons', print:'flames'
 };
 const SK_RUBBER_DUCK = {
   bodyTop:0xf08a1c, bodyRight:0xd1720f, bodyLeft:0xa85a0b, outline:0x3a2004,
@@ -139955,7 +139958,7 @@ const TP_SKINS = [
     filter:"none", desc:"A 1970s New York cab: taxi yellow, the black checker band, the lit TAXI sign on the roof." },
   /* THE BIG RIG'S OWN (fleet: the autonomous semi; free): six homages */
   { skinId:"prime-mover",    displayName:"Prime Mover",    unlockType:"free",         fleet:"avsemi",
-    filter:"none", desc:"Red cab, blue stripe, chevrons and a heart on the trailer: the hero truck who turns out to be a robot." },
+    filter:"none", desc:"Red cab, blue stripe, chevrons, flames and a smile arrow on the trailer: the hero truck who turns out to be a robot." },
   { skinId:"rubber-duck",    displayName:"Rubber Duck",    unlockType:"free",         fleet:"avsemi",
     filter:"none", desc:"Convoy orange and yellow with a rubber duck on the roof, breaker one-nine, good buddy." },
   { skinId:"bandit-run",     displayName:"Bandit Run",     unlockType:"free",         fleet:"avsemi",
