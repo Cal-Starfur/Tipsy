@@ -3177,7 +3177,7 @@ const DRONES = {
    wheels), the security patrol robot (a tall egg on hidden wheels), the
    warehouse AMR (a low platform carrying a load), the driverless forklift
    (no seat, no cage, a sensor tower where the driver sat) */
-const BOTS = { cargobot: { len: 100 }, courierbot: { len: 56 }, patrolbot: { len: 64 }, amr: { len: 110 }, avforklift: { len: 220 }, humanoid: { len: 70 } };
+const BOTS = { cargobot: { len: 100 }, courierbot: { len: 56 }, patrolbot: { len: 64 }, amr: { len: 110 }, avforklift: { len: 196 }, humanoid: { len: 70 } };
 /* the paint schemes a kind can name besides "rolled" (CAR_COLORS) and
    "police": one paint, or a set its seed picks from. A pastel's roof is
    cream, for the 50s two-tone */
@@ -3438,7 +3438,7 @@ const FLEET = {
   avsweeper:  { name: "Robo street sweeper", cls: "heavy", art: "avsweeper", body: { len: RIGS.avsweeper.len, wid: 106, h: 155, cap: true }, fit: { r: 150, h: 155 },
                 ctl: {}, bay: "heavy", unlock: "sunset-salute", abilities: ["sweep"], ambient: { traffic: true, night: true } },
   /* site: P4's rear-steer controller inside a site */
-  avforklift: { name: "Driverless forklift", cls: "site", art: "avforklift", body: { len: BOTS.avforklift.len, wid: 84, h: 156, cap: true }, fit: { r: 80, h: 112 },   // (64 wide, its tyres outside; mast 156)
+  avforklift: { name: "Driverless forklift", cls: "site", art: "avforklift", body: { len: BOTS.avforklift.len, wid: 84, h: 156, cap: true }, fit: { r: 100, h: 156 },   // (64 wide, its tyres outside, 84 over them; 196 long about its middle; mast 156)
                 ctl: {}, bay: "shed", unlock: "topping-out", abilities: ["forks"], cargo: "pallet", ambient: { site: "crate-yard" } },
   /* rotor: flies (fly); P2's real altitude */
   dronequad:  { name: "Delivery drone", cls: "rotor", art: "dronequad", body: { len: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), wid: 2*(DRONES.dronequad.ARMR + DRONES.dronequad.RR), h: 60 }, fit: { r: 120, h: 130 },
@@ -112412,7 +112412,7 @@ class WorldScene extends Phaser.Scene {
       rotN = (nx, ny, nz) => { const x1 = nx*cp - nz*sp, z0 = nz*cp + nx*sp; return r1(x1, ny*cr + z0*sn, -ny*sn + z0*cr); };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf);
-    this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
+    this.drawHullPrism(Object.assign({ g, pt: b.da ? (a, bb, h) => V.P(a + b.da, bb, h) : (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
     return V;
   }
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
@@ -112649,37 +112649,52 @@ class WorldScene extends Phaser.Scene {
       return;
     }
     if(kind === "avforklift"){
-      /* THE DRIVERLESS FORKLIFT: no seat, no cage -- a white body with the
-         orange band, a sensor tower where the driver would sit, the mast
-         and its forks at the front, a pallet of boxes on them */
-      const W = 64;
-      shadow(80, W/2);
-      const wheels = sb => { for(const [a, r] of [[30, 13], [-46, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase, undefined, a < 0 ? -((data && data.steer) || 0) : 0); };   // (its rear wheels steer it: data.steer)   // (flush outside the body, not sunk in it: see the cargobot)
-      wheels(-nearB);
-      /* ONE CHAMFERED BODY, as Tipsey's (Sir, 2026-10-24): it was three slabs, each split into flanks and ends round the
-         near wheels so the kit built it sharp; with its tyres flush outside it nothing has to go between, so the body is
-         one profile the kit chamfers and bevels, the orange a band laid round it, and the near wheels after */
-      const prof = [[-70, 10], [40, 10], [40, 46], [10, 60], [-60, 60], [-70, 50]];
-      const hull = () => {
-        solid(prismB(prof, -W/2, W/2), WHITE);
-        for(const sb of [-1, 1]) if(sees(0, sb, 0)) sideQ(-66, 36, sb*(W/2 + 0.3), 30, 38, shadeC(ORANGE, sb === nearB ? 1 : 0.85));
-        for(const [aa, sa] of [[40.3, 1], [-70.3, -1]]) if(sees(sa, 0, 0)) endQ(aa, -W/2 + 4, W/2 - 4, 30, 38, shadeC(ORANGE, 0.92));
-      };
+      /* THE DRIVERLESS FORKLIFT: no seat, no cage. Tipsey's hull (botHull: the chamfered, bevelled prism, so his paint, finish, print and
+         two-tone reach it) for the chassis, his stripe a band round it, a lower hood over the counterweight at the tail, a sensor tower
+         standing on it with his face, his flag (or a skin's topper) on a whip behind, two lidar pucks on the nose, the mast, carriage and
+         forks at the front. It runs empty: a pallet rides the forks only when a mission or a working scene hands it one (data.load).
+         Drawn about its own middle (tail -98, fork tips 98, the 196 of its FLEET body), so its hit box (fleetBody) is the machine, not
+         a run 28 further back; tyres flush outside the chassis, 84 over them (botR 42) */
+      const W = 64, hy = W/2, CX = -43, CH = 55, ZB = 10, ZT = 50, HX = -68, HH = 30, ZH = 62;
+      shadow(98, 42);
+      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
+      const wheels = sb => { for(const [a, r] of [[2, 13], [-74, 11]]) V.wheel(a, sb*(W/2 + 5), r, 10, r, wheelPhase, undefined, a < -30 ? -((data && data.steer) || 0) : 0); };   // (its rear wheels steer it: data.steer)
+      /* THE FLAG, AS TIPSEY'S (flagNear): on a whip at the hood's far back corner; in front of the body when its rear face is toward the eye */
+      const flagNear = sees(-1, 0, 0);
+      const drawFlag = () => { const fa = -94, fb = -nearB*(HH - 5);
+        line([fa, fb, ZH], [fa, fb, ZH + 66], DARK, 1.4);
+        if(!(WEAR && this.botTopper(g, V, fa, fb, ZH + 66))) Q([P(fa, fb, ZH + 66), P(fa - 18, fb, ZH + 60), P(fa, fb, ZH + 54)], FLAGC); };
+      const puck = (a, b, h, s) => { this.avLathe(V, a, b, [[h, 5*s], [h + 4*s, 5*s]], DARK, null, 10);
+        this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
+        this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
       const body = () => {
-        hull(); wheels(nearB);
-        line([-34, 0, 60], [-34, 0, 84], DARK, 3);                                                 // the sensor tower, Tipsey's head on it
-        box(-46, -22, -15, 15, 84, 106, WHITE); box(-44, -24, -13, 13, 106, 109, GREY);
-        this.tipseyFace(V, -22, 98, 0.85, { mouthZ: 89 });
-        puck(-34, 0, 109, 1.1);
+        wheels(-nearB);                                                                                                    // (the far tyres under the chassis, the near ones after it)
+        this.botHull(g, x, y, z, fdir, Object.assign({ hx: CH, hy, da: CX, z0: ZB, z1: ZT, ch: 10, bev: 4, bevIn: 3.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(ZB, ZT, 'body')));
+        if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: CH + 0.8, hy: hy + 0.8, da: CX, ch: 10, z0: 12, z1: 18, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });   // (the second band under it)
+        this.botHull(g, x, y, z, fdir, { hx: CH + 0.8, hy: hy + 0.8, da: CX, ch: 10, z0: 20, z1: 30, band: true, cLt: STRIPEC, cDk: STRIPED });                                  // his stripe, a band round it
+        if(WEAR) this.botSkinWear(g, { P: (a, b, h) => P(a + CX, b, h), sees }, { hx: CH, hy, ch: 10, s0: 20, s1: 30, dz: 40 });                                                   // (his skin's stripe pattern and badge)
+        this.botHull(g, x, y, z, fdir, Object.assign({ hx: HH, hy: HH - 1, da: HX, z0: ZT, z1: ZH, ch: 8, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(ZT, ZH, 'lid')));   // the hood over the counterweight
+        if(back) for(const sb of [-1, 1]) endQ(-98.3, sb*20 - 5, sb*20 + 5, 36, 42, CARC.tail);
+        for(const sb of [-1, 1]) puck(-10, sb*24, ZT, 0.75);                                                               // lidar on the nose
+        line([-62, 0, ZH], [-62, 0, 84], DARK, 3);                                                                          // the sensor tower, Tipsey's head on it
+        box(-74, -50, -15, 15, 84, 106, BODYC.top); box(-72, -52, -13, 13, 106, 109, GREY);
+        this.tipseyFace(V, -50, 98, 0.85, { mouthZ: 89 });
+        puck(-62, 0, 109, 1.1);
+        wheels(nearB);
       };
       const mast = () => {
-        for(const sb of [-1, 1]) box(40, 48, sb*22 - 3, sb*22 + 3, 8, 156, 0x3a4048);              // the mast's uprights, on the body's front
-        box(48, 54, -24, 24, 14, 54, 0x3a4048);                                                     // the carriage
-        for(const sb of [-1, 1]) box(54, 126, sb*14 - 4, sb*14 + 4, 12, 16, DARK);                 // the forks
-        box(56, 124, -32, 32, 16, 24, 0xa07a4e);                                                    // a pallet on them
-        box(60, 120, -28, 28, 24, 70, 0xc98a4a); box(60.2, 120.2, -3, 3, 24, 70, ORANGE);
+        for(const sb of [-1, 1]) box(12, 20, sb*22 - 3, sb*22 + 3, 8, 156, 0x3a4048);              // the mast's uprights, on the chassis' front
+        box(12, 20, -25, 25, 150, 156, 0x3a4048);                                                   // their cross-head
+        box(20, 26, -24, 24, 14, 54, 0x3a4048);                                                     // the carriage
+        for(const sb of [-1, 1]) box(26, 98, sb*14 - 4, sb*14 + 4, 12, 16, DARK);                  // the forks
+        if(data && data.load){
+          box(28, 96, -32, 32, 16, 24, 0xa07a4e);                                                   // a pallet on them
+          box(32, 92, -28, 28, 24, 70, 0xc98a4a); box(32.2, 92.2, -3, 3, 24, 70, STRIPEC);
+        }
       };
+      if(!flagNear) drawFlag();
       if(front){ body(); mast(); } else { mast(); body(); }
+      if(flagNear) drawFlag();
       return;
     }
   }
@@ -117633,7 +117648,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" ? { paint: true }
+      : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
