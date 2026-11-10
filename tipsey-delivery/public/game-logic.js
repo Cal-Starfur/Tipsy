@@ -112128,12 +112128,12 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) endQ(eA - 0.1, sb*(hw - 20), sb*(hw - 8), 60, 74, CARC.tail);
     }
     /* the sensor horns on the top corners (both ends for the robotaxi), each with its cyan-ringed lidar */
-    const hornA = AP.sym ? [hl - 22, -hl + 22] : [hl - 30];
+    const hornA = AP.sym ? [hl - 46, -hl + 46] : [hl - 46];                                         // (on the flat of the roof, which ends 32 in from each end: they stood on its slopes)
     const horns = [];
     for(const a of hornA) for(const sb of [-1, 1]) horns.push([a, sb]);
     horns.sort((p, q) => V.depth(p[0], p[1]*hw, H) - V.depth(q[0], q[1]*hw, H));
     for(const [a, sb] of horns){
-      const bb = sb*(hw - 6), s2 = Math.sign(a);
+      const bb = sb*(hw - 16), s2 = Math.sign(a);
       /* the small lidar (Sir, 2026-11-10: "too big, just use the small version"): a low plate and the puck with its cyan ring, as the sensor kit's, no box under it */
       solid(prismH([[a - 4.5, bb - 4.5], [a + 4.5, bb - 4.5], [a + 4.5, bb + 4.5], [a - 4.5, bb + 4.5]], H - 2, H + 1.5), DARK);
       this.avLathe(V, a, bb, [[H + 1.5, 4.6], [H + 5.5, 4.6]], DARK, null, 10);
