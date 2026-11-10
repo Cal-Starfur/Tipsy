@@ -114506,7 +114506,7 @@ class WorldScene extends Phaser.Scene {
       for(let k = 0; k < n; k++){ const A = arms[k], B = arms[(k + 1) % n]; line([A.a, A.b, AH], [B.a, B.b, AH], ARM, 2.6); } } });
     /* its hub over the cabin, the arms meeting in it, on a pylon down to the roof */
     if(D.ring) parts.push({ d: V.depth(0, 0, AH) + 1 + UP, draw: () => {
-      solid(prismH([[-12*mk, -4*mk], [12*mk, -4*mk], [12*mk, 4*mk], [-12*mk, 4*mk]], HT, AH - 4), ARM);
+      this.avLathe(V, 0, 0, [[HT, 10*mk], [AH - 4, 10*mk]], ARM, null, 12);   // (a round pylon under the round hub: its flat block stuck out from under it as a tab)
       this.avLathe(V, 0, 0, [[AH - 5, 14*mk], [AH + 4, 14*mk], [AH + 7, 9*mk]], ARM, null, 12); } });
     /* the pod: stacked (white, its orange band, white), the dark canopy on
        top, the sensor ball under its nose -- or the air taxi's cabin, glazed
@@ -114534,7 +114534,7 @@ class WorldScene extends Phaser.Scene {
         this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: 29*ps, hy: bw, ch: 4, s0, s1, dz, dk });
       };
       if(D.load === "cabin"){
-        const kh = (HT - HB)/74, kp = ps/2.1, g0 = HB + 22*kh, g1 = HT - 8*kh, gb = g0 - 6*kh;   // (the cabin's rhythm, kept as it grows: kh up, kp along)
+        const kh = (HT - HB)/74, kp = ps/2.1, g0 = HB + 22*kh, g1 = HT - 6, gb = g0 - 6*kh;   // (the roof's ledge 6 thick: the door runs right up to it, never into it)   // (the cabin's rhythm, kept as it grows: kh up, kp along)
         solid(prismH(pod, HB, gb), BODY); solid(prismH(pod, gb, g0), ORANGE);
         solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);   // (the roof's ledge, g1..HT, is painted after the rider: they are seen through the glass, under it)
         wearPod(HB, gb, gb, g0, HB + 2.5*kh, HB + 5.5*kh, HB + 8*kh, 0.3*ps*kh/1.0*0.5, false);
@@ -114547,7 +114547,7 @@ class WorldScene extends Phaser.Scene {
         if(!edgeOn){
           const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bAt = (a, o) => sb*((16 + (a - aR)/(aF - aR)*4)*ps + (o || 0));
           const du = Math.max(0, Math.min(1, (data && data.door) || 0));
-          const d0 = -34*kp, d1 = 18*kp, dh0 = HB + 4, dh1 = HT - 6, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
+          const d0 = -34*kp, d1 = 18*kp, dh0 = HB + 4, dh1 = g1, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
           const fl = shadeC(BODY, V.lit([0, sb, 0])), seam = shadeC(BODY, V.lit([0, sb, 0])*0.6);
           const fQ = (a0, a1, h0, h1, o, c, al) => Q([P(a0, bAt(a0, o), h0), P(a1, bAt(a1, o), h0), P(a1, bAt(a1, o), h1), P(a0, bAt(a0, o), h1)], c, al);
           const opening = [P(d0, bAt(d0, 0.3), dh0), P(d1, bAt(d1, 0.3), dh0), P(d1, bAt(d1, 0.3), dh1 + 70), P(d0, bAt(d0, 0.3), dh1 + 70)], clip0 = this.drawClip;   // (up through the glass above the door: a rider deep in the cabin shows there)
