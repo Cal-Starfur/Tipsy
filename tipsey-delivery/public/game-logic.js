@@ -112855,7 +112855,7 @@ class WorldScene extends Phaser.Scene {
               Q([P(ia0, bAt(ia0, 0), fz), P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia0, far, fz)], 0x5d646f);        // the floor
               if(sees(-1, 0, 0)) Q([P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, bAt(ia1, 0), ct)], 0x2c3138);
               if(sees(1, 0, 0)) Q([P(ia0, bAt(ia0, 0), fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, bAt(ia0, 0), ct)], 0x2c3138);
-              const sbf = sb*2, sb1 = sb*28, bk = sb*8;   // (a bench inside the door, its back toward the cabin's middle and its seat out toward the door: a rider on it sits facing out, where the opening shows them)                                                           // a bench along the far wall
+              const sbf = -sb*8, sb1 = sb*18, bk = -sb*2;   // (a bench in the cabin's middle, its back to the far side and its seat toward the door: a rider on it sits facing out, knees clear of the door plane (the seat ends 20 short of it), where the opening shows them)                                                           // a bench along the far wall
               for(const [x0, x1] of [[ia0 + 8, mid - 4], [mid + 4, ia1 - 8]]){
                 solid(prismH([[x0, sbf], [x1, sbf], [x1, sb1], [x0, sb1]], fz, fz + 24), 0x5d6672);
                 solid(prismH([[x0, sbf], [x1, sbf], [x1, bk], [x0, bk]], fz + 24, fz + 58), 0x48505c);
