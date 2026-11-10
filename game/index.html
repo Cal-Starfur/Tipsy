@@ -5116,7 +5116,7 @@ const FLEET = {
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
                 ctl: { botR: 28 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
   patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
-                ctl: {}, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
+                ctl: { botR: 31 }, bay: "station", unlock: "night-watch", abilities: ["patrol"], ambient: { night: true, round: "sierra-wall" } },
   amr:        { name: "Warehouse robot", cls: "walk", art: "amr", body: { len: BOTS.amr.len, wid: 76, h: 80, cap: true }, fit: { r: 55, h: 80 },
                 ctl: {}, bay: "station", unlock: "number-4-builds", abilities: ["platform"], cargo: "pallet", ambient: { yards: true } },
   /* road: never tips (big); P3's bicycle controller */
@@ -113840,9 +113840,9 @@ class WorldScene extends Phaser.Scene {
     }
     const RB = this._botRoll;                      // (the bot on its side or nose: its roll and pitch after the lid's own hinge, normals turned with it)
     if(RB){
-      const x0 = xf, r1 = rotN, { sg, cr, sr, pb, cp, sp, pa } = RB;
-      xf = (a, bb, h) => { const q = x0 ? x0(a, bb, h) : [a, bb, h], db = q[1] - pb, b1 = pb + db*cr + q[2]*sr*sg, h1 = -db*sr*sg + q[2]*cr, da = q[0] - pa; return [pa + da*cp - h1*sp, b1, h1*cp + da*sp]; };
-      rotN = (nx, ny, nz) => { const y1 = ny*cr + nz*sr*sg, z1 = -ny*sr*sg + nz*cr; return r1(nx*cp - z1*sp, y1, z1*cp + nx*sp); };
+      const x0 = xf, r1 = rotN, { cr, sn, pb, cp, sp, pa } = RB;
+      xf = (a, bb, h) => { const q = x0 ? x0(a, bb, h) : [a, bb, h], da = q[0] - pa, a1 = pa + da*cp - q[2]*sp, h0 = q[2]*cp + da*sp, db = q[1] - pb; return [a1, pb + db*cr + h0*sn, -db*sn + h0*cr]; };
+      rotN = (nx, ny, nz) => { const x1 = nx*cp - nz*sp, z0 = nz*cp + nx*sp; return r1(x1, ny*cr + z0*sn, -ny*sn + z0*cr); };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf);
     this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
@@ -113860,19 +113860,23 @@ class WorldScene extends Phaser.Scene {
     /* THE LIDDED BOTS GO OVER TOO (Sir, 2026-11-10: "make sure these bots tip over properly"): the cargo bot and the courier roll
        about their outer wheel's foot (ROLL_PIVOT, half their track), as Gideon about his outer foot; botHull reads the same roll
        (this._botRoll) so their hulls and lids turn with them */
-    const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28 };
+    const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28, patrolbot: 30 };
     const roll = ROLL_PIVOT[kind] && data ? (data.roll || 0) : 0;
     /* ... and over their nose or tail (THE FOUR-WAY FALL: tipU.a): a pitch about the end of the footprint they fall over
        (PITCH_PIVOT, half their length), the same pose Tipsey takes (this.pitch, its sign data.pitchSg) */
-    const PITCH_PIVOT = { cargobot: 50, courierbot: 22 };
+    const PITCH_PIVOT = { cargobot: 50, courierbot: 22, patrolbot: 30 };
     const pitch = PITCH_PIVOT[kind] && data ? (data.pitch || 0) : 0;
     let xf = null;
     this._botRoll = null;
     if(Math.abs(roll) > 0.002 || Math.abs(pitch) > 0.002){
-      const sg = Math.sign(roll) || 1, cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = Math.abs(roll) > 0.002 ? sg*ROLL_PIVOT[kind] : 0;
+      /* TIPSEY'S OWN ORDER AND SENSE (P(): pitch about the nose or tail, then roll about the grounded edge: a positive roll goes over
+         toward -b, pivoting at -PIV, where Gideon's older roll turns the other way); the fleet bots take his, so a fall, its shadow's
+         slide and the crew's side all agree. cr/sn: the roll's cosine and the sine that carries b into height */
+      const hum = kind === "humanoid", cr = Math.cos(roll), sn = hum ? Math.sign(roll)*Math.sin(Math.abs(roll)) : -Math.sin(roll);
+      const pb = Math.abs(roll) <= 0.002 ? 0 : hum ? Math.sign(roll)*ROLL_PIVOT[kind] : -(roll >= 0 ? 1 : -1)*ROLL_PIVOT[kind];
       const cp = Math.cos(pitch), sp = Math.sin(pitch), pa = pitch ? (data.pitchSg || 0)*PITCH_PIVOT[kind] : 0;
-      xf = (a, b, h) => { const db = b - pb, b1 = pb + db*cr + h*sr*sg, h1 = -db*sr*sg + h*cr, da = a - pa; return [pa + da*cp - h1*sp, b1, h1*cp + da*sp]; };
-      this._botRoll = { sg, cr, sr, pb, cp, sp, pa };
+      xf = (a, b, h) => { const da = a - pa, a1 = pa + da*cp - h*sp, h0 = h*cp + da*sp, db = b - pb; return [a1, pb + db*cr + h0*sn, -db*sn + h0*cr]; };
+      this._botRoll = { cr, sn, pb, cp, sp, pa };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
     V.outline = FLEET_OUTLINE;
@@ -113998,18 +114002,28 @@ class WorldScene extends Phaser.Scene {
       return;
     }
     if(kind === "patrolbot"){
-      /* THE SECURITY PATROL ROBOT: a tall white egg on a dark skirt, a blue
-         band, a dark camera ring lit cyan, a light on its crown */
+      /* THE SECURITY PATROL ROBOT: a tall white egg on a dark skirt, a blue band, a dark camera ring lit cyan, a light on its crown.
+         Worn as Tipsey's (the standing rules): the egg takes his body colour (and the two-tone's upper half), the band his stripe (the
+         second band under it), the light his flag (a skin's topper in its place), a flank badge and the stripe's pattern as the lidded
+         bots'. A lathe has no flat face to print on, so a skin's print and a chameleon/flake finish do not reach it. Its pieces are
+         painted far to near by their depth through the fall (a stack painted bottom to top is right only while it stands) */
       shadow(32, 32);
-      this.avLathe(V, 0, 0, [[2, 26], [12, 30]], DARK, null, 16);
-      this.avLathe(V, 0, 0, [[12, 30], [56, 31]], WHITE, null, 16);
-      this.avLathe(V, 0, 0, [[56, 31], [70, 30]], 0x2e6fd1, null, 16);
-      this.avLathe(V, 0, 0, [[70, 30], [104, 25]], WHITE, null, 16);
-      this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
-      this.avLathe(V, 0, 0, [[109, 25.3], [111, 25.1]], CYAN, () => CYAN, 16);
-      this.avLathe(V, 0, 0, [[116, 23], [128, 17], [136, 8], [138, 0]], WHITE, null, 16);
-      this.avLathe(V, 0, 0, [[137, 4], [142, 4], [144, 0]], 0x2e6fd1, null, 8);
-      this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: 63 });
+      const bodyC = WEAR ? BPW.top : WHITE, upperC = WEAR && BPW.split ? BPW.split.cTop : bodyC, bandC = WEAR ? SKIN.stripe : 0x2e6fd1;
+      const parts = [
+        { h: 7, draw: () => this.avLathe(V, 0, 0, [[2, 26], [12, 30]], DARK, null, 16) },
+        { h: 34, draw: () => this.avLathe(V, 0, 0, [[12, 30], [56, 31]], bodyC, null, 16) },
+        { h: 63, draw: () => { this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16);
+          if(WEAR && SKIN.stripe2) this.avLathe(V, 0, 0, [[47, 31.3], [53, 31.3]], SKIN.stripe2, null, 16); } },
+        { h: 87, draw: () => { this.avLathe(V, 0, 0, [[70, 30], [104, 25]], upperC, null, 16);
+          this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: 63 });                                         // (his face, on the upper body)
+          if(WEAR) this.botSkinWear(g, V, { hx: 27.5, hy: 27.5, ch: 17, s0: 56, s1: 70, dz: 80 }); } },
+        { h: 110, draw: () => { this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
+          this.avLathe(V, 0, 0, [[109, 25.3], [111, 25.1]], CYAN, () => CYAN, 16); } },
+        { h: 127, draw: () => this.avLathe(V, 0, 0, [[116, 23], [128, 17], [136, 8], [138, 0]], upperC, null, 16) },
+        { h: 141, draw: () => { if(!(WEAR && this.botTopper(g, V, 0, 0, 144))) this.avLathe(V, 0, 0, [[137, 4], [142, 4], [144, 0]], WEAR ? FLAGC : 0x2e6fd1, null, 8); } }
+      ];
+      parts.sort((p, q) => V.depth(0, 0, p.h) - V.depth(0, 0, q.h));
+      for(const pt of parts) pt.draw();
       return;
     }
     if(kind === "amr"){
@@ -118899,6 +118913,7 @@ class WorldScene extends Phaser.Scene {
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
+      : kind === "patrolbot" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
