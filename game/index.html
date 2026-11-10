@@ -114448,7 +114448,8 @@ class WorldScene extends Phaser.Scene {
     const RD = data && data.rider ? data.rider : null;
     const riderDraw = () => {
       const th0 = fdir*(Math.PI/2), c0 = Math.cos(th0), s0 = Math.sin(th0), sb = sees(0, 1, 0) ? 1 : -1, b = sb*RD.d, B = rosterBody(RD.seed || 7), U = withAid(TIPSY_CREW_UNIFORM, B);
-      const th = Math.atan2(-sb*c0, sb*s0), w = RD.waist || 0, bk = (B.build.torsoH + B.build.headR)*0.5*Math.sin(w)*1.6;
+      const th = RD.along ? Math.atan2(s0, c0) : Math.atan2(-sb*c0, sb*s0), w = RD.waist || 0,   // (RD.along: turned to walk along the cabin toward its nose, once in)
+         bk = (B.build.torsoH + B.build.headR)*0.5*Math.sin(w)*1.6;
       const wx = x + RD.a*c0 - b*s0 - Math.cos(th)*bk, wy = y + RD.a*s0 + b*c0 - Math.sin(th)*bk;
       const st = this._seenThrough; this._seenThrough = true;
       try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 6), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
