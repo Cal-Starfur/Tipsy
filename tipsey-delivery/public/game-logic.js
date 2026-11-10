@@ -112033,11 +112033,9 @@ class WorldScene extends Phaser.Scene {
             solid(prismH([[-52, sb0], [48, sb0], [48, sb1], [-52, sb1]], fz, fz + 20), 0x5d6672);
             solid(prismH([[-52, sb0], [48, sb0], [48, bk], [-52, bk]], fz + 20, fz + 66), 0x48505c);
             solid(prismH([[-52, sb0 + (sb1 - sb0)*0.1], [48, sb0 + (sb1 - sb0)*0.1], [48, sb1], [-52, sb1]], fz + 20, fz + 24), ORANGE);   // (his stripe on the cushion's edge)
-            const pole = (DR.a0 + DR.a1)/2, pb = fb - nearB*10;                                              // a hand pole by the doors
-            Q([P(pole - 1.3, pb, fz), P(pole + 1.3, pb, fz), P(pole + 1.3, pb, ct), P(pole - 1.3, pb, ct)], 0xd3d8de);
             Q([P(DR.a0, fb, fz), P(DR.a0 + 7, fb, fz), P(DR.a0 + 7, fb, ct), P(DR.a0, fb, ct)], 0x14171c, 0.45);     // (a shade down the near jamb: the depth)
           }
-          const Wh = (DR.a1 - DR.a0)/2, mid = (DR.a0 + DR.a1)/2, sh = du*(Wh + 3), lb = fb*1.003;
+          const Wh = (DR.a1 - DR.a0)/2, mid = (DR.a0 + DR.a1)/2, sh = du*Wh*0.58, lb = fb*1.003;   // (they part by little over half their width: the leaves stay in view, stacked at either edge)
           for(const [l0, l1] of [[DR.a0 - sh, mid - sh], [mid + sh, DR.a1 + sh]]){
             Q([P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)], flank);              // the leaf
             const w0 = l0 + 5, w1 = l1 - 5; if(w1 > w0) Q([P(w0, lb, g0 + 2), P(w1, lb, g0 + 2), P(w1, lb, DR.h1 - 6), P(w0, lb, DR.h1 - 6)], GLASS);   // its window
