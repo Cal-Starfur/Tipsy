@@ -112650,8 +112650,8 @@ class WorldScene extends Phaser.Scene {
     }
     if(kind === "avforklift"){
       /* THE DRIVERLESS FORKLIFT: no seat, no cage. Tipsey's hull (botHull: the chamfered, bevelled prism, so his paint, finish, print and
-         two-tone reach it) for the chassis, his stripe a band round it, a lower hood over the counterweight at the tail, a sensor mast
-         on it with a lidar and, over it, his flag (or a skin's topper), his face on the mast carriage, two lidar pucks on the nose, the mast, carriage and
+         two-tone reach it) for the chassis, his stripe a band round it, a lower hood over the counterweight at the tail, a whip
+         on it with his flag (or a skin's topper), his face on the mast carriage, two lidar pucks on the nose, the mast, carriage and
          forks at the front. It runs empty: a pallet rides the forks only when a mission or a working scene hands it one (data.load).
          Drawn about its own middle (tail -98, fork tips 98, the 196 of its FLEET body), so its hit box (fleetBody) is the machine, not
          a run 28 further back; tyres flush outside the chassis, 84 over them (botR 42) */
@@ -112671,9 +112671,7 @@ class WorldScene extends Phaser.Scene {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx: HH, hy: HH - 1, da: HX, z0: ZT, z1: ZH, ch: 8, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(ZT, ZH, 'lid')));   // the hood over the counterweight
         if(back) for(const sb of [-1, 1]) endQ(-98.3, sb*20 - 5, sb*20 + 5, 36, 42, CARC.tail);
         for(const sb of [-1, 1]) puck(-10, sb*24, ZT, 0.75);                                                               // lidar on the nose
-        line([-62, 0, ZH], [-62, 0, 88], DARK, 3);                                                                          // the sensor mast: just its lidar on top, his face is on the front (the carriage)
-        puck(-62, 0, 88, 1.1);
-        line([-62, 0, 97], [-62, 0, 126], DARK, 1.4);                                                                       // his flag (or a skin's topper) on the mast's tip, over the lidar
+        line([-62, 0, ZH], [-62, 0, 126], DARK, 1.6);                                                                       // his flag (or a skin's topper) on a whip standing on the hood
         if(!(WEAR && this.botTopper(g, V, -62, 0, 126))) Q([P(-62, 0, 126), P(-80, 0, 120), P(-62, 0, 114)], FLAGC);
         wheels(nearB);
       };
