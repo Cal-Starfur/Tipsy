@@ -114451,7 +114451,7 @@ class WorldScene extends Phaser.Scene {
     /* the arms, motors and rotors: each its own part, so the near ones cover the pod */
     const hub = D.load === "cabin" ? AH : AH;
     for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH), draw: () => {
-      const r0 = D.ring ? 10 : 0.22*ARMR, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others' into the pod)
+      const r0 = D.ring ? 10 : 24*ps, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
       this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], DARK, null, 10);
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
