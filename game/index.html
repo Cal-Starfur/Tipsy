@@ -4875,7 +4875,7 @@ const AV_PODS = {
 const DRONES = {
   dronequad: { HB: 34, HT: 58, AH: 54, ARMR: 82,  RR: 38, n: 4, ps: 1,   load: "parcel" },
   dronelift: { HB: 50, HT: 80, AH: 76, ARMR: 120, RR: 44, n: 6, ps: 1.3, load: "crate" },
-  airtaxi:   { HB: 30, HT: 104, AH: 116, ARMR: 150, RR: 40, n: 8, ps: 2.1, load: "cabin", ring: true }
+  airtaxi:   { HB: 28, HT: 178, AH: 196, ARMR: 150, RR: 46, n: 8, ps: 2.6, load: "cabin", ring: true }   // (SIZED FOR PEOPLE, 2026-11-10: a rider is ~130 tall: the cabin 150 floor to roof, the doorway 140; its span 392 still fits its 440 lane)
 };
 /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (drawBot), Tipsey's units (he is
    52 x 40, his body 14..54 high): the cargo bot (Tipsey, grown: six
@@ -5151,7 +5151,7 @@ const FLEET = {
                 ctl: { vMax: 0.26, fly: { accel: 0.00024, brake: 0.00034, turn: 0.0042, cruiseZ: 340, autoTopZ: 740, ceilZ: 800, climb: 0.30, clear: 80, floor: 50, r: DRONES.dronequad.ARMR + DRONES.dronequad.RR /* its farthest rotor tip from its middle, 120, not the 70 of its pod */ } }, bay: "hangar", unlock: "lighthouse-run", abilities: ["winch"], cargo: "parcel", ambient: { corridors: ["airfield-marina", "airfield-light"] } },
   dronelift:  { name: "Heavy-lift drone", cls: "rotor", art: "dronelift", body: { len: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), wid: 2*(DRONES.dronelift.ARMR + DRONES.dronelift.RR), h: 82 }, fit: { r: 164, h: 152 },
                 ctl: { vMax: 0.22, fly: { accel: 0.00016, brake: 0.00024, turn: 0.0029, cruiseZ: 350, autoTopZ: 680, ceilZ: 700, climb: 0.22, clear: 100, floor: 60, r: DRONES.dronelift.ARMR + DRONES.dronelift.RR /* its farthest rotor tip from its middle, 164 */ } }, bay: "hangar", unlock: "letters-on-hill", abilities: ["sling"], cargo: "crate", ambient: { corridors: ["airfield-marina"] } },
-  airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 120 }, fit: { r: 190, h: 176 },
+  airtaxi:    { name: "Air taxi", cls: "rotor", art: "airtaxi", body: { len: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), wid: 2*(DRONES.airtaxi.ARMR + DRONES.airtaxi.RR), h: 230 }, fit: { r: 200, h: 240 },
                 ctl: { vMax: 0.25, fly: { accel: 0.00015, brake: 0.00022, turn: 0.0023, cruiseZ: 400, autoTopZ: 800, ceilZ: 980, climb: 0.24, clear: 110, floor: 70, r: DRONES.airtaxi.ARMR + DRONES.airtaxi.RR /* its farthest rotor tip from its middle, 190 */ } }, bay: "hangar", unlock: "fire-watch", abilities: ["passengers"], ambient: { corridors: ["airfield-harbor"] } },
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 330, h: 132 }, fit: { r: 200, h: 205 },
@@ -114428,7 +114428,7 @@ class WorldScene extends Phaser.Scene {
     const BODY = WEAR ? BPW.top : 0xf2f3f1, ORANGE = WEAR ? SKIN.stripe : 0xff7a1a, DARK = 0x2a2f36, ARM = 0x3a4048, CYAN = 0x5fe8e0, GLASS = 0x26313b;
     const nose = sees(1, 0, 0), parts = [], edgeOn = Math.abs(V.eye[1]) < 0.12;
     const box = (a0, a1, b0, b1, h0, h1, col, flat) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, flat);
-    const { HB, HT, AH, ARMR, RR, n, ps } = D;
+    const { HB, HT, AH, ARMR, RR, n, ps } = D, mk = D.ring ? RR/40 : 1;   // (mk: the bigger air taxi's motors, blades and hub grow with its rotors)
     /* its shadow on the ground, under it however high */
     if(!(data && data.noShadow)){   // (in the air its shadow is its own item, on what is under it: drawFlyShadow)
     const S = this.vehKit(g, x, y, z, fdir), sr = ARMR*0.6;
@@ -114453,7 +114453,7 @@ class WorldScene extends Phaser.Scene {
          bk = (B.build.torsoH + B.build.headR)*0.5*Math.sin(w)*1.6;
       const wx = x + RD.a*c0 - b*s0 - Math.cos(th)*bk, wy = y + RD.a*s0 + b*c0 - Math.sin(th)*bk;
       const st = this._seenThrough; this._seenThrough = true;
-      try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 2), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
+      try { this.drawPersonHull(g, wx, wy, z + lift + (RD.step || 0)*(HB + 4), th - Math.PI/2, B.build, B.skin, U.shirt, U.pants, B.hair, U.shoe,
         RD.moving ? Math.sin(RD.gait || 0) : 0, !!RD.moving, 0, 0, null, U, true, w || RD.drop || RD.sit != null ? { waist: w, drop: RD.drop || 0, sit: RD.sit } : null); }
       finally { this._seenThrough = st; }
     };
@@ -114484,9 +114484,9 @@ class WorldScene extends Phaser.Scene {
     for(const A of arms) parts.push({ d: V.depth(A.a, A.b, AH) + UP, draw: () => {
       const r0 = D.ring ? 10 : podWall(A.ca, A.cb) - 1.5, pa = -A.cb*3, pb = A.ca*3;   // (the air taxi's run in to its hub; the others start at the pod's wall, 24 out along the diagonal: from inside it they drew over the canopy)
       solid(prismH([[A.ca*r0 + pa, A.cb*r0 + pb], [A.a + pa, A.b + pb], [A.a - pa, A.b - pb], [A.ca*r0 - pa, A.cb*r0 - pb]], hub - 3, hub + 2), ARM);
-      this.avLathe(V, A.a, A.b, [[AH - 4, 7], [AH + 8, 7], [AH + 10, 4]], WEAR ? BODY : DARK, null, 10);   // (worn: the propeller holders take his body colour, his stripe round each and his second band's tone on the cap, in place of a flag)
-      if(WEAR){ this.avLathe(V, A.a, A.b, [[AH, 7.5], [AH + 4.5, 7.5]], ORANGE, null, 10);
-        this.avLathe(V, A.a, A.b, [[AH + 8, 7.2], [AH + 10, 4.2], [AH + 11, 4.2]], SKIN.stripe2 != null ? SKIN.stripe2 : DARK, null, 10); }
+      this.avLathe(V, A.a, A.b, [[AH - 4, 7*mk], [AH + 8, 7*mk], [AH + 10, 4*mk]], WEAR ? BODY : DARK, null, 10);   // (worn: the propeller holders take his body colour, his stripe round each and his second band's tone on the cap, in place of a flag)
+      if(WEAR){ this.avLathe(V, A.a, A.b, [[AH, 7.5*mk], [AH + 4.5, 7.5*mk]], ORANGE, null, 10);
+        this.avLathe(V, A.a, A.b, [[AH + 8, 7.2*mk], [AH + 10, 4.2*mk], [AH + 11, 4.2*mk]], SKIN.stripe2 != null ? SKIN.stripe2 : DARK, null, 10); }
       const ring = [...Array(18)].map((_, i) => { const ph = i/18*Math.PI*2; return P(A.a + Math.cos(ph)*RR, A.b + Math.sin(ph)*RR, AH + 11); });
       const spin = data && data.spin != null ? data.spin : 1;   // (its rotors' spin, 0 still: fleet P2's spin-up)
       if(spin > 0.05) Q(ring, 0xd9dde0, 0.17*Math.min(1, spin*1.4));
@@ -114495,9 +114495,9 @@ class WorldScene extends Phaser.Scene {
          and nut, in place of a 2.4 hair line. The blur disc under them a little denser */
       for(const k of [0, Math.PI]){ const c = Math.cos(sp + k), s2 = Math.sin(sp + k), nx = -s2, ny = c, hz = AH + 11.2;
         const pt = (r, w) => P(A.a + c*r + nx*w, A.b + s2*r + ny*w, hz);
-        Q([pt(5, -4.5), pt(RR, -3), pt(RR, 3), pt(5, 4.5)], 0x4a5058);
-        Q([pt(RR - 7, -3.2), pt(RR, -3), pt(RR, 3), pt(RR - 7, 3.2)], WEAR ? ORANGE : 0xd9dde0); }
-      this.avLathe(V, A.a, A.b, [[AH + 10, 6.5], [AH + 13.5, 6.5], [AH + 15, 3]], 0x2d3238, null, 10);
+        Q([pt(5, -4.5*mk), pt(RR, -3*mk), pt(RR, 3*mk), pt(5, 4.5*mk)], 0x4a5058);
+        Q([pt(RR - 7*mk, -3.2*mk), pt(RR, -3*mk), pt(RR, 3*mk), pt(RR - 7*mk, 3.2*mk)], WEAR ? ORANGE : 0xd9dde0); }
+      this.avLathe(V, A.a, A.b, [[AH + 10, 6.5*mk], [AH + 13.5, 6.5*mk], [AH + 15, 3*mk]], 0x2d3238, null, 10);
       const lc = A.ca > 0.2 ? (A.cb > 0 ? 0x41d36a : 0xe8453c) : 0xf4f5f2, lp = P(A.a + A.ca*4, A.b + A.cb*4, AH);
       g.fillStyle(lc, 1); g.fillCircle(lp.x, lp.y, 2.2*this.K*0.42);
     } });
@@ -114506,8 +114506,8 @@ class WorldScene extends Phaser.Scene {
       for(let k = 0; k < n; k++){ const A = arms[k], B = arms[(k + 1) % n]; line([A.a, A.b, AH], [B.a, B.b, AH], ARM, 2.6); } } });
     /* its hub over the cabin, the arms meeting in it, on a pylon down to the roof */
     if(D.ring) parts.push({ d: V.depth(0, 0, AH) + 1 + UP, draw: () => {
-      solid(prismH([[-12, -4], [12, -4], [12, 4], [-12, 4]], HT, AH - 4), ARM);
-      this.avLathe(V, 0, 0, [[AH - 5, 14], [AH + 4, 14], [AH + 7, 9]], ARM, null, 12); } });
+      solid(prismH([[-12*mk, -4*mk], [12*mk, -4*mk], [12*mk, 4*mk], [-12*mk, 4*mk]], HT, AH - 4), ARM);
+      this.avLathe(V, 0, 0, [[AH - 5, 14*mk], [AH + 4, 14*mk], [AH + 7, 9*mk]], ARM, null, 12); } });
     /* the pod: stacked (white, its orange band, white), the dark canopy on
        top, the sensor ball under its nose -- or the air taxi's cabin, glazed
        all round over its band */
@@ -114534,10 +114534,10 @@ class WorldScene extends Phaser.Scene {
         this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: 29*ps, hy: bw, ch: 4, s0, s1, dz, dk });
       };
       if(D.load === "cabin"){
-        const g0 = HB + 22, g1 = HT - 8;
-        solid(prismH(pod, HB, g0 - 6), BODY); solid(prismH(pod, g0 - 6, g0), ORANGE);
+        const kh = (HT - HB)/74, kp = ps/2.1, g0 = HB + 22*kh, g1 = HT - 8*kh, gb = g0 - 6*kh;   // (the cabin's rhythm, kept as it grows: kh up, kp along)
+        solid(prismH(pod, HB, gb), BODY); solid(prismH(pod, gb, g0), ORANGE);
         solid(prismH(pod, g0, g1), GLASS, (i, nn) => nn[2] > 0.5 ? BODY : GLASS);   // (the roof's ledge, g1..HT, is painted after the rider: they are seen through the glass, under it)
-        wearPod(HB, g0 - 6, g0 - 6, g0, HB + 2.5, HB + 5.5, HB + 8, 0.3*ps, false);
+        wearPod(HB, gb, gb, g0, HB + 2.5*kh, HB + 5.5*kh, HB + 8*kh, 0.3*ps*kh/1.0*0.5, false);
         if(edgeOn) solid(prismH(pod, g1, HT), BODY);   // (the glazed cabin: the print on the 16-high panel under the band)
         /* THE CABIN DOOR (Sir, 2026-11-10: "how do people get in and out? ... a sliding door system like the robo taxi"): as the robotaxi's, a
            door in the near flank, two leaves in the flank's own colour with a window each, meeting at a seam; open (data.door 0..1: wide while it
@@ -114547,7 +114547,7 @@ class WorldScene extends Phaser.Scene {
         if(!edgeOn){
           const sb = sees(0, 1, 0) ? 1 : -1, aR = -34*ps, aF = 24*ps, bAt = (a, o) => sb*((16 + (a - aR)/(aF - aR)*4)*ps + (o || 0));
           const du = Math.max(0, Math.min(1, (data && data.door) || 0));
-          const d0 = -34, d1 = 14, dh0 = HB + 2, dh1 = HT - 3, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
+          const d0 = -34*kp, d1 = 18*kp, dh0 = HB + 4, dh1 = HT - 6, mid = (d0 + d1)/2, Wh = (d1 - d0)/2, sh = du*(Wh + 4);
           const fl = shadeC(BODY, V.lit([0, sb, 0])), seam = shadeC(BODY, V.lit([0, sb, 0])*0.6);
           const fQ = (a0, a1, h0, h1, o, c, al) => Q([P(a0, bAt(a0, o), h0), P(a1, bAt(a1, o), h0), P(a1, bAt(a1, o), h1), P(a0, bAt(a0, o), h1)], c, al);
           const opening = [P(d0, bAt(d0, 0.3), dh0), P(d1, bAt(d1, 0.3), dh0), P(d1, bAt(d1, 0.3), dh1 + 70), P(d0, bAt(d0, 0.3), dh1 + 70)], clip0 = this.drawClip;   // (up through the glass above the door: a rider deep in the cabin shows there)
@@ -114562,7 +114562,7 @@ class WorldScene extends Phaser.Scene {
               if(sees(-1, 0, 0)) Q([P(ia1, bAt(ia1, 0), fz), P(ia1, far, fz), P(ia1, far, ct), P(ia1, bAt(ia1, 0), ct)], 0x2c3138);
               if(sees(1, 0, 0)) Q([P(ia0, bAt(ia0, 0), fz), P(ia0, far, fz), P(ia0, far, ct), P(ia0, bAt(ia0, 0), ct)], 0x2c3138);
               const sbf = -sb*8, sb1 = sb*18, bk = -sb*2;   // (a bench in the cabin's middle, its back to the far side and its seat toward the door: a rider on it sits facing out, knees clear of the door plane (the seat ends 20 short of it), where the opening shows them)                                                           // a bench along the far wall
-              for(const [x0, x1] of [[ia0 + 8, mid - 4], [mid + 4, ia1 - 8]]){
+              for(const [x0, x1] of [[ia0 + 8, ia1 - 8]]){
                 solid(prismH([[x0, sbf], [x1, sbf], [x1, sb1], [x0, sb1]], fz, fz + 24), 0x5d6672);
                 solid(prismH([[x0, sbf], [x1, sbf], [x1, bk], [x0, bk]], fz + 24, fz + 58), 0x48505c);
                 solid(prismH([[x0, bk], [x1, bk], [x1, sb1], [x0, sb1]], fz + 24, fz + 26.5), ORANGE);
@@ -114574,8 +114574,8 @@ class WorldScene extends Phaser.Scene {
           solid(prismH(pod, g1, HT), BODY);
           const lo = 0.3 + Math.min(1, du/0.25)*3, printed = WEAR && (BPW.print || BPW.fin);
           for(const [l0, l1] of [[d0 - sh, mid - sh], [mid + sh, d1 + sh]]){
-            if(printed) fQ(l0, l1, dh0, g0 - 6, lo, 0x000000, 0.07); else fQ(l0, l1, dh0, g0 - 6, lo, fl);            // (a worn print shows through the leaf: a shade over it, never a solid panel)
-            fQ(l0, l1, g0 - 6, g0, lo, ORANGE);                                                                         // his stripe runs on the leaves
+            if(printed) fQ(l0, l1, dh0, gb, lo, 0x000000, 0.07); else fQ(l0, l1, dh0, gb, lo, fl);            // (a worn print shows through the leaf: a shade over it, never a solid panel)
+            fQ(l0, l1, gb, g0, lo, ORANGE);                                                                         // his stripe runs on the leaves
             fQ(l0 + 4, l1 - 4, g0, dh1 - 5, lo, GLASS);                                                                 // the window
             const ring = du > 0.02 ? FLEET_OUTLINE : seam, pts = [P(l0, bAt(l0, lo), dh0), P(l1, bAt(l1, lo), dh0), P(l1, bAt(l1, lo), dh1), P(l0, bAt(l0, lo), dh1)];
             g.lineStyle(this.kw(du > 0.02 ? 1.6 : 1), ring, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath();
@@ -114587,7 +114587,7 @@ class WorldScene extends Phaser.Scene {
         solid(prismH(pod.map(([a, b]) => [a*0.7, b*0.7]), HT, HT + 6), 0x2a3440);
         wearPod(HB, HT, HB + 8*ps, HB + 13*ps, HB + 2.5*ps, HB + 6*ps, HB + 18*ps, 0.42*ps, true);
       }
-      if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34, 1.3, { mouthZ: HB + 10 });
+      if(D.load === "cabin") this.tipseyFace(V, 38*ps, HB + 34*(HT - HB)/74, 1.3*ps/2.1, { mouthZ: HB + 10*(HT - HB)/74 });
       else this.tipseyFace(V, 38*ps, HB + 17*ps, 0.6*ps, { mouthZ: HB + 4*ps });
     } });
     V.paint(parts);
