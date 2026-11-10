@@ -113702,6 +113702,7 @@ class WorldScene extends Phaser.Scene {
        from their edge they painted in the other pass as spikes at the corner */
     const endEdge = pr.map((p, j) => { const q = pr[(j + 1) % pr.length], da = q[0] - p[0], dh = q[1] - p[1]; return Math.abs(dh)/(Math.hypot(da, dh) || 1) > 0.3; });
     const isEndI = i => i >= 2 && endEdge[i - 2];
+    V.fillSilhouette(prismB(pr, -hw, hw), shadeC(WHITE, 0.96));                                  // (nothing left empty inside the outline)
     solid(prismB(pr, -hw, hw), WHITE, (i, n) => isEndI(i) ? false : bodyCol(n));
     /* the near flank's panels */
     if(!edgeOn){
@@ -114396,6 +114397,9 @@ class WorldScene extends Phaser.Scene {
       if(Math.max(a1 - a0, b1 - b0, h1 - h0) < CHAMFER.min) return null;
       return convexHull(all); };
     const outlineOf = faces => { if(ST.outline == null) return; const sil = silhouetteOf(faces); if(sil) this.edgeOn(g, sil, ST.outline, this.kw(2)); };
+    /* the silhouette filled with one colour first, so what the faces leave between them (a sliver at a corner where two passes meet) shows paint, not the street:
+       what the outline rings is all body */
+    const fillSilhouette = (faces, col) => { const sil = silhouetteOf(faces); if(sil) this.quadOn(g, sil, col); };
     /* A CONVEX SOLID as its faces: each painted if it faces the eye, outward
        told from the solid's own middle; colOf(i, n) may recolour a face (null skips it) */
     const solid = (faces, col, colOf, flat) => {
@@ -114666,7 +114670,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [on(0, -hw), on(0, hw), on(1, hw), on(1, -hw)], shadeC(col, k));   // the face, in the body's paint
       this.quadOn(g, [on(0.06, -hw + 6), on(0.06, hw - 6), on(0.94, hw - 6), on(0.94, -hw + 6)], CARC.windshield);   // the glass, to the pillars
     };
-    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, well, vanCab, line, depth, paint, shadeC, outlineOf, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
+    return { P, sees, lit, eye, solid, prismB, prismH, oct, loftSeg, wheel, well, vanCab, line, depth, paint, shadeC, outlineOf, fillSilhouette, Q: (pts, col, al) => this.quadOn(g, pts, col, al),
              get outline(){ return ST.outline; }, set outline(c){ ST.outline = c; } };
   }
   /* ---- THE FIRE ENGINE AND THE FUEL TANKER ----
