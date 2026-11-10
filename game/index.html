@@ -113758,6 +113758,8 @@ class WorldScene extends Phaser.Scene {
             Q([P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)], flank);              // the leaf
             const w0 = l0 + 5, w1 = l1 - 5; if(w1 > w0) Q([P(w0, lb, g0 + 2), P(w1, lb, g0 + 2), P(w1, lb, DR.h1 - 6), P(w0, lb, DR.h1 - 6)], GLASS);   // its window
             Q([P(l0, lb, g0 - 10), P(l1, lb, g0 - 10), P(l1, lb, g0 - 3), P(l0, lb, g0 - 3)], ORANGE);           // THE STRIPE RUNS ON THE LEAVES, sliding with them
+            if(WEAR && SKIN.band === 'checks'){ const cc = SKIN.decalCol != null ? SKIN.decalCol : (decalLum(SKIN.stripe) > 0.55 ? 0x1b1c20 : 0xffffff), cs = 3.5;   // (the checkers run on them too: laid from the leaf's own edge)
+              for(let k = 0, a = l0; a < l1 - 0.01; k++, a += cs) for(let j = 0; j < 2; j++) if((k + j) % 2 === 0){ const a1 = Math.min(l1, a + cs); Q([P(a, lb, g0 - 10 + j*cs), P(a1, lb, g0 - 10 + j*cs), P(a1, lb, g0 - 10 + (j + 1)*cs), P(a, lb, g0 - 10 + (j + 1)*cs)], cc); } }
             if(WEAR && SKIN.stripe2) Q([P(l0, lb, g0 - 15), P(l1, lb, g0 - 15), P(l1, lb, g0 - 12), P(l0, lb, g0 - 12)], SKIN.stripe2);
             const ring = du > 0.02 ? FLEET_OUTLINE : seam, rw = du > 0.02 ? 1.6 : 1, pts = [P(l0, lb, DR.h0), P(l1, lb, DR.h0), P(l1, lb, DR.h1), P(l0, lb, DR.h1)];
             g.lineStyle(this.kw(rw), ring, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < 4; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath(); }
@@ -113854,7 +113856,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
     /* a skin's topper on a short stalk on the roof, as on Tipsey's flag pole (the pennant has no place on a car) */
-    if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22; line([ta, 0, H], [ta, 0, H + 26], DARK, 1.6); this.botTopper(g, V, ta, 0, H + 28); }
+    if(WEAR && (SKIN.topper || SKIN.skinTop)){ const ta = -hl*0.22, low = SKIN.skinTop === 'sk-taxisign' && !SKIN.topper, st = low ? 1 : 26; if(!low) line([ta, 0, H], [ta, 0, H + st], DARK, 1.6); this.botTopper(g, V, ta, 0, H + st + 2); }   // (the cab's sign sits on the roof; the rest on a stalk)
     if(glassLast) glassLast();
     if(doorLeaves) doorLeaves();
   }
@@ -124195,6 +124197,17 @@ class WorldScene extends Phaser.Scene {
       case 'sk-beacon-blue': {                   // MEDIC: a blue light, double-flashing
         const ph = t % 1400; return beacon(0x2f72ff, ph < 110 || (ph > 220 && ph < 330), null);
       }
+      case 'sk-taxisign': {                      // YELLOW CAB: the cab's lit roof sign, TAXI on it
+        extrude([rrect(-9, -0.6, 9, 1.8, 0.6)], 0x1b1c1f, 2.4);
+        const S = extrude([rrect(-8.4, 1.4, 8.4, 9, 1.6)], 0xfff0a0, 3);
+        bevel(S[0], 0xfff0a0, 0.6, 0.35);
+        const L = 0x1b1c1f;
+        poly(Lc([[-7, 7], [-3.6, 7], [-3.6, 6.2], [-7, 6.2]]), L); poly(Lc([[-5.9, 6.2], [-4.7, 6.2], [-4.7, 2.8], [-5.9, 2.8]]), L);                       // T
+        poly(Lc([[-2.6, 2.8], [-1.6, 2.8], [-0.7, 6.4], [-0.1, 2.8], [0.9, 2.8], [-0.1, 7], [-1.3, 7]]), L);                                               // A
+        poly(Lc([[1.9, 7], [3, 7], [4.3, 2.8], [3.2, 2.8]]), L); poly(Lc([[3.2, 7], [4.3, 7], [3, 2.8], [1.9, 2.8]]), L);                                    // X
+        poly(Lc([[5.2, 7], [6.8, 7], [6.8, 6.2], [6.2, 6.2], [6.2, 3.6], [6.8, 3.6], [6.8, 2.8], [5.2, 2.8], [5.2, 3.6], [5.8, 3.6], [5.8, 6.2], [5.2, 6.2]]), L);   // I
+        return 10*TOPPER_K;
+      }
       case 'sk-cone': {                          // CONE DODGER: a little traffic cone, white bands and all
         extrude([rrect(-8, -0.6, 8, 1.8, 0.6)], 0x1e1a16, 2.4);
         const S = extrude([[[-6, 1.6], [6, 1.6], [1.5, 19], [-1.5, 19]]], 0xff7a1a, 2.6);
@@ -128941,7 +128954,16 @@ const SK_SECURITY = {
   eye:0x9fe8ff, eyeAlert:0xff4a4a, flag:0xf2c14e, flagPole:0x0c0d10,
   lightbar:'amber'
 };
+/* YELLOW CAB (Sir, 2026-11-10: "a classic taxi from NYC in the 70s", the robotaxi's): taxi yellow, a black band with the white checkers, silver hubs,
+   the lit TAXI roof sign. A vehicle's own skin (TP_SKINS' fleet), free */
+const SK_YELLOW_CAB = {
+  bodyTop:0xf6c313, bodyRight:0xe0aa0d, bodyLeft:0xb98a09, outline:0x3a2c04,
+  stripe:0x1b1c1f, stripeDk:0x0f1012, lidInner:0xf6c313, belly:0x2a2205,
+  wheelHubFace:0xd9dde2, wheelHub:0xa9b0b8, eye:0xfff0a0, eyeAlert:0xff6a3a,
+  flag:0x1b1c1f, flagPole:0x2a2205, band:'checks', skinTop:'sk-taxisign'
+};
 const SKIN_PALETTES = {
+  "yellow-cab":     SK_YELLOW_CAB,
   "police":         SK_POLICE,
   "sheriff":        SK_SHERIFF,
   "security":       SK_SECURITY,
@@ -139591,6 +139613,9 @@ const TP_SKINS = [
   { skinId:"goth",           displayName:"Goth",           unlockType:"achievement",  trophyId:"luna-favour",
     filter:"none", desc:"Black lacquer and a violet bat. Luna says he's one of them now. Don't make it weird." },
   /* THE GETAWAY's (Wheels Up): wedding white, a rose ribbon, and the tin cans the Holloways tied on behind him */
+  /* THE ROBOTAXI'S OWN (fleet: it shows in the garage and is worn only as the robotaxi), free */
+  { skinId:"yellow-cab",     displayName:"Yellow Cab",     unlockType:"free",         fleet:"robotaxi",
+    filter:"none", desc:"A 1970s New York cab: taxi yellow, the black checker band, the lit TAXI sign on the roof." },
   /* THE PATROL ROBOT'S (fleet: it shows in the garage and is worn only while he is the patrol robot): all three come with NIGHT WATCH */
   { skinId:"police",         displayName:"Police",         unlockType:"achievement",  trophyId:"night-watch", fleet:"patrolbot", lockText:"Night Watch",
     filter:"none", desc:"Navy with a gold band over a blue one, a gold star and the blue beacon. The patrol robot's, for finishing Night Watch." },
@@ -142867,7 +142892,7 @@ requestTpProfile();
     if (kind === 'decal' && id === 'skull' && tpProfile.owned.has('porch-pirate')) return true;     // the skin's skull, kept
     if (kind === 'band' && id === 'stars' && tpProfile.owned.has('daredevil')) return true;         // the skin's stars, kept
     return !c || c.cents === 0 || paintOwned.has(kind + ':' + id); };
-  const ownsSkin = id => id === 'classic' || tpProfile.owned.has(id);
+  const ownsSkin = id => id === 'classic' || tpProfile.owned.has(id) || (tpSkinById(id) || {}).unlockType === 'free';   // (the free ones: a vehicle's own that is given)
 
   /* the ONE composer: skin, then colours over it. A body colour carries its
      own three faces and outline (top as picked, right and left darker, the

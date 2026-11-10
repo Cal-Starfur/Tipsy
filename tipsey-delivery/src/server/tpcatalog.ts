@@ -50,6 +50,8 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'engine-red': {priceCents: 0, unlockType: 'achievement'},
   /* Letters on the Hill's reward (the Letters on the Hill trophy, 'letters-on-hill') */
   'costa-palma': {priceCents: 0, unlockType: 'achievement'},
+  /* the robotaxi's own, a free one (game/index.html TP_SKINS 'yellow-cab', fleet: worn only as the robotaxi) */
+  'yellow-cab': {priceCents: 0, unlockType: 'free'},
   /* Night Watch's three, the patrol robot's own skins (TP_SKINS' fleet: worn only as the patrol robot), one trophy each */
   police: {priceCents: 0, unlockType: 'achievement'},
   sheriff: {priceCents: 0, unlockType: 'achievement'},
