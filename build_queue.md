@@ -72,7 +72,7 @@ graph LR
 
 ## Fleet polish (in order)
 - [?] `fp-cargobot` Fleet polish: Cargo bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. (parcel hatches on both flanks, pushed to main 9122db1) [test](https://claude.ai/artifact/8vSYEJ9qmc2p4dhPpbWdKC) [docs/fleet-redesign.md]
-- [ ] `fp-courierbot` Fleet polish: Courier bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. [docs/fleet-redesign.md]
+- [?] `fp-courierbot` Fleet polish: Courier bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. [test](https://claude.ai/artifact/2gwNg67gKaYXjWHAjAZHBi) [docs/fleet-redesign.md]
 - [ ] `fp-patrolbot` Fleet polish: Security patrol robot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. [docs/fleet-redesign.md]
 - [ ] `fp-amr` Fleet polish: Warehouse robot (AMR). Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. [docs/fleet-redesign.md]
 - [ ] `fp-robotaxi` Fleet polish: Robotaxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. [docs/fleet-redesign.md]

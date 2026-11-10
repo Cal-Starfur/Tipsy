@@ -112170,6 +112170,16 @@ class WorldScene extends Phaser.Scene {
       if(!lidTop) drawLid();
       this.botHull(g, x, y, z, fdir, { hx, hy, z0: 12, z1: zb, ch: 8, bev: 4, bevIn: 3, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
       this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });
+      /* a parcel hatch let into each flank above the band, as the cargo bot's (a darker recessed panel, a thin edge line, a
+         grab bar on its front edge), so the tall sides read as a courier's locker and not a blank tube; still */
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){
+        const bb = sb*(hy + 0.3), a0 = -11, a1 = 9, h0 = 58, h1 = 96, near = sb === nearB;
+        sideQ(a0, a1, bb, h0, h1, shadeC(0xd2d7dc, near ? 1 : 0.86));
+        const ln = near ? 0xa9afb7 : 0x9aa0a8;
+        line([a0, bb, h0], [a1, bb, h0], ln, 1); line([a1, bb, h0], [a1, bb, h1], ln, 1);
+        line([a1, bb, h1], [a0, bb, h1], ln, 1); line([a0, bb, h1], [a0, bb, h0], ln, 1);
+        line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
+      }
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
       if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx*0.82 - k, -(hy*0.82 - k), zb + 0.5), P(hx*0.82 - k, hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), hy*0.82 - k, zb + 0.5), P(-(hx*0.82 - k), -(hy*0.82 - k), zb + 0.5)];
         this.quadOn(g, ring(2), 0x9ba1a9); this.quadOn(g, ring(5), 0x7b818a); }
