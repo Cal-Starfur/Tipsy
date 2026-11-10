@@ -115281,13 +115281,21 @@ class WorldScene extends Phaser.Scene {
           this.tipseyFace(V, hl, 80, 2.6, { mouthZ: cz + 16 });                                     // Tipsey's face, the brand
           endQ(a, -hw*0.6, hw*0.6, cz - 2, cz + 6, 0x2a2f36);
         }
-        /* camera pods on the front corners, like ears */
-        for(const sb of (nearB > 0 ? [-1, 1] : [1, -1])){
-          solid(prismH([[hl - 22, sb*(hw - 4)], [hl - 6, sb*(hw - 4)], [hl - 6, sb*(hw + 5)], [hl - 22, sb*(hw + 5)]], 98, 112), 0x23272d);
-          if(nose) solid(prismH([[hl - 6, sb*(hw - 1)], [hl - 5, sb*(hw - 1)], [hl - 5, sb*(hw + 3)], [hl - 6, sb*(hw + 3)]], 102, 108), 0x5fe8e0, null, true);
-        }
       }});
-      parts.push({ d: V.depth(aBk + 60, 0, top + 40), draw: () => this.drawAvSensors(V, { a: aBk + 70, h: top, w: hw - 8, len: 80, t, s: 1.5 }) });
+      /* THE SMALL LIDAR UNITS, on the roof only (Sir, 2026-11-10: the line's small type, as the pod's -- no ears on the corners, no array and no rails): a low plate and a
+         puck with its cyan ring at each corner of the flat of the roof, nearest the eye last */
+      parts.push({ d: V.depth(aBk + 60, 0, top + 40), draw: () => {
+        const hz = [];
+        for(const a of [hl - 56, aBk + 22]) for(const sb of [-1, 1]) hz.push([a, sb*(hw - 16)]);
+        hz.sort((p, q) => V.depth(p[0], p[1], top) - V.depth(q[0], q[1], top));
+        const CY = WEAR ? SKIN.eye : 0x5fe8e0;
+        for(const [a, bb] of hz){
+          solid(prismH([[a - 4.5, bb - 4.5], [a + 4.5, bb - 4.5], [a + 4.5, bb + 4.5], [a - 4.5, bb + 4.5]], top - 2, top + 1.5), 0x23272d);
+          this.avLathe(V, a, bb, [[top + 1.5, 4.6], [top + 5.5, 4.6]], 0x23272d, null, 10);
+          this.avLathe(V, a, bb, [[top + 5.5, 4.9], [top + 7, 4.9]], CY, () => CY, 10);
+          this.avLathe(V, a, bb, [[top + 7, 4.6], [top + 9.5, 3.4]], 0x2d3238, null, 10);
+        }
+      } });
       /* THE FRAME BEHIND THE POD, finished: the fifth wheel (a plate and its bright ring) at the kingpin (FLEET_STEER.avsemi.trail.kp 150), and a fender over each
          pair of drive tyres in the body's colour, so the axles stand under the rig and not on a bare black slab */
       if(RG.body === "trailer"){
