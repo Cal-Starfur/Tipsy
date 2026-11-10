@@ -122499,16 +122499,17 @@ class WorldScene extends Phaser.Scene {
       case 'sk-beacon-blue': {                   // MEDIC: a blue light, double-flashing
         const ph = t % 1400; return beacon(0x2f72ff, ph < 110 || (ph > 220 && ph < 330), null);
       }
-      case 'sk-taxisign': {                      // YELLOW CAB: the cab's lit roof sign, TAXI on it
-        extrude([rrect(-9, -0.6, 9, 1.8, 0.6)], 0x1b1c1f, 2.4);
-        const S = extrude([rrect(-8.4, 1.4, 8.4, 9, 1.6)], 0xfff0a0, 3);
-        bevel(S[0], 0xfff0a0, 0.6, 0.35);
+      case 'sk-taxisign': {                      // YELLOW CAB: the cab's lit roof sign, TAXI on it (bigger: 1.8x the first, Sir 2026-11-10)
+        const K = 1.8, sc = pts => pts.map(([x, y]) => [x*K, y*K]);
+        extrude([rrect(-9*K, -0.6*K, 9*K, 1.8*K, 0.6*K)], 0x1b1c1f, 2.4*K);
+        const S = extrude([rrect(-8.4*K, 1.4*K, 8.4*K, 9*K, 1.6*K)], 0xfff0a0, 3*K);
+        bevel(S[0], 0xfff0a0, 0.6*K, 0.35*K);
         const L = 0x1b1c1f;
-        poly(Lc([[-7, 7], [-3.6, 7], [-3.6, 6.2], [-7, 6.2]]), L); poly(Lc([[-5.9, 6.2], [-4.7, 6.2], [-4.7, 2.8], [-5.9, 2.8]]), L);                       // T
-        poly(Lc([[-2.6, 2.8], [-1.6, 2.8], [-0.7, 6.4], [-0.1, 2.8], [0.9, 2.8], [-0.1, 7], [-1.3, 7]]), L);                                               // A
-        poly(Lc([[1.9, 7], [3, 7], [4.3, 2.8], [3.2, 2.8]]), L); poly(Lc([[3.2, 7], [4.3, 7], [3, 2.8], [1.9, 2.8]]), L);                                    // X
-        poly(Lc([[5.2, 7], [6.8, 7], [6.8, 6.2], [6.2, 6.2], [6.2, 3.6], [6.8, 3.6], [6.8, 2.8], [5.2, 2.8], [5.2, 3.6], [5.8, 3.6], [5.8, 6.2], [5.2, 6.2]]), L);   // I
-        return 10*TOPPER_K;
+        poly(Lc(sc([[-7, 7], [-3.6, 7], [-3.6, 6.2], [-7, 6.2]])), L); poly(Lc(sc([[-5.9, 6.2], [-4.7, 6.2], [-4.7, 2.8], [-5.9, 2.8]])), L);                       // T
+        poly(Lc(sc([[-2.6, 2.8], [-1.6, 2.8], [-0.7, 6.4], [-0.1, 2.8], [0.9, 2.8], [-0.1, 7], [-1.3, 7]])), L);                                                  // A
+        poly(Lc(sc([[1.9, 7], [3, 7], [4.3, 2.8], [3.2, 2.8]])), L); poly(Lc(sc([[3.2, 7], [4.3, 7], [3, 2.8], [1.9, 2.8]])), L);                                    // X
+        poly(Lc(sc([[5.2, 7], [6.8, 7], [6.8, 6.2], [6.2, 6.2], [6.2, 3.6], [6.8, 3.6], [6.8, 2.8], [5.2, 2.8], [5.2, 3.6], [5.8, 3.6], [5.8, 6.2], [5.2, 6.2]])), L);   // I
+        return 10*K*TOPPER_K;
       }
       case 'sk-cone': {                          // CONE DODGER: a little traffic cone, white bands and all
         extrude([rrect(-8, -0.6, 8, 1.8, 0.6)], 0x1e1a16, 2.4);
