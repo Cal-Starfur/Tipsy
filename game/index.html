@@ -114053,7 +114053,7 @@ class WorldScene extends Phaser.Scene {
     if(kind === "amr"){
       /* THE WAREHOUSE AMR: a low platform on Tipsey's hull (the chamfered, bevelled prism, so a skin's paint, finish, print and two-tone
          reach it), a lit band round its skirt (his stripe when worn: cyan stock), a lidar bump at its nose, a safety whip flag at its
-         tail (his flag, or a skin's topper), carrying a pallet of boxes. Worn as Tipsey's, as the others (the standing rules) */
+         tail (his flag, or a skin's topper), carrying empty unless it is handed a load (data.load). Worn as Tipsey's, as the others (the standing rules) */
       const L = 110, W = 76, hx = L/2, hy = W/2;
       shadow(L/2, W/2);
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0x474e57, lt: 0x3a4048, dk: 0x2b3037 };
@@ -114070,12 +114070,16 @@ class WorldScene extends Phaser.Scene {
       this.botHull(g, x, y, z, fdir, { hx: hx - 4, hy: hy - 4, z0: 28, z1: 31, ch: 8, cTop: WEAR ? BODYC.top : 0xb4bbc0, cLt: WEAR ? BODYC.lt : 0x9aa1a6, cDk: WEAR ? BODYC.dk : 0x7e858a, cBottom: 0x23272d });   // its top plate
       if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 10, s0: 10, s1: 13, dz: 19 });                    // (his skin's stripe pattern and badge)
       this.tipseyFace(V, L/2, 20, 0.7);
-      box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                                    // the pallet
+      /* THE LOAD (Sir, 2026-11-10: "the bot itself shouldn't just have boxes on it"): it runs empty. A pallet of boxes rides it only when a
+         mission or a working scene hands it one (data.load), drawn far to near through the fall as before */
+      const LOAD = !!(data && data.load);
+      if(LOAD) box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                           // the pallet
       if(!front) puck(L/2 - 10, 0, 31, 0.9);                                                     // its lidar, behind the load from here
-      /* its boxes, far to near */
-      const crates = [[-40, -4, -28, 28, 77, 0xc98a4a, true], [0, 32, -28, 4, 67, 0xc98a4a, true], [0, 32, 6, 28, 71, 0xb97b40, false]];
-      crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
-      for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, STRIPEC, true); }
+      if(LOAD){
+        const crates = [[-40, -4, -28, 28, 77, 0xc98a4a, true], [0, 32, -28, 4, 67, 0xc98a4a, true], [0, 32, 6, 28, 71, 0xb97b40, false]];
+        crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
+        for(const [a0, a1, b0, b1, h, c, tape] of crates){ box(a0, a1, b0, b1, 39, h, c); if(tape) box(a0, a1, -2, Math.min(2, b1), h, h + 0.6, STRIPEC, true); }
+      }
       if(front) puck(L/2 - 10, 0, 31, 0.9);
       if(flagNear) drawFlag();
       return;
