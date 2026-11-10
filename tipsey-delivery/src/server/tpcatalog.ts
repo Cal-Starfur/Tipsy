@@ -54,6 +54,13 @@ export const TS_SKINS: Record<string, TsSkinDef> = {
   'yellow-cab': {priceCents: 0, unlockType: 'free'},
   'tokyo-taxi': {priceCents: 0, unlockType: 'free'},
   'airport-shuttle': {priceCents: 0, unlockType: 'free'},
+  /* the garbage truck's own (game/index.html TP_SKINS, fleet 'avgarbage': worn only as the Robo garbage truck), six free hauler liveries */
+  'green-machine': {priceCents: 0, unlockType: 'free'},
+  'blue-republic': {priceCents: 0, unlockType: 'free'},
+  'city-sanitation': {priceCents: 0, unlockType: 'free'},
+  'recycle-run': {priceCents: 0, unlockType: 'free'},
+  'dumpster-fire': {priceCents: 0, unlockType: 'free'},
+  'trash-panda': {priceCents: 0, unlockType: 'free'},
   /* the big rig's own (game/index.html TP_SKINS, fleet 'avsemi': worn only as the autonomous semi), six free homages */
   'prime-mover': {priceCents: 0, unlockType: 'free'},
   'rubber-duck': {priceCents: 0, unlockType: 'free'},
