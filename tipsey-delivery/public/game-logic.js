@@ -1744,7 +1744,7 @@ const TIPSY_CREW_UNIFORM = {
   pants: { c:0x2a2f36, dk:0x1d2126 },
   shoe:  { c:0x14161a, dk:0x0d0e11 },
   vest:  { c:0xff7a1a, dk:0xb5540e },
-  cap:   { c:0xff7a1a, dk:0xb5540e, top:0xff9a4a, badge:0x3d4653 }
+  cap:   { c:0xff7a1a, dk:0xb5540e, top:0xff9a4a, badge:0x3d4653, round: true }   // (round: Gideon's cap, the rounded crown and the curved bill)
   , shoeKind: 'boot'
 };
 
@@ -3414,7 +3414,7 @@ const FLEET = {
   humanoid:   { name: "Gideon", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
                 ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
-                ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
+                ctl: { botR: 44 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
                 ctl: {}, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcel", ambient: { loops: true } },
   patrolbot:  { name: "Security patrol robot", cls: "walk", art: "patrolbot", body: { len: BOTS.patrolbot.len, wid: 64, h: 145 }, fit: { r: 32, h: 145 },
@@ -3563,7 +3563,7 @@ function fleetCur(){
 const FLEET_PHYS_NONE = {};
 for(const k in FLEET){
   const c = FLEET[k].cls;
-  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : null;   // (the site machine too: a forklift never tips, FLEET_STEER)
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : Object.keys(FLEET[k].ctl || {}).length ? {} : null;   // (a walker with numbers of its own (the cargo bot's width) keeps Tipsey's rules and takes them; the site machine too: a forklift never tips, FLEET_STEER)
 }
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
@@ -8741,7 +8741,7 @@ function owStep(scene, dt){
                             (beachBlocks(ow, W.grid, x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // the beach: the sea, the pier's rails, the dunes, the lifeguard stations
                             (!(FP.fly && flyFoothillCorridor(x, y)) && owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim (a flyer: over the Flats' stretch of them, flyFoothillCorridor)
   /* A STEERED VEHICLE'S BODY (fleetBody): the capsule along its centre line, a disc of its half-width at every point of it */
-  const _fb = SV ? fleetBody() : null, _tr = SV && SV.trail ? owTrailer(ow, SV) : null;
+  const _fb = SV || (FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk") ? fleetBody() : null, _tr = SV && SV.trail ? owTrailer(ow, SV) : null;
   const blockAt = _tr ? (x, y, ox, oy) => {
     /* an articulated rig: the tractor's body from the kingpin's end forward, and the trailer's behind the kingpin, on its own line */
     const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), ct = Math.cos(_tr.yaw), st = Math.sin(_tr.yaw), hw = _fb.hw*1.1;
@@ -108482,6 +108482,21 @@ class WorldScene extends Phaser.Scene {
            metric drawWorld sorts on */
         const pw = { x: ax - peakB*0.62*sn, y: ay + peakB*0.62*cs };
         const peakNearer = (pw.x + pw.y) > (ax + ay);
+        if(cap.round){
+          /* THE CREW'S CAP IN GIDEON'S DESIGN (Sir, 2026-11-10: "fix our Tipsy crew's hat to be more in line with our new design"): a
+             rounded crown (a twelve-sided prism, its top domed) in the crew orange, and a bill grown from the crown's own rim, a fan out
+             to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade -- as Gideon's 'cap' (RB.hat) */
+          const rr = cR*0.98, zb = cz0 + 1, HP = { c: cap.c, dk: cap.dk }, HP2 = { c: _pdk(cap.c, 0.84), dk: _pdk(cap.c, 0.64) };
+          const grow4 = q => { let cx = 0, cy = 0; for(const q0 of q){ cx += q0.x; cy += q0.y; } cx /= 4; cy /= 4; return q.map(q0 => { const dx = q0.x - cx, dy = q0.y - cy, d = Math.hypot(dx, dy) || 1; return { x: q0.x + dx/d*0.4, y: q0.y + dy/d*0.4 }; }); };
+          const bill = () => { const N = 12, len = build.headR*0.9, inn = [], out = [], out2 = [];
+            for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.8 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
+              inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
+            for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
+              this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], HP.dk); } };
+          const crown = () => { prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, topCol: cap.top, n: 12 });
+            if(sees3(0, 1, 0)){ const bq = [G(-rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 2.8), G(-rr*0.30, rr*1.005, zb + 2.8)]; this.quadOn(g, bq, cap.badge); } };
+          if(peakNearer){ crown(); bill(); } else { bill(); crown(); }
+        } else
         if(cap.noPeak) drawCrown();   // (a theatre's scrub cap: the crown alone -- Sir, 2026-10-28, "the hats shouldn't have a bill on the front")
         else if(peakNearer){ drawCrown(); drawPeak(); } else { drawPeak(); drawCrown(); }
       }
@@ -112055,6 +112070,23 @@ class WorldScene extends Phaser.Scene {
     }
     if(!AP.sym) this.drawAvSensors(V, { a: -hl + 50, h: H, w: hw - 8, len: 40, t, pods: false, strip: false, s: 1.2 });
   }
+  /* A BOT'S HOLD, AS TIPSEY'S (a real hollow): the opening is the body's own chamfered octagon drawn in (inset k), so it lies
+     wholly inside the top and clear of its black outline; four inner walls go down depth to a floor, all cut to the opening so
+     the near wall hides the foot of what lies inside. zc the top's z; ch the body's chamfer */
+  botHollow(g, V, hx, hy, ch, zc, depth, k){
+    const { P, sees } = V, qx = hx - k, qy = hy - k, c = ch - k*0.41, zf = zc - depth, clip0 = this.drawClip;
+    const oct = [[qx, -(qy - c)], [qx, qy - c], [qx - c, qy], [-(qx - c), qy], [-qx, qy - c], [-qx, -(qy - c)], [-(qx - c), -qy], [qx - c, -qy]];
+    const dk = (c0, f) => (Math.round((c0 >> 16 & 255)*f) << 16) | (Math.round((c0 >> 8 & 255)*f) << 8) | Math.round((c0 & 255)*f);
+    this.drawClip = oct.map(([a0, b0]) => P(a0, b0, zc));
+    try {
+      this.quadOn(g, oct.map(([a0, b0]) => P(a0, b0, zf)), dk(0x7b818a, 0.7));
+      for(let i = 0; i < 8; i++){
+        const [a0, b0] = oct[i], [a1, b1] = oct[(i + 1) % 8], nx = b1 - b0, ny = -(a1 - a0);     // (the wall's outward normal)
+        if(!sees(-nx, -ny, 0)) continue;
+        this.quadOn(g, [P(a0, b0, zc), P(a1, b1, zc), P(a1, b1, zf), P(a0, b0, zf)], dk(0x9ba1a9, Math.abs(ny) > Math.abs(nx) ? 0.55 : 0.72));
+      }
+    } finally { this.drawClip = clip0; }
+  }
   /* TIPSEY'S SKIN ON A SIBLING (Sir, 2026-11-10: "get the skins to actually fit both bots, not just print on them"): what a skin
      adds to Tipsey beyond paint -- the pattern on his stripe (stars, chevrons, checks...), the badge on his flanks (skull,
      rocket, flames...), the topper on his flag -- drawn on a bot's body. Those drawers (drawBandPattern, drawStripeStars,
@@ -112108,6 +112140,12 @@ class WorldScene extends Phaser.Scene {
       xf = (a, bb, h) => { const dy = bb - yh, dz = h - zh; return [a, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA]; };
       const r0 = rotN; rotN = (nx, ny, nz) => r0(nx, ny*cA - nz*sA, ny*sA + nz*cA);
     }
+    const RB = this._botRoll;                      // (the bot on its side: its roll after the lid's own hinge, normals turned with it)
+    if(RB){
+      const x0 = xf, r1 = rotN, { sg, cr, sr, pb } = RB;
+      xf = (a, bb, h) => { const q = x0 ? x0(a, bb, h) : [a, bb, h], db = q[1] - pb; return [q[0], pb + db*cr + q[2]*sr*sg, -db*sr*sg + q[2]*cr]; };
+      rotN = (nx, ny, nz) => r1(nx, ny*cr + nz*sr*sg, -ny*sr*sg + nz*cr);
+    }
     const V = this.vehKit(g, x, y, z, fdir, xf);
     this.drawHullPrism(Object.assign({ g, pt: (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
     return V;
@@ -112121,11 +112159,17 @@ class WorldScene extends Phaser.Scene {
        wobbles, a quarter turn when he tips, unwound as the crew stand him
        up -- and it rolls the whole figure about the edge of its outer
        foot, so it topples onto its side and gets up the same way */
-    const roll = kind === "humanoid" && data ? (data.roll || 0) : 0;
+    /* THE LIDDED BOTS GO OVER TOO (Sir, 2026-11-10: "make sure these bots tip over properly"): the cargo bot and the courier roll
+       about their outer wheel's foot (ROLL_PIVOT, half their track), as Gideon about his outer foot; botHull reads the same roll
+       (this._botRoll) so their hulls and lids turn with them */
+    const ROLL_PIVOT = { humanoid: 12, cargobot: 44, courierbot: 28 };
+    const roll = ROLL_PIVOT[kind] && data ? (data.roll || 0) : 0;
     let xf = null;
+    this._botRoll = null;
     if(Math.abs(roll) > 0.002){
-      const sg = Math.sign(roll), cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = sg*12;
+      const sg = Math.sign(roll), cr = Math.cos(Math.abs(roll)), sr = Math.sin(Math.abs(roll)), pb = sg*ROLL_PIVOT[kind];
       xf = (a, b, h) => { const db = b - pb; return [a, pb + db*cr + h*sr*sg, -db*sr*sg + h*cr]; };
+      this._botRoll = { sg, cr, sr, pb };
     }
     const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, prismB, line, Q, shadeC } = V;
     V.outline = FLEET_OUTLINE;
@@ -112183,9 +112227,8 @@ class WorldScene extends Phaser.Scene {
       if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 9, s0: z0 + 10, s1: z0 + 20, dz: 60 });          // (his skin's stripe pattern and badge)
       this.tipseyFace(V, hx, z1 - 15, 1.6, { mouthZ: z0 + 15 });                                  // his face, grown with him
       if(back) for(const sb of [-1, 1]) endQ(-hx - 0.3, sb*W*0.32 - 5, sb*W*0.32 + 5, z0 + 26, z0 + 32, CARC.tail);
-      /* the hold, when the lid is up */
-      if(A > 0.12 && sees(0, 0, 1)){ const ring = (k) => [P(hx - k, -(hy - k), z1 + 0.5), P(hx - k, hy - k, z1 + 0.5), P(-(hx - k), hy - k, z1 + 0.5), P(-(hx - k), -(hy - k), z1 + 0.5)];
-        this.quadOn(g, ring(4), 0x9ba1a9); this.quadOn(g, ring(10), 0x7b818a); }
+      /* the hold, when the lid is up: Tipsey's own hollow (its opening the body's chamfered outline drawn in, four inner walls, a floor) */
+      if(A > 0.12 && sees(0, 0, 1)) this.botHollow(g, V, hx, hy, 9, z1 + 0.5, 46, 6);
       /* a bulky load (SUNSET SESSION's foam boards, data.boards): lying along the hold, stacked, out over both ends, the lid
          resting open on them */
       if(data && data.boards > 0){ const bp = [[-70, -22], [44, -24], [68, -15], [80, 0], [68, 15], [44, 24], [-70, 22], [-76, 0]];
@@ -112233,24 +112276,7 @@ class WorldScene extends Phaser.Scene {
       }
       if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 8, s0: 44, s1: 52, dz: 77 });
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
-      /* the hold, when the lid is up: Tipsey's own (a real hollow, no lip round it: its four inner walls down
-         to a floor, all cut to the opening so the near wall hides the foot of what lies inside) */
-      if(A > 0.12 && sees(0, 0, 1)){
-        /* the opening is the body's own chamfered octagon drawn in (its corners cut as the body's, 4.5 in from its skin, clear of its black outline), so it
-           lies wholly inside the top: a plain rectangle's corners stuck out past the chamfers */
-        const k = 4.5, qx = hx - k, qy = hy - k, c = 8 - k*0.41, zc = zb + 0.5, zf = zc - 30, clip0 = this.drawClip;
-        const oct = [[qx, -(qy - c)], [qx, qy - c], [qx - c, qy], [-(qx - c), qy], [-qx, qy - c], [-qx, -(qy - c)], [-(qx - c), -qy], [qx - c, -qy]];
-        const dk = (c0, f) => (Math.round((c0 >> 16 & 255)*f) << 16) | (Math.round((c0 >> 8 & 255)*f) << 8) | Math.round((c0 & 255)*f);
-        this.drawClip = oct.map(([a0, b0]) => P(a0, b0, zc));
-        try {
-          this.quadOn(g, oct.map(([a0, b0]) => P(a0, b0, zf)), dk(0x7b818a, 0.7));
-          for(let i = 0; i < 8; i++){
-            const [a0, b0] = oct[i], [a1, b1] = oct[(i + 1) % 8], nx = b1 - b0, ny = -(a1 - a0);     // (the wall's outward normal)
-            if(!sees(-nx, -ny, 0)) continue;
-            this.quadOn(g, [P(a0, b0, zc), P(a1, b1, zc), P(a1, b1, zf), P(a0, b0, zf)], dk(0x9ba1a9, Math.abs(ny) > Math.abs(nx) ? 0.55 : 0.72));
-          }
-        } finally { this.drawClip = clip0; }
-      }
+      if(A > 0.12 && sees(0, 0, 1)) this.botHollow(g, V, hx, hy, 8, zb + 0.5, 30, 4.5);                // the hold, when the lid is up: Tipsey's own hollow
       if(lidTop) drawLid();
       if(backNear) aerial();
       V.wheel(0, nearB*24, R, 8, R, wheelPhase);
@@ -117152,8 +117178,8 @@ class WorldScene extends Phaser.Scene {
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
-      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
-      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true }   // (a lidded one opens with his lid)
+      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
+      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0 }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
