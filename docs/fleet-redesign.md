@@ -464,3 +464,13 @@ Sir: he did not like the hangar behind the Pelican Harbor house and wants it at 
 **Console seeds (artifact build):** unchanged: `tpProfile.fleetKind = 'dronequad'; tpSaveProfile(); location.reload();` now wakes in hangar 2 at Sun Deck Airfield; `tpProfile.missionsCompleted.add('lighthouse-run'); tpSaveProfile();` for the run done.
 
 **Proof:** stills and clips in the session scratchpad (`airhangar/build`). Perf check not run (Sir's call).
+
+## Fleet polish: the standing rules (Sir, 2026-11-10)
+
+Every vehicle's polish pass (the `fp-*` items in the queue) covers all of these, so they never need asking for:
+
+1. **Draw it well.** Screenshot it from four headings; the black outline stays whole (nothing painted over it); anything with a lid or bin gets Tipsey's real hollow, drawn inside the body's own chamfered outline.
+2. **It wears everything Tipsey has, as far as it can.** The vehicle you drive wears Tipsey's equipped look, not stock paint: body colour, finish (satin, flat, gloss, flake, two-tone, chameleon), print (Fire Chief and the rest), the stripe and the second band, the flag, eyes and visor. Do this by passing `paint: true` in the avatar's `drawBot` data and reading `bodyPaint()` / `SKIN` (see the `WEAR`, `STRIPEC`, `paintOf` helpers at the top of the bot drawers); ambient copies in town keep the stock paint. A vehicle with no face, bin or flag skips only what it has no place for, and says which in its commit.
+3. **Anything Tipsey's garage lets you change on him must show on it**, as options arrive: new Tipsey paint, skin or part options reach every fleet vehicle through the same helpers, not per vehicle. Per-vehicle paint rows (`fleetLooks`, P6) come later; until then the whole fleet shares Tipsey's look.
+4. **Check it in a non-stock skin** (`tpApplySkin('fire-chief')` in the console) as well as stock, closed and (if it opens) open.
+5. **Done so far:** Cargo bot and Courier bot (wear Tipsey's paint, parcel hatches, real hollow).

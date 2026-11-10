@@ -2,7 +2,7 @@
 "nodes": [
 {
 "id": "fp-cargobot",
-"title": "Fleet polish: Cargo bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Cargo bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [],
 "status": "built",
@@ -12,7 +12,7 @@
 },
 {
 "id": "fp-courierbot",
-"title": "Fleet polish: Courier bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Courier bot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-cargobot"
@@ -23,7 +23,7 @@
 },
 {
 "id": "fp-patrolbot",
-"title": "Fleet polish: Security patrol robot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Security patrol robot. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-courierbot"
@@ -33,7 +33,7 @@
 },
 {
 "id": "fp-amr",
-"title": "Fleet polish: Warehouse robot (AMR). Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Warehouse robot (AMR). Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-patrolbot"
@@ -43,7 +43,7 @@
 },
 {
 "id": "fp-robotaxi",
-"title": "Fleet polish: Robotaxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Robotaxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-amr"
@@ -53,7 +53,7 @@
 },
 {
 "id": "fp-avpod",
-"title": "Fleet polish: Delivery pod. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Delivery pod. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-robotaxi"
@@ -63,7 +63,7 @@
 },
 {
 "id": "fp-avshuttle",
-"title": "Fleet polish: Autonomous shuttle. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Autonomous shuttle. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avpod"
@@ -73,7 +73,7 @@
 },
 {
 "id": "fp-avsemi",
-"title": "Fleet polish: Autonomous semi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Autonomous semi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avshuttle"
@@ -83,7 +83,7 @@
 },
 {
 "id": "fp-avgarbage",
-"title": "Fleet polish: Robo garbage truck. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Robo garbage truck. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avsemi"
@@ -93,7 +93,7 @@
 },
 {
 "id": "fp-avdump",
-"title": "Fleet polish: Autonomous dump truck. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Autonomous dump truck. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avgarbage"
@@ -103,7 +103,7 @@
 },
 {
 "id": "fp-avsweeper",
-"title": "Fleet polish: Robo street sweeper. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Robo street sweeper. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avdump"
@@ -113,7 +113,7 @@
 },
 {
 "id": "fp-avforklift",
-"title": "Fleet polish: Driverless forklift. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Driverless forklift. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avsweeper"
@@ -123,7 +123,7 @@
 },
 {
 "id": "fp-dronequad",
-"title": "Fleet polish: Delivery drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Delivery drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-avforklift"
@@ -133,7 +133,7 @@
 },
 {
 "id": "fp-dronelift",
-"title": "Fleet polish: Heavy-lift drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Heavy-lift drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-dronequad"
@@ -143,7 +143,7 @@
 },
 {
 "id": "fp-airtaxi",
-"title": "Fleet polish: Air taxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Air taxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-dronelift"
@@ -153,7 +153,7 @@
 },
 {
 "id": "fp-uavplane",
-"title": "Fleet polish: Delivery drone plane. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Delivery drone plane. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-airtaxi"
@@ -163,7 +163,7 @@
 },
 {
 "id": "fp-uavcargo",
-"title": "Fleet polish: Long-range cargo drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Long-range cargo drone. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-uavplane"
@@ -173,7 +173,7 @@
 },
 {
 "id": "fp-boat-drone",
-"title": "Fleet polish: Survey boat. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Survey boat. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-uavcargo"
@@ -183,7 +183,7 @@
 },
 {
 "id": "fp-boat-watertaxi",
-"title": "Fleet polish: Water taxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon.",
+"title": "Fleet polish: Water taxi. Draw it, screenshot it from four headings, Sir signs off, then the next. Skip Tipsey and Gideon. It wears everything Tipsey has (paint, finish, print, stripe, flag, face) and the standing rules in docs/fleet-redesign.md \"Fleet polish: the standing rules\".",
 "spec": "docs/fleet-redesign.md",
 "deps": [
 "fp-boat-drone"

@@ -113796,6 +113796,12 @@ class WorldScene extends Phaser.Scene {
     const puck = (a, b, h, s) => { this.avLathe(V, a, b, [[h, 5*s], [h + 4*s, 5*s]], DARK, null, 10);
       this.avLathe(V, a, b, [[h + 4*s, 5.3*s], [h + 5.5*s, 5.3*s]], CYAN, () => CYAN, 10);
       this.avLathe(V, a, b, [[h + 5.5*s, 5*s], [h + 8*s, 3.6*s]], 0x2d3238, null, 10); };
+    /* THE PLAYER'S OWN PAINT (Sir, 2026-11-10: "everything Tipsy has we want all of the fleet to have"): the bot he drives wears
+       what Tipsey wears -- his body colour, finish, print and two-tone, his stripe (and the second band under it), his flag
+       (his eyes and visor already follow SKIN through tipseyFace). An ambient copy (no data.paint) keeps the stock paint */
+    const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
+    const STRIPEC = WEAR ? SKIN.stripe : ORANGE, STRIPED = WEAR ? SKIN.stripeDk : _pdk(ORANGE, 0.8), FLAGC = WEAR ? SKIN.flag : ORANGE;
+    const paintOf = (z0, z1, part) => WEAR ? { fin: BPW.fin, print: BPW.print, printPart: part, split: BPW.split ? Object.assign({}, BPW.split, { z: z0 + (z1 - z0)*0.5 }) : null } : {};
     if(kind === "cargobot"){
       /* TIPSEY, GROWN: his hull twice over (botHull: the chamfered, bevelled prism, his stripe a band round it, his dark
          tray under it) on six wheels, a dark face with two cyan eyes, his flag, and a lid the full width of the body that
@@ -113803,14 +113809,14 @@ class WorldScene extends Phaser.Scene {
          riding on it */
       const L = 100, W = 72, hx = L/2, hy = W/2, z0 = 18, z1 = 86, zl = 97, wr = 11, wa = [-30, 0, 30];
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: z1 };
-      const BODYC = { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
+      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(L/2, W/2);
       /* its tyres flush outside the body (b W/2 + 4, 8 wide), not sunk 7 into it: sunk, the near row's rim painted over
          the body's corner and flipped back under it as that side turned away (Tipsey's own snap, gearSpec) */
       for(const a of wa) V.wheel(a, -nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
       const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));                         // (the lid's top, turned on its hinge, toward the eye)
       const drawLid = () => {
-        const VL = this.botHull(g, x, y, z, fdir, { hx, hy, z0: z1, z1: zl, ch: 9, bev: 4, bevIn: 3.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, LD);
+        const VL = this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: z1, z1: zl, ch: 9, bev: 4, bevIn: 3.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0xb2b7bf }, paintOf(z1, zl, 'lid')), LD);
         /* the lidar rides the lid: drawn through its hinge */
         this.avLathe(VL, hx - 16, 0, [[zl, 5.5], [zl + 4.4, 5.5]], DARK, null, 10);
         this.avLathe(VL, hx - 16, 0, [[zl + 4.4, 5.8], [zl + 6, 5.8]], CYAN, () => CYAN, 10);
@@ -113818,8 +113824,9 @@ class WorldScene extends Phaser.Scene {
       };
       if(!lidTop) drawLid();                                                                       // (swung past upright: behind the body)
       this.botHull(g, x, y, z, fdir, { hx: 46, hy: 30, z0: 8, z1: z0 + 1, ch: 8, cTop: 0x3f434c, cLt: 0x3a3d45, cDk: 0x2e3138, cBottom: DARK, outline: false, topEdge: false });   // the tray
-      this.botHull(g, x, y, z, fdir, { hx, hy, z0, z1, ch: 9, bev: 5, bevIn: 4, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
-      this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: z0 + 10, z1: z0 + 20, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });   // his stripe, a band round it
+      this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0, z1, ch: 9, bev: 5, bevIn: 4, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(z0, z1, 'body')));
+      if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: z0 + 2, z1: z0 + 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });   // (the second band under it)
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: z0 + 10, z1: z0 + 20, band: true, cLt: STRIPEC, cDk: STRIPED });   // his stripe, a band round it
       /* a parcel hatch let into each flank above the stripe (a darker recessed panel, its edge a thin line, a grab bar on
          its front edge), so the long sides read as a delivery pod's and not a blank wall; still, so it never moves */
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){
@@ -113844,7 +113851,7 @@ class WorldScene extends Phaser.Scene {
       for(const a of wa) V.wheel(a, nearB*(W/2 + 4), wr, 8, wr, wheelPhase);
       const fa = -hx + 5, fb = -nearB*(hy - 5);                                                     // the flag, on the far back corner
       line([fa, fb, z1], [fa, fb, z1 + 58], DARK, 1.4);
-      Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], ORANGE);
+      Q([P(fa, fb, z1 + 58), P(fa - 18, fb, z1 + 52), P(fa, fb, z1 + 46)], FLAGC);
       return;
     }
     if(kind === "courierbot"){
@@ -113855,19 +113862,20 @@ class WorldScene extends Phaser.Scene {
          behind the lid (on the lid it swung out flat as the lid opened) */
       const R = 22, hx = 22, hy = 19, zb = 102, zl = 108;
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: zb };
-      const BODYC = { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
+      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
       const lidTop = sees(0, -Math.sin(A)*(LD.flip ? -1 : 1), Math.cos(A));
       const drawLid = () => {
-        this.botHull(g, x, y, z, fdir, { hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, LD);
+        this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid')), LD);
       };
-      const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); const tp = P(-21, 0, zb + 47); g.fillStyle(ORANGE, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
+      const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); const tp = P(-21, 0, zb + 47); g.fillStyle(FLAGC, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
       const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
       if(!backNear) aerial();
       if(!lidTop) drawLid();
-      this.botHull(g, x, y, z, fdir, { hx, hy, z0: 12, z1: zb, ch: 8, bev: 4, bevIn: 3, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK });
-      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: ORANGE, cDk: _pdk(ORANGE, 0.8) });
+      this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 12, z1: zb, ch: 8, bev: 4, bevIn: 3, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(12, zb, 'body')));
+      if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 34, z1: 40, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: STRIPEC, cDk: STRIPED });
       /* a parcel hatch let into each flank above the band, as the cargo bot's (a darker recessed panel, a thin edge line, a
          grab bar on its front edge), so the tall sides read as a courier's locker and not a blank tube; still */
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){
@@ -118798,8 +118806,8 @@ class WorldScene extends Phaser.Scene {
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6 }
       : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
-      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
-      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip }   // (a lidded one opens with his lid)
+      : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
+      : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true }   // (a lidded one opens with his lid)
       : kind === "avpod" && typeof fmPodData === "function" ? fmPodData() : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
        kingpin; the nearer drawn last */
