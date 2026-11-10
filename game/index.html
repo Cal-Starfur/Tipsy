@@ -89221,11 +89221,11 @@ function nwQueue(scene, t, queuePerson, keyQueue, layerFor){
   for(const b of SP_LIFE.bots || []){
     const q = spLoopAt(b.s); if(!scene.visProp("people", q.x, q.y)) continue;
     const th = b.th, wp = b.dist*0.05;
-    queuePerson(q.x, q.y, (g, tt) => scene.drawProp(layerFor(q.x, q.y), "patrolbot", q.x, q.y, tt || now, th/(Math.PI/2), 0, wp, 7, null));
+    queuePerson(q.x, q.y, (g, tt) => scene.drawProp(layerFor(q.x, q.y), "patrolbot", q.x, q.y, tt || now, th/(Math.PI/2), 0, wp, 7, { skin: "police" }));   // (the east wall's round: in the Police skin, its lights flashing)
   }
   /* the dock's robot on pad 1 (charging, still: cached), while it is not his */
   if(!R.loan){ const P1 = SP_PLAN.PADS[0];
-    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, spZ(P1.x, P1.y), 0, 7, null))); }
+    if(scene.visProp("chargestation", P1.x, P1.y)) queuePerson(P1.x, P1.y, (g) => scene.bcDraw(g, "sp|bot|pad1", P1.x, P1.y, gg => scene.drawProp(gg, "patrolbot", P1.x, P1.y, 0, 1, spZ(P1.x, P1.y), 0, 7, { skin: "security", still: true }))); }
   /* Tipsey, parked still on pad 2 while the patrol robot is his */
   const Pk = R.park;
   if(Pk && scene.visProp("chargestation", Pk.x, Pk.y)){
@@ -113854,6 +113854,16 @@ class WorldScene extends Phaser.Scene {
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
   drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    /* A BOT IN THE WORLD WEARING A NAMED SKIN (data.skin: the patrol robots of Night Watch in the law enforcement skins): the skin is put on
+       SKIN for this one draw, as the avatar's is, and taken off again -- so it wears everything the skin has, through the same code */
+    if(data && data.skin && !data.paint && SKIN_PALETTES[data.skin]){
+      const saved = Object.assign({}, SKIN);
+      for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
+      Object.assign(SKIN, SKIN_BASE, SKIN_PALETTES[data.skin]);
+      try { this.drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, Object.assign({}, data, { paint: true })); }
+      finally { for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, saved); }
+      return;
+    }
     if(kind === "humanoid"){ this.drawHumanoid(g, x, y, z, t, fdir, data); return; }                 // (on our people's body: drawHumanoid)
     /* THE HUMANOID GOES OVER (Sir, 2026-10-14: "the humanoid doesn't fall
        down"): data.roll is Tipsey's own body roll -- the lean when he
@@ -114026,7 +114036,7 @@ class WorldScene extends Phaser.Scene {
         { h: 127, draw: () => this.avLathe(V, 0, 0, LB ? [[116, 23], [121, 21.5], [122, 0]] : [[116, 23], [128, 17], [136, 8], [138, 0]], upperC, null, 16) },
         { h: 141, draw: () => {
           if(LB){                                                                                       // A LIGHT BAR AND A CAMERA ON A FLAT CROWN
-            const ph = Math.floor(t/230) % 2, ON = LB === 'amber' ? [0xffb200, 0xffb200] : LB === 'redblue' ? [0xff4a4a, 0x4aa3ff] : [0x4aa3ff, 0xff4a4a];
+            const ph = data && data.still ? -1 : Math.floor(t/230) % 2, ON = LB === 'amber' ? [0xffb200, 0xffb200] : LB === 'redblue' ? [0xff4a4a, 0x4aa3ff] : [0x4aa3ff, 0xff4a4a];
             const OFF = LB === 'amber' ? [0x5a4410, 0x5a4410] : LB === 'redblue' ? [0x5a1c1c, 0x1d3a6b] : [0x1d3a6b, 0x5a1c1c];
             box(-12, -2, -17, 17, 122, 126, 0x15181d);                                                  // the bar
             box(8, 17, -5, 5, 122, 130, 0x15181d);                                                      // the camera, forward of it
