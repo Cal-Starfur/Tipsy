@@ -111439,8 +111439,9 @@ class WorldScene extends Phaser.Scene {
     for(let i = 0; i < ST.length - 1; i++){
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
       const bedTop = !!B.bed && i >= B.bed.seg;
-      segs.push(() => solid(loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps), col.body,
-        (k, n) => bedTop && n[2] > 0.95 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)));   // (the bed's own floor is sunk below, drawn with its walls)
+      segs.push(() => { const LF = loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps); if(B.bed && i === B.bed.seg - 1) LF.open = true;   // (the body's last length before the bed is open at the bed's end: its silhouette filled over the bed hid the bed's front)
+        solid(LF, col.body,
+        (k, n) => bedTop && n[2] > 0.95 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)); });   // (the bed's own floor is sunk below, drawn with its walls)
     }
     /* the bumpers: dark plastic under each end, a plate on each */
     const bz = B.bumperZ || [21, 31];
@@ -113496,7 +113497,7 @@ class WorldScene extends Phaser.Scene {
           if(nr[0]*(fx - mx) + nr[1]*(fy - my) + nr[2]*(fz - mz) < 0) nr = [-nr[0], -nr[1], -nr[2]];
           { const L = Math.hypot(nr[0], nr[1], nr[2]) || 1; nr = [nr[0]/L, nr[1]/L, nr[2]/L]; }
           const c0 = colOf(i, nr); if(c0 === null || c0 === undefined){ faces = raw; break; } } }
-      let ca = 0, cb = 0, ch = 0, n = 0, open = false, kLo = 9, kHi = 0;
+      let ca = 0, cb = 0, ch = 0, n = 0, open = !!faces.open, kLo = 9, kHi = 0;   // (faces.open: a piece with an open end, whose silhouette must not be filled across it)
       const vis = [];
       for(const f of faces) for(const p of f){ ca += p[0]; cb += p[1]; ch += p[2]; n++; }
       ca /= n; cb /= n; ch /= n;
