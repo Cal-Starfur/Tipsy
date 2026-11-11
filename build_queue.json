@@ -1392,7 +1392,7 @@
 "title": "Pelican Harbor trailer boats and trailers still not up to par: boat floats above the trailer and the hull reads see-through (the fill check found neither; the mid-air water shadow is fixed, red bottom paint and ground shadow added, but the hull is still pale and the flank hard to read, winch/bow end cluttered, near wheel heavy, motorboat trailer not re-checked). Needs a proper pass on drawHarborTrailer and the Harbor Boat when trailered.",
 "spec": "found by test run",
 "deps": [],
-"status": "pending",
+"status": "built",
 "group": "Fixes from testing",
 "test": "https://cal-starfur.github.io/Tipsy/consistency-pass/?go=-2076,-1150,3.14&view=2"
 },

@@ -76877,7 +76877,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(let i = 0; i < 5; i++){
       const j = (i + 1) % 5;
       if(!seen(top[i], top[j])) continue;
-      const lit = (top[j][0] - top[i][0]) + (top[j][1] - top[i][1]) > 0 ? 1.0 : 0.86;
+      const lit = (top[j][0] - top[i][0]) + (top[j][1] - top[i][1]) > 0 ? (afloat ? 1.0 : 0.9) : (afloat ? 0.86 : 0.74);   // (on a trailer the pale hull is shaded down so its flank parts from the paving)
       const Pq = (q, z) => P(q[0], q[1], z);
       poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
       /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
@@ -100560,7 +100560,7 @@ class WorldScene extends Phaser.Scene {
        and cross members under carpeted bunks the hull lies on, a bow stop and winch post, a drawbar A-frame to a coupler
        with a jack, round tyres on hubs under mudguards, tail lights. a runs along the boat (tongue and bow at -a). */
     const GAL = [0xc4cbd0, 0xa9b1b7, 0x8f979e], DK = [0x6f777e, 0x5b6269, 0x4a5056], BUNK = [0x3f5f68, 0x32505a, 0x274047];
-    const TYRE = 0x1d2024, TYRE2 = 0x2a2e33, HUB = 0xaab2b8, HUB2 = 0x7d858c;
+    const TYRE = 0x2b3036, TYRE2 = 0x3c424a, HUB = 0xc4cbd0, HUB2 = 0x8f979e;   // lighter rubber: the near tyre was a black blob
     const wheel = (b0, b1, a0, zc, r, outer) => {       // a round tyre on its hub: ring segments, then the faces
       const N = 14, ring = [];
       for(let i = 0; i < N; i++){
@@ -100570,7 +100570,7 @@ class WorldScene extends Phaser.Scene {
            P(a0 + r*Math.cos(t1), b1, zc + r*Math.sin(t1)), P(a0 + r*Math.cos(t0), b1, zc + r*Math.sin(t0))], i % 2 ? TYRE : TYRE2);
       }
       const disc = (rr, col) => { const pts = []; for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2; pts.push(P(a0 + rr*Math.cos(t), b1, zc + rr*Math.sin(t))); } q(pts, col); };
-      disc(r, TYRE); disc(r*0.72, 0x2f3338); disc(r*0.5, HUB); disc(r*0.2, HUB2);
+      disc(r, TYRE); disc(r*0.78, 0x4a5058); disc(r*0.55, HUB); disc(r*0.25, HUB2);
       if(outer) for(let i = 0; i < 5; i++){                                               // the wheel nuts
         const t = i/5*Math.PI*2 + 0.3;
         q([P(a0 + r*0.36*Math.cos(t) - 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) - 1.2), P(a0 + r*0.36*Math.cos(t) + 1.2, b1 + 0.3, zc + r*0.36*Math.sin(t) - 1.2),
@@ -100580,14 +100580,14 @@ class WorldScene extends Phaser.Scene {
     const rr = mulberry32(0x5eed + k*131);
     const kind = rr() < 0.55 ? 'skiff' : 'motor';
     const SE = kind === 'skiff' ? 140 : 190;                                               // the frame's stern end: just past the transom
-    const WA = kind === 'skiff' ? 38 : 55, WR = 27;                                        // the axle: aft of the middle
+    const WA = kind === 'skiff' ? 38 : 55, WR = 21;                                        // the axle: aft of the middle
     const fender = (b0, b1) => {                                                           // an arched mudguard over the tyre
       for(let i = 0; i < 6; i++){
         const t0 = Math.PI*(0.08 + 0.84*i/6), t1 = Math.PI*(0.08 + 0.84*(i + 1)/6), r0 = WR + 3, r1 = WR + 6;
         q([P(WA + r0*Math.cos(t0), b0, WR + r0*Math.sin(t0)), P(WA + r0*Math.cos(t1), b0, WR + r0*Math.sin(t1)),
            P(WA + r1*Math.cos(t1), b0, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b0, WR + r1*Math.sin(t0))], GAL[1]);
         q([P(WA + r1*Math.cos(t0), b0, WR + r1*Math.sin(t0)), P(WA + r1*Math.cos(t1), b0, WR + r1*Math.sin(t1)),
-           P(WA + r1*Math.cos(t1), b1, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b1, WR + r1*Math.sin(t0))], i % 2 ? GAL[0] : GAL[1]);
+           P(WA + r1*Math.cos(t1), b1, WR + r1*Math.sin(t1)), P(WA + r1*Math.cos(t0), b1, WR + r1*Math.sin(t0))], i % 2 ? DK[0] : DK[1]);
       }
     };
     /* the shadow on the paving: under the trailer and the boat on it, a little toward the camera */
@@ -100628,7 +100628,7 @@ class WorldScene extends Phaser.Scene {
     /* ---- the front: the camera-side wheel and mudguard, the tail lights ---- */
     fender(48, 70);
     wheel(52, 66, WA, WR, WR, true);
-    bx(WA - 12, WA + 12, 60, 71, 6, 24, 0x2a2e33, 0x1d2024, 0x14171a);                       // the mud flap
+    bx(WA - 2, WA + 2, 68, 70, 2, 14, 0x2a2e33, 0x1d2024, 0x14171a);                          // the mud flap, a thin hanging flap
     for(const sb of [-1, 1]){
       bx(SE - 2, SE + 3, sb*40 - 7, sb*40 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
       bx(SE - 2, SE + 3, sb*40 - 3, sb*40 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
