@@ -40183,6 +40183,26 @@ const TRAF_BRAKE_MS = 450, TRAF_ACCEL_MS = 1400;
    hornAfter ms, again every hornEvery while he is still there. */
 const DRIVER = { distract: 0.15, hornAfter: 2500, hornEvery: 3500 };
 const TRAF_BRAKE_D  = 75;
+/* CARS GO ROUND HIM (Sir, 2026-11-11: "make it so cars will go around tipsy when there is no car on the other lanes"): while he
+   lies tipped, or stands still, in a car's lane on a straight street, and the oncoming lane is clear for a car's length either
+   side of him, the car eases out over the centre line, passes and eases back -- instead of waiting and honking behind him.
+   It is a lane shift inside trafficWorldAt (as the crime cruiser's pinch is), so the art and the hitbox follow it; the sim
+   (updateTrafficSpacing) only decides WHICH cars (tr.dodge, 0 to 1). `clear` is the room it leaves him (centre to centre),
+   `cap` the most it will cross, `hold`/`ramp` where along the street it is out at full / eases out. */
+const TIP_AROUND = { on: false, x: 0, y: 0, clear: 150, cap: 250, hold: 300, ramp: 420, window: 1100, stillMs: 900, easeMs: 900 };
+/* where he lies, in a car's street frame (segsWorldOf's: positive is rv of the street's own heading) */
+function tipAroundGeo(tr, trS){
+  const h0 = segsHeadingAt(tr.walk.segs, trS), c0 = segsWorldOf(tr.walk.segs, trS, 0), ex = TIP_AROUND.x - c0.x, ey = TIP_AROUND.y - c0.y;
+  return { along: Math.abs(ex*Math.cos(h0) + ey*Math.sin(h0)), tipLat: -ex*Math.sin(h0) + ey*Math.cos(h0) };
+}
+/* how far a car in `lane` moves to leave him room, toward the centre line: 0 when he is not in its way, or when
+   going round would take it further than it may (he lies in the other lane too) */
+function tipAroundShift(lane, tipLat){
+  const T = TIP_AROUND, s = lane > 0 ? -1 : 1;
+  if(Math.abs(tipLat - lane) >= T.clear) return 0;
+  const sh = tipLat + s*T.clear - lane;
+  return sh*s > 0 && Math.abs(sh) <= T.cap ? sh : 0;
+}
 function tourEmitClosed(start, legs, R){
   const corners = [];
   let i = start.i, j = start.j;
@@ -40781,6 +40801,13 @@ function trafficWorldAt(tr, t){
         straddle = CRIME_STRADDLE * ease;
         lane += Math.sign(proj) * straddle;
       }
+    }
+  }
+  if(tr.dodge > 0 && TIP_AROUND.on){
+    const g = tipAroundGeo(tr, trS), sh = tipAroundShift(tr.laneOffset, g.tipLat), T = TIP_AROUND;
+    if(sh){
+      const u = Math.max(0, Math.min(1, (T.hold + T.ramp - g.along)/T.ramp));
+      lane += sh*u*u*(3 - 2*u)*tr.dodge;
     }
   }
   const wp = segsWorldOf(tr.walk.segs, trS, lane);
@@ -127223,6 +127250,55 @@ class WorldScene extends Phaser.Scene {
     return this._trafHoldDt;
   }
 
+  /* WHICH CARS GO ROUND HIM (TIP_AROUND): he has been tipped or still for a moment, on a straight stretch of a street that is
+     not a long rig's; a car coming up on him in his lane, with a way round that fits, goes if nothing is in the oncoming lane
+     (a car or a rider, or one that is going round the other way itself) within a window of him -- and once it has started it
+     finishes. The rest wait for him as before. */
+  updateTipAround(t, dt, pos){
+    const T = TIP_AROUND, ow = this.ow;
+    let on = !!(ow && ow.on) && (this.state === "tipped" || Math.abs(this.speed || 0) < 0.02) && !fleetPhys().fly && this.botAxisPt(this.botX, this.botY).pad === 0;
+    if(on){
+      const dx = Math.abs(this.botX - Math.round(this.botX/BLOCK)*BLOCK), dy = Math.abs(this.botY - Math.round(this.botY/BLOCK)*BLOCK);
+      if(Math.hypot(dx, dy) < ROAD_HALF + 700) on = false;          // a junction near: no going round there
+      if(!(dx < ROAD_HALF || dy < ROAD_HALF)) on = false;                      // (and he must be on a street)
+    }
+    this._tipStill = on ? (this._tipStill === undefined ? t : this._tipStill) : undefined;
+    T.on = on; T.x = this.botX; T.y = this.botY;
+    const still = on && t - this._tipStill >= T.stillMs;
+    let riders = null;
+    for(const a of pos){
+      const tr = a.tr;
+      if(tr.errand || !tr.laneOffset || tr.walk.lane) continue;
+      const dist = Math.hypot(a.x - T.x, a.y - T.y), d0 = tr.dodge || 0;
+      let target = 0;
+      if(on && d0 > 0 && dist < T.window*1.2) target = 1;                       // started: it finishes
+      else if(still && dist < T.window && !a.inBox){
+        const q = (T.x - a.x)*a.dx + (T.y - a.y)*a.dy;                          // he is ahead of it
+        const g = q > 0 ? tipAroundGeo(tr, a.trS) : null;
+        if(g && tipAroundShift(tr.laneOffset, g.tipLat) && g.along < T.window){
+          const nx = -a.dy, ny = a.dx;
+          let clear = true;
+          for(const b of pos){
+            if(b === a || b.tr.errand) continue;
+            if(b.dx*a.dx + b.dy*a.dy > -0.5) continue;                          // only the oncoming
+            const rx = b.x - T.x, ry = b.y - T.y;
+            if(Math.abs(rx*a.dx + ry*a.dy) < T.window && Math.abs(rx*nx + ry*ny) < 450){ clear = false; break; }
+          }
+          if(clear){
+            if(!riders) riders = this.ridersActive ? this.ridersActive(t) : [];
+            for(const rd of riders){
+              const w = (rd._at || trafficWorldAt(rd, t)).wp, rx = w.x - T.x, ry = w.y - T.y;
+              if(Math.abs(rx*a.dx + ry*a.dy) < T.window && Math.abs(rx*nx + ry*ny) < 450){ clear = false; break; }
+            }
+          }
+          if(clear){ target = 1; if(!d0) tr.dodge = 0.001; }                    // (so the next car sees it going)
+        }
+      }
+      const cur = tr.dodge || 0;
+      tr.dodge = target > cur ? Math.min(1, cur + dt/T.easeMs) : Math.max(0, cur - dt/T.easeMs);
+      if(tr.dodge < 0.002 && !target) tr.dodge = 0;
+    }
+  }
   updateTrafficSpacing(t, dt){
     const hDt = this._trafHoldStep(t);
     const traffic = this.trafficActive(t);
@@ -127238,12 +127314,13 @@ class WorldScene extends Phaser.Scene {
     const GAP = gapOf(maxLen, maxLen), GAP_SQ = GAP*GAP, MAX_YIELD = 6000;
     const pos = [];
     for(const tr of traffic){
-      const { wp, fc } = trafficWorldAt(tr, t);
+      const { wp, fc, trS } = trafficWorldAt(tr, t);
       const th = fc * (Math.PI/2);
       const ni = Math.round(wp.x/BLOCK), nj = Math.round(wp.y/BLOCK);
       const inBox = Math.abs(wp.x - ni*BLOCK) < ROAD_HALF && Math.abs(wp.y - nj*BLOCK) < ROAD_HALF;
-      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th), inBox, len: tr.len || CARC.len });
+      pos.push({ tr, x: wp.x, y: wp.y, dx: Math.cos(th), dy: Math.sin(th), inBox, len: tr.len || CARC.len, trS });
     }
+    this.updateTipAround(t, hDt, pos);
     /* (a car at the kerb that is not traffic -- a hospital patient's ride home, HOSP_CAST_CAR -- is in the way as an
        errand's car is: traffic waits behind it rather than drive through it) */
     for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: c.len || CARC.len });   // (an ambulance as long as it is)
@@ -127278,7 +127355,7 @@ class WorldScene extends Phaser.Scene {
         if(seen){
           if(!tr.botEnc){ tr.botEnc = true; tr.distracted = Math.random() < DRIVER.distract; tr.botWait = 0; }
           tr.botGone = 0;
-          if(!tr.distracted){
+          if(!tr.distracted && !(tr.dodge > 0)){       // (going round him: TIP_AROUND)
             blocked = true;
             if(bA.pad > 0) hard = true;                 // a long fleet vehicle: wait (and honk), never drive through it (MAX_YIELD)
             tr.botWait = (tr.botWait || 0) + hDt;
