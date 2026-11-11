@@ -113298,11 +113298,14 @@ class WorldScene extends Phaser.Scene {
         ks(kp([[a - 6, -hw + 14], [a + 6, -hw + 14], [a + 6, hw - 14], [a - 6, hw - 14]], f0 - 4, f0 + 2), DK);         // a cross member
         const toMid = a > 0 ? -1 : 1;                                                                                   // (the shocks stand clear of the tyre, toward the middle)
         for(const sb of [-1, 1]){
-          const bs = sb*(hw - 9), sa = a + toMid*(r + 10);
-          ks(kp([[a - 26, bs - 3], [a + 26, bs - 3], [a + 26, bs + 3], [a - 26, bs + 3]], r + 4, r + 9), ST2);           // the leaf pack, hung off the axle
-          ks(kp([[sa - 2.5, bs - 2.5], [sa + 2.5, bs - 2.5], [sa + 2.5, bs + 2.5], [sa - 2.5, bs + 2.5]], r + 2, f0 + 2), ST2);   // the damper
-          for(let z = r + 6; z < f0 - 1; z += 6)
-            ks(kp([[sa - 4.5, bs - 4.5], [sa + 4.5, bs - 4.5], [sa + 4.5, bs + 4.5], [sa - 4.5, bs + 4.5]], z, Math.min(z + 3.6, f0 + 1)), SPR);   // its coil
+          const bs = sb*(hw - 8), sa = a + toMid*(r + 10);
+          /* the chain is one piece, bottom to top: the axle, the leaf pack out along it to the shock's foot, and on that foot the coil-over
+             (one red sleeve round its damper, standing up the frame's flank to the body's foot) -- the stack of loose red rings
+             hung in the gap, bits apart from the axle and the frame */
+          const l0 = Math.min(a - 26, sa - 6), l1 = Math.max(a + 26, sa + 6);
+          ks(kp([[l0, bs - 3], [l1, bs - 3], [l1, bs + 3], [l0, bs + 3]], r + 4, r + 9), ST2);                           // the leaf pack, out to the shock's foot
+          ks(kp([[sa - 3, bs - 3], [sa + 3, bs - 3], [sa + 3, bs + 3], [sa - 3, bs + 3]], r + 9, f1 + 1), ST2);            // the damper
+          ks(kp([[sa - 5, bs - 5], [sa + 5, bs - 5], [sa + 5, bs + 5], [sa - 5, bs + 5]], r + 9, f1 - 2), SPR);             // its coil
         }
       }
     }
