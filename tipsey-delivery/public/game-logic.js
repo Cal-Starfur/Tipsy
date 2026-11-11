@@ -113910,6 +113910,7 @@ class WorldScene extends Phaser.Scene {
       if(!clip) return;
       this.drawClip = clip;
       try {
+        this.quadOn(g, open, 0x0d0e10);                                                          // the whole opening dark first: the back wall, displaced inward, leaves body paint showing in an arch bigger than its tyre (the lifted pickup's)
         this.quadOn(g, at(bi), 0x0d0e10);                                                       // the back wall
         for(let i = 0; i + 1 < arc.length; i++){
           const [a1, h1] = arc[i], [a2, h2] = arc[i + 1], ta = a2 - a1, th = h2 - h1;
