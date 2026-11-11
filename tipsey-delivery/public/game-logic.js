@@ -111304,7 +111304,12 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
     const aCowl = B.cowl, aCab = B.cab, ST = B.st;
-    const SEC = ST.map(([a, w, hb, ht]) => oct(w, hb, ht, 0, 0.36));
+    /* THE BED IS THE BODY'S OWN (Sir, 2026-11-11: "that needs to be unified with the rest of the truck's body"): from the cab back the lower
+       body's top is square, not shouldered, so its flank runs straight up into the bed's walls and the walls (below) stand exactly on its
+       width, tapering with it to the tail, in the body's own paint -- no ledge, no step, no wall wider than the body it stands on */
+    const SEC = ST.map(([a, w, hb, ht], i) => { if(!(B.bed && i >= B.bed.seg)) return oct(w, hb, ht, 0, 0.36);
+      const ch = Math.min(w, (ht - hb)/2)*0.36;
+      return [[-w + ch, hb], [w - ch, hb], [w, hb + ch], [w, ht - 0.01], [w, ht], [-w, ht], [-w, ht - 0.01], [-w, hb + ch]]; });
     /* the top of the lower body at a (its stations' tops, between them in line) */
     const topAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, , , t0] = ST[i], [a1, , , t1] = ST[i + 1];
       if(a <= a0 && a >= a1) return t0 + (t1 - t0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][3]; };
@@ -111464,13 +111469,17 @@ class WorldScene extends Phaser.Scene {
        top, with the ribs on it. The walls come after, from FL up, so the near one hides the floor's near edge ---- */
     if(B.bed){
       const B0 = -hl + 1, B1 = aCab - 4, HT = B.bed.top, FL = 48;
-      solid(prismH([[B0 + 9, -hw + 5], [B1, -hw + 5], [B1, hw - 5], [B0 + 9, hw - 5]], FL - 3, FL), CR.bedFloor);
+      /* the body's half width at a (its stations, in line between them): the walls stand on it */
+      const wAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, w0] = ST[i], [a1, w1] = ST[i + 1];
+        if(a <= a0 && a >= a1) return w0 + (w1 - w0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][1]; };
+      const w0 = wAt(B0), w1 = wAt(B1);
+      solid(prismH([[B0 + 9, -wAt(B0 + 9) + 5], [B1, -w1 + 5], [B1, w1 - 5], [B0 + 9, wAt(B0 + 9) - 5]], FL - 3, FL), CR.bedFloor);
       for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, FL + 0.3], [B1 - 2, b, FL + 0.3], 0x30353b, 1.6);
-      const wall = sb => () => solid(prismH([[B0, sb*(hw - 5)], [B1, sb*(hw - 5)], [B1, sb*hw], [B0, sb*hw]], FL - 2, HT),
+      const wall = sb => () => solid(prismH([[B0, sb*(w0 - 5)], [B1, sb*(w1 - 5)], [B1, sb*w1], [B0, sb*w0]], FL - 2, HT),
         col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
-      const front = () => solid(prismH([[B1, -hw], [B1 + 5, -hw], [B1 + 5, hw], [B1, hw]], FL - 2, HT), col.body);
+      const front = () => solid(prismH([[B1, -w1], [B1 + 5, -w1], [B1 + 5, w1], [B1, w1]], FL - 2, HT), col.body);
       const gate = () => {
-        solid(prismH([[B0 - 1, -hw + 5], [B0 + 4, -hw + 5], [B0 + 4, hw - 5], [B0 - 1, hw - 5]], 62, HT - 1), col.body);   // (from the lamps' top up: the tail's lamps stay on the body's face below it)
+        solid(prismH([[B0 - 1, -w0 + 5], [B0 + 4, -w0 + 5], [B0 + 4, w0 - 5], [B0 - 1, w0 - 5]], 62, HT - 1), col.body);   // (from the lamps' top up: the tail's lamps stay on the body's face below it)
         if(!nose) Q([P(B0 - 1.4, -7, HT - 9), P(B0 - 1.4, 7, HT - 9), P(B0 - 1.4, 7, HT - 5), P(B0 - 1.4, -7, HT - 5)], TRIM);
       };
       const bed = nose ? [gate, wall(-nearB), wall(nearB), front] : [front, wall(-nearB), wall(nearB), gate];
