@@ -3018,7 +3018,7 @@ const CAR_BODIES = {
     cowl: 40, cab: -32, doors: 2, door0: 38, door1: -28, filler: -hl + 24,
     gh: { f0: 36, r0: -30, f1: 12, r1: -28, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
-    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 79 }
+    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 68 }
   }),
   /* ---- BATCH 3 (2026-10-11): the pickup's two variants. The crew cab is
      the pickup with a longer, four-door cab and a shorter bed; the lifted
@@ -3029,7 +3029,7 @@ const CAR_BODIES = {
     cowl: hl - 92, cab: hl - 202, doors: 4, door0: hl - 94, door1: hl - 146, door2: hl - 198, filler: -hl + 24,
     gh: { f0: hl - 96, r0: hl - 200, f1: hl - 120, r1: hl - 198, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
-    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 79 }
+    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 68 }
   }),
   lifted: (hl, hw, roofH) => Object.assign(CAR_BODIES.pickup(hl, hw, roofH), { len: 236, lift: 16, wheelR: 31, wheelW: 13, wheelOut: 2 }),
   /* ---- BATCH 2 (2026-10-11): the fifteen new cars' bodies. Optional
@@ -111313,7 +111313,7 @@ class WorldScene extends Phaser.Scene {
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
       const bedTop = !!B.bed && i >= B.bed.seg;
       segs.push(() => solid(loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps), col.body,
-        (k, n) => bedTop && n[2] > 0.95 ? CR.bedFloor : (n[2] < -0.2 ? col.bodyDk : col.body)));
+        (k, n) => bedTop && n[2] > 0.95 ? col.roof : (n[2] < -0.2 ? col.bodyDk : col.body)));   // (the bed's own floor is sunk below, drawn with its walls)
     }
     /* the bumpers: dark plastic under each end, a plate on each */
     const bz = B.bumperZ || [21, 31];
@@ -111458,16 +111458,20 @@ class WorldScene extends Phaser.Scene {
     }
     }
 
-    /* ---- the pickup's bed: its walls, the gate, the ribs in the floor ---- */
+    /* ---- the pickup's bed: a real bed, SUNK into the body (Sir, 2026-11-11: "it shouldn't be built up at all ... we are
+       compensating for the rear of the truck not being an actual bed by building up instead of in"): the walls are the body's own
+       sides, flush with its beltline (HT, 2 over the 66 flank); the floor is let down inside them to FL, painted over the body's
+       top, with the ribs on it. The walls come after, from FL up, so the near one hides the floor's near edge ---- */
     if(B.bed){
-      const B0 = -hl + 1, B1 = aCab - 4, HT = B.bed.top;
-      for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, 66.3], [B1 - 2, b, 66.3], 0x30353b, 1.6);
-      const wall = sb => () => solid(prismH([[B0, sb*(hw - 5)], [B1, sb*(hw - 5)], [B1, sb*hw], [B0, sb*hw]], 64, HT), col.body,
-        (k, n) => n[2] > 0.9 ? col.roof : col.body);
-      const front = () => solid(prismH([[B1, -hw], [B1 + 5, -hw], [B1 + 5, hw], [B1, hw]], 64, HT), col.body);
+      const B0 = -hl + 1, B1 = aCab - 4, HT = B.bed.top, FL = 48;
+      solid(prismH([[B0 + 9, -hw + 5], [B1, -hw + 5], [B1, hw - 5], [B0 + 9, hw - 5]], FL - 3, FL), CR.bedFloor);
+      for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, FL + 0.3], [B1 - 2, b, FL + 0.3], 0x30353b, 1.6);
+      const wall = sb => () => solid(prismH([[B0, sb*(hw - 5)], [B1, sb*(hw - 5)], [B1, sb*hw], [B0, sb*hw]], FL - 2, HT),
+        col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
+      const front = () => solid(prismH([[B1, -hw], [B1 + 5, -hw], [B1 + 5, hw], [B1, hw]], FL - 2, HT), col.body);
       const gate = () => {
-        solid(prismH([[B0 - 1, -hw + 5], [B0 + 4, -hw + 5], [B0 + 4, hw - 5], [B0 - 1, hw - 5]], 62, HT - 2), col.body);
-        if(!nose) Q([P(B0 - 1.4, -7, HT - 10), P(B0 - 1.4, 7, HT - 10), P(B0 - 1.4, 7, HT - 6), P(B0 - 1.4, -7, HT - 6)], TRIM);
+        solid(prismH([[B0 - 1, -hw + 5], [B0 + 4, -hw + 5], [B0 + 4, hw - 5], [B0 - 1, hw - 5]], 62, HT - 1), col.body);   // (from the lamps' top up: the tail's lamps stay on the body's face below it)
+        if(!nose) Q([P(B0 - 1.4, -7, HT - 9), P(B0 - 1.4, 7, HT - 9), P(B0 - 1.4, 7, HT - 5), P(B0 - 1.4, -7, HT - 5)], TRIM);
       };
       const bed = nose ? [gate, wall(-nearB), wall(nearB), front] : [front, wall(-nearB), wall(nearB), gate];
       for(const f of bed) f();
