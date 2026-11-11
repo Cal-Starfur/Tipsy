@@ -75429,18 +75429,34 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(L/2 - 40, L/2 - 30, -4, 4, Hd, Hd + 4, '#d8dde2', '#aab2ba', '#959ea7');  // the bow cleat
       /* THE OUTBOARD, PASSED (Sir, 2026-11-09: "they suck"): a white cowl with a coloured stripe and a dark cap on the
          transom bracket, a leg with a cavitation plate and a prop, tilted up when the boat is on its trailer */
-      /* PAINTER ORDER, as the people's art passes do it (LOOK_RULES 2c): stacks go up from the bottom and the leg's lid is
-         never drawn over the cowl above it; the stripe is strips on the seen faces (a box's top laid across the cowl showed
-         as a plate through it); what is nearer the eye (the prop, aft) goes after the leg it hangs behind */
+      /* THE OUTBOARD, SECOND PASS (Sir, 2026-11-11: "do a pass on that motor"): a transom clamp with its screw knobs and a
+         swivel bracket, a gearcase torpedo with a skeg and a three-blade prop on a hub, a leg, a two-step cowl with a vent
+         grille, a stripe, a badge and a dark cap, a tiller and a fuel hose forward to the tank.
+         PAINTER ORDER, as the people's art passes do it (LOOK_RULES 2c): stacks go up from the bottom, a lid that has
+         another piece standing on it is never drawn over it, the stripe is strips on the seen faces (a box's top laid
+         across the cowl showed as a plate through it), and what is nearer the eye (the prop, aft) goes after the leg
+         it hangs in front of. Forward things (tiller, hose) first: they are behind the cowl. */
       const lz = afloat ? Hd - 38 : Hd - 4;                                                                // (trailered: the leg is tilted up)
-      box(-L/2 - 4, -L/2 + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                  // the transom bracket
-      box(-L/2 - 34, -L/2 - 4, -9, 9, lz - 3, lz + 2, '#9aa1a6', '#7d858b', '#697076');                    // the cavitation plate
-      box(-L/2 - 22, -L/2 - 6, -6, 6, lz + 2, Hd + 8, '#dfe4e7', '#bcc3c8', '#9ea6ac');                    // its leg, standing on the plate
-      box(-L/2 - 30, -L/2 - 26, -2, 2, lz - 12, lz + 2, '#b8bec3', '#9aa1a6', '#80878d');                  // the prop's boss
-      box(-L/2 - 32, -L/2 - 28, -14, 14, lz - 7, lz - 3, '#b8bec3', '#9aa1a6', '#80878d');                 // and its blades
-      box(-L/2 - 28, -L/2 + 2, -13, 13, Hd + 8, Hd + 40, '#eef1f3', '#cdd3d8', '#aab1b7');                 // the cowl, on the leg
-      boxSides(-L/2 - 28.6, -L/2 + 2.6, -13.6, 13.6, Hd + 20, Hd + 25, TRIM, shade(TRIM, .85));            // its stripe: seen faces only
-      box(-L/2 - 26, -L/2, -11, 11, Hd + 40, Hd + 45, '#2c3338', '#22282c', '#1a1f22');                    // its cap
+      const AR = -L/2, DKM = '#2c3338', WH = ['#eef1f3', '#cdd3d8', '#aab1b7'];
+      tube(-L*0.4 + 13, -hb*0.5 + 8, Hd - 8, AR + 2, -6, Hd + 14, 0.9, '#22282c');                         // the fuel hose, tank to cowl
+      tube(AR + 2, 0, Hd + 24, AR + 30, 0, Hd + 29, 1.5, '#3b3f45');                                       // the tiller...
+      tube(AR + 30, 0, Hd + 29, AR + 36, 0, Hd + 30, 2.3, '#c8423a');                                      // ...and its grip
+      box(AR - 4, AR + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                      // the transom clamp
+      box(AR - 9, AR - 3, -8, 8, Hd + 6, Hd + 20, '#7d858c', '#697076', '#585f65');                       // the swivel bracket
+      for(const sb of [-1, 1]) ball(AR - 5, sb*14.5, Hd + 9, 2.4, DKM);                                    // the clamp screw knobs
+      box(AR - 22, AR - 12, -1.6, 1.6, lz - 10, lz - 3, '#9aa1a6', '#7d858b', '#697076');                  // the skeg under the gearcase
+      tube(AR - 28, 0, lz - 1, AR - 8, 0, lz - 1, 6.5, '#dfe4e7');                                         // the gearcase torpedo
+      box(AR - 22, AR - 6, -5.5, 5.5, lz + 4, Hd + 8, '#dfe4e7', '#bcc3c8', '#9ea6ac');                    // the leg, standing in it
+      box(AR - 30, AR - 8, -8.5, 8.5, lz + 4.5, lz + 7, '#9aa1a6', '#7d858b', '#697076');                  // the cavitation plate over the torpedo
+      tube(AR - 34, 0, lz - 1, AR - 28, 0, lz - 1, 3, '#9aa1a6');                                          // the prop hub
+      box(AR - 33, AR - 30, -13, 13, lz - 2, lz, '#b8bec3', '#9aa1a6', '#80878d');                         // the blades: across...
+      box(AR - 33, AR - 30, -1.6, 1.6, lz - 12, lz + 9, '#b8bec3', '#9aa1a6', '#80878d');                  // ...and up
+      box(AR - 28, AR + 2, -13, 13, Hd + 8, Hd + 30, WH[0], WH[1], WH[2]);                                 // the lower cowl, on the leg
+      boxSides(AR - 28.6, AR + 2.6, -13.6, 13.6, Hd + 17, Hd + 21.5, TRIM, shade(TRIM, .85));              // its stripe: seen faces only
+      box(AR - 25, AR - 1, -10.5, 10.5, Hd + 30, Hd + 39, WH[0], WH[1], WH[2]);                           // the upper cowl, a step in
+      box(AR - 23, AR - 3, -8.5, 8.5, Hd + 39, Hd + 42.5, DKM, '#22282c', '#1a1f22');                      // its cap
+      if(!bowSeen) for(let z = Hd + 33; z < Hd + 38; z += 2.4) S(AR - 25.3, -7, 7, z, z + 1.1, DKM);      // the air-intake grille on the aft face
+      F(AR - 22, AR - 10, Hd + 9.5, Hd + 15, DKM, null, 0, nearB*13.4);                                    // a badge on the flank
       return;
     }
     if(kind === 'sail'){
