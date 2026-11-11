@@ -38483,11 +38483,12 @@ const TRAF_BRAKE_D  = 75;
    It is a lane shift inside trafficWorldAt (as the crime cruiser's pinch is), so the art and the hitbox follow it; the sim
    (updateTrafficSpacing) only decides WHICH cars (tr.dodge, 0 to 1). `clear` is the room it leaves him (centre to centre),
    `cap` the most it will cross, `hold`/`ramp` where along the street it is out at full / eases out. */
-const TIP_AROUND = { on: false, x: 0, y: 0, clear: 150, cap: 250, hold: 300, ramp: 420, window: 1100, stillMs: 900, easeMs: 900 };
+const TIP_AROUND = { on: false, x: 0, y: 0, clear: 150, cap: 250, hold: 250, ramp: 700, window: 1100, stillMs: 900, easeMs: 900 };
 /* where he lies, in a car's street frame (segsWorldOf's: positive is rv of the street's own heading) */
 function tipAroundGeo(tr, trS){
   const h0 = segsHeadingAt(tr.walk.segs, trS), c0 = segsWorldOf(tr.walk.segs, trS, 0), ex = TIP_AROUND.x - c0.x, ey = TIP_AROUND.y - c0.y;
-  return { along: Math.abs(ex*Math.cos(h0) + ey*Math.sin(h0)), tipLat: -ex*Math.sin(h0) + ey*Math.cos(h0) };
+  const al = ex*Math.cos(h0) + ey*Math.sin(h0);
+  return { along: Math.abs(al), side: al < 0 ? -1 : 1, tipLat: -ex*Math.sin(h0) + ey*Math.cos(h0) };
 }
 /* how far a car in `lane` moves to leave him room, toward the centre line: 0 when he is not in its way, or when
    going round would take it further than it may (he lies in the other lane too) */
@@ -39076,7 +39077,7 @@ function trafficWorldAt(tr, t){
      (TRAF_LANE 120 - 16, then 120 more).
      Opposing traffic therefore cannot overlap no matter how the phase
      timings drift — separation by geometry, not by tuning. */
-  let lane = tr.laneOffset, straddle = 0;
+  let lane = tr.laneOffset, straddle = 0, yaw = 0;
   const P = tr.pinch;
   if(P){
     const base = segsWorldOf(tr.walk.segs, trS, tr.laneOffset);
@@ -39102,6 +39103,9 @@ function trafficWorldAt(tr, t){
     if(sh){
       const u = Math.max(0, Math.min(1, (T.hold + T.ramp - g.along)/T.ramp));
       lane += sh*u*u*(3 - 2*u)*tr.dodge;
+      /* it TURNS out and back along that curve, not slides: the heading is the curve's slope per unit driven (the lane shift's
+         own derivative; u falls as it nears him, rises as it leaves) */
+      if(u > 0 && u < 1) yaw = tr.dir*Math.atan(sh*tr.dodge*6*u*(1 - u)*g.side*tr.dir/T.ramp);
     }
   }
   const wp = segsWorldOf(tr.walk.segs, trS, lane);
@@ -39115,7 +39119,7 @@ function trafficWorldAt(tr, t){
      the hitbox: through a corner arc the quantized value is up to 45
      degrees off the direction the car is actually travelling, which is
      what made every turn read as a sideways slide. */
-  return { wp, f: trF, fc: hdg / (Math.PI/2), trS, straddle };
+  return { wp, f: trF, fc: (hdg + yaw) / (Math.PI/2), trS, straddle };
 }
 
 /* ==================== HOSP_ERRANDS (Sir, 2026-10-12) ====================
@@ -125553,7 +125557,7 @@ class WorldScene extends Phaser.Scene {
     let on = !!(ow && ow.on) && (this.state === "tipped" || Math.abs(this.speed || 0) < 0.02) && !fleetPhys().fly && this.botAxisPt(this.botX, this.botY).pad === 0;
     if(on){
       const dx = Math.abs(this.botX - Math.round(this.botX/BLOCK)*BLOCK), dy = Math.abs(this.botY - Math.round(this.botY/BLOCK)*BLOCK);
-      if(Math.hypot(dx, dy) < ROAD_HALF + 700) on = false;          // a junction near: no going round there
+      if(Math.hypot(dx, dy) < ROAD_HALF + 850) on = false;          // a junction near: no going round there
       if(!(dx < ROAD_HALF || dy < ROAD_HALF)) on = false;                      // (and he must be on a street)
     }
     this._tipStill = on ? (this._tipStill === undefined ? t : this._tipStill) : undefined;
