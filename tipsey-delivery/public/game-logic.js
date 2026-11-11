@@ -8843,6 +8843,12 @@ function owStep(scene, dt){
      whatever they are, and the water's own solids (a moored hull, a pier's piles) are not water (owWaterFn) */
   const sailBlock = (x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, c]) => { const px = x + a*D.botR*1.2, py = y + c*D.botR*1.2; return fleetBoatWetAt(px, py) || _wf(px, py, _wds); })
     ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('world', x, y, D.botR, false) || null) : OW_CURB_BLOCK;
+  /* ON DRY LAND AT ALL (any way he came to be a boat there: a link, a pick that skipped the garage, a loan's end): put back on the
+     harbor's water, never left on a street */
+  if(SAIL && !ow.deck && !scene._garage && !pocketAt(ow.px, ow.py) && !(fleetBoatWetAt(ow.px, ow.py) || _wf(ow.px, ow.py, _wds))){
+    const Lw = fleetBoatLaunchAt(scene, fleetCur());
+    if(Lw){ const items = scene.items; owStandUpAt(scene, Lw.x, Lw.y, Lw.a); scene.items = items || []; return; }
+  }
   const blockAt0 = (x, y, ox, oy) => SAIL ? sailBlock(x, y) : ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
