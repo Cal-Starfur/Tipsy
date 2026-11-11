@@ -111678,7 +111678,11 @@ class WorldScene extends Phaser.Scene {
        face is painted when it faces the eye; colOf(i) colours profile
        edge i (its outward normal is (dh, -da)), and the two flanks take
        the body colour. */
-    const prism = (prof, w, colOf, body = L.body) => solid(prismB(prof, -w, w), body, (k, n) => k < 2 ? body : colOf(k - 2));
+    /* THE VAN'S BODY IS BUILT SHARP (Sir, 2026-11-11, the minibus's tail: "the edges don't meet", as the truck's cab was): its end
+       bands, lamps, glass and flank trim are laid out on its sharp edges (full width at the ends, to the very end on the flank), and
+       a bevel pulled the body's faces in from under them -- the tail's stripe stood out past the corner and a grey strip ran
+       down it. The kit's raw faces keep the same order (caps, then one per profile edge) */
+    const prism = (prof, w, colOf, body = L.body) => { const F = prismB(prof, -w, w); return solid(F.raw ? F.raw() : F, body, (k, n) => k < 2 ? body : colOf(k - 2)); };
     const box  = stepped ? [[-hl,cz],[aC,cz],[aC,hH],[aW,hW],[aRise,hR],[-hl,hR]] : [[-hl,cz],[aC,cz],[aC,hH],[aW,hR],[-hl,hR]];
     const nose = [[aC,cz],[hl,cz],[hl,hF],[aC,hH]];
     const drawBox  = () => prism(box,  hw,    i => i === 2 ? trim : (i === 3 || (stepped && i === 4)) ? L.roof : L.bodyDk);
