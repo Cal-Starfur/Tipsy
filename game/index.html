@@ -11545,6 +11545,25 @@ function rescueVanPlan(scene, x, y, plain = false){
       if(own < inLane && other >= inLane) side = -side;
     }
     plan = rescueSlot(scene, best.e, best.s, side, x, y, plain ? null : { x, y });
+    /* ...AND WHEN THE NEAR KERB'S LANE IS ALREADY JAMMED (two or more of its cars stopped on the way in to the slot), the far one,
+       the same way: the van is not to wait in a queue (nor drive through it) when the other lane is open. Only if that kerb's
+       own lane is the freer of the two. */
+    if(!plain && scene.trafficActive && scene.time){
+      const t = scene.time.now;
+      const jam = pl => { let n = 0;
+        for(const tr of scene.trafficActive(t) || []){
+          if(tr.errand) continue;
+          const a = trafficWorldAt(tr, t), rx = a.wp.x - pl.P.x, ry = a.wp.y - pl.P.y, h = a.fc*Math.PI/2;
+          if(Math.cos(h)*pl.T.x + Math.sin(h)*pl.T.y < 0.7) continue;                       // the van's own way
+          const al = rx*pl.T.x + ry*pl.T.y, lat = rx*pl.n.x + ry*pl.n.y;
+          if(al > -1800 && al < 100 && Math.abs(lat + (pl.koff - RESCUE_VAN.lane)) < 140 && tr.stopAt && t - tr.stopAt < 600) n++;
+        }
+        return n; };
+      if(jam(plan) >= 2){
+        const alt = rescueSlot(scene, best.e, best.s, -side, x, y, { x, y });
+        if(jam(alt) < jam(plan)) plan = alt;
+      }
+    }
     if(plain) return plan;
     const dp = rescueDoorPt(plan);
     if(!scene.ow || rescueOpenLine(scene, dp.x, dp.y, x, y)) return rescueVanRoutes(scene, plan);
