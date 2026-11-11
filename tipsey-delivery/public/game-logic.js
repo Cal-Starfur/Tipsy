@@ -111368,8 +111368,10 @@ class WorldScene extends Phaser.Scene {
     const lift = B.lift || 0, r = B.wheelR || CR.wheelR, wW = B.wheelW || 7.5, cz = CR.wheelR;
     /* the body is drawn LIFTED off its wheels by B.lift (an SUV's ride
        height): its own kit stands that much higher, the wheels' does not */
+    this._wcShare = {};
     const KV = this.vehKit(g, x, y, z + lift, fdir), { P, sees, solid, oct, loftSeg, prismH, prismB, line, shadeC, lit } = KV;
     const KW = lift ? this.vehKit(g, x, y, z, fdir) : KV;
+    this._wcShare = null;
     const Q = (pts, c) => this.quadOn(g, pts, c);
     const deck = B.deck || cz + CR.chassisH;                    // 66 for the sedan and pickup, as before
     /* heights on the flank, drawn for the sedan's 20..66 side, scaled to this body's */
@@ -111588,7 +111590,7 @@ class WorldScene extends Phaser.Scene {
        sides, flush with its beltline (HT, 2 over the 66 flank); the floor is let down inside them to FL, painted over the body's
        top, with the ribs on it. The walls come after, from FL up, so the near one hides the floor's near edge ---- */
     if(B.bed){
-      const B0 = -hl + 1, B1 = aCab - 4, HT = B.bed.top, FL = 48;
+      const B0 = -hl + 1, B1 = B.gh.r0 - 1, HT = B.bed.top, FL = 48;   // (B1: the bed runs right up to the cab's rear pillar, no slot between)
       /* the body's half width at a (its stations, in line between them): the walls stand on it */
       const wAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, w0] = ST[i], [a1, w1] = ST[i + 1];
         if(a <= a0 && a >= a1) return w0 + (w1 - w0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][1]; };
@@ -111597,7 +111599,8 @@ class WorldScene extends Phaser.Scene {
       for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, FL + 0.3], [B1 - 2, b, FL + 0.3], 0x30353b, 1.6);
       const wall = sb => () => solid(prismH([[B0, sb*(w0 - 5)], [B1, sb*(w1 - 5)], [B1, sb*w1], [B0, sb*w0]], FL - 2, HT),
         col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
-      const front = () => solid(prismH([[B1, -w1], [B1 + 5, -w1], [B1 + 5, w1], [B1, w1]], FL - 2, HT), col.body);
+      const fw = Math.min(w1, B.gh.w0);   // (no wider than the cab it backs onto: the greenhouse is narrower than the body, and the wall's face showed as a dark wedge beside its pillar)
+      const front = () => solid(prismH([[B1, -fw], [B1 + 5, -fw], [B1 + 5, fw], [B1, fw]], FL - 2, HT), col.body, (k, n) => n[0] > 0.9 ? null : col.body);
       /* THE TAILGATE IS THE BODY'S TAIL (Sir, 2026-11-11, "an issue in the very back"): a panel on the whole width of the tail, from just
          above the bumper to the rim, flush with the flanks and in the body's paint -- it had stood 5 in from each flank and
          only from 62 up, a rim floating over a dark gap with the lamps' tops cut off under it. The lamps and handle are
@@ -113692,7 +113695,7 @@ class WorldScene extends Phaser.Scene {
     /* A TYRE IN ITS WELL IS CUT TO IT (Sir, 2026-11-09: "the wheels still paint over the body"): the wheels are painted after the
        body, so a tyre's tread -- which stands out along b -- showed past the arch's opening on the flank. A wheel whose well
        was cut (well, below) is drawn only inside that opening, run on down below the body where nothing hides it */
-    const wellClip = {};
+    const wellClip = this._wcShare || {};   // (a lifted body's wheels are on a kit of their own: drawCar hands both the one record, so its tyres are cut to its wells too)
     const wheel = (a0, bc, r, wd, hc, phase, wall, stw) => {
       const wc = wellClip[Math.round(a0) + ':' + (bc >= 0 ? 1 : -1)], keep = this.drawClip;
       if(wc){ const c = keep ? clipConvex(wc, keep) : wc; if(!c) return; this.drawClip = c; }
@@ -113708,9 +113711,14 @@ class WorldScene extends Phaser.Scene {
        and its sides, each lit by which way it faces the eye -- all cut to the opening, so what shows is what a look into it shows;
        the tyre (drawn after, through it) stands in it. The lip is a line round the opening's edge */
     const well = (a0, bb, R, hc, base, D = 26) => {
-      const sd = bb >= 0 ? 1 : -1, bi = bb - sd*D, arc = [[a0 + R, base]];
-      for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI; arc.push([a0 + Math.cos(ph)*R, hc + Math.sin(ph)*R]); }
-      arc.push([a0 - R, base]);
+      const sd = bb >= 0 ? 1 : -1, bi = bb - sd*D, arc = [];
+      /* A WHEEL WHOSE MIDDLE IS BELOW THE BODY'S FOOT (the lifted pickup's: its tyres' axles are under the sill): the opening is the
+         circle's SEGMENT above the foot, the chord at base and the arc from where it meets the circle -- the half-disc from the
+         axle up zigzagged under the foot (the arch drawn in a tangle, the tyre cut to it) */
+      const ph0 = hc < base ? Math.asin(Math.min(1, (base - hc)/R)) : 0;
+      arc.push([a0 + Math.cos(ph0)*R, base]);
+      for(let k = 0; k <= 10; k++){ const ph = ph0 + k/10*(Math.PI - 2*ph0); arc.push([a0 + Math.cos(ph)*R, hc + Math.sin(ph)*R]); }
+      arc.push([a0 - Math.cos(ph0)*R, base]);
       const at = (b) => arc.map(q => P(q[0], b, q[1]));
       const open = at(bb), keep = this.drawClip, clip = keep ? clipConvex(open, keep) : open;
       wellClip[Math.round(a0) + ':' + sd] = [[a0 + R, -40]].concat(arc.slice(1, -1), [[a0 - R, -40]]).map(q => P(q[0], bb, q[1]));   // (its tyre: cut to this, and on below the body)
