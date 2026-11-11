@@ -100654,7 +100654,6 @@ class WorldScene extends Phaser.Scene {
     /* ---- the front: the camera-side wheel and mudguard, the tail lights ---- */
     fender(50, 68);
     wheel(54, 64, WA, WR, WR, true);
-    bx(WA - 10, WA + 10, 60, 69, 4, 18, 0x2a2e33, 0x1d2024, 0x14171a);                       // the mud flap
     for(const sb of [-1, 1]){
       bx(SE - 2, SE + 3, sb*40 - 7, sb*40 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
       bx(SE - 2, SE + 3, sb*40 - 3, sb*40 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
