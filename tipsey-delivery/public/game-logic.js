@@ -3450,8 +3450,8 @@ const FLEET = {
   /* wing: flies (fly); P9, last (PLANES: nose to tail, the wing's span) */
   uavplane:   { name: "Delivery drone plane", cls: "wing", art: "uavplane", body: { len: 392, wid: 660, h: 132 }, fit: { r: 330, h: 205 },   // (wid the wings' full 660, not their half-span; its hit box botR 196, half its fuselage's length: the wings are thin and high, overhanging it, until P9's flight controller)
                 ctl: { vMax: 0.30, botR: 196 }, bay: "planeHangar", unlock: "air-mail", abilities: ["airdrop"], cargo: "parcel", ambient: { corridors: ["airfield-mirador"] } },
-  uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 420, h: 200 }, fit: { r: 288, h: 275 },
-                ctl: { vMax: 0.28 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
+  uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 840, h: 200 }, fit: { r: 420, h: 275 },   // (wid the wings' full 840, not their half-span; its hit box botR 284, half its fuselage's length, as the delivery plane's)
+                ctl: { vMax: 0.28, botR: 284 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
   /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
   "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120 }, fit: { r: 280, h: 120 },
                       ctl: {}, bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
