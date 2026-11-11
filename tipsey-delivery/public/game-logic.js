@@ -83197,7 +83197,7 @@ const LH_RUN = {
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
 function lhLightSpots(){
   const L = harborGeo().light, T = flyLightGeo();
-  return { bay: hospBay(L.x + T.r + 130, L.y - 30), ines: { x: L.x + 40, y: L.y + T.r + 46 }, L };   // (the bay east of the tower, in front of it; her place south of it)
+  return { bay: hospBay(L.x - 40, L.y - 360), ines: { x: L.x + 100, y: L.y - 215 }, L };   // (both on the arm's concrete walk, north of the tower: the bay mid-walk, her place by the landing's edge -- she stood on the rocks south of it)
 }
 function lhLooks(){
   if(!lhLooks.c){
@@ -83589,7 +83589,7 @@ function lhTick(scene, ow){
     }
     case 'keeper':
       /* she comes round the tower to it, standing off its rotors (lhMeetWalk: a drone's gap, not his) */
-      if(!R.keeper && now > R.kT){ const p = lhInesAt(now); R.keeper = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), 175), { has: null, th0: p.th }); }
+      if(!R.keeper && now > R.kT){ const p = lhInesAt(now); R.keeper = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, 1, 175), { has: null, th0: p.th }); }
       if(R.keeper && R.keeper.leave == null) meet(R.keeper, () => hospSayCard({ who: "Ines, the lighthouse keeper", btn: "Here's the lamp!", ok: lhHandLamp, at: lhInesAt,
         say: "You made it! I heard your rotors before I could see you in this soup. Hold it steady, right there... I've got it! Up the tower it goes." }));
       return;
