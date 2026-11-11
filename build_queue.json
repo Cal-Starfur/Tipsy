@@ -193,8 +193,9 @@
 "deps": [
 "fp-uavcargo"
 ],
-"status": "pending",
-"group": "Fleet polish (in order)"
+"status": "built",
+"group": "Fleet polish (in order)",
+"test": "https://claude.ai/artifact/FHpe69GyRvdJXt8RowGhoN"
 },
 {
 "id": "fp-boat-watertaxi",

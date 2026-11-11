@@ -5159,8 +5159,9 @@ const FLEET = {
   uavcargo:   { name: "Long-range cargo drone", cls: "wing", art: "uavcargo", body: { len: 568, wid: 840, h: 200 }, fit: { r: 420, h: 275 },   // (wid the wings' full 840, not their half-span; its hit box botR 284, half its fuselage's length, as the delivery plane's)
                 ctl: { vMax: 0.28, botR: 284 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
   /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
-  "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120 }, fit: { r: 280, h: 120 },
-                      ctl: {}, bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
+  "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120, cap: true }, fit: { r: 280, h: 120 },
+                      ctl: { botR: 140 },   // (its hit box: a quarter of its length, between its 101 half-beam and its 280 half-length)
+                       bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
   "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170 }, fit: { r: 440, h: 170 },
                       ctl: {}, bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
 };
@@ -100354,7 +100355,7 @@ class WorldScene extends Phaser.Scene {
      its drawProp art, or a boat's Harbor Boat, as drawFleetAvatarAt */
   drawFleetParked(g, kind, x, y, yaw){
     const f = yaw/(Math.PI/2);
-    if(kind.startsWith("boat:")){
+    if(kind.startsWith("boat:") && kind !== "boat:drone"){
       const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
       if(!sh) return;
       sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
@@ -114206,6 +114207,98 @@ class WorldScene extends Phaser.Scene {
     this.drawHullPrism(Object.assign({ g, pt: b.da ? (a, bb, h) => V.P(a + b.da, bb, h) : (a, bb, h) => V.P(a, bb, h), nrm: rotN, outlineCol: FLEET_OUTLINE }, b));   // (his outline's colour, not his paint's)
     return V;
   }
+  /* THE SURVEY BOAT (the autonomous line's: fp-boat-drone, Sir, 2026-11-11): a slim pointed hull, no helm and no cabin -- a low
+     housing with a solar lid, the line's lidar mast, a whip aerial aft, Tipsey's face on the housing's front. Built as the fleet's
+     bodies are (vehKit: Tipsey's chamfered prisms, his outline), so it wears what he wears: body colour, finish, print and two-tone on
+     the hull and the housing, his stripe and its second band round both, the stripe's pattern and the badge on the hull's flank, his
+     eyes in the face. No flag or topper (a boat of this kind has no pole to carry one). It falls as the walkers do: a roll about the
+     outer edge of the hull and a pitch about its bow or stern, the same pose Tipsey takes (data.roll, data.pitch, data.pitchSg).
+     a runs bow (+) to stern, b across, h up from the water */
+  drawSurveyBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const HL = 280, HW = 101, SH = 100, HH = 60, RPIV = 90, PPIV = 260;
+    const roll = data && data.roll || 0, pitch = data && data.pitch || 0;
+    let xf = null;
+    if(Math.abs(roll) > 0.002 || Math.abs(pitch) > 0.002){
+      const cr = Math.cos(roll), sn = -Math.sin(roll), pb = Math.abs(roll) <= 0.002 ? 0 : -(roll >= 0 ? 1 : -1)*RPIV;
+      const cp = Math.cos(pitch), sp = Math.sin(pitch), pa = pitch ? (data.pitchSg || 0)*PPIV : 0;
+      xf = (a, b, h) => { const da = a - pa, a1 = pa + da*cp - h*sp, h0 = h*cp + da*sp, db = b - pb; return [a1, pb + db*cr + h0*sn, -db*sn + h0*cr]; };
+    }
+    const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, Q, line, shadeC } = V;
+    V.outline = FLEET_OUTLINE;
+    const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
+    const WHITE = WEAR ? BPW.top : 0xf2f3f1, ROOF = WEAR ? BPW.lt : 0xe4e7ea, DARK = 0x23272d, CYAN = WEAR ? SKIN.eye : 0x5fe8e0;
+    const STRIPEC = WEAR ? SKIN.stripe : 0xff7a1a, STRIPED = WEAR ? SKIN.stripeDk : _pdk(0xff7a1a, 0.8);
+    const nearB = sees(0, 1, 0) ? 1 : -1;
+    const bodyCol = n => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE;
+    /* THE SHADOW STAYS ON THE WATER (or the ground): drawn in the un-tipped frame, shifted and stretched by the fall as the bots' */
+    if(!xf) this.drawVehicleShadow(g, P, HL, HW);
+    else { const V0 = this.vehKit(g, x, y, z, fdir, null), SU = this.tipU || { a: 0, b: this.tipDir || 1 }, sE = (this.tipT || 0)*26*(HL/34);
+      const da = (SU.a || 0)*sE, db = SU.a ? 0 : -sE*(this.tipDir || 1);
+      this.drawVehicleShadow(g, (a, b, h) => V0.P(a + da, b + db, 0), HL + (SU.a ? sE : 0), HW + (SU.a ? 0 : sE)); }
+    /* the hull: a pentagon in plan (the bow a long point), straight sides, Tipsey's chamfer and bevel */
+    const plan = [[-HL, -HW], [SH, -HW], [HL, 0], [SH, HW], [-HL, HW]];
+    const grow = e => [[-HL - e, -HW - e], [SH, -HW - e], [HL + e*1.2, 0], [SH, HW + e], [-HL - e, HW + e]];
+    /* a skin's print and finish on a wall (a rectangle in plan run a0..a1 x +-hw, z0..z1), the faces that are seen: as the planes' fuselage */
+    const wallPrint = (a0, a1, hw, z0, z1) => {
+      if(!WEAR || !(BPW.print || BPW.fin)) return;
+      const ring = [[a1, -hw], [a1, hw], [a0, hw], [a0, -hw]], hh = z1 - z0;
+      const Lay = BPW.print ? this.printLayout(BPW.print, ring, hh, 'body') : null;
+      for(let i = 0; i < 4; i++){
+        const [p, q] = [ring[i], ring[(i + 1) % 4]], nrm = [[1, 0, 0], [0, 1, 0], [-1, 0, 0], [0, -1, 0]][i];
+        if(!sees(nrm[0], nrm[1], 0)) continue;
+        const quad = [P(p[0], p[1], z0), P(q[0], q[1], z0), P(q[0], q[1], z1), P(p[0], p[1], z1)];
+        const lt = Math.max(0, Math.min(1, (V.lit(nrm) - 0.66)/0.31));
+        if(Lay) this.printSide(g, BPW.print, Lay, i, quad, lt, hh, 1, 'body');
+        if(BPW.fin) this.hullFinish(g, BPW.fin, quad, lt, i);
+      }
+    };
+    const parts = [];
+    /* the hull (0..HH), a dark boot at the waterline, its print, then his stripe and the second band round it */
+    parts.push({ h: 20, draw: () => {
+      solid(prismH(plan, 0, HH), WHITE, (i, n) => bodyCol(n));
+      solid(prismH(grow(0.6), 0, 9), 0x2a2f36, (i, n) => Math.abs(n[2]) > 0.5 ? null : 0x2a2f36);
+      wallPrint(-HL + 10, SH - 6, HW + 0.4, 10, HH - 6);
+      if(WEAR && SKIN.stripe2) solid(prismH(grow(0.7), 17, 21), SKIN.stripe2, (i, n) => Math.abs(n[2]) > 0.5 ? null : SKIN.stripe2);
+      solid(prismH(grow(0.8), 24, 34), STRIPEC, (i, n) => Math.abs(n[2]) > 0.5 ? null : STRIPEC);
+      if(WEAR){ const ac = (-HL + SH)/2;
+        this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: (SH + HL)/2 - 4, hy: HW, ch: 4, s0: 24, s1: 34, dz: 47, dk: 0.5 }); }
+    } });
+    /* the housing: a low block aft of the middle (its print and finish on every wall, a band of his stripe round it), then the lid */
+    const A0 = -190, A1 = 130, HB = 78, Z0 = HH, Z1 = 112, ZL = 118;
+    parts.push({ h: 70, draw: () => {
+      solid(prismH([[A0, -HB], [A1, -HB], [A1, HB], [A0, HB]], Z0, Z1), WHITE, (i, n) => bodyCol(n));
+      wallPrint(A0, A1, HB + 0.4, Z0 + 4, Z1 - 5);
+      const gr = e => [[A0 - e, -HB - e], [A1 + e, -HB - e], [A1 + e, HB + e], [A0 - e, HB + e]];
+      if(WEAR && SKIN.stripe2) solid(prismH(gr(0.7), 68, 72), SKIN.stripe2, (i, n) => Math.abs(n[2]) > 0.5 ? null : SKIN.stripe2);
+      solid(prismH(gr(0.8), 74, 82), STRIPEC, (i, n) => Math.abs(n[2]) > 0.5 ? null : STRIPEC);
+      this.tipseyFace(V, A1, 98, 1.7);                                                    // (Tipsey's face on its front)
+    } });
+    parts.push({ h: 115, draw: () => {
+      solid(prismH([[A0 - 6, -HB - 6], [A1 + 6, -HB - 6], [A1 + 6, HB + 6], [A0 - 6, HB + 6]], Z1, ZL), ROOF, (i, n) => n[2] > 0.6 ? ROOF : WHITE);
+    } });
+    /* the solar panel on the lid: a navy plate with its cell lines */
+    parts.push({ h: 119, draw: () => {
+      const a0 = A0 + 12, a1 = A1 - 12, b = HB - 4, zp = ZL + 0.4;
+      Q([P(a0, -b, zp), P(a1, -b, zp), P(a1, b, zp), P(a0, b, zp)], 0x23405e);
+      for(let a = a0 + 24; a < a1 - 8; a += 24) line([a, -b, zp + 0.2], [a, b, zp + 0.2], 0x5d7a99, 1);
+      line([a0 + 4, 0, zp + 0.2], [a1 - 4, 0, zp + 0.2], 0x5d7a99, 1);
+    } });
+    /* the lidar mast, forward on the lid: a pole, the line's puck with its cyan ring (his eye colour worn), a cap */
+    const MA = 70;
+    parts.push({ h: 140, draw: () => {
+      this.avLathe(V, MA, 0, [[ZL, 3.4], [ZL + 62, 3]], DARK, null, 10);
+      this.avLathe(V, MA, 0, [[ZL + 62, 8], [ZL + 70, 8]], 0x23272d, null, 12);
+      this.avLathe(V, MA, 0, [[ZL + 70, 8.4], [ZL + 73, 8.4]], CYAN, () => CYAN, 12);
+      this.avLathe(V, MA, 0, [[ZL + 73, 8], [ZL + 80, 6.4]], 0x2d3238, null, 12);
+    } });
+    /* the whip aerial aft, with its red light */
+    parts.push({ h: 141, draw: () => {
+      line([-150, -HB*0.5, ZL], [-150, -HB*0.5, ZL + 74], DARK, 1.4);
+      const tp = P(-150, -HB*0.5, ZL + 75); g.fillStyle(0xe8453c, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.5);
+    } });
+    parts.sort((p, q) => V.depth(0, 0, p.h) - V.depth(0, 0, q.h));
+    for(const pt of parts) pt.draw();
+  }
   /* TIPSEY'S SIBLINGS AND THE YARD ROBOTS (BOTS): each a few solids in
      its own frame (a forward, b across), painted far to near */
   drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
@@ -118685,6 +118778,8 @@ class WorldScene extends Phaser.Scene {
       this.drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
+    } else if(kind === "boat:drone"){
+      this.drawSurveyBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the survey boat (fp-boat-drone)
     } else if(BOTS[kind]){
       this.drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Tipsey's siblings and the yard robots
     } else if(AV_PODS[kind]){
@@ -119576,7 +119671,7 @@ class WorldScene extends Phaser.Scene {
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
     this._fleetWheel = ((this._fleetWheel || 0) + (this.speed || 0)*(dt || 16)*0.05) % (Math.PI*2*1000);
-    if(kind.startsWith("boat:")){
+    if(kind.startsWith("boat:") && kind !== "boat:drone"){
       const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
       if(!sh) return;
       sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
@@ -119619,6 +119714,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
+      : kind === "boat:drone" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the survey boat wears his paint and falls as he does)
       : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" || kind === "uavplane" || kind === "uavcargo" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
@@ -128031,7 +128127,7 @@ class WorldScene extends Phaser.Scene {
     this.camX = 0; this.camY = 0; this.camZ = 0; this.cx = sx; this.cy = sy; this.K = k;
     this._tspPainting = true;
     try {
-      if(kind.startsWith('boat:')){
+      if(kind.startsWith('boat:') && kind !== 'boat:drone'){
         const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC;
         const HT = { motor: ['#2f5f6e', '#1f3a4d'], sail: ['#f6f3ea', '#b8423a'], trawler: ['#1f3a4d', '#c8352e'], tug: ['#7a2f2c', '#2b2f36'],
                      ferry: ['#f6f3ea', '#23405e'], jetski: ['#f6f3ea', '#c8352e'], patrol: ['#f6f3ea', '#1f3a4d'], pontoon: ['#f6f3ea', '#23405e'],
