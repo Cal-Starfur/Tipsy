@@ -4737,7 +4737,9 @@ const CAR_BODIES = {
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
     grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 68 }
   }),
-  lifted: (hl, hw, roofH) => Object.assign(CAR_BODIES.pickup(hl, hw, roofH), { len: 236, lift: 16, wheelR: 31, wheelW: 13, wheelOut: 2 }),
+  /* THE LIFTED PICKUP stands on a lift kit (Sir, 2026-11-11, "give lifted truck a suspension so it's up higher"): the body 34 off its wheels
+     (was 16) on 36-radius tyres, the frame, axles, coil-overs and leaf packs showing in the gap (kit: see drawCar) */
+  lifted: (hl, hw, roofH) => Object.assign(CAR_BODIES.pickup(hl, hw, roofH), { len: 236, lift: 34, wheelR: 36, wheelW: 14, wheelOut: 2, kit: true }),
   /* ---- BATCH 2 (2026-10-11): the fifteen new cars' bodies. Optional
      fields: len (default CARC.len), lift (the body's ride height off its
      wheels), wheelR / wheelW / wheelA (fractions of the half-length) /
@@ -113103,6 +113105,28 @@ class WorldScene extends Phaser.Scene {
     /* ---- the far wheels, under everything ---- */
     for(const a of wA) wheel(a, -nearB);
     if(edgeOn) for(const a of wA) wheel(a, nearB);
+    /* THE LIFT KIT, in the gap between the wheels and the lifted body (B.kit): two frame rails and cross members, an axle and a
+       differential at each wheel, coil-over shocks (a red spring on a steel damper) and a leaf pack either side. Drawn on the wheels' own
+       kit (KW), before the body, so the body and the near wheels cover what they should */
+    if(B.kit){
+      const DK = 0x1f2227, ST2 = 0x6b737b, SPR = 0xd8402f, kp = KW.prismH, ks = KW.solid;
+      const f0 = lift + 10, f1 = lift + 20;
+      for(const sb of [-1, 1]) ks(kp([[-hl + 16, sb*(hw - 12) - 3], [hl - 16, sb*(hw - 12) - 3], [hl - 16, sb*(hw - 12) + 3], [-hl + 16, sb*(hw - 12) + 3]], f0, f1), ST2);   // the frame rails
+      ks(kp([[-hl + 30, -3], [hl - 30, -3], [hl - 30, 3], [-hl + 30, 3]], r - 2, r + 4), DK);                           // the driveshaft
+      for(const a of wA){
+        ks(kp([[a - 4, -wB + 6], [a + 4, -wB + 6], [a + 4, wB - 6], [a - 4, wB - 6]], r - 4, r + 4), DK);                // the axle
+        ks(kp([[a - 9, -9], [a + 9, -9], [a + 9, 9], [a - 9, 9]], r - 9, r + 9), ST2);                                  // the differential
+        ks(kp([[a - 6, -hw + 14], [a + 6, -hw + 14], [a + 6, hw - 14], [a - 6, hw - 14]], f0 - 4, f0 + 2), DK);         // a cross member
+        const toMid = a > 0 ? -1 : 1;                                                                                   // (the shocks stand clear of the tyre, toward the middle)
+        for(const sb of [-1, 1]){
+          const bs = sb*(hw - 9), sa = a + toMid*(r + 10);
+          ks(kp([[a - 26, bs - 3], [a + 26, bs - 3], [a + 26, bs + 3], [a - 26, bs + 3]], r + 4, r + 9), ST2);           // the leaf pack, hung off the axle
+          ks(kp([[sa - 2.5, bs - 2.5], [sa + 2.5, bs - 2.5], [sa + 2.5, bs + 2.5], [sa - 2.5, bs + 2.5]], r + 2, f0 + 2), ST2);   // the damper
+          for(let z = r + 6; z < f0 - 1; z += 6)
+            ks(kp([[sa - 4.5, bs - 4.5], [sa + 4.5, bs - 4.5], [sa + 4.5, bs + 4.5], [sa - 4.5, bs + 4.5]], z, Math.min(z + 3.6, f0 + 1)), SPR);   // its coil
+        }
+      }
+    }
 
     /* ---- the lower body, lofted: [a, half width, bottom, top] ---- */
     const aCowl = B.cowl, aCab = B.cab, ST = B.st;
