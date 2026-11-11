@@ -4672,10 +4672,10 @@ const PLANES = {
     /* no propeller at the nose: a big blunt sensor nose, Tipsey's face on its front (Sir, 2026-10-13) */
     st: [[-200, 3, 70, 76], [-120, 7, 64, 82], [-30, 13, 56, 94], [40, 16, 52, 102], [110, 18, 50, 104], [150, 20, 50, 106], [178, 19, 52, 104], [192, 17, 56, 100]],
     wing: { pos: "high", a0: -6, a1: 44, span: 330, h: 102 }, tail: { t: true, c: 46, span: 88, h: 132, fin: [[50, 74], [2, 72], [-12, 132], [18, 132]] },
-    prop: null, face: 1.15, wear: [-30, 150], gear: "trike", gearAt: [[130, 0, 9], [10, -38, 11], [10, 38, 11]] },
+    prop: null, face: 1.15, dome: 86, wear: [-30, 150], gear: "trike", gearAt: [[130, 0, 9], [10, -38, 11], [10, 38, 11]] },
   /* the long-range cargo drone: the cargo plane's airframe with no one in
      it -- no windows, a belly pod, the sensor ball and satcom dome */
-  uavcargo: { pal: "av", add: ["avBall", "pod"], face: 1.6, wear: [-60, 170],
+  uavcargo: { pal: "av", add: ["avBall", "pod"], face: 1.6, dome: -30, wear: [-60, 170],
     st: [[-280, 6, 90, 102], [-180, 18, 72, 110], [-60, 30, 56, 128], [60, 32, 50, 140], [170, 30, 50, 136], [236, 29, 54, 128], [272, 27, 58, 116], [288, 24, 64, 108]],
     wing: { pos: "high", a0: 40, a1: 130, span: 420, h: 140 }, tail: { t: true, c: 80, span: 130, h: 200, fin: [[90, 102], [2, 100], [-14, 200], [30, 200]] },
     prop: null, gear: "trike", gearAt: [[244, 0, 14], [30, -84, 18], [30, 84, 18]], struts: [[40, 30, 56, 70, 220, 140]] },
@@ -114836,11 +114836,11 @@ class WorldScene extends Phaser.Scene {
        2026-10-12: it was painting over the cockpit's side) */
     /* the delivery drone's eyes: a gimballed sensor ball under its chin, a satcom dome on its back, an orange band */
     if(has("avBall")){
-      const ba = NA - 34, [, bb] = stAt(ba), ta = 40, [, , tt] = stAt(ta);
+      const ba = NA - 34, [, bb] = stAt(ba), ta = PK.dome != null ? PK.dome : 40, [, , tt] = stAt(ta);   // (the satcom dome clear of the wing's chord: it stood at 40, under the high wing, and showed as a grey stub where wing and body meet)
       parts.push({ d: V.depth(ba, 0, bb - 10), draw: () => {
         this.avLathe(V, ba, 0, [[bb - 3, 4], [bb - 8, 9], [bb - 15, 9], [bb - 20, 4]], 0x2a2f36, null, 12);
         if(nose) solid(prismH([[ba + 7, -4], [ba + 9.6, -4], [ba + 9.6, 4], [ba + 7, 4]], bb - 15, bb - 9), 0x5fe8e0, null, true); } });
-      parts.push({ d: V.depth(ta, 0, tt + 6), draw: () => this.avLathe(V, ta, 0, [[tt - 1, 12], [tt + 4, 11], [tt + 8, 7], [tt + 9.5, 0]], 0xe4e7ea, null, 12) });
+      parts.push({ d: V.depth(ta, 0, tt + 6), draw: () => this.avLathe(V, ta, 0, [[tt - 1, 12], [tt + 4, 11], [tt + 8, 7], [tt + 9.5, 0]], WEAR ? shadeC(BODY, 0.94) : 0xe4e7ea, null, 12) });
       /* Tipsey's face on the front of its blunt nose, where a propeller would be */
       if(PK.face){ const [, , nb0, nt] = ST[ST.length - 1];
         parts.push({ d: V.depth(NA + 40, 0, (nb0 + nt)/2), draw: () => this.tipseyFace(V, NA, (nb0 + nt)/2 + 2, PK.face) }); }
