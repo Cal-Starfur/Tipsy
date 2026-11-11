@@ -5160,10 +5160,10 @@ const FLEET = {
                 ctl: { vMax: 0.28, botR: 284 }, bay: "planeHangar", unlock: "lookout-supply", abilities: ["airdrop"], cargo: "crate", ambient: { corridors: ["airfield-lookout"] } },
   /* sail: P5's hull (BOAT_LEN x BOAT_SC long, harborBoatBeam wide) */
   "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120, cap: true }, fit: { r: 280, h: 120 },
-                      ctl: { botR: 140 },   // (its hit box: a quarter of its length, between its 101 half-beam and its 280 half-length)
+                      ctl: { botR: 140, vMax: 0.34 },   // (its hit box: a quarter of its length, between its 101 half-beam and its 280 half-length)
                        bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
   "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170, cap: true }, fit: { r: 440, h: 170 },
-                      ctl: { botR: 220 },   // (its hit box: a quarter of its length, between its 158 half-beam and its 440 half-length)
+                      ctl: { botR: 220, vMax: 0.26 },   // (its hit box: a quarter of its length, between its 158 half-beam and its 440 half-length)
                       bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
 };
 for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe", "livery"]; }
@@ -5907,6 +5907,26 @@ function flyTaxiTo(scene, ow, fl, tx, ty, dt, R){
   ow.px = nx; ow.py = ny; fl.vx = dx/d*v; fl.vy = dy/d*v;
   return false;
 }
+/* HOW A BOAT MOVES (Sir, 2026-11-11: "fix the way boats move, it should be more realistic of how a boat moves on water"): a hull
+   in water, not a robot on a floor. It has a world velocity of its own (vx, vy) and a heading that is not the same thing: the engine
+   pushes along the heading only, the keel grips the water sideways (so a turn skids and the boat slides wide before it bites), the
+   hull's drag is light along it (a long glide when the throttle is off) and rises with the square of the speed (a top speed). The
+   rudder turns it only as water flows past it (authority from speed: it cannot spin on the spot; at rest it hardly turns), and its yaw
+   rate eases in and out (a heavy hull is slow to swing and slow to stop swinging). The stick names where it should go: it steers
+   toward that heading and the throttle follows how nearly it points there (a stick behind it puts the engine astern, gently). It
+   leans out of a turn, lifts its bow under power and settles by the stern when it eases off, and rocks on the water at rest (the
+   drawer reads bs.heel, bs.trim). Numbers per boat in BOAT_DYN (ms, units). */
+const BOAT_DYN = {
+  "boat:drone":     { accel: 1/2300, rev: 0.35, kLin: 0.00030, kLat: 0.0020, turn: 0.00105, rud0: 0.10, vRud: 0.32, rTau: 520, thrTau: 700, heel: 0.9, trim: 0.05 },
+  "boat:watertaxi": { accel: 1/3600, rev: 0.30, kLin: 0.00022, kLat: 0.0013, turn: 0.00066, rud0: 0.07, vRud: 0.38, rTau: 950, thrTau: 1100, heel: 0.6, trim: 0.035 }
+};
+/* is a boat's hull (a disc R at x, y) clear? only on water: its rim all over the basin or the open sea (or the boathouse's floor and
+   slipway), and clear of the harbor's solids and the people who are solid. null: clear; else the block */
+function sailBlockedAt(scene, ow, x, y, R){
+  const wf = owWaterFn(scene, ow), ds = scene.route && scene.route.dateStr;
+  for(const [a, c] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]){ const px = x + a*R*1.2, py = y + c*R*1.2; if(!(fleetBoatWetAt(px, py) || wf(px, py, ds))) return OW_CURB_BLOCK; }
+  return ow.world.solidAt(x, y, R) || CITY_PEOPLE.blockAt('world', x, y, R, false) || null;
+}
 const FLEET_CTRL = {
   /* THE ROTORCRAFT: hover dynamics in the plane, a real height, banking with the turn */
   rotor: {
@@ -6082,12 +6102,88 @@ const FLEET_CTRL = {
       flyFinish(scene, ow, dt, D, blocked);
       return true;
     }
+  },
+  /* THE BOATS: a hull on the water (BOAT_DYN above) */
+  sail: {
+    step(scene, ow, dt){
+      const k = fleetCur(), B = BOAT_DYN[k], D = fleetPhys().D || OW_D, R = D.botR;
+      if(!B) return false;
+      const bs = ow.sail || (ow.sail = { vx: 0, vy: 0, r: 0, thr: 0, heel: 0, trim: 0, bob: 0, t: 0 });
+      /* (found on dry land, any way it came: back on the water) */
+      if(!scene._garage && !(fleetBoatWetAt(ow.px, ow.py) || owWaterFn(scene, ow)(ow.px, ow.py, scene.route && scene.route.dateStr))){
+        const Lw = fleetBoatLaunchAt(scene, k);
+        if(Lw){ const items = scene.items; owStandUpAt(scene, Lw.x, Lw.y, Lw.a); scene.items = items || []; bs.vx = bs.vy = bs.r = 0; return true; }
+      }
+      bs.t += dt;
+      let sx = ow.stick.active ? ow.stick.dx/D.maxR : ow.keyv.x, sy = ow.stick.active ? ow.stick.dy/D.maxR : ow.keyv.y;
+      let mag = Math.hypot(sx, sy);
+      if(mag < D.dead){ mag = 0; sx = sy = 0; }
+      else { const kk = (mag - D.dead)/(1 - D.dead)/mag; sx *= kk; sy *= kk; mag = Math.min(1, Math.hypot(sx, sy)); }
+      const _gf = owGeofenceTick(scene, ow, D, dt);
+      if(_gf) mag = _gf.mag;
+      const w = _gf ? _gf.w : owScreenToWorld(sx, sy);
+      const hx = Math.cos(ow.yaw), hy = Math.sin(ow.yaw), nx = -hy, ny = hx;
+      let vf = bs.vx*hx + bs.vy*hy, vl = bs.vx*nx + bs.vy*ny;
+      const vMax = D.vMax, err = mag > 0 ? owWrapAngle(Math.atan2(w.y, w.x) - ow.yaw) : 0, ae = Math.abs(err);
+      /* THE HELM: the stick behind it (past 125 degrees) and the boat nearly stopped: astern, steering the stern toward the stick; else
+         the rudder toward the heading asked, throttle by how nearly it points there */
+      const astern = mag > 0 && ae > 2.2 && vf < vMax*0.2;
+      let rud = 0, thrT = 0;
+      if(mag > 0){
+        if(astern){ const e2 = owWrapAngle(err + Math.PI); rud = -Math.max(-1, Math.min(1, e2/0.9)); thrT = -mag*B.rev; }
+        else { rud = Math.max(-1, Math.min(1, err/0.9)); thrT = mag*Math.max(0, Math.cos(Math.min(ae, Math.PI/2)*0.9)) * (ae > 2.0 ? 0.15 : 1); }
+      }
+      bs.thr += (thrT - bs.thr)*Math.min(1, dt/B.thrTau);
+      /* rudder: authority from the water flowing past it; backing, it works the other way */
+      const flow = Math.min(1, Math.abs(vf)/(vMax*B.vRud)), auth = B.rud0 + (1 - B.rud0)*flow, dirn = vf < -0.02 ? -1 : 1;
+      const rT = rud*B.turn*auth*dirn;
+      bs.r += (rT - bs.r)*Math.min(1, dt/B.rTau);
+      const yaw0 = ow.yaw;
+      ow.yaw = owWrapAngle(ow.yaw + bs.r*dt);
+      /* the velocity did not turn with the hull: in the new heading's frame it has a sideways part (the skid) */
+      const h2x = Math.cos(ow.yaw), h2y = Math.sin(ow.yaw), n2x = -h2y, n2y = h2x;
+      vf = bs.vx*h2x + bs.vy*h2y; vl = bs.vx*n2x + bs.vy*n2y;
+      const kQ = Math.max(0, (B.accel - B.kLin*vMax))/(vMax*vMax);
+      const aF = bs.thr >= 0 ? bs.thr*B.accel : bs.thr*B.accel;
+      const drag = B.kLin*vf + kQ*vf*Math.abs(vf);
+      vf += (aF - drag)*dt;
+      vl *= Math.exp(-B.kLat*dt*(0.6 + 0.4*Math.min(1, Math.abs(vf)/(vMax*0.4)) ));   // (the keel bites harder the faster the water flows past it)
+      bs.vx = vf*h2x + vl*n2x; bs.vy = vf*h2y + vl*n2y;
+      /* MOVE, THEN RESOLVE: the full step, else each axis alone (a slide along a quay); the speed into a wall is lost, and a hard hit knocks the swing off */
+      const stX = bs.vx*dt, stY = bs.vy*dt;
+      let blocked = !!sailBlockedAt(scene, ow, ow.px + stX, ow.py + stY, R);
+      if(!blocked){ ow.px += stX; ow.py += stY; }
+      else {
+        const fx = !sailBlockedAt(scene, ow, ow.px + stX, ow.py, R), fy = !sailBlockedAt(scene, ow, ow.px, ow.py + stY, R);
+        if(fx && Math.abs(stX) > 1e-6){ ow.px += stX; bs.vy *= 0.5; }
+        else if(fy && Math.abs(stY) > 1e-6){ ow.py += stY; bs.vx *= 0.5; }
+        else { bs.vx *= 0.25; bs.vy *= 0.25; bs.r *= 0.5; }
+        bs.thr *= 0.9;
+      }
+      /* WHAT IT SHOWS: leaning out of the turn (the yaw rate times the speed), bow up under power and down by the stern easing off,
+         and a slow rock on the water at rest */
+      const sp = Math.hypot(bs.vx, bs.vy), fv = vf/vMax;
+      const heelT = Math.max(-0.14, Math.min(0.14, -bs.r*sp*B.heel*900));
+      const trimT = Math.max(-0.04, Math.min(B.trim*1.3, fv*B.trim + bs.thr*B.trim*0.5 - (aF - drag < -0.00005 ? 0.01 : 0)));
+      bs.heel += (heelT - bs.heel)*Math.min(1, dt/260);
+      bs.trim += (trimT - bs.trim)*Math.min(1, dt/420);
+      ow.vel = vf; ow.leanS = 0; ow.leanI *= (1 - D.tiltDecay*dt); owLeanCompose(scene, ow);
+      ow.inContact = blocked;
+      scene.speed = sp; scene.throttle = 0;
+      scene.owPush = mag > 0 || ow.held.size > 0;
+      scene.owCurbStop = blocked && sp < 0.05 && scene.owPush;
+      scene.wheelPhase = (scene.wheelPhase || 0) - sp*dt*0.28;
+      ow.surface = ow.lastSfc = "water";
+      owRailSync(scene);
+      return true;
+    }
   }
 };
 /* owStep's hand-off (its first act after the garage lift): the driven vehicle's class controller, if it has one.
    true: the controller moved it this tick. Tipsey and every class without a controller: false, and owStep runs */
 function owFleetCtrl(scene, ow, dt){
   const F = FLEET[fleetCur()];
+  if(F && F.cls === "sail" && !ow.deck && !ow.lift && !ow.splash) return FLEET_CTRL.sail.step(scene, ow, dt);   // (a boat: its own water dynamics)
   if(!F || !FLEET_CTRL[F.cls] || !flyCtl()){ if(ow.fly){ ow.fly = null; ow.z = 0; } return false; }
   if(ow.deck || ow.lift || ow.splash) return false;
   return FLEET_CTRL[F.cls].step(scene, ow, dt);
@@ -114281,12 +114377,19 @@ class WorldScene extends Phaser.Scene {
     const HL = TX ? 440 : 280, HW = TX ? 158 : 101, SH = TX ? 170 : 100, HH = TX ? 70 : 60, RPIV = TX ? 130 : 90, PPIV = TX ? 420 : 260;
     const SZ0 = TX ? 27 : 24, SZ1 = TX ? 39 : 34, SZ2 = TX ? 19 : 17;
     const roll = data && data.roll || 0, pitch = data && data.pitch || 0;
-    let xf = null;
+    let xf = null, tipXf = null;
     if(Math.abs(roll) > 0.002 || Math.abs(pitch) > 0.002){
       const cr = Math.cos(roll), sn = -Math.sin(roll), pb = Math.abs(roll) <= 0.002 ? 0 : -(roll >= 0 ? 1 : -1)*RPIV;
       const cp = Math.cos(pitch), sp = Math.sin(pitch), pa = pitch ? (data.pitchSg || 0)*PPIV : 0;
-      xf = (a, b, h) => { const da = a - pa, a1 = pa + da*cp - h*sp, h0 = h*cp + da*sp, db = b - pb; return [a1, pb + db*cr + h0*sn, -db*sn + h0*cr]; };
+      tipXf = (a, b, h) => { const da = a - pa, a1 = pa + da*cp - h*sp, h0 = h*cp + da*sp, db = b - pb; return [a1, pb + db*cr + h0*sn, -db*sn + h0*cr]; };
     }
+    /* ON THE WATER: it leans out of a turn (data.heel) and carries its trim (data.trim, bow up under power), and rocks and heaves a little
+       on the swell; the hull turns about its middle at the waterline. Under any tip, and the same eye rule reads through it */
+    const WP = !!(data && data.paint), heel = (data && data.heel || 0) + (WP ? 0.012*Math.sin(t/910) : 0), trimA = (data && data.trim || 0) + (WP ? 0.006*Math.sin(t/1180 + 1) : 0), bob = WP ? 2.2*Math.sin(t/830) + 0.9*Math.sin(t/470 + 1) : 0;
+    const base = WP ? (a, b, h) => { const hh = h - 25, ch = Math.cos(heel), sh = Math.sin(heel), h1 = 25 + b*sh + hh*ch, bb = b*ch - hh*sh;
+      const ct = Math.cos(trimA), st = Math.sin(trimA), a1 = a*ct - (h1 - 25)*st, h2 = 25 + a*st + (h1 - 25)*ct; return [a1, bb, h2 + bob]; } : null;
+    xf = tipXf && base ? (a, b, h) => { const q = base(a, b, h); return tipXf(q[0], q[1], q[2]); } : (tipXf || base);
+    const tipping = !!tipXf;
     const V = this.vehKit(g, x, y, z, fdir, xf), { P, sees, solid, prismH, Q, line, shadeC } = V;
     V.outline = FLEET_OUTLINE;
     const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
@@ -114304,7 +114407,7 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(CARC.shadow, al); g.fillPoints(pts, true);
       }
     };
-    if(!xf) shadowOf(P, 0, 0);
+    if(!tipping) shadowOf(P, 0, 0);
     else { const V0 = this.vehKit(g, x, y, z, fdir, null), SU = this.tipU || { a: 0, b: this.tipDir || 1 }, sE = (this.tipT || 0)*26*(HL/34);
       shadowOf((a, b, h) => V0.P(a, b, h), (SU.a || 0)*sE, SU.a ? 0 : -sE*(this.tipDir || 1)); }
     /* THE WATER AND THE WAKE (Sir, 2026-11-11: "can we not have it be dots, is there a more convincing way to make the water and the wake
@@ -119881,7 +119984,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "boat:drone" || kind === "boat:watertaxi" ? { paint: true, speed: this.speed || 0, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the survey boat wears his paint and falls as he does)
+      : kind === "boat:drone" || kind === "boat:watertaxi" ? { paint: true, speed: this.speed || 0, heel: this.ow && this.ow.sail ? this.ow.sail.heel : 0, trim: this.ow && this.ow.sail ? this.ow.sail.trim : 0, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the survey boat wears his paint and falls as he does)
       : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" || kind === "uavplane" || kind === "uavcargo" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
