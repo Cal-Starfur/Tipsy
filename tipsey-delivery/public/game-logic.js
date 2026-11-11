@@ -112583,22 +112583,32 @@ class WorldScene extends Phaser.Scene {
       for(const sg of [-1, 1]){
         let pv = null;
         for(const q of wk){
-          const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = 46 + age*170, al = (1 - age)*(1 - age)*0.7*q.sp;
+          const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = HW + 28 + age*170, al = (1 - age)*(1 - age)*0.7*q.sp;
           const c = W3(q.x - Math.cos(q.yaw)*(HL - 40) + nx*sg*sx, q.y - Math.sin(q.yaw)*(HL - 40) + ny*sg*sx);
           if(pv && al > 0.02){ g.lineStyle(Math.max(1, (5.5 - age*3.5)*K), 0xf4fbfd, Math.min(1, Math.min(pv.al, al)*1.3)); g.lineBetween(pv.c.x, pv.c.y, c.x, c.y); }
           pv = { c, al };
         }
       }
       for(const q of wk){
-        const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = 46 + age*170, al = (1 - age)*(1 - age)*0.6*q.sp, r = 9 + age*16;
+        const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = HW + 28 + age*170, al = (1 - age)*(1 - age)*0.6*q.sp, r = 9 + age*16;
         for(const sg of [-1, 1]) foam(q.x - Math.cos(q.yaw)*(HL - 40) + nx*sg*sx, q.y - Math.sin(q.yaw)*(HL - 40) + ny*sg*sx, r, al);
         if(age < 0.5) foam(q.x - Math.cos(q.yaw)*(HL - 30), q.y - Math.sin(q.yaw)*(HL - 30), 22 + age*50, (0.5 - age)*1.2*q.sp);   // the churned middle of the wake
       }
       if(sp > 0.08){
-        const c = Math.cos(fwd), sn = Math.sin(fwd), nx = -sn, ny = c;
+        /* THE RIPPLE RUNS BACK ALONG THE HULL (Sir: "it should all ripple to the back"): from the bow's point a line of foam falls away down
+           each flank, standing a little off the hull and widening to the stern, where it becomes the wake's two arms; ripple rings ride it */
+        const c = Math.cos(fwd), sn = Math.sin(fwd), nx = -sn, ny = c, K2 = this.K;
+        const at = (a, b) => W3(x + c*a + nx*b, y + sn*a + ny*b);
+        const lane = [[HL + 10, 0], [HL - 60, 22], [SH + 40, HW*0.9 + 12], [SH - 40, HW + 16], [-60, HW + 20], [-HL + 120, HW + 24], [-HL + 40, HW + 28]];
+        for(const sg of [-1, 1]){
+          for(let k = 0; k + 1 < lane.length; k++){
+            const f = k/(lane.length - 1), al = (0.85 - 0.45*f)*sp, p0 = at(lane[k][0], sg*lane[k][1]), p1 = at(lane[k + 1][0], sg*lane[k + 1][1]);
+            g.lineStyle(Math.max(1, (4.5 - 2*f)*K2), 0xf4fbfd, al); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
+            const ph = ((t/260) + k*0.37) % 1, ra = (1 - ph)*0.5*sp, rr = 8 + ph*18, mx = (lane[k][0] + lane[k + 1][0])/2, mb = (lane[k][1] + lane[k + 1][1])/2;
+            foam(x + c*mx + nx*sg*mb, y + sn*mx + ny*sg*mb, rr, ra*(1 - f*0.5));                  // (rings spreading off the line, one after another down it)
+          }
+        }
         foam(x - c*(HL - 6), y - sn*(HL - 6), 30 + sp*24, 0.35 + 0.35*sp);                          // the churn under the stern
-        for(const sg of [-1, 1]) for(let k = 0; k < 3; k++){ const al = (0.3 + 0.35*sp)*(1 - k*0.28), f = SH + 60 + k*50;      // the bow wave, curling out either side
-          foam(x + c*(f + 40) + nx*sg*(HW*(1.05 + k*0.18) + 6*(k + 1) - 10 + Math.max(0, f - SH)*0.1), y + sn*(f + 40) + ny*sg*(HW*(1.05 + k*0.18) + 6*(k + 1) - 10 + Math.max(0, f - SH)*0.1), 11 + sp*8 - k*2, al); }
       }
     }
     /* the hull: a pentagon in plan (the bow a long point), straight sides, Tipsey's chamfer and bevel */
