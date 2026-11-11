@@ -112568,47 +112568,59 @@ class WorldScene extends Phaser.Scene {
     if(!xf) shadowOf(P, 0, 0);
     else { const V0 = this.vehKit(g, x, y, z, fdir, null), SU = this.tipU || { a: 0, b: this.tipDir || 1 }, sE = (this.tipT || 0)*26*(HL/34);
       shadowOf((a, b, h) => V0.P(a, b, h), (SU.a || 0)*sE, SU.a ? 0 : -sE*(this.tipDir || 1)); }
-    /* THE WAKE (Sir, 2026-11-11: "how does it affect the water when in motion?" / "lets create it"): the boat he drives leaves a trail of
-       its places (a point every 22 units while it moves, kept 2.6 s) and each point spreads into a V of foam either side that thins and
-       fades, so a turn bends the wake as it should; at speed a white churn at the stern and a bow wave either side of the point. Ambient
-       copies (no data.paint) leave none. Drawn on the water before the hull, in world positions (a wobble or a fall does not move it). */
+    /* THE WATER AND THE WAKE (Sir, 2026-11-11: "can we not have it be dots, is there a more convincing way to make the water and the wake
+       look?"): drawn on the water before the hull, in world positions, as FILLED shapes and strokes, no dots. Always a lighter lap of water
+       round the hull (two soft grown copies of its plan). When it moves: a band of foam hugging each flank from the bow's point, widening to
+       the stern; the wake itself a V of turbulent water -- a translucent ribbon between two foam-crested arms, with moving streaks inside and
+       curved cross-waves, built from the trail of its places (a point every 16 units, kept 2.6 s) so a turn bends it and a slow frame leaves
+       no gaps. All of it scaled to the speed. The ones in town (no data.paint) have none. */
     if(WEAR){
-      const sp = Math.min(1, Math.abs((data && data.speed) || 0)/0.16), fwd = fdir*Math.PI/2;
+      const sp = Math.min(1, Math.abs((data && data.speed) || 0)/0.16), fwd = fdir*Math.PI/2, K = this.K;
       const wk = this._boatWake || (this._boatWake = []), last = wk[wk.length - 1];
       if(sp > 0.08 && (!last || last.t !== t) && (!last || Math.hypot(x - last.x, y - last.y) > 16 || t - last.t > 600)) wk.push({ x, y, t, yaw: fwd, sp });
       while(wk.length && (t - wk[0].t > 2600 || wk.length > 200)) wk.shift();
       if(last && t < last.t - 500) wk.length = 0;                                                  // (a cut: the trail starts again)
-      const K = this.K, W3 = (wx, wy) => this.W(wx, wy, z + 0.6), foam = (wx, wy, r, al) => { const c = W3(wx, wy); g.fillStyle(0xf4fbfd, al); g.fillEllipse(c.x, c.y, 2*r*K, r*K); };
-      /* the two arms of the V: a streak joining each point's foam to the next (so a slow frame leaves no gaps), widening and thinning with age */
-      for(const sg of [-1, 1]){
-        let pv = null;
-        for(const q of wk){
-          const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = HW + 28 + age*170, al = (1 - age)*(1 - age)*0.7*q.sp;
-          const c = W3(q.x - Math.cos(q.yaw)*(HL - 40) + nx*sg*sx, q.y - Math.sin(q.yaw)*(HL - 40) + ny*sg*sx);
-          if(pv && al > 0.02){ g.lineStyle(Math.max(1, (5.5 - age*3.5)*K), 0xf4fbfd, Math.min(1, Math.min(pv.al, al)*1.3)); g.lineBetween(pv.c.x, pv.c.y, c.x, c.y); }
-          pv = { c, al };
-        }
-      }
-      for(const q of wk){
-        const age = (t - q.t)/2600, nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), sx = HW + 28 + age*170, al = (1 - age)*(1 - age)*0.6*q.sp, r = 9 + age*16;
-        for(const sg of [-1, 1]) foam(q.x - Math.cos(q.yaw)*(HL - 40) + nx*sg*sx, q.y - Math.sin(q.yaw)*(HL - 40) + ny*sg*sx, r, al);
-        if(age < 0.5) foam(q.x - Math.cos(q.yaw)*(HL - 30), q.y - Math.sin(q.yaw)*(HL - 30), 22 + age*50, (0.5 - age)*1.2*q.sp);   // the churned middle of the wake
-      }
+      const W3 = (wx, wy) => this.W(wx, wy, z + 0.6), cf = Math.cos(fwd), sf = Math.sin(fwd), nfx = -sf, nfy = cf;
+      const here = (a, b) => W3(x + cf*a + nfx*b, y + sf*a + nfy*b);
+      const fillPoly = (pts, col, al) => { if(al > 0.01){ g.fillStyle(col, al); g.fillPoints(pts, true); } };
+      const stroke = (p0, p1, w, al) => { if(al > 0.01){ g.lineStyle(Math.max(1, w*K), 0xf4fbfd, Math.min(1, al)); g.lineBetween(p0.x, p0.y, p1.x, p1.y); } };
+      /* the lap of lighter water round the hull, always */
+      for(const [e, al] of [[34, 0.12], [16, 0.16]]) fillPoly(grow(e).map(([a, b]) => W3(x + cf*a + nfx*b, y + sf*a + nfy*b)), 0xd6ecf4, al*(0.7 + 0.5*sp));
       if(sp > 0.08){
-        /* THE RIPPLE RUNS BACK ALONG THE HULL (Sir: "it should all ripple to the back"): from the bow's point a line of foam falls away down
-           each flank, standing a little off the hull and widening to the stern, where it becomes the wake's two arms; ripple rings ride it */
-        const c = Math.cos(fwd), sn = Math.sin(fwd), nx = -sn, ny = c, K2 = this.K;
-        const at = (a, b) => W3(x + c*a + nx*b, y + sn*a + ny*b);
-        const lane = [[HL + 10, 0], [HL - 60, 22], [SH + 40, HW*0.9 + 12], [SH - 40, HW + 16], [-60, HW + 20], [-HL + 120, HW + 24], [-HL + 40, HW + 28]];
+        /* the foam band down each flank: bow's point to the stern, a strip from the hull's side outward, its edge a bright crest */
+        const lane = [[HL + 8, 0], [HL - 50, 20], [SH + 50, HW + 6], [SH - 40, HW + 8], [-60, HW + 10], [-HL + 120, HW + 12], [-HL + 40, HW + 14]];
         for(const sg of [-1, 1]){
           for(let k = 0; k + 1 < lane.length; k++){
-            const f = k/(lane.length - 1), al = (0.85 - 0.45*f)*sp, p0 = at(lane[k][0], sg*lane[k][1]), p1 = at(lane[k + 1][0], sg*lane[k + 1][1]);
-            g.lineStyle(Math.max(1, (4.5 - 2*f)*K2), 0xf4fbfd, al); g.lineBetween(p0.x, p0.y, p1.x, p1.y);
-            const ph = ((t/260) + k*0.37) % 1, ra = (1 - ph)*0.5*sp, rr = 8 + ph*18, mx = (lane[k][0] + lane[k + 1][0])/2, mb = (lane[k][1] + lane[k + 1][1])/2;
-            foam(x + c*mx + nx*sg*mb, y + sn*mx + ny*sg*mb, rr, ra*(1 - f*0.5));                  // (rings spreading off the line, one after another down it)
+            const f0 = k/(lane.length - 1), f1 = (k + 1)/(lane.length - 1), w0 = 4 + f0*18 + 10*Math.sin(t/180 + k), w1 = 4 + f1*18 + 10*Math.sin(t/180 + k + 1);
+            const i0 = here(lane[k][0], sg*lane[k][1]), i1 = here(lane[k + 1][0], sg*lane[k + 1][1]), o0 = here(lane[k][0] - 4, sg*(lane[k][1] + w0)), o1 = here(lane[k + 1][0] - 4, sg*(lane[k + 1][1] + w1));
+            fillPoly([i0, i1, o1, o0], 0xf4fbfd, (0.55 - 0.3*f0)*sp);
+            stroke(o0, o1, 2.2 - f0, (0.8 - 0.45*f0)*sp);
           }
         }
-        foam(x - c*(HL - 6), y - sn*(HL - 6), 30 + sp*24, 0.35 + 0.35*sp);                          // the churn under the stern
+      }
+      if(wk.length){
+        /* the wake: arms from the trail, each point's arm standing out from the stern's quarter and widening with its age; the boat's own
+           place the youngest end */
+        const pts = wk.concat([{ x, y, t, yaw: fwd, sp }]).map(q => {
+          const age = Math.min(1, (t - q.t)/2600), nx = -Math.sin(q.yaw), ny = Math.cos(q.yaw), bx = q.x - Math.cos(q.yaw)*(HL - 40), by = q.y - Math.sin(q.yaw)*(HL - 40), sx = HW + 28 + age*190;
+          return { age, al: (1 - age)*(1 - age)*q.sp, bx, by, nx, ny, sx, q };
+        });
+        const arm = (u, sg, k) => { const wob = Math.sin(u.age*13 + t/320 + sg*1.7 + k*2.1)*7*u.age; return W3(u.bx + u.nx*sg*(u.sx*k + wob), u.by + u.ny*sg*(u.sx*k + wob)); };
+        for(let i = 0; i + 1 < pts.length; i++){
+          const u = pts[i], v = pts[i + 1], al = (u.al + v.al)/2;
+          fillPoly([arm(u, -1, 1), arm(v, -1, 1), arm(v, 1, 1), arm(u, 1, 1)], 0xe6f6fb, al*0.45);                   // (the turbulent water between the arms)
+          fillPoly([arm(u, -1, 0.45), arm(v, -1, 0.45), arm(v, 1, 0.45), arm(u, 1, 0.45)], 0xffffff, al*0.4);       // (a whiter core down its middle)
+          for(const sg of [-1, 1]){
+            stroke(arm(u, sg, 1), arm(v, sg, 1), 4 - u.age*2.6, al*1.1);                                              // (the crest of each arm)
+            stroke(arm(u, sg, 0.7), arm(v, sg, 0.7), 2, al*0.55);                                                     // (a streak inside it, moving with the water)
+          }
+        }
+        /* cross-waves: a curved crest every few points, bowed back toward the stern */
+        for(let i = 1; i < pts.length - 1; i += 3){
+          const u = pts[i], mid = W3(u.bx - Math.cos(u.q.yaw)*(14 + u.age*40), u.by - Math.sin(u.q.yaw)*(14 + u.age*40));
+          const l = arm(u, -1, 0.9), r = arm(u, 1, 0.9);
+          stroke(l, mid, 2, u.al*0.6); stroke(mid, r, 2, u.al*0.6);
+        }
       }
     }
     /* the hull: a pentagon in plan (the bow a long point), straight sides, Tipsey's chamfer and bevel */
