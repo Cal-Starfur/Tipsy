@@ -112555,14 +112555,21 @@ class WorldScene extends Phaser.Scene {
     const STRIPEC = WEAR ? SKIN.stripe : 0xff7a1a, STRIPED = WEAR ? SKIN.stripeDk : _pdk(0xff7a1a, 0.8);
     const nearB = sees(0, 1, 0) ? 1 : -1;
     const bodyCol = n => n[2] > 0.6 ? ROOF : n[2] > 0.2 ? shadeC(WHITE, 0.95) : WHITE;
-    /* THE SHADOW STAYS ON THE WATER (or the ground): drawn in the un-tipped frame, shifted and stretched by the fall as the bots' */
-    if(!xf) this.drawVehicleShadow(g, P, HL, HW);
+    /* THE SHADOW IS THE HULL'S OWN SHAPE (a pointed pentagon, not the cars' rounded rectangle), a wide faint one under a tighter dark one;
+       it stays on the water: drawn in the un-tipped frame, shifted and stretched by the fall as the bots' */
+    const grow = e => [[-HL - e, -HW - e], [SH, -HW - e], [HL + e*1.2, 0], [SH, HW + e], [-HL - e, HW + e]];
+    const shadowOf = (PP, da, db) => {
+      for(const [e, al] of [[26, 0.10], [10, 0.18]]){
+        let pts = grow(e).map(([a, b]) => PP(a + da, b + db, 0));
+        if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) continue; }
+        g.fillStyle(CARC.shadow, al); g.fillPoints(pts, true);
+      }
+    };
+    if(!xf) shadowOf(P, 0, 0);
     else { const V0 = this.vehKit(g, x, y, z, fdir, null), SU = this.tipU || { a: 0, b: this.tipDir || 1 }, sE = (this.tipT || 0)*26*(HL/34);
-      const da = (SU.a || 0)*sE, db = SU.a ? 0 : -sE*(this.tipDir || 1);
-      this.drawVehicleShadow(g, (a, b, h) => V0.P(a + da, b + db, 0), HL + (SU.a ? sE : 0), HW + (SU.a ? 0 : sE)); }
+      shadowOf((a, b, h) => V0.P(a, b, h), (SU.a || 0)*sE, SU.a ? 0 : -sE*(this.tipDir || 1)); }
     /* the hull: a pentagon in plan (the bow a long point), straight sides, Tipsey's chamfer and bevel */
     const plan = [[-HL, -HW], [SH, -HW], [HL, 0], [SH, HW], [-HL, HW]];
-    const grow = e => [[-HL - e, -HW - e], [SH, -HW - e], [HL + e*1.2, 0], [SH, HW + e], [-HL - e, HW + e]];
     /* a skin's print and finish on a wall (a rectangle in plan run a0..a1 x +-hw, z0..z1), the faces that are seen: as the planes' fuselage */
     const wallPrint = (a0, a1, hw, z0, z1) => {
       if(!WEAR || !(BPW.print || BPW.fin)) return;
