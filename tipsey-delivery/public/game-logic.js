@@ -111616,7 +111616,7 @@ class WorldScene extends Phaser.Scene {
     for(let i = 0; i < ST.length - 1; i++){
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
       const bedTop = !!B.bed && i >= B.bed.seg;
-      segs.push(() => { const LF = loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps); if(B.bed && i === B.bed.seg - 1) LF.open = true;   // (the body's last length before the bed is open at the bed's end: its silhouette filled over the bed hid the bed's front)
+      segs.push(() => { const LF = loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps); if(B.bed && i >= B.bed.seg - 1) LF.open = true;   // (the body's last length before the bed is open at the bed's end: its silhouette filled over the bed hid the bed's front)
         solid(LF, col.body,
         (k, n) => bedTop && n[2] > 0.95 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)); });   // (the bed's own floor is sunk below, drawn with its walls)
     }
