@@ -98956,6 +98956,11 @@ class WorldScene extends Phaser.Scene {
     bx(-176, -160, -22, 22, 42, 54, GAL[0], GAL[1], GAL[2]);                                // the bow stop's frame...
     bx(-188, -172, -4, 4, 42, 78, GAL[0], GAL[1], GAL[2]);                                  // the winch post
     bx(-190, -170, -10, 10, 70, 80, DK[0], DK[1], DK[2]);                                   // its winch
+    /* the tail lights stand behind the outboard (nearer the eye than the frame's end): before the boat, out past its chine so they still show */
+    for(const sb of [-1, 1]){
+      bx(SE - 2, SE + 3, sb*47 - 7, sb*47 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
+      bx(SE - 2, SE + 3, sb*47 - 3, sb*47 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
+    }
     /* ---- the boat, bow north, lowered onto the bunks ---- */
     /* at the fleet's size: L in world units, and no `side` -- not afloat */
     const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#3d6a4f', '#2f5f6e', '#7a2f2c', '#1f3a4d'][Math.floor(rr()*4)],
@@ -98967,10 +98972,6 @@ class WorldScene extends Phaser.Scene {
     /* ---- the front: the camera-side wheel and mudguard, the tail lights ---- */
     fender(50, 68);
     wheel(54, 64, WA, WR, WR, true);
-    for(const sb of [-1, 1]){
-      bx(SE - 2, SE + 3, sb*40 - 7, sb*40 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
-      bx(SE - 2, SE + 3, sb*40 - 3, sb*40 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
-    }
   }
   /* the kayak rack: a timber frame and three tiers of kayaks */
   drawHarborRack(g, x, y){
