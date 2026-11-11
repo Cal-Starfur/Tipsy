@@ -111440,7 +111440,7 @@ class WorldScene extends Phaser.Scene {
       const caps = (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0);
       const bedTop = !!B.bed && i >= B.bed.seg;
       segs.push(() => solid(loftSeg(ST[i][0], SEC[i], ST[i + 1][0], SEC[i + 1], caps), col.body,
-        (k, n) => bedTop && n[2] > 0.95 ? col.roof : (n[2] < -0.2 ? col.bodyDk : col.body)));   // (the bed's own floor is sunk below, drawn with its walls)
+        (k, n) => bedTop && n[2] > 0.95 ? null : (n[2] < -0.2 ? col.bodyDk : col.body)));   // (the bed's own floor is sunk below, drawn with its walls)
     }
     /* the bumpers: dark plastic under each end, a plate on each */
     const bz = B.bumperZ || [21, 31];
@@ -111460,6 +111460,42 @@ class WorldScene extends Phaser.Scene {
     /* the bumpers first: each runs back under the body, and the body must
        cover that part. Then the body, nose first or tail first, nearest last */
     bumper(!nose)(); bumper(nose)();
+    /* ---- the pickup's bed: a real bed, SUNK into the body (Sir, 2026-11-11: "it shouldn't be built up at all ... we are
+       compensating for the rear of the truck not being an actual bed by building up instead of in"): the body's own sides, flush with
+       its beltline, are the walls, and the floor is let down inside them to FL. THE BODY'S TOP IS LEFT OPEN over the bed (its segments
+       from B.bed.seg back skip their top face), and what is inside -- the floor, the far wall, the end away from the eye -- is
+       painted BEFORE the body, so the near flank and the near end cover their foot where they should; nothing is painted over the
+       body from inside it (that was the dark wedge beside the cab, and the lumps at the tail's corner). Only the rims on top of the
+       near side and the near end are painted after (bedNear) ---- */
+    let bedNear = null;
+    if(B.bed){
+      const B0 = -hl + 1, B1 = B.gh.r0 - 1, HT = B.bed.top, FL = 48;   // (B1: the bed runs right up to the cab's rear pillar, no slot between)
+      /* the body's half width at a (its stations, in line between them): the walls stand on it */
+      const wAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, w0] = ST[i], [a1, w1] = ST[i + 1];
+        if(a <= a0 && a >= a1) return w0 + (w1 - w0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][1]; };
+      const w0 = wAt(B0), w1 = wAt(B1), fw = Math.min(w1, B.gh.w0);   // (fw: the front wall no wider than the cab it backs onto)
+      solid(prismH([[B0 + 9, -wAt(B0 + 9) + 5], [B1, -w1 + 5], [B1, w1 - 5], [B0 + 9, wAt(B0 + 9) - 5]], FL - 3, FL), CR.bedFloor);
+      for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, FL + 0.3], [B1 - 2, b, FL + 0.3], 0x30353b, 1.6);
+      const wall = (sb, z0) => () => solid(prismH([[B0, sb*(w0 - 5)], [B1, sb*(w1 - 5)], [B1, sb*w1], [B0, sb*w0]], z0, HT),
+        col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
+      const front = z0 => () => solid(prismH([[B1, -fw], [B1 + 5, -fw], [B1 + 5, fw], [B1, fw]], z0, HT), col.body);
+      /* THE TAILGATE IS THE BODY'S TAIL: a panel on the whole width of the tail, from just above the bumper to the rim, flush
+         with the flanks and in the body's paint, the lamps and handle painted over it again (the tail drew them before the bed) */
+      const gate = z0 => () => {
+        solid(prismH([[B0 - 1, -w0], [B0 + 4, -w0], [B0 + 4, w0], [B0 - 1, w0]], z0, HT - 1), col.body);
+        if(nose) return;
+        const a = B0 - 1.5;
+        if(B.tail === "tall") for(const sb of [-1, 1]){
+          Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
+          Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
+          Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 41 + 6)], 0xe9ecef);
+        }
+        Q([P(a, -7, HT - 9), P(a, 7, HT - 9), P(a, 7, HT - 5), P(a, -7, HT - 5)], TRIM);   // the gate's handle
+      };
+      (nose ? gate(FL) : front(FL))();      // (the end away from the eye)
+      wall(-nearB, FL)();                   // (the far wall, its inside showing)
+      bedNear = () => { wall(nearB, 62)(); (nose ? front(66) : gate(36))(); };
+    }
     for(const f of (nose ? segs.slice().reverse() : segs)) f();
 
     /* ---- the ends ---- */
@@ -111585,40 +111621,8 @@ class WorldScene extends Phaser.Scene {
     }
     }
 
-    /* ---- the pickup's bed: a real bed, SUNK into the body (Sir, 2026-11-11: "it shouldn't be built up at all ... we are
-       compensating for the rear of the truck not being an actual bed by building up instead of in"): the walls are the body's own
-       sides, flush with its beltline (HT, 2 over the 66 flank); the floor is let down inside them to FL, painted over the body's
-       top, with the ribs on it. The walls come after, from FL up, so the near one hides the floor's near edge ---- */
-    if(B.bed){
-      const B0 = -hl + 1, B1 = B.gh.r0 - 1, HT = B.bed.top, FL = 48;   // (B1: the bed runs right up to the cab's rear pillar, no slot between)
-      /* the body's half width at a (its stations, in line between them): the walls stand on it */
-      const wAt = a => { for(let i = 0; i < ST.length - 1; i++){ const [a0, w0] = ST[i], [a1, w1] = ST[i + 1];
-        if(a <= a0 && a >= a1) return w0 + (w1 - w0)*(a0 - a)/((a0 - a1) || 1); } return ST[ST.length - 1][1]; };
-      const w0 = wAt(B0), w1 = wAt(B1);
-      solid(prismH([[B0 + 9, -wAt(B0 + 9) + 5], [B1, -w1 + 5], [B1, w1 - 5], [B0 + 9, wAt(B0 + 9) - 5]], FL - 3, FL), CR.bedFloor);
-      for(let b = -24; b <= 24; b += 16) line([B0 + 8, b, FL + 0.3], [B1 - 2, b, FL + 0.3], 0x30353b, 1.6);
-      const wall = sb => () => solid(prismH([[B0, sb*(w0 - 5)], [B1, sb*(w1 - 5)], [B1, sb*w1], [B0, sb*w0]], FL - 2, HT),
-        col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
-      const fw = Math.min(w1, B.gh.w0);   // (no wider than the cab it backs onto: the greenhouse is narrower than the body, and the wall's face showed as a dark wedge beside its pillar)
-      const front = () => solid(prismH([[B1, -fw], [B1 + 5, -fw], [B1 + 5, fw], [B1, fw]], FL - 2, HT), col.body, (k, n) => n[0] > 0.9 ? null : col.body);
-      /* THE TAILGATE IS THE BODY'S TAIL (Sir, 2026-11-11, "an issue in the very back"): a panel on the whole width of the tail, from just
-         above the bumper to the rim, flush with the flanks and in the body's paint -- it had stood 5 in from each flank and
-         only from 62 up, a rim floating over a dark gap with the lamps' tops cut off under it. The lamps and handle are
-         painted over it again (the tail drew them before the bed) */
-      const gate = () => {
-        solid(prismH([[B0 - 1, -w0], [B0 + 4, -w0], [B0 + 4, w0], [B0 - 1, w0]], 36, HT - 1), col.body);
-        if(nose) return;
-        const a = B0 - 1.5;
-        if(B.tail === "tall") for(const sb of [-1, 1]){
-          Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
-          Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
-          Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 41 + 6)], 0xe9ecef);
-        }
-        Q([P(a, -7, HT - 9), P(a, 7, HT - 9), P(a, 7, HT - 5), P(a, -7, HT - 5)], TRIM);   // the gate's handle
-      };
-      const bed = nose ? [gate, wall(-nearB), wall(nearB), front] : [front, wall(-nearB), wall(nearB), gate];
-      for(const f of bed) f();
-    }
+    /* ---- the pickup's bed, its near side and near end (the rest was drawn before the body: bedNear, above) ---- */
+    if(bedNear) bedNear();
 
     /* ---- what stands on the bonnet and the boot: drawn before the cab
        when it is the far end, after it when it is the near one ---- */
