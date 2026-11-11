@@ -127459,9 +127459,7 @@ class WorldScene extends Phaser.Scene {
        wait that never clears (a jam it cannot see the end of) lets it go
        after 7s rather than leave him lying there */
     v.stall = blocked ? (v.stall || 0) + dt : 0;
-    /* (held up only by a car that is itself waiting on him, tipped in its lane: nothing there clears till the crew have him up,
-       so after a moment it goes on past -- Sir, 2026-11-11: "the crew can't get to me") */
-    if(v.stall > (this._gwHim ? 2500 : 30000)) blocked = false;   // (respects the traffic: only a wait that has not cleared in half a minute -- a jam it is part of -- is let go)
+    if(v.stall > 90000) blocked = false;   // (never drives through a car on a short wait -- Sir, 2026-11-11; only a jam that has not cleared in a minute and a half, so he is never left lying for good)   // (respects the traffic: only a wait that has not cleared in half a minute -- a jam it is part of -- is let go)
     const vf = v.vf === undefined ? 1 : v.vf;
     v.vf = blocked ? Math.max(0, vf - dt/350) : Math.min(1, vf + dt/900);
     v.u0 = rescueClock(v, t) - dt*v.rate*(1 - v.vf);
@@ -127474,11 +127472,6 @@ class WorldScene extends Phaser.Scene {
   trafficGiveWay(t, at){
     const traffic = this.trafficActive(t);
     let blocked = false;
-    /* a car waiting on HIM, lying tipped in its lane (botWait: DRIVER.hornAfter's wait), holds a van that is coming for him: the
-       two wait on each other (updateRescueVanTraffic lets that one go early, this._gwHim) */
-    const onHim = tr => this.state === "tipped" && tr.botEnc && !tr.distracted && (tr.botWait || 0) > 1000;
-    let byHim = false, byOther = false;
-    this._gwHim = false;
     if(traffic && traffic.length){
       const L = at.len || CARC.len;
       const vh = at.fdir*(Math.PI/2), vx = Math.cos(vh), vy = Math.sin(vh), H = L*0.42;
@@ -127498,9 +127491,9 @@ class WorldScene extends Phaser.Scene {
         if(carWaits && vanWaits){
           const ni = Math.round(wp.x/BLOCK), nj = Math.round(wp.y/BLOCK);
           const inBox = Math.abs(wp.x - ni*BLOCK) < ROAD_HALF && Math.abs(wp.y - nj*BLOCK) < ROAD_HALF;
-          if(inBox){ blocked = true; if(onHim(tr)) byHim = true; else byOther = true; } else tr.stopAt = t;
+          if(inBox) blocked = true; else tr.stopAt = t;
         } else if(carWaits) tr.stopAt = t;
-        else if(vanWaits){ blocked = true; if(onHim(tr)) byHim = true; else byOther = true; }
+        else if(vanWaits) blocked = true;
       }
     }
     /* AND THE STREET'S RIDERS, the same rule (STREET_RIDER: look, band -- updateRiderTraffic's): a rider in this vehicle's way,
@@ -127516,10 +127509,9 @@ class WorldScene extends Phaser.Scene {
         if(dx*dx + dy*dy > (1100 + L/2)*(1100 + L/2)) continue;
         const rh = a.fc*Math.PI/2, rx = Math.cos(rh), ry = Math.sin(rh), rPts = [-30, 0, 30].map(k => ({ x: wp.x + rx*k, y: wp.y + ry*k }));
         if(inWay(wp.x, wp.y, rx, ry, vPts, SR.look + 30)) rd.carWait = t;
-        else if(!at.parked && inWay(at.x, at.y, vx, vy, rPts, H + TRAF_BRAKE_D + 90)){ blocked = true; byOther = true; }
+        else if(!at.parked && inWay(at.x, at.y, vx, vy, rPts, H + TRAF_BRAKE_D + 90))blocked = true;
       }
     }
-    this._gwHim = blocked && byHim && !byOther;
     return blocked;
   }
 
