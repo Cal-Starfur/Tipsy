@@ -114639,6 +114639,7 @@ class WorldScene extends Phaser.Scene {
        stripe's pattern and the badge, his eyes in the face. No flag or topper (as the drones): a plane has no pole to carry one */
     const WEAR = !!(data && data.paint), BPW = WEAR ? this.bodyPaint() : null;
     const BODY = WEAR ? BPW.top : col.body, STRIPE = WEAR ? SKIN.stripe : col.stripe, GLASS = 0x2f4250, STEEL = 0x9aa1a6, DARK = 0x2a2c30;
+    const WING = WEAR && SKIN.wingCol != null ? SKIN.wingCol : BODY, TIPC = WEAR && SKIN.tipCol != null ? SKIN.tipCol : null, FINC = WEAR && SKIN.finCol != null ? SKIN.finCol : null;   // (a plane skin's own wing and tail colour, wing tips and fin: SKIN.wingCol, tipCol, finCol)
     const nearB = sees(0, 1, 0) ? 1 : -1, nose = sees(1, 0, 0), has = f => PK.add.includes(f);
     const lift = PK.gear === "floats" ? 70 : 0;
     /* a taildragger sits tail down: behind the wing its body drops, to SAG
@@ -114689,6 +114690,56 @@ class WorldScene extends Phaser.Scene {
       const ac = (aR + aF)/2, Sc = stAt(ac), hz = Sc[2] - Sc[1];
       this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: (aF - aR)/2, hy: Sc[0], ch: 4, s0: Sc[1] + hz*f0, s1: Sc[1] + hz*f1, dz: Sc[1] + hz*0.78, dk: 0.45*hz/50 });
     }});
+    /* A PLANE SKIN'S OWN MARKS (SKIN.sharkmouth, tally, invasion, dazzle on the fuselage's flank; sunburst, roundel, invasion, dazzle on the wings'
+       tops): drawn only on the plane he flies. F maps (a along, f 0..1 up the flank) to the seen flank's surface; the wing marks lie on the wing's top */
+    if(WEAR && (SKIN.sharkmouth || SKIN.tally || SKIN.invasion || SKIN.dazzle || SKIN.sunburst || SKIN.roundel || SKIN.hBands || SKIN.vBands)){
+      const nb = nearB, flankOn = Math.abs(V.eye[1]) >= 0.12;
+      const F = (a, f, k = 0.9) => { const S = stAt(a); return P(a, nb*(S[0] + k), S[1] + (S[2] - S[1])*f); };
+      const poly = (pts, c, al) => Q(pts, c, al);
+      const edge = (pts, c, w) => { g.lineStyle(this.kw(w), c, 1); g.beginPath(); g.moveTo(pts[0].x, pts[0].y); for(let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y); g.closePath(); g.strokePath(); };
+      if(flankOn) parts.push({ d: 1000, draw: () => {
+        if(SKIN.sharkmouth){
+          /* THE SHARK MOUTH (the Flying Tigers' P-40s): a red open mouth round the nose, a row of white teeth along its upper lip, a white eye with a
+             black pupil above it -- the mouth's lines kept to the flank's own stations so it follows the nose's taper */
+          const mouth = [[104, 0.34], [128, 0.16], [150, 0.12], [NA - 3, 0.14], [NA - 3, 0.52], [150, 0.50], [124, 0.46]].map(([a, f]) => F(a, f));
+          poly(mouth, 0xc8302e); poly([[112, 0.36], [128, 0.2], [150, 0.17], [NA - 6, 0.19], [NA - 6, 0.3], [150, 0.27], [124, 0.3]].map(([a, f]) => F(a, f, 0.95)), 0x7a1418);   // (the dark throat)
+          for(let k = 0; k < 6; k++){ const a0 = 124 + k*10, a1 = a0 + 8, am = (a0 + a1)/2; poly([F(a0, 0.5), F(a1, 0.5), F(am, 0.37)].map(q => q), 0xf4f4ee); }
+          edge(mouth, 0x14161c, 1.2);
+          const ey = F(102, 0.66, 1), er = [...Array(14)].map((_, i) => F(102 + Math.cos(i/14*Math.PI*2)*6, 0.66 + Math.sin(i/14*Math.PI*2)*0.11, 1));
+          poly(er, 0xf4f4ee); edge(er, 0x14161c, 1); poly([F(104, 0.64, 1.2), F(108, 0.64, 1.2), F(108, 0.72, 1.2), F(104, 0.72, 1.2)], 0x14161c);
+        }
+        if(SKIN.hBands) for(const [f0, f1, c, al] of SKIN.hBands){                                       // (horizontal bands along the whole fuselage: the sunset's gradient, a polish's glint)
+          const N = 8, aA = -140, aB = NA - 4; for(let k = 0; k < N; k++){ const x0 = aA + (aB - aA)*k/N, x1 = aA + (aB - aA)*(k + 1)/N; poly([F(x0, f0), F(x1, f0), F(x1, f1), F(x0, f1)], c, al); } }
+        if(SKIN.vBands) for(let a = -130; a < NA - 30; a += SKIN.vBands.step) poly([F(a, 0.03), F(a + SKIN.vBands.w, 0.03), F(a + SKIN.vBands.w, 0.97), F(a, 0.97)], SKIN.vBands.c);   // (the bee's bands round the body)
+        if(SKIN.tally){
+          /* THE MISSION TALLY: a row of little bombs under the nose art's heart, one painted for each delivery */
+          for(let k = 0; k < 9; k++){ const a = 20 + k*11; poly([F(a, 0.64), F(a + 5, 0.64), F(a + 5, 0.84), F(a, 0.84)], 0x16171b); poly([F(a + 1, 0.84), F(a + 4, 0.84), F(a + 2.5, 0.92)], 0x16171b); }
+        }
+        if(SKIN.invasion){
+          /* INVASION STRIPES: black and white bands round the rear fuselage, as the D-Day aircraft wore */
+          const cols = [0xf2f1ea, 0x15161a, 0xf2f1ea, 0x15161a, 0xf2f1ea];
+          cols.forEach((c, k) => { const a0 = -150 + k*13, a1 = a0 + 13; poly([F(a0, 0.02), F(a1, 0.02), F(a1, 0.98), F(a0, 0.98)], c); });
+        }
+        if(SKIN.dazzle){
+          /* DAZZLE: bold slanting bands of black, white and blue across the flank, to confuse the eye */
+          const cols = [0x15161a, 0xf2f1ea, 0x2a5fa8, 0xf2f1ea, 0x15161a, 0x2a5fa8];
+          cols.forEach((c, k) => { const a0 = -150 + k*52, a1 = a0 + 26; poly([F(a0, 0.04), F(a1, 0.04), F(a1 + 20, 0.96), F(a0 + 20, 0.96)], c); });
+        }
+      }});
+      parts.push({ d: 6100, draw: () => {
+        const hz = wh + 7.4, wa0 = W.a0 + 3, wa1 = W.a1 - 3;
+        for(const sb of [-1, 1]){
+          if(SKIN.invasion) [0xf2f1ea, 0x15161a, 0xf2f1ea, 0x15161a, 0xf2f1ea].forEach((c, k) => { const b0 = 150 + k*22; poly([P(wa1, sb*b0, hz), P(wa1, sb*(b0 + 22), hz), P(wa0, sb*(b0 + 22), hz), P(wa0, sb*b0, hz)], c); });
+          if(SKIN.dazzle) [0x15161a, 0xf2f1ea, 0x2a5fa8, 0xf2f1ea, 0x15161a, 0x2a5fa8].forEach((c, k) => { const b0 = 60 + k*40; poly([P(wa1, sb*b0, hz), P(wa1, sb*(b0 + 20), hz), P(wa0 - 12, sb*(b0 + 40), hz), P(wa0 - 12, sb*(b0 + 20), hz)], c); });
+          if(SKIN.sunburst) for(let k = 0; k < 8; k++){ const b0 = sb*(40 + k*32), b1 = sb*(56 + k*32); poly([P(wa1 - 2, b0, hz), P(wa1 - 2, b1, hz), P(wa0 + 4, b1 + sb*10, hz), P(wa0 + 4, b0 + sb*10, hz)], STRIPE); }
+          if(SKIN.roundel){
+            /* a roundel on the wing's top near each tip: concentric discs in the skin's colours, outermost first */
+            const rc = SKIN.roundel, cb = sb*span*0.62, ca = (W.a0 + W.a1)/2;
+            rc.forEach((c, k) => { const r = 24*(1 - k/rc.length*0.85); poly([...Array(20)].map((_, i) => P(ca + Math.cos(i/20*Math.PI*2)*r*0.9, cb + Math.sin(i/20*Math.PI*2)*r, hz + 0.05*k)), c); });
+          }
+        }
+      }});
+    }
     /* marks that run across segments, on the seen flank, after the body */
     const fl = (a, h, k = 0.8) => P(a, nearB*(stAt(a)[0] + k), h + lift);
     if(has("bolt") || has("cargoDoor")) parts.push({ d: 1000, draw: () => {
@@ -114716,7 +114767,7 @@ class WorldScene extends Phaser.Scene {
     /* ---- the wings ---- */
     const wingPlan = (sb, a0, a1, sp, root, sweep = 0) => [[a1, sb*root], [a1 - sweep, sb*sp], [a0 + 6, sb*sp], [a0, sb*root]];
     const tipAndLight = (sb, a0, a1, sp, h) => {
-      Q([[a1 - 2, sb*sp], [a0 + 6, sb*sp], [a0 + 6, sb*(sp - 26)], [a1 - 2, sb*(sp - 26)]].map(([a, b]) => P(a, b, h + 0.3)), PK.tip || STRIPE);
+      Q([[a1 - 2, sb*sp], [a0 + 6, sb*sp], [a0 + 6, sb*(sp - 26)], [a1 - 2, sb*(sp - 26)]].map(([a, b]) => P(a, b, h + 0.3)), TIPC != null ? TIPC : PK.tip || STRIPE);
       const nl = P((a0 + a1)/2, sb*(sp + 1), h - 2); g.fillStyle(sb > 0 ? 0x5fd47e : 0xe03a2f, 1); g.fillCircle(nl.x, nl.y, 2.4*this.K*0.42);
     };
     const wingSlab = (sb, w, h) => () => {
@@ -114729,7 +114780,7 @@ class WorldScene extends Phaser.Scene {
     };
     if(W.pos === "high"){                                         // across the roof in one piece, after the body
       parts.push({ d: 6000, draw: () => {
-        solid(prismH([[W.a1, -span], [W.a1 + 4, -18], [W.a1 + 4, 18], [W.a1, span], [W.a0 + 6, span], [W.a0, 18], [W.a0, -18], [W.a0 + 6, -span]], wh, wh + 7), BODY);
+        solid(prismH([[W.a1, -span], [W.a1 + 4, -18], [W.a1 + 4, 18], [W.a1, span], [W.a0 + 6, span], [W.a0, 18], [W.a0, -18], [W.a0 + 6, -span]], wh, wh + 7), WING);
         for(const sb of [-1, 1]){ tipAndLight(sb, W.a0, W.a1, span, wh + 7); line([W.a0 + 10, sb*40, wh + 7.4], [W.a0 + 12, sb*(span - 30), wh + 7.4], 0xb9bdc2, 1.2); }
       }});
     } else for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6000 : -9000, draw: wingSlab(sb, W, wh) });
@@ -114779,12 +114830,12 @@ class WorldScene extends Phaser.Scene {
        corner to its top-front one (finProf[2], [3]), not from a chord of its own that stood 28 ahead of the fin */
     const tRR = T.t ? finProf[2][0] : TA - 2, tRF = T.t ? finProf[3][0] : TA + T.c;
     const tailHalf = (sb) => () => {
-      solid(prismH([[tRF, sb*6], [tRF - 22, sb*T.span], [tRR + 8, sb*T.span], [tRR, sb*6]], tz, tz + 5), BODY);
+      solid(prismH([[tRF, sb*6], [tRF - 22, sb*T.span], [tRR + 8, sb*T.span], [tRR, sb*6]], tz, tz + 5), WING);
       line([tRR + 14, sb*8, tz + 5.4], [tRR + 16, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
     };
     const fin = () => {
       solid(prismB(finProf, -3.5, 3.5), BODY, (k, n) => Math.abs(n[1]) > 0.5 ? null : BODY);
-      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), PK.finCol || STRIPE);
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), FINC != null ? FINC : PK.finCol || STRIPE);
       const top = finProf[2], bc = P((finProf[2][0] + finProf[3][0])/2, 0, top[1] + 2.5); g.fillStyle(0xe03a2f, 1); g.fillCircle(bc.x, bc.y, 2.6*this.K*0.42);
     };
     /* THE T: one tailplane across the fin's top (Sir, 2026-11-01: "the plane delivery drones are drawing their tail bad"):
@@ -114794,7 +114845,7 @@ class WorldScene extends Phaser.Scene {
     /* ONE PLANE, ONE SOLID (Sir, 2026-11-11: "so we don't see the outline of the rectangle through the top"): the T's two halves and the centre
        section between them each drew their own outline, and the centre's showed through the top. It is one convex slab across the span now */
     const tailT = () => {
-      solid(prismH([[tRF - 22, -T.span], [tRF, -6], [tRF, 6], [tRF - 22, T.span], [tRR + 8, T.span], [tRR, 6], [tRR, -6], [tRR + 8, -T.span]], tz, tz + 5), BODY);
+      solid(prismH([[tRF - 22, -T.span], [tRF, -6], [tRF, 6], [tRF - 22, T.span], [tRR + 8, T.span], [tRR, 6], [tRR, -6], [tRR + 8, -T.span]], tz, tz + 5), WING);
       for(const sb of [-1, 1]) line([tRR + 14, sb*8, tz + 5.4], [tRR + 16, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
     };
     if(T.t){ parts.push({ d: 6500, draw: fin }); parts.push({ d: 6650, draw: tailT }); }
@@ -127931,6 +127982,26 @@ const SK_TRASH_PANDA = {
   wheelHubFace:0x15161a, wheelHub:0xa9b0b8, eye:0xffe27a, eyeAlert:0xff4a4a,
   flag:0x15161a, flagPole:0x1a1b1e, emblem:'paw', emblemColor:0x15161a, decalCol:0x15161a
 };
+/* THE PLANES' OWN SKINS (Sir, 2026-11-11: "air delivery skins or retro airplane looks ... the Flying Tigers"; TP_SKINS' fleet ['uavplane', 'uavcargo'], free): fourteen
+   looks, each a body, a stripe and a second band, and the plane's own marks -- SKIN.wingCol (the wings and tail plane), tipCol (the wing tips), finCol (the fin), roundel
+   (concentric discs on each wing's top), sharkmouth, tally, invasion (bands round the tail and across the wings), dazzle and sunburst -- drawn by drawPlane */
+const _skp = (top, stripe, stripe2, o) => Object.assign({ bodyTop:top, bodyRight:_pdk(top, 0.88), bodyLeft:_pdk(top, 0.72), outline:_pdk(top, 0.25),
+  stripe, stripeDk:_pdk(stripe, 0.78), stripe2, stripe2Dk:_pdk(stripe2, 0.78), lidInner:top, belly:_pdk(top, 0.25), wheelHubFace:stripe, wheelHub:_pdk(top, 0.8),
+  eye:0x9fe8ff, eyeAlert:0xff4a4a, flag:stripe, flagPole:_pdk(top, 0.25) }, o);
+const SK_TIGER_SHARK = _skp(0x6f7650, 0xc8302e, 0x16171b, { sharkmouth:true, emblem:'paw', decalCol:0xf2c230, tipCol:0xc8302e });
+const SK_INVASION = _skp(0x5a6240, 0xf2f1ea, 0x15161a, { invasion:true, roundel:[0x1f3f8a,0xf2f1ea,0xc8302e], emblem:'star', decalCol:0xf2f1ea });
+const SK_NOSE_ART = _skp(0x6a7048, 0xd8c27a, 0x2a2d1c, { tally:true, emblem:'heart', decalCol:0xd8352a, tipCol:0x2a2d1c });
+const SK_AIR_MAIL = _skp(0x1d2f5c, 0xf2c230, 0xf4f4ee, { wingCol:0xf2c230, tipCol:0xc8302e, roundel:[0xc8302e,0xf4f4ee,0x1d2f5c], emblem:'plane', decalCol:0xf2c230 });
+const SK_BARNSTORMER = _skp(0xc8352e, 0xf3ecd8, 0x16171b, { band:'checks', sunburst:true, emblem:'star', decalCol:0xf3ecd8, tipCol:0xf3ecd8 });
+const SK_CLIPPER = _skp(0xdfe4ea, 0x1f5fbf, 0x7fc8f0, { print:'chrome', hBands:[[0.62, 0.74, 0xffffff, 0.6]], emblem:'swoosh', decalCol:0x1f5fbf, tipCol:0x1f5fbf });
+const SK_AIRLINER_57 = _skp(0xf3f1ea, 0xd8352a, 0x1f3f6f, { finCol:0xd8352a, tipCol:0xd8352a, emblem:'bolt', decalCol:0xd8352a });
+const SK_BUSH_PILOT = _skp(0xf08a24, 0xf4f4ee, 0x15161a, { wingCol:0xf08a24, band:'chevrons', tipCol:0x15161a, emblem:'target', decalCol:0x15161a });
+const SK_BUMBLEBEE = _skp(0xf2c230, 0x16171b, 0x16171b, { vBands:{ c:0x16171b, w:15, step:34 }, wingCol:0x1a1a1e, tipCol:0xf2c230, finCol:0x16171b, emblem:'hibiscus', decalCol:0x16171b });
+const SK_POLAR = _skp(0xf4f7fa, 0xd8352a, 0x1f3f6f, { tipCol:0xd8352a, finCol:0xd8352a, emblem:'paw', decalCol:0x1f3f6f });
+const SK_DAZZLE = _skp(0xf2f1ea, 0x2a5fa8, 0x15161a, { dazzle:true, tipCol:0x15161a, finCol:0x2a5fa8 });
+const SK_TIPSY_EXPRESS = _skp(0xf4f5f6, 0xff7a1a, 0x15161a, { band:'chevrons', tipCol:0xff7a1a, finCol:0xff7a1a, emblem:'heart', decalCol:0xff7a1a });
+const SK_SUN_DECK_GULL = _skp(0xf6d9a0, 0xe9573f, 0x6a3a8a, { hBands:[[0.02, 0.22, 0x6a3a8a], [0.22, 0.42, 0xc2487a], [0.42, 0.62, 0xe9573f], [0.62, 0.82, 0xf2a04a]], tipCol:0xe9573f, emblem:'swoosh', decalCol:0xfff3d6 });
+const SK_NIGHT_MAIL = _skp(0x1b2038, 0xf2a93b, 0x6a4fb8, { tipCol:0xf2a93b, emblem:'star', decalCol:0xf2a93b, eye:0xffd37a });
 const SKIN_PALETTES = {
   "tokyo-taxi":     SK_TOKYO_TAXI,
   "airport-shuttle":SK_AIRPORT_SHUTTLE,
@@ -127967,14 +128038,28 @@ const SKIN_PALETTES = {
   "racing-stripe":  SK_RACING_STRIPE,
   "board-shorts":   SK_BOARDSHORTS,
   "engine-red":     SK_ENGINE_RED,
-  "costa-palma":    SK_COSTA_PALMA
+  "costa-palma":    SK_COSTA_PALMA,
+  "tiger-shark":      SK_TIGER_SHARK,
+  "invasion-stripes": SK_INVASION,
+  "nose-art":         SK_NOSE_ART,
+  "air-mail":         SK_AIR_MAIL,
+  "barnstormer":      SK_BARNSTORMER,
+  "clipper":          SK_CLIPPER,
+  "airliner-57":      SK_AIRLINER_57,
+  "bush-pilot":       SK_BUSH_PILOT,
+  "bumblebee":        SK_BUMBLEBEE,
+  "polar-flight":     SK_POLAR,
+  "dazzle":           SK_DAZZLE,
+  "tipsy-express":    SK_TIPSY_EXPRESS,
+  "sun-deck-gull":    SK_SUN_DECK_GULL,
+  "night-mail":       SK_NIGHT_MAIL
 };
 /* Paint the equipped skin onto the robot. The store already had a full
    own/equip flow — it just set tpProfile.equipped to a string that
    NOTHING read, so equipping changed a badge and nothing else. */
 function tpApplySkin(id){
   /* a vehicle's own skin (TP_SKINS' fleet) is worn only while he is that vehicle: as anyone else he is in the classic */
-  { const k = typeof tpSkinById === "function" ? tpSkinById(id) : null; if(k && k.fleet && (typeof fleetCur !== "function" || fleetCur() !== k.fleet)) id = "classic"; }
+  { const k = typeof tpSkinById === "function" ? tpSkinById(id) : null; if(k && k.fleet && (typeof fleetCur !== "function" || !(Array.isArray(k.fleet) ? k.fleet.includes(fleetCur()) : fleetCur() === k.fleet))) id = "classic"; }
   /* Object.assign alone can't UNSET a key. Fire Chief adds `stars`,
      Daredevil adds `stripe2`/`stripe2Dk` — none of which exist on
      SKIN_BASE, so switching back to stock (or to the other skin) left
@@ -138603,6 +138688,35 @@ const TP_SKINS = [
     filter:"none", desc:"White with a blue band, a jet on the flank and a roof rack, for the airport run." },
   { skinId:"yellow-cab",     displayName:"Yellow Cab",     unlockType:"free",         fleet:"robotaxi",
     filter:"none", desc:"A 1970s New York cab: taxi yellow, the black checker band, the lit TAXI sign on the roof." },
+  /* THE PLANES' OWN (fleet: the Delivery drone plane and the Long-range cargo drone; free): fourteen retro and air-delivery looks */
+  { skinId:"tiger-shark", displayName:"Tiger Shark", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Olive drab with a red shark mouth and white teeth round the nose, as the Flying Tigers' fighters wore, and a tiger paw on the flank." },
+  { skinId:"invasion-stripes", displayName:"Invasion Stripes", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Olive drab with the black and white bands round the tail and across the wings, and roundels on the wing tops, as on D-Day." },
+  { skinId:"nose-art", displayName:"Nose Art", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Olive drab with a heart on the flank and a row of little bombs, one for every delivery." },
+  { skinId:"air-mail", displayName:"Air Mail", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Navy with yellow wings and tail and a roundel on each wing, as the first air mail carriers of the 1920s." },
+  { skinId:"barnstormer", displayName:"Barnstormer", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Red with a cream checkerboard band, a sunburst across the wings and a star on the flank: a county-fair stunt plane." },
+  { skinId:"clipper", displayName:"Clipper", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Polished aluminium with a thin blue cheatline, the transoceanic flying boats' look." },
+  { skinId:"airliner-57", displayName:"Airliner '57", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"White with a red cheatline, red wing tips, a red tail and a lightning flash on the flank: the jet age's first airliners." },
+  { skinId:"bush-pilot", displayName:"Bush Pilot", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Bright orange so it can be found in the snow, with black wing tips, chevrons and a bullseye on the flank." },
+  { skinId:"bumblebee", displayName:"Bumblebee", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Yellow and black bands, dark wings with yellow tips and a flower on the flank." },
+  { skinId:"polar-flight", displayName:"Polar Flight", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"White with red wing tips and tail so it can be seen on the ice, and a bear's paw on the flank." },
+  { skinId:"dazzle", displayName:"Dazzle", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"The First World War's dazzle camouflage: bold slanting bands of black, white and blue across the body and wings." },
+  { skinId:"tipsy-express", displayName:"Tipsy Express", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Tipsey's own white and orange, with chevrons on the band and a heart on the flank." },
+  { skinId:"sun-deck-gull", displayName:"Sun Deck Gull", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Sun Deck Airfield's sunset: a gradient of gold, coral and violet, with a gull's swoop on the flank." },
+  { skinId:"night-mail", displayName:"Night Mail", unlockType:"free", fleet:["uavplane", "uavcargo"],
+    filter:"none", desc:"Midnight blue with amber and violet bands and a star: the overnight run." },
   /* THE GARBAGE TRUCK'S OWN (fleet: the Robo garbage truck; free): six hauler liveries */
   { skinId:"green-machine",  displayName:"Green Machine",  unlockType:"free",         fleet:"avgarbage",
     filter:"none", desc:"The big hauler's green and yellow with a white swoosh on the body: it's on your street Tuesday." },
@@ -142561,7 +142675,7 @@ requestTpProfile();
     }
     P.className = 'grList';
     const L = pv || worn();
-    const skins = TP_SKINS.filter(k => !k.fleet || k.fleet === fleetCur()).map(k => {
+    const skins = TP_SKINS.filter(k => !k.fleet || (Array.isArray(k.fleet) ? k.fleet.includes(fleetCur()) : k.fleet === fleetCur())).map(k => {
       const sel = L.skin === k.skinId && !L.body && !L.stripe;
       return `<button class="grSkin${sel ? ' sel' : ''}" data-skin="${k.skinId}">${tpRobotSvg(k.filter, 34, k.skinId)}<span>${k.displayName}</span>${tagOf('skin', k.skinId, L.skin === k.skinId)}</button>`;
     }).join('');
