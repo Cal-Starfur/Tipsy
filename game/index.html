@@ -5162,8 +5162,9 @@ const FLEET = {
   "boat:drone":     { name: "Survey boat", cls: "sail", art: "boat:drone", body: { len: 560, wid: 202, h: 120, cap: true }, fit: { r: 280, h: 120 },
                       ctl: { botR: 140 },   // (its hit box: a quarter of its length, between its 101 half-beam and its 280 half-length)
                        bay: "boathouse", unlock: "harbour-survey", abilities: ["sonar"], ambient: { basin: true } },
-  "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170 }, fit: { r: 440, h: 170 },
-                      ctl: {}, bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
+  "boat:watertaxi": { name: "Water taxi", cls: "sail", art: "boat:watertaxi", body: { len: 880, wid: 317, h: 170, cap: true }, fit: { r: 440, h: 170 },
+                      ctl: { botR: 220 },   // (its hit box: a quarter of its length, between its 158 half-beam and its 440 half-length)
+                      bay: "boathouse", unlock: "feeding-time", abilities: ["passengers", "dock"], ambient: { stops: ["harbor", "pier", "driftwood"] } }
 };
 for(const k in FLEET){ const F = FLEET[k]; F.looks = F.looks || ["body", "stripe", "livery"]; }
 /* THE GROUND VEHICLES STEER LIKE THEMSELVES (Sir, 2026-11-09: "we want each to drive as it would in the real world, not be on a
@@ -100386,7 +100387,7 @@ class WorldScene extends Phaser.Scene {
      its drawProp art, or a boat's Harbor Boat, as drawFleetAvatarAt */
   drawFleetParked(g, kind, x, y, yaw){
     const f = yaw/(Math.PI/2);
-    if(kind.startsWith("boat:") && kind !== "boat:drone"){
+    if(kind.startsWith("boat:") && kind !== "boat:drone" && kind !== "boat:watertaxi"){
       const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
       if(!sh) return;
       sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
@@ -114245,8 +114246,10 @@ class WorldScene extends Phaser.Scene {
      eyes in the face. No flag or topper (a boat of this kind has no pole to carry one). It falls as the walkers do: a roll about the
      outer edge of the hull and a pitch about its bow or stern, the same pose Tipsey takes (data.roll, data.pitch, data.pitchSg).
      a runs bow (+) to stern, b across, h up from the water */
-  drawSurveyBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
-    const HL = 280, HW = 101, SH = 100, HH = 60, RPIV = 90, PPIV = 260;
+  drawAutoBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
+    const TX = kind === "boat:watertaxi";                                                      // (the water taxi: the same hull, longer, with a glazed cabin)
+    const HL = TX ? 440 : 280, HW = TX ? 158 : 101, SH = TX ? 170 : 100, HH = TX ? 70 : 60, RPIV = TX ? 130 : 90, PPIV = TX ? 420 : 260;
+    const SZ0 = TX ? 27 : 24, SZ1 = TX ? 39 : 34, SZ2 = TX ? 19 : 17;
     const roll = data && data.roll || 0, pitch = data && data.pitch || 0;
     let xf = null;
     if(Math.abs(roll) > 0.002 || Math.abs(pitch) > 0.002){
@@ -114351,11 +114354,12 @@ class WorldScene extends Phaser.Scene {
       solid(prismH(plan, 0, HH), WHITE, (i, n) => bodyCol(n));
       solid(prismH(grow(0.6), 0, 9), 0x2a2f36, (i, n) => Math.abs(n[2]) > 0.5 ? null : 0x2a2f36);
       wallPrint(-HL + 10, SH - 6, HW + 0.4, 10, HH - 6);
-      if(WEAR && SKIN.stripe2) solid(prismH(grow(0.7), 17, 21), SKIN.stripe2, (i, n) => Math.abs(n[2]) > 0.5 ? null : SKIN.stripe2);
-      solid(prismH(grow(0.8), 24, 34), STRIPEC, (i, n) => Math.abs(n[2]) > 0.5 ? null : STRIPEC);
+      if(WEAR && SKIN.stripe2) solid(prismH(grow(0.7), SZ2, SZ2 + 4), SKIN.stripe2, (i, n) => Math.abs(n[2]) > 0.5 ? null : SKIN.stripe2);
+      solid(prismH(grow(0.8), SZ0, SZ1), STRIPEC, (i, n) => Math.abs(n[2]) > 0.5 ? null : STRIPEC);
       if(WEAR){ const ac = (-HL + SH)/2;
-        this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: (SH + HL)/2 - 4, hy: HW, ch: 4, s0: 24, s1: 34, dz: 47, dk: 0.5 }); }
+        this.botSkinWear(g, { P: (a, b, h) => P(a + ac, b, h), sees }, { hx: (SH + HL)/2 - 4, hy: HW, ch: 4, s0: SZ0, s1: SZ1, dz: HH - 13, dk: TX ? 0.6 : 0.5 }); }
     } });
+    if(!TX){
     /* the housing: a low block aft of the middle (its print and finish on every wall, a band of his stripe round it), then the lid */
     const A0 = -190, A1 = 130, HB = 78, Z0 = HH, Z1 = 112, ZL = 118;
     parts.push({ h: 70, draw: () => {
@@ -114389,6 +114393,46 @@ class WorldScene extends Phaser.Scene {
       line([-150, -HB*0.5, ZL], [-150, -HB*0.5, ZL + 74], DARK, 1.4);
       const tp = P(-150, -HB*0.5, ZL + 75); g.fillStyle(0xe8453c, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.5);
     } });
+    } else {
+      /* THE WATER TAXI'S CABIN: a low white sill, glass all round between slim pillars of his body colour, a band of his stripe (and the
+         second band) under a flat roof that overhangs it, the line's lidar pucks on the roof's front corners and its mast, Tipsey's face
+         across the glass at the front. It carries no one until a mission sends riders. */
+      const A0 = -300, A1 = 190, HB = 122, ZS = 86, ZG = 144, ZR = 160, ZT = 168, GL = 0x26313b;
+      const rect = e => [[A0 - e, -HB - e], [A1 + e, -HB - e], [A1 + e, HB + e], [A0 - e, HB + e]];
+      const band = (z0, z1, e, col) => solid(prismH(rect(e), z0, z1), col, (i, n) => Math.abs(n[2]) > 0.5 ? null : col);
+      parts.push({ h: 80, draw: () => {
+        solid(prismH(rect(0), HH, ZS), WHITE, (i, n) => bodyCol(n));
+        wallPrint(A0, A1, HB + 0.4, HH + 3, ZS - 3);
+      } });
+      parts.push({ h: 110, draw: () => {
+        solid(prismH(rect(-3), ZS, ZG), GL, (i, n) => n[2] > 0.5 ? null : GL);
+        /* the pillars: a slim strip on each seen wall, in his body colour; the glass between lets the day through */
+        const pil = (a0, b0, a1, b1, z0, z1, n0, n1) => { if(sees(n0, n1, 0)) Q([P(a0, b0, z0), P(a1, b1, z0), P(a1, b1, z1), P(a0, b0, z1)], shadeC(WHITE, 0.9 + 0.1*(n1 !== 0 ? 1 : 0))); };
+        for(const sg of [-1, 1]) for(let a = A0 + 6; a <= A1 - 3; a += 82) pil(a, sg*(HB + 0.4), a + 7, sg*(HB + 0.4), ZS, ZG, 0, sg);
+        for(let b = -HB + 4; b <= HB - 4; b += 80) pil(A1 + 0.4, b, A1 + 0.4, b + 7, ZS, ZG, 1, 0);
+        for(let b = -HB + 4; b <= HB - 4; b += 80) pil(A0 - 0.4, b, A0 - 0.4, b + 7, ZS, ZG, -1, 0);
+        this.tipseyFace(V, A1 + 0.4, 118, 2.8);                                            // (Tipsey's face across the front glass)
+      } });
+      parts.push({ h: 140, draw: () => {
+        if(WEAR && SKIN.stripe2) band(ZG - 7, ZG - 3, 4.7, SKIN.stripe2);
+        band(ZG, ZR, 5, STRIPEC);
+        solid(prismH(rect(10), ZR, ZT), ROOF, (i, n) => n[2] > 0.6 ? ROOF : WHITE);
+        if(WEAR) this.botSkinWear(g, { P: (a, b, h) => P(a + (A0 + A1)/2, b, h), sees }, { hx: (A1 - A0)/2, hy: HB + 5, ch: 4, s0: ZG, s1: ZR, dz: ZS - 8, dk: 0.4 });
+      } });
+      parts.push({ h: 150, draw: () => {
+        for(const sb of [-1, 1]){ const ca = A1 - 8, cb = sb*(HB - 10);                          // (the corner pucks)
+          this.avLathe(V, ca, cb, [[ZT, 7], [ZT + 9, 7]], 0x23272d, null, 10);
+          this.avLathe(V, ca, cb, [[ZT + 9, 7.4], [ZT + 12, 7.4]], CYAN, () => CYAN, 10);
+          this.avLathe(V, ca, cb, [[ZT + 12, 7], [ZT + 18, 5.4]], 0x2d3238, null, 10); }
+        const MA = A1 - 40;                                                                      // (the mast and its puck)
+        this.avLathe(V, MA, 0, [[ZT, 3.4], [ZT + 52, 3]], DARK, null, 10);
+        this.avLathe(V, MA, 0, [[ZT + 52, 8], [ZT + 60, 8]], 0x23272d, null, 12);
+        this.avLathe(V, MA, 0, [[ZT + 60, 8.4], [ZT + 63, 8.4]], CYAN, () => CYAN, 12);
+        this.avLathe(V, MA, 0, [[ZT + 63, 8], [ZT + 70, 6.4]], 0x2d3238, null, 12);
+        line([A0 + 40, -HB*0.5, ZT], [A0 + 40, -HB*0.5, ZT + 80], DARK, 1.4);                    // (the whip aerial aft)
+        const tp = P(A0 + 40, -HB*0.5, ZT + 81); g.fillStyle(0xe8453c, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.5);
+      } });
+    }
     parts.sort((p, q) => V.depth(0, 0, p.h) - V.depth(0, 0, q.h));
     for(const pt of parts) pt.draw();
   }
@@ -118871,8 +118915,8 @@ class WorldScene extends Phaser.Scene {
       this.drawJet(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
     } else if(kind === "cessna" || kind === "twin" || kind === "twinopen"){
       this.drawAircraft(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);
-    } else if(kind === "boat:drone"){
-      this.drawSurveyBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the survey boat (fp-boat-drone)
+    } else if(kind === "boat:drone" || kind === "boat:watertaxi"){
+      this.drawAutoBoat(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // the survey boat (fp-boat-drone)
     } else if(BOTS[kind]){
       this.drawBot(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data);   // Tipsey's siblings and the yard robots
     } else if(AV_PODS[kind]){
@@ -119764,7 +119808,7 @@ class WorldScene extends Phaser.Scene {
     const g = this.g, x = this.botX, y = this.botY, z = this.botZ || 0;
     const yaw = (this.ow && this.ow.on) ? this.ow.yaw : (this.drawAngle || 0), f = yaw/(Math.PI/2);
     this._fleetWheel = ((this._fleetWheel || 0) + (this.speed || 0)*(dt || 16)*0.05) % (Math.PI*2*1000);
-    if(kind.startsWith("boat:") && kind !== "boat:drone"){
+    if(kind.startsWith("boat:") && kind !== "boat:drone" && kind !== "boat:watertaxi"){
       const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC, sh = LIB.get("Harbor Boat"), c = Math.cos(yaw), s2 = Math.sin(yaw);
       if(!sh) return;
       sh._boat = { kind: bk, L, hull: "#f6f3ea", trim: "#ff7a1a", side: 0, bow: 1, x: 0, y: 0 };
@@ -119807,7 +119851,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
       : kind === "avpod" ? Object.assign({ paint: true }, podLockerData(this), typeof fmPodData === "function" ? fmPodData() : null)   // (a locker open for his orders, or CATCH OF THE DAY's, in his paint)
-      : kind === "boat:drone" ? { paint: true, speed: this.speed || 0, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the survey boat wears his paint and falls as he does)
+      : kind === "boat:drone" || kind === "boat:watertaxi" ? { paint: true, speed: this.speed || 0, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the survey boat wears his paint and falls as he does)
       : kind === "avsemi" || kind === "avgarbage" || kind === "avdump" || kind === "avsweeper" || kind === "avforklift" || kind === "uavplane" || kind === "uavcargo" ? { paint: true }
       : kind === "robotaxi" || kind === "avpod" || kind === "avshuttle" ? { paint: true, door: this._taxiDoor || 0 } : null;                                   // (a locker open for CATCH OF THE DAY)
     /* THE SEMI IN TWO PIECES (FLEET_STEER.avsemi.trail): the tractor on ow's heading, the trailer on its own, its front face on the
@@ -128220,7 +128264,7 @@ class WorldScene extends Phaser.Scene {
     this.camX = 0; this.camY = 0; this.camZ = 0; this.cx = sx; this.cy = sy; this.K = k;
     this._tspPainting = true;
     try {
-      if(kind.startsWith('boat:') && kind !== 'boat:drone'){
+      if(kind.startsWith('boat:') && kind !== 'boat:drone' && kind !== 'boat:watertaxi'){
         const bk = kind.slice(5), L = BOAT_LEN[bk]*BOAT_SC;
         const HT = { motor: ['#2f5f6e', '#1f3a4d'], sail: ['#f6f3ea', '#b8423a'], trawler: ['#1f3a4d', '#c8352e'], tug: ['#7a2f2c', '#2b2f36'],
                      ferry: ['#f6f3ea', '#23405e'], jetski: ['#f6f3ea', '#c8352e'], patrol: ['#f6f3ea', '#1f3a4d'], pontoon: ['#f6f3ea', '#23405e'],
