@@ -114745,11 +114745,14 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the tail: tailplane halves (or the T on the fin's top) and the fin ---- */
     const T = PK.tail, tz = (T.t ? T.h : T.h + lift) + tl(TA + 20);
-    const tailHalf = (sb) => () => {
-      solid(prismH([[TA + T.c, sb*6], [TA + T.c - 22, sb*T.span], [TA + 6, sb*T.span], [TA - 2, sb*6]], tz, tz + 5), BODY);
-      line([TA + 12, sb*8, tz + 5.4], [TA + 14, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
-    };
     const finProf = T.fin.map(([a, h]) => [TA + a, h + lift + tl(TA + a)]);
+    /* A T-TAIL'S PLANE SITS ON THE FIN'S TOP (Sir, 2026-11-11: "the tail wing doesn't line up in the back"): its root runs from the fin's top-rear
+       corner to its top-front one (finProf[2], [3]), not from a chord of its own that stood 28 ahead of the fin */
+    const tRR = T.t ? finProf[2][0] : TA - 2, tRF = T.t ? finProf[3][0] : TA + T.c;
+    const tailHalf = (sb) => () => {
+      solid(prismH([[tRF, sb*6], [tRF - 22, sb*T.span], [tRR + 8, sb*T.span], [tRR, sb*6]], tz, tz + 5), BODY);
+      line([tRR + 14, sb*8, tz + 5.4], [tRR + 16, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
+    };
     const fin = () => {
       solid(prismB(finProf, -3.5, 3.5), BODY, (k, n) => Math.abs(n[1]) > 0.5 ? null : BODY);
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(finProf.map(([a, h]) => P(a, sb*3.5, h)), PK.finCol || STRIPE);
@@ -114758,7 +114761,7 @@ class WorldScene extends Phaser.Scene {
     /* THE T: one tailplane across the fin's top (Sir, 2026-11-01: "the plane delivery drones are drawing their tail bad"):
        the halves began 6 out on a fin 3.5 thick, nothing between them, and read as two loose plates. The centre
        section joins them over the fin, the far half first, then the centre, then the near half */
-    const tailMid = () => solid(prismH([[TA + T.c, -6.5], [TA + T.c, 6.5], [TA - 2, 6.5], [TA - 2, -6.5]], tz, tz + 5), BODY);
+    const tailMid = () => solid(prismH([[tRF, -6.5], [tRF, 6.5], [tRR, 6.5], [tRR, -6.5]], tz, tz + 5), BODY);
     if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); parts.push({ d: 6650, draw: tailMid }); }
     else { for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: tailHalf(sb) }); parts.push({ d: 6500, draw: fin }); }
 
