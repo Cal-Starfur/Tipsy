@@ -111478,9 +111478,20 @@ class WorldScene extends Phaser.Scene {
       const wall = sb => () => solid(prismH([[B0, sb*(w0 - 5)], [B1, sb*(w1 - 5)], [B1, sb*w1], [B0, sb*w0]], FL - 2, HT),
         col.body, (k, n) => n[2] > 0.9 ? col.roof : col.body);
       const front = () => solid(prismH([[B1, -w1], [B1 + 5, -w1], [B1 + 5, w1], [B1, w1]], FL - 2, HT), col.body);
+      /* THE TAILGATE IS THE BODY'S TAIL (Sir, 2026-11-11, "an issue in the very back"): a panel on the whole width of the tail, from just
+         above the bumper to the rim, flush with the flanks and in the body's paint -- it had stood 5 in from each flank and
+         only from 62 up, a rim floating over a dark gap with the lamps' tops cut off under it. The lamps and handle are
+         painted over it again (the tail drew them before the bed) */
       const gate = () => {
-        solid(prismH([[B0 - 1, -w0 + 5], [B0 + 4, -w0 + 5], [B0 + 4, w0 - 5], [B0 - 1, w0 - 5]], 62, HT - 1), col.body);   // (from the lamps' top up: the tail's lamps stay on the body's face below it)
-        if(!nose) Q([P(B0 - 1.4, -7, HT - 9), P(B0 - 1.4, 7, HT - 9), P(B0 - 1.4, 7, HT - 5), P(B0 - 1.4, -7, HT - 5)], TRIM);
+        solid(prismH([[B0 - 1, -w0], [B0 + 4, -w0], [B0 + 4, w0], [B0 - 1, w0]], 36, HT - 1), col.body);
+        if(nose) return;
+        const a = B0 - 1.5;
+        if(B.tail === "tall") for(const sb of [-1, 1]){
+          Q([P(a, sb*31, 40), P(a, sb*41, 40), P(a, sb*41, 60), P(a, sb*31, 60)], 0x2f343b);
+          Q([P(a - 0.1, sb*32, 48), P(a - 0.1, sb*40, 48), P(a - 0.1, sb*40, 59), P(a - 0.1, sb*32, 59)], CR.tail);
+          Q([P(a - 0.1, sb*32, 41), P(a - 0.1, sb*40, 41), P(a - 0.1, sb*40, 47), P(a - 0.1, sb*32, 41 + 6)], 0xe9ecef);
+        }
+        Q([P(a, -7, HT - 9), P(a, 7, HT - 9), P(a, 7, HT - 5), P(a, -7, HT - 5)], TRIM);   // the gate's handle
       };
       const bed = nose ? [gate, wall(-nearB), wall(nearB), front] : [front, wall(-nearB), wall(nearB), gate];
       for(const f of bed) f();
