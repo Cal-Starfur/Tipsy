@@ -5451,6 +5451,27 @@ function fleetPadAt(s){
   if(d && k && s._tpPark && d.key === s._tpPark.key) return null;
   return d;
 }
+/* where a boat is put on the water: off the boathouse's front, the first spot with open water all round its hull */
+function fleetBoatLaunchAt(s, k){
+  if(!s || !s.route) return null;
+  const ds = s.route.dateStr, hg = harborGeo(), fb = HARBOR.FLEET_BOAT, R = ((FLEET[k] && FLEET[k].ctl && FLEET[k].ctl.botR) || 140)*1.2;
+  const wet = (x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, c]) => harborWaterAt(x + a*R, y + c*R, ds));
+  const cx = (fb.x0 + fb.x1)/2;
+  for(let dy = 1100; dy < 6000; dy += 200) for(const dx of [0, -300, 300, -600, 600, -900, 900]) if(wet(cx + dx, hg.basin.y0 + dy)) return { x: cx + dx, y: hg.basin.y0 + dy, a: Math.PI/2 };
+  return null;
+}
+/* A BOAT IS A WATER VEHICLE (Sir, 2026-11-11: "we need to get this thing only in the water, it shouldn't be in the streets"): the
+   sail class goes only where there is water -- the harbor's basin, the open sea, and the boathouse's own floor and slipway (dry, but
+   where it launches from); everywhere else is a wall to it, and it never splashes. */
+function fleetIsSail(){ const F = FLEET[fleetCur()]; return !!F && F.cls === "sail"; }
+function fleetBoatWetAt(x, y){
+  for(const H of fleetHalls()){
+    if(x < H.x0 - 40 || x > H.x1 + 40 || y < H.y0 - 400 || y > H.y1 + 400) continue;
+    const p = H.toLab(x, y), sl = H.S.slip || 0;
+    if(sl && p.a >= 0 && p.a <= H.W && p.b >= -sl && p.b <= H.D) return true;
+  }
+  return false;
+}
 /* the collision: a hall's walls (its side walls, the piers and lintel of
    the door face, the back wall; a door down is a wall), its floor open,
    the boathouse's slipway closed (a boat waits in its bay for P5's water).
@@ -5474,7 +5495,7 @@ function fleetBaySolidAt(x, y, R){
       }
     }
     if(!S.through && hit(0, W, D - T, D)) return H.blk;
-    if(sl && hit(0, W, -sl, 0)) return H.blk;
+    if(sl && !fleetIsSail() && hit(0, W, -sl, 0)) return H.blk;   // (the slipway closed to everything but a boat)
     if(p.a >= 0 && p.a <= W && p.b >= 0 && p.b <= D) return false;
     /* the doorstep of a door that is up: the hall's, so a whole-block landmark's volume round it (the Market Hall's
        yard is solid to its edge) never stops him in his own doorway */
@@ -5564,6 +5585,11 @@ function fleetGarageCut(s){
     s._doorShutFrom = 0; s._doorShutT0 = performance.now(); s._doorShut = 'gideon-pad';
     s._garage.key = 'gideon-pad';
     return true;
+  }
+  /* A BOAT HAS NO BAY YET (the boathouse is not built): it is put on the harbor's water off the boathouse's front, never left on the street */
+  if(k && FLEET[k] && FLEET[k].cls === "sail" && !fleetBayOf(k)){
+    const Lw = fleetBoatLaunchAt(s, k);
+    if(Lw){ const items = s.items; owStandUpAt(s, Lw.x, Lw.y, Lw.a); s.items = items || []; return true; }
   }
   const home = fleetHomeFor(s, k);
   if(!k) s._tpPark = null;
@@ -10511,13 +10537,18 @@ function owStep(scene, dt){
      over, and owGeofenceTick drives him back (Sir, 2026-10-07) */
   /* ON THE GARAGE ROOF the deck is his whole world: its parapets, cars
      and lamp posts, and none of the city's blocks or kerbs below */
-  const _wf = FP.fly ? owWaterFn(scene, ow) : null, _wds = scene.route && scene.route.dateStr;
+  const SAIL = fleetIsSail();
+  const _wf = FP.fly || SAIL ? owWaterFn(scene, ow) : null, _wds = scene.route && scene.route.dateStr;
   /* over water if any of it is: its middle, or a point round its rim (the edge blocks as soon as the body overlaps it) */
   const _overWater = (x, y) => !!_wf && [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => _wf(x + a*D.botR*1.2, y + c*D.botR*1.2, _wds));
   /* IN AN INTERIOR (POCKETS) the room is his whole world: its walls and
      furniture, and none of the city's kerbs, sea or hills -- it stands off
      the map, where those would read as ocean */
-  const blockAt0 = (x, y, ox, oy) => ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
+  /* A BOAT: only on water (the basin, the sea, the boathouse's floor and slipway); the land's kerbs and the harbor's quays are walls to it
+     whatever they are, and the water's own solids (a moored hull, a pier's piles) are not water (owWaterFn) */
+  const sailBlock = (x, y) => [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].every(([a, c]) => { const px = x + a*D.botR*1.2, py = y + c*D.botR*1.2; return fleetBoatWetAt(px, py) || _wf(px, py, _wds); })
+    ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('world', x, y, D.botR, false) || null) : OW_CURB_BLOCK;
+  const blockAt0 = (x, y, ox, oy) => SAIL ? sailBlock(x, y) : ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
                             pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
@@ -10558,7 +10589,7 @@ function owStep(scene, dt){
   }
   const _full = blockAt(ow.px + stepX, ow.py + stepY, _ox, _oy);
   /* the harbor's edge is a kerb at a crawl, and over the side at speed */
-  if(_full === OW_CURB_BLOCK && !FP.fly) owSplashCheck(scene, ow, D);
+  if(_full === OW_CURB_BLOCK && !FP.fly && !SAIL) owSplashCheck(scene, ow, D);
   if(!_full){
     ow.px += stepX; ow.py += stepY;
   } else {
