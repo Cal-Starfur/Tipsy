@@ -3018,7 +3018,7 @@ const CAR_BODIES = {
     cowl: 40, cab: -32, doors: 2, door0: 38, door1: -28, filler: -hl + 24,
     gh: { f0: 36, r0: -30, f1: 12, r1: -28, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
-    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 90 }
+    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 79 }
   }),
   /* ---- BATCH 3 (2026-10-11): the pickup's two variants. The crew cab is
      the pickup with a longer, four-door cab and a shorter bed; the lifted
@@ -3029,7 +3029,7 @@ const CAR_BODIES = {
     cowl: hl - 92, cab: hl - 202, doors: 4, door0: hl - 94, door1: hl - 146, door2: hl - 198, filler: -hl + 24,
     gh: { f0: hl - 96, r0: hl - 200, f1: hl - 120, r1: hl - 198, w0: hw - 4, w1: hw - 8, top: roofH - 4 },
     backGlass: [0.2, 0.8, 0.28, 0.86], mirrorBack: 4,
-    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 90 }
+    grille: "chrome", tail: "tall", bootLine: false, stepBumper: true, bed: { seg: 3, top: 79 }
   }),
   lifted: (hl, hw, roofH) => Object.assign(CAR_BODIES.pickup(hl, hw, roofH), { len: 236, lift: 16, wheelR: 31, wheelW: 13, wheelOut: 2 }),
   /* ---- BATCH 2 (2026-10-11): the fifteen new cars' bodies. Optional
