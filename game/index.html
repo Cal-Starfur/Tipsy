@@ -116468,7 +116468,13 @@ class WorldScene extends Phaser.Scene {
        the halves began 6 out on a fin 3.5 thick, nothing between them, and read as two loose plates. The centre
        section joins them over the fin, the far half first, then the centre, then the near half */
     const tailMid = () => solid(prismH([[tRF, -6.5], [tRF, 6.5], [tRR, 6.5], [tRR, -6.5]], tz, tz + 5), BODY);
-    if(T.t){ parts.push({ d: 6500, draw: fin }); for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 6700 : 6600, draw: tailHalf(sb) }); parts.push({ d: 6650, draw: tailMid }); }
+    /* ONE PLANE, ONE SOLID (Sir, 2026-11-11: "so we don't see the outline of the rectangle through the top"): the T's two halves and the centre
+       section between them each drew their own outline, and the centre's showed through the top. It is one convex slab across the span now */
+    const tailT = () => {
+      solid(prismH([[tRF - 22, -T.span], [tRF, -6], [tRF, 6], [tRF - 22, T.span], [tRR + 8, T.span], [tRR, 6], [tRR, -6], [tRR + 8, -T.span]], tz, tz + 5), BODY);
+      for(const sb of [-1, 1]) line([tRR + 14, sb*8, tz + 5.4], [tRR + 16, sb*(T.span - 4), tz + 5.4], 0xb9bdc2, 1.2);
+    };
+    if(T.t){ parts.push({ d: 6500, draw: fin }); parts.push({ d: 6650, draw: tailT }); }
     else { for(const sb of [-1, 1]) parts.push({ d: sb === nearB ? 4000 : -9500, draw: tailHalf(sb) }); parts.push({ d: 6500, draw: fin }); }
 
     /* ---- the prop ---- */
