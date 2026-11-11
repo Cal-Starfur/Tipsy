@@ -75103,7 +75103,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const kind = bt.kind, L = bt.L / 2, Bm = harborBoatBeam(kind, bt.L) / 2;
     const Hd = kind === 'skiff' || kind === 'drone' ? 30 : kind === 'yacht' ? 72 : kind === 'tug' ? 70 : kind === 'jetski' ? 22 : kind === 'trawler' || kind === 'ferry' ? 60 : 52;
     const HULL = bt.hull, TRIM = bt.trim, DECK = kind === 'sail' ? '#c8a46e' : kind === 'tug' || kind === 'trawler' ? '#9aa1a6' : '#ece6d8';
-    const dark = HULL === '#1f3a4d' || HULL === '#7a2f2c' || HULL === '#2f5f6e';
+    const dark = HULL === '#1f3a4d' || HULL === '#7a2f2c' || HULL === '#2f5f6e' || HULL === '#3d6a4f';
     const WHITE = '#f6f3ea', GLASS = '#26303a', STEEL = '#c3c9d1', TEAK = '#c8a46e';
     const hb = Bm/2, sh = L/2 - Bm*0.85;
     /* the sheer: the deck edge rises toward the bow, so the hull reads as a
@@ -98874,7 +98874,7 @@ class WorldScene extends Phaser.Scene {
     const rr = mulberry32(0x5eed + k*131);
     const kind = rr() < 0.55 ? 'skiff' : 'motor';
     const SE = kind === 'skiff' ? 140 : 190;                                               // the frame's stern end: just past the transom
-    const WA = kind === 'skiff' ? 38 : 55, WR = 27;                                        // the axle: aft of the middle
+    const WA = kind === 'skiff' ? 38 : 55, WR = 22;                                        // the axle: aft of the middle
     const fender = (b0, b1) => {                                                           // an arched mudguard over the tyre
       for(let i = 0; i < 6; i++){
         const t0 = Math.PI*(0.08 + 0.84*i/6), t1 = Math.PI*(0.08 + 0.84*(i + 1)/6), r0 = WR + 3, r1 = WR + 6;
@@ -98886,43 +98886,41 @@ class WorldScene extends Phaser.Scene {
     };
     /* the shadow on the paving: under the trailer and the boat on it, a little toward the camera */
     this.quadOn(g, [P(-270, -74, 0), P(SE + 14, -74, 0), P(SE + 14, 86, 0), P(-270, 86, 0)], 0x000000, 0.14);
+    this.quadOn(g, [P(-250, -50, 0), P(SE + 6, -50, 0), P(SE + 6, 50, 0), P(-250, 50, 0)], 0x000000, 0.16);   // its own darker footprint
     /* ---- the back: far wheel, tongue, frame, bunks, bow post ---- */
-    wheel(-66, -52, WA, WR, WR, false);
-    fender(-70, -48);
+    wheel(-64, -54, WA, WR, WR, false);
+    fender(-68, -50);
     const bar = (b0, b1, b2, b3) => {                                                       // a drawbar leg, rail to coupler
       q([P(-190, b0, 40), P(-190, b1, 40), P(-252, b3, 40), P(-252, b2, 40)], GAL[0]);
       q([P(-190, b1, 40), P(-190, b1, 34), P(-252, b3, 34), P(-252, b3, 40)], GAL[1]);
     };
     bar(-42, -34, -9, -3); bar(34, 42, 3, 9);
-    bx(-276, -250, -9, 9, 32, 50, DK[0], DK[1], DK[2]);                                     // the coupler
-    bx(-268, -258, -3, 3, 50, 56, GAL[0], GAL[1], GAL[2]);                                  // its latch
+    bx(-268, -250, -6, 6, 32, 44, DK[0], DK[1], DK[2]);                                     // the coupler
     bx(-236, -230, -3, 3, 2, 34, GAL[0], GAL[1], GAL[2]);                                   // the jack's leg...
     bx(-242, -224, -9, 9, 0, 3, DK[0], DK[1], DK[2]);                                       // ...and its foot
     bx(-205, -195, -44, 44, 34, 42, GAL[0], GAL[1], GAL[2]);                                // the front cross member
     for(const sb of [-1, 1]) bx(-200, SE, sb*40 - 4, sb*40 + 4, 32, 42, GAL[0], GAL[1], GAL[2]);   // the side rails
     for(const a of kind === 'skiff' ? [-120, -40, 30, 100] : [-120, -30, 40, 110]) bx(a - 4, a + 4, -40, 40, 33, 40, GAL[0], GAL[1], GAL[2]); // the cross members
-    bx(WA - 3, WA + 3, -66, 66, WR - 3, WR + 3, DK[0], DK[1], DK[2]);                       // the axle
+    bx(WA - 3, WA + 3, -64, 64, WR - 3, WR + 3, DK[0], DK[1], DK[2]);                       // the axle
     for(const sb of [-1, 1]){                                                                // the bunks, on their posts
-      for(const a of [-140, -40, 60, SE - 50]) bx(a - 3, a + 3, sb*22 - 2, sb*22 + 2, 40, 44, DK[0], DK[1], DK[2]);
-      bx(-170, SE - 30, sb*22 - 7, sb*22 + 7, 44, 49, BUNK[0], BUNK[1], BUNK[2]);
+      for(const a of [-140, -40, 60, SE - 50]) bx(a - 3, a + 3, sb*32 - 2, sb*32 + 2, 40, 44, DK[0], DK[1], DK[2]);
+      bx(-170, SE - 30, sb*32 - 8, sb*32 + 8, 44, 49, BUNK[0], BUNK[1], BUNK[2]);
     }
     bx(-176, -160, -22, 22, 42, 54, GAL[0], GAL[1], GAL[2]);                                // the bow stop's frame...
-    bx(-168, -160, -14, 14, 54, 66, 0x2a2e33, 0x1d2024, 0x14171a);                          // ...and its rubber
     bx(-188, -172, -4, 4, 42, 78, GAL[0], GAL[1], GAL[2]);                                  // the winch post
     bx(-190, -170, -10, 10, 70, 80, DK[0], DK[1], DK[2]);                                   // its winch
-    bx(-186, -176, 10, 14, 72, 78, 0xe0b23c, 0xc29a30, 0xa3822a);                           // its handle
     /* ---- the boat, bow north, lowered onto the bunks ---- */
     /* at the fleet's size: L in world units, and no `side` -- not afloat */
-    const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#f6f3ea', '#2f5f6e', '#7a2f2c', '#e9eef2'][Math.floor(rr()*4)],
+    const bt = { kind, L: (kind === 'skiff' ? 300 : 400)*BOAT_SC, hull: ['#3d6a4f', '#2f5f6e', '#7a2f2c', '#1f3a4d'][Math.floor(rr()*4)],
                  trim: ['#1f3a4d', '#2f7f86', '#b8423a', '#c9a043'][Math.floor(rr()*4)] };
     const sh = LIB.get('Harbor Boat');
     if(sh) sh._boat = bt;
     try { LIB.draw('Harbor Boat', g, (a, b, h) => this.W(x + b, y - a, h + 49*TS), null, this.K*BOAT_SC, null, true); }   // bow north, with the tongue
     finally { if(sh) sh._boat = null; }
     /* ---- the front: the camera-side wheel and mudguard, the tail lights ---- */
-    fender(48, 70);
-    wheel(52, 66, WA, WR, WR, true);
-    bx(WA - 12, WA + 12, 60, 71, 6, 24, 0x2a2e33, 0x1d2024, 0x14171a);                       // the mud flap
+    fender(50, 68);
+    wheel(54, 64, WA, WR, WR, true);
+    bx(WA - 10, WA + 10, 60, 69, 4, 18, 0x2a2e33, 0x1d2024, 0x14171a);                       // the mud flap
     for(const sb of [-1, 1]){
       bx(SE - 2, SE + 3, sb*40 - 7, sb*40 + 7, 33, 41, 0xd8302f, 0xb42726, 0x8f1f1e);               // the tail lights
       bx(SE - 2, SE + 3, sb*40 - 3, sb*40 + 3, 41, 44, 0xe8e2d4, 0xd0c9b8, 0xb8b1a0);               // ...and a reflector
