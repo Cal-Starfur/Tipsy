@@ -28706,6 +28706,7 @@ function landmarkLabWorld(name){
   const ent = LIB.get(name);
   if(!ent) return null;
   if(ent.worldFrame) return (a, b) => ({ x: a, y: b });       // (drawn in world units, a is x and b is y: the Vista Ridge Security Post)
+  if(name === 'Pelican Harbor'){ const B = harborGeo().bldg; return (a, b) => ({ x: B.x0 + a, y: B.y1 + b }); }   // (the harbor house's own frame: a east from the plaza's west end, b 0 on its north edge)
   const SC = ent.sc || 1;
   const row = HOOD_BLOCK_LANDMARKS.find(r => r[2] === name);
   if(row){ const fr = hoodLandmarkFrame(row[0], row[1]); return (a, b) => fr.toWorld(a*SC, b*SC); }
@@ -35025,7 +35026,7 @@ const MISSIONS = {
     reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
     busy: () => LH.stage !== 'idle',
     item: () => LH.stage === 'drive' || LH.stage === 'crew' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
-    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
+    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk at the counter', fetch: 'The clerk is fetching the lamp', hand: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
                    crew: 'The crew chief has the drone ready', out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', report: 'Back to the harbour master, over the quay',
                    thanks: 'The harbour master', sorry: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
     start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
@@ -55791,6 +55792,117 @@ function houseCanopy(fn){
     depthSort(items);
   }
   },
+{
+  /* ==================== THE MARINA CHANDLERY (the walk-in: CHAND_IN, CHAND_ROOM) ====================
+     680 x 1010, world units, a east, b south; the glass door on the south wall at a 340, a shop window either side. A
+     ship's chandler's: plank floor, cream walls over a navy wainscot with a brass rail; the service counter across the east
+     half with the till, the clerk behind it under the shelves of brass fittings and lanterns on the back wall; a display
+     table of lanterns, a lifejacket rack and a coil of rope on the west; anchors, barrels and crates in the stock corner */
+  name:'Marina Chandlery Interior', xh: 200, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 680, dd: 1010,
+  head:'Inside the Marina Chandlery: the service counter, shelves of brass fittings and lanterns, rope and lifejackets, anchors and barrels',
+  tags:['interior','pocket','chandlery','counter','brass fittings','lanterns','rope','lifejackets'],
+  desc:'The harbor house\'s chandlery: a plank floor, cream walls over navy, the counter and till across the east half, lanterns and brass fittings on the back shelves, a lifejacket rack, rope, anchors and barrels.',
+  draw(p){
+    const pl = CHAND_IN; pl.view();
+    const R = CHAND_ROOM, W = R.W, D = R.D, H = pl.H || 230, AP = pl.apron || 40, LH = R.LH;
+    const door = pl.door || { side: 's', at: R.door, half: 55 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const cream = '#efe8d6', creamD = '#d9cfb6', navy = '#23405e', navyD = '#182d44', brass = '#c9a64a', coral = '#e8693c';
+    const wood = '#a9784a', woodD = '#86593a', plank = '#b98d5c', rope = '#d8b276', ropeD = '#b98a4e', steel = '#aeb4ba', dark = '#3b4248';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const thing = (a0, a1, b0, b1, h, draw, name) => items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, h, name)], draw });
+    const lantern = (a, b, z, s) => { box(a - 4*s, a + 4*s, b - 4*s, b + 4*s, z, z + 2*s, dark, dark, dark); box(a - 3*s, a + 3*s, b - 3*s, b + 3*s, z + 2*s, z + 11*s, 'rgba(255,226,150,.95)', 'rgba(244,206,120,.95)', 'rgba(224,184,100,.95)'); box(a - 4.5*s, a + 4.5*s, b - 4.5*s, b + 4.5*s, z + 11*s, z + 13*s, brass, brass, brass); tube(a, b, z + 13*s, a, b, z + 18*s, 0.8*s, brass); };
+
+    /* ---- THE FLOOR: planks wall to wall, a threshold and a mat at the door, a navy rug before the counter (W13) ---- */
+    T(0, W, 0, D, 0, plank);
+    for(let b = 0; b < D; b += 46) T(0, W, b, b + 2, 0.2, '#9c7448');
+    for(let b = 0, k = 0; b < D; b += 46, k++) for(let a = (k % 3)*70 + 40; a < W; a += 210) T(a, a + 2, b, b + 46, 0.2, '#9c7448');
+    T(DA0, DA1, D, D + AP, 0.3, '#c9bfa8');
+    T(DA0 + 8, DA1 - 8, D - 50, D + AP - 6, 0.5, '#3d4448'); T(DA0 + 13, DA1 - 13, D - 45, D + AP - 10, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    { const [ra, rb] = R.mat, ov = (rx, ry, z, col) => { const pts = []; for(let i = 0; i < 24; i++){ const q = i/24*Math.PI*2; pts.push(P(ra + Math.cos(q)*rx, rb + Math.sin(q)*ry, z)); } poly(pts, col); };
+      ov(70, 44, 0.8, navyD); ov(63, 38, 0.9, navy); ov(44, 24, 1.0, cream); ov(34, 16, 1.1, navy); }
+
+    /* ---- THE WALLS (the kit's): back and west full height; south and east cut low, the shop windows in the south one ---- */
+    walkinRoom(items, { W, D, H, LH, door, winS: [[40, 270, 24], [410, 640, 24]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 70, navy, null, 0, 0.2);                                   // the wainscot
+        F(-30, W + 30, 70, 76, brass, null, 0, 0.3);                                 // its brass rail
+        F(-30, W + 30, 0, 12, navyD, null, 0, 0.4);
+        /* the back shelves: three boards of brass fittings, tins and lanterns */
+        for(const z of [92, 128, 164]){ F(40, 640, z, z + 5, wood, null, 0, 0.5); F(40, 640, z - 3, z, woodD, null, 0, 0.55); }
+        for(let a = 50; a < 630; a += 22){
+          const k = Math.floor(a/22);
+          F(a, a + 12, 97, 97 + 12 + (k % 3)*5, k % 2 ? brass : '#b9893a', null, 0, 0.7);                 // shackles and cleats
+          F(a + 2, a + 16, 133, 133 + 10 + (k % 4)*3, k % 3 === 0 ? '#c8352e' : k % 3 === 1 ? '#2f6f7e' : '#e8e2d4', null, 0, 0.7);   // tins of paint and varnish
+          if(a < 100 || a > 330) F(a + 3, a + 15, 169, 169 + 14 + (k % 2)*6, k % 2 ? '#d8b276' : '#c9a64a', null, 0, 0.7);
+        }
+        blockWordIn('MARINA CHANDLERY', 180, 500, 196, 218, 0.6, navy, null, 4);
+        /* a ship's clock and a chart of the bay, over the counter's end */
+        faceCircle(560, 0.6, 196, 24, '#f6f3ea', brass, 3); F(558, 562, 196, 212, dark, null, 0, 0.9); F(558, 574, 195, 198, dark, null, 0, 0.9);
+        F(590, 650, 186, 222, '#e8e2d4', null, 0, 0.5); F(594, 646, 190, 218, '#9cc4d4', null, 0, 0.6); F(610, 640, 190, 202, '#d8c79a', null, 0, 0.7);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.93));
+        S(0.2, -30, D + 30, 0, 70, shade(navy, 0.9));
+        S(0.3, -30, D + 30, 70, 76, shade(brass, 0.9));
+        const disc = (a, b, z, r, col) => { const pts = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; pts.push(P(a, b + Math.cos(q)*r, z + Math.sin(q)*r)); } poly(pts, col); };
+        for(const b of [150, 320, 640, 810]){ disc(0.6, b, 132, 28, coral); disc(0.8, b, 132, 21, cream); disc(0.9, b, 132, 15, coral); disc(1.0, b, 132, 9, cream); }   // lifebuoys on the wall
+      },
+      low: ['#efe6d2', '#d9cfb6', '#c0b59b'], cap: [navy, navyD, shade(navyD, 0.85)], ftop: '#d4c9ae', frame: '#23405e' });
+
+    /* ---- THE SERVICE COUNTER: navy front, a plank top; the till on it, a brass bell, a coil of rope and a tide chart ---- */
+    { const [a0, a1, b0, b1] = R.counter, n = 5;
+      for(let k = 0; k < n; k++){ const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
+        thing(s0, s1, b0, b1, 74, () => {
+          T(s0 - 0.5, s1 + 0.5, b0, b1, 66, shade(wood, 1.12)); F(s0, s1 + 0.5, 0, 66, navy, null, 0, b1);
+          if(k === 0) S(s0, b0, b1, 0, 66, navyD); if(k === n - 1) S(s1, b0, b1, 0, 66, navyD);
+          F(s0, s1 + 0.5, 0, 10, navyD, null, 0, b1 + 0.3);
+          F(s0, s1 + 0.5, 62, 70, '#c9b48a', null, 0, b1 + 0.4); T(s0 - 0.5, s1 + 0.5, b0 - 3, b1 + 3, 70, shade(wood, 1.2));
+          if(k === 3){ box(R.till[0] - 18, R.till[0] + 18, b0 + 4, b0 + 22, 70, 82, '#e8e2d4', '#cfc8b5', '#b9b2a0'); box(R.till[0] - 10, R.till[0] + 10, b0 + 6, b0 + 12, 82, 92, dark, dark, dark); }
+          if(k === 1){ cyl((s0 + s1)/2, b0 + 14, 70, 72, 8, brass); ball((s0 + s1)/2, b0 + 14, 74, 3.5, '#e0c88a'); }
+          if(k === 2){ box(s0 + 10, s0 + 38, b0 + 8, b1 - 6, 70, 74, '#e8e2d4', '#cfc8b5', '#b9b2a0'); }
+        }, 'counter'); }
+    }
+    /* ---- THE LANTERN TABLE, in the door's lane's west: brass lanterns and a compass ---- */
+    thing(50, 210, 650, 740, 44, () => {
+      for(const [x, y] of [[56, 656], [56, 734], [204, 656], [204, 734]]) tube(x, y, 0, x, y, 36, 1.6, woodD);
+      box(50, 210, 650, 740, 36, 44, shade(wood, 1.15), wood, woodD);
+      [[80, 676], [120, 718], [160, 674], [190, 716], [130, 690]].forEach(([a, b], i) => lantern(a, b, 44, 1.3 + (i % 2)*0.3));
+    }, 'table');
+    /* ---- THE LIFEJACKET RACK on the west wall: a rail and the jackets on it, orange and navy ---- */
+    thing(24, 62, 180, 470, 120, () => {
+      tube(30, 180, 112, 30, 470, 112, 2, steel); for(const b of [186, 464]) tube(30, b, 0, 30, b, 112, 1.6, steel);
+      for(let b = 196, k = 0; b < 460; b += 26, k++){ const c = k % 3 === 2 ? navy : '#ff8a3a'; box(36, 54, b, b + 20, 52, 108, c, shade(c, 0.88), shade(c, 0.76)); F(36, 54, 96, 100, '#e8e2d4', null, 0, b + 20.3); }
+    }, 'rack');
+    /* ---- A BIG ROPE REEL by the west wall, the coil on it, and a stack of fenders ---- */
+    thing(26, 116, 520, 604, 70, () => {
+      cyl(70, 562, 0, 5, 40, woodD); cyl(70, 562, 5, 60, 30, ropeD); cyl(70, 562, 60, 65, 40, woodD); for(let r = 0; r < 5; r++) tube(70, 562, 12 + r*10, 70 + 24, 562 + 10, 12 + r*10, 1.6, rope);
+    }, 'reel');
+    /* ---- THE STOCK CORNER (back, west and east): anchors, barrels, crates ---- */
+    thing(30, 110, 40, 116, 90, () => {
+      box(32, 108, 44, 112, 0, 40, '#9b7a52', '#85663f', '#6e5433'); box(40, 100, 50, 106, 40, 76, '#a8865c', '#8f6e47', '#775a38');
+      for(let a = 36; a <= 100; a += 16) F(a, a + 4, 2, 38, '#6e5433', null, 0, 112.3);
+    }, 'crates');
+    thing(590, 660, 90, 160, 70, () => { for(const [a, b] of [[612, 112], [644, 142], [630, 100]]){ cyl(a, b, 0, 56, 17, '#4e6f8c'); for(const z of [8, 28, 48]) cyl(a, b, z, z + 3, 17.6, steel); } }, 'barrels');
+    thing(430, 520, 250, 330, 50, () => {                                       // a pair of anchors on a pallet, flukes up
+      box(430, 520, 250, 330, 0, 8, '#9b7a52', '#85663f', '#6e5433');
+      for(const b of [276, 306]){ tube(448, b, 8, 498, b, 8, 3, dark); tube(448, b, 8, 448, b, 42, 2.6, dark); poly([P(498, b - 12, 8), P(498, b + 12, 8), P(508, b, 26)], dark); ball(448, b, 44, 5, dark); }
+    }, 'anchors');
+    /* the chart table in the lane's east, where the tide charts are unrolled */
+    thing(440, 620, 400, 470, 44, () => {
+      for(const [x, y] of [[446, 406], [446, 464], [614, 406], [614, 464]]) tube(x, y, 0, x, y, 38, 1.6, woodD);
+      box(440, 620, 400, 470, 38, 44, shade(wood, 1.2), wood, woodD);
+      T(470, 590, 410, 460, 44.3, '#e8e2d4'); T(480, 580, 418, 452, 44.6, '#9cc4d4'); T(500, 560, 424, 440, 44.9, '#d8c79a');
+    }, 'chart table');
+
+    walkinStaffSolids(items, 'Marina Chandlery Interior');
+    depthSort(items);
+  }
+},
 {
   /* ==================== KTDE 98.1 THE TIDE, THE GROUND FLOOR (the walk-in: KTDE_IN, KTDE_ROOM) ====================
      1250 x 1500, world units, a east, b south; the glass pair on the south wall at a 455. Along the street: the lobby
@@ -76695,6 +76807,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       }
     };
     if(this._part === 'awning'){ awning(); return; }
+    /* (its two cached pieces, queueHarborHouse: the chandlery wing with its awning -- the walk-in's shell, faded off while he is
+       in the room -- and the rest of the house, ghosted then; whole when no part is asked for) */
+    const wantWing = this._part !== 'rest', wantRest = this._part !== 'wing';
     if(!inView(0, 3400, -2400, 0, 0, 1150)) return;
     const win = (a0, a1, z0, z1, b) => {                 // a sash window: frame, glass, glazing bar
       F(a0 - 6, a1 + 6, z0 - 6, z1 + 6, TRIM, null, 0, b + 0.3);
@@ -76710,6 +76825,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     };
 
     /* ---- 1. THE WATCH TOWER ---- */
+    if(wantRest){
     box(TA0, TA1, TB0, TB1, 0, TZ, WALLS, WALL, WALLD);
     for(const a of [TA0, TA1 - 24]) F(a, a + 24, 0, TZ, WALLS, null, 0, TB1 + 0.4);   // corner pilasters
     for(let z = 420; z < TZ - 80; z += 140) win(TA0 + 110, TA1 - 110, z, z + 80, TB1);
@@ -76733,7 +76849,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       poly([P(ac, bc, apex + 172), P(ac + 64, bc, apex + 160), P(ac, bc, apex + 148)], '#f3efe6');
       ball(ac, bc, apex + 192, 7, '#e8b54a'); }
 
+    }
     /* ---- 2. THE CHANDLERY WING ---- */
+    if(wantWing){
     F(WA0, WA1, 0, WZ, WALL, null, 0, HB);
     T(WA0, WA1, WB, HB, WZ, '#a9a59b');
     slab(WA0 - 10, WA1, WZ, WZ + 34, HB + 8, HB - 6, WALL, WALLS, '#e9e4d8');      // the parapet
@@ -76754,7 +76872,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     { const b0 = BOFF; BOFF = b0 + HB;
       try { shopDoor(PH_PLAN.DOOR_A, WALL, TRIM, null, WA1, 0); } finally { BOFF = b0; } }
 
+    }
     /* ---- 3. THE HALL'S WALLS ---- */
+    if(wantRest){
     F(HA0, HA1, 0, EZ, WALL, null, 0, HB);
     F(HA0, HA1, 0, 22, STONE, null, 0, HB + 0.4);                                  // a granite plinth
     F(HA0, HA1, 170, 178, WALLS, null, 0, HB + 0.4);                               // the string course
@@ -76822,9 +76942,10 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(ac - 200, ac + 200, PB, PB + 60, 0, 10, '#d6cfbf', STONE, shade(STONE, .85));
       box(ac - 180, ac + 180, PB, PB + 30, 10, 20, '#d6cfbf', STONE, shade(STONE, .85)); }
 
+    }
     /* ---- 6. THE CHANDLERY'S AWNING AND SIGN, nearest of all ---- */
-    awning();
-    kerb(p, 'none');
+    if(wantWing) awning();
+    if(wantRest) kerb(p, 'none');
   }
 },
 /* ---- CRATE YARD BUILDING SITE (Sir, 2026-10-12: the industrial vehicles
@@ -84766,7 +84887,7 @@ function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLoo
    saved: a reload starts it again from the quay. The harbour master, the clerk, the crew chief and Ines are always
    about (R1): on the quay, under the chandlery's awning, at her post by the hangar's doors, at the light (CITY_PEOPLE
    'The Lighthouse Run'). */
-const LH = { stage: 'idle', who: null, clerk: null, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
+const LH = { stage: 'idle', who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
              lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
   /* from take-off to over the light, before the fog closes in. Measured (headless, auto height, no height input, the
@@ -84774,11 +84895,9 @@ const LH_RUN = {
      player 4:00, 1.4 times that, for the turns round towers and a slower stick (the old 90 s was twice a 45 s flight) */
   limitMs: 240000,
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
-  chand: hospBay(-4140, -14150),             // the chandlery's bay, east of the wing's end (the wing's front is y -14280; the camera's line is clear of the lamp and the flags)
   visit: hospBay(AIR.fleet.visit.x, AIR.fleet.visit.y),   // the Fleet hangar's visitor bay, just inside its street gate, in front of the delivery drone's pad
   post: AIR.fleet.post,                      // the crew chief's post, on the apron by the pier between the air taxi's door and the drone's
   master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
-  clerk: { x: -4340, y: -14232 },            // the chandlery's clerk, at the awning's east end
   look: { master: 0x4b21, clerk: 0xc4a3, ines: 0x1e55, crew: 0xf1e7 }
 };
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
@@ -84812,12 +84931,26 @@ function lhMasterAt(now){
   const at = LH_RUN.master, L = lhLightSpots().L;
   return { x: at.x, y: at.y, th: lhGlance(Math.atan2(L.y - at.y, L.x - at.x), now, 1), moving: false };
 }
+/* the chandlery's clerk, while the run has her (the room's own staff entry is away: walkinStaff 'clerk'): in the room's frame,
+   standing at her post turned to him, or walking */
+function lhChandPk(){ return lhChandPk.c || (lhChandPk.c = POCKETS.find(p => p.name === CHAND_IN.name) || null); }
+function lhRoomPt(a, b){ const pk = lhChandPk(); return { x: pk.x0 + a, y: pk.y0 + b }; }
+function lhChandMat(){ const m = CHAND_ROOM.mat, q = lhRoomPt(m[0], m[1]); return lhChandMat.c || (lhChandMat.c = hospBay(q.x, q.y)); }
+/* the shop's door from the street: where the GPS and the beacon send him (its outside point) */
+function lhChandDoor(){ const S = phSpots(); return { x: S.door.x, y: S.face + 70 }; }
 function lhClerkAt(now){
-  const R = LH;
-  if(R.clerk){ const p = hospWalkAt(R.clerk, now); if(p) return Object.assign(p, { has: R.clerk.has }); R.clerk = null; }
-  if(!harborOpen()) return null;                     // (the chandlery shut: she has gone home -- PELICAN HARBOR, OPEN)
-  const c = LH_RUN.clerk;
-  return { x: c.x, y: c.y, th: lhGlance(Math.PI/2, now, 2), moving: false, has: null };
+  const R = LH, C = R.clerk, post = CHAND_ROOM.clerk;
+  if(!C) return null;
+  const q = lhRoomPt(post[0], post[1]);
+  if(C.P){ const p = walkPathAt(C.P, now); if(p) return Object.assign(p, { has: C.has }); if(C.P.leave != null){ R.clerk = null; return { x: q.x, y: q.y, th: post[2], moving: false }; } }
+  return { x: q.x, y: q.y, th: C.face != null ? C.face : post[2], moving: false, has: C.has };
+}
+/* where her card hangs (the street's lines while he is in the room) */
+function lhClerkSayAt(now){
+  const p = lhClerkAt(now || scn().time.now), pk = lhChandPk();
+  if(!p) return null;
+  const hv = typeof POCKET_VIEW !== "undefined" && POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+  return { x: p.x + hv.dx, y: p.y + hv.dy, z: 0 };
 }
 function lhCrewAt(now){
   if(!FLEET_BAYS_BUILT) return null;               // (her hangar is off: she is not out on the bare field)
@@ -84834,7 +84967,7 @@ function lhInesAt(now){
 CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, the chandlery, the breakwater light; the Fleet's hangar at Sun Deck Airfield", solid: false,
   each(scene, t, fn){
     const now = scene.time.now;
-    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['chandlery clerk', lhClerkAt(now), 'clerk'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
+    for(const [kind, at, look] of [['harbour master', lhMasterAt(now), 'master'], ['fleet crew chief', lhCrewAt(now), 'crew'], ['lighthouse keeper', lhInesAt(now), 'ines']])
       if(at) fn(cpEntry(this, { x: at.x, y: at.y, th: at.th, moving: !!at.moving, kind, look: lhLooks()[look] }));
   } });
 /* ==================== SUN DECK AIRFIELD'S GROUND CREW (Sir, 2026-11-05: "add people to the air field") ====================
@@ -84921,7 +85054,7 @@ function lhBayNow(scene){
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => Object.assign({}, B, { icon });
   if(R.stage === 'idle') return !FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
-  if(R.stage === 'lamp' || R.stage === 'clerk') return ic(LH_RUN.chand, 'anchor');
+  if(R.stage === 'lamp'){ if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true }); const d = lhChandDoor(); return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true }; }
   if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
   if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');
   if(R.stage === 'report') return ic(LH_RUN.quay, 'flag');
@@ -84943,9 +85076,9 @@ function lhAccept(){
   hospSayCard(null); cineBars(false);
   if(R.who) R.who.leave = scene.time.now;           // back to the rail, to watch for the light
   R.stage = 'lamp';
-  lhNav(scene, LH_RUN.chand, "Marina Chandlery");
+  lhNav(scene, lhChandDoor(), "Marina Chandlery");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("The spare lamp: the Marina Chandlery, across the plaza.");
+  if(typeof tpToast === "function") tpToast("The spare lamp: in at the Marina Chandlery's door, and up to the counter.");
 }
 function lhDecline(){
   const scene = scn(), R = LH;
@@ -84954,11 +85087,22 @@ function lhDecline(){
   if(R.who) R.who.leave = scene.time.now;           // back to the rail
   R.stage = 'idle'; R.snooze = LH_RUN.quay;          // the bay re-arms once he has left it (R2)
 }
-function lhGotLamp(){
+/* her first word: she goes to the lamp shelf on the back wall */
+function lhToShelf(){
   const scene = scn(), R = LH;
   if(R.stage !== 'clerk' || !scene) return;
+  hospSayCard(null);
+  const P = CHAND_ROOM, pt = (a, b) => lhRoomPt(a, b), post = P.clerk, sh = P.shelf;
+  R.clerk = { P: { pts: [pt(post[0], post[1]), pt(390, 500), pt(330, 380), pt(sh[0] + 40, 160), pt(sh[0], sh[1] + 10)], t0: scene.time.now, faceTh: sh[2], th0: R.clerk ? R.clerk.face : post[2] }, has: null };
+  R.stage = 'fetch'; R.safeT = 0;
+}
+function lhGotLamp(){
+  const scene = scn(), R = LH;
+  if(R.stage !== 'hand' || !scene) return;
   hospSayCard(null); cineBars(false);
-  if(R.clerk){ R.clerk.has = null; R.clerk.leave = scene.time.now; }
+  if(R.clerk){ R.clerk.has = null; if(R.clerk.P) R.clerk.P.leave = scene.time.now; }
+  if(R.M) R.M.leave = scene.time.now;
+  R.M = null;
   R.stage = 'drive';
   lhNav(scene, LH_RUN.visit, "Tipsey Fleet, Sun Deck Airfield");
   if(typeof sfxThump === "function") sfxThump(0.3);
@@ -85084,18 +85228,39 @@ function lhTick(scene, ow){
         say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take it out to the Fleet's hangar at Sun Deck Airfield and fly it to her on one of their delivery drones, before the fog closes in?" }));
       return;
     case 'lamp':
-      if(fleetCur()) return;
-      if(armed(LH_RUN.chand)){
+      /* in at the shop's door (the walk-in), and onto the mat before the counter: the clerk stands at her post behind it */
+      if(fleetCur() || scene._inside !== lhChandPk()) return;
+      if(armed(lhChandMat())){
         R.stage = 'clerk'; ow.vel = 0; cineBars(true);
-        /* (the shop shut -- PELICAN HARBOR, OPEN -- she comes out of its door to him, and goes back in after) */
-        const c = harborOpen() ? LH_RUN.clerk : phSpots().doorIn;
-        R.clerk = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, -1, scene), { has: 'lamp', th0: Math.PI/2 });   // (on his left: on his right a flagpole stands in front of her)
+        const post = CHAND_ROOM.clerk, q = lhRoomPt(post[0], post[1]);
+        R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
+        R.clerk = { face: R.M.faceTh, has: null };
+        lhNavClear(scene);
         if(typeof sfxThump === "function") sfxThump(0.15);
       }
       return;
     case 'clerk':
-      if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkAt,
-        say: "The light's lamp? Here it is, the big brass one. Careful with it: it's the last spare on the whole coast. Ines will know what to do with it. Good luck out there!" }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
+        say: "The light's lamp? Of course: the harbour master rang ahead. It's the big brass one, the last spare on the whole coast. It lives up on the back shelf. One moment." }));
+      return;
+    case 'fetch': {
+      ow.vel = 0;
+      const p = lhClerkAt(now);
+      if(!p || !p.there) return;
+      if(!R.safeT){ R.safeT = now; return; }
+      if(now - R.safeT < 1500) return;                     // (at the shelf: up on her toes, the lamp down)
+      /* down the lane to him with the lamp, to beside him on his left (both faces to the eye) */
+      const P = CHAND_ROOM, pt = (a, b) => lhRoomPt(a, b), M0 = meetWalk(ow, { x: p.x, y: p.y }, now, 1, scene);
+      /* (his front-right, across the screen from him: the counter's west end, clear of it) */
+      const to = { x: ow.px + 58, y: ow.py - 58 }, M = Object.assign(M0, { to, walkMs: meetWalkMs(Math.hypot(to.x - p.x, to.y - p.y)), faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)) });
+      R.clerk = { P: { pts: [pt(P.shelf[0], P.shelf[1] + 10), pt(P.shelf[0] + 40, 160), pt(330, 380), pt(340, 600), M.to], t0: now, faceTh: M.faceTh, th0: P.shelf[2] }, has: 'lamp' };
+      R.M = Object.assign(M, { walkMs: walkPathMs(R.clerk.P) });
+      R.stage = 'hand';
+      return;
+    }
+    case 'hand':
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkSayAt,
+        say: "Here she is. Careful with it: brass, and heavier than it looks. Ines will know what to do with it. Good luck out there!" }));
       return;
     case 'drive':
       if(fleetCur()) return;
@@ -85167,15 +85332,20 @@ function lhQueue(scene, t, queuePerson, layerFor){
   const one = (p, L, carry) => {
     if(!p || !scene.visProp("people", p.x, p.y)) return;
     const px = p.x, py = p.y, th = p.th, mv = !!p.moving;
-    if(L === K.clerk && phInside(px, py)) return;      // (inside the chandlery: PELICAN HARBOR, OPEN)
-    (L === K.clerk ? (x, y, fn) => scene.phPerson(x, y, fn, queuePerson) : queuePerson)(px, py, (g, tt) => {   // (the clerk: through its door, as its visitors)
+    queuePerson(px, py, (g, tt) => {
       const gg = layerFor(px, py), thW = th - Math.PI/2, lift = carry ? 0.45 : 0;
       const bag = carry === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
       scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false, L.dress ? { dress: L.dress } : null);
     });
   };
-  const m = lhMasterAt(now), c = lhClerkAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
-  one(m, K.master, null); one(c, K.clerk, c && c.has); one(i, K.ines, i.has); one(cr, K.crew, null);
+  const m = lhMasterAt(now), i = lhInesAt(now), cr = lhCrewAt(now);
+  one(m, K.master, null); one(i, K.ines, i.has); one(cr, K.crew, null);
+  /* the chandlery's clerk, while the run has her (only drawn in the room: from the street she is behind its wall) */
+  { const c = LH.clerk && POCKET_VIEW && POCKET_VIEW.pk === lhChandPk() ? lhClerkAt(now) : null;
+    if(c){ const px = c.x + POCKET_VIEW.dx, py = c.y + POCKET_VIEW.dy, mv = !!c.moving, L = K.clerk;
+      queuePerson(px, py, (g, tt) => { const gg = layerFor(px, py), thW = c.th - Math.PI/2, lift = c.has ? 0.45 : 0;
+        const bag = c.has === 'lamp' ? () => { const hp = scene.handWorldPos(px, py, thW, L.build, lift); scene.drawLhLamp(gg, hp.x, hp.y, hp.z - 20, 0.8); } : null;
+        scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, L.uniform, false, null); }); } }
   const P = LH.park;
   if(P && scene.visProp("chargestation", P.x, P.y))
     queuePerson(P.x, P.y, (g) => scene.bcDraw(g, "tpark|lh|" + Math.round(P.x) + "," + Math.round(P.y) + "|" + P.a.toFixed(2), P.x, P.y, gg => scene.drawTipseyParked(gg, P.x, P.y, P.a)));
@@ -92416,7 +92586,6 @@ function phTick(scene, now){
   let use = false;
   const at = (x, y) => Math.abs(x - S.door.x) < 60 && y > S.face - 60 && y < S.face + 85;
   for(const w of L.walkers){ const q = w.P && walkPathAt(w.P, now); if(q && at(q.x, q.y) && !(w.st === 'dwell' && w.legs && w.legs[w.i] && w.legs[w.i].inside)) use = true; }
-  if(!use && LH.clerk){ const q = hospWalkAt(LH.clerk, now); if(q && at(q.x, q.y)) use = true; }
   const D = L.door; D.k = use ? Math.min(1, D.k + dt/280) : Math.max(0, D.k - dt/480);
 }
 CITY_PEOPLE.add({ name: 'Pelican Harbor', where: "the harbor house: its visitors (the chandlery, the tide board, the rail) and the watch officer on the tower's gallery", solid: false,
@@ -100881,8 +101050,14 @@ class WorldScene extends Phaser.Scene {
        house goes after him there, and the x-ray ghosts him through it (builtHeightAt: harborHouseHeightAt) */
     const H = hg.house[1], bx = this.botX, by = this.botY;
     const behind = bx > B.x0 - 300 && bx < B.x1 + 300 && by < H.y0 + 40 && by > B.y0 - 1400;
-    vq.push({ depth: behind ? Math.max(houseD, bx + by + 1) : houseD, fn: (g) => this.bcDraw(g, "hb|house|" + (open ? 1 : 0), B.x0, B.y1,
-      gg => { ent._open = open; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; } }) });
+    /* TWO PIECES (the walk-in's shell, CHAND_IN): the chandlery wing, which fades off as he goes into its room (pocketShellK),
+       and the rest of the house, ghosted over the room while he is in it (SHELL_GHOST: nothing may stand over the room, W26) */
+    const cpk = pocketHiding('Pelican Harbor'), sk = cpk ? pocketShellK(this, cpk) : 1, hd = behind ? Math.max(houseD, bx + by + 1) : houseD;
+    const piece = (part) => (g) => this.bcDraw(g, "hb|" + part + "|" + (open ? 1 : 0), B.x0, B.y1,
+      gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
+    const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
+    vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
+    if(sk > 0.002) vq.push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
     /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
     const nl = nightLevel();
@@ -100898,7 +101073,7 @@ class WorldScene extends Phaser.Scene {
     this._phQ = { vq, t: now, houseD, who: [] };
     const who = this._phQ.who, D = PH_LIFE.door;
     vq.push({ depth: houseD + 0.2, fn: (g, tt) => {
-      if(D.k <= 0.001 && !who.length) return;
+      if(sk < 0.002 || (D.k <= 0.001 && !who.length)) return;
       const between = clip => () => { this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; } };
       const clip = who.length && LIB.doorOpening('Pelican Harbor', G, this.K, true, P.DOOR_A);
@@ -100914,8 +101089,7 @@ class WorldScene extends Phaser.Scene {
        awning, in front of them, goes back over them -- its own cached piece) */
     { const A0 = B.x0 + P.AWN[0] - 30, A1 = B.x0 + P.AWN[1] + 30, S = phSpots(), y0 = S.face - 60, y1 = S.face + P.AWN_D + 10;
       const under = (q) => q && q.x > A0 && q.x < A1 && q.y > y0 && q.y < y1;
-      let any = (PH_LIFE.walkers || []).some(w => under(phWalkerAt(w, now)));
-      if(!any){ const c = lhClerkAt(now); any = under(c); }
+      let any = sk > 0.5 && (PH_LIFE.walkers || []).some(w => under(phWalkerAt(w, now)));
       if(any) vq.push({ depth: houseD + 0.5, fn: (g) => this.bcDraw(g, "hb|awning", B.x0, B.y1,
         gg => { ent._part = 'awning'; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._part = null; } }) }); }
     /* the watch officer on the gallery, and the gallery's near rails over him */
@@ -104141,12 +104315,15 @@ class WorldScene extends Phaser.Scene {
        chandlery's, the Fleet hangar's visitor bay, and out at the light the drone's -- the stories' bay, cached, its
        ring and beacon live; the drone's apron pad on the way home has the beacon alone (the pad is painted in the
        airfield's ground) */
-    { const B = lhBayNow(this);
-      if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
-        const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
-      }
-      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
+    { const B = lhBayNow(this), hv = B && B.inPk && POCKET_VIEW ? POCKET_VIEW : { dx: 0, dy: 0 };
+      if(B && B.mat && !B.beaconOnly){ const bx = B.x + hv.dx, by = B.y + hv.dy;
+        if(this.visProp("chargestation", bx, by)){
+          const hl = matHighlightState(this, B.mat, this.mode);
+          hazVQ.push({ depth: bx + by - T2, fn: (gg, tt) => { const lg = layerFor(bx, by);
+            if(!B.inPk) this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false);
+            this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
+        } }
+      if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon); }
     }
     /* CATCH OF THE DAY's bay (fmBayNow): the forecourt to start, the yard's bay for the pod, each kitchen's, the pod's
        own bay home -- the stories' bay, cached, its ring and beacon live */
@@ -136036,6 +136213,30 @@ const PH_PLAN = {
   BOARD: [1610, 1770],                                                     // the tide board, on the pier west of the pavilion
   LANT_A: 150, LANT_Z: 196                                                 // the Port Office's lanterns: either side of the doors, how high
 };
+/* ==================== INSIDE THE MARINA CHANDLERY (Sir, 2026-11-11: "does that Chandlery have an interior? ... tipsy should
+   go inside there and get the parts from the worker") ====================
+   The walk-in kit's way (docs/kits/walkin.md): the harbor house's low west wing is the room (the wing's walls stand on the
+   shell's lines: the floor is the wing inset by the walls' 30), 680 x 1010, its glass door on the south wall where the shop
+   door is (PH_PLAN.DOOR_A), the shop windows either side of it. THE LIGHTHOUSE RUN's lamp is fetched here: he drives in, stops
+   on the mat before the counter and the clerk brings the spare lamp (lhTick). The shell is the wing (its own cached piece,
+   queueHarborHouse: faded off as he goes in), the hall ghosted. The room keeps the chandlery's hours (8 to 6), kept open for
+   the run while it has him fetching the lamp. */
+const CHAND_ROOM = { W: 680, D: 1010, LH: 66, door: 340,
+  counter: [400, 650, 570, 614], till: [560, 590],                  // the service counter (its front south), the till on it
+  clerk: [525, 530, Math.PI/2, 7000, true],                         // her post behind it, looking out over it
+  shelf: [215, 70, -Math.PI/2],                                     // the lamp shelf on the back wall: where she fetches the lamp
+  mat: [350, 720],                                                  // the mat before the counter in the door's lane: his bay
+  lamp: [215, 70] };
+const CHAND_IN = walkinDefine({ name: 'Marina Chandlery Interior', from: 'Pelican Harbor', x0: 600000, y0: 400000,
+  lab: [PH_PLAN.WA0 + 30, PH_PLAN.HA0 - 30, PH_PLAN.WB + 30, PH_PLAN.HB - 30], door: { a: PH_PLAN.DOOR_A, b: PH_PLAN.HB, half: 55 }, H: 230, out: 40, apron: 40, glass: 45,
+  body: [[PH_PLAN.WA0, PH_PLAN.HA0, PH_PLAN.WB, PH_PLAN.HB]],
+  late: () => typeof LH !== 'undefined' && (LH.stage === 'lamp' || LH.stage === 'clerk' || LH.stage === 'fetch' || LH.stage === 'hand') });
+walkinStaff('Marina Chandlery Interior', [
+  { id: 'clerk', role: 'chandlery clerk', seed: 0xc4a3, U: CHANDLERY_UNIFORM, fixed: true, keys: true, lookFn: () => lhLooks().clerk,
+    posts: [CHAND_ROOM.clerk, [585, 524, Math.PI/2 + 0.5, 4000, true], [470, 526, Math.PI/2 - 0.4, 3600, true]],
+    away: () => !!LH.clerk, awayAt: now => lhClerkAt(now) }
+]);
+walkinLife('Marina Chandlery Interior', { keep: [[285, 395, 0, 1010]], looks: [] });
 const HARBOR = {
   QUAY_W: 400,          // the plank promenade between the road's sidewalk and the water
   FINGERS: 6,           // finger docks off the quay (6, not 8, since the boats doubled: the fairways stay open water)
@@ -136294,7 +136495,7 @@ function harborGeo(){
   for(const b of park.benches) props.push({ kind:'bench', x: b.x, y: b.y, r: 90, facing: b.facing });
   /* THE HOUSE'S OWN FOOTPRINT (PH_PLAN): the wing and the hall (the tower stands in the hall). What stands, and what
      stops him and a flyer; bldg stays the box the house is drawn in and Sea Lion Point is laid out round. */
-  const house = [ { x0: bldg.x0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.WB, y1: bldg.y1 },     // the wing
+  const house = [ { x0: bldg.x0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.WB, y1: bldg.y1 + PH_PLAN.HB + 4 },     // the wing (to its front wall, the shop's door: he drives up to it and in, CHAND_IN)
                   { x0: bldg.x0 + PH_PLAN.HA0, x1: bldg.x1, y0: bldg.y1 + PH_PLAN.HBB, y1: bldg.y1 } ];  // the hall
   /* THE BACK LOT IS PARK (Sir, 2026-11-01: "get that parking lot off, behind it doesn't look good. Maybe a park with
      plants and sand"). The paving under the house ran the whole bldg box, 700 behind the hall's back wall and 1,150
@@ -136366,9 +136567,11 @@ function harborGeo(){
                          the two sidewalks meet: no block owns it, so it is paved
                          here (green on Sir's map) */
                       corner: { x0: road.x0, x1: RX - ROAD_HALF, y0: ROAD_HALF, y1: SW } };
-  const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, jetty.north, jetty.arm, ...park.rects,
+  /* THE CHANDLERY'S FORECOURT: the paving between the wing's front wall and the plaza's edge, under its awning -- he drives up to the shop's door (CHAND_IN) */
+  const strip = { x0: bldg.x0 + PH_PLAN.WA0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.HB, y1: H.PLAZA_Y0 };
+  const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
-  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty,
+  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip,
                  fingers, slips, zone, walk, props, park, beachWalk };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
@@ -136562,7 +136765,7 @@ function harborSurface(x, y){
   if(x > hg.zone.x1 || y > hg.zone.y1) return null;
   if(inHarborRect(hg.quay, x, y)) return 'boardwalk';
   for(const f of hg.fingers) if(inHarborRect(f, x, y)) return 'boardwalk';
-  if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y)) return 'lot';
+  if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y) || inHarborRect(hg.strip, x, y)) return 'lot';
   if(hg.park.in(x, y)) return 'park';
   if(inHarborRect(hg.jetty.north, x, y) || inHarborRect(hg.jetty.arm, x, y) ||
      Math.hypot(x - hg.jetty.land.x, y - hg.jetty.land.y) <= hg.jetty.land.r) return 'sidewalk';
