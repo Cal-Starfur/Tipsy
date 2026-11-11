@@ -9829,7 +9829,16 @@ function rescueVanPlan(scene, x, y, plain = false){
   }
   let plan = null;
   if(best && best.d - ROAD_HALF <= RESCUE_VAN.maxGap){
-    plan = rescueSlot(scene, best.e, best.s, best.l >= 0 ? 1 : -1, x, y, plain ? null : { x, y });
+    /* THE OTHER KERB TOO (Sir, 2026-11-11: "give it permission to park on the other side of the street"): down in a travel
+       lane, the cars of that lane queue behind him (and the van, in the same lane, behind them), so the van comes in down
+       the other lane and parks on the far kerb instead -- the crew cross to him. Not when he lies on the centre line (both
+       lanes are his) or out by a kerb (clear of the lane: the near kerb it is) */
+    let side = best.l >= 0 ? 1 : -1;
+    if(!plain){
+      const own = Math.abs(best.l - side*TRAF_LANE), other = Math.abs(best.l + side*TRAF_LANE), inLane = CARC.wid/2 + 100;
+      if(own < inLane && other >= inLane) side = -side;
+    }
+    plan = rescueSlot(scene, best.e, best.s, side, x, y, plain ? null : { x, y });
     if(plain) return plan;
     const dp = rescueDoorPt(plan);
     if(!scene.ow || rescueOpenLine(scene, dp.x, dp.y, x, y)) return rescueVanRoutes(scene, plan);
