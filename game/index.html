@@ -101125,7 +101125,7 @@ class WorldScene extends Phaser.Scene {
     const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
     this._wkRest = { fr: this._wkFr, d: hd };                                    // (the hall's depth: the chandlery's room is drawn under it too, never over it: walkinThrough)
     vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
-    if(sk > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
+    if(sk > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd - 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
     /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
     const nl = nightLevel();
