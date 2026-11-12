@@ -134543,9 +134543,9 @@ function harborGeo(){
   const bldg = { x0: H.BLDG.x0, x1: H.BLDG.x1, y0: H.BLDG.y0, y1: H.PLAZA_Y0 };
   /* the arm: from the headland south, its tip at the mouth. THE LIGHT stands on an island of its own out in the sea beyond it
      (Sir, 2026-11-12: "create an island and move the lighthouse over there, so this story makes sense"): a round rock platform,
-     2,000 west of the arm and 700 north of its tip, no walk to it -- the Lighthouse Run's drone carries him there */
+     4,200 west of the arm and 1,500 north of its tip, no walk to it -- the Lighthouse Run's drone carries him there */
   const arm = { x0: armX1 - ARM_W, x1: armX1, y0: MY0 - 260, y1: MY0 + (Y0 - MY0)*0.62 };
-  const light = { x: arm.x0 - 2000, y: arm.y1 - 700, r: 700 };
+  const light = { x: arm.x0 - 4200, y: arm.y1 - 1500, r: 700 };
   const head = { x0: arm.x0 - 500, x1: X0, y0: H.HEAD_Y0, y1: MY0 };
   /* THE JETTY WALK (Sir, 2026-10-01: "there needs to ber a path ontop of
      the jettie to make it accessable"): a concrete walk from the plaza's
