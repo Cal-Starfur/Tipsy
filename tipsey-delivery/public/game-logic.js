@@ -83547,7 +83547,7 @@ function lhBayNow(scene){
   if(R.stage === 'idle'){
     if(lhDone() || fleetCur() || storiesHidden('lighthouse-run') || !missionWindowOpen('lighthouse-run')) return null;
     if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true });         // (the order waits at the Chandlery: its mat inside, the beacon over its door outside)
-    const d = lhChandDoor(); return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true };
+    const d = lhChandDoor(), hb = harborGeo().bldg; return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true, depth: (hb.x0 + hb.x1 + hb.y0 + hb.y1)/2 + 5 };    // (depth: the house is one piece keyed at its middle, far behind the door's: the beacon floats over its wing, so it sorts after it)
   }
   if(R.stage === 'drive') return ic(LH_RUN.pickup, 'flag');
   if(R.stage === 'grab' && R.park) return { x: R.park.x, y: R.park.y, icon: 'flag', beaconOnly: true };          // (the beacon over Tipsey: set the drone down on him)
@@ -102712,7 +102712,7 @@ class WorldScene extends Phaser.Scene {
     /* THE BEACONS (see BEACON): sorted in the world like any body, so a
        building in front covers one, and only then -- tested once per spot
        at the beacon's own height, cached like a prop's -- it ghosts. */
-    const queueBeacon = (bx, by, icon, ex) => {
+    const queueBeacon = (bx, by, icon, ex, dep) => {
       let hid = false;
       if(XRAY.propMax > 0 && this._visBlocks && !ex){
         const k = "bcn|" + Math.round(bx) + "," + Math.round(by);
@@ -102722,7 +102722,7 @@ class WorldScene extends Phaser.Scene {
           this._xrayPropCache.set(k, hid);
         }
       }
-      hazVQ.push({ depth: bx + by + 1, fn: (gg, tt) => {
+      hazVQ.push({ depth: dep != null ? dep : bx + by + 1, fn: (gg, tt) => {
         const lg = layerFor(bx, by);
         if(hid) this.xrayMirror(() => this.drawBeacon(lg, bx, by, icon, tt));
         else this.drawBeacon(lg, bx, by, icon, tt, ex || null);
@@ -102860,7 +102860,7 @@ class WorldScene extends Phaser.Scene {
             if(!B.inPk) this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false);
             this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
         } }
-      if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon); }
+      if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon, undefined, B.depth); }
     }
     /* CATCH OF THE DAY's bay (fmBayNow): the forecourt to start, the yard's bay for the pod, each kitchen's, the pod's
        own bay home -- the stories' bay, cached, its ring and beacon live */
