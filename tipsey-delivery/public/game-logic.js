@@ -33315,15 +33315,15 @@ const MISSIONS = {
     item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
     next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
     start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
-  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'any', places: ['Pelican Harbor', 'Marina Chandlery', 'Tipsey Fleet at Sun Deck Airfield', 'the breakwater light'],
-    steps: ["Stop on the bay at the quay's head", 'The spare lamp from the Marina Chandlery', "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The lamp out to Ines at the light, before the fog', 'Back to the harbour master, over the quay', 'The drone home to its hangar'],
+  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'shops', places: ['Marina Chandlery', 'Pelican Harbor', 'Tipsey Fleet at Sun Deck Airfield', 'the breakwater light'],
+    steps: ["The harbour master's order: the spare lamp, at the Marina Chandlery", "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The lamp out to Ines at the light, before the fog', 'Back to the harbour master, over the quay', 'The drone home to its hangar'],
     reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
     busy: () => LH.stage !== 'idle',
     item: () => LH.stage === 'drive' || LH.stage === 'crew' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
-    next: () => ({ ask: 'Hear the harbour master out', lamp: 'The Marina Chandlery: the spare lamp', clerk: 'The clerk at the counter', fetch: 'The clerk is fetching the lamp', hand: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
+    next: () => ({ clerk: 'The clerk at the counter', fetch: 'The clerk is fetching the lamp', hand: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
                    crew: 'The crew chief has the drone ready', out: 'Out of the hangar and up', fly: 'Out to the light, before the fog', keeper: 'Ines has it', report: 'Back to the harbour master, over the quay',
-                   thanks: 'The harbour master', sorry: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "Stop on the bay at Pelican Harbor's quay",
-    start: () => ({ x: LH_RUN.quay.x, y: LH_RUN.quay.y, name: 'Pelican Harbor' }) },
+                   thanks: 'The harbour master', home: 'The drone home to its hangar at Sun Deck Airfield' })[LH.stage] || "The Marina Chandlery: the harbour master's order",
+    start: () => { const d = lhChandDoor(); return { x: d.x, y: d.y, name: 'Marina Chandlery' }; } },
   /* CATCH OF THE DAY (THE PELICAN FISH MARKET): Nell's three kitchens, run in the market's delivery pod */
   'catch-of-the-day': { name: 'Catch of the Day', giver: 'Nell, Pelican Fish Market', window: 'any', places: ['Pelican Fish Market', 'Saltwater Brewing', 'Lagoon Market Hall', 'The Grand Pelican'],
     steps: ["Stop on the bay in front of the Pelican Fish Market", "The market's delivery pod, round the back in its yard", "Saltwater Brewing's snapper", "The Lagoon Market Hall's mussels", "The Grand Pelican's halibut (and a plate back for Nell)", "The pod home to Nell, before the ice melts"],
@@ -83151,24 +83151,24 @@ const cpLookPlain = L => [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe];
 function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLook(n, adult ? { adult: true, aid } : null); }
 /* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
    area 8; docs/fleet-redesign.md) ====================
-   A fog bank is rolling in off the bay and the breakwater light has gone dark: its lamp burnt out, and Ines, the
-   keeper, is out at the light with no way to get a new one across the water before the fog closes in. The Fleet's
-   drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31), across the Flats from the light:
-     ask      Tipsey stops on the bay at the quay's head; the harbour master comes over from the rail, face to face
-              (meetWalk / meetTick), and asks (I'm on it / Not now)
-     lamp     the spare lamp: the Marina Chandlery's bay, under its awning on the plaza; the clerk brings it out to
-              him, face to face (the lamp in their hand, R6)
+   The breakwater light's lamp has burnt out and Ines, the keeper, is out at the light with a fog bank rolling in. The
+   harbour master has ordered the Marina Chandlery's spare lamp -- an ordinary pickup, to look at -- but the light is out on
+   an island: no road reaches it. The Fleet's drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31):
+     order    the order waits at the Marina Chandlery (a beacon over its door; the mat inside before the counter, CHAND_IN,
+              the walk-in): in at the door and onto the mat, the clerk at her post behind the counter says there must be a
+              mistake, the light is on an island (Leave it to me!)
+     lamp     she fetches the big brass lamp from the back shelf and brings it round to him, face to face, the lamp in her
+              hand; the drone is the way out (To the Fleet!)
      drive    out to the Fleet's hangar at Sun Deck Airfield, in at its own gate off the street (FLEET_GATE: no code),
               onto the visitor bay just inside it (the GPS leads)
      crew     the hangar's crew chief comes over from her post by the doors, face to face: the drone is ready, the lamp
               slung under it (Let's fly!); the mission LENDS him the delivery drone (FLEET_LOAN: the borrowed kind,
               never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls out of its hangar
               lane to its apron pad and takes off, as a launch does (flyOnPlay)
-     fly      across the Flats and out over the basin to the light, the lamp slung under it, before the fog closes in:
-              a timer from take-off (LH_RUN.limitMs: the measured flight and a fair margin), the fog thickening as it
-              runs (lhFogTick), the beacon over the light's bay (R7)
-     keeper   over the light's bay it comes down to a hover; Ines comes out round the tower to it, face to face, and
-              takes the lamp up: the light comes on (lhLightOn, drawn live in the harbour's queue)
+     fly      across the Flats and out over the basin to the light, the lamp slung under it, a light fog over the screen
+              (lhFogTick; no clock), the beacon over the light's bay (R7)
+     keeper   over the light's bay, on the arm's concrete walk, it comes down to a hover; Ines comes out to it, face to face,
+              and takes the lamp up (she mentions the fog): the light comes on (lhLightOn, drawn live in the harbour's queue)
      report   back over the plaza to the quay's bay (the beacon): it comes down to a hover there and the harbour master
               comes to it from the rail, face to face
      thanks   he thanks him: $50 from the harbour office (the server pays it once: 'lighthouse') and Ines's brass key to
@@ -83176,18 +83176,13 @@ function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLoo
               lock flips (FLEET.dronequad.unlock)
      home     the drone home to its apron pad at the airfield: it lands, rolls into its lane, the door comes down, and
               he is Tipsey again on the visitor bay (the loan ends), quietly
-   Missed the fog (the timer runs out): the light stays dark; the harbour master, over the quay, says they will try
-   again when it lifts ('sorry'), and he flies the drone home (back to idle: nothing is kept, R10). Nothing of a run is
-   saved: a reload starts it again from the quay. The harbour master, the clerk, the crew chief and Ines are always
-   about (R1): on the quay, under the chandlery's awning, at her post by the hangar's doors, at the light (CITY_PEOPLE
-   'The Lighthouse Run'). */
-const LH = { stage: 'idle', who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0, failed: false,
+   Nothing of a run is saved: a reload starts it again at the Chandlery (R10). Offered in shop hours (the Chandlery's door is
+   locked after them). The harbour master, the crew chief and Ines are always about (R1): on the quay, at her post by the
+   hangar's doors, at the light (CITY_PEOPLE 'The Lighthouse Run'); the clerk is the Chandlery's own (walkinStaff), borrowed
+   for the fetch (away / awayAt). */
+const LH = { stage: 'idle', who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0,
              lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
-  /* from take-off to over the light, before the fog closes in. Measured (headless, auto height, no height input, the
-     stick held straight at the light's bay): 44,150 flown in 170 s from lift-off at the airfield; the limit gives a
-     player 4:00, 1.4 times that, for the turns round towers and a slower stick (the old 90 s was twice a 45 s flight) */
-  limitMs: 240000,
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
   visit: hospBay(AIR.fleet.visit.x, AIR.fleet.visit.y),   // the Fleet hangar's visitor bay, just inside its street gate, in front of the delivery drone's pad
   post: AIR.fleet.post,                      // the crew chief's post, on the apron by the pier between the air taxi's door and the drone's
@@ -83347,8 +83342,11 @@ function lhBayNow(scene){
   const R = LH, ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => Object.assign({}, B, { icon });
-  if(R.stage === 'idle') return !FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') ? null : ic(LH_RUN.quay, 'flag');
-  if(R.stage === 'lamp'){ if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true }); const d = lhChandDoor(); return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true }; }
+  if(R.stage === 'idle'){
+    if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') || !missionWindowOpen('lighthouse-run')) return null;
+    if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true });         // (the order waits at the Chandlery: its mat inside, the beacon over its door outside)
+    const d = lhChandDoor(); return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true };
+  }
   if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
   if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');
   if(R.stage === 'report') return ic(LH_RUN.quay, 'flag');
@@ -83364,23 +83362,6 @@ function lhMeetWalk(ow, from, t0, side, gap){
 }
 /* side by side across the screen, on the side they come from */
 function lhSide(ow, from){ return meetSide(ow, from); }
-function lhAccept(){
-  const scene = scn(), R = LH;
-  if(R.stage !== 'ask' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  if(R.who) R.who.leave = scene.time.now;           // back to the rail, to watch for the light
-  R.stage = 'lamp';
-  lhNav(scene, lhChandDoor(), "Marina Chandlery");
-  if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("The spare lamp: in at the Marina Chandlery's door, and up to the counter.");
-}
-function lhDecline(){
-  const scene = scn(), R = LH;
-  if(R.stage !== 'ask' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  if(R.who) R.who.leave = scene.time.now;           // back to the rail
-  R.stage = 'idle'; R.snooze = LH_RUN.quay;          // the bay re-arms once he has left it (R2)
-}
 /* her first word: she goes to the lamp shelf on the back wall */
 function lhToShelf(){
   const scene = scn(), R = LH;
@@ -83452,12 +83433,6 @@ function lhFinish(){
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
   collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly. Take it home to its hangar at Sun Deck Airfield.");
 }
-function lhSorry(){
-  const R = LH;
-  if(R.stage !== 'sorry') return;
-  lhReported();
-  if(typeof tpToast === "function") tpToast("Fly the drone home to its hangar at Sun Deck Airfield.");
-}
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
   const R = LH, P = R.park, L = fleetBayOf('dronequad');
@@ -83478,19 +83453,12 @@ function lhFogTick(scene, now){
   const R = LH;
   let want = 0;
   if(R.stage !== 'idle') want = 0.3;
-  if(R.stage === 'out' || R.stage === 'fly') want = 0.3 + 0.62*Math.min(1, R.flyT0 ? (now - R.flyT0)/LH_RUN.limitMs : 0);
+  if(R.stage === 'out' || R.stage === 'fly') want = 0.45;
   if(R.stage === 'keeper') want = R.fog;
-  if((R.stage === 'report' || R.stage === 'home' || R.stage === 'thanks' || R.stage === 'sorry') && !R.failed) want = 0;
-  if(R.failed && (R.stage === 'report' || R.stage === 'home' || R.stage === 'sorry')) want = 0.75;
+  if(R.stage === 'report' || R.stage === 'home' || R.stage === 'thanks') want = 0;
   R.fog += (want - R.fog)*Math.min(1, (scene._frameDt || 16)/(want < R.fog ? 2400 : 700));
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
-  const tm = document.getElementById("lhTimer");
-  if(tm && !gwClockOn() && !(typeof rlClockOn === 'function' && rlClockOn()) && !(typeof ohClockOn === 'function' && ohClockOn())){                              // (THE GETAWAY's clock has the pill while it runs: gwTimerTick)
-    const on = R.stage === 'fly' && R.flyT0 > 0, left = Math.max(0, LH_RUN.limitMs - (now - R.flyT0));
-    tm.classList.toggle("hidden", !on);
-    if(on){ const s = Math.ceil(left/1000), txt = "Fog closes in " + Math.floor(s/60) + ":" + String(s % 60).padStart(2, "0"); if(tm.textContent !== txt) tm.textContent = txt; }
-  }
 }
 /* every frame (after owStep) */
 function lhTick(scene, ow){
@@ -83508,34 +83476,21 @@ function lhTick(scene, ow){
   const over = (B) => ow.fly && ow.fly.ph === 'air' && Math.hypot(ow.px - B.x, ow.py - B.y) < 150;
   switch(R.stage){
     case 'idle': {
-      if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
-      if(!armed(LH_RUN.quay)) return;
-      R.stage = 'ask'; ow.vel = 0; cineBars(true);
-      const p = lhMasterAt(now);
-      R.who = meetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), scene);
-      R.who.th0 = p.th;
-      if(typeof sfxThump === "function") sfxThump(0.2);
+      /* THE HARBOUR MASTER'S ORDER waits at the Marina Chandlery: in at the shop's door (the walk-in), onto the mat before
+         the counter, and the clerk stands at her post behind it */
+      if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run') || scene._inside !== lhChandPk()) return;
+      if(!armed(lhChandMat())) return;
+      if(!missionWindowOpen('lighthouse-run')){ missionWindowSay('lighthouse-run', scene); R.snooze = lhChandMat(); return; }
+      R.stage = 'clerk'; ow.vel = 0; cineBars(true);
+      const post = CHAND_ROOM.clerk, q = lhRoomPt(post[0], post[1]);
+      R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
+      R.clerk = { face: R.M.faceTh, has: null };
+      if(typeof sfxThump === "function") sfxThump(0.15);
       return;
     }
-    case 'ask':
-      if(R.who && R.who.leave == null) meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "I'm on it!", ok: lhAccept, no: { btn: "Not now", ok: lhDecline }, at: lhMasterAt,
-        say: "Tipsey! Thank goodness. See that fog bank rolling in off the bay? And the breakwater light's gone dark: its lamp's burnt out. Ines is out at the light, and no boat's getting to her in this. The chandlery has one spare lamp. Could you take it out to the Fleet's hangar at Sun Deck Airfield and fly it to her on one of their delivery drones, before the fog closes in?" }));
-      return;
-    case 'lamp':
-      /* in at the shop's door (the walk-in), and onto the mat before the counter: the clerk stands at her post behind it */
-      if(fleetCur() || scene._inside !== lhChandPk()) return;
-      if(armed(lhChandMat())){
-        R.stage = 'clerk'; ow.vel = 0; cineBars(true);
-        const post = CHAND_ROOM.clerk, q = lhRoomPt(post[0], post[1]);
-        R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
-        R.clerk = { face: R.M.faceTh, has: null };
-        lhNavClear(scene);
-        if(typeof sfxThump === "function") sfxThump(0.15);
-      }
-      return;
     case 'clerk':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
-        say: "The light's lamp? Of course: the harbour master rang ahead. It's the big brass one, the last spare on the whole coast. It lives up on the back shelf. One moment." }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Leave it to me!", ok: lhToShelf, at: lhClerkSayAt,
+        say: "The harbour master's order, for the breakwater light? The big brass lamp, the last spare on the whole coast. There must be some mistake, though: the light's out on an island, and there's no road to it. Still, an order's an order. It lives up on the back shelf. One moment." }));
       return;
     case 'fetch': {
       ow.vel = 0;
@@ -83553,8 +83508,8 @@ function lhTick(scene, ow){
       return;
     }
     case 'hand':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Got it!", ok: lhGotLamp, at: lhClerkSayAt,
-        say: "Here she is. Careful with it: brass, and heavier than it looks. Ines will know what to do with it. Good luck out there!" }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "To the Fleet!", ok: lhGotLamp, at: lhClerkSayAt,
+        say: "Here she is. Careful with it: brass, and heavier than it looks. You'll never drive it out there, but the Fleet at Sun Deck Airfield has drones that can: that's your way across the water. Ines will know what to do with it. Good luck!" }));
       return;
     case 'drive':
       if(fleetCur()) return;
@@ -83578,11 +83533,6 @@ function lhTick(scene, ow){
       return;
     case 'fly': {
       const S = lhLightSpots();
-      if(now - R.flyT0 > LH_RUN.limitMs){
-        R.failed = true; R.stage = 'report';
-        if(typeof tpToast === "function") tpToast("The fog's closed in on the light. Back to the harbour master, on the quay.");
-        return;
-      }
       /* over the light's bay, in the air: it comes down to a hover there, and Ines comes out to it */
       if(over(S.bay)){ R.stage = 'keeper'; R.keeper = null; holdOver(S.bay); }
       return;
@@ -83595,16 +83545,13 @@ function lhTick(scene, ow){
       return;
     case 'report':
       /* over the quay's bay: it comes down to a hover, and the harbour master comes from the rail to it */
-      if(over(LH_RUN.quay)){ R.stage = R.failed ? 'sorry' : 'thanks'; R.who = null; holdOver(LH_RUN.quay); }
+      if(over(LH_RUN.quay)){ R.stage = 'thanks'; R.who = null; holdOver(LH_RUN.quay); }
       return;
-    case 'thanks':
-    case 'sorry': {
+    case 'thanks': {
       if(!R.who && now > R.kT){ const p = lhMasterAt(now); R.who = Object.assign(lhMeetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), 175), { th0: p.th }); }
       if(R.who && R.who.leave == null){
-        if(R.stage === 'thanks') meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
+        meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Anytime!", ok: lhFinish, at: lhMasterAt,
           say: "You did it, Tipsey! Look at her shine out there. Every boat in the bay can find its way home tonight. Ines sent this back for you: her brass key to the light. And this is from the harbour office, with our thanks." }));
-        else meet(R.who, () => hospSayCard({ who: "Harbour master", btn: "Next time!", ok: lhSorry, at: lhMasterAt,
-          say: "The fog beat us to it this time. No harm done: get that drone home to its hangar, and come back when it lifts. We'll try again." }));
       }
       return;
     }
@@ -83612,7 +83559,7 @@ function lhTick(scene, ow){
       const fl = ow.fly, L = fleetBayOf('dronequad');
       if(fl && fl.ph === 'ground' && L && Math.hypot(ow.px - L.x, ow.py - L.y) < 40){
         lhLoanEnd(scene);
-        R.stage = 'idle'; R.lit = false; R.failed = false;
+        R.stage = 'idle'; R.lit = false;
         lhNavClear(scene);
       }
       return;
@@ -134528,7 +134475,7 @@ const CHAND_ROOM = { W: 680, D: 1010, LH: 66, door: 340,
 const CHAND_IN = walkinDefine({ name: 'Marina Chandlery Interior', from: 'Pelican Harbor', x0: 600000, y0: 400000,
   lab: [PH_PLAN.WA0 + 30, PH_PLAN.HA0 - 30, PH_PLAN.WB + 30, PH_PLAN.HB - 30], door: { a: PH_PLAN.DOOR_A, b: PH_PLAN.HB, half: 55 }, H: 230, out: 40, apron: 40, glass: 45,
   body: [[PH_PLAN.WA0, PH_PLAN.HA0, PH_PLAN.WB, PH_PLAN.HB]],
-  late: () => typeof LH !== 'undefined' && (LH.stage === 'lamp' || LH.stage === 'clerk' || LH.stage === 'fetch' || LH.stage === 'hand') });
+  late: () => typeof LH !== 'undefined' && (LH.stage === 'clerk' || LH.stage === 'fetch' || LH.stage === 'hand') });
 walkinStaff('Marina Chandlery Interior', [
   { id: 'clerk', role: 'chandlery clerk', seed: 0xc4a3, U: CHANDLERY_UNIFORM, fixed: true, keys: true, lookFn: () => lhLooks().clerk,
     posts: [CHAND_ROOM.clerk, [585, 524, Math.PI/2 + 0.5, 4000, true], [470, 526, Math.PI/2 - 0.4, 3600, true]],
