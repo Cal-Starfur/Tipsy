@@ -84857,7 +84857,7 @@ function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLoo
    area 8; docs/fleet-redesign.md) ====================
    The breakwater light's lamp has burnt out and Ines, the keeper, is out at the light with a fog bank rolling in. The harbour
    master has ordered the Marina Chandlery's spare lamp -- an ordinary pickup, to look at -- but the light is out on an island
-   (the breakwater's walk is closed by a barrier: lhJettyClosed): the Fleet's delivery drone carries Tipsey out to it.
+   (the light stands on an island of its own, out past the breakwater: no walk reaches it): the Fleet's delivery drone carries Tipsey out to it.
      order    the order waits at the Marina Chandlery (a beacon over its door; the mat inside before the counter, CHAND_IN,
               the walk-in): in at the door and onto the mat, the clerk at her post behind the counter has it ready
      lamp     she fetches the big brass lamp from the back shelf and brings it round to him, face to face, the lamp in her
@@ -84871,12 +84871,14 @@ function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLoo
      keeper   the loan ends (lhDrop): he is Tipsey on the walk, the drone lifts away home by itself; Ines comes along the walk to
               him, face to face, and takes the lamp (she mentions the fog): the light comes on (lhLightOn)
      done     $50 from the harbour office (the server pays it once: 'lighthouse') and Ines's brass key to the light (a key item,
-              rebuilt from the record: lhKeyMigrate); the barrier is gone; the drone is his to fly once the fleet's lock flips
-              (FLEET.dronequad.unlock); he drives home along the breakwater
+              rebuilt from the record: lhKeyMigrate); the drone is his to fly once the fleet's lock flips
+              (FLEET.dronequad.unlock)
+     back     no road leaves the island: the drone comes in again, he is hooked on and carried back to the transfer spot on the
+              plaza and set down there (LH.leg 'back': the same grab, lift and drop)
    Nothing of a run is saved: a reload starts it again at the Chandlery (R10). Offered in shop hours (the Chandlery's door is
    locked after them). The harbour master, the crew chief and Ines are always about (R1); the clerk is the Chandlery's own
    (walkinStaff), borrowed for the fetch (away / awayAt). */
-const LH = { stage: 'idle', carry: null, drone: null, landed: false, who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0,
+const LH = { stage: 'idle', leg: null, carry: null, drone: null, landed: false, who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0,
              lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
@@ -84889,7 +84891,7 @@ const LH_RUN = {
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
 function lhLightSpots(){
   const L = harborGeo().light, T = flyLightGeo();
-  return { bay: hospBay(L.x - 40, L.y - 360), ines: { x: L.x + 100, y: L.y - 215 }, L };   // (both on the arm's concrete walk, north of the tower: the bay mid-walk, her place by the landing's edge -- she stood on the rocks south of it)
+  return { bay: hospBay(L.x + 90, L.y + 120), ines: { x: L.x + 175, y: L.y + 20 }, L };   // (both on the island's landing, on the camera's side of the tower: the target before it, her place beside)
 }
 function lhLooks(){
   if(!lhLooks.c){
@@ -85046,7 +85048,7 @@ function lhBayNow(scene){
   }
   if(R.stage === 'drive') return ic(LH_RUN.pickup, 'flag');
   if(R.stage === 'grab' && R.park) return { x: R.park.x, y: R.park.y, icon: 'flag', beaconOnly: true };          // (the beacon over Tipsey: set the drone down on him)
-  if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');                                                  // (the target on the breakwater's walk: set him down on it)
+  if(R.stage === 'fly') return ic(R.leg === 'back' ? LH_RUN.pickup : lhLightSpots().bay, 'flag');                                                  // (the target on the breakwater's walk: set him down on it)
   return null;
 }
 /* meetWalk, at a gap of its own: the drone's rotors reach 120 out from its middle, so whoever meets it stands off
@@ -85082,17 +85084,17 @@ function lhGotLamp(){
 /* THE LOAN: Tipsey stays on the transfer spot, parked still (cached); the Fleet's delivery drone is his for the run, coming in over the
    water to him -- and he is in it, in the air, the player's to fly */
 function lhLoan(scene){
-  const ow = scene.ow, R = LH, P = LH_RUN.pickup;
+  const ow = scene.ow, R = LH;
   R.park = { x: ow.px, y: ow.py, a: ow.yaw };   // (where he stopped on the spot)
   FLEET_LOAN = 'dronequad';
-  const sx = P.x + 850, sy = P.y + 450, yaw = Math.atan2(R.park.y - sy, R.park.x - sx), items = scene.items;
+  const sx = R.park.x + 850, sy = R.park.y + 450, yaw = Math.atan2(R.park.y - sy, R.park.x - sx), items = scene.items;
   owStandUpAt(scene, sx, sy, yaw);
   scene.items = items || [];
   const fl = ow.fly = flyNew(ow);
   ow.z = flyTerrainZ(scene, sx, sy) + 300; fl.ph = 'air'; fl.zHold = ow.z; fl.spin = 1;
   R.stage = 'out';
   lhNavClear(scene);
-  if(typeof tpToast === "function") tpToast("Fleet dispatch: the delivery drone is yours for the run.");
+  if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Fleet dispatch: the drone's coming back for Tipsey. Set it down on him to take him home." : "Fleet dispatch: the delivery drone is yours for the run.");
 }
 /* THE HOOK: the drone is down on top of him (on its skids): Tipsey, parked still on the bay, is its load now -- slung under it
    when it lifts (drawn on the drone: drawFleetAvatarAt), no longer parked on the bay (lhQueue) */
@@ -85102,19 +85104,20 @@ function lhHook(scene){
   R.carry = { a: P.a }; R.park = null; R.landed = false;
   R.stage = 'fly'; R.flyT0 = scene.time.now;
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Hooked on! Lift off and carry Tipsey out to the light: set him down on the pad on the breakwater.");
+  if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Hooked on! Lift off and carry Tipsey home: set him down on the pickup spot on the plaza." : "Hooked on! Lift off and carry Tipsey out to the island: set him down on the pad by the light.");
 }
 /* THE DROP: set down on the target, the drone lets him down and is his no more -- the loan ends, he is Tipsey on the pad, and
    the drone lifts away and home to its hangar (R.drone: a live item, lhQueue) */
 function lhDrop(scene){
-  const R = LH, ow = scene.ow, S = lhLightSpots();
+  const R = LH, ow = scene.ow, back = R.leg === 'back', T = back ? LH_RUN.pickup : lhLightSpots().bay;
   R.drone = { x: ow.px, y: ow.py, yaw: ow.yaw, t0: scene.time.now };
   R.carry = null;
   FLEET_LOAN = null;
-  const items = scene.items; owStandUpAt(scene, S.bay.x, S.bay.y + 70, Math.PI/2); scene.items = items || [];
+  const items = scene.items; owStandUpAt(scene, T.x, T.y + 70, Math.PI/2); scene.items = items || [];
   lhLoanDoor(scene);
-  R.stage = 'keeper'; R.keeper = null; R.kT = scene.time.now + 1600; cineBars(true);
   if(typeof sfxThump === "function") sfxThump(0.3);
+  if(back){ R.stage = 'idle'; R.leg = null; return; }                         // (home: the run is over)
+  R.stage = 'keeper'; R.keeper = null; R.kT = scene.time.now + 1600; cineBars(true);
 }
 /* the hangar's door comes down: the drone is out of its lane for good (it is off home, drawn flying, and parked again when it is in) */
 function lhLoanDoor(scene){
@@ -85140,9 +85143,9 @@ function lhHandLamp(){
   R.lit = true;
   missionComplete('lighthouse-run');
   lhKeyMigrate();
-  R.stage = 'idle'; R.keeper && (R.keeper.has = 'lamp');
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly: it's back in its hangar at Sun Deck Airfield.");
+  collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly: it's in its hangar at Sun Deck Airfield. No road leaves the island: the drone's coming back for Tipsey.");
+  R.leg = 'back'; lhLoan(scene);                                           // (the way home: the same hook, lift and set-down)
 }
 /* Tipsey slung under the drone (x, y, z its own): hanging a little below its skids, swaying, the lamp aboard; the cables up to
    its belly (part: 'tipsey' drawn before the drone, 'cables' after) */
@@ -85178,6 +85181,7 @@ function lhFogTick(scene, now){
   if(R.stage !== 'idle') want = 0.3;
   if(R.stage === 'out' || R.stage === 'grab' || R.stage === 'fly') want = 0.45;
   if(R.stage === 'keeper') want = 0.35;
+  if(R.leg === 'back') want = 0;                                  // (the light is on: the fog lifts)
   R.fog += (want - R.fog)*Math.min(1, (scene._frameDt || 16)/(want < R.fog ? 2400 : 700));
   const el = document.getElementById("lhFog");
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
@@ -85254,9 +85258,9 @@ function lhTick(scene, ow){
     }
     case 'fly': {
       /* set down on the target on the breakwater's walk: he is let down there, and Tipsey is Tipsey again */
-      const fl = ow.fly, S = lhLightSpots();
+      const fl = ow.fly, T = R.leg === 'back' ? LH_RUN.pickup : lhLightSpots().bay;
       if(fl && fl.ph === 'air') R.landed = true;
-      if(R.landed && fl && fl.ph === 'ground' && Math.hypot(ow.px - S.bay.x, ow.py - S.bay.y) < 110) lhDrop(scene);
+      if(R.landed && fl && fl.ph === 'ground' && Math.hypot(ow.px - T.x, ow.py - T.y) < 110) lhDrop(scene);
       return;
     }
     case 'keeper':
@@ -101005,24 +101009,6 @@ class WorldScene extends Phaser.Scene {
     vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
     if(sk > 0.002) vq.push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
-    /* the closed breakwater's barrier (lhJettyClosed), cached */
-    if(lhJettyClosed()){ const BR = lhBarrier();
-      if(this.visWorldPt(BR.cx, BR.cy, 500, 100)) vq.push({ depth: BR.cx + BR.cy, fn: (g) => this.bcDraw(g, "hb|barrier", BR.cx, BR.cy, gg => {
-        const W = (x, y, z) => this.W(x, y, z), Q = (pts, col) => this.quadOn(gg, pts, col), hw = BR.w/2 + 40, cy = BR.cy, cx = BR.cx;
-        for(let k = 0, n = Math.round(BR.w/40); k < n; k++){                      // the striped board across the walk, red and white
-          const y0 = cy - BR.w/2 + k*40, y1 = y0 + 40, c = k % 2 ? 0xf4f1e8 : 0xd8402c, d = k % 2 ? 0xd9d6cc : 0xa83020;
-          Q([W(cx + 7, y0, 100), W(cx + 7, y1, 100), W(cx + 7, y1, 60), W(cx + 7, y0, 60)], c);        // its seen face (east)
-          Q([W(cx - 7, y0, 100), W(cx + 7, y0, 100), W(cx + 7, y1, 100), W(cx - 7, y1, 100)], d);       // its top
-        }
-        for(const y of [cy - hw + 30, cy + hw - 30]){                             // its two posts
-          Q([W(cx + 9, y - 8, 120), W(cx + 9, y + 8, 120), W(cx + 9, y + 8, 0), W(cx + 9, y - 8, 0)], 0x6d747c);
-          Q([W(cx - 9, y - 8, 120), W(cx + 9, y - 8, 120), W(cx + 9, y + 8, 120), W(cx - 9, y + 8, 120)], 0x8d949c); }
-        Q([W(cx + 12, cy - 44, 190), W(cx + 12, cy + 44, 190), W(cx + 12, cy + 44, 130), W(cx + 12, cy - 44, 130)], 0xf4f1e8);          // the sign board
-        Q([W(cx + 13, cy - 36, 182), W(cx + 13, cy + 36, 182), W(cx + 13, cy + 36, 170), W(cx + 13, cy - 36, 170)], 0xd8402c);          // its red band: CLOSED
-        Q([W(cx + 13, cy - 36, 160), W(cx + 13, cy + 10, 160), W(cx + 13, cy + 10, 156), W(cx + 13, cy - 36, 156)], 0x3b4248); Q([W(cx + 13, cy - 36, 148), W(cx + 13, cy + 24, 148), W(cx + 13, cy + 24, 144), W(cx + 13, cy - 36, 144)], 0x3b4248);
-        Q([W(cx - 4, cy - 4, 130), W(cx + 4, cy - 4, 130), W(cx + 4, cy - 4, 100), W(cx - 4, cy - 4, 100)], 0x6d747c);
-      }) });
-    }
     /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
     const nl = nightLevel();
     if(nl > 0.02){
@@ -101503,7 +101489,7 @@ class WorldScene extends Phaser.Scene {
     /* the breakwater's footing: the rubble's shadow on the water under the
        boulders (they stand in the world sort -- see queueHarbor), the arm,
        the light's platform and the basin's north edge */
-    rect({ x0: hg.arm.x0 - 30, x1: hg.arm.x1 + 30, y0: hg.arm.y0, y1: hg.light.y - hg.light.r + 120 }, 0.2, ROCK);
+    rect({ x0: hg.arm.x0 - 30, x1: hg.arm.x1 + 30, y0: hg.arm.y0, y1: hg.arm.y1 }, 0.2, ROCK);
     { const L = hg.light, N = 20, P = [];
       for(let i = 0; i < N; i++){ const t = i/N*Math.PI*2; P.push(this.W(L.x + Math.cos(t)*(L.r + 20), L.y + Math.sin(t)*(L.r + 20), 0.2)); }
       Q(P, ROCK); }
@@ -101519,7 +101505,7 @@ class WorldScene extends Phaser.Scene {
         Q(P, EDGE); Q(P2, CONC); }
       for(const w of [J.north, J.arm]) rect(w, 2, CONC);
       g.lineStyle(2, JOINT, 0.8);
-      for(let y = J.arm.y0 + T2*4; y < J.arm.y1 - J.land.r; y += T2*4){
+      for(let y = J.arm.y0 + T2*4; y < J.arm.y1; y += T2*4){
         const a = this.W(J.arm.x0, y, 2), b2 = this.W(J.arm.x1, y, 2);
         if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
       }
@@ -136245,10 +136231,11 @@ function harborGeo(){
   const apron = { x0: road.x1, x1: X0, y0: MY0, y1: SW };
   const plaza = { x0: MX0 + 700, x1: X0, y0: H.PLAZA_Y0, y1: MY0 };
   const bldg = { x0: H.BLDG.x0, x1: H.BLDG.x1, y0: H.BLDG.y0, y1: H.PLAZA_Y0 };
-  /* the arm: from the headland south, its tip at the mouth, the light on a
-     round rock platform there */
+  /* the arm: from the headland south, its tip at the mouth. THE LIGHT stands on an island of its own out in the sea beyond it
+     (Sir, 2026-11-12: "create an island and move the lighthouse over there, so this story makes sense"): a round rock platform,
+     1,700 west of the arm and 700 north of its tip, no walk to it -- the Lighthouse Run's drone carries him there */
   const arm = { x0: armX1 - ARM_W, x1: armX1, y0: MY0 - 260, y1: MY0 + (Y0 - MY0)*0.62 };
-  const light = { x: (arm.x0 + arm.x1)/2, y: arm.y1 - 120, r: 300 };
+  const light = { x: arm.x0 - 1700, y: arm.y1 - 700, r: 380 };
   const head = { x0: arm.x0 - 500, x1: X0, y0: H.HEAD_Y0, y1: MY0 };
   /* THE JETTY WALK (Sir, 2026-10-01: "there needs to ber a path ontop of
      the jettie to make it accessable"): a concrete walk from the plaza's
@@ -136257,7 +136244,7 @@ function harborGeo(){
   const JW = 260;
   const jetty = {
     north: { x0: (arm.x0 + arm.x1)/2 - JW/2, x1: plaza.x0 + 40, y0: MY0 - 420, y1: MY0 - 420 + JW },
-    arm:   { x0: (arm.x0 + arm.x1)/2 - JW/2, x1: (arm.x0 + arm.x1)/2 + JW/2, y0: MY0 - 420, y1: light.y },
+    arm:   { x0: (arm.x0 + arm.x1)/2 - JW/2, x1: (arm.x0 + arm.x1)/2 + JW/2, y0: MY0 - 420, y1: arm.y1 - 120 },       // (to the arm's tip: the light is on its island now)
     land:  { x: light.x, y: light.y, r: light.r - 70, tower: 100 },
   };
   /* THE BOULDERS: a rubble mound along the arm, round the light's
@@ -136268,7 +136255,7 @@ function harborGeo(){
     const stone = (x, y, s0) => rocks.push({ x, y, r: s0*(0.75 + rr()*0.5), h: s0*(0.55 + rr()*0.5),
                                              n: 6 + Math.floor(rr()*3), rot: rr()*Math.PI, tone: Math.floor(rr()*4) });
     /* the arm: four rows down its length, the outer rows lower and bigger */
-    for(let y = arm.y0 + 60; y < light.y - light.r + 40; y += 105){
+    for(let y = arm.y0 + 60; y < arm.y1 - 20; y += 105){
       const lane = [[arm.x0 + 55, 92], [arm.x0 + 170, 78], [arm.x1 - 170, 78], [arm.x1 - 55, 92]];
       for(const [x, s0] of lane) stone(x + (rr() - 0.5)*40, y + (rr() - 0.5)*50, s0);
     }
@@ -136746,18 +136733,9 @@ function harborSurface(x, y){
    of the walk rects stops him as a kerb does, so he slides along a quay
    edge instead of driving into the basin. Probed at four points a body's
    reach out, so he stops with his wheels on the planks. */
-/* THE BREAKWATER IS CLOSED (THE LIGHTHOUSE RUN: the light is out on an island till the run is done -- storm damage): a barrier across the
-   jetty's walk where it leaves the plaza stops him; the drone sets him down on the far side of it */
-function lhJettyClosed(){ return !lhDone() && !(typeof LH !== 'undefined' && LH.stage === 'keeper'); }
-function lhBarrier(){
-  if(lhBarrier.c) return lhBarrier.c;
-  const J = harborGeo().jetty.north, bx = J.x1 - 300;
-  return (lhBarrier.c = { x0: bx - 25, x1: bx + 25, y0: J.y0 - 70, y1: J.y1 + 70, cx: bx, cy: (J.y0 + J.y1)/2, w: J.y1 - J.y0 });
-}
 function harborBlocks(x, y, R){
   if(!WORLDGEN_COAST) return false;
   const hg = harborGeo(), r = (R || 0)*0.7;
-  if(lhJettyClosed()){ const B = lhBarrier(); if(x + r > B.x0 && x - r < B.x1 && y + r > B.y0 && y - r < B.y1) return true; }
   if(x - r > hg.zone.x1 || y - r > hg.zone.y1) return false;
   for(const pr of hg.props) if(Math.abs(x - pr.x) < pr.r + (R || 0) && Math.abs(y - pr.y) < pr.r + (R || 0) &&
                               Math.hypot(x - pr.x, y - pr.y) < pr.r + (R || 0)) return true;
