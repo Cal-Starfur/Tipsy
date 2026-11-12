@@ -6016,12 +6016,13 @@ const FLEET_CTRL = {
       if(_gf) mag = _gf.mag;
       const w = _gf ? _gf.w : owScreenToWorld(sx, sy), wl = Math.hypot(w.x, w.y) || 1;
       /* the stick asks a velocity; it eases to it (a hover), and let go it comes to a stop and hangs there */
-      let tvx = mag > 0 ? w.x/wl*mag*D.vMax : 0, tvy = mag > 0 ? w.y/wl*mag*D.vMax : 0;
+      const _lhB = typeof lhFlyBoost === "function" ? lhFlyBoost(scene, ow) : 1;         // (the Lighthouse Run's long legs: flown faster while far from where it is sent)
+      let tvx = mag > 0 ? w.x/wl*mag*D.vMax*_lhB : 0, tvy = mag > 0 ? w.y/wl*mag*D.vMax*_lhB : 0;
       /* HELD by a mission (fl.hold: THE LIGHTHOUSE RUN's keeper): it eases over the spot and hangs there, the stick idle */
       if(fl.hold){ mag = 0; const hx = fl.hold.x - ow.px, hy = fl.hold.y - ow.py, hd = Math.hypot(hx, hy), hv = Math.min(0.08, hd*0.002);
         tvx = hd > 1 ? hx/hd*hv : 0; tvy = hd > 1 ? hy/hd*hv : 0; }
       let dvx = tvx - fl.vx, dvy = tvy - fl.vy;
-      const dl = Math.hypot(dvx, dvy), lim = (mag > 0 ? C.accel : C.brake)*dt;
+      const dl = Math.hypot(dvx, dvy), lim = (mag > 0 ? C.accel : C.brake)*dt*Math.min(2, _lhB);
       if(dl > lim){ dvx *= lim/dl; dvy *= lim/dl; }
       fl.vx += dvx; fl.vy += dvy;
       /* the nose follows where it is asked to go, at its turn rate */
@@ -85353,6 +85354,17 @@ function lhGaragePad(scene, park){
     if(x > A[0] && x < A[1] && y > A[2] && y < A[3] && (!scene || owSpotClear(scene, x, y, OW_D.botR*2.4))) return { x, y, yaw: Math.atan2(park.y - y, park.x - x) };
   }
   return { x: 25000, y: 20800, yaw: Math.atan2(park.y - 20800, park.x - 25000) };
+}
+/* THE LONG LEGS FASTER (Sir, 2026-11-12: "the speed of the drone is too slow"): the loaned drone, sent from its hangar across the city to Tipsey (or out to
+   the island), flies up to 3 times its everyday top speed while it is far from where it is sent, easing back to its own over the last 500..2000, so the
+   landing on him is as it was */
+function lhFlyBoost(scene, ow){
+  const R = LH;
+  if(FLEET_LOAN !== 'dronequad' || !R || (R.stage !== 'out' && R.stage !== 'grab' && R.stage !== 'fly')) return 1;
+  const T = R.stage === 'fly' ? (R.leg === 'back' ? LH_RUN.pickup : lhLightSpots().bay) : R.park;
+  if(!T) return 1;
+  const d = Math.hypot(T.x - ow.px, T.y - ow.py);
+  return Math.max(1, Math.min(3, 1 + (d - 500)/1500));
 }
 function lhLoan(scene){
   const ow = scene.ow, R = LH;
