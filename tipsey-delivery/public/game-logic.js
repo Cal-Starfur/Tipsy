@@ -4989,7 +4989,7 @@ function zoomApply(){
   }
 }
 function zoomSet(n){
-  zoomDepth = (n >= 1 && n <= 3) ? n : 1;
+  zoomDepth = (n >= 1 && n <= 3) ? Math.round(n) : 1;     // (three stops: a fraction left ZOOM_K[zoomDepth - 1] undefined, so K and the camera went NaN and the robot's wheels threw)
   try { localStorage.setItem(ZOOM_KEY, String(zoomDepth)); } catch(e){}
   zoomApply();
 }
