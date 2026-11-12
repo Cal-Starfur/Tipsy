@@ -99124,7 +99124,20 @@ class WorldScene extends Phaser.Scene {
        -- they are cut in the cached image -- and the room did not show through its glass till the shell's turn in the budget came) */
     const f = e.fn; if(f && !e._wkForce){ e._wkForce = true; e.fn = (g, t) => { const was = this._bcForce; this._bcForce = true; try { return f(g, t); } finally { this._bcForce = was; } }; }
     const fr = this._wkFr, M = this._wkShell || (this._wkShell = new Map()), r = M.get(pk.name);
-    if(!r || r.fr !== fr || e.depth < r.e.depth) M.set(pk.name, { fr, e });
+    if(!r || r.fr !== fr){ M.set(pk.name, { fr, e, hi: e.depth }); return; }
+    if(e.depth > r.hi) r.hi = e.depth;
+    if(e.depth < r.e.depth) M.set(pk.name, { fr, e, hi: r.hi });
+  }
+  /* THE ANTENNA ON BREW & BOLT'S ROOF, SEEN FROM THE STREET (Sir: "the bent antenna doesn't appear on the roof of the shop"): the roof
+     room's mast pieces (bent, or mended once the repair is done), laid where the building stands at the roof's height, just over the
+     shell's last piece this frame -- not the room's ground, its parapet or anything else of it */
+  queueRoofMast(vq, pk){
+    const sh = this._wkShell && this._wkShell.get('Brew & Bolt Interior');
+    if(!sh || sh.fr !== this._wkFr) return;                                       // (the shell not queued this frame: off screen)
+    const v = pk.view(), tmp = [];
+    this.queueFramePieces(tmp, pk.name, pk.x0 + v.dx, pk.y0 + v.dy, 1, "pkm|" + pk.name, -1e9, it => !!(it.solids && it.solids.some(q => q.name === 'antenna mast')), pk.z());
+    tmp.shift();                                                                  // (its ground: the building's own roof is the street's)
+    tmp.forEach((e, i) => vq.push({ depth: sh.hi + 1e-3 + i*1e-4, fn: e.fn }));
   }
   walkinThrough(vq, pk){
     if(this._inside || !(this.ow && this.ow.on)) return;
@@ -103528,6 +103541,7 @@ class WorldScene extends Phaser.Scene {
          covers them all but through its glass and its open doors */
       if(!v && pk.name === 'Maritime Mall Interior' && this.ow && this.ow.on && !this._inside) this.queueMallThrough(blockVQ, pk, near);
       if(!v && pk.name === HOSP_IN.name && this.ow && this.ow.on && !this._inside) this.queueHospThrough(blockVQ, pk);   // (its emergency entrances, seen into)
+      if(!v && pk.name === BBR.name && this.ow && this.ow.on && !this._inside) this.queueRoofMast(blockVQ, pk);   // (the bent antenna, up on the roof: from the street)
       if(!v && pk.walkin && pk.openings) this.walkinThrough(blockVQ, pk);       // (a walk-in's doorway and glass, seen into: W11)
     }
     /* THE AQUARIUM. One item, same vq, same depth key, same body/roof
