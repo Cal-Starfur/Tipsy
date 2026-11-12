@@ -83185,7 +83185,7 @@ const LH_RUN = {
 /* the light's bay and Ines's place by the tower's door: on the platform, the camera's side of the tower */
 function lhLightSpots(){
   const L = harborGeo().light, T = flyLightGeo();
-  return { bay: hospBay(L.x + 90, L.y + 120), ines: { x: L.x + 175, y: L.y + 20 }, L };   // (both on the island's landing, on the camera's side of the tower: the target before it, her place beside)
+  return { bay: hospBay(L.x + 170, L.y + 250), ines: { x: L.x + 330, y: L.y + 60 }, L };   // (both on the island's landing, on the camera's side of the tower: the target before it, her place beside)
 }
 function lhLooks(){
   if(!lhLooks.c){
@@ -134527,9 +134527,9 @@ function harborGeo(){
   const bldg = { x0: H.BLDG.x0, x1: H.BLDG.x1, y0: H.BLDG.y0, y1: H.PLAZA_Y0 };
   /* the arm: from the headland south, its tip at the mouth. THE LIGHT stands on an island of its own out in the sea beyond it
      (Sir, 2026-11-12: "create an island and move the lighthouse over there, so this story makes sense"): a round rock platform,
-     1,700 west of the arm and 700 north of its tip, no walk to it -- the Lighthouse Run's drone carries him there */
+     2,000 west of the arm and 700 north of its tip, no walk to it -- the Lighthouse Run's drone carries him there */
   const arm = { x0: armX1 - ARM_W, x1: armX1, y0: MY0 - 260, y1: MY0 + (Y0 - MY0)*0.62 };
-  const light = { x: arm.x0 - 1700, y: arm.y1 - 700, r: 380 };
+  const light = { x: arm.x0 - 2000, y: arm.y1 - 700, r: 700 };
   const head = { x0: arm.x0 - 500, x1: X0, y0: H.HEAD_Y0, y1: MY0 };
   /* THE JETTY WALK (Sir, 2026-10-01: "there needs to ber a path ontop of
      the jettie to make it accessable"): a concrete walk from the plaza's
@@ -134554,8 +134554,9 @@ function harborGeo(){
       for(const [x, s0] of lane) stone(x + (rr() - 0.5)*40, y + (rr() - 0.5)*50, s0);
     }
     /* the platform: a ring of big stones round the light */
-    for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2;
-      stone(light.x + Math.cos(t)*(light.r - 40), light.y + Math.sin(t)*(light.r - 40), 96); }
+    { const N = Math.round(2*Math.PI*(light.r - 40)/133);                      // (a stone every ~130 round the island's rim, whatever its size)
+      for(let k = 0; k < N; k++){ const t = k/N*Math.PI*2;
+        stone(light.x + Math.cos(t)*(light.r - 40), light.y + Math.sin(t)*(light.r - 40), 96); } }
     /* the north edge, from the arm to the plaza */
     for(let x = arm.x1 + 40; x < plaza.x0 + 40; x += 110) stone(x + (rr() - 0.5)*30, MY0 - 40 + (rr() - 0.5)*40, 84);
     /* THE SEA WALL (Sir, 2026-10-01, on the map: "lets extened the rock
