@@ -85298,10 +85298,33 @@ function lhGotLamp(){
 }
 /* THE LOAN: Tipsey stays on the transfer spot, parked still (cached); the Fleet's delivery drone is his for the run, coming in over the
    water to him -- and he is in it, in the air, the player's to fly */
+/* where the Fleet's drone stands on its pad for the garage: clear plaza, some way off the transfer spot, facing it */
+function lhGaragePad(scene, park){
+  const pl = harborGeo().plaza, R0 = OW_D.botR;
+  for(const r of [900, 760, 1040, 620]) for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2.2, -2.2, 3]){
+    const a = Math.PI*0.75 + da, x = park.x + Math.cos(a)*r, y = park.y + Math.sin(a)*r;
+    if(x > pl.x0 + 300 && x < pl.x1 - 300 && y > pl.y0 + 400 && y < pl.y1 - 400 && owSpotClear(scene, x, y, R0*2.2)) return { x, y, yaw: Math.atan2(park.y - y, park.x - x) };
+  }
+  return { x: park.x + 700, y: park.y - 300, yaw: Math.atan2(300, -700) };
+}
 function lhLoan(scene){
   const ow = scene.ow, R = LH;
   R.park = { x: ow.px, y: ow.py, a: ow.yaw };   // (where he stopped on the spot)
   FLEET_LOAN = 'dronequad';
+  /* OUT TO TIPSEY (Sir, 2026-11-12: "when tipsey lands on the pick up spot i want the player to be transported to the drone garage ... then they have
+     option to edit it and press play and drive to find tipsey waiting"): on the first leg he is cut to the Fleet's drone standing on its pad, the
+     garage over it (edit it, Play), and Tipsey waits where he stopped (parked, cached); Play lifts it off. The way home (the island) has the drone
+     come to him as before */
+  if(R.leg !== 'back' && typeof window.garageOpen === 'function'){
+    const g = lhGaragePad(scene, R.park), items = scene.items;
+    viewCrossfade(scene);
+    owStandUpAt(scene, g.x, g.y, g.yaw);
+    scene.items = items || [];
+    const fl = ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, g.x, g.y); fl.ph = 'ground';
+    R.stage = 'garage'; R.garageT = scene.time.now; lhNavClear(scene);
+    window.garageOpen();
+    return;
+  }
   const sx = R.park.x + 850, sy = R.park.y + 450, yaw = Math.atan2(R.park.y - sy, R.park.x - sx), items = scene.items;
   owStandUpAt(scene, sx, sy, yaw);
   scene.items = items || [];
@@ -85500,6 +85523,14 @@ function lhTick(scene, ow){
       /* at the transfer spot on the plaza: the Fleet's drone comes in over the water to him */
       if(fleetCur()) return;
       if(armed(LH_RUN.pickup)){ ow.vel = 0; lhLoan(scene); }
+      return;
+    case 'garage':
+      /* the garage open over the drone: edit it, then Play -- it lifts off by itself and the flight to Tipsey is the player's */
+      if(scene._garage || now - R.garageT < 800) return;
+      if(ow.fly) ow.fly = Object.assign(ow.fly, { ph: 'takeoff', t: 0, vx: 0, vy: 0, vz: 0 }); flyViewUp(ow.fly);
+      R.stage = 'out'; cineBars(false);
+      lhNavAir(scene, R.park, 'Tipsey');
+      if(typeof tpToast === "function") tpToast("Fleet dispatch: the delivery drone is yours for the run. Fly out to Tipsey, waiting on the pickup spot.");
       return;
     case 'out':
       if(ow.fly && ow.fly.ph === 'air'){
