@@ -136644,13 +136644,11 @@ function harborGeo(){
   const strip = { x0: bldg.x0 + PH_PLAN.WA0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.HB, y1: H.PLAZA_Y0 };
   /* THE ISLAND'S PIER (Sir, 2026-11-12: "the island needs a pier for boats"): a plank dock out from the landing's east side toward the
      basin, planked and piled as the finger docks are (it is one: harborPosts, the deck, the seams), a skiff tied up along its far (north)
-     side, as the marina's boats lie on a dock's far side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched), and
-     two bollards on its edge. Added after the slips and bollards so neither knows of it */
+     side, as the marina's boats lie on a dock's far side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched),  (no bollards: Sir, 2026-11-12). Added after the slips and bollards so neither knows of it */
   const ip = { k: 100, x0: light.x + 910, x1: light.x + 1800, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
   ip.y = (ip.y0 + ip.y1)/2; ip.len = ip.x1 - ip.x0;
   fingers.push(ip);
   const ipStairs = { x0: light.x + 360, x1: ip.x0, y0: ip.y0, y1: ip.y1 };            // the stairs over the rim's rocks to the deck: for people, not for his wheels (harborBlocks)
-  for(const x of [ip.x0 + 380, ip.x1 - 90]) props.push({ kind:'bollard', x, y: ip.y0 + 24, r: 20 });          // (on the boat's side)
   const islandBoat = { id: 900, kind: 'skiff', L: 300*BOAT_SC, side: -1, bow: 1, hull: '#7a2f2c', trim: '#f6f3ea' };
   islandBoat.x = ip.x1 - 140 - islandBoat.L/2; islandBoat.y = ip.y + islandBoat.side*(H.FINGER_W/2 + 45 + harborBoatBeam('skiff', islandBoat.L)/2);
   const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, jetty.north, jetty.arm, ...park.rects,
