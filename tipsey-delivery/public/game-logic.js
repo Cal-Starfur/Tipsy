@@ -99029,10 +99029,11 @@ class WorldScene extends Phaser.Scene {
         const key = "hb|ipstairs|" + Math.round(S.x0) + "," + Math.round(S.y0);
         vq.push({ depth: L.x + 760 + ip.y + 500, fn: (g) => this.bcDraw(g, key, L.x + 740, ip.y, gg => {
           const W = (x, y, z) => this.W(x, y, z), Q = (pts, col) => this.quadOn(gg, pts, col), y0 = S.y0, y1 = S.y1;
-          /* a block of the stairs: its top, its south face and its east face (the two the camera sees) */
-          const bx = (x0, x1, zt, top, side, end) => {
-            Q([W(x0, y1, zt), W(x1, y1, zt), W(x1, y1, 0.4), W(x0, y1, 0.4)], side);
-            Q([W(x1, y0, zt), W(x1, y1, zt), W(x1, y1, 0.4), W(x1, y0, 0.4)], end);
+          /* a tread (not a block: the stairs are open under their treads, on stringers and posts): its top, its edge's thickness on the
+             south and its riser (a step high) on the east -- the two faces the camera sees */
+          const bx = (x0, x1, zt, top, side, end, th = 5, ri = 10) => {
+            Q([W(x0, y1, zt), W(x1, y1, zt), W(x1, y1, zt - th), W(x0, y1, zt - th)], side);
+            Q([W(x1, y0, zt), W(x1, y1, zt), W(x1, y1, zt - ri), W(x1, y0, zt - ri)], end);
             Q([W(x0, y0, zt), W(x1, y0, zt), W(x1, y1, zt), W(x0, y1, zt)], top);
           };
           /* the pier's own timber (drawHarborGround: PLANK, PLANKD, TIMBER): planked treads, the platform planked and seamed across */
@@ -99041,6 +99042,18 @@ class WorldScene extends Phaser.Scene {
           bx(X + 8*ST, X + 11.3*ST, 82, PL, TM, 0x7d5e40);                                                                                  // the platform, centred on the rocks (x 600..700)
           for(let x = X + 8*ST + 26; x < X + 11.3*ST; x += 26){ const a = W(x, y0, 82), b = W(x, y1, 82); gg.lineStyle(Math.max(1, 1.6*this.K), PLD, 0.7); gg.lineBetween(a.x, a.y, b.x, b.y); }
           for(let k = 0; k < 7; k++) bx(X + 11.3*ST + k*ST, X + 11.3*ST + (k + 1)*ST, 72 - 10*k, k % 2 ? 0xc29467 : PL, TM, 0x7d5e40);   // the flight down to the deck (to z 12)
+          /* the stringers under the south edge (a beam a hand deep along each flight, the platform's under it) and the posts that hold them */
+          const beam = (xa, xb, za, zb, th = 12) => {
+            const lo = (z) => Math.max(0.4, z - th);
+            Q([W(xa, y1, za), W(xb, y1, zb), W(xb, y1, lo(zb)), W(xa, y1, lo(za))], 0x7d5e40);
+          };
+          const xB = X + 11.3*ST;
+          beam(X, X + 8*ST, 2, 82); beam(X + 8*ST, xB, 82, 82, 8); beam(xB, xB + 7*ST, 77, 7);
+          const post = (x, zTop) => { if(zTop < 12) return; const hw = 6, yy = y1 - 8;
+            Q([W(x - hw, yy + hw, zTop), W(x + hw, yy + hw, zTop), W(x + hw, yy + hw, 0.4), W(x - hw, yy + hw, 0.4)], TM);
+            Q([W(x + hw, yy - hw, zTop), W(x + hw, yy + hw, zTop), W(x + hw, yy + hw, 0.4), W(x + hw, yy - hw, 0.4)], 0x5a4330); };
+          for(let k = 2; k <= 8; k += 2) post(X + k*ST, 2 + 10*k - 6);
+          post(xB - 10, 70); for(let k = 2; k <= 6; k += 2) post(xB + k*ST, 77 - 10*k - 12);
         }) });
         /* THE ROCKS IN FRONT OF THE STAIRS draw over them (Sir: "the rocks should be drawing over it from this side"): the rim's
            stones south of the walk, redrawn straight after the stairs; the ones behind it stay under them */
