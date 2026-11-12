@@ -77185,9 +77185,9 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const skiffMotor = () => {
       const lz = Hd - 40;                                                                                  // the gearcase: well below the keel, trailered or afloat
       const AR = -L/2, DKM = '#2c3338', WH = ['#eef1f3', '#cdd3d8', '#aab1b7'];
-      box(AR - 4, AR + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                      // the transom clamp
-      box(AR - 9, AR - 3, -8, 8, Hd + 6, Hd + 20, '#7d858c', '#697076', '#585f65');                       // the swivel bracket
-      for(const sb of [-1, 1]) ball(AR - 5, sb*14.5, Hd + 9, 2.4, DKM);                                    // the clamp screw knobs
+      box(AR - 8, AR - 0.5, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                    // the transom clamp (behind the transom: a part over the rail was in front of the hull from the far end)
+      box(AR - 15, AR - 8, -8, 8, Hd + 6, Hd + 20, '#7d858c', '#697076', '#585f65');                       // the swivel bracket
+      for(const sb of [-1, 1]) ball(AR - 4, sb*14.5, Hd + 9, 2.4, DKM);                                    // the clamp screw knobs
       box(AR - 22, AR - 12, -1.6, 1.6, lz - 9, lz - 3, '#9aa1a6', '#7d858b', '#697076');                   // the skeg under the gearcase
       tube(AR - 26, 0, lz, AR - 8, 0, lz, 6.5, '#dfe4e7');                                                 // the gearcase torpedo...
       ball(AR - 26, 0, lz, 6.5, '#dfe4e7');                                                                // ...rounded aft
@@ -77248,7 +77248,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     poly(top.map((q) => P(q[0]*0.94, q[1]*0.84, zt(q) + 0.2)), shade(DECK, 1.04));
     /* cleats on the deck at the dock side, bow and stern, and the mooring
        lines from them down to the dock's edge */
-    const cleats = [[sh*0.85, dockB*hb*0.8], [-L/2 + 22, dockB*hb*0.8]];
+    const cleats = [[sh*0.85, dockB*hb*0.8], [-L/2 + 42, dockB*hb*0.62]];     // (the stern one well in from the transom's corner: at 22 and 0.8 it sat on the rail and read as a piece of the motor)
     if(kind !== 'jetski') for(const [a, b] of cleats){
       box(a - 6, a + 6, b - 3, b + 3, zt([a]), zt([a]) + 5, '#d8dde2', '#aab2ba', '#959ea7');
       const da = a + (a > 0 ? 70 : -70);
