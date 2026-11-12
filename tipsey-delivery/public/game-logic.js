@@ -83398,6 +83398,15 @@ function lhLoan(scene){
   lhNavClear(scene);
   if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Fleet dispatch: the drone's coming back for Tipsey. Set it down on him to take him home." : "Fleet dispatch: the delivery drone is yours for the run.");
 }
+/* THE LANDING ASSIST: once the player has tapped Land within 170 of the spot (Tipsey's, or the target ring), the drone eases onto its exact
+   middle as it comes down -- and, over Tipsey, round to his heading -- so it settles square on top of him, never a hand's width off */
+function lhLandAssist(scene, ow, B, turn){
+  const fl = ow.fly;
+  if(!B || !fl || fl.ph !== 'land' || Math.hypot(B.x - ow.px, B.y - ow.py) > 170) return;
+  const dt = Math.min(50, scene._frameDt || 16), k = Math.min(1, dt/240);
+  ow.px += (B.x - ow.px)*k; ow.py += (B.y - ow.py)*k;
+  if(turn && B.a != null) ow.yaw = owWrapAngle(ow.yaw + owWrapAngle(B.a - ow.yaw)*Math.min(1, dt/420));
+}
 /* THE HOOK: the drone is down on top of him (on its skids): Tipsey, parked still on the bay, is its load now -- slung under it
    when it lifts (drawn on the drone: drawFleetAvatarAt), no longer parked on the bay (lhQueue) */
 function lhHook(scene){
@@ -83454,9 +83463,9 @@ function lhHandLamp(){
 /* Tipsey carried NESTED under the drone (x, y, z its own), as it lies when it has landed on him: its body over his lid, its skids at his
    wheels, no grabber and no hang. He stays where he was parked till the drone lifts and slides in under it as it rises (the first
    60 up), then rides with it, swinging round to its heading over 1.4 s from however he lay. Drawn before the drone */
-/* where he lies under the drone, from its own spot: the drone's body stands 28 behind its middle (its nose way), so he nests 28 back of it to
-   line up under its body and skids */
-function lhCarryOff(scene){ const y = scene.ow.yaw; return { x: -28*Math.cos(y), y: -28*Math.sin(y) }; }
+/* where he lies under the drone, from its own spot (the models' middles agree: the drone's art and his, measured by pixels, share their x,
+   and his wheels stand at its skids) */
+function lhCarryOff(scene){ return { x: 0, y: 0 }; }       // (measured: both models are centred on their own spot, so they nest at the same x, y)
 function lhCarryYaw(scene){
   const C = LH.carry, u = Math.max(0, Math.min(1, (scene.time.now - C.t0)/1400)), e = u*u*(3 - 2*u);
   return scene.ow.yaw + C.rel*(1 - e);
@@ -83565,6 +83574,7 @@ function lhTick(scene, ow){
       /* the drone set down on top of him (on its skids, over where he is parked): it hooks on and he is its load */
       const fl = ow.fly, P = R.park;
       if(fl && fl.ph === 'air') R.landed = true;
+      lhLandAssist(scene, ow, P, true);
       if(P && R.landed && fl && fl.ph === 'ground' && Math.hypot(ow.px - P.x, ow.py - P.y) < 90) lhHook(scene);
       return;
     }
@@ -83572,6 +83582,7 @@ function lhTick(scene, ow){
       /* set down on the target on the breakwater's walk: he is let down there, and Tipsey is Tipsey again */
       const fl = ow.fly, T = R.leg === 'back' ? LH_RUN.pickup : lhLightSpots().bay;
       if(fl && fl.ph === 'air') R.landed = true;
+      lhLandAssist(scene, ow, T, false);
       if(R.landed && fl && fl.ph === 'ground' && Math.hypot(ow.px - T.x, ow.py - T.y) < 110) lhDrop(scene);
       return;
     }
