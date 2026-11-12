@@ -87584,6 +87584,13 @@ function msAccept(){
   MS.park = { x: ow.px, y: ow.py, a: ow.yaw };
   MS.gid = null; FLEET_LOAN = 'humanoid';
   const items = scene.items, cx = scene.camX, cy = scene.camY;
+  /* (Gideon stands between Tipsey and the door where they met: Tipsey's walk in goes round him, not through -- he steps aside, off the line
+     from Tipsey's bay to the door, before the walk starts) */
+  { const pk0 = POCKETS.find(q => q.name === BB_IN.name), V0 = pk0 && pk0.view ? pk0.view() : { dx: 0, dy: 0 };
+    const A = { x: ow.px, y: ow.py }, Dd = { x: BB_IN.x0 + BB_IN.DOOR.at + V0.dx, y: BB_IN.y0 + BB_IN.D + 90 + V0.dy };
+    const ex = Dd.x - A.x, ey = Dd.y - A.y, L2 = ex*ex + ey*ey || 1, u = Math.max(0, Math.min(1, ((G.x - A.x)*ex + (G.y - A.y)*ey)/L2));
+    const px = A.x + ex*u, py = A.y + ey*u, dx = G.x - px, dy = G.y - py, d = Math.hypot(dx, dy);
+    if(d < 130){ const nx = d > 1 ? dx/d : -ey/Math.sqrt(L2), ny = d > 1 ? dy/d : ex/Math.sqrt(L2); G.x = px + nx*130; G.y = py + ny*130; } }
   owStandUpAt(scene, G.x, G.y, G.th);
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
