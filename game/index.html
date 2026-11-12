@@ -101100,6 +101100,11 @@ class WorldScene extends Phaser.Scene {
       if(!near(pp.x, pp.y)) continue;
       vq.push({ depth: pp.x + pp.y, fn: (g) => this.bcDraw(g, "hb|pile|" + pp.x + "," + pp.y + "|" + pp.h + "|" + pp.deck, pp.x, pp.y, gg => post(gg, pp.x, pp.y, pp.h, pp.deck, 14, 0x5a4330, 0x6e5236, 0x5d4530)) });
     }
+    /* THE DRONE'S LANDING PAD (Sir, 2026-11-12: "since its a specific target for drone pick up can we give it a stand alone item indicating that"): the
+       Lighthouse Run's transfer spot, a round steel pad standing 6 off the paving in a yellow ring, a drone marked on it and a light at each corner;
+       a still piece, cached (not solid: he drives onto it, and the drone sets down on him there) */
+    { const pk = LH_RUN.pickup;
+      if(near(pk.x, pk.y)) vq.push({ depth: pk.x + pk.y - 200, fn: (g) => this.bcDraw(g, "hb|dronepad", pk.x, pk.y, gg => this.drawDronePad(gg, pk.x, pk.y)) }); }
     /* the props on the quay and the plaza */
     for(const pr of hg.props){
       if(!near(pr.x, pr.y)) continue;
@@ -101695,6 +101700,29 @@ class WorldScene extends Phaser.Scene {
   }
   /* the anchor on the plaza: a stone plinth, and an admiralty anchor
      standing on its crown, shank up, stock across, in black iron */
+  drawDronePad(g, x, y){
+    const P = (a, b, c) => this.W(x + a, y + b, c);
+    const q = (pts, col, al) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col, al); };
+    const ring = (r, z, n = 40) => { const o = []; for(let i = 0; i < n; i++){ const t = i/n*Math.PI*2; o.push(P(Math.cos(t)*r, Math.sin(t)*r, z)); } return o; };
+    const R = 150, TH = 7;
+    for(let i = 0; i < 40; i++){                                                  // its edge, a band round
+      const t0 = i/40*Math.PI*2, t1 = (i + 1)/40*Math.PI*2;
+      q([P(Math.cos(t0)*R, Math.sin(t0)*R, 0), P(Math.cos(t1)*R, Math.sin(t1)*R, 0), P(Math.cos(t1)*R, Math.sin(t1)*R, TH), P(Math.cos(t0)*R, Math.sin(t0)*R, TH)], i % 2 ? 0x2e353d : 0x363e47);
+    }
+    q(ring(R, TH), 0x59636e);                                                      // the steel top
+    q(ring(R - 12, TH + 0.2), 0xe8b54a);                                           // the yellow ring...
+    q(ring(R - 20, TH + 0.4), 0x4c5763);                                           // ...and the pad inside it
+    const bar = (a0, a1, b0, b1) => q([P(a0, b0, TH + 0.8), P(a1, b0, TH + 0.8), P(a1, b1, TH + 0.8), P(a0, b1, TH + 0.8)], 0xf2f2ee);
+    const rot = (a, b, r) => { const o = []; for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2; o.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, TH + 0.8)); } q(o, 0xf2f2ee); };
+    bar(-12, 12, -60, 60); bar(-60, 60, -12, 12);                                  // the drone: its body and arms...
+    for(const [a, b] of [[-62, -62], [62, -62], [62, 62], [-62, 62]]){ rot(a, b, 20); const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push(P(a + Math.cos(t)*9, b + Math.sin(t)*9, TH + 1.2)); } q(o, 0x4c5763); }   // ...and its four rotors
+    for(const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]){                     // a light at each corner, on a little plinth
+      const cx = a*Math.SQRT1_2*(R - 4), cy = b*Math.SQRT1_2*(R - 4);
+      q([P(cx - 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH), P(cx - 6, cy + 6, TH)], 0x8a929a);
+      q([P(cx + 6, cy - 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH), P(cx + 6, cy - 6, TH)], 0x70787f);
+      q([P(cx - 6, cy - 6, TH + 9), P(cx + 6, cy - 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx - 6, cy + 6, TH + 9)], 0xffd98a);
+    }
+  }
   drawHarborAnchor(g, x, y){
     const P = (a, b, c) => this.W(x + a, y + b, c);
     const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
