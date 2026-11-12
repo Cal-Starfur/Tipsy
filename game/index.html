@@ -20232,10 +20232,10 @@ function pocketShift(scene, dx, dy){
   ow.sfcCommit = null; ow.solidOn = new Set(); ow.flatOn = new Set(); ow.inContact = false;
   scene.botX = ow.px; scene.botY = ow.py; scene.camX += dx; scene.camY += dy;
 }
-function pocketAutoIn(scene, pk, door){
+function pocketAutoIn(scene, pk, door, noFade){
   const sh = pk.view && pk.view();
   if(!scene.ow || !sh) return;
-  viewCrossfade(scene);
+  if(!noFade) viewCrossfade(scene);               // (noFade: a story's drive in -- the shell eases off by itself, nothing fades over the street)
   pocketShift(scene, -sh.dx, -sh.dy);
   scene._inside = pk; pk._entering = true; pk._enterDoor = door;
   if(typeof document !== "undefined") document.body.classList.add("tpInside");
@@ -85532,7 +85532,7 @@ function lhTick(scene, ow){
       if(!armed(bay)) return;
       if(!missionWindowOpen('lighthouse-run')){ missionWindowSay('lighthouse-run', scene); R.snooze = bay; return; }
       /* stopped on the ring outside: he drives himself in, through the door and to the mat before the counter */
-      if(!inside){ R.stage = 'enter'; ow.vel = 0; cineBars(true); lhNavClear(scene); pocketAutoIn(scene, pk, pk.doors[0]); return; }
+      if(!inside){ R.stage = 'enter'; ow.vel = 0; cineBars(true); lhNavClear(scene); pocketAutoIn(scene, pk, pk.doors[0], true); return; }
       lhBeginClerk(scene, ow, now);
       return;
     }
