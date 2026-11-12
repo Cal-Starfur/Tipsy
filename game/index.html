@@ -98874,7 +98874,7 @@ class WorldScene extends Phaser.Scene {
     /* ...and shut (locked: THE ROOM'S DAY), its lights off: dark behind the glass, day or night */
     else if(walkinShut(this, pk)) tmp.push({ fn: g => { g.fillStyle(0x0d1117, 0.4*(1 - 0.5*nl));
       for(const B of seen) g.fillPoints(B.pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true); } });
-    const top = r.e.depth, n = tmp.length;
+    const wr = this._wkRest, top = Math.min(r.e.depth, wr && wr.fr === fr && pk.from === 'Pelican Harbor' ? wr.d : Infinity), n = tmp.length;
     tmp.forEach((e, i) => vq.push({ depth: top - 2e-3 + i*(1.5e-3/n), fn: e.fn }));
   }
   /* SOMEONE WALKING THE HOSPITAL, HELD AGAINST ITS WALLS (Sir, 2026-10-30: "the woman is under the wall"): a wall
@@ -101123,6 +101123,7 @@ class WorldScene extends Phaser.Scene {
     const piece = (part) => (g) => this.bcDraw(g, "hb|" + part + "|" + (open ? 1 : 0), B.x0, B.y1,
       gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
     const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
+    this._wkRest = { fr: this._wkFr, d: hd };                                    // (the hall's depth: the chandlery's room is drawn under it too, never over it: walkinThrough)
     vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
     if(sk > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
