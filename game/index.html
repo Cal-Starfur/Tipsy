@@ -104592,16 +104592,15 @@ class WorldScene extends Phaser.Scene {
         if(LOSTIT.meet && LOSTIT.meet.id === it.id) continue;
         const gt = lostItemGate(this, it);
         if(gt && this.visProp("chargestation", gt.x, gt.y)){
-          /* the owner's path: the item's icon, bigger than a pin's (it was ~14 px zoomed out, behind a fence), over a pulsing ring
-             on the pavement where he stops -- a live item of its own (a ring and a coin, nothing cached) */
-          queueBeacon(gt.x, gt.y, it.icon, { s: 2.3, a: 1, dz: 34, spin: 0, shA: 1 });
-          hazVQ.push({ depth: gt.x + gt.y - 2, fn: (gg, tt) => {
-            const lg = layerFor(gt.x, gt.y), ph = ((tt || 0) % 1400)/1400, R0 = 70 + 45*ph, al = 0.85*(1 - ph);
-            const ring = (r0, r1, a) => { const N = 28; for(let i = 0; i < N; i++){ const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2;
-              this.quadOn(lg, [this.W(gt.x + Math.cos(a0)*r0, gt.y + Math.sin(a0)*r0, 1.5), this.W(gt.x + Math.cos(a0)*r1, gt.y + Math.sin(a0)*r1, 1.5),
-                               this.W(gt.x + Math.cos(a1)*r1, gt.y + Math.sin(a1)*r1, 1.5), this.W(gt.x + Math.cos(a1)*r0, gt.y + Math.sin(a1)*r0, 1.5)], 0xffd54a, a); } };
-            ring(0, 62, 0.3); ring(R0 - 12, R0, Math.min(1, al + 0.15)); ring(56, 70, 0.8);
-          }});
+          /* the owner's path: the pickup's own glowing box on the pavement (drawPickupBayCached + drawMatHighlight, the mat
+             frame centred on where he stops: edge face 70 out, T2 square), the item's icon floating over it */
+          const dr = lostItemDoor(this, it), ax = dr ? edgePt(dr.e, dr.along - T2/2, 70 - T2/2) : null;
+          if(ax){
+            const dv = dr.e.dv, rv = dr.e.rv, mat = owMatFrame(ax.x, ax.y, dv, rv), hl = matHighlightState(this, mat, "freeroam");
+            hazVQ.push({ depth: gt.x + gt.y - T2, fn: (gg, tt) => { const lg = layerFor(gt.x, gt.y);
+              this.drawPickupBayCached(lg, ax.x, ax.y, dv, rv, null, false); this.drawMatHighlight(lg, ax.x, ax.y, dv, rv, 0, 0, hl, tt); }});
+          }
+          queueBeacon(gt.x, gt.y, it.icon, { s: 1.7, a: 1, dz: 20, spin: 0, shA: 1 });
         }
       }
     }
