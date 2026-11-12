@@ -113437,6 +113437,9 @@ class WorldScene extends Phaser.Scene {
       for(const sa of [-1, 1]) line([sa*LA*0.6, sb*LW*0.7, HB], [sa*LA*0.66, sb*LW, 2], DARK, 2.2);
       solid(prismH([[-LA, sb*LW - 2], [LA, sb*LW - 2], [LA, sb*LW + 2], [-LA, sb*LW + 2]], 0, 3), DARK);
     } });
+    /* WHAT IT CARRIES IN ITS LEGS (THE LIGHTHOUSE RUN: Tipsey, nested): drawn as a part of its own, at the middle -- after the far leg, before the near one, so the
+       skid behind him is under him and the one in front of him over */
+    if(data && data.carry) parts.push({ d: V.depth(0, 0, 8), draw: data.carry });
     /* what it carries */
     const load = (data && data.cargo) || (WEAR ? null : D.load);   // (he flies it empty: a parcel, a crate or a lamp only when a mission hands it one, data.cargo)
     /* THE LIGHTHOUSE RUN's lamp, slung between its legs: a brass ship's lantern */
@@ -118494,12 +118497,10 @@ class WorldScene extends Phaser.Scene {
       const bob = air && z - sz > 20 ? Math.sin(t/420)*5*fl.spin : 0;
       const cargo = null;
       const slungT = kind === 'dronequad' && FLEET_LOAN === 'dronequad' && LH.carry;                    // (THE LIGHTHOUSE RUN: Tipsey, hooked on, slung under it on cables: the robot under the drone, the cables over it)
-      if(slungT) lhDrawSlung(this, g, x, y, z + taxi + bob, t, 'tipsey');
       const slung = kind === 'dronelift' && cplCarrying(t);                // (LETTERS ON THE HILL's A panel, slung under it on cables: the panel under the drone, the cables over it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'panel');
-      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, door: kind === 'airtaxi' ? this._airDoor(fl, t) : 0, rider: kind === 'airtaxi' ? this._airRider || null : null, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
+      this.drawProp(g, kind, x, y, t, f, sz, this._fleetWheel, 7, { paint: true, door: kind === 'airtaxi' ? this._airDoor(fl, t) : 0, rider: kind === 'airtaxi' ? this._airRider || null : null, hover: z - sz + taxi + bob, rot: fl.rot, spin: fl.spin, roll: fl.bank, pitch: fl.pitch, noShadow: air && z - sz > 3, carry: slungT ? () => lhDrawSlung(this, g, x, y, z + taxi + bob, t, 'tipsey') : null, cargo: slung || (kind === 'dronelift' && cplBusy()) ? 'panel' : cargo });   // (its own crate not drawn while the story has it)
       if(slung) cplDrawSlung(this, g, x, y, z + taxi + bob, t, 'cables');
-      if(slungT) lhDrawSlung(this, g, x, y, z + taxi + bob, t, 'cables');
       return;
     }
     if(kind === "humanoid" && this.ow && this.ow.scoot){       // HIM ON A SCOOTER (scootHop): the scooter's own art under the humanoid's body and robot skin, hands on the bar
