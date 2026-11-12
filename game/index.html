@@ -122315,13 +122315,15 @@ class WorldScene extends Phaser.Scene {
           if(Math.abs(dx) > 40) hz.hit = false;
           continue;
         }
-        if(hz.type === "palm"){
-          /* a trunk is a wall: you stop, you do not pass */
-          if(propWall(OW_D.hzPalm, 30)){
+        if(hz.type === "palm" || hz.type === "palmDwarf"){
+          /* a trunk is a wall: you stop, you do not pass. The short palm in its grate is solid too
+             (it was a drive-through "drag through the fronds" hazard: drawn, but not there) */
+          const dw = hz.type === "palmDwarf";
+          if(propWall(dw ? OW_HZ_R.palmDwarf : OW_D.hzPalm, dw ? 24 : 30)){
             this.isBlocked = true;
             if(this.speed > 0.08 && !hz.hit){
               hz.hit = true; this.tipCause = hz.type;                               // the bonk (once per approach)
-              const kick = this.speed * 7 * (Math.random() < 0.5 ? 1 : -1);
+              const kick = this.speed * (dw ? 5 : 7) * (Math.random() < 0.5 ? 1 : -1);
               this.tilt += kick * TILT_SENS;
               this.damage = Math.min(95, this.damage + Math.abs(kick)*40*CARGO_DAMAGE_SENS);
             }
