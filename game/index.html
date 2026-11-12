@@ -85542,7 +85542,7 @@ function lhTick(scene, ow){
       return;
     case 'clerk':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
-        say: "The harbour master's order, for the breakwater light? Yes, it's all ready: the big brass lamp, the last spare on the whole coast. It lives up on the back shelf. One moment." }));
+        say: "The harbour master's lamp? One moment." }));
       return;
     case 'fetch': {
       ow.vel = 0;
@@ -85561,7 +85561,7 @@ function lhTick(scene, ow){
     }
     case 'hand':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "On my way!", ok: lhGotLamp, at: lhClerkSayAt,
-        say: "Here she is. Careful with it: brass, and heavier than it looks. The light's out on the breakwater: the harbour master says the Fleet is sending a drone to meet you at the pickup spot on the plaza, out in the open, clear of everyone. Ines is waiting on it." }));
+        say: "Here she is. Careful, she's heavy. Take her to the pickup spot on the plaza: the Fleet's drone will meet you there." }));
       return;
     case 'drive':
       /* at the transfer spot on the plaza: the Fleet's drone comes in over the water to him */
