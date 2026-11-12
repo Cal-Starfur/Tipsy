@@ -85200,7 +85200,18 @@ function lhDrawSlung(scene, g, x, y, z, now, part){
   if(h >= 60) C.hung = true;                                         // (once it is up he rides with it for good: down again over the target, he is at the drone's own spot)
   const k0 = Math.min(1, h/60), k = C.hung ? 1 : k0*k0*(3 - 2*k0);
   const o = lhCarryOff(scene), tx = x + o.x, ty = y + o.y;
-  scene.drawTipseyParked(g, C.px + (tx - C.px)*k, C.py + (ty - C.py)*k, a, Math.max(gz, z));
+  /* HE SWINGS WITH THE DRONE: it banks and pitches about its middle (46 over its skids) as it flies, and he is held on it -- tilted by the same angles
+     (turned by how far round he still lies from its heading, he swings in to it) and carried round that pivot, so his base swings out the way the skids do */
+  const fl = scene.ow.fly, rl = fl && fl.bank || 0, pt = fl && fl.pitch || 0, dl = C.rel*(1 - (function(){ const u = Math.max(0, Math.min(1, (scene.time.now - C.t0)/1400)); return u*u*(3 - 2*u); })());
+  const cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt), HM = 46, yw = scene.ow.yaw;
+  const da = HM*cr*sp, db = HM*sr, wx = da*Math.cos(yw) - db*Math.sin(yw), wy = da*Math.sin(yw) + db*Math.cos(yw), dz = HM*(1 - cr*cp);
+  const tilt = { roll: rl*Math.cos(dl) + pt*Math.sin(dl), pitch: -rl*Math.sin(dl) + pt*Math.cos(dl) };
+  /* and he lags and swings: his base trails the drone's motion a little (its velocity, 80 ms of it, eased in 220 ms), so he swings out as it
+     speeds up or turns and back as it eases off */
+  const dt = Math.min(60, scene._frameDt || 16), vx = fl && fl.vx || 0, vy = fl && fl.vy || 0, e2 = Math.min(1, dt/220), L = 90;
+  C.sx = (C.sx || 0) + (-vx*L - (C.sx || 0))*e2; C.sy = (C.sy || 0) + (-vy*L - (C.sy || 0))*e2;
+  const sm = Math.hypot(C.sx, C.sy), cap = sm > 26 ? 26/sm : 1;
+  scene.drawTipseyParked(g, C.px + (tx - C.px)*k + wx*k + C.sx*cap*k, C.py + (ty - C.py)*k + wy*k + C.sy*cap*k, a, Math.max(gz, z) + dz*k, null, tilt);
 }
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
@@ -120154,13 +120165,13 @@ class WorldScene extends Phaser.Scene {
   }
   /* TIPSEY PARKED (THE LIGHTHOUSE RUN's loan): his own body and paint, still, on the visitor bay -- drawn once into the
      building cache (lhQueue keys it by the spot), as drawNpcRobotBody puts a pose on the scene and takes it back */
-  drawTipseyParked(g, x, y, a, zB = 0, mv = null){      // (mv: { t, dir } -- rolling: wheels turning by t, the flag streaming; dir -1 backing)
+  drawTipseyParked(g, x, y, a, zB = 0, mv = null, tilt = null){      // (mv: { t, dir } -- rolling: wheels turning by t, the flag streaming; dir -1 backing)
     const S = this, keep = {};
     for(const k of ['g', 'botX', 'botY', 'botZ', 'drawAngle', 'roll', 'pitch', 'pitchPivot', 'yaw', 'tipT', 'tipDir', 'tipU', 'tipStartRoll',
                     'lidAng', 'lidHingeFlip', 'state', 'speed', 'wheelPhase', 'flagLean', 'tilt', 'stuckAmt', 'slide', 'hjFace', 'rightT',
                     '_landMs', '_land', '_xraySkip', '_gearWP', '_flagWind', '_flagT', 'blinkT', '_lidClacked']) keep[k] = S[k];
     S.g = g; S.botX = x; S.botY = y; S.botZ = zB; S.drawAngle = a; S.yaw = 0; S.tipT = 0; S.tipDir = 1; S.tipU = null; S.tipStartRoll = 0;
-    S.roll = 0; S.pitch = 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
+    S.roll = tilt ? tilt.roll : 0; S.pitch = tilt ? tilt.pitch : 0; S.pitchPivot = 0; S.lidAng = 0; S.lidHingeFlip = false; S.state = "play"; S.speed = 0; S.wheelPhase = 0; S.flagLean = 0;
     S.tilt = 0; S.stuckAmt = 0; S.slide = false; S.hjFace = false; S.rightT = 0; S._landMs = 1e9; S._land = null; S._xraySkip = true;
     S._gearWP = undefined; S._flagWind = mv ? 1 : 0; S._flagT = mv ? mv.t : 0; S._lidClacked = true;
     if(mv){ S.speed = 0.1; S.wheelPhase = mv.t*0.03*(mv.dir || 1); S.flagLean = -0.2; }
