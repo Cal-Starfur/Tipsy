@@ -145326,8 +145326,9 @@ const GO_SPOTS = {
   sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
 };
 (function(){
-  let q = null, v = null;
-  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); } catch(e){}
+  let q = null, v = null, lh = null;
+  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); } catch(e){}
+  if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-3850,-13400,-1.57&view=2&lh=pickup'; };
   if(typeof window !== 'undefined') window.tpGoHere = function(){
     const s = game.scene.getScene('world'), ow = s && s.ow;
     if(!ow) return 'not in the city';
@@ -145347,6 +145348,9 @@ const GO_SPOTS = {
       try { window.garageClose(); } catch(e){}
       owStandUpAt(s, x, y, yaw);
       if(v) zoomSet(+v);
+      /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), the lamp fetched, Tipsey on the transfer spot: the
+         drone comes in to him (go=-3850,-13400,-1.57) */
+      if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; } catch(e){} LH.stage = 'drive'; }
     }, 1500);
   };
   tick();
