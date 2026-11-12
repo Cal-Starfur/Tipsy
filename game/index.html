@@ -34495,6 +34495,7 @@ function lostItemDone(){
   if(tpCollect.lostMeta) delete tpCollect.lostMeta[id];
   collectSave();
   lostItemNavClear(scene, id);
+  { const nx = lostItemsCarried()[0]; if(nx && !(typeof gpsNav !== "undefined" && gpsNav) && scene.mode === "freeroam") lostItemRoute(nx.id, true); }   // (the other one in the bag: the GPS on to its door)
   try { console.info("[lost] returned " + id + " (" + n + " returned). To seed the count: tpCollect.returned = 9; collectSave()"); } catch(e){}
   /* the server owns the wallet on Reddit: it pays each item once (its day, its slot) */
   if(IS_DEVVIT_BUILD){
@@ -34523,6 +34524,18 @@ function lostItemTick(scene, ow){
     return;
   }
   if(!LOST_ITEMS.on || !ow || !ow.on || scene.state !== "play" || scene._inside || ow.deck || !owTripMode(scene.mode) || scene._slAPI) return;
+  /* TWO IN THE BAG: the GPS follows the nearest owner's door, not whichever item it was first set for (it kept
+     guiding to the other house -- "100 ft" -- while he stood at this one's door with the owner out) */
+  if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lostitem" && !storyFocus()){
+    let best = null, bd = 1e18, cd = null;
+    for(const it of lostItemsCarried()){
+      const gt = lostItemGate(scene, it); if(!gt) continue;
+      const dd = Math.hypot(ow.px - gt.x, ow.py - gt.y);
+      if(it.id === gpsNav.lostId) cd = dd;
+      if(dd < bd){ bd = dd; best = it; }
+    }
+    if(best && best.id !== gpsNav.lostId && (cd == null || bd < cd*0.6)) lostItemRoute(best.id, true);
+  }
   if(Math.abs(ow.vel || 0) > 0.02 || storyFocus() || LOST.st === 'owner') return;   // (a story: it waits; a dog's owner at their door first)
   for(const it of lostItemsCarried()){
     const d = lostItemDoor(scene, it); if(!d) continue;
