@@ -83418,7 +83418,7 @@ const LH = { stage: 'idle', leg: null, carry: null, drone: null, landed: false, 
              lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
-  pickup: hospBay(-3850, -13400),             // the transfer spot: open plaza by the turning circle, a few blocks from the Chandlery's door, clear of the lamp, the flags and the people
+  pickup: hospBay(-5800, -14800),             // the transfer spot (Sir, 2026-11-12: "i dont want the pick up stop here on the side walk"): open sand in Sea Lion Point, west of the Chandlery -- off the paving, clear of the planting and the people
   visit: hospBay(AIR.fleet.visit.x, AIR.fleet.visit.y),   // the Fleet hangar's visitor bay, just inside its street gate, in front of the delivery drone's pad
   post: AIR.fleet.post,                      // the crew chief's post, on the apron by the pier between the air taxi's door and the drone's
   master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
@@ -144002,7 +144002,7 @@ const GO_SPOTS = {
 (function(){
   let q = null, v = null, lh = null;
   try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); } catch(e){}
-  if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-3850,-13400,-1.57&view=2&lh=pickup'; };
+  if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-5800,-14800,-1.57&view=2&lh=pickup'; };
   if(typeof window !== 'undefined') window.lhStartLink = function(){ return location.href.split('?')[0] + '?go=-4750,-13950,-1.57&view=2&lh=chandlery'; };
   if(typeof window !== 'undefined') window.tpGoHere = function(){
     const s = game.scene.getScene('world'), ow = s && s.ow;
@@ -144031,7 +144031,7 @@ const GO_SPOTS = {
         }
       } catch(e){}
       if(held >= 3){
-        /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), Tipsey on the transfer spot (go=-3850,-13400,-1.57), and the
+        /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), Tipsey on the transfer spot (go=-5800,-14800,-1.57), and the
            drone comes in to him: straight into it, not waiting for the mat to arm */
         if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; LH.stage = 'drive'; lhLoan(s); } catch(e){} }
         /* &lh=chandlery: THE LIGHTHOUSE RUN from its start -- Tipsey in front of the Marina Chandlery (go=-4750,-13950,-1.57) at 11 o'clock, driving as himself,
