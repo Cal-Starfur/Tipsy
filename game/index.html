@@ -100744,6 +100744,10 @@ class WorldScene extends Phaser.Scene {
           for(let k = 0; k <= 8; k += 2){ const x = X + k*ST + 4, z = 2 + 10*k + (k ? 10 : 0); const a = W(x, y1 + 4, z), b = W(x, y1 + 4, z + 46); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); }
           rail(X + 4, X + 8*ST, 2 + 46 + 10, 82 + 46); rail(X + 8*ST, X + 11.3*ST, 82 + 46, 82 + 46); rail(X + 11.3*ST, X + 18.3*ST, 72 + 46, 12 + 46);
         }) });
+        /* THE ROCKS IN FRONT OF THE STAIRS draw over them (Sir: "the rocks should be drawing over it from this side"): the rim's
+           stones south of the walk, redrawn straight after the stairs; the ones behind it stay under them */
+        const fr = hg._ipFront || (hg._ipFront = hg.rocks.filter(rk => rk.y > S.y1 - 60 && rk.y < S.y1 + 520 && rk.x > S.x0 - 260 && rk.x < S.x1 + 160));
+        if(fr.length) vq.push({ depth: L.x + 760 + ip.y + 501, fn: (g) => this.bcDraw(g, "hb|ipfrontrocks|" + fr.length, L.x + 600, ip.y + 250, gg => this.drawHarborRocks(gg, fr)) });
       }
     }
     /* the docks' piles (see harborPosts): live from the deck up only. The
