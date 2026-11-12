@@ -83778,12 +83778,8 @@ function lhDrawSlung(scene, g, x, y, z, now, part){
   const cr = Math.cos(rl), sr = Math.sin(rl), cp = Math.cos(pt), sp = Math.sin(pt), HM = 46, yw = scene.ow.yaw;
   const da = HM*cr*sp, db = HM*sr, wx = da*Math.cos(yw) - db*Math.sin(yw), wy = da*Math.sin(yw) + db*Math.cos(yw), dz = HM*(1 - cr*cp);
   const tilt = { roll: rl*Math.cos(dl) + pt*Math.sin(dl), pitch: -rl*Math.sin(dl) + pt*Math.cos(dl) };
-  /* and he lags and swings: his base trails the drone's motion a little (its velocity, 80 ms of it, eased in 220 ms), so he swings out as it
-     speeds up or turns and back as it eases off */
-  const dt = Math.min(60, scene._frameDt || 16), vx = fl && fl.vx || 0, vy = fl && fl.vy || 0, e2 = Math.min(1, dt/220), L = 90;
-  C.sx = (C.sx || 0) + (-vx*L - (C.sx || 0))*e2; C.sy = (C.sy || 0) + (-vy*L - (C.sy || 0))*e2;
-  const sm = Math.hypot(C.sx, C.sy), cap = sm > 26 ? 26/sm : 1;
-  scene.drawTipseyParked(g, C.px + (tx - C.px)*k + wx*k + C.sx*cap*k, C.py + (ty - C.py)*k + wy*k + C.sy*cap*k, a, Math.max(gz, z) + dz*k, null, tilt);
+  /* (no lag: Sir, 2026-11-12, "he is sliding back and forward instead of just tilting the drone as it moves" -- he is held rigid on the drone and tilts with it) */
+  scene.drawTipseyParked(g, C.px + (tx - C.px)*k + wx*k, C.py + (ty - C.py)*k + wy*k, a, Math.max(gz, z) + dz*k, null, tilt);
 }
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
