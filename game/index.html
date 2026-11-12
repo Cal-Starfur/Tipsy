@@ -85130,7 +85130,7 @@ function lhChandPk(){ return lhChandPk.c || (lhChandPk.c = POCKETS.find(p => p.n
 function lhRoomPt(a, b){ const pk = lhChandPk(); return { x: pk.x0 + a, y: pk.y0 + b }; }
 function lhChandMat(){ const m = CHAND_ROOM.mat, q = lhRoomPt(m[0], m[1]); return lhChandMat.c || (lhChandMat.c = hospBay(q.x, q.y)); }
 /* the shop's door from the street: where the GPS and the beacon send him (its outside point) */
-function lhChandDoor(){ const S = phSpots(); return { x: S.door.x, y: S.face + 70 }; }
+function lhChandDoor(){ const S = phSpots(); return { x: S.door.x, y: S.face + 175 }; }
 /* the order's bay OUTSIDE (Sir, 2026-11-12: "it should just be the anchor ... we want him to drive in for the pick up automatically"): the ring on the
    pavement before the door, under the anchor; stopping on it starts the run and he drives himself in to the mat (pocketAutoIn) */
 function lhChandOutMat(){ if(!lhChandOutMat.c){ const d = lhChandDoor(); lhChandOutMat.c = hospBay(d.x, d.y); } return lhChandOutMat.c; }
