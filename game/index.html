@@ -76799,7 +76799,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
    wing, the hall's walls, its roof, then the pavilion and the awning,
    which stand nearest. No lawn (CLAUDE.md): it stands on the plaza. ---- */
 {
-  name:'Pelican Harbor', xh: 1100, base:'Harbor', hood:'The Flats', edited:true, tall:true, block:true, zs:1,
+  name:'Pelican Harbor', xh: 1100, base:'Harbor', hood:'The Flats', edited:true, tall:true, block:true, zs:1, see: true,   // (see: the chandlery's doorway and shop windows show its room: CHAND_IN's openings, W11)
   ww: 3400, dd: 2400,
   head:'Pelican Harbor, at the head of Harbor Road',
   tags:['harbor house','watch tower','clock pavilion','chandlery wing','standing-seam roof'],
@@ -76871,14 +76871,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     F(WA0, WA1, 0, WZ, WALL, null, 0, HB);
     T(WA0, WA1, WB, HB, WZ, '#a9a59b');
     slab(WA0 - 10, WA1, WZ, WZ + 34, HB + 8, HB - 6, WALL, WALLS, '#e9e4d8');      // the parapet
-    for(const [a0, a1] of [[150, 380], [520, 750]]){                                // the shop windows: the shop library's own (reveal + glaze, K3)
+    for(const [a0, a1] of [[150, 380], [520, 750]]){                                // the shop windows: the shop library's own (revealOpen + glaze, K3, W11)
       const b00 = BOFF; BOFF = b00 + HB;
       try {
-        reveal(a0, a1, 28, 172, 6, TRIM);                                                // the opening, set back in the wall
-        /* the stock in the window, behind the glass: a lifebuoy */
-        faceCircle((a0 + a1)/2, -3, 112, 30, '#e8693c', '#c4512c', 2);
-        faceCircle((a0 + a1)/2, -3.4, 112, 15, open ? 'rgba(236,214,160,.95)' : 'rgba(54,76,92,.95)');
-        if(open) F(a0, a1, 28, 172, 'rgba(255,222,150,.26)', null, 0, -1.5);             // the shop's lights on behind it
+        revealOpen(a0, a1, 28, 172, 6, TRIM);                                            // the opening, set back in the wall: a hole in the image, the room drawn under it
+        if(!SEE){ faceCircle((a0 + a1)/2, -3, 112, 30, '#e8693c', '#c4512c', 2);          // (no room under it: the lifebuoy in the window, and the lights on behind it)
+          faceCircle((a0 + a1)/2, -3.4, 112, 15, open ? 'rgba(236,214,160,.95)' : 'rgba(54,76,92,.95)');
+          if(open) F(a0, a1, 28, 172, 'rgba(255,222,150,.26)', null, 0, -1.5); }
         glaze(a0, a1, 28, 172, TRIM, 'rgba(96,140,164,.40)');                            // goods behind it: the library's tint, .40
         for(let a = a0 + 76; a < a1; a += 76) F(a - 2, a + 2, 28, 172, TRIM, null, 0, 0.6);   // its glazing bars
       } finally { BOFF = b00; }
@@ -76889,7 +76888,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* THE SHOP DOOR: the kit's (shopDoor), on the wing's face -- set back to it by BOFF (the kit's own set-back), so
        LIB.drawDoorOpen swings it open live for whoever goes in and out (queueHarbor: the chandlery's customers) */
     { const b0 = BOFF; BOFF = b0 + HB;
-      try { shopDoor(PH_PLAN.DOOR_A, WALL, TRIM, null, WA1, 0); } finally { BOFF = b0; } }
+      try { shopDoor(PH_PLAN.DOOR_A, WALL, TRIM, null, WA1, 0, { pair: true, w: 110, glazed: true }); } finally { BOFF = b0; } }       // (a glazed pair, as the walk-ins': the doorway a hole, the leaves live)
 
     }
     /* ---- 3. THE HALL'S WALLS ---- */
@@ -101125,7 +101124,7 @@ class WorldScene extends Phaser.Scene {
       gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
     const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
     vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
-    if(sk > 0.002) vq.push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });
+    if(sk > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd + 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
     /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
     const nl = nightLevel();
@@ -101141,7 +101140,7 @@ class WorldScene extends Phaser.Scene {
     this._phQ = { vq, t: now, houseD, who: [] };
     const who = this._phQ.who, D = PH_LIFE.door;
     vq.push({ depth: hd + 0.2, fn: (g, tt) => {
-      if(sk < 0.002 || (D.k <= 0.001 && !who.length)) return;
+      if(sk < 0.002) return;                                                            // (its glazed leaves are live, shut or open: nothing of them is in the cache)
       const between = clip => () => { this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; } };
       const clip = who.length && LIB.doorOpening('Pelican Harbor', G, this.K, true, P.DOOR_A);
@@ -103330,6 +103329,8 @@ class WorldScene extends Phaser.Scene {
     /* PELICAN HARBOR's buildings, boats and props, each at its own depth
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
+    /* (the chandlery, seen through its doorway and shop windows: its shell is queued just above, so its room is drawn here, after it) */
+    { const hk = pocketHiding('Pelican Harbor'); if(WORLDGEN_COAST && hk && hk.walkin && hk.openings && !POCKET_VIEW) this.walkinThrough(blockVQ, hk); }
     /* the fleet's bays (queueFleetBays) */
     this.queueFleetBays(blockVQ);
     /* THE PELICAN FISH MARKET (queueFishMarket) */
@@ -136299,6 +136300,10 @@ const CHAND_ROOM = { W: 680, D: 1010, LH: 66, door: 340,
 const CHAND_IN = walkinDefine({ name: 'Marina Chandlery Interior', from: 'Pelican Harbor', x0: 600000, y0: 400000,
   lab: [PH_PLAN.WA0 + 30, PH_PLAN.HA0 - 30, PH_PLAN.WB + 30, PH_PLAN.HB - 30], door: { a: PH_PLAN.DOOR_A, b: PH_PLAN.HB, half: 55 }, H: 230, out: 40, apron: 40, glass: 45,
   body: [[PH_PLAN.WA0, PH_PLAN.HA0, PH_PLAN.WB, PH_PLAN.HB]],
+  /* (seen through, W11: the glazed doorway and the two shop windows, on the wall's face) */
+  openings: [{ lab: [[PH_PLAN.DOOR_A - 55, PH_PLAN.HB + 0.6], [PH_PLAN.DOOR_A + 55, PH_PLAN.HB + 0.6]], z: [0, 162] },
+             { lab: [[150, PH_PLAN.HB + 0.6], [380, PH_PLAN.HB + 0.6]], z: [28, 172], glass: true },
+             { lab: [[520, PH_PLAN.HB + 0.6], [750, PH_PLAN.HB + 0.6]], z: [28, 172], glass: true }],
   late: () => typeof LH !== 'undefined' && (LH.stage === 'clerk' || LH.stage === 'fetch' || LH.stage === 'hand') });
 walkinStaff('Marina Chandlery Interior', [
   { id: 'clerk', role: 'chandlery clerk', seed: 0xc4a3, U: CHANDLERY_UNIFORM, fixed: true, keys: true, lookFn: () => lhLooks().clerk,
