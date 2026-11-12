@@ -85128,6 +85128,9 @@ function lhRoomPt(a, b){ const pk = lhChandPk(); return { x: pk.x0 + a, y: pk.y0
 function lhChandMat(){ const m = CHAND_ROOM.mat, q = lhRoomPt(m[0], m[1]); return lhChandMat.c || (lhChandMat.c = hospBay(q.x, q.y)); }
 /* the shop's door from the street: where the GPS and the beacon send him (its outside point) */
 function lhChandDoor(){ const S = phSpots(); return { x: S.door.x, y: S.face + 70 }; }
+/* the order's bay OUTSIDE (Sir, 2026-11-12: "it should just be the anchor ... we want him to drive in for the pick up automatically"): the ring on the
+   pavement before the door, under the anchor; stopping on it starts the run and he drives himself in to the mat (pocketAutoIn) */
+function lhChandOutMat(){ if(!lhChandOutMat.c){ const d = lhChandDoor(); lhChandOutMat.c = hospBay(d.x, d.y); } return lhChandOutMat.c; }
 function lhClerkAt(now){
   const R = LH, C = R.clerk, post = CHAND_ROOM.clerk;
   if(!C) return null;
@@ -85253,7 +85256,7 @@ function lhBayNow(scene){
   if(R.stage === 'idle'){
     if(lhDone() || fleetCur() || storiesHidden('lighthouse-run') || !missionWindowOpen('lighthouse-run')) return null;
     if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true });         // (the order waits at the Chandlery: its mat inside, the beacon over its door outside)
-    const d = lhChandDoor(), hb = harborGeo().bldg; return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true, depth: (hb.x0 + hb.x1 + hb.y0 + hb.y1)/2 + 5 };    // (depth: the house is one piece keyed at its middle, far behind the door's: the beacon floats over its wing, so it sorts after it)
+    const hb = harborGeo().bldg; return Object.assign({}, lhChandOutMat(), { icon: 'anchor', depth: (hb.x0 + hb.x1 + hb.y0 + hb.y1)/2 + 5 });    // (depth: the house is one piece keyed at its middle, far behind the door's: the beacon floats over its wing, so it sorts after it)
   }
   if(R.stage === 'drive') return ic(LH_RUN.pickup, 'flag');
   if(R.stage === 'grab' && R.park) return { x: R.park.x, y: R.park.y, icon: 'flag', beaconOnly: true };          // (the beacon over Tipsey: set the drone down on him)
@@ -85427,6 +85430,14 @@ function lhFogTick(scene, now){
   if(el){ const a = R.fog < 0.005 ? 0 : R.fog; if(el._a !== a){ el._a = a; el.style.opacity = a.toFixed(3); el.classList.toggle("hidden", a === 0); } }
 }
 /* every frame (after owStep) */
+function lhBeginClerk(scene, ow, now){
+  const R = LH;
+  R.stage = 'clerk'; ow.vel = 0; cineBars(true);
+  const post = CHAND_ROOM.clerk, q = lhRoomPt(post[0], post[1]);
+  R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
+  R.clerk = { face: R.M.faceTh, has: null };
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
 function lhTick(scene, ow){
   const R = LH, now = scene.time.now;
   if(!ow || !ow.on) return;
@@ -85444,16 +85455,21 @@ function lhTick(scene, ow){
     case 'idle': {
       /* THE HARBOUR MASTER'S ORDER waits at the Marina Chandlery: in at the shop's door (the walk-in), onto the mat before
          the counter, and the clerk stands at her post behind it */
-      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run') || scene._inside !== lhChandPk()) return;
-      if(!armed(lhChandMat())) return;
-      if(!missionWindowOpen('lighthouse-run')){ missionWindowSay('lighthouse-run', scene); R.snooze = lhChandMat(); return; }
-      R.stage = 'clerk'; ow.vel = 0; cineBars(true);
-      const post = CHAND_ROOM.clerk, q = lhRoomPt(post[0], post[1]);
-      R.M = meetStand(ow, { x: q.x, y: q.y, th: post[2] }, now, post[2]);
-      R.clerk = { face: R.M.faceTh, has: null };
-      if(typeof sfxThump === "function") sfxThump(0.15);
+      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run')) return;
+      const pk = lhChandPk(), inside = scene._inside === pk;
+      if(scene._inside && !inside) return;
+      const bay = inside ? lhChandMat() : lhChandOutMat();
+      if(!armed(bay)) return;
+      if(!missionWindowOpen('lighthouse-run')){ missionWindowSay('lighthouse-run', scene); R.snooze = bay; return; }
+      /* stopped on the ring outside: he drives himself in, through the door and to the mat before the counter */
+      if(!inside){ R.stage = 'enter'; ow.vel = 0; cineBars(true); lhNavClear(scene); pocketAutoIn(scene, pk, pk.doors[0]); return; }
+      lhBeginClerk(scene, ow, now);
       return;
     }
+    case 'enter':
+      /* on his way in by himself: at the mat, the clerk stands at her post behind the counter */
+      if(scene._inside === lhChandPk() && !lhChandPk()._entering && !GOTH.auto) lhBeginClerk(scene, ow, now);
+      return;
     case 'clerk':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
         say: "The harbour master's order, for the breakwater light? Yes, it's all ready: the big brass lamp, the last spare on the whole coast. It lives up on the back shelf. One moment." }));
@@ -136501,6 +136517,7 @@ walkinStaff('Marina Chandlery Interior', [
     posts: [CHAND_ROOM.clerk, [585, 524, Math.PI/2 + 0.5, 4000, true], [470, 526, Math.PI/2 - 0.4, 3600, true]],
     away: () => !!LH.clerk, awayAt: now => lhClerkAt(now) }
 ]);
+POCKETS.find(q => q.name === CHAND_IN.name).doors[0].drive = CHAND_ROOM.mat;          // (where he drives himself in to, the order's mat: pocketAutoIn, the Lighthouse Run)
 walkinLife('Marina Chandlery Interior', { keep: [[285, 395, 0, 1010]], looks: [] });
 
 /* ==================== INSIDE THE HARBOR HOUSE'S HALL: THE PORT OFFICE (Sir, 2026-11-12: "the pelican harbor building ... needs an
