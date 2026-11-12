@@ -98986,7 +98986,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* the day's boats */
     const sh = LIB.get('Harbor Boat');
-    for(const bt of this._harborFleetFor(this.route && this.route.dateStr)){
+    for(const bt of this._harborFleetFor(this.route && this.route.dateStr).concat([hg.islandBoat])){       // (and the island pier's skiff)
       if(!near(bt.x, bt.y, bt.L)) continue;
       const key = "hb|boat|" + bt.id + "|" + bt.kind + "|" + bt.L + "|" + bt.bow + "|" + bt.side + bt.hull + bt.trim;
       /* SORTED BY ITS END, NOT ITS MIDDLE: a boat 1,500 long keyed at its
@@ -134822,10 +134822,21 @@ function harborGeo(){
                       corner: { x0: road.x0, x1: RX - ROAD_HALF, y0: ROAD_HALF, y1: SW } };
   /* THE CHANDLERY'S FORECOURT: the paving between the wing's front wall and the plaza's edge, under its awning -- he drives up to the shop's door (CHAND_IN) */
   const strip = { x0: bldg.x0 + PH_PLAN.WA0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.HB, y1: H.PLAZA_Y0 };
+  /* THE ISLAND'S PIER (Sir, 2026-11-12: "the island needs a pier for boats"): a plank dock out from the landing's east side toward the
+     basin, planked and piled as the finger docks are (it is one: harborPosts, the deck, the seams), a skiff tied up along its south
+     side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched), and
+     two bollards on its edge. Added after the slips and bollards so neither knows of it */
+  const ip = { k: 100, x0: light.x + light.r*0.8, x1: light.x + light.r + 780, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
+  ip.y = (ip.y0 + ip.y1)/2; ip.len = ip.x1 - ip.x0;
+  fingers.push(ip);
+  for(let i = rocks.length - 1; i >= 0; i--){ const q = rocks[i]; if(q.x > ip.x0 - 60 && q.x < light.x + light.r + 200 && q.y > ip.y0 - 150 && q.y < ip.y1 + 150) rocks.splice(i, 1); }   // (the rim's boulders where the pier leaves it)
+  for(const x of [ip.x0 + 380, ip.x1 - 90]) props.push({ kind:'bollard', x, y: ip.y1 - 24, r: 20 });
+  const islandBoat = { id: 900, kind: 'skiff', L: 300*BOAT_SC, side: 1, bow: 1, hull: '#7a2f2c', trim: '#f6f3ea' };
+  islandBoat.x = ip.x1 - 140 - islandBoat.L/2; islandBoat.y = ip.y + (H.FINGER_W/2 + 45 + harborBoatBeam('skiff', islandBoat.L)/2);
   const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
   _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip,
-                 fingers, slips, zone, walk, props, park, beachWalk };
+                 fingers, slips, islandBoat, zone, walk, props, park, beachWalk };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
   return _harborGeo;
