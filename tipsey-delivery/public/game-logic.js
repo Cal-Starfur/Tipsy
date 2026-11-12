@@ -7085,6 +7085,8 @@ const SHOP_ICONS = {
   gift:      { col: 0x23405e, s: [["r",0x2f8fbf,-10,-3,20,13],["r",0x3fa6d8,-11,-6,22,4],["r",0xe2483d,-1.5,-6,3,16],["p",0xe2483d,[0,-6,-7,-12,-8,-8]],["p",0xe2483d,[0,-6,7,-12,8,-8]]] },
   rug:       { col: 0x8a3f2a, s: [["r",0xb5452e,-9,-8,18,16],["p",0xf2e6c8,[0,-5,6,0,0,5,-6,0]],["r",0xf2e6c8,-11,-7,2,1.5],["r",0xf2e6c8,-11,-2,2,1.5],["r",0xf2e6c8,-11,3,2,1.5],["r",0xf2e6c8,9,-7,2,1.5],["r",0xf2e6c8,9,-2,2,1.5],["r",0xf2e6c8,9,3,2,1.5]] },
   surf:      { col: 0x2f7f86, s: [["p",0x6fc3d6,[0,-12,4,-6,4,6,0,12,-4,6,-4,-6]],["r",0xffb347,-4,-1,8,2.5],["r",0x2f7f86,-0.5,-9,1,18]] },
+  drone:     { col: 0x2f6f7e, s: [["r",0x3a4a5a,-2,-3,4,6],["r",0x3a4a5a,-9,-9,18,2],["r",0x3a4a5a,-9,7,18,2],["r",0x3a4a5a,-8,-9,2,18],["r",0x3a4a5a,6,-9,2,18],
+                ["c",0x9aa1a8,-8,-8,3.4],["c",0x9aa1a8,8,-8,3.4],["c",0x9aa1a8,-8,8,3.4],["c",0x9aa1a8,8,8,3.4],["c",0xe8693c,0,0,2]] },   // the delivery drone from above: its body, arms and four rotors (the Lighthouse Run's pickup beacon)
   anchor:    { col: 0x24476a, s: [["c",0x3a4a5a,0,-9,3],["c",0x9aa1a8,0,-9,1.4],["r",0x3a4a5a,-1.5,-6,3,15],["r",0x3a4a5a,-6,-4,12,2.5],["p",0x3a4a5a,[-10,2,-6,9,0,11,6,9,10,2,8,1,5,6,0,8,-5,6,-8,1]]] },
   comic:     { col: 0xe0a020, s: [["p",0xd8352a,[0.0,-13.0,2.33,-8.69,6.5,-11.26,6.36,-6.36,11.26,-6.5,8.69,-2.33,13.0,0.0,8.69,2.33,11.26,6.5,6.36,6.36,6.5,11.26,2.33,8.69,0.0,13.0,-2.33,8.69,-6.5,11.26,-6.36,6.36,-11.26,6.5,-8.69,2.33,-13.0,0.0,-8.69,-2.33,-11.26,-6.5,-6.36,-6.36,-6.5,-11.26,-2.33,-8.69]],["p",0xffd34a,[0.0,-11.3,1.97,-7.34,5.65,-9.79,5.37,-5.37,9.79,-5.65,7.34,-1.97,11.3,0.0,7.34,1.97,9.79,5.65,5.37,5.37,5.65,9.79,1.97,7.34,0.0,11.3,-1.97,7.34,-5.65,9.79,-5.37,5.37,-9.79,5.65,-7.34,1.97,-11.3,0.0,-7.34,-1.97,-9.79,-5.65,-5.37,-5.37,-5.65,-9.79,-1.97,-7.34]],["r",0xc0281f,-9.8,-3.5,1.4,7,"f"],["r",0xc0281f,-7.0,-3.5,1.4,7,"f"],["r",0xc0281f,-8.4,-0.7,1.4,4.2,"f"],["r",0xc0281f,-9.8,2.1,4.2,1.4,"f"],["r",0xc0281f,-5.25,-3.5,1.4,7,"f"],["r",0xc0281f,-2.45,-3.5,1.4,7,"f"],["r",0xc0281f,-5.25,-0.7,4.2,1.4,"f"],["r",0xc0281f,-0.7,-2.1,1.4,5.6,"f"],["r",0xc0281f,2.1,-2.1,1.4,5.6,"f"],["r",0xc0281f,-0.7,-3.5,4.2,1.4,"f"],["r",0xc0281f,-0.7,-0.14,4.2,1.4,"f"],["r",0xc0281f,3.85,-3.5,1.4,7,"f"],["r",0xc0281f,6.65,-3.5,1.4,7,"f"],["r",0xc0281f,5.25,-3.5,1.4,4.2,"f"],["r",0xc0281f,3.85,-3.5,4.2,1.4,"f"],["r",0xc0281f,8.4,-3.5,1.4,4.62,"f"],["r",0xc0281f,8.4,2.1,1.4,1.4,"f"]] },
   pizza:    { col: 0xc7402f, s: [["p",0xf2c27a,[-10,-8,10,-8,0,12]],["r",0xd99a4a,-10,-10,20,3],["c",0xe2483d,-3,-3,2],["c",0xe2483d,3,-4,2],["c",0xe2483d,0,3,1.8]] },
@@ -83592,9 +83594,9 @@ function lhBayNow(scene){
     if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true });         // (the order waits at the Chandlery: its mat inside, the beacon over its door outside)
     const hb = harborGeo().bldg; return Object.assign({}, lhChandOutMat(), { icon: 'anchor', depth: (hb.x0 + hb.x1 + hb.y0 + hb.y1)/2 + 5 });    // (depth: the house is one piece keyed at its middle, far behind the door's: the beacon floats over its wing, so it sorts after it)
   }
-  if(R.stage === 'drive') return ic(LH_RUN.pickup, 'flag');
+  if(R.stage === 'drive') return ic(LH_RUN.pickup, 'drone');
   if(R.stage === 'grab' && R.park) return { x: R.park.x, y: R.park.y, icon: 'flag', beaconOnly: true };          // (the beacon over Tipsey: set the drone down on him)
-  if(R.stage === 'fly') return ic(R.leg === 'back' ? LH_RUN.pickup : lhLightSpots().bay, 'flag');                                                  // (the target on the breakwater's walk: set him down on it)
+  if(R.stage === 'fly') return R.leg === 'back' ? ic(LH_RUN.pickup, 'drone') : ic(lhLightSpots().bay, 'flag');                                                  // (the target on the breakwater's walk: set him down on it)
   return null;
 }
 /* meetWalk, at a gap of its own: the drone's rotors reach 120 out from its middle, so whoever meets it stands off
@@ -99394,11 +99396,6 @@ class WorldScene extends Phaser.Scene {
       if(!near(pp.x, pp.y)) continue;
       vq.push({ depth: pp.x + pp.y, fn: (g) => this.bcDraw(g, "hb|pile|" + pp.x + "," + pp.y + "|" + pp.h + "|" + pp.deck, pp.x, pp.y, gg => post(gg, pp.x, pp.y, pp.h, pp.deck, 14, 0x5a4330, 0x6e5236, 0x5d4530)) });
     }
-    /* THE DRONE'S LANDING PAD (Sir, 2026-11-12: "since its a specific target for drone pick up can we give it a stand alone item indicating that"): the
-       Lighthouse Run's transfer spot, a round steel pad standing 6 off the paving in a yellow ring, a drone marked on it and a light at each corner;
-       a still piece, cached (not solid: he drives onto it, and the drone sets down on him there) */
-    { const pk = LH_RUN.pickup;
-      if(near(pk.x, pk.y)) vq.push({ depth: pk.x + pk.y - 200, fn: (g) => this.bcDraw(g, "hb|dronepad", pk.x, pk.y, gg => this.drawDronePad(gg, pk.x, pk.y)) }); }
     /* the props on the quay and the plaza */
     for(const pr of hg.props){
       if(!near(pr.x, pr.y)) continue;
@@ -99994,29 +99991,6 @@ class WorldScene extends Phaser.Scene {
   }
   /* the anchor on the plaza: a stone plinth, and an admiralty anchor
      standing on its crown, shank up, stock across, in black iron */
-  drawDronePad(g, x, y){
-    const P = (a, b, c) => this.W(x + a, y + b, c);
-    const q = (pts, col, al) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col, al); };
-    const ring = (r, z, n = 40) => { const o = []; for(let i = 0; i < n; i++){ const t = i/n*Math.PI*2; o.push(P(Math.cos(t)*r, Math.sin(t)*r, z)); } return o; };
-    const R = 150, TH = 7;
-    for(let i = 0; i < 40; i++){                                                  // its edge, a band round
-      const t0 = i/40*Math.PI*2, t1 = (i + 1)/40*Math.PI*2;
-      q([P(Math.cos(t0)*R, Math.sin(t0)*R, 0), P(Math.cos(t1)*R, Math.sin(t1)*R, 0), P(Math.cos(t1)*R, Math.sin(t1)*R, TH), P(Math.cos(t0)*R, Math.sin(t0)*R, TH)], i % 2 ? 0x2e353d : 0x363e47);
-    }
-    q(ring(R, TH), 0x59636e);                                                      // the steel top
-    q(ring(R - 12, TH + 0.2), 0xe8b54a);                                           // the yellow ring...
-    q(ring(R - 20, TH + 0.4), 0x4c5763);                                           // ...and the pad inside it
-    const bar = (a0, a1, b0, b1) => q([P(a0, b0, TH + 0.8), P(a1, b0, TH + 0.8), P(a1, b1, TH + 0.8), P(a0, b1, TH + 0.8)], 0xf2f2ee);
-    const rot = (a, b, r) => { const o = []; for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2; o.push(P(a + Math.cos(t)*r, b + Math.sin(t)*r, TH + 0.8)); } q(o, 0xf2f2ee); };
-    bar(-12, 12, -60, 60); bar(-60, 60, -12, 12);                                  // the drone: its body and arms...
-    for(const [a, b] of [[-62, -62], [62, -62], [62, 62], [-62, 62]]){ rot(a, b, 20); const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push(P(a + Math.cos(t)*9, b + Math.sin(t)*9, TH + 1.2)); } q(o, 0x4c5763); }   // ...and its four rotors
-    for(const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]){                     // a light at each corner, on a little plinth
-      const cx = a*Math.SQRT1_2*(R - 4), cy = b*Math.SQRT1_2*(R - 4);
-      q([P(cx - 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH), P(cx - 6, cy + 6, TH)], 0x8a929a);
-      q([P(cx + 6, cy - 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx + 6, cy + 6, TH), P(cx + 6, cy - 6, TH)], 0x70787f);
-      q([P(cx - 6, cy - 6, TH + 9), P(cx + 6, cy - 6, TH + 9), P(cx + 6, cy + 6, TH + 9), P(cx - 6, cy + 6, TH + 9)], 0xffd98a);
-    }
-  }
   drawHarborAnchor(g, x, y){
     const P = (a, b, c) => this.W(x + a, y + b, c);
     const q = (pts, col) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col); };
