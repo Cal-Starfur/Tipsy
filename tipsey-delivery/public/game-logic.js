@@ -99008,19 +99008,28 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: gw.x - 18 + gyFar - 1, fn: (g) => this.bcDraw(g, "hb|gway|" + bt.id + "|" + gw.x + "|" + gw.edgeY, gw.x, gw.edgeY, gg => this.drawBoatGangway(gg, gw)) });
       }
     }
-    /* THE ISLAND PIER'S STAIRS (Sir, 2026-11-12: "needs stairs"): the deck stands 8 over the landing, so where the pier leaves
-       the island three concrete treads come up to it across its whole width, cached */
-    { const ip = hg.fingers.find(f => f.island);
-      if(ip && near(ip.x0, ip.y, 400)){
-        const cx = ip.x0 - 30, key = "hb|ipsteps|" + Math.round(ip.x0) + "," + Math.round(ip.y0);
-        vq.push({ depth: cx + ip.y + 1, fn: (g) => this.bcDraw(g, key, cx, ip.y, gg => {
-          const W = (x, y, z) => this.W(x, y, z), Q = (pts, col) => this.quadOn(gg, pts, col);
-          for(let k = 0; k < 3; k++){
-            const x0 = ip.x0 - 30*(3 - k), x1 = x0 + 30, zt = 3.4 + 1.6*k, z0 = 0.4;
-            Q([W(x0, ip.y1, zt), W(x1, ip.y1, zt), W(x1, ip.y1, z0), W(x0, ip.y1, z0)], 0x7d7566);                     // its south face
-            Q([W(x1, ip.y0, zt), W(x1, ip.y1, zt), W(x1, ip.y1, z0), W(x1, ip.y0, z0)], 0x9a9282);     // its east face (the riser of the next)
-            Q([W(x0, ip.y0, zt), W(x1, ip.y0, zt), W(x1, ip.y1, zt), W(x0, ip.y1, zt)], k % 2 ? 0xf1ece0 : 0xe6e0d2);                     // its tread, a shade apart each
-          }
+    /* THE ISLAND PIER'S STAIRS (Sir, 2026-11-12: "needs stairs", "put the rocks back ... stairs going over from both directions"): the
+       pier no longer cuts through the island's rim: a flight of concrete steps climbs from the landing over the boulders to a
+       platform, and a second comes down the far side to the deck (for people, not his wheels). Cached, sorted after the rim's stones */
+    { const ip = hg.fingers.find(f => f.island), S = hg.ipStairs, L = hg.light;
+      if(ip && near(L.x + 740, ip.y, 700)){
+        const key = "hb|ipstairs|" + Math.round(S.x0) + "," + Math.round(S.y0);
+        vq.push({ depth: L.x + 760 + ip.y + 500, fn: (g) => this.bcDraw(g, key, L.x + 740, ip.y, gg => {
+          const W = (x, y, z) => this.W(x, y, z), Q = (pts, col) => this.quadOn(gg, pts, col), y0 = S.y0, y1 = S.y1;
+          /* a block of the stairs: its top, its south face and its east face (the two the camera sees) */
+          const bx = (x0, x1, zt, top, side, end) => {
+            Q([W(x0, y1, zt), W(x1, y1, zt), W(x1, y1, 0.4), W(x0, y1, 0.4)], side);
+            Q([W(x1, y0, zt), W(x1, y1, zt), W(x1, y1, 0.4), W(x1, y0, 0.4)], end);
+            Q([W(x0, y0, zt), W(x1, y0, zt), W(x1, y1, zt), W(x0, y1, zt)], top);
+          };
+          const X = L.x + 470, ST = 30;
+          for(let k = 0; k < 8; k++) bx(X + k*ST, X + (k + 1)*ST, 2 + 10*(k + 1), k % 2 ? 0xe6e0d2 : 0xf1ece0, 0x8d8576, 0xa29a8a);          // the flight up (to z 82)
+          bx(X + 8*ST, X + 10.7*ST, 82, 0xeee8da, 0x8d8576, 0xa29a8a);                                                                  // the platform over the rocks
+          for(let k = 0; k < 7; k++) bx(X + 10.7*ST + k*ST, X + 10.7*ST + (k + 1)*ST, 72 - 10*k, k % 2 ? 0xe6e0d2 : 0xf1ece0, 0x8d8576, 0xa29a8a);   // the flight down to the deck (to z 12)
+          /* a pipe rail along the south side, on posts */
+          const rail = (xa, xb, za, zb) => { const a = W(xa, y1 + 4, za), b = W(xb, y1 + 4, zb); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); };
+          for(let k = 0; k <= 8; k += 2){ const x = X + k*ST + 4, z = 2 + 10*k + (k ? 10 : 0); const a = W(x, y1 + 4, z), b = W(x, y1 + 4, z + 46); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); }
+          rail(X + 4, X + 8*ST, 2 + 46 + 10, 82 + 46); rail(X + 8*ST, X + 10.7*ST, 82 + 46, 82 + 46); rail(X + 10.7*ST, X + 17.7*ST, 72 + 46, 12 + 46);
         }) });
       }
     }
@@ -134842,17 +134851,17 @@ function harborGeo(){
      basin, planked and piled as the finger docks are (it is one: harborPosts, the deck, the seams), a skiff tied up along its far (north)
      side, as the marina's boats lie on a dock's far side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched), and
      two bollards on its edge. Added after the slips and bollards so neither knows of it */
-  const ip = { k: 100, x0: light.x + light.r*0.8, x1: light.x + light.r + 900, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
+  const ip = { k: 100, x0: light.x + 1000, x1: light.x + 1800, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
   ip.y = (ip.y0 + ip.y1)/2; ip.len = ip.x1 - ip.x0;
   fingers.push(ip);
-  for(let i = rocks.length - 1; i >= 0; i--){ const q = rocks[i]; if(q.x > ip.x0 - 60 && q.x < light.x + light.r + 200 && q.y > ip.y0 - 150 && q.y < ip.y1 + 150) rocks.splice(i, 1); }   // (the rim's boulders where the pier leaves it)
+  const ipStairs = { x0: light.x + 470, x1: ip.x0, y0: ip.y0, y1: ip.y1 };            // the stairs over the rim's rocks to the deck: for people, not for his wheels (harborBlocks)
   for(const x of [ip.x0 + 380, ip.x1 - 90]) props.push({ kind:'bollard', x, y: ip.y0 + 24, r: 20 });          // (on the boat's side)
   const islandBoat = { id: 900, kind: 'skiff', L: 300*BOAT_SC, side: -1, bow: 1, hull: '#7a2f2c', trim: '#f6f3ea' };
   islandBoat.x = ip.x1 - 140 - islandBoat.L/2; islandBoat.y = ip.y + islandBoat.side*(H.FINGER_W/2 + 45 + harborBoatBeam('skiff', islandBoat.L)/2);
   const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
   _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip,
-                 fingers, slips, islandBoat, zone, walk, props, park, beachWalk };
+                 fingers, slips, islandBoat, ipStairs, zone, walk, props, park, beachWalk };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
   return _harborGeo;
@@ -135058,6 +135067,7 @@ function harborSurface(x, y){
 function harborBlocks(x, y, R){
   if(!WORLDGEN_COAST) return false;
   const hg = harborGeo(), r = (R || 0)*0.7;
+  { const S = hg.ipStairs; if(x + r > S.x0 && x - r < S.x1 && y + r > S.y0 && y - r < S.y1) return true; }   // (the island pier's stairs: no wheels)
   if(x - r > hg.zone.x1 || y - r > hg.zone.y1) return false;
   for(const pr of hg.props) if(Math.abs(x - pr.x) < pr.r + (R || 0) && Math.abs(y - pr.y) < pr.r + (R || 0) &&
                               Math.hypot(x - pr.x, y - pr.y) < pr.r + (R || 0)) return true;
