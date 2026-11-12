@@ -136479,8 +136479,7 @@ function harborGeo(){
   for(let k = 0; k + 1 < fingers.length; k++) props.push({ kind:'lamp', x: quay.x0 + 70, y: (fingers[k].y + fingers[k + 1].y)/2, r: 26 });
   for(const f of fingers) for(const sd of [-1, 1]) props.push({ kind:'bollard', x: quay.x0 + 30, y: f.y + sd*120, r: 20 });
   for(const t of [-0.75, -0.25].map(u => u*Math.PI)) props.push({ kind:'lamp', x: round.x + Math.cos(t)*(round.out + 90), y: round.y + Math.sin(t)*(round.out + 90), r: 26 });
-  /* (the flags where they always stood; the benches under the boathouse stay left out: FLEET_BOAT) */
-  for(const [x, col] of [[-4700, 0x2f6f7e], [-4480, 0x1f3a4d], [-4260, 0xc2452e]]) props.push({ kind:'flag', x, y: H.PLAZA_Y0 + 300, r: 22, col });
+  /* (no flags on the plaza in front of the harbor house: Sir, 2026-11-12; the benches under the boathouse stay left out: FLEET_BOAT) */
   props.push({ kind:'anchor', x: -5300, y: -13300, r: 150 });
   for(const x of [-4750]) props.push({ kind:'bench', x, y: MY0 - 130, r: 90 });
   /* the apron: the harbor's sign at the foot of the road (solid at its two
