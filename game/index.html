@@ -20096,7 +20096,10 @@ function pocketDoorStep(scene){
        the canopy's post and missed it by a hand's width */
     const across = door.half ? Math.abs((ow.px - d.x)*-d.oy + (ow.py - d.y)*d.ox) : 0, deep = door.half ? Math.abs((ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy) : 0;
     const near = door.half ? across < door.half + 20 && deep < 70 : dist < 70;
-    if(dist > (door.half ? door.half + 110 : door.seamless ? 110 : 220)) door._rest = false;
+    /* (let out of a door, it stays shut to him -- he is not to be taken straight back in -- till he has stood clear of it: a door with a width, out past its glass
+       by 60 or off its side by 60, the bug being that it took the full 165 round it, and he who backed out a little and drove at it again was held at it) */
+    const lat = door.half ? (ow.px - d.x)*d.ox + (ow.py - d.y)*d.oy : 0;
+    if(door.half ? (lat > (door.glass != null ? door.glass : 0) + 60 || across > door.half + 60 || dist > door.half + 110) : dist > (door.seamless ? 110 : 220)) door._rest = false;
     else if(door.auto){
       /* IN BY HIMSELF (door.auto): on the mat, if the gate lets him, he is in */
       if(!door._rest && dist < 70 && !ow.deck){ const gate = POCKET_GATES[q.from + "|" + door.id]; if(!gate || gate(scene, q, door)){ pocketAutoIn(scene, q, door); return; } }
