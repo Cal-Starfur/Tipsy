@@ -58,13 +58,11 @@
   stands behind a pole, wing or wall. Screenshot the meeting to confirm both faces show.
 
 ## Mission talk (keep it short)
-- Mission speech is a line or two a bubble, one beat each: say what is needed to move on and stop. No backstory, no
-  explaining the plot or the mechanics, no recap of what the player just did, no jokes padding it. A giver who hands
-  something over says one short line ("Here she is. Careful, she's heavy."); a receiver one ("Tipsey! Is that my
-  lamp? Thank goodness."). If a line can go and the beat still reads, it goes.
-- Let the staging do the telling: the person fetches the thing, walks off with it, goes inside. Don't have them say
-  what they are doing. Cut dialogue first when a mission feels slow.
-- Applies to every `MISSIONS` record's cards (`hospSayCard`), new and old. Lighthouse Run is the reference.
+- Mission speech is a line or two a bubble: only what is needed to move on. No backstory, no
+  explaining the plot or mechanics, no recap. ("Here she is. Careful, she's heavy.") Let the
+  staging tell the rest: she fetches it, walks off with it, goes inside. Cut dialogue first
+  when a mission drags. Applies to every mission's cards (`hospSayCard`); Lighthouse Run is
+  the reference.
 
 ## Other rules
 - Fix root causes, not symptoms. Measure before patching.
