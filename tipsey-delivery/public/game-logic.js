@@ -78331,8 +78331,21 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     }
     houseProfileRoof(60, 480, this.prof, 12, c.roof, c.wall);
   },
-  tower(c, dark){
+  tower(c, dark, door){
     const seen = housePrism(houseRing(640,-300,60,12), 0, 420, c.wall, { top:false });
+    /* THE KEEPER'S DOOR (Sir, 2026-11-12: "he should go into the light house after the delivery"): the Harbor Light's own, low on the face turned most to the
+       camera -- a timber door in a pale surround under a little arch, a step before it (door: the Harbor Light's draw asks for it) */
+    if(door && !state.back){
+      let best = null; for(const f of seen) if(!best || f.na + f.nb > best.na + best.nb) best = f;       // (the face most square to the eye)
+      if(best){
+        const at = (t, z, d) => P(best.p[0] + (best.q[0]-best.p[0])*t + best.na*d, best.p[1] + (best.q[1]-best.p[1])*t + best.nb*d, z);
+        poly([at(0.3, 0, 0.5), at(0.7, 0, 0.5), at(0.7, 112, 0.5), at(0.3, 112, 0.5)], '#f2eee4');
+        poly([at(0.34, 0, 0.9), at(0.66, 0, 0.9), at(0.66, 96, 0.9), at(0.5, 108, 0.9), at(0.34, 96, 0.9)], '#4a3626');
+        poly([at(0.5, 0, 1.1), at(0.5, 100, 1.1)], null, '#2d2118', 2);
+        poly([at(0.58, 46, 1.3), at(0.6, 46, 1.3)], null, '#d8b25a', 3);
+        poly([at(0.26, 0, 0.6), at(0.74, 0, 0.6), at(0.74, 0, 12), at(0.26, 0, 12)], '#d8d2c2');
+      }
+    }
     for(const f of seen){
       houseFaceWin(f, 0, 1, 180, 200, c.band, { band:true });
       houseFaceWin(f, 0, 1, 330, 350, c.band, { band:true });
@@ -82057,7 +82070,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     if(lh) SHOPS.push(Object.assign({}, lh, { name:'Harbor Light',
       head:'the harbor light on the tip of Pelican Harbor\'s breakwater', tags:['lighthouse','tower'],
       yardFence:null, yard(){}, fore(){}, back:undefined, foot:[640, -300],
-      draw(){ this.tower(this.liv[0], this._lit === false); },   // (_lit: queueHarbor's -- dark till THE LIGHTHOUSE RUN)
+      draw(){ this.tower(this.liv[0], this._lit === false, true); },   // (_lit: queueHarbor's -- dark till THE LIGHTHOUSE RUN)
       vol:Object.assign({}, lh.vol, { foot:[[580,-360],[700,-360],[700,-240],[580,-240]], solids:lh.vol.solids.filter(so => so.name === 'tower') }) })); }
   { const g0 = SHOPS.find(s => s.name === 'Street Garage');
     if(g0) SHOPS.push(Object.assign({}, g0, { name:'Street Double Garage', ww:300, bays:2,
@@ -83490,7 +83503,10 @@ function lhCrewAt(now){
 }
 function lhInesAt(now){
   const R = LH, S = lhLightSpots();
-  if(R.keeper){ const p = hospWalkAt(R.keeper, now); if(p) return Object.assign(p, { has: R.keeper.has }); R.keeper = null; }
+  if(R.keeperIn) return null;                        // (inside the tower: the keeper has gone up with the lamp)
+  if(R.keeper){
+    if(R.keeper.inside && now - R.keeper.t0 >= R.keeper.walkMs){ R.keeperIn = true; R.keeper = null; return null; }
+    const p = hospWalkAt(R.keeper, now); if(p) return Object.assign(p, { has: R.keeper.has }); R.keeper = null; }
   return { x: S.ines.x, y: S.ines.y, th: lhGlance(Math.PI/4, now, 3), moving: false, has: null };
 }
 CITY_PEOPLE.add({ name: 'The Lighthouse Run', where: "Pelican Harbor: the quay, the chandlery, the breakwater light; the Fleet's hangar at Sun Deck Airfield", solid: false,
@@ -83724,7 +83740,7 @@ function lhDrop(scene){
   lhLoanDoor(scene); lhNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(back){ R.stage = 'idle'; R.leg = null; return; }                         // (home: the run is over)
-  R.stage = 'keeper'; R.keeper = null; R.kT = scene.time.now + 1600; cineBars(true);
+  R.stage = 'keeper'; R.keeper = null; R.keeperIn = false; R.kT = scene.time.now + 1600; cineBars(true);
 }
 /* the hangar's door comes down: the drone is out of its lane for good (it is off home, drawn flying, and parked again when it is in) */
 function lhLoanDoor(scene){
@@ -83746,7 +83762,11 @@ function lhHandLamp(){
   if(R.stage !== 'keeper' || !scene) return;
   hospSayCard(null); cineBars(false);
   const now = scene.time.now;
-  if(R.keeper){ R.keeper.has = 'lamp'; R.keeper.leave = now; R.litAt = now + R.keeper.walkMs; }
+  if(R.keeper){                                                    // (she takes it and walks into the tower by its door, and is not seen again: lhInesAt)
+    const S = lhLightSpots(), door = { x: S.L.x + 50, y: S.L.y + 90 }, from = R.keeper.to || { x: S.ines.x, y: S.ines.y }, d = Math.hypot(door.x - from.x, door.y - from.y);
+    R.keeper = { from, to: door, t0: now, walkMs: meetWalkMs(d), leave: null, card: true, faceTh: Math.atan2(door.y - from.y, door.x - from.x), th0: R.keeper.faceTh, has: 'lamp', inside: true };
+    R.litAt = now + R.keeper.walkMs;
+  }
   R.lit = true;
   missionComplete('lighthouse-run');
   lhKeyMigrate();
@@ -83912,7 +83932,7 @@ function lhTick(scene, ow){
       /* Ines comes along the walk to him, face to face (his own gap: he is on his wheels again) */
       if(!R.keeper && now > R.kT){ const p = lhInesAt(now); R.keeper = Object.assign(meetWalk(ow, { x: p.x, y: p.y }, now, lhSide(ow, p), scene), { has: null, th0: p.th }); }
       if(R.keeper && R.keeper.leave == null) meet(R.keeper, () => hospSayCard({ who: "Ines, the lighthouse keeper", btn: "Here's the lamp!", ok: lhHandLamp, at: lhInesAt,
-        say: "Tipsey! Dropped out of the sky, and in this soup! I heard rotors but I couldn't see a thing. Is that my lamp? Oh, thank goodness. Hold it steady, right there... I've got it! Up the tower it goes." }));
+        say: "Tipsey! Is that my lamp? Thank goodness." }));
       return;
   }
 }
