@@ -99022,14 +99022,16 @@ class WorldScene extends Phaser.Scene {
             Q([W(x1, y0, zt), W(x1, y1, zt), W(x1, y1, 0.4), W(x1, y0, 0.4)], end);
             Q([W(x0, y0, zt), W(x1, y0, zt), W(x1, y1, zt), W(x0, y1, zt)], top);
           };
-          const X = L.x + 470, ST = 30;
-          for(let k = 0; k < 8; k++) bx(X + k*ST, X + (k + 1)*ST, 2 + 10*(k + 1), k % 2 ? 0xe6e0d2 : 0xf1ece0, 0x8d8576, 0xa29a8a);          // the flight up (to z 82)
-          bx(X + 8*ST, X + 10.7*ST, 82, 0xeee8da, 0x8d8576, 0xa29a8a);                                                                  // the platform over the rocks
-          for(let k = 0; k < 7; k++) bx(X + 10.7*ST + k*ST, X + 10.7*ST + (k + 1)*ST, 72 - 10*k, k % 2 ? 0xe6e0d2 : 0xf1ece0, 0x8d8576, 0xa29a8a);   // the flight down to the deck (to z 12)
+          /* the pier's own timber (drawHarborGround: PLANK, PLANKD, TIMBER): planked treads, the platform planked and seamed across */
+          const PL = 0xb98a5e, PLD = 0x8a6644, TM = 0x6e5236, X = L.x + 360, ST = 30;
+          for(let k = 0; k < 8; k++) bx(X + k*ST, X + (k + 1)*ST, 2 + 10*(k + 1), k % 2 ? 0xc29467 : PL, TM, 0x7d5e40);                       // the flight up (to z 82)
+          bx(X + 8*ST, X + 11.3*ST, 82, PL, TM, 0x7d5e40);                                                                                  // the platform, centred on the rocks (x 600..700)
+          for(let x = X + 8*ST + 26; x < X + 11.3*ST; x += 26){ const a = W(x, y0, 82), b = W(x, y1, 82); gg.lineStyle(Math.max(1, 1.6*this.K), PLD, 0.7); gg.lineBetween(a.x, a.y, b.x, b.y); }
+          for(let k = 0; k < 7; k++) bx(X + 11.3*ST + k*ST, X + 11.3*ST + (k + 1)*ST, 72 - 10*k, k % 2 ? 0xc29467 : PL, TM, 0x7d5e40);   // the flight down to the deck (to z 12)
           /* a pipe rail along the south side, on posts */
           const rail = (xa, xb, za, zb) => { const a = W(xa, y1 + 4, za), b = W(xb, y1 + 4, zb); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); };
           for(let k = 0; k <= 8; k += 2){ const x = X + k*ST + 4, z = 2 + 10*k + (k ? 10 : 0); const a = W(x, y1 + 4, z), b = W(x, y1 + 4, z + 46); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); }
-          rail(X + 4, X + 8*ST, 2 + 46 + 10, 82 + 46); rail(X + 8*ST, X + 10.7*ST, 82 + 46, 82 + 46); rail(X + 10.7*ST, X + 17.7*ST, 72 + 46, 12 + 46);
+          rail(X + 4, X + 8*ST, 2 + 46 + 10, 82 + 46); rail(X + 8*ST, X + 11.3*ST, 82 + 46, 82 + 46); rail(X + 11.3*ST, X + 18.3*ST, 72 + 46, 12 + 46);
         }) });
       }
     }
@@ -134851,10 +134853,10 @@ function harborGeo(){
      basin, planked and piled as the finger docks are (it is one: harborPosts, the deck, the seams), a skiff tied up along its far (north)
      side, as the marina's boats lie on a dock's far side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched), and
      two bollards on its edge. Added after the slips and bollards so neither knows of it */
-  const ip = { k: 100, x0: light.x + 1000, x1: light.x + 1800, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
+  const ip = { k: 100, x0: light.x + 910, x1: light.x + 1800, y0: light.y + 70, y1: light.y + 70 + H.FINGER_W, island: true };
   ip.y = (ip.y0 + ip.y1)/2; ip.len = ip.x1 - ip.x0;
   fingers.push(ip);
-  const ipStairs = { x0: light.x + 470, x1: ip.x0, y0: ip.y0, y1: ip.y1 };            // the stairs over the rim's rocks to the deck: for people, not for his wheels (harborBlocks)
+  const ipStairs = { x0: light.x + 360, x1: ip.x0, y0: ip.y0, y1: ip.y1 };            // the stairs over the rim's rocks to the deck: for people, not for his wheels (harborBlocks)
   for(const x of [ip.x0 + 380, ip.x1 - 90]) props.push({ kind:'bollard', x, y: ip.y0 + 24, r: 20 });          // (on the boat's side)
   const islandBoat = { id: 900, kind: 'skiff', L: 300*BOAT_SC, side: -1, bow: 1, hull: '#7a2f2c', trim: '#f6f3ea' };
   islandBoat.x = ip.x1 - 140 - islandBoat.L/2; islandBoat.y = ip.y + islandBoat.side*(H.FINGER_W/2 + 45 + harborBoatBeam('skiff', islandBoat.L)/2);
