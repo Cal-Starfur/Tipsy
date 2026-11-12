@@ -100747,10 +100747,6 @@ class WorldScene extends Phaser.Scene {
           bx(X + 8*ST, X + 11.3*ST, 82, PL, TM, 0x7d5e40);                                                                                  // the platform, centred on the rocks (x 600..700)
           for(let x = X + 8*ST + 26; x < X + 11.3*ST; x += 26){ const a = W(x, y0, 82), b = W(x, y1, 82); gg.lineStyle(Math.max(1, 1.6*this.K), PLD, 0.7); gg.lineBetween(a.x, a.y, b.x, b.y); }
           for(let k = 0; k < 7; k++) bx(X + 11.3*ST + k*ST, X + 11.3*ST + (k + 1)*ST, 72 - 10*k, k % 2 ? 0xc29467 : PL, TM, 0x7d5e40);   // the flight down to the deck (to z 12)
-          /* a pipe rail along the south side, on posts */
-          const rail = (xa, xb, za, zb) => { const a = W(xa, y1 + 4, za), b = W(xb, y1 + 4, zb); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); };
-          for(let k = 0; k <= 8; k += 2){ const x = X + k*ST + 4, z = 2 + 10*k + (k ? 10 : 0); const a = W(x, y1 + 4, z), b = W(x, y1 + 4, z + 46); gg.lineStyle(Math.max(1, 2.2*this.K), 0x2b3540, 1); gg.lineBetween(a.x, a.y, b.x, b.y); }
-          rail(X + 4, X + 8*ST, 2 + 46 + 10, 82 + 46); rail(X + 8*ST, X + 11.3*ST, 82 + 46, 82 + 46); rail(X + 11.3*ST, X + 18.3*ST, 72 + 46, 12 + 46);
         }) });
         /* THE ROCKS IN FRONT OF THE STAIRS draw over them (Sir: "the rocks should be drawing over it from this side"): the rim's
            stones south of the walk, redrawn straight after the stairs; the ones behind it stay under them */
