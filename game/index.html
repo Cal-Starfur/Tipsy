@@ -145372,6 +145372,7 @@ const GO_SPOTS = {
   let q = null, v = null, lh = null;
   try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); } catch(e){}
   if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-3850,-13400,-1.57&view=2&lh=pickup'; };
+  if(typeof window !== 'undefined') window.lhStartLink = function(){ return location.href.split('?')[0] + '?go=-4750,-13950,-1.57&view=2&lh=chandlery'; };
   if(typeof window !== 'undefined') window.tpGoHere = function(){
     const s = game.scene.getScene('world'), ow = s && s.ow;
     if(!ow) return 'not in the city';
@@ -145402,6 +145403,9 @@ const GO_SPOTS = {
         /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), Tipsey on the transfer spot (go=-3850,-13400,-1.57), and the
            drone comes in to him: straight into it, not waiting for the mat to arm */
         if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; LH.stage = 'drive'; lhLoan(s); } catch(e){} }
+        /* &lh=chandlery: THE LIGHTHOUSE RUN from its start -- Tipsey in front of the Marina Chandlery (go=-4750,-13950,-1.57) at 11 o'clock, driving as himself,
+           the story not yet done (in memory only: nothing is saved), so the beacon over its door is there to drive in at */
+        if(lh === 'chandlery'){ try { NIGHT_CLOCK.time = 11; if(tpProfile){ tpProfile.fleetKind = ''; if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.delete('lighthouse-run'); } LH.stage = 'idle'; } catch(e){} }
         return;
       }
       if(++tries < 66) setTimeout(go, 600);
