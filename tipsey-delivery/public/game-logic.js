@@ -126119,6 +126119,8 @@ class WorldScene extends Phaser.Scene {
     if(C && C.t === t) return C.L;
     const L = [], bx = this.botX, by = this.botY;
     CITY_PEOPLE.each(this, t, p => { if(!p.hidden && !p.noDoor && isFinite(p.x) && Math.abs(p.x - bx) + Math.abs(p.y - by) < 4200) L.push(p); });   // (noDoor: at a locked door -- THE ROOM'S DAY)
+    /* TIPSEY TAKING THE SHOP (MINDING THE SHOP: his scripted walk in at Brew & Bolt's door, not the bot's own position): the door opens for him as for anyone */
+    if(typeof MS !== "undefined" && MS.tip){ const q = msTipAt(t); if(q && isFinite(q.x)) L.push({ x: q.x, y: q.y, th: q.th, moving: !!q.moving, kind: 'tipsey' }); }
     this._dpC = { t, L };
     return L;
   }
