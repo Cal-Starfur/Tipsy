@@ -48,6 +48,7 @@
 | R18 | **Built from what exists** (Sir, 2026-11-01): the mission's vehicles are the fleet's and the vehicle art's (`gameCar` kinds), its people the kits' looks and uniforms, its props the kits'; new art only for what doesn't exist. | C | grep before drawing |
 | R19 | **Its workers face their work** (Sir, 2026-11-01, KTDE): a giver or clerk at a desk, console or counter stands on its working side facing it (walk-in kit W19); the meeting then turns them to Tipsey. | C | still, zoomed, shell faded |
 | R20 | **Its suppliers are near** (the Kart Works re-route, 14 min to 6.5): measure the GPS legs; target 5 min total, swap to a nearer shop of the same kind when one is far. | C | GPS route lengths in the report |
+| R21 | **Mission talk is short** (Sir, 2026-11-12, the Lighthouse Run: "the long winded chattyness didnt feel right for pacing"): a line or two a bubble, one beat each; no backstory, mechanics or recap; the staging tells the rest (she fetches it, walks off with it, goes inside). Cut dialogue first when a mission drags. | C | eye: every card of every mission |
 
 ## What each mission gives, and where it is kept
 
