@@ -89411,7 +89411,7 @@ function msTick(scene, ow){
       return; }
     case 'ask':
       if(R.gid && R.gid.leave == null) meet(R.gid, () => hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Go on, I'll mind the shop", ok: msAccept, no: { btn: "Not now", ok: msDecline }, at: msGidAt,
-        say: "Tipsey! Perfect timing. My antenna's bent over again and the order screen's gone dark, so I have to get up on the roof and look at it. Could you watch the shop while I'm up there? I won't be long. I'll take the walking frame." }));
+        say: "Tipsey! My antenna's bent again. Mind the shop while I'm up on the roof?" }));
       return;
     case 'shift':
       if(!R.climbing && armed(msLadderBay())) msClimb(scene, 'up');
@@ -89420,16 +89420,16 @@ function msTick(scene, ow){
       if(R.climbing) return;
       if(!R.seen){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk';
-          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "There it is. The mast's bent right over, and the cable's snapped clean off at the connector. No wonder the order screen's dark. I need a new mast bracket and a coax connector, and neither's in the back room. Breakwater Hardware, then." }); }
+          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "Bent right over, cable snapped. I need parts from Breakwater Hardware." }); }
       } else if(R.carry === 'parts'){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
-          hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Right. The new bracket bolts to the plate, the mast goes in straight and tight, and the connector screws onto the cable, the proper kind this time. There. Nothing bent, nothing snapped. Let's see if that wakes the screen." }); }
+          hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Bracket on, mast straight, connector screwed in. There." }); }
       } else if(armed(msHatchBay())) msClimb(scene, 'down');
       return;
     case 'roofFix': return;
     case 'fin':
       if(!R.fin){ R.fin = true; ow.vel = 0; cineBars(true); R.stage = 'finCard';
-        hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "The order screen's alight, the mast's dead straight, and the shop's in one piece. Tipsey, you kept it all going while I was up there, and I couldn't have asked for better hands. Coffee's on me, next time you're past. Thank you." }); }
+        hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "Screen's lit and the shop's fine. Thanks, Tipsey. Coffee's on me." }); }
       return;
     case 'finCard': return;
     case 'out': {
@@ -89446,7 +89446,7 @@ function msTick(scene, ow){
       return; }
     case 'partsGive':
       if(R.clerk && R.clerk.leave == null) meet(R.clerk, () => hospSayCard({ who: "Breakwater Hardware", btn: "That's the lot!", ok: msTake, at: msClerkAt,
-        say: "Gideon! Brew & Bolt's antenna again? I thought so. A heavy mast bracket and a coax connector, the right ones this time, in a paper bag. Tell Tipsey the connector's the screw-on kind, so it won't snap off the first time the wind gets under it. Mind the bag on the scooter." }));
+        say: "Brew & Bolt's antenna again? Bracket and connector, in the bag." }));
       return;
     case 'return':
       if(armed(R.home)){ R.stage = 'shift'; msNavClear(scene);
