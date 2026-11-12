@@ -101117,7 +101117,10 @@ class WorldScene extends Phaser.Scene {
     const behind = bx > B.x0 - 300 && bx < B.x1 + 300 && by < H.y0 + 40 && by > B.y0 - 1400;
     /* TWO PIECES (the walk-in's shell, CHAND_IN): the chandlery wing, which fades off as he goes into its room (pocketShellK),
        and the rest of the house, ghosted over the room while he is in it (SHELL_GHOST: nothing may stand over the room, W26) */
-    const cpk = pocketHiding('Pelican Harbor'), sk = cpk ? pocketShellK(this, cpk) : 1, hd = behind ? Math.max(houseD, bx + by + 1) : houseD;
+    /* HIM IN FRONT OF IT (the house is one piece keyed at its middle, x + y -18,800; the wing is a long way west of that, so out in front of its door he
+       sorts BEFORE the house -- x + y -18,930 -- and the wing, its door leaf swung out, painted over him): the house goes before him there */
+    const inFront = !this._inside && bx > B.x0 - 60 && bx < B.x1 + 60 && by > phSpots().face - 10 && by < B.y1 + 500;
+    const cpk = pocketHiding('Pelican Harbor'), sk = cpk ? pocketShellK(this, cpk) : 1, hd = behind ? Math.max(houseD, bx + by + 1) : inFront ? Math.min(houseD, bx + by - 2) : houseD;
     const piece = (part) => (g) => this.bcDraw(g, "hb|" + part + "|" + (open ? 1 : 0), B.x0, B.y1,
       gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
     const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
@@ -101137,7 +101140,7 @@ class WorldScene extends Phaser.Scene {
     /* who is in the chandlery's doorway this frame (phPerson), drawn with its door */
     this._phQ = { vq, t: now, houseD, who: [] };
     const who = this._phQ.who, D = PH_LIFE.door;
-    vq.push({ depth: houseD + 0.2, fn: (g, tt) => {
+    vq.push({ depth: hd + 0.2, fn: (g, tt) => {
       if(sk < 0.002 || (D.k <= 0.001 && !who.length)) return;
       const between = clip => () => { this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; } };
