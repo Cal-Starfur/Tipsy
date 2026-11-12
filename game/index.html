@@ -101294,7 +101294,7 @@ class WorldScene extends Phaser.Scene {
       gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
     /* (each room hides its own part -- the wing's, the chandlery's: skW; the hall's with its tower, the Port Office's: skH -- and the other part is
        ghosted over the room while he is in it) */
-    const kRest = skH*(SHELL_GHOST + (1 - SHELL_GHOST)*skW), kWing = skW*(SHELL_GHOST + (1 - SHELL_GHOST)*skH);
+    const kRest = skH*(SHELL_GHOST + (1 - SHELL_GHOST)*skW), kWing = skW;                                   // (the wing stands clear of the hall's room, behind it: not ghosted while he is in the Port Office)
     this._wkRest = { fr: this._wkFr, d: hd };                                    // (the hall's depth: the chandlery's room is drawn under it too, never over it: walkinThrough)
     if(kRest > 0.002) (hpk && hpk.walkin ? this.walkinShellQ(vq, hpk) : vq).push({ depth: hd, fn: kRest < 0.999 ? (g) => this.withFade(g, kRest, () => piece('rest')(g)) : piece('rest') });
     if(kWing > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd - 0.01, fn: kWing < 0.999 ? (g) => this.withFade(g, kWing, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
