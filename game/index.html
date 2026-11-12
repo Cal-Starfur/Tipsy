@@ -55929,6 +55929,154 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== THE PORT OFFICE, THE HARBOR HOUSE'S HALL (the walk-in: PORT_IN, PORT_ROOM) ====================
+     2440 x 1460, world units, a east, b south; the glazed pair on the south wall at a 1220 (the pavilion's vestibule out past it), the
+     windows along the front. A harbour office: a plank floor with a navy rug and a brass compass in it, the walls cream over a navy
+     wainscot with a brass rail, the chart of the bay and the day's tides on the back wall; the long counter in the east half under
+     the pigeonholes, the harbour master at his chart table in the west, benches for those waiting, the ship's model on its plinth */
+  name:'Pelican Port Office Interior', xh: 340, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 2440, dd: 1460,
+  head:'Inside the Port Office: the long counter under its pigeonholes, the harbour master at his chart table, benches, the tide tables and the chart of the bay',
+  tags:['interior','pocket','harbor house','port office','counter','chart table','benches','ship model'],
+  desc:'The harbor house\'s hall: a plank floor with a navy rug and a brass compass, cream walls over navy, the chart of the bay and the tide tables, the long counter with its pigeonholes, the harbour master\'s chart table, benches and a ship\'s model.',
+  draw(p){
+    const pl = PORT_IN; pl.view();
+    const R = PORT_ROOM, W = R.W, D = R.D, H = pl.H || 340, AP = pl.apron || 170, LH = R.LH;
+    const door = pl.door || { side: 's', at: R.door, half: 85 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const cream = '#efe8d6', creamD = '#d9cfb6', navy = '#1f3a4d', navyD = '#142a38', brass = '#c9a64a', teal = '#2f6f7e';
+    const wood = '#a9784a', woodD = '#86593a', plank = '#b08457', steel = '#aeb4ba', dark = '#2f353b', paper = '#e8e2d4';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const thing = (a0, a1, b0, b1, h, draw, name) => items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, h, name)], draw });
+    const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 120) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n]); return r; };
+
+    /* ---- THE FLOOR: planks wall to wall (in runs: the room is long), a navy rug with a brass compass before the counter, a threshold and a mat
+       at the door, and the vestibule's floor out under the pavilion ---- */
+    T(0, W, 0, D, 0, plank);
+    for(let b = 0; b < D; b += 46) T(0, W, b, b + 2, 0.2, '#9c7448');
+    for(let b = 0, k = 0; b < D; b += 46, k++) for(let a = (k % 4)*80 + 40; a < W; a += 320) T(a, a + 2, b, b + 46, 0.2, '#9c7448');
+    T(DA0, DA1, D, D + AP, 0.3, '#c9bfa8');
+    T(DA0 + 10, DA1 - 10, D - 60, D + AP - 30, 0.5, '#3d4448'); T(DA0 + 16, DA1 - 16, D - 54, D + AP - 36, 0.6, '#48525a');
+    T(DA0, DA1, D - 3, D + 3, 0.7, '#a9aeb2');
+    { const ca = 1220, cb = 800, ov = (rx, ry, z, col, n) => { const pts = []; for(let i = 0; i < (n || 28); i++){ const q = i/(n || 28)*Math.PI*2; pts.push(P(ca + Math.cos(q)*rx, cb + Math.sin(q)*ry, z)); } poly(pts, col); };
+      T(ca - 300, ca + 300, cb - 220, cb + 220, 0.8, navyD); T(ca - 292, ca + 292, cb - 212, cb + 212, 0.9, navy);
+      T(ca - 280, ca + 280, cb - 200, cb - 196, 1.0, brass); T(ca - 280, ca + 280, cb + 196, cb + 200, 1.0, brass);
+      ov(150, 108, 1.1, brass); ov(142, 100, 1.2, cream); ov(104, 72, 1.3, navy);
+      for(let i = 0; i < 8; i++){ const q = i/8*Math.PI*2, r0 = 36, r1 = i % 2 ? 100 : 136; poly([P(ca + Math.cos(q - 0.12)*r0, cb + Math.sin(q - 0.12)*r0*0.72, 1.4), P(ca + Math.cos(q)*r1, cb + Math.sin(q)*r1*0.72, 1.4), P(ca + Math.cos(q + 0.12)*r0, cb + Math.sin(q + 0.12)*r0*0.72, 1.4)], i % 2 ? creamD : brass); } }
+
+    /* ---- THE WALLS (the kit's): back and west full height; south and east cut low, the hall's windows in the south one ---- */
+    const winS = PH_HALL_WINS.filter(w => w[2] < 100).map(([a0, a1]) => [a0 - (PH_PLAN.HA0 + 30), a1 - (PH_PLAN.HA0 + 30), 24]);
+    walkinRoom(items, { W, D, H, LH, door, winS,
+      paintN: () => {
+        F(-30, W + 30, 0, H, cream, null, 0, 0);
+        F(-30, W + 30, 0, 96, navy, null, 0, 0.2);                                     // the wainscot, panelled
+        for(let a = 20; a < W; a += 160) F(a, a + 140, 14, 84, shade(navy, 1.14), null, 0, 0.3);
+        F(-30, W + 30, 96, 104, brass, null, 0, 0.4);                                   // its brass rail
+        F(-30, W + 30, 0, 12, navyD, null, 0, 0.5);
+        F(-30, W + 30, H - 24, H, '#e4dcc6', null, 0, 0.3); F(-30, W + 30, H - 24, H - 20, brass, null, 0, 0.4);   // the cornice
+        /* the chart of the bay, framed, over the lane's middle: the coast, the bay, the harbour's mouth and its soundings */
+        F(820, 1620, 150, 296, navyD, null, 0, 0.6); F(830, 1610, 160, 286, '#d8cfae', null, 0, 0.7);
+        F(836, 1604, 166, 280, '#9cc4d4', null, 0, 0.8); F(836, 1290, 166, 280, '#d8c79a', null, 0, 0.9); F(836, 1320, 220, 280, '#cdbd8c', null, 0, 0.95);
+        for(let a = 1180, k = 0; a < 1590; a += 38, k++) F(a, a + 14, 176 + (k % 3)*14, 180 + (k % 3)*14, '#4f7f95', null, 0, 1);
+        F(1318, 1326, 166, 280, '#b9ad84', null, 0, 1);
+        /* the day's tides, in a board either side: the hours and the heights in rows */
+        for(const [a0, a1] of [[180, 560], [1740, 2120]]){
+          F(a0, a1, 150, 296, navyD, null, 0, 0.6); F(a0 + 10, a1 - 10, 160, 286, paper, null, 0, 0.7);
+          blockWordIn('TIDES', a0 + 60, a1 - 60, 254, 278, 0.8, navy, null, 4);
+          for(let z = 170, k = 0; z < 244; z += 14, k++){ F(a0 + 24, a0 + 90, z, z + 4, '#6d747c', null, 0, 0.9); F(a0 + 130, a1 - 40 - (k % 3)*30, z, z + 4, k % 2 ? teal : '#8a94a0', null, 0, 0.9); } }
+        /* the harbour clock and a pair of signal flags crossed above the door's lane */
+        faceCircle(1220, 0.7, 238, 34, '#f6f3ea', brass, 3); F(1218, 1222, 238, 266, dark, null, 0, 1); F(1218, 1242, 237, 241, dark, null, 0, 1);
+        for(const [a, c1, c2] of [[1100, '#c8352e', '#f6f3ea'], [1160, '#2f6f9e', '#e9c46a'], [1280, '#e9c46a', '#2f6f9e'], [1340, '#f6f3ea', '#c8352e']]){ F(a - 22, a + 22, 300, 328, c1, null, 0, 0.8); F(a - 22, a + 22, 300, 314, c2, null, 0, 0.9); }
+        /* the pigeonholes behind the counter: a bank of cubbies, a letter in some */
+        for(let z = 112; z < 190; z += 26) for(let a = 1450; a < 2300; a += 34){ F(a, a + 30, z, z + 22, '#4a3624', null, 0, 1.1); if(((a*7 + z*3) | 0) % 5 < 2) F(a + 4, a + 26, z + 3, z + 10, paper, null, 0, 1.2); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(cream, 0.93));
+        S(0.2, -30, D + 30, 0, 96, shade(navy, 0.9));
+        S(0.3, -30, D + 30, 96, 104, shade(brass, 0.9));
+        S(0, -30, D + 30, H - 24, H, shade('#e4dcc6', 0.92));
+        /* the notices board, the mariners' warnings pinned in rows */
+        S(0.6, 520, 1000, 130, 280, '#4a3624'); S(0.7, 530, 990, 140, 270, '#b99b6a');
+        for(let b = 540, k = 0; b < 980; b += 56, k++) for(let z = 150; z < 262; z += 58){ S(0.8, b, b + 44, z, z + 46, k % 2 ? paper : '#f1ecdc'); S(0.9, b + 6, b + 38, z + 34, z + 38, '#8a94a0'); S(0.9, b + 6, b + 30 - (k % 3)*4, z + 22, z + 26, '#8a94a0'); }
+        const disc = (b, z, r, col) => { const pts = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; pts.push(P(0.6, b + Math.cos(q)*r, z + Math.sin(q)*r)); } poly(pts, col); };
+        for(const b of [160, 1200]){ disc(b, 150, 30, '#e8693c'); disc(b, 150, 22, cream); disc(b, 150, 16, '#e8693c'); disc(b, 150, 9, cream); }
+      },
+      low: ['#efe6d2', '#d9cfb6', '#c0b59b'], cap: [navy, navyD, shade(navyD, 0.85)], ftop: '#d4c9ae', frame: '#1f3a4d', glass: 'rgba(150,190,206,.55)' });
+
+    /* ---- THE LONG COUNTER: navy front, a plank top, a brass rail; the till, a bell, a ledger and the day's forms; in runs ---- */
+    { const [a0, a1, b0, b1] = R.counter, parts = runs(a0, a1, 120);
+      parts.forEach(([s0, s1], k) => thing(s0, s1, b0, b1, 74, () => {
+        T(s0 - 0.5, s1 + 0.5, b0, b1, 66, shade(wood, 1.12)); F(s0, s1 + 0.5, 0, 66, navy, null, 0, b1);
+        if(k === 0) S(s0, b0, b1, 0, 66, navyD); if(k === parts.length - 1) S(s1, b0, b1, 0, 66, navyD);
+        F(s0, s1 + 0.5, 0, 10, navyD, null, 0, b1 + 0.3); F(s0, s1 + 0.5, 62, 70, '#c9b48a', null, 0, b1 + 0.4); T(s0 - 0.5, s1 + 0.5, b0 - 3, b1 + 3, 70, shade(wood, 1.2));
+        F(s0 + 8, s1 - 8, 24, 52, shade(navy, 1.12), null, 0, b1 + 0.2);
+        if(k === 2){ box(R.till[0] - 18, R.till[0] + 18, b0 + 6, b0 + 26, 70, 82, paper, '#cfc8b5', '#b9b2a0'); box(R.till[0] - 10, R.till[0] + 10, b0 + 8, b0 + 14, 82, 92, dark, dark, dark); }
+        if(k === 4){ cyl((s0 + s1)/2, b0 + 16, 70, 72, 8, brass); ball((s0 + s1)/2, b0 + 16, 74, 3.5, '#e0c88a'); }
+        if(k === 5){ box(s0 + 20, s0 + 70, b0 + 8, b1 - 6, 70, 75, '#2a2f36', '#1f2328', '#16191d'); T(s0 + 24, s0 + 66, b0 + 11, b1 - 9, 75.3, paper); }
+        if(k === 6){ for(let i = 0; i < 4; i++) T(s0 + 10 + i*3, s0 + 70 + i*3, b0 + 8 + i*2, b1 - 8, 70.4 + i*0.6, i % 2 ? paper : '#f1ecdc'); }
+      }, 'counter')); }
+    /* the counter's flap at its west end and a brass rail along its public face's foot */
+    thing(1400, 1440, 430, 492, 76, () => { box(1400, 1440, 430, 492, 0, 70, wood, shade(wood, 0.88), woodD); }, 'flap');
+
+    /* ---- THE HARBOUR MASTER'S CHART TABLE, in the west: the bay's chart unrolled, dividers, a brass lamp ---- */
+    thing(R.chart[0], R.chart[1], R.chart[2], R.chart[3], 56, () => {
+      const [a0, a1, b0, b1] = R.chart;
+      for(const [x, y] of [[a0 + 8, b0 + 8], [a0 + 8, b1 - 8], [a1 - 8, b0 + 8], [a1 - 8, b1 - 8]]) tube(x, y, 0, x, y, 48, 2.2, woodD);
+      box(a0, a1, b0, b1, 48, 56, shade(wood, 1.15), wood, woodD);
+      T(a0 + 30, a1 - 30, b0 + 14, b1 - 14, 56.3, '#e8e2d4'); T(a0 + 40, a1 - 40, b0 + 22, b1 - 22, 56.6, '#9cc4d4'); T(a0 + 60, a0 + 220, b0 + 22, b1 - 22, 56.9, '#d8c79a');
+      tube(a0 + 250, b0 + 30, 57, a0 + 300, b0 + 56, 57, 1.2, steel);
+      cyl(a1 - 60, b0 + 28, 56, 74, 5, brass); ball(a1 - 60, b0 + 28, 78, 9, 'rgba(255,226,150,.95)');
+    }, 'chart table');
+    /* ---- THE WAITING BENCHES on the west wall's south half, and a brass stand with the day's notices ---- */
+    for(const [b0, b1] of [[620, 860], [920, 1160]]) thing(52, 120, b0, b1, 60, () => {
+      for(const b of [b0 + 12, b1 - 12]) box(54, 118, b - 6, b + 6, 0, 30, woodD, woodD, shade(woodD, 0.8));
+      box(54, 118, b0, b1, 30, 38, shade(wood, 1.15), wood, woodD); box(54, 62, b0, b1, 38, 70, wood, shade(wood, 0.9), woodD);
+      F(56, 116, 40, 60, navy, null, 0, b1 + 0.2);
+    }, 'bench');
+    /* ---- THE SHIP'S MODEL on its plinth, in the lane's east: a hull, a mast and two sails, under a glass hood ---- */
+    thing(R.ship[0], R.ship[1], R.ship[2], R.ship[3], 150, () => {
+      const [a0, a1, b0, b1] = R.ship, ac = (a0 + a1)/2, bc = (b0 + b1)/2;
+      box(a0, a1, b0, b1, 0, 60, '#e4dcc6', '#d2c9b0', '#bfb59a'); box(a0 - 4, a1 + 4, b0 - 4, b1 + 4, 60, 68, navy, navyD, shade(navyD, 0.85));
+      box(ac - 52, ac + 52, bc - 12, bc + 12, 68, 82, '#6e3a2a', '#5a2e22', '#47241a'); box(ac - 56, ac + 56, bc - 14, bc + 14, 82, 86, '#e8e2d4', '#d2c9b0', '#bfb59a');
+      tube(ac - 14, bc, 86, ac - 14, bc, 140, 1.8, woodD); tube(ac + 20, bc, 86, ac + 20, bc, 128, 1.6, woodD);
+      poly([P(ac - 14, bc, 134), P(ac - 14, bc, 94), P(ac + 24, bc, 94)], paper); poly([P(ac + 20, bc, 122), P(ac + 20, bc, 92), P(ac + 48, bc, 92)], '#f1ecdc');
+      box(a0 + 6, a1 - 6, b0 + 6, b1 - 6, 86, 150, 'rgba(200,226,236,.14)', 'rgba(200,226,236,.18)', 'rgba(200,226,236,.22)');
+    }, 'ship model');
+    /* ---- A TALL CASE CLOCK on the east wall, and a barometer by the counter's flap ---- */
+    thing(2330, 2392, 640, 700, 190, () => {
+      box(2332, 2390, 642, 698, 0, 46, woodD, shade(woodD, 0.88), shade(woodD, 0.76)); box(2338, 2384, 648, 692, 46, 160, wood, shade(wood, 0.88), woodD);
+      box(2330, 2392, 640, 700, 160, 190, shade(wood, 1.1), wood, woodD); S(2330.4, 652, 688, 168, 184, paper);
+      F(2342, 2380, 80, 150, '#d6cfb4', null, 0, 699.6); cyl(2361, 670, 40, 44, 6, brass);
+    }, 'case clock');
+    /* ---- A RACK OF LIFE RINGS and a coil of rope by the south wall's west end ---- */
+    thing(60, 260, 1260, 1340, 60, () => {
+      box(70, 250, 1280, 1330, 0, 14, woodD, woodD, shade(woodD, 0.8));
+      for(let r = 0; r < 4; r++) tube(76, 1306, 18 + r*10, 244, 1306, 18 + r*10, 4, r % 2 ? '#f6f3ea' : '#e8693c');
+    }, 'rack');
+
+    /* ---- ALONG THE FRONT, behind the windows (what the street sees into the hall): glass cases of the harbour's trophies and instruments, a bench,
+       and tubbed palms; each 60 clear of the near wall (W24) and the door's lane (1120..1320) left open ---- */
+    for(const [a0, a1] of [[330, 480], [2060, 2210]]) thing(a0, a1, 1290, 1370, 100, () => {
+      box(a0, a1, 1290, 1370, 0, 40, navy, navyD, shade(navyD, 0.85)); box(a0 - 3, a1 + 3, 1287, 1373, 40, 46, brass, shade(brass, 0.88), shade(brass, 0.76));
+      box(a0 + 4, a1 - 4, 1294, 1366, 46, 100, 'rgba(200,226,236,.16)', 'rgba(200,226,236,.2)', 'rgba(200,226,236,.24)');
+      cyl((a0 + a1)/2 - 30, 1330, 46, 74, 11, brass); ball((a0 + a1)/2 - 30, 1330, 78, 6, brass); box((a0 + a1)/2 + 6, (a0 + a1)/2 + 46, 1312, 1348, 46, 56, '#e8e2d4', '#cfc8b5', '#b9b2a0'); cyl((a0 + a1)/2 + 26, 1330, 56, 82, 6, '#c9a64a');
+    }, 'case');
+    thing(1760, 1960, 1310, 1370, 70, () => {
+      for(const a of [1772, 1948]) box(a - 6, a + 6, 1316, 1364, 0, 30, woodD, woodD, shade(woodD, 0.8));
+      box(1760, 1960, 1310, 1370, 30, 38, shade(wood, 1.15), wood, woodD); box(1760, 1960, 1360, 1370, 38, 70, wood, shade(wood, 0.9), woodD);
+    }, 'bench');
+    for(const a of [600, 1660]) thing(a - 36, a + 36, 1300, 1372, 120, () => {
+      cyl(a, 1336, 0, 34, 30, '#b4623f'); cyl(a, 1336, 34, 38, 31, '#8a4a30'); tube(a, 1336, 38, a, 1336, 96, 3, '#6e5433');
+      for(let i = 0; i < 7; i++){ const q = i/7*Math.PI*2, r = 46; tube(a, 1336, 96, a + Math.cos(q)*r, 1336 + Math.sin(q)*r*0.8, 80 + (i % 2)*10, 3.4, i % 2 ? '#3f7a47' : '#4e8f54'); }
+      ball(a, 1336, 98, 5, '#3f7a47');
+    }, 'palm');
+
+    walkinStaffSolids(items, 'Pelican Port Office Interior');
+    depthSort(items);
+  }
+},
+{
   /* ==================== KTDE 98.1 THE TIDE, THE GROUND FLOOR (the walk-in: KTDE_IN, KTDE_ROOM) ====================
      1250 x 1500, world units, a east, b south; the glass pair on the south wall at a 455. Along the street: the lobby
      (terrazzo, the reception desk, a couch, gold records on its wall, its window) and the on-air studio behind a glass
@@ -76833,24 +76981,35 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
        in the room -- and the rest of the house, ghosted then; whole when no part is asked for) */
     const wantWing = this._part !== 'rest', wantRest = this._part !== 'wing';
     if(!inView(0, 3400, -2400, 0, 0, 1150)) return;
-    const win = (a0, a1, z0, z1, b) => {                 // a sash window: frame, glass, glazing bar
-      F(a0 - 6, a1 + 6, z0 - 6, z1 + 6, TRIM, null, 0, b + 0.3);
-      F(a0, a1, z0, z1, GLASS, null, 0, b + 0.6);
-      F(a0, a1, (z0 + z1)/2 - 2, (z0 + z1)/2 + 2, WALL, null, 0, b + 0.8);
-      F((a0 + a1)/2 - 2, (a0 + a1)/2 + 2, z0, z1, WALL, null, 0, b + 0.8);
-      F(a0 - 10, a1 + 10, z0 - 12, z0 - 6, WALLS, null, 0, b + 1);     // the sill
+    /* A SASH WINDOW, the window kit's (K3, Sir 2026-11-12: "it doesnt follow our look rules"): the opening set back in the wall (reveal; the
+       hall's own, revealOpen -- a hole in the image, its room drawn under it and seen through, W11), the pane glazed over it, its bars and
+       sill. wb: the wall's plane (b); room: the room's behind it (the hall's, PORT_IN: the pane's tint over the room, .40) or none (a
+       tower's: opaque, an empty pane may be) */
+    const win = (a0, a1, z0, z1, b, room) => {
+      const b00 = BOFF; BOFF = b00 + b;
+      try {
+        (room ? revealOpen : reveal)(a0, a1, z0, z1, 6, TRIM);
+        glaze(a0, a1, z0, z1, TRIM, room ? 'rgba(96,140,164,.40)' : 'rgba(80,118,142,.88)');
+        F(a0, a1, (z0 + z1)/2 - 2, (z0 + z1)/2 + 2, TRIM, null, 0, 0.6);                    // its glazing bars
+        F((a0 + a1)/2 - 2, (a0 + a1)/2 + 2, z0, z1, TRIM, null, 0, 0.6);
+        F(a0 - 10, a1 + 10, z0 - 12, z0 - 6, WALLS, null, 0, 1);                              // the sill
+      } finally { BOFF = b00; }
     };
+    /* a window on an end wall (the hall's east end, the tower's): its frame, a tinted pane over the wall's recess, the bar and the sill */
     const sideWin = (a, b0, b1, z0, z1) => {
-      S(a + 0.3, b0 - 6, b1 + 6, z0 - 6, z1 + 6, TRIM);
-      S(a + 0.6, b0, b1, z0, z1, GLASS);
-      S(a + 0.8, b0, b1, (z0 + z1)/2 - 2, (z0 + z1)/2 + 2, WALLS);
+      S(a + 0.3, b0 - 5, b1 + 5, z0 - 5, z1 + 5, TRIM);
+      S(a + 0.5, b0, b1, z0, z1, 'rgba(80,118,142,.88)');
+      S(a + 0.7, b0 + (b1 - b0)*0.1, b0 + (b1 - b0)*0.34, z0 + (z1 - z0)*0.1, z1 - (z1 - z0)*0.1, 'rgba(240,250,254,.18)');
+      S(a + 0.8, b0, b1, (z0 + z1)/2 - 2, (z0 + z1)/2 + 2, TRIM);
+      S(a + 0.9, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, z0, z1, TRIM);
+      S(a + 1, b0 - 8, b1 + 8, z0 - 11, z0 - 5, WALLS);
     };
 
     /* ---- 1. THE WATCH TOWER ---- */
     if(wantRest){
     box(TA0, TA1, TB0, TB1, 0, TZ, WALLS, WALL, WALLD);
     for(const a of [TA0, TA1 - 24]) F(a, a + 24, 0, TZ, WALLS, null, 0, TB1 + 0.4);   // corner pilasters
-    for(let z = 420; z < TZ - 80; z += 140) win(TA0 + 110, TA1 - 110, z, z + 80, TB1);
+    for(let z = 420; z < TZ - 80; z += 140) win(TA0 + 110, TA1 - 110, z, z + 80, TB1, false);
     if(FLANK_RIGHT) for(let z = 420; z < TZ - 80; z += 140) sideWin(TA1, TB0 + 110, TB1 - 110, z, z + 80);
     /* the gallery, its rail, the lantern room, the cap and the flag */
     box(TA0 - 34, TA1 + 34, TB0 - 34, TB1 + 34, TZ, TZ + 14, '#e8e2d4', TRIM, shade(TRIM, .8));
@@ -76904,9 +77063,11 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     F(HA0, HA1, 170, 178, WALLS, null, 0, HB + 0.4);                               // the string course
     for(let a = HA0 + 120; a + 140 < HA1; a += 250){
       if(a + 140 > PA0 - 20 && a < PA1 + 20) continue;                            // the pavilion stands there
-      win(a, a + 120, 40, 150, HB);                                                // ground floor
-      faceArch(a + 60, HB + 0.7, 150, 60, GLASS, TRIM, 2);                         // its arched head (the upper half only)
-      win(a + 10, a + 110, 210, 300, HB);                                          // first floor
+      win(a, a + 120, 40, 150, HB, true);                                          // ground floor (the room behind it: PORT_IN's openings)
+      F(a - 8, a + 128, 154, 164, WALLS, null, 0, HB + 0.8);                       // its lintel, and the keystone
+      F(a + 52, a + 68, 154, 174, WALL, null, 0, HB + 1);
+      win(a + 10, a + 110, 210, 300, HB, true);                                    // first floor
+      F(a + 2, a + 118, 304, 312, WALLS, null, 0, HB + 0.8);
     }
     /* THE TIDE BOARD on the pier west of the pavilion: the day's tides and notices to mariners, under glass */
     { const [n0, n1] = PH_PLAN.BOARD;
@@ -76946,10 +77107,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     tube(PA0 - 20, PB + 20, 420, (PA0 + PA1)/2, PB + 20, 566, 4, ROOFL);
     tube((PA0 + PA1)/2, PB + 20, 566, PA1 + 20, PB + 20, 420, 4, ROOFL);
     { const ac = (PA0 + PA1)/2;
-      F(ac - 110, ac + 110, 0, 250, TRIM, null, 0, PB + 0.3);                     // the doors
-      F(ac - 100, ac - 4, 0, 240, GLASSL, null, 0, PB + 0.6);
-      F(ac + 4, ac + 100, 0, 240, GLASSL, null, 0, PB + 0.6);
-      faceArch(ac, PB + 0.7, 250, 104, GLASS, TRIM, 3, 30);                        // the fanlight: a shallow half-disc between the door head and the sign board
+      /* THE DOORS: the kit's glazed pair (shopDoor, a walk-in's: the opening a hole in the image, the hall drawn under it, its leaves live and
+         sliding apart for whoever comes up to them -- PORT_IN), on the pavilion's face; a transom and a window either side of them, the hall
+         seen through them all (K3, W11) */
+      { const b0 = BOFF; BOFF = b0 + PB;
+        try { shopDoor(ac, WALL, TRIM, null, HA1, 0, { pair: true, w: 170, h: 200, glazed: true }); } finally { BOFF = b0; } }
+      win(ac - 92, ac + 92, 218, 268, PB, true);                                   // the transom's window, over the doors' head
+      win(PA0 + 34, ac - 106, 60, 200, PB, true); win(ac + 106, PA1 - 34, 60, 200, PB, true);     // a window either side of the doors
       F(ac - 150, ac + 150, 284, 340, TRIM, null, 0, PB + 1);                      // the clock board
       word('PORT OFFICE', ac, 326, 3.9, PB + 1.4, '#e8b54a', null);
       faceCircle(ac, PB + 0.8, 440, 50, '#f6f3ea', TRIM, 4);                      // the clock
@@ -101125,13 +101289,15 @@ class WorldScene extends Phaser.Scene {
     /* HIM IN FRONT OF IT (the house is one piece keyed at its middle, x + y -18,800; the wing is a long way west of that, so out in front of its door he
        sorts BEFORE the house -- x + y -18,930 -- and the wing, its door leaf swung out, painted over him): the house goes before him there */
     const inFront = !this._inside && bx > B.x0 - 60 && bx < B.x1 + 60 && by > phSpots().face - 10 && by < B.y1 + 500;
-    const cpk = pocketHiding('Pelican Harbor'), sk = cpk ? pocketShellK(this, cpk) : 1, hd = behind ? Math.max(houseD, bx + by + 1) : inFront ? Math.min(houseD, bx + by - 2) : houseD;
+    const cpk = pocketHiding('Pelican Harbor'), hpk = pocketHiding(PH_HALL_NAME), skW = cpk ? pocketShellK(this, cpk) : 1, skH = hpk ? pocketShellK(this, hpk) : 1, hd = behind ? Math.max(houseD, bx + by + 1) : inFront ? Math.min(houseD, bx + by - 2) : houseD;
     const piece = (part) => (g) => this.bcDraw(g, "hb|" + part + "|" + (open ? 1 : 0), B.x0, B.y1,
       gg => { ent._open = open; ent._part = part; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._open = null; ent._part = null; } });
-    const ghost = SHELL_GHOST + (1 - SHELL_GHOST)*sk;
+    /* (each room hides its own part -- the wing's, the chandlery's: skW; the hall's with its tower, the Port Office's: skH -- and the other part is
+       ghosted over the room while he is in it) */
+    const kRest = skH*(SHELL_GHOST + (1 - SHELL_GHOST)*skW), kWing = skW*(SHELL_GHOST + (1 - SHELL_GHOST)*skH);
     this._wkRest = { fr: this._wkFr, d: hd };                                    // (the hall's depth: the chandlery's room is drawn under it too, never over it: walkinThrough)
-    vq.push({ depth: hd, fn: sk < 0.999 ? (g) => this.withFade(g, ghost, () => piece('rest')(g)) : piece('rest') });
-    if(sk > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd - 0.01, fn: sk < 0.999 ? (g) => this.withFade(g, sk, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
+    if(kRest > 0.002) (hpk && hpk.walkin ? this.walkinShellQ(vq, hpk) : vq).push({ depth: hd, fn: kRest < 0.999 ? (g) => this.withFade(g, kRest, () => piece('rest')(g)) : piece('rest') });
+    if(kWing > 0.002) (cpk && cpk.walkin ? this.walkinShellQ(vq, cpk) : vq).push({ depth: hd - 0.01, fn: kWing < 0.999 ? (g) => this.withFade(g, kWing, () => piece('wing')(g)) : piece('wing') });      // (the chandlery's shell: its room is drawn under this piece, seen through its holes: walkinThrough)
     if(ent && ent.lamps) this.queueLandmarkLamps(vq, ent, (a, b) => ({ x: B.x0 + a, y: B.y1 + b }), 1);
     /* the watch room at night: its glass lit warm, front and east (the watch is kept round the clock) */
     const nl = nightLevel();
@@ -101147,12 +101313,18 @@ class WorldScene extends Phaser.Scene {
     this._phQ = { vq, t: now, houseD, who: [] };
     const who = this._phQ.who, D = PH_LIFE.door;
     vq.push({ depth: hd + 0.2, fn: (g, tt) => {
-      if(sk < 0.002) return;                                                            // (its glazed leaves are live, shut or open: nothing of them is in the cache)
+      if(skW < 0.002) return;                                                           // (its glazed leaves are live, shut or open: nothing of them is in the cache)
       const between = clip => () => { this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; } };
       const clip = who.length && LIB.doorOpening('Pelican Harbor', G, this.K, true, P.DOOR_A);
       LIB.drawDoorOpen('Pelican Harbor', g, G, this.K, true, P.DOOR_A, D.k, clip ? between(clip) : null);
     } });
+    /* THE PORT OFFICE'S PAIR, in the pavilion's face: its glazed leaves live, sliding apart for whoever comes up to it (Tipsey; the room's people as they
+       come and go) and shut after -- the kit's, as the chandlery's, nothing of the leaves in the cache */
+    if(kRest > 0.002){
+      const ac = (P.PA0 + P.PA1)/2, u = this.shopDoorOpen('ph|port', B.x0 + ac, B.y1 + P.PB + 40, null, !this._inside && !(hpk && walkinShut(this, hpk)));
+      vq.push({ depth: hd + 0.25, fn: (g) => { const f = () => LIB.drawDoorOpen('Pelican Harbor', g, G, this.K, true, ac, u, null); if(kRest < 0.999) this.withAlpha(g, kRest, f); else f(); } });
+    }
     /* the visitors */
     for(const w of PH_LIFE.walkers || []){
       const m = phWalkerAt(w, now);
@@ -103337,7 +103509,7 @@ class WorldScene extends Phaser.Scene {
        (see queueHarbor) */
     if(WORLDGEN_COAST) this.queueHarbor(blockVQ);
     /* (the chandlery, seen through its doorway and shop windows: its shell is queued just above, so its room is drawn here, after it) */
-    { const hk = pocketHiding('Pelican Harbor'); if(WORLDGEN_COAST && hk && hk.walkin && hk.openings && !POCKET_VIEW) this.walkinThrough(blockVQ, hk); }
+    if(WORLDGEN_COAST && !POCKET_VIEW) for(const nm of ['Pelican Harbor', PH_HALL_NAME]){ const hk = pocketHiding(nm); if(hk && hk.walkin && hk.openings) this.walkinThrough(blockVQ, hk); }
     /* the fleet's bays (queueFleetBays) */
     this.queueFleetBays(blockVQ);
     /* THE PELICAN FISH MARKET (queueFishMarket) */
@@ -136328,6 +136500,52 @@ walkinStaff('Marina Chandlery Interior', [
     away: () => !!LH.clerk, awayAt: now => lhClerkAt(now) }
 ]);
 walkinLife('Marina Chandlery Interior', { keep: [[285, 395, 0, 1010]], looks: [] });
+
+/* ==================== INSIDE THE HARBOR HOUSE'S HALL: THE PORT OFFICE (Sir, 2026-11-12: "the pelican harbor building ... needs an
+   improvement pass ... and it also needs an interior so we can see through the windows") ====================
+   The walk-in kit's second room in the harbor house (the first is the chandlery's wing, CHAND_IN): the hall itself, its walls the shell's
+   own lines (PH_PLAN: HA0..HA1 x HBB..HB), 2440 x 1460 on the floor, the walls the eave's height; the glazed pair in the pavilion's face
+   (170 across, 170 out from the front wall, the pavilion's floor the vestibule: the room's apron), the ground and first-floor windows
+   along the front, and the pavilion's sidelights and transom, all of them seen through. One room of the Port Office: the long
+   counter under its pigeonholes, the harbour master at his chart table, benches for those waiting, the tide tables and the chart of
+   the bay on the walls, a ship's model on its plinth in the lane's east. The two rooms share one house: each hides its own part of it
+   (the wing, CHAND_IN; the hall and its tower, PORT_IN: pocket.hides 'Pelican Port Office'), the other ghosted while he is in one */
+const PH_HALL_NAME = 'Pelican Port Office';
+const PORT_ROOM = { W: PH_PLAN.HA1 - PH_PLAN.HA0 - 60, D: -(PH_PLAN.HBB + 30) + (PH_PLAN.HB - 30), LH: 66, door: (PH_PLAN.PA0 + PH_PLAN.PA1)/2 - (PH_PLAN.HA0 + 30),
+  counter: [1440, 2300, 430, 490], till: [1700, 460],                 // the long counter (its front south), the till
+  clerk: [1720, 380, Math.PI/2, 7000, true],                         // behind it
+  chart: [170, 640, 150, 250],                                       // the harbour master's chart table
+  master: [405, 96, Math.PI/2, 7000, true],                          // the harbour master, north of it, over his charts
+  ship: [1500, 1640, 880, 960] };                                    // the ship's model's plinth
+const PH_HALL_WINS = (() => { const o = [], P = PH_PLAN; for(let a = P.HA0 + 120; a + 140 < P.HA1; a += 250){ if(a + 140 > P.PA0 - 20 && a < P.PA1 + 20) continue; o.push([a, a + 120, 40, 150], [a + 10, a + 110, 210, 300]); } return o; })();
+const PORT_IN = walkinDefine({ name: 'Pelican Port Office Interior', from: 'Pelican Harbor', x0: 640000, y0: 400000,
+  lab: [PH_PLAN.HA0 + 30, PH_PLAN.HA1 - 30, PH_PLAN.HBB + 30, PH_PLAN.HB - 30],
+  door: { a: (PH_PLAN.PA0 + PH_PLAN.PA1)/2, b: PH_PLAN.PB, half: 85 }, H: 340, out: 160, apron: 170, glass: 4,
+  body: [[PH_PLAN.HA0, PH_PLAN.HA1, PH_PLAN.HBB, PH_PLAN.HB]],
+  /* (seen through, W11: the pair, its transom and the pavilion's sidelights, then the hall's own windows along the front, both floors) */
+  openings: (() => { const P = PH_PLAN, ac = (P.PA0 + P.PA1)/2, ob = (a0, a1, z0, z1, b, glass) => ({ lab: [[a0, b + 0.6], [a1, b + 0.6]], z: [z0, z1], glass: !!glass });
+    return [ob(ac - 85, ac + 85, 0, 200, P.PB), ob(ac - 92, ac + 92, 218, 268, P.PB, true), ob(P.PA0 + 34, ac - 106, 60, 200, P.PB, true), ob(ac + 106, P.PA1 - 34, 60, 200, P.PB, true)]
+      .concat(PH_HALL_WINS.map(([a0, a1, z0, z1]) => ob(a0, a1, z0, z1, P.HB, true))); })(),
+  late: () => typeof harborOpenNow === 'function' && harborOpenNow() });
+POCKETS.find(q => q.name === PORT_IN.name).hides = PH_HALL_NAME;       // (its own part of the house: the hall; CHAND_IN's is the wing)
+const PORT_CLERK_UNIFORM = { shirt: { c:0xf2f2ee, dk:0xd4d4ce }, pants: { c:0x1f2a40, dk:0x151d2d }, shoe: { c:0x16181b, dk:0x0d0e10 },
+  vest: { c:0x1f3a4d, dk:0x142a38 }, shoeKind: 'dress' };                                // the harbour's navy waistcoat over a white shirt
+walkinStaff('Pelican Port Office Interior', [
+  { id: 'port-clerk', role: 'port clerk', seed: 0x7a1c5, U: PORT_CLERK_UNIFORM, fixed: true, keys: true,
+    posts: [PORT_ROOM.clerk, [2040, 382, Math.PI/2 - 0.3, 4200, true], [1560, 384, Math.PI/2 + 0.3, 3600, true]] },
+  { id: 'harbour-master', role: 'harbour master', seed: 0x7a2d6, U: HARBOUR_WATCH_UNIFORM, fixed: true,
+    posts: [PORT_ROOM.master, [330, 100, Math.PI/2 + 0.4, 4600, true], [520, 98, Math.PI/2 - 0.4, 3800, true]] },
+  { id: 'visitor-1', role: 'visitor', seed: 0x7a3e7, look: 'visitor', life: 'browse' },
+  { id: 'visitor-2', role: 'visitor', seed: 0x7a4f8, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Pelican Port Office Interior', { keep: [[1120, 1320, 0, PORT_ROOM.D]], looks: [
+  { id: 'tides', spots: [[300, 70, -Math.PI/2], [520, 70, -Math.PI/2]] },
+  { id: 'chart', spots: [[1000, 70, -Math.PI/2]] },
+  { id: 'notices', spots: [[75, 600, Math.PI], [75, 900, Math.PI]] },
+  { id: 'ship', spots: [[1560, 1020, -Math.PI/2]] },
+  { id: 'counter', spots: [[1900, 560, -Math.PI/2]] },
+  { id: 'benches', spots: [[200, 1140, -Math.PI/2]] },
+] });
 const HARBOR = {
   QUAY_W: 400,          // the plank promenade between the road's sidewalk and the water
   FINGERS: 6,           // finger docks off the quay (6, not 8, since the boats doubled: the fairways stay open water)
@@ -136588,7 +136806,7 @@ function harborGeo(){
   /* THE HOUSE'S OWN FOOTPRINT (PH_PLAN): the wing and the hall (the tower stands in the hall). What stands, and what
      stops him and a flyer; bldg stays the box the house is drawn in and Sea Lion Point is laid out round. */
   const house = [ { x0: bldg.x0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.WB, y1: bldg.y1 + PH_PLAN.HB + 4 },     // the wing (to its front wall, the shop's door: he drives up to it and in, CHAND_IN)
-                  { x0: bldg.x0 + PH_PLAN.HA0, x1: bldg.x1, y0: bldg.y1 + PH_PLAN.HBB, y1: bldg.y1 } ];  // the hall
+                  { x0: bldg.x0 + PH_PLAN.HA0, x1: bldg.x1, y0: bldg.y1 + PH_PLAN.HBB, y1: bldg.y1 + PH_PLAN.HB + 4 } ];  // the hall (to its front wall: the pavilion's doors, PORT_IN, are driven up to over the forecourt's strip2)
   /* THE BACK LOT IS PARK (Sir, 2026-11-01: "get that parking lot off, behind it doesn't look good. Maybe a park with
      plants and sand"). The paving under the house ran the whole bldg box, 700 behind the hall's back wall and 1,150
      behind the wing's: a bare slab, seen over the ridge from the plaza. Sea Lion Point runs on over it -- D behind the
@@ -136661,6 +136879,9 @@ function harborGeo(){
                       corner: { x0: road.x0, x1: RX - ROAD_HALF, y0: ROAD_HALF, y1: SW } };
   /* THE CHANDLERY'S FORECOURT: the paving between the wing's front wall and the plaza's edge, under its awning -- he drives up to the shop's door (CHAND_IN) */
   const strip = { x0: bldg.x0 + PH_PLAN.WA0, x1: bldg.x0 + PH_PLAN.HA0, y0: bldg.y1 + PH_PLAN.HB, y1: H.PLAZA_Y0 };
+  /* ...and the Port Office's: the paving before the pavilion's doors, from its face (PB) to the plaza's edge, the steps on it (PORT_IN) */
+  const strip2 = { x0: bldg.x0 + PH_PLAN.PA0 - 20, x1: bldg.x0 + PH_PLAN.PA1 + 20, y0: bldg.y1 + PH_PLAN.PB, y1: H.PLAZA_Y0 };
+  const strip3 = { x0: bldg.x0 + (PH_PLAN.PA0 + PH_PLAN.PA1)/2 - 100, x1: bldg.x0 + (PH_PLAN.PA0 + PH_PLAN.PA1)/2 + 100, y0: bldg.y1 + PH_PLAN.PB - 30, y1: bldg.y1 + PH_PLAN.PB };   // (and the pair's own lane, a hand's depth in: he is taken in at the glass)
   /* THE ISLAND'S PIER (Sir, 2026-11-12: "the island needs a pier for boats"): a plank dock out from the landing's east side toward the
      basin, planked and piled as the finger docks are (it is one: harborPosts, the deck, the seams), a skiff tied up along its far (north)
      side, as the marina's boats lie on a dock's far side (islandBoat, drawn with the day's boats but no slip of its own: no delivery goes to it, the fleet's roll is untouched),  (no bollards: Sir, 2026-11-12). Added after the slips and bollards so neither knows of it */
@@ -136670,9 +136891,9 @@ function harborGeo(){
   const ipStairs = { x0: light.x + 360, x1: ip.x0, y0: ip.y0, y1: ip.y1 };            // the stairs over the rim's rocks to the deck: for people, not for his wheels (harborBlocks)
   const islandBoat = { id: 900, kind: 'skiff', L: 300*BOAT_SC, side: -1, bow: 1, hull: '#7a2f2c', trim: '#f6f3ea' };
   islandBoat.x = ip.x1 - 140 - islandBoat.L/2; islandBoat.y = ip.y + islandBoat.side*(H.FINGER_W/2 + 45 + harborBoatBeam('skiff', islandBoat.L)/2);
-  const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, jetty.north, jetty.arm, ...park.rects,
+  const walk = [ road, { x0: road.x0, x1: X0, y0: -SW, y1: SW }, quay, beachWalk.west, beachWalk.corner, apron, plaza, strip, strip2, strip3, jetty.north, jetty.arm, ...park.rects,
                  ...fingers.map(f => ({ x0: f.x0, x1: f.x1, y0: f.y0, y1: f.y1 })) ];
-  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip,
+  _harborGeo = { X0, Y0, MX0, MY0, road, quay, basin, apron, plaza, bldg, house, head, arm, light, round, rocks, jetty, strip, strip2, strip3,
                  fingers, slips, islandBoat, ipStairs, zone, walk, props, park, beachWalk };
   /* the light's landing is round: walkable inside it, the tower solid */
   props.push({ kind:'none', x: light.x, y: light.y, r: jetty.land.tower });
@@ -136866,7 +137087,7 @@ function harborSurface(x, y){
   if(x > hg.zone.x1 || y > hg.zone.y1) return null;
   if(inHarborRect(hg.quay, x, y)) return 'boardwalk';
   for(const f of hg.fingers) if(inHarborRect(f, x, y)) return 'boardwalk';
-  if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y) || inHarborRect(hg.strip, x, y)) return 'lot';
+  if(inHarborRect(hg.apron, x, y) || inHarborRect(hg.plaza, x, y) || inHarborRect(hg.strip, x, y) || inHarborRect(hg.strip2, x, y) || inHarborRect(hg.strip3, x, y)) return 'lot';
   if(hg.park.in(x, y)) return 'park';
   if(inHarborRect(hg.jetty.north, x, y) || inHarborRect(hg.jetty.arm, x, y) ||
      Math.hypot(x - hg.jetty.land.x, y - hg.jetty.land.y) <= hg.jetty.land.r) return 'sidewalk';
