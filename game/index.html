@@ -5364,7 +5364,12 @@ const FLEET_HALL_DEFS_ALL = [
      at the east end. The east wall stays inside the Flats (the hood line is x 28560) but for its last 70 */
   { id: "F7h", base: "F7", kit: "hangar",    name: "Tipsey Fleet at Sun Deck Airfield", sign: "TIPSEY FLEET", o: [27350, 20580], u: [1, 0], n: [0, -1], W: 1280, D: 420, lanes: [["airtaxi", 440], ["dronequad", 360], ["dronelift", 480]] }
 ];
-const FLEET_HALL_DEFS = FLEET_BAYS_BUILT ? FLEET_HALL_DEFS_ALL : [];
+/* THE DRONE HANGAR, BACK (Sir, 2026-11-12: "i do want them back but i dont think i want them at the airport"; "the entire map", "take the whole corner"): the
+   east corner of the block at 0,7, across the street from Marina Parking, where Palmline Surf Co. stood: the hall's door on the east street (its
+   face the block's east edge, x 2392), the one lane the delivery drone's, the hall 700 along the street and 1100 deep (the empty lot behind the shop's
+   old slot); the Chandlery 37 further along stays */
+const FLEET_HALL_F8 = { id: "F8h", base: "F8", kit: "hangar", name: "Tipsey Fleet Drone Hangar", sign: "TIPSEY FLEET", o: [2392, 22632], u: [0, 1], n: [-1, 0], W: 700, D: 1100, lanes: [["dronequad", 700]] };
+const FLEET_HALL_DEFS = FLEET_BAYS_BUILT ? FLEET_HALL_DEFS_ALL.concat([FLEET_HALL_F8]) : [FLEET_HALL_F8];     // (the other depots stay off)
 /* THE HANGAR'S NIGHT LIGHTS (Sir's open item, 2026-10-31: "the hangar has no night lamp"): a floodlight bar over each
    door, on the lintel (the Fleet Bay kit's 'front' paints it: half width w, out from the face, z over the door's head),
    and edge lights round each apron pad (painted with the pad in the ground pass, n of them at r - inset). At night the
@@ -17271,8 +17276,11 @@ const HOOD_SHOP_SITES = [
   [4,7, 1, ["Marina Office", "Cove Locksmith"]],
   [4,7, 2, ["Tidewater & Co."]],
   [0,7, 0, ["Cove Rugs"]],
-  [0,7, 1, ["Palmline Surf Co.", "Marina Chandlery"]],
-  [0,7, 2, ["The Grand Pelican"]],
+  /* (Sir, 2026-11-12: "put the surfshop in the empty lot and where the surf shop is we can put the drone hanger": Palmline Surf Co. moves to the
+     south frontage, west of the Grand Pelican; the east corner it stood on is the Fleet's drone hangar, F8h, FLEET_HALL_DEFS_ALL; the Chandlery
+     stays where it stood, 737 along) */
+  [0,7, 1, ["Marina Chandlery"], { start: 737 }],
+  [0,7, 2, ["The Grand Pelican", "Palmline Surf Co."]],
   /* 2,8 FILLED (2026-10-03): edge 0 takes four, short of Seawall Chambers'
      359 at the far corner. Edge 3 STARTS 370 ALONG (the row's own start,
      its fifth field): edge 2's row, pushed along by the charge depot,
@@ -85302,6 +85310,8 @@ function lhGotLamp(){
    apron is off with the depots, FLEET_BAYS_BUILT), facing out toward Tipsey, waiting across the city (Sir, 2026-11-12: "it should be like when we
    select play for tipsy and the drone is in his garage at the air field") */
 function lhGaragePad(scene, park){
+  const L = fleetBayOf('dronequad');
+  if(L) return { x: L.x, y: L.y, yaw: L.a, lane: L };
   const A = AIR.apron;
   for(const [x, y] of [[25000, 20800], [25300, 20820], [24400, 20820], [25700, 20820]]){
     if(x > A[0] && x < A[1] && y > A[2] && y < A[3] && (!scene || owSpotClear(scene, x, y, OW_D.botR*2.4))) return { x, y, yaw: Math.atan2(park.y - y, park.x - x) };
@@ -85323,6 +85333,10 @@ function lhLoan(scene){
     scene.items = items || [];
     const fl = ow.fly = flyNew(ow); ow.z = flyTerrainZ(scene, g.x, g.y); fl.ph = 'ground';
     R.stage = 'garage'; R.garageT = scene.time.now; lhNavClear(scene);
+    if(g.lane){                                                       // (his own hangar: its door down over the pad, as a launch into the garage has it)
+      if(!scene._doorTs) scene._doorTs = new Map();
+      scene._doorTs.set(g.lane.key, 0); scene._doorShutFrom = 0; scene._doorShutT0 = performance.now(); scene._doorShut = g.lane.key;
+    }
     window.garageOpen();
     return;
   }
@@ -85528,7 +85542,7 @@ function lhTick(scene, ow){
     case 'garage':
       /* the garage open over the drone: edit it, then Play -- it lifts off by itself and the flight to Tipsey is the player's */
       if(scene._garage || now - R.garageT < 800) return;
-      if(ow.fly) ow.fly = Object.assign(ow.fly, { ph: 'takeoff', t: 0, vx: 0, vy: 0, vz: 0 }); flyViewUp(ow.fly);
+      if(ow.fly && ow.fly.ph === 'ground'){ Object.assign(ow.fly, { ph: 'takeoff', t: 0, vx: 0, vy: 0, vz: 0 }); flyViewUp(ow.fly); }       // (from a hangar lane it rolls out by itself first: flyOnPlay)
       R.stage = 'out'; cineBars(false);
       lhNavAir(scene, R.park, 'Tipsey');
       if(typeof tpToast === "function") tpToast("Fleet dispatch: the delivery drone is yours for the run. Fly out to Tipsey, waiting on the pickup spot.");
