@@ -99008,6 +99008,22 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: gw.x - 18 + gyFar - 1, fn: (g) => this.bcDraw(g, "hb|gway|" + bt.id + "|" + gw.x + "|" + gw.edgeY, gw.x, gw.edgeY, gg => this.drawBoatGangway(gg, gw)) });
       }
     }
+    /* THE ISLAND PIER'S STAIRS (Sir, 2026-11-12: "needs stairs"): the deck stands 8 over the landing, so where the pier leaves
+       the island three concrete treads come up to it across its whole width, cached */
+    { const ip = hg.fingers.find(f => f.island);
+      if(ip && near(ip.x0, ip.y, 400)){
+        const cx = ip.x0 - 30, key = "hb|ipsteps|" + Math.round(ip.x0) + "," + Math.round(ip.y0);
+        vq.push({ depth: cx + ip.y + 1, fn: (g) => this.bcDraw(g, key, cx, ip.y, gg => {
+          const W = (x, y, z) => this.W(x, y, z), Q = (pts, col) => this.quadOn(gg, pts, col);
+          for(let k = 0; k < 3; k++){
+            const x0 = ip.x0 - 30*(3 - k), x1 = x0 + 30, zt = 3.4 + 1.6*k, z0 = 0.4;
+            Q([W(x0, ip.y1, zt), W(x1, ip.y1, zt), W(x1, ip.y1, z0), W(x0, ip.y1, z0)], 0x7d7566);                     // its south face
+            Q([W(x1, ip.y0, zt), W(x1, ip.y1, zt), W(x1, ip.y1, z0), W(x1, ip.y0, z0)], 0x9a9282);     // its east face (the riser of the next)
+            Q([W(x0, ip.y0, zt), W(x1, ip.y0, zt), W(x1, ip.y1, zt), W(x0, ip.y1, zt)], k % 2 ? 0xf1ece0 : 0xe6e0d2);                     // its tread, a shade apart each
+          }
+        }) });
+      }
+    }
     /* the docks' piles (see harborPosts): live from the deck up only. The
        part below the deck is the ground pass's (drawHarborGround), painted
        before the planks so they cover it -- drawn here it would lie over
