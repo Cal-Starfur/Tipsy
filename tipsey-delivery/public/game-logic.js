@@ -83609,12 +83609,18 @@ function lhMeetWalk(ow, from, t0, side, gap){
 function lhSide(ow, from){ return meetSide(ow, from); }
 /* her first word: she goes to the lamp shelf on the back wall */
 function lhToShelf(){
+  /* (Sir, 2026-11-12: "i dont want the clerk to go get the lamp from the back of the room she should have it already ready behind the desk": the lamp is
+     under her counter; she takes it and walks round to him with it, no trip to the shelf) */
   const scene = scn(), R = LH;
   if(R.stage !== 'clerk' || !scene) return;
   hospSayCard(null);
-  const P = CHAND_ROOM, pt = (a, b) => lhRoomPt(a, b), post = P.clerk, sh = P.shelf;
-  R.clerk = { P: { pts: [pt(post[0], post[1]), pt(390, 500), pt(330, 380), pt(sh[0] + 40, 160), pt(sh[0], sh[1] + 10)], t0: scene.time.now, faceTh: sh[2], th0: R.clerk ? R.clerk.face : post[2] }, has: null };
-  R.stage = 'fetch'; R.safeT = 0;
+  const ow = scene.ow, now = scene.time.now, P = CHAND_ROOM, pt = (a, b) => lhRoomPt(a, b), post = P.clerk, q = pt(post[0], post[1]);
+  const M0 = meetWalk(ow, { x: q.x, y: q.y }, now, 1, scene);
+  const to = { x: ow.px + 58, y: ow.py - 58 };      // (his front-right, across the screen from him: the counter's west end, clear of it)
+  const M = Object.assign(M0, { to, walkMs: meetWalkMs(Math.hypot(to.x - q.x, to.y - q.y)), faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)) });
+  R.clerk = { P: { pts: [q, pt(380, 520), pt(340, 600), M.to], t0: now, faceTh: M.faceTh, th0: R.clerk && R.clerk.face != null ? R.clerk.face : post[2] }, has: 'lamp' };
+  R.M = Object.assign(M, { walkMs: walkPathMs(R.clerk.P) });
+  R.stage = 'hand';
 }
 function lhGotLamp(){
   const scene = scn(), R = LH;
@@ -83837,7 +83843,7 @@ function lhTick(scene, ow){
       return;
     case 'clerk':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
-        say: "The harbour master's lamp? One moment." }));
+        say: "The harbour master's lamp? Right here." }));
       return;
     case 'fetch': {
       ow.vel = 0;
