@@ -134810,7 +134810,7 @@ const PORT_ROOM = { W: PH_PLAN.HA1 - PH_PLAN.HA0 - 60, D: -(PH_PLAN.HBB + 30) + 
   clerk: [1720, 380, Math.PI/2, 7000, true],                         // behind it
   chart: [170, 640, 150, 250],                                       // the harbour master's chart table
   master: [405, 96, Math.PI/2, 7000, true],                          // the harbour master, north of it, over his charts
-  ship: [1500, 1640, 880, 960] };                                    // the ship's model's plinth
+  ship: [1150, 1290, 760, 840] };                                    // the ship's model's plinth
 const PH_HALL_WINS = (() => { const o = [], P = PH_PLAN; for(let a = P.HA0 + 120; a + 140 < P.HA1; a += 250){ if(a + 140 > P.PA0 - 20 && a < P.PA1 + 20) continue; o.push([a, a + 120, 40, 150], [a + 10, a + 110, 210, 300]); } return o; })();
 const PORT_IN = walkinDefine({ name: 'Pelican Port Office Interior', from: 'Pelican Harbor', x0: 640000, y0: 400000,
   lab: [PH_PLAN.HA0 + 30, PH_PLAN.HA1 - 30, PH_PLAN.HBB + 30, PH_PLAN.HB - 30],
@@ -134836,7 +134836,7 @@ walkinLife('Pelican Port Office Interior', { keep: [[1120, 1320, 0, PORT_ROOM.D]
   { id: 'tides', spots: [[300, 70, -Math.PI/2], [520, 70, -Math.PI/2]] },
   { id: 'chart', spots: [[1000, 70, -Math.PI/2]] },
   { id: 'notices', spots: [[75, 600, Math.PI], [75, 900, Math.PI]] },
-  { id: 'ship', spots: [[1560, 1020, -Math.PI/2]] },
+  { id: 'ship', spots: [[1090, 800, 0]] },
   { id: 'counter', spots: [[1900, 560, -Math.PI/2]] },
   { id: 'benches', spots: [[200, 1140, -Math.PI/2]] },
 ] });
