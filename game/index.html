@@ -84859,16 +84859,15 @@ function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLoo
    area 8; docs/fleet-redesign.md) ====================
    The breakwater light's lamp has burnt out and Ines, the keeper, is out at the light with a fog bank rolling in. The
    harbour master has ordered the Marina Chandlery's spare lamp -- an ordinary pickup, to look at -- but the light is out on
-   an island: no road reaches it. The Fleet's drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31):
+   an island: no road reaches it, so the drone takes it from him on the Fleet's apron. The Fleet's drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31):
      order    the order waits at the Marina Chandlery (a beacon over its door; the mat inside before the counter, CHAND_IN,
-              the walk-in): in at the door and onto the mat, the clerk at her post behind the counter says there must be a
-              mistake, the light is on an island (Leave it to me!)
+              the walk-in): in at the door and onto the mat, the clerk at her post behind the counter has it ready
      lamp     she fetches the big brass lamp from the back shelf and brings it round to him, face to face, the lamp in her
-              hand; the drone is the way out (To the Fleet!)
+              hand; it is his cargo now, and the drone takes it from him at the Fleet (On my way!)
      drive    out to the Fleet's hangar at Sun Deck Airfield, in at its own gate off the street (FLEET_GATE: no code),
               onto the visitor bay just inside it (the GPS leads)
-     crew     the hangar's crew chief comes over from her post by the doors, face to face: the drone is ready, the lamp
-              slung under it (Let's fly!); the mission LENDS him the delivery drone (FLEET_LOAN: the borrowed kind,
+     crew     the hangar's crew chief comes over from her post by the doors, face to face: this is the transfer spot, out on the
+              apron clear of the doors and the people; the drone lifts the lamp off him, slung under it (Let's fly!); the mission LENDS him the delivery drone (FLEET_LOAN: the borrowed kind,
               never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls out of its hangar
               lane to its apron pad and takes off, as a launch does (flyOnPlay)
      fly      across the Flats and out over the basin to the light, the lamp slung under it, a light fog over the screen
@@ -85087,7 +85086,7 @@ function lhGotLamp(){
   R.stage = 'drive';
   lhNav(scene, LH_RUN.visit, "Tipsey Fleet, Sun Deck Airfield");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Lamp aboard. Out to the Fleet's hangar at Sun Deck Airfield: its own gate, east of the terminal.");
+  if(typeof tpToast === "function") tpToast("Lamp aboard. Out to the Fleet's hangar at Sun Deck Airfield, where the drone will take it from you: its own gate, east of the terminal.");
 }
 /* the crew chief's yes: she walks back to her post, and the loan */
 function lhCrewOk(){
@@ -85109,7 +85108,7 @@ function lhLoan(scene){
   flyOnPlay(scene);
   R.stage = 'out';
   lhNavClear(scene);
-  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run, the lamp slung under it. Its hangar's opening.");
+  if(typeof tpToast === "function") tpToast("The drone has the lamp off you and it's yours to fly. Its hangar's opening.");
 }
 function lhHandLamp(){
   const scene = scn(), R = LH;
@@ -85195,8 +85194,8 @@ function lhTick(scene, ow){
       return;
     }
     case 'clerk':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Leave it to me!", ok: lhToShelf, at: lhClerkSayAt,
-        say: "The harbour master's order, for the breakwater light? The big brass lamp, the last spare on the whole coast. There must be some mistake, though: the light's out on an island, and there's no road to it. Still, an order's an order. It lives up on the back shelf. One moment." }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "Thank you!", ok: lhToShelf, at: lhClerkSayAt,
+        say: "The harbour master's order, for the breakwater light? Yes, it's all ready: the big brass lamp, the last spare on the whole coast. It lives up on the back shelf. One moment." }));
       return;
     case 'fetch': {
       ow.vel = 0;
@@ -85214,8 +85213,8 @@ function lhTick(scene, ow){
       return;
     }
     case 'hand':
-      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "To the Fleet!", ok: lhGotLamp, at: lhClerkSayAt,
-        say: "Here she is. Careful with it: brass, and heavier than it looks. You'll never drive it out there, but the Fleet at Sun Deck Airfield has drones that can: that's your way across the water. Ines will know what to do with it. Good luck!" }));
+      if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "On my way!", ok: lhGotLamp, at: lhClerkSayAt,
+        say: "Here she is. Careful with it: brass, and heavier than it looks. The light's out on the breakwater, and the harbour master says the Fleet's drone will take it from you at Sun Deck Airfield, on their apron, well clear of everyone. Ines is waiting on it." }));
       return;
     case 'drive':
       if(fleetCur()) return;
@@ -85228,7 +85227,7 @@ function lhTick(scene, ow){
       return;
     case 'crew':
       if(R.crew && R.crew.leave == null) meet(R.crew, () => hospSayCard({ who: "Joss, the Fleet's crew chief", btn: "Let's fly!", ok: lhCrewOk, at: lhCrewAt,
-        say: "Tipsey! The harbour master rang ahead. Hangar 2's delivery drone is charged, and I'll sling that lamp under her. It's a long way to the light and the fog's thick over the bay, so keep her straight. Off you go!" }));
+        say: "Tipsey! The harbour master rang ahead. This is the transfer spot: out on the apron, well clear of the hangar doors and everyone's heads, so nobody's hurt if the line swings. Stay put and I'll have Hangar 2's delivery drone lift the lamp off you. Then she's yours: straight out to the light." }));
       return;
     case 'out':
       if(ow.fly && ow.fly.ph === 'air'){
