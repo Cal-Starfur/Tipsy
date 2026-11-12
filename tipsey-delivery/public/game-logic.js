@@ -32687,7 +32687,13 @@ function lostItemDoor(scene, it){
   return d;
 }
 /* where he stops for it: the owner's front path */
-function lostItemGate(scene, it){ const d = lostItemDoor(scene, it); return d ? edgePt(d.e, d.along, 70) : null; }
+/* the stop: ONE sidewalk tile (a T2 square on the world grid, the face's first row -- as the pickups' and the address's mats lie), the one
+   his door's path comes down to; mat = its frame, gate = its centre */
+function lostItemSpot(d){
+  const al = (Math.floor(d.along/T2) + 0.5)*T2, an = edgePt(d.e, al, 0);
+  return { ax: an.x, ay: an.y, dv: d.e.dv, rv: d.e.rv, mat: owMatFrame(an.x, an.y, d.e.dv, d.e.rv), gate: edgePt(d.e, al, T2/2) };
+}
+function lostItemGate(scene, it){ const d = lostItemDoor(scene, it); return d ? lostItemSpot(d).gate : null; }
 function lostItemsCarried(){ const out = []; for(const id of tpCollect.carried){ const it = LOST_ITEM_RE.test(id) ? lostItemOf(id) : null; if(it) out.push(it); } return out; }
 /* THE DAY'S PICK (from giftWorldSurvey, its candidates and its fine tests): perHood spots apart blocks apart, none
    within giftGap of a gift, each with an owner -- a house in the hood, a drive away */
@@ -32833,7 +32839,7 @@ function lostItemTick(scene, ow){
   if(Math.abs(ow.vel || 0) > 0.02 || storyFocus() || LOST.st === 'owner') return;   // (a story: it waits; a dog's owner at their door first)
   for(const it of lostItemsCarried()){
     const d = lostItemDoor(scene, it); if(!d) continue;
-    const gt = edgePt(d.e, d.along, 70);
+    const gt = lostItemSpot(d).gate;
     if(Math.abs(ow.px - gt.x) + Math.abs(ow.py - gt.y) > LOST_ITEMS.homeR*1.5 || Math.hypot(ow.px - gt.x, ow.py - gt.y) > LOST_ITEMS.homeR) continue;
     /* the owner: the tag's own one of the house's people (R11), out of their front door to him, face to face */
     const H = householdOf(d), who = H.people[it.who % H.people.length] || H.people[0];
@@ -102888,13 +102894,13 @@ class WorldScene extends Phaser.Scene {
         if(gt && this.visProp("chargestation", gt.x, gt.y)){
           /* the owner's path: the pickup's own glowing box on the pavement (drawPickupBayCached + drawMatHighlight, the mat
              frame centred on where he stops: edge face 70 out, T2 square), the item's icon floating over it */
-          const dr = lostItemDoor(this, it), ax = dr ? edgePt(dr.e, dr.along - T2/2, 70 - T2/2) : null;
+          const dr = lostItemDoor(this, it), sp = dr ? lostItemSpot(dr) : null, ax = sp;
           if(ax){
-            const dv = dr.e.dv, rv = dr.e.rv, mat = owMatFrame(ax.x, ax.y, dv, rv), hl = matHighlightState(this, mat, "freeroam");
+            const dv = sp.dv, rv = sp.rv, hl = matHighlightState(this, sp.mat, "freeroam");
             hazVQ.push({ depth: gt.x + gt.y - T2, fn: (gg, tt) => { const lg = layerFor(gt.x, gt.y);
-              this.drawPickupBayCached(lg, ax.x, ax.y, dv, rv, null, false); this.drawMatHighlight(lg, ax.x, ax.y, dv, rv, 0, 0, hl, tt); }});
+              this.drawPickupBayCached(lg, sp.ax, sp.ay, dv, rv, null, false); this.drawMatHighlight(lg, sp.ax, sp.ay, dv, rv, 0, 0, hl, tt); }});
           }
-          queueBeacon(gt.x, gt.y, it.icon, { s: 1.7, a: 1, dz: 20, spin: 0, shA: 1 });
+          queueBeacon(gt.x, gt.y, it.icon, { s: 1.3, a: 1, dz: -28, spin: 0, shA: 1 });
         }
       }
     }
