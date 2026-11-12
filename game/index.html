@@ -15189,6 +15189,14 @@ function gpsNavReplot(scene, force){
   const now = performance.now();
   if(!force && now - gpsNav.plottedAt < GPS_REPLOT_MS) return;
   gpsNav.plottedAt = now;
+  /* A FLIGHT'S NAV (gpsNav.air: THE LIGHTHOUSE RUN's drone legs, over water and roofs where no street goes): the straight line from him to
+     where it sends him, its time at the drone's pace */
+  if(gpsNav.air){
+    const len = Math.hypot(gpsNav.tx - scene.botX, gpsNav.ty - scene.botY);
+    gpsNav.path = { pts: [{ x: scene.botX, y: scene.botY }, { x: gpsNav.tx, y: gpsNav.ty }], len, turns: 0 };
+    gpsNav.etaMs = len/0.2; gpsNav.distU = len;
+    return;
+  }
   const grid = scene.route.grid;
   /* LEAVING A DEPOT BY ITS DOOR (2026-09-24). Inside the charging room
      the nearest sidewalk can be the one behind a side wall -- at the home
@@ -85043,6 +85051,13 @@ CITY_PEOPLE.add({ name: 'Sun Deck Motor Lodge', where: "the motor lodge's court,
   } });
 /* the GPS leg (freeroam), as the stories' (tixNav) */
 function lhNav(scene, to, name){ if(typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "lighthouse", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+/* the flight's leg: a straight GPS line to where the drone is sent (Tipsey, the island's pad, the plaza's spot) */
+function lhNavAir(scene, to, name){
+  if(!scene || !to || scene.mode !== "freeroam" || !scene.route || !scene.route.grid) return;
+  gpsNav = { id: "lighthouse", name, tx: to.x, ty: to.y, air: true, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
+  gpsNavReplot(scene, true);
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
 function lhNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "lighthouse"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* the bay (and beacon) the run shows now, or null (R7: a beacon over where it sends him) */
 function lhBayNow(scene){
@@ -85101,7 +85116,7 @@ function lhLoan(scene){
   const fl = ow.fly = flyNew(ow);
   ow.z = flyTerrainZ(scene, sx, sy) + 300; fl.ph = 'air'; fl.zHold = ow.z; fl.spin = 1;
   R.stage = 'out';
-  lhNavClear(scene);
+  lhNavAir(scene, R.park, R.leg === 'back' ? 'Tipsey, on the island' : 'Tipsey');
   if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Fleet dispatch: the drone's coming back for Tipsey. Set it down on him to take him home." : "Fleet dispatch: the delivery drone is yours for the run.");
 }
 /* THE LANDING ASSIST: once the player has tapped Land within 170 of the spot (Tipsey's, or the target ring), the drone eases onto its exact
@@ -85120,6 +85135,7 @@ function lhHook(scene){
   if(!P) return;
   R.carry = { a: P.a, rel: owWrapAngle(P.a - scene.ow.yaw), t0: scene.time.now, px: P.x, py: P.y, gz: scene.ow.z || 0 }; R.park = null; R.landed = false;      // (rel: how he lay to the drone as it came down on him: he swings round to its heading, no pop)
   R.stage = 'fly'; R.flyT0 = scene.time.now;
+  if(R.leg === 'back') lhNavAir(scene, LH_RUN.pickup, 'The pickup spot, Pelican Harbor'); else lhNavAir(scene, lhLightSpots().bay, "The island's landing pad");
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Hooked on! Lift off and carry Tipsey home: set him down on the pickup spot on the plaza." : "Hooked on! Lift off and carry Tipsey out to the island: set him down on the pad by the light.");
 }
@@ -85133,7 +85149,7 @@ function lhDrop(scene){
   FLEET_LOAN = null;
   const off = R.carryOff || { x: 0, y: 0 };
   const items = scene.items; owStandUpAt(scene, ow.px + off.x, ow.py + off.y, yawN); scene.items = items || [];       // (where the drone set him down, as he lay: no step from the hook to the ground)
-  lhLoanDoor(scene);
+  lhLoanDoor(scene); lhNavClear(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(back){ R.stage = 'idle'; R.leg = null; return; }                         // (home: the run is over)
   R.stage = 'keeper'; R.keeper = null; R.kT = scene.time.now + 1600; cineBars(true);
@@ -85272,7 +85288,7 @@ function lhTick(scene, ow){
     case 'out':
       if(ow.fly && ow.fly.ph === 'air'){
         R.stage = 'grab'; R.landed = false;
-        lhNavClear(scene);                         // (the flight's legs: the beacon leads, not the streets' GPS)
+        // (the flight's leg: lhNavAir, set with the loan, leads)
         if(typeof tpToast === "function") tpToast("Fly the drone over to Tipsey and set it down right on top of him to hook on.");
       }
       return;
