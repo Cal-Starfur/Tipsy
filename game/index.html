@@ -92609,6 +92609,8 @@ function phTick(scene, now){
   let use = false;
   const at = (x, y) => Math.abs(x - S.door.x) < 60 && y > S.face - 60 && y < S.face + 85;
   for(const w of L.walkers){ const q = w.P && walkPathAt(w.P, now); if(q && at(q.x, q.y) && !(w.st === 'dwell' && w.legs && w.legs[w.i] && w.legs[w.i].inside)) use = true; }
+  /* ...and for Tipsey: it swings open as he comes up to it (within 260 of the step) and stays open while he is at it, in or out */
+  if(!scene._inside && Math.hypot(bx - S.door.x, by - (S.face + 50)) < 260) use = true;
   const D = L.door; D.k = use ? Math.min(1, D.k + dt/280) : Math.max(0, D.k - dt/480);
 }
 CITY_PEOPLE.add({ name: 'Pelican Harbor', where: "the harbor house: its visitors (the chandlery, the tide board, the rail) and the watch officer on the tower's gallery", solid: false,
