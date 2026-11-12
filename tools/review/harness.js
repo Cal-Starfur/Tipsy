@@ -70,7 +70,7 @@ async function open({ rev = null, devvit = false, width = 1180, height = 820, in
   await p.route('**/cdn.jsdelivr.net/**phaser*', r => r.fulfill({ path: path.join(ROOT, 'tipsey-delivery/public/phaser.min.js'), contentType: 'application/javascript' }));
   await p.route(/fonts\.googleapis|fonts\.gstatic/, r => r.abort());
   const boot = async () => {
-    await p.goto(url);
+    await p.goto(url + (process.env.QS||''));
     await p.waitForFunction(() => typeof game !== 'undefined' && game.scene && game.scene.getScene('world') && game.scene.getScene('world').route, null, { timeout: 90000 });
     await p.waitForTimeout(3000);
     await p.evaluate(() => { if(typeof window.garageClose === 'function') window.garageClose(); });

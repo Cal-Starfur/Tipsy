@@ -99120,6 +99120,9 @@ class WorldScene extends Phaser.Scene {
      order, under the shell: what stands in front of it is not lit) */
   walkinShellQ(vq, pk){ const sc = this; return { push(e){ vq.push(e); sc.walkinShellSeen(pk, e); return vq.length; } }; }
   walkinShellSeen(pk, e){
+    /* (its image is painted the frame it is first wanted, past the cache's budget: drawn live while the budget is spent it has no holes
+       -- they are cut in the cached image -- and the room did not show through its glass till the shell's turn in the budget came) */
+    const f = e.fn; if(f && !e._wkForce){ e._wkForce = true; e.fn = (g, t) => { const was = this._bcForce; this._bcForce = true; try { return f(g, t); } finally { this._bcForce = was; } }; }
     const fr = this._wkFr, M = this._wkShell || (this._wkShell = new Map()), r = M.get(pk.name);
     if(!r || r.fr !== fr || e.depth < r.e.depth) M.set(pk.name, { fr, e });
   }
@@ -99399,7 +99402,7 @@ class WorldScene extends Phaser.Scene {
     if(e === undefined){
       /* an x-rayed piece (_bcTint) paints past the budget: it is placed last,
          after the budget is spent, and drawn live it could not be tinted */
-      if(bc.budget <= 0 && this._bcTint == null){ bc.live++; return live(g); }
+      if(bc.budget <= 0 && this._bcTint == null && !this._bcForce){ bc.live++; return live(g); }
       const t0 = performance.now();
       e = this.bcPaint(ax, ay, drawFn);
       const dt = performance.now() - t0;
