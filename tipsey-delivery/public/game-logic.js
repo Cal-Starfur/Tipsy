@@ -33315,13 +33315,12 @@ const MISSIONS = {
     item: () => TIX.stage === 'deliver' || TIX.stage === 'thanks' ? { id: 'pizza', name: 'pizza', tip: 'crewReturns' } : null,
     next: () => ({ stop: 'Hear Marisol out', lunch: 'Forno Marino in the food court', pickup: 'Forno Marino in the food court', deliver: 'Back up to Marisol', thanks: 'Marisol' })[TIX.stage] || 'High Tide Arcade, upstairs in the mall',
     start: () => { const P = mallGuardPost(); return P && { x: P.x + Math.cos(P.face)*260, y: P.y + Math.sin(P.face)*260, name: 'Maritime Mall' }; } },
-  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'shops', places: ['Marina Chandlery', 'Pelican Harbor', 'Tipsey Fleet at Sun Deck Airfield', 'the breakwater light'],
-    steps: ["The harbour master's order: the spare lamp, at the Marina Chandlery", "The Fleet's hangar at Sun Deck Airfield: its visitor bay", 'The drone down on Tipsey: hook on', 'Tipsey out to the pad on the breakwater', 'The lamp to Ines'],
+  'lighthouse-run': { name: 'The Lighthouse Run', giver: 'the harbour master, Pelican Harbor', window: 'shops', places: ['Marina Chandlery', 'Pelican Harbor', 'the breakwater light'],
+    steps: ["The harbour master's order: the spare lamp, at the Marina Chandlery", "The pickup spot on the plaza: the Fleet's drone meets him", 'The drone down on Tipsey: hook on', 'Tipsey out to the pad on the breakwater', 'The lamp to Ines'],
     reward: { cents: 5000, payId: 'lighthouse', item: 'brasskey', fleet: 'dronequad' },
     busy: () => LH.stage !== 'idle',
-    item: () => LH.stage === 'drive' || LH.stage === 'crew' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
-    next: () => ({ clerk: 'The clerk at the counter', fetch: 'The clerk is fetching the lamp', hand: 'The clerk has the lamp', drive: "The Fleet's hangar at Sun Deck Airfield, in at its own gate",
-                   crew: 'The crew chief has the drone ready', out: 'Out of the hangar and up', grab: 'Set the drone down on Tipsey', fly: 'Out to the pad on the breakwater', keeper: 'Ines has it' })[LH.stage] || "The Marina Chandlery: the harbour master's order",
+    item: () => LH.stage === 'drive' ? { id: 'lamp', name: 'lamp', tip: 'crewReturns' } : null,   // (in the drone it never tips)
+    next: () => ({ clerk: 'The clerk at the counter', fetch: 'The clerk is fetching the lamp', hand: 'The clerk has the lamp', drive: "The pickup spot on the plaza: the Fleet's drone meets him", out: 'The drone is coming in', grab: 'Set the drone down on Tipsey', fly: 'Out to the pad on the breakwater', keeper: 'Ines has it' })[LH.stage] || "The Marina Chandlery: the harbour master's order",
     start: () => { const d = lhChandDoor(); return { x: d.x, y: d.y, name: 'Marina Chandlery' }; } },
   /* CATCH OF THE DAY (THE PELICAN FISH MARKET): Nell's three kitchens, run in the market's delivery pod */
   'catch-of-the-day': { name: 'Catch of the Day', giver: 'Nell, Pelican Fish Market', window: 'any', places: ['Pelican Fish Market', 'Saltwater Brewing', 'Lagoon Market Hall', 'The Grand Pelican'],
@@ -83150,38 +83149,32 @@ const cpLookPlain = L => [L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe];
 function cpKnockLook(n, adult, aid, who){ return who ? folkLook(who) : streetLook(n, adult ? { adult: true, aid } : null); }
 /* ==================== THE LIGHTHOUSE RUN (fleet P2: the first mission played in a fleet vehicle; the Flats plan,
    area 8; docs/fleet-redesign.md) ====================
-   The breakwater light's lamp has burnt out and Ines, the keeper, is out at the light with a fog bank rolling in. The
-   harbour master has ordered the Marina Chandlery's spare lamp -- an ordinary pickup, to look at -- but the light is out on
-   an island: no road reaches it, so the drone takes it from him on the Fleet's apron. The Fleet's drones live at Sun Deck Airfield (AIR.fleet, F7h; Sir, 2026-10-31):
+   The breakwater light's lamp has burnt out and Ines, the keeper, is out at the light with a fog bank rolling in. The harbour
+   master has ordered the Marina Chandlery's spare lamp -- an ordinary pickup, to look at -- but the light is out on an island
+   (the breakwater's walk is closed by a barrier: lhJettyClosed): the Fleet's delivery drone carries Tipsey out to it.
      order    the order waits at the Marina Chandlery (a beacon over its door; the mat inside before the counter, CHAND_IN,
               the walk-in): in at the door and onto the mat, the clerk at her post behind the counter has it ready
      lamp     she fetches the big brass lamp from the back shelf and brings it round to him, face to face, the lamp in her
-              hand; it is his cargo now, and the drone takes it from him at the Fleet (On my way!)
-     drive    out to the Fleet's hangar at Sun Deck Airfield, in at its own gate off the street (FLEET_GATE: no code),
-              onto the visitor bay just inside it (the GPS leads)
-     crew     the hangar's crew chief comes over from her post by the doors, face to face: this is the transfer spot, out on the
-              apron clear of the doors and the people; the drone lifts the lamp off him, slung under it (Let's fly!); the mission LENDS him the delivery drone (FLEET_LOAN: the borrowed kind,
-              never saved as his pick): Tipsey stays on the bay, still (cached), and the drone rolls out of its hangar
-              lane to its apron pad and takes off, as a launch does (flyOnPlay)
-     fly      across the Flats and out over the basin to the light, the lamp slung under it, a light fog over the screen
-              (lhFogTick; no clock), the beacon over the light's bay (R7)
-     keeper   over the light's bay, on the arm's concrete walk, it comes down to a hover; Ines comes out to it, face to face,
-              and takes the lamp up (she mentions the fog): the light comes on (lhLightOn, drawn live in the harbour's queue)
-     report   back over the plaza to the quay's bay (the beacon): it comes down to a hover there and the harbour master
-              comes to it from the rail, face to face
-     thanks   he thanks him: $50 from the harbour office (the server pays it once: 'lighthouse') and Ines's brass key to
-              the light (a key item, rebuilt from the record: lhKeyMigrate); the drone is his to fly once the fleet's
-              lock flips (FLEET.dronequad.unlock)
-     home     the drone home to its apron pad at the airfield: it lands, rolls into its lane, the door comes down, and
-              he is Tipsey again on the visitor bay (the loan ends), quietly
+              hand; it is his cargo now; the Fleet is sending a drone to meet him (On my way!)
+     drive    to the transfer spot (LH_RUN.pickup: open plaza by the turning circle, clear of people); on it the mission LENDS
+              him the delivery drone (FLEET_LOAN: the borrowed kind, never saved as his pick): Tipsey stays on the spot, still
+              (cached), and the player is the drone, in the air a few hundred units off
+     grab     the beacon over Tipsey: the player sets the drone down right on top of him (Land) and it hooks on (lhHook)
+     fly      lift off with Tipsey slung under it on cables (lhDrawSlung) and out to the light: the target ring on the breakwater's
+              walk (lhLightSpots().bay), a light fog over the screen (lhFogTick; no clock); set down on the ring he is let down
+     keeper   the loan ends (lhDrop): he is Tipsey on the walk, the drone lifts away home by itself; Ines comes along the walk to
+              him, face to face, and takes the lamp (she mentions the fog): the light comes on (lhLightOn)
+     done     $50 from the harbour office (the server pays it once: 'lighthouse') and Ines's brass key to the light (a key item,
+              rebuilt from the record: lhKeyMigrate); the barrier is gone; the drone is his to fly once the fleet's lock flips
+              (FLEET.dronequad.unlock); he drives home along the breakwater
    Nothing of a run is saved: a reload starts it again at the Chandlery (R10). Offered in shop hours (the Chandlery's door is
-   locked after them). The harbour master, the crew chief and Ines are always about (R1): on the quay, at her post by the
-   hangar's doors, at the light (CITY_PEOPLE 'The Lighthouse Run'); the clerk is the Chandlery's own (walkinStaff), borrowed
-   for the fetch (away / awayAt). */
+   locked after them). The harbour master, the crew chief and Ines are always about (R1); the clerk is the Chandlery's own
+   (walkinStaff), borrowed for the fetch (away / awayAt). */
 const LH = { stage: 'idle', carry: null, drone: null, landed: false, who: null, clerk: null, M: null, safeT: 0, crew: null, keeper: null, mWalk: null, mAt: null, park: null, flyT0: 0,
              lit: false, litAt: 0, fog: 0, snooze: null, sayT: -1e9, kT: 0 };
 const LH_RUN = {
   quay: hospBay(-4064, -12290),              // the start: the plaza at the quay's head, facing south over the basin; and where the drone reports back
+  pickup: hospBay(-3850, -13400),             // the transfer spot: open plaza by the turning circle, a few blocks from the Chandlery's door, clear of the lamp, the flags and the people
   visit: hospBay(AIR.fleet.visit.x, AIR.fleet.visit.y),   // the Fleet hangar's visitor bay, just inside its street gate, in front of the delivery drone's pad
   post: AIR.fleet.post,                      // the crew chief's post, on the apron by the pier between the air taxi's door and the drone's
   master: { x: -4210, y: -12110 },           // the harbour master, at the quay wall's top, looking out at the light
@@ -83341,11 +83334,11 @@ function lhBayNow(scene){
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => Object.assign({}, B, { icon });
   if(R.stage === 'idle'){
-    if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || storiesHidden('lighthouse-run') || !missionWindowOpen('lighthouse-run')) return null;
+    if(lhDone() || fleetCur() || storiesHidden('lighthouse-run') || !missionWindowOpen('lighthouse-run')) return null;
     if(scene._inside === lhChandPk()) return ic(lhChandMat(), 'anchor', { inPk: true });         // (the order waits at the Chandlery: its mat inside, the beacon over its door outside)
     const d = lhChandDoor(); return { x: d.x, y: d.y, icon: 'anchor', beaconOnly: true };
   }
-  if(R.stage === 'drive' || R.stage === 'crew') return ic(LH_RUN.visit, 'flag');
+  if(R.stage === 'drive') return ic(LH_RUN.pickup, 'flag');
   if(R.stage === 'grab' && R.park) return { x: R.park.x, y: R.park.y, icon: 'flag', beaconOnly: true };          // (the beacon over Tipsey: set the drone down on him)
   if(R.stage === 'fly') return ic(lhLightSpots().bay, 'flag');                                                  // (the target on the breakwater's walk: set him down on it)
   return null;
@@ -83376,31 +83369,24 @@ function lhGotLamp(){
   if(R.M) R.M.leave = scene.time.now;
   R.M = null;
   R.stage = 'drive';
-  lhNav(scene, LH_RUN.visit, "Tipsey Fleet, Sun Deck Airfield");
+  lhNav(scene, LH_RUN.pickup, "Pickup spot, Pelican Harbor");
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("Lamp aboard. Out to the Fleet's hangar at Sun Deck Airfield, where the drone will take it from you: its own gate, east of the terminal.");
+  if(typeof tpToast === "function") tpToast("Lamp aboard. Out to the pickup spot on the plaza: the Fleet's drone will meet you there.");
 }
-/* the crew chief's yes: she walks back to her post, and the loan */
-function lhCrewOk(){
-  const scene = scn(), R = LH;
-  if(R.stage !== 'crew' || !scene) return;
-  hospSayCard(null); cineBars(false);
-  if(R.crew) R.crew.leave = scene.time.now;
-  lhLoan(scene);
-}
-/* THE LOAN: Tipsey stays on the visitor bay, still; the drone is his for the run, out of its lane and up */
+/* THE LOAN: Tipsey stays on the transfer spot, parked still (cached); the Fleet's delivery drone is his for the run, coming in over the
+   water to him -- and he is in it, in the air, the player's to fly */
 function lhLoan(scene){
-  const ow = scene.ow, R = LH, L = fleetBayOf('dronequad');
-  if(!L) return;
-  R.park = { x: ow.px, y: ow.py, a: ow.yaw };   // (where he stopped on the bay)
+  const ow = scene.ow, R = LH, P = LH_RUN.pickup;
+  R.park = { x: ow.px, y: ow.py, a: ow.yaw };   // (where he stopped on the spot)
   FLEET_LOAN = 'dronequad';
-  const items = scene.items;
-  owStandUpAt(scene, L.x, L.y, L.a);
+  const sx = P.x + 850, sy = P.y + 450, yaw = Math.atan2(R.park.y - sy, R.park.x - sx), items = scene.items;
+  owStandUpAt(scene, sx, sy, yaw);
   scene.items = items || [];
-  flyOnPlay(scene);
+  const fl = ow.fly = flyNew(ow);
+  ow.z = flyTerrainZ(scene, sx, sy) + 300; fl.ph = 'air'; fl.zHold = ow.z; fl.spin = 1;
   R.stage = 'out';
   lhNavClear(scene);
-  if(typeof tpToast === "function") tpToast("The delivery drone is yours for the run. Its hangar's opening.");
+  if(typeof tpToast === "function") tpToast("Fleet dispatch: the delivery drone is yours for the run.");
 }
 /* THE HOOK: the drone is down on top of him (on its skids): Tipsey, parked still on the bay, is its load now -- slung under it
    when it lifts (drawn on the drone: drawFleetAvatarAt), no longer parked on the bay (lhQueue) */
@@ -83508,7 +83494,7 @@ function lhTick(scene, ow){
     case 'idle': {
       /* THE HARBOUR MASTER'S ORDER waits at the Marina Chandlery: in at the shop's door (the walk-in), onto the mat before
          the counter, and the clerk stands at her post behind it */
-      if(!FLEET_BAYS_BUILT || lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run') || scene._inside !== lhChandPk()) return;
+      if(lhDone() || fleetCur() || missionBusy('lighthouse-run') || storiesHidden('lighthouse-run') || scene._inside !== lhChandPk()) return;
       if(!armed(lhChandMat())) return;
       if(!missionWindowOpen('lighthouse-run')){ missionWindowSay('lighthouse-run', scene); R.snooze = lhChandMat(); return; }
       R.stage = 'clerk'; ow.vel = 0; cineBars(true);
@@ -83539,20 +83525,12 @@ function lhTick(scene, ow){
     }
     case 'hand':
       if(R.M) meet(R.M, () => hospSayCard({ who: "Chandlery clerk", btn: "On my way!", ok: lhGotLamp, at: lhClerkSayAt,
-        say: "Here she is. Careful with it: brass, and heavier than it looks. The light's out on the breakwater, and the harbour master says the Fleet's drone will take it from you at Sun Deck Airfield, on their apron, well clear of everyone. Ines is waiting on it." }));
+        say: "Here she is. Careful with it: brass, and heavier than it looks. The light's out on the breakwater: the harbour master says the Fleet is sending a drone to meet you at the pickup spot on the plaza, out in the open, clear of everyone. Ines is waiting on it." }));
       return;
     case 'drive':
+      /* at the transfer spot on the plaza: the Fleet's drone comes in over the water to him */
       if(fleetCur()) return;
-      if(armed(LH_RUN.visit)){
-        R.stage = 'crew'; ow.vel = 0; cineBars(true);
-        const c = lhCrewAt(now);
-        R.crew = Object.assign(meetWalk(ow, { x: c.x, y: c.y }, now, lhSide(ow, c), scene), { has: null, th0: c.th });
-        if(typeof sfxThump === "function") sfxThump(0.15);
-      }
-      return;
-    case 'crew':
-      if(R.crew && R.crew.leave == null) meet(R.crew, () => hospSayCard({ who: "Joss, the Fleet's crew chief", btn: "Let's fly!", ok: lhCrewOk, at: lhCrewAt,
-        say: "Tipsey! The harbour master rang ahead. This is the transfer spot: out on the apron, clear of the hangar doors and everyone's heads. Here's the plan: you take Hangar 2's delivery drone, set her down right on top of Tipsey and she'll hook on. Lift him out to the light and set him down on the pad on the breakwater. Then he makes the delivery. Keep her steady!" }));
+      if(armed(LH_RUN.pickup)){ ow.vel = 0; lhLoan(scene); }
       return;
     case 'out':
       if(ow.fly && ow.fly.ph === 'air'){
@@ -135064,7 +135042,7 @@ function harborSurface(x, y){
    reach out, so he stops with his wheels on the planks. */
 /* THE BREAKWATER IS CLOSED (THE LIGHTHOUSE RUN: the light is out on an island till the run is done -- storm damage): a barrier across the
    jetty's walk where it leaves the plaza stops him; the drone sets him down on the far side of it */
-function lhJettyClosed(){ return FLEET_BAYS_BUILT && !lhDone() && !(typeof LH !== 'undefined' && LH.stage === 'keeper'); }
+function lhJettyClosed(){ return !lhDone() && !(typeof LH !== 'undefined' && LH.stage === 'keeper'); }
 function lhBarrier(){
   if(lhBarrier.c) return lhBarrier.c;
   const J = harborGeo().jetty.north, bx = J.x1 - 300;
