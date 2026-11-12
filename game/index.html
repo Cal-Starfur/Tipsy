@@ -145344,15 +145344,27 @@ const GO_SPOTS = {
   const tick = () => {
     const s = typeof game !== 'undefined' && game.scene && game.scene.getScene('world');
     if(!(s && s.route && s.ow)){ if(Date.now() - t0 < 60000) setTimeout(tick, 250); return; }
-    /* the garage opens a beat after boot: let it, then shut it and go */
-    setTimeout(() => {
-      try { window.garageClose(); } catch(e){}
-      owStandUpAt(s, x, y, yaw);
-      if(v) zoomSet(+v);
-      /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), the lamp fetched, Tipsey on the transfer spot: the
-         drone comes in to him (go=-3850,-13400,-1.57) */
-      if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; } catch(e){} LH.stage = 'drive'; setTimeout(() => { try { if(LH.stage === 'drive') lhLoan(s); } catch(e){} }, 900); }   // (straight into the drone, not waiting for the mat to arm: a vehicle picked in the garage or a slow boot left him standing there)
-    }, 1500);
+    /* the garage opens a beat after boot: let it, then shut it and go -- and CHECK he stayed: a slow device, a saved game's own restore or the
+       garage's roll-out can put him back at the charging station after the first jump (the lh=pickup link then loaned the drone there), so the
+       jump is repeated every 0.6 s, up to 40 s, until he has stood at the spot for three looks running */
+    let held = 0, tries = 0;
+    const go = () => {
+      try {
+        if(s.state === 'play' && s.ow){
+          if(window.garageClose && document.body.classList.contains('tpGarage')) try { window.garageClose(); } catch(e){}
+          if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; owStandUpAt(s, x, y, yaw); if(v) zoomSet(+v); }
+          else held++;
+        }
+      } catch(e){}
+      if(held >= 3){
+        /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), Tipsey on the transfer spot (go=-3850,-13400,-1.57), and the
+           drone comes in to him: straight into it, not waiting for the mat to arm */
+        if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; LH.stage = 'drive'; lhLoan(s); } catch(e){} }
+        return;
+      }
+      if(++tries < 66) setTimeout(go, 600);
+    };
+    setTimeout(go, 1500);
   };
   tick();
 })();
