@@ -83592,14 +83592,15 @@ function lhGotLamp(){
 }
 /* THE LOAN: Tipsey stays on the transfer spot, parked still (cached); the Fleet's delivery drone is his for the run, coming in over the
    water to him -- and he is in it, in the air, the player's to fly */
-/* where the Fleet's drone stands on its pad for the garage: clear plaza, some way off the transfer spot, facing it */
+/* where the Fleet's drone stands for the garage: on the airfield's concrete apron before the terminal at Sun Deck Airfield (the Fleet's own hangar
+   apron is off with the depots, FLEET_BAYS_BUILT), facing out toward Tipsey, waiting across the city (Sir, 2026-11-12: "it should be like when we
+   select play for tipsy and the drone is in his garage at the air field") */
 function lhGaragePad(scene, park){
-  const pl = harborGeo().plaza, R0 = OW_D.botR;
-  for(const r of [900, 760, 1040, 620]) for(const da of [0, 0.5, -0.5, 1, -1, 1.5, -1.5, 2.2, -2.2, 3]){
-    const a = Math.PI*0.75 + da, x = park.x + Math.cos(a)*r, y = park.y + Math.sin(a)*r;
-    if(x > pl.x0 + 300 && x < pl.x1 - 300 && y > pl.y0 + 400 && y < pl.y1 - 400 && owSpotClear(scene, x, y, R0*2.2)) return { x, y, yaw: Math.atan2(park.y - y, park.x - x) };
+  const A = AIR.apron;
+  for(const [x, y] of [[25000, 20800], [25300, 20820], [24400, 20820], [25700, 20820]]){
+    if(x > A[0] && x < A[1] && y > A[2] && y < A[3] && (!scene || owSpotClear(scene, x, y, OW_D.botR*2.4))) return { x, y, yaw: Math.atan2(park.y - y, park.x - x) };
   }
-  return { x: park.x + 700, y: park.y - 300, yaw: Math.atan2(300, -700) };
+  return { x: 25000, y: 20800, yaw: Math.atan2(park.y - 20800, park.x - 25000) };
 }
 function lhLoan(scene){
   const ow = scene.ow, R = LH;
