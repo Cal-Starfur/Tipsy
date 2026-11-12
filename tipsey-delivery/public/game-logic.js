@@ -75452,6 +75452,35 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       const l = Math.hypot(na, nb) || 1, o = P(ma, mb, Hd/2), q = P(ma + na/l, mb + nb/l, Hd/2);
       return q.y > o.y; };
     const mix = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t];
+    /* THE SKIFF'S OUTBOARD, hung aft of the transom: with the bow toward the eye the stern is the far end, and the motor behind the
+       hull is drawn before it (the hull's deck and rail then cover its foot); with the stern near, after the hull as before. The tiller
+       and the fuel hose, forward of the transom, are always drawn after. */
+    const skiffMotor = () => {
+      const lz = Hd - 40;                                                                                  // the gearcase: well below the keel, trailered or afloat
+      const AR = -L/2, DKM = '#2c3338', WH = ['#eef1f3', '#cdd3d8', '#aab1b7'];
+      box(AR - 4, AR + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                      // the transom clamp
+      box(AR - 9, AR - 3, -8, 8, Hd + 6, Hd + 20, '#7d858c', '#697076', '#585f65');                       // the swivel bracket
+      for(const sb of [-1, 1]) ball(AR - 5, sb*14.5, Hd + 9, 2.4, DKM);                                    // the clamp screw knobs
+      box(AR - 22, AR - 12, -1.6, 1.6, lz - 9, lz - 3, '#9aa1a6', '#7d858b', '#697076');                   // the skeg under the gearcase
+      tube(AR - 26, 0, lz, AR - 8, 0, lz, 6.5, '#dfe4e7');                                                 // the gearcase torpedo...
+      ball(AR - 26, 0, lz, 6.5, '#dfe4e7');                                                                // ...rounded aft
+      box(AR - 30, AR - 8, -8.5, 8.5, lz + 5.5, lz + 8, '#9aa1a6', '#7d858b', '#697076');                  // the cavitation plate over it
+      box(AR - 21, AR - 7, -4.5, 4.5, lz + 8, Hd - 12, '#cfd5d9', '#aeb5ba', '#92999f');                   // the long leg's lower shaft, narrow...
+      box(AR - 24, AR - 5, -7, 7, Hd - 12, Hd + 8, '#dfe4e7', '#bcc3c8', '#9ea6ac');                       // ...and the driveshaft housing over it
+      tube(AR - 32, 0, lz, AR - 26, 0, lz, 2.6, '#8f979e');                                                // the prop hub
+      for(let i = 0; i < 3; i++){                                                                          // the prop: three blades in the b-z plane
+        const t = Math.PI/2 + i*Math.PI*2/3, cb = Math.cos(t), cz = Math.sin(t), ab = -cz, az = cb;
+        const Pp = (r, w) => P(AR - 31.5, cb*r + ab*w, lz + cz*r + az*w);
+        poly([Pp(2, -2.2), Pp(13, -4.6), Pp(14.5, 0.6), Pp(2, 2.2)], i === 0 ? '#c9cfd4' : i === 1 ? '#b3bac0' : '#9ea5ab');
+      }
+      box(AR - 28, AR + 2, -13, 13, Hd + 8, Hd + 30, WH[0], WH[1], WH[2]);                                 // the lower cowl, on the leg
+      boxSides(AR - 28.6, AR + 2.6, -13.6, 13.6, Hd + 17, Hd + 21.5, TRIM, shade(TRIM, .85));              // its stripe: seen faces only
+      box(AR - 25, AR - 1, -10.5, 10.5, Hd + 30, Hd + 39, WH[0], WH[1], WH[2]);                           // the upper cowl, a step in
+      box(AR - 23, AR - 3, -8.5, 8.5, Hd + 39, Hd + 42.5, DKM, '#22282c', '#1a1f22');                      // its cap
+      if(!bowSeen) for(let z = Hd + 33; z < Hd + 38; z += 2.4) S(AR - 25.3, -7, 7, z, z + 1.1, DKM);      // the air-intake grille on the aft face
+      F(AR - 22, AR - 10, Hd + 9.5, Hd + 15, DKM, null, 0, nearB*13.4);                                    // a badge on the flank
+    };
+    if(kind === 'skiff' && bowSeen) skiffMotor();
     for(let i = 0; i < 5; i++){
       const j = (i + 1) % 5;
       if(!seen(top[i], top[j])) continue;
@@ -75692,32 +75721,11 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
          another piece standing on it is never drawn over it, the stripe is strips on the seen faces (a box's top laid
          across the cowl showed as a plate through it), and what is nearer the eye (the prop, aft) goes after the leg
          it hangs in front of. Forward things (tiller, hose) first: they are behind the cowl. */
-      const lz = Hd - 40;                                                                                  // the gearcase: well below the keel, trailered or afloat
-      const AR = -L/2, DKM = '#2c3338', WH = ['#eef1f3', '#cdd3d8', '#aab1b7'];
+      const AR = -L/2;
       tube(-L*0.4 + 13, -hb*0.5 + 8, Hd - 8, AR + 2, -6, Hd + 14, 0.9, '#22282c');                         // the fuel hose, tank to cowl
       tube(AR + 2, 0, Hd + 24, AR + 30, 0, Hd + 29, 1.5, '#3b3f45');                                       // the tiller...
       tube(AR + 30, 0, Hd + 29, AR + 36, 0, Hd + 30, 2.3, '#c8423a');                                      // ...and its grip
-      box(AR - 4, AR + 4, -12, 12, Hd + 4, Hd + 14, '#8d949b', '#6f767d', '#5b6269');                      // the transom clamp
-      box(AR - 9, AR - 3, -8, 8, Hd + 6, Hd + 20, '#7d858c', '#697076', '#585f65');                       // the swivel bracket
-      for(const sb of [-1, 1]) ball(AR - 5, sb*14.5, Hd + 9, 2.4, DKM);                                    // the clamp screw knobs
-      box(AR - 22, AR - 12, -1.6, 1.6, lz - 9, lz - 3, '#9aa1a6', '#7d858b', '#697076');                   // the skeg under the gearcase
-      tube(AR - 26, 0, lz, AR - 8, 0, lz, 6.5, '#dfe4e7');                                                 // the gearcase torpedo...
-      ball(AR - 26, 0, lz, 6.5, '#dfe4e7');                                                                // ...rounded aft
-      box(AR - 30, AR - 8, -8.5, 8.5, lz + 5.5, lz + 8, '#9aa1a6', '#7d858b', '#697076');                  // the cavitation plate over it
-      box(AR - 21, AR - 7, -4.5, 4.5, lz + 8, Hd - 12, '#cfd5d9', '#aeb5ba', '#92999f');                   // the long leg's lower shaft, narrow...
-      box(AR - 24, AR - 5, -7, 7, Hd - 12, Hd + 8, '#dfe4e7', '#bcc3c8', '#9ea6ac');                       // ...and the driveshaft housing over it
-      tube(AR - 32, 0, lz, AR - 26, 0, lz, 2.6, '#8f979e');                                                // the prop hub
-      for(let i = 0; i < 3; i++){                                                                          // the prop: three blades in the b-z plane
-        const t = Math.PI/2 + i*Math.PI*2/3, cb = Math.cos(t), cz = Math.sin(t), ab = -cz, az = cb;
-        const Pp = (r, w) => P(AR - 31.5, cb*r + ab*w, lz + cz*r + az*w);
-        poly([Pp(2, -2.2), Pp(13, -4.6), Pp(14.5, 0.6), Pp(2, 2.2)], i === 0 ? '#c9cfd4' : i === 1 ? '#b3bac0' : '#9ea5ab');
-      }
-      box(AR - 28, AR + 2, -13, 13, Hd + 8, Hd + 30, WH[0], WH[1], WH[2]);                                 // the lower cowl, on the leg
-      boxSides(AR - 28.6, AR + 2.6, -13.6, 13.6, Hd + 17, Hd + 21.5, TRIM, shade(TRIM, .85));              // its stripe: seen faces only
-      box(AR - 25, AR - 1, -10.5, 10.5, Hd + 30, Hd + 39, WH[0], WH[1], WH[2]);                           // the upper cowl, a step in
-      box(AR - 23, AR - 3, -8.5, 8.5, Hd + 39, Hd + 42.5, DKM, '#22282c', '#1a1f22');                      // its cap
-      if(!bowSeen) for(let z = Hd + 33; z < Hd + 38; z += 2.4) S(AR - 25.3, -7, 7, z, z + 1.1, DKM);      // the air-intake grille on the aft face
-      F(AR - 22, AR - 10, Hd + 9.5, Hd + 15, DKM, null, 0, nearB*13.4);                                    // a badge on the flank
+      if(!bowSeen) skiffMotor();
       return;
     }
     if(kind === 'sail'){
