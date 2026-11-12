@@ -85119,9 +85119,11 @@ function lhHook(scene){
 function lhDrop(scene){
   const R = LH, ow = scene.ow, back = R.leg === 'back', T = back ? LH_RUN.pickup : lhLightSpots().bay, yawN = R.carry ? lhCarryYaw(scene) : ow.yaw;
   R.drone = { x: ow.px, y: ow.py, yaw: ow.yaw, t0: scene.time.now };
+  R.carryOff = R.carry ? lhCarryOff(scene) : null;
   R.carry = null;
   FLEET_LOAN = null;
-  const items = scene.items; owStandUpAt(scene, ow.px, ow.py, yawN); scene.items = items || [];       // (where the drone set him down, as he lay: no step from the hook to the ground)
+  const off = R.carryOff || { x: 0, y: 0 };
+  const items = scene.items; owStandUpAt(scene, ow.px + off.x, ow.py + off.y, yawN); scene.items = items || [];       // (where the drone set him down, as he lay: no step from the hook to the ground)
   lhLoanDoor(scene);
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(back){ R.stage = 'idle'; R.leg = null; return; }                         // (home: the run is over)
@@ -85158,6 +85160,9 @@ function lhHandLamp(){
 /* Tipsey carried NESTED under the drone (x, y, z its own), as it lies when it has landed on him: its body over his lid, its skids at his
    wheels, no grabber and no hang. He stays where he was parked till the drone lifts and slides in under it as it rises (the first
    60 up), then rides with it, swinging round to its heading over 1.4 s from however he lay. Drawn before the drone */
+/* where he lies under the drone, from its own spot: the drone's body stands 28 behind its middle (its nose way), so he nests 28 back of it to
+   line up under its body and skids */
+function lhCarryOff(scene){ const y = scene.ow.yaw; return { x: -28*Math.cos(y), y: -28*Math.sin(y) }; }
 function lhCarryYaw(scene){
   const C = LH.carry, u = Math.max(0, Math.min(1, (scene.time.now - C.t0)/1400)), e = u*u*(3 - 2*u);
   return scene.ow.yaw + C.rel*(1 - e);
@@ -85169,7 +85174,8 @@ function lhDrawSlung(scene, g, x, y, z, now, part){
   const gz = C.hung ? flyTerrainZ(scene, x, y) : C.gz, h = Math.max(0, z - gz);
   if(h >= 60) C.hung = true;                                         // (once it is up he rides with it for good: down again over the target, he is at the drone's own spot)
   const k0 = Math.min(1, h/60), k = C.hung ? 1 : k0*k0*(3 - 2*k0);
-  scene.drawTipseyParked(g, C.px + (x - C.px)*k, C.py + (y - C.py)*k, a, Math.max(gz, z));
+  const o = lhCarryOff(scene), tx = x + o.x, ty = y + o.y;
+  scene.drawTipseyParked(g, C.px + (tx - C.px)*k, C.py + (ty - C.py)*k, a, Math.max(gz, z));
 }
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
