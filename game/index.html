@@ -145350,7 +145350,7 @@ const GO_SPOTS = {
       if(v) zoomSet(+v);
       /* &lh=pickup: THE LIGHTHOUSE RUN at its drone pickup -- the clock at 11 (shop hours), the lamp fetched, Tipsey on the transfer spot: the
          drone comes in to him (go=-3850,-13400,-1.57) */
-      if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; } catch(e){} LH.stage = 'drive'; }
+      if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; } catch(e){} LH.stage = 'drive'; setTimeout(() => { try { if(LH.stage === 'drive') lhLoan(s); } catch(e){} }, 900); }   // (straight into the drone, not waiting for the mat to arm: a vehicle picked in the garage or a slow boot left him standing there)
     }, 1500);
   };
   tick();
