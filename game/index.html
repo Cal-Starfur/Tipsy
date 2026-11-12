@@ -101871,7 +101871,9 @@ class WorldScene extends Phaser.Scene {
     }
     /* the paving's joints: a 4-tile square grid, near the camera */
     g.lineStyle(2, PAVEJ, 0.6);
-    for(const r of [hg.apron, hg.plaza]){
+    /* (...and the paving before the house's front, between its walls and the plaza's edge: the same stone, the same joints -- it was a flat plate, "blank grey") */
+    const fore = hg.house.map(r => ({ x0: r.x0 - (r.x0 <= hg.bldg.x0 ? 120 : 0), x1: r.x1 + (r.x1 >= hg.bldg.x1 ? 120 : 0), y0: Math.max(r.y0, hg.plaza.y0 - 400), y1: hg.plaza.y0 }));
+    for(const r of [hg.apron, hg.plaza, ...fore]){
       if(!near(Math.max(r.x0, Math.min(r.x1, this.camX)), Math.max(r.y0, Math.min(r.y1, this.camY)))) continue;
       const S2 = T2*2;
       const xa = Math.max(r.x0, this.camX - B*3), xb = Math.min(r.x1, this.camX + B*3);
