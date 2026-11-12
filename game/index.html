@@ -116405,6 +116405,9 @@ class WorldScene extends Phaser.Scene {
       const H = C.H, aRk = h => hl - (h - 110)/(H - 110)*16;
       parts.push({ d: V.depth(aBk + 64, 0, 80), draw: () => {
         const prof = [[aBk, cz + 4], [hl, cz + 4], [hl, 110], [hl - 16, H], [aBk, H]];
+        /* (the FAR side's mirror and step first, the cab over them: drawn after it they painted through its glass -- Sir, 2026-11-12, the garbage truck) */
+        mirror(hl - 24, -nearB, 116, 154);
+        solid(prismH([[aBk + 64, -nearB*(hw - 2)], [aBk + 108, -nearB*(hw - 2)], [aBk + 108, -nearB*(hw + 5)], [aBk + 64, -nearB*(hw + 5)]], cz + 2, cz + 7), CHROME);
         solid(prismB(prof, -hw, hw), col.body, (i, n) => i === 4 ? 0x3b4d5a : (n[2] > 0.5 ? shadeC(col.body, 0.94) : col.body));   // face 4: the raked screen
         /* its side windows and door, a band along its foot */
         Q([P(aBk + 12, fb, 106), P(aBk + 56, fb, 106), P(aBk + 56, fb, H - 12), P(aBk + 12, fb, H - 12)], CARC.glass);
@@ -116415,8 +116418,8 @@ class WorldScene extends Phaser.Scene {
         quad(aBk + 44, aBk + 54, 98, 101, fb*1.004, CHROME);
         quad(aRk(98) - 20, aRk(98) - 10, 98, 101, fb*1.004, CHROME);
         Q([P(aBk + 16, fb*1.004, 116), P(aBk + 22, fb*1.004, 116), P(aBk + 32, fb*1.004, H - 16), P(aBk + 26, fb*1.004, H - 16)], 0x5c6874);
-        for(const sb of [-1, 1]) solid(prismH([[aBk + 64, sb*(hw - 2)], [aBk + 108, sb*(hw - 2)], [aBk + 108, sb*(hw + 5)], [aBk + 64, sb*(hw + 5)]], cz + 2, cz + 7), CHROME);
-        for(const sb of [-nearB, nearB]) mirror(hl - 24, sb, 116, 154);
+        solid(prismH([[aBk + 64, nearB*(hw - 2)], [aBk + 108, nearB*(hw - 2)], [aBk + 108, nearB*(hw + 5)], [aBk + 64, nearB*(hw + 5)]], cz + 2, cz + 7), CHROME);
+        mirror(hl - 24, nearB, 116, 154);
         if(nose){
           const a = hl + 0.6;
           endQ(a, -hw*0.62, hw*0.62, cz + 20, cz + 64, CHROME);
