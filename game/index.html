@@ -78873,7 +78873,13 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       return;
     }
     if(part === 'room'){
-      T(0, W, 0, D, 0.4, SP.floor);
+      /* THE ROOM THE GARAGE SHOWS (showroomPaint: Sir, 2026-11-12, "the interior drawing of the garage doesn't match the interior as seen when the doors
+         are open"): the same dark steel floor with its joints, navy walls, shelves of boxes and spare wheels round the far corner, the
+         white charger and the red tool chest -- what the garage paints behind the vehicle is what stands behind the doors */
+      const SHW = { floor: '#5a6672', joint: '#4d5864', wall: '#263a4c', wallS: '#203242', top: '#1b2836', plank: '#8b6545', box: '#c9a26e', tyre: '#24272c', hub: '#9aa3ab', chest: '#c8352e' };
+      T(0, W, 0, D, 0.4, SHW.floor);
+      for(let a = 240; a < W; a += 240) T(a - 1, a + 1, 0, D, 0.5, SHW.joint);
+      for(let b = 240; b < D; b += 240) T(0, W, b - 1, b + 1, 0.5, SHW.joint);
       /* the lanes: a yellow box round each pad, a stop bar at its nose, the
          lines between lanes; a hangar's pad its circle and H; the
          boathouse's slips their rails and the cradle the hull sits on */
@@ -78900,7 +78906,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
         for(let b = -SP.slip + 30; b < 0; b += 60) T(0, W, b, b + 4, 1.2, '#8f897d');
       }
       /* the far walls from inside: the side (a 0) and the back (b D) */
-      S(Tk, 0, D - Tk, 0, H, wallIn);
+      S(Tk, 0, D - Tk, 0, H, SHW.wallS);
       T(0, Tk, 0, D, H, top);
       if(SP.through){
         /* a drive-through's back wall: its own doors, seen from inside */
@@ -78913,13 +78919,36 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
           for(const [j0, j1] of [[L.oa0 - 8, L.oa0], [L.oa1, L.oa1 + 8]]) for(let z = 0; z < DH; z += 30) F(j0, j1, z, Math.min(DH, z + 15), (z/30) % 2 ? blk : yel, null, 0, D - Tk - 0.4);
         }
       } else {
-        F(0, W, 0, H, shade(wallIn, 0.94), null, 0, D - Tk);
+        F(0, W, 0, H, SHW.wall, null, 0, D - Tk);
         /* each lane's charger and its light, on the back wall */
         for(const L of Hh.lanes) if(Hh.kit !== 'boathouse'){
           box(L.am - 26, L.am + 26, D - Tk - 26, D - Tk, 0, 118, '#e9ecef', '#d4d9dd', '#bcc2c7');
           F(L.am - 16, L.am + 16, 70, 100, '#2c3a44', null, 0, D - Tk - 26.4);
           F(L.am - 10, L.am + 10, 84, 90, trim, null, 0, D - Tk - 26.8);
         }
+      }
+      /* shelves round the far corner: three planks a wall, boxes and spare wheels on them (seeded off the hall, so they never change) */
+      if(Hh.kit !== 'boathouse'){
+        let sd = 0; for(const ch of Hh.id) sd = (sd*31 + ch.charCodeAt(0)) >>> 0;
+        const rnd = () => { sd = (sd*1664525 + 1013904223) >>> 0; return sd/4294967296; };
+        const runB = Math.min(520, D*0.45), runA = Math.min(300, W*0.4, (Hh.lanes[0].am - 70 - Tk)), dd = 26;
+        const bx = (a0, a1, b0, b1, z0, z1, c) => box(a0, a1, b0, b1, z0, z1, c, shade(c, 0.86), shade(c, 0.74));
+        for(const z of [80, 150, 220]){
+          bx(Tk, Tk + dd, D - Tk - runB, D - Tk, z - 6, z, SHW.plank);                 // the side wall's plank
+          if(runA > 40) bx(Tk, Tk + runA, D - Tk - dd, D - Tk, z - 6, z, SHW.plank);    // the back wall's
+          for(const side of [0, 1]){
+            let u = 10; const run = side ? runA : runB;
+            while(u < run - 40){
+              const w = 22 + rnd()*26, h = 14 + rnd()*22, d = 14 + rnd()*10;
+              if(z === 80 && rnd() < 0.35){ const r = 17; if(side) { cyl(Tk + dd + u + r, D - Tk - 4 - r, z, z + 14, r, SHW.tyre); cyl(Tk + dd + u + r, D - Tk - 4 - r, z + 14, z + 14.6, r*0.45, SHW.hub); } else { cyl(Tk + 4 + r, D - Tk - dd - u - r, z, z + 14, r, SHW.tyre); cyl(Tk + 4 + r, D - Tk - dd - u - r, z + 14, z + 14.6, r*0.45, SHW.hub); } u += 2*r + 10; continue; }
+              if(rnd() < 0.2){ u += w; continue; }
+              if(side) bx(Tk + dd + u, Tk + dd + u + w, D - Tk - 3 - d, D - Tk - 3, z, z + h, SHW.box);
+              else bx(Tk + 3, Tk + 3 + d, D - Tk - dd - u - w, D - Tk - dd - u, z, z + h, SHW.box);
+              u += w + 4 + rnd()*8;
+            }
+          }
+        }
+        if(Hh.kit !== 'through' && !SP.through){ const L0 = Hh.lanes[0]; bx(L0.am + 60, L0.am + 150, D - Tk - 40, D - Tk, 0, 80, SHW.chest); }        // the red tool chest beside the first charger
       }
       T(0, W, D - Tk, D, H, top);
       /* a band of the hall's colour round the inside, and its lamps */
