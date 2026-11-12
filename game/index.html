@@ -77195,24 +77195,27 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       F(AR - 22, AR - 10, Hd + 9.5, Hd + 15, DKM, null, 0, nearB*13.4);                                    // a badge on the flank
     };
     if(kind === 'skiff' && bowSeen) skiffMotor();
-    for(let i = 0; i < 5; i++){
-      const j = (i + 1) % 5;
-      if(!seen(top[i], top[j])) continue;
-      const lit = (top[j][0] - top[i][0]) + (top[j][1] - top[i][1]) > 0 ? 1.0 : 0.86;
-      const Pq = (q, z) => P(q[0], q[1], z);
-      poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
-      /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
-      const z12 = 12/Hd;
-      poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], !afloat ? '#7d2f2a' : dark ? '#e8e2d4' : TRIM);   // (the boot stripe; a trailered hull shows its red bottom paint)
-      poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
-      poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
-      /* portholes down the long flank of a cabin boat */
-      if((kind === 'motor' || kind === 'yacht' || kind === 'trawler' || kind === 'tug' || kind === 'ferry') && (i === 0 || i === 3)){
-        const b = (i === 0 ? -1 : 1)*(hb*0.93 + 0.5), zc = Hd*0.62;   // the flank slopes in: 0.93 of the beam at this height
-        for(let a = -L*0.3; a < sh - 30; a += kind === 'yacht' ? 34 : 44)
-          poly([P(a - 6, b, zc), P(a, b, zc + 5), P(a + 6, b, zc), P(a, b, zc - 5)], dark ? '#e8e2d4' : GLASS);
+    const hullFaces = () => {
+      for(let i = 0; i < 5; i++){
+        const j = (i + 1) % 5;
+        if(!seen(top[i], top[j])) continue;
+        const lit = (top[j][0] - top[i][0]) + (top[j][1] - top[i][1]) > 0 ? 1.0 : 0.86;
+        const Pq = (q, z) => P(q[0], q[1], z);
+        poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(bot[j], 0), Pq(bot[i], 0)], shade(HULL, lit));
+        /* the boot stripe at the waterline, a pinstripe above it, the rubbing strake at the deck */
+        const z12 = 12/Hd;
+        poly([Pq(mix(bot[i], top[i], z12), 12), Pq(mix(bot[j], top[j], z12), 12), Pq(bot[j], 0), Pq(bot[i], 0)], !afloat ? '#7d2f2a' : dark ? '#e8e2d4' : TRIM);   // (the boot stripe; a trailered hull shows its red bottom paint)
+        poly([Pq(mix(bot[i], top[i], 16/Hd), 16), Pq(mix(bot[j], top[j], 16/Hd), 16), Pq(mix(bot[j], top[j], 18/Hd), 18), Pq(mix(bot[i], top[i], 18/Hd), 18)], dark ? '#e8e2d4' : shade(TRIM, 1.2));
+        poly([Pq(top[i], zt(top[i])), Pq(top[j], zt(top[j])), Pq(mix(top[j], bot[j], 7/Hd), zt(top[j]) - 7), Pq(mix(top[i], bot[i], 7/Hd), zt(top[i]) - 7)], dark ? '#e8e2d4' : shade(TRIM, 1.1));
+        /* portholes down the long flank of a cabin boat */
+        if((kind === 'motor' || kind === 'yacht' || kind === 'trawler' || kind === 'tug' || kind === 'ferry') && (i === 0 || i === 3)){
+          const b = (i === 0 ? -1 : 1)*(hb*0.93 + 0.5), zc = Hd*0.62;   // the flank slopes in: 0.93 of the beam at this height
+          for(let a = -L*0.3; a < sh - 30; a += kind === 'yacht' ? 34 : 44)
+            poly([P(a - 6, b, zc), P(a, b, zc + 5), P(a + 6, b, zc), P(a, b, zc - 5)], dark ? '#e8e2d4' : GLASS);
+        }
       }
-    }
+    };
+    hullFaces();
     /* THE BOW NUMBERS (2026-10-11): a registration on the seen flank,
        forward, in blocks -- a boat's hull number, read at a glance */
     { const bb = nearB*(hb*0.93 + 0.8), z0 = Hd*0.6, z1 = Hd*0.6 + 8, n = 6, pitch = 9, a0 = sh - 24 - n*pitch;
@@ -77426,6 +77429,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       box(-20, 20, -hb*0.75, hb*0.75, Hd - 14, Hd - 2, TEAK, '#a8865a', '#8e7048');  // the thwart
       box(-L*0.4, -L*0.4 + 26, -hb*0.5, -hb*0.5 + 16, Hd - 14, Hd - 2, '#c8423a', '#a8352e', '#8f2d27');   // the fuel tank
       box(L/2 - 40, L/2 - 30, -4, 4, Hd, Hd + 4, '#d8dde2', '#aab2ba', '#959ea7');  // the bow cleat
+      hullFaces();                                                                    // the hull's flanks again over the well, thwart and tank: the well sits below the deck line and its edge ran down over the near flank
       /* THE OUTBOARD, PASSED (Sir, 2026-11-09: "they suck"): a white cowl with a coloured stripe and a dark cap on the
          transom bracket, a leg with a cavitation plate and a prop, tilted up when the boat is on its trailer */
       /* THE OUTBOARD, SECOND PASS (Sir, 2026-11-11: "do a pass on that motor"): a transom clamp with its screw knobs and a
