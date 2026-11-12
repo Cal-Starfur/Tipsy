@@ -83395,7 +83395,7 @@ function lhLoan(scene){
 function lhHook(scene){
   const R = LH, P = R.park;
   if(!P) return;
-  R.carry = { a: P.a }; R.park = null; R.landed = false;
+  R.carry = { a: P.a, rel: owWrapAngle(P.a - scene.ow.yaw), t0: scene.time.now }; R.park = null; R.landed = false;      // (rel: how he lay to the drone as it came down on him: he swings round to its heading, no pop)
   R.stage = 'fly'; R.flyT0 = scene.time.now;
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast(R.leg === 'back' ? "Hooked on! Lift off and carry Tipsey home: set him down on the pickup spot on the plaza." : "Hooked on! Lift off and carry Tipsey out to the island: set him down on the pad by the light.");
@@ -83441,17 +83441,22 @@ function lhHandLamp(){
   collectCard(['brasskey'], "The Lighthouse Run: done! $50 from the harbour office, and Ines's brass key to the light. The delivery drone is yours to fly: it's in its hangar at Sun Deck Airfield. No road leaves the island: the drone's coming back for Tipsey.");
   R.leg = 'back'; lhLoan(scene);                                           // (the way home: the same hook, lift and set-down)
 }
-/* Tipsey slung under the drone (x, y, z its own): hanging a little below its skids, swaying, the lamp aboard; the cables up to
-   its belly (part: 'tipsey' drawn before the drone, 'cables' after) */
+/* Tipsey carried under the drone (x, y, z its own): held on one rigid shaft from its belly to a grab plate clamped on his lid, hanging
+   still under it (no ropes, no sway); he lay as the drone found him and swings round to its heading over 1.4 s, then turns with it.
+   part 'tipsey': him, his plate and the shaft (drawn before the drone, which covers the shaft's head); 'cables': nothing now */
 function lhDrawSlung(scene, g, x, y, z, now, part){
-  const sw = Math.sin(now/700)*5, bx = x + sw, by = y + Math.cos(now/900)*3, bz = z - 118;
-  if(part === 'cables'){
-    const top = scene.W(x, y, z + 40), K = scene.K;
-    g.lineStyle(Math.max(1, 1.6*K), 0x1d1f23, 1);
-    for(const [u, v] of [[-22, -16], [22, -16], [-22, 16], [22, 16]]){ const p = scene.W(bx + u, by + v, bz + 56); g.lineBetween(top.x, top.y, p.x, p.y); }
-    return;
-  }
-  scene.drawTipseyParked(g, bx, by, LH.carry.a, bz);
+  if(part !== 'tipsey' || !LH.carry) return;
+  const C = LH.carry, u = Math.max(0, Math.min(1, (scene.time.now - C.t0)/1400)), e = u*u*(3 - 2*u);
+  const a = scene.ow.yaw + C.rel*(1 - e), bz = z - 84, W = (px, py, pz) => scene.W(px, py, pz), Q = (pts, col) => scene.quadOn(g, pts, col);
+  scene.drawTipseyParked(g, x, y, a, bz);
+  /* the grab plate on his lid, and the shaft up to the drone's belly */
+  const th = bz + 57, ph = th + 4, hw = 20, hd = 15;
+  Q([W(x - hw, y + hd, ph), W(x + hw, y + hd, ph), W(x + hw, y + hd, th), W(x - hw, y + hd, th)], 0x4a525b);
+  Q([W(x + hw, y - hd, ph), W(x + hw, y + hd, ph), W(x + hw, y + hd, th), W(x + hw, y - hd, th)], 0x39414a);
+  Q([W(x - hw, y - hd, ph), W(x + hw, y - hd, ph), W(x + hw, y + hd, ph), W(x - hw, y + hd, ph)], 0x6a737d);
+  const top = W(x, y, z + 20), foot = W(x, y, ph);
+  g.lineStyle(Math.max(2, 5*scene.K), 0x39414a, 1); g.lineBetween(top.x, top.y, foot.x, foot.y);
+  g.lineStyle(Math.max(1, 2*scene.K), 0x6a737d, 1); g.lineBetween(top.x - 1, top.y, foot.x - 1, foot.y);
 }
 /* the loan ends: the drone in its lane, its door coming down, and he is Tipsey again where he parked */
 function lhLoanEnd(scene){
