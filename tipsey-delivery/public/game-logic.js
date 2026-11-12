@@ -75114,10 +75114,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const awning = () => {
       slab(WA0 + 40, WA1 - 40, WZ + 30, WZ + 110, HB + 10, HB + 2, '#f3efe6', '#dcd6c8', '#ffffff');
       word('CHANDLERY', (WA0 + WA1)/2, WZ + 100, 11, HB + 10.4, TRIM, null);
-      for(let a = PH_PLAN.AWN[0], k = 0; a < PH_PLAN.AWN[1]; a += 60, k++){
-        poly([P(a, HB, 200), P(a + 60, HB, 200), P(a + 60, HB + PH_PLAN.AWN_D, 166), P(a, HB + PH_PLAN.AWN_D, 166)], k % 2 ? '#f3efe6' : ROOF);
-        F(a, a + 60, 150, 166, k % 2 ? '#f3efe6' : ROOF, null, 0, HB + PH_PLAN.AWN_D);
-      }
+      /* (no striped awning over the shop's front: Sir, 2026-11-12; the name board stays on the parapet) */
     };
     if(this._part === 'awning'){ awning(); return; }
     /* (its two cached pieces, queueHarborHouse: the chandlery wing with its awning -- the walk-in's shell, faded off while he is
@@ -75168,14 +75165,17 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     F(WA0, WA1, 0, WZ, WALL, null, 0, HB);
     T(WA0, WA1, WB, HB, WZ, '#a9a59b');
     slab(WA0 - 10, WA1, WZ, WZ + 34, HB + 8, HB - 6, WALL, WALLS, '#e9e4d8');      // the parapet
-    for(const [a0, a1] of [[150, 380], [520, 750]]){                                // the shop windows
-      F(a0 - 8, a1 + 8, 20, 180, TRIM, null, 0, HB + 0.3);
-      F(a0, a1, 28, 172, GLASS, null, 0, HB + 0.6);
-      if(open) F(a0, a1, 28, 172, 'rgba(255,222,150,.34)', null, 0, HB + 0.65);       // the shop's lights on behind it
-      for(let a = a0 + 76; a < a1; a += 76) F(a - 2, a + 2, 28, 172, TRIM, null, 0, HB + 0.8);
-      /* the stock in the window: coils of rope, a lifebuoy, lanterns */
-      faceCircle((a0 + a1)/2, HB + 0.9, 112, 30, '#e8693c', '#c4512c', 2);
-      faceCircle((a0 + a1)/2, HB + 1.0, 112, 15, open ? 'rgba(236,214,160,.95)' : GLASS);
+    for(const [a0, a1] of [[150, 380], [520, 750]]){                                // the shop windows: the shop library's own (reveal + glaze, K3)
+      const b00 = BOFF; BOFF = b00 + HB;
+      try {
+        reveal(a0, a1, 28, 172, 6, TRIM);                                                // the opening, set back in the wall
+        /* the stock in the window, behind the glass: a lifebuoy */
+        faceCircle((a0 + a1)/2, -3, 112, 30, '#e8693c', '#c4512c', 2);
+        faceCircle((a0 + a1)/2, -3.4, 112, 15, open ? 'rgba(236,214,160,.95)' : 'rgba(54,76,92,.95)');
+        if(open) F(a0, a1, 28, 172, 'rgba(255,222,150,.26)', null, 0, -1.5);             // the shop's lights on behind it
+        glaze(a0, a1, 28, 172, TRIM, 'rgba(96,140,164,.40)');                            // goods behind it: the library's tint, .40
+        for(let a = a0 + 76; a < a1; a += 76) F(a - 2, a + 2, 28, 172, TRIM, null, 0, 0.6);   // its glazing bars
+      } finally { BOFF = b00; }
     }
     /* the sign hung in the east window, top corner: OPEN, or CLOSED */
     F(664, 744, 136, 162, open ? '#f6f3ea' : '#2b2f36', TRIM, 1, HB + 0.85);
@@ -99442,13 +99442,6 @@ class WorldScene extends Phaser.Scene {
       if(!m || !this.visProp('people', m.x, m.y)) continue;
       this.phPerson(m.x, m.y, (g, tt) => this.drawHarborPerson(g, m, m.look, tt || now));
     }
-    /* THE AWNING OVER WHOEVER IS UNDER IT (the house is one piece keyed at its middle: they go after it, and its
-       awning, in front of them, goes back over them -- its own cached piece) */
-    { const A0 = B.x0 + P.AWN[0] - 30, A1 = B.x0 + P.AWN[1] + 30, S = phSpots(), y0 = S.face - 60, y1 = S.face + P.AWN_D + 10;
-      const under = (q) => q && q.x > A0 && q.x < A1 && q.y > y0 && q.y < y1;
-      let any = sk > 0.5 && (PH_LIFE.walkers || []).some(w => under(phWalkerAt(w, now)));
-      if(any) vq.push({ depth: houseD + 0.5, fn: (g) => this.bcDraw(g, "hb|awning", B.x0, B.y1,
-        gg => { ent._part = 'awning'; try { LIB.draw('Pelican Harbor', gg, G, null, this.K, null, true); } finally { ent._part = null; } }) }); }
     /* the watch officer on the gallery, and the gallery's near rails over him */
     { const o = phOfficerAt(now);
       if(this.visProp('people', o.x, o.y, o.z)) vq.push({ depth: o.x + o.y, fn: (g, tt) => {
