@@ -52499,11 +52499,24 @@ function houseCanopy(fn){
        (south, east) OVER him, so it is his body that comes up out of the hole ---- */
     { const A0 = 96, A1 = 174, B0 = PT, B1 = 72, TH = 8, CH = 18, SD = 90;              // (curb outline, its wall thickness, its height, the shaft's depth)
       const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH;
-      const wall = (a0, a1, b0, b1, a, b, near) => rpush({ a, b, z: 0, hatchNear: !!near, solids: [solid(a0, a1, b0, b1, 22, 'roof hatch')], draw: () => { box(a0, a1, b0, b1, 0, CH - 1.5, '#9aa2a8', '#8a9298', '#6c737a'); box(a0 - 0.8, a1 + 0.8, b0 - 0.8, b1 + 0.8, CH - 1.5, CH, '#c3c9cd', '#a3abb1', '#7f878e'); } });   // (galvanized, its top capped)
-      wall(A0, A1, B0, B0 + TH, 135, B0 + TH/2);                      // north (far)
-      wall(A0, A0 + TH, B0 + TH, B1, A0 + TH/2, 40);                  // west (far)
-      wall(A1 - TH, A1, B0 + TH, B1, A1 - TH/2, 40, true);            // east (near)
-      wall(A0, A1, B1 - TH, B1, 135, B1 - TH/2, true);                // south (near)
+      /* ONE FRAME, NOT FOUR BOXES (Sir, 2026-11-13: "it's drawing over itself"): each wall paints only its own faces -- its strip of the
+         top (the far run takes the corners) and the side that shows: the near walls' outer faces, the far walls' inner ones, down to the
+         roof -- so nothing is painted twice and no seam shows. Still four pieces, for the order: the far two under him, the near two over */
+      const cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e', cIS = '#b0b7bc', cIE = '#8f979d';
+      const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
+      const wall = (a, b, near, solidR, draw) => rpush({ a, b, z: 0, hatchNear: !!near, solids: [solid(solidR[0], solidR[1], solidR[2], solidR[3], 22, 'roof hatch')], draw });
+      wall(135, B0 + TH/2, false, [A0, A1, B0, B0 + TH], () => {                                                   // north (far): the top's whole width, its inner face
+        q4([[A0, B0, CH], [A1, B0, CH], [A1, B0 + TH, CH], [A0, B0 + TH, CH]], cT);
+        q4([[inA0, inB0, CH], [inA1, inB0, CH], [inA1, inB0, 0], [inA0, inB0, 0]], cIS); });
+      wall(A0 + TH/2, 40, false, [A0, A0 + TH, B0 + TH, B1], () => {                                                // west (far): its strip, its inner face
+        q4([[A0, inB0, CH], [inA0, inB0, CH], [inA0, inB1, CH], [A0, inB1, CH]], cT);
+        q4([[inA0, inB0, CH], [inA0, inB1, CH], [inA0, inB1, 0], [inA0, inB0, 0]], cIE); });
+      wall(A1 - TH/2, 40, true, [A1 - TH, A1, B0 + TH, B1], () => {                                                 // east (near): its strip, its outer face the whole length
+        q4([[inA1, inB0, CH], [A1, inB0, CH], [A1, inB1, CH], [inA1, inB1, CH]], cT);
+        q4([[A1, B0, CH], [A1, B1, CH], [A1, B1, 0], [A1, B0, 0]], cE); });
+      wall(135, B1 - TH/2, true, [A0, A1, B1 - TH, B1], () => {                                                     // south (near): the top's whole width, its outer face
+        q4([[A0, inB1, CH], [A1, inB1, CH], [A1, B1, CH], [A0, B1, CH]], cT);
+        q4([[A0, B1, CH], [A1, B1, CH], [A1, B1, 0], [A0, B1, 0]], cS); });
       /* the shaft: under the far walls' order, drawn clipped to the opening so its faces never spill onto the roof */
       rpush({ a: 135, b: 10, z: 0, solids: [], draw: () => {
         const q = [P(inA0, inB0, CH), P(inA1, inB0, CH), P(inA1, inB1, CH), P(inA0, inB1, CH)];
