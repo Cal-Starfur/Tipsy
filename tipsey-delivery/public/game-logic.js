@@ -87858,7 +87858,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
     if(!msLadOk() || mag < 0.3) return false;
     if(inShop && (MS.stage === 'shift' || MS.stage === 'parts')){
       const a = ow.px - BB_IN.x0, b = ow.py - BB_IN.y0;
-      if(a > 135 - MS_LAD.near && a < 135 + MS_LAD.near && b < 48 && up > 0.5){
+      if(a > 135 - MS_LAD.near && a < 135 + MS_LAD.near && b < 62 && up > 0.5){   // (62: his body stops him about 47 off the wall)
         MS.lad = { room: 'shop', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0;
         msWalkTo(scene, { x: BB_IN.x0 + 135, y: BB_IN.y0 + MS_LAD.FOOT }, -Math.PI/2, 260, () => { if(MS.lad) MS.lad.busy = false; }, [0, 0]);
         if(typeof sfxThump === "function") sfxThump(0.15);
@@ -87893,7 +87893,9 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
   L.z += up*MS_LAD.v*Math.min(dt, 40);
   if(L.room === 'shop'){
     if(L.z > 6) L.foot = true;
-    if(L.z <= 0){ L.z = 0; if(L.foot && up < -0.2){ MS.lad = null; MS.ladWait = true; ow.climbZ = 0; ow.climbing = false; ow.emerging = false; MS.hatchOpen = false; return true; } }   // (down at the foot: he lets go, and the hatch shuts behind him)
+    if(L.z <= 0){ L.z = 0; if(up < -0.2){ L.busy = true; ow.climbZ = 0; ow.climbing = false; ow.emerging = false;   // (down at the foot: he lets go and steps back off it, clear of its
+        msWalkTo(scene, { x: ow.px, y: BB_IN.y0 + 56 }, -Math.PI/2, 450, () => { MS.lad = null; MS.ladWait = true; MS.hatchOpen = false; }, null, false, 0);   //  solid -- left on its line he stood in it, stuck)
+        return true; } }
     if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
       sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
