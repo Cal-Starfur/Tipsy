@@ -87712,8 +87712,8 @@ function msWalkTick(scene, ow, now){
    there by two-link IK: a planted one stays on its rung while he rises past it (the standing leg straightening as it
    pushes, the pulling arm bending), a moving one leaves its rung and goes up two, pulled back off the ladder on the way,
    quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
-   a half-cycle, so they are glued to the rungs whatever the clock does. Near the top (f) the arms come down to the
-   hatch's edge as before. Returns drawHumanoid's data. */
+   a half-cycle, so they are glued to the rungs whatever the clock does. The hands climb till the ladder's top rungs (climbZ 80),
+   then (f) the arms come up to the hatch's edge. Returns drawHumanoid's data. */
 function msClimbPose(c){
   const D = 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
   const B = HUMANOID_BUILD, HIP = B.legH, SH = Math.max(5, B.legH*0.13), TL = (HIP - SH)*0.5, UL = B.armLen*0.48, FL = B.armLen*0.52 + 2.5;   // (FL: to the grip, inside the hand)
@@ -87731,7 +87731,7 @@ function msClimbPose(c){
   const leg = T => { const db = D - FB - 6*T.arc, dh = T.h + 1.5 + SH + 3*T.arc - HIP, d = Math.min(Math.hypot(db, dh), 2*TL - 0.3);
     const th = Math.atan2(db, -dh), al = Math.acos(c1(d/(2*TL))); return [th + al, 2*al]; };
   const hF = at(0, 6, 0.85), hN = at(1, 7, 0.85), fN = at(0, -1, 0.85), fF = at(1, 0, 0.85);
-  const aF = arm(hF), aN = arm(hN), f = Math.max(0, Math.min(1, (c/120 - 0.4)/0.3)), m = (v, to) => v*(1 - f) + to*f;
+  const aF = arm(hF), aN = arm(hN), f = Math.max(0, Math.min(1, (c - 80)/24)), m = (v, to) => v*(1 - f) + to*f;
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(), hover: HOV, waist: WAIST*(1 - f),
     lift: [m(aF[0], 0.9), m(aN[0], 0.9)], bend: [m(aF[1], 0.35), m(aN[1], 0.35)], armOut: [0.14*(1 - f), 0.14*(1 - f)],
     legs: [leg(fF), leg(fN)], legOut: [0.05 + 0.12*fF.arc, 0.05 + 0.12*fN.arc] };
