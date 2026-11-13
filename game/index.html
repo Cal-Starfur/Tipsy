@@ -89215,8 +89215,31 @@ function msGidAt(now){
 function msTipAt(now){
   const T = MS.tip; if(!T) return null;
   if(MS.tipOut){ const p = walkPathAt(T, now); return p ? { x: p.x, y: p.y, th: p.th, moving: !p.there } : null; }   // (leaving: out along his own way in, and stands on his bay)
+  if(T.follow){
+    /* FOLLOWING GIDEON IN (he has the player's hands now): Tipsey comes after him along the way he went, a pace behind -- never through him --
+       and stands facing him when he is close; at the door he takes the shop's own walk in (T.arr) */
+    const sc = scn(), ow = sc && sc.ow, pk = POCKETS.find(q => q.name === BB_IN.name);
+    if(ow && pk && now !== T.last){
+      const dt = Math.max(0, Math.min(60, now - T.last)); T.last = now;
+      const V = pk.view ? pk.view() : { dx: 0, dy: 0 }, ins = sc._inside === pk, g = { x: ow.px + (ins ? V.dx : 0), y: ow.py + (ins ? V.dy : 0) };
+      const tr = T.trail, e = tr[tr.length - 1];
+      if(!e || Math.hypot(g.x - e.x, g.y - e.y) > 12) tr.push(g);
+      if(tr.length > 400) tr.splice(0, tr.length - 400);
+      let acc = 0, tgt = tr[0] || g;
+      for(let k = tr.length - 1; k > 0; k--){ acc += Math.hypot(tr[k].x - tr[k - 1].x, tr[k].y - tr[k - 1].y); if(acc >= 120){ tgt = tr[k - 1]; break; } }
+      const P = T.pos, dG = Math.hypot(g.x - P.x, g.y - P.y), dT = Math.hypot(tgt.x - P.x, tgt.y - P.y);
+      if(dG > 130 && dT > 4){ const st = Math.min(dT, 0.11*dt), th = Math.atan2(tgt.y - P.y, tgt.x - P.x);
+        P.x += (tgt.x - P.x)/dT*st; P.y += (tgt.y - P.y)/dT*st; P.th = th; P.mv = true; }
+      else { P.mv = false; if(dG > 1){ const want = Math.atan2(g.y - P.y, g.x - P.x), d = Math.atan2(Math.sin(want - P.th), Math.cos(want - P.th)); P.th += d*Math.min(1, dt/260); } }
+      const D0 = T.S(BB_IN.DOOR.at, BB_IN.D + 30);
+      if(Math.hypot(P.x - D0.x, P.y - D0.y) < 90 || (ins && P.y < D0.y)){
+        T.follow = false; T.arr = { pts: [{ x: P.x, y: P.y }].concat(T.pts.slice(2)), t0: now, faceTh: 0, v: 0.11, th0: P.th };
+      }
+    }
+    if(T.follow) return { x: T.pos.x, y: T.pos.y, th: T.pos.th, moving: !!T.pos.mv };
+  }
   if(!MS.tipArr){
-    const p = walkPathAt(T, now);
+    const p = walkPathAt(T.arr || T, now);
     if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
     MS.tipArr = now;
   }
@@ -89291,13 +89314,9 @@ function msAccept(){
   MS.park = { x: ow.px, y: ow.py, a: ow.yaw };
   MS.gid = null; FLEET_LOAN = 'humanoid';
   const items = scene.items, cx = scene.camX, cy = scene.camY;
-  /* (no teleport: he stands where he stood, and walks back in through his own door -- he is off up to the roof -- on the autopilot; Tipsey's walk in
-     starts a beat later) */
+  /* (no teleport, no autopilot: he stands where he stood and the player has him; Tipsey follows him in -- msTipAt) */
   owStandUpAt(scene, G.x, G.y, G.th);
-  { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 };
-    const dx = BB_IN.x0 + BB_IN.DOOR.at + V.dx, dy = BB_IN.y0 + V.dy;
-    if(pk && pk.doors && pk.doors[0]) pk.doors[0]._rest = false;                   // (the door is armed for him: he was never let out of it, so it was still 'at rest' and would not take him)
-    gothDrive({ x: dx, y: dy + BB_IN.D + 10 }, () => { if(pk && pk.doors && pk.doors[0]) pk.doors[0]._rest = false; gothDrive({ x: dx, y: dy + BB_IN.D - 120 }); }); }   // (he is off up to the roof: to his own door, which hands him in as it does when he drives at it)   // (in through the door: the walk-in's own door hand-off takes him inside)
+  { const pk = POCKETS.find(q => q.name === BB_IN.name); if(pk && pk.doors && pk.doors[0]) pk.doors[0]._rest = false; }   // (the door is armed for him: he was never let out of it)
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
@@ -89306,7 +89325,7 @@ function msAccept(){
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
     const S = (a, b) => ({ x: BB_IN.x0 + a + V.dx, y: BB_IN.y0 + b + V.dy });
-    MS.tip = { pts: [{ x: MS.park.x, y: MS.park.y }, S(at, BB_IN.D + 90), S(at, BB_IN.D - 60), S(at, 540), S(500, 470), S(522, 420), S(522, 340)], t0: now + 1100, faceTh: 0, v: 0.11, th0: MS.park.a, S }; }
+    MS.tip = { pts: [{ x: MS.park.x, y: MS.park.y }, S(at, BB_IN.D + 90), S(at, BB_IN.D - 60), S(at, 540), S(500, 470), S(522, 420), S(522, 340)], t0: now, faceTh: 0, v: 0.11, th0: MS.park.a, S, follow: true, trail: [], pos: { x: MS.park.x, y: MS.park.y, th: MS.park.a }, last: now }; }
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("You're Gideon now: Tipsey's minding the shop. (For now, the bay beside Tipsey gives it back.)");
 }
@@ -127858,6 +127877,7 @@ class WorldScene extends Phaser.Scene {
     CITY_PEOPLE.each(this, t, p => { if(!p.hidden && !p.noDoor && isFinite(p.x) && Math.abs(p.x - bx) + Math.abs(p.y - by) < 4200) L.push(p); });   // (noDoor: at a locked door -- THE ROOM'S DAY)
     /* TIPSEY TAKING THE SHOP (MINDING THE SHOP: his scripted walk in at Brew & Bolt's door, not the bot's own position): the door opens for him as for anyone */
     if(typeof MS !== "undefined" && MS.tip){ const q = msTipAt(t); if(q && isFinite(q.x)) L.push({ x: q.x, y: q.y, th: q.th, moving: !!q.moving, kind: 'tipsey' }); }
+    if(typeof MS !== "undefined" && MS.tip && this.ow && this.ow.on) L.push({ x: this.ow.px, y: this.ow.py, th: this.ow.yaw, moving: Math.abs(this.ow.vel || 0) > 0.01, kind: 'gideon' });   // (Gideon, the player's, in or out of his own door)
     this._dpC = { t, L };
     return L;
   }
