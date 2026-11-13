@@ -3414,7 +3414,9 @@ const _RIG_W = 104;   // a rig's body width (fleetBody's hw 52)
 const FLEET = {
   /* walk: Tipsey's owStep, his charging stations */
   humanoid:   { name: "Gideon", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
-                ctl: {}, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
+                /* (a walking robot, not Tipsey's rolling one: he turns on the spot to face where the stick points and walks off forward -- never
+                   backs up (revEnter < 0: reverse never engages), no lean into a turn (leanGain 0) -- turnCreep 1: full turn rate at rest) */
+                ctl: { revEnter: -1, turnCreep: 1, leanGain: 0 }, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: { botR: 44 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
