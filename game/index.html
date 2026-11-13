@@ -89425,7 +89425,7 @@ function msTick(scene, ow){
       return; }
     case 'ask':
       if(R.gid && R.gid.leave == null) meet(R.gid, () => hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Go on, I'll mind the shop", ok: msAccept, no: { btn: "Not now", ok: msDecline }, at: msGidAt,
-        say: "Tipsey! My antenna's bent again. Can you mind the shop?" }));
+        say: "Tipsey! The screen's gone dark. I'm off up to the roof. Can you mind the shop?" }));
       return;
     case 'shift':
       if(!R.climbing && armed(msLadderBay())) msClimb(scene, 'up');
