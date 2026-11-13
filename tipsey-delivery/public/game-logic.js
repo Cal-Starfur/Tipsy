@@ -87585,14 +87585,22 @@ function msAccept(){
   MS.park = { x: ow.px, y: ow.py, a: ow.yaw };
   MS.gid = null; FLEET_LOAN = 'humanoid';
   const items = scene.items, cx = scene.camX, cy = scene.camY;
-  /* (Gideon stands between Tipsey and the door where they met: Tipsey's walk in goes round him, not through -- he steps aside, off the line
-     from Tipsey's bay to the door, before the walk starts) */
+  /* (no teleport: he stands where he stood, and sets off walking out of Tipsey's way -- across the line from Tipsey's bay to the door,
+     away from it -- as the player takes him over; Tipsey's walk starts a beat later) */
+  const gA = { x: ow.px, y: ow.py };
+  let gyaw = G.th;
   { const pk0 = POCKETS.find(q => q.name === BB_IN.name), V0 = pk0 && pk0.view ? pk0.view() : { dx: 0, dy: 0 };
-    const A = { x: ow.px, y: ow.py }, Dd = { x: BB_IN.x0 + BB_IN.DOOR.at + V0.dx, y: BB_IN.y0 + BB_IN.D + 90 + V0.dy };
-    const ex = Dd.x - A.x, ey = Dd.y - A.y, L2 = ex*ex + ey*ey || 1, u = Math.max(0, Math.min(1, ((G.x - A.x)*ex + (G.y - A.y)*ey)/L2));
-    const px = A.x + ex*u, py = A.y + ey*u, dx = G.x - px, dy = G.y - py, d = Math.hypot(dx, dy);
-    if(d < 130){ const nx = d > 1 ? dx/d : -ey/Math.sqrt(L2), ny = d > 1 ? dy/d : ex/Math.sqrt(L2); G.x = px + nx*130; G.y = py + ny*130; } }
-  owStandUpAt(scene, G.x, G.y, G.th);
+    const Dd = { x: BB_IN.x0 + BB_IN.DOOR.at + V0.dx, y: BB_IN.y0 + BB_IN.D + 90 + V0.dy };
+    const ex = Dd.x - gA.x, ey = Dd.y - gA.y, L2 = ex*ex + ey*ey || 1, u = Math.max(0, Math.min(1, ((G.x - gA.x)*ex + (G.y - gA.y)*ey)/L2));
+    const dx = G.x - (gA.x + ex*u), dy = G.y - (gA.y + ey*u), d = Math.hypot(dx, dy);
+    if(d < 130) gyaw = d > 1 ? Math.atan2(dy, dx) : Math.atan2(ex, -ey); }
+  owStandUpAt(scene, G.x, G.y, gyaw);
+  { const t0 = scene.time.now; let last = t0; const st = scene.time.addEvent({ delay: 16, loop: true, callback: () => {   // (a step or two, 0.08 a ms for 0.7 s: the physics would only coast him a few units)
+      const t = scene.time.now, dt = Math.min(60, t - last); last = t;
+      if(MS.stage !== 'shift' || t - t0 > 700 || !scene.ow || scene.ow.fly){ st.remove(false); return; }
+      const nx = scene.ow.px + Math.cos(gyaw)*0.08*dt, ny = scene.ow.py + Math.sin(gyaw)*0.08*dt;
+      if(typeof owSpotClear === 'function' && !owSpotClear(scene, nx, ny, OW_D.botR*0.8)){ st.remove(false); return; }
+      scene.ow.px = nx; scene.ow.py = ny; scene.botX = nx; scene.botY = ny; } }); }
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
@@ -87601,7 +87609,7 @@ function msAccept(){
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
     const S = (a, b) => ({ x: BB_IN.x0 + a + V.dx, y: BB_IN.y0 + b + V.dy });
-    MS.tip = { pts: [{ x: MS.park.x, y: MS.park.y }, S(at, BB_IN.D + 90), S(at, BB_IN.D - 60), S(at, 540), S(500, 470), S(522, 420), S(522, 340)], t0: now + 600, faceTh: 0, v: 0.11, th0: MS.park.a, S }; }
+    MS.tip = { pts: [{ x: MS.park.x, y: MS.park.y }, S(at, BB_IN.D + 90), S(at, BB_IN.D - 60), S(at, 540), S(500, 470), S(522, 420), S(522, 340)], t0: now + 1100, faceTh: 0, v: 0.11, th0: MS.park.a, S }; }
   if(typeof sfxThump === "function") sfxThump(0.3);
   if(typeof tpToast === "function") tpToast("You're Gideon now: Tipsey's minding the shop. (For now, the bay beside Tipsey gives it back.)");
 }
