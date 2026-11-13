@@ -28986,7 +28986,7 @@ const BB_IN = { name: 'Brew & Bolt Interior', x0: 460000, y0: 430000, W: 836, D:
 /* GIDEON'S OWN CHARGING PAD (docs/gideon-dock.md), the room's frame: where he starts as the player */
 BB_IN.PAD = { a: 124, b: 266 };
 const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0, y0: BB_IN.y0,
-  lab: [0, 836/1.3, -836/1.3, 0], body: ['lot', 'Brew & Bolt East'], door: { a: 418/1.3, b: 30/1.3, half: 50 }, H: BB_IN.H, out: 60, apron: 90, glass: 60,   // (W22: the shell stands 30 out past the floor: the door on its front, b +30/1.3)
+  lab: [0, 836/1.3, -836/1.3, 0], body: ['lot', 'Brew & Bolt East'], door: { a: 418/1.3, b: 30/1.3, half: 50 }, H: BB_IN.H, out: 60, apron: 90, glass: 30,   // (W22: the shell stands 30 out past the floor: the door on its front, b +30/1.3)
   /* (its way to and from the street, THE ROOM'S DAY: straight out onto the south pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-1400, 184], [-1400, -3600]], [[580, 184], [580, -3600]]] },
   /* (seen through, W11: the glazed pair, the south wall's two windows -- flatsShop's, lab x1.3, z x1.95 -- and the east leg's one in the east wall) */
