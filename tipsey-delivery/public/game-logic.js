@@ -87697,11 +87697,12 @@ function msHandBack(scene){
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
 /* A WALKED CLIMB: he turns to the wall and walks up to the ladder (or the hatch's curb) at a climbing pace, the hatch opening as he starts,
    then the room is left by the old dissolve; coming down he is set at the ladder's foot and walks out from it. The walk is msTick's (MS.cl) */
-function msWalkTo(scene, to, yaw, ms, done, z, emerge){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done, z, emerge }; }
+function msWalkTo(scene, to, yaw, ms, done, z, emerge, turn){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done, z, emerge, turn: turn || 0, yaw0: ow.yaw }; }   // (turn: ms he first turns on the spot, from the way he faced, before he walks)
 /* (z: [from, to] -- a CLIMB: he stays at the ladder and goes up (or down) it, rung by rung, hands up, the stride going, ow.climbZ lifting the body) */
 function msWalkTick(scene, ow, now){
-  const C = MS.cl, k = Math.min(1, (now - C.t0)/C.ms), e = C.z ? k : k*k*(3 - 2*k);
-  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e; ow.yaw = C.yaw; ow.vel = C.z ? 0 : (k < 1 ? 0.07 : 0);
+  const C = MS.cl, tn = C.turn || 0, k = Math.max(0, Math.min(1, (now - C.t0 - tn)/C.ms)), e = C.z ? k : k*k*(3 - 2*k);
+  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e;
+  if(tn && now - C.t0 < tn){ const u = (now - C.t0)/tn, d = Math.atan2(Math.sin(C.yaw - C.yaw0), Math.cos(C.yaw - C.yaw0)); ow.yaw = C.yaw0 + d*u*u*(3 - 2*u); } else ow.yaw = C.yaw; ow.vel = C.z ? 0 : (k < 1 ? 0.07 : 0);
   if(C.z){ ow.climbZ = C.z[0] + (C.z[1] - C.z[0])*k; ow.climbing = k < 1; ow.emerging = !!C.emerge && k < 1; if(k >= 1){ ow.climbing = false; ow.emerging = false; } }
   scene.botX = ow.px; scene.botY = ow.py;
   if(k >= 1){ MS.cl = null; C.done(); }
@@ -87720,9 +87721,9 @@ function msClimb(scene, dir){
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
   const LZ = 200, HZ = 80, HB = 40;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
   const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false;
-      if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = Math.PI/2; ow.climbZ = -HZ;                  // (up: in the hatch's opening, below the roof, and up out of it, then a step clear of the curb)
-        msWalkTo(scene, { x: ow.px, y: ow.py }, Math.PI/2, 1500, () => { ow.climbZ = 0;
-          msWalkTo(scene, { x: ow.px, y: y1 + 138 }, Math.PI/2, 700, settle); }, [-HZ, 0], true); }
+      if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
+        msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
+          msWalkTo(scene, { x: ow.px, y: y1 + 138 }, Math.PI/2, 700, settle, null, false, 500); }, [-HZ, 0], true); }
       else { pocketShift(scene, dx, y1 + 26 - ow.py); ow.climbZ = LZ; ow.yaw = -Math.PI/2;                    // (down: in at the ladder's top, then down it, then out from its foot)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0; ow.climbing = false;
           msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); }, [LZ, 0]); } }); };
