@@ -144214,8 +144214,8 @@ const GO_SPOTS = {
   sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
 };
 (function(){
-  let q = null, v = null, lh = null;
-  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); } catch(e){}
+  let q = null, v = null, lh = null, ms = null;
+  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); ms = p.get('ms'); } catch(e){}
   if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-4880,-13180,-1.57&view=2&lh=pickup'; };
   if(typeof window !== 'undefined') window.lhStartLink = function(){ return location.href.split('?')[0] + '?go=-4750,-13950,-1.57&view=2&lh=chandlery'; };
   if(typeof window !== 'undefined') window.tpGoHere = function(){
@@ -144224,14 +144224,16 @@ const GO_SPOTS = {
     const base = location.href.split('?')[0];
     return base + '?go=' + Math.round(ow.px) + ',' + Math.round(ow.py) + ',' + ow.yaw.toFixed(2) + '&view=' + zoomDepth;
   };
-  if(!q) return;
+  if(!q && ms !== 'ladder') return;
   let x, y, yaw = Math.PI;
-  if(GO_SPOTS[q]) [x, y] = GO_SPOTS[q];
+  if(!q){}   // (ms=ladder alone: the spot is Brew & Bolt's bay, found once the city is up)
+  else if(GO_SPOTS[q]) [x, y] = GO_SPOTS[q];
   else { const n = q.split(',').map(Number); if(n.length < 2 || n.some(isNaN)) return; [x, y] = n; if(n.length > 2) yaw = n[2]; }
   const t0 = Date.now();
   const tick = () => {
     const s = typeof game !== 'undefined' && game.scene && game.scene.getScene('world');
     if(!(s && s.route && s.ow)){ if(Date.now() - t0 < 60000) setTimeout(tick, 250); return; }
+    if(!q && ms === 'ladder'){ const B = typeof msBay === 'function' ? msBay(s) : null; if(!B) return; x = B.x; y = B.y; }
     /* the garage opens a beat after boot: let it, then shut it and go -- and CHECK he stayed: a slow device, a saved game's own restore or the
        garage's roll-out can put him back at the charging station after the first jump (the lh=pickup link then loaned the drone there), so the
        jump is repeated every 0.6 s, up to 40 s, until he has stood at the spot for three looks running */
@@ -144250,6 +144252,10 @@ const GO_SPOTS = {
         if(lh === 'pickup'){ try { NIGHT_CLOCK.time = 11; LH.stage = 'drive'; lhLoan(s); } catch(e){} }
         /* &lh=chandlery: THE LIGHTHOUSE RUN from its start -- Tipsey in front of the Marina Chandlery (go=-4750,-13950,-1.57) at 11 o'clock, driving as himself,
            the story not yet done (in memory only: nothing is saved), so the beacon over its door is there to drive in at */
+        /* &ms=ladder: MINDING THE SHOP at its climb -- 11 o'clock, the mission taken at Brew & Bolt's bay (as its "Go on" does: Gideon is his, Tipsey
+           goes in to mind the counter), and Gideon stood in the back room on the ladder's flag, facing it: up he goes.
+           In memory only: nothing is saved */
+        if(ms === 'ladder'){ try { NIGHT_CLOCK.time = 11; MS.stage = 'ask'; MS.gid = null; msAccept(); const L = msLadderBay(); owStandUpAt(s, L.x, L.y, -Math.PI/2); if(v) zoomSet(+v); } catch(e){ console.warn('ms=ladder', e); } }
         if(lh === 'chandlery'){ try { NIGHT_CLOCK.time = 11; if(tpProfile){ tpProfile.fleetKind = ''; if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.delete('lighthouse-run'); } LH.stage = 'idle'; } catch(e){} }
         return;
       }
