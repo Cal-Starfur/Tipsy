@@ -10204,7 +10204,7 @@ function owRampFeel(scene, ow, W, dt){
    hard hit can put you over inside the same frame it happened rather
    than waiting for the next step. */
 function owLeanKick(scene, ow, amt){
-  if(typeof MS !== 'undefined' && MS.cl) return;   // (a walk the story is giving him -- MINDING THE SHOP's, msWalkTo -- cannot knock him over: turning round in the roof hatch's curb, its walls
+  if(typeof MS !== 'undefined' && (MS.cl || MS.lad)) return;   // (on the roof ladder too: msLadTick; a walk the story is giving him -- MINDING THE SHOP's, msWalkTo -- cannot knock him over: turning round in the roof hatch's curb, its walls
                                                     //  grazed his footprint and tipped him, and the camera re-centred on the fall)
   ow.leanI = (ow.leanI || 0) + amt;
   owLeanCompose(scene, ow);
@@ -89589,6 +89589,12 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
   }
   if(MS.cl){ scene.speed = Math.abs(ow.vel); return true; }   // (a walk the story gives him -- in over the curb, out over it: his feet go at its pace, msWalkTick's)
   ow.vel = 0; scene.speed = 0;
+  /* (on the ladder he is held: on its line, upright -- the ladder's own solid nudged him off it and each nudge leaned him, the lean never
+     wearing off with owStep idle, so he shook and showed the wobble's ?! all the way up) */
+  ow.leanI = 0; ow.leanS = 0; scene.tilt = 0; if(typeof owLeanCompose === 'function') owLeanCompose(scene, ow);
+  scene.owPush = false; scene.stuckAmt = 0; scene.isBlocked = false;   // (and not stuck: the stick on the ladder climbs -- read as a push against its solid, it rattled him and put up the ?!)
+  if(!L.busy){ const R = L.room === 'shop' ? { x: BB_IN.x0 + 135, y: BB_IN.y0 + MS_LAD.FOOT } : { x: BBR.x0 + 135, y: BBR.y0 + MS_LAD.HB };
+    if(scene._inside && (scene._inside.name === BB_IN.name) === (L.room === 'shop')){ ow.px = R.x; ow.py = R.y; scene.botX = R.x; scene.botY = R.y; ow.yaw = -Math.PI/2; } }
   if(L.busy) return true;
   L.z += up*MS_LAD.v*Math.min(dt, 40);
   if(L.room === 'shop'){
