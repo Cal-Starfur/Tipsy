@@ -52495,7 +52495,7 @@ function houseCanopy(fn){
        (south, east) OVER him, so it is his body that comes up out of the hole ---- */
     { const A0 = 96, A1 = 174, B0 = PT, B1 = 72, TH = 8, CH = 18, SD = 90;              // (curb outline, its wall thickness, its height, the shaft's depth)
       const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH;
-      const wall = (a0, a1, b0, b1, a, b, near) => rpush({ a, b, z: 0, hatchNear: !!near, solids: [solid(a0, a1, b0, b1, 22, 'roof hatch')], draw: () => box(a0, a1, b0, b1, 0, CH, '#6b5a48', '#5a4a3a', '#3d3328') });
+      const wall = (a0, a1, b0, b1, a, b, near) => rpush({ a, b, z: 0, hatchNear: !!near, solids: [solid(a0, a1, b0, b1, 22, 'roof hatch')], draw: () => { box(a0, a1, b0, b1, 0, CH - 1.5, '#9aa2a8', '#8a9298', '#6c737a'); box(a0 - 0.8, a1 + 0.8, b0 - 0.8, b1 + 0.8, CH - 1.5, CH, '#c3c9cd', '#a3abb1', '#7f878e'); } });   // (galvanized, its top capped)
       wall(A0, A1, B0, B0 + TH, 135, B0 + TH/2);                      // north (far)
       wall(A0, A0 + TH, B0 + TH, B1, A0 + TH/2, 40);                  // west (far)
       wall(A1 - TH, A1, B0 + TH, B1, A1 - TH/2, 40, true);            // east (near)
@@ -52512,23 +52512,28 @@ function houseCanopy(fn){
         for(let z = CH - SD + 10; z < CH; z += 14) poly([P(120, inB0 + 5, z), P(150, inB0 + 5, z), P(150, inB0 + 5, z - 2), P(120, inB0 + 5, z - 2)], steelD);   // its rungs
         ctx.restore(); } });
     }
-    /* (the lid: shut over the opening, or thrown back with the ladder's rails coming up -- MS.hatchOpen, from the start of the climb) */
+    /* (the lid: shut over the opening, or thrown back against the north parapet -- MS.hatchOpen, from the start of the climb) */
+    const HC = 18, lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';   // (slate: the steel ladder reads against it)
     for(const open of [false, true])
-      rpush({ a: 135, b: 14, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {
+      rpush({ a: 135, b: open ? 14 : 80, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {   // (shut, after the curb's near walls: it sits on them)
         if(!open){
-          T(102, 168, PT + 4, 68, 18.4, '#7a5a3c');
-          for(let a = 110; a < 168; a += 12) T(a, a + 1, PT + 4, 68, 18.8, '#5a4026');
-          cyl(135, 56, 18.6, 21, 3.2, copper, '#e8a550');
+          box(98, 172, PT + 2, 70, HC, HC + 3, lidT, lidS, lidD);                                                                   // the lid, shut on the curb
+          T(110, 160, PT + 14, 58, HC + 3.1, lidP);                                                                                  // its raised panel
+          box(130, 140, 60, 63, HC + 3, HC + 5, steelD, steelS, steelS);                                                             // the handle
           return;
         }
-        poly([P(104, PT + 4, 18), P(166, PT + 4, 18), P(166, PT + 2, 62), P(104, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);       // (the lid first: it is behind the ladder)
-        poly([P(104, PT + 4, 18), P(104, PT + 2, 62), P(104, PT + 8, 62), P(104, PT + 8, 18)], '#5a4026');
-        /* THE LADDER, ALL THE WAY UP (Sir, 2026-11-13: "the ladder should go all the way up"): the shaft's rails carry on up out of the
-           hatch to a grab height over the curb, a rung every 16 as below, the rails' tops bent over toward the opening */
-        const LB = PT + 15, LT = 84;
-        for(let z = 32; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steelD);                                              // its rungs, over the curb
-        for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, 10, LT, steel, steel, steelD);                              // the rails
-          box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                          // (and over at the top, a hand-hold)
+        /* thrown back: a steel panel on its edge against the parapet, its inside (the face toward us) framed */
+        box(102, 168, PT + 1, PT + 4, HC, HC + 64, lidT, lidS, lidD);
+        poly([P(110, PT + 4.1, HC + 7), P(160, PT + 4.1, HC + 7), P(160, PT + 4.1, HC + 57), P(110, PT + 4.1, HC + 57)], lidP);       // its inner panel
+        for(const a of [104, 164]) box(a - 1.5, a + 1.5, PT + 4, PT + 8, HC, HC + 6, steelD, steelS, steelS); } });               // the hinges
+    /* THE LADDER, ALL THE WAY UP (Sir, 2026-11-13: "the ladder should go all the way up"): the shaft's rails carry on up out of the hatch
+       to a grab height over the curb, a rung every 16 as below, the rails' tops bent over toward the opening. Its own piece, after the
+       curb's far wall (b 30): drawn with the lid, the wall had painted across its foot */
+    rpush({ a: 135, b: 30, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
+      const LB = PT + 15, LT = 84;
+      for(let z = 32; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
+      for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, HC - 4, LT, steel, steel, steelD);                            // the rails
+        box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                             // (and over at the top, a hand-hold)
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
     { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
