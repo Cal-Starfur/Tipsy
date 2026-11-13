@@ -50586,14 +50586,14 @@ function houseCanopy(fn){
 
     /* ---- THE BACK ROOM'S FIXTURES (a 0..416, b 0..416) ----
        THE ROASTER, the north-west, 28 west of where it was so the roof ladder's foot is clear: a steel base, the copper drum on it, its hopper over and its flue to the ceiling */
-    { const a0 = 8, a1 = 112, b0 = 36, b1 = 104;
-      items.push({ a: 60, b: 70, z: 0, solids: [solid(a0, a1, b0, b1, 130, 'roaster')], draw: () => {
+    { const a0 = 6, a1 = 74, b0 = 30, b1 = 134;       // (turned a quarter and set against the west wall, its control panel facing the room: clear of the roof ladder)
+      items.push({ a: 40, b: 82, z: 0, solids: [solid(a0, a1, b0, b1, 130, 'roaster')], draw: () => {
         box(a0, a1, b0, b1, 0, 34, steel, steelD, steelS);
-        cyl(60, 70, 34, 92, 30, copper, '#e8a550');
-        box(a0 + 8, a1 - 8, b0 + 4, b1 - 4, 92, 100, steelD, steelS, steelS);
-        poly([P(42, 60, 100), P(78, 60, 100), P(66, 66, 126), P(54, 66, 126)], '#8f969d');
-        tube(60, 70, 100, 60, 70, H - 6, 5, steelD);
-        box(a1 - 22, a1 - 6, b1 - 4, b1 + 4, 40, 70, '#1f2a30', '#19232a', '#141b20'); F(a1 - 20, a1 - 8, 46, 64, '#e79a35', null, 0, b1 + 4.3); } }); }
+        cyl(40, 82, 34, 92, 30, copper, '#e8a550');
+        box(a0 + 4, a1 - 4, b0 + 8, b1 - 8, 92, 100, steelD, steelS, steelS);
+        poly([P(22, 72, 100), P(58, 72, 100), P(46, 78, 126), P(34, 78, 126)], '#8f969d');
+        tube(40, 82, 100, 40, 82, H - 6, 5, steelD);
+        box(a1 - 4, a1 + 4, b1 - 30, b1 - 14, 40, 70, '#1f2a30', '#19232a', '#141b20'); S(a1 + 4.3, b1 - 28, b1 - 16, 46, 64, '#e79a35'); } }); }
     /* THE BEAN SHELVES on the north wall (a 190..390): sacks and tins, three shelves */
     { const A0 = 190, A1 = 390, B1 = 30, ZS = [8, 60, 112];
       for(let k = 0, n = Math.ceil((A1 - A0)/50); k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n;
