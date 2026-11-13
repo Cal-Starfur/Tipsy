@@ -87707,6 +87707,35 @@ function msWalkTick(scene, ow, now){
   scene.botX = ow.px; scene.botY = ow.py;
   if(k >= 1){ MS.cl = null; C.done(); }
 }
+/* THE CLIMB'S POSE (msClimbPose, drawFleetAvatarAt's humanoid while ow.climbing): a diagonal gait, three points on the ladder.
+   Every hand and foot has a rung (the ladder's: b 5, z 14 + 16k; he stands 19 out from them, 24 off the wall) and is put
+   there by two-link IK: a planted one stays on its rung while he rises past it (the standing leg straightening as it
+   pushes, the pulling arm bending), a moving one leaves its rung and goes up two, pulled back off the ladder on the way,
+   quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
+   a half-cycle, so they are glued to the rungs whatever the clock does. Near the top (f) the arms come down to the
+   hatch's edge as before. Returns drawHumanoid's data. */
+function msClimbPose(c){
+  const D = 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
+  const B = HUMANOID_BUILD, HIP = B.legH, SH = Math.max(5, B.legH*0.13), TL = (HIP - SH)*0.5, UL = B.armLen*0.48, FL = B.armLen*0.52 + 2.5;   // (FL: to the grip, inside the hand)
+  const SB = (B.torsoH - 1)*Math.sin(WAIST), SZ = HIP + (B.torsoH - 1)*Math.cos(WAIST);
+  const n = Math.floor(c/16), s = c/16 - n, c1 = v => Math.max(-1, Math.min(1, v));
+  const hr = k => 14 + 16*k - c - HOV;                                               // (rung k's height over his feet's frame)
+  /* a limb of set 0 (far arm, near leg: moves on even half-cycles) or 1, from its rung at the start (base): where it is, and how far
+     off the ladder it is pulled (arc, 0..1) */
+  const at = (set, base, w1) => { const mv = (n & 1) === set, k0 = base + n + (mv ? 0 : 1) - set;
+    const x = Math.max(0, Math.min(1, s/w1)), q = 1 - Math.pow(1 - x, 1.6), e = mv ? q*q*(3 - 2*q) : 0;
+    return { h: hr(k0) + 32*e, arc: mv ? Math.sin(Math.PI*e) : 0 }; };
+  const arm = T => { const db = D - 7*T.arc - SB, dh = T.h - SZ, d = Math.min(Math.max(Math.hypot(db, dh), 6), UL + FL - 0.8);
+    const th = Math.atan2(db, -dh), al = Math.acos(c1((UL*UL + d*d - FL*FL)/(2*UL*d))), be = Math.acos(c1((FL*FL + d*d - UL*UL)/(2*FL*d)));
+    return [(th - al + WAIST)/LIFT_MAX_ANGLE, al + be]; };
+  const leg = T => { const db = D - FB - 6*T.arc, dh = T.h + 1.5 + SH + 3*T.arc - HIP, d = Math.min(Math.hypot(db, dh), 2*TL - 0.3);
+    const th = Math.atan2(db, -dh), al = Math.acos(c1(d/(2*TL))); return [th + al, 2*al]; };
+  const hF = at(0, 6, 0.85), hN = at(1, 7, 0.85), fN = at(0, -1, 0.85), fF = at(1, 0, 0.85);
+  const aF = arm(hF), aN = arm(hN), f = Math.max(0, Math.min(1, (c/120 - 0.4)/0.3)), m = (v, to) => v*(1 - f) + to*f;
+  return { walk: 0, gait: 0, roll: 0, look: gideonParts(), hover: HOV, waist: WAIST*(1 - f),
+    lift: [m(aF[0], 0.9), m(aN[0], 0.9)], bend: [m(aF[1], 0.35), m(aN[1], 0.35)], armOut: [0.14*(1 - f), 0.14*(1 - f)],
+    legs: [leg(fF), leg(fN)], legOut: [0.05 + 0.12*fF.arc, 0.05 + 0.12*fN.arc] };
+}
 function msClimb(scene, dir){
   if(MS.climbing) return;
   MS.climbing = true; const ow = scene.ow; ow.vel = 0;
@@ -87724,10 +87753,10 @@ function msClimb(scene, dir){
       if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
           msWalkTo(scene, { x: ow.px, y: y1 + 138 }, Math.PI/2, 700, settle, null, false, 500); }, [-HZ, 0], true); }
-      else { pocketShift(scene, dx, y1 + 26 - ow.py); ow.climbZ = LZ; ow.yaw = -Math.PI/2;                    // (down: in at the ladder's top, then down it, then out from its foot)
+      else { pocketShift(scene, dx, y1 + 24 - ow.py); ow.climbZ = LZ; ow.yaw = -Math.PI/2;                    // (down: in at the ladder's top, then down it, then out from its foot)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 900, () => { ow.climbZ = 0; ow.climbing = false;
           msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); }, [LZ, 0]); } }); };
-  if(up) msWalkTo(scene, { x: BB_IN.x0 + 135, y: y0 + 19 }, -Math.PI/2, 1500, () => msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1100, out, [0, LZ]));   // (up the ladder, hand over hand)
+  if(up) msWalkTo(scene, { x: BB_IN.x0 + 135, y: y0 + 24 }, -Math.PI/2, 1500, () => msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1100, out, [0, LZ]));   // (up the ladder, hand over hand)
   else msWalkTo(scene, { x: BBR.x0 + 135, y: y0 + HB }, -Math.PI/2, 900, () => msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1400, out, [0, -HZ], true));   // (down: to the opening, and down into it)
 }
 function msSeen(){
@@ -108751,7 +108780,7 @@ class WorldScene extends Phaser.Scene {
     const shoeH = Math.max(5, build.legH*0.13)*(pShoe && pShoe.platform ? 1.9 : 1);   // a platform boot's sole (the mall's goths)
     const runK = moving && pose && pose.run && !aidK ? pose.run : 0;   // (a jogger: see gaitKit's run, and the arms below)
     const { limb, along, STR, wk, dz: gdz, LX } = this.gaitKit(g, G, hipH, shoeH, walkPhase, moving && !this._personKick && !rides,   // (a kick stands still; a chair, a scooter rolls, no bob)
-      (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0), aidK === 'walker' ? 0.55 : aidK === 'cane' ? 0.7 : aidK === 'crutches' ? 0.75 : 1, runK, pose && pose.legs);   // (a shorter step on an aid; pose.legs: posed, drawFallenHull)
+      (pShirt.c|0)*31 + (pPants.c|0)*17 + (pSkin.c|0)*7 + (pHair|0), aidK === 'walker' ? 0.55 : aidK === 'cane' ? 0.7 : aidK === 'crutches' ? 0.75 : 1, runK, pose && Array.isArray(pose.legs) ? { [-faceA]: pose.legs[0], [faceA]: pose.legs[1] } : pose && pose.legs);   // (a shorter step on an aid; pose.legs: posed, drawFallenHull; an array is [far, near], the climb's -- gaitKit reads it by side)
     dz = gdz;
     /* THE SHOE (shoeOf): a kind a person -- the pair's own (pShoe.kind), the uniform's (shoeKind), the goths' platform, else
        off their seed (SHOES_M / SHOES_W). Built at the ankle A [b, h] from a sole, an upper on it and, for some, a toe forward,
@@ -111696,7 +111725,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || d.waist ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
@@ -118950,15 +118979,7 @@ class WorldScene extends Phaser.Scene {
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6, paint: true }
       : kind === "humanoid" ? (this.ow && this.ow.emerging ? (() => { const u = Math.max(0, Math.min(1, ((this.ow.climbZ || 0) + 80)/80)), l = 1.0 - 0.85*u, bd = 0.6 - 0.45*u; return { walk: 0, gait: 0, roll: 0, look: gideonParts(), lift: [l, l], bend: [bd, bd] }; })()   // (up out of the roof hatch: hands on the curb, the arms coming down as he rises -- not held up in the air)
-        : this.ow && this.ow.climbing ? (() => { const ph = (this.ow.climbZ || 0)*Math.PI/16, sn = Math.sin(ph), f = Math.max(0, Math.min(1, ((this.ow.climbZ || 0)/120 - 0.4)/0.3));
-            /* (A CLIMB, a rung to a half-cycle, the opposite limbs together: the far leg drawn up -- hip forward, knee bent -- while the NEAR arm reaches up
-               straight for the next rung, the other arm pulled in with the elbow bent, and then the other way; always one of each pair higher, never both
-               alike. Near the top the arms come down to the hatch's edge.) */
-            const u = 0.5 + 0.5*sn, v = 1 - u;                              // (u: the far leg's lift, v: the near's; the far arm high with the near leg, the near arm with the far)
-            const hiF = v, hiN = u;
-            return { walk: 0, gait: 0, roll: 0, look: gideonParts(),
-              legs: [[0.1 + 0.95*u, 0.12 + 1.3*u], [0.1 + 0.95*v, 0.12 + 1.3*v]], legOut: [0.35*u, 0.35*v],
-              lift: [(1.15 + 0.6*hiF)*(1 - f) + 0.9*f, (1.15 + 0.6*hiN)*(1 - f) + 0.9*f], bend: [1.15 - 0.95*hiF, 1.15 - 0.95*hiN] }; })() : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
+        : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0) : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
