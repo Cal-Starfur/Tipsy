@@ -52331,23 +52331,20 @@ function houseCanopy(fn){
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
-        /* the hatch, seen from above: a steel frame round the opening, hinged on the north wall (its panel: the two items below) */
-        const hz = H - 3;
-        for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS); } });
+      } });
       /* its panel, shut or open (MINDING THE SHOP: MS.hatchOpen, the climb): a plank panel with a pull ring over the opening, or thrown
          back against the wall with the sky showing through */
       for(const open of [false, true])
         items.push({ a: (L0 + L1)/2, b: 32, z: H - 3, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, draw: () => {
           const hz = H - 3;
           if(!open){
+            for(const [a0, a1, b0, b1] of [[L0 - 20, L1 + 20, 0, 5], [L0 - 20, L1 + 20, 59, 64], [L0 - 20, L0 - 15, 0, 64], [L1 + 15, L1 + 20, 0, 64]]) box(a0, a1, b0, b1, hz - 4, hz + 2, steel, steelD, steelS);   // the steel frame, only while it is shut over the opening
             T(L0 - 20, L1 + 20, 0, 64, hz, '#4a3a2c');
             T(L0 - 15, L1 + 15, 5, 59, hz + 1, '#7a5a3c');
             for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
             cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550');
-          } else {
-            poly([P(L0 - 15, 6, hz + 2), P(L1 + 15, 6, hz + 2), P(L1 + 15, 10, hz + 40), P(L0 - 15, 10, hz + 40)], '#7a5a3c', '#4a3a2c', 1);   // the panel, up on its hinge
-            poly([P(L0 - 15, 6, hz + 2), P(L0 - 15, 10, hz + 40), P(L0 - 10, 10, hz + 40), P(L0 - 10, 6, hz + 2)], '#5a4026');
-          } } }); }
+          }   // (open: nothing -- no frame, no panel: the ladder simply goes up through the ceiling)
+          } }); }
     /* AFTER DARK (the night pass): the neon bolt throws a wide amber wash over the plaster and a pool on the floor under it, the counter's
        base glows along the aisle, and the till's screen light spills on its top -- still pieces of the room, their 'when' */
     { const night = () => typeof isNightNow === 'function' && isNightNow();
