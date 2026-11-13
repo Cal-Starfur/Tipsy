@@ -35462,7 +35462,8 @@ function walkPathAt(P, now){
   const ease = (from, to, u) => { const s = u*u*(3 - 2*u), d0 = Math.atan2(Math.sin(to - from), Math.cos(to - from)); return from + d0*s; };
   if(there){ const u = Math.min(1, (now - P.t0 - T)/MEET.turnMs); th = u < 1 ? ease(dir, end, u) : end; }
   else if(back){ const u = Math.min(1, (now - P.leave)/MEET.turnMs); if(u < 1) th = ease(end, dir + Math.PI, u); }
-  else if(P.th0 != null){ const u = Math.min(1, (now - P.t0)/MEET.turnMs); if(u < 1) th = ease(P.th0, th, u); }   // (setting off: from the way they stood)
+  else if(P.th0 != null){ const u = Math.max(0, Math.min(1, (now - P.t0)/MEET.turnMs));   // (clamped both ways: before t0 a negative u went through the ease's cubic and spun him several times round)
+    if(u < 1) th = ease(P.th0, th, u); }   // (setting off: from the way they stood)
   return { x: p.x, y: p.y, z: p.z, ride: p.ride, th, moving, there };
 }
 /* the doctor, where he is now (null: inside) -- out, standing, or going back */
