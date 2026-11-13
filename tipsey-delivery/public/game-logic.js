@@ -87778,7 +87778,7 @@ function msClimb(scene, dir){
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
   const LZ = 120, HZ = 80, HB = 40;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
-  const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false;
+  const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false; scene._camZCarry = true;   // (the camera's height jumps with him: see drawRobot's camera)
       if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
           msWalkTo(scene, { x: ow.px, y: y1 + 138 }, Math.PI/2, 700, settle, null, false, 500); }, [-HZ, 0], true); }
@@ -122455,8 +122455,11 @@ class WorldScene extends Phaser.Scene {
     this._camNext = {
       x: Phaser.Math.Linear(cex, camTargetX, camA(0.08 * camVmul)),
       y: Phaser.Math.Linear(cey, camTargetY, camA(0.06 * camVmul)),
-      z: Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul)),
+      /* (a room changed under him -- the roof ladder's climb, msClimb's out: the camera's height carried across by his own jump, so he holds his
+         place on the screen; it had glided half a second after him, Sir 2026-11-13 "why does the camera move when he gets to the top") */
+      z: this._camZCarry && Number.isFinite(this._camTZ) ? (this._camZCarry = false, this.camZ + camTargetZ - this._camTZ) : Phaser.Math.Linear(this.camZ, camTargetZ, camA(0.08 * camVmul)),
       bx: this.camX, by: this.camY, bz: this.camZ };
+    this._camTZ = camTargetZ;
 
     /* the "?!" of a machine confronting a tree */
     if(this.stuckAmt > 0.5 && this.state === "play"){
