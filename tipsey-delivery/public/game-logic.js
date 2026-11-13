@@ -50802,8 +50802,10 @@ function houseCanopy(fn){
         for(let k = 0; k < 6; k++){ const z0 = CH - k*SD/6, z1 = z0 - SD/6, c = shade('#c9a878', 1 - k*0.075);                 // the faces, darker as they go down
           poly([P(inA0, inB0, z0), P(inA1, inB0, z0), P(inA1, inB0, z1), P(inA0, inB0, z1)], c);                                   // north wall's inner face
           poly([P(inA0, inB0, z0), P(inA0, inB1, z0), P(inA0, inB1, z1), P(inA0, inB0, z1)], shade(c, 0.86)); }                    // west wall's
-        for(const x of [120, 150]) poly([P(x - 2.5, inB0 + 5, CH), P(x + 2.5, inB0 + 5, CH), P(x + 2.5, inB0 + 5, CH - SD), P(x - 2.5, inB0 + 5, CH - SD)], steel);   // the ladder's rails, down the shaft (flat: clipped)
-        for(let z = CH - SD + 10; z < CH; z += 14) poly([P(120, inB0 + 5, z), P(150, inB0 + 5, z), P(150, inB0 + 5, z - 2), P(120, inB0 + 5, z - 2)], steelD);   // its rungs
+        /* the ladder down the shaft: the same rails and rungs as come up out of it (the lid's piece), on the same line, so it is one ladder */
+        { const LB = PT + 15;
+          for(let z = 32 - 16*Math.ceil((32 - (CH - SD))/16); z < CH; z += 16) box(120, 150, LB - 1.5, LB + 1.5, z - 1.5, z + 1.5, steel, steel, steelD);   // its rungs, every 16 as above (boxes: they keep to the clip)
+          for(const x of [120, 150]) box(x - 2.2, x + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD); }                         // its rails
         ctx.restore(); } });
     }
     /* (the lid: shut over the opening, or thrown back against the north parapet -- MS.hatchOpen, from the start of the climb) */
@@ -50826,7 +50828,7 @@ function houseCanopy(fn){
     rpush({ a: 135, b: 30, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
       const LB = PT + 15, LT = 84;
       for(let z = 32; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
-      for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, HC - 4, LT, steel, steel, steelD);                            // the rails
+      for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, HC, LT, steel, steel, steelD);                            // the rails
         box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                             // (and over at the top, a hand-hold)
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
