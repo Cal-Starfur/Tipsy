@@ -50641,12 +50641,31 @@ function houseCanopy(fn){
             cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550');
           }   // (open: nothing -- no frame, no panel: the ladder simply goes up through the ceiling)
           } });
-      /* ...and on up it: open, the rails and rungs carry on above the ceiling, up the hatch's shaft, so his hands have rungs all the way
-         (Sir, 2026-11-13: "the top of the ladder is missing from the interior scene") */
-      items.push({ a: (L0 + L1)/2, b: 60, z: H, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
-        const TOP = H + 80;
-        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, TOP, rail, rail, railD);
-        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < TOP - 4; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD); } }); }
+      /* ...and on up it, to the roof's own hatch: open, the rails and rungs carry on above the ceiling to the roof (ZR, put on the rungs'
+         16, so they run on unbroken), and there is the hatch as the roof shows it -- the galvanized curb, the slate lid thrown back, the
+         rails' tops bent over -- the roof's frame moved 20 north (its ladder at b 25, this one at 5). Sir, 2026-11-13: "the top of the
+         ladder is missing from the interior scene", "let's see the lid", "why don't the tops of the ladders match" */
+      items.push({ a: (L0 + L1)/2, b: 10, z: H, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+        const ZR = 238, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;
+        const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
+        const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
+        const cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e', cIS = '#b0b7bc', cIE = '#8f979d', lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';
+        /* the lid, back on its hinges at the curb's north edge */
+        box(102, 168, B0 - 13, B0 - 10, Z, Z + 64, lidT, lidS, lidD);
+        q4([[110, B0 - 9.9, Z + 7], [160, B0 - 9.9, Z + 7], [160, B0 - 9.9, Z + 57], [110, B0 - 9.9, Z + 57]], lidP);
+        /* the curb's far walls: their tops and inner faces */
+        q4([[A0, B0, Z], [A1, B0, Z], [A1, inB0, Z], [A0, inB0, Z]], cT);
+        q4([[inA0, inB0, Z], [inA1, inB0, Z], [inA1, inB0, ZR], [inA0, inB0, ZR]], cIS);
+        q4([[A0, inB0, Z], [inA0, inB0, Z], [inA0, inB1, Z], [A0, inB1, Z]], cT);
+        q4([[inA0, inB0, Z], [inA0, inB1, Z], [inA0, inB1, ZR], [inA0, inB0, ZR]], cIE);
+        /* the ladder, from the ceiling up through it: the rails, the rungs, and over at the top */
+        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < LT - 6; z += 16) tube(L0, LB, z, L1, LB, z, 1.5, railD);
+        for(const x of [L0, L1]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, H - 4, LT, rail, rail, railD); box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, rail, rail, railD); }
+        /* the near walls: their tops and outer faces */
+        q4([[inA1, inB0, Z], [A1, inB0, Z], [A1, inB1, Z], [inA1, inB1, Z]], cT);
+        q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], cE);
+        q4([[A0, inB1, Z], [A1, inB1, Z], [A1, B1, Z], [A0, B1, Z]], cT);
+        q4([[A0, B1, Z], [A1, B1, Z], [A1, B1, ZR], [A0, B1, ZR]], cS); } }); }
     /* AFTER DARK (the night pass): the neon bolt throws a wide amber wash over the plaster and a pool on the floor under it, the counter's
        base glows along the aisle, and the till's screen light spills on its top -- still pieces of the room, their 'when' */
     { const night = () => typeof isNightNow === 'function' && isNightNow();
