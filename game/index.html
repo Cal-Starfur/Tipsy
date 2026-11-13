@@ -10204,6 +10204,8 @@ function owRampFeel(scene, ow, W, dt){
    hard hit can put you over inside the same frame it happened rather
    than waiting for the next step. */
 function owLeanKick(scene, ow, amt){
+  if(typeof MS !== 'undefined' && MS.cl) return;   // (a walk the story is giving him -- MINDING THE SHOP's, msWalkTo -- cannot knock him over: turning round in the roof hatch's curb, its walls
+                                                    //  grazed his footprint and tipped him, and the camera re-centred on the fall)
   ow.leanI = (ow.leanI || 0) + amt;
   owLeanCompose(scene, ow);
 }
@@ -52526,7 +52528,7 @@ function houseCanopy(fn){
           poly([P(inA0, inB0, z0), P(inA1, inB0, z0), P(inA1, inB0, z1), P(inA0, inB0, z1)], c);                                   // north wall's inner face
           poly([P(inA0, inB0, z0), P(inA0, inB1, z0), P(inA0, inB1, z1), P(inA0, inB0, z1)], shade(c, 0.86)); }                    // west wall's
         /* the ladder down the shaft: the same rails and rungs as come up out of it (the lid's piece), on the same line, so it is one ladder */
-        { const LB = PT + 15;
+        { const LB = PT + 11;
           for(let z = 32 - 16*Math.ceil((32 - (CH - SD))/16); z < CH; z += 16) box(120, 150, LB - 1.5, LB + 1.5, z - 1.5, z + 1.5, steel, steel, steelD);   // its rungs, every 16 as above (boxes: they keep to the clip)
           for(const x of [120, 150]) box(x - 2.2, x + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD); }                         // its rails
         ctx.restore(); } });
@@ -52549,7 +52551,7 @@ function houseCanopy(fn){
        to a grab height over the curb, a rung every 16 as below, the rails' tops bent over toward the opening. Its own piece, after the
        curb's far wall (b 30): drawn with the lid, the wall had painted across its foot */
     rpush({ a: 135, b: 30, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
-      const LB = PT + 15, LT = 84;
+      const LB = PT + 11, LT = 84;
       for(let z = 0; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
       for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, 0, LT, steel, steel, steelD);   // (from the roof's level: in front of the curb's inner face, which is drawn over the shaft's)                            // the rails
         box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                             // (and over at the top, a hand-hold)
@@ -89449,16 +89451,17 @@ function msWalkTick(scene, ow, now){
    quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
    a half-cycle, so they are glued to the rungs whatever the clock does. The hands climb till the ladder's top rungs (climbZ 80),
    then (f) the arms come up to the hatch's edge. Returns drawHumanoid's data. */
-function msClimbPose(c, roof, cap){
+function msClimbPose(c, roof, cap, Dl){
   /* (roof: the roof's own ladder, up out of the hatch -- its rungs at z 16k there, so the cycle is run 14 on to put them where the shop's are;
      no reach for the hatch's edge: he climbs on out, and stands up off it at the top) */
   /* (the hands go no higher than the ladder's top, z 85 there: each comes to rest on its rail's top and holds it while the legs bring him up,
      and lets go only as he steps off) */
-  if(roof){ const P0 = msClimbPose(c + 14, false, 85 + 14), k = Math.max(0, Math.min(1, (c + 22)/22)), e = k*k*(3 - 2*k), m = (v, to) => v*(1 - e) + to*e;
+  if(roof){ const P0 = msClimbPose(c + 14, false, 85 + 14, 15),   // (15: the roof's ladder is on the hatch's wall, 15 from where he comes up)
+          k = Math.max(0, Math.min(1, (c + 22)/22)), e = k*k*(3 - 2*k), m = (v, to) => v*(1 - e) + to*e;
     const r = Math.max(0, Math.min(1, (c + 5)/5)), ra = r*r*(3 - 2*r), n = (v, to) => v*(1 - ra) + to*ra;
     return Object.assign(P0, { hover: m(P0.hover, 0), waist: m(P0.waist, 0), armOut: P0.armOut.map(v => n(v, 0)),
       lift: P0.lift.map(v => n(v, 0.08)), bend: P0.bend.map(v => n(v, 0.15)), legs: P0.legs.map(L => [m(L[0], 0), m(L[1], 0)]), legOut: P0.legOut.map(v => m(v, 0)) }); }
-  const D = 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
+  const D = Dl || 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
   const B = HUMANOID_BUILD, HIP = B.legH, SH = Math.max(5, B.legH*0.13), TL = (HIP - SH)*0.5, UL = B.armLen*0.48, FL = B.armLen*0.52 + 2.5;   // (FL: to the grip, inside the hand)
   const SB = (B.torsoH - 1)*Math.sin(WAIST), SZ = HIP + (B.torsoH - 1)*Math.cos(WAIST);
   const n = Math.floor(c/16), s = c/16 - n, c1 = v => Math.max(-1, Math.min(1, v));
@@ -89492,7 +89495,7 @@ function msClimb(scene, dir){
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
-  const LZ = 120, HZ = 80, HB = 48;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
+  const LZ = 120, HZ = 80, HB = 40;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
   const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false; scene._camZCarry = true;   // (the camera's height jumps with him: see drawRobot's camera)
       if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
@@ -120586,7 +120589,7 @@ class WorldScene extends Phaser.Scene {
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.hatchNear) LIB.drawItem(nm, this.g, G, this.K, it);
         /* (and what of him is below the roof's plane -- the legs, still under the hatch -- painted out with the roof's own colour, under the curb's near edge) */
-        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const q = [G(90, 72, 0), G(224, 72, 0), G(224, 72, -zk - 6), G(90, 72, -zk - 6)];   // (from the curb's west end: he comes up at b 48 now)
+        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const q = [G(90, 72, 0), G(224, 72, 0), G(224, 72, -zk - 6), G(90, 72, -zk - 6)];   // (from the curb's west end)
             this.g.fillStyle(0x4a3222, 1); this.g.fillPoints(q.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
             const q2 = [G(174, 14, 0), G(174, 72, 0), G(174, 72, -zk - 6), G(174, 14, -zk - 6)];                              // (and past the curb's east side)
             this.g.fillPoints(q2.map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
