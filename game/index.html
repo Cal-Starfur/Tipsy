@@ -52533,8 +52533,8 @@ function houseCanopy(fn){
        curb's far wall (b 30): drawn with the lid, the wall had painted across its foot */
     rpush({ a: 135, b: 30, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
       const LB = PT + 15, LT = 84;
-      for(let z = 32; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
-      for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, HC, LT, steel, steel, steelD);                            // the rails
+      for(let z = 0; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
+      for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, 0, LT, steel, steel, steelD);   // (from the roof's level: in front of the curb's inner face, which is drawn over the shaft's)                            // the rails
         box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                             // (and over at the top, a hand-hold)
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
