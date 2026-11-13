@@ -8787,6 +8787,8 @@ function owStep(scene, dt){
   if(mag < D.dead){ mag = 0; sx = sy = 0; }
   else { const k = (mag - D.dead) / (1 - D.dead) / mag; sx *= k; sy *= k; mag = Math.hypot(sx, sy); }
 
+  /* ON THE ROOF LADDER (MINDING THE SHOP, msLadTick): the stick climbs him, nothing else moves him */
+  if(typeof msLadTick === "function" && msLadTick(scene, ow, sx, sy, mag, dt)) return;
   /* the geofence's autopilot, when it has the stick (owGeofenceTick) */
   derbyTick(scene, ow);                                                     // TIDEWATER GREEN: the soapbox race starts when he comes in (DERBY_RACE)
   const _gf = owGeofenceTick(scene, ow, D, dt) || gothAutoTick(scene, ow, dt);   // (and Luna's mission's autopilot: GOTH)
@@ -87670,8 +87672,8 @@ function msBayNow(scene){
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
   const ic = (B, icon) => B && Object.assign({}, B, { icon });
   if(MS.stage === 'idle') return msDone() || fleetCur() || storiesHidden('minding-the-shop') || missionBusy('minding-the-shop') ? null : ic(msBay(scene), 'robot');
-  if(MS.stage === 'shift') return ic(msLadderBay(), 'flag');
-  if(MS.stage === 'roof') return MS.seen && !MS.carry ? ic(msHatchBay(), 'flag') : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again)
+  if(MS.stage === 'shift') return null;                                       // (no flag at the ladder: he climbs it himself, msLadTick)
+  if(MS.stage === 'roof') return MS.seen && !MS.carry ? null : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again; down the hatch is his own to do)
   if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
   if(MS.stage === 'return' || MS.stage === 'out') return ic(MS.home, 'flag');
   return null;
@@ -87736,7 +87738,7 @@ function msFinish(){
 function msAbort(scene){
   msNavClear(scene);
   MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
-  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -87749,7 +87751,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -87826,6 +87828,69 @@ function msClimb(scene, dir){
   if(up) msWalkTo(scene, { x: BB_IN.x0 + 135, y: y0 + 24 }, -Math.PI/2, 1500, () => msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1100, out, [0, LZ]));   // (up the ladder, hand over hand)
   else msWalkTo(scene, { x: BBR.x0 + 135, y: y0 + HB }, -Math.PI/2, 900, () => msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1400, out, [0, -HZ], true));   // (down: to the opening, and down into it)
 }
+/* HIS OWN CLIMB (Sir, 2026-11-13: "get rid of the auto climb and the flag that triggers it ... the player climbs when they get to the
+   ladder ... all player controlled"). Walk Gideon into the back room's ladder and he takes hold of it; then the stick climbs: toward
+   the ladder (north) up, away from it down, at the old climb's pace at full stick. Down at the foot he lets go and is walking again;
+   at the top he goes on up through the hatch (the old dissolve) onto the roof's own ladder, and at the top of that he steps up out of
+   the hatch onto the roof (the one short walk the story still gives him: the curb is in the way). On the roof, walk into the hatch and
+   he steps in onto the ladder: pull away from it to go down, and at the foot of the roof's run he comes down into the back room the
+   same way. MS.lad: { room: 'shop' | 'roof', z: ow.climbZ, top/foot: armed once he has left that end, busy: the dissolve }. */
+const MS_LAD = { LZ: 120, HZ: 80, HB: 40, FOOT: 24, v: 120/1100, near: 30 };
+function msLadOk(){ return typeof FLEET_LOAN !== 'undefined' && FLEET_LOAN === 'humanoid' && MS.stage !== 'idle' && MS.stage !== 'ask' && !MS.cl; }
+function msLadTick(scene, ow, sx, sy, mag, dt){
+  const L = MS.lad, pk = scene._inside, inShop = pk && pk.name === BB_IN.name, onRoof = pk && pk.name === BBR.name;
+  const w = owScreenToWorld(sx, sy), wl = Math.hypot(w.x, w.y) || 1, up = mag > 0 ? Math.max(-1, Math.min(1, -w.y/wl))*Math.min(1, mag) : 0;   // (toward the ladder, north: up)
+  if(!L){
+    if(MS.ladWait){ if(mag < 0.3) MS.ladWait = false; return false; }   // (just off the ladder: the stick let go once before it takes him again -- held on, he had walked straight back into the hatch)
+    if(!msLadOk() || mag < 0.3) return false;
+    if(inShop && (MS.stage === 'shift' || MS.stage === 'parts')){
+      const a = ow.px - BB_IN.x0, b = ow.py - BB_IN.y0;
+      if(a > 135 - MS_LAD.near && a < 135 + MS_LAD.near && b < 48 && up > 0.5){
+        MS.lad = { room: 'shop', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0;
+        msWalkTo(scene, { x: BB_IN.x0 + 135, y: BB_IN.y0 + MS_LAD.FOOT }, -Math.PI/2, 260, () => { if(MS.lad) MS.lad.busy = false; }, [0, 0]);
+        if(typeof sfxThump === "function") sfxThump(0.15);
+        return true;
+      }
+    }
+    if(onRoof && MS.stage === 'roof'){
+      const a = ow.px - BBR.x0, b = ow.py - BBR.y0, ca = Math.max(96, Math.min(174, a)), cb = Math.max(14, Math.min(72, b)), d = Math.hypot(a - ca, b - cb);
+      const toC = { x: 135 - a, y: 43 - b }, tl = Math.hypot(toC.x, toC.y) || 1, into = mag > 0 ? (w.x*toC.x + w.y*toC.y)/(wl*tl) : 0;
+      if(d < 45 && into > 0.6){                                                   // (45: his body stops him about 31 off the curb)
+        MS.lad = { room: 'roof', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0;
+        msWalkTo(scene, { x: BBR.x0 + 135, y: BBR.y0 + MS_LAD.HB }, -Math.PI/2, 600, () => { if(MS.lad) MS.lad.busy = false; }, [0, 0], true, 300);
+        if(typeof sfxThump === "function") sfxThump(0.15);
+        return true;
+      }
+    }
+    return false;
+  }
+  ow.vel = 0;
+  if(L.busy || MS.cl) return true;
+  L.z += up*MS_LAD.v*Math.min(dt, 40);
+  if(L.room === 'shop'){
+    if(L.z > 6) L.foot = true;
+    if(L.z <= 0){ L.z = 0; if(L.foot && up < -0.2){ MS.lad = null; MS.ladWait = true; ow.climbZ = 0; ow.climbing = false; ow.emerging = false; MS.hatchOpen = false; return true; } }   // (down at the foot: he lets go, and the hatch shuts behind him)
+    if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
+      sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
+        if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
+        ow.climbZ = -MS_LAD.HZ; ow.climbing = false; ow.emerging = true; }); }
+  } else {
+    if(L.z < -6) L.top = true;
+    if(L.z >= 0){ L.z = 0;
+      if(L.top && up > 0.2){ L.busy = true; ow.climbZ = 0; ow.emerging = true;                                                        // (up at the top: he steps out onto the roof)
+        msWalkTo(scene, { x: ow.px, y: BBR.y0 + 138 }, Math.PI/2, 700, () => { MS.lad = null; MS.ladWait = true; ow.climbZ = 0; ow.emerging = false; ow.climbing = false;
+          if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof'; }, null, false, 500);
+        return true; } }
+    if(L.z <= -MS_LAD.HZ){ L.z = -MS_LAD.HZ; L.busy = true; const dx = BB_IN.x0 - BBR.x0;                                       // (down through it into the back room)
+      sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
+        if(MS.lad){ MS.lad.room = 'shop'; MS.lad.z = MS_LAD.LZ; MS.lad.foot = true; MS.lad.top = true; MS.lad.busy = false; }
+        ow.climbZ = MS_LAD.LZ; ow.climbing = true; ow.emerging = false;
+        MS.stage = MS.fixed ? 'fin' : MS.seen ? (MS.carry === 'parts' ? 'shift' : 'parts') : 'shift';
+        if(MS.stage === 'parts' && typeof msNav === 'function') msNav(scene, msHw(scene), MS_HW); }); }
+  }
+  ow.climbZ = L.z; ow.climbing = L.room === 'shop'; ow.emerging = L.room === 'roof';
+  return true;
+}
 function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
   hospSayCard(null); cineBars(false);
@@ -87856,9 +87921,7 @@ function msTick(scene, ow){
       if(R.gid && R.gid.leave == null) meet(R.gid, () => hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Go on, I'll mind the shop", ok: msAccept, no: { btn: "Not now", ok: msDecline }, at: msGidAt,
         say: "Tipsey! The screen's gone dark. I'm off up to the roof. Can you mind the shop?" }));
       return;
-    case 'shift':
-      if(!R.climbing && armed(msLadderBay())) msClimb(scene, 'up');
-      return;
+    case 'shift': return;                                                       // (up the ladder: his own climb, msLadTick)
     case 'roof':
       if(R.climbing) return;
       if(!R.seen){
@@ -87867,7 +87930,7 @@ function msTick(scene, ow){
       } else if(R.carry === 'parts'){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
           hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Bracket on, mast straight, connector screwed in. There." }); }
-      } else if(armed(msHatchBay())) msClimb(scene, 'down');
+      }                                                                            // (down the hatch: his own climb, msLadTick)
       return;
     case 'roofFix': return;
     case 'fin':
@@ -144254,9 +144317,9 @@ const GO_SPOTS = {
         /* &lh=chandlery: THE LIGHTHOUSE RUN from its start -- Tipsey in front of the Marina Chandlery (go=-4750,-13950,-1.57) at 11 o'clock, driving as himself,
            the story not yet done (in memory only: nothing is saved), so the beacon over its door is there to drive in at */
         /* &ms=ladder: MINDING THE SHOP at its climb -- 11 o'clock, the mission taken at Brew & Bolt's bay (as its "Go on" does: Gideon is his, Tipsey
-           goes in to mind the counter), and Gideon stood in the back room on the ladder's flag, facing it: up he goes.
+           goes in to mind the counter), and Gideon stood in the back room facing the ladder: walk him to it and climb.
            In memory only: nothing is saved */
-        if(ms === 'ladder'){ try { NIGHT_CLOCK.time = 11; MS.stage = 'ask'; MS.gid = null; msAccept(); const L = msLadderBay(); owStandUpAt(s, L.x, L.y, -Math.PI/2); if(v) zoomSet(+v); } catch(e){ console.warn('ms=ladder', e); } }
+        if(ms === 'ladder'){ try { NIGHT_CLOCK.time = 11; MS.stage = 'ask'; MS.gid = null; msAccept(); owStandUpAt(s, BB_IN.x0 + 135, BB_IN.y0 + 90, -Math.PI/2); if(v) zoomSet(+v); } catch(e){ console.warn('ms=ladder', e); } }
         if(lh === 'chandlery'){ try { NIGHT_CLOCK.time = 11; if(tpProfile){ tpProfile.fleetKind = ''; if(tpProfile.missionsCompleted) tpProfile.missionsCompleted.delete('lighthouse-run'); } LH.stage = 'idle'; } catch(e){} }
         return;
       }
