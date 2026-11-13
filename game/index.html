@@ -89474,6 +89474,7 @@ function msWalkTick(scene, ow, now){
   ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e;
   if(tn && now - C.t0 < tn){ const u = (now - C.t0)/tn, d = Math.atan2(Math.sin(C.yaw - C.yaw0), Math.cos(C.yaw - C.yaw0)); ow.yaw = C.yaw0 + d*u*u*(3 - 2*u); } else ow.yaw = C.yaw; ow.vel = C.z ? 0 : (k < 1 ? 0.07 : 0);
   if(C.z){ ow.climbZ = C.z[0] + (C.z[1] - C.z[0])*k; ow.climbing = k < 1; ow.emerging = !!C.emerge && k < 1; if(k >= 1){ ow.climbing = false; ow.emerging = false; } }
+  if(C.zf) ow.climbZ = C.zf(ow.px, ow.py);   // (a height along the way: over the roof hatch's curb, msCurbZ)
   scene.botX = ow.px; scene.botY = ow.py;
   if(k >= 1){ MS.cl = null; C.done(); }
 }
@@ -89546,6 +89547,14 @@ function msClimb(scene, dir){
    he steps in onto the ladder: pull away from it to go down, and at the foot of the roof's run he comes down into the back room the
    same way. MS.lad: { room: 'shop' | 'roof', z: ow.climbZ, top/foot: armed once he has left that end, busy: the dissolve }. */
 const MS_LAD = { LZ: 120, HZ: 80, HB: 40, FOOT: 24, v: 120/1100, near: 30 };
+/* how high his feet are, walking over the roof hatch's curb (a 96..174, b 14..72, 8 thick, 18 high): up onto it and down off it over 10
+   either side of its top -- so getting out of the hatch, or into it, is a step up and a step down, not a slide through the wall */
+function msCurbZ(x, y){
+  const a = x - BBR.x0, b = y - BBR.y0, R = 10, H = 18;
+  const dOut = Math.hypot(Math.max(96 - a, 0, a - 174), Math.max(14 - b, 0, b - 72));
+  const dIn = Math.max(0, Math.min(a - 104, 166 - a, b - 22, 64 - b));
+  return H*Math.max(0, 1 - dOut/R)*Math.max(0, 1 - dIn/R);
+}
 function msLadOk(){ return typeof FLEET_LOAN !== 'undefined' && FLEET_LOAN === 'humanoid' && MS.stage !== 'idle' && MS.stage !== 'ask' && !MS.cl; }
 function msLadTick(scene, ow, sx, sy, mag, dt){
   const L = MS.lad, pk = scene._inside, inShop = pk && pk.name === BB_IN.name, onRoof = pk && pk.name === BBR.name;
@@ -89566,16 +89575,21 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
       const a = ow.px - BBR.x0, b = ow.py - BBR.y0, ca = Math.max(96, Math.min(174, a)), cb = Math.max(14, Math.min(72, b)), d = Math.hypot(a - ca, b - cb);
       const toC = { x: 135 - a, y: 43 - b }, tl = Math.hypot(toC.x, toC.y) || 1, into = mag > 0 ? (w.x*toC.x + w.y*toC.y)/(wl*tl) : 0;
       if(d < 45 && into > 0.6){                                                   // (45: his body stops him about 31 off the curb)
-        MS.lad = { room: 'roof', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0;
-        msWalkTo(scene, { x: BBR.x0 + 135, y: BBR.y0 + MS_LAD.HB }, -Math.PI/2, 600, () => { if(MS.lad) MS.lad.busy = false; }, [0, 0], true, 300);
+        MS.lad = { room: 'roof', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0; ow.emerging = false;
+        /* (in: he walks on in -- up onto the curb, down inside it -- and faces the ladder) */
+        const tx = BBR.x0 + 135, ty = BBR.y0 + MS_LAD.HB, dur = Math.max(500, Math.hypot(tx - ow.px, ty - ow.py)/0.06);
+        msWalkTo(scene, { x: tx, y: ty }, Math.atan2(ty - ow.py, tx - ow.px), dur, () => {
+          msWalkTo(scene, { x: tx, y: ty }, -Math.PI/2, 1, () => { ow.climbZ = 0; if(MS.lad) MS.lad.busy = false; }, null, false, 380); }, null, false, 200);
+        MS.cl.zf = msCurbZ;
         if(typeof sfxThump === "function") sfxThump(0.15);
         return true;
       }
     }
     return false;
   }
-  ow.vel = 0;
-  if(L.busy || MS.cl) return true;
+  if(MS.cl){ scene.speed = Math.abs(ow.vel); return true; }   // (a walk the story gives him -- in over the curb, out over it: his feet go at its pace, msWalkTick's)
+  ow.vel = 0; scene.speed = 0;
+  if(L.busy) return true;
   L.z += up*MS_LAD.v*Math.min(dt, 40);
   if(L.room === 'shop'){
     if(L.z > 6) L.foot = true;
@@ -89587,9 +89601,10 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
   } else {
     if(L.z < -6) L.top = true;
     if(L.z >= 0){ L.z = 0;
-      if(L.top && up > 0.2){ L.busy = true; ow.climbZ = 0; ow.emerging = true;                                                        // (up at the top: he steps out onto the roof)
-        msWalkTo(scene, { x: ow.px, y: BBR.y0 + 138 }, Math.PI/2, 700, () => { MS.lad = null; MS.ladWait = true; ow.climbZ = 0; ow.emerging = false; ow.climbing = false;
-          if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof'; }, null, false, 500);
+      if(L.top && up > 0.2){ L.busy = true; ow.climbZ = 0; ow.emerging = false; ow.climbing = false;                                  // (up at the top: he turns round and walks out --
+        msWalkTo(scene, { x: ow.px, y: BBR.y0 + 104 }, Math.PI/2, 1100, () => { MS.lad = null; MS.ladWait = true; ow.climbZ = 0;    //  up onto the curb and down off it, on his own feet)
+          if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof'; }, null, false, 520);
+        MS.cl.zf = msCurbZ;
         return true; } }
     if(L.z <= -MS_LAD.HZ){ L.z = -MS_LAD.HZ; L.busy = true; const dx = BB_IN.x0 - BBR.x0;                                       // (down through it into the back room)
       sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
