@@ -52291,14 +52291,14 @@ function houseCanopy(fn){
       for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*22, pb + Math.sin(t)*22, 60 + (k%2)*12, 2, '#3f8f4a'); } } });
 
     /* ---- THE BACK ROOM'S FIXTURES (a 0..416, b 0..416) ----
-       THE ROASTER, the north-west: a steel base, the copper drum on it, its hopper over and its flue to the ceiling */
-    { const a0 = 36, a1 = 140, b0 = 36, b1 = 104;
-      items.push({ a: 88, b: 70, z: 0, solids: [solid(a0, a1, b0, b1, 130, 'roaster')], draw: () => {
+       THE ROASTER, the north-west, 28 west of where it was so the roof ladder's foot is clear: a steel base, the copper drum on it, its hopper over and its flue to the ceiling */
+    { const a0 = 8, a1 = 112, b0 = 36, b1 = 104;
+      items.push({ a: 60, b: 70, z: 0, solids: [solid(a0, a1, b0, b1, 130, 'roaster')], draw: () => {
         box(a0, a1, b0, b1, 0, 34, steel, steelD, steelS);
-        cyl(88, 70, 34, 92, 30, copper, '#e8a550');
+        cyl(60, 70, 34, 92, 30, copper, '#e8a550');
         box(a0 + 8, a1 - 8, b0 + 4, b1 - 4, 92, 100, steelD, steelS, steelS);
-        poly([P(70, 60, 100), P(106, 60, 100), P(94, 66, 126), P(82, 66, 126)], '#8f969d');
-        tube(88, 70, 100, 88, 70, H - 6, 5, steelD);
+        poly([P(42, 60, 100), P(78, 60, 100), P(66, 66, 126), P(54, 66, 126)], '#8f969d');
+        tube(60, 70, 100, 60, 70, H - 6, 5, steelD);
         box(a1 - 22, a1 - 6, b1 - 4, b1 + 4, 40, 70, '#1f2a30', '#19232a', '#141b20'); F(a1 - 20, a1 - 8, 46, 64, '#e79a35', null, 0, b1 + 4.3); } }); }
     /* THE BEAN SHELVES on the north wall (a 190..390): sacks and tins, three shelves */
     { const A0 = 190, A1 = 390, B1 = 30, ZS = [8, 60, 112];
