@@ -10909,6 +10909,7 @@ function owStandUpAt(scene, x, y, yaw){
   if(OW_DBG) ow._dbgEnd = null;  // nor read as an unattributed shove
   ow.solidOn = new Set(); ow.flatOn = new Set();
   ow.splash = null; ow.splashZ = 0;   // back out of the harbor
+  ow.climbZ = 0; ow.climbing = false;   // (off the roof ladder: MINDING THE SHOP's climb)
   ow.lift = null; ow.deck = null; ow.liftArm = true;   // back on the ground (see owLiftTick)
   ow.wliftArm = true;
   ow.carryZ = undefined; ow.carryHide = false;
@@ -87682,10 +87683,12 @@ function msHandBack(scene){
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
 /* A WALKED CLIMB: he turns to the wall and walks up to the ladder (or the hatch's curb) at a climbing pace, the hatch opening as he starts,
    then the room is left by the old dissolve; coming down he is set at the ladder's foot and walks out from it. The walk is msTick's (MS.cl) */
-function msWalkTo(scene, to, yaw, ms, done){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done }; }
+function msWalkTo(scene, to, yaw, ms, done, z){ const ow = scene.ow; MS.cl = { t0: scene.time.now, from: { x: ow.px, y: ow.py }, to, yaw, ms, done, z }; }
+/* (z: [from, to] -- a CLIMB: he stays at the ladder and goes up (or down) it, rung by rung, hands up, the stride going, ow.climbZ lifting the body) */
 function msWalkTick(scene, ow, now){
-  const C = MS.cl, k = Math.min(1, (now - C.t0)/C.ms), e = k*k*(3 - 2*k);
-  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e; ow.yaw = C.yaw; ow.vel = k < 1 ? 0.07 : 0;
+  const C = MS.cl, k = Math.min(1, (now - C.t0)/C.ms), e = C.z ? k : k*k*(3 - 2*k);
+  ow.px = C.from.x + (C.to.x - C.from.x)*e; ow.py = C.from.y + (C.to.y - C.from.y)*e; ow.yaw = C.yaw; ow.vel = C.z ? 0 : (k < 1 ? 0.07 : 0);
+  if(C.z){ ow.climbZ = C.z[0] + (C.z[1] - C.z[0])*k; ow.climbing = k < 1; if(k >= 1){ ow.climbing = false; } }
   scene.botX = ow.px; scene.botY = ow.py;
   if(k >= 1){ MS.cl = null; C.done(); }
 }
@@ -87701,10 +87704,15 @@ function msClimb(scene, dir){
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
-  msWalkTo(scene, { x: ow.px, y: y0 + (up ? 26 : 84) }, -Math.PI/2, up ? 1500 : 900, () => {
-    sceneDissolve(scene, 700, () => { pocketShift(scene, dx, y1 + (up ? 138 : 26) - ow.py);
+  const LZ = 200;                                                                // (the ladder's height: up to the hatch)
+  const out = () => { sceneDissolve(scene, 500, () => { pocketShift(scene, dx, y1 + (up ? 138 : 26) - ow.py); ow.climbZ = 0; ow.climbing = false;
       if(up){ ow.yaw = Math.PI/2; settle(); }
-      else msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); });   // (down: out from the ladder's foot)
+      else { ow.climbZ = LZ; ow.yaw = -Math.PI/2;                                   // (down: in at the ladder's top, then down it, then out from its foot)
+        msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0; ow.climbing = false;
+          msWalkTo(scene, { x: ow.px, y: y1 + 78 }, Math.PI/2, 900, settle); }, [LZ, 0]); } }); };
+  msWalkTo(scene, { x: ow.px, y: y0 + (up ? 26 : 84) }, -Math.PI/2, up ? 1500 : 900, () => {
+    if(up) msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1800, out, [0, LZ]);    // (up the ladder, hand over hand)
+    else out();
   });
 }
 function msSeen(){
@@ -118917,7 +118925,7 @@ class WorldScene extends Phaser.Scene {
     /* THE FRONT WHEELS' ANGLE (FLEET_STEER: ow.steer, shown 1.6 times as far as it is so it reads at the game's zoom) */
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6, paint: true }
-      : kind === "humanoid" ? { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() }   // (his roll: its fall; his look: Gideon's own, gd4)
+      : kind === "humanoid" ? (this.ow && this.ow.climbing ? { walk: 1, gait: t/150, roll: 0, reach: 1, look: gideonParts() } : { walk: this._fleetWalk, gait: this._fleetGait, roll: this.roll || 0, look: gideonParts() })   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
@@ -122191,7 +122199,8 @@ class WorldScene extends Phaser.Scene {
               + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)             // on a ramp, or in the air off one (owJumpTick)
               + (this.ow && this.ow.on ? (this.ow.splashZ || 0) : 0)           // off the dock: into the harbor
               + (this.ow && this.ow.on ? owLiftZ(this.ow) : 0)                 // the garage lift, and its roof deck
-              + (this.ow && this.ow.on ? vaultZ(this) : 0);                    // the sidewalk lift's ride (VAULT)
+              + (this.ow && this.ow.on ? vaultZ(this) : 0)                     // the sidewalk lift's ride (VAULT)
+              + (this.ow && this.ow.on ? (this.ow.climbZ || 0) : 0);           // up the roof ladder (msClimb)
     /* A ROTORCRAFT'S REAL HEIGHT (FLEET_CTRL.rotor: ow.z, the world's z) */
     if(this.ow && this.ow.on && this.ow.fly && flyCtl()) this.botZ = Math.max(this.botZ, this.ow.z || 0);
     /* MAX_GRADE: hard ceiling at a real 5% grade (atan(0.05) ≈ 2.86°),
