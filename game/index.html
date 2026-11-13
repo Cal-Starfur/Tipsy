@@ -89306,6 +89306,7 @@ function msAccept(){
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
   MS.stage = 'shift';
+  msNav(scene, msBay(scene), "Brew & Bolt: the ladder in the back room");   // (the GPS to the shop's door, then in and up the ladder)
   /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
@@ -89386,6 +89387,7 @@ function msClimb(scene, dir){
   const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
     if(!up) MS.hatchOpen = false;
     if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); };
+  if(up) msNavClear(scene);
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
@@ -89399,6 +89401,7 @@ function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
   hospSayCard(null); cineBars(false);
   MS.seen = true; MS.stage = 'roof';
+  msNav(scene, msHw(scene), MS_HW);                                              // (the way to the parts, from up here)
   if(typeof tpToast === "function") tpToast("The mast's bent right over and the cable's snapped. Back down the hatch: it needs a new mast bracket and a coax connector.");
 }
 function msTick(scene, ow){
