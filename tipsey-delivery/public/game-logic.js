@@ -87585,22 +87585,17 @@ function msAccept(){
   MS.park = { x: ow.px, y: ow.py, a: ow.yaw };
   MS.gid = null; FLEET_LOAN = 'humanoid';
   const items = scene.items, cx = scene.camX, cy = scene.camY;
-  /* (no teleport: he stands where he stood, and sets off walking out of Tipsey's way -- across the line from Tipsey's bay to the door,
-     away from it -- as the player takes him over; Tipsey's walk starts a beat later) */
-  const gA = { x: ow.px, y: ow.py };
-  let gyaw = G.th;
-  { const pk0 = POCKETS.find(q => q.name === BB_IN.name), V0 = pk0 && pk0.view ? pk0.view() : { dx: 0, dy: 0 };
-    const Dd = { x: BB_IN.x0 + BB_IN.DOOR.at + V0.dx, y: BB_IN.y0 + BB_IN.D + 90 + V0.dy };
-    const ex = Dd.x - gA.x, ey = Dd.y - gA.y, L2 = ex*ex + ey*ey || 1, u = Math.max(0, Math.min(1, ((G.x - gA.x)*ex + (G.y - gA.y)*ey)/L2));
-    const dx = G.x - (gA.x + ex*u), dy = G.y - (gA.y + ey*u), d = Math.hypot(dx, dy);
-    if(d < 130) gyaw = d > 1 ? Math.atan2(dy, dx) : Math.atan2(ex, -ey); }
-  owStandUpAt(scene, G.x, G.y, gyaw);
-  gothDrive({ x: G.x + Math.cos(gyaw)*170, y: G.y + Math.sin(gyaw)*170 });   // (the autopilot, on his own physics, so he walks -- the stride follows his speed -- not glides)
+  /* (no teleport: he stands where he stood, and walks back in through his own door -- he is off up to the roof -- on the autopilot; Tipsey's walk in
+     starts a beat later) */
+  owStandUpAt(scene, G.x, G.y, G.th);
+  { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 };
+    const dx = BB_IN.x0 + BB_IN.DOOR.at + V.dx, dy = BB_IN.y0 + V.dy;
+    if(pk && pk.doors && pk.doors[0]) pk.doors[0]._rest = false;                   // (the door is armed for him: he was never let out of it, so it was still 'at rest' and would not take him)
+    gothDrive({ x: dx, y: dy + BB_IN.D + 10 }, () => { if(pk && pk.doors && pk.doors[0]) pk.doors[0]._rest = false; gothDrive({ x: dx, y: dy + BB_IN.D - 120 }); }); }   // (he is off up to the roof: to his own door, which hands him in as it does when he drives at it)   // (in through the door: the walk-in's own door hand-off takes him inside)
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
   MS.stage = 'shift';
-  msNav(scene, msBay(scene), "Brew & Bolt: the ladder in the back room");   // (the GPS to the shop's door, then in and up the ladder)
   /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
