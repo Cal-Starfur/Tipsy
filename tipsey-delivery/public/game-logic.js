@@ -50815,9 +50815,14 @@ function houseCanopy(fn){
           cyl(135, 56, 18.6, 21, 3.2, copper, '#e8a550');
           return;
         }
-        for(const x of [120, 150]) box(x - 2.2, x + 2.2, PT + 12, PT + 18, 18, 52, steel, steel, steelD);                          // (the rails' top, up past the curb)
-        poly([P(104, PT + 4, 18), P(166, PT + 4, 18), P(166, PT + 2, 62), P(104, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);
-        poly([P(104, PT + 4, 18), P(104, PT + 2, 62), P(104, PT + 8, 62), P(104, PT + 8, 18)], '#5a4026'); } });
+        poly([P(104, PT + 4, 18), P(166, PT + 4, 18), P(166, PT + 2, 62), P(104, PT + 2, 62)], '#7a5a3c', '#4a3a2c', 1);       // (the lid first: it is behind the ladder)
+        poly([P(104, PT + 4, 18), P(104, PT + 2, 62), P(104, PT + 8, 62), P(104, PT + 8, 18)], '#5a4026');
+        /* THE LADDER, ALL THE WAY UP (Sir, 2026-11-13: "the ladder should go all the way up"): the shaft's rails carry on up out of the
+           hatch to a grab height over the curb, a rung every 16 as below, the rails' tops bent over toward the opening */
+        const LB = PT + 15, LT = 84;
+        for(let z = 32; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steelD);                                              // its rungs, over the curb
+        for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, 10, LT, steel, steel, steelD);                              // the rails
+          box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                          // (and over at the top, a hand-hold)
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
     { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
