@@ -52346,7 +52346,13 @@ function houseCanopy(fn){
             for(let a = L0 - 11; a < L1 + 15; a += 9) T(a, a + 1, 5, 59, hz + 1.4, '#5a4026');
             cyl((L0 + L1)/2, 46, hz + 1, hz + 4, 3.2, copper, '#e8a550');
           }   // (open: nothing -- no frame, no panel: the ladder simply goes up through the ceiling)
-          } }); }
+          } });
+      /* ...and on up it: open, the rails and rungs carry on above the ceiling, up the hatch's shaft, so his hands have rungs all the way
+         (Sir, 2026-11-13: "the top of the ladder is missing from the interior scene") */
+      items.push({ a: (L0 + L1)/2, b: 60, z: H, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+        const TOP = H + 80;
+        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, TOP, rail, rail, railD);
+        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < TOP - 4; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD); } }); }
     /* AFTER DARK (the night pass): the neon bolt throws a wide amber wash over the plaster and a pool on the floor under it, the counter's
        base glows along the aisle, and the till's screen light spills on its top -- still pieces of the room, their 'when' */
     { const night = () => typeof isNightNow === 'function' && isNightNow();
@@ -89449,8 +89455,7 @@ function msWalkTick(scene, ow, now){
    there by two-link IK: a planted one stays on its rung while he rises past it (the standing leg straightening as it
    pushes, the pulling arm bending), a moving one leaves its rung and goes up two, pulled back off the ladder on the way,
    quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
-   a half-cycle, so they are glued to the rungs whatever the clock does. The hands climb till the ladder's top rungs (climbZ 80),
-   then (f) the arms come up to the hatch's edge. Returns drawHumanoid's data. */
+   a half-cycle, so they are glued to the rungs whatever the clock does, all the way up (the ladder runs on up the hatch's shaft). Returns drawHumanoid's data. */
 function msClimbPose(c, roof, cap, Dl){
   /* (roof: the roof's own ladder, up out of the hatch -- its rungs at z 16k there, so the cycle is run 14 on to put them where the shop's are;
      no reach for the hatch's edge: he climbs on out, and stands up off it at the top) */
@@ -89478,7 +89483,7 @@ function msClimbPose(c, roof, cap, Dl){
   const leg = T => { const db = D - FB - 6*T.arc, dh = T.h + 1.5 + SH + 3*T.arc - HIP, d = Math.min(Math.hypot(db, dh), 2*TL - 0.3);
     const th = Math.atan2(db, -dh), al = Math.acos(c1(d/(2*TL))); return [th + al, 2*al]; };
   const hF = at(0, 6, 0.85, cap), hN = at(1, 7, 0.85, cap), fN = at(0, -1, 0.85), fF = at(1, 0, 0.85);
-  const aF = arm(hF), aN = arm(hN), f = Math.max(0, Math.min(1, (c - 80)/24)), m = (v, to) => v*(1 - f) + to*f;
+  const aF = arm(hF), aN = arm(hN), f = 0, m = (v, to) => v*(1 - f) + to*f;
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(), hover: HOV, waist: WAIST*(1 - f),
     lift: [m(aF[0], 0.9), m(aN[0], 0.9)], bend: [m(aF[1], 0.35), m(aN[1], 0.35)], armOut: [0.14*(1 - f), 0.14*(1 - f)],
     legs: [leg(fF), leg(fN)], legOut: [0.05 + 0.12*fF.arc, 0.05 + 0.12*fN.arc] };
