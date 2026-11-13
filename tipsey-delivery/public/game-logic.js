@@ -87743,7 +87743,12 @@ function msWalkTick(scene, ow, now){
    quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
    a half-cycle, so they are glued to the rungs whatever the clock does. The hands climb till the ladder's top rungs (climbZ 80),
    then (f) the arms come up to the hatch's edge. Returns drawHumanoid's data. */
-function msClimbPose(c){
+function msClimbPose(c, roof){
+  /* (roof: the roof's own ladder, up out of the hatch -- its rungs at z 16k there, so the cycle is run 14 on to put them where the shop's are;
+     no reach for the hatch's edge: he climbs on out, and stands up off it at the top) */
+  if(roof){ const P0 = msClimbPose(c + 14, false), k = Math.max(0, Math.min(1, (c + 22)/22)), e = k*k*(3 - 2*k), m = (v, to) => v*(1 - e) + to*e;
+    return Object.assign(P0, { hover: m(P0.hover, 0), waist: m(P0.waist, 0), armOut: P0.armOut.map(v => m(v, 0)),
+      lift: P0.lift.map(v => m(v, 0.08)), bend: P0.bend.map(v => m(v, 0.15)), legs: P0.legs.map(L => [m(L[0], 0), m(L[1], 0)]), legOut: P0.legOut.map(v => m(v, 0)) }); }
   const D = 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
   const B = HUMANOID_BUILD, HIP = B.legH, SH = Math.max(5, B.legH*0.13), TL = (HIP - SH)*0.5, UL = B.armLen*0.48, FL = B.armLen*0.52 + 2.5;   // (FL: to the grip, inside the hand)
   const SB = (B.torsoH - 1)*Math.sin(WAIST), SZ = HIP + (B.torsoH - 1)*Math.cos(WAIST);
@@ -87777,7 +87782,7 @@ function msClimb(scene, dir){
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
-  const LZ = 120, HZ = 80, HB = 40;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
+  const LZ = 120, HZ = 80, HB = 48;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
   const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false; scene._camZCarry = true;   // (the camera's height jumps with him: see drawRobot's camera)
       if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
@@ -118871,8 +118876,10 @@ class WorldScene extends Phaser.Scene {
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.hatchNear) LIB.drawItem(nm, this.g, G, this.K, it);
         /* (and what of him is below the roof's plane -- the legs, still under the hatch -- painted out with the roof's own colour, under the curb's near edge) */
-        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const q = [G(122, 72, 0), G(224, 72, 0), G(224, 72, -zk - 6), G(122, 72, -zk - 6)];
-            this.g.fillStyle(0x4a3222, 1); this.g.fillPoints(q.map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
+        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const q = [G(90, 72, 0), G(224, 72, 0), G(224, 72, -zk - 6), G(90, 72, -zk - 6)];   // (from the curb's west end: he comes up at b 48 now)
+            this.g.fillStyle(0x4a3222, 1); this.g.fillPoints(q.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
+            const q2 = [G(174, 14, 0), G(174, 72, 0), G(174, 72, -zk - 6), G(174, 14, -zk - 6)];                              // (and past the curb's east side)
+            this.g.fillPoints(q2.map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
       }
       return;
     }
@@ -119007,7 +119014,7 @@ class WorldScene extends Phaser.Scene {
     /* THE FRONT WHEELS' ANGLE (FLEET_STEER: ow.steer, shown 1.6 times as far as it is so it reads at the game's zoom) */
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6, paint: true }
-      : kind === "humanoid" ? (this.ow && this.ow.emerging ? (() => { const u = Math.max(0, Math.min(1, ((this.ow.climbZ || 0) + 80)/80)), l = 1.0 - 0.85*u, bd = 0.6 - 0.45*u; return { walk: 0, gait: 0, roll: 0, look: gideonParts(), lift: [l, l], bend: [bd, bd] }; })()   // (up out of the roof hatch: hands on the curb, the arms coming down as he rises -- not held up in the air)
+      : kind === "humanoid" ? (this.ow && this.ow.emerging ? msClimbPose(this.ow.climbZ || 0, true)   // (up out of the roof hatch: still climbing, rung over rung on the roof's ladder, then standing up off it)
         : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0) : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
