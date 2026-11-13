@@ -29006,7 +29006,8 @@ const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0
 const BBR = { name: 'Brew & Bolt Roof', x0: 470000, y0: 430000, W: 836, D: 836, Z: 343 };
 POCKETS.push({ name: BBR.name, from: 'Brew & Bolt', x0: BBR.x0, y0: BBR.y0, w: BBR.W, d: BBR.D, out: 0, h: 80, doors: [],
   view: () => { const v = BB_PK.view(); return { dx: v.dx + (BB_IN.x0 - BBR.x0), dy: v.dy + (BB_IN.y0 - BBR.y0) }; },
-  z: () => BBR.Z, night: [] });   // (both legs' shells ease off as he goes in)
+  z: () => BBR.Z, night: [],
+  outside: () => { const pk = POCKETS.find(q => q.name === BB_IN.name); return pk ? pocketOutsideDoor(pk) : null; } });   // (both legs' shells ease off as he goes in; outside: no door of its own, so it is in the shop's hood -- asked at the shop's front door, or the zone's geofence took him off the roof)
 /* ITS PEOPLE: Gideon, the owner, a humanoid robot -- his look a placeholder (a roster body in a metal skin, no hair, the
    shop's copper apron) till his own is drawn; he walks the room's aisles with the coffee and rests at his dock in the back
    room. Two customers at their tables' look points (a room of 700,000 square: staff of one, a few visitors) */
