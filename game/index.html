@@ -52474,7 +52474,11 @@ function houseCanopy(fn){
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
         rpush({ low, a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
           box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
-    par(0, W, 0, PT, true, true); par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+    par(0, W, 0, PT, true, true);
+    /* (the far run sorted ahead of whatever stands in front of it: by a + b its pieces came after the roof hatch's lid and curb, beside
+       them, and painted their cap across them -- Sir, 2026-11-13, "the wall is drawing over the hatch") */
+    for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < PT) it.dk -= 300;
+    par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
        room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
