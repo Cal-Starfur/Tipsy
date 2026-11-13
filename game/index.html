@@ -89449,12 +89449,15 @@ function msWalkTick(scene, ow, now){
    quickest at the start. The far arm goes with the near leg, then the near arm with the far leg: a rung (16 of climbZ)
    a half-cycle, so they are glued to the rungs whatever the clock does. The hands climb till the ladder's top rungs (climbZ 80),
    then (f) the arms come up to the hatch's edge. Returns drawHumanoid's data. */
-function msClimbPose(c, roof){
+function msClimbPose(c, roof, cap){
   /* (roof: the roof's own ladder, up out of the hatch -- its rungs at z 16k there, so the cycle is run 14 on to put them where the shop's are;
      no reach for the hatch's edge: he climbs on out, and stands up off it at the top) */
-  if(roof){ const P0 = msClimbPose(c + 14, false), k = Math.max(0, Math.min(1, (c + 22)/22)), e = k*k*(3 - 2*k), m = (v, to) => v*(1 - e) + to*e;
-    return Object.assign(P0, { hover: m(P0.hover, 0), waist: m(P0.waist, 0), armOut: P0.armOut.map(v => m(v, 0)),
-      lift: P0.lift.map(v => m(v, 0.08)), bend: P0.bend.map(v => m(v, 0.15)), legs: P0.legs.map(L => [m(L[0], 0), m(L[1], 0)]), legOut: P0.legOut.map(v => m(v, 0)) }); }
+  /* (the hands go no higher than the ladder's top, z 85 there: each comes to rest on its rail's top and holds it while the legs bring him up,
+     and lets go only as he steps off) */
+  if(roof){ const P0 = msClimbPose(c + 14, false, 85 + 14), k = Math.max(0, Math.min(1, (c + 22)/22)), e = k*k*(3 - 2*k), m = (v, to) => v*(1 - e) + to*e;
+    const r = Math.max(0, Math.min(1, (c + 5)/5)), ra = r*r*(3 - 2*r), n = (v, to) => v*(1 - ra) + to*ra;
+    return Object.assign(P0, { hover: m(P0.hover, 0), waist: m(P0.waist, 0), armOut: P0.armOut.map(v => n(v, 0)),
+      lift: P0.lift.map(v => n(v, 0.08)), bend: P0.bend.map(v => n(v, 0.15)), legs: P0.legs.map(L => [m(L[0], 0), m(L[1], 0)]), legOut: P0.legOut.map(v => m(v, 0)) }); }
   const D = 19, HOV = -2.8, FB = 7, WAIST = 0.04;                                   // (to the rungs; the body let down; the ankle behind the rung; the trunk toward the ladder)
   const B = HUMANOID_BUILD, HIP = B.legH, SH = Math.max(5, B.legH*0.13), TL = (HIP - SH)*0.5, UL = B.armLen*0.48, FL = B.armLen*0.52 + 2.5;   // (FL: to the grip, inside the hand)
   const SB = (B.torsoH - 1)*Math.sin(WAIST), SZ = HIP + (B.torsoH - 1)*Math.cos(WAIST);
@@ -89462,15 +89465,16 @@ function msClimbPose(c, roof){
   const hr = k => 14 + 16*k - c - HOV;                                               // (rung k's height over his feet's frame)
   /* a limb of set 0 (far arm, near leg: moves on even half-cycles) or 1, from its rung at the start (base): where it is, and how far
      off the ladder it is pulled (arc, 0..1) */
-  const at = (set, base, w1) => { const mv = (n & 1) === set, k0 = base + n + (mv ? 0 : 1) - set;
+  const at = (set, base, w1, top) => { const mv = (n & 1) === set, k0 = base + n + (mv ? 0 : 1) - set;
     const x = Math.max(0, Math.min(1, s/w1)), q = 1 - Math.pow(1 - x, 1.6), e = mv ? q*q*(3 - 2*q) : 0;
-    return { h: hr(k0) + 32*e, arc: mv ? Math.sin(Math.PI*e) : 0 }; };
+    const h = hr(k0) + 32*e, lim = top != null ? top - c - HOV : Infinity;   // (top: the ladder's end -- a hand that would go past it holds there)
+    return h >= lim ? { h: lim, arc: 0 } : { h, arc: mv ? Math.sin(Math.PI*e) : 0 }; };
   const arm = T => { const db = D - 7*T.arc - SB, dh = T.h - SZ, d = Math.min(Math.max(Math.hypot(db, dh), 6), UL + FL - 0.8);
     const th = Math.atan2(db, -dh), al = Math.acos(c1((UL*UL + d*d - FL*FL)/(2*UL*d))), be = Math.acos(c1((FL*FL + d*d - UL*UL)/(2*FL*d)));
     return [(th - al + WAIST)/LIFT_MAX_ANGLE, al + be]; };
   const leg = T => { const db = D - FB - 6*T.arc, dh = T.h + 1.5 + SH + 3*T.arc - HIP, d = Math.min(Math.hypot(db, dh), 2*TL - 0.3);
     const th = Math.atan2(db, -dh), al = Math.acos(c1(d/(2*TL))); return [th + al, 2*al]; };
-  const hF = at(0, 6, 0.85), hN = at(1, 7, 0.85), fN = at(0, -1, 0.85), fF = at(1, 0, 0.85);
+  const hF = at(0, 6, 0.85, cap), hN = at(1, 7, 0.85, cap), fN = at(0, -1, 0.85), fF = at(1, 0, 0.85);
   const aF = arm(hF), aN = arm(hN), f = Math.max(0, Math.min(1, (c - 80)/24)), m = (v, to) => v*(1 - f) + to*f;
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(), hover: HOV, waist: WAIST*(1 - f),
     lift: [m(aF[0], 0.9), m(aN[0], 0.9)], bend: [m(aF[1], 0.35), m(aN[1], 0.35)], armOut: [0.14*(1 - f), 0.14*(1 - f)],
