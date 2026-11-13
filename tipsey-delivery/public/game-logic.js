@@ -87711,7 +87711,7 @@ function msTick(scene, ow){
       if(!missionWindowOpen('minding-the-shop')){ missionWindowSay('minding-the-shop', scene); R.snooze = B; return; }
       R.stage = 'ask'; ow.vel = 0; cineBars(true);
       /* out of the shop's own door to him (the door opens for him: shopDoorWalkers) */
-      R.gid = Object.assign(shopDoorMeet(ow, B.shopDoor, B.door, now, scene), { th0: B.door.th || 0 });
+      R.gid = shopDoorMeet(ow, B.shopDoor, B.door, now, scene);   // (no th0: arriving he turns from the way he WALKED in, not from the door's heading -- that snapped him round on contact, then eased back: the double take)
       if(typeof sfxThump === "function") sfxThump(0.2);
       return; }
     case 'ask':
