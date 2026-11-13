@@ -89301,12 +89301,7 @@ function msAccept(){
     const dx = G.x - (gA.x + ex*u), dy = G.y - (gA.y + ey*u), d = Math.hypot(dx, dy);
     if(d < 130) gyaw = d > 1 ? Math.atan2(dy, dx) : Math.atan2(ex, -ey); }
   owStandUpAt(scene, G.x, G.y, gyaw);
-  { const t0 = scene.time.now; let last = t0; const st = scene.time.addEvent({ delay: 16, loop: true, callback: () => {   // (a step or two, 0.08 a ms for 0.7 s: the physics would only coast him a few units)
-      const t = scene.time.now, dt = Math.min(60, t - last); last = t;
-      if(MS.stage !== 'shift' || t - t0 > 700 || !scene.ow || scene.ow.fly){ st.remove(false); return; }
-      const nx = scene.ow.px + Math.cos(gyaw)*0.08*dt, ny = scene.ow.py + Math.sin(gyaw)*0.08*dt;
-      if(typeof owSpotClear === 'function' && !owSpotClear(scene, nx, ny, OW_D.botR*0.8)){ st.remove(false); return; }
-      scene.ow.px = nx; scene.ow.py = ny; scene.botX = nx; scene.botY = ny; } }); }
+  gothDrive({ x: G.x + Math.cos(gyaw)*170, y: G.y + Math.sin(gyaw)*170 });   // (the autopilot, on his own physics, so he walks -- the stride follows his speed -- not glides)
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
