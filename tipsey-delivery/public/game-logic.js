@@ -103778,6 +103778,7 @@ class WorldScene extends Phaser.Scene {
                         : Math.max(this.botX + this.botY, this.ow && this.ow.on ? duneDepthAt(r.grid, this.botX, this.botY) : -Infinity)
                           + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
                           + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)
+                          + (this.ow && this.ow.climbing ? 60 : 0)   // (up the roof ladder: in front of its rails and its hatch frame, which sort at the wall)
                           + (this._inside && this._inside.name === 'Brew & Bolt Roof' ? 4000 : 0), isRobot: true,   // (on Brew & Bolt's roof: after the shell's roof under him, as the roof's own pieces are, a + b + 4000)   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
