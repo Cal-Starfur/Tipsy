@@ -52327,7 +52327,7 @@ function houseCanopy(fn){
        (a 140..190): two steel rails, rungs, wall brackets, and at the top a roof hatch in the ceiling, a plank panel in a steel
        frame with a pull ring. Closed for now; it opens for Gideon's climb */
     { const L0 = 120, L1 = 150, rail = '#8f969d', railD = '#6e757c';   // (nudged 30 west of where it was: room between it and the bean shelves)
-      items.push({ a: (L0 + L1)/2, b: 6, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {
+      items.push({ a: (L0 + L1)/2, b: 60, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 60, its order key: it sorts after the far wall's pieces either side of it, not under them)
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
