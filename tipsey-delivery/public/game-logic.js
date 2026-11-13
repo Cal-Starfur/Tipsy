@@ -50651,8 +50651,9 @@ function houseCanopy(fn){
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         const cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e', cIS = '#b0b7bc', cIE = '#8f979d', lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';
         /* the lid, back on its hinges at the curb's north edge */
-        box(102, 168, B0 - 13, B0 - 10, Z, Z + 64, lidT, lidS, lidD);
-        q4([[110, B0 - 9.9, Z + 7], [160, B0 - 9.9, Z + 7], [160, B0 - 9.9, Z + 57], [110, B0 - 9.9, Z + 57]], lidP);
+        box(102, 168, B0 + 1, B0 + 4, Z, Z + 64, lidT, lidS, lidD);                                                        // (exactly where the roof has it)
+        q4([[110, B0 + 4.1, Z + 7], [160, B0 + 4.1, Z + 7], [160, B0 + 4.1, Z + 57], [110, B0 + 4.1, Z + 57]], lidP);
+        for(const a of [104, 164]) box(a - 1.5, a + 1.5, B0 + 4, B0 + 8, Z, Z + 6, steelD, steelS, steelS);
         /* the curb's far walls: their tops and inner faces */
         q4([[A0, B0, Z], [A1, B0, Z], [A1, inB0, Z], [A0, inB0, Z]], cT);
         q4([[inA0, inB0, Z], [inA1, inB0, Z], [inA1, inB0, ZR], [inA0, inB0, ZR]], cIS);
