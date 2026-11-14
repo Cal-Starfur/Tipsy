@@ -18133,6 +18133,24 @@ function hoodShopLive(route, sh){
    (Sir, on-device: the map showed Brew & Bolt twice) */
 const HOOD_SHOP_LEGS = new Set(["Brew & Bolt East"]);
 function hoodShopListed(route, sh){ return hoodShopLive(route, sh) && !HOOD_SHOP_LEGS.has(sh.name); }
+/* A STORY WAITING AT A SHOP PULSES ON THE MAP like a pickup, in its giver's own colour (Sir, 2026-11-14: "the same
+   ping like the pick ups but a different color indicating its a mission"). The colour belongs to the GIVER: every
+   story Gideon gives (giver "Gideon, ...") is violet, now and from here on. A giver not listed has no ping yet. */
+const STORY_GIVER_PING = { Gideon: "#8a4fe0" };
+function storyPingOf(M){ const g = M && String(M.giver || "").split(",")[0].trim(); return STORY_GIVER_PING[g] || null; }
+/* the stories open now (the board's 'open', and nothing else holds him): [{ id, shop, c }] */
+function storyPings(){
+  const out = [];
+  if(typeof MISSIONS === "undefined") return out;
+  for(const id in MISSIONS){
+    const M = MISSIONS[id], c = storyPingOf(M);
+    if(!c || !M.places || !M.places[0]) continue;
+    let st = null; try { st = missionState(id); } catch(e){}
+    if(!st || st.state !== 'open' || storiesHidden(id)) continue;
+    out.push({ id, shop: M.places[0], c });
+  }
+  return out;
+}
 /* ==================== HOOD BLOCK LANDMARKS (Sir, 2026-09-17) ====================
    The Flats' whole-block buildings -- museum, ballroom, cottages, car
    park, market hall -- are drawn to a whole cell (3128, road inset
@@ -139124,7 +139142,8 @@ if(typeof window !== "undefined"){ window.tpPlaceOpen = tpPlaceOpen; window.tpPl
    Pointer-transparent, so the tap still lands on the canvas pin. */
 function tpMapSyncPulses(list){
   if(list.length > 4){ const c = list.reduce((a, q) => ({ x: a.x + q.x / list.length, y: a.y + q.y / list.length }), { x: 0, y: 0 });
-    list = list.slice().sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, 4); }   // overlapping rings read as noise: keep the 4 nearest the middle
+    const st = list.filter(q => q.c);   // a story's ping always stays
+    list = st.concat(list.filter(q => !q.c).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y)).slice(0, Math.max(0, 4 - st.length))); }   // overlapping rings read as noise: keep the 4 nearest the middle
   const mc = document.getElementById("mapCard");
   if(!mc) return;
   let layer = document.getElementById("tpPulseLayer");
@@ -139142,6 +139161,7 @@ function tpMapSyncPulses(list){
   list.forEach((p, i) => {
     const d = layer.children[i];
     d.style.left = p.x + "px"; d.style.top = p.y + "px";
+    d.style.borderColor = p.c || "";   // a story's ping in its giver's colour; a pickup's stays red
   });
 }
 /* A PIN'S NAME, READABLE ON ANY GROUND (Sir, 2026-10-05: "im finding it
@@ -139950,6 +139970,7 @@ function drawRouteMap(route){
   const _offerShops = new Set(_offers.map(o => o.shop));
   const _offerDrawn = new Set();
   const _pulses = [];
+  const _stories = usingAtlas ? [] : storyPings(), _storyShops = new Set(_stories.map(q => q.shop));
   if(!usingAtlas && typeof hoodShopsOf === "function" && route.grid
      && scale * BLOCK >= Math.min(W, H) / 12){
     const sp = scale * 230, each = sp >= 6;
@@ -139960,7 +139981,7 @@ function drawRouteMap(route){
       if(each){
         if(!inView(sh.x, sh.y)) continue;
         const pp = toScreen(sh);
-        if(_offerShops.has(sh.name)) continue;          // drawn with the offers below, on top
+        if(_offerShops.has(sh.name) || _storyShops.has(sh.name)) continue;   // drawn with the offers / stories below, on top
         ctx.fillStyle = "#c2603a";
         ctx.beginPath(); ctx.arc(pp.x, pp.y, pr, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = "#fff"; ctx.lineWidth = pr < 6 ? 1 : 1.2; ctx.stroke();
@@ -140004,6 +140025,25 @@ function drawRouteMap(route){
       tpMapMissionPins.push({ id: "pickup:" + o.shop, x: pp.x, y: pp.y, r: 12 });
       _pulses.push({ x: pp.x, y: pp.y });
       _offerDrawn.add(o.shop);
+    }
+  }
+  /* the stories waiting at a shop: its own pin, at every zoom, ringed and pulsing in the giver's colour */
+  if(_stories.length && route.grid){
+    const sps = hoodShopsOf(route.grid);
+    const pr = Math.max(6, Math.min(8, scale * 230 * 0.47));
+    for(const q of _stories){
+      if(_offerDrawn.has(q.shop)) continue;
+      const sh = sps.find(h => h.name === q.shop);
+      if(!sh || !hoodOwnsIndex(sh.hoodIndex) || !inView(sh.x, sh.y)) continue;
+      const pp = toScreen(sh);
+      ctx.fillStyle = "#c2603a";
+      ctx.beginPath(); ctx.arc(pp.x, pp.y, pr, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = q.c; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.font = Math.round(pr * 1.25) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(sh.icon, pp.x, pp.y);
+      if(scale * 230 >= 11) tpMapLabel(ctx, sh.name, pp.x, pp.y + pr + 8, 10, false, { skip: true });
+      tpMapMissionPins.push({ id: "shop:" + sh.key, x: pp.x, y: pp.y, r: 12 });
+      _pulses.push({ x: pp.x, y: pp.y, c: q.c });
     }
   }
   const MISSION_ICON = { hydrant: "🧯", cone: "🚧" };
