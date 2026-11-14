@@ -89702,9 +89702,9 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
    front, the hands on the crown of his head -- the upper arm 153 degrees up, the forearm folded back 56 to it, a touch in (worked from
    the shoulder, 95, and the crown, 124: the hands land on top, b -2, h 128 -- at the head's side, h 121, the head painted over them) -- eased in over 0.35 s, and a small rock of the head between them */
 function msDistressPose(now){
-  const C = MS.cut, k0 = C ? Math.max(0, Math.min(1, (now - C.t0)/350)) : 1, k = k0*k0*(3 - 2*k0), rock = 0.04*Math.sin(now/180)*k;
+  const C = MS.cut, k0 = C ? Math.max(0, Math.min(1, (now - C.t0)/350)) : 1, k = k0*k0*(3 - 2*k0), rock = 0;   // (no rock: the arms see-sawing read as a twitch)
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(),
-    lift: [1.7*k + 0.05*(1 - k) + rock, 1.7*k + 0.05*(1 - k) - rock], bend: [0.97*k + 0.15*(1 - k), 0.97*k + 0.15*(1 - k)], armOut: [0.15*k, 0.15*k] };
+    lift: [1.7*k + 0.05*(1 - k) + rock, 1.7*k + 0.05*(1 - k) - rock], bend: [0.97*k + 0.15*(1 - k), 0.97*k + 0.15*(1 - k)], armOut: [0.15*k, 0.15*k], armsLate: true };
 }
 const MS_CUT = { turnMs: 450, fadeMs: 550, sayAt: 1500 };
 function msCutOn(){ return !!(MS.cut && MS.cut.ph === 'close'); }
@@ -111567,18 +111567,21 @@ class WorldScene extends Phaser.Scene {
     if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
     if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
     if(lapLate){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); }
-    if(farFront && !noArms) arm(-nearSide, false);
+    /* (pose.armsLate: both hands up at the face -- Gideon's to his head, msDistressPose -- both arms over the head when they face the eye) */
+    const farLate = !!(pose && pose.armsLate && faceB > 0);
+    if(farFront && !noArms && !farLate) arm(-nearSide, false);
     if(onBeforeCarryArm) onBeforeCarryArm(); // torso/legs already drawn, carrying arm not yet —
     // anything drawn here sits on top of the body but UNDER the carrying arm specifically
     /* a hand raised in front of the face (pose.armLate: the singer's
        microphone) goes over the head when they face the eye */
-    const armLate = !!(pose && pose.armLate && faceB > 0);
+    const armLate = !!(pose && (pose.armLate || pose.armsLate) && faceB > 0);
     if(!armLate && !noNear) arm(nearSide, true);
     aidDraw('front');
     if(faceB < 0) hood();
     head();
     if(faceB < 0){ hairBack(); veil(); }
     veilBand();
+    if(farLate && !noArms) arm(-nearSide, false);
     if(armLate && !noNear) arm(nearSide, true);
     if(heldLate) pose.hold(g, heldLate[0], this.K, heldLate[1]);
 
@@ -113704,7 +113707,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
