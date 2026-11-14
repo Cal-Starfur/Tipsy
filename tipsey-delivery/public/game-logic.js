@@ -13541,6 +13541,21 @@ function gpsNavReplot(scene, force){
   gpsNav.plottedAt = now;
   /* A FLIGHT'S NAV (gpsNav.air: THE LIGHTHOUSE RUN's drone legs, over water and roofs where no street goes): the straight line from him to
      where it sends him, its time at the drone's pace */
+  /* A LEG TO A SPOT INSIDE A ROOM (gpsNav.room: MINDING THE SHOP's roof ladder, in Brew & Bolt's back room -- Sir, 2026-11-14, "on launch
+     I don't have any information in the gps about going to the roof"): in that room, the straight line across its floor to the spot; anywhere
+     else, the street route to the room's front door */
+  if(gpsNav.room){
+    const R = gpsNav.room, pk = scene._inside;
+    if(pk && pk.name === R.name){
+      gpsNav.tx = R.x; gpsNav.ty = R.y;
+      const len = Math.hypot(R.x - scene.botX, R.y - scene.botY);
+      gpsNav.path = { pts: [{ x: scene.botX, y: scene.botY }, { x: R.x, y: R.y }], len, turns: 0 };
+      gpsNav.etaMs = gpsEtaMs({ len, turns: 0 }); gpsNav.distU = len;
+      return;
+    }
+    const rp = typeof POCKETS !== 'undefined' && POCKETS.find(q => q.name === R.name), d = rp && typeof pocketOutsideDoor === 'function' ? pocketOutsideDoor(rp) : null;
+    if(d){ gpsNav.tx = d.x; gpsNav.ty = d.y; }
+  }
   if(gpsNav.air){
     const len = Math.hypot(gpsNav.tx - scene.botX, gpsNav.ty - scene.botY);
     gpsNav.path = { pts: [{ x: scene.botX, y: scene.botY }, { x: gpsNav.tx, y: gpsNav.ty }], len, turns: 0 };
@@ -87836,6 +87851,14 @@ function msClerkAt(now){
   return Object.assign(p, { has: M.has || null });
 }
 function msNav(scene, to, name){ if(to && typeof gpsNavTo === "function" && scene.mode === "freeroam" && gpsNavTo(scene, "minding", name, to.x, to.y) && typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); }
+/* the leg to the roof ladder (the back room's, at its foot): from the street, to the shop's door; in the shop, across to it */
+function msNavLadder(scene){
+  if(!scene || scene.mode !== "freeroam" || !scene.route || !scene.route.grid || typeof gpsNav === "undefined") return;
+  gpsNav = { id: "minding", name: "The roof ladder, Brew & Bolt's back room", tx: 0, ty: 0, room: { name: BB_IN.name, say: "Up the ladder to the roof", x: BB_IN.x0 + 135, y: BB_IN.y0 + MS_LAD.FOOT }, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
+  gpsNavReplot(scene, true);
+  if(!gpsNav.path){ gpsNav = null; return; }
+  if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
+}
 function msNavClear(scene){ if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.id === "minding"){ gpsNavClear(); if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene); } }
 /* the bay the story shows now (R7) */
 /* a bay in one of the roof's two rooms (pocket frame: a east, b south): hospBay's, marked with its pocket, drawn on the street's lines */
@@ -87873,6 +87896,7 @@ function msAccept(){
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
   MS.stage = 'shift'; MS.toldTip = false; MS.tellAgain = null;
+  msNavLadder(scene);                                                           // (the GPS: up to the roof, by the back room's ladder)
   /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
@@ -87994,7 +88018,8 @@ function msClimb(scene, dir){
   if(typeof sfxThump === "function") sfxThump(0.2);
   const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
     if(!up) MS.hatchOpen = false;
-    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW); };
+    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW);
+    if(!up && !MS.seen) msNavLadder(scene); };
   if(up) msNavClear(scene);
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
@@ -128513,7 +128538,7 @@ class WorldScene extends Phaser.Scene {
       ? ` · +${tpCarry.length} stop${tpCarry.length > 1 ? "s" : ""}` : "";
     /* inside, on an errand: counted from the door (gpsNavReplot), and the way on starts with going out of it -- no turns, no arrow, till he is out */
     const _navIn = !!(gpsNav && gpsNav.path && gpsInsideDoor(this));
-    if(_navIn){ turnText = "Head outside"; navAlert = false; }
+    if(_navIn){ turnText = gpsNav.room && this._inside && this._inside.name === gpsNav.room.name ? (gpsNav.room.say || "Straight ahead") : "Head outside"; navAlert = false; }   // (a leg to a spot in this very room: what it is, not the way out)
     document.body.classList.toggle("tpNavIn", _navIn);
     if(!_freeRoam && gpsTx) gpsTx.textContent = `${timerText} · ${distText} · ${turnText}${_stops}`;
     /* THE CHEVRON. Only on a nav leg (gpsAimErr returns null without
