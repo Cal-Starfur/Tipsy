@@ -52372,8 +52372,11 @@ function houseCanopy(fn){
          rails' tops bent over -- the roof's frame moved 20 north (its ladder at b 25, this one at 5). Sir, 2026-11-13: "the top of the
          ladder is missing from the interior scene", "let's see the lid", "why don't the tops of the ladders match" */
       items.push({ a: (L0 + L1)/2, b: 10, z: H, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
-        const ZR = 238, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
+        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
+        /* (the ladder on up the shaft to it, the roof's true height: BBR.Z, where the street's building has its roof) */
+        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
+        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD);
         q4([[A0, B0, Z], [A1, B0, Z], [A1, B1, Z], [A0, B1, Z]], '#c3c9cd');
         q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], '#7f878e');
         q4([[A0, B1, Z], [A1, B1, Z], [A1, B1, ZR], [A0, B1, ZR]], '#a3abb1');
@@ -52381,7 +52384,7 @@ function houseCanopy(fn){
         T(110, 160, B0 + 14, B1 - 14, Z + 3.1, '#6a7782');
         box(130, 140, B1 - 12, B1 - 9, Z + 3, Z + 5, steelD, steelS, steelS); } });
       items.push({ a: (L0 + L1)/2, b: 10, z: H, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
-        const ZR = 238, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;
+        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;   // (ZR: the roof's true height, so the climb runs on without a jump into the roof's room)
         const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         const cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e', cIS = '#b0b7bc', cIE = '#8f979d', lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';
@@ -89570,7 +89573,8 @@ function msClimb(scene, dir){
    the hatch onto the roof (the one short walk the story still gives him: the curb is in the way). On the roof, walk into the hatch and
    he steps in onto the ladder: pull away from it to go down, and at the foot of the roof's run he comes down into the back room the
    same way. MS.lad: { room: 'shop' | 'roof', z: ow.climbZ, top/foot: armed once he has left that end, busy: the dissolve }. */
-const MS_LAD = { LZ: 120, HZ: 80, HB: 40, FOOT: 24, v: 120/1100, near: 30 };
+const MS_LAD = { LZ: BBR.Z - 80, HZ: 80,   // (LZ: up the shaft till he is where the roof's room takes him, BBR.Z - HZ: one height, no jump -- Sir, 2026-11-14, "a huge camera shift")
+                 HB: 40, FOOT: 24, v: 120/1100, near: 30 };
 /* how high his feet are, walking over the roof hatch's curb (a 96..174, b 14..72, 8 thick, 18 high): up onto it and down off it over 10
    either side of its top -- so getting out of the hatch, or into it, is a step up and a step down, not a slide through the wall */
 function msCurbZ(x, y){
@@ -89627,7 +89631,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         msWalkTo(scene, { x: ow.px, y: BB_IN.y0 + 56 }, -Math.PI/2, 450, () => { MS.lad = null; MS.ladWait = true; MS.hatchOpen = false; }, null, false, 0);   //  solid -- left on its line he stood in it, stuck)
         return true; } }
     if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
-      sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, 500, () => { pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
         ow.climbZ = -MS_LAD.HZ; ow.climbing = false; ow.emerging = true; }); }
   } else {
@@ -89639,7 +89643,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         MS.cl.zf = msCurbZ;
         return true; } }
     if(L.z <= -MS_LAD.HZ){ L.z = -MS_LAD.HZ; L.busy = true; const dx = BB_IN.x0 - BBR.x0;                                       // (down through it into the back room)
-      sceneDissolve(scene, 500, () => { scene._camZCarry = true; pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, 500, () => { pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'shop'; MS.lad.z = MS_LAD.LZ; MS.lad.foot = true; MS.lad.top = true; MS.lad.busy = false; }
         ow.climbZ = MS_LAD.LZ; ow.climbing = true; ow.emerging = false;
         MS.stage = MS.fixed ? 'fin' : MS.seen ? (MS.carry === 'parts' ? 'shift' : 'parts') : 'shift';
