@@ -19819,6 +19819,10 @@ function hoodShopLive(route, sh){
   const cuts = route && route.cutEdges && route.cutEdges[sh.blockKey];
   return !(cuts && cuts.includes(sh.edge));
 }
+/* a LEG of another shop's room (no door of its own) is drawn, but is not a place: no map pin, no search row
+   (Sir, on-device: the map showed Brew & Bolt twice) */
+const HOOD_SHOP_LEGS = new Set(["Brew & Bolt East"]);
+function hoodShopListed(route, sh){ return hoodShopLive(route, sh) && !HOOD_SHOP_LEGS.has(sh.name); }
 /* ==================== HOOD BLOCK LANDMARKS (Sir, 2026-09-17) ====================
    The Flats' whole-block buildings -- museum, ballroom, cottages, car
    park, market hall -- are drawn to a whole cell (3128, road inset
@@ -139451,7 +139455,7 @@ function tpMapIndex(route){
      ("bakery", "books"), and a row routes to the pavement in front */
   if(typeof hoodShopsOf === "function")
     for(const sh of hoodShopsOf(g2)){
-      if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopLive(route, sh)) continue;
+      if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopListed(route, sh)) continue;
       out.push({ name: sh.name, kind: "shop", alias: ((LIB.get(sh.lib) || {}).base || sh.base || "") + " shop store" + (sh.mall ? " " + (sh.site || "Maritime Mall").toLowerCase() : ""), x: sh.x, y: sh.y, shopKey: sh.key });
     }
   /* side missions: the mat's own x/y, in the live city. These used to
@@ -141561,7 +141565,7 @@ function drawRouteMap(route){
     const pr = Math.max(4.5, Math.min(6.5, sp * 0.47));   // pin radius
     const rows = new Map();
     for(const sh of hoodShopsOf(route.grid)){
-      if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopLive(route, sh)) continue;
+      if(!hoodOwnsIndex(sh.hoodIndex) || !hoodShopListed(route, sh)) continue;
       if(each){
         if(!inView(sh.x, sh.y)) continue;
         const pp = toScreen(sh);
