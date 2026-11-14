@@ -89392,6 +89392,8 @@ function msTipAt(now){
     if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
     MS.tipArr = now;
   }
+  if(MS.tell){ const sc = scn(), ow = sc && sc.ow, pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, P = MS.tell.tip;
+    const th = ow ? Math.atan2(ow.py + V.dy - P.y, ow.px + V.dx - P.x) : 0; return { x: P.x, y: P.y, th, moving: false }; }   // (told he is off to the hardware store: stood, turned to him)
   const S = T.S, posts = [340, 230, 120, 230], k = Math.floor((now - MS.tipArr)/6000), f = Math.min(1, ((now - MS.tipArr) % 6000)/1400);
   const e = f*f*(3 - 2*f), b0 = posts[k % 4], b1 = posts[(k + 1) % 4];
   const q = S(522, (k === 0 && now - MS.tipArr < 6000 ? 340 : b0 + (b1 - b0)*e));
@@ -89469,7 +89471,7 @@ function msAccept(){
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
-  MS.stage = 'shift';
+  MS.stage = 'shift'; MS.toldTip = false;
   /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
@@ -89516,7 +89518,7 @@ function msFinish(){
 function msAbort(scene){
   msNavClear(scene);
   MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
-  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -89529,7 +89531,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -89738,6 +89740,32 @@ function msCutEnd(){
     scene.camX = scene.botX + Math.cos(ow.yaw)*95; scene.camY = scene.botY + Math.sin(ow.yaw)*95; scene.camZ = scene.botZ; scene._camNext = null;
     MS.cut = null; msSeen(); });
 }
+/* ON HIS WAY OUT FOR THE PARTS (Sir, 2026-11-14: "he needs to let Tipsey on the way out that he's going to the hardware store and asks
+   if that's OK"): down from the roof and through the shop, as he comes by Tipsey at the counter -- or, if he gives the counter a wide
+   berth, as he gets to the door -- he stops and turns to Tipsey, Tipsey stops and turns to him, he says it and Tipsey answers. Once */
+function msTellNow(scene, ow, now){
+  const pk = scene._inside; if(!pk || pk.name !== BB_IN.name || !MS.tip) return false;
+  const T = msTipAt(now), V = pk.view ? pk.view() : { dx: 0, dy: 0 }; if(!T) return false;
+  const gx = ow.px + V.dx, gy = ow.py + V.dy;
+  const a = ow.px - pk.x0, b = ow.py - pk.y0, floor = a > 430 || b > 430;   // (out of the back room onto the shop floor: through its wall, not)
+  return (floor && Math.hypot(T.x - gx, T.y - gy) < 260) || Math.hypot(ow.px - (pk.x0 + BB_IN.DOOR.at), ow.py - (pk.y0 + BB_IN.D)) < 170;
+}
+function msTellStart(scene, ow, now){
+  const pk = scene._inside, V = pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now);
+  MS.toldTip = true; MS.stage = 'partsTell'; ow.vel = 0; cineBars(true);
+  MS.tell = { t0: now, tip: { x: T.x, y: T.y }, yaw0: ow.yaw, yaw1: Math.atan2(T.y - (ow.py + V.dy), T.x - (ow.px + V.dx)) };
+  hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" });
+}
+function msTellTick(scene, ow, now){
+  const C = MS.tell; if(!C) return;
+  ow.vel = 0;
+  const u = Math.min(1, (now - C.t0)/400), d = Math.atan2(Math.sin(C.yaw1 - C.yaw0), Math.cos(C.yaw1 - C.yaw0));
+  ow.yaw = C.yaw0 + d*u*u*(3 - 2*u);
+}
+function msTellDone(){
+  const scene = scn(); if(MS.stage !== 'partsTell' || !scene) return;
+  hospSayCard(null); cineBars(false); MS.tell = null; MS.stage = 'parts';
+}
 function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
   hospSayCard(null); cineBars(false);
@@ -89789,7 +89817,9 @@ function msTick(scene, ow){
       if((!T || (p && p.there)) && armed(R.home)) msHandBack(scene);   // (Tipsey is on his bay and Gideon's beside him: the loan ends)
       return; }
     case 'roofAsk': msCutTick(scene, ow, now); return;
+    case 'partsTell': msTellTick(scene, ow, now); return;
     case 'parts': {
+      if(!R.toldTip && msTellNow(scene, ow, now)){ msTellStart(scene, ow, now); return; }
       const B = msHw(scene);
       if(!armed(B)) return;
       R.stage = 'partsGive'; ow.vel = 0; cineBars(true); msNavClear(scene);
