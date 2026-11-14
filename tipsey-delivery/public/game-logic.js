@@ -87953,7 +87953,7 @@ function msTick(scene, ow){
       if(R.climbing) return;
       if(!R.seen){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk';
-          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "Mast's bent, cable's snapped. Parts from Breakwater Hardware." }); }
+          hospSayCard({ who: "Gideon", ok: msSeen, auto: true, say: "Oh my, the support cable's snapped." }); }   // (no answer: on, a beat after, to the hardware store on the GPS -- msSeen)
       } else if(R.carry === 'parts'){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
           hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Bracket on, mast straight, connector screwed in. There." }); }
