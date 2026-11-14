@@ -50762,7 +50762,7 @@ function houseCanopy(fn){
         const ZR = BBR.Z;
         for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD); } });
-      items.push({ a: (L0 + L1)/2, b: 10, z: 0, hatchNear: true, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
+      items.push({ a: (L0 + L1)/2, b: 58, z: 0, hatchNear: true, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {   /* (b 58: after the rails up the shaft, b 55, which end in it -- Sir, 2026-11-14, "now it's drawing over the hatch") */         // (shut: the curb, the lid down on it -- as the roof has it shut)
         const ZR = BBR.Z, DB = -20 + BBR.HS, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         q4([[A0, B0, Z], [A1, B0, Z], [A1, B1, Z], [A0, B1, Z]], '#c3c9cd');
