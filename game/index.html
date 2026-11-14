@@ -11161,7 +11161,7 @@ function owTip(scene, sgn, u){
   /* THE FOUR-WAY FALL (Sir, 2026-10-24: the pavement robots' "direction to their collision", brought over to him):
      u is the way he goes in his own frame -- { a: +1 } over his nose, { a: -1 } over his tail, { b: tipDir } a roll
      to a side (the old, and the default) -- read by drawRobot's tipped pose */
-  scene.tipU = u && (u.a || u.b) ? u : { a: 0, b: sgn };
+  scene.tipU = owTipUFor(u && (u.a || u.b) ? u : { a: 0, b: sgn }, sgn);
   { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (fleetPhys)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
@@ -11215,7 +11215,10 @@ const OW_RESCUE = { holdMs: 2400 };
 /* GIDEON GETS UP ON HIS OWN (Sir, 2026-11-14: "when gideon tips he should be able to get back up on his own with out the tipsey
    team"): the player as the humanoid (fleetCur() 'humanoid') is sent no crew for a tip -- he lies lieMs, then pushes himself up
    over upMs (the crew's heave, rescueHeave, on his own clock) and is set on his feet where he fell. A dead battery is still a tow */
-const OW_SELF_UP = { lieMs: 1100, upMs: 1000 };
+const OW_SELF_UP = { lieMs: 2300, upMs: 1000 };   // (lieMs: the fall itself runs about 2 s -- he is down a beat before he gets up)
+/* (he has no pitch-over pose -- drawHumanoid rolls about his outer foot only -- so a fall over his nose or tail, a kick from behind,
+   is a roll to a side for him: it had left him standing, frozen, "tipped") */
+function owTipUFor(u, sgn){ return u && u.a && typeof fleetCur === "function" && fleetCur() === 'humanoid' ? { a: 0, b: sgn || 1 } : u; }
 function owSelfUp(tow){ return !tow && typeof fleetCur === "function" && fleetCur() === 'humanoid'; }
 
 /* ==================== THE TIPSY CREW'S VAN (stage 3) ====================
@@ -12375,6 +12378,9 @@ function rescueChainCrew(scene, v, fx, fy, yaw){
 }
 function owDispatchTipFail(scene){
   if(scene.mode !== "delivery" && scene.mode !== "freeroam") return;
+  /* knocked off a scooter: it stands where he went over, and he falls as he does on foot (the rider's draw has no fall: he had
+     stayed up on it, frozen) */
+  if(scene.ow && scene.ow.scoot && typeof scootDrop === "function") scootDrop(scene);
   /* A CREW PASS (HOSP_GIFTS): this tip is on the crew -- nothing he
      carries is dropped, every order aboard stays aboard and a delivery
      carries on, its GPS leg with it (see owRescue). AUTOMATIC (Sir,
@@ -123807,7 +123813,7 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
         this.tipDir = Math.sign(this.tilt);
-        this.tipU = this.tipUNext || { a: 0, b: this.tipDir }; this.tipUNext = null;   // (the way he goes: a roll by his lean, or over his nose/tail -- THE FOUR-WAY FALL, owTip)
+        this.tipU = owTipUFor(this.tipUNext || { a: 0, b: this.tipDir }, this.tipDir); this.tipUNext = null;   // (the way he goes: a roll by his lean, or over his nose/tail -- THE FOUR-WAY FALL, owTip)
         /* cargo damage meter: a crash always fully ruins the goods,
            independent of whatever the accumulated damage number
            happened to be. Without this, a single fatal hit early in an
