@@ -94005,6 +94005,8 @@ const PASTEL = [0xf2b8c6, 0xb8d8f2, 0xc8ecd0, 0xf2e0b8, 0xd8c8f2, 0xb8ece8].map(
 const STREET_TYPE_NAMES = STREET_TYPES.map(t => t[0]);
 const ELDER_HAIR = [0xdcdcd8, 0xb9b9b4, 0x8e8e8a, 0x6b6b6b], BRIGHT = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8, 0x2fbfae, 0xff7aa8, 0xf6f0e4].map(_pcol);
 const MUTED = [0x8a7a62, 0x6b7b86, 0x9a8a9a, 0x7a8a6a, 0xa89a7a, 0x6f6a7a].map(_pcol), KHAKI = [0xc9b98a, 0xb8a888, 0x8a8a7a].map(_pcol);
+const TOURIST_HATS = ['cap', 'cap', 'visor', 'bucket', 'bucket', 'cowboy', 'bowler', 'fez', 'prop', 'tophat'];
+const TOURIST_HAT_COLS = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8, 0x2fbfae, 0xff7aa8, 0xf6f0e4, 0x2f4a86, 0xd9892b, 0xe8d24a, 0x3f6b4a, 0x24272c, 0xc9a26b];
 function streetLook(seed, opts){
   const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
   let kind = opts && opts.type;
@@ -94031,7 +94033,10 @@ function streetLook(seed, opts){
     case 'surfer':   { L.hair = hp(pick([0xd4c088, 0xe6d8a8, 0x8a6a3a]), 'long'); const b = pick(BRIGHT); L.shirt = { c: b.c, dk: b.dk, tank: true };
                        L.pants = Object.assign({}, pick(BRIGHT), { shorts: true }); L.shoe = sk(_pcol(0x3a2e24), 'sandal'); break; }
     case 'tourist':  { L.shirt = pick(BRIGHT); L.pants = Object.assign({}, pick(KHAKI), { shorts: true }); L.shoe = sk(_pcol(0x6b4a34), 'sandal');
-                       L.uniform = { cap: { c: 0xf4f2ec, dk: 0xd6d3ca, top: 0xffffff, badge: 0xe2483d } }; break; }
+                       /* GIDEON'S HATS ON THE TOURISTS (Sir, 2026-11-14: "they all have that one white hat ... use those hats on our tourists ... randomized
+                          colors"): one of TOURIST_HATS in one of TOURIST_HAT_COLS, off a roll of its own (the rest of the look rolls as before) */
+                       { const hr = mulberry32((seed ^ 0x7a71) >>> 0); L.uniform = { hat: { kind: TOURIST_HATS[Math.floor(hr()*TOURIST_HATS.length)], col: TOURIST_HAT_COLS[Math.floor(hr()*TOURIST_HAT_COLS.length)] } }; }
+                       break; }
     case 'business': { const su = pick(PARTY_SUIT); L.shirt = su; L.pants = su; L.shoe = sk(_pcol(0x1a1a1e), her ? 'heel' : 'dress'); L.hair = hp(hair, her ? 'bun' : 'part');
                        L.uniform = { vest: { c: _pdk(su.c, 1.12), dk: su.dk } }; break; }                                         // (the jacket over a lighter front)
     case 'skater':   { const b = pick(BRIGHT); L.shirt = b; L.uniform = { hood: { c: b.c, dk: b.dk }, beanie: pick([_pcol(0x1a1a1e), _pcol(0x2f6fb0), _pcol(0xe2483d)]) };
@@ -110709,11 +110714,11 @@ class WorldScene extends Phaser.Scene {
        Under a cap or a beanie the shell is cut at the band. A ponytail and a bun are second, smaller lofts. */
     const hairShell = (pass) => {
       if(RB) return;                                                                                   // (a robot: no hair)
-      const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, Hh = z1 - z0, hs = hairStyle, hat = !!(uniform && (uniform.cap || uniform.beanie || uniform.bucket));
+      const r = build.headR, z0 = shoulderH + r*0.28, z1 = headH, Hh = z1 - z0, hs = hairStyle, hat = !!(uniform && (uniform.cap || uniform.beanie || uniform.bucket || (uniform.hat && uniform.hat.kind !== 'visor')));   // (a visor is open on top: the hair stays)
       const rampOf = pair => { const T = hullTones(pair); return [T.lt, _pmix(T.lt, T.c, 0.5), T.c].concat(T.steps.slice(1)); };   // eleven: the lit top .. the dark side
       const ramp = rampOf(hairPair);
       const hr = mulberry32(((hairHash + 1)*2654435761) >>> 0), partSide = hr() < 0.5 ? 1 : -1, curlPh = hr()*6;
-      const cut = hat ? z0 + Hh*(uniform.bucket ? 0.78 : 0.5) : null, earZ = z0 + Hh*0.38;
+      const cut = hat ? (uniform.hat && !uniform.cap ? z0 + Hh*0.5 + r*0.5 + 1 : z0 + Hh*(uniform.bucket ? 0.78 : 0.5)) : null, earZ = z0 + Hh*0.38;
       const loft = (o) => {
         const n = LOD ? 8 : 12, K = LOD ? Math.min(o.K || 5, LOD === 1 ? 4 : 3) : o.K || 5, rampC = o.col ? rampOf(o.col) : ramp, P = [];   // (8 a ring, 4 rings, 3 far: PERSON_DRAW's LOD)
         for(let k = 0; k < K; k++){ const u = k/(K - 1), row = [], off = o.off ? o.off(u) : [0, 0];
@@ -111360,9 +111365,11 @@ class WorldScene extends Phaser.Scene {
       /* GIDEON'S HEADWEAR (RB.hat, RB.hatCol: gd4b): a cap, beanie, bowler, top hat, chef's hat, headphones, an antenna or two, a visor, a party hat, a crown or a
          propeller cap, in his colour, standing on the crown ABOVE his screen (the face stays clear: the screen runs to fz + r*0.55, the hat's base is there), its
          base ring the head's own radius at that height. Built of the hull's own prisms, so it turns with the head and shades as it does */
-      if(RB && RB.hat && RB.hat !== 'none'){
-        const HC = RB.hatCol != null ? RB.hatCol : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
-        const zb = fz + r*0.58, rr = rAt(zb)*1.06, zt = z1, hh = RB.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
+      /* (and a person's: uniform.hat { kind, col } -- the tourists' -- set just under his height, above the brow so the face shows, a little wider for the hair) */
+      const HW = RB ? (RB.hat && RB.hat !== 'none' ? { hat: RB.hat, col: RB.hatCol } : null) : uniform && uniform.hat ? { hat: uniform.hat.kind, col: uniform.hat.col } : null;
+      if(HW){
+        const HC = HW.col != null ? HW.col : 0xd9892b, HP = { c: HC, dk: _pdk(HC, 0.78) }, HP2 = { c: _pdk(HC, 0.84), dk: _pdk(HC, 0.64) }, ST = { c: 0x9aa4ad, dk: 0x6e757c };
+        const zb = fz + r*(RB ? 0.58 : 0.5), rr = rAt(zb)*1.06 + (RB ? 0 : 1.4), zt = z1, hh = HW.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
         /* THE BILL grows out of the crown's own rim: a fan from the crown's front arc out to a rounded edge, tipped down a touch, with a lip under it
            (it was a separate slab stood on the head) */
         const bill = (len, top, edge) => { const N = 12, inn = [], out = [], out2 = [];
@@ -111371,7 +111378,7 @@ class WorldScene extends Phaser.Scene {
           for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
             this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); }
           /* far side: the head's crown stands in front of it, so it goes down again over the bill */
-          if(faceB < 0) prism(0, 0, r, r, zj, z1, pSkin, RB ? { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c } : { top: 0.7, edge: false, n: 12 }); };
+          if(faceB < 0 && RB) prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c }); };   // (a person's: the hair is there, and the crown covers the bill)
         const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
         if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
