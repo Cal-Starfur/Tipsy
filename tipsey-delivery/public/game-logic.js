@@ -87738,7 +87738,7 @@ function msPocketBay(name, a, b){
 }
 function msLadderBay(){ return MS._lb || (MS._lb = msPocketBay(BB_IN.name, 135, 78)); }
 function msHatchBay(){ return MS._hb || (MS._hb = msPocketBay(BBR.name, 135, 118)); }
-function msMastBay(){ return MS._mb || (MS._mb = msPocketBay(BBR.name, 366, 352)); }   // (on the mast's west side, where the cutscene has him look at it -- msCutStart)
+function msMastBay(){ return MS._mb || (MS._mb = msPocketBay(BBR.name, 350, 340)); }   // (on the mast's west side, where the cutscene has him look at it -- msCutStart; its east edge, 396, short of the snapped cable's end at 410, so he never stands on it)
 function msBayNow(scene){
   const ow = scene.ow;
   if(!ow || !ow.on || !owTripMode(scene.mode)) return null;
@@ -88007,12 +88007,9 @@ function msCamLook(scene){ if(!msCutOn() || !scene._inside || scene._inside.name
 function msCutStart(scene){
   const ow = scene.ow, m = msMastWorld();
   MS.cut = { t0: scene.time.now, ph: 'turn', z0: zoomDepth, said: false };
-  /* (he steps round to the mast's west side to look at it -- stood on its south, between it and the eye, he hid the cable) */
-  const pk = msPkOf(BBR.name), to = pk ? { x: pk.x0 + 366, y: pk.y0 + 352 } : { x: ow.px, y: ow.py };
-  const dur = Math.max(300, Math.hypot(to.x - ow.px, to.y - ow.py)/0.07);
-  MS.cut.walkMs = dur;
-  msWalkTo(scene, to, Math.atan2(to.y - ow.py, to.x - ow.px), dur, () => {
-    if(m) msWalkTo(scene, to, 0.55, 1, () => { if(MS.cut) MS.cut.faced = true; }, null, false, 350); }, null, false, 250);   // (0.55: turned toward the eye, the mast on his left -- side on to it, one arm up was hidden behind his head)
+  /* (where he stands on the mark -- its box is round the spot on the mast's west side -- he turns toward the eye, the mast on his left: no
+     walk to a spot of its own -- Sir 2026-11-14, "the exact spot and not a glitch"; side on to it, one arm up was hidden behind his head) */
+  msWalkTo(scene, { x: ow.px, y: ow.py }, 0.55, 1, () => { if(MS.cut) MS.cut.faced = true; }, null, false, 380);
 }
 function msCutTick(scene, ow, now){
   const C = MS.cut; if(!C) return;
