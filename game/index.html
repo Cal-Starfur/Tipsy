@@ -20581,10 +20581,17 @@ function sceneDissolve(scene, ms, swap){
       o.src = img.src;
       Object.assign(o.style, { position: "fixed", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px",
                                pointerEvents: "none", zIndex: "5", opacity: "1", transition: "opacity " + ms + "ms ease-in-out" });
-      document.body.appendChild(o);
-      done();
-      requestAnimationFrame(() => requestAnimationFrame(() => { o.style.opacity = "0"; }));
-      setTimeout(() => o.remove(), ms + 120);
+      /* THE OLD FRAME UP FIRST, THEN THE SWAP (Sir, 2026-11-14: "a double take like it still has the hard switch first"). Safari decodes
+         the snapshot's image off the main thread: put up at once, it was blank for a frame or two -- the new room showed through, a hard
+         switch -- and then the old frame popped on over it and faded. So the swap waits till the image can be painted. */
+      let went = false;
+      const go = () => { if(went) return; went = true;
+        document.body.appendChild(o);
+        done();
+        requestAnimationFrame(() => requestAnimationFrame(() => { o.style.opacity = "0"; }));
+        setTimeout(() => o.remove(), ms + 120); };
+      if(o.decode) o.decode().then(go, go); else if(o.complete) go(); else { o.onload = go; o.onerror = go; }
+      setTimeout(go, 400);                                                         // (never held longer than this)
     } catch(e){ done(); }
   });
 }
