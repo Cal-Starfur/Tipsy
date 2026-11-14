@@ -52422,12 +52422,15 @@ function houseCanopy(fn){
          16, so they run on unbroken), and there is the hatch as the roof shows it -- the galvanized curb, the slate lid thrown back, the
          rails' tops bent over -- the roof's frame moved 20 north (its ladder at b 25, this one at 5). Sir, 2026-11-13: "the top of the
          ladder is missing from the interior scene", "let's see the lid", "why don't the tops of the ladders match" */
-      items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
+      /* (shut: the ladder on up the shaft to it -- behind him -- and the curb with the lid down on it, which he climbs up under: hatchNear,
+         drawn again over him (drawFleetAvatar) -- Sir, 2026-11-14, "Gideon shouldn't be painting over it") */
+      items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+        const ZR = BBR.Z;
+        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
+        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD); } });
+      items.push({ a: (L0 + L1)/2, b: 10, z: 0, hatchNear: true, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
         const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
-        /* (the ladder on up the shaft to it, the roof's true height: BBR.Z, where the street's building has its roof) */
-        for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
-        for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD);
         q4([[A0, B0, Z], [A1, B0, Z], [A1, B1, Z], [A0, B1, Z]], '#c3c9cd');
         q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], '#7f878e');
         q4([[A0, B1, Z], [A1, B1, Z], [A1, B1, ZR], [A0, B1, ZR]], '#a3abb1');
