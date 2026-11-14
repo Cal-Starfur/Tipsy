@@ -89596,7 +89596,7 @@ function msClimb(scene, dir){
    the hatch onto the roof (the one short walk the story still gives him: the curb is in the way). On the roof, walk into the hatch and
    he steps in onto the ladder: pull away from it to go down, and at the foot of the roof's run he comes down into the back room the
    same way. MS.lad: { room: 'shop' | 'roof', z: ow.climbZ, top/foot: armed once he has left that end, busy: the dissolve }. */
-const MS_LAD = { LZ: BBR.Z - 80, HZ: 80,   // (LZ: up the shaft till he is where the roof's room takes him, BBR.Z - HZ: one height, no jump -- Sir, 2026-11-14, "a huge camera shift")
+const MS_LAD = { LZ: BBR.Z - 128, HZ: 128, FADE: 900,   // (HZ 128: the rooms change three rungs below the hatch, the roof fading in over 0.9 s while he still climbs -- Sir, 2026-11-14, "start fading in sooner so it's less jumpy")   // (LZ: up the shaft till he is where the roof's room takes him, BBR.Z - HZ: one height, no jump -- Sir, 2026-11-14, "a huge camera shift")
                  HB: 40, FOOT: 24, v: 120/1100, near: 30 };
 /* how high his feet are, walking over the roof hatch's curb (a 96..174, b 14..72, 8 thick, 18 high): up onto it and down off it over 10
    either side of its top -- so getting out of the hatch, or into it, is a step up and a step down, not a slide through the wall */
@@ -89654,7 +89654,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         msWalkTo(scene, { x: ow.px, y: BB_IN.y0 + 56 }, -Math.PI/2, 450, () => { MS.lad = null; MS.ladWait = true; MS.hatchOpen = false; }, null, false, 0);   //  solid -- left on its line he stood in it, stuck)
         return true; } }
     if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
-      sceneDissolve(scene, 500, () => { pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, MS_LAD.FADE, () => { pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
         ow.climbZ = -MS_LAD.HZ; ow.climbing = false; ow.emerging = true; }); }
   } else {
@@ -89666,7 +89666,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         MS.cl.zf = msCurbZ;
         return true; } }
     if(L.z <= -MS_LAD.HZ){ L.z = -MS_LAD.HZ; L.busy = true; const dx = BB_IN.x0 - BBR.x0;                                       // (down through it into the back room)
-      sceneDissolve(scene, 500, () => { pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, MS_LAD.FADE, () => { pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'shop'; MS.lad.z = MS_LAD.LZ; MS.lad.foot = true; MS.lad.top = true; MS.lad.busy = false; }
         ow.climbZ = MS_LAD.LZ; ow.climbing = true; ow.emerging = false;
         MS.stage = MS.fixed ? 'fin' : MS.seen ? (MS.carry === 'parts' ? 'shift' : 'parts') : 'shift';
