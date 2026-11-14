@@ -87902,7 +87902,7 @@ function msBayNow(scene){
   if(MS.stage === 'shift') return null;                                       // (no flag at the ladder: he climbs it himself, msLadTick)
   if(MS.stage === 'roof') return MS.seen && !MS.carry ? null : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again; down the hatch is his own to do)
   if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
-  if(MS.stage === 'return' || MS.stage === 'out') return ic(MS.home, 'flag');
+  if(MS.stage === 'return' || MS.stage === 'out') return Object.assign(ic(MS.home, 'flag'), { noBeacon: true });   // (back to Tipsey: the bay's mat and the GPS, no flag over it -- Sir, 2026-11-14, "we don't need this flag on the return")
   return null;
 }
 function msAccept(){
@@ -103620,7 +103620,7 @@ class WorldScene extends Phaser.Scene {
         const hl = matHighlightState(this, B.mat, this.mode);
         hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 5000 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
       }
-      if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
+      if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
     }
     /* GIDEON'S PAD, charging (gd3): its amber ring breathes on Tipsey's own pulse while he stands on it and the battery fills; the pad itself is
        the room's still art (BB_IN.PAD) */
