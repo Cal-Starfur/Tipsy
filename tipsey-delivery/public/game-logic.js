@@ -16279,6 +16279,9 @@ function vetTrailOf(grid){
   }
   const rng = mulberry32(0x7e75a1);
   const plants = [];
+  /* A BENCH FACES THE TRAIL (Sir, 2026-11-14: "lets get these benches facing the trail"): drawBenchProp's front is its rv, a quarter turn on
+     from dv; both sides of a run had the one dv, so one bench of each pair sat with its back to the chips. benchDvFacing turns it to (fx, fy) */
+  const benchDvFacing = (fx, fy) => { let k = 0, bd = -Infinity; DIRV.forEach((v, i) => { const d = v.x*fx + v.y*fy; if(d > bd){ bd = d; k = i; } }); return DIRV[(k + 3) % 4]; };
   const clear = (x, y, r) => plants.every(p => Math.hypot(p.x - x, p.y - y) > (p.r + r)*0.8);
   /* NOT IN A LANDMARK'S CELL (Sir, 2026-11-06, on the iPad at the Animal Shelter: "something around the shelter is knocking me over that I
      can't see"): a landmark draws its own cell and the park's planting is never queued there (queueParkBlock hands it the whole block), but
@@ -16300,7 +16303,7 @@ function vetTrailOf(grid){
     for(const side of [-1, 1]){
       /* a bench each side, facing the chips, with the border opened round it */
       const tb = L*(0.3 + rng()*0.4), pb = at(tb, side*(H + 46));
-      put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: Math.abs(dx) > 0.5 ? DIRV[0] : DIRV[1] }, 20);
+      put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: benchDvFacing(side*dy, -side*dx) }, 20);   // (facing back across to the run: A BENCH FACES THE TRAIL)
       /* the border: clumps of three to five shrubs close along the edge */
       for(let t = 80; t < L - 80; ){
         const run = 3 + Math.floor(rng()*3), bloom = rng() < 0.45 ? BLOOM[Math.floor(rng()*BLOOM.length)] : null;
@@ -16388,7 +16391,7 @@ function vetTrailOf(grid){
       for(const r of runs2){
         const L = Math.hypot(r.x1 - r.x0, r.y1 - r.y0), dx = (r.x1 - r.x0)/L, dy = (r.y1 - r.y0)/L;
         const at = (t, o) => ({ x: r.x0 + dx*t + r.ox*o, y: r.y0 + dy*t + r.oy*o });
-        { const pb = at(L*(0.35 + rp()*0.3), H0 + 46); put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: Math.abs(dx) > 0.5 ? DIRV[0] : DIRV[1] }, 20); }
+        { const pb = at(L*(0.35 + rp()*0.3), H0 + 46); put({ kind: "bench", x: pb.x, y: pb.y, r: 70, dv: benchDvFacing(-r.ox, -r.oy) }, 20); }   // (facing the trail)
         for(let t = 60; t < L - 60; ){
           const col = SHRUB[Math.floor(rp()*SHRUB.length)], bloom = rp() < 0.45 ? BLOOM[Math.floor(rp()*BLOOM.length)] : null;
           for(let k = 0; k < 4 && t < L - 60; k++, t += 70 + rp()*12){ const q = at(t, H0 + 44 + rp()*12); put({ kind: "shrub", x: q.x, y: q.y, r: 30 + rp()*10, col, bloom }, 12); }
@@ -93144,6 +93147,29 @@ CITY_PEOPLE.add({ name: 'almshouse court and Ferris Field', where: 'Ferris Taylo
     }
   } });
 
+/* PARK BENCH SITTERS (Sir, 2026-11-14: "get some people using them"): the park trail's benches (queueParkPlants) have someone on them by day --
+   about half of them, one or two (a pair a third of the time), off a roll of the bench's own spot and the day's hour block, so who sits
+   there changes through the day. They sit still, so they are baked into the bench's cached image (its key names them: stable while
+   they stay); hands in the lap or on the seat. Day only: 7 to 20 */
+const PARK_SIT = { seat: 46, fwd: 14, share: 0.55, pair: 0.33, hours: [7, 20], block: 3 };   // (seat: the hips on the slats, as Walt's SS_SEAT; fwd: off the bench's back toward its front)
+function parkBenchSitters(p){
+  const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12;
+  if(h < PARK_SIT.hours[0] || h >= PARK_SIT.hours[1]) return null;
+  const blk = Math.floor(h/PARK_SIT.block), k = Math.round(p.x)*7919 ^ Math.round(p.y)*104729 ^ blk*0x9e37;
+  const c = p._sit || (p._sit = new Map());
+  if(c.has(blk)) return c.get(blk);
+  const r = mulberry32(k >>> 0); let out = null;
+  if(r() < PARK_SIT.share){
+    const two = r() < PARK_SIT.pair, n = two ? 2 : 1;
+    out = [];
+    for(let i = 0; i < n; i++){ const seed = (k*31 + i*977) >>> 0, L = streetLook(seed, { adult: true, aid: 'none' });
+      const lap = r() < 0.6;
+      out.push({ seed, L, a: two ? (i ? 1 : -1)*BENCH_ART.w*0.22 : (r() - 0.5)*BENCH_ART.w*0.3, lift: lap ? [0.14, 0.14] : [0.05, 0.06], bend: lap ? 0.6 : 0.25 }); }
+  }
+  c.set(blk, out);
+  return out;
+}
+
 class WorldScene extends Phaser.Scene {
   constructor(){ super("world"); }
 
@@ -107379,7 +107405,8 @@ class WorldScene extends Phaser.Scene {
       /* the still ones -- shrubs, beds, trees, benches -- are each a cached
          image (see BUILDING CACHE); anything else may move with t */
       const still = p.kind === "shrub" || p.kind === "bed" || p.kind === "tree" || p.kind === "bench";
-      const pk = "pp|" + p.kind + "|" + Math.round(x) + "," + Math.round(y);
+      const sit = p.kind === "bench" ? parkBenchSitters(p) : null;                    // (who sits on it now: PARK BENCH SITTERS)
+      const pk = "pp|" + p.kind + "|" + Math.round(x) + "," + Math.round(y) + (sit ? "|s" + sit.map(q => q.seed).join(".") : "");
       vq.push({ depth: x + y, fn: (g0, t) => {
         const g1 = this.propLayer(g0, x, y);
         const body = (g) => {
@@ -107420,6 +107447,10 @@ class WorldScene extends Phaser.Scene {
           for(const [ox, oy, z, r] of C) dot(x + ox*h - 22, y + oy*h - 22, z*h + 18, r*h*0.45, shadeC(p.col, 1.2));
         } else if(p.kind === "bench"){
           this.drawBenchProp(g, x, y, p.dv);
+          if(sit) for(const q of sit){ const L = q.L, rv = DIRV[(DIRV.indexOf(p.dv) + 1) % 4];
+            this.drawPersonHull(g, x + p.dv.x*q.a + rv.x*PARK_SIT.fwd, y + p.dv.y*q.a + rv.y*PARK_SIT.fwd, 0, Math.atan2(rv.y, rv.x) - Math.PI/2,
+              L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
+              Object.assign({ sit: PARK_SIT.seat, lift: q.lift, bend: q.bend }, L.dress ? { dress: L.dress } : null)); }
         } else {
           this.drawProp(g, p.kind, x, y, t);
         }
