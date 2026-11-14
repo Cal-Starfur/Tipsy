@@ -89661,7 +89661,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
     if(inShop && (MS.stage === 'shift' || MS.stage === 'parts')){
       const a = ow.px - BB_IN.x0, b = ow.py - BB_IN.y0;
       if(a > 135 - MS_LAD.near && a < 135 + MS_LAD.near && b < 62 && up > 0.5){   // (62: his body stops him about 47 off the wall)
-        MS.lad = { room: 'shop', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0;
+        MS.lad = { room: 'shop', z: 0, top: false, foot: false, busy: true }; ow.vel = 0;   // (the hatch stays shut while he climbs the shop's side: it opens in the fade to the roof)
         msWalkTo(scene, { x: BB_IN.x0 + 135, y: BB_IN.y0 + MS_LAD.FOOT }, -Math.PI/2, 260, () => { if(MS.lad) MS.lad.busy = false; }, [0, 0]);
         if(typeof sfxThump === "function") sfxThump(0.15);
         return true;
@@ -89699,7 +89699,8 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         msWalkTo(scene, { x: ow.px, y: BB_IN.y0 + 56 }, -Math.PI/2, 450, () => { MS.lad = null; MS.ladWait = true; MS.hatchOpen = false; }, null, false, 0);   //  solid -- left on its line he stood in it, stuck)
         return true; } }
     if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
-      sceneDissolve(scene, MS_LAD.FADE, () => { pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, MS_LAD.FADE, () => { MS.hatchOpen = true; pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py);   // (the lid thrown open as the roof fades in -- Sir, 2026-11-14)
+        ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
         if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof';   // (the roof's errand -- the mast's mark -- up as soon as the roof is, not once he is out on it)
         ow.climbZ = -MS_LAD.HZ; ow.climbing = false; ow.emerging = true; }); }
@@ -89712,7 +89713,8 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
         MS.cl.zf = msCurbZ;
         return true; } }
     if(L.z <= -MS_LAD.HZ){ L.z = -MS_LAD.HZ; L.busy = true; const dx = BB_IN.x0 - BBR.x0;                                       // (down through it into the back room)
-      sceneDissolve(scene, MS_LAD.FADE, () => { pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py); ow.yaw = -Math.PI/2;
+      sceneDissolve(scene, MS_LAD.FADE, () => { MS.hatchOpen = false; pocketShift(scene, dx, BB_IN.y0 + MS_LAD.FOOT - ow.py);   // (and shut behind him as the shop fades in)
+        ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'shop'; MS.lad.z = MS_LAD.LZ; MS.lad.foot = true; MS.lad.top = true; MS.lad.busy = false; }
         ow.climbZ = MS_LAD.LZ; ow.climbing = true; ow.emerging = false;
         MS.stage = MS.fixed ? 'fin' : MS.seen ? (MS.carry === 'parts' ? 'shift' : 'parts') : 'shift';
