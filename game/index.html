@@ -52390,7 +52390,7 @@ function houseCanopy(fn){
          16, so they run on unbroken), and there is the hatch as the roof shows it -- the galvanized curb, the slate lid thrown back, the
          rails' tops bent over -- the roof's frame moved 20 north (its ladder at b 25, this one at 5). Sir, 2026-11-13: "the top of the
          ladder is missing from the interior scene", "let's see the lid", "why don't the tops of the ladders match" */
-      items.push({ a: (L0 + L1)/2, b: 10, z: H, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
+      items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
         const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         /* (the ladder on up the shaft to it, the roof's true height: BBR.Z, where the street's building has its roof) */
@@ -52402,7 +52402,7 @@ function houseCanopy(fn){
         box(98, 172, B0 + 2, B1 - 2, Z, Z + 3, '#5f6b76', '#4d5862', '#3a434b');
         T(110, 160, B0 + 14, B1 - 14, Z + 3.1, '#6a7782');
         box(130, 140, B1 - 12, B1 - 9, Z + 3, Z + 5, steelD, steelS, steelS); } });
-      items.push({ a: (L0 + L1)/2, b: 10, z: H, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+      items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
         const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;   // (ZR: the roof's true height, so the climb runs on without a jump into the roof's room)
         const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
@@ -52419,7 +52419,11 @@ function houseCanopy(fn){
         /* the ladder, from the ceiling up through it: the rails, the rungs, and over at the top */
         for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < LT - 6; z += 16) tube(L0, LB, z, L1, LB, z, 1.5, railD);
         for(const x of [L0, L1]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, H - 4, LT, rail, rail, railD); box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, rail, rail, railD); }
-        /* the near walls: their tops and outer faces */
+      } });
+      /* the near walls, their own piece sorted after him (b 60): he climbs up into the hatch behind them */
+      items.push({ a: (L0 + L1)/2, b: 60, z: 0, hatchNear: true, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
+        const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c), cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e';
         q4([[inA1, inB0, Z], [A1, inB0, Z], [A1, inB1, Z], [inA1, inB1, Z]], cT);
         q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], cE);
         q4([[A0, inB1, Z], [A1, inB1, Z], [A1, B1, Z], [A0, B1, Z]], cT);
@@ -120747,6 +120751,13 @@ class WorldScene extends Phaser.Scene {
       try { this.drawRobot(t, dt); }
       finally { this.g = g0; if(gb0) this.gBotGlow = gb0; this._xraySkip = xs0; }
       if(!fleetShowroomKind(this)) this.drawFleetAvatar(t, dt, FK);   // (in the garage's showroom the garage draws it, over its room)
+      /* UP INTO IT FROM THE BACK ROOM (msLadTick): the hatch over the ceiling has its near walls drawn again over him once he is up at it --
+         the room's pieces are painted under him, so without this he climbed up in front of the curb */
+      if(this.ow && this.ow.climbing && (this.ow.climbZ || 0) > BBR.Z - 150 && this._inside && this._inside.name === BB_IN.name){
+        const pk = this._inside, nm = pk.name, zp = typeof pk.z === 'function' ? pk.z() : (pk.z || 0), G = (a, b, h) => this.W(pk.x0 + a, pk.y0 + b, h + zp);
+        const L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
+        for(const it of L || []) if(it.hatchNear && (!it.when || it.when())) LIB.drawItem(nm, this.g, G, this.K, it);
+      }
       /* RISING OUT OF THE ROOF HATCH (msClimb): the curb's near walls are drawn again over his lower body, so it is a body coming up out of a hole */
       if(this.ow && this.ow.emerging && this._inside && this._inside.name === 'Brew & Bolt Roof'){
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
