@@ -50915,8 +50915,8 @@ function houseCanopy(fn){
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
        room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
-    rpush({ a: 779, b: 117, z: 0, solids: [], draw: () => {
-      const A = 779, bc = 117, dk2 = '#2a1a11', Q = (da, k) => P(A, bc - 1.3*da, 1.95*(6 + k)), SB = (da0, da1, k0, k1, c) => poly([Q(da0, k0), Q(da1, k0), Q(da1, k1), Q(da0, k1)], c);
+    rpush({ a: 809, b: 87, z: 0, solids: [], draw: () => {
+      const A = 809, bc = 87, dk2 = '#2a1a11', Q = (da, k) => P(A, bc - 1.3*da, 1.95*(6 + k)), SB = (da0, da1, k0, k1, c) => poly([Q(da0, k0), Q(da1, k0), Q(da1, k1), Q(da0, k1)], c);
       for(const da of [-52, 52]) box(A - 2, A + 2, bc - 1.3*da - 3, bc - 1.3*da + 3, 0, 1.95*10, dk2, dk2, '#3b2619');          // the posts
       SB(-58, 58, 0, 90, dk2); SB(-54, 54, 4, 86, '#3b2619');                                                                    // the board
       poly([Q(-30, 14), Q(30, 14), Q(24, 54), Q(-24, 54)], '#e79a35');                                                           // the cup
