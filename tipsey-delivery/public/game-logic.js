@@ -87738,6 +87738,7 @@ function msPocketBay(name, a, b){
   const B = hospBay(pk.x0 + a, pk.y0 + b);
   return Object.assign(B, { pocket: pk });
 }
+function msTellBay(){ return MS._tb || (MS._tb = msPocketBay(BB_IN.name, 482, 470)); }   // (where he tells Tipsey he is off for the parts: across the counter from Tipsey)
 function msLadderBay(){ return MS._lb || (MS._lb = msPocketBay(BB_IN.name, 135, 78)); }
 function msHatchBay(){ return MS._hb || (MS._hb = msPocketBay(BBR.name, 135, 118)); }
 function msMastBay(){ return MS._mb || (MS._mb = msPocketBay(BBR.name, 350, 340)); }   // (on the mast's west side, where the cutscene has him look at it -- msCutStart; its east edge, 396, short of the snapped cable's end at 410, so he never stands on it)
@@ -87748,7 +87749,7 @@ function msBayNow(scene){
   if(MS.stage === 'idle') return msDone() || fleetCur() || storiesHidden('minding-the-shop') || missionBusy('minding-the-shop') ? null : ic(msBay(scene), 'robot');
   if(MS.stage === 'shift') return null;                                       // (no flag at the ladder: he climbs it himself, msLadTick)
   if(MS.stage === 'roof') return MS.seen && !MS.carry ? null : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again; down the hatch is his own to do)
-  if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
+  if(MS.stage === 'parts') return !MS.toldTip && scene._inside && scene._inside.name === BB_IN.name ? ic(msTellBay(), 'robot') : ic(msHw(scene), 'flag');   // (first, a word with Tipsey at the counter)
   if(MS.stage === 'return' || MS.stage === 'out') return ic(MS.home, 'flag');
   return null;
 }
@@ -88041,8 +88042,9 @@ function msTellNow(scene, ow, now){
   const pk = scene._inside; if(!pk || pk.name !== BB_IN.name || !MS.tip) return false;
   const T = msTipAt(now), V = pk.view ? pk.view() : { dx: 0, dy: 0 }; if(!T) return false;
   const gx = ow.px + V.dx, gy = ow.py + V.dy;
-  const a = ow.px - pk.x0, b = ow.py - pk.y0, floor = a > 430 || b > 430;   // (out of the back room onto the shop floor: through its wall, not)
-  return (floor && Math.hypot(T.x - gx, T.y - gy) < 260) || Math.hypot(ow.px - (pk.x0 + BB_IN.DOOR.at), ow.py - (pk.y0 + BB_IN.D)) < 170;
+  /* (its mark, on the floor before the counter's west end -- Sir, 2026-11-14, "put it here" -- or, gone past it, the door) */
+  const B = msTellBay(), on = B && !MS.snooze && matHighlightState(scene, B.mat, scene.mode) === "armed";
+  return on || Math.hypot(ow.px - (pk.x0 + BB_IN.DOOR.at), ow.py - (pk.y0 + BB_IN.D)) < 170;
 }
 function msTellStart(scene, ow, now){
   const pk = scene._inside, V = pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now);
