@@ -34001,6 +34001,7 @@ function hospSayCard(m){
   el._no = m.no ? m.no.ok : null; no.textContent = m.no ? m.no.btn : ""; no.classList.add("hidden");
   el._auto = !!m.auto; el._autoAt = 0;                  // auto: no answer of his -- on to ok() a beat after their last line (FOURTH: his idea)
   el._at = m.at || hospSpeakerAt;                       // whose head it hangs over (hospSayCardPlace)
+  el._replyAt = m.replyAt || null;                      // (and whose the answer is, when it is not the player's: Tipsey's to Gideon -- his buttons over him)
   rp.innerHTML = "";
   rp.append(document.createTextNode(m.btn));
   const tap = document.createElement("span"); tap.className = "drTap"; tap.textContent = "tap to answer";
@@ -34088,7 +34089,8 @@ function hospReplyPlace(scene, r, card){
   const rp = document.getElementById("docReply");
   if(!rp || rp.classList.contains("hidden")) return;
   const kx = r.width/scene.scale.width, ky = r.height/scene.scale.height;
-  const sp = scene.W(scene.botX, scene.botY, 140);
+  const el = document.getElementById("docCard"), RA = (() => { try { return el && el._replyAt ? el._replyAt(scene.time.now) : null; } catch(e){ return null; } })();
+  const sp = RA ? scene.W(RA.x, RA.y, RA.h || 110) : scene.W(scene.botX, scene.botY, 140);
   const x = r.left + sp.x*kx, y = r.top + sp.y*ky, w = rp.offsetWidth || 140, h = rp.offsetHeight || 46, vw = window.innerWidth;
   let cx = Math.max(w/2 + 8, Math.min(vw - w/2 - 8, x)), top = Math.max(h + 8, y - 6);
   if(card && card.width){
@@ -34104,7 +34106,7 @@ function hospReplyPlace(scene, r, card){
   /* the second answer, beside his (left of it, or right if there's no room) */
   const no = document.getElementById("docNo");
   if(no && !no.classList.contains("hidden")){
-    const nw = no.offsetWidth || 90, left = cx - w/2 - 8 - nw >= 8;
+    const nw = no.offsetWidth || 90, roomR = cx + w/2 + 8 + nw <= window.innerWidth - 8, left = RA ? !roomR : cx - w/2 - 8 - nw >= 8;   // (an answer not the player's: on its far side, away from the speaker)
     no.style.left = Math.round(left ? cx - w/2 - 8 : cx + w/2 + 8 + nw) + "px"; no.style.top = Math.round(top - 4) + "px";
   }
 }
@@ -34337,7 +34339,8 @@ function hospSayCardPlace(scene){
   const sp = scene.W(p.x, p.y, (p.z || 0) + 185);
   const x = r.left + sp.x*kx, y = r.top + sp.y*ky;
   /* Tipsey, beside them: their bubbles grow AWAY from him, so his answer over his head stays clear */
-  const bx = r.left + scene.W(scene.botX, scene.botY, 0).x*kx, away = x >= bx ? 1 : -1;
+  const RA = (() => { try { return el._replyAt ? el._replyAt(scene.time.now) : null; } catch(e){ return null; } })();
+  const bx = r.left + (RA ? scene.W(RA.x, RA.y, 0) : scene.W(scene.botX, scene.botY, 0)).x*kx, away = x >= bx ? 1 : -1;
   const w = el.offsetWidth || 270, h = el.offsetHeight || 140, vw = window.innerWidth, vh = window.innerHeight;
   el.classList.remove("over", "sideR", "sideL");
   if(y - 6 - h >= 10){                                  // room over the head
@@ -88094,7 +88097,10 @@ function msTellTick(scene, ow, now){
   const C = MS.tell; if(!C) return;
   ow.vel = 0;
   if(!C.said && (now - C.t0)*0.11 >= C.len){ C.said = true;
-    hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, no: { btn: "Not now", ok: msTellNo }, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" }); }
+    hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, no: { btn: "Not now", ok: msTellNo }, say: "Off to Breakwater Hardware for parts. You alright minding the shop?",
+      at: () => { const sc = scn(); return sc ? { x: sc.botX, y: sc.botY } : null; },   // (his line over him)
+      replyAt: now2 => { const sc = scn(), pk = sc && sc._inside, V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now2);   // (and the answers over Tipsey: they are his --
+        return T ? { x: T.x - V.dx, y: T.y - V.dy, h: 90 } : null; } }); }                                                               //  his street spot back into the room's frame, as the bot's is)
 }
 /* "Not now": Tipsey goes back behind the counter, Gideon stays; he asks again the next time he comes out of the back room */
 function msTellNo(){
