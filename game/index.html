@@ -52621,7 +52621,7 @@ function houseCanopy(fn){
     const edge = (a0, a1, b0, b1, alongA, vis) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/60);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
         rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
-          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, cream, cream);
+          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, cream, alongA && k === n - 1 ? LIP : cream);   /* (its east end face carries on the fascia's bright edge to the corner) */
           /* (the fascia's bright edge, as it has it: along the OUTER edge of the top -- the north run's north side, the west run's west side) */
           if(alongA) T(p0, p1 + (k < n - 1 ? 0.5 : 0), q0, q0 + 5, CAPZ + 0.05, LIP); else T(p0, p0 + 5, q0, q1 + (k < n - 1 ? 0.5 : 0), CAPZ + 0.05, LIP); } : () => {} }); } };
     edge(0, EA, EN, EN + EW, true, true);                                                    // north: to the fascia's outer edge, so the two caps meet in one corner
