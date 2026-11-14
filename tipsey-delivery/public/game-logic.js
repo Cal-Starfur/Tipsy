@@ -3565,11 +3565,13 @@ function fleetCur(){
               wallet is the Reddit server's, and a fine taken here would not
               stick).
      D     -- OW_D with its ctl over it (speed, turning).
+   step  -- (Gideon, the humanoid, Sir 2026-11-14: "he needs to not get stuck by the sidewalk curb") he walks up and down the kerb
+              anywhere: no kerb wall from the road, no kick or drop crossing it.
    walk, site and sail have neither yet: Tipsey's rules (FLEET_PHYS_NONE). */
 const FLEET_PHYS_NONE = {};
 for(const k in FLEET){
   const c = FLEET[k].cls;
-  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : Object.keys(FLEET[k].ctl || {}).length ? {} : null;   // (a walker with numbers of its own (the cargo bot's width) keeps Tipsey's rules and takes them; the site machine too: a forklift never tips, FLEET_STEER)
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : k === "humanoid" ? { step: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : Object.keys(FLEET[k].ctl || {}).length ? {} : null;   // (a walker with numbers of its own (the cargo bot's width) keeps Tipsey's rules and takes them; the site machine too: a forklift never tips, FLEET_STEER)
 }
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
@@ -8967,7 +8969,7 @@ function owStep(scene, dt){
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
                             (semiParkBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing
                             (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
-                            (!FP.fly && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
+                            (!FP.fly && !FP.step && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
                             (harborBlocks(x, y, D.botR) && !(FP.fly && _overWater(x, y)) ? OW_CURB_BLOCK : null) ||   // PELICAN HARBOR: the water and the harbor building (flying: over the water)
                             (nssBlocked(W.grid, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // NORTH SUNSET SHORE's houses
@@ -9398,7 +9400,7 @@ function owStep(scene, dt){
        transition still charged a lean and tipped him at the mouth every
        time. Inside the estate and up its road there is no kerb to strike. */
     /* ...until it had kerbs like the city's (2026-09-22): now it leans the same */
-    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03){
+    if(ow.sfcCommit && ow.sfcCommit !== sfc && Math.abs(ow.vel) > 0.03 && !FP.step){   // (a walker steps up and down it: no kick, no drop)
       /* off the kerb into the road: a fall, unless it was a crossing's
          dropped kerb, which is flush */
       const lo = ow._lastOff, down = ow.sfcCommit === 'sidewalk' && sfc === 'road';
