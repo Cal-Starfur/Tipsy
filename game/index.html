@@ -52464,7 +52464,7 @@ function houseCanopy(fn){
          ladder is missing from the interior scene", "let's see the lid", "why don't the tops of the ladders match" */
       /* (shut: the ladder on up the shaft to it -- behind him -- and the curb with the lid down on it, which he climbs up under: hatchNear,
          drawn again over him (drawFleetAvatar) -- Sir, 2026-11-14, "Gideon shouldn't be painting over it") */
-      items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
+      items.push({ a: (L0 + L1)/2, b: 55, z: 0, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {   // (b 55, its order key: after the north wall's piece east of it, whose cap had painted across the rails above it -- Sir, 2026-11-14 -- and still before him climbing it, b + 60)
         const ZR = BBR.Z;
         for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD); } });
