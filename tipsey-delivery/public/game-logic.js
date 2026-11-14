@@ -9506,6 +9506,11 @@ function owTip(scene, sgn, u){
    Side missions are untouched: the hydrant and the slalom paint their
    own crash cards and never come here. */
 const OW_RESCUE = { holdMs: 2400 };
+/* GIDEON GETS UP ON HIS OWN (Sir, 2026-11-14: "when gideon tips he should be able to get back up on his own with out the tipsey
+   team"): the player as the humanoid (fleetCur() 'humanoid') is sent no crew for a tip -- he lies lieMs, then pushes himself up
+   over upMs (the crew's heave, rescueHeave, on his own clock) and is set on his feet where he fell. A dead battery is still a tow */
+const OW_SELF_UP = { lieMs: 1100, upMs: 1000 };
+function owSelfUp(tow){ return !tow && typeof fleetCur === "function" && fleetCur() === 'humanoid'; }
 
 /* ==================== THE TIPSY CREW'S VAN (stage 3) ====================
    (Sir, 2026-10-06: "if he tips over a 'Tipsy Crew' shows up and right
@@ -10724,6 +10729,13 @@ function owSendCrew(scene, tow){
     /* up on the garage roof: the van comes to the lift, and the crew ride
        it (see THE CREW ON THE GARAGE ROOF) */
     /* (the mall garage's level 2 too: they ride to his floor, see rescueRoofCrewPlan) */
+    if(owSelfUp(tow)){                                                     // (Gideon: no crew, he gets up himself -- OW_SELF_UP)
+      ow.rescue.self = true; ow.rescue.holdMs = OW_SELF_UP.lieMs + OW_SELF_UP.upMs;
+      if(ow.splash){ const L = owSafeSpotNear(scene, ow.px - ow.splash.hx*60, ow.py - ow.splash.hy*60, true); ow.rescue.x = L.x; ow.rescue.y = L.y; }
+      scene._botAboard = false; ow.rescue.t0 = scene.time.now; scene.rightT = 0;
+      gpsNavClear();
+      return;
+    }
     const midDeck = !!(ow.deck && ow.deck.mid);
     const roofDoor = ow.deck ? (S => S.frame().toWorld((S.plan.CAR0 + S.plan.CAR1)/2, S.plan.cb1 + 60))(liftSite()) : null;
     if(roofDoor) wet = null;
@@ -11059,10 +11071,11 @@ function owRespawnTick(scene, t){
   if(scene.state !== "tipped" && !(scene.state === "dead" && ow.rescue)) return;
   /* A TIP (or a tow) IS PICKED UP HERE, in either mode (see owSendCrew) */
   if(ow.rescue){
-    const rc = ow.rescue, v = scene._rescueVan;
+    const rc = ow.rescue, v = rc.self ? null : scene._rescueVan;   // (Gideon getting up himself: his own clock, no van's -- OW_SELF_UP)
     const u = v ? rescueClock(v, t) : t - rc.t0;
     /* the crew roll him back up as they lift (see rescueRightT) */
-    scene.rightT = v ? rescueRightT(v, t) : HOSP_RESCUE && HOSP_RESCUE.bot ? hospRescueRightT(t) : mallRescueRightT(t);
+    scene.rightT = rc.self ? (u <= OW_SELF_UP.lieMs ? 0 : rescueHeave(Math.min(1, (u - OW_SELF_UP.lieMs)/OW_SELF_UP.upMs)))
+                 : v ? rescueRightT(v, t) : HOSP_RESCUE && HOSP_RESCUE.bot ? hospRescueRightT(t) : mallRescueRightT(t);
     if(v){
       const c = v.crew;
       if(!rc.honked && u >= c.arrive){ rc.honked = true; sfxVanHorn(); }
