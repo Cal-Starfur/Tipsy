@@ -50906,15 +50906,20 @@ function houseCanopy(fn){
     T(560, 770, 360, 400, 0.3, '#57524c');
     for(const [ga, gb] of [[120, 300], [310, 520], [470, 180], [700, 560], [220, 700], [610, 700], [80, 450]]) for(let k = 0; k < 7; k++) T(ga + k*9, ga + k*9 + 3, gb + (k%3)*7, gb + (k%3)*7 + 3, 0.35, '#6a655e');
     /* ---- THE PARAPET, all round: a brown wall with a cream cap, in runs ---- */
-    const par = (a0, a1, b0, b1, alongA, vis, low, capTo) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
+    /* THE ROOF'S EDGE, all round as the street's building has it (Sir, 2026-11-14: "go with option 1"): the front fascia's low cream cap --
+       24 wide, just over the deck (measured off the shell: its inner edge a 847, its outer 871, its north end b -50) -- not a tall parapet on
+       two sides and a low cap on the other two, which could never meet cleanly at a corner. The far two sides are drawn the same, in runs
+       (sorted ahead of what stands on the roof, as the old parapet was); the near two are the shell's own. Still a wall to walk into: each
+       run keeps a solid the parapet's height, so he can't step off the roof */
+    const EN = -50, EW = 24, CAPZ = 2.6, EA = 849;
+    const edge = (a0, a1, b0, b1, alongA, vis) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/60);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
-        rpush({ low, a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
-          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, capTo && k === n - 1 ? brown : brownD); box(p0 - 1, (capTo && k === n - 1 ? capTo : p1) + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', capTo && k === n - 1 ? cream : '#d0c4a8');   /* (run into the fascia's cap: its end in the cap's own white, so the two read as one) */ } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
-    par(0, W + 12, BBR.HS, BBR.HS + PT, true, true);   // (on the shell's north edge, BBR.HS; its wall to the front fascia, W + 10, its cap on to the fascia's corner, W + 44)
-    /* (the far run sorted ahead of whatever stands in front of it: by a + b its pieces came after the roof hatch's lid and curb, beside
-       them, and painted their cap across them -- Sir, 2026-11-13, "the wall is drawing over the hatch") */
-    for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < BBR.HS + PT) it.dk -= 300;
-    par(0, PT, BBR.HS + PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+        rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
+          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, '#e4d9c0', alongA && k === n - 1 ? cream : '#d0c4a8'); } : () => {} }); } };   /* (the north run's end, where it meets the fascia's cap, in the cap's white: one corner) */
+    edge(0, EA, EN, EN + EW, true, true);                                                    // north: to the fascia's outer edge, so the two caps meet in one corner
+    for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < EN + EW) it.dk -= 300;
+    edge(0, EW, EN + EW, D, false, true);                                                    // west
+    edge(W - PT, W, PT, D - PT, false, false); edge(0, W, D - PT, D, true, false);           // (east, south: the shell's own fascia; their solids only)
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
        room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
