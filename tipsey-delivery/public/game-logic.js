@@ -50989,7 +50989,7 @@ function houseCanopy(fn){
     /* ---- THE ANTENNA MAST, a 660, b 230: on its plate, up to 110, then bent right over toward the east, its elements hanging off the
        bend, its guy wires slack, its cable snapped off short and lying on the roof ---- */
     { const ma = 430, mb = 330;      // (clear of the shell's own air-conditioning slab)
-    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => {
+    const mastBody = () => {
       const A = d => ma + d, B = d => mb + d;
       box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
       for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
@@ -50998,7 +50998,8 @@ function houseCanopy(fn){
       tube(A(44), B(6), 128, A(88), B(10), 132, 3, steel);                                     // what is left of the upper mast, leaning
       for(const [t, len] of [[0.25, 30], [0.5, 24], [0.75, 18]]){ const a = A(44 + 44*t), b = B(6 + 4*t), z = 128 + 4*t; tube(a, b - len/2, z, a, b + len/2, z, 1.4, '#c4cbd1'); }  // the elements
       tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
-    } });
+    };
+    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => mastBody() });
     /* its loose ends -- the snapped cable and its sparks, two elements hanging off the bend -- their own piece: still, or (the moment Gideon
        sees it, msCut) drawn live, the cable's end twitching and throwing sparks, the elements swinging (u: the cutscene's clock, ms) */
     const mastLoose = u => { const A = d => ma + d, B = d => mb + d, live = u != null, w = live ? Math.sin(u/170) : 0, w2 = live ? Math.sin(u/260 + 1) : 0;
@@ -51010,7 +51011,7 @@ function houseCanopy(fn){
         tube(A(ea), B(eb + 1), ez + 1, A(ea + Math.cos(th)*L*0.6), B(eb + 1 + Math.sin(th)*L*0.6), ez + 1 + L*(0.5 + 0.5*Math.abs(Math.sin(th*1.3))), live ? 0.7 : 0.5, burst < 0.25 ? '#fff3b0' : '#ffd25a'); }
       tube(A(44), B(6), 128, A(52 + 4*w2), B(16 + 2*w), 100, 1.2, '#c4cbd1'); tube(A(70), B(8), 131, A(80 + 3*w), B(20 + 2*w2), 104, 1.2, '#c4cbd1'); };   // two elements hanging off the bend
     rpush({ a: ma, b: mb + 1, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()), solids: [], draw: () => mastLoose(null) });
-    rpush({ a: ma, b: mb + 1, z: 0, mastCut: true, when: () => false, solids: [], draw: () => { const sc = typeof scn === 'function' ? scn() : null; mastLoose(typeof msCutOn === 'function' && msCutOn() && sc ? sc.time.now - MS.cut.t0 : 0); } });
+    rpush({ a: ma, b: mb + 1, z: 0, mastCut: true, when: () => false, solids: [], draw: () => { const sc = typeof scn === 'function' ? scn() : null; mastBody(); mastLoose(typeof msCutOn === 'function' && msCutOn() && sc ? sc.time.now - MS.cut.t0 : 0); } });
     /* ... and mended (MINDING THE SHOP, the repair): the new bracket on the plate, the mast standing straight to 150 with its elements
        along the top, the guy wires taut, the cable up the mast with its screw-on connector */
     rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 230 }], draw: () => {
@@ -119307,7 +119308,8 @@ class WorldScene extends Phaser.Scene {
         const L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.hatchNear && (!it.when || it.when())) LIB.drawItem(nm, this.g, G, this.K, it);
       }
-      /* THE MAST, SEEN (msCut): its loose ends drawn live, over the roof's still pieces */
+      /* THE MAST, SEEN (msCut): the whole mast drawn live after him -- he stands behind it -- its plate, then the cable's live end over it
+         (only the loose ends live, the cached plate in front of him painted over them) */
       if(typeof msCutOn === 'function' && msCutOn() && this._inside && this._inside.name === BBR.name){
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.mastCut) LIB.drawItem(nm, this.g, G, this.K, it);
