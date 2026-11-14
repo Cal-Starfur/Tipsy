@@ -111376,10 +111376,12 @@ class WorldScene extends Phaser.Scene {
                              limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0); };   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
         const raised = Math.abs(ang) > RAISED;
         const upper = () => limb(shoulderAx, raised ? ext(S, E, 3) : S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
-        if(((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0){ upper(); fore(); } else { fore(); upper(); }
-        /* the sleeve's hem last, over both: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that
-           root painted a skin patch over the sleeve's end -- Sir, 2026-10-24) */
-        if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true);   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
+        /* the sleeve's hem: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that root painted a skin patch
+           over the sleeve's end -- Sir, 2026-10-24) -- but under a forearm that crosses in front of it: a hand in the lap, its forearm toward
+           the eye, had the hem painted across it, a band over the arm (Sir, 2026-11-14: "the elbow is drawn over the forearm") */
+        const hem = () => { if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true); };   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
+        const foreNear = ((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0, crosses = foreNear && Math.cos(bend) < 0.75;   // (bent past ~40 degrees toward the eye: the forearm lies across the elbow's front)
+        if(foreNear){ upper(); if(crosses){ hem(); fore(); } else { fore(); hem(); } } else { fore(); upper(); hem(); }
         aidHand(side, shoulderAx, Hd, ang + bend, E);
         if(raised) return false;
         /* what it holds: over the face when they face the eye (after the head) */
