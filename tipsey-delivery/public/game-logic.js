@@ -87787,7 +87787,7 @@ function msAccept(){
   scene.items = items || []; scene.camX = cx; scene.camY = cy;                             // (the camera eases across: no snap, R12)
   const B = msBay(scene), dv = B ? B.dv : { x: 1, y: 0 };
   MS.home = hospBay(MS.park.x + dv.x*150, MS.park.y + dv.y*150);
-  MS.stage = 'shift'; MS.toldTip = false;
+  MS.stage = 'shift'; MS.toldTip = false; MS.tellAgain = null;
   /* TIPSEY TAKES THE SHOP: from his bay along the pavement, in at the door, up the aisle to the staff side of the counter (the room's own
      frame is the street's, so one path in street coordinates carries him the whole way) */
   { const pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, at = BB_IN.DOOR.at;
@@ -87834,7 +87834,7 @@ function msFinish(){
 function msAbort(scene){
   msNavClear(scene);
   MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
-  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -87847,7 +87847,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -88063,8 +88063,9 @@ function msTellNow(scene, ow, now){
   const T = msTipAt(now), V = pk.view ? pk.view() : { dx: 0, dy: 0 }; if(!T) return false;
   const gx = ow.px + V.dx, gy = ow.py + V.dy;
   /* (as he steps out of the back room -- Sir, 2026-11-14, "make it automatic that it happens when Gideon leaves the back room") */
-  const a = ow.px - pk.x0, b = ow.py - pk.y0, K = BB_IN.BACK;
-  return a > K.a + K.T || b > K.b + K.T;
+  const a = ow.px - pk.x0, b = ow.py - pk.y0, K = BB_IN.BACK, out = a > K.a + K.T || b > K.b + K.T;
+  if(MS.tellAgain === false){ if(!out) MS.tellAgain = true; return false; }   // (told "not now": he asks again once he has been back in the back room)
+  return out;
 }
 /* the point a distance d along a path of points (and its heading) */
 function msPathAt(P, d){
@@ -88093,7 +88094,13 @@ function msTellTick(scene, ow, now){
   const C = MS.tell; if(!C) return;
   ow.vel = 0;
   if(!C.said && (now - C.t0)*0.11 >= C.len){ C.said = true;
-    hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" }); }
+    hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, no: { btn: "Not now", ok: msTellNo }, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" }); }
+}
+/* "Not now": Tipsey goes back behind the counter, Gideon stays; he asks again the next time he comes out of the back room */
+function msTellNo(){
+  const scene = scn(); if(MS.stage !== 'partsTell' || !scene) return;
+  hospSayCard(null); cineBars(false); MS.stage = 'parts'; MS.toldTip = false; MS.tellAgain = false;
+  if(MS.tell) MS.tell.tBack = scene.time.now;
 }
 function msTellDone(){
   const scene = scn(); if(MS.stage !== 'partsTell' || !scene) return;
