@@ -52617,11 +52617,11 @@ function houseCanopy(fn){
        two sides and a low cap on the other two, which could never meet cleanly at a corner. The far two sides are drawn the same, in runs
        (sorted ahead of what stands on the roof, as the old parapet was); the near two are the shell's own. Still a wall to walk into: each
        run keeps a solid the parapet's height, so he can't step off the roof */
-    const EN = -50, EW = 24, CAPZ = 2.6, EA = 849;
+    const EN = -46, EW = 22, CAPZ = 3, EA = 849, LIP = '#ffffeb';   // (LIP: the fascia's bright roof-side face, sampled off it)
     const edge = (a0, a1, b0, b1, alongA, vis) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/60);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
         rpush({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
-          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, '#e4d9c0', alongA && k === n - 1 ? cream : '#d0c4a8'); } : () => {} }); } };   /* (the north run's end, where it meets the fascia's cap, in the cap's white: one corner) */
+          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, LIP, LIP); } : () => {} }); } };   /* (its faces toward the roof in the fascia's own bright white, its top in its cream: the same profile, so the corner is one) */
     edge(0, EA, EN, EN + EW, true, true);                                                    // north: to the fascia's outer edge, so the two caps meet in one corner
     for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < EN + EW) it.dk -= 300;
     edge(0, EW, EN + EW, D, false, true);                                                    // west
