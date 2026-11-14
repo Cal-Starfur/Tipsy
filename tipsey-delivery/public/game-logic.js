@@ -87993,12 +87993,12 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
    cable's end twitches and throws sparks and the hanging elements swing; he says it; and it cuts back to where it was, the GPS set for
    the hardware store (msSeen). MS.cut: { t0, ph: 'turn' | 'close' | 'back', z0: the zoom it was, said } */
 /* DISTRESSED (msCut's close look: Sir, 2026-11-14, "he is distressed so his hands are on his head"): both arms up, the elbows out in
-   front, the hands on the top of his head -- the upper arm 130 degrees up, the forearm folded back 95 to it (worked from the shoulder,
-   95, and the head's crown, 124: the hand lands at b 1, h 121) -- eased in over 0.35 s, and a small rock of the head between them */
+   front, the hands on the crown of his head -- the upper arm 153 degrees up, the forearm folded back 56 to it, a touch in (worked from
+   the shoulder, 95, and the crown, 124: the hands land on top, b -2, h 128 -- at the head's side, h 121, the head painted over them) -- eased in over 0.35 s, and a small rock of the head between them */
 function msDistressPose(now){
   const C = MS.cut, k0 = C ? Math.max(0, Math.min(1, (now - C.t0)/350)) : 1, k = k0*k0*(3 - 2*k0), rock = 0.04*Math.sin(now/180)*k;
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(),
-    lift: [1.45*k + 0.05*(1 - k) + rock, 1.45*k + 0.05*(1 - k) - rock], bend: [1.65*k + 0.15*(1 - k), 1.65*k + 0.15*(1 - k)] };
+    lift: [1.7*k + 0.05*(1 - k) + rock, 1.7*k + 0.05*(1 - k) - rock], bend: [0.97*k + 0.15*(1 - k), 0.97*k + 0.15*(1 - k)], armOut: [0.15*k, 0.15*k] };
 }
 const MS_CUT = { turnMs: 450, fadeMs: 550, sayAt: 1500 };
 function msCutOn(){ return !!(MS.cut && MS.cut.ph === 'close'); }
@@ -88012,7 +88012,7 @@ function msCutStart(scene){
   const dur = Math.max(300, Math.hypot(to.x - ow.px, to.y - ow.py)/0.07);
   MS.cut.walkMs = dur;
   msWalkTo(scene, to, Math.atan2(to.y - ow.py, to.x - ow.px), dur, () => {
-    if(m) msWalkTo(scene, to, Math.atan2(m.y - to.y, m.x - to.x), 1, () => { if(MS.cut) MS.cut.faced = true; }, null, false, 350); }, null, false, 250);
+    if(m) msWalkTo(scene, to, 0.55, 1, () => { if(MS.cut) MS.cut.faced = true; }, null, false, 350); }, null, false, 250);   // (0.55: turned toward the eye, the mast on his left -- side on to it, one arm up was hidden behind his head)
 }
 function msCutTick(scene, ow, now){
   const C = MS.cut; if(!C) return;
