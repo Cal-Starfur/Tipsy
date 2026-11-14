@@ -105149,9 +105149,23 @@ class WorldScene extends Phaser.Scene {
     if(this._inside && this._inside.name === BB_IN.name){
       const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 }, now = performance.now(), D = GD_DOOR;
       const want = this._doorShut === 'gideon-pad' || (this._garage && this._garage.key === 'gideon-pad') || D.force === true ? 1 : 0;   // (the button shuts them, then the garage opens)
-      D.t = Math.max(0, Math.min(1, D.t + (want ? 1 : -1)*Math.min(100, now - (D.last || now))/900)); D.last = now;
-      if(typeof D.force === 'number') D.t = D.force;
-      const th = (Math.PI/2)*(1 - D.t)*(1 - D.t*0.0), y0 = pk.y0 + 416 + pv.dy, xL = pk.x0 + 130 + pv.dx, xR = pk.x0 + 250 + pv.dx, LL = 60;
+      /* SWUNG BY WHO GOES THROUGH (Sir, 2026-11-14: "do these doors open and close for the back room? ... yes"): shut, and pushed open by
+         whoever comes to the doorway -- Gideon, Tipsey -- away from them, out of the room or into it; when the way is clear they swing back
+         and flap past shut a time or two before they settle (a spring, D.A the leaves' angle: + out into the cafe, - into the back room) */
+      const dtD = Math.min(50, now - (D.last || now)); D.last = now;
+      const nearDoor = (a, b) => a > 112 && a < 268 && Math.abs(b - 416) < 64;
+      let push = 0;
+      { const ow = this.ow; if(ow && ow.on){ const a = ow.px - pk.x0, b = ow.py - pk.y0; if(nearDoor(a, b)) push = b < 416 ? 1 : -1; } }
+      if(!push && typeof msTipAt === 'function' && typeof MS !== 'undefined' && MS.tip){ const T = msTipAt(this.time.now), V = pk.view ? pk.view() : { dx: 0, dy: 0 };
+        if(T){ const a = T.x - pk.x0 - V.dx, b = T.y - pk.y0 - V.dy; if(nearDoor(a, b)) push = b < 416 ? 1 : -1; } }
+      if(push && Math.abs(D.A || 0) < 0.25) D.side = push;                     // (which way they go is set as they start to open: away from who pushes)
+      const tgt = want ? 0 : push ? (D.side || push)*1.42 : 0;
+      D.A = D.A || 0; D.v = D.v || 0;
+      for(let k = 0; k < Math.ceil(dtD/10); k++){ const h = dtD/Math.ceil(dtD/10 || 1); const kk = push && !want ? 3.2e-4 : 1.1e-4, cc = push && !want ? 0.03 : 0.0055;
+        D.v += (kk*(tgt - D.A) - cc*D.v)*h; D.A += D.v*h; }
+      if(typeof D.force === 'number'){ D.A = (Math.PI/2)*(1 - D.force); D.v = 0; }
+      D.t = 1 - Math.min(1, Math.abs(D.A)/(Math.PI/2));                          // (shut .. open, as the garage reads it)
+      const th = D.A, y0 = pk.y0 + 416 + pv.dy, xL = pk.x0 + 130 + pv.dx, xR = pk.x0 + 250 + pv.dx, LL = 60;
       for(const [hx, dir] of [[xL, 1], [xR, -1]]){
         const tx = hx + dir*LL*Math.cos(th), ty = y0 + LL*Math.sin(th), dep = Math.max(hx + y0, tx + ty) + 0.3;
         hazVQ.push({ depth: dep, fn: (gg, tt) => { const lg = layerFor(hx, y0), Wp = (x, y, z) => this.W(x, y, z), z0 = 4, z1 = 94;
