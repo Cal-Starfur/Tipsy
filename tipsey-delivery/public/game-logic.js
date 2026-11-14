@@ -103608,6 +103608,20 @@ class WorldScene extends Phaser.Scene {
         const ph = ((tt || 0) % CHARGE.pulseMs)/CHARGE.pulseMs, br = 0.5 + 0.5*Math.sin(ph*Math.PI*2), lg = layerFor(cx, cy), ring = r => { const o = []; for(let k = 0; k < 28; k++){ const t = k/28*Math.PI*2; o.push(this.W(cx + Math.cos(t)*r, cy + Math.sin(t)*r, 2.4)); } return o; };
         this.quadOn(lg, ring(44), 0xffb454, 0.10 + 0.14*br); this.edgeOn(lg, ring(44), 0xffd488, (1.6 + 1.6*br)*this.K); this.quadOn(lg, ring(24), 0xfff0c8, 0.05 + 0.10*br); } });
     }
+    /* MINDING THE SHOP: AN ARROW UP THE ROOF LADDER (Sir, 2026-11-14, "an arrow pointing up at the ladder to help players figure it out"): over
+       the ladder in the back room, bobbing upward, until he is on it and from then on the GPS and the hatch carry him */
+    if(this._inside && this._inside.name === BB_IN.name && MS.stage === 'shift' && !MS.seen && !MS.lad && !MS.climbing && !MS.cl){
+      const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
+      const ax = pk.x0 + 135 + pv.dx, ay = pk.y0 + 6 + pv.dy;
+      hazVQ.push({ depth: ax + ay + 400, fn: (gg, tt) => {
+        const lg = layerFor(ax, ay), ph = ((tt || 0) % 1100)/1100, K = Math.min(1.4, Math.max(0.8, this.K*2.6)), up = Math.sin(ph*Math.PI*2)*5, c = this.W(ax, ay, 170);   // (K: a sign's size, readable at the far views)
+        const x = c.x, y = c.y - up*K, hw = 15*K, sw = 6*K, hh = 15*K, sh = 16*K;
+        const head = [{ x, y: y - hh - sh/2 }, { x: x + hw, y: y - sh/2 }, { x: x - hw, y: y - sh/2 }], shaft = [{ x: x - sw, y: y - sh/2 }, { x: x + sw, y: y - sh/2 }, { x: x + sw, y: y + sh/2 }, { x: x - sw, y: y + sh/2 }];
+        const o = 2.2*K, grow = P => P.map(q => ({ x: x + (q.x - x)*1.0 + Math.sign(q.x - x)*o, y: q.y + (q.y < y - sh/2 - 1 ? -o : q.y > y ? o : 0) }));
+        this.quadOn(lg, grow(head), 0x3a2414, 0.9); this.quadOn(lg, grow(shaft), 0x3a2414, 0.9);
+        this.quadOn(lg, shaft, 0xffc23d, 1); this.quadOn(lg, head, 0xffc23d, 1);
+        this.quadOn(lg, [head[0], { x: x + hw*0.45, y: y - sh/2 - hh*0.55 }, { x, y: y - sh/2 - hh*0.55 }], 0xfff1b8, 0.9); } });
+    }
     /* THE BACK ROOM'S SWING DOORS (gd4, the door): two louvred leaves hinged on the posts, swinging shut over 900 ms (DOOR_SHUT_MS) while Gideon's garage is open,
        open (against the sides, out into the cafe) otherwise */
     if(this._inside && this._inside.name === BB_IN.name){
