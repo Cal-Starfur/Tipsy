@@ -19980,6 +19980,7 @@ function lostDogDone(){
    dog, a shelter worker comes out to him and takes it in -- no tip, the count (tpProfile.dogsSheltered). One dog at a
    time, as the lost dogs are; the dog off the street meanwhile and once in (hz.taken, as a seeker's scooter). */
 const SHELTER_BODY = [1134, 1994, -1530, -706];   // (the building's body in the lot's frame: a0, a1, b0, b1 -- the exterior's solid and the room's W22 check both read it)
+const SHELTER_WIN = [SHELTER_BODY[0] + 150, SHELTER_BODY[0] + 300, SHELTER_BODY[1] - 300, SHELTER_BODY[1] - 150];   // (the front's four windows' centres, a: the exterior's and its room's openings)
 const SHELTER = { i: 2, j: 2, name: 'Costa Palma Animal Shelter', door: [1564, -706], gateB: -670, stepB: -684 };   // (door on the shell's front, 30 past the room's floor line, W22)
 function shelterW(a, b){ return hoodLandmarkFrame(SHELTER.i, SHELTER.j).toWorld(a, b); }
 function shelterAddr(){ const d = shelterW(SHELTER.door[0], SHELTER.door[1]), h = hoodAtWorld(d.x, d.y); return SHELTER.name + (h ? ", " + h.n : ""); }
@@ -28214,6 +28215,9 @@ walkinLife('Seabreeze Trophies Interior', { keep: [[340, 420, 0, 600]], looks: [
    board on the west wall. Staff: the receptionist (behind her counter), a kennel hand (the kennels, the pen); one visitor. */
 const SHELTER_IN = walkinDefine({ name: 'Costa Palma Animal Shelter Interior', from: 'Costa Palma Animal Shelter', x0: 510000, y0: 400000,
   lab: [1164, 1964, -1500, -736], body: [SHELTER_BODY], door: { a: 1564, b: -736, half: 58 }, H: 315, out: 60, apron: 60, glass: 45,
+  /* (seen into from the street, W11: its glazed double door and the four windows either side -- SHELTER_WIN, the exterior's) */
+  openings: [{ lab: [[1506, -706], [1622, -706]], z: [0, 134] },
+             ...SHELTER_WIN.map(c => ({ lab: [[c - 44, -706], [c + 44, -706]], z: [56, 130], glass: true }))],
   /* (its way to and from the street, THE ROOM'S DAY: down the path to the pavement, and along it round either corner) */
   street: { to: [0, 184], routes: [[[-1012, 184], [-1012, -3600]], [[1012, 184], [1012, -3600]]] } });
 const SHELTER_STAFF_UNIFORM = { shirt: { c:0x2f8a8a, dk:0x226a6a }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
@@ -72662,6 +72666,7 @@ marinaEntry(),
   /* its glazed double door swings (recorded by shopDoor): for the worker who brings a lost dog home or out to him, and the dog after them
      (lostDogAtDoor), and for anyone listed who walks up to it */
   swingDoors: [{ a: 1564, b: -706, sense: 70, gate: () => false, also: t => lostDogAtDoor(t) }],   // (not for him: there is no way in)
+  see: true,   // (its glazed door and its four windows show the room inside: walkinThrough, SHELTER_IN's openings)
   head:'A low shelter, its canopy and double door on the street, dog runs either side',
   tags:['block landmark','the real BLOCK, 3128','animal shelter','dog runs','symmetric about 1564'],
   desc:'A single-storey animal shelter: a stucco front with a teal fascia lettered ANIMAL SHELTER and a paw, an entrance canopy on two posts over a glazed double door, windows either side; a fenced gravel dog run on each side with a kennel and a water bowl, and a path up from the pavement past two ADOPT ME signs.',
@@ -72672,7 +72677,7 @@ marinaEntry(),
        symmetric front but turns words back to front; so a word is written with the mirror turned over, at its board's
        place turned over too, which the mirror turns back */
     const word = (txt, a0, a1, ...rest) => { const m0 = MIRROR; MIRROR = m0 ? 0 : 2*GM; try { blockWordIn(txt, 2*GM - a1, 2*GM - a0, ...rest); } finally { MIRROR = m0; } };   // (its board's span turned with it, so it lands on its own board)
-    const wall = '#f1e8d6', trim = '#2f8a8a', trimD = '#226a6a', roofc = '#b7b0a2', glass = 'rgba(130,170,186,.88)';
+    const wall = '#f1e8d6', trim = '#2f8a8a', trimD = '#226a6a', roofc = '#b7b0a2', glass = 'rgba(130,170,186,.88)', glassSee = 'rgba(126,166,186,.36)';
     const items = [];
     /* the path, pavement to the door, and its apron at the door */
     /* A DOG RUN: gravel, chain-link on posts round it, its kennel and its bowl */
@@ -72715,10 +72720,11 @@ marinaEntry(),
       box(GM - 120, GM - 40, -1300, -1220, H, H + 34, '#9aa1a8', '#8a9198', '#7a8188');   // a rooftop unit
       F(A0, A1, 0, 14, shade(wall, .8), null, 0, FB + 0.4);                      // the plinth
       /* the windows either side of the door: a reveal, the glass, a bar, a cill */
-      for(const c of [A0 + 150, A0 + 300, A1 - 300, A1 - 150]){
+      for(const c of SHELTER_WIN){
         F(c - 52, c + 52, 48, 138, shade(wall, 1.12), trim, 2, FB + 0.4);
         F(c - 46, c + 46, 54, 132, '#2e3a40', null, 0, FB + 0.8);
-        F(c - 44, c + 44, 56, 130, glass, null, 0, FB + 1.2);
+        if(SEE) HOLE([P(c - 44, FB + 1.2, 130), P(c + 44, FB + 1.2, 130), P(c + 44, FB + 1.2, 56), P(c - 44, FB + 1.2, 56)]);   // (the room seen through its glass: W11)
+        F(c - 44, c + 44, 56, 130, SEE ? glassSee : glass, null, 0, FB + 1.2);
         F(c - 2, c + 2, 56, 130, trim, null, 0, FB + 1.6);
         F(c - 56, c + 56, 42, 48, trim, null, 0, FB + 1.6);
       }
