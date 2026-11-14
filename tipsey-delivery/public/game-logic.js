@@ -13492,6 +13492,13 @@ function gpsHeadingOf(scene){
    0.4ms worst case on this lattice (bench: corner to corner), which is
    affordable at THIS throttle and would not be every frame. */
 const GPS_REPLOT_MS = 400;
+/* the front door of the room he is in (pocketOutsideDoor), when the GPS is to count from it: null outside, or where a floor's own guide speaks */
+function gpsInsideDoor(scene){
+  const pk = scene && scene._inside;
+  if(!pk || typeof pocketOutsideDoor !== 'function') return null;
+  if(typeof document !== 'undefined' && document.body.classList.contains('tpGuide')) return null;
+  return pocketOutsideDoor(pk) || null;
+}
 function gpsNavReplot(scene, force){
   if(!gpsNav || !scene || !scene.route || !scene.route.grid) return;
   const now = performance.now();
@@ -13506,6 +13513,17 @@ function gpsNavReplot(scene, force){
     return;
   }
   const grid = scene.route.grid;
+  /* INSIDE A BUILDING (a pocket: a shop's back room, Brew & Bolt's roof -- Sir, 2026-11-14, "the distances on the roof top should be
+     the same from the door way"): the room's own frame is somewhere far off the map, so the route is found from its front door on
+     the street -- the distance and time are the ones he will have stepping out of it. Not where a floor's guide speaks (tpGuide) */
+  const _pkIn = gpsInsideDoor(scene);
+  if(_pkIn){
+    const p = gpsFindPath(grid, { x: _pkIn.x, y: _pkIn.y }, { x: gpsNav.tx, y: gpsNav.ty }, null);
+    if(!p) return;
+    const head = p.pts.length ? p.pts[0] : null, lead = head ? Math.hypot(_pkIn.x - head.x, _pkIn.y - head.y) : 0;
+    gpsNav.path = p; gpsNav.etaMs = gpsEtaMs({ len: p.len + lead, turns: p.turns }); gpsNav.distU = p.len + lead;
+    return;
+  }
   /* LEAVING A DEPOT BY ITS DOOR (2026-09-24). Inside the charging room
      the nearest sidewalk can be the one behind a side wall -- at the home
      depot's pad the east walk is 242 away and the south walk the door
@@ -128143,6 +128161,10 @@ class WorldScene extends Phaser.Scene {
     const gpsTx = document.getElementById("gpsText");
     const _stops = (this.mode === "delivery" && typeof tpCarry !== "undefined" && tpCarry.length)
       ? ` · +${tpCarry.length} stop${tpCarry.length > 1 ? "s" : ""}` : "";
+    /* inside, on an errand: counted from the door (gpsNavReplot), and the way on starts with going out of it -- no turns, no arrow, till he is out */
+    const _navIn = !!(gpsNav && gpsNav.path && gpsInsideDoor(this));
+    if(_navIn){ turnText = "Head outside"; navAlert = false; }
+    document.body.classList.toggle("tpNavIn", _navIn);
     if(!_freeRoam && gpsTx) gpsTx.textContent = `${timerText} · ${distText} · ${turnText}${_stops}`;
     /* THE CHEVRON. Only on a nav leg (gpsAimErr returns null without
        one), and re-aimed every frame -- it is the one instrument here
@@ -128152,7 +128174,7 @@ class WorldScene extends Phaser.Scene {
        120, red past it. */
     const chev = document.getElementById("gpsChev");
     if(chev){
-      const A = _freeRoam ? null : _aimA;
+      const A = _freeRoam || _navIn ? null : _aimA;
       if(A === null){ chev.classList.remove("on"); }
       else {
         chev.classList.add("on");
