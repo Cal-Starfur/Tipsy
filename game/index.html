@@ -89698,6 +89698,14 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
    to it; the view cuts (a dissolve) to a close look at the bend -- the nearest zoom, the camera on the mast's top -- where the snapped
    cable's end twitches and throws sparks and the hanging elements swing; he says it; and it cuts back to where it was, the GPS set for
    the hardware store (msSeen). MS.cut: { t0, ph: 'turn' | 'close' | 'back', z0: the zoom it was, said } */
+/* DISTRESSED (msCut's close look: Sir, 2026-11-14, "he is distressed so his hands are on his head"): both arms up, the elbows out in
+   front, the hands on the top of his head -- the upper arm 130 degrees up, the forearm folded back 95 to it (worked from the shoulder,
+   95, and the head's crown, 124: the hand lands at b 1, h 121) -- eased in over 0.35 s, and a small rock of the head between them */
+function msDistressPose(now){
+  const C = MS.cut, k0 = C ? Math.max(0, Math.min(1, (now - C.t0)/350)) : 1, k = k0*k0*(3 - 2*k0), rock = 0.04*Math.sin(now/180)*k;
+  return { walk: 0, gait: 0, roll: 0, look: gideonParts(),
+    lift: [1.45*k + 0.05*(1 - k) + rock, 1.45*k + 0.05*(1 - k) - rock], bend: [1.65*k + 0.15*(1 - k), 1.65*k + 0.15*(1 - k)] };
+}
 const MS_CUT = { turnMs: 450, fadeMs: 550, sayAt: 1500 };
 function msCutOn(){ return !!(MS.cut && MS.cut.ph === 'close'); }
 function msMastWorld(){ const pk = msPkOf(BBR.name); return pk ? { x: pk.x0 + 452, y: pk.y0 + 336 } : null; }
@@ -120964,7 +120972,9 @@ class WorldScene extends Phaser.Scene {
     const SWH = FLEET_STEER[kind] && this.ow && this.ow.on ? Math.max(-0.6, Math.min(0.6, (this.ow.steer || 0)*1.6)) : 0;
     const data = DRONES[kind] ? { hover: 70 + Math.sin(t/420)*6, paint: true }
       : kind === "humanoid" ? (this.ow && this.ow.emerging ? msClimbPose(this.ow.climbZ || 0, true)   // (up out of the roof hatch: still climbing, rung over rung on the roof's ladder, then standing up off it)
-        : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0) : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
+        : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0)
+        : typeof msCutOn === 'function' && msCutOn() ? msDistressPose(this.time.now)   // (the mast, seen: his hands to his head -- Sir, 2026-11-14, "he is distressed")
+        : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
       : kind === "cargobot" || kind === "courierbot" ? { lid: this.lidAng || 0, lidFlip: !!this.lidHingeFlip, paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (a lidded one opens with his lid)
