@@ -3289,13 +3289,26 @@ function walkSin(a){ _gaitAng = a; return Math.sin(a); }
    person, and their distance grows by the step taken. (Callers build their person afresh each frame, so there is no
    object to hang it on; the position is the one thing every caller has.) Drawn twice in a frame (a ghost) they are at
    the same spot, so the step is 0. mult: strides per distance (a child's short legs take more); ph: an offset */
+/* THE SAME ON EVERY DEVICE (Sir, 2026-11-14: joggers "moving weird on the iphone vs the ipad"; "make it so that they will look the same
+   across all devices with some clever math"). Two things tied the legs to the frame rate:
+   - THE MATCH RADIUS was a fixed 16, but how far someone moves between two frames is their speed times the frame's time: a jogger
+     (0.21/ms) passes 16 in 76 ms, so on a slower device, or any hitch, they were taken for someone new and their legs jumped to a
+     random point of the stride. Now the radius is the fastest walker's reach over THIS frame's time (GAIT_VMAX x dt, measured on the
+     clock between frames, never under GAIT_R): the same person is found at 120, 60, 30 or 15 fps.
+   - ALIASING: a leg cycle shown in fewer than about 4 frames reads as stutter, stalling or running backwards (the wagon wheel). The
+     phase is now kept per person and each frame's advance is held under GAIT_MAXSTEP (a quarter of a cycle less a little): at 60 fps
+     nothing is ever held (a jogger moves ~0.27 rad a frame); on a slow frame the legs show the most motion a frame can carry, and
+     the cadence itself is now a runner's (BW_STROLL's jogger stride), so 30 fps shows a smooth run as 60 does */
 const GAIT_R = 16, GAIT_CELL = 64, GAIT_PER_UNIT = PEOPLE_ART.walkSpeed/PEOPLE_WALK_V;
-let _gaitA = new Map(), _gaitB = new Map(), _gaitFrame = -1;
+const GAIT_VMAX = 0.3, GAIT_RMAX = 60, GAIT_MAXSTEP = Math.PI/2 - 0.25;   // (units/ms: past the fastest on foot; RMAX: under a cell, the search's reach)
+let _gaitA = new Map(), _gaitB = new Map(), _gaitFrame = -1, _gaitT = 0, _gaitRad = GAIT_R;
 function walkAt(x, y, mult = 1, ph = 0){
   const f = _gaitNow();
-  if(f !== _gaitFrame){ _gaitFrame = f; const o = _gaitB; _gaitB = _gaitA; _gaitA = o; _gaitA.clear(); }   // (A: this frame's, B: last frame's)
+  if(f !== _gaitFrame){ _gaitFrame = f; const o = _gaitB; _gaitB = _gaitA; _gaitA = o; _gaitA.clear();   // (A: this frame's, B: last frame's)
+    const t = performance.now(), dt = _gaitT ? Math.min(250, t - _gaitT) : 16.7; _gaitT = t;
+    _gaitRad = Math.min(GAIT_RMAX, Math.max(GAIT_R, GAIT_VMAX*dt)); }                       // (this frame's reach: the same person, whatever the frame rate)
   const cx = Math.floor(x/GAIT_CELL), cy = Math.floor(y/GAIT_CELL);
-  let best = null, bd = GAIT_R*GAIT_R, from = null;
+  let best = null, bd = _gaitRad*_gaitRad, from = null;
   for(const M of [_gaitA, _gaitB]) for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++){
     const L = M.get((cx + i)*100003 + cy + j); if(!L) continue;
     for(const e of L){ const d2 = (e.x - x)*(e.x - x) + (e.y - y)*(e.y - y); if(d2 < bd){ bd = d2; best = e; from = M; } }
@@ -3303,10 +3316,11 @@ function walkAt(x, y, mult = 1, ph = 0){
   let e;
   if(best && from === _gaitA){ e = best; }                                       // (already seen this frame: the same spot, the same phase)
   else {
-    e = { x, y, d: best ? best.d + Math.sqrt(bd) : (x*7 + y*13) % 300 };      // (new: a spread start so a crowd isn't in step)
+    /* (the phase, carried: this frame's step in phase, held under GAIT_MAXSTEP -- new: a spread start so a crowd isn't in step) */
+    e = { x, y, a: best ? best.a + Math.min(GAIT_MAXSTEP, Math.sqrt(bd)*GAIT_PER_UNIT*mult) : ((x*7 + y*13) % 300)*GAIT_PER_UNIT*mult };
     const k = cx*100003 + cy; let L = _gaitA.get(k); if(!L) _gaitA.set(k, L = []); L.push(e);
   }
-  return walkSin(e.d*GAIT_PER_UNIT*mult + ph);
+  return walkSin(e.a + ph);
 }
 function _gaitNow(){ return (typeof game !== 'undefined' && game.loop) ? game.loop.frame : 0; }   // (the frame counter: this frame's draws vs last frame's)
 const PEOPLE_BUILD = [
@@ -19184,7 +19198,9 @@ const BW_STROLL = {
   gap: 420,               // world units of run per person, on average (a screen at view 3 sees six or so)
   laneK: 0.32,            // lanes keep within this much of the half-width either side of the centre
   /* [kind, share, speed (units/ms), stride rate (x PEOPLE_ART.walkSpeed)] */
-  kinds: [['walker', 0.42, 0.075, 1], ['jogger', 0.28, 0.21, 2.1], ['tourist', 0.30, 0.05, 0.85]],
+  /* (a jogger's stride rate 0.85: about two and a half leg cycles a second at 0.21, a runner's cadence -- it was 2.1, six and a half a second, a blur
+     at 60 fps that strobed at 30: THE SAME ON EVERY DEVICE, walkAt) */
+  kinds: [['walker', 0.42, 0.075, 1], ['jogger', 0.28, 0.21, 0.85], ['tourist', 0.30, 0.05, 0.85]],
   pause: [16000, 4500],   // a tourist's beat: every [0] ms they stop for [1] ms, facing the sea
   swerveR: 230,           // how far ahead and behind they start to step round him
   swerveW: 130,           // how far to the side they keep from him
