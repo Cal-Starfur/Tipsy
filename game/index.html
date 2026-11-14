@@ -89392,8 +89392,10 @@ function msTipAt(now){
     if(p && !p.there) return { x: p.x, y: p.y, th: p.th, moving: true };
     MS.tipArr = now;
   }
-  if(MS.tell){ const sc = scn(), ow = sc && sc.ow, pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, P = MS.tell.tip;
-    const th = ow ? Math.atan2(ow.py + V.dy - P.y, ow.px + V.dx - P.x) : 0; return { x: P.x, y: P.y, th, moving: false }; }   // (told he is off to the hardware store: stood, turned to him)
+  if(MS.tell){ const C = MS.tell, back = C.tBack != null, u = back ? C.lenBack - (now - C.tBack)*0.11 : Math.min(C.len, (now - C.t0)*0.11);   // (MS.tell: out to him and back -- msTellStart)
+    if(back && u <= 0){ MS.tell = null; MS.tipArr = now; }
+    else { const q = msPathAt(back ? C.pathBack : C.path, Math.max(0, u)), there = !back && u >= C.len;
+      return { x: q.x, y: q.y, th: there ? C.faceTh : (back ? q.th + Math.PI : q.th), moving: !there }; } }
   const S = T.S, posts = [340, 230, 120, 230], k = Math.floor((now - MS.tipArr)/6000), f = Math.min(1, ((now - MS.tipArr) % 6000)/1400);
   const e = f*f*(3 - 2*f), b0 = posts[k % 4], b1 = posts[(k + 1) % 4];
   const q = S(522, (k === 0 && now - MS.tipArr < 6000 ? 340 : b0 + (b1 - b0)*e));
@@ -89750,21 +89752,39 @@ function msTellNow(scene, ow, now){
   const a = ow.px - pk.x0, b = ow.py - pk.y0, K = BB_IN.BACK;
   return a > K.a + K.T || b > K.b + K.T;
 }
+/* the point a distance d along a path of points (and its heading) */
+function msPathAt(P, d){
+  for(let i = 1; i < P.length; i++){ const a = P[i - 1], b = P[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+    if(d <= L || i === P.length - 1){ const k = L ? Math.min(1, d/L) : 1; return { x: a.x + (b.x - a.x)*k, y: a.y + (b.y - a.y)*k, th: Math.atan2(b.y - a.y, b.x - a.x) }; }
+    d -= L; }
+  return { x: P[0].x, y: P[0].y, th: 0 };
+}
+/* (face to face, CLAUDE.md: Gideon takes a step out onto the floor, and Tipsey comes out from behind the counter -- the way he went in -- to
+   stand beside him across the screen, the two at one depth (a + b), each turned to the other and cheated to the eye; the word once Tipsey is
+   there; and Tipsey goes back behind the counter after) */
+const MS_TELL = { gid: [230, 500], tip: [292, 438] };
 function msTellStart(scene, ow, now){
-  const pk = scene._inside, V = pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now);
+  const pk = scene._inside, T = MS.tip, S = T.S, cur = msTipAt(now);
   MS.toldTip = true; MS.stage = 'partsTell'; ow.vel = 0; cineBars(true);
-  MS.tell = { t0: now, tip: { x: T.x, y: T.y }, yaw0: ow.yaw, yaw1: Math.atan2(T.y - (ow.py + V.dy), T.x - (ow.px + V.dx)) };
-  hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" });
+  const G = { x: pk.x0 + MS_TELL.gid[0], y: pk.y0 + MS_TELL.gid[1] }, Ts = S(MS_TELL.tip[0], MS_TELL.tip[1]), Gs = S(MS_TELL.gid[0], MS_TELL.gid[1]);
+  const plen = P => { let l = 0; for(let i = 1; i < P.length; i++) l += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); return l; };
+  const path = [{ x: cur.x, y: cur.y }, S(522, 420), S(500, 470), Ts];                     // (out: from where he is on his round, down its line and round the counter's end)
+  const pathBack = [S(522, 340), S(522, 420), S(500, 470), Ts];                            // (back: to the counter's west end, where his round starts again -- msTipAt)
+  MS.tell = { t0: now, path, len: plen(path), pathBack, lenBack: plen(pathBack), faceTh: meetCheat(Math.atan2(Gs.y - Ts.y, Gs.x - Ts.x)), said: false };
+  const gYaw = meetCheat(Math.atan2(Ts.y - Gs.y, Ts.x - Gs.x));
+  msWalkTo(scene, G, Math.atan2(G.y - ow.py, G.x - ow.px), Math.max(300, Math.hypot(G.x - ow.px, G.y - ow.py)/0.07), () => {
+    msWalkTo(scene, G, gYaw, 1, () => {}, null, false, 350); }, null, false, 0);
 }
 function msTellTick(scene, ow, now){
   const C = MS.tell; if(!C) return;
   ow.vel = 0;
-  const u = Math.min(1, (now - C.t0)/400), d = Math.atan2(Math.sin(C.yaw1 - C.yaw0), Math.cos(C.yaw1 - C.yaw0));
-  ow.yaw = C.yaw0 + d*u*u*(3 - 2*u);
+  if(!C.said && (now - C.t0)*0.11 >= C.len){ C.said = true;
+    hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, say: "Off to Breakwater Hardware for parts. You alright minding the shop?" }); }
 }
 function msTellDone(){
   const scene = scn(); if(MS.stage !== 'partsTell' || !scene) return;
-  hospSayCard(null); cineBars(false); MS.tell = null; MS.stage = 'parts';
+  hospSayCard(null); cineBars(false); MS.stage = 'parts';
+  if(MS.tell) MS.tell.tBack = scene.time.now;   // (and Tipsey goes back behind the counter)
 }
 function msSeen(){
   const scene = scn(); if(MS.stage !== 'roofAsk' || !scene) return;
