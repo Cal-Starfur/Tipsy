@@ -16332,9 +16332,13 @@ function vetTrailOf(grid){
       }
       /* flower beds, set back behind the border */
       for(let t = 300 + rng()*200; t < L - 260; t += 560 + rng()*260){
-        const p = at(t, side*(H + 170 + rng()*30));
-        put({ kind: "bed", x: p.x, y: p.y, r: 90, ax: dx, ay: dy, len: 130 + rng()*60,
-              bloom: BLOOM[Math.floor(rng()*BLOOM.length)], bloom2: BLOOM[Math.floor(rng()*BLOOM.length)] }, 60);
+        const p = at(t, side*(H + 170 + rng()*30)), len = 130 + rng()*60, b1 = BLOOM[Math.floor(rng()*BLOOM.length)], b2 = BLOOM[Math.floor(rng()*BLOOM.length)];
+        /* its whole stone edging clear of every path, not its middle alone: a long bed near a cross path or a spur had run its ends out
+           over the chips (Sir, 2026-11-14, "flower beds shouldn't overlap paths"). The edging is the drawn oval, len + 10 by 68 */
+        let edgeOk = true;
+        for(let k = 0; k < 16 && edgeOk; k++){ const th = k/16*Math.PI*2, u = Math.cos(th)*(len + 10), v = Math.sin(th)*68;
+          edgeOk = off(p.x + dx*u - dy*v, p.y + dy*u + dx*v) >= 24; }
+        if(edgeOk) put({ kind: "bed", x: p.x, y: p.y, r: 90, ax: dx, ay: dy, len, bloom: b1, bloom2: b2 }, 60);
       }
       /* the trees (Sir: "more trees pleas"): a close avenue along the
          trail, then a second, looser row behind it out toward the park's
