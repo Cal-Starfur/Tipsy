@@ -9526,10 +9526,21 @@ const OW_RESCUE = { holdMs: 2400 };
 /* GIDEON GETS UP ON HIS OWN (Sir, 2026-11-14: "when gideon tips he should be able to get back up on his own with out the tipsey
    team"): the player as the humanoid (fleetCur() 'humanoid') is sent no crew for a tip -- he lies lieMs, then pushes himself up
    over upMs (the crew's heave, rescueHeave, on his own clock) and is set on his feet where he fell. A dead battery is still a tow */
-const OW_SELF_UP = { lieMs: 2300, upMs: 1000 };   // (lieMs: the fall itself runs about 2 s -- he is down a beat before he gets up)
+const OW_SELF_UP = { lieMs: 2300, upMs: 1700 };   // (upMs: the people's own get-up beats now -- humanoidGetUp)   // (lieMs: the fall itself runs about 2 s -- he is down a beat before he gets up)
 /* (he has no pitch-over pose -- drawHumanoid rolls about his outer foot only -- so a fall over his nose or tail, a kick from behind,
    is a roll to a side for him: it had left him standing, frozen, "tipped") */
 function owTipUFor(u, sgn){ return u && u.a && typeof fleetCur === "function" && fleetCur() === 'humanoid' ? { a: 0, b: sgn || 1 } : u; }
+/* GIDEON GETTING UP (Sir, 2026-11-14: "he just tips back up. it needs a proper get up animation"): not the crew's heave rolling him
+   back like a plank, but the people's own getting up off a side (FALL_ANIM.up.side, fallBodyState): up onto a hand and the lower elbow,
+   the knees drawn under him into a crouch, the hands on the knees, and up. rise 0..1; roll0 the roll he lay at (signed).
+   -> drawHumanoid's posed data (roll, drop, lift, bend, legs) */
+function humanoidGetUp(rise, roll0){
+  const S = fallBodyState('side', 1, Math.max(0.0001, Math.min(1, rise)), 0, { lift: [0, 0], bend: [0, 0] });
+  const ca = Math.acos(Math.max(-1, Math.min(1, 1 - S.drop))), leg = [ca, 2*ca];
+  const wa = 0.8*S.drop;   /* (the arms against the bend: the hands come in onto the knees, not hanging to the ground) */
+  S.lift = S.lift.map(v => v - 0.75*wa); S.bend = S.bend.map(v => v + 0.6*wa);
+  return { roll: roll0*S.rf, drop: HUMANOID_BUILD.legH*S.drop, waist: wa,   /* (waist: bent over the knees in the crouch, the hands on them -- a crouch that reads face on, not only a sinking) */ lift: S.lift, bend: S.bend, legs: { [-1]: leg.slice(), [1]: leg.slice() }, legOut: [0, 0], armOut: [0, 0] };
+}
 function owSelfUp(tow){ return !tow && typeof fleetCur === "function" && fleetCur() === 'humanoid'; }
 
 /* ==================== THE TIPSY CREW'S VAN (stage 3) ====================
@@ -10808,7 +10819,7 @@ function owSendCrew(scene, tow){
    win, no reload and no pad. */
 function owRescue(scene){
   const ow = scene.ow, rc = ow.rescue;
-  ow.rescue = null;
+  ow.rescue = null; ow.getUp = null;
   const delivery = scene.mode === "delivery" && !rc.saved;   // a crew pass (rc.saved): the delivery goes on
   if(delivery){
     tpRecordLost(rc.lost);                 // success % (see tpSuccessPct)
@@ -11097,6 +11108,9 @@ function owRespawnTick(scene, t){
     const rc = ow.rescue, v = rc.self ? null : scene._rescueVan;   // (Gideon getting up himself: his own clock, no van's -- OW_SELF_UP)
     const u = v ? rescueClock(v, t) : t - rc.t0;
     /* the crew roll him back up as they lift (see rescueRightT) */
+    if(rc.self){ const rise = (u - OW_SELF_UP.lieMs)/OW_SELF_UP.upMs;   // (his own get-up pose over it: humanoidGetUp)
+      if(rise > 0 && !ow.getUp) ow.getUp = { roll0: scene.roll || 0, rise: 0 };
+      if(ow.getUp) ow.getUp.rise = Math.min(1, rise); }
     scene.rightT = rc.self ? (u <= OW_SELF_UP.lieMs ? 0 : rescueHeave(Math.min(1, (u - OW_SELF_UP.lieMs)/OW_SELF_UP.upMs)))
                  : v ? rescueRightT(v, t) : HOSP_RESCUE && HOSP_RESCUE.bot ? hospRescueRightT(t) : mallRescueRightT(t);
     if(v){
@@ -112276,7 +112290,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
@@ -119547,6 +119561,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "humanoid" ? (this.ow && this.ow.emerging ? msClimbPose(this.ow.climbZ || 0, true)   // (up out of the roof hatch: still climbing, rung over rung on the roof's ladder, then standing up off it)
         : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0)
         : typeof msCutOn === 'function' && msCutOn() ? msDistressPose(this.time.now)   // (the mast, seen: his hands to his head -- Sir, 2026-11-14, "he is distressed")
+        : this.ow && this.ow.getUp ? Object.assign(humanoidGetUp(this.ow.getUp.rise, this.ow.getUp.roll0), { look: gideonParts() })   // (getting up on his own: humanoidGetUp)
         : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
       : kind === "patrolbot" || kind === "amr" ? { paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0) }   // (the egg wears his paint and falls as he does)
