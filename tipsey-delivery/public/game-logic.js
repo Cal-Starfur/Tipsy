@@ -93164,7 +93164,7 @@ function parkBenchSitters(p){
     out = [];
     for(let i = 0; i < n; i++){ const seed = (k*31 + i*977) >>> 0, L = streetLook(seed, { adult: true, aid: 'none' });
       const lap = r() < 0.6;
-      out.push({ seed, L, a: two ? (i ? 1 : -1)*BENCH_ART.w*0.22 : (r() - 0.5)*BENCH_ART.w*0.3, lift: lap ? [0.14, 0.14] : [0.05, 0.06], bend: lap ? 0.6 : 0.25 }); }
+      out.push({ seed, L, a: two ? (i ? 1 : -1)*BENCH_ART.w*0.22 : (r() - 0.5)*BENCH_ART.w*0.3, lift: lap ? [0.06, 0.07] : [0.02, 0.03], bend: lap ? 0.7 : 0.15 }); }   // (relaxed, nothing in their hands: the upper arm down at the side, the forearm on the thigh -- or both hands down on the seat)
   }
   c.set(blk, out);
   return out;
