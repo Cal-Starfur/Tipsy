@@ -45387,6 +45387,9 @@ function turned(w, d, fn){
    Frame: a along the y1 street, b 0 on it and negative into the block,
    chamfer on the corner at a = WW. cpt(t, k) is t across the chamfer
    (0..1) and k in along its inward normal. */
+/* A DEPOT'S MURAL (Sir, 2026-11-14: "a racing mural on the back of this specific Tipsey charging depot"): by the depot's block key --
+   The Flats Charging 4, behind Brew & Bolt, over the kart track */
+const DEPOT_MURALS = { '1,4': 'racing' };
 const DEPOT_GEOM = (() => {
   const WW = 295.6, DD = 276, H = 300, CW = 150;
   const DOOR = [0.10, 0.90], DH = 168;
@@ -52126,6 +52129,51 @@ function houseCanopy(fn){
         /* and where the flank band stops at b = -DD */
         if(!SEE_A && !SEE_B && (!PW || PW[1] >= WW-0.001))
           F(WW, WW+BF, H-18, H, shade(brand,.78), null, 0, -DD);
+      }
+      /* THE RACING MURAL (state.mural, DEPOT_MURALS): on each back wall the camera sees, a checkered band along the foot, orange and
+         white speed stripes raking back, a kart flat out in profile with its driver, motion lines off its tail, and a number roundel.
+         On the wall's face (lifted a hair), toned with the wall; its own part, so it is in the wall's cached image */
+      if(state.mural === 'racing'){
+        const mural = (Q, L, kt) => {   // Q(u, z): a point on the wall, u 0..L along it, left to right on the screen
+          const c = (hex, k) => shade(hex, kt*(k || 1)), qp = pts => poly(pts.map(([u, z]) => Q(u, z)), null);
+          const qf = (pts, col) => poly(pts.map(([u, z]) => Q(u, z)), col);
+          const disc = (u0, z0, r, col, n) => { const o = []; for(let i = 0; i < (n || 16); i++){ const t = i/(n || 16)*Math.PI*2; o.push([u0 + Math.cos(t)*r, z0 + Math.sin(t)*r]); } qf(o, col); };
+          /* the checkered band along the foot: two rows */
+          const sq = 14, z0 = 12;
+          qf([[0, z0 - 2], [L, z0 - 2], [L, z0 + 2*sq + 2], [0, z0 + 2*sq + 2]], c('#f4f1ea'));
+          for(let u = 0, i = 0; u < L - 0.1; u += sq, i++) for(let r = 0; r < 2; r++) if((i + r) % 2 === 0) qf([[u, z0 + r*sq], [Math.min(L, u + sq), z0 + r*sq], [Math.min(L, u + sq), z0 + (r + 1)*sq], [u, z0 + (r + 1)*sq]], c('#14181d'));
+          /* speed stripes, raking back to the left, high on the wall */
+          const zs = 150;
+          for(const [du, w, col] of [[0, 26, '#ff7a1a'], [40, 12, '#f4f1ea'], [62, 8, '#ff7a1a'], [80, 5, '#f4f1ea']]){
+            const u0 = L*0.08 + du; qf([[u0, zs], [u0 + w, zs], [u0 + w + 60, zs + 110], [u0 + 60, zs + 110]], c(col)); }
+          /* the kart, flat out, facing right: its body, nose, side pod, wheels, driver */
+          const ku = L*0.52, kz = 70, K = Math.min(1.25, L/230);
+          const kq = (pts, col) => qf(pts.map(([u, z]) => [ku + u*K, kz + z*K]), col);
+          for(let i = 0; i < 4; i++) kq([[-118 - i*22, 18 + i*9], [-70 - i*14, 18 + i*9], [-70 - i*14, 21 + i*9], [-118 - i*22, 21 + i*9]], c('#f4f1ea', 0.9));   // motion lines
+          kq([[-62, 14], [44, 14], [70, 22], [70, 30], [30, 34], [-50, 34], [-64, 28]], c('#ff7a1a'));        // the body
+          kq([[44, 14], [78, 18], [78, 24], [70, 26]], c('#e8e2d6'));                                        // the nose cone
+          kq([[-20, 22], [24, 22], [24, 28], [-20, 28]], c('#14181d'));                                      // its side pod's stripe
+          kq([[-66, 30], [-58, 30], [-58, 52], [-74, 52], [-74, 46]], c('#14181d'));                         // the rear wing
+          disc(ku - 40*K, kz + 12*K, 15*K, c('#14181d')); disc(ku - 40*K, kz + 12*K, 6*K, c('#9aa2a8'));   // the wheels
+          disc(ku + 46*K, kz + 10*K, 12*K, c('#14181d')); disc(ku + 46*K, kz + 10*K, 5*K, c('#9aa2a8'));
+          disc(ku - 6*K, kz + 46*K, 12*K, c('#f4f1ea')); kq([[-4, 42], [8, 42], [8, 50], [-4, 50]], c('#1f9fbf'));   // the driver's helmet, its visor
+          /* the number roundel, high and right */
+          const ru = L*0.82, rz = 225, R = Math.min(34, L*0.12);
+          disc(ru, rz, R + 4, c('#14181d'), 24); disc(ru, rz, R, c('#f4f1ea'), 24);
+          qf([[ru - 3, rz - R*0.62], [ru + 5, rz - R*0.62], [ru + 5, rz + R*0.62], [ru - 3, rz + R*0.62]], c('#ff7a1a'));   // a "1": the upright,
+          qf([[ru - 3, rz + R*0.62], [ru - 13, rz + R*0.42], [ru - 13, rz + R*0.3], [ru - 3, rz + R*0.46]], c('#ff7a1a'));   // its flag,
+          qf([[ru - 11, rz - R*0.62], [ru + 13, rz - R*0.62], [ru + 13, rz - R*0.48], [ru - 11, rz - R*0.48]], c('#ff7a1a'));   // its foot
+        };
+        const L_A = (SEE_A ? DD - CW : DD), L_B = (SEE_B ? WW - CW : WW), off = 0.6;
+        /* each wall's u running left to right on the screen */
+        if(PART === 'all' || PART === 'wallA'){
+          const aw = SEE_A ? WW + off : -off, b0 = -DD, b1 = SEE_A ? -CW : 0, ltr = P(aw, b1, 0).x > P(aw, b0, 0).x;
+          const Q = (u, z) => P(aw, ltr ? b0 + u : b1 - u, z);
+          mural(Q, b1 - b0, lit(SEE_A ? 1 : -1, 0) === wall ? 1 : 0.86); }
+        if(PART === 'all' || PART === 'wallB'){
+          const bw = SEE_B ? off : -DD - off, a0 = 0, a1 = SEE_B ? WW - CW : WW, ltr = P(a1, bw, 0).x > P(a0, bw, 0).x;
+          const Q = (u, z) => P(ltr ? a0 + u : a1 - u, bw, z);
+          mural(Q, a1 - a0, lit(0, SEE_B ? 1 : -1) === wall ? 1 : 0.86); }
       }
       if(PART === 'all' || PART === 'roof'){
         /* the roof is the chamfered footprint, not the lot rectangle --
@@ -83262,6 +83310,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     /* the garage's trophy wall: an array of slot states (see
        depotTrophyWall), or null for a bare wall */
     setTrophies(v){ state.trophies = v || null; },
+    setMural(v){ state.mural = v || null; },
+    depotMural(key){ return DEPOT_MURALS[key] || null; },   // (a depot's own mural on its back walls: DEPOT_MURALS)
     /* which of a house's own liveries (its `liv`) the next draw uses */
     setLivery(i){ state.pal = i || 0; },
     /* the scene's sidewalk palette (its d: pave, paveB, paveEdge as numbers) */
@@ -107028,6 +107078,7 @@ class WorldScene extends Phaser.Scene {
         const cut = !!(this._garage && this._garage.key === _lot.key);
         LIB.setCutaway(cut);
         LIB.setTrophies(tpTrophyShelfState());
+        LIB.setMural(LIB.depotMural(_lot.key));
         if(cut && part && GARAGE_HIDE.has(part.part)) return;
         return LIB.draw('Charge depot', g, map, null, this.K, part);
       };
