@@ -89663,6 +89663,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
     if(L.z >= MS_LAD.LZ){ L.z = MS_LAD.LZ; L.busy = true; const dx = BBR.x0 - BB_IN.x0;                                        // (up through the hatch)
       sceneDissolve(scene, MS_LAD.FADE, () => { pocketShift(scene, dx, BBR.y0 + MS_LAD.HB - ow.py); ow.yaw = -Math.PI/2;
         if(MS.lad){ MS.lad.room = 'roof'; MS.lad.z = -MS_LAD.HZ; MS.lad.top = false; MS.lad.foot = true; MS.lad.busy = false; }
+        if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof';   // (the roof's errand -- the mast's mark -- up as soon as the roof is, not once he is out on it)
         ow.climbZ = -MS_LAD.HZ; ow.climbing = false; ow.emerging = true; }); }
   } else {
     if(L.z < -6) L.top = true;
