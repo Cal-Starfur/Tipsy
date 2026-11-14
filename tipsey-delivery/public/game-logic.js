@@ -87923,7 +87923,7 @@ function msSeen(){
   hospSayCard(null); cineBars(false);
   MS.seen = true; MS.stage = 'roof';
   msNav(scene, msHw(scene), MS_HW);                                              // (the way to the parts, from up here)
-  if(typeof tpToast === "function") tpToast("The mast's bent right over and the cable's snapped. Back down the hatch: it needs a new mast bracket and a coax connector.");
+  /* (no toast: the card said it -- Sir, 2026-11-14, "too many lines there") */
 }
 function msTick(scene, ow){
   const now = scene.time.now, R = MS;
@@ -87953,7 +87953,7 @@ function msTick(scene, ow){
       if(R.climbing) return;
       if(!R.seen){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk';
-          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "Bent right over, cable snapped. I need parts from Breakwater Hardware." }); }
+          hospSayCard({ who: "Gideon", btn: "Right. Parts.", ok: msSeen, say: "Mast's bent, cable's snapped. Parts from Breakwater Hardware." }); }
       } else if(R.carry === 'parts'){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
           hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Bracket on, mast straight, connector screwed in. There." }); }
