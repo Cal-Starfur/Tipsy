@@ -110401,11 +110401,17 @@ class WorldScene extends Phaser.Scene {
         if(sees3(0, 0, 1)) quad([Gf(10.4, 8.3, h), Gf(13.4, 8.3, h), Gf(13.4, -8.3, h), Gf(10.4, -8.3, h)], PC.c);
         return;
       }
-      /* (over the shoulder inside the shoulder's dome, a 10.5 out: under it the strap went in and the front's stopped short, broken -- Sir, 2026-11-14) */
-      if(sees3(0, 0, 1)) for(const sd of [-1, 1]){ const a0 = sd*7.2, a1 = sd*9.8; quad(grow([Gf(a0, 8.5, h), Gf(a1, 8.1, h), Gf(a1, -8.1, h), Gf(a0, -8.5, h)], 0.3), PC.c); }
+      /* (over the shoulder: from the front strap's top to the back's, both ends found on the torso's own outline at its top (sp), so it meets
+         the front strap at the edge -- laid by hand inside the outline, a band of the light top showed between, and the shoulder's dome
+         covered it further out; Sir, 2026-11-14, "the strap is broken ... the top strap doesn't match the strap on the front") */
+      const SA = 0.5, SW = 0.13, bk = x => x >= 0 ? PI - x : -PI - x;
+      if(sees3(0, 0, 1)) for(const sd of [-1, 1]){ const a = sd*SA, P = an => { const q = sp(ra, rb, an, 0.35); return Gf(q[0], q[1], h); };
+        quad(grow([P(a - SW), P(a + SW), P(bk(a + SW)), P(bk(a - SW))], 0.25), PC.c);
+        /* (and over the chest's rounded top edge, between the front strap and this: the light rim showed there) */
+        if(front && tSeen(a)) quad(grow([tP(a - SW, shoulderH - 4, lf), tP(a + SW, shoulderH - 4, lf), P(a + SW), P(a - SW)], 0.25), PC.c); }
       if(front){
-        for(const sd of [-1, 1]){ strip(tP, rb, [[sd*0.5, shoulderH + 0.4], [sd*0.66, 88], [sd*1.0, 79], [sd*1.3, 72]], 2.7, PC.c, lf, 1, tSeen);
-          strip(tP, rb, [[sd*0.5 - sd*0.07, shoulderH + 0.4], [sd*0.66 - sd*0.07, 88], [sd*1.0 - sd*0.07, 79], [sd*1.3 - sd*0.07, 72]], 0.4, mixc(PC.c, 0xffffff, 0.3), lf + 0.1, 1, tSeen); }          // (a stitched edge)
+        for(const sd of [-1, 1]){ strip(tP, rb, [[sd*0.5, shoulderH + 0.7], [sd*0.66, 88], [sd*1.0, 79], [sd*1.3, 72]], 2.7, PC.c, lf, 1, tSeen);
+          strip(tP, rb, [[sd*0.5 - sd*0.07, shoulderH + 0.7], [sd*0.66 - sd*0.07, 88], [sd*1.0 - sd*0.07, 79], [sd*1.3 - sd*0.07, 72]], 0.4, mixc(PC.c, 0xffffff, 0.3), lf + 0.1, 1, tSeen); }          // (a stitched edge)
         if(ps === 'backpack' || ps === 'delivery'){ strip(tP, rb, [[-0.82, 83], [0.82, 83]], 1.4, PC.c, lf + 0.2, 1, tSeen); patch(tP, [[-0.08, 84.3], [0.08, 84.3], [0.08, 81.7], [-0.08, 81.7]], 0xc4cacf, lf + 0.6); }   // (the sternum strap, and its buckle)
       }
     };
