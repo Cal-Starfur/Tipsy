@@ -29093,7 +29093,7 @@ const BB_PK = walkinDefine({ name: BB_IN.name, from: 'Brew & Bolt', x0: BB_IN.x0
 /* THE ROOF OF BREW & BOLT (the antenna mission): a second room off the map on the same square, up the back room's ladder through
    its hatch. Open to the sky, drawn on the building's lines at the roof's height (z: the shell's flat roof, 176 x 1.95), the
    building left standing under it (no hides), no door of its own: it is entered and left by the hatch (msClimb). */
-const BBR = { name: 'Brew & Bolt Roof', x0: 470000, y0: 430000, W: 836, D: 836, Z: 343 };
+const BBR = { name: 'Brew & Bolt Roof', x0: 470000, y0: 430000, W: 836, D: 836, Z: 343, HS: -15 };   // (HS: the north parapet and the hatch moved north onto the shell's own north edge -- Sir, 2026-11-14)
 POCKETS.push({ name: BBR.name, from: 'Brew & Bolt', x0: BBR.x0, y0: BBR.y0, w: BBR.W, d: BBR.D, out: 0, h: 80, doors: [],
   view: () => { const v = BB_PK.view(); return { dx: v.dx + (BB_IN.x0 - BBR.x0), dy: v.dy + (BB_IN.y0 - BBR.y0) }; },
   z: () => BBR.Z, night: [],
@@ -50744,7 +50744,7 @@ function houseCanopy(fn){
         for(let z = 14 + 16*Math.ceil((H - 8 - 14)/16); z < ZR - 2; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, H - 4, ZR, rail, rail, railD); } });
       items.push({ a: (L0 + L1)/2, b: 10, z: 0, hatchNear: true, when: () => !(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {         // (shut: the curb, the lid down on it -- as the roof has it shut)
-        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
+        const ZR = BBR.Z, DB = -20 + BBR.HS, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, Z = ZR + CH, inA1 = A1 - TH, inB1 = B1 - TH, inB0 = B0 + TH, inA0 = A0 + TH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         q4([[A0, B0, Z], [A1, B0, Z], [A1, B1, Z], [A0, B1, Z]], '#c3c9cd');
         q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], '#7f878e');
@@ -50753,7 +50753,7 @@ function houseCanopy(fn){
         T(110, 160, B0 + 14, B1 - 14, Z + 3.1, '#6a7782');
         box(130, 140, B1 - 12, B1 - 9, Z + 3, Z + 5, steelD, steelS, steelS); } });
       items.push({ a: (L0 + L1)/2, b: 10, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
-        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;   // (ZR: the roof's true height, so the climb runs on without a jump into the roof's room)
+        const ZR = BBR.Z, DB = -20 + BBR.HS, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, LB = 5, LT = ZR + 84;   // (ZR: the roof's true height, so the climb runs on without a jump into the roof's room)
         const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c);
         const cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e', cIS = '#b0b7bc', cIE = '#8f979d', lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';
@@ -50772,7 +50772,7 @@ function houseCanopy(fn){
       } });
       /* the near walls, their own piece sorted after him (b 60): he climbs up into the hatch behind them */
       items.push({ a: (L0 + L1)/2, b: 60, z: 0, hatchNear: true, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), draw: () => {
-        const ZR = BBR.Z, DB = -20, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
+        const ZR = BBR.Z, DB = -20 + BBR.HS, CH = 18, A0 = 96, A1 = 174, B0 = 14 + DB, B1 = 72 + DB, TH = 8, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH, Z = ZR + CH;
         const q4 = (pts, c) => poly(pts.map(p => P(p[0], p[1], p[2])), c), cT = '#c3c9cd', cS = '#a3abb1', cE = '#7f878e';
         q4([[inA1, inB0, Z], [A1, inB0, Z], [A1, inB1, Z], [inA1, inB1, Z]], cT);
         q4([[A1, B0, Z], [A1, B1, Z], [A1, B1, ZR], [A1, B0, ZR]], cE);
@@ -50903,15 +50903,15 @@ function houseCanopy(fn){
     T(560, 770, 360, 400, 0.3, '#57524c');
     for(const [ga, gb] of [[120, 300], [310, 520], [470, 180], [700, 560], [220, 700], [610, 700], [80, 450]]) for(let k = 0; k < 7; k++) T(ga + k*9, ga + k*9 + 3, gb + (k%3)*7, gb + (k%3)*7 + 3, 0.35, '#6a655e');
     /* ---- THE PARAPET, all round: a brown wall with a cream cap, in runs ---- */
-    const par = (a0, a1, b0, b1, alongA, vis, low) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
+    const par = (a0, a1, b0, b1, alongA, vis, low, capTo) => { const lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.ceil((hi - lo)/50);
       for(let k = 0; k < n; k++){ const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
         rpush({ low, a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, PH, 'parapet')], draw: vis ? () => {
-          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, p1 + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
-    par(0, W + 10, 0, PT, true, true);   // (+10: on to the shell's own front cornice at the east corner -- stopped at W, a strip of roof showed between them)
+          box(p0, p1 + 0.5, q0, q1 + 0.5, 0, PH - 5, brown, brown, brownD); box(p0 - 1, (capTo && k === n - 1 ? capTo : p1) + 1.5, q0 - 1, q1 + 1.5, PH - 5, PH, cream, '#e4d9c0', '#d0c4a8'); } : () => {} }); } };   // (the far sides are drawn; the near two are the building's own cornice, in the shell: only their solids are ours -- a drawn wall there hid the cup signs)
+    par(0, W + 10, BBR.HS, BBR.HS + PT, true, true, false, W + 44);   // (on the shell's north edge, BBR.HS; its wall to the front fascia, W + 10, its cap on to the fascia's corner, W + 44)
     /* (the far run sorted ahead of whatever stands in front of it: by a + b its pieces came after the roof hatch's lid and curb, beside
        them, and painted their cap across them -- Sir, 2026-11-13, "the wall is drawing over the hatch") */
-    for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < PT) it.dk -= 300;
-    par(0, PT, PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
+    for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < BBR.HS + PT) it.dk -= 300;
+    par(0, PT, BBR.HS + PT, D - PT, false, true); par(W - PT, W, PT, D - PT, false, false); par(0, W, D - PT, D, true, false);
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
        room's units, lab a x 1.3 across, lab z x 1.95 up) and stands over the parapet, as it does in the street ---- */
@@ -50930,7 +50930,7 @@ function houseCanopy(fn){
        goes DOWN -- the shaft's inner faces lit warm, the ladder's rails and rungs running down it, the light of the shop at the bottom --
        the lid thrown back against the north parapet. The far walls (north, west) and the shaft sort UNDER him as he rises through it, the near walls
        (south, east) OVER him, so it is his body that comes up out of the hole ---- */
-    { const A0 = 96, A1 = 174, B0 = PT, B1 = 72, TH = 8, CH = 18, SD = 90;              // (curb outline, its wall thickness, its height, the shaft's depth)
+    { const A0 = 96, A1 = 174, B0 = PT + BBR.HS, B1 = 72 + BBR.HS, TH = 8, CH = 18, SD = 90;              // (curb outline, its wall thickness, its height, the shaft's depth)
       const inA0 = A0 + TH, inA1 = A1 - TH, inB0 = B0 + TH, inB1 = B1 - TH;
       /* ONE FRAME, NOT FOUR BOXES (Sir, 2026-11-13: "it's drawing over itself"): each wall paints only its own faces -- its strip of the
          top (the far run takes the corners) and the side that shows: the near walls' outer faces, the far walls' inner ones, down to the
@@ -50951,7 +50951,7 @@ function houseCanopy(fn){
         q4([[A0, inB1, CH], [A1, inB1, CH], [A1, B1, CH], [A0, B1, CH]], cT);
         q4([[A0, B1, CH], [A1, B1, CH], [A1, B1, 0], [A0, B1, 0]], cS); });
       /* the shaft: under the far walls' order, drawn clipped to the opening so its faces never spill onto the roof */
-      rpush({ a: 135, b: 10, z: 0, solids: [], draw: () => {
+      rpush({ a: 135, b: 10 + BBR.HS, z: 0, solids: [], draw: () => {
         const q = [P(inA0, inB0, CH), P(inA1, inB0, CH), P(inA1, inB1, CH), P(inA0, inB1, CH)];
         ctx.save(); poly(q); ctx.clip();
         poly([P(inA0, inB0, CH - SD), P(inA1, inB0, CH - SD), P(inA1, inB1, CH - SD), P(inA0, inB1, CH - SD)], '#d9a35c');         // the shop's light, far below
@@ -50959,7 +50959,7 @@ function houseCanopy(fn){
           poly([P(inA0, inB0, z0), P(inA1, inB0, z0), P(inA1, inB0, z1), P(inA0, inB0, z1)], c);                                   // north wall's inner face
           poly([P(inA0, inB0, z0), P(inA0, inB1, z0), P(inA0, inB1, z1), P(inA0, inB0, z1)], shade(c, 0.86)); }                    // west wall's
         /* the ladder down the shaft: the same rails and rungs as come up out of it (the lid's piece), on the same line, so it is one ladder */
-        { const LB = PT + 11;
+        { const LB = PT + 11 + BBR.HS;
           for(let z = 32 - 16*Math.ceil((32 - (CH - SD))/16); z < CH; z += 16) box(120, 150, LB - 1.5, LB + 1.5, z - 1.5, z + 1.5, steel, steel, steelD);   // its rungs, every 16 as above (boxes: they keep to the clip)
           for(const x of [120, 150]) box(x - 2.2, x + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD); }                         // its rails
         ctx.restore(); } });
@@ -50967,22 +50967,22 @@ function houseCanopy(fn){
     /* (the lid: shut over the opening, or thrown back against the north parapet -- MS.hatchOpen, from the start of the climb) */
     const HC = 18, lidT = '#5f6b76', lidS = '#4d5862', lidD = '#3a434b', lidP = '#6a7782';   // (slate: the steel ladder reads against it)
     for(const open of [false, true])
-      rpush({ a: 135, b: open ? 14 : 80, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {   // (shut, after the curb's near walls: it sits on them)
+      rpush({ a: 135, b: (open ? 14 : 80) + BBR.HS, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen) === open, solids: [], draw: () => {   // (shut, after the curb's near walls: it sits on them)
         if(!open){
-          box(98, 172, PT + 2, 70, HC, HC + 3, lidT, lidS, lidD);                                                                   // the lid, shut on the curb
-          T(110, 160, PT + 14, 58, HC + 3.1, lidP);                                                                                  // its raised panel
-          box(130, 140, 60, 63, HC + 3, HC + 5, steelD, steelS, steelS);                                                             // the handle
+          box(98, 172, PT + 2 + BBR.HS, 70 + BBR.HS, HC, HC + 3, lidT, lidS, lidD);                                                                   // the lid, shut on the curb
+          T(110, 160, PT + 14 + BBR.HS, 58 + BBR.HS, HC + 3.1, lidP);                                                                                  // its raised panel
+          box(130, 140, 60 + BBR.HS, 63 + BBR.HS, HC + 3, HC + 5, steelD, steelS, steelS);                                                             // the handle
           return;
         }
         /* thrown back: a steel panel on its edge against the parapet, its inside (the face toward us) framed */
-        box(102, 168, PT + 1, PT + 4, HC, HC + 64, lidT, lidS, lidD);
-        poly([P(110, PT + 4.1, HC + 7), P(160, PT + 4.1, HC + 7), P(160, PT + 4.1, HC + 57), P(110, PT + 4.1, HC + 57)], lidP);       // its inner panel
-        for(const a of [104, 164]) box(a - 1.5, a + 1.5, PT + 4, PT + 8, HC, HC + 6, steelD, steelS, steelS); } });               // the hinges
+        box(102, 168, PT + 1 + BBR.HS, PT + 4 + BBR.HS, HC, HC + 64, lidT, lidS, lidD);
+        poly([P(110, PT + 4.1 + BBR.HS, HC + 7), P(160, PT + 4.1 + BBR.HS, HC + 7), P(160, PT + 4.1 + BBR.HS, HC + 57), P(110, PT + 4.1 + BBR.HS, HC + 57)], lidP);       // its inner panel
+        for(const a of [104, 164]) box(a - 1.5, a + 1.5, PT + 4 + BBR.HS, PT + 8 + BBR.HS, HC, HC + 6, steelD, steelS, steelS); } });               // the hinges
     /* THE LADDER, ALL THE WAY UP (Sir, 2026-11-13: "the ladder should go all the way up"): the shaft's rails carry on up out of the hatch
        to a grab height over the curb, a rung every 16 as below, the rails' tops bent over toward the opening. Its own piece, after the
        curb's far wall (b 30): drawn with the lid, the wall had painted across its foot */
-    rpush({ a: 135, b: 30, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
-      const LB = PT + 11, LT = 84;
+    rpush({ a: 135, b: 30 + BBR.HS, z: 0, when: () => !!(typeof MS !== 'undefined' && MS.hatchOpen), solids: [], draw: () => {
+      const LB = PT + 11 + BBR.HS, LT = 84;
       for(let z = 0; z < LT - 6; z += 16) tube(120, LB, z, 150, LB, z, 1.5, steel);                                                // its rungs, over the curb
       for(const x of [120, 150]){ box(x - 2.2, x + 2.2, LB - 3, LB + 3, 0, LT, steel, steel, steelD);   // (from the roof's level: in front of the curb's inner face, which is drawn over the shaft's)                            // the rails
         box(x - 2.2, x + 2.2, LB - 3, LB + 9, LT - 5, LT, steel, steel, steelD); } } });                                             // (and over at the top, a hand-hold)
@@ -87836,7 +87836,7 @@ function msPocketBay(name, a, b){
   return Object.assign(B, { pocket: pk });
 }
 function msLadderBay(){ return MS._lb || (MS._lb = msPocketBay(BB_IN.name, 135, 78)); }
-function msHatchBay(){ return MS._hb || (MS._hb = msPocketBay(BBR.name, 135, 118)); }
+function msHatchBay(){ return MS._hb || (MS._hb = msPocketBay(BBR.name, 135, 118 + BBR.HS)); }
 function msMastBay(){ return MS._mb || (MS._mb = msPocketBay(BBR.name, 350, 340)); }   // (on the mast's west side, where the cutscene has him look at it -- msCutStart; its east edge, 396, short of the snapped cable's end at 410, so he never stands on it)
 function msBayNow(scene){
   const ow = scene.ow;
@@ -87989,7 +87989,7 @@ function msClimb(scene, dir){
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
   const y0 = up ? BB_IN.y0 : BBR.y0, y1 = up ? BBR.y0 : BB_IN.y0;
-  const LZ = 120, HZ = 80, HB = 40;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
+  const LZ = 120, HZ = 80, HB = 40 + BBR.HS;                                              // (the ladder's height up to the hatch; the shaft's depth he rises through; the opening's middle, b)
   const out = () => { sceneDissolve(scene, 500, () => { ow.climbZ = 0; ow.climbing = false; ow.emerging = false; scene._camZCarry = true;   // (the camera's height jumps with him: see drawRobot's camera)
       if(up){ pocketShift(scene, dx, y1 + HB - ow.py); ow.yaw = -Math.PI/2; ow.climbZ = -HZ;                 // (up: in the hatch's opening, below the roof, facing the way he climbed, and up out of it; then he turns round and steps clear of the curb)
         msWalkTo(scene, { x: ow.px, y: ow.py }, -Math.PI/2, 1500, () => { ow.climbZ = 0;
@@ -88008,11 +88008,11 @@ function msClimb(scene, dir){
    he steps in onto the ladder: pull away from it to go down, and at the foot of the roof's run he comes down into the back room the
    same way. MS.lad: { room: 'shop' | 'roof', z: ow.climbZ, top/foot: armed once he has left that end, busy: the dissolve }. */
 const MS_LAD = { LZ: BBR.Z - 128, HZ: 128, FADE: 900,   // (HZ 128: the rooms change three rungs below the hatch, the roof fading in over 0.9 s while he still climbs -- Sir, 2026-11-14, "start fading in sooner so it's less jumpy")   // (LZ: up the shaft till he is where the roof's room takes him, BBR.Z - HZ: one height, no jump -- Sir, 2026-11-14, "a huge camera shift")
-                 HB: 40, FOOT: 24, v: 120/1100, near: 30 };
+                 HB: 40 + BBR.HS, FOOT: 24, v: 120/1100, near: 30 };
 /* how high his feet are, walking over the roof hatch's curb (a 96..174, b 14..72, 8 thick, 18 high): up onto it and down off it over 10
    either side of its top -- so getting out of the hatch, or into it, is a step up and a step down, not a slide through the wall */
 function msCurbZ(x, y){
-  const a = x - BBR.x0, b = y - BBR.y0, R = 10, H = 18;
+  const a = x - BBR.x0, b = y - BBR.y0 - BBR.HS, R = 10, H = 18;   // (b in the hatch's own frame: moved north with the parapet)   // (the hatch's own frame: moved north with the parapet)
   const dOut = Math.hypot(Math.max(96 - a, 0, a - 174), Math.max(14 - b, 0, b - 72));
   const dIn = Math.max(0, Math.min(a - 104, 166 - a, b - 22, 64 - b));
   return H*Math.max(0, 1 - dOut/R)*Math.max(0, 1 - dIn/R);
@@ -88034,7 +88034,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
       }
     }
     if(onRoof && MS.stage === 'roof'){
-      const a = ow.px - BBR.x0, b = ow.py - BBR.y0, ca = Math.max(96, Math.min(174, a)), cb = Math.max(14, Math.min(72, b)), d = Math.hypot(a - ca, b - cb);
+      const a = ow.px - BBR.x0, b = ow.py - BBR.y0 - BBR.HS, ca = Math.max(96, Math.min(174, a)), cb = Math.max(14, Math.min(72, b)), d = Math.hypot(a - ca, b - cb);
       const toC = { x: 135 - a, y: 43 - b }, tl = Math.hypot(toC.x, toC.y) || 1, into = mag > 0 ? (w.x*toC.x + w.y*toC.y)/(wl*tl) : 0;
       if(d < 45 && into > 0.6){                                                   // (45: his body stops him about 31 off the curb)
         MS.lad = { room: 'roof', z: 0, top: false, foot: false, busy: true }; MS.hatchOpen = true; ow.vel = 0; ow.emerging = false;
@@ -88074,7 +88074,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
     if(L.z < -6) L.top = true;
     if(L.z >= 0){ L.z = 0;
       if(L.top && up > 0.2){ L.busy = true; ow.climbZ = 0; ow.emerging = false; ow.climbing = false;                                  // (up at the top: he turns round and walks out --
-        msWalkTo(scene, { x: ow.px, y: BBR.y0 + 104 }, Math.PI/2, 1100, () => { MS.lad = null; MS.ladWait = true; ow.climbZ = 0;    //  up onto the curb and down off it, on his own feet)
+        msWalkTo(scene, { x: ow.px, y: BBR.y0 + 104 + BBR.HS }, Math.PI/2, 1100, () => { MS.lad = null; MS.ladWait = true; ow.climbZ = 0;    //  up onto the curb and down off it, on his own feet)
           if(MS.stage === 'shift' || MS.stage === 'parts') MS.stage = 'roof'; }, null, false, 520);
         MS.cl.zf = msCurbZ;
         return true; } }
@@ -119319,9 +119319,9 @@ class WorldScene extends Phaser.Scene {
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.hatchNear) LIB.drawItem(nm, this.g, G, this.K, it);
         /* (and what of him is below the roof's plane -- the legs, still under the hatch -- painted out with the roof's own colour, under the curb's near edge) */
-        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const q = [G(90, 72, 0), G(224, 72, 0), G(224, 72, -zk - 6), G(90, 72, -zk - 6)];   // (from the curb's west end)
+        { const zk = Math.max(0, -(this.ow.climbZ || 0)); if(zk > 0){ const hs = BBR.HS, q = [G(90, 72 + hs, 0), G(224, 72 + hs, 0), G(224, 72 + hs, -zk - 6), G(90, 72 + hs, -zk - 6)];   // (from the curb's west end)
             this.g.fillStyle(0x4a3222, 1); this.g.fillPoints(q.map(o => new Phaser.Geom.Point(o.x, o.y)), true);
-            const q2 = [G(174, 14, 0), G(174, 72, 0), G(174, 72, -zk - 6), G(174, 14, -zk - 6)];                              // (and past the curb's east side)
+            const q2 = [G(174, 14 + hs, 0), G(174, 72 + hs, 0), G(174, 72 + hs, -zk - 6), G(174, 14 + hs, -zk - 6)];                              // (and past the curb's east side)
             this.g.fillPoints(q2.map(o => new Phaser.Geom.Point(o.x, o.y)), true); } }
       }
       return;
