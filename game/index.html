@@ -107905,7 +107905,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
 
-  drawBenchProp(g, x, y, dv){
+  drawBenchProp(g, x, y, dv, mid){   // (mid: drawn after the far end, before the boards -- who sits on a bench turned away from the eye)
     const rv = DIRV[(DIRV.indexOf(dv)+1)%4] || {x:-dv.y,y:dv.x};
     const B = BENCH_ART;
     const G = (a,b,h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
@@ -107993,6 +107993,7 @@ class WorldScene extends Phaser.Scene {
        grows toward the camera, so it says which end is near. */
     const near = FA ? 1 : -1;
     end(-near);
+    if(mid) mid();
     /* seat: three slats bolted across the ends. Four of them over a 36.28
        run with a 6 gap left each slat 3.07 WIDE against a back slat of
        12.69 -- the gap was twice the timber, so the seat read as wire
@@ -109159,8 +109160,8 @@ class WorldScene extends Phaser.Scene {
             this.drawPersonHull(g, x + p.dv.x*q.a + rv.x*PARK_SIT.fwd, y + p.dv.y*q.a + rv.y*PARK_SIT.fwd, 0, Math.atan2(rv.y, rv.x) - Math.PI/2,
               L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
               Object.assign({ sit: PARK_SIT.seat, lift: q.lift, bend: q.bend }, L.dress ? { dress: L.dress } : null)); } };
-          if(away) sitters();
-          this.drawBenchProp(g, x, y, p.dv);
+          /* (turned away: between its far end and its boards -- the far end behind them, the back and the near end over them) */
+          this.drawBenchProp(g, x, y, p.dv, away ? sitters : null);
           if(!away) sitters();
         } else {
           this.drawProp(g, p.kind, x, y, t);
