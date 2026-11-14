@@ -52181,7 +52181,11 @@ function houseCanopy(fn){
       if(state.mural === 'racing'){
         const mural = (Q, L, kt) => {   // Q(u, z): a point on the wall, u 0..L along it, left to right on the screen
           const c = (hex, k) => shade(hex, kt*(k || 1)), qp = pts => poly(pts.map(([u, z]) => Q(u, z)), null);
-          const qf = (pts, col) => poly(pts.map(([u, z]) => Q(u, z)), col);
+          /* (each shape clipped to its own wall, u 0..L: the kart's motion lines had run off the wall's end and on across the next face --
+             Sir, 2026-11-14, "clip the art on the mural so it doesn't wrap here") */
+          const cut = (pts, keep, at) => { const o = []; for(let i = 0; i < pts.length; i++){ const p0 = pts[i], p1 = pts[(i + 1) % pts.length], k0 = keep(p0[0]), k1 = keep(p1[0]);
+            if(k0) o.push(p0); if(k0 !== k1){ const t = (at - p0[0])/(p1[0] - p0[0]); o.push([at, p0[1] + (p1[1] - p0[1])*t]); } } return o; };
+          const qf = (pts, col) => { pts = cut(cut(pts, u => u >= 0, 0), u => u <= L, L); if(pts.length >= 3) poly(pts.map(([u, z]) => Q(u, z)), col); };
           const disc = (u0, z0, r, col, n) => { const o = []; for(let i = 0; i < (n || 16); i++){ const t = i/(n || 16)*Math.PI*2; o.push([u0 + Math.cos(t)*r, z0 + Math.sin(t)*r]); } qf(o, col); };
           /* the checkered band along the foot: two rows */
           const sq = 14, z0 = 12;
