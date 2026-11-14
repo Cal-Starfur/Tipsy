@@ -109152,11 +109152,16 @@ class WorldScene extends Phaser.Scene {
           for(const [ox, oy, z, r] of C) dot(x + ox*h - 8, y + oy*h - 8, z*h + 6, r*h, p.col);
           for(const [ox, oy, z, r] of C) dot(x + ox*h - 22, y + oy*h - 22, z*h + 18, r*h*0.45, shadeC(p.col, 1.2));
         } else if(p.kind === "bench"){
-          this.drawBenchProp(g, x, y, p.dv);
-          if(sit) for(const q of sit){ const L = q.L, rv = DIRV[(DIRV.indexOf(p.dv) + 1) % 4];
+          /* (its sitters: a bench turned away from the eye has its back between them and the camera, so they go down first and the bench over
+             them; one turned toward the eye, the bench first and they on it) */
+          const rv = DIRV[(DIRV.indexOf(p.dv) + 1) % 4], away = rv.x + rv.y < 0;
+          const sitters = () => { if(sit) for(const q of sit){ const L = q.L;
             this.drawPersonHull(g, x + p.dv.x*q.a + rv.x*PARK_SIT.fwd, y + p.dv.y*q.a + rv.y*PARK_SIT.fwd, 0, Math.atan2(rv.y, rv.x) - Math.PI/2,
               L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
-              Object.assign({ sit: PARK_SIT.seat, lift: q.lift, bend: q.bend }, L.dress ? { dress: L.dress } : null)); }
+              Object.assign({ sit: PARK_SIT.seat, lift: q.lift, bend: q.bend }, L.dress ? { dress: L.dress } : null)); } };
+          if(away) sitters();
+          this.drawBenchProp(g, x, y, p.dv);
+          if(!away) sitters();
         } else {
           this.drawProp(g, p.kind, x, y, t);
         }
