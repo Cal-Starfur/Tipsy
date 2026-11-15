@@ -52789,7 +52789,15 @@ function houseCanopy(fn){
     rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => { mastBody(); mastLoose(null); } });
     /* its loose ends -- the snapped cable and its sparks, two elements hanging off the bend -- their own piece: still, or (the moment Gideon
        sees it, msCut) drawn live, the cable's end twitching and throwing sparks, the elements swinging (u: the cutscene's clock, ms) */
-    const mastLoose = u => { const A = d => ma + d, B = d => mb + d, live = u != null, w = live ? Math.sin(u/170) : 0, w2 = live ? Math.sin(u/260 + 1) : 0;
+    /* ITS LIGHT, BROKEN (Sir, 2026-11-15: "if there is a light it would be broken pieces on the ground by the antenna"): the cap's orange
+       dome come down with the mast's top and lying cracked on the tar east of the plate, its glass in shards round it */
+    const lightShards = () => { const A = d => ma + d, B = d => mb + d;
+      ball(A(46), B(22), 3.4, 6, '#d9892b', '#ffb347');                                              // the dome, on its side
+      T(A(42), A(50), B(21), B(23), 6.6, '#7a4a18');                                                     // its crack
+      cyl(A(56), B(14), 0.2, 3, 3.6, '#6e757c', '#8f969d');                                            // its base, rolled off
+      for(const [da, db, r, k] of [[32, 32, 3.6, 0], [62, 32, 2.8, 1], [38, 8, 3, 2], [68, 22, 2.4, 1], [26, 20, 2.2, 0], [52, 42, 2.6, 2], [44, 40, 1.8, 1]])
+        poly([P(A(da - r), B(db), 0.3), P(A(da), B(db - r*0.8), 0.3), P(A(da + r*1.2), B(db + r*0.3), 0.3), P(A(da + r*0.2), B(db + r), 0.3)], ['#ffb347', '#ffe2a8', '#e8963a'][k]); };
+    const mastLoose = u => { lightShards(); const A = d => ma + d, B = d => mb + d, live = u != null, w = live ? Math.sin(u/170) : 0, w2 = live ? Math.sin(u/260 + 1) : 0;
       const ea = -20 + 3*w, eb = 55 + 2*w2, ez = 1.2 + (live ? Math.max(0, Math.sin(u/90))*3 : 0);
       tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(ea), B(eb), ez, 1.4, '#2a2f36');   // the cable, snapped
       cyl(A(ea), B(eb + 1), ez - 0.7, ez + 1.3, 3, copper, '#e8a550');
@@ -52824,6 +52832,7 @@ function houseCanopy(fn){
       /* the cable: run up the mast from the plate to the connector */
       if(kc > 0){ const ct = 16 + (226 - 16)*kc; tube(A(5), B(5), 16, A(5), B(5), ct, 1.3, '#2a2f36'); if(kc >= 1) cyl(A(5), B(5), 228, 235, 3.4, copper, '#e8a550'); }   // (up to the top, under the light it feeds -- Sir, 2026-11-15)
       else { tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36'); }   // (still lying snapped)
+      if(u < F.light) lightShards();                                                   // (the old light's pieces, till the new one comes on)
       /* the light on top, on */
       if(u > F.light){ const fl = cl((u - F.light)/250); ball(A(tip[0]), B(tip[1]), tip[2] + 4, 4.4 + 3*(1 - fl), '#ffb347', '#ffe2a8'); }
     } });
