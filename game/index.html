@@ -5147,9 +5147,9 @@ const FLEET = {
   humanoid:   { name: "Gideon", cls: "walk", art: "humanoid", body: { len: BOTS.humanoid.len, wid: 44, h: 100 }, fit: { r: 22, h: 100 },
                 /* (a walking robot, not Tipsey's rolling one: he turns on the spot to face where the stick points and walks off forward -- never
                    backs up (revEnter < 0: reverse never engages), no lean into a turn (leanGain 0) -- turnCreep 1: full turn rate at rest) */
-                /* (vMax: a brisk walk, half again a pedestrian's (PEOPLE_WALK_V 0.065) -- he had Tipsey's own top speed, 0.225, three and a half
-                   times theirs: Sir, 2026-11-15, "he seems to walk a lot faster than people") */
-                ctl: { revEnter: -1, turnCreep: 1, leanGain: 0, vMax: 0.1 }, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
+                /* (vMax: a pedestrian's own pace, PEOPLE_WALK_V -- he had Tipsey's top speed, 0.225, three and a half times theirs: Sir,
+                   2026-11-15, "he seems to walk a lot faster than people", "give him pedestrian top speed, we want him to be one of the guys") */
+                ctl: { revEnter: -1, turnCreep: 1, leanGain: 0, vMax: PEOPLE_WALK_V }, bay: "station", unlock: "minding-the-shop", abilities: ["hands"], ambient: { walkins: true } },
   cargobot:   { name: "Cargo bot", cls: "walk", art: "cargobot", body: { len: BOTS.cargobot.len, wid: 88, h: 150, cap: true }, fit: { r: 50, h: 150 },   // (72 wide, its tyres outside)
                 ctl: { botR: 44 }, bay: "station", unlock: null, abilities: ["lid"], cargo: "parcels", ambient: { loops: true } },
   courierbot: { name: "Courier bot", cls: "walk", art: "courierbot", body: { len: BOTS.courierbot.len, wid: 56, h: 152 }, fit: { r: 28, h: 152 },
