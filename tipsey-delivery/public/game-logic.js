@@ -1684,7 +1684,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
-  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['rig','Delivery Rig']],   // (Gideon's scooter's skins: GSC)
+  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
   neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
@@ -111158,7 +111158,7 @@ class WorldScene extends Phaser.Scene {
     { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
     /* GIDEON'S SCOOTER SKINS (brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
-       deck, a front fairing with a number board, a rear wing), the Delivery Rig (a crate on a rack over the back wheel, a tall pennant) */
+       deck, a front fairing with a number board, a rear wing) */
     const sty = brand.style || null, acc0 = brand.acc != null ? brand.acc : brand.cDk;
     const WR = sty === 'cruiser' ? R.wheelR*1.35 : R.wheelR, WW = sty === 'cruiser' ? 7 : 4.5, RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : R.deck;
     for(const [a0, r] of [[-R.wheelA, WR], [R.wheelA, WR]]) wheel(a0, 0, r, WW, r, wheelPhase);
@@ -111179,13 +111179,6 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const c = P(R.wheelA - 6, sb*6.8, RD + 5.5); g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.6*this.K*0.42*1.4); g.fillStyle(acc0, 1); g.fillCircle(c.x, c.y, 1.8*this.K*0.42*1.4); }
       solid(prismH([[-R.wheelA - 13, -8], [-R.wheelA - 9, -8], [-R.wheelA - 9, 8], [-R.wheelA - 13, 8]], RD + 6, RD + 9), acc0);
       for(const sb of [-1, 1]) line([-R.wheelA - 11, sb*6, RD], [-R.wheelA - 11, sb*6, RD + 6], SCOOT.metal, 1.6); }
-    if(sty === 'rig'){                                                                          // the rack over the back wheel and its crate, the tall pennant
-      for(const sb of [-1, 1]) line([-R.wheelA + 6, sb*6, RD], [-R.wheelA - 6, sb*6, RD + 12], SCOOT.metal, 1.6);
-      solid(prismH([[-R.wheelA - 13, -9], [-R.wheelA + 7, -9], [-R.wheelA + 7, 9], [-R.wheelA - 13, 9]], RD + 12, RD + 28), 0xb98a5a, (k, n) => n[2] > 0.9 ? 0xc99a68 : 0xa87a4c);
-      for(const z of [RD + 17, RD + 23]) for(const sb of [-1, 1]) line([-R.wheelA - 13, sb*9.2, z], [-R.wheelA + 7, sb*9.2, z], 0x7e5a36, 0.9);   // its slats
-      solid(prismH([[-R.wheelA - 13.5, -9.5], [-R.wheelA + 7.5, -9.5], [-R.wheelA + 7.5, 9.5], [-R.wheelA - 13.5, 9.5]], RD + 26, RD + 28.5), acc0);   // its band
-      line([-R.wheelA - 11, 7, RD + 28], [-R.wheelA - 11, 7, RD + 78], SCOOT.metal, 1.4);
-      { const a = P(-R.wheelA - 11, 7, RD + 78), b = P(-R.wheelA - 27, 7, RD + 72), c = P(-R.wheelA - 11, 7, RD + 66); g.fillStyle(acc0, 1); g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y); } }
     solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
@@ -144943,8 +144936,7 @@ requestTpProfile();
     if (key === 'scootSkin') { const W = '#eceef1', A = '#e79a35', D = '#2a2f36', wh = (x, r) => `<circle cx="${x}" cy="22" r="${r}" fill="${D}"/><circle cx="${x}" cy="22" r="${(r*0.4).toFixed(1)}" fill="#9aa2a8"/>`;
       const B = { stock: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M30 18L27 4" stroke="${W}" stroke-width="2"/><path d="M24 4h7" stroke="${D}" stroke-width="2"/>${wh(10, 3)}${wh(30, 3)}`,
         cruiser: `<rect x="8" y="16" width="24" height="3.5" fill="#b5834f"/><path d="M30 17L27 4" stroke="${W}" stroke-width="2"/><rect x="27" y="9" width="3" height="3" fill="${A}"/><path d="M26 15a5 5 0 0 1 9 0" fill="${W}"/>${wh(10, 4.4)}${wh(31, 4.4)}`,
-        racer: `<rect x="4" y="18" width="28" height="2.5" fill="${W}"/><path d="M22 18l10-6v6z" fill="${W}"/><circle cx="27" cy="16" r="1.8" fill="${A}"/><rect x="3" y="12" width="2" height="6" fill="${A}"/><path d="M31 15L28 4" stroke="${W}" stroke-width="2"/>${wh(9, 3)}${wh(30, 3)}`,
-        rig: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><rect x="5" y="8" width="11" height="8" fill="#b98a5a"/><rect x="5" y="8" width="11" height="1.6" fill="${A}"/><path d="M7 8V1" stroke="#8d959c" stroke-width="1.2"/><path d="M7 1l-5 2 5 2z" fill="${A}"/><path d="M30 18L27 4" stroke="${W}" stroke-width="2"/>${wh(10, 3)}${wh(30, 3)}` }[id];
+        racer: `<rect x="4" y="18" width="28" height="2.5" fill="${W}"/><path d="M22 18l10-6v6z" fill="${W}"/><circle cx="27" cy="16" r="1.8" fill="${A}"/><rect x="3" y="12" width="2" height="6" fill="${A}"/><path d="M31 15L28 4" stroke="${W}" stroke-width="2"/>${wh(9, 3)}${wh(30, 3)}` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${B}</svg>`; }
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
     if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
