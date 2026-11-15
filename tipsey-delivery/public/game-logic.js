@@ -51184,6 +51184,9 @@ function houseCanopy(fn){
       for(const [x0, x1, y0, y1] of [[a0, a1, b0, b0 + 5], [a0, a1, b1 - 5, b1], [a0, a0 + 5, b0, b1], [a1 - 5, a1, b0, b1]]) T(x0, x1, y0, y1, 0.3, '#e8c13a'); }
     T(0, 165, 600, D, 0.3, '#d9d6cc'); T(6, 159, 606, D - 6, 0.35, '#e2dfd5');
     for(const [a, b, c] of [[60, 650, '#c23a2e'], [110, 700, '#c23a2e'], [40, 720, '#2a6fb0']]) T(a - 8, a + 8, b - 5, b + 5, 0.4, c);
+    /* the roll-up's threshold: concrete across the wall's whole depth (30 past the floor, out to the shell's face), the door's steel
+       track at its inner edge -- it stopped 8 out, and the yard's sand showed in the doorway (Sir, 2026-11-15, "still has a strip") */
+    T(W - 6, W + 31, DR.at - DR.half - 4, DR.at + DR.half + 4, 0.55, conc);   // (a hair under each jamb)
     T(W - 6, W + 8, DR.at - DR.half, DR.at + DR.half, 0.6, '#7f858c'); T(W - 4, W + 6, DR.at - DR.half + 2, DR.at + DR.half - 2, 0.7, '#9aa0a6');
 
     /* ---- THE WALLS (the kit's): whitewashed boards over a pegboard dado, the barn's red low walls with a white cap; the
