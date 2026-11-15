@@ -112895,7 +112895,12 @@ class WorldScene extends Phaser.Scene {
     const RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : sty === 'robo' ? R.deck + 6 : sty === 'offroad' ? R.deck + 5 : sty === 'chopper' ? R.deck - 1 : sty === 'junk' ? R.deck + 1 : R.deck;
     const WHL = sty === 'chopper' ? [[-R.wheelA, R.wheelR*1.4, 8], [R.wheelA + 10, R.wheelR, 4]] : sty === 'offroad' ? [[-R.wheelA, R.wheelR*1.3, 7], [R.wheelA, R.wheelR*1.3, 7]]
       : sty === 'rocket' ? [[-R.wheelA, R.wheelR*0.85, 4], [R.wheelA, R.wheelR*0.85, 4]] : sty === 'junk' ? [[-R.wheelA, R.wheelR*1.3, 6], [R.wheelA, R.wheelR*0.8, 3.5]] : [[-R.wheelA, WR, WW], [R.wheelA, WR, WW]];
-    const fz = WHL[0][1]*2, hb = build.torsoW/2 - 1, moving = wheelPhase != null;     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
+    const fz = WHL[0][1]*2, hb = build.torsoW/2 - 1, moving = wheelPhase != null;
+    /* the deck runs BETWEEN the wheels, never through them (Sir, 2026-11-15, "the main pad shouldn't be drawing over the wheels"): DB..DF its
+       ends, clear of each tyre; the stem comes up from the front axle (a fork past the tyre), a neck from the deck's nose up over the tyre to it */
+    const wheeled = sty !== 'robo' && sty !== 'rocket';
+    const DB = wheeled ? WHL[0][0] + WHL[0][1] + 1.5 : -R.wheelA - 4, DF = wheeled ? Math.min(R.wheelA - 2, WHL[1][0] - WHL[1][1] - 1.5) : R.wheelA - 2;
+    const SA = wheeled ? WHL[1][0] : R.wheelA - 1, SZ = wheeled ? WHL[1][1] : RD;     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
     if(sty === 'robo'){                                                                         // the glow on the ground under it, and its two thrusters
       const c = P(0, 0, 0.5); g.fillStyle(0x5ee8d8, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);
       g.fillStyle(0x9ff6ee, 0.35); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
@@ -112904,22 +112909,22 @@ class WorldScene extends Phaser.Scene {
       if(sty === 'offroad') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ g.fillStyle(0x15171a, 1);      // its knobbly tread, round the rim on the seen side
         for(let k = 0; k < 12; k++){ const u = k*Math.PI/6 - (wheelPhase || 0), q = P(a0 + (r + 0.7)*Math.cos(u), sb*wd/2, r + (r + 0.7)*Math.sin(u)); g.fillRect(q.x - 1.2, q.y - 1.2, 2.4, 2.4); } } }
     if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it, the mud flap
-      for(const [a0, r] of WHL) line([a0 + (a0 < 0 ? 7 : -7), 0, RD - 4], [a0, 0, r], acc0, 2.6);
-      solid(prismH([[-18, -5], [18, -5], [18, 5], [-18, 5]], RD - 7, RD - 4), 0x3b4048);
+      for(const [a0, r, wd] of WHL) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([a0 + (a0 < 0 ? r + 2 : -(r + 2)), sb*(wd/2 + 1), RD - 4], [a0, sb*(wd/2 + 1), r], acc0, 2.6);   // (on the seen side, outside the tyre)
+      solid(prismH([[DB + 3, -5], [DF - 3, -5], [DF - 3, 5], [DB + 3, 5]], RD - 7, RD - 4), 0x3b4048);
       solid(prismH([[-R.wheelA - 11, -5], [-R.wheelA - 10, -5], [-R.wheelA - 10, 5], [-R.wheelA - 11, 5]], 1.5, fz + 1), 0x23262b); }
     /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck,
        laid on just outside its sides and drawn BEFORE it, so the deck hides the far one -- it had painted across the deck's top) */
     const SB = sty === 'robo' || sty === 'rocket' ? 8 : 7;                                                       // (the deck's half-width: the Robo Board's wider)
-    const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.9)], [-R.wheelA - 3, sb*(SB + 0.9)]], RD - 2.8, RD - 1.2), brand.acc);
+    const accStripe = sb => solid(prismH([[DB + 1, sb*(SB + 0.05)], [DF - 1, sb*(SB + 0.05)], [DF - 1, sb*(SB + 0.9)], [DB + 1, sb*(SB + 0.9)]], RD - 2.8, RD - 1.2), brand.acc);
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
     const stripes = brand.acc != null && sty !== 'junk' && sty !== 'rocket';                                    // (the Junkyard's patched, not striped)
     const rocketFin = sb => solid(prismH([[-38, sb*7.5], [-29, sb*7.5], [-38, sb*14]], RD - 5, RD - 3), acc0);   // (back past the rear tyre, so it shows -- Sir, 2026-11-15)
     const nozzle = () => solid(prismH([[-38, -4], [-34, -4], [-34, 4], [-38, 4]], RD - 6.5, RD - 0.5), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048);
     if(stripes) accStripe(-nearSb);
     if(sty === 'rocket'){ rocketFin(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
-    { const back = sty === 'racer' ? -R.wheelA - 12 : -R.wheelA - 4;
+    { const back = DB;
       const plan = sty === 'robo' ? [[-31, -5], [-27, -8], [27, -8], [31, -5], [31, 5], [27, 8], [-27, 8], [-31, 5]]
-        : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [back, 7]];
+        : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [DF, -7], [DF, 7], [back, 7]];
       if(sty === 'rocket'){                                                                     // a round fuselage: body, then the nose cone in the accent
         const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
         solid(loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1).concat(loftSeg(-28, S(8, RD - 5.5, RD), 14, S(8, RD - 5.5, RD), 0)), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c); }
@@ -112927,12 +112932,12 @@ class WorldScene extends Phaser.Scene {
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
     if(sty === 'junk'){                                                                         // the crate's slats, a patch on top (the accent) and one on the side (the body colour)
-      for(let a = -R.wheelA - 4; a < R.wheelA - 4; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);
-      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([-R.wheelA - 4, sb*7.05, h], [R.wheelA - 2, sb*7.05, h], 0x6e4e2c, 0.8);
-      solid(prismH([[-22, -5.5], [-12, -5.5], [-12, 1], [-22, 1]], RD, RD + 0.7), acc0);
+      for(let a = DB + 4; a < DF - 2; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([DB, sb*7.05, h], [DF, sb*7.05, h], 0x6e4e2c, 0.8);
+      solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
-    if(sty === 'cruiser') for(let a = -R.wheelA; a < R.wheelA - 4; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
+    if(sty === 'cruiser') for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
       { const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
@@ -112948,8 +112953,8 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'racer'){                                                                        // the fairing over the front, its number board, the rear wing
       solid(prismB([[R.wheelA - 17, RD - 1], [R.wheelA + 6, RD - 1], [R.wheelA + 6, RD + 5], [R.wheelA + 1, RD + 12], [R.wheelA - 5, RD + 12]], -6, 6), brand.c, (k, n) => n[2] > 0.3 ? acc0 : brand.c);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const c = P(R.wheelA - 3, sb*6.05, RD + 4.5); g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.6*this.K*0.42*1.4); g.fillStyle(acc0, 1); g.fillCircle(c.x, c.y, 1.8*this.K*0.42*1.4); }
-      solid(prismH([[-R.wheelA - 13, -8], [-R.wheelA - 9, -8], [-R.wheelA - 9, 8], [-R.wheelA - 13, 8]], RD + 6, RD + 9), acc0);
-      for(const sb of [-1, 1]) line([-R.wheelA - 11, sb*6, RD], [-R.wheelA - 11, sb*6, RD + 6], SCOOT.metal, 1.6); }
+      solid(prismH([[-37, -8], [-33, -8], [-33, 8], [-37, 8]], RD + 12, RD + 15), acc0);              // the rear wing, its struts down onto the fender
+      for(const sb of [-1, 1]) line([-32, sb*3, 14], [-35, sb*6, RD + 12], SCOOT.metal, 1.6); }
     if(sty === 'vintage'){                                                                      // its rounded rear cowl over the back wheel, and the leg shield round the stem's foot (its top the accent)
       solid(prismB(arcPts(-R.wheelA, RD - 2, 13, 13, 0, Math.PI, 10), -8.5, 8.5), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c); }
@@ -112958,10 +112963,10 @@ class WorldScene extends Phaser.Scene {
     if(sty !== 'rocket'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
-      if(sty === 'chopper'){ const a = -R.wheelA + 3;                                          // the sissy bar and its pad
-        for(const sb of [-1, 1]) line([a, sb*5, RD], [a - 4, sb*5, RD + 20], SCOOT.metal, 1.8);
-        line([a - 4, -5, RD + 20], [a - 4, 5, RD + 20], SCOOT.metal, 1.8);
-        solid(prismH([[a - 4.2, -4], [a - 2.6, -4], [a - 2.6, 4], [a - 4.2, 4]], RD + 10, RD + 17), acc0); }
+      if(sty === 'chopper'){ const a = -23, h = WHL[0][1] + Math.sqrt(Math.max(0, (WHL[0][1] + 3)**2 - (a - WHL[0][0])**2)) - 0.5;   // the sissy bar, up off the fender, and its pad
+        for(const sb of [-1, 1]) line([a, sb*5, h], [a - 4, sb*5, h + 13], SCOOT.metal, 1.8);
+        line([a - 4, -5, h + 13], [a - 4, 5, h + 13], SCOOT.metal, 1.8);
+        solid(prismH([[a - 4.2, -4], [a - 2.6, -4], [a - 2.6, 4], [a - 4.2, 4]], h + 4, h + 11), acc0); }
       if(sty === 'rocket'){                                                                     // the fin on top, swept back in two steps; the flame while he rides
         solid(prismB([[-35, RD - 1], [-22, RD - 1], [-30, RD + 13], [-35, RD + 13]], -0.9, 0.9), acc0);
         if(moving && !noRider){ const L = 9 + 3*Math.sin(t*0.05) + 2*Math.sin(t*0.13), z0 = RD - 3.5;
@@ -112983,11 +112988,17 @@ class WorldScene extends Phaser.Scene {
       /* (the stem rises out of the Cruiser's fender and the Racer's fairing: drawn from their tops, not through them -- Sir, 2026-11-15,
          "the bottom of the upright is drawing over the upgraded pieces") */
       const stemCol = sty === 'junk' ? 0x8a8f96 : brand.c;                                    // (the Junkyard's a bit of grey pipe)
-      { const zTop = sty === 'cruiser' ? WR*2 + 3.5 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : RD, k0 = Math.max(0, Math.min(0.9, (zTop - RD)/(barH - RD)));
-        line([(R.wheelA - 1) + (barA - R.wheelA + 1)*k0, 0, RD + (barH - RD)*k0], [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6); }
-      const stemAt = k => [(R.wheelA - 1) + (barA - R.wheelA + 1)*k, 0, RD + (barH - RD)*k];
+      const stemAt = k => [SA + (barA - SA)*k, 0, SZ + (barH - SZ)*k], kAt = h => Math.max(0, Math.min(0.9, (h - SZ)/(barH - SZ)));
+      const covered = sty === 'cruiser' || sty === 'racer' || sty === 'vintage';            // (a fender or fairing over the front tyre: the stem rises out of its top)
+      const tyreTop = SZ + WHL[1][1] + 2;
+      const zTop = sty === 'cruiser' ? WR*2 + 3 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : wheeled ? tyreTop : RD;
+      if(wheeled && !covered){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
+        for(const sb of [-1, 1]) line([SA, sb*w, SZ], [q[0], sb*w, q[2]], SCOOT.metal, 1.8);
+        line([DF - 1, 0, RD - 1.5], q, stemCol, 4.5); }
+      else if(wheeled && sty !== 'vintage') line([DF - 1, 0, RD - 1.5], stemAt(kAt(zTop)), stemCol, 4.5);
+      line(stemAt(kAt(zTop)), [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6);
       if(sty === 'junk') line(stemAt(0.42), stemAt(0.52), 0xb9bec4, 7);                       // a wrap of duct tape round it
-      if(sty === 'cruiser'){ const k = 0.55, ca = (R.wheelA - 1) + (barA - R.wheelA + 1)*k, cz = RD + (barH - RD)*k;   // the cup holder, a coffee in it
+      if(sty === 'cruiser'){ const [ca, , cz] = stemAt(0.55);   // the cup holder, a coffee in it
         solid(prismH([[ca - 2.4, -8], [ca + 2.4, -8], [ca + 2.4, -3.5], [ca - 2.4, -3.5]], cz - 4, cz + 1), acc0);
         solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
       line([barA, -hb - 6, barH], [barA, hb + 6, barH], sty === 'junk' ? 0x8a8f96 : SCOOT.metal, sty === 'junk' ? 3.4 : 2.6);
