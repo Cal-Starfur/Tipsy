@@ -111629,15 +111629,19 @@ class WorldScene extends Phaser.Scene {
         /* the elbow: a hinge along the arm's bend, drawn FIRST, under both segments -- it only shows where neither covers, the
            outside of the bend (upright it stuck out of a level arm; over the sleeve it left a patch -- Sir, 2026-10-24) */
         if(!far) limb(shoulderAx, along(E, ang + bend/2, -elbowW*0.9), along(E, ang + bend/2, elbowW*0.9), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
+        const atHead = !!(pose && (pose.armLate || pose.armsLate));
         const fore = () => { limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist: FIRST -- it is lower, and its filled top (the hull of its two ends) is covered by the forearm that is drawn over it (rule 2c)
-                             limb(shoulderAx, along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0); };   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
+                             limb(shoulderAx, atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0); };   // (atHead: from just out of the elbow, its round end inside the upper arm, not past its outside)   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
         const raised = Math.abs(ang) > RAISED;
         const upper = () => limb(shoulderAx, raised ? ext(S, E, 3) : S, ext(E, S, 2), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         /* the sleeve's hem: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that root painted a skin patch
            over the sleeve's end -- Sir, 2026-10-24) -- but under a forearm that crosses in front of it: a hand in the lap, its forearm toward
            the eye, had the hem painted across it, a band over the arm (Sir, 2026-11-14: "the elbow is drawn over the forearm") */
         const hem = () => { if(!pShirt.tank && !RB && !far) limb(shoulderAx, along(S, ang, sleeveLen - 0.5), ext(E, S, 2.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, true); };   // (filled: over the forearm's root it is the sleeve's end, not a ring round it)
-        const foreNear = ((E[0] + Hd[0])/2 - E[0]/2)*faceB > 0, crosses = foreNear && Math.cos(bend) < 0.75;   // (bent past ~40 degrees toward the eye: the forearm lies across the elbow's front)
+        /* (a hand brought back to the head -- pose.armLate / armsLate: the elbow out toward the eye, the forearm folding back from it -- the
+           upper arm is the nearer: the forearm's elbow end had shown through it (Sir, 2026-11-15, "the bottom of the lower arm drawn
+           through the upper arm"). There, nearer is which reaches further toward the eye, the hand or the elbow) */
+        const foreNear = (atHead ? (Hd[0] - E[0]) : ((E[0] + Hd[0])/2 - E[0]/2))*faceB > 0, crosses = foreNear && Math.cos(bend) < 0.75;   // (bent past ~40 degrees toward the eye: the forearm lies across the elbow's front)
         if(foreNear){ upper(); if(crosses){ hem(); fore(); } else { fore(); hem(); } } else { fore(); upper(); hem(); }
         aidHand(side, shoulderAx, Hd, ang + bend, E);
         if(raised) return false;
