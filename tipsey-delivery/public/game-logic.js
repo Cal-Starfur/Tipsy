@@ -50768,9 +50768,12 @@ function houseCanopy(fn){
     /* THE WORKBENCH down the west wall (b 190..340): robot parts -- a torso shell, an arm, a head, a coil of wire -- and a lamp */
     { const A1 = 56, B0 = 190, B1 = 340;
       for(let k = 0, n = Math.ceil((B1 - B0)/50); k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n;
-        items.push({ a: A1/2, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 84, 'workbench')], draw: () => {
+        items.push({ a: A1/2 + 40, b: (s0 + s1)/2, z: 0, solids: [solid(0, A1, s0, s1, 84, 'workbench')], draw: () => {   // (a + 40, its order key: after the west wall's piece behind it, which had painted over the top's back strip -- the "cut out")
           for(const lb of [B0 + 5, B1 - 5]) if(lb >= s0 && lb < s1) for(const la of [6, A1 - 6]) box(la - 4, la + 4, lb - 4, lb + 4, 0, 70, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-          box(0, A1, s0, s1 + 0.5, 70, 76, woodL, wood, woodD);
+          /* (one top, not three boxes butted: the top and its room-side face run on into the next piece, a hair under it, and only the
+             bench's own end shows its end face -- Sir, 2026-11-15, "there is a small cut out in the table in the back room") */
+          const e1 = k < n - 1 ? s1 + 0.6 : s1;
+          T(0, A1, s0, e1, 76, woodL); S(A1, s0, e1, 70, 76, woodD); if(k === n - 1) F(0, A1, 70, 76, wood, null, 0, B1);
           if(s0 <= 215 && s1 > 215) box(12, 44, 203, 232, 76, 112, '#aab4bd', '#8e9aa5', '#78848f');          // a torso shell
           if(s0 <= 262 && s1 > 262){ tube(14, 262, 82, 46, 262, 82, 4, '#aab4bd'); ball(14, 262, 82, 6, '#78848f', '#8e9aa5'); }   // an arm
           if(s0 <= 304 && s1 > 304){ ball(30, 304, 90, 12, '#c9d3da', '#e4eaee'); box(24, 36, 298, 310, 76, 80, steelD, steelD, steelS); cyl(30, 304, 92, 94, 3, '#3a8fd8', '#7fc4f0'); }   // a head, an eye
