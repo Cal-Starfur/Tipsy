@@ -51069,7 +51069,7 @@ function houseCanopy(fn){
       for(const [t, len] of [[0.25, 30], [0.5, 24], [0.75, 18]]){ const a = A(44 + 44*t), b = B(6 + 4*t), z = 128 + 4*t; tube(a, b - len/2, z, a, b + len/2, z, 1.4, '#c4cbd1'); }  // the elements
       tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
     };
-    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => mastBody() });
+    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => { mastBody(); mastLoose(null); } });
     /* its loose ends -- the snapped cable and its sparks, two elements hanging off the bend -- their own piece: still, or (the moment Gideon
        sees it, msCut) drawn live, the cable's end twitching and throwing sparks, the elements swinging (u: the cutscene's clock, ms) */
     const mastLoose = u => { const A = d => ma + d, B = d => mb + d, live = u != null, w = live ? Math.sin(u/170) : 0, w2 = live ? Math.sin(u/260 + 1) : 0;
@@ -51080,7 +51080,8 @@ function houseCanopy(fn){
       if(burst < 0.55) for(let i = 0; i < n; i++){ const th = i*2.1 + Math.floor(u/650 || 0)*0.7, L = (live ? 6 + 16*burst : 8) + (i % 3)*2;
         tube(A(ea), B(eb + 1), ez + 1, A(ea + Math.cos(th)*L*0.6), B(eb + 1 + Math.sin(th)*L*0.6), ez + 1 + L*(0.5 + 0.5*Math.abs(Math.sin(th*1.3))), live ? 0.7 : 0.5, burst < 0.25 ? '#fff3b0' : '#ffd25a'); }
       tube(A(44), B(6), 128, A(52 + 4*w2), B(16 + 2*w), 100, 1.2, '#c4cbd1'); tube(A(70), B(8), 131, A(80 + 3*w), B(20 + 2*w2), 104, 1.2, '#c4cbd1'); };   // two elements hanging off the bend
-    rpush({ a: ma, b: mb + 1, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [], draw: () => mastLoose(null) });
+    /* (its loose ends are drawn with it, after its plate, in the one piece above: as their own piece they sorted under it and the plate
+       painted over the snapped cable -- Sir, 2026-11-15) */
     rpush({ a: ma, b: mb + 1, z: 0, mastCut: true, when: () => false, solids: [], draw: () => { const sc = typeof scn === 'function' ? scn() : null; mastBody(); mastLoose(typeof msCutOn === 'function' && msCutOn() && sc ? sc.time.now - MS.cut.t0 : 0); } });
     /* ... and being mended (msFix): drawn live after him through the repair cut -- u its clock, ms. The bracket on, the upper mast swung up
        from its bend to straight and drawn out to its full height, the elements opening out along it, the guys drawn up taut, the cable run
