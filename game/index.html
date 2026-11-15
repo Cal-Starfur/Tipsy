@@ -90224,7 +90224,7 @@ function msTick(scene, ow){
    between each pair), copper caps on them as the shop's bolt heads, and a charging post at the corner end -- a cyan light on it, a copper
    cap with the bolt -- where his own scooter will stand. Laid off the shop's door (pocketOutsideDoor): a along the front toward the
    corner, b out from the wall. Still: drawn once through the building cache (bcDraw), solid (bbRackBlocks) */
-const BB_RACK = { a0: 92, a1: 262, b0: 4, b1: 32, hoops: [104, 146, 188, 230], post: 252, _g: null };
+const BB_RACK = { a0: 92, a1: 304, b0: 4, b1: 32, hoops: [104, 146, 188, 230, 272], post: 294, _g: null };   // (a fourth slot, the post moved on past it -- Sir, 2026-11-15)
 function bbRackGeo(){
   if(BB_RACK._g) return BB_RACK._g;
   const pk = typeof POCKETS !== 'undefined' && POCKETS.find(q => q.name === BB_IN.name), d = pk && typeof pocketOutsideDoor === 'function' ? pocketOutsideDoor(pk) : null;
@@ -90263,7 +90263,7 @@ function drawBBRack(scene, g, part, at){
    one (scootTrip), Gideon's Hop on (scootNearest). Its place for them (wx, wy) is the walking lane just out in front of its slot, its frame
    the street's (f along the front), so they come along the pavement to it, not through the hoops; it is drawn standing in its slot, square
    to the wall, and gone from it while taken (pr.taken, given back as the street's are) */
-BB_RACK.slots = [125, 167, 209]; BB_RACK.docked = [0, 2]; BB_RACK.SB = 32;   // (SB: a docked scooter's middle out from the wall -- the riders' scooter, front wheel in the rack, its tail out on the pavement)
+BB_RACK.slots = [125, 167, 209, 251]; BB_RACK.docked = [0, 2]; BB_RACK.SB = 32;   // (SB: a docked scooter's middle out from the wall -- the riders' scooter, front wheel in the rack, its tail out on the pavement)
 function bbRackScooters(){
   if(BB_RACK._sc) return BB_RACK._sc;
   const G = bbRackGeo(); if(!G) return [];
