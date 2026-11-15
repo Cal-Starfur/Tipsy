@@ -89977,7 +89977,7 @@ function msLadTick(scene, ow, sx, sy, mag, dt){
 function msDistressPose(now){
   const C = MS.cut, k0 = C ? Math.max(0, Math.min(1, (now - C.t0)/350)) : 1, k = k0*k0*(3 - 2*k0), rock = 0;   // (no rock: the arms see-sawing read as a twitch)
   return { walk: 0, gait: 0, roll: 0, look: gideonParts(),
-    lift: [1.7*k + 0.05*(1 - k) + rock, 1.7*k + 0.05*(1 - k) - rock], bend: [0.97*k + 0.15*(1 - k), 0.97*k + 0.15*(1 - k)], armOut: [0.15*k, 0.15*k], armsLate: true };
+    lift: [1.7*k + 0.05*(1 - k) + rock, 1.7*k + 0.05*(1 - k) - rock], bend: [0.97*k + 0.15*(1 - k), 0.97*k + 0.15*(1 - k)], armOut: [0.15*k, 0.15*k], armLate: true };   // (the near hand over the head, the far one behind it -- Sir, 2026-11-15, "the far arm drawing over the head")
 }
 const MS_CUT = { turnMs: 450, fadeMs: 550, sayAt: 1500 };
 function msCutOn(){ return !!(MS.cut && MS.cut.ph === 'close'); }
