@@ -88008,9 +88008,30 @@ function msFinish(){
   MS.stage = 'out';
   msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
 }
+/* GIDEON HIMSELF, FOR THE CARD (Sir, 2026-11-15: "why are we using this horrible stand-in instead of our art of the real Gideon?"): his own
+   body as the game draws him (drawHumanoid, his look gideonParts), stood facing the eye at a portrait's scale, drawn off screen into a
+   texture and read back as a picture. cb(dataURL) -- or null, and the card keeps its pictogram */
+function gideonPortrait(cb, W, H){
+  const s = scn(); W = W || 240; H = H || 280;
+  if(!s || !s.add || typeof s.drawHumanoid !== "function"){ cb(null); return; }
+  const keep = { camX: s.camX, camY: s.camY, camZ: s.camZ, K: s.K, cx: s.cx, cy: s.cy, drawClip: s.drawClip };
+  let g = null, rt = null;
+  try {
+    g = s.add.graphics().setVisible(false);
+    s.camX = 0; s.camY = 0; s.camZ = 0; s.K = H/150; s.cx = W/2; s.cy = H*0.93; s.drawClip = null;
+    s.drawHumanoid(g, 0, 0, 0, s.time.now, 0.5, { walk: 0, roll: 0, look: gideonParts() });
+  } catch(e){ console.warn('gideonPortrait', e); }
+  finally { Object.assign(s, keep); }
+  try {
+    rt = s.add.renderTexture(0, 0, W, H).setVisible(false);
+    rt.draw(g, 0, 0);
+    rt.snapshot(img => { try { cb(img && img.src || null); } finally { rt.destroy(); g.destroy(); } });
+  } catch(e){ console.warn('gideonPortrait', e); if(rt) rt.destroy(); if(g) g.destroy(); cb(null); }
+}
 function msUnlockCard(done){
   const el = typeof document !== "undefined" && document.getElementById("unlockCard");
   if(!el){ if(typeof tpToast === "function") tpToast("Unlocked: play as Gideon. Pick him in the garage."); if(done) done(); return; }
+  gideonPortrait(src => { if(!src) return; const pic = el.querySelector(".ucPic"); if(pic) pic.innerHTML = '<img alt="Gideon" src="' + src + '" style="width:112px;height:auto;display:block">'; }, 240, 280);
   if(typeof sfxUnlock === "function") sfxUnlock();
   el.classList.add("show");
   const b = el.querySelector(".ucBtn");
