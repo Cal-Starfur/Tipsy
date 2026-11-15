@@ -112871,7 +112871,10 @@ class WorldScene extends Phaser.Scene {
     /* (the builds' shapes are SIDE profiles swept across, as their garage cards are drawn -- Sir, 2026-11-15, "the little drawings for the
        builds look better than the builds themselves": arcs for fenders and cowls, a lofted round fuselage for the rocket) */
     const arcPts = (ac, hc, ra, rh, u0, u1, n) => { const o = []; for(let i = 0; i <= n; i++){ const u = u0 + (u1 - u0)*i/n; o.push([ac + ra*Math.cos(u), hc + rh*Math.sin(u)]); } return o; };
-    const arcBand = (ac, hc, r0, r1, u0, u1) => arcPts(ac, hc, r1, r1, u0, u1, 8).concat(arcPts(ac, hc, r0, r0, u1, u0, 8));
+    const fenderArc = (ac, r, hw, u0, u1, col) => {                                           // a fender hugging a wheel: its arc in eight short convex pieces, centred on the wheel
+      const o = arcPts(ac, r, r + 3, r + 3, u0, u1, 8), n = arcPts(ac, r, r + 1, r + 1, u0, u1, 8), F = [];
+      for(let i = 0; i < 8; i++){ const q = prismB([o[i], o[i + 1], n[i + 1], n[i]], -hw, hw); F.push(...(q.raw ? q.raw() : q)); }
+      solid(F, col, (k, nn) => nn[2] < -0.3 ? (col === brand.c ? brand.cDk : col) : col); };
     /* where the hand is, in the scooter's frame: a forward from its middle, h up */
     const shZ = build.legH + build.torsoH - 1, arm = build.armLen, th = R.lift*LIFT_MAX_ANGLE;
     const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
@@ -112939,11 +112942,9 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
       rocketFin(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
     if(sty === 'chopper')                                                                       // its fat back fender
-      solid(prismH([[-R.wheelA - 12, -6], [-R.wheelA + 9, -6], [-R.wheelA + 9, 6], [-R.wheelA - 12, 6]], fz + 1, fz + 3.5), brand.c, (k, n) => n[2] > 0.9 ? brand.c : acc0);
+      fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, 0.8, Math.PI - 0.1, brand.c);
     if(sty === 'cruiser')                                                                       // its round front fender, over the fat tyre
-      { const o = arcPts(R.wheelA, WR, WR + 3, WR + 3, 0.15, Math.PI - 0.15, 8), n = arcPts(R.wheelA, WR, WR + 1, WR + 1, 0.15, Math.PI - 0.15, 8), F = [];   // (the arc in eight short convex pieces)
-        for(let i = 0; i < 8; i++){ const q = prismB([o[i], o[i + 1], n[i + 1], n[i]], -5.5, 5.5); F.push(...(q.raw ? q.raw() : q)); }
-        solid(F, brand.c, (k, n) => n[2] < -0.3 ? brand.cDk : brand.c); }
+      fenderArc(R.wheelA, WR, 5.5, 0.15, Math.PI - 0.15, brand.c);
     if(sty === 'racer'){                                                                        // the fairing over the front, its number board, the rear wing
       solid(prismB([[R.wheelA - 17, RD - 1], [R.wheelA + 6, RD - 1], [R.wheelA + 6, RD + 5], [R.wheelA + 1, RD + 12], [R.wheelA - 5, RD + 12]], -6, 6), brand.c, (k, n) => n[2] > 0.3 ? acc0 : brand.c);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const c = P(R.wheelA - 3, sb*6.05, RD + 4.5); g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.6*this.K*0.42*1.4); g.fillStyle(acc0, 1); g.fillCircle(c.x, c.y, 1.8*this.K*0.42*1.4); }
@@ -112953,8 +112954,8 @@ class WorldScene extends Phaser.Scene {
       solid(prismB(arcPts(-R.wheelA, RD - 2, 13, 13, 0, Math.PI, 10), -8.5, 8.5), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c); }
     if(sty !== 'robo' && sty !== 'vintage' && sty !== 'rocket' && sty !== 'chopper')
-    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], fz + 1, fz + 3), sty === 'junk' ? acc0 : brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
-    if(sty !== 'rocket'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'chopper' ? P(-R.wheelA - 12.5, 0, fz + 2.2) : P(-R.wheelA - 10.5, 0, fz + 2);
+      fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, 0.8, Math.PI - 0.1, sty === 'junk' ? acc0 : brand.acc != null ? brand.c : brand.cDk);   // (an arc centred on the back wheel -- it was a flat pad hovering off-centre, Sir 2026-11-15)   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
+    if(sty !== 'rocket'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
       if(sty === 'chopper'){ const a = -R.wheelA + 3;                                          // the sissy bar and its pad
