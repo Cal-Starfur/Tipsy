@@ -89982,8 +89982,8 @@ function msFixPose(u){
   const x = m.x + at[0], y = m.y + at[1];
   const yaw = Math.atan2(m.y - y, m.x - x);
   if(walk) return { x, y, yaw, data: { walk: 1, gait: u/95, roll: 0 } };          // (stepping between: his own stride)
-  const late = u >= 1500 && u < F.cable1 + 150;                                    // (arms up at or over his head: drawn over it while he faces the eye, as msDistressPose's -- Sir, 2026-11-15, "the head drawing over the arm")
-  return { x, y, yaw, data: { walk: 0, roll: 0, lift, bend, legs: legs(drop), legOut: [0, 0], armOut, waist, drop: drop*HUMANOID_BUILD.legH, armsLate: late } };
+  const late = u >= 1500 && u < F.cable1 + 150;                                    // (the NEAR arm up at or over his head drawn over it while he faces the eye -- Sir, 2026-11-15, "the head drawing over the arm"; the far one stays behind it: "the far arm painting over the head")
+  return { x, y, yaw, data: { walk: 0, roll: 0, lift, bend, legs: legs(drop), legOut: [0, 0], armOut, waist, drop: drop*HUMANOID_BUILD.legH, armLate: late } };
 }
 function msFixOn(){ return !!(MS.fix && MS.fix.ph === 'close'); }
 function msFixU(){ const sc = scn(); return msFixOn() && sc ? sc.time.now - MS.fix.t0 : 0; }
@@ -114117,7 +114117,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
