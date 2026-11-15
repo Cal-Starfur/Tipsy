@@ -119909,7 +119909,7 @@ class WorldScene extends Phaser.Scene {
       this._scootWheel = ((this._scootWheel || 0) + sp2*d*0.05) % 6283;
       const GL = gideonParts();
       this.drawScooterRider(g, x, y, z, f*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, GL.shell, GL.shell, GL.pants, GL.shell, GL.foot,
-        this.ow.scoot.brand, t, 0, this._scootWheel, false, GL.uniform);
+        this.ow.scoot.brand, t, 0, this._scootWheel, !!this.ow.scoot.garagePreview, GL.uniform);   // (the garage's Scooter tab: the scooter alone, no Gideon on it -- Sir, 2026-11-15)
       return;
     }
     /* THE FRONT WHEELS' ANGLE (FLEET_STEER: ow.steer, shown 1.6 times as far as it is so it reads at the game's zoom) */
