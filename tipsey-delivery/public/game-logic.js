@@ -111156,7 +111156,7 @@ class WorldScene extends Phaser.Scene {
     const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
     g.fillStyle(0x000000, 0.16);
     { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
-    /* GIDEON'S SCOOTER SKINS (brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
+    /* GIDEON'S SCOOTER BUILDS (called builds, not skins -- Sir, 2026-11-15; brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
        deck, a front fairing with a number board, a rear wing), the Robo Board (no wheels, no stem: a deck hovering on two thrusters over a
        glow), the Vintage (whitewall-sized wheels, a curved leg shield round the stem's foot, a rounded rear cowl, a big chrome headlamp), the
@@ -145109,7 +145109,7 @@ requestTpProfile();
     else if (tab === 'g-finish') { const Lf = pv || worn(); cols = Lf.gFinish === 'twotone' ? ['gShell2'] : []; h = gCardRow('SHELL FINISH', 'gFinish', 'finish') + (Lf.gFinish === 'twotone' ? gColRow('TWO-TONE: THE LEGS', 'gShell2') : '<div class="grSec">Pick Two-tone for a second colour on his legs</div>'); }
     else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
-    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; h = gCardRow('SCOOTER SKIN', 'gScootSkin', 'scootSkin') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
+    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
