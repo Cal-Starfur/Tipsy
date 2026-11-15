@@ -87995,7 +87995,10 @@ function msFinish(){
   const first = !msDone();
   missionComplete('minding-the-shop');
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
-  collectCard([], first ? "Minding the Shop: done! The antenna's straight and Brew & Bolt's order screen is lit again, and Gideon is yours to drive: the humanoid is in your garage. Tipsey's wheeling out: meet him at his bay." : "Minding the Shop: done again!");
+  /* THE UNLOCK, SAID PLAINLY (Sir, 2026-11-15: "we need a toast or a cut scene that tells the player they have unlocked playing as Gideon"):
+     the first time, a card held till tapped -- UNLOCKED, him, how to play him -- and then the way on */
+  if(first) msUnlockCard(() => { if(typeof tpToast === "function") tpToast("Tipsey's wheeling out. Meet him at his bay."); });
+  else collectCard([], "Minding the Shop: done again!");;
   MS.fin = false;
   /* THE EXIT: Tipsey rolls out from behind the counter by the way he came in, and the loan ends where Gideon meets him at his bay */
   const T = MS.tip, cur = msTipAt(scene.time.now);
@@ -88004,6 +88007,14 @@ function msFinish(){
     MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(fromMeet ? 3 : 1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
   MS.stage = 'out';
   msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
+}
+function msUnlockCard(done){
+  const el = typeof document !== "undefined" && document.getElementById("unlockCard");
+  if(!el){ if(typeof tpToast === "function") tpToast("Unlocked: play as Gideon. Pick him in the garage."); if(done) done(); return; }
+  if(typeof sfxUnlock === "function") sfxUnlock();
+  el.classList.add("show");
+  const b = el.querySelector(".ucBtn");
+  b.onclick = e => { if(e) e.stopPropagation(); el.classList.remove("show"); b.onclick = null; if(done) done(); };
 }
 /* a loan lost another way (he tipped, was towed, a reload's restart): nothing half-done, nothing kept */
 function msAbort(scene){
