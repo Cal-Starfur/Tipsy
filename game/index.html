@@ -52822,7 +52822,7 @@ function houseCanopy(fn){
       const gz = 70 + 80*kr, gc = at(cl((gz - zb)/(tip[2] - zb))), g0 = gz <= zb ? [0, 0, gz] : gc;
       for(const [ga, gb] of [[-70, -80], [80, -70], [-70, 80]]) tube(A(g0[0]), B(g0[1]), g0[2], A(ga), B(gb), 0, 0.7 + 0.1*kr, '#5a6066');
       /* the cable: run up the mast from the plate to the connector */
-      if(kc > 0){ const ct = 16 + (220 - 16)*kc; tube(A(5), B(5), 16, A(5), B(5), ct, 1.3, '#2a2f36'); if(kc >= 1) cyl(A(5), B(5), 218, 226, 3.2, copper, '#e8a550'); }   // (up to the top, under the light it feeds -- Sir, 2026-11-15)
+      if(kc > 0){ const ct = 16 + (226 - 16)*kc; tube(A(5), B(5), 16, A(5), B(5), ct, 1.3, '#2a2f36'); if(kc >= 1) cyl(A(5), B(5), 225, 231, 3.2, copper, '#e8a550'); }   // (up to the top, under the light it feeds -- Sir, 2026-11-15)
       else { tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36'); }   // (still lying snapped)
       /* the light on top, on */
       if(u > F.light){ const fl = cl((u - F.light)/250); ball(A(tip[0]), B(tip[1]), tip[2] + 4, 4.4 + 3*(1 - fl), '#ffb347', '#ffe2a8'); }
@@ -52838,8 +52838,8 @@ function houseCanopy(fn){
       for(const [z, len, th] of [[222, 70, 2.2], [196, 58, 2], [170, 46, 1.8], [144, 36, 1.6]]) tube(A(0), B(0) - len/2, z, A(0), B(0) + len/2, z, th, '#f2f6f8');   // the elements, bright, a full Yagi
       for(const z of [222, 196, 170, 144]) tube(A(0), B(0) - 3, z, A(0), B(0) + 3, z, 3.4, '#8d979f');                         // their clamps
       tube(A(0), B(0), 150, A(-70), B(-80), 0, 0.8, '#6e757c'); tube(A(0), B(0), 150, A(80), B(-70), 0, 0.8, '#6e757c'); tube(A(0), B(0), 150, A(-70), B(80), 0, 0.8, '#6e757c');   // the guys, taut
-      tube(A(5), B(5), 16, A(5), B(5), 222, 1.3, '#2a2f36');                                   // the cable, up the mast to the top (the light it feeds)
-      cyl(A(5), B(5), 218, 226, 3.2, copper, '#e8a550');                                       // the screw-on connector, under the light
+      tube(A(5), B(5), 16, A(5), B(5), 226, 1.3, '#2a2f36');                                   // the cable, up the mast to the top (the light it feeds)
+      cyl(A(5), B(5), 225, 231, 3.2, copper, '#e8a550');                                       // the screw-on connector, at the top under the light (above the top element)
       ball(A(0), B(0), 234, 4.4, '#ffb347', '#ffe2a8'); } });
     }
     /* ---- THE SHELL'S OWN ROOF UNITS (baked into its roof art: a long slab on the south side, a box by the east cup sign) solid, found by
