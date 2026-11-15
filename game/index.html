@@ -89895,7 +89895,8 @@ function msDistressPose(now){
 const MS_CUT = { turnMs: 450, fadeMs: 550, sayAt: 1500 };
 function msCutOn(){ return !!(MS.cut && MS.cut.ph === 'close'); }
 function msMastWorld(){ const pk = msPkOf(BBR.name); return pk ? { x: pk.x0 + 452, y: pk.y0 + 336 } : null; }
-function msCamLook(scene){ if(!msCutOn() || !scene._inside || scene._inside.name !== BBR.name) return null; const m = msMastWorld(); return m ? { x: m.x, y: m.y, z: BBR.Z + 70, k: 1 } : null; }
+function msCamLook(scene){ const fix = typeof msFixOn === 'function' && msFixOn(); if((!msCutOn() && !fix) || !scene._inside || scene._inside.name !== BBR.name) return null; const m = msMastWorld();
+  return m ? (fix ? { x: m.x - 40, y: m.y - 30, z: BBR.Z + 120, k: 1 } : { x: m.x, y: m.y, z: BBR.Z + 70, k: 1 }) : null; }   // (the repair: held up the screen, so the mast stands whole at its full height)
 function msCutStart(scene){
   const ow = scene.ow, m = msMastWorld();
   MS.cut = { t0: scene.time.now, ph: 'turn', z0: zoomDepth, said: false };
@@ -89944,7 +89945,7 @@ function msFixTick(scene, ow, now){
     if(C.faced && !C.going){ C.going = true;
       sceneDissolve(scene, MS_CUT.fadeMs, () => { const m = msMastWorld(); C.ph = 'close'; C.t0 = scene.time.now;
         zoomDepth = 1; zoomApply();
-        if(m){ scene.camX = m.x - 30; scene.camY = m.y; scene.camZ = BBR.Z + 135; scene._camNext = null; } }); }   /* (camZ: high enough for the mast at its full height) */
+        if(m){ scene.camX = m.x - 40; scene.camY = m.y - 30; scene.camZ = BBR.Z + 120; scene._camNext = null; } }); }   /* (the centre up the screen, north-west: the mast whole at its full height, Gideon at its foot) */
     return;
   }
   if(C.ph !== 'close') return;
