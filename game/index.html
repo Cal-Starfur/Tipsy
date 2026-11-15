@@ -89608,7 +89608,7 @@ function msBayNow(scene){
   if(MS.stage === 'shift') return null;                                       // (no flag at the ladder: he climbs it himself, msLadTick)
   if(MS.stage === 'roof') return MS.seen && !MS.carry ? null : ic(msMastBay(), 'wrench');   // (the parts in hand: the mast again; down the hatch is his own to do)
   if(MS.stage === 'parts') return ic(msHw(scene), 'flag');
-  if(MS.stage === 'return' || MS.stage === 'out') return Object.assign(ic(MS.home, 'flag'), { noBeacon: true });   // (back to Tipsey: the bay's mat and the GPS, no flag over it -- Sir, 2026-11-14, "we don't need this flag on the return")
+  if(MS.stage === 'out') return Object.assign(ic(MS.home, 'flag'), { noBeacon: true });   // (back to Tipsey: the bay's mat and the GPS, no flag over it -- Sir, 2026-11-14, "we don't need this flag on the return")
   return null;
 }
 function msAccept(){
@@ -89639,10 +89639,10 @@ function msTake(){
   const scene = scn(); if(MS.stage !== 'partsGive' || !scene || !MS.clerk || MS.clerk.leave != null) return;
   hospSayCard(null); cineBars(false);
   MS.clerk.has = null; MS.clerk.leave = scene.time.now;
-  MS.carry = 'parts'; MS.stage = 'return';
-  msNav(scene, MS.home, "Tipsey, at Brew & Bolt");
+  MS.carry = 'parts'; MS.stage = 'shift';                                         // (straight back to the ladder with them: no stop at the mat -- Sir, 2026-11-14,
+  msNavLadder(scene);                                                            //  "it should be guiding me back to the ladder, not the mat")
   if(typeof sfxThump === "function") sfxThump(0.3);
-  if(typeof tpToast === "function") tpToast("A mast bracket and a coax connector aboard. Back to Brew & Bolt.");
+  if(typeof tpToast === "function") tpToast("A mast bracket and a coax connector aboard. Back to Brew & Bolt's ladder.");
 }
 /* the mast mended: bracket on, connector screwed home, the cable up to the plate */
 function msFixed(){
@@ -89745,10 +89745,10 @@ function msClimb(scene, dir){
   MS.climbing = true; const ow = scene.ow; ow.vel = 0;
   const up = dir === 'up', dx = up ? BBR.x0 - BB_IN.x0 : BB_IN.x0 - BBR.x0;
   if(typeof sfxThump === "function") sfxThump(0.2);
-  const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen ? 'parts' : 'shift'); MS.climbing = false;
+  const settle = () => { MS.stage = up ? 'roof' : (MS.fixed ? 'fin' : MS.seen && !MS.carry ? 'parts' : 'shift'); MS.climbing = false;
     if(!up) MS.hatchOpen = false;
-    if(!up && MS.seen && !MS.fixed) msNav(scene, msHw(scene), MS_HW);
-    if(!up && !MS.seen) msNavLadder(scene); };
+    if(!up && MS.seen && !MS.carry && !MS.fixed) msNav(scene, msHw(scene), MS_HW);
+    if(!up && (!MS.seen || MS.carry) && !MS.fixed) msNavLadder(scene); };
   if(up) msNavClear(scene);
   if(up) MS.hatchOpen = true;                                                   // (the hatch opens as he starts up)
   /* (absolute, in each room's own frame: the ladder's foot is 26 from the north wall, the hatch's curb 72; he comes up at 138, clear of the curb, and stands down at 78) */
@@ -105339,7 +105339,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* MINDING THE SHOP: AN ARROW UP THE ROOF LADDER (Sir, 2026-11-14, "an arrow pointing up at the ladder to help players figure it out"): over
        the ladder in the back room, bobbing upward, until he is on it and from then on the GPS and the hatch carry him */
-    if(this._inside && this._inside.name === BB_IN.name && MS.stage === 'shift' && !MS.seen && !MS.lad && !MS.climbing && !MS.cl){
+    if(this._inside && this._inside.name === BB_IN.name && MS.stage === 'shift' && (!MS.seen || MS.carry) && !MS.fixed && !MS.lad && !MS.climbing && !MS.cl){   // (and back with the parts)
       const pk = this._inside, pv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 };
       const ax = pk.x0 + 135 + pv.dx, ay = pk.y0 + MS_LAD.FOOT + pv.dy;   // (the Lighthouse Run's beacon arrow, turned up: over the ladder's foot)
       queueBeacon(ax, ay, 'climb', { s: 1, a: 1, dz: 0, spin: 0, shA: 1, shX: ax, shY: ay, sz: 0 }, ax + ay + 400);   // (in front of the ladder; ex given: in the room, not the street's x-ray test, which counts the shop's own walls as covering it)
