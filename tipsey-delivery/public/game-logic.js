@@ -111145,10 +111145,14 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(0x000000, 0.16);
     { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
     for(const [a0, r] of [[-R.wheelA, R.wheelR], [R.wheelA, R.wheelR]]) wheel(a0, 0, r, 4.5, r, wheelPhase);
+    /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck,
+       laid on just outside its sides and drawn BEFORE it, so the deck hides the far one -- it had painted across the deck's top) */
+    const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.9], [-R.wheelA - 3, sb*7.9]], R.deck - 2.8, R.deck - 1.2), brand.acc);
+    const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
+    if(brand.acc != null) accStripe(-nearSb);
     solid(prismH([[-R.wheelA - 4, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [-R.wheelA - 4, 7]], R.deck - 4, R.deck), brand.c,
       (k, n) => n[2] > 0.9 ? SCOOT.grip : (n[2] < -0.5 ? brand.cDk : brand.c));
-    /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck) */
-    if(brand.acc != null) for(const sb of [-1, 1]) solid(prismH([[-R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 + 0.6], [-R.wheelA - 3, sb*7.2 + 0.6]], R.deck - 2.8, R.deck - 1.2), brand.acc);
+    if(brand.acc != null) accStripe(nearSb);
     solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
