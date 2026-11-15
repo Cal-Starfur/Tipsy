@@ -90277,8 +90277,9 @@ function bbRackQueue(scene, queuePerson){
   const G = bbRackGeo(); if(!G || !scene.visProp("people", G.cx, G.cy)) return;
   queuePerson(G.cx, G.cy, g => scene.bcDraw(g, "bbrack|" + Math.round(G.cx) + "," + Math.round(G.cy), G.cx, G.cy, gg => drawBBRack(scene, gg)));
   /* each docked scooter standing in its slot, square to the wall (its own still piece: there or not as it is taken) */
-  for(const pr of bbRackFree()){ const q = pr.slot, th = Math.atan2(G.d.oy, G.d.ox), fq = pr.f;
-    queuePerson(q.x, q.y + 1, g => scene.bcDraw(g, "bbrack|sc|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawProp(gg, "scooter", q.x, q.y, 0, fq, 0, null, null, { thetaF: th - fq*Math.PI/2, brand: pr.brand }))); }
+  /* (turned the other way -- Sir, 2026-11-15, "they are facing the wrong way" -- and keyed just after the rack, so its hoops do not paint over them) */
+  bbRackFree().forEach((pr, i) => { const q = pr.slot, th = Math.atan2(-G.d.oy, -G.d.ox), fq = pr.f;
+    queuePerson(G.cx, G.cy + 1 + i, g => scene.bcDraw(g, "bbrack|sc|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawProp(gg, "scooter", q.x, q.y, 0, fq, 0, null, null, { thetaF: th - fq*Math.PI/2, brand: pr.brand }))); });
 }
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
