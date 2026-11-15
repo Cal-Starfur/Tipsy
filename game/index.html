@@ -89572,10 +89572,13 @@ const GSC = { need: 4*BLOCK, ride: 0, last: null, on: false, pending: false,
 function gscOwned(){ return !!GSC.st.own; }
 function gscSave(){ try { localStorage.setItem(GSC_KEY, JSON.stringify(GSC.st)); } catch(e){} }
 /* its colours: kept, or Gideon's own (his band, as he wears it) */
+/* (white like him, orange accents -- Sir, 2026-11-15: "I want the scooter to be white like Gideon with orange accents"): the body his shell's
+   white, the accent his band's orange (the stripe down the deck, the fender, the underside) */
 function gscBrand(){
-  const c = GSC.st.col != null ? GSC.st.col : (() => { try { const r = gideonParts().robot; return r.band != null ? r.band : 0xd9892b; } catch(e){ return 0xd9892b; } })();
-  const dk = typeof gdDk === 'function' ? gdDk(c, 0.68) : c;
-  return { n: 'gideon', name: 'gideon', c, cDk: dk, gideon: true };
+  const P = (() => { try { return gideonParts(); } catch(e){ return null; } })();
+  const c = GSC.st.col != null ? GSC.st.col : (P && P.shell ? P.shell.c : 0xeef0f2);
+  const acc = GSC.st.acc != null ? GSC.st.acc : (P && P.robot && P.robot.band != null ? P.robot.band : 0xd9892b);
+  return { n: 'gideon', name: 'gideon', c, cDk: acc, acc, gideon: true };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -112861,7 +112864,9 @@ class WorldScene extends Phaser.Scene {
     for(const [a0, r] of [[-R.wheelA, R.wheelR], [R.wheelA, R.wheelR]]) wheel(a0, 0, r, 4.5, r, wheelPhase);
     solid(prismH([[-R.wheelA - 4, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [-R.wheelA - 4, 7]], R.deck - 4, R.deck), brand.c,
       (k, n) => n[2] > 0.9 ? SCOOT.grip : (n[2] < -0.5 ? brand.cDk : brand.c));
-    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.cDk);   // the rear fender
+    /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck) */
+    if(brand.acc != null) for(const sb of [-1, 1]) solid(prismH([[-R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 + 0.6], [-R.wheelA - 3, sb*7.2 + 0.6]], R.deck - 2.8, R.deck - 1.2), brand.acc);
+    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.acc : brand.cDk);   // the rear fender
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
       line([R.wheelA - 1, 0, R.deck], [barA, 0, barH], brand.c, 6);
