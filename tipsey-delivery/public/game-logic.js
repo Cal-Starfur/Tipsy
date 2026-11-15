@@ -51186,11 +51186,15 @@ function houseCanopy(fn){
     for(const [a, b, c] of [[60, 650, '#c23a2e'], [110, 700, '#c23a2e'], [40, 720, '#2a6fb0']]) T(a - 8, a + 8, b - 5, b + 5, 0.4, c);
     /* the roll-up's threshold: concrete across the wall's whole depth (30 past the floor, out to the shell's face), the door's steel
        track at its inner edge -- it stopped 8 out, and the yard's sand showed in the doorway (Sir, 2026-11-15, "still has a strip") */
-    T(W - 6, W + 31, DR.at - DR.half - 4, DR.at + DR.half + 4, 0.55, conc);   // (a hair under each jamb)
     T(W - 6, W + 8, DR.at - DR.half, DR.at + DR.half, 0.6, '#7f858c'); T(W - 4, W + 6, DR.at - DR.half + 2, DR.at + DR.half - 2, 0.7, '#9aa0a6');
 
     /* ---- THE WALLS (the kit's): whitewashed boards over a pegboard dado, the barn's red low walls with a white cap; the
        roll-up's opening and the windows cut into them ---- */
+    /* the roll-up's threshold: concrete across the wall's whole depth and a hair under each jamb -- its own piece, keyed just inside the
+       door so the street's view through the opening draws it (walkinThrough takes the room's pieces, not its ground): the block's paving
+       had shown in the doorway's corner (Sir, 2026-11-15, "still has a strip", "still getting a square") */
+    items.push({ a: W - 20, b: DR.at, z: 0, solids: [], draw: () => { T(W - 30, W + 40, DR.at - DR.half - 16, DR.at + DR.half + 16, 0.55, conc);
+      T(W - 6, W + 8, DR.at - DR.half, DR.at + DR.half, 0.6, '#7f858c'); T(W - 4, W + 6, DR.at - DR.half + 2, DR.at + DR.half - 2, 0.7, '#9aa0a6'); } });
     walkinRoom(items, { W, D, H, LH, door: { side: 'e', at: DR.at, half: DR.half }, winE: KW_IN.winE, winS: KW_IN.winS,
       glass: 'rgba(170,200,214,.42)', frame: '#f2ece0',
       paintN: () => {
