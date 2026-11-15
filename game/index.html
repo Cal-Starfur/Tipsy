@@ -52831,15 +52831,7 @@ function houseCanopy(fn){
        measuring them off the picture ---- */
     rpush({ a: 300, b: 660, z: 0, solids: [solid(190, 412, 620, 700, 40, 'roof unit')], draw: () => {} });
     rpush({ a: 653, b: 156, z: 0, solids: [solid(622, 684, 100, 213, 50, 'roof unit')], draw: () => {} });
-    /* ---- AFTER DARK (the night pass): a caged work lamp on a short post by the hatch, its pool of warm light on the tar reaching the mast
-       -- still pieces, their 'when' ---- */
-    rpush({ a: 270, b: 215, z: 0, solids: [{ name: 'work lamp', c: [270, 215], r: 8, h: 90 }], draw: () => {
-      cyl(270, 215, 0, 4, 9, steelD, steelS); tube(270, 215, 4, 270, 215, 84, 2.2, steel); box(260, 280, 207, 223, 82, 92, steelD, steelD, steelS);
-      const on = typeof isNightNow === 'function' && isNightNow();
-      T(262, 278, 209, 221, 82, on ? '#ffe2a8' : '#cfc7b4'); } });
-    rpush({ a: 270, b: 215, z: 0, when: () => typeof isNightNow === 'function' && isNightNow(), solids: [], draw: () => {
-      const ring = (r, k) => { const o = []; for(let i = 0; i < 20; i++){ const t = i/20*Math.PI*2; o.push(P(300 + Math.cos(t)*r, 250 + Math.sin(t)*r*0.9, 0.6)); } poly(o, 'rgba(255,214,140,' + k + ')'); };
-      ring(230, 0.05); ring(170, 0.06); ring(110, 0.07); ring(55, 0.08); } });
+    /* (no work lamp by the hatch, nor its pool of light: Sir, 2026-11-15, "let's remove this light from the roof scene") */
     /* ---- A VENT STACK with its cap, and an air-conditioning unit ---- */
     rpush({ a: 300, b: 560, z: 0, solids: [{ name: 'vent stack', c: [300, 560], r: 14, h: 90 }], draw: () => {
       cyl(300, 560, 0, 70, 8, steel, '#aab3ba'); cyl(300, 560, 70, 76, 12, steelD, '#838a90'); } });
