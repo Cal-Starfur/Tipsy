@@ -33737,6 +33737,7 @@ function missionState(id){
    (the Gala Pass) is rebuilt from the record on every load (galaPassMigrate), so a storage loss cannot lose it.
    Returns the record's promise (a claim waits on it). */
 function missionComplete(id){
+  if(typeof gscOnMissionDone === "function") gscOnMissionDone(id);   // (Gideon's scooter: earned on a Gideon mission ridden far enough -- GSC)
   const M = MISSIONS[id], r = (M && M.reward) || {}, first = !tpProfile.missionsCompleted.has(id);
   const rec = tpCompleteMission(id, 1);
   if(first && r.cents) missionPay(r.payId || id, r.cents);
@@ -87803,6 +87804,7 @@ function scootNearest(s){
   for(const pp of parkedScootersNow(s)){ if(pp.taken || pp.phi > 0.3) continue; const w = hazSpotWorld(pp, 0, 0); if(w) eat(w.x, w.y, { pp }, pp.brand || BRANDS[0]); }
   for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
   for(const pr of bbRackFree()) eat(pr.slot.x, pr.slot.y, { pp: pr }, pr.brand);   // (one docked at Brew & Bolt's rack: taken off it, pp.taken)
+  { const g = gscOwned() ? gscRecord() : null; if(g && !g.taken) eat(g.slot.x, g.slot.y, { pp: g }, gscBrand()); }   // (his own, in the rack's fourth slot: GSC)
   return best;
 }
 function scootHop(s){
@@ -87823,6 +87825,7 @@ function scootUiTick(){
   const s = (typeof scn === "function") ? scn() : null, btn = document.getElementById("scootBtn");
   if(!btn) return;
   const ow = s && s.ow;
+  if(s) gscTick(s);                                                                  // (Gideon's own scooter: GSC)
   if(ow && ow.scoot && scootCan(s)) SCOOTR.last = { x: ow.px, y: ow.py, th: ow.yaw };
   if(ow && ow.scoot && (!scootCan(s))) scootDrop(s);                             // (the loan ended, or he went in: he is off it, and it stands where he last was outside)
   let verb = null;
@@ -87838,6 +87841,65 @@ setInterval(scootUiTick, 200);
   for(const ev of ["touchstart", "mousedown"]) btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
   btn.addEventListener("contextmenu", e => e.preventDefault());
 })();
+/* ==================== GIDEON'S OWN SCOOTER (GSC; Sir, 2026-11-15: "something that unlocks for Gideon from any Gideon mission if the
+   player rides the regular scooter -- if they walk the whole way it doesn't unlock"; "several blocks"; "given after the Gideon unlock, a
+   second unlock card"; "that scooter is there at that rack at the start of a Gideon mission launch"; "no hint -- word of mouth") ====================
+   Ridden: on a mission as Gideon (fleetCur 'humanoid', missionBusy), every unit he covers on a scooter counts (GSC.ride); the mission
+   finished with GSC.need (four blocks) or more ridden, and it is his (saved, GSC_KEY). Its card after the mission's own (gscCardIfDue).
+   Owned: it stands in Brew & Bolt's rack's fourth slot, by the charging post -- there again at the start of every Gideon mission wherever he
+   left it -- his alone (not the street's: not in bbRackFree), Hop on as any. Its colours start as Gideon's (his band on the frame), kept
+   with it (GSC_KEY: col) for the garage to change */
+const GSC_KEY = 'tipsy.gideonScooter';
+const GSC = { need: 4*BLOCK, ride: 0, last: null, on: false, pending: false,
+  st: (() => { try { return JSON.parse(localStorage.getItem('tipsy.gideonScooter') || 'null') || {}; } catch(e){ return {}; } })(), rec: null };
+function gscOwned(){ return !!GSC.st.own; }
+function gscSave(){ try { localStorage.setItem(GSC_KEY, JSON.stringify(GSC.st)); } catch(e){} }
+/* its colours: kept, or Gideon's own (his band, as he wears it) */
+function gscBrand(){
+  const c = GSC.st.col != null ? GSC.st.col : (() => { try { const r = gideonParts().robot; return r.band != null ? r.band : 0xd9892b; } catch(e){ return 0xd9892b; } })();
+  const dk = typeof gdDk === 'function' ? gdDk(c, 0.68) : c;
+  return { n: 'gideon', name: 'gideon', c, cDk: dk, gideon: true };
+}
+/* its place: the rack's fourth slot, standing as the docked ones do */
+function gscRecord(){
+  if(GSC.rec) return GSC.rec;
+  const G = typeof bbRackGeo === 'function' ? bbRackGeo() : null; if(!G) return null;
+  const a = BB_RACK.slots[3], lane = G.at(a, BB_RACK.SB + 70), slot = G.at(a, BB_RACK.SB);
+  return (GSC.rec = { type: 'scooter', parked: true, rack: true, gideon: true, wx: lane.x, wy: lane.y, s: 0, row: 0, f: 0, thetaF: 0, phi: 0, slide: 0, slideB: 0, slot, taken: false });
+}
+/* each tick (scootUiTick): the ride counted while a Gideon mission is under way, and his scooter back at the rack as one starts */
+function gscTick(s){
+  const ow = s && s.ow, on = !!(ow && ow.on && typeof fleetCur === 'function' && fleetCur() === 'humanoid' && typeof missionBusy === 'function' && missionBusy());
+  if(on && !GSC.on){ GSC.ride = 0; GSC.last = null;                                   // a Gideon mission under way: its ride from nothing
+    if(gscOwned()){ const r = gscRecord(); if(r && !(ow.scoot && ow.scoot.rack === r)){ r.taken = false; SCOOTR.down = SCOOTR.down.filter(d => !(d.brand && d.brand.gideon)); scootSave(); } } }
+  GSC.on = on;
+  if(on && ow.scoot && !s._inside){ const p = { x: ow.px, y: ow.py };
+    if(GSC.last){ const d = Math.hypot(p.x - GSC.last.x, p.y - GSC.last.y); if(d < 400) GSC.ride += d; }   // (a jump -- a door, a respawn -- is not a ride)
+    GSC.last = p; } else GSC.last = null;
+}
+/* a mission done (missionComplete): ridden far enough as Gideon on it, and not his yet -- his now, its card due */
+function gscOnMissionDone(id){
+  if(gscOwned() || !GSC.on || GSC.ride < GSC.need) return;
+  GSC.st.own = true; gscSave(); GSC.pending = true;
+  if(id !== 'minding-the-shop') setTimeout(() => gscCardIfDue(), 700);                 // (Minding the Shop shows it after its own: msFinish)
+}
+function gscCardIfDue(done){
+  if(!GSC.pending){ if(done) done(); return; }
+  GSC.pending = false;
+  unlockCard({ name: "Gideon's scooter", text: "His own ride, in his colours. It waits in Brew & Bolt's rack at the start of every Gideon mission.", alt: "Gideon's scooter",
+               toast: "Unlocked: Gideon's own scooter, in Brew & Bolt's rack.", portrait: cb => gscPortrait(cb) }, done);
+}
+/* its picture for the card: the riders' scooter in his colours, empty, drawn off screen (as gideonPortrait) */
+function gscPortrait(cb){
+  const s = scn(), W = 240, H = 280;
+  if(!s || !s.add){ cb(null); return; }
+  const keep = { camX: s.camX, camY: s.camY, camZ: s.camZ, K: s.K, cx: s.cx, cy: s.cy, drawClip: s.drawClip }; let g = null, rt = null;
+  try { g = s.add.graphics().setVisible(false); s.camX = 0; s.camY = 0; s.camZ = 0; s.K = H/140; s.cx = W/2; s.cy = H*0.86; s.drawClip = null;
+    s.drawScooterRider(g, 0, 0, 0, -Math.PI*0.75, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, gscBrand(), 0, 0, null, true); }
+  catch(e){ console.warn('gscPortrait', e); } finally { Object.assign(s, keep); }
+  try { rt = s.add.renderTexture(0, 0, W, H).setVisible(false); rt.draw(g, 0, 0); rt.snapshot(img => { try { cb(img && img.src || null); } finally { rt.destroy(); g.destroy(); } }); }
+  catch(e){ if(rt) rt.destroy(); if(g) g.destroy(); cb(null); }
+}
 /* the ones he has set down: still, live, on their own wheels */
 function scootQueue(scene, t, queuePerson, layerFor){
   for(const d of SCOOTR.down){
@@ -88027,8 +88089,8 @@ function msFinish(){
      to being Tipsey"): the loan ends where they stand -- the player is Tipsey on the spot he met Gideon on, and Gideon stays in his shop */
   MS.stage = 'finCard'; MS.fin = false;
   const back = () => msBackToTipsey(scn());
-  if(first) msUnlockCard(back);
-  else { collectCard([], "Minding the Shop: done again!"); back(); }
+  if(first) msUnlockCard(() => gscCardIfDue(back));   // (and, if he rode for it, his own scooter's card next: GSC)
+  else { collectCard([], "Minding the Shop: done again!"); gscCardIfDue(back); }
 }
 function msBackToTipsey(scene){
   if(!scene || MS.stage !== 'finCard') return;
@@ -88063,9 +88125,15 @@ function gideonPortrait(cb, W, H){
   } catch(e){ console.warn('gideonPortrait', e); if(rt) rt.destroy(); if(g) g.destroy(); cb(null); }
 }
 function msUnlockCard(done){
+  unlockCard({ name: "Play as Gideon", text: "Brew & Bolt's robot is yours. Pick him in the garage to walk the city as Gideon.", alt: "Gideon",
+               toast: "Unlocked: play as Gideon. Pick him in the garage.", portrait: cb => gideonPortrait(cb, 240, 280) }, done);
+}
+/* AN UNLOCK, HELD TILL TAPPED (#unlockCard): its name, its line, its picture (portrait(cb): a data URL, or null for none) */
+function unlockCard(o, done){
   const el = typeof document !== "undefined" && document.getElementById("unlockCard");
-  if(!el){ if(typeof tpToast === "function") tpToast("Unlocked: play as Gideon. Pick him in the garage."); if(done) done(); return; }
-  gideonPortrait(src => { if(!src) return; const pic = el.querySelector(".ucPic"); if(pic) pic.innerHTML = '<img alt="Gideon" src="' + src + '" style="width:112px;height:auto;display:block">'; }, 240, 280);
+  if(!el){ if(typeof tpToast === "function") tpToast(o.toast || ("Unlocked: " + o.name)); if(done) done(); return; }
+  el.querySelector(".ucName").textContent = o.name; el.querySelector(".ucText").textContent = o.text;
+  const pic = el.querySelector(".ucPic"); if(pic && o.portrait){ pic.innerHTML = ''; o.portrait(src => { if(src) pic.innerHTML = '<img alt="' + (o.alt || '') + '" src="' + src + '" style="width:112px;height:auto;display:block">'; }); }
   if(typeof sfxUnlock === "function") sfxUnlock();
   el.classList.add("show");
   const b = el.querySelector(".ucBtn");
@@ -88567,9 +88635,10 @@ function bbRackQueue(scene, queuePerson){
   /* each docked scooter in its slot, nose in to the wall: the riders' scooter (drawScooterRider, empty -- Sir, 2026-11-15, "I liked the other
      scooters better"), as it is -- its bar at the rider's height, not lowered (Sir: "just use the scooter as it is") -- sorted among the hoops */
   const th = Math.atan2(-G.d.oy, -G.d.ox);
-  for(const pr of bbRackFree()){ const q = pr.slot;
-    queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "sc" + Math.round(q.x) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawScooterRider(gg, q.x, q.y, 0, th - Math.PI/2,
-      HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, pr.brand, 0, 0, null, true))); }
+  const mine = gscOwned() ? gscRecord() : null, docked = bbRackFree().map(pr => ({ pr, br: pr.brand })).concat(mine && !mine.taken ? [{ pr: mine, br: gscBrand() }] : []);
+  for(const { pr, br } of docked){ const q = pr.slot;
+    queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "sc" + Math.round(q.x) + "|" + br.name + "|" + br.c, q.x, q.y, gg => scene.drawScooterRider(gg, q.x, q.y, 0, th - Math.PI/2,
+      HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, br, 0, 0, null, true))); }
 }
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
@@ -126257,7 +126326,8 @@ class WorldScene extends Phaser.Scene {
       /* BREW & BOLT'S SCOOTER RACK (BB_RACK): a row of rounds along it, as the posts are, so the pavement steps round it */
       { const G = typeof bbRackGeo === "function" ? bbRackGeo() : null;
         if(G && Math.abs(G.cx - x) < 520 && Math.abs(G.cy - y) < 520){ for(let a = BB_RACK.a0 + 8; a <= BB_RACK.a1 - 4; a += 26){ const q = G.at(a, 18); out.push({ x: q.x, y: q.y, r: 16 }); }
-          for(const pr of bbRackFree()){ const q = G.at(BB_RACK.slots[BB_RACK.docked[bbRackScooters().indexOf(pr)]], BB_RACK.SB + 24); out.push({ x: q.x, y: q.y, r: 14 }); } } }   // (and a docked scooter's tail out on the pavement)
+          for(const pr of bbRackFree()){ const q = G.at(BB_RACK.slots[BB_RACK.docked[bbRackScooters().indexOf(pr)]], BB_RACK.SB + 24); out.push({ x: q.x, y: q.y, r: 14 }); }
+          if(typeof gscOwned === 'function' && gscOwned() && gscRecord() && !gscRecord().taken){ const q = G.at(BB_RACK.slots[3], BB_RACK.SB + 24); out.push({ x: q.x, y: q.y, r: 14 }); } } }   // (and Gideon's own, GSC)   // (and a docked scooter's tail out on the pavement)
       return out;
     };
     /* who walks: each with its walk read without the sidestep (raw), and
