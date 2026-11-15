@@ -10732,6 +10732,7 @@ function owStep(scene, dt){
       const _b = _full;
       if(_b) owDbgHit(scene, 'block', _b.type, _b.i + ',' + _b.j, _b.cx, _b.cy);
     }
+    const _pxB = ow.px, _pyB = ow.py;
     const freeX = !blockAt(ow.px + stepX, ow.py, _ox, 0);
     const freeY = !blockAt(ow.px, ow.py + stepY, 0, _oy);
     if(freeX){ ow.px += stepX; hitNormal = 2; }
@@ -10760,6 +10761,18 @@ function owStep(scene, dt){
             ow.px += tx; ow.py += ty;
           }
         }
+      }
+    }
+
+    /* ROUND A JAMB ON FOOT (Sir, 2026-11-15, Gideon back with the parts: "Gideon gets hung up on the door"): the depot's deflect above
+       knows its own doorways only. Walking (the humanoid) or in a room, against the END of a wall -- a door's jamb, a planter's corner --
+       x alone and y alone both land in it and he was pinned on the corner however he leaned on the stick. The step is turned a little
+       either way, nearest first, and the first that is clear is taken, at its share of the step: he rolls off the corner and on through */
+    if(!freeX && !freeY && _full !== OW_CURB_BLOCK && ow.px === _pxB && ow.py === _pyB && (pocketAt(ow.px, ow.py) || (FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk"))){
+      slideRound: for(const deg of [20, 35, 50, 65]) for(const sg of [1, -1]){
+        const r = sg*deg*Math.PI/180, c = Math.cos(r), sn = Math.sin(r), k = Math.cos(r);
+        const tx = (stepX*c - stepY*sn)*k, ty = (stepX*sn + stepY*c)*k;
+        if(tx*tx + ty*ty > 1e-9 && !blockAt(ow.px + tx, ow.py + ty, Math.sign(tx)*_pR, Math.sign(ty)*_pR)){ ow.px += tx; ow.py += ty; break slideRound; }
       }
     }
 
@@ -10823,10 +10836,14 @@ function owStep(scene, dt){
       const cxB = hitNormal === 1 ? (Math.sign(stepX) || Math.cos(ow.yaw)) : 0;
       const cyB = hitNormal === 2 ? (Math.sign(stepY) || Math.sin(ow.yaw)) : 0;
       owLeanKick(scene, ow, owTiltSide(ow, dYaw, cxB, cyB) * D.clipTilt * Math.min(vN, D.clipThresh) * (fresh ? 1 : D.grindTilt));
+      /* (ON FOOT, A GRAZE KEEPS HIS PACE -- Sir, 2026-11-15, "Gideon gets hung up on the door": a wheel scrubs on a wall, a walker
+         steps along it. Each frame of touching took clipLoss off him, so leaning a little into a door's jamb he crawled through it at a
+         tenth of his pace. Walking, and slid along it this frame, he keeps it) */
+      const _walkSlid = FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk" && (ow.px !== _pxB || ow.py !== _pyB);
       if(hard){
         ow.vel = 0;
         if(fresh && typeof sfxThump === "function") sfxThump(0.35);
-      } else ow.vel *= D.clipLoss;
+      } else if(!_walkSlid) ow.vel *= D.clipLoss;
       if(fresh) ow.clipScrapes++;
     }
     }
@@ -20316,6 +20333,12 @@ function pocketHandOff(scene, pk, door, enter){
        so the street holds still round him as he crosses (Sir, 2026-10-26: "the outside world isn't kept from exterior
        to interior" -- held 70 in, he jumped and the street with him), the way out a step past the way in (its out) */
     if(!door.keep){ if(door.side === 'e') nx = Math.min(nx, pk.x0 + pk.w - 30); else ny = Math.min(ny, pk.y0 + pk.d - 30); }
+    /* ...and in the doorway's clear width, not off to its side (Sir, 2026-11-15: "Gideon gets hung up on the door"): the street takes a
+       door with a width (door.half) up to 20 past either end of its glass, but in the room its gap clears his body only within
+       half - botR of its middle -- taken in off to one side, he was set down inside the jamb's wall, every step from there blocked */
+    if(door.half && door.at != null){ const R = ((typeof fleetPhys === 'function' && fleetPhys().D) || OW_D).botR || 0, lim = Math.max(0, door.half - R - 12);   /* (12: a hand clear of each jamb, so a lean on the stick does not rub him along it) */
+      if(door.side === 's' || door.side === 'n'){ const c = pk.x0 + door.at; nx = Math.max(c - lim, Math.min(c + lim, nx)); }
+      else { const c = pk.y0 + door.at; ny = Math.max(c - lim, Math.min(c + lim, ny)); } }
     if(door.edoor != null && HOSP_EDOORS[door.edoor]) HOSP_EDOORS[door.edoor].k = 1;   // (an emergency entrance's glass already open round him)
     if(door.mdoor != null && HOSP_MDOORS[door.mdoor]) HOSP_MDOORS[door.mdoor].k = 1;   // (a main door set's, the same)
     if(pk.name === 'Maritime Mall Interior') MALL_LVL = 0;
