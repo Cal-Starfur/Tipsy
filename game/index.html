@@ -52749,7 +52749,7 @@ function houseCanopy(fn){
       for(const [t, len] of [[0.25, 30], [0.5, 24], [0.75, 18]]){ const a = A(44 + 44*t), b = B(6 + 4*t), z = 128 + 4*t; tube(a, b - len/2, z, a, b + len/2, z, 1.4, '#c4cbd1'); }  // the elements
       tube(A(0), B(0), 70, A(-60), B(-70), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(70), B(-60), 0, 0.6, '#4a4f55'); tube(A(0), B(0), 70, A(-60), B(70), 0, 0.6, '#4a4f55');
     };
-    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => mastBody() });
+    rpush({ a: ma, b: mb, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 120 }], draw: () => mastBody() });
     /* its loose ends -- the snapped cable and its sparks, two elements hanging off the bend -- their own piece: still, or (the moment Gideon
        sees it, msCut) drawn live, the cable's end twitching and throwing sparks, the elements swinging (u: the cutscene's clock, ms) */
     const mastLoose = u => { const A = d => ma + d, B = d => mb + d, live = u != null, w = live ? Math.sin(u/170) : 0, w2 = live ? Math.sin(u/260 + 1) : 0;
@@ -52760,8 +52760,35 @@ function houseCanopy(fn){
       if(burst < 0.55) for(let i = 0; i < n; i++){ const th = i*2.1 + Math.floor(u/650 || 0)*0.7, L = (live ? 6 + 16*burst : 8) + (i % 3)*2;
         tube(A(ea), B(eb + 1), ez + 1, A(ea + Math.cos(th)*L*0.6), B(eb + 1 + Math.sin(th)*L*0.6), ez + 1 + L*(0.5 + 0.5*Math.abs(Math.sin(th*1.3))), live ? 0.7 : 0.5, burst < 0.25 ? '#fff3b0' : '#ffd25a'); }
       tube(A(44), B(6), 128, A(52 + 4*w2), B(16 + 2*w), 100, 1.2, '#c4cbd1'); tube(A(70), B(8), 131, A(80 + 3*w), B(20 + 2*w2), 104, 1.2, '#c4cbd1'); };   // two elements hanging off the bend
-    rpush({ a: ma, b: mb + 1, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()), solids: [], draw: () => mastLoose(null) });
+    rpush({ a: ma, b: mb + 1, z: 0, when: () => !(typeof msMastFixed === 'function' && msMastFixed()) && !(typeof msCutOn === 'function' && msCutOn()) && !(typeof msFixOn === 'function' && msFixOn()), solids: [], draw: () => mastLoose(null) });
     rpush({ a: ma, b: mb + 1, z: 0, mastCut: true, when: () => false, solids: [], draw: () => { const sc = typeof scn === 'function' ? scn() : null; mastBody(); mastLoose(typeof msCutOn === 'function' && msCutOn() && sc ? sc.time.now - MS.cut.t0 : 0); } });
+    /* ... and being mended (msFix): drawn live after him through the repair cut -- u its clock, ms. The bracket on, the upper mast swung up
+       from its bend to straight and drawn out to its full height, the elements opening out along it, the guys drawn up taut, the cable run
+       up to the connector, the light on */
+    rpush({ a: ma, b: mb + 1, z: 0, mastFix: true, when: () => false, solids: [], draw: () => {
+      const u = typeof msFixU === 'function' ? msFixU() : 0, F = MS_FIX, cl = v => Math.max(0, Math.min(1, v)), sm = v => { v = cl(v); return v*v*(3 - 2*v); };
+      const A = d => ma + d, B = d => mb + d, kb = sm((u - F.bracket + 120)/120), kr = sm((u - F.raise0)/(F.raise1 - F.raise0)), kc = cl((u - F.raise1)/(F.cable1 - F.raise1));
+      box(A(-26), A(26), B(-26), B(26), 0, 5, '#6a7076', steelD, steelS);
+      if(kb > 0) box(A(-12), A(12), B(-12), B(12), 5 + 30*(1 - kb), 16 + 30*(1 - kb), copper, copperD, '#8c5618');     // the bracket, set down on the plate
+      for(const [da, db] of [[-20, -20], [20, -20], [-20, 20], [20, 20]]) cyl(A(da), B(db), 5, 8, 3, steelD);
+      /* the mast: the lower run to the bend, then the upper run swung from its lean (out to +a, down) to straight up, and drawn out */
+      const zb = 104, bent = [88, 10, 28], up = [0, 0, 126], d = bent.map((v, i) => v + (up[i] - v)*kr), dl = Math.hypot(d[0], d[1], d[2]) || 1, len = 92 + (126 - 92)*kr;
+      const tip = [d[0]/dl*len, d[1]/dl*len, zb + d[2]/dl*len], at = f => [tip[0]*f, tip[1]*f, zb + (tip[2] - zb)*f];
+      const mc = kr > 0.98 ? '#b9c2c9' : steel, mw = 3.6 + kr;
+      tube(A(0), B(0), 5, A(0), B(0), zb, mw, mc);
+      tube(A(0), B(0), zb, A(tip[0]), B(tip[1]), tip[2], mw, mc);
+      /* the elements: hanging off the bend at first, swung out square across the mast as it comes up, a full Yagi */
+      for(const [f, L] of [[0.92, 70], [0.72, 58], [0.51, 46], [0.31, 36]]){ const c = at(f), ln = L*(0.35 + 0.65*kr), hang = 22*(1 - kr);
+        tube(A(c[0]), B(c[1]) - ln/2, c[2] - hang, A(c[0]), B(c[1]) + ln/2, c[2] - hang*0.2, 1.6 + 0.6*kr, kr > 0.98 ? '#f2f6f8' : '#c4cbd1'); }
+      /* the guys, from where they hung slack to the new collar, taut */
+      const gz = 70 + 80*kr, gc = at(cl((gz - zb)/(tip[2] - zb))), g0 = gz <= zb ? [0, 0, gz] : gc;
+      for(const [ga, gb] of [[-70, -80], [80, -70], [-70, 80]]) tube(A(g0[0]), B(g0[1]), g0[2], A(ga), B(gb), 0, 0.7 + 0.1*kr, '#5a6066');
+      /* the cable: run up the mast from the plate to the connector */
+      if(kc > 0){ const ct = 16 + (200 - 16)*kc; tube(A(5), B(5), 16, A(5), B(5), ct, 1.3, '#2a2f36'); if(kc >= 1) cyl(A(5), B(5), 196, 204, 3.2, copper, '#e8a550'); }
+      else { tube(A(0), B(2), 60, A(-10), B(32), 4, 1.4, '#2a2f36'); tube(A(-10), B(32), 4, A(-20), B(55), 1.2, 1.4, '#2a2f36'); }   // (still lying snapped)
+      /* the light on top, on */
+      if(u > F.light){ const fl = cl((u - F.light)/250); ball(A(tip[0]), B(tip[1]), tip[2] + 4, 4.4 + 3*(1 - fl), '#ffb347', '#ffe2a8'); }
+    } });
     /* ... and mended (MINDING THE SHOP, the repair): the new bracket on the plate, the mast standing straight to 150 with its elements
        along the top, the guy wires taut, the cable up the mast with its screw-on connector */
     rpush({ a: ma, b: mb, z: 0, when: () => typeof msMastFixed === 'function' && msMastFixed(), solids: [{ name: 'antenna mast', c: [ma, mb], r: 20, h: 230 }], draw: () => {
@@ -89672,7 +89699,7 @@ function msFinish(){
 function msAbort(scene){
   msNavClear(scene);
   MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.tipOut = false;
-  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  MS.seen = false; MS.hatchOpen = false; MS.climbing = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.fix = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.stage = 'idle'; MS.snooze = msBay(scene);
 }
 function msDecline(){
   const scene = scn(); if(MS.stage !== 'ask' || !scene) return;
@@ -89685,7 +89712,7 @@ function msHandBack(scene){
   const P = MS.park, ow = scene.ow;
   FLEET_LOAN = null;
   if(P){ const items = scene.items, cx = scene.camX, cy = scene.camY; owStandUpAt(scene, P.x, P.y, P.a); scene.items = items || []; scene.camX = cx; scene.camY = cy; }
-  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
+  msNavClear(scene); MS.clerk = null; MS.carry = null; MS.fixed = false; MS.fin = false; MS.tipOut = false; MS.cl = null; MS.lad = null; MS.cut = null; MS.fix = null; MS.tell = null; MS.toldTip = false; MS.tellAgain = null; MS.park = null; MS.home = null; MS.gid = null; MS.tip = null; MS.tipArr = 0; MS.seen = false; MS.hatchOpen = false; MS.stage = 'idle'; MS.snooze = msBay(scene);
   if(typeof tpToast === "function") tpToast("Back to Tipsey. Gideon's behind his counter again.");
 }
 /* UP THE LADDER AND DOWN: the hatch opens, a dissolve, and the same square a room above (the roof pocket) -- or back */
@@ -89897,6 +89924,44 @@ function msCutEnd(){
     scene.camX = scene.botX + Math.cos(ow.yaw)*95; scene.camY = scene.botY + Math.sin(ow.yaw)*95; scene.camZ = scene.botZ; scene._camNext = null;
     MS.cut = null; msSeen(); });
 }
+/* THE REPAIR, SEEN (Sir, 2026-11-14: "we need a cut scene when we land at the top to fix the antenna like when we find it broken"): as the
+   snapped cable was -- he turns to the mast on the mark, a dissolve to the nearest view on it, and there he works it: hands at it, the new
+   bracket on the plate (a clank), the mast hauled up straight with its elements opening out, the cable run up it to the connector, the
+   light on top coming on; then his line and the dissolve back. MS_FIX: its beats, ms from the cut */
+const MS_FIX = { bracket: 500, raise0: 1200, raise1: 2900, cable1: 3700, light: 3900, sayAt: 4500 };
+function msFixOn(){ return !!(MS.fix && MS.fix.ph === 'close'); }
+function msFixU(){ const sc = scn(); return msFixOn() && sc ? sc.time.now - MS.fix.t0 : 0; }
+function msFixStart(scene){
+  const ow = scene.ow, m = msMastWorld();
+  MS.fix = { t0: scene.time.now, ph: 'turn', z0: zoomDepth, said: false };
+  const yaw = m ? Math.atan2(m.y - ow.py, m.x - ow.px) : 0;                      // (turned to the mast, his hands to it)
+  msWalkTo(scene, { x: ow.px, y: ow.py }, yaw, 1, () => { if(MS.fix) MS.fix.faced = true; }, null, false, 380);
+}
+function msFixTick(scene, ow, now){
+  const C = MS.fix; if(!C) return;
+  ow.vel = 0;
+  if(C.ph === 'turn'){
+    if(C.faced && !C.going){ C.going = true;
+      sceneDissolve(scene, MS_CUT.fadeMs, () => { const m = msMastWorld(); C.ph = 'close'; C.t0 = scene.time.now;
+        zoomDepth = 1; zoomApply();
+        if(m){ scene.camX = m.x - 30; scene.camY = m.y; scene.camZ = BBR.Z + 135; scene._camNext = null; } }); }   /* (camZ: high enough for the mast at its full height) */
+    return;
+  }
+  if(C.ph !== 'close') return;
+  const u = now - C.t0;
+  if(!C.clank && u > MS_FIX.bracket){ C.clank = true; if(typeof sfxThump === "function") sfxThump(0.35); }
+  if(!C.up && u > MS_FIX.raise1){ C.up = true; if(typeof sfxThump === "function") sfxThump(0.25); }
+  if(!C.lit && u > MS_FIX.light){ C.lit = true; if(typeof sfxSkeeChime === "function") sfxSkeeChime(false); }
+  if(!C.said && u > MS_FIX.sayAt){ C.said = true; hospSayCard({ who: "Gideon", ok: msFixEnd, auto: true, say: "There. Good as new." }); }
+}
+function msFixEnd(){
+  const scene = scn(), C = MS.fix; if(!scene || !C || C.ph !== 'close') return;
+  hospSayCard(null); C.ph = 'back';
+  sceneDissolve(scene, MS_CUT.fadeMs, () => { const ow = scene.ow;
+    zoomDepth = C.z0; zoomApply();
+    scene.camX = scene.botX + Math.cos(ow.yaw)*95; scene.camY = scene.botY + Math.sin(ow.yaw)*95; scene.camZ = scene.botZ; scene._camNext = null;
+    MS.fix = null; msFixed(); });
+}
 /* ON HIS WAY OUT FOR THE PARTS (Sir, 2026-11-14: "he needs to let Tipsey on the way out that he's going to the hardware store and asks
    if that's OK"): down from the roof, as he steps out of the back room (by the counter) he stops and turns to Tipsey, Tipsey stops and turns to him, he says it and Tipsey answers. Once */
 function msTellNow(scene, ow, now){
@@ -89987,11 +90052,10 @@ function msTick(scene, ow){
       if(!R.seen){
         if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofAsk'; msCutStart(scene); }   // (the mast, seen: msCut)
       } else if(R.carry === 'parts'){
-        if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix';
-          hospSayCard({ who: "Gideon", btn: "Good as new.", ok: msFixed, say: "Bracket on, mast straight, connector screwed in. There." }); }
+        if(armed(msMastBay())){ ow.vel = 0; cineBars(true); R.snooze = msMastBay(); R.stage = 'roofFix'; msFixStart(scene); }   // (the repair, seen: msFix)
       }                                                                            // (down the hatch: his own climb, msLadTick)
       return;
-    case 'roofFix': return;
+    case 'roofFix': msFixTick(scene, ow, now); return;
     case 'fin':
       if(!R.fin){ R.fin = true; ow.vel = 0; cineBars(true); R.stage = 'finCard';
         hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "Screen's lit and the shop's fine. Thanks, Tipsey. Coffee's on me." }); }
@@ -121121,6 +121185,11 @@ class WorldScene extends Phaser.Scene {
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
         for(const it of L || []) if(it.mastCut) LIB.drawItem(nm, this.g, G, this.K, it);
       }
+      /* THE REPAIR (msFix): the mast being mended, live, after him -- as the mast seen, above */
+      if(typeof msFixOn === 'function' && msFixOn() && this._inside && this._inside.name === BBR.name){
+        const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
+        for(const it of L || []) if(it.mastFix) LIB.drawItem(nm, this.g, G, this.K, it);
+      }
       /* RISING OUT OF THE ROOF HATCH (msClimb): the curb's near walls are drawn again over his lower body, so it is a body coming up out of a hole */
       if(this.ow && this.ow.emerging && this._inside && this._inside.name === 'Brew & Bolt Roof'){
         const nm = this._inside.name, G = (a, b, h) => this.W(BBR.x0 + a, BBR.y0 + b, h + BBR.Z), L = this._lmItems && (this._lmItems.get('pkv|' + nm) || this._lmItems.get('pk|' + nm)) || LIB.collect(nm, G, this.K);
@@ -121267,6 +121336,7 @@ class WorldScene extends Phaser.Scene {
       : kind === "humanoid" ? (this.ow && this.ow.emerging ? msClimbPose(this.ow.climbZ || 0, true)   // (up out of the roof hatch: still climbing, rung over rung on the roof's ladder, then standing up off it)
         : this.ow && this.ow.climbing ? msClimbPose(this.ow.climbZ || 0)
         : typeof msCutOn === 'function' && msCutOn() ? msDistressPose(this.time.now)   // (the mast, seen: his hands to his head -- Sir, 2026-11-14, "he is distressed")
+        : typeof msFixOn === 'function' && msFixOn() && !MS.cl ? (u => ({ walk: 0, roll: 0, reach: u < MS_FIX.cable1 ? 0.75 + 0.25*Math.sin(u/140) : Math.max(0, 1 - (u - MS_FIX.cable1)/400), look: gideonParts() }))(msFixU())   // (at work on the mast: hands to it)
         : this.ow && this.ow.getUp ? Object.assign(humanoidGetUp(this.ow.getUp.rise, this.ow.getUp.roll0), { look: gideonParts() })   // (getting up on his own: humanoidGetUp)
         : { walk: this._fleetWalk, gait: this._fleetGait, roll: typeof MS !== "undefined" && MS.cl ? 0 : this.roll || 0, look: gideonParts() })   // (MS.cl: the story walks him -- no lean from the physics under it)   // (his roll: its fall; his look: Gideon's own, gd4)
       : kind === "cargobot" && typeof SSN !== "undefined" && SSN.loan ? Object.assign({ paint: true, roll: this.roll || 0, pitch: this.pitch || 0, pitchSg: Math.sign(this.pitchPivot || 0), lidFlip: Math.cos(this.ow ? this.ow.yaw : 0) - Math.sin(this.ow ? this.ow.yaw : 0) < 0 }, surfBotData(this.lidAng || 0))   // (SUNSET SESSION: hinged on the far side, the boards in its hold)
