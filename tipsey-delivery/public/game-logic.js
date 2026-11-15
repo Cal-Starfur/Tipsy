@@ -87786,6 +87786,9 @@ function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOO
 function scootDrop(s, at){
   const ow = s && s.ow; if(!ow || !ow.scoot) return;
   const a = at || (s._inside || s._garage ? SCOOTR.last : { x: ow.px, y: ow.py, th: ow.yaw });
+  /* (one off Brew & Bolt's rack, set down by it: back in its slot -- BB_RACK) */
+  const rk = ow.scoot.rack, G = rk && typeof bbRackGeo === 'function' ? bbRackGeo() : null;
+  if(rk && G && a && Math.hypot(a.x - G.cx, a.y - G.cy) < 220){ rk.taken = false; ow.scoot = null; ow.vel = 0; return; }
   if(a) SCOOTR.down.push({ x: a.x, y: a.y, th: a.th, brand: ow.scoot.brand });
   ow.scoot = null; ow.vel = 0; scootSave();
 }
@@ -87813,7 +87816,7 @@ function scootHop(s){
   if(n.pp) n.pp.taken = true;                                // (a rider's, stood by the kerb: gone from it, and out of the props' loop)
   if(n.pr) n.pr.taken = true;                                // (not given back to the street: no _scootTaken)
   if(n.down){ SCOOTR.down.splice(SCOOTR.down.indexOf(n.down), 1); scootSave(); }
-  ow.scoot = { brand: n.brand || BRANDS[0] };
+  ow.scoot = { brand: n.brand || BRANDS[0], rack: n.pp && n.pp.rack ? n.pp : null };   // (rack: one off Brew & Bolt's, docked back if he sets it down there)
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
 function scootUiTick(){
