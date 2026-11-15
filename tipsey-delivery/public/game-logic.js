@@ -111191,6 +111191,10 @@ class WorldScene extends Phaser.Scene {
     else for(const [a0, r, wd] of WHL){ wheel(a0, 0, r, wd, r, wheelPhase);
       if(sty === 'offroad') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ g.fillStyle(0x15171a, 1);      // its knobbly tread, round the rim on the seen side
         for(let k = 0; k < 12; k++){ const u = k*Math.PI/6 - (wheelPhase || 0), q = P(a0 + (r + 0.7)*Math.cos(u), sb*wd/2, r + (r + 0.7)*Math.sin(u)); g.fillRect(q.x - 1.2, q.y - 1.2, 2.4, 2.4); } } }
+    if(wheeled && sty !== 'offroad' && sty !== 'vintage')                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
+        line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
+        const h = P(a0, b, r); g.fillStyle(0x9aa2a8, 1); g.fillCircle(h.x, h.y, 1.4*this.K*0.42*1.4); }
     if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it, the mud flap
       for(const [a0, r, wd] of WHL) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([a0 + (a0 < 0 ? r + 2 : -(r + 2)), sb*(wd/2 + 1), RD - 4], [a0, sb*(wd/2 + 1), r], acc0, 2.6);   // (on the seen side, outside the tyre)
       solid(prismH([[DB + 3, -5], [DF - 3, -5], [DF - 3, 5], [DB + 3, 5]], RD - 7, RD - 4), 0x3b4048);
