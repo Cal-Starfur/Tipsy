@@ -89696,7 +89696,7 @@ function msFixed(){
 }
 /* the order screen alight, Gideon's thanks, and the one completion card; (for now the bay beside Tipsey hands the shop back) */
 function msFinish(){
-  const scene = scn(); if(MS.stage !== 'finCard' || !scene) return;
+  const scene = scn(); if((MS.stage !== 'finCard' && MS.stage !== 'finTell') || !scene) return;
   hospSayCard(null); cineBars(false);
   const first = !msDone();
   missionComplete('minding-the-shop');
@@ -89706,7 +89706,8 @@ function msFinish(){
   /* THE EXIT: Tipsey rolls out from behind the counter by the way he came in, and the loan ends where Gideon meets him at his bay */
   const T = MS.tip, cur = msTipAt(scene.time.now);
   if(T && cur){ const pts = T.pts.slice().reverse(); pts[0] = { x: T.pts[0].x, y: T.pts[0].y };
-    MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
+    const fromMeet = !!MS.tell; MS.tell = null;                                    // (from where they met on the floor: on out past the counter's end, not back round it)
+    MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(fromMeet ? 3 : 1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
   MS.stage = 'out';
   msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
 }
@@ -90033,9 +90034,10 @@ function msPathAt(P, d){
    stand beside him across the screen, the two at one depth (a + b), each turned to the other and cheated to the eye; the word once Tipsey is
    there; and Tipsey goes back behind the counter after) */
 const MS_TELL = { gid: [230, 500], tip: [292, 438] };
-function msTellStart(scene, ow, now){
+function msTellStart(scene, ow, now, stage){
   const pk = scene._inside, T = MS.tip, S = T.S, cur = msTipAt(now);
-  MS.toldTip = true; MS.stage = 'partsTell'; ow.vel = 0; cineBars(true);
+  if(stage !== 'finTell') MS.toldTip = true;
+  MS.stage = stage || 'partsTell'; ow.vel = 0; cineBars(true);
   const G = { x: pk.x0 + MS_TELL.gid[0], y: pk.y0 + MS_TELL.gid[1] }, Ts = S(MS_TELL.tip[0], MS_TELL.tip[1]), Gs = S(MS_TELL.gid[0], MS_TELL.gid[1]);
   const plen = P => { let l = 0; for(let i = 1; i < P.length; i++) l += Math.hypot(P[i].x - P[i - 1].x, P[i].y - P[i - 1].y); return l; };
   const path = [{ x: cur.x, y: cur.y }, S(522, 420), S(500, 470), Ts];                     // (out: from where he is on his round, down its line and round the counter's end)
@@ -90049,6 +90051,11 @@ function msTellTick(scene, ow, now){
   const C = MS.tell; if(!C) return;
   ow.vel = 0;
   if(!C.said && (now - C.t0)*0.11 >= C.len){ C.said = true;
+    const replyAt = now2 => { const sc = scn(), pk = sc && sc._inside, V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now2);
+      return T ? { x: T.x - V.dx, y: T.y - V.dy, h: 90 } : null; }, at = () => { const sc = scn(); return sc ? { x: sc.botX, y: sc.botY } : null; };
+    /* THE THANKS, MET THE SAME WAY (Sir, 2026-11-15: "Gideon is getting Tipsey's dialog ... have them meet in the same place like when he
+       leaves to go to the hardware store"): out of the back room, Tipsey comes out to him; Gideon's word over Gideon, Tipsey's answer over Tipsey */
+    if(MS.stage === 'finTell'){ hospSayCard({ who: "Gideon", btn: "Anytime, Gideon.", ok: msFinish, say: "Screen's back on. Thanks for minding the shop, Tipsey.", at, replyAt }); return; }
     hospSayCard({ who: "Gideon", btn: "Go on, I've got it.", ok: msTellDone, no: { btn: "Not now", ok: msTellNo }, say: "Off to Breakwater Hardware for parts. You alright minding the shop?",
       at: () => { const sc = scn(); return sc ? { x: sc.botX, y: sc.botY } : null; },   // (his line over him)
       replyAt: now2 => { const sc = scn(), pk = sc && sc._inside, V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 }, T = msTipAt(now2);   // (and the answers over Tipsey: they are his --
@@ -90105,10 +90112,10 @@ function msTick(scene, ow){
       }                                                                            // (down the hatch: his own climb, msLadTick)
       return;
     case 'roofFix': msFixTick(scene, ow, now); return;
-    case 'fin':
-      if(!R.fin){ R.fin = true; ow.vel = 0; cineBars(true); R.stage = 'finCard';
-        hospSayCard({ who: "Gideon · Brew & Bolt", btn: "Anytime, Gideon.", ok: msFinish, say: "Screen's lit and the shop's fine. Thanks, Tipsey. Coffee's on me." }); }
+    case 'fin':                                                                  // (down from the roof, mended: as he steps out of the back room Tipsey comes out to him -- msTellStart)
+      if(!R.fin && msTellNow(scene, ow, now)){ R.fin = true; MS.tellAgain = null; msTellStart(scene, ow, now, 'finTell'); }
       return;
+    case 'finTell': msTellTick(scene, ow, now); return;
     case 'finCard': return;
     case 'out': {
       const T = MS.tip, p = T && walkPathAt(T, now);
