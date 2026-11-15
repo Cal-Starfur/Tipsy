@@ -98192,7 +98192,10 @@ class WorldScene extends Phaser.Scene {
     tmp.forEach((e, i) => vq.push({ depth: sh.hi + 1e-3 + i*1e-4, fn: e.fn }));
   }
   walkinThrough(vq, pk){
-    if(this._inside || !(this.ow && this.ow.on)) return;
+    /* (and from inside another room drawn on the street's own lines -- Brew & Bolt -- its neighbours' doorways still show their rooms:
+       Sir, 2026-11-15, the Kart Works' roll-up from Gideon's shop, "is it missing a door or is it just open?" -- it showed the pavement) */
+    const inPk = this._inside, streetFramed = !!(inPk && POCKET_VIEW && POCKET_VIEW.pk === inPk && inPk !== pk);
+    if((inPk && !streetFramed) || !(this.ow && this.ow.on)) return;
     const fr = this._wkFr, r = this._wkShell && this._wkShell.get(pk.name);
     if(!r || r.fr !== fr || pocketShellK(this, pk) < 1) return;
     const ops = walkinOpenings(pk), v = ops && pk.view(); if(!v) return;
