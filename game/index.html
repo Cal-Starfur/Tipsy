@@ -112913,7 +112913,7 @@ class WorldScene extends Phaser.Scene {
     const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.9)], [-R.wheelA - 3, sb*(SB + 0.9)]], RD - 2.8, RD - 1.2), brand.acc);
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
     const stripes = brand.acc != null && sty !== 'junk' && sty !== 'rocket';                                    // (the Junkyard's patched, not striped)
-    const rocketFin = sb => solid(prismH([[-R.wheelA - 9, sb*7.5], [-R.wheelA + 4, sb*7.5], [-R.wheelA - 9, sb*15]], RD - 6, RD - 4), acc0);
+    const rocketFin = sb => solid(prismH([[-38, sb*7.5], [-29, sb*7.5], [-38, sb*14]], RD - 5, RD - 3), acc0);   // (back past the rear tyre, so it shows -- Sir, 2026-11-15)
     const nozzle = () => solid(prismH([[-38, -4], [-34, -4], [-34, 4], [-38, 4]], RD - 6.5, RD - 0.5), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048);
     if(stripes) accStripe(-nearSb);
     if(sty === 'rocket'){ rocketFin(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
@@ -112922,7 +112922,7 @@ class WorldScene extends Phaser.Scene {
         : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [back, 7]];
       if(sty === 'rocket'){                                                                     // a round fuselage: body, then the nose cone in the accent
         const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
-        solid(loftSeg(-34, S(6.5, RD - 6, RD - 1), -28, S(8, RD - 7, RD), 1).concat(loftSeg(-28, S(8, RD - 7, RD), 14, S(8, RD - 7, RD), 0)), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c); }
+        solid(loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1).concat(loftSeg(-28, S(8, RD - 5.5, RD), 14, S(8, RD - 5.5, RD), 0)), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c); }
       else if(sty === 'junk') solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a));   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
@@ -112936,7 +112936,7 @@ class WorldScene extends Phaser.Scene {
     if(stripes) accStripe(nearSb);
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
       { const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
-        solid(loftSeg(14, S(8, RD - 7, RD), 24, S(6.5, RD - 6.3, RD - 0.7), 0).concat(loftSeg(24, S(6.5, RD - 6.3, RD - 0.7), 32, S(3.6, RD - 5, RD - 2), 0), loftSeg(32, S(3.6, RD - 5, RD - 2), 38, S(0.6, RD - 3.8, RD - 3.2), 2)), acc0,
+        solid(loftSeg(14, S(8, RD - 5.5, RD), 24, S(6.5, RD - 6.3, RD - 0.7), 0).concat(loftSeg(24, S(6.5, RD - 6.3, RD - 0.7), 32, S(3.6, RD - 5, RD - 2), 0), loftSeg(32, S(3.6, RD - 5, RD - 2), 38, S(0.6, RD - 3.8, RD - 3.2), 2)), acc0,
           (k, n) => n[2] < -0.5 ? 0xb8742a : acc0); }
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[4, 8.05, RD - 3.5, 2.2], [-12, 8.05, RD - 3.5, 2.2]]){ const q = P(a, sb*b, h);
         g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
@@ -112971,14 +112971,14 @@ class WorldScene extends Phaser.Scene {
     };
     const stem = () => {
       if(sty === 'robo') return;                                                                // (the Robo Board: no stem, no bar)
-      if(sty === 'chopper'){                                                                    // the raked fork straight from the front axle to the bar, a down tube to it from the deck's nose, short bars back to his hands
-        const fa = WHL[1][0], fh = WHL[1][1], ta = barA + 7, th2 = barH - 4, at = k => [fa + (ta - fa)*k, 0, fh + (th2 - fh)*k];
-        line([R.wheelA - 3, 0, RD], at(0.38), brand.c, 4.5);
-        for(const sb of [-1, 1]) line([fa, sb*2.6, fh], [ta, sb*2.6, th2], SCOOT.metal, 2.2);
-        { const q = at(0.38); solid(prismH([[q[0] - 2.2, -3.2], [q[0] + 2.2, -3.2], [q[0] + 2.2, 3.2], [q[0] - 2.2, 3.2]], q[2] - 2.5, q[2] + 2.5), acc0); }
-        for(const sb of [-1, 1]){ line([ta, sb*2.6, th2], [barA + 2, sb*(hb + 2), barH + 2], SCOOT.metal, 2.4);
-          line([barA + 2, sb*(hb - 2), barH + 2], [barA - 1, sb*(hb + 5), barH], SCOOT.grip, 3.6); }
-        const hp = P(fa - 3, 0, fh + (th2 - fh)*0.45); g.fillStyle(0xc9ced3, 1); g.fillCircle(hp.x, hp.y, 3.4*this.K*0.42*1.4); g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 2.1*this.K*0.42*1.4);
+      if(sty === 'chopper'){                                                                    // the frame up from the deck's nose, the long raked fork out to the front wheel, tall ape-hanger bars back to his hands (Sir liked these long forks, 2026-11-15)
+        const ha = R.wheelA - 2, hz = RD + 24;
+        line([R.wheelA - 3, 0, RD], [ha, 0, hz], brand.c, 5);
+        for(const sb of [-1, 1]) line([WHL[1][0], sb*2.6, WHL[1][1]], [ha + 1, sb*2.6, hz + 1], SCOOT.metal, 2);
+        solid(prismH([[ha - 2.5, -3], [ha + 2.5, -3], [ha + 2.5, 3], [ha - 2.5, 3]], hz - 3, hz + 3), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c);
+        for(const sb of [-1, 1]){ line([ha, sb*3, hz + 3], [barA + 3, sb*(hb + 3), barH + 7], SCOOT.metal, 3); line([barA + 3, sb*(hb + 3), barH + 7], [barA, sb*(hb + 3), barH], SCOOT.metal, 3);
+          line([barA, sb*(hb - 2), barH], [barA, sb*(hb + 5), barH], SCOOT.grip, 3.6); }
+        const hp = P(ha + 3.5, 0, hz - 1); g.fillStyle(0xc9ced3, 1); g.fillCircle(hp.x, hp.y, 4.4*this.K*0.42*1.4); g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 2.8*this.K*0.42*1.4);
         return; }
       /* (the stem rises out of the Cruiser's fender and the Racer's fairing: drawn from their tops, not through them -- Sir, 2026-11-15,
          "the bottom of the upright is drawing over the upgraded pieces") */
