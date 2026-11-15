@@ -1684,6 +1684,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
+  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['rig','Delivery Rig']],   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
   neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
@@ -87864,7 +87865,8 @@ function gscBrand(){
   const L = typeof GD_LIVE !== 'undefined' ? GD_LIVE : {};
   const c = L.scoot ? gdHex('shell', L.scoot) : (P && P.shell ? P.shell.c : 0xeef0f2);
   const acc = L.scootAcc ? gdHex('band', L.scootAcc) : (P && P.robot && P.robot.band != null ? P.robot.band : 0xd9892b);
-  return { n: 'gideon', name: 'gideon', c, cDk: acc, acc, gideon: true };
+  const st = L.scootSkin && L.scootSkin !== 'stock' ? L.scootSkin : null;   // (its skin: GSC_SKINS)
+  return { n: 'gideon' + (st ? '-' + st : ''), name: 'gideon' + (st ? '-' + st : ''), c, cDk: acc, acc, gideon: true, style: st };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -111154,19 +111156,43 @@ class WorldScene extends Phaser.Scene {
     const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
     g.fillStyle(0x000000, 0.16);
     { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
-    for(const [a0, r] of [[-R.wheelA, R.wheelR], [R.wheelA, R.wheelR]]) wheel(a0, 0, r, 4.5, r, wheelPhase);
+    /* GIDEON'S SCOOTER SKINS (brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
+       own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
+       deck, a front fairing with a number board, a rear wing), the Delivery Rig (a crate on a rack over the back wheel, a tall pennant) */
+    const sty = brand.style || null, acc0 = brand.acc != null ? brand.acc : brand.cDk;
+    const WR = sty === 'cruiser' ? R.wheelR*1.35 : R.wheelR, WW = sty === 'cruiser' ? 7 : 4.5, RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : R.deck;
+    for(const [a0, r] of [[-R.wheelA, WR], [R.wheelA, WR]]) wheel(a0, 0, r, WW, r, wheelPhase);
     /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck,
        laid on just outside its sides and drawn BEFORE it, so the deck hides the far one -- it had painted across the deck's top) */
-    const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.9], [-R.wheelA - 3, sb*7.9]], R.deck - 2.8, R.deck - 1.2), brand.acc);
+    const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.05], [R.wheelA - 3, sb*7.9], [-R.wheelA - 3, sb*7.9]], RD - 2.8, RD - 1.2), brand.acc);
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
     if(brand.acc != null) accStripe(-nearSb);
-    solid(prismH([[-R.wheelA - 4, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [-R.wheelA - 4, 7]], R.deck - 4, R.deck), brand.c,
-      (k, n) => n[2] > 0.9 ? SCOOT.grip : (n[2] < -0.5 ? brand.cDk : brand.c));
+    { const back = sty === 'racer' ? -R.wheelA - 12 : -R.wheelA - 4;
+      solid(prismH([[back, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [back, 7]], RD - 4, RD), brand.c,
+        (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
+    if(sty === 'cruiser') for(let a = -R.wheelA; a < R.wheelA - 4; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(brand.acc != null) accStripe(nearSb);
+    if(sty === 'cruiser')                                                                       // its round front fender, over the fat tyre
+      solid(prismH([[R.wheelA - 9, -5.5], [R.wheelA + 9, -5.5], [R.wheelA + 9, 5.5], [R.wheelA - 9, 5.5]], WR*2 + 1, WR*2 + 3.5), brand.c, (k, n) => n[2] > 0.9 ? brand.c : acc0);
+    if(sty === 'racer'){                                                                        // the fairing over the front, its number board, the rear wing
+      solid(prismH([[R.wheelA - 16, -6.5], [R.wheelA + 4, -4.5], [R.wheelA + 4, 4.5], [R.wheelA - 16, 6.5]], RD - 1, RD + 12), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c);
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const c = P(R.wheelA - 6, sb*6.8, RD + 5.5); g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.6*this.K*0.42*1.4); g.fillStyle(acc0, 1); g.fillCircle(c.x, c.y, 1.8*this.K*0.42*1.4); }
+      solid(prismH([[-R.wheelA - 13, -8], [-R.wheelA - 9, -8], [-R.wheelA - 9, 8], [-R.wheelA - 13, 8]], RD + 6, RD + 9), acc0);
+      for(const sb of [-1, 1]) line([-R.wheelA - 11, sb*6, RD], [-R.wheelA - 11, sb*6, RD + 6], SCOOT.metal, 1.6); }
+    if(sty === 'rig'){                                                                          // the rack over the back wheel and its crate, the tall pennant
+      for(const sb of [-1, 1]) line([-R.wheelA + 6, sb*6, RD], [-R.wheelA - 6, sb*6, RD + 12], SCOOT.metal, 1.6);
+      solid(prismH([[-R.wheelA - 13, -9], [-R.wheelA + 7, -9], [-R.wheelA + 7, 9], [-R.wheelA - 13, 9]], RD + 12, RD + 28), 0xb98a5a, (k, n) => n[2] > 0.9 ? 0xc99a68 : 0xa87a4c);
+      for(const z of [RD + 17, RD + 23]) for(const sb of [-1, 1]) line([-R.wheelA - 13, sb*9.2, z], [-R.wheelA + 7, sb*9.2, z], 0x7e5a36, 0.9);   // its slats
+      solid(prismH([[-R.wheelA - 13.5, -9.5], [-R.wheelA + 7.5, -9.5], [-R.wheelA + 7.5, 9.5], [-R.wheelA - 13.5, 9.5]], RD + 26, RD + 28.5), acc0);   // its band
+      line([-R.wheelA - 11, 7, RD + 28], [-R.wheelA - 11, 7, RD + 78], SCOOT.metal, 1.4);
+      { const a = P(-R.wheelA - 11, 7, RD + 78), b = P(-R.wheelA - 27, 7, RD + 72), c = P(-R.wheelA - 11, 7, RD + 66); g.fillStyle(acc0, 1); g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y); } }
     solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
-      line([R.wheelA - 1, 0, R.deck], [barA, 0, barH], brand.c, 6);
+      line([R.wheelA - 1, 0, RD], [barA, 0, barH], brand.c, 6);
+      if(sty === 'cruiser'){ const k = 0.55, ca = (R.wheelA - 1) + (barA - R.wheelA + 1)*k, cz = RD + (barH - RD)*k;   // the cup holder, a coffee in it
+        solid(prismH([[ca - 2.4, -8], [ca + 2.4, -8], [ca + 2.4, -3.5], [ca - 2.4, -3.5]], cz - 4, cz + 1), acc0);
+        solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
       const hb = build.torsoW/2 - 1;                          // where each hand is across: the shoulders'
       line([barA, -hb - 6, barH], [barA, hb + 6, barH], SCOOT.metal, 2.6);
       for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
@@ -144172,7 +144198,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -144205,7 +144231,7 @@ requestTpProfile();
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
-  const GD_SHAPE = { gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
+  const GD_SHAPE = { gScootSkin: ['scootSkin', 'stock', 900], gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
                     gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
   const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200, wayfarer: 700, cateye: 700, halfrim: 600, hex: 600, rimless: 500, heartglass: 800, starglass: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
   const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
@@ -144266,7 +144292,7 @@ requestTpProfile();
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
                 eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol,
-                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
+                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -144914,6 +144940,12 @@ requestTpProfile();
      A pick is a try-on first (the turntable shows it live), then Add / Equip as Tipsey's are, kept in the paint look. */
   /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
   function gdCardIcon(key, id) {
+    if (key === 'scootSkin') { const W = '#eceef1', A = '#e79a35', D = '#2a2f36', wh = (x, r) => `<circle cx="${x}" cy="22" r="${r}" fill="${D}"/><circle cx="${x}" cy="22" r="${(r*0.4).toFixed(1)}" fill="#9aa2a8"/>`;
+      const B = { stock: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M30 18L27 4" stroke="${W}" stroke-width="2"/><path d="M24 4h7" stroke="${D}" stroke-width="2"/>${wh(10, 3)}${wh(30, 3)}`,
+        cruiser: `<rect x="8" y="16" width="24" height="3.5" fill="#b5834f"/><path d="M30 17L27 4" stroke="${W}" stroke-width="2"/><rect x="27" y="9" width="3" height="3" fill="${A}"/><path d="M26 15a5 5 0 0 1 9 0" fill="${W}"/>${wh(10, 4.4)}${wh(31, 4.4)}`,
+        racer: `<rect x="4" y="18" width="28" height="2.5" fill="${W}"/><path d="M22 18l10-6v6z" fill="${W}"/><circle cx="27" cy="16" r="1.8" fill="${A}"/><rect x="3" y="12" width="2" height="6" fill="${A}"/><path d="M31 15L28 4" stroke="${W}" stroke-width="2"/>${wh(9, 3)}${wh(30, 3)}`,
+        rig: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><rect x="5" y="8" width="11" height="8" fill="#b98a5a"/><rect x="5" y="8" width="11" height="1.6" fill="${A}"/><path d="M7 8V1" stroke="#8d959c" stroke-width="1.2"/><path d="M7 1l-5 2 5 2z" fill="${A}"/><path d="M30 18L27 4" stroke="${W}" stroke-width="2"/>${wh(10, 3)}${wh(30, 3)}` }[id];
+      return `<svg viewBox="0 0 40 28" width="52" height="36">${B}</svg>`; }
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
     if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
         angry: `<path d="M7 7l9 4v6H7z" fill="${eye}"/><path d="M33 7l-9 4v6h9z" fill="${eye}"/>`, heart: `<path d="M11 17C5 12 7 7 10 8c1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/><path d="M29 17c-6-5-4-10-1-9 1 .4 1 1.2 1 1.2s0-.8 1-1.2c3-1 5 4-1 9z" fill="${eye}"/>`,
@@ -144997,7 +145029,7 @@ requestTpProfile();
     else if (tab === 'g-finish') { const Lf = pv || worn(); cols = Lf.gFinish === 'twotone' ? ['gShell2'] : []; h = gCardRow('SHELL FINISH', 'gFinish', 'finish') + (Lf.gFinish === 'twotone' ? gColRow('TWO-TONE: THE LEGS', 'gShell2') : '<div class="grSec">Pick Two-tone for a second colour on his legs</div>'); }
     else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
-    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; h = '<div class="grSec" style="opacity:.8">Stock matches Gideon: his shell, his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
+    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; h = gCardRow('SCOOTER SKIN', 'gScootSkin', 'scootSkin') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
