@@ -112866,7 +112866,7 @@ class WorldScene extends Phaser.Scene {
       (k, n) => n[2] > 0.9 ? SCOOT.grip : (n[2] < -0.5 ? brand.cDk : brand.c));
     /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck) */
     if(brand.acc != null) for(const sb of [-1, 1]) solid(prismH([[-R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 - 0.6], [R.wheelA - 3, sb*7.2 + 0.6], [-R.wheelA - 3, sb*7.2 + 0.6]], R.deck - 2.8, R.deck - 1.2), brand.acc);
-    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.acc : brand.cDk);   // the rear fender
+    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
       line([R.wheelA - 1, 0, R.deck], [barA, 0, barH], brand.c, 6);
