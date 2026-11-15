@@ -1684,6 +1684,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
+  scootPaint:[['plain','Plain'],['flames','Flames'],['checker','Checker'],['bolt','Lightning'],['camo','Camo'],['galaxy','Galaxy']],   // (the Regular build's skins: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
@@ -87865,8 +87866,10 @@ function gscBrand(){
   const L = typeof GD_LIVE !== 'undefined' ? GD_LIVE : {};
   const c = L.scoot ? gdHex('shell', L.scoot) : (P && P.shell ? P.shell.c : 0xeef0f2);
   const acc = L.scootAcc ? gdHex('band', L.scootAcc) : (P && P.robot && P.robot.band != null ? P.robot.band : 0xd9892b);
-  const st = L.scootSkin && L.scootSkin !== 'stock' ? L.scootSkin : null;   // (its skin: GSC_SKINS)
-  return { n: 'gideon' + (st ? '-' + st : ''), name: 'gideon' + (st ? '-' + st : ''), c, cDk: acc, acc, gideon: true, style: st };
+  const st = L.scootSkin && L.scootSkin !== 'stock' ? L.scootSkin : null;   // (its build: GSC_SKINS)
+  const paint = !st && L.scootPaint && L.scootPaint !== 'plain' ? L.scootPaint : null;   // (the Regular's skin: scootPaintTop)
+  const n = 'gideon' + (st ? '-' + st : '') + (paint ? '~' + paint : '');
+  return { n, name: n, c, cDk: acc, acc, gideon: true, style: st, paint };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -111148,6 +111151,35 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
+  /* GIDEON'S SCOOTER SKINS (Sir, 2026-11-15, "lets do skins for each, starting with regular"): a skin is the graphic on a build's grip top,
+     laid ON that face (z just over it, after the deck, before him), so it never paints over anything above it. The Regular's: Flames, Checker,
+     Lightning, Camo, Galaxy. (a, b): along the deck from DB to DF, across it within +-6.6 */
+  scootPaintTop(g, P, id, DB, DF, RD){
+    const h = RD + 0.06, L = DF - DB, at = (u, v) => P(DB + L*u, v, h), M = 6.6;
+    const poly = (pts, col, al) => { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([u, v]) => at(u, v)), true); };
+    if(id === 'flames'){                                                                       // three tongues of flame licking back from the nose: orange, a yellow core
+      for(const [col, k] of [[0xe8572a, 1], [0xffb02e, 0.62], [0xffe27a, 0.3]]){
+        const tips = [[0.12, -4.4], [0.3, -0.6], [0.05, 3.6], [0.22, 5.6]].map(([u, v]) => [1 - (1 - u)*k, v*k]);
+        poly([[1, -M*k], [tips[0][0], tips[0][1]], [1 - 0.25*k, -2.6*k], [tips[1][0], tips[1][1]], [1 - 0.2*k, 1.6*k], [tips[2][0], tips[2][1]], [1 - 0.12*k, 4.6*k], [tips[3][0], tips[3][1]], [1, M*k]], col); } }
+    else if(id === 'checker'){                                                                 // a checkerboard, white on the grip's black
+      const nu = Math.max(4, Math.round(L/3.4)), nv = 4;
+      for(let i = 0; i < nu; i++) for(let j = 0; j < nv; j++) if((i + j) % 2 === 0){ const u0 = i/nu, u1 = (i + 1)/nu, v0 = -M + 2*M*j/nv, v1 = -M + 2*M*(j + 1)/nv;
+        poly([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], 0xf1f2f4); } }
+    else if(id === 'bolt'){                                                                    // a lightning bolt the length of it, a dark edge under the yellow
+      const B = [[0.03, 1.6], [0.53, -3.8], [0.5, -0.7], [0.97, -3.2], [0.47, 3.8], [0.5, 0.7]];
+      poly(B.map(([u, v]) => [0.5 + (u - 0.5)*1.03, v*1.22]), 0x8a5a00); poly(B, 0xffd23a); }
+    else if(id === 'camo'){                                                                    // olive ground, khaki, brown and black blotches
+      poly([[0, -M], [1, -M], [1, M], [0, M]], 0x5b6a3a);
+      const blot = (u, v, r, col, sk) => { const pts = []; for(let i = 0; i < 7; i++){ const w = i/7*Math.PI*2, rr = r*(0.7 + 0.45*Math.abs(Math.sin(i*sk + u*9))); pts.push([u + Math.cos(w)*rr/L*1.6, v + Math.sin(w)*rr*0.8]); } poly(pts, col); };
+      for(const [u, v, r, col, sk] of [[0.1, -3, 3.2, 0x9b8f5e, 2.1], [0.3, 3, 3.6, 0x4a3a26, 1.3], [0.5, -2, 3, 0x2b2c22, 2.7], [0.68, 3.4, 3.4, 0x9b8f5e, 1.7], [0.86, -2.6, 3.2, 0x4a3a26, 2.3], [0.42, 4.4, 2, 0x2b2c22, 3.1], [0.94, 3, 2.4, 0x2b2c22, 1.1]])
+        blot(u, Math.max(-M + 1.5, Math.min(M - 1.5, v)), r, col, sk); }
+    else if(id === 'galaxy'){                                                                  // deep space: navy, a violet and a pink cloud, stars
+      poly([[0, -M], [1, -M], [1, M], [0, M]], 0x1b1f4a);
+      poly([[0.08, -3], [0.3, -5.4], [0.52, -2.4], [0.4, 1.6], [0.16, 1]], 0x5a3c9e, 0.85);
+      poly([[0.55, 1.4], [0.74, -1.6], [0.95, 0.6], [0.88, 4.8], [0.64, 5]], 0xc24f9a, 0.75);
+      g.fillStyle(0xffffff, 1);
+      for(let i = 0; i < 16; i++){ const u = ((i*0.618034) % 1)*0.96 + 0.02, v = (((i*0.7548777) % 1) - 0.5)*2*(M - 0.8), q = at(u, v); g.fillCircle(q.x, q.y, (i % 3 === 0 ? 0.9 : 0.55)*this.K*0.42*1.4); } }
+  }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni){
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
     const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, prismB, oct, loftSeg, line, wheel } = KV;
@@ -111224,6 +111256,7 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
+    if(!sty && brand.paint) this.scootPaintTop(g, P, brand.paint, DB, DF, RD);              // the Regular's skins: graphics on its grip top (GSC_PAINT)
     if(sty === 'cruiser') for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
@@ -144298,7 +144331,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -144331,7 +144364,7 @@ requestTpProfile();
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
-  const GD_SHAPE = { gScootSkin: ['scootSkin', 'stock', 900], gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
+  const GD_SHAPE = { gScootSkin: ['scootSkin', 'stock', 900], gScootPaint: ['scootPaint', 'plain', 500], gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
                     gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
   const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200, wayfarer: 700, cateye: 700, halfrim: 600, hex: 600, rimless: 500, heartglass: 800, starglass: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
   const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
@@ -144392,7 +144425,7 @@ requestTpProfile();
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
                 eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol,
-                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
+                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin, scootPaint: L.gScootPaint };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -145040,6 +145073,13 @@ requestTpProfile();
      A pick is a try-on first (the turntable shows it live), then Add / Equip as Tipsey's are, kept in the paint look. */
   /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
   function gdCardIcon(key, id) {
+    if (key === 'scootPaint') { const deck = (inner) => `<svg viewBox="0 0 40 26" width="52" height="34"><defs><clipPath id="sp${id}"><rect x="3" y="7" width="34" height="12" rx="3"/></clipPath></defs><rect x="3" y="7" width="34" height="12" rx="3" fill="#2a2f36"/><g clip-path="url(#sp${id})">${inner}</g><rect x="3" y="7" width="34" height="12" rx="3" fill="none" stroke="#eceef1" stroke-width="1.4"/></svg>`;
+      return deck({ plain: '',
+        flames: `<path d="M37 7L14 9l8 2-12 2 9 1-11 3 13 0 16 1z" fill="#e8572a"/><path d="M37 9.5L22 10.5l5 1.5-8 1.5 7 .5-6 2 18 .5z" fill="#ffb02e"/>`,
+        checker: [0,1,2,3,4,5,6,7,8].map(i => [0,1,2].map(j => (i + j) % 2 ? '' : `<rect x="${3 + i*3.8}" y="${7 + j*4}" width="3.8" height="4" fill="#f1f2f4"/>`).join('')).join(''),
+        bolt: `<path d="M4 13.5l13-4 1 3.6 15-3-11 7.5-1-3.4L5 16z" fill="#ffd23a"/>`,
+        camo: `<rect x="0" y="0" width="40" height="26" fill="#5b6a3a"/><ellipse cx="9" cy="10" rx="5" ry="2.6" fill="#9b8f5e"/><ellipse cx="19" cy="16" rx="5.5" ry="2.8" fill="#4a3a26"/><ellipse cx="25" cy="10" rx="4" ry="2.2" fill="#2b2c22"/><ellipse cx="32" cy="15" rx="5" ry="2.6" fill="#9b8f5e"/>`,
+        galaxy: `<rect x="0" y="0" width="40" height="26" fill="#1b1f4a"/><ellipse cx="13" cy="11" rx="8" ry="3.4" fill="#5a3c9e"/><ellipse cx="28" cy="15" rx="7" ry="3.2" fill="#c24f9a" opacity=".8"/><circle cx="8" cy="15" r=".8" fill="#fff"/><circle cx="20" cy="9" r=".7" fill="#fff"/><circle cx="31" cy="10" r=".9" fill="#fff"/><circle cx="24" cy="17" r=".6" fill="#fff"/><circle cx="35" cy="16" r=".7" fill="#fff"/>` }[id] || ''); }
     if (key === 'scootSkin') { const W = '#eceef1', A = '#e79a35', D = '#2a2f36', wh = (x, r) => `<circle cx="${x}" cy="22" r="${r}" fill="${D}"/><circle cx="${x}" cy="22" r="${(r*0.4).toFixed(1)}" fill="#9aa2a8"/>`;
       const B = { stock: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M30 18L27 4" stroke="${W}" stroke-width="2"/><path d="M24 4h7" stroke="${D}" stroke-width="2"/>${wh(10, 3)}${wh(30, 3)}`,
         cruiser: `<rect x="8" y="16" width="24" height="3.5" fill="#b5834f"/><path d="M30 17L27 4" stroke="${W}" stroke-width="2"/><rect x="27" y="9" width="3" height="3" fill="${A}"/><path d="M26 15a5 5 0 0 1 9 0" fill="${W}"/>${wh(10, 4.4)}${wh(31, 4.4)}`,
@@ -145134,7 +145174,8 @@ requestTpProfile();
     else if (tab === 'g-finish') { const Lf = pv || worn(); cols = Lf.gFinish === 'twotone' ? ['gShell2'] : []; h = gCardRow('SHELL FINISH', 'gFinish', 'finish') + (Lf.gFinish === 'twotone' ? gColRow('TWO-TONE: THE LEGS', 'gShell2') : '<div class="grSec">Pick Two-tone for a second colour on his legs</div>'); }
     else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
-    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
+    else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; const bld = (pv || worn()).gScootSkin || 'stock';
+      h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + (bld === 'stock' ? gCardRow('REGULAR SKINS', 'gScootPaint', 'scootPaint') : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
