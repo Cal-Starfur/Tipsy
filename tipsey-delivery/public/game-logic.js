@@ -87799,6 +87799,7 @@ function scootNearest(s){
   /* (and one a rider has stood by the kerb to call at a door, or a scooter trip's: the props of parkedScootersNow -- taken, it is gone from the kerb (pp.taken) until its owner is back on one) */
   for(const pp of parkedScootersNow(s)){ if(pp.taken || pp.phi > 0.3) continue; const w = hazSpotWorld(pp, 0, 0); if(w) eat(w.x, w.y, { pp }, pp.brand || BRANDS[0]); }
   for(const d of SCOOTR.down) eat(d.x, d.y, { down: d }, d.brand);
+  for(const pr of bbRackFree()) eat(pr.slot.x, pr.slot.y, { pp: pr }, pr.brand);   // (one docked at Brew & Bolt's rack: taken off it, pp.taken)
   return best;
 }
 function scootHop(s){
@@ -88514,7 +88515,7 @@ function bbRackGeo(){
   return (BB_RACK._g = { d, ux, uy, at, cx: c.x, cy: c.y, f: Math.atan2(uy, ux)/(Math.PI/2) });
 }
 function bbRackBlocks(x, y, r){
-  const G = BB_RACK._g; if(!G) return false;
+  const G = BB_RACK._g || bbRackGeo(); if(!G) return false;
   const dx = x - G.d.x, dy = y - G.d.y, a = dx*G.ux + dy*G.uy, b = dx*G.d.ox + dy*G.d.oy;
   return a > BB_RACK.a0 - 6 - r && a < BB_RACK.a1 + 6 + r && b > -r && b < BB_RACK.b1 + r;
 }
@@ -88538,9 +88539,29 @@ function drawBBRack(scene, g){
     line([a - 6.4, R.b0 + 12, 14], [a - 6.4, R.b0 + 12, 40], 0x5ee8d8, 2.2);          // the cyan light (the fleet's)
     line([a, R.b0 + 18.4, 14], [a, R.b0 + 18.4, 40], 0x5ee8d8, 2.2); }
 }
+/* ITS SCOOTERS (Sir, 2026-11-15: "pedestrians should pick up scooters from that rack too ... don't write new people, just create the rules
+   and allow the systems we have to integrate"): the rack is a dock of the street's own scooters. Each slot between two hoops may hold one,
+   as a prop the street's systems already take scooters as (parkedScootProp's shape): the seekers (updateSeekers), someone leaving a door on
+   one (scootTrip), Gideon's Hop on (scootNearest). Its place for them (wx, wy) is the walking lane just out in front of its slot, its frame
+   the street's (f along the front), so they come along the pavement to it, not through the hoops; it is drawn standing in its slot, square
+   to the wall, and gone from it while taken (pr.taken, given back as the street's are) */
+BB_RACK.slots = [125, 167, 209]; BB_RACK.docked = [0, 2];   // (two of the three slots start with one in)
+function bbRackScooters(){
+  if(BB_RACK._sc) return BB_RACK._sc;
+  const G = bbRackGeo(); if(!G) return [];
+  const f = DIRV.findIndex(v => Math.abs(v.x - G.ux) < 0.5 && Math.abs(v.y - G.uy) < 0.5), fq = f < 0 ? 0 : f;
+  return (BB_RACK._sc = BB_RACK.docked.map((k, i) => { const a = BB_RACK.slots[k], lane = G.at(a, BB_RACK.b1 + 14), slot = G.at(a, 18);
+    return { type: 'scooter', parked: true, rack: true, x0: lane.x, y0: lane.y, wx: lane.x, wy: lane.y, s: 0, row: 0, f: fq, thetaF: 0, brand: BRANDS[(3 + i*2) % BRANDS.length],
+             phi: 0, angVel: 0, moving: false, pose: 'standing', slide: 0, slideVel: 0, slideB: 0, slideVelB: 0, hit: false, slot }; }));
+}
+/* the docked ones still on the rack, for the street's scooter systems */
+function bbRackFree(){ return bbRackScooters().filter(pr => !pr.taken); }
 function bbRackQueue(scene, queuePerson){
   const G = bbRackGeo(); if(!G || !scene.visProp("people", G.cx, G.cy)) return;
   queuePerson(G.cx, G.cy, g => scene.bcDraw(g, "bbrack|" + Math.round(G.cx) + "," + Math.round(G.cy), G.cx, G.cy, gg => drawBBRack(scene, gg)));
+  /* each docked scooter standing in its slot, square to the wall (its own still piece: there or not as it is taken) */
+  for(const pr of bbRackFree()){ const q = pr.slot, th = Math.atan2(G.d.oy, G.d.ox), fq = pr.f;
+    queuePerson(q.x, q.y + 1, g => scene.bcDraw(g, "bbrack|sc|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawProp(gg, "scooter", q.x, q.y, 0, fq, 0, null, null, { thetaF: th - fq*Math.PI/2, brand: pr.brand }))); }
 }
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
@@ -126225,6 +126246,9 @@ class WorldScene extends Phaser.Scene {
       for(const c of carsOnErrand) if(Math.abs(c.x - x) < 520 && Math.abs(c.y - y) < 520) out.push(c);
       for(const o of W.sgNear(x, y)) out.push({ x: o.x, y: o.y, r: OW_HZ_R.signalpost });
       for(const o of W.poNear(x, y)){ const r = OW_HZ_R[o.kind] || OW_HZ_R.column; out.push({ x: o.x, y: o.y, r }); }
+      /* BREW & BOLT'S SCOOTER RACK (BB_RACK): a row of rounds along it, as the posts are, so the pavement steps round it */
+      { const G = typeof bbRackGeo === "function" ? bbRackGeo() : null;
+        if(G && Math.abs(G.cx - x) < 520 && Math.abs(G.cy - y) < 520) for(let a = BB_RACK.a0 + 8; a <= BB_RACK.a1 - 4; a += 26){ const q = G.at(a, 18); out.push({ x: q.x, y: q.y, r: 16 }); } }
       return out;
     };
     /* who walks: each with its walk read without the sidestep (raw), and
@@ -126351,7 +126375,7 @@ class WorldScene extends Phaser.Scene {
            the far side) */
         const pushing = !!(w.obj._pushTill && t < w.obj._pushTill) && bands.some(bd => bd.bot);
         const ok = s2 => { const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
-          return (pushing || sf !== "road") && !W.solidAt(x, y, C.bodyR); };
+          return (pushing || sf !== "road") && !W.solidAt(x, y, C.bodyR) && !(typeof bbRackBlocks === "function" && bbRackBlocks(x, y, C.bodyR)); };   // (nor into the scooter rack: BB_RACK)
         if(target && !ok(target)) target = ok(-target*0.6) ? -target*0.6 : 0;
         /* (and no way round left that is clear of everyone -- the fallback above can step into his very path, Sir
            2026-10-30 -- then they wait in their lane for whoever is ahead, him or anyone) */
@@ -126874,6 +126898,7 @@ class WorldScene extends Phaser.Scene {
       const ok = pr => pr && pr.type === "scooter" && (!pr.taken || (o && pr.takenBy === o.vkey)) && !(pr.phi > 0.3) && pr.wx !== undefined && !list.some(q => q.pr === pr);
       const cands = [];
       for(const cp of cityFurnitureNear(grid, d.x, d.y, ST.near, (this._seekBuf2 = this._seekBuf2 || []))) if(ok(cp)) cands.push(cp);
+      for(const cp of bbRackFree()) if(ok(cp)) cands.push(cp);   // (and the ones docked at Brew & Bolt's rack: BB_RACK)
       const near = cands.map(pr => ({ pr, w: hazSpotWorld(pr, 0, 0) })).filter(c => c.w && Math.hypot(c.w.x - d.x, c.w.y - d.y) < ST.near);
       if(o) near.sort((p, q) => (p.w.x - q.w.x) || (p.w.y - q.w.y));   // (the same order for everyone)
       if(near.length){
@@ -126944,6 +126969,7 @@ class WorldScene extends Phaser.Scene {
     const ok0 = pr => pr && pr.type === "scooter" && pr.wx !== undefined;
     for(const hz of (this.route && this.route.hazards) || []) if(ok0(hz)) cands.push(hz);
     if(typeof CITY_FURN !== "undefined" && CITY_FURN.on) for(const cp of cityFurnitureNear(grid, this.botX, this.botY, SK.R, (this._seekBuf = this._seekBuf || []))) if(ok0(cp)) cands.push(cp);
+    for(const cp of bbRackFree()) if(ok0(cp) && Math.hypot(cp.wx - this.botX, cp.wy - this.botY) < SK.R) cands.push(cp);   // (Brew & Bolt's rack: BB_RACK)
     const k0 = Math.floor(worldMs(t)/SK.slotMs);
     for(const pr of cands){
       const w = hazSpotWorld(pr, 0, 0);
