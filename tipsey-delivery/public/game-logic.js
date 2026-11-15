@@ -8984,7 +8984,7 @@ function owStep(scene, dt){
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
-                            (semiParkBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing
+                            (semiParkBlocks(x, y, D.botR) || bbRackBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing; Brew & Bolt's scooter rack (BB_RACK)
                             (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
                             (!FP.fly && !FP.step && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -88497,8 +88497,54 @@ function msTick(scene, ow){
       return;
   }
 }
+/* ==================== BREW & BOLT'S SCOOTER RACK (Sir, 2026-11-15: "we need a scooter rack here on the front of Brew and Bolt ...
+   for Gideon so he potentially will have his own custom scooter there") ====================
+   Against the shop front, between the door and the corner: a dark steel base rail, four hoops square to the wall (a scooter parks
+   between each pair), copper caps on them as the shop's bolt heads, and a charging post at the corner end -- a cyan light on it, a copper
+   cap with the bolt -- where his own scooter will stand. Laid off the shop's door (pocketOutsideDoor): a along the front toward the
+   corner, b out from the wall. Still: drawn once through the building cache (bcDraw), solid (bbRackBlocks) */
+const BB_RACK = { a0: 92, a1: 262, b0: 4, b1: 32, hoops: [104, 146, 188, 230], post: 252, _g: null };
+function bbRackGeo(){
+  if(BB_RACK._g) return BB_RACK._g;
+  const pk = typeof POCKETS !== 'undefined' && POCKETS.find(q => q.name === BB_IN.name), d = pk && typeof pocketOutsideDoor === 'function' ? pocketOutsideDoor(pk) : null;
+  if(!d) return null;
+  const ux = d.oy, uy = -d.ox;                                                        // (along the front, toward the corner: the right of the door on screen)
+  const at = (a, b) => ({ x: d.x + ux*a + d.ox*b, y: d.y + uy*a + d.oy*b });
+  const c = at((BB_RACK.a0 + BB_RACK.a1)/2, (BB_RACK.b0 + BB_RACK.b1)/2);
+  return (BB_RACK._g = { d, ux, uy, at, cx: c.x, cy: c.y, f: Math.atan2(uy, ux)/(Math.PI/2) });
+}
+function bbRackBlocks(x, y, r){
+  const G = BB_RACK._g; if(!G) return false;
+  const dx = x - G.d.x, dy = y - G.d.y, a = dx*G.ux + dy*G.uy, b = dx*G.d.ox + dy*G.d.oy;
+  return a > BB_RACK.a0 - 6 - r && a < BB_RACK.a1 + 6 + r && b > -r && b < BB_RACK.b1 + r;
+}
+function drawBBRack(scene, g){
+  const G = bbRackGeo(); if(!G) return;
+  const o = G.at(0, 0), K = scene.vehKit(g, o.x, o.y, 0, G.f), { solid, prismH, line } = K;
+  const dark = 0x2a2e34, darkS = 0x3a3f46, steel = 0x8d959c, copper = 0xe79a35, copperD = 0xb06f20, R = BB_RACK;
+  /* the base: two flat rails along the front, near the wall and out at the hoops' feet */
+  for(const [q0, q1] of [[R.b0, R.b0 + 4], [R.b1 - 4, R.b1]]) solid(prismH([[R.a0, q0], [R.a1, q0], [R.a1, q1], [R.a0, q1]], 0, 2), darkS);
+  /* the hoops, square to the wall: two posts and the bar over, a copper cap at each top corner */
+  for(const a of R.hoops){
+    line([a, R.b0 + 2, 1], [a, R.b0 + 2, 30], dark, 4.2); line([a, R.b1 - 2, 1], [a, R.b1 - 2, 30], dark, 4.2);
+    line([a, R.b0 + 2, 30], [a, R.b1 - 2, 30], dark, 4.2);
+    line([a, R.b0 + 3, 28], [a, R.b1 - 3, 28], steel, 1.2);                          // (the bar's lit top edge)
+    for(const b of [R.b0 + 2, R.b1 - 2]) solid(prismH([[a - 2.6, b - 2.6], [a + 2.6, b - 2.6], [a + 2.6, b + 2.6], [a - 2.6, b + 2.6]], 30, 33), copper, (k, n) => n[2] > 0.9 ? copper : copperD);
+  }
+  /* the charging post at the corner end: dark, a cyan light down its face, a copper cap */
+  { const a = R.post, h = 50;
+    solid(prismH([[a - 6, R.b0 + 6], [a + 6, R.b0 + 6], [a + 6, R.b0 + 18], [a - 6, R.b0 + 18]], 0, h), dark, (k, n) => n[2] > 0.9 ? darkS : dark);
+    solid(prismH([[a - 7, R.b0 + 5], [a + 7, R.b0 + 5], [a + 7, R.b0 + 19], [a - 7, R.b0 + 19]], h, h + 4), copper, (k, n) => n[2] > 0.9 ? copper : copperD);
+    line([a - 6.4, R.b0 + 12, 14], [a - 6.4, R.b0 + 12, 40], 0x5ee8d8, 2.2);          // the cyan light (the fleet's)
+    line([a, R.b0 + 18.4, 14], [a, R.b0 + 18.4, 40], 0x5ee8d8, 2.2); }
+}
+function bbRackQueue(scene, queuePerson){
+  const G = bbRackGeo(); if(!G || !scene.visProp("people", G.cx, G.cy)) return;
+  queuePerson(G.cx, G.cy, g => scene.bcDraw(g, "bbrack|" + Math.round(G.cx) + "," + Math.round(G.cy), G.cx, G.cy, gg => drawBBRack(scene, gg)));
+}
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
+  bbRackQueue(scene, queuePerson);                                                   // (Brew & Bolt's scooter rack: BB_RACK)
   const now = scene.time.now, R = MS;
   const p = R.gid ? msGidAt(now) : null, L = p && msGidLook();
   if(p && L && !msGidAtDoor(p) && scene.visProp("people", p.x, p.y)){
