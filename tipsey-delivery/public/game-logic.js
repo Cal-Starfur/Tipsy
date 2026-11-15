@@ -111182,7 +111182,10 @@ class WorldScene extends Phaser.Scene {
     solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     { const tl = P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const stem = () => {
-      line([R.wheelA - 1, 0, RD], [barA, 0, barH], brand.c, 6);
+      /* (the stem rises out of the Cruiser's fender and the Racer's fairing: drawn from their tops, not through them -- Sir, 2026-11-15,
+         "the bottom of the upright is drawing over the upgraded pieces") */
+      { const zTop = sty === 'cruiser' ? WR*2 + 3.5 : sty === 'racer' ? RD + 12 : RD, k0 = Math.max(0, Math.min(0.9, (zTop - RD)/(barH - RD)));
+        line([(R.wheelA - 1) + (barA - R.wheelA + 1)*k0, 0, RD + (barH - RD)*k0], [barA, 0, barH], brand.c, 6); }
       if(sty === 'cruiser'){ const k = 0.55, ca = (R.wheelA - 1) + (barA - R.wheelA + 1)*k, cz = RD + (barH - RD)*k;   // the cup holder, a coffee in it
         solid(prismH([[ca - 2.4, -8], [ca + 2.4, -8], [ca + 2.4, -3.5], [ca - 2.4, -3.5]], cz - 4, cz + 1), acc0);
         solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
