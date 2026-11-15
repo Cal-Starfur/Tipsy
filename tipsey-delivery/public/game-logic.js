@@ -1684,7 +1684,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
-  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
+  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
   neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
@@ -111159,29 +111159,62 @@ class WorldScene extends Phaser.Scene {
     /* GIDEON'S SCOOTER SKINS (brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
        deck, a front fairing with a number board, a rear wing), the Robo Board (no wheels, no stem: a deck hovering on two thrusters over a
-       glow), the Vintage (whitewall-sized wheels, a curved leg shield round the stem's foot, a rounded rear cowl, a big chrome headlamp).
+       glow), the Vintage (whitewall-sized wheels, a curved leg shield round the stem's foot, a rounded rear cowl, a big chrome headlamp), the
+       Chopper (a fat back tyre, the front wheel out on a raked fork, ape-hanger bars, a sissy bar behind him), the Off-Road (knobbly tyres, a
+       raised deck on shocks, a skid plate, a mud flap, a light bar), the Retro Rocket (a nose cone, fins, portholes, a flame out the back while
+       he rides), the Junkyard Build (odd wheels, a crate for a deck, patches, a pipe for a stem, a taped-on torch).
+       The tall pieces at the back (the sissy bar, the rocket's fin and flame) are tail(), drawn on the far side of him from the stem.
        What the first ones taught (Sir, 2026-11-15): nothing laid over a face it should sit under (an accent goes in a face's own colour, not a
        piece drawn over it), the stem drawn from the top of what it rises out of, and the stock rear fender only on the builds that have one */
     const sty = brand.style || null, acc0 = brand.acc != null ? brand.acc : brand.cDk;
     const WR = sty === 'cruiser' ? R.wheelR*1.35 : sty === 'vintage' ? R.wheelR*1.15 : R.wheelR, WW = sty === 'cruiser' ? 7 : sty === 'vintage' ? 5.5 : 4.5;
-    const RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : sty === 'robo' ? R.deck + 6 : R.deck;
+    const RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : sty === 'robo' ? R.deck + 6 : sty === 'offroad' ? R.deck + 5 : sty === 'chopper' ? R.deck - 1 : sty === 'junk' ? R.deck + 1 : R.deck;
+    const WHL = sty === 'chopper' ? [[-R.wheelA, R.wheelR*1.4, 8], [R.wheelA + 10, R.wheelR, 4]] : sty === 'offroad' ? [[-R.wheelA, R.wheelR*1.3, 7], [R.wheelA, R.wheelR*1.3, 7]]
+      : sty === 'rocket' ? [[-R.wheelA, R.wheelR*0.85, 4], [R.wheelA, R.wheelR*0.85, 4]] : sty === 'junk' ? [[-R.wheelA, R.wheelR*1.3, 6], [R.wheelA, R.wheelR*0.8, 3.5]] : [[-R.wheelA, WR, WW], [R.wheelA, WR, WW]];
+    const fz = WHL[0][1]*2, hb = build.torsoW/2 - 1, moving = wheelPhase != null;     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
     if(sty === 'robo'){                                                                         // the glow on the ground under it, and its two thrusters
       const c = P(0, 0, 0.5); g.fillStyle(0x5ee8d8, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);
       g.fillStyle(0x9ff6ee, 0.35); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
       for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? 0x5ee8d8 : 0x2a2f36); }
-    else for(const [a0, r] of [[-R.wheelA, WR], [R.wheelA, WR]]) wheel(a0, 0, r, WW, r, wheelPhase);
+    else for(const [a0, r, wd] of WHL){ wheel(a0, 0, r, wd, r, wheelPhase);
+      if(sty === 'offroad') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ g.fillStyle(0x15171a, 1);      // its knobbly tread, round the rim on the seen side
+        for(let k = 0; k < 12; k++){ const u = k*Math.PI/6 - (wheelPhase || 0), q = P(a0 + (r + 0.7)*Math.cos(u), sb*wd/2, r + (r + 0.7)*Math.sin(u)); g.fillRect(q.x - 1.2, q.y - 1.2, 2.4, 2.4); } } }
+    if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it, the mud flap
+      for(const [a0, r] of WHL) line([a0 + (a0 < 0 ? 7 : -7), 0, RD - 4], [a0, 0, r], acc0, 2.6);
+      solid(prismH([[-18, -5], [18, -5], [18, 5], [-18, 5]], RD - 7, RD - 4), 0x3b4048);
+      solid(prismH([[-R.wheelA - 11, -5], [-R.wheelA - 10, -5], [-R.wheelA - 10, 5], [-R.wheelA - 11, 5]], 1.5, fz + 1), 0x23262b); }
     /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck,
        laid on just outside its sides and drawn BEFORE it, so the deck hides the far one -- it had painted across the deck's top) */
-    const SB = sty === 'robo' ? 8 : 7;                                                       // (the deck's half-width: the Robo Board's wider)
+    const SB = sty === 'robo' || sty === 'rocket' ? 8 : 7;                                                       // (the deck's half-width: the Robo Board's wider)
     const accStripe = sb => solid(prismH([[-R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.05)], [R.wheelA - 3, sb*(SB + 0.9)], [-R.wheelA - 3, sb*(SB + 0.9)]], RD - 2.8, RD - 1.2), brand.acc);
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
-    if(brand.acc != null) accStripe(-nearSb);
+    const stripes = brand.acc != null && sty !== 'junk';                                    // (the Junkyard's patched, not striped)
+    const rocketFin = sb => solid(prismH([[-R.wheelA - 9, sb*7.5], [-R.wheelA + 4, sb*7.5], [-R.wheelA - 9, sb*15]], RD - 6, RD - 4), acc0);
+    const nozzle = () => solid(prismH([[-38, -4], [-34, -4], [-34, 4], [-38, 4]], RD - 6.5, RD - 0.5), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048);
+    if(stripes) accStripe(-nearSb);
+    if(sty === 'rocket'){ rocketFin(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
     { const back = sty === 'racer' ? -R.wheelA - 12 : -R.wheelA - 4;
-      const plan = sty === 'robo' ? [[-31, -5], [-27, -8], [27, -8], [31, -5], [31, 5], [27, 8], [-27, 8], [-31, 5]] : [[back, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [back, 7]];
-      solid(prismH(plan, RD - 4, RD), brand.c,
+      const plan = sty === 'robo' ? [[-31, -5], [-27, -8], [27, -8], [31, -5], [31, 5], [27, 8], [-27, 8], [-31, 5]]
+        : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [R.wheelA - 2, -7], [R.wheelA - 2, 7], [back, 7]];
+      if(sty === 'junk') solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a));   // a crate for a deck
+      else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
+    if(sty === 'junk'){                                                                         // the crate's slats, a patch on top (the accent) and one on the side (the body colour)
+      for(let a = -R.wheelA - 4; a < R.wheelA - 4; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([-R.wheelA - 4, sb*7.05, h], [R.wheelA - 2, sb*7.05, h], 0x6e4e2c, 0.8);
+      solid(prismH([[-22, -5.5], [-12, -5.5], [-12, 1], [-22, 1]], RD, RD + 0.7), acc0);
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
+        g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
     if(sty === 'cruiser') for(let a = -R.wheelA; a < R.wheelA - 4; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
-    if(brand.acc != null) accStripe(nearSb);
+    if(stripes) accStripe(nearSb);
+    if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
+      solid(prismH([[R.wheelA - 10, -7.6], [R.wheelA + 2, -6], [R.wheelA + 10, -2.5], [R.wheelA + 14, 0], [R.wheelA + 10, 2.5], [R.wheelA + 2, 6], [R.wheelA - 10, 7.6]], RD - 6, RD + 7), brand.c,
+        (k, n) => n[2] > 0.9 ? acc0 : (n[2] < -0.5 ? brand.cDk : brand.c));
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[R.wheelA - 3, 7, RD + 1, 2.4], [-14, 8.05, RD - 3.5, 2]]){ const q = P(a, sb*b, h);
+        g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
+      rocketFin(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
+    if(sty === 'chopper')                                                                       // its fat back fender
+      solid(prismH([[-R.wheelA - 12, -6], [-R.wheelA + 9, -6], [-R.wheelA + 9, 6], [-R.wheelA - 12, 6]], fz + 1, fz + 3.5), brand.c, (k, n) => n[2] > 0.9 ? brand.c : acc0);
     if(sty === 'cruiser')                                                                       // its round front fender, over the fat tyre
       solid(prismH([[R.wheelA - 9, -5.5], [R.wheelA + 9, -5.5], [R.wheelA + 9, 5.5], [R.wheelA - 9, 5.5]], WR*2 + 1, WR*2 + 3.5), brand.c, (k, n) => n[2] > 0.9 ? brand.c : acc0);
     if(sty === 'racer'){                                                                        // the fairing over the front, its number board, the rear wing
@@ -111192,21 +111225,51 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'vintage'){                                                                      // its rounded rear cowl over the back wheel, and the leg shield round the stem's foot (its top the accent)
       solid(prismH([[-R.wheelA - 12, -6], [-R.wheelA - 8, -9], [-R.wheelA + 8, -9], [-R.wheelA + 12, -6], [-R.wheelA + 12, 6], [-R.wheelA + 8, 9], [-R.wheelA - 8, 9], [-R.wheelA - 12, 6]], RD - 2, RD + 11), brand.c, (k, n) => n[2] > 0.9 ? brand.c : (n[2] < -0.5 ? brand.cDk : brand.c));
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c); }
-    if(sty !== 'robo' && sty !== 'vintage')
-    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], R.wheelR*2 + 1, R.wheelR*2 + 3), brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
-    { const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(-R.wheelA - 10.5, 0, R.wheelR*2 + 2); g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
+    if(sty !== 'robo' && sty !== 'vintage' && sty !== 'rocket' && sty !== 'chopper')
+    solid(prismH([[-R.wheelA - 10, -5], [-R.wheelA + 6, -5], [-R.wheelA + 6, 5], [-R.wheelA - 10, 5]], fz + 1, fz + 3), sty === 'junk' ? acc0 : brand.acc != null ? brand.c : brand.cDk);   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
+    if(sty !== 'rocket'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'chopper' ? P(-R.wheelA - 12.5, 0, fz + 2.2) : P(-R.wheelA - 10.5, 0, fz + 2);
+      g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
+    const tail = () => {                                                                        // the tall pieces at the back
+      if(sty === 'chopper'){ const a = -R.wheelA + 3;                                          // the sissy bar and its pad
+        for(const sb of [-1, 1]) line([a, sb*5, RD], [a - 4, sb*5, RD + 20], SCOOT.metal, 1.8);
+        line([a - 4, -5, RD + 20], [a - 4, 5, RD + 20], SCOOT.metal, 1.8);
+        solid(prismH([[a - 4.2, -4], [a - 2.6, -4], [a - 2.6, 4], [a - 4.2, 4]], RD + 10, RD + 17), acc0); }
+      if(sty === 'rocket'){                                                                     // the fin on top, swept back in two steps; the flame while he rides
+        solid(prismH([[-34, -0.8], [-23, -0.8], [-23, 0.8], [-34, 0.8]], RD, RD + 7), acc0);
+        solid(prismH([[-34, -0.8], [-28, -0.8], [-28, 0.8], [-34, 0.8]], RD + 7, RD + 13), acc0);
+        if(moving && !noRider){ const L = 9 + 3*Math.sin(t*0.05) + 2*Math.sin(t*0.13), z0 = RD - 3.5;
+          for(const [col, al, k, w] of [[0xff7a1f, 0.85, 1, 3.2], [0xffe07a, 0.95, 0.55, 1.8]]){ const tip = P(-38 - L*k, 0, z0); g.fillStyle(col, al);
+            const a1 = P(-38, -w, z0), a2 = P(-38, w, z0), b1 = P(-38, 0, z0 - w), b2 = P(-38, 0, z0 + w);
+            g.fillTriangle(a1.x, a1.y, a2.x, a2.y, tip.x, tip.y); g.fillTriangle(b1.x, b1.y, b2.x, b2.y, tip.x, tip.y); } } }
+    };
     const stem = () => {
       if(sty === 'robo') return;                                                                // (the Robo Board: no stem, no bar)
+      if(sty === 'chopper'){                                                                    // the frame up from the deck's nose, the raked fork out to the front wheel, ape-hanger bars back to his hands
+        const ha = R.wheelA - 2, hz = RD + 24;
+        line([R.wheelA - 3, 0, RD], [ha, 0, hz], brand.c, 5);
+        for(const sb of [-1, 1]) line([WHL[1][0], sb*2.6, WHL[1][1]], [ha + 1, sb*2.6, hz + 1], SCOOT.metal, 2);
+        solid(prismH([[ha - 2.5, -3], [ha + 2.5, -3], [ha + 2.5, 3], [ha - 2.5, 3]], hz - 3, hz + 3), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c);
+        for(const sb of [-1, 1]){ line([ha, sb*3, hz + 3], [barA + 3, sb*(hb + 3), barH + 7], SCOOT.metal, 3); line([barA + 3, sb*(hb + 3), barH + 7], [barA, sb*(hb + 3), barH], SCOOT.metal, 3);
+          line([barA, sb*(hb - 2), barH], [barA, sb*(hb + 5), barH], SCOOT.grip, 3.6); }
+        const hp = P(ha + 3.5, 0, hz - 1); g.fillStyle(0xc9ced3, 1); g.fillCircle(hp.x, hp.y, 4.4*this.K*0.42*1.4); g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 2.8*this.K*0.42*1.4);
+        return; }
       /* (the stem rises out of the Cruiser's fender and the Racer's fairing: drawn from their tops, not through them -- Sir, 2026-11-15,
          "the bottom of the upright is drawing over the upgraded pieces") */
-      { const zTop = sty === 'cruiser' ? WR*2 + 3.5 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : RD, k0 = Math.max(0, Math.min(0.9, (zTop - RD)/(barH - RD)));
-        line([(R.wheelA - 1) + (barA - R.wheelA + 1)*k0, 0, RD + (barH - RD)*k0], [barA, 0, barH], brand.c, 6); }
+      const stemCol = sty === 'junk' ? 0x8a8f96 : brand.c;                                    // (the Junkyard's a bit of grey pipe)
+      { const zTop = sty === 'cruiser' ? WR*2 + 3.5 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD + 7 : RD, k0 = Math.max(0, Math.min(0.9, (zTop - RD)/(barH - RD)));
+        line([(R.wheelA - 1) + (barA - R.wheelA + 1)*k0, 0, RD + (barH - RD)*k0], [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6); }
+      const stemAt = k => [(R.wheelA - 1) + (barA - R.wheelA + 1)*k, 0, RD + (barH - RD)*k];
+      if(sty === 'junk') line(stemAt(0.42), stemAt(0.52), 0xb9bec4, 7);                       // a wrap of duct tape round it
       if(sty === 'cruiser'){ const k = 0.55, ca = (R.wheelA - 1) + (barA - R.wheelA + 1)*k, cz = RD + (barH - RD)*k;   // the cup holder, a coffee in it
         solid(prismH([[ca - 2.4, -8], [ca + 2.4, -8], [ca + 2.4, -3.5], [ca - 2.4, -3.5]], cz - 4, cz + 1), acc0);
         solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
-      const hb = build.torsoW/2 - 1;                          // where each hand is across: the shoulders'
-      line([barA, -hb - 6, barH], [barA, hb + 6, barH], SCOOT.metal, 2.6);
+      line([barA, -hb - 6, barH], [barA, hb + 6, barH], sty === 'junk' ? 0x8a8f96 : SCOOT.metal, sty === 'junk' ? 3.4 : 2.6);
       for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
+      if(sty === 'offroad'){ line([barA + 1, -9, barH + 5], [barA + 1, 9, barH + 5], 0x2a2f36, 3.4);   // the light bar over the handlebar
+        for(const sb of [-1, 1]) line([barA, sb*7, barH], [barA + 1, sb*7, barH + 5], 0x2a2f36, 1.2);
+        g.fillStyle(0xfff3c4, 1); for(const b of [-6, -2, 2, 6]){ const q = P(barA + 2, b, barH + 5); g.fillCircle(q.x, q.y, 1.1*this.K*0.42*1.4); } }
+      if(sty === 'junk'){ const q = P(barA + 3, 0, barH - 6); g.fillStyle(0xb9bec4, 1); g.fillCircle(q.x, q.y, 2.8*this.K*0.42*1.4);   // a torch taped on
+        g.fillStyle(0xfff3c4, 1); g.fillCircle(q.x, q.y, 1.6*this.K*0.42*1.4); return; }
       const hp = P(barA + 2, 0, barH - 10), hr = sty === 'vintage' ? 2.2 : 1;               // (the Vintage's big chrome headlamp)
       g.fillStyle(sty === 'vintage' ? 0xc9ced3 : 0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*hr*this.K*0.42*1.4);
       g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*hr*this.K*0.42*1.4);
@@ -111216,8 +111279,8 @@ class WorldScene extends Phaser.Scene {
       this.drawPersonHull(g, rx, ry, z + RD, thW, build, pSkin, pShirt, pPants, pHair, pShoe, 0, false, startleAlpha, R.lift, null, uni || null, true);
     };
     /* the stem is the nearer end when the scooter heads toward the eye (its x + y grows) */
-    if(noRider) stem();                                     // the scooter alone, its rider off it
-    else if(fc + fs > 0){ rider(); stem(); } else { stem(); rider(); }
+    if(noRider){ tail(); stem(); }                          // the scooter alone, its rider off it
+    else if(fc + fs > 0){ tail(); rider(); stem(); } else { stem(); rider(); tail(); }
   }
   /* ---------- POLICE OFFICER ----------
      Deliberately NOT a new body: it is drawPersonHull with the police
@@ -144957,7 +145020,11 @@ requestTpProfile();
         cruiser: `<rect x="8" y="16" width="24" height="3.5" fill="#b5834f"/><path d="M30 17L27 4" stroke="${W}" stroke-width="2"/><rect x="27" y="9" width="3" height="3" fill="${A}"/><path d="M26 15a5 5 0 0 1 9 0" fill="${W}"/>${wh(10, 4.4)}${wh(31, 4.4)}`,
         racer: `<rect x="4" y="18" width="28" height="2.5" fill="${W}"/><path d="M22 18l10-6v6z" fill="${W}"/><circle cx="27" cy="16" r="1.8" fill="${A}"/><rect x="3" y="12" width="2" height="6" fill="${A}"/><path d="M31 15L28 4" stroke="${W}" stroke-width="2"/>${wh(9, 3)}${wh(30, 3)}`,
         robo: `<ellipse cx="20" cy="24" rx="15" ry="3" fill="#5ee8d8" opacity=".45"/><path d="M6 16h28l-3 3H9z" fill="${W}"/><rect x="6" y="15" width="28" height="1.6" fill="${A}"/><rect x="11" y="19" width="5" height="2.4" fill="${D}"/><rect x="24" y="19" width="5" height="2.4" fill="${D}"/>`,
-        vintage: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M8 17a6 6 0 0 1 12 0z" fill="${W}"/><path d="M25 18V9l4-1v10z" fill="${W}"/><rect x="25" y="8" width="4" height="1.6" fill="${A}"/><path d="M29 9L27 3" stroke="${W}" stroke-width="2"/><circle cx="30" cy="5" r="2.2" fill="#c9ced3"/><circle cx="30" cy="5" r="1.2" fill="#fff3c4"/>${wh(10, 3.4)}${wh(30, 3.4)}` }[id];
+        vintage: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M8 17a6 6 0 0 1 12 0z" fill="${W}"/><path d="M25 18V9l4-1v10z" fill="${W}"/><rect x="25" y="8" width="4" height="1.6" fill="${A}"/><path d="M29 9L27 3" stroke="${W}" stroke-width="2"/><circle cx="30" cy="5" r="2.2" fill="#c9ced3"/><circle cx="30" cy="5" r="1.2" fill="#fff3c4"/>${wh(10, 3.4)}${wh(30, 3.4)}`,
+        chopper: `<rect x="6" y="18" width="20" height="2.6" fill="${W}"/><path d="M6 18V8" stroke="#9aa2a8" stroke-width="1.6"/><rect x="5" y="10" width="2.4" height="5" fill="${A}"/><path d="M34 22L25 9" stroke="#9aa2a8" stroke-width="1.8"/><path d="M25 9l-4-5h-3" stroke="#9aa2a8" stroke-width="1.6" fill="none"/>${wh(8, 4.6)}${wh(33, 3)}`,
+        offroad: `<rect x="10" y="20" width="20" height="2" fill="#3b4048"/><rect x="8" y="15" width="24" height="3" fill="${W}"/><path d="M10 18l1 4M30 18l-1 4" stroke="${A}" stroke-width="1.6"/><path d="M30 15L27 5" stroke="${W}" stroke-width="2"/><rect x="23" y="2.5" width="9" height="2" fill="${D}"/>${wh(9, 4.2)}${wh(31, 4.2)}`,
+        rocket: `<path d="M5 13h22l8 3.5-8 3.5H5z" fill="${W}"/><path d="M27 13l8 3.5-8 3.5z" fill="${A}"/><path d="M6 13l-1-6h3l4 6z" fill="${A}"/><circle cx="26" cy="16.5" r="1.6" fill="#7fc6e8"/><path d="M5 15l-4 1.5 4 1.5z" fill="#ff7a1f"/><path d="M27 13L25 4" stroke="${W}" stroke-width="2"/>${wh(10, 2.6)}${wh(29, 2.6)}`,
+        junk: `<rect x="8" y="15" width="24" height="4.5" fill="#a77b4a"/><path d="M8 17h24" stroke="#6e4e2c" stroke-width=".8"/><rect x="18" y="15.5" width="5" height="3" fill="${W}"/><rect x="10" y="14.2" width="5" height="1" fill="${A}"/><path d="M30 16L27 4" stroke="#8a8f96" stroke-width="2.2"/><rect x="27.6" y="8" width="2.4" height="2" fill="#b9bec4"/>${wh(10, 4.2)}${wh(31, 2.6)}` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${B}</svg>`; }
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
     if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
