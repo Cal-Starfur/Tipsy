@@ -88276,7 +88276,8 @@ function msFixPose(u){
   const x = m.x + at[0], y = m.y + at[1];
   const yaw = Math.atan2(m.y - y, m.x - x);
   if(walk) return { x, y, yaw, data: { walk: 1, gait: u/95, roll: 0 } };          // (stepping between: his own stride)
-  return { x, y, yaw, data: { walk: 0, roll: 0, lift, bend, legs: legs(drop), legOut: [0, 0], armOut, waist, drop: drop*HUMANOID_BUILD.legH } };
+  const late = u >= 1500 && u < F.cable1 + 150;                                    // (arms up at or over his head: drawn over it while he faces the eye, as msDistressPose's -- Sir, 2026-11-15, "the head drawing over the arm")
+  return { x, y, yaw, data: { walk: 0, roll: 0, lift, bend, legs: legs(drop), legOut: [0, 0], armOut, waist, drop: drop*HUMANOID_BUILD.legH, armsLate: late } };
 }
 function msFixOn(){ return !!(MS.fix && MS.fix.ph === 'close'); }
 function msFixU(){ const sc = scn(); return msFixOn() && sc ? sc.time.now - MS.fix.t0 : 0; }
