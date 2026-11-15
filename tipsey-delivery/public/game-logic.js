@@ -87997,16 +87997,24 @@ function msFinish(){
   if(typeof sfxSkeeChime === "function") sfxSkeeChime(true);
   /* THE UNLOCK, SAID PLAINLY (Sir, 2026-11-15: "we need a toast or a cut scene that tells the player they have unlocked playing as Gideon"):
      the first time, a card held till tapped -- UNLOCKED, him, how to play him -- and then the way on */
-  if(first) msUnlockCard(() => { if(typeof tpToast === "function") tpToast("Tipsey's wheeling out. Meet him at his bay."); });
-  else collectCard([], "Minding the Shop: done again!");;
-  MS.fin = false;
-  /* THE EXIT: Tipsey rolls out from behind the counter by the way he came in, and the loan ends where Gideon meets him at his bay */
-  const T = MS.tip, cur = msTipAt(scene.time.now);
-  if(T && cur){ const pts = T.pts.slice().reverse(); pts[0] = { x: T.pts[0].x, y: T.pts[0].y };
-    const fromMeet = !!MS.tell; MS.tell = null;                                    // (from where they met on the floor: on out past the counter's end, not back round it)
-    MS.tip = { pts: [{ x: cur.x, y: cur.y }].concat(pts.slice(fromMeet ? 3 : 1)), t0: scene.time.now + 500, faceTh: MS.park ? MS.park.a : 0, v: 0.11, th0: 0, S: T.S }; MS.tipOut = true; }
-  MS.stage = 'out';
-  msNav(scene, MS.home, "Tipsey, outside Brew & Bolt");
+  /* BACK TO TIPSEY, THERE AND THEN (Sir, 2026-11-15: "on Got it we should no longer be Gideon, he should stay in the shop and we are back
+     to being Tipsey"): the loan ends where they stand -- the player is Tipsey on the spot he met Gideon on, and Gideon stays in his shop */
+  MS.stage = 'finCard'; MS.fin = false;
+  const back = () => msBackToTipsey(scn());
+  if(first) msUnlockCard(back);
+  else { collectCard([], "Minding the Shop: done again!"); back(); }
+}
+function msBackToTipsey(scene){
+  if(!scene || MS.stage !== 'finCard') return;
+  const ow = scene.ow, pk = POCKETS.find(q => q.name === BB_IN.name), V = pk && pk.view ? pk.view() : { dx: 0, dy: 0 };
+  const cur = msTipAt(scene.time.now), inShop = scene._inside === pk;
+  const G = ow ? { a: ow.px - (inShop ? pk.x0 : pk.x0 + V.dx), b: ow.py - (inShop ? pk.y0 : pk.y0 + V.dy), th: ow.yaw } : null;   // (where Gideon stood, in the room's frame)
+  if(cur) MS.park = { x: cur.x - (inShop ? V.dx : 0), y: cur.y - (inShop ? V.dy : 0), a: cur.th != null ? cur.th : (MS.tell ? MS.tell.faceTh : 0) };
+  MS.tell = null;
+  msHandBack(scene);
+  /* Gideon himself, the shop's own again, from where he stood (THE ROOM'S DAY puts him back on his round from there) */
+  const R = pk && pk._life, gp = R && R.people && R.people.find(q => q.def && q.def.id === 'gideon' || q.id === 'gideon');
+  if(G && gp && gp._m){ gp._m.a = G.a; gp._m.b = G.b; if(G.th != null) gp._m.th = G.th; }
 }
 /* GIDEON HIMSELF, FOR THE CARD (Sir, 2026-11-15: "why are we using this horrible stand-in instead of our art of the real Gideon?"): his own
    body as the game draws him (drawHumanoid, his look gideonParts), stood facing the eye at a portrait's scale, drawn off screen into a
