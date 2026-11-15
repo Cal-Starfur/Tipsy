@@ -88298,7 +88298,7 @@ const MS_FIX = { bracket: 900, raise0: 1500, raise1: 3100, cable0: 3500, cable1:
 function msFixPose(u){
   const m = msMastWorld(); if(!m) return null;
   const cl = v => Math.max(0, Math.min(1, v)), sm = v => { v = cl(v); return v*v*(3 - 2*v); }, L = (a, b, k) => a + (b - a)*k, F = MS_FIX;
-  const P0 = [-102, 4], P1 = [-50, -2], P2 = [-4, -50], P3 = [-72, -12];   // (P2, P3 on the mast's north side: facing it there he faces the eye)
+  const P0 = [-102, 4], P1 = [-42, -2], P2 = [-4, -42], P3 = [22, -66];   // (P1, P2 in reach of the mast)   // (P2, P3 on the mast's north side: facing it there he faces the eye)
   const legs = d => { const ca = Math.acos(Math.max(-1, Math.min(1, 1 - d))); return { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] }; };
   let at, walk = 0, drop = 0, waist = 0, lift = [0.15, 0.15], bend = [0.2, 0.2], armOut = [0, 0];
   const mv = (A, B, t0, t1) => { const k = sm((u - t0)/(t1 - t0)); if(u > t0 && u < t1) walk = 1; return [L(A[0], B[0], k), L(A[1], B[1], k)]; };
@@ -88309,11 +88309,11 @@ function msFixPose(u){
     lift = [L(0.15, 0.85, k) + tap, L(0.15, 0.85, k) - tap]; bend = [L(0.2, 0.45, k), L(0.2, 0.45, k)]; }
   else if(u < 3200){ at = P1;                                                    // (the mast pushed up over his head as it rises)
     const kr = sm((u - F.raise0)/(F.raise1 - F.raise0)), hv = 0.08*Math.sin(u/110);
-    lift = [L(1.1, 2.15, kr) + hv, L(1.1, 2.15, kr) - hv]; bend = [L(0.6, 0.15, kr), L(0.6, 0.15, kr)]; waist = -0.08*kr; }
+    lift = [L(0.95, 1.4, kr) + hv, L(0.85, 1.3, kr) - hv]; bend = [L(0.55, 0.3, kr), L(0.55, 0.3, kr)]; waist = L(0.12, -0.04, kr); }   // (his hands on the mast, forward and a little up as it rises: not over his head -- Sir, 2026-11-15, "the arms go too high")
   else if(u < F.cable0) at = mv(P1, P2, 3200, F.cable0);
   else if(u < F.cable1 + 150){ at = P2;                                          // (the cable, hand over hand up the mast)
     const ph = (u - F.cable0)/170, up = sm((u - F.cable0)/(F.cable1 - F.cable0));
-    lift = [1.45 + 0.4*up + 0.25*Math.sin(ph), 1.45 + 0.4*up - 0.25*Math.sin(ph)]; bend = [0.35 + 0.2*Math.cos(ph), 0.35 - 0.2*Math.cos(ph)]; }
+    lift = [1.1 + 0.25*up + 0.2*Math.sin(ph), 1.1 + 0.25*up - 0.2*Math.sin(ph)]; bend = [0.45 + 0.2*Math.cos(ph), 0.45 - 0.2*Math.cos(ph)]; }   // (hand over hand on the mast, at reach)
   else if(u < F.cable1 + 550) at = mv(P2, P3, F.cable1 + 150, F.cable1 + 550);
   else { at = P3; const k = sm((u - F.cable1 - 550)/300);                         // (stood back, hands on his hips)
     lift = [L(0.15, 0.35, k), L(0.15, 0.35, k)]; bend = [L(0.2, 1.75, k), L(0.2, 1.75, k)]; armOut = [0.55*k, 0.55*k]; }
