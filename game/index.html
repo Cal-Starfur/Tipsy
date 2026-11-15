@@ -90264,8 +90264,6 @@ function drawBBRack(scene, g, part, at){
    the street's (f along the front), so they come along the pavement to it, not through the hoops; it is drawn standing in its slot, square
    to the wall, and gone from it while taken (pr.taken, given back as the street's are) */
 BB_RACK.slots = [125, 167, 209]; BB_RACK.docked = [0, 2]; BB_RACK.SB = 32;   // (SB: a docked scooter's middle out from the wall -- the riders' scooter, front wheel in the rack, its tail out on the pavement)
-/* the riders' scooter, empty, its bar at a parked scooter's height: a frame of its own for drawScooterRider's stem (the bar sits at the rider's hands) */
-const BB_RACK_BUILD = Object.assign({}, typeof HUMANOID_BUILD !== 'undefined' ? HUMANOID_BUILD : {}, { legH: 26, torsoH: 26, armLen: 26 });   // (two of the three slots start with one in)
 function bbRackScooters(){
   if(BB_RACK._sc) return BB_RACK._sc;
   const G = bbRackGeo(); if(!G) return [];
@@ -90284,11 +90282,11 @@ function bbRackQueue(scene, queuePerson){
   for(const a of BB_RACK.hoops){ const q = G.at(a, 18); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "h" + a, q.x, q.y, gg => drawBBRack(scene, gg, 'hoop', a))); }
   { const q = G.at(BB_RACK.post, 12); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "post", q.x, q.y, gg => drawBBRack(scene, gg, 'post'))); }
   /* each docked scooter in its slot, nose in to the wall: the riders' scooter (drawScooterRider, empty -- Sir, 2026-11-15, "I liked the other
-     scooters better ... height adjusted when in the rack"), its bar at a parked height (BB_RACK_BUILD), sorted among the hoops */
+     scooters better"), as it is -- its bar at the rider's height, not lowered (Sir: "just use the scooter as it is") -- sorted among the hoops */
   const th = Math.atan2(-G.d.oy, -G.d.ox);
   for(const pr of bbRackFree()){ const q = pr.slot;
     queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "sc" + Math.round(q.x) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawScooterRider(gg, q.x, q.y, 0, th - Math.PI/2,
-      BB_RACK_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, pr.brand, 0, 0, null, true))); }
+      HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, pr.brand, 0, 0, null, true))); }
 }
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
