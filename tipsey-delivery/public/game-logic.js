@@ -88519,24 +88519,22 @@ function bbRackBlocks(x, y, r){
   const dx = x - G.d.x, dy = y - G.d.y, a = dx*G.ux + dy*G.uy, b = dx*G.d.ox + dy*G.d.oy;
   return a > BB_RACK.a0 - 6 - r && a < BB_RACK.a1 + 6 + r && b > -r && b < BB_RACK.b1 + r;
 }
-function drawBBRack(scene, g){
+/* drawn in pieces, so its docked scooters sort among its hoops (Sir, 2026-11-15: "the scooters are drawing over the rails of the rack"):
+   part 'base' the two flat rails (on the ground, first), 'hoop' one hoop at along a, 'post' the charging post */
+function drawBBRack(scene, g, part, at){
   const G = bbRackGeo(); if(!G) return;
   const o = G.at(0, 0), K = scene.vehKit(g, o.x, o.y, 0, G.f), { solid, prismH, line } = K;
   const dark = 0x2a2e34, darkS = 0x3a3f46, steel = 0x8d959c, copper = 0xe79a35, copperD = 0xb06f20, R = BB_RACK;
-  /* the base: two flat rails along the front, near the wall and out at the hoops' feet */
-  for(const [q0, q1] of [[R.b0, R.b0 + 4], [R.b1 - 4, R.b1]]) solid(prismH([[R.a0, q0], [R.a1, q0], [R.a1, q1], [R.a0, q1]], 0, 2), darkS);
-  /* the hoops, square to the wall: two posts and the bar over, a copper cap at each top corner */
-  for(const a of R.hoops){
+  if(part === 'base') for(const [q0, q1] of [[R.b0, R.b0 + 4], [R.b1 - 4, R.b1]]) solid(prismH([[R.a0, q0], [R.a1, q0], [R.a1, q1], [R.a0, q1]], 0, 2), darkS);
+  if(part === 'hoop'){ const a = at;
     line([a, R.b0 + 2, 1], [a, R.b0 + 2, 30], dark, 4.2); line([a, R.b1 - 2, 1], [a, R.b1 - 2, 30], dark, 4.2);
     line([a, R.b0 + 2, 30], [a, R.b1 - 2, 30], dark, 4.2);
     line([a, R.b0 + 3, 28], [a, R.b1 - 3, 28], steel, 1.2);                          // (the bar's lit top edge)
-    for(const b of [R.b0 + 2, R.b1 - 2]) solid(prismH([[a - 2.6, b - 2.6], [a + 2.6, b - 2.6], [a + 2.6, b + 2.6], [a - 2.6, b + 2.6]], 30, 33), copper, (k, n) => n[2] > 0.9 ? copper : copperD);
-  }
-  /* the charging post at the corner end: dark, a cyan light down its face, a copper cap */
-  { const a = R.post, h = 50;
+    for(const b of [R.b0 + 2, R.b1 - 2]) solid(prismH([[a - 2.6, b - 2.6], [a + 2.6, b - 2.6], [a + 2.6, b + 2.6], [a - 2.6, b + 2.6]], 30, 33), copper, (k, n) => n[2] > 0.9 ? copper : copperD); }
+  if(part === 'post'){ const a = R.post, h = 50;                                     // the charging post: dark, a cyan light down its face, a copper cap
     solid(prismH([[a - 6, R.b0 + 6], [a + 6, R.b0 + 6], [a + 6, R.b0 + 18], [a - 6, R.b0 + 18]], 0, h), dark, (k, n) => n[2] > 0.9 ? darkS : dark);
     solid(prismH([[a - 7, R.b0 + 5], [a + 7, R.b0 + 5], [a + 7, R.b0 + 19], [a - 7, R.b0 + 19]], h, h + 4), copper, (k, n) => n[2] > 0.9 ? copper : copperD);
-    line([a - 6.4, R.b0 + 12, 14], [a - 6.4, R.b0 + 12, 40], 0x5ee8d8, 2.2);          // the cyan light (the fleet's)
+    line([a - 6.4, R.b0 + 12, 14], [a - 6.4, R.b0 + 12, 40], 0x5ee8d8, 2.2);
     line([a, R.b0 + 18.4, 14], [a, R.b0 + 18.4, 40], 0x5ee8d8, 2.2); }
 }
 /* ITS SCOOTERS (Sir, 2026-11-15: "pedestrians should pick up scooters from that rack too ... don't write new people, just create the rules
@@ -88558,11 +88556,15 @@ function bbRackScooters(){
 function bbRackFree(){ return bbRackScooters().filter(pr => !pr.taken); }
 function bbRackQueue(scene, queuePerson){
   const G = bbRackGeo(); if(!G || !scene.visProp("people", G.cx, G.cy)) return;
-  queuePerson(G.cx, G.cy, g => scene.bcDraw(g, "bbrack|" + Math.round(G.cx) + "," + Math.round(G.cy), G.cx, G.cy, gg => drawBBRack(scene, gg)));
-  /* each docked scooter standing in its slot, square to the wall (its own still piece: there or not as it is taken) */
-  /* (turned the other way -- Sir, 2026-11-15, "they are facing the wrong way" -- and keyed just after the rack, so its hoops do not paint over them) */
-  bbRackFree().forEach((pr, i) => { const q = pr.slot, th = Math.atan2(-G.d.oy, -G.d.ox), fq = pr.f;
-    queuePerson(G.cx, G.cy + 1 + i, g => scene.bcDraw(g, "bbrack|sc|" + Math.round(q.x) + "," + Math.round(q.y) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawProp(gg, "scooter", q.x, q.y, 0, fq, 0, null, null, { thetaF: th - fq*Math.PI/2, brand: pr.brand }))); });
+  const key = "bbrack|" + Math.round(G.cx) + "," + Math.round(G.cy) + "|";
+  /* its pieces, each at its own place's depth: the rails on the ground first, then each hoop and the post along it */
+  { const q = G.at(BB_RACK.a0, BB_RACK.b0); queuePerson(q.x, q.y - 40, g => scene.bcDraw(g, key + "base", G.cx, G.cy, gg => drawBBRack(scene, gg, 'base'))); }
+  for(const a of BB_RACK.hoops){ const q = G.at(a, 18); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "h" + a, q.x, q.y, gg => drawBBRack(scene, gg, 'hoop', a))); }
+  { const q = G.at(BB_RACK.post, 12); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "post", q.x, q.y, gg => drawBBRack(scene, gg, 'post'))); }
+  /* each docked scooter in its slot, nose in to the wall (the street's standing scooter: drawProp 'scooter'), sorted among the hoops */
+  const th = Math.atan2(-G.d.oy, -G.d.ox);
+  for(const pr of bbRackFree()){ const q = pr.slot, fq = pr.f;
+    queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "sc" + Math.round(q.x) + "|" + pr.brand.name, q.x, q.y, gg => scene.drawProp(gg, "scooter", q.x, q.y, 0, fq, 0, null, null, { thetaF: th - fq*Math.PI/2, brand: pr.brand }))); }
 }
 /* Gideon on the street (a meeting: hospWalkAt), and Tipsey parked still on his bay while the humanoid is the player */
 function msQueue(scene, t, queuePerson, keyQueue, layerFor){
