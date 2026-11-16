@@ -42887,7 +42887,7 @@ const TP_BUILDS = {
   /* (a second pass -- Sir, 2026-11-16, "it doesn't read like a UFO yet"): a real flying saucer -- a wide round lens of silver (a cone up to
      the middle, a rim band round its edge with chasing lights, a cone down to its belly), a glowing ring under it and a beam to the ground;
      his body the little cabin on top with his face, his lid a glass dome over it (buildKit 'ufo') */
-  ufo: { BODY: { hx: 16, hy: 16, z0: 30, z1: 39, ch: 9, bev: 2.5, bevIn: 2 }, LID: { hx: 16, hy: 16, z0: 39, z1: 44, ch: 9, bev: 4, bevIn: 4 },   // (rounder: a near-regular octagon, the lid's top edge rolled -- Sir, 2026-11-16)   // (his own lid: the cabin's full width, its chamfer, one hull)
+  ufo: { BODY: { hx: 16, hy: 16, z0: 30, z1: 39, ch: 9, bev: 2.5, bevIn: 2 }, LID: { hx: 16, hy: 16, z0: 39, z1: 42, ch: 9, bev: 1.5, bevIn: 1.2 },   /* (thin, and his own lid exactly: the body's plan, a small bevel -- Sir, 2026-11-16) */   // (rounder: a near-regular octagon, the lid's top edge rolled -- Sir, 2026-11-16)   // (his own lid: the cabin's full width, its chamfer, one hull)
     STRIPE: { z0: 31, z1: 32.5 }, FLAGB: { x: 0, y: 0 }, FLAGZ: [46.5, 69], zmap: z => 30 + (z - 14)*0.24, noBracket: true, noTray: true,
     noFlag: true, GEAR: { kind: 'ufo', lift: 16, bob: true }, kit: 'ufo' },   // (no flag, his lid in his own paint -- Sir, 2026-11-16)
   /* the Monster Truck: a big body up on the monster rig's huge knobby tyres and axles, his lid the cab with a light bar on its roof,
