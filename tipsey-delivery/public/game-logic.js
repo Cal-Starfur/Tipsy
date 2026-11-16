@@ -42900,7 +42900,7 @@ const TP_BUILDS = {
   /* the Hot Rod: long and low, a big supercharger up through his hood with its scoop, chrome headers out each side, fat slicks behind,
      skinny fronts */
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
-  hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 10, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5 }, lidCol: [0x9cc9dc, 0x78aec6, 0x4f86a0],
+  hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 14, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5, ox: 4 }, lidCol: [0x9cc9dc, 0x78aec6, 0x4f86a0],
     STRIPE: { z0: 16, z1: 19 }, FLAGB: { x: -30, y: 12 }, FLAGZ: [26.5, 64], zmap: z => 12 + (z - 14)*0.35, noBracket: true,
     WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod', noFlag: true } };   // (no flag -- Sir, 2026-11-16)   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -124611,7 +124611,7 @@ class WorldScene extends Phaser.Scene {
     const yh = (this.lidHingeFlip ? hy : -hy), zh = z0;
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
-      return this.P(x, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);
+      return this.P(x + (LID.ox || 0), yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);   // (LID.ox: a build's lid set forward along him -- the Night Cruiser's bubble)
     };
     const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
       const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
@@ -125231,11 +125231,13 @@ class WorldScene extends Phaser.Scene {
     if(id === 'hotrod'){
       /* (an art pass -- Sir, 2026-11-16) SIDE PIPES: a long chrome pipe low down each flank, three primaries sweeping back and down into it
          from his side, a dark tip at its end */
-      const hdr = sb => { const ys = sb*(BODY.hy + 2.6), zs = BODY.z0 + 1.5;
-        for(const x of [16, 11, 6]){ const a = [x, sb*(BODY.hy - 0.3), BODY.z0 + 7], m = [x - 2.5, sb*(BODY.hy + 1.6), BODY.z0 + 5], b = [x - 5, ys, zs + 0.6];
-          pipe(a, m, 2.2); pipe(m, b, 2.2); }
-        pipe([16, ys, zs], [-20, ys, zs], 3.4);
-        const e = P(-20.5, ys, zs); g.fillStyle(0x1c1e22, 1); g.fillCircle(e.x, e.y, 1.5*K); };
+      /* (beefier, and turned out ahead of the rear wheel -- Sir, 2026-11-16) */
+      const hdr = sb => { const ys = sb*(BODY.hy + 3.6), zs = BODY.z0 + 2, xe = -2, yt = sb*(BODY.hy + 8.5);
+        for(const x of [17, 12, 7]){ const a = [x, sb*(BODY.hy - 0.3), BODY.z0 + 8], m = [x - 2.5, sb*(BODY.hy + 2), BODY.z0 + 6], b = [x - 5, ys, zs + 0.8];
+          pipe(a, m, 4.2); pipe(m, b, 4.2); }
+        pipe([18, ys, zs], [xe, ys, zs], 6.8);                          // (the side pipe)
+        pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 6.8);              // (its turn-out, ahead of the rear wheel)
+        const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(0x8d959c, 1); g.fillCircle(e.x, e.y, 3.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.4*K); };
       /* THE TAIL FINS: a blade up off each back corner, its leading edge sweeping up and back to a point past his tail -- only its face
          toward the eye drawn, in his paint, its leading edge picked out in his stripe and the whole outlined as his hull is */
       /* (a second pass -- Sir, 2026-11-16, "they seem nice but could be better"): each fin a solid blade, thick at its root and thinning to
@@ -125257,11 +125259,18 @@ class WorldScene extends Phaser.Scene {
         const L = P(TIP[0] + 0.6, sideY(TIP), TIP[1] - 1.4); g.fillStyle(0x7f1d19, 1); g.fillCircle(L.x, L.y, 1.4*K); g.fillStyle(0xff4a3a, 1); g.fillCircle(L.x, L.y, 0.95*K);   // (its tail lamp)
       };
       const fins = () => { fin(-nearSide); fin(nearSide); };
-      /* THE JET NOZZLE out his tail: a steel ring, its dark throat, an ember glowing in it */
-      const nozzle = () => { if(!vis(-1, 0, 0)) return; const x = -BODY.hx - 0.6, zc = (BODY.z0 + BODY.z1)/2 - 1, pulse = 0.7 + 0.3*Math.sin((this.time ? this.time.now : 0)*0.006);
-        const disc = (r, col, a = 1) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } this.quadOn(g, o, col, a); };
-        disc(5.2, 0x8d959c); disc(4.3, 0x5d646c); disc(3.4, 0x16171b); disc(2.2, 0xff6a2a, pulse); disc(1.1, 0xffd08a, pulse); };
-      if(part === 'pre') hdr(-nearSide);
+      /* THE JET NOZZLE (more pronounced, out past his tail -- Sir, 2026-11-16): a round steel housing standing off his tail, banded, a
+         flared lip, its dark throat with an ember glowing in it -- behind him when his front is to the eye, over him when his back is */
+      const nozzle = () => { const x0 = -BODY.hx + 2, x1 = -BODY.hx - 7, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
+        const ring = (x, r) => { const o = []; for(let k = 0; k < 16; k++){ const q = k/16*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } return o; };
+        const can = (xa, xb, r, c) => this.quadOn(g, convexHull(ring(xa, r).concat(ring(xb, r))), c);
+        can(x0, x1 + 1.2, 5.6, 0x7d838a);                                   // (the housing)
+        { const A = P(x0, 0, zc + 5.4), B = P(x1 + 1.2, 0, zc + 5.4); g.lineStyle(Math.max(1, 1.4*K), 0xd8dde2, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its sheen)
+        for(const bx of [x0 - 3, x0 - 6]) can(bx, bx - 0.8, 5.8, 0x5d646c);  // (its bands)
+        can(x1 + 1.2, x1, 6.6, 0x9aa0a6);                                    // (the flared lip)
+        if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.05, 6.6), 0xb9bec4); this.quadOn(g, ring(x1 - 0.1, 5.2), 0x16171b);
+          this.quadOn(g, ring(x1 - 0.15, 3.4), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.2, 1.8), 0xffd08a, pulse); } };
+      if(part === 'pre'){ hdr(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
       if(part === 'near' && !frontSeen) fins(); }
   }
