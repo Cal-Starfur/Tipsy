@@ -127631,10 +127631,12 @@ class WorldScene extends Phaser.Scene {
          out at its end ahead of his rear wheel; the far side before his body, the near one over it */
       /* (the length of his body -- Sir, 2026-11-16): primaries out of his flank at his front, the pipe along his lower edge from his front edge
          to his tail, turned out at its end there; in this skin's own pipe colour */
-      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 5.2), zs = BODY.z0 + 1.5, xf = BODY.hx - 1, xe = -BODY.hx + 1, yt = sb*(BODY.hy + 9.5);
+      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 3), zs = BODY.z0 + 1.5, xf = BODY.hx - 1, xe = -BODY.hx + 1, yt = sb*(BODY.hy + 7);   /* (snug to his side -- Sir, 2026-11-16) */
         for(const x of [xf - 3, xf - 8, xf - 13]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 2.4), BODY.z0 + 5], 8.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 2.4), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 8.2, STK[1]); }
-        pipe([xf, ys, zs], [xe, ys, zs], 12.5, STK[1]); pipe([xe, ys, zs], [xe - 3.5, yt, zs - 0.5], 12.5, STK[1]);
-        { const F = P(xf, ys, zs), r = 12.5*0.5*K;   /* (a clean rounded cap on its front end, as the pipe is shaded: dark rim, its colour, its shine) */
+        /* the farther end first: with his front to the eye the turn-out at his tail goes under the run, the front cap over it */
+        const fw = vis(1, 0, 0), turn = () => pipe([xe, ys, zs], [xe - 3.5, yt, zs - 0.5], 12.5, STK[1]);
+        if(fw) turn(); pipe(fw ? [xe, ys, zs] : [xf, ys, zs], fw ? [xf, ys, zs] : [xe, ys, zs], 12.5, STK[1]); if(!fw) turn();
+        if(fw){ const F = P(xf, ys, zs), r = 12.5*0.5*K;   /* (a clean rounded cap on its front end, as the pipe is shaded: dark rim, its colour, its shine) */
           g.fillStyle(_pmix(STK[1], 0x000000, 0.25), 1); g.fillCircle(F.x, F.y, r); g.fillStyle(STK[1], 1); g.fillCircle(F.x - 0.15*12.5*K, F.y - 0.15*12.5*K, r*0.55);
           g.fillStyle(_pmix(STK[1], 0xffffff, 0.5), 1); g.fillCircle(F.x - 0.3*12.5*K, F.y - 0.3*12.5*K, r*0.22); }
         const dx = -3.5, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
