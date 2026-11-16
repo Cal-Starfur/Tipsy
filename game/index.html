@@ -122564,6 +122564,11 @@ class WorldScene extends Phaser.Scene {
     /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
     this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
     const BP = this.bodyPaint();
+    /* HIS BUILD (Sir, 2026-11-16: builds for Tipsey, "let's try racer"): the Racer keeps his box -- his lid still opens -- and adds a wedge
+       nose low on his front and a wing on struts off his back. Each piece drawn before the body when it is on the far side of him, after
+       it when it faces the eye (racerKit) */
+    const racer = SKIN.build === 'racer', frontSeen = (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })();
+    if(racer) this.racerKit(bobZ, BP, frontSeen ? 'back' : 'front');
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
@@ -122574,6 +122579,7 @@ class WorldScene extends Phaser.Scene {
        stripe. Both are gated on the palette, so no other skin grows
        them. */
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
+    if(racer) this.racerKit(bobZ, BP, frontSeen ? 'front' : 'back');
     if(SKIN.stripe2){
       this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
     }
@@ -126654,6 +126660,26 @@ class WorldScene extends Phaser.Scene {
                     need to blend and not be hard lines"): each side is drawn
                     in strips whose normal turns from one corner's to the
                     next, so the colour runs on round the corners */
+  /* THE RACER BUILD's pieces (SKIN.build 'racer'): part 'front' the wedge nose, 'back' the wing -- in his own frame (P, R) */
+  racerKit(bobZ, BP, part){
+    const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+    const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
+    if(part === 'front'){ const x0 = BODY.hx - 0.5, x1 = BODY.hx + 13, zb = BODY.z0, zt = STRIPE.z1 + 2, zf = BODY.z0 + 4, w = BODY.hy - 1.5;
+      if(vis(0, -1, 0)) quad([[x0, -w, zb], [x1, -w, zb], [x1, -w, zf], [x0, -w, zt]], BP.dk);
+      if(vis(0, 1, 0)) quad([[x0, w, zb], [x1, w, zb], [x1, w, zf], [x0, w, zt]], BP.lt);
+      if(vis(1, 0, 0)) quad([[x1, -w, zb], [x1, w, zb], [x1, w, zf], [x1, -w, zf]], _pdk(BP.dk, 0.85));
+      if(vis(zt - zf, 0, x1 - x0)){ quad([[x0, -w, zt], [x0, w, zt], [x1, w, zf], [x1, -w, zf]], BP.top);
+        quad([[x0 + 2, -2.5, zt - 0.6], [x0 + 2, 2.5, zt - 0.6], [x1 - 1, 2.5, zf + 0.25], [x1 - 1, -2.5, zf + 0.25]], SKIN.stripe);   // (a racing stripe down the nose)
+        quad([[x0 + 1, -w + 2, zt - 0.4], [x0 + 4, -w + 2, zt - 1.3], [x0 + 4, -w + 5, zt - 1.3], [x0 + 1, -w + 5, zt - 0.4]], 0x22242b);
+        quad([[x0 + 1, w - 5, zt - 0.4], [x0 + 4, w - 5, zt - 1.3], [x0 + 4, w - 2, zt - 1.3], [x0 + 1, w - 2, zt - 0.4]], 0x22242b); }   // (two air intakes)
+    }
+    if(part === 'back'){ const xa = -BODY.hx, xw = -BODY.hx - 9, zw = LID.z1 + 7, w = BODY.hy + 2;
+      g.lineStyle(Math.max(1, 2.2*this.kScale()), 0x2e3138, 1);
+      for(const y of [-9, 9]){ const A = P(xa + 1, y, BODY.z1 - 6), B = P(xw + 2, y, zw); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its struts)
+      this.drawHullPrism({ hx: 4, hy: w, ox: xw, oy: 0, z0: zw + bobZ, z1: zw + 1.8 + bobZ, ch: 0, cTop: SKIN.stripe, cLt: SKIN.stripe, cDk: SKIN.stripeDk, cBottom: SKIN.stripeDk, outline: false, topEdge: false });
+      for(const y of [-w, w]) this.drawHullPrism({ hx: 4.6, hy: 0.6, ox: xw, oy: y, z0: zw - 3 + bobZ, z1: zw + 4 + bobZ, ch: 0, cTop: BP.top, cLt: BP.lt, cDk: BP.dk, cBottom: BP.dk, outline: false, topEdge: false });   // (its end plates)
+    }
+  }
   bodyPaint(){
     const fin = SKIN.finish;
     let top = SKIN.bodyTop, lt = SKIN.bodyRight, dk = SKIN.bodyLeft, split = null;
@@ -145790,7 +145816,7 @@ requestTpProfile();
         <button class="on" data-t="paint">Paint</button><button data-t="eyes">Eyes</button>
         <button data-t="mouth">Mouth</button><button data-t="wheels">Wheels</button>
         <button data-t="antenna">Antenna</button><button data-t="decals">Decals</button>
-        <button data-t="upgrades">Upgrades</button><button data-t="fleet">Fleet</button>
+        <button data-t="upgrades">Upgrades</button><button data-t="build">Build</button><button data-t="fleet">Fleet</button>
       </div>
       <div id="grPanel"></div>
     </div>`;
@@ -146467,6 +146493,7 @@ requestTpProfile();
   /* TIPSEY'S UPGRADES (as Gideon's scooter's GSC_UP -- Sir, 2026-11-16, "both of them have everything"; the Kickstand his alone):
      the Speed Motor, the Battery (half the drain), the Headlight (his pool thrown further), the Bell (people step aside), Underglow */
   const UP1 = (nm, c) => [{ id: 'stock', name: 'Stock', cents: 0 }, { id: 'on', name: nm, cents: c }];
+  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }];   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
   const WHEEL_LIST = [
@@ -146639,7 +146666,7 @@ requestTpProfile();
   const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
-  const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol', 'upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow'];
+  const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol', 'upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build'];
   const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint', 'gUpMotor', 'gUpBatt', 'gUpLight', 'gUpBell', 'gUpStand', 'gUpGlow', 'gWhRim', 'gWhCol', 'gWhTyre', 'gWhWall', 'gScTop', 'gScFlag', 'gScDecal', 'gScBand', 'gScDecCol', 'gScFinish', 'gScoot2'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
@@ -146665,7 +146692,7 @@ requestTpProfile();
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
-                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW };
+                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD };
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
@@ -146714,7 +146741,7 @@ requestTpProfile();
     if (mo && mo.id !== 'none') SKIN.mouth = mo.id;
     if (mc && mc.id === 'glow') SKIN.mouthGlow = true; else if (mc) SKIN.mouthCol = mc.hex;
     const wh = byId(WHEEL_LIST, L.wheel), ty = byId(TYRE_LIST, L.tyre), rc = itemOf('rimCol', L.rimCol);
-    for (const k of ['upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow']) if (L[k] && L[k] !== 'stock') SKIN[k] = L[k] === 'on' ? true : L[k];   // (his upgrades: TP_UP_*)
+    for (const k of ['upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build']) if (L[k] && L[k] !== 'stock') SKIN[k] = L[k] === 'on' ? true : L[k];   // (his upgrades: TP_UP_*)
     if (wh && wh.id !== 'stock') SKIN.wheelStyle = wh.id;
     if (ty && ty.id !== 'stock') SKIN.tyre = ty.id;
     const wl = byId(WALL_LIST, L.wall), sz = byId(SIZE_LIST, L.tyreSize), rg = byId(RIG_LIST, L.rig);
@@ -146795,7 +146822,7 @@ requestTpProfile();
     renderTab(); renderBar();
   }
   /* what a field reads as when it is null (the stock pick), for 'is he wearing it' */
-  const DEFAULT_OF = { upMotor: 'stock', upBatt: 'stock', upLight: 'stock', upBell: 'stock', upGlow: 'stock', finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
+  const DEFAULT_OF = { build: 'stock', upMotor: 'stock', upBatt: 'stock', upLight: 'stock', upBell: 'stock', upGlow: 'stock', finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
                        rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto',
                        gShell: 'white', gJoint: 'graphite', gHand: 'graphite', gEye: 'cyan', gScreen: 'dark', gBand: 'copper', gPack: 'graphite', gEar: 'stock', gShoeCol: 'graphite',
                        gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat', gHat: 'none', gHatCol: 'copper',
@@ -146822,7 +146849,7 @@ requestTpProfile();
   /* what tab a kind is sold on, for the cart's small print */
   const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
-                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals', upMotor: 'Upgrades', upBatt: 'Upgrades', upLight: 'Upgrades', upBell: 'Upgrades', upGlow: 'Upgrades',
+                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals', upMotor: 'Upgrades', upBatt: 'Upgrades', upLight: 'Upgrades', upBell: 'Upgrades', upGlow: 'Upgrades', build: 'Build',
                      gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet', gHat: 'Head', gHatCol: 'Head',
                      gApron: 'Outfit', gNeck: 'Outfit', gBadge: 'Outfit', gGlasses: 'Outfit', gOutCol: 'Outfit', gBadgeCol: 'Outfit', gGlassCol: 'Outfit', gPackStyle: 'Band & pack', gFinish: 'Finish', gShell2: 'Finish', gDecal: 'Decals', gDecalCol: 'Decals' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
@@ -147361,6 +147388,12 @@ requestTpProfile();
     if (tab === 'mouth') { renderMouth(P); return; }
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
+    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock';
+      const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
+      P.className = 'grList';
+      P.innerHTML = '<div class="grSec">BUILD — HIS BODY\'S SHAPE</div><div class="grRow">' + TP_BUILD.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
+      for (const b of P.querySelectorAll('[data-build]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { build: b.dataset.build === 'stock' ? null : b.dataset.build }));
+      return; }
     if (tab === 'antenna') { renderAntenna(P); return; }
     if (tab === 'decals') { renderDecals(P); return; }
     if (tab === 'fleet') { renderFleet(P); return; }
