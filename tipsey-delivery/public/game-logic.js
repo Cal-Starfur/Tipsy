@@ -88011,7 +88011,8 @@ function gscBrand(){
   if(wh.tyre === 'whitewall' || wh.tyre === 'redline'){ wh.wall = wh.tyre; wh.tyre = 'stock'; }   // (an older pick: walls were tyres once)
   wh.custom = wh.rim !== 'five' || wh.col !== 'silver' || wh.tyre !== 'stock' || wh.wall !== 'plain';   // (its wheels: GSC_WH)
   /* Tipsey's on it (GSC_TIP): topper and flag, decal, stripe pattern and its colour, finish, second colour */
-  const tip = { top: L.scTop && L.scTop !== 'none' ? L.scTop : null, flag: L.scFlagHex != null ? L.scFlagHex : null, decal: L.scDecal && L.scDecal !== 'none' ? L.scDecal : null, band: L.scBand && L.scBand !== 'none' ? L.scBand : null,
+  const tip = { top: L.scTop && L.scTop !== 'none' ? L.scTop : null, flag: L.scFlagHex != null ? L.scFlagHex : null, decal: null, band: null,   // (no stickers on the scooter: Sir, 2026-11-16)
+   
     decCol: L.scDecHex != null ? L.scDecHex : null, finish: L.scFinish && L.scFinish !== 'satin' ? L.scFinish : null, c2: L.scoot2 ? gdHex('shell', L.scoot2) : null };
   const tipKey = Object.values(tip).filter(v => v != null).join('.');
   const lv = paint && GSC_LIVERY[paint];
@@ -145892,7 +145893,7 @@ requestTpProfile();
         return `<div class="grSec">${title}</div><div class="grRow">` + GSC_TIP[kind][0].map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-gtip="${kind}:${c.id}">${icon(c.id)}<span>${c.name}</span>${tagOf(kind, c.id, cur === c.id)}</button>`).join('') + '</div>'; };
       const fcol = (byId(FLAG_COL, Lu.gScFlag || 'stock') || FLAG_COL[0]).hex, dcol = Lu.gScDecCol && Lu.gScDecCol !== 'auto' ? byId(DECAL_COL, Lu.gScDecCol).hex : null;
       const tipRows = tipRow('HORN — TIPSEY\'S TOPPERS ON THE HANDLEBAR', 'gScTop', id => id === 'none' ? gdCardIcon('upGlow', 'off') : antennaIcon(id, 'stock', fcol, true)) + tipRow('FLAG COLOUR', 'gScFlag', id => `<svg viewBox="0 0 40 26" width="52" height="34"><circle cx="20" cy="13" r="8" fill="${hex(byId(FLAG_COL, id).hex)}"/></svg>`)
-        + tipRow('SIDE DECAL', 'gScDecal', id => decalIcon(id, dcol)) + tipRow('STRIPE PATTERN', 'gScBand', id => bandIcon(id, dcol)) + tipRow('DECAL COLOUR', 'gScDecCol', id => `<svg viewBox="0 0 40 26" width="52" height="34"><circle cx="20" cy="13" r="8" fill="${id === 'auto' ? '#9aa2a8' : hex(byId(DECAL_COL, id).hex)}"/></svg>`)
+        /* (no stickers on the scooter -- Sir, 2026-11-16: "they don't fit anywhere") */
         + tipRow('FINISH', 'gScFinish', id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="6" y="8" width="28" height="10" rx="2" fill="${id === 'flat' ? '#b9bec4' : id === 'twotone' ? '#2f4a86' : id === 'chameleon' ? '#7a5cff' : '#eceef1'}"/>${id === 'gloss' ? '<path d="M9 10h20" stroke="#fff" stroke-width="1.4"/>' : ''}${id === 'flake' ? '<circle cx="12" cy="12" r=".8" fill="#fff"/><circle cx="20" cy="15" r=".8" fill="#fff"/><circle cx="27" cy="11" r=".8" fill="#fff"/>' : ''}${id === 'twotone' ? '<rect x="6" y="8" width="28" height="5" rx="2" fill="#eceef1"/>' : ''}</svg>`)
         + gColRow('SECOND COLOUR — FOR TWO-TONE', 'gScoot2');
       h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + upRow + gCardRow('UNDERGLOW', 'gUpGlow', 'upGlow') + whRows + tipRows + (Object.values(GSC_PAINT).includes(bld) ? gCardRow((bld === 'stock' ? 'REGULAR' : (LISTS.gScootSkin.find(c => c.id === bld) || { name: bld }).name.toUpperCase()) + ' SKINS', 'gScootPaint', 'scootPaint', id => id === 'plain' || GSC_PAINT[id] === bld) : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
