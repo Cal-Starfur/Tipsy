@@ -120956,6 +120956,8 @@ class WorldScene extends Phaser.Scene {
        front-to-back order at every angle instead of just at the ones
        where the fixed order happened to already match. */
     wheels.sort((a,b) => a.d - b.d);
+    { const k0 = !npc && TP_BUILDS[SKIN.build] && TP_BUILDS[SKIN.build].kit;   // (a build's pieces that lie beyond its far tyres: before them)
+      if(k0) this.buildKit(k0, bobZ, (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })(), 'prewheel'); }
     for(const w of wheels) if(!w.near) this.drawGearItem(w, G, t, gLift, rolling);
 
     /* the open lid can swing to the far side of the body — draw it first there */
@@ -125235,8 +125237,9 @@ class WorldScene extends Phaser.Scene {
       const hdr = sb => { const ys = sb*(BODY.hy + 3.6), zs = BODY.z0 + 2, xe = -2, yt = sb*(BODY.hy + 8.5);
         for(const x of [17, 12, 7]){ const a = [x, sb*(BODY.hy - 0.3), BODY.z0 + 8], m = [x - 2.5, sb*(BODY.hy + 2), BODY.z0 + 6], b = [x - 5, ys, zs + 0.8];
           pipe(a, m, 4.2); pipe(m, b, 4.2); }
-        pipe([18, ys, zs], [xe, ys, zs], 6.8);                          // (the side pipe)
-        if(!(sb === nearSide && frontSeen)) turnOut(sb); };
+        pipe([18, ys, zs], [xe, ys, zs], 6.8); };                       // (the side pipe)
+      /* the far side against its tyres: its run lies behind the front tyre when his front is to the eye, its turn-out behind the rear tyre
+         when his back is -- each of those goes before the far tyres ('prewheel'), the rest after them */
       /* its turn-out, ahead of the rear wheel: on the near side with his front to the eye it stands in front of that wheel, so it goes
          after the near tyres ('after'); otherwise the wheel is in front of it */
       const turnOut = sb => { const ys = sb*(BODY.hy + 3.6), zs = BODY.z0 + 2, xe = -2, yt = sb*(BODY.hy + 8.5);
@@ -125281,9 +125284,10 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, convexHull(ring(x1 + 0.3, r1 + 0.5).concat(ring(x1 - 0.7, r1 + 0.5))), 0x9aa0a6);        // (its steel lip)
         if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.75, r1 + 0.5), 0xb9bec4); this.quadOn(g, ring(x1 - 0.8, r1 - 0.3), 0x16171b);
           this.quadOn(g, ring(x1 - 0.85, r1*0.62), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.9, r1*0.3), 0xffd08a, pulse); } };
-      if(part === 'pre'){ hdr(-nearSide); if(frontSeen) nozzle(); }
+      if(part === 'prewheel'){ if(frontSeen) hdr(-nearSide); else turnOut(-nearSide); }
+      if(part === 'pre'){ if(frontSeen) turnOut(-nearSide); else hdr(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'after' && frontSeen) turnOut(nearSide);
-      if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
+      if(part === 'mid'){ hdr(nearSide); if(!frontSeen) turnOut(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
       if(part === 'near' && !frontSeen) fins(); }
   }
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
