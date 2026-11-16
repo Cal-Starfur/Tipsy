@@ -86491,7 +86491,7 @@ function fmPlatesOn(now){
     const tSet = n*S.every + (S.every - m1 - S.setMs - m2 - 1000) + m1 + S.setMs*0.6;
     if(now < tSet || now >= tSet + S.eatMs) continue;
     const [tx, ty] = FM_PLAN.TABLES[[0, 2, 4][k]];
-    out.push({ k, x: tx, y: ty + 52 });
+    out.push({ k, table: [0, 2, 4][k], x: tx, y: ty });
   }
   return out;
 }
@@ -86508,7 +86508,7 @@ function fmDiners(){
   const T = FM_PLAN.TABLES, out = [];
   for(const [i, side] of [[0, -1], [0, 1], [2, -1], [2, 1], [4, -1], [4, 1]]){
     const [x, y] = T[i];
-    out.push({ x: x + side*58, y: y + (side < 0 ? 20 : -20), th: side < 0 ? 0 : Math.PI, seed: 0x7ab0 + i*31 + (side + 1)*7, kind: (i + side) % 2 ? 'woman' : 'man' });
+    out.push({ x: x + side*58, y: y + (side < 0 ? 20 : -20), th: side < 0 ? 0 : Math.PI, seed: 0x7ab0 + i*31 + (side + 1)*7, kind: (i + side) % 2 ? 'woman' : 'man', table: i, side });
   }
   return (fmDiners.c = out);
 }
@@ -86995,12 +86995,16 @@ function fmQueue(scene, t, queuePerson, keyQueue, layerFor){
     one(fmCookAt(now), K.cook, queuePerson, 3);
     const por = fmPorterAt(now);
     one(por, K.porter, queuePerson, 4);
+    /* they eat only with food in front of them (Sir, 2026-11-16: "the people who don't even have a plate are moving their
+       arms around"): a plate on their table (fmPlatesOn) -- a fork to the plate and up, now and then a word; none --
+       hands on the table, still, waiting */
+    const fed = new Set(fmPlatesOn(now).map(p => p.table));
     for(const d of fmDiners()){
       if(!scene.visProp("people", d.x, d.y)) continue;
-      const L = partyLook(d.seed, d.kind), ph = d.seed & 15;
+      const L = partyLook(d.seed, d.kind), ph = d.seed & 15, eat = fed.has(d.table);
       queuePerson(d.x, d.y, (g) => {
         const u = Math.sin(now*0.0021 + ph), talk = Math.sin(now*0.0009 + ph) > 0.3;
-        let th = d.th, lift = talk ? [0.3, 0.7 + 0.15*u] : [0.55 + 0.1*u, 0.55 - 0.1*u], bend = talk ? [0.8, 0.9] : 1.3;
+        let th = d.th, lift = !eat ? [0.42, 0.42] : talk ? [0.3, 0.7 + 0.15*u] : [0.55 + 0.1*u, 0.55 - 0.1*u], bend = !eat ? 1.2 : talk ? [0.8, 0.9] : 1.3;
         if(clap && nell){ th = Math.atan2(nell.y - d.y, nell.x - d.x); lift = [0.62, 0.62]; bend = 1.45 + 0.3*Math.sin(now*0.022 + ph); }
         scene.drawPersonHull(layerFor(d.x, d.y), d.x, d.y, 0, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
           { sit: 44, dress: L.dress, lift, bend });
@@ -101477,8 +101481,9 @@ class WorldScene extends Phaser.Scene {
     { const B = P.BIN, x = B.x, y = B.y;                         // the city's own litter bin (drawProp 'bin'), as the harbour's
       if(vis(x, y, 40, 100)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "fm|bin|" + x + "," + y, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, 0, 0)) }); }
     /* the plates of tacos the cook has set down, on their tables while the diners eat (fmPlatesOn) */
-    if(open) for(const pl of fmPlatesOn(this.time.now)){ const x = pl.x, y = pl.y;
-      if(vis(x, y, 40, 100)) vq.push({ depth: x + y + 1, fn: (g) => this.bcDraw(g, "fm|plate|" + pl.k, x, y, gg => this.drawFmCarry(gg, x, y, 77, 'tacos')) }); }
+    /* one in front of each diner (fmDiners: side -1 at x-58, y+20; side +1 at x+58, y-20) */
+    if(open) for(const pl of fmPlatesOn(this.time.now)) for(const sd of [-1, 1]){ const x = pl.x + sd*24, y = pl.y + (sd < 0 ? 20 : -20);
+      if(vis(x, y, 40, 100)) vq.push({ depth: pl.x + pl.y + 1, fn: (g) => this.bcDraw(g, "fm|plate|" + pl.k + "|" + sd, x, y, gg => this.drawFmCarry(gg, x, y, 77, 'tacos')) }); }
     { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
       if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
         if(u === 0 || u === 1) item("store|" + u, xm, ym, xm + ym, fn); else live(xm, ym, xm + ym, fn); } }
