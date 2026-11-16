@@ -111620,7 +111620,7 @@ class WorldScene extends Phaser.Scene {
       if(brand.paint) this.vintageDecals(g, P, KV, brand.paint, 'side', -R.wheelA, RD - 2, R.wheelA);   // its skin on the cowl's seen side, then the shield, then the shield's front
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3, -8.4], [R.wheelA + 0.5, -6.6], [R.wheelA + 1.5, -5], [R.wheelA + 1.5, 5], [R.wheelA + 0.5, 6.6], [R.wheelA - 3, 8.4], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c);
       if(brand.paint) this.vintageDecals(g, P, KV, brand.paint, 'front', -R.wheelA, RD - 2, R.wheelA); }
-    if(sty !== 'robo' && sty !== 'vintage' && sty !== 'rocket' && sty !== 'chopper' && sty !== 'racer')
+    if(sty !== 'robo' && sty !== 'vintage' && sty !== 'rocket' && sty !== 'chopper' && sty !== 'racer' && sty !== 'junk')   // (the Junkyard Build's dropped -- Sir, 2026-11-16)
       if(sty === 'offroad'){ const r = WHL[0][1], hc = r + 6.8;                               // the Off-Road's back fender matches its front: as skinny, raised as high (Sir, 2026-11-16)
         const band = arcPts(WHL[0][0], hc, r + 4.6, r + 4.6, 0.12, Math.PI - 0.1, 12).concat(arcPts(WHL[0][0], hc, r + 3, r + 3, Math.PI - 0.1, 0.12, 12)), qq = prismB(band, -3.4, 3.4);
         solid(qq.raw ? qq.raw() : qq, brand.c, (k, nn) => nn[2] < -0.3 ? brand.cDk : brand.c); }
@@ -111631,7 +111631,7 @@ class WorldScene extends Phaser.Scene {
       const fc = WHL[0][1] + 6.8, hp = fc + 7.5;
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismB([[-31, hp - 4], [-16, hp - 4], [-17.5, hp + 3.4], [-29.5, hp + 4]], sb*3.5, sb*4.2), lv.plate);
         this.numberPlate(g, (x, y) => P(-23.4 + sb*x*0.95, sb*4.25, hp + y), 5.4, 3.4, lv.plate, lv.num, lv.digit); } }
-    if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
+    if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'junk' ? P(DB - 0.4, 0, RD - 2.5) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
       if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
