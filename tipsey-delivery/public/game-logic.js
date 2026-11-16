@@ -42843,6 +42843,12 @@ const BODY = { hx:26, hy:20, z0:14, z1:54, ch:5, bev:3, bevIn:2.5 };   // ch: th
 const CAVITY_DEPTH = 18;   // how far down his cargo hollow goes below the top of his body (the body is 40 tall)
 const LID  = { hx:26, hy:20, z0:54, z1:61, ch:5, bev:2.5, bevIn:2 };   // the full width of his body (Sir, 2026-10-24), the body's own chamfer: one hull, a seam where the lid sits
 const STRIPE = { z0:20, z1:27 };
+/* HIS BUILDS (drawBotBody): each his BODY / LID / STRIPE / FLAG for the length of his draw, his face's heights mapped onto its front
+   (zmap: from his stock 14..54), and the wheels it stands on (unless a rig is fitted) */
+const TP_BUILDS = {
+  racer: { BODY: { hx: 36, hy: 19, z0: 10, z1: 30, ch: 11, bev: 3, bevIn: 2.5 }, LID: { hx: 19, hy: 15, z0: 30, z1: 37, ch: 6, bev: 2.5, bevIn: 2 },
+    STRIPE: { z0: 15, z1: 19 }, FLAGB: { x: -39.5, y: 12.4 }, FLAGZ: [26, 70], zmap: z => 10 + (z - 14)*0.5,
+    WHEELS: { r: 10, W2: 9, xs: [-24, 24], side: 23 } } };
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120724,7 +120730,20 @@ class WorldScene extends Phaser.Scene {
      wheelPhase, speed, and SKIN. drawRobot calls it for him; drawProp's "robot" puts a pavement robot's pose and
      palette on the scene, calls it, and puts his back (drawNpcRobotBody). npc: none of his spilled cargo. Returns
      what the night's glow needs (the face's normal fn, its plane F, the pixel scale, the mouth, his bob). */
+  /* HIS BUILDS ARE REAL SHAPES (Sir, 2026-11-16: "let's see what the real shapes are but keep the original in mind"): a build is his own
+     body redrawn to other proportions -- his hull, lid, stripe, face and flag all read BODY / LID / STRIPE / FLAG, so for the length of his
+     draw those take the build's (TP_BUILDS), and are put back after: nothing else in the game (his bumps, the camera, the robots on the
+     pavement) sees them. The Racer: long, low and wide, a big chamfered nose, a cockpit lid, four big wheels at its corners, a slit visor */
   drawBotBody(t, dt, npc){
+    const B = !npc && TP_BUILDS[SKIN.build];
+    if(!B) return this.drawBotBodyRaw(t, dt, npc);
+    const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
+    Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS;
+    try { return this.drawBotBodyRaw(t, dt, npc); }
+    finally { delete BODY._zmap; delete BODY._wheels; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+  }
+  drawBotBodyRaw(t, dt, npc){
     const g = this.g;
     const driving = this.state === "play" && this.speed > 0.01;
     /* RUNNING GEAR lift (gearSpec): big tyres raise the body, a lowrider
@@ -120843,8 +120862,8 @@ class WorldScene extends Phaser.Scene {
     /* HIS BUILD (Sir, 2026-11-16: builds for Tipsey, "let's try racer"): the Racer keeps his box -- his lid still opens -- and adds a wedge
        nose low on his front and a wing on struts off his back. Each piece drawn before the body when it is on the far side of him, after
        it when it faces the eye (racerKit) */
-    const racer = SKIN.build === 'racer', frontSeen = (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })();
-    if(racer) this.racerKit(bobZ, BP, frontSeen ? 'back' : 'front');
+    const racer = !npc && SKIN.build === 'racer', frontSeen = (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })();
+    if(racer && frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing, on the far side of him)
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
@@ -120855,7 +120874,7 @@ class WorldScene extends Phaser.Scene {
        stripe. Both are gated on the palette, so no other skin grows
        them. */
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
-    if(racer) this.racerKit(bobZ, BP, frontSeen ? 'front' : 'back');
+    if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');
     if(SKIN.stripe2){
       this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
     }
@@ -120891,7 +120910,7 @@ class WorldScene extends Phaser.Scene {
     if(lidIsNear) this.drawLid(lidBox);
 
     const fn = this.R(1, 0, 0);
-    const F = (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
+    const F = (y, z) => this.P(BODY.hx + 0.8, y, (BODY._zmap ? BODY._zmap(z) : z) + bobZ);   // (a build's face: its features fitted to its front -- TP_BUILDS)
     const ks = this.kScale();
     let mouthPolys = null;              // this frame's mouth, for the night glow below
     /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
@@ -130690,6 +130709,7 @@ function gearSpecRaw(){
     case 'cart':     return { kind: 'cart', lift: 6 };
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, xs: W.xs, side: W.side, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
