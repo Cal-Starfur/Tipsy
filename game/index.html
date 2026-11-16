@@ -78502,19 +78502,20 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   /* the pylon on the corner: two steel legs, the black sign box the neon is mounted on (the tubes are the neon part),
      OPEN / CLOSED under it */
   pylon(open){
-    const C = this.C, Q = FM_PLAN.PYLON, x = Q.x, y = Q.y;
-    if(!inView(x - 200, x + 200, y - 30, y + 30, 0, 600)) return;
-    box(x - 30, x + 30, y - 22, y + 22, 0, 14, C.conc, shade(C.conc, .9), shade(C.conc, .8));
-    for(const a of [x - 130, x + 130]) box(a - 8, a + 8, y - 8, y + 8, 0, 360, '#4a5258', '#3b4248', '#2f353a');
-    box(x - 190, x + 190, y - 12, y + 12, 360, 560, '#22262b', '#16191d', '#101215');           // the box the tubes are on
-    F(x - 186, x + 186, 364, 556, '#1b1e22', null, 0, y + 12.2);
-    box(x - 110, x + 110, y - 8, y + 8, 300, 344, '#22262b', '#16191d', '#101215');             // OPEN / CLOSED
+    const Q = FM_PLAN.PYLON, x = Q.x, y = Q.y, L = fmSignLift(), z0 = L + 274;          // z0: the eave's top, where its legs stand
+    if(!inView(x - 200, x + 200, y - 30, y + 30, z0 - 10, L + 600)) return;
+    for(const a of [x - 130, x + 130]){ box(a - 14, a + 14, y - 14, y + 14, z0 - 4, z0 + 4, '#4a5258', '#3b4248', '#2f353a');   // its feet bolted to the eave
+      box(a - 8, a + 8, y - 8, y + 8, z0, L + 360, '#4a5258', '#3b4248', '#2f353a'); }
+    for(const a of [x - 130, x + 130]) tube(a, y - 8, L + 330, a, y - 140, z0 + 40, 2.5, '#3b4248');   // stays back to the roof
+    box(x - 190, x + 190, y - 12, y + 12, L + 360, L + 560, '#22262b', '#16191d', '#101215');   // the box the tubes are on
+    F(x - 186, x + 186, L + 364, L + 556, '#1b1e22', null, 0, y + 12.2);
+    box(x - 110, x + 110, y - 8, y + 8, L + 300, L + 344, '#22262b', '#16191d', '#101215');     // OPEN / CLOSED
   },
   /* THE NEON (live): the fish in tubes, its tail flicking between two strokes, an eye that winks, bubbles, FISH
      MARKET in pink under it; at night the glass glows; OPEN or CLOSED lit in its box. t the clock, nl the night */
   neon(t, nl, open){
-    const Q = FM_PLAN.PYLON, x = Q.x, b = Q.y + 13, cz = 476;
-    if(!inView(x - 200, x + 200, Q.y, Q.y + 14, 300, 560)) return;
+    const Q = FM_PLAN.PYLON, x = Q.x, b = Q.y + 13, L = fmSignLift(), cz = 476 + L;
+    if(!inView(x - 200, x + 200, Q.y, Q.y + 14, L + 300, L + 560)) return;
     const on = 0.55 + 0.45*nl, cyan = nl > 0.05 ? '#9ff6ff' : '#5fd4e0', pink = nl > 0.05 ? '#ff9ad5' : '#e0609e', dim = '#3a4a52';
     const pt = (u, v) => P(x + u, b, cz + v);
     const seg = (pts, col, r) => { for(let i = 1; i < pts.length; i++){ const p0 = pts[i - 1], p1 = pts[i]; tube(x + p0[0], b, cz + p0[1], x + p1[0], b, cz + p1[1], r, col); } };
@@ -78528,8 +78529,8 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     const wink = (t % 4200) > 4000;
     if(!wink) ball(x + 74, b, cz + 14, 6, '#ffffff', '#ffffff');
     for(let k = 0; k < 3; k++){ const ph = ((t/900 + k*0.33) % 1); if(ph < 0.85) ball(x + 140 + k*6, b, cz + 30 + ph*70, 4 + k, cyan, cyan); }   // bubbles
-    blockWordIn('FISH MARKET', x - 170, x + 170, 372, 410, b, pink, null);
-    blockWordIn(open ? 'OPEN' : 'CLOSED', x - 96, x + 96, 306, 338, Q.y + 8.2, open ? '#7cf29a' : '#ff6a5a', null);
+    blockWordIn('FISH MARKET', x - 170, x + 170, L + 372, L + 410, b, pink, null);
+    blockWordIn(open ? 'OPEN' : 'CLOSED', x - 96, x + 96, L + 306, L + 338, Q.y + 8.2, open ? '#7cf29a' : '#ff6a5a', null);
   },
   /* the market bell on its post by Nell's beds, swinging by sw (radians) */
   bell(sw){
@@ -86149,7 +86150,7 @@ const FM_PLAN = {
   POD: { x: -300, y: -2600, yaw: Math.PI/2 },                                        // the market's delivery pod on its bay, nose to the hall
   PARK: { x: 130, y: -2600 },                                                        // where Tipsey stops to take it (the mission's yard bay)
   KERB: { x: -300, y: -810 },                                                        // the mission's start, on the forecourt in front of bay C
-  PYLON: { x: -1080, y: -800 },                                                      // the neon sign, on the corner of the forecourt (clear of the PELICAN HARBOR sign on screen)
+  PYLON: { x: -1080, y: -854 },                                                      // the neon sign, mounted on the front eave at the west end (fmSignLift: how far up)
   NELL: [[-20, -1188], [220, -1188], [470, -1188]],                                  // Nell's places behind her ice beds (run D-E)
   BELL: { x: -205, y: -1905, z: 210 },                                               // the market bell, on its post at the back of bay C (seen from the yard)
   RING: { x: -232, y: -1858 },                                                       // where Nell stands to ring it
@@ -86178,6 +86179,12 @@ function fmRoofZ(x, y){
   const ym = (P.HF + P.HB)/2;
   return P.RIDGE - (P.RIDGE - P.EAVE)*Math.abs(y - ym)/((P.HF - P.HB)/2);
 }
+/* the neon sign's lift: it stood on legs on the forecourt; now its legs stand on the hall's front eave (Sir, 2026-11-16:
+   "can we just mount the sign on the building?"), so everything of it is raised from the old 300 (OPEN's foot) to the eave */
+function fmSignLift(){
+  const P = FM_PLAN, ym = (P.HF + P.HB)/2, half = (P.HF - P.HB)/2, yf = P.HF + P.OH;
+  return Math.round(P.RIDGE - (P.RIDGE - P.EAVE)*Math.abs(yf - ym)/half + 6 + 26 - 300);
+}
 /* a post's foot: 0 on the floor, or the cold store's roof where the back line runs over it (the store stands under the hall) */
 function fmPostBase(x, y){ const S = FM_PLAN.STORE, h = FM_PLAN.POST + 6; return x + h > S.x0 && x - h < S.x1 && y + h > S.y0 && y - h < S.y1 ? S.H : 0; }
 /* under the roof (the shell fades): inside the posts' lines, a little in */
@@ -86194,7 +86201,6 @@ function fmSolids(){
   { const T = P.TACO; R(T.x1 - 46, T.x1, T.y0, T.y1, 105); R(T.x0, T.x0 + 70, T.y0, T.y1, 100); R(T.x0, T.x1, T.y0 - 10, T.y0, 100); }
   for(const [x, y] of P.TABLES) R(x - 75, x + 75, y - 85, y + 85, 75);
   { const S = P.STORE; R(S.x0, S.x1, S.y0, S.y1, S.H); }
-  out.push({ c: [P.PYLON.x, P.PYLON.y], r: 22, h: 560 });
   out.push({ c: [P.BELL.x, P.BELL.y], r: 8, h: 240 });
   return (fmSolids.c = out);
 }
@@ -101387,21 +101393,22 @@ class WorldScene extends Phaser.Scene {
     { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
       if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
         if(u === 0 || u === 1) item("store|" + u, xm, ym, xm + ym, fn); else live(xm, ym, xm + ym, fn); } }
-    { const Q = P.PYLON;
-      if(vis(Q.x, Q.y, 220, 600)){
-        item("pylon", Q.x, Q.y, Q.x + Q.y, () => ent.pylon(open));
+    /* the neon sign on the front eave: after the roof (it stands in front of it), so its depth is the roof's and on */
+    { const Q = P.PYLON, L = fmSignLift(), dR = P.HX1 + P.OHE + P.HF + P.OH;
+      if(vis(Q.x, Q.y, 220, L + 600)){
+        item("pylon", Q.x, Q.y, dR + 2, () => ent.pylon(open));
         const nl = nightLevel();
-        live(Q.x, Q.y, Q.x + Q.y + 1, (t) => ent.neon(t, nl, open));
-        if(nl > 0.02) vq.push({ depth: Q.x + Q.y + 2, fn: () => this.glowInWorld((gg, fill) => {
-          const c = this.W(Q.x, Q.y + 14, 476), K = this.K, f = 0.75 + 0.25*Math.sin(this.time.now/140);
+        live(Q.x, Q.y, dR + 3, (t) => ent.neon(t, nl, open));
+        if(nl > 0.02) vq.push({ depth: dR + 4, fn: () => this.glowInWorld((gg, fill) => {
+          const c = this.W(Q.x, Q.y + 14, L + 476), K = this.K, f = 0.75 + 0.25*Math.sin(this.time.now/140);
           fill(gg, 0x6fe8f4, 0.14*nl*f); gg.fillEllipse(c.x, c.y, 440*K, 180*K);
           fill(gg, 0x6fe8f4, 0.22*nl*f); gg.fillEllipse(c.x, c.y, 300*K, 120*K);
           /* the tubes themselves, glowing: beads along the fish's outline */
           const body = [[118, 0], [96, 30], [52, 48], [0, 50], [-44, 40], [-80, 18], [-96, 0], [-80, -18], [-44, -40], [0, -50], [52, -48], [96, -30], [118, 0], [-96, 0], [-150, 40], [-140, 0], [-150, -40], [-96, 0]];
           for(let i = 1; i < body.length; i++){ const [u0, v0] = body[i - 1], [u1, v1] = body[i], n = Math.max(1, Math.round(Math.hypot(u1 - u0, v1 - v0)/12));
-            for(let k = 0; k < n; k++){ const q = this.W(Q.x + u0 + (u1 - u0)*k/n, Q.y + 14, 476 + v0 + (v1 - v0)*k/n); fill(gg, 0x9ff6ff, 0.42*nl); gg.fillCircle(q.x, q.y, 6*K); } }
-          const d = this.W(Q.x, Q.y + 14, 390); fill(gg, 0xff7ac8, 0.3*nl); gg.fillEllipse(d.x, d.y, 360*K, 50*K);
-          const e = this.W(Q.x, Q.y + 9, 322); fill(gg, open ? 0x7cf29a : 0xff6a5a, 0.3*nl); gg.fillEllipse(e.x, e.y, 200*K, 40*K);
+            for(let k = 0; k < n; k++){ const q = this.W(Q.x + u0 + (u1 - u0)*k/n, Q.y + 14, L + 476 + v0 + (v1 - v0)*k/n); fill(gg, 0x9ff6ff, 0.42*nl); gg.fillCircle(q.x, q.y, 6*K); } }
+          const d = this.W(Q.x, Q.y + 14, L + 390); fill(gg, 0xff7ac8, 0.3*nl); gg.fillEllipse(d.x, d.y, 360*K, 50*K);
+          const e = this.W(Q.x, Q.y + 9, L + 322); fill(gg, open ? 0x7cf29a : 0xff6a5a, 0.3*nl); gg.fillEllipse(e.x, e.y, 200*K, 40*K);
         }) });
       } }
     /* the bell: cached still, live while it swings (FM_LIFE.bellT) */
