@@ -132947,12 +132947,11 @@ const _prDigits = (L, arr, k, u, h0, gh, text, c, sgn) => { const [a, b] = L.fac
   const mid = a + (b - a)*u; [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap);
     for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg], X = q => mid + sgn*(g0 + q*gw); arr.push({ c, pts: _prRect(Math.min(X(x0), X(x1)), h0 + y0*gh, Math.max(X(x0), X(x1)), h0 + y1*gh) }); } }); };
 /* a roof number, as the stock cars carry: big, on the lid's top, read from his side */
-const _prDigitsTop = (L, text) => { const gh = (L.y1 - L.y0)*0.62, gw = gh*0.58, t = gh*0.17, gap = gw*0.3, n = text.length, tot = n*gw + (n - 1)*gap;
+const _prDigitsTop = (L, text, NC) => {   /* (straight on his paint, no white panel -- Sir, 2026-11-16) */ const gh = (L.y1 - L.y0)*0.62, gw = gh*0.58, t = gh*0.17, gap = gw*0.3, n = text.length, tot = n*gw + (n - 1)*gap;
   const WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33];
-  L.top.push({ c: WH, pts: _prRect(-tot/2 - 2, -gh/2 - 2, tot/2 + 2, gh/2 + 2) });
   const SEG = { a: [0, 1 - t/gh, 1, 1], b: [1 - t/gw, 0.5, 1, 1], c: [1 - t/gw, 0, 1, 0.5], d: [0, 0, 1, t/gh], e: [0, 0, t/gw, 0.5], f: [0, 0.5, t/gw, 1], g: [0, 0.5 - t/gh/2, 1, 0.5 + t/gh/2] };
   const DG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcfgd' };
-  [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg]; L.top.push({ c: BK, pts: _prRect(-(g0 + x1*gw), -gh/2 + y0*gh, -(g0 + x0*gw), -gh/2 + y1*gh) }); } }); };
+  [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg]; L.top.push({ c: NC || BK, pts: _prRect(-(g0 + x1*gw), -gh/2 + y0*gh, -(g0 + x0*gw), -gh/2 + y1*gh) }); } }); };
 const HULL_PRINTS = {
   /* THE RACER'S SKINS (Sir, 2026-11-16: "speed racer, nascar and indycar type styles"): a 60s cartoon racer, two stock cars, two open-wheelers */
   rcGo: { id: 'rcGo', seed: 0x60, build(L){ if(L.part === 'lid') return;
@@ -132960,13 +132959,13 @@ const HULL_PRINTS = {
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.42, h = L.H*0.62, r = L.H*0.34, ring = r2 => { const o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r2*1.15, h + Math.sin(q)*r2]); } return o; };
         L.side.push({ c: RD, pts: ring(r) }, { c: WH, pts: ring(r*0.78) }); _prDigits(L, L.side, k, 0.42, h - r*0.5, r, '7', RD,-1); }
       L.top.push({ c: RD, pts: [[L.x1 - 1, -7], [L.x1 - 1, -3.6], [L.x1 - 13, 0], [L.x1 - 1, 3.6], [L.x1 - 1, 7], [L.x1 - 17, 0]] }); } },   // (a red chevron on the hood)
-  rcStock: { id: 'rcStock', seed: 0x42, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '42'); return; }
+  rcStock: { id: 'rcStock', seed: 0x42, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '42', [0x16171b, 0x2a2d33]); return; }
       const WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33], CC = [[0xc8202a, 0xe8323a], [0x1f4fa8, 0x3a6ad8], [0x2f8a3c, 0x46b856], [0xe86a1a, 0xff8a2a], [0x6b3fa0, 0x8a5ad0]];
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, w = (b - a)*0.22;
-        L.side.push({ c: WH, pts: _prRect(m - w, 3, m + w, L.H - 1.5) }); _prDigits(L, L.side, k, 0.5, 4.5, L.H - 7.5, '42', BK,-1);
+        _prDigits(L, L.side, k, 0.5, 4.5, L.H - 7.5, '42', BK,-1);
         for(let i = 0; i < 5; i++){ const x = a + (b - a)*(k === 2 ? 0.08 : 0.76) + i*2.6; L.side.push({ c: CC[i], pts: _prRect(x, 1, x + 2.2, 2.4) }); } }   // (contingency decals)
       L.top.push({ c: [0xc8202a, 0xe8323a], pts: _prRect(L.x1 - 14, -6, L.x1 - 2, 6) }, { c: WH, pts: _prRect(L.x1 - 12, -1, L.x1 - 4, 1) }); } },
-  rcBolt: { id: 'rcBolt', seed: 0xb017, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '31'); return; }
+  rcBolt: { id: 'rcBolt', seed: 0xb017, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '31', [0xd9dde2, 0xffffff]); return; }
       const YE = [0xd8a41a, 0xffd34a], RD = [0xa81a14, 0xd8261c], WH = [0xd9dde2, 0xffffff];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
         const bolt = [[X(0), H*0.75], [X(len*0.55), H*0.62], [X(len*0.48), H*0.48], [X(len), H*0.3], [X(len*0.4), H*0.38], [X(len*0.47), H*0.55], [X(0), H*0.6]];
