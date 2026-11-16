@@ -126843,7 +126843,7 @@ class WorldScene extends Phaser.Scene {
          tone as it slopes, the band his stripe, the belly cone his sides a shade down */
       const BP = this.bodyPaint(), litOf = w => { const m = Math.hypot(w.x, w.y) || 1; return 0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)); };
       const SIDE = hullSteps(BP.dk, BP.lt), BAND = hullSteps(SKIN.stripeDk, SKIN.stripe), BELLY = hullSteps(_pmix(BP.dk, 0x000000, 0.18), _pmix(BP.lt, 0x000000, 0.12));
-      const tone = (s2, w) => { const k = Math.round(litOf(w)*8); return s2 === 0 ? BELLY[k] : s2 === 1 ? BAND[k] : _pmix(BP.top, SIDE[k], 0.35); };
+      const tone = (s2, w) => { const k = Math.round(litOf(w)*8); return s2 === 0 ? BELLY[k] : s2 === 1 ? BAND[k] : _pmix(BP.top, SIDE[k], 0.8); };   // (the top's sections toned near as strongly as his sides, so the ribs between them read to the edge)
       /* its beam: a pale cone from the belly to the ground, and the pool it makes there */
       { const ring = (r, z) => { const o = []; for(let i = 0; i < 20; i++){ const a = i/20*Math.PI*2; o.push(P(Math.cos(a)*r, Math.sin(a)*r, z)); } return o; };
         const pulse = 0.75 + 0.25*Math.sin(t*0.004), gz = -bobZ + 0.6;
@@ -126861,7 +126861,15 @@ class WorldScene extends Phaser.Scene {
           const c = tone(s2, w), I0 = [Math.cos(a0)*rB*SC, Math.sin(a0)*rB*SC], I1 = [Math.cos(a1)*rB*SC, Math.sin(a1)*rB*SC], pts = [];
           for(let k = 0; k <= 6; k++){ const a = a0 + (a1 - a0)*k/6; pts.push(P(Math.cos(a)*rA, Math.sin(a)*rA, zA)); }
           for(let k = 6; k >= 0; k--) pts.push(P(I0[0] + (I1[0] - I0[0])*k/6, I0[1] + (I1[1] - I0[1])*k/6, zB));
-          this.quadOn(g, pts, c); } }
+          this.quadOn(g, pts, c); }
+        /* THE RIBS (Sir, 2026-11-16: "more defined going to the edge"): a raised rib down each seam, from his cabin's corner out to the rim --
+           a lit strip up its one side, a shadow down the other, so each reads standing off the skin all the way out */
+        for(let i = 0; i < N; i++){ const a = ang(i), ca = Math.cos(a), sa = Math.sin(a), px = -sa, py = ca;
+          const I = [ca*rB*SC, sa*rB*SC, zB], O = [ca*rA, sa*rA, zA], h = 0.7;
+          const strip = (o0, o1, lift, col) => this.quadOn(g, [P(I[0] + px*o0, I[1] + py*o0, I[2] + lift), P(O[0] + px*o0*1.6, O[1] + py*o0*1.6, O[2] + lift),
+            P(O[0] + px*o1*1.6, O[1] + py*o1*1.6, O[2] + lift), P(I[0] + px*o1, I[1] + py*o1, I[2] + lift)], col);
+          const lit = this.R(-sa, ca, 0), litSide = (lit.x - lit.y) > 0 ? 1 : -1;
+          strip(0, litSide*1.1, h, _pmix(BP.top, 0xffffff, 0.6)); strip(0, -litSide*1.1, h, SIDE[1]); } }
       /* the rim's edges, crisp, as his hull's outline */
       g.lineStyle(Math.max(1, 1.1*K), SKIN.outline, 1);
       for(const z of [21, 24.5]) for(let i = 0; i < N; i++){ const am = (ang(i) + ang(i + 1))/2, w = this.R(Math.cos(am), Math.sin(am), 0); if(w.x + w.y + w.z <= 0) continue;
