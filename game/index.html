@@ -44638,11 +44638,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, print: 'mtGrave', part: 'grave', eye: 0x7dff5a },
-  { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns' },
-  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears' },
-  { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin' },
-  { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes' },
+  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, print: 'mtGrave', part: 'grave', eye: 0x7dff5a, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c } },
+  { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c } },
+  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a } },
+  { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a } },
+  { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xb8c46a, heat: 0x5a3418 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -127211,8 +127211,13 @@ class WorldScene extends Phaser.Scene {
     }
     if(id === 'monster'){
       const W = BODY._gear || { r: 17, W2: 13, xs: [-22, 22], side: 28 }, hz = W.r + 2 - bobZ, yi = W.side - W.W2/2 - 0.5, zb = BODY.z0;
+      /* A SKIN'S TRIM (Sir, 2026-11-16: "get all the concept colours on the other details"): its coil springs, push bars, light bar housing,
+         stacks and their heat shields in the skin's own colours (TP_BSKIN trim), the factory's otherwise */
+      const sh3 = c => [c, _pmix(c, 0x000000, 0.18), _pmix(c, 0x000000, 0.4)], TR = (BODY._bskin && BODY._bskin.trim) || {};
+      const COIL = TR.coil != null ? TR.coil : 0xe8a23a, BUMP = TR.bumper != null ? sh3(TR.bumper) : DARK, LBAR = TR.bar != null ? sh3(TR.bar) : [0x4a5057, 0x3b4048, 0x23262c];
+      const STK = TR.stack != null ? [_pmix(TR.stack, 0xffffff, 0.35), TR.stack, _pmix(TR.stack, 0x000000, 0.3)] : [0xeef1f4, 0xc9ced4, 0x8d959c], HEAT = TR.heat != null ? sh3(TR.heat) : [0x3b4048, 0x2e3138, 0x1c1e22];
       const coil = (a, b) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, 3*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
-        g.lineStyle(Math.max(1, 1.3*K), 0xe8a23a, 1); for(let k = 1; k < 7; k++){ const u = 0.15 + k/7*0.7, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2.4*K;
+        g.lineStyle(Math.max(1, 1.3*K), COIL, 1); for(let k = 1; k < 7; k++){ const u = 0.15 + k/7*0.7, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2.4*K;
           g.lineBetween(cx - nx/nl*q, cy - ny/nl*q, cx + nx/nl*q, cy + ny/nl*q); }
         g.fillStyle(0x9aa0a6, 1); g.fillCircle(B.x, B.y, 1.4*K); };
       const bar = (a, b, w = 2.8, c = 0x2e3138) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), c, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
@@ -127238,9 +127243,9 @@ class WorldScene extends Phaser.Scene {
             bar([x, sb*7, hz], [x*0.45, sb*9, zb - 3], 2.4);                                            // (a link up to the frame)
             for(const dx of [-3.5, 3.5]) coil([x + dx, sb*(yi - 2.5), hz + 1], [x + dx*1.6, sb*(BODY.hy - 3), zb]); } }
         /* (no fenders -- Sir, 2026-11-16) */
-        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) !== frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2); } }   // (the push bar on his far end)
+        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) !== frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, BUMP, 1.2); } }   // (the push bar on his far end)
       if(part === 'mid'){
-        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) === frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2);   // (the push bar on his near end, its tow hooks red)
+        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) === frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, BUMP, 1.2);   // (the push bar on his near end, its tow hooks red)
           for(const y of [-8, 8]) box(1.2, 1, fx + Math.sign(fx)*2.6, y, zb, zb + 3, [0xd8322a, 0xb52a24, 0x7f1d19], 0.3); } }
       /* THE STACKS (Sir, 2026-11-16: "an improvement on the exhaust stacks"): each a round chrome pipe (an octagonal prism, his own hull's
          way) on a bolted foot plate, a black slotted heat shield round its middle, a flared lip at the top cut on a slant, its bore dark --
@@ -127266,12 +127271,12 @@ class WorldScene extends Phaser.Scene {
       if(SKP === 'ears' && part === 'after' && frontSeen){ const fx = BODY.hx + 0.3, z0 = BODY.z0 + 0.5;   // (its tongue, out under his face)
         this.quadOn(g, [P(fx, -2.6, z0 + 3), P(fx, 2.6, z0 + 3), P(fx + 1.6, 2.4, z0 - 2.5), P(fx + 1.4, 0, z0 - 4), P(fx + 1.6, -2.4, z0 - 2.5)], 0xe86a8a);
         { const A = P(fx + 0.6, 0, z0 + 2.4), B = P(fx + 1.3, 0, z0 - 2.6); g.lineStyle(Math.max(1, 0.7*K), 0xb84a6a, 1); g.lineBetween(A.x, A.y, B.x, B.y); } }
-      const sx = -LID.hx - 4, stacks = () => { const z0 = BODY.z1, z1 = BODY.z1 + 20, CH = [0xeef1f4, 0xc9ced4, 0x8d959c];
+      const sx = -LID.hx - 4, stacks = () => { const z0 = BODY.z1, z1 = BODY.z1 + 20, CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
           cyl(2, y, z0 + 1, z0 + 5, CH);                                                                   // (the pipe below the shield)
-          cyl(2.6, y, z0 + 5, z0 + 13, [0x3b4048, 0x2e3138, 0x1c1e22]);                                   // (the heat shield)
+          cyl(2.6, y, z0 + 5, z0 + 13, HEAT);                                   // (the heat shield)
           if(vis(0, 0, 1)){ g.lineStyle(Math.max(1, 0.8*K), 0x5d646c, 1); }
           for(let k = 0; k < 4; k++){ const zz = z0 + 6.5 + k*1.8, fx = vis(1, 0, 0) ? 1 : -1, A = P(sx + fx*2.62, y - 1.3, zz), B = P(sx + fx*2.62, y + 1.3, zz);   // (its slots)
             g.lineStyle(Math.max(1, 0.9*K), 0x6f757b, 1); g.lineBetween(A.x, A.y, B.x, B.y); }
@@ -127285,7 +127290,7 @@ class WorldScene extends Phaser.Scene {
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         const lx = LID.hx - 3, zr = LID.z1, zb = zr + 2, zt = zb + 4.6, zc = (zb + zt)/2, fx = lx + 2.25;
         for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
-        box(2.2, LID.hy - 1, lx, 0, zb, zt, [0x4a5057, 0x3b4048, 0x23262c], 1.4);                                 // (its housing)
+        box(2.2, LID.hy - 1, lx, 0, zb, zt, LBAR, 1.4);                                 // (its housing)
         if(vis(1, 0, 0)){ const disc = (y, r, col, dz = 0, dy = 0) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(fx, y + dy + Math.cos(a)*r, zc + dz + Math.sin(a)*r)); } this.quadOn(g, o, col); };
           const night = this.isNightLit && this.isNightLit();
           for(const y of [-9.6, -3.2, 3.2, 9.6]){
