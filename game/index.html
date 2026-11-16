@@ -126711,8 +126711,10 @@ class WorldScene extends Phaser.Scene {
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const G = [0x6f757b, 0x5d646c, 0x3b4048];
     if(front) bx([0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
+    const brake = () => bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4);   // (the muzzle brake: the far end first when it points away)
+    if(!front) brake();
     bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
-    bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4);       // (the muzzle brake)
+    if(front) brake();
   }
   /* THE MOON ROVER's pieces: 'far' its legs on the far side (before the body), 'near' the near side's legs, the solar panels and the dish */
   roverKit(bobZ, BP, part){
