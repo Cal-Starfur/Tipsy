@@ -85060,9 +85060,18 @@ function anglersQueue(scene, t, queuePerson, layerFor){
     const L = anglerLook(a), hx = Math.cos(a.th), hy = Math.sin(a.th), bx = a.x - hx*10 - hy*40, by = a.y - hy*10 + hx*40;
     /* the bucket beside them (cached) */
     if(scene.visProp("chargestation", bx, by)) queuePerson(bx, by, (g) => scene.bcDraw(g, "ang|bucket|" + a.seed, bx, by, gg => {
-      const W = (dx, dy, dz) => scene.W(bx + dx, by + dy, a.z + dz), ring = (r, z) => { const pts = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; pts.push(W(Math.cos(q)*r, Math.sin(q)*r, z)); } return pts; };
-      gg.fillStyle(a.seed % 2 ? 0xd9d4c8 : 0x3f7fb0, 1); gg.fillPoints(ring(12, 0).concat(ring(14, 26).reverse()), true);
-      gg.fillStyle(0x5e86a0, 1); gg.fillPoints(ring(13, 26), true);
+      /* a pail: its side (the half toward the camera, bottom ring to rim), the rim, the water dark inside, the wire handle */
+      const W = (dx, dy, dz) => scene.W(bx + dx, by + dy, a.z + dz), N = 16, H = 30, r0 = 11, r1 = 14;
+      const arc = (r, z, q0, q1) => { const pts = []; for(let k = 0; k <= N; k++){ const q = q0 + (q1 - q0)*k/N; pts.push(W(Math.cos(q)*r, Math.sin(q)*r, z)); } return pts; };
+      const body = a.seed % 2 ? 0xe8e4da : 0xe0a530, bodyD = a.seed % 2 ? 0xc9c3b6 : 0xb8841f;
+      const side = arc(r0, 0, -Math.PI/4, Math.PI*3/4).concat(arc(r1, H, -Math.PI/4, Math.PI*3/4).reverse());   // (the camera looks along -(1,1): its near half)
+      gg.fillStyle(body, 1); gg.fillPoints(side, true);
+      gg.fillStyle(bodyD, 1); gg.fillPoints(arc(r0, 0, Math.PI/4, Math.PI*3/4).concat(arc(r1, H, Math.PI/4, Math.PI*3/4).reverse()), true);   // its shaded side
+      gg.fillStyle(bodyD, 1); gg.fillPoints(arc(r1, H, 0, Math.PI*2), true);                                       // the rim
+      gg.fillStyle(0x2f4a58, 1); gg.fillPoints(arc(r1 - 2, H - 1, 0, Math.PI*2), true);                            // the water inside
+      gg.lineStyle(Math.max(1, 1.4*scene.K), 0x6b6f75, 1);
+      { const h = arc(r1, H, -Math.PI/4, Math.PI*3/4).map((p, k, A) => { const u = k/(A.length - 1); return { x: p.x, y: p.y - Math.sin(u*Math.PI)*16*scene.K }; });
+        gg.beginPath(); gg.moveTo(h[0].x, h[0].y); for(const p of h) gg.lineTo(p.x, p.y); gg.strokePath(); }
     }));
     const ph = anglerPhase(a, now), seat = a.seat;
     queuePerson(a.x, a.y, (g) => {
