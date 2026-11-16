@@ -44595,7 +44595,7 @@ const TP_BUILDS = {
      belly under it, solar panels either side of his lid, a dish on his back (roverKit) */
   rover: { BODY: { hx: 24, hy: 17, z0: 24, z1: 46, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 46, z1: 52, ch: 5, bev: 2.5, bevIn: 2 },
     STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 74], zmap: z => 24 + (z - 14)*0.55,
-    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true, dishFlag: true } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 7.5, W2: 7, xs: [-24, 0, 24], side: 29, style: 'mesh', tread: 'knobby' /* (off-road knobbly tyres, as Gideon's scooter's -- Sir, 2026-11-16) */ }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true, dishFlag: true } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -132547,7 +132547,7 @@ function gearSpecRaw(){
     case 'cart':     return { kind: 'cart', lift: 6 };
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
-  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, lift: 0 }; }   // (a build's own: TP_BUILDS)
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
