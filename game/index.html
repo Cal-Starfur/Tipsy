@@ -3411,7 +3411,7 @@ const GD_SHAPES = {
               ['factory','Factory Orange'],['limegreen','Lime Green'],['bluethunder','Blue Thunder'],['redrider','Red Rider'],['yellowfever','Yellow Fever'],['desert','Desert Rally'],['mud','Mud Splatter'],['enduro','Enduro Camo'],
               ['saturnv','Saturn V'],['v2','V-2'],['redstone','Mercury-Redstone'],['shuttle','Shuttle'],['sls','SLS'],['booster','Reusable Booster'],['atlas','Mercury-Atlas'],
               ['rustbucket','Rust Bucket'],['pallet','Pallet'],['roadsign','Road Sign'],['skateboard','Skateboard'],['fridge','Fridge Door'],['plates','License Plates'],['oildrum','Oil Drum'],['sodacrate','Soda Crate']],   // (each build's skins, GSC_PAINT: scootPaintTop)
-  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
+  scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
   neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
@@ -89611,12 +89611,13 @@ const RKT_KIT = {
   booster: { nose: [0xf4f2ec, 0xf4f2ec, 0xf4f2ec], gridFins: 1, legs: 1, bells: [[-2.4, -1.4], [0, -1.4], [2.4, -1.4], [-2.4, 0], [0, 0], [2.4, 0], [-2.4, 1.4], [0, 1.4], [2.4, 1.4]], br: 0.9 },
   atlas: { nose: [0xc9ced3, 0x1c1d20, 0x1c1d20], tower: 1, bells: [[0, 0], [-3.4, 0], [3.4, 0]], br: 1.6 } };
 /* each skin's build (scootPaintTop): a skin shows only on its own build */
+const SCRAP_DECKS = ['rustbucket', 'pallet', 'roadsign', 'skateboard', 'fridge', 'plates', 'oildrum', 'sodacrate'];   // (skins whose deck is the scrap itself: junkDeck)
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
   gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser',
   rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer',
   circuit: 'robo', hazard: 'robo', holo: 'robo', plasma: 'robo', mech: 'robo', aurora: 'robo', arcade: 'robo', frost: 'robo',
-  rustbucket: 'junk', pallet: 'junk', roadsign: 'junk', skateboard: 'junk', fridge: 'junk', plates: 'junk', oildrum: 'junk', sodacrate: 'junk',
+  rustbucket: 'stock', pallet: 'stock', roadsign: 'stock', skateboard: 'stock', fridge: 'stock', plates: 'stock', oildrum: 'stock', sodacrate: 'stock',   // (the scrap decks: the Regular's now -- Sir, 2026-11-16)
   saturnv: 'rocket', v2: 'rocket', redstone: 'rocket', shuttle: 'rocket', sls: 'rocket', booster: 'rocket', atlas: 'rocket',
   factory: 'offroad', limegreen: 'offroad', bluethunder: 'offroad', redrider: 'offroad', yellowfever: 'offroad', desert: 'offroad', mud: 'offroad', enduro: 'offroad',
   hotrod: 'chopper', stars: 'chopper', wings: 'chopper', scallops: 'chopper', flake: 'chopper', stripes: 'chopper', tiger: 'chopper', chrome: 'chopper',
@@ -89660,7 +89661,7 @@ function gscBrand(){
   const L = typeof GD_LIVE !== 'undefined' ? GD_LIVE : {};
   const c = L.scoot ? gdHex('shell', L.scoot) : (P && P.shell ? P.shell.c : 0xeef0f2);
   const acc = L.scootAcc ? gdHex('band', L.scootAcc) : (P && P.robot && P.robot.band != null ? P.robot.band : 0xd9892b);
-  const st = L.scootSkin && L.scootSkin !== 'stock' ? L.scootSkin : null;   // (its build: GSC_SKINS)
+  const st = L.scootSkin && L.scootSkin !== 'stock' && L.scootSkin !== 'junk' ? L.scootSkin : null;   // (the Junkyard Build retired: its scrap decks went to the Regular)   // (its build: GSC_SKINS)
   const paint = L.scootPaint && GSC_PAINT[L.scootPaint] === (st || 'stock') ? L.scootPaint : null;   // (its skin, if it's one of this build's: scootPaintTop)
   const n = 'gideon' + (st ? '-' + st : '') + (paint ? '~' + paint : '');
   const lv = paint && GSC_LIVERY[paint];
@@ -113268,7 +113269,8 @@ class WorldScene extends Phaser.Scene {
     const SB = sty === 'robo' || sty === 'rocket' ? 8 : 7;                                                       // (the deck's half-width: the Robo Board's wider)
     const accStripe = sb => solid(prismH([[DB + 1, sb*(SB + 0.05)], [DF - 1, sb*(SB + 0.05)], [DF - 1, sb*(SB + 0.9)], [DB + 1, sb*(SB + 0.9)]], RD - 2.8, RD - 1.2), brand.acc);
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
-    const stripes = brand.acc != null && sty !== 'junk' && sty !== 'rocket';                                    // (the Junkyard's patched, not striped)
+    const scrap = !sty && !!brand.paint && SCRAP_DECKS.includes(brand.paint);                // (a Regular in a scrap-deck skin: junkDeck)
+    const stripes = brand.acc != null && sty !== 'junk' && sty !== 'rocket' && !scrap;                                    // (the Junkyard's patched, not striped)
     const finC = (sty === 'rocket' && brand.paint && GSC_LIVERY[brand.paint] && GSC_LIVERY[brand.paint].fin) || acc0;   // (a real rocket's fins in its own colour)
     const kit = sty === 'rocket' && RKT_KIT[brand.paint], hcR = RD - 2.75;                  // (a real rocket's hardware: RKT_KIT)
     const rocketFin = sb => { if(kit && kit.wings) return;                                    // (the Shuttle has wings instead)
@@ -113294,7 +113296,7 @@ class WorldScene extends Phaser.Scene {
         const F = loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1), nT = F.length, nR = 8;   // (one solid, its rings told apart by face index: no seams)
         for(let i = 0; i < 12; i++) F.push(...loftSeg(-28 + i*3.5, S(8, RD - 5.5, RD), -24.5 + i*3.5, S(8, RD - 5.5, RD), 0));   // (twelve rings, tail to nose)
         solid(F, brand.c, (k, n) => rc(k < nT ? -1 : Math.floor((k - nT)/nR), n)); }
-      else if(sty === 'junk'){ if(brand.paint) this.junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, brand.paint, DB, DF, RD);   // a skin's deck: the scrap itself, shaped as it is
+      else if(sty === 'junk' || scrap){ if(brand.paint) this.junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, brand.paint, DB, DF, RD);   // a skin's deck: the scrap itself, shaped as it is
         else solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a)); }   // a crate for a deck   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
@@ -113304,7 +113306,7 @@ class WorldScene extends Phaser.Scene {
         solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0); }
       if(!brand.paint) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
-    if(sty === 'junk' && brand.paint === 'fridge'){ const hb2 = KV.sees(0, 1, 0) ? 5 : -5;   // the fridge door's chrome handle, stood up on its posts
+    if((sty === 'junk' || scrap) && brand.paint === 'fridge'){ const hb2 = KV.sees(0, 1, 0) ? 5 : -5;   // the fridge door's chrome handle, stood up on its posts
       for(const a of [DB + 4, DF - 4]) line([a, hb2, RD], [a, hb2, RD + 2.6], 0x6f757b, 2); line([DB + 3.5, hb2, RD + 2.6], [DF - 3.5, hb2, RD + 2.6], 0x8a9097, 3); }
     if(brand.paint && sty !== 'rocket') this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
@@ -147265,8 +147267,7 @@ requestTpProfile();
         vintage: `<rect x="8" y="17" width="24" height="3" fill="${W}"/><path d="M8 17a6 6 0 0 1 12 0z" fill="${W}"/><path d="M25 18V9l4-1v10z" fill="${W}"/><rect x="25" y="8" width="4" height="1.6" fill="${A}"/><path d="M29 9L27 3" stroke="${W}" stroke-width="2"/><circle cx="30" cy="5" r="2.2" fill="#c9ced3"/><circle cx="30" cy="5" r="1.2" fill="#fff3c4"/>${wh(10, 3.4)}${wh(30, 3.4)}`,
         chopper: `<rect x="6" y="18" width="20" height="2.6" fill="${W}"/><path d="M6 18V8" stroke="#9aa2a8" stroke-width="1.6"/><rect x="5" y="10" width="2.4" height="5" fill="${A}"/><path d="M34 22L25 9" stroke="#9aa2a8" stroke-width="1.8"/><path d="M25 9l-4-5h-3" stroke="#9aa2a8" stroke-width="1.6" fill="none"/>${wh(8, 4.6)}${wh(33, 3)}`,
         offroad: `<rect x="10" y="20" width="20" height="2" fill="#3b4048"/><rect x="8" y="15" width="24" height="3" fill="${W}"/><path d="M10 18l1 4M30 18l-1 4" stroke="${A}" stroke-width="1.6"/><path d="M30 15L27 5" stroke="${W}" stroke-width="2"/><rect x="23" y="2.5" width="9" height="2" fill="${D}"/>${wh(9, 4.2)}${wh(31, 4.2)}`,
-        rocket: `<path d="M5 13h22l8 3.5-8 3.5H5z" fill="${W}"/><path d="M27 13l8 3.5-8 3.5z" fill="${A}"/><path d="M6 13l-1-6h3l4 6z" fill="${A}"/><circle cx="26" cy="16.5" r="1.6" fill="#7fc6e8"/><path d="M5 15l-4 1.5 4 1.5z" fill="#ff7a1f"/><path d="M27 13L25 4" stroke="${W}" stroke-width="2"/>${wh(10, 2.6)}${wh(29, 2.6)}`,
-        junk: `<rect x="8" y="15" width="24" height="4.5" fill="#a77b4a"/><path d="M8 17h24" stroke="#6e4e2c" stroke-width=".8"/><rect x="18" y="15.5" width="5" height="3" fill="${W}"/><rect x="10" y="14.2" width="5" height="1" fill="${A}"/><path d="M30 16L27 4" stroke="#8a8f96" stroke-width="2.2"/><rect x="27.6" y="8" width="2.4" height="2" fill="#b9bec4"/>${wh(10, 4.2)}${wh(31, 2.6)}` }[id];
+        rocket: `<path d="M5 13h22l8 3.5-8 3.5H5z" fill="${W}"/><path d="M27 13l8 3.5-8 3.5z" fill="${A}"/><path d="M6 13l-1-6h3l4 6z" fill="${A}"/><circle cx="26" cy="16.5" r="1.6" fill="#7fc6e8"/><path d="M5 15l-4 1.5 4 1.5z" fill="#ff7a1f"/><path d="M27 13L25 4" stroke="${W}" stroke-width="2"/>${wh(10, 2.6)}${wh(29, 2.6)}` }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36">${B}</svg>`; }
     const eye = '#7fe3ff', S = (body) => `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="2" y="2" width="36" height="24" rx="6" fill="#1d2228"/>${body}</svg>`;
     if (key === 'eyeShape' && ['happy', 'angry', 'heart', 'star'].includes(id)) { const P2 = { happy: `<path d="M7 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M25 14a4 5 0 0 1 8 0" stroke="${eye}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
