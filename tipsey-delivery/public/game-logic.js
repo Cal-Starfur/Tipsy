@@ -124973,16 +124973,13 @@ class WorldScene extends Phaser.Scene {
     const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, K = this.kScale();
     /* each wheel on its own suspension (Sir, 2026-11-16: "get rid of the connector piece ... give each wheel its own independent
-       suspension"): a square arm out from under the belly to its hub, a knuckle at the hub, and a coil-over shock from the belly's edge
-       down to the arm's end -- no beam joining them */
+       suspension"): a coil-over shock from under the belly's edge to its hub, nothing else -- no beam, no arms */
     const legs = sb => { const hz = W.r + 2 - bobZ, bz = BODY.z0 - 3, yS = sb*(W.side - W.W2/2 - 1.2), yB = sb*(BODY.hy - 5), t = 1.5;
       const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
       const M = [0xb9bec4, 0x9aa0a6, 0x6f757b], D = [0x6f757b, 0x5d646c, 0x3b4048];
       for(const x of W.xs){
-        box(t, t, x, yB, hz + 1, bz, D);                                              // (its mount down from the belly)
-        box(t, Math.abs(yS - yB)/2, x, (yS + yB)/2, hz + 0.5, hz + 0.5 + 2*t, M);      // (the arm out to the hub)
-        box(t*1.6, t*1.4, x, yS, hz - 1.6, hz + 2.4, D);                              // (the knuckle at the hub)
-        const A = P(x + 2.4, yB + sb*1.5, bz - 0.5), B = P(x + 2.4, yS - sb*1.5, hz + 2*t + 0.6);   // (its coil-over shock)
+        /* (just the coil-over: from under the belly's edge straight down and out to the hub -- the grey blocks gone, Sir 2026-11-16) */
+        const A = P(x, yB, bz + 1), B = P(x, yS, hz);
         g.lineStyle(Math.max(1, 2.8*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
         g.lineStyle(Math.max(1, 1.2*K), 0xe8a23a, 1); for(let k = 1; k < 6; k++){ const u = k/6, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, w = 2.2*K;
           g.lineBetween(cx - nx/nl*w, cy - ny/nl*w, cx + nx/nl*w, cy + ny/nl*w); } }
