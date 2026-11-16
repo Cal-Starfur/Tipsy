@@ -1693,7 +1693,7 @@ const GD_SHAPES = {
               ['hotrod','Hot Rod Flames'],['stars','Stars'],['wings','Eagle Wings'],['scallops','Scallops'],['flake','Metal Flake'],['stripes','Tank Stripes'],['tiger','Tiger'],['chrome','Chrome'],
               ['factory','Factory Orange'],['limegreen','Lime Green'],['bluethunder','Blue Thunder'],['redrider','Red Rider'],['yellowfever','Yellow Fever'],['desert','Desert Rally'],['mud','Mud Splatter'],['enduro','Enduro Camo'],
               ['saturnv','Saturn V'],['v2','V-2'],['redstone','Mercury-Redstone'],['shuttle','Shuttle'],['sls','SLS'],['booster','Reusable Booster'],['atlas','Mercury-Atlas'],
-              ['rustbucket','Rust Bucket'],['pallet','Pallet'],['roadsign','Road Sign'],['skateboard','Skateboard'],['fridge','Fridge Door'],['plates','License Plates'],['oildrum','Oil Drum'],['sodacrate','Soda Crate']],   // (each build's skins, GSC_PAINT: scootPaintTop)
+              ['rustbucket','Rust Bucket'],['pallet','Pallet'],['roadsign','Road Sign'],['skateboard','Skateboard'],['fridge','Fridge Door'],['plates','License Plates'],['sodacrate','Soda Crate']],   // (each build's skins, GSC_PAINT: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
@@ -87894,13 +87894,13 @@ const RKT_KIT = {
   booster: { nose: [0xf4f2ec, 0xf4f2ec, 0xf4f2ec], gridFins: 1, legs: 1, bells: [[-2.4, -1.4], [0, -1.4], [2.4, -1.4], [-2.4, 0], [0, 0], [2.4, 0], [-2.4, 1.4], [0, 1.4], [2.4, 1.4]], br: 0.9 },
   atlas: { nose: [0xc9ced3, 0x1c1d20, 0x1c1d20], tower: 1, bells: [[0, 0], [-3.4, 0], [3.4, 0]], br: 1.6 } };
 /* each skin's build (scootPaintTop): a skin shows only on its own build */
-const SCRAP_DECKS = ['rustbucket', 'pallet', 'roadsign', 'skateboard', 'fridge', 'plates', 'oildrum', 'sodacrate'];   // (skins whose deck is the scrap itself: junkDeck)
+const SCRAP_DECKS = ['rustbucket', 'pallet', 'roadsign', 'skateboard', 'fridge', 'plates', 'sodacrate'];   // (skins whose deck is the scrap itself: junkDeck)
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
   gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser',
   rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer',
   circuit: 'robo', hazard: 'robo', holo: 'robo', plasma: 'robo', mech: 'robo', aurora: 'robo', arcade: 'robo', frost: 'robo',
-  rustbucket: 'stock', pallet: 'stock', roadsign: 'stock', skateboard: 'stock', fridge: 'stock', plates: 'stock', oildrum: 'stock', sodacrate: 'stock',   // (the scrap decks: the Regular's now -- Sir, 2026-11-16)
+  rustbucket: 'stock', pallet: 'stock', roadsign: 'stock', skateboard: 'stock', fridge: 'stock', plates: 'stock', sodacrate: 'stock',   // (the scrap decks: the Regular's now -- Sir, 2026-11-16)
   saturnv: 'rocket', v2: 'rocket', redstone: 'rocket', shuttle: 'rocket', sls: 'rocket', booster: 'rocket', atlas: 'rocket',
   factory: 'offroad', limegreen: 'offroad', bluethunder: 'offroad', redrider: 'offroad', yellowfever: 'offroad', desert: 'offroad', mud: 'offroad', enduro: 'offroad',
   hotrod: 'chopper', stars: 'chopper', wings: 'chopper', scallops: 'chopper', flake: 'chopper', stripes: 'chopper', tiger: 'chopper', chrome: 'chopper',
@@ -87922,7 +87922,7 @@ const GSC_LIVERY = { tonup: { c: 0x1c1d20, acc: 0xc9ced3 }, racinggreen: { c: 0x
   /* the Junkyard Build's: what its deck was scrapped from (deck: that scrap's colour down its sides) */
   rustbucket: { c: 0xb5652d, acc: 0x5c2e14, deck: 0x8a4a22 }, pallet: { c: 0xc9a26a, acc: 0x8a6a3a, deck: 0xb08a52 }, roadsign: { c: 0x1f7a4a, acc: 0xf4f2ec, deck: 0x9aa0a6 },
   skateboard: { c: 0xff7ab0, acc: 0x3fd0ff, deck: 0xc9a26a }, fridge: { c: 0x7fd3c4, acc: 0xc9ced3, deck: 0xeef0f2 }, plates: { c: 0xf2c230, acc: 0x1f5fbf, deck: 0x9aa0a6 },
-  oildrum: { c: 0x1f5fbf, acc: 0xf08a24, deck: 0x1f5fbf }, sodacrate: { c: 0xc8323a, acc: 0xf4f2ec, deck: 0xc8323a },
+  sodacrate: { c: 0xc8323a, acc: 0xf4f2ec, deck: 0xc8323a },
   saturnv: { c: 0xf4f2ec, acc: 0x9aa0a6, fin: 0x1c1d20 }, v2: { c: 0xf4f2ec, acc: 0x1c1d20, fin: 0x1c1d20 }, redstone: { c: 0xf4f2ec, acc: 0x1c1d20, fin: 0xf4f2ec },
   shuttle: { c: 0xf4f2ec, acc: 0x1c1d20, fin: 0xf4f2ec }, sls: { c: 0xd9762b, acc: 0xf4f2ec, fin: 0xf4f2ec }, booster: { c: 0xf4f2ec, acc: 0xf4f2ec, fin: 0x1c1d20 },
   atlas: { c: 0xc9ced3, acc: 0x1c1d20, fin: 0xc9ced3 },
@@ -111244,8 +111244,7 @@ class WorldScene extends Phaser.Scene {
      that side so nothing spills off it */
   /* a race number plate (the Off-Road's): a plate in some plane, toS(x, y) on it with x in -w..w and y in -h..h, its digit in seven segments */
   /* THE JUNKYARD BUILD'S SKINS (Sir, 2026-11-16, "doesn't feel very junkyard"): its deck is the scrap itself, shaped as that thing is --
-     a skateboard with kicked-up ends and trucks, a pallet on its stringers, a soda crate with holes through its sides, an oil drum on its
-     side, a bent road sign on a length of signpost, a fridge door with its handle and seal, license plates bolted over a frame, a sheet of
+     a skateboard with kicked-up ends and trucks, a pallet on its stringers, a soda crate with holes through its sides, a bent road sign on a length of signpost, a fridge door with its handle and seal, license plates bolted over a frame, a sheet of
      corrugated iron. Their markings go on top after (scootPaintTop) */
   junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, id, DB, DF, RD){
     const box = (a0, a1, b0, b1, h0, h1, col, top) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, (k, n) => n[2] > 0.9 && top != null ? top : n[2] < -0.5 ? 0x2a2f36 : col);
@@ -111256,14 +111255,6 @@ class WorldScene extends Phaser.Scene {
       for(let a = DB; a < DF - 2; a += 5.2) box(a, a + 3.8, -7.2, 7.2, RD - 1.2, RD, 0xc9a26a, 0xd2ae78); }
     if(id === 'sodacrate'){ box(DB, DF, -7, 7, RD - 6, RD, 0xc8323a, 0xc8323a);                   // a crate: holes through its seen side, hand-holds at its ends
       g.fillStyle(0x7a1a20, 1); for(let a = DB + 2; a < DF - 3; a += 4.2){ g.fillPoints([P(a, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 1.2), P(a, side*7.05, RD - 1.2)], true); } }
-    if(id === 'oildrum'){                                                                     // a drum on its side (Sir, 2026-11-16, "doesn't read as a drum"): a true round body lit round its curve,
-      const R = 5.6, hc = RD - R, a0 = DB + 3, a1 = DF - 3, ring = r => { const o = []; for(let i = 0; i < 18; i++){ const w = i/18*Math.PI*2; o.push([Math.cos(w)*r, hc + Math.sin(w)*r]); } return o; };   // two rolling hoops, its lids with their rims and bung
-      const lit = (n, base) => { const f = 0.62 + 0.38*Math.max(0, n[2]*0.75 + Math.abs(n[1])*0.25); const c = Phaser.Display.Color.IntegerToColor(base); return Phaser.Display.Color.GetColor(c.red*f, c.green*f, c.blue*f); };
-      solid(loftSeg(a0, ring(R), a1, ring(R), 3), 0x1f5fbf, (k, n) => Math.abs(n[0]) > 0.9 ? 0x3d74c9 : lit(n, 0x2a6ad0));
-      for(const a of [a0 + (a1 - a0)/3, a0 + 2*(a1 - a0)/3]) solid(loftSeg(a - 0.5, ring(R + 0.45), a + 0.5, ring(R + 0.45), 0), 0x163f80, (k, n) => lit(n, 0x1d4f9e));
-      for(const a of [a0, a1]) if(KV.sees(a === a0 ? -1 : 1, 0, 0)){ const e = a + (a === a0 ? -0.06 : 0.06), C = r => ring(r).map(([b, h]) => P(e, b, h));
-        g.lineStyle(Math.max(1, 0.8*K), 0x9ab8e6, 1); g.strokePoints(C(R - 0.5), true); g.lineStyle(Math.max(1, 0.5*K), 0x163f80, 1); g.strokePoints(C(R - 1.4), true);
-        const q = P(e, 2.2, hc + 2.2); g.fillStyle(0x163f80, 1); g.fillCircle(q.x, q.y, 0.9*K); } }
     if(id === 'roadsign'){ box(DB - 1, DF + 1, -1.2, 1.2, RD - 3.4, RD - 0.8, 0x9aa0a6);             // a length of signpost under it, its bolt holes; the sign, its corner bent up
       g.fillStyle(0x4a5057, 1); for(let a = DB + 1; a < DF; a += 3){ const q = P(a, side*1.25, RD - 2.1); g.fillCircle(q.x, q.y, 0.5*K); }
       solid(prismH([[DB, -7], [DF - 4, -7], [DF, -3], [DF, 7], [DB, 7]], RD - 0.8, RD), 0x9aa0a6, (k, n) => n[2] > 0.9 ? 0x1f7a4a : 0x9aa0a6);
@@ -111440,7 +111431,6 @@ class WorldScene extends Phaser.Scene {
       if(id === 'plates'){ const T = [0xf4f2ec, 0xf2c230, 0x1f5fbf, 0xf08a24]; for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const u0 = i*0.25, v0 = -M + j*M, col = T[(i + j) % 4];   // License Plates: each one's letters and bolts
           g.fillStyle(0x6f757b, 1); for(const [du, dv] of [[0.03, 0.9], [0.21, 0.9], [0.03, M - 0.9], [0.21, M - 0.9]]){ const q = at(u0 + du, v0 + dv); g.fillCircle(q.x, q.y, 0.45*this.K*0.42*1.4); }
           for(let k = 0; k < 3; k++){ const lu = u0 + 0.05 + k*0.06; poly([[lu, v0 + 1.6], [lu + 0.03, v0 + 1.6], [lu + 0.03, v0 + M - 1.6], [lu, v0 + M - 1.6]], col === 0x1f5fbf ? 0xf4f2ec : 0x1c1d20); } } }
-      if(id === 'oildrum'){ poly([[0.38, -2.4], [0.62, -2.4], [0.62, 2.4], [0.38, 2.4]], 0xf4f2ec); poly([[0.5, -1.6], [0.56, 0], [0.5, 1.6], [0.44, 0]], 0xf08a24); }   // Oil Drum: blue, its ribs, a label
       if(id === 'sodacrate'){ all(0xc8323a); for(let i = 0; i < 8; i++) for(let j = 0; j < 3; j++){ const u0 = 0.04 + i*0.12, v0 = -M + 1 + j*((2*M - 2)/3); poly([[u0, v0 + 0.4], [u0 + 0.08, v0 + 0.4], [u0 + 0.08, v0 + (2*M - 2)/3 - 0.4], [u0, v0 + (2*M - 2)/3 - 0.4]], 0x7a1a20); } }   // Soda Crate: red plastic, its grid of holes
       if(id === 'factory'){ all(0xf08a24); for(const [u, v, l] of [[0.1, -M, 0.3], [0.45, M, 0.35], [0.7, -M, 0.25]]) poly([[u, v], [u + l, v], [u + l*0.4, v*0.1]], 0x1c1d20); poly([[0.3, M], [0.42, M], [0.36, 2]], 0xf4f2ec); }   // the Off-Road's decks: Factory Orange shards
       if(id === 'limegreen'){ all(0x7fd13b); for(const [u, v, col] of [[0.15, -2, 0x1c1d20], [0.5, 2.6, 0xf4f2ec], [0.78, -2.4, 0x1c1d20]]) poly([[u, v - 2], [u + 0.18, v], [u, v + 2], [u - 0.08, v]], col); }   // Lime Green: tear shapes
@@ -145508,7 +145498,6 @@ requestTpProfile();
         skateboard: fill('#1c1d20') + `<rect x="7" y="9" width="4" height="3" fill="#ff7ab0"/><rect x="15" y="14" width="3" height="3.5" fill="#ffd23a"/><rect x="23" y="9.5" width="4.5" height="2.6" fill="#3fd0ff"/><circle cx="32" cy="15" r="1.8" fill="#f4f2ec"/>`,
         fridge: fill('#eef0f2') + `<rect x="0" y="16.5" width="40" height="1.2" fill="#c9ced3"/><circle cx="12" cy="11" r="1.2" fill="#ff7ab0"/><circle cx="18" cy="13.5" r="1.2" fill="#ffd23a"/><circle cx="24" cy="10" r="1.2" fill="#3fd0ff"/>`,
         plates: `<rect x="3" y="7" width="8.5" height="6" fill="#f4f2ec"/><rect x="11.5" y="7" width="8.5" height="6" fill="#f2c230"/><rect x="20" y="7" width="8.5" height="6" fill="#1f5fbf"/><rect x="28.5" y="7" width="8.5" height="6" fill="#f08a24"/><rect x="3" y="13" width="8.5" height="6" fill="#f2c230"/><rect x="11.5" y="13" width="8.5" height="6" fill="#1f5fbf"/><rect x="20" y="13" width="8.5" height="6" fill="#f08a24"/><rect x="28.5" y="13" width="8.5" height="6" fill="#f4f2ec"/>`,
-        oildrum: fill('#1f5fbf') + `<path d="M13 7v12M27 7v12" stroke="#163f80" stroke-width=".8"/><rect x="16" y="9.5" width="8" height="7" fill="#f4f2ec"/><path d="M20 10.5l1.6 2.5-1.6 2.5-1.6-2.5z" fill="#f08a24"/>`,
         sodacrate: fill('#c8323a') + [...Array(8)].map((_, i) => [0, 1, 2].map(j => `<rect x="${4.5 + i*4}" y="${8.3 + j*3.4}" width="2.6" height="2.4" fill="#7a1a20"/>`).join('')).join(''),
         saturnv: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#f4f2ec"/><path d="M6 10h2v3H6zM8 13h2v3H8zM16 10h1.5v6H16zM23 10h1.5v6H23z" fill="#1c1d20"/><path d="M28 10l8 3-8 3z" fill="#9aa0a6"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#1c1d20"/>`,
         v2: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#f4f2ec"/><path d="M6 10h5v3H6zM16 10h5v3h-5zM11 13h5v3h-5zM21 13h5v3h-5z" fill="#1c1d20"/><path d="M28 10l8 3-8 3z" fill="#1c1d20"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#1c1d20"/>`,
