@@ -111256,9 +111256,14 @@ class WorldScene extends Phaser.Scene {
       for(let a = DB; a < DF - 2; a += 5.2) box(a, a + 3.8, -7.2, 7.2, RD - 1.2, RD, 0xc9a26a, 0xd2ae78); }
     if(id === 'sodacrate'){ box(DB, DF, -7, 7, RD - 6, RD, 0xc8323a, 0xc8323a);                   // a crate: holes through its seen side, hand-holds at its ends
       g.fillStyle(0x7a1a20, 1); for(let a = DB + 2; a < DF - 3; a += 4.2){ g.fillPoints([P(a, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 1.2), P(a, side*7.05, RD - 1.2)], true); } }
-    if(id === 'oildrum'){ const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.62);                       // a drum on its side: its body, two rolling hoops, its lids
-      solid(loftSeg(DB, S(6.6, RD - 9, RD), DF, S(6.6, RD - 9, RD), 3), 0x1f5fbf, (k, n) => Math.abs(n[0]) > 0.9 ? 0x5a88d6 : n[2] < -0.5 ? 0x163f80 : 0x1f5fbf);
-      for(const a of [DB + (DF - DB)/3, DB + 2*(DF - DB)/3]) solid(loftSeg(a - 0.4, S(6.95, RD - 9.3, RD + 0.3), a + 0.4, S(6.95, RD - 9.3, RD + 0.3), 0), 0x163f80); }
+    if(id === 'oildrum'){                                                                     // a drum on its side (Sir, 2026-11-16, "doesn't read as a drum"): a true round body lit round its curve,
+      const R = 5.6, hc = RD - R, a0 = DB + 3, a1 = DF - 3, ring = r => { const o = []; for(let i = 0; i < 18; i++){ const w = i/18*Math.PI*2; o.push([Math.cos(w)*r, hc + Math.sin(w)*r]); } return o; };   // two rolling hoops, its lids with their rims and bung
+      const lit = (n, base) => { const f = 0.62 + 0.38*Math.max(0, n[2]*0.75 + Math.abs(n[1])*0.25); const c = Phaser.Display.Color.IntegerToColor(base); return Phaser.Display.Color.GetColor(c.red*f, c.green*f, c.blue*f); };
+      solid(loftSeg(a0, ring(R), a1, ring(R), 3), 0x1f5fbf, (k, n) => Math.abs(n[0]) > 0.9 ? 0x3d74c9 : lit(n, 0x2a6ad0));
+      for(const a of [a0 + (a1 - a0)/3, a0 + 2*(a1 - a0)/3]) solid(loftSeg(a - 0.5, ring(R + 0.45), a + 0.5, ring(R + 0.45), 0), 0x163f80, (k, n) => lit(n, 0x1d4f9e));
+      for(const a of [a0, a1]) if(KV.sees(a === a0 ? -1 : 1, 0, 0)){ const e = a + (a === a0 ? -0.06 : 0.06), C = r => ring(r).map(([b, h]) => P(e, b, h));
+        g.lineStyle(Math.max(1, 0.8*K), 0x9ab8e6, 1); g.strokePoints(C(R - 0.5), true); g.lineStyle(Math.max(1, 0.5*K), 0x163f80, 1); g.strokePoints(C(R - 1.4), true);
+        const q = P(e, 2.2, hc + 2.2); g.fillStyle(0x163f80, 1); g.fillCircle(q.x, q.y, 0.9*K); } }
     if(id === 'roadsign'){ box(DB - 1, DF + 1, -1.2, 1.2, RD - 3.4, RD - 0.8, 0x9aa0a6);             // a length of signpost under it, its bolt holes; the sign, its corner bent up
       g.fillStyle(0x4a5057, 1); for(let a = DB + 1; a < DF; a += 3){ const q = P(a, side*1.25, RD - 2.1); g.fillCircle(q.x, q.y, 0.5*K); }
       solid(prismH([[DB, -7], [DF - 4, -7], [DF, -3], [DF, 7], [DB, 7]], RD - 0.8, RD), 0x9aa0a6, (k, n) => n[2] > 0.9 ? 0x1f7a4a : 0x9aa0a6);
