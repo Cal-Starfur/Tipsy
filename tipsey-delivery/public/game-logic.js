@@ -87973,8 +87973,12 @@ function gscBrand(){
   const wh = { rim: L.whRim || 'five', col: L.whCol || 'silver', tyre: L.whTyre || 'stock', wall: L.whWall || 'plain' };
   if(wh.tyre === 'whitewall' || wh.tyre === 'redline'){ wh.wall = wh.tyre; wh.tyre = 'stock'; }   // (an older pick: walls were tyres once)
   wh.custom = wh.rim !== 'five' || wh.col !== 'silver' || wh.tyre !== 'stock' || wh.wall !== 'plain';   // (its wheels: GSC_WH)
+  /* Tipsey's on it (GSC_TIP): topper and flag, decal, stripe pattern and its colour, finish, second colour */
+  const tip = { top: L.scTop && L.scTop !== 'none' ? L.scTop : null, flag: L.scFlagHex != null ? L.scFlagHex : null, decal: L.scDecal && L.scDecal !== 'none' ? L.scDecal : null, band: L.scBand && L.scBand !== 'none' ? L.scBand : null,
+    decCol: L.scDecHex != null ? L.scDecHex : null, finish: L.scFinish && L.scFinish !== 'satin' ? L.scFinish : null, c2: L.scoot2 ? gdHex('shell', L.scoot2) : null };
+  const tipKey = Object.values(tip).filter(v => v != null).join('.');
   const lv = paint && GSC_LIVERY[paint];
-  return { wh: st === 'robo' ? null : wh, n: n + (wh.custom ? '#' + wh.rim + wh.col + wh.tyre + wh.wall : ''), name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, glow: lv && lv.glow, gideon: true, style: st, paint, up };
+  return { tip, wh: st === 'robo' ? null : wh, n: n + (wh.custom ? '#' + wh.rim + wh.col + wh.tyre + wh.wall : '') + (tipKey ? '^' + tipKey : ''), name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, glow: lv && lv.glow, gideon: true, style: st, paint, up };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -111570,6 +111574,12 @@ class WorldScene extends Phaser.Scene {
        The tall pieces at the back (the Racer's spoiler, the rocket's fin and flame) are tail(), drawn on the far side of him from the stem.
        What the first ones taught (Sir, 2026-11-15): nothing laid over a face it should sit under (an accent goes in a face's own colour, not a
        piece drawn over it), the stem drawn from the top of what it rises out of, and the stock rear fender only on the builds that have one */
+    /* Tipsey's finishes on it (GSC_TIP): Chameleon turns its body colour round the wheel as it goes; Two-tone takes its second colour on
+       its sides (the deck's sides, the fenders' -- c2) */
+    const TIP = brand.tip || {};
+    if(TIP.finish === 'chameleon'){ const col = Phaser.Display.Color.IntegerToColor(brand.c), hsv = Phaser.Display.Color.RGBToHSV(col.red, col.green, col.blue), h = (hsv.h + (t || 0)*0.00008 + (ax + ay)*0.0004) % 1;
+      const rgb = Phaser.Display.Color.HSVToRGB(h, Math.max(0.55, hsv.s), Math.max(0.75, hsv.v)); brand = Object.assign({}, brand, { c: Phaser.Display.Color.GetColor(rgb.r, rgb.g, rgb.b) }); }
+    const c2 = TIP.finish === 'twotone' ? (TIP.c2 != null ? TIP.c2 : brand.cDk) : null;
     const sty = brand.style || null, acc0 = brand.acc != null ? brand.acc : brand.cDk;
     const WR = sty === 'cruiser' ? R.wheelR*1.35 : sty === 'vintage' ? R.wheelR*1.15 : R.wheelR, WW = sty === 'cruiser' ? 7 : sty === 'vintage' ? 5.5 : 4.5;
     const RD = sty === 'racer' ? R.deck - 3 : sty === 'cruiser' ? R.deck + 2 : sty === 'robo' ? R.deck + 6 : sty === 'offroad' ? R.deck + 5 : sty === 'chopper' ? R.deck - 1 : sty === 'junk' ? R.deck + 1 : R.deck;
@@ -111662,7 +111672,7 @@ class WorldScene extends Phaser.Scene {
       else if(sty === 'junk' || scrap){ if(brand.paint) this.junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, brand.paint, DB, DF, RD);   // a skin's deck: the scrap itself, shaped as it is
         else solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a)); }   // a crate for a deck   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
-        (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
+        (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : (c2 != null ? c2 : brand.c))); }
     if(sty === 'junk'){                                                                         // the crate's slats, a patch on top (the accent) and one on the side (the body colour)
       if(!brand.paint){ for(let a = DB + 4; a < DF - 2; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);   // (a skin's deck is its own scrap)
         for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([DB, sb*7.05, h], [DF, sb*7.05, h], 0x6e4e2c, 0.8);
@@ -111674,6 +111684,13 @@ class WorldScene extends Phaser.Scene {
     if(brand.paint && sty !== 'rocket') this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
+    /* Tipsey's decal and stripe pattern on the deck's sides, through his own drawers (botSkinWear, his SKIN's band/emblem lent for the call) */
+    if((TIP.decal || TIP.band) && sty !== 'robo' && typeof this.botSkinWear === "function"){ const cx = (DB + DF)/2, keep = { band: SKIN.band, stars: SKIN.stars, emblem: SKIN.emblem, decalCol: SKIN.decalCol };
+      SKIN.band = TIP.band || null; SKIN.stars = null; SKIN.emblem = TIP.decal || null; SKIN.decalCol = TIP.decCol != null ? TIP.decCol : null;
+      try { this.botSkinWear(g, { P: (a, b, h) => P(a + cx, b, h), sees: KV.sees }, { hx: (DF - DB)/2, hy: sty === 'rocket' ? 8 : 7.05, ch: 0.4, s0: RD - 3.4, s1: RD - 0.8, dz: RD - 2.1, dk: 0.28 }); }
+      finally { Object.assign(SKIN, keep); } }
+    if(TIP.finish === 'gloss') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([DB + 2, sb*7.1, RD - 0.9], [DF - 4, sb*7.1, RD - 0.9], 0xffffff, 1.1);   // (Gloss: a highlight down its side)
+    if(TIP.finish === 'flake'){ g.fillStyle(0xffffff, 0.9); for(let i = 0; i < 16; i++){ const a = DB + ((i*0.618) % 1)*(DF - DB), h = RD - 3.6 + ((i*0.7549) % 1)*3.2, q = P(a, nearSb*7.12, h); g.fillCircle(q.x, q.y, 0.35*this.K*0.42*1.4); } }   // (Metal flake: sparkle)
     /* the Kickstand, down while it's parked (GSC_UP): a leg off the near side of the deck to the ground */
     if(brand.up && brand.up.stand && noRider && brand.style !== 'robo'){ const sb = KV.sees(0, 1, 0) ? 1 : -1, RDk = RD;
       line([-4, sb*7.2, RDk - 3], [-10, sb*11, 0.4], 0xc9ced3, 2.4); const ft = P(-10, sb*11, 0.4); g.fillStyle(0x9aa2a8, 1); g.fillCircle(ft.x, ft.y, 1.1*this.K*0.42*1.4); }
@@ -111720,6 +111737,13 @@ class WorldScene extends Phaser.Scene {
     if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'junk' ? P(DB - 0.4, 0, RD - 2.5) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
+      if(TIP.top){ const pa = sty === 'rocket' ? -30 : DB + 1.5, pb = -5, h0 = RD, h1 = RD + 48;      // Tipsey's topper on a whip pole off the back (GSC_TIP)
+        line([pa, pb, h0], [pa - 3, pb, h1], 0x2a2f36, 1.2);
+        const keep = { topper: SKIN.topper, jolly: SKIN.jolly, skinTop: SKIN.skinTop, flag: SKIN.flag };
+        SKIN.topper = TIP.top; SKIN.jolly = false; SKIN.skinTop = null; if(TIP.flag != null) SKIN.flag = TIP.flag;
+        try { if(!(typeof this.botTopper === "function" && this.botTopper(g, { P, sees: KV.sees }, pa - 3, pb, h1, 0.7))){   // (the pennant: its own little flag)
+            const A = P(pa - 3, pb, h1), B = P(pa - 3, pb, h1 - 7), C = P(pa - 12, pb, h1 - 3.5); g.fillStyle(TIP.flag != null ? TIP.flag : 0xff5722, 1); g.fillTriangle(A.x, A.y, B.x, B.y, C.x, C.y); } }
+        finally { Object.assign(SKIN, keep); } }
       if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
         const W0 = RD + 17, sp = 10;                                                            // end plates on it, two struts down onto the fender (Sir, 2026-11-16, "isn't reading as a spoiler")
         /* its tail cowl over the back wheel, the front fairing's mirror (Sir, 2026-11-16, "the rear fender similar to the front one"):
@@ -144844,7 +144868,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol', 'upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint', 'gUpMotor', 'gUpBatt', 'gUpLight', 'gUpBell', 'gUpStand', 'gUpGlow', 'gWhRim', 'gWhCol', 'gWhTyre', 'gWhWall'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint', 'gUpMotor', 'gUpBatt', 'gUpLight', 'gUpBell', 'gUpStand', 'gUpGlow', 'gWhRim', 'gWhCol', 'gWhTyre', 'gWhWall', 'gScTop', 'gScFlag', 'gScDecal', 'gScBand', 'gScDecCol', 'gScFinish', 'gScoot2'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -144873,7 +144897,12 @@ requestTpProfile();
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
-                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'], gHatCol: ['hat', 'copper'], gOutCol: ['hat', 'copper'], gBadgeCol: ['hat', 'gold'], gGlassCol: ['hat', 'copper'], gShell2: ['shell', 'navy'], gDecalCol: ['hat', 'white'], gScoot: ['shell', 'white'], gScootAcc: ['band', 'copper'] };
+                    gPack: ['part', 'graphite'], gEar: ['ear', 'stock'], gShoeCol: ['shoe', 'graphite'], gHatCol: ['hat', 'copper'], gOutCol: ['hat', 'copper'], gBadgeCol: ['hat', 'gold'], gGlassCol: ['hat', 'copper'], gShell2: ['shell', 'navy'], gDecalCol: ['hat', 'white'], gScoot: ['shell', 'white'], gScootAcc: ['band', 'copper'], gScoot2: ['shell', 'navy'] };
+  /* THE SCOOTER WEARS TIPSEY'S TOO (Sir, 2026-11-16, "both of them have everything"): his topper and flag on a whip pole, his side
+     decals and stripe patterns on its deck, his paint finishes and a second colour -- Tipsey's own lists, as Gideon's kinds (GSC_TIP) */
+  const GSC_TIP = { gScTop: [[{ id: 'none', name: 'None', cents: 0 }].concat(TOPPER_LIST.map(c => c.id === 'pennant' ? Object.assign({}, c, { cents: 300 }) : c)), 'none'],
+    gScFlag: [FLAG_COL, 'stock'], gScDecal: [DECAL_LIST, 'none'], gScBand: [BAND_LIST, 'none'], gScDecCol: [DECAL_COL, 'auto'], gScFinish: [FINISH_LIST, 'satin'] };
+  for (const k in GSC_TIP) LISTS[k] = GSC_TIP[k][0];
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
@@ -144882,7 +144911,7 @@ requestTpProfile();
   const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200, wayfarer: 700, cateye: 700, halfrim: 600, hex: 600, rimless: 500, heartglass: 800, starglass: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
   const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
   for (const k in GD_SHAPE) { const [src, stock, price] = GD_SHAPE[k]; LISTS[k] = GD_SHAPES[src].map(([id, name]) => ({ id, name, cents: id === stock ? 0 : (k === 'gHat' ? HAT_PRICE[id] || 400 : (GD_PRICE[k] && GD_PRICE[k][id]) || price) })); }
-  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250, gOutCol: 250, gBadgeCol: 200, gGlassCol: 200, gShell2: 500, gDecalCol: 200, gScoot: 300, gScootAcc: 200 });
+  Object.assign(FLAT, { gShell: 500, gJoint: 250, gHand: 250, gEye: 250, gScreen: 200, gBand: 300, gPack: 250, gEar: 250, gShoeCol: 250, gHatCol: 250, gOutCol: 250, gBadgeCol: 200, gGlassCol: 200, gShell2: 500, gDecalCol: 200, gScoot: 300, gScootAcc: 200, gScoot2: 300 });
   for (const k in FLAT) for (const c of LISTS[k]) if (c.cents > 0 && c.id !== 'glow') c.cents = FLAT[k];   // (Glow is a light, not a colour: its own price)
   /* an item by its field and id: a preset, a custom colour, or a skin */
   const itemOf = (kind, id) => kind === 'skin' ? tpSkinById(id) : (colEntry(kind, id) || (LISTS[kind] ? byId(LISTS[kind], id) : null));
@@ -144941,7 +144970,8 @@ requestTpProfile();
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
                 eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol,
-                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin, scootPaint: L.gScootPaint, upMotor: L.gUpMotor, upBatt: L.gUpBatt, upLight: L.gUpLight, upBell: L.gUpBell, upStand: L.gUpStand, upGlow: L.gUpGlow, whRim: L.gWhRim, whCol: L.gWhCol, whTyre: L.gWhTyre, whWall: L.gWhWall };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
+                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin, scootPaint: L.gScootPaint, upMotor: L.gUpMotor, upBatt: L.gUpBatt, upLight: L.gUpLight, upBell: L.gUpBell, upStand: L.gUpStand, upGlow: L.gUpGlow, whRim: L.gWhRim, whCol: L.gWhCol, whTyre: L.gWhTyre, whWall: L.gWhWall, scTop: L.gScTop, scFlag: L.gScFlag, scDecal: L.gScDecal, scBand: L.gScBand, scDecCol: L.gScDecCol, scFinish: L.gScFinish, scoot2: L.gScoot2,
+                scFlagHex: L.gScFlag ? (byId(FLAG_COL, L.gScFlag) || {}).hex : null, scDecHex: L.gScDecCol && L.gScDecCol !== 'auto' ? (byId(DECAL_COL, L.gScDecCol) || {}).hex : null };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -145816,7 +145846,15 @@ requestTpProfile();
         return `<button class="grSkin${on ? ' sel' : ''}" data-gpack="${id}">${gdCardIcon('whPack', id)}<span>${nm}</span><i>${on ? 'On' : 'Try on'}</i></button>`; }).join('') + '</div>';
       const whRows = bld === 'robo' ? '' : pkRow + gCardRow('RIMS', 'gWhRim', 'whRim') + gCardRow('RIM COLOUR', 'gWhCol', 'whCol') + gCardRow('TREAD', 'gWhTyre', 'whTyre') + gCardRow('SIDEWALL', 'gWhWall', 'whWall');
       GSC_PACKS = PK;
-      h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + upRow + gCardRow('UNDERGLOW', 'gUpGlow', 'upGlow') + whRows + (Object.values(GSC_PAINT).includes(bld) ? gCardRow((bld === 'stock' ? 'REGULAR' : (LISTS.gScootSkin.find(c => c.id === bld) || { name: bld }).name.toUpperCase()) + ' SKINS', 'gScootPaint', 'scootPaint', id => id === 'plain' || GSC_PAINT[id] === bld) : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
+      /* Tipsey's: antenna, decals, finish (GSC_TIP) -- his icons */
+      const tipRow = (title, kind, icon) => { const cur = Lu[kind] || GSC_TIP[kind][1];
+        return `<div class="grSec">${title}</div><div class="grRow">` + GSC_TIP[kind][0].map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-gtip="${kind}:${c.id}">${icon(c.id)}<span>${c.name}</span>${tagOf(kind, c.id, cur === c.id)}</button>`).join('') + '</div>'; };
+      const fcol = (byId(FLAG_COL, Lu.gScFlag || 'stock') || FLAG_COL[0]).hex, dcol = Lu.gScDecCol && Lu.gScDecCol !== 'auto' ? byId(DECAL_COL, Lu.gScDecCol).hex : null;
+      const tipRows = tipRow('TOPPER — ON A WHIP POLE', 'gScTop', id => id === 'none' ? gdCardIcon('upGlow', 'off') : antennaIcon(id, 'stock', fcol, true)) + tipRow('FLAG COLOUR', 'gScFlag', id => `<svg viewBox="0 0 40 26" width="52" height="34"><circle cx="20" cy="13" r="8" fill="${hex(byId(FLAG_COL, id).hex)}"/></svg>`)
+        + tipRow('SIDE DECAL', 'gScDecal', id => decalIcon(id, dcol)) + tipRow('STRIPE PATTERN', 'gScBand', id => bandIcon(id, dcol)) + tipRow('DECAL COLOUR', 'gScDecCol', id => `<svg viewBox="0 0 40 26" width="52" height="34"><circle cx="20" cy="13" r="8" fill="${id === 'auto' ? '#9aa2a8' : hex(byId(DECAL_COL, id).hex)}"/></svg>`)
+        + tipRow('FINISH', 'gScFinish', id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="6" y="8" width="28" height="10" rx="2" fill="${id === 'flat' ? '#b9bec4' : id === 'twotone' ? '#2f4a86' : id === 'chameleon' ? '#7a5cff' : '#eceef1'}"/>${id === 'gloss' ? '<path d="M9 10h20" stroke="#fff" stroke-width="1.4"/>' : ''}${id === 'flake' ? '<circle cx="12" cy="12" r=".8" fill="#fff"/><circle cx="20" cy="15" r=".8" fill="#fff"/><circle cx="27" cy="11" r=".8" fill="#fff"/>' : ''}${id === 'twotone' ? '<rect x="6" y="8" width="28" height="5" rx="2" fill="#eceef1"/>' : ''}</svg>`)
+        + gColRow('SECOND COLOUR — FOR TWO-TONE', 'gScoot2');
+      h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + upRow + gCardRow('UNDERGLOW', 'gUpGlow', 'upGlow') + whRows + tipRows + (Object.values(GSC_PAINT).includes(bld) ? gCardRow((bld === 'stock' ? 'REGULAR' : (LISTS.gScootSkin.find(c => c.id === bld) || { name: bld }).name.toUpperCase()) + ' SKINS', 'gScootPaint', 'scootPaint', id => id === 'plain' || GSC_PAINT[id] === bld) : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
@@ -145828,6 +145866,8 @@ requestTpProfile();
     for (const b of P.querySelectorAll('[data-gequip]')) b.onclick = e => { e.stopPropagation(); const pr = lookOf(b.dataset.gequip); const L = Object.assign(worn(), blankG(), pr.set); commit(L); if (pv) applyLook(pv); renderTab(); renderBar(); tpToast(pr.name + ' equipped'); };
     for (const b of P.querySelectorAll('[data-gcard]')) b.onclick = () => { const k = b.dataset.gcard.indexOf(':'), kind = b.dataset.gcard.slice(0, k), id = b.dataset.gcard.slice(k + 1);
       tryOn(Object.assign({}, pv || worn(), { [kind]: id === GD_SHAPE[kind][1] ? null : id })); };
+    for (const b of P.querySelectorAll('[data-gtip]')) b.onclick = () => { const k = b.dataset.gtip.indexOf(':'), kind = b.dataset.gtip.slice(0, k), id = b.dataset.gtip.slice(k + 1);
+      tryOn(Object.assign({}, pv || worn(), { [kind]: id === GSC_TIP[kind][1] ? null : id })); };   // (Tipsey's kinds on the scooter: GSC_TIP)
     for (const b of P.querySelectorAll('[data-gpack]')) b.onclick = () => { const pk = GSC_PACKS.find(q => q[0] === b.dataset.gpack); if (pk) tryOn(Object.assign({}, pv || worn(), pk[2])); };   // (a wheel package: its rim, colour and tyre tried on together)
     for (const b of P.querySelectorAll('[data-greset]')) b.onclick = () => { const o = {}; for (const k of GD_FIELDS) o[k] = null; tryOn(Object.assign({}, pv || worn(), o)); };
   }
