@@ -78323,10 +78323,12 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     }
     /* the east gable: cladding over the tie beam (wall material), its boards, a louvred vent, the barge boards */
     if(inView(P0.HX1 - 4, x1 + 4, yb, yf, E - 10, R + 20)){
-      poly([P(P0.HX1, P0.HF, E + 4), P(P0.HX1, ym, R + 2), P(P0.HX1, P0.HB, E + 4)], C.clad);
-      for(let y = P0.HB + 40; y < P0.HF - 20; y += 40){ const zt = R - k*Math.abs(y - ym); if(zt > E + 12) S(P0.HX1 + 0.4, y, y + 2, E + 4, zt, C.cladD); }
-      S(P0.HX1 + 0.6, ym - 60, ym + 60, E + 60, E + 150, '#5b676d');
-      for(let z = E + 70; z < E + 145; z += 14) S(P0.HX1 + 0.9, ym - 56, ym + 56, z, z + 6, '#7c898f');
+      /* flush with the roof's end (x1), out to the eaves both ways: the gable closes the roof, no step under the overhang */
+      poly([P(x1, yf, zE), P(x1, ym, R + 6), P(x1, yb, zE)], C.clad);
+      for(let y = yb + 40; y < yf - 20; y += 40){ const zt = R + 6 - k*Math.abs(y - ym); if(zt > zE + 8) S(x1 + 0.4, y, y + 2, zE, zt, C.cladD); }
+      S(x1 + 0.6, ym - 60, ym + 60, E + 60, E + 150, '#5b676d');
+      for(let z = E + 70; z < E + 145; z += 14) S(x1 + 0.9, ym - 56, ym + 56, z, z + 6, '#7c898f');
+      S(x1 + 1, yb, yf, zE - 14, zE + 2, C.fascia);                                              // a trim board along its foot
       poly([P(x1, yf, zE - 16), P(x1, ym, R - 10), P(x1, ym, R + 8), P(x1, yf, zE + 2)], C.fascia);
       poly([P(x1, yb, zE - 16), P(x1, ym, R - 10), P(x1, ym, R + 8), P(x1, yb, zE + 2)], shade(C.fascia, .82));
     }
