@@ -122584,7 +122584,6 @@ class WorldScene extends Phaser.Scene {
     if(racer && frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing, on the far side of him)
     if(tuk && !frontSeen) this.tukKit(bobZ, BP, 'front');
     if(rover) this.roverKit(bobZ, BP, 'far');
-    if(tank && !frontSeen) this.tankKit(bobZ);   // (the cannon behind him: before the body)
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
@@ -122630,6 +122629,7 @@ class WorldScene extends Phaser.Scene {
         } finally { this.drawClip = clip0; }
       }
     }
+    if(tank && !frontSeen) this.tankKit(bobZ);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
     if(tank && frontSeen) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret)
 
