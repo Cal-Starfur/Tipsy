@@ -42896,7 +42896,7 @@ const TP_BUILDS = {
     STRIPE: { z0: 19, z1: 23 }, FLAGB: { x: -26, y: 13 }, FLAGZ: [30.5, 72], zmap: z => 14 + (z - 14)*0.4, noBracket: true, noTray: true,
     /* (first art pass -- Sir, 2026-11-16): bigger tyres, the body up over them on its own chassis -- solid axles with their diffs, links up
        to a tube frame, two coil-overs at each wheel, black flares over the tyres, push bars front and back */
-    GEAR: { kind: 'wheels', r: 17, W2: 13, xs: [-22, 22], side: 28, lift: 22, tread: 'knobby', style: 'tri' }, kit: 'monster' },
+    GEAR: { kind: 'wheels', r: 17, W2: 13, xs: [-22, 22], side: 28, lift: 29, tread: 'knobby', style: 'tri' }, kit: 'monster' },   // (lifted clear of the tyres: the whole tyre shows under its fender)
   /* the Hot Rod: long and low, a big supercharger up through his hood with its scoop, chrome headers out each side, fat slicks behind,
      skinny fronts */
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
@@ -125170,13 +125170,16 @@ class WorldScene extends Phaser.Scene {
       /* THE FENDERS (Sir, 2026-11-16: "not sure what this black frame is on the sides"): a black arched flare over each tyre -- a curved
          band following the tyre's top from under his side out past its outer wall, a lip down its outer edge -- the far side's before his
          body, the near side's after the near tyres */
-      const fenders = sb => { const R = W.r + 2.4, yi = sb*(BODY.hy - 1), yo = sb*(W.side + W.W2/2 + 1.6), FC = [0x3b4048, 0x2e3138, 0x1c1e22];
-        for(const x of W.xs){ const N = 12, th = k => (0.2 + k/N*0.6)*Math.PI, pt = (k, y, r = R) => P(x + Math.cos(th(k))*r, y, hz + Math.sin(th(k))*r);
+      /* (part of his body -- Sir, 2026-11-16: "if those are fenders they need to be part of the tipsy body"): each a flared arch in his own
+         paint off his lower flank, high over its tyre -- the body up on its suspension far enough that the whole tyre shows beneath; its
+         faces toned as his hull's, a lip in his darker side tone */
+      const fenders = sb => { const BP = this.bodyPaint(), SIDE = hullSteps(BP.dk, BP.lt), litOf = w => { const m = Math.hypot(w.x, w.y) || 1; return 0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)); };
+        const R = (zb - hz) + 3, yi = sb*(BODY.hy - 1), yo = sb*(W.side + W.W2/2 + 1.2);
+        for(const x of W.xs){ const N = 10, th = k => (0.27 + k/N*0.46)*Math.PI, pt = (k, y, r = R) => P(x + Math.cos(th(k))*r, y, hz + Math.sin(th(k))*r);
           for(let k = 0; k < N; k++){ const tm = (th(k) + th(k + 1))/2, w = this.R(Math.cos(tm), 0, Math.sin(tm)); if(w.x + w.y + w.z <= 0) continue;
-            const lit = (w.x - w.y)/(Math.hypot(w.x, w.y) || 1);
-            this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], _pmix(FC[1], lit > 0 ? 0x6f757b : 0x000000, Math.min(0.5, Math.abs(lit)*0.4) + 0.05*(Math.sin(tm) > 0.9 ? 1 : 0))); }
-          if(vis(0, sb, 0)){ const o = []; for(let k = 0; k <= N; k++) o.push(pt(k, yo, R)); for(let k = N; k >= 0; k--) o.push(pt(k, yo, R - 2.2)); this.quadOn(g, o, FC[2]);   // (its lip)
-            g.lineStyle(Math.max(1, 0.9*K), 0x6f757b, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo, R), B = pt(k + 1, yo, R); g.lineBetween(A.x, A.y, B.x, B.y); } } } };
+            this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], _pmix(BP.top, SIDE[Math.round(litOf(w)*8)], 0.55)); }
+          if(vis(0, sb, 0)){ const o = []; for(let k = 0; k <= N; k++) o.push(pt(k, yo, R)); for(let k = N; k >= 0; k--) o.push(pt(k, yo, R - 2.6)); this.quadOn(g, o, SIDE[2]);   // (its lip)
+            g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo, R), B = pt(k + 1, yo, R); g.lineBetween(A.x, A.y, B.x, B.y); } } } };
       if(part === 'pre'){   /* THE CHASSIS under him: the frame rails, each axle with its diff, its links and its two coil-overs a side (the far side first) */
         for(const y of [-9, 9]) bar([-BODY.hx + 4, y, zb - 3], [BODY.hx - 4, y, zb - 3], 3.4);
         for(const x of W.xs){
