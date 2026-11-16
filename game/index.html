@@ -129350,6 +129350,9 @@ class WorldScene extends Phaser.Scene {
   updateCrowd(t, dt){
     const ow = this.ow, W = ow && ow.world, grid = this.route && this.route.grid;
     if(!W || !grid || this.state !== "play") return;
+    /* the step is eased on the clock the walks read (t), not the frame's dt: dt is capped at 50, so on a slow frame the
+       walk ran on and the step round a bin lagged behind it, half made when they reached it (as the traffic's hold) */
+    { const pt = this._crowdT; this._crowdT = t; dt = pt === undefined ? (dt || 16) : Math.max(0, Math.min(250, t - pt)); }
     const sb = this.streetBot(), C = CROWD, bx = sb.x, by = sb.y, near = (x, y) => Math.abs(x - bx) + Math.abs(y - by) < C.R;   // (his place on the street: streetBot)
     /* what stands still: the route's and the city's furniture, kept a moment (statMs) */
     if(!this._crowdStat || t - this._crowdStat.t > C.statMs){
@@ -129484,13 +129487,20 @@ class WorldScene extends Phaser.Scene {
         let boxed = false, MX = C.max;                       // (wider round him: he is wider than `max` clears)
         for(const o of buf){
           const rx = o.x - w.x, ry = o.y - w.y, f = rx*hx + ry*hy;
-          if(f < -C.back || f > (o.bot ? LK*1.6 : LK)) continue;   // (him, seen sooner: the step round him is wider)
+          if(f < -C.back || f > (o.bot || (!o.who && !o.mover) ? LK*1.8 : LK)) continue;   // (him, and a bin or post, seen sooner: the step round is wider, and is all made by the time they reach it)
           const l = rx*nx + ry*ny, clear = o.r + C.bodyR + C.pad;
           if(o.bot) MX = Math.max(MX, clear + C.pad);
+          /* AND ROUND WHAT STANDS STILL, ALL THE WAY (Sir, 2026-11-16: "people are still walking through trash cans on the
+             sidewalk"): a bin's clear (28 + body + pad = 50) is just past `max`, so neither side of it was a step they
+             could take -- they held their line and walked through it. A post, bin or planter widens the step as he does */
+          else if(!o.who && !o.mover) MX = Math.max(MX, clear + C.pad);
           bands.push({ lo: l - clear, hi: l + clear, l, f, clear, bot: !!o.bot, who: !!o.who || !!o.mover, oncoming: !!(o.who && (o.who.dx*hx + o.who.dy*hy) < 0) });
         }
         for(let i = bands.length - 1; i >= 0; i--) if(Math.abs(bands[i].l) >= bands[i].clear + MX) bands.splice(i, 1);   // too far across to matter
         let best = 0;
+        const pushing0 = !!(w.obj._pushTill && t < w.obj._pushTill) && bands.some(bd => bd.bot);
+        const okAt = s2 => { if(!s2) return true; const x = w.x + nx*s2, y = w.y + ny*s2, sf = W.surfaceAt(x, y);
+          return (pushing0 || sf !== "road") && !W.solidAt(x, y, C.bodyR) && !(typeof bbRackBlocks === "function" && bbRackBlocks(x, y, C.bodyR)); };
         if(bands.length){
           const free = s2 => bands.every(bd => s2 <= bd.lo || s2 >= bd.hi);
           const cands = [0, cur];
@@ -129498,7 +129508,7 @@ class WorldScene extends Phaser.Scene {
           let bc = Infinity;
           best = null;
           for(const c of cands){
-            if(c < -MX || c > MX || !free(c)) continue;
+            if(c < -MX || c > MX || !free(c) || !okAt(c)) continue;      // (a way round on the pavement: not the kerb side of a bin into the road)
             let cost = Math.abs(c - cur)*0.6 + Math.abs(c)*0.4;
             for(const bd of bands) if(bd.oncoming && c > bd.l) cost += C.keepRight;   // left of someone coming: keep right
             if(cur*c < 0 && Math.abs(cur) > 4) cost += C.switchSide;                     // and not across to the other side
