@@ -42902,7 +42902,7 @@ const TP_BUILDS = {
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
   hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 10, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5 }, lidCol: [0x9cc9dc, 0x78aec6, 0x4f86a0],
     STRIPE: { z0: 16, z1: 19 }, FLAGB: { x: -30, y: 12 }, FLAGZ: [26.5, 64], zmap: z => 12 + (z - 14)*0.35, noBracket: true,
-    WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick' }, kit: 'hotrod' } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod' } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -124624,6 +124624,9 @@ class WorldScene extends Phaser.Scene {
                         cTop: SL ? SL[0] : BP.top, cLt: SL ? SL[1] : BP.lt, cDk: SL ? SL[2] : BP.dk, cBottom:SKIN.lidInner, fin: SL ? null : BP.fin, print: SL ? null : BP.print, printPart: 'lid'});
     /* the Moon Rover's lid is its solar panel, all of it (Sir, 2026-11-16: "fit it exactly to his lid ... all of its geometry"): the whole
        prism in the panel's blues, a silver grid of cells over its top to its very edges and down its sides, through the hinge */
+    if(BODY._lidCol && !BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){   /* a glass lid's glint: a pale streak across its top */
+      const zt = z1 + 0.1, a = hx - LID.bevIn, b = hy - LID.bevIn;
+      this.quadOn(this.g, [H(a*0.1, -b*0.75, zt), H(a*0.45, -b*0.75, zt), H(a*0.05, b*0.6, zt), H(-a*0.3, b*0.6, zt)], 0xffffff, 0.4); } }
     if(BODY._solarLid){ const zt = z1 + 0.12, g = this.g, K = Math.max(1, 0.45*this.kScale());
       const ln = (a, b) => { const A = H(...a), B = H(...b); g.lineBetween(A.x, A.y, B.x, B.y); };
       g.lineStyle(K, 0xaab6c8, 0.9);
@@ -125226,21 +125229,30 @@ class WorldScene extends Phaser.Scene {
           if(night){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ for(const y of [-9.6, -3.2, 3.2, 9.6]){ const q = P(fx + 2, y, zc); gl.fillStyle(0xfff2c4, 0.22); gl.fillCircle(q.x, q.y, 6*K); } } } }
       } }
     if(id === 'hotrod'){
-      const hdr = sb => { const y0 = sb*(BODY.hy - 0.5), y1 = sb*(BODY.hy + 4.5);   // (four pipes out his flank, into a collector running back)
-        for(const x of [6, 11, 16, 21]) pipe([x, y0, 20], [x - 1, y1, 15], 2.4);
-        pipe([21, y1, 15], [-8, sb*(BODY.hy + 5), 13], 3); };
-      /* its two tail fins: tall, swept back past his tail, up off his back corners -- a thin blade each, its outer face in his paint, its
-         rear edge in his stripe; behind the bubble when his front is to the eye, in front of it when his back is */
-      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 2.5), z = BODY.z1 - 0.5, t = 0.9;
-        const S = [[-BODY.hx + 2, z], [-16, z], [-BODY.hx - 1, z + 15], [-BODY.hx - 5, z + 15]];
-        const face = (yy, col) => this.quadOn(g, S.map(([x, zz]) => P(x, yy, zz)), col);
-        const out = vis(0, sb, 0);
-        face(y - sb*t, out ? BP.dk : BP.lt); face(y + sb*t, out ? BP.lt : BP.dk);
-        this.quadOn(g, [P(S[2][0], y - t, S[2][1]), P(S[3][0], y - t, S[3][1]), P(S[3][0], y + t, S[3][1]), P(S[2][0], y + t, S[2][1])], BP.top);   // (its top)
-        g.lineStyle(Math.max(1, 1.6*K), SKIN.stripe, 1); { const a = P(S[0][0], y + sb*t, S[0][1]), b = P(S[3][0], y + sb*t, S[3][1]); g.lineBetween(a.x, a.y, b.x, b.y); } };
+      /* (an art pass -- Sir, 2026-11-16) SIDE PIPES: a long chrome pipe low down each flank, three primaries sweeping back and down into it
+         from his side, a dark tip at its end */
+      const hdr = sb => { const ys = sb*(BODY.hy + 2.6), zs = BODY.z0 + 1.5;
+        for(const x of [16, 11, 6]){ const a = [x, sb*(BODY.hy - 0.3), BODY.z0 + 7], m = [x - 2.5, sb*(BODY.hy + 1.6), BODY.z0 + 5], b = [x - 5, ys, zs + 0.6];
+          pipe(a, m, 2.2); pipe(m, b, 2.2); }
+        pipe([16, ys, zs], [-20, ys, zs], 3.4);
+        const e = P(-20.5, ys, zs); g.fillStyle(0x1c1e22, 1); g.fillCircle(e.x, e.y, 1.5*K); };
+      /* THE TAIL FINS: a blade up off each back corner, its leading edge sweeping up and back to a point past his tail -- only its face
+         toward the eye drawn, in his paint, its leading edge picked out in his stripe and the whole outlined as his hull is */
+      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 2.5), z = BODY.z1 - 0.5, t = 1.1, X0 = -BODY.hx;
+        const lead = []; for(let k = 0; k <= 6; k++){ const u = k/6; lead.push([-8 + (X0 - 6 + 8)*u, z + 14*Math.pow(u, 0.6)]); }   // (its top edge bowed up: a broad blade, not a sliver)
+        const S = [...lead, [X0 - 8, z + 14], [X0 - 3, z + 4], [X0 - 1, z]];
+        const out = vis(0, sb, 0), yy = out ? y + sb*t : y - sb*t, pts = S.map(([x, zz]) => P(x, yy, zz));
+        this.quadOn(g, pts, out ? BP.lt : BP.dk);
+        this.quadOn(g, [P(X0 - 6, y - t, z + 14), P(X0 - 8, y - t, z + 14), P(X0 - 8, y + t, z + 14), P(X0 - 6, y + t, z + 14)], BP.top);   // (its tip's top)
+        g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+        g.lineStyle(Math.max(1, 1.8*K), SKIN.stripe, 1); for(let k = 0; k < 6; k++){ const a = P(lead[k][0], yy, lead[k][1] - 0.9), b = P(lead[k + 1][0], yy, lead[k + 1][1] - 0.9); g.lineBetween(a.x, a.y, b.x, b.y); } };
       const fins = () => { fin(-nearSide); fin(nearSide); };
+      /* THE JET NOZZLE out his tail: a steel ring, its dark throat, an ember glowing in it */
+      const nozzle = () => { if(!vis(-1, 0, 0)) return; const x = -BODY.hx - 0.6, zc = (BODY.z0 + BODY.z1)/2 - 1, pulse = 0.7 + 0.3*Math.sin((this.time ? this.time.now : 0)*0.006);
+        const disc = (r, col, a = 1) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } this.quadOn(g, o, col, a); };
+        disc(5.2, 0x8d959c); disc(4.3, 0x5d646c); disc(3.4, 0x16171b); disc(2.2, 0xff6a2a, pulse); disc(1.1, 0xffd08a, pulse); };
       if(part === 'pre') hdr(-nearSide);
-      if(part === 'mid'){ hdr(nearSide); if(frontSeen) fins(); }
+      if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
       if(part === 'near' && !frontSeen) fins(); }
   }
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
@@ -131165,7 +131177,7 @@ function gearSpecRaw(){
   }
   if(BODY._gear && !SKIN.tyreSize) return { ...BODY._gear };   // (a build's own running gear: the UFO floats, the Monster Truck's rig)
   if(BODY._tracks && !SKIN.tyreSize) return { kind: 'tank', side: BODY.hy + 5, W2: 10, lift: 2 };   // (the Tank build's own treads: TP_BUILDS)
-  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, treadF: SKIN.tyre ? undefined : W.treadF, rubber: SKIN.tyre ? null : W.rubber, lift: 0 }; }   // (a build's own: TP_BUILDS)
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, treadF: SKIN.tyre ? undefined : W.treadF, wall: W.wall, rubber: SKIN.tyre ? null : W.rubber, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
