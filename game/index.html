@@ -127304,8 +127304,12 @@ class WorldScene extends Phaser.Scene {
          back corners raked up and back, flame at their tips; 'single' one fat stack up his middle with a toothed rim; 'side' none on top --
          pipes out low under his tail (drawn in 'pre'/'mid' by sideExh) */
       const EXH = TR.exh || 'stack';
-      const sideExh = () => { for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 4); pipe([-BODY.hx + 6, y, BODY.z0 + 2.5], [-BODY.hx - 10, y, BODY.z0 + 1.5], 7, STK[1]);   // (big: Sir, 2026-11-16)
-          if(vis(-1, 0, 0)){ const e = P(-BODY.hx - 10.2, y, BODY.z0 + 1.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 3.8*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.5*K); } } };
+      /* (under him, only their ends out past his tail -- Sir, 2026-11-16): the run under his belly goes before his body; the part out past his
+         tail before it when his front is to the eye, after it when his back is; the bore only when the end faces the eye, not in profile */
+      const sideExh = (out) => { for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 4), zA = BODY.z0 + 2.5, zB = BODY.z0 + 1.5, xm = -BODY.hx - 0.5, zm = zA + (zB - zA)*(6.5/16);
+          if(!out){ pipe([-BODY.hx + 6, y, zA], [xm, y, zm], 7, STK[1]); continue; }
+          pipe([xm, y, zm], [-BODY.hx - 10, y, zB], 7, STK[1]);   // (big: Sir, 2026-11-16)
+          const wv = this.R(-1, 0, 0); if(wv.x + wv.y + wv.z > 0.35){ const e = P(-BODY.hx - 10.2, y, BODY.z0 + 1.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 3.8*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.5*K); } } };
       const zoomies = () => { const t = this.time ? this.time.now : 0;
         for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
           pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
@@ -127327,7 +127331,7 @@ class WorldScene extends Phaser.Scene {
           if(single) for(let k = 0; k < 8; k++){ const a = k/8*Math.PI*2, r0 = 2.5*R; this.quadOn(g, [P(sx + Math.cos(a - 0.3)*r0, y + Math.sin(a - 0.3)*r0, z1), P(sx + Math.cos(a + 0.3)*r0, y + Math.sin(a + 0.3)*r0, z1), P(sx + Math.cos(a)*r0, y + Math.sin(a)*r0, z1 + 2.2)], CH[0]); }   // (its toothed rim)
           if(EXH === 'smoke'){ const t = this.time ? this.time.now : 0; for(let k = 0; k < 3; k++){ const u = ((t*0.0006 + k/3 + (y > 0 ? 0.5 : 0)) % 1), q = P(sx - u*4, y, z1 + 2 + u*10);
               g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (2.4 + u*4.5)*K); } } } };
-      if(EXH === 'side'){ if(part === 'pre' && frontSeen) sideExh(); if(part === 'mid' && !frontSeen) sideExh(); }
+      if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
