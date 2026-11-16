@@ -94055,11 +94055,87 @@ CITY_PEOPLE.add({ name: 'almshouse court and Ferris Field', where: 'Ferris Taylo
     }
   } });
 
+/* PARK WALKERS (Sir, 2026-11-16: "we need people in all of our parks"): strollers and joggers on Veterans Memorial Park's
+   trail (vetTrailOf: its runs, loops and spurs), by day. Each walks a trip in from one of the trail's exits to the
+   sidewalk, through a turn of the park, and out at another, then is gone a while before the next; a trip is a pure function
+   of the world clock (its index n, seeded), the pace eased at the ends (walkPathAt), keeping to the right of the path's
+   middle. They step round each other, the bench sitters' feet, the furniture and him with the street's crowd (updateCrowd:
+   _avX/_avY, _dly). ==================== */
+const PARK_WALK = { n: 44, joggers: 8, lane: 34, hours: [6, 21] };
+function parkTrailGraph(grid){
+  const T = vetTrailOf(grid);
+  if(!T) return null;
+  if(T._graph) return T._graph;
+  const key = (x, y) => Math.round(x/10) + "," + Math.round(y/10), nodes = new Map(), node = (x, y) => { const k = key(x, y); if(!nodes.has(k)) nodes.set(k, { k, x, y, nb: [], exit: false }); return nodes.get(k); };
+  for(const sg of T.segs){ const a = node(sg.x0, sg.y0), b = node(sg.x1, sg.y1); if(a === b) continue; a.nb.push(b); b.nb.push(a); if(sg.exit){ (a.nb.length === 1 ? a : b).exit = true; } }
+  const L = [...nodes.values()], exits = L.filter(n => n.exit || n.nb.length === 1);
+  return (T._graph = { nodes: L, exits });
+}
+function parkTrailRoute(G, a, b){
+  const prev = new Map([[a, null]]), q = [a];
+  for(let h = 0; h < q.length; h++){ const c = q[h]; if(c === b) break; for(const n of c.nb) if(!prev.has(n)){ prev.set(n, c); q.push(n); } }
+  if(!prev.has(b)) return null;
+  const out = []; for(let c = b; c; c = prev.get(c)) out.unshift(c); return out;
+}
+function parkWalkersOf(grid){
+  const G = grid && parkTrailGraph(grid);
+  if(!G || G.exits.length < 2) return [];
+  if(G._walkers) return G._walkers;
+  const out = [];
+  for(let k = 0; k < PARK_WALK.n; k++) out.push({ k, jog: k < PARK_WALK.joggers, G, seed: (0x9a41 + k*7919) >>> 0 });
+  return (G._walkers = out);
+}
+/* walker w's way: a long seeded wander over the whole network (300 hops, never straight back unless at a dead end), walked
+   round and round at their own pace -- so they spread over every part of the trail and never bunch */
+function parkWalkWay(w){
+  if(w.way) return w.way;
+  const G = w.G, r = mulberry32(w.seed >>> 0), pick = A => A[Math.floor(r()*A.length)];
+  const inner = G.nodes.filter(n => n.nb.length > 1), seq = [pick(inner.length ? inner : G.nodes)];
+  for(let h = 0; h < 300; h++){ const c = seq[seq.length - 1], back = seq[seq.length - 2], nb = c.nb.filter(n => n !== back && n.nb.length > 1); seq.push(nb.length ? pick(nb) : back || c.nb[0]); }
+  const pts = [], cum = [0];
+  for(const nd of seq){ const q = pts[pts.length - 1]; if(!q || q.x !== nd.x || q.y !== nd.y){ if(q) cum.push(cum[cum.length - 1] + Math.hypot(nd.x - q.x, nd.y - q.y)); pts.push({ x: nd.x, y: nd.y }); } }
+  const L = cum[cum.length - 1];
+  return (w.way = { pts, L, v: w.jog ? 0.15 : PEOPLE_WALK_V*(0.85 + r()*0.3), lane: PARK_WALK.lane*(0.7 + r()*0.6), off: r()*L,
+    look: streetLook((w.seed*31) >>> 0, { adult: w.jog || r() < 0.85, aid: w.jog ? 'none' : undefined }) });
+}
+function parkWalkRaw(w, t){
+  const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12;
+  if(h < PARK_WALK.hours[0] || h >= PARK_WALK.hours[1]) return null;
+  const Wy = parkWalkWay(w);
+  if(!(Wy.L > 0)) return null;
+  const d = (((t - (w._dly || 0))*Wy.v + Wy.off) % Wy.L + Wy.L) % Wy.L, q = walkPathPoint(Wy.pts, d);
+  const a = walkPathPoint(Wy.pts, Math.max(0, d - 34)), c = walkPathPoint(Wy.pts, Math.min(Wy.L, d + 34)), th = Math.atan2(c.y - a.y, c.x - a.x), s = Wy.lane;
+  return { x: q.x - Math.sin(th)*s, y: q.y + Math.cos(th)*s, th, moving: true, look: Wy.look, jog: w.jog };   // (keep right: their right of the way they go)
+}
+function parkWalkAt(w, t){
+  const p = parkWalkRaw(w, t);
+  if(p && !CROWD_RAW){ p.x += w._avX || 0; p.y += w._avY || 0; }
+  if(p && w._spd !== undefined && w._spd < CROWD.still) p.moving = false;
+  return p;
+}
+CITY_PEOPLE.add({ name: 'park walkers', where: "Veterans Memorial Park's trail", solid: false,
+  each(scene, t, fn){
+    const grid = scene.route && scene.route.grid;
+    for(const w of parkWalkersOf(grid)){ const p = parkWalkAt(w, t); if(p) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: p.moving, kind: w.jog ? 'jogger' : 'walker', look: p.look, ref: w })); }
+  } });
+function parkWalkQueue(scene, t, queuePerson, layerFor){
+  const grid = scene.route && scene.route.grid, now = scene.time.now;
+  for(const w of parkWalkersOf(grid)){
+    const p = parkWalkAt(w, now);
+    if(!p || !scene.visProp("people", p.x, p.y)) continue;
+    const L = p.look, px = p.x, py = p.y, mv = p.moving;
+    queuePerson(px, py, () => {
+      const gg = layerFor(px, py), thW = p.th - Math.PI/2;
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py, p.jog ? 1.7 : 1) : 0, mv, 0, 0, null, L.uniform, false,
+        Object.assign({ dress: L.dress }, p.jog && mv ? { lift: [0.35, 0.35], bend: 1.5 } : null));
+    });
+  }
+}
 /* PARK BENCH SITTERS (Sir, 2026-11-14: "get some people using them"): the park trail's benches (queueParkPlants) have someone on them by day --
    about half of them, one or two (a pair a third of the time), off a roll of the bench's own spot and the day's hour block, so who sits
    there changes through the day. They sit still, so they are baked into the bench's cached image (its key names them: stable while
    they stay); hands in the lap or on the seat. Day only: 7 to 20 */
-const PARK_SIT = { seat: 46, fwd: 14, share: 0.55, pair: 0.33, hours: [7, 20], block: 3 };   // (seat: the hips on the slats, as Walt's SS_SEAT; fwd: off the bench's back toward its front)
+const PARK_SIT = { seat: 46, fwd: 14, share: 0.8, pair: 0.4, hours: [7, 20], block: 3 };   // (seat: the hips on the slats, as Walt's SS_SEAT; fwd: off the bench's back toward its front)
 function parkBenchSitters(p){
   const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12;
   if(h < PARK_SIT.hours[0] || h >= PARK_SIT.hours[1]) return null;
@@ -103665,6 +103741,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     if(WORLDGEN_COAST) btQueue(this, t, queuePerson, layerFor);              // THE BAIT & TACKLE's worker, customers and their parked cars
     if(WORLDGEN_COAST) anglersQueue(this, t, queuePerson, layerFor);         // ANGLERS round the harbour
+    parkWalkQueue(this, t, queuePerson, layerFor);                           // PARK WALKERS on Veterans Memorial Park's trail
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
@@ -128089,6 +128166,7 @@ class WorldScene extends Phaser.Scene {
         }
       }
       if(DERBY_LEAVE.on) for(const p of DERBY_LEAVE.list) if(!p.knock) addXY(p, tt => shopperAtRaw(p, tt), true, tt => shopperAt(p, tt));   // (the derby's families going home: as the shoppers)
+      for(const w of parkWalkersOf(grid)){ const q0 = parkWalkRaw(w, t); if(q0 && near(q0.x, q0.y)) addXY(w, tt => parkWalkRaw(w, tt), true, tt => parkWalkAt(w, tt)); }   // (the park's trail walkers)
       for(const tr of (this.trafficActive(t) || [])) if(tr.errand && !tr.knock) addXY(tr.errand, tt => errandPersonRaw(tr.errand, tt), false, tt => errandPerson(tr.errand, tt));
       /* the pavement's own walkers (the route's and the city's): their sidestep goes on in their frame */
       const peds = [];
