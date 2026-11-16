@@ -120913,14 +120913,11 @@ class WorldScene extends Phaser.Scene {
     const fn = this.R(1, 0, 0);
     /* (a build's face: its features' heights fitted to its front, and -- past the flat of its front -- wrapped round onto its chamfered
        corners, so they hug the body as the stripe does: Sir, 2026-11-16 -- TP_BUILDS) */
-    const fW = BODY.hy - BODY.ch, F = BODY._zmap ? (y, z) => this.P(BODY.hx + 0.8 - Math.max(0, Math.abs(y) - fW), y, BODY._zmap(z) + bobZ)
+    /* (no -- Sir, 2026-11-16, "that looks bad": wrapped round the corners it sprawled. Its face is fitted to the flat of its front instead:
+       widths scaled to it, heights mapped onto it) */
+    const fW = BODY.hy - BODY.ch, fK = Math.min(1, (fW - 0.5)/15), F = BODY._zmap ? (y, z) => this.P(BODY.hx + 0.8, y*fK, BODY._zmap(z) + bobZ)
                                                : (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
-    /* a face shape (y, z) pairs, through F -- each edge broken where it crosses the bend onto a corner (y = +-fW), so the shape bends
-       round it as the stripe does, not cutting across it */
-    const FP = pts => { if(!BODY._zmap) return pts.map(([y, z]) => F(y, z)); const o = [];
-      for(let i = 0; i < pts.length; i++){ const [y0, z0] = pts[i], [y1, z1] = pts[(i + 1) % pts.length]; o.push(F(y0, z0));
-        for(const yb of [-fW, fW]) if((y0 - yb)*(y1 - yb) < 0){ const k = (yb - y0)/(y1 - y0); o.push(F(yb, z0 + (z1 - z0)*k)); } }
-      return o; };
+    const FP = pts => pts.map(([y, z]) => F(y, z));   // (a face shape's (y, z) pairs, through F)
     const ks = this.kScale();
     let mouthPolys = null;              // this frame's mouth, for the night glow below
     /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
