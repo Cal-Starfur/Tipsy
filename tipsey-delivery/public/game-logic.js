@@ -42914,11 +42914,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, print: 'mtGrave', part: 'grave', eye: 0x7dff5a, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c } },
-  { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c } },
-  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a } },
-  { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a } },
-  { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xb8c46a, heat: 0x5a3418 } },
+  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, print: 'mtGrave', part: 'grave', eye: 0x7dff5a, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lamp: 0x9dff7a }, flag: { kind: 'swallow', col: 0x1d1f26, motif: 'skull', mc: 0x7dff5a } },
+  { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c, exh: 'zoomies', lb: 'pods', lamp: 0xffd84a }, flag: { kind: 'square', col: 0xb3121a, motif: 'horns', mc: 0xf3ead2 } },
+  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a, exh: 'stack', lb: 'bar', lamp: 0xffe9a8 }, flag: { kind: 'pennant', col: 0xc0262a, motif: 'bone', mc: 0xf3ead2 } },
+  { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a, exh: 'side', lb: 'strip', lamp: 0xbfeaff }, flag: { kind: 'swallow', col: 0x2f5a8a, motif: 'fin', mc: 0xd9dde2 } },
+  { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'single', lb: 'cage', lamp: 0xffb02a }, flag: { kind: 'square', col: 0x2f6a22, motif: 'claw', mc: 0xe6dcb8 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -125547,33 +125547,60 @@ class WorldScene extends Phaser.Scene {
       if(SKP === 'ears' && part === 'after' && frontSeen){ const fx = BODY.hx + 0.3, z0 = BODY.z0 + 0.5;   // (its tongue, out under his face)
         this.quadOn(g, [P(fx, -2.6, z0 + 3), P(fx, 2.6, z0 + 3), P(fx + 1.6, 2.4, z0 - 2.5), P(fx + 1.4, 0, z0 - 4), P(fx + 1.6, -2.4, z0 - 2.5)], 0xe86a8a);
         { const A = P(fx + 0.6, 0, z0 + 2.4), B = P(fx + 1.3, 0, z0 - 2.6); g.lineStyle(Math.max(1, 0.7*K), 0xb84a6a, 1); g.lineBetween(A.x, A.y, B.x, B.y); } }
-      const sx = -LID.hx - 4, stacks = () => { const z0 = BODY.z1, z1 = BODY.z1 + 20, CH = STK;
+            /* THE EXHAUST, a skin's own kind (TP_BSKIN trim.exh, Sir 2026-11-16: "they don't all have to have the same exhaust"): 'stack' the
+         twin chrome stacks; 'smoke' those, taller, a green ghost glow puffing off their tops; 'zoomies' three short pipes a side out of his
+         back corners raked up and back, flame at their tips; 'single' one fat stack up his middle with a toothed rim; 'side' none on top --
+         pipes out low under his tail (drawn in 'pre'/'mid' by sideExh) */
+      const EXH = TR.exh || 'stack';
+      const sideExh = () => { for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 4); pipe([-BODY.hx + 6, y, BODY.z0 + 2], [-BODY.hx - 7, y, BODY.z0 + 1.2], 4.6, STK[1]);
+          if(vis(-1, 0, 0)){ const e = P(-BODY.hx - 7.2, y, BODY.z0 + 1.2); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 2.5*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 1.6*K); } } };
+      const zoomies = () => { const t = this.time ? this.time.now : 0;
+        for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*4.2, a = [x, sb*(BODY.hy - 2), BODY.z1 - 0.5], b = [x - 6, sb*(BODY.hy + 2.5), BODY.z1 + 8];
+          pipe(a, b, 3, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
+          g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 1.6*K, 2.2*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 0.8*K, 1.2*K); } };
+      const sx = -LID.hx - 4, stacks = () => { if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side') return;
+        const single = EXH === 'single', R = single ? 1.6 : 1, z0 = BODY.z1, z1 = BODY.z1 + (EXH === 'smoke' ? 26 : single ? 16 : 20), CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
-        for(const y of [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
+        for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
-          cyl(2, y, z0 + 1, z0 + 5, CH);                                                                   // (the pipe below the shield)
-          cyl(2.6, y, z0 + 5, z0 + 13, HEAT);                                   // (the heat shield)
+          cyl(2*R, y, z0 + 1, z0 + 5, CH);                                                                   // (the pipe below the shield)
+          cyl(2.6*R, y, z0 + 5, z0 + 13, HEAT);                                   // (the heat shield)
           if(vis(0, 0, 1)){ g.lineStyle(Math.max(1, 0.8*K), 0x5d646c, 1); }
-          for(let k = 0; k < 4; k++){ const zz = z0 + 6.5 + k*1.8, fx = vis(1, 0, 0) ? 1 : -1, A = P(sx + fx*2.62, y - 1.3, zz), B = P(sx + fx*2.62, y + 1.3, zz);   // (its slots)
+          for(let k = 0; k < 4; k++){ const zz = z0 + 6.5 + k*1.8, fx = vis(1, 0, 0) ? 1 : -1, A = P(sx + fx*2.62*R, y - 1.3*R, zz), B = P(sx + fx*2.62*R, y + 1.3*R, zz);   // (its slots)
             g.lineStyle(Math.max(1, 0.9*K), 0x6f757b, 1); g.lineBetween(A.x, A.y, B.x, B.y); }
-          cyl(2, y, z0 + 13, z1, CH);                                                                      // (the pipe on up out of it: over the shield's top)
-          cyl(2.5, y, z1 - 1.2, z1, CH);                                                                   // (the flared lip)
-          const tz = z1 + 0.05, rim = []; for(let k = 0; k < 10; k++){ const a = k/10*Math.PI*2; rim.push(P(sx + Math.cos(a)*1.6, y + Math.sin(a)*1.6, tz + Math.cos(a)*0.9)); }   // (its bore, on the slant)
-          if(vis(0, 0, 1)) this.quadOn(g, rim, 0x16171b); } };
+          cyl(2*R, y, z0 + 13, z1, CH);                                                                      // (the pipe on up out of it: over the shield's top)
+          cyl(2.5*R, y, z1 - 1.2, z1, CH);                                                                   // (the flared lip)
+          const tz = z1 + 0.05, rim = []; for(let k = 0; k < 10; k++){ const a = k/10*Math.PI*2; rim.push(P(sx + Math.cos(a)*1.6*R, y + Math.sin(a)*1.6*R, tz + Math.cos(a)*0.9)); }   // (its bore, on the slant)
+          if(vis(0, 0, 1)) this.quadOn(g, rim, 0x16171b);
+          if(single) for(let k = 0; k < 8; k++){ const a = k/8*Math.PI*2, r0 = 2.5*R; this.quadOn(g, [P(sx + Math.cos(a - 0.3)*r0, y + Math.sin(a - 0.3)*r0, z1), P(sx + Math.cos(a + 0.3)*r0, y + Math.sin(a + 0.3)*r0, z1), P(sx + Math.cos(a)*r0, y + Math.sin(a)*r0, z1 + 2.2)], CH[0]); }   // (its toothed rim)
+          if(EXH === 'smoke'){ const t = this.time ? this.time.now : 0; for(let k = 0; k < 3; k++){ const u = ((t*0.0006 + k/3 + (y > 0 ? 0.5 : 0)) % 1), q = P(sx - u*4, y, z1 + 2 + u*10);
+              g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (1.6 + u*3)*K); } } } };
+      if(EXH === 'side'){ if(part === 'pre' && frontSeen) sideExh(); if(part === 'mid' && !frontSeen) sideExh(); }
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
-        const lx = LID.hx - 3, zr = LID.z1, zb = zr + 2, zt = zb + 4.6, zc = (zb + zt)/2, fx = lx + 2.25;
-        for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
-        box(2.2, LID.hy - 1, lx, 0, zb, zt, LBAR, 1.4);                                 // (its housing)
-        if(vis(1, 0, 0)){ const disc = (y, r, col, dz = 0, dy = 0) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(fx, y + dy + Math.cos(a)*r, zc + dz + Math.sin(a)*r)); } this.quadOn(g, o, col); };
-          const night = this.isNightLit && this.isNightLit();
-          for(const y of [-9.6, -3.2, 3.2, 9.6]){
-            disc(y, 2.15, 0xc9ced4); disc(y, 1.75, 0x8d959c);                                                   // (the bezel, its inner lip)
-            disc(y, 1.5, night ? 0xfffbe6 : 0xffe9a8);                                                           // (the lens)
-            disc(y, 0.55, 0xffffff, 0.6, -0.5); }                                                                // (its glint)
-          if(night){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ for(const y of [-9.6, -3.2, 3.2, 9.6]){ const q = P(fx + 2, y, zc); gl.fillStyle(0xfff2c4, 0.22); gl.fillCircle(q.x, q.y, 6*K); } } } }
+        /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
+           two big round pods up on stalks; 'cage' five lamps behind a grille */
+        const LB = TR.lb || 'bar', LAMP = TR.lamp != null ? TR.lamp : 0xffe9a8, night = this.isNightLit && this.isNightLit(), K2 = K;
+        const lx = LID.hx - 3, zr = LID.z1, zb = zr + 2, zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
+        const disc = (x, y, z, r, col) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(x, y + Math.cos(a)*r, z + Math.sin(a)*r)); } this.quadOn(g, o, col); };
+        const glow = ys => { if(!night) return; const gl = this.gBotGlow || this.gGlowLo; if(gl) for(const y of ys){ const q = P(fx + 2, y, zc); gl.fillStyle(LAMP, 0.22); gl.fillCircle(q.x, q.y, 6*K2); } };
+        if(LB === 'pods'){ for(const y of [-(LID.hy - 4), LID.hy - 4]){ box(0.6, 0.6, lx - 1, y, zr, zr + 3.5, DARK, 0.2);
+            this.drawHullPrism({ hx: 2.2, hy: 3.2, ox: lx - 0.5, oy: y, z0: zr + 3 + bobZ, z1: zr + 9.4 + bobZ, ch: 1.9, cTop: LBAR[0], cLt: LBAR[1], cDk: LBAR[2], cBottom: LBAR[2], outline: false, topEdge: false });
+            if(vis(1, 0, 0)){ disc(lx + 1.75, y, zr + 6.2, 2.8, 0xc9ced4); disc(lx + 1.8, y, zr + 6.2, 2.3, LAMP); disc(lx + 1.85, y - 0.7, zr + 7, 0.6, 0xffffff); } }
+          if(vis(1, 0, 0)) glow([-(LID.hy - 4), LID.hy - 4]); }
+        else { for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
+          box(2.2, LID.hy - 1, lx, 0, zb, zt, LBAR, LB === 'strip' ? 1 : 1.4);                                          // (its housing)
+          if(vis(1, 0, 0)){
+            if(LB === 'strip'){ this.quadOn(g, [P(fx, -(LID.hy - 2), zb + 0.6), P(fx, LID.hy - 2, zb + 0.6), P(fx, LID.hy - 2, zt - 0.6), P(fx, -(LID.hy - 2), zt - 0.6)], LAMP);
+              this.quadOn(g, [P(fx + 0.05, -(LID.hy - 3), zt - 1), P(fx + 0.05, LID.hy - 3, zt - 1), P(fx + 0.05, LID.hy - 3, zt - 0.7), P(fx + 0.05, -(LID.hy - 3), zt - 0.7)], 0xffffff, 0.7);
+              glow([-7, 0, 7]); }
+            else { const ys = LB === 'cage' ? [-10, -5, 0, 5, 10] : [-9.6, -3.2, 3.2, 9.6], r = LB === 'cage' ? 1.7 : 2.15;
+              for(const y of ys){ disc(fx, y, zc, r, 0xc9ced4); disc(fx, y, zc, r*0.82, 0x8d959c); disc(fx, y, zc, r*0.7, night ? 0xfffbe6 : LAMP); disc(fx, y - 0.5, zc + 0.6, 0.55, 0xffffff); }
+              if(LB === 'cage'){ g.lineStyle(Math.max(1, 0.9*K), 0x1c1e22, 1); for(const z of [zc - 1.1, zc + 1.1]){ const A = P(fx + 0.3, -(LID.hy - 1.5), z), B = P(fx + 0.3, LID.hy - 1.5, z); g.lineBetween(A.x, A.y, B.x, B.y); }
+                for(const y of [-12.5, -7.5, -2.5, 2.5, 7.5, 12.5]){ const A = P(fx + 0.3, y, zb + 0.4), B = P(fx + 0.3, y, zt - 0.4); g.lineBetween(A.x, A.y, B.x, B.y); } }
+              glow(ys); } } }
       } }
     if(id === 'hotrod'){
       /* (an art pass -- Sir, 2026-11-16) SIDE PIPES: a long chrome pipe low down each flank, three primaries sweeping back and down into it
@@ -127054,6 +127081,14 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(bone, 1); g.fillCircle(sk.x, sk.y, r); g.fillRect(sk.x - r*0.55, sk.y + r*0.5, r*1.1, r*0.75);
       g.fillStyle(0x14141a, 1); g.fillCircle(sk.x - r*0.36, sk.y - r*0.1, r*0.26); g.fillCircle(sk.x + r*0.36, sk.y - r*0.1, r*0.26);
     }
+    const MF = this._flagMotif;
+    if(MF){ const A = (u, v) => at(u, hAt(u)*v), C = MF.mc, poly = pts => { g.fillStyle(C, 1); g.fillPoints(pts.map(([u, v]) => P2(A(u, v))), true); }, line = (pts, w) => { g.lineStyle(Math.max(1, w*ks), C, 1); g.beginPath(); pts.forEach(([u, v], i) => { const o = A(u, v); if(i) g.lineTo(o.x, o.y); else g.moveTo(o.x, o.y); }); g.strokePath(); };
+      if(MF.motif === 'skull'){ const sk = A(0.42, 0.42), r = 3.4*ks; g.fillStyle(C, 1); g.fillCircle(sk.x, sk.y, r); g.fillRect(sk.x - r*0.55, sk.y + r*0.5, r*1.1, r*0.75);
+        g.fillStyle(0x14141a, 1); g.fillCircle(sk.x - r*0.36, sk.y - r*0.1, r*0.28); g.fillCircle(sk.x + r*0.36, sk.y - r*0.1, r*0.28); }
+      if(MF.motif === 'horns'){ const hd = A(0.5, 0.62); g.fillStyle(0x1d1f26, 1); g.fillCircle(hd.x, hd.y, 3*ks); line([[0.42, 0.55], [0.3, 0.45], [0.24, 0.25], [0.28, 0.12]], 1.8); line([[0.58, 0.55], [0.7, 0.45], [0.76, 0.25], [0.72, 0.12]], 1.8); }
+      if(MF.motif === 'bone'){ line([[0.28, 0.5], [0.66, 0.5]], 2.2); for(const [u, v] of [[0.26, 0.38], [0.26, 0.62], [0.68, 0.38], [0.68, 0.62]]){ const o = A(u, v); g.fillStyle(C, 1); g.fillCircle(o.x, o.y, 1.5*ks); } }
+      if(MF.motif === 'fin') poly([[0.24, 0.78], [0.72, 0.78], [0.56, 0.18], [0.46, 0.3]]);
+      if(MF.motif === 'claw') for(const d of [0, 0.16, 0.32]) poly([[0.26 + d, 0.15], [0.32 + d, 0.15], [0.44 + d, 0.85], [0.38 + d, 0.85]]); }
     g.lineStyle(Math.max(1, 1.1*ks), edge, 1); g.strokePoints(pen.map(P2), true);
     g.fillStyle(SKIN.flagPole, 1); g.fillCircle(p.x, p.y, 2.6*ks);
     g.fillStyle(_pmix(SKIN.flagPole, 0xffffff, 0.45), 1); g.fillCircle(p.x - 0.5*ks, p.y - 0.5*ks, 1.7*ks);
@@ -127091,6 +127126,9 @@ class WorldScene extends Phaser.Scene {
       if(facing){ g.fillStyle(0xc9ced3, 1); g.fillPoints(ring(R*0.6, -0.8), true); }
       { const A = this.P(C[0], C[1], C[2]), B = at(0, 0, 6); g.lineStyle(Math.max(1, 1.2*ks), 0x9aa0a6, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(0x3a3d45, 1); g.fillCircle(B.x, B.y, 1.6*ks); }   // (its feed)
       ghostR = 8; }
+    else if(BODY._bskin && BODY._bskin.flag && !SKIN.topper){ const BF = BODY._bskin.flag, f0 = SKIN.flag;   /* a build skin's own flag: its cloth, colour and emblem */
+      SKIN.flag = BF.col; this._flagMotif = BF;
+      try { pen = this.drawFlagCloth(BF.kind, p, dx, dy, ks); } finally { SKIN.flag = f0; this._flagMotif = null; } }
     else if(cloth) pen = this.drawFlagCloth(top || 'pennant', p, dx, dy, ks);
     else ghostR = this.drawTopper(top, p, dx, dy, ks);
 
