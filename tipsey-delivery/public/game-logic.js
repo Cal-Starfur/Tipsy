@@ -125899,12 +125899,13 @@ class WorldScene extends Phaser.Scene {
               g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (2.4 + u*4.5)*K); } } } };
       /* 'cruiser': the Night Cruiser's side pipes -- three primaries swept back out of his flank into a fat pipe along his lower edge, turned
          out at its end ahead of his rear wheel; the far side before his body, the near one over it */
-      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 4.2), zs = BODY.z0 + 1.5, xe = -6, yt = sb*(BODY.hy + 9.5);
-        for(const x of [16, 11, 6]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], 6.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 6.2, STK[1]); }
-        pipe([18, ys, zs], [xe, ys, zs], 9.5, STK[1]); pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 9.5, STK[1]);
+      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 5.2), zs = BODY.z0 + 1.5, xe = -6, yt = sb*(BODY.hy + 11);
+        for(const x of [16, 11, 6]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], 8.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 8.2, STK[1]); }
+        pipe([18, ys, zs], [xe, ys, zs], 12.5, STK[1]); pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 12.5, STK[1]);
         const dx = -3, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
-        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 5*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 3.4*K); } };
-      if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'mid') cruiserPipe(nearSide); }
+        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 6.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 4.5*K); } };
+      /* (they run above his tyres: each over its own side's -- the far one after the far tyres ('pre'), the near one after the near tyres ('after')) */
+      if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'after') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
