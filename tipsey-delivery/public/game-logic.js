@@ -42887,7 +42887,7 @@ const TP_BUILDS = {
   /* (a second pass -- Sir, 2026-11-16, "it doesn't read like a UFO yet"): a real flying saucer -- a wide round lens of silver (a cone up to
      the middle, a rim band round its edge with chasing lights, a cone down to its belly), a glowing ring under it and a beam to the ground;
      his body the little cabin on top with his face, his lid a glass dome over it (buildKit 'ufo') */
-  ufo: { BODY: { hx: 14, hy: 14, z0: 30, z1: 39, ch: 5, bev: 2.5, bevIn: 2 }, LID: { hx: 12, hy: 12, z0: 39, z1: 46, ch: 6, bev: 4.5, bevIn: 4 },
+  ufo: { BODY: { hx: 14, hy: 14, z0: 30, z1: 39, ch: 5, bev: 2.5, bevIn: 2 }, LID: { hx: 14, hy: 14, z0: 39, z1: 43, ch: 5, bev: 2.5, bevIn: 2 },   // (his own lid: the cabin's full width, its chamfer, one hull)
     STRIPE: { z0: 31, z1: 32.5 }, FLAGB: { x: 0, y: 0 }, FLAGZ: [46.5, 69], zmap: z => 30 + (z - 14)*0.24, noBracket: true, noTray: true,
     noFlag: true, GEAR: { kind: 'ufo', lift: 16, bob: true }, kit: 'ufo' },   // (no flag, his lid in his own paint -- Sir, 2026-11-16)
   /* the Monster Truck: a big body up on the monster rig's huge knobby tyres and axles, his lid the cab with a light bar on its roof,
@@ -125116,7 +125116,7 @@ class WorldScene extends Phaser.Scene {
     const STEEL = [0xd8dde2, 0xb9bec4, 0x8d959c], DARK = [0x3b4048, 0x2e3138, 0x23262c];
     if(id === 'ufo' && part === 'pre'){   /* THE SAUCER: a solid of revolution -- convex, so its faces toward the eye never overlap and go down in any order */
       const N = 36, PR = [[18, 15], [38, 21], [38, 24.5], [15.5, 30.6]], L = [-0.5, 0.25, 0.83], t = this.time ? this.time.now : 0;
-      const COL = [0x8a929b, 0x5d646c, 0xc9ced4], lum = w => w.x*L[0] + w.y*L[1] + w.z*L[2];
+      const COL = [0x8a929b, SKIN.stripe, 0xc9ced4]   /* (the rim band in his stripe's red -- Sir, 2026-11-16) */, lum = w => w.x*L[0] + w.y*L[1] + w.z*L[2];
       const shade = (c, k) => _pmix(c, k > 0 ? 0xffffff : 0x000000, Math.min(0.6, Math.abs(k)*0.6));
       /* its beam: a pale cone from the belly to the ground, and the pool it makes there */
       { const ring = (r, z) => { const o = []; for(let i = 0; i < 20; i++){ const a = i/20*Math.PI*2; o.push(P(Math.cos(a)*r, Math.sin(a)*r, z)); } return o; };
