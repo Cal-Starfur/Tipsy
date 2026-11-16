@@ -42879,7 +42879,7 @@ const TP_BUILDS = {
   /* the Dune Buggy (Sir, 2026-11-16): a narrow low tub up on big knobby wheels set well out on arms, a roll cage over his lid (a hoop
      behind it, a bar each side down to his nose), the engine out the back, his flag up off the hoop (buggyKit) */
   buggy: { BODY: { hx: 25, hy: 17, z0: 16, z1: 33, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 12, hy: 11, z0: 33, z1: 37, ch: 4, bev: 2, bevIn: 1.5 },
-    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -15, y: 18.6 }, FLAGZ: [45, 84], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
+    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -20, y: 18.6 }, FLAGZ: [46, 84], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
     tray: [0x3f434c, 0x3a3d45, 0x2e3138],
     WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'paddle', treadF: 'rib', rubber: [0x8d9299, 0x6b7078] } } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -125096,20 +125096,20 @@ class WorldScene extends Phaser.Scene {
        just off his flank -- the hoop's post from his belly line up and over, a bar forward along the roof and down the windscreen pillar to
        his nose, the nose post down his front corner, a rail along his flank joining them, each foot bolted to him with a plate. The far
        side goes before the body, the near side over it; what crosses over the top goes over the lid */
-    const hx = -LID.hx - 3, yo = BODY.hy + 1.6, zt = 48, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, yi = yo - 3;
+    /* (all the way to the back -- Sir, 2026-11-16: the hoop on his back corners, the roof running forward from it level, then the pillars
+       down to his nose. No diagonal over the lid) */
+    const hx = -BODY.hx + BODY.ch, yo = BODY.hy + 1.6, zt = 47, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, xf = 5;
     const plate = (x, y, z) => this.drawHullPrism({ hx: 2.2, hy: 0.8, ox: x, oy: y, z0: z - 2.2 + bobZ, z1: z + 2.2 + bobZ, ch: 0.6, cTop: 0x3b4048, cLt: 0x3b4048, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
     const side = sb => { const y = sb*yo, ym = sb*(BODY.hy + 0.6);
       for(const [x, z] of [[hx, zl], [nx, zl], [hx, zb - 3], [nx, zb - 3]]) plate(x, ym, z);   // (its mounts, on his flank)
-      tube([hx, y, zl], [hx, y, zt - 3]);                                         // (the hoop's post, belly to roof)
-      tube([hx, y, zt - 3], [hx, sb*yi, zt]);                                      // (its bend in)
-      tube([hx, y, zt - 3], [hx + 9, y, zt - 4]); tube([hx + 9, y, zt - 4], [nx, y, zb + 1]);   // (the roof bar, the pillar down to his nose)
+      tube([hx, y, zl], [hx, y, zt]);                                             // (the hoop's post, his back corner, belly to roof)
+      tube([hx, y, zt], [xf, y, zt]); tube([xf, y, zt], [nx, y, zb + 1]);         // (the roof rail, the pillar down to his nose)
       tube([nx, y, zb + 1], [nx, y, zl]);                                          // (the nose post down his front corner)
-      tube([-BODY.hx + BODY.ch, y, zl], [nx, y, zl]);                             // (the rail, the full length of his flank)
-      tube([-BODY.hx + BODY.ch, y, zl], [hx, y, zb - 3], 2.4); };                  // (a brace from the rail's back end up to the post)
-    const roof = () => { tube([hx, -yi, zt], [hx, yi, zt]); tube([hx + 9, -yo, zt - 4], [hx + 9, yo, zt - 4]); tube([hx, -yi, zt], [hx + 9, 0, zt - 4], 2.4); };   // (the hoop's top, the roof bar across, a brace)
-    const lamps = () => { for(const y of [-6, 6]){   // (two spotlights on the hoop, looking ahead)
-        this.drawHullPrism({ hx: 1.6, hy: 2.4, ox: hx + 0.5, oy: y, z0: zt + 0.5 + bobZ, z1: zt + 4.5 + bobZ, ch: 0.9, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
-        if(vis(1, 0, 0)) this.quadOn(g, [P(hx + 2.15, y - 1.8, zt + 1.1), P(hx + 2.15, y + 1.8, zt + 1.1), P(hx + 2.15, y + 1.8, zt + 3.9), P(hx + 2.15, y - 1.8, zt + 3.9)], 0xfff2c4); } };
+      tube([hx, y, zl], [nx, y, zl]); };                                           // (the rail, the full length of his flank)
+    const roof = () => { tube([hx, -yo, zt], [hx, yo, zt]); tube([xf, -yo, zt], [xf, yo, zt]); };   // (the hoop's top, the roof's front bar)
+    const lamps = () => { for(const y of [-6, 6]){   // (two spotlights on the roof's front bar, looking ahead)
+        this.drawHullPrism({ hx: 1.6, hy: 2.4, ox: xf, oy: y, z0: zt + 0.5 + bobZ, z1: zt + 4.5 + bobZ, ch: 0.9, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
+        if(vis(1, 0, 0)) this.quadOn(g, [P(xf + 1.65, y - 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 3.9), P(xf + 1.65, y - 1.8, zt + 3.9)], 0xfff2c4); } };
     const nudge = () => { const fx = BODY.hx + 4;   // (a nudge bar across his nose, below his face)
       for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
       tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
