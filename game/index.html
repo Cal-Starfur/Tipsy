@@ -44594,8 +44594,8 @@ const TP_BUILDS = {
   /* the Moon Rover (Sir, 2026-11-16: "that could be fantastic"): his body lifted high on six spindly legs over mesh wheels, a gold-foil
      belly under it, solar panels either side of his lid, a dish on his back (roverKit) */
   rover: { BODY: { hx: 24, hy: 17, z0: 24, z1: 46, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 46, z1: 52, ch: 5, bev: 2.5, bevIn: 2 },
-    STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 88], zmap: z => 24 + (z - 14)*0.55,
-    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 74], zmap: z => 24 + (z - 14)*0.55,
+    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true, dishFlag: true } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -122494,9 +122494,9 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tray; delete BODY._solarLid; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -126748,11 +126748,7 @@ class WorldScene extends Phaser.Scene {
         g.lineStyle(Math.max(1, 1.2*K), 0x9aa0a6, 1); { const A = P(0, sb*BODY.hy, BODY.z1 - 3), B = P(0, (y0 + y1)/2, z); g.lineBetween(A.x, A.y, B.x, B.y); } } };
     if(part === 'far'){ legs(-nearSide); }   // (no panels off its sides: its lid is the panel -- Sir, 2026-11-16)
     if(part === 'near'){ legs(nearSide);
-      /* the dish on his back corner, on a short mast */
-      { const dx = -BODY.hx + 5, dy = -nearSide*(BODY.hy - 5), z0 = BODY.z1, z1 = BODY.z1 + 12;
-        g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); const A = P(dx, dy, z0), B = P(dx, dy, z1); g.lineBetween(A.x, A.y, B.x, B.y);
-        const rim = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; rim.push(P(dx - 2 + Math.cos(w)*1.2, dy + Math.cos(w)*0.2 + Math.sin(w)*6, z1 + 3 + Math.cos(w)*6)); }
-        g.fillStyle(0xe4e8ec, 1); g.fillPoints(rim, true); const tip = P(dx + 2, dy, z1 + 3); g.fillStyle(0x3a3d45, 1); g.fillCircle(tip.x, tip.y, 1.2*K*1.4); }
+      /* (its dish is his flag now: drawFlag) */
     }
   }
   /* THE TUK-TUK's pieces: 'front' its fork down to the lone front wheel and the mudguard over it, 'sides' the open sides of its cab */
@@ -128046,7 +128042,14 @@ class WorldScene extends Phaser.Scene {
       this._topLook = (this._topLook || 0) + (Phaser.Math.Clamp(_w*25, -1, 1) - (this._topLook || 0))*0.08;
     }
     let ghostR = 0, pen = null;
-    if(cloth) pen = this.drawFlagCloth(top || 'pennant', p, dx, dy, ks);
+    if(!top && BODY._dishFlag){   /* the Moon Rover's flag is its dish (Sir, 2026-11-16): a white dish at the pole's tip, its feed out in front */
+      const R = 13*ks, r = 8*ks, ex = ux*R, ey = uy*R, fx = dx*r, fy = dy*r, D = [];   // (big enough to read: a dish tipped to the sky)
+      for(let i = 0; i < 18; i++){ const w = i/18*Math.PI*2; D.push(new Phaser.Geom.Point(p.x + ex*Math.cos(w) + fx*Math.sin(w) + dx*2*ks, p.y + ey*Math.cos(w) + fy*Math.sin(w) + dy*2*ks)); }
+      g.fillStyle(0xe4e8ec, 1); g.fillPoints(D, true); g.lineStyle(Math.max(1, 1.2*ks), 0x9aa0a6, 1); g.strokePoints(D, true);
+      g.fillStyle(0xc9ced3, 1); { const I = D.map(o => new Phaser.Geom.Point(p.x + dx*2*ks + (o.x - p.x - dx*2*ks)*0.62, p.y + dy*2*ks + (o.y - p.y - dy*2*ks)*0.62)); g.fillPoints(I, true); }
+      g.lineStyle(Math.max(1, 1.2*ks), 0x9aa0a6, 1); g.lineBetween(p.x + dx*2*ks, p.y + dy*2*ks, p.x + dx*12*ks, p.y + dy*12*ks); g.fillStyle(0x3a3d45, 1); g.fillCircle(p.x + dx*12*ks, p.y + dy*12*ks, 2*ks);
+      ghostR = 8; }
+    else if(cloth) pen = this.drawFlagCloth(top || 'pennant', p, dx, dy, ks);
     else ghostR = this.drawTopper(top, p, dx, dy, ks);
 
     /* X-RAY: the pole is a strokePath and the pennant a fill -- neither goes
