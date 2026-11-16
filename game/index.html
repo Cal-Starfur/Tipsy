@@ -127250,7 +127250,7 @@ class WorldScene extends Phaser.Scene {
          glow; over the lid ('near'), the tongue over his face ('after') */
       const SKP = BODY._bskin && BODY._bskin.part;
       if(SKP && part === 'near'){ const BPk = this.bodyPaint(), zt = LID.z1, lx = LID.hx, ly = LID.hy;
-        if(SKP === 'horns') for(const sb of [-nearSide, nearSide]){ const pts = []; for(let k = 0; k <= 8; k++){ const u = k/8; pts.push([lx - 4 - u*3, sb*(ly - 1 + u*9), zt - 3 + Math.sin(u*Math.PI*0.9)*6 + u*u*5, 2.6*(1 - u*0.85)]); }
+        if(SKP === 'horns') for(const sb of [-nearSide, nearSide]){ const pts = []; for(let k = 0; k <= 8; k++){ const u = k/8; pts.push([lx - 4 + u*1.5, sb*(ly - 0.3 + 6.5*Math.sin(u*Math.PI*0.5)), zt - 2.5 + 11*u*u, 2.8*(1 - u*0.8)]); }   /* (out of his cab's side at its top, out then sweeping up to the tip -- Sir, 2026-11-16) */
             for(let k = 0; k < 8; k++){ const [x0, y0, z0, r0] = pts[k], [x1, y1, z1, r1] = pts[k + 1], A = P(x0, y0, z0), B = P(x1, y1, z1);
               g.lineStyle(Math.max(1, (r0 + r1)*K), k > 5 ? 0x3b3226 : 0xe9dcb8, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(k > 5 ? 0x3b3226 : 0xe9dcb8, 1); g.fillCircle(B.x, B.y, r1*K); } }
         if(SKP === 'ears') for(const sb of [-nearSide, nearSide]){ const yb = sb*ly, ys = sb*(ly + 2.5), E = [0x5a3418, 0x7a4a24];
