@@ -122638,7 +122638,7 @@ class WorldScene extends Phaser.Scene {
         } finally { this.drawClip = clip0; }
       }
     }
-    if(tank && !frontSeen) this.tankKit(bobZ);   // (the cannon behind the turret: over the body's top, under the turret)
+    if(tank && !frontSeen) this.tankKit(bobZ, false);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
     if(tank && frontSeen) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret)
 
@@ -126707,10 +126707,10 @@ class WorldScene extends Phaser.Scene {
                     in strips whose normal turns from one corner's to the
                     next, so the colour runs on round the corners */
   /* THE TANK's cannon: a barrel out of the turret's front (his lid, swung with it), a muzzle brake, a mantlet where it leaves the turret */
-  tankKit(bobZ){
+  tankKit(bobZ, front = true){
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const G = [0x6f757b, 0x5d646c, 0x3b4048];
-    bx([0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);        // (the mantlet)
+    if(front) bx([0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
     bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4);       // (the muzzle brake)
   }
