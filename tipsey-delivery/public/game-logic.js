@@ -111570,7 +111570,7 @@ class WorldScene extends Phaser.Scene {
       const zTop = sty === 'cruiser' ? WR*2 + 3 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : wheeled ? tyreTop : RD;
       if(wheeled && !covered){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
         line([DF - 1, 0, RD - 1.5], q, stemCol, 4.5);
-        if(sty === 'offroad'){ const r = WHL[1][1], band = arcPts(SA, r + 3, r + 4.6, r + 4.6, 0.1, Math.PI - 0.7, 10).concat(arcPts(SA, r + 3, r + 3, r + 3, Math.PI - 0.7, 0.1, 10)), qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;   // its high motocross front fender, a gap over the tyre
+        if(sty === 'offroad'){ const r = WHL[1][1], band = arcPts(SA, r + 3, r + 4.6, r + 4.6, 0.1, Math.PI - 0.12, 12).concat(arcPts(SA, r + 3, r + 3, r + 3, Math.PI - 0.12, 0.1, 12))   /* (its tail wraps down to the deck's nose: no gap -- Sir, 2026-11-16) */, qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;   // its high motocross front fender, a gap over the tyre
           solid(F, brand.c, (k, nn) => nn[2] < -0.3 ? brand.cDk : brand.c); }
         forkLeg(KV.sees(0, 1, 0) ? 1 : -1); }                                                 // (the near one, over them)
       line(stemAt(kAt(zTop)), [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6);
