@@ -111398,8 +111398,8 @@ class WorldScene extends Phaser.Scene {
        builds look better than the builds themselves": arcs for fenders and cowls, a lofted round fuselage for the rocket) */
     const arcPts = (ac, hc, ra, rh, u0, u1, n) => { const o = []; for(let i = 0; i <= n; i++){ const u = u0 + (u1 - u0)*i/n; o.push([ac + ra*Math.cos(u), hc + rh*Math.sin(u)]); } return o; };
     const fenderArc = (ac, r, hw, u0, u1, col) => {                                           // a fender hugging a wheel: its arc in eight short convex pieces, centred on the wheel
-      const o = arcPts(ac, r, r + 3, r + 3, u0, u1, 8), n = arcPts(ac, r, r + 1, r + 1, u0, u1, 8), F = [];
-      for(let i = 0; i < 8; i++){ const q = prismB([o[i], o[i + 1], n[i + 1], n[i]], -hw, hw); F.push(...(q.raw ? q.raw() : q)); }
+      /* (one band swept across, not eight pieces: the pieces' end faces showed as dark gaps -- Sir, 2026-11-16, "missing pieces on the fenders") */
+      const band = arcPts(ac, r, r + 3, r + 3, u0, u1, 10).concat(arcPts(ac, r, r + 1, r + 1, u1, u0, 10)), q = prismB(band, -hw, hw), F = q.raw ? q.raw() : q;
       solid(F, col, (k, nn) => nn[2] < -0.3 ? (col === brand.c ? brand.cDk : col) : col); };
     /* where the hand is, in the scooter's frame: a forward from its middle, h up */
     const shZ = build.legH + build.torsoH - 1, arm = build.armLen, th = R.lift*LIFT_MAX_ANGLE;
@@ -111570,8 +111570,7 @@ class WorldScene extends Phaser.Scene {
       const zTop = sty === 'cruiser' ? WR*2 + 3 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : wheeled ? tyreTop : RD;
       if(wheeled && !covered){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
         line([DF - 1, 0, RD - 1.5], q, stemCol, 4.5);
-        if(sty === 'offroad'){ const r = WHL[1][1], o = arcPts(SA, r + 3, r + 4.6, r + 4.6, 0.1, Math.PI - 0.7, 8), n = arcPts(SA, r + 3, r + 3, r + 3, 0.1, Math.PI - 0.7, 8), F = [];   // its high motocross front fender, a gap over the tyre
-          for(let i = 0; i < 8; i++){ const qq = prismB([o[i], o[i + 1], n[i + 1], n[i]], -3.4, 3.4); F.push(...(qq.raw ? qq.raw() : qq)); }
+        if(sty === 'offroad'){ const r = WHL[1][1], band = arcPts(SA, r + 3, r + 4.6, r + 4.6, 0.1, Math.PI - 0.7, 10).concat(arcPts(SA, r + 3, r + 3, r + 3, Math.PI - 0.7, 0.1, 10)), qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;   // its high motocross front fender, a gap over the tyre
           solid(F, brand.c, (k, nn) => nn[2] < -0.3 ? brand.cDk : brand.c); }
         forkLeg(KV.sees(0, 1, 0) ? 1 : -1); }                                                 // (the near one, over them)
       line(stemAt(kAt(zTop)), [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6);
