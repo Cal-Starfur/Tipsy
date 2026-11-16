@@ -44651,6 +44651,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'ufo:comic', build: 'ufo', name: 'Comic Book', cents: 900, body: 0xd8322a, stripe: 0xf3ead2, eye: 0xffd34a, trim: { lights: [0xffd34a, 0x5ab8ff, 0xffd34a, 0x5ab8ff], beam: 0xffe58a }, ufoPart: 'portholes' },
   { id: 'ufo:mother', build: 'ufo', name: 'Mothership', cents: 900, body: 0x23262c, stripe: 0xff8a2a, eye: 0xff8a2a, trim: { lights: [0xff8a2a, 0xff3a2a, 0xff8a2a, 0xffd34a], beam: 0xff8a2a }, ufoPart: 'grid' },
   { id: 'ufo:cosmic', build: 'ufo', name: 'Cosmic Gold', cents: 900, body: 0xd9a93c, stripe: 0x1f3a7a, eye: 0x7ad8ff, trim: { lights: [0x7ad8ff, 0xb06aff, 0x7ad8ff, 0xffffff], beam: 0xb06aff }, ufoPart: 'halo' },
+  { id: 'racer:go', build: 'racer', name: 'Go Racer', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, print: 'rcGo', trim: { rim: 'turbine', rimCol: 0xd9dde2 } },
+  { id: 'racer:stock', build: 'racer', name: 'Stock Car 42', cents: 900, body: 0xf2c02e, stripe: 0x1d1f26, noStripe: true, print: 'rcStock', trim: { rim: 'steelie', rimCol: 0x1d1f26 } },
+  { id: 'racer:bolt', build: 'racer', name: 'Thunderbolt', cents: 900, body: 0x1f4fa8, stripe: 0xd8261c, noStripe: true, print: 'rcBolt', trim: { rim: 'steelie', rimCol: 0xffd34a } },
+  { id: 'racer:indy', build: 'racer', name: 'Indy Dayglo', cents: 900, body: 0xf4f4f0, stripe: 0xff4a2a, noStripe: true, print: 'rcIndy', trim: { rim: 'ten', rimCol: 0x1d1f26 } },
+  { id: 'racer:royal', build: 'racer', name: 'Indy Royal', cents: 900, body: 0x14276a, stripe: 0xffd34a, noStripe: true, print: 'rcRoyal', trim: { rim: 'split', rimCol: 0xffd34a } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -132934,7 +132939,52 @@ const SK_CHROME_PLATE = {
    top, each a colour pair [its dark flank, its lit flank], a blob size r (world units) and how much of the hull it
    covers; frond: palm leaves fanned from a point instead of blobs. A skin names its print (SKIN.print); a garage body
    colour, two-tone or chameleon takes the print off (bodyPaint) */
+/* RACE NUMBERS on a print's side (Sir, 2026-11-16: the Racer's skins): blocky seven-segment digits laid on face k of the plan, centred at u along
+   it, from h0 up gh tall, read the right way round from outside (sgn flips the glyph on the faces whose s runs the other way) */
+const _prDigits = (L, arr, k, u, h0, gh, text, c, sgn) => { const [a, b] = L.face(k), gw = gh*0.58, t = gh*0.17, gap = gw*0.3, n = text.length, tot = n*gw + (n - 1)*gap;
+  const SEG = { a: [0, 1 - t/gh, 1, 1], b: [1 - t/gw, 0.5, 1, 1], c: [1 - t/gw, 0, 1, 0.5], d: [0, 0, 1, t/gh], e: [0, 0, t/gw, 0.5], f: [0, 0.5, t/gw, 1], g: [0, 0.5 - t/gh/2, 1, 0.5 + t/gh/2] };
+  const DG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcfgd' };
+  const mid = a + (b - a)*u; [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap);
+    for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg], X = q => mid + sgn*(g0 + q*gw); arr.push({ c, pts: _prRect(Math.min(X(x0), X(x1)), h0 + y0*gh, Math.max(X(x0), X(x1)), h0 + y1*gh) }); } }); };
+/* a roof number, as the stock cars carry: big, on the lid's top, read from his side */
+const _prDigitsTop = (L, text) => { const gh = (L.y1 - L.y0)*0.62, gw = gh*0.58, t = gh*0.17, gap = gw*0.3, n = text.length, tot = n*gw + (n - 1)*gap;
+  const WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33];
+  L.top.push({ c: WH, pts: _prRect(-tot/2 - 2, -gh/2 - 2, tot/2 + 2, gh/2 + 2) });
+  const SEG = { a: [0, 1 - t/gh, 1, 1], b: [1 - t/gw, 0.5, 1, 1], c: [1 - t/gw, 0, 1, 0.5], d: [0, 0, 1, t/gh], e: [0, 0, t/gw, 0.5], f: [0, 0.5, t/gw, 1], g: [0, 0.5 - t/gh/2, 1, 0.5 + t/gh/2] };
+  const DG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcfgd' };
+  [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg]; L.top.push({ c: BK, pts: _prRect(-(g0 + x1*gw), -gh/2 + y0*gh, -(g0 + x0*gw), -gh/2 + y1*gh) }); } }); };
 const HULL_PRINTS = {
+  /* THE RACER'S SKINS (Sir, 2026-11-16: "speed racer, nascar and indycar type styles"): a 60s cartoon racer, two stock cars, two open-wheelers */
+  rcGo: { id: 'rcGo', seed: 0x60, build(L){ if(L.part === 'lid') return;
+      const RD = [0xa81a14, 0xd8261c], WH = [0xd9dde2, 0xffffff];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.42, h = L.H*0.62, r = L.H*0.34, ring = r2 => { const o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r2*1.15, h + Math.sin(q)*r2]); } return o; };
+        L.side.push({ c: RD, pts: ring(r) }, { c: WH, pts: ring(r*0.78) }); _prDigits(L, L.side, k, 0.42, h - r*0.5, r, '7', RD,-1); }
+      L.top.push({ c: RD, pts: [[L.x1 - 1, -7], [L.x1 - 1, -3.6], [L.x1 - 13, 0], [L.x1 - 1, 3.6], [L.x1 - 1, 7], [L.x1 - 17, 0]] }); } },   // (a red chevron on the hood)
+  rcStock: { id: 'rcStock', seed: 0x42, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '42'); return; }
+      const WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33], CC = [[0xc8202a, 0xe8323a], [0x1f4fa8, 0x3a6ad8], [0x2f8a3c, 0x46b856], [0xe86a1a, 0xff8a2a], [0x6b3fa0, 0x8a5ad0]];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, w = (b - a)*0.22;
+        L.side.push({ c: WH, pts: _prRect(m - w, 3, m + w, L.H - 1.5) }); _prDigits(L, L.side, k, 0.5, 4.5, L.H - 7.5, '42', BK,-1);
+        for(let i = 0; i < 5; i++){ const x = a + (b - a)*(k === 2 ? 0.08 : 0.76) + i*2.6; L.side.push({ c: CC[i], pts: _prRect(x, 1, x + 2.2, 2.4) }); } }   // (contingency decals)
+      L.top.push({ c: [0xc8202a, 0xe8323a], pts: _prRect(L.x1 - 14, -6, L.x1 - 2, 6) }, { c: WH, pts: _prRect(L.x1 - 12, -1, L.x1 - 4, 1) }); } },
+  rcBolt: { id: 'rcBolt', seed: 0xb017, build(L){ if(L.part === 'lid'){ _prDigitsTop(L, '31'); return; }
+      const YE = [0xd8a41a, 0xffd34a], RD = [0xa81a14, 0xd8261c], WH = [0xd9dde2, 0xffffff];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        const bolt = [[X(0), H*0.75], [X(len*0.55), H*0.62], [X(len*0.48), H*0.48], [X(len), H*0.3], [X(len*0.4), H*0.38], [X(len*0.47), H*0.55], [X(0), H*0.6]];
+        L.side.push({ c: RD, pts: bolt.map(([x, h]) => [x, h - 0.8]) }, { c: YE, pts: bolt });
+        _prDigits(L, L.side, k, 0.78, 2.5, H*0.42, '31', WH,-1); } } },
+  rcIndy: { id: 'rcIndy', seed: 0x14, build(L){ if(L.part === 'lid') return;
+      const DG = [0xd8301a, 0xff4a2a], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        L.side.push({ c: DG, pts: [[X(-1), -1], [X(len*0.7), -1], [X(len*0.45), H*0.55], [X(-1), H + 1]] }, { c: BK, pts: [[X(len*0.7), -1], [X(len*0.73), -1], [X(len*0.48), H*0.55], [X(len*0.45), H*0.55]] });
+        _prDigits(L, L.side, k, dir > 0 ? 0.8 : 0.2, H*0.25, H*0.5, '14', BK,-1); }
+      L.side.push({ c: DG, pts: _prRect(L.face(0)[0], -1, L.face(0)[1], L.H + 1) });
+      L.top.push({ c: DG, pts: [[L.x1 + 1, L.y0 - 1], [L.x1 + 1, L.y1 + 1], [L.x1 - 16, L.y1 + 1], [L.x1 - 8, 0], [L.x1 - 16, L.y0 - 1]] }); } },
+  rcRoyal: { id: 'rcRoyal', seed: 0x2, build(L){ if(L.part === 'lid') return;
+      const YE = [0xd8a41a, 0xffd34a], WH = [0xd9dde2, 0xffffff];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        L.side.push({ c: YE, pts: [[X(-1), H*0.5], [X(len + 1), H*0.12], [X(len + 1), H*0.32], [X(-1), H*0.78]] }, { c: WH, pts: [[X(-1), H*0.82], [X(len + 1), H*0.36], [X(len + 1), H*0.42], [X(-1), H*0.9]] });
+        _prDigits(L, L.side, k, dir > 0 ? 0.8 : 0.2, H*0.42, H*0.45, '2', WH,-1); }
+      L.top.push({ c: YE, pts: _prRect(L.x0 - 1, -2.2, L.x1 + 1, 2.2) }); } },
   /* THE CLASSIC (a Big Foot style truck): a red and a white pinstripe either side of his stripe, all the way round, and a white star on each door */
   mtClassic: { id: 'mtClassic', seed: 0xb16f, build(L){ if(L.part === 'lid') return;
       const RD = [0x8f1410, 0xd8261c], WH = [0xd9dde2, 0xffffff], s0 = STRIPE.z0 - BODY.z0, s1 = STRIPE.z1 - BODY.z0;
