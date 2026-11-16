@@ -42871,7 +42871,7 @@ const TP_BUILDS = {
      belly under it, solar panels either side of his lid, a dish on his back (roverKit) */
   rover: { BODY: { hx: 24, hy: 17, z0: 24, z1: 46, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 46, z1: 52, ch: 5, bev: 2.5, bevIn: 2 },
     STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 88], zmap: z => 24 + (z - 14)*0.55,
-    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432] } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120770,9 +120770,9 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tray = B.tray || null;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tray; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tray; delete BODY._solarLid; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -124533,6 +124533,12 @@ class WorldScene extends Phaser.Scene {
     const BP = this.bodyPaint();
     this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
                         cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.lidInner, fin:BP.fin, print: BP.print, printPart: 'lid'});
+    /* the Moon Rover's lid is its solar panel (Sir, 2026-11-16): dark blue cells in a silver frame over its top, through the hinge */
+    if(BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){ const zt = z1 + 0.15, ix = hx - LID.bevIn - 1, iy = hy - LID.bevIn - 1, q = pts => this.quadOn(this.g, pts.map(([x, y]) => H(x, y, zt)), 0x1f3b73);
+      const cx = 4, cy = 3, gx = 0.7, w = (2*ix - gx*(cx + 1))/cx, h = (2*iy - gx*(cy + 1))/cy;
+      this.quadOn(this.g, [H(-ix, -iy, zt - 0.05), H(ix, -iy, zt - 0.05), H(ix, iy, zt - 0.05), H(-ix, iy, zt - 0.05)], 0xb9bec4);
+      for(let i = 0; i < cx; i++) for(let j = 0; j < cy; j++){ const x0 = -ix + gx + i*(w + gx), y0 = -iy + gx + j*(h + gx); q([[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]); }
+      this.quadOn(this.g, [H(-ix + 1, iy - 2.2, zt + 0.05), H(ix - 1, iy - 2.2, zt + 0.05), H(ix - 1, iy - 1.6, zt + 0.05), H(-ix + 1, iy - 1.6, zt + 0.05)], 0x4f73b8, 0.6); } }   // (a glint)
   }
 
   quad(pts, color, alpha=1){
@@ -125016,8 +125022,8 @@ class WorldScene extends Phaser.Scene {
         if(vis(0, 0, 1)){ quad([[-16, y0, z], [16, y0, z], [16, y1, z], [-16, y1, z]], 0xb9bec4);
           for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const xa = -15 + i*7.6, ya = y0 + sb*(0.8 + j*6); quad([[xa, ya, z + 0.1], [xa + 7, ya, z + 0.1], [xa + 7, ya + sb*5.4, z + 0.1], [xa, ya + sb*5.4, z + 0.1]], 0x1f3b73); } }
         g.lineStyle(Math.max(1, 1.2*K), 0x9aa0a6, 1); { const A = P(0, sb*BODY.hy, BODY.z1 - 3), B = P(0, (y0 + y1)/2, z); g.lineBetween(A.x, A.y, B.x, B.y); } } };
-    if(part === 'far'){ legs(-nearSide); panel(-nearSide); }
-    if(part === 'near'){ legs(nearSide); panel(nearSide);
+    if(part === 'far'){ legs(-nearSide); }   // (no panels off its sides: its lid is the panel -- Sir, 2026-11-16)
+    if(part === 'near'){ legs(nearSide);
       /* the dish on his back corner, on a short mast */
       { const dx = -BODY.hx + 5, dy = -nearSide*(BODY.hy - 5), z0 = BODY.z1, z1 = BODY.z1 + 12;
         g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); const A = P(dx, dy, z0), B = P(dx, dy, z1); g.lineBetween(A.x, A.y, B.x, B.y);
