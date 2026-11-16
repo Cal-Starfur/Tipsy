@@ -3404,7 +3404,8 @@ const GD_SHAPES = {
   scootPaint:[['plain','Plain'],['flames','Flames'],['checker','Checker'],['bolt','Lightning'],['camo','Camo'],['galaxy','Galaxy'],
               ['tonup','Ton-Up'],['racinggreen','Racing Green'],['oxblood','Oxblood'],['brooklands','Brooklands'],['rocker','Rocker'],
               ['gulf','Gulf'],['manx','Manx TT'],['alloy','Brushed Alloy'],['tartan','Tartan'],['sunset','Sunset'],
-              ['rally','Rally'],['gp','Grand Prix'],['gt','GT Stripes'],['drag','Drag Strip'],['superbike','Superbike'],['stockcar','Stock Car'],['drift','Drift Neon'],['saltflat','Salt Flats']],   // (each build's skins, GSC_PAINT: scootPaintTop)
+              ['rally','Rally'],['gp','Grand Prix'],['gt','GT Stripes'],['drag','Drag Strip'],['superbike','Superbike'],['stockcar','Stock Car'],['drift','Drift Neon'],['saltflat','Salt Flats'],
+              ['circuit','Circuit'],['hazard','Hazard'],['holo','Hologram'],['plasma','Plasma'],['mech','Mech'],['aurora','Aurora'],['arcade','Arcade'],['frost','Frost']],   // (each build's skins, GSC_PAINT: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
@@ -89584,7 +89585,8 @@ function gscSave(){ try { localStorage.setItem(GSC_KEY, JSON.stringify(GSC.st));
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
   gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser',
-  rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer' };
+  rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer',
+  circuit: 'robo', hazard: 'robo', holo: 'robo', plasma: 'robo', mech: 'robo', aurora: 'robo', arcade: 'robo', frost: 'robo' };
 /* a skin that's a whole livery (the Café Cruiser's are café-racer liveries -- Sir, 2026-11-15, "these don't feel like café motorcycle type
    skins"): its body and accent colours with it, over the garage's picks */
 const GSC_LIVERY = { tonup: { c: 0x1c1d20, acc: 0xc9ced3 }, racinggreen: { c: 0x1f4d36, acc: 0xe9dcc0 }, oxblood: { c: 0xe9dcc0, acc: 0x6e1e22 },
@@ -89592,7 +89594,11 @@ const GSC_LIVERY = { tonup: { c: 0x1c1d20, acc: 0xc9ced3 }, racinggreen: { c: 0x
   gulf: { c: 0x8fc8e8, acc: 0xf08a24 }, manx: { c: 0x1c1d20, acc: 0xf2c230 }, alloy: { c: 0xb8bdc2, acc: 0x5d646c }, tartan: { c: 0x8a1f24, acc: 0x1f3b2a }, sunset: { c: 0xf4efe6, acc: 0xe8572a },
   /* the Racer's: any racing -- Sir, 2026-11-16, "this could be any form of racing" */
   rally: { c: 0xf1f2f4, acc: 0x1f5fbf }, gp: { c: 0xc8102e, acc: 0xf1f2f4 }, gt: { c: 0x1f4fa8, acc: 0xf1f2f4 }, drag: { c: 0x4b1f6e, acc: 0x3fd0ff },
-  superbike: { c: 0xd9e021, acc: 0x1c1d20 }, stockcar: { c: 0xf08a24, acc: 0x1c1d20 }, drift: { c: 0x1c1d20, acc: 0xff3fa4 }, saltflat: { c: 0xe9e2cf, acc: 0xc8323a } };
+  superbike: { c: 0xd9e021, acc: 0x1c1d20 }, stockcar: { c: 0xf08a24, acc: 0x1c1d20 }, drift: { c: 0x1c1d20, acc: 0xff3fa4 }, saltflat: { c: 0xe9e2cf, acc: 0xc8323a },
+  /* the Robo Board's: sci-fi, each with its own thruster glow */
+  circuit: { c: 0x14213d, acc: 0x39d98a, glow: 0x39d98a }, hazard: { c: 0x2a2f36, acc: 0xf2c230, glow: 0xff8a2a }, holo: { c: 0xeef0f6, acc: 0xb48cff, glow: 0xff7ad9 },
+  plasma: { c: 0x121318, acc: 0xff3fd2, glow: 0xff3fd2 }, mech: { c: 0x5d646c, acc: 0xd8452f, glow: 0xff4b3a }, aurora: { c: 0x0f3b44, acc: 0x5ef0a4, glow: 0x5ef0a4 },
+  arcade: { c: 0x1c1d20, acc: 0xffd23a, glow: 0xffd23a }, frost: { c: 0xdff2fb, acc: 0x7fc6e8, glow: 0xbfeaff } };
 function gscBrand(){
   const P = (() => { try { return gideonParts(); } catch(e){ return null; } })();
   /* (the garage's picks, his look's gScoot / gScootAcc -- GD_LIVE -- over the stock, which is his own: his shell, his chest band) */
@@ -89603,7 +89609,7 @@ function gscBrand(){
   const paint = L.scootPaint && GSC_PAINT[L.scootPaint] === (st || 'stock') ? L.scootPaint : null;   // (its skin, if it's one of this build's: scootPaintTop)
   const n = 'gideon' + (st ? '-' + st : '') + (paint ? '~' + paint : '');
   const lv = paint && GSC_LIVERY[paint];
-  return { n, name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, gideon: true, style: st, paint };
+  return { n, name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, glow: lv && lv.glow, gideon: true, style: st, paint };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -112889,9 +112895,10 @@ class WorldScene extends Phaser.Scene {
      laid ON that face (z just over it, after the deck, before him), so it never paints over anything above it. The Regular's: Flames, Checker,
      Lightning, Camo, Galaxy. The Café Cruiser's are café-racer liveries (GSC_LIVERY: its colours too): Ton-Up, Racing Green, Oxblood,
      Brooklands, Rocker, Gulf, Manx TT, Brushed Alloy, Tartan, Sunset. The Racer's, any racing: Rally, Grand Prix, GT Stripes, Drag Strip,
-     Superbike, Stock Car, Drift Neon, Salt Flats. (a, b): along the deck from DB to DF, across it within +-6.6 */
-  scootPaintTop(g, P, id, DB, DF, RD){
-    const h = RD + 0.06, L = DF - DB, at = (u, v) => P(DB + L*u, v, h), M = 6.6;
+     Superbike, Stock Car, Drift Neon, Salt Flats. The Robo Board's, sci-fi (each its own glow): Circuit, Hazard, Hologram, Plasma, Mech,
+     Aurora, Arcade, Frost. (a, b): along the deck from DB to DF, across it within +-6.6 */
+  scootPaintTop(g, P, id, DB, DF, RD, M = 6.6){
+    const h = RD + 0.06, L = DF - DB, at = (u, v) => P(DB + L*u, v, h);
     const poly = (pts, col, al) => { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([u, v]) => at(u, v)), true); };
     if(id === 'flames'){                                                                       // three tongues of flame licking back from the nose: orange, a yellow core
       for(const [col, k] of [[0xe8572a, 1], [0xffb02e, 0.62], [0xffe27a, 0.3]]){
@@ -112959,6 +112966,28 @@ class WorldScene extends Phaser.Scene {
           g.lineStyle(Math.max(1, 0.8*this.K*0.42*1.4), col, 1); g.strokePoints(Z.map(([u, v]) => at(u, v)), false); } }
       if(id === 'saltflat'){ all(0xe9e2cf);                                                 // Salt Flats: cream, red speed streaks off the nose
         for(const [v, u0, w] of [[-3.4, 0.2, 0.8], [-1.2, 0.08, 1.1], [1.2, 0.14, 1], [3.4, 0.28, 0.7]]) poly([[u0, v], [0.98, v - w], [0.98, v + w]], 0xc8323a); }
+      const stroke = (pts, col, w, al) => { g.lineStyle(Math.max(1, w*this.K*0.42*1.4), col, al == null ? 1 : al); g.strokePoints(pts.map(([u, v]) => at(u, v)), false); };
+      const dot = (u, v, r, col) => { const q = at(u, v); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); };
+      if(id === 'circuit'){ all(0x14213d);                                                  // Circuit: navy, green traces ending in pads
+        for(const T of [[[0.04, -4], [0.3, -4], [0.38, -1.5], [0.6, -1.5]], [[0.1, 3.5], [0.45, 3.5], [0.52, 5.2], [0.9, 5.2]], [[0.62, -5], [0.75, -5], [0.82, -2], [0.96, -2]], [[0.55, 1.2], [0.7, 1.2], [0.78, 3]]]){
+          stroke(T, 0x39d98a, 0.6); dot(T[0][0], T[0][1], 0.9, 0x39d98a); dot(T[T.length - 1][0], T[T.length - 1][1], 0.9, 0x39d98a); }
+        poly([[0.42, -0.6], [0.52, -0.6], [0.52, 2], [0.42, 2]], 0x2b3a5c); }
+      if(id === 'hazard'){ all(0x1c1d20); for(let u = -0.1; u < 1; u += 0.12) poly([[Math.max(0, u), -M], [Math.min(1, u + 0.06), -M], [Math.min(1, u + 0.1), M], [Math.max(0, u + 0.04), M]], 0xf2c230); }   // Hazard: yellow and black slashes
+      if(id === 'holo'){ all(0xeef0f6); for(const [u, col] of [[0.18, 0xff7ad9], [0.38, 0x7fe3ff], [0.58, 0xb48cff], [0.78, 0xff7ad9]]) poly([[u, -M], [u + 0.1, -M], [u + 0.16, M], [u + 0.06, M]], col, 0.45); }   // Hologram: pearl, iridescent bands
+      if(id === 'plasma'){ all(0x121318); band(-2.4, 2.4, 0xff3fd2, 0.22); band(-1.3, 1.3, 0xff3fd2, 0.5); band(-0.45, 0.45, 0xffd6f6); }   // Plasma: black, a glowing magenta core
+      if(id === 'mech'){ all(0x6f767e);                                                     // Mech: gunmetal plates, panel seams, rivets, red chevrons at the nose
+        for(const u of [0.3, 0.62]) stroke([[u, -M], [u, M]], 0x4a5057, 0.5); stroke([[0, 0], [0.3, 0]], 0x4a5057, 0.5);
+        for(const u of [0.04, 0.27, 0.34, 0.58, 0.66]) for(const v of [-M + 0.9, M - 0.9]) dot(u, v, 0.55, 0x3b4048);
+        for(const u of [0.8, 0.88]) poly([[u, -M + 0.6], [u + 0.05, -M + 0.6], [u + 0.09, 0], [u + 0.05, M - 0.6], [u, M - 0.6], [u + 0.04, 0]], 0xd8452f); }
+      if(id === 'aurora'){ all(0x0f3b44);                                                   // Aurora: deep teal, green and violet light in waves
+        for(const [o, col, al] of [[-2.5, 0x5ef0a4, 0.6], [1.5, 0xb48cff, 0.5]]){ const W = []; for(let i = 0; i <= 12; i++) W.push([i/12, o + 1.4*Math.sin(i/12*Math.PI*3)]); for(let i = 12; i >= 0; i--) W.push([i/12, o + 1.4*Math.sin(i/12*Math.PI*3) + 2.2 + Math.sin(i)*0.6]); poly(W, col, al); } }
+      if(id === 'arcade'){ all(0x1c1d20);                                                   // Arcade: a yellow pixel critter, pixel dots
+        const PX = ['..X..X..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', 'X.X..X.X', '.X....X.'], pu = 0.034, pv = 1.25;
+        PX.forEach((row, j) => [...row].forEach((ch, i) => { if(ch !== 'X') return; const u0 = 0.5 + (j - 3)*pu, v0 = (i - 4)*pv*0.9; poly([[u0, v0], [u0 + pu, v0], [u0 + pu, v0 + pv*0.9], [u0, v0 + pv*0.9]], 0xffd23a); }));
+        for(const [u, v] of [[0.1, -4], [0.18, 3], [0.82, -3.5], [0.9, 4], [0.25, -1]]) poly([[u, v], [u + 0.02, v], [u + 0.02, v + 0.8], [u, v + 0.8]], 0x3fd0ff); }
+      if(id === 'frost'){ all(0xdff2fb);                                                    // Frost: ice, a snowflake, white cracks
+        for(let k = 0; k < 3; k++){ const w = k*Math.PI/3; stroke([[0.5 - Math.cos(w)*4.5/L, -Math.sin(w)*4.5], [0.5 + Math.cos(w)*4.5/L, Math.sin(w)*4.5]], 0x7fc6e8, 0.7); }
+        stroke([[0.05, -3], [0.15, -1.5], [0.22, -2.6], [0.3, -0.8]], 0xffffff, 0.6); stroke([[0.95, 2.5], [0.84, 1.2], [0.78, 3], [0.68, 1.8]], 0xffffff, 0.6); }
       if(id === 'sunset'){ all(0xf4efe6); band(-3.2, -1.6, 0xf2c230); band(-1.2, 0.4, 0xf08a24); band(0.8, 2.4, 0xc8323a); } }   // Sunset: cream, a 70s yellow-orange-red triple stripe
     else if(id === 'galaxy'){                                                                  // deep space: navy, a violet and a pink cloud, stars
       poly([[0, -M], [1, -M], [1, M], [0, M]], 0x1b1f4a);
@@ -113007,9 +113036,9 @@ class WorldScene extends Phaser.Scene {
     const stemAt = k => [SA + (barA - SA)*k, 0, SZ + (barH - SZ)*k], kAt = h => Math.max(0, Math.min(0.9, (h - SZ)/(barH - SZ)));
     const fU0 = Math.max(0.2, Math.asin(Math.max(-1, Math.min(1, (RD - WHL[0][1])/(WHL[0][1] + 3)))));     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
     if(sty === 'robo'){                                                                         // the glow on the ground under it, and its two thrusters
-      const c = P(0, 0, 0.5); g.fillStyle(0x5ee8d8, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);
-      g.fillStyle(0x9ff6ee, 0.35); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
-      for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? 0x5ee8d8 : 0x2a2f36); }
+      const gl = brand.glow || 0x5ee8d8, c = P(0, 0, 0.5); g.fillStyle(gl, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);   // (a skin's own glow: GSC_LIVERY)
+      g.fillStyle(0xffffff, 0.22); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4); g.fillStyle(gl, 0.25); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
+      for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? gl : 0x2a2f36); }
     else for(const [a0, r, wd] of WHL){ wheel(a0, 0, r, wd, r, wheelPhase);
       if(sty === 'offroad') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ g.fillStyle(0x15171a, 1);      // its knobbly tread, round the rim on the seen side
         for(let k = 0; k < 12; k++){ const u = k*Math.PI/6 - (wheelPhase || 0), q = P(a0 + (r + 0.7)*Math.cos(u), sb*wd/2, r + (r + 0.7)*Math.sin(u)); g.fillRect(q.x - 1.2, q.y - 1.2, 2.4, 2.4); } } }
@@ -113046,7 +113075,7 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
-    if(brand.paint) this.scootPaintTop(g, P, brand.paint, DB, DF, RD);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
+    if(brand.paint) this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
@@ -146897,6 +146926,14 @@ requestTpProfile();
         stockcar: fill('#f08a24') + `<rect x="24" y="0" width="2.6" height="26" fill="#1c1d20"/><rect x="28" y="0" width="1.4" height="26" fill="#1c1d20"/><circle cx="13" cy="13" r="4.6" fill="#f1f2f4"/><rect x="12.3" y="10.8" width="1.4" height="4.4" fill="#1c1d20"/>`,
         drift: fill('#1c1d20') + `<path d="M4 10l4 2 4-2 4 2 4-2 4 2 4-2 4 2 4-2" stroke="#ff3fa4" stroke-width=".9" fill="none"/><path d="M4 14l4 2 4-2 4 2 4-2 4 2 4-2 4 2 4-2" stroke="#3fd0ff" stroke-width=".9" fill="none"/>`,
         saltflat: fill('#e9e2cf') + `<path d="M10 9.5L37 8.5v2zM6 12.5L37 11.6v2zM8 15.5L37 14.6v2z" fill="#c8323a"/>`,
+        circuit: fill('#14213d') + `<path d="M5 10h8l2 3h6M8 16h10l2 2M24 9h4l2 4h5" stroke="#39d98a" stroke-width=".8" fill="none"/><circle cx="5" cy="10" r=".9" fill="#39d98a"/><circle cx="21" cy="13" r=".9" fill="#39d98a"/><circle cx="35" cy="13" r=".9" fill="#39d98a"/>`,
+        hazard: fill('#1c1d20') + [0, 6, 12, 18, 24, 30, 36].map(x => `<path d="M${x} 7h3l-3 12h-3z" fill="#f2c230"/>`).join(''),
+        holo: fill('#eef0f6') + `<path d="M8 7h4l3 12h-4z" fill="#ff7ad9" opacity=".5"/><path d="M15 7h4l3 12h-4z" fill="#7fe3ff" opacity=".5"/><path d="M22 7h4l3 12h-4z" fill="#b48cff" opacity=".5"/>`,
+        plasma: fill('#121318') + `<rect x="0" y="10" width="40" height="6" fill="#ff3fd2" opacity=".25"/><rect x="0" y="11.6" width="40" height="2.8" fill="#ff3fd2" opacity=".6"/><rect x="0" y="12.6" width="40" height=".9" fill="#ffd6f6"/>`,
+        mech: fill('#6f767e') + `<path d="M14 7v12M25 7v12M3 13h11" stroke="#4a5057" stroke-width=".6"/><path d="M29 8.5l2 4.5-2 4.5h1.6l2-4.5-2-4.5zM32.5 8.5l2 4.5-2 4.5h1.6l2-4.5-2-4.5z" fill="#d8452f"/>`,
+        aurora: fill('#0f3b44') + `<path d="M3 11c5-3 9 2 14-1s9 2 14-1 6 1 6 1v3c-5-2-9 2-14 0s-9 2-14 0-6 1-6 1z" fill="#5ef0a4" opacity=".6"/><path d="M3 15c5-3 9 2 14-1s9 2 14-1 6 1 6 1v2.5c-5-2-9 2-14 0s-9 2-14 0-6 1-6 1z" fill="#b48cff" opacity=".5"/>`,
+        arcade: fill('#1c1d20') + ['..X..X..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', 'X.X..X.X', '.X....X.'].map((r, j) => [...r].map((ch, i) => ch === 'X' ? `<rect x="${14 + i*1.5}" y="${8.5 + j*1.5}" width="1.5" height="1.5" fill="#ffd23a"/>` : '').join('')).join('') + `<rect x="6" y="9" width="1" height="1" fill="#3fd0ff"/><rect x="33" y="16" width="1" height="1" fill="#3fd0ff"/>`,
+        frost: fill('#dff2fb') + `<path d="M20 9v8M16.5 11l7 4M16.5 15l7-4" stroke="#7fc6e8" stroke-width=".8"/><path d="M5 10l3 2 2-1 3 2M35 16l-3-2-2 1-3-2" stroke="#fff" stroke-width=".6" fill="none"/>`,
         flames: `<path d="M37 7L14 9l8 2-12 2 9 1-11 3 13 0 16 1z" fill="#e8572a"/><path d="M37 9.5L22 10.5l5 1.5-8 1.5 7 .5-6 2 18 .5z" fill="#ffb02e"/>`,
         checker: [0,1,2,3,4,5,6,7,8].map(i => [0,1,2].map(j => (i + j) % 2 ? '' : `<rect x="${3 + i*3.8}" y="${7 + j*4}" width="3.8" height="4" fill="#f1f2f4"/>`).join('')).join(''),
         bolt: `<path d="M4 13.5l13-4 1 3.6 15-3-11 7.5-1-3.4L5 16z" fill="#ffd23a"/>`,
