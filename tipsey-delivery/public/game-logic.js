@@ -42881,7 +42881,7 @@ const TP_BUILDS = {
   buggy: { BODY: { hx: 25, hy: 17, z0: 16, z1: 33, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 12, hy: 11, z0: 33, z1: 37, ch: 4, bev: 2, bevIn: 1.5 },
     STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -15, y: 15 }, FLAGZ: [33, 84], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
     tray: [0x3f434c, 0x3a3d45, 0x2e3138],
-    WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'knobby' } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'paddle', treadF: 'rib', rubber: [0x8d9299, 0x6b7078] } } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120863,7 +120863,7 @@ class WorldScene extends Phaser.Scene {
       const gz = G.kind === 'wheels' ? G.r + 2 : 8;
       const under = G.kind === 'hover' || G.kind === 'ball';
       for(const wx of xs){
-        const fr = G.kind === 'wheels' && G.rF && wx > 0, Gw = fr ? { ...G, r: G.rF, W2: G.W2F || G.W2 } : null;   // (a build's smaller front wheels: TP_BUILDS)
+        const fr = G.kind === 'wheels' && G.rF && wx > 0, Gw = fr ? { ...G, r: G.rF, W2: G.W2F || G.W2, tread: G.treadF || G.tread } : null;   // (a build's smaller front wheels: TP_BUILDS)
         const c = {x:wx, y:side*gy, z:fr ? G.rF + 2 : gz};
         wheels.push({ c, side, near: sideNear && !under, d: this.depth(c.x, c.y, c.z), G: Gw });
       }
@@ -125514,22 +125514,42 @@ class WorldScene extends Phaser.Scene {
       dot(c.x, c.z, R*0.14, SKIN.wheelHub);
       return;
     }
-    const t = this.time.now;
+    const t = this.time.now, TW = G.rubber ? G.rubber[0] : SKIN.wheel, TD = G.rubber ? G.rubber[1] : SKIN.wheelDark;   // (a build's own rubber: the buggy's grey sand tyres)
     const onFace = (pts, ang, oy = face) => { const ca = Math.cos(ang), sa = Math.sin(ang);
       return pts.map(([x, z]) => this.P(c.x + (x*ca - z*sa)*R, oy, c.z + (x*sa + z*ca)*R)); };
     /* TREAD: lugs roll with the wheel (knobby big, all-terrain fine) */
     const lugs = tread === 'knobby' ? [24, 1.13] : tread === 'allterrain' ? [36, 1.06] : null;
-    if(lugs){
+    if(tread === 'paddle'){   /* A SAND TYRE (the buggy's backs): a smooth grey tyre with scoops across its tread -- each paddle a raised bar
+         across the width, its top drawn only where it faces the eye; the faces' teeth show them standing off the round */
+      const NP = 10, tooth = []; for(let i = 0; i < NP; i++){ const q = i/NP*Math.PI*2; tooth.push([Math.cos(q - 0.13), Math.sin(q - 0.13)], [Math.cos(q - 0.1)*1.14, Math.sin(q - 0.1)*1.14], [Math.cos(q + 0.1)*1.14, Math.sin(q + 0.1)*1.14], [Math.cos(q + 0.13), Math.sin(q + 0.13)]); }
+      this.quadOn(this.g, onFace(tooth, a, face === b1 ? b0 : b1), TD);
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), TD);
+      for(let i = 0; i < NP; i++){ const q = i/NP*Math.PI*2 + a, w = this.R(Math.cos(q), 0, Math.sin(q)); if(w.x + w.y + w.z <= 0) continue;
+        const at = (dq, rr, oy) => this.P(c.x + Math.cos(q + dq)*R*rr, oy, c.z + Math.sin(q + dq)*R*rr);
+        this.quadOn(this.g, [at(-0.1, 1.14, b0), at(0.1, 1.14, b0), at(0.1, 1.14, b1), at(-0.1, 1.14, b1)], _pmix(TD, 0xffffff, 0.12));
+        this.quadOn(this.g, [at(-0.13, 1, b0), at(-0.1, 1.14, b0), at(-0.1, 1.14, b1), at(-0.13, 1, b1)], _pmix(TD, 0x000000, 0.25)); }
+      const fr = onFace(tooth, a);
+      this.quadOn(this.g, fr, TW);
+      this.edgeOn(this.g, fr, SKIN.outline, this.kw(2));
+    } else if(tread === 'rib'){   /* a sand front: smooth and grey, one raised rib round the middle of its tread */
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), TD);
+      const n = 28, pts = []; for(let i = 0; i <= n; i++){ const q = i/n*Math.PI*2, w = this.R(Math.cos(q), 0, Math.sin(q));
+        if(w.x + w.y + w.z > 0) pts.push(this.P(c.x + Math.cos(q)*R*1.03, c.y, c.z + Math.sin(q)*R*1.03)); else if(pts.length > 1){ this.g.lineStyle(this.kw(2.2), _pmix(TD, 0xffffff, 0.18), 1); this.g.strokePoints(pts.map(o => new Phaser.Geom.Point(o.x, o.y)), false); pts.length = 0; } else pts.length = 0; }
+      if(pts.length > 1){ this.g.lineStyle(this.kw(2.2), _pmix(TD, 0xffffff, 0.18), 1); this.g.strokePoints(pts.map(o => new Phaser.Geom.Point(o.x, o.y)), false); }
+      const faceRing = ring(face, R);
+      this.quadOn(this.g, faceRing, TW);
+      this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
+    } else if(lugs){
       const lug = []; for(let i = 0; i < lugs[0]; i++){ const q = i/lugs[0]*Math.PI*2, rr = i % 2 ? 1.0 : lugs[1]; lug.push([Math.cos(q)*rr, Math.sin(q)*rr]); }
-      this.quadOn(this.g, onFace(lug, a, face === b1 ? b0 : b1), SKIN.wheelDark);
-      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), SKIN.wheelDark);
+      this.quadOn(this.g, onFace(lug, a, face === b1 ? b0 : b1), TD);
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), TD);
       const fr = onFace(lug, a);
-      this.quadOn(this.g, fr, SKIN.wheel);
+      this.quadOn(this.g, fr, TW);
       this.edgeOn(this.g, fr, SKIN.outline, this.kw(2));
     } else {
-      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), SKIN.wheelDark);
+      this.quadOn(this.g, convexHull(ring(b0, R).concat(ring(b1, R))), TD);
       const faceRing = ring(face, R);
-      this.quadOn(this.g, faceRing, SKIN.wheel);
+      this.quadOn(this.g, faceRing, TW);
       this.edgeOn(this.g, faceRing, SKIN.outline, this.kw(2));
     }
     const disc = (r, col) => this.quadOn(this.g, ring(face, R*r), col);
@@ -125538,7 +125558,7 @@ class WorldScene extends Phaser.Scene {
        inside any wall stripe, the rim's shapes shaded -- a dark cast behind
        each, a lit bevel toward the light -- and the stock hub dished with
        its lugs when only the tyre is changed */
-    const wallShade = hullSteps(SKIN.wheel, SKIN.wheelHubFace)[2];
+    const wallShade = hullSteps(TW, SKIN.wheelHubFace)[2];
     if(tread === 'slick'){          // a slick shines: a fixed highlight, it doesn't roll
       const hl = []; for(let i = 0; i <= 8; i++){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.95, Math.sin(q)*0.95]); }
       for(let i = 8; i >= 0; i--){ const q = 0.25*Math.PI + i/8*0.55*Math.PI; hl.push([Math.cos(q)*0.84, Math.sin(q)*0.84]); }
@@ -130903,7 +130923,7 @@ function gearSpecRaw(){
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
   if(BODY._tracks && !SKIN.tyreSize) return { kind: 'tank', side: BODY.hy + 5, W2: 10, lift: 2 };   // (the Tank build's own treads: TP_BUILDS)
-  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, lift: 0 }; }   // (a build's own: TP_BUILDS)
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, treadF: SKIN.tyre ? undefined : W.treadF, rubber: SKIN.tyre ? null : W.rubber, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
