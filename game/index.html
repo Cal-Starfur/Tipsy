@@ -126703,7 +126703,7 @@ class WorldScene extends Phaser.Scene {
       const M = [0xb9bec4, 0x9aa0a6, 0x6f757b], D = [0x6f757b, 0x5d646c, 0x3b4048];
       for(const x of W.xs){
         /* (just the coil-over: from under the belly's edge straight down and out to the hub -- the grey blocks gone, Sir 2026-11-16) */
-        const A = P(x, yB, bz + 1), B = P(x, yS, hz);
+        const xt = Math.sign(x)*Math.min(Math.abs(x), BODY.hx - 9), A = P(xt, yB, bz + 1), B = P(x, yS, hz);   // (the front and back ones lean in to mount under his body, not off its corner)
         g.lineStyle(Math.max(1, 2.8*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
         g.lineStyle(Math.max(1, 1.2*K), 0xe8a23a, 1); for(let k = 1; k < 6; k++){ const u = k/6, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, w = 2.2*K;
           g.lineBetween(cx - nx/nl*w, cy - ny/nl*w, cx + nx/nl*w, cy + ny/nl*w); } }
