@@ -84437,7 +84437,8 @@ const FM_PLAN = {
      should be parked and we need a drive way into this lot"): the apron strip west of the lot (the boats moved off it), nose to the street, and its
      drive off the front street (a dropped kerb across the footway: hoodDrivewaysOf) */
   TRUCK: { x: -1960, y: -1500, yaw: Math.PI/2 },                                    // (on the harbour's apron strip west of the lot, clear of the hall's roof on screen)
-  DRIVE: { x0: -2120, x1: -1800, y: -736, out: 1, col: '#b9b6ad', lane: true }
+  DRIVE: { x0: -2392, x1: -1720, y: -736, out: 1, col: '#b9b6ad', lane: false },  // the strip's whole width (apron x0..lot X0), its in and out arrows
+  STRIP: { x0: -2392, x1: -1720, y0: -2900, col: 0xb9b6ad }                         // the strip itself, in the drive's concrete, back to the hall's rear line
 };
 const FM_BLK = { x0: FM_PLAN.X0, x1: FM_PLAN.X1, y0: FM_PLAN.Y0, y1: FM_PLAN.Y1, cx: 336, cy: -1818, type: "commercial", fishMarket: true };
 /* the market's own ground: the lot and its corner, and the toe strip behind */
@@ -99770,6 +99771,8 @@ class WorldScene extends Phaser.Scene {
     rect(P.HX0 - 24, P.HX1 + 24, P.HF + 20, P.HF + 24, 0xa9aaa4);
     /* the pod's bay: a white box, a yellow chevron at its head */
     { const D = P.POD, hw = 70, hl = 130; for(const [x0, x1, y0, y1] of [[D.x - hw, D.x - hw + 6, D.y - hl, D.y + hl], [D.x + hw - 6, D.x + hw, D.y - hl, D.y + hl], [D.x - hw, D.x + hw, D.y - hl, D.y - hl + 6]]) rect(x0, x1, y0, y1, 0xf4f4ee); }
+    /* the strip west of the lot (the truck's yard), in the drive's own concrete from the footway back */
+    { const R = P.STRIP; rect(R.x0, R.x1, R.y0, P.Y1, R.col); }
     /* the truck's bay in the strip at the west end: two white lines, open to its drive */
     { const T = P.TRUCK, hw = 100; for(const x of [T.x - hw, T.x + hw - 6]) rect(x, x + 6, T.y - 300, P.Y1 - 40, 0xf4f4ee);
       rect(T.x - hw, T.x + hw, T.y - 300, T.y - 294, 0xf4f4ee); }
