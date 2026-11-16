@@ -127636,7 +127636,7 @@ class WorldScene extends Phaser.Scene {
         /* the farther end first: with his front to the eye the turn-out at his tail goes under the run, the front cap over it */
         const fw = vis(1, 0, 0), turn = () => pipe([xe, ys, zs], [xe - 3.5, yt, zs - 0.5], 12.5, STK[1]);
         if(fw) turn(); pipe(fw ? [xe, ys, zs] : [xf, ys, zs], fw ? [xf, ys, zs] : [xe, ys, zs], 12.5, STK[1]); if(!fw) turn();
-        if(fw){ const F = P(xf, ys, zs), r = 12.5*0.5*K;   /* (a clean rounded cap on its front end, as the pipe is shaded: dark rim, its colour, its shine) */
+        { const F = P(xf, ys, zs), r = 12.5*0.5*K;   /* (its rounded front end from every side, not only from the front) */   /* (a clean rounded cap on its front end, as the pipe is shaded: dark rim, its colour, its shine) */
           g.fillStyle(_pmix(STK[1], 0x000000, 0.25), 1); g.fillCircle(F.x, F.y, r); g.fillStyle(STK[1], 1); g.fillCircle(F.x - 0.15*12.5*K, F.y - 0.15*12.5*K, r*0.55);
           g.fillStyle(_pmix(STK[1], 0xffffff, 0.5), 1); g.fillCircle(F.x - 0.3*12.5*K, F.y - 0.3*12.5*K, r*0.22); }
         const dx = -3.5, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
