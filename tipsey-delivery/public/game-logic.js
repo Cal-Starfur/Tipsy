@@ -121114,6 +121114,7 @@ class WorldScene extends Phaser.Scene {
     /* the near wheel row, and the whip when it is nearer than the lid (the far ones went down first) */
     if(!npc && SKIN.build === 'buggy') this.buggyKit(bobZ, (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })(), 'front');   // (its nudge bar, over his face)
     for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
+    if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'after');   // (a build's pieces over the near tyres: the Monster Truck's fenders)
     if(this.flagNear()) this.drawFlag(bobZ);
     if(!npc && SKIN.cans) this.drawCans(t, true);           // (...and those nearer the eye than him over him)
     return { fn, F, ks, mouthPolys, bobZ, driving, G, gLift };
@@ -125166,6 +125167,16 @@ class WorldScene extends Phaser.Scene {
           g.lineBetween(cx - nx/nl*q, cy - ny/nl*q, cx + nx/nl*q, cy + ny/nl*q); }
         g.fillStyle(0x9aa0a6, 1); g.fillCircle(B.x, B.y, 1.4*K); };
       const bar = (a, b, w = 2.8, c = 0x2e3138) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), c, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
+      /* THE FENDERS (Sir, 2026-11-16: "not sure what this black frame is on the sides"): a black arched flare over each tyre -- a curved
+         band following the tyre's top from under his side out past its outer wall, a lip down its outer edge -- the far side's before his
+         body, the near side's after the near tyres */
+      const fenders = sb => { const R = W.r + 2.4, yi = sb*(BODY.hy - 1), yo = sb*(W.side + W.W2/2 + 1.6), FC = [0x3b4048, 0x2e3138, 0x1c1e22];
+        for(const x of W.xs){ const N = 12, th = k => (0.2 + k/N*0.6)*Math.PI, pt = (k, y, r = R) => P(x + Math.cos(th(k))*r, y, hz + Math.sin(th(k))*r);
+          for(let k = 0; k < N; k++){ const tm = (th(k) + th(k + 1))/2, w = this.R(Math.cos(tm), 0, Math.sin(tm)); if(w.x + w.y + w.z <= 0) continue;
+            const lit = (w.x - w.y)/(Math.hypot(w.x, w.y) || 1);
+            this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], _pmix(FC[1], lit > 0 ? 0x6f757b : 0x000000, Math.min(0.5, Math.abs(lit)*0.4) + 0.05*(Math.sin(tm) > 0.9 ? 1 : 0))); }
+          if(vis(0, sb, 0)){ const o = []; for(let k = 0; k <= N; k++) o.push(pt(k, yo, R)); for(let k = N; k >= 0; k--) o.push(pt(k, yo, R - 2.2)); this.quadOn(g, o, FC[2]);   // (its lip)
+            g.lineStyle(Math.max(1, 0.9*K), 0x6f757b, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo, R), B = pt(k + 1, yo, R); g.lineBetween(A.x, A.y, B.x, B.y); } } } };
       if(part === 'pre'){   /* THE CHASSIS under him: the frame rails, each axle with its diff, its links and its two coil-overs a side (the far side first) */
         for(const y of [-9, 9]) bar([-BODY.hx + 4, y, zb - 3], [BODY.hx - 4, y, zb - 3], 3.4);
         for(const x of W.xs){
@@ -125174,10 +125185,10 @@ class WorldScene extends Phaser.Scene {
           for(const sb of [-nearSide, nearSide]){
             bar([x, sb*7, hz], [x*0.45, sb*9, zb - 3], 2.4);                                            // (a link up to the frame)
             for(const dx of [-3.5, 3.5]) coil([x + dx, sb*(yi - 2.5), hz + 1], [x + dx*1.6, sb*(BODY.hy - 3), zb]); } }
-        const flare = sb => { for(const x of W.xs) box(W.r + 1.5, 1.6, x, sb*(BODY.hy + 1), zb - 0.5, zb + 4, DARK, 1.2); };   // (a black flare over each tyre)
-        flare(-nearSide);
+        fenders(-nearSide);
         for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) !== frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2); } }   // (the push bar on his far end)
-      if(part === 'mid'){ for(const x of W.xs) box(W.r + 1.5, 1.6, x, nearSide*(BODY.hy + 1), zb - 0.5, zb + 4, DARK, 1.2);
+      if(part === 'after') fenders(nearSide);   // (over the near tyres, drawn after them)
+      if(part === 'mid'){
         for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) === frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2);   // (the push bar on his near end, its tow hooks red)
           for(const y of [-8, 8]) box(1.2, 1, fx + Math.sign(fx)*2.6, y, zb, zb + 3, [0xd8322a, 0xb52a24, 0x7f1d19], 0.3); } }
       /* THE STACKS (Sir, 2026-11-16: "an improvement on the exhaust stacks"): each a round chrome pipe (an octagonal prism, his own hull's
