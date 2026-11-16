@@ -111805,8 +111805,8 @@ class WorldScene extends Phaser.Scene {
         solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
       if(brand.up && brand.up.bell){ const o = [], bz = barH + 0.8; for(let i = 0; i <= 10; i++){ const w = i/10*Math.PI; o.push(P(barA + Math.cos(w)*1.9, -(hb + 1.2), bz + Math.sin(w)*1.9)); }   // its Bell on the bar by his left hand
         g.fillStyle(0xd8b04a, 1); g.fillPoints(o, true); const tp = P(barA, -(hb + 1.2), bz + 2.3); g.fillCircle(tp.x, tp.y, 0.6*this.K*0.42*1.4); }
-      /* Tipsey's topper as the scooter's horn (Sir, 2026-11-16: not on a pole -- "as the horn on the scooter"): a novelty on the middle of
-         the handlebar, a flag on a short stub off its right end (GSC_TIP) */
+      /* Tipsey's topper as the scooter's horn (Sir, 2026-11-16: not on a pole -- "as the horn on the scooter"): a novelty or a flag on a short
+         stub out on the handlebar's right end (GSC_TIP) */
       if(TIP.top && sty !== 'robo'){ const cloth = TIP.top === 'pirate' || TIP.top === 'square' || TIP.top === 'swallow' || TIP.top === 'checker' || TIP.top === 'pennant';
         const keep = { topper: SKIN.topper, jolly: SKIN.jolly, skinTop: SKIN.skinTop, flag: SKIN.flag };
         SKIN.topper = TIP.top; SKIN.jolly = false; SKIN.skinTop = null; if(TIP.flag != null) SKIN.flag = TIP.flag;
@@ -111814,7 +111814,7 @@ class WorldScene extends Phaser.Scene {
           if(cloth){ const sb2 = hb + 5.5; line([barA, sb2, barH], [barA - 1, sb2, barH + 12], 0x2a2f36, 1);
             if(!(typeof this.botTopper === "function" && this.botTopper(g, { P, sees: KV.sees }, barA - 1, sb2, barH + 12, 0.5))){
               const A = P(barA - 1, sb2, barH + 12), B = P(barA - 1, sb2, barH + 7.5), C = P(barA - 8, sb2, barH + 9.8); g.fillStyle(TIP.flag != null ? TIP.flag : 0xff5722, 1); g.fillTriangle(A.x, A.y, B.x, B.y, C.x, C.y); } }
-          else { line([barA, 0, barH], [barA, 0, barH + 2.5], 0x2a2f36, 1.4); if(typeof this.botTopper === "function") this.botTopper(g, { P, sees: KV.sees }, barA, 0, barH + 2.5, 0.55); }
+          else { const sb2 = hb + 5.5; line([barA, sb2, barH], [barA, sb2, barH + 3], 0x2a2f36, 1.4); if(typeof this.botTopper === "function") this.botTopper(g, { P, sees: KV.sees }, barA, sb2, barH + 3, 0.55); }   // (out on the bar's end, as the flags -- Sir, 2026-11-16)
         } finally { Object.assign(SKIN, keep); } }
       line([barA, -hb - 6, barH], [barA, hb + 6, barH], sty === 'junk' ? 0x8a8f96 : SCOOT.metal, sty === 'junk' ? 3.4 : 2.6);
       for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
