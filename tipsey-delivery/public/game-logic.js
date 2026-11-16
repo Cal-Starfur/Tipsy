@@ -125236,7 +125236,11 @@ class WorldScene extends Phaser.Scene {
         for(const x of [17, 12, 7]){ const a = [x, sb*(BODY.hy - 0.3), BODY.z0 + 8], m = [x - 2.5, sb*(BODY.hy + 2), BODY.z0 + 6], b = [x - 5, ys, zs + 0.8];
           pipe(a, m, 4.2); pipe(m, b, 4.2); }
         pipe([18, ys, zs], [xe, ys, zs], 6.8);                          // (the side pipe)
-        pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 6.8);              // (its turn-out, ahead of the rear wheel)
+        if(!(sb === nearSide && frontSeen)) turnOut(sb); };
+      /* its turn-out, ahead of the rear wheel: on the near side with his front to the eye it stands in front of that wheel, so it goes
+         after the near tyres ('after'); otherwise the wheel is in front of it */
+      const turnOut = sb => { const ys = sb*(BODY.hy + 3.6), zs = BODY.z0 + 2, xe = -2, yt = sb*(BODY.hy + 8.5);
+        pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 6.8);
         const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(0x8d959c, 1); g.fillCircle(e.x, e.y, 3.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.4*K); };
       /* THE TAIL FINS: a blade up off each back corner, its leading edge sweeping up and back to a point past his tail -- only its face
          toward the eye drawn, in his paint, its leading edge picked out in his stripe and the whole outlined as his hull is */
@@ -125277,6 +125281,7 @@ class WorldScene extends Phaser.Scene {
         if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.65, r1 + 0.6), 0xb9bec4); this.quadOn(g, ring(x1 - 0.7, r1 - 0.2), 0x16171b);
           this.quadOn(g, ring(x1 - 0.75, r1*0.65), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.8, r1*0.3), 0xffd08a, pulse); } };
       if(part === 'pre'){ hdr(-nearSide); if(frontSeen) nozzle(); }
+      if(part === 'after' && frontSeen) turnOut(nearSide);
       if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
       if(part === 'near' && !frontSeen) fins(); }
   }
