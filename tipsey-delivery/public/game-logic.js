@@ -1684,7 +1684,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
-  whRim:[['five','Five-Spoke'],['mag','Mag'],['wire','Wire'],['tri','Tri-Spoke'],['disc','Disc'],['turbine','Turbine'],['ten','Ten-Spoke'],['split','Split-Spoke'],['star','Star'],['mesh','Mesh'],['steelie','Steelie'],['dish','Deep Dish'],['prop','Propeller'],['honey','Honeycomb']],   // (GIDEON'S WHEELS: GSC_WH)
+  whRim:[['five','Five-Spoke'],['mag','Mag'],['wire','Wire'],['tri','Tri-Spoke'],['disc','Disc'],['turbine','Turbine'],['ten','Ten-Spoke'],['split','Split-Spoke'],['star','Star'],['mesh','Mesh'],['steelie','Steelie'],['dish','Deep Dish'],['prop','Propeller'],['honey','Honeycomb'],['flower','Flower'],['wagon','Wagon']],   // (GIDEON'S WHEELS: GSC_WH)
   whCol:[['silver','Silver'],['black','Black'],['gold','Gold'],['chrome','Chrome'],['body','Body colour'],['accent','Accent colour']],
   whTyre:[['stock','Stock'],['slick','Slick'],['whitewall','Whitewall'],['knobby','Knobby'],['fat','Fat'],['redline','Red-line']],
   upMotor:[['off','Stock'],['on','Speed Motor']], upBatt:[['off','Stock'],['on','Battery']], upLight:[['off','Stock'],['on','Headlight']], upBell:[['off','Stock'],['on','Bell']], upStand:[['off','Stock'],['on','Kickstand']], upGlow:[['off','None'],['cyan','Cyan'],['pink','Pink'],['purple','Purple'],['green','Green'],['orange','Orange'],['red','Red'],['white','White']],   // (GIDEON'S SCOOTER UPGRADES: GSC_UP)
@@ -111302,7 +111302,9 @@ class WorldScene extends Phaser.Scene {
     if(WH.rim === 'dish'){ fill(ring(fb, rr*0.92), lt); fill(ring(fb, rr*0.8), dk); fill(ring(fb, rr*0.55), RC); spokes(5, 0.3, 0.2, dk); fill(ring(fb, rr*0.4), RC); }
     if(WH.rim === 'prop'){ fill(ring(fb, rr*0.88), dk); for(let k = 0; k < 3; k++){ const q = ph + k*Math.PI*2/3; fill([at(rr*0.18, q - 0.4), at(rr*0.5, q - 0.1), at(rr*0.86, q + 0.25), at(rr*0.86, q + 0.7), at(rr*0.45, q + 0.55), at(rr*0.18, q + 0.4)], RC); } }
     if(WH.rim === 'honey'){ fill(ring(fb, rr*0.88), RC); for(const [rad, n, off] of [[rr*0.36, 6, 0], [rr*0.66, 12, Math.PI/12]]) for(let k = 0; k < n; k++){ const c = at(rad, ph + off + k*Math.PI*2/n); g.fillStyle(dk, 1); g.fillCircle(c.x, c.y, rr*(n === 6 ? 0.11 : 0.085)*K); } }
-    fill(ring(fb, rr*0.2, 10), dk);
+    if(WH.rim === 'flower'){ fill(ring(fb, rr*0.88), RC); for(let k = 0; k < 6; k++){ const q = ph + k*Math.PI/3, c = at(rr*0.46, q); g.fillStyle(lt, 1); g.fillCircle(c.x, c.y, rr*0.2*K); } fill(ring(fb, rr*0.2, 10), 0xffd24a); }
+    if(WH.rim === 'wagon'){ fill(ring(fb, rr*0.92), RC); fill(ring(fb, rr*0.78), dk); spokes(8, 0.16, 0.1, RC); fill(ring(fb, rr*0.3), RC); }
+    if(WH.rim !== 'flower') fill(ring(fb, rr*0.2, 10), dk);
     const hub = P(a0 + r*0.05, fb, r + r*0.06); g.fillStyle(0xffffff, 0.75); g.fillCircle(hub.x, hub.y, r*0.06*K + 0.4);
   }
   junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, id, DB, DF, RD){
@@ -130527,6 +130529,15 @@ const WHEEL_STYLES = (() => {
     wire:    { polys: [well].concat(spokes(12, 0.07, 0.74, 'acc'), spokes(12, 0.07, 0.74, 'acc', Math.PI/12 + 0.12), [P(circ(0.22, 12), 'face'), cap(0.1)]) },
     wagon:   { polys: [well].concat(spokes(8, 0.13, 0.7), [P(circ(0.74, 18).concat([[0.74, 0], [0.64, 0]], circ(0.64, 18).reverse()), 'face'), P(circ(0.24, 12), 'face'), cap(0.12)]) },
     flower:  { polys: [P(circ(0.74, 18), 'face')].concat(Array.from({ length: 6 }, (_, k) => P(petal(k*Math.PI/3), 'acc')), [P(circ(0.17, 12), 0xffd24a)]) },
+    /* (the rest of Gideon's scooter's set, so both have them all -- Sir, 2026-11-16) */
+    tri:     { polys: [well].concat(spokes(3, 0.34, 0.72), [P(circ(0.26, 12), 'face'), cap(0.13)]) },
+    disc:    { polys: [P(circ(0.76, 18), 'acc'), P(circ(0.66, 18), 'face'), cap(0.12)] },
+    ten:     { polys: [well].concat(spokes(10, 0.09, 0.72), [P(circ(0.22, 12), 'face'), cap(0.11)]) },
+    split:   { polys: [well].concat(Array.from({ length: 10 }, (_, k) => P(bar(Math.floor(k/2)*Math.PI*2/5 + (k % 2 ? 0.17 : -0.17), 0.24, 0.72, 0.09), 'face')), [P(circ(0.26, 12), 'face'), cap(0.13)]) },
+    mesh:    { polys: [well].concat(Array.from({ length: 10 }, (_, k) => P(bar(k*Math.PI/5 + 0.3, 0.2, 0.72, 0.05), 'face')), Array.from({ length: 10 }, (_, k) => P(bar(k*Math.PI/5 - 0.3, 0.2, 0.72, 0.05), 'face')), [P(circ(0.22, 12), 'face'), cap(0.1)]) },
+    prop:    { polys: [well].concat(Array.from({ length: 3 }, (_, k) => P(blade(k*Math.PI*2/3, 0.14, 0.74, 0.7, 0.75), 'face')), [cap()]) },
+    honey:   { polys: [P(circ(0.74, 18), 'face')].concat(Array.from({ length: 6 }, (_, k) => P(circ(0.09, 8, Math.cos(k*Math.PI/3)*0.3, Math.sin(k*Math.PI/3)*0.3), 'dark')),
+                 Array.from({ length: 12 }, (_, k) => P(circ(0.07, 8, Math.cos(k*Math.PI/6 + 0.26)*0.56, Math.sin(k*Math.PI/6 + 0.26)*0.56), 'dark')), [cap(0.14)]) },
 
   };
   return S;
@@ -144650,7 +144661,14 @@ requestTpProfile();
     { id: 'flower',  name: 'Flower',    cents: 500 },
     { id: 'wagon',   name: 'Wagon',     cents: 600 },
     { id: 'turbine', name: 'Turbine',   cents: 700 },
-    { id: 'wire',    name: 'Wire',      cents: 800 }
+    { id: 'wire',    name: 'Wire',      cents: 800 },
+    { id: 'tri',     name: 'Tri-spoke', cents: 500 },   // (Gideon's scooter's too -- both have the full set, Sir 2026-11-16)
+    { id: 'disc',    name: 'Disc',      cents: 500 },
+    { id: 'ten',     name: 'Ten-spoke', cents: 600 },
+    { id: 'split',   name: 'Split-spoke', cents: 600 },
+    { id: 'mesh',    name: 'Mesh',      cents: 700 },
+    { id: 'prop',    name: 'Propeller', cents: 600 },
+    { id: 'honey',   name: 'Honeycomb', cents: 700 }
   ];
   /* TYRES: tread, sidewall and size are three picks (gearSpec, drawWheel) */
   const TYRE_LIST = [
@@ -145560,6 +145578,8 @@ requestTpProfile();
       if (rim === 'dish') sp = `<circle cx="20" cy="13" r="${rr - 0.3}" fill="none" stroke="${C}" stroke-width="1.2"/><circle cx="20" cy="13" r="3.4" fill="${C}"/>`;
       if (rim === 'prop') sp = [...Array(3)].map((_, k) => { const q = k*2.094; return `<path d="M${pt(1.2, q - 0.4)}Q${pt(4, q)} ${pt(rr, q + 0.3)}L${pt(rr, q + 0.7)}Q${pt(3, q + 0.6)} ${pt(1.2, q + 0.4)}z" fill="${C}"/>`; }).join('');
       if (rim === 'honey') sp = `<circle cx="20" cy="13" r="${rr - 0.4}" fill="${C}"/>` + [...Array(6)].map((_, k) => `<circle cx="${pt(2.3, k*1.047).split(' ')[0]}" cy="${pt(2.3, k*1.047).split(' ')[1]}" r=".7" fill="#1c1d20"/>`).join('') + [...Array(12)].map((_, k) => `<circle cx="${pt(4.3, k*0.5236 + 0.26).split(' ')[0]}" cy="${pt(4.3, k*0.5236 + 0.26).split(' ')[1]}" r=".55" fill="#1c1d20"/>`).join('');
+      if (rim === 'flower') sp = `<circle cx="20" cy="13" r="${rr - 0.4}" fill="${C}"/>` + [...Array(6)].map((_, k) => `<circle cx="${pt(2.8, k*1.047).split(' ')[0]}" cy="${pt(2.8, k*1.047).split(' ')[1]}" r="1.3" fill="#fff"/>`).join('') + `<circle cx="20" cy="13" r="1.2" fill="#ffd24a"/>`;
+      if (rim === 'wagon') sp = `<circle cx="20" cy="13" r="${rr - 0.3}" fill="none" stroke="${C}" stroke-width="1.1"/>` + S(8, 0.12) + `<circle cx="20" cy="13" r="2" fill="${C}"/>`;
       if (rim === 'turbine') sp = [...Array(8)].map((_, k) => { const q = k*0.785; return `<path d="M20 13Q${(20 + Math.cos(q + 0.5)*4).toFixed(1)} ${(13 + Math.sin(q + 0.5)*4).toFixed(1)} ${(20 + Math.cos(q + 0.9)*rr).toFixed(1)} ${(13 + Math.sin(q + 0.9)*rr).toFixed(1)}" stroke="${C}" stroke-width="1.2" fill="none"/>`; }).join('');
       const tyre = ty === 'knobby' ? [...Array(14)].map((_, k) => `<rect x="19" y="${13 - R - 1}" width="2" height="2" fill="#1c1d20" transform="rotate(${k*25.7} 20 13)"/>`).join('') : '';
       const wall = ty === 'whitewall' ? `<circle cx="20" cy="13" r="${R - 1.3}" fill="none" stroke="#f4f2ec" stroke-width="1.6"/>` : ty === 'redline' ? `<circle cx="20" cy="13" r="${R - 1.4}" fill="none" stroke="#d8323a" stroke-width=".7"/>` : '';
