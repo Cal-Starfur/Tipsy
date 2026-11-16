@@ -111457,6 +111457,7 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[4, 8.05, RD - 3.5, 2.2], [-12, 8.05, RD - 3.5, 2.2]]){ const q = P(a, sb*b, h);
         g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
       rocketFin(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
+    if(sty === 'chopper') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ line([6, sb*7.8, RD - 1.5], [-30, sb*7.8, RD - 1.5], 0xc9ced3, 2.2); line([-30, sb*7.8, RD - 1.5], [-35, sb*7.8, RD + 1], 0xc9ced3, 2.2); }   // its drag pipe down the deck's side
     if(sty === 'chopper')                                                                       // its fat back fender
       fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, brand.c);
     /* (the Cruiser's neck, deck nose up to the stem's foot on its fender, drawn BEFORE the fender so the fender's side covers it; the Racer's
@@ -111504,11 +111505,23 @@ class WorldScene extends Phaser.Scene {
         const ha = R.wheelA - 2, hz = RD + 24;
         line([R.wheelA - 3, 0, RD], [ha, 0, hz], brand.c, 5);
         /* its teardrop gas tank on the top tube, up to the headstock (Sir, 2026-11-16, "a gas tank to pull off skins"); the skins paint it */
-        line([5, 0, RD], [8.5, 0, RD + 9], brand.c, 3.5);
-        { const ST = [[7, 2.8, RD + 8.5, RD + 13], [11.5, 5.6, RD + 8, RD + 18.5], [18, 5.6, RD + 11, RD + 22.5], [23, 3, RD + 17, RD + 24]], Sx = ([a, w, h0, h1]) => oct(w, h0, h1, 0, 0.3);   // (a small chamfer: a big flat side for the skin)
+        /* its V-twin under the tank (Sir, 2026-11-16, "a motorcycle type engine"): a crankcase on the deck, two finned cylinders in a V,
+           their heads, the pipes out of them down to the deck's side */
+        { const CR = 0x5d646c, FIN = 0xb9bec4, FD = 0x7d838a;
+          solid(prismB([[7, RD], [19, RD], [19, RD + 3.5], [16.5, RD + 5.5], [9.5, RD + 5.5], [7, RD + 3.5]], -3.4, 3.4), CR, (k, n) => n[2] > 0.5 ? 0x6f767e : CR);
+          for(const [a0, lean] of [[10.5, -0.45], [15.5, 0.45]]) for(let f = 0; f < 5; f++){ const h = RD + 5.5 + f*1.05, a = a0 + lean*(h - RD - 5.5), r = f === 4 ? 2.4 : 2.9;
+            solid(prismH([[a - r, -r], [a + r, -r], [a + r, r], [a - r, r]], h, h + 0.75), f === 4 ? FD : FIN, (k, n) => n[2] > 0.9 ? FIN : FD); }
+          for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([12.5, sb*2.6, RD + 7], [6, sb*7.8, RD - 1.5], 0xc9ced3, 2.2); }
+        { const stars = brand.paint === 'stars';
+          const ST = [[7, 2.8, RD + 8.5, RD + 13], [11.5, 5.6, RD + 8, RD + 18.5], [18, 5.6, RD + 11, RD + 22.5], [23, 3, RD + 17, RD + 24]];
+          /* (the Stars tank: a rounder section, striped red and white all the way round by its faces' facing -- Sir, 2026-11-16, "red and
+             white stripes completely, not just a decal") */
+          const round = ([a, w, h0, h1]) => { const o = [], m = (h0 + h1)/2, hh = (h1 - h0)/2; for(let i = 0; i < 14; i++){ const t = i/14*Math.PI*2, c = Math.cos(t), sn = Math.sin(t); o.push([w*Math.sign(c)*Math.pow(Math.abs(c), 0.7), m + hh*Math.sign(sn)*Math.pow(Math.abs(sn), 0.7)]); } return o.reverse(); };
+          const Sx = stars ? round : ([a, w, h0, h1]) => oct(w, h0, h1, 0, 0.3);   // (a small chamfer: a big flat side for the skin)
           const F = []; for(let i = 0; i + 1 < ST.length; i++) F.push(...loftSeg(ST[i][0], Sx(ST[i]), ST[i + 1][0], Sx(ST[i + 1]), (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)));
-          solid(F, brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
-          if(brand.paint) this.chopperTank(g, P, KV, brand.paint, ST); }
+          solid(F, brand.c, stars ? (k, n) => { const t = Math.atan2(n[2], Math.abs(n[1])); return Math.floor((t + Math.PI/2)/(Math.PI/7)) % 2 ? 0xf4f2ec : 0xc8323a; }
+            : (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
+          if(brand.paint && !stars) this.chopperTank(g, P, KV, brand.paint, ST); }
         for(const sb of [-1, 1]) line([WHL[1][0], sb*2.6, WHL[1][1]], [ha + 1, sb*2.6, hz + 1], SCOOT.metal, 2);
         solid(prismH([[ha - 2.5, -3], [ha + 2.5, -3], [ha + 2.5, 3], [ha - 2.5, 3]], hz - 3, hz + 3), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c);
         for(const sb of [-1, 1]){ line([ha, sb*3, hz + 3], [barA + 3, sb*(hb + 3), barH + 7], SCOOT.metal, 3); line([barA + 3, sb*(hb + 3), barH + 7], [barA, sb*(hb + 3), barH], SCOOT.metal, 3);
