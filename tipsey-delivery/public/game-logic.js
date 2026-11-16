@@ -137089,13 +137089,14 @@ function harborGeo(){
      the apron strip it stood on takes another boat on a trailer */
   props.push({ kind:'sign', x: RX, y: -1150, r: 0 });
   for(const sd of [-1, 1]) props.push({ kind:'post', x: RX + sd*560, y: -1150, r: 18 });
-  props.push({ kind:'trailer', x: AX - 20, y: -1150, r: 170, k: 11 });
-  for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: -1150 + d, r: 150 });
   /* the trailers lie along the apron now, at twice the size (see
-     drawHarborTrailer): bays of 950, solid down their length as three discs */
-  for(let k = 0, y = -2900; y > -6200; y -= 950, k++){
-    if(mulberry32(0x7a11 + k*977)() < 0.25) continue;                       // an empty bay
-    props.push({ kind:'trailer', x: AX - 20, y, r: 170, k });
+     drawHarborTrailer): bays of 950, solid down their length as three discs. They start past the fish market's back
+     line (Sir, 2026-11-16: "they are blocking the end of the fish market"), so its west end is clear from the street;
+     the boat that stood under the gantry (k 11) takes the first empty bay */
+  for(let k = 0, y = -3350, moved = false; y > -6600; y -= 950, k++){
+    let kk = k;
+    if(mulberry32(0x7a11 + k*977)() < 0.25){ if(moved) continue; kk = 11; moved = true; }   // an empty bay (the first takes k 11)
+    props.push({ kind:'trailer', x: AX - 20, y, r: 170, k: kk });
     for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: y + d, r: 150 });
   }
   props.push({ kind:'rack', x: AX, y: -7300, r: 190 });
@@ -137103,7 +137104,7 @@ function harborGeo(){
   /* along the road side of the apron, not at the wall's foot: the estate's
      retaining wall stands 226-586 high along apron.x1, and a palm by it lost
      its tub behind the wall (it hides what is within its height of it) */
-  for(const y of [-1800, -6650, -7950, -9300, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // in the gaps the trailers, rack and kiosk leave
+  for(const y of [-5250, -6800, -7950, -9300, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // (none by the fish market's end)   // in the gaps the trailers, rack and kiosk leave
   /* SEA LION POINT (Sir, 2026-10-01, drawing round the bare headland
      behind and west of the harbor house: "lets spruce this area up and make
      it a park. make it Sea themed and have a Sealion Statue in it ... more
