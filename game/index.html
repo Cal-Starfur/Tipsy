@@ -113152,7 +113152,10 @@ class WorldScene extends Phaser.Scene {
     const shZ = build.legH + build.torsoH - 1, arm = build.armLen, th = R.lift*LIFT_MAX_ANGLE;
     const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
     g.fillStyle(0x000000, 0.16);
-    { const c = P(0, 0, 0); g.fillEllipse(c.x, c.y + 1, 76*this.K*0.42*1.4, 26*this.K*0.42*1.4); }
+    { /* its shadow on the ground: an oval under it in its own frame, so it turns with it and fits each build's length (Sir, 2026-11-16,
+         "what's the deal with the shadow": it was a fixed screen oval, wrong whenever the scooter wasn't side-on) */
+      const st0 = brand.style, a0 = st0 === 'rocket' ? 3 : st0 === 'chopper' ? 3 : 0, la = st0 === 'rocket' ? 42 : st0 === 'chopper' ? 40 : 36, wb = st0 === 'rocket' && RKT_KIT[brand.paint] && (RKT_KIT[brand.paint].wings || RKT_KIT[brand.paint].boosters) ? 15 : 10;
+      const o = []; for(let i = 0; i < 20; i++){ const w = i/20*Math.PI*2; o.push(P(a0 + Math.cos(w)*la, Math.sin(w)*wb, 0)); } g.fillPoints(o, true); }
     /* GIDEON'S SCOOTER BUILDS (called builds, not skins -- Sir, 2026-11-15; brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
        deck, a front fairing with a number board, a rear wing), the Robo Board (no wheels, no stem: a deck hovering on two thrusters over a
