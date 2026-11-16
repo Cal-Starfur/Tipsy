@@ -126979,21 +126979,27 @@ class WorldScene extends Phaser.Scene {
         const S = [...LE, TIP, ...BACK], pts = S.map(q => P(q[0], sideY(q), q[1]));
         this.quadOn(g, pts, out ? BP.lt : BP.dk);
         this.quadOn(g, [P(LE[2][0], sideY(LE[2]), LE[2][1] - 1.2), P(LE[6][0], sideY(LE[6]), LE[6][1] - 1.4), P(X0 - 2.5, sideY(BACK[0]), z + 3), P(-4 + (X0 + 4)*0.3, sideY(LE[2]), z + 0.5)], out ? _pmix(BP.lt, 0xffffff, 0.35) : _pmix(BP.dk, 0xffffff, 0.12), 0.7);
-        g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+        g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);   // (open along its root: no line where it grows out of his body)
         const L = P(TIP[0] + 0.6, sideY(TIP), TIP[1] - 1.4); g.fillStyle(0x7f1d19, 1); g.fillCircle(L.x, L.y, 1.4*K); g.fillStyle(0xff4a3a, 1); g.fillCircle(L.x, L.y, 0.95*K);   // (its tail lamp)
       };
       const fins = () => { fin(-nearSide); fin(nearSide); };
       /* THE JET NOZZLE (more pronounced, out past his tail -- Sir, 2026-11-16): a round steel housing standing off his tail, banded, a
          flared lip, its dark throat with an ember glowing in it -- behind him when his front is to the eye, over him when his back is */
-      const nozzle = () => { const x0 = -BODY.hx + 2, x1 = -BODY.hx - 7, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
+      /* (a cone, in his paint -- Sir, 2026-11-16): wide where it leaves his tail, narrowing to a small steel lip at the flame end, banded
+         in his stripe, its throat dark with the ember in it */
+      const nozzle = () => { const x0 = -BODY.hx + 2, x1 = -BODY.hx - 9, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
+        const r0 = 6.2, r1 = 2.9, rAt = x => r0 + (r1 - r0)*(x0 - x)/(x0 - x1);
         const ring = (x, r) => { const o = []; for(let k = 0; k < 16; k++){ const q = k/16*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } return o; };
-        const can = (xa, xb, r, c) => this.quadOn(g, convexHull(ring(xa, r).concat(ring(xb, r))), c);
-        can(x0, x1 + 1.2, 5.6, 0x7d838a);                                   // (the housing)
-        { const A = P(x0, 0, zc + 5.4), B = P(x1 + 1.2, 0, zc + 5.4); g.lineStyle(Math.max(1, 1.4*K), 0xd8dde2, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its sheen)
-        for(const bx of [x0 - 3, x0 - 6]) can(bx, bx - 0.8, 5.8, 0x5d646c);  // (its bands)
-        can(x1 + 1.2, x1, 6.6, 0x9aa0a6);                                    // (the flared lip)
-        if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.05, 6.6), 0xb9bec4); this.quadOn(g, ring(x1 - 0.1, 5.2), 0x16171b);
-          this.quadOn(g, ring(x1 - 0.15, 3.4), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.2, 1.8), 0xffd08a, pulse); } };
+        const cone = (xa, xb, c) => this.quadOn(g, convexHull(ring(xa, rAt(xa)).concat(ring(xb, rAt(xb)))), c);
+        const lit = this.R(0, 0, 1), side = hullSteps(BP.dk, BP.lt);
+        /* in slices, the farthest first (from his tail out when we look at its end, from its end in when we look past it from his front),
+           each white slice lit along its top; two slim bands in his stripe */
+        const SEG = [[x0, x0 - 3.5, 0], [x0 - 3.5, x0 - 4.1, 1], [x0 - 4.1, x0 - 7, 0], [x0 - 7, x0 - 7.6, 1], [x0 - 7.6, x1, 0]];
+        for(const [xa, xb, band] of (vis(-1, 0, 0) ? SEG : [...SEG].reverse())){ cone(xa, xb, band ? SKIN.stripe : BP.lt);
+          if(!band){ const A = P(xa, -nearSide*rAt(xa)*0.25, zc + rAt(xa)*0.92), B = P(xb, -nearSide*rAt(xb)*0.25, zc + rAt(xb)*0.92); g.lineStyle(Math.max(1, 1.6*K), _pmix(BP.top, 0xffffff, 0.5), 1); g.lineBetween(A.x, A.y, B.x, B.y); } }
+        { const o = []; for(let k = 0; k < 16; k++){ const q = k/16*Math.PI*2; o.push(P(x1 + 0.4, Math.cos(q)*(r1 + 0.6), zc + Math.sin(q)*(r1 + 0.6))); } this.quadOn(g, convexHull(o.concat(ring(x1 - 0.6, r1 + 0.6))), 0x9aa0a6); }   // (its steel lip -- the nearest slice when we see its end; past it, from his front, the cone's own body hides little of it)
+        if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.65, r1 + 0.6), 0xb9bec4); this.quadOn(g, ring(x1 - 0.7, r1 - 0.2), 0x16171b);
+          this.quadOn(g, ring(x1 - 0.75, r1*0.65), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.8, r1*0.3), 0xffd08a, pulse); } };
       if(part === 'pre'){ hdr(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
       if(part === 'near' && !frontSeen) fins(); }
