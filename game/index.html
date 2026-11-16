@@ -127276,14 +127276,14 @@ class WorldScene extends Phaser.Scene {
          back corners raked up and back, flame at their tips; 'single' one fat stack up his middle with a toothed rim; 'side' none on top --
          pipes out low under his tail (drawn in 'pre'/'mid' by sideExh) */
       const EXH = TR.exh || 'stack';
-      const sideExh = () => { for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 4); pipe([-BODY.hx + 6, y, BODY.z0 + 2], [-BODY.hx - 7, y, BODY.z0 + 1.2], 4.6, STK[1]);
-          if(vis(-1, 0, 0)){ const e = P(-BODY.hx - 7.2, y, BODY.z0 + 1.2); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 2.5*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 1.6*K); } } };
+      const sideExh = () => { for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 4); pipe([-BODY.hx + 6, y, BODY.z0 + 2.5], [-BODY.hx - 10, y, BODY.z0 + 1.5], 7, STK[1]);   // (big: Sir, 2026-11-16)
+          if(vis(-1, 0, 0)){ const e = P(-BODY.hx - 10.2, y, BODY.z0 + 1.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 3.8*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.5*K); } } };
       const zoomies = () => { const t = this.time ? this.time.now : 0;
-        for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*4.2, a = [x, sb*(BODY.hy - 2), BODY.z1 - 0.5], b = [x - 6, sb*(BODY.hy + 2.5), BODY.z1 + 8];
-          pipe(a, b, 3, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
-          g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 1.6*K, 2.2*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 0.8*K, 1.2*K); } };
+        for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
+          pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
+          g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 2.4*K, 3.3*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 1.2*K, 1.8*K); } };
       const sx = -LID.hx - 4, stacks = () => { if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side') return;
-        const single = EXH === 'single', R = single ? 1.6 : 1, z0 = BODY.z1, z1 = BODY.z1 + (EXH === 'smoke' ? 26 : single ? 16 : 20), CH = STK;
+        const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = BODY.z1, z1 = BODY.z1 + (EXH === 'smoke' ? 30 : single ? 20 : 20), CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
@@ -127298,7 +127298,7 @@ class WorldScene extends Phaser.Scene {
           if(vis(0, 0, 1)) this.quadOn(g, rim, 0x16171b);
           if(single) for(let k = 0; k < 8; k++){ const a = k/8*Math.PI*2, r0 = 2.5*R; this.quadOn(g, [P(sx + Math.cos(a - 0.3)*r0, y + Math.sin(a - 0.3)*r0, z1), P(sx + Math.cos(a + 0.3)*r0, y + Math.sin(a + 0.3)*r0, z1), P(sx + Math.cos(a)*r0, y + Math.sin(a)*r0, z1 + 2.2)], CH[0]); }   // (its toothed rim)
           if(EXH === 'smoke'){ const t = this.time ? this.time.now : 0; for(let k = 0; k < 3; k++){ const u = ((t*0.0006 + k/3 + (y > 0 ? 0.5 : 0)) % 1), q = P(sx - u*4, y, z1 + 2 + u*10);
-              g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (1.6 + u*3)*K); } } } };
+              g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (2.4 + u*4.5)*K); } } } };
       if(EXH === 'side'){ if(part === 'pre' && frontSeen) sideExh(); if(part === 'mid' && !frontSeen) sideExh(); }
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
