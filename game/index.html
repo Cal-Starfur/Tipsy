@@ -126255,14 +126255,20 @@ class WorldScene extends Phaser.Scene {
     };
     /* THE POLISHED HULL: the lid is the same chamfered, bevelled, ramp-shaded prism as the body, through its hinge */
     const BP = this.bodyPaint();
+    const SL = BODY._solarLid;   // (the Moon Rover's: the whole lid the solar panel's blues)
     this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
-                        cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.lidInner, fin:BP.fin, print: BP.print, printPart: 'lid'});
-    /* the Moon Rover's lid is its solar panel (Sir, 2026-11-16): dark blue cells in a silver frame over its top, through the hinge */
-    if(BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){ const zt = z1 + 0.15, ix = hx - LID.bevIn - 1, iy = hy - LID.bevIn - 1, q = pts => this.quadOn(this.g, pts.map(([x, y]) => H(x, y, zt)), 0x1f3b73);
-      const cx = 4, cy = 3, gx = 0.7, w = (2*ix - gx*(cx + 1))/cx, h = (2*iy - gx*(cy + 1))/cy;
-      this.quadOn(this.g, [H(-ix, -iy, zt - 0.05), H(ix, -iy, zt - 0.05), H(ix, iy, zt - 0.05), H(-ix, iy, zt - 0.05)], 0xb9bec4);
-      for(let i = 0; i < cx; i++) for(let j = 0; j < cy; j++){ const x0 = -ix + gx + i*(w + gx), y0 = -iy + gx + j*(h + gx); q([[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]]); }
-      this.quadOn(this.g, [H(-ix + 1, iy - 2.2, zt + 0.05), H(ix - 1, iy - 2.2, zt + 0.05), H(ix - 1, iy - 1.6, zt + 0.05), H(-ix + 1, iy - 1.6, zt + 0.05)], 0x4f73b8, 0.6); } }   // (a glint)
+                        cTop: SL ? 0x23458a : BP.top, cLt: SL ? 0x2b51a0 : BP.lt, cDk: SL ? 0x172f60 : BP.dk, cBottom:SKIN.lidInner, fin: SL ? null : BP.fin, print: SL ? null : BP.print, printPart: 'lid'});
+    /* the Moon Rover's lid is its solar panel, all of it (Sir, 2026-11-16: "fit it exactly to his lid ... all of its geometry"): the whole
+       prism in the panel's blues, a silver grid of cells over its top to its very edges and down its sides, through the hinge */
+    if(BODY._solarLid){ const zt = z1 + 0.12, g = this.g, K = Math.max(1, 0.45*this.kScale());
+      const ln = (a, b) => { const A = H(...a), B = H(...b); g.lineBetween(A.x, A.y, B.x, B.y); };
+      g.lineStyle(K, 0xaab6c8, 0.9);
+      { const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){ const ix = hx - LID.bevIn, iy = hy - LID.bevIn, c = LID.ch;
+        for(let k = 1; k < 6; k++){ const x = -ix + 2*ix*k/6, yy = Math.abs(x) > ix - c ? iy - (Math.abs(x) - (ix - c)) : iy; ln([x, -yy, zt], [x, yy, zt]); }
+        for(let k = 1; k < 4; k++){ const y = -iy + 2*iy*k/4, xx = Math.abs(y) > iy - c ? ix - (Math.abs(y) - (iy - c)) : ix; ln([-xx, y, zt], [xx, y, zt]); } } }
+      for(const sb of [-1, 1]){ const n = HN(0, sb, 0); if(n.x + n.y + n.z > 0) for(let k = 1; k < 6; k++){ const x = -(hx - LID.ch) + 2*(hx - LID.ch)*k/6; ln([x, sb*(hy + 0.05), z0 + 0.6], [x, sb*(hy + 0.05), z1 - LID.bev]); } }
+      for(const sx of [-1, 1]){ const n = HN(sx, 0, 0); if(n.x + n.y + n.z > 0) for(let k = 1; k < 4; k++){ const y = -(hy - LID.ch) + 2*(hy - LID.ch)*k/4; ln([sx*(hx + 0.05), y, z0 + 0.6], [sx*(hx + 0.05), y, z1 - LID.bev]); } }
+    }
   }
 
   quad(pts, color, alpha=1){
