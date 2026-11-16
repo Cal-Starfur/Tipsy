@@ -95785,7 +95785,7 @@ CITY_PEOPLE.add({ name: 'almshouse court and Ferris Field', where: 'Ferris Taylo
    of the world clock (its index n, seeded), the pace eased at the ends (walkPathAt), keeping to the right of the path's
    middle. They step round each other, the bench sitters' feet, the furniture and him with the street's crowd (updateCrowd:
    _avX/_avY, _dly). ==================== */
-const PARK_WALK = { n: 44, joggers: 8, lane: 34, hours: [6, 21] };
+const PARK_WALK = { n: 44, joggers: 7, lane: 34, hours: [6, 21] };
 function parkTrailGraph(grid){
   const T = vetTrailOf(grid);
   if(!T) return null;
@@ -95809,6 +95809,36 @@ function parkWalkersOf(grid){
   for(let k = 0; k < PARK_WALK.n; k++) out.push({ k, jog: k < PARK_WALK.joggers, G, seed: (0x9a41 + k*7919) >>> 0 });
   return (G._walkers = out);
 }
+/* THE RUNNING COURSE (Sir, 2026-11-16: "a few joggers using the park as a running path"): the trail has no closed circuit
+   (it branches, every dead end opening into a turnaround), so the course is its longest run, end to end, round the
+   turnaround at the far end and back, round the one at this end: lap after lap, each jogger at their own pace, some the
+   other way round. Found once (two breadth-first sweeps over the junctions). */
+function parkRunLoop(G){
+  if(G._loop !== undefined) return G._loop;
+  const inner = G.nodes.filter(n => n.nb.length > 1), deg = n => n.nb.filter(m => m.nb.length > 1).length;
+  const far = (a) => { const dist = new Map([[a, 0]]), prev = new Map([[a, null]]), q = [a]; let best = a;
+    for(let h = 0; h < q.length; h++){ const c = q[h]; for(const n of c.nb){ if(n.nb.length < 2 || dist.has(n)) continue;
+      dist.set(n, dist.get(c) + Math.hypot(n.x - c.x, n.y - c.y)); prev.set(n, c); q.push(n); if(dist.get(n) > dist.get(best)) best = n; } }
+    return { best, prev }; };
+  const ends = inner.filter(n => deg(n) <= 1);
+  if(!ends.length) return (G._loop = null);
+  const A = far(ends[0]).best, F = far(A), B = F.best, path = [];
+  for(let c = B; c; c = F.prev.get(c)) path.unshift(c);
+  if(path.length < 3) return (G._loop = null);
+  const ring = (n, from, R) => {                                        // round the turnaround at n, coming in from `from`: out the way they came
+    const a0 = Math.atan2(from.y - n.y, from.x - n.x), out = [];
+    for(let k = 1; k < 16; k++){ const a = a0 + Math.PI*2*k/16; out.push({ x: n.x + Math.cos(a)*R, y: n.y + Math.sin(a)*R }); }
+    return out;
+  };
+  const R = (VET_TRAIL.loopR || 250)*0.62, pts = [];
+  path.forEach(n => pts.push({ x: n.x, y: n.y }));
+  pts.push(...ring(B, path[path.length - 2], R));
+  for(let k = path.length - 1; k >= 0; k--) pts.push({ x: path[k].x, y: path[k].y });
+  pts.push(...ring(A, path[1], R));
+  pts.push({ x: A.x, y: A.y });
+  let L = 0; for(let k = 1; k < pts.length; k++) L += Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y);
+  return (G._loop = { pts, L });
+}
 /* walker w's way: a long seeded wander over the whole network (300 hops, never straight back unless at a dead end), walked
    round and round at their own pace -- so they spread over every part of the trail and never bunch */
 function parkWalkWay(w){
@@ -95825,6 +95855,16 @@ function parkWalkWay(w){
 function parkWalkRaw(w, t){
   const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12;
   if(h < PARK_WALK.hours[0] || h >= PARK_WALK.hours[1]) return null;
+  /* a jogger runs the loop: their own pace and start, a third of them the other way round */
+  const RL = w.jog ? parkRunLoop(w.G) : null;
+  if(RL){
+    const r = w._run || (w._run = (() => { const q = mulberry32((w.seed ^ 0x51ab) >>> 0); return { v: 0.13 + q()*0.07, off: q()*RL.L, rev: q() < 0.35,
+      lane: PARK_WALK.lane*(0.6 + q()*0.7), look: streetLook((w.seed*131) >>> 0, { adult: true, aid: 'none', jobs: null }) }; })());
+    let d = (((t - (w._dly || 0))*r.v + r.off) % RL.L + RL.L) % RL.L; if(r.rev) d = RL.L - d;
+    const q = walkPathPoint(RL.pts, d), e = 30, a = walkPathPoint(RL.pts, Math.max(0, d - e)), c = walkPathPoint(RL.pts, Math.min(RL.L, d + e));
+    let th = Math.atan2(c.y - a.y, c.x - a.x); if(r.rev) th += Math.PI;
+    return { x: q.x - Math.sin(th)*r.lane, y: q.y + Math.cos(th)*r.lane, th, moving: true, look: r.look, jog: true };
+  }
   const Wy = parkWalkWay(w);
   if(!(Wy.L > 0)) return null;
   const d = (((t - (w._dly || 0))*Wy.v + Wy.off) % Wy.L + Wy.L) % Wy.L, q = walkPathPoint(Wy.pts, d);
