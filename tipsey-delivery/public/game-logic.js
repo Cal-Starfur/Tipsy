@@ -125331,8 +125331,9 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, convexHull(ring(x1 + 0.3, r1 + 0.5).concat(ring(x1 - 0.7, r1 + 0.5))), 0x9aa0a6);        // (its steel lip)
         if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.75, r1 + 0.5), 0xb9bec4); this.quadOn(g, ring(x1 - 0.8, r1 - 0.3), 0x16171b);
           this.quadOn(g, ring(x1 - 0.85, r1*0.62), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.9, r1*0.3), 0xffd08a, pulse); } };
-      if(part === 'prewheel'){ if(frontSeen) hdr(-nearSide); else turnOut(-nearSide); }
-      if(part === 'pre'){ if(frontSeen) turnOut(-nearSide); else hdr(-nearSide); if(frontSeen) nozzle(); }
+      /* (from behind, the far rear tyre is nearer than the whole far pipe, run and turn-out alike: all of it before the far tyres) */
+      if(part === 'prewheel'){ hdr(-nearSide); if(!frontSeen) turnOut(-nearSide); }
+      if(part === 'pre'){ if(frontSeen) turnOut(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'after' && frontSeen) turnOut(nearSide);
       /* the fins against the lid: closed, the lid is all ahead of them -- both behind it from the front, both over it from behind; slid
          back, the canopy sits between them -- the far fin under it, the near one over it */
