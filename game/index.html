@@ -44624,7 +44624,7 @@ const TP_BUILDS = {
   /* the Hot Rod: long and low, a big supercharger up through his hood with its scoop, chrome headers out each side, fat slicks behind,
      skinny fronts */
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
-  hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 14, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5, ox: 4 }, lidCol: [0x9cc9dc, 0x78aec6, 0x4f86a0],
+  hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 14, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5, ox: 4 }, windshield: [0x9cc9dc, 0x78aec6, 0x4f86a0],   // (his lid in his paint, its front faces glass: a windscreen -- Sir, 2026-11-16)
     STRIPE: { z0: 16, z1: 19 }, FLAGB: { x: -30, y: 12 }, FLAGZ: [26.5, 64], zmap: z => 12 + (z - 14)*0.35, noBracket: true,
     WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod', noFlag: true } };   // (no flag -- Sir, 2026-11-16)   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -122571,9 +122571,9 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag; BODY._windshield = B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -126350,6 +126350,14 @@ class WorldScene extends Phaser.Scene {
                         cTop: SL ? SL[0] : BP.top, cLt: SL ? SL[1] : BP.lt, cDk: SL ? SL[2] : BP.dk, cBottom:SKIN.lidInner, fin: SL ? null : BP.fin, print: SL ? null : BP.print, printPart: 'lid'});
     /* the Moon Rover's lid is its solar panel, all of it (Sir, 2026-11-16: "fit it exactly to his lid ... all of its geometry"): the whole
        prism in the panel's blues, a silver grid of cells over its top to its very edges and down its sides, through the hinge */
+    if(BODY._windshield){   /* A WINDSCREEN: the lid's front face, its two front corner faces and the bevels over them in glass, the rest in his paint */
+      const WS = BODY._windshield, c = Math.min(LID.ch, hx - 1, hy - 1), zs = z1 - LID.bev, kx = (hx - LID.bevIn)/hx, ky = (hy - LID.bevIn)/hy, zb = z0 + 0.6;
+      const faces = [[[hx - c, -hy], [hx, -(hy - c)], [1, -1]], [[hx, -(hy - c)], [hx, hy - c], [1, 0]], [[hx, hy - c], [hx - c, hy], [1, 1]]];
+      for(const [a, b, nn] of faces){ const nl = Math.hypot(nn[0], nn[1]), w = HN(nn[0]/nl, nn[1]/nl, 0); if(w.x + w.y + w.z <= 0) continue;
+        this.quadOn(this.g, [H(a[0], a[1], zb), H(b[0], b[1], zb), H(b[0], b[1], zs), H(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
+        const wb = HN(nn[0]/nl*0.7, nn[1]/nl*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(this.g, [H(a[0], a[1], zs), H(b[0], b[1], zs), H(b[0]*kx, b[1]*ky, z1), H(a[0]*kx, a[1]*ky, z1)], WS[0]); }
+      { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (its glint)
+        this.quadOn(this.g, [H(hx + 0.05, y0, zb + 1), H(hx + 0.05, y0 + 1.6, zb + 1), H(hx + 0.05, y1 + 1.6, zs - 0.5), H(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } } }
     if(BODY._lidCol && !BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){   /* a glass lid's glint: a pale streak across its top */
       const zt = z1 + 0.1, a = hx - LID.bevIn, b = hy - LID.bevIn;
       this.quadOn(this.g, [H(a*0.1, -b*0.75, zt), H(a*0.45, -b*0.75, zt), H(a*0.05, b*0.6, zt), H(-a*0.3, b*0.6, zt)], 0xffffff, 0.4); } }
