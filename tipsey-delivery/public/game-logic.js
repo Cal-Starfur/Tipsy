@@ -111242,6 +111242,36 @@ class WorldScene extends Phaser.Scene {
      ([a, half-width, bottom, top]), x along it from its tail (0) to its nose (1), y up its side (0 bottom, 1 top); and its top. Clipped to
      that side so nothing spills off it */
   /* a race number plate (the Off-Road's): a plate in some plane, toS(x, y) on it with x in -w..w and y in -h..h, its digit in seven segments */
+  /* THE JUNKYARD BUILD'S SKINS (Sir, 2026-11-16, "doesn't feel very junkyard"): its deck is the scrap itself, shaped as that thing is --
+     a skateboard with kicked-up ends and trucks, a pallet on its stringers, a soda crate with holes through its sides, an oil drum on its
+     side, a bent road sign on a length of signpost, a fridge door with its handle and seal, license plates bolted over a frame, a sheet of
+     corrugated iron. Their markings go on top after (scootPaintTop) */
+  junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, id, DB, DF, RD){
+    const box = (a0, a1, b0, b1, h0, h1, col, top) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, (k, n) => n[2] > 0.9 && top != null ? top : n[2] < -0.5 ? 0x2a2f36 : col);
+    const side = KV.sees(0, 1, 0) ? 1 : -1, K = this.K*0.42*1.4;
+    if(id === 'skateboard'){ for(const a of [DB + 5, DF - 5]){ box(a - 1, a + 1, -4.5, 4.5, RD - 3.2, RD - 1.6, 0xb9bec4); box(a - 0.7, a + 0.7, -1, 1, RD - 1.6, RD - 1, 0x6f757b); }   // its trucks under it
+      solid(prismB([[DB - 2.5, RD + 3], [DB + 3, RD], [DF - 3, RD], [DF + 2.5, RD + 3], [DF + 2, RD + 1.9], [DF - 3, RD - 1], [DB + 3, RD - 1], [DB - 2, RD + 1.9]], -6, 6), 0xc9a26a, (k, n) => n[2] > 0.3 ? 0x1c1d20 : 0xc9a26a); }
+    if(id === 'pallet'){ for(const b of [-6, 0, 6]) box(DB, DF, b - 1, b + 1, RD - 5, RD - 1.2, 0xa88655);   // three stringers, slats across them with gaps
+      for(let a = DB; a < DF - 2; a += 5.2) box(a, a + 3.8, -7.2, 7.2, RD - 1.2, RD, 0xc9a26a, 0xd2ae78); }
+    if(id === 'sodacrate'){ box(DB, DF, -7, 7, RD - 6, RD, 0xc8323a, 0xc8323a);                   // a crate: holes through its seen side, hand-holds at its ends
+      g.fillStyle(0x7a1a20, 1); for(let a = DB + 2; a < DF - 3; a += 4.2){ g.fillPoints([P(a, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 4.8), P(a + 2.6, side*7.05, RD - 1.2), P(a, side*7.05, RD - 1.2)], true); } }
+    if(id === 'oildrum'){ const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.62);                       // a drum on its side: its body, two rolling hoops, its lids
+      solid(loftSeg(DB, S(6.6, RD - 9, RD), DF, S(6.6, RD - 9, RD), 3), 0x1f5fbf, (k, n) => Math.abs(n[0]) > 0.9 ? 0x5a88d6 : n[2] < -0.5 ? 0x163f80 : 0x1f5fbf);
+      for(const a of [DB + (DF - DB)/3, DB + 2*(DF - DB)/3]) solid(loftSeg(a - 0.4, S(6.95, RD - 9.3, RD + 0.3), a + 0.4, S(6.95, RD - 9.3, RD + 0.3), 0), 0x163f80); }
+    if(id === 'roadsign'){ box(DB - 1, DF + 1, -1.2, 1.2, RD - 3.4, RD - 0.8, 0x9aa0a6);             // a length of signpost under it, its bolt holes; the sign, its corner bent up
+      g.fillStyle(0x4a5057, 1); for(let a = DB + 1; a < DF; a += 3){ const q = P(a, side*1.25, RD - 2.1); g.fillCircle(q.x, q.y, 0.5*K); }
+      solid(prismH([[DB, -7], [DF - 4, -7], [DF, -3], [DF, 7], [DB, 7]], RD - 0.8, RD), 0x9aa0a6, (k, n) => n[2] > 0.9 ? 0x1f7a4a : 0x9aa0a6);
+      solid(prismB([[DF - 4, RD], [DF, RD], [DF - 1.5, RD + 3.2]], -7.3, -6.7), 0x1f7a4a); }
+    if(id === 'fridge'){ box(DB + 0.8, DF - 0.8, -6.4, 6.4, RD - 4.4, RD - 3.6, 0x6f757b);         // a fridge door: its rubber seal, the door, its chrome handle stood up on its posts
+      solid(prismH([[DB + 1.5, -7], [DF - 1.5, -7], [DF, -5.5], [DF, 5.5], [DF - 1.5, 7], [DB + 1.5, 7], [DB, 5.5], [DB, -5.5]], RD - 3.6, RD), 0xeef0f2, (k, n) => n[2] < -0.5 ? 0xc9ced3 : 0xeef0f2); }
+    if(id === 'plates'){ box(DB, DF, -6.6, -5.6, RD - 4, RD - 1.2, 0x5d646c); box(DB, DF, 5.6, 6.6, RD - 4, RD - 1.2, 0x5d646c);   // an angle-iron frame, plates bolted over it, each a little skew
+      const T = [0xf4f2ec, 0xf2c230, 0x1f5fbf, 0xf08a24], L = (DF - DB)/4;
+      for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const a0 = DB + i*L - 0.4, h = RD - 1.2 + ((i*3 + j*5) % 4)*0.12, b0 = j ? 0.2 : -7.2;
+        solid(prismH([[a0, b0 + (i % 2)*0.3], [a0 + L + 0.6, b0], [a0 + L + 0.6, b0 + 7], [a0, b0 + 7 - (j % 2)*0.3]], h, h + 0.5), T[(i + j) % 4]); } }
+    if(id === 'rustbucket'){ box(DB, DF, -6, -4.8, RD - 4, RD - 0.8, 0x5c2e14); box(DB, DF, 4.8, 6, RD - 4, RD - 0.8, 0x5c2e14);   // corrugated iron on two rusted rails: the sheet, its ridges
+      box(DB, DF, -7, 7, RD - 0.8, RD - 0.3, 0x8a4a22);
+      for(let b = -5.6; b < 6; b += 2.8) box(DB, DF, b - 0.7, b + 0.7, RD - 0.3, RD + 0.3, 0x9a5428, 0xa65d2c); }
+  }
   numberPlate(g, toS, w, h, col, num, digit){
     const quad = (x0, y0, x1, y1, c) => { g.fillStyle(c, 1); g.fillPoints([toS(x0, y0), toS(x1, y0), toS(x1, y1), toS(x0, y1)], true); };
     quad(-w, -h, w, h, col);
@@ -111394,17 +111424,17 @@ class WorldScene extends Phaser.Scene {
       const runners = (rub, al) => { all(rub); for(let k = 0; k < 6; k++){ const v = -M + 1 + k*(2*M - 2)/5; band(v - 0.35, v + 0.35, al); } };   // a scooter's floor: rubber, alloy runners
       const spots = (col, ctr) => { for(let i = 0; i < 11; i++){ const u = ((i*0.618 + 0.1) % 1)*0.9 + 0.05, v = (((i*0.7549) % 1) - 0.5)*2*(M - 1.4); poly(ring(u, v, 1.1), col); if(ctr) poly(ring(u, v, 0.55), ctr); } };
       const flowerAt = (u, v, r, col) => { for(let k = 0; k < 5; k++){ const w = k/5*Math.PI*2; poly(ring(u + Math.cos(w)*r*0.6/L, v + Math.sin(w)*r*0.6, r*0.5), col); } poly(ring(u, v, r*0.35), 0xffd23a); };
-      if(id === 'rustbucket'){ all(0x8a4a22); for(const [u, v, r, col] of [[0.15, -3, 2.2, 0xb5652d], [0.4, 3, 2.6, 0x5c2e14], [0.62, -2, 2, 0xb5652d], [0.85, 2.6, 2.4, 0x5c2e14], [0.3, 0, 1.2, 0xc9783a]]) poly(ring(u, v, r), col);   // the Junkyard's decks: Rust Bucket
-        g.fillStyle(0x3b2414, 1); for(const v of [-M + 0.8, M - 0.8]) for(let u = 0.05; u < 1; u += 0.1){ const q = at(u, v); g.fillCircle(q.x, q.y, 0.5*this.K*0.42*1.4); } }
-      if(id === 'pallet'){ all(0x3b2a1a); for(let i = 0; i < 5; i++){ const u0 = 0.02 + i*0.2; cross(u0, u0 + 0.15, 0xc9a26a); } pin([[0.42, -2.4], [0.58, -2.4], [0.58, 2.4], [0.42, 2.4]], 0x6e4e2c, 0.5, true); }   // Pallet: slats with gaps, a stamp
-      if(id === 'roadsign'){ all(0x1f7a4a); pin([[0.03, -M + 0.8], [0.97, -M + 0.8], [0.97, M - 0.8], [0.03, M - 0.8]], 0xf4f2ec, 0.7, true);   // Road Sign: green, a white border, a white arrow
+      if(id === 'rustbucket'){ for(const [u, v, r, col, al] of [[0.15, -3, 2.2, 0x5c2e14, 0.7], [0.62, 2.4, 2.6, 0x5c2e14, 0.6], [0.85, -2, 1.8, 0xc9783a, 0.6]]) poly(ring(u, v, r), col, al);   // the Junkyard's decks: Rust Bucket's rust, and a hole rusted through
+        poly(ring(0.38, -0.4, 1.4), 0x1c1d20); }
+      if(id === 'pallet'){ pin([[0.42, -2.6], [0.58, -2.6], [0.58, 2.6], [0.42, 2.6]], 0x6e4e2c, 0.5, true); pin([[0.46, -1.2], [0.54, 1.2]], 0x6e4e2c, 0.5, false); }   // Pallet: its stamp   // Pallet: slats with gaps, a stamp
+      if(id === 'roadsign'){ pin([[0.03, -M + 0.8], [0.97, -M + 0.8], [0.97, M - 0.8], [0.03, M - 0.8]], 0xf4f2ec, 0.7, true);   // Road Sign: green, a white border, a white arrow
         poly([[0.15, -1], [0.62, -1], [0.62, -3.2], [0.88, 0], [0.62, 3.2], [0.62, 1], [0.15, 1]], 0xf4f2ec); }
       if(id === 'skateboard'){ all(0x1c1d20); for(const [u, v, w, h, col] of [[0.1, -4, 0.12, 3, 0xff7ab0], [0.3, 1.5, 0.1, 3.5, 0xffd23a], [0.55, -3.8, 0.14, 2.6, 0x3fd0ff], [0.75, 2, 0.12, 3, 0x7fd13b]]) poly([[u, v], [u + w, v], [u + w, v + h], [u, v + h]], col); poly(ring(0.9, -2.6, 1.4), 0xf4f2ec); }   // Skateboard: grip tape, stickers
-      if(id === 'fridge'){ all(0xeef0f2); band(M - 1.6, M - 0.6, 0xc9ced3); for(const [u, v, col] of [[0.25, -2, 0xff7ab0], [0.4, 1, 0xffd23a], [0.6, -3, 0x3fd0ff]]) poly(ring(u, v, 0.9), col); poly(ring(0.78, -1, 2.4), 0xdfe3e6); }   // Fridge Door: enamel, a chrome handle, magnets, a dent
-      if(id === 'plates'){ const T = [0xf4f2ec, 0xf2c230, 0x1f5fbf, 0xf08a24]; for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const u0 = i*0.25, v0 = -M + j*M, col = T[(i + j) % 4];   // License Plates: a patchwork, each with its letters and bolts
-          poly([[u0 + 0.01, v0 + 0.3], [u0 + 0.24, v0 + 0.3], [u0 + 0.24, v0 + M - 0.3], [u0 + 0.01, v0 + M - 0.3]], col);
+      if(id === 'fridge'){ for(const [u, v, col] of [[0.25, -2, 0xff7ab0], [0.4, 1, 0xffd23a], [0.6, -3, 0x3fd0ff]]) poly(ring(u, v, 0.9), col); poly(ring(0.78, -1, 2.4), 0xdfe3e6); }   // Fridge Door: enamel, a chrome handle, magnets, a dent
+      if(id === 'plates'){ const T = [0xf4f2ec, 0xf2c230, 0x1f5fbf, 0xf08a24]; for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const u0 = i*0.25, v0 = -M + j*M, col = T[(i + j) % 4];   // License Plates: each one's letters and bolts
+          g.fillStyle(0x6f757b, 1); for(const [du, dv] of [[0.03, 0.9], [0.21, 0.9], [0.03, M - 0.9], [0.21, M - 0.9]]){ const q = at(u0 + du, v0 + dv); g.fillCircle(q.x, q.y, 0.45*this.K*0.42*1.4); }
           for(let k = 0; k < 3; k++){ const lu = u0 + 0.05 + k*0.06; poly([[lu, v0 + 1.6], [lu + 0.03, v0 + 1.6], [lu + 0.03, v0 + M - 1.6], [lu, v0 + M - 1.6]], col === 0x1f5fbf ? 0xf4f2ec : 0x1c1d20); } } }
-      if(id === 'oildrum'){ all(0x1f5fbf); for(const u of [0.25, 0.5, 0.75]) cross(u - 0.008, u + 0.008, 0x163f80); poly([[0.38, -2.4], [0.62, -2.4], [0.62, 2.4], [0.38, 2.4]], 0xf4f2ec); poly([[0.5, -1.6], [0.56, 0], [0.5, 1.6], [0.44, 0]], 0xf08a24); }   // Oil Drum: blue, its ribs, a label
+      if(id === 'oildrum'){ poly([[0.38, -2.4], [0.62, -2.4], [0.62, 2.4], [0.38, 2.4]], 0xf4f2ec); poly([[0.5, -1.6], [0.56, 0], [0.5, 1.6], [0.44, 0]], 0xf08a24); }   // Oil Drum: blue, its ribs, a label
       if(id === 'sodacrate'){ all(0xc8323a); for(let i = 0; i < 8; i++) for(let j = 0; j < 3; j++){ const u0 = 0.04 + i*0.12, v0 = -M + 1 + j*((2*M - 2)/3); poly([[u0, v0 + 0.4], [u0 + 0.08, v0 + 0.4], [u0 + 0.08, v0 + (2*M - 2)/3 - 0.4], [u0, v0 + (2*M - 2)/3 - 0.4]], 0x7a1a20); } }   // Soda Crate: red plastic, its grid of holes
       if(id === 'factory'){ all(0xf08a24); for(const [u, v, l] of [[0.1, -M, 0.3], [0.45, M, 0.35], [0.7, -M, 0.25]]) poly([[u, v], [u + l, v], [u + l*0.4, v*0.1]], 0x1c1d20); poly([[0.3, M], [0.42, M], [0.36, 2]], 0xf4f2ec); }   // the Off-Road's decks: Factory Orange shards
       if(id === 'limegreen'){ all(0x7fd13b); for(const [u, v, col] of [[0.15, -2, 0x1c1d20], [0.5, 2.6, 0xf4f2ec], [0.78, -2.4, 0x1c1d20]]) poly([[u, v - 2], [u + 0.18, v], [u, v + 2], [u - 0.08, v]], col); }   // Lime Green: tear shapes
@@ -111547,16 +111577,18 @@ class WorldScene extends Phaser.Scene {
         const F = loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1), nT = F.length, nR = 8;   // (one solid, its rings told apart by face index: no seams)
         for(let i = 0; i < 12; i++) F.push(...loftSeg(-28 + i*3.5, S(8, RD - 5.5, RD), -24.5 + i*3.5, S(8, RD - 5.5, RD), 0));   // (twelve rings, tail to nose)
         solid(F, brand.c, (k, n) => rc(k < nT ? -1 : Math.floor((k - nT)/nR), n)); }
-      else if(sty === 'junk'){ const dk = (brand.paint && GSC_LIVERY[brand.paint] && GSC_LIVERY[brand.paint].deck) || 0xa77b4a;   // a crate for a deck (or a skin's scrap: its colour)
-        solid(prismH(plan, RD - 6, RD), dk, (k, n) => n[2] > 0.9 ? (dk === 0xa77b4a ? 0x8f6639 : dk) : (n[2] < -0.5 ? 0x6e4e2c : dk)); }   // a crate for a deck
+      else if(sty === 'junk'){ if(brand.paint) this.junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, brand.paint, DB, DF, RD);   // a skin's deck: the scrap itself, shaped as it is
+        else solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a)); }   // a crate for a deck   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
     if(sty === 'junk'){                                                                         // the crate's slats, a patch on top (the accent) and one on the side (the body colour)
       if(!brand.paint){ for(let a = DB + 4; a < DF - 2; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);   // (a skin's deck is its own scrap)
         for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([DB, sb*7.05, h], [DF, sb*7.05, h], 0x6e4e2c, 0.8);
         solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0); }
-      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
+      if(!brand.paint) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
+    if(sty === 'junk' && brand.paint === 'fridge'){ const hb2 = KV.sees(0, 1, 0) ? 5 : -5;   // the fridge door's chrome handle, stood up on its posts
+      for(const a of [DB + 4, DF - 4]) line([a, hb2, RD], [a, hb2, RD + 2.6], 0x6f757b, 2); line([DB + 3.5, hb2, RD + 2.6], [DF - 3.5, hb2, RD + 2.6], 0x8a9097, 3); }
     if(brand.paint && sty !== 'rocket') this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
