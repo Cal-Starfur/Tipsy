@@ -124630,10 +124630,15 @@ class WorldScene extends Phaser.Scene {
     const fw = HN(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ back(); front(); } else { front(); back(); }
     /* THE TAXI SKIN'S ROOF LIGHT: a little lit sign standing on the canopy (it slides back with it) -- cream faces, a yellow top, a dark
        band across its front and back */
-    if(BODY._bskin && BODY._bskin.taxiLight){ const sx = -3, shx = 3.2, shy = 5.2, za = z1 - 0.2, zb = z1 + 3.6;
+    if(BODY._bskin && BODY._bskin.taxiLight){ const sx = -3, shx = 3.2, shy = 6, za = z1 - 0.2, zb = z1 + 3.8;
       const V = (x, y, z) => H(x*kx + sx*(1 - kx), y*ky, z);
       const side = (a, b, nx, ny, col) => { const w = HN(nx, ny, 0); if(w.x + w.y + w.z <= 0) return; this.quadOn(g, [H(a[0], a[1], za), H(b[0], b[1], za), H(b[0], b[1], zb), H(a[0], a[1], zb)], col);
-        if(nx !== 0) this.quadOn(g, [H(a[0], a[1]*0.96, za + 1.3), H(b[0], b[1]*0.96, za + 1.3), H(b[0], b[1]*0.96, za + 2.3), H(a[0], a[1]*0.96, za + 2.3)], 0x2a2d33); };
+        if(nx !== 0){   /* "TAXI" across its front and back, in strokes, left to right as seen from that end */
+          const GL = { T: [[0, 1, 1, 1], [0.5, 1, 0.5, 0]], A: [[0, 0, 0.5, 1], [0.5, 1, 1, 0], [0.22, 0.42, 0.78, 0.42]], X: [[0, 0, 1, 1], [0, 1, 1, 0]], I: [[0.5, 0, 0.5, 1]] };
+          const cw = 1.9, gap = 0.55, tot = 4*cw + 3*gap, h0 = za + 0.9, hh = 2, R = nx > 0 ? -1 : 1, xf = a[0] + nx*0.05;   // (seen from the +x end, his -y runs to the right)
+          g.lineStyle(Math.max(1, 0.75*this.kScale()), 0x23262c, 1);
+          [...'TAXI'].forEach((ch, i) => { const y0 = -tot/2 + i*(cw + gap); for(const [u0, v0, u1, v1] of GL[ch]){
+            const A2 = H(xf, R*(y0 + u0*cw), h0 + v0*hh), B2 = H(xf, R*(y0 + u1*cw), h0 + v1*hh); g.lineBetween(A2.x, A2.y, B2.x, B2.y); } }); } };
       const x0 = sx - shx, x1 = sx + shx;
       side([x1, -shy], [x1, shy], 1, 0, 0xfff1b8); side([x0, shy], [x0, -shy], -1, 0, 0xffe58a); side([x1, shy], [x0, shy], 0, 1, 0xf2d26a); side([x0, -shy], [x1, -shy], 0, -1, 0xf2d26a);
       if((w => w.x + w.y + w.z > 0)(HN(0, 0, 1))) this.quadOn(g, [H(x1, -shy, zb), H(x1, shy, zb), H(x0, shy, zb), H(x0, -shy, zb)], 0xffd23a);
