@@ -42879,7 +42879,7 @@ const TP_BUILDS = {
   /* the Dune Buggy (Sir, 2026-11-16): a narrow low tub up on big knobby wheels set well out on arms, a roll cage over his lid (a hoop
      behind it, a bar each side down to his nose), the engine out the back, his flag up off the hoop (buggyKit) */
   buggy: { BODY: { hx: 25, hy: 17, z0: 16, z1: 33, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 12, hy: 11, z0: 33, z1: 37, ch: 4, bev: 2, bevIn: 1.5 },
-    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -20, y: 18.6 }, FLAGZ: [33, 48], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
+    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -20, y: 18.6 }, FLAGZ: [33, 55], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
     tray: [0x3f434c, 0x3a3d45, 0x2e3138],
     WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'paddle', treadF: 'rib', rubber: [0x8d9299, 0x6b7078] } } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -125098,7 +125098,7 @@ class WorldScene extends Phaser.Scene {
        side goes before the body, the near side over it; what crosses over the top goes over the lid */
     /* (all the way to the back -- Sir, 2026-11-16: the hoop on his back corners, the roof running forward from it level, then the pillars
        down to his nose. No diagonal over the lid) */
-    const hx = -BODY.hx + BODY.ch, yo = BODY.hy + 1.6, zt = 47, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, xf = 5;
+    const hx = -BODY.hx + BODY.ch, yo = BODY.hy + 1.6, zt = 54, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, xf = LID.hx + 3;   // (high and its front bar ahead of the lid, so no bar crosses the lid)
     const plate = (x, y, z) => this.drawHullPrism({ hx: 2.2, hy: 0.8, ox: x, oy: y, z0: z - 2.2 + bobZ, z1: z + 2.2 + bobZ, ch: 0.6, cTop: 0x3b4048, cLt: 0x3b4048, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
     const side = sb => { const y = sb*yo, ym = sb*(BODY.hy + 0.6);
       for(const [x, z] of [[hx, zl], [nx, zl], [hx, zb - 3], [nx, zb - 3]]) plate(x, ym, z);   // (its mounts, on his flank)
