@@ -1686,7 +1686,8 @@ const GD_SHAPES = {
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
   scootPaint:[['plain','Plain'],['flames','Flames'],['checker','Checker'],['bolt','Lightning'],['camo','Camo'],['galaxy','Galaxy'],
               ['tonup','Ton-Up'],['racinggreen','Racing Green'],['oxblood','Oxblood'],['brooklands','Brooklands'],['rocker','Rocker'],
-              ['gulf','Gulf'],['manx','Manx TT'],['alloy','Brushed Alloy'],['tartan','Tartan'],['sunset','Sunset']],   // (each build's skins, GSC_PAINT: scootPaintTop)
+              ['gulf','Gulf'],['manx','Manx TT'],['alloy','Brushed Alloy'],['tartan','Tartan'],['sunset','Sunset'],
+              ['rally','Rally'],['gp','Grand Prix'],['gt','GT Stripes'],['drag','Drag Strip'],['superbike','Superbike'],['stockcar','Stock Car'],['drift','Drift Neon'],['saltflat','Salt Flats']],   // (each build's skins, GSC_PAINT: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
@@ -87865,12 +87866,16 @@ function gscSave(){ try { localStorage.setItem(GSC_KEY, JSON.stringify(GSC.st));
 /* each skin's build (scootPaintTop): a skin shows only on its own build */
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
-  gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser' };
+  gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser',
+  rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer' };
 /* a skin that's a whole livery (the Café Cruiser's are café-racer liveries -- Sir, 2026-11-15, "these don't feel like café motorcycle type
    skins"): its body and accent colours with it, over the garage's picks */
 const GSC_LIVERY = { tonup: { c: 0x1c1d20, acc: 0xc9ced3 }, racinggreen: { c: 0x1f4d36, acc: 0xe9dcc0 }, oxblood: { c: 0xe9dcc0, acc: 0x6e1e22 },
   brooklands: { c: 0xc9ced3, acc: 0xb3262e }, rocker: { c: 0x1c1d20, acc: 0xd8b04a },
-  gulf: { c: 0x8fc8e8, acc: 0xf08a24 }, manx: { c: 0x1c1d20, acc: 0xf2c230 }, alloy: { c: 0xb8bdc2, acc: 0x5d646c }, tartan: { c: 0x8a1f24, acc: 0x1f3b2a }, sunset: { c: 0xf4efe6, acc: 0xe8572a } };
+  gulf: { c: 0x8fc8e8, acc: 0xf08a24 }, manx: { c: 0x1c1d20, acc: 0xf2c230 }, alloy: { c: 0xb8bdc2, acc: 0x5d646c }, tartan: { c: 0x8a1f24, acc: 0x1f3b2a }, sunset: { c: 0xf4efe6, acc: 0xe8572a },
+  /* the Racer's: any racing -- Sir, 2026-11-16, "this could be any form of racing" */
+  rally: { c: 0xf1f2f4, acc: 0x1f5fbf }, gp: { c: 0xc8102e, acc: 0xf1f2f4 }, gt: { c: 0x1f4fa8, acc: 0xf1f2f4 }, drag: { c: 0x4b1f6e, acc: 0x3fd0ff },
+  superbike: { c: 0xd9e021, acc: 0x1c1d20 }, stockcar: { c: 0xf08a24, acc: 0x1c1d20 }, drift: { c: 0x1c1d20, acc: 0xff3fa4 }, saltflat: { c: 0xe9e2cf, acc: 0xc8323a } };
 function gscBrand(){
   const P = (() => { try { return gideonParts(); } catch(e){ return null; } })();
   /* (the garage's picks, his look's gScoot / gScootAcc -- GD_LIVE -- over the stock, which is his own: his shell, his chest band) */
@@ -111166,7 +111171,8 @@ class WorldScene extends Phaser.Scene {
   /* GIDEON'S SCOOTER SKINS (Sir, 2026-11-15, "lets do skins for each, starting with regular"): a skin is the graphic on a build's grip top,
      laid ON that face (z just over it, after the deck, before him), so it never paints over anything above it. The Regular's: Flames, Checker,
      Lightning, Camo, Galaxy. The Café Cruiser's are café-racer liveries (GSC_LIVERY: its colours too): Ton-Up, Racing Green, Oxblood,
-     Brooklands, Rocker, Gulf, Manx TT, Brushed Alloy, Tartan, Sunset. (a, b): along the deck from DB to DF, across it within +-6.6 */
+     Brooklands, Rocker, Gulf, Manx TT, Brushed Alloy, Tartan, Sunset. The Racer's, any racing: Rally, Grand Prix, GT Stripes, Drag Strip,
+     Superbike, Stock Car, Drift Neon, Salt Flats. (a, b): along the deck from DB to DF, across it within +-6.6 */
   scootPaintTop(g, P, id, DB, DF, RD){
     const h = RD + 0.06, L = DF - DB, at = (u, v) => P(DB + L*u, v, h), M = 6.6;
     const poly = (pts, col, al) => { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([u, v]) => at(u, v)), true); };
@@ -111218,6 +111224,24 @@ class WorldScene extends Phaser.Scene {
         for(const [v0, v1] of [[-5, -2.6], [1.2, 3.6]]) band(v0, v1, 0x1f3b2a, 0.6);
         for(let u = 0.08; u < 1; u += 0.28) cross(u, u + 2.4/L, 0x1f3b2a, 0.6);
         band(-0.9, -0.6, 0xf2c230); for(let u = 0.22; u < 1; u += 0.28) cross(u, u + 0.3/L, 0xf2c230); }
+      const roundel = (uc, r, ring, face, bar) => { poly(ringPts(uc, r), ring); poly(ringPts(uc, r*0.76), face); poly([[uc - 0.6/L, -r*0.5], [uc + 0.6/L, -r*0.5], [uc + 0.6/L, r*0.5], [uc - 0.6/L, r*0.5]], bar); };
+      const ringPts = (uc, r) => ring(uc, 0, r);
+      if(id === 'rally'){ all(0xf1f2f4);                                                    // Rally: white, a blue and a red stripe slashed across it
+        poly([[0.3, -M], [0.44, -M], [0.6, M], [0.46, M]], 0x1f5fbf); poly([[0.47, -M], [0.53, -M], [0.69, M], [0.63, M]], 0xc8323a); }
+      if(id === 'gp'){ all(0xc8102e);                                                       // Grand Prix: red, a white swoosh
+        const S = []; for(let i = 0; i <= 10; i++){ const u = 0.06 + 0.88*i/10; S.push([u, -4.5 + 6*Math.sin(i/10*Math.PI*0.9)]); } for(let i = 10; i >= 0; i--){ const u = 0.06 + 0.88*i/10; S.push([u, -4.5 + 6*Math.sin(i/10*Math.PI*0.9) + 0.6 + 1.6*Math.sin(i/10*Math.PI)]); }
+        poly(S, 0xf1f2f4); }
+      if(id === 'gt'){ all(0x1f4fa8); band(-2.6, -0.9, 0xf1f2f4); band(0.9, 2.6, 0xf1f2f4); }   // GT Stripes: blue, two white stripes nose to tail
+      if(id === 'drag'){ all(0x4b1f6e);                                                     // Drag Strip: purple, a chequered tail, cyan speed lines
+        for(let i = 0; i < 3; i++) for(let j = 0; j < 4; j++) if((i + j) % 2 === 0){ const a0 = i*0.06, a1 = (i + 1)*0.06, v0 = -M + 2*M*j/4, v1 = -M + 2*M*(j + 1)/4; poly([[a0, v0], [a1, v0], [a1, v1], [a0, v1]], 0xf1f2f4); }
+        for(const [v, u0] of [[-3.6, 0.3], [-1, 0.22], [1.6, 0.34], [4, 0.26]]) poly([[u0, v - 0.4], [0.97, v - 0.6], [0.97, v + 0.6], [u0, v + 0.4]], 0x3fd0ff); }
+      if(id === 'superbike'){ all(0xd9e021); band(-M, -M + 1.2, 0x1c1d20); band(M - 1.2, M, 0x1c1d20); roundel(0.3, 4, 0x1c1d20, 0xf1f2f4, 0x1c1d20); }   // Superbike: lime yellow, black edges, a race number
+      if(id === 'stockcar'){ all(0xf08a24); cross(0.62, 0.7, 0x1c1d20); cross(0.74, 0.78, 0x1c1d20); roundel(0.32, 4.6, 0xf1f2f4, 0xf1f2f4, 0x1c1d20); }   // Stock Car: orange, a big white number roundel, black bars
+      if(id === 'drift'){ all(0x1c1d20);                                                    // Drift Neon: black, a pink and a cyan neon zigzag
+        for(const [col, o] of [[0xff3fa4, -1.6], [0x3fd0ff, 1.6]]){ const Z = []; for(let i = 0; i <= 8; i++) Z.push([0.04 + 0.92*i/8, o + (i % 2 ? 1.6 : -1.6)]);
+          g.lineStyle(Math.max(1, 0.8*this.K*0.42*1.4), col, 1); g.strokePoints(Z.map(([u, v]) => at(u, v)), false); } }
+      if(id === 'saltflat'){ all(0xe9e2cf);                                                 // Salt Flats: cream, red speed streaks off the nose
+        for(const [v, u0, w] of [[-3.4, 0.2, 0.8], [-1.2, 0.08, 1.1], [1.2, 0.14, 1], [3.4, 0.28, 0.7]]) poly([[u0, v], [0.98, v - w], [0.98, v + w]], 0xc8323a); }
       if(id === 'sunset'){ all(0xf4efe6); band(-3.2, -1.6, 0xf2c230); band(-1.2, 0.4, 0xf08a24); band(0.8, 2.4, 0xc8323a); } }   // Sunset: cream, a 70s yellow-orange-red triple stripe
     else if(id === 'galaxy'){                                                                  // deep space: navy, a violet and a pink cloud, stars
       poly([[0, -M], [1, -M], [1, M], [0, M]], 0x1b1f4a);
@@ -145134,6 +145158,14 @@ requestTpProfile();
         alloy: fill('#c9ced3') + [8, 10, 12, 14, 16, 18].map(y => `<path d="M3 ${y}h34" stroke="#a7adb3" stroke-width=".4"/>`).join('') + [6, 11, 16, 21, 26, 31, 35].map(x => `<circle cx="${x}" cy="8.4" r=".6" fill="#6f757b"/><circle cx="${x}" cy="17.6" r=".6" fill="#6f757b"/>`).join(''),
         tartan: fill('#8a1f24') + `<rect x="0" y="8.5" width="40" height="2.5" fill="#1f3b2a" opacity=".6"/><rect x="0" y="14.5" width="40" height="2.5" fill="#1f3b2a" opacity=".6"/>` + [6, 16, 26].map(x => `<rect x="${x}" y="0" width="3" height="26" fill="#1f3b2a" opacity=".6"/><rect x="${x + 5}" y="0" width=".5" height="26" fill="#f2c230"/>`).join('') + `<rect x="0" y="12.4" width="40" height=".5" fill="#f2c230"/>`,
         sunset: fill('#f4efe6') + `<rect x="0" y="9.6" width="40" height="1.8" fill="#f2c230"/><rect x="0" y="12" width="40" height="1.8" fill="#f08a24"/><rect x="0" y="14.4" width="40" height="1.8" fill="#c8323a"/>`,
+        rally: fill('#f1f2f4') + `<path d="M13 7h5l4 12h-5z" fill="#1f5fbf"/><path d="M19 7h2l4 12h-2z" fill="#c8323a"/>`,
+        gp: fill('#c8102e') + `<path d="M4 15c8-8 18-9 32-4-12-2-22 0-32 6z" fill="#f1f2f4"/>`,
+        gt: fill('#1f4fa8') + `<rect x="0" y="10" width="40" height="2" fill="#f1f2f4"/><rect x="0" y="14" width="40" height="2" fill="#f1f2f4"/>`,
+        drag: fill('#4b1f6e') + [0,1].map(i => [0,1,2].map(j => (i + j) % 2 ? '' : `<rect x="${3 + i*2.5}" y="${7 + j*4}" width="2.5" height="4" fill="#f1f2f4"/>`).join('')).join('') + `<path d="M14 9.5h22M11 12.5h25M16 15.5h20" stroke="#3fd0ff" stroke-width="1"/>`,
+        superbike: fill('#d9e021') + `<rect x="0" y="7" width="40" height="1.4" fill="#1c1d20"/><rect x="0" y="17.6" width="40" height="1.4" fill="#1c1d20"/><circle cx="13" cy="13" r="4" fill="#1c1d20"/><circle cx="13" cy="13" r="3" fill="#f1f2f4"/><rect x="12.4" y="11.2" width="1.2" height="3.6" fill="#1c1d20"/>`,
+        stockcar: fill('#f08a24') + `<rect x="24" y="0" width="2.6" height="26" fill="#1c1d20"/><rect x="28" y="0" width="1.4" height="26" fill="#1c1d20"/><circle cx="13" cy="13" r="4.6" fill="#f1f2f4"/><rect x="12.3" y="10.8" width="1.4" height="4.4" fill="#1c1d20"/>`,
+        drift: fill('#1c1d20') + `<path d="M4 10l4 2 4-2 4 2 4-2 4 2 4-2 4 2 4-2" stroke="#ff3fa4" stroke-width=".9" fill="none"/><path d="M4 14l4 2 4-2 4 2 4-2 4 2 4-2 4 2 4-2" stroke="#3fd0ff" stroke-width=".9" fill="none"/>`,
+        saltflat: fill('#e9e2cf') + `<path d="M10 9.5L37 8.5v2zM6 12.5L37 11.6v2zM8 15.5L37 14.6v2z" fill="#c8323a"/>`,
         flames: `<path d="M37 7L14 9l8 2-12 2 9 1-11 3 13 0 16 1z" fill="#e8572a"/><path d="M37 9.5L22 10.5l5 1.5-8 1.5 7 .5-6 2 18 .5z" fill="#ffb02e"/>`,
         checker: [0,1,2,3,4,5,6,7,8].map(i => [0,1,2].map(j => (i + j) % 2 ? '' : `<rect x="${3 + i*3.8}" y="${7 + j*4}" width="3.8" height="4" fill="#f1f2f4"/>`).join('')).join(''),
         bolt: `<path d="M4 13.5l13-4 1 3.6 15-3-11 7.5-1-3.4L5 16z" fill="#ffd23a"/>`,
