@@ -42910,7 +42910,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'hotrod:checker', build: 'hotrod', name: 'Checkered', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker' }];
+  { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -124628,6 +124628,16 @@ class WorldScene extends Phaser.Scene {
     };   // (no outline round the pieces -- Sir, 2026-11-16)
     const WS = BODY._windshield, front = () => piece(clip(ring, x => x >= xc), Hw, WS[0], WS[1], WS[2]), back = () => piece(clip(ring, x => x <= xc), H, BP.top, BP.lt, BP.dk);
     const fw = HN(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ back(); front(); } else { front(); back(); }
+    /* THE TAXI SKIN'S ROOF LIGHT: a little lit sign standing on the canopy (it slides back with it) -- cream faces, a yellow top, a dark
+       band across its front and back */
+    if(BODY._bskin && BODY._bskin.taxiLight){ const sx = -3, shx = 3.2, shy = 5.2, za = z1 - 0.2, zb = z1 + 3.6;
+      const V = (x, y, z) => H(x*kx + sx*(1 - kx), y*ky, z);
+      const side = (a, b, nx, ny, col) => { const w = HN(nx, ny, 0); if(w.x + w.y + w.z <= 0) return; this.quadOn(g, [H(a[0], a[1], za), H(b[0], b[1], za), H(b[0], b[1], zb), H(a[0], a[1], zb)], col);
+        if(nx !== 0) this.quadOn(g, [H(a[0], a[1]*0.96, za + 1.3), H(b[0], b[1]*0.96, za + 1.3), H(b[0], b[1]*0.96, za + 2.3), H(a[0], a[1]*0.96, za + 2.3)], 0x2a2d33); };
+      const x0 = sx - shx, x1 = sx + shx;
+      side([x1, -shy], [x1, shy], 1, 0, 0xfff1b8); side([x0, shy], [x0, -shy], -1, 0, 0xffe58a); side([x1, shy], [x0, shy], 0, 1, 0xf2d26a); side([x0, -shy], [x1, -shy], 0, -1, 0xf2d26a);
+      if((w => w.x + w.y + w.z > 0)(HN(0, 0, 1))) this.quadOn(g, [H(x1, -shy, zb), H(x1, shy, zb), H(x0, shy, zb), H(x0, -shy, zb)], 0xffd23a);
+      if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = H(sx, 0, zb); gl.fillStyle(0xffe58a, 0.3); gl.fillCircle(q.x, q.y, 9*this.kScale()); } } }
     { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (the windscreen's glint)
       this.quadOn(g, [Hw(hx + 0.05, y0, z0 + 1.6), Hw(hx + 0.05, y0 + 1.6, z0 + 1.6), Hw(hx + 0.05, y1 + 1.6, zs - 0.5), Hw(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } }
   }
@@ -130495,7 +130505,7 @@ const HULL_PRINTS = {
       const BK = [0x16171b, 0x2a2d33], WH = [0xd9dde2, 0xf6f7f9], q = 2.4;
       for(const k of [2, 6]){ const [a, b] = L.face(k); let r = 0;
         for(let h = L.H*0.08; h < L.H*0.08 + q*2.5; h += q, r++) for(let x = a, c2 = r; x < b - 0.1; x += q, c2++) L.side.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, h, Math.min(b, x + q), h + q) }); }
-      let r = 0; for(let x = L.x1 - 1 - q*3; x < L.x1 - 1; x += q, r++) for(let y = -9.6, c2 = r; y < 9.5; y += q, c2++) L.top.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, y, x + q, y + q) }); } },
+      /* (no checks on the hood: a taxi -- Sir, 2026-11-16) */ } },
   camo: { id: 'camo', seed: 0x5ca3e1, layers: [
     { c: [0x4a3a24, 0x6e5636], r: 6.5, cover: 0.32 },               // earth brown
     { c: [0x2c3a1c, 0x41552a], r: 7,   cover: 0.34 },               // deep leaf green
