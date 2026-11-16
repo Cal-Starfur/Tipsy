@@ -125267,19 +125267,20 @@ class WorldScene extends Phaser.Scene {
          flared lip, its dark throat with an ember glowing in it -- behind him when his front is to the eye, over him when his back is */
       /* (a cone, in his paint -- Sir, 2026-11-16): wide where it leaves his tail, narrowing to a small steel lip at the flame end, banded
          in his stripe, its throat dark with the ember in it */
-      const nozzle = () => { const x0 = -BODY.hx + 2, x1 = -BODY.hx - 9, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
-        const r0 = 6.2, r1 = 2.9, rAt = x => r0 + (r1 - r0)*(x0 - x)/(x0 - x1);
-        const ring = (x, r) => { const o = []; for(let k = 0; k < 16; k++){ const q = k/16*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } return o; };
-        const cone = (xa, xb, c) => this.quadOn(g, convexHull(ring(xa, rAt(xa)).concat(ring(xb, rAt(xb)))), c);
-        const lit = this.R(0, 0, 1), side = hullSteps(BP.dk, BP.lt);
-        /* in slices, the farthest first (from his tail out when we look at its end, from its end in when we look past it from his front),
-           each white slice lit along its top; two slim bands in his stripe */
-        const SEG = [[x0, x0 - 3.5, 0], [x0 - 3.5, x0 - 4.1, 1], [x0 - 4.1, x0 - 7, 0], [x0 - 7, x0 - 7.6, 1], [x0 - 7.6, x1, 0]];
-        for(const [xa, xb, band] of (vis(-1, 0, 0) ? SEG : [...SEG].reverse())){ cone(xa, xb, band ? SKIN.stripe : BP.lt);
-          if(!band){ const A = P(xa, -nearSide*rAt(xa)*0.25, zc + rAt(xa)*0.92), B = P(xb, -nearSide*rAt(xb)*0.25, zc + rAt(xb)*0.92); g.lineStyle(Math.max(1, 1.6*K), _pmix(BP.top, 0xffffff, 0.5), 1); g.lineBetween(A.x, A.y, B.x, B.y); } }
-        { const o = []; for(let k = 0; k < 16; k++){ const q = k/16*Math.PI*2; o.push(P(x1 + 0.4, Math.cos(q)*(r1 + 0.6), zc + Math.sin(q)*(r1 + 0.6))); } this.quadOn(g, convexHull(o.concat(ring(x1 - 0.6, r1 + 0.6))), 0x9aa0a6); }   // (its steel lip -- the nearest slice when we see its end; past it, from his front, the cone's own body hides little of it)
-        if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.65, r1 + 0.6), 0xb9bec4); this.quadOn(g, ring(x1 - 0.7, r1 - 0.2), 0x16171b);
-          this.quadOn(g, ring(x1 - 0.75, r1*0.65), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.8, r1*0.3), 0xffd08a, pulse); } };
+      /* (one solid piece, and shorter -- Sir, 2026-11-16): a single cone in his paint, wide at his tail, narrowing to a small steel lip;
+         one stripe ring painted round it (its seen half only), lit along its top, its throat dark with the ember */
+      const nozzle = () => { const x0 = -BODY.hx + 1.5, x1 = -BODY.hx - 5, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
+        const r0 = 6, r1 = 3.2, rAt = x => r0 + (r1 - r0)*(x0 - x)/(x0 - x1);
+        const ring = (x, r) => { const o = []; for(let k = 0; k < 18; k++){ const q = k/18*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } return o; };
+        this.quadOn(g, convexHull(ring(x0, r0).concat(ring(x1, r1))), BP.lt);                                     // (the cone)
+        const arc = (x, r, col, w) => { g.lineStyle(Math.max(1, w*K), col, 1); let prev = null;
+          for(let k = 0; k <= 24; k++){ const q = k/24*Math.PI*2, n = this.R(0, Math.cos(q), Math.sin(q)), p2 = P(x, Math.cos(q)*r, zc + Math.sin(q)*r);
+            if(n.x + n.y + n.z > 0){ if(prev) g.lineBetween(prev.x, prev.y, p2.x, p2.y); prev = p2; } else prev = null; } };
+        { const A = P(x0, -nearSide*r0*0.3, zc + r0*0.9), B = P(x1, -nearSide*r1*0.3, zc + r1*0.9); g.lineStyle(Math.max(1, 1.6*K), _pmix(BP.top, 0xffffff, 0.5), 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (lit along its top)
+        arc((x0 + x1)/2, rAt((x0 + x1)/2) + 0.05, SKIN.stripe, 2.2);                                              // (its stripe ring)
+        this.quadOn(g, convexHull(ring(x1 + 0.3, r1 + 0.5).concat(ring(x1 - 0.7, r1 + 0.5))), 0x9aa0a6);        // (its steel lip)
+        if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.75, r1 + 0.5), 0xb9bec4); this.quadOn(g, ring(x1 - 0.8, r1 - 0.3), 0x16171b);
+          this.quadOn(g, ring(x1 - 0.85, r1*0.62), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.9, r1*0.3), 0xffd08a, pulse); } };
       if(part === 'pre'){ hdr(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'after' && frontSeen) turnOut(nearSide);
       if(part === 'mid'){ hdr(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
