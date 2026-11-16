@@ -8098,6 +8098,28 @@ function sfxCarHorn(vol, n, pitch){
     }
   }catch(e){}
 }
+/* THE HORN (Sir, 2026-11-16: a topper is a horn -- Tipsey's on his antenna, the scooter's on its handlebar; one horn for both): a sound
+   for each topper -- a quack, a squeak, a chime, a pirate's arr, an alien warble, a cartoon boing, a siren's whoop, else a two-tone honk */
+const HORN_VOICE = { duck: 'quack', ball: 'squeak', hand: 'squeak', smiley: 'squeak', heart: 'squeak', star: 'chime', crown: 'chime', partyhat: 'chime', bulb: 'chime',
+  pirate: 'arr', skull: 'arr', alien: 'warble', eyeball: 'warble', propeller: 'warble', pizza: 'boing', donut: 'boing', pineapple: 'boing', palm: 'boing', siren: 'whoop' };
+function sfxHorn(top, vol){
+  const c = SFX.ctx; if(!c || c.state !== "running") return;
+  try{
+    const voice = HORN_VOICE[top] || 'honk', t0 = c.currentTime, v = Math.max(0.01, Math.min(1, vol == null ? 1 : vol))*0.07;
+    const tone = (type, f0, f1, at, len, lv) => { const o = c.createOscillator(), g = c.createGain(); o.type = type;
+      o.frequency.setValueAtTime(f0, t0 + at); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + at + len);
+      g.gain.setValueAtTime(0.0001, t0 + at); g.gain.exponentialRampToValueAtTime(v*(lv || 1), t0 + at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+      o.connect(g).connect(c.destination); o.start(t0 + at); o.stop(t0 + at + len + 0.02); return o; };
+    if(voice === 'quack'){ tone('sawtooth', 620, 380, 0, 0.16, 0.8); tone('square', 610, 360, 0.18, 0.18, 0.7); }
+    else if(voice === 'squeak'){ tone('sine', 1500, 2600, 0, 0.12); tone('sine', 2600, 1700, 0.13, 0.12); }
+    else if(voice === 'chime'){ [1047, 1319, 1568].forEach((f, i) => tone('sine', f, f, i*0.09, 0.4, 0.8)); }
+    else if(voice === 'arr'){ const o = tone('sawtooth', 150, 95, 0, 0.55, 1.1), lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 24; lg.gain.value = 18; lfo.connect(lg).connect(o.frequency); lfo.start(t0); lfo.stop(t0 + 0.56); }
+    else if(voice === 'warble'){ const o = tone('sine', 700, 1300, 0, 0.5), lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 11; lg.gain.value = 160; lfo.connect(lg).connect(o.frequency); lfo.start(t0); lfo.stop(t0 + 0.52); }
+    else if(voice === 'boing'){ tone('sine', 180, 520, 0, 0.12); tone('sine', 520, 160, 0.12, 0.3); }
+    else if(voice === 'whoop'){ tone('square', 500, 1100, 0, 0.3, 0.6); tone('square', 1100, 500, 0.3, 0.3, 0.6); }
+    else { tone('square', 415, 400, 0, 0.18, 0.7); tone('square', 523, 510, 0, 0.18, 0.5); tone('square', 415, 400, 0.24, 0.26, 0.7); tone('square', 523, 510, 0.24, 0.26, 0.5); }
+  }catch(e){}
+}
 /* A SCOOTER'S BELL: two quick rings */
 function sfxBell(vol){
   const c = SFX.ctx;
@@ -87809,7 +87831,13 @@ function gscUp(sc){ const b = sc && sc.ow && sc.ow.scoot && sc.ow.scoot.brand; r
 /* Tipsey's own Bell (his garage's Upgrades): him, not on a scooter, the robot */
 function tpBellOn(sc){ return !!(sc && sc.ow && !sc.ow.scoot && typeof fleetCur === 'function' && !fleetCur() && typeof SKIN !== 'undefined' && SKIN.upBell); }
 /* is he coming through fast enough to knock people down? (not with the Bell: they've heard him and step aside) */
-function knockFast(sc){ const u = gscUp(sc); return !!(sc && sc.speed > STREET_RIDER.knockV) && !(u && u.bell) && !tpBellOn(sc); }
+/* the topper that is his horn now: the scooter's (its handlebar, GSC_TIP) while he rides one, else Tipsey's own (his antenna), or null */
+function hornTop(sc){ const ow = sc && sc.ow; if(!ow || !ow.on) return null;
+  if(ow.scoot){ const b = ow.scoot.brand; return b && b.tip && b.tip.top || null; }
+  if(typeof fleetCur === 'function' && fleetCur()) return null;
+  return typeof SKIN !== 'undefined' ? (SKIN.topper && SKIN.topper !== 'pennant' ? SKIN.topper : (SKIN.jolly ? 'pirate' : null)) : null; }
+const HORN = { t: -1e9, holdMs: 3000 };   // (sounded at HORN.t: people step aside for holdMs)
+function knockFast(sc){ const u = gscUp(sc); return !!(sc && sc.speed > STREET_RIDER.knockV) && !(u && u.bell) && !tpBellOn(sc) && !(performance.now() - HORN.t < HORN.holdMs); }
 /* the ones he has set down stay where they are, through a reload */
 function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOOTR.down.slice(-12))); } catch(e){} }
 /* he is off it where he last was out of doors (a door he went in by, a loan that ended, a respawn): it stands there */
@@ -87865,8 +87893,17 @@ function scootUiTick(){
   if(scootCan(s)) verb = ow.scoot ? "Hop off" : (scootNearest(s) ? "Hop on" : null);
   btn.classList.toggle("hidden", !verb);
   if(verb && btn.textContent !== verb) btn.textContent = verb;
+  { const hb = document.getElementById("hornBtn"); if(hb){ const show = !!(s && s.state === "play" && !s._garage && !s.attract && hornTop(s)); hb.classList.toggle("hidden", !show); } }   // (the horn: a topper fitted)
 }
 setInterval(scootUiTick, 200);
+(function hornBind(){
+  const hb = document.getElementById("hornBtn");
+  if(!hb){ setTimeout(hornBind, 300); return; }
+  hb.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); const s = scn(), top = hornTop(s); if(!top) return;
+    sfxHorn(top, 1); HORN.t = performance.now(); });
+  for(const ev of ["touchstart", "mousedown"]) hb.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+  hb.addEventListener("contextmenu", e => e.preventDefault());
+})();
 (function scootBind(){
   const btn = document.getElementById("scootBtn");
   if(!btn){ setTimeout(scootBind, 300); return; }
