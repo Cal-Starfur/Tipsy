@@ -122728,11 +122728,11 @@ class WorldScene extends Phaser.Scene {
     }
     /* cavity + hinged lid */
     if(this.lidAng > 0.12){
-      const wn = this.R(0, 0, 1);
+      const wn = this.R(0, 0, 1), lox = LID.ox || 0, PL = (x, y, z) => this.P(x + lox, y, z);   // (under a lid set forward: the Night Cruiser's)
       if(wn.x + wn.y + wn.z > 0){
         const zc = LID.z0 + bobZ + 0.5;
         const ring = (hx, hy) => [
-          this.P(hx,-hy,zc), this.P(hx,hy,zc), this.P(-hx,hy,zc), this.P(-hx,-hy,zc)
+          PL(hx,-hy,zc), PL(hx,hy,zc), PL(-hx,hy,zc), PL(-hx,-hy,zc)
         ];
         this.quadOn(g, ring(LID.hx-2, LID.hy-2), SKIN.cavityWall);                  // (the lip round the opening)
         /* A REAL HOLLOW (Sir, 2026-11-06: "give it actual empty volume"): the opening is a hole in the top, its four inner walls going down
@@ -122742,10 +122742,10 @@ class WorldScene extends Phaser.Scene {
         const dk = (c, k = 0.78) => (Math.round((c >> 16 & 255)*k) << 16) | (Math.round((c >> 8 & 255)*k) << 8) | Math.round((c & 255)*k);
         this.drawClip = ring(ohx, ohy);
         try {
-          this.quadOn(g, [this.P(ohx,-ohy,zf), this.P(ohx,ohy,zf), this.P(-ohx,ohy,zf), this.P(-ohx,-ohy,zf)], dk(SKIN.cavityFloor, 0.7));
+          this.quadOn(g, [PL(ohx,-ohy,zf), PL(ohx,ohy,zf), PL(-ohx,ohy,zf), PL(-ohx,-ohy,zf)], dk(SKIN.cavityFloor, 0.7));
           const wall = (nx, ny, a, b, c2, d2, col) => {           // (a wall's normal into the hollow, and its two top corners)
             const w = this.R(nx, ny, 0); if(w.x + w.y + w.z <= 0) return;
-            this.quadOn(g, [this.P(a[0], a[1], zc), this.P(b[0], b[1], zc), this.P(b[0], b[1], zf), this.P(a[0], a[1], zf)], col);
+            this.quadOn(g, [PL(a[0], a[1], zc), PL(b[0], b[1], zc), PL(b[0], b[1], zf), PL(a[0], a[1], zf)], col);
           };
           wall(-1, 0, [ohx,-ohy], [ohx, ohy], 0, 0, dk(SKIN.cavityWall, 0.72));
           wall( 1, 0, [-ohx,-ohy], [-ohx, ohy], 0, 0, dk(SKIN.cavityWall, 0.72));
@@ -126322,7 +126322,10 @@ class WorldScene extends Phaser.Scene {
   /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
   drawLid(b){
     const {hx, hy, z0, z1} = b;
-    const A = this.lidAng, cA = Math.cos(A);
+    /* A SLIDING CANOPY (Sir, 2026-11-16: the Night Cruiser's): it doesn't swing on its hinge -- it slides straight back along his top, lifted
+       a hair; its windscreen stays where it is */
+    const slide = BODY._windshield ? Math.min(1, this.lidAng/1.6) : 0, sdx = -slide*16, sdz = slide*0.8;
+    const A = BODY._windshield ? 0 : this.lidAng, cA = Math.cos(A);
     /* hinge side: fixed edge (doesn't mirror with tip direction) for
        the tip/spill crash animation — this.lidHingeFlip defaults to
        false everywhere except during pickup loading, so that behavior
@@ -126337,7 +126340,7 @@ class WorldScene extends Phaser.Scene {
     const yh = (this.lidHingeFlip ? hy : -hy), zh = z0;
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
-      return this.P(x + (LID.ox || 0), yh + dy*cA - dz*sA, zh + dy*sA + dz*cA);   // (LID.ox: a build's lid set forward along him -- the Night Cruiser's bubble)
+      return this.P(x + (LID.ox || 0) + sdx, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA + sdz);   // (LID.ox: a build's lid set forward along him -- the Night Cruiser's bubble)
     };
     const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
       const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
@@ -126350,14 +126353,15 @@ class WorldScene extends Phaser.Scene {
                         cTop: SL ? SL[0] : BP.top, cLt: SL ? SL[1] : BP.lt, cDk: SL ? SL[2] : BP.dk, cBottom:SKIN.lidInner, fin: SL ? null : BP.fin, print: SL ? null : BP.print, printPart: 'lid'});
     /* the Moon Rover's lid is its solar panel, all of it (Sir, 2026-11-16: "fit it exactly to his lid ... all of its geometry"): the whole
        prism in the panel's blues, a silver grid of cells over its top to its very edges and down its sides, through the hinge */
-    if(BODY._windshield){   /* A WINDSCREEN: the lid's front face, its two front corner faces and the bevels over them in glass, the rest in his paint */
+    if(BODY._windshield){ const Hw = (x, y, z) => this.P(x + (LID.ox || 0), y, z);   /* (the windscreen stays put as the canopy slides) */
+      /* A WINDSCREEN: the lid's front face, its two front corner faces and the bevels over them in glass, the rest in his paint */
       const WS = BODY._windshield, c = Math.min(LID.ch, hx - 1, hy - 1), zs = z1 - LID.bev, kx = (hx - LID.bevIn)/hx, ky = (hy - LID.bevIn)/hy, zb = z0 + 0.6;
       const faces = [[[hx - c, -hy], [hx, -(hy - c)], [1, -1]], [[hx, -(hy - c)], [hx, hy - c], [1, 0]], [[hx, hy - c], [hx - c, hy], [1, 1]]];
       for(const [a, b, nn] of faces){ const nl = Math.hypot(nn[0], nn[1]), w = HN(nn[0]/nl, nn[1]/nl, 0);
-        if(w.x + w.y + w.z > 0) this.quadOn(this.g, [H(a[0], a[1], zb), H(b[0], b[1], zb), H(b[0], b[1], zs), H(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
-        const wb = HN(nn[0]/nl*0.7, nn[1]/nl*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(this.g, [H(a[0], a[1], zs), H(b[0], b[1], zs), H(b[0]*kx, b[1]*ky, z1), H(a[0]*kx, a[1]*ky, z1)], WS[0]); }
+        if(w.x + w.y + w.z > 0) this.quadOn(this.g, [Hw(a[0], a[1], zb), Hw(b[0], b[1], zb), Hw(b[0], b[1], zs), Hw(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
+        const wb = HN(nn[0]/nl*0.7, nn[1]/nl*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(this.g, [Hw(a[0], a[1], zs), Hw(b[0], b[1], zs), Hw(b[0]*kx, b[1]*ky, z1), Hw(a[0]*kx, a[1]*ky, z1)], WS[0]); }
       { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (its glint)
-        this.quadOn(this.g, [H(hx + 0.05, y0, zb + 1), H(hx + 0.05, y0 + 1.6, zb + 1), H(hx + 0.05, y1 + 1.6, zs - 0.5), H(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } } }
+        this.quadOn(this.g, [Hw(hx + 0.05, y0, zb + 1), Hw(hx + 0.05, y0 + 1.6, zb + 1), Hw(hx + 0.05, y1 + 1.6, zs - 0.5), Hw(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } } }
     if(BODY._lidCol && !BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){   /* a glass lid's glint: a pale streak across its top */
       const zt = z1 + 0.1, a = hx - LID.bevIn, b = hy - LID.bevIn;
       this.quadOn(this.g, [H(a*0.1, -b*0.75, zt), H(a*0.45, -b*0.75, zt), H(a*0.05, b*0.6, zt), H(-a*0.3, b*0.6, zt)], 0xffffff, 0.4); } }
