@@ -125198,9 +125198,19 @@ class WorldScene extends Phaser.Scene {
           if(vis(0, 0, 1)) this.quadOn(g, rim, 0x16171b); } };
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
-        const lx = LID.hx - 2.5, z0 = LID.z1, z1 = LID.z1 + 3.2;   // (the light bar along the cab roof's front edge, its four lamps looking ahead)
-        box(1.6, LID.hy - 2, lx, 0, z0, z1, DARK);
-        if(vis(1, 0, 0)) for(const y of [-9, -3, 3, 9]) this.quadOn(g, [P(lx + 1.65, y - 2.2, z0 + 0.6), P(lx + 1.65, y + 2.2, z0 + 0.6), P(lx + 1.65, y + 2.2, z1 - 0.6), P(lx + 1.65, y - 2.2, z1 - 0.6)], 0xfff2c4); } }
+        /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
+           round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
+        const lx = LID.hx - 3, zr = LID.z1, zb = zr + 2, zt = zb + 4.6, zc = (zb + zt)/2, fx = lx + 2.25;
+        for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
+        box(2.2, LID.hy - 1, lx, 0, zb, zt, [0x4a5057, 0x3b4048, 0x23262c], 1.4);                                 // (its housing)
+        if(vis(1, 0, 0)){ const disc = (y, r, col, dz = 0, dy = 0) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(fx, y + dy + Math.cos(a)*r, zc + dz + Math.sin(a)*r)); } this.quadOn(g, o, col); };
+          const night = this.isNightLit && this.isNightLit();
+          for(const y of [-9.6, -3.2, 3.2, 9.6]){
+            disc(y, 2.15, 0xc9ced4); disc(y, 1.75, 0x8d959c);                                                   // (the bezel, its inner lip)
+            disc(y, 1.5, night ? 0xfffbe6 : 0xffe9a8);                                                           // (the lens)
+            disc(y, 0.55, 0xffffff, 0.6, -0.5); }                                                                // (its glint)
+          if(night){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ for(const y of [-9.6, -3.2, 3.2, 9.6]){ const q = P(fx + 2, y, zc); gl.fillStyle(0xfff2c4, 0.22); gl.fillCircle(q.x, q.y, 6*K); } } } }
+      } }
     if(id === 'hotrod'){
       const hdr = sb => { const y0 = sb*(BODY.hy - 0.5), y1 = sb*(BODY.hy + 4.5);   // (four pipes out his flank, into a collector running back)
         for(const x of [6, 11, 16, 21]) pipe([x, y0, 20], [x - 1, y1, 15], 2.4);
