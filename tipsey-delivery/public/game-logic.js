@@ -111512,8 +111512,10 @@ class WorldScene extends Phaser.Scene {
     else
       fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, sty === 'junk' ? acc0 : brand.acc != null ? brand.c : brand.cDk);   // (an arc centred on the back wheel -- it was a flat pad hovering off-centre, Sir 2026-11-15)   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     if(sty === 'offroad' && brand.paint){ const lv = GSC_LIVERY[brand.paint] || {};             // a skin's side number plates over the back wheel
-      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismB([[-31, RD - 2], [-16, RD - 2], [-17, RD + 6], [-29, RD + 7]], sb*6.6, sb*7.4), lv.plate);
-        this.numberPlate(g, (x, y) => P(-23.4 + sb*x*0.95, sb*7.45, RD + 2.4 + y), 5.4, 3.4, lv.plate, lv.num, lv.digit); } }
+      /* (mounted up under the raised back fender, just outside its sides -- Sir, 2026-11-16) */
+      const fc = WHL[0][1] + 6.8, hp = fc + 7.5;
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismB([[-31, hp - 4], [-16, hp - 4], [-17.5, hp + 3.4], [-29.5, hp + 4]], sb*3.5, sb*4.2), lv.plate);
+        this.numberPlate(g, (x, y) => P(-23.4 + sb*x*0.95, sb*4.25, hp + y), 5.4, 3.4, lv.plate, lv.num, lv.digit); } }
     if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
