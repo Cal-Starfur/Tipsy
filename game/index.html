@@ -78268,6 +78268,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const [a0, a1] of P0.FRONT) this.bed(a0, a1, a0, a1, true);
     this.taco(P0.TACO.y0, P0.TACO.y1, true);
     for(const [x, y] of P0.TABLES) this.table(x, y);
+    this.bin(P0.BIN.x, P0.BIN.y);
     for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HF);
     this.store(0); this.pylon(true); this.neon(0, 0, true); this.bell(0); this.roof();
   },
@@ -78483,6 +78484,16 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       blockWordIn('TACOS', m0 + 12, m1 - 12, 174, 200, my + 3.2, yel, null);
       blockWordIn(open ? 'FISH  SHRIMP' : 'CLOSED', m0 + 12, m1 - 12, 152, 168, my + 3.2, '#ffffff', null);
     }
+  },
+  /* the litter bin by the tables: a green steel can on a short foot, its domed lid with the slot, a sign band */
+  bin(x, y){
+    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, 100)) return;
+    cyl(x, y, 0, 6, 16, '#3a3f44', '#2c3135');
+    cyl(x, y, 6, 74, 18, '#2f6b52', '#2a5f49');
+    cyl(x, y, 34, 46, 18.4, '#e8b54a', '#d4a03a');
+    cyl(x, y, 74, 80, 19.5, '#24553f', '#2c6a4f');
+    cyl(x, y, 80, 88, 14, '#24553f', '#2f6b52');
+    F(x - 9, x + 9, 64, 70, '#15191c', null, 0, y + 18.3);                                   // the slot in its lid
   },
   /* a picnic table, long along y: its top, its two benches and the A-frame legs */
   table(x, y){
@@ -86173,6 +86184,7 @@ const FM_PLAN = {
   /* the ice truck's place (Sir, 2026-11-16: "this patch at the end of the fish market is where the fish market's truck
      should be parked and we need a drive way into this lot"): the apron strip west of the lot (the boats moved off it), nose to the street, and its
      drive off the front street (a dropped kerb across the footway: hoodDrivewaysOf) */
+  BIN: { x: 1940, y: -1720 },                                                        // a litter bin by the picnic tables, at the counter's north end
   TRUCK: { x: -1960, y: -1500, yaw: Math.PI/2 },                                    // (on the harbour's apron strip west of the lot, clear of the hall's roof on screen)
   DRIVE: { x0: -2392, x1: -1720, y: -736, out: 1, col: '#b9b6ad', lane: false, wings: false },  // the strip's whole width (apron x0..lot X0), its in and out arrows
   STRIP: { x0: -2392, x1: -1720, y0: -2900, col: 0xb9b6ad }                         // the strip itself, in the drive's concrete, back to the hall's rear line
@@ -86221,6 +86233,7 @@ function fmSolids(){
   for(const [a0, a1] of P.BACK) R(a0, a1, P.BB0, P.BB1, 110);
   { const T = P.TACO; R(T.x1 - 46, T.x1, T.y0, T.y1, 105); R(T.x0, T.x0 + 70, T.y0, T.y1, 100); R(T.x0, T.x1, T.y0 - 10, T.y0, 100); }
   for(const [x, y] of P.TABLES) R(x - 75, x + 75, y - 85, y + 85, 75);
+  out.push({ c: [P.BIN.x, P.BIN.y], r: 20, h: 90 });
   { const S = P.STORE; R(S.x0, S.x1, S.y0, S.y1, S.H); }
   out.push({ c: [P.BELL.x, P.BELL.y], r: 8, h: 240 });
   return (fmSolids.c = out);
@@ -86436,8 +86449,32 @@ function fmNellAt(now){
   return fmNellPost(now);
 }
 /* the cook at the griddle (turning to the hatch now and then), Teo at the shellfish */
+/* ...and now and then he takes a plate of tacos out to a table (Sir, 2026-11-16: "does he serve the diners at the picnic
+   tables?" "yes"): out round the counter's open south end, to the table's end clear of the diners' benches, sets it
+   down, back to the griddle. A table with diners at it in turn (FM_PLAN.TABLES 0, 2, 4) */
+const FM_SERVE = { every: 30000, setMs: 1800 };
+function fmServeTrip(k){
+  const c = fmServeTrip.c || (fmServeTrip.c = []);
+  if(c[k]) return c[k];
+  const T = FM_PLAN.TACO, [tx, ty] = FM_PLAN.TABLES[[0, 2, 4][k]], ym = (T.y0 + T.y1)/2;
+  const pts = [{ x: T.x0 + 92, y: ym }, { x: T.x0 + 140, y: T.y1 - 40 }, { x: T.x0 + 140, y: T.y1 + 60 }, { x: T.x1 + 100, y: T.y1 + 60 }, { x: tx, y: ty + 85 + 46 }];
+  return (c[k] = { out: { pts, t0: 0, faceTh: -Math.PI/2, th0: Math.PI }, back: { pts: pts.slice().reverse(), t0: 0, faceTh: Math.PI, th0: -Math.PI/2 } });
+}
+function fmCookServe(now){
+  const S = FM_SERVE, n = Math.floor(now/S.every), k = ((n % 3) + 3) % 3, C = fmServeTrip(k);
+  const m1 = walkPathMs(C.out), m2 = walkPathMs(C.back);
+  let t = now - n*S.every - (S.every - m1 - S.setMs - m2 - 1000);   // the trip at the end of each spell, the griddle before it
+  if(t < 0) return null;
+  if(t < m1) return Object.assign(walkPathAt(C.out, t), { has: 'tacos' });
+  t -= m1;
+  if(t < S.setMs){ const q = walkPathAt(C.out, m1 + Math.min(t, MEET.turnMs)); return Object.assign(q, { has: t < S.setMs*0.6 ? 'tacos' : null, work: true, moving: false }); }
+  t -= S.setMs;
+  if(t < m2) return Object.assign(walkPathAt(C.back, t), { has: null });
+  return null;
+}
 function fmCookAt(now){
   const T = FM_PLAN.TACO, u = Math.sin(now/5200);
+  { const sv = fmCookServe(now); if(sv) return sv; }
   return u > 0.35 ? { x: T.x1 - 70, y: (T.y0 + T.y1)/2 + 40*Math.sin(now/3100), th: 0, moving: false, work: true, anim: 'polish' }
                   : { x: T.x0 + 92, y: (T.y0 + T.y1)/2 + 60*Math.sin(now/4100), th: Math.PI, moving: false, work: true, anim: 'stir' };
 }
@@ -101414,6 +101451,7 @@ class WorldScene extends Phaser.Scene {
         item("tacoB|" + i + "|" + (open ? 1 : 0), xb, ymid, xb + ymid, () => ent.taco(y0, y1, open, 'back'));
         item("tacoF|" + i + "|" + (open ? 1 : 0), xf, ymid, xf + ymid, () => ent.taco(y0, y1, open, 'front')); } }
     for(const [x, y] of P.TABLES) if(vis(x, y, 120, 80)) item("table|" + x + "|" + y, x, y, x + y, () => ent.table(x, y));
+    { const B = P.BIN; if(vis(B.x, B.y, 40, 100)) item("bin", B.x, B.y, B.x + B.y, () => ent.bin(B.x, B.y)); }
     { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
       if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
         if(u === 0 || u === 1) item("store|" + u, xm, ym, xm + ym, fn); else live(xm, ym, xm + ym, fn); } }
@@ -101533,6 +101571,13 @@ class WorldScene extends Phaser.Scene {
       quad([W(w, -d, dz), W(w, d, dz), W(w, d, dz + h), W(w, -d, dz + h)], 0xd1d6d8);
       quad([W(-w*0.7, -d*0.6, dz + h + 0.5), W(w*0.7, -d*0.6, dz + h + 0.5), W(w*0.7, d*0.6, dz + h + 0.5), W(-w*0.7, d*0.6, dz + h + 0.5)], 0xcfe3ec);
     };
+    if(kind === 'tacos'){                                                           // a plate of three tacos
+      const rim = []; for(let k = 0; k < 14; k++){ const a = k/14*Math.PI*2; rim.push(W(Math.cos(a)*15, Math.sin(a)*15, 0)); }
+      quad(rim, 0xf6f6f2);
+      for(const d of [-7, 0, 7]){ quad([W(d - 3, -10, 1), W(d + 3, -10, 1), W(d + 3, 10, 6), W(d - 3, 10, 6)], 0xe3b26a);
+        quad([W(d - 2, -8, 3), W(d + 2, -8, 3), W(d + 2, 8, 7), W(d - 2, 8, 7)], 0x6aa84f); }
+      return;
+    }
     if(kind === 'crate') crate(-6, 16, 11, 12);
     else if(kind === 'crates'){ for(let k = 0; k < 3; k++) crate(-10 + k*11, 15, 10, 10); }
     else if(kind === 'plate'){
