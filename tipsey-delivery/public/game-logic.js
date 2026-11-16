@@ -125734,7 +125734,8 @@ class WorldScene extends Phaser.Scene {
     const box = (hx, hy, ox, oy, z0, z1, c, ch = 0.8) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const pipe = (a, b, w = 2.6, c = 0x9aa0a6) => { const A = P(...a), B = P(...b);   // (chrome: a mid tone with a bright line down it)
       g.lineStyle(Math.max(1, w*K), _pmix(c, 0x000000, 0.25), 1); g.lineBetween(A.x, A.y, B.x, B.y);
-      g.lineStyle(Math.max(1, w*0.4*K), 0xeef1f4, 1); g.lineBetween(A.x - 0.3*K, A.y - 0.3*K, B.x - 0.3*K, B.y - 0.3*K);
+      g.lineStyle(Math.max(1, w*0.55*K), c, 1); g.lineBetween(A.x - 0.15*w*K, A.y - 0.15*w*K, B.x - 0.15*w*K, B.y - 0.15*w*K);   // (its body in its own colour, lit)
+      g.lineStyle(Math.max(1, w*0.22*K), c === 0x9aa0a6 ? 0xeef1f4 : _pmix(c, 0xffffff, 0.5), 1); g.lineBetween(A.x - 0.3*w*K, A.y - 0.3*w*K, B.x - 0.3*w*K, B.y - 0.3*w*K);   // (and its shine, the skin's colour lightened)
       g.fillStyle(_pmix(c, 0x000000, 0.25), 1); g.fillCircle(B.x, B.y, w*0.5*K); };
     const STEEL = [0xd8dde2, 0xb9bec4, 0x8d959c], DARK = [0x3b4048, 0x2e3138, 0x23262c];
     if(id === 'ufo' && part === 'pre'){   /* THE SAUCER: a solid of revolution -- convex, so its faces toward the eye never overlap and go down in any order */
@@ -125884,7 +125885,7 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
           pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
           g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 2.4*K, 3.3*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 1.2*K, 1.8*K); } };
-      const longLid = (LID.ox || 0) < 0, sx = longLid ? LID.ox - LID.hx + 4 : -LID.hx - 4, stacks = () => {   // (on a cab run to his back, the stacks stand up off its rear) if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
+      const longLid = (LID.ox || 0) < 0, sx = longLid ? LID.ox - LID.hx + 4 : -LID.hx - 4, stacks = () => {   /* (on a cab run to his back, the stacks stand up off its rear) */ if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
         const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = longLid ? LID.z1 : BODY.z1, z1 = z0 + (EXH === 'smoke' ? (longLid ? 22 : 30) : single ? 20 : 20), CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
@@ -125903,11 +125904,13 @@ class WorldScene extends Phaser.Scene {
               g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (2.4 + u*4.5)*K); } } } };
       /* 'cruiser': the Night Cruiser's side pipes -- three primaries swept back out of his flank into a fat pipe along his lower edge, turned
          out at its end ahead of his rear wheel; the far side before his body, the near one over it */
-      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 5.2), zs = BODY.z0 + 1.5, xe = -6, yt = sb*(BODY.hy + 11);
-        for(const x of [16, 11, 6]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], 8.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 8.2, STK[1]); }
-        pipe([18, ys, zs], [xe, ys, zs], 12.5, STK[1]); pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 12.5, STK[1]);
-        const dx = -3, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
-        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 6.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 4.5*K); } };
+      /* (the length of his body -- Sir, 2026-11-16): primaries out of his flank at his front, the pipe along his lower edge from his front edge
+         to his tail, turned out at its end there; in this skin's own pipe colour */
+      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 5.2), zs = BODY.z0 + 1.5, xf = BODY.hx - 1, xe = -BODY.hx + 1, yt = sb*(BODY.hy + 9.5);
+        for(const x of [xf - 3, xf - 8, xf - 13]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 2.4), BODY.z0 + 5], 8.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 2.4), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 8.2, STK[1]); }
+        pipe([xf, ys, zs], [xe, ys, zs], 12.5, STK[1]); pipe([xe, ys, zs], [xe - 3.5, yt, zs - 0.5], 12.5, STK[1]);
+        const dx = -3.5, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
+        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.7, yt + sb*0.5, zs - 0.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 6.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 4.5*K); } };
       /* (they run above his tyres: each over its own side's -- the far one after the far tyres ('pre'), the near one after the near tyres ('after')) */
       if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'after') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
