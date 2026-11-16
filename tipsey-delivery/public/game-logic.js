@@ -42866,7 +42866,12 @@ const TP_BUILDS = {
      back and one out front on a fork under a mudguard (tukKit) */
   tuktuk: { BODY: { hx: 22, hy: 19, z0: 12, z1: 42, ch: 8, bev: 3, bevIn: 2.5 }, LID: { hx: 26, hy: 22, z0: 42, z1: 47, ch: 7, bev: 2, bevIn: 1.5 },
     STRIPE: { z0: 17, z1: 22 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [38, 82], zmap: z => 12 + (z - 14)*0.72,
-    WHEELS: { r: 8.5, W2: 8, xs: [-14], side: 21, single: { x: 32, r: 7.5, W2: 5.5 } } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 8.5, W2: 8, xs: [-14], side: 21, single: { x: 32, r: 7.5, W2: 5.5 } } },
+  /* the Moon Rover (Sir, 2026-11-16: "that could be fantastic"): his body lifted high on six spindly legs over mesh wheels, a gold-foil
+     belly under it, solar panels either side of his lid, a dish on his back (roverKit) */
+  rover: { BODY: { hx: 24, hy: 17, z0: 24, z1: 46, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 46, z1: 52, ch: 5, bev: 2.5, bevIn: 2 },
+    STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 88], zmap: z => 24 + (z - 14)*0.55,
+    WHEELS: { r: 7, W2: 6, xs: [-24, 0, 24], side: 29, style: 'mesh' }, tray: [0xd8b04a, 0xc9a23f, 0xa98432] } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120765,9 +120770,9 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tray = B.tray || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tray; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -120886,15 +120891,17 @@ class WorldScene extends Phaser.Scene {
       this.drawBox({hx:20, hy:3, z0:G.r + 1, z1:6 + gLift}, 0x3a3d45, 0x34373e, 0x2a2c32, false);
     }
     /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
-    this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
+    if(BODY._tray) this.drawHullPrism({hx:BODY.hx - 4, hy:BODY.hy - 4, z0:BODY.z0 - 7 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:BODY._tray[0], cLt:BODY._tray[1], cDk:BODY._tray[2], cBottom:BODY._tray[2], outline:false, topEdge:false});   // (a build's own belly: the Rover's gold foil)
+    else this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
     const BP = this.bodyPaint();
     /* HIS BUILD (Sir, 2026-11-16: builds for Tipsey, "let's try racer"): the Racer keeps his box -- his lid still opens -- and adds a wedge
        nose low on his front and a wing on struts off his back. Each piece drawn before the body when it is on the far side of him, after
        it when it faces the eye (racerKit) */
-    const tuk = !npc && SKIN.build === 'tuktuk';
+    const tuk = !npc && SKIN.build === 'tuktuk', rover = !npc && SKIN.build === 'rover';
     const racer = !npc && SKIN.build === 'racer', frontSeen = (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })();
     if(racer && frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing, on the far side of him)
     if(tuk && !frontSeen) this.tukKit(bobZ, BP, 'front');
+    if(rover) this.roverKit(bobZ, BP, 'far');
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
@@ -120907,6 +120914,7 @@ class WorldScene extends Phaser.Scene {
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
     if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');
     if(tuk){ this.tukKit(bobZ, BP, 'sides'); if(frontSeen) this.tukKit(bobZ, BP, 'front'); }
+    if(rover) this.roverKit(bobZ, BP, 'near');
     if(SKIN.stripe2){
       this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
     }
@@ -124993,6 +125001,30 @@ class WorldScene extends Phaser.Scene {
                     need to blend and not be hard lines"): each side is drawn
                     in strips whose normal turns from one corner's to the
                     next, so the colour runs on round the corners */
+  /* THE MOON ROVER's pieces: 'far' its legs on the far side (before the body), 'near' the near side's legs, the solar panels and the dish */
+  roverKit(bobZ, BP, part){
+    const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+    const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
+    const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, K = this.kScale();
+    const legs = sb => { g.lineStyle(Math.max(1, 1.8*K), 0x9aa0a6, 1); const hz = W.r + 2 - bobZ, bz = BODY.z0 - 4, rz = BODY.z0 - 10, y0 = sb*(BODY.hy - 3), y1 = sb*W.side;
+      const ln = (a, b) => { const A = P(...a), B = P(...b); g.lineBetween(A.x, A.y, B.x, B.y); };
+      ln([-W.xs[2] + 2, y1, rz], [W.xs[2] - 2, y1, rz]);                         // (the rocker beam along the side)
+      for(const x of W.xs){ ln([x, y1, rz], [x, y1, hz + 1.5]); }                  // (a leg down to each hub)
+      ln([-8, y0, bz], [-8, y1, rz]); ln([8, y0, bz], [8, y1, rz]); };            // (the rocker's two struts in to the belly)
+    const panel = sb => {   /* a solar panel off his side by his lid, dark blue cells in a silver frame (the far one before the body, the near after) */
+      { const y0 = sb*(BODY.hy + 0.5), y1 = sb*(BODY.hy + 13), z = BODY.z1 + 1;
+        if(vis(0, 0, 1)){ quad([[-16, y0, z], [16, y0, z], [16, y1, z], [-16, y1, z]], 0xb9bec4);
+          for(let i = 0; i < 4; i++) for(let j = 0; j < 2; j++){ const xa = -15 + i*7.6, ya = y0 + sb*(0.8 + j*6); quad([[xa, ya, z + 0.1], [xa + 7, ya, z + 0.1], [xa + 7, ya + sb*5.4, z + 0.1], [xa, ya + sb*5.4, z + 0.1]], 0x1f3b73); } }
+        g.lineStyle(Math.max(1, 1.2*K), 0x9aa0a6, 1); { const A = P(0, sb*BODY.hy, BODY.z1 - 3), B = P(0, (y0 + y1)/2, z); g.lineBetween(A.x, A.y, B.x, B.y); } } };
+    if(part === 'far'){ legs(-nearSide); panel(-nearSide); }
+    if(part === 'near'){ legs(nearSide); panel(nearSide);
+      /* the dish on his back corner, on a short mast */
+      { const dx = -BODY.hx + 5, dy = -nearSide*(BODY.hy - 5), z0 = BODY.z1, z1 = BODY.z1 + 12;
+        g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); const A = P(dx, dy, z0), B = P(dx, dy, z1); g.lineBetween(A.x, A.y, B.x, B.y);
+        const rim = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; rim.push(P(dx - 2 + Math.cos(w)*1.2, dy + Math.cos(w)*0.2 + Math.sin(w)*6, z1 + 3 + Math.cos(w)*6)); }
+        g.fillStyle(0xe4e8ec, 1); g.fillPoints(rim, true); const tip = P(dx + 2, dy, z1 + 3); g.fillStyle(0x3a3d45, 1); g.fillCircle(tip.x, tip.y, 1.2*K*1.4); }
+    }
+  }
   /* THE TUK-TUK's pieces: 'front' its fork down to the lone front wheel and the mudguard over it, 'sides' the open sides of its cab */
   tukKit(bobZ, BP, part){
     const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
@@ -130772,7 +130804,7 @@ function gearSpecRaw(){
     case 'cart':     return { kind: 'cart', lift: 6 };
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
-  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, lift: 0 }; }   // (a build's own: TP_BUILDS)
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
@@ -144852,7 +144884,7 @@ requestTpProfile();
   /* TIPSEY'S UPGRADES (as Gideon's scooter's GSC_UP -- Sir, 2026-11-16, "both of them have everything"; the Kickstand his alone):
      the Speed Motor, the Battery (half the drain), the Headlight (his pool thrown further), the Bell (people step aside), Underglow */
   const UP1 = (nm, c) => [{ id: 'stock', name: 'Stock', cents: 0 }, { id: 'on', name: nm, cents: c }];
-  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
+  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'rover', name: 'Moon Rover', cents: 1800 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
   const WHEEL_LIST = [
@@ -145748,7 +145780,7 @@ requestTpProfile();
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
     if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock';
-      const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
+      const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
       P.innerHTML = '<div class="grSec">BUILD — HIS BODY\'S SHAPE</div><div class="grRow">' + TP_BUILD.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       for (const b of P.querySelectorAll('[data-build]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { build: b.dataset.build === 'stock' ? null : b.dataset.build }));
