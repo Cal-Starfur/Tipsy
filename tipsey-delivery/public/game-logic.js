@@ -76540,10 +76540,10 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   roofParts(){ return []; },
   /* a green steel post on its plinth, the bracket under the tie beam */
   post(x, y){
-    const C = this.C, h = FM_PLAN.POST, E = FM_PLAN.EAVE;
-    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, E + 10)) return;
-    box(x - h - 6, x + h + 6, y - h - 6, y + h + 6, 0, 16, C.conc, shade(C.conc, .9), shade(C.conc, .8));
-    box(x - h, x + h, y - h, y + h, 16, E - 26, C.postL, C.post, C.postD);
+    const C = this.C, h = FM_PLAN.POST, E = FM_PLAN.EAVE, z0 = fmPostBase(x, y);
+    if(!inView(x - 30, x + 30, y - 30, y + 30, z0, E + 10)) return;
+    box(x - h - 6, x + h + 6, y - h - 6, y + h + 6, z0, z0 + 16, C.conc, shade(C.conc, .9), shade(C.conc, .8));
+    box(x - h, x + h, y - h, y + h, z0 + 16, E - 26, C.postL, C.post, C.postD);
     box(x - h - 4, x + h + 4, y - h - 4, y + h + 4, E - 26, E - 8, C.postL, C.post, C.postD);
   },
   /* a truss across the hall at x: its tie beam on the posts, the king post, the rafters and two struts */
@@ -84410,13 +84410,13 @@ function lhQueue(scene, t, queuePerson, layerFor){
 const FM_PLAN = {
   name: "Pelican Fish Market",
   X0: -0.55*BLOCK, X1: 2392, Y1: -736, TOE: -0.55*BLOCK, Y0: -2900, TX1: 1600,      // the lot (and its corner) to TOE, the toe strip behind to Y0 (west of TX1)
-  HX0: -1300, HX1: 1900, HF: -920, HB: -1940, BAY: 400,                             // the posts' lines: eight bays, A..H west to east
-  EAVE: 520, RIDGE: 740, OH: 80, OHE: 70, POST: 13,                                 // heights (world z), the roof's overhangs, the posts' half width
+  HX0: -1300, HX1: 1900, HF: -920, HB: -2820, BAY: 400,                             // the posts' lines: eight bays, A..H west to east; back to the lot's rear line (the yard under it)
+  EAVE: 520, RIDGE: 900, OH: 80, OHE: 70, POST: 13,                                 // heights (world z), the roof's overhangs, the posts' half width
   FRONT: [[-1270, -530], [-70, 670], [1130, 1470]], FB0: -1130, FB1: -1000,          // the ice beds on the street side (bays C and F open)
   ISLE: [[-1150, -560], [-40, 660], [1140, 1460]], IB0: -1650, IB1: -1450,          // the island beds, double-sided
   BACK: [[-1250, -620, 'prep'], [-40, 300, 'ice'], [330, 660, 'scale'], [1140, 1460, 'chill']], BB0: -1925, BB1: -1860,
   TACO: { x0: 1600, x1: 1860, y0: -1660, y1: -1240 },                               // the taco counter, its front east (x1)
-  TABLES: [[2120, -1040], [2250, -1330], [2120, -1620]],                             // the picnic tables' middles, long along y
+  TABLES: [[2120, -1040], [2250, -1330], [2120, -1620], [2250, -1910], [2120, -2200], [2250, -2490]],   // the picnic tables' middles, long along y, on back along the hall's east end
   STORE: { x0: -1300, x1: -560, y0: -2900, y1: -2770, H: 270, d0: -1060, d1: -820 },// the cold store, its dock door in its south face
   POD: { x: -300, y: -2600, yaw: Math.PI/2 },                                        // the market's delivery pod on its bay, nose to the hall
   PARK: { x: 130, y: -2600 },                                                        // where Tipsey stops to take it (the mission's yard bay)
@@ -84450,6 +84450,8 @@ function fmRoofZ(x, y){
   const ym = (P.HF + P.HB)/2;
   return P.RIDGE - (P.RIDGE - P.EAVE)*Math.abs(y - ym)/((P.HF - P.HB)/2);
 }
+/* a post's foot: 0 on the floor, or the cold store's roof where the back line runs over it (the store stands under the hall) */
+function fmPostBase(x, y){ const S = FM_PLAN.STORE, h = FM_PLAN.POST + 6; return x + h > S.x0 && x - h < S.x1 && y + h > S.y0 && y - h < S.y1 ? S.H : 0; }
 /* under the roof (the shell fades): inside the posts' lines, a little in */
 function fmUnderRoof(x, y){ const P = FM_PLAN; return x > P.HX0 - 30 && x < P.HX1 + 30 && y < P.HF + 30 && y > P.HB - 30; }
 /* THE SOLIDS, from the plan (fmSolids): posts (discs), the beds and benches, the taco counter, the tables and their
@@ -84457,7 +84459,7 @@ function fmUnderRoof(x, y){ const P = FM_PLAN; return x > P.HX0 - 30 && x < P.HX
 function fmSolids(){
   if(fmSolids.c) return fmSolids.c;
   const P = FM_PLAN, out = [], R = (x0, x1, y0, y1, h) => out.push({ x0, x1, y0, y1, h });
-  for(let x = P.HX0; x <= P.HX1; x += P.BAY) for(const y of [P.HF, P.HB]) out.push({ c: [x, y], r: P.POST + 3, h: P.EAVE });
+  for(let x = P.HX0; x <= P.HX1; x += P.BAY) for(const y of [P.HF, P.HB]) if(!fmPostBase(x, y)) out.push({ c: [x, y], r: P.POST + 3, h: P.EAVE });
   for(const [a0, a1] of P.FRONT) R(a0, a1, P.FB0, P.FB1, 100);
   for(const [a0, a1] of P.ISLE) R(a0, a1, P.IB0, P.IB1, 100);
   for(const [a0, a1] of P.BACK) R(a0, a1, P.BB0, P.BB1, 110);
@@ -84689,77 +84691,21 @@ function fmTeoAt(now){ return { x: -900 + 140*Math.sin(now/7000), y: -1188, th: 
 function fmDiners(){
   if(fmDiners.c) return fmDiners.c;
   const T = FM_PLAN.TABLES, out = [];
-  for(const [i, side] of [[0, -1], [0, 1], [2, -1], [2, 1]]){
+  for(const [i, side] of [[0, -1], [0, 1], [2, -1], [2, 1], [4, -1], [4, 1]]){
     const [x, y] = T[i];
     out.push({ x: x + side*58, y: y + (side < 0 ? 20 : -20), th: side < 0 ? 0 : Math.PI, seed: 0x7ab0 + i*31 + (side + 1)*7, kind: (i + side) % 2 ? 'woman' : 'man' });
   }
   return (fmDiners.c = out);
 }
-/* ---- THE ICE TRUCK (the harbour's refrigerated truck): down Harbor Road from the quay, east across the apron into
-   the yard, past the cold store, back in to its dock, unloaded (the porter's crates), and away up the road to the
-   harbour. Its own clock, held while he stands in its way (it yields). FM_TRUCK.now: where it is this frame. ---- */
-const FM_TRUCK = { clock: 0, last: 0, now: null, door: 0 };
-function fmTruckPlan(){
-  if(fmTruckPlan.c) return fmTruckPlan.c;
-  const S = FM_PLAN.STORE, xd = (S.d0 + S.d1)/2, R = 200, Y = -2364, yE = S.y1 + 206;   // its middle when its tail is at the dock
-  const arc = (cx, cy, r, a0, a1, n) => Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (a1 - a0)*i/n; return { x: cx + Math.cos(a)*r, y: cy + Math.sin(a)*r }; });
-  /* in: down the road's southbound lane, a left turn east across the apron (at y Y), along to past the dock */
-  const inP = [{ x: -3312, y: -7600 }, { x: -3312, y: Y - 260 }].concat(arc(-3312 + 260, Y - 260, 260, Math.PI, Math.PI/2, 6)).concat([{ x: xd + 440, y: Y }]);
-  /* back: straight back west to the arc's start, then round onto the dock (tail first) */
-  const backP = [{ x: xd + 440, y: Y }, { x: xd + R, y: Y }].concat(arc(xd + R, Y - R, R, Math.PI/2, Math.PI, 8).slice(1));
-  backP[backP.length - 1] = { x: xd, y: yE };
-  /* out: forward off the dock, round to the west, across the apron, a right turn up the road's northbound lane */
-  const outP = [{ x: xd, y: yE }].concat(arc(xd - R, yE, R, 0, Math.PI/2, 8).slice(1).map(p => ({ x: p.x, y: Math.min(p.y, yE + R) })));
-  outP.push({ x: -2944 + 220, y: yE + R }); outP.push(...arc(-2944 + 220, yE + R - 220, 220, Math.PI/2, Math.PI, 5).slice(1)); outP.push({ x: -2944, y: -7600 });
-  return (fmTruckPlan.c = { inP, backP, outP, xd, yE, phases: null });
+/* ---- THE ICE TRUCK (the harbour's refrigerated truck): parked at the cold store's dock under the hall's roof, tail to
+   the door, the door up (Sir, 2026-11-16: "I want the ice truck to be parked in there"; it no longer drives Harbor Road).
+   FM_TRUCK.now: where it stands. ---- */
+const FM_TRUCK = { now: null, door: 1 };
+function fmTruckAt(){
+  const S = FM_PLAN.STORE;
+  return { x: (S.d0 + S.d1)/2, y: S.y1 + 206, yaw: Math.PI/2, solid: true, docked: true, moving: false };
 }
-function fmPolyLen(pts){ let L = 0; for(let i = 1; i < pts.length; i++) L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); return L; }
-/* the truck at its clock t: { x, y, yaw, solid, docked } or null (away at the harbour) */
-function fmTruckAt(t){
-  const C = fmTruckPlan(), V = 0.32, VB = 0.09;
-  if(!C.phases){ const L1 = fmPolyLen(C.inP), L2 = fmPolyLen(C.backP), L3 = fmPolyLen(C.outP);
-    C.phases = [{ p: C.inP, ms: L1/V + 1200, rev: false }, { p: null, ms: 1500 }, { p: C.backP, ms: L2/VB + 1200, rev: true }, { p: null, ms: 42000, dock: true }, { p: C.outP, ms: L3/V + 1200, rev: false }, { p: null, ms: 70000, away: true }]; }
-  const cyc = C.phases.reduce((a, q) => a + q.ms, 0);
-  let u = ((t % cyc) + cyc) % cyc, last = C.inP[0], lastYaw = Math.PI/2;
-  for(const ph of C.phases){
-    if(u < ph.ms){
-      if(ph.away) return null;
-      if(!ph.p){ const end = ph.dock ? C.backP[C.backP.length - 1] : C.inP[C.inP.length - 1];
-        return { x: end.x, y: end.y, yaw: ph.dock ? Math.PI/2 : 0, solid: true, docked: !!ph.dock, dockT: u, moving: false }; }
-      const L = fmPolyLen(ph.p), d = meetWalkFrac(u, ph.ms)*L, q = walkPathPoint(ph.p, d), a = walkPathPoint(ph.p, Math.max(0, d - 30)), b = walkPathPoint(ph.p, Math.min(L, d + 30));
-      let yaw = Math.atan2(b.y - a.y, b.x - a.x);
-      if(ph.rev) yaw += Math.PI;
-      return { x: q.x, y: q.y, yaw, solid: true, moving: true, rev: ph.rev };
-    }
-    u -= ph.ms;
-  }
-  return null;
-}
-/* every frame: its clock runs unless he (or anyone of the market's) is in its way, a truck's length ahead or behind */
-function fmTruckTick(scene, now, dt){
-  const T = FM_TRUCK, ow = scene.ow;
-  let q = fmTruckAt(T.clock + dt);
-  if(q && q.moving && ow){
-    const ux = Math.cos(q.yaw)*(q.rev ? -1 : 1), uy = Math.sin(q.yaw)*(q.rev ? -1 : 1), dx = ow.px - q.x, dy = ow.py - q.y;
-    const along = dx*ux + dy*uy, lat = Math.abs(-dx*uy + dy*ux);
-    if(along > 0 && along < 420 && lat < 150) q = null;              // he is in its way: it waits
-    /* and for a car in front of it in its lane (the cars wait for it the same way: updateTrafficSpacing) */
-    if(q) for(const tr of scene.trafficActive(now) || []){
-      const a = trafficWorldAt(tr, now); if(a.hidden) continue;
-      const cx = a.wp.x - q.x, cy = a.wp.y - q.y, al = cx*ux + cy*uy, la = Math.abs(-cx*uy + cy*ux);
-      if(al > 0 && al < 480 && la < 150){ q = null; break; }
-    }
-  }
-  /* it comes on and goes off the road mid-block (inP's and outP's ends): never in sight -- the clock waits at that
-     moment while the spot is on screen, so he never sees it pop in or out */
-  const cur = fmTruckAt(T.clock), nxt = fmTruckAt(T.clock + dt), pop = !!cur !== !!nxt && (cur || nxt);
-  if(pop && scene.visWorldPt(pop.x, pop.y, 500, 400)) q = null;
-  else if(q !== null || !cur) T.clock += dt;
-  T.now = fmTruckAt(T.clock);
-  const want = T.now && T.now.docked ? 1 : 0;
-  T.door += (want - T.door)*Math.min(1, dt/600);
-  if(Math.abs(T.door - want) < 0.01) T.door = want;
-}
+function fmTruckTick(){ if(!FM_TRUCK.now) FM_TRUCK.now = fmTruckAt(); }
 CITY_PEOPLE.add({ name: 'Pelican Fish Market', where: "the fish market on Palmline's corner: its beds, the taco counter, the yard", solid: true,
   each(scene, t, fn){
     const now = scene.time.now, K = fmLooks();
@@ -99684,19 +99630,9 @@ class WorldScene extends Phaser.Scene {
      swings and the ice truck live; the roof one piece over everything under it (keyed at the hall's near corner: all of
      it lies over the eave line, so nothing on the street in front meets it on screen), faded as he goes under it
      (FM_LIFE.roofK: the walk-in kit's shell ease). Lamps at night through the lamp kit. */
-  /* the ice truck: live while it moves, cached while it stands */
-  queueFmTruck(vq){
-    const q = FM_TRUCK.now;
-    if(!q || !this.visProp("car", q.x, q.y)) return;
-    const f = q.yaw/(Math.PI/2), wh = (FM_TRUCK.clock*0.05) % 1000;
-    if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "reefertruck", q.x, q.y, t || 0, f, 0, wh, 0, null) });
-    else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "fm|truck|" + Math.round(q.x) + "|" + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "reefertruck", q.x, q.y, 0, f, 0, 0, 0, null)) });
-  }
   queueFishMarket(vq){
     const P = FM_PLAN, ent = LIB.get(P.name);
-    /* the ice truck first, on its own sight test: it drives a block and more up Harbor Road, out of the market's
-       2400 (Sir, 2026-11-16: "this truck is being drawn here then disappearing when i get close to it") */
-    if(ent) this.queueFmTruck(vq);
+    if(ent) this.queueFmTruck(vq);                   // (its own sight test, not the market's)
     if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2400, 700)) return;
     const G = (a, b, h) => this.W(a, b, h), open = fmOpen();
     const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "fm|" + key, x, y, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } }) });
@@ -99781,6 +99717,14 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0x6f8796, 1); g.fillPoints([f(-22, 0), f(-32, 8), f(-30, -8)], true); }
     const bx = at(-20 + 30*k, 30*k); g.fillStyle(0xf4f6f6, 1); g.fillRect(bx.x - 12*K, bx.y - 10*K, 24*K, 12*K); g.fillStyle(0xd1d6d8, 1); g.fillRect(bx.x - 12*K, bx.y + 2*K, 24*K, 5*K);
   }
+  /* the ice truck, parked at the dock under the roof: cached (live only if it ever moves) */
+  queueFmTruck(vq){
+    const q = FM_TRUCK.now;
+    if(!q || !this.visProp("car", q.x, q.y)) return;
+    const f = q.yaw/(Math.PI/2), wh = 0;
+    if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "reefertruck", q.x, q.y, t || 0, f, 0, wh, 0, null) });
+    else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "fm|truck|" + Math.round(q.x) + "|" + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "reefertruck", q.x, q.y, 0, f, 0, 0, 0, null)) });
+  }
   /* the market's ground (fillExteriorLot, its anchor lot): the forecourt and picnic paving in the street's own tone,
      the hall's scrubbed concrete floor wall to wall with its gutters, the yard's apron on the toe strip with its dock
      lines and the pod's painted bay, a kerb edging where it meets the sand */
@@ -99793,7 +99737,11 @@ class WorldScene extends Phaser.Scene {
     /* ...on east to the gate round's pavement, its curve followed */
     { const pts = []; for(let y = P.TOE; y >= P.Y0 - 0.1; y -= 60) pts.push(this.W(fmYardX1(Math.max(P.Y0, y)), Math.max(P.Y0, y), 0));
       pts.push(this.W(fmYardX1(P.Y0), P.Y0, 0), this.W(P.TX1, P.Y0, 0), this.W(P.TX1, P.TOE, 0));
-      if(this.ptsOnScreen(pts)){ g.fillStyle(yard.a, 1); g.fillPoints(pts, true); } }
+      if(this.ptsOnScreen(pts)){ g.fillStyle(pave.a, 1); g.fillPoints(pts, true); } }
+    /* east of the hall, behind the forecourt: the picnic paving carried on back to the rear line (the tables run on
+       along it), in rows clipped short of the gate round's curve */
+    for(let y = P.TOE; y > P.Y0 + 0.1; y -= T2){ const y0 = Math.max(P.Y0, y - T2);
+      this.fillBlockInterior(g, { x0: P.HX1 + 24, x1: Math.min(fmYardX1(y), fmYardX1(y0)), y0, y1: y }, pave); }
     this.fillBlockInterior(g, { x0: P.HX0 - 24, x1: P.HX1 + 24, y0: P.HB - 24, y1: P.HF + 24 }, floor);
     const quad = (pts, col, a) => { if(!this.ptsOnScreen(pts)) return; g.fillStyle(col, a == null ? 1 : a); g.fillPoints(pts, true); };
     const rect = (x0, x1, y0, y1, col, a) => quad([this.W(x0, y0, 0.3), this.W(x1, y0, 0.3), this.W(x1, y1, 0.3), this.W(x0, y1, 0.3)], col, a);
@@ -128648,9 +128596,6 @@ class WorldScene extends Phaser.Scene {
     /* (a car at the kerb that is not traffic -- a hospital patient's ride home, HOSP_CAST_CAR -- is in the way as an
        errand's car is: traffic waits behind it rather than drive through it) */
     for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: c.len || CARC.len });   // (an ambulance as long as it is)
-    /* the fish market's ice truck on Harbor Road is not fleet traffic either: the cars wait behind it, not drive through it */
-    { const q = WORLDGEN_COAST && FM_TRUCK.now;
-      if(q){ const sg = q.rev ? -1 : 1; pos.push({ tr: { errand: true }, x: q.x, y: q.y, dx: sg*Math.cos(q.yaw), dy: sg*Math.sin(q.yaw), inBox: false, len: vehLen("reefertruck") }); } }
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
        space he occupies. Cars now see him the same way they see each
