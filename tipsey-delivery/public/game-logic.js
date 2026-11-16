@@ -76733,18 +76733,25 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
   },
   /* the taco counter, a slice y0..y1 of it: the serving counter on its east side (x1), the griddle bench behind (x0),
      the menu board hung over its south end facing the forecourt */
-  taco(y0, y1, open){
-    const C = this.C, TC = FM_PLAN.TACO, red = '#c8462e', yel = '#f2c14b';
+  /* part: 'back' the griddle bench and the north end (behind the cook), 'front' the counter and the menu board (in
+     front of him), both when omitted -- the scene sorts the two apart so the cook stands between them (the griddle,
+     sorted with the counter, painted over him) */
+  taco(y0, y1, open, part){
+    const C = this.C, TC = FM_PLAN.TACO, red = '#c8462e', yel = '#f2c14b', back = part !== 'front', front = part !== 'back';
     if(!inView(TC.x0, TC.x1 + 10, y0, y1, 0, 330)) return;
+    if(front){
     box(TC.x1 - 46, TC.x1, y0, y1, 0, 100, '#d9b48a', '#b9864f', '#a8763f');                    // the counter, timber-clad
     for(let z = 14; z < 96; z += 16) S(TC.x1 + 0.4, y0, y1, z, z + 2, '#9a6a36');
     box(TC.x1 - 52, TC.x1 + 6, y0, y1, 100, 106, '#e9e1d2', '#d6cbb7', '#c4b9a3');
     if(y1 === TC.y1) S(TC.x1 + 0.5, TC.y1 - 60, TC.y1 - 4, 30, 80, red);                           // its red panel by the end
+    }
+    if(back){
     box(TC.x0, TC.x0 + 70, y0, y1, 0, 92, C.steel, C.steelD, shade(C.steelD, .9));               // the griddle bench
     if(open){ T(TC.x0 + 6, TC.x0 + 64, Math.max(y0, TC.y0 + 60), Math.min(y1, TC.y0 + 260), 93, '#2b2b2b');
               for(let y = Math.max(y0, TC.y0 + 80); y < Math.min(y1, TC.y0 + 250); y += 34) ball(TC.x0 + 34, y, 96, 6, '#e3b26a', '#f1cc8f'); }   // tortillas on the plancha
     if(y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end
-    if(y1 === TC.y1){
+    }
+    if(front && y1 === TC.y1){
       /* the menu board, over the south end, to the forecourt */
       const m0 = TC.x0 + 10, m1 = TC.x1 - 10, my = TC.y1 + 6;
       for(const ra of [m0 + 18, m1 - 18]) tube(ra, my, 206, ra, my, FM_PLAN.EAVE + 8, 1.4, '#59636a');
@@ -99678,7 +99685,10 @@ class WorldScene extends Phaser.Scene {
     for(const [x0, x1, k] of P.BACK) pieces(x0, x1, (P.BB0 + P.BB1)/2, "back|" + k, (a0, a1) => ent.back(x0, x1, k, a0, a1, open));
     { const T = P.TACO, n = 3, w = (T.y1 - T.y0)/n;
       for(let i = 0; i < n; i++){ const y0 = T.y0 + i*w, y1 = i === n - 1 ? T.y1 : T.y0 + (i + 1)*w, xm = (T.x0 + T.x1)/2, ymid = (y0 + y1)/2;
-        if(vis(xm, ymid, 200, 330)) item("taco|" + i + "|" + (open ? 1 : 0), xm, ymid, xm + ymid, () => ent.taco(y0, y1, open)); } }
+        if(!vis(xm, ymid, 200, 330)) continue;
+        const xb = T.x0 + 35, xf = T.x1 - 23;                         // the griddle behind the cook, the counter in front of him
+        item("tacoB|" + i + "|" + (open ? 1 : 0), xb, ymid, xb + ymid, () => ent.taco(y0, y1, open, 'back'));
+        item("tacoF|" + i + "|" + (open ? 1 : 0), xf, ymid, xf + ymid, () => ent.taco(y0, y1, open, 'front')); } }
     for(const [x, y] of P.TABLES) if(vis(x, y, 120, 80)) item("table|" + x + "|" + y, x, y, x + y, () => ent.table(x, y));
     { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
       if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
