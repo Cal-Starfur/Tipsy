@@ -76563,7 +76563,6 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const [a0, a1] of P0.FRONT) this.bed(a0, a1, a0, a1, true);
     this.taco(P0.TACO.y0, P0.TACO.y1, true);
     for(const [x, y] of P0.TABLES) this.table(x, y);
-    this.bin(P0.BIN.x, P0.BIN.y);
     for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HF);
     this.store(0); this.pylon(true); this.neon(0, 0, true); this.bell(0); this.roof();
   },
@@ -76779,16 +76778,6 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
       blockWordIn('TACOS', m0 + 12, m1 - 12, 174, 200, my + 3.2, yel, null);
       blockWordIn(open ? 'FISH  SHRIMP' : 'CLOSED', m0 + 12, m1 - 12, 152, 168, my + 3.2, '#ffffff', null);
     }
-  },
-  /* the litter bin by the tables: a green steel can on a short foot, its domed lid with the slot, a sign band */
-  bin(x, y){
-    if(!inView(x - 30, x + 30, y - 30, y + 30, 0, 100)) return;
-    cyl(x, y, 0, 6, 16, '#3a3f44', '#2c3135');
-    cyl(x, y, 6, 74, 18, '#2f6b52', '#2a5f49');
-    cyl(x, y, 34, 46, 18.4, '#e8b54a', '#d4a03a');
-    cyl(x, y, 74, 80, 19.5, '#24553f', '#2c6a4f');
-    cyl(x, y, 80, 88, 14, '#24553f', '#2f6b52');
-    F(x - 9, x + 9, 64, 70, '#15191c', null, 0, y + 18.3);                                   // the slot in its lid
   },
   /* a picnic table, long along y: its top, its two benches and the A-frame legs */
   table(x, y){
@@ -84528,7 +84517,7 @@ function fmSolids(){
   for(const [a0, a1] of P.BACK) R(a0, a1, P.BB0, P.BB1, 110);
   { const T = P.TACO; R(T.x1 - 46, T.x1, T.y0, T.y1, 105); R(T.x0, T.x0 + 70, T.y0, T.y1, 100); R(T.x0, T.x1, T.y0 - 10, T.y0, 100); }
   for(const [x, y] of P.TABLES) R(x - 75, x + 75, y - 85, y + 85, 75);
-  out.push({ c: [P.BIN.x, P.BIN.y], r: 20, h: 90 });
+  out.push({ c: [P.BIN.x, P.BIN.y], r: 24, h: 90 });
   { const S = P.STORE; R(S.x0, S.x1, S.y0, S.y1, S.H); }
   out.push({ c: [P.BELL.x, P.BELL.y], r: 8, h: 240 });
   return (fmSolids.c = out);
@@ -99761,7 +99750,8 @@ class WorldScene extends Phaser.Scene {
         item("tacoB|" + i + "|" + (open ? 1 : 0), xb, ymid, xb + ymid, () => ent.taco(y0, y1, open, 'back'));
         item("tacoF|" + i + "|" + (open ? 1 : 0), xf, ymid, xf + ymid, () => ent.taco(y0, y1, open, 'front')); } }
     for(const [x, y] of P.TABLES) if(vis(x, y, 120, 80)) item("table|" + x + "|" + y, x, y, x + y, () => ent.table(x, y));
-    { const B = P.BIN; if(vis(B.x, B.y, 40, 100)) item("bin", B.x, B.y, B.x + B.y, () => ent.bin(B.x, B.y)); }
+    { const B = P.BIN, x = B.x, y = B.y;                         // the city's own litter bin (drawProp 'bin'), as the harbour's
+      if(vis(x, y, 40, 100)) vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "fm|bin|" + x + "," + y, x, y, gg => this.drawProp(gg, 'bin', x, y, 0, 0, 0)) }); }
     /* the plates of tacos the cook has set down, on their tables while the diners eat (fmPlatesOn) */
     if(open) for(const pl of fmPlatesOn(this.time.now)){ const x = pl.x, y = pl.y;
       if(vis(x, y, 40, 100)) vq.push({ depth: x + y + 1, fn: (g) => this.bcDraw(g, "fm|plate|" + pl.k, x, y, gg => this.drawFmCarry(gg, x, y, 77, 'tacos')) }); }
