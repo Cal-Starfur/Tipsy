@@ -125187,11 +125187,12 @@ class WorldScene extends Phaser.Scene {
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
-          cyl(2, y, z0 + 1, z1, CH);                                                                       // (the pipe)
+          cyl(2, y, z0 + 1, z0 + 5, CH);                                                                   // (the pipe below the shield)
           cyl(2.6, y, z0 + 5, z0 + 13, [0x3b4048, 0x2e3138, 0x1c1e22]);                                   // (the heat shield)
           if(vis(0, 0, 1)){ g.lineStyle(Math.max(1, 0.8*K), 0x5d646c, 1); }
           for(let k = 0; k < 4; k++){ const zz = z0 + 6.5 + k*1.8, fx = vis(1, 0, 0) ? 1 : -1, A = P(sx + fx*2.62, y - 1.3, zz), B = P(sx + fx*2.62, y + 1.3, zz);   // (its slots)
             g.lineStyle(Math.max(1, 0.9*K), 0x6f757b, 1); g.lineBetween(A.x, A.y, B.x, B.y); }
+          cyl(2, y, z0 + 13, z1, CH);                                                                      // (the pipe on up out of it: over the shield's top)
           cyl(2.5, y, z1 - 1.2, z1, CH);                                                                   // (the flared lip)
           const tz = z1 + 0.05, rim = []; for(let k = 0; k < 10; k++){ const a = k/10*Math.PI*2; rim.push(P(sx + Math.cos(a)*1.6, y + Math.sin(a)*1.6, tz + Math.cos(a)*0.9)); }   // (its bore, on the slant)
           if(vis(0, 0, 1)) this.quadOn(g, rim, 0x16171b); } };
