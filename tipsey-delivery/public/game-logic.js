@@ -42906,11 +42906,11 @@ const TP_BUILDS = {
 /* A BUILD'S OWN SKINS (Sir, 2026-11-16: "skins for these specific builds"): a paint job made for one build -- his body and stripe, and
    that build's own parts (the Night Cruiser's windscreen tint and the glow in its jet) -- worn only while that build is on (bSkin) */
 const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
-  { id: 'hotrod:midnight', build: 'hotrod', name: 'Midnight', cents: 600, body: 0x2b2e35, stripe: 0xd8322a, glass: [0x6f8fa3, 0x55758a, 0x3b5568], ember: [0xff3a2a, 0xff9a7a] },
-  { id: 'hotrod:candy', build: 'hotrod', name: 'Candy Apple', cents: 600, body: 0xb3202a, stripe: 0xf2f1ea },
-  { id: 'hotrod:atomic', build: 'hotrod', name: 'Atomic Teal', cents: 600, body: 0x49b8ad, stripe: 0xf3ead2, glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'hotrod:gold', build: 'hotrod', name: 'Gold Rush', cents: 600, body: 0xd9a93c, stripe: 0x2b2e35, ember: [0xffb02a, 0xffe6a0] },
-  { id: 'hotrod:haze', build: 'hotrod', name: 'Purple Haze', cents: 600, body: 0x6b3fa0, stripe: 0xc9ced4, ember: [0xc86bff, 0xf0d0ff] }];
+  { id: 'hotrod:flames', build: 'hotrod', name: 'Hot Flames', cents: 800, body: 0x23262c, stripe: 0x23262c, print: 'crFlames', glass: [0x6f8fa3, 0x55758a, 0x3b5568], ember: [0xff3a2a, 0xffb07a] },
+  { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
+  { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
+  { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
+  { id: 'hotrod:checker', build: 'hotrod', name: 'Checkered', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker' }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120857,7 +120857,7 @@ class WorldScene extends Phaser.Scene {
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
     const BS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === SKIN.build);   // (this build's own skin, if he wears one)
     const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
-    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: _pdk(BS.stripe, 0.8) }); delete SKIN.print; }
+    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; }
     BODY._bskin = BS || null;
     BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag; BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
@@ -130460,6 +130460,42 @@ const SK_CHROME_PLATE = {
    covers; frond: palm leaves fanned from a point instead of blobs. A skin names its print (SKIN.print); a garage body
    colour, two-tone or chameleon takes the print off (bodyPaint) */
 const HULL_PRINTS = {
+  /* THE NIGHT CRUISER'S SKINS (Sir, 2026-11-16: "these seem more like paint jobs than skins"): custom-car graphics laid along its long low
+     body -- each side's run from his nose back (faces 2 and 6 of the plan), and on the hood ahead of the windscreen. The side
+     coordinates are his side's own (s along it, h up it to L.H), so they fit the build's body whatever its size */
+  crFlames: { id: 'crFlames', seed: 0xf1a4, build(L){ if(L.part === 'lid') return;
+      const RED = [0x8f1410, 0xd8261c], ORG = [0xc4560e, 0xf28e1e], YEL = [0xd8a41a, 0xffe05a];
+      const tongues = (arr, X, Y, len, span, sgn) => { const T = [[0.18, 0.62], [0.42, 0.95], [0.66, 0.7], [0.86, 0.5]];
+        for(const [sc, c] of [[1, RED], [0.74, ORG], [0.46, YEL]]) for(const [hc, lf] of T){ const lt = len*lf*sc, th = span*0.17*(0.6 + 0.4*sc), m = hc*span;
+          arr.push({ c, pts: [[X(-1), Y(m - th*1.3)], [X(lt*0.5), Y(m - th*0.7)], [X(lt), Y(m + th*0.15*sgn)], [X(lt*0.55), Y(m + th*0.9)], [X(lt*0.25), Y(m + th*0.5)], [X(-1), Y(m + th*1.2)]] }); } };
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b;
+        tongues(L.side, d => x0 + dir*d, h => h, len*0.62, L.H, 1); }
+      const xf = L.x1 - 0.5; tongues(L.top, d => xf - d, y => y - (L.y1 - L.y0)*0.45, 17, (L.y1 - L.y0)*0.9, -1); } },
+  crGhost: { id: 'crGhost', seed: 0x60f, build(L){ if(L.part === 'lid') return;
+      HULL_PRINTS.crFlames.build(Object.assign({}, L, { side: { push: o => L.side.push({ col: 0x9c86cc, a: 0.55, pts: o.pts }) }, top: { push: o => L.top.push({ col: 0x9c86cc, a: 0.55, pts: o.pts }) } })); } },
+  crPinstripe: { id: 'crPinstripe', seed: 0x9157, build(L){ if(L.part === 'lid') return;
+      const GD = [0xa8801c, 0xeec64e], seg = (arr, pts, w) => { for(let i = 0; i < pts.length - 1; i++) arr.push({ c: GD, pts: _prSeg(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w) }); };
+      const curl = (cx, cy, r, a0, turns, sx, sy) => { const o = []; for(let k = 0; k <= 16; k++){ const u = k/16, a = a0 + u*turns*Math.PI*2, rr = r*(1 - u*0.75); o.push([cx + Math.cos(a)*rr*sx, cy + Math.sin(a)*rr*sy]); } return o; };
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, h = L.H*0.66;
+        seg(L.side, [[X(4), h], [X(len*0.8), h], [X(len*0.88), h - 0.9]], 0.55);                                   // (a long line back along him to a spear)
+        seg(L.side, [[X(len*0.8), h], [X(len*0.88), h + 0.9]], 0.55);
+        seg(L.side, curl(X(5.5), h - 1.8, 2.4, Math.PI/2, 0.9, dir, 1), 0.5); }                                    // (a curl where it starts)
+      const xf = L.x1 - 2, S2 = 1.7, T = (x, y) => [xf - x*S2, y*S2];                                                // (a scroll on the hood: a diamond, curls either side)
+      seg(L.top, [T(0, 0), T(3, 2.2), T(6, 0), T(3, -2.2), T(0, 0)], 0.6);
+      for(const sy of [-1, 1]){ seg(L.top, [T(6, 0), T(9, sy*3), T(11, sy*5)], 0.6); seg(L.top, curl(xf - 11*S2, sy*6.6*S2, 1.8*S2, -sy*Math.PI/2, 0.85, 1, sy), 0.55);
+        seg(L.top, [T(0, 0), T(1.2, sy*3.2), T(0.4, sy*5)], 0.55); seg(L.top, curl(xf - 0.2*S2, sy*6*S2, 1.2*S2, -sy*Math.PI/2, 0.85, -1, sy), 0.5);
+        seg(L.top, [T(6, 0), T(9.5, 0)], 0.55); } } },
+  crScallops: { id: 'crScallops', seed: 0x5ca1, build(L){ if(L.part === 'lid') return;
+      const CR = [0xd9cfb4, 0xf3ead2], RD = [0x8f1410, 0xd8261c];
+      const spear = (arr, X, Y, len, m, th) => { for(const [g2, c] of [[0.45, RD], [0, CR]]) arr.push({ c, pts: [[X(-1), Y(m - th - g2)], [X(len*0.55), Y(m - th*0.55 - g2*0.6)], [X(len + g2*2), Y(m)], [X(len*0.55), Y(m + th*0.55 + g2*0.6)], [X(-1), Y(m + th + g2)]] }); };
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d;
+        for(const [hf, lf] of [[0.25, 0.5], [0.55, 0.78], [0.84, 0.6]]) spear(L.side, X, h => h, len*lf, L.H*hf, L.H*0.11); }
+      for(const yc of [-7, 0, 7]) spear(L.top, d => L.x1 - 0.5 - d, y => y, yc === 0 ? 16 : 12, yc, 2.6); } },
+  crChecker: { id: 'crChecker', seed: 0xc4e, build(L){ if(L.part === 'lid') return;
+      const BK = [0x16171b, 0x2a2d33], WH = [0xd9dde2, 0xf6f7f9], q = 2.4;
+      for(const k of [2, 6]){ const [a, b] = L.face(k); let r = 0;
+        for(let h = L.H*0.08; h < L.H*0.08 + q*2.5; h += q, r++) for(let x = a, c2 = r; x < b - 0.1; x += q, c2++) L.side.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, h, Math.min(b, x + q), h + q) }); }
+      let r = 0; for(let x = L.x1 - 1 - q*3; x < L.x1 - 1; x += q, r++) for(let y = -9.6, c2 = r; y < 9.5; y += q, c2++) L.top.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, y, x + q, y + q) }); } },
   camo: { id: 'camo', seed: 0x5ca3e1, layers: [
     { c: [0x4a3a24, 0x6e5636], r: 6.5, cover: 0.32 },               // earth brown
     { c: [0x2c3a1c, 0x41552a], r: 7,   cover: 0.34 },               // deep leaf green
