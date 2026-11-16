@@ -111449,10 +111449,10 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
         line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
         const h = P(a0, b, r); g.fillStyle(0x9aa2a8, 1); g.fillCircle(h.x, h.y, 1.4*this.K*0.42*1.4); }
-    if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it, the mud flap
+    if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it
       for(const [a0, r, wd] of WHL) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([a0 + (a0 < 0 ? r + 2 : -(r + 2)), sb*(wd/2 + 1), RD - 4], [a0, sb*(wd/2 + 1), r], acc0, 2.6);   // (on the seen side, outside the tyre)
       solid(prismH([[DB + 3, -5], [DF - 3, -5], [DF - 3, 5], [DB + 3, 5]], RD - 7, RD - 4), 0x3b4048);
-      solid(prismH([[-R.wheelA - 11, -5], [-R.wheelA - 10, -5], [-R.wheelA - 10, 5], [-R.wheelA - 11, 5]], 1.5, fz + 1), 0x23262b); }
+    }   // (its mud flap dropped -- Sir, 2026-11-16)
     /* (brand.acc: a body in one colour with an accent -- Gideon's own, white with orange, GSC: an accent stripe down each side of the deck,
        laid on just outside its sides and drawn BEFORE it, so the deck hides the far one -- it had painted across the deck's top) */
     const SB = sty === 'robo' || sty === 'rocket' ? 8 : 7;                                                       // (the deck's half-width: the Robo Board's wider)
@@ -111514,7 +111514,7 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'offroad' && brand.paint){ const lv = GSC_LIVERY[brand.paint] || {};             // a skin's side number plates over the back wheel
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismB([[-31, RD - 2], [-16, RD - 2], [-17, RD + 6], [-29, RD + 7]], sb*6.6, sb*7.4), lv.plate);
         this.numberPlate(g, (x, y) => P(-23.4 + sb*x*0.95, sb*7.45, RD + 2.4 + y), 5.4, 3.4, lv.plate, lv.num, lv.digit); } }
-    if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
+    if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
       if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
