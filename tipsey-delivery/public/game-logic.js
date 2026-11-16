@@ -42878,10 +42878,10 @@ const TP_BUILDS = {
     STRIPE: { z0: 16, z1: 20 }, FLAGB: { x: -22, y: 13 }, FLAGZ: [30.5, 74], zmap: z => 12 + (z - 14)*0.45, tracks: true },
   /* the Dune Buggy (Sir, 2026-11-16): a narrow low tub up on big knobby wheels set well out on arms, a roll cage over his lid (a hoop
      behind it, a bar each side down to his nose), the engine out the back, his flag up off the hoop (buggyKit) */
-  buggy: { BODY: { hx: 26, hy: 15, z0: 16, z1: 32, ch: 6, bev: 3, bevIn: 2.5 }, LID: { hx: 13, hy: 10, z0: 32, z1: 36, ch: 4, bev: 2, bevIn: 1.5 },
-    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -17, y: 13 }, FLAGZ: [48, 84], zmap: z => 16 + (z - 14)*0.4, noBracket: true,
+  buggy: { BODY: { hx: 25, hy: 17, z0: 16, z1: 33, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 12, hy: 11, z0: 33, z1: 37, ch: 4, bev: 2, bevIn: 1.5 },
+    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -16, y: 15 }, FLAGZ: [49, 84], zmap: z => 16 + (z - 14)*0.4, noBracket: true,
     tray: [0x3f434c, 0x3a3d45, 0x2e3138],
-    WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-18, 20], side: 25, style: 'mesh', tread: 'knobby' } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'knobby' } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -121019,6 +121019,7 @@ class WorldScene extends Phaser.Scene {
       } else this.quadOn(g, FP([[-16,18], [16,18], [16,22], [-16,22]]), MOUTH_BAR);
     }
     /* the near wheel row, and the whip when it is nearer than the lid (the far ones went down first) */
+    if(!npc && SKIN.build === 'buggy') this.buggyKit(bobZ, (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })(), 'front');   // (its nudge bar, over his face)
     for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
     if(this.flagNear()) this.drawFlag(bobZ);
     if(!npc && SKIN.cans) this.drawCans(t, true);           // (...and those nearer the eye than him over him)
@@ -125012,7 +125013,10 @@ class WorldScene extends Phaser.Scene {
   buggyKit(bobZ, frontSeen, part){
     const g = this.g, K = this.kScale(), P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, TUBE = 0x2e3138;
-    const tube = (a, b, w = 2.6) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), TUBE, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
+    const tube = (a, b, w = 3.2) => { const A = P(...a), B = P(...b);   // (a round tube: dark, with a light line down it)
+      g.lineStyle(Math.max(1, w*K), 0x23262c, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+      g.lineStyle(Math.max(1, w*0.38*K), 0x6f757b, 1); g.lineBetween(A.x, A.y - w*0.18*K, B.x, B.y - w*0.18*K);
+      g.fillStyle(0x23262c, 1); g.fillCircle(A.x, A.y, w*0.5*K); g.fillCircle(B.x, B.y, w*0.5*K); };
     const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 1, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const arms = sb => { for(const x of W.xs){ const front = x > 0, r = front ? W.rF : W.r, w2 = front ? W.W2F : W.W2, hz = r + 2 - bobZ, yH = sb*(W.side - w2/2 - 0.8), yB = sb*(BODY.hy - 3);
         tube([x - 5, yB, BODY.z0 - 2], [x, yH, hz], 2.2); tube([x + 5, yB, BODY.z0 - 2], [x, yH, hz], 2.2);    // (the A-arm)
@@ -125020,18 +125024,35 @@ class WorldScene extends Phaser.Scene {
         g.lineStyle(Math.max(1, 2.4*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
         g.lineStyle(Math.max(1, 1.2*K), 0xe8a23a, 1); for(let k = 1; k < 5; k++){ const u = k/5, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2*K;
           g.lineBetween(cx - nx/nl*q, cy - ny/nl*q, cx + nx/nl*q, cy + ny/nl*q); } } };
-    const engine = () => { const ex = -BODY.hx - 4;
-      box(5, 9, ex, 0, 17, 29, [0x6f757b, 0x5d646c, 0x3b4048]);                                                // (the block)
-      for(const y of [-5, 5]) box(4, 1.2, ex - 0.5, y, 29, 31.5, [0x9aa0a6, 0x7d838a, 0x5d646c]);                  // (its rocker covers)
-      for(const y of [-6.5, 6.5]){ const A = [ex - 3, y, 22], B = [ex - 9, y, 34]; const a = P(...A), b = P(...B);   // (two exhausts out and up)
-        g.lineStyle(Math.max(1, 2.4*K), 0x9aa0a6, 1); g.lineBetween(a.x, a.y, b.x, b.y); g.fillStyle(0x2e3138, 1); g.fillCircle(b.x, b.y, 1.4*K); } };
+    const engine = () => { const ex = -BODY.hx - 5, far = -nearSide;   /* a flat four out the back: the block, finned cylinders out each side,
+         a round air cleaner on top, two chrome pipes swept up -- the far side first */
+      const pipes = sb => { const a = P(ex - 2, sb*4, 19), m = P(ex - 7, sb*5, 21), b = P(ex - 10, sb*6, 31);
+        g.lineStyle(Math.max(1, 2.8*K), 0x7d838a, 1); g.lineBetween(a.x, a.y, m.x, m.y); g.lineBetween(m.x, m.y, b.x, b.y);
+        g.lineStyle(Math.max(1, 1*K), 0xd8dde2, 1); g.lineBetween(m.x, m.y - 0.6*K, b.x, b.y - 0.6*K);
+        g.fillStyle(0x1c1e22, 1); g.fillCircle(b.x, b.y, 1.5*K); };
+      const cyl = sb => { box(3.2, 3, ex + 1, sb*10, 19, 26, [0x9aa0a6, 0x7d838a, 0x5d646c]);   // (a finned cylinder: fins as dark lines round its outer face)
+        if(vis(0, sb, 0)){ g.lineStyle(Math.max(1, 0.8*K), 0x4a5057, 1); for(const z of [20.5, 22, 23.5, 25]){ const a = P(ex - 2.2, sb*13.05, z), b = P(ex + 4.2, sb*13.05, z); g.lineBetween(a.x, a.y, b.x, b.y); } } };
+      pipes(far); cyl(far);
+      box(4.5, 7, ex, 0, 17, 28, [0x5d646c, 0x4a5057, 0x2e3138]);                                               // (the block)
+      cyl(-far); pipes(-far);
+      this.drawHullPrism({ hx: 3.6, hy: 3.6, ox: ex + 0.5, oy: 0, z0: 28 + bobZ, z1: 31.5 + bobZ, ch: 1.6, cTop: 0xd8dde2, cLt: 0xb9bec4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });   // (the air cleaner)
+    };
     const hx = -LID.hx - 3, yc = BODY.hy - 2, zt = 48, zb = BODY.z1, nx = BODY.hx - 7;
     const hoop = () => { tube([hx, -yc, zb], [hx, -yc, zt - 3]); tube([hx, yc, zb], [hx, yc, zt - 3]); tube([hx, -yc + 3, zt], [hx, yc - 3, zt]);
       tube([hx, -yc, zt - 3], [hx, -yc + 3, zt]); tube([hx, yc, zt - 3], [hx, yc - 3, zt]); };
+    const roof = () => { tube([hx + 9, -yc, zt - 4], [hx + 9, yc, zt - 4]); tube([hx, -yc + 3, zt], [hx + 9, 0, zt - 4], 2.4); };   // (the roof bar across, a brace back to the hoop)
+    const lamps = () => { for(const y of [-6, 6]){   // (two spotlights on the hoop, looking ahead)
+        this.drawHullPrism({ hx: 1.6, hy: 2.4, ox: hx + 0.5, oy: y, z0: zt + 0.5 + bobZ, z1: zt + 4.5 + bobZ, ch: 0.9, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
+        if(vis(1, 0, 0)) this.quadOn(g, [P(hx + 2.15, y - 1.8, zt + 1.1), P(hx + 2.15, y + 1.8, zt + 1.1), P(hx + 2.15, y + 1.8, zt + 3.9), P(hx + 2.15, y - 1.8, zt + 3.9)], 0xfff2c4); } };
+    const nudge = () => { const fx = BODY.hx + 4;   // (a nudge bar across his nose, below his face)
+      for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
+      tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
     const bar = sb => { tube([hx, sb*yc, zt - 3], [hx + 9, sb*yc, zt - 4]); tube([hx + 9, sb*yc, zt - 4], [nx, sb*yc, zb]); };   // (back along the top, then down to his nose)
     if(part === 'pre'){ arms(-nearSide); if(frontSeen) engine(); }
     if(part === 'mid'){ arms(nearSide); if(!frontSeen) engine(); bar(-nearSide); if(frontSeen) hoop(); }
-    if(part === 'near'){ if(!frontSeen) hoop(); bar(nearSide); }
+    if(part === 'near'){ if(!frontSeen) hoop(); bar(nearSide); roof(); lamps(); }
+    if(part === 'front' && frontSeen) nudge();
+    if(part === 'pre' && !frontSeen) nudge();
   }
   /* THE TANK's cannon: a barrel out of the turret's front (his lid, swung with it), a muzzle brake, a mantlet where it leaves the turret */
   tankKit(bobZ, front = true){
