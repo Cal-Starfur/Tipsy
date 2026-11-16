@@ -144831,7 +144831,7 @@ requestTpProfile();
   /* TIPSEY'S UPGRADES (as Gideon's scooter's GSC_UP -- Sir, 2026-11-16, "both of them have everything"; the Kickstand his alone):
      the Speed Motor, the Battery (half the drain), the Headlight (his pool thrown further), the Bell (people step aside), Underglow */
   const UP1 = (nm, c) => [{ id: 'stock', name: 'Stock', cents: 0 }, { id: 'on', name: nm, cents: c }];
-  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'tuktuk', name: 'Tuk-tuk', cents: 1500 }];   // (HIS BUILDS: racerKit)
+  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
   const WHEEL_LIST = [
