@@ -42914,7 +42914,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, noStripe: true, print: 'mtGrave',   /* (no stripe band over its tombstones -- Sir, 2026-11-16) */ part: 'grave', eye: 0x7dff5a, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lamp: 0x9dff7a, rim: 'star', rimCol: 0x6fd04a } },
+  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, noStripe: true, print: 'mtGrave',   /* (no stripe band over its tombstones -- Sir, 2026-11-16) */ part: 'grave', eye: 0x7dff5a, lid: { hx: 19.5, ox: -8.5 } /* (its cab run back to his tail -- Sir, 2026-11-16) */, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lamp: 0x9dff7a, rim: 'star', rimCol: 0x6fd04a } },
   { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c, exh: 'zoomies', lb: 'pods', lamp: 0xffd84a, rim: 'turbine', rimCol: 0xf2c02e } },
   { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a, exh: 'cruiser', lb: 'bar', lamp: 0xffe9a8, rim: 'dish', rimCol: 0xc0262a /* (side pipes, the Night Cruiser's kind -- Sir, 2026-11-16) */ } },
   { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a, exh: 'side', lb: 'strip', lamp: 0xbfeaff, rim: 'split', rimCol: 0xe8ecf0 } },
@@ -121423,9 +121423,11 @@ class WorldScene extends Phaser.Scene {
       if(TRm.rimCol != null){ SKIN.wheelHubFace = TRm.rimCol; SKIN.wheelHub = _pmix(TRm.rimCol, 0xffffff, 0.35); }
       if(BS.flag && !SKIN.topper){ SKIN.skinTop = BS.flag.kind; if(BS.flag.col != null){ SKIN.flag = BS.flag.col; SKIN.flagPicked = true; } } }   // (its flag: one of the game's own -- Sir, 2026-11-16)
     BODY._bskin = BS || null;
+    if(BS && BS.lid) Object.assign(LID, BS.lid);   // (a skin's own lid: the Graveyard's, run to his back)
     BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag);   // (a build without one, unless its skin flies its own: the Big Foot's) BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
+      Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -125882,8 +125884,8 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
           pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
           g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 2.4*K, 3.3*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 1.2*K, 1.8*K); } };
-      const sx = -LID.hx - 4, stacks = () => { if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
-        const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = BODY.z1, z1 = BODY.z1 + (EXH === 'smoke' ? 30 : single ? 20 : 20), CH = STK;
+      const longLid = (LID.ox || 0) < 0, sx = longLid ? LID.ox - LID.hx + 4 : -LID.hx - 4, stacks = () => {   // (on a cab run to his back, the stacks stand up off its rear) if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
+        const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = longLid ? LID.z1 : BODY.z1, z1 = z0 + (EXH === 'smoke' ? (longLid ? 22 : 30) : single ? 20 : 20), CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
@@ -125909,14 +125911,14 @@ class WorldScene extends Phaser.Scene {
       /* (they run above his tyres: each over its own side's -- the far one after the far tyres ('pre'), the near one after the near tyres ('after')) */
       if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'after') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
-      if(part === 'mid' && frontSeen) stacks();
-      if(part === 'near'){ if(!frontSeen) stacks();
+      if(part === 'mid' && frontSeen && !longLid) stacks();
+      if(part === 'near'){ if(!frontSeen || longLid) stacks();
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
            two big round pods up on stalks; 'cage' five lamps behind a grille */
         const LB = TR.lb || 'bar', LAMP = TR.lamp != null ? TR.lamp : 0xffe9a8, night = this.isNightLit && this.isNightLit(), K2 = K;
-        const lx = LID.hx - 3, zr = LID.z1, zb = zr + 2, zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
+        const lx = LID.hx + (LID.ox || 0) - 3, zr = LID.z1, zb = zr + 2, zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
         const disc = (x, y, z, r, col) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(x, y + Math.cos(a)*r, z + Math.sin(a)*r)); } this.quadOn(g, o, col); };
         const glow = ys => { if(!night) return; const gl = this.gBotGlow || this.gGlowLo; if(gl) for(const y of ys){ const q = P(fx + 2, y, zc); gl.fillStyle(LAMP, 0.22); gl.fillCircle(q.x, q.y, 6*K2); } };
         if(LB === 'pods'){ for(const y of [-(LID.hy - 4), LID.hy - 4]){ box(0.6, 0.6, lx - 1, y, zr, zr + 3.5, DARK, 0.2);
