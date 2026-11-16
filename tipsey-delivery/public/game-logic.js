@@ -111333,18 +111333,12 @@ class WorldScene extends Phaser.Scene {
     /* the rear fender starts where its arc meets the deck's top, so the two join (Sir, 2026-11-16: a gap between them) */
     const stemAt = k => [SA + (barA - SA)*k, 0, SZ + (barH - SZ)*k], kAt = h => Math.max(0, Math.min(0.9, (h - SZ)/(barH - SZ)));
     const fU0 = Math.max(0.2, Math.asin(Math.max(-1, Math.min(1, (RD - WHL[0][1])/(WHL[0][1] + 3)))));     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
-    /* THE VINTAGE'S SKINS are kits, not just paint (Sir, 2026-11-16, "more like paint colours than skins vintage scooters would have"):
-       whitewalls, a chrome rack with a suitcase or a picnic basket, a spare wheel on the back, crash bars, a side flash, a front basket of
-       flowers, a whip aerial with a pennant, the Mod's roundel and mirrors */
-    const vp = sty === 'vintage' ? brand.paint : null, vHas = k => !!vp && ({ riviera: 'ww rack case', cherry: 'flash spare ww', sky: 'bars trim ww',
-      lime: 'basket ww', mod: 'roundel aerial mirrors', dolce: 'rack picnic ww', polka: 'dots ww', butter: 'aerial spare' }[vp] || '').split(' ').includes(k);
+    const vHas = k => k === 'mirrors' && sty === 'vintage' && brand.paint === 'mod';         // (the Mod Target's mirrors)
     if(sty === 'robo'){                                                                         // the glow on the ground under it, and its two thrusters
       const gl = brand.glow || 0x5ee8d8, c = P(0, 0, 0.5); g.fillStyle(gl, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);   // (a skin's own glow: GSC_LIVERY)
       g.fillStyle(0xffffff, 0.22); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4); g.fillStyle(gl, 0.25); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
       for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? gl : 0x2a2f36); }
     else for(const [a0, r, wd] of WHL){ wheel(a0, 0, r, wd, r, wheelPhase);
-      if(vHas('ww')) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const ring = []; for(let i = 0; i <= 18; i++){ const w = i/18*Math.PI*2; ring.push(P(a0 + Math.cos(w)*r*0.86, sb*(wd/2 + 0.05), r + Math.sin(w)*r*0.86)); }   // whitewalls
-        for(let i = 18; i >= 0; i--){ const w = i/18*Math.PI*2; ring.push(P(a0 + Math.cos(w)*r*0.64, sb*(wd/2 + 0.05), r + Math.sin(w)*r*0.64)); } g.fillStyle(0xf4f2ec, 1); g.fillPoints(ring, true); }
       if(sty === 'offroad') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ g.fillStyle(0x15171a, 1);      // its knobbly tread, round the rim on the seen side
         for(let k = 0; k < 12; k++){ const u = k*Math.PI/6 - (wheelPhase || 0), q = P(a0 + (r + 0.7)*Math.cos(u), sb*wd/2, r + (r + 0.7)*Math.sin(u)); g.fillRect(q.x - 1.2, q.y - 1.2, 2.4, 2.4); } } }
     if(wheeled && sty !== 'offroad' && sty !== 'vintage')                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
@@ -111404,28 +111398,11 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'vintage'){                                                                      // its rounded rear cowl over the back wheel, and the leg shield round the stem's foot (its top the accent)
       solid(prismB(arcPts(-R.wheelA, RD - 2, 13, 13, 0, Math.PI, 10), -8.5, 8.5), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c); }
-    if(vp){ const side = KV.sees(0, 1, 0) ? 1 : -1, sP = (a, h) => P(a, side*8.56, h), ca = -R.wheelA, ch = RD - 2;
-      if(vHas('flash')){ g.fillStyle(0xf4efe6, 1); g.fillPoints([sP(ca - 12.2, ch + 4.5), sP(ca + 12.2, ch + 4.5), sP(ca + 11.3, ch + 6.5), sP(ca - 11.3, ch + 6.5)], true); }   // a cream flash down the cowl
-      if(vHas('dots')){ g.fillStyle(0xf4efe6, 1); for(const [a, h] of [[-6, 3], [0, 7], [6, 3], [-3, 10.5], [3.6, 10.6], [-9.5, 6.8], [9.5, 6.8]]){ const q = sP(ca + a, ch + h); g.fillCircle(q.x, q.y, 1.3*this.K*0.42*1.4); } }
-      if(vHas('bars')){ const B = arcPts(ca, ch, 14.5, 13.5, 0.15, Math.PI - 0.15, 10).map(([a, h]) => P(a, side*9.6, h));   // chrome crash bars round the cowl
-        g.lineStyle(Math.max(1, 2*this.K*0.42*1.4), 0xdfe3e7, 1); g.strokePoints(B, false); }
-      if(vHas('trim')){ const T = [[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]];
-        g.lineStyle(Math.max(1, 1.1*this.K*0.42*1.4), 0xe4e8ec, 1); g.strokePoints(T.map(([a, b]) => P(a, b, RD + 26.1)), false); }   // chrome trim round the leg shield's rim
-      if(vHas('roundel') && KV.sees(1, 0, 0)) for(const [r, col] of [[5, 0x1f4fa8], [3.5, 0xf4efe6], [2, 0xc8102e]]){ const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(R.wheelA + 1.6, Math.cos(w)*r, RD + 15 + Math.sin(w)*r)); } g.fillStyle(col, 1); g.fillPoints(o, true); } }
     if(sty !== 'robo' && sty !== 'vintage' && sty !== 'rocket' && sty !== 'chopper' && sty !== 'racer')
       fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, sty === 'junk' ? acc0 : brand.acc != null ? brand.c : brand.cDk);   // (an arc centred on the back wheel -- it was a flat pad hovering off-centre, Sir 2026-11-15)   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
-      if(vp){ const ct = RD + 11;
-        if(vHas('spare') && KV.sees(-1, 0, 0)){ const disc = (r, col) => { const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(-40, Math.cos(w)*r, RD + 4 + Math.sin(w)*r)); } g.fillStyle(col, 1); g.fillPoints(o, true); };
-          disc(6.5, 0x23262b); disc(4.4, brand.c); disc(1.6, 0xc9ced3); }                      // the spare wheel on the back, its rim in the body colour
-        if(vHas('rack')){ for(const sb of [-1, 1]){ line([-34, sb*6, ct + 1.5], [-20, sb*6, ct + 1.5], 0xc9ced3, 1.2); line([-34, sb*6, ct + 1.5], [-35, sb*6, RD + 5], 0xc9ced3, 1.2); } }
-        if(vHas('case')) solid(prismH([[-33.5, -5], [-21, -5], [-21, 5], [-33.5, 5]], ct + 1.5, ct + 8), 0xa8743f, (k, n) => n[2] > 0.9 ? 0xc08a52 : 0xa8743f);   // a little tan suitcase
-        if(vHas('picnic')) solid(prismH([[-33.5, -5.5], [-21, -5.5], [-21, 5.5], [-33.5, 5.5]], ct + 1.5, ct + 7), 0xc9a26a, (k, n) => n[2] > 0.9 ? 0xc8323a : 0xb08a52);   // a wicker basket, a red cloth over it
-        if(vHas('aerial')){ const top = [-40, -5, RD + 50], pen = vp === 'mod' ? 0x1f4fa8 : brand.acc;   // the whip aerial and its pennant
-          line([-36, -5, RD + 6], top, 0x2a2f36, 0.9);
-          const a = P(top[0], top[1], top[2]), b = P(-40, -5, RD + 43), c = P(-49, -5, RD + 46.5); g.fillStyle(pen, 1); g.fillTriangle(a.x, a.y, b.x, b.y, c.x, c.y); } }
       if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
         const W0 = RD + 17, sp = 10;                                                            // end plates on it, two struts down onto the fender (Sir, 2026-11-16, "isn't reading as a spoiler")
         /* its tail cowl over the back wheel, the front fairing's mirror (Sir, 2026-11-16, "the rear fender similar to the front one"):
@@ -111482,8 +111459,6 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xfff3c4, 1); for(const b of [-6, -2, 2, 6]){ const q = P(barA + 2, b, barH + 5); g.fillCircle(q.x, q.y, 1.1*this.K*0.42*1.4); } }
       if(sty === 'junk'){ const q = P(barA + 3, 0, barH - 6); g.fillStyle(0xb9bec4, 1); g.fillCircle(q.x, q.y, 2.8*this.K*0.42*1.4);   // a torch taped on
         g.fillStyle(0xfff3c4, 1); g.fillCircle(q.x, q.y, 1.6*this.K*0.42*1.4); return; }
-      if(vHas('basket')){ solid(prismH([[R.wheelA + 2, -5.5], [R.wheelA + 10, -5.5], [R.wheelA + 10, 5.5], [R.wheelA + 2, 5.5]], RD + 13, RD + 20), 0xc9a26a, (k, n) => n[2] > 0.9 ? 0x7a5a2e : 0xc9a26a);   // a front basket of flowers
-        for(const [a, b, col] of [[4, -3, 0xff7ab0], [7, 0, 0xffd23a], [5, 3, 0xf4f2ec], [8, -2.6, 0xff7ab0], [3.6, 0.6, 0x5fb85a], [8.4, 3, 0x5fb85a]]){ const q = P(R.wheelA + a, b, RD + 21); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, 1.5*this.K*0.42*1.4); } }
       if(vHas('mirrors'))                                            // the Mod's two big round mirrors on tall chrome stalks off the bar ends (Sir, 2026-11-16, UK spec)
       { const mirror = (ma, b0, h0, mb, mh, r) => {                                          // a chrome stalk out to a round mirror facing back
           line([ma, b0, h0], [ma - 1, mb, mh - r], 0xc9ced3, 1.6);
