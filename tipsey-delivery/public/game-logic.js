@@ -124613,7 +124613,7 @@ class WorldScene extends Phaser.Scene {
         const w = HN(nx, ny, 0); if(w.x + w.y + w.z > 0) this.quadOn(g, [B[i], B[(i + 1) % n], S[(i + 1) % n], S[i]], steps[Math.round(litOf(w)*8)]);
         const wb = HN(nx*0.7, ny*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(g, [S[i], S[(i + 1) % n], T[(i + 1) % n], T[i]], _pmix(top, steps[Math.round(litOf(wb)*8)], 0.5)); }
       const wt = HN(0, 0, 1); if(wt.x + wt.y + wt.z > 0) this.quadOn(g, T, top);
-      g.lineStyle(this.kw(2), SKIN.outline, 1); g.strokePoints(convexHull(B.concat(T)).map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
+    };   // (no outline round the pieces -- Sir, 2026-11-16)
     const WS = BODY._windshield, front = () => piece(clip(ring, x => x >= xc), Hw, WS[0], WS[1], WS[2]), back = () => piece(clip(ring, x => x <= xc), H, BP.top, BP.lt, BP.dk);
     const fw = HN(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ back(); front(); } else { front(); back(); }
     { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (the windscreen's glint)
