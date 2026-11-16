@@ -86467,6 +86467,12 @@ function fmTruckTick(scene, now, dt){
     const ux = Math.cos(q.yaw)*(q.rev ? -1 : 1), uy = Math.sin(q.yaw)*(q.rev ? -1 : 1), dx = ow.px - q.x, dy = ow.py - q.y;
     const along = dx*ux + dy*uy, lat = Math.abs(-dx*uy + dy*ux);
     if(along > 0 && along < 420 && lat < 150) q = null;              // he is in its way: it waits
+    /* and for a car in front of it in its lane (the cars wait for it the same way: updateTrafficSpacing) */
+    if(q) for(const tr of scene.trafficActive(now) || []){
+      const a = trafficWorldAt(tr, now); if(a.hidden) continue;
+      const cx = a.wp.x - q.x, cy = a.wp.y - q.y, al = cx*ux + cy*uy, la = Math.abs(-cx*uy + cy*ux);
+      if(al > 0 && al < 480 && la < 150){ q = null; break; }
+    }
   }
   /* it comes on and goes off the road mid-block (inP's and outP's ends): never in sight -- the clock waits at that
      moment while the spot is on screen, so he never sees it pop in or out */
@@ -130366,6 +130372,9 @@ class WorldScene extends Phaser.Scene {
     /* (a car at the kerb that is not traffic -- a hospital patient's ride home, HOSP_CAST_CAR -- is in the way as an
        errand's car is: traffic waits behind it rather than drive through it) */
     for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: c.len || CARC.len });   // (an ambulance as long as it is)
+    /* the fish market's ice truck on Harbor Road is not fleet traffic either: the cars wait behind it, not drive through it */
+    { const q = WORLDGEN_COAST && FM_TRUCK.now;
+      if(q){ const sg = q.rev ? -1 : 1; pos.push({ tr: { errand: true }, x: q.x, y: q.y, dx: sg*Math.cos(q.yaw), dy: sg*Math.sin(q.yaw), inBox: false, len: vehLen("reefertruck") }); } }
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
        space he occupies. Cars now see him the same way they see each
