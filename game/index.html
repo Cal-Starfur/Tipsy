@@ -113175,6 +113175,11 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xfff3c4, 1); for(const b of [-6, -2, 2, 6]){ const q = P(barA + 2, b, barH + 5); g.fillCircle(q.x, q.y, 1.1*this.K*0.42*1.4); } }
       if(sty === 'junk'){ const q = P(barA + 3, 0, barH - 6); g.fillStyle(0xb9bec4, 1); g.fillCircle(q.x, q.y, 2.8*this.K*0.42*1.4);   // a torch taped on
         g.fillStyle(0xfff3c4, 1); g.fillCircle(q.x, q.y, 1.6*this.K*0.42*1.4); return; }
+      if(sty === 'vintage' && brand.paint === 'mod')                                            // the Mod's two big round mirrors on tall chrome stalks off the bar ends (Sir, 2026-11-16, UK spec)
+        for(const sb of [-1, 1]){ const mb = sb*(hb + 12), mh = barH + 19, r = 6;
+          line([barA, sb*(hb + 4), barH], [barA - 1, mb, mh - r], 0xc9ced3, 1.6);
+          const disc = rr => { const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(barA - 1, mb + Math.cos(w)*rr, mh + Math.sin(w)*rr)); } return o; };
+          g.fillStyle(0xc9ced3, 1); g.fillPoints(disc(r), true); g.fillStyle(KV.sees(-1, 0, 0) ? 0xdfeaf2 : 0x8a9097, 1); g.fillPoints(disc(r*0.78), true); }
       const hp = P(barA + 2, 0, barH - 10), hr = sty === 'vintage' ? 2.2 : 1;               // (the Vintage's big chrome headlamp)
       g.fillStyle(sty === 'vintage' ? 0xc9ced3 : 0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*hr*this.K*0.42*1.4);
       g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*hr*this.K*0.42*1.4);
