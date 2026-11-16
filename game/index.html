@@ -126962,14 +126962,24 @@ class WorldScene extends Phaser.Scene {
         const e = P(-20.5, ys, zs); g.fillStyle(0x1c1e22, 1); g.fillCircle(e.x, e.y, 1.5*K); };
       /* THE TAIL FINS: a blade up off each back corner, its leading edge sweeping up and back to a point past his tail -- only its face
          toward the eye drawn, in his paint, its leading edge picked out in his stripe and the whole outlined as his hull is */
-      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 2.5), z = BODY.z1 - 0.5, t = 1.1, X0 = -BODY.hx;
-        const lead = []; for(let k = 0; k <= 6; k++){ const u = k/6; lead.push([-8 + (X0 - 6 + 8)*u, z + 14*Math.pow(u, 0.6)]); }   // (its top edge bowed up: a broad blade, not a sliver)
-        const S = [...lead, [X0 - 8, z + 14], [X0 - 3, z + 4], [X0 - 1, z]];
-        const out = vis(0, sb, 0), yy = out ? y + sb*t : y - sb*t, pts = S.map(([x, zz]) => P(x, yy, zz));
+      /* (a second pass -- Sir, 2026-11-16, "they seem nice but could be better"): each fin a solid blade, thick at its root and thinning to
+         its point -- its top edge a band in his stripe running the whole sweep, its face toward the eye in his paint lit along its sweep,
+         a dark outline round it as his hull has, a red tail lamp in its point */
+      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 2.5), z = BODY.z1 - 0.5, X0 = -BODY.hx, N = 8;
+        const LE = []; for(let k = 0; k <= N; k++){ const u = k/N; LE.push([-6 + (X0 - 7 + 6)*u, z + 15*Math.pow(u, 0.6), 1.7 - 1.25*u]); }   // (x, z, half thickness)
+        const TIP = [X0 - 9, z + 15, 0.45], BACK = [[X0 - 3.5, z + 5, 0.9], [X0 - 1, z, 1.2]];
+        const out = vis(0, sb, 0), fs = out ? 1 : -1, sideY = (q) => y + sb*fs*q[2];
+        /* its top edge: the band between its two faces, the length of the sweep -- in his stripe */
+        for(let k = 0; k < N; k++){ const a = LE[k], b = LE[k + 1];
+          this.quadOn(g, [P(a[0], y - a[2], a[1]), P(b[0], y - b[2], b[1]), P(b[0], y + b[2], b[1]), P(a[0], y + a[2], a[1])], k % 2 ? SKIN.stripe : _pmix(SKIN.stripe, 0xffffff, 0.08)); }
+        this.quadOn(g, [P(LE[N][0], y - LE[N][2], LE[N][1]), P(TIP[0], y - TIP[2], TIP[1]), P(TIP[0], y + TIP[2], TIP[1]), P(LE[N][0], y + LE[N][2], LE[N][1])], SKIN.stripeDk);
+        /* its face toward the eye: lit near its root, a shade down toward its point */
+        const S = [...LE, TIP, ...BACK], pts = S.map(q => P(q[0], sideY(q), q[1]));
         this.quadOn(g, pts, out ? BP.lt : BP.dk);
-        this.quadOn(g, [P(X0 - 6, y - t, z + 14), P(X0 - 8, y - t, z + 14), P(X0 - 8, y + t, z + 14), P(X0 - 6, y + t, z + 14)], BP.top);   // (its tip's top)
+        this.quadOn(g, [P(LE[2][0], sideY(LE[2]), LE[2][1] - 1.2), P(LE[6][0], sideY(LE[6]), LE[6][1] - 1.4), P(X0 - 2.5, sideY(BACK[0]), z + 3), P(-4 + (X0 + 4)*0.3, sideY(LE[2]), z + 0.5)], out ? _pmix(BP.lt, 0xffffff, 0.35) : _pmix(BP.dk, 0xffffff, 0.12), 0.7);
         g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
-        g.lineStyle(Math.max(1, 1.8*K), SKIN.stripe, 1); for(let k = 0; k < 6; k++){ const a = P(lead[k][0], yy, lead[k][1] - 0.9), b = P(lead[k + 1][0], yy, lead[k + 1][1] - 0.9); g.lineBetween(a.x, a.y, b.x, b.y); } };
+        const L = P(TIP[0] + 0.6, sideY(TIP), TIP[1] - 1.4); g.fillStyle(0x7f1d19, 1); g.fillCircle(L.x, L.y, 1.4*K); g.fillStyle(0xff4a3a, 1); g.fillCircle(L.x, L.y, 0.95*K);   // (its tail lamp)
+      };
       const fins = () => { fin(-nearSide); fin(nearSide); };
       /* THE JET NOZZLE out his tail: a steel ring, its dark throat, an ember glowing in it */
       const nozzle = () => { if(!vis(-1, 0, 0)) return; const x = -BODY.hx - 0.6, zc = (BODY.z0 + BODY.z1)/2 - 1, pulse = 0.7 + 0.3*Math.sin((this.time ? this.time.now : 0)*0.006);
