@@ -125448,9 +125448,8 @@ class WorldScene extends Phaser.Scene {
           for(const sb of [-nearSide, nearSide]){
             bar([x, sb*7, hz], [x*0.45, sb*9, zb - 3], 2.4);                                            // (a link up to the frame)
             for(const dx of [-3.5, 3.5]) coil([x + dx, sb*(yi - 2.5), hz + 1], [x + dx*1.6, sb*(BODY.hy - 3), zb]); } }
-        fenders(-nearSide);
+        /* (no fenders -- Sir, 2026-11-16) */
         for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) !== frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2); } }   // (the push bar on his far end)
-      if(part === 'after') fenders(nearSide);   // (over the near tyres, drawn after them)
       if(part === 'mid'){
         for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) === frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2);   // (the push bar on his near end, its tow hooks red)
           for(const y of [-8, 8]) box(1.2, 1, fx + Math.sign(fx)*2.6, y, zb, zb + 3, [0xd8322a, 0xb52a24, 0x7f1d19], 0.3); } }
