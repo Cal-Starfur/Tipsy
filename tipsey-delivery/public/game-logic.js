@@ -125932,9 +125932,14 @@ class WorldScene extends Phaser.Scene {
       /* (they run above his tyres: each over its own side's -- the far one after the far tyres ('pre'), the near one after the near tyres ('after')) */
       if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'after') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
+      /* a light bar set down on the cab's face goes where that face is: over the cab when his front is to the eye, before it (under the cab and
+         the stacks) when his back is */
+      const lbLowBack = !!TR.lbLow && !frontSeen;
+      if(lbLowBack && part === 'mid') lightBar.call(this);
       if(longLid){ if(part === 'mid') stacks('far'); if(part === 'near') stacks('near'); }   // (beside his cab: the far one under it, the near over it)
       if(part === 'mid' && frontSeen && !longLid) stacks();
-      if(part === 'near'){ if(!frontSeen && !longLid) stacks();
+      if(part === 'near'){ if(!frontSeen && !longLid) stacks(); if(!lbLowBack) lightBar.call(this); }
+      function lightBar(){
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
