@@ -19934,6 +19934,10 @@ function hoodDrivewaysOf(grid){
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, wings: dw.wings !== false, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
+  /* ...and the bait shop's lot, off Harbor Road's east kerb (BT_PLAN.DRIVE): along the kerb is +y, out is west */
+  if(WORLDGEN_COAST && typeof harborGeo === "function")
+    out.push({ col: "#b9b6ad", lines: false, arrows: "both", lane: false, wings: false, blockKey: "baitlot", edge: -1,
+               e: { ox: harborGeo().apron.x0, oy: 0, dv: { x: 0, y: 1 }, rv: { x: -1, y: 0 } }, al0: BT_PLAN.DRIVE.y1, al1: BT_PLAN.DRIVE.y0 });
   /* ...and the fleet's bays (FLEET_BAY_DRIVES), on whichever street their doors face */
   for(const dw of FLEET_BAY_DRIVES)
     out.push({ col: "#a9a7a0", lines: false, arrows: "none", lane: true, blockKey: "fleet", edge: -1, e: dw.e, al0: dw.al0, al1: dw.al1 });
@@ -78253,28 +78257,77 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     for(const a of [-560, 560]) ball(a, 0, 626, 14, GOLD);
   }
 },
-/* ---- THE BAIT & TACKLE KIOSK on the harbor apron: a clapboard hut under
-   a teal hip, a serving hatch with its shutter up, a striped awning, the
-   name on a board, and a cooler and rods outside. Game units. ---- */
+/* ---- THE BAIT & TACKLE on the harbor apron (Sir, 2026-11-16: "it needs an update so that it has a worker ... bigger too
+   and built out better to accommodate the worker and customers"): an open-fronted clapboard shop under a teal hip, its
+   counter to the south (the camera) with the worker behind it, tackle on the back wall's shelves and rods racked, a live-bait
+   tank, a striped awning over the counter, the name on a board on the roof. Game units, a 420 x 300 plan. Drawn in two
+   parts so the worker stands between them: back() (floor, walls, shelves, tank) and front() (counter, awning, roof, the
+   cooler and rods outside); draw() is both, for the lab. ---- */
 {
-  name:'Harbor Kiosk', xh: 300, base:'Kiosk', hood:'The Flats', edited:true, zs:1, ww: 320, dd: 240,
-  head:'the bait and tackle kiosk on Pelican Harbor\'s apron', tags:['kiosk'], desc:'A bait and tackle kiosk.',
-  draw(p){
-    if(!inView(-180, 180, -140, 140, 0, 320)) return;
-    const WALL = '#f3efe6', TEAL = '#2f6f7e', NAVY = '#1f3a4d';
-    box(-150, 150, -110, 110, 0, 210, WALL, '#ece6d8', '#d8d2c4');
-    for(let z = 20; z < 210; z += 24) F(-150, 150, z, z + 2, '#d8d2c4', null, 0, 110.3);
-    F(-90, 90, 90, 170, '#2c3a44', null, 0, 110.5);                                  // the hatch
-    F(-100, 100, 84, 92, '#c8a46e', null, 0, 112);                                    // its counter
-    for(let a = -120, k = 0; a < 120; a += 40, k++)
-      poly([P(a, 110, 200), P(a + 40, 110, 200), P(a + 40, 180, 176), P(a, 180, 176)], k % 2 ? WALL : TEAL);
-    const o = 28;
-    poly([P(-150 - o, 110 + o, 210), P(150 + o, 110 + o, 210), P(0, 0, 300)], TEAL);
-    poly([P(150 + o, 110 + o, 210), P(150 + o, -110 - o, 210), P(0, 0, 300)], shade(TEAL, .82));
-    slab(-130, 130, 226, 262, 124, 112, NAVY, shade(NAVY, .8), shade(NAVY, 1.2));
-    blockWord('BAIT TACKLE', 0, 256, 3.6, 124.4, '#e8b54a', null);
-    box(110, 170, 130, 170, 0, 50, '#e8e2d4', '#2f7f86', '#24666c');                  // the cooler
-    for(const a of [-160, -140]) tube(a, 120, 0, a - 10, 120, 260, 1.4, '#3b3f45');   // rods leaning on the wall
+  name:'Harbor Kiosk', xh: 360, base:'Kiosk', hood:'The Flats', edited:true, zs:1, ww: 480, dd: 360,
+  head:'the bait and tackle shop on Pelican Harbor\'s apron', tags:['kiosk', 'bait shop'], desc:'An open-fronted bait and tackle shop with a counter, a worker behind it and tackle on its walls.',
+  C: { wall:'#f3efe6', wallD:'#ece6d8', wallK:'#d8d2c4', teal:'#2f6f7e', navy:'#1f3a4d', wood:'#d9b48a', woodD:'#b9864f', woodK:'#a8763f', floor:'#c8b08a' },
+  draw(p){ if(!inView(-260, 260, -200, 260, 0, 400)) return; this.back(); this.front(); },
+  back(){
+    const C = this.C;
+    if(!inView(-230, 230, -170, 170, 0, 310)) return;
+    box(-210, 210, -150, 150, 0, 8, C.floor, shade(C.floor, .9), shade(C.floor, .8));                     // the floor, boarded
+    for(let a = -190; a < 200; a += 30) T(a, a + 1.5, -150, 150, 8.2, shade(C.floor, .85));
+    box(-210, 210, -150, -128, 8, 300, C.wall, C.wallD, C.wallK);                                          // the back wall
+    box(-210, -188, -128, 150, 8, 300, C.wall, C.wallD, C.wallK);                                          // the west wall
+    F(-188, 188, 8, 300, '#e6dfd0', null, 0, -127.6);                                                      // the back wall inside
+    /* the shelves of tackle: boards, and boxes of lures, line and hooks in their colours */
+    const rng = mulberry32(0x7ac1e);
+    for(const z of [70, 118, 166]){
+      F(-170, 60, z, z + 5, '#a07a50', null, 0, -127.2);
+      for(let a = -166; a < 52; a += 16 + rng()*10){ const w = 10 + rng()*8, h = 14 + rng()*16, c = ['#c8462e', '#2f7f86', '#e8b54a', '#3d6f8f', '#7c9a3f', '#f3efe6'][Math.floor(rng()*6)];
+        F(a, Math.min(52, a + w), z + 5, z + 5 + h, c, null, 0, -126.8); }
+    }
+    /* the rods, racked upright along the back wall's east half */
+    for(let a = 80; a < 176; a += 12) tube(a, -124, 14, a + 3, -124, 236, 1.2, ['#3b3f45', '#7a2f2a', '#1f3a4d'][((a/12) | 0) % 3]);
+    F(76, 180, 30, 36, '#a07a50', null, 0, -122);                                                          // their foot rail
+    /* the live-bait tank along the west wall: a steel tank, the water, its bubbler */
+    box(-186, -110, -100, 40, 8, 96, '#dfe4e6', '#c7ced1', '#b2babe');
+    T(-182, -114, -96, 36, 96.5, '#6fb3c8');
+    for(const b of [-60, -20, 20]) ball(-148, b, 98, 3, '#e8f6fb', '#ffffff');
+    /* the east wall last, over what is inside it */
+    box(188, 210, -128, 150, 8, 300, C.wall, C.wallD, C.wallK);
+    for(let z = 26; z < 300; z += 24) S(210.3, -150, 150, z, z + 2, C.wallK);                              // its clapboard
+  },
+  front(){
+    const C = this.C;
+    if(!inView(-260, 260, -180, 260, 0, 400)) return;
+    /* the counter across the front, timber-clad, its top, LIVE BAIT on a teal plate */
+    box(-188, 188, 122, 150, 8, 82, C.wood, C.woodD, C.woodK);                                             // (waist high: the keeper shows over it)
+    for(let z = 22; z < 80; z += 16) F(-188, 188, z, z + 2, '#9a6a36', null, 0, 150.3);
+    box(-196, 196, 116, 158, 82, 88, '#e9e1d2', '#d6cbb7', '#c4b9a3');
+    F(-84, 84, 28, 70, C.teal, null, 0, 150.6);
+    blockWordIn('LIVE BAIT', -78, 78, 36, 64, 150.8, '#ffffff', null);
+    /* a scale and a jar of lures on the counter */
+    box(110, 150, 122, 146, 88, 96, '#c9d0d3', '#a4adb1', '#8e979b');
+    box(-150, -126, 122, 146, 88, 114, 'rgba(210,232,240,0.55)', 'rgba(180,205,215,0.55)', 'rgba(160,190,200,0.55)');
+    /* the front posts, up to the plate */
+    for(const a of [-199, 199]) box(a - 11, a + 11, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);
+    /* a short striped valance under the eave, high, so the keeper shows under it */
+    for(let a = -188, k = 0; a < 188; a += 47, k++)
+      poly([P(a, 150, 300), P(a + 47, 150, 300), P(a + 47, 172, 286), P(a, 172, 286)], k % 2 ? C.wall : C.teal);
+    F(-188, 188, 282, 286, C.teal, null, 0, 172.2);
+    /* the hip roof over it all */
+    const o = 26, ez = 300, rz = 380, x0 = -210 - o, x1 = 210 + o, y0 = -150 - o, y1 = 150 + o, r0 = -90, r1 = 90;
+    poly([P(x0, y0, ez), P(x1, y0, ez), P(r1, 0, rz), P(r0, 0, rz)], shade(C.teal, .7));
+    poly([P(x0, y0, ez), P(x0, y1, ez), P(r0, 0, rz)], shade(C.teal, .75));
+    poly([P(x1, y0, ez), P(x1, y1, ez), P(r1, 0, rz)], shade(C.teal, .82));
+    poly([P(x0, y1, ez), P(x1, y1, ez), P(r1, 0, rz), P(r0, 0, rz)], C.teal);
+    F(x0, x1, ez - 10, ez, C.navy, null, 0, y1);
+    /* the name, on a board standing on the roof's front */
+    slab(-170, 170, 310, 352, 182, 170, C.navy, shade(C.navy, .8), shade(C.navy, 1.2));
+    blockWord('BAIT TACKLE', 0, 344, 3.8, 182.4, '#e8b54a', null);
+    /* outside: the ice cooler by the east post, rods leaning on the west wall, a chalkboard */
+    box(214, 280, 120, 176, 0, 56, '#e8e2d4', '#2f7f86', '#24666c');
+    for(const a of [-226, -238, -250]) tube(a, 120, 0, a - 12, 132, 290, 1.4, '#3b3f45');
+    for(const s2 of [-1, 1]) tube(120 + s2*24, 232, 0, 120, 222, 92, 2, '#86603b');
+    poly([P(96, 226, 20), P(144, 226, 20), P(144, 218, 90), P(96, 218, 90)], '#2b2f33');
+    blockWordIn('BAIT', 100, 140, 54, 80, 226.5, '#f3efe6', null);
   }
 },
 /* ---- THE PELICAN FISH MARKET (see THE PELICAN FISH MARKET, FM_PLAN): drawn in WORLD units (a is x, b is y, z is
@@ -86554,6 +86607,138 @@ function fmMeetWalk(ow, pts, now, side){
   const to = { x: ow.px + side*MEET.gap/Math.SQRT2, y: ow.py - side*MEET.gap/Math.SQRT2 };
   return { pts: pts.concat([to]), t0: now, leave: null, card: false, to,
            faceTh: meetCheat(Math.atan2(ow.py - to.y, ow.px - to.x)), botTh: meetCheat(Math.atan2(to.y - ow.py, to.x - ow.px)), botTh0: ow.yaw };
+}
+/* ==================== THE BAIT & TACKLE (Sir, 2026-11-16: "i want people to be patronizing the bait and tackle shop ...
+   it needs ... a worker ... the customers need a life too so we need them to be coming from parked cars and trucks and id
+   like some of them to go fishing from the dock across the street") ====================
+   The shop on the apron (harborGeo's 'kiosk', LIB 'Harbor Kiosk': open-fronted, its counter to the south) and its keeper
+   behind the counter; a lot of three bays north of it off Harbor Road (its drive: hoodDrivewaysOf), a pickup, a wagon and
+   a truck nose in. A customer from each in turn: out of the cab, down the footway past the shop's west side to the
+   counter, buys (the keeper comes over and hands it across), and with a rod either back to the car, or over Harbor Road
+   at the zebra (BT_PLAN.XE/XW) to the quay, fishing over its edge a while, and back the same way. Each has their own
+   clock: it waits at the kerb while a car is near the crossing, and a car waits for them while they are on it
+   (btOnRoad, updateTrafficSpacing). ==================== */
+const BT_PLAN = {
+  K: { x: -2056, y: -8600 },                                                                   // the shop (its centre)
+  CARS: [ { x: -2150, y: -9080, kind: 'liftedpickup', seed: 0x51 }, { x: -2150, y: -9340, kind: 'wagon', seed: 0x2c }, { x: -2150, y: -9600, kind: 'truck', seed: 0x93 } ],
+  DRIVE: { y0: -8950, y1: -9730 },                                                             // the lot's drive, along Harbor Road's east kerb
+  XE: { x: -2668, y: -7820 }, XW: { x: -3588, y: -7820 },                                      // the zebra's two ramps
+  ROAD: [-3496, -2760],                                                                        // the carriageway, kerb to kerb
+  SPOTS: [ { x: -4205, y: -8160 }, { x: -4205, y: -9060 } ],                                   // on the quay's edge, clear of the fingers, bollards and lamp
+  WALK: -2440,                                                                                 // the footway line they walk down past the shop
+  PERIOD: 165000, FISH: 50000, BUY: 7000
+};
+const BT = { last: null, cust: null };
+/* customer i's day, as legs: { pts, ms, road? } walks and { stay, ms, kind } stops; built once */
+function btLegs(i){
+  const c = btLegs.c || (btLegs.c = []);
+  if(c[i]) return c[i];
+  const P = BT_PLAN, K = P.K, car = P.CARS[i], door = { x: car.x - 40, y: car.y - 122 }, front = { x: K.x - 80 + 80*i, y: K.y + 208 };
+  const toShop = [door, { x: P.WALK, y: door.y }, { x: P.WALK, y: K.y + 208 }, front];
+  const legs = [], walk = (pts, o) => { const W = Object.assign({ pts, t0: 0, faceTh: o && o.face }, o || {}); legs.push({ W, ms: walkPathMs(W), road: !!(o && o.road) }); };
+  walk(toShop, { face: -Math.PI/2 });
+  legs.push({ stay: 'buy', ms: P.BUY, at: front, th: -Math.PI/2 });
+  if(i < 2){
+    const S = P.SPOTS[i], quayIn = { x: -3930, y: -7990 };
+    walk([front, { x: -2560, y: -7990 }, P.XE]);
+    walk([P.XE, P.XW], { road: true });
+    walk([P.XW, quayIn, { x: quayIn.x, y: S.y }, S], { face: Math.PI });
+    legs.push({ stay: 'fish', ms: P.FISH, at: S, th: Math.PI });
+    walk([S, { x: quayIn.x, y: S.y }, quayIn, P.XW]);
+    walk([P.XW, P.XE], { road: true });
+    walk([P.XE, { x: -2560, y: -7990 }, { x: P.WALK, y: K.y + 208 }, { x: P.WALK, y: door.y }, door]);
+  } else walk([front, { x: P.WALK, y: K.y + 208 }, { x: P.WALK, y: door.y }, door]);
+  const busy = legs.reduce((a, l) => a + l.ms, 0);
+  return (c[i] = { legs, busy, car, door });
+}
+/* where customer i is at their clock u: { x, y, th, moving, has, fish, road } or null (in the car) */
+function btCustAt(i, u){
+  const L = btLegs(i);
+  let t = ((u % BT_PLAN.PERIOD) + BT_PLAN.PERIOD) % BT_PLAN.PERIOD, bought = false;
+  for(let k = 0; k < L.legs.length; k++){
+    const g = L.legs[k];
+    if(t < g.ms){
+      if(g.stay) return { x: g.at.x, y: g.at.y, th: g.th, moving: false, has: g.stay === 'fish' || (g.stay === 'buy' && t > 4200) ? 'rod' : null, fish: g.stay === 'fish', buy: g.stay === 'buy' ? t : null, leg: k, lt: t };
+      const q = walkPathAt(g.W, t);
+      return q ? Object.assign(q, { has: bought ? 'rod' : null, road: g.road, leg: k, lt: t }) : null;
+    }
+    if(g.stay === 'buy') bought = true;
+    t -= g.ms;
+  }
+  return null;
+}
+/* each frame: every customer's clock runs, but not onto the road while a car is near the crossing */
+function btTick(scene){
+  const now = scene.time.now, dt = BT.last === null ? 0 : Math.max(0, Math.min(250, now - BT.last));
+  BT.last = now;
+  if(!BT.cust) BT.cust = BT_PLAN.CARS.map((c, i) => ({ clock: i*55000 + 20000, now: null }));
+  const traffic = scene.trafficActive(now) || [], X = BT_PLAN.XE.y;
+  const busy = () => traffic.some(tr => { const a = trafficWorldAt(tr, now); return !a.hidden && Math.abs(a.wp.y - X) < 640 && a.wp.x > BT_PLAN.ROAD[0] - 60 && a.wp.x < BT_PLAN.ROAD[1] + 60; });
+  for(let i = 0; i < BT.cust.length; i++){
+    const C = BT.cust[i], cur = btCustAt(i, C.clock), nxt = btCustAt(i, C.clock + dt);
+    const stepping = nxt && nxt.road && !(cur && cur.road && cur.lt > 40) && nxt.lt < 400;
+    if(!(stepping && busy())) C.clock += dt;
+    C.now = btCustAt(i, C.clock);
+  }
+}
+/* the customers on the carriageway now (the traffic waits for them) */
+function btOnRoad(){
+  const out = [];
+  for(const C of BT.cust || []){ const p = C.now; if(p && p.x > BT_PLAN.ROAD[0] - 30 && p.x < BT_PLAN.ROAD[1] + 30 && Math.abs(p.y - BT_PLAN.XE.y) < 120) out.push(p); }
+  return out;
+}
+/* the keeper: along the counter, over to whoever is buying, the hand-over */
+function btKeeperAt(now){
+  const K = BT_PLAN.K;
+  for(const C of BT.cust || []){ const p = C.now; if(p && p.buy != null) return { x: Math.max(K.x - 150, Math.min(K.x + 150, p.x)), y: K.y + 96, th: Math.PI/2, moving: false, give: p.buy > 2600 && p.buy < 4600, work: true }; }
+  return { x: K.x + 70*Math.sin(now/6200), y: K.y + 92, th: Math.PI/2 + 0.6*Math.sin(now/3900), moving: false, work: true };
+}
+function btLooks(){
+  return btLooks.c || (btLooks.c = { keeper: streetLook(0xba17, { adult: true, aid: 'none', type: 'fisher', sex: 'm' }),
+    cust: BT_PLAN.CARS.map((c, i) => streetLook((0xb0a7 + i*7919) >>> 0, { adult: true, aid: 'none', jobs: i === 1 ? ['fisher'] : null })) });
+}
+CITY_PEOPLE.add({ name: 'The Bait & Tackle', where: "the bait and tackle shop on Pelican Harbor's apron, its lot, and the quay over the road", solid: true,
+  each(scene, t, fn){
+    if(!BT.cust) return;
+    const L = btLooks(), k = btKeeperAt(scene.time.now);
+    fn(cpEntry(this, { x: k.x, y: k.y, th: k.th, moving: false, kind: 'bait shop keeper', look: L.keeper }));
+    BT.cust.forEach((C, i) => { const p = C.now; if(p) fn(cpEntry(this, { x: p.x, y: p.y, z: p.x < harborGeo().quay.x1 ? 6 : 0, th: p.th, moving: !!p.moving, kind: p.fish ? 'angler' : 'customer', look: L.cust[i] })); });
+  } });
+/* the draw: the parked cars (cached), the keeper, the customers -- a rod in hand once bought, over the water while fishing */
+function btQueue(scene, t, queuePerson, layerFor){
+  const now = scene.time.now, P = BT_PLAN, K = P.K, L = btLooks();
+  if(!scene.visWorldPt(K.x - 900, K.y, 2600, 700)) return;
+  P.CARS.forEach((c, i) => { if(scene.visProp("car", c.x, c.y)) queuePerson(c.x, c.y, (g) => scene.bcDraw(g, "bt|car|" + i, c.x, c.y, gg => scene.drawProp(gg, c.kind, c.x, c.y, 0, 0, 0, null, c.seed))); });
+  const Hq = harborGeo().quay;
+  /* the shop is wide, so x + y alone mis-sorts it: the keeper goes in just after its back part (its depth - 150), whoever
+     is at the counter just after its front part (+ 160) -- drawn where they are, sorted where they belong */
+  const one = (p, Lk, ph, keeper) => {
+    if(!p || !scene.visProp("people", p.x, p.y)) return;
+    const px = p.x, py = p.y, mv = !!p.moving, th = p.th, z = px < Hq.x1 ? 6 : 0;
+    const atCounter = !keeper && Math.abs(px - K.x) < 260 && py > K.y + 150 && py < K.y + 280;
+    const dx = keeper ? K.x + K.y - 140 - (px + py) : atCounter ? Math.max(0, K.x + K.y + 170 - (px + py)) : 0;
+    queuePerson(px + dx/2, py + dx/2, (g) => {
+      const gg = layerFor(px, py), thW = th - Math.PI/2, K2 = scene.K, rod = p.has === 'rod', lift = rod ? (p.fish ? 0.62 : 0.4) : p.give ? 0.55 : 0;
+      const bag = rod ? () => {
+        const hp = scene.handWorldPos(px, py, thW, Lk.build, lift), hx = Math.cos(th), hy = Math.sin(th);
+        const A = scene.W(hp.x, hp.y, hp.z + z);
+        if(p.fish){
+          const bob = 5*Math.sin(now/650 + ph), tip = scene.W(hp.x + hx*150, hp.y + hy*150, hp.z + z + 95 + bob), wet = scene.W(hp.x + hx*200, hp.y + hy*200, -14);
+          gg.lineStyle(Math.max(1, 2.2*K2), 0x2b2f33, 1); gg.lineBetween(A.x, A.y, tip.x, tip.y);
+          gg.lineStyle(1, 0xf2f2ee, 0.85); gg.lineBetween(tip.x, tip.y, wet.x, wet.y);
+          gg.fillStyle(0xe2493a, 1); gg.fillCircle(wet.x, wet.y, Math.max(1.5, 3*K2));        // the float
+        } else {
+          const tip = scene.W(hp.x - hx*20, hp.y - hy*20, hp.z + z + 170);
+          gg.lineStyle(Math.max(1, 2.2*K2), 0x2b2f33, 1); gg.lineBetween(A.x, A.y, tip.x, tip.y);
+        }
+      } : null;
+      const pose = !rod && !p.give && p.work && !mv ? (() => { const w = Math.abs(Math.sin(now*0.005 + ph)); return { lift: [0.5, 0.6 + 0.2*w], bend: [0.9, 0.7 + 0.3*w] }; })() : null;
+      scene.drawPersonHull(gg, px, py, z, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, mv ? walkAt(px, py) : 0, mv, 0, lift, bag, Lk.uniform, false,
+        Object.assign({ dress: Lk.dress }, pose));
+    });
+  };
+  one(btKeeperAt(now), L.keeper, 0, true);
+  (BT.cust || []).forEach((C, i) => one(C.now, L.cust[i], i*1.7));
 }
 /* ==================== CATCH OF THE DAY (the mission: MISSIONS 'catch-of-the-day', window any; the fleet's delivery pod) ====================
    The trawler came in late, and three kitchens need their fish before service. Its beats:
@@ -102395,8 +102580,13 @@ class WorldScene extends Phaser.Scene {
         q([P(6, 520), P(176, 512), P(176, 498), P(6, 506)], 0xf3efe6);
         post(gg, x, y, 572, 560, 8, 0xe8b54a, 0xd4a03a, 0xb8892e); }) });
       else if(pr.kind === 'anchor') vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|anchor", x, y, gg => this.drawHarborAnchor(gg, x, y)) });
-      else if(pr.kind === 'sign' || pr.kind === 'kiosk'){
-        const nm = pr.kind === 'sign' ? 'Harbor Sign' : 'Harbor Kiosk';
+      else if(pr.kind === 'kiosk'){                                   // (in two parts, the worker between them: see THE BAIT & TACKLE)
+        const ent = LIB.get('Harbor Kiosk'), G = (a, b, h) => this.W(x + a, y + b, h);
+        for(const [part, dz] of [['back', -150], ['front', 160]])
+          vq.push({ depth: x + y + dz, fn: (g) => this.bcDraw(g, "hb|kiosk|" + part, x, y, gg => LIB.drawItem('Harbor Kiosk', gg, G, this.K, { draw: () => ent[part]() }, true)) });
+      }
+      else if(pr.kind === 'sign'){
+        const nm = 'Harbor Sign';
         vq.push({ depth: x + y, fn: (g) => this.bcDraw(g, "hb|" + pr.kind, x, y,
           gg => LIB.draw(nm, gg, (a, b, h) => this.W(x + a, y + b, h), null, this.K, null, true)) });
       }
@@ -103258,6 +103448,11 @@ class WorldScene extends Phaser.Scene {
         if(onScreen([a, b2])) g.lineBetween(a.x, a.y, b2.x, b2.y);
       }
     }
+    /* THE BAIT SHOP'S LOT (BT_PLAN): concrete off its drive, white lines between three bays */
+    { const D = BT_PLAN.DRIVE, x0 = hg.apron.x0, x1 = hg.apron.x0 + 560;
+      rect({ x0, x1, y0: D.y1, y1: D.y0 }, 0.35, 0xb9b6ad);
+      for(const c of BT_PLAN.CARS) for(const s2 of [-1, 1]) rect({ x0: x0 + 60, x1: x1 - 20, y0: c.y + s2*130 - 3, y1: c.y + s2*130 + 3 }, 0.4, 0xf4f4ee);
+      rect({ x0: x1 - 26, x1: x1 - 20, y0: BT_PLAN.CARS[2].y - 130, y1: BT_PLAN.CARS[0].y + 130 }, 0.4, 0xf4f4ee); }
     /* a gentle ripple on the basin, tied to the docks' lee */
     g.lineStyle(2, 0x9cc4d6, 0.5);
     for(const f of hg.fingers){
@@ -105112,6 +105307,7 @@ class WorldScene extends Phaser.Scene {
     marinaAttQueue(this, t, queuePerson, layerFor);    // MARINA PARKING's attendant
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
+    if(WORLDGEN_COAST) btQueue(this, t, queuePerson, layerFor);              // THE BAIT & TACKLE's worker, customers and their parked cars
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
@@ -130829,6 +131025,7 @@ class WorldScene extends Phaser.Scene {
     /* (a car at the kerb that is not traffic -- a hospital patient's ride home, HOSP_CAST_CAR -- is in the way as an
        errand's car is: traffic waits behind it rather than drive through it) */
     for(const c of hospCastCarsWorld(t)) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: c.dx, dy: c.dy, inBox: false, len: c.len || CARC.len });   // (an ambulance as long as it is)
+    if(WORLDGEN_COAST) for(const c of btOnRoad()) pos.push({ tr: { errand: true }, x: c.x, y: c.y, dx: 1, dy: 0, inBox: false, len: 70 });   // (the bait shop's customers on the zebra)
     /* THE ROBOT IS TRAFFIC TOO. Without this a car treats him as empty
        road: it drives into him, tips him, and carries on through the
        space he occupies. Cars now see him the same way they see each
@@ -131589,7 +131786,7 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on){
       hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
-      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST) fmTick(this, this.ow); ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
+      if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
         this.throttle = 0; owSplashTick(this, this.ow, Math.min(dt, 40)); owRespawnTick(this, t);
         /* the rescue crew's courtyard gate has to swing while he is down */
@@ -139355,11 +139552,12 @@ function harborGeo(){
     for(const d of [-280, 280]) props.push({ kind:'none', x: AX - 20, y: y + d, r: 150 });
   }
   props.push({ kind:'rack', x: AX, y: -7300, r: 190 });
-  props.push({ kind:'kiosk', x: AX, y: -8600, r: 180 });
+  props.push({ kind:'kiosk', x: AX, y: -8600, r: 215 });
+  for(const c of BT_PLAN.CARS) for(const d of [-130, 0, 130]) props.push({ kind:'none', x: c.x + d, y: c.y, r: 92 });   // the bait shop's lot: its parked cars
   /* along the road side of the apron, not at the wall's foot: the estate's
      retaining wall stands 226-586 high along apron.x1, and a palm by it lost
      its tub behind the wall (it hides what is within its height of it) */
-  for(const y of [-5250, -6800, -7950, -9300, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // (none by the fish market's end)   // in the gaps the trailers, rack and kiosk leave
+  for(const y of [-5250, -6800, -7950, -9950, -10500, -11600]) props.push({ kind:'palm', x: apron.x0 + 80, y, r: 46 });   // (none by the fish market's end)   // in the gaps the trailers, rack and kiosk leave
   /* SEA LION POINT (Sir, 2026-10-01, drawing round the bare headland
      behind and west of the harbor house: "lets spruce this area up and make
      it a park. make it Sea themed and have a Sealion Statue in it ... more
