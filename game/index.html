@@ -127609,10 +127609,11 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
           pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
           g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 2.4*K, 3.3*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 1.2*K, 1.8*K); } };
-      const longLid = (LID.ox || 0) < 0, sx = longLid ? LID.ox - LID.hx + 4 : -LID.hx - 4, stacks = () => {   /* (on a cab run to his back, the stacks stand up off its rear) */ if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
-        const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = longLid ? LID.z1 : BODY.z1, z1 = z0 + (EXH === 'smoke' ? (longLid ? 22 : 30) : single ? 20 : 20), CH = STK;
+      const longLid = (LID.ox || 0) < 0, sx = longLid ? -BODY.hx + 7 : -LID.hx - 4, stacks = (which) => {   /* (on a cab run to his back, the stacks stand up off its rear) */ if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
+        const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.7 : 1, z0 = BODY.z1, z1 = z0 + (EXH === 'smoke' ? 30 : 20), CH = STK;   /* (on a cab run to his back: standing on his body beside the cab's tail, wider -- Sir, 2026-11-16) */
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
-        for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
+        const yo = longLid ? LID.hy + 1.5*R + 1 : LID.hy - 2, ys = single ? [0] : which === 'far' ? [-nearSide*yo] : which === 'near' ? [nearSide*yo] : [-nearSide*yo, nearSide*yo];
+        for(const y of ys){
           box(3.4, 3.4, sx, y, z0, z0 + 1, DARK, 1);                                                     // (its foot plate)
           cyl(2*R, y, z0 + 1, z0 + 5, CH);                                                                   // (the pipe below the shield)
           cyl(2.6*R, y, z0 + 5, z0 + 13, HEAT);                                   // (the heat shield)
@@ -127638,8 +127639,9 @@ class WorldScene extends Phaser.Scene {
       /* (they run above his tyres: each over its own side's -- the far one after the far tyres ('pre'), the near one after the near tyres ('after')) */
       if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'after') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
+      if(longLid){ if(part === 'mid') stacks('far'); if(part === 'near') stacks('near'); }   // (beside his cab: the far one under it, the near over it)
       if(part === 'mid' && frontSeen && !longLid) stacks();
-      if(part === 'near'){ if(!frontSeen || longLid) stacks();
+      if(part === 'near'){ if(!frontSeen && !longLid) stacks();
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
