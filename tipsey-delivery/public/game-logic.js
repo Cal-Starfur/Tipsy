@@ -111349,8 +111349,7 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'racer'){                                                                        // the fairing over the front, its number board, the rear wing
       solid(prismB([[R.wheelA - 17, RD - 1], [R.wheelA + 6, RD - 1], [R.wheelA + 6, RD + 5], [R.wheelA + 1, RD + 12], [R.wheelA - 5, RD + 12]], -6, 6), brand.c, (k, n) => n[2] > 0.3 ? acc0 : brand.c);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const c = P(R.wheelA - 3, sb*6.05, RD + 4.5); g.fillStyle(0xf4f2ec, 1); g.fillCircle(c.x, c.y, 3.6*this.K*0.42*1.4); g.fillStyle(acc0, 1); g.fillCircle(c.x, c.y, 1.8*this.K*0.42*1.4); }
-      solid(prismH([[-37, -8], [-33, -8], [-33, 8], [-37, 8]], RD + 12, RD + 15), acc0);              // the rear wing, its struts down onto the fender
-      for(const sb of [-1, 1]) line([-32, sb*3, 14], [-35, sb*6, RD + 12], SCOOT.metal, 1.6); }
+    }
     if(sty === 'vintage'){                                                                      // its rounded rear cowl over the back wheel, and the leg shield round the stem's foot (its top the accent)
       solid(prismB(arcPts(-R.wheelA, RD - 2, 13, 13, 0, Math.PI, 10), -8.5, 8.5), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
       solid(prismH([[R.wheelA - 7, -9], [R.wheelA - 3.5, -8.5], [R.wheelA - 0.5, -6], [R.wheelA + 1.5, -2], [R.wheelA + 1.5, 2], [R.wheelA - 0.5, 6], [R.wheelA - 3.5, 8.5], [R.wheelA - 7, 9]], RD - 2, RD + 26), brand.c, (k, n) => n[2] > 0.9 ? acc0 : brand.c); }
@@ -111359,6 +111358,14 @@ class WorldScene extends Phaser.Scene {
     if(sty !== 'rocket'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
+      if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
+        const W0 = RD + 15, sp = 10;                                                            // end plates on it, two struts down onto the fender (Sir, 2026-11-16, "isn't reading as a spoiler")
+        for(const sb of [-1, 1]) line([-30, sb*4, 15.5], [-32, sb*4, W0 + 0.4], 0x2a2f36, 2.2);
+        const plate = sb => solid(prismB([[-39.5, W0 - 3], [-29.5, W0 - 1.5], [-29.5, W0 + 1.5], [-39.5, W0 + 4]], sb*sp, sb*(sp + 0.8)), brand.c);
+        const far = KV.sees(0, 1, 0) ? -1 : 1;
+        plate(far);
+        solid(prismB([[-38.5, W0 + 1.6], [-30, W0], [-30, W0 + 0.8], [-38.5, W0 + 3]], -sp, sp), acc0, (k, n) => n[2] < -0.3 ? 0x2a2f36 : acc0);
+        plate(-far); }
       if(sty === 'chopper'){ const a = -23, h = WHL[0][1] + Math.sqrt(Math.max(0, (WHL[0][1] + 3)**2 - (a - WHL[0][0])**2)) - 0.5;   // the sissy bar, up off the fender, and its pad
         for(const sb of [-1, 1]) line([a, sb*5, h], [a - 4, sb*5, h + 13], SCOOT.metal, 1.8);
         line([a - 4, -5, h + 13], [a - 4, 5, h + 13], SCOOT.metal, 1.8);
