@@ -125259,13 +125259,18 @@ class WorldScene extends Phaser.Scene {
          its point -- its top edge a band in his stripe running the whole sweep, its face toward the eye in his paint lit along its sweep,
          a dark outline round it as his hull has, a red tail lamp in its point */
       const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 4), z = BODY.z1 - 0.5, X0 = -BODY.hx, N = 8;   // (its root wholly on his top, inside the chamfered back corner -- Sir, 2026-11-16)
-        const LE = []; for(let k = 0; k <= N; k++){ const u = k/N; LE.push([-13 + (X0 - 7 + 13)*u, z + 15*Math.pow(u, 0.6), 1.7 - 1.25*u]); }   // (its root starts behind the lid -- the lid now runs back to -10)   // (x, z, half thickness)
-        const TIP = [X0 - 8, z + 15, 0.45], BACK = [[X0 - 2, z + 6, 0.9], [X0 + 3, z, 1.2]];
+        const LE = []; for(let k = 0; k <= N; k++){ const u = k/N; LE.push([-13 + (X0 - 7 + 13)*u, z + 15*Math.pow(u, 0.6), 2.2 - 1.3*u]); }   // (its root starts behind the lid -- the lid now runs back to -10)   // (x, z, half thickness)
+        const TIP = [X0 - 8, z + 15, 0.9], BACK = [[X0 - 2, z + 6, 1.6], [X0 + 3, z, 2]];
         const out = vis(0, sb, 0), fs = out ? 1 : -1, sideY = (q) => y + sb*fs*q[2];
         /* its top edge: the band between its two faces, the length of the sweep -- in his stripe */
         for(let k = 0; k < N; k++){ const a = LE[k], b = LE[k + 1];
           this.quadOn(g, [P(a[0], y - a[2], a[1]), P(b[0], y - b[2], b[1]), P(b[0], y + b[2], b[1]), P(a[0], y + a[2], a[1])], k % 2 ? SKIN.stripe : _pmix(SKIN.stripe, 0xffffff, 0.08)); }
         this.quadOn(g, [P(LE[N][0], y - LE[N][2], LE[N][1]), P(TIP[0], y - TIP[2], TIP[1]), P(TIP[0], y + TIP[2], TIP[1]), P(LE[N][0], y + LE[N][2], LE[N][1])], SKIN.stripeDk);
+        /* its back edge: the band between its faces down from its point to his top (seen from behind: its thickness) */
+        { const TB = [TIP, ...BACK]; for(let k = 0; k < TB.length - 1; k++){ const a = TB[k], b = TB[k + 1], ex = b[0] - a[0], ez = b[1] - a[1], nl = Math.hypot(ex, ez) || 1;
+            const w = this.R(ez/nl, 0, -ex/nl); if(w.x + w.y + w.z <= 0) continue;
+            this.quadOn(g, [P(a[0], y - a[2], a[1]), P(b[0], y - b[2], b[1]), P(b[0], y + b[2], b[1]), P(a[0], y + a[2], a[1])], _pmix(BP.dk, 0x000000, 0.08));
+            g.lineStyle(Math.max(1, 0.9*K), SKIN.outline, 1); for(const sy of [-1, 1]){ const A = P(a[0], y + sy*a[2], a[1]), B = P(b[0], y + sy*b[2], b[1]); g.lineBetween(A.x, A.y, B.x, B.y); } } }
         /* its face toward the eye: lit near its root, a shade down toward its point */
         const S = [...LE, TIP, ...BACK], pts = S.map(q => P(q[0], sideY(q), q[1]));
         this.quadOn(g, pts, out ? BP.lt : BP.dk);
