@@ -42910,7 +42910,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true }];
+  { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -120998,7 +120998,7 @@ class WorldScene extends Phaser.Scene {
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'pre');
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
-    this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
+    if(!(BODY._bskin && BODY._bskin.noStripe)) this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});   // (a build skin that paints its own stripe: the Taxi's checks)
     /* ---- SKIN EXTRAS ----
        The Daredevil is white leather with a BLUE band carrying WHITE
        STARS and a RED band beneath it. The palette ported across but
@@ -130509,7 +130509,10 @@ const HULL_PRINTS = {
   crChecker: { id: 'crChecker', seed: 0xc4e, build(L){ if(L.part === 'lid') return;
       const BK = [0x16171b, 0x2a2d33], WH = [0xd9dde2, 0xf6f7f9], q = 2.4;
       for(const k of [2, 6]){ const [a, b] = L.face(k); let r = 0;
-        for(let h = L.H*0.08; h < L.H*0.08 + q*2.5; h += q, r++) for(let x = a, c2 = r; x < b - 0.1; x += q, c2++) L.side.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, h, Math.min(b, x + q), h + q) }); }
+        const ql = 1.3; for(let h = 0.3; h < 0.3 + ql*1.5; h += ql, r++) for(let x = a, c2 = r; x < b - 0.1; x += ql, c2++) L.side.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, h, Math.min(b, x + ql), h + ql) }); }   // (a low band along each side, clear of the stripe)
+      /* his stripe in checks too, all the way round him (the plain band isn't drawn under this skin: noStripe) */
+      { const h0 = STRIPE.z0 - BODY.z0, h1 = STRIPE.z1 - BODY.z0, qs = (h1 - h0)/2; let r = 0;
+        for(let h = h0; h < h1 - 0.05; h += qs, r++) for(let x = 0, c2 = r; x < L.per - 0.05; x += qs, c2++) L.side.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, h, Math.min(L.per, x + qs), h + qs) }); }
       /* (no checks on the hood: a taxi -- Sir, 2026-11-16) */ } },
   camo: { id: 'camo', seed: 0x5ca3e1, layers: [
     { c: [0x4a3a24, 0x6e5636], r: 6.5, cover: 0.32 },               // earth brown
