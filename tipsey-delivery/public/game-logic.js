@@ -111201,7 +111201,7 @@ class WorldScene extends Phaser.Scene {
   chopperTank(g, P, KV, id, ST){
     const K = this.K*0.42*1.4, side = KV.sees(0, 1, 0) ? 1 : -1, n = ST.length, A0 = ST[0][0], A1 = ST[n - 1][0];
     const at = a => { for(let i = 0; i + 1 < n; i++) if(a <= ST[i + 1][0]){ const f = (a - ST[i][0])/(ST[i + 1][0] - ST[i][0]); return ST[i].map((v, k) => v + (ST[i + 1][k] - v)*f); } return ST[n - 1]; };
-    const toS = (x, y) => { const a = A0 + (A1 - A0)*x, [, w, h0, h1] = at(a), ch = Math.min(w, (h1 - h0)/2)*0.5; return P(a, side*(w + 0.06), h0 + ch + (h1 - h0 - 2*ch)*y); };
+    const toS = (x, y) => { const a = A0 + (A1 - A0)*x, [, w, h0, h1] = at(a), ch = Math.min(w, (h1 - h0)/2)*0.3; return P(a, side*(w + 0.06), h0 + ch + (h1 - h0 - 2*ch)*y); };
     const clip = []; for(let i = 0; i <= 10; i++) clip.push(toS(i/10, 0)); for(let i = 10; i >= 0; i--) clip.push(toS(i/10, 1));
     const cl = clip.map(q => ({ x: q.x, y: q.y }));
     const poly = (pts, col, al) => { const c = clipConvex(pts.map(([x, y]) => { const q = toS(x, y); return { x: q.x, y: q.y }; }), cl); if(c && c.length > 2){ g.fillStyle(col, al == null ? 1 : al); g.fillPoints(c, true); } };
@@ -111209,7 +111209,8 @@ class WorldScene extends Phaser.Scene {
     const star = (x, y, r, col) => { const o = []; for(let i = 0; i < 10; i++){ const w = i/10*Math.PI*2 - Math.PI/2, rr = i % 2 ? r*0.42 : r; o.push([x + Math.cos(w)*rr/(A1 - A0), y - Math.sin(w)*rr/6.5]); } poly(o, col); };
     const top = (x0, x1, b0, b1, col) => { const o = []; for(const [x, b] of [[x0, b0], [x1, b0], [x1, b1], [x0, b1]]){ const a = A0 + (A1 - A0)*x, [, , , h1] = at(a); o.push(P(a, b, h1 + 0.06)); } g.fillStyle(col, 1); g.fillPoints(o, true); };
     if(id === 'hotrod') for(const [col, k] of [[0xe8572a, 1], [0xffb02e, 0.7], [0xffe27a, 0.42]]) poly([[1, 0.05], [1 - 0.95*k, 0.2], [1 - 0.55*k, 0.36], [1 - 0.85*k, 0.52], [1 - 0.45*k, 0.66], [1 - 0.7*k, 0.82], [1, 0.95]], col);
-    if(id === 'stars'){ poly([[0, 0], [1, 0], [1, 1], [0, 1]], 0x1f2f5e); for(const [x, y, r] of [[0.25, 0.55, 1.7], [0.5, 0.3, 1.3], [0.55, 0.75, 1.2], [0.78, 0.5, 1.5]]) star(x, y, r, 0xf4f2ec); }
+    if(id === 'stars'){ for(let j = 0; j < 7; j++) poly([[0, j/7], [1, j/7], [1, (j + 1)/7], [0, (j + 1)/7]], j % 2 ? 0xf4f2ec : 0xc8323a);   // red and white stripes, a navy field up front with its stars (Sir, 2026-11-16)
+      poly([[0.48, 0.45], [1, 0.45], [1, 1], [0.48, 1]], 0x1f2f5e); for(const [x, y, r] of [[0.6, 0.62, 1], [0.78, 0.82, 1], [0.88, 0.58, 1], [0.66, 0.88, 0.8]]) star(x, y, r, 0xf4f2ec); }
     if(id === 'wings'){ for(const sg of [-1, 1]) poly([[0.55, 0.45], [0.55 + sg*0.42, 0.85], [0.55 + sg*0.36, 0.6], [0.55 + sg*0.4, 0.5], [0.55 + sg*0.3, 0.35], [0.55 + sg*0.32, 0.25], [0.55, 0.3]], 0xd8b04a); disc(0.55, 0.45, 1.6, 0xd8b04a); disc(0.55, 0.45, 0.9, 0x1c1d20); }
     if(id === 'scallops') for(const [y, l] of [[0.25, 0.7], [0.5, 0.95], [0.75, 0.6]]) poly([[1, y - 0.12], [1 - l, y], [1, y + 0.12]], 0xf4f2ec);
     if(id === 'flake'){ g.fillStyle(0xe0c8ff, 1); for(let i = 0; i < 26; i++){ const q = toS(((i*0.618) % 1)*0.9 + 0.05, ((i*0.7549) % 1)*0.8 + 0.1); g.fillCircle(q.x, q.y, 0.45*K); } poly([[0.2, 0.7], [0.75, 0.82], [0.75, 0.9], [0.2, 0.8]], 0xffffff, 0.35); }
@@ -111385,10 +111386,10 @@ class WorldScene extends Phaser.Scene {
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
        deck, a front fairing with a number board, a rear wing), the Robo Board (no wheels, no stem: a deck hovering on two thrusters over a
        glow), the Vintage (whitewall-sized wheels, a curved leg shield round the stem's foot, a rounded rear cowl, a big chrome headlamp), the
-       Chopper (a fat back tyre, the front wheel out on a raked fork, ape-hanger bars, a sissy bar behind him), the Off-Road (knobbly tyres, a
+       Chopper (a fat back tyre, the front wheel out on a raked fork, ape-hanger bars; its sissy bar dropped, Sir 2026-11-16), the Off-Road (knobbly tyres, a
        raised deck on shocks, a skid plate, a mud flap, a light bar), the Retro Rocket (a nose cone, fins, portholes, a flame out the back while
        he rides), the Junkyard Build (odd wheels, a crate for a deck, patches, a pipe for a stem, a taped-on torch).
-       The tall pieces at the back (the sissy bar, the rocket's fin and flame) are tail(), drawn on the far side of him from the stem.
+       The tall pieces at the back (the Racer's spoiler, the rocket's fin and flame) are tail(), drawn on the far side of him from the stem.
        What the first ones taught (Sir, 2026-11-15): nothing laid over a face it should sit under (an accent goes in a face's own colour, not a
        piece drawn over it), the stem drawn from the top of what it rises out of, and the stock rear fender only on the builds that have one */
     const sty = brand.style || null, acc0 = brand.acc != null ? brand.acc : brand.cDk;
@@ -111490,10 +111491,6 @@ class WorldScene extends Phaser.Scene {
         plate(far);
         solid(prismB([[-38.5, W0 + 1.6], [-30, W0], [-30, W0 + 0.8], [-38.5, W0 + 3]], -sp, sp), acc0, (k, n) => n[2] < -0.3 ? 0x2a2f36 : acc0);
         plate(-far); }
-      if(sty === 'chopper'){ const a = -23, h = WHL[0][1] + Math.sqrt(Math.max(0, (WHL[0][1] + 3)**2 - (a - WHL[0][0])**2)) - 0.5;   // the sissy bar, up off the fender, and its pad
-        for(const sb of [-1, 1]) line([a, sb*5, h], [a - 4, sb*5, h + 13], SCOOT.metal, 1.8);
-        line([a - 4, -5, h + 13], [a - 4, 5, h + 13], SCOOT.metal, 1.8);
-        solid(prismH([[a - 4.2, -4], [a - 2.6, -4], [a - 2.6, 4], [a - 4.2, 4]], h + 4, h + 11), acc0); }
       if(sty === 'rocket'){                                                                     // the fin on top, swept back in two steps; the flame while he rides
         solid(prismB([[-35, RD - 1], [-22, RD - 1], [-30, RD + 13], [-35, RD + 13]], -0.9, 0.9), acc0);
         if(moving && !noRider){ const L = 9 + 3*Math.sin(t*0.05) + 2*Math.sin(t*0.13), z0 = RD - 3.5;
@@ -111507,8 +111504,8 @@ class WorldScene extends Phaser.Scene {
         const ha = R.wheelA - 2, hz = RD + 24;
         line([R.wheelA - 3, 0, RD], [ha, 0, hz], brand.c, 5);
         /* its teardrop gas tank on the top tube, up to the headstock (Sir, 2026-11-16, "a gas tank to pull off skins"); the skins paint it */
-        line([6, 0, RD], [9.5, 0, RD + 9.5], brand.c, 3.5);
-        { const ST = [[8, 2.4, RD + 9, RD + 13], [12, 4.6, RD + 9, RD + 17.5], [18, 4.6, RD + 12, RD + 21], [22.5, 2.8, RD + 17, RD + 22.5]], Sx = ([a, w, h0, h1]) => oct(w, h0, h1, 0, 0.5);
+        line([5, 0, RD], [8.5, 0, RD + 9], brand.c, 3.5);
+        { const ST = [[7, 2.8, RD + 8.5, RD + 13], [11.5, 5.6, RD + 8, RD + 18.5], [18, 5.6, RD + 11, RD + 22.5], [23, 3, RD + 17, RD + 24]], Sx = ([a, w, h0, h1]) => oct(w, h0, h1, 0, 0.3);   // (a small chamfer: a big flat side for the skin)
           const F = []; for(let i = 0; i + 1 < ST.length; i++) F.push(...loftSeg(ST[i][0], Sx(ST[i]), ST[i + 1][0], Sx(ST[i + 1]), (i === 0 ? 1 : 0) | (i === ST.length - 2 ? 2 : 0)));
           solid(F, brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c);
           if(brand.paint) this.chopperTank(g, P, KV, brand.paint, ST); }
@@ -145325,7 +145322,7 @@ requestTpProfile();
         frost: fill('#dff2fb') + `<path d="M20 9v8M16.5 11l7 4M16.5 15l7-4" stroke="#7fc6e8" stroke-width=".8"/><path d="M5 10l3 2 2-1 3 2M35 16l-3-2-2 1-3-2" stroke="#fff" stroke-width=".6" fill="none"/>`,
         mod: fill('#2a2f36') + `<circle cx="20" cy="13" r="5" fill="#1f4fa8"/><circle cx="20" cy="13" r="3.4" fill="#f4efe6"/><circle cx="20" cy="13" r="1.9" fill="#c8102e"/>`,
         hotrod: fill('#1c1d20') + `<path d="M37 7L16 9l6 2-10 2 8 1-9 3 11 0 15 2z" fill="#e8572a"/><path d="M37 9.5L24 10.5l4 1.5-7 1.5 6 .5-5 2 15 .5z" fill="#ffb02e"/>`,
-        stars: fill('#1f2f5e') + [[9, 11], [17, 15], [24, 10], [31, 14.5]].map(([x, y]) => `<path d="M${x} ${y - 2.2}l.7 1.5 1.6.2-1.2 1.1.3 1.6-1.4-.8-1.4.8.3-1.6-1.2-1.1 1.6-.2z" fill="#f4f2ec"/>`).join(''),
+        stars: [...Array(7)].map((_, j) => `<rect x="0" y="${7 + j*12/7}" width="40" height="${12/7}" fill="${j % 2 ? '#f4f2ec' : '#c8323a'}"/>`).join('') + `<rect x="20" y="7" width="17" height="6.8" fill="#1f2f5e"/>` + [[24, 10], [31, 10.5]].map(([x, y]) => `<path d="M${x} ${y - 2.2}l.7 1.5 1.6.2-1.2 1.1.3 1.6-1.4-.8-1.4.8.3-1.6-1.2-1.1 1.6-.2z" fill="#f4f2ec"/>`).join(''),
         wings: fill('#1c1d20') + `<path d="M18 12l-11-3 3 3-3 1 11 2zM22 12l11-3-3 3 3 1-11 2z" fill="#d8b04a"/><circle cx="20" cy="13" r="2.4" fill="#d8b04a"/><circle cx="20" cy="13" r="1.3" fill="#1c1d20"/>`,
         scallops: fill('#2fa3a8') + `<path d="M37 8L14 9.6 37 11.2zM37 11.8L7 13 37 14.2zM37 14.8L19 16.4 37 18z" fill="#f4f2ec"/>`,
         flake: fill('#6a2fa0') + [...Array(18)].map((_, i) => `<circle cx="${(4 + (i*13.7) % 32).toFixed(1)}" cy="${(8.5 + (i*5.3) % 9).toFixed(1)}" r=".5" fill="#e0c8ff"/>`).join(''),
