@@ -127030,7 +127030,7 @@ class WorldScene extends Phaser.Scene {
          in his stripe, its throat dark with the ember in it */
       /* (one solid piece, and shorter -- Sir, 2026-11-16): a single cone in his paint, wide at his tail, narrowing to a small steel lip;
          one stripe ring painted round it (its seen half only), lit along its top, its throat dark with the ember */
-      const nozzle = () => { const x0 = -BODY.hx + 1.5, x1 = -BODY.hx - 5, zc = (BODY.z0 + BODY.z1)/2 - 0.5, t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
+      const nozzle = () => { const x0 = -BODY.hx + 1.5, x1 = -BODY.hx - 5, zc = BODY.z0 + 4.2,   /* (sat lower on his tail -- Sir, 2026-11-16) */ t = this.time ? this.time.now : 0, pulse = 0.7 + 0.3*Math.sin(t*0.006);
         const r0 = 6, r1 = 3.2, rAt = x => r0 + (r1 - r0)*(x0 - x)/(x0 - x1);
         const ring = (x, r) => { const o = []; for(let k = 0; k < 18; k++){ const q = k/18*Math.PI*2; o.push(P(x, Math.cos(q)*r, zc + Math.sin(q)*r)); } return o; };
         this.quadOn(g, convexHull(ring(x0, r0).concat(ring(x1, r1))), BP.lt);                                     // (the cone)
