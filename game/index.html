@@ -127024,15 +127024,16 @@ class WorldScene extends Phaser.Scene {
         /* ITS TAIL LAMP (Sir, 2026-11-16: "more like lights, not simple dots"): a long oval lens set into its face along its trailing
            edge near the point -- a chrome bezel, the red lens, a hot core toward its front, a glint -- and the same lens running round
            onto its back edge, so it shows from behind; at night a red glow off it */
-        { const ex = BACK[0][0] - TIP[0], ez = BACK[0][1] - TIP[1], el = Math.hypot(ex, ez), ux = ex/el, uz = ez/el, vx = uz, vz = -ux;   // (along the edge, and in from it)
-          const cx = TIP[0] + ux*3.4 + vx*1.5, cz = TIP[1] + uz*3.4 + vz*1.5, yy = sideY([0, 0, ((TIP[2] + BACK[0][2])/2) + 0.05]);
-          const oval = (a, b, col, dx = 0, dz = 0, al = 1) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2, c2 = Math.cos(q)*a, s2 = Math.sin(q)*b;
-            o.push(P(cx + dx + ux*c2 + vx*s2, yy, cz + dz + uz*c2 + vz*s2)); } this.quadOn(g, o, col, al); };
-          oval(3.3, 1.45, 0xd8dde2); oval(2.8, 1.0, 0x8f1f1a); oval(2.4, 0.75, 0xe0352a); oval(1.1, 0.45, 0xff8a6a, -ux*1, -uz*1);
-          { const q = P(cx - ux*1.6 + vx*0.35, yy, cz - uz*1.6 + vz*0.35); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x, q.y, 0.45*K); }
-          /* on its back edge: the lens wrapping round, from the point a third of the way down */
-          { const a2 = TIP, b2 = [TIP[0] + ex*0.45, TIP[1] + ez*0.45, TIP[2] + (BACK[0][2] - TIP[2])*0.45], w = this.R(ez/el, 0, -ex/el);
-            if(w.x + w.y + w.z > 0) this.quadOn(g, [P(a2[0], y - a2[2]*0.8, a2[1] - 0.4), P(b2[0], y - b2[2]*0.8, b2[1]), P(b2[0], y + b2[2]*0.8, b2[1]), P(a2[0], y + a2[2]*0.8, a2[1] - 0.4)], 0xe0352a); }
+        /* (turned to face back -- Sir, 2026-11-16): the lamp sits in the fin's back edge just under its point, its lens facing out of that
+           edge (back and up), long along the edge and as wide as the fin is thick */
+        { const ex = BACK[0][0] - TIP[0], ez = BACK[0][1] - TIP[1], el = Math.hypot(ex, ez), ux = ex/el, uz = ez/el, nx = uz, nz = -ux;   // (along the edge; out of it)
+          const tt = 0.32, cx = TIP[0] + ex*tt + nx*0.15, cz = TIP[1] + ez*tt + nz*0.15, th = TIP[2] + (BACK[0][2] - TIP[2])*tt;
+          const facing = (() => { const w = this.R(nx, 0, nz); return w.x + w.y + w.z > 0; })();
+          const oval = (a, b, col, da = 0, out = 0) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2, c2 = Math.cos(q)*a + da, s2 = Math.sin(q)*b;
+            o.push(P(cx + ux*c2 + nx*out, y + s2, cz + uz*c2 + nz*out)); } this.quadOn(g, o, col); };
+          if(facing){ oval(3, th + 0.55, 0xd8dde2, 0, 0.05); oval(2.6, th + 0.1, 0x8f1f1a, 0, 0.1); oval(2.2, th - 0.15, 0xe0352a, 0, 0.15); oval(1, Math.max(0.3, th*0.45), 0xff8a6a, -0.8, 0.2);
+            const q = P(cx - ux*1.4 + nx*0.25, y - th*0.3, cz - uz*1.4 + nz*0.25); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x, q.y, 0.45*K); }
+          const yy = y;
           if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = P(cx, yy, cz); gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(q.x, q.y, 5*K); } } }
       };
       const fins = () => { fin(-nearSide); fin(nearSide); };
