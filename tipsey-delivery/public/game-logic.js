@@ -125256,7 +125256,9 @@ class WorldScene extends Phaser.Scene {
          after the near tyres ('after'); otherwise the wheel is in front of it */
       const turnOut = sb => { const ys = sb*(BODY.hy + 3.6), zs = BODY.z0 + 2, xe = -2, yt = sb*(BODY.hy + 8.5);
         pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 6.8);
-        const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(0x8d959c, 1); g.fillCircle(e.x, e.y, 3.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.4*K); };
+        /* its open end faces out and back along the turn-out: its dark bore only when that end is toward the eye */
+        const dx = -3, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
+        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(0x8d959c, 1); g.fillCircle(e.x, e.y, 3.6*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 2.4*K); } };
       /* THE TAIL FINS: a blade up off each back corner, its leading edge sweeping up and back to a point past his tail -- only its face
          toward the eye drawn, in his paint, its leading edge picked out in his stripe and the whole outlined as his hull is */
       /* (a second pass -- Sir, 2026-11-16, "they seem nice but could be better"): each fin a solid blade, thick at its root and thinning to
