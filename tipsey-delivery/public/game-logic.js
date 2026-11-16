@@ -111442,14 +111442,16 @@ class WorldScene extends Phaser.Scene {
       const gl = brand.glow || 0x5ee8d8, c = P(0, 0, 0.5); g.fillStyle(gl, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);   // (a skin's own glow: GSC_LIVERY)
       g.fillStyle(0xffffff, 0.22); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4); g.fillStyle(gl, 0.25); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
       for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? gl : 0x2a2f36); }
-    else for(const [a0, r, wd] of WHL){ wheel(a0, 0, r, wd, r, wheelPhase);
-      /* its knobbly tread: real knobs, little blocks standing proud of the tread, staggered left and right across it, turning with the wheel;
-         only the ones on the tread the eye can see (Sir, 2026-11-16, "not just simple dots around the tyre") */
-      if(sty === 'offroad') for(let k = 0; k < 18; k++){ const u = k*Math.PI*2/18 - (wheelPhase || 0), cu = Math.cos(u), su = Math.sin(u);
-        if(!KV.sees(cu, 0, su)) continue;                                                        // (only on tread the eye sees: the rest drew through the tyre and rim)
-        const d = 0.12, pr = [[r, u - d], [r + 1.3, u - d*0.8], [r + 1.3, u + d*0.8], [r, u + d]].map(([R, w]) => [a0 + R*Math.cos(w), r + R*Math.sin(w)]);
+    else for(const [a0, r, wd] of WHL){
+      /* its knobbly tread: real knobs, little blocks standing proud of the tread, staggered left and right across it, turning with the wheel,
+         all the way round (Sir, 2026-11-16): the ones on tread facing away drawn BEFORE the tyre, so it covers all of them but what sticks
+         out past its edge; the ones on tread facing the eye drawn after it */
+      const knobs = facing => { if(sty !== 'offroad') return; for(let k = 0; k < 18; k++){ const u = k*Math.PI*2/18 - (wheelPhase || 0), cu = Math.cos(u), su = Math.sin(u);
+        if(KV.sees(cu, 0, su) !== facing) continue;
+        const d = 0.12, pr = [[r - 0.4, u - d], [r + 1.3, u - d*0.8], [r + 1.3, u + d*0.8], [r - 0.4, u + d]].map(([R, w]) => [a0 + R*Math.cos(w), r + R*Math.sin(w)]);
         const half = wd/2 + 0.2, [b0, b1] = k % 3 === 0 ? [-half*0.45, half*0.45] : k % 3 === 1 ? [-half, -half*0.1] : [half*0.1, half], q = prismB(pr, b0, b1);
-        solid(q.raw ? q.raw() : q, 0x1a1c20, (kk, n) => n[0]*cu + n[2]*su > 0.7 ? 0x343840 : 0x1a1c20); } }
+        solid(q.raw ? q.raw() : q, 0x1a1c20, (kk, n) => n[0]*cu + n[2]*su > 0.7 ? 0x343840 : 0x1a1c20); } };
+      knobs(false); wheel(a0, 0, r, wd, r, wheelPhase); knobs(true); }
     if(wheeled && sty !== 'offroad' && sty !== 'vintage')                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
         line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
