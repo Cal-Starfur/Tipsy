@@ -86472,6 +86472,21 @@ function fmCookServe(now){
   if(t < m2) return Object.assign(walkPathAt(C.back, t), { has: null });
   return null;
 }
+/* the plate he set down stays on the table while they eat (Sir, 2026-11-16: "plate is disappearing upon delivery"):
+   from the moment it leaves his hands for FM_SERVE.eatMs. The table (FM_PLAN.TABLES index) and where on its top, or
+   null -- one per served table, newest set first */
+FM_SERVE.eatMs = 60000;
+function fmPlatesOn(now){
+  const S = FM_SERVE, out = [], n0 = Math.floor(now/S.every);
+  for(let n = n0; n > n0 - 3; n--){
+    const k = ((n % 3) + 3) % 3, C = fmServeTrip(k), m1 = walkPathMs(C.out), m2 = walkPathMs(C.back);
+    const tSet = n*S.every + (S.every - m1 - S.setMs - m2 - 1000) + m1 + S.setMs*0.6;
+    if(now < tSet || now >= tSet + S.eatMs) continue;
+    const [tx, ty] = FM_PLAN.TABLES[[0, 2, 4][k]];
+    out.push({ k, x: tx, y: ty + 52 });
+  }
+  return out;
+}
 function fmCookAt(now){
   const T = FM_PLAN.TACO, u = Math.sin(now/5200);
   { const sv = fmCookServe(now); if(sv) return sv; }
@@ -101452,6 +101467,9 @@ class WorldScene extends Phaser.Scene {
         item("tacoF|" + i + "|" + (open ? 1 : 0), xf, ymid, xf + ymid, () => ent.taco(y0, y1, open, 'front')); } }
     for(const [x, y] of P.TABLES) if(vis(x, y, 120, 80)) item("table|" + x + "|" + y, x, y, x + y, () => ent.table(x, y));
     { const B = P.BIN; if(vis(B.x, B.y, 40, 100)) item("bin", B.x, B.y, B.x + B.y, () => ent.bin(B.x, B.y)); }
+    /* the plates of tacos the cook has set down, on their tables while the diners eat (fmPlatesOn) */
+    if(open) for(const pl of fmPlatesOn(this.time.now)){ const x = pl.x, y = pl.y;
+      if(vis(x, y, 40, 100)) vq.push({ depth: x + y + 1, fn: (g) => this.bcDraw(g, "fm|plate|" + pl.k, x, y, gg => this.drawFmCarry(gg, x, y, 77, 'tacos')) }); }
     { const S = P.STORE, u = FM_TRUCK.door, xm = (S.x0 + S.x1)/2, ym = (S.y0 + S.y1)/2;
       if(vis(xm, ym, 420, S.H)){ const fn = () => ent.store(u);
         if(u === 0 || u === 1) item("store|" + u, xm, ym, xm + ym, fn); else live(xm, ym, xm + ym, fn); } }
