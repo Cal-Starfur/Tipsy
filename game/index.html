@@ -40805,6 +40805,18 @@ function laneEmitClosed(pts, R, C){
       const F1 = { x: P.x - di.x*yf + ri.x*(C + rho), y: P.y - di.y*yf + ri.y*(C + rho) };
       const F2 = { x: P.x + di.x*yf + ri.x*(C + rho), y: P.y + di.y*yf + ri.y*(C + rho) };
       const k1 = Rm/(Rm + rho);
+      if(P.round.uturn){
+        /* A TURNING CIRCLE (Pelican Harbor's road end): in on the same
+           fillet, all the way round the ring, island on the left, and out
+           on its mirror into the oncoming lane -- not a pivot about the
+           end node on radius C (Sir, 2026-11-16: "they make a really tight
+           turn and immediately go out"). */
+        const F3 = { x: P.x - di.x*yf - ri.x*(C + rho), y: P.y - di.y*yf - ri.y*(C + rho) };
+        return { trim: yf, fi, arcs: [
+          { center: F1, R: rho, sign: 1, from: { x: P.x - di.x*yf + ri.x*C, y: P.y - di.y*yf + ri.y*C }, sweep: th, hA: h },
+          { center: { x: P.x, y: P.y }, R: Rm, sign: -1, from: { x: P.x + (F1.x - P.x)*k1, y: P.y + (F1.y - P.y)*k1 }, sweep: Math.PI + 2*th, hA: h + th },
+          { center: F3, R: rho, sign: 1, from: { x: P.x + (F3.x - P.x)*k1, y: P.y + (F3.y - P.y)*k1 }, sweep: th, hA: h - Math.PI - th } ] };
+      }
       return { trim: yf, fi, arcs: [
         { center: F1, R: rho, sign: 1, from: { x: P.x - di.x*yf + ri.x*C, y: P.y - di.y*yf + ri.y*C }, sweep: th, hA: h },
         { center: { x: P.x, y: P.y }, R: Rm, sign: -1, from: { x: P.x + (F1.x - P.x)*k1, y: P.y + (F1.y - P.y)*k1 }, sweep: 2*th, hA: h + th },
@@ -40916,7 +40928,8 @@ function buildOuterTrafficWalks(grid){
   const H = grid.nodeAt(0, 0);
   if(H && H.conn[2] && grid.nodeAt(-1, -4)){
     const B = BLOCK;
-    lollipop(H, [{ x:-B, y:0 }, { x:-B, y:-4*B }], null, "harbor");
+    const HR = harborGeo().round;                   // round the turning circle, not a pivot at the end node
+    lollipop(H, [{ x:-B, y:0 }, { x:HR.x, y:HR.y, round:{ r: HR.r - 200, rho: 260, uturn: true } }], null, "harbor");
   }
   const G = grid.nodeAt(1, 0);
   if(G && G.conn[3] && typeof sierraGeo === "function"){
