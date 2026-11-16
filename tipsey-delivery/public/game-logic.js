@@ -125110,7 +125110,10 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(_pmix(c, 0x000000, 0.25), 1); g.fillCircle(B.x, B.y, w*0.5*K); };
     const STEEL = [0xd8dde2, 0xb9bec4, 0x8d959c], DARK = [0x3b4048, 0x2e3138, 0x23262c];
     if(id === 'ufo' && part === 'pre'){   /* THE SAUCER: a solid of revolution -- convex, so its faces toward the eye never overlap and go down in any order */
-      const N = 36, PR = [[18, 15], [38, 21], [38, 24.5], [17.5, 30.6]], L = [-0.5, 0.25, 0.83], t = this.time ? this.time.now : 0;
+      /* (segmented as he is -- Sir, 2026-11-16): eight flat facets round, lined up with his cabin's eight faces, a corner under each of
+         his corners; its rings are octagons (r the distance to a face, VX a corner at angle a) */
+      const N = 8, PR = [[18, 15], [38, 21], [38, 24.5], [17.5, 30.6]], t = this.time ? this.time.now : 0, SC = 1/Math.cos(Math.PI/8);
+      const ang = i => (i - 0.5)/N*Math.PI*2, VX = (r, a, z) => P(Math.cos(a)*r*SC, Math.sin(a)*r*SC, z);
       /* (in his own shading -- Sir, 2026-11-16, "match the shading of tipsy so it looks like it's built off of him"): every face toned the
          way his hull's are (drawHullPrism's ramp, lit from his old right), in his paint -- the top cone his top colour run toward his side
          tone as it slopes, the band his stripe, the belly cone his sides a shade down */
@@ -125123,16 +125126,16 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, ring(26, gz), 0x8ff3ff, 0.16*pulse);
         this.quadOn(g, convexHull(ring(12, 15).concat(ring(24, gz))), 0x8ff3ff, 0.13*pulse); }
       for(let s2 = 0; s2 < 3; s2++){ const [rA, zA] = PR[s2], [rB, zB] = PR[s2 + 1], nr = zB - zA, nz = -(rB - rA), nl = Math.hypot(nr, nz);
-        for(let i = 0; i < N; i++){ const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, am = (a0 + a1)/2;
+        for(let i = 0; i < N; i++){ const a0 = ang(i), a1 = ang(i + 1), am = (a0 + a1)/2;
           const w = this.R(nr/nl*Math.cos(am), nr/nl*Math.sin(am), nz/nl); if(w.x + w.y + w.z <= 0) continue;
-          this.quadOn(g, [P(Math.cos(a0)*rA, Math.sin(a0)*rA, zA), P(Math.cos(a1)*rA, Math.sin(a1)*rA, zA), P(Math.cos(a1)*rB, Math.sin(a1)*rB, zB), P(Math.cos(a0)*rB, Math.sin(a0)*rB, zB)], tone(s2, w)); } }
+          this.quadOn(g, [VX(rA, a0, zA), VX(rA, a1, zA), VX(rB, a1, zB), VX(rB, a0, zB)], tone(s2, w)); } }
       /* the rim's edges, crisp, as his hull's outline */
       g.lineStyle(Math.max(1, 1.1*K), SKIN.outline, 1);
-      for(const z of [21, 24.5]) for(let i = 0; i < N; i++){ const am = (i + 0.5)/N*Math.PI*2, w = this.R(Math.cos(am), Math.sin(am), 0); if(w.x + w.y + w.z <= 0) continue;
-        const A = P(Math.cos(i/N*Math.PI*2)*38, Math.sin(i/N*Math.PI*2)*38, z), B = P(Math.cos((i + 1)/N*Math.PI*2)*38, Math.sin((i + 1)/N*Math.PI*2)*38, z); g.lineBetween(A.x, A.y, B.x, B.y); }
+      for(const z of [21, 24.5]) for(let i = 0; i < N; i++){ const am = (ang(i) + ang(i + 1))/2, w = this.R(Math.cos(am), Math.sin(am), 0); if(w.x + w.y + w.z <= 0) continue;
+        const A = VX(38, ang(i), z), B = VX(38, ang(i + 1), z); g.lineBetween(A.x, A.y, B.x, B.y); }
       const LC = [0xff5a4a, 0xffd34a, 0x5ae8ff, 0x8cff6a], step = Math.floor(t/120);
-      for(let i = 0; i < 16; i++){ const a = i/16*Math.PI*2, w = this.R(Math.cos(a), Math.sin(a), 0); if(w.x + w.y + w.z <= 0.15) continue;
-        const q = P(Math.cos(a)*38.2, Math.sin(a)*38.2, 22.75), on = (i + step) % 4 === 0, c = LC[i % 4];
+      for(let i = 0; i < 16; i++){ const f = i >> 1, am = (ang(f) + ang(f + 1))/2, w = this.R(Math.cos(am), Math.sin(am), 0); if(w.x + w.y + w.z <= 0.05) continue;
+        const u = i % 2 ? 0.72 : 0.28, A = VX(38.2, ang(f), 22.75), B = VX(38.2, ang(f + 1), 22.75), q = { x: A.x + (B.x - A.x)*u, y: A.y + (B.y - A.y)*u }, on = (i + step) % 4 === 0, c = LC[i % 4];
         g.fillStyle(0x23262c, 1); g.fillCircle(q.x, q.y, 2.2*K); g.fillStyle(on ? _pmix(c, 0xffffff, 0.35) : _pmix(c, 0x000000, 0.35), 1); g.fillCircle(q.x, q.y, 1.6*K);
         if(on){ g.fillStyle(c, 0.35); g.fillCircle(q.x, q.y, 3.4*K); } }
     }
