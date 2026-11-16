@@ -42884,9 +42884,12 @@ const TP_BUILDS = {
     WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'paddle', treadF: 'rib', rubber: [0x8d9299, 0x6b7078] } },
   /* the UFO (Sir, 2026-11-16): his body a wide octagonal saucer, his lid a glass dome, floating (no wheels), lights chasing round its rim,
      his flag an antenna off the dome's top */
-  ufo: { BODY: { hx: 32, hy: 32, z0: 16, z1: 29, ch: 13, bev: 3, bevIn: 3 }, LID: { hx: 15, hy: 15, z0: 29, z1: 39, ch: 6, bev: 4, bevIn: 3 },
-    STRIPE: { z0: 18, z1: 20 }, FLAGB: { x: 0, y: 0 }, FLAGZ: [39.5, 66], zmap: z => 16 + (z - 14)*0.33, noBracket: true,
-    tray: [0x9aa0a6, 0x7d838a, 0x5d646c], lidCol: [0xa9dcec, 0x86c6dc, 0x5e9fb8], GEAR: { kind: 'ufo', lift: 14, bob: true }, kit: 'ufo' },
+  /* (a second pass -- Sir, 2026-11-16, "it doesn't read like a UFO yet"): a real flying saucer -- a wide round lens of silver (a cone up to
+     the middle, a rim band round its edge with chasing lights, a cone down to its belly), a glowing ring under it and a beam to the ground;
+     his body the little cabin on top with his face, his lid a glass dome over it (buildKit 'ufo') */
+  ufo: { BODY: { hx: 14, hy: 14, z0: 30, z1: 39, ch: 5, bev: 2.5, bevIn: 2 }, LID: { hx: 12, hy: 12, z0: 39, z1: 46, ch: 6, bev: 4.5, bevIn: 4 },
+    STRIPE: { z0: 31, z1: 32.5 }, FLAGB: { x: 0, y: 0 }, FLAGZ: [46.5, 69], zmap: z => 30 + (z - 14)*0.24, noBracket: true, noTray: true,
+    lidCol: [0xa9dcec, 0x86c6dc, 0x5e9fb8], GEAR: { kind: 'ufo', lift: 16, bob: true }, kit: 'ufo' },
   /* the Monster Truck: a big body up on the monster rig's huge knobby tyres and axles, his lid the cab with a light bar on its roof,
      two chrome stacks up behind it */
   monster: { BODY: { hx: 30, hy: 19, z0: 14, z1: 30, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 11, hy: 15, z0: 30, z1: 42, ch: 4, bev: 3, bevIn: 2 },
@@ -120847,9 +120850,9 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -120969,7 +120972,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* THE POLISHED HULL (drawHullPrism): the chassis tray, the body, and the stripe as a band round it */
     if(BODY._tray) this.drawHullPrism({hx:BODY.hx - 4, hy:BODY.hy - 4, z0:BODY.z0 - 7 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:BODY._tray[0], cLt:BODY._tray[1], cDk:BODY._tray[2], cBottom:BODY._tray[2], outline:false, topEdge:false});   // (a build's own belly: the Rover's gold foil)
-    else this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
+    else if(!BODY._noTray) this.drawHullPrism({hx:24, hy:17, z0:6 + gLift, z1:BODY.z0+1 + gLift, ch:4, cTop:0x3f434c, cLt:0x3a3d45, cDk:0x2e3138, cBottom:SKIN.belly, outline:false, topEdge:false});
     const BP = this.bodyPaint();
     /* HIS BUILD (Sir, 2026-11-16: builds for Tipsey, "let's try racer"): the Racer keeps his box -- his lid still opens -- and adds a wedge
        nose low on his front and a wing on struts off his back. Each piece drawn before the body when it is on the far side of him, after
@@ -125111,14 +125114,33 @@ class WorldScene extends Phaser.Scene {
       g.lineStyle(Math.max(1, w*0.4*K), 0xeef1f4, 1); g.lineBetween(A.x - 0.3*K, A.y - 0.3*K, B.x - 0.3*K, B.y - 0.3*K);
       g.fillStyle(_pmix(c, 0x000000, 0.25), 1); g.fillCircle(B.x, B.y, w*0.5*K); };
     const STEEL = [0xd8dde2, 0xb9bec4, 0x8d959c], DARK = [0x3b4048, 0x2e3138, 0x23262c];
-    if(id === 'ufo' && part === 'mid'){   /* lights chasing round its rim: two to each of its eight faces, the faces toward the eye */
-      const hx = BODY.hx + 0.3, c = BODY.ch, a = hx - c, z = (BODY.z0 + BODY.z1)/2 + 1.5, step = Math.floor((this.time ? this.time.now : 0)/140);
-      const V = [[hx, -a], [hx, a], [a, hx], [-a, hx], [-hx, a], [-hx, -a], [-a, -hx], [a, -hx]], COL = [0xff5a4a, 0xffd34a, 0x5ae8ff, 0x8cff6a];
-      let i = 0;
-      for(let f = 0; f < 8; f++){ const A = V[f], B = V[(f + 1) % 8], nx = (A[1] + B[1])*0 + (B[1] - A[1]), ny = -(B[0] - A[0]); const nl = Math.hypot(nx, ny);
-        const seen = vis(nx/nl, ny/nl, 0);
-        for(const u of [0.25, 0.75]){ i++; if(!seen) continue; const q = P(A[0] + (B[0] - A[0])*u, A[1] + (B[1] - A[1])*u, z), on = (i + step) % 4 === 0;
-          g.fillStyle(0x23262c, 1); g.fillCircle(q.x, q.y, 2.1*K); g.fillStyle(on ? COL[(i >> 1) % 4] : _pmix(COL[(i >> 1) % 4], 0x000000, 0.55), 1); g.fillCircle(q.x, q.y, 1.5*K); } } }
+    if(id === 'ufo' && part === 'pre'){   /* THE SAUCER: a solid of revolution -- convex, so its faces toward the eye never overlap and go down in any order */
+      const N = 36, PR = [[18, 15], [38, 21], [38, 24.5], [15.5, 30.6]], L = [-0.5, 0.25, 0.83], t = this.time ? this.time.now : 0;
+      const COL = [0x8a929b, 0x5d646c, 0xc9ced4], lum = w => w.x*L[0] + w.y*L[1] + w.z*L[2];
+      const shade = (c, k) => _pmix(c, k > 0 ? 0xffffff : 0x000000, Math.min(0.6, Math.abs(k)*0.6));
+      /* its beam: a pale cone from the belly to the ground, and the pool it makes there */
+      { const ring = (r, z) => { const o = []; for(let i = 0; i < 20; i++){ const a = i/20*Math.PI*2; o.push(P(Math.cos(a)*r, Math.sin(a)*r, z)); } return o; };
+        const pulse = 0.75 + 0.25*Math.sin(t*0.004), gz = -bobZ + 0.6;
+        this.quadOn(g, ring(26, gz), 0x8ff3ff, 0.16*pulse);
+        this.quadOn(g, convexHull(ring(12, 15).concat(ring(24, gz))), 0x8ff3ff, 0.13*pulse); }
+      for(let s2 = 0; s2 < 3; s2++){ const [rA, zA] = PR[s2], [rB, zB] = PR[s2 + 1], nr = zB - zA, nz = -(rB - rA), nl = Math.hypot(nr, nz);
+        for(let i = 0; i < N; i++){ const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, am = (a0 + a1)/2;
+          const w = this.R(nr/nl*Math.cos(am), nr/nl*Math.sin(am), nz/nl); if(w.x + w.y + w.z <= 0) continue;
+          this.quadOn(g, [P(Math.cos(a0)*rA, Math.sin(a0)*rA, zA), P(Math.cos(a1)*rA, Math.sin(a1)*rA, zA), P(Math.cos(a1)*rB, Math.sin(a1)*rB, zB), P(Math.cos(a0)*rB, Math.sin(a0)*rB, zB)], shade(COL[s2], lum(w))); } }
+      /* its plating: seams round the top cone and out along it (where the cone faces the eye), the rim's edges crisp */
+      const UP = PR[2], TOP = PR[3], at = (r, a) => { const u = (UP[0] - r)/(UP[0] - TOP[0]); return P(Math.cos(a)*r, Math.sin(a)*r, UP[1] + (TOP[1] - UP[1])*u); };
+      g.lineStyle(Math.max(1, 0.9*K), 0x8a929b, 1);
+      for(let k = 0; k < 8; k++){ const a = (k + 0.5)/8*Math.PI*2, w = this.R(Math.cos(a)*0.28, Math.sin(a)*0.28, 0.96); if(w.x + w.y + w.z <= 0) continue; const A = at(36, a), B = at(17, a); g.lineBetween(A.x, A.y, B.x, B.y); }
+      for(let i = 0; i < N; i++){ const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, A = at(27, a0), B = at(27, a1); g.lineBetween(A.x, A.y, B.x, B.y); }
+      g.lineStyle(Math.max(1, 1.1*K), 0x2e3138, 1);
+      for(const z of [21, 24.5]) for(let i = 0; i < N; i++){ const am = (i + 0.5)/N*Math.PI*2, w = this.R(Math.cos(am), Math.sin(am), 0); if(w.x + w.y + w.z <= 0) continue;
+        const A = P(Math.cos(i/N*Math.PI*2)*38, Math.sin(i/N*Math.PI*2)*38, z), B = P(Math.cos((i + 1)/N*Math.PI*2)*38, Math.sin((i + 1)/N*Math.PI*2)*38, z); g.lineBetween(A.x, A.y, B.x, B.y); }
+      const LC = [0xff5a4a, 0xffd34a, 0x5ae8ff, 0x8cff6a], step = Math.floor(t/120);
+      for(let i = 0; i < 16; i++){ const a = i/16*Math.PI*2, w = this.R(Math.cos(a), Math.sin(a), 0); if(w.x + w.y + w.z <= 0.15) continue;
+        const q = P(Math.cos(a)*38.2, Math.sin(a)*38.2, 22.75), on = (i + step) % 4 === 0, c = LC[i % 4];
+        g.fillStyle(0x23262c, 1); g.fillCircle(q.x, q.y, 2.2*K); g.fillStyle(on ? _pmix(c, 0xffffff, 0.35) : _pmix(c, 0x000000, 0.35), 1); g.fillCircle(q.x, q.y, 1.6*K);
+        if(on){ g.fillStyle(c, 0.35); g.fillCircle(q.x, q.y, 3.4*K); } }
+    }
     if(id === 'monster'){
       const sx = -LID.hx - 3, stacks = () => { for(const y of [-(LID.hy - 3), LID.hy - 3]) pipe([sx, y, BODY.z1], [sx, y, BODY.z1 + 17], 3.2); };
       if(part === 'mid' && frontSeen) stacks();
