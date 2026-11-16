@@ -42916,7 +42916,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
   { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, noStripe: true, print: 'mtGrave',   /* (no stripe band over its tombstones -- Sir, 2026-11-16) */ part: 'grave', eye: 0x7dff5a, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lamp: 0x9dff7a, rim: 'star', rimCol: 0x6fd04a } },
   { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c, exh: 'zoomies', lb: 'pods', lamp: 0xffd84a, rim: 'turbine', rimCol: 0xf2c02e } },
-  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a, exh: 'stack', lb: 'bar', lamp: 0xffe9a8, rim: 'dish', rimCol: 0xc0262a } },
+  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a, exh: 'cruiser', lb: 'bar', lamp: 0xffe9a8, rim: 'dish', rimCol: 0xc0262a /* (side pipes, the Night Cruiser's kind -- Sir, 2026-11-16) */ } },
   { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a, exh: 'side', lb: 'strip', lamp: 0xbfeaff, rim: 'split', rimCol: 0xe8ecf0 } },
   { id: 'monster:bigfoot', build: 'monster', name: 'Big Foot', cents: 900, body: 0x1f4fa8, stripe: 0xf2f3f1, print: 'mtClassic', part: null,
     trim: { coil: 0xf2f3f1, bumper: 0xc9ced4, bar: 0x1d1f26, stack: 0xe8ecf0, heat: 0x1f4fa8, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'steelie', rimCol: 0xf2f3f1 }, flag: { kind: 'usa' } },
@@ -125838,7 +125838,7 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-nearSide, nearSide]) for(let k = 0; k < 3; k++){ const x = -LID.hx - 2 - k*5.5, a = [x, sb*(BODY.hy - 2.5), BODY.z1 - 0.5], b = [x - 9, sb*(BODY.hy + 4), BODY.z1 + 12];
           pipe(a, b, 4.8, STK[1]); const e = P(...b), f = 0.7 + 0.3*Math.sin(t*0.02 + k*2 + sb);
           g.fillStyle(0xff6a1a, 0.85*f); g.fillCircle(e.x, e.y - 2.4*K, 3.3*K*f); g.fillStyle(0xffd84a, 0.95); g.fillCircle(e.x, e.y - 1.2*K, 1.8*K); } };
-      const sx = -LID.hx - 4, stacks = () => { if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none') return;
+      const sx = -LID.hx - 4, stacks = () => { if(EXH === 'zoomies'){ zoomies(); return; } if(EXH === 'side' || EXH === 'none' || EXH === 'cruiser') return;
         const single = EXH === 'single', R = single ? 2.2 : EXH === 'smoke' ? 1.35 : 1, z0 = BODY.z1, z1 = BODY.z1 + (EXH === 'smoke' ? 30 : single ? 20 : 20), CH = STK;
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of single ? [0] : [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
@@ -125855,6 +125855,14 @@ class WorldScene extends Phaser.Scene {
           if(single) for(let k = 0; k < 8; k++){ const a = k/8*Math.PI*2, r0 = 2.5*R; this.quadOn(g, [P(sx + Math.cos(a - 0.3)*r0, y + Math.sin(a - 0.3)*r0, z1), P(sx + Math.cos(a + 0.3)*r0, y + Math.sin(a + 0.3)*r0, z1), P(sx + Math.cos(a)*r0, y + Math.sin(a)*r0, z1 + 2.2)], CH[0]); }   // (its toothed rim)
           if(EXH === 'smoke'){ const t = this.time ? this.time.now : 0; for(let k = 0; k < 3; k++){ const u = ((t*0.0006 + k/3 + (y > 0 ? 0.5 : 0)) % 1), q = P(sx - u*4, y, z1 + 2 + u*10);
               g.fillStyle(0x7dff5a, 0.45*(1 - u)); g.fillCircle(q.x, q.y, (2.4 + u*4.5)*K); } } } };
+      /* 'cruiser': the Night Cruiser's side pipes -- three primaries swept back out of his flank into a fat pipe along his lower edge, turned
+         out at its end ahead of his rear wheel; the far side before his body, the near one over it */
+      const cruiserPipe = sb => { const ys = sb*(BODY.hy + 4.2), zs = BODY.z0 + 1.5, xe = -6, yt = sb*(BODY.hy + 9.5);
+        for(const x of [16, 11, 6]){ pipe([x, sb*(BODY.hy - 0.3), BODY.z0 + 7], [x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], 6.2, STK[1]); pipe([x - 2.5, sb*(BODY.hy + 1.8), BODY.z0 + 5], [x - 5, ys, zs + 0.8], 6.2, STK[1]); }
+        pipe([18, ys, zs], [xe, ys, zs], 9.5, STK[1]); pipe([xe, ys, zs], [xe - 3, yt, zs - 0.5], 9.5, STK[1]);
+        const dx = -3, dy = yt - ys, dl = Math.hypot(dx, dy), w = this.R(dx/dl, dy/dl, 0);
+        if(w.x + w.y + w.z > 0.1){ const e = P(xe - 3.2, yt + sb*0.5, zs - 0.5); g.fillStyle(STK[2], 1); g.fillCircle(e.x, e.y, 5*K); g.fillStyle(0x16171b, 1); g.fillCircle(e.x, e.y, 3.4*K); } };
+      if(EXH === 'cruiser'){ if(part === 'pre') cruiserPipe(-nearSide); if(part === 'mid') cruiserPipe(nearSide); }
       if(EXH === 'side'){ if(part === 'pre'){ sideExh(false); if(frontSeen) sideExh(true); } if(part === 'mid' && !frontSeen) sideExh(true); }
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
