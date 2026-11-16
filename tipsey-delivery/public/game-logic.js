@@ -42902,7 +42902,7 @@ const TP_BUILDS = {
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
   hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 10, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5 }, lidCol: [0x9cc9dc, 0x78aec6, 0x4f86a0],
     STRIPE: { z0: 16, z1: 19 }, FLAGB: { x: -30, y: 12 }, FLAGZ: [26.5, 64], zmap: z => 12 + (z - 14)*0.35, noBracket: true,
-    WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod' } };   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod', noFlag: true } };   // (no flag -- Sir, 2026-11-16)   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
