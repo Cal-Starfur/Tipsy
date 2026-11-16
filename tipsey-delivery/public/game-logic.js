@@ -124596,6 +124596,29 @@ class WorldScene extends Phaser.Scene {
   }
 
   /* the lid: a box on a hinge along its rear edge; swings open by this.lidAng */
+  /* THE NIGHT CRUISER'S CANOPY IN TWO (Sir, 2026-11-16: "separate them, not lay the blue over the white"): his lid's own shape -- its
+     chamfered plan, its bevelled top -- cut across near its front into two solids: the windscreen ahead of the cut, all glass, standing
+     still; the canopy behind it, in his paint, sliding back (H carries the slide, Hw doesn't). Each is a convex prism drawn face by face
+     (only those toward the eye, toned as his hull's), the farther one first */
+  drawSplitCanopy(hx, hy, z0, z1, H, HN, BP){
+    const g = this.g, c = Math.min(LID.ch, hx - 1, hy - 1), zs = z1 - LID.bev, kx = (hx - LID.bevIn)/hx, ky = (hy - LID.bevIn)/hy, xc = hx - 7;
+    const ring = [[hx, -(hy - c)], [hx, hy - c], [hx - c, hy], [-(hx - c), hy], [-hx, hy - c], [-hx, -(hy - c)], [-(hx - c), -hy], [hx - c, -hy]];
+    const clip = (poly, keep) => { const o = []; for(let i = 0; i < poly.length; i++){ const a = poly[i], b = poly[(i + 1) % poly.length], ia = keep(a[0]), ib = keep(b[0]);
+        if(ia) o.push(a); if(ia !== ib){ const t = (xc - a[0])/(b[0] - a[0]); o.push([xc, a[1] + (b[1] - a[1])*t]); } } return o; };
+    const litOf = w => { const m = Math.hypot(w.x, w.y) || 1; return 0.5 + 0.5*Math.max(-1, Math.min(1, (w.x - w.y)/m)); };
+    const Hw = (x, y, z) => this.P(x + (LID.ox || 0), y, z);
+    const piece = (plan, pt, top, lt, dk) => { const steps = hullSteps(dk, lt), n = plan.length, all = [];
+      const B = plan.map(q => pt(q[0], q[1], z0)), S = plan.map(q => pt(q[0], q[1], zs)), T = plan.map(q => pt(q[0]*kx, q[1]*ky, z1));
+      for(let i = 0; i < n; i++){ const a = plan[i], b = plan[(i + 1) % n], ex = b[0] - a[0], ey = b[1] - a[1], el = Math.hypot(ex, ey) || 1, nx = ey/el, ny = -ex/el;
+        const w = HN(nx, ny, 0); if(w.x + w.y + w.z > 0) this.quadOn(g, [B[i], B[(i + 1) % n], S[(i + 1) % n], S[i]], steps[Math.round(litOf(w)*8)]);
+        const wb = HN(nx*0.7, ny*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(g, [S[i], S[(i + 1) % n], T[(i + 1) % n], T[i]], _pmix(top, steps[Math.round(litOf(wb)*8)], 0.5)); }
+      const wt = HN(0, 0, 1); if(wt.x + wt.y + wt.z > 0) this.quadOn(g, T, top);
+      g.lineStyle(this.kw(2), SKIN.outline, 1); g.strokePoints(convexHull(B.concat(T)).map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
+    const WS = BODY._windshield, front = () => piece(clip(ring, x => x >= xc), Hw, WS[0], WS[1], WS[2]), back = () => piece(clip(ring, x => x <= xc), H, BP.top, BP.lt, BP.dk);
+    const fw = HN(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ back(); front(); } else { front(); back(); }
+    { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (the windscreen's glint)
+      this.quadOn(g, [Hw(hx + 0.05, y0, z0 + 1.6), Hw(hx + 0.05, y0 + 1.6, z0 + 1.6), Hw(hx + 0.05, y1 + 1.6, zs - 0.5), Hw(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } }
+  }
   drawLid(b){
     const {hx, hy, z0, z1} = b;
     /* A SLIDING CANOPY (Sir, 2026-11-16: the Night Cruiser's): it doesn't swing on its hinge -- it slides straight back along his top, lifted
@@ -124625,19 +124648,11 @@ class WorldScene extends Phaser.Scene {
     /* THE POLISHED HULL: the lid is the same chamfered, bevelled, ramp-shaded prism as the body, through its hinge */
     const BP = this.bodyPaint();
     const SL = BODY._solarLid ? [0x23458a, 0x2b51a0, 0x172f60] : BODY._lidCol;   // (the Moon Rover's: the whole lid the solar panel's blues; the UFO's glass dome)
-    this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
+    if(BODY._windshield) this.drawSplitCanopy(hx, hy, z0, z1, H, HN, BP);
+    else this.drawHullPrism({hx, hy, z0, z1, ch:LID.ch, bev:LID.bev, bevIn:LID.bevIn, pt:H, nrm:HN,
                         cTop: SL ? SL[0] : BP.top, cLt: SL ? SL[1] : BP.lt, cDk: SL ? SL[2] : BP.dk, cBottom:SKIN.lidInner, fin: SL ? null : BP.fin, print: SL ? null : BP.print, printPart: 'lid'});
     /* the Moon Rover's lid is its solar panel, all of it (Sir, 2026-11-16: "fit it exactly to his lid ... all of its geometry"): the whole
        prism in the panel's blues, a silver grid of cells over its top to its very edges and down its sides, through the hinge */
-    if(BODY._windshield){ const Hw = (x, y, z) => this.P(x + (LID.ox || 0), y, z);   /* (the windscreen stays put as the canopy slides) */
-      /* A WINDSCREEN: the lid's front face, its two front corner faces and the bevels over them in glass, the rest in his paint */
-      const WS = BODY._windshield, c = Math.min(LID.ch, hx - 1, hy - 1), zs = z1 - LID.bev, kx = (hx - LID.bevIn)/hx, ky = (hy - LID.bevIn)/hy, zb = z0 + 0.6;
-      const faces = [[[hx - c, -hy], [hx, -(hy - c)], [1, -1]], [[hx, -(hy - c)], [hx, hy - c], [1, 0]], [[hx, hy - c], [hx - c, hy], [1, 1]]];
-      for(const [a, b, nn] of faces){ const nl = Math.hypot(nn[0], nn[1]), w = HN(nn[0]/nl, nn[1]/nl, 0);
-        if(w.x + w.y + w.z > 0) this.quadOn(this.g, [Hw(a[0], a[1], zb), Hw(b[0], b[1], zb), Hw(b[0], b[1], zs), Hw(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
-        const wb = HN(nn[0]/nl*0.7, nn[1]/nl*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(this.g, [Hw(a[0], a[1], zs), Hw(b[0], b[1], zs), Hw(b[0]*kx, b[1]*ky, z1), Hw(a[0]*kx, a[1]*ky, z1)], WS[0]); }
-      { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (its glint)
-        this.quadOn(this.g, [Hw(hx + 0.05, y0, zb + 1), Hw(hx + 0.05, y0 + 1.6, zb + 1), Hw(hx + 0.05, y1 + 1.6, zs - 0.5), Hw(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } } }
     if(BODY._lidCol && !BODY._solarLid){ const n = HN(0, 0, 1); if(n.x + n.y + n.z > 0){   /* a glass lid's glint: a pale streak across its top */
       const zt = z1 + 0.1, a = hx - LID.bevIn, b = hy - LID.bevIn;
       this.quadOn(this.g, [H(a*0.1, -b*0.75, zt), H(a*0.45, -b*0.75, zt), H(a*0.05, b*0.6, zt), H(-a*0.3, b*0.6, zt)], 0xffffff, 0.4); } }
