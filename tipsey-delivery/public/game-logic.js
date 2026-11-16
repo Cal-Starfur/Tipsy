@@ -125018,14 +125018,20 @@ class WorldScene extends Phaser.Scene {
     const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, K = this.kScale();
-    /* its rocker-bogie (Sir, 2026-11-16: "more robust"): square steel members, not wires -- a beam along each side, a leg down to each
-       hub, two arms in under the belly; each a shaded box (drawHullPrism) */
-    const legs = sb => { const hz = W.r + 2 - bobZ, bz = BODY.z0 - 4, rz = BODY.z0 - 9, yS = sb*W.side, yB = sb*(BODY.hy - 4), t = 1.6;
+    /* each wheel on its own suspension (Sir, 2026-11-16: "get rid of the connector piece ... give each wheel its own independent
+       suspension"): a square arm out from under the belly to its hub, a knuckle at the hub, and a coil-over shock from the belly's edge
+       down to the arm's end -- no beam joining them */
+    const legs = sb => { const hz = W.r + 2 - bobZ, bz = BODY.z0 - 3, yS = sb*(W.side - W.W2/2 - 1.2), yB = sb*(BODY.hy - 5), t = 1.5;
       const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
       const M = [0xb9bec4, 0x9aa0a6, 0x6f757b], D = [0x6f757b, 0x5d646c, 0x3b4048];
-      for(const x of [-8, 8]){ box(t, Math.abs(yS - yB)/2, x, (yS + yB)/2, rz, rz + 2*t, D); box(t, t, x, yB, rz, bz, D); }   // (the arms in under the belly)
-      box(Math.abs(W.xs[2]) + t, t*1.1, 0, yS, rz, rz + 2.6*t, M);                 // (the rocker beam)
-      for(const x of W.xs){ box(t, t, x, yS, hz + 1, rz, M); box(t*1.8, t*1.4, x, yS, rz - 1.5, rz + 2.6*t + 0.5, D); }   // (a leg down to each hub, a knuckle at the beam)
+      for(const x of W.xs){
+        box(t, t, x, yB, hz + 1, bz, D);                                              // (its mount down from the belly)
+        box(t, Math.abs(yS - yB)/2, x, (yS + yB)/2, hz + 0.5, hz + 0.5 + 2*t, M);      // (the arm out to the hub)
+        box(t*1.6, t*1.4, x, yS, hz - 1.6, hz + 2.4, D);                              // (the knuckle at the hub)
+        const A = P(x + 2.4, yB + sb*1.5, bz - 0.5), B = P(x + 2.4, yS - sb*1.5, hz + 2*t + 0.6);   // (its coil-over shock)
+        g.lineStyle(Math.max(1, 2.8*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+        g.lineStyle(Math.max(1, 1.2*K), 0xe8a23a, 1); for(let k = 1; k < 6; k++){ const u = k/6, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, w = 2.2*K;
+          g.lineBetween(cx - nx/nl*w, cy - ny/nl*w, cx + nx/nl*w, cy + ny/nl*w); } }
     };            // (the rocker's two struts in to the belly)
     const panel = sb => {   /* a solar panel off his side by his lid, dark blue cells in a silver frame (the far one before the body, the near after) */
       { const y0 = sb*(BODY.hy + 0.5), y1 = sb*(BODY.hy + 13), z = BODY.z1 + 1;
