@@ -127367,12 +127367,16 @@ class WorldScene extends Phaser.Scene {
             for(let i = 0; i < 4; i++) sp(lx - 3 - i*((2*lx - 4)/3), zt, 7 - Math.abs(i - 1.5)*1.2, 2.8);                       // (down his cab's spine)
             for(let i = 0; i < 3; i++) sp(-LID.hx - 6 - i*7, BODY.z1, 5 - i*1.2, 2.4); } }                                       // (and on down his back)
       /* the Dino's tail: from his back, thick at its root, tapering and curling up to its tip, spikes along its top */
-      if(SKP === 'spikes' && ((part === 'pre' && frontSeen) || (part === 'mid' && !frontSeen))){ const x0 = -BODY.hx + 2, zc = BODY.z0 + 7, pts = [];
-        for(let k = 0; k <= 10; k++){ const u = k/10; pts.push([x0 - u*36, Math.sin(u*Math.PI*0.9)*7*(nearSide), zc + 3 + 13*u*u - 4*Math.sin(u*Math.PI), 11*(1 - u*0.85)]); }   // (bigger -- Sir, 2026-11-16)
-        for(let k = 0; k < 10; k++){ const [xa, ya, za, ra] = pts[k], [xb, yb, zb2, rb] = pts[k + 1], A = P(xa, ya, za), B = P(xb, yb, zb2);
-          g.lineStyle(Math.max(1, (ra + rb)*K*1.05), 0x2f6a22, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(0x2f6a22, 1); g.fillCircle(B.x, B.y, rb*K*1.05);
-          g.lineStyle(Math.max(1, (ra + rb)*K*0.6), 0x4f9a3c, 1); g.lineBetween(A.x, A.y - ra*0.3*K, B.x, B.y - rb*0.3*K);
-          if(k % 2 === 0 && k < 9){ const T = P(xa - 1, ya, za + ra*0.9 + 3.2); g.fillStyle(0xe6dcb8, 1); g.fillTriangle(A.x - ra*0.6*K, A.y - ra*0.8*K, A.x + ra*0.6*K, A.y - ra*0.8*K, T.x, T.y); } } }
+      /* (more a part of him -- Sir, 2026-11-16): the tail grows out of his whole back -- its root his body's own height and colour, centred on his
+         back face, dropping a little then sweeping up and round to its tip; its top lit as his hull's top, its belly his side's dark, his
+         back's spike row running on down it */
+      if(SKP === 'spikes' && ((part === 'pre' && frontSeen) || (part === 'mid' && !frontSeen))){ const BPt = this.bodyPaint(), H2 = (BODY.z1 - BODY.z0)/2, x0 = -BODY.hx + 1.5, zc = BODY.z0 + H2, pts = [];
+        for(let k = 0; k <= 12; k++){ const u = k/12; pts.push([x0 - u*34, Math.sin(u*Math.PI*0.9)*6*nearSide, zc - 2.5*Math.sin(u*Math.PI*0.8) + 11*u*u*u, H2*(1 - u*0.88)]); }
+        for(let k = 0; k < 12; k++){ const [xa, ya, za, ra] = pts[k], [xb, yb, zb2, rb] = pts[k + 1], A = P(xa, ya, za), B = P(xb, yb, zb2);
+          g.lineStyle(Math.max(1, (ra + rb)*K), BPt.dk, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(BPt.dk, 1); g.fillCircle(B.x, B.y, rb*K);
+          g.lineStyle(Math.max(1, (ra + rb)*K*0.62), BPt.lt, 1); g.lineBetween(A.x, A.y - ra*0.32*K, B.x, B.y - rb*0.32*K);
+          g.lineStyle(Math.max(1, (ra + rb)*K*0.28), BPt.top, 1); g.lineBetween(A.x, A.y - ra*0.62*K, B.x, B.y - rb*0.62*K);
+          if(k % 2 === 1 && k < 11){ const T = P(xa - 1, ya, za + ra + 3); g.fillStyle(0xe6dcb8, 1); g.fillTriangle(A.x - ra*0.5*K, A.y - ra*0.85*K, A.x + ra*0.5*K, A.y - ra*0.85*K, T.x, T.y); } } }
       if(SKP === 'ears' && part === 'mid'){ const sb = -nearSide, zt = LID.z1, ly = LID.hy, E = [0x5a3418, 0x7a4a24], ear = [];   // (the far ear, before his cab)
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
