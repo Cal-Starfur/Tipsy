@@ -44572,7 +44572,12 @@ const STRIPE = { z0:20, z1:27 };
 const TP_BUILDS = {
   racer: { BODY: { hx: 36, hy: 19, z0: 10, z1: 30, ch: 11, bev: 3, bevIn: 2.5 }, LID: { hx: 19, hy: 15, z0: 30, z1: 37, ch: 6, bev: 2.5, bevIn: 2 },
     STRIPE: { z0: 15, z1: 19 }, FLAGB: { x: -39.5, y: 12.4 }, FLAGZ: [26, 70], zmap: z => 10 + (z - 14)*0.5,
-    WHEELS: { r: 10.5, W2: 10, rF: 7.5, W2F: 7.5, xs: [-24, 25], side: 23 } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+    WHEELS: { r: 10.5, W2: 10, rF: 7.5, W2F: 7.5, xs: [-24, 25], side: 23 } },
+  /* the Tuk-tuk (Sir, 2026-11-16): a tall cab with open sides, his lid its overhanging canopy, his face its windscreen, two wheels at the
+     back and one out front on a fork under a mudguard (tukKit) */
+  tuktuk: { BODY: { hx: 22, hy: 19, z0: 12, z1: 42, ch: 8, bev: 3, bevIn: 2.5 }, LID: { hx: 26, hy: 22, z0: 42, z1: 47, ch: 7, bev: 2, bevIn: 1.5 },
+    STRIPE: { z0: 17, z1: 22 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [38, 82], zmap: z => 12 + (z - 14)*0.72,
+    WHEELS: { r: 8.5, W2: 8, xs: [-14], side: 21, single: { x: 32, r: 7.5, W2: 5.5 } } } };   // (fat rears, smaller fronts -- Sir, 2026-11-16)
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -122562,6 +122567,8 @@ class WorldScene extends Phaser.Scene {
         const c = {x:wx, y:side*gy, z:fr ? G.rF + 2 : gz};
         wheels.push({ c, side, near: sideNear && !under, d: this.depth(c.x, c.y, c.z), G: Gw });
       }
+      if(G.kind === 'wheels' && G.single && side === 1){ const S = G.single, fw = this.R(1, 0, 0), sn = this.R(0, 1, 0), sd = sn.x + sn.y + sn.z > 0 ? 1 : -1;   // (a build's lone front wheel, on his middle: the Tuk-tuk)
+        const c = { x: S.x, y: sd*S.W2/2, z: S.r + 2 }; wheels.push({ c, side: sd, near: fw.x + fw.y + fw.z > 0, d: this.depth(c.x, 0, c.z), G: { ...G, r: S.r, W2: S.W2 } }); }
     }
     /* the 3 wheels on a given side (front/mid/rear along the body) were
        always drawn in fixed array order (-16, 0, 16) regardless of
@@ -122587,8 +122594,10 @@ class WorldScene extends Phaser.Scene {
     /* HIS BUILD (Sir, 2026-11-16: builds for Tipsey, "let's try racer"): the Racer keeps his box -- his lid still opens -- and adds a wedge
        nose low on his front and a wing on struts off his back. Each piece drawn before the body when it is on the far side of him, after
        it when it faces the eye (racerKit) */
+    const tuk = !npc && SKIN.build === 'tuktuk';
     const racer = !npc && SKIN.build === 'racer', frontSeen = (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })();
     if(racer && frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing, on the far side of him)
+    if(tuk && !frontSeen) this.tukKit(bobZ, BP, 'front');
     this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
     this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});
@@ -122600,6 +122609,7 @@ class WorldScene extends Phaser.Scene {
        them. */
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
     if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');
+    if(tuk){ this.tukKit(bobZ, BP, 'sides'); if(frontSeen) this.tukKit(bobZ, BP, 'front'); }
     if(SKIN.stripe2){
       this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:HJ_STRIPE2.z0+bobZ, z1:HJ_STRIPE2.z1+bobZ, band:true, cLt:SKIN.stripe2, cDk:SKIN.stripe2Dk});
     }
@@ -126686,6 +126696,23 @@ class WorldScene extends Phaser.Scene {
                     need to blend and not be hard lines"): each side is drawn
                     in strips whose normal turns from one corner's to the
                     next, so the colour runs on round the corners */
+  /* THE TUK-TUK's pieces: 'front' its fork down to the lone front wheel and the mudguard over it, 'sides' the open sides of its cab */
+  tukKit(bobZ, BP, part){
+    const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+    const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
+    if(part === 'front'){ const fx = 32, r = 7.5, hz = BODY.z0 + 1;   // (the fork up under his chin, clear of his face)
+      g.lineStyle(Math.max(1, 2.4*this.kScale()), 0x3a3d45, 1);
+      for(const y of [-3.4, 3.4]){ const A = P(fx, y, r + 2), B = P(BODY.hx + 1, y*0.8, hz); g.lineBetween(A.x, A.y, B.x, B.y); }   // (the fork)
+      const arc = []; for(let i = 0; i <= 8; i++){ const u = 0.2 + i/8*(Math.PI - 0.4); arc.push([fx + Math.cos(u)*(r + 2.5), r + 2 + Math.sin(u)*(r + 2.5)]); }
+      for(const y of [-3.6, 3.6]) if(vis(0, Math.sign(y), 0)) quad(arc.map(([x, z]) => [x, y, z]).concat(arc.slice().reverse().map(([x, z]) => [x, y, z - 1.2])), SKIN.stripe);
+      if(vis(0, 0, 1)) for(let i = 0; i < 8; i++) quad([[arc[i][0], -3.6, arc[i][1]], [arc[i][0], 3.6, arc[i][1]], [arc[i + 1][0], 3.6, arc[i + 1][1]], [arc[i + 1][0], -3.6, arc[i + 1][1]]], SKIN.stripe);   // (the mudguard)
+    }
+    if(part === 'sides'){ const z0 = STRIPE.z1 + 5, z1 = BODY.z1 - 3, x0 = -BODY.hx + BODY.ch + 2, x1 = BODY.hx - BODY.ch - 3;   // (its open sides: the dark of the cab in each)
+      for(const sb of [-1, 1]) if(vis(0, sb, 0)){ const y = sb*(BODY.hy + 0.15);
+        quad([[x0, y, z0], [x1, y, z0], [x1 + 2, y, z1], [x0, y, z1]], 0x2a2d34);
+        quad([[x0 + 1, y, z0 + 0.6], [x1 - 1, y, z0 + 0.6], [x1 - 1, y, z0 + 2], [x0 + 1, y, z0 + 2]], 0x3a3e46); }   // (a seat back's edge)
+    }
+  }
   /* THE RACER BUILD's pieces (SKIN.build 'racer'): part 'front' the wedge nose, 'back' the wing -- in his own frame (P, R) */
   racerKit(bobZ, BP, part){
     const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
@@ -132448,7 +132475,7 @@ function gearSpecRaw(){
     case 'cart':     return { kind: 'cart', lift: 6 };
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
-  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, lift: 0 }; }   // (a build's own: TP_BUILDS)
+  if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
   return z ? { kind: 'wheels', r: z.r, W2: z.W2, xs: z.xs || WHEEL.xs, side: WHEEL.side, lift: z.lift }
            : { kind: 'wheels', r: WHEEL.r, W2: 7.5, xs: WHEEL.xs, side: WHEEL.side, lift: 0 };
@@ -146528,7 +146555,7 @@ requestTpProfile();
   /* TIPSEY'S UPGRADES (as Gideon's scooter's GSC_UP -- Sir, 2026-11-16, "both of them have everything"; the Kickstand his alone):
      the Speed Motor, the Battery (half the drain), the Headlight (his pool thrown further), the Bell (people step aside), Underglow */
   const UP1 = (nm, c) => [{ id: 'stock', name: 'Stock', cents: 0 }, { id: 'on', name: nm, cents: c }];
-  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }];   // (HIS BUILDS: racerKit)
+  const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'tuktuk', name: 'Tuk-tuk', cents: 1500 }];   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
   const WHEEL_LIST = [
@@ -147424,7 +147451,7 @@ requestTpProfile();
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
     if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock';
-      const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
+      const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
       P.innerHTML = '<div class="grSec">BUILD — HIS BODY\'S SHAPE</div><div class="grRow">' + TP_BUILD.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       for (const b of P.querySelectorAll('[data-build]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { build: b.dataset.build === 'stock' ? null : b.dataset.build }));
