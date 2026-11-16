@@ -124629,8 +124629,8 @@ class WorldScene extends Phaser.Scene {
     if(BODY._windshield){   /* A WINDSCREEN: the lid's front face, its two front corner faces and the bevels over them in glass, the rest in his paint */
       const WS = BODY._windshield, c = Math.min(LID.ch, hx - 1, hy - 1), zs = z1 - LID.bev, kx = (hx - LID.bevIn)/hx, ky = (hy - LID.bevIn)/hy, zb = z0 + 0.6;
       const faces = [[[hx - c, -hy], [hx, -(hy - c)], [1, -1]], [[hx, -(hy - c)], [hx, hy - c], [1, 0]], [[hx, hy - c], [hx - c, hy], [1, 1]]];
-      for(const [a, b, nn] of faces){ const nl = Math.hypot(nn[0], nn[1]), w = HN(nn[0]/nl, nn[1]/nl, 0); if(w.x + w.y + w.z <= 0) continue;
-        this.quadOn(this.g, [H(a[0], a[1], zb), H(b[0], b[1], zb), H(b[0], b[1], zs), H(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
+      for(const [a, b, nn] of faces){ const nl = Math.hypot(nn[0], nn[1]), w = HN(nn[0]/nl, nn[1]/nl, 0);
+        if(w.x + w.y + w.z > 0) this.quadOn(this.g, [H(a[0], a[1], zb), H(b[0], b[1], zb), H(b[0], b[1], zs), H(a[0], a[1], zs)], nn[1] === 0 ? WS[1] : WS[2]);
         const wb = HN(nn[0]/nl*0.7, nn[1]/nl*0.7, 0.7); if(wb.x + wb.y + wb.z > 0) this.quadOn(this.g, [H(a[0], a[1], zs), H(b[0], b[1], zs), H(b[0]*kx, b[1]*ky, z1), H(a[0]*kx, a[1]*ky, z1)], WS[0]); }
       { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (its glint)
         this.quadOn(this.g, [H(hx + 0.05, y0, zb + 1), H(hx + 0.05, y0 + 1.6, zb + 1), H(hx + 0.05, y1 + 1.6, zs - 0.5), H(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } } }
