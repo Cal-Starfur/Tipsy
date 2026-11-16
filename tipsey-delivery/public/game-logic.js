@@ -125247,9 +125247,9 @@ class WorldScene extends Phaser.Scene {
       /* (a second pass -- Sir, 2026-11-16, "they seem nice but could be better"): each fin a solid blade, thick at its root and thinning to
          its point -- its top edge a band in his stripe running the whole sweep, its face toward the eye in his paint lit along its sweep,
          a dark outline round it as his hull has, a red tail lamp in its point */
-      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 2.5), z = BODY.z1 - 0.5, X0 = -BODY.hx, N = 8;
+      const BP = this.bodyPaint(), fin = sb => { const y = sb*(BODY.hy - 4), z = BODY.z1 - 0.5, X0 = -BODY.hx, N = 8;   // (its root wholly on his top, inside the chamfered back corner -- Sir, 2026-11-16)
         const LE = []; for(let k = 0; k <= N; k++){ const u = k/N; LE.push([-13 + (X0 - 7 + 13)*u, z + 15*Math.pow(u, 0.6), 1.7 - 1.25*u]); }   // (its root starts behind the lid -- the lid now runs back to -10)   // (x, z, half thickness)
-        const TIP = [X0 - 9, z + 15, 0.45], BACK = [[X0 - 3.5, z + 5, 0.9], [X0 - 1, z, 1.2]];
+        const TIP = [X0 - 8, z + 15, 0.45], BACK = [[X0 - 2, z + 6, 0.9], [X0 + 3, z, 1.2]];
         const out = vis(0, sb, 0), fs = out ? 1 : -1, sideY = (q) => y + sb*fs*q[2];
         /* its top edge: the band between its two faces, the length of the sweep -- in his stripe */
         for(let k = 0; k < N; k++){ const a = LE[k], b = LE[k + 1];
@@ -125258,7 +125258,7 @@ class WorldScene extends Phaser.Scene {
         /* its face toward the eye: lit near its root, a shade down toward its point */
         const S = [...LE, TIP, ...BACK], pts = S.map(q => P(q[0], sideY(q), q[1]));
         this.quadOn(g, pts, out ? BP.lt : BP.dk);
-        this.quadOn(g, [P(LE[2][0], sideY(LE[2]), LE[2][1] - 1.2), P(LE[6][0], sideY(LE[6]), LE[6][1] - 1.4), P(X0 - 2.5, sideY(BACK[0]), z + 3), P(-13 + (X0 + 13)*0.3, sideY(LE[2]), z + 0.5)], out ? _pmix(BP.lt, 0xffffff, 0.35) : _pmix(BP.dk, 0xffffff, 0.12), 0.7);
+        this.quadOn(g, [P(LE[2][0], sideY(LE[2]), LE[2][1] - 1.2), P(LE[6][0], sideY(LE[6]), LE[6][1] - 1.4), P(X0 + 0.5, sideY(BACK[0]), z + 3), P(-13 + (X0 + 13)*0.3, sideY(LE[2]), z + 0.5)], out ? _pmix(BP.lt, 0xffffff, 0.35) : _pmix(BP.dk, 0xffffff, 0.12), 0.7);
         g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);   // (open along its root: no line where it grows out of his body)
         const L = P(TIP[0] + 0.6, sideY(TIP), TIP[1] - 1.4); g.fillStyle(0x7f1d19, 1); g.fillCircle(L.x, L.y, 1.4*K); g.fillStyle(0xff4a3a, 1); g.fillCircle(L.x, L.y, 0.95*K);   // (its tail lamp)
       };
