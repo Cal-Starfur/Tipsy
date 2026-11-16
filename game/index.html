@@ -122635,7 +122635,10 @@ class WorldScene extends Phaser.Scene {
     if(lidIsNear) this.drawLid(lidBox);
 
     const fn = this.R(1, 0, 0);
-    const F = (y, z) => this.P(BODY.hx + 0.8, y, (BODY._zmap ? BODY._zmap(z) : z) + bobZ);   // (a build's face: its features fitted to its front -- TP_BUILDS)
+    /* (a build's face: its features' heights fitted to its front, and -- past the flat of its front -- wrapped round onto its chamfered
+       corners, so they hug the body as the stripe does: Sir, 2026-11-16 -- TP_BUILDS) */
+    const fW = BODY.hy - BODY.ch, F = BODY._zmap ? (y, z) => this.P(BODY.hx + 0.8 - Math.max(0, Math.abs(y) - fW), y, BODY._zmap(z) + bobZ)
+                                               : (y, z) => this.P(BODY.hx + 0.8, y, z + bobZ);
     const ks = this.kScale();
     let mouthPolys = null;              // this frame's mouth, for the night glow below
     /* (> 0.04, not > 0: square to the camera the face is edge-on, and float noise put the eyes on show
