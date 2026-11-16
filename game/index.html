@@ -44638,6 +44638,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
+  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, print: 'mtGrave', part: 'grave', eye: 0x7dff5a },
+  { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns' },
+  { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears' },
+  { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin' },
+  { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes' },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -122776,8 +122781,8 @@ class WorldScene extends Phaser.Scene {
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
     const BS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === SKIN.build);   // (this build's own skin, if he wears one)
-    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
-    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; }
+    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print', 'eye'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
+    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; if(BS.eye != null) SKIN.eye = BS.eye; }
     BODY._bskin = BS || null;
     BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag; BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
@@ -127176,6 +127181,27 @@ class WorldScene extends Phaser.Scene {
       /* THE STACKS (Sir, 2026-11-16: "an improvement on the exhaust stacks"): each a round chrome pipe (an octagonal prism, his own hull's
          way) on a bolted foot plate, a black slotted heat shield round its middle, a flared lip at the top cut on a slant, its bore dark --
          the far one first */
+      /* A MONSTER SKIN'S PARTS on him (TP_BSKIN part): the bull's horns out of his cab's sides, the mutt's floppy ears and its tongue
+         hanging out under his face, the shark's fin up off his roof, the dino's spikes down his spine, the graveyard's lit green eyes'
+         glow; over the lid ('near'), the tongue over his face ('after') */
+      const SKP = BODY._bskin && BODY._bskin.part;
+      if(SKP && part === 'near'){ const BPk = this.bodyPaint(), zt = LID.z1, lx = LID.hx, ly = LID.hy;
+        if(SKP === 'horns') for(const sb of [-nearSide, nearSide]){ const pts = []; for(let k = 0; k <= 8; k++){ const u = k/8; pts.push([lx - 4 - u*3, sb*(ly - 1 + u*9), zt - 3 + Math.sin(u*Math.PI*0.9)*6 + u*u*5, 2.6*(1 - u*0.85)]); }
+            for(let k = 0; k < 8; k++){ const [x0, y0, z0, r0] = pts[k], [x1, y1, z1, r1] = pts[k + 1], A = P(x0, y0, z0), B = P(x1, y1, z1);
+              g.lineStyle(Math.max(1, (r0 + r1)*K), k > 5 ? 0x3b3226 : 0xe9dcb8, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(k > 5 ? 0x3b3226 : 0xe9dcb8, 1); g.fillCircle(B.x, B.y, r1*K); } }
+        if(SKP === 'ears') for(const sb of [-nearSide, nearSide]){ const yb = sb*ly, ys = sb*(ly + 2.5), E = [0x5a3418, 0x7a4a24];
+            const ear = []; for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }   // (a long floppy ear hanging off his cab's side)
+            this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), vis(0, sb, 0) ? E[1] : E[0]);
+            g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
+        if(SKP === 'fin'){ const F = [[6, zt], [-8, zt], [-12, zt + 13], [-9, zt + 13.5], [-2, zt + 6]], o = vis(0, 1, 0) ? 0.5 : -0.5;
+          this.quadOn(g, F.map(([x, z]) => P(x, o, z)), _pmix(BPk.lt, 0x000000, 0.08)); g.lineStyle(Math.max(1, K), SKIN.outline, 1); g.strokePoints(F.map(([x, z]) => P(x, o, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
+        if(SKP === 'spikes'){ const o = vis(0, 1, 0) ? 0.4 : -0.4, sp = (x, z, h, w) => { this.quadOn(g, [P(x + w, o, z - 0.2), P(x - w, o, z - 0.2), P(x - w*0.5, o, z + h)], 0xe6dcb8);
+              this.quadOn(g, [P(x + w*0.55, o*1.1, z - 0.2), P(x - w*0.2, o*1.1, z - 0.2), P(x - w*0.5, o*1.1, z + h*0.92)], 0xc9bc8e); };
+            for(let i = 0; i < 4; i++) sp(lx - 3 - i*((2*lx - 4)/3), zt, 7 - Math.abs(i - 1.5)*1.2, 2.8);                       // (down his cab's spine)
+            for(let i = 0; i < 3; i++) sp(-LID.hx - 6 - i*7, BODY.z1, 5 - i*1.2, 2.4); } }                                       // (and on down his back)
+      if(SKP === 'ears' && part === 'after' && frontSeen){ const fx = BODY.hx + 0.3, z0 = BODY.z0 + 0.5;   // (its tongue, out under his face)
+        this.quadOn(g, [P(fx, -2.6, z0 + 3), P(fx, 2.6, z0 + 3), P(fx + 1.6, 2.4, z0 - 2.5), P(fx + 1.4, 0, z0 - 4), P(fx + 1.6, -2.4, z0 - 2.5)], 0xe86a8a);
+        { const A = P(fx + 0.6, 0, z0 + 2.4), B = P(fx + 1.3, 0, z0 - 2.6); g.lineStyle(Math.max(1, 0.7*K), 0xb84a6a, 1); g.lineBetween(A.x, A.y, B.x, B.y); } }
       const sx = -LID.hx - 4, stacks = () => { const z0 = BODY.z1, z1 = BODY.z1 + 20, CH = [0xeef1f4, 0xc9ced4, 0x8d959c];
         const cyl = (r, y, za, zb, c) => this.drawHullPrism({ hx: r, hy: r, ox: sx, oy: y, z0: za + bobZ, z1: zb + bobZ, ch: r*0.59, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
         for(const y of [-nearSide*(LID.hy - 2), nearSide*(LID.hy - 2)]){
@@ -132396,6 +132422,42 @@ const SK_CHROME_PLATE = {
    covers; frond: palm leaves fanned from a point instead of blobs. A skin names its print (SKIN.print); a garage body
    colour, two-tone or chameleon takes the print off (bodyPaint) */
 const HULL_PRINTS = {
+  /* THE MONSTER TRUCK'S SKINS (Sir, 2026-11-16: "based on real monster truck type skins"): the show-truck kinds -- a graveyard, a raging
+     bull, a big dog, a shark, a dinosaur -- each its body art here (sides 2 and 6, the front face 0 for a mouth) and its parts on him in
+     buildKit 'monster' (horns, ears and tongue, a fin, spikes) */
+  mtGrave: { id: 'mtGrave', seed: 0x96a7e, build(L){ if(L.part === 'lid') return;
+      const FOG = [0x3f8f2c, 0x6fd04a], ST = [0x8a9099, 0xc9ced4], DK = [0x2a2d33, 0x3b4048];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, w = [];
+        for(let i = 0; i <= 24; i++){ const s2 = a + len*i/24; w.push([s2, L.H*0.34 + Math.sin(i*1.3 + k)*L.H*0.07]); }
+        L.side.push({ c: FOG, pts: [[a, -1], ...w, [b, -1]] });
+        for(const u of [0.2, 0.45, 0.72]){ const c = a + len*u, hw = 3.2, hb = L.H*0.2, ht = L.H*0.7, arc = [];   // (a tombstone, its top rounded)
+          for(let i = 0; i <= 6; i++){ const t = Math.PI*i/6; arc.push([c + Math.cos(t)*hw, ht + Math.sin(t)*hw*0.8]); }
+          L.side.push({ c: ST, pts: [[c + hw, hb], ...arc, [c - hw, hb]] });
+          L.side.push({ c: DK, pts: _prRect(c - 0.35, ht - 2.4, c + 0.35, ht + 0.6) }, { c: DK, pts: _prRect(c - 1.2, ht - 0.9, c + 1.2, ht - 0.3) }); }
+        for(const u of [0.33, 0.6, 0.86]){ const c = a + len*u, h = L.H*0.86, wb = 1.8;   // (bats)
+          L.side.push({ c: DK, pts: [[c - wb*1.6, h + 0.4], [c - wb*0.8, h - 0.2], [c - wb*0.4, h + 0.3], [c, h - 0.5], [c + wb*0.4, h + 0.3], [c + wb*0.8, h - 0.2], [c + wb*1.6, h + 0.4], [c, h + 0.9]] }); } } } },
+  mtMutt: { id: 'mtMutt', seed: 0x3077, build(L){ if(L.part === 'lid'){ for(let i = 0; i < 3; i++) L.top.push({ c: [0x5a3418, 0x7a4a24], pts: L.blob(L.x0 + 4 + L.rng()*(L.x1 - L.x0 - 8), L.y0 + 3 + L.rng()*(L.y1 - L.y0 - 6), 3.4, 1.2) }); return; }
+      const SP = [0x5a3418, 0x7a4a24];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); for(let i = 0; i < 4; i++) L.side.push({ c: SP, pts: L.blob(a + 6 + L.rng()*(b - a - 12), 2 + L.rng()*(L.H - 4), 3.6, 1.5) }); }
+      for(let i = 0; i < 4; i++) L.top.push({ c: SP, pts: L.blob(L.x0 + 4 + L.rng()*(L.x1 - L.x0 - 8), L.y0 + 4 + L.rng()*(L.y1 - L.y0 - 8), 4, 1.2) }); } },
+  mtShark: { id: 'mtShark', seed: 0x54a4c, build(L){ if(L.part === 'lid') return;
+      const BEL = [0xc9ced4, 0xf2f3f1], GILL = [0x2f3d4a, 0x3d4f60], TW = [0xd9dde2, 0xffffff], MO = [0x4a1016, 0x6a1820];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, w = [];
+        for(let i = 0; i <= 20; i++) w.push([a + len*i/20, L.H*0.36 + Math.sin(i*0.9)*0.5]);
+        L.side.push({ c: BEL, pts: [[a, -1], ...w, [b, -1]] });
+        for(let g2 = 0; g2 < 3; g2++){ const d = 7 + g2*2.4; L.side.push({ c: GILL, pts: [[X(d), L.H*0.45], [X(d + 0.9), L.H*0.47], [X(d + 1.6), L.H*0.62], [X(d + 0.9), L.H*0.8], [X(d), L.H*0.82], [X(d + 0.6), L.H*0.63]] }); } }
+      HULL_PRINTS.mtShark.teeth(L, MO, TW); },
+    teeth(L, MO, TW){ const [a, b] = L.face(0), n = 9, w = (b - a)/n;   /* a mouth across his front, low: a dark band, teeth down from its top and up from its foot */
+      const m0 = 5.4, m1 = 9.2;   // (above his push bar, under his eyes)
+      L.side.push({ c: MO, pts: _prRect(a + 0.6, m0, b - 0.6, m1) });
+      for(let i = 0; i < n; i++){ const s0 = a + i*w; L.side.push({ c: TW, pts: [[s0, m1 + 0.1], [s0 + w, m1 + 0.1], [s0 + w/2, m1 - 1.9]] }); if(i > 0 && i < n - 1) L.side.push({ c: TW, pts: [[s0, m0 - 0.1], [s0 + w, m0 - 0.1], [s0 + w/2, m0 + 1.6]] }); } } },
+  mtDino: { id: 'mtDino', seed: 0xd170, build(L){ if(L.part === 'lid'){ for(let x = L.x0 + 3; x < L.x1 - 2; x += 6) L.top.push({ c: [0x2f6a22, 0x3d8a2c], pts: _prRect(x, L.y0 + 1, x + 2.4, L.y1 - 1) }); return; }
+      const ST = [0x2f6a22, 0x3d8a2c], BEL = [0xb8c46a, 0xd9e08a];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a;
+        L.side.push({ c: BEL, pts: _prRect(a, -1, b, L.H*0.28) });
+        for(let x = a + 4; x < b - 3; x += 6.5) L.side.push({ c: ST, pts: [[x, L.H + 1], [x + 2.6, L.H + 1], [x + 1.2, L.H*0.45], [x - 0.6, L.H*0.3]] }); }
+      for(let x = L.x0 + 3; x < L.x1 - 2; x += 6) L.top.push({ c: ST, pts: _prRect(x, L.y0 + 1, x + 2.4, L.y1 - 1) });
+      HULL_PRINTS.mtShark.teeth(L, [0x3a1010, 0x5a1818], [0xe6dcb8, 0xfff6d8]); } },
   /* THE NIGHT CRUISER'S SKINS (Sir, 2026-11-16: "these seem more like paint jobs than skins"): custom-car graphics laid along its long low
      body -- each side's run from his nose back (faces 2 and 6 of the plan), and on the hood ahead of the windscreen. The side
      coordinates are his side's own (s along it, h up it to L.H), so they fit the build's body whatever its size */
