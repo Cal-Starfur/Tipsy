@@ -125297,7 +125297,19 @@ class WorldScene extends Phaser.Scene {
         this.quadOn(g, pts, out ? BP.lt : BP.dk);
         this.quadOn(g, [P(LE[2][0], sideY(LE[2]), LE[2][1] - 1.2), P(LE[6][0], sideY(LE[6]), LE[6][1] - 1.4), P(X0 + 0.5, sideY(BACK[0]), z + 3), P(-13 + (X0 + 13)*0.3, sideY(LE[2]), z + 0.5)], out ? _pmix(BP.lt, 0xffffff, 0.35) : _pmix(BP.dk, 0xffffff, 0.12), 0.7);
         g.lineStyle(Math.max(1, 1*K), SKIN.outline, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), false);   // (open along its root: no line where it grows out of his body)
-        const L = P(TIP[0] + 0.6, sideY(TIP), TIP[1] - 1.4); g.fillStyle(0x7f1d19, 1); g.fillCircle(L.x, L.y, 1.4*K); g.fillStyle(0xff4a3a, 1); g.fillCircle(L.x, L.y, 0.95*K);   // (its tail lamp)
+        /* ITS TAIL LAMP (Sir, 2026-11-16: "more like lights, not simple dots"): a long oval lens set into its face along its trailing
+           edge near the point -- a chrome bezel, the red lens, a hot core toward its front, a glint -- and the same lens running round
+           onto its back edge, so it shows from behind; at night a red glow off it */
+        { const ex = BACK[0][0] - TIP[0], ez = BACK[0][1] - TIP[1], el = Math.hypot(ex, ez), ux = ex/el, uz = ez/el, vx = uz, vz = -ux;   // (along the edge, and in from it)
+          const cx = TIP[0] + ux*3.4 + vx*1.5, cz = TIP[1] + uz*3.4 + vz*1.5, yy = sideY([0, 0, ((TIP[2] + BACK[0][2])/2) + 0.05]);
+          const oval = (a, b, col, dx = 0, dz = 0, al = 1) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2, c2 = Math.cos(q)*a, s2 = Math.sin(q)*b;
+            o.push(P(cx + dx + ux*c2 + vx*s2, yy, cz + dz + uz*c2 + vz*s2)); } this.quadOn(g, o, col, al); };
+          oval(3.3, 1.45, 0xd8dde2); oval(2.8, 1.0, 0x8f1f1a); oval(2.4, 0.75, 0xe0352a); oval(1.1, 0.45, 0xff8a6a, -ux*1, -uz*1);
+          { const q = P(cx - ux*1.6 + vx*0.35, yy, cz - uz*1.6 + vz*0.35); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x, q.y, 0.45*K); }
+          /* on its back edge: the lens wrapping round, from the point a third of the way down */
+          { const a2 = TIP, b2 = [TIP[0] + ex*0.45, TIP[1] + ez*0.45, TIP[2] + (BACK[0][2] - TIP[2])*0.45], w = this.R(ez/el, 0, -ex/el);
+            if(w.x + w.y + w.z > 0) this.quadOn(g, [P(a2[0], y - a2[2]*0.8, a2[1] - 0.4), P(b2[0], y - b2[2]*0.8, b2[1]), P(b2[0], y + b2[2]*0.8, b2[1]), P(a2[0], y + a2[2]*0.8, a2[1] - 0.4)], 0xe0352a); }
+          if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = P(cx, yy, cz); gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(q.x, q.y, 5*K); } } }
       };
       const fins = () => { fin(-nearSide); fin(nearSide); };
       /* THE JET NOZZLE (more pronounced, out past his tail -- Sir, 2026-11-16): a round steel housing standing off his tail, banded, a
