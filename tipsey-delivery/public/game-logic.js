@@ -18206,7 +18206,7 @@ function hoodDrivewaysOf(grid){
      frame runs east along the site's south line, out (+y) to the kerb;
      and Sun Deck Airfield's apron gate (AIR.drives), the same way; and the
      garages' (the mall's, Marina Parking's: MARINA.drives) */
-  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives]])
+  for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives], ["fishmkt", WORLDGEN_COAST ? [FM_PLAN.DRIVE] : []]])
     for(const dw of list)
       out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
@@ -84432,7 +84432,12 @@ const FM_PLAN = {
   NELL: [[-20, -1188], [220, -1188], [470, -1188]],                                  // Nell's places behind her ice beds (run D-E)
   BELL: { x: -205, y: -1905, z: 210 },                                               // the market bell, on its post at the back of bay C (seen from the yard)
   RING: { x: -232, y: -1858 },                                                       // where Nell stands to ring it
-  hours: [6, 19]
+  hours: [6, 19],
+  /* the ice truck's place (Sir, 2026-11-16: "this patch at the end of the fish market is where the fish market's truck
+     should be parked and we need a drive way into this lot"): the apron strip west of the lot (the boats moved off it), nose to the street, and its
+     drive off the front street (a dropped kerb across the footway: hoodDrivewaysOf) */
+  TRUCK: { x: -1960, y: -1500, yaw: Math.PI/2 },                                    // (on the harbour's apron strip west of the lot, clear of the hall's roof on screen)
+  DRIVE: { x0: -2120, x1: -1800, y: -736, out: 1, col: '#b9b6ad', lane: true }
 };
 const FM_BLK = { x0: FM_PLAN.X0, x1: FM_PLAN.X1, y0: FM_PLAN.Y0, y1: FM_PLAN.Y1, cx: 336, cy: -1818, type: "commercial", fishMarket: true };
 /* the market's own ground: the lot and its corner, and the toe strip behind */
@@ -84508,7 +84513,7 @@ function fmBodyHits(x, y, R, s){
    parked pod and the market's people are solid where they are now */
 function fmSolidAt(x, y, R){
   const P = FM_PLAN;
-  if(x < P.X0 - R - 4 || x > P.X1 + R + 4 || y < P.Y0 - R - 4 || y > P.Y1 + R + 4) return null;
+  if(x < P.X0 - R - 400 || x > P.X1 + R + 4 || y < P.Y0 - R - 4 || y > P.Y1 + R + 4) return null;   // (400: its truck stands west of the lot)
   for(const s of fmSolids()) if(fmBodyHits(x, y, R, s)) return FM_BLK;
   const tr = FM_TRUCK.now;
   if(tr && tr.solid && fmBodyHits(x, y, R, { c: [tr.x, tr.y], r: 0 })){ /* (its middle) */ return FM_BLK; }
@@ -84709,13 +84714,13 @@ function fmDiners(){
   }
   return (fmDiners.c = out);
 }
-/* ---- THE ICE TRUCK (the harbour's refrigerated truck): parked at the cold store's dock under the hall's roof, tail to
-   the door, the door up (Sir, 2026-11-16: "I want the ice truck to be parked in there"; it no longer drives Harbor Road).
+/* ---- THE ICE TRUCK (the harbour's refrigerated truck): parked in its strip at the hall's west end, nose to its drive
+   off the front street (FM_PLAN.TRUCK, FM_PLAN.DRIVE); the cold store's door stays up for the porter.
    FM_TRUCK.now: where it stands. ---- */
 const FM_TRUCK = { now: null, door: 1 };
 function fmTruckAt(){
-  const S = FM_PLAN.STORE;
-  return { x: (S.d0 + S.d1)/2, y: S.y1 + 206, yaw: Math.PI/2, solid: true, docked: true, moving: false };
+  const T = FM_PLAN.TRUCK;
+  return { x: T.x, y: T.y, yaw: T.yaw, solid: true, docked: false, moving: false };
 }
 function fmTruckTick(){ if(!FM_TRUCK.now) FM_TRUCK.now = fmTruckAt(); }
 CITY_PEOPLE.add({ name: 'Pelican Fish Market', where: "the fish market on Palmline's corner: its beds, the taco counter, the yard", solid: true,
@@ -99765,6 +99770,9 @@ class WorldScene extends Phaser.Scene {
     rect(P.HX0 - 24, P.HX1 + 24, P.HF + 20, P.HF + 24, 0xa9aaa4);
     /* the pod's bay: a white box, a yellow chevron at its head */
     { const D = P.POD, hw = 70, hl = 130; for(const [x0, x1, y0, y1] of [[D.x - hw, D.x - hw + 6, D.y - hl, D.y + hl], [D.x + hw - 6, D.x + hw, D.y - hl, D.y + hl], [D.x - hw, D.x + hw, D.y - hl, D.y - hl + 6]]) rect(x0, x1, y0, y1, 0xf4f4ee); }
+    /* the truck's bay in the strip at the west end: two white lines, open to its drive */
+    { const T = P.TRUCK, hw = 100; for(const x of [T.x - hw, T.x + hw - 6]) rect(x, x + 6, T.y - 300, P.Y1 - 40, 0xf4f4ee);
+      rect(T.x - hw, T.x + hw, T.y - 300, T.y - 294, 0xf4f4ee); }
     /* the dock: yellow guide lines either side of the truck's place, the hatched apron in front of the door */
     { const S = P.STORE, xd = (S.d0 + S.d1)/2; for(const x of [xd - 80, xd + 80]) rect(x - 4, x + 4, S.y1 + 8, S.y1 + 470, 0xe8b54a);
       for(let k = 0; k < 6; k++) quad([this.W(S.d0 + k*40, S.y1 + 2, 0.3), this.W(S.d0 + k*40 + 18, S.y1 + 2, 0.3), this.W(S.d0 + k*40 + 38, S.y1 + 40, 0.3), this.W(S.d0 + k*40 + 20, S.y1 + 40, 0.3)], 0xe8b54a); }
