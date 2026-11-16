@@ -42893,8 +42893,10 @@ const TP_BUILDS = {
   /* the Monster Truck: a big body up on the monster rig's huge knobby tyres and axles, his lid the cab with a light bar on its roof,
      two chrome stacks up behind it */
   monster: { BODY: { hx: 30, hy: 19, z0: 14, z1: 30, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 11, hy: 15, z0: 30, z1: 42, ch: 4, bev: 3, bevIn: 2 },
-    STRIPE: { z0: 19, z1: 23 }, FLAGB: { x: -26, y: 13 }, FLAGZ: [30.5, 72], zmap: z => 14 + (z - 14)*0.4, noBracket: true,
-    GEAR: { kind: 'wheels', r: 15, W2: 12, xs: [-21, 21], side: 27, lift: 14, tread: 'knobby', axles: true }, kit: 'monster' },
+    STRIPE: { z0: 19, z1: 23 }, FLAGB: { x: -26, y: 13 }, FLAGZ: [30.5, 72], zmap: z => 14 + (z - 14)*0.4, noBracket: true, noTray: true,
+    /* (first art pass -- Sir, 2026-11-16): bigger tyres, the body up over them on its own chassis -- solid axles with their diffs, links up
+       to a tube frame, two coil-overs at each wheel, black flares over the tyres, push bars front and back */
+    GEAR: { kind: 'wheels', r: 17, W2: 13, xs: [-22, 22], side: 28, lift: 22, tread: 'knobby', style: 'tri' }, kit: 'monster' },
   /* the Hot Rod: long and low, a big supercharger up through his hood with its scoop, chrome headers out each side, fat slicks behind,
      skinny fronts */
   /* (no -- Sir, 2026-11-16: the classic bubble-top cruiser it already looked like: no blower, his lid a glass bubble, two tall fins out the back) */
@@ -125158,6 +125160,26 @@ class WorldScene extends Phaser.Scene {
         if(on){ g.fillStyle(c, 0.35); g.fillCircle(q.x, q.y, 3.4*K); } }
     }
     if(id === 'monster'){
+      const W = BODY._gear || { r: 17, W2: 13, xs: [-22, 22], side: 28 }, hz = W.r + 2 - bobZ, yi = W.side - W.W2/2 - 0.5, zb = BODY.z0;
+      const coil = (a, b) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, 3*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+        g.lineStyle(Math.max(1, 1.3*K), 0xe8a23a, 1); for(let k = 1; k < 7; k++){ const u = 0.15 + k/7*0.7, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2.4*K;
+          g.lineBetween(cx - nx/nl*q, cy - ny/nl*q, cx + nx/nl*q, cy + ny/nl*q); }
+        g.fillStyle(0x9aa0a6, 1); g.fillCircle(B.x, B.y, 1.4*K); };
+      const bar = (a, b, w = 2.8, c = 0x2e3138) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), c, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
+      if(part === 'pre'){   /* THE CHASSIS under him: the frame rails, each axle with its diff, its links and its two coil-overs a side (the far side first) */
+        for(const y of [-9, 9]) bar([-BODY.hx + 4, y, zb - 3], [BODY.hx - 4, y, zb - 3], 3.4);
+        for(const x of W.xs){
+          bar([x, -yi, hz], [x, yi, hz], 4, 0x3b4048);
+          box(3.4, 4, x, 0, hz - 3.6, hz + 3.6, DARK, 1.6);                                            // (its diff)
+          for(const sb of [-nearSide, nearSide]){
+            bar([x, sb*7, hz], [x*0.45, sb*9, zb - 3], 2.4);                                            // (a link up to the frame)
+            for(const dx of [-3.5, 3.5]) coil([x + dx, sb*(yi - 2.5), hz + 1], [x + dx*1.6, sb*(BODY.hy - 3), zb]); } }
+        const flare = sb => { for(const x of W.xs) box(W.r + 1.5, 1.6, x, sb*(BODY.hy + 1), zb - 0.5, zb + 4, DARK, 1.2); };   // (a black flare over each tyre)
+        flare(-nearSide);
+        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) !== frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2); } }   // (the push bar on his far end)
+      if(part === 'mid'){ for(const x of W.xs) box(W.r + 1.5, 1.6, x, nearSide*(BODY.hy + 1), zb - 0.5, zb + 4, DARK, 1.2);
+        for(const fx of [BODY.hx + 2.5, -BODY.hx - 2.5]) if((fx > 0) === frontSeen){ box(2.2, BODY.hy - 3, fx, 0, zb - 2, zb + 5, DARK, 1.2);   // (the push bar on his near end, its tow hooks red)
+          for(const y of [-8, 8]) box(1.2, 1, fx + Math.sign(fx)*2.6, y, zb, zb + 3, [0xd8322a, 0xb52a24, 0x7f1d19], 0.3); } }
       const sx = -LID.hx - 3, stacks = () => { for(const y of [-(LID.hy - 3), LID.hy - 3]) pipe([sx, y, BODY.z1], [sx, y, BODY.z1 + 17], 3.2); };
       if(part === 'mid' && frontSeen) stacks();
       if(part === 'near'){ if(!frontSeen) stacks();
