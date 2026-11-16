@@ -86463,7 +86463,11 @@ function fmTruckTick(scene, now, dt){
     const along = dx*ux + dy*uy, lat = Math.abs(-dx*uy + dy*ux);
     if(along > 0 && along < 420 && lat < 150) q = null;              // he is in its way: it waits
   }
-  if(q !== null || !fmTruckAt(T.clock)) T.clock += dt;
+  /* it comes on and goes off the road mid-block (inP's and outP's ends): never in sight -- the clock waits at that
+     moment while the spot is on screen, so he never sees it pop in or out */
+  const cur = fmTruckAt(T.clock), nxt = fmTruckAt(T.clock + dt), pop = !!cur !== !!nxt && (cur || nxt);
+  if(pop && scene.visWorldPt(pop.x, pop.y, 500, 400)) q = null;
+  else if(q !== null || !cur) T.clock += dt;
   T.now = fmTruckAt(T.clock);
   const want = T.now && T.now.docked ? 1 : 0;
   T.door += (want - T.door)*Math.min(1, dt/600);
@@ -101393,8 +101397,19 @@ class WorldScene extends Phaser.Scene {
      swings and the ice truck live; the roof one piece over everything under it (keyed at the hall's near corner: all of
      it lies over the eave line, so nothing on the street in front meets it on screen), faded as he goes under it
      (FM_LIFE.roofK: the walk-in kit's shell ease). Lamps at night through the lamp kit. */
+  /* the ice truck: live while it moves, cached while it stands */
+  queueFmTruck(vq){
+    const q = FM_TRUCK.now;
+    if(!q || !this.visProp("car", q.x, q.y)) return;
+    const f = q.yaw/(Math.PI/2), wh = (FM_TRUCK.clock*0.05) % 1000;
+    if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "reefertruck", q.x, q.y, t || 0, f, 0, wh, 0, null) });
+    else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "fm|truck|" + Math.round(q.x) + "|" + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "reefertruck", q.x, q.y, 0, f, 0, 0, 0, null)) });
+  }
   queueFishMarket(vq){
     const P = FM_PLAN, ent = LIB.get(P.name);
+    /* the ice truck first, on its own sight test: it drives a block and more up Harbor Road, out of the market's
+       2400 (Sir, 2026-11-16: "this truck is being drawn here then disappearing when i get close to it") */
+    if(ent) this.queueFmTruck(vq);
     if(!ent || !this.visWorldPt((P.X0 + P.X1)/2, (P.Y0 + P.Y1)/2, 2400, 700)) return;
     const G = (a, b, h) => this.W(a, b, h), open = fmOpen();
     const item = (key, x, y, depth, fn) => vq.push({ depth, fn: (g) => this.bcDraw(g, "fm|" + key, x, y, gg => { LIB.setView(this.vpW(), this.vpH()); try { LIB.drawItem(P.name, gg, G, this.K, { draw: fn }, true); } finally { LIB.setView(0); } }) });
@@ -101445,13 +101460,6 @@ class WorldScene extends Phaser.Scene {
     if(!FMR.loan){ const D = FM_LIFE.pod;
       if(this.visProp("car", D.x, D.y)) vq.push({ depth: D.x + D.y, fn: (g) => this.bcDraw(g, "fm|pod|" + Math.round(D.x) + "|" + Math.round(D.y) + "|" + D.yaw.toFixed(2), D.x, D.y,
         gg => this.drawProp(gg, "avpod", D.x, D.y, 0, D.yaw/(Math.PI/2), 0, 0, 7, null)) }); }
-    /* the ice truck: live while it moves, cached while it stands */
-    { const q = FM_TRUCK.now;
-      if(q && this.visProp("car", q.x, q.y)){
-        const f = q.yaw/(Math.PI/2), wh = (FM_TRUCK.clock*0.05) % 1000;
-        if(q.moving) vq.push({ depth: q.x + q.y, fn: (g, t) => this.drawProp(g, "reefertruck", q.x, q.y, t || 0, f, 0, wh, 0, null) });
-        else vq.push({ depth: q.x + q.y, fn: (g) => this.bcDraw(g, "fm|truck|" + Math.round(q.x) + "|" + Math.round(q.y) + "|" + f.toFixed(2), q.x, q.y, gg => this.drawProp(gg, "reefertruck", q.x, q.y, 0, f, 0, 0, 0, null)) });
-      } }
     /* a spilled order where he bumped it (fmSpillDrop): live while it settles, then cached, gone after a while */
     { const sp = FMR.spill;
       if(sp && this.time.now - sp.t0 > 40000) FMR.spill = null;
