@@ -3401,6 +3401,7 @@ const GD_SHAPES = {
   mouth:    [['bar','Bar'],['wide','Wide'],['small','Small'],['smile','Smile'],['dots','Dots'],['grille','Grille'],['grin','Grin'],['zigzag','Zigzag'],['open','Open'],['o','Surprised'],['none','None']],
   earStyle: [['pod','Pods'],['big','Big pods'],['cat','Cat ears'],['none','None']],
   finish:   [['satin','Satin'],['matte','Matte'],['gloss','Gloss'],['chrome','Chrome'],['twotone','Two-tone']],
+  upMotor:[['off','Stock'],['on','Speed Motor']], upBatt:[['off','Stock'],['on','Battery']], upLight:[['off','Stock'],['on','Headlight']], upBell:[['off','Stock'],['on','Bell']], upStand:[['off','Stock'],['on','Kickstand']],   // (GIDEON'S SCOOTER UPGRADES: GSC_UP)
   scootPaint:[['plain','Plain'],['flames','Flames'],['checker','Checker'],['bolt','Lightning'],['camo','Camo'],['galaxy','Galaxy'],
               ['tonup','Ton-Up'],['racinggreen','Racing Green'],['oxblood','Oxblood'],['brooklands','Brooklands'],['rocker','Rocker'],
               ['gulf','Gulf'],['manx','Manx TT'],['alloy','Brushed Alloy'],['tartan','Tartan'],['sunset','Sunset'],
@@ -5333,7 +5334,7 @@ function fleetBody(){
    shop columns, the monument -- solid to it still (the rest it flies over) */
 const FLY_TALL = new Set(['lamp', 'palm', 'palmDwarf', 'parktree', 'signalpost', 'column', 'monument']);
 function fleetPhys(){
-  { const sc = typeof scn === "function" ? scn() : null; if(sc && sc.ow && sc.ow.scoot) return SCOOTR.phys(); }   // (HIM ON A SCOOTER: scootHop)
+  { const sc = typeof scn === "function" ? scn() : null; if(sc && sc.ow && sc.ow.scoot) return SCOOTR.phys(!!(gscUp(sc) && gscUp(sc).motor)); }   // (HIM ON A SCOOTER: scootHop)
   const F = FLEET[fleetCur()];
   if(!F || !F.phys) return FLEET_PHYS_NONE;
   if(!F.phys.D) F.phys.D = Object.assign({}, OW_D, F.ctl);   // its driving numbers, made once
@@ -25912,7 +25913,7 @@ function parkedScootersNow(sc){
 const BALL_PERSON_BLOCK = { type: 'person', i: -1, j: -1, cx: 0, cy: 0 };
 function ballroomWalkerBlock(x, y, r){
   /* (at speed they are knocked down, not met: updateKnocks; nor anyone already down) */
-  const sc = typeof scn === "function" ? scn() : null, fast = !!(sc && sc.speed > STREET_RIDER.knockV);
+  const sc = typeof scn === "function" ? scn() : null, fast = knockFast(sc);
   if(BALL_LIFE.w && !fast) for(const w of BALL_LIFE.w) if(!w.knock && Math.hypot(x - w.x, y - w.y) < r + 16) return BALL_PERSON_BLOCK;
   /* ...and the kitchen's runners (KITCHEN), on whichever floor */
   if(KITCHEN.runners && !fast) for(const k of KITCHEN.runners){
@@ -28015,7 +28016,7 @@ function mallCrowdStep(scene, t, dt){
   /* THE STREET'S RULE (Sir, 2026-10-24: "they seem to be dodging me no matter how I try to hit them"): they wait
      for him and step round him only while he is too slow to knock anyone down (knockV, as the street's walkers,
      CROWD); rolling at them, bumping into people is the game, and they go down (updateKnocks) */
-  const botFast = !!(ow.on && scene.speed > STREET_RIDER.knockV && !fleetPhys().fly);
+  const botFast = !!(ow.on && knockFast(scene) && !fleetPhys().fly);
   /* THE MATS OUT ON THE PLAZA (Sir, 2026-10-22: "shoppers walk straight through Tipsey and the delivery mat"):
      each a disc to keep out of, in the room's frame -- the street's mats are where the city has them, the room
      drawn there (mallInShift) */
@@ -31425,7 +31426,7 @@ function derbyLifeTick(scene, ow){
 function derbyWalkerBlock(x, y, r){
   if(!DERBY_O || !derbyOn()) return false;
   /* (at speed they are knocked down, not met: updateKnocks) */
-  const sc = typeof scn === "function" ? scn() : null, fast = !!(sc && sc.speed > STREET_RIDER.knockV);
+  const sc = typeof scn === "function" ? scn() : null, fast = knockFast(sc);
   if(!fast) for(const w of DERBY_LIFE.w || []) if(!w.leave && !w.knock && Math.abs(x - w.x) < r + 14 && Math.abs(y - w.y) < r + 14) return true;
   const a = x - DERBY_O.x0, n = y - DERBY_O.y0 - 736;
   if(a < 1100 - r || a > 2300 + r || n < 500 - r || n > 4100 + r) return false;   // (where they stand)
@@ -31669,7 +31670,7 @@ function derbyLeaveTick(scene, ow){
      the shoppers' _dly), and say so if he stays there (as DERBY_WALK's) */
   /* (the street's rule, Sir 2026-10-24: they wait only while he is too slow to knock anyone down; at speed he
      knocks them down like the shoppers, updateKnocks, and they step round him as the shoppers do, the crowd pass) */
-  const botFast = !!(ow && ow.on && scene.speed > STREET_RIDER.knockV && !fleetPhys().fly);
+  const botFast = !!(ow && ow.on && knockFast(scene) && !fleetPhys().fly);
   if(ow) for(const p of L.list){
     const m = shopperAtRaw(p, t);
     p.yielding = !botFast && !!(m && m.moving && Math.hypot(ow.px - m.x, ow.py - m.y) < 80 && Math.cos(m.th)*(ow.px - m.x) + Math.sin(m.th)*(ow.py - m.y) > 0);
@@ -33957,7 +33958,7 @@ function hospHazRun(scene, ow, dt, H, free){
   /* a walker: round him, a word as they go (HOSP_GIVE); into them, shoved off them, a bounce and a lean by his speed */
   const t = scene.time.now, pk = scene._inside;
   for(const w of H.walk){
-    if(w.knock || scene.speed > STREET_RIDER.knockV) continue;                 // (down; or at speed, knocked down -- updateKnocks)
+    if(w.knock || knockFast(scene)) continue;                 // (down; or at speed, knocked down -- updateKnocks)
     const p = hospWalkerAt(w, t), dx = ow.px - p.x, dy = ow.py - p.y, d = Math.hypot(dx, dy) || 1;
     if(p.hidden || p.alpha < 0.5) continue;                                      // (one of the cast out of sight, or only coming: HOSP_CAST)
     if(p.giveWay > 18 && !(w._sayT > t) && !(HOSP_GIVE._t > t) && pk && pk.name === HOSP_IN.name && typeof scene.npcSay === "function"){
@@ -38702,7 +38703,7 @@ function battTick(scene, dt){
      respawn or a Continue -- a jump, not a drive -- costs nothing. */
   if(tpBatt.lastX !== null){
     const step = Math.hypot(ow.px - tpBatt.lastX, ow.py - tpBatt.lastY);
-    if(step < BATT.teleportU) tpBatt.pct -= 100 * step / BATT.capU;
+    if(step < BATT.teleportU) tpBatt.pct -= 100 * step / BATT.capU * (gscUp(scene) && gscUp(scene).batt ? GSC_UP.battK : 1);   // (his scooter's Battery: GSC_UP)
   }
   tpBatt.lastX = ow.px; tpBatt.lastY = ow.py;
   const sc = ow.clipScrapes || 0;
@@ -89508,7 +89509,16 @@ const adMgrLook = (() => { let L = null; return () => L || (L = Object.assign({}
    scooter he takes is hidden (pr.taken: not given back to the street) and set down where he gets off, live (SCOOTR.down). */
 const SCOOTR_KEY = 'tipsy.scooters.down';
 const SCOOTR = { near: 130, down: (() => { try { const a = JSON.parse(localStorage.getItem(SCOOTR_KEY) || '[]'); return Array.isArray(a) ? a.filter(d => d && isFinite(d.x) && isFinite(d.y)).slice(-12) : []; } catch(e){ return []; } })(), _phys: null, last: null,
-  phys(){ return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.4, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*0.85 }) }); } };
+  phys(motor){ if(motor) return this._physM || (this._physM = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.4*GSC_UP.motorV, accel: OW_D.accel*1.3*GSC_UP.motorA, turnMax: OW_D.turnMax*0.85 }) });   // (his own, its Speed Motor fitted: GSC_UP)
+    return this._phys || (this._phys = { D: Object.assign({}, OW_D, { vMax: OW_D.vMax*1.4, accel: OW_D.accel*1.3, turnMax: OW_D.turnMax*0.85 }) }); } };
+/* GIDEON'S SCOOTER UPGRADES (Sir, 2026-11-16; bought in the garage, gUp*): the Speed Motor (faster, quicker off the mark), the Battery (riding
+   it takes half the charge -- Gideon's charge is the scooter's -- and the rack's charging post shows his charge while it's docked), the
+   Headlight (a big lamp, and its beam on the road at night), the Bell (rung as he picks up speed: people step aside for him, not knocked
+   down), the Kickstand (it stands on it when parked) */
+const GSC_UP = { motorV: 1.3, motorA: 1.35, battK: 0.5, bellCoolMs: 3000 };
+function gscUp(sc){ const b = sc && sc.ow && sc.ow.scoot && sc.ow.scoot.brand; return b && b.up || null; }
+/* is he coming through fast enough to knock people down? (not with the Bell: they've heard him and step aside) */
+function knockFast(sc){ const u = gscUp(sc); return !!(sc && sc.speed > STREET_RIDER.knockV) && !(u && u.bell); }
 /* the ones he has set down stay where they are, through a reload */
 function scootSave(){ try { localStorage.setItem(SCOOTR_KEY, JSON.stringify(SCOOTR.down.slice(-12))); } catch(e){} }
 /* he is off it where he last was out of doors (a door he went in by, a loan that ended, a respawn): it stands there */
@@ -89555,6 +89565,9 @@ function scootUiTick(){
   if(!btn) return;
   const ow = s && s.ow;
   if(s) gscTick(s);                                                                  // (Gideon's own scooter: GSC)
+  { const u = gscUp(s), now = performance.now(), fast = !!(u && u.bell && s.speed > STREET_RIDER.knockV);   // (its Bell, rung as he picks up speed: GSC_UP)
+    if(fast && !GSC._bellFast && !(now - (GSC._bellT || -1e9) < GSC_UP.bellCoolMs) && typeof sfxBell === "function"){ sfxBell(0.9); GSC._bellT = now; }
+    GSC._bellFast = fast; }
   if(ow && ow.scoot && scootCan(s)) SCOOTR.last = { x: ow.px, y: ow.py, th: ow.yaw };
   if(ow && ow.scoot && !ow.scoot.garagePreview && (!scootCan(s))) scootDrop(s);                             // (the loan ended, or he went in: he is off it, and it stands where he last was outside)
   let verb = null;
@@ -89663,9 +89676,11 @@ function gscBrand(){
   const acc = L.scootAcc ? gdHex('band', L.scootAcc) : (P && P.robot && P.robot.band != null ? P.robot.band : 0xd9892b);
   const st = L.scootSkin && L.scootSkin !== 'stock' && L.scootSkin !== 'junk' ? L.scootSkin : null;   // (the Junkyard Build retired: its scrap decks went to the Regular)   // (its build: GSC_SKINS)
   const paint = L.scootPaint && GSC_PAINT[L.scootPaint] === (st || 'stock') ? L.scootPaint : null;   // (its skin, if it's one of this build's: scootPaintTop)
-  const n = 'gideon' + (st ? '-' + st : '') + (paint ? '~' + paint : '');
+  /* its upgrades (GSC_UP, Sir 2026-11-16): bought in the garage's Scooter tab, on every build */
+  const up = { motor: L.upMotor === 'on', batt: L.upBatt === 'on', light: L.upLight === 'on', bell: L.upBell === 'on', stand: L.upStand === 'on' };
+  const n = 'gideon' + (st ? '-' + st : '') + (paint ? '~' + paint : '') + '+' + Object.keys(up).filter(k => up[k]).join('');
   const lv = paint && GSC_LIVERY[paint];
-  return { n, name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, glow: lv && lv.glow, gideon: true, style: st, paint };
+  return { n, name: n, c: lv ? lv.c : c, cDk: lv ? lv.acc : acc, acc: lv ? lv.acc : acc, glow: lv && lv.glow, gideon: true, style: st, paint, up };
 }
 /* its place: the rack's fourth slot, standing as the docked ones do */
 function gscRecord(){
@@ -90416,6 +90431,9 @@ function drawBBRack(scene, g, part, at){
     line([a, R.b0 + 2, 30], [a, R.b1 - 2, 30], dark, 4.2);
     line([a, R.b0 + 3, 28], [a, R.b1 - 3, 28], steel, 1.2);                          // (the bar's lit top edge)
     for(const b of [R.b0 + 2, R.b1 - 2]) solid(prismH([[a - 2.6, b - 2.6], [a + 2.6, b - 2.6], [a + 2.6, b + 2.6], [a - 2.6, b + 2.6]], 30, 33), copper, (k, n) => n[2] > 0.9 ? copper : copperD); }
+  if(part === 'meter'){ const a = R.post, lit = at;                                   // (his charge on the post's face: GSC_UP's Battery)
+    for(let i = 0; i < 6; i++){ const z0 = 14 + i*4.4, col = i < lit ? (lit <= 1 ? 0xff5a4a : lit <= 2 ? 0xffb347 : 0x5be37d) : 0x2a2f36;
+      for(const [aa, bb] of [[a - 6.5, R.b0 + 12], [a, R.b0 + 18.5]]) line([aa, bb, z0], [aa, bb, z0 + 3.2], col, 3); } }
   if(part === 'post'){ const a = R.post, h = 50;                                     // the charging post: dark, a cyan light down its face, a copper cap
     solid(prismH([[a - 6, R.b0 + 6], [a + 6, R.b0 + 6], [a + 6, R.b0 + 18], [a - 6, R.b0 + 18]], 0, h), dark, (k, n) => n[2] > 0.9 ? darkS : dark);
     solid(prismH([[a - 7, R.b0 + 5], [a + 7, R.b0 + 5], [a + 7, R.b0 + 19], [a - 7, R.b0 + 19]], h, h + 4), copper, (k, n) => n[2] > 0.9 ? copper : copperD);
@@ -90446,6 +90464,10 @@ function bbRackQueue(scene, queuePerson){
   { const q = G.at(BB_RACK.a0, BB_RACK.b0); queuePerson(q.x, q.y - 40, g => scene.bcDraw(g, key + "base", G.cx, G.cy, gg => drawBBRack(scene, gg, 'base'))); }
   for(const a of BB_RACK.hoops){ const q = G.at(a, 18); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "h" + a, q.x, q.y, gg => drawBBRack(scene, gg, 'hoop', a))); }
   { const q = G.at(BB_RACK.post, 12); queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "post", q.x, q.y, gg => drawBBRack(scene, gg, 'post'))); }
+  /* his scooter's Battery fitted and docked here: the post's light becomes his charge, six bars (GSC_UP; redrawn only when a bar changes) */
+  { const rec = typeof gscOwned === "function" && gscOwned() ? gscRecord() : null, up = rec && !rec.taken ? gscBrand().up : null;
+    if(up && up.batt){ const lit = Math.max(0, Math.min(6, Math.ceil((typeof tpBatt !== "undefined" ? tpBatt.pct : 100)/100*6))), q = G.at(BB_RACK.post, 13);
+      queuePerson(q.x, q.y, g => scene.bcDraw(g, key + "pm" + lit, q.x, q.y, gg => drawBBRack(scene, gg, 'meter', lit))); } }
   /* each docked scooter in its slot, nose in to the wall: the riders' scooter (drawScooterRider, empty -- Sir, 2026-11-15, "I liked the other
      scooters better"), as it is -- its bar at the rider's height, not lowered (Sir: "just use the scooter as it is") -- sorted among the hoops */
   const th = Math.atan2(-G.d.oy, -G.d.ox);
@@ -113200,6 +113222,10 @@ class WorldScene extends Phaser.Scene {
          "what's the deal with the shadow": it was a fixed screen oval, wrong whenever the scooter wasn't side-on) */
       const st0 = brand.style, a0 = st0 === 'rocket' ? 3 : st0 === 'chopper' ? 3 : 0, la = st0 === 'rocket' ? 42 : st0 === 'chopper' ? 40 : 36, wb = st0 === 'rocket' && RKT_KIT[brand.paint] && (RKT_KIT[brand.paint].wings || RKT_KIT[brand.paint].boosters) ? 15 : 10;
       const o = []; for(let i = 0; i < 20; i++){ const w = i/20*Math.PI*2; o.push(P(a0 + Math.cos(w)*la, Math.sin(w)*wb, 0)); } g.fillPoints(o, true); }
+    /* the Headlight's beam on the road ahead, after dark, while he's on it (GSC_UP) */
+    if(brand.up && brand.up.light && !noRider && typeof nightLevel === "function"){ const nl = nightLevel(); if(nl > 0.05){
+      g.fillStyle(0xfff3c4, 0.2*nl); g.fillPoints([P(R.wheelA + 4, -3, 0.3), P(R.wheelA + 120, -40, 0.3), P(R.wheelA + 132, 0, 0.3), P(R.wheelA + 120, 40, 0.3), P(R.wheelA + 4, 3, 0.3)], true);
+      g.fillStyle(0xfff3c4, 0.18*nl); g.fillPoints([P(R.wheelA + 4, -2, 0.3), P(R.wheelA + 70, -16, 0.3), P(R.wheelA + 76, 0, 0.3), P(R.wheelA + 70, 16, 0.3), P(R.wheelA + 4, 2, 0.3)], true); } }
     /* GIDEON'S SCOOTER BUILDS (called builds, not skins -- Sir, 2026-11-15; brand.style: GSC_SKINS -- Sir, 2026-11-15, "the skins could be whole different designs not just paint"): each its
        own build on the same frame -- the Café Cruiser (fat tyres, a wooden deck, a front fender, a cup holder on the stem), the Racer (a low long
        deck, a front fairing with a number board, a rear wing), the Robo Board (no wheels, no stem: a deck hovering on two thrusters over a
@@ -113251,6 +113277,9 @@ class WorldScene extends Phaser.Scene {
         const d = Math.PI/NK, pr = [[r, u - d*0.55], [r + 1.2, u - d*0.55], [r + 1.2, u + d*0.55], [r, u + d*0.55]].map(([R, w]) => [a0 + R*Math.cos(w), r + R*Math.sin(w)]);
         const half = wd/2 - 0.3, spans = k % 2 ? [[-half, -half*0.25], [half*0.25, half]] : [[-half*0.7, half*0.7]];
         for(const [b0, b1] of spans){ const q = prismB(pr, b0, b1); solid(q.raw ? q.raw() : q, 0x1e2125, (kk, n) => n[0]*cu + n[2]*su > 0.7 ? 0x3a3e45 : 0x1e2125); } } }
+    if(brand.up && brand.up.motor && wheeled) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0];   // the Speed Motor in the back wheel's hub
+      const disc = (rr, col) => { const o = []; for(let i = 0; i < 14; i++){ const w = i/14*Math.PI*2; o.push(P(a0 + Math.cos(w)*rr, sb*(wd/2 + 0.35), r + Math.sin(w)*rr)); } g.fillStyle(col, 1); g.fillPoints(o, true); };
+      disc(r*0.56, acc0); disc(r*0.44, 0x1c1d20); disc(r*0.16, 0x9aa2a8); }
     if(wheeled && sty !== 'offroad' && sty !== 'vintage')                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
         line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
@@ -113278,6 +113307,9 @@ class WorldScene extends Phaser.Scene {
       if(kit.boosters){ const B = (w, h0, h1) => oct(w, h0, h1, sb*10.6, 0.5);
         solid(loftSeg(-36, B(2.7, RD - 6, RD - 0.6), 8, B(2.7, RD - 6, RD - 0.6), 1).concat(loftSeg(8, B(2.7, RD - 6, RD - 0.6), 14, B(0.5, RD - 3.5, RD - 3), 2)), 0xf4f2ec, (k, n) => n[2] < -0.5 ? 0xc9ced3 : 0xf4f2ec); }
       if(kit.gridFins) solid(prismH([[9, sb*8], [12.5, sb*8], [12.5, sb*11.5], [9, sb*11.5]], RD - 2.8, RD - 2.2), 0x1c1d20); };
+    if(brand.up && brand.up.batt && sty !== 'rocket'){ const a0 = sty === 'robo' ? -14 : Math.max(DB + 3, -12), a1 = sty === 'robo' ? 14 : Math.min(DF - 3, 12);   // the Battery's pack slung under the deck, its charge light
+      solid(prismH([[a0, -6], [a1, -6], [a1, 6], [a0, 6]], RD - 8, RD - 4.2), 0x2a2f36, (k, n) => n[2] > 0.9 ? 0x3b4048 : 0x2a2f36);
+      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([a0 + 2, sb*6.05, RD - 6.2], [a0 + 2 + (a1 - a0 - 4)*0.75, sb*6.05, RD - 6.2], 0x5be37d, 2); }
     if(stripes) accStripe(-nearSb);
     if(sty === 'rocket'){ rocketFin(-nearSb); sideKit(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
     { const back = DB;
@@ -113306,6 +113338,10 @@ class WorldScene extends Phaser.Scene {
     if(brand.paint && sty !== 'rocket') this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
+    /* the Kickstand, down while it's parked (GSC_UP): a leg off the near side of the deck to the ground */
+    if(brand.up && brand.up.stand && noRider && brand.style !== 'robo'){ const sb = KV.sees(0, 1, 0) ? 1 : -1, RDk = RD;
+      line([-4, sb*7.2, RDk - 3], [-10, sb*11, 0.4], 0xc9ced3, 2.4); const ft = P(-10, sb*11, 0.4); g.fillStyle(0x9aa2a8, 1); g.fillCircle(ft.x, ft.y, 1.1*this.K*0.42*1.4); }
+
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
       { const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
         solid(loftSeg(14, S(8, RD - 5.5, RD), 24, S(6.5, RD - 6.3, RD - 0.7), 0).concat(loftSeg(24, S(6.5, RD - 6.3, RD - 0.7), 32, S(3.6, RD - 5, RD - 2), 0), loftSeg(32, S(3.6, RD - 5, RD - 2), 38, S(0.6, RD - 3.8, RD - 3.2), 2)), acc0,
@@ -113414,6 +113450,8 @@ class WorldScene extends Phaser.Scene {
       if(sty === 'cruiser'){ const [ca, , cz] = stemAt(0.55);   // the cup holder, a coffee in it
         solid(prismH([[ca - 2.4, -8], [ca + 2.4, -8], [ca + 2.4, -3.5], [ca - 2.4, -3.5]], cz - 4, cz + 1), acc0);
         solid(prismH([[ca - 2, -7.6], [ca + 2, -7.6], [ca + 2, -3.9], [ca - 2, -3.9]], cz + 1, cz + 6), 0xf4f2ec, (q, n) => n[2] > 0.9 ? 0x5a3a24 : 0xf4f2ec); }
+      if(brand.up && brand.up.bell){ const o = [], bz = barH + 0.8; for(let i = 0; i <= 10; i++){ const w = i/10*Math.PI; o.push(P(barA + Math.cos(w)*1.9, -(hb + 1.2), bz + Math.sin(w)*1.9)); }   // its Bell on the bar by his left hand
+        g.fillStyle(0xd8b04a, 1); g.fillPoints(o, true); const tp = P(barA, -(hb + 1.2), bz + 2.3); g.fillCircle(tp.x, tp.y, 0.6*this.K*0.42*1.4); }
       line([barA, -hb - 6, barH], [barA, hb + 6, barH], sty === 'junk' ? 0x8a8f96 : SCOOT.metal, sty === 'junk' ? 3.4 : 2.6);
       for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
       if(sty === 'offroad' && brand.paint){ const c = stemAt(kAt(barH - 8)), lv = GSC_LIVERY[brand.paint] || {}, fr = KV.sees(1, 0, 0);   // a skin's front number plate on the stem (motocross)
@@ -113434,7 +113472,7 @@ class WorldScene extends Phaser.Scene {
           for(const sb of [-1, 1]) mirror(sa, sb*(w - 3), sz, sb*w, sz + up, r); }
         for(const sb of [-1, 1]) mirror(barA, sb*(hb + 4), barH, sb*(hb + 12), barH + 19, 6); }
       if(sty === 'offroad' && brand.paint) return;                                             // (its number plate where the lamp was)
-      const hp = P(barA + 2, 0, barH - 10), hr = sty === 'vintage' ? 2.2 : 1;               // (the Vintage's big chrome headlamp)
+      const hp = P(barA + 2, 0, barH - 10), hr = (sty === 'vintage' ? 2.2 : 1)*(brand.up && brand.up.light ? 1.7 : 1);   // (the Headlight: a big lamp)               // (the Vintage's big chrome headlamp)
       g.fillStyle(sty === 'vintage' ? 0xc9ced3 : 0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*hr*this.K*0.42*1.4);
       g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*hr*this.K*0.42*1.4);
     };
@@ -128669,7 +128707,7 @@ class WorldScene extends Phaser.Scene {
          shoppers walking through tipsy on the sidewalk not going around
          him"): too slow to knock anyone down (knockV), he is in their way
          like anyone else; rolling at them, bumping is still the game */
-      if(ow.on && this.speed <= STREET_RIDER.knockV && !fleetPhys().fly) this._crowdMovers.push({ bot: true, r: OW_D.botR, mover: true });
+      if(ow.on && !knockFast(this) && !fleetPhys().fly) this._crowdMovers.push({ bot: true, r: OW_D.botR, mover: true });
     } finally { CROWD_RAW = false; }
     /* each looks ahead and finds the least way round */
     const k = Math.min(1, (dt || 16)/C.tauMs), buf = [];
@@ -146437,7 +146475,7 @@ requestTpProfile();
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
   const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol'];
-  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
+  const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint', 'gUpMotor', 'gUpBatt', 'gUpLight', 'gUpBell', 'gUpStand'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
   let look = Object.assign(pick({}), load(LOOK_KEY, {}));
@@ -146470,7 +146508,7 @@ requestTpProfile();
   for (const k in GD_KIND) { const [src, stock] = GD_KIND[k];
     LISTS[k] = GD_COL[src].map(([id, name, h]) => ({ id, name, hex: h, acc: lightenHex(h, 0.55), cents: id === stock ? 0 : 1 }));
     if (k === 'gBand') LISTS[k].unshift({ id: 'none', name: 'None', hex: 0x2a2d33, acc: 0x4a4d53, cents: 0 }); }
-  const GD_SHAPE = { gScootSkin: ['scootSkin', 'stock', 900], gScootPaint: ['scootPaint', 'plain', 500], gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
+  const GD_SHAPE = { gUpMotor: ['upMotor', 'off', 1200], gUpBatt: ['upBatt', 'off', 900], gUpLight: ['upLight', 'off', 600], gUpBell: ['upBell', 'off', 400], gUpStand: ['upStand', 'off', 300], gScootSkin: ['scootSkin', 'stock', 900], gScootPaint: ['scootPaint', 'plain', 500], gEyeShape: ['eyeShape', 'round', 300], gMouth: ['mouth', 'bar', 300], gEarStyle: ['earStyle', 'pod', 400], gShoeKind: ['shoeKind', 'flat', 400], gHat: ['hat', 'none', 0],
                     gApron: ['apron', 'none', 600], gNeck: ['neck', 'none', 400], gBadge: ['badge', 'none', 300], gGlasses: ['glasses', 'none', 500], gPackStyle: ['packStyle', 'box', 400], gFinish: ['finish', 'satin', 500], gDecal: ['decal', 'none', 400] };
   const GD_PRICE = { gApron: { vest: 700, toolbelt: 800, sash: 600, cape: 1000, harness: 700, poncho: 800, coat: 1100 }, gNeck: { scarf: 500, bandana: 400, lanyard: 400, ascot: 500, collar: 500, chain: 900 }, gBadge: { heart: 350, shield: 400, gear: 400, drop: 350, moon: 400 }, gGlasses: { shades: 700, visor: 600, monocle: 800, goggles: 900, aviator: 800, eyepatch: 600, vr: 1200, wayfarer: 700, cateye: 700, halfrim: 600, hex: 600, rimless: 500, heartglass: 800, starglass: 800 }, gPackStyle: { jet: 800, twin: 500, none: 200, backpack: 700, satchel: 600, solar: 900, delivery: 800, cells: 800, wings: 1400, dish: 900 }, gEyeShape: { heart: 400, star: 400, angry: 300, happy: 300 }, gMouth: { grin: 400, zigzag: 300, open: 300, o: 300 }, gEarStyle: { cat: 600 }, gShoeKind: { platform: 500, sandal: 300 }, gFinish: { matte: 300, chrome: 1200 }, gDecal: { bolt: 500, n1: 600, n4: 600, n7: 600, n9: 600, checker: 500, flames: 600, target: 500 } };
   const HAT_PRICE = { cap: 400, beanie: 400, bowler: 600, tophat: 700, chef: 600, headphones: 800, antenna: 300, twin: 400, visor: 400, party: 300, crown: 1200, prop: 500, hardhat: 500, bucket: 400, fez: 400, wizard: 900, cowboy: 800 };
@@ -146531,7 +146569,7 @@ requestTpProfile();
     if (dk && dk.id !== 'auto') SKIN.decalCol = dk.hex;
     GD_LIVE = { shell: L.gShell, joint: L.gJoint, hand: L.gHand, eye: L.gEye, screen: L.gScreen, band: L.gBand, pack: L.gPack, ear: L.gEar, shoeCol: L.gShoeCol,
                 eyeShape: L.gEyeShape, mouth: L.gMouth, earStyle: L.gEarStyle, shoeKind: L.gShoeKind, hat: L.gHat, hatCol: L.gHatCol,
-                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin, scootPaint: L.gScootPaint };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
+                apron: L.gApron, neck: L.gNeck, badge: L.gBadge, glasses: L.gGlasses, packStyle: L.gPackStyle, outCol: L.gOutCol, badgeCol: L.gBadgeCol, glassCol: L.gGlassCol, finish: L.gFinish, shell2: L.gShell2, decal: L.gDecal, decalCol: L.gDecalCol, scoot: L.gScoot, scootAcc: L.gScootAcc, scootSkin: L.gScootSkin, scootPaint: L.gScootPaint, upMotor: L.gUpMotor, upBatt: L.gUpBatt, upLight: L.gUpLight, upBell: L.gUpBell, upStand: L.gUpStand };   // (Gideon's: null = stock, gideonParts; scoot*: his own scooter's, GSC)
   }
   function applyLook(L) { applySkinOrig(L.skin); paintOver(L); }
   /* ---- PORT: becomes tpApplyLook, called wherever tpApplySkin(equipped)
@@ -147179,6 +147217,12 @@ requestTpProfile();
      A pick is a try-on first (the turntable shows it live), then Add / Equip as Tipsey's are, kept in the paint look. */
   /* (his rows are Tipsey's: colourRow, bindColourRow, tagOf and the cart, on the GD_* kinds of the same paint look) */
   function gdCardIcon(key, id) {
+    if (key === 'upgrade') { const S = inner => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="0" y="0" width="40" height="26" rx="4" fill="#2a2f36"/>${inner}</svg>`;
+      return S({ gUpMotor: `<circle cx="20" cy="13" r="8" fill="#1c1d20"/><circle cx="20" cy="13" r="5" fill="none" stroke="#e79a35" stroke-width="2"/><path d="M21 7l-4 7h3l-1 5 4-7h-3z" fill="#ffd23a"/>`,
+        gUpBatt: `<rect x="9" y="8" width="20" height="10" rx="1.5" fill="#eceef1"/><rect x="29" y="11" width="2.5" height="4" fill="#eceef1"/><rect x="11" y="10" width="11" height="6" fill="#5be37d"/>`,
+        gUpLight: `<path d="M8 9h8l14-5v18l-14-5H8z" fill="#fff3c4" opacity=".35"/><circle cx="10" cy="13" r="4.5" fill="#c9ced3"/><circle cx="10" cy="13" r="2.8" fill="#fff3c4"/>`,
+        gUpBell: `<path d="M14 18a6 6 0 0 1 12 0z" fill="#d8b04a"/><rect x="13" y="18" width="14" height="1.6" fill="#b08a2e"/><circle cx="20" cy="11.5" r="1.4" fill="#d8b04a"/><path d="M29 9l3-2M30 13h3.5M29 17l3 2" stroke="#fff3c4" stroke-width="1"/>`,
+        gUpStand: `<rect x="8" y="10" width="24" height="3" fill="#eceef1"/><path d="M16 13l-4 8" stroke="#9aa2a8" stroke-width="2"/><circle cx="11.5" cy="21.5" r="1.4" fill="#9aa2a8"/>` }[id] || ''); }
     if (key === 'scootPaint') { const deck = (inner) => `<svg viewBox="0 0 40 26" width="52" height="34"><defs><clipPath id="sp${id}"><rect x="3" y="7" width="34" height="12" rx="3"/></clipPath></defs><rect x="3" y="7" width="34" height="12" rx="3" fill="#2a2f36"/><g clip-path="url(#sp${id})">${inner}</g><rect x="3" y="7" width="34" height="12" rx="3" fill="none" stroke="#eceef1" stroke-width="1.4"/></svg>`;
       const fill = c => `<rect x="0" y="0" width="40" height="26" fill="${c}"/>`;
       return deck({ plain: '',
@@ -147347,7 +147391,11 @@ requestTpProfile();
     else if (tab === 'g-decals') { cols = ['gDecalCol']; h = gCardRow('DECAL', 'gDecal', 'decal') + gColRow('DECAL COLOUR', 'gDecalCol'); }
     else if (tab === 'g-parts') { cols = ['gBand', 'gPack']; h = gColRow('CHEST BAND', 'gBand') + gCardRow('PACK STYLE', 'gPackStyle', 'packStyle') + gColRow('BATTERY PACK', 'gPack'); }
     else if (tab === 'g-scooter') { cols = ['gScoot', 'gScootAcc']; const bld = (pv || worn()).gScootSkin || 'stock';
-      h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + (Object.values(GSC_PAINT).includes(bld) ? gCardRow((bld === 'stock' ? 'REGULAR' : (LISTS.gScootSkin.find(c => c.id === bld) || { name: bld }).name.toUpperCase()) + ' SKINS', 'gScootPaint', 'scootPaint', id => id === 'plain' || GSC_PAINT[id] === bld) : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
+      /* its upgrades (GSC_UP): a card each, on every build; tap a fitted one to take it off */
+      const Lu = pv || worn(), ups = [['gUpMotor', 'Speed Motor'], ['gUpBatt', 'Battery'], ['gUpLight', 'Headlight'], ['gUpBell', 'Bell'], ['gUpStand', 'Kickstand']];
+      const upRow = '<div class="grSec">UPGRADES</div><div class="grRow">' + ups.map(([f, nm]) => { const on = Lu[f] === 'on';
+        return `<button class="grSkin${on ? ' sel' : ''}" data-gcard="${f}:${on ? 'off' : 'on'}">${gdCardIcon('upgrade', f)}<span>${nm}</span>${tagOf(f, 'on', on, 'Fitted')}</button>`; }).join('') + '</div>';
+      h = gCardRow('SCOOTER BUILD', 'gScootSkin', 'scootSkin') + upRow + (Object.values(GSC_PAINT).includes(bld) ? gCardRow((bld === 'stock' ? 'REGULAR' : (LISTS.gScootSkin.find(c => c.id === bld) || { name: bld }).name.toUpperCase()) + ' SKINS', 'gScootPaint', 'scootPaint', id => id === 'plain' || GSC_PAINT[id] === bld) : '') + '<div class="grSec" style="opacity:.8">Colours: stock matches Gideon, his shell and his chest band</div>' + gColRow('SCOOTER BODY', 'gScoot') + gColRow('SCOOTER ACCENT', 'gScootAcc'); }
     else { cols = ['gShoeCol']; h = gCardRow('SHOES', 'gShoeKind', 'shoeKind') + gColRow('SHOE COLOUR', 'gShoeCol'); }
     h += `<div class="grRow" style="padding-top:6px"><button class="grSkin" data-greset="1" style="flex:0 0 auto;padding:10px 14px"><span>Try Gideon stock</span></button></div>`;
     P.innerHTML = h;
