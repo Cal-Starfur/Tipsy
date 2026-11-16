@@ -89598,6 +89598,17 @@ const RKT_SKIN = {
   booster: (i, n) => i === 10 || i === 11 ? 0x1c1d20 : 0xf4f2ec,                             // Reusable Booster: white, a black interstage under the nose, black grid fins
   atlas: (i, n) => n[2] < -0.5 ? 0x9aa0a6 : (i % 3 === 2 ? 0xb8bdc2 : 0xd5d9dd)              // Mercury-Atlas: bare stainless steel in its welded rings, the black capsule
 };
+/* and each real rocket's own hardware (Sir, 2026-11-16, a polishing pass): its nose in three colours (the cone's base, middle, tip --
+   the capsule), a launch-escape tower, its engine bells (b, h offsets across the tail), the Shuttle's wings, SLS's side boosters, the
+   Booster's grid fins and landing legs, the V-2's big fins */
+const RKT_KIT = {
+  saturnv: { nose: [0xf4f2ec, 0x9aa0a6, 0x9aa0a6], tower: 1, bells: [[0, 0], [-3, -1.3], [3, -1.3], [-3, 1.3], [3, 1.3]], br: 1.5 },
+  v2: { nose: [0xf4f2ec, 0x1c1d20, 0xf4f2ec], bells: [[0, 0]], br: 2.6, bigFins: 1 },
+  redstone: { nose: [0xf4f2ec, 0x1c1d20, 0x1c1d20], tower: 1, bells: [[0, 0]], br: 2.4 },
+  shuttle: { nose: [0xf4f2ec, 0xf4f2ec, 0x1c1d20], wings: 1, bells: [[0, 1.4], [-2.8, -1], [2.8, -1]], br: 1.7 },
+  sls: { nose: [0xf4f2ec, 0xc9ced3, 0xf4f2ec], tower: 1, boosters: 1, bells: [[-1.8, -1.2], [1.8, -1.2], [-1.8, 1.2], [1.8, 1.2]], br: 1.4 },
+  booster: { nose: [0xf4f2ec, 0xf4f2ec, 0xf4f2ec], gridFins: 1, legs: 1, bells: [[-2.4, -1.4], [0, -1.4], [2.4, -1.4], [-2.4, 0], [0, 0], [2.4, 0], [-2.4, 1.4], [0, 1.4], [2.4, 1.4]], br: 0.9 },
+  atlas: { nose: [0xc9ced3, 0x1c1d20, 0x1c1d20], tower: 1, bells: [[0, 0], [-3.4, 0], [3.4, 0]], br: 1.6 } };
 /* each skin's build (scootPaintTop): a skin shows only on its own build */
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
@@ -113208,10 +113219,19 @@ class WorldScene extends Phaser.Scene {
     const nearSb = KV.sees(0, 1, 0) ? 1 : -1;                                          // (the deck side toward the eye: its stripe after the deck, the far one before)
     const stripes = brand.acc != null && sty !== 'junk' && sty !== 'rocket';                                    // (the Junkyard's patched, not striped)
     const finC = (sty === 'rocket' && brand.paint && GSC_LIVERY[brand.paint] && GSC_LIVERY[brand.paint].fin) || acc0;   // (a real rocket's fins in its own colour)
-    const rocketFin = sb => solid(prismH([[-38, sb*7.5], [-29, sb*7.5], [-38, sb*14]], RD - 5, RD - 3), finC);   // (back past the rear tyre, so it shows -- Sir, 2026-11-15)
-    const nozzle = () => solid(prismH([[-38, -4], [-34, -4], [-34, 4], [-38, 4]], RD - 6.5, RD - 0.5), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048);
+    const kit = sty === 'rocket' && RKT_KIT[brand.paint], hcR = RD - 2.75;                  // (a real rocket's hardware: RKT_KIT)
+    const rocketFin = sb => { if(kit && kit.wings) return;                                    // (the Shuttle has wings instead)
+      const big = kit && kit.bigFins; solid(prismH([[-38, sb*7.5], [big ? -26 : -29, sb*7.5], [-38, sb*(big ? 18 : 14)]], RD - 5, RD - 3), finC); };   // (back past the rear tyre, so it shows -- Sir, 2026-11-15)
+    const nozzle = () => { if(!kit){ solid(prismH([[-38, -4], [-34, -4], [-34, 4], [-38, 4]], RD - 6.5, RD - 0.5), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048); return; }
+      for(const [b, h] of kit.bells){ const r0 = kit.br*0.7, r1 = kit.br;                   // its engine bells, flaring out of the tail
+        solid(loftSeg(-38.5, oct(r1, hcR + h - r1, hcR + h + r1, b, 0.5), -34, oct(r0, hcR + h - r0, hcR + h + r0, b, 0.5), 1), 0x3b4048, (k, n) => n[0] < -0.9 ? 0x15171a : 0x3b4048); } };
+    const sideKit = sb => { if(!kit) return;                                                  // the Shuttle's wings, SLS's boosters, the Booster's grid fins (one side; far before the body, near after)
+      if(kit.wings) solid(prismH([[-31, sb*7.6], [-4, sb*7.6], [-25, sb*17], [-32, sb*17]], RD - 4.6, RD - 3.6), 0xf4f2ec, (k, n) => n[2] < -0.5 ? 0x1c1d20 : 0xf4f2ec);
+      if(kit.boosters){ const B = (w, h0, h1) => oct(w, h0, h1, sb*10.6, 0.5);
+        solid(loftSeg(-36, B(2.7, RD - 6, RD - 0.6), 8, B(2.7, RD - 6, RD - 0.6), 1).concat(loftSeg(8, B(2.7, RD - 6, RD - 0.6), 14, B(0.5, RD - 3.5, RD - 3), 2)), 0xf4f2ec, (k, n) => n[2] < -0.5 ? 0xc9ced3 : 0xf4f2ec); }
+      if(kit.gridFins) solid(prismH([[9, sb*8], [12.5, sb*8], [12.5, sb*11.5], [9, sb*11.5]], RD - 2.8, RD - 2.2), 0x1c1d20); };
     if(stripes) accStripe(-nearSb);
-    if(sty === 'rocket'){ rocketFin(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
+    if(sty === 'rocket'){ rocketFin(-nearSb); sideKit(-nearSb); if(!KV.sees(-1, 0, 0)) nozzle(); }
     { const back = DB;
       const plan = sty === 'robo' ? [[-31, -5], [-27, -8], [27, -8], [31, -5], [31, 5], [27, 8], [-27, 8], [-31, 5]]
         : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [DF, -7], [DF, 7], [back, 7]];
@@ -113238,10 +113258,14 @@ class WorldScene extends Phaser.Scene {
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
       { const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
         solid(loftSeg(14, S(8, RD - 5.5, RD), 24, S(6.5, RD - 6.3, RD - 0.7), 0).concat(loftSeg(24, S(6.5, RD - 6.3, RD - 0.7), 32, S(3.6, RD - 5, RD - 2), 0), loftSeg(32, S(3.6, RD - 5, RD - 2), 38, S(0.6, RD - 3.8, RD - 3.2), 2)), acc0,
-          (k, n) => brand.paint === 'shuttle' && n[2] < -0.2 ? 0x1c1d20 : n[2] < -0.5 ? (RKT_SKIN[brand.paint] ? acc0 : 0xb8742a) : acc0); }
-      for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[4, 8.05, RD - 3.5, 2.2], [-12, 8.05, RD - 3.5, 2.2]]){ const q = P(a, sb*b, h);
+          (k, n) => kit ? (brand.paint === 'shuttle' && n[2] < -0.2 ? 0x1c1d20 : kit.nose[k < 8 ? 0 : k < 16 ? 1 : 2]) : n[2] < -0.5 ? 0xb8742a : acc0); }
+      if(kit && kit.tower){ line([37.5, 0, RD - 3.5], [45, 0, RD - 3.5], 0xc8323a, 1.6);        // the launch-escape tower off the capsule's tip, its little rocket
+        for(const a of [39.5, 42]) line([a, -0.9, RD - 3.5], [a, 0.9, RD - 3.5], 0xc8323a, 1);
+        solid(loftSeg(44.5, oct(0.7, RD - 4.2, RD - 2.8, 0, 0.5), 47.5, oct(0.15, RD - 3.6, RD - 3.4, 0, 0.5), 3), 0x2a2f36); }
+      if(kit && kit.legs) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([-35, sb*8.1, RD - 5], [-20, sb*8.4, RD - 2.6], 0x1c1d20, 2.2);   // its folded landing legs
+      if(!kit) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[4, 8.05, RD - 3.5, 2.2], [-12, 8.05, RD - 3.5, 2.2]]){ const q = P(a, sb*b, h);   // (portholes on the cartoon one only)
         g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
-      rocketFin(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
+      rocketFin(nearSb); sideKit(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
     if(sty === 'chopper') for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ line([6, sb*7.8, RD - 1.5], [-30, sb*7.8, RD - 1.5], 0xc9ced3, 2.2); line([-30, sb*7.8, RD - 1.5], [-35, sb*7.8, RD + 1], 0xc9ced3, 2.2); }   // its drag pipe down the deck's side
     if(sty === 'chopper')                                                                       // its fat back fender
       fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, brand.c);
