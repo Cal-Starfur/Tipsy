@@ -127045,8 +127045,11 @@ class WorldScene extends Phaser.Scene {
       if(part === 'prewheel'){ if(frontSeen) hdr(-nearSide); else turnOut(-nearSide); }
       if(part === 'pre'){ if(frontSeen) turnOut(-nearSide); else hdr(-nearSide); if(frontSeen) nozzle(); }
       if(part === 'after' && frontSeen) turnOut(nearSide);
-      if(part === 'mid'){ hdr(nearSide); if(!frontSeen) turnOut(nearSide); if(!frontSeen) nozzle(); if(frontSeen) fins(); }
-      if(part === 'near' && !frontSeen) fins(); }
+      /* the fins against the lid: closed, the lid is all ahead of them -- both behind it from the front, both over it from behind; slid
+         back, the canopy sits between them -- the far fin under it, the near one over it */
+      const slid = this.lidAng > 0.08;
+      if(part === 'mid'){ hdr(nearSide); if(!frontSeen) turnOut(nearSide); if(!frontSeen) nozzle(); if(slid) fin(-nearSide); else if(frontSeen) fins(); }
+      if(part === 'near'){ if(slid) fin(nearSide); else if(!frontSeen) fins(); } }
   }
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
