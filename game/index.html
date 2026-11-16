@@ -95858,12 +95858,14 @@ function parkWalkRaw(w, t){
   /* a jogger runs the loop: their own pace and start, a third of them the other way round */
   const RL = w.jog ? parkRunLoop(w.G) : null;
   if(RL){
-    const r = w._run || (w._run = (() => { const q = mulberry32((w.seed ^ 0x51ab) >>> 0); return { v: 0.13 + q()*0.07, off: q()*RL.L, rev: q() < 0.35,
-      lane: PARK_WALK.lane*(0.6 + q()*0.7), look: streetLook((w.seed*131) >>> 0, { adult: true, aid: 'none', jobs: null }) }; })());
+    /* the boardwalk's joggers (BW_STROLL's 'jogger': their look, their pace +-15%, their stride at that pace, pose.run) */
+    const JK = BW_STROLL.kinds.find(k => k[0] === 'jogger');
+    const r = w._run || (w._run = (() => { const q = mulberry32((w.seed ^ 0x51ab) >>> 0), v = JK[2]*(0.85 + q()*0.3); return { v, stride: JK[3]*(v/JK[2]), off: q()*RL.L, rev: q() < 0.35,
+      lane: PARK_WALK.lane*(0.6 + q()*0.7), look: streetLook((w.seed*131) >>> 0, { type: 'jogger' }) }; })());
     let d = (((t - (w._dly || 0))*r.v + r.off) % RL.L + RL.L) % RL.L; if(r.rev) d = RL.L - d;
     const q = walkPathPoint(RL.pts, d), e = 30, a = walkPathPoint(RL.pts, Math.max(0, d - e)), c = walkPathPoint(RL.pts, Math.min(RL.L, d + e));
     let th = Math.atan2(c.y - a.y, c.x - a.x); if(r.rev) th += Math.PI;
-    return { x: q.x - Math.sin(th)*r.lane, y: q.y + Math.cos(th)*r.lane, th, moving: true, look: r.look, jog: true };
+    return { x: q.x - Math.sin(th)*r.lane, y: q.y + Math.cos(th)*r.lane, th, moving: true, look: r.look, jog: true, stride: r.stride, ph: w.seed % 97 };
   }
   const Wy = parkWalkWay(w);
   if(!(Wy.L > 0)) return null;
@@ -95890,8 +95892,8 @@ function parkWalkQueue(scene, t, queuePerson, layerFor){
     const L = p.look, px = p.x, py = p.y, mv = p.moving;
     queuePerson(px, py, () => {
       const gg = layerFor(px, py), thW = p.th - Math.PI/2;
-      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py, p.jog ? 1.7 : 1) : 0, mv, 0, 0, null, L.uniform, false,
-        Object.assign({ dress: L.dress }, p.jog && mv ? { lift: [0.35, 0.35], bend: 1.5 } : null));
+      scene.drawPersonHull(gg, px, py, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, mv ? walkAt(px, py, p.stride || 1, p.ph || 0) : 0, mv, 0, 0, null, L.uniform, false,
+        Object.assign({ dress: L.dress }, p.jog ? { run: 1 } : null));                   // (a jogger runs as the boardwalk's do: pose.run)
     });
   }
 }
