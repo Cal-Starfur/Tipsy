@@ -18208,7 +18208,7 @@ function hoodDrivewaysOf(grid){
      garages' (the mall's, Marina Parking's: MARINA.drives) */
   for(const [key, list] of [["hosp", typeof HOSP !== "undefined" ? HOSP.drives : []], ["air", typeof AIR !== "undefined" ? AIR.drives : []], ["mall", mallGarageDrives()], ["marina", MARINA.drives], ["fishmkt", WORLDGEN_COAST ? [FM_PLAN.DRIVE] : []]])
     for(const dw of list)
-      out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, blockKey: key, edge: -1,
+      out.push({ col: dw.col || "#a9a7a0", lines: !dw.lane, arrows: dw.lane ? "none" : "both", lane: !!dw.lane, wings: dw.wings !== false, blockKey: key, edge: -1,
                  e: { ox: 0, oy: dw.y, dv: { x: 1, y: 0 }, rv: { x: 0, y: dw.out } }, al0: dw.x0, al1: dw.x1 });
   /* ...and the fleet's bays (FLEET_BAY_DRIVES), on whichever street their doors face */
   for(const dw of FLEET_BAY_DRIVES)
@@ -84437,7 +84437,7 @@ const FM_PLAN = {
      should be parked and we need a drive way into this lot"): the apron strip west of the lot (the boats moved off it), nose to the street, and its
      drive off the front street (a dropped kerb across the footway: hoodDrivewaysOf) */
   TRUCK: { x: -1960, y: -1500, yaw: Math.PI/2 },                                    // (on the harbour's apron strip west of the lot, clear of the hall's roof on screen)
-  DRIVE: { x0: -2392, x1: -1720, y: -736, out: 1, col: '#b9b6ad', lane: false },  // the strip's whole width (apron x0..lot X0), its in and out arrows
+  DRIVE: { x0: -2392, x1: -1720, y: -736, out: 1, col: '#b9b6ad', lane: false, wings: false },  // the strip's whole width (apron x0..lot X0), its in and out arrows
   STRIP: { x0: -2392, x1: -1720, y0: -2900, col: 0xb9b6ad }                         // the strip itself, in the drive's concrete, back to the hall's rear line
 };
 const FM_BLK = { x0: FM_PLAN.X0, x1: FM_PLAN.X1, y0: FM_PLAN.Y0, y1: FM_PLAN.Y1, cx: 336, cy: -1818, type: "commercial", fishMarket: true };
@@ -101982,7 +101982,7 @@ class WorldScene extends Phaser.Scene {
       const L0 = d.lane ? -8 : 0;
       this.quadOn(g, [P(d.al0, L0), P(d.al1, L0), P(d.al1, SW), P(d.al0, SW)], APRON);
       for(const [a, s] of [[d.al0, -1], [d.al1, 1]]){
-        this.quadOn(g, [P(a, SW - FL), P(a, SW), P(a + s*FL, SW)], APRON);
+        if(d.wings !== false) this.quadOn(g, [P(a, SW - FL), P(a, SW), P(a + s*FL, SW)], APRON);   // the shoulders (a drive declared wings: false has square ends)
         if(!d.lines) continue;
         const la = a - s*6;                                   // the lane's edge line, 6 in
         this.quadOn(g, [P(la-3, 0), P(la+3, 0), P(la+3, SW), P(la-3, SW)], PAINT);
@@ -102156,13 +102156,13 @@ class WorldScene extends Phaser.Scene {
           if(ends.some(q => Math.abs(sgn*q.lat - ROAD_HALF) > 30)) continue;
           const c0 = Math.min(ends[0].alo, ends[1].alo), c1 = Math.max(ends[0].alo, ends[1].alo);
           if(c1 < 0 || c0 > len) continue;
-          raw.push([Math.max(0, c0), Math.min(len, c1)]);
+          raw.push([Math.max(0, c0), Math.min(len, c1), d.wings === false]);   // (flat: no flares, the kerb stops square at the mouth)
         }
         raw.sort((a, b) => a[0] - b[0]);
         const out = [];
         for(const c of raw){
           const last = out[out.length-1];
-          if(last && c[0] - last[1] <= 8) last[1] = Math.max(last[1], c[1]);
+          if(last && c[0] - last[1] <= 8){ last[1] = Math.max(last[1], c[1]); last[2] = !!(last[2] && c[2]); }
           else out.push(c);
         }
         r.grid._kerbCuts.set(ck, out);
@@ -102229,7 +102229,7 @@ class WorldScene extends Phaser.Scene {
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
         let cur = s0;
-        for(const [c0, c1] of cuts){
+        for(const [c0, c1, flat] of cuts){
           /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
              kerb up to the flare, flare down, flush the width of the pad,
              flare back up. Both flares used to sit inside the mouth, which
@@ -102244,7 +102244,7 @@ class WorldScene extends Phaser.Scene {
           /* A FLARE AS LONG AS HALF THE PAD (Sir's sketch: the wedge is a
              long, shallow triangle, not a nub). 40 against an 8-high stone
              read as a square end on device. */
-          const FL = T2;
+          const FL = flat ? 0 : T2;
           const f0 = Math.max(cur, c0 - FL), f1 = Math.min(s1, c1 + FL);
           /* AND THE STRIP THE KERB WOULD HAVE STOOD ON IS CONCRETE, not
              asphalt (Sir, on-device, with the two gaps painted red: "they
@@ -102293,9 +102293,9 @@ class WorldScene extends Phaser.Scene {
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
-          flare(fs0, c0);
+          if(!flat) flare(fs0, c0);
           const fs1 = Math.min(s1, c1 + FL);
-          flare(fs1, c1);
+          if(!flat) flare(fs1, c1);
           cur = fs1;
         }
         if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H);
