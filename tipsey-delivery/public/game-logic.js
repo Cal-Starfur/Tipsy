@@ -125804,8 +125804,10 @@ class WorldScene extends Phaser.Scene {
           g.lineStyle(Math.max(1, K), SKIN.outline, 1); g.strokePoints(fl(ns).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
         if(SKP === 'spikes'){ const o = vis(0, 1, 0) ? 0.4 : -0.4, sp = (x, z, h, w) => { this.quadOn(g, [P(x + w, o, z - 0.2), P(x - w, o, z - 0.2), P(x - w*0.5, o, z + h)], 0xe6dcb8);
               this.quadOn(g, [P(x + w*0.55, o*1.1, z - 0.2), P(x - w*0.2, o*1.1, z - 0.2), P(x - w*0.5, o*1.1, z + h*0.92)], 0xc9bc8e); };
-            for(let i = 0; i < 4; i++) sp(lx - 3 - i*((2*lx - 4)/3), zt, 7 - Math.abs(i - 1.5)*1.2, 2.8);                       // (down his cab's spine)
-            for(let i = 0; i < 3; i++) sp(-LID.hx - 6 - i*7, BODY.z1, 5 - i*1.2, 2.4); } }                                       // (and on down his back)
+            /* (kept on their faces' tops -- Sir, 2026-11-16: inside the cab top's bevel, and on his back clear of its edge; the tail's run on) */
+            const cx = lx - LID.bevIn - 1;
+            for(let i = 0; i < 4; i++) sp(cx - 2.2 - i*((2*cx - 4.4)/3), zt, 6.5 - Math.abs(i - 1.5)*1.2, 2.2);                       // (down his cab's spine)
+            for(let i = 0; i < 2; i++) sp(-LID.hx - 5 - i*6, BODY.z1, 4.6 - i*0.8, 2.2); } }                                       // (and on down his back)
       /* the Dino's tail: from his back, thick at its root, tapering and curling up to its tip, spikes along its top */
       /* (more a part of him -- Sir, 2026-11-16): the tail grows out of his whole back -- its root his body's own height and colour, centred on his
          back face, dropping a little then sweeping up and round to its tip; its top lit as his hull's top, its belly his side's dark, his
