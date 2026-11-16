@@ -42914,7 +42914,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'hotrod:ghost', build: 'hotrod', name: 'Ghost Flames', cents: 800, body: 0xeeebf3, stripe: 0xeeebf3, print: 'crGhost', ember: [0xc86bff, 0xf0d0ff] },
   { id: 'hotrod:pinstripe', build: 'hotrod', name: 'Pinstripe', cents: 800, body: 0xa8141e, stripe: 0xa8141e, print: 'crPinstripe', ember: [0xffb02a, 0xffe6a0] },
   { id: 'hotrod:scallops', build: 'hotrod', name: 'Scallops', cents: 800, body: 0x3fa89e, stripe: 0x3fa89e, print: 'crScallops', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
-  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, noStripe: true, print: 'mtGrave',   /* (no stripe band over its tombstones -- Sir, 2026-11-16) */ part: 'grave', eye: 0x7dff5a, lid: { hx: 19.5, ox: -8.5 } /* (its cab run back to his tail -- Sir, 2026-11-16) */, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lamp: 0x9dff7a, rim: 'star', rimCol: 0x6fd04a } },
+  { id: 'monster:grave', build: 'monster', name: 'Graveyard', cents: 900, body: 0x1d1f26, stripe: 0x6fd04a, noStripe: true, print: 'mtGrave',   /* (no stripe band over its tombstones -- Sir, 2026-11-16) */ part: 'grave', eye: 0x7dff5a, lid: { hx: 19.5, ox: -8.5 } /* (its cab run back to his tail -- Sir, 2026-11-16) */, trim: { coil: 0x6fd04a, bumper: 0x3f8f2c, bar: 0x1d1f26, stack: 0x5a6068, heat: 0x3f8f2c, exh: 'smoke', lb: 'strip', lbLow: true, lamp: 0x9dff7a, rim: 'star', rimCol: 0x6fd04a } },
   { id: 'monster:bull', build: 'monster', name: 'Raging Bull', cents: 900, body: 0xb3121a, stripe: 0xb3121a, noStripe: true, print: 'crFlames', part: 'horns', trim: { coil: 0xf2c02e, bumper: 0x1d1f26, bar: 0x1d1f26, stack: 0xc9ced4, heat: 0xf08a1c, exh: 'zoomies', lb: 'pods', lamp: 0xffd84a, rim: 'turbine', rimCol: 0xf2c02e } },
   { id: 'monster:mutt', build: 'monster', name: 'Big Mutt', cents: 900, body: 0xc98d4a, stripe: 0xc0262a, print: 'mtMutt', part: 'ears', trim: { coil: 0xc0262a, bumper: 0x5a3418, bar: 0x5a3418, stack: 0xd9b46a, heat: 0xc0262a, exh: 'cruiser', lb: 'bar', lamp: 0xffe9a8, rim: 'dish', rimCol: 0xc0262a /* (side pipes, the Night Cruiser's kind -- Sir, 2026-11-16) */ } },
   { id: 'monster:shark', build: 'monster', name: 'Shark Attack', cents: 900, body: 0x5f7a92, stripe: 0x5f7a92, noStripe: true, print: 'mtShark', part: 'fin', trim: { coil: 0xf2f3f1, bumper: 0xd9dde2, bar: 0x2f3d4a, stack: 0xe8ecf0, heat: 0x2f3d4a, exh: 'side', lb: 'strip', lamp: 0xbfeaff, rim: 'split', rimCol: 0xe8ecf0 } },
@@ -125923,14 +125923,14 @@ class WorldScene extends Phaser.Scene {
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
            two big round pods up on stalks; 'cage' five lamps behind a grille */
         const LB = TR.lb || 'bar', LAMP = TR.lamp != null ? TR.lamp : 0xffe9a8, night = this.isNightLit && this.isNightLit(), K2 = K;
-        const lx = LID.hx + (LID.ox || 0) - 3, zr = LID.z1, zb = zr + 2, zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
+        const LOW = !!TR.lbLow, lx = LID.hx + (LID.ox || 0) - (LOW ? 1.4 : 3), zr = LOW ? LID.z1 - 6 : LID.z1, zb = LOW ? zr : zr + 2,   /* (lbLow: set down onto the cab's face -- Sir, 2026-11-16) */ zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
         const disc = (x, y, z, r, col) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(x, y + Math.cos(a)*r, z + Math.sin(a)*r)); } this.quadOn(g, o, col); };
         const glow = ys => { if(!night) return; const gl = this.gBotGlow || this.gGlowLo; if(gl) for(const y of ys){ const q = P(fx + 2, y, zc); gl.fillStyle(LAMP, 0.22); gl.fillCircle(q.x, q.y, 6*K2); } };
         if(LB === 'pods'){ for(const y of [-(LID.hy - 4), LID.hy - 4]){ box(0.6, 0.6, lx - 1, y, zr, zr + 3.5, DARK, 0.2);
             this.drawHullPrism({ hx: 2.2, hy: 3.2, ox: lx - 0.5, oy: y, z0: zr + 3 + bobZ, z1: zr + 9.4 + bobZ, ch: 1.9, cTop: LBAR[0], cLt: LBAR[1], cDk: LBAR[2], cBottom: LBAR[2], outline: false, topEdge: false });
             if(vis(1, 0, 0)){ disc(lx + 1.75, y, zr + 6.2, 2.8, 0xc9ced4); disc(lx + 1.8, y, zr + 6.2, 2.3, LAMP); disc(lx + 1.85, y - 0.7, zr + 7, 0.6, 0xffffff); } }
           if(vis(1, 0, 0)) glow([-(LID.hy - 4), LID.hy - 4]); }
-        else { for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
+        else { if(!LOW) for(const y of [-(LID.hy - 5), LID.hy - 5]) box(0.9, 1.1, lx - 0.3, y, zr, zb + 0.5, DARK, 0.4);          // (its feet)
           box(2.2, LID.hy - 1, lx, 0, zb, zt, LBAR, LB === 'strip' ? 1 : 1.4);                                          // (its housing)
           if(vis(1, 0, 0)){
             if(LB === 'strip'){ this.quadOn(g, [P(fx, -(LID.hy - 2), zb + 0.6), P(fx, LID.hy - 2, zb + 0.6), P(fx, LID.hy - 2, zt - 0.6), P(fx, -(LID.hy - 2), zt - 0.6)], LAMP);
