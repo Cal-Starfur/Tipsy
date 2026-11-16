@@ -125307,7 +125307,7 @@ class WorldScene extends Phaser.Scene {
           const facing = (() => { const w = this.R(nx, 0, nz); return w.x + w.y + w.z > 0; })();
           const oval = (a, b, col, da = 0, out = 0) => { const o = []; for(let k = 0; k < 14; k++){ const q = k/14*Math.PI*2, c2 = Math.cos(q)*a + da, s2 = Math.sin(q)*b;
             o.push(P(cx + ux*c2 + nx*out, y + s2, cz + uz*c2 + nz*out)); } this.quadOn(g, o, col); };
-          if(facing){ oval(3, th + 0.55, 0xd8dde2, 0, 0.05); oval(2.6, th + 0.1, 0x8f1f1a, 0, 0.1); oval(2.2, th - 0.15, 0xe0352a, 0, 0.15); oval(1, Math.max(0.3, th*0.45), 0xff8a6a, -0.8, 0.2);
+          if(facing){ oval(2.6, th + 0.1, 0x8f1f1a, 0, 0.1);   /* (no chrome bezel round it: smaller in that spot -- Sir, 2026-11-16) */ oval(2.2, th - 0.15, 0xe0352a, 0, 0.15); oval(1, Math.max(0.3, th*0.45), 0xff8a6a, -0.8, 0.2);
             const q = P(cx - ux*1.4 + nx*0.25, y - th*0.3, cz - uz*1.4 + nz*0.25); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x, q.y, 0.45*K); }
           const yy = y;
           if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = P(cx, yy, cz); gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(q.x, q.y, 5*K); } } }
