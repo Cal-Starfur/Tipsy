@@ -126723,6 +126723,14 @@ class WorldScene extends Phaser.Scene {
     if(!front) brake();
     bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     if(front) brake();
+    else {   /* pointing away: only the brake's back face (toward the turret) goes under the barrel -- its top and sides wrap round the barrel's
+                end, so they go back over it */
+      const a = x1 - 3.2, b = x1 + 1.2, h = 2.4, z0 = zc - 2.4, z1 = zc + 2.4, g = this.g, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+      const q = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => this.P(x, y, z)), col);
+      if(vis(0, 0, 1)) q([[a, -h, z1], [b, -h, z1], [b, h, z1], [a, h, z1]], 0x5d646c);
+      if(vis(0, 1, 0)) q([[a, h, z0], [b, h, z0], [b, h, z1], [a, h, z1]], 0x4a5057);
+      if(vis(0, -1, 0)) q([[a, -h, z0], [b, -h, z0], [b, -h, z1], [a, -h, z1]], 0x4a5057);
+    }
   }
   /* THE MOON ROVER's pieces: 'far' its legs on the far side (before the body), 'near' the near side's legs, the solar panels and the dish */
   roverKit(bobZ, BP, part){
