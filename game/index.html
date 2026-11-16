@@ -44627,6 +44627,14 @@ const TP_BUILDS = {
   hotrod: { BODY: { hx: 34, hy: 16, z0: 12, z1: 26, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 14, hy: 12, z0: 26, z1: 35, ch: 5, bev: 4.5, bevIn: 3.5, ox: 4 }, windshield: [0x9cc9dc, 0x78aec6, 0x4f86a0],   // (his lid in his paint, its front faces glass: a windscreen -- Sir, 2026-11-16)
     STRIPE: { z0: 16, z1: 19 }, FLAGB: { x: -30, y: 12 }, FLAGZ: [26.5, 64], zmap: z => 12 + (z - 14)*0.35, noBracket: true,
     WHEELS: { r: 11.5, W2: 12, rF: 7, W2F: 5, xs: [-22, 25], side: 23, tread: 'slick', wall: 'redline' }, kit: 'hotrod', noFlag: true } };   // (no flag -- Sir, 2026-11-16)   // (sand tyres, grey: paddles on the backs, a ribbed front -- Sir, 2026-11-16)   // (fat rears, smaller fronts -- Sir, 2026-11-16)
+/* A BUILD'S OWN SKINS (Sir, 2026-11-16: "skins for these specific builds"): a paint job made for one build -- his body and stripe, and
+   that build's own parts (the Night Cruiser's windscreen tint and the glow in its jet) -- worn only while that build is on (bSkin) */
+const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
+  { id: 'hotrod:midnight', build: 'hotrod', name: 'Midnight', cents: 600, body: 0x2b2e35, stripe: 0xd8322a, glass: [0x6f8fa3, 0x55758a, 0x3b5568], ember: [0xff3a2a, 0xff9a7a] },
+  { id: 'hotrod:candy', build: 'hotrod', name: 'Candy Apple', cents: 600, body: 0xb3202a, stripe: 0xf2f1ea },
+  { id: 'hotrod:atomic', build: 'hotrod', name: 'Atomic Teal', cents: 600, body: 0x49b8ad, stripe: 0xf3ead2, glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4] },
+  { id: 'hotrod:gold', build: 'hotrod', name: 'Gold Rush', cents: 600, body: 0xd9a93c, stripe: 0x2b2e35, ember: [0xffb02a, 0xffe6a0] },
+  { id: 'hotrod:haze', build: 'hotrod', name: 'Purple Haze', cents: 600, body: 0x6b3fa0, stripe: 0xc9ced4, ember: [0xc86bff, 0xf0d0ff] }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -122571,9 +122579,13 @@ class WorldScene extends Phaser.Scene {
     if(!B) return this.drawBotBodyRaw(t, dt, npc);
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag; BODY._windshield = B.windshield || null;
+    const BS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === SKIN.build);   // (this build's own skin, if he wears one)
+    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
+    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: _pdk(BS.stripe, 0.8) }); delete SKIN.print; }
+    BODY._bskin = BS || null;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag; BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
+    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
     const g = this.g;
@@ -127054,7 +127066,7 @@ class WorldScene extends Phaser.Scene {
         arc((x0 + x1)/2, rAt((x0 + x1)/2) + 0.05, SKIN.stripe, 2.2);                                              // (its stripe ring)
         this.quadOn(g, convexHull(ring(x1 + 0.3, r1 + 0.5).concat(ring(x1 - 0.7, r1 + 0.5))), 0x9aa0a6);        // (its steel lip)
         if(vis(-1, 0, 0)){ this.quadOn(g, ring(x1 - 0.75, r1 + 0.5), 0xb9bec4); this.quadOn(g, ring(x1 - 0.8, r1 - 0.3), 0x16171b);
-          this.quadOn(g, ring(x1 - 0.85, r1*0.62), 0xff6a2a, pulse); this.quadOn(g, ring(x1 - 0.9, r1*0.3), 0xffd08a, pulse); } };
+          const EM = (BODY._bskin && BODY._bskin.ember) || [0xff6a2a, 0xffd08a]; this.quadOn(g, ring(x1 - 0.85, r1*0.62), EM[0], pulse); this.quadOn(g, ring(x1 - 0.9, r1*0.3), EM[1], pulse); } };   // (its glow: a build skin's own)
       /* (from behind, the far rear tyre is nearer than the whole far pipe, run and turn-out alike: all of it before the far tyres) */
       if(part === 'prewheel'){ hdr(-nearSide); if(!frontSeen) turnOut(-nearSide); }
       if(part === 'pre'){ if(frontSeen) turnOut(-nearSide); if(frontSeen) nozzle(); }
@@ -147244,7 +147256,7 @@ requestTpProfile();
   const LOOK_KEY = 'tipsy.look', OWN_KEY = 'tipsy.paintOwned';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
   const paintOwned = new Set(load(OWN_KEY, []));
-  const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol', 'upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build'];
+  const FIELDS = ['body', 'finish', 'body2', 'stripe', 'eyeShape', 'eyeCol', 'eyeProj', 'mouth', 'mouthCol', 'wheel', 'tyre', 'wall', 'tyreSize', 'rig', 'rimCol', 'topper', 'pole', 'flagCol', 'decal', 'band', 'decalCol', 'upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build', 'bSkin'];
   const GD_FIELDS = ['gShell', 'gJoint', 'gHand', 'gEye', 'gScreen', 'gBand', 'gPack', 'gEar', 'gShoeCol', 'gEyeShape', 'gMouth', 'gEarStyle', 'gShoeKind', 'gHat', 'gHatCol', 'gApron', 'gNeck', 'gBadge', 'gGlasses', 'gPackStyle', 'gOutCol', 'gBadgeCol', 'gGlassCol', 'gFinish', 'gShell2', 'gDecal', 'gDecalCol', 'gScoot', 'gScootAcc', 'gScootSkin', 'gScootPaint', 'gUpMotor', 'gUpBatt', 'gUpLight', 'gUpBell', 'gUpStand', 'gUpGlow', 'gWhRim', 'gWhCol', 'gWhTyre', 'gWhWall', 'gScTop', 'gScFlag', 'gScDecal', 'gScBand', 'gScDecCol', 'gScFinish', 'gScoot2'];   // (GIDEON'S paint, on the same look; gScoot*: his own scooter, GSC)
   FIELDS.push(...GD_FIELDS);
   const pick = L => { const o = {}; for (const k of FIELDS) o[k] = L[k] || null; return o; };
@@ -147270,7 +147282,7 @@ requestTpProfile();
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
-                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD };
+                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD, bSkin: TP_BSKIN };
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
@@ -147319,7 +147331,7 @@ requestTpProfile();
     if (mo && mo.id !== 'none') SKIN.mouth = mo.id;
     if (mc && mc.id === 'glow') SKIN.mouthGlow = true; else if (mc) SKIN.mouthCol = mc.hex;
     const wh = byId(WHEEL_LIST, L.wheel), ty = byId(TYRE_LIST, L.tyre), rc = itemOf('rimCol', L.rimCol);
-    for (const k of ['upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build']) if (L[k] && L[k] !== 'stock') SKIN[k] = L[k] === 'on' ? true : L[k];   // (his upgrades: TP_UP_*)
+    for (const k of ['upMotor', 'upBatt', 'upLight', 'upBell', 'upGlow', 'build', 'bSkin']) if (L[k] && L[k] !== 'stock') SKIN[k] = L[k] === 'on' ? true : L[k];   // (his upgrades: TP_UP_*)
     if (wh && wh.id !== 'stock') SKIN.wheelStyle = wh.id;
     if (ty && ty.id !== 'stock') SKIN.tyre = ty.id;
     const wl = byId(WALL_LIST, L.wall), sz = byId(SIZE_LIST, L.tyreSize), rg = byId(RIG_LIST, L.rig);
@@ -147400,7 +147412,7 @@ requestTpProfile();
     renderTab(); renderBar();
   }
   /* what a field reads as when it is null (the stock pick), for 'is he wearing it' */
-  const DEFAULT_OF = { build: 'stock', upMotor: 'stock', upBatt: 'stock', upLight: 'stock', upBell: 'stock', upGlow: 'stock', finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
+  const DEFAULT_OF = { build: 'stock', bSkin: 'stock', upMotor: 'stock', upBatt: 'stock', upLight: 'stock', upBell: 'stock', upGlow: 'stock', finish: 'satin', eyeShape: 'dot', mouth: 'none', wheel: 'stock', tyre: 'stock', wall: 'stock', tyreSize: 'stock',
                        rig: 'stock', rimCol: 'stock', topper: 'pennant', pole: 'stock', flagCol: 'stock', decalCol: 'auto',
                        gShell: 'white', gJoint: 'graphite', gHand: 'graphite', gEye: 'cyan', gScreen: 'dark', gBand: 'copper', gPack: 'graphite', gEar: 'stock', gShoeCol: 'graphite',
                        gEyeShape: 'round', gMouth: 'bar', gEarStyle: 'pod', gShoeKind: 'flat', gHat: 'none', gHatCol: 'copper',
@@ -147427,7 +147439,7 @@ requestTpProfile();
   /* what tab a kind is sold on, for the cart's small print */
   const KIND_TAB = { skin: 'Paint', body: 'Paint', finish: 'Paint', body2: 'Paint', stripe: 'Paint', eyeShape: 'Eyes', eyeCol: 'Eyes', eyeProj: 'Eyes', mouth: 'Mouth', mouthCol: 'Mouth',
                      wheel: 'Wheels', tyre: 'Wheels', wall: 'Wheels', tyreSize: 'Wheels', rig: 'Wheels', rimCol: 'Wheels',
-                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals', upMotor: 'Upgrades', upBatt: 'Upgrades', upLight: 'Upgrades', upBell: 'Upgrades', upGlow: 'Upgrades', build: 'Build',
+                     topper: 'Antenna', pole: 'Antenna', flagCol: 'Antenna', decal: 'Decals', band: 'Decals', decalCol: 'Decals', upMotor: 'Upgrades', upBatt: 'Upgrades', upLight: 'Upgrades', upBell: 'Upgrades', upGlow: 'Upgrades', build: 'Build', bSkin: 'Build',
                      gShell: 'Shell', gJoint: 'Shell', gHand: 'Shell', gEye: 'Face', gScreen: 'Face', gEyeShape: 'Face', gMouth: 'Face', gEar: 'Face', gEarStyle: 'Face', gBand: 'Band & pack', gPack: 'Band & pack', gShoeCol: 'Feet', gShoeKind: 'Feet', gHat: 'Head', gHatCol: 'Head',
                      gApron: 'Outfit', gNeck: 'Outfit', gBadge: 'Outfit', gGlasses: 'Outfit', gOutCol: 'Outfit', gBadgeCol: 'Outfit', gGlassCol: 'Outfit', gPackStyle: 'Band & pack', gFinish: 'Finish', gShell2: 'Finish', gDecal: 'Decals', gDecalCol: 'Decals' };
   /* THE CART: 'kind:id' keys, kept across Play and reloads (tipsy.cart) so
@@ -147970,7 +147982,13 @@ requestTpProfile();
       const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'ufo' ? '<ellipse cx="20" cy="5" rx="5" ry="3" fill="#a9dcec"/><ellipse cx="20" cy="9" rx="15" ry="3" fill="#cfd3d8"/><circle cx="10" cy="9" r="1" fill="#ff5a4a"/><circle cx="20" cy="11" r="1" fill="#5ae8ff"/><circle cx="30" cy="9" r="1" fill="#ffd34a"/>' : ''}${id === 'monster' ? '<circle cx="9" cy="20" r="5" fill="#24262c"/><circle cx="31" cy="20" r="5" fill="#24262c"/><rect x="15" y="2" width="10" height="1.6" fill="#fff2c4"/>' : ''}${id === 'hotrod' ? '<ellipse cx="20" cy="6" rx="5" ry="2.6" fill="#9cc9dc"/><path d="M11 7L5 1H3l2 6z" fill="#eceef1" stroke="#2e3138" stroke-width=".6"/><path d="M24 14l-3 4M27 14l-3 4" stroke="#b9bec4" stroke-width="1.2"/>' : ''}${id === 'buggy' ? '<path d="M12 6V2h12l6 4" fill="none" stroke="#2e3138" stroke-width="1.4"/><rect x="4" y="9" width="5" height="6" fill="#5d646c"/>' : ''}${id === 'tank' ? '<rect x="14" y="2" width="11" height="5" rx="1.5" fill="#eceef1"/><rect x="25" y="3.6" width="10" height="1.8" fill="#5d646c"/><rect x="7" y="16" width="26" height="6" rx="3" fill="#2a2f36"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
       P.innerHTML = '<div class="grSec">BUILD — HIS BODY\'S SHAPE</div><div class="grRow">' + TP_BUILD.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
+      /* this build's own skins (TP_BSKIN), under the builds */
+      const BSK = TP_BSKIN.filter(k => k.build === cur), curS = L.bSkin && L.bSkin.startsWith(cur + ':') ? L.bSkin : 'stock';
+      if (BSK.length) { const sw = k => k.id === 'stock' ? '<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="#eceef1"/><rect x="8" y="13" width="24" height="2.4" fill="#c2452e"/></svg>'
+          : `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="${hex(k.body)}"/><rect x="8" y="13" width="24" height="2.4" fill="${hex(k.stripe)}"/>${k.glass ? `<rect x="22" y="8.5" width="7" height="3" rx="1" fill="${hex(k.glass[0])}"/>` : ''}</svg>`;
+        P.innerHTML += `<div class="grSec">SKINS — ${(TP_BUILD.find(c => c.id === cur) || {}).name || ''}</div><div class="grRow">` + [TP_BSKIN[0], ...BSK].map(k => `<button class="grSkin${curS === k.id ? ' sel' : ''}" data-bskin="${k.id}">${sw(k)}<span>${k.name}</span>${tagOf('bSkin', k.id, curS === k.id)}</button>`).join('') + '</div>'; }
       for (const b of P.querySelectorAll('[data-build]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { build: b.dataset.build === 'stock' ? null : b.dataset.build }));
+      for (const b of P.querySelectorAll('[data-bskin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { bSkin: b.dataset.bskin === 'stock' ? null : b.dataset.bskin }));
       return; }
     if (tab === 'antenna') { renderAntenna(P); return; }
     if (tab === 'decals') { renderDecals(P); return; }
