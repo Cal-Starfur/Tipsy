@@ -86745,6 +86745,70 @@ function btQueue(scene, t, queuePerson, layerFor){
   one(btKeeperAt(now), L.keeper, 0, true);
   (BT.cust || []).forEach((C, i) => one(C.now, L.cust[i], i*1.7));
 }
+/* ==================== ANGLERS (Sir, 2026-11-16: "lets have fishing in all those places"): people fishing round Pelican
+   Harbor, each at their own spot all day -- along the breakwater's walk over its rocks into the basin, sitting on the ends
+   of the finger docks with their legs over the water, at the end of the island's pier, and surf casting off the beach. A
+   rod out over the water, the line down to a float that bobs; every so often they reel in and cast again. A bucket by
+   each (still, cached). The bait shop's own customers fish the quay (THE BAIT & TACKLE). ==================== */
+function harborAnglers(){
+  if(harborAnglers.c) return harborAnglers.c;
+  const H = harborGeo(), J = H.jetty, out = [], add = o => out.push(Object.assign({ z: 0, seat: false, rod: 150, lineZ: -14, seed: out.length*977 + 31 }, o));
+  /* the breakwater: on the walk's east edge facing into the basin, and on its north leg facing south */
+  for(const y of [-11300, -9900, -8250, -6700]) add({ x: J.arm.x1 - 22, y, th: 0, rod: 190, where: 'breakwater' });
+  for(const x of [-7050, -6250]) add({ x, y: J.north.y1 - 22, th: Math.PI/2, rod: 190, where: 'breakwater' });
+  /* the finger docks' ends, sitting on the edge (deck 8: the seat at the deck, the legs over) */
+  /* (on the near (+y) edge by the end, facing out: the legs hang down its face toward the camera -- off the end itself
+     they lay over the deck, the deck being ground) */
+  for(const f of H.fingers) if(!f.island && f.k > 0) add({ x: f.x0 + 70 + (f.k % 2)*60, y: f.y1 - 14, z: 8, th: Math.PI/2, seat: true, rod: 130, where: 'finger dock' });
+  /* the island's pier, at its end facing out east */
+  for(const f of H.fingers) if(f.island){ add({ x: f.x1 - 20, y: f.y + 30, z: 8, th: 0, rod: 160, where: 'island pier' }); add({ x: f.x1 - 160, y: f.y1 - 14, z: 8, th: Math.PI/2, seat: true, rod: 130, where: 'island pier' }); }
+  /* the beach: surf casting at the water's edge, long rods out to sea */
+  for(const y of [1400, 2900, 4600]) add({ x: H.MX0 + 70, y, th: Math.PI, rod: 230, lineZ: -2, where: 'beach', surf: true });
+  return (harborAnglers.c = out);
+}
+function anglerLook(a){ return a._look || (a._look = streetLook((0xa49e1 + a.seed*7919) >>> 0, { adult: true, aid: 'none', jobs: a.seed % 3 === 0 ? ['fisher'] : null })); }
+/* the cycle: fishing (the float bobbing) most of it, then reeling in, then the cast */
+function anglerPhase(a, now){ const P = 26000, u = ((now + a.seed*1331) % P + P) % P; return u < 21500 ? { k: 'fish', u } : u < 24000 ? { k: 'reel', f: (u - 21500)/2500 } : { k: 'cast', f: (u - 24000)/2000 }; }
+CITY_PEOPLE.add({ name: 'Harbor anglers', where: "fishing round Pelican Harbor: the breakwater, the finger docks' ends, the island pier, the beach", solid: true,
+  each(scene, t, fn){
+    if(!WORLDGEN_COAST) return;
+    for(const a of harborAnglers()) fn(cpEntry(this, { x: a.x, y: a.y, z: a.z, th: a.th, moving: false, kind: 'angler', look: anglerLook(a), h: a.seat ? 110 : null }));
+  } });
+function anglersQueue(scene, t, queuePerson, layerFor){
+  if(!WORLDGEN_COAST) return;
+  const now = scene.time.now, K = scene.K;
+  for(const a of harborAnglers()){
+    if(!scene.visProp("people", a.x, a.y)) continue;
+    const L = anglerLook(a), hx = Math.cos(a.th), hy = Math.sin(a.th), bx = a.x - hx*10 - hy*40, by = a.y - hy*10 + hx*40;
+    /* the bucket beside them (cached) */
+    if(scene.visProp("chargestation", bx, by)) queuePerson(bx, by, (g) => scene.bcDraw(g, "ang|bucket|" + a.seed, bx, by, gg => {
+      const W = (dx, dy, dz) => scene.W(bx + dx, by + dy, a.z + dz), ring = (r, z) => { const pts = []; for(let k = 0; k < 12; k++){ const q = k/12*Math.PI*2; pts.push(W(Math.cos(q)*r, Math.sin(q)*r, z)); } return pts; };
+      gg.fillStyle(a.seed % 2 ? 0xd9d4c8 : 0x3f7fb0, 1); gg.fillPoints(ring(12, 0).concat(ring(14, 26).reverse()), true);
+      gg.fillStyle(0x5e86a0, 1); gg.fillPoints(ring(13, 26), true);
+    }));
+    const ph = anglerPhase(a, now), seat = a.seat;
+    queuePerson(a.x, a.y, (g) => {
+      const gg = layerFor(a.x, a.y), thW = a.th - Math.PI/2, lift = ph.k === 'cast' ? 0.9 : ph.k === 'reel' ? 0.7 : 0.6;
+      const zP = seat ? a.z - 40 : a.z;
+      const bag = () => {
+        const hp = scene.handWorldPos(a.x, a.y, thW, L.build, lift), hz = hp.z + zP, A = scene.W(hp.x, hp.y, hz);
+        let tx, ty, tz;
+        if(ph.k === 'cast'){ const q = ph.f < 0.5 ? -1 + 4*ph.f : 1; tx = hp.x + hx*a.rod*0.6*q; ty = hp.y + hy*a.rod*0.6*q; tz = hz + a.rod*(ph.f < 0.5 ? 0.9 : 0.75); }
+        else { const up = ph.k === 'reel' ? 0.45 + 0.25*ph.f : 0.55; tx = hp.x + hx*a.rod*0.85; ty = hp.y + hy*a.rod*0.85; tz = hz + a.rod*up + (ph.k === 'fish' ? 4*Math.sin(now/700 + a.seed) : 0); }
+        const T = scene.W(tx, ty, tz);
+        gg.lineStyle(Math.max(1, 2.2*K), 0x2b2f33, 1); gg.lineBetween(A.x, A.y, T.x, T.y);
+        if(!(ph.k === 'cast' && ph.f < 0.6)){
+          const out = ph.k === 'reel' ? 1 - ph.f*0.85 : ph.k === 'cast' ? (ph.f - 0.6)/0.4 : 1, far = a.rod*(a.surf ? 1.3 : 0.55)*out + 30;
+          const bob = ph.k === 'fish' ? 2.5*Math.sin(now/520 + a.seed) : 0, wx = tx + hx*far, wy = ty + hy*far, Wt = scene.W(wx, wy, a.lineZ + bob);
+          gg.lineStyle(1, 0xf2f2ee, 0.85); gg.lineBetween(T.x, T.y, Wt.x, Wt.y);
+          gg.fillStyle(0xe2493a, 1); gg.fillCircle(Wt.x, Wt.y, Math.max(1.5, 3*K));
+        }
+      };
+      scene.drawPersonHull(gg, a.x, a.y, zP, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, lift, bag, L.uniform, false,
+        Object.assign({ dress: L.dress }, seat ? { sit: 44 } : null));
+    });
+  }
+}
 /* ==================== CATCH OF THE DAY (the mission: MISSIONS 'catch-of-the-day', window any; the fleet's delivery pod) ====================
    The trawler came in late, and three kitchens need their fish before service. Its beats:
      idle     the bay on the forecourt in front of bay C (FM_PLAN.KERB; the stories' bay, its beacon): stopped on it, Nell
@@ -105313,6 +105377,7 @@ class WorldScene extends Phaser.Scene {
     lhQueue(this, t, keyQueue, layerFor);              // THE LIGHTHOUSE RUN's people, and Tipsey parked while he flies the drone
     if(WORLDGEN_COAST) fmQueue(this, t, queuePerson, keyQueue, layerFor);   // THE PELICAN FISH MARKET's people, and Tipsey parked while he has its pod
     if(WORLDGEN_COAST) btQueue(this, t, queuePerson, layerFor);              // THE BAIT & TACKLE's worker, customers and their parked cars
+    if(WORLDGEN_COAST) anglersQueue(this, t, queuePerson, layerFor);         // ANGLERS round the harbour
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
