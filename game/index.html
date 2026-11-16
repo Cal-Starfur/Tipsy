@@ -95855,6 +95855,169 @@ function parkWalkQueue(scene, t, queuePerson, layerFor){
     });
   }
 }
+/* LAWN LIFE (Sir, 2026-11-16: "we need people in all of our parks ... i want all of them"): by day, on open grass -- the
+   Veterans Memorial Park cells clear of the trail, its planting and the yards in it, and every bare lawn park in the city --
+   a picnic on a blanket (still: cached, the people in it), two kicking a ball or throwing a frisbee about, someone flying a
+   kite. Seeded per cell, laid once; drawn only on screen. ==================== */
+const PARK_LAWN = { hours: [9, 19], pad: 220 };
+function parkLawnGroups(grid){
+  if(!grid) return [];
+  if(grid._lawn) return grid._lawn;
+  const T = vetTrailOf(grid), lm = parkLandmarkIndexOf(grid), out = [];
+  const EX = [FY_PLAN, SK_PLAN, PP_PLAN].filter(Boolean).map(P => ({ x0: P.X0 - 200, x1: P.X1 + 200, y0: P.Y0 - 200, y1: P.Y1 + 200 }));
+  const clear = (x, y) => !EX.some(R => x > R.x0 && x < R.x1 && y > R.y0 && y < R.y1);
+  const kinds = [['picnic', 0.42], ['ball', 0.22], ['frisbee', 0.16], ['kite', 0.2]];
+  for(const b of grid.blocks || []){
+    if(b.type !== 'park' || b.i === undefined) continue;
+    const key = b.i + "," + b.j, onTrail = !!(T && T.cells.has(key));
+    if(!onTrail && (lm.has(key) || (typeof hoodLandmarkAtIJ === 'function' && hoodLandmarkAtIJ(b.i, b.j)))) continue;
+    const r = mulberry32((0x1a3d ^ Math.imul(b.i + 101, 0x9e3779b1) ^ Math.imul(b.j + 7, 0x85ebca6b)) >>> 0), got = [];
+    const want0 = onTrail ? 1 + (r() < 0.6 ? 1 : 0) : 2 + (r() < 0.5 ? 1 : 0), P = PARK_LAWN.pad;
+    /* a cart (ice cream or coffee) in one bare park in four, first, near the middle; the lawn's groups keep clear of it */
+    if(!onTrail && ((b.i*3 + b.j) % 4) === 0) got.push({ kind: 'cart', x: b.cx + 260, y: b.cy + 140, th: Math.PI/2, seed: (r()*0xffffffff) >>> 0, cell: key, n: 0, coffee: r() < 0.4, b });
+    const want = want0 + got.length;
+    for(let tries = 0; tries < 60 && got.length < want; tries++){
+      const x = b.x0 + P + r()*(b.x1 - b.x0 - 2*P), y = b.y0 + P + r()*(b.y1 - b.y0 - 2*P);
+      if(!clear(x, y) || got.some(g => Math.hypot(g.x - x, g.y - y) < 650)) continue;
+      if(onTrail){
+        if(T.off(x, y) < 230) continue;
+        if(T.plants.some(pl => Math.hypot(pl.x - x, pl.y - y) < (pl.r || 40) + 170)) continue;
+        if((T.posts || []).some(po => Math.hypot(po.x - x, po.y - y) < 160)) continue;
+      }
+      let u = r(), kind = 'picnic'; for(const [k, w] of kinds){ if(u < w){ kind = k; break; } u -= w; }
+      got.push({ kind, x, y, th: r()*Math.PI*2, seed: (r()*0xffffffff) >>> 0, cell: key, n: got.length, b });
+    }
+    out.push(...got);
+  }
+  return (grid._lawn = out);
+}
+/* a cart's customer k at now: in from the park's edge, a wait at the cart, off to another edge with a cone or a cup */
+const PARK_CART = { period: 34000, buy: 6500 };
+function parkCartCust(g, k, now){
+  const C = g._cust || (g._cust = []);
+  const P = PARK_CART.period, tt = now + k*P/2 + (g.seed % 9000), n = Math.floor(tt/P), u = tt - n*P;
+  let c = C[k];
+  if(!c || c.n !== n){
+    const r = mulberry32((g.seed ^ Math.imul(n*2 + k + 1, 0x9e3779b1)) >>> 0), b = g.b, edge = () => { const e = Math.floor(r()*4), f = 0.2 + r()*0.6;
+      return e === 0 ? { x: b.x0 + 60, y: b.y0 + (b.y1 - b.y0)*f } : e === 1 ? { x: b.x1 - 60, y: b.y0 + (b.y1 - b.y0)*f } : e === 2 ? { x: b.x0 + (b.x1 - b.x0)*f, y: b.y0 + 60 } : { x: b.x0 + (b.x1 - b.x0)*f, y: b.y1 - 60 }; };
+    const Q = { x: g.x + (k ? 55 : -55), y: g.y + 95 };
+    const inW = { pts: [edge(), Q], t0: 0, faceTh: -Math.PI/2 }, outW = { pts: [Q, edge()], t0: 0 };
+    c = C[k] = { n, inW, outW, m1: walkPathMs(inW), m2: walkPathMs(outW), L: streetLook((g.seed*7 + n*104729 + k) >>> 0, { adult: r() < 0.75, aid: 'none' }) };
+  }
+  if(u < c.m1){ const q = walkPathAt(c.inW, u); return q && Object.assign(q, { L: c.L }); }
+  if(u < c.m1 + PARK_CART.buy){ const q = walkPathAt(c.inW, c.m1 + Math.min(u - c.m1, MEET.turnMs)); return q && Object.assign(q, { L: c.L, has: u - c.m1 > PARK_CART.buy*0.6, buy: true }); }
+  if(u < c.m1 + PARK_CART.buy + c.m2){ const q = walkPathAt(c.outW, u - c.m1 - PARK_CART.buy); return q && Object.assign(q, { L: c.L, has: true }); }
+  return null;
+}
+function parkLawnOn(){ const h = typeof walkinClockHour === "function" ? walkinClockHour() : 12; return h >= PARK_LAWN.hours[0] && h < PARK_LAWN.hours[1]; }
+/* who is in a group, where, facing: [{ x, y, th, L, sit }] */
+function parkLawnPeople(g){
+  if(g._ppl) return g._ppl;
+  const r = mulberry32(g.seed), L = () => streetLook((r()*0xffffffff) >>> 0, { adult: r() < 0.7, aid: 'none' }), out = [];
+  if(g.kind === 'picnic'){
+    const n = 2 + (r() < 0.5 ? 1 : 0);
+    for(let k = 0; k < n; k++){ const a = g.th + Math.PI*2*k/n + 0.4, d = 82; out.push({ x: g.x + Math.cos(a)*d, y: g.y + Math.sin(a)*d, th: a + Math.PI, L: L(), sit: true }); }
+  } else if(g.kind === 'ball' || g.kind === 'frisbee'){
+    const d = g.kind === 'ball' ? 150 : 230, c = Math.cos(g.th), s2 = Math.sin(g.th);
+    out.push({ x: g.x - c*d, y: g.y - s2*d, th: g.th, L: L() }, { x: g.x + c*d, y: g.y + s2*d, th: g.th + Math.PI, L: L() });
+  } else if(g.kind === 'cart') out.push({ x: g.x, y: g.y - 70, th: Math.PI/2, L: L(), vendor: true });
+  else out.push({ x: g.x, y: g.y, th: g.th, L: L() });
+  return (g._ppl = out);
+}
+CITY_PEOPLE.add({ name: 'park lawn', where: "the parks' lawns: picnics, ball games, frisbee, kites", solid: true,
+  each(scene, t, fn){
+    if(!parkLawnOn()) return;
+    const grid = scene.route && scene.route.grid, bx = scene.botX, by = scene.botY;
+    for(const g of parkLawnGroups(grid)){ if(Math.abs(g.x - bx) + Math.abs(g.y - by) > 5000) continue;
+      for(const p of parkLawnPeople(g)) fn(cpEntry(this, { x: p.x, y: p.y, th: p.th, moving: false, kind: g.kind === 'picnic' ? 'picnicker' : 'park visitor', look: p.L, h: p.sit ? 90 : null })); }
+  } });
+function parkLawnQueue(scene, t, queuePerson, layerFor){
+  if(!parkLawnOn()) return;
+  const grid = scene.route && scene.route.grid, now = scene.time.now, K = scene.K;
+  const person = (gg, p, o) => scene.drawPersonHull(gg, p.x, p.y, 0, p.th - Math.PI/2, p.L.build, p.L.skin, p.L.shirt, p.L.pants, p.L.hair, p.L.shoe, 0, false, 0, 0, null, p.L.uniform, false, Object.assign({ dress: p.L.dress }, o || null));
+  for(const g of parkLawnGroups(grid)){
+    if(!scene.visProp("people", g.x, g.y)) continue;
+    const P = parkLawnPeople(g);
+    if(g.kind === 'picnic'){
+      /* the blanket, the basket and those sat round it: still, one cached image */
+      queuePerson(g.x, g.y, (gg0) => scene.bcDraw(gg0, "lawn|picnic|" + g.cell + "|" + g.n, g.x, g.y, gg => {
+        const c = Math.cos(g.th), s2 = Math.sin(g.th), at = (u, v, z) => scene.W(g.x + c*u - s2*v, g.y + s2*u + c*v, z || 0.6);
+        const col = [0xc8462e, 0x2f7f86, 0xe8b54a][g.seed % 3];
+        for(let i = 0; i < 4; i++) for(let j = 0; j < 3; j++){ gg.fillStyle((i + j) % 2 ? 0xf4f1e8 : col, 1);
+          gg.fillPoints([at(-90 + i*45, -66 + j*44), at(-45 + i*45, -66 + j*44), at(-45 + i*45, -22 + j*44), at(-90 + i*45, -22 + j*44)], true); }
+        const box = (u0, u1, v0, v1, z0, z1, top, side, side2) => { gg.fillStyle(side, 1); gg.fillPoints([at(u0, v1, z0), at(u1, v1, z0), at(u1, v1, z1), at(u0, v1, z1)], true);
+          gg.fillStyle(side2, 1); gg.fillPoints([at(u1, v0, z0), at(u1, v1, z0), at(u1, v1, z1), at(u1, v0, z1)], true);
+          gg.fillStyle(top, 1); gg.fillPoints([at(u0, v0, z1), at(u1, v0, z1), at(u1, v1, z1), at(u0, v1, z1)], true); };
+        box(-14, 14, -10, 10, 0.6, 22, 0xc9a06a, 0xa87b4f, 0x8a6440);                  // the basket
+        box(30, 44, 10, 20, 0.6, 6, 0xf6f6f2, 0xe3e3dc, 0xd6d6cc);                       // a plate
+        for(const p of [...P].sort((a, b) => (a.x + a.y) - (b.x + b.y))) person(gg, p, { sit: 18, lift: [0.1, 0.2], bend: 0.6 });
+      }));
+      continue;
+    }
+    if(g.kind === 'cart'){
+      /* the cart (cached): a box on two wheels, its striped umbrella, the name; the vendor behind it; customers coming and going */
+      queuePerson(g.x, g.y, (gg0) => scene.bcDraw(gg0, "lawn|cart|" + g.cell, g.x, g.y, gg => {
+        const at = (a, b2, z) => scene.W(g.x + a, g.y + b2, z), Q = (pts, col) => { gg.fillStyle(col, 1); gg.fillPoints(pts, true); };
+        const box = (a0, a1, b0, b1, z0, z1, top, side, side2) => { Q([at(a0, b1, z0), at(a1, b1, z0), at(a1, b1, z1), at(a0, b1, z1)], side);
+          Q([at(a1, b0, z0), at(a1, b1, z0), at(a1, b1, z1), at(a1, b0, z1)], side2); Q([at(a0, b0, z1), at(a1, b0, z1), at(a1, b1, z1), at(a0, b1, z1)], top); };
+        const main = g.coffee ? 0x6b4a34 : 0xf3d9e6, mainD = g.coffee ? 0x553a29 : 0xe0bfd0, trim = g.coffee ? 0xe8d9b5 : 0x7fc8d8;
+        for(const a of [-50, 50]){ const w = at(a, 32, 22); gg.fillStyle(0x2b2f33, 1); gg.fillEllipse(w.x, w.y, 20*K, 26*K); gg.fillStyle(0xb9c0c4, 1); gg.fillEllipse(w.x, w.y, 7*K, 9*K); }
+        box(-70, 70, -32, 32, 20, 96, 0xf4f1e8, main, mainD);
+        Q([at(-70, 32, 60), at(70, 32, 60), at(70, 32, 74), at(-70, 32, 74)], trim);
+        box(-74, 74, -36, 36, 96, 102, 0xd6d0c4, 0xc4bdb0, 0xb3ac9e);
+        for(const a of [-40, 0, 40]) box(a - 10, a + 10, -14, 4, 102, 112, [0xf2c14b, 0xe2493a, 0xf4f1e8][(a/40 + 1) | 0], 0xd0d0c8, 0xbdbdb5);   // the tubs / the urns
+        gg.lineStyle(Math.max(1, 2*K), 0x8e979b, 1); { const a = at(0, -10, 102), b2 = at(0, -10, 250); gg.lineBetween(a.x, a.y, b2.x, b2.y); }
+        const N = 8; for(let k = 0; k < N; k++){ const q0 = k/N*Math.PI*2, q1 = (k + 1)/N*Math.PI*2, R = 105;
+          Q([at(0, -10, 262), at(Math.cos(q0)*R, -10 + Math.sin(q0)*R, 232), at(Math.cos(q1)*R, -10 + Math.sin(q1)*R, 232)], k % 2 ? 0xf4f1e8 : (g.coffee ? 0x2f6f5e : 0xe2493a)); }
+      }));
+      const v = P[0];
+      queuePerson(v.x, v.y - 40, () => person(layerFor(v.x, v.y), v, { lift: [0.45, 0.55 + 0.15*Math.abs(Math.sin(now/700))], bend: [0.9, 0.7] }));
+      for(let k = 0; k < 2; k++){
+        const c = parkCartCust(g, k, now);
+        if(!c || !scene.visProp("people", c.x, c.y)) continue;
+        const px = c.x, py = c.y, cc = c;
+        queuePerson(px, py, () => {
+          const gg = layerFor(px, py), thW = cc.th - Math.PI/2, Lk = cc.L;
+          const bag = cc.has ? () => { const hp = scene.handWorldPos(px, py, thW, Lk.build, 0.45), A = scene.W(hp.x, hp.y, hp.z);
+            if(g.coffee){ gg.fillStyle(0xf4f1e8, 1); gg.fillRect(A.x - 3*K, A.y - 9*K, 6*K, 9*K); gg.fillStyle(0x6b4a34, 1); gg.fillRect(A.x - 3*K, A.y - 6*K, 6*K, 3*K); }
+            else { gg.fillStyle(0xd9a45a, 1); gg.fillTriangle(A.x - 3*K, A.y - 6*K, A.x + 3*K, A.y - 6*K, A.x, A.y + 4*K); gg.fillStyle([0xf3d9e6, 0xf6efe0, 0x9a6a4a][g.seed % 3], 1); gg.fillCircle(A.x, A.y - 8*K, 4*K); } } : null;
+          scene.drawPersonHull(gg, px, py, 0, thW, Lk.build, Lk.skin, Lk.shirt, Lk.pants, Lk.hair, Lk.shoe, cc.moving ? walkAt(px, py) : 0, !!cc.moving, 0, cc.has ? 0.45 : 0, bag, Lk.uniform, false, { dress: Lk.dress });
+        });
+      }
+      continue;
+    }
+    if(g.kind === 'kite'){
+      const p = P[0];
+      queuePerson(p.x, p.y, () => {
+        const gg = layerFor(p.x, p.y);
+        person(gg, p, { lift: [0.25, 1.2 + 0.05*Math.sin(now/900 + g.seed)], bend: [0.6, 0.15] });
+        const hp = scene.handWorldPos(p.x, p.y, p.th - Math.PI/2, p.L.build, 0.9), H = scene.W(hp.x, hp.y, hp.z);
+        const kx = p.x + Math.cos(p.th)*300 + 40*Math.sin(now/1700 + g.seed), ky = p.y + Math.sin(p.th)*300, kz = 560 + 30*Math.sin(now/1100 + g.seed);
+        const Kt = scene.W(kx, ky, kz), w = 26*K, h = 34*K, kc = [0xe2493a, 0xf2c14b, 0x3f7fb0, 0x7c4fa8][g.seed % 4];
+        gg.lineStyle(1, 0xe8e8e2, 0.9); gg.lineBetween(H.x, H.y, Kt.x, Kt.y + h*0.4);
+        gg.fillStyle(kc, 1); gg.fillPoints([{ x: Kt.x, y: Kt.y - h }, { x: Kt.x + w, y: Kt.y - h*0.2 }, { x: Kt.x, y: Kt.y + h*0.6 }, { x: Kt.x - w, y: Kt.y - h*0.2 }], true);
+        gg.fillStyle(0xffffff, 0.35); gg.fillPoints([{ x: Kt.x, y: Kt.y - h }, { x: Kt.x + w, y: Kt.y - h*0.2 }, { x: Kt.x, y: Kt.y - h*0.2 }], true);
+        gg.lineStyle(Math.max(1, 1.5*K), kc, 0.9); gg.beginPath(); gg.moveTo(Kt.x, Kt.y + h*0.6);
+        for(let k = 1; k <= 6; k++) gg.lineTo(Kt.x + 6*K*Math.sin(now/300 + k), Kt.y + h*0.6 + k*7*K); gg.strokePath();
+      });
+      continue;
+    }
+    /* a ball or a frisbee between two: it flies one way and back, each catching and throwing in turn */
+    const fr = g.kind === 'frisbee', T = fr ? 2600 : 1800, u = ((now + g.seed % 5000) % (2*T))/T, leg = u < 1 ? 0 : 1, f = u - leg;
+    const A = P[leg], B = P[1 - leg];
+    P.forEach((p, i) => queuePerson(p.x, p.y, () => {
+      const gg = layerFor(p.x, p.y), catching = (i === 1 - leg && f > 0.8), throwing = (i === leg && f < 0.2);
+      person(gg, p, catching || throwing ? { lift: [0.9, 0.9], bend: [0.4, 0.4] } : { lift: [0.3, 0.3], bend: 0.5 });
+    }));
+    const bx = A.x + (B.x - A.x)*f, by = A.y + (B.y - A.y)*f, bz = (fr ? 90 + 40*Math.sin(f*Math.PI) : 30 + 160*4*f*(1 - f));
+    queuePerson(bx, by, () => {
+      const gg = layerFor(bx, by), Q = scene.W(bx, by, bz), Sh = scene.W(bx, by, 0);
+      gg.fillStyle(0x000000, 0.15); gg.fillEllipse(Sh.x, Sh.y, 14*K, 7*K);
+      if(fr){ gg.fillStyle([0xf2c14b, 0xe2493a, 0x3fbf9a][g.seed % 3], 1); gg.fillEllipse(Q.x, Q.y, 18*K, 7*K); }
+      else { gg.fillStyle(0xffffff, 1); gg.fillCircle(Q.x, Q.y, 7*K); gg.fillStyle(0x2b2f33, 1); gg.fillCircle(Q.x - 2*K, Q.y - 1*K, 2.2*K); }
+    });
+  }
+}
 /* PARK BENCH SITTERS (Sir, 2026-11-14: "get some people using them"): the park trail's benches (queueParkPlants) have someone on them by day --
    about half of them, one or two (a pair a third of the time), off a roll of the bench's own spot and the day's hour block, so who sits
    there changes through the day. They sit still, so they are baked into the bench's cached image (its key names them: stable while
@@ -105466,6 +105629,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST) btQueue(this, t, queuePerson, layerFor);              // THE BAIT & TACKLE's worker, customers and their parked cars
     if(WORLDGEN_COAST) anglersQueue(this, t, queuePerson, layerFor);         // ANGLERS round the harbour
     parkWalkQueue(this, t, queuePerson, layerFor);                           // PARK WALKERS on Veterans Memorial Park's trail
+    parkLawnQueue(this, t, queuePerson, layerFor);                           // LAWN LIFE: picnics, ball games, frisbee, kites
     cplQueuePeople(this, t, queuePerson, keyQueue, layerFor);   // THE COSTA PALMA LETTERS: the ranger, the maintenance hand (LETTERS ON THE HILL's kids)
     fyQueue(this, t, queuePerson, keyQueue, layerFor);   // THE FLATS FIRE TRAINING YARD's crew, water, captain and kids; OPEN HOUSE's smoke
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
