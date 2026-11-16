@@ -113176,10 +113176,15 @@ class WorldScene extends Phaser.Scene {
       if(sty === 'junk'){ const q = P(barA + 3, 0, barH - 6); g.fillStyle(0xb9bec4, 1); g.fillCircle(q.x, q.y, 2.8*this.K*0.42*1.4);   // a torch taped on
         g.fillStyle(0xfff3c4, 1); g.fillCircle(q.x, q.y, 1.6*this.K*0.42*1.4); return; }
       if(sty === 'vintage' && brand.paint === 'mod')                                            // the Mod's two big round mirrors on tall chrome stalks off the bar ends (Sir, 2026-11-16, UK spec)
-        for(const sb of [-1, 1]){ const mb = sb*(hb + 12), mh = barH + 19, r = 6;
-          line([barA, sb*(hb + 4), barH], [barA - 1, mb, mh - r], 0xc9ced3, 1.6);
-          const disc = rr => { const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(barA - 1, mb + Math.cos(w)*rr, mh + Math.sin(w)*rr)); } return o; };
-          g.fillStyle(0xc9ced3, 1); g.fillPoints(disc(r), true); g.fillStyle(KV.sees(-1, 0, 0) ? 0xdfeaf2 : 0x8a9097, 1); g.fillPoints(disc(r*0.78), true); }
+      { const mirror = (ma, b0, h0, mb, mh, r) => {                                          // a chrome stalk out to a round mirror facing back
+          line([ma, b0, h0], [ma - 1, mb, mh - r], 0xc9ced3, 1.6);
+          const disc = rr => { const o = []; for(let i = 0; i < 16; i++){ const w = i/16*Math.PI*2; o.push(P(ma - 1, mb + Math.cos(w)*rr, mh + Math.sin(w)*rr)); } return o; };
+          g.fillStyle(0xc9ced3, 1); g.fillPoints(disc(r), true); g.fillStyle(KV.sees(-1, 0, 0) ? 0xdfeaf2 : 0x8a9097, 1); g.fillPoints(disc(r*0.78), true); };
+        /* two more sets down the stem on chrome cross-bars, each wider than the one above (Sir, 2026-11-16, "it needs two more sets") */
+        for(const [k, w, up, r] of [[0.42, hb + 15, 7, 5], [0.68, hb + 13, 7, 5]]){ const [sa, , sz] = stemAt(k);
+          line([sa, -w + 3, sz], [sa, w - 3, sz], 0xc9ced3, 1.8);
+          for(const sb of [-1, 1]) mirror(sa, sb*(w - 3), sz, sb*w, sz + up, r); }
+        for(const sb of [-1, 1]) mirror(barA, sb*(hb + 4), barH, sb*(hb + 12), barH + 19, 6); }
       const hp = P(barA + 2, 0, barH - 10), hr = sty === 'vintage' ? 2.2 : 1;               // (the Vintage's big chrome headlamp)
       g.fillStyle(sty === 'vintage' ? 0xc9ced3 : 0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*hr*this.K*0.42*1.4);
       g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*hr*this.K*0.42*1.4);
