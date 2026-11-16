@@ -3408,7 +3408,8 @@ const GD_SHAPES = {
               ['circuit','Circuit'],['hazard','Hazard'],['holo','Hologram'],['plasma','Plasma'],['mech','Mech'],['aurora','Aurora'],['arcade','Arcade'],['frost','Frost'],
               ['mod','Mod Target'],['ska','Two-Tone Ska'],['racenum','Racing Numbers'],['flower','Flower Power'],['woodie','Woodie'],['candy','Seaside Candy'],['leopard','Leopard'],['kustom','Pinstripe Kustom'],['speed','Speed Lines'],['postie','Postie'],
               ['hotrod','Hot Rod Flames'],['stars','Stars'],['wings','Eagle Wings'],['scallops','Scallops'],['flake','Metal Flake'],['stripes','Tank Stripes'],['tiger','Tiger'],['chrome','Chrome'],
-              ['factory','Factory Orange'],['limegreen','Lime Green'],['bluethunder','Blue Thunder'],['redrider','Red Rider'],['yellowfever','Yellow Fever'],['desert','Desert Rally'],['mud','Mud Splatter'],['enduro','Enduro Camo']],   // (each build's skins, GSC_PAINT: scootPaintTop)
+              ['factory','Factory Orange'],['limegreen','Lime Green'],['bluethunder','Blue Thunder'],['redrider','Red Rider'],['yellowfever','Yellow Fever'],['desert','Desert Rally'],['mud','Mud Splatter'],['enduro','Enduro Camo'],
+              ['checker','Chequered'],['testflight','Test Flight'],['moonrocket','Moon Rocket'],['tintoy','Tin Toy'],['atomic','Atomic Age'],['raygun','Ray Gun'],['starliner','Starliner'],['cosmic','Cosmic']],   // (each build's skins, GSC_PAINT: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket'],['junk','Junkyard Build']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
   decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
@@ -89584,12 +89585,25 @@ function gscSave(){ try { localStorage.setItem(GSC_KEY, JSON.stringify(GSC.st));
 /* its colours: kept, or Gideon's own (his band, as he wears it) */
 /* (white like him, orange accents -- Sir, 2026-11-15: "I want the scooter to be white like Gideon with orange accents"): the body his shell's
    white, the accent his band's orange (the stripe down the deck, the fender, the underside) */
+/* the Retro Rocket's skins: a colour for each face of its fuselage by ring i (0..5 tail to nose, -1 its tail cone, 6 the nose) and the
+   face's normal n -- its quarter round the body (Sir, 2026-11-16) */
+const RKT_Q = n => Math.floor((Math.atan2(n[2], n[1]) + Math.PI)/(Math.PI/2)) % 4;
+const RKT_SKIN = {
+  checker: (i, n) => (i + RKT_Q(n)) % 2 ? 0xc8323a : 0xf4f2ec,
+  testflight: (i, n) => i < 0 ? 0x1c1d20 : (RKT_Q(n) + (i >> 1)) % 2 ? 0x1c1d20 : 0xf4f2ec,
+  moonrocket: (i, n) => i === -1 || i === 1 || i === 4 ? 0x1c1d20 : 0xf4f2ec,
+  tintoy: (i, n, b) => i % 3 === 2 ? 0x1f5fbf : (n[2] < -0.5 ? 0x9a1c26 : b.c),
+  atomic: (i, n, b) => i === 5 ? 0xc9ced3 : (n[2] < -0.5 ? 0x5fb3a6 : b.c),
+  raygun: (i, n, b) => i === 0 || i === 5 ? 0xd8b04a : (n[2] < -0.5 ? 0x9aa0a6 : b.c),
+  starliner: (i, n) => n[2] > 0.2 ? 0x1f2f5e : 0xefe6d2,
+  cosmic: (i, n, b) => i % 2 ? 0x5e2a88 : b.c };
 /* each skin's build (scootPaintTop): a skin shows only on its own build */
 const GSC_PAINT = { flames: 'stock', checker: 'stock', bolt: 'stock', camo: 'stock', galaxy: 'stock',
   tonup: 'cruiser', racinggreen: 'cruiser', oxblood: 'cruiser', brooklands: 'cruiser', rocker: 'cruiser',
   gulf: 'cruiser', manx: 'cruiser', alloy: 'cruiser', tartan: 'cruiser', sunset: 'cruiser',
   rally: 'racer', gp: 'racer', gt: 'racer', drag: 'racer', superbike: 'racer', stockcar: 'racer', drift: 'racer', saltflat: 'racer',
   circuit: 'robo', hazard: 'robo', holo: 'robo', plasma: 'robo', mech: 'robo', aurora: 'robo', arcade: 'robo', frost: 'robo',
+  checker: 'rocket', testflight: 'rocket', moonrocket: 'rocket', tintoy: 'rocket', atomic: 'rocket', raygun: 'rocket', starliner: 'rocket', cosmic: 'rocket',
   factory: 'offroad', limegreen: 'offroad', bluethunder: 'offroad', redrider: 'offroad', yellowfever: 'offroad', desert: 'offroad', mud: 'offroad', enduro: 'offroad',
   hotrod: 'chopper', stars: 'chopper', wings: 'chopper', scallops: 'chopper', flake: 'chopper', stripes: 'chopper', tiger: 'chopper', chrome: 'chopper',
   mod: 'vintage', ska: 'vintage', racenum: 'vintage', flower: 'vintage', woodie: 'vintage', candy: 'vintage', leopard: 'vintage', kustom: 'vintage', speed: 'vintage', postie: 'vintage' };
@@ -89606,6 +89620,9 @@ const GSC_LIVERY = { tonup: { c: 0x1c1d20, acc: 0xc9ced3 }, racinggreen: { c: 0x
   plasma: { c: 0x121318, acc: 0xff3fd2, glow: 0xff3fd2 }, mech: { c: 0x5d646c, acc: 0xd8452f, glow: 0xff4b3a }, aurora: { c: 0x0f3b44, acc: 0x5ef0a4, glow: 0x5ef0a4 },
   arcade: { c: 0x1c1d20, acc: 0xffd23a, glow: 0xffd23a }, frost: { c: 0xdff2fb, acc: 0x7fc6e8, glow: 0xbfeaff },
   /* the Vintage's: Italian-scooter two-tones */
+  /* the Retro Rocket's: space-age paint jobs (its fuselage by RKT_SKIN; the nose and fins in the accent) */
+  checker: { c: 0xf4f2ec, acc: 0xc8323a }, testflight: { c: 0xf4f2ec, acc: 0x1c1d20 }, moonrocket: { c: 0xf4f2ec, acc: 0x1c1d20 }, tintoy: { c: 0xc8323a, acc: 0xf2c230 },
+  atomic: { c: 0x7fd3c4, acc: 0xf4efe6 }, raygun: { c: 0xc9ced3, acc: 0xc8323a }, starliner: { c: 0xefe6d2, acc: 0xc8323a }, cosmic: { c: 0x4b1f6e, acc: 0xff7ad9 },
   /* the Off-Road's: motocross / dirt-bike kits -- graphics on the deck, a front number plate and side plates with the rider's number */
   factory: { c: 0xf08a24, acc: 0x1c1d20, plate: 0xf4f2ec, num: 0x1c1d20, digit: 7 }, limegreen: { c: 0x7fd13b, acc: 0x1c1d20, plate: 0xf4f2ec, num: 0x1c1d20, digit: 3 },
   bluethunder: { c: 0x1f5fbf, acc: 0xf4f2ec, plate: 0x1c1d20, num: 0xf4f2ec, digit: 4 }, redrider: { c: 0xc8102e, acc: 0xf4f2ec, plate: 0xf4f2ec, num: 0xc8102e, digit: 1 },
@@ -113197,7 +113214,12 @@ class WorldScene extends Phaser.Scene {
         : sty === 'rocket' ? [[-34, -5], [-31, -8], [16, -8], [18, -7], [18, 7], [16, 8], [-31, 8], [-34, 5]] : [[back, -7], [DF, -7], [DF, 7], [back, 7]];
       if(sty === 'rocket'){                                                                     // a round fuselage: body, then the nose cone in the accent
         const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
-        solid(loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1).concat(loftSeg(-28, S(8, RD - 5.5, RD), 14, S(8, RD - 5.5, RD), 0)), brand.c, (k, n) => n[2] < -0.5 ? brand.cDk : brand.c); }
+        /* the fuselage in rings (its skins paint by ring and by quarter round it: chequers, roll patterns, bands, two-tones -- RKT_SKIN);
+           a convex body, so the rings' seen faces never overlap */
+        const sk = RKT_SKIN[brand.paint], rc = (i, n) => sk ? sk(i, n, brand) : (n[2] < -0.5 ? brand.cDk : brand.c);
+        const F = loftSeg(-34, S(6.5, RD - 5, RD - 1), -28, S(8, RD - 5.5, RD), 1), nT = F.length, nR = 8;   // (one solid, its rings told apart by face index: no seams)
+        for(let i = 0; i < 6; i++) F.push(...loftSeg(-28 + i*7, S(8, RD - 5.5, RD), -21 + i*7, S(8, RD - 5.5, RD), 0));
+        solid(F, brand.c, (k, n) => rc(k < nT ? -1 : Math.floor((k - nT)/nR), n)); }
       else if(sty === 'junk') solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a));   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
         (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
@@ -113207,13 +113229,13 @@ class WorldScene extends Phaser.Scene {
       solid(prismH([[-14, -5.5], [-5, -5.5], [-5, 1], [-14, 1]], RD, RD + 0.7), acc0);
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ solid(prismH([[3, sb*7.05], [15, sb*7.05], [15, sb*7.8], [3, sb*7.8]], RD - 5.5, RD - 1), brand.c);
         g.fillStyle(0x6f747a, 1); for(const a of [4.2, 13.8]) for(const h of [RD - 4.6, RD - 1.9]){ const q = P(a, sb*7.85, h); g.fillCircle(q.x, q.y, 0.7*this.K*0.42*1.4); } } }
-    if(brand.paint) this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
+    if(brand.paint && sty !== 'rocket') this.scootPaintTop(g, P, brand.paint, sty === 'robo' ? -27 : DB, sty === 'robo' ? 27 : DF, RD, sty === 'robo' ? 7.4 : 6.6);                        // its skin: a graphic on its deck top (GSC_PAINT; the Cruiser's planks drawn over it)
     if(sty === 'cruiser' && !brand.paint) for(let a = DB + 4; a < DF - 2; a += 8) line([a, -6.4, RD + 0.1], [a, 6.4, RD + 0.1], 0x8a6236, 0.9);   // (the wooden deck's planks)
     if(stripes) accStripe(nearSb);
     if(sty === 'rocket'){                                                                       // the nose cone (its top the accent), its porthole, one on the body, the near fin, the nozzle
       { const S = (w, h0, h1) => oct(w, h0, h1, 0, 0.5);
         solid(loftSeg(14, S(8, RD - 5.5, RD), 24, S(6.5, RD - 6.3, RD - 0.7), 0).concat(loftSeg(24, S(6.5, RD - 6.3, RD - 0.7), 32, S(3.6, RD - 5, RD - 2), 0), loftSeg(32, S(3.6, RD - 5, RD - 2), 38, S(0.6, RD - 3.8, RD - 3.2), 2)), acc0,
-          (k, n) => n[2] < -0.5 ? 0xb8742a : acc0); }
+          (k, n) => RKT_SKIN[brand.paint] && brand.paint === 'checker' ? RKT_SKIN.checker(6, n, brand) : n[2] < -0.5 ? 0xb8742a : acc0); }
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const [a, b, h, r] of [[4, 8.05, RD - 3.5, 2.2], [-12, 8.05, RD - 3.5, 2.2]]){ const q = P(a, sb*b, h);
         g.fillStyle(0xc9ced3, 1); g.fillCircle(q.x, q.y, r*this.K*0.42*1.4); g.fillStyle(0x7fc6e8, 1); g.fillCircle(q.x, q.y, r*0.62*this.K*0.42*1.4); }
       rocketFin(nearSb); if(KV.sees(-1, 0, 0)) nozzle(); }
@@ -147109,6 +147131,14 @@ requestTpProfile();
         arcade: fill('#1c1d20') + ['..X..X..', '.XXXXXX.', 'XX.XX.XX', 'XXXXXXXX', 'X.X..X.X', '.X....X.'].map((r, j) => [...r].map((ch, i) => ch === 'X' ? `<rect x="${14 + i*1.5}" y="${8.5 + j*1.5}" width="1.5" height="1.5" fill="#ffd23a"/>` : '').join('')).join('') + `<rect x="6" y="9" width="1" height="1" fill="#3fd0ff"/><rect x="33" y="16" width="1" height="1" fill="#3fd0ff"/>`,
         frost: fill('#dff2fb') + `<path d="M20 9v8M16.5 11l7 4M16.5 15l7-4" stroke="#7fc6e8" stroke-width=".8"/><path d="M5 10l3 2 2-1 3 2M35 16l-3-2-2 1-3-2" stroke="#fff" stroke-width=".6" fill="none"/>`,
         mod: fill('#2a2f36') + `<circle cx="20" cy="13" r="5" fill="#1f4fa8"/><circle cx="20" cy="13" r="3.4" fill="#f4efe6"/><circle cx="20" cy="13" r="1.9" fill="#c8102e"/>`,
+        checker: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#f4f2ec"/><path d="M28 10l8 3-8 3z" fill="#c8323a"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#c8323a"/><path d="M6 10h5v3H6zM16 10h5v3h-5zM11 13h5v3h-5zM21 13h5v3h-5z" fill="#c8323a"/>`,
+        testflight: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#f4f2ec"/><path d="M28 10l8 3-8 3z" fill="#1c1d20"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#1c1d20"/><path d="M6 10h6v3H6zM18 13h6v3h-6z" fill="#1c1d20"/>`,
+        moonrocket: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#f4f2ec"/><path d="M28 10l8 3-8 3z" fill="#1c1d20"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#1c1d20"/><path d="M9 10h3v6H9zM20 10h3v6h-3z" fill="#1c1d20"/>`,
+        tintoy: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#c8323a"/><path d="M28 10l8 3-8 3z" fill="#f2c230"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#f2c230"/><path d="M12 10h3v6h-3zM22 10h3v6h-3z" fill="#1f5fbf"/>`,
+        atomic: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#7fd3c4"/><path d="M28 10l8 3-8 3z" fill="#f4efe6"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#f4efe6"/><rect x="25" y="10" width="3" height="6" fill="#c9ced3"/>`,
+        raygun: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#c9ced3"/><path d="M28 10l8 3-8 3z" fill="#c8323a"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#c8323a"/><path d="M7 10h2v6H7zM25 10h2v6h-2z" fill="#d8b04a"/>`,
+        starliner: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#efe6d2"/><path d="M28 10l8 3-8 3z" fill="#c8323a"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#c8323a"/><path d="M6 10h22v3H6z" fill="#1f2f5e"/>`,
+        cosmic: `<rect x="0" y="0" width="40" height="26" fill="#2a2f36"/><path d="M6 10h22l8 3-8 3H6z" fill="#4b1f6e"/><path d="M28 10l8 3-8 3z" fill="#ff7ad9"/><path d="M6 10L3 6h4l3 4zM6 16l-3 4h4l3-4z" fill="#ff7ad9"/><path d="M10 10h3v6h-3zM17 10h3v6h-3zM24 10h3v6h-3z" fill="#5e2a88"/>`,
         factory: fill('#f08a24') + `<path d="M3 7h10l-5 6zM22 19h12l-7-6z" fill="#1c1d20"/>` + `<rect x="14" y="8" width="12" height="10" rx="2" fill="#f4f2ec"/><text x="20" y="16.4" font-size="8.5" font-weight="700" text-anchor="middle" fill="#1c1d20" font-family="sans-serif">7</text>`,
         limegreen: fill('#7fd13b') + `<path d="M5 11l6 2-6 2-2-2zM30 10l6 2-6 2-2-2z" fill="#1c1d20"/>` + `<rect x="14" y="8" width="12" height="10" rx="2" fill="#f4f2ec"/><text x="20" y="16.4" font-size="8.5" font-weight="700" text-anchor="middle" fill="#1c1d20" font-family="sans-serif">3</text>`,
         bluethunder: fill('#1f5fbf') + `<path d="M5 7h2l3 12H8zM30 7h2l3 12h-2z" fill="#f4f2ec"/>` + `<rect x="14" y="8" width="12" height="10" rx="2" fill="#1c1d20"/><text x="20" y="16.4" font-size="8.5" font-weight="700" text-anchor="middle" fill="#f4f2ec" font-family="sans-serif">4</text>`,
