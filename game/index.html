@@ -113287,9 +113287,8 @@ class WorldScene extends Phaser.Scene {
       const zTop = sty === 'cruiser' ? WR*2 + 3 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : wheeled ? tyreTop : RD;
       if(wheeled && !covered){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
         line([DF - 1, 0, RD - 1.5], q, stemCol, 4.5);
-        if(sty === 'offroad'){ const q = stemAt(kAt(forkTop)), top = q[2] - 0.6, C = [];   // its motocross front fender: a long blade up at the fork crown, well clear of the tyre (Sir, 2026-11-16, "needs to go up")
-          for(let i = 0; i <= 10; i++){ const a = SA - 9 + 21*i/10, d = (a - q[0])/11; C.push([a, top - 3.2*d*d - (a > q[0] ? 1.6*d : 0)]); }
-          const band = C.concat(C.slice().reverse().map(([a, h]) => [a, h - 1.5])), qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;
+        if(sty === 'offroad'){ const r = WHL[1][1], hc = forkTop - r - 5.2;   // its motocross front fender: the full wrap, raised whole up to the fork crown (Sir, 2026-11-16, "move the whole thing up")
+          const band = arcPts(SA, hc, r + 4.6, r + 4.6, 0.1, Math.PI - 0.12, 12).concat(arcPts(SA, hc, r + 3, r + 3, Math.PI - 0.12, 0.1, 12)), qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;
           solid(F, brand.c, (k, nn) => nn[2] < -0.3 ? brand.cDk : brand.c); }
         forkLeg(KV.sees(0, 1, 0) ? 1 : -1); }                                                 // (the near one, over them)
       line(stemAt(kAt(zTop)), [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6);
