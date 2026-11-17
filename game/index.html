@@ -44678,7 +44678,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
   { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
   { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true,
-    gear: { kind: 'hover', lift: 12, bob: true, xs: [-19, 19], side: 15, pr: 9.5 } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
+    gear: { kind: 'hover', lift: 12, bob: true, xs: [0], side: 0, glowOnly: true } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
@@ -128538,6 +128538,16 @@ class WorldScene extends Phaser.Scene {
 
     if(G.kind === 'hover'){
       /* a pad under each corner, a light column to the ground */
+      if(G.glowOnly){   /* (no pads -- Sir, 2026-11-17: "just a glow under the whole tank"): a soft cyan glow the shape of his belly, from it down to the
+           ground, brightest at the ground; once a frame */
+        if(this._glowT === t) return; this._glowT = t;
+        const pulse = 0.5 + 0.5*Math.sin(t*0.005), rr = (hx, hy, z, n = 20) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(Math.cos(q)*hx, Math.sin(q)*hy, z)); } return o; };
+        const hx = BODY.hx, hy = BODY.hy, zt = 5 + lift;
+        g.fillStyle(SKIN.eye, 0.12 + 0.06*pulse); g.fillPoints(pts(convexHull(rr(hx*0.9, hy*0.9, zt).concat(rr(hx*1.15, hy*1.15, 0.5)))), true);
+        g.fillStyle(SKIN.eye, 0.22 + 0.1*pulse); g.fillPoints(pts(rr(hx*1.1, hy*1.1, 0.6)), true);
+        g.fillStyle(SKIN.eye, 0.35 + 0.15*pulse); g.fillPoints(pts(rr(hx*0.75, hy*0.75, 0.7)), true);
+        if(this.isNightLit()){ const gB = this.gBotGlow || this.gGlowLo; gB.fillStyle(SKIN.eye, Math.min(1, (0.25 + 0.12*pulse)*GLOW_UNDER_TINT)); gB.fillPoints(pts(rr(hx*1.4, hy*1.4, 0.6)), true); }
+        return; }
       const pz = 5 + lift, pr = G.pr || 7.5;   // (G.pr: a build's bigger pads -- the Neon Hover tank's)
       const ring = (x, y, z, rr, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(x + Math.cos(q)*rr, y + Math.sin(q)*rr, z)); } return o; };
       const pulse = 0.5 + 0.5*Math.sin(t*0.006 + c.x);
