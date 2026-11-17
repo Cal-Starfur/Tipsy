@@ -78310,6 +78310,15 @@ marinaEntry(),
     .concat(RIM_STORES.filter(st => st.site === 'Palmline Tower').map(st => { const r = palmlineStoreSpan(st), dm = (r[0] + r[1])/2;
       return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name, share: st.side }; })),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
+  /* ITS RED LIGHTS AFTER DARK (pt5): the mast's beacon, a slow flash, and a steady obstruction light at each front corner of the
+     roof -- small live items over the tower's own piece (over: its tag), fading with it; dark and cached by day (the draw's lamps).
+     on(t): lit now; glow: its light in the world (the rim queue's glowInWorld), r world units */
+  live: (() => { const Q = PALMLINE_PLAN, ma = (Q.TA0 + Q.TA1)/2, mb = (Q.TB + Q.TF)/2, zt = Q.CROWN + 226, zc = Q.TOP + 30;
+    const dark = () => nightLevel() < 0.3;
+    return [{ a: ma, b: mb, z: zt, over: 'tower', on: t => !dark() && (t % 2000) < 750, glow: { r: 70, col: 0xff3b2a },
+              draw(){ ball(ma, mb, zt, 4.8, '#ff3b2a', '#ffc0b0'); } }]
+      .concat([Q.TA0 + 8, Q.TA1 - 8].map(a => ({ a, b: Q.TF - 1, z: zc, over: 'tower', on: () => !dark(), glow: { r: 34, col: 0xff4030 },
+              draw(){ ball(a, Q.TF - 1, zc, 3.2, '#ff4a38', '#ffc8b8'); } }))); })(),
   groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
   vol: palmlineVol(),
   head:'Palmline Tower, the rim lot west of the garage',
@@ -78356,7 +78365,7 @@ marinaEntry(),
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    items.push({ a: TA0, b: TB, view: true, shell: true, share: 'T', fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
+    items.push({ a: TA0, b: TB, view: true, shell: true, share: 'T', tag: 'tower', fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -78386,17 +78395,62 @@ marinaEntry(),
       for(let i = 1; i < sideBays; i++)
         S(seenA + (FLANK_RIGHT ? 0.5 : -0.5), TB + i*sb - 3, TB + i*sb + 3, PH, TOP, shade(mull, .85));
     }
-    /* ---- THE CROWN: a setback plant storey, the name, a mast ---- */
+    /* ---- THE CROWN (pt5): a setback plant storey with the name on it, the plant on its roof, the cleaning gantry on the
+       tower's roof beside it, and the mast. All still, all cached; the red lights are the entry's `live` (lit after dark) ---- */
     if(inView(TA0, TA1, TB, TF, TOP, CROWN + 260)){
+      const pA0 = TA0 + 120, pA1 = TA1 - 120, pB0 = TB + 60, pB1 = TF - 50;            // the plant room
+      const grey = '#c9cbc6', greyS = '#b0b3ad', greyD = '#9a9d97', steel = '#8c959a', vent = '#3d4448';
       T(TA0, TA1, TB, TF, TOP, '#a9a397');
-      box(TA0, TA1, TF - 4, TF + 2, TOP, TOP + 26, stoneL, stone, stoneD);     // the parapet
-      box(TA0 + 120, TA1 - 120, TB + 60, TF - 50, TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
-      for(let a = TA0 + 150; a < TA1 - 140; a += 36) F(a, a + 18, TOP + 14, CROWN - 14, '#a69f91', null, 0, TF - 49.5);   // its louvres
+      T(TA0 + 14, TA1 - 14, TB + 14, TF - 14, TOP + 0.4, '#b3ada1');  // its membrane inside the upstand
+      /* THE GANTRY'S RAIL along the front strip, and the gantry (the window cleaners' cradle) parked on it at the seen end */
+      const rb = pB1 + 24;
+      for(const db of [-12, 12]) box(TA0 + 40, TA1 - 40, rb + db - 2, rb + db + 2, TOP, TOP + 5, '#7d858a', '#6d7479', '#5c6267');
+      { const ga = FLANK_RIGHT ? TA1 - 80 : TA0 + 80, Y = ['#e2b23c', '#c99a2c', '#b0861f'];
+        box(ga - 30, ga + 30, rb - 18, rb + 18, TOP + 5, TOP + 18, ...Y);                  // its truck, on the rail
+        box(ga - 7, ga + 7, rb - 7, rb + 7, TOP + 18, TOP + 84, ...Y);                     // its post
+        box(ga - 6, ga + 6, rb - 20, TF + 30, TOP + 84, TOP + 94, ...Y); }                  // its jib, out over the edge
+      /* THE PLANT ROOM: louvred all round, the name on its face */
+      box(pA0, pA1, pB0, pB1, TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
+      for(let a = pA0 + 30; a < pA1 - 20; a += 36) F(a, a + 18, TOP + 14, CROWN - 14, '#a69f91', null, 0, pB1 + 0.5);   // its louvres
+      { const sa = FLANK_RIGHT ? pA1 : pA0;
+        for(let b = pB0 + 30; b < pB1 - 20; b += 36) S(sa + (FLANK_RIGHT ? 0.5 : -0.5), b, b + 18, TOP + 14, CROWN - 14, shade('#a69f91', .9));
+        S(sa + (FLANK_RIGHT ? 0.6 : -0.6), (pB0 + pB1)/2 - 22, (pB0 + pB1)/2 + 22, TOP, TOP + 62, '#6b7176'); }      // the door onto the roof
       slab(TA0 + 200, TA1 - 200, CROWN - 70, CROWN - 10, TF - 46, TF - 54, teal, shade(teal, .72), shade(teal, 1.2));
       blockWordIn('PALMLINE', TA0 + 230, TA1 - 230, CROWN - 64, CROWN - 16, TF - 46, '#ffffff', null);
-      const ma = (TA0 + TA1)/2, mb = (TB + TF)/2;
-      cyl(ma, mb, CROWN, CROWN + 220, 5, '#9aa3a8');
-      ball(ma, mb, CROWN + 226, 7, '#d8483a', '#ff8a7a');
+      F(pA0, pA1, CROWN - 4, CROWN, shade('#cfc9bb', 1.06), null, 0, pB1 + 0.6);      // its coping
+      /* ON ITS ROOF, back to front: two cooling towers at the back, the mast in the middle, the tank and the stacks in front */
+      const ma = (TA0 + TA1)/2, mb = (TB + TF)/2, Z = CROWN;
+      for(const ca of [pA0 + 140, pA1 - 140 - 220]){
+        box(ca, ca + 220, pB0 + 30, pB0 + 160, Z, Z + 54, grey, greyS, greyD);
+        for(let a = ca + 10; a < ca + 214; a += 12) F(a, a + 6, Z + 8, Z + 48, greyD, null, 0, pB0 + 160.4);   // its intake slats
+        for(const fa of [ca + 55, ca + 165]){
+          cyl(fa, pB0 + 95, Z + 54, Z + 64, 44, steel);                                      // the fan's shroud
+          ball(fa, pB0 + 95, Z + 64.5, 30, vent); }
+      }
+      /* the mast: a tapering steel pole on a plinth, two platforms, dishes and whips; its beacon's lamp is dark here (live: lit at night) */
+      box(ma - 22, ma + 22, mb - 22, mb + 22, Z, Z + 10, '#b9b3a4', '#a59e8e', '#918a7b');
+      cyl(ma, mb, Z + 10, Z + 120, 7, '#9aa3a8');
+      cyl(ma, mb, Z + 120, Z + 222, 4.5, '#a8b0b4');
+      for(const pz of [Z + 70, Z + 150]) cyl(ma, mb, pz, pz + 3, 16, '#7d858a');
+      for(const [da, pz] of [[-1, 82], [1, 162]]){
+        const dx = ma + da*20;
+        cyl(dx, mb + 2, Z + pz - 12, Z + pz + 12, 11, '#eceae4');                            // a dish, side on
+        ball(dx, mb + 4, Z + pz, 4, '#c9c6be'); }
+      for(const da of [-10, 10]) tube(ma + da, mb, Z + 150, ma + da, mb, Z + 196, 0.7, '#c9ced2');
+      ball(ma, mb, Z + 226, 7, '#6a2a26', '#8a3a34');
+      /* the water tank, on legs, and the boiler stacks */
+      { const wa = pA1 - 220, wb = pB1 - 90;
+        for(const [la, lb] of [[-26, -26], [26, -26], [-26, 26], [26, 26]]) tube(wa + la, wb + lb, Z, wa + la, wb + lb, Z + 30, 1.6, steel);
+        cyl(wa, wb, Z + 30, Z + 92, 40, '#d9d6cd');
+        cyl(wa, wb, Z + 92, Z + 96, 42, '#c4c0b6'); }
+      for(const sa of [pA0 + 200, pA0 + 240]){
+        cyl(sa, pB1 - 70, Z, Z + 70, 9, '#a8acaa');
+        cyl(sa, pB1 - 70, Z + 70, Z + 74, 11, '#6d7479'); }
+      /* the parapet last: it stands in front of all of it -- but for the gantry's cradle, hung out over the face on its cables */
+      box(TA0, TA1, TF - 4, TF + 2, TOP, TOP + 26, stoneL, stone, stoneD);
+      { const ga = FLANK_RIGHT ? TA1 - 80 : TA0 + 80;
+        for(const da of [-14, 14]) tube(ga + da, TF + 26, TOP + 84, ga + da, TF + 26, TOP + 46, 0.6, '#5c6267');
+        box(ga - 22, ga + 22, TF + 18, TF + 34, TOP + 30, TOP + 46, '#eceae4', '#d6d3cb', '#c1beb5'); }
     }
     } });
 
@@ -112571,7 +112625,7 @@ class WorldScene extends Phaser.Scene {
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       /* (a rim site with a walk-in room of its own -- Tide Pool Elementary: its `shell` pieces ease off with the generic
          pocket service, pocketShellK, as a hood landmark's; the mall keeps its own, mallShellK) */
-      let _overD = null, _overS = null;
+      let _overD = null, _overS = null, _tagD = null;
       if(items) items.forEach((it, n) => {
         /* (seen from inside, a prop that would stand between the camera and the room (cutHide): fading out with the
            anchors' shells, mallShellK, not gone in a frame -- Sir, 2026-10-22, "the tall part disappeared") */
@@ -112596,6 +112650,7 @@ class WorldScene extends Phaser.Scene {
         }
         if(it.overDoors) _overD = dep;                                              // (a canopy over its live doors: they go just under it, below)
         if(it.overShop) (_overS || (_overS = new Map())).set(it.overShop, dep);   // (a shop's awning over its glass pair: the pair goes just under it)
+        if(it.tag) (_tagD || (_tagD = new Map())).set(it.tag, { dep, sk });          // (a tagged piece: its live parts go just over it, faded with it -- `live`)
         if(sk < 0.002) return;
         /* (a walk-in's shell goes through walkinShellQ, so its room is seen through its openings just under it: walkinThrough) */
         /* (registered as the shell of each room it covers -- seen from the street, each room's glass shows its room just under it: walkinThrough) */
@@ -112635,6 +112690,26 @@ class WorldScene extends Phaser.Scene {
         const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = ov != null && !d.bay ? Math.min(own, ov - 1e-3*(i + 1)) : own;
         vq.push({ depth, fn: dk < 1 ? (g) => this.withFade(g, dk, () => draw(g)) : (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
+      /* ITS MOVING PARTS (an entry's `live`, as the hood landmarks' -- Palmline Tower's red lights, pt5): small live items a hair over the
+         piece they stand on (L.over: that piece's tag), faded with it, culled off screen; L.on(t) false draws nothing; L.glow lights the
+         world round it (glowInWorld) by night. The rest stays in the cache (CLAUDE.md) */
+      if(_ent && _ent.live && !deck){ const t = performance.now(), nl = nightLevel();
+        _ent.live.forEach((L, i) => {
+          if(L.on && !L.on(t)) return;
+          const tg = L.over ? _tagD && _tagD.get(L.over) : null, k = tg ? tg.sk : 1;
+          if((L.over && !tg) || k < 0.002) return;
+          const q = fr.toWorld(L.a, L.b), z = (L.z || 0)*1.5, r = (L.glow && L.glow.r) || 60;
+          if(!this.visWorldPt(q.x, q.y, r + 40, z + r)) return;
+          const depth = tg ? tg.dep + 1e-4*(i + 1) : q.x + q.y + 0.5;
+          const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => L.draw(t) }, fr.flank);
+          vq.push({ depth, fn: k < 1 ? (g) => this.withFade(g, k, () => draw(g)) : draw });
+          if(L.glow && nl > 0.02) vq.push({ depth: depth + 5e-5, fn: () => this.glowInWorld((gg, fill) => {
+            const c = this.W(q.x, q.y, z), K = this.K, a = nl*k, col = L.glow.col;
+            fill(gg, col, 0.10*a); gg.fillCircle(c.x, c.y, r*K);
+            fill(gg, col, 0.22*a); gg.fillCircle(c.x, c.y, r*0.42*K);
+            fill(gg, 0xffd8d0, 0.55*a); gg.fillCircle(c.x, c.y, r*0.12*K); }) });
+        });
+      }
       /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
          into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
          shut glass): each its own door state, parted for the crowd and anyone listed coming up to it (shopDoorOpen),
