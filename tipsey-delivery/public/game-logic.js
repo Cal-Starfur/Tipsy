@@ -127149,7 +127149,7 @@ class WorldScene extends Phaser.Scene {
         if(SKP === 'ice') this.monsterIceCrystals(P, K);
         if(SKP === 'wings'){ this.monsterWing(nearSide, P, K, vis); this.monsterDragonHorns(P, K, nearSide); }
         if(SKP === 'stinger') this.monsterScorpTail(P, K, frontSeen ? 'high' : 'all', bobZ);
-        if(SKP === 'antennae') for(const sb of [-nearSide, nearSide]){ const bob = Math.sin(now*0.005 + sb)*1.5, A = P(lx - 5, sb*3, zt), B = P(lx - 9, sb*8, zt + 17 + bob);
+        if(SKP === 'antennae') for(const sb of [-nearSide, nearSide]){ const bob = Math.sin(now*0.005 + sb)*1.5, ox2 = LID.ox || 0, A = P(ox2 + 1, sb*2.2, zt - 0.3), B = P(ox2 - 2, sb*7, zt + 16 + bob);   // (rooted on his dome's flat top, not out over its slope -- Sir, 2026-11-17)
           g.lineStyle(Math.max(1, 1.6*K), 0x3a1f5a, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(0x6b3fa0, 1); g.fillCircle(B.x, B.y, 3.6*K); g.fillStyle(0xc8ff6a, 0.75 + 0.25*Math.sin(now*0.008 + sb)); g.fillCircle(B.x - 0.4*K, B.y - 0.4*K, 2.7*K); g.fillStyle(0xffffff, 0.8); g.fillCircle(B.x - 0.9*K, B.y - 0.9*K, 0.6*K); }
         if(SKP === 'mast'){ const xm = 0, zt2 = zt + 24, fr = vis(1, 0, 0);   // (a mast up out of his cab, two yards, a full sail bellied forward, a crow's nest)
           const pole = () => { const A = P(xm, 0, zt), B = P(xm, 0, zt2); g.lineStyle(Math.max(1, 2*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
