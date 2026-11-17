@@ -45081,7 +45081,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
       STRIPE: { z0: 26, z1: 29 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 60], zmap: z => 22 + (z - 14)*0.38, WHEELS: { r: 8, W2: 7, xs: [-14, 14], side: 23, style: 'mesh', tread: 'knobby' } } },
   /* (five more, to ten -- Sir, 2026-11-17) */
   { id: 'rover:miner', build: 'rover', name: 'Moon Miner', cents: 1000, body: 0xf2c02e, stripe: 0x16171b, noStripe: true, print: 'rvMiner', noSolar: true, noDish: true, lidCol: [0x5d646c, 0x4a5057, 0x3b4048], roverPart: 'drill', noMouth: true, mastFlag: true, eye: 0xffb02a, trim: { rimCol: 0x16171b } },
-  { id: 'rover:solar', build: 'rover', name: 'Solar Wings', cents: 1000, body: 0xd9a93c, stripe: 0x1f3a7a, print: 'rvApollo', noDish: true, roverPart: 'wings', ringFlag: false, eye: 0x7ad8ff, trim: { rimCol: 0xd9a93c } },
+  { id: 'rover:solar', build: 'rover', name: 'Solar Wings', cents: 1000, body: 0xd9a93c, stripe: 0x1f3a7a, print: 'rvApollo', roverPart: 'wings', eye: 0x7ad8ff, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:cheese', build: 'rover', name: 'Cheese Moon', cents: 1000, body: 0xf2c84a, stripe: 0xf2c84a, noStripe: true, print: 'rvCheese', noSolar: true, noDish: true, noFlag: true, lidCol: [0xf6d468, 0xe8c050, 0xc89a30], eye: 0x8a5a1a, trim: { rimCol: 0xe8a23a } },
   { id: 'rover:europa', build: 'rover', name: 'Europa Ice', cents: 1000, body: 0xe8f4fc, stripe: 0x5ab8e8, print: 'rvEuropa', noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
   { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
@@ -129699,8 +129699,19 @@ class WorldScene extends Phaser.Scene {
       const hull = convexHull(base.concat([tip])); g.fillStyle(0x8d959c, 1); g.fillPoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true); g.lineStyle(Math.max(1, 1*K), 0x3b4048, 1); g.strokePoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
       g.lineStyle(Math.max(1, 1.8*K), 0x3b4048, 1); for(let f = 0; f < 3; f++){ const o = []; for(let k = 0; k <= 12; k++){ const u = k/12, a = f*2.094 + u*Math.PI*2.4 + now4*0.01, r = R0*(1 - u); o.push(P(x0 + 2 + u*L2, Math.cos(a)*r, zc + Math.sin(a)*r)); }
         g.strokePoints(o.map(q => new Phaser.Geom.Point(q.x, q.y)), false); } }
-    if(RP === 'wings' && part === 'far') panel(-nearSide);   // (Solar Wings: a panel off each side -- the far one before him)
-    if(RP === 'wings' && part === 'near') panel(nearSide);
+    /* SOLAR WINGS (second pass -- Sir, 2026-11-17): a big wing off each side, hinged at his top edge and tilted up toward the sun -- a gold
+       frame, three rows of six dark blue cells, a strut under it from his flank to its middle; the far one before him, the near after */
+    const wing = sb => { const zi = BODY.z1 - 1.5, yi = sb*(BODY.hy + 0.8), yo = sb*(BODY.hy + 22), zo = zi + 8, x0 = -BODY.hx + 3, x1 = BODY.hx - 3, Y = u => yi + (yo - yi)*u, Z = u => zi + (zo - zi)*u;
+      const n = [0, -sb*(zo - zi), yo - yi], up = vis(n[0], n[1], n[2]) === (sb > 0) ? true : vis(0, -sb*(zo - zi), (yo - yi));   // (the cell face: its normal points up and in)
+      const lit = vis(0, -(zo - zi)*sb, Math.abs(yo - yi));
+      { const A = P(0, sb*BODY.hy, BODY.z0 + 6), B = P(0, Y(0.55), Z(0.55) - 0.6); g.lineStyle(Math.max(1, 2.2*K), 0x9aa0a6, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its strut)
+      quad([[x0, Y(0), Z(0)], [x1, Y(0), Z(0)], [x1, Y(1), Z(1)], [x0, Y(1), Z(1)]], lit ? 0xd8b04a : 0x8a6a2a);
+      if(lit) for(let i = 0; i < 6; i++) for(let j = 0; j < 3; j++){ const xa = x0 + 1 + i*(x1 - x0 - 2)/6, xb = xa + (x1 - x0 - 2)/6 - 0.8, ua = 0.05 + j*0.31, ub = ua + 0.27;
+        quad([[xa, Y(ua), Z(ua) + 0.05], [xb, Y(ua), Z(ua) + 0.05], [xb, Y(ub), Z(ub) + 0.05], [xa, Y(ub), Z(ub) + 0.05]], (i + j) % 2 ? 0x1f3b73 : 0x26468a); }
+      g.lineStyle(Math.max(1, 1*K), 0x6a5420, 1); g.strokePoints([[x0, Y(0), Z(0)], [x1, Y(0), Z(0)], [x1, Y(1), Z(1)], [x0, Y(1), Z(1)]].map(v => { const q = P(...v); return new Phaser.Geom.Point(q.x, q.y); }), true);
+      for(const x of [x0 + 2, x1 - 2]){ const q = P(x, yi, zi); g.fillStyle(0x5d646c, 1); g.fillCircle(q.x, q.y, 1.6*K); } };   // (its hinges)
+    if(RP === 'wings' && part === 'far') wing(-nearSide);
+    if(RP === 'wings' && part === 'near') wing(nearSide);
     /* the Space Tug's docking clamps: a pair of C-claws out ahead of his nose, a grey arm and an orange jaw each */
     if(RP === 'tug' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = (BODY.z0 + BODY.z1)/2;
       for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 5);
