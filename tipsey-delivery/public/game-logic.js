@@ -128099,7 +128099,7 @@ class WorldScene extends Phaser.Scene {
          lid the body's own size, flush on it, glass too */
       const GT = c => _pmix(c, 0xb8e8f8, 0.55), gl = { cTop: GT(BPW.top), cLt: GT(BPW.lt), cDk: GT(BPW.dk), cBottom: GT(BPW.dk), print: null, alpha: 0.55 };
       for(const [a, b, h, c] of [[-28, -14, 0, 0xc89a5a], [-28, 10, 0, 0xb08048], [-8, -12, 0, 0xd8a868], [-8, 12, 0, 0xc89a5a], [14, -2, 0, 0xb08048], [-20, -2, 14, 0xd8a868], [2, 4, 14, 0xc89a5a]]) box(a - 8, a + 8, b - 8, b + 8, zl + 16 + h, zl + 29 + h, c);   // (parcels inside)
-      hull(Object.assign({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 }, gl));
+      hull(Object.assign({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 1, bevIn: 0.8 }, gl));   /* (its top edge square, so the lid sits right on it -- Sir, 2026-11-17) */
       hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
       if(!front){ const q = P(-50, 0, zl + 36); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.4); g.fillCircle(q.x, q.y, 9*K*2.4/2.4*2); g.fillStyle(0xc8ffff, 0.9); g.fillCircle(q.x, q.y, 4*K*2); }   // (its thruster, seen from behind)
       { const N2 = 20, ph = Math.floor(t/90); for(let i = 0; i < N2; i++){ const a = i/N2*Math.PI*2, ca = Math.cos(a), sa = Math.sin(a); if(!sees(ca, sa, 0)) continue; const k = Math.min(50/Math.max(Math.abs(ca), 0.01), 32/Math.max(Math.abs(sa), 0.01))*0.92, q = P(ca*k, sa*k, zl + 31.5);
