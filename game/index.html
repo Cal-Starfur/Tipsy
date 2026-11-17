@@ -129805,10 +129805,16 @@ class WorldScene extends Phaser.Scene {
     const onFront = (pts, col, al) => { if(front) { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([b, zz]) => PT(P(hx + 0.4, b, zz))), true); } };
     const oval = (cb, cz, rb, rz, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const th = i/n*Math.PI*2; o.push([cb + Math.cos(th)*rb, cz + Math.sin(th)*rz]); } return o; };
     const brim = (zz, rr, col) => { const o = []; for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; o.push(PT(P(Math.cos(th)*rr, Math.sin(th)*rr*0.95, zz))); } g.fillStyle(_pdk(col, 0.7), 1); g.fillPoints(o.map(q => new Phaser.Geom.Point(q.x, q.y + 1.2*K*2.4)), true); g.fillStyle(col, 1); g.fillPoints(o, true); };
-    if(c === 'penguin'){
-      if(st === 'body'){ onFront(oval(0, 52, 11.5, 30), 0xf6f6f2);
-        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.6); g.fillStyle(0x16171b, 1); g.fillPoints([P(6, bb, 84), P(-4, bb + sb*7, 46), P(-9, bb + sb*4, 48), P(-2, bb, 80)].map(PT), true); } }   // (its belly, its flippers)
-      if(st === 'face' && front){ g.fillStyle(0xf28a1a, 1); g.fillPoints([P(hx + 0.6, -3.5, 79), P(hx + 0.6, 3.5, 79), P(hx + 6, 0, 76.5)].map(PT), true); g.fillStyle(0xc8640e, 1); g.fillPoints([P(hx + 0.6, -3.5, 79), P(hx + 0.6, 3.5, 79), P(hx + 0.6, 0, 75)].map(PT), true); }
+    if(c === 'penguin'){   /* (second pass -- Sir, 2026-11-17): a white face mask round his eyes over the belly, a bigger two-tone beak, real flippers
+         off each shoulder (the far one behind him), orange feet out under his front */
+      const flipper = sb => { const bb = sb*(hy + 0.4), S = [[8, 0, 90], [-4, 2, 86], [-14, 9, 52], [-9, 11, 42], [2, 6, 52], [8, 2, 76]].map(([a, o, zz]) => PT(P(a, bb + sb*o, zz)));
+        g.fillStyle(0x16171b, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 1*K), 0x3a3d45, 1); g.strokePoints(S, true); };
+      if(st === 'back'){ flipper(-nearB);
+        if(front) for(const b of [-7, 7]){ const F = [[hx - 4, b - 3.5], [hx + 7, b - 4.5], [hx + 8, b], [hx + 7, b + 4.5], [hx - 4, b + 3.5]].map(([a, bb]) => PT(P(a, bb, 0.6))); g.fillStyle(0xf28a1a, 1); g.fillPoints(F, true); } }
+      if(st === 'body'){ onFront(oval(0, 87, 13, 9.5), 0xf6f6f2); flipper(nearB); }
+      if(st === 'face' && front){ onFront(oval(0, 50, 12.5, 30), 0xf6f6f2);   // (its belly over the mouth light)
+        const B = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a, b, zz]) => PT(P(a, b, zz))), true); };
+        B([[hx + 0.6, -4.5, 79.5], [hx + 0.6, 4.5, 79.5], [hx + 8, 0, 77]], 0xffa02a); B([[hx + 0.6, -4.5, 79.5], [hx + 0.6, 4.5, 79.5], [hx + 8, 0, 77], [hx + 0.6, 0, 74.5]], 0xd8701a); }
       return; }
     if(c === 'pirate'){
       if(st === 'face' && front){ g.lineStyle(Math.max(1, 1.4*K), 0x16171b, 1); { const A = P(hx + 0.5, -13, 93), B = P(hx + 0.5, 13, 81); g.lineBetween(A.x, A.y, B.x, B.y); }
