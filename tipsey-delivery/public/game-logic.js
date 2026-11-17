@@ -128041,6 +128041,18 @@ class WorldScene extends Phaser.Scene {
     const front = sees(1, 0, 0), DARK = 0x2a2f36, BRASS = 0xd8b04a, CHROME = 0xc9ced4, WOOD = 0x8a5a2a;
     const order = (rear, fwd) => { if(front){ rear(); fwd(); } else { fwd(); rear(); } };
     const wheels = (side, xs, r, bw, w) => { for(const a of xs) V.wheel(a, side*bw, r, w, r, wheelPhase); };
+    /* a wagon wheel (the 1900s'): an iron tyre, a wooden felloe, twelve spokes turning with the road, a hub with its cap -- its outer face
+       toward the eye, its back face behind it */
+    const spoked = (a, side, bw, r, w) => { const ring = (bb, rad, n = 18) => { const o = []; for(let i = 0; i < n; i++){ const ph = i/n*Math.PI*2; o.push(P(a + Math.cos(ph)*rad, bb, r + Math.sin(ph)*rad)); } return o; };
+      const bo = side*(bw + w/2), bi = side*(bw - w/2), face = sees(0, side, 0) ? bo : bi;
+      Q(ring(side*bw, r), 0x2a2f36); Q(ring(face, r), 0x3b4048);
+      Q(ring(face + side*0.05, r*0.86), 0x8a5a2a); Q(ring(face + side*0.1, r*0.72), 0x2a2f36);
+      const ph0 = (wheelPhase || 0)*0.8; for(let i = 0; i < 12; i++){ const ph = ph0 + i/12*Math.PI*2; line([a + Math.cos(ph)*r*0.16, face + side*0.15, r + Math.sin(ph)*r*0.16], [a + Math.cos(ph)*r*0.76, face + side*0.15, r + Math.sin(ph)*r*0.76], 0xb07a3a, 1.4); }
+      Q(ring(face + side*0.6, r*0.2, 10), 0x6a4020); Q(ring(face + side*0.9, r*0.1, 8), 0xd8b04a); };
+    /* a fender: an arch of quads over a wheel at a, from b0 to b1 (its outward lip outlined), lit where it faces up */
+    const fender = (a, r, b0, b1, col, th0 = 0.12, th1 = 0.88) => { const N = 9, R = r + 2.2, pt = (k, bb) => { const th = (th0 + k/N*(th1 - th0))*Math.PI; return P(a + Math.cos(th)*R, bb, r + Math.sin(th)*R); };
+      for(let k = 0; k < N; k++){ const tm = (th0 + (k + 0.5)/N*(th1 - th0))*Math.PI; if(!sees(Math.cos(tm), 0, Math.sin(tm))) continue; Q([pt(k, b0), pt(k + 1, b0), pt(k + 1, b1), pt(k, b1)], Math.sin(tm) > 0.8 ? _pmix(col, 0xffffff, 0.12) : col); }
+      const bo = Math.abs(b1) > Math.abs(b0) ? b1 : b0; if(sees(0, Math.sign(bo), 0)){ const o = []; for(let k = 0; k <= N; k++){ const q = pt(k, bo); o.push(new Phaser.Geom.Point(q.x, q.y)); } g.lineStyle(Math.max(1, 1*K*2.4), _pdk(col, 0.6), 1); g.strokePoints(o, false); } };
     const arcRoof = (a0, a1, hw, z0, h, col, dk) => { const N = 8;
       for(let i = 0; i < N; i++){ const t0 = Math.PI*i/N, t1 = Math.PI*(i + 1)/N, tm = (t0 + t1)/2, cb = Math.cos(tm), sz = Math.sin(tm); if(!sees(0, cb, sz)) continue;
         Q([P(a0, hw*Math.cos(t0), z0 + h*Math.sin(t0)), P(a1, hw*Math.cos(t0), z0 + h*Math.sin(t0)), P(a1, hw*Math.cos(t1), z0 + h*Math.sin(t1)), P(a0, hw*Math.cos(t1), z0 + h*Math.sin(t1))], sz > 0.7 ? col : dk); }
@@ -128051,59 +128063,102 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, zz]) => P(a, sb*hw, zz)), sb === nearB ? colSide : _pdk(colSide, 0.88)); };
     if(era === 'cg2100'){   /* the hover freighter: no wheels -- up on four glowing pads, bobbing */
       const zl = 10 + Math.sin(t*0.003)*1.5; shadow(50, 32);
-      for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, zl + 4); g.fillStyle(0x5fe8ff, 0.35); g.fillEllipse(q.x, q.y, 22*K, 11*K); g.fillStyle(0xc8ffff, 0.6); g.fillEllipse(q.x, q.y, 10*K, 5*K); }
+      /* (second pass -- Sir, 2026-11-17): bright pads and their beams to the road, a thruster glowing on its back, a glass cargo pod with
+         parcels inside, a light strip chasing round its waist */
+      for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, 1), q2 = P(a, b, zl + 10); g.fillStyle(0x5fe8ff, 0.25); g.fillEllipse(q.x, q.y, 34*K*2.4/2.4, 17*K); g.fillStyle(0x5fe8ff, 0.18);
+        g.fillTriangle(q2.x - 6*K, q2.y, q2.x + 6*K, q2.y, q.x, q.y); g.fillStyle(0xc8ffff, 0.75); g.fillEllipse(q2.x, q2.y, 12*K, 6*K); }
       hull({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 });
       hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
-      hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xe8f0f6, cLt: 0xd0dce6, cDk: 0xa8b8c6, print: null });
+      if(!front){ const q = P(-50, 0, zl + 36); g.fillStyle(0x5fe8ff, 0.4); g.fillCircle(q.x, q.y, 9*K*2.4/2.4*2); g.fillStyle(0xc8ffff, 0.9); g.fillCircle(q.x, q.y, 4*K*2); }   // (its thruster, seen from behind)
+      { const N2 = 20, ph = Math.floor(t/90); for(let i = 0; i < N2; i++){ const a = i/N2*Math.PI*2, ca = Math.cos(a), sa = Math.sin(a); if(!sees(ca, sa, 0)) continue; const k = Math.min(50/Math.max(Math.abs(ca), 0.01), 32/Math.max(Math.abs(sa), 0.01))*0.92, q = P(ca*k, sa*k, zl + 31.5);
+        g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : 0x8af4ff, 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
+      for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
+      hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
       this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); return; }
     shadow(50, 34);
     if(era === 'cg1900'){
-      const BW = 40; wheels(-nearB, [-30], 18, BW, 6); wheels(-nearB, [32], 13, BW, 6);
+      /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
+         rail, a skirt board; rope ties down the canvas; a lantern hung off the back and a spare wheel strapped behind */
+      const BW = 38, DW = 0x5a3418;
+      spoked(-30, -nearB, BW, 18, 5); spoked(32, -nearB, BW, 13, 5);
       box(-46, 46, -24, 24, 22, 28, DARK);
+      const spare = () => { const o = []; for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2; o.push(P(-46.5, Math.cos(ph)*12, 46 + Math.sin(ph)*12)); }
+        if(sees(-1, 0, 0)){ Q(o, 0x3b4048); const o2 = o.map((q, i) => { const ph = i/16*Math.PI*2; return P(-46.6, Math.cos(ph)*10, 46 + Math.sin(ph)*10); }); Q(o2, 0x8a5a2a); for(let i = 0; i < 6; i++){ const ph = i/6*Math.PI; line([-46.7, Math.cos(ph)*9, 46 + Math.sin(ph)*9], [-46.7, -Math.cos(ph)*9, 46 - Math.sin(ph)*9], 0xb07a3a, 1.2); } } };
+      const lantern = () => { const q = P(-45, nearB*26, 70), q2 = P(-45, nearB*26, 63); line([-44, nearB*26, 72], [-46, nearB*26, 72], DARK, 1.2); g.fillStyle(0x2a2f36, 1); g.fillRect(q.x - 2.2*K*2.4, q.y, 4.4*K*2.4, (q2.y - q.y)); g.fillStyle(0xffd86a, 1); g.fillRect(q.x - 1.3*K*2.4, q.y + 1*K*2.4, 2.6*K*2.4, (q2.y - q.y) - 2*K*2.4); };
       const body = () => { hull({ hx: 44, hy: 30, z0: 28, z1: 66, ch: 2, bev: 1, bevIn: 0.8 });
-        for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [38, 48, 58]) line([-44, sb*30.3, zz], [44, sb*30.3, zz], _pdk(BPW.dk, 0.7), 1);
-        this.tipseyFace(V, 44, 54, 1, { mouthZ: 36 }); };
-      const seat = () => { box(30, 46, -24, 24, 66, 71, WOOD); box(43, 46, -24, 24, 66, 82, _pdk(WOOD, 0.85));
-        for(const sb of [-1, 1]){ this.avLathe(V, 46, sb*27, [[62, 3], [69, 3]], BRASS, null, 8); const q = P(47.5, sb*27, 65.5); if(front){ g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 1.8*K*2.4); } } };
-      const top = () => { arcRoof(-44, 28, 30, 66, 26, 0xf3ead2, 0xd9cfb4); for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], WOOD, 1.2); } };
-      body(); order(top, seat);
-      wheels(nearB, [-30], 18, BW, 6); wheels(nearB, [32], 13, BW, 6); return; }
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*30.4; for(const zz of [38, 48, 58]) line([-44, bb, zz], [44, bb, zz], _pdk(BPW.dk, 0.7), 1);
+          Q([P(-44, bb, 28), P(44, bb, 28), P(44, bb, 32), P(-44, bb, 32)], DW); Q([P(-44, bb, 63), P(44, bb, 63), P(44, bb, 67), P(-44, bb, 67)], DW);
+          for(const a of [-43, -14, 14, 43]) Q([P(a - 1.6, bb + sb*0.1, 28), P(a + 1.6, bb + sb*0.1, 28), P(a + 1.6, bb + sb*0.1, 67), P(a - 1.6, bb + sb*0.1, 67)], DW); }
+        if(front){ const bb = 44.3; Q([P(bb, -30, 28), P(bb, 30, 28), P(bb, 30, 32), P(bb, -30, 32)], DW); }
+        this.tipseyFace(V, 44, 50, 1, { mouthZ: 36 }); };
+      const seat = () => { box(30, 46, -24, 24, 66, 71, 0x8a5a2a); box(43, 46, -24, 24, 66, 82, 0x6a4020);
+        for(const sb of [-1, 1]){ this.avLathe(V, 46, sb*27, [[62, 3], [69, 3]], BRASS, null, 8); this.avLathe(V, 46, sb*27, [[69, 3.4], [71, 1]], BRASS, null, 8); const q = P(47.5, sb*27, 65.5); if(front){ g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 1.8*K*2.4); } } };
+      const top = () => { arcRoof(-44, 28, 30, 66, 26, 0xf3ead2, 0xd9cfb4);
+        for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], 0x8a6a3a, 1.6); }
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-31, -13, 5, 23]) line([a, sb*30.3, 67], [a, sb*30.6, 63], 0x8a6a3a, 1.2); };   // (the ties down to the rail)
+      if(front){ spare(); if(nearB > 0 === sees(0, 1, 0)) lantern(); body(); top(); seat(); } else { seat(); body(); top(); spare(); lantern(); }
+      spoked(-30, nearB, BW, 18, 5); spoked(32, nearB, BW, 13, 5); return; }
     if(era === 'cg1920'){
-      const BW = 34; wheels(-nearB, [-30, 32], 15, BW, 6);
-      for(const sb of [-nearB, nearB]) if(sb === -nearB) box(-14, 18, sb*28, sb*37, 22, 24, DARK);
-      const cargo = () => hull({ hx: 30, hy: 28, ox: -16, z0: 24, z1: 100, ch: 3, bev: 2, bevIn: 1.6 });
-      const cab = () => { hull({ hx: 10, hy: 26, ox: 22, z0: 24, z1: 92, ch: 2, bev: 1.5, bevIn: 1.2 }); glass(32.1, -20, 20, 66, 86); if(front) this.tipseyFace(V, 32.2, 76, 0.9, {}); };
-      const hood = () => { hull({ hx: 9, hy: 16, ox: 41, z0: 30, z1: 62, ch: 3, bev: 2, bevIn: 1.6, cTop: 0x2e3138, cLt: 0x23262c, cDk: 0x16171b, print: null });
+      /* (second pass -- Sir, 2026-11-17): wooden-spoke wheels under black fenders swept down to the running boards, round brass headlamps
+         up on the fenders, a roof that overhangs the cab, a spare tyre on the cargo box's flank */
+      const BW = 33, BLK = 0x23262c;
+      const side = sb => { spoked(-30, sb, BW, 15, 5); spoked(32, sb, BW, 15, 5); fender(-30, 15, sb*(BW - 4), sb*(BW + 4), BLK); fender(32, 15, sb*(BW - 4), sb*(BW + 4), BLK, 0.12, 0.6);
+        box(-14, 18, sb*27, sb*37, 22, 24.5, BLK); };
+      side(-nearB);
+      const cargo = () => { hull({ hx: 30, hy: 28, ox: -16, z0: 24, z1: 100, ch: 3, bev: 2, bevIn: 1.6 });
+        const sb = nearB, bb = sb*28.4; if(sees(0, sb, 0)){ const o = [], o2 = []; for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2; o.push(P(-18 + Math.cos(ph)*12, bb, 62 + Math.sin(ph)*12)); o2.push(P(-18 + Math.cos(ph)*7, bb + sb*0.2, 62 + Math.sin(ph)*7)); } Q(o, BLK); Q(o2, _pdk(BPW.dk, 0.8)); } };   // (the spare)
+      const cab = () => { hull({ hx: 10, hy: 26, ox: 22, z0: 24, z1: 92, ch: 2, bev: 1.5, bevIn: 1.2 }); hull({ hx: 13, hy: 28, ox: 23, z0: 92, z1: 95, ch: 2, bev: 1, bevIn: 0.8, cTop: BLK, cLt: 0x2e3138, cDk: 0x16171b, print: null });
+        glass(32.1, -20, 20, 66, 86); if(front) this.tipseyFace(V, 32.2, 76, 0.9, {}); };
+      const hood = () => { hull({ hx: 9, hy: 16, ox: 41, z0: 30, z1: 62, ch: 3, bev: 2, bevIn: 1.6, cTop: 0x2e3138, cLt: BLK, cDk: 0x16171b, print: null });
         if(front){ Q([P(50.2, -14, 34), P(50.2, 14, 34), P(50.2, 14, 60), P(50.2, -14, 60)], BRASS); for(let bb = -11; bb <= 11; bb += 3.6) line([50.4, bb, 37], [50.4, bb, 57], 0x8a6a1a, 1); }
-        for(const sb of [-1, 1]){ this.avLathe(V, 44, sb*22, [[56, 3.4], [62, 3.4]], BRASS, null, 8); } };
+        for(const sb of [-1, 1]){ this.avLathe(V, 44, sb*24, [[44, 1.4], [50, 1.4]], 0x3b4048, null, 6); this.avLathe(V, 44, sb*24, [[50, 4], [56, 4]], BRASS, null, 10); if(front){ const q = P(48.2, sb*24, 53); g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 2.6*K*2.4); } } };
       if(front){ cargo(); cab(); hood(); } else { hood(); cab(); cargo(); }
-      box(-14, 18, nearB*28, nearB*37, 22, 24, DARK);
-      wheels(nearB, [-30, 32], 15, BW, 6); return; }
+      side(nearB); return; }
     if(era === 'cg1950'){
-      const BW = 33; wheels(-nearB, [-30, 30], 13, BW, 7);
+      /* (second pass -- Sir, 2026-11-17): skirts over the rear wheels, a chrome spear down each flank, round chrome-ringed headlamps and a
+         toothy chrome grille, a split windscreen low on the roof's brow, whitewalls */
+      const BW = 33, ww = sb => { wheels(sb, [-30, 30], 13, BW, 7); for(const a of [-30, 30]) if(sees(0, sb, 0)){ const o = []; for(let i = 0; i <= 16; i++){ const ph = i/16*Math.PI*2; const q = P(a + Math.cos(ph)*9, sb*(BW + 3.7), 13 + Math.sin(ph)*9); o.push(new Phaser.Geom.Point(q.x, q.y)); } g.lineStyle(Math.max(1, 2.4*K), 0xf4f2ec, 1); g.strokePoints(o, false); } };
+      ww(-nearB);
       const ends = sgn => box(sgn*46, sgn*52, -30, 30, 22, 29, CHROME);
       const body = () => { hull({ hx: 48, hy: 32, z0: 20, z1: 74, ch: 20, bev: 10, bevIn: 9 });
         hull({ hx: 40, hy: 28, ox: -4, z0: 74, z1: 100, ch: 18, bev: 12, bevIn: 11, cTop: 0xf6f0e0, cLt: 0xece4d0, cDk: 0xcfc6ae, print: null });
-        if(front){ for(const [b0, b1] of [[-10, -1], [1, 10]]) Q([P(36.2, b0, 78), P(36.2, b1, 78), P(36.2, b1, 94), P(36.2, b0, 94)], 0x5a8aa8); this.tipseyFace(V, 48, 52, 0.95, { mouthZ: 34 }); } };
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 22), P(-20, bb, 22), P(-20, bb, 36), P(-40, bb, 36)], BPW.top === undefined ? 0xffffff : (sb === nearB ? BPW.lt : BPW.dk)); line([-28, bb, 40], [30, bb, 44], CHROME, 1.8); }   // (the rear skirt, the chrome spear)
+        if(front){ for(const [b0, b1] of [[-9, -1], [1, 9]]) Q([P(35.6, b0, 76), P(35.6, b1, 76), P(34.4, b1, 90), P(34.4, b0, 90)], 0x5a8aa8);
+          Q([P(48.2, -9, 26), P(48.2, 9, 26), P(48.2, 9, 34), P(48.2, -9, 34)], CHROME); for(let bb = -7.5; bb <= 7.5; bb += 2.5) line([48.4, bb, 27], [48.4, bb, 33], 0x8d959c, 1);
+          for(const sb of [-1, 1]){ const q = P(48.4, sb*13, 44); g.fillStyle(0xc9ced4, 1); g.fillCircle(q.x, q.y, 3.6*K*2.4); g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 2.6*K*2.4); }
+          this.tipseyFace(V, 48, 56, 0.85, {}); } };
       if(front){ ends(-1); body(); ends(1); } else { ends(1); body(); ends(-1); }
-      wheels(nearB, [-30, 30], 13, BW, 7);
-      for(const a of [-30, 30]){ const o = []; for(let i = 0; i <= 16; i++){ const ph = i/16*Math.PI*2; const q = P(a + Math.cos(ph)*9, nearB*(BW + 3.7), 13 + Math.sin(ph)*9); o.push(new Phaser.Geom.Point(q.x, q.y)); }
-        g.lineStyle(Math.max(1, 2.4*K), 0xf4f2ec, 1); g.strokePoints(o, false); }   // (whitewalls)
-      return; }
+      ww(nearB); return; }
     if(era === 'cg1970'){
+      /* (second pass -- Sir, 2026-11-17): a roof rack with a rolled tarp, side mirrors on stalks, a sliding side-door line, round porthole
+         windows at the back, a black rubber strip on the bumpers */
       const BW = 36; wheels(-nearB, [-30, 30], 13, BW, 8);
-      const bump = sgn => box(sgn*46, sgn*50, -32, 32, 20, 27, CHROME);
+      const bump = sgn => { box(sgn*46, sgn*50, -32, 32, 20, 27, CHROME); box(sgn*49.6, sgn*50.4, -32, 32, 22.5, 24.5, 0x23262c); };
       const body = () => { hull({ hx: 46, hy: 32, z0: 20, z1: 106, ch: 4, bev: 3, bevIn: 2.5 });
         for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 34), P(30, bb, 34), P(30, bb, 74), P(-40, bb, 74)], sb === nearB ? WOOD : _pdk(WOOD, 0.85));
-          for(let zz = 38; zz < 74; zz += 5) line([-40, bb, zz], [30, bb, zz + 0.6], _pdk(WOOD, 0.7), 0.8); line([-40, bb, 34], [30, bb, 34], CHROME, 1.4); line([-40, bb, 74], [30, bb, 74], CHROME, 1.4); }
+          for(let zz = 38; zz < 74; zz += 5) line([-40, bb, zz], [30, bb, zz + 0.6], _pdk(WOOD, 0.7), 0.8); line([-40, bb, 34], [30, bb, 34], CHROME, 1.4); line([-40, bb, 74], [30, bb, 74], CHROME, 1.4);
+          line([4, bb + sb*0.2, 24], [4, bb + sb*0.2, 96], _pdk(BPW.dk, 0.75), 1.2); line([4, bb + sb*0.2, 96], [36, bb + sb*0.2, 96], _pdk(BPW.dk, 0.75), 1.2); }   // (the sliding door)
+        if(sees(-1, 0, 0)) for(const sb of [-1, 1]){ const o = []; for(let i = 0; i < 14; i++){ const ph = i/14*Math.PI*2; o.push(P(-46.2, sb*14 + Math.cos(ph)*7, 82 + Math.sin(ph)*7)); } Q(o, 0x5a8aa8); }
         if(front){ glass(46.1, -24, 24, 78, 100); Q([P(46.2, -14, 32), P(46.2, 14, 32), P(46.2, 14, 44), P(46.2, -14, 44)], DARK);
           for(const [b0, b1] of [[-26, -17], [17, 26]]) Q([P(46.3, b0, 33), P(46.3, b1, 33), P(46.3, b1, 43), P(46.3, b0, 43)], 0xfff2c4);
           this.tipseyFace(V, 46, 62, 1.1, {}); } };
+      const mirrors = sb => { line([40, sb*32, 86], [40, sb*40, 88], 0x23262c, 1.4); box(37, 41, sb*38, sb*42, 84, 93, 0x23262c); };
+      const rack = () => { for(const a of [-36, -6, 24]) for(const sb of [-1, 1]) line([a, sb*26, 106], [a, sb*26, 110], 0x3b4048, 1.4);
+        for(const sb of [-1, 1]) line([-38, sb*26, 110], [26, sb*26, 110], 0x3b4048, 1.8); for(const a of [-36, -6, 24]) line([a, -26, 110], [a, 26, 110], 0x3b4048, 1.4);
+        hull({ hx: 18, hy: 20, ox: -10, z0: 110, z1: 117, ch: 6, bev: 3, bevIn: 2.5, cTop: 0x8a7a3a, cLt: 0x6a5a2a, cDk: 0x4a3e1c, print: null }); };
+      mirrors(-nearB);
       if(front){ bump(-1); body(); bump(1); } else { bump(1); body(); bump(-1); }
+      rack(); mirrors(nearB);
       wheels(nearB, [-30, 30], 13, BW, 8); return; }
     if(era === 'cg1980'){
+      /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
+      { const q = P(0, 0, 2); g.fillStyle(0xff4ad8, 0.22); g.fillEllipse(q.x, q.y, 120*K, 60*K); g.fillStyle(0xff4ad8, 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
       const BW = 34; wheels(-nearB, [-32, 32], 12, BW, 8);
+      const wing = () => { for(const sb of [-1, 1]) line([-44, sb*18, 92], [-48, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -48, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
+        hull({ hx: 6.2, hy: 30.2, ox: -48, ch: 2, z0: 101, z1: 102, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 }); };
+      if(front) wing();
       hull({ hx: 50, hy: 32, z0: 20, z1: 58, ch: 6, bev: 3, bevIn: 2.5 });
+      for(const sb of [-1, 1]) hull({ hx: 4, hy: 7, ox: 44, oy: sb*20, z0: 58, z1: 62, ch: 1, bev: 0.8, bevIn: 0.6, cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, print: null });   // (its pop-up lamps)
       hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: 0xff4ad8, cDk: 0xc82aa8 });
       hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*33; Q([P(-34, bb, 28), P(-12, bb, 28), P(-12, bb, 37), P(-34, bb, 37)], 0x101114); for(const a of [-31, -25, -19]) line([a, bb + sb*0.1, 30], [a + 3.5, bb + sb*0.1, 30], 0x7aff6a, 1.4), line([a, bb + sb*0.1, 35], [a + 3.5, bb + sb*0.1, 35], 0x7aff6a, 1.4); }
@@ -128111,6 +128166,7 @@ class WorldScene extends Phaser.Scene {
       wedge([[-46, 58], [26, 58], [-2, 92], [-46, 92]], 28, _pmix(BPW.top, 0xffffff, 0.1), BPW.lt);
       if(sees(28 - (-2) > 0 ? 34 : 34, 0, 28)) { const A = [24, 59.5], B = [-1, 90]; Q([P(A[0], -24, A[1]), P(A[0], 24, A[1]), P(B[0], 24, B[1]), P(B[0], -24, B[1])], 0x2a3a5a); }   // (its raked glass)
       if(sees(-1, 0, 0)) for(let zz = 64; zz < 90; zz += 4) line([-46.2, -24, zz], [-46.2, 24, zz], 0x16171b, 1.6);   // (louvres over its back)
+      if(!front) wing();
       wheels(nearB, [-32, 32], 12, BW, 8); return; }
   }
   /* the Dragon's folded wing on his cab's side (Sir, 2026-11-17): a bat wing in green leather -- its bone along the top from his cab's front
