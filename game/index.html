@@ -128640,7 +128640,15 @@ class WorldScene extends Phaser.Scene {
             g.lineStyle(Math.max(1, 1.5*K), 0xb4bac1, 1); for(let x = xa + 1.5; x < xb - 1; x += 3.2){ const A = P(x, y, za), B = P(x, y, zb2); g.lineBetween(A.x, A.y, B.x, B.y); }
             for(const z of [za, zb2]){ const A = P(xa, y, z), B = P(xb, y, z); g.lineStyle(Math.max(1, 2.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1.1*K), 0xf0f2f4, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K); } }
           const on = Math.floor(now/260) % 2;
-          for(const sb of [-nearSide, nearSide]){ if(sb === nearSide) this.drawHullPrism({ hx: lx - 3, hy: 1.1, ox: LID.ox || 0, oy: 0, z0: zt - 0.4 + bobZ, z1: zt + 1.6 + bobZ, ch: 0.5, cTop: 0xe8394a, cLt: 0xc8141a, cDk: 0x8a0e12, cBottom: 0x8a0e12, outline: true, topEdge: false });   // (the helmet's comb, between the far beacon and the near one -- Sir, 2026-11-17)
+          for(const sb of [-nearSide, nearSide]){ if(sb === nearSide){   /* (blended in -- Sir, 2026-11-17): a low ridge in the helmet's own paint following its crown over the top and down its
+              front and back slopes, no outline */
+              const ox = LID.ox || 0, fl = lx - (LID.bevIn || 0), bv = LID.bev || 0, h = 1.3, w = 1.1, BPc = this.bodyPaint();
+              const prof = [[-lx + 1.2, zt - bv + 1.4], [-fl, zt], [fl, zt], [lx - 1.2, zt - bv + 1.4]].map(([x, z]) => [x + ox, z - 0.2]);
+              const sideF = y => { const pts = prof.map(([x, z]) => P(x, y, z + h)).concat(prof.slice().reverse().map(([x, z]) => P(x, y, z))); this.quadOn(g, pts, vis(0, y > 0 ? 1 : -1, 0) ? BPc.lt : BPc.dk); };
+              sideF(-nearSide*w);
+              for(let i = 0; i < prof.length - 1; i++){ const [xa, za] = prof[i], [xb, zb3] = prof[i + 1]; this.quadOn(g, [P(xa, -w, za + h), P(xb, -w, zb3 + h), P(xb, w, zb3 + h), P(xa, w, za + h)], i === 1 ? BPc.top : _pmix(BPc.top, BPc.dk, 0.35)); }
+              for(const e of [0, prof.length - 1]){ const [x, z] = prof[e], nx = e ? 1 : -1; if(vis(nx, 0, 0)) this.quadOn(g, [P(x, -w, z), P(x, w, z), P(x, w, z + h), P(x, -w, z + h)], BPc.dk); }
+              sideF(nearSide*w); }   // (the helmet's comb, between the far beacon and the near one -- Sir, 2026-11-17)
             const bx = (LID.ox || 0) + 1.5, by = sb*(ly - 9), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
             this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: bx, oy: by, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 1, cTop: 0xe8ecf0, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });
             g.fillStyle(0x6a0e0a, 1); g.fillCircle(bq.x, bq.y + 0.3*K, 3.8*K); g.fillStyle(lit ? 0xff3a2a : 0xc8231c, 1); g.fillCircle(bq.x - 0.2*K, bq.y - 0.2*K, 3.3*K); g.fillStyle(0xffffff, lit ? 0.85 : 0.4); g.fillCircle(bq.x - 1.2*K, bq.y - 1.4*K, 1*K);
