@@ -43465,7 +43465,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
   /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
   { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x2e3340, head: 0x111216, stripe: 0x23262c, costume: 'penguin', noAerial: true },
-  { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0xf3ead2, costume: 'pirate', noAerial: true },
+  { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
@@ -128097,14 +128097,24 @@ class WorldScene extends Phaser.Scene {
         const B = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a, b, zz]) => PT(P(a, b, zz))), true); };
         B([[hx + 0.6, -3.6, 81], [hx + 0.6, 3.6, 81], [hx + 13, 0, 76]], 0x4a4f58); B([[hx + 0.6, -3.6, 78], [hx + 0.6, 3.6, 78], [hx + 12, 0, 75.8], [hx + 0.6, 0, 74.5]], 0xf28a1a); }
       return; }
-    if(c === 'pirate'){
-      if(st === 'face' && front){ g.lineStyle(Math.max(1, 1.4*K), 0x16171b, 1); { const A = P(hx + 0.5, -13, 93), B = P(hx + 0.5, 13, 81); g.lineBetween(A.x, A.y, B.x, B.y); }
-        const q = P(hx + 0.6, 6.4, 85.5), rr = sr(hx, 6.4, 85.5, 4.6); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, rr); }   // (an eyepatch over one eye)
-      if(st === 'top'){ brim(zl + 1, 25, 0x23262c); lathe(0, 0, [[zl + 1, 13], [zl + 13, 11], [zl + 14, 6]], 0x2a2d33);
-        for(const [a, b] of [[22, 0], [-12, 19], [-12, -19]]){ const q = P(a, b, zl + 4), q0 = P(a*0.55, b*0.55, zl + 8); g.lineStyle(Math.max(1, 3*K), 0x23262c, 1); g.lineBetween(q0.x, q0.y, q.x, q.y); }   // (its brim turned up in three points)
-        { const q = P(12, 0, zl + 9), rr = sr(12, 0, zl + 9, 3.4); if(front){ g.fillStyle(0xf3ead2, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x16171b, 1); g.fillCircle(q.x - rr*0.3, q.y - rr*0.1, rr*0.25); g.fillCircle(q.x + rr*0.3, q.y - rr*0.1, rr*0.25); } }
-        const pa = -6, pb = -nearB*(hy - 3); ball(pa, pb, zl + 6, 4.4, 0x2aa83a); ball(pa + 2.5, pb, zl + 12, 3, 0xd8261c); { const q = P(pa + 5, pb, zl + 11.5); g.fillStyle(0xffd34a, 1); g.fillTriangle(q.x, q.y - 1.6*K*2, q.x, q.y + 1.6*K*2, q.x + 3*K*2, q.y + 1*K*2); }
-        line([pa - 3, pb, zl + 4], [pa - 9, pb, zl - 4], 0x2a5ad8, 2.4); }   // (a parrot on his shoulder)
+    if(c === 'pirate'){   /* (second pass -- Sir, 2026-11-17): a real tricorn -- three brim walls turned up round a crown, gold piping on their edges,
+         a skull on its front; a bigger eyepatch on its strap; a leather belt with a gold buckle; brass buttons down his coat; a bigger parrot */
+      if(st === 'body'){ if(front){ const q = P(hx + 0.8, 0, 48), rr = sr(hx, 0, 48, 4.5); g.fillStyle(0xd8b04a, 1); g.fillRect(q.x - rr, q.y - rr*0.8, rr*2, rr*1.6); g.fillStyle(0x3a2414, 1); g.fillRect(q.x - rr*0.5, q.y - rr*0.4, rr, rr*0.8);
+          for(const zz of [26, 34, 60, 68]) ball(hx + 0.6, 7, zz, 1.6, 0xd8b04a); } }
+      if(st === 'face' && front){ g.lineStyle(Math.max(1, 1.6*K), 0x16171b, 1); { const A = P(hx + 0.5, -14, 94), B = P(hx + 0.5, 14, 80); g.lineBetween(A.x, A.y, B.x, B.y); }
+        const q = P(hx + 0.7, 6.4, 86), rr = sr(hx, 6.4, 86, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*2.1, rr*1.8); }
+      if(st === 'top'){ const T = [[20, 0], [-14, 22], [-14, -22]], z0 = zl + 1, z1 = zl + 11;
+        lathe(-3, 0, [[zl + 1, 13], [zl + 13, 12], [zl + 15, 7]], 0x23262c);
+        const walls = []; for(let i = 0; i < 3; i++){ const [a0, b0] = T[i], [a1, b1] = T[(i + 1) % 3], ma = (a0 + a1)/2 + 3, mb = (b0 + b1)/2, n = [ma, mb]; walls.push({ i, a0, b0, a1, b1, d: this.depth ? 0 : 0, n }); }
+        walls.sort((w1, w2) => (sees(w1.n[0], w1.n[1], 0) ? 1 : 0) - (sees(w2.n[0], w2.n[1], 0) ? 1 : 0));
+        for(const w of walls){ const out = sees(w.n[0], w.n[1], 0), pts = [P(w.a0, w.b0, z0), P(w.a1, w.b1, z0), P(w.a1*0.9, w.b1*0.9, z1), P((w.a0 + w.a1)/2*0.75, (w.b0 + w.b1)/2*0.75, z1 + 2), P(w.a0*0.9, w.b0*0.9, z1)].map(PT);
+          g.fillStyle(out ? 0x2a2d33 : 0x16171b, 1); g.fillPoints(pts, true); g.lineStyle(Math.max(1, 1.4*K), 0xd8b04a, 1); g.strokePoints(pts.slice(2), false); }
+        if(front){ const q = P(14, 0, zl + 10), rr = sr(14, 0, zl + 10, 3.4); g.lineStyle(Math.max(1, 1.2*K), 0xf3ead2, 1); g.lineBetween(q.x - rr*1.4, q.y + rr*1.6, q.x + rr*1.4, q.y + rr*0.6); g.lineBetween(q.x - rr*1.4, q.y + rr*0.6, q.x + rr*1.4, q.y + rr*1.6);
+          g.fillStyle(0xf3ead2, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x16171b, 1); g.fillCircle(q.x - rr*0.35, q.y - rr*0.1, rr*0.28); g.fillCircle(q.x + rr*0.35, q.y - rr*0.1, rr*0.28); }
+        const pa = -6, pb = -nearB*(hy + 2), pz = zl - 2;   // (the parrot on his shoulder: body, wing, head, beak, a long tail)
+        line([pa - 4, pb, pz + 2], [pa - 18, pb, pz - 16], 0x2a5ad8, 4); line([pa - 4, pb, pz + 2], [pa - 16, pb + 2, pz - 17], 0xffd34a, 2);
+        ball(pa, pb, pz + 7, 8, 0xd8261c); { const q = P(pa - 1, pb + nearB*0.5, pz + 6), rr = sr(pa, pb, pz + 6, 5.5); g.fillStyle(0x2aa83a, 1); g.fillEllipse(q.x, q.y + rr*0.3, rr*1.4, rr*2); }
+        ball(pa + 4, pb, pz + 17, 5.6, 0xe8301c); { const q = P(pa + 9, pb, pz + 17), rr = sr(pa, pb, pz + 17, 3.2); g.fillStyle(0xf3ead2, 1); g.fillTriangle(q.x - rr, q.y - rr, q.x - rr, q.y + rr, q.x + rr*1.4, q.y + rr*0.6); g.fillStyle(0x16171b, 1); const e = P(pa + 6, pb + nearB*2, pz + 18.5); g.fillCircle(e.x, e.y, rr*0.45); } }
       return; }
     if(c === 'chef'){
       if(st === 'face' && front){ for(const sb of [-1, 1]){ const pts = []; for(let i = 0; i <= 8; i++){ const u = i/8; pts.push([sb*(1 + u*8), 79.5 - Math.sin(u*Math.PI)*2.4 + u*1.4]); } for(let i = 8; i >= 0; i--){ const u = i/8; pts.push([sb*(1 + u*8), 77.5 + u*1.8]); } onFront(pts, 0x3a2414); } }   // (a curled moustache)
