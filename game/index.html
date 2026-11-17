@@ -19087,7 +19087,7 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
    the tower's floors room (PT_FLOORS) and carries its floor and room (owOnMat, the GPS); the street sees the lobby's doors (street). Its own
    seeded stream (day, rung, shop), so it moves no other order. Drawn by the room's queue (queueTowerDrop), handed over as a lifeguard's
    (boatCustomerPos, its path) */
-const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, matOff: 74, ph: { 11: [450, 300], 12: [520, 250] } };
+const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, ph: { 11: [450, 300], 12: [520, 250] } };
 const PT_FLAT_DOOR = { w: 76, h: 168 };
 /* today's flat door swung open by the won timeline (doorTheta), on its own floor; every other one shut */
 function ptFlatDoorU(f, k){
@@ -19106,9 +19106,9 @@ function towerAddress(dateStr, runIndex, shop, from){
   const k = Math.floor(rr()*42), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 }, X = a => flp.x0 + a, Y = b => flp.y0 + b;
   let floor, address, matAt, start, doorway = null;
   if(k < 40){ floor = 1 + Math.floor(k/4); const u = k % 4, c = PT_DROP.flats[u];
-    /* (Sir, 2026-11-17: "lets have her not come out into the hall way": she answers in her doorway. His mat is beside it, west -- square in
-       front of the door he stood between her and us -- so the two of them are side by side across the screen, face to face) */
-    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c - PT_DROP.matOff), y: Y(PT_DROP.CB + 6) };
+    /* (Sir, 2026-11-17: "lets have her not come out into the hall way": she answers in her doorway, his mat square in front of it --
+       "you didnt need to move the placement of the trigger") */
+    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c), y: Y(PT_DROP.CB + 6) };
     start = [{ x: X(c), y: Y(PT_DROP.CB - 6), z: 0 }]; doorway = { x: X(c), y: Y(PT_DROP.CB + 10) }; }
   else { floor = 11 + (k - 40); const [a, b] = PT_DROP.ph[floor];
     address = "Palmline Tower, Penthouse " + floor; matAt = { x: X(777), y: Y(160) }; start = [{ x: X(a), y: Y(b), z: 0 }]; }
