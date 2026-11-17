@@ -126335,16 +126335,19 @@ class WorldScene extends Phaser.Scene {
       if(part === 'after') fender(nearSide);
       if(part === 'near'){
         /* the umbrella antenna: a mast off his front-left, an upturned mesh dish on it, ribs and a feed */
-        const ax = BODY.hx - 6, ay = -BODY.hy + 4, az = BODY.z1 + 22, A0 = P(ax, ay, BODY.z1), A1 = P(ax, ay, az - 2);
+        const ax = BODY.hx - 6, ay = -BODY.hy + 4, az = BODY.z1 + 22, tx = BODY.hx - 4, ty = BODY.hy - 4, tz = BODY.z1 + 10;
+        const dish = () => { const A0 = P(ax, ay, BODY.z1), A1 = P(ax, ay, az - 2);
         g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); g.lineBetween(A0.x, A0.y, A1.x, A1.y);
         const rim = []; for(let k = 0; k < 16; k++){ const a = k/16*Math.PI*2; rim.push(P(ax + Math.cos(a)*8, ay + Math.sin(a)*8, az + 2)); }
         this.quadOn(g, rim, 0xd8dde2, 0.85); g.lineStyle(Math.max(1, 0.8*K), 0x9aa0a6, 1); for(let k = 0; k < 8; k++){ const q = rim[k*2]; const c = P(ax, ay, az - 1); g.lineBetween(c.x, c.y, q.x, q.y); }
-        g.strokePoints(rim.map(q => new Phaser.Geom.Point(q.x, q.y)), true); { const f = P(ax, ay, az + 6); const c = P(ax, ay, az - 1); g.lineBetween(c.x, c.y, f.x, f.y); g.fillStyle(0x3a3d45, 1); g.fillCircle(f.x, f.y, 1.2*K); }
+        g.strokePoints(rim.map(q => new Phaser.Geom.Point(q.x, q.y)), true); { const f = P(ax, ay, az + 6); const c = P(ax, ay, az - 1); g.lineBetween(c.x, c.y, f.x, f.y); g.fillStyle(0x3a3d45, 1); g.fillCircle(f.x, f.y, 1.2*K); } };
         /* the TV camera on its own mast off his front-right, looking ahead */
-        const tx = BODY.hx - 4, ty = BODY.hy - 4, tz = BODY.z1 + 10, T0 = P(tx, ty, BODY.z1), T1 = P(tx, ty, tz);
+        const cam = () => { const T0 = P(tx, ty, BODY.z1), T1 = P(tx, ty, tz);
         g.lineStyle(Math.max(1, 1.4*K), 0x9aa0a6, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y);
         this.drawHullPrism({ hx: 2.4, hy: 1.8, ox: tx + 0.5, oy: ty, z0: tz + bobZ, z1: tz + 3.6 + bobZ, ch: 0.4, cTop: 0xeceef1, cLt: 0xd8dde2, cDk: 0xa8adb4, cBottom: 0xa8adb4, outline: true, topEdge: false });
-        if(vis(1, 0, 0)){ const q = P(tx + 2.95, ty, tz + 1.8); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 1.1*K); g.fillStyle(0x3a5ad8, 1); g.fillCircle(q.x, q.y, 0.55*K); } } }
+        if(vis(1, 0, 0)){ const q = P(tx + 2.95, ty, tz + 1.8); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 1.1*K); g.fillStyle(0x3a5ad8, 1); g.fillCircle(q.x, q.y, 0.55*K); } };
+        /* the farther of the two first (Sir, 2026-11-17: the camera drew over the dish) */
+        if(this.depth(ax, ay, az) < this.depth(tx, ty, tz)){ dish(); cam(); } else { cam(); dish(); } } }
     if(id === 'monster'){
       const W = BODY._gear || { r: 17, W2: 13, xs: [-22, 22], side: 28 }, hz = W.r + 2 - bobZ, yi = W.side - W.W2/2 - 0.5, zb = BODY.z0;
       /* A SKIN'S TRIM (Sir, 2026-11-16: "get all the concept colours on the other details"): its coil springs, push bars, light bar housing,
