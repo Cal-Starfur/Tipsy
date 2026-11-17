@@ -43001,7 +43001,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:tiger', build: 'tank', name: 'Tiger Stripe', cents: 900, body: 0xb8863a, stripe: 0xb8863a, noStripe: true, print: 'tkTiger', gun: 0x3a2c1a },
   { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
   { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
-  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true,
+  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true, fins: true,
     gear: { kind: 'hover', lift: 12, bob: true, xs: [0], side: 0, glowOnly: true } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
@@ -121848,8 +121848,10 @@ class WorldScene extends Phaser.Scene {
         } finally { this.drawClip = clip0; }
       }
     }
+    if(tank && BODY._bskin && BODY._bskin.fins && frontSeen) this.tankFins(bobZ);   // (its fins on his back: behind the turret from the front)
     if(tank && !frontSeen) this.tankKit(bobZ, false);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
+    if(tank && BODY._bskin && BODY._bskin.fins && !frontSeen) this.tankFins(bobZ);   // (over the turret from behind)
     if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing toward the eye: over his lid)
     if(racer && BODY._bskin && BODY._bskin.racerPart) this.racerKit(bobZ, BP, 'roof', tpz);   // (a skin's roof piece: the rally lamps, the police bar)
     if(buggy) this.buggyKit(bobZ, frontSeen, 'near');
@@ -126385,6 +126387,13 @@ class WorldScene extends Phaser.Scene {
     if(part === 'pre' && !frontSeen) nudge();
   }
   /* THE TANK's cannon: a barrel out of the turret's front (his lid, swung with it), a muzzle brake, a mantlet where it leaves the turret */
+  /* THE NEON HOVER'S FINS: two swept stabilisers off his back corners, dark blades with glowing edges, the far one first */
+  tankFins(bobZ){ const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }, K = this.kScale(), GL = BODY._bskin.glow || 0x7af8ff;
+    const ns = vis(0, 1, 0) ? 1 : -1, z = BODY.z1;
+    for(const sb of [-ns, ns]){ const y = sb*(BODY.hy - 3.5), F = [[-BODY.hx + 12, z], [-BODY.hx + 2, z], [-BODY.hx - 4, z + 11], [-BODY.hx + 1, z + 11]];
+      const pts = F.map(([x, zz]) => P(x, y, zz)); this.quadOn(g, pts, vis(0, sb, 0) ? 0x2a2d33 : 0x1c1e22);
+      g.lineStyle(Math.max(1, 1.4*K), GL, 1); g.lineBetween(pts[0].x, pts[0].y, pts[3].x, pts[3].y); g.lineBetween(pts[3].x, pts[3].y, pts[2].x, pts[2].y);
+      g.lineStyle(Math.max(1, 0.9*K), 0xff4ad8, 1); g.lineBetween(pts[1].x, pts[1].y, pts[2].x, pts[2].y); } }
   tankKit(bobZ, front = true){
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
@@ -131538,10 +131547,23 @@ const HULL_PRINTS = {
       if(L.part === 'lid'){ for(const k of [2, 6]){ const [a, b] = L.face(k), st = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? L.H*0.17 : L.H*0.42; st.push([(a + b)/2 + Math.cos(q)*rr, L.H*0.5 - Math.sin(q)*rr]); } L.side.push({ c: RD, pts: st }); }
         L.side.push({ c: WH, pts: _prRect(-1, L.H - 1.4, L.per + 1, L.H - 0.4) }); return; }
       for(const k of [2, 6]) _prDigits(L, L.side, k, 0.3, L.H*0.25, L.H*0.4, '217', WH, -1); } },
-  tkNeon: { id: 'tkNeon', seed: 0x9e0, build(L){ const CY = (L._c = L._c || [0x2ad8e8, 0x7af8ff]);
-      if(L.part === 'body') for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ col: 0x7af8ff, pts: _prRect(a + 2, L.H*0.62, b - 2, L.H*0.68) }, { col: 0x7af8ff, pts: _prRect(a + 2, L.H*0.2, a + 3, L.H*0.68) }, { col: 0x7af8ff, pts: _prRect(b - 3, L.H*0.2, b - 2, L.H*0.68) }); }
-      else for(let k = 0; k < L.ring.length; k++){ const [a, b] = L.face(k); L.side.push({ col: 0x7af8ff, pts: _prRect(a + 0.6, L.H*0.45, b - 0.6, L.H*0.55) }); }
-      L.top.push({ col: 0x7af8ff, pts: _prRect(L.x0 + 2, -0.5, L.x1 - 2, 0.5) }, { col: 0x7af8ff, pts: _prRect(-0.5, L.y0 + 2, 0.5, L.y1 - 2) }); } },
+  /* (more eye-catching -- Sir, 2026-11-17): circuit traces with glowing nodes down his flanks, forward chevrons, a glowing visor band across
+     his front, thruster grilles on his back, glowing panel outlines and an arrow on his deck; on the turret a band all round and a hatch ring */
+  tkNeon: { id: 'tkNeon', seed: 0x9e0, build(L){ const CY = 0x7af8ff, MG = 0xff4ad8, DIM = 0x2ad8e8;
+      const seg = (arr, pts, w, col, a) => { for(let i = 0; i < pts.length - 1; i++) arr.push({ col, a, pts: _prSeg(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w) }); };
+      const node = (arr, x, y, r, col) => { const o = []; for(let i = 0; i < 8; i++){ const q = i/8*Math.PI*2; o.push([x + Math.cos(q)*r, y + Math.sin(q)*r]); } arr.push({ col, pts: o }); };
+      if(L.part === 'lid'){ for(let k = 0; k < L.ring.length; k++){ const [a, b] = L.face(k); L.side.push({ col: CY, pts: _prRect(a, L.H*0.4, b, L.H*0.58) }); if(b - a > 8) L.side.push({ col: MG, pts: _prRect((a + b)/2 - 1.2, L.H*0.25, (a + b)/2 + 1.2, L.H*0.75) }); }
+        const o = []; for(let i = 0; i <= 16; i++){ const q = i/16*Math.PI*2; o.push([Math.cos(q)*5.5, Math.sin(q)*5.5]); } seg(L.top, o, 0.7, CY);
+        seg(L.top, [[L.x0 + 2, L.y0 + 2], [L.x0 + 5, L.y0 + 2]], 0.6, DIM); seg(L.top, [[L.x0 + 2, L.y1 - 2], [L.x0 + 5, L.y1 - 2]], 0.6, DIM); return; }
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        seg(L.side, [[X(2), H*0.7], [X(len*0.3), H*0.7], [X(len*0.36), H*0.45], [X(len*0.7), H*0.45], [X(len*0.76), H*0.7], [X(len - 2), H*0.7]], 0.7, CY);
+        seg(L.side, [[X(len*0.36), H*0.45], [X(len*0.36), H*0.2], [X(len*0.55), H*0.2]], 0.5, DIM);
+        for(const [u, h] of [[0.3, 0.7], [0.36, 0.45], [0.7, 0.45], [0.76, 0.7], [0.55, 0.2]]) node(L.side, X(len*u), H*h, 1, CY);
+        for(let c = 0; c < 3; c++){ const xc = X(len*(0.08 + c*0.05)); L.side.push({ col: MG, pts: [[xc, H*0.25], [xc - dir*1.4, H*0.25], [xc - dir*3, H*0.42], [xc - dir*1.4, H*0.59], [xc, H*0.59], [xc - dir*1.6, H*0.42]] }); } }   // (chevrons pointing forward)
+      { const [a, b] = L.face(0); L.side.push({ col: CY, pts: _prRect(a + 1, L.H*0.82, b - 1, L.H*0.92) }); }   // (a visor band across his front)
+      { const [a, b] = L.face(4), m = (a + b)/2; for(const d of [-8, 8]){ L.side.push({ col: 0x0e0f12, pts: _prRect(m + d - 4, L.H*0.25, m + d + 4, L.H*0.75) }); for(let r = 0; r < 4; r++) L.side.push({ col: MG, pts: _prRect(m + d - 3.4, L.H*(0.3 + r*0.12), m + d + 3.4, L.H*(0.3 + r*0.12) + 0.7) }); } }   // (thruster grilles)
+      seg(L.top, [[L.x0 + 2, L.y0 + 2], [L.x1 - 2, L.y0 + 2], [L.x1 - 2, L.y1 - 2], [L.x0 + 2, L.y1 - 2], [L.x0 + 2, L.y0 + 2]], 0.6, DIM);
+      L.top.push({ col: CY, pts: [[L.x1 - 3, 0], [L.x1 - 9, -4], [L.x1 - 9, -2], [L.x1 - 6, 0], [L.x1 - 9, 2], [L.x1 - 9, 4]] }); } },
   tkMech: { id: 'tkMech', seed: 0x3ec, build(L){ const GR = [0x8a939c, 0xa8b0b8], BL = 0x4ab0ff;
       if(L.part === 'body') for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 4; i++){ const x = a + len*(0.08 + i*0.23); L.side.push({ c: GR, pts: _prRect(x, L.H*0.15, x + len*0.18, L.H*0.75) }); }
         L.side.push({ col: BL, pts: _prRect(a + 1, L.H*0.82, b - 1, L.H*0.88) }); }
