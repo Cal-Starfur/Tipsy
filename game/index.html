@@ -44588,7 +44588,7 @@ const STRIPE = { z0:20, z1:27 };
    (zmap: from his stock 14..54), and the wheels it stands on (unless a rig is fitted) */
 const TP_BUILDS = {
   racer: { BODY: { hx: 36, hy: 19, z0: 10, z1: 30, ch: 11, bev: 3, bevIn: 2.5 }, LID: { hx: 9.5, hy: 15, z0: 30, z1: 37, ch: 5, bev: 2.5, bevIn: 2, ox: -13 },   /* (half as long, kept at the back, nudged back a little more -- Sir, 2026-11-16) */
-    STRIPE: { z0: 15, z1: 19 }, FLAGB: { x: -39.5, y: 12.4 }, FLAGZ: [26, 70], zmap: z => 10 + (z - 14)*0.5, noFlag: true,   /* (no flag -- Sir, 2026-11-16) */
+    STRIPE: { z0: 15, z1: 19 }, FLAGB: { x: -39.5, y: 12.4 }, FLAGZ: [26, 70], zmap: z => 10 + (z - 14)*0.27, noFlag: true, taper: 0.55,   /* (tapered down to a thin nose -- Sir, 2026-11-16) */   /* (no flag -- Sir, 2026-11-16) */
     WHEELS: { r: 10.5, W2: 10, rF: 7.5, W2F: 7.5, xs: [-24, 25], side: 23 } },
   /* the Tuk-tuk (Sir, 2026-11-16): a tall cab with open sides, his lid its overhanging canopy, his face its windscreen, two wheels at the
      back and one out front on a fork under a mudguard (tukKit) */
@@ -123160,9 +123160,9 @@ class WorldScene extends Phaser.Scene {
       if(BS.flag && !SKIN.topper){ SKIN.skinTop = BS.flag.kind; if(BS.flag.col != null){ SKIN.flag = BS.flag.col; SKIN.flagPicked = true; } } }   // (its flag: one of the game's own -- Sir, 2026-11-16)
     BODY._bskin = BS || null;
     if(BS && BS.lid) Object.assign(LID, BS.lid);   // (a skin's own lid: the Graveyard's, run to his back)
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag);   // (a build without one, unless its skin flies its own: the Big Foot's) BODY._windshield = (BS && BS.glass) || B.windshield || null;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   // (a build without one, unless its skin flies its own: the Big Foot's) BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
+    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._taper; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
       Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
@@ -123298,9 +123298,15 @@ class WorldScene extends Phaser.Scene {
     if(buggy) this.buggyKit(bobZ, frontSeen, 'pre');
     const bKit = !npc && TP_BUILDS[SKIN.build] && TP_BUILDS[SKIN.build].kit;
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'pre');
-    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin,
+    /* A TAPERED BUILD (BODY._taper: the Racer's): every height above his floor scaled down along him, full at his tail to that fraction at his
+       nose -- his body, his stripe and his lid alike (drawLid reads the same) */
+    const tpz = BODY._taper ? (x, z) => { const zb = BODY.z0 + bobZ, f = 1 - (1 - BODY._taper)*Math.max(0, Math.min(1, (x + BODY.hx)/(2*BODY.hx))); return zb + (z - zb)*f; } : null;
+    const tpt = tpz ? (x, y, z) => this.P(x, y, tpz(x, z)) : undefined;
+    if(racer && !frontSeen) this.racerKit(bobZ, BP, 'nose', tpz);
+    this.drawHullPrism({...BODY, z0:BODY.z0+bobZ, z1:BODY.z1+bobZ, cTop:BP.top, cLt:BP.lt, cDk:BP.dk, cBottom:SKIN.belly, fin:BP.fin, pt: tpt,
                         split: BP.split ? { ...BP.split, z: BP.split.z + bobZ } : null, print: BP.print, printPart: 'body'});
-    if(!(BODY._bskin && BODY._bskin.noStripe)) this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk});   // (a build skin that paints its own stripe: the Taxi's checks)
+    if(!(BODY._bskin && BODY._bskin.noStripe)) this.drawHullPrism({hx:BODY.hx+0.6, hy:BODY.hy+0.6, ch:BODY.ch, z0:STRIPE.z0+bobZ, z1:STRIPE.z1+bobZ, band:true, cLt:SKIN.stripe, cDk:SKIN.stripeDk, pt: tpt});   // (a build skin that paints its own stripe: the Taxi's checks)
+    if(racer && frontSeen) this.racerKit(bobZ, BP, 'nose', tpz);   // (a build skin that paints its own stripe: the Taxi's checks)
     /* ---- SKIN EXTRAS ----
        The Daredevil is white leather with a BLUE band carrying WHITE
        STARS and a RED band beneath it. The palette ported across but
@@ -126979,7 +126985,9 @@ class WorldScene extends Phaser.Scene {
     const yh = (this.lidHingeFlip ? hy : -hy), zh = z0;
     const H = (x, y, z) => {                     // hinge rotation, then normal pipeline
       const dy = y - yh, dz = z - zh;
-      return this.P(x + (LID.ox || 0) + sdx, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA + sdz);   // (LID.ox: a build's lid set forward along him -- the Night Cruiser's bubble)
+      const X = x + (LID.ox || 0) + sdx, Z = zh + dy*sA + dz*cA + sdz;
+      if(BODY._taper){ const zb = BODY.z0 + (z0 - LID.z0), f = 1 - (1 - BODY._taper)*Math.max(0, Math.min(1, (X + BODY.hx)/(2*BODY.hx))); return this.P(X, yh + dy*cA - dz*sA, zb + (Z - zb)*f); }   // (sat on a tapered body)
+      return this.P(X, yh + dy*cA - dz*sA, Z);   // (LID.ox: a build's lid set forward along him -- the Night Cruiser's bubble)
     };
     const HN = (nx, ny, nz) => {                 // normals: hinge rot then roll+facing
       const ny2 = ny*cA - nz*sA, nz2 = ny*sA + nz*cA;
@@ -127940,7 +127948,7 @@ class WorldScene extends Phaser.Scene {
     }
   }
   /* THE RACER BUILD's pieces (SKIN.build 'racer'): part 'front' the wedge nose, 'back' the wing -- in his own frame (P, R) */
-  racerKit(bobZ, BP, part){
+  racerKit(bobZ, BP, part, tpz){
     const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const quad = (pts, col) => this.quadOn(g, pts.map(([x, y, z]) => P(x, y, z)), col);
     if(part === 'front'){ const x0 = BODY.hx - 0.5, x1 = BODY.hx + 13, zb = BODY.z0, zt = STRIPE.z1 + 2, zf = BODY.z0 + 4, w = BODY.hy - 1.5;
@@ -127952,6 +127960,14 @@ class WorldScene extends Phaser.Scene {
         quad([[x0 + 1, -w + 2, zt - 0.4], [x0 + 4, -w + 2, zt - 1.3], [x0 + 4, -w + 5, zt - 1.3], [x0 + 1, -w + 5, zt - 0.4]], 0x22242b);
         quad([[x0 + 1, w - 5, zt - 0.4], [x0 + 4, w - 5, zt - 1.3], [x0 + 4, w - 2, zt - 1.3], [x0 + 1, w - 2, zt - 0.4]], 0x22242b); }   // (two air intakes)
     }
+    if(part === 'nose'){   /* THE NOSE WING (Sir, 2026-11-16): a low blade across his nose and out past his sides, end plates at its tips, on two short pylons
+         from under his nose -- his stripe colour, as his rear wing */
+      const x0 = BODY.hx + 2, x1 = BODY.hx + 11, z = BODY.z0 - 1, w = BODY.hy + 5, cS = SKIN.stripe, cD = SKIN.stripeDk;
+      for(const y of [-6, 6]) quad([[BODY.hx - 3, y, BODY.z0 + 1], [x0 + 3, y, z + 1.2], [x0 + 3, y, z + 0.4], [BODY.hx - 3, y, BODY.z0]], 0x2e3138);   // (its pylons)
+      const L = [[x1, z], [x0, z + 1.8], [x0, z + 2.6], [x1, z + 0.8]];
+      if(vis(-0.2, 0, 1)) quad([[x1, -w, z + 0.8], [x1, w, z + 0.8], [x0, w, z + 2.6], [x0, -w, z + 2.6]], cS);
+      if(vis(1, 0, 0)) quad([[x1, -w, z], [x1, w, z], [x1, w, z + 0.8], [x1, -w, z + 0.8]], cD);
+      for(const y of [-w, w]){ const sd = vis(0, Math.sign(y), 0); quad([[x1 + 0.5, y, z - 1], [x0 - 0.5, y, z - 0.5], [x0 - 0.5, y, z + 4], [x1, y, z + 2.5]], sd ? cS : cD); } }
     if(part === 'back'){   /* the wing (Sir, 2026-11-16: it looked bad side-on): a blade raked up at its trailing edge on two solid posts off his tail, red
          end plates shaped to it -- all his stripe colour, nothing white hanging off it */
       const xw = -BODY.hx + 3, zw = LID.z1 + 5, w = BODY.hy + 1, cS = SKIN.stripe, cD = SKIN.stripeDk;
