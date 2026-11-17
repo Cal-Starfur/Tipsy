@@ -43233,12 +43233,12 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
       STRIPE: { z0: 28, z1: 31 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 70], zmap: z => 24 + (z - 14)*0.42, WHEELS: { r: 8, W2: 7, xs: [-16, 16], side: 25, style: 'mesh', tread: 'knobby' } } },
   /* THE DUNE BUGGY's skins (Sir, 2026-11-17): beach, Baja and desert buggies -- each its paint, its cage, springs and lamps in its own colours, two
      with a board strapped on the roof */
-  { id: 'buggy:beach', build: 'buggy', name: 'Beach Bum', cents: 900, body: 0x4ab8e0, stripe: 0xf4f4f0, print: 'bgBeach', buggyPart: 'surf', trim: { bar: 0xf4f4f0, coil: 0xff8a3a, lamp: 0xfff2c4, rimCol: 0xf4f4f0, board: [0xffd34a, 0xff6a3a] } },
-  { id: 'buggy:baja', build: 'buggy', name: 'Baja 1000', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, noStripe: true, print: 'bgBaja', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xffb02a, rimCol: 0xd9b04a } },
-  { id: 'buggy:desert', build: 'buggy', name: 'Desert Rat', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'bgDesert', trim: { bar: 0x4f5a34, coil: 0x8a5a2a, lamp: 0xffe9a8, rimCol: 0x4f5a34 } },
-  { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rimCol: 0xff8a1a } },
-  { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rimCol: 0xffe14a } },
-  { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
+  { id: 'buggy:beach', build: 'buggy', name: 'Beach Bum', cents: 900, body: 0x4ab8e0, stripe: 0xf4f4f0, print: 'bgBeach', buggyPart: 'surf', trim: { bar: 0xf4f4f0, coil: 0xff8a3a, lamp: 0xfff2c4, rim: 'flower', rimCol: 0xf4f4f0, board: [0xffd34a, 0xff6a3a] } },
+  { id: 'buggy:baja', build: 'buggy', name: 'Baja 1000', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, noStripe: true, print: 'bgBaja', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xffb02a, rim: 'dish', rimCol: 0xd9b04a } },
+  { id: 'buggy:desert', build: 'buggy', name: 'Desert Rat', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'bgDesert', trim: { bar: 0x4f5a34, coil: 0x8a5a2a, lamp: 0xffe9a8, rim: 'steelie', rimCol: 0x4f5a34 } },
+  { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rim: 'star', rimCol: 0xff8a1a } },
+  { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rim: 'wagon', rimCol: 0xffe14a } },
+  { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'ten', rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
