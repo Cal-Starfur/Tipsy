@@ -43231,6 +43231,14 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
        small fenders (no fins), the ring antenna off his back */
     shape: { BODY: { hx: 24, hy: 19, z0: 24, z1: 40, ch: 11, bev: 6, bevIn: 5 }, LID: { hx: 13, hy: 13, z0: 40, z1: 52, ch: 7.5, bev: 7, bevIn: 6, ox: 3 },
       STRIPE: { z0: 28, z1: 31 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 70], zmap: z => 24 + (z - 14)*0.42, WHEELS: { r: 8, W2: 7, xs: [-16, 16], side: 25, style: 'mesh', tread: 'knobby' } } },
+  /* THE DUNE BUGGY's skins (Sir, 2026-11-17): beach, Baja and desert buggies -- each its paint, its cage, springs and lamps in its own colours, two
+     with a board strapped on the roof */
+  { id: 'buggy:beach', build: 'buggy', name: 'Beach Bum', cents: 900, body: 0x4ab8e0, stripe: 0xf4f4f0, print: 'bgBeach', buggyPart: 'surf', trim: { bar: 0xf4f4f0, coil: 0xff8a3a, lamp: 0xfff2c4, rimCol: 0xf4f4f0, board: [0xffd34a, 0xff6a3a] } },
+  { id: 'buggy:baja', build: 'buggy', name: 'Baja 1000', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, noStripe: true, print: 'bgBaja', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xffb02a, rimCol: 0xd9b04a } },
+  { id: 'buggy:desert', build: 'buggy', name: 'Desert Rat', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'bgDesert', trim: { bar: 0x4f5a34, coil: 0x8a5a2a, lamp: 0xffe9a8, rimCol: 0x4f5a34 } },
+  { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rimCol: 0xff8a1a } },
+  { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rimCol: 0xffe14a } },
+  { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -126795,16 +126803,18 @@ class WorldScene extends Phaser.Scene {
   buggyKit(bobZ, frontSeen, part){
     const g = this.g, K = this.kScale(), P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, TUBE = 0x2e3138;
+    /* a skin's cage, springs and lamps in its own colours (TP_BSKIN trim) */
+    const TR = (BODY._bskin && BODY._bskin.trim) || {}, TC = TR.bar != null ? _pmix(TR.bar, 0x000000, 0.12) : 0x23262c, TH = TR.bar != null ? _pmix(TR.bar, 0xffffff, 0.4) : 0x6f757b, COIL = TR.coil != null ? TR.coil : 0xe8a23a, LAMP = TR.lamp != null ? TR.lamp : 0xfff2c4;
     const tube = (a, b, w = 3.2) => { const A = P(...a), B = P(...b);   // (a round tube: dark, with a light line down it)
-      g.lineStyle(Math.max(1, w*K), 0x23262c, 1); g.lineBetween(A.x, A.y, B.x, B.y);
-      g.lineStyle(Math.max(1, w*0.38*K), 0x6f757b, 1); g.lineBetween(A.x, A.y - w*0.18*K, B.x, B.y - w*0.18*K);
-      g.fillStyle(0x23262c, 1); g.fillCircle(A.x, A.y, w*0.5*K); g.fillCircle(B.x, B.y, w*0.5*K); };
+      g.lineStyle(Math.max(1, w*K), TC, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+      g.lineStyle(Math.max(1, w*0.38*K), TH, 1); g.lineBetween(A.x, A.y - w*0.18*K, B.x, B.y - w*0.18*K);
+      g.fillStyle(TC, 1); g.fillCircle(A.x, A.y, w*0.5*K); g.fillCircle(B.x, B.y, w*0.5*K); };
     const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 1, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const arms = sb => { for(const x of W.xs){ const front = x > 0, r = front ? W.rF : W.r, w2 = front ? W.W2F : W.W2, hz = r + 2 - bobZ, yH = sb*(W.side - w2/2 - 0.8), yB = sb*(BODY.hy - 3);
         tube([x - 5, yB, BODY.z0 - 2], [x, yH, hz], 2.2); tube([x + 5, yB, BODY.z0 - 2], [x, yH, hz], 2.2);    // (the A-arm)
         const A = P(x, yB, BODY.z0 + 6), B = P(x, yH, hz + 1.5);                                                // (the coil-over)
         g.lineStyle(Math.max(1, 2.4*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y);
-        g.lineStyle(Math.max(1, 1.2*K), 0xe8a23a, 1); for(let k = 1; k < 5; k++){ const u = k/5, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2*K;
+        g.lineStyle(Math.max(1, 1.2*K), COIL, 1); for(let k = 1; k < 5; k++){ const u = k/5, cx = A.x + (B.x - A.x)*u, cy = A.y + (B.y - A.y)*u, nx = -(B.y - A.y), ny = B.x - A.x, nl = Math.hypot(nx, ny) || 1, q = 2*K;
           g.lineBetween(cx - nx/nl*q, cy - ny/nl*q, cx + nx/nl*q, cy + ny/nl*q); } } };
     const engine = () => { const ex = -BODY.hx - 5, far = -nearSide;   /* a flat four out the back: the block, finned cylinders out each side,
          a round air cleaner on top, two chrome pipes swept up -- the far side first */
@@ -126839,13 +126849,21 @@ class WorldScene extends Phaser.Scene {
     const roof = () => { tube([hx, -yo, zt], [hx, yo, zt]); tube([xf, -yo, zt], [xf, yo, zt]); };   // (the hoop's top, the roof's front bar)
     const lamps = () => { for(const y of [-6, 6]){   // (two spotlights on the roof's front bar, looking ahead)
         this.drawHullPrism({ hx: 1.6, hy: 2.4, ox: xf, oy: y, z0: zt + 0.5 + bobZ, z1: zt + 4.5 + bobZ, ch: 0.9, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
-        if(vis(1, 0, 0)) this.quadOn(g, [P(xf + 1.65, y - 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 3.9), P(xf + 1.65, y - 1.8, zt + 3.9)], 0xfff2c4); } };
+        if(vis(1, 0, 0)) this.quadOn(g, [P(xf + 1.65, y - 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 3.9), P(xf + 1.65, y - 1.8, zt + 3.9)], LAMP); } };
+    const board = () => { const BC = TR.board || [0xffd34a, 0xff6a3a], x0 = hx - 3, x1 = xf + 9, N = 14, zb2 = zt + 2.2;   /* a surfboard strapped across the
+         roof rails, nose forward: a pointed oval, its rail a darker edge, a stripe down its middle */
+      const pl = (z, yy) => { const o = []; for(let i = 0; i <= N; i++){ const u = i/N, x = x0 + (x1 - x0)*u, w = 5.5*Math.pow(Math.sin(Math.PI*Math.min(1, u*1.15)), 0.7); o.push([x, w]); } return o.map(([x, w]) => P(x, w*yy, z)); };
+      const top = [...pl(zb2, 1), ...pl(zb2, -1).reverse()], low = [...pl(zb2 - 1.4, 1), ...pl(zb2 - 1.4, -1).reverse()];
+      this.quadOn(g, low, _pmix(BC[0], 0x000000, 0.35)); this.quadOn(g, top, BC[0]);
+      g.lineStyle(Math.max(1, 1.2*K), BC[1], 1); { const a = P(x0 + 2, 0, zb2), b = P(x1 - 3, 0, zb2); g.lineBetween(a.x, a.y, b.x, b.y); }
+      g.lineStyle(Math.max(1, 0.8*K), _pmix(BC[0], 0x000000, 0.5), 1); g.strokePoints(top.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+      g.lineStyle(Math.max(1, 1.4*K), 0x2e3138, 1); for(const x of [hx + 1, xf]){ const a = P(x, -5.8, zb2 + 0.1), b = P(x, 5.8, zb2 + 0.1); g.lineBetween(a.x, a.y, b.x, b.y); } };   // (its straps)
     const nudge = () => { const fx = BODY.hx + 4;   // (a nudge bar across his nose, below his face)
       for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
       tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
     if(part === 'pre'){ arms(-nearSide); if(frontSeen) engine(); side(-nearSide, false); }
     if(part === 'mid'){ arms(nearSide); if(!frontSeen) engine(); side(nearSide, false); }
-    if(part === 'near'){ side(-nearSide, true); if(frontSeen) roof(); side(nearSide, true); if(!frontSeen) roof(); lamps(); }
+    if(part === 'near'){ side(-nearSide, true); if(frontSeen) roof(); side(nearSide, true); if(!frontSeen) roof(); lamps(); if(BODY._bskin && BODY._bskin.buggyPart === 'surf') board(); }
     if(part === 'front' && frontSeen) nudge();
     if(part === 'pre' && !frontSeen) nudge();
   }
@@ -132107,6 +132125,32 @@ const HULL_PRINTS = {
   rvApollo: { id: 'rvApollo', seed: 0xa11, build(L){ if(L.part === 'lid') return; const GD = [0xb8902a, 0xe8c050], GD2 = [0xa07a1c, 0xd8b04a];
       for(let i = 0; i < 9; i++){ const x = L.rng()*L.per, y = L.rng()*L.H*0.7; L.side.push({ c: i % 2 ? GD : GD2, pts: [[x, y], [x + 6 + L.rng()*5, y + L.rng()*1.5], [x + 5 + L.rng()*4, y + 4 + L.rng()*3], [x - 1, y + 3 + L.rng()*3]] }); }   // (crinkled gold foil panels)
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2; L.side.push({ col: 0x1f3a7a, pts: _prRect(m - 5, L.H*0.72, m + 5, L.H*0.92) }); } } },
+  /* THE DUNE BUGGY'S SKINS (Sir, 2026-11-17) */
+  bgBeach: { id: 'bgBeach', seed: 0xbe4, build(L){ if(L.part === 'lid') return; const PK = [0xe8508a, 0xff7ab0], YE = [0xd8a41a, 0xffd34a];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a;   // (hibiscus flowers down his flanks: five petals and a yellow eye)
+        for(const [u, h, r] of [[0.22, 0.5, 6.5], [0.58, 0.4, 4.8], [0.84, 0.6, 3.8]]){ const cx = a + len*u, cz = L.H*h;
+          for(let i = 0; i < 5; i++){ const q = i/5*Math.PI*2, o = []; for(let j = 0; j < 8; j++){ const t = j/8*Math.PI*2; o.push([cx + Math.cos(q)*r*0.55 + Math.cos(t)*r*0.45, cz + Math.sin(q)*r*0.55 + Math.sin(t)*r*0.45]); } L.side.push({ c: PK, pts: o }); }
+          const e = []; for(let j = 0; j < 8; j++){ const t = j/8*Math.PI*2; e.push([cx + Math.cos(t)*r*0.25, cz + Math.sin(t)*r*0.25]); } L.side.push({ c: YE, pts: e }); } } } },
+  bgBaja: { id: 'bgBaja', seed: 0xb1a, build(L){ if(L.part === 'lid') return; const RD = [0xa81a14, 0xd8261c], BL = [0x14276a, 0x1f4fa8], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, len = b - a, H = L.H;
+        L.side.push({ c: RD, pts: [[X(-1), H*0.1], [X(len*0.45), H*0.1], [X(len*0.3), H*0.4], [X(-1), H*0.4]] }, { c: BL, pts: [[X(len*0.5), H*0.1], [X(len*0.58), H*0.1], [X(len*0.43), H*0.4], [X(len*0.35), H*0.4]] });
+        _prDigits(L, L.side, k, 0.72, H*0.3, H*0.5, '7', BK, -1); }
+      L.top.push({ c: RD, pts: _prRect(L.x0 - 1, -2, L.x1 + 1, 2) }); } },
+  bgDesert: { id: 'bgDesert', seed: 0xde5, layers: [ { c: [0x8a6a3c, 0x9a7a48], r: 5, cover: 0.22 }, { c: [0x5a4a2a, 0x6a5834], r: 3, cover: 0.12 } ] },
+  bgMud: { id: 'bgMud', seed: 0x3d, build(L){ if(L.part === 'lid') return; const MD = [0x5a3a1a, 0x6a4824], MD2 = [0x8a6034, 0x9a7040];
+      L.side.push({ c: MD, pts: _prRect(-1, 0, L.per + 1, L.H*0.18) });   // (a caked band along his bottom)
+      for(let i = 0; i < 60; i++){ const x = L.rng()*L.per, y = L.H*(0.12 + L.rng()*L.rng()*0.6), r = 1 + L.rng()*2.6, o = [];   // (mud splattered up from his wheels, thickest low)
+        for(let j = 0; j < 7; j++){ const t = j/7*Math.PI*2, rr = r*(0.7 + L.rng()*0.6); o.push([x + Math.cos(t)*rr*1.3, y + Math.sin(t)*rr]); } L.side.push({ c: i % 2 ? MD : MD2, pts: o }); } } },
+  bgFlower: { id: 'bgFlower', seed: 0xf10, build(L){ const WH = [0xe8e8e0, 0xffffff], PK = [0xd83a8a, 0xff5ab0], YE = [0xd8a41a, 0xffe14a];
+      const daisy = (arr, cx, cz, r, pc) => { for(let i = 0; i < 6; i++){ const q = i/6*Math.PI*2, o = []; for(let j = 0; j < 8; j++){ const t = j/8*Math.PI*2; o.push([cx + Math.cos(q)*r*0.6 + Math.cos(t)*r*0.38, cz + Math.sin(q)*r*0.6 + Math.sin(t)*r*0.38]); } arr.push({ c: pc, pts: o }); }
+        const e = []; for(let j = 0; j < 8; j++){ const t = j/8*Math.PI*2; e.push([cx + Math.cos(t)*r*0.3, cz + Math.sin(t)*r*0.3]); } arr.push({ c: YE, pts: e }); };
+      if(L.part === 'lid') return;
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; daisy(L.side, a + len*0.2, L.H*0.52, 7, WH); daisy(L.side, a + len*0.52, L.H*0.4, 5, PK); daisy(L.side, a + len*0.8, L.H*0.55, 6, WH); }
+      daisy(L.top, L.x1 - 7, -6, 4.5, WH); daisy(L.top, L.x1 - 5, 6, 3.5, PK); } },
+  bgPatrol: { id: 'bgPatrol', seed: 0x9a7, build(L){ if(L.part === 'lid') return; const WH = [0xd9dde2, 0xffffff];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2, h = L.H*0.5, r = L.H*0.28;   // (a white cross on each flank)
+        L.side.push({ c: WH, pts: _prRect(m - r, h - r*0.32, m + r, h + r*0.32) }, { c: WH, pts: _prRect(m - r*0.32, h - r, m + r*0.32, h + r) }); }
+      L.top.push({ c: WH, pts: _prRect(-5, -1.6, 5, 1.6) }, { c: WH, pts: _prRect(-1.6, -5, 1.6, 5) }); } },
   rvMars: { id: 'rvMars', seed: 0x3a5, layers: [ { c: [0x8a4a2a, 0xa85a34], r: 4.5, cover: 0.24 }, { c: [0xd88a5a, 0xe8a070], r: 3, cover: 0.14 } ] },
   rvRetro: { id: 'rvRetro', seed: 0x195, build(L){ if(L.part === 'lid') return; const TL = [0x1aa8a0, 0x2ad8c8], RD = [0xc8302a, 0xff5a4a];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
