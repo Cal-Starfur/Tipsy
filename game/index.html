@@ -45188,7 +45188,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040, prop: 'wings' } },
   { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
   /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
-  { id: 'courier:penguin', build: 'courier', name: 'Penguin', cents: 900, body: 0x23262c, stripe: 0x23262c, costume: 'penguin', noAerial: true },
+  { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x262a34, stripe: 0x23262c, costume: 'penguin', noAerial: true },
   { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0xf3ead2, costume: 'pirate', noAerial: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
@@ -129811,10 +129811,15 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0x16171b, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 1*K), 0x3a3d45, 1); g.strokePoints(S, true); };
       if(st === 'back'){ flipper(-nearB);
         if(front) for(const b of [-7, 7]){ const F = [[hx - 4, b - 3.5], [hx + 7, b - 4.5], [hx + 8, b], [hx + 7, b + 4.5], [hx - 4, b + 3.5]].map(([a, bb]) => PT(P(a, bb, 0.6))); g.fillStyle(0xf28a1a, 1); g.fillPoints(F, true); } }
-      if(st === 'body'){ onFront(oval(0, 87, 13, 9.5), 0xf6f6f2); flipper(nearB); }
-      if(st === 'face' && front){ onFront(oval(0, 50, 12.5, 30), 0xf6f6f2);   // (its belly over the mouth light)
+      /* (an EMPEROR penguin -- Sir, 2026-11-17): his head black, golden ear patches swept down each side of his neck, his upper chest a
+         soft yellow fading into the white belly, a long black beak with an orange stripe down its lower edge */
+      const ear = sb => { if(!sees(0, sb, 0)) return; const bb = sb*(hy + 0.5), E = [[19, 90], [11, 95], [4, 88], [6, 74], [14, 64], [20, 66]].map(([a, zz]) => PT(P(a, bb, zz)));
+        g.fillStyle(0xe89a1a, 1); g.fillPoints(E, true); const E2 = [[17, 88], [11, 92], [6.5, 86], [8.5, 75], [14, 67], [18, 69]].map(([a, zz]) => PT(P(a, bb + sb*0.1, zz))); g.fillStyle(0xffcf4a, 1); g.fillPoints(E2, true); };
+      if(st === 'body'){ ear(-1); ear(1); flipper(nearB); }
+      if(st === 'face' && front){ onFront(oval(0, 48, 12.5, 30), 0xf6f6f2);   // (its belly over the mouth light, its yellow chest above)
+        onFront(oval(0, 70, 12, 9), 0xf6cf5a); onFront(oval(0, 65, 11.5, 6), 0xf8e2a0, 0.9);
         const B = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a, b, zz]) => PT(P(a, b, zz))), true); };
-        B([[hx + 0.6, -4.5, 79.5], [hx + 0.6, 4.5, 79.5], [hx + 8, 0, 77]], 0xffa02a); B([[hx + 0.6, -4.5, 79.5], [hx + 0.6, 4.5, 79.5], [hx + 8, 0, 77], [hx + 0.6, 0, 74.5]], 0xd8701a); }
+        B([[hx + 0.6, -3.6, 81], [hx + 0.6, 3.6, 81], [hx + 13, 0, 76]], 0x4a4f58); B([[hx + 0.6, -3.6, 78], [hx + 0.6, 3.6, 78], [hx + 12, 0, 75.8], [hx + 0.6, 0, 74.5]], 0xf28a1a); }
       return; }
     if(c === 'pirate'){
       if(st === 'face' && front){ g.lineStyle(Math.max(1, 1.4*K), 0x16171b, 1); { const A = P(hx + 0.5, -13, 93), B = P(hx + 0.5, 13, 81); g.lineBetween(A.x, A.y, B.x, B.y); }
