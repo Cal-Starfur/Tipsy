@@ -126961,6 +126961,7 @@ class WorldScene extends Phaser.Scene {
     const nudge = () => { const fx = BODY.hx + 4, fy = BODY.hy - BODY.ch;   // (a nudge bar across his nose, below his face)
       /* (more cage -- Sir, 2026-11-17): the nose posts' feet tied across his front, round his chamfers, under his face */
       for(const sb of [-1, 1]) tube([nx, sb*yo, zl], [BODY.hx + 1.5, sb*fy, zl]); tube([BODY.hx + 1.5, -fy, zl], [BODY.hx + 1.5, fy, zl]);
+      for(const sb of [-1, 1]) tube([nx, sb*yo, zb + 1], [BODY.hx + 1.5, sb*fy, zl]);   // (and a brace each side from the nose post's top down to that bar's corner -- Sir, 2026-11-17)
       for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
       tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
     if(part === 'pre'){ arms(-nearSide); if(frontSeen) engine(); side(-nearSide, false); }
