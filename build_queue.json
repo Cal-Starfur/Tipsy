@@ -31,7 +31,7 @@
 },
 {
 "id": "pt3",
-"title": "Palmline Tower lifts: lobby, podium roof terrace and tenant-floor stops, floor changes fade (garage/hospital lift kit)",
+"title": "Palmline Tower lifts that work: the four lobby lifts take him up (the hospital's lift kit: car, doors, floor change), stops at the lobby and the residential floors",
 "spec": "docs/palmline-tower-plan.md",
 "group": "Palmline Tower interior",
 "deps": [
@@ -41,13 +41,14 @@
 },
 {
 "id": "pt4",
-"title": "Palmline Tower tenant floors, three or four of the twelve (office suite, dental practice, newsroom or studio, roof gym), each with a front desk and staff. Needs Sir to choose the tenants",
+"title": "Palmline Tower residential floors: lift lobby and a corridor of flat doors on each built floor, residents; deliveries to a flat in the tower (drop at the flat's door, up by the lift)",
 "spec": "docs/palmline-tower-plan.md",
 "group": "Palmline Tower interior",
 "deps": [
 "pt3"
 ],
-"status": "pending"
+"status": "pending",
+"note": "Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them"
 },
 {
 "id": "pt5",

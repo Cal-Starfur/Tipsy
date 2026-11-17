@@ -75,8 +75,8 @@ graph LR
 - [?] `pt1` Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk (lobby room, lifts painted on the back wall (cars in pt3), reception + security desks, mail wall, bench; receptionist, guard (keys), two tenants, a courier; both pairs slide and take him in; shops ghost while inside. Desk hand-over split out to pt1b) [docs/palmline-tower-plan.md]
 - [ ] `pt1b` Palmline Tower lobby: delivery hand-over at the reception desk (a drop for the tower goes in to the desk, the receptionist meets him face to face: meetWalk/meetTick) [docs/palmline-tower-plan.md]
 - [ ] `pt2` Coral Cafe and Marina Deli as real rooms (the mall's coffee and deli fittings), barista and deli clerk, their doors become slideDoors [docs/palmline-tower-plan.md]
-- [ ] `pt3` Palmline Tower lifts: lobby, podium roof terrace and tenant-floor stops, floor changes fade (garage/hospital lift kit) [docs/palmline-tower-plan.md]
-- [ ] `pt4` Palmline Tower tenant floors, three or four of the twelve (office suite, dental practice, newsroom or studio, roof gym), each with a front desk and staff. Needs Sir to choose the tenants [docs/palmline-tower-plan.md]
+- [ ] `pt3` Palmline Tower lifts that work: the four lobby lifts take him up (the hospital's lift kit: car, doors, floor change), stops at the lobby and the residential floors [docs/palmline-tower-plan.md]
+- [ ] `pt4` Palmline Tower residential floors: lift lobby and a corridor of flat doors on each built floor, residents; deliveries to a flat in the tower (drop at the flat's door, up by the lift) (Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them) [docs/palmline-tower-plan.md]
 - [ ] `pt5` Palmline Tower roof and crown: plant room, mast light at night [docs/palmline-tower-plan.md]
 - [ ] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]
 
