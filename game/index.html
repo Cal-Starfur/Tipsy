@@ -129901,10 +129901,19 @@ class WorldScene extends Phaser.Scene {
         const sb = nearB; line([hx - 2, sb*12, 50], [hx - 8, sb*(hy + 2), 62], 0x8d959c, 2.4); line([hx - 8, sb*(hy + 2), 62], [-hx, sb*(hy - 2), 80], 0x8d959c, 2.4); }   // (a chest control panel, an air hose)
       /* (the helmet fitted -- Sir, 2026-11-17: "the clear ball helmet doesn't fit over"): a glass dome in his own octagonal plan, a hair wider
          than his head, sat on a grey collar ring, its top rounded -- see-through, a gold sheen and a glint on it */
+      /* (round again, fitted -- Sir, 2026-11-17: "no heavy outline, a shine, a two-tone that gives it shape, round"): a glass sphere cap
+         over his head from the collar ring up, its outline the projected sphere's (so it fits him at every angle) -- a darker tone, a
+         lighter one set up and in from it, a gold sheen across its top, a soft highlight and a glint; no outline */
       if(st === 'top'){ band(72, 76, 0x8d959c);
-        this.botHull(g, x, y, z, fdir, { hx: hx + 3, hy: hy + 3, z0: 76, z1: zl + 16, ch: 10, bev: 14, bevIn: 12, cTop: 0xd8eefc, cLt: 0xb8dcf4, cDk: 0x94c4e4, cBottom: 0x94c4e4, alpha: 0.32 });
-        this.botHull(g, x, y, z, fdir, { hx: hx + 3.2, hy: hy + 3.2, ch: 10, z0: zl + 2, z1: zl + 4, band: true, cLt: 0xffd36a, cDk: 0xd8a83a, alpha: 0.45 });
-        { const q0 = P(hx + 2, -8, zl + 8), q1 = P(hx - 2, -14, zl - 14); g.lineStyle(Math.max(1, 3*K), 0xffffff, 0.55); g.lineBetween(q0.x, q0.y, q1.x, q1.y); } }
+        const R = 31, zc = 92, el0 = Math.asin((76 - zc)/R), pts = [];
+        for(let i = 0; i <= 6; i++){ const el = el0 + (Math.PI/2 - el0)*i/6; for(let j = 0; j < 24; j++){ const az = j/24*Math.PI*2; pts.push(P(Math.cos(el)*Math.cos(az)*R, Math.cos(el)*Math.sin(az)*R, zc + Math.sin(el)*R)); } }
+        const H = convexHull(pts).map(PT); let cx = 0, cy = 0; for(const q of H){ cx += q.x; cy += q.y; } cx /= H.length; cy /= H.length;
+        let w = 0; for(const q of H) w = Math.max(w, Math.abs(q.x - cx));
+        g.fillStyle(0x6aa8d8, 0.3); g.fillPoints(H, true);
+        g.fillStyle(0xc8e8ff, 0.32); g.fillPoints(H.map(q => new Phaser.Geom.Point(cx + (q.x - cx)*0.86 - w*0.1, cy + (q.y - cy)*0.86 - w*0.1)), true);
+        g.fillStyle(0xffd36a, 0.22); g.fillPoints(H.filter(q => q.y < cy - w*0.15).map(q => new Phaser.Geom.Point(cx + (q.x - cx)*0.8, cy + (q.y - cy)*0.95)), true);
+        g.fillStyle(0xffffff, 0.6); g.fillEllipse(cx - w*0.38, cy - w*0.42, w*0.5, w*0.24); g.fillStyle(0xffffff, 0.85); g.fillCircle(cx - w*0.2, cy - w*0.58, w*0.05);
+        g.fillStyle(0xffffff, 0.3); g.fillEllipse(cx + w*0.55, cy + w*0.1, w*0.12, w*0.34); }
       return; }
     if(c === 'bee'){
       if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
