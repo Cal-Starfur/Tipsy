@@ -20014,7 +20014,7 @@ function gothTick(scene, ow){
 const LOST_DOG = { on: true, everyMs: 8000, spawnP: 0.5, R0: 1100, R1: 3400, homeR0: 1800, homeR1: 7000, apart: 1200,
   slowV: 0.075, reachR: 110, boltR: 150, boltD: 240, boltMs: 1100, holdMs: 450, greetMs: 1500, followGap: 78, trotV: 0.12, sprintV: 0.26,
   whineMs: [4500, 10000], tipCents: 2000, giveUpMs: 240000, homeR: 260, restMs: 45000, pace: 32, paceV: 0.028, pausMs: 1300,
-  perHood: 3 };   // (a FIXED few a hood, each its own dog: one taken home is home for good -- lostDogLeft)
+  perHood: 3, awayR: 900 };   // (awayR: told no, how far he must go before it will come to him again) (a FIXED few a hood, each its own dog: one taken home is home for good -- lostDogLeft)
 const LOST_DOG_NAMES = ["Biscuit", "Pepper", "Mango", "Waffles", "Noodle", "Pickles", "Scout", "Maple", "Ziggy", "Peanut", "Olive", "Bruno", "Daisy", "Tofu", "Rocket", "Coco"];
 const LOST = { st: 'idle', dog: null, owner: null, nextT: 0, lastT: 0, said: false, toldFast: false, whineT: 0 };
 function lostDogBusy(){ return LOST.st !== 'idle'; }
@@ -20159,6 +20159,16 @@ function lostDogHomeMat(D){
   if(D._mat) return D._mat;
   const E = D.home.e, ax = E.ox + E.dv.x*D.home.along + E.rv.x*T2, ay = E.oy + E.dv.y*D.home.along + E.rv.y*T2;
   return (D._mat = { ax, ay, dv: E.dv, rv: E.rv, mat: owMatFrame(ax, ay, E.dv, E.rv), x: ax + E.rv.x*T2/2, y: ay + E.rv.y*T2/2 });
+}
+/* NOT NOW: the card away, the dog back to its spot and its pacing, its trust gone -- it will not come to him again till he has been
+   well away from it (LOST_DOG.awayR) and come back */
+function lostDogNotNow(){
+  const R = LOST, D = R.dog; if(!D || R.st !== 'tag') return;
+  hospSayCard(null);
+  R.st = 'lost'; D.sit = false; D.tagMeet = null; D.slowT = 0; D.shy = true;
+  const p = edgePt(D.e, D.al, D.lat); D.run = { x0: D.x, y0: D.y, x1: p.x, y1: p.y, t0: performance.now(), ms: 900 };
+  const sc = typeof scn === "function" ? scn() : null;
+  if(sc) sc.npcSay("lostdog", lostDogHeadAt, "*whine*", 1600);
 }
 /* the tag read: off home, the dog behind him, the GPS to its door */
 function lostDogTagRead(){
@@ -20353,6 +20363,8 @@ function lostDogTick(scene, ow){
       if(!R.toldFast){ R.toldFast = true; if(typeof tpToast === "function") tpToast("Too fast! You scared " + (D.he ? "him" : "her") + " off. Ease up to the dog."); }
       return;
     }
+    /* (told no: shy of him till he has gone well away and come back) */
+    if(D.shy){ if(dBot > (P.awayR || 900)) D.shy = false; else { D.slowT = 0; return; } }
     /* slow and close, held a moment: trust */
     if(dBot < P.reachR && v <= P.slowV){
       D.slowT += dt;
@@ -20370,9 +20382,12 @@ function lostDogTick(scene, ow){
            and the tag is read -- the card over the dog, its name and address on it; his answer sets off for home */
         R.st = 'tag'; D.sit = true; D.th = Math.atan2(ow.py - D.y, ow.px - D.x);
         D.tagMeet = { t0: now, botTh0: ow.yaw, botTh: meetCheat(Math.atan2(D.y - ow.py, D.x - ow.px)) };
-        if(D.shelter) hospSayCard({ who: "A stray", btn: "Let's go to the shelter!", ok: shelterTagRead, at: lostDogHeadAt,
+        /* (a NO, Sir 2026-11-17: "i need a way to tell this dog no" -- not now: it goes back to its pacing, and will not come to him
+           again till he has been away and back, lostDogNotNow) */
+        const no = { btn: "Not now", ok: lostDogNotNow };
+        if(D.shelter) hospSayCard({ who: "A stray", btn: "Let's go to the shelter!", ok: shelterTagRead, at: lostDogHeadAt, no,
           say: "No collar, no tag, nobody calling for " + (D.he ? "him" : "her") + ". This one's a stray. The " + SHELTER.name + " will look after " + (D.he ? "him" : "her") + " and find " + (D.he ? "him" : "her") + " a home." });
-        else hospSayCard({ who: D.name + "'s collar tag", btn: "Let's get you home!", ok: lostDogTagRead, at: lostDogHeadAt,
+        else hospSayCard({ who: D.name + "'s collar tag", btn: "Let's get you home!", ok: lostDogTagRead, at: lostDogHeadAt, no,
           say: "Hi! My name is " + D.name + ". I live at " + D.addr + ". If you've found me, I'm lost! Please take me home." });
       }
       return;
