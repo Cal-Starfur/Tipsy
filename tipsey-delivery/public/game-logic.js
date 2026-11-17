@@ -128175,11 +128175,12 @@ class WorldScene extends Phaser.Scene {
         const bl = Math.floor(t/400); for(const [b, zz, col, k] of [[-5, 53, 0xd8261c, 0], [-1, 53, 0x2aa83a, 1], [3, 53, 0xffd34a, 2], [6, 49, 0x5fe8ff, 3]]){ const q = P(hx + 0.6, b, zz); g.fillStyle(col, (bl + k) % 3 ? 1 : 0.35); g.fillCircle(q.x, q.y, 1.3*K*2); }
         line([hx + 0.6, -6, 48], [hx + 0.6, 0, 48], 0xc9ced4, 1.2);
         const sb = nearB; line([hx - 2, sb*12, 50], [hx - 8, sb*(hy + 2), 62], 0x8d959c, 2.4); line([hx - 8, sb*(hy + 2), 62], [-hx, sb*(hy - 2), 80], 0x8d959c, 2.4); }   // (a chest control panel, an air hose)
-      if(st === 'top'){ { const o = []; for(let i = 0; i <= 24; i++){ const th = i/24*Math.PI*2; o.push(PT(P(Math.cos(th)*24, Math.sin(th)*22, 74))); } g.lineStyle(Math.max(1, 3*K), 0x8d959c, 1); g.strokePoints(o, false); }
-        const q = P(0, 0, 94), rr = sr(0, 0, 94, 27); g.fillStyle(0x8ac8f0, 0.25); g.fillCircle(q.x, q.y, rr);
-        g.fillStyle(0xffc84a, 0.22); g.beginPath(); g.arc(q.x, q.y, rr, Math.PI*1.05, Math.PI*1.95, false); g.closePath(); g.fillPath();   // (a gold sheen over its upper glass)
-        g.lineStyle(Math.max(1, 2*K), 0xffffff, 0.9); g.strokeCircle(q.x, q.y, rr);
-        g.fillStyle(0xffffff, 0.6); g.fillEllipse(q.x - rr*0.38, q.y - rr*0.42, rr*0.55, rr*0.28); g.fillStyle(0xffffff, 0.35); g.fillEllipse(q.x + rr*0.45, q.y + rr*0.2, rr*0.16, rr*0.36); }
+      /* (the helmet fitted -- Sir, 2026-11-17: "the clear ball helmet doesn't fit over"): a glass dome in his own octagonal plan, a hair wider
+         than his head, sat on a grey collar ring, its top rounded -- see-through, a gold sheen and a glint on it */
+      if(st === 'top'){ band(72, 76, 0x8d959c);
+        this.botHull(g, x, y, z, fdir, { hx: hx + 3, hy: hy + 3, z0: 76, z1: zl + 16, ch: 10, bev: 14, bevIn: 12, cTop: 0xd8eefc, cLt: 0xb8dcf4, cDk: 0x94c4e4, cBottom: 0x94c4e4, alpha: 0.32 });
+        this.botHull(g, x, y, z, fdir, { hx: hx + 3.2, hy: hy + 3.2, ch: 10, z0: zl + 2, z1: zl + 4, band: true, cLt: 0xffd36a, cDk: 0xd8a83a, alpha: 0.45 });
+        { const q0 = P(hx + 2, -8, zl + 8), q1 = P(hx - 2, -14, zl - 14); g.lineStyle(Math.max(1, 3*K), 0xffffff, 0.55); g.lineBetween(q0.x, q0.y, q1.x, q1.y); } }
       return; }
     if(c === 'bee'){
       if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
