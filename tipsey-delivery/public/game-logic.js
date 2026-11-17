@@ -128085,8 +128085,7 @@ class WorldScene extends Phaser.Scene {
          off each shoulder (the far one behind him), orange feet out under his front */
       const flipper = sb => { const bb = sb*(hy + 0.4), S = [[8, 0, 90], [-4, 2, 86], [-14, 9, 52], [-9, 11, 42], [2, 6, 52], [8, 2, 76]].map(([a, o, zz]) => PT(P(a, bb + sb*o, zz)));
         g.fillStyle(0x16171b, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 1*K), 0x3a3d45, 1); g.strokePoints(S, true); };
-      if(st === 'back'){ flipper(-nearB);
-        if(front) for(const b of [-7, 7]){ const F = [[hx - 4, b - 3.5], [hx + 7, b - 4.5], [hx + 8, b], [hx + 7, b + 4.5], [hx - 4, b + 3.5]].map(([a, bb]) => PT(P(a, bb, 0.6))); g.fillStyle(0xf28a1a, 1); g.fillPoints(F, true); } }
+      if(st === 'back'){ flipper(-nearB); }   /* (no feet -- Sir, 2026-11-17) */
       /* (an EMPEROR penguin -- Sir, 2026-11-17): his head black, golden ear patches swept down each side of his neck, his upper chest a
          soft yellow fading into the white belly, a long black beak with an orange stripe down its lower edge */
       const ear = sb => { if(!sees(0, sb, 0)) return; const bb = sb*(hy + 0.5), E = [[19, 90], [11, 95], [4, 88], [6, 74], [14, 64], [20, 66]].map(([a, zz]) => PT(P(a, bb, zz)));
