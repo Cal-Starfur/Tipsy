@@ -45191,7 +45191,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x2e3340, head: 0x111216, stripe: 0x23262c, costume: 'penguin', noAerial: true },
   { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true, noMouth: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true, noMouth: true },
-  { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
+  { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true, noMouth: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
   /* (six more -- Sir, 2026-11-17) */
@@ -129874,10 +129874,20 @@ class WorldScene extends Phaser.Scene {
         for(let i = 0; i < 12; i++){ const th = i/12*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; line([ca*13.6, sa*13.6, zl + 2], [ca*15.1, sa*15.1, zl + 19.5], 0xd9dde2, 1); }   // (its pleats)
         }
       return; }
-    if(c === 'wizard'){
-      if(st === 'face') onFront([[-10, 78], [-6, 70], [-9, 58], [-4, 48], [0, 36], [4, 48], [9, 58], [6, 70], [10, 78], [4, 76], [0, 77.5], [-4, 76]], 0xf2f2ee);   // (a long white beard)
-      if(st === 'top'){ brim(zl + 1, 25, 0x3a1f6a); lathe(0, 0, [[zl + 1, 14], [zl + 18, 8], [zl + 32, 3], [zl + 40, 0.6]], 0x4a2a8a);
-        for(const [a, b, zz] of [[13, 0, zl + 8], [8, 6, zl + 19], [6, -6, zl + 27], [10, -9, zl + 4]]){ if(!sees(a, b, 0)) continue; const q = P(a, b, zz), rr = sr(a, b, zz, 2.2); g.fillStyle(0xffd34a, 1); const o = []; for(let i = 0; i < 10; i++){ const q2 = -Math.PI/2 + i*Math.PI/5, r2 = i % 2 ? rr*0.42 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(q2)*r2, q.y + Math.sin(q2)*r2)); } g.fillPoints(o, true); } }
+    if(c === 'wizard'){   /* (second pass -- Sir, 2026-11-17): one-piece hat, its tip bent back, gold stars and a crescent moon on it; a fuller beard with a
+         moustache; his robe's hem trimmed gold, stars scattered on it; a staff at his side, its orb glowing */
+      const star = (a, b, zz, r, col) => { const q = P(a, b, zz), rr = sr(a, b, zz, r), o = []; for(let i = 0; i < 10; i++){ const q2 = -Math.PI/2 + i*Math.PI/5, r2 = i % 2 ? rr*0.42 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(q2)*r2, q.y + Math.sin(q2)*r2)); } g.fillStyle(col, 1); g.fillPoints(o, true); };
+      if(st === 'body'){ band(12, 17, 0xd8b04a); for(const [a, b, zz] of [[hx, -8, 30], [hx, 9, 64], [hx, -6, 70], [6, hy, 36], [-8, hy, 74], [6, -hy, 58], [-6, -hy, 28], [-hx, 4, 66], [-hx, -8, 32]]){ const n = a === hx ? [1, 0] : a === -hx ? [-1, 0] : [0, Math.sign(b)]; if(sees(n[0], n[1], 0)) star(a + n[0]*0.6, b + n[1]*0.6, zz, 2.2, 0xffd34a); } }
+      if(st === 'face'){ onFront([[-12, 80], [-14, 68], [-11, 54], [-6, 42], [0, 30], [6, 42], [11, 54], [14, 68], [12, 80], [6, 77], [0, 78.5], [-6, 77]], 0xe8e8e2);   // (a long full beard, its moustache)
+        onFront([[-1, 79.5], [-12, 78], [-13, 74], [-6, 76]], 0xf6f6f2); onFront([[1, 79.5], [12, 78], [13, 74], [6, 76]], 0xf6f6f2);
+        if(front) for(const [b, zz] of [[-5, 66], [4, 56], [-3, 46]]) line([hx + 0.5, b, zz], [hx + 0.5, b + 2, zz - 6], 0xc9c9c2, 1); }
+      if(st === 'top'){ lathe(0, 0, [[zl, 24], [zl + 2, 24], [zl + 3, 14], [zl + 16, 9], [zl + 26, 5], [zl + 32, 2.5]], 0x4a2a8a);   // (brim and cone one piece)
+        { const tip = []; for(let i = 0; i <= 6; i++){ const u = i/6; tip.push([-u*12, 0, zl + 32 + Math.sin(u*Math.PI*0.6)*6 - u*u*6]); } for(let i = 0; i < 6; i++){ const [a0, b0, z0] = tip[i], [a1, b1, z1] = tip[i + 1]; line([a0, b0, z0], [a1, b1, z1], 0x4a2a8a, 5 - i*0.7); } ball(-12, 0, zl + 31, 1.8, 0xffd34a); }   // (its tip bent back, a bobble)
+        for(const [a, b, zz, r] of [[12, 0, zl + 8, 2.6], [7, 7, zl + 17, 2], [6, -8, zl + 21, 1.8], [-10, 9, zl + 10, 2.2], [-9, -9, zl + 14, 2]]){ if(!sees(a, b, 0)) continue; star(a, b, zz, r, 0xffd34a); }
+        if(sees(1, 0, 0)){ const q = P(10.5, -3, zl + 14), rr = sr(10, -3, zl + 14, 3.2); g.fillStyle(0xf6e6a0, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x4a2a8a, 1); g.fillCircle(q.x + rr*0.45, q.y - rr*0.2, rr*0.85); }   // (a crescent moon)
+        const sa = 4, sbb = nearB*(hy + 10), now = t;   // (his staff, the orb at its head pulsing)
+        line([sa, sbb, 0], [sa + 2, sbb, zl + 18], 0x6a4020, 3); line([sa, sbb, 0], [sa + 2, sbb, zl + 18], 0x8a5a2a, 1.2);
+        { const q = P(sa + 2, sbb, zl + 22), rr = sr(sa, sbb, zl + 22, 5), pl = 0.5 + 0.3*Math.sin(now*0.006); g.fillStyle(0x9a6aff, pl*0.5); g.fillCircle(q.x, q.y, rr*1.9); g.fillStyle(0xb88aff, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x - rr*0.3, q.y - rr*0.3, rr*0.35); } }
       return; }
     if(c === 'astro'){
       if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 7, -hx, -12, 12, 52, 96, 0xd9dde2); for(const b of [-6, 6]) this.avLathe(V, -hx - 4, b, [[96, 3], [101, 3]], 0x8d959c, null, 10);
