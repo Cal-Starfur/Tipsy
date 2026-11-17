@@ -96752,6 +96752,16 @@ const ELDER_HAIR = [0xdcdcd8, 0xb9b9b4, 0x8e8e8a, 0x6b6b6b], BRIGHT = [0xe2483d,
 const MUTED = [0x8a7a62, 0x6b7b86, 0x9a8a9a, 0x7a8a6a, 0xa89a7a, 0x6f6a7a].map(_pcol), KHAKI = [0xc9b98a, 0xb8a888, 0x8a8a7a].map(_pcol);
 const TOURIST_HATS = ['cap', 'cap', 'visor', 'bucket', 'bucket', 'cowboy', 'bowler', 'fez', 'prop', 'tophat'];
 const TOURIST_HAT_COLS = [0xe2483d, 0xffb02e, 0x4f9ad8, 0x7fd36a, 0xc86ad8, 0x2fbfae, 0xff7aa8, 0xf6f0e4, 0x2f4a86, 0xd9892b, 0xe8d24a, 0x3f6b4a, 0x24272c, 0xc9a26b];
+/* WHO RIDES IN A VEHICLE (vehRider): an adult off the street's roster, rolled off the vehicle's seed -- no aid, never the
+   heavier build (two abreast in a convertible's seats); type names one (an operator: 'worker'). Kept, not rolled each frame */
+const VEH_RIDER_TYPES = ['man', 'man', 'woman', 'woman', 'elderMan', 'elderWoman', 'business', 'tourist', 'surfer', 'hipster', 'teen'];
+const VEH_RIDER_LOOKS = new Map();
+function vehRiderLook(seed, type){
+  const k = seed + ':' + (type || ''); let L = VEH_RIDER_LOOKS.get(k);
+  if(!L){ L = streetLook(seed, { adult: true, heavy: false, type: type || VEH_RIDER_TYPES[Math.floor(mulberry32((seed ^ 0x7e11) >>> 0)()*VEH_RIDER_TYPES.length)] });
+    if(VEH_RIDER_LOOKS.size > 400) VEH_RIDER_LOOKS.clear(); VEH_RIDER_LOOKS.set(k, L); }
+  return L;
+}
 function streetLook(seed, opts){
   const pr = mulberry32(seed >>> 0), pick = a => a[Math.floor(pr()*a.length)], adult = !!(opts && opts.adult);
   let kind = opts && opts.type;
@@ -117841,6 +117851,19 @@ class WorldScene extends Phaser.Scene {
      headlamps with their indicators, tail lamps, bumpers and plates. The
      pickup is the same front on a short cab and an open bed; the cruiser
      is the sedan in black-and-white with its light bar, push bar and star. */
+  /* SOMEONE IN A VEHICLE (Sir, 2026-11-17: "any people visible in any vehicle to match our people"): one of our people
+     (L, a look as streetLook gives) sat at the vehicle's own (a, b, h) -- h the floor under their feet, pose.sit the
+     seat's height over it -- facing its nose, drawn by the people's own body drawer. clip (screen points, convex): only
+     what shows of them over the vehicle's sides */
+  vehRider(g, x, y, z, fdir, a, b, h, L, pose, clip){
+    const th = fdir*Math.PI/2, c = Math.cos(th), s = Math.sin(th), c0 = this.drawClip;
+    const cl = clip ? (c0 ? clipConvex(c0.map(p => ({ x: p.x, y: p.y })), clip) : clip) : c0;
+    if(clip && !cl) return;
+    this.drawClip = cl;
+    try { this.drawPersonHullBody(cl ? clipGraphics(g, cl) : g, x + a*c - b*s, y + a*s + b*c, z + h, th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+      0, false, 0, 0, null, L.uniform, false, Object.assign({ noShadow: true, dress: L.dress }, pose)); }
+    finally { this.drawClip = c0; }
+  }
   drawCar(g, kind, x, y, z, t, fdir, wheelPhase, colorSeed, data){
     /* what this kind is: a body from CAR_BODIES, a paint scheme, its add-ons (see CAR_KINDS) */
     const CK = CAR_KINDS[kind] || CAR_KINDS.car, CR = CARC, isPolice = CK.livery === "police", has = k => CK.add.includes(k);
@@ -118233,22 +118256,16 @@ class WorldScene extends Phaser.Scene {
            with hands on the wheel, the passenger's arms at their sides; each
            rolls a skin, shirt, trousers and hair off the car's seed. The far
            one first */
-        const box = (a0, a1, b0, b1, h0, h1, c) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), c);
-        const pr = mulberry32((seed ^ 0x2c1b) >>> 0), pick = L => L[Math.floor(pr()*L.length)];
-        const riders = [1, -1].map(side => ({ side, bc: side*(hw - 5)/2, skin: pick(PEOPLE_SKIN).c, shirt: pick(PEOPLE_SHIRT).c, pants: pick(PEOPLE_PANTS).c, hair: pick(PEOPLE_HAIR) }));
+        /* (Sir, 2026-11-17: "fix the people that are in our convertible car to match our people"): they were boxes; now two
+           of the street's own people (vehRiderLook), sat on the cushions through the body drawer (vehRider), clipped as the
+           well is. The driver's hands on the wheel, the passenger's in their lap */
+        const riders = [1, -1].map(side => ({ side, bc: side*(hw - 5)/2, L: vehRiderLook(((seed ^ 0x2c1b) + (side > 0 ? 0 : 0x51)) >>> 0) }));
         const rider = R => {
-          const aH = fs - 3, bc = R.bc, d = R.side > 0, aW = aH + 22, hW = Z + 17;
-          const torso = () => { box(aH - 9, aH + 3, bc - 9, bc + 9, Z, Z + 28, R.shirt);
-            box(aH - 7, aH + 3, bc - 6, bc + 6, Z + 29, Z + 41, R.skin);
-            box(aH - 8, aH + 4, bc - 6.5, bc + 6.5, Z + 39, Z + 44, R.hair); box(aH - 8, aH - 5, bc - 6.5, bc + 6.5, Z + 31, Z + 39, R.hair); };
-          const front = () => {
-            for(const sb of [-1, 1]){ const ha = d ? aW - 2 : aH + 1, hh = d ? hW : Z + 4, hb = bc + sb*(d ? 6 : 11);
-              solid(loftSeg(aH - 3, oct(2.6, Z + 20, Z + 26, bc + sb*10), ha, oct(2.6, hh - 3, hh + 3, hb), 3), R.shirt);
-              box(ha - 1, ha + 4, hb - 2.5, hb + 2.5, hh - 2.5, hh + 2.5, R.skin); }
-            if(d){ const rim = []; for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI*2; rim.push([aW + 1, bc + Math.cos(ph)*8, hW + Math.sin(ph)*8]); }
-              for(let k = 0; k < 10; k++) line(rim[k], rim[k + 1], 0x1d1f23, 2.4);
-              line([aW + 1, bc, hW], [GH.f0 - 4, bc, Z + 2], 0x1d1f23, 2.4); } };
-          if(nose){ torso(); front(); } else { front(); torso(); }
+          const aH = fs - 2, bc = R.bc, d = R.side > 0, aW = aH + 30, hW = Z + 30;
+          this.vehRider(g, x, y, z + lift, fdir, aH, bc, fl, R.L, { sit: Z - fl, reach: d ? [aW - aH - 3, R.L.build.legH + hW - Z] : [16, R.L.build.legH + 8] }, clip);
+          if(d){ const rim = []; for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI*2; rim.push([aW + 1, bc + Math.cos(ph)*8, hW + Math.sin(ph)*8]); }
+            for(let k = 0; k < 10; k++) line(rim[k], rim[k + 1], 0x1d1f23, 2.4);
+            line([aW + 1, bc, hW], [GH.f0 - 4, bc, Z + 2], 0x1d1f23, 2.4); }
         };
         const frontRow = () => {
           base(fs, -hw + 9, -4); base(fs, 4, hw - 9);
@@ -121241,20 +121258,21 @@ class WorldScene extends Phaser.Scene {
        wheel at (aW, hW) on its column from (aC, hC). A hi-vis vest with its
        reflective band, a hard hat or bare hair. Painted back to front from
        whichever way the eye looks, as the machine's own parts are. */
-    const OP = (() => { const r = mulberry32((seed ^ 0x51ed) >>> 0);
-      return { skin: PEOPLE_SKIN[Math.floor(r()*PEOPLE_SKIN.length)].c, pants: [0x2e3a56, 0x3b4148, 0x4a3f33][Math.floor(r()*3)] }; })();
+    /* THE OPERATOR (Sir, 2026-11-17: "any people visible in any vehicle to match our people"): one of our people, a worker
+       off the street's roster (vehRiderLook), in the machine's own hi-vis and a hard hat (or bare-headed under a canopy),
+       sat on the seat by the people's body drawer (vehRider) -- kept per machine, not rolled each frame */
+    const opLook = (vest, hat) => { const k = 'op' + vest + ':' + hat, M = this._opLooks || (this._opLooks = new Map());
+      let L = M.get(seed + k); if(L) return L;
+      const W = vehRiderLook((seed ^ 0x51ed) >>> 0, 'worker'), cap = W.uniform && W.uniform.cap;
+      L = Object.assign({}, W, { uniform: Object.assign({}, W.uniform, { vest: _pcol(vest), cap: hat && cap ? Object.assign({}, cap, { c: hat, dk: _pdk(hat, 0.8), top: hat, badge: hat }) : undefined }) });
+      if(!hat) delete L.uniform.cap;
+      if(M.size > 200) M.clear(); M.set(seed + k, L); return L; };
     /* ctl: what else is at hand -- "fork" the mast's three levers right of
        the wheel, "roller" a joystick console beside the seat */
     const seated = (a0, a1, h0, hs, aB, hb, aH, hf, aW, hW, aC, hC, vest, hat, ctl) => {
       const back = () => box(a0, aB, -16, 16, hs, hb, DARK);
-      const legs = () => { for(const sb of [-1, 1]){ box(aH - 6, aH + 22, sb*8 - 5, sb*8 + 5, hs, hs + 9, OP.pants);
-        box(aH + 15, aH + 23, sb*8 - 4, sb*8 + 4, hf, hs + 6, OP.pants); box(aH + 15, aH + 29, sb*8 - 4, sb*8 + 4, hf, hf + 5, 0x1d1f23); } };
-      const body = () => {
-        box(aH - 10, aH + 4, -13, 13, hs + 4, hs + 38, vest);
-        box(aH - 10.4, aH + 4.4, -13.4, 13.4, hs + 22, hs + 25, 0xe9ecef);                       // the reflective band
-        box(aH - 8, aH + 4, -7, 7, hs + 40, hs + 54, OP.skin);
-        if(hat){ box(aH - 10, aH + 6, -9, 9, hs + 53, hs + 59, hat); box(aH + 5, aH + 10, -8, 8, hs + 53, hs + 55, hat); }
-        else box(aH - 9, aH + 5, -8, 8, hs + 52, hs + 57, 0x3b2a1e); };
+      const L = opLook(vest, hat);
+      const body = () => this.vehRider(g, x, y, z, fdir, aH + 2, 0, hf, L, { sit: hs - hf, reach: [aW - aH - 2, L.build.legH + hW - hs] });
       /* the controls: a dash the column rises from, the wheel's rim laid
          back on it, and the machine's own levers */
       const controls = () => {
@@ -121269,10 +121287,8 @@ class WorldScene extends Phaser.Scene {
         if(ctl === "roller"){ box(aH - 6, aH + 12, -26, -17, hs - 4, hs + 12, TRIM);
           line([aH + 4, -21.5, hs + 12], [aH + 7, -21.5, hs + 26], DARK, 2.4); box(aH + 4, aH + 10, -24, -19, hs + 25, hs + 31, 0x1d1f23); }
       };
-      const arms = () => { controls();
-        for(const sb of [-1, 1]){ beam(aH - 3, hs + 34, aW, hW, 3.5, 7, sb*12, vest); box(aW - 2, aW + 3, sb*12 - 3, sb*12 + 3, hW - 3, hW + 3, OP.skin); } };
       box(a0, a1, -16, 16, h0, hs, DARK);
-      if(nose){ back(); body(); legs(); arms(); } else { arms(); legs(); body(); back(); }
+      if(nose){ back(); body(); controls(); } else { controls(); body(); back(); }
     };
 
     /* THE BIG MACHINES' DRAW ORDER: their parts run in a line from tail to
@@ -121716,12 +121732,20 @@ class WorldScene extends Phaser.Scene {
       if(has("cargoDoor")){ const d = [fl(-50, 66), fl(30, 64), fl(30, 118), fl(-50, 116)];           // the cargo door aft of the wing
         Q(d, shadeC(BODY, 0.93)); this.edgeOn(g, d, shadeC(BODY, 0.6), 1.2); }
     }});
-    /* the open cockpit (the biplane): the dark hole, the pilot's head and cap, the little screen */
+    /* the open cockpit (the biplane): the dark hole, the pilot, the little screen. The pilot (Sir, 2026-11-17: "any people
+       visible in any vehicle to match our people") is one of our people (vehRiderLook), sat low with a hand to the stick,
+       drawn by the people's body drawer and clipped to what shows over the cockpit's near rim and near end */
     if(has("openCockpit")) parts.push({ d: 5800, draw: () => {
-      const [w, hb, ht] = stAt(20);
-      solid(prismH([[-4, -12], [44, -12], [44, 12], [-4, 12]], ht - 4, ht + 0.5), 0x1d2024);
-      solid(prismH([[6, -7], [20, -7], [20, 7], [6, 7]], ht, ht + 13), 0xd9a57e);
-      solid(prismH([[4, -8], [22, -8], [22, 8], [4, 8]], ht + 11, ht + 17), 0x6b4a34);
+      const [w, hb, ht] = stAt(20), R = ht + 0.5;
+      solid(prismH([[-4, -18], [44, -18], [44, 18], [-4, 18]], ht - 4, R), 0x1d2024);
+      const half = (A, B) => { const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ux = dx/L*1e5, uy = dy/L*1e5;
+        const L1 = { x: A.x - ux, y: A.y - uy }, L2 = { x: B.x + ux, y: B.y + uy };
+        return [L1, L2, { x: L2.x, y: L2.y - 1e6 }, { x: L1.x, y: L1.y - 1e6 }]; };
+      let clip = [{ x: -1e7, y: -1e7 }, { x: 1e7, y: -1e7 }, { x: 1e7, y: 1e7 }, { x: -1e7, y: 1e7 }];
+      clip = clipConvex(clip, half(P(-4, nearB*18, R), P(44, nearB*18, R)));
+      if(clip) clip = clipConvex(clip, nose ? half(P(44, -18, R), P(44, 18, R)) : half(P(-4, -18, R), P(-4, 18, R)));
+      if(clip){ const L = vehRiderLook((seed ^ 0x9117) >>> 0), sit = 20;
+        this.vehRider(g, x, y, z, fdir, 12, 0, ht - 36 - sit, L, { sit, reach: [20, L.build.legH + 12] }, clip); }
       solid(prismB([[44, ht], [50, ht], [46, ht + 12], [42, ht + 12]], -11, 11), 0x9fc4d6);
     }});
     /* a bubble canopy (the stunt plane, the glider) */
