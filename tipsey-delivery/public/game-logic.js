@@ -126942,7 +126942,8 @@ class WorldScene extends Phaser.Scene {
     const side = (sb, high) => { const y = sb*yo, ym = sb*(BODY.hy + 0.6);
       if(!high){ for(const [x, z] of [[hx, zl], [nx, zl], [hx, zb - 3], [nx, zb - 3]]) plate(x, ym, z);   // (its mounts, on his flank)
         tube([hx, y, zl], [hx, y, zb]); tube([nx, y, zb + 1], [nx, y, zl]);       // (the hoop's post and the nose post, up his corners to his top)
-        tube([hx, y, zl], [nx, y, zl]); return; }                                 // (the rail, the full length of his flank)
+        tube([hx, y, zl], [nx, y, zl]);                                           // (the rail, the full length of his flank)
+        tube([hx, y, zb], [nx, y, zb + 1]); return; }                             // (more cage -- Sir, 2026-11-17: a top rail along his flank's top edge, post to post)
       const yt = sb*yT; tube([hx, y, zb], [hT, yt, zt]);                          // (the hoop's post, raked in up to the roof)
       tube([hT, yt, zt], [xf, yt, zt]); tube([xf, yt, zt], [nx, y, zb + 1]); };   // (the roof rail, the pillar down to his nose)
     const roof = () => { tube([hT, -yT, zt], [hT, yT, zt]); tube([xf, -yT, zt], [xf, yT, zt]); };   // (the hoop's top, the roof's front bar)
@@ -126957,7 +126958,9 @@ class WorldScene extends Phaser.Scene {
       g.lineStyle(Math.max(1, 1.2*K), BC[1], 1); { const a = P(x0 + 2, 0, zb2), b = P(x1 - 3, 0, zb2); g.lineBetween(a.x, a.y, b.x, b.y); }
       g.lineStyle(Math.max(1, 0.8*K), _pmix(BC[0], 0x000000, 0.5), 1); g.strokePoints(top.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
       g.lineStyle(Math.max(1, 1.4*K), 0x2e3138, 1); for(const x of [hT, xf]){ const a = P(x, -5.8, zb2 + 0.1), b = P(x, 5.8, zb2 + 0.1); g.lineBetween(a.x, a.y, b.x, b.y); } };   // (its straps)
-    const nudge = () => { const fx = BODY.hx + 4;   // (a nudge bar across his nose, below his face)
+    const nudge = () => { const fx = BODY.hx + 4, fy = BODY.hy - BODY.ch;   // (a nudge bar across his nose, below his face)
+      /* (more cage -- Sir, 2026-11-17): the nose posts' feet tied across his front, round his chamfers, under his face */
+      for(const sb of [-1, 1]) tube([nx, sb*yo, zl], [BODY.hx + 1.5, sb*fy, zl]); tube([BODY.hx + 1.5, -fy, zl], [BODY.hx + 1.5, fy, zl]);
       for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
       tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
     if(part === 'pre'){ arms(-nearSide); if(frontSeen) engine(); side(-nearSide, false); }
