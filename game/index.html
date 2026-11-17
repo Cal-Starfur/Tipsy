@@ -129952,10 +129952,18 @@ class WorldScene extends Phaser.Scene {
         for(const b of [-6, 6]) onFront([[b - 3, 84], [b + 3, 84], [b + 3, 88], [b - 3, 88]], 0x7af8ff);
         line([hx + 0.5, 0, 92], [hx + 0.5, 0, 66], 0x8d959c, 2);   // (its nose ridge)
         for(const b of [-6, -3, 3, 6]) for(const zz of [76, 72]){ const q = P(hx + 0.6, b, zz); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 0.9*K*2); } }   // (breathing holes)
-      if(st === 'top'){ lathe(0, 0, [[zl, 5], [zl + 5, 4]], 0xd8b04a);   // (its plume one soft piece, swept back -- its dark under-tone, its red, a lit crest)
-        const N = 16, pts = []; for(let i = 0; i <= N; i++){ const u = i/N; pts.push({ q: P(4 - u*26, 0, zl + 8 + Math.sin(u*Math.PI)*13 - u*u*8), r: 11 - u*6.5 }); }
-        for(const [col, wf, off] of [[0x8a0e0a, 1, 0], [0xd8261c, 0.72, 0.18], [0xff6a50, 0.28, 0.5]]) for(let i = 0; i < N; i++){ const A = pts[i], B = pts[i + 1], ra = sr(0, 0, zl, A.r), rb = sr(0, 0, zl, B.r);
-          g.lineStyle(Math.max(1, (ra + rb)*wf), col, 1); g.lineBetween(A.q.x, A.q.y - ra*off, B.q.x, B.q.y - rb*off); if(!off){ g.fillStyle(col, 1); g.fillCircle(A.q.x, A.q.y, ra); g.fillCircle(B.q.x, B.q.y, rb); } } }
+      /* (a feather -- Sir, 2026-11-17: "the plume doesn't read as a feather"): a white quill arching up and back off a gold holder, its red
+         vanes either side tapering to a point, barbs angled along them, a darker edge, a few split notches */
+      if(st === 'top'){ lathe(0, 0, [[zl, 5], [zl + 5, 4]], 0xd8b04a);
+        const N = 14, sh = []; for(let i = 0; i <= N; i++){ const u = i/N; sh.push([4 - u*42, zl + 5 + Math.sin(u*Math.PI*0.85)*28 - u*u*6]); }
+        const W = u => 12*Math.sin(Math.PI*Math.min(1, 0.15 + u*0.95))*(1 - u*0.35), side = (k) => sh.map(([a, zz], i) => { const u = i/N, j = Math.min(N, i + 1), jj = Math.max(0, i - 1), ta = sh[j][0] - sh[jj][0], tz = sh[j][1] - sh[jj][1], tl = Math.hypot(ta, tz) || 1, w = W(u)*k;
+          return [a - tz/tl*w, k*W(u)*0.5, zz + ta/tl*w]; });
+        const L = side(1), R = side(-1), poly = [...L, ...R.slice().reverse()].map(v => PT(P(...v)));
+        g.fillStyle(0x8a0e0a, 1); g.fillPoints(poly, true);
+        g.fillStyle(0xd8261c, 1); g.fillPoints([...side(0.82), ...side(-0.82).reverse()].map(v => PT(P(...v))), true);
+        for(let i = 1; i < N; i++) for(const S of [L, R]){ const q0 = P(sh[i][0], 0, sh[i][1]), q1 = P(...S[Math.min(N, i + 1)]); g.lineStyle(Math.max(1, 0.8*K), 0xff6a50, 0.85); g.lineBetween(q0.x, q0.y, q1.x, q1.y); }   // (its barbs)
+        for(const [i, S] of [[5, L], [9, R]]){ const q0 = P(sh[i][0], 0, sh[i][1]), q1 = P(...S[i]); g.lineStyle(Math.max(1, 1.2*K), 0x8a0e0a, 1); g.lineBetween((q0.x + q1.x)/2, (q0.y + q1.y)/2, q1.x, q1.y); }   // (split notches)
+        g.lineStyle(Math.max(1, 1.6*K), 0xf6f0e0, 1); g.strokePoints(sh.map(([a, zz]) => PT(P(a, 0, zz))), false); }   // (its quill)
       return; }
     if(c === 'cowboy'){
       if(st === 'face') onFront([[-12, 74], [12, 74], [0, 60]], 0xd8261c);   // (a bandana under his eyes)
