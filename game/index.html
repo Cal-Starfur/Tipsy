@@ -129889,9 +129889,10 @@ class WorldScene extends Phaser.Scene {
       return; }
     if(c === 'astro'){   /* (second pass -- Sir, 2026-11-17): grey suit rings, a chest control panel with blinking lights in place of his mouth light,
          an air hose from his pack round to the panel, a round blue mission patch on each side, a gold sheen across his helmet glass */
-      if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 8, -hx, -13, 13, 48, 98, 0xd9dde2); box(-hx - 8.4, -hx - 7.6, -10, 10, 56, 90, 0xc9ced4);
+      const pack = () => { box(-hx - 8, -hx, -13, 13, 48, 98, 0xd9dde2); box(-hx - 8.4, -hx - 7.6, -10, 10, 56, 90, 0xc9ced4);
         for(const b of [-7, 7]) this.avLathe(V, -hx - 4, b, [[98, 3], [103, 3]], 0x8d959c, null, 10);
         if(back){ for(const [zz, col] of [[84, 0xd8261c], [78, 0x2aa83a], [72, 0xffd34a]]){ const q = P(-hx - 8.6, 6, zz); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, 1.4*K*2); } } }   // (its life-support pack, its lights)
+      if(st === 'back' && front) pack();   // (behind him from the front; over his helmet from behind -- Sir, 2026-11-17)
       if(st === 'body'){ for(const z0 of [26, 64]) band(z0, z0 + 3.5, 0x9aa0a6);
         for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(2, sb*(hy + 0.6), 74), rr = sr(2, sb*hy, 74, 6); g.fillStyle(0x1f3a8a, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0xf6f6f2, 1); g.fillCircle(q.x - rr*0.25, q.y - rr*0.2, rr*0.18); g.fillCircle(q.x + rr*0.3, q.y + rr*0.25, rr*0.12);
           g.lineStyle(Math.max(1, 1.2*K), 0xd8261c, 1); g.lineBetween(q.x - rr*0.8, q.y + rr*0.3, q.x + rr*0.8, q.y - rr*0.3); } }   // (mission patches)
@@ -129913,7 +129914,8 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xc8e8ff, 0.32); g.fillPoints(H.map(q => new Phaser.Geom.Point(cx + (q.x - cx)*0.86 - w*0.1, cy + (q.y - cy)*0.86 - w*0.1)), true);
         g.fillStyle(0xffd36a, 0.22); g.fillPoints(H.filter(q => q.y < cy - w*0.15).map(q => new Phaser.Geom.Point(cx + (q.x - cx)*0.8, cy + (q.y - cy)*0.95)), true);
         g.fillStyle(0xffffff, 0.6); g.fillEllipse(cx - w*0.38, cy - w*0.42, w*0.5, w*0.24); g.fillStyle(0xffffff, 0.85); g.fillCircle(cx - w*0.2, cy - w*0.58, w*0.05);
-        g.fillStyle(0xffffff, 0.3); g.fillEllipse(cx + w*0.55, cy + w*0.1, w*0.12, w*0.34); }
+        g.fillStyle(0xffffff, 0.3); g.fillEllipse(cx + w*0.55, cy + w*0.1, w*0.12, w*0.34);
+        if(!front) pack(); }
       return; }
     if(c === 'bee'){
       if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
