@@ -53,18 +53,18 @@
 },
 {
 "id": "pt4",
-"title": "Palmline Tower floors 1-10: one residential layout -- a lift lobby, a corridor, numbered flat doors (101..1004); residents (Sir, 2026-11-17)",
+"title": "Palmline Tower floors 1-10: no flat interiors (Sir, 2026-11-17) -- the lift lobby, the corridor and the numbered flat doors are the delivery addresses",
 "spec": "docs/palmline-tower-plan.md",
 "group": "Palmline Tower interior",
 "deps": [
 "pt3b"
 ],
-"status": "pending",
-"note": "Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them"
+"status": "built",
+"note": "built with pt3b: lift lobby, corridor, doors 101-1004"
 },
 {
 "id": "pt4b",
-"title": "Palmline Tower floors 11 and 12: each one whole penthouse, a single residence, its one private lift (Sir, 2026-11-17)",
+"title": "Palmline Tower penthouses (11, 12): a design pass on each interior -- one home the whole floor, its one private lift (Sir, 2026-11-17)",
 "spec": "docs/palmline-tower-plan.md",
 "deps": [
 "pt4"
@@ -75,7 +75,7 @@
 },
 {
 "id": "pt4c",
-"title": "Deliveries to Palmline Tower flats mixed into the normal orders: GPS to the lobby, up the lift, to the flat's door; the resident meets him face to face (meetWalk/meetTick)",
+"title": "Deliveries to Palmline Tower mixed into the normal orders: to a flat's door (floors 1-10) or into a penthouse (11, 12) -- GPS to the lobby, up the lift; the resident meets him face to face (meetWalk/meetTick)",
 "spec": "docs/palmline-tower-plan.md",
 "deps": [
 "pt4",
