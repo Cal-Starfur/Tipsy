@@ -56665,6 +56665,9 @@ function houseCanopy(fn){
     const artOn = (a0, a1, z0, z1, c, fr) => { F(a0 - 4, a1 + 4, z0 - 4, z1 + 4, fr, null, 0, 0.8); F(a0, a1, z0, z1, '#f4f1e8', null, 0, 0.9);
       F(a0 + 6, a0 + (a1 - a0)*0.55, z0 + 6, z1 - 6, c[0], null, 0, 1.0); F(a0 + (a1 - a0)*0.45, a1 - 6, z0 + (z1 - z0)*0.4, z1 - 10, c[1], null, 0, 1.05);
       F(a0 + (a1 - a0)*0.3, a0 + (a1 - a0)*0.7, z0 + 8, z0 + (z1 - z0)*0.3, c[2], null, 0, 1.1); };
+    /* (what stands against the north wall -- the library, the bookcase, the fireplace, the kitchen's run -- is keyed at its EAST end: the wall
+       is in runs of 150 keyed at their middles, and one piece keyed at its own middle sorted before the runs behind its east half, which then
+       painted over it -- Sir, 2026-11-17, "its like its drawing over the ladder") */
     for(const f of PH){
       const C = PHT[f], is = () => fl() === f, pc = (a, b, draw, solids) => items.push({ a, b, z: 0, when: is, solids, draw }), O = [f];
       const sR = (a0, a1, b0, b1, h, nm) => on(O, a0, a1, b0, b1, h, nm), sC = (c, r, h, nm) => onC(O, c, r, h, nm);
@@ -56680,7 +56683,7 @@ function houseCanopy(fn){
       pc(270, 270, () => { T(90, 450, 130, 410, 1.2, C.rug[0]); T(102, 438, 142, 398, 1.3, C.rug[1]); T(130, 410, 170, 370, 1.35, C.rug[0]); });
       if(f === 11){
         /* the fireplace on the north wall, stone, its fire behind glass; a log basket */
-        pc(290, 8, () => { box(200, 380, 0, 18, 0, 120, stoneL, stone, stoneD); box(196, 384, 0, 24, 120, 128, stone, stoneD, shade(stoneD, 0.85));
+        pc(384, 24, () => { box(200, 380, 0, 18, 0, 120, stoneL, stone, stoneD); box(196, 384, 0, 24, 120, 128, stone, stoneD, shade(stoneD, 0.85));
           F(240, 340, 20, 80, '#2b2622', null, 0, 18.2); F(250, 330, 22, 46, '#e07a3a', null, 0, 18.3); F(268, 312, 24, 60, '#f2c14e', null, 0, 18.4); F(280, 300, 26, 70, '#fbe7a0', null, 0, 18.5);
           artOn(232, 348, 150, 196, C.art, '#8f7048'); cyl(410, 30, 0, 26, 14, '#a69f91'); for(const k of [-6, 0, 6]) cyl(410 + k, 30, 26, 30, 4, '#8a6446'); }, [...sR(196, 384, 0, 24, 128, 'fireplace'), ...sC([410, 30], 14, 30, 'logs')]);
         /* the TV on its credenza against the west wall */
@@ -56694,13 +56697,13 @@ function houseCanopy(fn){
           const bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26]; box(bk[0], bk[1], 214, 266, 36, 76, C.chair[0], C.chair[1], C.chair[2]);
           for(const b of [214, 256]) box(a - 26, a + 26, b, b + 10, 36, 54, C.chair[0], C.chair[1], C.chair[2]); }, sR(a - 26, a + 26, 214, 266, 76, 'armchair'));
         /* a bookcase on the north wall east of the fire, a floor lamp, plants */
-        pc(520, 16, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
+        pc(590, 32, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [40, 84, 128]){ box(454, 586, 6, 30, z, z + 3, C.wood[1], C.wood[1], C.wood[2]); for(let k = 0; k < 12; k++) box(458 + k*10.5, 466 + k*10.5, 10, 28, z + 3, z + 26 + (k % 3)*4, ['#7f9a80', '#c4603a', '#e9e4da', '#3a4a6a'][k % 4], '#a69f91', '#8a8478'); } }, sR(450, 590, 2, 32, 176, 'bookcase'));
         pc(470, 330, () => { cyl(470, 330, 0, 4, 12, '#2b3138'); tube(470, 330, 4, 470, 330, 150, 1.4, '#2b3138'); cyl(470, 330, 150, 172, 15, '#f4e7c4', '#fff6dc'); }, sC([470, 330], 12, 170, 'lamp'));
         pc(60, 380, () => plantAt(60, 380, true), sC([60, 380], 18, 60, 'plant'));
       } else {
         /* the library wall: shelves the north wall's length west of the core, a rolling ladder */
-        pc(300, 16, () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
+        pc(600, 44, () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [30, 72, 114, 156]){ box(24, 596, 6, 32, z, z + 3, C.wood[1], C.wood[1], C.wood[2]);
             for(let k = 0; k < 54; k++) box(28 + k*10.5, 36 + k*10.5, 10, 30, z + 3, z + 24 + (k*7 % 4)*4, ['#8a3a3a', '#2f3e66', '#c9a24a', '#3f5a3f', '#e9e4da'][k % 5], '#5a3d28', '#4a3220'); }
           tube(420, 40, 0, 430, 30, 190, 1.6, '#c9a24a'); tube(460, 40, 0, 470, 30, 190, 1.6, '#c9a24a'); for(let z = 20; z < 190; z += 30) tube(422 + z/19, 38 - z/19, z, 462 + z/19, 38 - z/19, z, 1.2, '#c9a24a'); }, sR(20, 600, 2, 44, 190, 'library'));
@@ -56735,7 +56738,7 @@ function houseCanopy(fn){
 
       /* THE KITCHEN: the run on the north wall -- the fridge, cabinets, the sink, the range and its hood, wall cabinets over -- and the island
          with its stools */
-      pc(1200, 20, () => {
+      pc(1352, 44, () => {
         box(1050, 1104, 2, 44, 0, 190, '#c9ced2', '#a9b0b5', '#8f969b'); F(1076, 1078, 100, 150, '#7d848a', null, 0, 44.2);       // the fridge
         box(1104, 1350, 4, 40, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1102, 1352, 2, 42, 84, 88, C.top[0], C.top[1], C.top[2]);
         for(let a = 1110; a < 1345; a += 40) F(a, a + 36, 8, 78, shade(C.cab[0], 0.94), null, 0, 40.2);
