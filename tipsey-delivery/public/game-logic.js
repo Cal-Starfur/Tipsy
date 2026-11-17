@@ -76632,10 +76632,10 @@ marinaEntry(),
      him), the shops' shares ghost (`ghost`, SHELL_GHOST: they stand over the room on screen, W26); the lobby's glass is a HOLE onto the live
      room (see), and its two pairs slide (slideDoors, live) */
   see: true,
-  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)', over: 'canopy' }))
+  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)', over: 'canopy', share: 'L' }))
     /* (and the two shops' pairs, walk-ins now -- pt2: CORAL_IN, MARINA_IN -- each under its own awning) */
     .concat(RIM_STORES.filter(st => st.site === 'Palmline Tower').map(st => { const r = palmlineStoreSpan(st), dm = (r[0] + r[1])/2;
-      return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name }; })),
+      return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name, share: st.side }; })),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
   groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
   vol: palmlineVol(),
@@ -100309,6 +100309,9 @@ class WorldScene extends Phaser.Scene {
        Sir, 2026-11-15, the Kart Works' roll-up from Gideon's shop, "is it missing a door or is it just open?" -- it showed the pavement) */
     const inPk = this._inside, streetFramed = !!(inPk && POCKET_VIEW && POCKET_VIEW.pk === inPk && inPk !== pk);
     if((inPk && !streetFramed) || !(this.ow && this.ow.on)) return;
+    /* (...but not another room of the building he is in -- Palmline Tower's lobby, cafe, deli: that one's share is ghosted round him, and a
+       ghost is not a cut, W26: its room is not drawn through it) */
+    if(inPk && [].concat(inPk.hides || []).some(h => [].concat(pk.hides || []).includes(h))) return;
     const fr = this._wkFr, r = this._wkShell && this._wkShell.get(pk.name);
     if(!r || r.fr !== fr || pocketShellK(this, pk) < 1) return;
     const ops = walkinOpenings(pk), v = ops && pk.view(); if(!v) return;
@@ -110948,9 +110951,13 @@ class WorldScene extends Phaser.Scene {
            over the shop seen through it: its awning and frame are the building's, over the leaves, not the leaves' over them) */
         /* (and under whatever stands out over them -- a canopy marked overDoors: Sir, 2026-11-17, "the door kit seems like its painting over the
            awning". The leaves are queued at their own point; a canopy keyed elsewhere, or moved round him by lmDepth, sorted before them) */
+        /* (a walk-in's own pair goes with its shell, as every other walk-in's does -- Sir, 2026-11-17, "why is the door staying full door when
+           we go through them": from inside, the front is the street's cut low, its doorway open) */
+        const dk = d.share && _rimPk && _rimPk.share ? (_shellFor(_rimPk, d) ? pocketShellK(this, _rimPk) : 1) : 1;
+        if(dk < 0.002) return;
         const ov = d.over === 'canopy' ? _overD : d.over && _overS ? _overS.get(d.over) : null;
         const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = ov != null && !d.bay ? Math.min(own, ov - 1e-3*(i + 1)) : own;
-        vq.push({ depth, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
+        vq.push({ depth, fn: dk < 1 ? (g) => this.withFade(g, dk, () => draw(g)) : (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
       /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
          into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
