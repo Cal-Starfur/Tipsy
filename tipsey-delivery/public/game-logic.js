@@ -54261,7 +54261,7 @@ function houseCanopy(fn){
        a 0..       the mail wall (b 90..290) and the directory (b 320..400) on the west wall; a bench under it (b 420..540) and a palm past it (b 610)
        b 330..375  the reception desk, a 130..270: two screens on it with their backs to us, the receptionist behind it (b 306)
        b 585..625  the security desk, a 140..260: a monitor and a sign-in book, the guard behind it (b 560)
-       b 810..840  the front: the kit's low glazed wall, a doorway at each pair (the street's sliding leaves in it) */
+       b 810..840  the front: the street's own lobby front cut low, the pairs' doorways in it (the street's sliding leaves) */
   name:'Palmline Tower Lobby', xh: 285, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 400, dd: 810,
   head:'Inside Palmline Tower: a double-height stone lobby with four lifts, a reception desk, a security desk, a mail wall and a bench',
@@ -54279,13 +54279,12 @@ function houseCanopy(fn){
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
 
-    /* ---- THE FLOOR: big stone slabs, 90 square, cream and a paler course, a teal border 30 in; a threshold at each pair and a mat inside it (W13) ---- */
+    /* ---- THE FLOOR: big stone slabs, 90 square, cream and a paler course, a teal border 30 in; a threshold at each pair (W13) ---- */
     T(0, W, 0, D, 0, '#e8e1d2');
     for(let b = 0, r = 0; b < D; b += 90, r++) for(let a = (r % 2 ? 90 : 0); a < W; a += 180) T(a, Math.min(W, a + 90), b, Math.min(D, b + 90), 0.2, '#efe9dc');
     for(const [a0, a1, b0, b1] of [[24, W - 24, 24, 30], [24, W - 24, D - 30, D - 24], [24, 30, 24, D - 24], [W - 30, W - 24, 24, D - 24]]) T(a0, a1, b0, b1, 0.4, tealL);
     for(const c of DPS){
       T(c - DH, c + DH, D, D + AP, 0.3, stoneD); T(c - DH, c + DH, D - 3, D + 3, 0.7, '#a9aeb2');
-      T(c - DH + 10, c + DH - 10, D - 70, D - 34, 0.5, shade(teal, 0.8)); T(c - DH + 14, c + DH - 14, D - 66, D - 38, 0.6, teal);
     }
     /* a compass rose inlaid in front of reception */
     plateCircle(200, 470, 0.5, 46, tealL, null, 0); plateCircle(200, 470, 0.6, 40, '#efe9dc', null, 0);
@@ -54295,10 +54294,11 @@ function houseCanopy(fn){
     const liftsA = [60, 150, 250, 340];
     walkinRoom(items, { W, D, H, LH, door,
       gapsS: DPS.map(c => [c - DH, c + DH]),
-      /* (ONE FRONT DOOR SYSTEM, the kit's -- Sir, 2026-11-17: "you've got two systems of front door here": the near wall cut low, its glass
-         the lobby's (to the floor: sill 4) between the pairs and the room's own corners, each doorway the wall's own end (W23) with the street's
-         live sliding leaves in it (the exterior's slideDoors). Nothing else stands in the glass line: no frames of its own, no drum) */
-      winS: [[0, DPS[0] - DH, 4], [DPS[0] + DH, DPS[1] - DH, 4], [DPS[1] + DH, W, 4]],
+      /* (THE FRONT IS THE EXTERIOR'S, CUT LOW -- Sir, 2026-11-17: "lets just make the interior and exterior door system match", W4): the kit
+         draws no south wall here (one gap the whole front); the lobby front below is the street's own front at the near walls' height --
+         its glass, its mullions, each pair's dark jambs, the revolving door's frame, the stone at its ends -- and the doors are the street's
+         live sliding leaves in it, one system seen from both sides) */
+      gapsS: [[-30, W + 30]],
       paintN: () => {
         F(-30, W + 30, 0, H, plas, null, 0, 0);
         F(-30, W + 30, 0, 196, stone, null, 0, 0.2);                                                                 // the stone, to the lifts' heads
@@ -54370,6 +54370,38 @@ function houseCanopy(fn){
       tube(22, 610, 54, 26, 606, 150, 2.4, '#7a5e3e');
       for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(26, 606, 150, 26 + 44*Math.cos(t), 606 + 44*Math.sin(t), 128, 3.2, k % 2 ? '#4f7a4a' : '#5f8f58'); }
     }});
+
+    /* ---- THE FRONT: the exterior's lobby front (the 'Palmline Tower' entry's lobbyFront, PALMLINE_PLAN) cut at the near walls' height LH, in
+       its own plane (the wall's outer face, b 840) -- the glass from pier to pier, the light mullions where the street's are, the dark jambs of
+       each pair, the revolving door's dark posts, glass and leaves; the stone piers at the two ends. In pieces of 40 or less (the kit's near
+       runs: a fixture behind is not painted over), solid but at the pairs ---- */
+    { const Q = PALMLINE_PLAN, o = Q.LOB0 + 30, FB = D + 30, lMull = '#e9eef0', frm = '#2b3540';
+      const g0 = Q.G0 - o, g1 = Q.G1 - o, dm = Q.DM - o, ps = Q.DPS.map(c => c - o), dh = Q.DH;
+      const mulls = [dm - 62, dm + 62, (Q.G0 + Q.DPS[0] - dh)/2 + 4 - o, (Q.G1 + Q.DPS[1] + dh)/2 - 4 - o];
+      const spans = [[-30, ps[0] - dh], [ps[0] + dh, ps[1] - dh], [ps[1] + dh, W + 30]];
+      const at = (a0, a1, f) => { const l = Math.max(a0, f[0]), h = Math.min(a1, f[1]); return h > l ? [l, h] : null; };
+      for(const [s0, s1] of spans){
+        const n = Math.max(1, Math.ceil((s1 - s0)/40));
+        for(let k = 0; k < n; k++){
+          const a0 = s0 + (s1 - s0)*k/n, a1 = s0 + (s1 - s0)*(k + 1)/n;
+          items.push({ a: (a0 + a1)/2, b: D + 15, z: 0, solids: [solid(a0, a1, D, FB, LH, 'wall')], draw: () => {
+            /* the stone piers at the ends (the street's LOB0 - 8..G0 and G1..LOB1 + 8) */
+            for(const pr of [[-30, g0], [g1, W + 30]]){ const q = at(a0, a1, pr); if(q) box(q[0], q[1], D, FB, 0, LH, stoneL, stone, stoneD); }
+            /* the glass, cut at LH: its tint and the light edge of the cut */
+            const gq = at(a0, a1, [g0, g1]);
+            if(gq){ F(gq[0], gq[1], 0, LH, 'rgba(112,134,146,.22)', null, 0, FB); F(gq[0] - 0.4, gq[1] + 0.4, LH - 3, LH, lMull, null, 0, FB + 0.1); }
+            /* the light mullions */
+            for(const m of mulls){ const q = at(a0, a1, [m - 3, m + 3]); if(q && Math.abs(m - dm) > 70) F(q[0], q[1], 0, LH, lMull, null, 0, FB + 0.2); }
+            /* each pair's dark jambs (its leaves are the street's, live) */
+            for(const c of ps) for(const j of [[c - dh - 4, c - dh], [c + dh, c + dh + 4]]){ const q = at(a0, a1, j); if(q) F(q[0], q[1], 0, LH, frm, null, 0, FB + 0.3); }
+            /* the revolving door: its dark posts, its glass, three leaves */
+            for(const j of [[dm - 62, dm - 56], [dm + 56, dm + 62]]){ const q = at(a0, a1, j); if(q) F(q[0], q[1], 0, LH, frm, null, 0, FB + 0.3); }
+            const dq = at(a0, a1, [dm - 56, dm + 56]); if(dq) F(dq[0], dq[1], 3, LH, 'rgba(170,206,220,.24)', null, 0, FB + 0.25);
+            for(const l of [dm - 28, dm, dm + 28]){ const q = at(a0, a1, [l - 1.5, l + 1.5]); if(q) F(q[0], q[1], 3, LH, '#8fa3ad', null, 0, FB + 0.3); }
+          }});
+        }
+      }
+    }
 
     walkinStaffSolids(items, 'Palmline Tower Lobby');
     depthSort(items);
