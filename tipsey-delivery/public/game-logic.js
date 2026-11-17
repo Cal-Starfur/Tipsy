@@ -28813,7 +28813,6 @@ walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY
    PS_DD, Sir 2026-11-17: "we see a vault door but there is no room for a vault"). Its way in, the door on the portico's back wall (lab b
    -66; the portico open ground, vol.opens), in the far north wall (door side 'n'). Room frame a east, b south, world units (lab x1.3):
      a 130..164, b 30..290  THE TELLERS' COUNTER down the west side, three tellers behind it facing the hall (a 0..130 theirs)
-     a 214                  the rope line
      a 0..300, b 360..582   THE VAULT, its steel walls knee-high (the kit's cut), its round door shut in its east wall, the
                             safe-deposit boxes on its west wall, the cash cart and the gold
      a 292..418             the door's lane, door to back wall, kept clear
@@ -55235,7 +55234,7 @@ function houseCanopy(fn){
   ww: 710, dd: 582,
   head:'Inside Palmline Savings: a marble banking hall, the tellers\' counter, the vault, loan desks and a waiting room',
   tags:['interior','pocket','bank','tellers','vault','marble'],
-  desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters and a chequered marble floor; the tellers\' counter of dark wood and glass down the west side; behind it the vault, its round steel door shut, safe-deposit boxes on its wall and the cash cart and the gold inside; two loan desks, a rope line and a waiting room with a sofa and palms.',
+  desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters and a chequered marble floor; the tellers\' counter of dark wood and glass down the west side; behind it the vault, its round steel door shut, safe-deposit boxes on its wall and the cash cart and the gold inside; two loan desks and a waiting room with a sofa and palms.',
   draw(p){
     const pl = (typeof PS_PLAN !== 'undefined' && PS_PLAN) || null;
     if(pl) pl.view();
@@ -55333,13 +55332,6 @@ function houseCanopy(fn){
         for(let b = B0; b <= B1 + 0.1; b += 26) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 144, brass, brassD, brassD);
         S(A0 + 16, B0, B1, 112, 144, 'rgba(190,216,226,.32)');
         box(A0 + 12, A0 + 20, B0, B1, 144, 148, brass, brassD, brassD);
-      }, { alongB: true, run: 44 }); }
-
-    /* ---- THE ROPE LINE: brass posts and a red rope, the queue's lane to the windows ---- */
-    { const A = 214, B0 = 100, B1 = 276;
-      runPiece(items, A - 8, A + 8, B0, B1, 80, (s0, s1) => [{ name: 'rope post', c: [A, (s0 + s1)/2], r: 6, h: 60 }], () => {
-        for(let b = B0; b <= B1 + 0.1; b += 44){ cyl(A, b, 0, 4, 9, brassD); cyl(A, b, 4, 60, 2.6, brass); cyl(A, b, 60, 64, 4, brass); }
-        for(let b = B0; b < B1 - 0.1; b += 44) tube(A, b, 58, A, b + 44, 58, 1.8, '#9a2a2a');
       }, { alongB: true, run: 44 }); }
 
     /* ---- TWO LOAN DESKS: dark wood, a banker's lamp and a screen (to the officer), a chair before each ---- */
