@@ -128893,11 +128893,11 @@ class WorldScene extends Phaser.Scene {
               g.fillStyle(0x16171b, 1); g.fillCircle(c.x - r*0.36, c.y - r*0.1, r*0.28); g.fillCircle(c.x + r*0.36, c.y - r*0.1, r*0.28);
               }
             for(const z of [z0, z1]){ const A = P(xm + 0.8, -hw - 1.5, z), B = P(xm + 0.8, hw + 1.5, z); g.lineStyle(Math.max(1, 1.6*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); } };
-          const sails = () => { sail(zt + 5, zt + 19, 10, 4.5, true); sail(zt + 21.5, zt + 31, 7.5, 3.4, false); };
+          const sails = () => { sail(zt + 5, zt + 19, 10, 4.5, false);   /* (plain black, no skull -- Sir, 2026-11-17) */ sail(zt + 21.5, zt + 31, 7.5, 3.4, false); };
           if(fr){ pole(); sails(); } else { sails(); pole(); }
           this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: xm, oy: 0, z0: zt2 - 4 + bobZ, z1: zt2 - 1 + bobZ, ch: 0.8, cTop: 0x6a4020, cLt: 0x5a3418, cDk: 0x4a2e14, cBottom: 0x4a2e14, outline: true, topEdge: false });   // (the crow's nest)
           { const T = P(xm, 0, zt2 + 2), w = Math.sin(now3*0.008)*1.5; g.lineStyle(Math.max(1, 1*K), 0x3a2410, 1); { const A = P(xm, 0, zt2 - 1); g.lineBetween(A.x, A.y, T.x, T.y); }   // (a long red pennant off the masthead)
-            const pts = [T, P(xm - 9, w, zt2 + 0.5), P(xm, 0, zt2 - 0.4)].map(q => new Phaser.Geom.Point(q.x, q.y)); g.fillStyle(0xc8202a, 1); g.fillPoints(pts, true); } }
+            const pts = [T, P(xm - 9, w, zt2 + 0.5), P(xm, 0, zt2 - 0.4)].map(q => new Phaser.Geom.Point(q.x, q.y)); g.fillStyle(0x16171b, 1); g.fillPoints(pts, true); } }   // (black -- Sir, 2026-11-17)
         }
       /* the Dino's tail: from his back, thick at its root, tapering and curling up to its tip, spikes along its top */
       /* (more a part of him -- Sir, 2026-11-16): the tail grows out of his whole back -- its root his body's own height and colour, centred on his
