@@ -127459,12 +127459,17 @@ class WorldScene extends Phaser.Scene {
   /* THE SCORPION'S TAIL (second pass -- Sir, 2026-11-17): real armoured segments, each a little rounded box in amber with a dark band, tapering
      as it rises off his back and curls forward over his cab, ending in a swollen bulb and a hooked barb aimed ahead -- drawn far to near. Seen
      from the front, the low ones behind his cab go before it ('low'), the rest over it ('high') */
-  monsterScorpTail(P, K, which, bobZ){ const g = this.g, N = 11, x0 = -BODY.hx + 4, zt = LID.z1, segs = [];
-    for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.1; segs.push({ x: x0 - 8*Math.sin(a) + u*u*24, z: BODY.z1 + 2.5 + Math.sin(a*0.92)*19 + u*8, r: 3.6 - u*1.6, k }); }
-    const low = s2 => s2.x < -LID.hx - 1 && s2.z < zt + 3;
-    const pick = segs.filter(s2 => which === 'all' || (which === 'low') === low(s2)).sort((a, b) => this.depth(a.x, 0, a.z) - this.depth(b.x, 0, b.z));
-    for(const s2 of pick){ const { x, z, r, k } = s2, dark = k % 2;
-      this.drawHullPrism({ hx: r, hy: r*1.15, ox: x, oy: 0, z0: z - r + bobZ, z1: z + r + bobZ, ch: r*0.45, cTop: dark ? 0xd8881a : 0xf0a83a, cLt: dark ? 0xb8701a : 0xd8901a, cDk: 0x6a3a0a, cBottom: 0x6a3a0a, outline: true, topEdge: false }); }
+  monsterScorpTail(P, K, which, bobZ){ const g = this.g, N = 28, x0 = -BODY.hx + 4, zt = LID.z1, segs = [];
+    for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.1; segs.push({ x: x0 - 8*Math.sin(a) + u*u*24, z: BODY.z1 + 2.5 + Math.sin(a*0.92)*19 + u*8, r: 7.5 - u*4.3, k }); }
+    /* (one piece -- Sir, 2026-11-17: "not segments"): a smooth tapering tube, its belly dark, its flank amber, a lit line down its top, drawn
+       root to tip from the front (the root is farther) and tip to root from behind */
+    const low = s2 => s2.x < -LID.hx - 1 && s2.z < zt + 3, idx = [...Array(N).keys()];
+    if(which === 'all') idx.reverse();
+    const use = idx.filter(k => which === 'all' || (which === 'low') === low(segs[k]));
+    for(const [col, wf, off, cap] of [[0x6a3a0a, 1, 0, true], [0xd8881a, 0.7, 0.2, false], [0xffc060, 0.25, 0.55, false]]) for(const k of use){   // (each tone the whole length, so no joints show)
+      const a2 = segs[k], b2 = segs[k + 1], A = P(a2.x, 0, a2.z), B = P(b2.x, 0, b2.z), ra = a2.r, rb = b2.r;
+      g.lineStyle(Math.max(1, (ra + rb)*K*wf), col, 1); g.lineBetween(A.x, A.y - ra*off*K, B.x, B.y - rb*off*K);
+      if(cap){ g.fillStyle(col, 1); g.fillCircle(A.x, A.y, ra*K); g.fillCircle(B.x, B.y, rb*K); } }
     if(which !== 'low'){ const e = segs[N], B = P(e.x + 3, 0, e.z - 2), T0 = P(e.x + 5, 0, e.z - 4), T1 = P(e.x + 9, 0, e.z - 9);   // (the bulb and the barb)
       g.fillStyle(0x6a3a0a, 1); g.fillCircle(B.x, B.y, 4*K); g.fillStyle(0xf0a83a, 1); g.fillCircle(B.x - 0.5*K, B.y - 0.5*K, 3.2*K);
       g.lineStyle(Math.max(1, 3*K), 0x16171b, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y); g.fillStyle(0xff5a2a, 1); g.fillCircle(T1.x, T1.y, 0.9*K); } }
