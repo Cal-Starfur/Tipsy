@@ -45910,6 +45910,7 @@ function liftCarDraw(c, h, d, here){
   }
 }
 function liftFrontDraw(c, h, d, shows, stone, stoneL, stoneD){
+  T(c - h - 0.5, c + h + 0.5, -0.5, d - 6, 196, shade(stoneL, 0.93));                                         // its top, the shaft's head, flush with the piers' (Sir, 2026-11-17: "we should have a top on the elevator on every floor")
   box(c - h - 4, c + h + 4, d - 6, d, 166, 196, stoneL, stone, stoneD);                                         // the lintel
   F(c - h - 4, c - h, 0, 166, '#8f969b', null, 0, d + 0.2); F(c + h, c + h + 4, 0, 166, '#8f969b', null, 0, d + 0.2);   // the jambs
   F(c - 16, c + 16, 174, 190, '#2b3138', null, 0, d + 0.2); blockWordIn(shows, c - 12, c + 12, 176, 188, d + 0.4, '#e8a23a', null, 2);
