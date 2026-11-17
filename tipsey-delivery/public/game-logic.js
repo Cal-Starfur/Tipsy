@@ -43264,7 +43264,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     trim: { coil: 0xf2f3f1, bumper: 0xc9ced4, bar: 0x1d1f26, stack: 0xe8ecf0, heat: 0x1f4fa8, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'steelie', rimCol: 0xf2f3f1 }, flag: { kind: 'usa' } },
   { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'none', lb: 'cage', lamp: 0xffb02a, rim: 'honey', rimCol: 0xe6dcb8 } },
   /* (six more -- Sir, 2026-11-17) */
-  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
+  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'bar', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
   { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'side', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'side', lb: 'strip', lamp: 0xffb02a, rim: 'tri', rimCol: 0xe89a1a } },
   { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'single', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
@@ -126902,13 +126902,17 @@ class WorldScene extends Phaser.Scene {
         /* (six more -- Sir, 2026-11-17) the Fire Rescue's ladder along his roof and its beacon; the Dragon's near wing; the Scorpion's tail
            arched over him; the Alien's antennae; the Pirate's mast and sail */
         const now = this.time ? this.time.now : 0;
-        if(SKP === 'ladder'){ const zl = zt + 1.4, xa = lx - 2, xb = -BODY.hx - 4, ye = 3.4;
-          for(const sb of [-nearSide, nearSide]){ const A = P(xa, sb*ye, zl), B = P(xb, sb*ye, zl); g.lineStyle(Math.max(1, 1.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y);
-            g.lineStyle(Math.max(1, 0.7*K), 0xe8ecf0, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K);
-            if(sb === -nearSide) for(let x = xa - 2; x > xb + 1; x -= 3.2){ const R1 = P(x, -ye, zl), R2 = P(x, ye, zl); g.lineStyle(Math.max(1, 1*K), 0xb4bac1, 1); g.lineBetween(R1.x, R1.y, R2.x, R2.y); } }
-          const on = Math.floor(now/260) % 2, bq = P(-lx + 2.5, 0, zt + 1.8); g.fillStyle(0x6a0e0a, 1); g.fillEllipse(bq.x, bq.y + 0.6*K, 5.6*K, 3*K); g.fillStyle(on ? 0xff3a2a : 0xb8231c, 1); g.fillCircle(bq.x, bq.y - 0.6*K, 2.3*K);
-          g.fillStyle(0xffffff, on ? 0.8 : 0.4); g.fillCircle(bq.x - 0.7*K, bq.y - 1.3*K, 0.7*K);
-          if(on && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 10*K); } } }
+        /* (second pass -- Sir, 2026-11-17: "the ladder placement is bad"): the aerial ladder on a turntable on his back deck, run forward level over
+           his cab on a rest -- silver rails, rungs between, overhanging his nose a touch; a beacon each side of the cab's back corners */
+        if(SKP === 'ladder'){ const zl = zt + 2.2, xa = -BODY.hx + 5, xb = lx - 4, ye = 3.6, xm = (xa + xb)/2, hl = (xb - xa)/2;
+          const rail = sb => this.drawHullPrism({ hx: hl, hy: 0.7, ox: xm, oy: sb*ye, z0: zl - 0.8 + bobZ, z1: zl + 1.2 + bobZ, ch: 0.2, cTop: 0xf0f2f4, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });
+          rail(-nearSide); g.lineStyle(Math.max(1, 1*K), 0xb4bac1, 1);
+          for(let x = xb - 1.5; x > xa + 1; x -= 2.8){ const R1 = P(x, -ye, zl + 0.6), R2 = P(x, ye, zl + 0.6); g.lineBetween(R1.x, R1.y, R2.x, R2.y); }
+          rail(nearSide);
+          const on = Math.floor(now/260) % 2;
+          for(const sb of [-1, 1]){ const bq = P(-lx + 2.5, sb*(ly - 3), zt + 1.6), lit = (sb > 0) === !!on; g.fillStyle(0x6a0e0a, 1); g.fillEllipse(bq.x, bq.y + 0.6*K, 5*K, 2.6*K);
+            g.fillStyle(lit ? 0xff3a2a : 0xb8231c, 1); g.fillCircle(bq.x, bq.y - 0.5*K, 2*K); g.fillStyle(0xffffff, lit ? 0.8 : 0.35); g.fillCircle(bq.x - 0.6*K, bq.y - 1.1*K, 0.6*K);
+            if(lit && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 9*K); } } } }
         if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
         if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
           for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.15; pts.push([x0 - 7*Math.sin(a) + u*u*22, 0, BODY.z1 + 2 + Math.sin(a*0.9)*18 + u*7, 4.6 - u*2.4]); }
@@ -126936,6 +126940,12 @@ class WorldScene extends Phaser.Scene {
           g.lineStyle(Math.max(1, (ra + rb)*K*0.28), BPt.top, 1); g.lineBetween(A.x, A.y - ra*0.62*K, B.x, B.y - rb*0.62*K);
           if(k % 2 === 1 && k < 11){ const T = P(xa - 1, ya, za + ra + 3); g.fillStyle(0xe6dcb8, 1); g.fillTriangle(A.x - ra*0.5*K, A.y - ra*0.85*K, A.x + ra*0.5*K, A.y - ra*0.85*K, T.x, T.y); } } }
       if(SKP === 'wings' && part === 'mid') this.monsterWing(-nearSide, P, K, vis);
+      if(SKP === 'ladder' && ((part === 'mid' && frontSeen) || (part === 'near' && !frontSeen))){   // (the ladder's turntable and pedestal on his back deck, its rest on the cab)
+        const xp = -BODY.hx + 9, zl = LID.z1 + 2.2;
+        this.drawHullPrism({ hx: 5, hy: 5, ox: xp, oy: 0, z0: BODY.z1 + bobZ, z1: BODY.z1 + 2 + bobZ, ch: 1.8, cTop: 0xc9ced4, cLt: 0xa8adb4, cDk: 0x7d838a, cBottom: 0x7d838a, outline: false, topEdge: false });
+        this.drawHullPrism({ hx: 2.6, hy: 3, ox: xp, oy: 0, z0: BODY.z1 + 2 + bobZ, z1: zl - 0.8 + bobZ, ch: 0.6, cTop: 0xd8261c, cLt: 0xb8141a, cDk: 0x8a0e12, cBottom: 0x8a0e12, outline: false, topEdge: false }); }
+      if(SKP === 'ladder' && part === 'near')   // (the rest it lies on, at the cab's front)
+        this.drawHullPrism({ hx: 0.8, hy: 4.4, ox: LID.hx - 6.5, oy: 0, z0: LID.z1 + bobZ, z1: LID.z1 + 1.4 + bobZ, ch: 0.2, cTop: 0x5d646c, cLt: 0x4a5057, cDk: 0x2e3138, cBottom: 0x2e3138, outline: false, topEdge: false });
       if(SKP === 'ears' && part === 'mid'){ const sb = -nearSide, zt = LID.z1, ly = LID.hy, E = [0x5a3418, 0x7a4a24], ear = [];   // (the far ear, before his cab)
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
