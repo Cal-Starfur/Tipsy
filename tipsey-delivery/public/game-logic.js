@@ -43291,7 +43291,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
        lid, the umbrella antenna and the TV camera up on masts, the flag off his back */
     shape: { BODY: { hx: 26, hy: 16, z0: 18, z1: 28, ch: 4, bev: 2, bevIn: 1.5 }, LID: { hx: 7, hy: 10, z0: 28, z1: 33, ch: 2.5, bev: 1.5, bevIn: 1.2, ox: 14 },
       STRIPE: { z0: 20, z1: 22 }, FLAGB: { x: -24, y: 12 }, FLAGZ: [28.5, 62], zmap: z => 18 + (z - 14)*0.27, WHEELS: { r: 8, W2: 7, xs: [-19, 19], side: 27, style: 'mesh', tread: 'knobby' } } },
-  { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, mastFlag: true,   /* (its camera on the flag's own pole and mount -- Sir, 2026-11-17) */ trim: { rimCol: 0x8a4a2a } },
+  { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, mastFlag: true, roverPart: 'mars' /* (rocker-bogie legs and a robot arm -- Sir, 2026-11-17) */,   /* (its camera on the flag's own pole and mount -- Sir, 2026-11-17) */ trim: { rimCol: 0x8a4a2a } },
   { id: 'rover:retro', build: 'rover', name: 'Retro Space Age', cents: 1000, body: 0xc9ced4, stripe: 0x2ad8c8, print: 'rvRetro', noSolar: true, lidCol: [0xa9e8e4, 0x86d0cc, 0x5eaeaa], noDish: true, ringFlag: true, noBracket: true /* (no black block at the antenna's foot -- Sir, 2026-11-17) */, eye: 0xff5a4a, trim: { rimCol: 0x2ad8c8 }, roverPart: 'retro',
     /* (its own silhouette -- Sir, 2026-11-17): a rounded, near-round body with a rolled top edge, a tall glass dome for his lid, four wheels under
        small fenders (no fins), the ring antenna off his back */
@@ -43312,6 +43312,12 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'buggy:neon', build: 'buggy', name: 'Neon Night', cents: 900, body: 0x1c1e24, stripe: 0x1c1e24, noStripe: true, print: 'bgNeon', eye: 0x7af8ff, pennant: { col: 0x1c1e24, rects: [[0x7af8ff, 0, 1, 0.1, 0.34], [0xff4ad8, 0, 1, 0.58, 0.82]] }, trim: { bar: 0xff4ad8, coil: 0x7af8ff, lamp: 0x7af8ff, rim: 'tri', rimCol: 0x7af8ff } },
   { id: 'buggy:sprinkles', build: 'buggy', name: 'Sprinkles', cents: 900, body: 0xa8ead2, stripe: 0xff8ac8, print: 'bgSprinkles', pennant: { col: 0xa8ead2, rects: [[0xff8ac8, 0, 1, 0, 0.16]], dots: [[0xff5ab0, 0.15, 0.4, 0.9], [0xffe14a, 0.3, 0.7, 0.9], [0x5ab8ff, 0.42, 0.35, 0.9], [0x9a6aff, 0.22, 0.85, 0.8], [0xff8a2a, 0.56, 0.6, 0.8], [0xf4f4f0, 0.08, 0.65, 0.8]] }, trim: { bar: 0xff8ac8, coil: 0xfff6d8, lamp: 0xfff2c4, rim: 'honey', rimCol: 0xfff6d8 } },
   { id: 'buggy:tiki', build: 'buggy', name: 'Tiki Woodie', cents: 900, body: 0xa8703a, stripe: 0xa8703a, noStripe: true, print: 'bgTiki', buggyPart: 'surf', pennant: { col: 0xa8703a, rects: [[0x2ab0a8, 0, 1, 0.32, 0.68], [0x6a4020, 0, 1, 0.12, 0.16], [0x6a4020, 0, 1, 0.84, 0.88]] }, trim: { bar: 0xd9c08a, coil: 0x5a3418, lamp: 0xfff2c4, rim: 'wire', rimCol: 0xd9c08a, board: [0x2ab0a8, 0xf4f4f0] } },
+  /* (two more -- Sir, 2026-11-17) */
+  { id: 'rover:taxi', build: 'rover', name: 'Lunar Taxi', cents: 1000, body: 0xf2c02e, stripe: 0xf2c02e, noStripe: true, print: 'rvTaxi', noSolar: true, noDish: true, noFlag: true, lidCol: [0xb8e0f0, 0x94c8e0, 0x6aa4c4], eye: 0x7ad8ff, trim: { rim: 'disc', rimCol: 0x16171b },
+    /* a bubble cab: a short round yellow body on four wheels, a tall glass dome over it, a checker band round it */
+    shape: { BODY: { hx: 21, hy: 17, z0: 22, z1: 36, ch: 8, bev: 4, bevIn: 3.5 }, LID: { hx: 14, hy: 13, z0: 36, z1: 50, ch: 8, bev: 8, bevIn: 7, ox: 1 },
+      STRIPE: { z0: 26, z1: 29 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 60], zmap: z => 22 + (z - 14)*0.38, WHEELS: { r: 8, W2: 7, xs: [-14, 14], side: 23, style: 'mesh', tread: 'knobby' } } },
+  { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -127122,6 +127128,10 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k < N; k++){ const tm = (th(k) + th(k + 1))/2, w = this.R(Math.cos(tm), 0, Math.sin(tm)); if(w.x + w.y + w.z <= 0) continue;
           this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], Math.sin(tm) > 0.85 ? SV[0] : SV[1]); }
         if(vis(0, sb, 0)){ g.lineStyle(Math.max(1, 1.4*K), 0x2ad8c8, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo), Bq = pt(k + 1, yo); g.lineBetween(A.x, A.y, Bq.x, Bq.y); } } } }
+    if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'tug' && part === 'near'){ const on = Math.floor((this.time ? this.time.now : 0)/300) % 2, zt = LID.z1, ox = LID.ox || 0;   // (an orange beacon on his roof, flashing)
+      this.drawHullPrism({ hx: 3.6, hy: 3.6, ox: ox - 6, oy: 0, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 0.8, cTop: 0x5d646c, cLt: 0x4a5057, cDk: 0x2e3138, cBottom: 0x2e3138, outline: false, topEdge: false });
+      const q = P(ox - 6, 0, zt + 4.5); g.fillStyle(0x8a3a08, 1); g.fillCircle(q.x, q.y + 0.5*K, 5*K); g.fillStyle(on ? 0xffb03a : 0xe06a10, 1); g.fillCircle(q.x - 0.3*K, q.y - 0.3*K, 4.2*K); g.fillStyle(0xffffff, on ? 0.85 : 0.4); g.fillCircle(q.x - 1.5*K, q.y - 1.6*K, 1.3*K);
+      if(on && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff9a3a, 0.3); gl.fillCircle(q.x, q.y, 10*K); } } }
     if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'lrv'){
       const W = BODY._wheels, sh = this.bodyPaint(), GD = [0xd8b04a, 0xc9a23f, 0xa98432];
       /* fenders: a gold arch over each wheel, from his side out past its tread -- the far ones before him, the near ones after the near wheels */
@@ -127737,7 +127747,16 @@ class WorldScene extends Phaser.Scene {
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, K = this.kScale();
     /* each wheel on its own suspension (Sir, 2026-11-16: "get rid of the connector piece ... give each wheel its own independent
        suspension"): a coil-over shock from under the belly's edge to its hub, nothing else -- no beam, no arms */
-    const legs = sb => { const hz = W.r + 2 - bobZ, bz = BODY.z0 - 3, yS = sb*(W.side - W.W2/2 - 1.2), yB = sb*(BODY.hy - 5), t = 1.5;
+    /* THE MARS EXPLORER'S ROCKER-BOGIE (Sir, 2026-11-17: its own silhouette): each side a rocker on a pivot at his flank -- one leg bent down
+       to the back wheel, the other forward to a bogie that carries the middle and front wheels -- in dark tube with silver joints */
+    const rocker = sb => { const hz = W.r + 2 - bobZ, y = sb*(W.side - W.W2/2 - 1), yp = sb*(BODY.hy + 1.5), pz = BODY.z0 + 3, xs = W.xs.slice().sort((a, b) => a - b);
+      const tube = (a, b, w = 2.6) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), 0x3b4048, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, w*0.4*K), 0x9aa0a6, 1); g.lineBetween(A.x, A.y - w*0.2*K, B.x, B.y - w*0.2*K); };
+      const joint = (v, r = 1.8) => { const q = P(...v); g.fillStyle(0x3b4048, 1); g.fillCircle(q.x, q.y, r*K); g.fillStyle(0xc9ced4, 1); g.fillCircle(q.x, q.y, r*0.55*K); };
+      const piv = [-4, yp, pz], knee = [(xs[0] - 4)/2 - 4, y, pz + 2], bog = [(xs[1] + xs[2])/2, y, hz + 7];
+      tube([-4, sb*BODY.hy, pz], piv, 5); tube(piv, knee, 4.4); tube(knee, [xs[0], y, hz], 4); tube(piv, bog, 4.4); tube(bog, [xs[1], y, hz], 4); tube(bog, [xs[2], y, hz], 4);
+      joint(piv, 3.4); joint(knee, 2.6); joint(bog, 2.6); };
+    const legs = sb => { if(BODY._bskin && BODY._bskin.roverPart === 'mars') return rocker(sb);
+      const hz = W.r + 2 - bobZ, bz = BODY.z0 - 3, yS = sb*(W.side - W.W2/2 - 1.2), yB = sb*(BODY.hy - 5), t = 1.5;
       const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
       const M = [0xb9bec4, 0x9aa0a6, 0x6f757b], D = [0x6f757b, 0x5d646c, 0x3b4048];
       for(const x of W.xs){
@@ -127754,6 +127773,19 @@ class WorldScene extends Phaser.Scene {
         g.lineStyle(Math.max(1, 1.2*K), 0x9aa0a6, 1); { const A = P(0, sb*BODY.hy, BODY.z1 - 3), B = P(0, (y0 + y1)/2, z); g.lineBetween(A.x, A.y, B.x, B.y); } } };
     if(part === 'far'){ legs(-nearSide); }   // (no panels off its sides: its lid is the panel -- Sir, 2026-11-16)
     const RP = BODY._bskin && BODY._bskin.roverPart;
+    /* the Space Tug's docking clamps: a pair of C-claws out ahead of his nose, a grey arm and an orange jaw each */
+    if(RP === 'tug' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = (BODY.z0 + BODY.z1)/2;
+      for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 5);
+        this.drawHullPrism({ hx: 3.5, hy: 1.8, ox: BODY.hx + 3, oy: y, z0: zc - 1.8 + bobZ, z1: zc + 1.8 + bobZ, ch: 0.5, cTop: 0xc9ced4, cLt: 0xa8adb4, cDk: 0x6f757b, cBottom: 0x6f757b, outline: true, topEdge: false });
+        for(const dz of [-1, 1]){ const A = P(BODY.hx + 6, y, zc + dz*2), M = P(BODY.hx + 11, y, zc + dz*7), E = P(BODY.hx + 15.5, y, zc + dz*3.5);
+          g.lineStyle(Math.max(1, 4.8*K), 0x8a3a08, 1); g.lineBetween(A.x, A.y, M.x, M.y); g.lineBetween(M.x, M.y, E.x, E.y);
+          g.lineStyle(Math.max(1, 3*K), 0xff7a1a, 1); g.lineBetween(A.x, A.y, M.x, M.y); g.lineBetween(M.x, M.y, E.x, E.y); } } }
+    /* the Mars Explorer's robot arm, folded off his front: a shoulder at his front corner, an upper arm out, a forearm down to a tool turret */
+    if(RP === 'mars' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const y = -BODY.hy + 5, S = [BODY.hx - 1, y, BODY.z0 + 4], E = [BODY.hx + 9, y - 1, BODY.z0 + 11], Wr = [BODY.hx + 14, y + 1, BODY.z0 + 1];
+      const tube = (a, b, w) => { const A = P(...a), B = P(...b); g.lineStyle(Math.max(1, w*K), 0x5d646c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, w*0.4*K), 0xd8dde2, 1); g.lineBetween(A.x, A.y - w*0.2*K, B.x, B.y - w*0.2*K); };
+      tube(S, E, 4.6); tube(E, Wr, 4); for(const v of [S, E]){ const q = P(...v); g.fillStyle(0x3b4048, 1); g.fillCircle(q.x, q.y, 3*K); g.fillStyle(0xc9ced4, 1); g.fillCircle(q.x, q.y, 1.4*K); }
+      this.drawHullPrism({ hx: 2.4, hy: 2.4, ox: Wr[0], oy: Wr[1], z0: Wr[2] - 3 + bobZ, z1: Wr[2] + 1.6 + bobZ, ch: 0.8, cTop: 0xeceef1, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: true, topEdge: false });
+      { const q = P(Wr[0], Wr[1], Wr[2] - 4.5); g.lineStyle(Math.max(1, 1.4*K), 0x3b4048, 1); const q0 = P(Wr[0], Wr[1], Wr[2] - 3); g.lineBetween(q0.x, q0.y, q.x, q.y); } }
     if(RP === 'tvcam' && part === 'near' && vis(1, 0, 0) || RP === 'tvcam' && part === 'far' && !vis(1, 0, 0)){   /* Apollo: the TV camera on a short arm off his front corner */
       const cx = BODY.hx + 3, cy = -BODY.hy + 5, cz = BODY.z1 - 2, box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0.4, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: true, topEdge: false });
       { const A = P(BODY.hx - 2, cy, cz - 3), Bq = P(cx, cy, cz); g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); g.lineBetween(A.x, A.y, Bq.x, Bq.y); }
@@ -132956,6 +132988,11 @@ const HULL_PRINTS = {
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2, H = L.H; L.side.push({ c: TL, pts: _prRect(m - 6.5, H*0.06, m + 6.5, H*0.96) });
         L.side.push({ col: DK, pts: _prRect(m - 5, H*0.6, m - 1.2, H*0.8) }, { col: DK, pts: _prRect(m + 1.2, H*0.6, m + 5, H*0.8) }, { col: DK, pts: _prRect(m - 4.4, H*0.16, m + 4.4, H*0.42) }, { col: 0xf4f4f0, pts: _prRect(m - 3.6, H*0.26, m + 3.6, H*0.33) }, { col: DK, pts: _prRect(m - 0.8, H*0.46, m + 0.8, H*0.6) }); }
       for(let y = L.y0 + 3; y < L.y1; y += 3.5) L.top.push({ col: DK, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 0.45) }); } },
+  rvTaxi: { id: 'rvTaxi', seed: 0x7a1, build(L){ if(L.part === 'lid') return; const BK = [0x16171b, 0x2a2d33], WH = [0xd9dde2, 0xf6f7f9];   // (a checker band round his middle)
+      const h0 = L.H*0.42, q = L.H*0.13; for(let r = 0; r < 2; r++) for(let x = 0, c = r; x < L.per - 0.05; x += q, c++) L.side.push({ c: c % 2 ? BK : WH, pts: _prRect(x, h0 + r*q, Math.min(L.per, x + q), h0 + (r + 1)*q) }); } },
+  rvTug: { id: 'rvTug', seed: 0x709, build(L){ if(L.part === 'lid') return; const OR = [0xd85a10, 0xff7a1a], BK = [0x16171b, 0x2a2d33];   // (orange panels down his flanks, hazard stripes across his nose)
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 3; i++){ const x = a + len*(0.08 + i*0.31); L.side.push({ c: OR, pts: _prRect(x, L.H*0.2, x + len*0.25, L.H*0.75) }); } }
+      { const [a, b] = L.face(0); for(let x = a - 2; x < b; x += 3.4) L.side.push({ c: BK, pts: [[x, 0], [x + 1.7, 0], [x + 1.7 + L.H*0.3, L.H*0.3], [x + L.H*0.3, L.H*0.3]] }); L.side.push({ c: OR, pts: _prRect(a, L.H*0.3, b, L.H*0.36) }); } } },
   rvMars: { id: 'rvMars', seed: 0x3a5, layers: [ { c: [0x8a4a2a, 0xa85a34], r: 4.5, cover: 0.24 }, { c: [0xd88a5a, 0xe8a070], r: 3, cover: 0.14 } ] },
   rvRetro: { id: 'rvRetro', seed: 0x195, build(L){ if(L.part === 'lid') return; const TL = [0x1aa8a0, 0x2ad8c8], RD = [0xc8302a, 0xff5a4a];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
