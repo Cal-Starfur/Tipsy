@@ -33,7 +33,7 @@ def sheet(): return json.loads(SH.read_text())
 
 if sys.argv[1:2] == ["next"]:
     sh = sheet(); todo = [x for x in sh["sections"] if not x["reviewed"]]
-    r = ready(); r.sort(key=lambda n: n["group"] != "Fixes from testing")   # fixes first
+    r = ready(); r.sort(key=lambda n: (not n["group"].startswith(("Walk-in interiors", "Palmline Tower interior")), n["group"] != "Fixes from testing"))   # walk-ins first (Sir, 2026-11-17: top priority), then fixes
     if todo and (q["meta"]["last"] != "test" or not r):
         print(json.dumps({"kind": "test", "section": todo[0]["id"], "title": todo[0]["title"], "unreviewed": [x["id"] for x in todo]}))
     else: print(json.dumps(r[0]) if r else "NONE READY")
