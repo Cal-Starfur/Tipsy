@@ -27333,6 +27333,12 @@ const SHELL_GHOST = 0.14, GHOST_K = {};
 /* A BUILDING THE ROOM DISPLACES (Sir, 2026-11-17: "ghost what we can and eliminate what we must"): ghosted, and drawn UNDER everything --
    its queue entries sorted to the very back -- so the room's own floor and walls cover it wherever they overlap it on screen; only what
    lies outside the room's outline shows, faint (the room he is in, or the one he is easing out of) */
+/* the room's part inside its own building, in the room's frame [a0, a1, b0, b1] (its declared body, walkinBody), or null */
+function walkinBodyClip(pk, X0, Y0){
+  const pts = walkinBody(pk); if(!pts || !pts.length) return null;
+  const xs = pts.map(q => q.x - X0), ys = pts.map(q => q.y - Y0);
+  return [Math.max(0, Math.min(...xs)), Math.max(...xs), Math.max(0, Math.min(...ys)), Math.max(...ys)];
+}
 function displacedLib(scene, lib){
   const pk = scene && (scene._inside || scene._dimPk);
   return !!(pk && pk.displace && pk.ghosts && pk.ghosts.indexOf(lib) >= 0);
@@ -102762,7 +102768,8 @@ class WorldScene extends Phaser.Scene {
     pk._thru = fr;
     const vis = (a, b, R, h) => walkinSeenThrough(pk, a, b, R, h, seen);
     const G = (a, b, h) => this.W(X0 + a, Y0 + b, h), tmp = [];
-    this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => { const a = it.a || 0, b = it.b; return a < W - 5 && b < D - 5 && vis(a, b, 170, 440); }, 0);
+    const _bc = pk.displace ? walkinBodyClip(pk, X0, Y0) : null;
+    this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => { const a = it.a || 0, b = it.b; return a < W - 5 && b < D - 5 && vis(a, b, 170, 440) && (!_bc || (a > _bc[0] - 20 && a < _bc[1] + 20 && b > _bc[2] - 20 && b < _bc[3] + 20)); }, 0);
     tmp.shift();                                                                  // (its ground, apron and all: in its place, the floor inside its walls)
     const R = walkinLifeTick(this, pk), now = this.time.now;
     for(const s of R.people){
@@ -102773,7 +102780,9 @@ class WorldScene extends Phaser.Scene {
     }
     tmp.sort((p, q) => p.depth - q.depth);
     /* (and under an opening that stands out past its walls -- Pelican's entrance tower -- the floor out to it, as wide as it) */
-    const clips = [[0, W, 0, D]];
+    /* (a room bigger than its building -- pk.displace, W31: from the street only the part inside the building's own body is drawn through its
+       openings; the rest lies under its neighbours and the yard -- Sir, 2026-11-17: "i can see the interior drawing before i go in") */
+    const clips = [pk.displace ? walkinBodyClip(pk, X0, Y0) || [0, W, 0, D] : [0, W, 0, D]];
     for(const o of ops){ const [[a0, b0], [a1, b1]] = o.p;
       if(Math.min(b0, b1) > D + 1) clips.push([Math.min(a0, a1), Math.max(a0, a1), D - 1, Math.min(b0, b1)]);
       else if(Math.min(a0, a1) > W + 1) clips.push([W - 1, Math.min(a0, a1), Math.min(b0, b1), Math.max(b0, b1)]); }
