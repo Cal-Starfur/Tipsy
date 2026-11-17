@@ -128099,7 +128099,7 @@ class WorldScene extends Phaser.Scene {
       for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
       hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
       this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); propNow(); return; }
-    shadow(50, 34);
+    shadow(era === 'cg1980' ? 66 : 50, 34);
     if(era === 'cg1900'){
       /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
          rail, a skirt board; rope ties down the canvas; a lantern hung off the back and a spare wheel strapped behind */
@@ -128175,23 +128175,24 @@ class WorldScene extends Phaser.Scene {
       rack(); mirrors(nearB);
       wheels(nearB, [-30, 30], 13, BW, 8); propNow(); return; }
     if(era === 'cg1980'){
+      /* (elongated into a van -- Sir, 2026-11-17): a long cargo box behind a short raked cab, wheels at its ends */
       /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
-      { const q = P(0, 0, 2); g.fillStyle((A.n1 || 0xff4ad8), 0.22); g.fillEllipse(q.x, q.y, 120*K, 60*K); g.fillStyle((A.n1 || 0xff4ad8), 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
-      const BW = 34; wheels(-nearB, [-32, 32], 12, BW, 8);
-      const wing = () => { for(const sb of [-1, 1]) line([-44, sb*18, 92], [-48, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -48, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
-        hull({ hx: 6.2, hy: 30.2, ox: -48, ch: 2, z0: 101, z1: 102, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) }); };
+      { const q = P(0, 0, 2); g.fillStyle((A.n1 || 0xff4ad8), 0.22); g.fillEllipse(q.x, q.y, 150*K, 60*K); g.fillStyle((A.n1 || 0xff4ad8), 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
+      const BW = 34; wheels(-nearB, [-46, 44], 12, BW, 8);
+      const wing = () => { for(const sb of [-1, 1]) line([-60, sb*18, 92], [-64, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -64, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
+        hull({ hx: 6.2, hy: 30.2, ox: -64, ch: 2, z0: 101, z1: 102, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) }); };
       if(front) wing();
-      hull({ hx: 50, hy: 32, z0: 20, z1: 58, ch: 6, bev: 3, bevIn: 2.5 });
-      for(const sb of [-1, 1]) hull({ hx: 4, hy: 7, ox: 44, oy: sb*20, z0: 58, z1: 62, ch: 1, bev: 0.8, bevIn: 0.6, cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, print: null });   // (its pop-up lamps)
-      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: (A.n1 || 0xff4ad8), cDk: _pdk(A.n1 || 0xff4ad8, 0.8) });
-      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
-      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*33; Q([P(-34, bb, 28), P(-12, bb, 28), P(-12, bb, 37), P(-34, bb, 37)], 0x101114); for(const a of [-31, -25, -19]) line([a, bb + sb*0.1, 30], [a + 3.5, bb + sb*0.1, 30], 0x7aff6a, 1.4), line([a, bb + sb*0.1, 35], [a + 3.5, bb + sb*0.1, 35], 0x7aff6a, 1.4); }
-      if(front) this.tipseyFace(V, 50, 44, 1, { mouthZ: 28 });
-      wedge([[-46, 58], [26, 58], [-2, 92], [-46, 92]], 28, _pmix(BPW.top, 0xffffff, 0.1), BPW.lt);
-      if(sees(28 - (-2) > 0 ? 34 : 34, 0, 28)) { const A = [24, 59.5], B = [-1, 90]; Q([P(A[0], -24, A[1]), P(A[0], 24, A[1]), P(B[0], 24, B[1]), P(B[0], -24, B[1])], 0x2a3a5a); }   // (its raked glass)
-      if(sees(-1, 0, 0)) for(let zz = 64; zz < 90; zz += 4) line([-46.2, -24, zz], [-46.2, 24, zz], 0x16171b, 1.6);   // (louvres over its back)
+      hull({ hx: 66, hy: 32, z0: 20, z1: 58, ch: 6, bev: 3, bevIn: 2.5 });
+      for(const sb of [-1, 1]) hull({ hx: 4, hy: 7, ox: 60, oy: sb*20, z0: 58, z1: 62, ch: 1, bev: 0.8, bevIn: 0.6, cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, print: null });   // (its pop-up lamps)
+      hull({ hx: 66.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: (A.n1 || 0xff4ad8), cDk: _pdk(A.n1 || 0xff4ad8, 0.8) });
+      hull({ hx: 66.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*33; Q([P(-50, bb, 28), P(-28, bb, 28), P(-28, bb, 37), P(-50, bb, 37)], 0x101114); for(const a of [-47, -41, -35]) line([a, bb + sb*0.1, 30], [a + 3.5, bb + sb*0.1, 30], 0x7aff6a, 1.4), line([a, bb + sb*0.1, 35], [a + 3.5, bb + sb*0.1, 35], 0x7aff6a, 1.4); }
+      if(front) this.tipseyFace(V, 66, 44, 1, { mouthZ: 28 });
+      wedge([[-62, 58], [42, 58], [16, 92], [-62, 92]], 28, _pmix(BPW.top, 0xffffff, 0.1), BPW.lt);
+      if(sees(28 - (-2) > 0 ? 34 : 34, 0, 28)) { const A = [40, 59.5], B = [17, 90]; Q([P(A[0], -24, A[1]), P(A[0], 24, A[1]), P(B[0], 24, B[1]), P(B[0], -24, B[1])], 0x2a3a5a); }   // (its raked glass)
+      if(sees(-1, 0, 0)) for(let zz = 64; zz < 90; zz += 4) line([-62.2, -24, zz], [-62.2, 24, zz], 0x16171b, 1.6);   // (louvres over its back)
       if(!front) wing();
-      wheels(nearB, [-32, 32], 12, BW, 8); propNow(); return; }
+      wheels(nearB, [-46, 44], 12, BW, 8); propNow(); return; }
   }
   /* A CARGO ERA SKIN'S PROP (Sir, 2026-11-17: "these skins are basically just paint jobs -- get more creative"): what the trade carries
      or wears up top -- drawn last, over the vehicle. zl: the hover freighter's lift */
@@ -128201,7 +128202,7 @@ class WorldScene extends Phaser.Scene {
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
     const ball = (a, b, z, r, col) => { const q = P(a, b, z), rr = sr(a, b, z, r); g.fillStyle(_pdk(col, 0.55), 1); g.fillCircle(q.x, q.y, rr*1.08); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(_pmix(col, 0xffffff, 0.45), 1); g.fillCircle(q.x - rr*0.35, q.y - rr*0.35, rr*0.32); };
     const lathe = (a, b, rings, col) => this.avLathe(V, a, b, rings, col, null, 12);
-    const roof = { cg1900: [-8, 92], cg1920: [-16, 100], cg1950: [-4, 100], cg1970: [-6, 110], cg1980: [-24, 92], cg2100: [-10, zl + 82] }[era] || [0, 100];
+    const roof = { cg1900: [-8, 92], cg1920: [-16, 100], cg1950: [-4, 100], cg1970: [-6, 110], cg1980: [-34, 92], cg2100: [-10, zl + 82] }[era] || [0, 100];
     const [ra, rz] = roof;
     if(prop === 'mail'){ for(const b of [-9, 9]){ ball(38, b, 76, 6, 0xb8aa88); line([38, b, 81], [38, b, 84], 0x6a5a3a, 1.6); }   // (mail sacks on the bench)
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(-8, sb*31.5, 80), rr = sr(-8, sb*31.5, 80, 6); g.lineStyle(Math.max(1, 1.6*K), 0xd8b04a, 1); g.strokeCircle(q.x, q.y, rr); const q2 = P(-1, sb*31.5, 80); g.fillStyle(0xd8b04a, 1); g.fillTriangle(q2.x, q2.y - rr*0.6, q2.x, q2.y + rr*0.6, q2.x + (q2.x - q.x)*0.6, q2.y); } return; }   // (a post horn each side)
