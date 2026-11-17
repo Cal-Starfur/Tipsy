@@ -44972,7 +44972,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'none', lb: 'strip', lbLow: true, lamp: 0xff3a2a /* (lowered, red -- Sir, 2026-11-17) */, rim: 'tri', rimCol: 0xe89a1a } },
   { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', part: 'ice', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'stack', lb: 'bar', lbBumper: true /* (twin stacks, the light bar on the front bumper -- Sir, 2026-11-17) */, lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
   { id: 'monster:alien', build: 'monster', name: 'Alien Invader', cents: 900, body: 0x8ad83a, stripe: 0x6b3fa0, print: 'mtAlien', part: 'antennae', lid: { z1: 50, ch: 9, bev: 9, bevIn: 7.5 } /* (second pass -- Sir, 2026-11-17: a domed head with big eyes on a little saucer) */, eye: 0xff4ad8, trim: { coil: 0x6b3fa0, bumper: 0x6b3fa0, bar: 0x3a1f5a, stack: 0xc9ced4, heat: 0x6b3fa0, exh: 'none', lb: 'none', lamp: 0xc8ff6a, rim: 'mesh', rimCol: 0x6b3fa0 } },
-  { id: 'monster:pirate', build: 'monster', name: 'Pirate Ship', cents: 900, body: 0x8a5a2a, stripe: 0x8a5a2a, noStripe: true, print: 'mtPirate', part: 'mast', flag: { kind: 'pirate' }, trim: { coil: 0xd8b04a, bumper: 0x4a2e14, bar: 0x4a2e14, stack: 0xd8b04a, heat: 0x4a2e14, exh: 'none', lb: 'cage', lamp: 0xffd34a, rim: 'wagon', rimCol: 0xd8b04a } },
+  { id: 'monster:pirate', build: 'monster', name: 'Pirate Ship', cents: 900, body: 0x8a5a2a, stripe: 0x8a5a2a, noStripe: true, print: 'mtPirate', part: 'mast', flag: { kind: 'pirate' }, trim: { coil: 0xd8b04a, bumper: 0x4a2e14, bar: 0x4a2e14, stack: 0xd8b04a, heat: 0x4a2e14, exh: 'none', lb: 'none', lamp: 0xffd34a, rim: 'wagon', rimCol: 0xd8b04a } },
   /* THE UFO's skins (Sir, 2026-11-16): the flying saucers of the films and the comics -- each its hull, its band, its rim lights and beam */
   { id: 'ufo:martian', build: 'ufo', name: 'Martian', cents: 900, body: 0x7cc34a, stripe: 0x6b3fa0, eye: 0xff4ad8, trim: { lights: [0xff4ad8, 0xc8ff6a, 0xff4ad8, 0xc8ff6a], beam: 0x9dff7a }, ufoPart: 'antennae' },
   { id: 'ufo:bmovie', build: 'ufo', name: 'B-Movie', cents: 900, body: 0xc9ced4, stripe: 0x2a2d33, trim: { lights: [0xfff6d8, 0xfff6d8, 0xfff6d8, 0xfff6d8], beam: 0xf3f0e0 }, ufoPart: 'legs' },
@@ -128875,14 +128875,25 @@ class WorldScene extends Phaser.Scene {
         if(SKP === 'stinger') this.monsterScorpTail(P, K, frontSeen ? 'high' : 'all', bobZ);
         if(SKP === 'antennae') for(const sb of [-nearSide, nearSide]){ const bob = Math.sin(now*0.005 + sb)*1.5, ox2 = LID.ox || 0, A = P(ox2 + 1, sb*2.2, zt - 0.3), B = P(ox2 - 2, sb*7, zt + 16 + bob);   // (rooted on his dome's flat top, not out over its slope -- Sir, 2026-11-17)
           g.lineStyle(Math.max(1, 1.6*K), 0x3a1f5a, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(0x6b3fa0, 1); g.fillCircle(B.x, B.y, 3.6*K); g.fillStyle(0xc8ff6a, 0.75 + 0.25*Math.sin(now*0.008 + sb)); g.fillCircle(B.x - 0.4*K, B.y - 0.4*K, 2.7*K); g.fillStyle(0xffffff, 0.8); g.fillCircle(B.x - 0.9*K, B.y - 0.9*K, 0.6*K); }
-        if(SKP === 'mast'){ const xm = 0, zt2 = zt + 24, fr = vis(1, 0, 0);   // (a mast up out of his cab, two yards, a full sail bellied forward, a crow's nest)
-          const pole = () => { const A = P(xm, 0, zt), B = P(xm, 0, zt2); g.lineStyle(Math.max(1, 2*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
-          const sail = () => { const S = [[xm + 0.6, -8, zt + 19], [xm + 0.6, 8, zt + 19], [xm + 3.2, 8.6, zt + 13], [xm + 0.6, 8, zt + 7], [xm + 0.6, -8, zt + 7], [xm + 3.2, -8.6, zt + 13]];
-            this.quadOn(g, S.map(([x, y, z]) => P(x, y, z)), fr ? 0xf3ead2 : 0xd9cfb4); g.lineStyle(Math.max(1, 0.8*K), 0x8a7a5a, 1); g.strokePoints(S.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), true);
-            if(fr){ const c = P(xm + 3.4, 0, zt + 13.5); g.fillStyle(0x16171b, 1); g.fillCircle(c.x, c.y, 2.6*K); g.fillRect(c.x - 1.4*K, c.y + 1.8*K, 2.8*K, 1.6*K); g.fillStyle(0xf3ead2, 1); g.fillCircle(c.x - 0.9*K, c.y - 0.2*K, 0.7*K); g.fillCircle(c.x + 0.9*K, c.y - 0.2*K, 0.7*K); }
-            for(const z of [zt + 19, zt + 7]){ const A = P(xm + 0.6, -9.5, z), B = P(xm + 0.6, 9.5, z); g.lineStyle(Math.max(1, 1.4*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); } };
-          if(fr){ pole(); sail(); } else { sail(); pole(); }
-          this.drawHullPrism({ hx: 2.2, hy: 2.2, ox: xm, oy: 0, z0: zt2 - 3 + bobZ, z1: zt2 - 0.5 + bobZ, ch: 0.6, cTop: 0x6a4020, cLt: 0x5a3418, cDk: 0x4a2e14, cBottom: 0x4a2e14, outline: false, topEdge: false }); } }
+        /* (second pass -- Sir, 2026-11-17): a taller mast with two square sails bellied forward on their yards -- curved, so they show their
+           belly from the side -- a crow's nest at the top, and a red pennant flying off it */
+        if(SKP === 'mast'){ const xm = LID.ox || 0, zt2 = zt + 36, fr = vis(1, 0, 0), now3 = this.time ? this.time.now : 0;
+          const pole = () => { const A = P(xm, 0, zt), B = P(xm, 0, zt2); g.lineStyle(Math.max(1, 2.6*K), 0x3a2410, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1*K), 0x6a4020, 1); g.lineBetween(A.x - 0.6*K, A.y, B.x - 0.6*K, B.y); };
+          const sail = (z0, z1, hw, bulge, skull) => { const NY = 6, NZ = 4, X = (y, z) => xm + 0.8 + bulge*(1 - (y/hw)**2*0.6)*Math.sin(Math.PI*(z - z0)/(z1 - z0)*0.9 + 0.15);
+            for(let j = 0; j < NZ; j++) for(let i = 0; i < NY; i++){ const ya = -hw + 2*hw*i/NY, yb = -hw + 2*hw*(i + 1)/NY, za = z0 + (z1 - z0)*j/NZ, zb2 = z0 + (z1 - z0)*(j + 1)/NZ;
+              const sh = fr ? (j === 0 ? 0xe6dcc0 : 0xf6efda) : (j === 0 ? 0xc9bfa2 : 0xd9cfb4); this.quadOn(g, [P(X(ya, za), ya, za), P(X(yb, za), yb, za), P(X(yb, zb2), yb, zb2), P(X(ya, zb2), ya, zb2)], sh); }
+            g.lineStyle(Math.max(1, 0.8*K), 0x8a7a5a, 1); for(const y of [-hw, hw]){ const o = []; for(let j = 0; j <= NZ; j++){ const z = z0 + (z1 - z0)*j/NZ, q = P(X(y, z), y, z); o.push(new Phaser.Geom.Point(q.x, q.y)); } g.strokePoints(o, false); }
+            if(skull && fr){ const zc = (z0 + z1)/2, c = P(X(0, zc) + 0.2, 0, zc + 0.6), r = 2.6*K; g.fillStyle(0x16171b, 1); g.fillCircle(c.x, c.y, r); g.fillRect(c.x - r*0.55, c.y + r*0.6, r*1.1, r*0.7);
+              g.fillStyle(0xf6efda, 1); g.fillCircle(c.x - r*0.36, c.y - r*0.1, r*0.28); g.fillCircle(c.x + r*0.36, c.y - r*0.1, r*0.28);
+              g.lineStyle(Math.max(1, 1.2*K), 0x16171b, 1); g.lineBetween(c.x - r*1.4, c.y + r*1.9, c.x + r*1.4, c.y + r*0.9); g.lineBetween(c.x - r*1.4, c.y + r*0.9, c.x + r*1.4, c.y + r*1.9); }
+            for(const z of [z0, z1]){ const A = P(xm + 0.8, -hw - 1.5, z), B = P(xm + 0.8, hw + 1.5, z); g.lineStyle(Math.max(1, 1.6*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); } };
+          const sails = () => { sail(zt + 5, zt + 19, 10, 4.5, true); sail(zt + 21.5, zt + 31, 7.5, 3.4, false); };
+          if(fr){ pole(); sails(); } else { sails(); pole(); }
+          this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: xm, oy: 0, z0: zt2 - 4 + bobZ, z1: zt2 - 1 + bobZ, ch: 0.8, cTop: 0x6a4020, cLt: 0x5a3418, cDk: 0x4a2e14, cBottom: 0x4a2e14, outline: true, topEdge: false });   // (the crow's nest)
+          { const T = P(xm, 0, zt2 + 2), w = Math.sin(now3*0.008)*1.5; g.lineStyle(Math.max(1, 1*K), 0x3a2410, 1); { const A = P(xm, 0, zt2 - 1); g.lineBetween(A.x, A.y, T.x, T.y); }   // (a long red pennant off the masthead)
+            const pts = [T, P(xm - 9, w, zt2 + 0.5), P(xm, 0, zt2 - 0.4)].map(q => new Phaser.Geom.Point(q.x, q.y)); g.fillStyle(0xc8202a, 1); g.fillPoints(pts, true); } }
+        /* the bowsprit: a spar angled up off his nose */
+        if(SKP === 'mast' && frontSeen){ const A = P(BODY.hx - 3, 0, BODY.z1), B = P(BODY.hx + 13, 0, BODY.z1 + 9); g.lineStyle(Math.max(1, 3*K), 0x3a2410, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1.2*K), 0x8a5a2a, 1); g.lineBetween(A.x, A.y - 0.8*K, B.x, B.y - 0.8*K); } }
       /* the Dino's tail: from his back, thick at its root, tapering and curling up to its tip, spikes along its top */
       /* (more a part of him -- Sir, 2026-11-16): the tail grows out of his whole back -- its root his body's own height and colour, centred on his
          back face, dropping a little then sweeping up and round to its tip; its top lit as his hull's top, its belly his side's dark, his
@@ -128908,6 +128919,7 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
       if(SKP === 'ice' && ((part === 'after' && frontSeen) || (part === 'pre' && !frontSeen))) this.monsterPlow(P, K, vis, nearSide);
+      if(SKP === 'mast' && part === 'pre' && !frontSeen){ const A = P(BODY.hx - 3, 0, BODY.z1), B = P(BODY.hx + 13, 0, BODY.z1 + 9); g.lineStyle(Math.max(1, 3*K), 0x3a2410, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (the bowsprit, behind him)
       if(SKP === 'stinger' && part === 'pre' && frontSeen) this.monsterScorpTail(P, K, 'pre', bobZ);
       if(SKP === 'stinger' && part === 'mid' && frontSeen) this.monsterScorpTail(P, K, 'low', bobZ);   // (its root, behind his cab from the front)
       if(SKP === 'stinger' && ((part === 'after' && frontSeen) || (part === 'pre' && !frontSeen))) this.monsterPincers(P, K, vis, nearSide, bobZ);
