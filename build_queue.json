@@ -37,7 +37,8 @@
 "deps": [
 "pt1"
 ],
-"status": "pending"
+"status": "built",
+"note": "pocketFloorNow/pocketSetFloor, pk.z for his height, the rim cut at the floor, zDepth (an upper floor sorts 2z later), night boxes raised"
 },
 {
 "id": "pt3b",
@@ -46,8 +47,9 @@
 "deps": [
 "pt3"
 ],
-"status": "pending",
-"group": "Palmline Tower interior"
+"status": "built",
+"group": "Palmline Tower interior",
+"note": "four lifts, lobby and floors 1-12; stop at one, it opens, pick a floor, dissolve, out at the same lift; floors pocket PT_FLOORS with flats 101-1004 doors and PH 11/12 doors (pt4/pt4b fill them in)"
 },
 {
 "id": "pt4",

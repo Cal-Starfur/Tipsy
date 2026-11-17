@@ -5795,7 +5795,7 @@ function owBuildWorld(route){
   for(const pk of POCKETS)
     for(const t of parkLandmarkVol(pk.name) || []){
       const x0 = pk.x0 + t.box.a0, x1 = pk.x0 + t.box.a1, y0 = pk.y0 + t.box.b0, y1 = pk.y0 + t.box.b1;
-      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, vL: t.vL, vF: t.vF, ox: pk.x0, oy: pk.y0, sb: 1 } });
+      blocks.push({ x0, x1, y0, y1, cx: (x0 + x1)/2, cy: (y0 + y1)/2, type:"park", pl: { v: t.v, vL: t.vL, vF: t.vF, ox: pk.x0, oy: pk.y0, sb: 1, pk } });
     }
   /* THE KART WORKS' YARD (KW_YARD): its pieces' solids, in its frame (block 1,4's north-west corner, b south) */
   { const yb = g2.blockByIJ && g2.blockByIJ.get(KW_YARD.ij);
@@ -5875,7 +5875,7 @@ function owBuildWorld(route){
       for(const b of list){
         const RP = R + (lvPad.get(b) || 0);
         if(x > b.x0 - RP && x < b.x1 + RP && y > b.y0 - RP && y < b.y1 + RP){
-          if(b.pl){ if(volBlockedAt(b.pl.vF ? (b.pl.vF[HOSP_IN.floor] || b.pl.v) : b.pl.vL ? b.pl.vL[MALL_LVL ? 1 : 0] : b.pl.v, x - b.pl.ox, b.pl.sb*(y - b.pl.oy), R, true)) return b; continue; }
+          if(b.pl){ if(volBlockedAt(b.pl.vF ? (b.pl.vF[pocketFloorNow(b.pl.pk)] || b.pl.v) : b.pl.vL ? b.pl.vL[MALL_LVL ? 1 : 0] : b.pl.v, x - b.pl.ox, b.pl.sb*(y - b.pl.oy), R, true)) return b; continue; }
           /* A HOOD LANDMARK THAT DECLARES ITS VOLUME is exactly that volume:
              its building, railing, piers and garden, with the forecourt and
              the gate open. One that does not stays the solid cell it was. */
@@ -25520,7 +25520,7 @@ function pocketHiding(lib){
   /* (indexed again whenever a pocket has been added since: one asked for before the later pushes -- the trophy shop's
      -- left them out of it for good) */
   if(_pocketHidesN !== POCKETS.length){ _pocketHidesN = POCKETS.length; POCKET_BY_HIDES.clear();
-    for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) POCKET_BY_HIDES.set(h, p); }   // (the hospital hides two cells)
+    for(const p of POCKETS) if(p.hides && p.view) for(const h of [].concat(p.hides)) if(!p.hidesToo || !POCKET_BY_HIDES.has(h)) POCKET_BY_HIDES.set(h, p); }   // (the hospital hides two cells; hidesToo: a second room of a building -- Palmline Tower's floors -- the street's is still the first's)
   return POCKET_BY_HIDES.get(lib) || null;
 }
 function pocketShellK(scene, pk){
@@ -28737,6 +28737,80 @@ walkinStaff('Palmline Tower Lobby', [
   { id: 'tenant-2', role: 'tenant', seed: 0x9a1e34, look: 'visitor', life: 'browse' },
   { id: 'courier', role: 'courier', seed: 0x9a1e45, U: PALMLINE_COURIER_UNIFORM, life: 'browse' },
 ]);
+/* ==================== PALMLINE TOWER'S FLOORS AND LIFTS (pt3, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Floors') ====================
+   The tower over the podium is one pocket of many floors (the walk-in kit's floors: pocketFloorNow, pocketSetFloor, pk.z, pk.cut): 1-10 flats,
+   11 and 12 a penthouse each (Sir, 2026-11-17). Its footprint less the walls' 30 is the room, on the street's lines; the floor he is on is
+   PT_FLOORS.floor, at ptFloorZ. No street door: the four lifts are the way up, from the lobby's back wall (the same four, PT_LIFT_A, over each
+   other). The tower and podium stand cut at the floor's slab under him (the rim queue's cut), the shops' shares too. */
+const PT_LIFT_A = { lobby: [60, 150, 250, 340], floors: [686, 776, 876, 966] };   // (the lifts' middles in each room's a: the lobby's at 996 + these, the floors' at 370 + these -- the same world a)
+function ptFloorZ(n){ return n <= 0 ? 0 : 285 + 120*(n - 1); }                   // (the podium's roof, 190 kit units: floor 1, and 80 kit units a floor)
+const PT_FLOORS = (() => {
+  const P = PALMLINE_PLAN, lab = [P.TA0 + 30, P.TA1 - 30, P.TB + 30, P.TF - 30];
+  const F = { name: 'Palmline Tower Floors', x0: 680000, y0: 400000, W: lab[1] - lab[0], D: lab[3] - lab[2], floor: 1, _v: null };
+  F.view = () => { if(F._v) return F._v; const L = landmarkLabWorld('Palmline Tower'); if(!L) return null;
+    const c = [L(lab[0], lab[2]), L(lab[1], lab[3])];
+    return (F._v = { dx: Math.min(c[0].x, c[1].x) - F.x0, dy: Math.min(c[0].y, c[1].y) - F.y0, rise: 0 }); };
+  POCKETS.push({ name: F.name, from: 'Palmline Tower', x0: F.x0, y0: F.y0, w: F.W, d: F.D, h: 112, out: 0, view: F.view,
+    hides: 'Palmline Tower', hidesToo: true, doors: [],
+    outside: () => { const lp = POCKETS.find(q => q.name === 'Palmline Tower Lobby'); return lp ? pocketOutsideDoor(lp, lp.doors[0]) : null; },
+    floorNow: () => F.floor, z: () => ptFloorZ(F.floor), cut: () => ptFloorZ(F.floor)/1.5 - 1, zDepth: true,
+    night: () => walkinNightBoxes(F.W, F.D, 112, 66, null) });   // (W25: the floor at the near walls' height and the far walls' inner faces; raised to the floor by pocketNightCut)
+  return F;
+})();
+/* THE LIFTS (pt3): stop square in front of one (he is lined up with its doors, a stride out), it comes and opens, the panel lists the floors;
+   pick one -- the doors shut, the floor dissolves into the one picked (sceneDissolve), he is out in front of the same lift there, its doors
+   opening. Its leaves are live pieces (ptLiftLeaves), cached shut or open. The hospital's lift, made for a building of two rooms */
+const PT_LIFT = { L: null, rest: false, callMs: 900, u: { 'Palmline Tower Lobby': [0, 0, 0, 0], 'Palmline Tower Floors': [0, 0, 0, 0] } };
+const PT_LIFT_FLOORS = [{ n: 0, mark: 'G', name: 'Lobby' }].concat([...Array(12)].map((_, i) => ({ n: i + 1, mark: String(i + 1),
+  name: i + 1 <= 10 ? 'Flats ' + (i + 1) + '01-' + (i + 1) + '04' : 'Penthouse' })));
+function ptLiftU(room, i){ return PT_LIFT.u[room] ? PT_LIFT.u[room][i] : 0; }
+function ptLiftState(room, i){ const u = ptLiftU(room, i); return u <= 0 ? 's' : u >= 1 ? 'o' : null; }
+function ptLiftFloorOf(pk){ return pk.name === 'Palmline Tower Lobby' ? 0 : PT_FLOORS.floor; }
+function ptLiftPick(n){
+  const L = PT_LIFT.L;
+  liftPanelShow(false);
+  if(!L || L.phase !== 'pick') return;
+  if(n == null || n === L.from){ PT_LIFT.L = null; PT_LIFT.rest = true; return; }
+  L.to = n; L.phase = 'close'; L.t = 0;
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
+function ptLiftArrive(scene, L){
+  const lob = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), flp = POCKETS.find(q => q.name === PT_FLOORS.name);
+  let x, y;
+  if(L.to === 0){ L.pk = lob; x = lob.x0 + PT_LIFT_A.lobby[L.car]; y = lob.y0 + 70; }
+  else { pocketSetFloor(scene, PT_FLOORS, L.to); L.pk = flp; x = flp.x0 + PT_LIFT_A.floors[L.car]; y = flp.y0 + 70; }
+  PT_LIFT.u[L.pk.name][L.car] = 0;
+  owTeleport(scene, x, y, Math.PI/2);
+}
+function ptLiftTick(scene, ow, dt){
+  const pk = scene._inside, L = PT_LIFT.L;
+  if(!pk || !PT_LIFT.u[pk.name]){ if(L && L.phase !== 'ride'){ liftPanelShow(false); PT_LIFT.L = null; } return !!(L && L.phase === 'ride'); }
+  const a = ow.px - pk.x0, b = ow.py - pk.y0, A = pk.name === 'Palmline Tower Lobby' ? PT_LIFT_A.lobby : PT_LIFT_A.floors;
+  for(const room in PT_LIFT.u) PT_LIFT.u[room].forEach((u, i) => {
+    const want = L && L.car === i && L.pk && L.pk.name === room && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0;
+    PT_LIFT.u[room][i] = want > u ? Math.min(1, u + dt/380) : Math.max(0, u - dt/380); });
+  const ci = A.findIndex(c => Math.abs(a - c) < 36 && b > 0 && b < 95);
+  if(!L){
+    if(PT_LIFT.rest){ if(ci < 0) PT_LIFT.rest = false; return false; }
+    if(scene.state !== "play" || ci < 0 || Math.abs(ow.vel || 0) > 0.03) return false;
+    PT_LIFT.L = { phase: 'call', t: 0, car: ci, pk, from: ptLiftFloorOf(pk), to: null };
+    ow.vel = 0;
+    return true;
+  }
+  L.t += dt; ow.vel = 0;
+  if(L.phase === 'call' && L.t >= PT_LIFT.callMs){ L.phase = 'pick'; L.t = 0; liftPanelShow(true, L.from, PT_LIFT_FLOORS, ptLiftPick); }
+  else if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); PT_LIFT.L = null; PT_LIFT.rest = true; } }
+  else if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){
+    L.phase = 'ride'; L.t = 0; L.dur = 900 + 160*Math.abs(L.to - L.from);
+    sceneDissolve(scene, 650, () => ptLiftArrive(scene, L));
+  }
+  else if(L.phase === 'ride' && L.t >= L.dur){ L.phase = 'open'; L.t = 0; if(typeof sfxThump === "function") sfxThump(0.2); }
+  else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
+    PT_LIFT.L = null; PT_LIFT.rest = true;
+    if(typeof tpToast === "function") tpToast(L.to === 0 ? "Lobby." : L.to >= 11 ? "Floor " + L.to + " · Penthouse." : "Floor " + L.to + " · Flats " + L.to + "01-" + L.to + "04.");
+  }
+  return true;
+}
 walkinLife('Palmline Tower Lobby', { keep: [[42, 122, 640, 810], [278, 358, 640, 810]], looks: [
   { id: 'lifts', spots: [[60, 72, -Math.PI/2], [150, 72, -Math.PI/2], [250, 72, -Math.PI/2], [340, 72, -Math.PI/2]] },
   { id: 'mail', spots: [[72, 150, Math.PI], [72, 236, Math.PI]] },
@@ -31164,6 +31238,7 @@ function garageDeckDepth(x, y){ const p = liftSite().frame().toLab(x, y); return
 function owLiftZ(ow){
   if(ow.carryZ !== undefined) return ow.carryZ;            // carried down it by the crew (see rescueRoofTowAt)
   if(hospInsideNow()) return hospInZ();                    // inside Marina General: the floor he is on (HOSP_IN)
+  { const sc = typeof scn === "function" ? scn() : null; if(sc && sc._inside && sc._inside.floorNow && sc._inside.z) return sc._inside.z(); }   // (a pocket of many floors: the one he is on -- Palmline Tower's)
   { const sc = typeof scn === "function" ? scn() : null; if(sc && sc._inside && sc._inside.name === 'Brew & Bolt Roof') return BBR.Z; }   // on Brew & Bolt's roof
   const L = ow.lift, Z = liftSite().plan.DECK_Z;
   if(L && L.kind === 'mall'){                               // the mall garage's lift, floor to floor
@@ -35231,6 +35306,7 @@ function owLiftTick(scene, ow, dt){
   }
   if(hospThanksTick(scene, ow)) return true;   // the heart run's ending holds him (HOSP_THANKS)
   if(hospInTick(scene, ow, dt)) return true;   // inside Marina General (HOSP_IN): its lift, its gifts and hazards, the heart on the ER's mat
+  if(ptLiftTick(scene, ow, dt)) return true;   // in Palmline Tower: its four lifts, lobby to the floors (PT_LIFT)
   if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
   else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
   if(!ow.deck && !ow.lift){ hospHeartTick(scene, ow); hospErrandStreetTick(scene, ow); }   // (an errand in hand: the GPS to the hospital, HOSP_ERRANDS)
@@ -36335,6 +36411,22 @@ function hospErMatTick(scene){
   const first = HOSP_IN._mat === undefined; HOSP_IN._mat = on;
   const pk = hospInPocket(), lc = scene._lmItems; if(first || !pk || !lc) return;
   for(const key of ["pkv|", "pk|"]){ const items = lc.get(key + pk.name); if(items) items.forEach((it, n) => { if(it.erMat) scene.pocketPieceRepaint(pk.name, n); }); }
+}
+/* A POCKET OF MANY FLOORS (the walk-in kit's floors: Palmline Tower's, PT_FLOORS; the hospital's is HOSP_IN.floor): the floor it is on
+   now -- its solids (fl) are that floor's set (solidAt), its pieces that floor's (it.when), its height pk.z() */
+function pocketFloorNow(pk){ return pk && pk.floorNow ? pk.floorNow() : HOSP_IN.floor; }
+/* ...and changed: its ground painted again (its cache dropped: the pocket's own, on its own lines or the street's) */
+function pocketSetFloor(scene, pk, n){
+  pk.floor = n;
+  const bc = scene && scene._bc;
+  if(!bc) return;
+  const pres = ["pk|", "pkv|", "pkx|"].map(lk => lk + pk.name + "|ground"), isG = k => pres.some(pre => k.startsWith(pre));
+  for(const [k, e] of [...bc.cache]){
+    if(!isG(k)) continue;
+    if(e){ if(e.tiles){ for(const tl of e.tiles.values()) tl.rt.destroy(); } else if(e.rt) e.rt.destroy(); bc.px -= e.px || 0; }
+    bc.cache.delete(k);
+  }
+  for(const k of [...bc.box.keys()]) if(isG(k)) bc.box.delete(k);
 }
 /* THE FLOOR CHANGES: the ground is painted again (its cache dropped); the
    pieces are every floor's, each shown on its own (it.when) */
@@ -43835,6 +43927,19 @@ function S(aa,b0,b1,z0,z1,fill,stroke,lw){
 /* A SLIDING DOOR PAIR, live (an entry's slideDoors): two glass leaves on
    the plane b, parting from the middle of the opening a..a+w as u goes
    0 (shut) to 1 (open), each sliding over the glass beside it */
+/* PALMLINE TOWER'S LIFTS (pt3, PT_LIFT): one lift on a wall's inner face at a = c (bb: the wall's plane, its b), the same on every floor
+   -- its stone surround, the lit car seen in its opening, the floor indicator over it; and its two steel leaves (live: ptLiftLeaves), open by u */
+function ptLiftWall(c, bb){
+  F(c - 40, c + 40, 0, 176, '#efe7d6', '#c9bea7', 1, bb + 0.6);
+  F(c - 32, c + 32, 0, 160, '#b9c0c4', null, 0, bb + 0.8);                          // the car: its back wall, lit
+  F(c - 30, c + 30, 0, 6, '#8f969b', null, 0, bb + 0.9); F(c - 26, c + 26, 72, 76, '#e6e9eb', null, 0, bb + 0.9);   // its floor's edge, the handrail
+  F(c - 22, c + 22, 164, 174, '#2b3138', null, 0, bb + 0.9); F(c - 6, c + 6, 166, 172, '#e8a23a', null, 0, bb + 1.0);
+}
+function ptLiftLeaves(c, u, bb){
+  const o = 32*u;
+  if(o < 31.5){ F(c - 32, c - o, 0, 160, '#a9b0b5', null, 0, bb + 1.2); F(c + o, c + 32, 0, 160, '#c9ced2', null, 0, bb + 1.2);
+                F(c - o - 1, c - o, 0, 160, '#8f969b', null, 0, bb + 1.3); F(c + o, c + o + 1, 0, 160, '#8f969b', null, 0, bb + 1.3); }
+}
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
@@ -54306,13 +54411,8 @@ function houseCanopy(fn){
         F(-30, W + 30, 196, 202, stoneL, null, 0, 0.3);
         F(-30, W + 30, 0, 10, stoneD, null, 0, 0.4);                                                                 // the skirting
         F(-30, W + 30, H - 14, H, stoneL, null, 0, 0.4);                                                             // the cornice
-        /* the four lifts: a stone surround, brushed steel doors, the floor indicator over each */
-        for(const c of liftsA){
-          F(c - 40, c + 40, 0, 176, stoneL, stoneD, 1, 0.6);
-          F(c - 32, c + 32, 0, 160, steel, null, 0, 0.8); F(c - 32, c, 0, 160, steelD, null, 0, 0.85);
-          F(c - 1, c + 1, 0, 160, steelS, null, 0, 0.9);
-          F(c - 22, c + 22, 164, 174, dark, null, 0, 0.9); F(c - 6, c + 6, 166, 172, '#e8a23a', null, 0, 1.0);
-        }
+        /* the four lifts (pt3): their surrounds and cars, the tower's own (ptLiftWall); the leaves are live pieces, below */
+        for(const c of liftsA) ptLiftWall(c, 0);
         /* the call panels between them */
         for(const c of [105, 200, 295]){ F(c - 6, c + 6, 70, 102, steelD, steelS, 1, 0.9); faceCircle(c, 1.0, 92, 2.6, '#f3ecdc'); faceCircle(c, 1.0, 80, 2.6, '#f3ecdc'); }
         /* the tower's name over the lifts, on a teal band */
@@ -54404,7 +54504,97 @@ function houseCanopy(fn){
       }
     }
 
+    /* ---- THE LIFTS' LEAVES (pt3, PT_LIFT): each lift's sill on the floor, its two steel leaves live (it.fx.kit), cached shut or open ---- */
+    liftsA.forEach((c, i) => items.push({ a: c, b: 3, z: 0, draw: () => { T(c - 32, c + 32, 0, 8, 0.8, steelD); },
+      fx: { kit: () => ptLiftLeaves(c, ptLiftU('Palmline Tower Lobby', i), 0), state: () => ptLiftState('Palmline Tower Lobby', i) } }));
+
     walkinStaffSolids(items, 'Palmline Tower Lobby');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
+     The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
+     height (pk.z: ptFloorZ). Every floor the same plan (Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse"):
+       a 620..1032, b 0..320   the lift lobby: the four lifts on the north wall (a 686, 776, 876, 966: over the lobby's own), the tower's core
+       a 0..620, 1032..1652    the homes, b 0..320: on floors 1-10 four flats (n01..n04, west to east), each a front door on the corridor;
+                               on 11 and 12 the penthouse, one door
+       b 320..460              the corridor along the glass (the south face, cut low as a near wall), the flats' doors facing it */
+  name:'Palmline Tower Floors', xh: 120, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 1652, dd: 460,
+  head:'Inside Palmline Tower: a residential floor -- the lift lobby, the corridor along the glass and the flats\' front doors',
+  tags:['interior','pocket','residential','flats','corridor','lifts','penthouse','palmline tower'],
+  desc:'An upper floor of the tower: four lifts in a stone lift lobby, a carpeted corridor along the curtain wall, and the flats\' front doors, numbered by floor; the top two floors are each one penthouse.',
+  draw(p){
+    const W = 1652, D = 460, H = 112, LH = 66, CB = 320;
+    const plas = '#f1ece1', stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c', tealL = '#3f7a7a', carpet = '#7f8f8c', carpetL = '#93a39f';
+    const wood = '#8a6446', woodD = '#6b4a32', brass = '#c9a24a', dark = '#2b3138', ceil = '#d8d2c4';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const LA = PT_LIFT_A.floors, LOB = [620, 1032];
+    const FLATS = [[0, 310], [310, 620], [1032, 1342], [1342, 1652]];
+    const fl = () => (typeof PT_FLOORS !== 'undefined' ? PT_FLOORS.floor : 1);
+
+    /* ---- THE FLOOR: stone in the lift lobby, the corridor carpeted with a runner ---- */
+    T(0, W, 0, D, 0, carpet);
+    T(LOB[0], LOB[1], 0, CB, 0.2, stoneL);
+    for(let b = 0; b < CB; b += 80) for(let a = LOB[0] + ((b/80) % 2 ? 80 : 0); a < LOB[1]; a += 160) T(a, Math.min(LOB[1], a + 80), b, Math.min(CB, b + 80), 0.3, '#e8e1d2');
+    T(0, W, CB + 30, D - 30, 0.4, carpetL); T(0, W, CB + 34, CB + 38, 0.5, tealL); T(0, W, D - 38, D - 34, 0.5, tealL);
+
+    /* ---- THE WALLS (the kit's): the north wall plaster over stone with the lifts (seen only in the lift lobby), the west plaster, the south
+       glass (the curtain wall, cut low) and the east glass ---- */
+    walkinRoom(items, { W, D, H, LH, door: { side: 's', at: -9999, half: 0 }, gapsS: [], winS: [[0, W, 8]], winE: [[0, D, 8]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0); F(-30, W + 30, 0, 10, stoneD, null, 0, 0.3);
+        F(LOB[0], LOB[1], 0, 100, stone, null, 0, 0.2);
+        for(const c of LA) ptLiftWall(c, 0);
+        for(const c of [(LA[0] + LA[1])/2, (LA[1] + LA[2])/2, (LA[2] + LA[3])/2]){ F(c - 6, c + 6, 70, 102, '#a9b0b5', '#8f969b', 1, 0.9); }
+      },
+      paintW: () => { S(0, -30, D + 30, 0, H, plas); S(0.3, -30, D + 30, 0, 10, stoneD); },
+      low: [stoneL, stone, stoneD], cap: ['#e9eef0', '#d8dde0', '#c3c9cc'], ftop: stoneL, frame: '#e9eef0', glass: 'rgba(150,190,206,.45)' });
+
+    /* ---- THE HOMES: closed to the ceiling (they are people's homes), their fronts on the corridor; in runs of 150 for the order ---- */
+    for(const [h0, h1] of [[0, LOB[0]], [LOB[1], W]]){
+      const n = Math.ceil((h1 - h0)/150);
+      for(let k = 0; k < n; k++){ const a0 = h0 + (h1 - h0)*k/n, a1 = h0 + (h1 - h0)*(k + 1)/n;
+        items.push({ a: (a0 + a1)/2, b: CB/2, z: 0, solids: [solid(a0, a1, 0, CB, H, 'home')], draw: () => {
+          box(a0, a1, 0, CB, 0, H, ceil, plas, shade(plas, 0.9));
+          F(a0, a1, 0, 10, stoneD, null, 0, CB + 0.2); F(a0, a1, 0, 46, shade(plas, 0.96), null, 0, CB + 0.1);
+        }}); }
+    }
+    /* the lift lobby's two side walls' ends, stone, where the homes meet it */
+    for(const a of LOB) items.push({ a, b: CB - 2, z: 0, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, H, stoneL, stone, stoneD); } });
+
+    /* ---- THE FRONT DOORS. Floors 1-10: a flat's door in the middle of each (a wood leaf, its frame, a brass number, a mat on the carpet);
+       their party walls marked on the corridor. 11 and 12: the penthouse's double door, east of the lift lobby ---- */
+    const door = (c, wd, num) => {
+      F(c - wd/2 - 6, c + wd/2 + 6, 0, 104, stoneL, stoneD, 1, CB + 0.6);
+      F(c - wd/2, c + wd/2, 0, 98, wood, null, 0, CB + 0.8);
+      if(wd > 70){ F(c - 1, c + 1, 0, 98, woodD, null, 0, CB + 0.9); }
+      F(c + wd/2 - 12, c + wd/2 - 8, 44, 50, brass, null, 0, CB + 1.0);
+      T(c - wd/2, c + wd/2, CB, CB + 26, 0.8, '#6a5a44'); T(c - wd/2 + 4, c + wd/2 - 4, CB + 3, CB + 23, 0.9, '#8a7658');
+      if(num) blockWordIn(num, c - 24, c + 24, 106, 122, CB + 1.0, '#2b3138', null, 2);
+    };
+    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2;
+      items.push({ a: c, b: CB + 2, z: 0, when: () => fl() <= 10, draw: () => door(c, 56, null) });
+    }
+    for(let f = 1; f <= 10; f++) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
+      items.push({ a: c + 1, b: CB + 3, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
+    });
+    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: () => fl() <= 10, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
+    for(const f of [11, 12]) items.push({ a: 1180, b: CB + 2, z: 0, when: () => fl() === f, draw: () => {
+      door(1180, 110, null); F(1180 - 46, 1180 + 46, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn('PH ' + f, 1180 - 40, 1180 + 40, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
+
+    /* ---- THE LIFTS' LEAVES (PT_LIFT): sills and the live leaves, as the lobby's ---- */
+    LA.forEach((c, i) => items.push({ a: c, b: 3, z: 0, draw: () => { T(c - 32, c + 32, 0, 8, 0.8, '#a9b0b5'); },
+      fx: { kit: () => ptLiftLeaves(c, ptLiftU('Palmline Tower Floors', i), 0), state: () => ptLiftState('Palmline Tower Floors', i) } }));
+    /* a bench and a plant in the lift lobby, against its side walls, clear of the lifts' lane */
+    items.push({ a: LOB[0] + 24, b: 230, z: 0, solids: [solid(LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench')], draw: () => {
+      for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 34, '#c9ced2', '#a9b0b5', '#8f969b');
+      box(LOB[0] + 4, LOB[0] + 40, 180, 280, 34, 42, wood, woodD, shade(woodD, 0.8)); } });
+    items.push({ a: LOB[1] - 24, b: 250, z: 0, solids: [{ name: 'plant', c: [LOB[1] - 24, 250], r: 16, h: 60 }], draw: () => {
+      cyl(LOB[1] - 24, 250, 0, 48, 16, stoneD, stoneL); plateCircle(LOB[1] - 24, 250, 48, 14, '#5a4636', null, 0);
+      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(LOB[1] - 24, 250, 48, LOB[1] - 24 + 26*Math.cos(t), 250 + 26*Math.sin(t), 96, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
     depthSort(items);
   }
 },
@@ -99496,7 +99686,10 @@ class WorldScene extends Phaser.Scene {
     if(d <= lo && lo < hi) return Math.min(lo + 1e-6, (lo + hi)/2);
     return d;
   }
-  queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth, pick, z0){
+  /* (zd: an UPPER FLOOR's place in the order -- Palmline Tower's floors, pk.zDepth: a thing z up is drawn where a ground thing 2z nearer
+     would be, so the room and he (drawRobot's queue) go 2z later than their footing, and the street far below, behind them, under them) */
+  queueFramePieces(vq, name, x0, y0, sb, lk, groundDepth, pick, z0, zd){
+    zd = zd || 0; groundDepth += zd;
     const G = z0 ? (a, b, h) => this.W(x0 + a, y0 + sb*b, h + z0) : (a, b, h) => this.W(x0 + a, y0 + sb*b, h);   // (z0: a floor up in the air -- the hospital's, HOSP_IN)
     const _lc = this._lmItems || (this._lmItems = new Map());
     let items = _lc.get(lk);
@@ -99567,10 +99760,10 @@ class WorldScene extends Phaser.Scene {
          floor he is on); a piece on the other floor (it.lvl) sorts by its key
          alone, not against him */
       const dk = typeof it.dk === 'function' ? it.dk() : it.dk, key = dk != null ? x0 + y0 + dk : qx + qy + (it.z || 0);
-      let d = here && (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr, z0) : key;   // (z0: flat is flat at the floor's height)
+      let d = (here && (it.lvl == null || it.lvl === MALL_LVL) ? this.lmDepth(key, it, dr, z0) : key) + zd;   // (z0: flat is flat at the floor's height)
       /* it.under(x, y): ground he can be ON (the soapbox ramp's deck, DERBY) --
          while he is, it goes under him, whatever its footprint says */
-      if(it.under && it.under(this.botX, this.botY)) d = Math.min(key, this.botX + this.botY - 0.5);
+      if(it.under && it.under(this.botX, this.botY)) d = Math.min(key, this.botX + this.botY - 0.5) + zd;
       /* HIS OWN ESCALATOR UNDER HIM (Sir, 2026-10-16, on the iPad: riding
          either lane he vanished, only his lights showing -- the lane's steps
          were painted over him). Whatever else decides the order, the steps
@@ -99598,7 +99791,12 @@ class WorldScene extends Phaser.Scene {
       if(!it.ghost){ it._qf = qf; if(it.frontOf || it.backOf) held.push(it); }
       if(ck >= 0.5) return;                                                     // (its people and machines: gone once it's half off)
       if(it.live) vq.push({ depth: d + (it.liveFirst ? -1e-3 : 1e-3), fn: (g, t) => this.drawCast(g, it.live, x0, y0, sb, t || this.time.now) });
-      if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
+      /* (it.fx.kit: a live part drawn in the entry's own kit -- Palmline Tower's lift doors -- cached while still: fx.state() names its
+         still state, null while it moves) */
+      if(it.fx && it.fx.kit){ const fx = it.fx, Gz = (a, b, h) => this.W(x0 + a, y0 + sb*b, h + (z0 || 0));
+        vq.push({ depth: d + 1e-3, fn: (g, t) => { const st = fx.state ? fx.state() : null, dr = gg => LIB.drawItem(name, gg, Gz, K, { draw: () => fx.kit(t || this.time.now) });
+          if(st != null) this.bcDraw(g, lk + "|fx|" + n + "|" + st, qx, qy, dr); else dr(g); } }); }
+      else if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
     });
     for(const it of held){
       const e = it._qe; let lo = -Infinity, hi = Infinity;
@@ -103524,10 +103722,11 @@ class WorldScene extends Phaser.Scene {
     const V = POCKET_VIEW, pk = V.pk;
     const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x);
     gm.fillStyle(0xffffff, 1);
+    const zf = pk.zDepth && pk.z ? pk.z() : 0;                                   // (a floor up a tower: its boxes at its height -- Palmline Tower's floors)
     for(const [a0, a1, b0, b1, z1, z0 = 0] of (typeof pk.night === 'function' ? pk.night() : pk.night) || [[0, pk.w, 0, pk.d, pk.h || 240]]){   // (z0: a box that starts above the floor -- a cornice's overhang)
       const pts = [];
       for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1])
-        pts.push(this.W(pk.x0 + a + V.dx, pk.y0 + b + V.dy, z));
+        pts.push(this.W(pk.x0 + a + V.dx, pk.y0 + b + V.dy, z + zf));
       pts.sort((p, q) => p.x - q.x || p.y - q.y);
       const lo = [], hi = [];
       for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
@@ -103849,7 +104048,7 @@ class WorldScene extends Phaser.Scene {
         /* (its ground under every piece it has: the mall's anchors stand west
            of its origin, their keys below it) */
         const n0 = blockVQ.length;
-        this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200, null, pk.z ? pk.z() : 0);
+        this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200, null, pk.z ? pk.z() : 0, pk.zDepth && pk.z ? 2*pk.z() : 0);
         /* THE ROOM COMES IN UNDER ITS SHELL, NOT OVER IT (the review, 2026-10-30: through the shell's fade, the room's
            near half painted crisp over the still-opaque front -- the shell is one entry, keyed at its middle, and every
            piece of the room nearer than that was drawn after it). While the shell is there at all (pocketShellK), the
@@ -105803,7 +106002,8 @@ class WorldScene extends Phaser.Scene {
                           + (this.ow && this.ow.on && flyAirborne(this.ow) ? this.flyDepthLift() : 0)
                           + (this.ow && this.ow.on ? (this.ow.jumpZ || 0) : 0)
                           + (this.ow && this.ow.climbing && !this.ow.emerging ? 60 : 0)   // (up the roof ladder: in front of its rails and its hatch frame, which sort at the wall)
-                          + (this._inside && this._inside.name === 'Brew & Bolt Roof' ? 4000 : 0), isRobot: true,   // (on Brew & Bolt's roof: after the shell's roof under him, as the roof's own pieces are, a + b + 4000)   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
+                          + (this._inside && this._inside.name === 'Brew & Bolt Roof' ? 4000 : 0)
+                          + (this._inside && this._inside.zDepth && this._inside.z ? 2*this._inside.z() : 0), isRobot: true,   // (up a tower, as its floor's pieces: queueFramePieces' zd)   // (on Brew & Bolt's roof: after the shell's roof under him, as the roof's own pieces are, a + b + 4000)   // (in the air: past what it flies over; off a ramp, the height-biased key, K = 1 for this projection)
                    fn: (gg, tt) => this.inRoomCoords(() => this.drawRobotOrSunk(tt, this._frameDt || 0)) });
     /* A ROTORCRAFT'S SHADOW (fleet P2): its footprint on whatever is under it, a street or a roof, bigger and softer
        the higher it flies; live and small. On the street it sorts where it falls; on a roof, just under the craft */
@@ -109966,7 +110166,13 @@ class WorldScene extends Phaser.Scene {
       const under = nearSite ? Math.min(base, bd - 0.5) : base;
       /* (FROM INSIDE ITS ROOM, a piece that is a point (`pt`: the gate piers) goes in at its own place among the room's walls, not at the
          site's far corner under them: the room's near wall was painted over the brick pier at the school's door) */
-      const _rimPk = rim.name !== 'Maritime Mall' && typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
+      /* (the pocket he is in when it hides this site -- a building of two: Palmline Tower's lobby and its floors -- else the one that hides it) */
+      const _inPk = this._inside, _rimPk = rim.name === 'Maritime Mall' ? null : _inPk && [].concat(_inPk.hides || []).includes(rim.name) ? _inPk
+                  : typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
+      /* CUT AT THE FLOOR, as the hood landmarks' (queueParkBlock): on an upper floor of a room with a view (pk.cut, kit units), its shell and
+         what it ghosts drawn whole up to that height, laid under the room's floor -- the building below him as the street knows it */
+      const _rcut = _rimPk && POCKET_VIEW && POCKET_VIEW.pk === _rimPk && _rimPk.cut ? _rimPk.cut() : 0;
+      const _rcutDep = _rcut > 0 ? _rimPk.x0 + POCKET_VIEW.dx + _rimPk.y0 + POCKET_VIEW.dy + Math.min(0, _rimPk.ax0 || 0) - 200.5 : 0;
       const inRoom = !!_rimPk && this._inside === _rimPk;
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       /* (a rim site with a walk-in room of its own -- Tide Pool Elementary: its `shell` pieces ease off with the generic
@@ -109987,6 +110193,11 @@ class WorldScene extends Phaser.Scene {
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
+        if(_rcut > 0 && (it.shell || it.ghost)){
+          vq.push({ depth: _rcutDep - 1e-3 + n*1e-6, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + n + "|cut" + Math.round(_rcut), q.x, q.y,
+            gg => { LIB.setView(this.vpW(), this.vpH()); LIB.setCut(_rcut); try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); LIB.setCut(null); } }) });
+          return;
+        }
         if(it.overDoors) _overD = dep;                                              // (a canopy over its live doors: they go just under it, below)
         if(it.overShop) (_overS || (_overS = new Map())).set(it.overShop, dep);   // (a shop's awning over its glass pair: the pair goes just under it)
         if(sk < 0.002) return;
