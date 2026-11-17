@@ -54261,7 +54261,7 @@ function houseCanopy(fn){
        a 0..       the mail wall (b 90..290) and the directory (b 320..400) on the west wall; a bench under it (b 420..540) and a palm past it (b 610)
        b 330..375  the reception desk, a 130..270: two screens on it with their backs to us, the receptionist behind it (b 306)
        b 585..625  the security desk, a 140..260: a monitor and a sign-in book, the guard behind it (b 560)
-       b 770..840  the revolving drum, its inner half */
+       b 840       the doorways' frames and the revolving door, flat in the glass line as the street sees them */
   name:'Palmline Tower Lobby', xh: 285, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 400, dd: 810,
   head:'Inside Palmline Tower: a double-height stone lobby with four lifts, a reception desk, a security desk, a mail wall and a bench',
@@ -54368,13 +54368,22 @@ function houseCanopy(fn){
       for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(26, 606, 150, 26 + 44*Math.cos(t), 606 + 44*Math.sin(t), 128, 3.2, k % 2 ? '#4f7a4a' : '#5f8f58'); }
     }});
 
-    /* ---- THE REVOLVING DRUM's inner half (centre a DM, b 825, r 56, 175 high): curved glass, its three leaves, a dark lid ---- */
-    items.push({ a: DM, b: 790, z: 0, solids: [{ name: 'revolving door', c: [DM, 825], r: 56, h: 180 }], draw: () => {
-      for(let k = 0; k < 10; k++){ const t0 = Math.PI + k/10*Math.PI, t1 = Math.PI + (k + 1)/10*Math.PI;
-        poly([P(DM + 56*Math.cos(t0), 825 + 56*Math.sin(t0), 0), P(DM + 56*Math.cos(t1), 825 + 56*Math.sin(t1), 0), P(DM + 56*Math.cos(t1), 825 + 56*Math.sin(t1), 172), P(DM + 56*Math.cos(t0), 825 + 56*Math.sin(t0), 172)], 'rgba(170,206,220,.28)'); }
-      for(const t of [-Math.PI/2, Math.PI/6 - Math.PI, -Math.PI/6]) poly([P(DM, 825, 0), P(DM + 54*Math.cos(t), 825 + 54*Math.sin(t), 0), P(DM + 54*Math.cos(t), 825 + 54*Math.sin(t), 168), P(DM, 825, 168)], 'rgba(150,190,206,.30)', '#8fa3ad', 1);
-      for(let k = 0; k < 10; k++){ const t0 = Math.PI + k/10*Math.PI, t1 = Math.PI + (k + 1)/10*Math.PI;
-        poly([P(DM + 58*Math.cos(t0), 825 + 58*Math.sin(t0), 172), P(DM + 58*Math.cos(t1), 825 + 58*Math.sin(t1), 172), P(DM + 58*Math.cos(t1), 825 + 58*Math.sin(t1), 180), P(DM + 58*Math.cos(t0), 825 + 58*Math.sin(t0), 180)], '#2b3540'); }
+    /* ---- THE DOORWAYS AS THE STREET SEES THEM (Sir, 2026-11-17: "the exterior and interior doors dont match"): the exterior's own frames, in
+       the glass's line (the wall's outer face, b 840) and to its heights (entry units x 1.5) -- each pair's jambs and head round its live
+       sliding leaves, and the revolving door flat in the glass between them: its dark frame, its glass and three leaves (not a drum standing
+       into the room) ---- */
+    const FB = D + 30, ZF = 1.5, frm = '#2b3540';
+    for(const c of DPS) items.push({ a: c, b: FB - 2, z: 0, draw: () => {
+      box(c - DH - 4, c - DH, FB - 3, FB + 1, 0, 121*ZF, frm, frm, shade(frm, 0.8));
+      box(c + DH, c + DH + 4, FB - 3, FB + 1, 0, 121*ZF, frm, frm, shade(frm, 0.8));
+      box(c - DH - 4, c + DH + 4, FB - 3, FB + 1, 117*ZF, 121*ZF, frm, frm, shade(frm, 0.8));
+    }});
+    items.push({ a: DM, b: FB - 2, z: 0, solids: [solid(DM - 62, DM + 62, D, FB, 180, 'revolving door')], draw: () => {
+      box(DM - 62, DM - 56, FB - 3, FB + 1, 0, 117*ZF, frm, frm, shade(frm, 0.8));
+      box(DM + 56, DM + 62, FB - 3, FB + 1, 0, 117*ZF, frm, frm, shade(frm, 0.8));
+      box(DM - 62, DM + 62, FB - 3, FB + 1, 112*ZF, 117*ZF, frm, frm, shade(frm, 0.8));
+      F(DM - 56, DM + 56, 3*ZF, 112*ZF, 'rgba(170,206,220,.24)', null, 0, FB - 1);
+      for(const a of [DM - 28, DM, DM + 28]) F(a - 1.5, a + 1.5, 3*ZF, 112*ZF, '#8fa3ad', null, 0, FB - 0.8);
     }});
 
     walkinStaffSolids(items, 'Palmline Tower Lobby');
