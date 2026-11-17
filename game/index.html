@@ -28633,6 +28633,9 @@ POCKETS.push({ name: 'Maritime Mall Interior', from: 'Maritime Mall', x0: MALL_I
    'Palmline Tower' entry draws from, so the door you see is the door the
    worker comes out of. */
 const PALMLINE_PLAN = { PF: -30, PA0: 60, PA1: 2332, LOB0: 966, LOB1: 1426,
+  /* (the lobby's doors, pt1: a pair each side of the revolving drum at DM, its glass G0..G1 up to GT -- wide enough for him, the shops'
+     96, sliding, live; the drum stays painted. The walk-in room PT_IN and the exterior's front both read these) */
+  DM: 1196, DPS: [1078, 1314], DH: 48, G0: 992, G1: 1400, GT: 156,
   LEN: 2392, DEP: 940, PB: -900, PH: 190,                       // the lot, the podium's back and its roof
   TA0: 340, TA1: 2052, TB: -820, TF: -300, TOP: 190 + 12*80, CROWN: 190 + 12*80 + 90 };   // the tower, set back on it (the draw and palmlineVol both read these)
 /* PALMLINE TOWER'S VOLUME (consistency pass b2): the podium and the tower are the solids; the forecourt in front of the shops is
@@ -30420,6 +30423,51 @@ walkinStaff('Seaglass Coffee Interior', [
     posts: [[100, 66, Math.PI/2, 9000, true], [172, 66, Math.PI/2, 6000, true], [120, 48, -Math.PI/2, 4000, true]] },
 ]);
 walkinLife('Seaglass Coffee Interior', { keep: [[225, 325, 0, 330]], looks: [] });
+/* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
+   The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
+   rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
+   PB+30..PF-30 -- 400 x 810 in the world, its front the glass wall (PALMLINE_PLAN.G0..G1). Two doors: the sliding pairs either side of the
+   revolving drum (DPS, 96 across); the drum stays painted and solid. The podium's lobby share, the tower and the canopy fade round him; the
+   shops' shares ghost. In the room's frame (a east, b south): the pairs at a 82 and 318, the drum at 200; their lanes kept clear back to the
+   security desk; the lifts on the back wall, the mail wall and a bench on the west wall, reception in the middle. */
+const PT_IN = (() => { const P = PALMLINE_PLAN;
+  return walkinDefine({ name: 'Palmline Tower Lobby', from: 'Palmline Tower', x0: 660000, y0: 400000,
+    lab: [P.LOB0 + 30, P.LOB1 - 30, P.PB + 30, P.PF - 30], body: [[P.PA0, P.PA1, P.PB, P.PF]],
+    door: { a: P.DPS[0], b: P.PF, half: P.DH }, H: 285, out: 70, apron: 30, glass: 36,   // (taken in with his nose at the glass: the podium's foot holds him there)
+    /* (its way to and from the street, THE ROOM'S DAY: out of the west pair onto the pavement, and along it either way) */
+    street: { to: [0, 90], routes: [[[-1600, 90]], [[1600, 90]]] },
+    /* (seen through, W11: the whole glass wall, the pairs and the drum in it -- z in the entry's units) */
+    openings: [{ lab: [[P.G0, P.PF], [P.G1, P.PF]], z: [0, P.GT], glass: true }] });
+})();
+/* ITS SECOND DOOR, the east pair: the kit's door (walkinDefine's doors[0]) is the west pair; this one is the same, 236 east along the glass */
+(() => { const pk = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), d0 = pk.doors[0], P = PALMLINE_PLAN, sh = P.DPS[1] - P.DPS[0];
+  pk.doors.push({ id: 'front-e', seamless: true, nofade: true, keep: true, glass: d0.glass, clear: d0.clear, side: 's', half: P.DH,
+    get at(){ return d0.at + sh; }, get spawn(){ const s = d0.spawn; return [s[0] + sh, s[1]]; }, yaw: -Math.PI/2,
+    world: () => { const w = d0.world(); return w ? { x: w.x + sh, y: w.y, ox: w.ox, oy: w.oy } : undefined; },
+    out: (a, b) => { PT_IN.view(); return PT_IN.door ? b > PT_IN.D + PT_IN.out + 15 && Math.abs(a - (PT_IN.door.at + sh)) < P.DH + 40 : false; } }); })();
+/* its people (400 x 810, 324,000 square: a hall -- the desk and the post staffed, a tenant or two and a courier coming and going). The
+   receptionist behind the reception desk facing the doors (south: her screen's face turned to her, W19); the guard behind the security desk
+   facing the doors, now and then at the drum watching the street, and the keyholder */
+const PALMLINE_DESK_UNIFORM = { shirt: { c:0xf4f2ec, dk:0xd6d3ca }, pants: { c:0x2a3038, dk:0x1c2128 }, shoe: { c:0x1a1a1c, dk:0x101012 },
+  vest: { c:0x2a5c5c, dk:0x1f4545 }, shoeKind: 'dress' };                                  // the tower's teal blazer over a white shirt
+const PALMLINE_COURIER_UNIFORM = { shirt: { c:0xd9822b, dk:0xb36a22 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2c30, dk:0x1a1c20 },
+  cap: { c:0x2a2c30, dk:0x1a1c20, top:0x3a3e46, badge:0xd9822b }, shoeKind: 'sneaker' };   // a courier's orange polo and a dark cap
+walkinStaff('Palmline Tower Lobby', [
+  { id: 'reception', role: 'receptionist', seed: 0x9a1e01, U: PALMLINE_DESK_UNIFORM, fixed: true,
+    posts: [[200, 306, Math.PI/2, 9000, true], [158, 306, Math.PI/2, 5000, true], [244, 304, Math.PI/2, 4000, true]] },
+  { id: 'guard', role: 'lobby security', seed: 0x9a1e12, U: SECURITY_UNIFORM, keys: true,
+    posts: [[200, 560, Math.PI/2, 9000, true], [166, 560, Math.PI/2, 5000, true], [150, 735, Math.PI/2, 4000, false]] },
+  { id: 'tenant-1', role: 'tenant', seed: 0x9a1e23, look: 'visitor', life: 'browse' },
+  { id: 'tenant-2', role: 'tenant', seed: 0x9a1e34, look: 'visitor', life: 'browse' },
+  { id: 'courier', role: 'courier', seed: 0x9a1e45, U: PALMLINE_COURIER_UNIFORM, life: 'browse' },
+]);
+walkinLife('Palmline Tower Lobby', { keep: [[42, 122, 640, 810], [278, 358, 640, 810]], looks: [
+  { id: 'lifts', spots: [[60, 72, -Math.PI/2], [150, 72, -Math.PI/2], [250, 72, -Math.PI/2], [340, 72, -Math.PI/2]] },
+  { id: 'mail', spots: [[72, 150, Math.PI], [72, 236, Math.PI]] },
+  { id: 'directory', spots: [[72, 350, Math.PI]] },
+  { id: 'reception', spots: [[170, 404, -Math.PI/2], [232, 404, -Math.PI/2]] },
+  { id: 'bench', spots: [[80, 470, Math.PI]] },
+] });
 /* ==================== TIDE POOL ELEMENTARY, WALK-IN (the plan above: TPE_IN; its art: the LIB entry 'Tide Pool Elementary
    Interior') ====================
    The range is one room on the street's lines (walkinDefine, a rim site's frame: landmarkLabWorld), its shell -- the three
@@ -55928,6 +55976,136 @@ function houseCanopy(fn){
   }
 },
 {
+  /* ==================== INSIDE PALMLINE TOWER'S LOBBY (pt1: the walk-in kit, a rim site) ====================
+     The tower's double-height lobby, 400 x 810 (the lobby's span less the walls' 30), its front (south, room b 810..840) the glass wall with the two
+     sliding pairs at a 34..130 and 270..366 (PALMLINE_PLAN.DPS: their lanes run back to the security desk, kept clear) and the revolving drum
+     between them at a 200 (solid: he goes in by a pair). The plan is PT_IN (a east, b south, world units; the north wall is the tower's core, the
+     west wall the cafe's party wall, both the podium's stone to a dado under plaster; the south and east cut low, the south glazed):
+       b 0..       four lifts on the north wall (a 60, 150, 250, 340), their call panels between, the tower's name over them
+       a 0..       the mail wall (b 90..290) and the directory (b 320..400) on the west wall; a bench under it (b 420..540) and a palm past it (b 610)
+       b 330..375  the reception desk, a 130..270: two screens on it with their backs to us, the receptionist behind it (b 306)
+       b 585..625  the security desk, a 140..260: a monitor and a sign-in book, the guard behind it (b 560)
+       b 770..840  the revolving drum, its inner half */
+  name:'Palmline Tower Lobby', xh: 285, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 400, dd: 810,
+  head:'Inside Palmline Tower: a double-height stone lobby with four lifts, a reception desk, a security desk, a mail wall and a bench',
+  tags:['interior','pocket','office lobby','lifts','reception','security desk','mail wall','palmline tower'],
+  desc:'The office tower\'s lobby: the podium\'s cream stone to a teal dado, a polished stone floor with a teal border, four steel lifts in the back wall under the tower\'s name, a curved reception desk with its screens, a security desk facing the doors, a wall of brass mailboxes, the tenant directory and a bench under a palm.',
+  draw(p){
+    const pl = (typeof PT_IN !== 'undefined' && PT_IN) || null;
+    if(pl) pl.view();
+    const W = 400, D = 810, H = pl ? pl.H : 285, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 82, half: 48 };
+    const DH = door.half, DPS = [door.at, door.at + (PALMLINE_PLAN.DPS[1] - PALMLINE_PLAN.DPS[0])], DM = (DPS[0] + DPS[1])/2;
+    /* (the exterior's own: the podium's stone '#e3d9c4' / '#c9bea7' / '#efe7d6', its teal '#2a5c5c', the mullion white '#e9eef0') */
+    const stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c', tealD = '#1f4545', tealL = '#3f7a7a', plas = '#f1ece1', mull = '#e9eef0';
+    const steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b', brass = '#c9a24a', brassD = '#a8843a', dark = '#2b3138', walnut = '#6b4a32', walnutL = '#8a6446';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: big stone slabs, 90 square, cream and a paler course, a teal border 30 in; a threshold at each pair and a mat inside it (W13) ---- */
+    T(0, W, 0, D, 0, '#e8e1d2');
+    for(let b = 0, r = 0; b < D; b += 90, r++) for(let a = (r % 2 ? 90 : 0); a < W; a += 180) T(a, Math.min(W, a + 90), b, Math.min(D, b + 90), 0.2, '#efe9dc');
+    for(const [a0, a1, b0, b1] of [[24, W - 24, 24, 30], [24, W - 24, D - 30, D - 24], [24, 30, 24, D - 24], [W - 30, W - 24, 24, D - 24]]) T(a0, a1, b0, b1, 0.4, tealL);
+    for(const c of DPS){
+      T(c - DH, c + DH, D, D + AP, 0.3, stoneD); T(c - DH, c + DH, D - 3, D + 3, 0.7, '#a9aeb2');
+      T(c - DH + 10, c + DH - 10, D - 70, D - 34, 0.5, shade(teal, 0.8)); T(c - DH + 14, c + DH - 14, D - 66, D - 38, 0.6, teal);
+    }
+    /* a compass rose inlaid in front of reception */
+    plateCircle(200, 470, 0.5, 46, tealL, null, 0); plateCircle(200, 470, 0.6, 40, '#efe9dc', null, 0);
+    poly([P(200, 432, 0.7), P(208, 470, 0.7), P(200, 508, 0.7), P(192, 470, 0.7)], teal); poly([P(162, 470, 0.7), P(200, 462, 0.7), P(238, 470, 0.7), P(200, 478, 0.7)], tealL);
+
+    /* ---- THE WALLS (the kit's): north and west the podium's stone to a teal dado, plaster above; the south glazed between the pairs, cut low ---- */
+    const liftsA = [60, 150, 250, 340];
+    walkinRoom(items, { W, D, H, LH, door,
+      gapsS: DPS.map(c => [c - DH, c + DH]),
+      winS: [[-30, DPS[0] - DH, 4], [DPS[0] + DH, DPS[1] - DH, 4], [DPS[1] + DH, W + 30, 4]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 196, stone, null, 0, 0.2);                                                                 // the stone, to the lifts' heads
+        F(-30, W + 30, 196, 202, stoneL, null, 0, 0.3);
+        F(-30, W + 30, 0, 10, stoneD, null, 0, 0.4);                                                                 // the skirting
+        F(-30, W + 30, H - 14, H, stoneL, null, 0, 0.4);                                                             // the cornice
+        /* the four lifts: a stone surround, brushed steel doors, the floor indicator over each */
+        for(const c of liftsA){
+          F(c - 40, c + 40, 0, 176, stoneL, stoneD, 1, 0.6);
+          F(c - 32, c + 32, 0, 160, steel, null, 0, 0.8); F(c - 32, c, 0, 160, steelD, null, 0, 0.85);
+          F(c - 1, c + 1, 0, 160, steelS, null, 0, 0.9);
+          F(c - 22, c + 22, 164, 174, dark, null, 0, 0.9); F(c - 6, c + 6, 166, 172, '#e8a23a', null, 0, 1.0);
+        }
+        /* the call panels between them */
+        for(const c of [105, 200, 295]){ F(c - 6, c + 6, 70, 102, steelD, steelS, 1, 0.9); faceCircle(c, 1.0, 92, 2.6, '#f3ecdc'); faceCircle(c, 1.0, 80, 2.6, '#f3ecdc'); }
+        /* the tower's name over the lifts, on a teal band */
+        F(40, W - 40, 222, 262, teal, null, 0, 0.6); F(40, W - 40, 222, 224, tealL, null, 0, 0.7);
+        blockWordIn('PALMLINE TOWER', 60, W - 60, 228, 256, 0.8, '#fbf7ee', null, 6);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, plas);
+        S(0.2, -30, D + 30, 0, 196, stone); S(0.3, -30, D + 30, 196, 202, stoneL);
+        S(0.4, -30, D + 30, 0, 10, stoneD); S(0.4, -30, D + 30, H - 14, H, stoneL);
+        /* the mail wall: a walnut frame round rows of brass boxes */
+        S(0.5, 86, 294, 26, 186, walnut); S(0.6, 92, 288, 32, 180, walnutL);
+        for(let r = 0; r < 6; r++) for(let c = 0; c < 8; c++){ const b0 = 96 + c*24, z0 = 36 + r*24;
+          S(0.7, b0, b0 + 20, z0, z0 + 20, brass); S(0.8, b0 + 3, b0 + 17, z0 + 13, z0 + 16, brassD); }
+        /* the directory: a dark board, the tenants' names in white */
+        S(0.5, 318, 402, 60, 180, walnut); S(0.6, 322, 398, 64, 176, dark);
+        for(let k = 0; k < 9; k++) S(0.7, 330, 330 + 30 + (k*13) % 34, 76 + k*11, 80 + k*11, '#e9eef0');
+        S(0.7, 330, 390, 162, 170, '#e8b54a');
+        /* a framed print over the bench */
+        S(0.5, 438, 522, 120, 182, walnut); S(0.6, 442, 518, 124, 178, '#bcd3d6'); S(0.7, 452, 508, 132, 150, tealL); S(0.7, 452, 508, 150, 168, '#e6c78a');
+      },
+      low: [stoneL, stone, stoneD], cap: [mull, '#d8dde0', '#c3c9cc'], ftop: stoneL, frame: '#2b3540', glass: 'rgba(150,190,206,.40)' });
+
+    /* ---- THE RECEPTION DESK (a 130..270, b 330..375, 96 high): a walnut front with a teal band, a stone top; two screens on it, their faces
+       to the receptionist (north) ---- */
+    items.push({ a: 200, b: 352, z: 0, solids: [solid(130, 270, 330, 375, 100, 'reception desk')], draw: () => {
+      box(130, 270, 330, 375, 0, 90, walnutL, walnut, shade(walnut, 0.8));
+      F(130, 270, 40, 52, teal, null, 0, 375.2);
+      box(126, 274, 326, 379, 90, 96, stoneL, stone, stoneD);
+      blockWordIn('RECEPTION', 150, 250, 60, 80, 375.3, '#efe7d6', null, 3);
+      for(const a of [165, 235]){ box(a - 18, a + 18, 340, 344, 112, 136, dark, dark, '#1c2126'); box(a - 2, a + 2, 344, 348, 96, 112, steelS, steelS, steelS); box(a - 10, a + 10, 342, 352, 96, 98, steelD, steelD, steelS); }
+      box(192, 212, 360, 372, 96, 100, '#f3ecdc', '#e2dccb', '#cfc8b6');                                           // a visitors' book
+      cyl(250, 366, 96, 104, 5, '#f3ecdc'); ball(250, 366, 110, 8, '#c4603a', '#e07a52');                      // a bowl of oranges
+    }});
+
+    /* ---- THE SECURITY DESK (a 140..260, b 585..625, 92 high), facing the doors: a monitor and a sign-in book, their faces to the guard ---- */
+    items.push({ a: 200, b: 605, z: 0, solids: [solid(140, 260, 585, 625, 96, 'security desk')], draw: () => {
+      box(140, 260, 585, 625, 0, 86, stone, stoneD, shade(stoneD, 0.85));
+      F(140, 260, 30, 40, teal, null, 0, 625.2);
+      box(136, 264, 581, 629, 86, 92, '#3a3e46', '#2b3036', '#23292f');
+      box(170, 204, 594, 598, 104, 128, dark, dark, '#1c2126'); box(185, 189, 598, 602, 92, 104, steelS, steelS, steelS);
+      box(220, 246, 598, 616, 92, 95, '#f3ecdc', '#e2dccb', '#cfc8b6'); tube(226, 606, 95, 238, 610, 96, 0.8, '#2b3138');
+      blockWordIn('SECURITY', 160, 240, 52, 70, 625.3, '#efe7d6', null, 3);
+    }});
+
+    /* ---- THE BENCH under the print (a 6..42, b 420..540): a walnut seat on steel legs, facing east ---- */
+    items.push({ a: 24, b: 480, z: 0, solids: [solid(6, 42, 420, 540, 40, 'bench')], draw: () => {
+      for(const b of [428, 532]) box(10, 38, b - 3, b + 3, 0, 34, steel, steelD, steelS);
+      box(6, 42, 420, 540, 34, 42, walnutL, walnut, shade(walnut, 0.8));
+      box(6, 12, 420, 540, 42, 86, walnutL, walnut, shade(walnut, 0.8));
+    }});
+
+    /* ---- A PALM in a stone pot past the bench (a 4..40, b 592..628), clear of the west pair's corner ---- */
+    items.push({ a: 22, b: 610, z: 0, solids: [{ name: 'palm', c: [22, 610], r: 18, h: 60 }], draw: () => {
+      cyl(22, 610, 0, 54, 18, stoneD, stoneL); plateCircle(22, 610, 54, 16, '#5a4636', null, 0);
+      tube(22, 610, 54, 26, 606, 150, 2.4, '#7a5e3e');
+      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(26, 606, 150, 26 + 44*Math.cos(t), 606 + 44*Math.sin(t), 128, 3.2, k % 2 ? '#4f7a4a' : '#5f8f58'); }
+    }});
+
+    /* ---- THE REVOLVING DRUM's inner half (centre a DM, b 825, r 56, 175 high): curved glass, its three leaves, a dark lid ---- */
+    items.push({ a: DM, b: 790, z: 0, solids: [{ name: 'revolving door', c: [DM, 825], r: 56, h: 180 }], draw: () => {
+      for(let k = 0; k < 10; k++){ const t0 = Math.PI + k/10*Math.PI, t1 = Math.PI + (k + 1)/10*Math.PI;
+        poly([P(DM + 56*Math.cos(t0), 825 + 56*Math.sin(t0), 0), P(DM + 56*Math.cos(t1), 825 + 56*Math.sin(t1), 0), P(DM + 56*Math.cos(t1), 825 + 56*Math.sin(t1), 172), P(DM + 56*Math.cos(t0), 825 + 56*Math.sin(t0), 172)], 'rgba(170,206,220,.28)'); }
+      for(const t of [-Math.PI/2, Math.PI/6 - Math.PI, -Math.PI/6]) poly([P(DM, 825, 0), P(DM + 54*Math.cos(t), 825 + 54*Math.sin(t), 0), P(DM + 54*Math.cos(t), 825 + 54*Math.sin(t), 168), P(DM, 825, 168)], 'rgba(150,190,206,.30)', '#8fa3ad', 1);
+      for(let k = 0; k < 10; k++){ const t0 = Math.PI + k/10*Math.PI, t1 = Math.PI + (k + 1)/10*Math.PI;
+        poly([P(DM + 58*Math.cos(t0), 825 + 58*Math.sin(t0), 172), P(DM + 58*Math.cos(t1), 825 + 58*Math.sin(t1), 172), P(DM + 58*Math.cos(t1), 825 + 58*Math.sin(t1), 180), P(DM + 58*Math.cos(t0), 825 + 58*Math.sin(t0), 180)], '#2b3540'); }
+    }});
+
+    walkinStaffSolids(items, 'Palmline Tower Lobby');
+    depthSort(items);
+  }
+},
+{
   /* ==================== INSIDE SUN DECK AIRFIELD'S TERMINAL (wk10: the walk-in kit, an hl landmark) ====================
      The terminal's one hall, 1260 x 680 (the shell's footprint less the walls' 30: x 26010..27270, y 20450..21130), its door on the front (south, room b
      680..710) at a 410..610 (the sliding pair, 200 across; the lane runs from it to the back wall, kept clear). The plan is TERM_IN (a east, b south,
@@ -77276,6 +77454,12 @@ marinaEntry(),
 {
   name:'Palmline Tower', xh: 1300, base:'Office tower', hood:'The Flats', edited:true, tall:true, block:true, pieces:true,
   ww: 2392, dd: 940,
+  /* THE LOBBY IS A WALK-IN (pt1, PT_IN): the lobby's share of the podium, the tower and the canopy are its shell (`shell`, easing off round
+     him), the shops' shares ghost (`ghost`, SHELL_GHOST: they stand over the room on screen, W26); the lobby's glass is a HOLE onto the live
+     room (see), and its two pairs slide (slideDoors, live) */
+  see: true,
+  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)' })),
+  doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
   groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
   vol: palmlineVol(),
   head:'Palmline Tower, the rim lot west of the garage',
@@ -77299,26 +77483,30 @@ marinaEntry(),
       for(let a = 0; a <= LEN; a += 120) T(a - 1.5, a + 1.5, PF, -30, 0.6, '#cbc4b4');
     }
 
-    /* ---- THE PODIUM: roof and seen end ---- */
-    items.push({ a: PA0, b: PB, view: true, fpLab: { a0: PA0, a1: PA1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
-    if(inView(PA0, PA1, PB, PF, 0, PH + 30)){
-      T(PA0, PA1, PB, PF, PH, '#bdb6a8');
-      if(FLANK_RIGHT){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
-      else { S(PA0, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA0 - 0.4, PB, PF, z, z + 8, stoneL); }
+    /* ---- THE PODIUM: roof and seen end ---- in three shares (pt1): the west shop's, the lobby's (the walk-in's shell) and the east
+       shop's (ghosted while he is in the lobby), all keyed where the one roof was, so the tower still stands over them */
+    const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
+    [[PA0, LOB0, { ghost: true }], [LOB0, LOB1, { shell: true }], [LOB1, PA1, { ghost: true }]].forEach(([r0, r1, o], k) =>
+    items.push(Object.assign({ a: PA0 + k*0.01, b: PB, view: true, fpLab: { a0: r0, a1: r1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
+    if(inView(r0, r1, PB, PF, 0, PH + 30)){
+      T(r0, r1, PB, PF, PH, '#bdb6a8');
+      if(FLANK_RIGHT && r1 === PA1){ S(PA1, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA1 + 0.4, PB, PF, z, z + 8, stoneL); }
+      if(!FLANK_RIGHT && r0 === PA0){ S(PA0, PB, PF, 0, PH, stoneD); for(const z of [GH, PH - 8]) S(PA0 - 0.4, PB, PF, z, z + 8, stoneL); }
       /* the roof's planting, in boxes either side of the tower */
       for(const a of [190, LEN - 190]){
+        if(a < r0 || a > r1) continue;
         box(a - 70, a + 70, -240, -150, PH, PH + 22, stoneL, stone, stoneD);
         for(let s = 0; s < 3; s++) ball(a - 40 + s*40, -195, PH + 34, 16, s % 2 ? '#4f7a4a' : '#5f8f58');
       }
     }
-    } });
+    } }, o)));
 
     /* ---- THE TOWER ---- */
     const seenA = FLANK_RIGHT ? TA1 : TA0;
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    items.push({ a: TA0, b: TB, view: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
+    items.push({ a: TA0, b: TB, view: true, shell: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -77367,31 +77555,35 @@ marinaEntry(),
        spans, doors, signs and colours come off RIM_STORES and
        PALMLINE_PLAN, which the pickups read too -- the worker walks out of
        the door drawn here */
-    const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
     const stores = RIM_STORES.filter(st => st.site === 'Palmline Tower');
     const slots = stores.map(palmlineStoreSpan);
-    items.push({ a: PA0, b: PF, view: true, fpLab: { a0: PA0, a1: PA1, b0: PF - 2, b1: PF + 8, z1: PH + 90 }, draw: () => {
+    /* THE FRONT IN THREE SHARES (pt1, as the roof): each shop's (ghosted while he is in the lobby) and the lobby's (the walk-in's shell),
+       keyed where the one front was */
+    const front = (r0, r1, k, o, body) => items.push(Object.assign({ a: PA0 + k*0.01, b: PF, view: true, fpLab: { a0: r0, a1: r1, b0: PF - 2, b1: PF + 8, z1: PH + 90 }, draw: () => {
     /* PLANTERS ALONG THE ROOF'S FRONT EDGE (Sir, 2026-10-08: "lets move
        these lower planters up"), over the shops rather than out on the
        apron: the roof's own style, after the tower (they stand in front
        of it) and before the podium's face, whose coping hides their foot */
     for(const a of [420, LOB0 - 60, LOB1 + 60, LEN - 400]){
-      if(!inView(a - 70, a + 70, PF - 70, PF - 10, PH, PH + 60)) continue;
+      if(a < r0 || a > r1 || !inView(a - 70, a + 70, PF - 70, PF - 10, PH, PH + 60)) continue;
       box(a - 60, a + 60, PF - 66, PF - 14, PH, PH + 22, stoneL, stone, stoneD);
       for(let s = 0; s < 3; s++) ball(a - 36 + s*36, PF - 40, PH + 34, 15, s % 2 ? '#4f7a4a' : '#5f8f58');
     }
-    if(inView(PA0, PA1, PF, PF, 0, PH)){
-      F(PA0, PA1, 0, PH, stone, null, 0, PF);
-      F(PA0, PA1, GH, GH + 8, stoneL, null, 0, PF + 0.3);            // the string course over the shops
-      F(PA0, PA1, PH - 10, PH, stoneL, null, 0, PF + 0.3);          // the podium's coping
-      F(PA0, PA1, 0, 6, stoneD, null, 0, PF + 0.3);                  // its plinth
-      /* THE SHOPFRONT, the mall's own (see the 'Maritime Mall' concourse,
-         which these were dialled against): a stall riser, bays of glass
-         between mullions, a pair of glass doors to the transom in the
-         middle, goods in the windows, and the sign board over the awning */
-      const sGlass = 'rgba(96,136,158,.90)', sMull = '#e9eef0';
-      slots.forEach(([a0, a1], k) => {
-        const st = stores[k], col = st.col, g0 = a0 + 22, g1 = a1 - 22, dm = storeDoorA(st);
+    if(inView(r0, r1, PF, PF, 0, PH)){
+      F(r0, r1, 0, PH, stone, null, 0, PF);
+      if(body !== 'lobby') F(r0, r1, GH, GH + 8, stoneL, null, 0, PF + 0.3);   // the string course over the shops
+      F(r0, r1, PH - 10, PH, stoneL, null, 0, PF + 0.3);            // the podium's coping
+      F(r0, r1, 0, 6, stoneD, null, 0, PF + 0.3);                    // its plinth
+      body();
+    }
+    } }, o));
+    /* THE SHOPFRONT, the mall's own (see the 'Maritime Mall' concourse,
+       which these were dialled against): a stall riser, bays of glass
+       between mullions, a pair of glass doors to the transom in the
+       middle, goods in the windows, and the sign board over the awning */
+    const sGlass = 'rgba(96,136,158,.90)', sMull = '#e9eef0';
+    const shopFront = k => () => {
+        const [a0, a1] = slots[k], st = stores[k], col = st.col, g0 = a0 + 22, g1 = a1 - 22, dm = storeDoorA(st);
         if(!inView(a0, a1, PF, PF + 2, 0, GH)) return;
         F(a0 - 8, a0 + 8, 0, GH, stoneD, null, 0, PF + 0.6);                     // the piers
         F(a1 - 8, a1 + 8, 0, GH, stoneD, null, 0, PF + 0.6);
@@ -77410,41 +77602,44 @@ marinaEntry(),
         F(a0 + 30, a1 - 30, 126, GH - 2, col, null, 0, PF + 1.0);
         F(a0 + 30, a1 - 30, GH - 4, GH - 2, shade(col, 1.3), null, 0, PF + 1.1);
         blockWordIn(st.sign, a0 + 140, a1 - 140, 129, GH - 5, PF + 1.2, '#fbf7ee', null);
-      });
-      /* THE LOBBY (Sir, 2026-10-08: "the entrance to the building still
-         looks bad"): the mall atrium's entrance at the tower's scale -- stone
-         piers, a glass wall gridded in mullions and transoms, a revolving
-         door in the middle with a pair of doors each side, and the name on
-         a band over it all. The canopy is a slim slab out over the doors
-         (below, with the awnings). */
-      { const lGlass = 'rgba(96,136,158,.90)', lMull = '#e9eef0', mid = (LOB0 + LOB1)/2, G0 = LOB0 + 26, G1 = LOB1 - 26, GT = PH - 34;
+    };
+    /* THE LOBBY (Sir, 2026-10-08: "the entrance to the building still
+       looks bad"): the mall atrium's entrance at the tower's scale -- stone
+       piers, a glass wall gridded in mullions and transoms, a revolving
+       door in the middle with a pair of doors each side, and the name on
+       a band over it all. The canopy is a slim slab out over the doors
+       (below, with the awnings). A WALK-IN NOW (pt1): the glass is a HOLE onto the live room behind it (PT_IN: walkinThrough), not a
+       painted hall; its pairs are the shops' width (96, PALMLINE_PLAN.DPS) and slide, live (slideDoors): here only their frames. */
+    const lobbyFront = () => {
+      const Q = PALMLINE_PLAN, lMull = '#e9eef0', mid = Q.DM, G0 = Q.G0, G1 = Q.G1, GT = Q.GT;
         F(LOB0 - 8, G0, 0, PH, stoneD, null, 0, PF + 0.6);                      // the piers
         F(G1, LOB1 + 8, 0, PH, stoneD, null, 0, PF + 0.6);
-        lobbyRoomPaint((u, d, z) => P(u, PF - d, z), G0, G1, GT, mid);           // the hall behind the glass, lit
-        F(G0, G1, 0, GT, 'rgba(112,134,146,.26)', null, 0, PF + 0.8);            // the glass wall, light
+        if(SEE) HOLE([P(G0, PF + 0.7, GT), P(G1, PF + 0.7, GT), P(G1, PF + 0.7, 0), P(G0, PF + 0.7, 0)]);   // (the lobby behind the glass: W11)
+        F(G0, G1, 0, GT, 'rgba(112,134,146,.22)', null, 0, PF + 0.8);            // the glass wall, light
         F(G0, G1, 0, GT, null, lMull, 1.2, PF + 1.0);
         for(const z of [120, 150]) F(G0, G1, z - 3, z + 3, lMull, null, 0, PF + 1.2);   // the transoms
-        for(const a of [mid - 150, mid - 75, mid + 75, mid + 150]) F(a - 3, a + 3, 0, GT, lMull, null, 0, PF + 1.2);
+        /* the mullions: at the glass's ends, either side of the drum, and between each pair and the wall's end */
+        for(const a of [mid - 62, mid + 62, (G0 + Q.DPS[0] - Q.DH)/2 + 4, (G1 + Q.DPS[1] + Q.DH)/2 - 4]) F(a - 3, a + 3, 0, GT, lMull, null, 0, PF + 1.2);
         /* the revolving door: its drum's dark frame, three leaves seen
            through the glass, a canopy disc over it */
         F(mid - 62, mid - 56, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid + 56, mid + 62, 0, 117, '#2b3540', null, 0, PF + 1.4); F(mid - 62, mid + 62, 112, 117, '#2b3540', null, 0, PF + 1.4);
         F(mid - 56, mid + 56, 3, 112, 'rgba(170,206,220,.24)', null, 0, PF + 1.8);
         for(const a of [mid - 28, mid, mid + 28]) F(a - 1.5, a + 1.5, 3, 112, '#8fa3ad', null, 0, PF + 2.0);
-        /* a pair of doors each side of it: their frames, the leaves clear glass over the hall */
-        for(const dm of [mid - 112, mid + 112]){
-          F(dm - 34, dm - 30, 0, 117, '#2b3540', null, 0, PF + 1.4); F(dm + 30, dm + 34, 0, 117, '#2b3540', null, 0, PF + 1.4); F(dm - 34, dm + 34, 112, 117, '#2b3540', null, 0, PF + 1.4);
-          for(const [l0, l1] of [[dm - 30, dm - 1.5], [dm + 1.5, dm + 30]]) F(l0, l1, 3, 112, 'rgba(170,206,220,.24)', null, 0, PF + 1.8);
-          for(const hx of [dm - 6, dm + 4]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
+        /* the frame of each pair (its leaves are the live slideDoors) */
+        for(const dm of Q.DPS){
+          const h = Q.DH;
+          F(dm - h - 4, dm - h, 0, 121, '#2b3540', null, 0, PF + 1.4); F(dm + h, dm + h + 4, 0, 121, '#2b3540', null, 0, PF + 1.4); F(dm - h - 4, dm + h + 4, 117, 121, '#2b3540', null, 0, PF + 1.4);
         }
         /* the name band, proud of the wall */
         slab(LOB0 - 8, LOB1 + 8, GT, PH - 6, PF + 6, PF, teal, shade(teal, .72), shade(teal, 1.2));
         blockWordIn('PALMLINE TOWER', LOB0 + 30, LOB1 - 30, GT + 6, PH - 12, PF + 6.2, '#fbf7ee', null);
-      }
-    }
-    } });
+    };
+    front(PA0, LOB0, 0, { ghost: true }, shopFront(0));
+    front(LOB0, LOB1, 1, { shell: true }, lobbyFront);
+    front(LOB1, PA1, 2, { ghost: true }, shopFront(1));
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
     const AO = 30;                                                  // how far an awning stands out (its lip on the lot line: the podium's front is flush to the pavement, PF -30)
-    slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
+    slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, ghost: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
       for(let s = 0; s < n; s++){
@@ -77458,7 +77653,7 @@ marinaEntry(),
     } }));
     /* the lobby's canopy: one slim slab out over its doors, cantilevered
        off the glass -- no posts, no rods */
-    items.push({ a: LOB0 + 40, b: PF + 48, view: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
+    items.push({ a: LOB0 + 40, b: PF + 48, view: true, shell: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
     if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
       slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
       F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
@@ -111477,13 +111672,15 @@ class WorldScene extends Phaser.Scene {
         if(it.fpLab && it._fp === undefined){ const F = it.fpLab, c = [fr.toWorld(F.a0, F.b0), fr.toWorld(F.a1, F.b1)];
           it._fp = { x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y), z1: F.z1 }; }
         /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
-        const sk = it.shell ? (_rimPk ? pocketShellK(this, _rimPk) : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this) : 1;
+        const sk = it.shell ? (_rimPk ? pocketShellK(this, _rimPk) : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this)
+                 : it.ghost && _rimPk ? SHELL_GHOST + (1 - SHELL_GHOST)*pocketShellK(this, _rimPk) : 1;   // (a piece of the same building that stands over the room on screen but is not its shell -- Palmline Tower's shops round its lobby: ghosted, W26)
         const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? (inRoom && it.pt ? q.x + q.y + n*1e-3 : occDepth(it.occ, n)) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
         if(sk < 0.002) return;
-        vq.push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+        /* (a walk-in's shell goes through walkinShellQ, so its room is seen through its openings just under it: walkinThrough) */
+        (it.shell && _rimPk && _rimPk.walkin ? this.walkinShellQ(vq, _rimPk) : vq).push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => { if(it.occ || it.view) LIB.setView(this.vpW(), this.vpH());
                   try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
       });

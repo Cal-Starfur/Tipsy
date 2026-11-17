@@ -6,6 +6,7 @@ commit, push to `consistency-pass`. `[ ]` pending, `[?]` built, awaiting Sir's t
 ## Dependencies
 ```mermaid
 graph LR
+  pt1 --> pt1b
   pt1 --> pt2
   pt1 --> pt3
   pt3 --> pt4
@@ -71,7 +72,8 @@ graph LR
 ```
 
 ## Palmline Tower interior
-- [ ] `pt1` Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk [docs/palmline-tower-plan.md]
+- [?] `pt1` Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk (lobby room, lifts painted on the back wall (cars in pt3), reception + security desks, mail wall, bench; receptionist, guard (keys), two tenants, a courier; both pairs slide and take him in; shops ghost while inside. Desk hand-over split out to pt1b) [docs/palmline-tower-plan.md]
+- [ ] `pt1b` Palmline Tower lobby: delivery hand-over at the reception desk (a drop for the tower goes in to the desk, the receptionist meets him face to face: meetWalk/meetTick) [docs/palmline-tower-plan.md]
 - [ ] `pt2` Coral Cafe and Marina Deli as real rooms (the mall's coffee and deli fittings), barista and deli clerk, their doors become slideDoors [docs/palmline-tower-plan.md]
 - [ ] `pt3` Palmline Tower lifts: lobby, podium roof terrace and tenant-floor stops, floor changes fade (garage/hospital lift kit) [docs/palmline-tower-plan.md]
 - [ ] `pt4` Palmline Tower tenant floors, three or four of the twelve (office suite, dental practice, newsroom or studio, roof gym), each with a front desk and staff. Needs Sir to choose the tenants [docs/palmline-tower-plan.md]

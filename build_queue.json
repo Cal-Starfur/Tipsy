@@ -6,7 +6,18 @@
 "spec": "docs/palmline-tower-plan.md",
 "group": "Palmline Tower interior",
 "deps": [],
-"status": "pending"
+"status": "built",
+"note": "lobby room, lifts painted on the back wall (cars in pt3), reception + security desks, mail wall, bench; receptionist, guard (keys), two tenants, a courier; both pairs slide and take him in; shops ghost while inside. Desk hand-over split out to pt1b"
+},
+{
+"id": "pt1b",
+"title": "Palmline Tower lobby: delivery hand-over at the reception desk (a drop for the tower goes in to the desk, the receptionist meets him face to face: meetWalk/meetTick)",
+"spec": "docs/palmline-tower-plan.md",
+"deps": [
+"pt1"
+],
+"status": "pending",
+"group": "Palmline Tower interior"
 },
 {
 "id": "pt2",
