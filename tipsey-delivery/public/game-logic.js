@@ -43099,7 +43099,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
   { id: 'rover:apollo', build: 'rover', name: 'Apollo', cents: 1000, body: 0xeceef1, stripe: 0x1f3a7a, print: 'rvApollo', flag: { kind: 'usa' }, noDish: true, roverPart: 'tvcam' },
-  { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, noFlag: true, roverPart: 'mastcam', trim: { rimCol: 0x8a4a2a } },
+  { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, mastFlag: true,   /* (its camera on the flag's own pole and mount -- Sir, 2026-11-17) */ trim: { rimCol: 0x8a4a2a } },
   { id: 'rover:retro', build: 'rover', name: 'Retro Space Age', cents: 1000, body: 0xc9ced4, stripe: 0x2ad8c8, print: 'rvRetro', noSolar: true, lidCol: [0xa9e8e4, 0x86d0cc, 0x5eaeaa], noDish: true, ringFlag: true, eye: 0xff5a4a, trim: { rimCol: 0x2ad8c8 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
@@ -121912,9 +121912,9 @@ class WorldScene extends Phaser.Scene {
     BODY._bskin = BS || null;
     if(BS && BS.lid) Object.assign(LID, BS.lid);   // (a skin's own lid: the Graveyard's, run to his back)
     BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = (BS && BS.gear) || B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   /* (a build without one, unless its skin flies its own: the Big Foot's) */ BODY._windshield = (BS && BS.glass) || B.windshield || null;
-    if(BS && BS.noSolar) BODY._solarLid = false; if(BS && BS.lidCol) BODY._lidCol = BS.lidCol; if(BS && BS.noDish) BODY._dishFlag = false; if(BS && BS.noFlag) BODY._noFlag = true; BODY._ringFlag = !!(BS && BS.ringFlag);   // (a rover skin's own top: Sir, 2026-11-17)
+    if(BS && BS.noSolar) BODY._solarLid = false; if(BS && BS.lidCol) BODY._lidCol = BS.lidCol; if(BS && BS.noDish) BODY._dishFlag = false; if(BS && BS.noFlag) BODY._noFlag = true; BODY._ringFlag = !!(BS && BS.ringFlag); BODY._mastFlag = !!(BS && BS.mastFlag);   // (a rover skin's own top: Sir, 2026-11-17)
     try { return this.drawBotBodyRaw(t, dt, npc); }
-    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._taper; delete BODY._ringFlag; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
+    finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._taper; delete BODY._ringFlag; delete BODY._mastFlag; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
       Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
   }
   drawBotBodyRaw(t, dt, npc){
@@ -128130,7 +128130,12 @@ class WorldScene extends Phaser.Scene {
       this._topLook = (this._topLook || 0) + (Phaser.Math.Clamp(_w*25, -1, 1) - (this._topLook || 0))*0.08;
     }
     let ghostR = 0, pen = null;
-    if(!top && BODY._ringFlag){   /* the Retro Space Age rover's ring antenna: two hoops crossed at the pole's tip, a bobble on top, pulsing */
+    if(!top && BODY._mastFlag){   /* the Mars rover's mast camera at the pole's tip: a head box looking ahead, two lens eyes */
+      const tp = { x: FLAG.base.x, y: FLAG.base.y, z: FLAG.z1 + bobZ }, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+      this.drawHullPrism({ hx: 3, hy: 4.2, ox: tp.x + 1, oy: tp.y, z0: tp.z - 1, z1: tp.z + 3.2, ch: 0.6, cTop: 0xeceef1, cLt: 0xd8dde2, cDk: 0xa8adb4, cBottom: 0xa8adb4, outline: true, topEdge: false });
+      if(vis(1, 0, 0)) for(const dy of [-1.8, 1.8]){ const q = this.P(tp.x + 4.05, tp.y + dy, tp.z + 1.1); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 1.3*ks); g.fillStyle(0x4ab0ff, 1); g.fillCircle(q.x, q.y, 0.6*ks); }
+      ghostR = 7; }
+    else if(!top && BODY._ringFlag){   /* the Retro Space Age rover's ring antenna: two hoops crossed at the pole's tip, a bobble on top, pulsing */
       const tp = { x: FLAG.base.x, y: FLAG.base.y, z: FLAG.z1 + bobZ }, R = 5, pl = 0.6 + 0.4*Math.sin((this.time ? this.time.now : 0)*0.006);
       for(const [ax, ay] of [[1, 0], [0, 1]]){ const o = []; for(let k = 0; k <= 20; k++){ const a = k/20*Math.PI*2; o.push(this.P(tp.x + ax*Math.cos(a)*R, tp.y + ay*Math.cos(a)*R, tp.z + R + Math.sin(a)*R)); }
         g.lineStyle(Math.max(1, 1.4*ks), 0x2ad8c8, 1); g.strokePoints(o.map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
