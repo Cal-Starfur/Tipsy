@@ -43246,7 +43246,14 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'buggy:neon', build: 'buggy', name: 'Neon Night', cents: 900, body: 0x1c1e24, stripe: 0x1c1e24, noStripe: true, print: 'bgNeon', eye: 0x7af8ff, pennant: { col: 0x1c1e24, rects: [[0x7af8ff, 0, 1, 0.1, 0.34], [0xff4ad8, 0, 1, 0.58, 0.82]] }, trim: { bar: 0xff4ad8, coil: 0x7af8ff, lamp: 0x7af8ff, rim: 'tri', rimCol: 0x7af8ff } },
   { id: 'buggy:sprinkles', build: 'buggy', name: 'Sprinkles', cents: 900, body: 0xa8ead2, stripe: 0xff8ac8, print: 'bgSprinkles', pennant: { col: 0xa8ead2, rects: [[0xff8ac8, 0, 1, 0, 0.16]], dots: [[0xff5ab0, 0.15, 0.4, 0.9], [0xffe14a, 0.3, 0.7, 0.9], [0x5ab8ff, 0.42, 0.35, 0.9], [0x9a6aff, 0.22, 0.85, 0.8], [0xff8a2a, 0.56, 0.6, 0.8], [0xf4f4f0, 0.08, 0.65, 0.8]] }, trim: { bar: 0xff8ac8, coil: 0xfff6d8, lamp: 0xfff2c4, rim: 'honey', rimCol: 0xfff6d8 } },
   { id: 'buggy:tiki', build: 'buggy', name: 'Tiki Woodie', cents: 900, body: 0xa8703a, stripe: 0xa8703a, noStripe: true, print: 'bgTiki', buggyPart: 'surf', pennant: { col: 0xa8703a, rects: [[0x2ab0a8, 0, 1, 0.32, 0.68], [0x6a4020, 0, 1, 0.12, 0.16], [0x6a4020, 0, 1, 0.84, 0.88]] }, trim: { bar: 0xd9c08a, coil: 0x5a3418, lamp: 0xfff2c4, rim: 'wire', rimCol: 0xd9c08a, board: [0x2ab0a8, 0xf4f4f0] } },
-  { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
+  { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
+  /* (six more -- Sir, 2026-11-17) */
+  { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
+  { id: 'hotrod:police', build: 'hotrod', name: 'Police Pursuit', cents: 800, body: 0x16171b, stripe: 0x16171b, noStripe: true, print: 'crPolice', policeBar: true, trim: { rim: 'steelie', rimCol: 0x16171b, wall: 'plain' } },
+  { id: 'hotrod:gold', build: 'hotrod', name: 'Gold Rush', cents: 800, body: 0xd9a93c, stripe: 0x16171b, print: 'crGold', glass: [0x4a4f58, 0x3a3d45, 0x23262c], ember: [0xffd34a, 0xffffff], trim: { rim: 'turbine', rimCol: 0xe8c050, wall: 'plain' } },
+  { id: 'hotrod:glow', build: 'hotrod', name: 'Glow Rider', cents: 800, body: 0x16171b, stripe: 0x16171b, noStripe: true, print: 'crGlow', eye: 0x7af8ff, glass: [0x3a8a9c, 0x2a6a7c, 0x1a4a5a], ember: [0x2ad8e8, 0xc8ffff], trim: { rim: 'split', rimCol: 0x7af8ff, wall: 'neon' } },
+  { id: 'hotrod:diner', build: 'hotrod', name: 'Retro Diner', cents: 800, body: 0xf3ead2, stripe: 0x9fdcc8, noStripe: true, print: 'crDiner', glass: [0xbfe6ee, 0x9fd2df, 0x76b3c4], ember: [0xff8ac8, 0xffe0f0], trim: { rim: 'dish', rimCol: 0x7cc4b0, wall: 'whitewall' } },
+  { id: 'hotrod:rat', build: 'hotrod', name: 'Rat Rod', cents: 800, body: 0x6f6a64, stripe: 0x6f6a64, noStripe: true, print: 'crRat', glass: [0x8a9088, 0x6f756e, 0x555a54], trim: { rim: 'steelie', rimCol: 0xa8231c, wall: 'plain' } }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
 const FLAG = { base:{x:-29.5, y:12.4}, z0:50, z1:93 };   // ON A BRACKET ON HIS BACK (Sir, 2026-10-24: "fix and upgrade his flag"): the lid
@@ -122189,10 +122196,11 @@ class WorldScene extends Phaser.Scene {
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
     const BS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === SKIN.build);   // (this build's own skin, if he wears one)
-    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print', 'eye', 'skinTop', 'flag', 'flagPicked', 'wheelStyle', 'wheelHubFace', 'wheelHub', 'mouthCol'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
+    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print', 'eye', 'skinTop', 'flag', 'flagPicked', 'wheelStyle', 'wheelHubFace', 'wheelHub', 'mouthCol', 'wall'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
     if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; if(BS.eye != null) SKIN.eye = BS.eye; if(BS.mouth != null && SKIN.mouthCol == null) SKIN.mouthCol = BS.mouth;
       const TRm = BS.trim || {};   // (its own rims, unless he picked some in the Wheels tab -- Sir, 2026-11-16)
       if(TRm.rim && !SKIN.wheelStyle) SKIN.wheelStyle = TRm.rim;
+      if(TRm.wall && !SKIN.wall) SKIN.wall = TRm.wall;   // (its own tyre walls: whitewalls, neon, none -- Sir, 2026-11-17)
       if(TRm.rimCol != null){ SKIN.wheelHubFace = TRm.rimCol; SKIN.wheelHub = _pmix(TRm.rimCol, 0xffffff, 0.35); }
       if(BS.flag && !SKIN.topper){ SKIN.skinTop = BS.flag.kind; if(BS.flag.col != null){ SKIN.flag = BS.flag.col; SKIN.flagPicked = true; } } }   // (its flag: one of the game's own -- Sir, 2026-11-16)
     BODY._bskin = BS || null;
@@ -126005,6 +126013,15 @@ class WorldScene extends Phaser.Scene {
       side([x1, -shy], [x1, shy], 1, 0, 0xfff1b8); side([x0, shy], [x0, -shy], -1, 0, 0xffe58a); side([x1, shy], [x0, shy], 0, 1, 0xf2d26a); side([x0, -shy], [x1, -shy], 0, -1, 0xf2d26a);
       if((w => w.x + w.y + w.z > 0)(HN(0, 0, 1))) this.quadOn(g, [H(x1, -shy, zb), H(x1, shy, zb), H(x0, shy, zb), H(x0, -shy, zb)], 0xffd23a);
       if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = H(sx, 0, zb); gl.fillStyle(0xffe58a, 0.3); gl.fillCircle(q.x, q.y, 9*this.kScale()); } } }
+    /* THE POLICE SKIN'S LIGHT BAR: a low bar across the canopy, red one end and blue the other, flashing in turn (it slides back with it) */
+    if(BODY._bskin && BODY._bskin.policeBar){ const sx = -3, shx = 1.8, shy = 8, za = z1 - 0.2, zb = z1 + 2.2, t = this.time ? this.time.now : 0, on = Math.floor(t/220) % 2;
+      const V = (x, y, z) => H(x*kx + sx*(1 - kx), y*ky, z), x0 = sx - shx, x1 = sx + shx;
+      for(const [ya, yb, base, lit] of [[-shy, 0, 0x8f1a14, on ? 0xff3a2a : 0xb8231c], [0, shy, 0x14306a, on ? 0x2a5ad8 : 0x4a8aff]]){
+        const col = (ya < 0) === !!on ? lit : base;
+        for(const [a, b, nx, ny] of [[[x1, ya], [x1, yb], 1, 0], [[x0, yb], [x0, ya], -1, 0], [[x1, yb], [x0, yb], 0, 1], [[x0, ya], [x1, ya], 0, -1]]){ if((ny > 0 && yb < shy) || (ny < 0 && ya > -shy)) continue;
+          const w = HN(nx, ny, 0); if(w.x + w.y + w.z > 0) this.quadOn(g, [H(a[0], a[1], za), H(b[0], b[1], za), H(b[0], b[1], zb), H(a[0], a[1], zb)], _pmix(col, 0x000000, nx ? 0.1 : 0.25)); }
+        if((w => w.x + w.y + w.z > 0)(HN(0, 0, 1))) this.quadOn(g, [H(x1, ya, zb), H(x1, yb, zb), H(x0, yb, zb), H(x0, ya, zb)], col); }
+      if(this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ const q = H(sx, on ? -shy*0.5 : shy*0.5, zb); gl.fillStyle(on ? 0xff3a2a : 0x2a5ad8, 0.35); gl.fillCircle(q.x, q.y, 10*this.kScale()); } } }
     { const w = HN(1, 0, 0); if(w.x + w.y + w.z > 0){ const y0 = -(hy - c)*0.55, y1 = -(hy - c)*0.15;   // (the windscreen's glint)
       this.quadOn(g, [Hw(hx + 0.05, y0, z0 + 1.6), Hw(hx + 0.05, y0 + 1.6, z0 + 1.6), Hw(hx + 0.05, y1 + 1.6, zs - 0.5), Hw(hx + 0.05, y1, zs - 0.5)], 0xffffff, 0.45); } }
   }
@@ -132456,6 +132473,37 @@ const HULL_PRINTS = {
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d;
         for(const [hf, lf] of [[0.25, 0.5], [0.55, 0.78], [0.84, 0.6]]) spear(L.side, X, h => h, len*lf, L.H*hf, L.H*0.11); }
       for(const yc of [-7, 0, 7]) spear(L.top, d => L.x1 - 0.5 - d, y => y, yc === 0 ? 16 : 12, yc, 2.6); } },
+  /* (six more Night Cruiser skins -- Sir, 2026-11-17) */
+  crLowrider: { id: 'crLowrider', seed: 0x10a, build(L){ if(L.part === 'lid') return;   // (candy purple, a gold lace band and fades down his flanks, gold scrolls on the hood)
+      const GD = [0xa8801c, 0xeec64e], MG = [0x8a2aaa, 0xa83ac8], seg = (arr, pts, w) => { for(let i = 0; i < pts.length - 1; i++) arr.push({ c: GD, pts: _prSeg(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], w) }); };
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        L.side.push({ c: MG, pts: [[X(2), H*0.35], [X(len*0.5), H*0.28], [X(len - 1), H*0.5], [X(len*0.5), H*0.72], [X(2), H*0.65]] });
+        seg(L.side, [[X(2), H*0.35], [X(len*0.5), H*0.28], [X(len - 1), H*0.5], [X(len*0.5), H*0.72], [X(2), H*0.65], [X(2), H*0.35]], 0.5);
+        for(let i = 0; i < 6; i++){ const x = X(len*(0.12 + i*0.12)); seg(L.side, [[x, H*0.42], [x + dir*1.2, H*0.5], [x, H*0.58]], 0.4); } }
+      const xf = L.x1 - 2; for(const sy of [-1, 1]) seg(L.top, [[xf, 0], [xf - 5, sy*2.5], [xf - 10, sy*2], [xf - 14, sy*4], [xf - 18, sy*3]], 0.55);
+      seg(L.top, [[xf, 0], [xf - 20, 0]], 0.5); } },
+  crPolice: { id: 'crPolice', seed: 0x9ce, build(L){ if(L.part === 'lid') return;   // (black and white: white doors, a gold star on each, a white hood)
+      const WH = [0xd9dde2, 0xf6f7f9], GD = [0xb8902a, 0xffd34a];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, m = a + len*0.5, H = L.H; L.side.push({ c: WH, pts: _prRect(a + len*0.22, -1, a + len*0.78, H + 1) });
+        const st = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? H*0.12 : H*0.28; st.push([m + Math.cos(q)*rr, H*0.55 - Math.sin(q)*rr]); } L.side.push({ c: GD, pts: st }); }
+      L.top.push({ c: WH, pts: _prRect(L.x1 - 16, L.y0 - 1, L.x1 + 1, L.y1 + 1) }); } },
+  crGold: { id: 'crGold', seed: 0x601d, build(L){ if(L.part === 'lid') return;   // (gold, a black band low along his flanks and twin black stripes over his hood)
+      const BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: BK, pts: _prRect(a - 1, 0, b + 1, L.H*0.22) }); }
+      for(const y of [-4.5, 1.5]) L.top.push({ c: BK, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 3) }); } },
+  crGlow: { id: 'crGlow', seed: 0x610, build(L){ if(L.part === 'lid') return;   // (glowing cyan edges along his flanks, magenta chevrons forward, a glowing line round his hood)
+      const CY = 0x7af8ff, MG = 0xff4ad8;
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        L.side.push({ col: CY, pts: _prRect(a - 1, H*0.86, b + 1, H*0.93) }, { col: CY, pts: _prRect(a - 1, H*0.06, b + 1, H*0.13) });
+        for(let c = 0; c < 3; c++){ const xc = X(len*(0.7 + c*0.08)); L.side.push({ col: MG, pts: [[xc, H*0.3], [xc + dir*1.6, H*0.3], [xc + dir*3.6, H*0.5], [xc + dir*1.6, H*0.7], [xc, H*0.7], [xc + dir*2, H*0.5]] }); } }
+      for(const y of [L.y0 + 1, L.y1 - 1.7]) L.top.push({ col: CY, pts: _prRect(L.x0 + 1, y, L.x1 - 1, y + 0.7) }); } },
+  crDiner: { id: 'crDiner', seed: 0xd1e, build(L){ if(L.part === 'lid') return;   // (cream with a mint sweep down each flank edged in chrome, mint over the hood)
+      const MT = [0x7cc4b0, 0x9fdcc8], CH = [0xb4bac1, 0xe8ecf0];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
+        const sw = [[X(-1), H*0.2], [X(len*0.55), H*0.2], [X(len*0.82), H*0.62], [X(len + 1), H*0.62], [X(len + 1), H*0.78], [X(len*0.78), H*0.78], [X(len*0.5), H*0.38], [X(-1), H*0.38]];
+        L.side.push({ c: MT, pts: sw }); L.side.push({ c: CH, pts: _prRect(a - 1, H*0.15, b + 1, H*0.2) }); }
+      L.top.push({ c: MT, pts: _prRect(L.x1 - 14, -4, L.x1 + 1, 4) }, { c: CH, pts: _prRect(L.x1 - 14, -0.4, L.x1 + 1, 0.4) }); } },
+  crRat: { id: 'crRat', seed: 0x7a7, layers: [ { c: [0x8a3a1a, 0xa84a22], r: 4, cover: 0.2 }, { c: [0x4a4642, 0x55504b], r: 3, cover: 0.12 } ] },
   crChecker: { id: 'crChecker', seed: 0xc4e, build(L){ if(L.part === 'lid') return;
       const BK = [0x16171b, 0x2a2d33], WH = [0xd9dde2, 0xf6f7f9], q = 2.4;
       for(const k of [2, 6]){ const [a, b] = L.face(k); let r = 0;
