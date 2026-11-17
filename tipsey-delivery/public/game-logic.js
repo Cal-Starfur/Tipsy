@@ -42945,6 +42945,17 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'racer:flame', build: 'racer', name: 'Flame Job', cents: 900, body: 0x16171b, stripe: 0xff6a1a, noStripe: true, print: 'crFlames', trim: { rim: 'mag', rimCol: 0xd9dde2 } },
   { id: 'racer:police', build: 'racer', name: 'Interceptor', cents: 900, body: 0x16171b, stripe: 0xf4f4f0, noStripe: true, print: 'rcPolice', racerPart: 'policebar', trim: { rim: 'steelie', rimCol: 0x16171b } },
   { id: 'racer:bubble', build: 'racer', name: 'Bubblegum', cents: 900, body: 0xff8ac8, stripe: 0xf4f4f0, noStripe: true, print: 'rcBubble', trim: { rim: 'flower', rimCol: 0xf4f4f0 } },
+  { id: 'tank:wood', build: 'tank', name: 'Woodland', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkWood', gun: 0x3a4028 },
+  { id: 'tank:desert', build: 'tank', name: 'Desert Storm', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'tkDesert', gun: 0x8a6a3c },
+  { id: 'tank:arctic', build: 'tank', name: 'Arctic', cents: 900, body: 0xe8ecf0, stripe: 0xe8ecf0, noStripe: true, print: 'tkArctic', gun: 0x8a939c },
+  { id: 'tank:urban', build: 'tank', name: 'Urban', cents: 900, body: 0x6f747c, stripe: 0x6f747c, noStripe: true, print: 'tkUrban', gun: 0x3a3d45 },
+  { id: 'tank:digital', build: 'tank', name: 'Digital Camo', cents: 900, body: 0x8a8a5a, stripe: 0x8a8a5a, noStripe: true, print: 'tkDigital', gun: 0x3a3d2a },
+  { id: 'tank:tiger', build: 'tank', name: 'Tiger Stripe', cents: 900, body: 0xb8863a, stripe: 0xb8863a, noStripe: true, print: 'tkTiger', gun: 0x3a2c1a },
+  { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
+  { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
+  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff },
+  { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
+  { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -126178,12 +126189,16 @@ class WorldScene extends Phaser.Scene {
   /* THE TANK's cannon: a barrel out of the turret's front (his lid, swung with it), a muzzle brake, a mantlet where it leaves the turret */
   tankKit(bobZ, front = true){
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
-    const G = [0x6f757b, 0x5d646c, 0x3b4048];
-    if(front) bx([0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
+    const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
+    const G = SKg != null ? [_pmix(SKg, 0xffffff, 0.2), SKg, _pdk(SKg, 0.7)] : [0x6f757b, 0x5d646c, 0x3b4048];
+    if(front) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
     const brake = () => bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4);   // (the muzzle brake: the far end first when it points away)
     if(!front) brake();
     bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     if(front) brake();
+    if(GL != null && front){ const vis2 = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }; if(vis2(1, 0, 0)){ const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(this.P(x1 + 1.25, Math.cos(a)*1.6, zc + Math.sin(a)*1.6)); }
+        this.quadOn(this.g, o, GL); const q = this.P(x1 + 1.3, 0, zc); this.g.fillStyle(GL, 0.3); this.g.fillCircle(q.x, q.y, 4*this.kScale()); } }
+    if(front){}
     else {   /* pointing away: only the brake's back face (toward the turret) goes under the barrel -- its top and sides wrap round the barrel's
                 end, so they go back over it */
       const a = x1 - 3.2, b = x1 + 1.2, h = 2.4, z0 = zc - 2.4, z1 = zc + 2.4, g = this.g, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
@@ -131273,6 +131288,42 @@ const _prDigitsTop = (L, text, NC) => {   /* (straight on his paint, no white pa
 const HULL_PRINTS = {
   /* THE RACER'S SKINS (Sir, 2026-11-16: "speed racer, nascar and indycar type styles"): a 60s cartoon racer, two stock cars, two open-wheelers */
   /* (the second series -- Sir, 2026-11-17: "let's do all of these") */
+  /* THE TANK'S SKINS (Sir, 2026-11-17: "all types of camo and classic military styles and futuristic styles"): camo patterns as blob layers
+     over the base paint, classic markings, and the future's glowing panel lines */
+  tkWood: { id: 'tkWood', seed: 0x70d, layers: [ { c: [0x3a2c1a, 0x55402a], r: 6, cover: 0.3 }, { c: [0x23301a, 0x34472a], r: 6.5, cover: 0.3 }, { c: [0x111410, 0x1c201a], r: 4, cover: 0.14 } ] },
+  tkDesert: { id: 'tkDesert', seed: 0xde5, layers: [ { c: [0x8a6a3c, 0xa8854e], r: 7, cover: 0.32 }, { c: [0x5e4a2c, 0x7a6038], r: 4.5, cover: 0.16 } ] },
+  tkArctic: { id: 'tkArctic', seed: 0xa7c, layers: [ { c: [0x8a939c, 0xaab3bc], r: 7, cover: 0.26 }, { c: [0x4a525a, 0x5e6870], r: 4, cover: 0.12 } ] },
+  tkUrban: { id: 'tkUrban', seed: 0x0b4, layers: [ { c: [0x3a3d45, 0x4a4e58], r: 6, cover: 0.3 }, { c: [0xa8adb4, 0xc9ced4], r: 5, cover: 0.22 }, { c: [0x16171b, 0x22242a], r: 3.5, cover: 0.1 } ] },
+  tkDigital: { id: 'tkDigital', seed: 0xd161, build(L){ const C = [[0x5e6a3a, 0x748450], [0x3a2c1a, 0x55402a], [0x1c2014, 0x2a3020]], q = 2.2;
+      const blocks = (arr, xa, xb, ya, yb, n) => { for(let i = 0; i < n; i++){ const c = C[i % 3], x = xa + L.rng()*(xb - xa), y = ya + L.rng()*(yb - ya), w = 1 + Math.floor(L.rng()*3), h = 1 + Math.floor(L.rng()*2);
+          for(let a2 = 0; a2 < w; a2++) for(let b2 = 0; b2 < h; b2++) if(L.rng() > 0.25) arr.push({ c, pts: _prRect(x + a2*q, y + b2*q, x + (a2 + 1)*q, y + (b2 + 1)*q) }); } };
+      if(L.part === 'body') blocks(L.side, 0, L.per, 0, L.H, Math.round(L.per*L.H/14));
+      blocks(L.top, L.x0, L.x1, L.y0, L.y1, Math.round((L.x1 - L.x0)*(L.y1 - L.y0)/16)); } },
+  tkTiger: { id: 'tkTiger', seed: 0x716, build(L){ const BK = [0x16171b, 0x23262c], BR = [0x5a3a1a, 0x7a5228];
+      if(L.part === 'body') for(let x = 2; x < L.per; x += 7 + L.rng()*4){ const c = L.rng() < 0.5 ? BK : BR, w = 1.4 + L.rng()*1.2, lean = (L.rng() - 0.5)*5;
+        L.side.push({ c, pts: [[x, -1], [x + w, -1], [x + w*0.4 + lean, L.H*(0.55 + L.rng()*0.45)], [x + lean - w*0.2, L.H*0.4]] }); }
+      for(let y = L.y0 + 2; y < L.y1; y += 6 + L.rng()*3){ const c = L.rng() < 0.5 ? BK : BR; L.top.push({ c, pts: [[L.x0, y], [L.x0, y + 1.6], [L.x1*0.4, y + 2 + L.rng()*2], [L.x1*0.6, y + 0.6]] }); } } },
+  tkOlive: { id: 'tkOlive', seed: 0x05, build(L){ const WH = [0xd9dde2, 0xffffff];
+      const star = (arr, cx, cy, r, sx = 1) => { const st = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? r*0.4 : r; st.push([cx + Math.cos(q)*rr*sx, cy - Math.sin(q)*rr]); } arr.push({ c: WH, pts: st }); };
+      if(L.part === 'lid'){ for(const k of [2, 6]){ const [a, b] = L.face(k); star(L.side, (a + b)/2, L.H*0.5, L.H*0.4); } return; }
+      for(const k of [2, 6]){ const [a, b] = L.face(k); _prDigits(L, L.side, k, 0.7, L.H*0.25, L.H*0.4, '42', WH, -1); }
+      star(L.top, 6, 0, 5.5); } },
+  tkRedStar: { id: 'tkRedStar', seed: 0x2a, build(L){ const RD = [0xa81a14, 0xd8261c], WH = [0xd9dde2, 0xffffff];
+      if(L.part === 'lid'){ for(const k of [2, 6]){ const [a, b] = L.face(k), st = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? L.H*0.17 : L.H*0.42; st.push([(a + b)/2 + Math.cos(q)*rr, L.H*0.5 - Math.sin(q)*rr]); } L.side.push({ c: RD, pts: st }); }
+        L.side.push({ c: WH, pts: _prRect(-1, L.H - 1.4, L.per + 1, L.H - 0.4) }); return; }
+      for(const k of [2, 6]) _prDigits(L, L.side, k, 0.3, L.H*0.25, L.H*0.4, '217', WH, -1); } },
+  tkNeon: { id: 'tkNeon', seed: 0x9e0, build(L){ const CY = (L._c = L._c || [0x2ad8e8, 0x7af8ff]);
+      if(L.part === 'body') for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ col: 0x7af8ff, pts: _prRect(a + 2, L.H*0.62, b - 2, L.H*0.68) }, { col: 0x7af8ff, pts: _prRect(a + 2, L.H*0.2, a + 3, L.H*0.68) }, { col: 0x7af8ff, pts: _prRect(b - 3, L.H*0.2, b - 2, L.H*0.68) }); }
+      else for(let k = 0; k < L.ring.length; k++){ const [a, b] = L.face(k); L.side.push({ col: 0x7af8ff, pts: _prRect(a + 0.6, L.H*0.45, b - 0.6, L.H*0.55) }); }
+      L.top.push({ col: 0x7af8ff, pts: _prRect(L.x0 + 2, -0.5, L.x1 - 2, 0.5) }, { col: 0x7af8ff, pts: _prRect(-0.5, L.y0 + 2, 0.5, L.y1 - 2) }); } },
+  tkMech: { id: 'tkMech', seed: 0x3ec, build(L){ const GR = [0x8a939c, 0xa8b0b8], BL = 0x4ab0ff;
+      if(L.part === 'body') for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 4; i++){ const x = a + len*(0.08 + i*0.23); L.side.push({ c: GR, pts: _prRect(x, L.H*0.15, x + len*0.18, L.H*0.75) }); }
+        L.side.push({ col: BL, pts: _prRect(a + 1, L.H*0.82, b - 1, L.H*0.88) }); }
+      else for(let k = 0; k < L.ring.length; k++){ const [a, b] = L.face(k); if(b - a > 6) L.side.push({ c: GR, pts: _prRect(a + 1, 1, b - 1, L.H - 1) }); }
+      L.top.push({ col: BL, pts: _prRect(L.x1 - 4, -3, L.x1 - 2, 3) }); } },
+  tkPlasma: { id: 'tkPlasma', seed: 0x91a, build(L){ const GL = 0xff3a6a;
+      if(L.part === 'body') for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 5; i++){ const x = a + len*(0.1 + i*0.18); L.side.push({ col: GL, pts: [[x, L.H*0.3], [x + 2.4, L.H*0.3], [x + 4.4, L.H*0.75], [x + 2, L.H*0.75]] }); } }
+      L.top.push({ col: GL, pts: _prRect(L.x0 + 3, L.y0 + 2, L.x1 - 3, L.y0 + 3) }, { col: GL, pts: _prRect(L.x0 + 3, L.y1 - 3, L.x1 - 3, L.y1 - 2) }); } },
   rcGulf: { id: 'rcGulf', seed: 0x9a, build(L){ if(L.part === 'lid') return; const OR = [0xd8641a, 0xff8a2a], NV = [0x14276a, 0x1f3a8a];
       for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: NV, pts: _prRect(a - 1, L.H*0.33, b + 1, L.H*0.38) }, { c: OR, pts: _prRect(a - 1, L.H*0.38, b + 1, L.H*0.72) }, { c: NV, pts: _prRect(a - 1, L.H*0.72, b + 1, L.H*0.77) }); }
       L.top.push({ c: OR, pts: _prRect(L.x0 - 1, -4, L.x1 + 1, 4) }); } },
