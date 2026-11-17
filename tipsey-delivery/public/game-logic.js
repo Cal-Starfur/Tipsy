@@ -44170,11 +44170,12 @@ function liftFrontDraw(c, h, d, shows, stone, stoneL, stoneD){
   F(c - h - 4, c - h, 0, 166, '#8f969b', null, 0, d + 0.2); F(c + h, c + h + 4, 0, 166, '#8f969b', null, 0, d + 0.2);   // the jambs
   F(c - 16, c + 16, 174, 190, '#2b3138', null, 0, d + 0.2); blockWordIn(shows, c - 12, c + 12, 176, 188, d + 0.4, '#e8a23a', null, 2);
 }
-function liftLeavesDraw(c, h, d, u){
+function liftLeavesDraw(c, h, d, u, side){
   const w = h*(1 - u); if(w < 0.6) return;
-  for(const [l0, l1, col] of [[c - h, c - h + w, '#b9c0c4'], [c + h - w, c + h, '#c9ced2']]){
-    F(l0, l1, 0, 166, col, null, 0, d + 0.5); F(l0, l1, 0, 4, '#8f969b', null, 0, d + 0.6); }
-  F(c - h + w - 1, c - h + w, 0, 166, '#7d848a', null, 0, d + 0.7); F(c + h - w, c + h - w + 1, 0, 166, '#7d848a', null, 0, d + 0.7);
+  /* (side: the one leaf -- 0 west, 1 east -- each queued at its own half of the doorway, as Marina General's: one item for the pair flipped
+     both over him as he crossed its middle) */
+  if(side == null || side === 0){ F(c - h, c - h + w, 0, 166, '#b9c0c4', null, 0, d + 0.5); F(c - h, c - h + w, 0, 4, '#8f969b', null, 0, d + 0.6); F(c - h + w - 1, c - h + w, 0, 166, '#7d848a', null, 0, d + 0.7); }
+  if(side == null || side === 1){ F(c + h - w, c + h, 0, 166, '#c9ced2', null, 0, d + 0.5); F(c + h - w, c + h, 0, 4, '#8f969b', null, 0, d + 0.6); F(c + h - w, c + h - w + 1, 0, 166, '#7d848a', null, 0, d + 0.7); }
 }
 /* a room's bank, as pieces: for each car that stops here (cars(i): this floor, now), the car or its empty shaft, the piers between, the
    lintel and indicator, the leaves -- the live parts fx kits, cached by their state */
@@ -44187,8 +44188,8 @@ function liftBankPieces(items, room, R, cars, stone, stoneL, stoneD, when){
       fx: { kit: () => liftCarDraw(c, h, d, liftBankIn('Palmline Tower', room, i)), state: () => liftBankIn('Palmline Tower', room, i) ? 'h' : 'g' } });
     items.push({ a: c, b: d - 2, z: 0, when: w, draw: () => {},
       fx: { kit: () => liftFrontDraw(c, h, d, PT_BANK.label(liftBankShowsNamed('Palmline Tower', i)), stone, stoneL, stoneD), state: () => 'i' + liftBankShowsNamed('Palmline Tower', i) } });
-    items.push({ a: c + 0.1, b: d - 1, z: 0, when: w, draw: () => {},
-      fx: { kit: () => liftLeavesDraw(c, h, d, liftBankU('Palmline Tower', room, i)), state: () => { const u = liftBankU('Palmline Tower', room, i); return u <= 0 ? 's' : u >= 1 ? 'o' : null; } } });
+    for(const side of [0, 1]) items.push({ a: c + (side ? h/2 : -h/2), b: d - 1, z: 0, when: w, draw: () => {},
+      fx: { kit: () => liftLeavesDraw(c, h, d, liftBankU('Palmline Tower', room, i), side), state: () => { const u = liftBankU('Palmline Tower', room, i); return u <= 0 ? 's' : u >= 1 ? 'o' : null; } } });
   });
   /* the piers: from the bank's ends (R.lo, R.hi) to the first and last car, and between the cars -- stone, solid */
   const ps = [[R.lo, A[0] - h]]; for(let i = 0; i < A.length - 1; i++) ps.push([A[i] + h, A[i + 1] - h]); ps.push([A[A.length - 1] + h, R.hi]);
@@ -106224,8 +106225,11 @@ class WorldScene extends Phaser.Scene {
     if(this.ow && this.ow.on && this._inside && this._inside.name === HOSP_IN.name){
       const pk = this._inside, now = this.time.now, f = HOSP_IN.floor, Z = hospInZ();
       const hv = POCKET_VIEW && POCKET_VIEW.pk === pk ? POCKET_VIEW : { dx: 0, dy: 0 }, ox = pk.x0 + hv.dx, oy = pk.y0 + hv.dy;   // (drawn where the room is drawn: on the street's lines)
-      HOSP_IN.cars.forEach((c, i) => { const dx = ox + c[0], dy = oy + (c[2] + c[3])/2;
-        hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawHospLiftDoors(layerFor(dx, dy), ox, oy, c, HOSP_IN.doors[i], Z) }); });
+      /* (each leaf at its own side of the doorway -- Sir, 2026-11-17, "the lift doors sides flicker when im in the door way": the pair was one
+         item keyed at the doorway's middle, so as he crossed that point the far leaf and its stile jumped from behind him to over him) */
+      HOSP_IN.cars.forEach((c, i) => { const dx = ox + c[0];
+        for(const side of [0, 1]){ const dy = oy + (side ? c[3] - 22 : c[2] + 22);
+          hazVQ.push({ depth: dx + dy, fn: (gg) => this.drawHospLiftDoors(layerFor(dx, dy), ox, oy, c, HOSP_IN.doors[i], Z, side) }); } });
       for(const w of hospInHaz(f).walk){
         /* a cast member's car at the kerb (HOSP_CAST_CAR: the porter's patient's ride home) */
         if(f === 1 && w.cast && w.cast.car){ const c = hospWalkerAt(w, now).carP;
@@ -115094,10 +115098,10 @@ class WorldScene extends Phaser.Scene {
   }
   /* THE GLASS LIFT'S DOORS inside Marina General (HOSP_IN): a car's west
      face, two glass panels sliding apart from its middle (k 0 shut .. 1 open) */
-  drawHospLiftDoors(g, ox, oy, c, k, z0){
+  drawHospLiftDoors(g, ox, oy, c, k, z0, side){
     const a = ox + c[0] + 1, d0 = oy + c[2] + 12, d1 = oy + c[3] - 12, m = (d0 + d1)/2, w = (m - d0)*(1 - k), Z = 150, W = (y, z) => this.W(a, y, z + (z0 || 0));
     if(w < 0.5) return;
-    for(const [b0, b1] of [[d0, d0 + w], [d1 - w, d1]]){
+    for(const [b0, b1] of side == null ? [[d0, d0 + w], [d1 - w, d1]] : [side ? [d1 - w, d1] : [d0, d0 + w]]){   // (side: the one leaf, each queued at its own place)
       this.quadOn(g, [W(b0, 0), W(b1, 0), W(b1, Z), W(b0, Z)], 0x9fd0e0, 0.55);
       this.quadOn(g, [W(b0, 0), W(b1, 0), W(b1, 8), W(b0, 8)], 0xa6aeb5);
       this.quadOn(g, [W(b0, Z - 8), W(b1, Z - 8), W(b1, Z), W(b0, Z)], 0xa6aeb5);
