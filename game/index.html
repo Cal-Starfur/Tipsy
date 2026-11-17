@@ -45041,6 +45041,12 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     /* a bubble cab: a short round yellow body on four wheels, a tall glass dome over it, a checker band round it */
     shape: { BODY: { hx: 21, hy: 17, z0: 22, z1: 36, ch: 8, bev: 4, bevIn: 3.5 }, LID: { hx: 14, hy: 13, z0: 36, z1: 50, ch: 8, bev: 8, bevIn: 7, ox: 1 },
       STRIPE: { z0: 26, z1: 29 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 60], zmap: z => 22 + (z - 14)*0.38, WHEELS: { r: 8, W2: 7, xs: [-14, 14], side: 23, style: 'mesh', tread: 'knobby' } } },
+  /* (five more, to ten -- Sir, 2026-11-17) */
+  { id: 'rover:miner', build: 'rover', name: 'Moon Miner', cents: 1000, body: 0xf2c02e, stripe: 0x16171b, noStripe: true, print: 'rvMiner', noSolar: true, noDish: true, lidCol: [0x5d646c, 0x4a5057, 0x3b4048], roverPart: 'drill', mastFlag: true, eye: 0xffb02a, trim: { rimCol: 0x16171b } },
+  { id: 'rover:solar', build: 'rover', name: 'Solar Wings', cents: 1000, body: 0xd9a93c, stripe: 0x1f3a7a, print: 'rvApollo', noDish: true, roverPart: 'wings', ringFlag: false, eye: 0x7ad8ff, trim: { rimCol: 0xd9a93c } },
+  { id: 'rover:cheese', build: 'rover', name: 'Cheese Moon', cents: 1000, body: 0xf2c84a, stripe: 0xf2c84a, noStripe: true, print: 'rvCheese', noSolar: true, noDish: true, noFlag: true, lidCol: [0xf6d468, 0xe8c050, 0xc89a30], eye: 0x8a5a1a, trim: { rimCol: 0xe8a23a } },
+  { id: 'rover:europa', build: 'rover', name: 'Europa Ice', cents: 1000, body: 0xe8f4fc, stripe: 0x5ab8e8, print: 'rvEuropa', noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
+  { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
@@ -129497,6 +129503,15 @@ class WorldScene extends Phaser.Scene {
         g.lineStyle(Math.max(1, 1.2*K), 0x9aa0a6, 1); { const A = P(0, sb*BODY.hy, BODY.z1 - 3), B = P(0, (y0 + y1)/2, z); g.lineBetween(A.x, A.y, B.x, B.y); } } };
     if(part === 'far'){ legs(-nearSide); }   // (no panels off its sides: its lid is the panel -- Sir, 2026-11-16)
     const RP = BODY._bskin && BODY._bskin.roverPart;
+    /* the Moon Miner's drill: a big cone on a collar off his nose, spiral flutes round it */
+    if(RP === 'drill' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = BODY.z0 + 1, x0 = BODY.hx + 1, L2 = 20, R0 = 7, now4 = this.time ? this.time.now : 0;
+      this.drawHullPrism({ hx: 2, hy: R0 + 1, ox: x0, oy: 0, z0: zc - R0 - 1 + bobZ, z1: zc + R0 + 1 + bobZ, ch: 2.5, cTop: 0x8d959c, cLt: 0x6f757b, cDk: 0x4a5057, cBottom: 0x4a5057, outline: true, topEdge: false });
+      const tip = P(x0 + 2 + L2, 0, zc), base = []; for(let i = 0; i < 16; i++){ const a = i/16*Math.PI*2; base.push(P(x0 + 2, Math.cos(a)*R0, zc + Math.sin(a)*R0)); }
+      const hull = convexHull(base.concat([tip])); g.fillStyle(0x8d959c, 1); g.fillPoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true); g.lineStyle(Math.max(1, 1*K), 0x3b4048, 1); g.strokePoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+      g.lineStyle(Math.max(1, 1.8*K), 0x3b4048, 1); for(let f = 0; f < 3; f++){ const o = []; for(let k = 0; k <= 12; k++){ const u = k/12, a = f*2.094 + u*Math.PI*2.4 + now4*0.01, r = R0*(1 - u); o.push(P(x0 + 2 + u*L2, Math.cos(a)*r, zc + Math.sin(a)*r)); }
+        g.strokePoints(o.map(q => new Phaser.Geom.Point(q.x, q.y)), false); } }
+    if(RP === 'wings' && part === 'far') panel(-nearSide);   // (Solar Wings: a panel off each side -- the far one before him)
+    if(RP === 'wings' && part === 'near') panel(nearSide);
     /* the Space Tug's docking clamps: a pair of C-claws out ahead of his nose, a grey arm and an orange jaw each */
     if(RP === 'tug' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = (BODY.z0 + BODY.z1)/2;
       for(const sb of [-nearSide, nearSide]){ const y = sb*(BODY.hy - 5);
@@ -134717,6 +134732,19 @@ const HULL_PRINTS = {
   rvTug: { id: 'rvTug', seed: 0x709, build(L){ if(L.part === 'lid') return; const OR = [0xd85a10, 0xff7a1a], BK = [0x16171b, 0x2a2d33];   // (orange panels down his flanks, hazard stripes across his nose)
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 3; i++){ const x = a + len*(0.08 + i*0.31); L.side.push({ c: OR, pts: _prRect(x, L.H*0.2, x + len*0.25, L.H*0.75) }); } }
       { const [a, b] = L.face(0); for(let x = a - 2; x < b; x += 3.4) L.side.push({ c: BK, pts: [[x, 0], [x + 1.7, 0], [x + 1.7 + L.H*0.3, L.H*0.3], [x + L.H*0.3, L.H*0.3]] }); L.side.push({ c: OR, pts: _prRect(a, L.H*0.3, b, L.H*0.36) }); } } },
+  rvMiner: { id: 'rvMiner', seed: 0x31e, build(L){ if(L.part === 'lid') return; const BK = [0x16171b, 0x2a2d33];   // (hazard stripes low round him)
+      for(let x = -2; x < L.per; x += 4) L.side.push({ c: BK, pts: [[x, 0], [x + 2, 0], [x + 2 + L.H*0.3, L.H*0.3], [x + L.H*0.3, L.H*0.3]] }); } },
+  rvCheese: { id: 'rvCheese', seed: 0xc4e, build(L){ const HO = [0xa8701a, 0xc08428];   // (cheese holes, big and small, all over)
+      const hole = (arr, x, y, r) => { const o = []; for(let i = 0; i < 12; i++){ const t = i/12*Math.PI*2; o.push([x + Math.cos(t)*r, y + Math.sin(t)*r*0.85]); } arr.push({ c: HO, pts: o }); };
+      if(L.part === 'lid'){ for(let i = 0; i < 6; i++) hole(L.top, L.x0 + 2 + L.rng()*(L.x1 - L.x0 - 4), L.y0 + 2 + L.rng()*(L.y1 - L.y0 - 4), 1 + L.rng()*2.2); return; }
+      for(let i = 0; i < 16; i++) hole(L.side, L.rng()*L.per, L.H*(0.15 + L.rng()*0.7), 1.4 + L.rng()*2.6); } },
+  rvEuropa: { id: 'rvEuropa', seed: 0xe0a, build(L){ if(L.part === 'lid') return; const CR = 0x5ab8e8;   // (blue frost cracks over white ice)
+      for(let i = 0; i < 9; i++){ let x = L.rng()*L.per, y = L.H*(0.1 + L.rng()*0.6); for(let j = 0; j < 4; j++){ const nx = x + (L.rng() - 0.3)*6, ny = y + (L.rng() - 0.4)*3; L.side.push({ col: CR, pts: _prSeg(x, y, nx, ny, 0.9) }); x = nx; y = ny; } } } },
+  rvStar: { id: 'rvStar', seed: 0x57a, build(L){ const WH = [0xd9dde2, 0xffffff], GD = [0xb8902a, 0xffd34a];   // (white stars scattered on navy, a gold one big on each flank)
+      const star = (arr, x, y, r, c) => { const o = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? r*0.42 : r; o.push([x + Math.cos(q)*rr, y - Math.sin(q)*rr]); } arr.push({ c, pts: o }); };
+      if(L.part === 'lid'){ for(let i = 0; i < 6; i++) star(L.top, L.x0 + 2 + L.rng()*(L.x1 - L.x0 - 4), L.y0 + 2 + L.rng()*(L.y1 - L.y0 - 4), 0.8 + L.rng()*0.8, WH); return; }
+      for(let i = 0; i < 14; i++) star(L.side, L.rng()*L.per, L.H*(0.15 + L.rng()*0.7), 0.6 + L.rng()*0.8, WH);
+      for(const k of [2, 6]){ const [a, b] = L.face(k); star(L.side, (a + b)/2, L.H*0.52, L.H*0.3, GD); } } },
   rvMars: { id: 'rvMars', seed: 0x3a5, layers: [ { c: [0x8a4a2a, 0xa85a34], r: 4.5, cover: 0.24 }, { c: [0xd88a5a, 0xe8a070], r: 3, cover: 0.14 } ] },
   rvRetro: { id: 'rvRetro', seed: 0x195, build(L){ if(L.part === 'lid') return; const TL = [0x1aa8a0, 0x2ad8c8], RD = [0xc8302a, 0xff5a4a];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
