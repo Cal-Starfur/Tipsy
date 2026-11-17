@@ -28798,6 +28798,40 @@ walkinStaff(PG_IN.name, [
     posts: [[384, 66, -Math.PI/2, 8000, true], [352, 150, 0, 4800, true]] },
 ]);
 walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY2[1]) - 8, 0, 299]], looks: [] });
+/* ==================== PALMLINE SAVINGS, WALK-IN (wi-palmline-savings; the room: the LIB entry 'Palmline Savings Interior') ====================
+   The Flats' bank on block 2,0's north edge, beside the garage (its front faces north, away from the camera). The banking hall: the
+   shop's lot behind its portico, less the walls (W22). Its way in, the door on the portico's back wall (lab b -66, the recess the
+   giant order stands in front of; the portico is open ground, vol.opens), in the far north wall (door side 'n'). Room frame a east,
+   b south, world units (lab x1.3, z x1.95):
+     a 70..104      THE TELLERS' COUNTER down the west side, its glass, two tellers behind it facing the hall; the vault door
+                    on the west wall behind them
+     a 170..296     the door's lane, kept clear
+     a 140          the queue's rope line; the guard by the door
+     a 322..392     the loan officer's desk, a chair before it */
+const PS_IN = { name: 'Palmline Savings Interior', x0: 760000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, REC: 66, H: 540, LH: 66,
+  DOOR: [T2*4.4*0.38, T2*4.4*0.62], DOORZ: 240*1.95 };
+const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: PS_IN.x0, y0: PS_IN.y0,
+  lab: [PS_IN.WALL, PS_IN.WW - PS_IN.WALL, -(PS_IN.DD - PS_IN.WALL), -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
+  door: { a: (PS_IN.DOOR[0] + PS_IN.DOOR[1])/2, b: -PS_IN.REC, half: (PS_IN.DOOR[1] - PS_IN.DOOR[0])/2*1.3, side: 'n', top: PS_IN.DOORZ },
+  H: PS_IN.H, LH: PS_IN.LH, out: 60, glass: 40,
+  /* (its way to and from the street, THE ROOM'S DAY: out under the portico onto the north pavement, along it either way) */
+  street: { to: [0, -270], routes: [[[-1500, -270], [-3600, -270]], [[1500, -270], [3600, -270]]] } });
+POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books'];   // (W26: the tea house and the bookshop round the corner stand over its east wall and floor on screen)
+/* ITS PEOPLE (466 x 213, a banking hall): two tellers behind the counter (fixed), the loan officer at her desk (fixed), the guard by the
+   door (the keyholder), and two customers -- at the windows, at the desk, in the line */
+const PS_TELLER_UNIFORM = { shirt: { c:0xf4f2ec, dk:0xd6d3ca }, pants: { c:0x2f3e46, dk:0x222d33 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
+walkinStaff(PS_IN.name, [
+  { id: 'teller-1', role: 'bank teller', seed: 0x5a01, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 56, 0, 9000, true], [40, 82, -0.4, 3000, true]] },
+  { id: 'teller-2', role: 'bank teller', seed: 0x5a02, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 122, 0, 8000, true], [40, 98, 0.4, 2600, true]] },
+  { id: 'officer', role: 'loan officer', seed: 0x5a03, U: CONSULTANT_UNIFORM, fixed: true, posts: [[357, 30, Math.PI/2, 9000, true]] },
+  { id: 'guard', role: 'bank guard', seed: 0x5a04, U: SECURITY_UNIFORM, keys: true, posts: [[146, 24, Math.PI/2, 9000, true], [150, 176, -Math.PI/4, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x5a11, look: 'visitor', life: 'browse' },
+  { id: 'customer-2', role: 'customer', seed: 0x5a12, look: 'visitor', life: 'browse' },
+]);
+walkinLife(PS_IN.name, { keep: [[166, 300, 0, 213]], looks: [
+  { id: 'window-1', spots: [[126, 56, Math.PI]] }, { id: 'window-2', spots: [[126, 122, Math.PI]] },
+  { id: 'desk', spots: [[357, 116, -Math.PI/2]] }, { id: 'line', spots: [[112, 182, -Math.PI/2]] },
+] });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -55178,6 +55212,108 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE PALMLINE SAVINGS (PS_IN; the walk-in kit's walls, walkinRoom, its door on the portico's back wall in the north wall). Frame
+     a east, b south, z up, world units. Long pieces in runs (runPiece, W28) */
+  name:'Palmline Savings Interior', xh: 540, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 466, dd: 213,
+  head:'Inside Palmline Savings: a marble banking hall, the tellers\' counter, the vault door, a loan desk',
+  tags:['interior','pocket','bank','tellers','vault','marble'],
+  desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters, a chequered marble floor, the tellers\' counter of dark wood with its glass down the west side and the round vault door behind it, a rope line, the loan officer\'s desk and the clock over the door.',
+  draw(p){
+    const pl = (typeof PS_PLAN !== 'undefined' && PS_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 466, D = (pl && pl.D) || 213, H = PS_IN.H, LH = PS_IN.LH, DZ = PS_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 'n', at: 233, half: 63 };
+    const stone = '#f0ece2', stoneD = '#dcd6c8', stoneS = '#c9c2b2', trim = '#6f8f96', trimD = '#56737a';
+    const wood = '#5c3b26', woodF = '#4a2f1e', woodS = '#3b2518', brass = '#c9a24a', brassD = '#a8862f';
+    const marbleA = '#ece6da', marbleB = '#c9c4ba';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: marble in a chequer of cream and grey within a border; the brass threshold strip at the door ---- */
+    T(0, W, 0, D, 0, marbleB);
+    const C = 46;
+    for(let a = 12, i = 0; a < W - 12; a += C, i++) for(let b = 12, j = 0; b < D - 12; b += C, j++)
+      if((i + j) % 2 === 0) T(a, Math.min(a + C, W - 12), b, Math.min(b + C, D - 12), 0.2, marbleA);
+    for(const [a0, a1, b0, b1] of [[0, W, 0, 12], [0, W, D - 12, D], [0, 12, 0, D], [W - 12, W, 0, D]]) T(a0, a1, b0, b1, 0.25, '#b9b2a2');
+    items.push({ a: door.at, b: 6, z: 0, solids: [], draw: () => { T(door.at - door.half - 6, door.at + door.half + 6, -40, 8, 0.55, shade(stone, 0.9));
+      T(door.at - door.half, door.at + door.half, -4, 0, 0.6, brass); } });
+
+    /* ---- THE WALLS (the kit's): limestone over the sea-grey dado, pilasters; over the door the clock and the bank's name; on the
+       west wall, behind the tellers, the round steel vault door ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, stone, null, 0, 0);
+        F(-30, W + 30, 0, 80, trim, null, 0, 0.1); F(-30, W + 30, 80, 86, trimD, null, 0, 0.2);
+        for(const a of [24, door.at - door.half - 40, door.at + door.half + 40, W - 24]) { F(a - 12, a + 12, 86, H - 30, stoneD, null, 0, 0.2); F(a - 16, a + 16, H - 34, H - 22, stoneS, null, 0, 0.3); }
+        F(-30, W + 30, H - 22, H, stoneD, null, 0, 0.3);
+        /* the door's surround, the clock over it, the name */
+        F(door.at - door.half - 10, door.at - door.half, 0, DZ + 10, stoneS, null, 0, 0.3); F(door.at + door.half, door.at + door.half + 10, 0, DZ + 10, stoneS, null, 0, 0.3);
+        F(door.at - door.half - 10, door.at + door.half + 10, DZ, DZ + 10, stoneS, null, 0, 0.3);
+        { const pts = [], pin = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(door.at + Math.cos(t)*22, 0.5, DZ + 40 + Math.sin(t)*22)); pin.push(P(door.at + Math.cos(t)*18, 0.6, DZ + 40 + Math.sin(t)*18)); }
+          poly(pts, brass); poly(pin, '#fbf8f0');
+          tube(door.at, 0.7, DZ + 40, door.at, 0.7, DZ + 54, 1.2, '#2b2f34'); tube(door.at, 0.7, DZ + 40, door.at + 10, 0.7, DZ + 40, 1.2, '#2b2f34'); }
+        blockWordIn('PALMLINE SAVINGS', 40, W - 40, H - 80, H - 50, 0.6, trimD, null, 2.6);
+        /* the cash machine in the wall east of the door */
+        F(W - 120, W - 70, 40, 190, '#3b4248', null, 0, 0.4); F(W - 112, W - 78, 120, 170, '#7fb6d0', null, 0, 0.5); F(W - 112, W - 78, 90, 110, '#596067', null, 0, 0.5);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(stone, 0.94));
+        S(0.1, -30, D + 30, 0, 80, shade(trim, 0.92)); S(0.2, -30, D + 30, 80, 86, trimD);
+        S(0.2, -30, D + 30, H - 22, H, shade(stoneD, 0.94));
+        /* THE VAULT DOOR: a round steel door in its frame, its wheel and bolts */
+        const vb = 150, vz = 200, ring = (r, x, c) => { const pts = []; for(let k = 0; k < 24; k++){ const t = k/24*Math.PI*2; pts.push(P(x, vb + Math.cos(t)*r, vz + Math.sin(t)*r)); } poly(pts, c); };
+        ring(78, 0.3, '#7d858a'); ring(70, 0.4, '#a8b0b4'); ring(56, 0.5, '#bcc3c7');
+        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; S(0.6, vb + Math.cos(t)*63 - 3, vb + Math.cos(t)*63 + 3, vz + Math.sin(t)*63 - 3, vz + Math.sin(t)*63 + 3, '#6f777c'); }
+        ring(16, 0.7, '#8c9298');
+        for(let k = 0; k < 3; k++){ const t = k/3*Math.PI; const pts = [P(0.8, vb + Math.cos(t)*30, vz + Math.sin(t)*30), P(0.8, vb - Math.cos(t)*30, vz - Math.sin(t)*30)];
+          ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.strokeStyle = '#5d6369'; ctx.lineWidth = 3*K; ctx.stroke(); }
+      },
+      low: [stone, trim, trimD], cap: [stone, stone, stoneD], ftop: shade(stone, 0.9) });
+
+    /* ---- THE TELLERS' COUNTER down the west side: dark wood, a brass rail, the glass over it in bays, a window cut in each bay
+       where the tellers stand; their screens face them (W19) ---- */
+    { const A0 = 70, A1 = 104, B0 = 20, B1 = 152;
+      runPiece(items, A0, A1, B0, B1, 230, (s0, s1) => [solid(A0, A1, s0, s1, 110, 'tellers\' counter')], () => {
+        box(A0, A1, B0, B1, 0, 96, wood, woodF, woodS);
+        for(let b = B0 + 22; b < B1 - 10; b += 22) S(A1 + 0.3, b - 1, b + 1, 8, 88, woodS);                      // its panels
+        box(A0 - 4, A1 + 6, B0 - 4, B1 + 4, 96, 104, '#6e4a31', '#5c3b26', '#4a2f1e');                          // the top
+        box(A1 + 2, A1 + 5, B0, B1, 60, 63, brass, brassD, brassD);                                              // the brass rail
+        for(const tb of [56, 122]) box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025');   // the tellers' screens (to them)
+        for(let b = B0; b <= B1 + 0.1; b += 33) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 218, brass, brassD, brassD);  // the glass's posts
+        S(A0 + 16, B0, B1, 140, 218, 'rgba(190,216,226,.32)');
+        box(A0 + 12, A0 + 20, B0, B1, 218, 222, brass, brassD, brassD);
+      }, { alongB: true, run: 44 }); }
+
+    /* ---- THE ROPE LINE: brass posts and a red rope, the queue's lane to the windows ---- */
+    { const A = 146, B0 = 64, B1 = 152;
+      runPiece(items, A - 8, A + 8, B0, B1, 80, (s0, s1) => [{ name: 'rope post', c: [A, (s0 + s1)/2], r: 6, h: 60 }], () => {
+        for(let b = B0; b <= B1 + 0.1; b += 44){ cyl(A, b, 0, 4, 9, brassD); cyl(A, b, 4, 60, 2.6, brass); cyl(A, b, 60, 64, 4, brass); }
+        for(let b = B0; b < B1 - 0.1; b += 44) tube(A, b, 58, A, b + 44, 58, 1.8, '#9a2a2a');
+      }, { alongB: true, run: 44 }); }
+
+    /* ---- THE LOAN OFFICER'S DESK: dark wood, a lamp and a screen (to her), a chair before it ---- */
+    { const A0 = 322, A1 = 392, B0 = 50, B1 = 86;
+      runPiece(items, A0, A1, B0, B1, 140, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
+        box(A0, A1, B0, B1, 0, 70, wood, woodF, woodS); box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 70, 76, '#6e4a31', '#5c3b26', '#4a2f1e');
+        box(350, 376, B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025');                                // her screen (to her)
+        cyl(334, B0 + 14, 76, 104, 1.6, brass); box(326, 342, B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33');   // the banker's lamp
+        box(380, 390, B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2');                                  // a pad
+      });
+      items.push({ a: 357, b: 116, z: 0, solids: [{ name: 'chair', c: [357, 116], r: 14, h: 80 }], draw: () => {
+        for(const [la, lb] of [[-10, -8], [10, -8], [-10, 8], [10, 8]]) box(357 + la - 1.5, 357 + la + 1.5, 116 + lb - 1.5, 116 + lb + 1.5, 0, 40, woodS, woodS, woodS);
+        box(345, 369, 104, 128, 40, 46, '#7a2a2a', '#5e2020', '#4a1a1a'); box(345, 369, 124, 128, 46, 84, wood, woodF, woodS); } });
+    }
+    /* ---- a palm in a brass pot by the desk, and the bench under the vault's wall clock is the line's end ---- */
+    items.push({ a: 400, b: 26, z: 0, solids: [{ name: 'palm', c: [400, 26], r: 14, h: 120 }], draw: () => {
+      cyl(400, 26, 0, 28, 14, brass, brassD); tube(400, 26, 28, 400, 26, 70, 2, '#6b5a3a');
+      for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(400, 26, 70, 400 + Math.cos(t)*26, 26 + Math.sin(t)*20, 58, 2.6, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+
+    walkinStaffSolids(items, PS_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -63529,6 +63665,8 @@ function houseCanopy(fn){
 },
 {
   name:'Palmline Savings', xh: 460, base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: T2*4.4,
+  /* (the portico is open: he drives in under the order to the banking hall's door on its back wall -- a walk-in, PS_IN) */
+  vol: { opens: [{ name: 'portico', poly: volRect(16, T2*4.4 - 16, -66, 2), walk: true }] },
   wTodo:'two packing slots',
   cTodo:'3 pavement props need collision volumes',   // the entrance steps
   head:'Hexastyle giant order, deep portico, pediment, stone steps',
