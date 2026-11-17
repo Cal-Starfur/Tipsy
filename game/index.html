@@ -128885,11 +128885,13 @@ class WorldScene extends Phaser.Scene {
           const pole = () => { const A = P(xm, 0, zt), B = P(xm, 0, zt2); g.lineStyle(Math.max(1, 2.6*K), 0x3a2410, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1*K), 0x6a4020, 1); g.lineBetween(A.x - 0.6*K, A.y, B.x - 0.6*K, B.y); };
           const sail = (z0, z1, hw, bulge, skull) => { const NY = 6, NZ = 4, X = (y, z) => xm + 0.8 + bulge*(1 - (y/hw)**2*0.6)*Math.sin(Math.PI*(z - z0)/(z1 - z0)*0.9 + 0.15);
             for(let j = 0; j < NZ; j++) for(let i = 0; i < NY; i++){ const ya = -hw + 2*hw*i/NY, yb = -hw + 2*hw*(i + 1)/NY, za = z0 + (z1 - z0)*j/NZ, zb2 = z0 + (z1 - z0)*(j + 1)/NZ;
-              const sh = fr ? (j === 0 ? 0xe6dcc0 : 0xf6efda) : (j === 0 ? 0xc9bfa2 : 0xd9cfb4); this.quadOn(g, [P(X(ya, za), ya, za), P(X(yb, za), yb, za), P(X(yb, zb2), yb, zb2), P(X(ya, zb2), ya, zb2)], sh); }
-            g.lineStyle(Math.max(1, 0.8*K), 0x8a7a5a, 1); for(const y of [-hw, hw]){ const o = []; for(let j = 0; j <= NZ; j++){ const z = z0 + (z1 - z0)*j/NZ, q = P(X(y, z), y, z); o.push(new Phaser.Geom.Point(q.x, q.y)); } g.strokePoints(o, false); }
-            if(skull && fr){ const zc = (z0 + z1)/2, c = P(X(0, zc) + 0.2, 0, zc + 0.6), r = 2.6*K; g.fillStyle(0x16171b, 1); g.fillCircle(c.x, c.y, r); g.fillRect(c.x - r*0.55, c.y + r*0.6, r*1.1, r*0.7);
-              g.fillStyle(0xf6efda, 1); g.fillCircle(c.x - r*0.36, c.y - r*0.1, r*0.28); g.fillCircle(c.x + r*0.36, c.y - r*0.1, r*0.28);
-              g.lineStyle(Math.max(1, 1.2*K), 0x16171b, 1); g.lineBetween(c.x - r*1.4, c.y + r*1.9, c.x + r*1.4, c.y + r*0.9); g.lineBetween(c.x - r*1.4, c.y + r*0.9, c.x + r*1.4, c.y + r*1.9); }
+              const sh = fr ? (j === 0 ? 0x1c1d22 : 0x26282e) : (j === 0 ? 0x121317 : 0x1a1b20);   /* (black sails -- Sir, 2026-11-17) */ this.quadOn(g, [P(X(ya, za), ya, za), P(X(yb, za), yb, za), P(X(yb, zb2), yb, zb2), P(X(ya, zb2), ya, zb2)], sh); }
+            g.lineStyle(Math.max(1, 0.8*K), 0x3a3d45, 1); for(const y of [-hw, hw]){ const o = []; for(let j = 0; j <= NZ; j++){ const z = z0 + (z1 - z0)*j/NZ, q = P(X(y, z), y, z); o.push(new Phaser.Geom.Point(q.x, q.y)); } g.strokePoints(o, false); }
+            if(skull && fr){ const zc = (z0 + z1)/2, c = P(X(0, zc) + 0.2, 0, zc + 0.6), r = 2.8*K;   // (a white skull and crossbones on the black)
+              g.lineStyle(Math.max(1, 1.3*K), 0xf3ead2, 1); g.lineBetween(c.x - r*1.5, c.y + r*2, c.x + r*1.5, c.y + r*0.8); g.lineBetween(c.x - r*1.5, c.y + r*0.8, c.x + r*1.5, c.y + r*2);
+              g.fillStyle(0xf3ead2, 1); g.fillCircle(c.x, c.y, r); g.fillRect(c.x - r*0.55, c.y + r*0.6, r*1.1, r*0.7);
+              g.fillStyle(0x16171b, 1); g.fillCircle(c.x - r*0.36, c.y - r*0.1, r*0.28); g.fillCircle(c.x + r*0.36, c.y - r*0.1, r*0.28);
+              }
             for(const z of [z0, z1]){ const A = P(xm + 0.8, -hw - 1.5, z), B = P(xm + 0.8, hw + 1.5, z); g.lineStyle(Math.max(1, 1.6*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); } };
           const sails = () => { sail(zt + 5, zt + 19, 10, 4.5, true); sail(zt + 21.5, zt + 31, 7.5, 3.4, false); };
           if(fr){ pole(); sails(); } else { sails(); pole(); }
