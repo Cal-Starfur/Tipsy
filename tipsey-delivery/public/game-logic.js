@@ -126434,10 +126434,23 @@ class WorldScene extends Phaser.Scene {
     const OD = [0x6b7648, 0x55603a, 0x3a4228];
     pr(4, 4, cx, cy, zt - 0.5, zt + 2.6, OD, 1.6);                                  // (the cupola)
     pr(3, 3, cx, cy, zt + 2.6, zt + 3.2, [0x55603a, 0x4a5432, 0x3a4228], 1.2);       // (its hatch)
-    const mx = LID.hx*0.15, my = LID.hy*0.45, A = P(mx, my, zt), B = P(mx, my, zt + 4.5), C = P(mx + 9, my, zt + 5.4), D = P(mx - 2, my, zt + 4.3);
-    g.lineStyle(Math.max(1, 1.2*K), 0x2a2d33, 1); g.lineBetween(A.x, A.y, B.x, B.y);
-    g.lineStyle(Math.max(1, 1.6*K), 0x23262c, 1); g.lineBetween(D.x, D.y, C.x, C.y);
-    g.fillStyle(0x2a2d33, 1); g.fillRect(B.x - 1.6*K, B.y - 1.4*K, 3.2*K, 2.4*K); }
+    /* THE MACHINE GUN (Sir, 2026-11-17: "more believable"): a solid pintle post, a cradle, the receiver with its cocking handle, a perforated
+       cooling jacket round the barrel and a flash hider, an ammo box hung on its side, spade grips at the back -- each a solid */
+    const GM = [0x4a4e56, 0x3a3d45, 0x23262c], BK = [0x2e3138, 0x23262c, 0x16171b], AM = [0x6b7648, 0x55603a, 0x3a4228];
+    const mx = LID.hx*0.05, my = LID.hy*0.4, zb = zt + 4.6*1.55, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+    const S = 1.55;   // (larger, so it reads at his size)
+    const parts = [
+      () => pr((0.7)*S, (0.7)*S, mx + ((mx - 1) - mx)*S, my + ((my) - my)*S, zt + ((zt) - zt)*S, zt + ((zb - 0.6) - zt)*S, BK, (0.2)*S),                                     // (the pintle post)
+      () => pr((1.6)*S, (1.2)*S, mx + ((mx - 1) - mx)*S, my + ((my) - my)*S, zt + ((zb - 0.9) - zt)*S, zt + ((zb - 0.3) - zt)*S, BK, (0.2)*S),                               // (its cradle)
+      () => pr((1.6)*S, (1.5)*S, mx + ((mx - 1) - mx)*S, my + ((my - 2.4) - my)*S, zt + ((zb - 1.6) - zt)*S, zt + ((zb + 0.6) - zt)*S, AM, (0.3)*S),                          // (the ammo box on its side)
+      () => pr((2.6)*S, (1.1)*S, mx + ((mx - 0.6) - mx)*S, my + ((my) - my)*S, zt + ((zb - 0.3) - zt)*S, zt + ((zb + 1.6) - zt)*S, GM, (0.3)*S),                              // (the receiver)
+      () => pr((0.4)*S, (0.5)*S, mx + ((mx - 3.6) - mx)*S, my + ((my) - my)*S, zt + ((zb) - zt)*S, zt + ((zb + 1.2) - zt)*S, BK, (0.1)*S),                                    // (spade grips)
+      () => pr((3.2)*S, (0.8)*S, mx + ((mx + 5.2) - mx)*S, my + ((my) - my)*S, zt + ((zb + 0.15) - zt)*S, zt + ((zb + 1.35) - zt)*S, BK, (0.35)*S),                           // (the cooling jacket)
+      () => pr((1.4)*S, (0.45)*S, mx + ((mx + 9.6) - mx)*S, my + ((my) - my)*S, zt + ((zb + 0.35) - zt)*S, zt + ((zb + 1.15) - zt)*S, BK, (0.2)*S),                           // (the barrel out of it)
+      () => pr((0.6)*S, (0.65)*S, mx + ((mx + 11.5) - mx)*S, my + ((my) - my)*S, zt + ((zb + 0.2) - zt)*S, zt + ((zb + 1.3) - zt)*S, GM, (0.25)*S) ];                         // (the flash hider)
+    (vis(1, 0, 0) ? parts : [parts[0], parts[1], parts[2], parts[7], parts[6], parts[5], parts[3], parts[4]]).forEach(f => f());
+    if(vis(0, 0, 1)){ g.fillStyle(0x16171b, 1); for(let k = 0; k < 4; k++){ const q = P(mx + (2.8 + k*1.6)*1.55, my, zt + (zb - zt) + 1.36*1.55 + 0.05 + (zb - zt)*0); g.fillCircle(q.x, q.y, 0.5*K); } }   // (the jacket's holes)
+    { const q = P(mx - 0.4, my + 1.15, zb + 0.9); if(vis(0, 1, 0)){ g.fillStyle(0x8d959c, 1); g.fillRect(q.x - 0.5*K, q.y - 0.5*K, 1.4*K, 0.8*K); } } }   // (the cocking handle)
   tankFins(bobZ){ const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }, K = this.kScale(), GL = BODY._bskin.glow || 0x7af8ff;
     const ns = vis(0, 1, 0) ? 1 : -1, z = BODY.z1;
     /* (with volume -- Sir, 2026-11-17): each a blade 1.8 thick -- its inner face, its edges as faces, its outer face last, glowing edge lines on
