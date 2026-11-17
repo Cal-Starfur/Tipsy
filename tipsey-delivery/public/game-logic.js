@@ -17364,6 +17364,13 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
    seeded stream (day, rung, shop), so it moves no other order. Drawn by the room's queue (queueTowerDrop), handed over as a lifeguard's
    (boatCustomerPos, its path) */
 const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, ph: { 11: [450, 300], 12: [520, 250] } };
+const PT_FLAT_DOOR = { w: 76, h: 168 };
+/* today's flat door swung open by the won timeline (doorTheta), on its own floor; every other one shut */
+function ptFlatDoorU(f, k){
+  const s = typeof scn === "function" ? scn() : null, tw = s && s.route && s.route.addressTower;
+  if(!tw || tw.k >= 40 || tw.floor !== f || tw.k % 4 !== k || !(s.state === "won" || s.wonTail)) return 0;
+  return Math.max(0, Math.min(1, (s.doorTheta || 0)/DOOR_ART.openAngle));
+}
 function towerAddress(dateStr, runIndex, shop, from){
   if(!from || typeof PT_FLOORS === 'undefined' || typeof POCKETS === 'undefined') return null;
   const lp = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), flp = POCKETS.find(q => q.name === PT_FLOORS.name);
@@ -17375,7 +17382,7 @@ function towerAddress(dateStr, runIndex, shop, from){
   const k = Math.floor(rr()*42), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 }, X = a => flp.x0 + a, Y = b => flp.y0 + b;
   let floor, address, matAt, start;
   if(k < 40){ floor = 1 + Math.floor(k/4); const u = k % 4, c = PT_DROP.flats[u];
-    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c), y: Y(PT_DROP.CB + 6) }; start = [{ x: X(c), y: Y(PT_DROP.CB - 14), z: 0 }, { x: X(c), y: Y(PT_DROP.CB + 8), z: 0 }]; }
+    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c), y: Y(PT_DROP.CB + 6) }; start = [{ x: X(c), y: Y(PT_DROP.CB + 4), z: 0 }, { x: X(c), y: Y(PT_DROP.CB + 14), z: 0 }]; }   // (from the doorway as the leaf swings: behind the wall's face he was painted over it)
   else { floor = 11 + (k - 40); const [a, b] = PT_DROP.ph[floor];
     address = "Palmline Tower, Penthouse " + floor; matAt = { x: X(777), y: Y(160) }; start = [{ x: X(a), y: Y(b), z: 0 }]; }
   const mat = owMatFrame(matAt.x, matAt.y, dv, rv); mat.floor = floor; mat.room = flp.name;
@@ -44204,6 +44211,23 @@ function liftBankPieces(items, room, R, cars, stone, stoneL, stoneD, when){
   for(const [a0, a1] of ps){ if(a1 - a0 < 0.5) continue;
     items.push({ a: (a0 + a1)/2, b: d/2, z: 0, when, solids: [pierS(a0, a1)], draw: () => box(a0, a1, 0, d, 0, 196, stoneL, stone, stoneD) }); }
 }
+/* A FLAT'S LEAF (Palmline Tower's floors, PT_FLAT_DOOR): hung on the side away from where its resident meets him -- the west jamb, but the east
+   for the corridor's east-end flat -- swung IN, into the flat's hall, by u (0 shut .. 1 open, near a right angle), seen only through the
+   doorway (clipped to it: past it the wall's face is in front). Out into the corridor it stood beside him and hid the resident stepping out */
+function ptFlatLeaf(c, k, u){
+  const D = PT_FLAT_DOOR, hs = k === 3 ? 1 : -1, ha = c + hs*D.w/2, t = u*Math.PI/2*0.92, B = PT_DROP.CB + 0.9;
+  if(u < 0.02){
+    F(c - D.w/2, c + D.w/2, 0, D.h, '#8a6446', null, 0, B);
+    for(const [z0, z1] of [[18, 70], [92, 150]]) F(c - D.w/2 + 10, c + D.w/2 - 10, z0, z1, null, '#6b4a32', 1.2, B + 0.2);
+    ball(c - hs*(D.w/2 - 10), B + 1, 80, 2.6, '#c9a24a', '#e8c96a');
+    return;
+  }
+  const ea = ha - hs*D.w*Math.cos(t), eb = B - D.w*Math.sin(t);
+  ctx.save(); poly([P(c - D.w/2, B, 0), P(c + D.w/2, B, 0), P(c + D.w/2, B, D.h), P(c - D.w/2, B, D.h)]); ctx.clip();
+  try { poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, D.h), P(ha, B, D.h)], '#7a5a3e');
+        poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, 1), P(ha, B, 1)], '#5a4130'); }
+  finally { ctx.restore(); }
+}
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
@@ -54841,15 +54865,21 @@ function houseCanopy(fn){
         }}); }
     }
     for(const a of LOB) items.push({ a, b: CB - 2, z: 0, when: flats, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, H, stoneL, stone, stoneD); } });
-    const door = (c, wd) => {
-      F(c - wd/2 - 6, c + wd/2 + 6, 0, 104, stoneL, stoneD, 1, CB + 0.6);
-      F(c - wd/2, c + wd/2, 0, 98, wood, null, 0, CB + 0.8);
-      F(c + wd/2 - 12, c + wd/2 - 8, 44, 50, brass, null, 0, CB + 1.0);
+    /* A FLAT'S FRONT DOOR (Sir, 2026-11-17: "i can tell these doors are tiny already"), a person's door -- PT_FLAT_DOOR, 76 x 168 to a
+       person's 124: a stone frame, the dark hall behind it, a wood leaf hung on the side away from where its resident meets him
+       (towerAddress' side), swinging out into the corridor as the house doors do when it is today's door (ptFlatDoorU: the won timeline's
+       doorTheta), live, cached shut; its number on a brass plate over it */
+    const DW = PT_FLAT_DOOR.w, DHt = PT_FLAT_DOOR.h;
+    const doorFrame = (c, wd) => {
+      F(c - wd/2 - 7, c + wd/2 + 7, 0, DHt + 7, stoneL, stoneD, 1, CB + 0.6);
+      F(c - wd/2, c + wd/2, 0, DHt, '#3b332b', null, 0, CB + 0.7);
       T(c - wd/2, c + wd/2, CB, CB + 26, 0.8, '#6a5a44'); T(c - wd/2 + 4, c + wd/2 - 4, CB + 3, CB + 23, 0.9, '#8a7658');
     };
-    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2; items.push({ a: c, b: CB + 60, z: 0, when: flats, draw: () => door(c, 56) }); }
+    FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
+      items.push({ a: c, b: CB + 1, z: 0, when: flats, draw: () => doorFrame(c, DW),   // (keyed on its wall's face: whoever stands in the doorway comes after it)
+        fx: { kit: () => ptFlatLeaf(c, k, ptFlatDoorU(fl(), k)), state: () => { const u = ptFlatDoorU(fl(), k); return u <= 0 ? 's' : u >= 1 ? 'o' : null; } } }); });
     for(const f of FL) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
-      items.push({ a: c + 1, b: CB + 61, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
+      items.push({ a: c + 1, b: CB + 61, z: 0, when: () => fl() === f, draw: () => { F(c - 28, c + 28, DHt + 10, DHt + 26, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 24, c + 24, DHt + 12, DHt + 24, CB + 1.0, '#2b3138', null, 2); } });
     });
     for(const a of [310, 1342]) items.push({ a, b: CB + 59, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
     /* a bench and a plant in the lift lobby, against its side walls, clear of the cars' lanes */
