@@ -128637,12 +128637,12 @@ class WorldScene extends Phaser.Scene {
             g.lineStyle(Math.max(1, 1.5*K), 0xb4bac1, 1); for(let x = xa + 1.5; x < xb - 1; x += 3.2){ const A = P(x, y, za), B = P(x, y, zb2); g.lineBetween(A.x, A.y, B.x, B.y); }
             for(const z of [za, zb2]){ const A = P(xa, y, z), B = P(xb, y, z); g.lineStyle(Math.max(1, 2.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1.1*K), 0xf0f2f4, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K); } }
           const on = Math.floor(now/260) % 2;
-          for(const sb of [-1, 1]){ const bx = (LID.ox || 0) + 1.5, by = sb*(ly - 9), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
+          for(const sb of [-nearSide, nearSide]){ if(sb === nearSide) this.drawHullPrism({ hx: lx - 3, hy: 1.1, ox: LID.ox || 0, oy: 0, z0: zt - 0.4 + bobZ, z1: zt + 1.6 + bobZ, ch: 0.5, cTop: 0xe8394a, cLt: 0xc8141a, cDk: 0x8a0e12, cBottom: 0x8a0e12, outline: true, topEdge: false });   // (the helmet's comb, between the far beacon and the near one -- Sir, 2026-11-17)
+            const bx = (LID.ox || 0) + 1.5, by = sb*(ly - 9), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
             this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: bx, oy: by, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 1, cTop: 0xe8ecf0, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });
             g.fillStyle(0x6a0e0a, 1); g.fillCircle(bq.x, bq.y + 0.3*K, 3.8*K); g.fillStyle(lit ? 0xff3a2a : 0xc8231c, 1); g.fillCircle(bq.x - 0.2*K, bq.y - 0.2*K, 3.3*K); g.fillStyle(0xffffff, lit ? 0.85 : 0.4); g.fillCircle(bq.x - 1.2*K, bq.y - 1.4*K, 1*K);
             if(lit && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 9*K); } } } }
         if(SKP === 'ladder'){ const ox = LID.ox || 0;
-          this.drawHullPrism({ hx: lx - 3, hy: 1.1, ox, oy: 0, z0: zt - 0.4 + bobZ, z1: zt + 1.6 + bobZ, ch: 0.5, cTop: 0xe8394a, cLt: 0xc8141a, cDk: 0x8a0e12, cBottom: 0x8a0e12, outline: true, topEdge: false });   // (the comb)
           if(vis(1, 0, 0)){ const xs = lx + ox + 0.6, zb = zt - 6.5, S = [];   // (the front shield: black leather, a gold rim, TFD in gold)
             for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI; S.push([Math.cos(t)*4.6, zb + 6 + Math.sin(t)*4]); } S.push([-4.6, zb], [-2.2, zb - 1.4], [2.2, zb - 1.4], [4.6, zb]);
             const pts = S.map(([y, z]) => P(xs, y, z)); this.quadOn(g, pts, 0x16171b); g.lineStyle(Math.max(1, 1.1*K), 0xd8a41a, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
