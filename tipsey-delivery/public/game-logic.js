@@ -128144,7 +128144,7 @@ class WorldScene extends Phaser.Scene {
          a bigger curled moustache, a tall pleated toque puffed at the top */
       if(st === 'body'){ if(front) for(const b of [-6, 6]) for(const zz of [24, 34, 58, 66]) ball(hx + 0.6, b, zz, 1.5, 0x3b4048);
         }
-      if(st === 'face' && front){ onFront([[-11, 76], [11, 76], [0, 62]], 0xd8261c); ball(hx + 0.8, 0, 74, 2.4, 0xb8141a);   // (a red neckerchief knotted under his face)
+      if(st === 'face' && front){ onFront([[-11, 76], [11, 76], [0, 62]], 0xd8261c);   // (a red neckerchief knotted under his face)
         for(const sb of [-1, 1]){ const pts = []; for(let i = 0; i <= 10; i++){ const u = i/10; pts.push([sb*(1 + u*13), 80 - Math.sin(u*Math.PI)*4.5 + u*u*7]); } for(let i = 10; i >= 0; i--){ const u = i/10; pts.push([sb*(1 + u*13), 76.5 + u*u*8]); } onFront(pts, 0x3a2414); } }   // (a big curled moustache)
       if(st === 'top'){ lathe(0, 0, [[zl, 13.5], [zl + 20, 15], [zl + 22, 19], [zl + 27, 20.5], [zl + 32, 17], [zl + 35, 10], [zl + 36, 0.5]], 0xfafaf6);   /* (one piece -- Sir, 2026-11-17: its band, its pleated wall and its puffed crown one shape) */
         for(let i = 0; i < 12; i++){ const th = i/12*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; line([ca*13.6, sa*13.6, zl + 2], [ca*15.1, sa*15.1, zl + 19.5], 0xd9dde2, 1); }   // (its pleats)
