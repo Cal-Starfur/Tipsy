@@ -56549,8 +56549,15 @@ function houseCanopy(fn){
       for(let k = 0; k < n; k++){ const a0 = h0 + (h1 - h0)*k/n, a1 = h0 + (h1 - h0)*(k + 1)/n;
         /* (FULL HEIGHT, ROOFED -- Sir, 2026-11-17: "we should have a roof and full wall for the rooms on every floor not 11 or 12": the flats
            walled to the floor's full height H, the lift lobby's, and roofed: a slab over them, its edge and a soffit line on the corridor) */
-        items.push({ a: (a0 + a1)/2, b: CB/2, z: 0, when: flats, solids: on(FL, a0, a1, 0, CB, H, 'flat'), draw: () => {
-          box(a0, a1, 0, CB, 0, H, '#cfc9bb', plas, shade(plas, 0.9));
+        /* (KEYED BY WHAT STANDS BESIDE IT -- Sir, 2026-11-17, "you can see a wall is missing here": the first, against the room's west wall, at its
+           face on the corridor, so that wall's run beside the corridor does not sort after it and paint over its front and roof; the rest at their
+           west end, so the lift bank's piers and cars and the lobby's bench east of them still come after. What hangs on the face -- the doors,
+           numbers, party walls -- is keyed out in the corridor, after all of them) */
+        items.push({ a: a0 === 0 ? (a0 + a1)/2 : a0, b: a0 === 0 ? CB - 1 : CB/2, z: 0, when: flats, solids: on(FL, a0, a1, 0, CB, H, 'flat'), draw: () => {
+          /* (its top and its face on the corridor; the end face only where the row ends -- a run's own end face painted over the next run's
+             front whenever their order turned round) */
+          T(a0 - (k ? 0.5 : 0), a1, 0, CB, H, '#cfc9bb'); F(a0 - (k ? 0.5 : 0), a1, 0, H, plas, null, 0, CB);
+          if(k === n - 1) S(a1, 0, CB, 0, H, shade(plas, 0.9));
           T(a0, a1, 0, CB, H + 0.3, '#c4beb0'); T(a0 + 0.5, a1 - 0.5, CB - 10, CB, H + 0.4, stoneL);                     // the roof slab, its edge
           for(let a = Math.ceil(a0/80)*80; a < a1; a += 80) T(a - 0.8, a + 0.8, 0, CB - 10, H + 0.35, '#b9b3a5');        // its joints
           F(a0, a1, 0, 10, stoneD, null, 0, CB + 0.2); F(a0, a1, 0, 46, shade(plas, 0.96), null, 0, CB + 0.1);
@@ -56564,11 +56571,11 @@ function houseCanopy(fn){
       F(c + wd/2 - 12, c + wd/2 - 8, 44, 50, brass, null, 0, CB + 1.0);
       T(c - wd/2, c + wd/2, CB, CB + 26, 0.8, '#6a5a44'); T(c - wd/2 + 4, c + wd/2 - 4, CB + 3, CB + 23, 0.9, '#8a7658');
     };
-    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2; items.push({ a: c, b: CB + 2, z: 0, when: flats, draw: () => door(c, 56) }); }
+    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2; items.push({ a: c, b: CB + 60, z: 0, when: flats, draw: () => door(c, 56) }); }
     for(const f of FL) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
-      items.push({ a: c + 1, b: CB + 3, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
+      items.push({ a: c + 1, b: CB + 61, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
     });
-    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
+    for(const a of [310, 1342]) items.push({ a, b: CB + 59, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
     /* a bench and a plant in the lift lobby, against its side walls, clear of the cars' lanes */
     items.push({ a: LOB[0] + 24, b: 230, z: 0, when: flats, solids: on(FL, LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench'), draw: () => {
       for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 34, '#c9ced2', '#a9b0b5', '#8f969b');
