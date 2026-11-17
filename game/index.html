@@ -44656,6 +44656,19 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'racer:bolt', build: 'racer', name: 'Thunderbolt', cents: 900, body: 0x1f4fa8, stripe: 0xd8261c, noStripe: true, print: 'rcBolt', trim: { rim: 'steelie', rimCol: 0xffd34a } },
   { id: 'racer:indy', build: 'racer', name: 'Indy Dayglo', cents: 900, body: 0xf4f4f0, stripe: 0xff4a2a, noStripe: true, print: 'rcIndy', trim: { rim: 'ten', rimCol: 0x1d1f26 } },
   { id: 'racer:royal', build: 'racer', name: 'Indy Royal', cents: 900, body: 0x14276a, stripe: 0xffd34a, noStripe: true, print: 'rcRoyal', trim: { rim: 'split', rimCol: 0xffd34a } },
+  { id: 'racer:gulf', build: 'racer', name: 'Powder Blue', cents: 900, body: 0x8fc4e8, stripe: 0xff8a2a, noStripe: true, print: 'rcGulf', trim: { rim: 'mag', rimCol: 0xd9dde2 } },
+  { id: 'racer:martini', build: 'racer', name: 'Tricolore', cents: 900, body: 0xf4f4f0, stripe: 0x14276a, noStripe: true, print: 'rcMartini', trim: { rim: 'ten', rimCol: 0xd9dde2 } },
+  { id: 'racer:silver', build: 'racer', name: 'Silver Arrow', cents: 900, body: 0xc9ced4, stripe: 0x8d959c, noStripe: true, print: 'rcSilver', trim: { rim: 'wire', rimCol: 0xe8ecf0 } },
+  { id: 'racer:rosso', build: 'racer', name: 'Rosso', cents: 900, body: 0xc8101a, stripe: 0xffd34a, noStripe: true, print: 'rcRosso', trim: { rim: 'star', rimCol: 0xd9dde2 } },
+  { id: 'racer:brg', build: 'racer', name: 'Racing Green', cents: 900, body: 0x0d4a2a, stripe: 0xffd34a, noStripe: true, print: 'rcBRG', trim: { rim: 'wire', rimCol: 0xd9dde2 } },
+  { id: 'racer:moon', build: 'racer', name: 'Moonshine Runner', cents: 900, body: 0x1f3a6a, stripe: 0xc9ccc4, noStripe: true, print: 'rcMoon', trim: { rim: 'steelie', rimCol: 0xc9ccc4 } },
+  { id: 'racer:victory', build: 'racer', name: 'Victory Lane', cents: 900, body: 0xd9b04a, stripe: 0x16171b, noStripe: true, print: 'rcVictory', trim: { rim: 'turbine', rimCol: 0xffd34a } },
+  { id: 'racer:rally', build: 'racer', name: 'Rally', cents: 900, body: 0xf4f4f0, stripe: 0xc8202a, noStripe: true, print: 'rcRally', racerPart: 'rallypod', trim: { rim: 'split', rimCol: 0xd9dde2 } },
+  { id: 'racer:lemans', build: 'racer', name: 'Le Mans Night', cents: 900, body: 0x16171b, stripe: 0x9dff4a, noStripe: true, print: 'rcLeMans', eye: 0x9dff4a, trim: { rim: 'disc', rimCol: 0x9dff4a } },
+  { id: 'racer:shark', build: 'racer', name: 'Shark Nose', cents: 900, body: 0x6b7c8e, stripe: 0x6b7c8e, noStripe: true, print: 'rcShark', trim: { rim: 'split', rimCol: 0xe8ecf0 } },
+  { id: 'racer:flame', build: 'racer', name: 'Flame Job', cents: 900, body: 0x16171b, stripe: 0xff6a1a, noStripe: true, print: 'crFlames', trim: { rim: 'mag', rimCol: 0xd9dde2 } },
+  { id: 'racer:police', build: 'racer', name: 'Interceptor', cents: 900, body: 0x16171b, stripe: 0xf4f4f0, noStripe: true, print: 'rcPolice', racerPart: 'policebar', trim: { rim: 'steelie', rimCol: 0x16171b } },
+  { id: 'racer:bubble', build: 'racer', name: 'Bubblegum', cents: 900, body: 0xff8ac8, stripe: 0xf4f4f0, noStripe: true, print: 'rcBubble', trim: { rim: 'flower', rimCol: 0xf4f4f0 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -123353,6 +123366,7 @@ class WorldScene extends Phaser.Scene {
     if(tank && !frontSeen) this.tankKit(bobZ, false);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
     if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing toward the eye: over his lid)
+    if(racer && BODY._bskin && BODY._bskin.racerPart) this.racerKit(bobZ, BP, 'roof', tpz);   // (a skin's roof piece: the rally lamps, the police bar)
     if(buggy) this.buggyKit(bobZ, frontSeen, 'near');
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'near');
     if(tank && frontSeen) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret)
@@ -127979,6 +127993,13 @@ class WorldScene extends Phaser.Scene {
           g.lineStyle(Math.max(1, 0.7*this.kScale()), _pdk(cD, 0.8), 1); const A = at(0.1, 0), B = at(0.95, 0); g.lineBetween(A.x, A.y, B.x, B.y); } }
       plate(ns*w);
       { const pts = sec.map(([x, z]) => P(x, ns*(w + 0.05), z)); this.quadOn(g, pts, cS); g.lineStyle(Math.max(1, 0.9*this.kScale()), OL, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true); } };   // (the blade's section, seen through the near plate's face: it reads as a wing end-on)
+    if(part === 'roof'){ const RP = BODY._bskin.racerPart, xc = (LID.ox || 0), zr = (tpz ? tpz(xc, LID.z1 + bobZ) : LID.z1 + bobZ) - bobZ, t = this.time ? this.time.now : 0;
+      const bx = (hx, hy, ox, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0.6, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
+      if(RP === 'policebar'){ bx(2, LID.hy - 2, xc, zr - 0.3, zr + 2.2, [0x3a3d45, 0x2e3138, 0x23262c]); const on = Math.floor(t/220) % 2;
+        for(const [y0, y1, c, lit] of [[-(LID.hy - 2.5), -1, 0xd8202e, on], [1, LID.hy - 2.5, 0x2a5ad8, !on]]){ const z0 = zr + 2.2, z1 = zr + 4;
+          this.drawHullPrism({ hx: 1.6, hy: (y1 - y0)/2, ox: xc, oy: (y0 + y1)/2, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0.4, cTop: lit ? _pmix(c, 0xffffff, 0.45) : c, cLt: lit ? _pmix(c, 0xffffff, 0.3) : _pdk(c, 0.8), cDk: _pdk(c, 0.7), cBottom: _pdk(c, 0.6), outline: false, topEdge: false }); } }
+      if(RP === 'rallypod'){ const xp = xc + LID.hx - 1.5; bx(1.2, LID.hy - 3, xp, zr - 0.2, zr + 3.4, [0x2a2d33, 0x23262c, 0x16171b]);
+        if(vis(1, 0, 0)) for(const y of [-7.5, -2.5, 2.5, 7.5]){ const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(xp + 1.25, y + Math.cos(a)*2, zr + 1.6 + Math.sin(a)*1.6)); } this.quadOn(g, o, 0xfff2c4); } } }
     if(part === 'nose'){   /* THE NOSE WING: a low blade across his nose and out past his sides on two pylons from under it */
       const x0 = BODY.hx + 1, x1 = BODY.hx + 11, z = BODY.z0 - 1, w = BODY.hy + 5;
       wing([[x1, z], [x0, z + 2.2], [x0, z + 3.4], [x1 - 1, z + 1.4]], w, () => { for(const y of [-6, 6]) quad([[BODY.hx - 3, y, BODY.z0 + 1.5], [x0 + 3, y, z + 2.2], [x0 + 3, y, z + 1], [BODY.hx - 3, y, BODY.z0]], 0x2e3138); }, [1.15, 1.35, 0.3]); }
@@ -132975,6 +132996,53 @@ const _prDigitsTop = (L, text, NC) => {   /* (straight on his paint, no white pa
   [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const sg of DG[ch] || ''){ const [x0, y0, x1, y1] = SEG[sg]; L.top.push({ c: NC || BK, pts: _prRect(-(g0 + x1*gw), -gh/2 + y0*gh, -(g0 + x0*gw), -gh/2 + y1*gh) }); } }); };
 const HULL_PRINTS = {
   /* THE RACER'S SKINS (Sir, 2026-11-16: "speed racer, nascar and indycar type styles"): a 60s cartoon racer, two stock cars, two open-wheelers */
+  /* (the second series -- Sir, 2026-11-17: "let's do all of these") */
+  rcGulf: { id: 'rcGulf', seed: 0x9a, build(L){ if(L.part === 'lid') return; const OR = [0xd8641a, 0xff8a2a], NV = [0x14276a, 0x1f3a8a];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: NV, pts: _prRect(a - 1, L.H*0.33, b + 1, L.H*0.38) }, { c: OR, pts: _prRect(a - 1, L.H*0.38, b + 1, L.H*0.72) }, { c: NV, pts: _prRect(a - 1, L.H*0.72, b + 1, L.H*0.77) }); }
+      L.top.push({ c: OR, pts: _prRect(L.x0 - 1, -4, L.x1 + 1, 4) }); } },
+  rcMartini: { id: 'rcMartini', seed: 0x3a, build(L){ const LB = [0x4a8ad8, 0x6aaaf0], DB = [0x14276a, 0x1f3a8a], RD = [0xa81a14, 0xd8261c];
+      if(L.part === 'lid'){ [[-3.6, LB], [-1.2, DB], [1.2, RD]].forEach(([y, c]) => L.top.push({ c, pts: _prRect(-40, y, 40, y + 2) })); return; }
+      for(const k of [2, 6]){ const [a, b] = L.face(k), dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, len = b - a, H = L.H;
+        [[0.66, LB], [0.56, DB], [0.46, RD]].forEach(([h, c], i) => L.side.push({ c, pts: [[X(-1), H*h], [X(len*0.55), H*h], [X(len + 1), H*(h - 0.32)], [X(len + 1), H*(h - 0.25)], [X(len*0.55), H*(h + 0.08)], [X(-1), H*(h + 0.08)]] })); }
+      [[-3.6, LB], [-1.2, DB], [1.2, RD]].forEach(([y, c]) => L.top.push({ c, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 2) })); } },
+  rcSilver: { id: 'rcSilver', seed: 0x8, build(L){ if(L.part === 'lid') return; const WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, h = L.H*0.55, r = L.H*0.33, o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r*1.1, h + Math.sin(q)*r]); }
+        L.side.push({ c: WH, pts: o }); _prDigits(L, L.side, k, 0.5, h - r*0.6, r*1.2, '8', BK, -1); } } },
+  rcRosso: { id: 'rcRosso', seed: 0x27, build(L){ if(L.part === 'lid') return; const YE = [0xd8a41a, 0xffd34a], WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, h = L.H*0.55, r = L.H*0.33, o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r*1.1, h + Math.sin(q)*r]); }
+        L.side.push({ c: WH, pts: o }); _prDigits(L, L.side, k, 0.5, h - r*0.6, r*1.2, '3', BK, -1); }
+      L.top.push({ c: YE, pts: [[L.x1 - 2, -4], [L.x1 - 2, 4], [L.x1 - 7, 4], [L.x1 - 10, 0], [L.x1 - 7, -4]] }); } },
+  rcBRG: { id: 'rcBRG', seed: 0x6, build(L){ if(L.part === 'lid') return; const YE = [0xd8a41a, 0xffd34a], WH = [0xd9dde2, 0xffffff], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, h = L.H*0.55, r = L.H*0.33, o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r*1.1, h + Math.sin(q)*r]); }
+        L.side.push({ c: WH, pts: o }); _prDigits(L, L.side, k, 0.5, h - r*0.6, r*1.2, '6', BK, -1); }
+      L.side.push({ c: YE, pts: _prRect(L.face(0)[0] - 1, -1, L.face(0)[1] + 1, L.H + 1) }); L.top.push({ c: YE, pts: _prRect(L.x1 - 6, L.y0 - 1, L.x1 + 1, L.y1 + 1) }); } },
+  rcMoon: { id: 'rcMoon', seed: 0x11, build(L){ if(L.part === 'lid') return; const WH = [0xc9ccc4, 0xeeede6], MUD = [0x5a4428, 0x7a5c38];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); _prDigits(L, L.side, k, 0.5, L.H*0.3, L.H*0.55, '11', WH, -1);
+        for(let i = 0; i < 9; i++) L.side.push({ c: MUD, pts: L.blob(a + L.rng()*(b - a), 1 + L.rng()*3.5, 1.2 + L.rng()*1.6, 1.4) }); } } },
+  rcVictory: { id: 'rcVictory', seed: 0x1, build(L){ const BK = [0x16171b, 0x2a2d33], WH = [0xe8e8e2, 0xffffff];
+      if(L.part === 'lid'){ const q = 3; let r = 0; for(let x = L.x0; x < L.x1 - 0.1; x += q, r++) for(let y = L.y0, c2 = r; y < L.y1 - 0.1; y += q, c2++) L.top.push({ c: c2 % 2 ? BK : WH, pts: _prRect(x, y, Math.min(L.x1, x + q), Math.min(L.y1, y + q)) }); return; }
+      for(const k of [2, 6]) _prDigits(L, L.side, k, 0.5, L.H*0.28, L.H*0.55, '1', BK, -1); } },
+  rcRally: { id: 'rcRally', seed: 0x7a11, build(L){ if(L.part === 'lid') return; const C = [[[0xc8202a, 0xe8323a]], [[0x1f4fa8, 0x3a6ad8]], [[0xd8a41a, 0xffd34a]], [[0x16171b, 0x2a2d33]]], MUD = [0x5a4428, 0x7a5c38], BK = [0x16171b, 0x2a2d33];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 4; i++){ const x = a + len*(0.12 + i*0.2); L.side.push({ c: C[i][0], pts: _prRect(x, L.H*0.62, x + len*0.15, L.H*0.86) }); }
+        _prDigits(L, L.side, k, 0.5, L.H*0.25, L.H*0.3, '57', BK, -1);
+        for(let i = 0; i < 12; i++){ const u = L.rng(); L.side.push({ c: MUD, pts: L.blob(a + (u < 0.5 ? u*0.4 : 0.6 + (u - 0.5)*0.8)*len, 0.5 + L.rng()*3, 1 + L.rng()*1.4, 1.5) }); } } } },
+  rcLeMans: { id: 'rcLeMans', seed: 0x24, build(L){ if(L.part === 'lid') return; const NG = [0x7adf2a, 0x9dff4a], BK = [0x0e0f12, 0x16171b];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, w = (b - a)*0.16;
+        L.side.push({ c: NG, pts: _prRect(a - 1, L.H - 1.4, b + 1, L.H - 0.4) }, { c: NG, pts: _prRect(a - 1, 0.6, b + 1, 1.5) }, { c: NG, pts: _prRect(m - w, L.H*0.22, m + w, L.H*0.8) });
+        _prDigits(L, L.side, k, 0.5, L.H*0.3, L.H*0.42, '24', BK, -1); } } },
+  rcShark: { id: 'rcShark', seed: 0x5a, build(L){ if(L.part === 'lid') return; const BEL = [0xc9ced4, 0xf2f3f1], GILL = [0x2f3d4a, 0x3d4f60], TW = [0xe8ecf0, 0xffffff], MO = [0x4a1016, 0x6a1820];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d;
+        L.side.push({ c: BEL, pts: _prRect(a - 1, -1, b + 1, L.H*0.3) });
+        for(let g2 = 0; g2 < 3; g2++){ const d = 8 + g2*2.6; L.side.push({ c: GILL, pts: [[X(d), L.H*0.42], [X(d + 0.9), L.H*0.44], [X(d + 1.6), L.H*0.6], [X(d + 0.9), L.H*0.78], [X(d), L.H*0.8], [X(d + 0.6), L.H*0.6]] }); } }
+      const [a, b] = L.face(0), n = 7, w = (b - a)/n; L.side.push({ c: MO, pts: _prRect(a + 0.4, 0.4, b - 0.4, L.H*0.55) });
+      for(let i = 0; i < n; i++){ const s0 = a + i*w; L.side.push({ c: TW, pts: [[s0, L.H*0.55], [s0 + w, L.H*0.55], [s0 + w/2, L.H*0.28]] }); } } },
+  rcPolice: { id: 'rcPolice', seed: 0x9011, build(L){ if(L.part === 'lid') return; const WH = [0xd9dde2, 0xffffff], GD = [0xb88a1c, 0xe8b830];
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.5, w = (b - a)*0.26; L.side.push({ c: WH, pts: _prRect(m - w, -1, m + w, L.H + 1) });
+        const st = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? 1.3 : 3; st.push([m + Math.cos(q)*rr, L.H*0.55 - Math.sin(q)*rr]); } L.side.push({ c: GD, pts: st }); } } },
+  rcBubble: { id: 'rcBubble', seed: 0x9b, build(L){ if(L.part === 'lid') return; const WH = [0xf0e4ea, 0xffffff], CH = [0xa8101e, 0xd8202e];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); for(let x = a - L.H; x < b; x += 7) L.side.push({ c: WH, pts: [[x, -1], [x + 2.6, -1], [x + 2.6 + L.H + 2, L.H + 1], [x + L.H + 2, L.H + 1]] });
+        const m = a + (b - a)*0.5, o = []; for(let i = 0; i < 18; i++){ const q = i/18*Math.PI*2; o.push([m + Math.cos(q)*L.H*0.36, L.H*0.52 + Math.sin(q)*L.H*0.32]); } L.side.push({ col: 0xffffff, pts: o });
+        _prDigits(L, L.side, k, 0.5, L.H*0.3, L.H*0.44, '9', CH, -1); } } },
   rcGo: { id: 'rcGo', seed: 0x60, build(L){ if(L.part === 'lid') return;
       const RD = [0xa81a14, 0xd8261c], WH = [0xd9dde2, 0xffffff];
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = a + (b - a)*0.42, h = L.H*0.62, r = L.H*0.34, ring = r2 => { const o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push([m + Math.cos(q)*r2*1.15, h + Math.sin(q)*r2]); } return o; };
