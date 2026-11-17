@@ -129819,13 +129819,17 @@ class WorldScene extends Phaser.Scene {
          parcels inside, a light strip chasing round its waist */
       for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, 1), q2 = P(a, b, zl + 10); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.25); g.fillEllipse(q.x, q.y, 34*K*2.4/2.4, 17*K); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.18);
         g.fillTriangle(q2.x - 6*K, q2.y, q2.x + 6*K, q2.y, q.x, q.y); g.fillStyle(0xc8ffff, 0.75); g.fillEllipse(q2.x, q2.y, 12*K, 6*K); }
-      hull({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 });
+      /* (all glass -- Sir, 2026-11-17: "everything that see-through glass"): its body glass tinted with its paint, parcels stacked inside; its
+         lid the body's own size, flush on it, glass too */
+      const GT = c => _pmix(c, 0xb8e8f8, 0.55), gl = { cTop: GT(BPW.top), cLt: GT(BPW.lt), cDk: GT(BPW.dk), cBottom: GT(BPW.dk), print: null, alpha: 0.55 };
+      for(const [a, b, h, c] of [[-28, -14, 0, 0xc89a5a], [-28, 10, 0, 0xb08048], [-8, -12, 0, 0xd8a868], [-8, 12, 0, 0xc89a5a], [14, -2, 0, 0xb08048], [-20, -2, 14, 0xd8a868], [2, 4, 14, 0xc89a5a]]) box(a - 8, a + 8, b - 8, b + 8, zl + 16 + h, zl + 29 + h, c);   // (parcels inside)
+      hull(Object.assign({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 }, gl));
       hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
       if(!front){ const q = P(-50, 0, zl + 36); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.4); g.fillCircle(q.x, q.y, 9*K*2.4/2.4*2); g.fillStyle(0xc8ffff, 0.9); g.fillCircle(q.x, q.y, 4*K*2); }   // (its thruster, seen from behind)
       { const N2 = 20, ph = Math.floor(t/90); for(let i = 0; i < N2; i++){ const a = i/N2*Math.PI*2, ca = Math.cos(a), sa = Math.sin(a); if(!sees(ca, sa, 0)) continue; const k = Math.min(50/Math.max(Math.abs(ca), 0.01), 32/Math.max(Math.abs(sa), 0.01))*0.92, q = P(ca*k, sa*k, zl + 31.5);
         g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : _pmix(A.n2 || A.glow || 0x5fe8ff, 0xffffff, 0.4), 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
-      for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
-      hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
+      for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [8, -8, 0xd8a868]]) box(a - 6, a + 6, b - 6, b + 6, zl + 61, zl + 71, c);   // (parcels in the lid)
+      hull({ hx: 50, hy: 32, z0: zl + 60, z1: zl + 76, ch: 22, bev: 10, bevIn: 9, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.5 });
       this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); propNow(); return; }
     if(era !== 'cg1980') shadow(50, 34);   // (the 1980s van's underglow is its shadow -- Sir, 2026-11-17)
     if(era === 'cg1900'){
@@ -129933,7 +129937,7 @@ class WorldScene extends Phaser.Scene {
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
     const ball = (a, b, z, r, col) => { const q = P(a, b, z), rr = sr(a, b, z, r); g.fillStyle(_pdk(col, 0.55), 1); g.fillCircle(q.x, q.y, rr*1.08); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(_pmix(col, 0xffffff, 0.45), 1); g.fillCircle(q.x - rr*0.35, q.y - rr*0.35, rr*0.32); };
     const lathe = (a, b, rings, col) => this.avLathe(V, a, b, rings, col, null, 12);
-    const roof = { cg1900: [-8, 92], cg1920: [-16, 100], cg1950: [-4, 100], cg1970: [-6, 110], cg1980: [-34, 92], cg2100: [-10, zl + 82] }[era] || [0, 100];
+    const roof = { cg1900: [-8, 92], cg1920: [-16, 100], cg1950: [-4, 100], cg1970: [-6, 110], cg1980: [-34, 92], cg2100: [-10, zl + 76] }[era] || [0, 100];
     const [ra, rz] = roof;
     if(prop === 'mail'){ for(const b of [-9, 9]){ ball(38, b, 76, 6, 0xb8aa88); line([38, b, 81], [38, b, 84], 0x6a5a3a, 1.6); }   // (mail sacks on the bench)
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(-8, sb*31.5, 80), rr = sr(-8, sb*31.5, 80, 6); g.lineStyle(Math.max(1, 1.6*K), 0xd8b04a, 1); g.strokeCircle(q.x, q.y, rr); const q2 = P(-1, sb*31.5, 80); g.fillStyle(0xd8b04a, 1); g.fillTriangle(q2.x, q2.y - rr*0.6, q2.x, q2.y + rr*0.6, q2.x + (q2.x - q.x)*0.6, q2.y); } return; }   // (a post horn each side)
