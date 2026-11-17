@@ -43321,7 +43321,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', lid: { z1: 46, ch: 8, bev: 8.5, bevIn: 7.5, ox: 16 } /* (worn forward, as a hat -- Sir, 2026-11-17) (a fire helmet's crown -- Sir, 2026-11-17) */, trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'none', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
   { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'none', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'none', lb: 'strip', lbLow: true, lamp: 0xff3a2a /* (lowered, red -- Sir, 2026-11-17) */, rim: 'tri', rimCol: 0xe89a1a } },
-  { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', part: 'ice', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'none', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
+  { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', part: 'ice', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'stack', lb: 'bar', lbBumper: true /* (twin stacks, the light bar on the front bumper -- Sir, 2026-11-17) */, lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
   { id: 'monster:alien', build: 'monster', name: 'Alien Invader', cents: 900, body: 0x8ad83a, stripe: 0x6b3fa0, print: 'mtAlien', part: 'antennae', eye: 0xff4ad8, trim: { coil: 0x6b3fa0, bumper: 0x6b3fa0, bar: 0x3a1f5a, stack: 0xc9ced4, heat: 0x6b3fa0, exh: 'none', lb: 'strip', lamp: 0xc8ff6a, rim: 'mesh', rimCol: 0x6b3fa0 } },
   { id: 'monster:pirate', build: 'monster', name: 'Pirate Ship', cents: 900, body: 0x8a5a2a, stripe: 0x8a5a2a, noStripe: true, print: 'mtPirate', part: 'mast', flag: { kind: 'pirate' }, trim: { coil: 0xd8b04a, bumper: 0x4a2e14, bar: 0x4a2e14, stack: 0xd8b04a, heat: 0x4a2e14, exh: 'none', lb: 'cage', lamp: 0xffd34a, rim: 'wagon', rimCol: 0xd8b04a } },
   /* THE UFO's skins (Sir, 2026-11-16): the flying saucers of the films and the comics -- each its hull, its band, its rim lights and beam */
@@ -127328,14 +127328,15 @@ class WorldScene extends Phaser.Scene {
       if(lbLowBack && part === 'mid') lightBar.call(this);
       if(longLid){ if(part === 'mid') stacks('far'); if(part === 'near') stacks('near'); }   // (beside his cab: the far one under it, the near over it)
       if(part === 'mid' && frontSeen && !longLid) stacks();
-      if(part === 'near'){ if(!frontSeen && !longLid) stacks(); if(!lbLowBack) lightBar.call(this); }
+      if(part === 'near'){ if(!frontSeen && !longLid) stacks(); if(!lbLowBack && (!TR.lbBumper || frontSeen)) lightBar.call(this); }
+      if(part === 'pre' && TR.lbBumper && !frontSeen) lightBar.call(this);   // (on his front bumper, behind him from the back)
       function lightBar(){ if(TR.lb === 'none') return;   // (none: the Fire Rescue's beacons stand in for it -- Sir, 2026-11-17)
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
            two big round pods up on stalks; 'cage' five lamps behind a grille */
         const LB = TR.lb || 'bar', LAMP = TR.lamp != null ? TR.lamp : 0xffe9a8, night = this.isNightLit && this.isNightLit(), K2 = K;
-        const LOW = !!TR.lbLow, lx = LID.hx + (LID.ox || 0) - (LOW ? 1.4 : 3), zr = LOW ? LID.z1 - 6 : LID.z1, zb = LOW ? zr : zr + 2,   /* (lbLow: set down onto the cab's face -- Sir, 2026-11-16) */ zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
+        const LOW = !!TR.lbLow || !!TR.lbBumper, BMP = !!TR.lbBumper, lx = BMP ? BODY.hx + 1.4 : LID.hx + (LID.ox || 0) - (LOW ? 1.4 : 3), zr = BMP ? BODY.z0 + 5 : LOW ? LID.z1 - 6 : LID.z1, zb = LOW ? zr : zr + 2,   /* (lbBumper: sat on his front bumper -- Sir, 2026-11-17) */   /* (lbLow: set down onto the cab's face -- Sir, 2026-11-16) */ zt = zb + (LB === 'strip' ? 2.6 : 4.6), zc = (zb + zt)/2, fx = lx + 2.25;
         const disc = (x, y, z, r, col) => { const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(P(x, y + Math.cos(a)*r, z + Math.sin(a)*r)); } this.quadOn(g, o, col); };
         const glow = ys => { if(!night) return; const gl = this.gBotGlow || this.gGlowLo; if(gl) for(const y of ys){ const q = P(fx + 2, y, zc); gl.fillStyle(LAMP, 0.22); gl.fillCircle(q.x, q.y, 6*K2); } };
         if(LB === 'pods'){ for(const y of [-(LID.hy - 4), LID.hy - 4]){ box(0.6, 0.6, lx - 1, y, zr, zr + 3.5, DARK, 0.2);
@@ -127495,9 +127496,9 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0xd8f4ff, 0.95); g.fillPoints([bm, t, m1, b1].map(q => new Phaser.Geom.Point(q.x, q.y)), true);
       g.lineStyle(Math.max(1, 0.8*K), 0x4a7aa0, 1); g.strokePoints([b0, m0, t, m1, b1].map(q => new Phaser.Geom.Point(q.x, q.y)), false);
       g.lineStyle(Math.max(1, 0.7*K), 0xffffff, 0.9); g.lineBetween(bm.x, bm.y, t.x, t.y); } }
-  monsterPlow(P, K, vis, nearSide){ const g = this.g, fx = BODY.hx + 5, z0 = BODY.z0 - 5, yw = BODY.hy + 3;
-    for(const sb of [-1, 1]){ const A = P(BODY.hx - 1, sb*(BODY.hy - 6), BODY.z0 + 1), B = P(fx, sb*(BODY.hy - 6), z0 + 4); g.lineStyle(Math.max(1, 2.6*K), 0x2e3f50, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its push arms)
-    const prof = [[0, 0], [1.4, 3.5], [1.8, 7], [1.2, 10.5], [-0.8, 13.5], [-3.6, 15]], N = 8, Q = (i, j) => P(fx - prof[j][0] + (i/N - 0.5)*2*0.6 * 0, (i/N - 0.5)*2*yw, z0 + prof[j][1]);   // (a curved blade, its top curling forward)
+  monsterPlow(P, K, vis, nearSide){ const g = this.g, fx = BODY.hx + 6, z0 = BODY.z0 - 10, yw = BODY.hy + 3;   // (low, under the bumper's light bar)
+    for(const sb of [-1, 1]){ const A = P(BODY.hx - 1, sb*(BODY.hy - 6), BODY.z0 - 1), B = P(fx, sb*(BODY.hy - 6), z0 + 4); g.lineStyle(Math.max(1, 2.6*K), 0x2e3f50, 1); g.lineBetween(A.x, A.y, B.x, B.y); }   // (its push arms)
+    const prof = [[0, 0], [1, 2.2], [1.2, 4.4], [0.8, 6.6], [-0.6, 8.4], [-2.4, 9.4]], N = 8, Q = (i, j) => P(fx - prof[j][0] + (i/N - 0.5)*2*0.6 * 0, (i/N - 0.5)*2*yw, z0 + prof[j][1]);   // (a curved blade, its top curling forward)
     for(let j = 0; j < prof.length - 1; j++){ const nz = prof[j + 1][1] - prof[j][1], nx = -(prof[j + 1][0] - prof[j][0]), lit = vis(nz, 0, -nx);
       for(let i = 0; i < N; i++) this.quadOn(g, [Q(i, j), Q(i + 1, j), Q(i + 1, j + 1), Q(i, j + 1)], lit ? (j < 2 ? 0xa8d4ec : 0xd8f0fc) : 0x5a8ab0); }
     { const a = P(fx, -yw, z0 + 0.4), b = P(fx, yw, z0 + 0.4); g.lineStyle(Math.max(1, 1.8*K), 0x2e3f50, 1); g.lineBetween(a.x, a.y, b.x, b.y); }   // (its cutting edge)
