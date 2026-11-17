@@ -28793,7 +28793,7 @@ const PG_MECH_UNIFORM = { shirt: { c:0x3c7fa0, dk:0x2c6280 }, pants: { c:0x2f3a4
   cap: { c:0x2f3a44, dk:0x222a32, top:0x3a4652, badge:0xe6e1d6 }, shoeKind: 'boot' };       // the garage's sea-blue shirt, dark work trousers
 walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, U: PG_MECH_UNIFORM, keys: true,
-    posts: [[92, 246, -Math.PI/2, 9000, true], [150, 196, Math.PI, 4200, true], [30, 120, 0, 3600, true]] },
+    posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
   { id: 'mechanic-2', role: 'mechanic', seed: 0x6a02, U: PG_MECH_UNIFORM,
     posts: [[384, 66, -Math.PI/2, 8000, true], [372, 196, 1.1, 4800, true]] },
 ]);
@@ -55141,37 +55141,23 @@ function houseCanopy(fn){
       },
       low: [wall, trim, trimD], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
 
-    /* ---- BAY 1: THE TWO-POST LIFT and the hatchback up on it, nose in (it came in through the bay, now shut behind it). Its posts
-       either side, a beam over; the car's arms under its sills. Along b, in runs (W28) ---- */
-    { const ca = (B1[0] + B1[1])/2 + 4, cw = 33, CB0 = 64, CB1 = 214, CZ = 82, body = '#d0603f', bodyD = '#a84c31', bodyS = '#8e3f29';
-      const glass = '#3e5866', glassL = '#6f8e9c';
-      const postA = [ca - cw - 22, ca + cw + 22], PB = [128, 152];
-      runPiece(items, ca - cw - 30, ca + cw + 30, CB0, CB1, 260, (s0, s1) => {
-        const out = [];
-        if(s0 < PB[1] && s1 > PB[0]) for(const pa of postA) out.push(solid(pa - 9, pa + 9, Math.max(s0, PB[0]), Math.min(s1, PB[1]), 240, 'lift post'));
-        out.push(solid(ca - cw, ca + cw, s0, s1, CZ + 60, 'car on the lift'));
-        return out; }, () => {
-        /* the posts (the far one first) and their arms out under the sills */
-        const post = pa => { box(pa - 9, pa + 9, PB[0], PB[1], 0, 236, steel, steelD, steelS); box(pa - 12, pa + 12, PB[0] - 4, PB[1] + 4, 0, 6, steelD, steelS, steelS);
-          F(pa - 3, pa + 3, 20, 230, '#e2b23c', null, 0, PB[1] + 0.3); };
+    /* ---- BAY 1: THE TWO-POST LIFT and a hatchback up on it, nose in -- THE GAME'S OWN CAR (drawCar, the piece's fx.car: Sir, 2026-11-17,
+       "we want to use our own car art"), 225 x 90. Its posts either side, each its own piece (the far one behind the car, the near one and
+       the beam over in front of it); the arms out under its sills go with the far post ---- */
+    { const ca = 84, cw = 45, CB0 = 20, CB1 = 245, CM = (CB0 + CB1)/2, CZ = 78;
+      const postA = [ca - cw - 20, ca + cw + 20], PB = [CM - 12, CM + 12];
+      const post = pa => { box(pa - 9, pa + 9, PB[0], PB[1], 0, 236, steel, steelD, steelS); box(pa - 12, pa + 12, PB[0] - 4, PB[1] + 4, 0, 6, steelD, steelS, steelS);
+        F(pa - 3, pa + 3, 20, 230, '#e2b23c', null, 0, PB[1] + 0.3); };
+      items.push({ a: postA[0], b: PB[1], z: 0, solids: [solid(postA[0] - 9, postA[0] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => {
         post(postA[0]);
-        for(const ab of [CB0 + 30, CB1 - 30]){ tube(postA[0], (PB[0] + PB[1])/2, CZ - 4, ca - cw + 6, ab, CZ - 4, 3, steelD); tube(postA[1], (PB[0] + PB[1])/2, CZ - 4, ca + cw - 6, ab, CZ - 4, 3, steelD); }
-        /* the car: its wheels hanging, the body, the cabin and its glass, the tail and its lamps (to the camera: the tail is south) */
-        for(const wb of [CB0 + 28, CB1 - 30]) for(const wa of [ca - cw + 2, ca + cw - 12]) box(wa, wa + 10, wb - 15, wb + 15, CZ - 6, CZ + 22, tyre, '#1e2024', '#18191c');
-        box(ca - cw, ca + cw, CB0, CB1, CZ + 6, CZ + 34, body, bodyD, bodyS);
-        box(ca - cw + 3, ca + cw - 3, CB0 + 40, CB1 - 14, CZ + 34, CZ + 60, glass, glassL, glass);
-        box(ca - cw + 4, ca + cw - 4, CB0 + 46, CB1 - 18, CZ + 60, CZ + 63, body, bodyD, bodyS);           // its roof
-        F(ca - cw + 6, ca + cw - 6, CZ + 38, CZ + 56, glassL, null, 0, CB1 - 13.6);                         // the rear screen
-        F(ca - cw + 3, ca - cw + 13, CZ + 22, CZ + 30, '#e85a4a', null, 0, CB1 + 0.3); F(ca + cw - 13, ca + cw - 3, CZ + 22, CZ + 30, '#e85a4a', null, 0, CB1 + 0.3);
-        F(ca - 12, ca + 12, CZ + 12, CZ + 20, '#f3efe6', null, 0, CB1 + 0.3);                                // its plate
-        box(ca - cw - 1, ca + cw + 1, CB1 - 4, CB1 + 2, CZ + 6, CZ + 14, '#3a3f44', '#2f3338', '#25292d');  // the bumper
+        for(const ab of [CB0 + 50, CB1 - 50]) for(const pa of postA) tube(pa, CM, CZ - 4, ca + Math.sign(pa - ca)*(cw - 14), ab, CZ - 4, 3, steelD); } });
+      items.push({ a: ca, b: CM, z: 0, solids: [solid(ca - cw, ca + cw, CB0, CB1, CZ + 90, 'car on the lift')], draw: () => {},
+        fx: { car: { kind: 'hatch', a: ca, b: CM, z: CZ, fdir: 1, seed: 0x6a5c } } });
+      items.push({ a: postA[1], b: PB[1], z: 0, solids: [solid(postA[1] - 9, postA[1] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => {
         post(postA[1]);
-        tube(postA[0], (PB[0] + PB[1])/2, 238, postA[1], (PB[0] + PB[1])/2, 238, 5, steelD);                // the beam over
-      }, { alongB: true, run: 50 });
-      /* a drain pan on wheels under the tail, and the stack of tyres off it by the west wall */
-      items.push({ a: ca, b: CB1 + 16, z: 0, solids: [{ name: 'drain pan', c: [ca, CB1 + 16], r: 16, h: 40 }], draw: () => {
-        box(ca - 16, ca + 16, CB1 + 4, CB1 + 28, 6, 34, '#e2b23c', '#c99a2c', '#b0861f'); box(ca - 4, ca + 4, CB1 + 12, CB1 + 20, 34, 44, dark, dark, dark); } });
-      items.push({ a: 26, b: 230, z: 0, solids: [{ name: 'tyres', c: [26, 230], r: 22, h: 60 }], draw: () => { for(let k = 0; k < 4; k++) cyl(26, 230, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
+        tube(postA[0], CM, 238, postA[1], CM, 238, 5, steelD); } });                                       // the beam over
+      /* the stack of tyres off it by the west wall */
+      items.push({ a: 18, b: 270, z: 0, solids: [{ name: 'tyres', c: [18, 270], r: 18, h: 60 }], draw: () => { for(let k = 0; k < 4; k++) cyl(18, 270, k*14, k*14 + 13, 18, '#2b2e32', tyre); } });
     }
 
     /* ---- THE TOOL CHESTS along the north wall's east end: red roll cabinets, their drawers, a top box ---- */
@@ -100716,6 +100702,11 @@ class WorldScene extends Phaser.Scene {
       if(it.fx && it.fx.kit){ const fx = it.fx, Gz = (a, b, h) => this.W(x0 + a, y0 + sb*b, h + (z0 || 0));
         vq.push({ depth: d + 1e-3, fn: (g, t) => { const st = fx.state ? fx.state() : null, dr = gg => LIB.drawItem(name, gg, Gz, K, { draw: () => fx.kit(t || this.time.now) });
           if(st != null) this.bcDraw(g, lk + "|fx|" + n + "|" + st, qx, qy, dr); else dr(g); } }); }
+      /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
+         hatchback up on its lift. Never a car drawn anew in a room's own kit: Sir, 2026-11-17, "we want to use our own car art") */
+      else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
+        vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|car|" + n, cx, cy, gg => { const sv = this._paintIdx; this._paintIdx = null;
+          try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, null, c.seed != null ? c.seed : null, null); } finally { this._paintIdx = sv; } }) }); }
       else if(it.fx) vq.push({ depth: d + 1e-3, fn: (g, t) => this.drawPieceFx(g, it.fx, x0, y0, sb, t || this.time.now) });
     });
     for(const it of held){
