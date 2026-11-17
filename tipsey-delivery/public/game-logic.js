@@ -43356,7 +43356,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     shape: { BODY: { hx: 21, hy: 17, z0: 22, z1: 36, ch: 8, bev: 4, bevIn: 3.5 }, LID: { hx: 14, hy: 13, z0: 36, z1: 50, ch: 8, bev: 8, bevIn: 7, ox: 1 },
       STRIPE: { z0: 26, z1: 29 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 60], zmap: z => 22 + (z - 14)*0.38, WHEELS: { r: 8, W2: 7, xs: [-14, 14], side: 23, style: 'mesh', tread: 'knobby' } } },
   /* (five more, to ten -- Sir, 2026-11-17) */
-  { id: 'rover:miner', build: 'rover', name: 'Moon Miner', cents: 1000, body: 0xf2c02e, stripe: 0x16171b, noStripe: true, print: 'rvMiner', noSolar: true, noDish: true, lidCol: [0x5d646c, 0x4a5057, 0x3b4048], roverPart: 'drill', mastFlag: true, eye: 0xffb02a, trim: { rimCol: 0x16171b } },
+  { id: 'rover:miner', build: 'rover', name: 'Moon Miner', cents: 1000, body: 0xf2c02e, stripe: 0x16171b, noStripe: true, print: 'rvMiner', noSolar: true, noDish: true, lidCol: [0x5d646c, 0x4a5057, 0x3b4048], roverPart: 'drill', noMouth: true, mastFlag: true, eye: 0xffb02a, trim: { rimCol: 0x16171b } },
   { id: 'rover:solar', build: 'rover', name: 'Solar Wings', cents: 1000, body: 0xd9a93c, stripe: 0x1f3a7a, print: 'rvApollo', noDish: true, roverPart: 'wings', ringFlag: false, eye: 0x7ad8ff, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:cheese', build: 'rover', name: 'Cheese Moon', cents: 1000, body: 0xf2c84a, stripe: 0xf2c84a, noStripe: true, print: 'rvCheese', noSolar: true, noDish: true, noFlag: true, lidCol: [0xf6d468, 0xe8c050, 0xc89a30], eye: 0x8a5a1a, trim: { rimCol: 0xe8a23a } },
   { id: 'rover:europa', build: 'rover', name: 'Europa Ice', cents: 1000, body: 0xe8f4fc, stripe: 0x5ab8e8, print: 'rvEuropa', noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
@@ -123148,7 +123148,8 @@ class WorldScene extends Phaser.Scene {
       /* stock Deadpan in a picked colour is drawn as the 'flat' shape (the
          bar's exact footprint) so it takes the colour and the glow */
       const _ms = MOUTH_SHAPES[SKIN.mouth || ((SKIN.mouthCol != null || SKIN.mouthGlow) ? 'flat' : '')];
-      if(_ms){
+      if(BODY._bskin && BODY._bskin.noMouth){ /* (no mouth light: the Moon Miner's is up on his lid -- Sir, 2026-11-17) */ }
+      else if(_ms){
         const st = { alert: Math.abs(this.tilt) > 0.6 || this.slide, stuck: this.stuckAmt > 0.4, driving };
         mouthPolys = this.state === "tipped" ? MOUTH_SHAPES._dizzy : (_ms.fn ? _ms.fn(t, st) : _ms.polys);
         const ink = SKIN.mouthGlow ? SKIN.eye : (SKIN.mouthCol != null ? SKIN.mouthCol : MOUTH_BAR);
@@ -127316,6 +127317,12 @@ class WorldScene extends Phaser.Scene {
         for(let k = 0; k < N; k++){ const tm = (th(k) + th(k + 1))/2, w = this.R(Math.cos(tm), 0, Math.sin(tm)); if(w.x + w.y + w.z <= 0) continue;
           this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], Math.sin(tm) > 0.85 ? SV[0] : SV[1]); }
         if(vis(0, sb, 0)){ g.lineStyle(Math.max(1, 1.4*K), 0x2ad8c8, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo), Bq = pt(k + 1, yo); g.lineBetween(A.x, A.y, Bq.x, Bq.y); } } } }
+    /* the Moon Miner's light array: a dark bar on his lid's front edge, four lamps across its face (his mouth light moved up off the drill) */
+    if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'drill' && part === 'near'){ const zt = LID.z1, x = LID.hx + (LID.ox || 0) - 3.5, night = this.isNightLit && this.isNightLit();
+      this.drawHullPrism({ hx: 2, hy: 12, ox: x, oy: 0, z0: zt + bobZ, z1: zt + 4.6 + bobZ, ch: 1.2, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x1c1e22, cBottom: 0x1c1e22, outline: true, topEdge: false });
+      if((w => w.x + w.y + w.z > 0)(this.R(1, 0, 0))) for(const y of [-8.4, -2.8, 2.8, 8.4]){ const q = P(x + 2.05, y, zt + 2.3), q2 = P(x + 2.05, y + 1.9, zt + 2.3), r = Math.abs(q2.x - q.x) + Math.abs(q2.y - q.y)*0.3 || 2*K;
+        g.fillStyle(0xc9ced4, 1); g.fillCircle(q.x, q.y, 2.3*K); g.fillStyle(night ? 0xfffbe6 : 0xfff3b0, 1); g.fillCircle(q.x, q.y, 1.7*K); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x - 0.5*K, q.y - 0.6*K, 0.5*K);
+        if(night){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xfff3b0, 0.22); gl.fillCircle(q.x, q.y, 6*K); } } } }
     if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'tug' && part === 'near'){ const on = Math.floor((this.time ? this.time.now : 0)/300) % 2, zt = LID.z1, ox = LID.ox || 0;   // (an orange beacon on his roof, flashing)
       this.drawHullPrism({ hx: 3.6, hy: 3.6, ox: ox - 6, oy: 0, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 0.8, cTop: 0x5d646c, cLt: 0x4a5057, cDk: 0x2e3138, cBottom: 0x2e3138, outline: false, topEdge: false });
       const q = P(ox - 6, 0, zt + 4.5); g.fillStyle(0x8a3a08, 1); g.fillCircle(q.x, q.y + 0.5*K, 5*K); g.fillStyle(on ? 0xffb03a : 0xe06a10, 1); g.fillCircle(q.x - 0.3*K, q.y - 0.3*K, 4.2*K); g.fillStyle(0xffffff, on ? 0.85 : 0.4); g.fillCircle(q.x - 1.5*K, q.y - 1.6*K, 1.3*K);
