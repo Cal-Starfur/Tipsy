@@ -43464,7 +43464,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040, prop: 'wings' } },
   { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
   /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
-  { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x262a34, stripe: 0x23262c, costume: 'penguin', noAerial: true },
+  { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x2e3340, head: 0x111216, stripe: 0x23262c, costume: 'penguin', noAerial: true },
   { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0xf3ead2, costume: 'pirate', noAerial: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
@@ -117807,7 +117807,7 @@ class WorldScene extends Phaser.Scene {
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
       const lidTop = sees(0, 0, 1);                                                                 // (Tipsey's lidNear)
       const drawLid = () => {
-        this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid')), LD);
+        this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid'), CS && CS.head ? { cTop: CS.head, cLt: _pdk(CS.head, 0.92), cDk: _pdk(CS.head, 0.8), print: null } : {}), LD);   // (a costume's head colour on his lid)
       };
       const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); if(WEAR && this.botTopper(g, V, -21, 0, zb + 47)) return; const tp = P(-21, 0, zb + 47); g.fillStyle(FLAGC, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
       const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
@@ -128081,16 +128081,17 @@ class WorldScene extends Phaser.Scene {
     const onFront = (pts, col, al) => { if(front) { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([b, zz]) => PT(P(hx + 0.4, b, zz))), true); } };
     const oval = (cb, cz, rb, rz, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const th = i/n*Math.PI*2; o.push([cb + Math.cos(th)*rb, cz + Math.sin(th)*rz]); } return o; };
     const brim = (zz, rr, col) => { const o = []; for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; o.push(PT(P(Math.cos(th)*rr, Math.sin(th)*rr*0.95, zz))); } g.fillStyle(_pdk(col, 0.7), 1); g.fillPoints(o.map(q => new Phaser.Geom.Point(q.x, q.y + 1.2*K*2.4)), true); g.fillStyle(col, 1); g.fillPoints(o, true); };
+    const band = (z0, z1, col) => this.botHull(g, x, y, z, fdir, { hx: hx + 0.7, hy: hy + 0.7, ch: 8, z0, z1, band: true, cLt: col, cDk: _pdk(col, 0.82) });
     if(c === 'penguin'){   /* (second pass -- Sir, 2026-11-17): a white face mask round his eyes over the belly, a bigger two-tone beak, real flippers
          off each shoulder (the far one behind him), orange feet out under his front */
       const flipper = sb => { const bb = sb*(hy + 0.4), S = [[8, 0, 90], [-4, 2, 86], [-14, 9, 52], [-9, 11, 42], [2, 6, 52], [8, 2, 76]].map(([a, o, zz]) => PT(P(a, bb + sb*o, zz)));
         g.fillStyle(0x16171b, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 1*K), 0x3a3d45, 1); g.strokePoints(S, true); };
-      if(st === 'back'){ flipper(-nearB); }   /* (no feet -- Sir, 2026-11-17) */
+      /* (no feet, no flippers -- Sir, 2026-11-17: his head painted a darker black instead) */
       /* (an EMPEROR penguin -- Sir, 2026-11-17): his head black, golden ear patches swept down each side of his neck, his upper chest a
          soft yellow fading into the white belly, a long black beak with an orange stripe down its lower edge */
       const ear = sb => { if(!sees(0, sb, 0)) return; const bb = sb*(hy + 0.5), E = [[19, 90], [11, 95], [4, 88], [6, 74], [14, 64], [20, 66]].map(([a, zz]) => PT(P(a, bb, zz)));
         g.fillStyle(0xe89a1a, 1); g.fillPoints(E, true); const E2 = [[17, 88], [11, 92], [6.5, 86], [8.5, 75], [14, 67], [18, 69]].map(([a, zz]) => PT(P(a, bb + sb*0.1, zz))); g.fillStyle(0xffcf4a, 1); g.fillPoints(E2, true); };
-      if(st === 'body'){ ear(-1); ear(1); flipper(nearB); }
+      if(st === 'body'){ band(68, 102, 0x111216); ear(-1); ear(1); }
       if(st === 'face' && front){ onFront(oval(0, 48, 12.5, 30), 0xf6f6f2);   // (its belly over the mouth light, its yellow chest above)
         onFront(oval(0, 70, 12, 9), 0xf6cf5a); onFront(oval(0, 65, 11.5, 6), 0xf8e2a0, 0.9);
         const B = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a, b, zz]) => PT(P(a, b, zz))), true); };
@@ -128130,7 +128131,6 @@ class WorldScene extends Phaser.Scene {
       if(st === 'top') for(const sb of [-1, 1]){ line([8, sb*6, zl], [14, sb*12, zl + 16], 0x16171b, 1.6); ball(14, sb*12, zl + 17, 2.4, 0x16171b); }   // (its antennae)
       return; }
     /* (six more -- Sir, 2026-11-17) */
-    const band = (z0, z1, col) => this.botHull(g, x, y, z, fdir, { hx: hx + 0.7, hy: hy + 0.7, ch: 8, z0, z1, band: true, cLt: col, cDk: _pdk(col, 0.82) });
     if(c === 'knight'){
       if(st === 'body') for(const z0 of [62, 74]) band(z0, z0 + 1.6, 0x8d959c);   // (its armour plates' seams)
       if(st === 'face' && front) for(const zz of [80, 92]) onFront([[-12, zz], [12, zz], [12, zz + 2], [-12, zz + 2]], 0x5d646c);   // (its visor's bars round his eyes)
