@@ -46196,7 +46196,10 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
     const RUN = o.run || 50, n = Math.max(1, Math.ceil((b1 - b0)/RUN - 1e-9));
     for(let k = 0; k < n; k++){
       const s0 = b0 + (b1 - b0)*k/n, s1 = b0 + (b1 - b0)*(k + 1)/n;
-      items.push(Object.assign({ a: a1, b: (s0 + s1)/2, z: 0, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
+      /* (fpLab: ITS OWN STRETCH as its footprint -- measured from its draw, every run's was the whole fixture's (it draws the whole, clipped),
+         so lmDepth moved them all round him and the people behind the far end drew over it: Sir, 2026-11-17, "the bar is disappearing and
+         reappearing") */
+      items.push(Object.assign({ a: a1, b: (s0 + s1)/2, z: 0, fpLab: { a0: a0, a1: a1, b0: s0, b1: s1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
         const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
         for(const b of [e0, e1]) for(const a of [a0 - 30, a1 + 30]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
         pts.sort((p, q) => p.x - q.x || p.y - q.y);
@@ -46213,7 +46216,7 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
   const RUN = (o && o.run) || 50, n = Math.max(1, Math.ceil((a1 - a0)/RUN - 1e-9));
   for(let k = 0; k < n; k++){
     const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
-    items.push(Object.assign({ a: (s0 + s1)/2, b: b1, z: 0, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
+    items.push(Object.assign({ a: (s0 + s1)/2, b: b1, z: 0, fpLab: { a0: s0, a1: s1, b0: b0, b1: b1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
       const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
       for(const a of [e0, e1]) for(const b of [b0 - 30, b1 + 30]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
       pts.sort((p, q) => p.x - q.x || p.y - q.y);
