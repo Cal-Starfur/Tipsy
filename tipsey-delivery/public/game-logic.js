@@ -43468,7 +43468,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true, noMouth: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true, noMouth: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true, noMouth: true },
-  { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
+  { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true, noMouth: true },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true },
@@ -128163,14 +128163,23 @@ class WorldScene extends Phaser.Scene {
         if(sees(1, 0, 0)){ const q = P(10.5, -3, zl + 14), rr = sr(10, -3, zl + 14, 3.2); g.fillStyle(0xf6e6a0, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x4a2a8a, 1); g.fillCircle(q.x + rr*0.45, q.y - rr*0.2, rr*0.85); }   // (a crescent moon)
         /* (no staff -- Sir, 2026-11-17) */ }
       return; }
-    if(c === 'astro'){
-      if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 7, -hx, -12, 12, 52, 96, 0xd9dde2); for(const b of [-6, 6]) this.avLathe(V, -hx - 4, b, [[96, 3], [101, 3]], 0x8d959c, null, 10);
-        if(back){ const q = P(-hx - 7.2, 0, 76); g.fillStyle(0x2a5ad8, 1); g.fillRect(q.x - 4*K*2, q.y - 3*K*2, 8*K*2, 6*K*2); } }   // (its life-support pack)
-      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.4); g.fillStyle(0xd8261c, 1); g.fillPoints([P(-4, bb, 70), P(6, bb, 70), P(6, bb, 76), P(-4, bb, 76)].map(PT), true); g.fillStyle(0xf6f6f2, 1); g.fillPoints([P(-4, bb, 72), P(6, bb, 72), P(6, bb, 74), P(-4, bb, 74)].map(PT), true); }   // (a mission patch)
-      if(st === 'top'){   // (its collar ring, just its rim, then a fishbowl helmet over his head)
-        { const o = []; for(let i = 0; i <= 24; i++){ const th = i/24*Math.PI*2; o.push(PT(P(Math.cos(th)*24, Math.sin(th)*22, 74))); } g.lineStyle(Math.max(1, 3*K), 0x8d959c, 1); g.strokePoints(o, false); }
-        const q = P(0, 0, 94), rr = sr(0, 0, 94, 27); g.fillStyle(0x8ac8f0, 0.28); g.fillCircle(q.x, q.y, rr); g.lineStyle(Math.max(1, 2*K), 0xffffff, 0.9); g.strokeCircle(q.x, q.y, rr);
-        g.fillStyle(0xffffff, 0.6); g.fillEllipse(q.x - rr*0.38, q.y - rr*0.42, rr*0.55, rr*0.28); g.fillStyle(0xffffff, 0.35); g.fillEllipse(q.x + rr*0.45, q.y + rr*0.2, rr*0.16, rr*0.36); }   // (a fishbowl helmet over his head, its collar ring)
+    if(c === 'astro'){   /* (second pass -- Sir, 2026-11-17): grey suit rings, a chest control panel with blinking lights in place of his mouth light,
+         an air hose from his pack round to the panel, a round blue mission patch on each side, a gold sheen across his helmet glass */
+      if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 8, -hx, -13, 13, 48, 98, 0xd9dde2); box(-hx - 8.4, -hx - 7.6, -10, 10, 56, 90, 0xc9ced4);
+        for(const b of [-7, 7]) this.avLathe(V, -hx - 4, b, [[98, 3], [103, 3]], 0x8d959c, null, 10);
+        if(back){ for(const [zz, col] of [[84, 0xd8261c], [78, 0x2aa83a], [72, 0xffd34a]]){ const q = P(-hx - 8.6, 6, zz); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, 1.4*K*2); } } }   // (its life-support pack, its lights)
+      if(st === 'body'){ for(const z0 of [26, 64]) band(z0, z0 + 3.5, 0x9aa0a6);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(2, sb*(hy + 0.6), 74), rr = sr(2, sb*hy, 74, 6); g.fillStyle(0x1f3a8a, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0xf6f6f2, 1); g.fillCircle(q.x - rr*0.25, q.y - rr*0.2, rr*0.18); g.fillCircle(q.x + rr*0.3, q.y + rr*0.25, rr*0.12);
+          g.lineStyle(Math.max(1, 1.2*K), 0xd8261c, 1); g.lineBetween(q.x - rr*0.8, q.y + rr*0.3, q.x + rr*0.8, q.y - rr*0.3); } }   // (mission patches)
+      if(st === 'face' && front){ onFront([[-9, 44], [9, 44], [9, 58], [-9, 58]], 0x3b4048); onFront([[-8, 45], [8, 45], [8, 57], [-8, 57]], 0x23262c);
+        const bl = Math.floor(t/400); for(const [b, zz, col, k] of [[-5, 53, 0xd8261c, 0], [-1, 53, 0x2aa83a, 1], [3, 53, 0xffd34a, 2], [6, 49, 0x5fe8ff, 3]]){ const q = P(hx + 0.6, b, zz); g.fillStyle(col, (bl + k) % 3 ? 1 : 0.35); g.fillCircle(q.x, q.y, 1.3*K*2); }
+        line([hx + 0.6, -6, 48], [hx + 0.6, 0, 48], 0xc9ced4, 1.2);
+        const sb = nearB; line([hx - 2, sb*12, 50], [hx - 8, sb*(hy + 2), 62], 0x8d959c, 2.4); line([hx - 8, sb*(hy + 2), 62], [-hx, sb*(hy - 2), 80], 0x8d959c, 2.4); }   // (a chest control panel, an air hose)
+      if(st === 'top'){ { const o = []; for(let i = 0; i <= 24; i++){ const th = i/24*Math.PI*2; o.push(PT(P(Math.cos(th)*24, Math.sin(th)*22, 74))); } g.lineStyle(Math.max(1, 3*K), 0x8d959c, 1); g.strokePoints(o, false); }
+        const q = P(0, 0, 94), rr = sr(0, 0, 94, 27); g.fillStyle(0x8ac8f0, 0.25); g.fillCircle(q.x, q.y, rr);
+        g.fillStyle(0xffc84a, 0.22); g.beginPath(); g.arc(q.x, q.y, rr, Math.PI*1.05, Math.PI*1.95, false); g.closePath(); g.fillPath();   // (a gold sheen over its upper glass)
+        g.lineStyle(Math.max(1, 2*K), 0xffffff, 0.9); g.strokeCircle(q.x, q.y, rr);
+        g.fillStyle(0xffffff, 0.6); g.fillEllipse(q.x - rr*0.38, q.y - rr*0.42, rr*0.55, rr*0.28); g.fillStyle(0xffffff, 0.35); g.fillEllipse(q.x + rr*0.45, q.y + rr*0.2, rr*0.16, rr*0.36); }
       return; }
     if(c === 'bee'){
       if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
