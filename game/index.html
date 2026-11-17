@@ -128643,11 +128643,11 @@ class WorldScene extends Phaser.Scene {
             g.fillStyle(0x6a0e0a, 1); g.fillCircle(bq.x, bq.y + 0.3*K, 3.8*K); g.fillStyle(lit ? 0xff3a2a : 0xc8231c, 1); g.fillCircle(bq.x - 0.2*K, bq.y - 0.2*K, 3.3*K); g.fillStyle(0xffffff, lit ? 0.85 : 0.4); g.fillCircle(bq.x - 1.2*K, bq.y - 1.4*K, 1*K);
             if(lit && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 9*K); } } } }
         if(SKP === 'ladder'){ const ox = LID.ox || 0;
-          if(vis(1, 0, 0)){ const xs = lx + ox + 0.6, zb = zt - 6.5, S = [];   // (the front shield: black leather, a gold rim, TFD in gold)
+          if(vis(1, 0, 0)){ const xs = lx + ox + 0.6, zb = zt - 6.5, S = [];   // (the front shield: black leather, a gold rim, LPFD in gold -- Los Palmas, Sir 2026-11-17)
             for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI; S.push([Math.cos(t)*4.6, zb + 6 + Math.sin(t)*4]); } S.push([-4.6, zb], [-2.2, zb - 1.4], [2.2, zb - 1.4], [4.6, zb]);
             const pts = S.map(([y, z]) => P(xs, y, z)); this.quadOn(g, pts, 0x16171b); g.lineStyle(Math.max(1, 1.1*K), 0xd8a41a, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
-            const FONT = { T: [[0, 4, 3, 5], [1, 0, 2, 5]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] }, cu = 0.55, gw = 3*cu, gap = cu, tot = 3*gw + 2*gap, h0 = zb + 3;
-            [...'TFD'].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const Y = q => -(g0 + q*cu);   // (his -y is to the viewer's right)
+            const FONT = { L: [[0, 0, 1, 5], [0, 0, 3, 1]], P: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 2, 2.2, 3], [2, 2.6, 3, 4.4]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] }, cu = 0.47, gw = 3*cu, gap = cu*0.9, tot = 4*gw + 3*gap, h0 = zb + 3;
+            [...'LPFD'].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const Y = q => -(g0 + q*cu);   // (his -y is to the viewer's right)
               this.quadOn(g, [P(xs + 0.05, Y(x0), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y1*cu), P(xs + 0.05, Y(x0), h0 + y1*cu)], 0xffd34a); } }); } }
         if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
         if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
