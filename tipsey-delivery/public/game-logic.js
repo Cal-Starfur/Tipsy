@@ -128114,7 +128114,7 @@ class WorldScene extends Phaser.Scene {
           for(const a of [-43, -14, 14, 43]) Q([P(a - 1.6, bb + sb*0.1, 28), P(a + 1.6, bb + sb*0.1, 28), P(a + 1.6, bb + sb*0.1, 67), P(a - 1.6, bb + sb*0.1, 67)], DW); }
         if(front){ const bb = 44.3; Q([P(bb, -30, 28), P(bb, 30, 28), P(bb, 30, 32), P(bb, -30, 32)], DW); }
         this.tipseyFace(V, 44, 50, 1, { mouthZ: 36 }); };
-      const seat = () => { box(30, 46, -24, 24, 66, 71, 0x8a5a2a); box(43, 46, -24, 24, 66, 82, 0x6a4020);
+      const seat = () => { box(30, 33, -24, 24, 66, 82, 0x6a4020); box(30, 46, -24, 24, 66, 71, 0x8a5a2a);   /* (its backrest behind the driver, facing forward -- Sir, 2026-11-17) */
         for(const sb of [-1, 1]){ this.avLathe(V, 46, sb*27, [[62, 3], [69, 3]], BRASS, null, 8); this.avLathe(V, 46, sb*27, [[69, 3.4], [71, 1]], BRASS, null, 8); const q = P(47.5, sb*27, 65.5); if(front){ g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 1.8*K*2.4); } } };
       const top = () => { arcRoof(-44, 28, 30, 66, 26, A.canvas || 0xf3ead2, _pdk(A.canvas || 0xf3ead2, 0.88));
         for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], 0x8a6a3a, 1.6); }
