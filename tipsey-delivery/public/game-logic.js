@@ -42999,7 +42999,8 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:urban', build: 'tank', name: 'Urban', cents: 900, body: 0x6f747c, stripe: 0x6f747c, noStripe: true, print: 'tkUrban', gun: 0x3a3d45 },
   { id: 'tank:digital', build: 'tank', name: 'Digital Camo', cents: 900, body: 0x8a8a5a, stripe: 0x8a8a5a, noStripe: true, print: 'tkDigital', gun: 0x3a3d2a },
   { id: 'tank:tiger', build: 'tank', name: 'Tiger Stripe', cents: 900, body: 0xb8863a, stripe: 0xb8863a, noStripe: true, print: 'tkTiger', gun: 0x3a2c1a },
-  { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
+  { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028, shortGun: true, mg: true,
+    lid: { hx: 14, hy: 13, z0: 30, z1: 39, ch: 9.5, bev: 5, bevIn: 4.5 }, gear: { kind: 'tank', side: 24, W2: 10, lift: 2, bigWheels: true } },   /* (a classic WWII shape: rounded cast turret, short gun, cupola and MG, big road wheels -- Sir, 2026-11-17) */
   { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
   { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true, fins: true, mouth: 0xff4ad8,
     gear: { kind: 'hover', lift: 12, bob: true, xs: [0], side: 0, glowOnly: true } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
@@ -121889,6 +121890,7 @@ class WorldScene extends Phaser.Scene {
     if(tank && BODY._bskin && BODY._bskin.fins && frontSeen) this.tankFins(bobZ);   // (its fins on his back: behind the turret from the front)
     if(tank && !frontSeen) this.tankKit(bobZ, false);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
+    if(tank && BODY._bskin && BODY._bskin.mg) this.tankTop(bobZ);   // (the Olive Drab's cupola and machine gun, on the turret)
     if(tank && BODY._bskin && BODY._bskin.fins && !frontSeen) this.tankFins(bobZ);   // (over the turret from behind)
     if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing toward the eye: over his lid)
     if(racer && BODY._bskin && BODY._bskin.racerPart) this.racerKit(bobZ, BP, 'roof', tpz);   // (a skin's roof piece: the rally lamps, the police bar)
@@ -126426,6 +126428,16 @@ class WorldScene extends Phaser.Scene {
   }
   /* THE TANK's cannon: a barrel out of the turret's front (his lid, swung with it), a muzzle brake, a mantlet where it leaves the turret */
   /* THE NEON HOVER'S FINS: two swept stabilisers off his back corners, dark blades with glowing edges, the far one first */
+  /* THE OLIVE DRAB'S TOP: a commander's cupola on the turret's back, its hatch, and a machine gun on a pintle mount aimed forward */
+  tankTop(bobZ){ const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), K = this.kScale(), zt = LID.z1, cx = -LID.hx*0.35, cy = -LID.hy*0.35;
+    const pr = (hx, hy, ox, oy, z0, z1, c, ch) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: true, topEdge: false });
+    const OD = [0x6b7648, 0x55603a, 0x3a4228];
+    pr(4, 4, cx, cy, zt - 0.5, zt + 2.6, OD, 1.6);                                  // (the cupola)
+    pr(3, 3, cx, cy, zt + 2.6, zt + 3.2, [0x55603a, 0x4a5432, 0x3a4228], 1.2);       // (its hatch)
+    const mx = LID.hx*0.15, my = LID.hy*0.45, A = P(mx, my, zt), B = P(mx, my, zt + 4.5), C = P(mx + 9, my, zt + 5.4), D = P(mx - 2, my, zt + 4.3);
+    g.lineStyle(Math.max(1, 1.2*K), 0x2a2d33, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+    g.lineStyle(Math.max(1, 1.6*K), 0x23262c, 1); g.lineBetween(D.x, D.y, C.x, C.y);
+    g.fillStyle(0x2a2d33, 1); g.fillRect(B.x - 1.6*K, B.y - 1.4*K, 3.2*K, 2.4*K); }
   tankFins(bobZ){ const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }, K = this.kScale(), GL = BODY._bskin.glow || 0x7af8ff;
     const ns = vis(0, 1, 0) ? 1 : -1, z = BODY.z1;
     /* (with volume -- Sir, 2026-11-17): each a blade 1.8 thick -- its inner face, its edges as faces, its outer face last, glowing edge lines on
@@ -126440,7 +126452,7 @@ class WorldScene extends Phaser.Scene {
       g.lineStyle(Math.max(1, 1.4*K), GL, 1); g.lineBetween(fp[0].x, fp[0].y, fp[3].x, fp[3].y); g.lineBetween(fp[3].x, fp[3].y, fp[2].x, fp[2].y);
       g.lineStyle(Math.max(1, 0.9*K), 0xff4ad8, 1); g.lineBetween(fp[1].x, fp[1].y, fp[2].x, fp[2].y); } }
   tankKit(bobZ, front = true){
-    const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
+    const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + (BODY._bskin && BODY._bskin.shortGun ? 14 : 24), bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
     const G = SKg != null ? [_pmix(SKg, 0xffffff, 0.2), SKg, _pdk(SKg, 0.7)] : [0x6f757b, 0x5d646c, 0x3b4048];
     if(front && !(BODY._bskin && BODY._bskin.twin)) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
@@ -127056,7 +127068,10 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, fl, SKIN.wheel);
       this.edgeOn(g, fl, SKIN.outline, this.kw(2));
       this.quadOn(g, loop(face, r*0.72), 0x2b2e35);
-      for(const x of [-17, -5.7, 5.7, 17]){
+      if(G.bigWheels){   /* (a WWII tank's -- the Olive Drab's): five big road wheels, rubber-rimmed and dished, two return rollers over them */
+        for(const x of [-15, -7.5, 0, 7.5, 15]){ this.disc({x, y:face, z:zc - 0.6}, 5.2, 0x1c1e22); this.disc({x, y:face, z:zc - 0.6}, 4.3, 0x4f5a34); this.disc({x, y:face, z:zc - 0.6}, 2.4, 0x3a4228); this.disc({x, y:face, z:zc - 0.6}, 0.9, 0x6b7648); }
+        for(const x of [-9, 9]) this.disc({x, y:face, z:zc + 5}, 1.4, 0x3a4228);
+      } else for(const x of [-17, -5.7, 5.7, 17]){
         this.disc({x, y:face, z:zc}, 3.4, role.face);
         this.disc({x, y:face, z:zc}, 1.3, role.acc);
       }
