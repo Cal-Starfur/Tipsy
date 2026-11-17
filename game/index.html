@@ -44957,19 +44957,19 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
       STRIPE: { z0: 28, z1: 31 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 70], zmap: z => 24 + (z - 14)*0.42, WHEELS: { r: 8, W2: 7, xs: [-16, 16], side: 25, style: 'mesh', tread: 'knobby' } } },
   /* THE DUNE BUGGY's skins (Sir, 2026-11-17): beach, Baja and desert buggies -- each its paint, its cage, springs and lamps in its own colours, two
      with a board strapped on the roof */
-  { id: 'buggy:beach', build: 'buggy', name: 'Beach Bum', cents: 900, body: 0x4ab8e0, stripe: 0xf4f4f0, print: 'bgBeach', buggyPart: 'surf', trim: { bar: 0xf4f4f0, coil: 0xff8a3a, lamp: 0xfff2c4, rim: 'flower', rimCol: 0xf4f4f0, board: [0xffd34a, 0xff6a3a] } },
-  { id: 'buggy:baja', build: 'buggy', name: 'Baja 1000', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, noStripe: true, print: 'bgBaja', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xffb02a, rim: 'dish', rimCol: 0xd9b04a } },
-  { id: 'buggy:desert', build: 'buggy', name: 'Desert Rat', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'bgDesert', trim: { bar: 0x4f5a34, coil: 0x8a5a2a, lamp: 0xffe9a8, rim: 'steelie', rimCol: 0x4f5a34 } },
-  { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rim: 'star', rimCol: 0xff8a1a } },
-  { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rim: 'wagon', rimCol: 0xffe14a } },
-  { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'ten', rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
+  { id: 'buggy:beach', build: 'buggy', name: 'Beach Bum', cents: 900, body: 0x4ab8e0, stripe: 0xf4f4f0, print: 'bgBeach', buggyPart: 'surf', pennant: { col: 0x4ab8e0, rects: [[0xf4f4f0, 0, 1, 0.62, 0.78]], dots: [[0xffd34a, 0.22, 0.3, 2.2]] }, trim: { bar: 0xf4f4f0, coil: 0xff8a3a, lamp: 0xfff2c4, rim: 'flower', rimCol: 0xf4f4f0, board: [0xffd34a, 0xff6a3a] } },
+  { id: 'buggy:baja', build: 'buggy', name: 'Baja 1000', cents: 900, body: 0xf4f4f0, stripe: 0xd8261c, noStripe: true, print: 'bgBaja', pennant: { col: 0xf4f4f0, rects: [[0xd8261c, 0, 1, 0.12, 0.36], [0x1f4fa8, 0, 1, 0.44, 0.6]] }, trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xffb02a, rim: 'dish', rimCol: 0xd9b04a } },
+  { id: 'buggy:desert', build: 'buggy', name: 'Desert Rat', cents: 900, body: 0xc9a46a, stripe: 0xc9a46a, noStripe: true, print: 'bgDesert', pennant: { col: 0xc9a46a, rects: [[0x4f5a34, 0, 1, 0.38, 0.62]], dots: [[0x8a6a3c, 0.55, 0.2, 1.4], [0x8a6a3c, 0.3, 0.82, 1.2]] }, trim: { bar: 0x4f5a34, coil: 0x8a5a2a, lamp: 0xffe9a8, rim: 'steelie', rimCol: 0x4f5a34 } },
+  { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', pennant: { col: 0x5f7a3a, rects: [[0xff8a1a, 0, 1, 0.82, 1]], dots: [[0x6a4824, 0.2, 0.3, 1.8], [0x8a6034, 0.42, 0.62, 1.5], [0x6a4824, 0.62, 0.3, 1.2], [0x8a6034, 0.12, 0.7, 1.3]] }, trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rim: 'star', rimCol: 0xff8a1a } },
+  { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', pennant: { col: 0xff8a2a, dots: [[0xf4f4f0, 0.28, 0.45, 3.2], [0xffe14a, 0.28, 0.45, 1.3], [0xff5ab0, 0.62, 0.4, 1.8]] }, trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rim: 'wagon', rimCol: 0xffe14a } },
+  { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', pennant: { col: 0xd8261c, rects: [[0xf4f4f0, 0.2, 0.3, 0.12, 0.88], [0xf4f4f0, 0.08, 0.42, 0.4, 0.6]] }, trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'ten', rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
   /* (six more -- Sir, 2026-11-17: "these skins are really fun") */
-  { id: 'buggy:lava', build: 'buggy', name: 'Lava Rider', cents: 900, body: 0x23262c, stripe: 0x23262c, noStripe: true, print: 'bgLava', eye: 0xff8a2a, trim: { bar: 0xff4a1a, coil: 0xffd34a, lamp: 0xffb02a, rim: 'turbine', rimCol: 0xff6a1a } },
-  { id: 'buggy:zebra', build: 'buggy', name: 'Zebra', cents: 900, body: 0xf4f4f0, stripe: 0xf4f4f0, noStripe: true, print: 'bgZebra', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xfff2c4, rim: 'disc', rimCol: 0xf4f4f0 } },
-  { id: 'buggy:tiger', build: 'buggy', name: 'Tiger', cents: 900, body: 0xf08a1a, stripe: 0xf08a1a, noStripe: true, print: 'bgTiger', trim: { bar: 0x1d1f26, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'mag', rimCol: 0x1d1f26 } },
-  { id: 'buggy:neon', build: 'buggy', name: 'Neon Night', cents: 900, body: 0x1c1e24, stripe: 0x1c1e24, noStripe: true, print: 'bgNeon', eye: 0x7af8ff, trim: { bar: 0xff4ad8, coil: 0x7af8ff, lamp: 0x7af8ff, rim: 'tri', rimCol: 0x7af8ff } },
-  { id: 'buggy:sprinkles', build: 'buggy', name: 'Sprinkles', cents: 900, body: 0xa8ead2, stripe: 0xff8ac8, print: 'bgSprinkles', trim: { bar: 0xff8ac8, coil: 0xfff6d8, lamp: 0xfff2c4, rim: 'honey', rimCol: 0xfff6d8 } },
-  { id: 'buggy:tiki', build: 'buggy', name: 'Tiki Woodie', cents: 900, body: 0xa8703a, stripe: 0xa8703a, noStripe: true, print: 'bgTiki', buggyPart: 'surf', trim: { bar: 0xd9c08a, coil: 0x5a3418, lamp: 0xfff2c4, rim: 'wire', rimCol: 0xd9c08a, board: [0x2ab0a8, 0xf4f4f0] } },
+  { id: 'buggy:lava', build: 'buggy', name: 'Lava Rider', cents: 900, body: 0x23262c, stripe: 0x23262c, noStripe: true, print: 'bgLava', eye: 0xff8a2a, pennant: { col: 0x23262c, rects: [[0xff6a1a, 0, 1, 0.3, 0.66], [0xffd34a, 0, 0.7, 0.42, 0.54]] }, trim: { bar: 0xff4a1a, coil: 0xffd34a, lamp: 0xffb02a, rim: 'turbine', rimCol: 0xff6a1a } },
+  { id: 'buggy:zebra', build: 'buggy', name: 'Zebra', cents: 900, body: 0xf4f4f0, stripe: 0xf4f4f0, noStripe: true, print: 'bgZebra', pennant: { col: 0xf4f4f0, rects: [[0x16171b, 0.12, 0.22, 0, 1], [0x16171b, 0.38, 0.48, 0, 1], [0x16171b, 0.64, 0.72, 0, 1]] }, trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xfff2c4, rim: 'disc', rimCol: 0xf4f4f0 } },
+  { id: 'buggy:tiger', build: 'buggy', name: 'Tiger', cents: 900, body: 0xf08a1a, stripe: 0xf08a1a, noStripe: true, print: 'bgTiger', pennant: { col: 0xf08a1a, rects: [[0x16171b, 0.14, 0.22, 0, 0.6], [0x16171b, 0.36, 0.44, 0.3, 1], [0x16171b, 0.58, 0.66, 0, 0.6]] }, trim: { bar: 0x1d1f26, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'mag', rimCol: 0x1d1f26 } },
+  { id: 'buggy:neon', build: 'buggy', name: 'Neon Night', cents: 900, body: 0x1c1e24, stripe: 0x1c1e24, noStripe: true, print: 'bgNeon', eye: 0x7af8ff, pennant: { col: 0x1c1e24, rects: [[0x7af8ff, 0, 1, 0.1, 0.34], [0xff4ad8, 0, 1, 0.58, 0.82]] }, trim: { bar: 0xff4ad8, coil: 0x7af8ff, lamp: 0x7af8ff, rim: 'tri', rimCol: 0x7af8ff } },
+  { id: 'buggy:sprinkles', build: 'buggy', name: 'Sprinkles', cents: 900, body: 0xa8ead2, stripe: 0xff8ac8, print: 'bgSprinkles', pennant: { col: 0xa8ead2, rects: [[0xff8ac8, 0, 1, 0, 0.16]], dots: [[0xff5ab0, 0.15, 0.4, 0.9], [0xffe14a, 0.3, 0.7, 0.9], [0x5ab8ff, 0.42, 0.35, 0.9], [0x9a6aff, 0.22, 0.85, 0.8], [0xff8a2a, 0.56, 0.6, 0.8], [0xf4f4f0, 0.08, 0.65, 0.8]] }, trim: { bar: 0xff8ac8, coil: 0xfff6d8, lamp: 0xfff2c4, rim: 'honey', rimCol: 0xfff6d8 } },
+  { id: 'buggy:tiki', build: 'buggy', name: 'Tiki Woodie', cents: 900, body: 0xa8703a, stripe: 0xa8703a, noStripe: true, print: 'bgTiki', buggyPart: 'surf', pennant: { col: 0xa8703a, rects: [[0x2ab0a8, 0, 1, 0.32, 0.68], [0x6a4020, 0, 1, 0.12, 0.16], [0x6a4020, 0, 1, 0.84, 0.88]] }, trim: { bar: 0xd9c08a, coil: 0x5a3418, lamp: 0xfff2c4, rim: 'wire', rimCol: 0xd9c08a, board: [0x2ab0a8, 0xf4f4f0] } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -130137,7 +130137,10 @@ class WorldScene extends Phaser.Scene {
     for(let i = 0; i <= N; i++){ const u = i/N; topE.push(at(u, 0)); botE.push(at(u, hAt(u))); }
     const pen = topE.concat(S.notch ? [at(1 - S.notch, hAt(1)/2)] : [], botE.slice().reverse());
     const P2 = o => new Phaser.Geom.Point(o.x, o.y);
-    const F = kind === 'pirate' && !SKIN.flagPicked ? 0x14141a : kind === 'usa' ? 0xf4f4f0 : SKIN.flag;
+    /* A BUILD SKIN'S OWN PENNANT (Sir, 2026-11-17: "a small triangle flag that goes with their theme, keep that shape"): its cloth colour, and
+       rects (u along it, v across it) and dots laid on the cloth so they wave with it */
+    const PN = kind === 'pennant' && BODY._bskin && BODY._bskin.pennant;
+    const F = PN ? PN.col : kind === 'pirate' && !SKIN.flagPicked ? 0x14141a : kind === 'usa' ? 0xf4f4f0 : SKIN.flag;
     const fold = _pmix(F, 0x000000, 0.2), edge = _pmix(F, 0x000000, 0.45);
     g.fillStyle(F, 1); g.fillPoints(pen.map(P2), true);
     if(kind === 'checker'){           // the cells laid on the cloth, so they wave with it
@@ -130154,8 +130157,11 @@ class WorldScene extends Phaser.Scene {
       const cu = 0.42, cv = 7/13; g.fillStyle(0x1f3a7a, 1); g.fillPoints([at(0, 0), at(cu*0.5, 0), at(cu, 0), at(cu, hAt(cu)*cv), at(cu*0.5, hAt(cu*0.5)*cv), at(0, hAt(0)*cv)].map(P2), true);
       g.fillStyle(0xffffff, 1); for(let a = 0; a < 3; a++) for(let b = 0; b < 3; b++){ const o = at(0.07 + a*0.13, hAt(0.1)*(0.1 + b*0.17)); g.fillCircle(o.x, o.y, 0.75*ks); }
     }
+    if(PN){ for(const [c, u0, u1, v0, v1] of PN.rects || []){ g.fillStyle(c, 1); const n = Math.max(1, Math.ceil((u1 - u0)*N));
+        for(let i = 0; i < n; i++){ const a = u0 + (u1 - u0)*i/n, b = u0 + (u1 - u0)*(i + 1)/n; g.fillPoints([at(a, hAt(a)*v0), at(b, hAt(b)*v0), at(b, hAt(b)*v1), at(a, hAt(a)*v1)].map(P2), true); } }
+      for(const [c, u, v, r] of PN.dots || []){ const o = at(u, hAt(u)*v); g.fillStyle(c, 1); g.fillCircle(o.x, o.y, r*ks); } }
     for(let i = 0; i < N; i++){ const um = (i + 0.5)/N; if(wind > 0.08 && Math.cos(ph - um*4.4) < 0){
-      if(kind === 'checker' || kind === 'usa') g.fillStyle(0x000000, 0.22); else g.fillStyle(fold, 1);
+      if(kind === 'checker' || kind === 'usa' || PN) g.fillStyle(0x000000, 0.22); else g.fillStyle(fold, 1);
       g.fillPoints([topE[i], topE[i + 1], botE[i + 1], botE[i]].map(P2), true); } }
     if(kind === 'pirate'){            // the bones, corner to corner along the waving cloth, and the skull over the cross
       const bone = SKIN.emblemColor || 0xe8e2d0, bw = Math.max(1, 1.6*ks);
