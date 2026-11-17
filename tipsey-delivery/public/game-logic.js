@@ -43471,7 +43471,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true, noMouth: true },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true, noMouth: true },
   /* (six more -- Sir, 2026-11-17) */
-  { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true },
+  { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true, noMouth: true },
   { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0xa8703a, stripe: 0xd8261c, costume: 'cowboy', noAerial: true },
   { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true },
   { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true },
@@ -128217,12 +128217,21 @@ class WorldScene extends Phaser.Scene {
           const e = o[10], q = P(e[0], e[1], e[2]), rr = sr(e[0], e[1], e[2], 3); g.lineStyle(Math.max(1, 1.8*K), 0x16171b, 1); g.beginPath(); g.arc(q.x + rr*0.4, q.y, rr*0.9, Math.PI*0.9, Math.PI*2.6, false); g.strokePath(); ball(e[0] + 1, e[1], e[2] + 1, 2, 0x16171b); } }   // (curled antennae)
       return; }
     /* (six more -- Sir, 2026-11-17) */
-    if(c === 'knight'){
-      if(st === 'body') for(const z0 of [62, 74]) band(z0, z0 + 1.6, 0x8d959c);   // (its armour plates' seams)
-      if(st === 'face' && front) for(const zz of [80, 92]) onFront([[-12, zz], [12, zz], [12, zz + 2], [-12, zz + 2]], 0x5d646c);   // (its visor's bars round his eyes)
-      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0) && sb === nearB){ const bb = sb*(hy + 1.5); const S = [[-8, 70], [8, 70], [8, 50], [0, 40], [-8, 50]].map(([a, zz]) => PT(P(a, bb, zz))); g.fillStyle(0x1f3a7a, 1); g.fillPoints(S, true);
-        g.lineStyle(Math.max(1, 1.4*K), 0xd8b04a, 1); g.strokePoints(S, true); const c0 = P(0, bb, 66), c1 = P(0, bb, 44), c2 = P(-6, bb, 58), c3 = P(6, bb, 58); g.lineBetween(c0.x, c0.y, c1.x, c1.y); g.lineBetween(c2.x, c2.y, c3.x, c3.y); }   // (a shield on his near side)
-      if(st === 'top'){ lathe(0, 0, [[zl, 4], [zl + 4, 4]], 0xd8b04a); for(let i = 0; i < 7; i++){ const u = i/6; ball(-u*16, 0, zl + 8 + Math.sin(u*Math.PI)*8, 4.2 - u*1.4, 0xd8261c); } }   // (a red plume swept back)
+    if(c === 'knight'){   /* (second pass -- Sir, 2026-11-17): a great helm over his head -- a visor slit his eyes glow through, breathing holes under
+         it; a blue tabard with a gold cross down his front; plate seams; a bigger heater shield; a fuller red plume */
+      if(st === 'body'){ for(const z0 of [62, 72]) band(z0, z0 + 1.6, 0x8d959c);
+        onFront([[-10, 14], [10, 14], [10, 66], [-10, 66]], 0x1f3a7a); onFront([[-1.6, 22], [1.6, 22], [1.6, 60], [-1.6, 60]], 0xd8b04a); onFront([[-7, 46], [7, 46], [7, 50], [-7, 50]], 0xd8b04a);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0) && sb === nearB){ const bb = sb*(hy + 2.5); const S = [[-11, 78], [11, 78], [11, 50], [0, 32], [-11, 50]].map(([a, zz]) => PT(P(a, bb, zz)));
+          g.fillStyle(0x1f3a7a, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 2*K), 0xd8b04a, 1); g.strokePoints(S, true);
+          const c0 = P(0, bb, 74), c1 = P(0, bb, 40), c2 = P(-9, bb, 62), c3 = P(9, bb, 62); g.lineStyle(Math.max(1, 3*K), 0xd8b04a, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y); g.lineBetween(c2.x, c2.y, c3.x, c3.y); } }   // (his shield)
+      if(st === 'face' && front){ onFront([[-14, 82], [14, 82], [14, 90], [-14, 90]], 0x16171b);   // (the visor slit, his eyes glowing in it)
+        for(const b of [-6, 6]) onFront([[b - 3, 84], [b + 3, 84], [b + 3, 88], [b - 3, 88]], 0x7af8ff);
+        line([hx + 0.5, 0, 92], [hx + 0.5, 0, 66], 0x8d959c, 2);   // (its nose ridge)
+        for(const b of [-6, -3, 3, 6]) for(const zz of [76, 72]){ const q = P(hx + 0.6, b, zz); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 0.9*K*2); } }   // (breathing holes)
+      if(st === 'top'){ lathe(0, 0, [[zl, 5], [zl + 5, 4]], 0xd8b04a);   // (its plume one soft piece, swept back -- its dark under-tone, its red, a lit crest)
+        const N = 16, pts = []; for(let i = 0; i <= N; i++){ const u = i/N; pts.push({ q: P(4 - u*26, 0, zl + 8 + Math.sin(u*Math.PI)*13 - u*u*8), r: 11 - u*6.5 }); }
+        for(const [col, wf, off] of [[0x8a0e0a, 1, 0], [0xd8261c, 0.72, 0.18], [0xff6a50, 0.28, 0.5]]) for(let i = 0; i < N; i++){ const A = pts[i], B = pts[i + 1], ra = sr(0, 0, zl, A.r), rb = sr(0, 0, zl, B.r);
+          g.lineStyle(Math.max(1, (ra + rb)*wf), col, 1); g.lineBetween(A.q.x, A.q.y - ra*off, B.q.x, B.q.y - rb*off); if(!off){ g.fillStyle(col, 1); g.fillCircle(A.q.x, A.q.y, ra); g.fillCircle(B.q.x, B.q.y, rb); } } }
       return; }
     if(c === 'cowboy'){
       if(st === 'face') onFront([[-12, 74], [12, 74], [0, 60]], 0xd8261c);   // (a bandana under his eyes)
