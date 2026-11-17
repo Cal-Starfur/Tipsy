@@ -128198,13 +128198,13 @@ class WorldScene extends Phaser.Scene {
     const TW = BODY._bskin && BODY._bskin.twin;
     if(BODY._bskin && BODY._bskin.shortGun){   /* (round, not blocky -- Sir, 2026-11-17): the Olive Drab's gun as true cylinders along it -- a rounded cast
          mantlet, the barrel, a muzzle ring -- each its sides toned by facing and its near end capped, drawn far to near */
-      const g = this.g, OD = SKg != null ? SKg : 0x3a4028, N = 14;
+      const g = this.g, BPg = this.bodyPaint(), OD = BPg.lt, N = 14;   // (in his body's own paint and shading -- Sir, 2026-11-17)
       const cyl = (xa, xb, r, col) => { const ring = x => { const o = []; for(let k = 0; k < N; k++){ const a = k/N*Math.PI*2; o.push([x, Math.cos(a)*r, zc + Math.sin(a)*r]); } return o; };
         const A = ring(xa), B = ring(xb);
         for(let k = 0; k < N; k++){ const a = (k + 0.5)/N*Math.PI*2, ny = Math.cos(a), nz = Math.sin(a), w = this.R(0, ny, nz); if(w.x + w.y + w.z <= 0) continue;
-          const lit = 0.5 + 0.5*(nz*0.8 - ny*0.3); this.quadOn(g, [A[k], A[(k + 1) % N], B[(k + 1) % N], B[k]].map(([x, y, z]) => this.P(x, y, z)), _pmix(_pdk(col, 0.7), _pmix(col, 0xffffff, 0.25), lit)); }
-        const fw = this.R(1, 0, 0), endX = (fw.x + fw.y + fw.z > 0) ? xb : xa; this.quadOn(g, (endX === xb ? B : A).map(([x, y, z]) => this.P(x, y, z)), _pdk(col, 0.85)); };
-      const pieces = [() => cyl(x0 - 1, x0 + 2.2, 3.3, OD), () => cyl(x0 + 2.2, x1 - 1.4, 1.15, OD), () => cyl(x1 - 1.4, x1, 1.5, _pdk(OD, 0.9))];
+          const lit = Math.max(0, Math.min(1, 0.5 + 0.5*(nz*0.8 - ny*0.3))); this.quadOn(g, [A[k], A[(k + 1) % N], B[(k + 1) % N], B[k]].map(([x, y, z]) => this.P(x, y, z)), lit > 0.5 ? _pmix(col, BPg.top, (lit - 0.5)*2) : _pmix(BPg.dk, col, lit*2)); }
+        const fw = this.R(1, 0, 0), endX = (fw.x + fw.y + fw.z > 0) ? xb : xa; this.quadOn(g, (endX === xb ? B : A).map(([x, y, z]) => this.P(x, y, z)), BPg.dk); };
+      const pieces = [() => cyl(x0 - 1, x0 + 2.2, 3.3, OD), () => cyl(x0 + 2.2, x1 - 1.4, 1.15, OD), () => cyl(x1 - 1.4, x1, 1.5, OD)];
       (front ? pieces : pieces.slice().reverse()).forEach(f => f());
       if(front){ const fw = this.R(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ const o = []; for(let k = 0; k < N; k++){ const a = k/N*Math.PI*2; o.push(this.P(x1 + 0.02, Math.cos(a)*0.8, zc + Math.sin(a)*0.8)); } this.quadOn(g, o, 0x0e0f12); } }   // (its bore)
       return; }
