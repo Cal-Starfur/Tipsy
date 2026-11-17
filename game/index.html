@@ -128976,6 +128976,7 @@ class WorldScene extends Phaser.Scene {
       if(SKP === 'ears' && part === 'mid'){ const sb = -nearSide, zt = LID.z1, ly = LID.hy, E = [0x5a3418, 0x7a4a24], ear = [];   // (the far ear, before his cab)
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
+      if(SKP === 'stinger' && part === 'pre' && frontSeen) this.monsterScorpTail(P, K, 'pre', bobZ);
       if(SKP === 'stinger' && part === 'mid' && frontSeen) this.monsterScorpTail(P, K, 'low', bobZ);   // (its root, behind his cab from the front)
       if(SKP === 'stinger' && ((part === 'after' && frontSeen) || (part === 'pre' && !frontSeen))) this.monsterPincers(P, K, vis, nearSide, bobZ);
       if(SKP === 'ears' && part === 'after' && frontSeen){ const fx = BODY.hx + 0.3, z0 = BODY.z0 + 0.5;   // (its tongue, out under his face)
@@ -129184,17 +129185,20 @@ class WorldScene extends Phaser.Scene {
      as it rises off his back and curls forward over his cab, ending in a swollen bulb and a hooked barb aimed ahead -- drawn far to near. Seen
      from the front, the low ones behind his cab go before it ('low'), the rest over it ('high') */
   monsterScorpTail(P, K, which, bobZ){ const g = this.g, N = 28, x0 = -BODY.hx + 4, zt = LID.z1, segs = [];
-    for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.1; segs.push({ x: x0 - 8*Math.sin(a) + u*u*24, z: BODY.z1 + 2.5 + Math.sin(a*0.92)*19 + u*8, r: 7.5 - u*4.3, k }); }
+    /* (its mount -- Sir, 2026-11-17: "the mount doesn't look good"): it grows out of his whole back face, as the Dino's does -- its root his
+       body's own height and paint, turning amber as it sweeps back and up and over */
+    const xr = -BODY.hx + 2, zc = (BODY.z0 + BODY.z1)/2, H2 = (BODY.z1 - BODY.z0)/2, BPs = this.bodyPaint();
+    for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.1; segs.push({ x: xr - 12*Math.sin(a) + u*u*26, z: zc + 30*Math.sin(a*0.75) + u*12, r: H2*(1 - u*0.62), k, t: Math.min(1, Math.max(0, (u - 0.06)/0.22)) }); }
     /* (one piece -- Sir, 2026-11-17: "not segments"): a smooth tapering tube, its belly dark, its flank amber, a lit line down its top, drawn
        root to tip from the front (the root is farther) and tip to root from behind */
-    const low = s2 => s2.x < -LID.hx - 1 && s2.z < zt + 3, idx = [...Array(N).keys()];
+    const zone = s2 => s2.z < BODY.z1 + 1 ? 'pre' : s2.x < -LID.hx - 1 && s2.z < zt + 3 ? 'low' : 'high', idx = [...Array(N).keys()];   // (from the front: under his top before him, behind his cab before it, the rest over)
     if(which === 'all') idx.reverse();
-    const use = idx.filter(k => which === 'all' || (which === 'low') === low(segs[k]));
-    for(const [col, wf, off, cap] of [[0x6a3a0a, 1, 0, true], [0xd8881a, 0.7, 0.2, false], [0xffc060, 0.25, 0.55, false]]) for(const k of use){   // (each tone the whole length, so no joints show)
-      const a2 = segs[k], b2 = segs[k + 1], A = P(a2.x, 0, a2.z), B = P(b2.x, 0, b2.z), ra = a2.r, rb = b2.r;
+    const use = idx.filter(k => which === 'all' || zone(segs[k]) === which);
+    for(const [ci, base, wf, off, cap] of [[2, 0x6a3a0a, 1, 0, true], [1, 0xd8881a, 0.7, 0.2, false], [0, 0xffc060, 0.25, 0.55, false]]) for(const k of use){   // (each tone the whole length, so no joints show)
+      const a2 = segs[k], b2 = segs[k + 1], A = P(a2.x, 0, a2.z), B = P(b2.x, 0, b2.z), ra = a2.r, rb = b2.r, col = _pmix([BPs.top, BPs.lt, BPs.dk][ci], base, a2.t);
       g.lineStyle(Math.max(1, (ra + rb)*K*wf), col, 1); g.lineBetween(A.x, A.y - ra*off*K, B.x, B.y - rb*off*K);
       if(cap){ g.fillStyle(col, 1); g.fillCircle(A.x, A.y, ra*K); g.fillCircle(B.x, B.y, rb*K); } }
-    if(which !== 'low'){ const e = segs[N], B = P(e.x + 3, 0, e.z - 2), T0 = P(e.x + 5, 0, e.z - 4), T1 = P(e.x + 9, 0, e.z - 9);   // (the bulb and the barb)
+    if(which === 'high' || which === 'all'){ const e = segs[N], B = P(e.x + 3, 0, e.z - 2), T0 = P(e.x + 5, 0, e.z - 4), T1 = P(e.x + 9, 0, e.z - 9);   // (the bulb and the barb)
       g.fillStyle(0x6a3a0a, 1); g.fillCircle(B.x, B.y, 4*K); g.fillStyle(0xf0a83a, 1); g.fillCircle(B.x - 0.5*K, B.y - 0.5*K, 3.2*K);
       g.lineStyle(Math.max(1, 3*K), 0x16171b, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y); g.fillStyle(0xff5a2a, 1); g.fillCircle(T1.x, T1.y, 0.9*K); } }
   /* the Scorpion's pincers out ahead of his nose, an arm and a claw each side, the jaws open */
