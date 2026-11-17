@@ -45190,7 +45190,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
   { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x2e3340, head: 0x111216, stripe: 0x23262c, costume: 'penguin', noAerial: true },
   { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true, noMouth: true },
-  { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
+  { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true, noMouth: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
@@ -129840,9 +129840,15 @@ class WorldScene extends Phaser.Scene {
         ball(pa, pb, pz + 7, 8, 0xd8261c); { const q = P(pa - 1, pb + nearB*0.5, pz + 6), rr = sr(pa, pb, pz + 6, 5.5); g.fillStyle(0x2aa83a, 1); g.fillEllipse(q.x, q.y + rr*0.3, rr*1.4, rr*2); }
         ball(pa + 4, pb, pz + 17, 5.6, 0xe8301c); { const q = P(pa + 9, pb, pz + 17), rr = sr(pa, pb, pz + 17, 3.2); g.fillStyle(0xf3ead2, 1); g.fillTriangle(q.x - rr, q.y - rr, q.x - rr, q.y + rr, q.x + rr*1.4, q.y + rr*0.6); g.fillStyle(0x16171b, 1); const e = P(pa + 6, pb + nearB*2, pz + 18.5); g.fillCircle(e.x, e.y, rr*0.45); } }
       return; }
-    if(c === 'chef'){
-      if(st === 'face' && front){ for(const sb of [-1, 1]){ const pts = []; for(let i = 0; i <= 8; i++){ const u = i/8; pts.push([sb*(1 + u*8), 79.5 - Math.sin(u*Math.PI)*2.4 + u*1.4]); } for(let i = 8; i >= 0; i--){ const u = i/8; pts.push([sb*(1 + u*8), 77.5 + u*1.8]); } onFront(pts, 0x3a2414); } }   // (a curled moustache)
-      if(st === 'top'){ lathe(0, 0, [[zl, 14], [zl + 18, 15]], 0xf6f6f2); for(const [a, b] of [[0, 0], [7, 6], [7, -6], [-7, 6], [-7, -6], [0, 10], [0, -10]]) ball(a, b, zl + 22, 7.5, 0xfafaf6); }   // (a tall puffed toque)
+    if(c === 'chef'){   /* (second pass -- Sir, 2026-11-17): a double-breasted coat (two rows of buttons), a red neckerchief knotted under his face,
+         a bigger curled moustache, a tall pleated toque puffed at the top */
+      if(st === 'body'){ if(front) for(const b of [-6, 6]) for(const zz of [24, 34, 58, 66]) ball(hx + 0.6, b, zz, 1.5, 0x3b4048);
+        }
+      if(st === 'face' && front){ onFront([[-11, 76], [11, 76], [0, 62]], 0xd8261c); ball(hx + 0.8, 0, 74, 2.4, 0xb8141a);   // (a red neckerchief knotted under his face)
+        for(const sb of [-1, 1]){ const pts = []; for(let i = 0; i <= 10; i++){ const u = i/10; pts.push([sb*(1 + u*13), 80 - Math.sin(u*Math.PI)*4.5 + u*u*7]); } for(let i = 10; i >= 0; i--){ const u = i/10; pts.push([sb*(1 + u*13), 76.5 + u*u*8]); } onFront(pts, 0x3a2414); } }   // (a big curled moustache)
+      if(st === 'top'){ lathe(0, 0, [[zl, 13.5], [zl + 4, 13.5]], 0xe6e8ec); lathe(0, 0, [[zl + 4, 13.5], [zl + 22, 15]], 0xfafaf6);
+        for(let i = 0; i < 12; i++){ const th = i/12*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; line([ca*13.6, sa*13.6, zl + 4.5], [ca*15.1, sa*15.1, zl + 21.5], 0xd9dde2, 1); }   // (its pleats)
+        for(const [a, b] of [[0, 0], [8, 7], [8, -7], [-8, 7], [-8, -7], [0, 11], [0, -11], [11, 0], [-11, 0]]) ball(a, b, zl + 26, 8, 0xfcfcfa); }   // (its puffed top)
       return; }
     if(c === 'wizard'){
       if(st === 'face') onFront([[-10, 78], [-6, 70], [-9, 58], [-4, 48], [0, 36], [4, 48], [9, 58], [6, 70], [10, 78], [4, 76], [0, 77.5], [-4, 76]], 0xf2f2ee);   // (a long white beard)
