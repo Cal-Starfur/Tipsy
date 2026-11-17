@@ -6763,7 +6763,11 @@ function zoomSet(n){
 }
 /* 1 -> 2 -> 3 -> 1. Persisted, so it survives loadChallenge()/hjQuit()
    rebuilding the route and re-entering create(). */
-function zoomCycle(){ owDbgArm(); zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
+function zoomCycle(){ owDbgArm();
+  /* (in a displacing room: 1 and 2 only -- the room is a set, view 3 shows round it; his choice there is his, not put back on the way out) */
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null;
+  if(s && s._inside && s._inside.displace){ s._zoomBack = 0; zoomSet(zoomDepth === 1 ? 2 : 1); return; }
+  zoomSet(zoomDepth === 3 ? 1 : zoomDepth + 1); }
 /* Straight run-up before the kicker. Was four sidewalk tile-pairs; 5.75
    now, because the run-up is where charge is built and doubling the speed
    halves the time available to build it. It is still QUICKER than it was in
@@ -27326,7 +27330,24 @@ function pocketShellK(scene, pk){
    can't see all of the interior"): a room lists the buildings that stand over its view in pk.ghosts; while he is inside it each of
    them eases down to SHELL_GHOST and back (the same ease as the shell's own, pocketShellK). One factor per lib, 1 when none applies. */
 const SHELL_GHOST = 0.14, GHOST_K = {};
+/* A BUILDING THE ROOM DISPLACES (Sir, 2026-11-17: "ghost what we can and eliminate what we must"): ghosted, and drawn UNDER everything --
+   its queue entries sorted to the very back -- so the room's own floor and walls cover it wherever they overlap it on screen; only what
+   lies outside the room's outline shows, faint (the room he is in, or the one he is easing out of) */
+function displacedLib(scene, lib){
+  const pk = scene && (scene._inside || scene._dimPk);
+  return !!(pk && pk.displace && pk.ghosts && pk.ghosts.indexOf(lib) >= 0);
+}
+/* a world point under the room he is in, when that room displaces what stands there (pk.displace): its yard props, its alley gates
+   and a depot there are not drawn while he is in it */
+function displacedAt(scene, x, y, pad){
+  const pk = scene && scene._inside; if(!pk || !pk.displace || !pk.view) return false;
+  const v = pk.view(); if(!v) return false;
+  const p = pad || 0, x0 = pk.x0 + v.dx - 30, y0 = pk.y0 + v.dy - 30;
+  return x > x0 - p && x < x0 + pk.w + 60 + p && y > y0 - p && y < y0 + pk.d + 60 + p;
+}
 function shellGhostK(scene, lib){
+  /* (a room that DISPLACES its neighbours -- bigger inside than out, pk.displace: Sir, 2026-11-17, "we dont want to see the ghosted
+     buildings we are displacing" -- takes them right off, not to a ghost) */
   const pk = scene && scene._inside, want = pk && pk.ghosts && pk.ghosts.indexOf(lib) >= 0 ? SHELL_GHOST : 1;
   let c = GHOST_K[lib];
   if(!c){ if(want === 1) return 1; c = GHOST_K[lib] = { want: 1, from: 1, t0: performance.now() - MALL_CUT_MS }; }
@@ -29563,6 +29584,8 @@ function walkinStep(R, s, dt, now, bot){
   if(m.beat){ m.moving = false; m.v = 0; turnTo(m.beat.th);
     if(now >= m.beat.until){ const b = m.beat; m.beat = null; if(b.fn) b.fn(now); }
     return; }
+  if(m.path && !m.path.length) m.path = null;   // (a way planned to where they already stand comes back empty: nothing to walk -- the tea room's
+                                                 //  people, 2026-11-17, threw reading its first point)
   if(m.path && (!m.go || now >= m.go)){
     const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy);
     if(L < 0.5){ m.path.shift();
@@ -30579,29 +30602,42 @@ walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
      b 30..64        THE TEA COUNTER along the north wall, the tea master behind it; tins and teapots on the shelves over it
      b 136..228      the door's lane, door to back wall, kept clear
      b 250..300      two round tables, their stools; a moon window and scrolls on the west wall */
-const TH_IN = { name: 'Tidewater Tea House Interior', x0: 780000, y0: 400000, WALL: 30/1.3, A0: 40, A1: T2*4.4 - 40, BACK: -216, H: 300, LH: 66,
-  DOOR: [172, 234], DOORZ: 112*1.95 };
+/* (BIGGER INSIDE THAN OUT, W31 -- Sir, 2026-11-17: "what if we build the interior to be bigger than the exterior": the room runs back past
+   the building's own back, BACK, to ROOM_BACK and ROOM_A1, under the buildings behind it, which are drawn under it while he is inside) */
+const TH_IN = { name: 'Tidewater Tea House Interior', x0: 780000, y0: 400000, WALL: 30/1.3, A0: 40, A1: T2*4.4 - 40, BACK: -216, ROOM_BACK: -700, ROOM_A1: T2*4.4 - 40 + 230, H: 300, LH: 66,
+  DOOR: [154, 252], DOORZ: 112*1.95 };
 const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0: TH_IN.x0, y0: TH_IN.y0,
-  lab: [TH_IN.A0 + TH_IN.WALL, TH_IN.A1 - TH_IN.WALL, TH_IN.BACK + TH_IN.WALL, -TH_IN.WALL], body: [[TH_IN.A0, TH_IN.A1, TH_IN.BACK, 0]],
-  door: { a: (TH_IN.DOOR[0] + TH_IN.DOOR[1])/2, b: 0, half: (TH_IN.DOOR[1] - TH_IN.DOOR[0])/2*1.3 }, H: TH_IN.H, LH: TH_IN.LH, out: 60, glass: 40,
+  /* (its north wall on the block's own edge, the pavement's line -- from the tea house's walls, 40 in (wallIn), the strip between showed the
+     yard's sand in the corner by the pavement once the shell was off: Sir, 2026-11-17) */
+  lab: [TH_IN.WALL, TH_IN.ROOM_A1 - TH_IN.WALL, TH_IN.ROOM_BACK + TH_IN.WALL, -TH_IN.WALL], body: [[TH_IN.A0, TH_IN.A1, TH_IN.BACK, 0]],
+  door: { a: (TH_IN.DOOR[0] + TH_IN.DOOR[1])/2, b: 0, half: (TH_IN.DOOR[1] - TH_IN.DOOR[0])/2*1.3 }, H: TH_IN.H, LH: TH_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in)
   /* (its way to and from the street, THE ROOM'S DAY: out under the colonnade onto the east pavement, along it either way) */
   street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
   /* (seen through, W11: the open doorway) */
   openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] }] });
-POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books'];   // (W26: the bookshop south of it stands over its south wall on screen)
+POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Palmline Savings', 'Marina Optical'];
+POCKETS[POCKETS.length - 1].displace = true;   // (W31: the room is bigger than the tea house -- what it covers is ghosted under it, the room over it: displacedLib)   // (W26: the bookshop south of it over its south wall; the bank, the room runs back under it -- TEST)
 /* ITS PEOPLE (221 x 362, a tea room): the tea master behind the counter (fixed, the keyholder), a server between the counter and the
    tables, two guests */
 const TH_MASTER_UNIFORM = { shirt: { c:0x2c4a6b, dk:0x1f3650 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
 const TH_SERVER_UNIFORM = { shirt: { c:0xb8352a, dk:0x922a21 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
 walkinStaff(TH_IN.name, [
-  { id: 'master', role: 'tea master', seed: 0x7e01, U: TH_MASTER_UNIFORM, fixed: true, keys: true, posts: [[110, 16, Math.PI/2, 9000, true], [60, 18, Math.PI*0.6, 3600, true]] },
-  { id: 'server', role: 'tea server', seed: 0x7e02, U: TH_SERVER_UNIFORM, posts: [[150, 96, Math.PI/2, 6000, true], [104, 240, Math.PI/2, 4200, true], [190, 250, Math.PI, 3600, true]] },
+  { id: 'master', role: 'tea master', seed: 0x7e01, U: TH_MASTER_UNIFORM, fixed: true, keys: true, posts: [[440, 25, Math.PI/2, 9000, true], [360, 25, Math.PI*0.6, 3600, true], [520, 25, Math.PI*0.4, 3000, true]] },
+  { id: 'barista', role: 'tea server', seed: 0x7e05, U: TH_MASTER_UNIFORM, fixed: true, posts: [[660, 25, Math.PI/2, 7000, true], [580, 25, Math.PI*0.45, 3800, true]] },
+  { id: 'brewer', role: 'tea brewer', seed: 0x7e03, U: TH_MASTER_UNIFORM, fixed: true, posts: [[140, 25, Math.PI/2, 8000, true], [70, 25, Math.PI*0.7, 4200, true], [210, 25, Math.PI*0.3, 3600, true]] },
+  { id: 'server', role: 'tea server', seed: 0x7e02, U: TH_SERVER_UNIFORM, posts: [[410, 440, Math.PI/2, 6000, true], [410, 300, Math.PI/2, 4200, true], [250, 460, Math.PI, 3600, true], [600, 440, 0, 3000, true]] },
+  { id: 'clerk', role: 'tea shop clerk', seed: 0x7e04, U: TH_SERVER_UNIFORM, posts: [[760, 445, Math.PI, 8000, true], [610, 370, 0, 3000, true]] },
   { id: 'guest-1', role: 'guest', seed: 0x7e11, look: 'visitor', life: 'browse' },
   { id: 'guest-2', role: 'guest', seed: 0x7e12, look: 'visitor', life: 'browse' },
+  { id: 'guest-3', role: 'guest', seed: 0x7e13, look: 'visitor', life: 'browse' },
+  { id: 'guest-4', role: 'guest', seed: 0x7e14, look: 'visitor', life: 'browse' },
 ]);
-walkinLife(TH_IN.name, { keep: [[0, 221, 136, 228]], looks: [
-  { id: 'counter', spots: [[90, 92, -Math.PI/2], [150, 120, -Math.PI/2]] },
-  { id: 'table-1', spots: [[50, 250, Math.PI/2]] }, { id: 'table-2', spots: [[150, 250, Math.PI/2]] },
+walkinLife(TH_IN.name, { keep: [[0, 2000, 194, 274]], looks: [
+  { id: 'bar', spots: [[440, 118, -Math.PI/2], [560, 118, -Math.PI/2]] },
+  { id: 'brew', spots: [[150, 118, -Math.PI/2]] },
+  { id: 'tables', spots: [[320, 435, Math.PI/2], [500, 435, Math.PI/2], [410, 585, -Math.PI/2]] },
+  { id: 'platform', spots: [[255, 380, Math.PI], [255, 540, Math.PI]] },
+  { id: 'shop', spots: [[610, 370, 0], [610, 520, 0]] },
 ] });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
@@ -47077,7 +47113,16 @@ function walkinRoom(items, R){
       if(k === n - 1 && last) S(s1, -30, 0, 0, H, fside);                         // its end, over the east wall
       } finally { BOFF = b00; }
     }}); } };
-  farN(-30, NE, 0, R.paintN, true);
+  /* (R.cornerLow: the north wall stops at the room's east wall, and the corner block over the east wall is cut low with it -- a room whose
+     east wall is the street frontage (Tidewater Tea House): full height there, the wall's end stood up over the pavement by the door) */
+  if(R.cornerLow && !NT){
+    farN(-30, W, 0, R.paintN, false);
+    items.push({ a: W + 15, b: -15, z: 0, solids: [wallSolid(W, W + 30, -30, 0, LH)], draw: () => {
+      T(W - 0.5, W + 30, -30, 0, LH - 8, top); F(W, W + 30, 0, LH - 8, front, null, 0, 0); S(W + 30, -30, 0, 0, LH - 8, side);
+      T(W - 0.5, W + 30, -30, 0, LH, ctop); F(W, W + 30, LH - 8, LH, cfront, null, 0, 0); S(W + 30, -30, 0, LH - 8, LH, cside);
+      S(W, -30, 0, LH, H, fside);   // (the tall wall's end, over the corner)
+    }});
+  } else farN(-30, NE, 0, R.paintN, true);
 
   for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
     const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
@@ -47547,7 +47592,10 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   const hw = (opts && opts.w || SHOP_DOOR_W)/2, dH = (opts && opts.h) || SHOP_DOOR_H/ZSCALE, pair = !!(opts && opts.pair), glazed = !!(opts && opts.glazed);   // (opts.h: a taller door; opts.glazed: glass leaves with a push bar -- the Animal Shelter's)
   const mid = Math.max(hw+5, Math.min(uw-hw-5, aMid));
   const a0 = mid-hw, a1 = mid+hw;
-  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  /* (opts.studs: a pair of solid lacquered leaves set with rows of studs, a ring pull on each -- the tea house's, drawn by the kit: the
+     leaves `trim`, the studs and pulls opts.studs. A walk-in's (SEE) swing, live, as a shut door's leaves do, not slide as glass does) */
+  const studs = (opts && opts.studs) || null;
+  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, studs, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -47600,6 +47648,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
         F(la0+10, la1-10, z+62, z+66, '#d8dde0', null, 0, 1.2);
         continue;
       }
+      if(studs){ shopDoorStuds((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, studs, trim, ha < mA ? la1 - la0 - 10 : 10); continue; }
       for(let k=0;k<2;k++)
         F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
       F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
@@ -47664,14 +47713,29 @@ function shopInterior(d, t, Z0, Z1){
 }
 /* a door's leaves as [hinge a, swing sign, length]: one leaf, or a
    half door's two from opposite jambs */
+/* ONE LEAF OF A PAIR AT A TIME (D12; Sir, 2026-11-17, the tea house: "the door is painting over tipsy"): the scene draws each leaf of a
+   pair as its own piece at its own side of the doorway -- SHOP_LEAF_PICK (LIB.setLeafPick) the leaf a draw is for, 0 the a0 jamb's,
+   1 the a1's; null both */
+let SHOP_LEAF_PICK = null;
 function shopDoorLeaves(d){
   if(!d.half && !d.pair) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
   const mA = (d.a0 + d.a1)/2;
-  return [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
+  const L = [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
+  return SHOP_LEAF_PICK == null ? L : SHOP_LEAF_PICK < 0 ? [] : [L[SHOP_LEAF_PICK]];   // (-1: no leaf -- the room behind and the doorway's people only)
+}
+/* A STUDDED LEAF'S FACE (shopDoor opts.studs): a dark frame, the lacquered panel, rows of studs, the ring pull near the meeting stile --
+   one drawer for it shut and swung (rect(u0, u1, z0, z1, colour, off): u along the leaf from its hinge) */
+function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
+  rect(0, len, z0, z1, shade(trim, 0.55));
+  rect(4, len - 4, z0 + 8, z1 - 8, trim, 0.1);
+  const n = Math.max(2, Math.round((len - 16)/12));
+  for(let r = 0; r < 6; r++) for(let c = 0; c < n; c++){ const u = 10 + c*(len - 20)/(n - 1), zz = z0 + 18 + r*(z1 - z0 - 36)/5; rect(u - 1.6, u + 1.6, zz - 1.6, zz + 1.6, studs, 0.2); }
+  rect(pullU - 3, pullU + 3, (z0 + z1)/2 - 5, (z0 + z1)/2 + 5, studs, 0.3); rect(pullU - 1.5, pullU + 1.5, (z0 + z1)/2 - 3, (z0 + z1)/2 + 3, shade(trim, 0.5), 0.35);
 }
 /* leafOnly: just the swung leaves, to lay back over someone standing
    behind them (see LIB.doorLeaves) */
 function shopDoorOpen(d, t, between, leafOnly){
+  if(SHOP_LEAF_PICK != null && SHOP_LEAF_PICK >= 0){ leafOnly = true; between = null; }   // (one leaf: just it -- the room behind and whoever is in the doorway are their own piece, pick -1)
   const ang = SHOPDOOR_ART.openAngle * Math.max(0, Math.min(1, t));
   const ca = Math.cos(ang), sa = Math.sin(ang);
   /* THE SAME LEAF, SWUNG (Sir on-device: "the door is losing its detail
@@ -47715,6 +47779,18 @@ function shopDoorOpen(d, t, between, leafOnly){
      slidePairDraw): each leaf parts from the middle over the wall beside it. They swung out (Sir, 2026-11-05, the
      trophy shop: "showing 2 doors one that opens one that doesnt") -- swung out toward the street, the near leaf lay
      across the doorway and read as still shut */
+  if(d.pair && d.see && d.studs){                                          // (a walk-in's studded pair: swung, from its two jambs -- the tea house's)
+    /* INWARD, into the shop, as a shop's front doors open (Sir, 2026-11-17: "the door is painting over tipsy" -- swung out over the street,
+       the near leaf crossed him as he came up to it). From the street they are seen through the opening, so cut to it there; from
+       inside (the half door, CUT) the room is open round them */
+    const Qi = (hingeA, sgn) => (u, z, off) => P(hingeA + sgn*u*ca, 0.6 - u*sa + (off || 0)*0, z);
+    const clipIt = CUT == null;
+    if(clipIt){ ctx.save(); poly([P(d.a0, 0.6, d.z), P(d.a1, 0.6, d.z), P(d.a1, 0.6, d.z + d.dH), P(d.a0, 0.6, d.z + d.dH)]); ctx.clip(); }
+    try { for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){ const qq = Qi(hingeA, sgn);
+      shopDoorStuds((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.studs, d.trim, ln - 10); } }
+    finally { if(clipIt) ctx.restore(); }
+    return;
+  }
   if(d.pair && d.see){
     /* ...and they fill the opening to its head: the shell's hole there is cut the door's full height (the pocket's
        openings, dH), so leaves stopping 30 short, as a solid door's do in its surround, left a band of the room over
@@ -47722,7 +47798,7 @@ function shopDoorOpen(d, t, between, leafOnly){
     const z1 = d.z + d.dH;
     const half = (d.a1 - d.a0)/2, sh = (half - 3)*Math.max(0, Math.min(1, t));
     const L = (a0, a1, za, zb, fill, off) => { const b = 0.6 + (off || 0); poly([P(a0,b,za), P(a1,b,za), P(a1,b,zb), P(a0,b,zb)], fill); };
-    for(const [l0, l1, s] of [[d.a0 + 2, d.a0 + half, -1], [d.a0 + half, d.a1 - 2, 1]]){
+    for(const [l0, l1, s] of [[d.a0 + 2, d.a0 + half, -1], [d.a0 + half, d.a1 - 2, 1]].filter((x, i) => SHOP_LEAF_PICK == null || i === SHOP_LEAF_PICK)){
       const A0 = l0 + s*sh, A1 = l1 + s*sh, meet = s < 0 ? A1 : A0, ms = s < 0 ? -1 : 1;   // (meet: the edge at the middle)
       L(A0 + 5, A1 - 5, z0 + 12, z1 - 6, 'rgba(150,186,200,.36)');
       L(A0, A0 + 5, z0, z1, d.trim); L(A1 - 5, A1, z0, z1, d.trim);
@@ -57157,87 +57233,141 @@ function houseCanopy(fn){
   }
 },
 {
-  /* INSIDE TIDEWATER TEA HOUSE (TH_IN; the walk-in kit's walls, walkinRoom, its door in the east wall). Frame a east, b south, z up,
-     world units. Long pieces in runs (runPiece, W28) */
+  /* INSIDE TIDEWATER TEA HOUSE (TH_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back under the
+     buildings behind it, which are taken off while he is inside -- pk.displace). Frame a east, b south, z up, world units. Laid out
+     for the room's size (Sir, 2026-11-17: "the interior needs a redesign to take advantage of this new room size"):
+       the north wall    THE BREWING STATION (a 24..260): brass urns, the brewer behind it, the wall of jars over it; then THE TEA BAR
+                         (a 300..720): red lacquer, the tea master behind it, the shelves of tins over it, wall lanterns
+       b 194..274        the door's lane, the red runner, door to back wall, clear
+       the west          THE MAT PLATFORM (a 20..230, b 310..640) under the moon window and the scrolls: tatami, low tables, cushions
+       the middle        FOUR ROUND TABLES and their stools (a 320/500 x b 360/520), aisles a body wide between them
+       by the door       THE TEA SHOP: two display tables of tins for sale (a 645..715), the clerk; palms in jade pots
+     Long pieces in runs (runPiece, W28). */
   name:'Tidewater Tea House Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 221, dd: 362,
-  head:'Inside Tidewater Tea House: the tea counter, shelves of tins and teapots, round tables, a moon window',
-  tags:['interior','pocket','tea house','tea counter','lanterns'],
-  desc:'The Flats\' tea house: cream plaster over a deep blue dado, a dark plank floor, the tea counter of red lacquer with its tins, teapots and kettle and the shelves over it, two round tables with stools, a moon window, scrolls and paper lanterns.',
+  ww: 850, dd: 661,
+  head:'Inside Tidewater Tea House: a brewing station and tea bar, a mat platform, round tables, a tea shop corner',
+  tags:['interior','pocket','tea house','tea bar','tatami','tea shop'],
+  desc:'The Flats\' tea house: cream plaster over a deep blue dado, a dark plank floor and a red runner from the door; a brewing station of brass urns under a wall of jars and a long red-lacquer tea bar under shelves of tins; a raised mat platform with low tables and cushions under the moon window; four round tables with stools; and a corner of display tables selling tea by the door.',
   draw(p){
     const pl = (typeof TH_PLAN !== 'undefined' && TH_PLAN) || null;
     if(pl) pl.view();
-    const W = (pl && pl.W) || 221, D = (pl && pl.D) || 362, H = TH_IN.H, LH = TH_IN.LH, DZ = TH_IN.DOORZ;
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 661, H = TH_IN.H, LH = TH_IN.LH, DZ = TH_IN.DOORZ;
     const door = (pl && pl.door) || { side: 'e', at: 182, half: 40 };
     const wall = '#efe9db', wallD = '#ddd5c2', trim = '#2c4a6b', trimD = '#1f3650', red = '#b8352a', redF = '#9a2c23', redS = '#7e241c';
-    const gold = '#c9a24a', dark = '#26221e', plank = '#6b4a30', plankD = '#5a3e28', wood = '#7a5232', woodF = '#664428', woodS = '#523620';
-    const jade = '#3f6b52', paper = '#f2e6c8';
+    const gold = '#c9a24a', goldD = '#a8862f', dark = '#26221e', plank = '#6b4a30', plankD = '#5a3e28', wood = '#7a5232', woodF = '#664428', woodS = '#523620';
+    const jade = '#3f6b52', paper = '#f2e6c8', mat = '#cdbf8e', matD = '#b4a676', brass = '#c9a24a', brassD = '#a8862f';
+    const TIN = [jade, red, gold, '#2f4a5a', '#e6dccb'];
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     const ring = (a, b, z, r, c, plane) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(plane === 'w' ? P(a, b + Math.cos(t)*r, z + Math.sin(t)*r) : P(a + Math.cos(t)*r, b, z + Math.sin(t)*r)); } poly(pts, c); };
+    const palm = (pa, pb) => items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'palm', c: [pa, pb], r: 14, h: 110 }], draw: () => {
+      cyl(pa, pb, 0, 26, 14, jade, shade(jade, 1.15)); for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 26, pa + Math.cos(t)*16, pb + Math.sin(t)*12, 84, 2.2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
 
-    /* ---- THE FLOOR: dark planks running east-west, a runner up the lane; the threshold under the door ---- */
+    /* ---- THE FLOOR: dark planks, the red runner up the lane, the threshold ---- */
     T(0, W, 0, D, 0, plank);
     for(let b = 18; b < D; b += 18) T(0, W, b - 0.6, b + 0.6, 0.2, plankD);
     T(0, W, door.at - 34, door.at + 34, 0.3, red); T(0, W, door.at - 28, door.at + 28, 0.35, shade(red, 1.1));
+    for(let a = 20; a < W; a += 60) T(a, a + 14, door.at - 24, door.at + 24, 0.4, shade(red, 1.2));
     items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#cfc8b8');
       T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, gold); } });
 
-    /* ---- THE WALLS (the kit's): cream plaster over the deep blue dado; the shelves of tins and teapots over the counter on the north
-       wall, its paper lanterns; on the west wall the moon window, the scrolls ---- */
-    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ, cornerLow: true,
       paintN: () => {
         F(-30, W + 30, 0, H, wall, null, 0, 0);
         F(-30, W + 30, 0, 74, trim, null, 0, 0.1); F(-30, W + 30, 74, 78, gold, null, 0, 0.2);
         F(-30, W + 30, H - 18, H, red, null, 0, 0.3);
-        /* the shelves: three dark boards, tins in jade, red and gold, teapots between */
-        const TIN = [jade, red, gold, '#2f4a5a', '#e6dccb'];
-        for(const [z, r] of [[120, 0], [168, 1], [216, 2]]){
-          F(20, W - 30, z - 4, z, woodS, null, 0, 0.4);
-          for(let a = 28, k = 0; a < W - 44; a += 16, k++){
-            if((k + r) % 4 === 3){ ring(a + 6, 0.6, z + 9, 8, '#e9e4da'); F(a + 13, a + 17, z + 8, z + 12, '#e9e4da', null, 0, 0.6); continue; }   // a teapot
-            F(a, a + 12, z, z + 20 + (k % 2)*6, TIN[(k + r*2) % 5], null, 0, 0.6); F(a, a + 12, z + 18 + (k % 2)*6, z + 21 + (k % 2)*6, gold, null, 0, 0.7); }
-        }
-        /* two paper lanterns on brackets, at the shelves' ends */
-        for(const la of [12, W - 18]){ F(la - 1, la + 1, 250, 268, dark, null, 0, 0.5); ring(la, 0.6, 236, 14, red); F(la - 10, la + 10, 234, 238, gold, null, 0, 0.7); }
+        /* the wall of jars over the brewing station: three shelves of big glass jars of leaf */
+        for(const z of [110, 160, 210]){ F(20, 264, z - 4, z, woodS, null, 0, 0.4);
+          for(let a = 28, k = 0; a < 254; a += 26, k++){ F(a, a + 20, z, z + 34, 'rgba(210,226,222,.85)', null, 0, 0.5); F(a + 3, a + 17, z + 2, z + 24, ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + z) % 4], null, 0, 0.6); F(a + 2, a + 18, z + 34, z + 38, dark, null, 0, 0.6); } }
+        /* the shelves of tins and teapots over the tea bar */
+        for(const [z, r] of [[120, 0], [168, 1], [216, 2]]){ F(296, 724, z - 4, z, woodS, null, 0, 0.4);
+          for(let a = 304, k = 0; a < 712; a += 16, k++){
+            if((k + r) % 5 === 4){ ring(a + 6, 0.6, z + 9, 8, '#e9e4da'); F(a + 13, a + 17, z + 8, z + 12, '#e9e4da', null, 0, 0.6); continue; }
+            F(a, a + 12, z, z + 20 + (k % 2)*6, TIN[(k + r*2) % 5], null, 0, 0.6); F(a, a + 12, z + 18 + (k % 2)*6, z + 21 + (k % 2)*6, gold, null, 0, 0.7); } }
+        /* the house's name board between them, and wall lanterns along it */
+        F(266, 292, 120, 250, dark, null, 0, 0.4); F(270, 288, 124, 246, gold, null, 0, 0.5); for(let k = 0; k < 5; k++) F(274, 284, 132 + k*22, 146 + k*22, dark, null, 0, 0.6);
+        for(const la of [12, 280, 740, W - 18]){ F(la - 1, la + 1, 254, 270, dark, null, 0, 0.5); ring(la, 0.6, 238, 14, red); F(la - 10, la + 10, 236, 240, gold, null, 0, 0.7); }
+        /* past the bar, toward the door: a painted landscape over the shop corner */
+        F(744, W - 30, 110, 230, paper, null, 0, 0.4); F(744, W - 30, 110, 116, wood, null, 0, 0.5); F(744, W - 30, 224, 230, wood, null, 0, 0.5);
+        for(let k = 0; k < 3; k++){ const c = 760 + k*24; poly([P(c - 22, 0.6, 130), P(c, 0.6, 170 + (k % 2)*20), P(c + 22, 0.6, 130)], k % 2 ? '#6f8f7a' : '#4f6f5a'); }
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wall, 0.94));
         S(0.1, -30, D + 30, 0, 74, shade(trim, 0.92)); S(0.2, -30, D + 30, 74, 78, gold);
         S(0.3, -30, D + 30, H - 18, H, redF);
-        /* THE MOON WINDOW over the tables: a round opening, its lattice, the garden's green behind */
-        { const mb = 270, mz = 170, R = 58; ring(0.3, mb, mz, R + 6, dark, 'w'); ring(0.4, mb, mz, R, '#9cc49a', 'w'); ring(0.45, mb, mz, R - 20, '#7aa878', 'w');
-          for(let k = -2; k <= 2; k++){ S(0.6, mb + k*20 - 1.5, mb + k*20 + 1.5, mz - Math.sqrt(R*R - (k*20)**2), mz + Math.sqrt(R*R - (k*20)**2), dark); S(0.6, mb - Math.sqrt(R*R - (k*20)**2), mb + Math.sqrt(R*R - (k*20)**2), mz + k*20 - 1.5, mz + k*20 + 1.5, dark); } }
-        /* two hanging scrolls by the door's lane */
-        for(const sb of [110, 186]){ S(0.3, sb - 18, sb + 18, 120, 250, paper); S(0.35, sb - 20, sb + 20, 246, 254, wood); S(0.35, sb - 20, sb + 20, 116, 122, wood);
+        /* THE MOON WINDOW over the platform: a round opening, its lattice, the garden's green behind */
+        { const mb = 430, mz = 170, R = 70; ring(0.3, mb, mz, R + 7, dark, 'w'); ring(0.4, mb, mz, R, '#9cc49a', 'w'); ring(0.45, mb, mz, R - 24, '#7aa878', 'w');
+          for(let k = -3; k <= 3; k++){ const h = Math.sqrt(Math.max(0, R*R - (k*20)**2)); S(0.6, mb + k*20 - 1.5, mb + k*20 + 1.5, mz - h, mz + h, dark); S(0.6, mb - h, mb + h, mz + k*20 - 1.5, mz + k*20 + 1.5, dark); } }
+        /* hanging scrolls either side of it, and one by the lane */
+        for(const sb of [110, 300, 560]){ S(0.3, sb - 18, sb + 18, 120, 250, paper); S(0.35, sb - 20, sb + 20, 246, 254, wood); S(0.35, sb - 20, sb + 20, 116, 122, wood);
           for(let k = 0; k < 4; k++) S(0.4, sb - 3, sb + 3, 140 + k*26, 156 + k*26, dark); }
       },
-      low: [wall, trim, trimD], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
+      /* THE FRONT WALL AS THE STREET SEES IT (W4; Sir, 2026-11-17: "the interior half walls dont match the exterior's walls"): the tea
+         house's cream plaster, and its four lattice screens cut into it at their own sill (the exterior's screens: lab a, z 22, x1.95),
+         their paper lit behind -- the near walls' outer faces are the building's own */
+      winE: [[52, 96], [102, 144], [262, 304], [310, 354]].map(([a0, a1]) => [(a0 - TH_IN.WALL)*1.3, (a1 - TH_IN.WALL)*1.3, 22*1.95]),
+      glass: 'rgba(242,230,200,.88)', frame: trim,
+      low: [wall, wall, shade(wall, 0.82)], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
 
-    /* ---- THE TEA COUNTER along the north wall: red lacquer, a dark top, the kettle on its brazier, teapots and cups set out ---- */
-    { const A0 = 24, A1 = W - 40, B0 = 30, B1 = 64;
-      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'tea counter')], () => {
+    /* ---- THE BREWING STATION: a dark counter, three brass urns on it, tea bowls set out ---- */
+    { const A0 = 24, A1 = 260, B0 = 50, B1 = 86;   // (50 clear behind it, against the wall: room for the brewer to walk -- at 30 nobody could reach it)
+      runPiece(items, A0, A1, B0, B1, 160, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'brewing counter')], () => {
+        box(A0, A1, B0, B1, 0, 82, wood, woodF, woodS); F(A0 + 4, A1 - 4, 40, 44, gold, null, 0, B1 + 0.4);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
+        for(const ua of [60, 130, 200]){ cyl(ua, B0 + 18, 88, 92, 14, brassD); cyl(ua, B0 + 18, 92, 128, 12, brass, shade(brass, 1.15)); cyl(ua, B0 + 18, 128, 134, 7, brassD); F(ua + 10, ua + 14, 100, 104, dark, null, 0, B0 + 30.3); }
+        for(let k = 0; k < 5; k++) cyl(90 + k*26, B1 - 8, 88, 93, 4, '#f4f0e6');
+      }); }
+
+    /* ---- THE TEA BAR: red lacquer, a dark top, the kettle on its brazier, teapots and cups set out ---- */
+    { const A0 = 300, A1 = 720, B0 = 50, B1 = 84;   // (as the brewing counter: 50 clear behind it for the tea master)
+      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'tea bar')], () => {
         box(A0, A1, B0, B1, 0, 82, red, redF, redS);
         for(let a = A0 + 24; a < A1 - 10; a += 30) F(a - 1, a + 1, 10, 74, redS, null, 0, B1 + 0.3);
         F(A0 + 4, A1 - 4, 40, 44, gold, null, 0, B1 + 0.4);
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
-        box(A0 + 14, A0 + 34, B0 + 6, B0 + 26, 88, 104, '#3a3e44', '#2f3338', '#25292d'); cyl(A0 + 24, B0 + 16, 104, 118, 9, '#c9ccd2', '#9aa0a6');   // the kettle on its brazier
-        for(let k = 0; k < 3; k++){ const a = A0 + 70 + k*34; cyl(a, B0 + 18, 88, 98, 8, k === 1 ? jade : '#e9e4da'); cyl(a, B0 + 18, 98, 101, 3, gold); }   // teapots
-        for(let k = 0; k < 4; k++) cyl(A1 - 30 + (k % 2)*12, B1 - 10 - ((k/2)|0)*10, 88, 93, 3.2, '#f4f0e6');   // cups
+        box(A0 + 14, A0 + 34, B0 + 6, B0 + 26, 88, 104, '#3a3e44', '#2f3338', '#25292d'); cyl(A0 + 24, B0 + 16, 104, 118, 9, '#c9ccd2', '#9aa0a6');
+        for(let k = 0; k < 6; k++){ const a = A0 + 80 + k*50; cyl(a, B0 + 18, 88, 98, 8, k % 3 === 1 ? jade : '#e9e4da'); cyl(a, B0 + 18, 98, 101, 3, gold); cyl(a + 18, B1 - 8, 88, 93, 3.2, '#f4f0e6'); }
       }); }
 
-    /* ---- TWO ROUND TABLES and their stools, past the lane (60 clear of the low south wall, W24) ---- */
-    for(const ta of [56, 150]){ const tb = 280;
-      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 22, h: 72 }], draw: () => {
-        cyl(ta, tb, 0, 6, 12, woodS); cyl(ta, tb, 6, 60, 4, woodF); cyl(ta, tb, 60, 66, 24, wood, shade(wood, 1.12));
-        cyl(ta - 6, tb - 4, 66, 74, 6, '#e9e4da'); cyl(ta + 8, tb + 4, 66, 70, 3.2, '#f4f0e6'); } });
-      for(const [da, db] of [[-34, 0], [34, 0]]) items.push({ a: ta + da, b: tb + db, z: 0, solids: [{ name: 'stool', c: [ta + da, tb + db], r: 10, h: 44 }], draw: () => {
-        cyl(ta + da, tb + db, 0, 40, 9, woodF); cyl(ta + da, tb + db, 40, 46, 11, red, shade(red, 1.15)); } });
+    /* ---- THE MAT PLATFORM under the moon window: a low wooden deck, tatami on it, three low tables, cushions round them ---- */
+    { const A0 = 20, A1 = 230, B0 = 310, B1 = 640, Z = 14;
+      /* (drawn with the floor -- it is under everything on it, the low tables and cushions; as a piece keyed at its east side it
+         painted over them) */
+      box(A0, A1, B0, B1, 0, Z, wood, woodF, woodS);
+      for(let b = B0 + 4; b < B1 - 4; b += 82){ T(A0 + 4, A1 - 4, b, Math.min(B1 - 4, b + 80), Z + 0.3, mat);
+        T(A0 + 4, A1 - 4, b, b + 3, Z + 0.4, matD); T(A0 + 4, A1 - 4, Math.min(B1 - 4, b + 80) - 3, Math.min(B1 - 4, b + 80), Z + 0.4, matD); }
+      items.push({ a: A0, b: B0, z: 0, solids: [solid(A0, A1, B0, B1, Z, 'mat platform')], draw: () => {} });
+      for(const [ta, tb] of [[90, 380], [160, 510], [90, 600]]){
+        items.push({ a: ta, b: tb, z: Z, solids: [{ name: 'low table', c: [ta, tb], r: 26, h: Z + 34 }], draw: () => {
+          for(const [la, lb] of [[-20, -14], [20, -14], [-20, 14], [20, 14]]) box(ta + la - 2, ta + la + 2, tb + lb - 2, tb + lb + 2, Z, Z + 22, woodS, woodS, woodS);
+          box(ta - 26, ta + 26, tb - 20, tb + 20, Z + 22, Z + 28, dark, '#1e1b18', '#171512');
+          cyl(ta - 6, tb - 4, Z + 28, Z + 36, 6, '#e9e4da'); cyl(ta + 10, tb + 6, Z + 28, Z + 32, 3.2, '#f4f0e6');
+          for(const [ca, cb] of [[-40, 0], [40, 0], [0, -32], [0, 32]]) box(ta + ca - 12, ta + ca + 12, tb + cb - 10, tb + cb + 10, Z, Z + 8, red, redF, redS);
+        } });
+      }
     }
-    /* a jade planter by the west wall, the room's one green */
-    items.push({ a: 26, b: 104, z: 0, solids: [{ name: 'planter', c: [26, 104], r: 14, h: 90 }], draw: () => {
-      cyl(26, 104, 0, 26, 14, jade, shade(jade, 1.15)); for(let k = 0; k < 5; k++){ const t = k/5*Math.PI*2; tube(26, 104, 26, 26 + Math.cos(t)*14, 104 + Math.sin(t)*10, 76, 2.2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
 
+    /* ---- FOUR ROUND TABLES and their stools, aisles a body wide between them ---- */
+    for(const ta of [320, 500]) for(const tb of [360, 520]){
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 72 }], draw: () => {
+        cyl(ta, tb, 0, 6, 12, woodS); cyl(ta, tb, 6, 60, 4, woodF); cyl(ta, tb, 60, 66, 26, wood, shade(wood, 1.12));
+        cyl(ta - 6, tb - 4, 66, 74, 6, '#e9e4da'); cyl(ta + 8, tb + 6, 66, 70, 3.2, '#f4f0e6'); } });
+      for(const da of [-38, 38]) items.push({ a: ta + da, b: tb, z: 0, solids: [{ name: 'stool', c: [ta + da, tb], r: 10, h: 44 }], draw: () => {
+        cyl(ta + da, tb, 0, 40, 9, woodF); cyl(ta + da, tb, 40, 46, 11, red, shade(red, 1.15)); } });
+    }
+
+    /* ---- THE TEA SHOP by the door: two display tables of tins, a stack of boxed teas, the price cards ---- */
+    for(const tb of [360, 520]){ const A0 = 645, A1 = 715, B0 = tb - 30, B1 = tb + 30;
+      runPiece(items, A0, A1, B0, B1, 120, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'display table')], () => {
+        box(A0, A1, B0, B1, 0, 66, dark, '#1e1b18', '#171512'); F(A0 + 4, A1 - 4, 50, 54, gold, null, 0, B1 + 0.3);
+        for(let r = 0; r < 2; r++) for(let c = 0; c < 4; c++){ const a = A0 + 8 + c*16, b = B0 + 12 + r*24, col = TIN[(c + r + (tb > 400 ? 2 : 0)) % 5];
+          box(a, a + 12, b, b + 14, 66, 86, col, shade(col, 0.88), shade(col, 0.76)); box(a, a + 12, b, b + 14, 86, 89, gold, goldD, goldD); }
+        box(A0 + 20, A0 + 50, B1 - 8, B1 - 2, 66, 80, paper, shade(paper, 0.9), shade(paper, 0.8));
+      }); }
+    palm(780, 320); palm(780, 620); palm(260, D - 70);
+
+    /* (its doors are the street's: the door kit's studded pair on the tea house, swung live, cut to the front wall's height from in here) */
     walkinStaffSolids(items, TH_IN.name);
     depthSort(items);
   }
@@ -61847,6 +61977,11 @@ function houseCanopy(fn){
 {
   name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268, wallIn: 40,
   see: true,   // (a walk-in: its doorway shows the tea room, TH_IN -- W11)
+  /* ITS VOLUME: the building itself (its walls 40 in from the lot's ends, its front on the set-back wall) with THE DOORWAY OPEN through the
+     wall's thickness -- he drives into it, and is taken into the room only once he is in it (TH_IN's glass < 0; Sir, 2026-11-17: "the
+     jump to interior is too soon ... it will help sell the cut if it doesnt switch prior to entry"). Draw frame (the wall at b -60) */
+  vol: { foot: volRect(40, T2*4.4 - 40, -276, -60), h: 288,
+         opens: [{ name: 'doorway', poly: volRect(154, 252, -150, -58), walk: true }] },   // (deep enough to take his body: the room has him before its far end)
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -62159,20 +62294,15 @@ function houseCanopy(fn){
       F(x0, x1, 22, 132, 'rgba(178,196,190,.20)', null, 0, FB+0.4);  // glass
       F(x0-8, x1+8, 132, 144, shade(trim,1.05), null, 0, FB+0.8);    // head
     };
-    for(const [x0,x1] of [[52,106],[112,166],[240,294],[300,354]]) screen(x0, x1);
+    /* (narrower, to give the doors room: the doors are 98 now, wide enough for him and a guest -- Sir, 2026-11-17, "can we make them wider") */
+    for(const [x0,x1] of [[52,96],[102,144],[262,304],[310,354]]) screen(x0, x1);
     /* the doors, hand-rolled at the set-back wall */
-    F(168, 238, 0, 118, shade(wall,.72), null, 0, FB+0.6);          // surround
-    /* (A WALK-IN, TH_IN: the doors stand open, folded in; the opening a HOLE onto the room, W11 -- shut, outside the game, as drawn) */
-    if(SEE) HOLE([P(172, FB+0.9, 112), P(234, FB+0.9, 112), P(234, FB+0.9, 0), P(172, FB+0.9, 0)]);
-    else {
-    F(172, 234, 0, 112, dark, null, 0, FB+0.9);                     // opening
-    for(const [d0,d1] of [[175,202],[204,231]]){
-      F(d0, d1, 3, 108, trim, shade(trim,.7), 1.6, FB+1.3);
-      for(let r=0;r<4;r++) for(let c=0;c<3;c++)
-        ball(d0 + (d1-d0)*(c+0.5)/3, FB+1.8, 16+r*24, 2.4, gold);   // door studs
-    }
-    ball(201, FB+2.2, 58, 3.4, gold); ball(208, FB+2.2, 58, 3.4, gold);
-    }
+    F(150, 256, 0, 118, shade(wall,.72), null, 0, FB+0.6);          // surround
+    /* THE DOORS ARE THE DOOR KIT'S (D0; Sir, 2026-11-17: "do we need to pull the art into the door kit"): shopDoor's studded pair, red
+       lacquer and gold, on the set-back wall (BOFF + FB: D8) -- a walk-in's (see), so its opening a hole onto the room and its leaves
+       live: they swing for whoever uses them, and from inside stand cut to the front wall's height (the walk-in kit's half door) */
+    { const b00 = BOFF; BOFF = b00 + FB + 0.9;
+      try { shopDoor(203, wall, '#b8352a', null, WW, 0, { w: 98, h: 112, pair: true, studs: gold }); } finally { BOFF = b00; } }
     F(150, 256, 124, 156, dark, null, 0, FB+0.6);                   // the name plaque
     F(154, 252, 126, 154, gold, null, 0, FB+0.9);
     F(158, 248, 130, 150, shade(dark,1.4), null,0, FB+1.2);
@@ -87066,6 +87196,7 @@ airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), ai
     setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
     /* draw only up to z (kit units); null for whole (see CUT) */
     setCut(z){ CUT = (z === null || z === undefined) ? null : z; },
+    setLeafPick(i){ SHOP_LEAF_PICK = (i === null || i === undefined) ? null : i; },
     /* the scene's car art for gameCar(): fn(g, W, kind, fdir, seed) */
     setCarArt(fn){ GAME_CAR = fn || null; },
     /* g   -- the Phaser Graphics to draw into
@@ -97962,6 +98093,10 @@ class WorldScene extends Phaser.Scene {
     this.gNightIn = this.add.graphics();
     this.gNightIn.setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.gNightIn.setMask(this.gNightMask.createGeometryMask());
+    /* A ROOM THAT DISPLACES ITS BLOCK, LIT AS A SET (pk.displace; Sir, 2026-11-17: "i want to hide the fact that we [removed] the store"):
+       while he is in it, the world outside the room eases down to dark -- three layers, each the screen less the room's outline grown a
+       little more, so its edge is soft -- and back up as he leaves (roomDimDraw) */
+    this.gRoomDim = [0, 1, 2].map(() => { const g = this.add.graphics(), m = this.make.graphics({ x: 0, y: 0, add: false }), gm = m.createGeometryMask(); gm.setInvertAlpha(true); g.setMask(gm); return { g, m }; });
     this.gGlow = this.add.graphics();      // warm accents ABOVE the tint (lamps, eyes)
     this.gGlow.setBlendMode(Phaser.BlendModes.ADD);
     this.hud = this.add.graphics().setDepth(5);
@@ -102787,8 +102922,10 @@ class WorldScene extends Phaser.Scene {
       /* (it.fx.kit: a live part drawn in the entry's own kit -- Palmline Tower's lift doors -- cached while still: fx.state() names its
          still state, null while it moves) */
       if(it.fx && it.fx.kit){ const fx = it.fx, Gz = (a, b, h) => this.W(x0 + a, y0 + sb*b, h + (z0 || 0));
-        vq.push({ depth: d + 1e-3, fn: (g, t) => { const st = fx.state ? fx.state() : null, dr = gg => LIB.drawItem(name, gg, Gz, K, { draw: () => fx.kit(t || this.time.now) });
-          if(st != null) this.bcDraw(g, lk + "|fx|" + n + "|" + st, qx, qy, dr); else dr(g); } }); }
+        /* (fx.fade(): how much of it shows, 0..1 -- a walk-in's doors go with its shell, eased with it: withFade) */
+        vq.push({ depth: d + 1e-3, fn: (g, t) => { const fk = fx.fade ? fx.fade() : 1; if(fk < 0.002) return;
+          const st = fx.state ? fx.state() : null, dr = gg => LIB.drawItem(name, gg, Gz, K, { draw: () => fx.kit(t || this.time.now) });
+          if(fk < 1) this.withFade(g, fk, () => dr(g)); else if(st != null) this.bcDraw(g, lk + "|fx|" + n + "|" + st, qx, qy, dr); else dr(g); } }); }
       /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
          hatchback up on its lift. Never a car drawn anew in a room's own kit: Sir, 2026-11-17, "we want to use our own car art") */
       else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
@@ -106762,6 +106899,37 @@ class WorldScene extends Phaser.Scene {
     Object.assign(this, keep);
     try { return fn(); } finally { Object.assign(this, st); }
   }
+  /* the dark round a displacing room (gRoomDim): its strength the shell's fade the other way (pocketShellK: 0 inside), so it comes and goes
+     with the room; the room's outline its floor and walls to their height, as the screen sees them */
+  roomDimDraw(){
+    /* (INDOORS, VIEW 2 OR NEARER: Sir, 2026-11-17 -- in a displacing room view 3 steps to 2 for the visit, and back as he leaves, unless he
+       changed it himself while inside) */
+    { const _in = this._inside && this._inside.displace;
+      if(_in && zoomDepth === 3){ this._zoomBack = 3; zoomDepth = 2; zoomApply(); }
+      else if(!_in && this._zoomBack){ zoomDepth = this._zoomBack; this._zoomBack = 0; zoomApply(); } }
+    const L = this.gRoomDim; if(!L) return;
+    const pk = this._inside && this._inside.displace ? (this._dimPk = this._inside) : this._dimPk;
+    const k = pk ? 1 - pocketShellK(this, pk) : 0;
+    for(const { g, m } of L){ g.clear(); m.clear(); }
+    if(!pk || k < 0.01){ if(k < 0.01) this._dimPk = this._inside && this._inside.displace ? this._inside : null; return; }
+    const v = pk.view && pk.view(); if(!v) return;
+    const X0 = pk.x0 + v.dx - 34, Y0 = pk.y0 + v.dy - 34, X1 = pk.x0 + v.dx + pk.w + 34, Y1 = pk.y0 + v.dy + pk.d + 34, H = pk.h || 240;
+    const pts = [];
+    for(const x of [X0, X1]) for(const y of [Y0, Y1]) for(const z of [0, H]){ const q = this.W(x, y, z); pts.push({ x: q.x, y: q.y }); }
+    pts.sort((p, q) => p.x - q.x || p.y - q.y);
+    const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x), lo = [], hi = [];
+    for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); const hull = lo.concat(hi);
+    const cx = hull.reduce((a, p) => a + p.x, 0)/hull.length, cy = hull.reduce((a, p) => a + p.y, 0)/hull.length;
+    const vw = this.scale.gameSize.width, vh = this.scale.gameSize.height, K = this.K;
+    L.forEach(({ g, m }, i) => {
+      const e = i*22*K;
+      m.fillStyle(0xffffff, 1);
+      m.fillPoints(hull.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return new Phaser.Geom.Point(p.x + dx/d*e, p.y + dy/d*e); }), true);
+      g.fillStyle(0x0b0e14, 0.3*k); g.fillRect(-20, -20, vw + 40, vh + 40);
+    });
+  }
   drawWorldIn(t){
     /* g is LET: during the world flush it follows the current segment (see
        BUILDING CACHE), and every closure below that draws into g follows it */
@@ -106820,6 +106988,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* ...and the night back over the anchors' fronts, the street's own (mallNightFacade) */
     if(_nl > 0 && MALL_VIEW){ const ch = sh => Math.round(255 + (((NIGHT_MULT >> sh) & 255) - 255)*_nl); this.mallNightFacade(this.gNightIn, (ch(16) << 16) | (ch(8) << 8) | ch(0)); }
+    this.roomDimDraw();
 
         const cullSpan = (this.vpW() / this.K) * 0.9 + TILE*6 + 4000;
     const near = (wx, wy) => (Math.abs(wx - this.camX) + Math.abs(wy - this.camY)) < cullSpan;
@@ -107504,6 +107673,13 @@ class WorldScene extends Phaser.Scene {
          goes in (the review, 2026-10-30: its open leaf and dark box stood on in the doorway with him inside, and him
          hidden behind them -- he was its user, shifted onto the street) */
       const _dp = pocketHiding(d.lib), _dk = Math.min(_dp ? pocketShellK(this, _dp) : 1, shellGhostK(this, d.lib));
+      /* A WALK-IN'S DOOR FROM INSIDE IS A HALF DOOR (Sir, 2026-11-17: "i thought it would close and be a half door"): while the shell is off
+         round him, its leaves stay -- cut to the room's front wall's height, as its walls are (LIB.setCut) -- swinging for whoever uses
+         them and shut behind him; the full door fades over them as the shell does (below) */
+      if(_dp && _dp.walkin && _dk < 1){ const k0 = this.shopDoorSwing(d, t), ent = LIB.get(d.lib), zk = ((ent && ent.zs !== undefined) ? ent.zs : 1.5)*((ent && ent.sc) || 1), cutZ = (_dp.LH || 66)/zk;
+        const dv = d.e.dv, rv = d.e.rv, G0 = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
+        for(const L of this.shopDoorLeafKeys(d, k0)) blockVQ.push({ depth: L.depth - 0.01, fn: (g) => { LIB.setCut(cutZ); if(L.pick != null) LIB.setLeafPick(L.pick);
+          try { LIB.drawDoorOpen(d.lib, g, G0, this.K, d.flank, d.labA, k0, null); } finally { LIB.setCut(null); LIB.setLeafPick(null); } } }); }
       if(_dk < 0.002) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       /* (a walk-in's glazed pair is never in the cache: drawn here shut too -- W11, its opening a hole the room shows in) */
@@ -107517,10 +107693,19 @@ class WorldScene extends Phaser.Scene {
         this.drawClip = clip; const st0 = this._seenThrough; this._seenThrough = true;
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; }
       };
-      blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
+      const _lk = this.shopDoorLeafKeys(d, k);
+      if(_lk.length < 2) blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
         const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA);
         LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null);
       }) });
+      else {
+        /* A PAIR (D12): whoever is in its doorway at the doorway's middle, clipped to the opening; each leaf its own piece at its own side */
+        blockVQ.push({ depth: d.x + d.y + 0.29, fn: (g, tt) => this.withAlpha(g, _dk, () => { const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA); LIB.setLeafPick(-1);
+          try { LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null); } finally { LIB.setLeafPick(null); } }) });
+        for(const L of _lk) blockVQ.push({ depth: L.depth, fn: (g) => this.withAlpha(g, _dk, () => { LIB.setLeafPick(L.pick);
+          try { LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, null, true); } finally { LIB.setLeafPick(null); } }) });
+      }
+
     }
     /* HOUSE DOORS OPEN FOR THEM (Sir, 2026-10-17: "the door on the houses
        arent opening for the people"): a house's door is painted into its
@@ -111509,6 +111694,7 @@ class WorldScene extends Phaser.Scene {
       _unit(u, idx);
       if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
       if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
+      if(u.shop && displacedLib(this, u.shop.lib)) for(let k = n0; k < vq.length; k++) vq[k].depth = -1e8 + k*1e-3;   // (displaced: under all of it, the room over it)
     });
     for(const gp of gapsFromUnits(units, e.len)){
       /* corner-lot trim: a corner unit now sits on this edge's own line
@@ -111603,6 +111789,7 @@ class WorldScene extends Phaser.Scene {
     for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
+      if(displacedAt(this, kx, ky, 10)) continue;   // (under a room that displaces it: not there at all)
       if(_gk < 0.998) vq.push({ depth: kx + ky - 1e-3, fn: (g) => {
         const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
         if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot + "|low", kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B, true));
@@ -111806,6 +111993,7 @@ class WorldScene extends Phaser.Scene {
       _unit(u, idx);
       if(hp) for(let k = n0; k < vq.length; k++) this.walkinShellSeen(hp, vq[k]);   // (the shell its room is seen under: walkinThrough)
       if(sk < 1) for(let k = n0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = (g, t) => this.withFade(g, sk, () => f(g, t)); }   // (its live parts too: the pickup's door and worker)
+      if(u.shop && displacedLib(this, u.shop.lib)) for(let k = n0; k < vq.length; k++) vq[k].depth = -1e8 + k*1e-3;   // (displaced: under all of it, the room over it)
     });
   }
   queueCommercialBlock(vq, blk, excludeEdges=null, cornerSkip=null){
@@ -111831,6 +112019,7 @@ class WorldScene extends Phaser.Scene {
        this.grid is undefined. */
     const _dg = this.route && this.route.grid;
     const _lot = _dg ? depotOnBlock(_dg, blk) : null;
+    const _dvq0 = vq.length;
     if(_lot){
       const cu = _lot.cu, map0 = depotMap.call(this, cu);
       /* this depot's own door, set on the shared LIB state before every
@@ -111936,6 +112125,10 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: roofK, fn: (g) => wallImg(g, 'roof') });
       }
     }
+    /* (under a room that displaces it -- pk.displace: off while he is in it, eased as a ghost is) */
+    if(_lot){ const dk = shellGhostK(this, 'Charge depot');
+      if(dk < 1) for(let k = _dvq0; k < vq.length; k++){ const f = vq[k].fn; vq[k].fn = dk < 0.002 ? () => {} : (g, t) => this.withFade(g, dk, () => f(g, t)); }
+      if(displacedLib(this, 'Charge depot')) for(let k = _dvq0; k < vq.length; k++) vq[k].depth = -1e8 + k*1e-3; }
     /* Commercial interior fill (1-2 free-standing "plaza" buildings in
        the middle of every commercial block) is OFF citywide -- 2026-08-12,
        Sir's call, it didn't read well on-device. The generator it used
@@ -111945,7 +112138,7 @@ class WorldScene extends Phaser.Scene {
        nothing to dodge, same code path. */
     /* the plaza's planters and benches: commercialScatterOf, the same
        list the robot collides with */
-    for(const sp of commercialScatterOf(this.route && this.route.grid, blk))
+    for(const sp of commercialScatterOf(this.route && this.route.grid, blk)) if(!displacedAt(this, sp.x, sp.y, 30))
       /* still, so an image (2026-10-14, perf), as a parked car is: live
          only while the x-ray is ghosting it behind a building */
       vq.push({ depth:sp.x+sp.y, fn:(g,t)=>{
@@ -128386,6 +128579,16 @@ class WorldScene extends Phaser.Scene {
        Sierra Vista or out of the marina, across town to a depot -- and
        an 8% follow trailed it by a thousand units and more, the van off
        the edge of the screen. Riding along, the camera keeps up. */
+    /* IN A ROOM THAT DISPLACES ITS BLOCK (pk.displace; Sir, 2026-11-17: "can we center the shop that he is in with the camera"): the camera
+       on the room's middle, not on him -- at view 1, where the room is bigger than the screen, it leans most of the way toward him */
+    { const _rp = this._inside; const _v = _rp && _rp.displace && POCKET_VIEW && POCKET_VIEW.pk === _rp ? POCKET_VIEW : null;
+      if(_v){ /* (in whichever frame he is drawn in here: the room's own, off the map, or the street's -- POCKET_VIEW's shift) */
+        const own = Math.abs(this.botX - (_rp.x0 + _rp.w/2)) < 5000, sx = own ? 0 : _v.dx, sy = own ? 0 : _v.dy;
+        const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : 0;
+        camTargetX = cx + (this.botX - cx)*f; camTargetY = cy + (this.botY - cy)*f;
+        /* (on the middle of the room as the screen sees it -- its floor AND its walls: aimed at the floor alone, the back walls' tops went off
+           the screen's top with room to spare at its foot) */
+        camTargetZ += ((_rp.h || 240)*0.5)*(1 - f); } }
     const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
     /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
        "everything moves while i move", screen recording). The recording
@@ -133707,6 +133910,17 @@ class WorldScene extends Phaser.Scene {
     return null;
   }
   /* a small shop's door (shopDoorsOf), swung open while someone is at it */
+  /* A PAIR'S LEAVES, EACH AT ITS OWN SIDE (D12): [{ pick, depth }] -- the middle of each leaf as it swings out over the street (its hinge
+     at the jamb, its length half the opening, out along the edge's outward normal by the swing) -- or [{ pick: null }] for a single leaf */
+  shopDoorLeafKeys(d, k){
+    const rec = LIB.doorNear(d.lib, d.labA), ent = LIB.get(d.lib);
+    if(!rec || !(rec.pair || rec.half) || !ent) return [{ pick: null, depth: d.x + d.y + 0.3 }];
+    const SC = ent.sc || 1, lotW = ent.ww || 230, mir = (d.e.dv.x + d.e.dv.y) <= 0 && ent.mirror !== false;
+    const along = a => d.ux + d.e.dv.x*(mir ? lotW - a : a)*SC, alongY = a => d.uy + d.e.dv.y*(mir ? lotW - a : a)*SC;
+    const half = (rec.a1 - rec.a0)/2*SC, ang = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), out = (rec.studs && rec.see ? -1 : 1)*(half/2)*Math.sin(ang) + (rec.studs && rec.see ? -2 : 2);   // (a studded walk-in pair swings in: its leaves behind the door's plane)
+    return [[0, rec.a0 + (rec.a1 - rec.a0)/4], [1, rec.a1 - (rec.a1 - rec.a0)/4]].map(([pick, a]) => {
+      const x = along(a) + d.e.rv.x*out, y = alongY(a) + d.e.rv.y*out; return { pick, depth: x + y }; });
+  }
   shopDoorSwing(d, t){
     const M = this._shopDoorK || (this._shopDoorK = new Map());
     let s = M.get(d.key);
@@ -133725,7 +133939,11 @@ class WorldScene extends Phaser.Scene {
     if(!want && (this._doorWho && this._doorWho.has(d))) want = true;                                          // (anyone drawn in its doorway this frame)
     /* Tipsey only where he can go in (Sir, 2026-10-30: "the doors for small shops dont open for tipsy because they
        dont have interior except the trophy shop") */
-    if(!want && SHOP_DOOR_USE.tipsey.has(d.key) && this.ow && this.shopDoorUsedBy(d, this.botX, this.botY) && !walkinLibLocked(this, d.lib)) want = true;   // (locked: not for him -- THE ROOM'S DAY)
+    const _wp = pocketHiding(d.lib);
+    if(!want && (SHOP_DOOR_USE.tipsey.has(d.key) || (_wp && _wp.walkin)) && this.ow && this.shopDoorUsedBy(d, this.botX, this.botY) && !walkinLibLocked(this, d.lib)) want = true;   // (locked: not for him -- THE ROOM'S DAY; any shop with a room of its own)
+    /* (and its room's own people, in and out of its door -- the walk-in kit's staff and visitors, at their street points) */
+    if(!want && _wp && _wp._life && _wp.view){ const v = _wp.view(); if(v) for(const q of _wp._life.people){ if(!q._m || q._gone) continue;
+      if(this.shopDoorUsedBy(d, _wp.x0 + v.dx + q._m.a, _wp.y0 + v.dy + q._m.b)){ want = true; break; } } }
     s.k = want ? Math.min(1, s.k + dt/280) : Math.max(0, s.k - dt/480);
     return s.k;
   }

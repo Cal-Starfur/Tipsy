@@ -76,8 +76,10 @@
 - A long fixture in a room (a counter, a shelf run, a bar, a bookcase against a wall) is never one piece keyed at its middle: people
   behind its far end and walls behind it sort wrong. Build it with `runPiece` (runs of ~50, each keyed at its own stretch, the
   whole drawn clipped per run), as the kit's walls are.
-- A shop walk-in grows into the yard before its room is built (walk-in kit W30): a lower rear wing back into the block's courtyard as far as
-  the yard is free (the entry's `dd`), its street front unchanged, the row's other shops not moved. Corner shops stay as they are.
+- A walk-in's room may be bigger than its building (walk-in kit W31): it runs back into the block, never toward the street; its door, front
+  wall and street face match the outside; what it covers is drawn under it, faint, while he is inside, and the world round it dims. The
+  exterior is never rearranged for a room. Its door is the door kit's: a half door from inside (doors D13), and he is taken in only once
+  he is in the doorway (W32). Tidewater Tea House is the exemplar.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the
