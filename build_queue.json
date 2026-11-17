@@ -104,7 +104,7 @@
 "deps": [
 "pt3"
 ],
-"status": "pending"
+"status": "built"
 },
 {
 "id": "pt6",
@@ -115,7 +115,7 @@
 "pt1",
 "pt2"
 ],
-"status": "pending"
+"status": "built"
 },
 {
 "id": "wi-palmline-garage",

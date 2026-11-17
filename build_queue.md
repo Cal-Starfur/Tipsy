@@ -85,8 +85,8 @@ graph LR
 - [?] `pt4b` Palmline Tower penthouses (11, 12): a design pass on each interior -- one home the whole floor, its one private lift (Sir, 2026-11-17) (design pass: 11 light and warm (oak, linen, sage, stone fireplace, bookcase); 12 dark and rich (walnut, navy velvet, brass, library wall, grand piano, bar, round dining table, desk). Both: lift foyer, kitchen run with fridge, range, hood and island, bedroom behind a low partition) [docs/palmline-tower-plan.md]
 - [?] `pt4c` Deliveries to Palmline Tower mixed into the normal orders: to a flat's door (floors 1-10) or into a penthouse (11, 12) -- GPS to the lobby, up the lift; the resident meets him face to face (meetWalk/meetTick) (towerAddress: ~1 in 4 orders from shops within 10 blocks; flats 101-1004 (mat at the door, resident steps out beside him) and penthouses 11/12 (mat in the foyer, resident from the living room); GPS: lobby door, "Lift to floor N" (penthouse: "Lift 2"), "To the door"; map pin at the lobby; win camera at the floor height) [docs/palmline-tower-plan.md]
 - [?] `hosp-lift-kit` Marina General's glass lift onto the LIFT_BANK kit (one car kit, W10): its cars, call, ride and doorways through liftBank*, keeping its glass shaft, riders and crew (HOSP_BANK on the lift kit (doors west, its call zone, cast/crew/riders as hooks); HOSP_LIFTS/HOSP_IN.doors/HOSP_IN.lift kept as its state; test link ?go=hosplift) [docs/kits/walkin.md]
-- [ ] `pt5` Palmline Tower roof and crown: plant room, mast light at night [docs/palmline-tower-plan.md]
-- [ ] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]
+- [?] `pt5` Palmline Tower roof and crown: plant room, mast light at night [docs/palmline-tower-plan.md]
+- [?] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]
 
 ## Walk-in interiors: Flats shops
 - [ ] `wi-palmline-garage` Walk-in interior: Palmline Garage (block 2,0 edge 0) [docs/state/walkin_recipe.md]
