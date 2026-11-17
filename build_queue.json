@@ -31,7 +31,7 @@
 },
 {
 "id": "pt3",
-"title": "Palmline Tower lifts that work: the four lobby lifts take him up (the hospital's lift kit: car, doors, floor change), stops at the lobby and the residential floors",
+"title": "Palmline Tower lifts, step 1: floors as a walk-in kit feature -- the hospital's floor system (solidAt's floor, owLiftZ, setFloor, a door's floor) made per pocket, the hospital unchanged",
 "spec": "docs/palmline-tower-plan.md",
 "group": "Palmline Tower interior",
 "deps": [
@@ -40,15 +40,46 @@
 "status": "pending"
 },
 {
-"id": "pt4",
-"title": "Palmline Tower residential floors: lift lobby and a corridor of flat doors on each built floor, residents; deliveries to a flat in the tower (drop at the flat's door, up by the lift)",
+"id": "pt3b",
+"title": "Palmline Tower lifts, step 2: four working cars from the lobby to floors 1-12 (call, doors, ride, floor picker), on the hospital's car kit made per pocket",
 "spec": "docs/palmline-tower-plan.md",
-"group": "Palmline Tower interior",
 "deps": [
 "pt3"
 ],
 "status": "pending",
+"group": "Palmline Tower interior"
+},
+{
+"id": "pt4",
+"title": "Palmline Tower floors 1-10: one residential layout -- a lift lobby, a corridor, numbered flat doors (101..1004); residents (Sir, 2026-11-17)",
+"spec": "docs/palmline-tower-plan.md",
+"group": "Palmline Tower interior",
+"deps": [
+"pt3b"
+],
+"status": "pending",
 "note": "Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them"
+},
+{
+"id": "pt4b",
+"title": "Palmline Tower floors 11 and 12: each one whole penthouse, a single residence (Sir, 2026-11-17)",
+"spec": "docs/palmline-tower-plan.md",
+"deps": [
+"pt4"
+],
+"status": "pending",
+"group": "Palmline Tower interior"
+},
+{
+"id": "pt4c",
+"title": "Deliveries to Palmline Tower flats mixed into the normal orders: GPS to the lobby, up the lift, to the flat's door; the resident meets him face to face (meetWalk/meetTick)",
+"spec": "docs/palmline-tower-plan.md",
+"deps": [
+"pt4",
+"pt4b"
+],
+"status": "pending",
+"group": "Palmline Tower interior"
 },
 {
 "id": "pt5",

@@ -9,7 +9,11 @@ graph LR
   pt1 --> pt1b
   pt1 --> pt2
   pt1 --> pt3
-  pt3 --> pt4
+  pt3 --> pt3b
+  pt3b --> pt4
+  pt4 --> pt4b
+  pt4 --> pt4c
+  pt4b --> pt4c
   pt3 --> pt5
   pt1 --> pt6
   pt2 --> pt6
@@ -75,8 +79,11 @@ graph LR
 - [?] `pt1` Palmline Tower lobby as a real walk-in room: reception, security desk, four lifts, bench, mail wall; receptionist and guard, tenants and couriers; sliding doors for the two door pairs; delivery hand-over at the desk (lobby room, lifts painted on the back wall (cars in pt3), reception + security desks, mail wall, bench; receptionist, guard (keys), two tenants, a courier; both pairs slide and take him in; shops ghost while inside. Desk hand-over split out to pt1b) [docs/palmline-tower-plan.md]
 - [ ] `pt1b` Palmline Tower lobby: delivery hand-over at the reception desk (a drop for the tower goes in to the desk, the receptionist meets him face to face: meetWalk/meetTick) [docs/palmline-tower-plan.md]
 - [ ] `pt2` Coral Cafe and Marina Deli as real rooms (the mall's coffee and deli fittings), barista and deli clerk, their doors become slideDoors [docs/palmline-tower-plan.md]
-- [ ] `pt3` Palmline Tower lifts that work: the four lobby lifts take him up (the hospital's lift kit: car, doors, floor change), stops at the lobby and the residential floors [docs/palmline-tower-plan.md]
-- [ ] `pt4` Palmline Tower residential floors: lift lobby and a corridor of flat doors on each built floor, residents; deliveries to a flat in the tower (drop at the flat's door, up by the lift) (Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them) [docs/palmline-tower-plan.md]
+- [ ] `pt3` Palmline Tower lifts, step 1: floors as a walk-in kit feature -- the hospital's floor system (solidAt's floor, owLiftZ, setFloor, a door's floor) made per pocket, the hospital unchanged [docs/palmline-tower-plan.md]
+- [ ] `pt3b` Palmline Tower lifts, step 2: four working cars from the lobby to floors 1-12 (call, doors, ride, floor picker), on the hospital's car kit made per pocket [docs/palmline-tower-plan.md]
+- [ ] `pt4` Palmline Tower floors 1-10: one residential layout -- a lift lobby, a corridor, numbered flat doors (101..1004); residents (Sir, 2026-11-17) (Sir, 2026-11-17: the tower's upper floors are residences, deliveries go up to them) [docs/palmline-tower-plan.md]
+- [ ] `pt4b` Palmline Tower floors 11 and 12: each one whole penthouse, a single residence (Sir, 2026-11-17) [docs/palmline-tower-plan.md]
+- [ ] `pt4c` Deliveries to Palmline Tower flats mixed into the normal orders: GPS to the lobby, up the lift, to the flat's door; the resident meets him face to face (meetWalk/meetTick) [docs/palmline-tower-plan.md]
 - [ ] `pt5` Palmline Tower roof and crown: plant room, mast light at night [docs/palmline-tower-plan.md]
 - [ ] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]
 
