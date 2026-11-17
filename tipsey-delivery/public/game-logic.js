@@ -43239,6 +43239,13 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'buggy:mud', build: 'buggy', name: 'Mud Bogger', cents: 900, body: 0x5f7a3a, stripe: 0x5f7a3a, noStripe: true, print: 'bgMud', trim: { bar: 0xff8a1a, coil: 0xffd34a, lamp: 0xfff2c4, rim: 'star', rimCol: 0xff8a1a } },
   { id: 'buggy:flower', build: 'buggy', name: 'Flower Power', cents: 900, body: 0xff8a2a, stripe: 0xff8a2a, noStripe: true, print: 'bgFlower', trim: { bar: 0xff5ab0, coil: 0xffe14a, lamp: 0xfff2c4, rim: 'wagon', rimCol: 0xffe14a } },
   { id: 'buggy:patrol', build: 'buggy', name: 'Beach Patrol', cents: 900, body: 0xd8261c, stripe: 0xf4f4f0, print: 'bgPatrol', buggyPart: 'surf', trim: { bar: 0xffd34a, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'ten', rimCol: 0xf4f4f0, board: [0xf4f4f0, 0xd8261c] } },
+  /* (six more -- Sir, 2026-11-17: "these skins are really fun") */
+  { id: 'buggy:lava', build: 'buggy', name: 'Lava Rider', cents: 900, body: 0x23262c, stripe: 0x23262c, noStripe: true, print: 'bgLava', eye: 0xff8a2a, trim: { bar: 0xff4a1a, coil: 0xffd34a, lamp: 0xffb02a, rim: 'turbine', rimCol: 0xff6a1a } },
+  { id: 'buggy:zebra', build: 'buggy', name: 'Zebra', cents: 900, body: 0xf4f4f0, stripe: 0xf4f4f0, noStripe: true, print: 'bgZebra', trim: { bar: 0x1d1f26, coil: 0xd8261c, lamp: 0xfff2c4, rim: 'disc', rimCol: 0xf4f4f0 } },
+  { id: 'buggy:tiger', build: 'buggy', name: 'Tiger', cents: 900, body: 0xf08a1a, stripe: 0xf08a1a, noStripe: true, print: 'bgTiger', trim: { bar: 0x1d1f26, coil: 0xf4f4f0, lamp: 0xfff2c4, rim: 'mag', rimCol: 0x1d1f26 } },
+  { id: 'buggy:neon', build: 'buggy', name: 'Neon Night', cents: 900, body: 0x1c1e24, stripe: 0x1c1e24, noStripe: true, print: 'bgNeon', eye: 0x7af8ff, trim: { bar: 0xff4ad8, coil: 0x7af8ff, lamp: 0x7af8ff, rim: 'tri', rimCol: 0x7af8ff } },
+  { id: 'buggy:sprinkles', build: 'buggy', name: 'Sprinkles', cents: 900, body: 0xa8ead2, stripe: 0xff8ac8, print: 'bgSprinkles', trim: { bar: 0xff8ac8, coil: 0xfff6d8, lamp: 0xfff2c4, rim: 'honey', rimCol: 0xfff6d8 } },
+  { id: 'buggy:tiki', build: 'buggy', name: 'Tiki Woodie', cents: 900, body: 0xa8703a, stripe: 0xa8703a, noStripe: true, print: 'bgTiki', buggyPart: 'surf', trim: { bar: 0xd9c08a, coil: 0x5a3418, lamp: 0xfff2c4, rim: 'wire', rimCol: 0xd9c08a, board: [0x2ab0a8, 0xf4f4f0] } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -132263,6 +132270,31 @@ const HULL_PRINTS = {
       for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2, h = L.H*0.5, r = L.H*0.28;   // (a white cross on each flank)
         L.side.push({ c: WH, pts: _prRect(m - r, h - r*0.32, m + r, h + r*0.32) }, { c: WH, pts: _prRect(m - r*0.32, h - r, m + r*0.32, h + r) }); }
       L.top.push({ c: WH, pts: _prRect(-5, -1.6, 5, 1.6) }, { c: WH, pts: _prRect(-1.6, -5, 1.6, 5) }); } },
+  bgLava: { id: 'bgLava', seed: 0x1a7, build(L){ if(L.part === 'lid') return; const OR = 0xff6a1a, YE = 0xffd34a;   // (glowing cracks running through black rock)
+      const crack = (arr, x, y, n, w, dx0, dy0, sc) => { let px = x, py = y; for(let i = 0; i < n; i++){ const nx = px + (dx0 + (L.rng() - 0.5)*3)*sc, ny = py + (dy0 + (L.rng() - 0.5)*3)*sc; arr.push({ col: i % 3 ? OR : YE, pts: _prSeg(px, py, nx, ny, w) }); px = nx; py = ny; } };
+      for(let i = 0; i < 12; i++) crack(L.side, L.rng()*L.per, L.H*(0.05 + L.rng()*0.3), 6, 1.5, 2.2, 1.6, 1.2);
+      for(let i = 0; i < 6; i++) crack(L.top, L.x0 + L.rng()*(L.x1 - L.x0), L.y0 + 1, 6, 1.4, (L.rng() - 0.5)*2, 2.6, 1); } },
+  bgZebra: { id: 'bgZebra', seed: 0x2eb, build(L){ if(L.part === 'lid') return; const BK = [0x16171b, 0x23262c];   // (wavy black stripes, up his flanks and over his deck)
+      for(let x = 2; x < L.per; x += 6 + L.rng()*2){ const w = 1.6 + L.rng()*1.4, k = (L.rng() - 0.5)*3; L.side.push({ c: BK, pts: [[x, -1], [x + w, -1], [x + w + k + 1, L.H*0.5], [x + w*0.4 + k, L.H + 1], [x - 0.6 + k, L.H + 1], [x + k, L.H*0.5]] }); }
+      for(let x = L.x0 + 3; x < L.x1 - 2; x += 6 + L.rng()*2){ const w = 1.4 + L.rng(); L.top.push({ c: BK, pts: [[x, L.y0 - 1], [x + w, L.y0 - 1], [x + w + 1.5, 0], [x + w, L.y1 + 1], [x, L.y1 + 1], [x + 1.5, 0]] }); } } },
+  bgTiger: { id: 'bgTiger', seed: 0x713, build(L){ if(L.part === 'lid') return; const BK = [0x16171b, 0x2a1a10];   // (black stripes tapering down from his top edge, and in from his deck's edges)
+      for(let x = 2; x < L.per; x += 6 + L.rng()*2.5){ const w = 2.6 + L.rng()*1.4, d = L.H*(0.5 + L.rng()*0.4), k = (L.rng() - 0.5)*2.5; L.side.push({ c: BK, pts: [[x, L.H + 1], [x + w, L.H + 1], [x + w*0.6 + k, L.H - d*0.5], [x + w*0.2 + k*1.4, L.H - d]] }); }
+      for(let x = L.x0 + 2; x < L.x1 - 2; x += 5.5 + L.rng()*2){ const w = 2.4 + L.rng(), d = 5 + L.rng()*4; for(const sg of [-1, 1]){ const ye = sg > 0 ? L.y1 + 1 : L.y0 - 1; L.top.push({ c: BK, pts: [[x, ye], [x + w, ye], [x + w*0.4 + 0.8, ye - sg*d]] }); } } } },
+  bgNeon: { id: 'bgNeon', seed: 0xe0, build(L){ if(L.part === 'lid') return; const CY = 0x7af8ff, MG = 0xff4ad8;   // (two neon lines down his flanks, a lightning bolt on each, a line round his deck)
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, H = L.H, m = a + len*0.5;
+        L.side.push({ col: CY, pts: _prRect(a - 1, H*0.7, b + 1, H*0.76) }, { col: MG, pts: _prRect(a - 1, H*0.22, b + 1, H*0.28) });
+        L.side.push({ col: MG, pts: [[m - 1, H*0.66], [m + 3, H*0.66], [m + 0.5, H*0.5], [m + 3.5, H*0.5], [m - 2.5, H*0.3], [m - 0.5, H*0.46], [m - 3, H*0.46]] }); }
+      for(const y of [L.y0 + 1.5, L.y1 - 2.2]) L.top.push({ col: CY, pts: _prRect(L.x0 + 1, y, L.x1 - 1, y + 0.7) }); } },
+  bgSprinkles: { id: 'bgSprinkles', seed: 0x5e1, build(L){ if(L.part === 'lid') return; const CS = [0xff5ab0, 0xffe14a, 0x5ab8ff, 0xf4f4f0, 0xff8a2a, 0x9a6aff];   // (candy sprinkles all over)
+      const spr = (arr, x, y) => { const q = L.rng()*Math.PI, dx = Math.cos(q)*2.2, dy = Math.sin(q)*2.2; arr.push({ col: CS[(L.rng()*CS.length) | 0], pts: _prSeg(x - dx, y - dy, x + dx, y + dy, 1.2) }); };
+      for(let i = 0; i < 60; i++) spr(L.side, L.rng()*L.per, 1 + L.rng()*(L.H - 2));
+      for(let i = 0; i < 40; i++) spr(L.top, L.x0 + 1 + L.rng()*(L.x1 - L.x0 - 2), L.y0 + 1 + L.rng()*(L.y1 - L.y0 - 2)); } },
+  bgTiki: { id: 'bgTiki', seed: 0x71c, build(L){ if(L.part === 'lid') return; const DK = 0x6a4020, LT = [0x8a5a2a, 0x9a6634], TL = [0x1a8a84, 0x2ab0a8];   // (a woodie: planks down his flanks and deck, a teal tiki face each side)
+      for(let h = 0.2; h < 1; h += 0.2) L.side.push({ col: DK, pts: _prRect(-1, L.H*h, L.per + 1, L.H*h + 0.5) });
+      for(let i = 0; i < 18; i++){ const x = L.rng()*L.per, y = L.H*(0.05 + ((L.rng()*5) | 0)*0.2); L.side.push({ c: LT, pts: _prRect(x, y + 0.8, x + 4 + L.rng()*6, y + 1.5) }); }
+      for(const k of [2, 6]){ const [a, b] = L.face(k), m = (a + b)/2, H = L.H; L.side.push({ c: TL, pts: _prRect(m - 6.5, H*0.06, m + 6.5, H*0.96) });
+        L.side.push({ col: DK, pts: _prRect(m - 5, H*0.6, m - 1.2, H*0.8) }, { col: DK, pts: _prRect(m + 1.2, H*0.6, m + 5, H*0.8) }, { col: DK, pts: _prRect(m - 4.4, H*0.16, m + 4.4, H*0.42) }, { col: 0xf4f4f0, pts: _prRect(m - 3.6, H*0.26, m + 3.6, H*0.33) }, { col: DK, pts: _prRect(m - 0.8, H*0.46, m + 0.8, H*0.6) }); }
+      for(let y = L.y0 + 3; y < L.y1; y += 3.5) L.top.push({ col: DK, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 0.45) }); } },
   rvMars: { id: 'rvMars', seed: 0x3a5, layers: [ { c: [0x8a4a2a, 0xa85a34], r: 4.5, cover: 0.24 }, { c: [0xd88a5a, 0xe8a070], r: 3, cover: 0.14 } ] },
   rvRetro: { id: 'rvRetro', seed: 0x195, build(L){ if(L.part === 'lid') return; const TL = [0x1aa8a0, 0x2ad8c8], RD = [0xc8302a, 0xff5a4a];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, H = L.H;
