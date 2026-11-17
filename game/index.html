@@ -134368,7 +134368,15 @@ const HULL_PRINTS = {
       for(const k of [2, 6]){ const [a, b] = L.face(k); for(let i = 0; i < 4; i++) L.side.push({ c: SP, pts: L.blob(a + 6 + L.rng()*(b - a - 12), 2 + L.rng()*(L.H - 4), 3.6, 1.5) }); }
       for(let i = 0; i < 4; i++) L.top.push({ c: SP, pts: L.blob(L.x0 + 4 + L.rng()*(L.x1 - L.x0 - 8), L.y0 + 4 + L.rng()*(L.y1 - L.y0 - 8), 4, 1.2) }); } },
   /* (six more monster skins -- Sir, 2026-11-17) */
-  mtFire: { id: 'mtFire', seed: 0xf1e, build(L){ if(L.part === 'lid') return; const WH = [0xd9dde2, 0xf6f7f9], GD = [0xb8902a, 0xffd34a];
+  mtFire: { id: 'mtFire', seed: 0xf1e, build(L){ const WH = [0xd9dde2, 0xf6f7f9], GD = [0xb8902a, 0xffd34a];
+      if(L.part === 'lid'){   /* a fire department shield on each side of his cab (Sir, 2026-11-17): a gold Maltese cross, flared arms with notched
+           ends, a red disc in its middle ringed in white */
+        for(const k of [2, 6]){ const [a, b] = L.face(k), cx = (a + b)/2, cz = L.H*0.5, R = Math.min(L.H*0.46, (b - a)*0.3), r0 = R*0.2;
+          for(let i = 0; i < 4; i++){ const q = i*Math.PI/2, c = Math.cos(q), s2 = Math.sin(q), pt = (u, v) => [cx + c*u - s2*v, cz + s2*u + c*v];
+            L.side.push({ c: GD, pts: [pt(r0*0.5, -r0*0.45), pt(R, -R*0.62), pt(R*0.8, 0), pt(R, R*0.62), pt(r0*0.5, r0*0.45)] }); }
+          const disc = (r, col) => { const o = []; for(let j = 0; j < 14; j++){ const t = j/14*Math.PI*2; o.push([cx + Math.cos(t)*r, cz + Math.sin(t)*r]); } L.side.push({ c: col, pts: o }); };
+          disc(R*0.42, WH); disc(R*0.32, [0xa81a14, 0xd8261c]); }
+        return; }
       for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: GD, pts: _prRect(a - 1, L.H*0.18, b + 1, L.H*0.24) }); } } },   // (no '911': too small to read -- Sir, 2026-11-17)
   mtDragon: { id: 'mtDragon', seed: 0xd4a, build(L){ const SC = [0x1f5a28, 0x256a2e], BL = [0xd8b04a, 0xe8c860];   // (scales all over, a golden belly band)
       const scale = (arr, x, y, r) => { const o = []; for(let i = 0; i <= 8; i++){ const q = Math.PI + i/8*Math.PI; o.push([x + Math.cos(q)*r, y - Math.sin(q)*r*0.9]); } arr.push({ c: SC, pts: o }); };
