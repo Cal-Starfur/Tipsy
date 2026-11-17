@@ -128220,7 +128220,9 @@ class WorldScene extends Phaser.Scene {
     if(c === 'knight'){   /* (second pass -- Sir, 2026-11-17): a great helm over his head -- a visor slit his eyes glow through, breathing holes under
          it; a blue tabard with a gold cross down his front; plate seams; a bigger heater shield; a fuller red plume */
       if(st === 'body'){ for(const z0 of [62, 72]) band(z0, z0 + 1.6, 0x8d959c);
-        /* (no tabard: his front matches his back -- Sir, 2026-11-17) */
+        /* (the tabard on both his front and his back -- Sir, 2026-11-17: "both to have this cross") */
+        for(const sg of [1, -1]) if(sees(sg, 0, 0)){ const T = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([b, zz]) => PT(P(sg*(hx + 0.4), b, zz))), true); };
+          T([[-10, 14], [10, 14], [10, 66], [-10, 66]], 0x1f3a7a); T([[-1.6, 22], [1.6, 22], [1.6, 60], [-1.6, 60]], 0xd8b04a); T([[-7, 46], [7, 46], [7, 50], [-7, 50]], 0xd8b04a); }
         for(const sb of [-1, 1]) if(sees(0, sb, 0) && sb === nearB){ const bb = sb*(hy + 2.5); const S = [[-11, 78], [11, 78], [11, 50], [0, 32], [-11, 50]].map(([a, zz]) => PT(P(a, bb, zz)));
           g.fillStyle(0x1f3a7a, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 2*K), 0xd8b04a, 1); g.strokePoints(S, true);
           const c0 = P(0, bb, 74), c1 = P(0, bb, 40), c2 = P(-9, bb, 62), c3 = P(9, bb, 62); g.lineStyle(Math.max(1, 3*K), 0xd8b04a, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y); g.lineBetween(c2.x, c2.y, c3.x, c3.y); } }   // (his shield)
