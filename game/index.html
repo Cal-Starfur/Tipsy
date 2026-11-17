@@ -45168,6 +45168,25 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     shape: { BODY: { hx: 24, hy: 17, z0: 15, z1: 36, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 36, z1: 42, ch: 5, bev: 2.5, bevIn: 2 }, STRIPE: { z0: 19, z1: 23 }, FLAGZ: [33, 64], zmap: z => 15 + (z - 14)*0.5 }, noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
   { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', roverPart: 'boosters', noDish: true, noFlag: true /* (no mast or star -- Sir, 2026-11-17) */, noStripe: true /* (no gold band over its stars) */ /* (second pass -- Sir, 2026-11-17: twin rockets on his back, a gold star turning on his mast) */, noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
+  /* THE CARGO BOT'S ERA SKINS (Sir, 2026-11-17): three for each era -- its body colour and its accents (acc: drawCargoEra) */
+  { id: 'cg1900:post', build: 'cg1900', name: 'Post Wagon', cents: 800, body: 0xb8231c, stripe: 0x1d1f26, acc: { canvas: 0x2a2d33, frame: 0x16171b } },
+  { id: 'cg1900:bakery', build: 'cg1900', name: 'Bakery', cents: 800, body: 0xf3ead2, stripe: 0x2f6a3a, acc: { canvas: 0x3f8a4a, frame: 0x5a3418 } },
+  { id: 'cg1900:ice', build: 'cg1900', name: 'Ice Wagon', cents: 800, body: 0x5a8ac8, stripe: 0xf4f4f0, acc: { canvas: 0xf4f8fc, frame: 0x23365a } },
+  { id: 'cg1920:milk', build: 'cg1920', name: 'Milkman', cents: 800, body: 0xf4f4f0, stripe: 0x23262c, acc: { trim: 0x23262c } },
+  { id: 'cg1920:grocer', build: 'cg1920', name: 'Grocer', cents: 800, body: 0x2f6a3a, stripe: 0xd8b04a, acc: { trim: 0x16301c } },
+  { id: 'cg1920:florist', build: 'cg1920', name: 'Florist', cents: 800, body: 0xb89ad8, stripe: 0x23262c, acc: { trim: 0x3a2a4a } },
+  { id: 'cg1950:soda', build: 'cg1950', name: 'Soda Pop', cents: 800, body: 0x4ac8b8, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0 } },
+  { id: 'cg1950:cherry', build: 'cg1950', name: 'Cherry', cents: 800, body: 0xc8202a, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0 } },
+  { id: 'cg1950:butter', build: 'cg1950', name: 'Butter', cents: 800, body: 0xf2d878, stripe: 0x8a5a2a, acc: { roof: 0xfaf4e0 } },
+  { id: 'cg1970:surf', build: 'cg1970', name: 'Surf Shop', cents: 800, body: 0xf08a2a, stripe: 0x8a5a2a, acc: { panel: 0x8a5a2a, grain: true } },
+  { id: 'cg1970:disco', build: 'cg1970', name: 'Disco', cents: 800, body: 0x6a2a8a, stripe: 0xd9dde2, acc: { panel: 0xc9ced4 } },
+  { id: 'cg1970:earth', build: 'cg1970', name: 'Earth Tone', cents: 800, body: 0x8a6a3a, stripe: 0xd8a41a, acc: { panel: 0xd8a41a } },
+  { id: 'cg1980:synth', build: 'cg1980', name: 'Synthwave', cents: 900, body: 0x2a1a4a, stripe: 0xff4ad8, acc: { n1: 0xff4ad8, n2: 0x5fe8ff } },
+  { id: 'cg1980:grid', build: 'cg1980', name: 'Grid Runner', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, acc: { n1: 0x5fe8ff, n2: 0x5fe8ff } },
+  { id: 'cg1980:arcade', build: 'cg1980', name: 'Arcade', cents: 900, body: 0xf2c02e, stripe: 0xd8261c, acc: { n1: 0xd8261c, n2: 0x2a5ad8 } },
+  { id: 'cg2100:chrome', build: 'cg2100', name: 'Chrome', cents: 1000, body: 0xc9ced4, stripe: 0x5fe8ff, acc: { glow: 0x5fe8ff } },
+  { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040 } },
+  { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -129758,6 +129777,10 @@ class WorldScene extends Phaser.Scene {
      panel van with a split windscreen; cg1970 a square box van with wood-grain sides; cg1980 a neon-trimmed wedge; cg2100 a hover
      freighter on glowing pads, a cargo pod on its back */
   drawCargoEra(era, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB){
+    /* AN ERA'S OWN SKIN (Sir, 2026-11-17: TP_BSKIN with build cgNNNN): its body colour, and its accents (acc) in the era's own parts --
+       the wagon's canvas and frame, the Model-T's black, the Panel Van's roof, the Box Van's side panels, the neon, the glow */
+    const BSK = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === era), A = (BSK && BSK.acc) || {};
+    if(BSK){ const c = BSK.body; BPW = { top: c, lt: _pdk(c, 0.91), dk: _pdk(c, 0.79), print: null, fin: BPW.fin }; }
     const { P, sees, solid, prismH, line, Q } = V, K = this.K*0.42;
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
     const hull = (o) => this.botHull(g, x, y, z, fdir, Object.assign({ cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, cBottom: 0x2a2f36, print: BPW.print, fin: BPW.fin }, o));
@@ -129789,13 +129812,13 @@ class WorldScene extends Phaser.Scene {
       const zl = 10 + Math.sin(t*0.003)*1.5; shadow(50, 32);
       /* (second pass -- Sir, 2026-11-17): bright pads and their beams to the road, a thruster glowing on its back, a glass cargo pod with
          parcels inside, a light strip chasing round its waist */
-      for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, 1), q2 = P(a, b, zl + 10); g.fillStyle(0x5fe8ff, 0.25); g.fillEllipse(q.x, q.y, 34*K*2.4/2.4, 17*K); g.fillStyle(0x5fe8ff, 0.18);
+      for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, 1), q2 = P(a, b, zl + 10); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.25); g.fillEllipse(q.x, q.y, 34*K*2.4/2.4, 17*K); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.18);
         g.fillTriangle(q2.x - 6*K, q2.y, q2.x + 6*K, q2.y, q.x, q.y); g.fillStyle(0xc8ffff, 0.75); g.fillEllipse(q2.x, q2.y, 12*K, 6*K); }
       hull({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 });
-      hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
-      if(!front){ const q = P(-50, 0, zl + 36); g.fillStyle(0x5fe8ff, 0.4); g.fillCircle(q.x, q.y, 9*K*2.4/2.4*2); g.fillStyle(0xc8ffff, 0.9); g.fillCircle(q.x, q.y, 4*K*2); }   // (its thruster, seen from behind)
+      hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
+      if(!front){ const q = P(-50, 0, zl + 36); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.4); g.fillCircle(q.x, q.y, 9*K*2.4/2.4*2); g.fillStyle(0xc8ffff, 0.9); g.fillCircle(q.x, q.y, 4*K*2); }   // (its thruster, seen from behind)
       { const N2 = 20, ph = Math.floor(t/90); for(let i = 0; i < N2; i++){ const a = i/N2*Math.PI*2, ca = Math.cos(a), sa = Math.sin(a); if(!sees(ca, sa, 0)) continue; const k = Math.min(50/Math.max(Math.abs(ca), 0.01), 32/Math.max(Math.abs(sa), 0.01))*0.92, q = P(ca*k, sa*k, zl + 31.5);
-        g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : 0x8af4ff, 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
+        g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : _pmix(A.n2 || A.glow || 0x5fe8ff, 0xffffff, 0.4), 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
       for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
       hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
       this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); return; }
@@ -129803,7 +129826,7 @@ class WorldScene extends Phaser.Scene {
     if(era === 'cg1900'){
       /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
          rail, a skirt board; rope ties down the canvas; a lantern hung off the back and a spare wheel strapped behind */
-      const BW = 38, DW = 0x5a3418;
+      const BW = 38, DW = A.frame || 0x5a3418;
       spoked(-30, -nearB, BW, 18, 5); spoked(32, -nearB, BW, 13, 5);
       box(-46, 46, -24, 24, 22, 28, DARK);
       const spare = () => { const o = []; for(let i = 0; i < 16; i++){ const ph = i/16*Math.PI*2; o.push(P(-46.5, Math.cos(ph)*12, 46 + Math.sin(ph)*12)); }
@@ -129817,7 +129840,7 @@ class WorldScene extends Phaser.Scene {
         this.tipseyFace(V, 44, 50, 1, { mouthZ: 36 }); };
       const seat = () => { box(30, 46, -24, 24, 66, 71, 0x8a5a2a); box(43, 46, -24, 24, 66, 82, 0x6a4020);
         for(const sb of [-1, 1]){ this.avLathe(V, 46, sb*27, [[62, 3], [69, 3]], BRASS, null, 8); this.avLathe(V, 46, sb*27, [[69, 3.4], [71, 1]], BRASS, null, 8); const q = P(47.5, sb*27, 65.5); if(front){ g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 1.8*K*2.4); } } };
-      const top = () => { arcRoof(-44, 28, 30, 66, 26, 0xf3ead2, 0xd9cfb4);
+      const top = () => { arcRoof(-44, 28, 30, 66, 26, A.canvas || 0xf3ead2, _pdk(A.canvas || 0xf3ead2, 0.88));
         for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], 0x8a6a3a, 1.6); }
         for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-31, -13, 5, 23]) line([a, sb*30.3, 67], [a, sb*30.6, 63], 0x8a6a3a, 1.2); };   // (the ties down to the rail)
       if(front){ spare(); if(nearB > 0 === sees(0, 1, 0)) lantern(); body(); top(); seat(); } else { seat(); body(); top(); spare(); lantern(); }
@@ -129825,7 +129848,7 @@ class WorldScene extends Phaser.Scene {
     if(era === 'cg1920'){
       /* (second pass -- Sir, 2026-11-17): wooden-spoke wheels under black fenders swept down to the running boards, round brass headlamps
          up on the fenders, a roof that overhangs the cab, a spare tyre on the cargo box's flank */
-      const BW = 33, BLK = 0x23262c;
+      const BW = 33, BLK = A.trim || 0x23262c;
       const side = sb => { spoked(-30, sb, BW, 15, 5); spoked(32, sb, BW, 15, 5); fender(-30, 15, sb*(BW - 4), sb*(BW + 4), BLK); fender(32, 15, sb*(BW - 4), sb*(BW + 4), BLK, 0.12, 0.6);
         box(-14, 18, sb*27, sb*37, 22, 24.5, BLK); };
       side(-nearB);
@@ -129845,7 +129868,7 @@ class WorldScene extends Phaser.Scene {
       ww(-nearB);
       const ends = sgn => box(sgn*46, sgn*52, -30, 30, 22, 29, CHROME);
       const body = () => { hull({ hx: 48, hy: 32, z0: 20, z1: 74, ch: 20, bev: 10, bevIn: 9 });
-        hull({ hx: 40, hy: 28, ox: -4, z0: 74, z1: 100, ch: 18, bev: 12, bevIn: 11, cTop: 0xf6f0e0, cLt: 0xece4d0, cDk: 0xcfc6ae, print: null });
+        hull({ hx: 40, hy: 28, ox: -4, z0: 74, z1: 100, ch: 18, bev: 12, bevIn: 11, cTop: A.roof || 0xf6f0e0, cLt: _pdk(A.roof || 0xf6f0e0, 0.95), cDk: _pdk(A.roof || 0xf6f0e0, 0.84), print: null });
         for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 22), P(-20, bb, 22), P(-20, bb, 36), P(-40, bb, 36)], BPW.top === undefined ? 0xffffff : (sb === nearB ? BPW.lt : BPW.dk)); line([-28, bb, 40], [30, bb, 44], CHROME, 1.8); }   // (the rear skirt, the chrome spear)
         if(front){ for(const [b0, b1] of [[-9, -1], [1, 9]]) Q([P(35.6, b0, 76), P(35.6, b1, 76), P(34.4, b1, 90), P(34.4, b0, 90)], 0x5a8aa8);
           Q([P(48.2, -9, 26), P(48.2, 9, 26), P(48.2, 9, 34), P(48.2, -9, 34)], CHROME); for(let bb = -7.5; bb <= 7.5; bb += 2.5) line([48.4, bb, 27], [48.4, bb, 33], 0x8d959c, 1);
@@ -129859,8 +129882,8 @@ class WorldScene extends Phaser.Scene {
       const BW = 36; wheels(-nearB, [-30, 30], 13, BW, 8);
       const bump = sgn => { box(sgn*46, sgn*50, -32, 32, 20, 27, CHROME); box(sgn*49.6, sgn*50.4, -32, 32, 22.5, 24.5, 0x23262c); };
       const body = () => { hull({ hx: 46, hy: 32, z0: 20, z1: 106, ch: 4, bev: 3, bevIn: 2.5 });
-        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 34), P(30, bb, 34), P(30, bb, 74), P(-40, bb, 74)], sb === nearB ? WOOD : _pdk(WOOD, 0.85));
-          for(let zz = 38; zz < 74; zz += 5) line([-40, bb, zz], [30, bb, zz + 0.6], _pdk(WOOD, 0.7), 0.8); line([-40, bb, 34], [30, bb, 34], CHROME, 1.4); line([-40, bb, 74], [30, bb, 74], CHROME, 1.4);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 34), P(30, bb, 34), P(30, bb, 74), P(-40, bb, 74)], sb === nearB ? (A.panel || WOOD) : _pdk(A.panel || WOOD, 0.85));
+          if(!A.panel || A.grain) for(let zz = 38; zz < 74; zz += 5) line([-40, bb, zz], [30, bb, zz + 0.6], _pdk(A.panel || WOOD, 0.7), 0.8); line([-40, bb, 34], [30, bb, 34], CHROME, 1.4); line([-40, bb, 74], [30, bb, 74], CHROME, 1.4);
           line([4, bb + sb*0.2, 24], [4, bb + sb*0.2, 96], _pdk(BPW.dk, 0.75), 1.2); line([4, bb + sb*0.2, 96], [36, bb + sb*0.2, 96], _pdk(BPW.dk, 0.75), 1.2); }   // (the sliding door)
         if(sees(-1, 0, 0)) for(const sb of [-1, 1]){ const o = []; for(let i = 0; i < 14; i++){ const ph = i/14*Math.PI*2; o.push(P(-46.2, sb*14 + Math.cos(ph)*7, 82 + Math.sin(ph)*7)); } Q(o, 0x5a8aa8); }
         if(front){ glass(46.1, -24, 24, 78, 100); Q([P(46.2, -14, 32), P(46.2, 14, 32), P(46.2, 14, 44), P(46.2, -14, 44)], DARK);
@@ -129876,15 +129899,15 @@ class WorldScene extends Phaser.Scene {
       wheels(nearB, [-30, 30], 13, BW, 8); return; }
     if(era === 'cg1980'){
       /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
-      { const q = P(0, 0, 2); g.fillStyle(0xff4ad8, 0.22); g.fillEllipse(q.x, q.y, 120*K, 60*K); g.fillStyle(0xff4ad8, 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
+      { const q = P(0, 0, 2); g.fillStyle((A.n1 || 0xff4ad8), 0.22); g.fillEllipse(q.x, q.y, 120*K, 60*K); g.fillStyle((A.n1 || 0xff4ad8), 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
       const BW = 34; wheels(-nearB, [-32, 32], 12, BW, 8);
       const wing = () => { for(const sb of [-1, 1]) line([-44, sb*18, 92], [-48, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -48, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
-        hull({ hx: 6.2, hy: 30.2, ox: -48, ch: 2, z0: 101, z1: 102, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 }); };
+        hull({ hx: 6.2, hy: 30.2, ox: -48, ch: 2, z0: 101, z1: 102, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) }); };
       if(front) wing();
       hull({ hx: 50, hy: 32, z0: 20, z1: 58, ch: 6, bev: 3, bevIn: 2.5 });
       for(const sb of [-1, 1]) hull({ hx: 4, hy: 7, ox: 44, oy: sb*20, z0: 58, z1: 62, ch: 1, bev: 0.8, bevIn: 0.6, cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, print: null });   // (its pop-up lamps)
-      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: 0xff4ad8, cDk: 0xc82aa8 });
-      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
+      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: (A.n1 || 0xff4ad8), cDk: _pdk(A.n1 || 0xff4ad8, 0.8) });
+      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) });
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*33; Q([P(-34, bb, 28), P(-12, bb, 28), P(-12, bb, 37), P(-34, bb, 37)], 0x101114); for(const a of [-31, -25, -19]) line([a, bb + sb*0.1, 30], [a + 3.5, bb + sb*0.1, 30], 0x7aff6a, 1.4), line([a, bb + sb*0.1, 35], [a + 3.5, bb + sb*0.1, 35], 0x7aff6a, 1.4); }
       if(front) this.tipseyFace(V, 50, 44, 1, { mouthZ: 28 });
       wedge([[-46, 58], [26, 58], [-2, 92], [-46, 92]], 28, _pmix(BPW.top, 0xffffff, 0.1), BPW.lt);
