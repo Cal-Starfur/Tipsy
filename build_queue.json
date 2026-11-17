@@ -140,7 +140,7 @@
 "title": "Walk-in interior: Tidewater Tea House",
 "spec": "docs/state/walkin_recipe.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "note": "block 2,0 edge 1",
 "group": "Walk-in interiors: Flats shops"
 },

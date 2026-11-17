@@ -30571,6 +30571,38 @@ walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
   { id: 'desk-1', spots: [[575, 126, -Math.PI/2]] }, { id: 'desk-2', spots: [[575, 296, -Math.PI/2]] },
   { id: 'waiting', spots: [[470, 450, 0], [600, 440, Math.PI]] },
 ] });
+/* ==================== TIDEWATER TEA HOUSE, WALK-IN (wi-tidewater-tea-house; the room: the LIB entry 'Tidewater Tea House Interior') ====================
+   The Flats' tea house on block 2,0's east edge (its front faces east, to the camera), behind its colonnade. Its walls stand 40 in from
+   the lot's ends (wallIn) and its front wall on the frontage, the porch out over the pavement; its lab here is the entry's draw frame plus
+   its boff (60: landmarkLabWorld does not carry it), so the wall is b 0 and the back b -216. The room: the walls' footprint less the walls
+   (W22). Its way in, the double door in the middle of the front (east) wall, open. Room frame a east, b south, world units (x1.3):
+     b 30..64        THE TEA COUNTER along the north wall, the tea master behind it; tins and teapots on the shelves over it
+     b 136..228      the door's lane, door to back wall, kept clear
+     b 250..300      two round tables, their stools; a moon window and scrolls on the west wall */
+const TH_IN = { name: 'Tidewater Tea House Interior', x0: 780000, y0: 400000, WALL: 30/1.3, A0: 40, A1: T2*4.4 - 40, BACK: -216, H: 300, LH: 66,
+  DOOR: [172, 234], DOORZ: 112*1.95 };
+const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0: TH_IN.x0, y0: TH_IN.y0,
+  lab: [TH_IN.A0 + TH_IN.WALL, TH_IN.A1 - TH_IN.WALL, TH_IN.BACK + TH_IN.WALL, -TH_IN.WALL], body: [[TH_IN.A0, TH_IN.A1, TH_IN.BACK, 0]],
+  door: { a: (TH_IN.DOOR[0] + TH_IN.DOOR[1])/2, b: 0, half: (TH_IN.DOOR[1] - TH_IN.DOOR[0])/2*1.3 }, H: TH_IN.H, LH: TH_IN.LH, out: 60, glass: 40,
+  /* (its way to and from the street, THE ROOM'S DAY: out under the colonnade onto the east pavement, along it either way) */
+  street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
+  /* (seen through, W11: the open doorway) */
+  openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] }] });
+POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books'];   // (W26: the bookshop south of it stands over its south wall on screen)
+/* ITS PEOPLE (221 x 362, a tea room): the tea master behind the counter (fixed, the keyholder), a server between the counter and the
+   tables, two guests */
+const TH_MASTER_UNIFORM = { shirt: { c:0x2c4a6b, dk:0x1f3650 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
+const TH_SERVER_UNIFORM = { shirt: { c:0xb8352a, dk:0x922a21 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
+walkinStaff(TH_IN.name, [
+  { id: 'master', role: 'tea master', seed: 0x7e01, U: TH_MASTER_UNIFORM, fixed: true, keys: true, posts: [[110, 16, Math.PI/2, 9000, true], [60, 18, Math.PI*0.6, 3600, true]] },
+  { id: 'server', role: 'tea server', seed: 0x7e02, U: TH_SERVER_UNIFORM, posts: [[150, 96, Math.PI/2, 6000, true], [104, 240, Math.PI/2, 4200, true], [190, 250, Math.PI, 3600, true]] },
+  { id: 'guest-1', role: 'guest', seed: 0x7e11, look: 'visitor', life: 'browse' },
+  { id: 'guest-2', role: 'guest', seed: 0x7e12, look: 'visitor', life: 'browse' },
+]);
+walkinLife(TH_IN.name, { keep: [[0, 221, 136, 228]], looks: [
+  { id: 'counter', spots: [[90, 92, -Math.PI/2], [150, 120, -Math.PI/2]] },
+  { id: 'table-1', spots: [[50, 250, Math.PI/2]] }, { id: 'table-2', spots: [[150, 250, Math.PI/2]] },
+] });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -57092,6 +57124,92 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE TIDEWATER TEA HOUSE (TH_IN; the walk-in kit's walls, walkinRoom, its door in the east wall). Frame a east, b south, z up,
+     world units. Long pieces in runs (runPiece, W28) */
+  name:'Tidewater Tea House Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 221, dd: 362,
+  head:'Inside Tidewater Tea House: the tea counter, shelves of tins and teapots, round tables, a moon window',
+  tags:['interior','pocket','tea house','tea counter','lanterns'],
+  desc:'The Flats\' tea house: cream plaster over a deep blue dado, a dark plank floor, the tea counter of red lacquer with its tins, teapots and kettle and the shelves over it, two round tables with stools, a moon window, scrolls and paper lanterns.',
+  draw(p){
+    const pl = (typeof TH_PLAN !== 'undefined' && TH_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 221, D = (pl && pl.D) || 362, H = TH_IN.H, LH = TH_IN.LH, DZ = TH_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 'e', at: 182, half: 40 };
+    const wall = '#efe9db', wallD = '#ddd5c2', trim = '#2c4a6b', trimD = '#1f3650', red = '#b8352a', redF = '#9a2c23', redS = '#7e241c';
+    const gold = '#c9a24a', dark = '#26221e', plank = '#6b4a30', plankD = '#5a3e28', wood = '#7a5232', woodF = '#664428', woodS = '#523620';
+    const jade = '#3f6b52', paper = '#f2e6c8';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const ring = (a, b, z, r, c, plane) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(plane === 'w' ? P(a, b + Math.cos(t)*r, z + Math.sin(t)*r) : P(a + Math.cos(t)*r, b, z + Math.sin(t)*r)); } poly(pts, c); };
+
+    /* ---- THE FLOOR: dark planks running east-west, a runner up the lane; the threshold under the door ---- */
+    T(0, W, 0, D, 0, plank);
+    for(let b = 18; b < D; b += 18) T(0, W, b - 0.6, b + 0.6, 0.2, plankD);
+    T(0, W, door.at - 34, door.at + 34, 0.3, red); T(0, W, door.at - 28, door.at + 28, 0.35, shade(red, 1.1));
+    items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#cfc8b8');
+      T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, gold); } });
+
+    /* ---- THE WALLS (the kit's): cream plaster over the deep blue dado; the shelves of tins and teapots over the counter on the north
+       wall, its paper lanterns; on the west wall the moon window, the scrolls ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, wall, null, 0, 0);
+        F(-30, W + 30, 0, 74, trim, null, 0, 0.1); F(-30, W + 30, 74, 78, gold, null, 0, 0.2);
+        F(-30, W + 30, H - 18, H, red, null, 0, 0.3);
+        /* the shelves: three dark boards, tins in jade, red and gold, teapots between */
+        const TIN = [jade, red, gold, '#2f4a5a', '#e6dccb'];
+        for(const [z, r] of [[120, 0], [168, 1], [216, 2]]){
+          F(20, W - 30, z - 4, z, woodS, null, 0, 0.4);
+          for(let a = 28, k = 0; a < W - 44; a += 16, k++){
+            if((k + r) % 4 === 3){ ring(a + 6, 0.6, z + 9, 8, '#e9e4da'); F(a + 13, a + 17, z + 8, z + 12, '#e9e4da', null, 0, 0.6); continue; }   // a teapot
+            F(a, a + 12, z, z + 20 + (k % 2)*6, TIN[(k + r*2) % 5], null, 0, 0.6); F(a, a + 12, z + 18 + (k % 2)*6, z + 21 + (k % 2)*6, gold, null, 0, 0.7); }
+        }
+        /* two paper lanterns on brackets, at the shelves' ends */
+        for(const la of [12, W - 18]){ F(la - 1, la + 1, 250, 268, dark, null, 0, 0.5); ring(la, 0.6, 236, 14, red); F(la - 10, la + 10, 234, 238, gold, null, 0, 0.7); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(wall, 0.94));
+        S(0.1, -30, D + 30, 0, 74, shade(trim, 0.92)); S(0.2, -30, D + 30, 74, 78, gold);
+        S(0.3, -30, D + 30, H - 18, H, redF);
+        /* THE MOON WINDOW over the tables: a round opening, its lattice, the garden's green behind */
+        { const mb = 270, mz = 170, R = 58; ring(0.3, mb, mz, R + 6, dark, 'w'); ring(0.4, mb, mz, R, '#9cc49a', 'w'); ring(0.45, mb, mz, R - 20, '#7aa878', 'w');
+          for(let k = -2; k <= 2; k++){ S(0.6, mb + k*20 - 1.5, mb + k*20 + 1.5, mz - Math.sqrt(R*R - (k*20)**2), mz + Math.sqrt(R*R - (k*20)**2), dark); S(0.6, mb - Math.sqrt(R*R - (k*20)**2), mb + Math.sqrt(R*R - (k*20)**2), mz + k*20 - 1.5, mz + k*20 + 1.5, dark); } }
+        /* two hanging scrolls by the door's lane */
+        for(const sb of [110, 186]){ S(0.3, sb - 18, sb + 18, 120, 250, paper); S(0.35, sb - 20, sb + 20, 246, 254, wood); S(0.35, sb - 20, sb + 20, 116, 122, wood);
+          for(let k = 0; k < 4; k++) S(0.4, sb - 3, sb + 3, 140 + k*26, 156 + k*26, dark); }
+      },
+      low: [wall, trim, trimD], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
+
+    /* ---- THE TEA COUNTER along the north wall: red lacquer, a dark top, the kettle on its brazier, teapots and cups set out ---- */
+    { const A0 = 24, A1 = W - 40, B0 = 30, B1 = 64;
+      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'tea counter')], () => {
+        box(A0, A1, B0, B1, 0, 82, red, redF, redS);
+        for(let a = A0 + 24; a < A1 - 10; a += 30) F(a - 1, a + 1, 10, 74, redS, null, 0, B1 + 0.3);
+        F(A0 + 4, A1 - 4, 40, 44, gold, null, 0, B1 + 0.4);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
+        box(A0 + 14, A0 + 34, B0 + 6, B0 + 26, 88, 104, '#3a3e44', '#2f3338', '#25292d'); cyl(A0 + 24, B0 + 16, 104, 118, 9, '#c9ccd2', '#9aa0a6');   // the kettle on its brazier
+        for(let k = 0; k < 3; k++){ const a = A0 + 70 + k*34; cyl(a, B0 + 18, 88, 98, 8, k === 1 ? jade : '#e9e4da'); cyl(a, B0 + 18, 98, 101, 3, gold); }   // teapots
+        for(let k = 0; k < 4; k++) cyl(A1 - 30 + (k % 2)*12, B1 - 10 - ((k/2)|0)*10, 88, 93, 3.2, '#f4f0e6');   // cups
+      }); }
+
+    /* ---- TWO ROUND TABLES and their stools, past the lane (60 clear of the low south wall, W24) ---- */
+    for(const ta of [56, 150]){ const tb = 280;
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 22, h: 72 }], draw: () => {
+        cyl(ta, tb, 0, 6, 12, woodS); cyl(ta, tb, 6, 60, 4, woodF); cyl(ta, tb, 60, 66, 24, wood, shade(wood, 1.12));
+        cyl(ta - 6, tb - 4, 66, 74, 6, '#e9e4da'); cyl(ta + 8, tb + 4, 66, 70, 3.2, '#f4f0e6'); } });
+      for(const [da, db] of [[-34, 0], [34, 0]]) items.push({ a: ta + da, b: tb + db, z: 0, solids: [{ name: 'stool', c: [ta + da, tb + db], r: 10, h: 44 }], draw: () => {
+        cyl(ta + da, tb + db, 0, 40, 9, woodF); cyl(ta + da, tb + db, 40, 46, 11, red, shade(red, 1.15)); } });
+    }
+    /* a jade planter by the west wall, the room's one green */
+    items.push({ a: 26, b: 104, z: 0, solids: [{ name: 'planter', c: [26, 104], r: 14, h: 90 }], draw: () => {
+      cyl(26, 104, 0, 26, 14, jade, shade(jade, 1.15)); for(let k = 0; k < 5; k++){ const t = k/5*Math.PI*2; tube(26, 104, 26, 26 + Math.cos(t)*14, 104 + Math.sin(t)*10, 76, 2.2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+
+    walkinStaffSolids(items, TH_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -61695,6 +61813,7 @@ function houseCanopy(fn){
 },
 {
   name:'Tidewater Tea House', xh: 288, base:'Tea house', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4, boff: 60, porch: 212, fd: 268, wallIn: 40,
+  see: true,   // (a walk-in: its doorway shows the tea room, TH_IN -- W11)
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -62010,6 +62129,9 @@ function houseCanopy(fn){
     for(const [x0,x1] of [[52,106],[112,166],[240,294],[300,354]]) screen(x0, x1);
     /* the doors, hand-rolled at the set-back wall */
     F(168, 238, 0, 118, shade(wall,.72), null, 0, FB+0.6);          // surround
+    /* (A WALK-IN, TH_IN: the doors stand open, folded in; the opening a HOLE onto the room, W11 -- shut, outside the game, as drawn) */
+    if(SEE) HOLE([P(172, FB+0.9, 112), P(234, FB+0.9, 112), P(234, FB+0.9, 0), P(172, FB+0.9, 0)]);
+    else {
     F(172, 234, 0, 112, dark, null, 0, FB+0.9);                     // opening
     for(const [d0,d1] of [[175,202],[204,231]]){
       F(d0, d1, 3, 108, trim, shade(trim,.7), 1.6, FB+1.3);
@@ -62017,6 +62139,7 @@ function houseCanopy(fn){
         ball(d0 + (d1-d0)*(c+0.5)/3, FB+1.8, 16+r*24, 2.4, gold);   // door studs
     }
     ball(201, FB+2.2, 58, 3.4, gold); ball(208, FB+2.2, 58, 3.4, gold);
+    }
     F(150, 256, 124, 156, dark, null, 0, FB+0.6);                   // the name plaque
     F(154, 252, 126, 154, gold, null, 0, FB+0.9);
     F(158, 248, 130, 150, shade(dark,1.4), null,0, FB+1.2);
