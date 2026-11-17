@@ -49,7 +49,7 @@
 ],
 "status": "built",
 "group": "Palmline Tower interior",
-"note": "four lifts, lobby and floors 1-12; stop at one, it opens, pick a floor, dissolve, out at the same lift; floors pocket PT_FLOORS with flats 101-1004 doors and PH 11/12 doors (pt4/pt4b fill them in)"
+"note": "real lift bank (LIFT_BANK kit): cars on their own trips with live indicators, CALL LIFT, doors open when lined up, drive in, floor picker, ride, doors open on arrival; car 2 alone serves 11-12"
 },
 {
 "id": "pt4",
@@ -64,13 +64,14 @@
 },
 {
 "id": "pt4b",
-"title": "Palmline Tower floors 11 and 12: each one whole penthouse, a single residence (Sir, 2026-11-17)",
+"title": "Palmline Tower floors 11 and 12: each one whole penthouse, a single residence, its one private lift (Sir, 2026-11-17)",
 "spec": "docs/palmline-tower-plan.md",
 "deps": [
 "pt4"
 ],
 "status": "pending",
-"group": "Palmline Tower interior"
+"group": "Palmline Tower interior",
+"note": "open plan built: living, kitchen and dining, bedroom; no hallway, one lift door. Residents still to come"
 },
 {
 "id": "pt4c",
@@ -80,6 +81,14 @@
 "pt4",
 "pt4b"
 ],
+"status": "pending",
+"group": "Palmline Tower interior"
+},
+{
+"id": "hosp-lift-kit",
+"title": "Marina General's glass lift onto the LIFT_BANK kit (one car kit, W10): its cars, call, ride and doorways through liftBank*, keeping its glass shaft, riders and crew",
+"spec": "docs/kits/walkin.md",
+"deps": [],
 "status": "pending",
 "group": "Palmline Tower interior"
 },

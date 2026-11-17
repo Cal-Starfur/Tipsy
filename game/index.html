@@ -10744,7 +10744,7 @@ function owStep(scene, dt){
     if(Lw){ const items = scene.items; owStandUpAt(scene, Lw.x, Lw.y, Lw.a); scene.items = items || []; return; }
   }
   const blockAt0 = (x, y, ox, oy) => SAIL ? sailBlock(x, y) : ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) || liftBankBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
@@ -20113,7 +20113,7 @@ function parkLandmarkVol(name){
   const _vk = name + "|" + parkLandmarkPhase(name);
   if(_parkLandmarkVols.has(_vk)) return _parkLandmarkVols.get(_vk);
   const items = LIB.collect(name, (a, b, h) => ({ x: a - b, y: (a + b)/2 - h }), 1);
-  const solids = items ? items.flatMap(it => it.solids || []) : [];
+  const solids = items ? items.flatMap(it => it.solids || []).filter(so => !so.peopleOnly) : [];   // (peopleOnly: kept out of by the room's people, not by him -- a lift car, LIFT_BANK)
   const bb = so => so.c ? [so.c[0]-so.r, so.c[0]+so.r, so.c[1]-so.r, so.c[1]+so.r]
     : [Math.min(...so.poly.map(q => q[0])), Math.max(...so.poly.map(q => q[0])), Math.min(...so.poly.map(q => q[1])), Math.max(...so.poly.map(q => q[1]))];
   const TS = 800, M = 120, tiles = new Map();
@@ -30466,7 +30466,7 @@ walkinStaff('Palmline Tower Lobby', [
    11 and 12 a penthouse each (Sir, 2026-11-17). Its footprint less the walls' 30 is the room, on the street's lines; the floor he is on is
    PT_FLOORS.floor, at ptFloorZ. No street door: the four lifts are the way up, from the lobby's back wall (the same four, PT_LIFT_A, over each
    other). The tower and podium stand cut at the floor's slab under him (the rim queue's cut), the shops' shares too. */
-const PT_LIFT_A = { lobby: [60, 150, 250, 340], floors: [686, 776, 876, 966] };   // (the lifts' middles in each room's a: the lobby's at 996 + these, the floors' at 370 + these -- the same world a)
+const PT_LIFT_A = { lobby: [54, 151, 249, 346], floors: [680, 777, 875, 972], half: 44, deep: 110 };   // (the cars' middles in each room's a -- the lobby's at 996 + these, the floors' at 370 + these: the same world a -- each 88 across, 110 deep from the north wall)
 function ptFloorZ(n){ return n <= 0 ? 0 : 285 + 120*(n - 1); }                   // (the podium's roof, 190 kit units: floor 1, and 80 kit units a floor)
 const PT_FLOORS = (() => {
   const P = PALMLINE_PLAN, lab = [P.TA0 + 30, P.TA1 - 30, P.TB + 30, P.TF - 30];
@@ -30481,64 +30481,184 @@ const PT_FLOORS = (() => {
     night: () => walkinNightBoxes(F.W, F.D, 112, 66, null) });   // (W25: the floor at the near walls' height and the far walls' inner faces; raised to the floor by pocketNightCut)
   return F;
 })();
-/* THE LIFTS (pt3): stop square in front of one (he is lined up with its doors, a stride out), it comes and opens, the panel lists the floors;
-   pick one -- the doors shut, the floor dissolves into the one picked (sceneDissolve), he is out in front of the same lift there, its doors
-   opening. Its leaves are live pieces (ptLiftLeaves), cached shut or open. The hospital's lift, made for a building of two rooms */
-const PT_LIFT = { L: null, rest: false, callMs: 900, u: { 'Palmline Tower Lobby': [0, 0, 0, 0], 'Palmline Tower Floors': [0, 0, 0, 0] } };
-const PT_LIFT_FLOORS = [{ n: 0, mark: 'G', name: 'Lobby' }].concat([...Array(12)].map((_, i) => ({ n: i + 1, mark: String(i + 1),
-  name: i + 1 <= 10 ? 'Flats ' + (i + 1) + '01-' + (i + 1) + '04' : 'Penthouse' })));
-function ptLiftU(room, i){ return PT_LIFT.u[room] ? PT_LIFT.u[room][i] : 0; }
-function ptLiftState(room, i){ const u = ptLiftU(room, i); return u <= 0 ? 's' : u >= 1 ? 'o' : null; }
-function ptLiftFloorOf(pk){ return pk.name === 'Palmline Tower Lobby' ? 0 : PT_FLOORS.floor; }
-function ptLiftPick(n){
-  const L = PT_LIFT.L;
-  liftPanelShow(false);
-  if(!L || L.phase !== 'pick') return;
-  if(n == null || n === L.from){ PT_LIFT.L = null; PT_LIFT.rest = true; return; }
-  L.to = n; L.phase = 'close'; L.t = 0;
+/* ==================== THE LIFT BANK (pt3b; Sir, 2026-11-17: "id like to build an actual lift like we have at the hospital") ====================
+   A building's lifts as the hospital's glass lift works (HOSP_LIFTS, hospInLiftTick), for any building of floors: each car keeps its own trip
+   (where it is, where it is going, when it gets there: its indicator shows it on the way), wanders now and then when nobody wants it, comes when
+   called (CALL LIFT, the hospital's own button: LIFT_CALL_FN), and opens when it is here and he lines up with it. Driven in, the floors' panel
+   (liftPanelShow); the doors shut, the floor dissolves into the one picked, the car's doors open there. A bank is declared once:
+     { name, cars, floors: [n...], carFloors(i), rooms: [{ pk: name, floors(n), A: [car middles], half, deep }], floorOf(scene), set(scene, n),
+       label(n), T: { base, perFloor, holdMs, idleMin, idleMax } }
+   Its drawing is the rooms' own (their pieces' fx kits read liftBankU / liftBankHere / liftBankShows). The hospital's own lift still runs on
+   HOSP_LIFTS (to move onto this: the queue's hosp-lift-kit) */
+const LIFT_BANKS = [];
+function liftBankDefine(spec){
+  const B = Object.assign({ L: null, rest: false, ui: false, doors: spec.cars.map(() => 0),
+    car: spec.cars.map((f, i) => ({ f, from: f, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 26000 + i*9000, next: null, call: 0, dir: 'up' })) }, spec);
+  LIFT_BANKS.push(B);
+  return B;
+}
+function liftBankMs(B, a, b){ return B.T.base + B.T.perFloor*Math.abs(a - b); }
+function liftBankAt(B, i, f, now){ const C = B.car[i]; return C.f === f && now >= C.t1; }
+/* where car i is now, as a floor (rounded: its indicator) */
+function liftBankShows(B, i, now){ const C = B.car[i]; if(now >= C.t1) return C.f; const u = (now - C.t0)/((C.t1 - C.t0) || 1); return Math.round(C.from + (C.f - C.from)*Math.max(0, Math.min(1, u))); }
+function liftBankEta(B, i, f, now){ const C = B.car[i]; return (now < C.t1 ? C.t1 - now : 0) + (C.f === f ? 0 : liftBankMs(B, C.f, f)); }
+function liftBankGo(B, i, f, now){
+  const C = B.car[i];
+  if(now < C.t1){ if(C.f !== f) C.next = f; return; }
+  C.next = null; if(C.f === f) return;
+  C.from = C.f; C.f = f; C.t0 = now; C.t1 = now + liftBankMs(B, C.from, f); C.idle = 0;
+}
+/* the room he is in, if it is one of a bank's, and its floor */
+function liftBankHere(scene){
+  const pk = scene && scene._inside; if(!pk) return null;
+  for(const B of LIFT_BANKS){ const R = B.rooms.find(r => r.pk === pk.name); if(R) return { B, R, pk, f: B.floorOf(scene) }; }
+  return null;
+}
+/* a car's doors as the room he is in draws them (0 shut .. 1 open) -- 0 in any other room */
+function liftBankU(name, room, i){ const B = LIFT_BANKS.find(q => q.name === name), s = typeof scn === "function" ? scn() : null;
+  return B && s && s._inside && s._inside.name === room ? B.doors[i] : 0; }
+/* is car i here, on the floor the room he is in is at (the car itself drawn in its shaft) */
+function liftBankIn(name, room, i){ const B = LIFT_BANKS.find(q => q.name === name), s = typeof scn === "function" ? scn() : null;
+  if(!B || !s) return false; const f = s._inside && s._inside.name === room ? B.floorOf(s) : null; return f != null && liftBankAt(B, i, f, s.time.now); }
+function liftBankShowsNamed(name, i){ const B = LIFT_BANKS.find(q => q.name === name), s = typeof scn === "function" ? scn() : null; return B && s ? liftBankShows(B, i, s.time.now) : 0; }
+/* a car's rect in a room, [a0, a1, b0, b1] -- null where that car does not stop on this floor */
+function liftBankRect(B, R, i, f){ if(!B.carFloors(i).includes(f)) return null; const c = R.A[i]; return [c - R.half, c + R.half, 0, R.deep]; }
+/* every frame, wherever he is: the cars' trips and their wandering */
+function liftBanksStep(scene, dt){
+  const now = scene.time.now, H = liftBankHere(scene);
+  for(const B of LIFT_BANKS) B.car.forEach((C, i) => {
+    if(now >= C.t1 && C.next != null){ const n = C.next; C.next = null; liftBankGo(B, i, n, now); }
+    if(B.L && B.L.car === i) return;                                             // (carrying him)
+    if(C.call && now >= C.t1 && C.f === C.call){ C.call = 0; C.hold = now + B.T.holdMs; if(typeof sfxThump === "function" && H && H.B === B && H.f === C.f) sfxThump(0.22); }
+    if(C.call) return;
+    const near = H && H.B === B && H.f === C.f && (() => { const r = liftBankRect(B, H.R, i, H.f); if(!r) return false; const a = scene.ow.px - H.pk.x0, b = scene.ow.py - H.pk.y0; return a > r[0] - 200 && a < r[1] + 200 && b < r[3] + 260; })();
+    if(now < C.t1 || now < C.hold || near){ C.idle = 0; return; }
+    C.idle += dt;
+    if(C.idle > C.idleAt){ const fs = B.carFloors(i); let f = C.f; while(f === C.f) f = fs[Math.floor(Math.random()*fs.length)]; liftBankGo(B, i, f, now); C.idleAt = B.T.idleMin + Math.random()*(B.T.idleMax - B.T.idleMin); }
+  });
+}
+/* CALL LIFT (the hospital's button, LIFT_CALL_FN): the car that will be here first; one here already holds its doors */
+function liftBankCall(B, dir){
+  const s = typeof scn === "function" ? scn() : null, H = liftBankHere(s); if(!H || H.B !== B || B.L) return;
+  const now = s.time.now, f = H.f, ok = i => B.carFloors(i).includes(f);
+  if(B.car.some(C => C.call === f)) return;
+  const here = B.car.findIndex((C, i) => ok(i) && liftBankAt(B, i, f, now));
+  if(here >= 0){ B.car[here].hold = now + B.T.holdMs; if(typeof sfxThump === "function") sfxThump(0.18); return; }
+  let best = -1, bt = Infinity;
+  B.car.forEach((C, i) => { if(!ok(i)) return; const e = liftBankEta(B, i, f, now); if(e < bt){ bt = e; best = i; } });
+  if(best < 0) return;
+  const C = B.car[best]; C.call = f; C.dir = dir === 'down' ? 'down' : 'up';
+  liftBankGo(B, best, f, now);
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
-function ptLiftArrive(scene, L){
-  const lob = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), flp = POCKETS.find(q => q.name === PT_FLOORS.name);
-  let x, y;
-  if(L.to === 0){ L.pk = lob; x = lob.x0 + PT_LIFT_A.lobby[L.car]; y = lob.y0 + 70; }
-  else { pocketSetFloor(scene, PT_FLOORS, L.to); L.pk = flp; x = flp.x0 + PT_LIFT_A.floors[L.car]; y = flp.y0 + 70; }
-  PT_LIFT.u[L.pk.name][L.car] = 0;
-  owTeleport(scene, x, y, Math.PI/2);
+function liftBankCallUi(scene, ow, H){
+  const B = H ? H.B : null;
+  let el = document.getElementById("liftCall");
+  if(!H){ if(LIFT_BANKS.some(q => q.ui) && el) el.classList.add("hidden"); LIFT_BANKS.forEach(q => { q.ui = false; }); return; }
+  if(!el){ hospLiftCallUi(scene, null); el = document.getElementById("liftCall"); if(!el) return; }
+  const now = scene.time.now, f = H.f, a = ow.px - H.pk.x0, b = ow.py - H.pk.y0;
+  const rs = B.car.map((C, i) => liftBankRect(B, H.R, i, f)).filter(Boolean);
+  let show = false, txt = "";
+  if(rs.length && !B.L && scene.state === "play"){
+    const a0 = Math.min(...rs.map(r => r[0])) - 60, a1 = Math.max(...rs.map(r => r[1])) + 60, d = H.R.deep;
+    const inLobby = a > a0 && a < a1 && b > d && b < d + 240;
+    const open = B.car.some((C, i) => B.carFloors(i).includes(f) && liftBankAt(B, i, f, now));
+    if(inLobby && !open){
+      show = true;
+      const ci = B.car.findIndex(C => C.call === f);
+      if(ci >= 0){ const at = liftBankShows(B, ci, now); txt = '<span class="lcT">' + (B.car[ci].dir === 'down' ? '▼' : '▲') + ' LIFT COMING</span><span class="lcF">' + B.label(at) + '</span>'; el.classList.add("busy"); }
+      else { const fs = [...new Set(B.car.flatMap((C, i) => B.carFloors(i).includes(f) ? B.carFloors(i) : []))], top = Math.max(...fs), bot = Math.min(...fs);
+        txt = '<span class="lcT">CALL LIFT</span>' + (f < top ? '<button class="lcB" data-d="up">▲</button>' : '') + (f > bot ? '<button class="lcB" data-d="down">▼</button>' : ''); el.classList.remove("busy"); }
+    }
+  }
+  if(show) LIFT_CALL_FN = d => liftBankCall(B, d);
+  if(el._txt !== txt){ el._txt = txt; el.innerHTML = txt; }
+  if(show || B.ui) el.classList.toggle("hidden", !show);
+  B.ui = show;
 }
-function ptLiftTick(scene, ow, dt){
-  const pk = scene._inside, L = PT_LIFT.L;
-  if(!pk || !PT_LIFT.u[pk.name]){ if(L && L.phase !== 'ride'){ liftPanelShow(false); PT_LIFT.L = null; } return !!(L && L.phase === 'ride'); }
-  const a = ow.px - pk.x0, b = ow.py - pk.y0, A = pk.name === 'Palmline Tower Lobby' ? PT_LIFT_A.lobby : PT_LIFT_A.floors;
-  for(const room in PT_LIFT.u) PT_LIFT.u[room].forEach((u, i) => {
-    const want = L && L.car === i && L.pk && L.pk.name === room && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0;
-    PT_LIFT.u[room][i] = want > u ? Math.min(1, u + dt/380) : Math.max(0, u - dt/380); });
-  const ci = A.findIndex(c => Math.abs(a - c) < 36 && b > 0 && b < 95);
+/* its doorways: a car's rect is shut to him but while that car is here with its doors open, or he is in it (riding, or already inside) */
+function liftBankBlocks(x, y, R){
+  const s = typeof scn === "function" ? scn() : null, H = liftBankHere(s); if(!H) return false;
+  const B = H.B, a = x - H.pk.x0, b = y - H.pk.y0, now = s.time.now, oa = s.ow.px - H.pk.x0, ob = s.ow.py - H.pk.y0;
+  return B.car.some((C, i) => {
+    const r = liftBankRect(B, H.R, i, H.f); if(!r) return false;
+    if(a + R <= r[0] || a - R >= r[1] || b - R >= r[3] || b + R <= r[2]) return false;
+    if(B.L && B.L.car === i) return false;
+    if(oa > r[0] && oa < r[1] && ob > r[2] && ob < r[3]) return false;          // (already in it: free to move)
+    return !(liftBankAt(B, i, H.f, now) && B.doors[i] > 0.6);
+  });
+}
+function liftBankPick(B, n){
+  const L = B.L;
+  liftPanelShow(false);
+  if(!L || L.phase !== 'pick') return;
+  if(n == null || n === L.from){ B.L = null; B.rest = true; return; }
+  L.to = n; L.dur = liftBankMs(B, L.from, n); L.phase = 'close'; L.t = 0;
+  if(typeof sfxThump === "function") sfxThump(0.15);
+}
+/* every frame (owLiftTick): the cars, the button, his ride. true while it has him */
+function liftBankTick(scene, ow, dt){
+  liftBanksStep(scene, dt);
+  const H = liftBankHere(scene), now = scene.time.now;
+  for(const B of LIFT_BANKS) if(B.L && (!H || H.B !== B) && B.L.phase !== 'ride'){ liftPanelShow(false); B.L = null; }
+  liftBankCallUi(scene, ow, H);
+  if(!H) return false;
+  const B = H.B, L = B.L, f = H.f, a = ow.px - H.pk.x0, b = ow.py - H.pk.y0;
+  const rs = B.car.map((C, i) => liftBankRect(B, H.R, i, f));
+  const ci = rs.findIndex(r => r && a > r[0] && a < r[1] && b > r[2] && b < r[3]);
+  rs.forEach((r, i) => {
+    const lined = !L && r && a > r[0] - 20 && a < r[1] + 20 && b > r[2] && b < r[3] + 200, here = r && liftBankAt(B, i, f, now);
+    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : here && (lined || B.car[i].hold > now) ? 1 : 0;
+    B.doors[i] = want > B.doors[i] ? Math.min(1, B.doors[i] + dt/380) : Math.max(0, B.doors[i] - dt/380);
+  });
   if(!L){
-    if(PT_LIFT.rest){ if(ci < 0) PT_LIFT.rest = false; return false; }
-    if(scene.state !== "play" || ci < 0 || Math.abs(ow.vel || 0) > 0.03) return false;
-    PT_LIFT.L = { phase: 'call', t: 0, car: ci, pk, from: ptLiftFloorOf(pk), to: null };
+    if(B.rest){ if(ci < 0) B.rest = false; return false; }
+    if(scene.state !== "play" || ci < 0 || b > rs[ci][3] - 40 || !liftBankAt(B, ci, f, now)) return false;
+    B.car[ci].hold = 0;
+    B.L = { phase: 'pick', t: 0, car: ci, from: f, to: f };
     ow.vel = 0;
+    liftPanelShow(true, f, B.carFloors(ci).map(n => ({ n, mark: B.label(n), name: B.name_(n) })), n => liftBankPick(B, n));
     return true;
   }
   L.t += dt; ow.vel = 0;
-  if(L.phase === 'call' && L.t >= PT_LIFT.callMs){ L.phase = 'pick'; L.t = 0; liftPanelShow(true, L.from, PT_LIFT_FLOORS, ptLiftPick); }
-  else if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); PT_LIFT.L = null; PT_LIFT.rest = true; } }
-  else if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){
-    L.phase = 'ride'; L.t = 0; L.dur = 900 + 160*Math.abs(L.to - L.from);
-    sceneDissolve(scene, 650, () => ptLiftArrive(scene, L));
+  if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); B.L = null; B.rest = true; } return true; }
+  if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){
+    L.phase = 'ride'; L.t = 0;
+    { const C = B.car[L.car]; C.from = L.from; C.f = L.to; C.t0 = now; C.t1 = now + L.dur; C.next = null; C.call = 0; }   // (the car goes with him)
+    sceneDissolve(scene, 650, () => B.set(scene, L.to, L.car));
   }
   else if(L.phase === 'ride' && L.t >= L.dur){ L.phase = 'open'; L.t = 0; if(typeof sfxThump === "function") sfxThump(0.2); }
   else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
-    PT_LIFT.L = null; PT_LIFT.rest = true;
-    if(typeof tpToast === "function") tpToast(L.to === 0 ? "Lobby." : L.to >= 11 ? "Floor " + L.to + " · Penthouse." : "Floor " + L.to + " · Flats " + L.to + "01-" + L.to + "04.");
+    B.L = null; B.rest = true;
+    if(typeof tpToast === "function") tpToast(B.say(L.to));
   }
   return true;
 }
+/* PALMLINE TOWER'S BANK: four cars from the lobby (G) up the core; three serve the flats (1-10), the second the penthouses as well (11, 12:
+   Sir, 2026-11-17, "there only need to be 1 elevator door" up there) */
+const PT_BANK = liftBankDefine({ name: 'Palmline Tower', cars: [0, 0, 5, 0],
+  floors: [...Array(13).keys()], carFloors: i => i === 1 ? [...Array(13).keys()] : [...Array(11).keys()],
+  rooms: [{ pk: 'Palmline Tower Lobby', A: PT_LIFT_A.lobby, half: PT_LIFT_A.half, deep: PT_LIFT_A.deep },
+          { pk: 'Palmline Tower Floors', A: PT_LIFT_A.floors, half: PT_LIFT_A.half, deep: PT_LIFT_A.deep }],
+  floorOf: s => s._inside && s._inside.name === 'Palmline Tower Lobby' ? 0 : s._inside && s._inside.name === 'Palmline Tower Floors' ? PT_FLOORS.floor : null,
+  label: n => n === 0 ? 'G' : String(n), name_: n => n === 0 ? 'Lobby' : n <= 10 ? 'Flats ' + n + '01-' + n + '04' : 'Penthouse',
+  say: n => n === 0 ? "Lobby." : n >= 11 ? "Floor " + n + " · Penthouse." : "Floor " + n + " · Flats " + n + "01-" + n + "04.",
+  T: { base: 1200, perFloor: 240, holdMs: 9000, idleMin: 22000, idleMax: 50000 },
+  /* the ride's end: the same spot in the same car on the floor picked -- another room (the lobby and the floors) moved across, the floors'
+     own floor changed */
+  set(scene, n, car){
+    const ow = scene.ow, lob = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), flp = POCKETS.find(q => q.name === PT_FLOORS.name);
+    const from = scene._inside, fromA = from === lob ? PT_LIFT_A.lobby : PT_LIFT_A.floors, a = ow.px - from.x0, b = ow.py - from.y0;
+    const to = n === 0 ? lob : flp, toA = n === 0 ? PT_LIFT_A.lobby : PT_LIFT_A.floors;
+    if(n > 0) pocketSetFloor(scene, PT_FLOORS, n);
+    if(to !== from){ const x = to.x0 + toA[car] + (a - fromA[car]), y = to.y0 + b, dx = x - ow.px, dy = y - ow.py;
+      ow.px = x; ow.py = y; scene.botX += dx; scene.botY += dy; scene.camX += dx; scene.camY += dy; ow.solidOn = new Set(); ow.flatOn = new Set(); }
+    this.doors.fill(0);
+  } });
 walkinLife('Palmline Tower Lobby', { keep: [[42, 122, 640, 810], [278, 358, 640, 810]], looks: [
-  { id: 'lifts', spots: [[60, 72, -Math.PI/2], [150, 72, -Math.PI/2], [250, 72, -Math.PI/2], [340, 72, -Math.PI/2]] },
-  { id: 'mail', spots: [[72, 150, Math.PI], [72, 236, Math.PI]] },
-  { id: 'directory', spots: [[72, 350, Math.PI]] },
+  { id: 'lifts', spots: [[54, 160, -Math.PI/2], [151, 160, -Math.PI/2], [249, 160, -Math.PI/2], [346, 160, -Math.PI/2]] },
+  { id: 'mail', spots: [[72, 190, Math.PI], [72, 270, Math.PI]] },
+  { id: 'directory', spots: [[72, 384, Math.PI]] },
   { id: 'reception', spots: [[170, 404, -Math.PI/2], [232, 404, -Math.PI/2]] },
   { id: 'bench', spots: [[80, 470, Math.PI]] },
 ] });
@@ -37030,7 +37150,7 @@ function owLiftTick(scene, ow, dt){
   }
   if(hospThanksTick(scene, ow)) return true;   // the heart run's ending holds him (HOSP_THANKS)
   if(hospInTick(scene, ow, dt)) return true;   // inside Marina General (HOSP_IN): its lift, its gifts and hazards, the heart on the ER's mat
-  if(ptLiftTick(scene, ow, dt)) return true;   // in Palmline Tower: its four lifts, lobby to the floors (PT_LIFT)
+  if(liftBankTick(scene, ow, dt)) return true;   // in a building with a lift bank (LIFT_BANKS: Palmline Tower's four, lobby to the floors)
   if(S.name === HOSP_GARAGE_SITE && ow.deck && !ow.lift) hospDeckTick(scene, ow, dt);
   else if(HOSP_DOOR.open > 0) HOSP_DOOR.open = Math.max(0, HOSP_DOOR.open - dt/420);
   if(!ow.deck && !ow.lift){ hospHeartTick(scene, ow); hospErrandStreetTick(scene, ow); }   // (an errand in hand: the GPS to the hospital, HOSP_ERRANDS)
@@ -38244,10 +38364,12 @@ function hospLiftCall(dir){
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
 /* the call button, by the lift lobby's doors: shown there with no car's doors open to him; the car's floor while it comes */
+let LIFT_CALL_FN = null;   // (the call button's: the lift bank showing it -- the hospital's, or a LIFT_BANK's)
 function hospLiftCallUi(scene, ow){
+  LIFT_CALL_FN = null;
   let el = document.getElementById("liftCall");
   if(!el){ el = document.createElement("div"); el.id = "liftCall"; el.className = "hidden"; document.body.appendChild(el);
-    el.addEventListener("click", e => { e.stopPropagation(); const b = e.target.closest && e.target.closest("[data-d]"); if(b) hospLiftCall(b.dataset.d); });
+    el.addEventListener("click", e => { e.stopPropagation(); const b = e.target.closest && e.target.closest("[data-d]"); if(b) (LIFT_CALL_FN || hospLiftCall)(b.dataset.d); });
     for(const ev of ["pointerdown", "touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation()); }
   const now = scene.time.now, f = HOSP_IN.floor, pk = hospInPocket(), cars = HOSP_IN.cars;
   let show = false, txt = "";
@@ -45662,18 +45784,51 @@ function S(aa,b0,b1,z0,z1,fill,stroke,lw){
 /* A SLIDING DOOR PAIR, live (an entry's slideDoors): two glass leaves on
    the plane b, parting from the middle of the opening a..a+w as u goes
    0 (shut) to 1 (open), each sliding over the glass beside it */
-/* PALMLINE TOWER'S LIFTS (pt3, PT_LIFT): one lift on a wall's inner face at a = c (bb: the wall's plane, its b), the same on every floor
-   -- its stone surround, the lit car seen in its opening, the floor indicator over it; and its two steel leaves (live: ptLiftLeaves), open by u */
-function ptLiftWall(c, bb){
-  F(c - 40, c + 40, 0, 176, '#efe7d6', '#c9bea7', 1, bb + 0.6);
-  F(c - 32, c + 32, 0, 160, '#b9c0c4', null, 0, bb + 0.8);                          // the car: its back wall, lit
-  F(c - 30, c + 30, 0, 6, '#8f969b', null, 0, bb + 0.9); F(c - 26, c + 26, 72, 76, '#e6e9eb', null, 0, bb + 0.9);   // its floor's edge, the handrail
-  F(c - 22, c + 22, 164, 174, '#2b3138', null, 0, bb + 0.9); F(c - 6, c + 6, 166, 172, '#e8a23a', null, 0, bb + 1.0);
+/* A CAR IN ITS SHAFT (the bank's rooms draw them, fx kits): a lift's car -- steel floor, its back and side walls, a handrail, the panel by the
+   door -- while it is here; else the empty shaft, dark, its cables. The car's front: its two steel leaves (u: open), the stone lintel over the
+   doorway with the floor it is at, live */
+function liftCarDraw(c, h, d, here){
+  if(here){
+    T(c - h, c + h, 0, d, 0.6, '#9aa1a6'); T(c - h + 6, c + h - 6, 6, d - 6, 0.7, '#b7bdc1');
+    F(c - h, c + h, 0, 160, '#d6d9d6', null, 0, 0.6); F(c - h + 10, c + h - 10, 20, 150, '#c3a77a', null, 0, 0.7);   // its back: a wood panel
+    S(c - h + 0.6, 0, d, 0, 160, '#c9ced2'); S(c + h - 0.6, 0, d, 0, 160, '#b9c0c4');
+    F(c - h + 8, c + h - 8, 78, 82, '#e9eef0', null, 0, 1.2);                                                       // the handrail
+    S(c + h - 1, d - 40, d - 12, 60, 110, '#2b3138'); for(let k = 0; k < 4; k++) S(c + h - 1.2, d - 34, d - 18, 66 + k*11, 72 + k*11, '#e8b54a');   // the panel
+  } else {
+    T(c - h, c + h, 0, d, 0.6, '#3a3f44'); F(c - h, c + h, 0, 196, '#4a5258', null, 0, 0.6);
+    S(c - h + 0.6, 0, d, 0, 196, '#3f464c'); S(c + h - 0.6, 0, d, 0, 196, '#363c41');
+    for(const k of [-8, 8]) F(c + k - 1, c + k + 1, 0, 196, '#22272b', null, 0, 1.0);                              // its cables
+  }
 }
-function ptLiftLeaves(c, u, bb){
-  const o = 32*u;
-  if(o < 31.5){ F(c - 32, c - o, 0, 160, '#a9b0b5', null, 0, bb + 1.2); F(c + o, c + 32, 0, 160, '#c9ced2', null, 0, bb + 1.2);
-                F(c - o - 1, c - o, 0, 160, '#8f969b', null, 0, bb + 1.3); F(c + o, c + o + 1, 0, 160, '#8f969b', null, 0, bb + 1.3); }
+function liftFrontDraw(c, h, d, shows, stone, stoneL, stoneD){
+  box(c - h - 4, c + h + 4, d - 6, d, 166, 196, stoneL, stone, stoneD);                                         // the lintel
+  F(c - h - 4, c - h, 0, 166, '#8f969b', null, 0, d + 0.2); F(c + h, c + h + 4, 0, 166, '#8f969b', null, 0, d + 0.2);   // the jambs
+  F(c - 16, c + 16, 174, 190, '#2b3138', null, 0, d + 0.2); blockWordIn(shows, c - 12, c + 12, 176, 188, d + 0.4, '#e8a23a', null, 2);
+}
+function liftLeavesDraw(c, h, d, u){
+  const w = h*(1 - u); if(w < 0.6) return;
+  for(const [l0, l1, col] of [[c - h, c - h + w, '#b9c0c4'], [c + h - w, c + h, '#c9ced2']]){
+    F(l0, l1, 0, 166, col, null, 0, d + 0.5); F(l0, l1, 0, 4, '#8f969b', null, 0, d + 0.6); }
+  F(c - h + w - 1, c - h + w, 0, 166, '#7d848a', null, 0, d + 0.7); F(c + h - w, c + h - w + 1, 0, 166, '#7d848a', null, 0, d + 0.7);
+}
+/* a room's bank, as pieces: for each car that stops here (cars(i): this floor, now), the car or its empty shaft, the piers between, the
+   lintel and indicator, the leaves -- the live parts fx kits, cached by their state */
+function liftBankPieces(items, room, R, cars, stone, stoneL, stoneD, when){
+  const d = R.deep, h = R.half, A = R.A, pierS = (a0, a1) => ({ name: 'lift pier', poly: volRect(a0, a1, 0, d), h: 200 });
+  A.forEach((c, i) => {
+    const w = () => (!when || when()) && cars(i);
+    items.push({ a: c, b: 0.5, z: 0, when: w, solids: [{ name: 'lift car', peopleOnly: true,   // (keyed at its back: its floor and walls under whoever rides it)
+      poly: volRect(c - h, c + h, 0, d), h: 160 }], draw: () => {},
+      fx: { kit: () => liftCarDraw(c, h, d, liftBankIn('Palmline Tower', room, i)), state: () => liftBankIn('Palmline Tower', room, i) ? 'h' : 'g' } });
+    items.push({ a: c, b: d - 2, z: 0, when: w, draw: () => {},
+      fx: { kit: () => liftFrontDraw(c, h, d, PT_BANK.label(liftBankShowsNamed('Palmline Tower', i)), stone, stoneL, stoneD), state: () => 'i' + liftBankShowsNamed('Palmline Tower', i) } });
+    items.push({ a: c + 0.1, b: d - 1, z: 0, when: w, draw: () => {},
+      fx: { kit: () => liftLeavesDraw(c, h, d, liftBankU('Palmline Tower', room, i)), state: () => { const u = liftBankU('Palmline Tower', room, i); return u <= 0 ? 's' : u >= 1 ? 'o' : null; } } });
+  });
+  /* the piers: from the bank's ends (R.lo, R.hi) to the first and last car, and between the cars -- stone, solid */
+  const ps = [[R.lo, A[0] - h]]; for(let i = 0; i < A.length - 1; i++) ps.push([A[i] + h, A[i + 1] - h]); ps.push([A[A.length - 1] + h, R.hi]);
+  for(const [a0, a1] of ps){ if(a1 - a0 < 0.5) continue;
+    items.push({ a: (a0 + a1)/2, b: d/2, z: 0, when, solids: [pierS(a0, a1)], draw: () => box(a0, a1, 0, d, 0, 196, stoneL, stone, stoneD) }); }
 }
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
@@ -56098,8 +56253,8 @@ function houseCanopy(fn){
      sliding pairs at a 34..130 and 270..366 (PALMLINE_PLAN.DPS: their lanes run back to the security desk, kept clear) and the revolving drum
      between them at a 200 (solid: he goes in by a pair). The plan is PT_IN (a east, b south, world units; the north wall is the tower's core, the
      west wall the cafe's party wall, both the podium's stone to a dado under plaster; the south and east cut low, the south glazed):
-       b 0..       four lifts on the north wall (a 60, 150, 250, 340), their call panels between, the tower's name over them
-       a 0..       the mail wall (b 90..290) and the directory (b 320..400) on the west wall; a bench under it (b 420..540) and a palm past it (b 610)
+       b 0..110    the lift bank (PT_BANK): four cars in the core (a 54, 151, 249, 346), stone piers between, the tower's name over them
+       a 0..       the mail wall (b 124..332) and the directory (b 344..424) on the west wall; a bench under it (b 420..540) and a palm past it (b 610)
        b 330..375  the reception desk, a 130..270: two screens on it with their backs to us, the receptionist behind it (b 306)
        b 585..625  the security desk, a 140..260: a monitor and a sign-in book, the guard behind it (b 560)
        b 810..840  the front: the street's own lobby front cut low, the pairs' doorways in it (the street's sliding leaves) */
@@ -56132,7 +56287,6 @@ function houseCanopy(fn){
     poly([P(200, 432, 0.7), P(208, 470, 0.7), P(200, 508, 0.7), P(192, 470, 0.7)], teal); poly([P(162, 470, 0.7), P(200, 462, 0.7), P(238, 470, 0.7), P(200, 478, 0.7)], tealL);
 
     /* ---- THE WALLS (the kit's): north and west the podium's stone to a teal dado, plaster above; the south glazed between the pairs, cut low ---- */
-    const liftsA = [60, 150, 250, 340];
     walkinRoom(items, { W, D, H, LH, door,
       gapsS: DPS.map(c => [c - DH, c + DH]),
       /* (THE FRONT IS THE EXTERIOR'S, CUT LOW -- Sir, 2026-11-17: "lets just make the interior and exterior door system match", W4): the kit
@@ -56146,10 +56300,6 @@ function houseCanopy(fn){
         F(-30, W + 30, 196, 202, stoneL, null, 0, 0.3);
         F(-30, W + 30, 0, 10, stoneD, null, 0, 0.4);                                                                 // the skirting
         F(-30, W + 30, H - 14, H, stoneL, null, 0, 0.4);                                                             // the cornice
-        /* the four lifts (pt3): their surrounds and cars, the tower's own (ptLiftWall); the leaves are live pieces, below */
-        for(const c of liftsA) ptLiftWall(c, 0);
-        /* the call panels between them */
-        for(const c of [105, 200, 295]){ F(c - 6, c + 6, 70, 102, steelD, steelS, 1, 0.9); faceCircle(c, 1.0, 92, 2.6, '#f3ecdc'); faceCircle(c, 1.0, 80, 2.6, '#f3ecdc'); }
         /* the tower's name over the lifts, on a teal band */
         F(40, W - 40, 222, 262, teal, null, 0, 0.6); F(40, W - 40, 222, 224, tealL, null, 0, 0.7);
         blockWordIn('PALMLINE TOWER', 60, W - 60, 228, 256, 0.8, '#fbf7ee', null, 6);
@@ -56159,13 +56309,13 @@ function houseCanopy(fn){
         S(0.2, -30, D + 30, 0, 196, stone); S(0.3, -30, D + 30, 196, 202, stoneL);
         S(0.4, -30, D + 30, 0, 10, stoneD); S(0.4, -30, D + 30, H - 14, H, stoneL);
         /* the mail wall: a walnut frame round rows of brass boxes */
-        S(0.5, 86, 294, 26, 186, walnut); S(0.6, 92, 288, 32, 180, walnutL);
-        for(let r = 0; r < 6; r++) for(let c = 0; c < 8; c++){ const b0 = 96 + c*24, z0 = 36 + r*24;
+        S(0.5, 124, 332, 26, 186, walnut); S(0.6, 130, 326, 32, 180, walnutL);
+        for(let r = 0; r < 6; r++) for(let c = 0; c < 8; c++){ const b0 = 134 + c*24, z0 = 36 + r*24;
           S(0.7, b0, b0 + 20, z0, z0 + 20, brass); S(0.8, b0 + 3, b0 + 17, z0 + 13, z0 + 16, brassD); }
         /* the directory: a dark board, the tenants' names in white */
-        S(0.5, 318, 402, 60, 180, walnut); S(0.6, 322, 398, 64, 176, dark);
-        for(let k = 0; k < 9; k++) S(0.7, 330, 330 + 30 + (k*13) % 34, 76 + k*11, 80 + k*11, '#e9eef0');
-        S(0.7, 330, 390, 162, 170, '#e8b54a');
+        S(0.5, 344, 424, 60, 180, walnut); S(0.6, 348, 420, 64, 176, dark);
+        for(let k = 0; k < 9; k++) S(0.7, 356, 356 + 30 + (k*13) % 34, 76 + k*11, 80 + k*11, '#e9eef0');
+        S(0.7, 356, 412, 162, 170, '#e8b54a');
         /* a framed print over the bench */
         S(0.5, 438, 522, 120, 182, walnut); S(0.6, 442, 518, 124, 178, '#bcd3d6'); S(0.7, 452, 508, 132, 150, tealL); S(0.7, 452, 508, 150, 168, '#e6c78a');
       },
@@ -56239,97 +56389,114 @@ function houseCanopy(fn){
       }
     }
 
-    /* ---- THE LIFTS' LEAVES (pt3, PT_LIFT): each lift's sill on the floor, its two steel leaves live (it.fx.kit), cached shut or open ---- */
-    liftsA.forEach((c, i) => items.push({ a: c, b: 3, z: 0, draw: () => { T(c - 32, c + 32, 0, 8, 0.8, steelD); },
-      fx: { kit: () => ptLiftLeaves(c, ptLiftU('Palmline Tower Lobby', i), 0), state: () => ptLiftState('Palmline Tower Lobby', i) } }));
+    /* ---- THE LIFT BANK (pt3b, PT_BANK): four cars in the north wall's depth, stone piers between, their doors and indicators live ---- */
+    liftBankPieces(items, 'Palmline Tower Lobby', { A: PT_LIFT_A.lobby, half: PT_LIFT_A.half, deep: PT_LIFT_A.deep, lo: 0, hi: W }, () => true, stone, stoneL, stoneD);
 
     walkinStaffSolids(items, 'Palmline Tower Lobby');
     depthSort(items);
   }
 },
 {
-  /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
+  /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
-     height (pk.z: ptFloorZ). Every floor the same plan (Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse"):
-       a 620..1032, b 0..320   the lift lobby: the four lifts on the north wall (a 686, 776, 876, 966: over the lobby's own), the tower's core
-       a 0..620, 1032..1652    the homes, b 0..320: on floors 1-10 four flats (n01..n04, west to east), each a front door on the corridor;
-                               on 11 and 12 the penthouse, one door
-       b 320..460              the corridor along the glass (the south face, cut low as a near wall), the flats' doors facing it */
-  name:'Palmline Tower Floors', xh: 120, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+     height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
+     FLOORS 1-10, the same plan:
+       a 620..1032, b 0..320   the lift lobby: the bank's four cars (PT_BANK, a 680, 777, 875, 972) in the core's depth (b 0..110)
+       a 0..620, 1032..1652    the flats, b 0..320: four (n01..n04, west to east), each a front door on the corridor
+       b 320..460              the corridor along the glass (the south face, cut low as a near wall)
+     FLOORS 11 AND 12, the penthouse, one home the floor's whole width: the second car only (a 777), opening into it; the rest of the core walled;
+       living a 40..560 (a sofa facing the TV on the west wall, a rug, a coffee table), dining and kitchen a 1050..1350, the bedroom a 1380..1640 */
+  name:'Palmline Tower Floors', xh: 200, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 1652, dd: 460,
-  head:'Inside Palmline Tower: a residential floor -- the lift lobby, the corridor along the glass and the flats\' front doors',
+  head:'Inside Palmline Tower: the flats\' floors (a lift lobby, a corridor along the glass, the flats\' doors) and the two penthouse floors',
   tags:['interior','pocket','residential','flats','corridor','lifts','penthouse','palmline tower'],
-  desc:'An upper floor of the tower: four lifts in a stone lift lobby, a carpeted corridor along the curtain wall, and the flats\' front doors, numbered by floor; the top two floors are each one penthouse.',
+  desc:'The tower\'s upper floors: on 1 to 10 a stone lift lobby with four lifts, a carpeted corridor along the curtain wall and four flats\' doors, numbered by floor; 11 and 12 are each one open penthouse reached by a single private lift.',
   draw(p){
-    const W = 1652, D = 460, H = 112, LH = 66, CB = 320;
-    const plas = '#f1ece1', stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', teal = '#2a5c5c', tealL = '#3f7a7a', carpet = '#7f8f8c', carpetL = '#93a39f';
-    const wood = '#8a6446', woodD = '#6b4a32', brass = '#c9a24a', dark = '#2b3138', ceil = '#d8d2c4';
+    const W = 1652, D = 460, H = 196, LH = 66, CB = 320, PH = [11, 12], FL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    const plas = '#f1ece1', stone = '#e3d9c4', stoneD = '#c9bea7', stoneL = '#efe7d6', tealL = '#3f7a7a', carpet = '#7f8f8c', carpetL = '#93a39f';
+    const wood = '#8a6446', woodD = '#6b4a32', brass = '#c9a24a', ceil = '#d8d2c4', oak = '#c9a476', oakD = '#a9875a';
     const items = [];
-    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const LA = PT_LIFT_A.floors, LOB = [620, 1032];
-    const FLATS = [[0, 310], [310, 620], [1032, 1342], [1342, 1652]];
-    const fl = () => (typeof PT_FLOORS !== 'undefined' ? PT_FLOORS.floor : 1);
+    const fl = () => (typeof PT_FLOORS !== 'undefined' ? PT_FLOORS.floor : 1), flats = () => fl() <= 10, pent = () => fl() >= 11;
+    /* a solid on some floors only (its `fl`: the floor's own set of solids, pocketFloorNow) */
+    const on = (fs, a0, a1, b0, b1, h, name) => fs.map(f => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h, fl: f }));
+    const onC = (fs, c, r, h, name) => fs.map(f => ({ name: name || 'fixture', c, r, h, fl: f }));
+    const LOB = [620, 1032], FLATS = [[0, 310], [310, 620], [1032, 1342], [1342, 1652]], R = { A: PT_LIFT_A.floors, half: PT_LIFT_A.half, deep: PT_LIFT_A.deep, lo: LOB[0], hi: LOB[1] };
 
-    /* ---- THE FLOOR: stone in the lift lobby, the corridor carpeted with a runner ---- */
+    /* ---- THE FLOOR: stone in the lift lobby and the corridor carpeted (1-10); oak boards the whole floor (the penthouse) ---- */
     T(0, W, 0, D, 0, carpet);
     T(LOB[0], LOB[1], 0, CB, 0.2, stoneL);
     for(let b = 0; b < CB; b += 80) for(let a = LOB[0] + ((b/80) % 2 ? 80 : 0); a < LOB[1]; a += 160) T(a, Math.min(LOB[1], a + 80), b, Math.min(CB, b + 80), 0.3, '#e8e1d2');
     T(0, W, CB + 30, D - 30, 0.4, carpetL); T(0, W, CB + 34, CB + 38, 0.5, tealL); T(0, W, D - 38, D - 34, 0.5, tealL);
+    /* (the penthouse's boards: a piece over the whole floor, its own ground's turn -- the ground is one image for every floor) */
+    items.push({ a: -40, b: -40, z: 0, when: pent, draw: () => {
+      T(0, W, 0, D, 0.9, oak); for(let b = 0; b < D; b += 24) T(0, W, b, b + 1.2, 1.0, oakD); } });
 
-    /* ---- THE WALLS (the kit's): the north wall plaster over stone with the lifts (seen only in the lift lobby), the west plaster, the south
-       glass (the curtain wall, cut low) and the east glass ---- */
+    /* ---- THE WALLS (the kit's): the north wall and the west, plaster; the south and east the curtain wall, cut low ---- */
     walkinRoom(items, { W, D, H, LH, door: { side: 's', at: -9999, half: 0 }, gapsS: [], winS: [[0, W, 8]], winE: [[0, D, 8]],
-      paintN: () => {
-        F(-30, W + 30, 0, H, plas, null, 0, 0); F(-30, W + 30, 0, 10, stoneD, null, 0, 0.3);
-        F(LOB[0], LOB[1], 0, 100, stone, null, 0, 0.2);
-        for(const c of LA) ptLiftWall(c, 0);
-        for(const c of [(LA[0] + LA[1])/2, (LA[1] + LA[2])/2, (LA[2] + LA[3])/2]){ F(c - 6, c + 6, 70, 102, '#a9b0b5', '#8f969b', 1, 0.9); }
-      },
+      paintN: () => { F(-30, W + 30, 0, H, plas, null, 0, 0); F(-30, W + 30, 0, 10, stoneD, null, 0, 0.3); },
       paintW: () => { S(0, -30, D + 30, 0, H, plas); S(0.3, -30, D + 30, 0, 10, stoneD); },
       low: [stoneL, stone, stoneD], cap: ['#e9eef0', '#d8dde0', '#c3c9cc'], ftop: stoneL, frame: '#e9eef0', glass: 'rgba(150,190,206,.45)' });
 
-    /* ---- THE HOMES: closed to the ceiling (they are people's homes), their fronts on the corridor; in runs of 150 for the order ---- */
+    /* ---- THE LIFT BANK (PT_BANK): on 1-10 its four cars; on the penthouse floors the second only, the core walled round it ---- */
+    liftBankPieces(items, 'Palmline Tower Floors', R, i => fl() <= 10 || i === 1, stone, stoneL, stoneD, null);
+    { const c = R.A[1], h = R.half;
+      for(const [a0, a1] of [[LOB[0], c - h], [c + h, LOB[1]]])
+        items.push({ a: (a0 + a1)/2, b: R.deep/2 + 1, z: 0, when: pent, solids: on(PH, a0, a1, 0, R.deep, H, 'core'), draw: () => {
+          box(a0, a1, 0, R.deep, 0, H, stoneL, plas, shade(plas, 0.9)); F(a0, a1, 0, 10, stoneD, null, 0, R.deep + 0.2); } }); }
+
+    /* ---- FLOORS 1-10. The flats: closed to the ceiling (they are people's homes), their fronts on the corridor; in runs of 150 for the order ---- */
     for(const [h0, h1] of [[0, LOB[0]], [LOB[1], W]]){
       const n = Math.ceil((h1 - h0)/150);
       for(let k = 0; k < n; k++){ const a0 = h0 + (h1 - h0)*k/n, a1 = h0 + (h1 - h0)*(k + 1)/n;
-        items.push({ a: (a0 + a1)/2, b: CB/2, z: 0, solids: [solid(a0, a1, 0, CB, H, 'home')], draw: () => {
-          box(a0, a1, 0, CB, 0, H, ceil, plas, shade(plas, 0.9));
+        items.push({ a: (a0 + a1)/2, b: CB/2, z: 0, when: flats, solids: on(FL, a0, a1, 0, CB, H, 'flat'), draw: () => {
+          box(a0, a1, 0, CB, 0, 112, ceil, plas, shade(plas, 0.9));
           F(a0, a1, 0, 10, stoneD, null, 0, CB + 0.2); F(a0, a1, 0, 46, shade(plas, 0.96), null, 0, CB + 0.1);
         }}); }
     }
-    /* the lift lobby's two side walls' ends, stone, where the homes meet it */
-    for(const a of LOB) items.push({ a, b: CB - 2, z: 0, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, H, stoneL, stone, stoneD); } });
-
-    /* ---- THE FRONT DOORS. Floors 1-10: a flat's door in the middle of each (a wood leaf, its frame, a brass number, a mat on the carpet);
-       their party walls marked on the corridor. 11 and 12: the penthouse's double door, east of the lift lobby ---- */
-    const door = (c, wd, num) => {
+    for(const a of LOB) items.push({ a, b: CB - 2, z: 0, when: flats, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, 112, stoneL, stone, stoneD); } });
+    const door = (c, wd) => {
       F(c - wd/2 - 6, c + wd/2 + 6, 0, 104, stoneL, stoneD, 1, CB + 0.6);
       F(c - wd/2, c + wd/2, 0, 98, wood, null, 0, CB + 0.8);
-      if(wd > 70){ F(c - 1, c + 1, 0, 98, woodD, null, 0, CB + 0.9); }
       F(c + wd/2 - 12, c + wd/2 - 8, 44, 50, brass, null, 0, CB + 1.0);
       T(c - wd/2, c + wd/2, CB, CB + 26, 0.8, '#6a5a44'); T(c - wd/2 + 4, c + wd/2 - 4, CB + 3, CB + 23, 0.9, '#8a7658');
-      if(num) blockWordIn(num, c - 24, c + 24, 106, 122, CB + 1.0, '#2b3138', null, 2);
     };
-    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2;
-      items.push({ a: c, b: CB + 2, z: 0, when: () => fl() <= 10, draw: () => door(c, 56, null) });
-    }
-    for(let f = 1; f <= 10; f++) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
+    for(const [a0, a1] of FLATS){ const c = (a0 + a1)/2; items.push({ a: c, b: CB + 2, z: 0, when: flats, draw: () => door(c, 56) }); }
+    for(const f of FL) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
       items.push({ a: c + 1, b: CB + 3, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
     });
-    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: () => fl() <= 10, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
-    for(const f of [11, 12]) items.push({ a: 1180, b: CB + 2, z: 0, when: () => fl() === f, draw: () => {
-      door(1180, 110, null); F(1180 - 46, 1180 + 46, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn('PH ' + f, 1180 - 40, 1180 + 40, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
-
-    /* ---- THE LIFTS' LEAVES (PT_LIFT): sills and the live leaves, as the lobby's ---- */
-    LA.forEach((c, i) => items.push({ a: c, b: 3, z: 0, draw: () => { T(c - 32, c + 32, 0, 8, 0.8, '#a9b0b5'); },
-      fx: { kit: () => ptLiftLeaves(c, ptLiftU('Palmline Tower Floors', i), 0), state: () => ptLiftState('Palmline Tower Floors', i) } }));
-    /* a bench and a plant in the lift lobby, against its side walls, clear of the lifts' lane */
-    items.push({ a: LOB[0] + 24, b: 230, z: 0, solids: [solid(LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench')], draw: () => {
+    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, 112, shade(plas, 0.86), null, 0, CB + 0.5) });
+    /* a bench and a plant in the lift lobby, against its side walls, clear of the cars' lanes */
+    items.push({ a: LOB[0] + 24, b: 230, z: 0, when: flats, solids: on(FL, LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench'), draw: () => {
       for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 34, '#c9ced2', '#a9b0b5', '#8f969b');
       box(LOB[0] + 4, LOB[0] + 40, 180, 280, 34, 42, wood, woodD, shade(woodD, 0.8)); } });
-    items.push({ a: LOB[1] - 24, b: 250, z: 0, solids: [{ name: 'plant', c: [LOB[1] - 24, 250], r: 16, h: 60 }], draw: () => {
+    items.push({ a: LOB[1] - 24, b: 250, z: 0, when: flats, solids: onC(FL, [LOB[1] - 24, 250], 16, 60, 'plant'), draw: () => {
       cyl(LOB[1] - 24, 250, 0, 48, 16, stoneD, stoneL); plateCircle(LOB[1] - 24, 250, 48, 14, '#5a4636', null, 0);
       for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(LOB[1] - 24, 250, 48, LOB[1] - 24 + 26*Math.cos(t), 250 + 26*Math.sin(t), 96, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+
+    /* ---- FLOORS 11 AND 12: THE PENTHOUSE, one open home (its lift's lane, a 730..825 from the car to the glass, kept clear) ---- */
+    const pc = (a, b, draw, solids) => items.push({ a, b, z: 0, when: pent, solids, draw });
+    /* the living room: a rug, a sofa facing the TV on the west wall, a coffee table, a floor lamp */
+    pc(260, 250, () => { T(120, 400, 150, 380, 1.2, '#d8cbb4'); T(132, 388, 162, 368, 1.3, '#cdbd9f'); });
+    pc(20, 260, () => { box(4, 40, 220, 300, 0, 40, woodD, wood, shade(woodD, 0.8)); box(8, 16, 200, 320, 50, 124, '#1e2226', '#15181b', '#2b3036'); S(16.2, 206, 314, 56, 118, '#2f4a5c'); }, on(PH, 4, 40, 200, 320, 130, 'tv'));
+    pc(330, 260, () => { box(300, 360, 170, 350, 0, 34, '#5c6f76', '#4a5c63', '#3f4f55'); box(340, 360, 170, 350, 34, 76, '#5c6f76', '#4a5c63', '#3f4f55');
+      for(const b of [170, 330]) box(300, 360, b, b + 20, 34, 56, '#5c6f76', '#4a5c63', '#3f4f55'); for(const b of [200, 260]) box(304, 336, b, b + 50, 34, 42, '#6f848c', '#5c6f76', '#4a5c63'); }, on(PH, 300, 360, 170, 350, 76, 'sofa'));
+    pc(190, 260, () => { box(150, 230, 220, 300, 0, 32, oak, oakD, shade(oakD, 0.85)); box(170, 190, 240, 260, 32, 36, '#f3ecdc', '#e2dccb', '#cfc8b6'); }, on(PH, 150, 230, 220, 300, 36, 'coffee table'));
+    pc(400, 150, () => { cyl(400, 140, 0, 4, 12, '#2b3138'); tube(400, 140, 4, 400, 140, 150, 1.4, '#2b3138'); cyl(400, 140, 150, 172, 14, '#f4e7c4', '#fff6dc'); }, onC(PH, [400, 140], 12, 170, 'lamp'));
+    /* dining and kitchen: a run of counters on the north wall, an island, a table for six */
+    pc(1200, 20, () => { box(1050, 1350, 4, 40, 0, 84, '#f2efe8', '#e2ddd2', '#cfc9bc'); box(1048, 1352, 2, 42, 84, 88, '#3a3e46', '#2b3036', '#23292f');
+      F(1050, 1350, 120, 170, '#f2efe8', null, 0, 0.6); box(1180, 1230, 6, 34, 88, 92, '#c9ced2', '#a9b0b5', '#8f969b'); }, on(PH, 1050, 1350, 4, 40, 90, 'kitchen'));
+    pc(1190, 170, () => { box(1080, 1300, 150, 194, 0, 84, '#3a4a52', '#2e3c43', '#26323a'); box(1076, 1304, 146, 198, 84, 90, '#efe9dc', '#d8d1c3', '#c5bdae');
+      for(const a of [1110, 1160, 1210, 1260]) { cyl(a, 216, 0, 52, 2, '#2b3138'); cyl(a, 216, 52, 58, 11, '#c9a476'); } }, on(PH, 1080, 1300, 146, 230, 90, 'island'));
+    pc(1090, 330, () => { box(990, 1190, 300, 370, 64, 70, oak, oakD, shade(oakD, 0.85)); for(const a of [1000, 1180]) for(const b of [306, 364]) box(a - 3, a + 3, b - 3, b + 3, 0, 64, woodD, woodD, woodD);
+      for(const a of [1030, 1090, 1150]) for(const b of [286, 384]) { box(a - 14, a + 14, b - 12, b + 12, 0, 40, '#efe9dc', '#d8d1c3', '#c5bdae'); } }, on(PH, 990, 1190, 274, 396, 70, 'dining table'));
+    /* the bedroom: a bed against the north wall, a nightstand each side, a wardrobe on the east */
+    pc(1510, 80, () => { box(1440, 1580, 4, 30, 0, 110, woodD, wood, shade(woodD, 0.8)); box(1440, 1580, 30, 200, 0, 36, '#e9e4da', '#d8d1c3', '#c5bdae');
+      box(1444, 1576, 34, 196, 36, 44, '#f6f3ea', '#e6e1d6', '#d6cfc1'); box(1444, 1576, 120, 196, 44, 46, '#6f8a8c', '#5c7476', '#4c6264');
+      for(const a of [1400, 1610]) { box(a - 20, a + 20, 6, 46, 0, 46, woodD, wood, shade(woodD, 0.8)); cyl(a, 26, 46, 66, 8, '#f4e7c4', '#fff6dc'); } }, on(PH, 1380, 1630, 4, 200, 66, 'bed'));
+    /* plants, by the glass */
+    for(const [a, b] of [[60, 410], [620, 400], [1330, 410]])
+      pc(a, b, () => { cyl(a, b, 0, 44, 16, stoneD, stoneL); plateCircle(a, b, 44, 14, '#5a4636', null, 0);
+        for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 44, a + 28*Math.cos(t), b + 28*Math.sin(t), 104, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } }, onC(PH, [a, b], 16, 60, 'plant'));
     depthSort(items);
   }
 },
