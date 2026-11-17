@@ -128177,8 +128177,10 @@ class WorldScene extends Phaser.Scene {
     if(era === 'cg1980'){
       /* (elongated into a van -- Sir, 2026-11-17): a long cargo box behind a short raked cab, wheels at its ends */
       /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
-      { const gl = A.n1 || 0xff4ad8, rim = [], mid = []; for(const [a, b] of [[-70, -30], [70, -30], [70, 30], [-70, 30]]){ rim.push(P(a*1.05, b*1.25, 1)); mid.push(P(a*0.8, b*0.85, 1)); }   // (an underglow the van's footprint, in place of its shadow)
-        g.fillStyle(gl, 0.28); g.fillPoints(rim.map(q => new Phaser.Geom.Point(q.x, q.y)), true); g.fillStyle(_pmix(gl, 0xffffff, 0.3), 0.3); g.fillPoints(mid.map(q => new Phaser.Geom.Point(q.x, q.y)), true); }
+      { const gl = A.n1 || 0xff4ad8;   /* (softened -- Sir, 2026-11-17): rounded footprints stacked from wide and faint to tight and bright, so its edge fades out */
+        const rr = (ha, hb, rc) => { const o = []; for(const [ca, cb, a0] of [[ha - rc, hb - rc, 0], [-(ha - rc), hb - rc, 0.5], [-(ha - rc), -(hb - rc), 1], [ha - rc, -(hb - rc), 1.5]]) for(let i = 0; i <= 5; i++){ const th = (a0 + i/10)*Math.PI; o.push(P(ca + Math.cos(th)*rc, cb + Math.sin(th)*rc, 1)); } return o.map(q => new Phaser.Geom.Point(q.x, q.y)); };
+        for(const [ha, hb, rc, al] of [[84, 46, 30, 0.07], [78, 42, 26, 0.08], [72, 38, 22, 0.1], [66, 34, 18, 0.12], [58, 28, 14, 0.12]]){ g.fillStyle(gl, al); g.fillPoints(rr(ha, hb, rc), true); }
+        g.fillStyle(_pmix(gl, 0xffffff, 0.3), 0.12); g.fillPoints(rr(50, 22, 12), true); }
       const BW = 34; wheels(-nearB, [-46, 44], 12, BW, 8);
       const wing = () => { for(const sb of [-1, 1]) line([-60, sb*18, 92], [-64, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -64, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
         hull({ hx: 6.2, hy: 30.2, ox: -64, ch: 2, z0: 101, z1: 102, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) }); };
