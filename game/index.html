@@ -46037,6 +46037,27 @@ function ptShopFront(items, W, D, LH, R){
     }
   }
 }
+/* A LONG FIXTURE IN RUNS (Sir, 2026-11-17, Coral Cafe: "definitely getting some draw order issues": a counter 300 long keyed at its middle
+   sorted before the barista behind its east end and after the roaster in front of its west end). As the kit's walls are: the piece is
+   drawn whole once per run of RUN along a, each copy clipped to its own run's box (its hull on screen) and keyed at that run's own middle on
+   its front (b1) -- so whoever stands behind or in front of any part of it sorts against that part. solidsFor(s0, s1): the run's solids */
+function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
+  const RUN = (o && o.run) || 50, n = Math.max(1, Math.ceil((a1 - a0)/RUN - 1e-9));
+  for(let k = 0; k < n; k++){
+    const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
+    items.push(Object.assign({ a: (s0 + s1)/2, b: b1, z: 0, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
+      const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
+      for(const a of [e0, e1]) for(const b of [b0 - 30, b1 + 30]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
+      pts.sort((p, q) => p.x - q.x || p.y - q.y);
+      const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x), lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop();
+      ctx.save(); poly(lo.concat(hi)); ctx.clip();
+      try { draw(); } finally { ctx.restore(); }
+    } }, (o && o.extra) || null));
+  }
+}
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
@@ -56530,7 +56551,7 @@ function houseCanopy(fn){
 
     /* ---- THE RECEPTION DESK (a 130..270, b 330..375, 96 high): a walnut front with a teal band, a stone top; two screens on it, their faces
        to the receptionist (north) ---- */
-    items.push({ a: 200, b: 352, z: 0, solids: [solid(130, 270, 330, 375, 100, 'reception desk')], draw: () => {
+    runPiece(items, 130, 270, 330, 375, 160, (s0, s1) => [solid(s0, s1, 330, 375, 100, 'reception desk')], () => {
       box(130, 270, 330, 375, 0, 90, walnutL, walnut, shade(walnut, 0.8));
       F(130, 270, 40, 52, teal, null, 0, 375.2);
       box(126, 274, 326, 379, 90, 96, stoneL, stone, stoneD);
@@ -56538,17 +56559,17 @@ function houseCanopy(fn){
       for(const a of [165, 235]){ box(a - 18, a + 18, 340, 344, 112, 136, dark, dark, '#1c2126'); box(a - 2, a + 2, 344, 348, 96, 112, steelS, steelS, steelS); box(a - 10, a + 10, 342, 352, 96, 98, steelD, steelD, steelS); }
       box(192, 212, 360, 372, 96, 100, '#f3ecdc', '#e2dccb', '#cfc8b6');                                           // a visitors' book
       cyl(250, 366, 96, 104, 5, '#f3ecdc'); ball(250, 366, 110, 8, '#c4603a', '#e07a52');                      // a bowl of oranges
-    }});
+    });
 
     /* ---- THE SECURITY DESK (a 140..260, b 585..625, 92 high), facing the doors: a monitor and a sign-in book, their faces to the guard ---- */
-    items.push({ a: 200, b: 605, z: 0, solids: [solid(140, 260, 585, 625, 96, 'security desk')], draw: () => {
+    runPiece(items, 140, 260, 585, 625, 160, (s0, s1) => [solid(s0, s1, 585, 625, 96, 'security desk')], () => {
       box(140, 260, 585, 625, 0, 86, stone, stoneD, shade(stoneD, 0.85));
       F(140, 260, 30, 40, teal, null, 0, 625.2);
       box(136, 264, 581, 629, 86, 92, '#3a3e46', '#2b3036', '#23292f');
       box(170, 204, 594, 598, 104, 128, dark, dark, '#1c2126'); box(185, 189, 598, 602, 92, 104, steelS, steelS, steelS);
       box(220, 246, 598, 616, 92, 95, '#f3ecdc', '#e2dccb', '#cfc8b6'); tube(226, 606, 95, 238, 610, 96, 0.8, '#2b3138');
       blockWordIn('SECURITY', 160, 240, 52, 70, 625.3, '#efe7d6', null, 3);
-    }});
+    });
 
     /* ---- THE BENCH under the print (a 6..42, b 420..540): a walnut seat on steel legs, facing east ---- */
     items.push({ a: 24, b: 480, z: 0, solids: [solid(6, 42, 420, 540, 40, 'bench')], draw: () => {
@@ -56650,36 +56671,36 @@ function houseCanopy(fn){
     ptShopFront(items, W, D, LH, { door: [door.at - door.half, door.at + door.half], g0: -8, g1: W + 8, mulls: [71, 221, 625, 775] });
 
     /* ---- THE BACK BAR (a 500..820, b 2..40): a coral cabinet, an oak top, a grinder and a brewer ---- */
-    items.push({ a: 820, b: 40, z: 0, solids: [solid(500, 820, 2, 40, 92, 'back bar')], draw: () => {
+    runPiece(items, 500, 820, 2, 40, 200, (s0, s1) => [solid(s0, s1, 2, 40, 92, 'back bar')], () => {
       box(500, 820, 2, 40, 0, 86, coral, coralD, shade(coral, 0.7)); box(498, 822, 0, 42, 86, 90, oak, oakF, oakD);
       box(540, 564, 8, 30, 90, 104, dark, dark, '#1c2126'); cyl(552, 19, 104, 126, 9, 'rgba(205,230,240,.6)', '#6b4a32');
-      box(620, 652, 8, 30, 90, 120, steel, steelD, steelS); box(700, 780, 8, 32, 90, 112, steel, steelD, steelS); for(const a of [716, 748]) cyl(a, 36, 92, 100, 4, '#f6f3ea'); }});
+      box(620, 652, 8, 30, 90, 120, steel, steelD, steelS); box(700, 780, 8, 32, 90, 112, steel, steelD, steelS); for(const a of [716, 748]) cyl(a, 36, 92, 100, 4, '#f6f3ea'); });
     /* ---- THE COUNTER (a 500..800, b 300..348): coral, an oak top; the espresso machine and the till, faces north; the pastry case at its west end ---- */
-    items.push({ a: 650, b: 324, z: 0, solids: [solid(500, 800, 300, 348, 88, 'counter')], draw: () => {
+    runPiece(items, 500, 800, 300, 348, 160, (s0, s1) => [solid(s0, s1, 300, 348, 88, 'counter')], () => {
       box(500, 800, 300, 348, 0, 82, coral, coralD, shade(coral, 0.7)); for(let a = 506; a < 796; a += 20) F(a, a + 18, 30, 60, '#f3ecdc', null, 0, 348.2);
       box(498, 802, 298, 350, 82, 88, oak, oakF, oakD);
       box(560, 640, 306, 334, 88, 120, steel, steelD, steelS); for(const a of [580, 620]){ box(a - 6, a + 6, 300, 308, 98, 108, dark, dark, '#1c2126'); cyl(a, 304, 88, 96, 4, '#f6f3ea'); }
       box(570, 584, 332, 336, 104, 114, '#d8483a', '#b5382c', '#8f2b22');
       box(720, 752, 310, 334, 88, 96, dark, dark, '#1c2126'); box(722, 750, 328, 334, 96, 110, '#3a3e46', '#2b3036', '#23292f');
       box(504, 548, 304, 344, 88, 94, steelD, steelD, steelS); box(504, 548, 304, 344, 94, 120, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
-      for(const b of [312, 326, 338]) for(const a of [514, 538]) cyl(a, b, 94, 100, 6, '#c98a4a', '#e0b27a'); }});
+      for(const b of [312, 326, 338]) for(const a of [514, 538]) cyl(a, b, 94, 100, 6, '#c98a4a', '#e0b27a'); });
     /* ---- THE ROASTER by the west wall (Brew & Bolt's own: a steel base, the copper drum, its hopper and flue) and the sacks ---- */
     items.push({ a: 150, b: 150, z: 0, solids: [solid(30, 150, 40, 150, 130, 'roaster')], draw: () => {
       box(30, 150, 40, 150, 0, 34, steel, steelD, steelS); cyl(90, 95, 34, 96, 36, copper, '#e8a550');
       box(36, 144, 50, 140, 96, 104, steelD, steelS, steelS); poly([P(70, 84, 104), P(110, 84, 104), P(98, 90, 130), P(82, 90, 130)], '#8f969d');
       tube(90, 95, 104, 90, 95, H - 6, 6, steelD); box(146, 154, 110, 132, 40, 74, '#1f2a30', '#19232a', '#141b20'); S(154.3, 112, 130, 46, 68, '#e79a35'); }});
-    items.push({ a: 330, b: 36, z: 0, solids: [solid(160, 330, 2, 36, 56, 'sacks')], draw: () => {
-      for(let a = 162; a < 326; a += 42){ box(a, a + 38, 4, 34, 0, 28, '#b49a6a', '#9a8254', '#7f6b44'); box(a + 4, a + 34, 6, 32, 28, 50, '#bfa574', '#a58c5c', '#8a7449'); F(a + 10, a + 28, 36, 44, coralD, null, 0, 34.2); } }});
+    runPiece(items, 160, 330, 2, 36, 80, (s0, s1) => [solid(s0, s1, 2, 36, 56, 'sacks')], () => {
+      for(let a = 162; a < 326; a += 42){ box(a, a + 38, 4, 34, 0, 28, '#b49a6a', '#9a8254', '#7f6b44'); box(a + 4, a + 34, 6, 32, 28, 50, '#bfa574', '#a58c5c', '#8a7449'); F(a + 10, a + 28, 36, 44, coralD, null, 0, 34.2); } });
     /* ---- THE TABLES (west of the lane), the long table (east), the window bar along the glass ---- */
     for(const [ta, tb] of [[110, 300], [250, 300], [110, 470], [250, 470]])
       items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 60 }, { name: 'chair', c: [ta - 40, tb], r: 13, h: 84 }, { name: 'chair', c: [ta + 40, tb], r: 13, h: 84 }],
         draw: () => { chair(ta - 40, tb, 'e'); table(ta, tb); chair(ta + 40, tb, 'w'); } });
-    items.push({ a: 780, b: 640, z: 0, solids: [solid(540, 780, 580, 620, 74, 'long table'), ...[570, 630, 690, 750].flatMap(a => [{ name: 'stool', c: [a, 560], r: 10, h: 60 }, { name: 'stool', c: [a, 640], r: 10, h: 60 }])], draw: () => {
+    runPiece(items, 540, 780, 548, 652, 120, (s0, s1) => [solid(s0, s1, 580, 620, 74, 'long table'), ...[570, 630, 690, 750].filter(a => a >= s0 && a < s1).flatMap(a => [{ name: 'stool', c: [a, 560], r: 10, h: 60 }, { name: 'stool', c: [a, 640], r: 10, h: 60 }])], () => {
       for(const a of [570, 630, 690, 750]) stool(a, 560); box(540, 780, 580, 620, 70, 74, oak, oakF, oakD); for(const a of [546, 774]) box(a - 3, a + 3, 586, 614, 0, 70, oakD, oakD, oakD);
-      for(const a of [600, 700]) cyl(a, 600, 74, 82, 5, '#f6f3ea'); for(const a of [570, 630, 690, 750]) stool(a, 640); }});
-    items.push({ a: 340, b: 720, z: 0, solids: [solid(30, 340, 700, 724, 74, 'window bar'), ...[70, 140, 210, 280].map(a => ({ name: 'stool', c: [a, 678], r: 10, h: 60 }))], draw: () => {
+      for(const a of [600, 700]) cyl(a, 600, 74, 82, 5, '#f6f3ea'); for(const a of [570, 630, 690, 750]) stool(a, 640); });
+    runPiece(items, 30, 340, 666, 724, 120, (s0, s1) => [solid(s0, s1, 700, 724, 74, 'window bar'), ...[70, 140, 210, 280].filter(a => a >= s0 && a < s1).map(a => ({ name: 'stool', c: [a, 678], r: 10, h: 60 }))], () => {
       for(const a of [70, 140, 210, 280]) stool(a, 678); box(30, 340, 700, 724, 70, 74, oak, oakF, oakD); for(const a of [36, 334]) box(a - 3, a + 3, 702, 722, 0, 70, oakD, oakD, oakD);
-      cyl(120, 712, 74, 82, 5, '#f6f3ea'); cyl(250, 712, 74, 80, 5, '#f6f3ea'); }});
+      cyl(120, 712, 74, 82, 5, '#f6f3ea'); cyl(250, 712, 74, 80, 5, '#f6f3ea'); });
     for(const [a, b] of [[810, 760], [24, 620]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
       cyl(a, b, 0, 46, 16, stoneD, '#efe7d6'); plateCircle(a, b, 46, 14, '#5a4636', null, 0); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 46, a + 26*Math.cos(t), b + 26*Math.sin(t), 100, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
     walkinStaffSolids(items, 'Coral Cafe Interior');
@@ -56725,36 +56746,36 @@ function houseCanopy(fn){
     ptShopFront(items, W, D, LH, { door: [door.at - door.half, door.at + door.half], g0: -8, g1: W + 8, mulls: [71, 221, 625, 775] });
 
     /* ---- THE BACK COUNTER (a 500..820, b 2..40): steel, the slicer and the scale on it ---- */
-    items.push({ a: 820, b: 40, z: 0, solids: [solid(500, 820, 2, 40, 92, 'back counter')], draw: () => {
+    runPiece(items, 500, 820, 2, 40, 160, (s0, s1) => [solid(s0, s1, 2, 40, 92, 'back counter')], () => {
       box(500, 820, 2, 40, 0, 86, steel, steelD, steelS); box(498, 822, 0, 42, 86, 90, steelD, steelS, steelS);
       box(560, 610, 8, 34, 90, 100, '#d8dde0', '#c9ced2', '#a9b0b5'); cyl(585, 21, 100, 104, 14, '#e9eef0', '#c9ced2'); box(600, 608, 12, 30, 100, 120, steelS, steelS, steelS);   // the slicer
       box(680, 716, 10, 32, 90, 96, '#e9eef0', '#c9ced2', '#a9b0b5'); box(690, 706, 28, 32, 96, 112, dark, dark, '#1c2126');                                                     // the scale
-      for(const a of [750, 776, 800]) cyl(a, 20, 90, 110, 8, ['#e8b54a', '#c4603a', '#5f8f58'][(a/26 | 0) % 3]); }});
+      for(const a of [750, 776, 800]) cyl(a, 20, 90, 110, 8, ['#e8b54a', '#c4603a', '#5f8f58'][(a/26 | 0) % 3]); });
     /* ---- THE DELI CASE (a 500..800, b 300..352): glass over trays of meats, cheeses and salads, their backs to the clerk ---- */
-    items.push({ a: 650, b: 326, z: 0, solids: [solid(500, 800, 300, 352, 110, 'deli case')], draw: () => {
+    runPiece(items, 500, 800, 300, 352, 140, (s0, s1) => [solid(s0, s1, 300, 352, 110, 'deli case')], () => {
       box(500, 800, 300, 352, 0, 60, green, greenD, shade(green, 0.7)); F(506, 794, 18, 48, greenL, null, 0, 352.2);
       box(500, 800, 300, 352, 60, 64, steelD, steelD, steelS);
       for(let k = 0; k < 10; k++){ const a = 506 + k*29; box(a, a + 26, 312, 346, 64, 70, ['#d97a7a', '#e8c46a', '#f1e6c8', '#c9584a', '#7fae6a'][k % 5], '#b85a5a', '#a04a4a'); }
       poly([P(500, 300, 64), P(800, 300, 64), P(800, 300, 110), P(500, 300, 110)], 'rgba(205,230,240,.25)');
       poly([P(500, 352, 64), P(800, 352, 64), P(800, 320, 110), P(500, 320, 110)], 'rgba(205,230,240,.35)');
-      box(500, 800, 300, 320, 110, 114, steelD, steelD, steelS); }});
+      box(500, 800, 300, 320, 110, 114, steelD, steelD, steelS); });
     /* ---- THE SHELVES: two runs, goods on both faces ---- */
     for(const [b0, b1] of [[180, 230], [360, 410]])
-      items.push({ a: 320, b: b1, z: 0, solids: [solid(60, 320, b0, b1, 120, 'shelves')], draw: () => {
+      runPiece(items, 60, 320, b0, b1, 160, (s0, s1) => [solid(s0, s1, b0, b1, 120, 'shelves')], () => {
         box(60, 320, b0, b1, 0, 8, dark, dark, '#1c2126');
         for(const z of [8, 46, 84]){ box(60, 320, b0, b1, z, z + 3, steel, steelD, steelS);
           for(let a = 64, k = 0; a < 314; a += 14, k++) for(const bb of [b0 + 3, b1 - 13]) box(a, a + 11, bb, bb + 10, z + 3, z + 26 + (k*7 % 3)*4, goods[(k + (bb > b0 + 5 ? 3 : 0)) % goods.length], shade(goods[k % goods.length], 0.85), shade(goods[k % goods.length], 0.7)); }
-        box(60, 320, b0 + 20, b1 - 20, 8, 120, steelD, steelD, steelS); }});
+        box(60, 320, b0 + 20, b1 - 20, 8, 120, steelD, steelD, steelS); });
     /* ---- THE DRINKS FRIDGE on the west wall ---- */
     items.push({ a: 46, b: 660, z: 0, solids: [solid(2, 46, 500, 660, 180, 'fridge')], draw: () => {
       box(2, 46, 500, 660, 0, 180, '#e9eef0', '#d8dde0', '#c3c9cc'); S(46.2, 506, 654, 10, 170, 'rgba(160,200,214,.55)');
       for(const z of [40, 80, 120]) for(let b = 510, k = 0; b < 650; b += 12, k++) S(46.4, b, b + 8, z, z + 26, goods[k % goods.length]);
       S(46.6, 578, 582, 10, 170, '#c3c9cc'); }});
     /* ---- THE TILL by the door (a 500..600, b 530..570), the tables by the glass ---- */
-    items.push({ a: 600, b: 570, z: 0, solids: [solid(500, 600, 530, 570, 92, 'till')], draw: () => {
+    runPiece(items, 500, 600, 530, 570, 140, (s0, s1) => [solid(s0, s1, 530, 570, 92, 'till')], () => {
       box(500, 600, 530, 570, 0, 84, oak, oakF, oakD); box(498, 602, 528, 572, 84, 88, dark, dark, '#1c2126');
       box(540, 570, 536, 556, 88, 96, dark, dark, '#1c2126'); box(542, 568, 536, 542, 96, 112, '#3a3e46', '#2b3036', '#23292f');
-      box(510, 534, 548, 566, 88, 94, '#e9d9bd', '#d8c7a8', '#c5b394'); }});
+      box(510, 534, 548, 566, 88, 94, '#e9d9bd', '#d8c7a8', '#c5b394'); });
     for(const [ta, tb] of [[110, 640], [250, 640]])
       items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 60 }, { name: 'chair', c: [ta - 40, tb], r: 13, h: 84 }, { name: 'chair', c: [ta + 40, tb], r: 13, h: 84 }], draw: () => {
         for(const [a, bkA] of [[ta - 40, [ta - 52, ta - 48]], [ta + 40, [ta + 48, ta + 52]]]){ box(a - 12, a + 12, tb - 12, tb + 12, 0, 46, oak, oakF, oakD); box(bkA[0], bkA[1], tb - 12, tb + 12, 46, 84, oak, oakF, oakD); }
@@ -56901,12 +56922,14 @@ function houseCanopy(fn){
     const artOn = (a0, a1, z0, z1, c, fr) => { F(a0 - 4, a1 + 4, z0 - 4, z1 + 4, fr, null, 0, 0.8); F(a0, a1, z0, z1, '#f4f1e8', null, 0, 0.9);
       F(a0 + 6, a0 + (a1 - a0)*0.55, z0 + 6, z1 - 6, c[0], null, 0, 1.0); F(a0 + (a1 - a0)*0.45, a1 - 6, z0 + (z1 - z0)*0.4, z1 - 10, c[1], null, 0, 1.05);
       F(a0 + (a1 - a0)*0.3, a0 + (a1 - a0)*0.7, z0 + 8, z0 + (z1 - z0)*0.3, c[2], null, 0, 1.1); };
-    /* (what stands against the north wall -- the library, the bookcase, the fireplace, the kitchen's run -- is keyed at its EAST end: the wall
-       is in runs of 150 keyed at their middles, and one piece keyed at its own middle sorted before the runs behind its east half, which then
+    /* (what stands against the north wall -- the library, the bookcase, the fireplace, the kitchen's run -- and every other long piece is in
+       runs, each keyed at its own stretch (runPiece): one keyed at its middle sorted before the wall's runs behind its east half, which then
        painted over it -- Sir, 2026-11-17, "its like its drawing over the ladder") */
     for(const f of PH){
       const C = PHT[f], is = () => fl() === f, pc = (a, b, draw, solids) => items.push({ a, b, z: 0, when: is, solids, draw }), O = [f];
       const sR = (a0, a1, b0, b1, h, nm) => on(O, a0, a1, b0, b1, h, nm), sC = (c, r, h, nm) => onC(O, c, r, h, nm);
+      /* (a long piece in runs, each keyed at its own stretch: runPiece) */
+      const pcr = (a0, a1, b0, b1, zTop, draw, h, nm) => runPiece(items, a0, a1, b0, b1, zTop, (s0, s1) => sR(s0, s1, b0, b1, h, nm), draw, { extra: { when: is } });
 
       /* THE FOYER at the lift: a console on the core's face west of the car, a mirror over it; art on the face east of it; a runner to the glass */
       pc(680, 118, () => { box(640, 720, 112, 134, 0, 76, C.wood[0], C.wood[1], C.wood[2]); box(636, 724, 110, 136, 76, 80, C.top[0], C.top[1], C.top[2]);
@@ -56919,30 +56942,30 @@ function houseCanopy(fn){
       pc(270, 270, () => { T(90, 450, 130, 410, 1.2, C.rug[0]); T(102, 438, 142, 398, 1.3, C.rug[1]); T(130, 410, 170, 370, 1.35, C.rug[0]); });
       if(f === 11){
         /* the fireplace on the north wall, stone, its fire behind glass; a log basket */
-        pc(384, 24, () => { box(200, 380, 0, 18, 0, 120, stoneL, stone, stoneD); box(196, 384, 0, 24, 120, 128, stone, stoneD, shade(stoneD, 0.85));
+        runPiece(items, 196, 430, 0, 44, 200, (s0, s1) => [...sR(Math.max(s0, 196), Math.min(s1, 384), 0, 24, 128, 'fireplace'), ...(s0 <= 410 && s1 > 410 ? sC([410, 30], 14, 30, 'logs') : [])], () => { box(200, 380, 0, 18, 0, 120, stoneL, stone, stoneD); box(196, 384, 0, 24, 120, 128, stone, stoneD, shade(stoneD, 0.85));
           F(240, 340, 20, 80, '#2b2622', null, 0, 18.2); F(250, 330, 22, 46, '#e07a3a', null, 0, 18.3); F(268, 312, 24, 60, '#f2c14e', null, 0, 18.4); F(280, 300, 26, 70, '#fbe7a0', null, 0, 18.5);
-          artOn(232, 348, 150, 196, C.art, '#8f7048'); cyl(410, 30, 0, 26, 14, '#a69f91'); for(const k of [-6, 0, 6]) cyl(410 + k, 30, 26, 30, 4, '#8a6446'); }, [...sR(196, 384, 0, 24, 128, 'fireplace'), ...sC([410, 30], 14, 30, 'logs')]);
+          artOn(232, 348, 150, 196, C.art, '#8f7048'); cyl(410, 30, 0, 26, 14, '#a69f91'); for(const k of [-6, 0, 6]) cyl(410 + k, 30, 26, 30, 4, '#8a6446'); }, { extra: { when: is } });
         /* the TV on its credenza against the west wall */
         pc(22, 270, () => { box(4, 44, 200, 340, 0, 46, C.wood[0], C.wood[1], C.wood[2]); box(8, 14, 210, 330, 70, 140, '#1e2226', '#15181b', '#2b3036'); S(14.2, 214, 326, 74, 136, '#2f4a5c'); }, sR(4, 44, 200, 340, 140, 'tv'));
         /* the sofa facing the fire (its back to the glass) and two armchairs either side of the coffee table */
-        pc(280, 352, () => { box(180, 380, 330, 390, 0, 34, C.sofa[0], C.sofa[1], C.sofa[2]); box(180, 380, 370, 390, 34, 78, C.sofa[0], C.sofa[1], C.sofa[2]);
+        pcr(180, 380, 330, 390, 100, () => { box(180, 380, 330, 390, 0, 34, C.sofa[0], C.sofa[1], C.sofa[2]); box(180, 380, 370, 390, 34, 78, C.sofa[0], C.sofa[1], C.sofa[2]);
           for(const a of [180, 360]) box(a, a + 20, 330, 390, 34, 56, C.sofa[0], C.sofa[1], C.sofa[2]); for(const a of [206, 276]) box(a, a + 66, 334, 368, 34, 44, shade(C.sofa[0], 1.06), C.sofa[0], C.sofa[1]);
-          for(const a of [212, 330]) box(a, a + 26, 362, 370, 44, 66, C.chair[0], C.chair[1], C.chair[2]); }, sR(180, 380, 330, 390, 78, 'sofa'));
-        pc(280, 240, () => { box(225, 335, 210, 270, 0, 30, C.wood[0], C.wood[1], C.wood[2]); box(240, 262, 225, 240, 30, 34, '#f3ecdc', '#e2dccb', '#cfc8b6'); cyl(310, 245, 30, 40, 8, '#e9e4da'); }, sR(225, 335, 210, 270, 40, 'coffee table'));
+          for(const a of [212, 330]) box(a, a + 26, 362, 370, 44, 66, C.chair[0], C.chair[1], C.chair[2]); }, 78, 'sofa');
+        pcr(225, 335, 210, 270, 60, () => { box(225, 335, 210, 270, 0, 30, C.wood[0], C.wood[1], C.wood[2]); box(240, 262, 225, 240, 30, 34, '#f3ecdc', '#e2dccb', '#cfc8b6'); cyl(310, 245, 30, 40, 8, '#e9e4da'); }, 40, 'coffee table');
         for(const [a, dir] of [[150, 'e'], [420, 'w']]) pc(a, 240, () => { box(a - 26, a + 26, 214, 266, 0, 36, C.chair[0], C.chair[1], C.chair[2]);
           const bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26]; box(bk[0], bk[1], 214, 266, 36, 76, C.chair[0], C.chair[1], C.chair[2]);
           for(const b of [214, 256]) box(a - 26, a + 26, b, b + 10, 36, 54, C.chair[0], C.chair[1], C.chair[2]); }, sR(a - 26, a + 26, 214, 266, 76, 'armchair'));
         /* a bookcase on the north wall east of the fire, a floor lamp, plants */
-        pc(590, 32, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
-          for(const z of [40, 84, 128]){ box(454, 586, 6, 30, z, z + 3, C.wood[1], C.wood[1], C.wood[2]); for(let k = 0; k < 12; k++) box(458 + k*10.5, 466 + k*10.5, 10, 28, z + 3, z + 26 + (k % 3)*4, ['#7f9a80', '#c4603a', '#e9e4da', '#3a4a6a'][k % 4], '#a69f91', '#8a8478'); } }, sR(450, 590, 2, 32, 176, 'bookcase'));
+        pcr(450, 590, 2, 32, 200, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
+          for(const z of [40, 84, 128]){ box(454, 586, 6, 30, z, z + 3, C.wood[1], C.wood[1], C.wood[2]); for(let k = 0; k < 12; k++) box(458 + k*10.5, 466 + k*10.5, 10, 28, z + 3, z + 26 + (k % 3)*4, ['#7f9a80', '#c4603a', '#e9e4da', '#3a4a6a'][k % 4], '#a69f91', '#8a8478'); } }, 176, 'bookcase');
         pc(470, 330, () => { cyl(470, 330, 0, 4, 12, '#2b3138'); tube(470, 330, 4, 470, 330, 150, 1.4, '#2b3138'); cyl(470, 330, 150, 172, 15, '#f4e7c4', '#fff6dc'); }, sC([470, 330], 12, 170, 'lamp'));
         pc(60, 380, () => plantAt(60, 380, true), sC([60, 380], 18, 60, 'plant'));
       } else {
         /* the library wall: shelves the north wall's length west of the core, a rolling ladder */
-        pc(600, 44, () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
+        runPiece(items, 20, 600, 2, 44, 200, (s0, s1) => sR(s0, s1, 2, 44, 190, 'library'), () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [30, 72, 114, 156]){ box(24, 596, 6, 32, z, z + 3, C.wood[1], C.wood[1], C.wood[2]);
             for(let k = 0; k < 54; k++) box(28 + k*10.5, 36 + k*10.5, 10, 30, z + 3, z + 24 + (k*7 % 4)*4, ['#8a3a3a', '#2f3e66', '#c9a24a', '#3f5a3f', '#e9e4da'][k % 5], '#5a3d28', '#4a3220'); }
-          tube(420, 40, 0, 430, 30, 190, 1.6, '#c9a24a'); tube(460, 40, 0, 470, 30, 190, 1.6, '#c9a24a'); for(let z = 20; z < 190; z += 30) tube(422 + z/19, 38 - z/19, z, 462 + z/19, 38 - z/19, z, 1.2, '#c9a24a'); }, sR(20, 600, 2, 44, 190, 'library'));
+          tube(420, 40, 0, 430, 30, 190, 1.6, '#c9a24a'); tube(460, 40, 0, 470, 30, 190, 1.6, '#c9a24a'); for(let z = 20; z < 190; z += 30) tube(422 + z/19, 38 - z/19, z, 462 + z/19, 38 - z/19, z, 1.2, '#c9a24a'); }, { extra: { when: is } });
         /* two velvet sofas facing each other across a brass-and-glass table, a reading chair by the ladder */
         for(const [b0, back] of [[140, 140], [300, 340]]) pc(330, b0 + 20, () => { box(240, 420, b0, b0 + 40, 0, 34, C.sofa[0], C.sofa[1], C.sofa[2]); box(240, 420, back, back + 14, 34, 80, C.sofa[0], C.sofa[1], C.sofa[2]);
           for(const a of [240, 404]) box(a, a + 16, b0, b0 + 40, 34, 58, C.sofa[0], C.sofa[1], C.sofa[2]); for(const a of [262, 334]) box(a, a + 64, b0 + 4, b0 + 38, 34, 44, shade(C.sofa[0], 1.12), C.sofa[0], C.sofa[1]); }, sR(240, 420, b0, back === 140 ? b0 + 40 : back + 14, 80, 'sofa'));
@@ -56974,7 +56997,7 @@ function houseCanopy(fn){
 
       /* THE KITCHEN: the run on the north wall -- the fridge, cabinets, the sink, the range and its hood, wall cabinets over -- and the island
          with its stools */
-      pc(1352, 44, () => {
+      pcr(1050, 1352, 2, 44, 220, () => {
         box(1050, 1104, 2, 44, 0, 190, '#c9ced2', '#a9b0b5', '#8f969b'); F(1076, 1078, 100, 150, '#7d848a', null, 0, 44.2);       // the fridge
         box(1104, 1350, 4, 40, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1102, 1352, 2, 42, 84, 88, C.top[0], C.top[1], C.top[2]);
         for(let a = 1110; a < 1345; a += 40) F(a, a + 36, 8, 78, shade(C.cab[0], 0.94), null, 0, 40.2);
@@ -56982,20 +57005,20 @@ function houseCanopy(fn){
         box(1240, 1300, 6, 38, 88, 90, '#2b3138', '#23292f', '#1c2126'); for(const [a, b] of [[1255, 15], [1285, 15], [1255, 30], [1285, 30]]) plateCircle(a, b, 90.5, 6, '#3a3e46', '#55595f', 1);   // the range
         box(1236, 1304, 4, 30, 150, 190, '#c9ced2', '#a9b0b5', '#8f969b');                                                       // its hood
         for(const [a0, a1] of [[1104, 1230], [1310, 1350]]){ box(a0, a1, 4, 30, 130, 190, C.cab[0], C.cab[1], C.cab[2]); for(let a = a0 + 4; a < a1 - 4; a += 42) F(a, Math.min(a1 - 4, a + 38), 134, 186, shade(C.cab[0], 0.94), null, 0, 30.2); }
-      }, sR(1050, 1352, 2, 44, 190, 'kitchen'));
-      pc(1200, 172, () => { box(1100, 1300, 150, 194, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1096, 1304, 146, 198, 84, 90, C.top[0], C.top[1], C.top[2]);
-        cyl(1150, 172, 90, 100, 14, f === 11 ? '#e9e4da' : brassC[0]); for(const k of [0, 1, 2]) ball(1144 + k*6, 170, 104, 5, ['#c4603a', '#f2c14e', '#5f8f58'][k]); }, sR(1096, 1304, 146, 198, 90, 'island'));
+      }, 190, 'kitchen');
+      pcr(1096, 1304, 146, 198, 130, () => { box(1100, 1300, 150, 194, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1096, 1304, 146, 198, 84, 90, C.top[0], C.top[1], C.top[2]);
+        cyl(1150, 172, 90, 100, 14, f === 11 ? '#e9e4da' : brassC[0]); for(const k of [0, 1, 2]) ball(1144 + k*6, 170, 104, 5, ['#c4603a', '#f2c14e', '#5f8f58'][k]); }, 90, 'island');
       for(const a of [1130, 1180, 1230, 1280]) pc(a, 222, () => { cyl(a, 222, 0, 56, 2, f === 11 ? '#2b3138' : brassC[1]); cyl(a, 222, 56, 62, 11, C.chair[0], C.chair[1]); box(a - 10, a + 10, 230, 233, 62, 82, C.chair[0], C.chair[1], C.chair[2]); }, sC([a, 222], 11, 82, 'stool'));
 
       /* THE BEDROOM, behind a low partition (a 1370..1380, from the north wall to b 300: its way in along the glass) */
       pc(1375, 150, () => { box(1370, 1380, 0, 300, 0, LH, plas, shade(plas, 0.95), shade(plas, 0.88)); box(1369, 1381, -1, 301, LH, LH + 4, stoneL, stone, stoneD); }, sR(1370, 1380, 0, 300, LH + 4, 'partition'));
       pc(1520, 250, () => { T(1420, 1620, 150, 380, 1.2, C.rug[0]); T(1430, 1610, 160, 370, 1.3, C.rug[1]); });
-      pc(1520, 90, () => { box(1440, 1600, 2, 22, 0, 130, C.wood[0], C.wood[1], C.wood[2]); F(1450, 1590, 60, 124, f === 11 ? '#d8cbb4' : '#2f3e66', null, 0, 22.2);   // its headboard
+      pcr(1384, 1594, 2, 220, 200, () => { box(1440, 1600, 2, 22, 0, 130, C.wood[0], C.wood[1], C.wood[2]); F(1450, 1590, 60, 124, f === 11 ? '#d8cbb4' : '#2f3e66', null, 0, 22.2);   // its headboard
         box(1446, 1594, 22, 220, 0, 38, C.top[0], C.top[1], C.top[2]); box(1448, 1592, 24, 218, 38, 46, '#f6f3ea', '#e6e1d6', '#d6cfc1');
         box(1448, 1592, 120, 218, 46, 49, C.bed[0], C.bed[1], C.bed[2]); for(const a of [1460, 1528]) box(a, a + 56, 30, 66, 46, 58, '#fbf8f1', '#ece7dc', '#ddd6c8');
         for(const a of [1406]){ box(a - 22, a + 22, 6, 46, 0, 50, C.wood[0], C.wood[1], C.wood[2]); cyl(a, 26, 50, 70, 9, '#f4e7c4', '#fff6dc'); }   // (one: the east side keeps 60 off the glass, W24)
-        artOn(1460, 1580, 150, 186, C.art, C.wood[2]); }, sR(1384, 1594, 2, 220, 130, 'bed'));
-      pc(1520, 244, () => { box(1460, 1580, 232, 258, 0, 40, C.chair[0], C.chair[1], C.chair[2]); }, sR(1460, 1580, 232, 258, 40, 'bench'));
+        artOn(1460, 1580, 150, 186, C.art, C.wood[2]); }, 130, 'bed');
+      pcr(1460, 1580, 232, 258, 60, () => { box(1460, 1580, 232, 258, 0, 40, C.chair[0], C.chair[1], C.chair[2]); }, 40, 'bench');
       if(f === 12) pc(1530, 330, () => { box(1500, 1560, 300, 360, 0, 74, C.wood[0], C.wood[1], C.wood[2]); box(1516, 1550, 340, 344, 74, 100, '#1e2226', '#15181b', '#2b3036'); chairAt(1480, 330, 'e', C.chair); }, [...sR(1500, 1560, 300, 360, 100, 'desk'), ...sC([1480, 330], 14, 88, 'chair')]);
       else pc(1560, 380, () => plantAt(1560, 380, false), sC([1560, 380], 14, 50, 'plant'));
       pc(1340, 380, () => plantAt(1340, 380, false), sC([1340, 380], 14, 50, 'plant'));
