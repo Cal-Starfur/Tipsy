@@ -123314,7 +123314,6 @@ class WorldScene extends Phaser.Scene {
        stripe. Both are gated on the palette, so no other skin grows
        them. */
     if(SKIN.stars || SKIN.emblem || SKIN.band) this.drawHullEmblem(bobZ);
-    if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');
     if(tuk){ this.tukKit(bobZ, BP, 'sides'); if(frontSeen) this.tukKit(bobZ, BP, 'front'); }
     if(rover) this.roverKit(bobZ, BP, 'near');
     if(buggy) this.buggyKit(bobZ, frontSeen, 'mid');
@@ -123353,6 +123352,7 @@ class WorldScene extends Phaser.Scene {
     }
     if(tank && !frontSeen) this.tankKit(bobZ, false);   // (the cannon behind the turret: over the body's top, under the turret)
     if(lidIsNear) this.drawLid(lidBox);
+    if(racer && !frontSeen) this.racerKit(bobZ, BP, 'back');   // (the wing toward the eye: over his lid)
     if(buggy) this.buggyKit(bobZ, frontSeen, 'near');
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'near');
     if(tank && frontSeen) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret)
