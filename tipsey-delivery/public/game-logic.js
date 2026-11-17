@@ -126400,9 +126400,14 @@ class WorldScene extends Phaser.Scene {
       const ring = x => { const pts = [[x, -2.9, zc - 2.7], [x, 2.9, zc - 2.7], [x, 2.9, zc + 2.7], [x, -2.9, zc + 2.7]].map(([a, b, c]) => this.P(a, b, c));
         this.g.lineStyle(Math.max(1, 1.2*this.kScale()), GL, 0.9); this.g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
       const parts = [() => pr(4.2, 4.6, x0 + 2.5, zc - 3.2, zc + 3.2, DK, 2),                 // (the shroud)
-        () => { pr(half, 2.3, mid, zc - 2.4, zc - 1.2, DK); pr(half, 0.55, mid, zc - 1.2, zc + 1.2, [GL, _pmix(GL, 0x000000, 0.15), _pmix(GL, 0x000000, 0.3)]); pr(half, 2.3, mid, zc + 1.2, zc + 2.4, DK); },   // (the rails, the charge between)
+        () => { /* (the same from every side, Sir 2026-11-17): one gunmetal barrel, lighter than his hull so it shows against it, a glowing charge strip
+                   along its top and down both its flanks */
+          pr(half, 2.1, mid, zc - 1.8, zc + 1.8, [0x6f757b, 0x5d646c, 0x3b4048], 0.5);
+          pr(half - 0.6, 0.5, mid + 0.3, zc + 1.8, zc + 2.2, [GL, GL, _pmix(GL, 0x000000, 0.3)], 0);
+          for(const sy of [-1, 1]){ const w = this.R(0, sy, 0); if(w.x + w.y + w.z <= 0) continue; const A = this.P(xa + 1, sy*2.15, zc), B = this.P(xb - 1, sy*2.15, zc); this.g.lineStyle(Math.max(1, 1.4*this.kScale()), GL, 1); this.g.lineBetween(A.x, A.y, B.x, B.y); } },
         () => { const ph = (t*0.004) % 1; for(let k = 0; k < 3; k++) ring(xa + (xb - xa)*((k + ph)/3)); },   // (energy rings running along it)
-        () => { pr(1.2, 2.8, xb + 0.8, zc - 2.6, zc + 2.6, DK, 0.6); }];                        // (the emitter)
+        () => { pr(1.2, 2.8, xb + 0.8, zc - 2.6, zc + 2.6, [0x5d646c, 0x4a5057, 0x2e3138], 0.6);
+          const w = this.R(1, 0, 0); if(w.x + w.y + w.z > 0){ const o = [[2, -1.8], [2, 1.8], [-2, 1.8], [-2, -1.8]].map(([z2, y2]) => this.P(xb + 2.05, y2, zc + z2)); this.quadOn(this.g, o, GL); } }];   // (the emitter, its face glowing)                        // (the emitter)
       (front ? parts : parts.slice().reverse()).forEach(f => f()); }
     else bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     if(front) brake();
