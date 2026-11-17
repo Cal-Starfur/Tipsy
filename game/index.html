@@ -8670,7 +8670,10 @@ function owMatContains(scene, m){
       && Math.abs(lat)   + eLat   <= m.half + MAT_GRACE;
 }
 function owOnMat(scene){
-  return owMatContains(scene, scene.route && scene.route.addressMat);
+  const m = scene.route && scene.route.addressMat;
+  /* (a mat in a room of many floors -- Palmline Tower's: only there, on that floor) */
+  if(m && m.room && !(scene._inside && scene._inside.name === m.room && pocketFloorNow(scene._inside) === m.floor)) return false;
+  return owMatContains(scene, m);
 }
 
 /* ====================== MISSION MATS ==============================
@@ -9282,7 +9285,7 @@ function tpCarryAdd(scene, shop){
   const R0 = scene.route, am0 = R0.addressMat;
   const back = { shop: R0.pickupShopReq || R0.pickupShopName, runIndex: R0.runIndex,
                  address: R0.address, area: R0.addressArea || null,
-                 x: am0.x, y: am0.y, parMs: R0.parMs, t: scene.runT, dmg: scene.damage, driven: true };
+                 x: am0.x, y: am0.y, floor: am0.floor, parMs: R0.parMs, t: scene.runT, dmg: scene.damage, driven: true };
   tpCarry.push(back);
   tpStopLoad = { back, shop, rung };
   scene.loadRoute(clientTodayUTC(), { runIndex: rung, pickupShop: shop, keepPose: true });
@@ -9292,7 +9295,7 @@ function tpCarryAdd(scene, shop){
   scene._carryDmgSeen = scene.damage;
   /* the line already points where the robot goes after this, and the
      detour (if this was one) is over: GO's record is the delivery again */
-  gpsNavTo(scene, "dropoff", back.address, back.x, back.y);
+  gpsNavTo(scene, "dropoff", back.address, back.x, back.y, back.floor);
   if(typeof tpGoneKey !== "undefined") tpGoneKey = "delivery";
   tpToast("Picking up the order from " + shop + "\u2026");
   return true;
@@ -9308,7 +9311,7 @@ function tpStopLoadTick(scene){
   tpStopLoad = null;
   const R = scene.route, am = R.addressMat;
   const added = { shop: L.shop, runIndex: L.rung, address: R.address, area: R.addressArea || null,
-                  x: am.x, y: am.y, parMs: R.parMs, t: scene.runT, dmg: scene.damage };
+                  x: am.x, y: am.y, floor: am.floor, parMs: R.parMs, t: scene.runT, dmg: scene.damage };
   const back = L.back;
   tpCarry = tpCarry.filter(o => o !== back);
   tpCarry.push(added);
@@ -9318,7 +9321,7 @@ function tpStopLoadTick(scene){
   scene.damage = Math.min(back.dmg, 94);
   scene._carryDmgSeen = scene.damage;
   scene.state = "play";
-  gpsNavTo(scene, "dropoff", back.address, back.x, back.y);
+  gpsNavTo(scene, "dropoff", back.address, back.x, back.y, back.floor);
   if(typeof tpSyncOrderCard === "function") tpSyncOrderCard(scene);
   const n = tpCarry.length + 1;
   tpToast("+1 order from " + L.shop + " \u2014 " + n + " stops. Deliver to " + scene.route.address + " first.");
@@ -9349,7 +9352,7 @@ function tpCarryActivate(s){
   s.state = "play";
   if(typeof tpGoneKey !== "undefined") tpGoneKey = "delivery";
   const am = s.route.addressMat;
-  if(am && Number.isFinite(am.x)) gpsNavTo(s, "dropoff", s.route.address, am.x, am.y);
+  if(am && Number.isFinite(am.x)) gpsNavTo(s, "dropoff", s.route.address, am.x, am.y, am.floor);
   tpCarryOrder(s);
   tpToast("Next stop: " + s.route.address + " \u2014 the order from " + o.shop + ".");
   return true;
@@ -15344,7 +15347,24 @@ function gpsNavReplot(scene, force){
      else, the street route to the room's front door */
   if(gpsNav.room){
     const R = gpsNav.room, pk = scene._inside;
-    if(pk && pk.name === R.name){
+    R._in = false;
+    /* (a room of floors with a lift bank -- Palmline Tower's: in any of its rooms but not yet on the floor, to the nearest car that goes
+       there, and told which floor) */
+    const H = R.floor != null && typeof liftBankHere === 'function' ? liftBankHere(scene) : null;
+    if(H && H.B.rooms.some(r => r.pk === R.name) && !(pk.name === R.name && pocketFloorNow(pk) === R.floor)){
+      const a = scene.botX - pk.x0, cs = H.B.car.map((C, i) => i).filter(i => H.B.carFloors(i).includes(R.floor) && liftBankRect(H.B, H.R, i, H.f));
+      if(cs.length){
+        const i = cs.reduce((m, j) => Math.abs(H.R.A[j] - a) < Math.abs(H.R.A[m] - a) ? j : m, cs[0]);
+        const x = pk.x0 + H.R.A[i], y = pk.y0 + H.R.deep + 70, len = Math.hypot(x - scene.botX, y - scene.botY);
+        gpsNav.tx = x; gpsNav.ty = y; R._in = true;
+        R.sayNow = cs.length < H.B.car.length && H.f === 0 ? "Lift " + (i + 1) + " to floor " + R.floor : "Lift to floor " + R.floor;
+        gpsNav.path = { pts: [{ x: scene.botX, y: scene.botY }, { x, y }], len, turns: 0 };
+        gpsNav.etaMs = gpsEtaMs({ len, turns: 0 }); gpsNav.distU = len;
+        return;
+      }
+    }
+    if(pk && pk.name === R.name && (R.floor == null || pocketFloorNow(pk) === R.floor)){
+      R._in = true; R.sayNow = R.say;
       gpsNav.tx = R.x; gpsNav.ty = R.y;
       const len = Math.hypot(R.x - scene.botX, R.y - scene.botY);
       gpsNav.path = { pts: [{ x: scene.botX, y: scene.botY }, { x: R.x, y: R.y }], len, turns: 0 };
@@ -15914,9 +15934,12 @@ function gpsWalkPts(pts){
 }
 if(typeof window !== "undefined") window.gpsWalkPts = gpsWalkPts;
 
-function gpsNavTo(scene, id, name, tx, ty){
+function gpsNavTo(scene, id, name, tx, ty, floor){
   if(!scene || !scene.route || !scene.route.grid) return false;
   gpsNav = { id, name, tx, ty, path: null, etaMs: null, distU: 0, plottedAt: -1e9 };
+  /* (a spot inside a room -- a flat in Palmline Tower: the room's leg, gpsNav.room, on its floor) */
+  { const rp = typeof pocketAt === 'function' ? pocketAt(tx, ty) : null;
+    if(rp) gpsNav.room = { name: rp.name, x: tx, y: ty, floor: floor == null ? null : floor, say: "To the door" }; }
   gpsNavReplot(scene, true);
   if(!gpsNav.path){ gpsNav = null; return false; }
   return true;
@@ -16034,7 +16057,7 @@ function tpPickupHere(scene, shop){
      gpsNavLaunch is unreachable from here. The win still belongs to
      owAtDoor, untouched. */
   const am = scene.route.addressMat;
-  if(am && Number.isFinite(am.x)) gpsNavTo(scene, "dropoff", scene.route.address, am.x, am.y);
+  if(am && Number.isFinite(am.x)) gpsNavTo(scene, "dropoff", scene.route.address, am.x, am.y, am.floor);
   tpToast("Order picked up \u2014 deliver to " + scene.route.address + ".");
   return true;
 }
@@ -19058,6 +19081,33 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
            door: { x: st.x - 650, y: my }, dv, rv, z: 0,
            shirt: { c: 0xf6f4ee, dk: 0xd9d5cb, tank: true }, pants: { c: 0xd8352a, dk: 0xa82620, shorts: true } };   // white tank top, red shorts
 }
+/* PALMLINE TOWER IS AN ADDRESS (pt4c; Sir, 2026-11-17: "set up deliveries to the tower doors and 11 and 12 too"). Some of the orders from a
+   shop near the tower go to it: a flat's door on floors 1-10 (the mat on the corridor's carpet in front of it, the resident stepping out to
+   him) or into a penthouse, 11 or 12 (the mat in its foyer at the private lift, the resident coming over from the living room). The mat is in
+   the tower's floors room (PT_FLOORS) and carries its floor and room (owOnMat, the GPS); the street sees the lobby's doors (street). Its own
+   seeded stream (day, rung, shop), so it moves no other order. Drawn by the room's queue (queueTowerDrop), handed over as a lifeguard's
+   (boatCustomerPos, its path) */
+const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, ph: { 11: [450, 300], 12: [520, 250] } };
+function towerAddress(dateStr, runIndex, shop, from){
+  if(!from || typeof PT_FLOORS === 'undefined' || typeof POCKETS === 'undefined') return null;
+  const lp = POCKETS.find(q => q.name === 'Palmline Tower Lobby'), flp = POCKETS.find(q => q.name === PT_FLOORS.name);
+  const d = lp && pocketOutsideDoor(lp, lp.doors[0]);
+  if(!d || !flp || Math.abs(from.x - d.x) + Math.abs(from.y - d.y) > PT_DROP.reach) return null;
+  if(typeof hoodLockBlocks === "function" && hoodLockBlocks(d.x, d.y + 60, 0)) return null;
+  const rr = mulberry32(hashStr((dateStr || "") + "|tower|" + runIndex + "|" + (shop || "")));
+  if(rr() >= PT_DROP.share) return null;
+  const k = Math.floor(rr()*42), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 }, X = a => flp.x0 + a, Y = b => flp.y0 + b;
+  let floor, address, matAt, start;
+  if(k < 40){ floor = 1 + Math.floor(k/4); const u = k % 4, c = PT_DROP.flats[u];
+    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c), y: Y(PT_DROP.CB + 6) }; start = [{ x: X(c), y: Y(PT_DROP.CB - 14), z: 0 }, { x: X(c), y: Y(PT_DROP.CB + 8), z: 0 }]; }
+  else { floor = 11 + (k - 40); const [a, b] = PT_DROP.ph[floor];
+    address = "Palmline Tower, Penthouse " + floor; matAt = { x: X(777), y: Y(160) }; start = [{ x: X(a), y: Y(b), z: 0 }]; }
+  const mat = owMatFrame(matAt.x, matAt.y, dv, rv); mat.floor = floor; mat.room = flp.name;
+  return { id: 300 + k, k, floor, address, name: address, mat, matAt, dv, rv, z: 0, street: { x: d.x, y: d.y }, door: start[0],
+           side: k >= 40 || k % 4 === 3 ? -1 : 1,                                           // (the flat at the corridor's east end, and a penthouse's resident coming over from the living room: he meets them on the west)
+           path: meet => start.concat(k < 40 ? [{ x: meet.x, y: Math.min(meet.y, Y(PT_DROP.CB + 16)), z: 0 }] : [], [{ x: meet.x, y: meet.y, z: 0 }]),
+           view: () => { const s = typeof scn === "function" ? scn() : null; return s && POCKET_VIEW && POCKET_VIEW.pk === flp && PT_FLOORS.floor === floor ? { dx: POCKET_VIEW.dx, dy: POCKET_VIEW.dy, z: ptFloorZ(floor) } : null; } };
+}
 /* THE LIFEGUARD'S WALK to the mat (boatCustomerPos, the won timeline):
    out from behind the hut at the ramp's head, down the ramp to the sand
    and over to him. A station has no gangway, so this is its own path (a
@@ -19069,7 +19119,7 @@ function lgCustomerPath(lg, meet){
   return [P(-125, rb, 164), P(LG_RAMP.a1, rb, 156), P(LG_RAMP.a0, rb, 0), { x: meet.x, y: meet.y, z: 0 }];
 }
 function lgCustomerPathLen(lg, meet){
-  const p = lgCustomerPath(lg, meet); let L = 0;
+  const p = lg.path ? lg.path(meet) : lgCustomerPath(lg, meet); let L = 0;   // (an address with its own way out to him: Palmline Tower's, towerAddress)
   for(let k = 1; k < p.length; k++) L += Math.hypot(p[k].x - p[k-1].x, p[k].y - p[k-1].y, p[k].z - p[k-1].z);
   return L;
 }
@@ -44801,6 +44851,25 @@ function _generateRouteBody(dateStr, opts){
       if(!lgPar) lgPar = Math.round((Math.abs(lg.mat.x - pickupSpot.x) + Math.abs(lg.mat.y - pickupSpot.y))/0.088 + 24000);
     }
   }
+  /* ...OR A FLAT IN PALMLINE TOWER (towerAddress): par as the GPS drives to the lobby, plus the lift and the corridor */
+  let addressTower = null, twPar = 0;
+  if(!addressBoat && !addressLifeguard && !(opts && opts.challenge) && pickupSpot){
+    const tw = towerAddress(dateStr, runIndex, pickupShopName, pickupSpot);
+    if(tw){
+      addressTower = tw; addressMat = tw.mat; addressUnitIdx = -1;
+      const lift = 9000 + 1200 + 240*tw.floor + 7000;                                // (to the lifts, the ride, out to the door)
+      try {
+        const gp = gpsFindPath(grid, { x: pickupSpot.x, y: pickupSpot.y }, { x: tw.street.x, y: tw.street.y });
+        const pts = gp && (gp.pts || gp.nodes);
+        if(pts && pts.length > 1){
+          let L = Math.hypot(pts[0].x - pickupSpot.x, pts[0].y - pickupSpot.y);
+          for(let k = 1; k < pts.length; k++) L += Math.hypot(pts[k].x - pts[k-1].x, pts[k].y - pts[k-1].y);
+          twPar = Math.round(L/0.088 + (pts.length - 2)*2000 + 12000 + lift);
+        }
+      } catch(e){}
+      if(!twPar) twPar = Math.round((Math.abs(tw.street.x - pickupSpot.x) + Math.abs(tw.street.y - pickupSpot.y))/0.088 + 20000 + lift);
+    }
+  }
   const pickupMat = (!(opts && opts.challenge) && pickupSpot)
     ? (() => {
         const hdg = segsHeadingAt(segs, pickupS);
@@ -44816,9 +44885,9 @@ function _generateRouteBody(dateStr, opts){
       })()
     : null;
   return stampWorldCoords({ addressMat, pickupMat, cfTaken, hood: addressHood, grid, segs, totalLen: loop ? loop.sEnd : totalLen, loop, tiles, hazards, props, pal, traffic, trafficFleet, crossings, cutEdges, challenge, crime, routeCells, curbRamps, signals: grid.signals,
-           address: boatAddress || (addressLifeguard && addressLifeguard.address) || `${number} ${street}`, addressBoat, addressLifeguard, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
-           addressArea: addressBoat ? "Pelican Marina" : addressLifeguard ? "Sunset Shore" : ((addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null), pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order,
-           parMs: addressBoat ? Math.max(parMs, boatPar) : addressLifeguard ? Math.max(parMs, lgPar) : parMs, dateStr, runIndex,
+           address: boatAddress || (addressLifeguard && addressLifeguard.address) || (addressTower && addressTower.address) || `${number} ${street}`, addressBoat, addressLifeguard, addressTower, doorS, pickupS, pickupSpot, pickupShopName, pickupDoorA, addressBlock,
+           addressArea: addressBoat ? "Pelican Marina" : addressLifeguard ? "Sunset Shore" : addressTower ? "Palmline Tower" : ((addressBlock && houseSiteHoodIJ(addressBlock.i, addressBlock.j)) || null), pickupBlock, addressEdgeIdx, pickupEdgeIdx, addressUnitIdx, pickupUnitIdx, addressUsesGate, order,
+           parMs: addressBoat ? Math.max(parMs, boatPar) : addressLifeguard ? Math.max(parMs, lgPar) : addressTower ? Math.max(parMs, twPar) : parMs, dateStr, runIndex,
            pickupShopReq: (_named && _named.name) || null  });
 }
 
@@ -102648,6 +102717,22 @@ class WorldScene extends Phaser.Scene {
       }
     }
   }
+  /* TODAY'S DOOR IN PALMLINE TOWER (towerAddress), on its floor: the door frame the handoff reads (the room's own coordinates, as the won
+     timeline's), the mat at the floor's height with its highlight, and the resident coming to him (drawBoatCustomer, hb.view) */
+  queueTowerDrop(vq, tw, v){
+    const live = this.mode === "delivery", hand = this.state === "won" || this.wonTail;   // (the handover plays on after the run hands back to free play: wonTail)
+    if(PT_FLOORS.floor !== tw.floor || !(live || hand)) return;
+    const fz = ptFloorZ(tw.floor), zd = 2*fz, mx = tw.matAt.x + v.dx, my = tw.matAt.y + v.dy;
+    this.addrDoorPos = { x: tw.door.x, y: tw.door.y, z: 0 };
+    this.addrDoorDV = tw.dv; this.addrDoorRV = tw.rv;
+    this.addrDoorUX = tw.door.x; this.addrDoorUY = tw.door.y; this.addrDoorCenterX = 0;
+    this.addrCustSeed = (tw.id*7919 ^ 0x4c75) >>> 0;
+    const m = tw.mat, ms = { ...m, x: m.x + v.dx, y: m.y + v.dy };
+    if(live) vq.push({ depth: mx + my + zd + 1, fn: (g) => { this.drawMatAt(g, mx, my, tw.dv, tw.rv, 0, fz + 1.4, "rug");
+      const hl = matHighlightState(this, ms, "delivery"); this.drawMatHighlight(g, mx, my, tw.dv, tw.rv, 0, fz + 1.4, hl, this._matT || 0); } });
+    const cp = this.boatCustomerPos(tw);
+    if(cp) vq.push({ depth: cp.x + v.dx + cp.y + v.dy + zd, fn: (g, t2) => this.drawBoatCustomer(g, tw, t2) });
+  }
   lgKit(g, s){
     const P = (a, b, z) => this.W(s.x + a, s.y + b, z);
     const q = (pts, col, al) => { if(this.ptsOnScreen(pts)) this.quadOn(g, pts, col, al == null ? 1 : al); };
@@ -104139,7 +104224,7 @@ class WorldScene extends Phaser.Scene {
       return [{ x: gw.doorX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.y, z: gw.z }, { x: gw.outX, y: gw.sideY, z: gw.z },
               { x: gw.x, y: gw.sideY, z: gw.z }, { x: gw.x, y: gw.edgeY + sd*(gw.flank + 4), z: gw.z },
               { x: gw.x, y: gw.edgeY - sd*gw.foot, z: 8 }, { x: meet.x, y: meet.y, z: 8 }]; })()
-      : lgCustomerPath(hb, meet);
+      : hb.path ? hb.path(meet) : lgCustomerPath(hb, meet);
     const last = path.length - 2;
     /* the door faces aft: when that face is turned from us he is behind
        the cabin until he comes round onto the side deck (a lifeguard's
@@ -104230,8 +104315,12 @@ class WorldScene extends Phaser.Scene {
     quad([[xo, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 - 3], [xo - gw.bow*0.3, yo, (z0 + z1)/2 + 3], [xo, yo, (z0 + z1)/2 + 3]], 0xd9b45a);   // its handle
   }
   drawBoatCustomer(g, hb, t, front){
-    const cp = this.boatCustomerPos(hb);
-    if(!cp) return;
+    const cp0 = this.boatCustomerPos(hb);
+    if(!cp0) return;
+    /* (in a room on the street's lines, up a floor -- Palmline Tower's: hb.view, the room's shift and the floor's height) */
+    const sv = hb.view ? hb.view() : null;
+    if(hb.view && !sv) return;
+    const cp = sv ? { ...cp0, x: cp0.x + sv.dx, y: cp0.y + sv.dy, z: (cp0.z || 0) + sv.z } : cp0;
     cp.front = !!front;                                    // drawn over the boat: in plain view
     if(cp.k === 0 && hb.gway && (hb._dk || 0) < 0.55 && Math.hypot(cp.x - hb.gway.doorX, cp.y - hb.gway.y) < 6) return;   // (still inside the cabin: he steps out once the door is open)
     const CL = custLook((hb.id*7919 ^ 0x4c75) >>> 0);                                             // (one of our people, off the roster)
@@ -106069,6 +106158,7 @@ class WorldScene extends Phaser.Scene {
            of its origin, their keys below it) */
         const n0 = blockVQ.length;
         this.queueFramePieces(blockVQ, pk.name, x0, y0, 1, (v ? "pkv|" : "pk|") + pk.name, x0 + y0 + Math.min(0, pk.ax0 || 0) - 200, null, pk.z ? pk.z() : 0, pk.zDepth && pk.z ? 2*pk.z() : 0);
+        if(v && this.route && this.route.addressTower && pk.name === PT_FLOORS.name) this.queueTowerDrop(blockVQ, this.route.addressTower, v);
         /* THE ROOM COMES IN UNDER ITS SHELL, NOT OVER IT (the review, 2026-10-30: through the shell's fade, the room's
            near half painted crisp over the still-opaque front -- the shell is one entry, keyed at its middle, and every
            piece of the room nearer than that was drawn after it). While the shell is there at all (pocketShellK), the
@@ -107135,7 +107225,7 @@ class WorldScene extends Phaser.Scene {
         { mat: true, mm, x: mm.mat.x, y: mm.mat.y, icon: _icon });
     }
     {
-      const am = r.addressMat;
+      const am = r.addressTower ? r.addressTower.street : r.addressMat;   // (a flat in Palmline Tower: its lobby's doors, from the street)
       if(this.mode === "delivery" && am && Number.isFinite(am.x))
         _live.set("house|" + Math.round(am.x) + "," + Math.round(am.y), { mat: false, x: am.x, y: am.y, icon: "house" });
     }
@@ -107223,7 +107313,7 @@ class WorldScene extends Phaser.Scene {
     }
     /* ...and the door, while an order is aboard */
     {
-      const am = r.addressMat;
+      const am = r.addressTower ? r.addressTower.street : r.addressMat;
       if(this.mode === "delivery" && am && Number.isFinite(am.x) && this.visProp("chargestation", am.x, am.y))
         queueBeacon(am.x, am.y, "house");
     }
@@ -124501,6 +124591,17 @@ class WorldScene extends Phaser.Scene {
         this.wonMeet = { x: this.botX - vx*35, y: this.botY - vy*35 };
         this.wonMeetTh = Math.atan2(vy, vx) - Math.PI/2;  // faces the robot along the real approach
         this.wonApproachDist = dist;
+        /* A RESIDENT OF PALMLINE TOWER MEETS HIM FACE TO FACE (CLAUDE.md, "People who talk to Tipsey"): not in front of him between him and
+           their door (he hid them), but beside him along the corridor, side by side across the screen, each turned to the other */
+        const twM = this.route && this.route.addressTower;
+        if(twM){ const sd = twM.side || 1;
+          this.wonMeet = { x: this.botX + 66*sd, y: this.botY - 4 };
+          this.wonMeetTh = Math.atan2(this.botY - this.wonMeet.y, this.botX - this.wonMeet.x) - Math.PI/2; }
+      }
+      /* (...and he turns to them as they come up: meetTick's turn, for the moments the win holds him) */
+      if(this.state === "won" && this.route && this.route.addressTower && this.wonMeet && this.ow && (this.wonOutFrac || 0) > 0.4){
+        const want = Math.atan2(this.wonMeet.y - this.botY, this.wonMeet.x - this.botX);
+        this.ow.yaw += walkinAng(want - this.ow.yaw)*Math.min(1, dt/220);
       }
       /* walk-out: his own clock at constant pace (the pickup worker's
          ~0.11 units/ms), duration proportional to the actual distance —
@@ -124513,7 +124614,7 @@ class WorldScene extends Phaser.Scene {
         /* a boat's customer also comes off the deck and down the gangway (see boatCustomerPos) */
         const gw = this.route && this.route.addressBoat && this.route.addressBoat.gway;
         const brow = gw ? Math.hypot(gw.flank + 4 + gw.foot, gw.z - 8) + Math.abs(gw.doorX - gw.outX) + Math.abs(gw.y - gw.sideY) + Math.abs(gw.outX - gw.x) + Math.abs(gw.sideY - gw.edgeY - gw.sd*(gw.flank + 4)) : 0;
-        const lgW = this.route && this.route.addressLifeguard;
+        const lgW = this.route && (this.route.addressLifeguard || this.route.addressTower);
         const outLen = lgW ? Math.max(1, lgCustomerPathLen(lgW, this.wonMeet)) : Math.max(1, (gw ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) : Math.hypot(this.wonMeet.x - sx, this.wonMeet.y - sy)) + brow);
         if(this.doorTheta >= DOOR_ART.openAngle * 0.5) this.wonOutT = (this.wonOutT || 0) + dt;
         this.wonOutFrac = Math.min(1, (this.wonOutT || 0) / (outLen / WON_WALK_SPEED));
@@ -124546,7 +124647,7 @@ class WorldScene extends Phaser.Scene {
         const backDist = (this.route && this.route.addressUsesGate) ? GATE_WALKOFF_DIST : HOUSE_HALL_D;
         const bx = this.wonDoor.x - this.addrDoorRV.x*backDist, by = this.wonDoor.y - this.addrDoorRV.y*backDist;
         const gwB = this.route && this.route.addressBoat && this.route.addressBoat.gway;
-        const lgB = this.route && this.route.addressLifeguard;
+        const lgB = this.route && (this.route.addressLifeguard || this.route.addressTower);
         backMs = Math.max(400, lgB ? lgCustomerPathLen(lgB, this.wonMeet) / WON_WALK_SPEED : (gwB ? Math.hypot(this.wonMeet.x - this.wonDoor.x, this.wonMeet.y - this.wonDoor.y) + Math.hypot(gwB.flank + 4 + gwB.foot, gwB.z - 8)
                                       + Math.abs(gwB.doorX - gwB.outX) + Math.abs(gwB.y - gwB.sideY) + Math.abs(gwB.outX - gwB.x) + Math.abs(gwB.sideY - gwB.edgeY - gwB.sd*(gwB.flank + 4))
                                     : Math.hypot(this.wonMeet.x - bx, this.wonMeet.y - by)) / WON_WALK_SPEED);
@@ -127286,7 +127387,7 @@ class WorldScene extends Phaser.Scene {
       const armReach = this.handWorldPos(custFarX, custFarY, thW2, cBuild2, 1);
       camTargetX = (doorX + this.botX + custFarX + armReach.x) / 4;
       camTargetY = (doorY + this.botY + custFarY + armReach.y) / 4;
-      camTargetZ = (0 + 0 + 0 + armReach.z) / 4;
+      camTargetZ = (this.ow && this.ow.on ? owLiftZ(this.ow) : 0) + armReach.z / 4;   // (on the floor he is on: a flat up Palmline Tower is 400+ off the street)
     } else if(this.state === "tipped"){
       /* the default target above leads the robot by 95 units along
          the route heading -- meant to bias the view toward what's
@@ -133731,7 +133832,7 @@ class WorldScene extends Phaser.Scene {
       ? ` · +${tpCarry.length} stop${tpCarry.length > 1 ? "s" : ""}` : "";
     /* inside, on an errand: counted from the door (gpsNavReplot), and the way on starts with going out of it -- no turns, no arrow, till he is out */
     const _navIn = !!(gpsNav && gpsNav.path && gpsInsideDoor(this));
-    if(_navIn){ turnText = gpsNav.room && this._inside && this._inside.name === gpsNav.room.name ? (gpsNav.room.say || "Straight ahead") : "Head outside"; navAlert = false; }   // (a leg to a spot in this very room: what it is, not the way out)
+    if(_navIn){ turnText = gpsNav.room && gpsNav.room._in ? (gpsNav.room.sayNow || gpsNav.room.say || "Straight ahead") : "Head outside"; navAlert = false; }   // (a leg to a spot in this very room: what it is, not the way out)
     document.body.classList.toggle("tpNavIn", _navIn);
     if(!_freeRoam && gpsTx) gpsTx.textContent = `${timerText} · ${distText} · ${turnText}${_stops}`;
     /* THE CHEVRON. Only on a nav leg (gpsAimErr returns null without
@@ -143076,7 +143177,7 @@ function tpDropoffPin(s){
   s = s || ((typeof scn === "function") ? scn() : null);
   if(!s || s.mode !== "delivery" || !s.route) return null;
   const r = s.route;
-  const p = ((r.addressBoat || r.addressLifeguard) && r.addressMat) ? r.addressMat : segsPosAt(r.segs, r.doorS);
+  const p = r.addressTower ? r.addressTower.street : ((r.addressBoat || r.addressLifeguard) && r.addressMat) ? r.addressMat : segsPosAt(r.segs, r.doorS);
   return p ? { x: p.x, y: p.y, address: r.address, shop: r.pickupShopName } : null;
 }
 /* ---------- BACK TO FREE PLAY ----------
@@ -143156,7 +143257,7 @@ function tpMapResumeDriving(){
   if(typeof gpsNav !== "undefined" && gpsNav && gpsNav.detour && s.mode === "delivery"
      && tpMapSelKey(s) !== tpGoneKey && s.route && s.route.addressMat){
     const am = s.route.addressMat;
-    gpsNavTo(s, "dropoff", s.route.address, am.x, am.y);
+    gpsNavTo(s, "dropoff", s.route.address, am.x, am.y, am.floor);
     if(typeof tpSyncMapChrome === "function") tpSyncMapChrome(s);
   }
   /* the glass's own flag: whoever raised the map is no longer holding
@@ -143326,7 +143427,7 @@ function tdReleaseToFreePlay(s){
   /* and the next order in the bag is the one being driven now */
   if(tpCarry.length){
     if(!s.wonTail) tpCarryActivate(s);
-    else { const o = tpCarry[0]; gpsNavTo(s, "dropoff", o.address, o.x, o.y);
+    else { const o = tpCarry[0]; gpsNavTo(s, "dropoff", o.address, o.x, o.y, o.floor);
            tpToast("Next stop: " + o.address + " \u2014 the order from " + o.shop + "."); }
   }
 }
@@ -146280,7 +146381,7 @@ function tpCancelRoute(){
   const s = scn();
   if(typeof gpsNav === "undefined" || !gpsNav || gpsNav.id === "dropoff") return;
   const det = gpsNav.detour && s && s.mode === "delivery" && s.route && s.route.addressMat;
-  if(det){ const am = s.route.addressMat; gpsNavTo(s, "dropoff", s.route.address, am.x, am.y); }
+  if(det){ const am = s.route.addressMat; gpsNavTo(s, "dropoff", s.route.address, am.x, am.y, am.floor); }
   else { gpsNavClear(); tpGoneNav = null; tpGoneKey = null; }
   if(s && typeof tpSyncOrderCard === "function") tpSyncOrderCard(s);
   if(s && typeof tpSyncMapChrome === "function") tpSyncMapChrome(s);

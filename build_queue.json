@@ -81,8 +81,9 @@
 "pt4",
 "pt4b"
 ],
-"status": "pending",
-"group": "Palmline Tower interior"
+"status": "built",
+"group": "Palmline Tower interior",
+"note": "towerAddress: ~1 in 4 orders from shops within 10 blocks; flats 101-1004 (mat at the door, resident steps out beside him) and penthouses 11/12 (mat in the foyer, resident from the living room); GPS: lobby door, \"Lift to floor N\" (penthouse: \"Lift 2\"), \"To the door\"; map pin at the lobby; win camera at the floor height"
 },
 {
 "id": "hosp-lift-kit",
