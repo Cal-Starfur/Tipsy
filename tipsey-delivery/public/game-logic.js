@@ -18061,6 +18061,8 @@ function commercialScatterOf(grid, blk){
   for(let k=0;k<nPlanter;k++){ const sp = roll(); if(sp) out.push({ kind:"planter", x:sp.x, y:sp.y }); }
   const nBench = 1 + Math.floor(rng()*2);
   for(let k=0;k<nBench;k++){ const sp = roll(); if(sp) out.push({ kind:"bench", x:sp.x, y:sp.y }); }
+  /* (none on block 2,0's yard: Sir, 2026-11-17, "remove this random bench" -- it stood against Palmline Savings' wing) */
+  if(blk.i === 2 && blk.j === 0) for(let k = out.length - 1; k >= 0; k--) if(out[k].kind === "bench") out.splice(k, 1);
   _csMap.set(blk, out);
   return out;
 }
