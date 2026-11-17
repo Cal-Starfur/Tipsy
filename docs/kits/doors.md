@@ -22,6 +22,7 @@
 | D9 | **Each unit declares exactly one working entrance**, used by the art, the walker and Tipsey, and facing the way in. | 5 | C | ☐ |
 | D10 | **Door pieces are layered in depth**, the glass is in the shop palette, and there is one surround per opening. | 6 | K (`shopDoor`) | shop kit |
 | D11 | **No flat dark fill for any doorway, archway or gateway** (Sir, 2026-11-06). A mouth you can see into gets a passage: near wall, vault, floor, lit far end, hung lantern (`tunnelView` in the almshouses). Anything hung inside it (gate leaves) is cut to the mouth, since `clip()` doesn't clip strokes here. | 1 | C | ☐ a doorway/arch filled with one dark colour |
+| D12 | **Each leaf of a pair is queued at its own side of the doorway, never the pair as one item** (Sir, 2026-11-17: "the lift doors sides flicker when im in the door way"). One item for both leaves, keyed at the doorway's middle, flips the far leaf and its stile from behind him to over him as he crosses that middle. Sliding pairs, lift doors and glass doors alike: draw each leaf with its own key (its half of the opening), as `drawHospLiftDoors(..., side)` and `liftLeavesDraw(..., side)` do. | 1 | kit (Marina General's glass lifts, Palmline Tower's lifts) | frames while he drives slowly through the doorway with the doors moving: the near leaf stays in front of him, the far one behind |
 
 ## Approved values
 - **House doors:** open in 280 ms, shut in 480 ms (`HOUSE_DOOR_OPEN`).

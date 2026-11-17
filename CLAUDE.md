@@ -71,6 +71,8 @@
   an awning, a sign, a transom piece -- must sort AFTER the door, or the leaves paint over it: key that piece at its nearest corner
   (the largest a + b it covers) and mark it `overDoors` (the rim queue puts the leaves just under it, even when lmDepth moves it round
   Tipsey), or queue it just after the door as the garage lift's canopy does. Check it with the doors open and Tipsey beside them.
+- A pair of door leaves (sliding, lift, glass) is never one item keyed at the doorway's middle: queue each leaf at its own side of the
+  doorway, or the far leaf flips over Tipsey as he crosses (doors kit D12).
 - A long fixture in a room (a counter, a shelf run, a bar, a bookcase against a wall) is never one piece keyed at its middle: people
   behind its far end and walls behind it sort wrong. Build it with `runPiece` (runs of ~50, each keyed at its own stretch, the
   whole drawn clipped per run), as the kit's walls are.
