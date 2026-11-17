@@ -28814,14 +28814,14 @@ walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY
    -66; the portico open ground, vol.opens), in the far north wall (door side 'n'). Room frame a east, b south, world units (lab x1.3):
      a 70..104, b 30..290   THE TELLERS' COUNTER down the west side, three tellers behind it facing the hall
      a 150                  the rope line
-     a 0..300, b 360..582   THE VAULT, its steel walls knee-high (the kit's cut), its round door standing open at the doorway, the
+     a 0..300, b 360..582   THE VAULT, its steel walls knee-high (the kit's cut), its round door shut in its east wall, the
                             safe-deposit boxes on its west wall, the cash cart and the gold
      a 292..418             the door's lane, door to back wall, kept clear
      a 540..610             two loan desks, a chair before each
      a 440..640, b 400..520 the waiting room: a sofa, armchairs, a low table, palms */
 const PS_IN = { name: 'Palmline Savings Interior', x0: 760000, y0: 400000, WALL: 30/1.3, WW: PS_WW, DD: PS_DD, REC: 66, H: 480, LH: 66,
   DOOR: [PS_WW/2 - 48.5, PS_WW/2 + 48.5], DOORZ: 240*1.95,
-  VAULT: { a1: 300, b0: 360, door: [190, 270], h: 92 } };
+  VAULT: { a1: 300, b0: 360, door: [410, 510], h: 92 } };   // (its door in its EAST wall, b 410..510, shut: it faces the camera)
 const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: PS_IN.x0, y0: PS_IN.y0,
   lab: [PS_IN.WALL, PS_IN.WW - PS_IN.WALL, -(PS_IN.DD - PS_IN.WALL), -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
   door: { a: PS_IN.WW/2, b: -PS_IN.REC, half: (PS_IN.DOOR[1] - PS_IN.DOOR[0])/2*1.3, side: 'n', top: PS_IN.DOORZ },
@@ -28838,7 +28838,7 @@ walkinStaff(PS_IN.name, [
   { id: 'teller-3', role: 'bank teller', seed: 0x5a05, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 230, 0, 8600, true], [40, 256, -0.3, 2800, true]] },
   { id: 'officer', role: 'loan officer', seed: 0x5a03, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 40, Math.PI/2, 9000, true]] },
   { id: 'officer-2', role: 'loan officer', seed: 0x5a06, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 210, Math.PI/2, 9000, true]] },
-  { id: 'guard', role: 'bank guard', seed: 0x5a04, U: SECURITY_UNIFORM, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [250, 330, Math.PI/2, 5000, true]] },
+  { id: 'guard', role: 'bank guard', seed: 0x5a04, U: SECURITY_UNIFORM, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 440, -Math.PI/4, 5000, true]] },
   { id: 'customer-1', role: 'customer', seed: 0x5a11, look: 'visitor', life: 'browse' },
   { id: 'customer-2', role: 'customer', seed: 0x5a12, look: 'visitor', life: 'browse' },
   { id: 'customer-3', role: 'customer', seed: 0x5a13, look: 'visitor', life: 'browse' },
@@ -55234,7 +55234,7 @@ function houseCanopy(fn){
   ww: 710, dd: 582,
   head:'Inside Palmline Savings: a marble banking hall, the tellers\' counter, the vault, loan desks and a waiting room',
   tags:['interior','pocket','bank','tellers','vault','marble'],
-  desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters and a chequered marble floor; the tellers\' counter of dark wood and glass down the west side; behind it the vault, its round steel door standing open, safe-deposit boxes on its wall and the cash cart and the gold inside; two loan desks, a rope line and a waiting room with a sofa and palms.',
+  desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters and a chequered marble floor; the tellers\' counter of dark wood and glass down the west side; behind it the vault, its round steel door shut, safe-deposit boxes on its wall and the cash cart and the gold inside; two loan desks, a rope line and a waiting room with a sofa and palms.',
   draw(p){
     const pl = (typeof PS_PLAN !== 'undefined' && PS_PLAN) || null;
     if(pl) pl.view();
@@ -55292,20 +55292,20 @@ function houseCanopy(fn){
        screen): its north wall either side of the doorway, its east wall to the room's south wall ---- */
     { const T0 = V.b0 - 20, A0 = V.a1, A1 = V.a1 + 20;
       const vw = (a0, a1, b0, b1) => { box(a0, a1, b0, b1, 0, V.h - 6, steelF, steel, steelS); box(a0 - 1, a1 + 1, b0 - 1, b1 + 1, V.h - 6, V.h, '#d6dadc', '#c3c8cb', '#b0b6ba'); };
-      runPiece(items, 0, V.door[0], T0, V.b0, V.h + 10, (s0, s1) => [solid(s0, s1, T0, V.b0, V.h, 'vault wall')], () => vw(0, V.door[0], T0, V.b0));
-      runPiece(items, V.door[1], A1, T0, V.b0, V.h + 10, (s0, s1) => [solid(s0, s1, T0, V.b0, V.h, 'vault wall')], () => vw(V.door[1], A1, T0, V.b0));
-      runPiece(items, A0, A1, V.b0, D, V.h + 10, (s0, s1) => [solid(A0, A1, s0, s1, V.h, 'vault wall')], () => vw(A0, A1, V.b0, D), { alongB: true, run: 50 });
-      /* THE VAULT DOOR: round, a foot thick, swung right open against the wall west of the doorway -- its hinge on the jamb, its face to
-         the hall: the rings, the bolts round its edge, the wheel */
-      const da = V.door[0] - 18, db = T0 - 4, dz = 84, R = 74;
-      items.push({ a: da, b: db + 30, z: 0, solids: [solid(da - 14, da + 14, db - 70, db + 4, 160, 'vault door')], draw: () => {
-        box(da - 16, da + 16, db - 6, db + 6, 0, 168, '#5d6369', '#4b5156', '#3f4448');                         // the hinge post
-        for(let t = -14; t <= 14; t += 2) ringB(da + t, db - R + 6, dz, R, t < 13 ? '#6f777c' : steel);           // its thickness, then its face
-        ringB(da + 14.5, db - R + 6, dz, R - 10, '#bcc3c7'); ringB(da + 15, db - R + 6, dz, R - 26, '#a8b0b4');
-        for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; S(da + 15.5, db - R + 6 + Math.cos(t)*(R - 5) - 3, db - R + 6 + Math.cos(t)*(R - 5) + 3, dz + Math.sin(t)*(R - 5) - 3, dz + Math.sin(t)*(R - 5) + 3, '#d6dadc'); }
-        ringB(da + 16, db - R + 6, dz, 14, '#8c9298');
-        for(let k = 0; k < 3; k++){ const t = k/3*Math.PI, p0 = P(da + 16.5, db - R + 6 + Math.cos(t)*34, dz + Math.sin(t)*34), p1 = P(da + 16.5, db - R + 6 - Math.cos(t)*34, dz - Math.sin(t)*34);
+      runPiece(items, 0, A1, T0, V.b0, V.h + 10, (s0, s1) => [solid(s0, s1, T0, V.b0, V.h, 'vault wall')], () => vw(0, A1, T0, V.b0));
+      runPiece(items, A0, A1, V.b0, V.door[0], V.h + 10, (s0, s1) => [solid(A0, A1, s0, s1, V.h, 'vault wall')], () => vw(A0, A1, V.b0, V.door[0]), { alongB: true, run: 50 });
+      runPiece(items, A0, A1, V.door[1], D, V.h + 10, (s0, s1) => [solid(A0, A1, s0, s1, V.h, 'vault wall')], () => vw(A0, A1, V.door[1], D), { alongB: true, run: 50 });
+      /* THE VAULT DOOR, SHUT (Sir, 2026-11-17: "the vault door should not be open"): round steel in a heavy square frame, in the vault's
+         east wall facing the hall -- the frame, the door's rings, the bolts round its edge, the wheel. Solid: the vault is closed */
+      const vb = (V.door[0] + V.door[1])/2, dz = 62, R = 50, fa = A1 + 4;
+      items.push({ a: fa, b: vb, z: 0, solids: [solid(A0, fa, V.door[0], V.door[1], 130, 'vault door')], draw: () => {
+        box(A0 - 2, fa, V.door[0], V.door[1], 0, 128, '#7d858a', '#6f777c', '#5d6369');                        // the frame
+        ringB(fa + 0.3, vb, dz, R + 4, '#5d6369'); ringB(fa + 0.6, vb, dz, R, steel); ringB(fa + 0.9, vb, dz, R - 10, '#bcc3c7');
+        for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; S(fa + 1.2, vb + Math.cos(t)*(R - 5) - 2.5, vb + Math.cos(t)*(R - 5) + 2.5, dz + Math.sin(t)*(R - 5) - 2.5, dz + Math.sin(t)*(R - 5) + 2.5, '#d6dadc'); }
+        ringB(fa + 1.5, vb, dz, 10, '#8c9298');
+        for(let k = 0; k < 3; k++){ const t = k/3*Math.PI, p0 = P(fa + 2, vb + Math.cos(t)*24, dz + Math.sin(t)*24), p1 = P(fa + 2, vb - Math.cos(t)*24, dz - Math.sin(t)*24);
           ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.strokeStyle = '#5d6369'; ctx.lineWidth = 3*K; ctx.stroke(); }
+        S(fa + 1.2, vb + R + 8, vb + R + 14, dz - 30, dz + 30, '#4b5156');                                        // the hinge
       } });
       /* IN THE VAULT: the gold, stacked on a steel table; the cash cart with its bundles */
       runPiece(items, 90, 210, 440, 486, 120, (s0, s1) => [solid(s0, s1, 440, 486, 70, 'gold table')], () => {
