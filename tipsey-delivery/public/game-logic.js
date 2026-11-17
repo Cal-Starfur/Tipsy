@@ -76678,13 +76678,6 @@ marinaEntry(),
       const grey = '#c9cbc6', greyS = '#b0b3ad', greyD = '#9a9d97', steel = '#8c959a', vent = '#3d4448';
       T(TA0, TA1, TB, TF, TOP, '#a9a397');
       T(TA0 + 14, TA1 - 14, TB + 14, TF - 14, TOP + 0.4, '#b3ada1');  // its membrane inside the upstand
-      /* THE GANTRY'S RAIL along the front strip, and the gantry (the window cleaners' cradle) parked on it at the seen end */
-      const rb = pB1 + 24;
-      for(const db of [-12, 12]) box(TA0 + 40, TA1 - 40, rb + db - 2, rb + db + 2, TOP, TOP + 5, '#7d858a', '#6d7479', '#5c6267');
-      { const ga = FLANK_RIGHT ? TA1 - 80 : TA0 + 80, Y = ['#e2b23c', '#c99a2c', '#b0861f'];
-        box(ga - 30, ga + 30, rb - 18, rb + 18, TOP + 5, TOP + 18, ...Y);                  // its truck, on the rail
-        box(ga - 7, ga + 7, rb - 7, rb + 7, TOP + 18, TOP + 84, ...Y);                     // its post
-        box(ga - 6, ga + 6, rb - 20, TF + 30, TOP + 84, TOP + 94, ...Y); }                  // its jib, out over the edge
       /* THE PLANT ROOM: louvred all round, the name on its face */
       box(pA0, pA1, pB0, pB1, TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
       for(let a = pA0 + 30; a < pA1 - 20; a += 36) F(a, a + 18, TOP + 14, CROWN - 14, '#a69f91', null, 0, pB1 + 0.5);   // its louvres
@@ -76722,11 +76715,21 @@ marinaEntry(),
       for(const sa of [pA0 + 200, pA0 + 240]){
         cyl(sa, pB1 - 70, Z, Z + 70, 9, '#a8acaa');
         cyl(sa, pB1 - 70, Z + 70, Z + 74, 11, '#6d7479'); }
-      /* the parapet last: it stands in front of all of it -- but for the gantry's cradle, hung out over the face on its cables */
+      /* THE WINDOW CLEANERS' GANTRY (pt5; Sir: "i dont think im seeing the window cleaners gantry"): on its rails along the front strip,
+         after the plant room (it stands in front of it -- painted before, the room's face hid it), a tall yellow post and a jib out over
+         the edge, the cradle hung on two cables down the top floor's glass */
+      const rb = pB1 + 25, ga = TA0 + 170, Y = ['#f0bf3a', '#d6a42a', '#b8891c'];
+      for(const db of [-14, 14]) box(TA0 + 30, TA1 - 30, rb + db - 2.5, rb + db + 2.5, TOP, TOP + 6, '#8a9297', '#788086', '#666d72');   // the rails
+      box(ga - 40, ga + 40, rb - 20, rb + 20, TOP + 6, TOP + 26, ...Y);                   // its truck, on the rails
+      box(ga - 34, ga - 10, rb - 16, rb - 4, TOP + 26, TOP + 46, '#6d7479', '#5c6267', '#4b5156');   // its counterweight
+      box(ga - 9, ga + 9, rb - 9, rb + 9, TOP + 26, TOP + 132, ...Y);                     // its post
+      box(ga - 7, ga + 7, rb - 30, TF + 44, TOP + 132, TOP + 144, ...Y);                  // its jib, out over the edge
+      box(ga - 10, ga + 10, TF + 36, TF + 48, TOP + 120, TOP + 146, ...Y);                // the jib's head
+      /* the parapet: it stands in front of the roof's foot -- then the cradle, hung out over the face */
       box(TA0, TA1, TF - 4, TF + 2, TOP, TOP + 26, stoneL, stone, stoneD);
-      { const ga = FLANK_RIGHT ? TA1 - 80 : TA0 + 80;
-        for(const da of [-14, 14]) tube(ga + da, TF + 26, TOP + 84, ga + da, TF + 26, TOP + 46, 0.6, '#5c6267');
-        box(ga - 22, ga + 22, TF + 18, TF + 34, TOP + 30, TOP + 46, '#eceae4', '#d6d3cb', '#c1beb5'); }
+      for(const da of [-34, 34]) tube(ga, TF + 42, TOP + 120, ga + da, TF + 42, TOP - 34, 0.7, '#4b5156');
+      box(ga - 52, ga + 52, TF + 30, TF + 54, TOP - 62, TOP - 34, '#eceae4', '#d6d3cb', '#c1beb5');   // the cradle
+      F(ga - 52, ga + 52, TOP - 40, TOP - 34, Y[0], null, 0, TF + 54.3);                  // its top rail
     }
     } });
 
