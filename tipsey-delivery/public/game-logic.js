@@ -43445,24 +43445,24 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', roverPart: 'boosters', noDish: true, noFlag: true /* (no mast or star -- Sir, 2026-11-17) */, noStripe: true /* (no gold band over its stars) */ /* (second pass -- Sir, 2026-11-17: twin rockets on his back, a gold star turning on his mast) */, noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   /* THE CARGO BOT'S ERA SKINS (Sir, 2026-11-17): three for each era -- its body colour and its accents (acc: drawCargoEra) */
-  { id: 'cg1900:post', build: 'cg1900', name: 'Post Wagon', cents: 800, body: 0xb8231c, stripe: 0x1d1f26, acc: { canvas: 0x2a2d33, frame: 0x16171b } },
-  { id: 'cg1900:bakery', build: 'cg1900', name: 'Bakery', cents: 800, body: 0xf3ead2, stripe: 0x2f6a3a, acc: { canvas: 0x3f8a4a, frame: 0x5a3418 } },
-  { id: 'cg1900:ice', build: 'cg1900', name: 'Ice Wagon', cents: 800, body: 0x5a8ac8, stripe: 0xf4f4f0, acc: { canvas: 0xf4f8fc, frame: 0x23365a } },
-  { id: 'cg1920:milk', build: 'cg1920', name: 'Milkman', cents: 800, body: 0xf4f4f0, stripe: 0x23262c, acc: { trim: 0x23262c } },
-  { id: 'cg1920:grocer', build: 'cg1920', name: 'Grocer', cents: 800, body: 0x2f6a3a, stripe: 0xd8b04a, acc: { trim: 0x16301c } },
-  { id: 'cg1920:florist', build: 'cg1920', name: 'Florist', cents: 800, body: 0xb89ad8, stripe: 0x23262c, acc: { trim: 0x3a2a4a } },
-  { id: 'cg1950:soda', build: 'cg1950', name: 'Soda Pop', cents: 800, body: 0x4ac8b8, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0 } },
-  { id: 'cg1950:cherry', build: 'cg1950', name: 'Cherry', cents: 800, body: 0xc8202a, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0 } },
-  { id: 'cg1950:butter', build: 'cg1950', name: 'Butter', cents: 800, body: 0xf2d878, stripe: 0x8a5a2a, acc: { roof: 0xfaf4e0 } },
-  { id: 'cg1970:surf', build: 'cg1970', name: 'Surf Shop', cents: 800, body: 0xf08a2a, stripe: 0x8a5a2a, acc: { panel: 0x8a5a2a, grain: true } },
-  { id: 'cg1970:disco', build: 'cg1970', name: 'Disco', cents: 800, body: 0x6a2a8a, stripe: 0xd9dde2, acc: { panel: 0xc9ced4 } },
-  { id: 'cg1970:earth', build: 'cg1970', name: 'Earth Tone', cents: 800, body: 0x8a6a3a, stripe: 0xd8a41a, acc: { panel: 0xd8a41a } },
-  { id: 'cg1980:synth', build: 'cg1980', name: 'Synthwave', cents: 900, body: 0x2a1a4a, stripe: 0xff4ad8, acc: { n1: 0xff4ad8, n2: 0x5fe8ff } },
-  { id: 'cg1980:grid', build: 'cg1980', name: 'Grid Runner', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, acc: { n1: 0x5fe8ff, n2: 0x5fe8ff } },
-  { id: 'cg1980:arcade', build: 'cg1980', name: 'Arcade', cents: 900, body: 0xf2c02e, stripe: 0xd8261c, acc: { n1: 0xd8261c, n2: 0x2a5ad8 } },
-  { id: 'cg2100:chrome', build: 'cg2100', name: 'Chrome', cents: 1000, body: 0xc9ced4, stripe: 0x5fe8ff, acc: { glow: 0x5fe8ff } },
-  { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040 } },
-  { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8 } },
+  { id: 'cg1900:post', build: 'cg1900', name: 'Post Wagon', cents: 800, body: 0xb8231c, stripe: 0x1d1f26, acc: { canvas: 0x2a2d33, frame: 0x16171b, prop: 'mail' } },
+  { id: 'cg1900:bakery', build: 'cg1900', name: 'Bakery', cents: 800, body: 0xf3ead2, stripe: 0x2f6a3a, acc: { canvas: 0x3f8a4a, frame: 0x5a3418, prop: 'loaf' } },
+  { id: 'cg1900:ice', build: 'cg1900', name: 'Ice Wagon', cents: 800, body: 0x5a8ac8, stripe: 0xf4f4f0, acc: { canvas: 0xf4f8fc, frame: 0x23365a, prop: 'ice' } },
+  { id: 'cg1920:milk', build: 'cg1920', name: 'Milkman', cents: 800, body: 0xf4f4f0, stripe: 0x23262c, acc: { trim: 0x23262c, prop: 'milk' } },
+  { id: 'cg1920:grocer', build: 'cg1920', name: 'Grocer', cents: 800, body: 0x2f6a3a, stripe: 0xd8b04a, acc: { trim: 0x16301c, prop: 'produce' } },
+  { id: 'cg1920:florist', build: 'cg1920', name: 'Florist', cents: 800, body: 0xb89ad8, stripe: 0x23262c, acc: { trim: 0x3a2a4a, prop: 'flowers' } },
+  { id: 'cg1950:soda', build: 'cg1950', name: 'Soda Pop', cents: 800, body: 0x4ac8b8, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0, prop: 'soda' } },
+  { id: 'cg1950:cherry', build: 'cg1950', name: 'Cherry', cents: 800, body: 0xc8202a, stripe: 0xf6f0e0, acc: { roof: 0xf6f0e0, prop: 'cherry' } },
+  { id: 'cg1950:icecream', build: 'cg1950', name: 'Ice Cream', cents: 800, body: 0xf8c8d8, stripe: 0x8a5a2a, acc: { roof: 0xfaf4e0, prop: 'cone' } },
+  { id: 'cg1970:surf', build: 'cg1970', name: 'Surf Shop', cents: 800, body: 0xf08a2a, stripe: 0x8a5a2a, acc: { panel: 0x8a5a2a, grain: true, prop: 'surf' } },
+  { id: 'cg1970:disco', build: 'cg1970', name: 'Disco', cents: 800, body: 0x6a2a8a, stripe: 0xd9dde2, acc: { panel: 0xc9ced4, prop: 'disco' } },
+  { id: 'cg1970:earth', build: 'cg1970', name: 'Earth Tone', cents: 800, body: 0x8a6a3a, stripe: 0xd8a41a, acc: { panel: 0xd8a41a, prop: 'canoe' } },
+  { id: 'cg1980:synth', build: 'cg1980', name: 'Synthwave', cents: 900, body: 0x2a1a4a, stripe: 0xff4ad8, acc: { n1: 0xff4ad8, n2: 0x5fe8ff, prop: 'boombox' } },
+  { id: 'cg1980:grid', build: 'cg1980', name: 'Grid Runner', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, acc: { n1: 0x5fe8ff, n2: 0x5fe8ff, prop: 'pyramid' } },
+  { id: 'cg1980:arcade', build: 'cg1980', name: 'Arcade', cents: 900, body: 0xf2c02e, stripe: 0xd8261c, acc: { n1: 0xd8261c, n2: 0x2a5ad8, prop: 'joystick' } },
+  { id: 'cg2100:chrome', build: 'cg2100', name: 'Chrome', cents: 1000, body: 0xc9ced4, stripe: 0x5fe8ff, acc: { glow: 0x5fe8ff, prop: 'holo' } },
+  { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040, prop: 'wings' } },
+  { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -128057,6 +128057,7 @@ class WorldScene extends Phaser.Scene {
        the wagon's canvas and frame, the Model-T's black, the Panel Van's roof, the Box Van's side panels, the neon, the glow */
     const BSK = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === era), A = (BSK && BSK.acc) || {};
     if(BSK){ const c = BSK.body; BPW = { top: c, lt: _pdk(c, 0.91), dk: _pdk(c, 0.79), print: null, fin: BPW.fin }; }
+    const propNow = () => { if(A.prop) this.cargoProp(A.prop, era, V, g, t, 10 + Math.sin(t*0.003)*1.5, x, y, z, fdir); };   // (the skin's own prop, over all: cargoProp)
     const { P, sees, solid, prismH, line, Q } = V, K = this.K*0.42;
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
     const hull = (o) => this.botHull(g, x, y, z, fdir, Object.assign({ cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, cBottom: 0x2a2f36, print: BPW.print, fin: BPW.fin }, o));
@@ -128097,7 +128098,7 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : _pmix(A.n2 || A.glow || 0x5fe8ff, 0xffffff, 0.4), 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
       for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
       hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
-      this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); return; }
+      this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); propNow(); return; }
     shadow(50, 34);
     if(era === 'cg1900'){
       /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
@@ -128120,7 +128121,7 @@ class WorldScene extends Phaser.Scene {
         for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], 0x8a6a3a, 1.6); }
         for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-31, -13, 5, 23]) line([a, sb*30.3, 67], [a, sb*30.6, 63], 0x8a6a3a, 1.2); };   // (the ties down to the rail)
       if(front){ spare(); if(nearB > 0 === sees(0, 1, 0)) lantern(); body(); top(); seat(); } else { seat(); body(); top(); spare(); lantern(); }
-      spoked(-30, nearB, BW, 18, 5); spoked(32, nearB, BW, 13, 5); return; }
+      spoked(-30, nearB, BW, 18, 5); spoked(32, nearB, BW, 13, 5); propNow(); return; }
     if(era === 'cg1920'){
       /* (second pass -- Sir, 2026-11-17): wooden-spoke wheels under black fenders swept down to the running boards, round brass headlamps
          up on the fenders, a roof that overhangs the cab, a spare tyre on the cargo box's flank */
@@ -128136,7 +128137,7 @@ class WorldScene extends Phaser.Scene {
         if(front){ Q([P(50.2, -14, 34), P(50.2, 14, 34), P(50.2, 14, 60), P(50.2, -14, 60)], BRASS); for(let bb = -11; bb <= 11; bb += 3.6) line([50.4, bb, 37], [50.4, bb, 57], 0x8a6a1a, 1); }
         for(const sb of [-1, 1]){ this.avLathe(V, 44, sb*24, [[44, 1.4], [50, 1.4]], 0x3b4048, null, 6); this.avLathe(V, 44, sb*24, [[50, 4], [56, 4]], BRASS, null, 10); if(front){ const q = P(48.2, sb*24, 53); g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 2.6*K*2.4); } } };
       if(front){ cargo(); cab(); hood(); } else { hood(); cab(); cargo(); }
-      side(nearB); return; }
+      side(nearB); propNow(); return; }
     if(era === 'cg1950'){
       /* (second pass -- Sir, 2026-11-17): skirts over the rear wheels, a chrome spear down each flank, round chrome-ringed headlamps and a
          toothy chrome grille, a split windscreen low on the roof's brow, whitewalls */
@@ -128151,7 +128152,7 @@ class WorldScene extends Phaser.Scene {
           for(const sb of [-1, 1]){ const q = P(48.4, sb*13, 44); g.fillStyle(0xc9ced4, 1); g.fillCircle(q.x, q.y, 3.6*K*2.4); g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 2.6*K*2.4); }
           this.tipseyFace(V, 48, 56, 0.85, {}); } };
       if(front){ ends(-1); body(); ends(1); } else { ends(1); body(); ends(-1); }
-      ww(nearB); return; }
+      ww(nearB); propNow(); return; }
     if(era === 'cg1970'){
       /* (second pass -- Sir, 2026-11-17): a roof rack with a rolled tarp, side mirrors on stalks, a sliding side-door line, round porthole
          windows at the back, a black rubber strip on the bumpers */
@@ -128168,11 +128169,11 @@ class WorldScene extends Phaser.Scene {
       const mirrors = sb => { line([40, sb*32, 86], [40, sb*40, 88], 0x23262c, 1.4); box(37, 41, sb*38, sb*42, 84, 93, 0x23262c); };
       const rack = () => { for(const a of [-36, -6, 24]) for(const sb of [-1, 1]) line([a, sb*26, 106], [a, sb*26, 110], 0x3b4048, 1.4);
         for(const sb of [-1, 1]) line([-38, sb*26, 110], [26, sb*26, 110], 0x3b4048, 1.8); for(const a of [-36, -6, 24]) line([a, -26, 110], [a, 26, 110], 0x3b4048, 1.4);
-        hull({ hx: 18, hy: 20, ox: -10, z0: 110, z1: 117, ch: 6, bev: 3, bevIn: 2.5, cTop: 0x8a7a3a, cLt: 0x6a5a2a, cDk: 0x4a3e1c, print: null }); };
+        if(!A.prop) hull({ hx: 18, hy: 20, ox: -10, z0: 110, z1: 117, ch: 6, bev: 3, bevIn: 2.5, cTop: 0x8a7a3a, cLt: 0x6a5a2a, cDk: 0x4a3e1c, print: null }); };
       mirrors(-nearB);
       if(front){ bump(-1); body(); bump(1); } else { bump(1); body(); bump(-1); }
       rack(); mirrors(nearB);
-      wheels(nearB, [-30, 30], 13, BW, 8); return; }
+      wheels(nearB, [-30, 30], 13, BW, 8); propNow(); return; }
     if(era === 'cg1980'){
       /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
       { const q = P(0, 0, 2); g.fillStyle((A.n1 || 0xff4ad8), 0.22); g.fillEllipse(q.x, q.y, 120*K, 60*K); g.fillStyle((A.n1 || 0xff4ad8), 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
@@ -128190,7 +128191,55 @@ class WorldScene extends Phaser.Scene {
       if(sees(28 - (-2) > 0 ? 34 : 34, 0, 28)) { const A = [24, 59.5], B = [-1, 90]; Q([P(A[0], -24, A[1]), P(A[0], 24, A[1]), P(B[0], 24, B[1]), P(B[0], -24, B[1])], 0x2a3a5a); }   // (its raked glass)
       if(sees(-1, 0, 0)) for(let zz = 64; zz < 90; zz += 4) line([-46.2, -24, zz], [-46.2, 24, zz], 0x16171b, 1.6);   // (louvres over its back)
       if(!front) wing();
-      wheels(nearB, [-32, 32], 12, BW, 8); return; }
+      wheels(nearB, [-32, 32], 12, BW, 8); propNow(); return; }
+  }
+  /* A CARGO ERA SKIN'S PROP (Sir, 2026-11-17: "these skins are basically just paint jobs -- get more creative"): what the trade carries
+     or wears up top -- drawn last, over the vehicle. zl: the hover freighter's lift */
+  cargoProp(prop, era, V, g, t, zl, x, y, z, fdir){
+    const { P, sees, solid, prismH, line, Q } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y);
+    const sr = (a, b, z, r) => { const p0 = P(a, b, z), p1 = P(a, b, z + r); return Math.hypot(p1.x - p0.x, p1.y - p0.y); };
+    const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
+    const ball = (a, b, z, r, col) => { const q = P(a, b, z), rr = sr(a, b, z, r); g.fillStyle(_pdk(col, 0.55), 1); g.fillCircle(q.x, q.y, rr*1.08); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(_pmix(col, 0xffffff, 0.45), 1); g.fillCircle(q.x - rr*0.35, q.y - rr*0.35, rr*0.32); };
+    const lathe = (a, b, rings, col) => this.avLathe(V, a, b, rings, col, null, 12);
+    const roof = { cg1900: [-8, 92], cg1920: [-16, 100], cg1950: [-4, 100], cg1970: [-6, 110], cg1980: [-24, 92], cg2100: [-10, zl + 82] }[era] || [0, 100];
+    const [ra, rz] = roof;
+    if(prop === 'mail'){ for(const b of [-9, 9]){ ball(38, b, 76, 6, 0xb8aa88); line([38, b, 81], [38, b, 84], 0x6a5a3a, 1.6); }   // (mail sacks on the bench)
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(-8, sb*31.5, 80), rr = sr(-8, sb*31.5, 80, 6); g.lineStyle(Math.max(1, 1.6*K), 0xd8b04a, 1); g.strokeCircle(q.x, q.y, rr); const q2 = P(-1, sb*31.5, 80); g.fillStyle(0xd8b04a, 1); g.fillTriangle(q2.x, q2.y - rr*0.6, q2.x, q2.y + rr*0.6, q2.x + (q2.x - q.x)*0.6, q2.y); } return; }   // (a post horn each side)
+    if(prop === 'loaf'){ this.botHull(g, x, y, z, fdir, { hx: 16, hy: 9, ox: ra, z0: rz - 2, z1: rz + 8, ch: 8, bev: 5, bevIn: 4.5, cTop: 0xd8944a, cLt: 0xc8843a, cDk: 0x9a5a20, cBottom: 0x9a5a20 });
+      for(const a of [-18, -10, -2, 6]) line([a, -4, rz + 8.2], [a + 4, 4, rz + 8.2], 0xf3e0b0, 1.6); return; }
+    if(prop === 'ice'){ for(const [a, b, h] of [[34, -12, 71], [34, 2, 71], [40, -5, 79]]){ box(a, a + 9, b, b + 10, h, h + 8, 0xd8f0fc); } return; }
+    const crate = (a0, b0, w, d, col) => { box(a0, a0 + w, b0, b0 + d, rz, rz + 8, col); for(const sb of [-1, 1]) if(sees(0, sb, 0)) line([a0, sb > 0 ? b0 + d : b0, rz + 4], [a0 + w, sb > 0 ? b0 + d : b0, rz + 4], _pdk(col, 0.6), 1); };
+    if(prop === 'milk'){ for(const a0 of [-38, -14]){ crate(a0, -10, 20, 20, 0x3b6aa8); for(let i = 0; i < 3; i++) for(let j = 0; j < 2; j++){ const a = a0 + 4 + i*6, b = -5 + j*10; lathe(a, b, [[rz + 8, 2.6], [rz + 15, 2.6], [rz + 17, 1.4]], 0xf8f8f4); lathe(a, b, [[rz + 17, 1.6], [rz + 18, 1.6]], 0xc9ced4); } } return; }
+    if(prop === 'produce'){ for(const [a0, col, rb] of [[-38, 0xd8261c, 3], [-14, 0x5aa83a, 3.6]]){ crate(a0, -10, 20, 20, 0xb08048); for(let i = 0; i < 3; i++) for(let j = 0; j < 3; j++) ball(a0 + 4 + i*6, -6 + j*6, rz + 9, rb, col); } return; }
+    if(prop === 'flowers'){ for(const sb of [-1, 1]){ box(-44, 10, sb*8, sb*20, rz, rz + 6, 0x3a5a2a); for(let i = 0; i < 9; i++){ const a = -40 + i*6, b = sb*14 + (i % 2 ? 3 : -3); line([a, b, rz + 6], [a, b, rz + 11], 0x3a8a3a, 1.4); ball(a, b, rz + 12, 2.6, [0xff7ab0, 0xffd34a, 0xf4f4f0, 0xb06aff][i % 4]); } } return; }
+    if(prop === 'soda'){ lathe(ra, 0, [[rz, 7], [rz + 18, 7], [rz + 24, 3], [rz + 32, 2.4], [rz + 33, 2.8]], 0x3a9a5a); lathe(ra, 0, [[rz + 6, 7.2], [rz + 13, 7.2]], 0xf4f4f0); lathe(ra, 0, [[rz + 33, 3], [rz + 35, 3]], 0xd8261c); return; }
+    if(prop === 'cherry'){ const top = [ra - 2, 0, rz + 26]; for(const b of [-6, 6]){ line([ra, b, rz + 8], top, 0x5a3a1a, 1.8); ball(ra, b, rz + 6, 7, 0xc8101a); }
+      const q = P(top[0] - 4, 3, top[2] + 1), rr = sr(top[0], 3, top[2], 3); g.fillStyle(0x3a9a3a, 1); g.fillEllipse(q.x, q.y, rr*3, rr*1.4); return; }
+    if(prop === 'cone'){ lathe(ra, 0, [[rz, 1.2], [rz + 24, 9]], 0xd8a858); for(let k = 0; k < 4; k++){ const zz = rz + 5 + k*5, r2 = 1.2 + (zz - rz)/24*7.8; line([ra + r2*0.7, -r2*0.7, zz], [ra + r2*0.7, r2*0.7, zz + 4], 0xa87a38, 1); }
+      ball(ra, 0, rz + 31, 10, 0xff9ab8); ball(ra, 0, rz + 42, 2.6, 0xd8101a); return; }
+    if(prop === 'surf'){ for(const [b, col, z0] of [[-8, 0xffd34a, rz + 1], [8, 0x2ab0e8, rz + 2.6]]){ const pts = []; for(let i = 0; i <= 12; i++){ const u = i/12, a = -36 + u*62, w = 6*Math.pow(Math.sin(Math.PI*Math.min(1, u*1.1)), 0.7); pts.push([a, w]); }
+        const top = [...pts.map(([a, w]) => P(a, b + w, z0)), ...pts.slice().reverse().map(([a, w]) => P(a, b - w, z0))]; g.fillStyle(_pdk(col, 0.7), 1); g.fillPoints(top.map(PT), true);
+        const top2 = [...pts.map(([a, w]) => P(a, b + w, z0 + 1.2)), ...pts.slice().reverse().map(([a, w]) => P(a, b - w, z0 + 1.2))]; g.fillStyle(col, 1); g.fillPoints(top2.map(PT), true); line([-32, b, z0 + 1.3], [22, b, z0 + 1.3], 0xffffff, 1.2); } return; }
+    if(prop === 'disco'){ const c = [ra, 0, rz + 10], q = P(...c), rr = sr(...c, 10); line([ra, 0, rz], [ra, 0, rz + 1], 0x3b4048, 1); g.fillStyle(0x8d959c, 1); g.fillCircle(q.x, q.y, rr*1.05); g.fillStyle(0xd9dde2, 1); g.fillCircle(q.x, q.y, rr);
+      for(let i = -3; i <= 3; i++){ g.lineStyle(1, 0x9aa0a6, 1); g.lineBetween(q.x - rr*Math.sqrt(1 - (i/4)**2), q.y + i*rr/4, q.x + rr*Math.sqrt(1 - (i/4)**2), q.y + i*rr/4); g.lineBetween(q.x + i*rr/4, q.y - rr*Math.sqrt(1 - (i/4)**2), q.x + i*rr/4, q.y + rr*Math.sqrt(1 - (i/4)**2)); }
+      const tw = Math.floor(t/150); for(let k = 0; k < 4; k++){ const ang = (k*1.7 + tw*0.9) % 6.28, rq = rr*0.6; g.fillStyle([0xff4ad8, 0x5fe8ff, 0xffd34a, 0xffffff][k], 1); g.fillCircle(q.x + Math.cos(ang)*rq, q.y + Math.sin(ang)*rq, rr*0.14); } return; }
+    if(prop === 'canoe'){ const pts = []; for(let i = 0; i <= 14; i++){ const u = i/14, a = -40 + u*70, w = 9*Math.sin(Math.PI*u); pts.push([a, w]); }
+      for(const [dz, col] of [[0, 0x7a1a14], [4, 0xb8231c]]){ const pp = [...pts.map(([a, w]) => P(a, w*(dz ? 0.85 : 1), rz + 1 + dz)), ...pts.slice().reverse().map(([a, w]) => P(a, -w*(dz ? 0.85 : 1), rz + 1 + dz))]; g.fillStyle(col, 1); g.fillPoints(pp.map(PT), true); }
+      line([-38, 0, rz + 5.2], [28, 0, rz + 5.2], 0x5a0e0a, 1.2); return; }
+    if(prop === 'boombox'){ box(ra - 10, ra + 10, -16, 16, rz, rz + 12, 0x23262c); line([ra - 4, -10, rz + 12], [ra - 4, -10, rz + 16], 0x5d646c, 1.6); line([ra - 4, 10, rz + 12], [ra - 4, 10, rz + 16], 0x5d646c, 1.6); line([ra - 4, -10, rz + 16], [ra - 4, 10, rz + 16], 0x5d646c, 1.6);
+      if(sees(1, 0, 0)) for(const b of [-9, 9]){ const q = P(ra + 10.2, b, rz + 6), rr = sr(ra + 10, b, rz + 6, 4.5); g.fillStyle(0x5d646c, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, rr*0.6); g.fillStyle(0xff4ad8, 1); g.fillCircle(q.x, q.y, rr*0.2); } return; }
+    if(prop === 'pyramid'){ const ap = [ra, 0, rz + 20], base = [[ra - 10, -10], [ra + 10, -10], [ra + 10, 10], [ra - 10, 10]], gl = 0x5fe8ff;
+      for(let i = 0; i < 4; i++){ const [a0, b0] = base[i], [a1, b1] = base[(i + 1) % 4], mx = (a0 + a1)/2 - ra, my = (b0 + b1)/2; if(!sees(mx, my, 10)) continue; g.fillStyle(gl, 0.35); g.fillPoints([P(a0, b0, rz), P(a1, b1, rz), P(...ap)].map(PT), true); }
+      for(const [a0, b0] of base){ line([a0, b0, rz], ap, gl, 1.4); } for(let i = 0; i < 4; i++) line([...base[i], rz], [...base[(i + 1) % 4], rz], gl, 1.4); { const q = P(...ap); g.fillStyle(0xffffff, 1); g.fillCircle(q.x, q.y, 1.6*K*2); } return; }
+    if(prop === 'joystick'){ box(ra - 8, ra + 8, -8, 8, rz, rz + 5, 0x16171b); line([ra, 0, rz + 5], [ra + 2, 0, rz + 18], 0x9aa0a6, 2.4); ball(ra + 2, 0, rz + 20, 5, 0xd8261c); for(const b of [-5, 5]) ball(ra + 6, b, rz + 5.5, 1.6, 0xffd34a); return; }
+    if(prop === 'holo'){ const fl = 0.45 + 0.25*Math.sin(t*0.02), a0 = ra, z0 = rz + 10, pts = [P(a0, -18, z0), P(a0, 18, z0), P(a0, 18, z0 + 16), P(a0, -18, z0 + 16)];
+      g.fillStyle(0x5fe8ff, fl*0.6); g.fillPoints(pts.map(PT), true); g.lineStyle(Math.max(1, 1.2*K), 0xc8ffff, fl + 0.3); g.strokePoints(pts.map(PT), true);
+      for(const [b0, b1, zz] of [[-14, 6, z0 + 11], [-14, 12, z0 + 7], [-14, 2, z0 + 3.5]]) line([a0, b0, zz], [a0, b1, zz], 0xffffff, 1.6); for(const b of [-12, 12]) line([a0, b, rz], [a0, b, z0], 0x5fe8ff, 0.8); return; }
+    if(prop === 'wings'){ line([ra, 0, rz], [ra, 0, rz + 30], 0x9aa0a6, 1.6); const S = [[ra, 0, rz + 32], [ra, 16, rz + 18], [ra, 0, rz + 4], [ra, -16, rz + 18]].map(v => P(...v));   // (a diamond solar sail on a mast)
+      g.fillStyle(0xffc040, 0.85); g.fillPoints(S.map(PT), true); g.lineStyle(Math.max(1, 1*K), 0xa87a10, 1); g.strokePoints(S.map(PT), true); line([ra, 0, rz + 4], [ra, 0, rz + 32], 0xa87a10, 1); line([ra, -16, rz + 18], [ra, 16, rz + 18], 0xa87a10, 1); return; }
+    if(prop === 'rings'){ const c = [ra, 0, rz - 10], R1 = 40, R2 = 30, N = 32;   // (an orbit ring round it, its near half; two moons going round)
+      for(let i = 0; i < N; i++){ const a0 = i/N*Math.PI*2, a1 = (i + 1)/N*Math.PI*2, am = (a0 + a1)/2; if(!sees(Math.cos(am), Math.sin(am), 0)) continue; line([c[0] + Math.cos(a0)*R1, Math.sin(a0)*R2, c[2] + Math.sin(a0)*4], [c[0] + Math.cos(a1)*R1, Math.sin(a1)*R2, c[2] + Math.sin(a1)*4], 0xff4ad8, 2); }
+      for(const [ph, col, r] of [[t*0.0012, 0xd8b0ff, 3.2], [t*0.0012 + 3.4, 0x8af4ff, 2.4]]){ const am = ph % (Math.PI*2); if(!sees(Math.cos(am), Math.sin(am), 0)) continue; ball(c[0] + Math.cos(am)*R1, Math.sin(am)*R2, c[2] + Math.sin(am)*4, r, col); } return; }
   }
   /* the Dragon's folded wing on his cab's side (Sir, 2026-11-17): a bat wing in green leather -- its bone along the top from his cab's front
      corner up to a claw behind, its edge scalloped down between the fingers */
