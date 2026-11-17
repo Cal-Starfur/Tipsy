@@ -128117,9 +128117,17 @@ class WorldScene extends Phaser.Scene {
     const brake = () => { if(BODY._bskin && BODY._bskin.twin) return; bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4); };   // (the muzzle brake: the far end first when it points away)
     if(!front) brake();
     const TW = BODY._bskin && BODY._bskin.twin;
-    if(TW){ const far = (w => w.x + w.y + w.z > 0)(this.R(0, 1, 0)) ? -1 : 1;   /* twin energy barrels side by side, the far one first, a glowing ring round each near the muzzle */
-      for(const sy of [far, -far]){ this.drawHullPrism({ hx: (x1 - x0)/2, hy: 1.1, ox: (x0 + x1)/2, oy: sy*2.4, z0: zc - 1.1, z1: zc + 1.1, ch: 0.3, cTop: G[0], cLt: G[1], cDk: G[2], cBottom: G[2], outline: false, topEdge: false });
-        this.drawHullPrism({ hx: 0.6, hy: 1.4, ox: x1 - 4, oy: sy*2.4, z0: zc - 1.4, z1: zc + 1.4, ch: 0.4, cTop: GL, cLt: GL, cDk: _pdk(GL, 0.7), cBottom: _pdk(GL, 0.7), outline: false, topEdge: false }); } }
+    if(TW){   /* A RAILGUN (Sir, 2026-11-17: "more futuristic"): a faceted shroud out of the turret, two flat rails one over the other with the
+         charge glowing between them, energy rings round it along its length, an emitter at its tip -- the far end first */
+      const DK = [0x2a2d33, 0x23262c, 0x16171b], pr = (hx, hy, ox, z0, z1, c, ch = 0.3) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
+      const xa = x0 + 6, xb = x1, mid = (xa + xb)/2, half = (xb - xa)/2, t = this.time ? this.time.now : 0;
+      const ring = x => { const pts = [[x, -2.9, zc - 2.7], [x, 2.9, zc - 2.7], [x, 2.9, zc + 2.7], [x, -2.9, zc + 2.7]].map(([a, b, c]) => this.P(a, b, c));
+        this.g.lineStyle(Math.max(1, 1.2*this.kScale()), GL, 0.9); this.g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true); };
+      const parts = [() => pr(4.2, 4.6, x0 + 2.5, zc - 3.2, zc + 3.2, DK, 2),                 // (the shroud)
+        () => { pr(half, 2.3, mid, zc - 2.4, zc - 1.2, DK); pr(half, 0.55, mid, zc - 1.2, zc + 1.2, [GL, _pmix(GL, 0x000000, 0.15), _pmix(GL, 0x000000, 0.3)]); pr(half, 2.3, mid, zc + 1.2, zc + 2.4, DK); },   // (the rails, the charge between)
+        () => { const ph = (t*0.004) % 1; for(let k = 0; k < 3; k++) ring(xa + (xb - xa)*((k + ph)/3)); },   // (energy rings running along it)
+        () => { pr(1.2, 2.8, xb + 0.8, zc - 2.6, zc + 2.6, DK, 0.6); }];                        // (the emitter)
+      (front ? parts : parts.slice().reverse()).forEach(f => f()); }
     else bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     if(front) brake();
     if(GL != null && front){ const vis2 = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }; if(vis2(1, 0, 0)) for(const yy of (BODY._bskin.twin ? [-2.4, 2.4] : [0])){ const rr = BODY._bskin.twin ? 1.1 : 1.6, xm = BODY._bskin.twin ? x1 + 0.05 : x1 + 1.25, o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(this.P(xm, yy + Math.cos(a)*rr, zc + Math.sin(a)*rr)); }
