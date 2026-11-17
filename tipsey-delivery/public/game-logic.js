@@ -43264,7 +43264,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     trim: { coil: 0xf2f3f1, bumper: 0xc9ced4, bar: 0x1d1f26, stack: 0xe8ecf0, heat: 0x1f4fa8, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'steelie', rimCol: 0xf2f3f1 }, flag: { kind: 'usa' } },
   { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'none', lb: 'cage', lamp: 0xffb02a, rim: 'honey', rimCol: 0xe6dcb8 } },
   /* (six more -- Sir, 2026-11-17) */
-  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'bar', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
+  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'none', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
   { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'side', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'side', lb: 'strip', lamp: 0xffb02a, rim: 'tri', rimCol: 0xe89a1a } },
   { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'single', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
@@ -126912,8 +126912,9 @@ class WorldScene extends Phaser.Scene {
             g.lineStyle(Math.max(1, 1.5*K), 0xb4bac1, 1); for(let x = xa + 1.5; x < xb - 1; x += 3.2){ const A = P(x, y, za), B = P(x, y, zb2); g.lineBetween(A.x, A.y, B.x, B.y); }
             for(const z of [za, zb2]){ const A = P(xa, y, z), B = P(xb, y, z); g.lineStyle(Math.max(1, 2.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1.1*K), 0xf0f2f4, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K); } }
           const on = Math.floor(now/260) % 2;
-          for(const sb of [-1, 1]){ const bq = P(-lx + 2.5, sb*(ly - 3), zt + 1.6), lit = (sb > 0) === !!on; g.fillStyle(0x6a0e0a, 1); g.fillEllipse(bq.x, bq.y + 0.8*K, 7*K, 3.4*K);
-            g.fillStyle(lit ? 0xff3a2a : 0xb8231c, 1); g.fillCircle(bq.x, bq.y - 0.7*K, 2.8*K); g.fillStyle(0xffffff, lit ? 0.8 : 0.35); g.fillCircle(bq.x - 0.6*K, bq.y - 1.1*K, 0.6*K);
+          for(const sb of [-1, 1]){ const bx = lx - 3.5, by = sb*(ly - 4.5), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
+            this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: bx, oy: by, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 1, cTop: 0xe8ecf0, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });
+            g.fillStyle(0x6a0e0a, 1); g.fillCircle(bq.x, bq.y + 0.3*K, 3.8*K); g.fillStyle(lit ? 0xff3a2a : 0xc8231c, 1); g.fillCircle(bq.x - 0.2*K, bq.y - 0.2*K, 3.3*K); g.fillStyle(0xffffff, lit ? 0.85 : 0.4); g.fillCircle(bq.x - 1.2*K, bq.y - 1.4*K, 1*K);
             if(lit && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 9*K); } } } }
         if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
         if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
@@ -127017,7 +127018,7 @@ class WorldScene extends Phaser.Scene {
       if(longLid){ if(part === 'mid') stacks('far'); if(part === 'near') stacks('near'); }   // (beside his cab: the far one under it, the near over it)
       if(part === 'mid' && frontSeen && !longLid) stacks();
       if(part === 'near'){ if(!frontSeen && !longLid) stacks(); if(!lbLowBack) lightBar.call(this); }
-      function lightBar(){
+      function lightBar(){ if(TR.lb === 'none') return;   // (none: the Fire Rescue's beacons stand in for it -- Sir, 2026-11-17)
         /* THE LIGHT BAR (Sir, 2026-11-16: an improvement pass): a rounded housing raised on two feet off the cab roof's front edge, four
            round lamps across its face -- each a chrome bezel, a warm lens, a glint up its top -- and at night a glow ahead of each */
         /* a skin's own light bar (trim.lb): 'bar' four round lamps in a housing; 'strip' a slim bar, one long lit lens (trim.lamp); 'pods'
