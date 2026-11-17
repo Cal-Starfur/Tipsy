@@ -128231,8 +128231,8 @@ class WorldScene extends Phaser.Scene {
         for(const b of [-6, -3, 3, 6]) for(const zz of [76, 72]){ const q = P(hx + 0.6, b, zz); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 0.9*K*2); } }   // (breathing holes)
       /* (a feather -- Sir, 2026-11-17: "the plume doesn't read as a feather"): a white quill arching up and back off a gold holder, its red
          vanes either side tapering to a point, barbs angled along them, a darker edge, a few split notches */
-      if(st === 'top'){ lathe(0, 0, [[zl, 5], [zl + 5, 4]], 0xd8b04a);
-        const N = 14, sh = []; for(let i = 0; i <= N; i++){ const u = i/N; sh.push([4 - u*42, zl + 5 + Math.sin(u*Math.PI*0.85)*28 - u*u*6]); }
+      if(st === 'top'){ lathe(0, 0, [[zl, 4.5], [zl + 3, 4.5], [zl + 9, 2.4]], 0xd8b04a);   /* (a tapered sleeve the quill rises straight out of -- Sir, 2026-11-17) */
+        const N = 14, sh = []; for(let i = 0; i <= N; i++){ const u = i/N; sh.push([-u*u*44, zl + 8 + Math.sin(u*Math.PI*0.75)*30 - u*u*4]); }
         const W = u => u < 0.1 ? 0 : 12*Math.pow(Math.sin(Math.PI*Math.min(1, (u - 0.1)/0.92)), 0.9)*(1 - u*0.3),   /* (bare quill at the holder, the vanes slimming down to it -- Sir, 2026-11-17) */ side = (k) => sh.map(([a, zz], i) => { const u = i/N, j = Math.min(N, i + 1), jj = Math.max(0, i - 1), ta = sh[j][0] - sh[jj][0], tz = sh[j][1] - sh[jj][1], tl = Math.hypot(ta, tz) || 1, w = W(u)*k;
           return [a - tz/tl*w, k*W(u)*0.5, zz + ta/tl*w]; });
         const L = side(1), R = side(-1), poly = [...L, ...R.slice().reverse()].map(v => PT(P(...v)));
