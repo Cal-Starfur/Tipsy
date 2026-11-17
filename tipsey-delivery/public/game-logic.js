@@ -42863,7 +42863,7 @@ const STRIPE = { z0:20, z1:27 };
 /* HIS BUILDS (drawBotBody): each his BODY / LID / STRIPE / FLAG for the length of his draw, his face's heights mapped onto its front
    (zmap: from his stock 14..54), and the wheels it stands on (unless a rig is fitted) */
 const TP_BUILDS = {
-  racer: { BODY: { hx: 36, hy: 19, z0: 10, z1: 30, ch: 11, bev: 3, bevIn: 2.5 }, LID: { hx: 9.5, hy: 15, z0: 30, z1: 37, ch: 5, bev: 2.5, bevIn: 2, ox: -9.5 },   /* (half as long, kept at the back -- Sir, 2026-11-16) */
+  racer: { BODY: { hx: 36, hy: 19, z0: 10, z1: 30, ch: 11, bev: 3, bevIn: 2.5 }, LID: { hx: 9.5, hy: 15, z0: 30, z1: 37, ch: 5, bev: 2.5, bevIn: 2, ox: -13 },   /* (half as long, kept at the back, nudged back a little more -- Sir, 2026-11-16) */
     STRIPE: { z0: 15, z1: 19 }, FLAGB: { x: -39.5, y: 12.4 }, FLAGZ: [26, 70], zmap: z => 10 + (z - 14)*0.5, noFlag: true,   /* (no flag -- Sir, 2026-11-16) */
     WHEELS: { r: 10.5, W2: 10, rF: 7.5, W2F: 7.5, xs: [-24, 25], side: 23 } },
   /* the Tuk-tuk (Sir, 2026-11-16): a tall cab with open sides, his lid its overhanging canopy, his face its windscreen, two wheels at the
