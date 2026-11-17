@@ -19087,7 +19087,7 @@ function lifeguardAddress(dateStr, runIndex, shop, from, grid){
    the tower's floors room (PT_FLOORS) and carries its floor and room (owOnMat, the GPS); the street sees the lobby's doors (street). Its own
    seeded stream (day, rung, shop), so it moves no other order. Drawn by the room's queue (queueTowerDrop), handed over as a lifeguard's
    (boatCustomerPos, its path) */
-const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, ph: { 11: [450, 300], 12: [520, 250] } };
+const PT_DROP = { reach: 10*BLOCK, share: 0.25, flats: [155, 465, 1187, 1497], CB: 320, matOff: 74, ph: { 11: [450, 300], 12: [520, 250] } };
 const PT_FLAT_DOOR = { w: 76, h: 168 };
 /* today's flat door swung open by the won timeline (doorTheta), on its own floor; every other one shut */
 function ptFlatDoorU(f, k){
@@ -19104,15 +19104,19 @@ function towerAddress(dateStr, runIndex, shop, from){
   const rr = mulberry32(hashStr((dateStr || "") + "|tower|" + runIndex + "|" + (shop || "")));
   if(rr() >= PT_DROP.share) return null;
   const k = Math.floor(rr()*42), dv = { x: 1, y: 0 }, rv = { x: 0, y: 1 }, X = a => flp.x0 + a, Y = b => flp.y0 + b;
-  let floor, address, matAt, start;
+  let floor, address, matAt, start, doorway = null;
   if(k < 40){ floor = 1 + Math.floor(k/4); const u = k % 4, c = PT_DROP.flats[u];
-    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c), y: Y(PT_DROP.CB + 6) }; start = [{ x: X(c), y: Y(PT_DROP.CB + 4), z: 0 }, { x: X(c), y: Y(PT_DROP.CB + 14), z: 0 }]; }   // (from the doorway as the leaf swings: behind the wall's face he was painted over it)
+    /* (Sir, 2026-11-17: "lets have her not come out into the hall way": she answers in her doorway. His mat is beside it, west -- square in
+       front of the door he stood between her and us -- so the two of them are side by side across the screen, face to face) */
+    address = "Palmline Tower, Flat " + (floor*100 + u + 1); matAt = { x: X(c - PT_DROP.matOff), y: Y(PT_DROP.CB + 6) };
+    start = [{ x: X(c), y: Y(PT_DROP.CB - 6), z: 0 }]; doorway = { x: X(c), y: Y(PT_DROP.CB + 10) }; }
   else { floor = 11 + (k - 40); const [a, b] = PT_DROP.ph[floor];
     address = "Palmline Tower, Penthouse " + floor; matAt = { x: X(777), y: Y(160) }; start = [{ x: X(a), y: Y(b), z: 0 }]; }
   const mat = owMatFrame(matAt.x, matAt.y, dv, rv); mat.floor = floor; mat.room = flp.name;
   return { id: 300 + k, k, floor, address, name: address, mat, matAt, dv, rv, z: 0, street: { x: d.x, y: d.y }, door: start[0],
-           side: k >= 40 || k % 4 === 3 ? -1 : 1,                                           // (the flat at the corridor's east end, and a penthouse's resident coming over from the living room: he meets them on the west)
-           path: meet => start.concat(k < 40 ? [{ x: meet.x, y: Math.min(meet.y, Y(PT_DROP.CB + 16)), z: 0 }] : [], [{ x: meet.x, y: meet.y, z: 0 }]),
+           side: -1,                                                                         // (a penthouse's resident, coming over from the living room: on his west)
+           doorway,                                                                          // (a flat's: she stays in it -- the won timeline's meet)
+           path: meet => start.concat([{ x: meet.x, y: meet.y, z: 0 }]),
            view: () => { const s = typeof scn === "function" ? scn() : null; return s && POCKET_VIEW && POCKET_VIEW.pk === flp && PT_FLOORS.floor === floor ? { dx: POCKET_VIEW.dx, dy: POCKET_VIEW.dy, z: ptFloorZ(floor) } : null; } };
 }
 /* THE LIFEGUARD'S WALK to the mat (boatCustomerPos, the won timeline):
@@ -45939,7 +45943,7 @@ function liftBankPieces(items, room, R, cars, stone, stoneL, stoneD, when){
    for the corridor's east-end flat -- swung IN, into the flat's hall, by u (0 shut .. 1 open, near a right angle), seen only through the
    doorway (clipped to it: past it the wall's face is in front). Out into the corridor it stood beside him and hid the resident stepping out */
 function ptFlatLeaf(c, k, u){
-  const D = PT_FLAT_DOOR, hs = k === 3 ? 1 : -1, ha = c + hs*D.w/2, t = u*Math.PI/2*0.92, B = PT_DROP.CB + 0.9;
+  const D = PT_FLAT_DOOR, hs = 1, ha = c + hs*D.w/2, t = u*Math.PI/2*0.92, B = PT_DROP.CB + 0.9;   // (hung on the east jamb: he stands west of the door)
   if(u < 0.02){
     F(c - D.w/2, c + D.w/2, 0, D.h, '#8a6446', null, 0, B);
     for(const [z0, z1] of [[18, 70], [92, 150]]) F(c - D.w/2 + 10, c + D.w/2 - 10, z0, z1, null, '#6b4a32', 1.2, B + 0.2);
@@ -56594,9 +56598,26 @@ function houseCanopy(fn){
        (towerAddress' side), swinging out into the corridor as the house doors do when it is today's door (ptFlatDoorU: the won timeline's
        doorTheta), live, cached shut; its number on a brass plate over it */
     const DW = PT_FLAT_DOOR.w, DHt = PT_FLAT_DOOR.h;
+    /* (THE HALL BEHIND IT, Sir: "create the look in the door way that there is an interior without building one": a few feet of a lit hall
+       drawn behind the face and clipped to the opening -- its boards and runner, its warm walls, a picture and a lamp on a console, the room
+       beyond -- so the open door shows a home, not a dark hole) */
+    const hallIn = (c, wd) => {
+      const B = CB + 0.7, D0 = CB - 150;
+      ctx.save(); poly([P(c - wd/2, B, 0), P(c + wd/2, B, 0), P(c + wd/2, B, DHt), P(c - wd/2, B, DHt)]); ctx.clip();
+      try {
+        F(c - wd/2 - 60, c + wd/2 + 60, 0, DHt + 20, '#f3e6cf', null, 0, D0);                                   // the far wall
+        S(c - wd/2 - 0.5, D0, B, 0, DHt + 20, '#e6d6ba'); S(c + wd/2 + 0.5, D0, B, 0, DHt + 20, '#eadcc2');        // the hall's walls
+        T(c - wd/2 - 60, c + wd/2 + 60, D0, B, 0.4, '#b0885c'); for(let b = D0; b < B; b += 14) T(c - wd/2 - 60, c + wd/2 + 60, b, b + 0.8, 0.5, '#9a7550');
+        T(c - 16, c + 16, D0, B, 0.6, '#8a3a3a'); T(c - 12, c + 12, D0, B, 0.7, '#a85a4a');                       // a runner
+        F(c - 22, c + 14, 96, 136, '#8a6446', null, 0, D0 + 0.3); F(c - 18, c + 10, 100, 132, '#7f9a80', null, 0, D0 + 0.4); F(c - 14, c + 4, 104, 122, '#e0b27a', null, 0, D0 + 0.5);   // a picture
+        box(c + 6, c + 34, D0, D0 + 14, 0, 62, '#8a6446', '#6b4a32', '#5a3d28');                                   // a console
+        box(c + 16, c + 24, D0 + 3, D0 + 11, 62, 82, '#e9e4da', '#d6cfc1', '#c5bdae'); box(c + 11, c + 29, D0 + 1, D0 + 13, 82, 96, '#fff6dc', '#f4e7c4', '#e6d6b0');   // its lamp (boxes: the round kit ignores the clip)
+        F(c - wd/2, c + wd/2, 0, DHt, 'rgba(255,214,150,.10)', null, 0, B - 0.2);                                  // the light in the hall
+      } finally { ctx.restore(); }
+    };
     const doorFrame = (c, wd) => {
       F(c - wd/2 - 7, c + wd/2 + 7, 0, DHt + 7, stoneL, stoneD, 1, CB + 0.6);
-      F(c - wd/2, c + wd/2, 0, DHt, '#3b332b', null, 0, CB + 0.7);
+      hallIn(c, wd);
       T(c - wd/2, c + wd/2, CB, CB + 26, 0.8, '#6a5a44'); T(c - wd/2 + 4, c + wd/2 - 4, CB + 3, CB + 23, 0.9, '#8a7658');
     };
     FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
@@ -124644,7 +124665,7 @@ class WorldScene extends Phaser.Scene {
            their door (he hid them), but beside him along the corridor, side by side across the screen, each turned to the other */
         const twM = this.route && this.route.addressTower;
         if(twM){ const sd = twM.side || 1;
-          this.wonMeet = { x: this.botX + 66*sd, y: this.botY - 4 };
+          this.wonMeet = twM.doorway ? { x: twM.doorway.x, y: twM.doorway.y } : { x: this.botX + 66*sd, y: this.botY - 4 };
           this.wonMeetTh = Math.atan2(this.botY - this.wonMeet.y, this.botX - this.wonMeet.x) - Math.PI/2; }
       }
       /* (...and he turns to them as they come up: meetTick's turn, for the moments the win holds him) */
