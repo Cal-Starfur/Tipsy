@@ -128161,9 +128161,7 @@ class WorldScene extends Phaser.Scene {
         { const tip = []; for(let i = 0; i <= 6; i++){ const u = i/6; tip.push([-u*12, 0, zl + 32 + Math.sin(u*Math.PI*0.6)*6 - u*u*6]); } for(let i = 0; i < 6; i++){ const [a0, b0, z0] = tip[i], [a1, b1, z1] = tip[i + 1]; line([a0, b0, z0], [a1, b1, z1], 0x4a2a8a, 5 - i*0.7); } ball(-12, 0, zl + 31, 1.8, 0xffd34a); }   // (its tip bent back, a bobble)
         for(const [a, b, zz, r] of [[12, 0, zl + 8, 2.6], [7, 7, zl + 17, 2], [6, -8, zl + 21, 1.8], [-10, 9, zl + 10, 2.2], [-9, -9, zl + 14, 2]]){ if(!sees(a, b, 0)) continue; star(a, b, zz, r, 0xffd34a); }
         if(sees(1, 0, 0)){ const q = P(10.5, -3, zl + 14), rr = sr(10, -3, zl + 14, 3.2); g.fillStyle(0xf6e6a0, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x4a2a8a, 1); g.fillCircle(q.x + rr*0.45, q.y - rr*0.2, rr*0.85); }   // (a crescent moon)
-        const sa = 4, sbb = nearB*(hy + 10), now = t;   // (his staff, the orb at its head pulsing)
-        line([sa, sbb, 0], [sa + 2, sbb, zl + 18], 0x6a4020, 3); line([sa, sbb, 0], [sa + 2, sbb, zl + 18], 0x8a5a2a, 1.2);
-        { const q = P(sa + 2, sbb, zl + 22), rr = sr(sa, sbb, zl + 22, 5), pl = 0.5 + 0.3*Math.sin(now*0.006); g.fillStyle(0x9a6aff, pl*0.5); g.fillCircle(q.x, q.y, rr*1.9); g.fillStyle(0xb88aff, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0xffffff, 0.8); g.fillCircle(q.x - rr*0.3, q.y - rr*0.3, rr*0.35); } }
+        /* (no staff -- Sir, 2026-11-17) */ }
       return; }
     if(c === 'astro'){
       if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 7, -hx, -12, 12, 52, 96, 0xd9dde2); for(const b of [-6, 6]) this.avLathe(V, -hx - 4, b, [[96, 3], [101, 3]], 0x8d959c, null, 10);
