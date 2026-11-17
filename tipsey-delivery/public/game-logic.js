@@ -75941,7 +75941,9 @@ marinaEntry(),
     front(LOB1, PA1, 2, { ghost: true }, shopFront(1));
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
     const AO = 30;                                                  // how far an awning stands out (its lip on the lot line: the podium's front is flush to the pavement, PF -30)
-    slots.forEach(([a0, a1], k) => items.push({ a: a0 + 30, b: PF + AO, view: true, ghost: true, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
+    /* (KEYED AT ITS NEAREST CORNER, a1 - 30: the shop's live glass pair is queued at its own point, the door's middle, and an awning keyed at
+       its far end sorted before it -- the leaves painted over the awning. Anything out over a live door sorts after it: CLAUDE.md) */
+    slots.forEach(([a0, a1], k) => items.push({ a: a1 - 30, b: PF + AO, view: true, ghost: true, overShop: stores[k].name, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
       for(let s = 0; s < n; s++){
@@ -75955,7 +75957,10 @@ marinaEntry(),
     } }));
     /* the lobby's canopy: one slim slab out over its doors, cantilevered
        off the glass -- no posts, no rods */
-    items.push({ a: LOB0 + 40, b: PF + 48, view: true, shell: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
+    /* (keyed at its NEAREST corner, LOB1 - 40: the pairs' live leaves (slideDoors) are queued at their own points, and keyed at its far end
+       the canopy sorted before them -- Sir, 2026-11-17: "the door kit seems like its painting over the awning". overDoors: the rim queue puts
+       the pairs just under it whatever lmDepth does round him. CLAUDE.md) */
+    items.push({ a: LOB1 - 40, b: PF + 48, view: true, shell: true, overDoors: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
     if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
       slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
       F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
@@ -109965,6 +109970,7 @@ class WorldScene extends Phaser.Scene {
       const occDepth = (o, n) => (nearSite && !(bp.a > o[1] || bp.b > o[3]) ? bd + 0.5 : under) + n*1e-3;
       /* (a rim site with a walk-in room of its own -- Tide Pool Elementary: its `shell` pieces ease off with the generic
          pocket service, pocketShellK, as a hood landmark's; the mall keeps its own, mallShellK) */
+      let _overD = null, _overS = null;
       if(items) items.forEach((it, n) => {
         /* (seen from inside, a prop that would stand between the camera and the room (cutHide): fading out with the
            anchors' shells, mallShellK, not gone in a frame -- Sir, 2026-10-22, "the tall part disappeared") */
@@ -109980,6 +109986,8 @@ class WorldScene extends Phaser.Scene {
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
+        if(it.overDoors) _overD = dep;                                              // (a canopy over its live doors: they go just under it, below)
+        if(it.overShop) (_overS || (_overS = new Map())).set(it.overShop, dep);   // (a shop's awning over its glass pair: the pair goes just under it)
         if(sk < 0.002) return;
         /* (a walk-in's shell goes through walkinShellQ, so its room is seen through its openings just under it: walkinThrough) */
         (it.shell && _rimPk && _rimPk.walkin ? this.walkinShellQ(vq, _rimPk) : vq).push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
@@ -110006,7 +110014,10 @@ class WorldScene extends Phaser.Scene {
         const draw = gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: () => _ent.doorDraw(i, u) }, fr.flank);
         /* (a street shop's pair goes in the hole the building's front leaves for it, so just under the building's image and
            over the shop seen through it: its awning and frame are the building's, over the leaves, not the leaves' over them) */
-        vq.push({ depth: d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
+        /* (and under whatever stands out over them -- a canopy marked overDoors: Sir, 2026-11-17, "the door kit seems like its painting over the
+           awning". The leaves are queued at their own point; a canopy keyed elsewhere, or moved round him by lmDepth, sorted before them) */
+        const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = _overD !== null && !d.bay ? Math.min(own, _overD - 1e-3*(i + 1)) : own;
+        vq.push({ depth, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
       /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
          into the cached front, they opened only for today's pickup worker, and the mall's shoppers walked through the
@@ -110022,7 +110033,8 @@ class WorldScene extends Phaser.Scene {
           const k = this.shopDoorOpen("bay|" + st.name, dx, dy, rim.name === 'Maritime Mall' ? this.mallCrowdNear : null, false);
           if(k <= 0.001) continue;
           const awn = st.site ? { out: 40, z: 98 } : { out: 60, z: 104 }, zs = LIB.zs(rim.name);
-          vq.push({ depth: dx + dy + 0.4, fn: (g) => this.glassPairDoor(g, dx, dy, fr.dv, rvv, 0, zs, awn)(k) });
+          const ad = _overS && _overS.get(st.name);                                 // (under its awning, which stands out over it: CLAUDE.md)
+          vq.push({ depth: ad != null ? Math.min(dx + dy + 0.4, ad - 1e-3) : dx + dy + 0.4, fn: (g) => this.glassPairDoor(g, dx, dy, fr.dv, rvv, 0, zs, awn)(k) });
         }
       }
       /* THE LIFT'S DOORS, live (they slide). Over him while he is in the

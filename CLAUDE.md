@@ -67,6 +67,10 @@
 ## Other rules
 - Fix root causes, not symptoms. Measure before patching.
 - Any change has to work in both the web and Reddit (Devvit) builds.
+- A live door (sliding or swinging leaves, lift doors) is queued at its own point. Anything that stands out over it -- a canopy,
+  an awning, a sign, a transom piece -- must sort AFTER the door, or the leaves paint over it: key that piece at its nearest corner
+  (the largest a + b it covers) and mark it `overDoors` (the rim queue puts the leaves just under it, even when lmDepth moves it round
+  Tipsey), or queue it just after the door as the garage lift's canopy does. Check it with the doors open and Tipsey beside them.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the
