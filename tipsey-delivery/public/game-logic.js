@@ -43465,7 +43465,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
   /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
   { id: 'courier:penguin', build: 'courier', name: 'Emperor Penguin', cents: 900, body: 0x2e3340, head: 0x111216, stripe: 0x23262c, costume: 'penguin', noAerial: true },
-  { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true },
+  { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0x3a2414, costume: 'pirate', noAerial: true, noMouth: true },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
@@ -117830,7 +117830,7 @@ class WorldScene extends Phaser.Scene {
         line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
       }
       if(WEAR && !CS) this.botSkinWear(g, V, { hx, hy, ch: 8, s0: 44, s1: 52, dz: 77 });
-      this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
+      this.tipseyFace(V, hx, 86, 0.8, { mouthZ: CS && CS.noMouth ? null : 48 });   // (a costume can drop his mouth light)
       costume('face');
       if(A > 0.12 && sees(0, 0, 1)) this.botHollow(g, V, hx, hy, 8, zb + 0.5, 30, 4.5);                // the hold, when the lid is up: Tipsey's own hollow
       if(lidTop) drawLid();
