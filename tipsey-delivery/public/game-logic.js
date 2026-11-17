@@ -126437,7 +126437,7 @@ class WorldScene extends Phaser.Scene {
     /* THE MACHINE GUN (Sir, 2026-11-17: "more believable"): a solid pintle post, a cradle, the receiver with its cocking handle, a perforated
        cooling jacket round the barrel and a flash hider, an ammo box hung on its side, spade grips at the back -- each a solid */
     const GM = [0x4a4e56, 0x3a3d45, 0x23262c], BK = [0x2e3138, 0x23262c, 0x16171b], AM = [0x6b7648, 0x55603a, 0x3a4228];
-    const mx = LID.hx*0.05, my = LID.hy*0.4, zb = zt + 4.6*1.55, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
+    const mx = LID.hx*0.05, my = LID.hy*0.4, zb = zt + 3,   /* (lower on its post -- Sir, 2026-11-17) */ vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const S = 1.55;   // (larger, so it reads at his size)
     const parts = [
       () => pr((0.7)*S, (0.7)*S, mx + ((mx - 1) - mx)*S, my + ((my) - my)*S, zt + ((zt) - zt)*S, zt + ((zb - 0.6) - zt)*S, BK, (0.2)*S),                                     // (the pintle post)
@@ -126479,7 +126479,8 @@ class WorldScene extends Phaser.Scene {
         const A = ring(xa), B = ring(xb);
         for(let k = 0; k < N; k++){ const a = (k + 0.5)/N*Math.PI*2, ny = Math.cos(a), nz = Math.sin(a), w = this.R(0, ny, nz); if(w.x + w.y + w.z <= 0) continue;
           const lit = Math.max(0, Math.min(1, 0.5 + 0.5*(nz*0.8 - ny*0.3))); this.quadOn(g, [A[k], A[(k + 1) % N], B[(k + 1) % N], B[k]].map(([x, y, z]) => this.P(x, y, z)), lit > 0.5 ? _pmix(col, BPg.top, (lit - 0.5)*2) : _pmix(BPg.dk, col, lit*2)); }
-        const fw = this.R(1, 0, 0), endX = (fw.x + fw.y + fw.z > 0) ? xb : xa; this.quadOn(g, (endX === xb ? B : A).map(([x, y, z]) => this.P(x, y, z)), BPg.dk); };
+        const fw = this.R(1, 0, 0), endX = (fw.x + fw.y + fw.z > 0) ? xb : xa; this.quadOn(g, (endX === xb ? B : A).map(([x, y, z]) => this.P(x, y, z)), BPg.dk);
+        g.lineStyle(Math.max(1, 1.1*this.kScale()), SKIN.outline || 0x2a2d33, 1); g.strokePoints(convexHull(A.concat(B).map(([x, y, z]) => this.P(x, y, z))).map(q => new Phaser.Geom.Point(q.x, q.y)), true); };   // (outlined, as his hull is)
       const pieces = [() => cyl(x0 - 1, x0 + 2.2, 3.3, OD), () => cyl(x0 + 2.2, x1 - 1.4, 1.15, OD), () => cyl(x1 - 1.4, x1, 1.5, OD)];
       (front ? pieces : pieces.slice().reverse()).forEach(f => f());
       if(front){ const fw = this.R(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ const o = []; for(let k = 0; k < N; k++){ const a = k/N*Math.PI*2; o.push(this.P(x1 + 0.02, Math.cos(a)*0.8, zc + Math.sin(a)*0.8)); } this.quadOn(g, o, 0x0e0f12); } }   // (its bore)
