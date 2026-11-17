@@ -45952,7 +45952,13 @@ function ptFlatLeaf(c, k, u){
   }
   const ea = ha - hs*D.w*Math.cos(t), eb = B - D.w*Math.sin(t);
   ctx.save(); poly([P(c - D.w/2, B, 0), P(c + D.w/2, B, 0), P(c + D.w/2, B, D.h), P(c - D.w/2, B, D.h)]); ctx.clip();
-  try { poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, D.h), P(ha, B, D.h)], '#7a5a3e');
+  /* (the same leaf as shut, turned: its colour, its two panels, its knob -- Sir, 2026-11-17, "when the door animates its loosing its details") */
+  const at = (f, z) => P(ha + (ea - ha)*f, B + (eb - B)*f, z), m = 10/D.w;
+  try { poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, D.h), P(ha, B, D.h)], u > 0.5 ? '#7f5d40' : '#8a6446');
+        /* (filled, not stroked: a stroke is not held by the doorway's clip -- it showed on the wall beside it) */
+        for(const [z0, z1] of [[18, 70], [92, 150]]){ poly([at(m, z0), at(1 - m, z0), at(1 - m, z1), at(m, z1)], '#6b4a32');
+          poly([at(m + 0.03, z0 + 2), at(1 - m - 0.03, z0 + 2), at(1 - m - 0.03, z1 - 2), at(m + 0.03, z1 - 2)], u > 0.5 ? '#7f5d40' : '#8a6446'); }
+        const kf = (D.w - 10)/D.w; poly([at(kf - 0.03, 77), at(kf + 0.03, 77), at(kf + 0.03, 83), at(kf - 0.03, 83)], '#c9a24a');
         poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, 1), P(ha, B, 1)], '#5a4130'); }
   finally { ctx.restore(); }
 }
