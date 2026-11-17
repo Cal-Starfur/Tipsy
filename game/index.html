@@ -30536,8 +30536,8 @@ walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY
    its portico, less the walls (W22): the tall banking hall in front and the vault and the waiting room in the wing behind it (PS_WW x
    PS_DD, Sir 2026-11-17: "we see a vault door but there is no room for a vault"). Its way in, the door on the portico's back wall (lab b
    -66; the portico open ground, vol.opens), in the far north wall (door side 'n'). Room frame a east, b south, world units (lab x1.3):
-     a 70..104, b 30..290   THE TELLERS' COUNTER down the west side, three tellers behind it facing the hall
-     a 150                  the rope line
+     a 130..164, b 30..290  THE TELLERS' COUNTER down the west side, three tellers behind it facing the hall (a 0..130 theirs)
+     a 214                  the rope line
      a 0..300, b 360..582   THE VAULT, its steel walls knee-high (the kit's cut), its round door shut in its east wall, the
                             safe-deposit boxes on its west wall, the cash cart and the gold
      a 292..418             the door's lane, door to back wall, kept clear
@@ -30557,9 +30557,9 @@ POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books', 
    keyholder), three customers -- at the windows, the desks, the line, the waiting room */
 const PS_TELLER_UNIFORM = { shirt: { c:0xf4f2ec, dk:0xd6d3ca }, pants: { c:0x2f3e46, dk:0x222d33 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
 walkinStaff(PS_IN.name, [
-  { id: 'teller-1', role: 'bank teller', seed: 0x5a01, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 70, 0, 9000, true], [40, 96, -0.4, 3000, true]] },
-  { id: 'teller-2', role: 'bank teller', seed: 0x5a02, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 150, 0, 8000, true], [40, 124, 0.4, 2600, true]] },
-  { id: 'teller-3', role: 'bank teller', seed: 0x5a05, U: PS_TELLER_UNIFORM, fixed: true, posts: [[44, 230, 0, 8600, true], [40, 256, -0.3, 2800, true]] },
+  { id: 'teller-1', role: 'bank teller', seed: 0x5a01, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 70, 0, 9000, true], [70, 96, -0.4, 3000, true]] },
+  { id: 'teller-2', role: 'bank teller', seed: 0x5a02, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 150, 0, 8000, true], [70, 124, 0.4, 2600, true]] },
+  { id: 'teller-3', role: 'bank teller', seed: 0x5a05, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 230, 0, 8600, true], [70, 256, -0.3, 2800, true]] },
   { id: 'officer', role: 'loan officer', seed: 0x5a03, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 40, Math.PI/2, 9000, true]] },
   { id: 'officer-2', role: 'loan officer', seed: 0x5a06, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 210, Math.PI/2, 9000, true]] },
   { id: 'guard', role: 'bank guard', seed: 0x5a04, U: SECURITY_UNIFORM, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 440, -Math.PI/4, 5000, true]] },
@@ -30568,7 +30568,7 @@ walkinStaff(PS_IN.name, [
   { id: 'customer-3', role: 'customer', seed: 0x5a13, look: 'visitor', life: 'browse' },
 ]);
 walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
-  { id: 'window-1', spots: [[126, 70, Math.PI]] }, { id: 'window-2', spots: [[126, 150, Math.PI]] }, { id: 'window-3', spots: [[126, 230, Math.PI]] },
+  { id: 'window-1', spots: [[186, 70, Math.PI]] }, { id: 'window-2', spots: [[186, 150, Math.PI]] }, { id: 'window-3', spots: [[186, 230, Math.PI]] },
   { id: 'desk-1', spots: [[575, 126, -Math.PI/2]] }, { id: 'desk-2', spots: [[575, 296, -Math.PI/2]] },
   { id: 'waiting', spots: [[470, 450, 0], [600, 440, Math.PI]] },
 ] });
@@ -57046,20 +57046,21 @@ function houseCanopy(fn){
     }
 
     /* ---- THE TELLERS' COUNTER down the west side: dark wood, a brass rail, the glass in bays over it; the tellers' screens face them ---- */
-    { const A0 = 70, A1 = 104, B0 = 30, B1 = 290;
+    { const A0 = 130, A1 = 164, B0 = 30, B1 = 290;   // (110 of floor behind it for the tellers -- Sir, 2026-11-17)
       runPiece(items, A0, A1, B0, B1, 230, (s0, s1) => [solid(A0, A1, s0, s1, 110, 'tellers\' counter')], () => {
         box(A0, A1, B0, B1, 0, 96, wood, woodF, woodS);
         for(let b = B0 + 22; b < B1 - 10; b += 22) S(A1 + 0.3, b - 1, b + 1, 8, 88, woodS);
         box(A0 - 4, A1 + 6, B0 - 4, B1 + 4, 96, 104, '#6e4a31', '#5c3b26', '#4a2f1e');
         box(A1 + 2, A1 + 5, B0, B1, 60, 63, brass, brassD, brassD);
         for(const tb of [70, 150, 230]) box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025');
-        for(let b = B0; b <= B1 + 0.1; b += 26) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 218, brass, brassD, brassD);
-        S(A0 + 16, B0, B1, 140, 218, 'rgba(190,216,226,.32)');
-        box(A0 + 12, A0 + 20, B0, B1, 218, 222, brass, brassD, brassD);
+        /* (its glass a low screen, to the tellers' shoulders: their faces over it, never hidden behind it -- Sir, 2026-11-17) */
+        for(let b = B0; b <= B1 + 0.1; b += 26) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 144, brass, brassD, brassD);
+        S(A0 + 16, B0, B1, 112, 144, 'rgba(190,216,226,.32)');
+        box(A0 + 12, A0 + 20, B0, B1, 144, 148, brass, brassD, brassD);
       }, { alongB: true, run: 44 }); }
 
     /* ---- THE ROPE LINE: brass posts and a red rope, the queue's lane to the windows ---- */
-    { const A = 150, B0 = 100, B1 = 276;
+    { const A = 214, B0 = 100, B1 = 276;
       runPiece(items, A - 8, A + 8, B0, B1, 80, (s0, s1) => [{ name: 'rope post', c: [A, (s0 + s1)/2], r: 6, h: 60 }], () => {
         for(let b = B0; b <= B1 + 0.1; b += 44){ cyl(A, b, 0, 4, 9, brassD); cyl(A, b, 4, 60, 2.6, brass); cyl(A, b, 60, 64, 4, brass); }
         for(let b = B0; b < B1 - 0.1; b += 44) tube(A, b, 58, A, b + 44, 58, 1.8, '#9a2a2a');
