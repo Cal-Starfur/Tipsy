@@ -129944,13 +129944,14 @@ class WorldScene extends Phaser.Scene {
     if(c === 'knight'){   /* (second pass -- Sir, 2026-11-17): a great helm over his head -- a visor slit his eyes glow through, breathing holes under
          it; a blue tabard with a gold cross down his front; plate seams; a bigger heater shield; a fuller red plume */
       if(st === 'body'){ for(const z0 of [62, 72]) band(z0, z0 + 1.6, 0x8d959c);
-        onFront([[-10, 14], [10, 14], [10, 66], [-10, 66]], 0x1f3a7a); onFront([[-1.6, 22], [1.6, 22], [1.6, 60], [-1.6, 60]], 0xd8b04a); onFront([[-7, 46], [7, 46], [7, 50], [-7, 50]], 0xd8b04a);
+        /* (no tabard: his front matches his back -- Sir, 2026-11-17) */
         for(const sb of [-1, 1]) if(sees(0, sb, 0) && sb === nearB){ const bb = sb*(hy + 2.5); const S = [[-11, 78], [11, 78], [11, 50], [0, 32], [-11, 50]].map(([a, zz]) => PT(P(a, bb, zz)));
           g.fillStyle(0x1f3a7a, 1); g.fillPoints(S, true); g.lineStyle(Math.max(1, 2*K), 0xd8b04a, 1); g.strokePoints(S, true);
           const c0 = P(0, bb, 74), c1 = P(0, bb, 40), c2 = P(-9, bb, 62), c3 = P(9, bb, 62); g.lineStyle(Math.max(1, 3*K), 0xd8b04a, 1); g.lineBetween(c0.x, c0.y, c1.x, c1.y); g.lineBetween(c2.x, c2.y, c3.x, c3.y); } }   // (his shield)
-      if(st === 'face' && front){ onFront([[-14, 82], [14, 82], [14, 90], [-14, 90]], 0x16171b);   // (the visor slit, his eyes glowing in it)
-        for(const b of [-6, 6]) onFront([[b - 3, 84], [b + 3, 84], [b + 3, 88], [b - 3, 88]], 0x7af8ff);
-        line([hx + 0.5, 0, 92], [hx + 0.5, 0, 66], 0x8d959c, 2);   // (its nose ridge)
+      if(st === 'face' && front){ onFront([[-16, 79], [16, 79], [16, 95], [-16, 95]], 0xa4aab1);   // (his eyes covered by the helm, a narrow slit across it, a faint glow deep in it -- Sir, 2026-11-17)
+        onFront([[-14, 85.5], [14, 85.5], [14, 88.5], [-14, 88.5]], 0x101114);
+        for(const b of [-6, 6]) onFront([[b - 2.5, 86.3], [b + 2.5, 86.3], [b + 2.5, 87.7], [b - 2.5, 87.7]], 0x5fd8e8, 0.7);
+        line([hx + 0.5, 0, 85], [hx + 0.5, 0, 66], 0x8d959c, 2); line([hx + 0.5, 0, 95], [hx + 0.5, 0, 89], 0x8d959c, 2);   // (its nose ridge)
         for(const b of [-6, -3, 3, 6]) for(const zz of [76, 72]){ const q = P(hx + 0.6, b, zz); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 0.9*K*2); } }   // (breathing holes)
       /* (a feather -- Sir, 2026-11-17: "the plume doesn't read as a feather"): a white quill arching up and back off a gold holder, its red
          vanes either side tapering to a point, barbs angled along them, a darker edge, a few split notches */
