@@ -43104,7 +43104,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     shape: { BODY: { hx: 26, hy: 16, z0: 18, z1: 28, ch: 4, bev: 2, bevIn: 1.5 }, LID: { hx: 7, hy: 10, z0: 28, z1: 33, ch: 2.5, bev: 1.5, bevIn: 1.2, ox: 14 },
       STRIPE: { z0: 20, z1: 22 }, FLAGB: { x: -24, y: 12 }, FLAGZ: [28.5, 62], zmap: z => 18 + (z - 14)*0.27, WHEELS: { r: 8, W2: 7, xs: [-19, 19], side: 27, style: 'mesh', tread: 'knobby' } } },
   { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, mastFlag: true,   /* (its camera on the flag's own pole and mount -- Sir, 2026-11-17) */ trim: { rimCol: 0x8a4a2a } },
-  { id: 'rover:retro', build: 'rover', name: 'Retro Space Age', cents: 1000, body: 0xc9ced4, stripe: 0x2ad8c8, print: 'rvRetro', noSolar: true, lidCol: [0xa9e8e4, 0x86d0cc, 0x5eaeaa], noDish: true, ringFlag: true, eye: 0xff5a4a, trim: { rimCol: 0x2ad8c8 } },
+  { id: 'rover:retro', build: 'rover', name: 'Retro Space Age', cents: 1000, body: 0xc9ced4, stripe: 0x2ad8c8, print: 'rvRetro', noSolar: true, lidCol: [0xa9e8e4, 0x86d0cc, 0x5eaeaa], noDish: true, ringFlag: true, eye: 0xff5a4a, trim: { rimCol: 0x2ad8c8 }, roverPart: 'retro',
+    /* (its own silhouette -- Sir, 2026-11-17): a rounded, near-round body with a rolled top edge, a tall glass dome for his lid, two swept tail
+       fins with red ball tips, the ring antenna off his back */
+    shape: { BODY: { hx: 24, hy: 19, z0: 24, z1: 40, ch: 11, bev: 6, bevIn: 5 }, LID: { hx: 13, hy: 13, z0: 40, z1: 52, ch: 7.5, bev: 7, bevIn: 6, ox: 3 },
+      STRIPE: { z0: 28, z1: 31 }, FLAGB: { x: -18, y: 0 }, FLAGZ: [36, 70], zmap: z => 24 + (z - 14)*0.42 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
 const WHEEL = { r:8, z:10, xs:[-16, 0, 16], side:22 };
 let WHEEL_HIDDEN_HUB = true;   // (a far wheel's hub behind his body, not drawn: drawWheel)
@@ -126324,6 +126328,16 @@ class WorldScene extends Phaser.Scene {
       if(UP === 'grid') for(const [r, n] of [[24, 12], [30, 16], [35.5, 20]]) for(let k = 0; k < n; k++){ const a = (k + 0.5)/n*Math.PI*2; if(!ufoVis(Math.cos(a)*0.28, Math.sin(a)*0.28, 0.96)) continue;
           const q = topAt(r, a), on = (k + Math.floor(tNow/300) + r) % 5 !== 0; g.fillStyle(on ? ULC[k % ULC.length] : 0x3b2a1a, on ? 0.95 : 1); g.fillRect(q.x - 1*K, q.y - 0.7*K, 2*K, 1.4*K); }
     }
+    if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'retro' && ((part === 'mid' && frontSeen) || (part === 'near' && !frontSeen))){
+      /* the tail fins: two swept blades up off his back quarters, silver with a teal leading edge, a red ball on each tip -- the far one first */
+      const ns = vis(0, 1, 0) ? 1 : -1, z = BODY.z1 - 4, X0 = -BODY.hx + 4;
+      for(const sb of [-ns, ns]){ const y = sb*(BODY.hy - 6), t = 0.9, F = [[X0 + 10, z], [X0 + 1, z], [X0 - 8, z + 16], [X0 - 4, z + 16]];
+        for(let i = 0; i < 4; i++){ const a = F[i], b = F[(i + 1) % 4], ex = b[0] - a[0], ez = b[1] - a[1], el = Math.hypot(ex, ez) || 1; if(!vis(ez/el, 0, -ex/el)) continue;
+          this.quadOn(g, [P(a[0], y - t, a[1]), P(b[0], y - t, b[1]), P(b[0], y + t, b[1]), P(a[0], y + t, a[1])], i === 3 ? 0x2ad8c8 : 0x8d959c); }
+        const fp = F.map(([x, zz]) => P(x, y + (vis(0, 1, 0) ? t : -t), zz)); this.quadOn(g, fp, vis(0, sb, 0) ? 0xd8dde2 : 0xa8adb4);
+        g.lineStyle(Math.max(1, K), 0x4a5057, 1); g.strokePoints(fp.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+        g.lineStyle(Math.max(1, 1.6*K), 0x2ad8c8, 1); g.lineBetween(fp[0].x, fp[0].y, fp[3].x, fp[3].y);
+        const tip = P(X0 - 6, y, z + 17.5); g.fillStyle(0x8f1a14, 1); g.fillCircle(tip.x, tip.y, 2.6*K); g.fillStyle(0xff5a4a, 1); g.fillCircle(tip.x - 0.5*K, tip.y - 0.5*K, 1.9*K); g.fillStyle(0xffffff, 0.8); g.fillCircle(tip.x - 1*K, tip.y - 1*K, 0.6*K); } }
     if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'lrv'){
       const W = BODY._wheels, sh = this.bodyPaint(), GD = [0xd8b04a, 0xc9a23f, 0xa98432];
       /* fenders: a gold arch over each wheel, from his side out past its tread -- the far ones before him, the near ones after the near wheels */
