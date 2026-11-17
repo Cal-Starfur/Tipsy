@@ -43264,7 +43264,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     trim: { coil: 0xf2f3f1, bumper: 0xc9ced4, bar: 0x1d1f26, stack: 0xe8ecf0, heat: 0x1f4fa8, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'steelie', rimCol: 0xf2f3f1 }, flag: { kind: 'usa' } },
   { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'none', lb: 'cage', lamp: 0xffb02a, rim: 'honey', rimCol: 0xe6dcb8 } },
   /* (six more -- Sir, 2026-11-17) */
-  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'none', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
+  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', lid: { z1: 46, ch: 8, bev: 8.5, bevIn: 7.5 } /* (a fire helmet's crown -- Sir, 2026-11-17) */, trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'none', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
   { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'side', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'side', lb: 'strip', lamp: 0xffb02a, rim: 'tri', rimCol: 0xe89a1a } },
   { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'single', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
@@ -126913,10 +126913,18 @@ class WorldScene extends Phaser.Scene {
             g.lineStyle(Math.max(1, 1.5*K), 0xb4bac1, 1); for(let x = xa + 1.5; x < xb - 1; x += 3.2){ const A = P(x, y, za), B = P(x, y, zb2); g.lineBetween(A.x, A.y, B.x, B.y); }
             for(const z of [za, zb2]){ const A = P(xa, y, z), B = P(xb, y, z); g.lineStyle(Math.max(1, 2.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.lineStyle(Math.max(1, 1.1*K), 0xf0f2f4, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K); } }
           const on = Math.floor(now/260) % 2;
-          for(const sb of [-1, 1]){ const bx = lx - 6.5, by = sb*(ly - 7.5), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
+          for(const sb of [-1, 1]){ const bx = 1.5, by = sb*(ly - 9), bq = P(bx, by, zt + 3.2), lit = (sb > 0) === !!on;   /* (a chrome base, a big red dome on it) */
             this.drawHullPrism({ hx: 2.6, hy: 2.6, ox: bx, oy: by, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 1, cTop: 0xe8ecf0, cLt: 0xc9ced4, cDk: 0x8d959c, cBottom: 0x8d959c, outline: false, topEdge: false });
             g.fillStyle(0x6a0e0a, 1); g.fillCircle(bq.x, bq.y + 0.3*K, 3.8*K); g.fillStyle(lit ? 0xff3a2a : 0xc8231c, 1); g.fillCircle(bq.x - 0.2*K, bq.y - 0.2*K, 3.3*K); g.fillStyle(0xffffff, lit ? 0.85 : 0.4); g.fillCircle(bq.x - 1.2*K, bq.y - 1.4*K, 1*K);
             if(lit && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 9*K); } } } }
+        if(SKP === 'ladder'){ const ox = LID.ox || 0;
+          this.drawHullPrism({ hx: lx - 3, hy: 1.1, ox, oy: 0, z0: zt - 0.4 + bobZ, z1: zt + 1.6 + bobZ, ch: 0.5, cTop: 0xe8394a, cLt: 0xc8141a, cDk: 0x8a0e12, cBottom: 0x8a0e12, outline: true, topEdge: false });   // (the comb)
+          if(vis(1, 0, 0)){ const xs = lx + ox + 0.6, zb = zt - 6.5, S = [];   // (the front shield: black leather, a gold rim, TFD in gold)
+            for(let i = 0; i <= 10; i++){ const t = i/10*Math.PI; S.push([Math.cos(t)*4.6, zb + 6 + Math.sin(t)*4]); } S.push([-4.6, zb], [-2.2, zb - 1.4], [2.2, zb - 1.4], [4.6, zb]);
+            const pts = S.map(([y, z]) => P(xs, y, z)); this.quadOn(g, pts, 0x16171b); g.lineStyle(Math.max(1, 1.1*K), 0xd8a41a, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+            const FONT = { T: [[0, 4, 3, 5], [1, 0, 2, 5]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] }, cu = 0.55, gw = 3*cu, gap = cu, tot = 3*gw + 2*gap, h0 = zb + 3;
+            [...'TFD'].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const Y = q => -(g0 + q*cu);   // (his -y is to the viewer's right)
+              this.quadOn(g, [P(xs + 0.05, Y(x0), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y1*cu), P(xs + 0.05, Y(x0), h0 + y1*cu)], 0xffd34a); } }); } }
         if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
         if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
           for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.15; pts.push([x0 - 7*Math.sin(a) + u*u*22, 0, BODY.z1 + 2 + Math.sin(a*0.9)*18 + u*7, 4.6 - u*2.4]); }
@@ -126944,6 +126952,10 @@ class WorldScene extends Phaser.Scene {
           g.lineStyle(Math.max(1, (ra + rb)*K*0.28), BPt.top, 1); g.lineBetween(A.x, A.y - ra*0.62*K, B.x, B.y - rb*0.62*K);
           if(k % 2 === 1 && k < 11){ const T = P(xa - 1, ya, za + ra + 3); g.fillStyle(0xe6dcb8, 1); g.fillTriangle(A.x - ra*0.5*K, A.y - ra*0.85*K, A.x + ra*0.5*K, A.y - ra*0.85*K, T.x, T.y); } } }
       if(SKP === 'wings' && part === 'mid') this.monsterWing(-nearSide, P, K, vis);
+      /* THE FIRE HELMET (Sir, 2026-11-17: "get this lid to look like a fire helmet"): his cab a rounded crown (its lid shape), a wide brim
+         round its foot running out longer behind (the helmet's tail), a comb along its top, and the front shield standing up off its brow */
+      if(SKP === 'ladder' && part === 'mid'){ const lx = LID.hx, ly = LID.hy, ox = LID.ox || 0;
+        this.drawHullPrism({ hx: lx + 4, hy: ly + 2.5, ox: ox - 2.5, oy: 0, z0: LID.z0 + bobZ, z1: LID.z0 + 1.4 + bobZ, ch: 6, cTop: 0xd8261c, cLt: 0xa81a14, cDk: 0x7a0e0e, cBottom: 0x7a0e0e, outline: true, topEdge: false }); }
       if(SKP === 'ears' && part === 'mid'){ const sb = -nearSide, zt = LID.z1, ly = LID.hy, E = [0x5a3418, 0x7a4a24], ear = [];   // (the far ear, before his cab)
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
@@ -132652,11 +132664,6 @@ const HULL_PRINTS = {
             L.side.push({ c: GD, pts: [pt(r0*0.5, -r0*0.45), pt(R, -R*0.62), pt(R*0.8, 0), pt(R, R*0.62), pt(r0*0.5, r0*0.45)] }); }
           const disc = (r, col) => { const o = []; for(let j = 0; j < 14; j++){ const t = j/14*Math.PI*2; o.push([cx + Math.cos(t)*r, cz + Math.sin(t)*r]); } L.side.push({ c: col, pts: o }); };
           disc(R*0.42, WH); disc(R*0.32, [0xa81a14, 0xd8261c]); }
-        /* "TFD" across the front of his cab (Sir, 2026-11-17: FD and the town's initials -- Tidewater Fire Department), block letters in gold */
-        { const FONT = { T: [[0, 4, 3, 5], [1, 0, 2, 5]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] };
-          const [a, b] = L.face(0), mid = (a + b)/2, text = 'TFD', cu = L.H*0.09, gw = 3*cu, gap = cu*1.1, tot = text.length*gw + (text.length - 1)*gap, h0 = L.H*0.27, sgn = -1;
-          [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const X = q => mid + sgn*(g0 + q*cu);
-            L.side.push({ c: GD, pts: _prRect(Math.min(X(x0), X(x1)), h0 + y0*cu, Math.max(X(x0), X(x1)), h0 + y1*cu) }); } }); }
         return; }
       for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: GD, pts: _prRect(a - 1, L.H*0.18, b + 1, L.H*0.24) }); } } },   // (no '911': too small to read -- Sir, 2026-11-17)
   mtDragon: { id: 'mtDragon', seed: 0xd4a, build(L){ const SC = [0x1f5a28, 0x256a2e], BL = [0xd8b04a, 0xe8c860];   // (scales all over, a golden belly band)
