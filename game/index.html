@@ -45133,7 +45133,8 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'rover:miner', build: 'rover', name: 'Moon Miner', cents: 1000, body: 0xf2c02e, stripe: 0x16171b, noStripe: true, print: 'rvMiner', noSolar: true, noDish: true, lidCol: [0x5d646c, 0x4a5057, 0x3b4048], roverPart: 'drill', noMouth: true, mastFlag: true, eye: 0xffb02a, trim: { rimCol: 0x16171b } },
   { id: 'rover:solar', build: 'rover', name: 'Solar Wings', cents: 1000, body: 0xd9a93c, stripe: 0x1f3a7a, print: 'rvApollo', roverPart: 'wings', eye: 0x7ad8ff, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:cheese', build: 'rover', name: 'Cheese Moon', cents: 1000, body: 0xf2c84a, stripe: 0xf2c84a, noStripe: true, print: 'rvCheese', taper: 0.42 /* (a cheese wedge: tall at his back, sloping down to his nose -- Sir, 2026-11-17) */, roverPart: 'mouse', noSolar: true, noDish: true, noFlag: true, lidCol: [0xf6d468, 0xe8c050, 0xc89a30], eye: 0x8a5a1a, trim: { rimCol: 0xe8a23a } },
-  { id: 'rover:europa', build: 'rover', name: 'Europa Ice', cents: 1000, body: 0xe8f4fc, stripe: 0x5ab8e8, print: 'rvEuropa', noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
+  { id: 'rover:europa', build: 'rover', name: 'Europa Ice', cents: 1000, body: 0xe8f4fc, stripe: 0x5ab8e8, print: 'rvEuropa', roverPart: 'europa', gear: { kind: 'tank', side: 22, W2: 10, lift: 2 },   /* (second pass -- Sir, 2026-11-17: a snowcat -- low on treads, ice crystals on his lid) */
+    shape: { BODY: { hx: 24, hy: 17, z0: 15, z1: 36, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 36, z1: 42, ch: 5, bev: 2.5, bevIn: 2 }, STRIPE: { z0: 19, z1: 23 }, FLAGZ: [33, 64], zmap: z => 15 + (z - 14)*0.5 }, noSolar: true, lidCol: [0xb8e4f8, 0x94cce8, 0x6aa8cc], eye: 0x5ad8ff, trim: { rimCol: 0x5ab8e8 } },
   { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
@@ -129266,6 +129267,7 @@ class WorldScene extends Phaser.Scene {
         if(!fwd) return; const N = P(x + 4.2*S, 0, z + 4.8*S + nib); g.fillStyle(0x9aa2aa, 1); g.fillCircle(N.x, N.y, 1.4*S*K); g.fillStyle(0xe86a88, 1); g.fillCircle(N.x + 0.5*S*K, N.y, 0.7*S*K);
         for(const dy of [-0.9, 0.9]){ const Ey = P(x + 3.2*S, dy*S, z + 5.9*S + nib); g.fillStyle(0x16171b, 1); g.fillCircle(Ey.x, Ey.y, 0.6*S*K); } };
       if(fwd){ tail(); body(); ears(); head(); } else { head(); ears(); body(); tail(); } }
+    if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'europa' && part === 'near') this.monsterIceCrystals(P, K);   // (Europa Ice: a cluster of ice crystals on his lid)
     if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'tug' && part === 'near'){ const on = Math.floor((this.time ? this.time.now : 0)/300) % 2, zt = LID.z1, ox = LID.ox || 0;   // (an orange beacon on his roof, flashing)
       this.drawHullPrism({ hx: 3.6, hy: 3.6, ox: ox - 6, oy: 0, z0: zt + bobZ, z1: zt + 1.6 + bobZ, ch: 0.8, cTop: 0x5d646c, cLt: 0x4a5057, cDk: 0x2e3138, cBottom: 0x2e3138, outline: false, topEdge: false });
       const q = P(ox - 6, 0, zt + 4.5); g.fillStyle(0x8a3a08, 1); g.fillCircle(q.x, q.y + 0.5*K, 5*K); g.fillStyle(on ? 0xffb03a : 0xe06a10, 1); g.fillCircle(q.x - 0.3*K, q.y - 0.3*K, 4.2*K); g.fillStyle(0xffffff, on ? 0.85 : 0.4); g.fillCircle(q.x - 1.5*K, q.y - 1.6*K, 1.3*K);
@@ -129893,7 +129895,7 @@ class WorldScene extends Phaser.Scene {
       const piv = [-4, yp, pz], knee = [(xs[0] - 4)/2 - 4, y, pz + 2], bog = [(xs[1] + xs[2])/2, y, hz + 7];
       tube([-4, sb*BODY.hy, pz], piv, 5); tube(piv, knee, 4.4); tube(knee, [xs[0], y, hz], 4); tube(piv, bog, 4.4); tube(bog, [xs[1], y, hz], 4); tube(bog, [xs[2], y, hz], 4);
       joint(piv, 3.4); joint(knee, 2.6); joint(bog, 2.6); };
-    const legs = sb => { if(BODY._bskin && BODY._bskin.roverPart === 'mars') return rocker(sb);
+    const legs = sb => { if(BODY._bskin && BODY._bskin.roverPart === 'mars') return rocker(sb); if(BODY._gear && BODY._gear.kind === 'tank') return;   // (on treads: no legs)
       const hz = W.r + 2 - bobZ, bz = BODY.z0 - 3, yS = sb*(W.side - W.W2/2 - 1.2), yB = sb*(BODY.hy - 5), t = 1.5;
       const box = (hx, hy, ox, oy, z0, z1, c) => this.drawHullPrism({ hx, hy, ox, oy, z0: z0 + bobZ, z1: z1 + bobZ, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
       const M = [0xb9bec4, 0x9aa0a6, 0x6f757b], D = [0x6f757b, 0x5d646c, 0x3b4048];
