@@ -127969,8 +127969,8 @@ class WorldScene extends Phaser.Scene {
     if(part === 'far'){ legs(-nearSide); }   // (no panels off its sides: its lid is the panel -- Sir, 2026-11-16)
     const RP = BODY._bskin && BODY._bskin.roverPart;
     /* the Moon Miner's drill: a big cone on a collar off his nose, spiral flutes round it */
-    if(RP === 'drill' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = BODY.z0 + 1, x0 = BODY.hx + 1, L2 = 20, R0 = 7, now4 = this.time ? this.time.now : 0;
-      this.drawHullPrism({ hx: 2, hy: R0 + 1, ox: x0, oy: 0, z0: zc - R0 - 1 + bobZ, z1: zc + R0 + 1 + bobZ, ch: 2.5, cTop: 0x8d959c, cLt: 0x6f757b, cDk: 0x4a5057, cBottom: 0x4a5057, outline: true, topEdge: false });
+    if(RP === 'drill' && ((part === 'near' && vis(1, 0, 0)) || (part === 'far' && !vis(1, 0, 0)))){ const zc = BODY.z0 + 7.5, x0 = BODY.hx + 0.5, L2 = 18, R0 = 6,   /* (on his nose, inside his body's outline, below his eyes -- Sir, 2026-11-17) */ now4 = this.time ? this.time.now : 0;
+      this.drawHullPrism({ hx: 1.6, hy: R0 + 1.2, ox: x0 + 0.6, oy: 0, z0: zc - R0 - 1.2 + bobZ, z1: zc + R0 + 1.2 + bobZ, ch: 3.6, cTop: 0x8d959c, cLt: 0x6f757b, cDk: 0x4a5057, cBottom: 0x4a5057, outline: true, topEdge: false });
       const tip = P(x0 + 2 + L2, 0, zc), base = []; for(let i = 0; i < 16; i++){ const a = i/16*Math.PI*2; base.push(P(x0 + 2, Math.cos(a)*R0, zc + Math.sin(a)*R0)); }
       const hull = convexHull(base.concat([tip])); g.fillStyle(0x8d959c, 1); g.fillPoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true); g.lineStyle(Math.max(1, 1*K), 0x3b4048, 1); g.strokePoints(hull.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
       g.lineStyle(Math.max(1, 1.8*K), 0x3b4048, 1); for(let f = 0; f < 3; f++){ const o = []; for(let k = 0; k <= 12; k++){ const u = k/12, a = f*2.094 + u*Math.PI*2.4 + now4*0.01, r = R0*(1 - u); o.push(P(x0 + 2 + u*L2, Math.cos(a)*r, zc + Math.sin(a)*r)); }
