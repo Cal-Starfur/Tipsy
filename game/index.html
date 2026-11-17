@@ -129810,7 +129810,11 @@ class WorldScene extends Phaser.Scene {
         Q([P(a0, -hw, z0), P(a1, -hw, z1), P(a1, hw, z1), P(a0, hw, z0)], nz > Math.abs(na) ? colTop : colSide); }
       for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, zz]) => P(a, sb*hw, zz)), sb === nearB ? colSide : _pdk(colSide, 0.88)); };
     if(era === 'cg2100'){   /* the hover freighter: no wheels -- up on four glowing pads, bobbing */
-      const zl = 10 + Math.sin(t*0.003)*1.5; shadow(50, 32);
+      const zl = 10 + Math.sin(t*0.003)*1.5;
+      { const gl = A.glow || 0x5fe8ff;   /* (its glow in place of its shadow, softened as the 1980s van's -- Sir, 2026-11-17) */
+        const rr = (ha, hb, rc) => { const o = []; for(const [ca, cb, a0] of [[ha - rc, hb - rc, 0], [-(ha - rc), hb - rc, 0.5], [-(ha - rc), -(hb - rc), 1], [ha - rc, -(hb - rc), 1.5]]) for(let i = 0; i <= 5; i++){ const th = (a0 + i/10)*Math.PI; o.push(P(ca + Math.cos(th)*rc, cb + Math.sin(th)*rc, 1)); } return o.map(q => new Phaser.Geom.Point(q.x, q.y)); };
+        for(const [ha, hb, rc, al] of [[68, 50, 34, 0.07], [62, 45, 30, 0.08], [56, 40, 26, 0.1], [50, 35, 22, 0.12], [42, 28, 18, 0.12]]){ g.fillStyle(gl, al); g.fillPoints(rr(ha, hb, rc), true); }
+        g.fillStyle(_pmix(gl, 0xffffff, 0.3), 0.12); g.fillPoints(rr(34, 22, 14), true); }
       /* (second pass -- Sir, 2026-11-17): bright pads and their beams to the road, a thruster glowing on its back, a glass cargo pod with
          parcels inside, a light strip chasing round its waist */
       for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, 1), q2 = P(a, b, zl + 10); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.25); g.fillEllipse(q.x, q.y, 34*K*2.4/2.4, 17*K); g.fillStyle((A.n2 || A.glow || 0x5fe8ff), 0.18);
