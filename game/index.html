@@ -128192,10 +128192,22 @@ class WorldScene extends Phaser.Scene {
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + (BODY._bskin && BODY._bskin.shortGun ? 14 : 24), bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
     const G = SKg != null ? [_pmix(SKg, 0xffffff, 0.2), SKg, _pdk(SKg, 0.7)] : [0x6f757b, 0x5d646c, 0x3b4048];
-    if(front && !(BODY._bskin && BODY._bskin.twin)) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
-    const brake = () => { if(BODY._bskin && BODY._bskin.twin) return; bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4); };   // (the muzzle brake: the far end first when it points away)
+    if(front && !(BODY._bskin && (BODY._bskin.twin || BODY._bskin.shortGun))) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
+    const brake = () => { if(BODY._bskin && (BODY._bskin.twin || BODY._bskin.shortGun)) return; bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4); };   // (the muzzle brake: the far end first when it points away)
     if(!front) brake();
     const TW = BODY._bskin && BODY._bskin.twin;
+    if(BODY._bskin && BODY._bskin.shortGun){   /* (round, not blocky -- Sir, 2026-11-17): the Olive Drab's gun as true cylinders along it -- a rounded cast
+         mantlet, the barrel, a muzzle ring -- each its sides toned by facing and its near end capped, drawn far to near */
+      const g = this.g, OD = SKg != null ? SKg : 0x3a4028, N = 14;
+      const cyl = (xa, xb, r, col) => { const ring = x => { const o = []; for(let k = 0; k < N; k++){ const a = k/N*Math.PI*2; o.push([x, Math.cos(a)*r, zc + Math.sin(a)*r]); } return o; };
+        const A = ring(xa), B = ring(xb);
+        for(let k = 0; k < N; k++){ const a = (k + 0.5)/N*Math.PI*2, ny = Math.cos(a), nz = Math.sin(a), w = this.R(0, ny, nz); if(w.x + w.y + w.z <= 0) continue;
+          const lit = 0.5 + 0.5*(nz*0.8 - ny*0.3); this.quadOn(g, [A[k], A[(k + 1) % N], B[(k + 1) % N], B[k]].map(([x, y, z]) => this.P(x, y, z)), _pmix(_pdk(col, 0.7), _pmix(col, 0xffffff, 0.25), lit)); }
+        const fw = this.R(1, 0, 0), endX = (fw.x + fw.y + fw.z > 0) ? xb : xa; this.quadOn(g, (endX === xb ? B : A).map(([x, y, z]) => this.P(x, y, z)), _pdk(col, 0.85)); };
+      const pieces = [() => cyl(x0 - 1, x0 + 2.2, 3.3, OD), () => cyl(x0 + 2.2, x1 - 1.4, 1.15, OD), () => cyl(x1 - 1.4, x1, 1.5, _pdk(OD, 0.9))];
+      (front ? pieces : pieces.slice().reverse()).forEach(f => f());
+      if(front){ const fw = this.R(1, 0, 0); if(fw.x + fw.y + fw.z > 0){ const o = []; for(let k = 0; k < N; k++){ const a = k/N*Math.PI*2; o.push(this.P(x1 + 0.02, Math.cos(a)*0.8, zc + Math.sin(a)*0.8)); } this.quadOn(g, o, 0x0e0f12); } }   // (its bore)
+      return; }
     if(TW){   /* A RAILGUN (Sir, 2026-11-17: "more futuristic"): a faceted shroud out of the turret, two flat rails one over the other with the
          charge glowing between them, energy rings round it along its length, an emitter at its tip -- the far end first */
       const DK = [0x2a2d33, 0x23262c, 0x16171b], pr = (hx, hy, ox, z0, z1, c, ch = 0.3) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
