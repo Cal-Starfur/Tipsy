@@ -121854,7 +121854,6 @@ class WorldScene extends Phaser.Scene {
     if(racer && BODY._bskin && BODY._bskin.racerPart) this.racerKit(bobZ, BP, 'roof', tpz);   // (a skin's roof piece: the rally lamps, the police bar)
     if(buggy) this.buggyKit(bobZ, frontSeen, 'near');
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'near');
-    if(tank && frontSeen) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret)
 
     const fn = this.R(1, 0, 0);
     /* (a build's face: its features' heights fitted to its front, and -- past the flat of its front -- wrapped round onto its chamfered
@@ -121933,6 +121932,7 @@ class WorldScene extends Phaser.Scene {
       } else this.quadOn(g, FP([[-16,18], [16,18], [16,22], [-16,22]]), MOUTH_BAR);
     }
     /* the near wheel row, and the whip when it is nearer than the lid (the far ones went down first) */
+    if(!npc && SKIN.build === 'tank' && (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })()) this.tankKit(bobZ);   // (the cannon toward the eye: over the turret, and over his face below it)
     if(!npc && SKIN.build === 'buggy') this.buggyKit(bobZ, (() => { const w = this.R(1, 0, 0); return w.x + w.y + w.z > 0; })(), 'front');   // (its nudge bar, over his face)
     for(const w of wheels) if(w.near) this.drawGearItem(w, G, t, gLift, rolling);
     if(bKit) this.buildKit(bKit, bobZ, frontSeen, 'after');   // (a build's pieces over the near tyres: the Monster Truck's fenders)
