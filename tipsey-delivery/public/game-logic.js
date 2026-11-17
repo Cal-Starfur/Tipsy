@@ -126399,7 +126399,7 @@ class WorldScene extends Phaser.Scene {
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
     const G = SKg != null ? [_pmix(SKg, 0xffffff, 0.2), SKg, _pdk(SKg, 0.7)] : [0x6f757b, 0x5d646c, 0x3b4048];
-    if(front) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
+    if(front && !(BODY._bskin && BODY._bskin.twin)) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
     const brake = () => { if(BODY._bskin && BODY._bskin.twin) return; bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4); };   // (the muzzle brake: the far end first when it points away)
     if(!front) brake();
     const TW = BODY._bskin && BODY._bskin.twin;
