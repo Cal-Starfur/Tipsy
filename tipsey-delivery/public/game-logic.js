@@ -132652,6 +132652,11 @@ const HULL_PRINTS = {
             L.side.push({ c: GD, pts: [pt(r0*0.5, -r0*0.45), pt(R, -R*0.62), pt(R*0.8, 0), pt(R, R*0.62), pt(r0*0.5, r0*0.45)] }); }
           const disc = (r, col) => { const o = []; for(let j = 0; j < 14; j++){ const t = j/14*Math.PI*2; o.push([cx + Math.cos(t)*r, cz + Math.sin(t)*r]); } L.side.push({ c: col, pts: o }); };
           disc(R*0.42, WH); disc(R*0.32, [0xa81a14, 0xd8261c]); }
+        /* "TFD" across the front of his cab (Sir, 2026-11-17: FD and the town's initials -- Tidewater Fire Department), block letters in gold */
+        { const FONT = { T: [[0, 4, 3, 5], [1, 0, 2, 5]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] };
+          const [a, b] = L.face(0), mid = (a + b)/2, text = 'TFD', cu = L.H*0.09, gw = 3*cu, gap = cu*1.1, tot = text.length*gw + (text.length - 1)*gap, h0 = L.H*0.27, sgn = -1;
+          [...text].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const X = q => mid + sgn*(g0 + q*cu);
+            L.side.push({ c: GD, pts: _prRect(Math.min(X(x0), X(x1)), h0 + y0*cu, Math.max(X(x0), X(x1)), h0 + y1*cu) }); } }); }
         return; }
       for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: GD, pts: _prRect(a - 1, L.H*0.18, b + 1, L.H*0.24) }); } } },   // (no '911': too small to read -- Sir, 2026-11-17)
   mtDragon: { id: 'mtDragon', seed: 0xd4a, build(L){ const SC = [0x1f5a28, 0x256a2e], BL = [0xd8b04a, 0xe8c860];   // (scales all over, a golden belly band)
