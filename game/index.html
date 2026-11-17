@@ -10747,7 +10747,7 @@ function owStep(scene, dt){
     if(Lw){ const items = scene.items; owStandUpAt(scene, Lw.x, Lw.y, Lw.a); scene.items = items || []; return; }
   }
   const blockAt0 = (x, y, ox, oy) => SAIL ? sailBlock(x, y) : ow.deck ? ((garageDeckBlocked(x, y, D.botR) || (ow.deck.name === HOSP_GARAGE_SITE && hospDoorBlocks(x, y, D.botR))) ? OW_DECK_BLOCK : null) :
-                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (hospLiftBlocks(x, y, D.botR) || liftBankBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
+                            pocketAt(x, y) ? (W.solidAt(x, y, D.botR) || CITY_PEOPLE.blockAt('pocket', x, y, D.botR) || (liftBankBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null)) :   // (the glass lift's doorways: HOSP_LIFTS)
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
@@ -30597,18 +30597,22 @@ const PT_FLOORS = (() => {
   return F;
 })();
 /* ==================== THE LIFT BANK (pt3b; Sir, 2026-11-17: "id like to build an actual lift like we have at the hospital") ====================
-   A building's lifts as the hospital's glass lift works (HOSP_LIFTS, hospInLiftTick), for any building of floors: each car keeps its own trip
+   A building's lifts as the hospital's glass lift worked -- and now Marina General's two glass cars run on it too (HOSP_BANK) -- for any building of floors: each car keeps its own trip
    (where it is, where it is going, when it gets there: its indicator shows it on the way), wanders now and then when nobody wants it, comes when
    called (CALL LIFT, the hospital's own button: LIFT_CALL_FN), and opens when it is here and he lines up with it. Driven in, the floors' panel
    (liftPanelShow); the doors shut, the floor dissolves into the one picked, the car's doors open there. A bank is declared once:
-     { name, cars, floors: [n...], carFloors(i), rooms: [{ pk: name, floors(n), A: [car middles], half, deep }], floorOf(scene), set(scene, n),
-       label(n), T: { base, perFloor, holdMs, idleMin, idleMax } }
+     { name, cars, floors: [n...], carFloors(i), rooms: [{ pk: name, A: [car middles], half, deep } -- the cars in its north wall, doors south --
+       or { pk, face: 'w', rect(i, f), callZone(a, b, f) } -- cars along its east side, doors west (Marina General's)], floorOf(scene), set(scene, n, car),
+       label(n), name_(n), say(n), T: { base, perFloor, holdMs, idleMin, idleMax },
+       and the building's own: wantOpen(i, now) (someone else at its doors), preStep(scene, now), stepHook(scene, i, C, now, near) (true: the car
+       is theirs this frame -- a rider, the crew), callCost(i, C), callBusy(i, C) (a rider in it: it comes once they are out) }
    Its drawing is the rooms' own (their pieces' fx kits read liftBankU / liftBankHere / liftBankShows). The hospital's own lift still runs on
    HOSP_LIFTS (to move onto this: the queue's hosp-lift-kit) */
 const LIFT_BANKS = [];
 function liftBankDefine(spec){
-  const B = Object.assign({ L: null, rest: false, ui: false, doors: spec.cars.map(() => 0),
-    car: spec.cars.map((f, i) => ({ f, from: f, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 26000 + i*9000, next: null, call: 0, dir: 'up' })) }, spec);
+  /* (spec.car / spec.doors: a building's own arrays, kept -- Marina General's HOSP_LIFTS and HOSP_IN.doors, which the rest of the hospital reads) */
+  const B = Object.assign({ L: null, rest: false, ui: false, doors: spec.doors || spec.cars.map(() => 0),
+    car: spec.car || spec.cars.map((f, i) => ({ f, from: f, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 26000 + i*9000, next: null, call: 0, dir: 'up' })) }, spec);
   LIFT_BANKS.push(B);
   return B;
 }
@@ -30637,20 +30641,26 @@ function liftBankIn(name, room, i){ const B = LIFT_BANKS.find(q => q.name === na
   if(!B || !s) return false; const f = s._inside && s._inside.name === room ? B.floorOf(s) : null; return f != null && liftBankAt(B, i, f, s.time.now); }
 function liftBankShowsNamed(name, i){ const B = LIFT_BANKS.find(q => q.name === name), s = typeof scn === "function" ? scn() : null; return B && s ? liftBankShows(B, i, s.time.now) : 0; }
 /* a car's rect in a room, [a0, a1, b0, b1] -- null where that car does not stop on this floor */
-function liftBankRect(B, R, i, f){ if(!B.carFloors(i).includes(f)) return null; const c = R.A[i]; return [c - R.half, c + R.half, 0, R.deep]; }
+function liftBankRect(B, R, i, f){ if(!B.carFloors(i).includes(f)) return null; if(R.rect) return R.rect(i, f); const c = R.A[i]; return [c - R.half, c + R.half, 0, R.deep]; }
+/* by the way its doors face (R.face: 's', the default, or 'w'): lined up in front of them; well in (the ride's trigger); near (not wandering off) */
+function liftBankLined(R, r, a, b){ return R.face === 'w' ? a > r[0] - 260 && a < r[1] && b > r[2] - 10 && b < r[3] + 10 : a > r[0] - 20 && a < r[1] + 20 && b > r[2] && b < r[3] + 200; }
+function liftBankDeep(R, r, a, b){ return R.face === 'w' ? a >= r[0] + 110 : b <= r[3] - 40; }
+function liftBankNear(R, r, a, b){ return R.face === 'w' ? a > r[0] - 420 && a < r[1] && b > r[2] - 160 && b < r[3] + 160 : a > r[0] - 200 && a < r[1] + 200 && b < r[3] + 260; }
 /* every frame, wherever he is: the cars' trips and their wandering */
 function liftBanksStep(scene, dt){
   const now = scene.time.now, H = liftBankHere(scene);
-  for(const B of LIFT_BANKS) B.car.forEach((C, i) => {
+  for(const B of LIFT_BANKS){ if(B.preStep) B.preStep(scene, now); B.car.forEach((C, i) => {
     if(now >= C.t1 && C.next != null){ const n = C.next; C.next = null; liftBankGo(B, i, n, now); }
+    if(C.callNext != null && C.rider == null && now >= C.t1){ const n = C.callNext; C.callNext = null; liftBankGo(B, i, n, now); }   // (his call, held while a rider was in it)
     if(B.L && B.L.car === i) return;                                             // (carrying him)
     if(C.call && now >= C.t1 && C.f === C.call){ C.call = 0; C.hold = now + B.T.holdMs; if(typeof sfxThump === "function" && H && H.B === B && H.f === C.f) sfxThump(0.22); }
     if(C.call) return;
-    const near = H && H.B === B && H.f === C.f && (() => { const r = liftBankRect(B, H.R, i, H.f); if(!r) return false; const a = scene.ow.px - H.pk.x0, b = scene.ow.py - H.pk.y0; return a > r[0] - 200 && a < r[1] + 200 && b < r[3] + 260; })();
+    const near = H && H.B === B && H.f === C.f && (() => { const r = liftBankRect(B, H.R, i, H.f); if(!r) return false; return liftBankNear(H.R, r, scene.ow.px - H.pk.x0, scene.ow.py - H.pk.y0); })();
+    if(B.stepHook && B.stepHook(scene, i, C, now, near)) return;                 // (the building's own: a rider, the crew, the cast)
     if(now < C.t1 || now < C.hold || near){ C.idle = 0; return; }
     C.idle += dt;
     if(C.idle > C.idleAt){ const fs = B.carFloors(i); let f = C.f; while(f === C.f) f = fs[Math.floor(Math.random()*fs.length)]; liftBankGo(B, i, f, now); C.idleAt = B.T.idleMin + Math.random()*(B.T.idleMax - B.T.idleMin); }
-  });
+  }); }
 }
 /* CALL LIFT (the hospital's button, LIFT_CALL_FN): the car that will be here first; one here already holds its doors */
 function liftBankCall(B, dir){
@@ -30660,23 +30670,23 @@ function liftBankCall(B, dir){
   const here = B.car.findIndex((C, i) => ok(i) && liftBankAt(B, i, f, now));
   if(here >= 0){ B.car[here].hold = now + B.T.holdMs; if(typeof sfxThump === "function") sfxThump(0.18); return; }
   let best = -1, bt = Infinity;
-  B.car.forEach((C, i) => { if(!ok(i)) return; const e = liftBankEta(B, i, f, now); if(e < bt){ bt = e; best = i; } });
+  B.car.forEach((C, i) => { if(!ok(i)) return; const e = liftBankEta(B, i, f, now) + (B.callCost ? B.callCost(i, C) : 0); if(e < bt){ bt = e; best = i; } });
   if(best < 0) return;
   const C = B.car[best]; C.call = f; C.dir = dir === 'down' ? 'down' : 'up';
-  liftBankGo(B, best, f, now);
+  if(B.callBusy && B.callBusy(best, C)) C.callNext = f; else liftBankGo(B, best, f, now);
   if(typeof sfxThump === "function") sfxThump(0.15);
 }
 function liftBankCallUi(scene, ow, H){
   const B = H ? H.B : null;
   let el = document.getElementById("liftCall");
   if(!H){ if(LIFT_BANKS.some(q => q.ui) && el) el.classList.add("hidden"); LIFT_BANKS.forEach(q => { q.ui = false; }); return; }
-  if(!el){ hospLiftCallUi(scene, null); el = document.getElementById("liftCall"); if(!el) return; }
+  if(!el){ el = liftCallEl(); if(!el) return; }
   const now = scene.time.now, f = H.f, a = ow.px - H.pk.x0, b = ow.py - H.pk.y0;
   const rs = B.car.map((C, i) => liftBankRect(B, H.R, i, f)).filter(Boolean);
   let show = false, txt = "";
   if(rs.length && !B.L && scene.state === "play"){
     const a0 = Math.min(...rs.map(r => r[0])) - 60, a1 = Math.max(...rs.map(r => r[1])) + 60, d = H.R.deep;
-    const inLobby = a > a0 && a < a1 && b > d && b < d + 240;
+    const inLobby = H.R.callZone ? H.R.callZone(a, b, f) : a > a0 && a < a1 && b > d && b < d + 240;
     const open = B.car.some((C, i) => B.carFloors(i).includes(f) && liftBankAt(B, i, f, now));
     if(inLobby && !open){
       show = true;
@@ -30697,7 +30707,7 @@ function liftBankBlocks(x, y, R){
   const B = H.B, a = x - H.pk.x0, b = y - H.pk.y0, now = s.time.now, oa = s.ow.px - H.pk.x0, ob = s.ow.py - H.pk.y0;
   return B.car.some((C, i) => {
     const r = liftBankRect(B, H.R, i, H.f); if(!r) return false;
-    if(a + R <= r[0] || a - R >= r[1] || b - R >= r[3] || b + R <= r[2]) return false;
+    if(H.R.face === 'w' ? (a + R <= r[0] || a - R >= r[1] || b <= r[2] || b >= r[3]) : (a + R <= r[0] || a - R >= r[1] || b - R >= r[3] || b + R <= r[2])) return false;
     if(B.L && B.L.car === i) return false;
     if(oa > r[0] && oa < r[1] && ob > r[2] && ob < r[3]) return false;          // (already in it: free to move)
     return !(liftBankAt(B, i, H.f, now) && B.doors[i] > 0.6);
@@ -30713,7 +30723,6 @@ function liftBankPick(B, n){
 }
 /* every frame (owLiftTick): the cars, the button, his ride. true while it has him */
 function liftBankTick(scene, ow, dt){
-  liftBanksStep(scene, dt);
   const H = liftBankHere(scene), now = scene.time.now;
   for(const B of LIFT_BANKS) if(B.L && (!H || H.B !== B) && B.L.phase !== 'ride'){ liftPanelShow(false); B.L = null; }
   liftBankCallUi(scene, ow, H);
@@ -30722,13 +30731,13 @@ function liftBankTick(scene, ow, dt){
   const rs = B.car.map((C, i) => liftBankRect(B, H.R, i, f));
   const ci = rs.findIndex(r => r && a > r[0] && a < r[1] && b > r[2] && b < r[3]);
   rs.forEach((r, i) => {
-    const lined = !L && r && a > r[0] - 20 && a < r[1] + 20 && b > r[2] && b < r[3] + 200, here = r && liftBankAt(B, i, f, now);
-    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : here && (lined || B.car[i].hold > now) ? 1 : 0;
+    const lined = !L && r && liftBankLined(H.R, r, a, b), here = r && liftBankAt(B, i, f, now);
+    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : here && (lined || B.car[i].hold > now || (B.wantOpen && B.wantOpen(i, now))) ? 1 : 0;
     B.doors[i] = want > B.doors[i] ? Math.min(1, B.doors[i] + dt/380) : Math.max(0, B.doors[i] - dt/380);
   });
   if(!L){
     if(B.rest){ if(ci < 0) B.rest = false; return false; }
-    if(scene.state !== "play" || ci < 0 || b > rs[ci][3] - 40 || !liftBankAt(B, ci, f, now)) return false;
+    if(scene.state !== "play" || ci < 0 || !liftBankDeep(H.R, rs[ci], a, b) || !liftBankAt(B, ci, f, now)) return false;
     B.car[ci].hold = 0;
     B.L = { phase: 'pick', t: 0, car: ci, from: f, to: f };
     ow.vel = 0;
@@ -38421,88 +38430,57 @@ function hospInSetFloor(scene, n){
    do in a busy building -- seen going up and down the glass shaft from the street */
 const HOSP_LIFTS = [{ f: 4, from: 4, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 30000, next: null, call: 0, npc: false }, { f: 1, from: 1, t0: 0, t1: 0, hold: 0, idle: 0, idleAt: 42000, next: null, call: 0, npc: false }];
 const HOSP_LIFT_T = { base: 1600, perFloor: 1100, holdMs: 9000, idleMin: 24000, idleMax: 55000, ahead: 20000 };
-function hospLiftMs(a, b){ return HOSP_LIFT_T.base + HOSP_LIFT_T.perFloor*Math.abs(a - b); }
+/* MARINA GENERAL'S LIFTS ARE A LIFT BANK (hosp-lift-kit, the walk-in kit's W10: one car kit -- Sir, 2026-11-17, "lets do it now"): the two
+   glass cars are HOSP_BANK on the kit (liftBank*), their state still HOSP_LIFTS, their doors HOSP_IN.doors and his ride HOSP_IN.lift, which the
+   rest of the hospital reads -- the glass shaft, the riders, the crew. These are the kit's own, under the hospital's names */
+function hospLiftMs(a, b){ return liftBankMs(HOSP_BANK, a, b); }
 /* car i at floor f now, doors free to open */
-function hospLiftAt(i, f, now){ const L = HOSP_LIFTS[i]; return L.f === f && now >= L.t1; }
+function hospLiftAt(i, f, now){ return liftBankAt(HOSP_BANK, i, f, now); }
 /* where car i is now (the shaft's height, as the floors' hospInZf) */
 function hospLiftZ(i, now){ const L = HOSP_LIFTS[i], z1 = hospInZf(L.f); if(now >= L.t1) return z1;
   const u = Math.max(0, Math.min(1, (now - L.t0)/((L.t1 - L.t0) || 1))), e = u*u*(3 - 2*u), z0 = hospInZf(L.from); return z0 + (z1 - z0)*e; }
 /* how soon car i could be at floor f */
-function hospLiftEta(i, f, now){ const L = HOSP_LIFTS[i]; if(now >= L.t1) return L.f === f ? 0 : hospLiftMs(L.f, f); return (L.t1 - now) + (L.f === f ? 0 : hospLiftMs(L.f, f)); }
+function hospLiftEta(i, f, now){ return liftBankEta(HOSP_BANK, i, f, now); }
 /* send car i to floor f (on its way somewhere already: after that) */
-function hospLiftGo(i, f, now){
-  const L = HOSP_LIFTS[i];
-  if(now < L.t1){ if(L.f !== f) L.next = f; return; }
-  L.next = null; if(L.f === f) return;
-  L.from = L.f; L.f = f; L.t0 = now; L.t1 = now + hospLiftMs(L.from, f); L.idle = 0;
-}
+function hospLiftGo(i, f, now){ liftBankGo(HOSP_BANK, i, f, now); }
 /* the ground floor's cast at car i, or coming to it, in the next HOSP_LIFT_T.ahead */
 function hospCastWillWantCar(i, now){
   const W = hospInHaz(1).walk.filter(w => w.cast && !w.knock && (w.cast._S || hospCastCompile(w.cast) || w.cast._S).some(s => s.car === i));
   for(let k = 0; k <= HOSP_LIFT_T.ahead; k += 1000) for(const w of W){ const q = hospWalkerRaw(w, now + k); if(!q.hidden && q.car === i) return true; }
   return false;
 }
-/* every frame, wherever he is: the cars' trips, who wants them, and their wandering */
-function hospLiftsTick(scene, dt){
-  const now = scene.time.now, T = HOSP_LIFT_T, inIn = hospInsideNow(scene), fl = inIn ? HOSP_IN.floor : 0, ow = scene.ow;
-  if(now - (T._npcT || 0) > 500){ T._npcT = now; HOSP_LIFTS.forEach((L, i) => { L.npc = hospCastWillWantCar(i, now); }); }
-  /* a crew coming up to him out of the lift: the north car to their floor */
-  const crewF = hospRescueLiftF(now) || (HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0);   // (the crew's van at the door, them up in the lift: hospRescueLiftF)
-  HOSP_LIFTS.forEach((L, i) => {
-    if(now >= L.t1 && L.next != null){ const n = L.next; L.next = null; hospLiftGo(i, n, now); }
-    if(L.callNext != null && L.rider == null && now >= L.t1){ const n = L.callNext; L.callNext = null; hospLiftGo(i, n, now); }   // (his call, held while a rider was in it: HOSP_RIDERS)
-    if(inIn && HOSP_IN.lift && HOSP_IN.lift.car === i) return;                     // (carrying him)
-    if(L.call && now >= L.t1 && L.f === L.call){ L.call = 0; L.hold = now + T.holdMs; if(typeof sfxThump === "function" && fl === L.f) sfxThump(0.22); }   // (here for him: its doors held open)
-    if(L.call) return;
-    if(L.rider != null){ L.idle = 0; return; }                                       // (someone riding it: theirs, HOSP_RIDERS)
-    if(i === 0 && crewF){ hospLiftGo(i, crewF, now); L.hold = now + 4000; return; }
-    const near = inIn && fl === L.f && ow && (() => { const pk = hospInPocket(), c = HOSP_IN.cars[i], a = ow.px - pk.x0, b = ow.py - pk.y0; return a > c[0] - 420 && a < c[1] && b > c[2] - 160 && b < c[3] + 160; })();
-    if(L.npc && now >= L.hold && !near){ hospLiftGo(i, 1, now); return; }   // (the ground floor's cast wanting it -- once its doors have been held for him, and not from in front of him)
-    /* nobody wanting it: now and then off to another floor (not from in front of him) */
-    if(now < L.t1 || now < L.hold || near){ L.idle = 0; return; }
-    L.idle += dt;
-    if(L.idle > L.idleAt){ let f = L.f; while(f === L.f) f = HOSP_FLOOR_N[Math.floor(Math.random()*HOSP_FLOOR_N.length)]; hospLiftGo(i, f, now); L.idleAt = T.idleMin + Math.random()*(T.idleMax - T.idleMin); }
-  });
-}
-/* CALL LIFT, up or down (the panel's arrow he pressed): the car that will be here first (one here already: its doors),
-   and he waits */
-function hospLiftCall(dir){
-  const s = typeof scn === "function" ? scn() : null; if(!s || !hospInsideNow(s) || HOSP_IN.lift) return;
-  const now = s.time.now, f = HOSP_IN.floor;
-  if(HOSP_LIFTS.some(L => L.call === f)) return;
-  const here = HOSP_LIFTS.findIndex((L, i) => hospLiftAt(i, f, now));
-  if(here >= 0){ HOSP_LIFTS[here].hold = now + HOSP_LIFT_T.holdMs; if(typeof sfxThump === "function") sfxThump(0.18); return; }
-  let best = -1, bt = Infinity;
-  HOSP_LIFTS.forEach((L, i) => { const e = hospLiftEta(i, f, now) + (L.npc ? 20000 : 0) + (L.rider != null ? 40000 : 0); if(e < bt){ bt = e; best = i; } });
-  const L = HOSP_LIFTS[best]; L.call = f; L.dir = dir === 'down' ? 'down' : 'up';
-  if(L.rider != null) L.callNext = f; else hospLiftGo(best, f, now);   // (a rider in it: it comes once they are out -- HOSP_RIDERS)
-  if(typeof sfxThump === "function") sfxThump(0.15);
-}
-/* the call button, by the lift lobby's doors: shown there with no car's doors open to him; the car's floor while it comes */
-let LIFT_CALL_FN = null;   // (the call button's: the lift bank showing it -- the hospital's, or a LIFT_BANK's)
-function hospLiftCallUi(scene, ow){
-  LIFT_CALL_FN = null;
+/* THE BANK: the two cars by the lift lobby's glass (HOSP_IN.cars, doors west), every floor; who else wants them -- the ground floor's cast
+   (npc: holds its doors, and calls the car down), the crew coming up to him (the north car), a rider in it (HOSP_RIDERS: theirs) */
+const HOSP_BANK = liftBankDefine({ name: 'Marina General', car: HOSP_LIFTS, doors: HOSP_IN.doors, floors: HOSP_FLOOR_N, carFloors: () => HOSP_FLOOR_N,
+  rooms: [{ pk: HOSP_IN.name, face: 'w', rect: (i) => HOSP_IN.cars[i],
+            callZone: (a, b) => { const c = HOSP_IN.cars, X0 = c[0][0], Y0 = c[0][2], Y1 = c[1][3]; return a > X0 - 340 && a < X0 + 4 && b > Y0 - 80 && b < Y1 + 80; } }],
+  floorOf: s => s && s._inside && s._inside.name === HOSP_IN.name ? HOSP_IN.floor : null,
+  label: n => n === 1 ? 'G' : String(n), name_: n => HOSP_FLOORS[n].name,
+  say: n => n === 1 ? "Ground floor. The ER is somewhere down here." : "Floor " + n + " \u00b7 " + HOSP_FLOORS[n].name + ".",
+  T: HOSP_LIFT_T,
+  set: (scene, n) => hospInSetFloor(scene, n),
+  wantOpen: (i, now) => hospCastWantsCar(i, now),
+  preStep: (scene, now) => { const T = HOSP_LIFT_T; if(now - (T._npcT || 0) > 500){ T._npcT = now; HOSP_LIFTS.forEach((L, i) => { L.npc = hospCastWillWantCar(i, now); }); } },
+  stepHook: (scene, i, L, now, near) => {
+    if(L.rider != null){ L.idle = 0; return true; }                               // (someone riding it: theirs, HOSP_RIDERS)
+    const crewF = hospRescueLiftF(now) || (HOSP_JAIL.st && HOSP_JAIL.f !== 1 && /^(called|crew|talk|leave)$/.test(HOSP_JAIL.st) ? HOSP_JAIL.f : 0);   // (the crew's van at the door, them up in the lift)
+    if(i === 0 && crewF){ hospLiftGo(i, crewF, now); L.hold = now + 4000; return true; }
+    if(L.npc && now >= L.hold && !near){ hospLiftGo(i, 1, now); return true; }   // (the ground floor's cast wanting it -- once its doors have been held for him, and not from in front of him)
+    return false;
+  },
+  callCost: (i, L) => (L.npc ? 20000 : 0) + (L.rider != null ? 40000 : 0),
+  callBusy: (i, L) => L.rider != null });
+Object.defineProperty(HOSP_BANK, 'L', { get: () => HOSP_IN.lift, set: v => { HOSP_IN.lift = v; } });   // (his ride: HOSP_IN.lift, as the hospital reads it)
+Object.defineProperty(HOSP_BANK, 'rest', { get: () => HOSP_IN.rest, set: v => { HOSP_IN.rest = v; } });
+function hospLiftCall(dir){ liftBankCall(HOSP_BANK, dir); }
+/* THE CALL BUTTON (the lift kit's: liftBankCallUi shows it by a bank's lifts, LIFT_CALL_FN its press) */
+let LIFT_CALL_FN = null;
+function liftCallEl(){
   let el = document.getElementById("liftCall");
   if(!el){ el = document.createElement("div"); el.id = "liftCall"; el.className = "hidden"; document.body.appendChild(el);
-    el.addEventListener("click", e => { e.stopPropagation(); const b = e.target.closest && e.target.closest("[data-d]"); if(b) (LIFT_CALL_FN || hospLiftCall)(b.dataset.d); });
+    el.addEventListener("click", e => { e.stopPropagation(); const b = e.target.closest && e.target.closest("[data-d]"); if(b && LIFT_CALL_FN) LIFT_CALL_FN(b.dataset.d); });
     for(const ev of ["pointerdown", "touchstart", "mousedown"]) el.addEventListener(ev, e => e.stopPropagation()); }
-  const now = scene.time.now, f = HOSP_IN.floor, pk = hospInPocket(), cars = HOSP_IN.cars;
-  let show = false, txt = "";
-  if(ow && pk && !HOSP_IN.lift && scene.state === "play"){
-    const a = ow.px - pk.x0, b = ow.py - pk.y0, X0 = cars[0][0], Y0 = cars[0][2], Y1 = cars[1][3];
-    const inLobby = a > X0 - 340 && a < X0 + 4 && b > Y0 - 80 && b < Y1 + 80;
-    const open = HOSP_LIFTS.some((L, i) => hospLiftAt(i, f, now));   // (a car here: its doors open to him as he drives up)
-    if(inLobby && !open){
-      show = true;
-      const ci = HOSP_LIFTS.findIndex(L => L.call === f);
-      if(ci >= 0){ const L = HOSP_LIFTS[ci], z = hospLiftZ(ci, now); let at = L.f, dz = Infinity; for(const n of HOSP_FLOOR_N){ const d = Math.abs(hospInZf(n) - z); if(d < dz){ dz = d; at = n; } }
-        txt = '<span class="lcT">' + (L.dir === 'down' ? '▼' : '▲') + ' LIFT COMING</span><span class="lcF">' + (at === 1 ? 'G' : at) + '</span>'; el.classList.add("busy"); }
-      else { const top = Math.max(...HOSP_FLOOR_N), bot = Math.min(...HOSP_FLOOR_N);   // (no ▲ on the top floor, no ▼ on the ground)
-        txt = '<span class="lcT">CALL LIFT</span>' + (f < top ? '<button class="lcB" data-d="up">▲</button>' : '') + (f > bot ? '<button class="lcB" data-d="down">▼</button>' : ''); el.classList.remove("busy"); }
-    }
-  }
-  if(el._txt !== txt){ el._txt = txt; el.innerHTML = txt; }
-  el.classList.toggle("hidden", !show);
+  return el;
 }
 /* ==================== PEOPLE RIDING THE GLASS LIFT (HOSP_RIDERS, Sir 2026-10-29: "id like to have people riding these
    elevators. i want to pull from the existing people that are in the hospital and give them life by letting them get
@@ -38629,64 +38607,11 @@ function hospRiderAt(R, t){
   const p = R.at || R.home; return { f: R.f, a: p.a, b: p.b, th: R.st === 'wait' ? 0 : (p.th != null ? p.th : 0), moving: false };
 }
 /* the way into a car from the lobby: shut wherever the car is not, or its doors are (he is let out of one he is in) */
-function hospLiftBlocks(x, y, R){
-  const pk = hospInPocket(), s = typeof scn === "function" ? scn() : null;
-  if(!pk || !s || s._inside !== pk) return false;
-  const a = x - pk.x0, b = y - pk.y0, f = HOSP_IN.floor, now = s.time.now, ow = s.ow;
-  return HOSP_IN.cars.some((c, i) => {
-    if(a + R <= c[0] || a - R >= c[1] || b <= c[2] || b >= c[3]) return false;
-    if(hospLiftAt(i, f, now) && HOSP_IN.doors[i] > 0.6) return false;
-    if(HOSP_IN.lift && HOSP_IN.lift.car === i) return false;
-    const oa = ow.px - pk.x0, ob = ow.py - pk.y0; return !(oa > c[0] && oa < c[1] && ob > c[2] && ob < c[3]);   // (already in it: free to move)
-  });
-}
-function hospInLiftPick(n){
-  const L = HOSP_IN.lift;
-  liftPanelShow(false);
-  if(!L || L.phase !== 'pick') return;
-  if(!n || n === L.from){ HOSP_IN.lift = null; HOSP_IN.rest = true; return; }
-  L.to = n; L.dur = hospLiftMs(L.from, n); L.phase = 'close'; L.t = 0;   // (its own trip: HOSP_LIFTS)
-  if(typeof sfxThump === "function") sfxThump(0.15);
-}
 /* one of the ground floor's cast at the glass lift, its car i's doors open for them (HOSP_CAST: the visitor going up) */
 function hospCastWantsCar(i, t){
   if(HOSP_IN.floor !== 1 || !hospLiftAt(i, 1, t)) return false;
   for(const w of hospInHaz(1).walk){ if(!w.cast || w.knock) continue; const q = hospWalkerAt(w, t); if(!q.hidden && q.car === i) return true; }
   return false;
-}
-function hospInLiftTick(scene, ow, dt){
-  const pk = hospInPocket(), L = HOSP_IN.lift, a = ow.px - pk.x0, b = ow.py - pk.y0, cars = HOSP_IN.cars;
-  const ci = cars.findIndex(c => a > c[0] && a < c[1] && b > c[2] && b < c[3]);
-  const now = scene.time.now;
-  hospLiftCallUi(scene, ow);
-  cars.forEach((c, i) => {
-    const lined = !L && a > c[0] - 260 && a < c[1] && b > c[2] - 10 && b < c[3] + 10, here = hospLiftAt(i, HOSP_IN.floor, now);   // (only the car that is here opens: HOSP_LIFTS)
-    const want = L ? (L.car === i && (L.phase === 'pick' || L.phase === 'open') ? 1 : 0) : here && (lined || HOSP_LIFTS[i].hold > now || hospCastWantsCar(i, now)) ? 1 : 0;
-    HOSP_IN.doors[i] = want > HOSP_IN.doors[i] ? Math.min(1, HOSP_IN.doors[i] + dt/380) : Math.max(0, HOSP_IN.doors[i] - dt/380);
-  });
-  if(!L){
-    if(HOSP_IN.rest){ if(ci < 0) HOSP_IN.rest = false; return false; }
-    if(scene.state !== "play" || ci < 0 || a < cars[ci][0] + 110 || !hospLiftAt(ci, HOSP_IN.floor, now)) return false;
-    HOSP_LIFTS[ci].hold = 0;
-    HOSP_IN.lift = { phase: 'pick', t: 0, car: ci, from: HOSP_IN.floor, to: HOSP_IN.floor };
-    ow.vel = 0;
-    liftPanelShow(true, HOSP_IN.floor, null, hospInLiftPick);
-    return true;
-  }
-  L.t += dt; ow.vel = 0;
-  if(L.phase === 'pick'){ if(scene.state !== "play"){ liftPanelShow(false); HOSP_IN.lift = null; HOSP_IN.rest = true; } return true; }
-  if(L.phase === 'close' && L.t >= OW_LIFT.closeMs){
-    L.phase = 'ride'; L.t = 0;
-    { const C = HOSP_LIFTS[L.car]; C.from = L.from; C.f = L.to; C.t0 = scene.time.now; C.t1 = scene.time.now + L.dur; C.next = null; C.call = 0; }   // (the car goes with him)
-    sceneDissolve(scene, 650, () => hospInSetFloor(scene, L.to));
-  }
-  else if(L.phase === 'ride' && L.t >= L.dur){ L.phase = 'open'; L.t = 0; if(typeof sfxThump === "function") sfxThump(0.2); }
-  else if(L.phase === 'open' && L.t >= OW_LIFT.openMs){
-    HOSP_IN.lift = null; HOSP_IN.rest = true;
-    const F = HOSP_FLOORS[L.to];
-    if(typeof tpToast === "function") tpToast(L.to === 1 ? "Ground floor. The ER is somewhere down here." : "Floor " + L.to + " · " + F.name + ".");
-  }
-  return true;
 }
 /* every frame he is in the hospital (from owLiftTick): the gifts, the
    hazards, the heart on the ER's mat, and the lift. true holds him. */
@@ -38717,7 +38642,7 @@ function hospInTick(scene, ow, dt){
       return true;
     }
   }
-  return hospInLiftTick(scene, ow, dt);
+  return false;                                                                   // (its lifts: the kit's, liftBankTick -- HOSP_BANK)
 }
 /* its doors, outside: the main doors on the podium's south face (the
    heart run's bay is just out of them), and the skybridge's end at the
@@ -133907,7 +133832,7 @@ class WorldScene extends Phaser.Scene {
     if(OW_ARMED && !this.ow && this.route && this.state === "play"
        && (this.mode === "freeroam" || this.mode === "delivery")) owInstall(this);
     if(this.ow && this.ow.on){
-      hospLiftsTick(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
+      liftBanksStep(this, Math.min(dt, 40)); hospRidersTick(this); hospRescueTick(this); hospGivewayTick(this, dt);   // (every frame -- the lift too: the crew's car comes while he is down, played or not: the hospital's vehicles wait for him down as well -- HOSP_GIVEWAY)
       giftWorldTick(this, this.ow);   // the day's gifts out in the world: the survey, the pick-up (GIFT_WORLD)
       if(this.state === "play"){ owStep(this, Math.min(dt, 40)); sierraGateStep(this, Math.min(dt, 40)); courtyardGateStep(this, Math.min(dt, 40)); rimGateStep(this, Math.min(dt, 40)); almsGateStep(this, Math.min(dt, 40)); airGateStep(this, Math.min(dt, 40)); fleetGateStep(this, Math.min(dt, 40)); pocketDoorStep(this); mallEscStep(this, Math.min(dt, 40)); mallCrowdStep(this, t, Math.min(dt, 40)); mallJailTick(this, this.ow); walkinBanTick(this, this.ow); hospJailTick(this, this.ow); hospErMatTick(this); storeRepTick(this, this.ow); focusTick(this); cakeRunTick(this, this.ow); mallGuardTick(this, this.ow); annivTick(this, this.ow); gothTick(this, this.ow); lostDogTick(this, this.ow); lostItemTick(this, this.ow); tixTick(this, this.ow); lhTick(this, this.ow); gwTick(this, this.ow); if(WORLDGEN_COAST){ fmTick(this, this.ow); btTick(this); } ppTick(this, this.ow); msTick(this, this.ow); fyTick(this, this.ow); skTick(this, this.ow); cplTick(this, this.ow); if(WORLDGEN_COAST) spTick(this, this.ow); ssnTick(this, this.ow); ssTick(this, this.ow); kwTick(this, this.ow); rlTick(this, this.ow); buckTick(this, this.ow); fourthTick(this, this.ow); ballroomLifeTick(this); navTick(this, t); }
       else {
@@ -151083,6 +151008,9 @@ requestTpProfile();
 const GO_SPOTS = {
   mall: [12600, -560], garage: [7800, -560], shops: [9179, 2493], gate: [8100, 560],
   sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
+  /* (Marina General's ground floor, in its lift lobby facing the two glass lifts -- Sir, 2026-11-17, "a link that puts tipsy at the lift":
+     ?go=hosplift. A spot in a room: [x, y, yaw, the room's own setup]) */
+  hosplift: () => { const c = HOSP_IN.cars; return [HOSP_IN.x0 + c[0][0] - 200, HOSP_IN.y0 + (c[0][2] + c[1][3])/2, 0, s => hospInSetFloor(s, 1)]; },
 };
 (function(){
   let q = null, v = null, lh = null, ms = null;
@@ -151097,7 +151025,9 @@ const GO_SPOTS = {
   };
   if(!q && ms !== 'ladder' && ms !== 'return') return;
   let x, y, yaw = Math.PI;
+  let room = null;
   if(!q){}   // (ms=ladder alone: the spot is Brew & Bolt's bay, found once the city is up)
+  else if(typeof GO_SPOTS[q] === 'function'){ const G = GO_SPOTS[q](); [x, y] = G; if(G[2] != null) yaw = G[2]; room = G[3] || null; }
   else if(GO_SPOTS[q]) [x, y] = GO_SPOTS[q];
   else { const n = q.split(',').map(Number); if(n.length < 2 || n.some(isNaN)) return; [x, y] = n; if(n.length > 2) yaw = n[2]; }
   const t0 = Date.now();
@@ -151113,7 +151043,7 @@ const GO_SPOTS = {
       try {
         if(s.state === 'play' && s.ow){
           if(window.garageClose && document.body.classList.contains('tpGarage')) try { window.garageClose(); } catch(e){}
-          if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; owStandUpAt(s, x, y, yaw); if(v) zoomSet(+v); }
+          if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; owStandUpAt(s, x, y, yaw); if(room) room(s); if(v) zoomSet(+v); }
           else held++;
         }
       } catch(e){}

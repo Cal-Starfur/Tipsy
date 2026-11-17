@@ -92,8 +92,9 @@
 "title": "Marina General's glass lift onto the LIFT_BANK kit (one car kit, W10): its cars, call, ride and doorways through liftBank*, keeping its glass shaft, riders and crew",
 "spec": "docs/kits/walkin.md",
 "deps": [],
-"status": "pending",
-"group": "Palmline Tower interior"
+"status": "built",
+"group": "Palmline Tower interior",
+"note": "HOSP_BANK on the lift kit (doors west, its call zone, cast/crew/riders as hooks); HOSP_LIFTS/HOSP_IN.doors/HOSP_IN.lift kept as its state; test link ?go=hosplift"
 },
 {
 "id": "pt5",
