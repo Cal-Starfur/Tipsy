@@ -126967,12 +126967,14 @@ class WorldScene extends Phaser.Scene {
     /* THE REAR CAGE (Sir, 2026-11-17: "more roll cage supporting the engine on the back and wrapping the rear"): a frame out past the engine --
        two posts and a bar top and bottom -- tied back to the hoop's feet by a rail each side top and bottom, and a stay each side from the
        roof's back corners down to it. From the front it is all behind him (before the engine); from behind, its back over the engine */
-    const rx = -BODY.hx - 14, yr = yo - 4, zr = 35;
+    /* (tighter -- Sir, 2026-11-17: "tight to his original body, not fully outside everything"): the frame hugs his back face, the engine
+       stands out through it -- so from behind the frame goes before the engine, from the front after it */
+    const rx = -BODY.hx - 2, yr = BODY.hy - BODY.ch + 2, zr = zb + 2;
     const rearSide = sb => { tube([hx, sb*yo, zl], [rx, sb*yr, zl]); tube([hx, sb*yo, zb], [rx, sb*yr, zr]); };
     const rearBack = () => { for(const sb of [-1, 1]) tube([rx, sb*yr, zl], [rx, sb*yr, zr]); tube([rx, -yr, zr], [rx, yr, zr]); tube([rx, -yr, zl], [rx, yr, zl]); };
     const rearStays = () => { for(const sb of [-1, 1]) tube([hT, sb*yT, zt], [rx, sb*yr, zr]); };
-    if(part === 'pre'){ arms(-nearSide); if(frontSeen){ rearBack(); rearStays(); engine(); rearSide(-nearSide); rearSide(nearSide); } else rearSide(-nearSide); side(-nearSide, false); }
-    if(part === 'mid'){ arms(nearSide); if(!frontSeen){ engine(); rearSide(nearSide); rearBack(); } side(nearSide, false); }
+    if(part === 'pre'){ arms(-nearSide); if(frontSeen){ engine(); rearBack(); rearStays(); rearSide(-nearSide); rearSide(nearSide); } else rearSide(-nearSide); side(-nearSide, false); }
+    if(part === 'mid'){ arms(nearSide); if(!frontSeen){ rearSide(nearSide); rearBack(); engine(); } side(nearSide, false); }
     if(part === 'near'){ if(!frontSeen) rearStays(); side(-nearSide, true); if(frontSeen) roof(); side(nearSide, true); if(!frontSeen) roof(); lamps(); if(BODY._bskin && BODY._bskin.buggyPart === 'surf') board(); }
     if(part === 'front' && frontSeen) nudge();
     if(part === 'pre' && !frontSeen) nudge();
