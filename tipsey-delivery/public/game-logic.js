@@ -43319,7 +43319,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'none', lb: 'cage', lamp: 0xffb02a, rim: 'honey', rimCol: 0xe6dcb8 } },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', lid: { z1: 46, ch: 8, bev: 8.5, bevIn: 7.5, ox: 16 } /* (worn forward, as a hat -- Sir, 2026-11-17) (a fire helmet's crown -- Sir, 2026-11-17) */, trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'side', lb: 'none', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
-  { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'side', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
+  { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'none', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
   { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'side', lb: 'strip', lamp: 0xffb02a, rim: 'tri', rimCol: 0xe89a1a } },
   { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'single', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
   { id: 'monster:alien', build: 'monster', name: 'Alien Invader', cents: 900, body: 0x8ad83a, stripe: 0x6b3fa0, print: 'mtAlien', part: 'antennae', eye: 0xff4ad8, trim: { coil: 0x6b3fa0, bumper: 0x6b3fa0, bar: 0x3a1f5a, stack: 0xc9ced4, heat: 0x6b3fa0, exh: 'none', lb: 'strip', lamp: 0xc8ff6a, rim: 'mesh', rimCol: 0x6b3fa0 } },
@@ -127198,7 +127198,7 @@ class WorldScene extends Phaser.Scene {
             const FONT = { L: [[0, 0, 1, 5], [0, 0, 3, 1]], P: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 2, 2.2, 3], [2, 2.6, 3, 4.4]], F: [[0, 0, 1, 5], [0, 4, 3, 5], [0, 2, 2.4, 3]], D: [[0, 0, 1, 5], [0, 4, 2.2, 5], [0, 0, 2.2, 1], [2, 0.8, 3, 4.2]] }, cu = 0.47, gw = 3*cu, gap = cu*0.9, tot = 4*gw + 3*gap, h0 = zb + 3;
             [...'LPFD'].forEach((ch, i) => { const g0 = -tot/2 + i*(gw + gap); for(const [x0, y0, x1, y1] of FONT[ch]){ const Y = q => -(g0 + q*cu);   // (his -y is to the viewer's right)
               this.quadOn(g, [P(xs + 0.05, Y(x0), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y0*cu), P(xs + 0.05, Y(x1), h0 + y1*cu), P(xs + 0.05, Y(x0), h0 + y1*cu)], 0xffd34a); } }); } }
-        if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
+        if(SKP === 'wings'){ this.monsterWing(nearSide, P, K, vis); this.monsterDragonHorns(P, K, nearSide); }
         if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
           for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.15; pts.push([x0 - 7*Math.sin(a) + u*u*22, 0, BODY.z1 + 2 + Math.sin(a*0.9)*18 + u*7, 4.6 - u*2.4]); }
           for(let k = 0; k <= N; k++){ const [x, y, z, r] = pts[k], q = P(x, y, z); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, (r + 0.6)*K); g.fillStyle(k % 2 ? 0xe89a1a : 0xb8701a, 1); g.fillCircle(q.x - 0.4*K, q.y - 0.5*K, r*K); }
@@ -127418,12 +127418,27 @@ class WorldScene extends Phaser.Scene {
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
   /* the Dragon's folded wing on his cab's side (Sir, 2026-11-17): a bat wing in green leather -- its bone along the top from his cab's front
      corner up to a claw behind, its edge scalloped down between the fingers */
-  monsterWing(sb, P, K, vis){ const g = this.g, zt = LID.z1, lx = LID.hx, y = sb*(LID.hy + 1.4);
-    const W = [[lx - 2, zt - 2], [lx - 6, zt + 9], [-lx - 9, zt + 19], [-lx - 5, zt + 8], [-lx + 1, zt + 12], [-lx + 4, zt + 3], [-lx + 9, zt + 7], [-lx + 13, zt - 2]];
-    const pts = W.map(([x, z]) => P(x, y, z)); this.quadOn(g, pts, vis(0, sb, 0) ? 0x3a8a44 : 0x24602c);
+  /* (second pass -- Sir, 2026-11-17): spread, not folded flat -- each wing rises off his cab's top edge and reaches out and back, so it has
+     area from every side: a leading bone from his shoulder to a claw at its tip, three finger bones fanning back to the scallops of its
+     trailing edge, the leather between them lit on the face toward the eye */
+  monsterWing(sb, P, K, vis){ const g = this.g, zt = LID.z1, lx = LID.hx, ly = LID.hy, ox = LID.ox || 0;
+    const Y = d => sb*(ly + d), S = [ox + lx - 4, Y(0.5), zt + 1];                                  // (the shoulder, on his cab's top edge)
+    const E = [[ox + lx - 7, Y(5), zt + 10], [ox - lx - 8, Y(13), zt + 17]];                           // (the elbow, the tip)
+    const T = [[ox - lx - 5, Y(9), zt + 8], [ox - lx + 1, Y(6.5), zt + 9.5], [ox - lx + 4, Y(3.5), zt + 3.5], [ox - lx + 8, Y(2.5), zt + 5.5], [ox, Y(0.5), zt + 0.5]];   // (the trailing edge's scallops)
+    const W = [S, ...E, ...T], pts = W.map(v => P(...v));
+    const n = (() => { const a = [E[1][0] - S[0], E[1][1] - S[1], E[1][2] - S[2]], b = [T[4][0] - S[0], T[4][1] - S[1], T[4][2] - S[2]]; return [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]]; })();
+    const face = vis(n[0], n[1], n[2]) !== (sb < 0);
+    this.quadOn(g, pts, face ? 0x3a9a48 : 0x24602c);
     g.lineStyle(Math.max(1, 0.8*K), 0x16401c, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
-    g.lineStyle(Math.max(1, 1.6*K), 0x1f4a24, 1); for(const i of [3, 5]){ const A = pts[1], B = pts[i]; g.lineBetween(A.x, A.y, B.x, B.y); } g.lineBetween(pts[0].x, pts[0].y, pts[1].x, pts[1].y); g.lineBetween(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
-    g.fillStyle(0xe6dcb8, 1); g.fillTriangle(pts[2].x - 1*K, pts[2].y + 0.5*K, pts[2].x + 1*K, pts[2].y + 0.5*K, pts[2].x - 0.6*K, pts[2].y - 2.4*K); }
+    g.lineStyle(Math.max(1, 1.8*K), 0x1f4a24, 1); for(const i of [3, 5, 7]){ const A = pts[1], B = pts[i]; g.lineBetween(A.x, A.y, B.x, B.y); }
+    g.lineStyle(Math.max(1, 2.4*K), 0x1f4a24, 1); g.lineBetween(pts[0].x, pts[0].y, pts[1].x, pts[1].y); g.lineBetween(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+    g.fillStyle(0xe6dcb8, 1); g.fillTriangle(pts[2].x - 1.2*K, pts[2].y + 0.6*K, pts[2].x + 1.2*K, pts[2].y + 0.6*K, pts[2].x - 0.8*K, pts[2].y - 3*K);
+    g.fillTriangle(pts[1].x - 1*K, pts[1].y + 0.5*K, pts[1].x + 1*K, pts[1].y + 0.5*K, pts[1].x, pts[1].y - 2.4*K); }
+  /* the Dragon's horns, swept back off his brow (Sir, 2026-11-17) */
+  monsterDragonHorns(P, K, nearSide){ const g = this.g, zt = LID.z1, lx = LID.hx, ly = LID.hy, ox = LID.ox || 0;
+    for(const sb of [-nearSide, nearSide]){ const pts = []; for(let k = 0; k <= 8; k++){ const u = k/8; pts.push([ox + lx - 3 - u*9, sb*(ly - 4 + u*1.5), zt - 0.5 + 9*Math.sin(u*Math.PI*0.5) - u*u*1.5, 2.2*(1 - u*0.85)]); }
+      for(let k = 0; k < 8; k++){ const [x0, y0, z0, r0] = pts[k], [x1, y1, z1, r1] = pts[k + 1], A = P(x0, y0, z0), B = P(x1, y1, z1), c = k > 5 ? 0x8a7a5a : 0xe6dcb8;
+        g.lineStyle(Math.max(1, (r0 + r1)*K), c, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(c, 1); g.fillCircle(B.x, B.y, r1*K); } } }
   buggyKit(bobZ, frontSeen, part){
     const g = this.g, K = this.kScale(), P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, TUBE = 0x2e3138;
