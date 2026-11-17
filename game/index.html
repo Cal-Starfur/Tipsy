@@ -44869,7 +44869,7 @@ const TP_BUILDS = {
   /* the Dune Buggy (Sir, 2026-11-16): a narrow low tub up on big knobby wheels set well out on arms, a roll cage over his lid (a hoop
      behind it, a bar each side down to his nose), the engine out the back, his flag up off the hoop (buggyKit) */
   buggy: { BODY: { hx: 25, hy: 17, z0: 16, z1: 33, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 12, hy: 11, z0: 33, z1: 37, ch: 4, bev: 2, bevIn: 1.5 },
-    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -20, y: 18.6 }, FLAGZ: [33, 48], zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
+    STRIPE: { z0: 21, z1: 24 }, FLAGB: { x: -17, y: 13.5 }, FLAGZ: [45, 50],   /* (on the hoop's top corner, the cage raked in: Sir, 2026-11-17) */ zmap: z => 16 + (z - 14)*0.4, noBracket: true, cagePole: true,   // (its flag pole is the hoop's post, run on up: Sir, 2026-11-16)
     tray: [0x3f434c, 0x3a3d45, 0x2e3138],
     WHEELS: { r: 11, W2: 9, rF: 8, W2F: 6.5, xs: [-17, 19], side: 27, style: 'mesh', tread: 'paddle', treadF: 'rib', rubber: [0x8d9299, 0x6b7078] } },
   /* the UFO (Sir, 2026-11-16): his body a wide octagonal saucer, his lid a glass dome, floating (no wheels), lights chasing round its rim,
@@ -128655,7 +128655,10 @@ class WorldScene extends Phaser.Scene {
        side goes before the body, the near side over it; what crosses over the top goes over the lid */
     /* (all the way to the back -- Sir, 2026-11-16: the hoop on his back corners, the roof running forward from it level, then the pillars
        down to his nose. No diagonal over the lid) */
-    const hx = -BODY.hx + BODY.ch, yo = BODY.hy + 1.6, zt = 47, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, xf = 5;
+    const hx = -BODY.hx + BODY.ch, yo = BODY.hy + 1.6, zt = 45, zb = BODY.z1, zl = BODY.z0 + 2, nx = BODY.hx - BODY.ch, xf = 5;
+    /* (tighter -- Sir, 2026-11-17): above his top the cage leans in -- the hoop's posts and the pillars rake inward to a narrower, lower roof
+       just outside his lid, so it hugs him instead of standing off his flanks like a box */
+    const yT = LID.hy + 2.5, hT = hx + 3;
     const plate = (x, y, z) => this.drawHullPrism({ hx: 2.2, hy: 0.8, ox: x, oy: y, z0: z - 2.2 + bobZ, z1: z + 2.2 + bobZ, ch: 0.6, cTop: 0x3b4048, cLt: 0x3b4048, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
     /* each side in two: what is below his top (the flank rail, the posts down his corners, the mounts) goes in with the body -- the far
        side's before it; what stands above his top (the posts on up, the roof rail, the pillar) can't be hidden by his lid, so it all goes
@@ -128664,9 +128667,9 @@ class WorldScene extends Phaser.Scene {
       if(!high){ for(const [x, z] of [[hx, zl], [nx, zl], [hx, zb - 3], [nx, zb - 3]]) plate(x, ym, z);   // (its mounts, on his flank)
         tube([hx, y, zl], [hx, y, zb]); tube([nx, y, zb + 1], [nx, y, zl]);       // (the hoop's post and the nose post, up his corners to his top)
         tube([hx, y, zl], [nx, y, zl]); return; }                                 // (the rail, the full length of his flank)
-      tube([hx, y, zb], [hx, y, zt]);                                             // (the hoop's post, on up to the roof)
-      tube([hx, y, zt], [xf, y, zt]); tube([xf, y, zt], [nx, y, zb + 1]); };      // (the roof rail, the pillar down to his nose)
-    const roof = () => { tube([hx, -yo, zt], [hx, yo, zt]); tube([xf, -yo, zt], [xf, yo, zt]); };   // (the hoop's top, the roof's front bar)
+      const yt = sb*yT; tube([hx, y, zb], [hT, yt, zt]);                          // (the hoop's post, raked in up to the roof)
+      tube([hT, yt, zt], [xf, yt, zt]); tube([xf, yt, zt], [nx, y, zb + 1]); };   // (the roof rail, the pillar down to his nose)
+    const roof = () => { tube([hT, -yT, zt], [hT, yT, zt]); tube([xf, -yT, zt], [xf, yT, zt]); };   // (the hoop's top, the roof's front bar)
     const lamps = () => { for(const y of [-6, 6]){   // (two spotlights on the roof's front bar, looking ahead)
         this.drawHullPrism({ hx: 1.6, hy: 2.4, ox: xf, oy: y, z0: zt + 0.5 + bobZ, z1: zt + 4.5 + bobZ, ch: 0.9, cTop: 0x3b4048, cLt: 0x2e3138, cDk: 0x23262c, cBottom: 0x23262c, outline: false, topEdge: false });
         if(vis(1, 0, 0)) this.quadOn(g, [P(xf + 1.65, y - 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 1.1), P(xf + 1.65, y + 1.8, zt + 3.9), P(xf + 1.65, y - 1.8, zt + 3.9)], LAMP); } };
@@ -128677,7 +128680,7 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, low, _pmix(BC[0], 0x000000, 0.35)); this.quadOn(g, top, BC[0]);
       g.lineStyle(Math.max(1, 1.2*K), BC[1], 1); { const a = P(x0 + 2, 0, zb2), b = P(x1 - 3, 0, zb2); g.lineBetween(a.x, a.y, b.x, b.y); }
       g.lineStyle(Math.max(1, 0.8*K), _pmix(BC[0], 0x000000, 0.5), 1); g.strokePoints(top.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
-      g.lineStyle(Math.max(1, 1.4*K), 0x2e3138, 1); for(const x of [hx + 1, xf]){ const a = P(x, -5.8, zb2 + 0.1), b = P(x, 5.8, zb2 + 0.1); g.lineBetween(a.x, a.y, b.x, b.y); } };   // (its straps)
+      g.lineStyle(Math.max(1, 1.4*K), 0x2e3138, 1); for(const x of [hT, xf]){ const a = P(x, -5.8, zb2 + 0.1), b = P(x, 5.8, zb2 + 0.1); g.lineBetween(a.x, a.y, b.x, b.y); } };   // (its straps)
     const nudge = () => { const fx = BODY.hx + 4;   // (a nudge bar across his nose, below his face)
       for(const y of [-9, 9]){ tube([BODY.hx - 1, y, BODY.z0 + 1], [fx, y, BODY.z0 + 2]); tube([fx, y, BODY.z0 + 2], [fx, y, BODY.z0 + 7]); }
       tube([fx, -9, BODY.z0 + 7], [fx, 9, BODY.z0 + 7]); tube([fx, -9, BODY.z0 + 2], [fx, 9, BODY.z0 + 2], 2.4); };
