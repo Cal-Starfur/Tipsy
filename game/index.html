@@ -45193,7 +45193,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true, noMouth: true },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true, noMouth: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true, noMouth: true },
-  { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
+  { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true, noMouth: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true },
   { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0xa8703a, stripe: 0xd8261c, costume: 'cowboy', noAerial: true },
@@ -129917,11 +129917,21 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xffffff, 0.3); g.fillEllipse(cx + w*0.55, cy + w*0.1, w*0.12, w*0.34);
         if(!front) pack(); }
       return; }
-    if(c === 'bee'){
-      if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
-      if((st === 'back' && front) || (st === 'top' && back)) for(const sb of [-1, 1]){ const c0 = P(-hx + 2, sb*12, 88), tip = P(-hx - 8, sb*26, 104), mid = P(-hx - 4, sb*24, 82);
-        g.fillStyle(0xe8f4ff, 0.45); g.fillTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); g.lineStyle(Math.max(1, 1*K), 0x9ab8d8, 0.8); g.strokeTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); }   // (its wings)
-      if(st === 'top') for(const sb of [-1, 1]){ line([8, sb*6, zl], [14, sb*12, zl + 16], 0x16171b, 1.6); ball(14, sb*12, zl + 17, 2.4, 0x16171b); }   // (its antennae)
+    if(c === 'bee'){   /* (second pass -- Sir, 2026-11-17): three black bands, fuzz along their edges; two pairs of veined see-through wings off his back
+         (behind him from the front, over him from behind); curled antennae; a stinger off his back; a smile in place of his light bar */
+      const wings = () => { for(const sb of [-1, 1]) for(const [up, L, W] of [[1, 30, 13], [0, 20, 9]]){ const r0 = [-hx + 3, sb*10, up ? 92 : 80], o = [];
+          for(let i = 0; i <= 14; i++){ const th = i/14*Math.PI*2, u = (1 - Math.cos(th))/2, v = Math.sin(th); o.push(P(r0[0] - u*L*0.55, r0[1] + sb*u*L, r0[2] + (up ? 6 : -4)*u + v*W*0.5)); }
+          g.fillStyle(0xe8f6ff, 0.42); g.fillPoints(o.map(PT), true); g.lineStyle(Math.max(1, 0.8*K), 0xa8c8e0, 0.8); g.strokePoints(o.map(PT), true);
+          for(const f of [0.35, 0.65]){ const e = P(r0[0] - f*L*0.55, r0[1] + sb*f*L, r0[2] + (up ? 6 : -4)*f), q0 = P(...r0); g.lineBetween(q0.x, q0.y, e.x, e.y); } } };
+      const sting = () => { const base = [], tip = P(-hx - 10, 0, 24); for(let i = 0; i < 10; i++){ const th = i/10*Math.PI*2; base.push(P(-hx, Math.cos(th)*4.5, 26 + Math.sin(th)*4.5)); } const H = convexHull(base.concat([tip])).map(PT); g.fillStyle(0x16171b, 1); g.fillPoints(H, true); };
+      if(st === 'back' && front){ wings(); sting(); }
+      if(st === 'body'){ for(const [z0, z1] of [[18, 26], [54, 62], [88, 96]]){ band(z0, z1, 0x16171b);
+          for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; const k = Math.min(hx/Math.max(Math.abs(ca), 0.01), hy/Math.max(Math.abs(sa), 0.01))*0.97 + 0.8;
+            for(const zz of [z0, z1]) line([ca*k, sa*k, zz], [ca*k, sa*k, zz + (zz === z0 ? -1.6 : 1.6)], 0x16171b, 1.2); } } }   // (fuzz along their edges)
+      if(st === 'face' && front){ const o = []; for(let i = 0; i <= 10; i++){ const u = i/10; o.push(PT(P(hx + 0.5, -7 + u*14, 72 - Math.sin(u*Math.PI)*4))); } g.lineStyle(Math.max(1, 2*K), 0x16171b, 1); g.strokePoints(o, false); }   // (a smile)
+      if(st === 'top'){ if(!front){ wings(); sting(); }
+        for(const sb of [-1, 1]){ const o = []; for(let i = 0; i <= 10; i++){ const u = i/10; o.push([6 + u*8, sb*(5 + u*7), zl + u*16]); } for(let i = 0; i < 10; i++) line(o[i], o[i + 1], 0x16171b, 1.8);
+          const e = o[10], q = P(e[0], e[1], e[2]), rr = sr(e[0], e[1], e[2], 3); g.lineStyle(Math.max(1, 1.8*K), 0x16171b, 1); g.beginPath(); g.arc(q.x + rr*0.4, q.y, rr*0.9, Math.PI*0.9, Math.PI*2.6, false); g.strokePath(); ball(e[0] + 1, e[1], e[2] + 1, 2, 0x16171b); } }   // (curled antennae)
       return; }
     /* (six more -- Sir, 2026-11-17) */
     if(c === 'knight'){
