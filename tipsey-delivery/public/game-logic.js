@@ -43470,6 +43470,13 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
   { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
+  /* (six more -- Sir, 2026-11-17) */
+  { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true },
+  { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0xa8703a, stripe: 0xd8261c, costume: 'cowboy', noAerial: true },
+  { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true },
+  { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true },
+  { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true },
+  { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -128111,6 +128118,42 @@ class WorldScene extends Phaser.Scene {
       if((st === 'back' && front) || (st === 'top' && back)) for(const sb of [-1, 1]){ const c0 = P(-hx + 2, sb*12, 88), tip = P(-hx - 8, sb*26, 104), mid = P(-hx - 4, sb*24, 82);
         g.fillStyle(0xe8f4ff, 0.45); g.fillTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); g.lineStyle(Math.max(1, 1*K), 0x9ab8d8, 0.8); g.strokeTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); }   // (its wings)
       if(st === 'top') for(const sb of [-1, 1]){ line([8, sb*6, zl], [14, sb*12, zl + 16], 0x16171b, 1.6); ball(14, sb*12, zl + 17, 2.4, 0x16171b); }   // (its antennae)
+      return; }
+    /* (six more -- Sir, 2026-11-17) */
+    const band = (z0, z1, col) => this.botHull(g, x, y, z, fdir, { hx: hx + 0.7, hy: hy + 0.7, ch: 8, z0, z1, band: true, cLt: col, cDk: _pdk(col, 0.82) });
+    if(c === 'knight'){
+      if(st === 'body') for(const z0 of [62, 74]) band(z0, z0 + 1.6, 0x8d959c);   // (its armour plates' seams)
+      if(st === 'face' && front) for(const zz of [80, 92]) onFront([[-12, zz], [12, zz], [12, zz + 2], [-12, zz + 2]], 0x5d646c);   // (its visor's bars round his eyes)
+      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0) && sb === nearB){ const bb = sb*(hy + 1.5); const S = [[-8, 70], [8, 70], [8, 50], [0, 40], [-8, 50]].map(([a, zz]) => PT(P(a, bb, zz))); g.fillStyle(0x1f3a7a, 1); g.fillPoints(S, true);
+        g.lineStyle(Math.max(1, 1.4*K), 0xd8b04a, 1); g.strokePoints(S, true); const c0 = P(0, bb, 66), c1 = P(0, bb, 44), c2 = P(-6, bb, 58), c3 = P(6, bb, 58); g.lineBetween(c0.x, c0.y, c1.x, c1.y); g.lineBetween(c2.x, c2.y, c3.x, c3.y); }   // (a shield on his near side)
+      if(st === 'top'){ lathe(0, 0, [[zl, 4], [zl + 4, 4]], 0xd8b04a); for(let i = 0; i < 7; i++){ const u = i/6; ball(-u*16, 0, zl + 8 + Math.sin(u*Math.PI)*8, 4.2 - u*1.4, 0xd8261c); } }   // (a red plume swept back)
+      return; }
+    if(c === 'cowboy'){
+      if(st === 'face') onFront([[-12, 74], [12, 74], [0, 60]], 0xd8261c);   // (a bandana under his eyes)
+      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(2, sb*(hy + 0.6), 66), rr = sr(2, sb*hy, 66, 5.5); g.fillStyle(0xffd34a, 1); const o = []; for(let i = 0; i < 12; i++){ const a2 = -Math.PI/2 + i*Math.PI/6, r2 = i % 2 ? rr*0.5 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(a2)*r2, q.y + Math.sin(a2)*r2)); } g.fillPoints(o, true); }   // (a sheriff's star)
+      if(st === 'top'){ brim(zl + 1, 30, 0x8a5a2a); lathe(0, 0, [[zl + 2, 14.3], [zl + 4.5, 14.3]], 0x3a2414); lathe(0, 0, [[zl + 4.5, 14], [zl + 12, 13], [zl + 14, 9]], 0x9a6a34);
+        for(const sb of [-1, 1]){ const q = P(0, sb*30, zl + 5), q0 = P(0, sb*24, zl + 1); g.lineStyle(Math.max(1, 3*K), 0x8a5a2a, 1); g.lineBetween(q0.x, q0.y, q.x, q.y); } }   // (a ten-gallon hat, its brim curled up at the sides)
+      return; }
+    if(c === 'ghost'){
+      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.8), pts = [P(-hx, bb, 30)]; for(let i = 0; i <= 8; i++){ const a = -hx + i/8*2*hx; pts.push(P(a, bb, 12 + (i % 2 ? 0 : 7))); } pts.push(P(hx, bb, 30)); g.fillStyle(0xe8e8ee, 1); g.fillPoints(pts.map(PT), true); }   // (its sheet's ragged hem)
+      if(st === 'face' && front){ for(const b of [-6.5, 6.5]){ const q = P(hx + 0.6, b, 86), rr = sr(hx, b, 86, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.2, rr*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y + rr*0.2, rr*0.35); }
+        const q = P(hx + 0.6, 0, 64), rr = sr(hx, 0, 64, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.2, rr*1.6); }   // (eye holes and a round mouth, "ooo")
+      return; }
+    if(c === 'mummy'){
+      if(st === 'body') for(let i = 0; i < 7; i++){ const z0 = 20 + i*12 + (i % 2)*3; this.botHull(g, x, y, z, fdir, { hx: hx + 0.6 + (i % 2)*0.3, hy: hy + 0.6 + (i % 2)*0.3, ch: 8, z0, z1: z0 + 2.4, band: true, cLt: 0xf3ead2, cDk: 0xc9bc8e }); }   // (its wrappings)
+      if(st === 'face' && front){ onFront([[-14, 82], [14, 92], [14, 94.5], [-14, 84.5]], 0xf3ead2); }   // (a bandage slanting across his face)
+      if(st === 'top'){ const q = P(4, -nearB*14, 52), q2 = P(-2, -nearB*24, 30); g.lineStyle(Math.max(1, 3.4*K), 0xf3ead2, 1); g.lineBetween(q.x, q.y, q2.x, q2.y); }   // (a loose end trailing)
+      return; }
+    if(c === 'clown'){
+      if(st === 'body'){ for(const [zz, col] of [[66, 0xd8261c], [78, 0x2aa83a], [30, 0xffd34a]]) for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(4, sb*(hy + 1), zz, 3.6, col); }   // (pompom buttons)
+      if(st === 'face' && front){ ball(hx + 3, 0, 79, 4, 0xe8101a);   // (a red nose and a big bow tie)
+        for(const sb of [-1, 1]) onFront([[0, 56], [sb*12, 62], [sb*12, 50]], sb > 0 ? 0xd8261c : 0xff4ab0); ball(hx + 0.8, 0, 56, 2.4, 0xffd34a); }
+      if(st === 'top') for(const [a, b, col] of [[-6, -14, 0xff6a1a], [-6, 14, 0xff6a1a], [-12, -8, 0xffd34a], [-12, 8, 0xffd34a], [-14, 0, 0xff4ab0], [4, -16, 0x2a5ad8], [4, 16, 0x2a5ad8]]) ball(a, b, zl - 2, 6, col);   // (a rainbow wig round his crown)
+      return; }
+    if(c === 'santa'){
+      if(st === 'body'){ band(12, 20, 0xf6f6f2); for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(hx - 4, sb*(hy - 2), 47, 2.6, 0xd8b04a); }   // (fur trim at his hem, a gold buckle on his belt)
+      if(st === 'face') onFront([[-12, 80], [-14, 66], [-9, 52], [0, 44], [9, 52], [14, 66], [12, 80], [6, 77], [0, 79], [-6, 77]], 0xf6f6f2);   // (a big white beard)
+      if(st === 'top'){ lathe(0, 0, [[zl - 1, 23], [zl + 5, 23]], 0xf6f6f2); lathe(0, 0, [[zl + 5, 18], [zl + 16, 11], [zl + 24, 4]], 0xc8202a); ball(-8, 0, zl + 23, 5, 0xf6f6f2); }   // (its hat: a fur brim, a red cone flopped back, a pompom)
       return; }
   }
   /* THE CARGO BOT THROUGH THE AGES (Sir, 2026-11-17: its builds are time periods): the delivery vehicle of each era, in the player's paint
