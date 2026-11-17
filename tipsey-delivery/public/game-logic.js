@@ -128106,7 +128106,16 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle((i + ph) % 5 === 0 ? 0xffffff : _pmix(A.n2 || A.glow || 0x5fe8ff, 0xffffff, 0.4), 1); g.fillCircle(q.x, q.y, 1.1*K*2.4); } }
       for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [8, -8, 0xd8a868]]) box(a - 6, a + 6, b - 6, b + 6, zl + 61, zl + 71, c);   // (parcels in the lid)
       hull({ hx: 50, hy: 32, z0: zl + 60, z1: zl + 76, ch: 22, bev: 10, bevIn: 9, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.5 });
-      this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); propNow(); return; }
+      /* (a hologram face -- Sir, 2026-11-17: "see-through and updated for a futuristic feel"): two glowing eyes and a mouth line of light
+         on its glass front, translucent, a soft halo round each, a scan line sweeping down them */
+      if(sees(1, 0, 0)){ const gc = A.glow || 0x5fe8ff, fa = 50.3, PT = q => new Phaser.Geom.Point(q.x, q.y), fl = 0.75 + 0.15*Math.sin(t*0.01);
+        const rect = (b0, b1, h0, h1) => [P(fa, b0, h0), P(fa, b1, h0), P(fa, b1, h1), P(fa, b0, h1)].map(PT);
+        for(const b of [-5.2, 5.2]){ g.fillStyle(gc, 0.3); g.fillPoints(rect(b - 4.6, b + 4.6, zl + 37, zl + 55), true);
+          g.fillStyle(gc, 0.9*fl); g.fillPoints(rect(b - 3.2, b + 3.2, zl + 39.5, zl + 52.5), true);
+          g.fillStyle(0xffffff, 0.85*fl); g.fillPoints(rect(b - 1.4, b + 1.4, zl + 43, zl + 49), true); }
+        g.fillStyle(gc, 0.3); g.fillPoints(rect(-9, 9, zl + 18, zl + 26), true); g.fillStyle(gc, 0.9*fl); g.fillPoints(rect(-7.5, 7.5, zl + 20.5, zl + 23.5), true);
+        { const u = (t*0.0008) % 1, zz = zl + 50 - u*28; g.fillStyle(0xffffff, 0.25); g.fillPoints(rect(-9, 9, zz, zz + 0.8), true); } }   // (the scan line)
+      propNow(); return; }
     if(era !== 'cg1980') shadow(50, 34);   // (the 1980s van's underglow is its shadow -- Sir, 2026-11-17)
     if(era === 'cg1900'){
       /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
