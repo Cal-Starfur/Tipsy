@@ -128147,7 +128147,7 @@ class WorldScene extends Phaser.Scene {
     if(front) brake();
     if(GL != null && front){ const vis2 = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }; if(vis2(1, 0, 0)) for(const yy of (BODY._bskin.twin ? [-2.4, 2.4] : [0])){ const rr = BODY._bskin.twin ? 1.1 : 1.6, xm = BODY._bskin.twin ? x1 + 0.05 : x1 + 1.25, o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(this.P(xm, yy + Math.cos(a)*rr, zc + Math.sin(a)*rr)); }
         this.quadOn(this.g, o, GL); const q = this.P(xm + 0.05, yy, zc); this.g.fillStyle(GL, 0.3); this.g.fillCircle(q.x, q.y, 3.4*this.kScale()); } }
-    if(front){}
+    if(front || (BODY._bskin && BODY._bskin.twin)){}   // (the railgun has no muzzle brake: none of its grey faces from behind either)
     else {   /* pointing away: only the brake's back face (toward the turret) goes under the barrel -- its top and sides wrap round the barrel's
                 end, so they go back over it */
       const a = x1 - 3.2, b = x1 + 1.2, h = 2.4, z0 = zc - 2.4, z1 = zc + 2.4, g = this.g, vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
