@@ -89,7 +89,7 @@ graph LR
 - [?] `pt6` Palmline Tower night: walkinNightBoxes for each room, lobby and shops lit after dark [docs/palmline-tower-plan.md]
 
 ## Walk-in interiors: Flats shops
-- [ ] `wi-palmline-garage` Walk-in interior: Palmline Garage (block 2,0 edge 0) [docs/state/walkin_recipe.md]
+- [?] `wi-palmline-garage` Walk-in interior: Palmline Garage (block 2,0 edge 0) [docs/state/walkin_recipe.md]
 - [ ] `wi-palmline-savings` Walk-in interior: Palmline Savings (block 2,0 edge 0) [docs/state/walkin_recipe.md]
 - [ ] `wi-tidewater-tea-house` Walk-in interior: Tidewater Tea House (block 2,0 edge 1) [docs/state/walkin_recipe.md]
 - [ ] `wi-driftwood-books` Walk-in interior: Driftwood Books (block 2,0 edge 1) [docs/state/walkin_recipe.md]
