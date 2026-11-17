@@ -76,6 +76,8 @@
 - A long fixture in a room (a counter, a shelf run, a bar, a bookcase against a wall) is never one piece keyed at its middle: people
   behind its far end and walls behind it sort wrong. Build it with `runPiece` (runs of ~50, each keyed at its own stretch, the
   whole drawn clipped per run), as the kit's walls are.
+- A shop walk-in grows into the yard before its room is built (walk-in kit W30): a lower rear wing back into the block's courtyard as far as
+  the yard is free (the entry's `dd`), its street front unchanged, the row's other shops not moved. Corner shops stay as they are.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the
