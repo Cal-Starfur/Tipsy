@@ -119427,6 +119427,7 @@ class WorldScene extends Phaser.Scene {
          tray under it) on six wheels, a dark face with two cyan eyes, his flag, and a lid the full width of the body that
          opens on his hinge with his lid (data.lid: the fleet avatar's, Tipsey's own lidAng) -- the hold inside, the lidar
          riding on it */
+      if(WEAR && /^cg\d{4}$/.test(SKIN.build || '')){ this.drawCargoEra(SKIN.build, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB); return; }   // (its era build: drawCargoEra)
       const L = 100, W = 72, hx = L/2, hy = W/2, z0 = 18, z1 = 86, zl = 97, wr = 11, wa = [-30, 0, 30];
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: z1 };
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
@@ -129751,6 +129752,91 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* THE CARGO BOT THROUGH THE AGES (Sir, 2026-11-17: its builds are time periods): the delivery vehicle of each era, in the player's paint
+     (BPW) with that era's own trim -- each drawn far to near: its far wheels, its body in pieces (the far end first), its near wheels.
+     cg1900 a wooden wagon with a canvas top on hoops; cg1920 a Model-T van, black hood and brass radiator; cg1950 a bulbous two-tone
+     panel van with a split windscreen; cg1970 a square box van with wood-grain sides; cg1980 a neon-trimmed wedge; cg2100 a hover
+     freighter on glowing pads, a cargo pod on its back */
+  drawCargoEra(era, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB){
+    const { P, sees, solid, prismH, line, Q } = V, K = this.K*0.42;
+    const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
+    const hull = (o) => this.botHull(g, x, y, z, fdir, Object.assign({ cTop: BPW.top, cLt: BPW.lt, cDk: BPW.dk, cBottom: 0x2a2f36, print: BPW.print, fin: BPW.fin }, o));
+    const glass = (a, b0, b1, h0, h1) => { if(sees(1, 0, 0)) Q([P(a, b0, h0), P(a, b1, h0), P(a, b1, h1), P(a, b0, h1)], 0x5a8aa8); };
+    const front = sees(1, 0, 0), DARK = 0x2a2f36, BRASS = 0xd8b04a, CHROME = 0xc9ced4, WOOD = 0x8a5a2a;
+    const order = (rear, fwd) => { if(front){ rear(); fwd(); } else { fwd(); rear(); } };
+    const wheels = (side, xs, r, bw, w) => { for(const a of xs) V.wheel(a, side*bw, r, w, r, wheelPhase); };
+    const arcRoof = (a0, a1, hw, z0, h, col, dk) => { const N = 8;
+      for(let i = 0; i < N; i++){ const t0 = Math.PI*i/N, t1 = Math.PI*(i + 1)/N, tm = (t0 + t1)/2, cb = Math.cos(tm), sz = Math.sin(tm); if(!sees(0, cb, sz)) continue;
+        Q([P(a0, hw*Math.cos(t0), z0 + h*Math.sin(t0)), P(a1, hw*Math.cos(t0), z0 + h*Math.sin(t0)), P(a1, hw*Math.cos(t1), z0 + h*Math.sin(t1)), P(a0, hw*Math.cos(t1), z0 + h*Math.sin(t1))], sz > 0.7 ? col : dk); }
+      for(const [a, nx] of [[a1, 1], [a0, -1]]) if(sees(nx, 0, 0)){ const o = []; for(let i = 0; i <= N; i++){ const tt = Math.PI*i/N; o.push(P(a, hw*Math.cos(tt), z0 + h*Math.sin(tt))); } Q(o, dk); } };
+    const wedge = (prof, hw, colTop, colSide) => {   // (a solid with a side profile prof [(a, z)...], extruded across b to +-hw)
+      for(let i = 0; i < prof.length; i++){ const [a0, z0] = prof[i], [a1, z1] = prof[(i + 1) % prof.length], na = z1 - z0, nz = -(a1 - a0); if(!sees(na, 0, nz)) continue;
+        Q([P(a0, -hw, z0), P(a1, -hw, z1), P(a1, hw, z1), P(a0, hw, z0)], nz > Math.abs(na) ? colTop : colSide); }
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)) Q(prof.map(([a, zz]) => P(a, sb*hw, zz)), sb === nearB ? colSide : _pdk(colSide, 0.88)); };
+    if(era === 'cg2100'){   /* the hover freighter: no wheels -- up on four glowing pads, bobbing */
+      const zl = 10 + Math.sin(t*0.003)*1.5; shadow(50, 32);
+      for(const [a, b] of [[-30, -20], [30, -20], [-30, 20], [30, 20]]){ const q = P(a, b, zl + 4); g.fillStyle(0x5fe8ff, 0.35); g.fillEllipse(q.x, q.y, 22*K, 11*K); g.fillStyle(0xc8ffff, 0.6); g.fillEllipse(q.x, q.y, 10*K, 5*K); }
+      hull({ hx: 50, hy: 32, z0: zl + 12, z1: zl + 60, ch: 22, bev: 14, bevIn: 12 });
+      hull({ hx: 50.8, hy: 32.8, ch: 22, z0: zl + 30, z1: zl + 33, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
+      hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xe8f0f6, cLt: 0xd0dce6, cDk: 0xa8b8c6, print: null });
+      this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); return; }
+    shadow(50, 34);
+    if(era === 'cg1900'){
+      const BW = 40; wheels(-nearB, [-30], 18, BW, 6); wheels(-nearB, [32], 13, BW, 6);
+      box(-46, 46, -24, 24, 22, 28, DARK);
+      const body = () => { hull({ hx: 44, hy: 30, z0: 28, z1: 66, ch: 2, bev: 1, bevIn: 0.8 });
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [38, 48, 58]) line([-44, sb*30.3, zz], [44, sb*30.3, zz], _pdk(BPW.dk, 0.7), 1);
+        this.tipseyFace(V, 44, 54, 1, { mouthZ: 36 }); };
+      const seat = () => { box(30, 46, -24, 24, 66, 71, WOOD); box(43, 46, -24, 24, 66, 82, _pdk(WOOD, 0.85));
+        for(const sb of [-1, 1]){ this.avLathe(V, 46, sb*27, [[62, 3], [69, 3]], BRASS, null, 8); const q = P(47.5, sb*27, 65.5); if(front){ g.fillStyle(0xfff2c4, 1); g.fillCircle(q.x, q.y, 1.8*K*2.4); } } };
+      const top = () => { arcRoof(-44, 28, 30, 66, 26, 0xf3ead2, 0xd9cfb4); for(const a of [-40, -22, -4, 14]){ const o = []; for(let i = 0; i <= 8; i++){ const tt = Math.PI*i/8; o.push([a, 30.4*Math.cos(tt), 66 + 26.4*Math.sin(tt)]); } for(let i = 0; i < 8; i++) if(sees(0, Math.cos(Math.PI*(i + 0.5)/8), Math.sin(Math.PI*(i + 0.5)/8))) line(o[i], o[i + 1], WOOD, 1.2); } };
+      body(); order(top, seat);
+      wheels(nearB, [-30], 18, BW, 6); wheels(nearB, [32], 13, BW, 6); return; }
+    if(era === 'cg1920'){
+      const BW = 34; wheels(-nearB, [-30, 32], 15, BW, 6);
+      for(const sb of [-nearB, nearB]) if(sb === -nearB) box(-14, 18, sb*28, sb*37, 22, 24, DARK);
+      const cargo = () => hull({ hx: 30, hy: 28, ox: -16, z0: 24, z1: 100, ch: 3, bev: 2, bevIn: 1.6 });
+      const cab = () => { hull({ hx: 10, hy: 26, ox: 22, z0: 24, z1: 92, ch: 2, bev: 1.5, bevIn: 1.2 }); glass(32.1, -20, 20, 66, 86); if(front) this.tipseyFace(V, 32.2, 76, 0.9, {}); };
+      const hood = () => { hull({ hx: 9, hy: 16, ox: 41, z0: 30, z1: 62, ch: 3, bev: 2, bevIn: 1.6, cTop: 0x2e3138, cLt: 0x23262c, cDk: 0x16171b, print: null });
+        if(front){ Q([P(50.2, -14, 34), P(50.2, 14, 34), P(50.2, 14, 60), P(50.2, -14, 60)], BRASS); for(let bb = -11; bb <= 11; bb += 3.6) line([50.4, bb, 37], [50.4, bb, 57], 0x8a6a1a, 1); }
+        for(const sb of [-1, 1]){ this.avLathe(V, 44, sb*22, [[56, 3.4], [62, 3.4]], BRASS, null, 8); } };
+      if(front){ cargo(); cab(); hood(); } else { hood(); cab(); cargo(); }
+      box(-14, 18, nearB*28, nearB*37, 22, 24, DARK);
+      wheels(nearB, [-30, 32], 15, BW, 6); return; }
+    if(era === 'cg1950'){
+      const BW = 33; wheels(-nearB, [-30, 30], 13, BW, 7);
+      const ends = sgn => box(sgn*46, sgn*52, -30, 30, 22, 29, CHROME);
+      const body = () => { hull({ hx: 48, hy: 32, z0: 20, z1: 74, ch: 20, bev: 10, bevIn: 9 });
+        hull({ hx: 40, hy: 28, ox: -4, z0: 74, z1: 100, ch: 18, bev: 12, bevIn: 11, cTop: 0xf6f0e0, cLt: 0xece4d0, cDk: 0xcfc6ae, print: null });
+        if(front){ for(const [b0, b1] of [[-10, -1], [1, 10]]) Q([P(36.2, b0, 78), P(36.2, b1, 78), P(36.2, b1, 94), P(36.2, b0, 94)], 0x5a8aa8); this.tipseyFace(V, 48, 52, 0.95, { mouthZ: 34 }); } };
+      if(front){ ends(-1); body(); ends(1); } else { ends(1); body(); ends(-1); }
+      wheels(nearB, [-30, 30], 13, BW, 7);
+      for(const a of [-30, 30]){ const o = []; for(let i = 0; i <= 16; i++){ const ph = i/16*Math.PI*2; const q = P(a + Math.cos(ph)*9, nearB*(BW + 3.7), 13 + Math.sin(ph)*9); o.push(new Phaser.Geom.Point(q.x, q.y)); }
+        g.lineStyle(Math.max(1, 2.4*K), 0xf4f2ec, 1); g.strokePoints(o, false); }   // (whitewalls)
+      return; }
+    if(era === 'cg1970'){
+      const BW = 36; wheels(-nearB, [-30, 30], 13, BW, 8);
+      const bump = sgn => box(sgn*46, sgn*50, -32, 32, 20, 27, CHROME);
+      const body = () => { hull({ hx: 46, hy: 32, z0: 20, z1: 106, ch: 4, bev: 3, bevIn: 2.5 });
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*32.3; Q([P(-40, bb, 34), P(30, bb, 34), P(30, bb, 74), P(-40, bb, 74)], sb === nearB ? WOOD : _pdk(WOOD, 0.85));
+          for(let zz = 38; zz < 74; zz += 5) line([-40, bb, zz], [30, bb, zz + 0.6], _pdk(WOOD, 0.7), 0.8); line([-40, bb, 34], [30, bb, 34], CHROME, 1.4); line([-40, bb, 74], [30, bb, 74], CHROME, 1.4); }
+        if(front){ glass(46.1, -24, 24, 78, 100); Q([P(46.2, -14, 32), P(46.2, 14, 32), P(46.2, 14, 44), P(46.2, -14, 44)], DARK);
+          for(const [b0, b1] of [[-26, -17], [17, 26]]) Q([P(46.3, b0, 33), P(46.3, b1, 33), P(46.3, b1, 43), P(46.3, b0, 43)], 0xfff2c4);
+          this.tipseyFace(V, 46, 62, 1.1, {}); } };
+      if(front){ bump(-1); body(); bump(1); } else { bump(1); body(); bump(-1); }
+      wheels(nearB, [-30, 30], 13, BW, 8); return; }
+    if(era === 'cg1980'){
+      const BW = 34; wheels(-nearB, [-32, 32], 12, BW, 8);
+      hull({ hx: 50, hy: 32, z0: 20, z1: 58, ch: 6, bev: 3, bevIn: 2.5 });
+      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 40, z1: 42, band: true, cLt: 0xff4ad8, cDk: 0xc82aa8 });
+      hull({ hx: 50.8, hy: 32.8, ch: 6, z0: 54, z1: 56, band: true, cLt: 0x5fe8ff, cDk: 0x2ab8d8 });
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*33; Q([P(-34, bb, 28), P(-12, bb, 28), P(-12, bb, 37), P(-34, bb, 37)], 0x101114); for(const a of [-31, -25, -19]) line([a, bb + sb*0.1, 30], [a + 3.5, bb + sb*0.1, 30], 0x7aff6a, 1.4), line([a, bb + sb*0.1, 35], [a + 3.5, bb + sb*0.1, 35], 0x7aff6a, 1.4); }
+      if(front) this.tipseyFace(V, 50, 44, 1, { mouthZ: 28 });
+      wedge([[-46, 58], [26, 58], [-2, 92], [-46, 92]], 28, _pmix(BPW.top, 0xffffff, 0.1), BPW.lt);
+      if(sees(28 - (-2) > 0 ? 34 : 34, 0, 28)) { const A = [24, 59.5], B = [-1, 90]; Q([P(A[0], -24, A[1]), P(A[0], 24, A[1]), P(B[0], 24, B[1]), P(B[0], -24, B[1])], 0x2a3a5a); }   // (its raked glass)
+      if(sees(-1, 0, 0)) for(let zz = 64; zz < 90; zz += 4) line([-46.2, -24, zz], [-46.2, 24, zz], 0x16171b, 1.6);   // (louvres over its back)
+      wheels(nearB, [-32, 32], 12, BW, 8); return; }
+  }
   /* the Dragon's folded wing on his cab's side (Sir, 2026-11-17): a bat wing in green leather -- its bone along the top from his cab's front
      corner up to a claw behind, its edge scalloped down between the fingers */
   /* (second pass -- Sir, 2026-11-17): spread, not folded flat -- each wing rises off his cab's top edge and reaches out and back, so it has
@@ -150452,6 +150538,9 @@ requestTpProfile();
   /* THE DRONES' BUILDS (Sir, 2026-11-16: the UFO "saved for the drones, not regular Tipsey"): a secondary build for the delivery drones -- it
      flies and steers as the drone does, drawn as the saucer (drawDrone -> drawDroneUfo) */
   const DRONE_BUILD = [{ id: 'stock', name: 'Drone', cents: 0 }, { id: 'ufo', name: 'UFO', cents: 2000 }];
+  /* THE CARGO BOT'S BUILDS (Sir, 2026-11-17: "give it time periods"): the cargo bot as the delivery vehicle of each era (drawProp's cargobot) */
+  const CARGO_BUILD = [{ id: 'stock', name: 'Cargo bot', cents: 0 }, { id: 'cg1900', name: '1900s Wagon', cents: 1600 }, { id: 'cg1920', name: '1920s Model-T', cents: 1600 },
+    { id: 'cg1950', name: '1950s Panel Van', cents: 1600 }, { id: 'cg1970', name: '1970s Box Van', cents: 1600 }, { id: 'cg1980', name: '1980s Retro-Future', cents: 1800 }, { id: 'cg2100', name: '2100s Hover Freighter', cents: 2200 }];
   const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'rover', name: 'Moon Rover', cents: 1800 }, { id: 'tank', name: 'Tank', cents: 1800 }, { id: 'buggy', name: 'Dune Buggy', cents: 1600 }, { id: 'monster', name: 'Monster Truck', cents: 1800 }, { id: 'hotrod', name: 'Night Cruiser', cents: 1600 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
@@ -150651,7 +150740,7 @@ requestTpProfile();
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
-                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]]), bSkin: TP_BSKIN };
+                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]], CARGO_BUILD.slice(1)), bSkin: TP_BSKIN };
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
@@ -151347,10 +151436,10 @@ requestTpProfile();
     if (tab === 'mouth') { renderMouth(P); return; }
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
-    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], BL = drone ? DRONE_BUILD : TP_BUILD;
+    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : TP_BUILD;
       const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'ufo' ? '<ellipse cx="20" cy="5" rx="5" ry="3" fill="#a9dcec"/><ellipse cx="20" cy="9" rx="15" ry="3" fill="#cfd3d8"/><circle cx="10" cy="9" r="1" fill="#ff5a4a"/><circle cx="20" cy="11" r="1" fill="#5ae8ff"/><circle cx="30" cy="9" r="1" fill="#ffd34a"/>' : ''}${id === 'monster' ? '<circle cx="9" cy="20" r="5" fill="#24262c"/><circle cx="31" cy="20" r="5" fill="#24262c"/><rect x="15" y="2" width="10" height="1.6" fill="#fff2c4"/>' : ''}${id === 'hotrod' ? '<ellipse cx="20" cy="6" rx="5" ry="2.6" fill="#9cc9dc"/><path d="M11 7L5 1H3l2 6z" fill="#eceef1" stroke="#2e3138" stroke-width=".6"/><path d="M24 14l-3 4M27 14l-3 4" stroke="#b9bec4" stroke-width="1.2"/>' : ''}${id === 'buggy' ? '<path d="M12 6V2h12l6 4" fill="none" stroke="#2e3138" stroke-width="1.4"/><rect x="4" y="9" width="5" height="6" fill="#5d646c"/>' : ''}${id === 'tank' ? '<rect x="14" y="2" width="11" height="5" rx="1.5" fill="#eceef1"/><rect x="25" y="3.6" width="10" height="1.8" fill="#5d646c"/><rect x="7" y="16" width="26" height="6" rx="3" fill="#2a2f36"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
-      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
+      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       /* this build's own skins (TP_BSKIN), under the builds */
       const BSK = TP_BSKIN.filter(k => k.build === cur), curS = L.bSkin && L.bSkin.startsWith(cur + ':') ? L.bSkin : 'stock';
       if (BSK.length) { const sw = k => k.id === 'stock' ? '<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="#eceef1"/><rect x="8" y="13" width="24" height="2.4" fill="#c2452e"/></svg>'
