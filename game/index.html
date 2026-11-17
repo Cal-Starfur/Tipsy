@@ -44725,7 +44725,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:tiger', build: 'tank', name: 'Tiger Stripe', cents: 900, body: 0xb8863a, stripe: 0xb8863a, noStripe: true, print: 'tkTiger', gun: 0x3a2c1a },
   { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
   { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
-  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true, fins: true,
+  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true, fins: true, mouth: 0xff4ad8,
     gear: { kind: 'hover', lift: 12, bob: true, xs: [0], side: 0, glowOnly: true } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
@@ -123374,8 +123374,8 @@ class WorldScene extends Phaser.Scene {
     const keep = [{ ...BODY }, { ...LID }, { ...STRIPE }, { ...FLAG.base }, FLAG.z0, FLAG.z1];
     Object.assign(BODY, B.BODY); Object.assign(LID, B.LID); Object.assign(STRIPE, B.STRIPE); Object.assign(FLAG.base, B.FLAGB); FLAG.z0 = B.FLAGZ[0]; FLAG.z1 = B.FLAGZ[1];
     const BS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === SKIN.build);   // (this build's own skin, if he wears one)
-    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print', 'eye', 'skinTop', 'flag', 'flagPicked', 'wheelStyle', 'wheelHubFace', 'wheelHub'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
-    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; if(BS.eye != null) SKIN.eye = BS.eye;
+    const SK = ['bodyTop', 'bodyRight', 'bodyLeft', 'outline', 'stripe', 'stripeDk', 'print', 'eye', 'skinTop', 'flag', 'flagPicked', 'wheelStyle', 'wheelHubFace', 'wheelHub', 'mouthCol'], skinKeep = SK.map(k => [k, SKIN[k], k in SKIN]);
+    if(BS){ const b = BS.body; Object.assign(SKIN, { bodyTop: b, bodyRight: _pdk(b, 0.91), bodyLeft: _pdk(b, 0.79), outline: _pdk(b, b > 0x808080 ? 0.22 : 0.45), stripe: BS.stripe, stripeDk: BS.stripe === b ? _pdk(b, 0.79) : _pdk(BS.stripe, 0.8) }); if(BS.print) SKIN.print = BS.print; else delete SKIN.print; if(BS.eye != null) SKIN.eye = BS.eye; if(BS.mouth != null && SKIN.mouthCol == null) SKIN.mouthCol = BS.mouth;
       const TRm = BS.trim || {};   // (its own rims, unless he picked some in the Wheels tab -- Sir, 2026-11-16)
       if(TRm.rim && !SKIN.wheelStyle) SKIN.wheelStyle = TRm.rim;
       if(TRm.rimCol != null){ SKIN.wheelHubFace = TRm.rimCol; SKIN.wheelHub = _pmix(TRm.rimCol, 0xffffff, 0.35); }
@@ -128114,10 +128114,17 @@ class WorldScene extends Phaser.Scene {
   /* THE NEON HOVER'S FINS: two swept stabilisers off his back corners, dark blades with glowing edges, the far one first */
   tankFins(bobZ){ const g = this.g, P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }, K = this.kScale(), GL = BODY._bskin.glow || 0x7af8ff;
     const ns = vis(0, 1, 0) ? 1 : -1, z = BODY.z1;
-    for(const sb of [-ns, ns]){ const y = sb*(BODY.hy - 3.5), F = [[-BODY.hx + 12, z], [-BODY.hx + 2, z], [-BODY.hx - 4, z + 11], [-BODY.hx + 1, z + 11]];
-      const pts = F.map(([x, zz]) => P(x, y, zz)); this.quadOn(g, pts, vis(0, sb, 0) ? 0x2a2d33 : 0x1c1e22);
-      g.lineStyle(Math.max(1, 1.4*K), GL, 1); g.lineBetween(pts[0].x, pts[0].y, pts[3].x, pts[3].y); g.lineBetween(pts[3].x, pts[3].y, pts[2].x, pts[2].y);
-      g.lineStyle(Math.max(1, 0.9*K), 0xff4ad8, 1); g.lineBetween(pts[1].x, pts[1].y, pts[2].x, pts[2].y); } }
+    /* (with volume -- Sir, 2026-11-17): each a blade 1.8 thick -- its inner face, its edges as faces, its outer face last, glowing edge lines on
+       its outer face */
+    for(const sb of [-ns, ns]){ const yc = sb*(BODY.hy - 3.5), t = 0.9, F = [[-BODY.hx + 12, z], [-BODY.hx + 2, z], [-BODY.hx - 4, z + 11], [-BODY.hx + 1, z + 11]], n = F.length;
+      const face = y => F.map(([x, zz]) => P(x, y, zz)), out = vis(0, sb, 0) ? 1 : -1;
+      this.quadOn(g, face(yc - out*sb*t*0), 0x16171b);
+      for(let i = 0; i < n; i++){ const a = F[i], b = F[(i + 1) % n], ex = b[0] - a[0], ez = b[1] - a[1], el = Math.hypot(ex, ez) || 1;
+        if(!vis(ez/el, 0, -ex/el)) continue; this.quadOn(g, [P(a[0], yc - t, a[1]), P(b[0], yc - t, b[1]), P(b[0], yc + t, b[1]), P(a[0], yc + t, a[1])], i === 3 ? _pmix(0x2a2d33, GL, 0.35) : 0x23262c); }
+      const pts = face(yc + sb*out*t*sb*sb); this.quadOn(g, face(yc + (vis(0, 1, 0) ? t : -t)), out > 0 ? 0x2e3138 : 0x1c1e22);
+      const fp = face(yc + (vis(0, 1, 0) ? t : -t));
+      g.lineStyle(Math.max(1, 1.4*K), GL, 1); g.lineBetween(fp[0].x, fp[0].y, fp[3].x, fp[3].y); g.lineBetween(fp[3].x, fp[3].y, fp[2].x, fp[2].y);
+      g.lineStyle(Math.max(1, 0.9*K), 0xff4ad8, 1); g.lineBetween(fp[1].x, fp[1].y, fp[2].x, fp[2].y); } }
   tankKit(bobZ, front = true){
     const zc = (LID.z0 + LID.z1)/2 + bobZ, x0 = LID.hx - 1, x1 = LID.hx + 24, bx = (c, hx, ox, hy, z0, z1) => this.drawHullPrism({ hx, hy, ox, oy: 0, z0, z1, ch: 0, cTop: c[0], cLt: c[1], cDk: c[2], cBottom: c[2], outline: false, topEdge: false });
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
@@ -128135,11 +128142,11 @@ class WorldScene extends Phaser.Scene {
       const parts = [() => pr(4.2, 4.6, x0 + 2.5, zc - 3.2, zc + 3.2, DK, 2),                 // (the shroud)
         () => { /* (the same from every side, Sir 2026-11-17): one gunmetal barrel, lighter than his hull so it shows against it, a glowing charge strip
                    along its top and down both its flanks */
-          pr(half, 2.1, mid, zc - 1.8, zc + 1.8, [0x6f757b, 0x5d646c, 0x3b4048], 0.5);
+          pr(half, 2.1, mid, zc - 1.8, zc + 1.8, DK, 0.5);   // (dark grey, as the rest -- Sir, 2026-11-17)
           pr(half - 0.6, 0.5, mid + 0.3, zc + 1.8, zc + 2.2, [GL, GL, _pmix(GL, 0x000000, 0.3)], 0);
           for(const sy of [-1, 1]){ const w = this.R(0, sy, 0); if(w.x + w.y + w.z <= 0) continue; const A = this.P(xa + 1, sy*2.15, zc), B = this.P(xb - 1, sy*2.15, zc); this.g.lineStyle(Math.max(1, 1.4*this.kScale()), GL, 1); this.g.lineBetween(A.x, A.y, B.x, B.y); } },
         () => { const ph = (t*0.004) % 1; for(let k = 0; k < 3; k++) ring(xa + (xb - xa)*((k + ph)/3)); },   // (energy rings running along it)
-        () => { pr(1.2, 2.8, xb + 0.8, zc - 2.6, zc + 2.6, [0x5d646c, 0x4a5057, 0x2e3138], 0.6);
+        () => { pr(1.2, 2.8, xb + 0.8, zc - 2.6, zc + 2.6, DK, 0.6);
           const w = this.R(1, 0, 0); if(w.x + w.y + w.z > 0){ const o = [[2, -1.8], [2, 1.8], [-2, 1.8], [-2, -1.8]].map(([z2, y2]) => this.P(xb + 2.05, y2, zc + z2)); this.quadOn(this.g, o, GL); } }];   // (the emitter, its face glowing)                        // (the emitter)
       (front ? parts : parts.slice().reverse()).forEach(f => f()); }
     else bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
