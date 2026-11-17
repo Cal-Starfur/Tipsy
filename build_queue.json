@@ -16,8 +16,9 @@
 "deps": [
 "pt1"
 ],
-"status": "pending",
-"group": "Palmline Tower interior"
+"status": "dead",
+"group": "Palmline Tower interior",
+"note": "Sir, 2026-11-17: \"lets not do lobby drops\" -- the tower drops go to the flats and penthouses (pt4c)"
 },
 {
 "id": "pt2",
@@ -27,7 +28,8 @@
 "deps": [
 "pt1"
 ],
-"status": "pending"
+"status": "built",
+"note": "Coral Cafe (counter, espresso machine, back bar, roaster, tables, window bar, long table; barista, roaster, two customers) and Marina Deli (deli case, slicer, scale, shelves, drinks fridge, till, tables; clerk, cashier, two shoppers) as walk-ins; their pairs are slideDoors (him and the pickup worker); the building is shared out W/L/E/T so each room fades its own share and ghosts the rest"
 },
 {
 "id": "pt3",

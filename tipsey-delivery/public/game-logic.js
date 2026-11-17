@@ -28782,6 +28782,60 @@ const PT_IN = (() => { const P = PALMLINE_PLAN;
     get at(){ return d0.at + sh; }, get spawn(){ const s = d0.spawn; return [s[0] + sh, s[1]]; }, yaw: -Math.PI/2,
     world: () => { const w = d0.world(); return w ? { x: w.x + sh, y: w.y, ox: w.ox, oy: w.oy } : undefined; },
     out: (a, b) => { PT_IN.view(); return PT_IN.door ? b > PT_IN.D + PT_IN.out + 15 && Math.abs(a - (PT_IN.door.at + sh)) < P.DH + 40 : false; } }); })();
+/* (the lobby's share of the building: the podium's middle, its front and canopy, and the tower over it -- the rim queue's _shellFor) */
+POCKETS.find(q => q.name === 'Palmline Tower Lobby').share = 'L';
+/* ==================== PALMLINE TOWER'S TWO SHOPS, WALK-INS (pt2: Coral Cafe west of the lobby, Marina Deli east; the rooms: the LIB entries
+   'Coral Cafe Interior', 'Marina Deli Interior') ====================
+   Each its span of the podium less the walls' 30 (W22): 846 x 810, its front the shopfront (the glass, the stall riser, the pair in the middle at
+   a 376..470 -- the lane to the back kept clear). Their share of the podium (front, roof, awning) and the tower fade round him; the lobby's and the
+   other shop's ghost. Each is still the day's pickup when it is: the worker walks out of the same pair (drawPickupUnit's noDoor) */
+const PT_SHOP = (() => { const P = PALMLINE_PLAN, out = {};
+  for(const st of RIM_STORES.filter(q => q.site === 'Palmline Tower')){
+    const [a0, a1] = palmlineStoreSpan(st), dm = (a0 + a1)/2, g0 = a0 + 22, g1 = a1 - 22, name = st.name + ' Interior';
+    const plan = walkinDefine({ name, from: 'Palmline Tower', x0: st.side === 'W' ? 700000 : 720000, y0: 400000,
+      lab: [a0 + 30, a1 - 30, P.PB + 30, P.PF - 30], body: [[P.PA0, P.PA1, P.PB, P.PF]],
+      door: { a: dm, b: P.PF, half: 47 }, H: 285, out: 70, apron: 30, glass: 36,
+      street: { to: [0, 90], routes: [[[-1600, 90]], [[1600, 90]]] },
+      openings: [{ lab: [[g0, P.PF], [dm - 52, P.PF]], z: [14, 112], glass: true }, { lab: [[dm - 47, P.PF], [dm + 47, P.PF]], z: [0, 115] },
+                 { lab: [[dm + 52, P.PF], [g1, P.PF]], z: [14, 112], glass: true }] });
+    const pk = POCKETS.find(q => q.name === name); pk.share = st.side; pk.hidesToo = true;
+    out[st.side] = { st, plan, name, a0, a1, dm };
+  }
+  return out;
+})();
+const CORAL_IN = PT_SHOP.W.plan, MARINA_IN = PT_SHOP.E.plan;
+const CORAL_BARISTA_UNIFORM = { shirt: { c:0xf4efe4, dk:0xd8d1c3 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2018, dk:0x1a140e },
+  vest: { c:0xc4603a, dk:0x9e4c2e }, shoeKind: 'sneaker' };                                // a cream tee under the cafe's coral apron
+const MARINA_DELI_UNIFORM = { shirt: { c:0xf6f7f4, dk:0xd8dad4 }, pants: { c:0x3a3e46, dk:0x2a2d33 }, shoe: { c:0x2a2c30, dk:0x1a1c20 },
+  vest: { c:0x3f6b4a, dk:0x2f5238 }, shoeKind: 'sneaker' };                                // whites under the deli's green apron
+walkinStaff('Coral Cafe Interior', [
+  { id: 'barista', role: 'barista', seed: 0xc0a101, U: CORAL_BARISTA_UNIFORM, fixed: true, keys: true,
+    posts: [[600, 272, Math.PI/2, 9000, true], [720, 272, Math.PI/2, 6000, true], [660, 64, -Math.PI/2, 4000, true]] },
+  { id: 'roaster', role: 'roaster', seed: 0xc0a112, U: CORAL_BARISTA_UNIFORM,
+    posts: [[180, 120, Math.PI, 8000, true], [250, 60, -Math.PI/2, 5000, true]] },
+  { id: 'guest-1', role: 'customer', seed: 0xc0a123, look: 'visitor', life: 'browse' },
+  { id: 'guest-2', role: 'customer', seed: 0xc0a134, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Coral Cafe Interior', { keep: [[370, 476, 0, 810]], looks: [
+  { id: 'counter', spots: [[560, 388, -Math.PI/2], [680, 388, -Math.PI/2]] },
+  { id: 'tables', spots: [[180, 385, Math.PI/2], [180, 300, Math.PI]] },
+  { id: 'window', spots: [[120, 660, Math.PI/2], [260, 660, Math.PI/2]] },
+  { id: 'menu', spots: [[640, 190, -Math.PI/2]] },
+] });
+walkinStaff('Marina Deli Interior', [
+  { id: 'clerk', role: 'deli clerk', seed: 0xde1101, U: MARINA_DELI_UNIFORM, fixed: true, keys: true,
+    posts: [[600, 268, Math.PI/2, 9000, true], [720, 268, Math.PI/2, 6000, true], [660, 66, -Math.PI/2, 4000, true]] },
+  { id: 'cashier', role: 'cashier', seed: 0xde1112, U: MARINA_DELI_UNIFORM, fixed: true,
+    posts: [[560, 506, Math.PI/2, 9000, true]] },
+  { id: 'shopper-1', role: 'shopper', seed: 0xde1123, look: 'visitor', life: 'browse' },
+  { id: 'shopper-2', role: 'shopper', seed: 0xde1134, look: 'visitor', life: 'browse' },
+]);
+walkinLife('Marina Deli Interior', { keep: [[370, 476, 0, 810]], looks: [
+  { id: 'case', spots: [[560, 392, -Math.PI/2], [700, 392, -Math.PI/2]] },
+  { id: 'aisle-1', spots: [[150, 300, -Math.PI/2], [250, 300, -Math.PI/2]] },
+  { id: 'aisle-2', spots: [[150, 470, -Math.PI/2]] },
+  { id: 'fridge', spots: [[90, 560, Math.PI]] },
+] });
 /* its people (400 x 810, 324,000 square: a hall -- the desk and the post staffed, a tenant or two and a courier coming and going). The
    receptionist behind the reception desk facing the doors (south: her screen's face turned to her, W19); the guard behind the security desk
    facing the doors, now and then at the drum watching the street, and the keyholder */
@@ -28812,7 +28866,7 @@ const PT_FLOORS = (() => {
     const c = [L(lab[0], lab[2]), L(lab[1], lab[3])];
     return (F._v = { dx: Math.min(c[0].x, c[1].x) - F.x0, dy: Math.min(c[0].y, c[1].y) - F.y0, rise: 0 }); };
   POCKETS.push({ name: F.name, from: 'Palmline Tower', x0: F.x0, y0: F.y0, w: F.W, d: F.D, h: 112, out: 0, view: F.view,
-    hides: 'Palmline Tower', hidesToo: true, doors: [],
+    hides: 'Palmline Tower', hidesToo: true, share: '*', doors: [],
     outside: () => { const lp = POCKETS.find(q => q.name === 'Palmline Tower Lobby'); return lp ? pocketOutsideDoor(lp, lp.doors[0]) : null; },
     floorNow: () => F.floor, z: () => ptFloorZ(F.floor), cut: () => ptFloorZ(F.floor)/1.5 - 1, zDepth: true,
     night: () => walkinNightBoxes(F.W, F.D, 112, 66, null) });   // (W25: the floor at the near walls' height and the far walls' inner faces; raised to the floor by pocketNightCut)
@@ -44239,6 +44293,26 @@ function ptFlatLeaf(c, k, u){
         poly([P(ha, B, 0), P(ea, eb, 0), P(ea, eb, 1), P(ha, B, 1)], '#5a4130'); }
   finally { ctx.restore(); }
 }
+/* A PALMLINE SHOP'S FRONT FROM INSIDE (pt2, as the lobby's: W4, one door system): the street's shopfront cut at the near walls' height LH, in its
+   own plane (the wall's outer face, D + 30) -- the stall riser, the glass to the cut, its mullions where the street's are, the pair's dark jambs,
+   the stone piers at the ends -- in runs of 40, solid but at the doorway, where the street's live leaves are */
+function ptShopFront(items, W, D, LH, R){
+  const FB = D + 30, d0 = R.door[0], d1 = R.door[1], riser = 21, stone = '#e3d9c4', stoneL = '#efe7d6', stoneD = '#c9bea7', mull = '#e9eef0', frm = '#2b3540';
+  const at = (a0, a1, f0, f1) => { const l = Math.max(a0, f0), h = Math.min(a1, f1); return h > l ? [l, h] : null; };
+  for(const [s0, s1] of [[-30, d0], [d1, W + 30]]){
+    const n = Math.max(1, Math.ceil((s1 - s0)/40));
+    for(let k = 0; k < n; k++){ const a0 = s0 + (s1 - s0)*k/n, a1 = s0 + (s1 - s0)*(k + 1)/n;
+      items.push({ a: (a0 + a1)/2, b: D + 15, z: 0, solids: [{ name: 'wall', poly: volRect(a0, a1, D, FB), h: LH }], draw: () => {
+        for(const pr of [[-30, R.g0], [R.g1, W + 30]]){ const q = at(a0, a1, pr[0], pr[1]); if(q) box(q[0], q[1], D, FB, 0, LH, stoneL, stone, stoneD); }
+        const gq = at(a0, a1, R.g0, R.g1);
+        if(gq){ F(gq[0], gq[1], 0, riser, shade(stone, 0.78), null, 0, FB); F(gq[0], gq[1], riser, LH, 'rgba(112,134,146,.22)', null, 0, FB);
+                F(gq[0] - 0.4, gq[1] + 0.4, LH - 3, LH, mull, null, 0, FB + 0.1); }
+        for(const m of R.mulls){ const q = at(a0, a1, m - 3, m + 3); if(q) F(q[0], q[1], riser, LH, mull, null, 0, FB + 0.2); }
+        for(const j of [[d0 - 5, d0], [d1, d1 + 5]]){ const q = at(a0, a1, j[0], j[1]); if(q) F(q[0], q[1], 0, LH, frm, null, 0, FB + 0.3); }
+      }});
+    }
+  }
+}
 function slidePairDraw(d, u, frame){
   const half = d.w/2, sh = (half - 3)*u;
   for(const [l0, l1, s] of [[d.a + 2, d.a + half, -1], [d.a + half, d.a + d.w - 2, 1]]){
@@ -54802,6 +54876,168 @@ function houseCanopy(fn){
     liftBankPieces(items, 'Palmline Tower Lobby', { A: PT_LIFT_A.lobby, half: PT_LIFT_A.half, deep: PT_LIFT_A.deep, lo: 0, hi: W }, () => true, stone, stoneL, stoneD);
 
     walkinStaffSolids(items, 'Palmline Tower Lobby');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE CORAL CAFE (pt2: the walk-in kit, Palmline Tower's west shop) ====================
+     846 x 810 (the shop's span of the podium less the walls' 30), its front the shopfront with the pair at a 376..470 (the lane to the back kept
+     clear). The plan is CORAL_IN (a east, b south; the north wall the tower's core, the west the podium's end, plaster over the cafe's coral dado):
+       a 520..800  the counter (b 300..348): the espresso machine and the till on it, their faces to the barista (b 272); the pastry case at its
+                   west end; the back bar on the north wall behind her (b 2..40), cups and the menu board over it
+       a 40..150   the roaster against the west wall (b 40..150), sacks of beans along the north wall (a 160..330)
+       a 60..330   four bistro tables (b 250..520); a window bar along the glass (b 690..720) with its stools
+       a 540..780  a long table with stools (b 560..640) */
+  name:'Coral Cafe Interior', xh: 285, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 846, dd: 810,
+  head:'Inside Coral Cafe: an espresso counter, a back bar, a coffee roaster, bistro tables and a window bar',
+  tags:['interior','pocket','coffee','espresso','roaster','counter','bistro tables','palmline tower'],
+  desc:'Palmline Tower\'s coffee shop: cream plaster over a coral dado, a terracotta-and-cream tiled floor, an espresso counter with its pastry case, a back bar of cups under the menu board, a copper roaster by the west wall with sacks of beans, bistro tables, a long table and a window bar onto the street.',
+  draw(p){
+    const pl = (typeof CORAL_IN !== 'undefined' && CORAL_IN) || null;
+    if(pl) pl.view();
+    const W = 846, D = 810, H = 285, AP = 30, LH = 66, door = (pl && pl.door) || { side: 's', at: 423, half: 47 };
+    const coral = '#c4603a', coralD = '#9e4c2e', coralL = '#e07a52', plas = '#f4ece0', stoneD = '#c9bea7';
+    const oak = '#a98259', oakF = '#8a6a46', oakD = '#6f5236', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b', copper = '#c4783a', dark = '#2b3138';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const stool = (a, b) => { cyl(a, b, 0, 54, 2.2, '#3a3e46'); cyl(a, b, 54, 60, 10, coral, coralL); };
+    const table = (a, b) => { cyl(a, b, 0, 3, 11, '#3a3e46'); cyl(a, b, 0, 56, 2.6, '#3a3e46'); cyl(a, b, 56, 60, 24, oak, oakF); plateCircle(a, b, 60, 23, oak, oakF, 1); };
+    const chair = (a, b, dir) => { box(a - 12, a + 12, b - 12, b + 12, 0, 42, '#3a3e46', '#2b3036', '#23292f'); box(a - 12, a + 12, b - 12, b + 12, 42, 46, coral, coralD, coralD);
+      const bk = { n: [a - 12, a + 12, b + 8, b + 12], s: [a - 12, a + 12, b - 12, b - 8], e: [a - 12, a - 8, b - 12, b + 12], w: [a + 8, a + 12, b - 12, b + 12] }[dir]; box(bk[0], bk[1], bk[2], bk[3], 46, 84, coral, coralD, coralD); };
+
+    /* ---- THE FLOOR: 45 tiles, cream and terracotta in a check, a threshold at the pair ---- */
+    T(0, W, 0, D, 0, '#efe5d3');
+    for(let b = 0, r = 0; b < D; b += 45, r++) for(let a = (r % 2 ? 45 : 0); a < W; a += 90) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#d9a582');
+    T(door.at - door.half, door.at + door.half, D, D + AP, 0.3, stoneD); T(door.at - door.half, door.at + door.half, D - 3, D + 3, 0.7, '#a9aeb2');
+
+    /* ---- THE WALLS (the kit's far walls; the front is the street's own, cut low: ptShopFront) ---- */
+    walkinRoom(items, { W, D, H, LH, door, gapsS: [[-30, W + 30]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0); F(-30, W + 30, 0, 60, coral, null, 0, 0.3); F(-30, W + 30, 60, 66, coralD, null, 0, 0.4); F(-30, W + 30, H - 14, H, stoneD, null, 0, 0.4);
+        for(const z of [118, 152]){ F(500, 820, z, z + 4, oak, null, 0, 0.9); for(let k = 0; k < 14; k++){ const a = 508 + k*22; F(a, a + 12, z + 4, z + 16, '#f6f3ea', coral, 1, 1.0); } }   // cup shelves
+        F(520, 800, 180, 262, '#2b3036', null, 0, 0.7); F(526, 794, 186, 256, '#353b42', null, 0, 0.8);                                             // the menu board
+        blockWordIn('CORAL CAFE', 548, 772, 228, 250, 0.9, '#f3ecdc', null, 5); for(let k = 0; k < 6; k++) F(548, 548 + 60 + (k*37) % 90, 196 + k*5, 198 + k*5, '#e8dccb', null, 0, 0.9);
+        F(200, 320, 120, 200, oakD, null, 0, 0.7); F(206, 314, 126, 194, '#e9d9bd', null, 0, 0.8); F(220, 300, 140, 180, coralL, null, 0, 0.9);    // a print over the sacks
+      },
+      paintW: () => { S(0, -30, D + 30, 0, H, plas); S(0.3, -30, D + 30, 0, 60, coral); S(0.4, -30, D + 30, 60, 66, coralD); S(0.4, -30, D + 30, H - 14, H, stoneD);
+        for(const [b0, b1] of [[260, 360], [440, 540]]){ S(0.5, b0, b1, 120, 200, oakD); S(0.6, b0 + 6, b1 - 6, 126, 194, '#f4e7c4'); S(0.7, b0 + 20, b1 - 20, 140, 180, coral); } },
+      low: ['#f3ecdc', '#e9e1d0', '#cfc6b4'], cap: ['#e9eef0', '#d8dde0', '#c3c9cc'], ftop: '#efe7d6' });
+    ptShopFront(items, W, D, LH, { door: [door.at - door.half, door.at + door.half], g0: -8, g1: W + 8, mulls: [71, 221, 625, 775] });
+
+    /* ---- THE BACK BAR (a 500..820, b 2..40): a coral cabinet, an oak top, a grinder and a brewer ---- */
+    items.push({ a: 820, b: 40, z: 0, solids: [solid(500, 820, 2, 40, 92, 'back bar')], draw: () => {
+      box(500, 820, 2, 40, 0, 86, coral, coralD, shade(coral, 0.7)); box(498, 822, 0, 42, 86, 90, oak, oakF, oakD);
+      box(540, 564, 8, 30, 90, 104, dark, dark, '#1c2126'); cyl(552, 19, 104, 126, 9, 'rgba(205,230,240,.6)', '#6b4a32');
+      box(620, 652, 8, 30, 90, 120, steel, steelD, steelS); box(700, 780, 8, 32, 90, 112, steel, steelD, steelS); for(const a of [716, 748]) cyl(a, 36, 92, 100, 4, '#f6f3ea'); }});
+    /* ---- THE COUNTER (a 500..800, b 300..348): coral, an oak top; the espresso machine and the till, faces north; the pastry case at its west end ---- */
+    items.push({ a: 650, b: 324, z: 0, solids: [solid(500, 800, 300, 348, 88, 'counter')], draw: () => {
+      box(500, 800, 300, 348, 0, 82, coral, coralD, shade(coral, 0.7)); for(let a = 506; a < 796; a += 20) F(a, a + 18, 30, 60, '#f3ecdc', null, 0, 348.2);
+      box(498, 802, 298, 350, 82, 88, oak, oakF, oakD);
+      box(560, 640, 306, 334, 88, 120, steel, steelD, steelS); for(const a of [580, 620]){ box(a - 6, a + 6, 300, 308, 98, 108, dark, dark, '#1c2126'); cyl(a, 304, 88, 96, 4, '#f6f3ea'); }
+      box(570, 584, 332, 336, 104, 114, '#d8483a', '#b5382c', '#8f2b22');
+      box(720, 752, 310, 334, 88, 96, dark, dark, '#1c2126'); box(722, 750, 328, 334, 96, 110, '#3a3e46', '#2b3036', '#23292f');
+      box(504, 548, 304, 344, 88, 94, steelD, steelD, steelS); box(504, 548, 304, 344, 94, 120, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
+      for(const b of [312, 326, 338]) for(const a of [514, 538]) cyl(a, b, 94, 100, 6, '#c98a4a', '#e0b27a'); }});
+    /* ---- THE ROASTER by the west wall (Brew & Bolt's own: a steel base, the copper drum, its hopper and flue) and the sacks ---- */
+    items.push({ a: 150, b: 150, z: 0, solids: [solid(30, 150, 40, 150, 130, 'roaster')], draw: () => {
+      box(30, 150, 40, 150, 0, 34, steel, steelD, steelS); cyl(90, 95, 34, 96, 36, copper, '#e8a550');
+      box(36, 144, 50, 140, 96, 104, steelD, steelS, steelS); poly([P(70, 84, 104), P(110, 84, 104), P(98, 90, 130), P(82, 90, 130)], '#8f969d');
+      tube(90, 95, 104, 90, 95, H - 6, 6, steelD); box(146, 154, 110, 132, 40, 74, '#1f2a30', '#19232a', '#141b20'); S(154.3, 112, 130, 46, 68, '#e79a35'); }});
+    items.push({ a: 330, b: 36, z: 0, solids: [solid(160, 330, 2, 36, 56, 'sacks')], draw: () => {
+      for(let a = 162; a < 326; a += 42){ box(a, a + 38, 4, 34, 0, 28, '#b49a6a', '#9a8254', '#7f6b44'); box(a + 4, a + 34, 6, 32, 28, 50, '#bfa574', '#a58c5c', '#8a7449'); F(a + 10, a + 28, 36, 44, coralD, null, 0, 34.2); } }});
+    /* ---- THE TABLES (west of the lane), the long table (east), the window bar along the glass ---- */
+    for(const [ta, tb] of [[110, 300], [250, 300], [110, 470], [250, 470]])
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 60 }, { name: 'chair', c: [ta - 40, tb], r: 13, h: 84 }, { name: 'chair', c: [ta + 40, tb], r: 13, h: 84 }],
+        draw: () => { chair(ta - 40, tb, 'e'); table(ta, tb); chair(ta + 40, tb, 'w'); } });
+    items.push({ a: 780, b: 640, z: 0, solids: [solid(540, 780, 580, 620, 74, 'long table'), ...[570, 630, 690, 750].flatMap(a => [{ name: 'stool', c: [a, 560], r: 10, h: 60 }, { name: 'stool', c: [a, 640], r: 10, h: 60 }])], draw: () => {
+      for(const a of [570, 630, 690, 750]) stool(a, 560); box(540, 780, 580, 620, 70, 74, oak, oakF, oakD); for(const a of [546, 774]) box(a - 3, a + 3, 586, 614, 0, 70, oakD, oakD, oakD);
+      for(const a of [600, 700]) cyl(a, 600, 74, 82, 5, '#f6f3ea'); for(const a of [570, 630, 690, 750]) stool(a, 640); }});
+    items.push({ a: 340, b: 720, z: 0, solids: [solid(30, 340, 700, 724, 74, 'window bar'), ...[70, 140, 210, 280].map(a => ({ name: 'stool', c: [a, 678], r: 10, h: 60 }))], draw: () => {
+      for(const a of [70, 140, 210, 280]) stool(a, 678); box(30, 340, 700, 724, 70, 74, oak, oakF, oakD); for(const a of [36, 334]) box(a - 3, a + 3, 702, 722, 0, 70, oakD, oakD, oakD);
+      cyl(120, 712, 74, 82, 5, '#f6f3ea'); cyl(250, 712, 74, 80, 5, '#f6f3ea'); }});
+    for(const [a, b] of [[810, 760], [24, 620]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
+      cyl(a, b, 0, 46, 16, stoneD, '#efe7d6'); plateCircle(a, b, 46, 14, '#5a4636', null, 0); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 46, a + 26*Math.cos(t), b + 26*Math.sin(t), 100, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+    walkinStaffSolids(items, 'Coral Cafe Interior');
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE MARINA DELI (pt2: the walk-in kit, Palmline Tower's east shop) ====================
+     846 x 810, the pair at a 376..470 (its lane kept clear). The plan is MARINA_IN (the north wall the tower's core, plaster over a green dado):
+       a 500..800  the deli case (b 300..352): meats, cheeses and salads under glass, the clerk behind it (b 268); the back counter on the north wall
+                   (b 2..40) with the slicer and the scale, jars over it, the menu board
+       a 60..320   two runs of shelving (b 180..230, 360..410), goods both sides; the drinks fridge on the west wall (b 500..660)
+       a 500..600  the till (b 530..570), the cashier behind it (b 506); two tables by the glass, west (b 640) */
+  name:'Marina Deli Interior', xh: 285, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 846, dd: 810,
+  head:'Inside Marina Deli: a deli case of meats and cheeses, a slicer, shelves of groceries, a drinks fridge and a till',
+  tags:['interior','pocket','deli','deli case','slicer','groceries','till','palmline tower'],
+  desc:'Palmline Tower\'s deli: plaster over a green dado, a black-and-white tiled floor, a long deli case of meats, cheeses and salads with the slicer and scale behind it, two runs of grocery shelves, a glass-fronted drinks fridge, a till by the door and two small tables by the window.',
+  draw(p){
+    const pl = (typeof MARINA_IN !== 'undefined' && MARINA_IN) || null;
+    if(pl) pl.view();
+    const W = 846, D = 810, H = 285, AP = 30, LH = 66, door = (pl && pl.door) || { side: 's', at: 423, half: 47 };
+    const green = '#3f6b4a', greenD = '#2f5238', greenL = '#5a8a66', plas = '#f2efe6', stoneD = '#c9bea7';
+    const oak = '#a98259', oakF = '#8a6a46', oakD = '#6f5236', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b', dark = '#2b3138';
+    const goods = ['#c4603a', '#e8b54a', '#3f6b4a', '#2f3e66', '#e9e4da', '#8a3a3a', '#5f8f58'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+
+    /* ---- THE FLOOR: black and white tiles, a threshold at the pair ---- */
+    T(0, W, 0, D, 0, '#f1efe9');
+    for(let b = 0, r = 0; b < D; b += 45, r++) for(let a = (r % 2 ? 45 : 0); a < W; a += 90) T(a, Math.min(W, a + 45), b, Math.min(D, b + 45), 0.2, '#3a3e46');
+    T(door.at - door.half, door.at + door.half, D, D + AP, 0.3, stoneD); T(door.at - door.half, door.at + door.half, D - 3, D + 3, 0.7, '#a9aeb2');
+
+    walkinRoom(items, { W, D, H, LH, door, gapsS: [[-30, W + 30]],
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0); F(-30, W + 30, 0, 60, green, null, 0, 0.3); F(-30, W + 30, 60, 66, greenD, null, 0, 0.4); F(-30, W + 30, H - 14, H, stoneD, null, 0, 0.4);
+        for(const z of [120, 154]){ F(500, 820, z, z + 4, oak, null, 0, 0.9); for(let k = 0; k < 14; k++){ const a = 506 + k*22; F(a, a + 14, z + 4, z + 22, 'rgba(205,230,240,.6)', '#9aa3a8', 1, 1.0); F(a + 2, a + 12, z + 4, z + 14, goods[k % goods.length], null, 0, 1.1); } }   // jars
+        F(520, 800, 186, 262, greenD, null, 0, 0.7); F(526, 794, 192, 256, green, null, 0, 0.8); blockWordIn('MARINA DELI', 548, 772, 228, 250, 0.9, '#fbf7ee', null, 5);
+        for(let k = 0; k < 5; k++) F(548, 548 + 70 + (k*41) % 100, 200 + k*5, 202 + k*5, '#e9e4da', null, 0, 0.9);
+      },
+      paintW: () => { S(0, -30, D + 30, 0, H, plas); S(0.3, -30, D + 30, 0, 60, green); S(0.4, -30, D + 30, 60, 66, greenD); S(0.4, -30, D + 30, H - 14, H, stoneD); },
+      low: ['#f3ecdc', '#e9e1d0', '#cfc6b4'], cap: ['#e9eef0', '#d8dde0', '#c3c9cc'], ftop: '#efe7d6' });
+    ptShopFront(items, W, D, LH, { door: [door.at - door.half, door.at + door.half], g0: -8, g1: W + 8, mulls: [71, 221, 625, 775] });
+
+    /* ---- THE BACK COUNTER (a 500..820, b 2..40): steel, the slicer and the scale on it ---- */
+    items.push({ a: 820, b: 40, z: 0, solids: [solid(500, 820, 2, 40, 92, 'back counter')], draw: () => {
+      box(500, 820, 2, 40, 0, 86, steel, steelD, steelS); box(498, 822, 0, 42, 86, 90, steelD, steelS, steelS);
+      box(560, 610, 8, 34, 90, 100, '#d8dde0', '#c9ced2', '#a9b0b5'); cyl(585, 21, 100, 104, 14, '#e9eef0', '#c9ced2'); box(600, 608, 12, 30, 100, 120, steelS, steelS, steelS);   // the slicer
+      box(680, 716, 10, 32, 90, 96, '#e9eef0', '#c9ced2', '#a9b0b5'); box(690, 706, 28, 32, 96, 112, dark, dark, '#1c2126');                                                     // the scale
+      for(const a of [750, 776, 800]) cyl(a, 20, 90, 110, 8, ['#e8b54a', '#c4603a', '#5f8f58'][(a/26 | 0) % 3]); }});
+    /* ---- THE DELI CASE (a 500..800, b 300..352): glass over trays of meats, cheeses and salads, their backs to the clerk ---- */
+    items.push({ a: 650, b: 326, z: 0, solids: [solid(500, 800, 300, 352, 110, 'deli case')], draw: () => {
+      box(500, 800, 300, 352, 0, 60, green, greenD, shade(green, 0.7)); F(506, 794, 18, 48, greenL, null, 0, 352.2);
+      box(500, 800, 300, 352, 60, 64, steelD, steelD, steelS);
+      for(let k = 0; k < 10; k++){ const a = 506 + k*29; box(a, a + 26, 312, 346, 64, 70, ['#d97a7a', '#e8c46a', '#f1e6c8', '#c9584a', '#7fae6a'][k % 5], '#b85a5a', '#a04a4a'); }
+      poly([P(500, 300, 64), P(800, 300, 64), P(800, 300, 110), P(500, 300, 110)], 'rgba(205,230,240,.25)');
+      poly([P(500, 352, 64), P(800, 352, 64), P(800, 320, 110), P(500, 320, 110)], 'rgba(205,230,240,.35)');
+      box(500, 800, 300, 320, 110, 114, steelD, steelD, steelS); }});
+    /* ---- THE SHELVES: two runs, goods on both faces ---- */
+    for(const [b0, b1] of [[180, 230], [360, 410]])
+      items.push({ a: 320, b: b1, z: 0, solids: [solid(60, 320, b0, b1, 120, 'shelves')], draw: () => {
+        box(60, 320, b0, b1, 0, 8, dark, dark, '#1c2126');
+        for(const z of [8, 46, 84]){ box(60, 320, b0, b1, z, z + 3, steel, steelD, steelS);
+          for(let a = 64, k = 0; a < 314; a += 14, k++) for(const bb of [b0 + 3, b1 - 13]) box(a, a + 11, bb, bb + 10, z + 3, z + 26 + (k*7 % 3)*4, goods[(k + (bb > b0 + 5 ? 3 : 0)) % goods.length], shade(goods[k % goods.length], 0.85), shade(goods[k % goods.length], 0.7)); }
+        box(60, 320, b0 + 20, b1 - 20, 8, 120, steelD, steelD, steelS); }});
+    /* ---- THE DRINKS FRIDGE on the west wall ---- */
+    items.push({ a: 46, b: 660, z: 0, solids: [solid(2, 46, 500, 660, 180, 'fridge')], draw: () => {
+      box(2, 46, 500, 660, 0, 180, '#e9eef0', '#d8dde0', '#c3c9cc'); S(46.2, 506, 654, 10, 170, 'rgba(160,200,214,.55)');
+      for(const z of [40, 80, 120]) for(let b = 510, k = 0; b < 650; b += 12, k++) S(46.4, b, b + 8, z, z + 26, goods[k % goods.length]);
+      S(46.6, 578, 582, 10, 170, '#c3c9cc'); }});
+    /* ---- THE TILL by the door (a 500..600, b 530..570), the tables by the glass ---- */
+    items.push({ a: 600, b: 570, z: 0, solids: [solid(500, 600, 530, 570, 92, 'till')], draw: () => {
+      box(500, 600, 530, 570, 0, 84, oak, oakF, oakD); box(498, 602, 528, 572, 84, 88, dark, dark, '#1c2126');
+      box(540, 570, 536, 556, 88, 96, dark, dark, '#1c2126'); box(542, 568, 536, 542, 96, 112, '#3a3e46', '#2b3036', '#23292f');
+      box(510, 534, 548, 566, 88, 94, '#e9d9bd', '#d8c7a8', '#c5b394'); }});
+    for(const [ta, tb] of [[110, 640], [250, 640]])
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 60 }, { name: 'chair', c: [ta - 40, tb], r: 13, h: 84 }, { name: 'chair', c: [ta + 40, tb], r: 13, h: 84 }], draw: () => {
+        for(const [a, bkA] of [[ta - 40, [ta - 52, ta - 48]], [ta + 40, [ta + 48, ta + 52]]]){ box(a - 12, a + 12, tb - 12, tb + 12, 0, 46, oak, oakF, oakD); box(bkA[0], bkA[1], tb - 12, tb + 12, 46, 84, oak, oakF, oakD); }
+        cyl(ta, tb, 0, 56, 2.6, '#3a3e46'); cyl(ta, tb, 56, 60, 24, '#f1efe9', '#d8d3c4'); plateCircle(ta, tb, 60, 23, '#f1efe9', '#c9c3b4', 1); } });
+    for(const [a, b] of [[810, 760], [24, 440]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
+      cyl(a, b, 0, 46, 16, stoneD, '#efe7d6'); plateCircle(a, b, 46, 14, '#5a4636', null, 0); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(a, b, 46, a + 26*Math.cos(t), b + 26*Math.sin(t), 100, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+    walkinStaffSolids(items, 'Marina Deli Interior');
     depthSort(items);
   }
 },
@@ -76396,7 +76632,10 @@ marinaEntry(),
      him), the shops' shares ghost (`ghost`, SHELL_GHOST: they stand over the room on screen, W26); the lobby's glass is a HOLE onto the live
      room (see), and its two pairs slide (slideDoors, live) */
   see: true,
-  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)' })),
+  slideDoors: PALMLINE_PLAN.DPS.map(c => ({ a: c - PALMLINE_PLAN.DH, w: PALMLINE_PLAN.DH*2, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 117, glass: 'rgba(170,206,220,.30)', over: 'canopy' }))
+    /* (and the two shops' pairs, walk-ins now -- pt2: CORAL_IN, MARINA_IN -- each under its own awning) */
+    .concat(RIM_STORES.filter(st => st.site === 'Palmline Tower').map(st => { const r = palmlineStoreSpan(st), dm = (r[0] + r[1])/2;
+      return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name }; })),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
   groundAt: -940,                        // (its paving is the lot's far corner in the paint order: the pieces stand on it)
   vol: palmlineVol(),
@@ -76424,7 +76663,7 @@ marinaEntry(),
     /* ---- THE PODIUM: roof and seen end ---- in three shares (pt1): the west shop's, the lobby's (the walk-in's shell) and the east
        shop's (ghosted while he is in the lobby), all keyed where the one roof was, so the tower still stands over them */
     const LOB0 = PALMLINE_PLAN.LOB0, LOB1 = PALMLINE_PLAN.LOB1;
-    [[PA0, LOB0, { ghost: true }], [LOB0, LOB1, { shell: true }], [LOB1, PA1, { ghost: true }]].forEach(([r0, r1, o], k) =>
+    [[PA0, LOB0, { ghost: true, share: 'W' }], [LOB0, LOB1, { shell: true, share: 'L' }], [LOB1, PA1, { ghost: true, share: 'E' }]].forEach(([r0, r1, o], k) =>
     items.push(Object.assign({ a: PA0 + k*0.01, b: PB, view: true, fpLab: { a0: r0, a1: r1, b0: PB, b1: PF, z1: PH + 60 }, draw: () => {
     if(inView(r0, r1, PB, PF, 0, PH + 30)){
       T(r0, r1, PB, PF, PH, '#bdb6a8');
@@ -76444,7 +76683,7 @@ marinaEntry(),
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    items.push({ a: TA0, b: TB, view: true, shell: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
+    items.push({ a: TA0, b: TB, view: true, shell: true, share: 'T', fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -76526,16 +76765,21 @@ marinaEntry(),
         F(a0 - 8, a0 + 8, 0, GH, stoneD, null, 0, PF + 0.6);                     // the piers
         F(a1 - 8, a1 + 8, 0, GH, stoneD, null, 0, PF + 0.6);
         F(g0, g1, 0, 14, shade(stone, .78), null, 0, PF + 0.8);                   // the stall riser
-        shopRoomPaint((u, d, z) => P(u, PF - d, z), g0, g1, 14, 120, col, dm, k);   // the shop behind the glass (lit, seen through it)
-        F(g0, g1, 14, 120, 'rgba(112,134,146,.30)', null, 0, PF + 0.8);            // the glass, light
+        /* A WALK-IN NOW (pt2: CORAL_IN, MARINA_IN): its glass and doorway are HOLEs onto the live room (walkinThrough), not a painted shop;
+           its pair slides, live (the entry's slideDoors) */
+        if(SEE){ HOLE([P(g0, PF + 0.7, 112), P(dm - 52, PF + 0.7, 112), P(dm - 52, PF + 0.7, 14), P(g0, PF + 0.7, 14)]);
+                 HOLE([P(dm + 52, PF + 0.7, 112), P(g1, PF + 0.7, 112), P(g1, PF + 0.7, 14), P(dm + 52, PF + 0.7, 14)]);
+                 HOLE([P(dm - 47, PF + 0.7, 115), P(dm + 47, PF + 0.7, 115), P(dm + 47, PF + 0.7, 0), P(dm - 47, PF + 0.7, 0)]); }
+        else shopRoomPaint((u, d, z) => P(u, PF - d, z), g0, g1, 14, 120, col, dm, k);
+        F(g0, dm - 52, 14, 112, 'rgba(112,134,146,.24)', null, 0, PF + 0.8); F(dm + 52, g1, 14, 112, 'rgba(112,134,146,.24)', null, 0, PF + 0.8);   // the glass, light
         F(g0, g1, 112, 120, sMull, null, 0, PF + 1.2);                             // the transom bar
         /* the bays: mullions out from the door each way */
         for(let a = dm - 52 - 150; a > g0 + 40; a -= 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
         for(let a = dm + 52 + 150; a < g1 - 40; a += 150) F(a - 3, a + 3, 14, 112, sMull, null, 0, PF + 1.2);
         /* the doors, to a person's scale (the mall's: 104 across, to the transom): the frame, the leaves clear glass over the room */
         F(dm - 52, dm - 47, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm + 47, dm + 52, 0, 120, '#2b3540', null, 0, PF + 1.4); F(dm - 52, dm + 52, 115, 120, '#2b3540', null, 0, PF + 1.4);
-        for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.28)', null, 0, PF + 1.8);
-        for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2);
+        if(!SEE){ for(const [l0, l1] of [[dm - 47, dm - 2], [dm + 2, dm + 47]]) F(l0, l1, 3, 115, 'rgba(170,206,220,.28)', null, 0, PF + 1.8);
+                  for(const hx of [dm - 7, dm + 5]) F(hx, hx + 2, 46, 70, '#d8dde0', null, 0, PF + 2.2); }   // (its leaves: the live slideDoors)
         /* the sign board and its name */
         F(a0 + 30, a1 - 30, 126, GH - 2, col, null, 0, PF + 1.0);
         F(a0 + 30, a1 - 30, GH - 4, GH - 2, shade(col, 1.3), null, 0, PF + 1.1);
@@ -76572,14 +76816,14 @@ marinaEntry(),
         slab(LOB0 - 8, LOB1 + 8, GT, PH - 6, PF + 6, PF, teal, shade(teal, .72), shade(teal, 1.2));
         blockWordIn('PALMLINE TOWER', LOB0 + 30, LOB1 - 30, GT + 6, PH - 12, PF + 6.2, '#fbf7ee', null);
     };
-    front(PA0, LOB0, 0, { ghost: true }, shopFront(0));
-    front(LOB0, LOB1, 1, { shell: true }, lobbyFront);
-    front(LOB1, PA1, 2, { ghost: true }, shopFront(1));
+    front(PA0, LOB0, 0, { ghost: true, share: 'W' }, shopFront(0));
+    front(LOB0, LOB1, 1, { shell: true, share: 'L' }, lobbyFront);
+    front(LOB1, PA1, 2, { ghost: true, share: 'E' }, shopFront(1));
     /* ---- OUT OVER THE APRON: the awnings, the lobby canopy, planters ---- */
     const AO = 30;                                                  // how far an awning stands out (its lip on the lot line: the podium's front is flush to the pavement, PF -30)
     /* (KEYED AT ITS NEAREST CORNER, a1 - 30: the shop's live glass pair is queued at its own point, the door's middle, and an awning keyed at
        its far end sorted before it -- the leaves painted over the awning. Anything out over a live door sorts after it: CLAUDE.md) */
-    slots.forEach(([a0, a1], k) => items.push({ a: a1 - 30, b: PF + AO, view: true, ghost: true, overShop: stores[k].name, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
+    slots.forEach(([a0, a1], k) => items.push({ a: a1 - 30, b: PF + AO, view: true, ghost: true, share: k ? 'E' : 'W', overShop: stores[k].name, fpLab: { a0: a0 + 30, a1: a1 - 30, b0: PF, b1: PF + AO, z1: 122 }, draw: () => {
       const st = stores[k], col = st.col, c0 = a0 + 30, c1 = a1 - 30, zt = 122, zb = 106, n = Math.round((c1 - c0)/64);
       if(!inView(c0, c1, PF, PF + AO, zb - 8, zt)) return;
       for(let s = 0; s < n; s++){
@@ -76596,7 +76840,7 @@ marinaEntry(),
     /* (keyed at its NEAREST corner, LOB1 - 40: the pairs' live leaves (slideDoors) are queued at their own points, and keyed at its far end
        the canopy sorted before them -- Sir, 2026-11-17: "the door kit seems like its painting over the awning". overDoors: the rim queue puts
        the pairs just under it whatever lmDepth does round him. CLAUDE.md) */
-    items.push({ a: LOB1 - 40, b: PF + 48, view: true, shell: true, overDoors: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
+    items.push({ a: LOB1 - 40, b: PF + 48, view: true, shell: true, share: 'L', overDoors: true, fpLab: { a0: LOB0 + 40, a1: LOB1 - 40, b0: PF, b1: PF + 48, z1: 132 }, draw: () => {
     if(inView(LOB0, LOB1, PF, PF + 50, 120, 140)){
       slab(LOB0 + 40, LOB1 - 40, 124, 132, PF + 48, PF, teal, shade(teal, .72), shade(teal, 1.25));
       F(LOB0 + 40, LOB1 - 40, 124, 125.5, shade(teal, 1.5), null, 0, PF + 48.2);   // its lit lip
@@ -110633,8 +110877,13 @@ class WorldScene extends Phaser.Scene {
       /* (FROM INSIDE ITS ROOM, a piece that is a point (`pt`: the gate piers) goes in at its own place among the room's walls, not at the
          site's far corner under them: the room's near wall was painted over the brick pier at the school's door) */
       /* (the pocket he is in when it hides this site -- a building of two: Palmline Tower's lobby and its floors -- else the one that hides it) */
+      /* (...or, out of them all, the one whose shell is still easing back -- the cafe's, just out of it -- else the first) */
+      const _rimPks = rim.name === 'Maritime Mall' ? [] : (this._rimPks || (this._rimPks = new Map())).get(rim.name) || (() => { const L = POCKETS.filter(p => p.view && [].concat(p.hides || []).includes(rim.name)); this._rimPks.set(rim.name, L); return L; })();
       const _inPk = this._inside, _rimPk = rim.name === 'Maritime Mall' ? null : _inPk && [].concat(_inPk.hides || []).includes(rim.name) ? _inPk
-                  : typeof pocketHiding === "function" ? pocketHiding(rim.name) : null;
+                  : _rimPks.find(p => p.share && pocketShellK(this, p) < 1) || (typeof pocketHiding === "function" ? pocketHiding(rim.name) : null);
+      /* (a building of several rooms -- Palmline Tower's lobby, cafe, deli, floors: each piece is a share of it, W L E or T, the tower over all;
+         a room's own share and the tower are its shell, the others ghost round it. A room of '*' takes them all) */
+      const _shellFor = (P, it) => !!(P && it.share && (P.share === '*' || it.share === 'T' || it.share === P.share));
       /* CUT AT THE FLOOR, as the hood landmarks' (queueParkBlock): on an upper floor of a room with a view (pk.cut, kit units), its shell and
          what it ghosts drawn whole up to that height, laid under the room's floor -- the building below him as the street knows it */
       const _rcut = _rimPk && POCKET_VIEW && POCKET_VIEW.pk === _rimPk && _rimPk.cut ? _rimPk.cut() : 0;
@@ -110653,8 +110902,10 @@ class WorldScene extends Phaser.Scene {
         if(it.fpLab && it._fp === undefined){ const F = it.fpLab, c = [fr.toWorld(F.a0, F.b0), fr.toWorld(F.a1, F.b1)];
           it._fp = { x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y), z1: F.z1 }; }
         /* (an anchor's shell, faded as he goes in or out of it: mallShellK) */
-        const sk = it.shell ? (_rimPk ? pocketShellK(this, _rimPk) : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this)
-                 : it.ghost && _rimPk ? SHELL_GHOST + (1 - SHELL_GHOST)*pocketShellK(this, _rimPk) : 1;   // (a piece of the same building that stands over the room on screen but is not its shell -- Palmline Tower's shops round its lobby: ghosted, W26)
+        const _shK = _rimPk ? pocketShellK(this, _rimPk) : 1;
+        const sk = it.share && _rimPk && _rimPk.share ? (_shellFor(_rimPk, it) ? _shK : SHELL_GHOST + (1 - SHELL_GHOST)*_shK)
+                 : it.shell ? (_rimPk ? _shK : mallShellK(this)) : (it.cutHide && rim.name === 'Maritime Mall') ? mallShellK(this)
+                 : it.ghost && _rimPk ? SHELL_GHOST + (1 - SHELL_GHOST)*_shK : 1;   // (a piece of the same building that stands over the room on screen but is not its shell -- Palmline Tower's shops round its lobby: ghosted, W26)
         const dep = deck ? garageDeckDepthLab(it.a || 0, it.b) : it.occ ? (inRoom && it.pt ? q.x + q.y + n*1e-3 : occDepth(it.occ, n)) : this.lmDepth(q.x + q.y + (it.z || 0), it, gg => LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank));
         /* ...under it, the same front cut down to its band (drawLow), whole, while it is less than whole: what stands
            of it from inside */
@@ -110668,9 +110919,12 @@ class WorldScene extends Phaser.Scene {
         if(it.overShop) (_overS || (_overS = new Map())).set(it.overShop, dep);   // (a shop's awning over its glass pair: the pair goes just under it)
         if(sk < 0.002) return;
         /* (a walk-in's shell goes through walkinShellQ, so its room is seen through its openings just under it: walkinThrough) */
-        (it.shell && _rimPk && _rimPk.walkin ? this.walkinShellQ(vq, _rimPk) : vq).push({ depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+        /* (registered as the shell of each room it covers -- seen from the street, each room's glass shows its room just under it: walkinThrough) */
+        const _e = { depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
           gg => { if(it.occ || it.view) LIB.setView(this.vpW(), this.vpH());
-                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } });
+                  try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } };
+        vq.push(_e);
+        for(const P of _rimPks) if(P.walkin && (it.share ? _shellFor(P, it) : it.shell && P === _rimPk)) this.walkinShellSeen(P, _e);
       });
       /* ITS GATES, which swing (RIM_GATES): cached shut or open, live
          only while they move */
@@ -110694,7 +110948,8 @@ class WorldScene extends Phaser.Scene {
            over the shop seen through it: its awning and frame are the building's, over the leaves, not the leaves' over them) */
         /* (and under whatever stands out over them -- a canopy marked overDoors: Sir, 2026-11-17, "the door kit seems like its painting over the
            awning". The leaves are queued at their own point; a canopy keyed elsewhere, or moved round him by lmDepth, sorted before them) */
-        const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = _overD !== null && !d.bay ? Math.min(own, _overD - 1e-3*(i + 1)) : own;
+        const ov = d.over === 'canopy' ? _overD : d.over && _overS ? _overS.get(d.over) : null;
+        const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = ov != null && !d.bay ? Math.min(own, ov - 1e-3*(i + 1)) : own;
         vq.push({ depth, fn: (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
       /* THE STREET SHOPS' GLASS PAIRS (the mall's street bays, Palmline Tower's stores: the census, 2026-10-30 -- painted
@@ -110702,7 +110957,7 @@ class WorldScene extends Phaser.Scene {
          shut glass): each its own door state, parted for the crowd and anyone listed coming up to it (shopDoorOpen),
          not for him (he cannot go in); drawn live over the front only while open -- shut, the painted pair is it */
       /* (the mall's own street bays are slideDoors now, above: Palmline Tower's pairs are the ones left here) */
-      if(rim.name === 'Palmline Tower' && typeof ALL_RIM_STORES !== "undefined"){
+      if(false && rim.name === 'Palmline Tower' && typeof ALL_RIM_STORES !== "undefined"){   // (Palmline's shops are walk-ins now: their pairs are the entry's slideDoors -- pt2)
         const pk = this.route && this.route.pickupSpot && mallStoreNamed(this.route.pickupShopName), rvv = { x: fr.rv.x, y: fr.rv.y };
         for(const st of ALL_RIM_STORES){
           if(storeSiteOf(st) !== rim.name || !(st.site || mallStreetBay(st)) || st === pk) continue;   // (today's pickup: drawPickupUnit has its door)
@@ -110746,7 +111001,7 @@ class WorldScene extends Phaser.Scene {
         const seed = ((Math.round(qx)*7919) ^ (Math.round(qy)*104729)) >>> 0;
         /* a street shop's or Palmline's own glass pair opens for him (glassPairDoor); an anchor's is live
            already (slideDoors, which open for him: shopDoorOpen), and the atrium's are the pocket's */
-        const pair = !!ms.site;                                                   // (the mall's street bays too are slideDoors now: they part for the worker, shopDoorOpen)
+        const pair = !!ms.site && ms.site !== 'Palmline Tower';                    // (the mall's street bays too are slideDoors now: they part for the worker, shopDoorOpen -- and Palmline's, walk-ins, pt2)
         vq.push({ depth: qx + qy, fn: (g, t) => this.drawPickupUnit(g, u.x, u.y, fr.dv, rv, da, seed, t,
           pair ? this.glassPairDoor(g, u.x + fr.dv.x*da, u.y + fr.dv.y*da, fr.dv, rv, 0, LIB.zs(rim.name), ms.site ? { out: 40, z: 98 } : { out: 60, z: 104 }) : true) });
       }
