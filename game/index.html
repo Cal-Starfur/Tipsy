@@ -30500,7 +30500,7 @@ walkinLife('Seaglass Coffee Interior', { keep: [[225, 325, 0, 330]], looks: [] }
    Room frame a east, b south, world units (the lab x1.3, z x1.95):
      a -4..168      BAY 1, its roller down: a hatchback up on the two-post lift, the mechanic at its tail
      a 188..360     BAY 2, the way in, open: kept clear from the door to the back wall
-     a 370..466     the tool chests on the north wall, the second mechanic at them; the wheel balancer and a tyre stack */
+     a 370..466     the tool chests on the north wall, the second mechanic at them; a tyre stack */
 const PG_IN = { name: 'Palmline Garage Interior', x0: 740000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, H: 300, LH: 66,
   BAY1: [20, 152], BAY2: [168, 300], BAYZ: 114*1.95 };
 PG_IN.ra = la => (la - PG_IN.WALL)*1.3;                                             // a lab a (the shop's) in the room's frame
@@ -30519,7 +30519,7 @@ walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, U: PG_MECH_UNIFORM, keys: true,
     posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
   { id: 'mechanic-2', role: 'mechanic', seed: 0x6a02, U: PG_MECH_UNIFORM,
-    posts: [[384, 66, -Math.PI/2, 8000, true], [372, 196, 1.1, 4800, true]] },
+    posts: [[384, 66, -Math.PI/2, 8000, true], [352, 150, 0, 4800, true]] },
 ]);
 walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY2[1]) - 8, 0, 299]], looks: [] });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
@@ -56801,9 +56801,9 @@ function houseCanopy(fn){
      z up, world units. Its pieces back to front by the kit's keys; long ones in runs (runPiece, W28) */
   name:'Palmline Garage Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 466, dd: 299,
-  head:'Inside Palmline Garage: a hatchback up on the two-post lift, the open bay, tool chests and a wheel balancer',
+  head:'Inside Palmline Garage: a hatchback up on the two-post lift, the open bay, tool chests and tyres',
   tags:['interior','pocket','garage','car lift','tool chests','tyres'],
-  desc:'The Flats\' two-bay garage: white stucco over a sea-blue dado, a grey epoxy floor with the bays\' yellow lines, a hatchback up on a two-post lift in the shut bay, the open bay kept clear, a run of red tool chests under a pegboard, a wheel balancer and stacks of tyres.',
+  desc:'The Flats\' two-bay garage: white stucco over a sea-blue dado, a grey epoxy floor with the bays\' yellow lines, a hatchback up on a two-post lift in the shut bay, the open bay kept clear, a run of red tool chests under a pegboard and stacks of tyres.',
   draw(p){
     const pl = (typeof PG_PLAN !== 'undefined' && PG_PLAN) || null;
     if(pl) pl.view();
@@ -56894,12 +56894,7 @@ function houseCanopy(fn){
         box(A1 - 18, A1 - 6, 10, 22, 100, 108, '#3a5f8a', '#2f4f74', '#27425f');                             // a box of sockets
       }); }
 
-    /* ---- THE WHEEL BALANCER, a tyre on its shaft; a stack of new tyres by it (60 clear of the low walls, W24) ---- */
-    items.push({ a: 386, b: 222, z: 0, solids: [solid(368, 404, 206, 238, 90, 'wheel balancer')], draw: () => {
-      box(368, 404, 206, 238, 0, 62, '#3a5f8a', '#2f4f74', '#27425f'); box(372, 400, 210, 234, 62, 68, '#d9d6cd', '#c4c0b6', '#aeaaa0');
-      tube(368, 222, 76, 360, 222, 76, 3, steel);
-      const ring = (r, c) => { const pts = []; for(let i = 0; i < 16; i++){ const t = i/16*Math.PI*2; pts.push(P(ka, 222 + Math.cos(t)*r, 76 + Math.sin(t)*r)); } poly(pts, c); };
-      let ka = 361; ring(22, '#1e2024'); ka = 364; ring(22, tyre); ring(12, '#9aa0a6'); ring(4, steelD); } });
+    /* ---- a stack of new tyres by the chests (60 clear of the low walls, W24) ---- */
     items.push({ a: 396, b: 136, z: 0, solids: [{ name: 'tyres', c: [396, 136], r: 22, h: 70 }], draw: () => { for(let k = 0; k < 5; k++) cyl(396, 136, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
 
     walkinStaffSolids(items, PG_IN.name);
