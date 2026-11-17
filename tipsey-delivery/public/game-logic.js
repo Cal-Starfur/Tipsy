@@ -43463,6 +43463,13 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'cg2100:chrome', build: 'cg2100', name: 'Chrome', cents: 1000, body: 0xc9ced4, stripe: 0x5fe8ff, acc: { glow: 0x5fe8ff, prop: 'holo' } },
   { id: 'cg2100:solar', build: 'cg2100', name: 'Solar', cents: 1000, body: 0xf4f4f0, stripe: 0xffc040, acc: { glow: 0xffc040, prop: 'wings' } },
   { id: 'cg2100:nebula', build: 'cg2100', name: 'Nebula', cents: 1000, body: 0x1f2a4a, stripe: 0xff4ad8, acc: { glow: 0xff4ad8, prop: 'rings' } },
+  /* THE COURIER BOT'S COSTUMES (Sir, 2026-11-17): what no paint job can give him -- courierCostume */
+  { id: 'courier:penguin', build: 'courier', name: 'Penguin', cents: 900, body: 0x23262c, stripe: 0x23262c, costume: 'penguin', noAerial: true },
+  { id: 'courier:pirate', build: 'courier', name: 'Pirate', cents: 900, body: 0x8a2a20, stripe: 0xf3ead2, costume: 'pirate', noAerial: true },
+  { id: 'courier:chef', build: 'courier', name: 'Chef', cents: 900, body: 0xf6f6f2, stripe: 0xd8261c, costume: 'chef', noAerial: true },
+  { id: 'courier:wizard', build: 'courier', name: 'Wizard', cents: 900, body: 0x4a2a8a, stripe: 0xd8b04a, costume: 'wizard', noAerial: true },
+  { id: 'courier:astro', build: 'courier', name: 'Astronaut', cents: 900, body: 0xeceef1, stripe: 0x2a5ad8, costume: 'astro', noAerial: true },
+  { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -117784,7 +117791,11 @@ class WorldScene extends Phaser.Scene {
          behind the lid (on the lid it swung out flat as the lid opened) */
       const R = 22, hx = 22, hy = 19, zb = 102, zl = 108;
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: zb };
-      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
+      /* A COSTUME (Sir, 2026-11-17: "skins like costumes for him that you can't get from a simple paint job"): TP_BSKIN build 'courier' --
+         its body and band colours, and its own pieces (courierCostume) worn over him */
+      const CS = WEAR && SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'courier');
+      const BODYC = CS ? { top: CS.body, lt: _pdk(CS.body, 0.91), dk: _pdk(CS.body, 0.79) } : WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
+      const costume = st => { if(CS) this.courierCostume(CS.costume, st, V, g, t, x, y, z, fdir, nearB, hx, hy, zl); };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
       const lidTop = sees(0, 0, 1);                                                                 // (Tipsey's lidNear)
@@ -117793,11 +117804,13 @@ class WorldScene extends Phaser.Scene {
       };
       const aerial = () => { line([-19.5, 0, zb], [-21, 0, zb + 46], DARK, 1.2); if(WEAR && this.botTopper(g, V, -21, 0, zb + 47)) return; const tp = P(-21, 0, zb + 47); g.fillStyle(FLAGC, 1); g.fillCircle(tp.x, tp.y, 2.4*this.K*0.42); };
       const backNear = sees(-1, 0, 0);                                                              // (the aerial is on the back: before the lid when the back is away)
-      if(!backNear) aerial();
+      if(!backNear && !(CS && CS.noAerial)) aerial();
+      costume('back');
       if(!lidTop) drawLid();
       this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 12, z1: zb, ch: 8, bev: 4, bevIn: 3, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(12, zb, 'body')));
       if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 34, z1: 40, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
-      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: STRIPEC, cDk: STRIPED });
+      this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0: 44, z1: 52, band: true, cLt: CS ? CS.stripe : STRIPEC, cDk: CS ? _pdk(CS.stripe, 0.8) : STRIPED });
+      costume('body');
       /* a parcel hatch let into each flank above the band, as the cargo bot's (a darker recessed panel, a thin edge line, a
          grab bar on its front edge), so the tall sides read as a courier's locker and not a blank tube; still */
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){
@@ -117809,11 +117822,13 @@ class WorldScene extends Phaser.Scene {
         line([a1, bb, h1], [a0, bb, h1], ln, 1); line([a0, bb, h1], [a0, bb, h0], ln, 1);
         line([a1 - 4, bb + sb*1.2, h0 + 8], [a1 - 4, bb + sb*1.2, h1 - 8], DARK, 1.8);                // the grab bar
       }
-      if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 8, s0: 44, s1: 52, dz: 77 });
+      if(WEAR && !CS) this.botSkinWear(g, V, { hx, hy, ch: 8, s0: 44, s1: 52, dz: 77 });
       this.tipseyFace(V, hx, 86, 0.8, { mouthZ: 48 });
+      costume('face');
       if(A > 0.12 && sees(0, 0, 1)) this.botHollow(g, V, hx, hy, 8, zb + 0.5, 30, 4.5);                // the hold, when the lid is up: Tipsey's own hollow
       if(lidTop) drawLid();
-      if(backNear) aerial();
+      if(backNear && !(CS && CS.noAerial)) aerial();
+      costume('top');
       V.wheel(0, nearB*24, R, 8, R, wheelPhase);
       return;
     }
@@ -128047,6 +128062,57 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* THE COURIER'S COSTUMES (Sir, 2026-11-17): pieces worn over him, at four moments of his draw -- 'back' before his body (what is behind
+     him), 'body' on his hull, 'face' over his face, 'top' last (hats, helmets). His front is +a (hx 22), his sides +-hy (19), his lid
+     top zl (108); his eyes at z 86 */
+  courierCostume(c, st, V, g, t, x, y, z, fdir, nearB, hx, hy, zl){
+    const { P, sees, Q, line, solid, prismH } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0), back = sees(-1, 0, 0);
+    const sr = (a, b, zz, r) => { const p0 = P(a, b, zz), p1 = P(a, b, zz + r); return Math.hypot(p1.x - p0.x, p1.y - p0.y); };
+    const ball = (a, b, zz, r, col) => { const q = P(a, b, zz), rr = sr(a, b, zz, r); g.fillStyle(_pdk(col, 0.6), 1); g.fillCircle(q.x, q.y, rr*1.08); g.fillStyle(col, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(_pmix(col, 0xffffff, 0.45), 1); g.fillCircle(q.x - rr*0.35, q.y - rr*0.35, rr*0.3); };
+    const lathe = (a, b, rings, col) => this.avLathe(V, a, b, rings, col, null, 14);
+    const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
+    const onFront = (pts, col, al) => { if(front) { g.fillStyle(col, al == null ? 1 : al); g.fillPoints(pts.map(([b, zz]) => PT(P(hx + 0.4, b, zz))), true); } };
+    const oval = (cb, cz, rb, rz, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const th = i/n*Math.PI*2; o.push([cb + Math.cos(th)*rb, cz + Math.sin(th)*rz]); } return o; };
+    const brim = (zz, rr, col) => { const o = []; for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; o.push(PT(P(Math.cos(th)*rr, Math.sin(th)*rr*0.95, zz))); } g.fillStyle(_pdk(col, 0.7), 1); g.fillPoints(o.map(q => new Phaser.Geom.Point(q.x, q.y + 1.2*K*2.4)), true); g.fillStyle(col, 1); g.fillPoints(o, true); };
+    if(c === 'penguin'){
+      if(st === 'body'){ onFront(oval(0, 52, 11.5, 30), 0xf6f6f2);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.6); g.fillStyle(0x16171b, 1); g.fillPoints([P(6, bb, 84), P(-4, bb + sb*7, 46), P(-9, bb + sb*4, 48), P(-2, bb, 80)].map(PT), true); } }   // (its belly, its flippers)
+      if(st === 'face' && front){ g.fillStyle(0xf28a1a, 1); g.fillPoints([P(hx + 0.6, -3.5, 79), P(hx + 0.6, 3.5, 79), P(hx + 6, 0, 76.5)].map(PT), true); g.fillStyle(0xc8640e, 1); g.fillPoints([P(hx + 0.6, -3.5, 79), P(hx + 0.6, 3.5, 79), P(hx + 0.6, 0, 75)].map(PT), true); }
+      return; }
+    if(c === 'pirate'){
+      if(st === 'face' && front){ g.lineStyle(Math.max(1, 1.4*K), 0x16171b, 1); { const A = P(hx + 0.5, -13, 93), B = P(hx + 0.5, 13, 81); g.lineBetween(A.x, A.y, B.x, B.y); }
+        const q = P(hx + 0.6, 6.4, 85.5), rr = sr(hx, 6.4, 85.5, 4.6); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, rr); }   // (an eyepatch over one eye)
+      if(st === 'top'){ brim(zl + 1, 25, 0x23262c); lathe(0, 0, [[zl + 1, 13], [zl + 13, 11], [zl + 14, 6]], 0x2a2d33);
+        for(const [a, b] of [[22, 0], [-12, 19], [-12, -19]]){ const q = P(a, b, zl + 4), q0 = P(a*0.55, b*0.55, zl + 8); g.lineStyle(Math.max(1, 3*K), 0x23262c, 1); g.lineBetween(q0.x, q0.y, q.x, q.y); }   // (its brim turned up in three points)
+        { const q = P(12, 0, zl + 9), rr = sr(12, 0, zl + 9, 3.4); if(front){ g.fillStyle(0xf3ead2, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x16171b, 1); g.fillCircle(q.x - rr*0.3, q.y - rr*0.1, rr*0.25); g.fillCircle(q.x + rr*0.3, q.y - rr*0.1, rr*0.25); } }
+        const pa = -6, pb = -nearB*(hy - 3); ball(pa, pb, zl + 6, 4.4, 0x2aa83a); ball(pa + 2.5, pb, zl + 12, 3, 0xd8261c); { const q = P(pa + 5, pb, zl + 11.5); g.fillStyle(0xffd34a, 1); g.fillTriangle(q.x, q.y - 1.6*K*2, q.x, q.y + 1.6*K*2, q.x + 3*K*2, q.y + 1*K*2); }
+        line([pa - 3, pb, zl + 4], [pa - 9, pb, zl - 4], 0x2a5ad8, 2.4); }   // (a parrot on his shoulder)
+      return; }
+    if(c === 'chef'){
+      if(st === 'face' && front){ for(const sb of [-1, 1]){ const pts = []; for(let i = 0; i <= 8; i++){ const u = i/8; pts.push([sb*(1 + u*8), 79.5 - Math.sin(u*Math.PI)*2.4 + u*1.4]); } for(let i = 8; i >= 0; i--){ const u = i/8; pts.push([sb*(1 + u*8), 77.5 + u*1.8]); } onFront(pts, 0x3a2414); } }   // (a curled moustache)
+      if(st === 'top'){ lathe(0, 0, [[zl, 14], [zl + 18, 15]], 0xf6f6f2); for(const [a, b] of [[0, 0], [7, 6], [7, -6], [-7, 6], [-7, -6], [0, 10], [0, -10]]) ball(a, b, zl + 22, 7.5, 0xfafaf6); }   // (a tall puffed toque)
+      return; }
+    if(c === 'wizard'){
+      if(st === 'face') onFront([[-10, 78], [-6, 70], [-9, 58], [-4, 48], [0, 36], [4, 48], [9, 58], [6, 70], [10, 78], [4, 76], [0, 77.5], [-4, 76]], 0xf2f2ee);   // (a long white beard)
+      if(st === 'top'){ brim(zl + 1, 25, 0x3a1f6a); lathe(0, 0, [[zl + 1, 14], [zl + 18, 8], [zl + 32, 3], [zl + 40, 0.6]], 0x4a2a8a);
+        for(const [a, b, zz] of [[13, 0, zl + 8], [8, 6, zl + 19], [6, -6, zl + 27], [10, -9, zl + 4]]){ if(!sees(a, b, 0)) continue; const q = P(a, b, zz), rr = sr(a, b, zz, 2.2); g.fillStyle(0xffd34a, 1); const o = []; for(let i = 0; i < 10; i++){ const q2 = -Math.PI/2 + i*Math.PI/5, r2 = i % 2 ? rr*0.42 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(q2)*r2, q.y + Math.sin(q2)*r2)); } g.fillPoints(o, true); } }
+      return; }
+    if(c === 'astro'){
+      if((st === 'back' && front) || (st === 'top' && back)){ box(-hx - 7, -hx, -12, 12, 52, 96, 0xd9dde2); for(const b of [-6, 6]) this.avLathe(V, -hx - 4, b, [[96, 3], [101, 3]], 0x8d959c, null, 10);
+        if(back){ const q = P(-hx - 7.2, 0, 76); g.fillStyle(0x2a5ad8, 1); g.fillRect(q.x - 4*K*2, q.y - 3*K*2, 8*K*2, 6*K*2); } }   // (its life-support pack)
+      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.4); g.fillStyle(0xd8261c, 1); g.fillPoints([P(-4, bb, 70), P(6, bb, 70), P(6, bb, 76), P(-4, bb, 76)].map(PT), true); g.fillStyle(0xf6f6f2, 1); g.fillPoints([P(-4, bb, 72), P(6, bb, 72), P(6, bb, 74), P(-4, bb, 74)].map(PT), true); }   // (a mission patch)
+      if(st === 'top'){   // (its collar ring, just its rim, then a fishbowl helmet over his head)
+        { const o = []; for(let i = 0; i <= 24; i++){ const th = i/24*Math.PI*2; o.push(PT(P(Math.cos(th)*24, Math.sin(th)*22, 74))); } g.lineStyle(Math.max(1, 3*K), 0x8d959c, 1); g.strokePoints(o, false); }
+        const q = P(0, 0, 94), rr = sr(0, 0, 94, 27); g.fillStyle(0x8ac8f0, 0.28); g.fillCircle(q.x, q.y, rr); g.lineStyle(Math.max(1, 2*K), 0xffffff, 0.9); g.strokeCircle(q.x, q.y, rr);
+        g.fillStyle(0xffffff, 0.6); g.fillEllipse(q.x - rr*0.38, q.y - rr*0.42, rr*0.55, rr*0.28); g.fillStyle(0xffffff, 0.35); g.fillEllipse(q.x + rr*0.45, q.y + rr*0.2, rr*0.16, rr*0.36); }   // (a fishbowl helmet over his head, its collar ring)
+      return; }
+    if(c === 'bee'){
+      if(st === 'body') for(const [z0, z1] of [[22, 30], [60, 68]]) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 8, z0, z1, band: true, cLt: 0x16171b, cDk: 0x0e0f12 });
+      if((st === 'back' && front) || (st === 'top' && back)) for(const sb of [-1, 1]){ const c0 = P(-hx + 2, sb*12, 88), tip = P(-hx - 8, sb*26, 104), mid = P(-hx - 4, sb*24, 82);
+        g.fillStyle(0xe8f4ff, 0.45); g.fillTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); g.lineStyle(Math.max(1, 1*K), 0x9ab8d8, 0.8); g.strokeTriangle(c0.x, c0.y, tip.x, tip.y, mid.x, mid.y); }   // (its wings)
+      if(st === 'top') for(const sb of [-1, 1]){ line([8, sb*6, zl], [14, sb*12, zl + 16], 0x16171b, 1.6); ball(14, sb*12, zl + 17, 2.4, 0x16171b); }   // (its antennae)
+      return; }
+  }
   /* THE CARGO BOT THROUGH THE AGES (Sir, 2026-11-17: its builds are time periods): the delivery vehicle of each era, in the player's paint
      (BPW) with that era's own trim -- each drawn far to near: its far wheels, its body in pieces (the far end first), its near wheels.
      cg1900 a wooden wagon with a canvas top on hoops; cg1920 a Model-T van, black hood and brass radiator; cg1950 a bulbous two-tone
@@ -149861,15 +149927,15 @@ requestTpProfile();
     if (tab === 'mouth') { renderMouth(P); return; }
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
-    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : TP_BUILD;
+    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', courier = fleetCur() === 'courierbot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : courier ? [{ id: 'stock', name: 'Courier bot', cents: 0 }] : TP_BUILD;
       const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'ufo' ? '<ellipse cx="20" cy="5" rx="5" ry="3" fill="#a9dcec"/><ellipse cx="20" cy="9" rx="15" ry="3" fill="#cfd3d8"/><circle cx="10" cy="9" r="1" fill="#ff5a4a"/><circle cx="20" cy="11" r="1" fill="#5ae8ff"/><circle cx="30" cy="9" r="1" fill="#ffd34a"/>' : ''}${id === 'monster' ? '<circle cx="9" cy="20" r="5" fill="#24262c"/><circle cx="31" cy="20" r="5" fill="#24262c"/><rect x="15" y="2" width="10" height="1.6" fill="#fff2c4"/>' : ''}${id === 'hotrod' ? '<ellipse cx="20" cy="6" rx="5" ry="2.6" fill="#9cc9dc"/><path d="M11 7L5 1H3l2 6z" fill="#eceef1" stroke="#2e3138" stroke-width=".6"/><path d="M24 14l-3 4M27 14l-3 4" stroke="#b9bec4" stroke-width="1.2"/>' : ''}${id === 'buggy' ? '<path d="M12 6V2h12l6 4" fill="none" stroke="#2e3138" stroke-width="1.4"/><rect x="4" y="9" width="5" height="6" fill="#5d646c"/>' : ''}${id === 'tank' ? '<rect x="14" y="2" width="11" height="5" rx="1.5" fill="#eceef1"/><rect x="25" y="3.6" width="10" height="1.8" fill="#5d646c"/><rect x="7" y="16" width="26" height="6" rx="3" fill="#2a2f36"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
-      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
+      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : courier ? 'COSTUMES BELOW' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       /* this build's own skins (TP_BSKIN), under the builds */
-      const BSK = TP_BSKIN.filter(k => k.build === cur), curS = L.bSkin && L.bSkin.startsWith(cur + ':') ? L.bSkin : 'stock';
+      const bk = courier ? 'courier' : cur, BSK = TP_BSKIN.filter(k => k.build === bk), curS = L.bSkin && L.bSkin.startsWith(bk + ':') ? L.bSkin : 'stock';   // (the courier: its costumes)
       if (BSK.length) { const sw = k => k.id === 'stock' ? '<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="#eceef1"/><rect x="8" y="13" width="24" height="2.4" fill="#c2452e"/></svg>'
           : `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="${hex(k.body)}"/><rect x="8" y="13" width="24" height="2.4" fill="${hex(k.stripe)}"/>${k.glass ? `<rect x="22" y="8.5" width="7" height="3" rx="1" fill="${hex(k.glass[0])}"/>` : ''}</svg>`;
-        P.innerHTML += `<div class="grSec">SKINS — ${(BL.find(c => c.id === cur) || {}).name || ''}</div><div class="grRow">` + [TP_BSKIN[0], ...BSK].map(k => `<button class="grSkin${curS === k.id ? ' sel' : ''}" data-bskin="${k.id}">${sw(k)}<span>${k.name}</span>${tagOf('bSkin', k.id, curS === k.id)}</button>`).join('') + '</div>'; }
+        P.innerHTML += `<div class="grSec">${courier ? 'COSTUMES' : 'SKINS'} — ${(BL.find(c => c.id === cur) || {}).name || ''}</div><div class="grRow">` + [TP_BSKIN[0], ...BSK].map(k => `<button class="grSkin${curS === k.id ? ' sel' : ''}" data-bskin="${k.id}">${sw(k)}<span>${k.name}</span>${tagOf('bSkin', k.id, curS === k.id)}</button>`).join('') + '</div>'; }
       for (const b of P.querySelectorAll('[data-build]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { build: b.dataset.build === 'stock' ? null : b.dataset.build }));
       for (const b of P.querySelectorAll('[data-bskin]')) b.onclick = () => tryOn(Object.assign({}, pv || worn(), { bSkin: b.dataset.bskin === 'stock' ? null : b.dataset.bskin }));
       return; }
