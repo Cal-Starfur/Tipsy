@@ -128099,7 +128099,7 @@ class WorldScene extends Phaser.Scene {
       for(const [a, b, c] of [[-16, -6, 0xc89a5a], [-4, 6, 0xb08048], [-12, 8, 0xd8a868]]) box(a - 5, a + 5, b - 5, b + 5, zl + 61, zl + 70, c);   // (parcels in the pod)
       hull({ hx: 30, hy: 22, ox: -10, z0: zl + 60, z1: zl + 82, ch: 14, bev: 9, bevIn: 8, cTop: 0xb8e8f8, cLt: 0x94d0e8, cDk: 0x6aaccc, print: null, alpha: 0.55 });
       this.tipseyFace(V, 50, zl + 44, 0.75, { mouthZ: zl + 26 }); propNow(); return; }
-    shadow(era === 'cg1980' ? 66 : 50, 34);
+    if(era !== 'cg1980') shadow(50, 34);   // (the 1980s van's underglow is its shadow -- Sir, 2026-11-17)
     if(era === 'cg1900'){
       /* (second pass -- Sir, 2026-11-17): wooden wheels with iron tyres and spokes; a dark wood frame round the box -- corner posts, a top
          rail, a skirt board; rope ties down the canvas; a lantern hung off the back and a spare wheel strapped behind */
@@ -128177,7 +128177,8 @@ class WorldScene extends Phaser.Scene {
     if(era === 'cg1980'){
       /* (elongated into a van -- Sir, 2026-11-17): a long cargo box behind a short raked cab, wheels at its ends */
       /* (second pass -- Sir, 2026-11-17): a pink underglow on the road, a rear wing on two struts, pop-up headlamps on its nose */
-      { const q = P(0, 0, 2); g.fillStyle((A.n1 || 0xff4ad8), 0.22); g.fillEllipse(q.x, q.y, 150*K, 60*K); g.fillStyle((A.n1 || 0xff4ad8), 0.18); g.fillEllipse(q.x, q.y, 80*K, 40*K); }
+      { const gl = A.n1 || 0xff4ad8, rim = [], mid = []; for(const [a, b] of [[-70, -30], [70, -30], [70, 30], [-70, 30]]){ rim.push(P(a*1.05, b*1.25, 1)); mid.push(P(a*0.8, b*0.85, 1)); }   // (an underglow the van's footprint, in place of its shadow)
+        g.fillStyle(gl, 0.28); g.fillPoints(rim.map(q => new Phaser.Geom.Point(q.x, q.y)), true); g.fillStyle(_pmix(gl, 0xffffff, 0.3), 0.3); g.fillPoints(mid.map(q => new Phaser.Geom.Point(q.x, q.y)), true); }
       const BW = 34; wheels(-nearB, [-46, 44], 12, BW, 8);
       const wing = () => { for(const sb of [-1, 1]) line([-60, sb*18, 92], [-64, sb*18, 100], 0x23262c, 1.6); hull({ hx: 6, hy: 30, ox: -64, z0: 100, z1: 103, ch: 2, bev: 1, bevIn: 0.8, cTop: 0x23262c, cLt: 0x16171b, cDk: 0x101114, print: null });
         hull({ hx: 6.2, hy: 30.2, ox: -64, ch: 2, z0: 101, z1: 102, band: true, cLt: (A.n2 || A.glow || 0x5fe8ff), cDk: _pdk(A.n2 || A.glow || 0x5fe8ff, 0.8) }); };
