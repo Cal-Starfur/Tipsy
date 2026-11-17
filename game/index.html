@@ -44976,6 +44976,13 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'monster:bigfoot', build: 'monster', name: 'Big Foot', cents: 900, body: 0x1f4fa8, stripe: 0xf2f3f1, print: 'mtClassic', part: null,
     trim: { coil: 0xf2f3f1, bumper: 0xc9ced4, bar: 0x1d1f26, stack: 0xe8ecf0, heat: 0x1f4fa8, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'steelie', rimCol: 0xf2f3f1 }, flag: { kind: 'usa' } },
   { id: 'monster:dino', build: 'monster', name: 'Dino Crusher', cents: 900, body: 0x4f9a3c, stripe: 0x4f9a3c, noStripe: true, print: 'mtDino', part: 'spikes', trim: { coil: 0xe6dcb8, bumper: 0x2f6a22, bar: 0x2f6a22, stack: 0xe6dcb8, heat: 0x5a3418, exh: 'none', lb: 'cage', lamp: 0xffb02a, rim: 'honey', rimCol: 0xe6dcb8 } },
+  /* (six more -- Sir, 2026-11-17) */
+  { id: 'monster:fire', build: 'monster', name: 'Fire Rescue', cents: 900, body: 0xc8141a, stripe: 0xf2f3f1, print: 'mtFire', part: 'ladder', trim: { coil: 0xf2c02e, bumper: 0xd9dde2, bar: 0xd9dde2, stack: 0xe8ecf0, heat: 0xc8141a, exh: 'stack', lb: 'bar', lamp: 0xfff2c4, rim: 'dish', rimCol: 0xd9dde2 } },
+  { id: 'monster:dragon', build: 'monster', name: 'Dragon', cents: 900, body: 0x2f7a3a, stripe: 0x2f7a3a, noStripe: true, print: 'mtDragon', part: 'wings', tail: true, eye: 0xffb02a, trim: { coil: 0xd8a41a, bumper: 0x1f4a24, bar: 0x1f4a24, stack: 0x8d959c, heat: 0x1f4a24, exh: 'side', lb: 'pods', lamp: 0xffb02a, rim: 'star', rimCol: 0xd8a41a } },
+  { id: 'monster:scorpion', build: 'monster', name: 'Scorpion', cents: 900, body: 0x1d1f26, stripe: 0xe89a1a, noStripe: true, print: 'mtScorp', part: 'stinger', eye: 0xff5a2a, trim: { coil: 0xe89a1a, bumper: 0x2a2d33, bar: 0x2a2d33, stack: 0x5a6068, heat: 0xe89a1a, exh: 'side', lb: 'strip', lamp: 0xffb02a, rim: 'tri', rimCol: 0xe89a1a } },
+  { id: 'monster:ice', build: 'monster', name: 'Ice Crusher', cents: 900, body: 0x7ab8e0, stripe: 0x7ab8e0, noStripe: true, print: 'mtIce', eye: 0xc8f4ff, trim: { coil: 0xf4f8fc, bumper: 0xe8f4fc, bar: 0x4a7aa0, stack: 0xe8f4fc, heat: 0x4a7aa0, exh: 'single', lb: 'bar', lamp: 0xc8f4ff, rim: 'ten', rimCol: 0xe8f4fc } },
+  { id: 'monster:alien', build: 'monster', name: 'Alien Invader', cents: 900, body: 0x8ad83a, stripe: 0x6b3fa0, print: 'mtAlien', part: 'antennae', eye: 0xff4ad8, trim: { coil: 0x6b3fa0, bumper: 0x6b3fa0, bar: 0x3a1f5a, stack: 0xc9ced4, heat: 0x6b3fa0, exh: 'none', lb: 'strip', lamp: 0xc8ff6a, rim: 'mesh', rimCol: 0x6b3fa0 } },
+  { id: 'monster:pirate', build: 'monster', name: 'Pirate Ship', cents: 900, body: 0x8a5a2a, stripe: 0x8a5a2a, noStripe: true, print: 'mtPirate', part: 'mast', flag: { kind: 'pirate' }, trim: { coil: 0xd8b04a, bumper: 0x4a2e14, bar: 0x4a2e14, stack: 0xd8b04a, heat: 0x4a2e14, exh: 'none', lb: 'cage', lamp: 0xffd34a, rim: 'wagon', rimCol: 0xd8b04a } },
   /* THE UFO's skins (Sir, 2026-11-16): the flying saucers of the films and the comics -- each its hull, its band, its rim lights and beam */
   { id: 'ufo:martian', build: 'ufo', name: 'Martian', cents: 900, body: 0x7cc34a, stripe: 0x6b3fa0, eye: 0xff4ad8, trim: { lights: [0xff4ad8, 0xc8ff6a, 0xff4ad8, 0xc8ff6a], beam: 0x9dff7a }, ufoPart: 'antennae' },
   { id: 'ufo:bmovie', build: 'ufo', name: 'B-Movie', cents: 900, body: 0xc9ced4, stripe: 0x2a2d33, trim: { lights: [0xfff6d8, 0xfff6d8, 0xfff6d8, 0xfff6d8], beam: 0xf3f0e0 }, ufoPart: 'legs' },
@@ -128546,18 +128553,44 @@ class WorldScene extends Phaser.Scene {
             /* (kept on their faces' tops -- Sir, 2026-11-16: inside the cab top's bevel, and on his back clear of its edge; the tail's run on) */
             const cx = lx - LID.bevIn - 1;
             for(let i = 0; i < 4; i++) sp(cx - 2.2 - i*((2*cx - 4.4)/3), zt, 6.5 - Math.abs(i - 1.5)*1.2, 2.2);                       // (down his cab's spine)
-            for(let i = 0; i < 2; i++) sp(-LID.hx - 5 - i*6, BODY.z1, 4.6 - i*0.8, 2.2); } }                                       // (and on down his back)
+            for(let i = 0; i < 2; i++) sp(-LID.hx - 5 - i*6, BODY.z1, 4.6 - i*0.8, 2.2); }                                         // (and on down his back)
+        /* (six more -- Sir, 2026-11-17) the Fire Rescue's ladder along his roof and its beacon; the Dragon's near wing; the Scorpion's tail
+           arched over him; the Alien's antennae; the Pirate's mast and sail */
+        const now = this.time ? this.time.now : 0;
+        if(SKP === 'ladder'){ const zl = zt + 1.4, xa = lx - 2, xb = -BODY.hx - 4, ye = 3.4;
+          for(const sb of [-nearSide, nearSide]){ const A = P(xa, sb*ye, zl), B = P(xb, sb*ye, zl); g.lineStyle(Math.max(1, 1.6*K), 0x8d959c, 1); g.lineBetween(A.x, A.y, B.x, B.y);
+            g.lineStyle(Math.max(1, 0.7*K), 0xe8ecf0, 1); g.lineBetween(A.x, A.y - 0.5*K, B.x, B.y - 0.5*K);
+            if(sb === -nearSide) for(let x = xa - 2; x > xb + 1; x -= 3.2){ const R1 = P(x, -ye, zl), R2 = P(x, ye, zl); g.lineStyle(Math.max(1, 1*K), 0xb4bac1, 1); g.lineBetween(R1.x, R1.y, R2.x, R2.y); } }
+          const on = Math.floor(now/260) % 2, bq = P(-lx + 2.5, 0, zt + 1.8); g.fillStyle(0x6a0e0a, 1); g.fillEllipse(bq.x, bq.y + 0.6*K, 5.6*K, 3*K); g.fillStyle(on ? 0xff3a2a : 0xb8231c, 1); g.fillCircle(bq.x, bq.y - 0.6*K, 2.3*K);
+          g.fillStyle(0xffffff, on ? 0.8 : 0.4); g.fillCircle(bq.x - 0.7*K, bq.y - 1.3*K, 0.7*K);
+          if(on && this.isNightLit && this.isNightLit()){ const gl = this.gBotGlow || this.gGlowLo; if(gl){ gl.fillStyle(0xff3a2a, 0.3); gl.fillCircle(bq.x, bq.y, 10*K); } } }
+        if(SKP === 'wings') this.monsterWing(nearSide, P, K, vis);
+        if(SKP === 'stinger'){ const pts = [], N = 14, x0 = -BODY.hx + 2;   // (segments up off his back, arching forward over his cab, the sting pointing down ahead)
+          for(let k = 0; k <= N; k++){ const u = k/N, a = u*Math.PI*1.15; pts.push([x0 - 7*Math.sin(a) + u*u*22, 0, BODY.z1 + 2 + Math.sin(a*0.9)*18 + u*7, 4.6 - u*2.4]); }
+          for(let k = 0; k <= N; k++){ const [x, y, z, r] = pts[k], q = P(x, y, z); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, (r + 0.6)*K); g.fillStyle(k % 2 ? 0xe89a1a : 0xb8701a, 1); g.fillCircle(q.x - 0.4*K, q.y - 0.5*K, r*K); }
+          const [xe, , ze] = pts[N], T0 = P(xe, 0, ze), T1 = P(xe + 4.5, 0, ze - 4); g.lineStyle(Math.max(1, 2.2*K), 0x16171b, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y); g.lineStyle(Math.max(1, 1.2*K), 0xff5a2a, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y); }
+        if(SKP === 'antennae') for(const sb of [-nearSide, nearSide]){ const bob = Math.sin(now*0.005 + sb)*1.5, A = P(lx - 5, sb*3, zt), B = P(lx - 9, sb*8, zt + 17 + bob);
+          g.lineStyle(Math.max(1, 1.6*K), 0x3a1f5a, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(0x6b3fa0, 1); g.fillCircle(B.x, B.y, 3.6*K); g.fillStyle(0xc8ff6a, 0.75 + 0.25*Math.sin(now*0.008 + sb)); g.fillCircle(B.x - 0.4*K, B.y - 0.4*K, 2.7*K); g.fillStyle(0xffffff, 0.8); g.fillCircle(B.x - 0.9*K, B.y - 0.9*K, 0.6*K); }
+        if(SKP === 'mast'){ const xm = 0, zt2 = zt + 24, fr = vis(1, 0, 0);   // (a mast up out of his cab, two yards, a full sail bellied forward, a crow's nest)
+          const pole = () => { const A = P(xm, 0, zt), B = P(xm, 0, zt2); g.lineStyle(Math.max(1, 2*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); };
+          const sail = () => { const S = [[xm + 0.6, -8, zt + 19], [xm + 0.6, 8, zt + 19], [xm + 3.2, 8.6, zt + 13], [xm + 0.6, 8, zt + 7], [xm + 0.6, -8, zt + 7], [xm + 3.2, -8.6, zt + 13]];
+            this.quadOn(g, S.map(([x, y, z]) => P(x, y, z)), fr ? 0xf3ead2 : 0xd9cfb4); g.lineStyle(Math.max(1, 0.8*K), 0x8a7a5a, 1); g.strokePoints(S.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+            if(fr){ const c = P(xm + 3.4, 0, zt + 13.5); g.fillStyle(0x16171b, 1); g.fillCircle(c.x, c.y, 2.6*K); g.fillRect(c.x - 1.4*K, c.y + 1.8*K, 2.8*K, 1.6*K); g.fillStyle(0xf3ead2, 1); g.fillCircle(c.x - 0.9*K, c.y - 0.2*K, 0.7*K); g.fillCircle(c.x + 0.9*K, c.y - 0.2*K, 0.7*K); }
+            for(const z of [zt + 19, zt + 7]){ const A = P(xm + 0.6, -9.5, z), B = P(xm + 0.6, 9.5, z); g.lineStyle(Math.max(1, 1.4*K), 0x4a2e14, 1); g.lineBetween(A.x, A.y, B.x, B.y); } };
+          if(fr){ pole(); sail(); } else { sail(); pole(); }
+          this.drawHullPrism({ hx: 2.2, hy: 2.2, ox: xm, oy: 0, z0: zt2 - 3 + bobZ, z1: zt2 - 0.5 + bobZ, ch: 0.6, cTop: 0x6a4020, cLt: 0x5a3418, cDk: 0x4a2e14, cBottom: 0x4a2e14, outline: false, topEdge: false }); } }
       /* the Dino's tail: from his back, thick at its root, tapering and curling up to its tip, spikes along its top */
       /* (more a part of him -- Sir, 2026-11-16): the tail grows out of his whole back -- its root his body's own height and colour, centred on his
          back face, dropping a little then sweeping up and round to its tip; its top lit as his hull's top, its belly his side's dark, his
          back's spike row running on down it */
-      if(SKP === 'spikes' && ((part === 'pre' && frontSeen) || (part === 'mid' && !frontSeen))){ const BPt = this.bodyPaint(), H2 = (BODY.z1 - BODY.z0)/2, x0 = -BODY.hx + 1.5, zc = BODY.z0 + H2, pts = [];
+      if((SKP === 'spikes' || (BODY._bskin && BODY._bskin.tail)) && ((part === 'pre' && frontSeen) || (part === 'mid' && !frontSeen))){ const BPt = this.bodyPaint(), H2 = (BODY.z1 - BODY.z0)/2, x0 = -BODY.hx + 1.5, zc = BODY.z0 + H2, pts = [];
         for(let k = 0; k <= 12; k++){ const u = k/12; pts.push([x0 - u*34, Math.sin(u*Math.PI*0.9)*6*nearSide, zc - 2.5*Math.sin(u*Math.PI*0.8) + 11*u*u*u, H2*(1 - u*0.88)]); }
         for(let k = 0; k < 12; k++){ const [xa, ya, za, ra] = pts[k], [xb, yb, zb2, rb] = pts[k + 1], A = P(xa, ya, za), B = P(xb, yb, zb2);
           g.lineStyle(Math.max(1, (ra + rb)*K), BPt.dk, 1); g.lineBetween(A.x, A.y, B.x, B.y); g.fillStyle(BPt.dk, 1); g.fillCircle(B.x, B.y, rb*K);
           g.lineStyle(Math.max(1, (ra + rb)*K*0.62), BPt.lt, 1); g.lineBetween(A.x, A.y - ra*0.32*K, B.x, B.y - rb*0.32*K);
           g.lineStyle(Math.max(1, (ra + rb)*K*0.28), BPt.top, 1); g.lineBetween(A.x, A.y - ra*0.62*K, B.x, B.y - rb*0.62*K);
           if(k % 2 === 1 && k < 11){ const T = P(xa - 1, ya, za + ra + 3); g.fillStyle(0xe6dcb8, 1); g.fillTriangle(A.x - ra*0.5*K, A.y - ra*0.85*K, A.x + ra*0.5*K, A.y - ra*0.85*K, T.x, T.y); } } }
+      if(SKP === 'wings' && part === 'mid') this.monsterWing(-nearSide, P, K, vis);
       if(SKP === 'ears' && part === 'mid'){ const sb = -nearSide, zt = LID.z1, ly = LID.hy, E = [0x5a3418, 0x7a4a24], ear = [];   // (the far ear, before his cab)
         for(let k = 0; k <= 10; k++){ const t = k/10*Math.PI; ear.push([Math.cos(t)*6 - 1, sb*(ly + 1 + Math.sin(t)*2.5), zt - 1 - Math.sin(t)*10]); }
         this.quadOn(g, ear.map(([x, y, z]) => P(x, y, z)), E[0]); g.lineStyle(Math.max(1, 0.8*K), 0x3a200c, 1); g.strokePoints(ear.map(([x, y, z]) => P(x, y, z)).map(q => new Phaser.Geom.Point(q.x, q.y)), false); }
@@ -128745,6 +128778,14 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* the Dragon's folded wing on his cab's side (Sir, 2026-11-17): a bat wing in green leather -- its bone along the top from his cab's front
+     corner up to a claw behind, its edge scalloped down between the fingers */
+  monsterWing(sb, P, K, vis){ const g = this.g, zt = LID.z1, lx = LID.hx, y = sb*(LID.hy + 1.4);
+    const W = [[lx - 2, zt - 2], [lx - 6, zt + 9], [-lx - 9, zt + 19], [-lx - 5, zt + 8], [-lx + 1, zt + 12], [-lx + 4, zt + 3], [-lx + 9, zt + 7], [-lx + 13, zt - 2]];
+    const pts = W.map(([x, z]) => P(x, y, z)); this.quadOn(g, pts, vis(0, sb, 0) ? 0x3a8a44 : 0x24602c);
+    g.lineStyle(Math.max(1, 0.8*K), 0x16401c, 1); g.strokePoints(pts.map(q => new Phaser.Geom.Point(q.x, q.y)), true);
+    g.lineStyle(Math.max(1, 1.6*K), 0x1f4a24, 1); for(const i of [3, 5]){ const A = pts[1], B = pts[i]; g.lineBetween(A.x, A.y, B.x, B.y); } g.lineBetween(pts[0].x, pts[0].y, pts[1].x, pts[1].y); g.lineBetween(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+    g.fillStyle(0xe6dcb8, 1); g.fillTriangle(pts[2].x - 1*K, pts[2].y + 0.5*K, pts[2].x + 1*K, pts[2].y + 0.5*K, pts[2].x - 0.6*K, pts[2].y - 2.4*K); }
   buggyKit(bobZ, frontSeen, part){
     const g = this.g, K = this.kScale(), P = (x, y, z) => this.P(x, y, z + bobZ), vis = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; };
     const nearSide = vis(0, 1, 0) ? 1 : -1, W = BODY._wheels, TUBE = 0x2e3138;
@@ -134249,6 +134290,36 @@ const HULL_PRINTS = {
       const SP = [0x5a3418, 0x7a4a24];
       for(const k of [2, 6]){ const [a, b] = L.face(k); for(let i = 0; i < 4; i++) L.side.push({ c: SP, pts: L.blob(a + 6 + L.rng()*(b - a - 12), 2 + L.rng()*(L.H - 4), 3.6, 1.5) }); }
       for(let i = 0; i < 4; i++) L.top.push({ c: SP, pts: L.blob(L.x0 + 4 + L.rng()*(L.x1 - L.x0 - 8), L.y0 + 4 + L.rng()*(L.y1 - L.y0 - 8), 4, 1.2) }); } },
+  /* (six more monster skins -- Sir, 2026-11-17) */
+  mtFire: { id: 'mtFire', seed: 0xf1e, build(L){ if(L.part === 'lid') return; const WH = [0xd9dde2, 0xf6f7f9], GD = [0xb8902a, 0xffd34a];
+      for(const k of [2, 6]){ const [a, b] = L.face(k); L.side.push({ c: GD, pts: _prRect(a - 1, L.H*0.18, b + 1, L.H*0.24) }); _prDigits(L, L.side, k, 0.55, L.H*0.36, L.H*0.4, '911', WH, -1); } } },
+  mtDragon: { id: 'mtDragon', seed: 0xd4a, build(L){ const SC = [0x1f5a28, 0x256a2e], BL = [0xd8b04a, 0xe8c860];   // (scales all over, a golden belly band)
+      const scale = (arr, x, y, r) => { const o = []; for(let i = 0; i <= 8; i++){ const q = Math.PI + i/8*Math.PI; o.push([x + Math.cos(q)*r, y - Math.sin(q)*r*0.9]); } arr.push({ c: SC, pts: o }); };
+      if(L.part === 'lid'){ for(let x = L.x0 + 2; x < L.x1 - 1; x += 3.4) for(let y = L.y0 + 2; y < L.y1 - 1; y += 3.4) scale(L.top, x + ((y*7) % 2), y, 1.4); return; }
+      for(let r = 0; r < 4; r++) for(let x = (r % 2)*1.7; x < L.per; x += 3.4) scale(L.side, x, L.H*(0.42 + r*0.15), 1.5);
+      L.side.push({ c: BL, pts: _prRect(-1, 0, L.per + 1, L.H*0.28) });
+      for(let x = L.x0 + 2; x < L.x1 - 1; x += 3.4) for(let y = L.y0 + 2; y < L.y1 - 1; y += 3.4) scale(L.top, x, y, 1.4); } },
+  mtScorp: { id: 'mtScorp', seed: 0x5c0, build(L){ const AM = [0xb8701a, 0xe89a1a];   // (amber armour bands round him, like a scorpion's plates)
+      if(L.part === 'lid'){ for(let x = L.x0 + 2; x < L.x1 - 1; x += 4.5) L.top.push({ c: AM, pts: _prRect(x, L.y0 + 0.5, x + 1.2, L.y1 - 0.5) }); return; }
+      for(const h of [0.3, 0.62]) L.side.push({ c: AM, pts: _prRect(-1, L.H*h, L.per + 1, L.H*h + L.H*0.1) });
+      for(let x = L.x0 + 2; x < L.x1 - 1; x += 4.5) L.top.push({ c: AM, pts: _prRect(x, L.y0 + 0.5, x + 1.2, L.y1 - 0.5) }); } },
+  mtIce: { id: 'mtIce', seed: 0x1ce, build(L){ const SN = [0xe8f4fc, 0xffffff], IC = [0xb8e4f8, 0xe8f8ff], CR = [0x5a9ac8, 0x6aaad8];   // (snow on his tops, icicles hanging off his top edges, frost cracks)
+      if(L.part === 'lid'){ L.top.push({ c: SN, pts: _prRect(L.x0 + 1, L.y0 + 1, L.x1 - 1, L.y1 - 1) });
+        for(let x = 0.5; x < L.per; x += 2.6){ const h = 1.5 + L.rng()*2.5; L.side.push({ c: IC, pts: [[x, L.H + 0.5], [x + 1.6, L.H + 0.5], [x + 0.8, L.H - h]] }); } return; }
+      L.top.push({ c: SN, pts: _prRect(L.x0 + 0.5, L.y0 + 0.5, L.x1 - 0.5, L.y1 - 0.5) });
+      for(let x = 0.5; x < L.per; x += 2.4){ const h = 2 + L.rng()*L.H*0.35; L.side.push({ c: IC, pts: [[x, L.H + 0.5], [x + 1.8, L.H + 0.5], [x + 0.9, L.H - h]] }); }
+      for(let i = 0; i < 6; i++){ let x = L.rng()*L.per, y = L.H*(0.15 + L.rng()*0.3); for(let j = 0; j < 3; j++){ const nx = x + (L.rng() - 0.5)*5, ny = y + 1 + L.rng()*2; L.side.push({ c: CR, pts: _prSeg(x, y, nx, ny, 0.5) }); x = nx; y = ny; } } } },
+  mtAlien: { id: 'mtAlien', seed: 0xa1e, build(L){ if(L.part === 'lid') return; const PU = [0x5a2f8a, 0x6b3fa0], PK = 0xff4ad8;   // (purple spots, a row of glowing pink portholes)
+      for(let i = 0; i < 16; i++){ const x = L.rng()*L.per, y = L.H*(0.2 + L.rng()*0.6), r = 1 + L.rng()*1.8, o = []; for(let j = 0; j < 9; j++){ const q = j/9*Math.PI*2; o.push([x + Math.cos(q)*r, y + Math.sin(q)*r]); } L.side.push({ c: PU, pts: o }); }
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 3; i++){ const cx = a + len*(0.25 + i*0.25), o = []; for(let j = 0; j < 10; j++){ const q = j/10*Math.PI*2; o.push([cx + Math.cos(q)*1.5, L.H*0.72 + Math.sin(q)*1.5]); } L.side.push({ col: PK, pts: o }); } }
+      for(let i = 0; i < 8; i++){ const x = L.x0 + L.rng()*(L.x1 - L.x0), y = L.y0 + L.rng()*(L.y1 - L.y0), r = 1 + L.rng()*1.5, o = []; for(let j = 0; j < 9; j++){ const q = j/9*Math.PI*2; o.push([x + Math.cos(q)*r, y + Math.sin(q)*r]); } L.top.push({ c: PU, pts: o }); } } },
+  mtPirate: { id: 'mtPirate', seed: 0x9a7e, build(L){ const DK = 0x4a2e14, LT = [0x9a6634, 0xa8723c], GD = [0xb8902a, 0xffd34a];   // (a ship's planking, a gold rail along his top, a row of gun ports)
+      if(L.part === 'lid'){ for(let h = 0.33; h < 1; h += 0.33) L.side.push({ col: DK, pts: _prRect(-1, L.H*h, L.per + 1, L.H*h + 0.4) }); for(let y = L.y0 + 2.5; y < L.y1; y += 2.5) L.top.push({ col: DK, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 0.35) }); return; }
+      for(let h = 0.18; h < 1; h += 0.18) L.side.push({ col: DK, pts: _prRect(-1, L.H*h, L.per + 1, L.H*h + 0.45) });
+      for(let i = 0; i < 14; i++){ const x = L.rng()*L.per, y = L.H*0.18*((L.rng()*5) | 0); L.side.push({ c: LT, pts: _prRect(x, y + 0.9, x + 4 + L.rng()*5, y + 1.6) }); }
+      L.side.push({ c: GD, pts: _prRect(-1, L.H*0.9, L.per + 1, L.H*0.97) });
+      for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a; for(let i = 0; i < 3; i++){ const cx = a + len*(0.22 + i*0.28); L.side.push({ c: GD, pts: _prRect(cx - 2, L.H*0.4, cx + 2, L.H*0.72) }, { col: 0x16171b, pts: _prRect(cx - 1.4, L.H*0.45, cx + 1.4, L.H*0.67) }); } }
+      for(let y = L.y0 + 2.5; y < L.y1; y += 2.5) L.top.push({ col: DK, pts: _prRect(L.x0 - 1, y, L.x1 + 1, y + 0.35) }); } },
   mtShark: { id: 'mtShark', seed: 0x54a4c, build(L){ if(L.part === 'lid') return;
       const BEL = [0xc9ced4, 0xf2f3f1], GILL = [0x2f3d4a, 0x3d4f60], TW = [0xd9dde2, 0xffffff], MO = [0x4a1016, 0x6a1820];
       for(const k of [2, 6]){ const [a, b] = L.face(k), len = b - a, dir = L.ring[k][0] > L.ring[(k + 1) % L.ring.length][0] ? 1 : -1, x0 = dir > 0 ? a : b, X = d => x0 + dir*d, w = [];
