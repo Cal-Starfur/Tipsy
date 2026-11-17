@@ -128746,7 +128746,8 @@ class WorldScene extends Phaser.Scene {
       if(G.glowOnly){   /* (no pads -- Sir, 2026-11-17: "just a glow under the whole tank"): a soft cyan glow the shape of his belly, from it down to the
            ground, brightest at the ground; once a frame */
         if(this._glowT === t) return; this._glowT = t;
-        const pulse = 0.5 + 0.5*Math.sin(t*0.005), rr = (hx, hy, z, n = 20) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(Math.cos(q)*hx, Math.sin(q)*hy, z)); } return o; };
+        const pulse = 0.5 + 0.5*Math.sin(t*0.005), ch0 = BODY.ch/BODY.hx;   /* (in his body's own plan -- its chamfered corners -- not an oval: Sir, 2026-11-17) */
+        const rr = (hx, hy, z) => { const c = Math.min(hx, hy)*ch0*BODY.hx/Math.min(BODY.hx, BODY.hy); return [[hx, -(hy - c)], [hx, hy - c], [hx - c, hy], [-(hx - c), hy], [-hx, hy - c], [-hx, -(hy - c)], [-(hx - c), -hy], [hx - c, -hy]].map(([x, y]) => P(x, y, z)); };
         const hx = BODY.hx, hy = BODY.hy, zt = 5 + lift;
         g.fillStyle(SKIN.eye, 0.12 + 0.06*pulse); g.fillPoints(pts(convexHull(rr(hx*0.9, hy*0.9, zt).concat(rr(hx*1.15, hy*1.15, 0.5)))), true);
         g.fillStyle(SKIN.eye, 0.22 + 0.1*pulse); g.fillPoints(pts(rr(hx*1.1, hy*1.1, 0.6)), true);
