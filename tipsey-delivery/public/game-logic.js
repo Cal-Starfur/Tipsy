@@ -54823,12 +54823,17 @@ function houseCanopy(fn){
     for(const [h0, h1] of [[0, LOB[0]], [LOB[1], W]]){
       const n = Math.ceil((h1 - h0)/150);
       for(let k = 0; k < n; k++){ const a0 = h0 + (h1 - h0)*k/n, a1 = h0 + (h1 - h0)*(k + 1)/n;
+        /* (FULL HEIGHT, ROOFED -- Sir, 2026-11-17: "we should have a roof and full wall for the rooms on every floor not 11 or 12": the flats
+           walled to the floor's full height H, the lift lobby's, and roofed: a slab over them, its edge and a soffit line on the corridor) */
         items.push({ a: (a0 + a1)/2, b: CB/2, z: 0, when: flats, solids: on(FL, a0, a1, 0, CB, H, 'flat'), draw: () => {
-          box(a0, a1, 0, CB, 0, 112, ceil, plas, shade(plas, 0.9));
+          box(a0, a1, 0, CB, 0, H, '#cfc9bb', plas, shade(plas, 0.9));
+          T(a0, a1, 0, CB, H + 0.3, '#c4beb0'); T(a0 + 0.5, a1 - 0.5, CB - 10, CB, H + 0.4, stoneL);                     // the roof slab, its edge
+          for(let a = Math.ceil(a0/80)*80; a < a1; a += 80) T(a - 0.8, a + 0.8, 0, CB - 10, H + 0.35, '#b9b3a5');        // its joints
           F(a0, a1, 0, 10, stoneD, null, 0, CB + 0.2); F(a0, a1, 0, 46, shade(plas, 0.96), null, 0, CB + 0.1);
+          F(a0, a1, H - 12, H, stoneL, null, 0, CB + 0.2);                                                               // the cornice on the corridor
         }}); }
     }
-    for(const a of LOB) items.push({ a, b: CB - 2, z: 0, when: flats, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, 112, stoneL, stone, stoneD); } });
+    for(const a of LOB) items.push({ a, b: CB - 2, z: 0, when: flats, draw: () => { box(a - 6, a + 6, CB - 4, CB + 2, 0, H, stoneL, stone, stoneD); } });
     const door = (c, wd) => {
       F(c - wd/2 - 6, c + wd/2 + 6, 0, 104, stoneL, stoneD, 1, CB + 0.6);
       F(c - wd/2, c + wd/2, 0, 98, wood, null, 0, CB + 0.8);
@@ -54839,7 +54844,7 @@ function houseCanopy(fn){
     for(const f of FL) FLATS.forEach(([a0, a1], k) => { const c = (a0 + a1)/2;
       items.push({ a: c + 1, b: CB + 3, z: 0, when: () => fl() === f, draw: () => { F(c - 26, c + 26, 104, 124, brass, '#a8843a', 1, CB + 0.9); blockWordIn(String(f*100 + k + 1), c - 22, c + 22, 107, 121, CB + 1.0, '#2b3138', null, 2); } });
     });
-    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, 112, shade(plas, 0.86), null, 0, CB + 0.5) });
+    for(const a of [310, 1342]) items.push({ a, b: CB + 1, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
     /* a bench and a plant in the lift lobby, against its side walls, clear of the cars' lanes */
     items.push({ a: LOB[0] + 24, b: 230, z: 0, when: flats, solids: on(FL, LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench'), draw: () => {
       for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 34, '#c9ced2', '#a9b0b5', '#8f969b');
