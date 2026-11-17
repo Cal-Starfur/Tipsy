@@ -44677,7 +44677,8 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'tank:tiger', build: 'tank', name: 'Tiger Stripe', cents: 900, body: 0xb8863a, stripe: 0xb8863a, noStripe: true, print: 'tkTiger', gun: 0x3a2c1a },
   { id: 'tank:olive', build: 'tank', name: 'Olive Drab', cents: 900, body: 0x4f5a34, stripe: 0x4f5a34, noStripe: true, print: 'tkOlive', gun: 0x3a4028 },
   { id: 'tank:redstar', build: 'tank', name: 'Red Star', cents: 900, body: 0x5a6a3a, stripe: 0x5a6a3a, noStripe: true, print: 'tkRedStar', gun: 0x3a4428 },
-  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff },
+  { id: 'tank:neon', build: 'tank', name: 'Neon Hover', cents: 1200, body: 0x1c1e24, stripe: 0x2ad8e8, noStripe: true, print: 'tkNeon', eye: 0x7af8ff, gun: 0x2a2d33, glow: 0x7af8ff, twin: true,
+    gear: { kind: 'hover', lift: 12, bob: true, xs: [-19, 19], side: 15, pr: 9.5 } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
@@ -123184,7 +123185,7 @@ class WorldScene extends Phaser.Scene {
       if(BS.flag && !SKIN.topper){ SKIN.skinTop = BS.flag.kind; if(BS.flag.col != null){ SKIN.flag = BS.flag.col; SKIN.flagPicked = true; } } }   // (its flag: one of the game's own -- Sir, 2026-11-16)
     BODY._bskin = BS || null;
     if(BS && BS.lid) Object.assign(LID, BS.lid);   // (a skin's own lid: the Graveyard's, run to his back)
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   // (a build without one, unless its skin flies its own: the Big Foot's) BODY._windshield = (BS && BS.glass) || B.windshield || null;
+    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = (BS && BS.gear) || B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   // (a build without one, unless its skin flies its own: the Big Foot's) BODY._windshield = (BS && BS.glass) || B.windshield || null;
     try { return this.drawBotBodyRaw(t, dt, npc); }
     finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._taper; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
       Object.assign(BODY, keep[0]); Object.assign(LID, keep[1]); Object.assign(STRIPE, keep[2]); Object.assign(FLAG.base, keep[3]); FLAG.z0 = keep[4]; FLAG.z1 = keep[5]; }
@@ -123275,8 +123276,8 @@ class WorldScene extends Phaser.Scene {
          sit UNDER him, so they are always drawn before the body */
       const xs = G.kind === 'wheels' ? G.xs : G.kind === 'tank' ? [0]
                : G.kind === 'walker' ? [-17, 17] : G.kind === 'cart' ? [-18, 18]
-               : G.kind === 'hover' ? [-16, 16] : (side === 1 ? [0] : []);
-      const gy = G.kind === 'wheels' || G.kind === 'tank' ? G.side : G.kind === 'hover' ? 13 : G.kind === 'ball' ? 0 : 15;
+               : G.kind === 'hover' ? (G.xs || [-16, 16]) : (side === 1 ? [0] : []);
+      const gy = G.kind === 'wheels' || G.kind === 'tank' ? G.side : G.kind === 'hover' ? (G.side || 13) : G.kind === 'ball' ? 0 : 15;
       const gz = G.kind === 'wheels' ? G.r + 2 : 8;
       const under = G.kind === 'hover' || G.kind === 'ball';
       for(const wx of xs){
@@ -127916,12 +127917,16 @@ class WorldScene extends Phaser.Scene {
     const SKg = BODY._bskin && BODY._bskin.gun, GL = BODY._bskin && BODY._bskin.glow;   // (a skin's own gun colour, and a future one's glowing muzzle)
     const G = SKg != null ? [_pmix(SKg, 0xffffff, 0.2), SKg, _pdk(SKg, 0.7)] : [0x6f757b, 0x5d646c, 0x3b4048];
     if(front) bx(SKg != null ? [_pmix(SKg, 0xffffff, 0.35), _pmix(SKg, 0xffffff, 0.15), SKg] : [0x9aa0a6, 0x7d838a, 0x5d646c], 2.5, x0 + 1, 5, zc - 3.5, zc + 3.5);   // (the mantlet: only toward the eye -- from behind, the turret hides it and the barrel runs straight into it)
-    const brake = () => bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4);   // (the muzzle brake: the far end first when it points away)
+    const brake = () => { if(BODY._bskin && BODY._bskin.twin) return; bx([0x5d646c, 0x4a5057, 0x2e3138], 2.2, x1 - 1, 2.4, zc - 2.4, zc + 2.4); };   // (the muzzle brake: the far end first when it points away)
     if(!front) brake();
-    bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
+    const TW = BODY._bskin && BODY._bskin.twin;
+    if(TW){ const far = (w => w.x + w.y + w.z > 0)(this.R(0, 1, 0)) ? -1 : 1;   /* twin energy barrels side by side, the far one first, a glowing ring round each near the muzzle */
+      for(const sy of [far, -far]){ this.drawHullPrism({ hx: (x1 - x0)/2, hy: 1.1, ox: (x0 + x1)/2, oy: sy*2.4, z0: zc - 1.1, z1: zc + 1.1, ch: 0.3, cTop: G[0], cLt: G[1], cDk: G[2], cBottom: G[2], outline: false, topEdge: false });
+        this.drawHullPrism({ hx: 0.6, hy: 1.4, ox: x1 - 4, oy: sy*2.4, z0: zc - 1.4, z1: zc + 1.4, ch: 0.4, cTop: GL, cLt: GL, cDk: _pdk(GL, 0.7), cBottom: _pdk(GL, 0.7), outline: false, topEdge: false }); } }
+    else bx(G, (x1 - x0)/2, (x0 + x1)/2, 1.6, zc - 1.6, zc + 1.6);                       // (the barrel)
     if(front) brake();
-    if(GL != null && front){ const vis2 = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }; if(vis2(1, 0, 0)){ const o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(this.P(x1 + 1.25, Math.cos(a)*1.6, zc + Math.sin(a)*1.6)); }
-        this.quadOn(this.g, o, GL); const q = this.P(x1 + 1.3, 0, zc); this.g.fillStyle(GL, 0.3); this.g.fillCircle(q.x, q.y, 4*this.kScale()); } }
+    if(GL != null && front){ const vis2 = (nx, ny, nz) => { const w = this.R(nx, ny, nz); return w.x + w.y + w.z > 0; }; if(vis2(1, 0, 0)) for(const yy of (BODY._bskin.twin ? [-2.4, 2.4] : [0])){ const rr = BODY._bskin.twin ? 1.1 : 1.6, xm = BODY._bskin.twin ? x1 + 0.05 : x1 + 1.25, o = []; for(let k = 0; k < 12; k++){ const a = k/12*Math.PI*2; o.push(this.P(xm, yy + Math.cos(a)*rr, zc + Math.sin(a)*rr)); }
+        this.quadOn(this.g, o, GL); const q = this.P(xm + 0.05, yy, zc); this.g.fillStyle(GL, 0.3); this.g.fillCircle(q.x, q.y, 3.4*this.kScale()); } }
     if(front){}
     else {   /* pointing away: only the brake's back face (toward the turret) goes under the barrel -- its top and sides wrap round the barrel's
                 end, so they go back over it */
@@ -128533,10 +128538,10 @@ class WorldScene extends Phaser.Scene {
 
     if(G.kind === 'hover'){
       /* a pad under each corner, a light column to the ground */
-      const pz = 5 + lift, pr = 7.5;
+      const pz = 5 + lift, pr = G.pr || 7.5;   // (G.pr: a build's bigger pads -- the Neon Hover tank's)
       const ring = (x, y, z, rr, n = 16) => { const o = []; for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(x + Math.cos(q)*rr, y + Math.sin(q)*rr, z)); } return o; };
       const pulse = 0.5 + 0.5*Math.sin(t*0.006 + c.x);
-      const top = ring(c.x, c.y, pz, 4.5), bot = ring(c.x, c.y, 1, 7.5);
+      const top = ring(c.x, c.y, pz, pr*0.6), bot = ring(c.x, c.y, 1, pr);
       g.fillStyle(SKIN.eye, 0.16 + 0.08*pulse); g.fillPoints(pts(convexHull(top.concat(bot))), true);
       this.quadOn(g, convexHull(ring(c.x, c.y, pz, pr).concat(ring(c.x, c.y, pz + 2.5, pr))), 0x2e3138);
       this.quadOn(g, ring(c.x, c.y, pz, pr*0.7), SKIN.eye);
@@ -134029,7 +134034,7 @@ function gearSpecRaw(){
     case 'cart':     return { kind: 'cart', lift: 6 };
     case 'walker':   return { kind: 'walker', lift: 17 };
   }
-  if(BODY._gear && !SKIN.tyreSize) return { ...BODY._gear };   // (a build's own running gear: the UFO floats, the Monster Truck's rig)
+  if(BODY._gear && !SKIN.tyreSize) return { ...BODY._gear };   // (also a build skin's own: the Neon Hover tank floats)   // (a build's own running gear: the UFO floats, the Monster Truck's rig)
   if(BODY._tracks && !SKIN.tyreSize) return { kind: 'tank', side: BODY.hy + 5, W2: 10, lift: 2 };   // (the Tank build's own treads: TP_BUILDS)
   if(BODY._wheels && !SKIN.tyreSize){ const W = BODY._wheels; return { kind: 'wheels', r: W.r, W2: W.W2, rF: W.rF, W2F: W.W2F, xs: W.xs, side: W.side, single: W.single, style: W.style, tread: SKIN.tyre ? undefined : W.tread, treadF: SKIN.tyre ? undefined : W.treadF, wall: W.wall, rubber: SKIN.tyre ? null : W.rubber, lift: 0 }; }   // (a build's own: TP_BUILDS)
   const z = TYRE_SIZE[SKIN.tyreSize];
