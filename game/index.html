@@ -44739,7 +44739,7 @@ const TP_BUILDS = {
      belly under it, solar panels either side of his lid, a dish on his back (roverKit) */
   rover: { BODY: { hx: 24, hy: 17, z0: 24, z1: 46, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 24, hy: 17, z0: 46, z1: 52, ch: 5, bev: 2.5, bevIn: 2 },
     STRIPE: { z0: 29, z1: 33 }, FLAGB: { x: -27.5, y: 12.4 }, FLAGZ: [42, 74], zmap: z => 24 + (z - 14)*0.55,
-    WHEELS: { r: 7.5, W2: 7, xs: [-24, 0, 24], side: 29, style: 'mesh', tread: 'knobby' /* (off-road knobbly tyres, as Gideon's scooter's -- Sir, 2026-11-16) */ }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true, dishFlag: true },
+    WHEELS: { r: 7.5, W2: 7, xs: [-24, 0, 24], side: 29, style: 'mesh', tread: 'knobby' /* (off-road knobbly tyres, as Gideon's scooter's -- Sir, 2026-11-16) */ }, tray: [0xd8b04a, 0xc9a23f, 0xa98432], solarLid: true, dishFlag: true, kit: 'rover' },
   /* the Tank (Sir, 2026-11-16): a wide low hull on treads, his lid a turret with a cannon out its front, his antenna up off the turret's
      back (tankKit) */
   tank: { BODY: { hx: 28, hy: 19, z0: 12, z1: 30, ch: 5, bev: 3, bevIn: 2.5 }, LID: { hx: 15, hy: 13, z0: 30, z1: 40, ch: 6, bev: 3, bevIn: 2.5 },
@@ -44822,7 +44822,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
     gear: { kind: 'hover', lift: 12, bob: true, xs: [0], side: 0, glowOnly: true } },   /* (it floats on glowing pads, a twin energy cannon -- Sir, 2026-11-17) */
   { id: 'tank:mech', build: 'tank', name: 'Mech White', cents: 1200, body: 0xe8ecf0, stripe: 0x4ab0ff, noStripe: true, print: 'tkMech', eye: 0x4ab0ff, gun: 0xc9ced4, glow: 0x4ab0ff },
   { id: 'tank:plasma', build: 'tank', name: 'Plasma', cents: 1200, body: 0x2a1a2e, stripe: 0xff3a6a, noStripe: true, print: 'tkPlasma', eye: 0xff3a6a, gun: 0x3a2a3e, glow: 0xff3a6a },
-  { id: 'rover:apollo', build: 'rover', name: 'Apollo', cents: 1000, body: 0xeceef1, stripe: 0x1f3a7a, print: 'rvApollo', flag: { kind: 'usa' }, noDish: true, roverPart: 'tvcam' },
+  { id: 'rover:apollo', build: 'rover', name: 'Apollo', cents: 1000, body: 0xeceef1, stripe: 0x1f3a7a, print: 'rvApollo', flag: { kind: 'usa' }, noDish: true, noSolar: true, lidCol: [0x3a3d45, 0x2e3138, 0x23262c], roverPart: 'lrv',
+    /* (the Apollo rover's own silhouette -- Sir, 2026-11-17): a low open chassis on four wheels, fenders arched over them, a dark console for his
+       lid, the umbrella antenna and the TV camera up on masts, the flag off his back */
+    shape: { BODY: { hx: 26, hy: 16, z0: 18, z1: 28, ch: 4, bev: 2, bevIn: 1.5 }, LID: { hx: 7, hy: 10, z0: 28, z1: 33, ch: 2.5, bev: 1.5, bevIn: 1.2, ox: 14 },
+      STRIPE: { z0: 20, z1: 22 }, FLAGB: { x: -24, y: 12 }, FLAGZ: [28.5, 62], zmap: z => 18 + (z - 14)*0.27, WHEELS: { r: 8, W2: 7, xs: [-19, 19], side: 27, style: 'mesh', tread: 'knobby' } } },
   { id: 'rover:mars', build: 'rover', name: 'Mars Explorer', cents: 1000, body: 0xb8643a, stripe: 0xeceef1, print: 'rvMars', noDish: true, mastFlag: true,   /* (its camera on the flag's own pole and mount -- Sir, 2026-11-17) */ trim: { rimCol: 0x8a4a2a } },
   { id: 'rover:retro', build: 'rover', name: 'Retro Space Age', cents: 1000, body: 0xc9ced4, stripe: 0x2ad8c8, print: 'rvRetro', noSolar: true, lidCol: [0xa9e8e4, 0x86d0cc, 0x5eaeaa], noDish: true, ringFlag: true, eye: 0xff5a4a, trim: { rimCol: 0x2ad8c8 } },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true }];
@@ -123634,8 +123638,9 @@ class WorldScene extends Phaser.Scene {
       if(TRm.rimCol != null){ SKIN.wheelHubFace = TRm.rimCol; SKIN.wheelHub = _pmix(TRm.rimCol, 0xffffff, 0.35); }
       if(BS.flag && !SKIN.topper){ SKIN.skinTop = BS.flag.kind; if(BS.flag.col != null){ SKIN.flag = BS.flag.col; SKIN.flagPicked = true; } } }   // (its flag: one of the game's own -- Sir, 2026-11-16)
     BODY._bskin = BS || null;
+    if(BS && BS.shape){ const SH = BS.shape; if(SH.BODY) Object.assign(BODY, SH.BODY); if(SH.LID) Object.assign(LID, SH.LID); if(SH.STRIPE) Object.assign(STRIPE, SH.STRIPE); if(SH.FLAGB) Object.assign(FLAG.base, SH.FLAGB); if(SH.FLAGZ){ FLAG.z0 = SH.FLAGZ[0]; FLAG.z1 = SH.FLAGZ[1]; } }   // (a skin's own silhouette: the Apollo's open frame)
     if(BS && BS.lid) Object.assign(LID, BS.lid);   // (a skin's own lid: the Graveyard's, run to his back)
-    BODY._zmap = B.zmap; BODY._wheels = B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = (BS && BS.gear) || B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   /* (a build without one, unless its skin flies its own: the Big Foot's) */ BODY._windshield = (BS && BS.glass) || B.windshield || null;
+    BODY._zmap = (BS && BS.shape && BS.shape.zmap) || B.zmap; BODY._wheels = (BS && BS.shape && BS.shape.WHEELS) || B.WHEELS; BODY._tracks = !!B.tracks; BODY._noBracket = !!B.noBracket; BODY._cagePole = !!B.cagePole; BODY._tray = B.tray || null; BODY._solarLid = !!B.solarLid; BODY._dishFlag = !!B.dishFlag; BODY._gear = (BS && BS.gear) || B.GEAR || null; BODY._lidCol = B.lidCol || null; BODY._noTray = !!B.noTray; BODY._noFlag = !!B.noFlag && !(BS && BS.flag); BODY._taper = B.taper || 0;   /* (a build without one, unless its skin flies its own: the Big Foot's) */ BODY._windshield = (BS && BS.glass) || B.windshield || null;
     if(BS && BS.noSolar) BODY._solarLid = false; if(BS && BS.lidCol) BODY._lidCol = BS.lidCol; if(BS && BS.noDish) BODY._dishFlag = false; if(BS && BS.noFlag) BODY._noFlag = true; BODY._ringFlag = !!(BS && BS.ringFlag); BODY._mastFlag = !!(BS && BS.mastFlag);   // (a rover skin's own top: Sir, 2026-11-17)
     try { return this.drawBotBodyRaw(t, dt, npc); }
     finally { for(const [k, v, had] of skinKeep){ if(had) SKIN[k] = v; else delete SKIN[k]; } delete BODY._bskin; delete BODY._zmap; delete BODY._wheels; delete BODY._tracks; delete BODY._noBracket; delete BODY._cagePole; delete BODY._tray; delete BODY._solarLid; delete BODY._dishFlag; delete BODY._gear; delete BODY._lidCol; delete BODY._noTray; delete BODY._noFlag; delete BODY._taper; delete BODY._ringFlag; delete BODY._mastFlag; delete BODY._windshield; for(const k of Object.keys(LID)) if(!(k in keep[1])) delete LID[k];   /* (a build's own lid keys -- the Night Cruiser's ox -- off his own lid after) */
@@ -128043,6 +128048,27 @@ class WorldScene extends Phaser.Scene {
       if(UP === 'grid') for(const [r, n] of [[24, 12], [30, 16], [35.5, 20]]) for(let k = 0; k < n; k++){ const a = (k + 0.5)/n*Math.PI*2; if(!ufoVis(Math.cos(a)*0.28, Math.sin(a)*0.28, 0.96)) continue;
           const q = topAt(r, a), on = (k + Math.floor(tNow/300) + r) % 5 !== 0; g.fillStyle(on ? ULC[k % ULC.length] : 0x3b2a1a, on ? 0.95 : 1); g.fillRect(q.x - 1*K, q.y - 0.7*K, 2*K, 1.4*K); }
     }
+    if(id === 'rover' && BODY._bskin && BODY._bskin.roverPart === 'lrv'){
+      const W = BODY._wheels, sh = this.bodyPaint(), GD = [0xd8b04a, 0xc9a23f, 0xa98432];
+      /* fenders: a gold arch over each wheel, from his side out past its tread -- the far ones before him, the near ones after the near wheels */
+      const fender = sb => { for(const x of W.xs){ const R = W.r + 2.4, hz = W.r + 2 - bobZ, yi = sb*(BODY.hy - 1), yo = sb*(W.side + W.W2/2 + 1), N = 10, th = k => (0.15 + k/N*0.7)*Math.PI, pt = (k, y) => P(x + Math.cos(th(k))*R, y, hz + Math.sin(th(k))*R);
+          for(let k = 0; k < N; k++){ const tm = (th(k) + th(k + 1))/2, w = this.R(Math.cos(tm), 0, Math.sin(tm)); if(w.x + w.y + w.z <= 0) continue;
+            this.quadOn(g, [pt(k, yi), pt(k + 1, yi), pt(k + 1, yo), pt(k, yo)], Math.sin(tm) > 0.85 ? GD[0] : GD[1]); }
+          if(vis(0, sb, 0)){ g.lineStyle(Math.max(1, K), 0x7a5c18, 1); for(let k = 0; k < N; k++){ const A = pt(k, yo), Bq = pt(k + 1, yo); g.lineBetween(A.x, A.y, Bq.x, Bq.y); } } } };
+      if(part === 'pre') fender(-nearSide);
+      if(part === 'after') fender(nearSide);
+      if(part === 'near'){
+        /* the umbrella antenna: a mast off his front-left, an upturned mesh dish on it, ribs and a feed */
+        const ax = BODY.hx - 6, ay = -BODY.hy + 4, az = BODY.z1 + 22, A0 = P(ax, ay, BODY.z1), A1 = P(ax, ay, az - 2);
+        g.lineStyle(Math.max(1, 1.6*K), 0x9aa0a6, 1); g.lineBetween(A0.x, A0.y, A1.x, A1.y);
+        const rim = []; for(let k = 0; k < 16; k++){ const a = k/16*Math.PI*2; rim.push(P(ax + Math.cos(a)*8, ay + Math.sin(a)*8, az + 2)); }
+        this.quadOn(g, rim, 0xd8dde2, 0.85); g.lineStyle(Math.max(1, 0.8*K), 0x9aa0a6, 1); for(let k = 0; k < 8; k++){ const q = rim[k*2]; const c = P(ax, ay, az - 1); g.lineBetween(c.x, c.y, q.x, q.y); }
+        g.strokePoints(rim.map(q => new Phaser.Geom.Point(q.x, q.y)), true); { const f = P(ax, ay, az + 6); const c = P(ax, ay, az - 1); g.lineBetween(c.x, c.y, f.x, f.y); g.fillStyle(0x3a3d45, 1); g.fillCircle(f.x, f.y, 1.2*K); }
+        /* the TV camera on its own mast off his front-right, looking ahead */
+        const tx = BODY.hx - 4, ty = BODY.hy - 4, tz = BODY.z1 + 10, T0 = P(tx, ty, BODY.z1), T1 = P(tx, ty, tz);
+        g.lineStyle(Math.max(1, 1.4*K), 0x9aa0a6, 1); g.lineBetween(T0.x, T0.y, T1.x, T1.y);
+        this.drawHullPrism({ hx: 2.4, hy: 1.8, ox: tx + 0.5, oy: ty, z0: tz + bobZ, z1: tz + 3.6 + bobZ, ch: 0.4, cTop: 0xeceef1, cLt: 0xd8dde2, cDk: 0xa8adb4, cBottom: 0xa8adb4, outline: true, topEdge: false });
+        if(vis(1, 0, 0)){ const q = P(tx + 2.95, ty, tz + 1.8); g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, 1.1*K); g.fillStyle(0x3a5ad8, 1); g.fillCircle(q.x, q.y, 0.55*K); } } }
     if(id === 'monster'){
       const W = BODY._gear || { r: 17, W2: 13, xs: [-22, 22], side: 28 }, hz = W.r + 2 - bobZ, yi = W.side - W.W2/2 - 0.5, zb = BODY.z0;
       /* A SKIN'S TRIM (Sir, 2026-11-16: "get all the concept colours on the other details"): its coil springs, push bars, light bar housing,
