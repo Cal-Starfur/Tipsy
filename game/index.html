@@ -78310,6 +78310,12 @@ marinaEntry(),
     .concat(RIM_STORES.filter(st => st.site === 'Palmline Tower').map(st => { const r = palmlineStoreSpan(st), dm = (r[0] + r[1])/2;
       return { a: dm - 47, w: 94, b: PALMLINE_PLAN.PF + 1.6, z0: 0, z1: 115, glass: 'rgba(170,206,220,.30)', over: st.name, share: st.side }; })),
   doorDraw(i, u){ slidePairDraw(this.slideDoors[i], u, '#2b3540'); },
+  /* ITS LAMPS AT NIGHT (pt6, the lamp kit: queueLandmarkLamps): downlights under the lobby's canopy, and two under each shop's awning --
+     their pools on the forecourt; the rooms behind the glass are lit by the walk-in kit (walkinThrough's glow, the night boxes, W25) */
+  lamps: () => { const Q = PALMLINE_PLAN, out = [-150, 0, 150].map(d => ({ a: Q.DM + d, b: Q.PF + 30, z: 122, r: 95, col: 0xffe2a8 }));
+    for(const st of RIM_STORES.filter(q => q.site === 'Palmline Tower')){ const [a0, a1] = palmlineStoreSpan(st);
+      for(const k of [1/3, 2/3]) out.push({ a: a0 + (a1 - a0)*k, b: Q.PF + 20, z: 104, r: 85, col: 0xffe2a8 }); }
+    return out; },
   /* ITS RED LIGHTS AFTER DARK (pt5): the mast's beacon, a slow flash, and a steady obstruction light at each front corner of the
      roof -- small live items over the tower's own piece (over: its tag), fading with it; dark and cached by day (the draw's lamps).
      on(t): lit now; glow: its light in the world (the rim queue's glowInWorld), r world units */
@@ -78365,7 +78371,8 @@ marinaEntry(),
     const bayW = 104, nBay = Math.round((TA1 - TA0)/bayW), bw = (TA1 - TA0)/nBay;
     const sideBays = 5, sb = (TF - TB)/sideBays;
     const hash = (n) => { let x = (n*2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0) / 4294967296; };
-    items.push({ a: TA0, b: TB, view: true, shell: true, share: 'T', tag: 'tower', fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
+    items.push({ a: TA0, b: TB, view: true, shell: true, share: 'T', tag: 'tower', nightKey: true, fpLab: { a0: TA0, a1: TA1, b0: TB, b1: TF, z1: CROWN + 260 }, draw: () => {
+    const nightOn = typeof isNightNow === 'function' && isNightNow();
     T(TA0, TA1, TB, TF, PH + 0.6, '#9c968a');                       // its footprint's shadow on the podium roof
     for(let f = 0; f < NF; f++){
       const z0 = PH + f*FH, z1 = z0 + FH, zg = z0 + 22;
@@ -78379,12 +78386,19 @@ marinaEntry(),
         if(h < 0.18) F(TA0 + i*bw + 4, TA0 + (i + 1)*bw - 4, zg + 4, z1 - 2, glassL, null, 0, TF + 0.2);
         else if(h > 0.9) F(TA0 + i*bw + 4, TA0 + (i + 1)*bw - 4, zg + 4, z1 - 2, glassD, null, 0, TF + 0.2);
       }
+      /* AFTER DARK (pt6): the offices still lit, a third of the bays or so, warm (its own cached image by night: nightKey) */
+      if(nightOn) for(let i = 0; i < nBay; i++){
+        const h = hash(f*53 + i*11 + 7);
+        if(h < 0.34) F(TA0 + i*bw + 4, TA0 + (i + 1)*bw - 4, zg + 4, z1 - 2, h < 0.08 ? '#fff1c4' : '#ffd98a', null, 0, TF + 0.25);
+      }
       F(TA0, TA1, zg, zg + 3, shade(spand, .82), null, 0, TF + 0.3);   // the spandrel's shadow line
       /* the seen end, the same courses */
       S(seenA, TB, TF, z0, zg, shade(spand, .86));
       S(seenA, TB, TF, zg, z1, glassD);
       for(let i = 0; i < sideBays; i++)
         if(hash(f*17 + i*5 + 3) < 0.22) S(seenA + (FLANK_RIGHT ? 0.2 : -0.2), TB + i*sb + 4, TB + (i + 1)*sb - 4, zg + 4, z1 - 2, glass);
+      if(nightOn) for(let i = 0; i < sideBays; i++)
+        if(hash(f*29 + i*13 + 5) < 0.34) S(seenA + (FLANK_RIGHT ? 0.3 : -0.3), TB + i*sb + 4, TB + (i + 1)*sb - 4, zg + 4, z1 - 2, '#f2cc7e');
     }
     if(inView(TA0, TA1, TB, TF, PH, TOP)){
       /* mullions the full height, front and end; the corners heavier */
@@ -112647,7 +112661,7 @@ class WorldScene extends Phaser.Scene {
            of it from inside */
         if(sk < 1 && it.drawLow) vq.push({ depth: dep - 1e-4, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|low|" + n, q.x, q.y, gg => LIB.drawItem(rim.name, gg, G, this.K, { draw: it.drawLow }, fr.flank)) });
         if(_rcut > 0 && (it.shell || it.ghost)){
-          vq.push({ depth: _rcutDep - 1e-3 + n*1e-6, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + n + "|cut" + Math.round(_rcut), q.x, q.y,
+          vq.push({ depth: _rcutDep - 1e-3 + n*1e-6, fn: (g) => this.bcDraw(g, "rim|" + rim.name + "|" + n + "|cut" + Math.round(_rcut) + (it.nightKey && isNightNow() ? "|night" : ""), q.x, q.y,
             gg => { LIB.setView(this.vpW(), this.vpH()); LIB.setCut(_rcut); try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { LIB.setView(0); LIB.setCut(null); } }) });
           return;
         }
@@ -112657,7 +112671,8 @@ class WorldScene extends Phaser.Scene {
         if(sk < 0.002) return;
         /* (a walk-in's shell goes through walkinShellQ, so its room is seen through its openings just under it: walkinThrough) */
         /* (registered as the shell of each room it covers -- seen from the street, each room's glass shows its room just under it: walkinThrough) */
-        const _e = { depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n, q.x, q.y,
+        const _nk = it.nightKey && isNightNow() ? "|night" : "";                    // (a piece with its own night: its lit windows -- Palmline Tower's offices, pt6)
+        const _e = { depth: dep, fn: (g) => { if(sk < 1) this._bcAlpha = sk; try { this.bcDraw(g, "rim|" + rim.name + _sk + "|" + n + _nk, q.x, q.y,
           gg => { if(it.occ || it.view) LIB.setView(this.vpW(), this.vpH());
                   try { LIB.drawItem(rim.name, gg, G, this.K, it, fr.flank); } finally { if(it.occ || it.view) LIB.setView(0); } }); } finally { if(sk < 1) this._bcAlpha = null; } } };
         vq.push(_e);
@@ -112693,6 +112708,8 @@ class WorldScene extends Phaser.Scene {
         const own = d.bay ? fr.ox + fr.oy - 0.5 : q.x + q.y + 0.5, depth = ov != null && !d.bay ? Math.min(own, ov - 1e-3*(i + 1)) : own;
         vq.push({ depth, fn: dk < 1 ? (g) => this.withFade(g, dk, () => draw(g)) : (g) => (u === 0 || u === 1) ? this.bcDraw(g, "rim|" + rim.name + "|door|" + i + "|" + u, q.x, q.y, draw) : draw(g) });
       });
+      /* ITS LAMPS AT NIGHT (the lamp kit: queueLandmarkLamps -- Palmline Tower's canopy and awnings, pt6) */
+      if(_ent && _ent.lamps && !deck) this.queueLandmarkLamps(vq, _ent, (a, b) => fr.toWorld(a, b));
       /* ITS MOVING PARTS (an entry's `live`, as the hood landmarks' -- Palmline Tower's red lights, pt5): small live items a hair over the
          piece they stand on (L.over: that piece's tag), faded with it, culled off screen; L.on(t) false draws nothing; L.glow lights the
          world round it (glowInWorld) by night. The rest stays in the cache (CLAUDE.md) */
