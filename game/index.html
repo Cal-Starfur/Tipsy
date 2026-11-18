@@ -130743,7 +130743,6 @@ class WorldScene extends Phaser.Scene {
         for(let i = 0; i < 2; i++){ const sb = i ? 1 : -1, lit = ph2 === i, col = lit ? (i ? 0x4aa3ff : 0xff4a4a) : (i ? 0x1d3a6b : 0x5a1c1c); boxS(17, 29, sb > 0 ? 1 : -11, sb > 0 ? 11 : -1, Z1 + 3, Z1 + 7, col);
           if(lit){ const q = P(23, sb*6, Z1 + 6), r = 12*this.kScale(); g.fillStyle(col, 0.18); g.fillCircle(q.x, q.y, r); g.fillStyle(col, 0.1); g.fillCircle(q.x, q.y, r*1.7); } }
         return; }
-      for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);
       this.avLathe(V, 24, 0, [[Z1, 5.5], [Z1 + 3, 5.5]], DARK, null, 12);
       const lit = data && data.still ? true : Math.floor(t/500) % 2 === 0;
       this.avLathe(V, 24, 0, [[Z1 + 3, 4.6], [Z1 + 7, 4.4], [Z1 + 9.5, 2.6], [Z1 + 10.5, 0]], lit ? FLAGC : _pdk(FLAGC, 0.6), lit ? () => FLAGC : null, 12);
@@ -130759,7 +130758,7 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < n; i++) F.push([R(b0, i), R(b0, i + 1), R(b1, i + 1), R(b1, i)]); F.push([...Array(n)].map((_, i) => R(b0, i)), [...Array(n)].map((_, i) => R(b1, i)));
       solid(F, col, capCol ? (i, nr) => Math.abs(nr[1]) > 0.9 ? capCol : col : null); };
     /* big stroked letters on a flank, read left to right from that side */
-    const GLY = { K: [[[-1, 1], [-1, -1]], [[1, 1], [-1, 0], [1, -1]]], '-': [[[-0.8, 0], [0.8, 0]]], 9: [[[1, 0], [-1, 0], [-1, 1], [1, 1], [1, -1], [-1, -1]]] };
+    const GLY = { R: [[[-1, -1], [-1, 1], [1, 1], [1, 0], [-1, 0], [1, -1]]], E: [[[1, 1], [-1, 1], [-1, -1], [1, -1]], [[-1, 0], [0.6, 0]]], S: [[[1, 1], [-1, 1], [-1, 0], [1, 0], [1, -1], [-1, -1]]], C: [[[1, 1], [-1, 1], [-1, -1], [1, -1]]], U: [[[-1, 1], [-1, -1], [1, -1], [1, 1]]], K: [[[-1, 1], [-1, -1]], [[1, 1], [-1, 0], [1, -1]]], '-': [[[-0.8, 0], [0.8, 0]]], 9: [[[1, 0], [-1, 0], [-1, 1], [1, 1], [1, -1], [-1, -1]]] };
     const flankText = (sb, txt, ca, cz, w, h, gap, col, lw) => { if(!sees(0, sb, 0)) return; const bb = sb*(HY + 0.9), dir = Math.sign(P(10, bb, cz).x - P(0, bb, cz).x) || 1, n = txt.length;
       g.lineStyle(Math.max(1.6, lw*K), col, 1);
       for(let i = 0; i < n; i++){ const cx = ca + dir*(-(n - 1)*gap/2 + i*gap); for(const path of GLY[txt[i]]) g.strokePoints(path.map(([u, v]) => PT(P(cx + dir*u*w/2, bb, cz + v*h/2))), false); } };
@@ -130801,14 +130800,21 @@ class WorldScene extends Phaser.Scene {
             g.fillStyle(0xd8b04a, 1); g.fillPoints([P(CA + 11.8, -4.6, BZ + 2.6), P(CA + 11.8, 4.6, BZ + 2.6), P(CA + 10.8, 5, BZ + 8.6), P(CA + 10.2, 0, BZ + 11.2), P(CA + 10.8, -5, BZ + 8.6)].map(PT), true);
             g.fillStyle(0x8a1c24, 1); g.fillPoints([P(CA + 12, -2.4, BZ + 4.6), P(CA + 12, 2.4, BZ + 4.6), P(CA + 11.4, 2.4, BZ + 8.4), P(CA + 11.4, -2.4, BZ + 8.4)].map(PT), true); } }
       }
-      if(c === 'rescue'){
-        if(st === 'flank') for(const sb of [-1, 1]) flankQ(sb, [[-29, 47.5], [29, 47.5], [29, 49.5], [-29, 49.5]], 0xd9dde2);
-        if(st === 'top'){ boxS(-22, 0, -10, 10, Z1, Z1 + 11, 0xf6f6f2);   /* (its first-aid pack, a red cross on its top and sides) */
-          if(sees(0, 0, 1)){ topQ([[-13, -2], [-9, -2], [-9, 2], [-13, 2]], 0xd8261c, 1, Z1 + 11.2); topQ([[-17, -1.6], [-5, -1.6], [-5, 1.6], [-17, 1.6]], 0xd8261c, 1, Z1 + 11.2); topQ([[-12.6, -6], [-9.4, -6], [-9.4, 6], [-12.6, 6]], 0xd8261c, 1, Z1 + 11.2); }
+      if(c === 'rescue'){   /* (second pass -- Sir, 2026-11-18): RESCUE on its flanks over its silver band; a first-aid pack strapped to its back; a round
+           floodlight on a yoke on its head, lit */
+        if(st === 'flank') for(const sb of [-1, 1]){ flankText(sb, 'RESCUE', -2, 61.5, 5, 7, 7.4, 0xf6f6f2, 2.6); }
+        if(st === 'top'){ boxS(-22, 0, -10, 10, Z1, Z1 + 11, 0xf6f6f2);   /* (its first-aid pack, a red cross on its top and sides, two straps over it) */
+          for(const a of [-19, -3]){ boxS(a - 1.4, a + 1.4, -10.6, 10.6, Z1 + 10.9, Z1 + 11.6, 0xc8601a); for(const sb of [-1, 1]) if(sees(0, sb, 0)){ g.fillStyle(0xc8601a, 1); g.fillPoints([P(a - 1.4, sb*10.4, Z1), P(a + 1.4, sb*10.4, Z1), P(a + 1.4, sb*10.4, Z1 + 11), P(a - 1.4, sb*10.4, Z1 + 11)].map(PT), true); } }
+          if(sees(0, 0, 1)){ topQ([[-13, -2], [-9, -2], [-9, 2], [-13, 2]], 0xd8261c, 1, Z1 + 11.2); topQ([[-16, -1.6], [-6, -1.6], [-6, 1.6], [-16, 1.6]], 0xd8261c, 1, Z1 + 11.2); topQ([[-12.6, -5], [-9.4, -5], [-9.4, 5], [-12.6, 5]], 0xd8261c, 1, Z1 + 11.2); }
           for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*10.3; g.fillStyle(0xd8261c, 1); g.fillPoints([P(-12.5, bb, Z1 + 2), P(-9.5, bb, Z1 + 2), P(-9.5, bb, Z1 + 9), P(-12.5, bb, Z1 + 9)].map(PT), true); g.fillPoints([P(-15, bb, Z1 + 4), P(-7, bb, Z1 + 4), P(-7, bb, Z1 + 7), P(-15, bb, Z1 + 7)].map(PT), true); } }
-        if(st === 'head'){ boxS(HX - 2, HX + 8, -5, 5, 64, 70, 0x2a2d33);   /* (a floodlight on its head, lit) */
-          if(front){ g.fillStyle(0xfff6d8, 1); g.fillPoints([P(HX + 8.3, -4, 65), P(HX + 8.3, 4, 65), P(HX + 8.3, 4, 69), P(HX + 8.3, -4, 69)].map(PT), true);
-            const q = P(HX + 9, 0, 67), r = 10*this.kScale(); g.fillStyle(0xfff6d8, 0.18); g.fillCircle(q.x, q.y, r); g.fillStyle(0xfff6d8, 0.1); g.fillCircle(q.x, q.y, r*1.8); } }
+        if(st === 'head'){ const LA = HX + 3, LZ = 71, LR = 5;
+          tube([LA, -6.5, 64], [LA, -6.5, LZ], 1.8, 0x3a3e46); tube([LA, 6.5, 64], [LA, 6.5, LZ], 1.8, 0x3a3e46);   /* (its yoke) */
+          /* the lamp: a drum along its nose, its lens a disc at the front */
+          const n = 14, F = [], R2 = (aa, i, r) => [aa, Math.cos(i/n*Math.PI*2)*r, LZ + Math.sin(i/n*Math.PI*2)*r];
+          for(let i = 0; i < n; i++) F.push([R2(LA - 5, i, LR*0.8), R2(LA - 5, i + 1, LR*0.8), R2(LA + 4, i + 1, LR), R2(LA + 4, i, LR)]);
+          F.push([...Array(n)].map((_, i) => R2(LA - 5, i, LR*0.8)), [...Array(n)].map((_, i) => R2(LA + 4, i, LR)));
+          solid(F, 0x2a2d33, (i, nr) => nr[0] > 0.9 ? 0xfff6d8 : 0x2a2d33);
+          if(front){ const q = P(LA + 4.5, 0, LZ), r = 11*this.kScale(); g.fillStyle(0xfff6d8, 0.2); g.fillCircle(q.x, q.y, r); g.fillStyle(0xfff6d8, 0.1); g.fillCircle(q.x, q.y, r*1.8); } }
       }
       if(c === 'hazmat'){
         if(st === 'flank'){ for(const sb of [-1, 1]){ for(let k = -6; k <= 5; k++){ const a = k*5.2; flankQ(sb, [[a, 46.5], [a + 2.6, 46.5], [a + 5.4, 51.5], [a + 2.8, 51.5]], 0x16171b); }
@@ -130868,6 +130874,7 @@ class WorldScene extends Phaser.Scene {
     if(sees(0, 0, -1)) solid(prismH([[-30, -12], [30, -12], [30, 12], [-30, 12]], Z0 - 3, Z0), DARK, null, false);
     for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-12, 12]){ const A = P(a, sb*(HY + 0.5), 58), B = P(a, sb*(HY + 0.5), 65); g.lineStyle(Math.max(1, 1*K), _pdk(BODYC.dk, 0.8), 1); g.lineBetween(A.x, A.y, B.x, B.y); }
     if(WEAR && !DS) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
+    if(!(DS && DS.noRails)) for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);   /* (the rails along its back: on the torso, under whatever it carries) */
     dogAcc('flank');
     /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
        the head, nose-on the head is nearer than the legs beside it */
