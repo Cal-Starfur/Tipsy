@@ -130237,19 +130237,41 @@ class WorldScene extends Phaser.Scene {
             const A = P(Math.cos(t0)*26, Math.sin(t0)*26, 113.2), B = P(Math.cos(t1)*26, Math.sin(t1)*26, 113.2); g.lineBetween(A.x, A.y, B.x, B.y); }
           for(const th of [-1.05, 1.05]){ if(!sees(Math.cos(th), Math.sin(th), 0)) continue; const q = P(Math.cos(th)*26.2, Math.sin(th)*26.2, 113.2), rr = 1.6*K*2; g.fillStyle(GOLD, 1); g.fillCircle(q.x, q.y, rr); } } }
       return; }
-    if(c === 'mallcop'){   /* a light-blue shirt, dark trousers, a silver badge; a white bike helmet; riding a two-wheeled stand-up scooter */
-      const deck = () => { const { solid, prismH } = V; solid(prismH([[-22, -30], [38, -30], [38, 30], [-22, 30]], 0, 5), 0x2a2d33, null, false); };
-      const wheel = sb => V.wheel(0, sb*37, 15, 8, 15, wheelPhase);
-      const stem = () => { line([33, 0, 5], [41, 0, 102], 0x3a3e46, 4.2); line([33, 0, 5], [41, 0, 102], 0x5a606a, 1.6);
-        line([41, -17, 102], [41, 17, 102], 0x2a2d33, 3.2); for(const sb of [-1, 1]) line([41, sb*12, 102], [41, sb*18, 102], 0x16171b, 4.4);
-        const q = P(42, 0, 104); g.fillStyle(0x5fe8e0, 1); g.fillCircle(q.x, q.y, 1.8*K*2); };
+    if(c === 'mallcop'){   /* (second pass -- Sir, 2026-11-18): a light-blue shirt, two pocket flaps, a silver badge, a round patch on each shoulder, a radio
+         clipped at his shoulder; dark trousers, a torch on his belt behind; a white bike helmet, its vents dark slots, a short peak; riding a
+         two-wheeled stand-up scooter -- its stem a tube up to a T-bar at his waist (under his face), fenders over its wheels, a grip mat on its deck */
+      const DK = 0x2a2d33;
+      const deck = () => { const { solid, prismH } = V; solid(prismH([[-18, -29], [36, -29], [36, 29], [-18, 29]], 1, 6), 0x3a3e46, null, false);
+        if(sees(0, 0, 1)){ g.fillStyle(0x1c1e22, 1); g.fillPoints([P(28, -24, 6.1), P(35, -24, 6.1), P(35, 24, 6.1), P(28, 24, 6.1)].map(PT), true); } };
+      const wheel = sb => { V.wheel(0, sb*37, 15, 8, 15, wheelPhase);
+        const bb = sb*(37 + (sees(0, sb, 0) ? 4.6 : -4.6)), o = []; for(let i = 0; i <= 10; i++){ const th = Math.PI*0.08 + Math.PI*0.84*i/10; o.push(P(-Math.cos(th)*17.5, bb, 15 + Math.sin(th)*17.5)); }
+        for(let i = 10; i >= 0; i--){ const th = Math.PI*0.08 + Math.PI*0.84*i/10; o.push(P(-Math.cos(th)*20.5, bb, 15 + Math.sin(th)*20.5)); }
+        g.fillStyle(0x8d959c, 1); g.fillPoints(o.map(PT), true); };
+      /* a bar as a solid square tube from p0 to p1, w across (so it has a lit side and a shaded one, not a hairline) */
+      const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d), u = d.map(v => v/L);
+        let a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
+        const n2 = [u[1]*n1[2] - u[2]*n1[1], u[2]*n1[0] - u[0]*n1[2], u[0]*n1[1] - u[1]*n1[0]];
+        const ring = p => [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => [p[0] + n1[0]*i + n2[0]*j, p[1] + n1[1]*i + n2[1]*j, p[2] + n1[2]*i + n2[2]*j]);
+        const A = ring(p0), B = ring(p1), F = [A, B.slice().reverse()]; for(let k = 0; k < 4; k++) F.push([A[k], A[(k + 1) % 4], B[(k + 1) % 4], B[k]]); V.solid(F, col, null); };
+      const stem = () => { tube([32, 0, 6], [38, 0, 74], 5, 0x4a4f58);
+        tube([38, -18, 74], [38, 18, 74], 4, DK); for(const sb of [-1, 1]) tube([38, sb*12, 74], [38, sb*19.5, 74], 5.2, 0x16171b);
+        const q = P(39.5, 0, 76.5); g.fillStyle(DK, 1); g.fillCircle(q.x, q.y, 3*K*2); g.fillStyle(0x5fe8e0, 1); g.fillCircle(q.x, q.y, 1.7*K*2); };
+      const patchR = (th, zz) => { if(!seesS(th, zz)) return; const q = S(th, zz, 0.8), p1 = S(th, zz + 5, 0.8), rr = Math.hypot(p1.x - q.x, p1.y - q.y);
+        g.fillStyle(0xd8b04a, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x1f3a7a, 1); g.fillCircle(q.x, q.y, rr*0.78); g.fillStyle(0xf6f6f2, 1); g.fillCircle(q.x, q.y, rr*0.3); };
       if(st === 'back'){ wheel(-nearB); deck(); if(!front) stem(); }
-      if(st === 'body'){ shield(-0.5, 80, 4.5, 0xd9dde2, 0x8d959c); decal([[0.38, 82], [0.62, 82], [0.62, 79.5], [0.38, 79.5]], 0x2a2d33); }
+      if(st === 'body'){ shield(-0.55, 80, 4.5, 0xd9dde2, 0x8d959c);
+        for(const sb of [-1, 1]){ decal([[sb*0.3, 77.5], [sb*0.72, 77.5], [sb*0.72, 73], [sb*0.51, 71.5], [sb*0.3, 73]], 0x6f90bc); sline([sb*0.3, 77.5], [sb*0.72, 77.5], 0x4a6a96, 1.2); }
+        for(const sb of [-1, 1]) patchR(sb*1.45, 92);
+        if(seesS(0.85, 94)){ const pts = [[0.72, 99], [0.98, 99], [0.98, 86], [0.72, 86]]; decal(pts, 0x16171b, 1, 1.4); decal([[0.76, 97], [0.94, 97], [0.94, 92], [0.76, 92]], 0x3a3e46, 1, 1.5);
+          const A = S(0.92, 99, 1.4), B = S(0.92, 106, 2.4); g.lineStyle(Math.max(1.4, 2.2*K), 0x16171b, 1); g.lineBetween(A.x, A.y, B.x, B.y); dot(0.78, 96, 0.9, 0xff4a4a, 1.6); }
+        if(seesS(Math.PI - 0.6, 52)){ decal([[Math.PI - 0.75, 58], [Math.PI - 0.45, 58], [Math.PI - 0.45, 40], [Math.PI - 0.75, 40]], 0x3a3e46, 1, 1.2); decal([[Math.PI - 0.78, 41], [Math.PI - 0.42, 41], [Math.PI - 0.42, 36], [Math.PI - 0.78, 36]], 0x16171b, 1, 1.4); } }
       if(st === 'top'){ wheel(nearB);
-        lathe([[108, 27], [118, 26.2], [127, 22], [134, 15], [139, 6.5], [140.5, 0]], 0xf4f4f2);
-        for(const th of [-0.5, 0, 0.5, Math.PI - 0.5, Math.PI, Math.PI + 0.5]){ const ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0.6)) continue;
-          line([ca*24.5, sa*24.5, 123], [ca*15, sa*15, 135.5], 0x2a2d33, 2.6); }
-        band([[107.5, 27.2], [109.5, 27.1]], 0x2a5ad8);
+        if(!front) bill(26.6, 112, 6, 0.75, 2.5, 0xe8e8e6);
+        lathe([[108, 27], [118, 26.4], [127, 22.4], [134, 15.5], [139, 7], [140.5, 0]], 0xf4f4f2);
+        band([[107.5, 27.2], [110, 27.1]], 0x2a5ad8);
+        for(const th of [-0.55, 0, 0.55, Math.PI - 0.6, Math.PI, Math.PI + 0.6, Math.PI/2, -Math.PI/2]){ const ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0.7)) continue;
+          const o = [[25.4, 121, -0.07], [16, 135, -0.1], [16, 135, 0.1], [25.4, 121, 0.07]].map(([r, zz, d]) => P(Math.cos(th + d)*r, Math.sin(th + d)*r, zz)); g.fillStyle(0x2a2d33, 1); g.fillPoints(o.map(PT), true); }
+        if(front) bill(26.6, 112, 6, 0.75, 2.5, 0xe8e8e6);
         if(front) stem(); }
       return; }
     if(c === 'lifeguard'){   /* red, a white cross front and back; a red-and-white life ring round his waist; a white visor, its green bill see-through; a whistle on a lanyard */
