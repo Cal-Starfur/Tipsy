@@ -136875,10 +136875,18 @@ class WorldScene extends Phaser.Scene {
        car still runs him down if he darts out in front of it. Yielding
        is what happens when he is already sitting in the lane ahead,
        which is the case that read as a car driving straight over him. */
+    /* THE WAREHOUSE ROBOT, LOADED (Sir, 2026-11-18: "i dont want cars to drive through loads on the ground or on the robot"): carrying
+       anything, or with its carts or pallet on, no driver is too distracted to stop for it */
+    const _amrHard = fleetCur() === "amr" && !!(this.ow && this.ow.on) && (amrExtraParts(this).length > 0 || amrLoadsOf(amrBuildKey()).some(Boolean));
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
       if(a.tr.errand) continue;                    // on an errand: an obstacle, never a follower (updateErrands)
       let blocked = false, hard = false;
+      /* A LOAD SET DOWN IN THE ROAD (AMRL.down), whoever he is driving now: in the band its own width ahead of the car, out to its
+         stopping distance, the car stops and waits -- never released through it */
+      for(const D of AMRL.down){ const rx = D.x - a.x, ry = D.y - a.y, r = Math.max(D.L.la, D.L.lb), al = rx*a.dx + ry*a.dy;
+        if(al < -r || al > a.len/2 + TRAF_BRAKE_D + r + 20) continue;
+        if(Math.abs(rx*a.dy - ry*a.dx) < CARC.wid/2 + r){ blocked = true; hard = true; break; } }
       {
         const bA = this.botAxisPt(a.x, a.y);              // the nearest of him to this car (a long vehicle's whole length)
         const rx = bA.x - a.x, ry = bA.y - a.y, dSq = rx*rx + ry*ry, gB = gapOf(a.len, CARC.len) + bA.pad;
@@ -136899,7 +136907,7 @@ class WorldScene extends Phaser.Scene {
         if(seen){
           if(!tr.botEnc){ tr.botEnc = true; tr.distracted = Math.random() < DRIVER.distract; tr.botWait = 0; }
           tr.botGone = 0;
-          if(!tr.distracted && !(tr.dodge > 0)){       // (going round him: TIP_AROUND)
+          if((!tr.distracted || _amrHard) && !(tr.dodge > 0 && !_amrHard)){       // (going round him: TIP_AROUND; the loaded warehouse robot: always stopped for)
             blocked = true;
             if(bA.pad > 0) hard = true;                 // a long fleet vehicle: wait (and honk), never drive through it (MAX_YIELD)
             tr.botWait = (tr.botWait || 0) + hDt;
