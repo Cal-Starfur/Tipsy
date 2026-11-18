@@ -3599,12 +3599,14 @@ function fleetCur(){
      D     -- OW_D with its ctl over it (speed, turning).
    step  -- (Gideon, the humanoid, Sir 2026-11-14: "he needs to not get stuck by the sidewalk curb") he walks up and down the kerb
               anywhere: no kerb wall from the road, no kick or drop crossing it.
+   noTip -- (the warehouse robot, Sir 2026-11-18: "lets make it so this robot does not tip over") low and wide: a knock rocks it and it
+              settles back, never over. Unlike big it brings no police.
    walk, site and sail have neither yet: Tipsey's rules (FLEET_PHYS_NONE). */
 const FLEET_PHYS_NONE = {};
 const TP_PHYS_MOTOR = {};   // (Tipsey with the Speed Motor fitted: fleetPhys)
 for(const k in FLEET){
   const c = FLEET[k].cls;
-  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : k === "humanoid" ? { step: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : Object.keys(FLEET[k].ctl || {}).length ? {} : null;   // (a walker with numbers of its own (the cargo bot's width) keeps Tipsey's rules and takes them; the site machine too: a forklift never tips, FLEET_STEER)
+  FLEET[k].phys = c === "rotor" || c === "wing" ? { fly: true } : k === "humanoid" ? { step: true } : c === "road" || c === "heavy" || c === "site" ? { big: true } : k === "amr" ? { noTip: true } : Object.keys(FLEET[k].ctl || {}).length ? {} : null;   // (a walker with numbers of its own (the cargo bot's width) keeps Tipsey's rules and takes them; the site machine too: a forklift never tips, FLEET_STEER)
 }
 /* A LONG BODY (Sir, 2026-10-14: a scooter rider stood on the semi's
    trailer): riders and cars judged him by one point, his middle -- right
@@ -9539,7 +9541,7 @@ function owTip(scene, sgn, u){
      u is the way he goes in his own frame -- { a: +1 } over his nose, { a: -1 } over his tail, { b: tipDir } a roll
      to a side (the old, and the default) -- read by drawRobot's tipped pose */
   scene.tipU = owTipUFor(u && (u.a || u.b) ? u : { a: 0, b: sgn }, sgn);
-  { const fp = fleetPhys(); if(fp.fly || fp.big) return; }   // in the air, or too big to go over (fleetPhys)
+  { const fp = fleetPhys(); if(fp.fly || fp.big || fp.noTip) return; }   // in the air, or too big or too low and wide to go over (fleetPhys)
   /* A tip is a tip in every mode now (2026-08-27) -- see
      owDispatchTipFail below for who gets a card and who gets the gate.
      downT is still wound back here because the recovery clock is what
@@ -127085,7 +127087,7 @@ class WorldScene extends Phaser.Scene {
       if(Math.abs(this.tilt) < 0.15) this.tipCause = null;
 
       /* flying (fleetPhys): nothing here can tip it -- it banks, and comes back */
-      if(this.ow && this.ow.on && (fleetPhys().fly || fleetPhys().big)) this.tilt = Math.max(-0.9, Math.min(0.9, this.tilt));   // (and a big vehicle stays on its wheels)
+      if(this.ow && this.ow.on && (fleetPhys().fly || fleetPhys().big || fleetPhys().noTip)) this.tilt = Math.max(-0.9, Math.min(0.9, this.tilt));   // (and a big vehicle stays on its wheels)
       /* fail: we are horizontal */
       if(Math.abs(this.tilt) >= 1){
         this.state = "tipped";
