@@ -118203,7 +118203,7 @@ class WorldScene extends Phaser.Scene {
         { h: 50, draw: () => { if(WEAR && !PC && SKIN.stripe2) this.avLathe(V, 0, 0, [[47, 31.3], [53, 31.3]], SKIN.stripe2, null, 16); } },   // (the second band under the stripe, painted before it: its top cap would cover the stripe)
         { h: 63, draw: () => this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16) },
         { h: 87, draw: () => { this.avLathe(V, 0, 0, [[70, 30], [104, 25]], upperC, null, 16);
-          this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: PC && PC.noMouth ? null : 63 });               // (his face, on the upper body; a costume can drop his mouth light)
+          this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: PC && PC.noMouth ? null : 63, wrap: zz => zz < 70 ? 31 - (zz - 56)/14 : 30 - (zz - 70)*5/34 });   /* (laid on his egg's curve) */               // (his face, on the upper body; a costume can drop his mouth light)
           if(WEAR && !PC) this.botSkinWear(g, V, { hx: 27.5, hy: 27.5, ch: 17, s0: 56, s1: 70, dz: 80 }); } },
         { h: 110, draw: () => { this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
           this.avLathe(V, 0, 0, [[109, 25.3], [111, 25.1]], CYAN, () => CYAN, 16); } },
@@ -118521,6 +118521,16 @@ class WorldScene extends Phaser.Scene {
       for(const ey of [-7, 7]) V.Q([...Array(12)].map((_, i) => { const ph = i/12*Math.PI*2; return F(ey*s + Math.cos(ph)*3.5*s, zc + Math.sin(ph)*3.5*s); }), SKIN.eye);
       return; }
     if(!V.sees(dir, 0, 0)) return;
+    /* (o.wrap: on a round body, the face laid ON its curve -- o.wrap(z) its radius there, y run round it as an arc -- not a flat plate
+       stood off it at its edges; Sir, 2026-11-18, the patrol robot: "his eyes don't sit on his body") */
+    if(o.wrap){ const W3 = (y, z) => { const r = o.wrap(z) + 0.45, th = y/r; return [dir*Math.cos(th)*r, b + Math.sin(th)*r, z]; }, Fw = (y, z) => V.P(...W3(y, z));
+      const rect = (y0, y1, z0, z1, n = 8) => { const o2 = []; for(let i = 0; i <= n; i++) o2.push(Fw(y0 + (y1 - y0)*i/n, z0)); for(let i = n; i >= 0; i--) o2.push(Fw(y0 + (y1 - y0)*i/n, z1)); return o2; };
+      V.Q(rect(-13*s, 13*s, zc - 5*s, zc + 5*s), SKIN.visor);
+      for(const [y0, z0, y1, z1] of [[-13, -5, 13, -5], [-13, 5, 13, 5]]) for(let i = 0; i < 8; i++){ const u0 = i/8, u1 = (i + 1)/8; V.line(W3((y0 + (y1 - y0)*u0)*s, zc + z0*s), W3((y0 + (y1 - y0)*u1)*s, zc + z1*s), SKIN.outline, 1.1); }
+      for(const y0 of [-13, 13]) V.line(W3(y0*s, zc - 5*s), W3(y0*s, zc + 5*s), SKIN.outline, 1.1);
+      for(const ey of [-7, 7]) V.Q([...Array(12)].map((_, i) => { const ph = i/12*Math.PI*2; return Fw(ey*s + Math.cos(ph)*3.5*s, zc + Math.sin(ph)*3.5*s); }), SKIN.eye);
+      if(o.mouthZ != null) V.Q(rect(-16*s, 16*s, o.mouthZ - 2*s, o.mouthZ + 2*s), MOUTH_BAR);
+      return; }
     const A = a + dir*0.4, F = (y, z) => V.P(A, b + y, z);
     const vis = [F(-13*s, zc - 5*s), F(13*s, zc - 5*s), F(13*s, zc + 5*s), F(-13*s, zc + 5*s)];
     V.Q(vis, SKIN.visor);
@@ -128522,8 +128532,9 @@ class WorldScene extends Phaser.Scene {
         for(let i = 10; i >= 0; i--){ const th = Math.PI*0.08 + Math.PI*0.84*i/10; o.push(P(-Math.cos(th)*20.5, bb, 15 + Math.sin(th)*20.5)); }
         g.fillStyle(0x8d959c, 1); g.fillPoints(o.map(PT), true); };
       if(st === 'back') wheel(-nearB);
-      const patchR = (th, zz) => { if(!seesS(th, zz)) return; const q = S(th, zz, 0.8), p1 = S(th, zz + 5, 0.8), rr = Math.hypot(p1.x - q.x, p1.y - q.y);
-        g.fillStyle(0xd8b04a, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x1f3a7a, 1); g.fillCircle(q.x, q.y, rr*0.78); g.fillStyle(0xf6f6f2, 1); g.fillCircle(q.x, q.y, rr*0.3); };
+      /* a round patch laid on his curve (a ring of points on the egg, so it foreshortens as he turns -- not a flat disc on the screen) */
+      const disc = (th, zz, r) => [...Array(16)].map((_, i) => { const ph = i/16*Math.PI*2; return [th + Math.cos(ph)*r/rz(zz), zz + Math.sin(ph)*r]; });
+      const patchR = (th, zz) => { decal(disc(th, zz, 5.5), 0xd8b04a, 1, 0.7); decal(disc(th, zz, 4.3), 0x1f3a7a, 1, 0.8); decal(disc(th, zz, 1.7), 0xf6f6f2, 1, 0.9); };
       if(st === 'body'){ shield(-0.55, 80, 4.5, 0xd9dde2, 0x8d959c);
         for(const sb of [-1, 1]){ decal([[sb*0.3, 77.5], [sb*0.72, 77.5], [sb*0.72, 73], [sb*0.51, 71.5], [sb*0.3, 73]], 0x6f90bc); sline([sb*0.3, 77.5], [sb*0.72, 77.5], 0x4a6a96, 1.2); }
         for(const sb of [-1, 1]) patchR(sb*1.45, 92);
