@@ -158,9 +158,10 @@
 "title": "Walk-in interior: Marina Optical",
 "spec": "docs/kits/walkin-shop-recipe.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "note": "block 2,0 edge 1",
-"group": "Walk-in interiors: Flats shops"
+"group": "Walk-in interiors: Flats shops",
+"test": "https://cal-starfur.github.io/Tipsy/game/index.html?go=8758,1958&view=2&hour=12"
 },
 {
 "id": "wi-lagoon-coffee-roasters",
