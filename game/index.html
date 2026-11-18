@@ -130275,18 +130275,26 @@ class WorldScene extends Phaser.Scene {
         if(front) bill(26.6, 112, 6, 0.75, 2.5, 0xe8e8e6);
         }
       return; }
-    if(c === 'lifeguard'){   /* (second pass -- Sir, 2026-11-18): red, a white cross front and back; a round red-and-white life ring at his waist, its grab
-         rope looped round it between the white blocks; a sun visor -- a white strap open on top, a big green see-through bill; a silver whistle on
+    if(c === 'lifeguard'){   /* (second pass -- Sir, 2026-11-18): red, a white cross front and back; a red-and-white life ring hung on his back, its grab
+         rope looped round it; a sun visor -- a white strap open on top, a big green see-through bill; a silver whistle on
          an orange lanyard round the sides of his face */
-      const RING = []; for(let i = 0; i <= 10; i++){ const ph = -Math.PI/2 + Math.PI*i/10; RING.push([60 + Math.sin(ph)*7.5, 31 + Math.cos(ph)*7.5]); }
-      const stripe = i => Math.floor((i % 24)/3) % 2 ? 0xf6f6f2 : 0xd8261c;
-      const cross = th => { decal([[th - 0.08, 46], [th + 0.08, 46], [th + 0.08, 22], [th - 0.08, 22]], 0xf6f6f2); decal([[th - 0.3, 38], [th + 0.3, 38], [th + 0.3, 30], [th - 0.3, 30]], 0xf6f6f2); };
-      /* the grab rope: clipped at each white block's middle, a swag sagging between; near is the half toward the eye */
-      const rope = near => { g.lineStyle(Math.max(1.8, 2.8*K), 0xf0e2b4, 1);
-        for(let k = 0; k < 4; k++){ const t0 = (1.5 + 2*k)*Math.PI/4; for(let i = 0; i < 8; i++){ const u0 = i/8, u1 = (i + 1)/8, ta = t0 + u0*Math.PI/2, tb = t0 + u1*Math.PI/2, tm = (ta + tb)/2;
-          if(sees(Math.cos(tm), Math.sin(tm), 0) !== near) continue; const za = 61 - Math.sin(u0*Math.PI)*4, zb = 61 - Math.sin(u1*Math.PI)*4, ra = 39, A = P(Math.cos(ta)*ra, Math.sin(ta)*ra, za), B = P(Math.cos(tb)*ra, Math.sin(tb)*ra, zb); g.lineBetween(A.x, A.y, B.x, B.y); } } };
-      if(st === 'mid'){ half(RING, 0xd8261c, false, stripe); rope(false); }
-      if(st === 'body'){ cross(0); cross(Math.PI); half(RING, 0xd8261c, true, stripe); rope(true);
+      /* THE LIFE RING ON HIS BACK (Sir, 2026-11-18: off his middle, an accessory on his back): stood upright against his back, hung on a peg,
+         its tube in slices round it painted far to near (a ring is no convex solid), red and white in eight blocks, its grab rope swagged round
+         its rim between the white blocks */
+      const RC = [-37, 0, 75], RR = 20, RT = 5.8, NS = 24, NT = 10;
+      const rpt = (u, v, r2 = RT) => { const cu = Math.cos(u), su = Math.sin(u), rr = RR + Math.cos(v)*r2; return [RC[0] + Math.sin(v)*r2*-1, RC[1] + cu*rr, RC[2] + su*rr]; };
+      const ring = () => { const sl = [];
+        for(let i = 0; i < NS; i++){ const u0 = i/NS*Math.PI*2, u1 = (i + 1)/NS*Math.PI*2, F = [];
+          for(let k = 0; k < NT; k++){ const v0 = k/NT*Math.PI*2, v1 = (k + 1)/NT*Math.PI*2; F.push([rpt(u0, v0), rpt(u1, v0), rpt(u1, v1), rpt(u0, v1)]); }
+          const c = rpt((u0 + u1)/2, 0, 0); sl.push({ F, d: V.depth(c[0], c[1], c[2]), col: Math.floor(i/3) % 2 ? 0xf6f6f2 : 0xd8261c }); }
+        sl.sort((p1, p2) => p1.d - p2.d); for(const o of sl) V.solid(o.F, o.col, null);
+        g.lineStyle(Math.max(2.2, 3.4*K), 0xf0e2b4, 1);
+        for(let k = 0; k < 4; k++){ const t0 = (1.5 + 2*k)*Math.PI/4; let prev = null; for(let i = 0; i <= 8; i++){ const u = t0 + i/8*Math.PI/2, sag = Math.sin(i/8*Math.PI)*1.6, q = rpt(u, 0, RT + 0.5 + sag); const Q = P(q[0], q[1], q[2]);
+          if(prev) g.lineBetween(prev.x, prev.y, Q.x, Q.y); prev = Q; } }
+        const { solid, prismH } = V; solid(prismH([[-33, -2.5], [-24.5, -2.5], [-24.5, 2.5], [-33, 2.5]], 96, 100), 0x5a606a, null, false); };   /* (its peg) */
+      const cross = (th, dz = 0) => { decal([[th - 0.08, 46 + dz], [th + 0.08, 46 + dz], [th + 0.08, 22 + dz], [th - 0.08, 22 + dz]], 0xf6f6f2); decal([[th - 0.3, 38 + dz], [th + 0.3, 38 + dz], [th + 0.3, 30 + dz], [th - 0.3, 30 + dz]], 0xf6f6f2); };
+      if(st === 'back' && !back) ring();
+      if(st === 'body'){ cross(0); cross(Math.PI, -8); if(back) ring();   /* (the back's cross lower, clear of the ring) */
         for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
         { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
           decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
