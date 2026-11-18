@@ -43555,7 +43555,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:bee', build: 'courier', name: 'Bumblebee', cents: 900, body: 0xf2c02e, stripe: 0x16171b, costume: 'bee', noAerial: true, noMouth: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true, noMouth: true },
-  { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0xa8703a, stripe: 0xd8261c, costume: 'cowboy', noAerial: true },
+  { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0x8a5a2a, stripe: 0x3a2414, costume: 'cowboy', noAerial: true, noMouth: true },
   { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true },
   { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true },
@@ -128532,11 +128532,24 @@ class WorldScene extends Phaser.Scene {
         for(const [i, S] of [[5, L], [9, R]]){ const q0 = P(sh[i][0], 0, sh[i][1]), q1 = P(...S[i]); g.lineStyle(Math.max(1, 1.2*K), 0x8a0e0a, 1); g.lineBetween((q0.x + q1.x)/2, (q0.y + q1.y)/2, q1.x, q1.y); }   // (split notches)
         g.lineStyle(Math.max(1, 1.6*K), 0xf6f0e0, 1); g.strokePoints(sh.map(([a, zz]) => PT(P(a, 0, zz))), false); }   // (its quill)
       return; }
-    if(c === 'cowboy'){
-      if(st === 'face') onFront([[-12, 74], [12, 74], [0, 60]], 0xd8261c);   // (a bandana under his eyes)
-      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const q = P(2, sb*(hy + 0.6), 66), rr = sr(2, sb*hy, 66, 5.5); g.fillStyle(0xffd34a, 1); const o = []; for(let i = 0; i < 12; i++){ const a2 = -Math.PI/2 + i*Math.PI/6, r2 = i % 2 ? rr*0.5 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(a2)*r2, q.y + Math.sin(a2)*r2)); } g.fillPoints(o, true); }   // (a sheriff's star)
-      if(st === 'top'){ brim(zl + 1, 30, 0x8a5a2a); lathe(0, 0, [[zl + 2, 14.3], [zl + 4.5, 14.3]], 0x3a2414); lathe(0, 0, [[zl + 4.5, 14], [zl + 12, 13], [zl + 14, 9]], 0x9a6a34);
-        for(const sb of [-1, 1]){ const q = P(0, sb*30, zl + 5), q0 = P(0, sb*24, zl + 1); g.lineStyle(Math.max(1, 3*K), 0x8a5a2a, 1); g.lineBetween(q0.x, q0.y, q.x, q.y); } }   // (a ten-gallon hat, its brim curled up at the sides)
+    if(c === 'cowboy'){   /* (second pass -- Sir, 2026-11-17): a leather vest open over a red plaid shirt, a big gold sheriff's star on it, a red bandana
+         knotted at his neck, a belt with a silver buckle; a real cowboy hat -- its brim curled up at the sides and dipped front and back, a
+         dented crown, a band round it */
+      const starAt = (b, zz, r) => { const q = P(hx + 0.7, b, zz), rr = sr(hx, b, zz, r), o = []; for(let i = 0; i < 10; i++){ const a2 = -Math.PI/2 + i*Math.PI/5, r2 = i % 2 ? rr*0.45 : rr; o.push(new Phaser.Geom.Point(q.x + Math.cos(a2)*r2, q.y + Math.sin(a2)*r2)); }
+        g.fillStyle(0xa8801c, 1); g.fillPoints(o.map(v => new Phaser.Geom.Point(v.x + 0.6, v.y + 0.6)), true); g.fillStyle(0xffd34a, 1); g.fillPoints(o, true); for(let i = 0; i < 10; i += 2){ g.fillStyle(0xffe89a, 1); g.fillCircle(o[i].x, o[i].y, rr*0.12); } };
+      if(st === 'body'){ band(72, 78, 0xd8261c);   // (the bandana round his neck)
+        onFront([[-5.5, 14], [5.5, 14], [5.5, 72], [-5.5, 72]], 0xc8302a); for(const zz of [20, 30, 40, 54, 64]) onFront([[-5.5, zz], [5.5, zz], [5.5, zz + 1.2], [-5.5, zz + 1.2]], 0x7a1410);   // (his plaid shirt in the vest's opening)
+        onFront([[-1, 14], [1, 14], [1, 72], [-1, 72]], 0x7a1410);
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(let a = -hx + 3; a < hx - 2; a += 3){ line([a, sb*(hy + 0.7), 14], [a, sb*(hy + 0.7), 9], 0x6a4020, 1.2); } }   // (fringe at the vest's hem)
+      if(st === 'face' && front){ onFront([[-11, 78], [11, 78], [0, 64]], 0xd8261c); for(const [b, zz] of [[-4, 75], [3, 74], [0, 69], [5, 77], [-6, 77]]){ const q = P(hx + 0.6, b, zz); g.fillStyle(0xf6f0e0, 1); g.fillCircle(q.x, q.y, 0.7*K*2); }   // (its knot hanging down, white dots)
+        starAt(-11, 58, 8);
+        const q = P(hx + 0.7, 0, 48), rr = sr(hx, 0, 48, 4.5); g.fillStyle(0xc9ced4, 1); g.fillEllipse(q.x, q.y, rr*2.6, rr*1.8); g.fillStyle(0x8d959c, 1); g.fillEllipse(q.x, q.y, rr*1.4, rr*0.9); }   // (a silver buckle)
+      if(st === 'top'){ const N = 28, R = 30, brim = [], brimLo = [];   // (the brim: curled up at its sides, dipped front and back)
+        for(let i = 0; i < N; i++){ const az = i/N*Math.PI*2, cu = Math.pow(Math.abs(Math.sin(az)), 2.2)*7 - Math.pow(Math.abs(Math.cos(az)), 3)*1.5; brim.push([Math.cos(az)*R, Math.sin(az)*R*0.92, zl + 2 + cu]); }
+        for(let i = 0; i < N; i++){ const a0 = brim[i], a1 = brim[(i + 1) % N], m = [(a0[0] + a1[0])/2, (a0[1] + a1[1])/2]; const fill = [P(0, 0, zl + 1), P(...a0), P(...a1)].map(PT); g.fillStyle(sees(m[0], m[1], 0) ? 0x8a5a2a : 0x6a4020, 1); g.fillPoints(fill, true); }
+        g.lineStyle(Math.max(1, 1.4*K), 0x5a3418, 1); g.strokePoints(brim.map(v => PT(P(...v))), true);
+        lathe(0, 0, [[zl + 1, 13.3], [zl + 5, 13.2]], 0x3a2414); lathe(0, 0, [[zl + 5, 13], [zl + 13, 12], [zl + 16, 9], [zl + 17, 4]], 0x9a6a34);
+        line([12, 0, zl + 16], [-12, 0, zl + 16], 0x6a4020, 2.4); }   // (its crown's crease)
       return; }
     if(c === 'ghost'){
       if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.8), pts = [P(-hx, bb, 30)]; for(let i = 0; i <= 8; i++){ const a = -hx + i/8*2*hx; pts.push(P(a, bb, 12 + (i % 2 ? 0 : 7))); } pts.push(P(hx, bb, 30)); g.fillStyle(0xe8e8ee, 1); g.fillPoints(pts.map(PT), true); }   // (its sheet's ragged hem)
