@@ -116512,6 +116512,7 @@ class WorldScene extends Phaser.Scene {
     const farLift = pose && pose.lift && pose.lift[0] != null ? pose.lift[0] : (bothArms ? liftT : 0);
     const farFront = farLift > 0.001 && (bDir.x + bDir.y) > 0;
     if(!farFront && !noArms) arm(-nearSide, false);
+    if(pose && pose.behind) pose.behind();   // (what is held behind the body from here: after the far arm when it is behind, before the torso -- the humanoid's load, his back to the eye)
     torso();
     /* stab vest: over the torso, under the arms — so it reads as worn
        rather than painted on. Uses the hull's own box() so it inherits
@@ -119248,19 +119249,18 @@ class WorldScene extends Phaser.Scene {
      arms brought forward to lift Tipsey), roll (his own: it goes over with him, pose.roll) */
   drawHumanoid(g, x, y, z, t, fdir, data){
     /* CARRYING A LOAD (AMRL, slot 'gideon'): both arms out in front, the load held between his hands at his waist -- the warehouse's boxes,
-       totes and bins, the same ones the warehouse robot carries. Drawn after him while he faces the eye, before him when his back is to it */
+       totes and bins, the same ones the warehouse robot carries. Under his near arm while he faces the eye, before him when his back is to it */
     const CL = data && data.look && !data.lift && !data.tx && !data.waist && this.ow && this.ow.on && fleetCur() === 'humanoid' && !this.ow.scoot && AMRL.bots.gideon && AMRL.bots.gideon[0];
     if(CL){ const V = this.vehKit(g, x, y, z, fdir), wide = CL.la > CL.lb, u = wide ? [0, 1] : [1, 0], ca = 8 + (wide ? CL.lb : CL.la), AS = TP_BSKIN.find(k => k.id === (GD_LIVE.decal || '').replace('fac:', 'amr:'));
       const box = () => this.amrLoad(g, V, CL, ca, 0, 56 - CL.h*0.35, u, AS || null), front = V.sees(1, 0, 0);
-      if(!front) box();
-      this.drawHumanoid(g, x, y, z, t, fdir, Object.assign({}, data, { lift: [0.22, 0.22], bend: [0.75, 0.75], legs: null, carryLoad: true }));
-      if(front) box();
+      /* (his back to the eye: before him; else over his body and far arm, under his near arm -- the hull's onBeforeCarryArm -- Sir, 2026-11-18, "the bin is drawing over the near arm") */
+      this.drawHumanoid(g, x, y, z, t, fdir, Object.assign({}, data, { lift: [0.22, 0.22], bend: [0.75, 0.75], legs: null, carryLoad: true, beforeNear: front ? box : null, behind: front ? null : box }));
       return; }
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, d.beforeNear || null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, behind: d.behind, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
