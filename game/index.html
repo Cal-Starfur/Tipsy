@@ -130343,9 +130343,11 @@ class WorldScene extends Phaser.Scene {
         const o = []; for(let i = 0; i <= 12; i++){ const u = i/12; o.push([-13 + u*26, 72 - Math.sin(u*Math.PI)*7]); } for(let i = 12; i >= 0; i--){ const u = i/12; o.push([-13 + u*26, 74.5 - Math.sin(u*Math.PI)*3.5]); } onFront(o, 0xd8261c);   // (a painted smile)
         for(const sb of [-1, 1]) onFront([[0, 56], [sb*13, 62], [sb*13, 50]], sb > 0 ? 0xd8261c : 0xff4ab0); ball(hx + 1, 0, 56, 3, 0xffd34a); }   // (a big bow tie)
       if(st === 'top'){ const C = [0xff4ab0, 0xff6a1a, 0xffd34a, 0x2aa83a, 0x2a5ad8, 0x9a4ad8], puffs = [];
-        for(let i = 0; i < 14; i++){ const th = i/14*Math.PI*2; puffs.push([Math.cos(th)*(hx - 2), Math.sin(th)*(hy + 2), zl + 2 + (i % 2)*3, C[i % 6]]); }
-        for(let i = 0; i < 6; i++){ const th = i/6*Math.PI*2 + 0.3; puffs.push([Math.cos(th)*10, Math.sin(th)*10, zl + 10, C[(i + 2) % 6]]); } puffs.push([0, 0, zl + 13, C[4]]);
-        puffs.sort((p1, p2) => this.depth(p1[0], p1[1], p1[2]) - this.depth(p2[0], p2[1], p2[2])); for(const [a, b, zz, col] of puffs) ball(a, b, zz, 8, col); }   // (a rainbow afro, drawn far to near)
+        /* (covering his whole lid -- Sir, 2026-11-18): a ring of puffs round its rim, a middle ring and a crown, the lid hidden under it */
+        for(let i = 0; i < 18; i++){ const th = i/18*Math.PI*2; puffs.push([Math.cos(th)*(hx + 1), Math.sin(th)*(hy + 1), zl - 2 + (i % 2)*2, C[i % 6], 8]); }
+        for(let i = 0; i < 10; i++){ const th = i/10*Math.PI*2 + 0.3; puffs.push([Math.cos(th)*13, Math.sin(th)*11, zl + 6, C[(i + 2) % 6], 9]); }
+        for(let i = 0; i < 4; i++){ const th = i/4*Math.PI*2 + 0.8; puffs.push([Math.cos(th)*5, Math.sin(th)*5, zl + 12, C[(i + 4) % 6], 8]); }
+        puffs.sort((p1, p2) => this.depth(p1[0], p1[1], p1[2]) - this.depth(p2[0], p2[1], p2[2])); for(const [a, b, zz, col, r] of puffs) ball(a, b, zz, r, col); }   // (a rainbow afro, drawn far to near)
       return; }
     if(c === 'santa'){   /* (second pass -- Sir, 2026-11-18): a fluffy fur hem, white fur down the front of his coat, a black belt with a big gold buckle;
          a full white beard with a moustache, rosy cheeks; his hat one piece flopping over to one side, a fur brim and a pompom; a sack on his back */
