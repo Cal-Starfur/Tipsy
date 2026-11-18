@@ -43624,7 +43624,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'patrol:lifeguard', build: 'patrol', name: 'Lifeguard', cents: 900, body: 0xd8261c, stripe: 0xd8261c, costume: 'lifeguard', noMouth: true },
   { id: 'patrol:crossing', build: 'patrol', name: 'Crossing Guard', cents: 900, body: 0xd4ea3a, stripe: 0xd9dde2, costume: 'crossing', noMouth: true },
   { id: 'patrol:ranger', build: 'patrol', name: 'Park Ranger', cents: 900, body: 0x4a5a32, upper: 0xc8b080, stripe: 0x5a3a1e, costume: 'ranger', noMouth: true },
-  { id: 'patrol:bouncer', build: 'patrol', name: 'Bouncer', cents: 900, body: 0x1c1d21, stripe: 0x2a2c30, costume: 'bouncer', noMouth: true },
+  { id: 'patrol:bouncer', build: 'patrol', name: 'Bouncer', cents: 900, body: 0x1c1d21, stripe: 0x1c1d21, costume: 'bouncer', noMouth: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -129023,19 +129023,32 @@ class WorldScene extends Phaser.Scene {
         for(let j = 0; j + 1 < rings.length; j++) for(let i = 0; i < n; i++){ const q = [pt(j, i), pt(j, i + 1), pt(j + 1, i + 1), pt(j + 1, i)]; F.push(rings[j + 1][1] === 0 ? [q[0], q[1], q[2]] : q); }
         V.solid(F, TAN, null); }
       return; }
-    if(c === 'bouncer'){   /* all black; dark wrap-round shades over his eyes; an earpiece and its coiled wire; a knit beanie with a turned-up cuff; the list on a clipboard at his side */
-      const sb = nearB;
-      if(st === 'body'){ patch(-0.62, 0.62, 85, 95.5, 0x0c0d10, 1, 1.3); patch(-0.5, -0.1, 92, 94, 0x6a7a90, 0.7, 1.4); patch(0.15, 0.4, 92, 94, 0x6a7a90, 0.5, 1.4);
+    if(c === 'bouncer'){   /* (second pass -- Sir, 2026-11-18): a black bomber jacket -- one piece, a ribbed collar, a silver zip down his front,
+         SECURITY across his back in big white letters; glossy wrap-round shades; an earpiece and its coiled wire; a charcoal knit beanie,
+         its cuff turned up; the list on a clipboard at his side */
+      const sb = nearB, ZIP = 0xb4b9be;
+      /* big block letters, stroked on his curve: u, v in -1..1, the letter w across (in his units) and h high */
+      const GL = { S: [[[1, 1], [-1, 1], [-1, 0], [1, 0], [1, -1], [-1, -1]]], E: [[[1, 1], [-1, 1], [-1, -1], [1, -1]], [[-1, 0], [0.6, 0]]], C: [[[1, 1], [-1, 1], [-1, -1], [1, -1]]],
+        U: [[[-1, 1], [-1, -1], [1, -1], [1, 1]]], R: [[[-1, -1], [-1, 1], [1, 1], [1, 0], [-1, 0], [1, -1]]], I: [[[0, 1], [0, -1]]], T: [[[-1, 1], [1, 1]], [[0, 1], [0, -1]]], Y: [[[-1, 1], [0, 0], [1, 1]], [[0, 0], [0, -1]]] };
+      const word = (txt, th0, zc, w, h, gap, col, lw, dir) => { const r = rz(zc), n = txt.length, span = (n - 1)*gap;
+        for(let i = 0; i < n; i++){ const tc = th0 + dir*(-span/2 + i*gap)/r; for(const path of GL[txt[i]]) for(let k = 0; k + 1 < path.length; k++){
+          const [u0, v0] = path[k], [u1, v1] = path[k + 1]; sline([tc + dir*u0*w/2/r, zc + v0*h/2], [tc + dir*u1*w/2/r, zc + v1*h/2], col, lw, 1.1); } } };
+      if(st === 'body'){
+        band([[99.5, rz(99.5) + 0.8], [104, rz(104) + 0.8]], 0x2e3036);   /* (the ribbed collar) */
+        for(let i = 0; i < 24; i++){ const th = i/24*Math.PI*2; if(seesS(th, 102)) sline([th, 99.8], [th, 103.8], 0x404349, 1, 1.4); }
+        sline([0, 84], [0, 14], ZIP, 1.8); decal([[-0.04, 84], [0.04, 84], [0.04, 79], [-0.04, 79]], ZIP, 1, 1.1);
+        word('SECURITY', Math.PI, 80, 5, 10, 6.6, 0xf6f6f2, 2.8, -1);   /* (read left to right from behind) */
+        patch(-0.62, 0.62, 85, 95.5, 0x0c0d10, 1, 1.3); patch(-0.55, 0.55, 92.5, 95, 0x5a7aa8, 0.55, 1.4); patch(-0.3, -0.05, 86.5, 89, 0x8aa8d8, 0.35, 1.4);   /* (glossy shades: a sky sheen across their top) */
         for(const s2 of [-1, 1]){ const th = s2*1.45; dot(th, 97, 2, 0x2a2d33, 1.2);
           const pts = []; for(let i = 0; i <= 18; i++){ const u = i/18; pts.push([th + s2*0.25*u + Math.sin(u*Math.PI*6)*0.05*s2, 97 - u*22]); }
           for(let i = 0; i < 18; i++) sline(pts[i], pts[i + 1], 0xb4b9be, 1.1, 1); }
-        if(sees(0, sb, 0)){ const bb = sb*31.8, Qd = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a, zz]) => PT(P(a, sb*(Math.sqrt(Math.max(0, rz(zz)*rz(zz) - a*a)) + 1.2), zz))), true); };
+        if(sees(0, sb, 0)){ const Qd = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([a2, zz]) => PT(P(a2, sb*(Math.sqrt(Math.max(0, rz(zz)*rz(zz) - a2*a2)) + 1.2), zz))), true); };
           Qd([[-11, 22], [11, 22], [11, 52], [-11, 52]], 0x6a4a2a); Qd([[-9, 24], [9, 24], [9, 48], [-9, 48]], 0xf6f6f2);
           for(const zz of [28, 33, 38, 43]) Qd([[-7, zz], [6, zz], [6, zz + 1.2], [-7, zz + 1.2]], 0x9aa0a8);
           Qd([[-4, 49], [4, 49], [4, 54], [-4, 54]], 0xb4b9be); } }
-      if(st === 'top'){ lathe([[106, 26.6], [115, 25]], 0x2a2c30);
-        lathe([[115, 24.4], [123, 22.4], [130, 17.5], [136, 10.5], [139.5, 3.5], [140.5, 0]], 0x1c1d21);
-        for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0.3)) continue; line([ca*25.3, sa*25.3, 107.5], [ca*25.3*0.94, sa*25.3*0.94, 114], 0x3a3d45, 1); } }
+      if(st === 'top'){ const BN = 0x3a3d45; lathe([[106, 26.6], [115, 25]], _pdk(BN, 0.85));
+        lathe([[115, 24.4], [123, 22.4], [130, 17.5], [136, 10.5], [139.5, 3.5], [140.5, 0]], BN);
+        for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0.3)) continue; line([ca*25.3, sa*25.3, 107.5], [ca*25.3*0.94, sa*25.3*0.94, 114], 0x2a2c32, 1.2); } }
       return; }
   }
   /* THE COURIER'S COSTUMES (Sir, 2026-11-17): pieces worn over him, at four moments of his draw -- 'back' before his body (what is behind
