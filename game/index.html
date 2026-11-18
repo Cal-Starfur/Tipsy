@@ -45280,7 +45280,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true, noMouth: true },
   { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0x8a5a2a, stripe: 0x3a2414, costume: 'cowboy', noAerial: true, noMouth: true },
-  { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true },
+  { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true, noMouth: true },
   { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true },
   { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true },
@@ -130279,10 +130279,17 @@ class WorldScene extends Phaser.Scene {
         lathe(0, 0, [[zl + 1, 13.3], [zl + 5, 13.2]], 0x3a2414); lathe(0, 0, [[zl + 5, 13], [zl + 13, 12], [zl + 16, 9], [zl + 17, 4]], 0x9a6a34);
         line([12, 0, zl + 16], [-12, 0, zl + 16], 0x6a4020, 2.4); }   // (its crown's crease)
       return; }
-    if(c === 'ghost'){
-      if(st === 'body') for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(hy + 0.8), pts = [P(-hx, bb, 30)]; for(let i = 0; i <= 8; i++){ const a = -hx + i/8*2*hx; pts.push(P(a, bb, 12 + (i % 2 ? 0 : 7))); } pts.push(P(hx, bb, 30)); g.fillStyle(0xe8e8ee, 1); g.fillPoints(pts.map(PT), true); }   // (its sheet's ragged hem)
-      if(st === 'face' && front){ for(const b of [-6.5, 6.5]){ const q = P(hx + 0.6, b, 86), rr = sr(hx, b, 86, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.2, rr*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y + rr*0.2, rr*0.35); }
-        const q = P(hx + 0.6, 0, 64), rr = sr(hx, 0, 64, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.2, rr*1.6); }   // (eye holes and a round mouth, "ooo")
+    if(c === 'ghost'){   /* (second pass -- Sir, 2026-11-17): a sheet thrown over him -- rounded over his head, soft folds hanging down his sides, a
+         ragged hem all the way round below his body; big hollow eye holes over his own eyes and an "ooo" mouth */
+      const W = 0xf4f4f6, F = 0xd9dbe2;
+      if(st === 'body'){ const sides = [[1, 0, hx, hy], [-1, 0, -hx, hy], [0, 1, hy, hx], [0, -1, -hy, hx]];
+        for(const [na, nb, off, half] of sides){ if(!sees(na, nb, 0)) continue; const at = (u, zz, d = 0.9) => na ? P(off + na*d, u, zz) : P(u, off + nb*d, zz);
+          const hem = [at(-half, 30)]; for(let i = 0; i <= 10; i++){ const u = -half + i/10*2*half; hem.push(at(u, i % 2 ? 4 : 11)); } hem.push(at(half, 30)); g.fillStyle(W, 1); g.fillPoints(hem.map(PT), true);
+          for(const u of [-half*0.55, 0, half*0.55]){ const A = at(u, 98, 1), B = at(u + half*0.08, 8, 1); g.lineStyle(Math.max(1, 1.6*K), F, 1); g.lineBetween(A.x, A.y, B.x, B.y); } } }   // (its hem and its folds)
+      if(st === 'face' && front){ onFront([[-15, 76], [15, 76], [15, 96], [-15, 96]], 0xf4f4f6);   // (the sheet over his visor)
+        for(const b of [-7, 7]){ const q = P(hx + 0.6, b, 85), rr = sr(hx, b, 85, 9); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.25, rr*1.9); g.fillStyle(0x30343e, 1); g.fillEllipse(q.x + rr*0.1, q.y + rr*0.2, rr*0.7, rr*1.1); }
+        const q = P(hx + 0.6, 0, 62), rr = sr(hx, 0, 62, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.3, rr*1.9); }
+      if(st === 'top') lathe(0, 0, [[zl - 1, 23.5], [zl + 5, 22], [zl + 11, 16], [zl + 15, 7], [zl + 16, 0.5]], W);   // (the sheet rounded over his head)
       return; }
     if(c === 'mummy'){
       if(st === 'body') for(let i = 0; i < 7; i++){ const z0 = 20 + i*12 + (i % 2)*3; this.botHull(g, x, y, z, fdir, { hx: hx + 0.6 + (i % 2)*0.3, hy: hy + 0.6 + (i % 2)*0.3, ch: 8, z0, z1: z0 + 2.4, band: true, cLt: 0xf3ead2, cDk: 0xc9bc8e }); }   // (its wrappings)
