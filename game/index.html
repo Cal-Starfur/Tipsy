@@ -30761,12 +30761,34 @@ const BK_BOOK_COLS = [0x7a2e2a, 0x2f4f6a, 0x5a6b3a, 0x8a6a2a, 0x4a3a5a, 0x3a5a5a
 /* what is in their hands: an open book (read), a closed one (carried), a stack of three (the staff's, to shelve) */
 function bkHold(s){
   if(s._bkH && s._bkH.v === s.visit) return s._bkH;
-  const col = BK_BOOK_COLS[((s.seed >>> 0) + (s.visit || 0)*3) % BK_BOOK_COLS.length], pg = 0xf4eedc;
+  /* (RIGHT-SIZED, IN THEIR HANDS -- Sir, 2026-11-18: "the books they pick up are tiny ... the ability to hold them properly": drawn in the
+     person's own frame (at.G: across them, forward, up -- the hull's), a real book's size against them, held in both hands: open, tilted
+     up to their face, its two pages between their hands; closed, upright in the hand at their side; the staff's stack across both
+     forearms. Screen-pixel rectangles at the hand were a stamp a tenth of their size) */
+  const col = BK_BOOK_COLS[((s.seed >>> 0) + (s.visit || 0)*3) % BK_BOOK_COLS.length], pg = 0xf4eedc, line = 0xbdb196;
+  const quad = (g, at, pts, c) => { g.fillStyle(c, 1); g.fillPoints(pts.map(q => { const r = at.G(q[0], q[1], q[2]); return new Phaser.Geom.Point(r.x, r.y); }), true); };
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
   return (s._bkH = { v: s.visit,
-    open: (g, p, K0) => { const K = K0*1.4; const y = p.y + 2*K; g.fillStyle(col, 1); g.fillRect(p.x - 7.5*K, y - 6.5*K, 15*K, 7.5*K); g.fillStyle(pg, 1); g.fillRect(p.x - 6.8*K, y - 6*K, 6.3*K, 6*K); g.fillRect(p.x + 0.5*K, y - 6*K, 6.3*K, 6*K);
-      g.fillStyle(0xb8ad94, 1); for(let k = 0; k < 3; k++){ g.fillRect(p.x - 6*K, y - (4.8 - k*1.6)*K, 4.8*K, 0.5*K); g.fillRect(p.x + 1.2*K, y - (4.8 - k*1.6)*K, 4.8*K, 0.5*K); } },
-    shut: (g, p, K0) => { const K = K0*1.3; g.fillStyle(col, 1); g.fillRect(p.x - 3*K, p.y - 8*K, 6*K, 9*K); g.fillStyle(pg, 1); g.fillRect(p.x + 2*K, p.y - 7.5*K, 1*K, 8*K); },
-    stack: (g, p, K0) => { const K = K0*1.3; [0x7a2e2a, 0x2f4f6a, 0xc9b48a].forEach((c, k) => { g.fillStyle(c, 1); g.fillRect(p.x - (6 - k)*K, p.y - (3 + k*3)*K, (12 - k*1.5)*K, 3*K); g.fillStyle(pg, 1); g.fillRect(p.x + (5 - k*1.5)*K, p.y - (3 + k*3)*K + 0.6*K, 0.8*K, 1.8*K); }); } });
+    /* open, in both hands before them: 22 across, 15 tall, its foot at their hands and leant back toward their face */
+    open: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1] - 1, W = 11, T = 15, lean = 7;
+      const c = (x, u) => [x, f - lean*u, h + T*u];
+      quad(g, at, [c(-W - 1, -0.05), c(W + 1, -0.05), c(W + 1, 1.05), c(-W - 1, 1.05)], col);                        // the cover, round the pages
+      quad(g, at, [c(-W, 0), c(-0.6, 0), c(-0.6, 1), c(-W, 1)], pg); quad(g, at, [c(0.6, 0), c(W, 0), c(W, 1), c(0.6, 1)], 0xece4cf);
+      for(let k = 1; k < 5; k++){ const u = k/5.5; quad(g, at, [c(-W + 2, u), c(-2, u), c(-2, u + 0.04), c(-W + 2, u + 0.04)], line); quad(g, at, [c(2, u), c(W - 2, u), c(W - 2, u + 0.04), c(2, u + 0.04)], line); }
+      quad(g, at, [c(-0.6, 0), c(0.6, 0), c(0.6, 1), c(-0.6, 1)], _pdk(col, 0.7)); },
+    /* closed, upright in the hand at their side: 4 thick, 15 long, 20 tall */
+    shut: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 2, x + 2, f - 7.5, f + 7.5, h - 12, h + 8), col);
+      hull(g, at, box(x - 1.6, x + 1.6, f + 6.2, f + 7.6, h - 11.4, h + 7.4), pg); },
+    /* the staff's stack, three books across both forearms */
+    stack: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 1, h = at.hand[1];
+      [[0x7a2e2a, 0, 0], [0x2f4f6a, 1.5, 4.5], [0xc9b48a, -1, 9]].forEach(([c, dx, z]) => { const z0 = h + z;
+        hull(g, at, box(-11 + dx, 11 + dx, f - 8, f + 8, z0, z0 + 4.5), c);
+        hull(g, at, box(-10.4 + dx, 10.4 + dx, f - 7.4, f + 7.4, z0 + 4.3, z0 + 4.6), _pdk(c, 1.25)); }); } });   // (each a block, its board lighter on top)
 }
 /* how far into their armchair they are drawn (0 standing by it .. 1 sat), sitting down or getting up, eased */
 function bkSeatK(m, now){
@@ -30810,7 +30832,7 @@ function bkPose(s, m, now, P){
     P.hold = H.stack; return;
   }
   const sk = bkSeatK(m, now);
-  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.28, 0.28]; P.bend = [1.25, 1.25]; P.headTilt = 0.32; P.headTurn = 0; P.hold = H.open; return; }
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.28, 0.28]; P.bend = [1.3, 1.3]; P.headTilt = 0.32; P.headTurn = 0; P.hold = H.open; return; }
   if(m.look && BK_SHELVES.includes(m.look) && !m.book && since < 1700){                                          // (reaching for it, once)
     const k = Math.sin(Math.PI*since/1700), low = m.look === 'bargain' || m.look === 'arrivals';
     P.lift = [0.12, (low ? 0.7 : 1.2)*Math.min(1, k*1.6)]; P.bend = [0.2, low ? 0.5 : 0.15]; return; }
