@@ -129659,12 +129659,12 @@ class WorldScene extends Phaser.Scene {
          turntable pad. (Second pass -- Sir, 2026-11-18: "the bins look better but the rack is too big, it looked better before"): the rack as it
          was, its own size on its deck; the bins fabric bins, each a darker open mouth and a white label card on its outer faces */
       if(st !== 'post') return;
-      const S = 36, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];
+      const S = 31, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];   /* (inside its top plate, 68 across -- Sir: "it still seems to be hanging off the far side") */
       this.avLathe(V, 0, 0, [[TOP, 12], [Z0, 12]], DARK, null, 14); this.avLathe(V, 0, 0, [[TOP + 0.6, 12.4], [TOP + 2, 12.4]], Y, () => Y, 14);
       const posts = [[-S, -S], [S, -S], [S, S], [-S, S]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
       const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
       for(const p of posts.slice(0, 2)) post(p);
-      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], C = 17, R = 14;
+      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], C = 14.5, R = 12;
       for(let i = 0; i < 4; i++){ box(-S, S, -S, S, LV[i], LV[i] + 2.5, 0x6a7078);
         const h0 = LV[i] + 2.5, h1 = h0 + (i === 3 ? 18 : 20), bins = [];
         for(const ba of [-1, 1]) for(const bb of [-1, 1]) bins.push({ ca: ba*C, cb: bb*C, d: V.depth(ba*C, bb*C, h0 + 10) });
