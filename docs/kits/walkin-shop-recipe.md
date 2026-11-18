@@ -57,6 +57,12 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - One per counter or station, posts on the working side of their station (W19), plus a server who moves and visitors who browse.
 - Check they all walk in at opening: nobody stuck at the door.
 
+## 7b. One knock-down and he is out (W34)
+- Every shop walk-in has `ban: true` on its pocket, with `banBy` (its staff ids, who sees him out first) and `banSay` ({ who, say }: one
+  short line, the mission-talk rule). Its people can be knocked down as he reaches them (the 'walk-in staff' knock spec, reach 'seat');
+  once the one he ran into is up, the keeper walks up face to face, says the line, and sees him out through the door (any wall); the
+  door stays locked to him for the rest of the session (WALKIN_BAN). Driftwood Books and the tea house are the exemplars.
+
 ## 8. The checks, every time
 - Headless: drive in from the street at view 2 and view 1; the frame before the switch shows him **in the doorway**.
 - A 40-frame run inside with the family working: nothing paints over anyone (heads clear of shelves and urns), no outsider in the room.

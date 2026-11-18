@@ -30139,7 +30139,9 @@ function walkinBanTick(scene, ow){
     if(!here || !cand.length){ pk._banned = true; B.pend = null; if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " won't have you back."); return; }
     if(ow.deck || ow.lift) return;
     const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 };
-    cand.sort((p, q) => (q.id === 'desk') - (p.id === 'desk') || Math.hypot(p._m.a - bot.a, p._m.b - bot.b) - Math.hypot(q._m.a - bot.a, q._m.b - bot.b));
+    /* (pk.banBy: who sees him out, first choice first -- the museum's desk; a shop's keeper) */
+    const by = pk.banBy || ['desk'], rank = q => { const i = by.indexOf(q.id); return i < 0 ? 99 : i; };
+    cand.sort((p, q) => rank(p) - rank(q) || Math.hypot(p._m.a - bot.a, p._m.b - bot.b) - Math.hypot(q._m.a - bot.a, q._m.b - bot.b));
     const s = cand[0], m = s._m, G = walkinGrid(R);
     let side = 1;
     for(const sd of [1, -1]){ const to = [bot.a + sd*MEET.gap/Math.SQRT2, bot.b - sd*MEET.gap/Math.SQRT2]; if(to[0] > 30 && to[0] < pk.w - 30 && to[1] > 30 && to[1] < pk.d - 30 && walkinClear(G, [bot.a, bot.b], to, WALKIN_CLEAR - 3, null)){ side = sd; break; } }
@@ -30156,13 +30158,17 @@ function walkinBanTick(scene, ow){
     walkinBanMove(s, B.Q, (t - B.t)*PEOPLE_WALK_V, B.face);
     if((t - B.t)*PEOPLE_WALK_V < B.Q.len) return;
     B.st = 'told';
-    const who = s.id === 'desk' ? 'Museum Attendant' : 'Museum Guard';
-    hospSayCard({ who, say: "Excuse me! You've just knocked a person flat in my museum. I'm sorry, but I'll have to see you out, and I can't have you back in.", btn: "...Okay.", at, ok: () => {
+    /* (pk.banSay: the room's own words -- who says them, and the line; the museum's by default) */
+    const BS = pk.banSay, who = BS ? (typeof BS.who === 'function' ? BS.who(s) : BS.who) : s.id === 'desk' ? 'Museum Attendant' : 'Museum Guard';
+    hospSayCard({ who, say: BS ? BS.say : "Excuse me! You've just knocked a person flat in my museum. I'm sorry, but I'll have to see you out, and I can't have you back in.", btn: "...Okay.", at, ok: () => {
       hospSayCard(null);
-      const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 }, G = pk.doors[0], da = G.at, inn = [da, pk.d - 70];
+      /* (out through its door whichever wall it is in: the museum's is in its south wall, a shop's on the street in its east) */
+      const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 }, G = pk.doors[0], da = G.at, sd = G.side || 's', o = (pk.out || 100) + 70;
+      const P = (along, inn) => sd === 's' ? [along, pk.d - inn] : sd === 'n' ? [along, inn] : sd === 'e' ? [pk.w - inn, along] : [inn, along];
+      const inn = P(da, 70), outP = sd === 's' ? [da, pk.d + o] : sd === 'n' ? [da, -o] : sd === 'e' ? [pk.w + o, da] : [-o, da], wk = P(da - 48, 64);
       const way = walkinPath(R, [bot.a, bot.b], inn, null) || [inn];
-      const Qb = walkinPoly([[bot.a, bot.b]].concat(way, [[da, pk.d + (pk.out || 100) + 70]]));
-      const Qw = walkinPoly([[m.a, m.b]].concat(walkinPath(R, [m.a, m.b], [da - 48, pk.d - 64], null) || [[da - 48, pk.d - 64]]));
+      const Qb = walkinPoly([[bot.a, bot.b]].concat(way, [outP]));
+      const Qw = walkinPoly([[m.a, m.b]].concat(walkinPath(R, [m.a, m.b], wk, null) || [wk]));
       B.Qb = Qb; B.Qw = Qw; B.t = scene.time.now; B.st = 'escort'; pk._banned = true; } });
     return;
   }
@@ -30652,6 +30658,8 @@ const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0
   openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] }] });
 POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Palmline Savings', 'Marina Optical'];
 POCKETS[POCKETS.length - 1].cornerLow = true;   // (its north-east corner cut low over the frontage: walkinRoom's, and the dim's snug outline, roomDimDraw)
+/* (ONE KNOCK-DOWN AND HE IS OUT, W34: Hana sees him to the door and the tea house will not have him back -- WALKIN_BAN) */
+Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['master', 'server', 'clerk'], banSay: { who: 'Hana', say: "You've knocked a guest over. Out you go, and please don't come back." } });
 POCKETS[POCKETS.length - 1].displace = true;   // (W31: the room is bigger than the tea house -- what it covers is ghosted under it, the room over it: displacedLib)   // (W26: the bookshop south of it over its south wall; the bank, the room runs back under it -- TEST)
 /* ITS PEOPLE (221 x 362, a tea room): the tea master behind the counter (fixed, the keyholder), a server between the counter and the
    tables, two guests */
@@ -30719,6 +30727,8 @@ const BK_PLAN = walkinDefine({ name: BK_IN.name, from: 'Driftwood Books', x0: BK
 POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Palmline Savings', 'Marina Optical', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
 POCKETS[POCKETS.length - 1].displace = true;
 POCKETS[POCKETS.length - 1].cornerLow = true;   // (as the tea house's: walkinRoom's cornerLow, and the dim's outline)
+/* (ONE KNOCK-DOWN AND HE IS OUT, W34: Walter sees him to the door and the bookshop will not have him back -- WALKIN_BAN) */
+Object.assign(POCKETS[POCKETS.length - 1], { ban: true, banBy: ['owner', 'shelver', 'assistant'], banSay: { who: 'Walter', say: "You've knocked a customer flat. I'll see you out, and you're not to come back in." } });
 /* THE PENROSE FAMILY, WHO KEEP IT: their own looks, set by hand (lookFn) -- a secondhand bookshop's dress, knitwear and cords. Walter at the
    till, the keyholder (grey hair and beard, his reading glasses, a mustard cardigan); his daughter Edie shelving along the walls (a green
    cardigan over an oatmeal blouse, her red hair tied back); her son Sam at the bargain cart and the new arrivals (a navy jumper, his brown
@@ -97782,7 +97792,9 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
 CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Museum', solid: true,
   /* (a room with ban: true takes its people's knock-downs, and puts him out for it: WALKIN_BAN) */
   knock: { kind: 'walkin', when: scene => !!(scene._inside && scene._inside.ban && !walkinBanBusy()),
-    test(p, scene, t, C){ return C.reach.hit(p.x, p.y) && !scene._knockMeet; },
+    /* (met as he reaches them, before they stop him: they hold him at a body and a half (walkinPeopleBlock), past the street's
+       34 -- the bookshop's people could not be knocked down at all; the chair's reach, 'seat') */
+    test(p, scene, t, C){ return C.reach.seat(p.x, p.y) && !scene._knockMeet; },
     make(p){ const L = cpLook(p); return { look: cpLookPlain(L), uni: L.uniform, mood: p.kind === 'visitor' || Math.random() < 0.5 ? 'polite' : 'mad' }; },
     done(K, p, scene){ if(K && scene._inside) WALKIN_BAN.pend = scene._inside; } },
   each(scene, t, fn){
