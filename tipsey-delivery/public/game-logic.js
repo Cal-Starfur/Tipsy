@@ -28918,6 +28918,7 @@ const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0
   /* (seen through, W11: the open doorway) */
   openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] }] });
 POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Palmline Savings', 'Marina Optical'];
+POCKETS[POCKETS.length - 1].cornerLow = true;   // (its north-east corner cut low over the frontage: walkinRoom's, and the dim's snug outline, roomDimDraw)
 POCKETS[POCKETS.length - 1].displace = true;   // (W31: the room is bigger than the tea house -- what it covers is ghosted under it, the room over it: displacedLib)   // (W26: the bookshop south of it over its south wall; the bank, the room runs back under it -- TEST)
 /* ITS PEOPLE (221 x 362, a tea room): the tea master behind the counter (fixed, the keyholder), a server between the counter and the
    tables, two guests */
@@ -28984,6 +28985,7 @@ const BK_PLAN = walkinDefine({ name: BK_IN.name, from: 'Driftwood Books', x0: BK
    roasters, the bakery and the charge depot on the corner in front of its south wall) */
 POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Palmline Savings', 'Marina Optical', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
 POCKETS[POCKETS.length - 1].displace = true;
+POCKETS[POCKETS.length - 1].cornerLow = true;   // (as the tea house's: walkinRoom's cornerLow, and the dim's outline)
 /* THE PENROSE FAMILY, WHO KEEP IT: their own looks, set by hand (lookFn) -- a secondhand bookshop's dress, knitwear and cords. Walter at the
    till, the keyholder (grey hair and beard, his reading glasses, a mustard cardigan); his daughter Edie shelving along the walls (a green
    cardigan over an oatmeal blouse, her red hair tied back); her son Sam at the bargain cart and the new arrivals (a navy jumper, his brown
@@ -105656,7 +105658,10 @@ class WorldScene extends Phaser.Scene {
        not one box to the walls' full height -- the floor out to the walls' outer faces at the near walls' height, the two far walls full
        height; each part's hull grown a little, layer by layer, for a soft edge a few pixels deep) */
     const X = pk.x0 + v.dx, Y = pk.y0 + v.dy, Wd = pk.w, Dd = pk.d, H = pk.h || 240, LH = pk.LH || 66, T = 30;
-    const parts = [[-T, Wd + T, -T, Dd + T, 0, LH], [-T, Wd + T, -T, 0, 0, H], [-T, 0, -T, Dd + T, 0, H]];
+    /* (the far walls full height only as far as they stand: the west wall ends at the south wall's inner face (D), and with its corner cut
+       low (pk.cornerLow) the north wall at the east wall's (W) -- out to the near walls' outer faces the bright street showed in a strip over
+       the low corners, Sir 2026-11-18, Driftwood Books: "the half wall is leaving a bit of space") */
+    const parts = [[-T, Wd + T, -T, Dd + T, 0, LH], [-T, pk.cornerLow ? Wd : Wd + T, -T, 0, 0, H], [-T, 0, -T, Dd, 0, H]];
     const hullOf = ([a0, a1, b0, b1, z0, z1]) => {
       const pts = [];
       for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]){ const q = this.W(X + a, Y + b, z); pts.push({ x: q.x, y: q.y }); }
