@@ -612,6 +612,18 @@
     font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
     -webkit-tap-highlight-color:transparent;touch-action:none;}
   #trailerBtn:active{transform:scale(0.96);}
+  /* THE WAREHOUSE ROBOT'S LOADS (AMRL): Pick up / Set down, where the trailer's button sits (never both: one is the semi's, one the warehouse robot's) */
+  #amrLoadBtn{position:fixed;right:max(16px, env(safe-area-inset-right));bottom:calc(160px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#c9650f;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #amrPickBtn{position:fixed;right:calc(max(16px, env(safe-area-inset-right)) + 128px);bottom:calc(160px + env(safe-area-inset-bottom));z-index:61;
+    min-width:112px;height:52px;padding:0 22px;border:0;border-radius:26px;background:#1f8aa0;color:#fff;
+    font:800 17px/1 system-ui,-apple-system,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.3);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  #amrLoadBtn:active, #amrPickBtn:active{transform:scale(0.96);}
+  #amrLoadBtn.hidden, #amrPickBtn.hidden{display:none;}
+  body.tpPanelOpen #amrLoadBtn, body.tpGarage #amrLoadBtn, body.attractBare #amrLoadBtn, body.tpPanelOpen #amrPickBtn, body.tpGarage #amrPickBtn, body.attractBare #amrPickBtn{display:none;}
   #trailerBtn.hidden{display:none;}
   body.tpPanelOpen #trailerBtn, body.tpGarage #trailerBtn, body.attractBare #trailerBtn{display:none;}
   body.tpPanelOpen #scootBtn, body.tpGarage #scootBtn, body.attractBare #scootBtn, body.tpPanelOpen #flyBtn, body.tpPanelOpen #flyAlt, body.tpGarage #flyBtn, body.tpGarage #flyAlt, body.attractBare #flyBtn, body.attractBare #flyAlt{display:none !important;}
@@ -1656,6 +1668,8 @@
 <button id="scootBtn" class="hidden">Hop on</button>
 <button id="hornBtn" class="hidden" aria-label="Horn">📯</button>
 <button id="trailerBtn" class="hidden">Drop trailer</button>
+<button id="amrPickBtn" class="hidden">Pick up</button>
+<button id="amrLoadBtn" class="hidden">Set down</button>
 <div id="flyAlt" class="hidden"><div id="flyBar" aria-hidden="true"><div class="fbCeil"></div><div class="fbAhead"></div><div class="fbUnder"></div><div class="fbTgt"></div><div class="fbCraft"></div><div class="fbM">0 m</div></div><div id="flyUD"><button id="flyUp" aria-label="Climb"><span></span></button><button id="flyDn" aria-label="Descend"><span></span></button></div></div>
 <div id="miniBtn" class="hidden" role="button" aria-label="Minimap"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#e8eaef" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><polygon points="3,6.5 9,4 15,6.5 21,4 21,17.5 15,20 9,17.5 3,20"/><line x1="9" y1="4" x2="9" y2="17.5"/><line x1="15" y1="6.5" x2="15" y2="20"/></svg></div>
 <div id="bootLoader">
@@ -10537,6 +10551,97 @@ function semiQueue(scene, t, queuePerson){
     if(!(scene.visProp("car", D.x, D.y) || scene.visProp("car", D.x + c*220, D.y + sn*220) || scene.visProp("car", D.x - c*220, D.y - sn*220))) continue;
     const x = D.x, y = D.y, f = D.th/(Math.PI/2);
     queuePerson(x, y, (g) => scene.bcDraw(g, "semit|" + Math.round(x) + "," + Math.round(y) + "|" + f.toFixed(2), x, y, gg => scene.drawProp(gg, "avsemi", x, y, 0, f, 0, 0, 7, { part: "trailer", paint: true })));
+  }
+}
+/* THE WAREHOUSE ROBOT'S LOADS (Sir, 2026-11-18: "lets share the box and bins that already exist ... varied in size and color ... the
+   important part is the boxes and bins can be removed and placed on other bots or even in the world"). Every box, tote and bin a build
+   carries is a LOAD -- { k: 'box' | 'tote' | 'bin', la, lb (half its length and width), h, col (a box's cardboard), pal (a bin's colour of
+   four), lt (a tote's shade), label } -- sitting in one of that build's SLOTS (AMR_SLOTS: where on it, how big a load it takes, and for a
+   stacked one which slot it sits on). Each build starts with the loads it always carried, in their own sizes and colours. Stopped, "Set
+   down" puts the top one on the ground ahead of him (behind, for the pallet jack, whose forks are ahead); "Pick up" takes the nearest one
+   off the ground into the first free slot it fits (turned round if it fits that way). On the ground a load is a still thing, cached
+   where it is (amrLoadQueue). Kept for the session, not saved; a load on the ground is not solid */
+const AMR_SLOTS = (() => {
+  const box = (la, lb, h, col, x) => Object.assign({ k: 'box', la, lb, h, col }, x || {}), tote = (la, lb, h, lt) => ({ k: 'tote', la, lb, h, lt: lt || 1 });
+  const sl = (a, b, la, lb, hm, def, x) => Object.assign({ a, b, la, lb, hm, def }, x || {});
+  const shelf = []; for(let i = 0; i < 4; i++) for(const ca of [-26.5, 0, 26.5]) for(const cb of [-13, 13])
+    shelf.push(sl(ca, cb, 12, 11.5, i === 3 ? 18 : 20, { k: 'bin', la: 12, lb: 11.5, h: i === 3 ? 18 : 20, pal: (i + [-26.5, 0, 26.5].indexOf(ca) + 2*(cb > 0)) % 4 }, { lv: i }));
+  const jack = []; for(let lv = 0; lv < 2; lv++) for(let ia = 0; ia < 2; ia++) for(let ib = 0; ib < 2; ib++)
+    jack.push(sl(ia ? 49.5 : 16.5, ib ? 14.5 : -14.5, 16.6, 14.6, 18, box(16.1, 14.1, 17.7, [0xc98a4a, 0xbf8244, 0xd29a5a, 0xb97b40][(ia + 2*ib + lv) % 4], { wrap: true }), { lv, on: lv ? ia*2 + ib : null }));
+  return {
+    amrstock: [sl(-22, 0, 24, 30, 40, null), sl(22, 0, 20, 30, 40, null)],
+    amrlift: [sl(-21, 0, 22, 26, 40, null), sl(21, 0, 22, 26, 40, null)],
+    amrtug: [sl(-17.5, 0, 15.5, 24, 30, tote(15.5, 24, 14), { cart: 0, z: 16 }), sl(17.5, -12.5, 15.5, 11.5, 30, tote(15.5, 11.5, 14), { cart: 0, z: 16 }),
+             sl(17.5, 12.5, 13.5, 9.5, 30, box(13.5, 9.5, 20, 0xc98a4a), { cart: 0, z: 16 }), sl(-17.5, 0, 15.5, 24, 20, tote(14.5, 23, 13.5, 1.12), { cart: 0, on: 0 }),
+             sl(-17.5, -12, 15.5, 12, 30, box(15.5, 12, 22, 0xc98a4a), { cart: 1, z: 16 }), sl(-18.5, 13, 14.5, 11, 30, box(14.5, 11, 16, 0xb97b40), { cart: 1, z: 16 }),
+             sl(17.5, 0, 15.5, 22, 30, box(15.5, 22, 14, 0xd29a5a), { cart: 1, z: 16 })],
+    amrshelf: shelf,
+    amrconv: [sl(0, 0, 14, 20, 30, box(12, 14, 19.7, 0xc98a4a, { label: true }), { off: 0 }), sl(0, 0, 14, 20, 30, box(10, 11, 14.7, 0xb97b40, { label: true }), { off: 60 })],
+    amrarm: [sl(0, 0, 7, 7, 14, box(5, 5, 10, 0xc98a4a))],
+    amrjack: jack
+  };
+})();
+const AMRL = { bots: {}, down: [], seq: 0 };
+function amrLoadsOf(b){ if(!AMRL.bots[b]) AMRL.bots[b] = AMR_SLOTS[b].map(q => q.def ? Object.assign({ id: ++AMRL.seq }, q.def) : null); return AMRL.bots[b]; }
+function amrBuildKey(){ const b = SKIN.build; return /^amr[a-z]+$/.test(b || '') && AMR_SLOTS[b] ? b : 'amrstock'; }
+function amrCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'amr'); }
+/* the top load: filled, with nothing sitting on it; the first free slot a load fits (its base filled, if it is a stacked one) */
+function amrTop(b){ const LS = amrLoadsOf(b), SL = AMR_SLOTS[b];
+  for(let i = LS.length - 1; i >= 0; i--) if(LS[i] && !SL.some((q, j) => q.on === i && LS[j])) return i; return -1; }
+function amrFree(b, L){ const LS = amrLoadsOf(b), SL = AMR_SLOTS[b];
+  for(let i = 0; i < SL.length; i++){ const q = SL[i]; if(LS[i] || (q.on != null && !LS[q.on]) || L.h > q.hm) continue;
+    if(L.la <= q.la + 0.5 && L.lb <= q.lb + 0.5) return { i, turn: false };
+    if(L.lb <= q.la + 0.5 && L.la <= q.lb + 0.5) return { i, turn: true }; }
+  return null; }
+function amrReachPt(s, b){ const ow = s.ow, d = b === 'amrjack' ? -1 : 1; return { x: ow.px + Math.cos(ow.yaw)*d*85, y: ow.py + Math.sin(ow.yaw)*d*85, d }; }
+function amrNearestDown(s){ const p = amrReachPt(s, amrBuildKey()); let best = null;
+  for(const D of AMRL.down){ const d = Math.hypot(D.x - p.x, D.y - p.y); if(d < 60 && (!best || d < best.d)) best = { D, d }; }
+  return best; }
+/* what he can do, stopped: pick the nearest one up (if it fits somewhere), set his top one down (two buttons, side by side) */
+function amrVerbs(s){
+  if(!amrCan(s) || Math.abs(s.ow.vel) >= 0.02) return { pick: false, drop: false };
+  const b = amrBuildKey(), n = amrNearestDown(s);
+  return { pick: !!(n && amrFree(b, n.D.L)), drop: amrTop(b) >= 0 && AMRL.down.length < 40 };
+}
+function amrLoadToggle(s, verb){
+  const b = amrBuildKey(), LS = amrLoadsOf(b), V2 = amrVerbs(s), ow = s.ow;
+  if(verb === "Pick up" ? !V2.pick : !V2.drop) return;
+  if(verb === "Pick up"){ const n = amrNearestDown(s), f = amrFree(b, n.D.L), L = n.D.L;
+    if(f.turn){ const t = L.la; L.la = L.lb; L.lb = t; }
+    LS[f.i] = L; AMRL.down.splice(AMRL.down.indexOf(n.D), 1); }
+  else if(verb === "Set down"){ const i = amrTop(b), L = LS[i], p = amrReachPt(s, b), c = Math.cos(ow.yaw), sn = Math.sin(ow.yaw), r = Math.max(L.la, L.lb);
+    /* ahead of him (behind, the jack), clear of what is already down there: stepped aside till it is */
+    let x = ow.px + c*p.d*(62 + L.la), y = ow.py + sn*p.d*(62 + L.la);
+    for(let k = 0; k < 6; k++){ if(!AMRL.down.some(D => Math.hypot(D.x - x, D.y - y) < r + Math.max(D.L.la, D.L.lb) + 2)) break;
+      const sd = (k % 2 ? -1 : 1)*(Math.floor(k/2) + 1)*(2*r + 4); x = ow.px + c*p.d*(62 + L.la) - sn*sd; y = ow.py + sn*p.d*(62 + L.la) + c*sd; }
+    LS[i] = null; AMRL.down.push({ L, x, y, th: ow.yaw }); }
+  else return;
+  if(typeof sfxThump === "function") sfxThump(0.2);
+}
+function amrLoadUiTick(){
+  const s = (typeof scn === "function") ? scn() : null, bd = document.getElementById("amrLoadBtn"), bp = document.getElementById("amrPickBtn");
+  if(!bd || !bp) return;
+  const v = amrVerbs(s);
+  bd.classList.toggle("hidden", !v.drop); bp.classList.toggle("hidden", !v.pick);
+}
+setInterval(amrLoadUiTick, 200);
+(function amrLoadBind(){
+  const bd = document.getElementById("amrLoadBtn"), bp = document.getElementById("amrPickBtn");
+  if(!bd || !bp){ setTimeout(amrLoadBind, 300); return; }
+  for(const [btn, verb] of [[bd, "Set down"], [bp, "Pick up"]]){
+    btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); const s = scn(); if(s && amrCan(s)) amrLoadToggle(s, verb); amrLoadUiTick(); });
+    for(const ev of ["touchstart", "mousedown"]) btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
+    btn.addEventListener("contextmenu", e => e.preventDefault()); }
+})();
+/* the loads on the ground: still, cached where they are (their key: the load, the spot and the skin its colours come from) */
+function amrLoadQueue(scene, t, queuePerson){
+  if(!AMRL.down.length) return;
+  const AS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'amr');
+  for(const D of AMRL.down){
+    if(!scene.visProp("car", D.x, D.y)) continue;
+    const x = D.x, y = D.y;
+    queuePerson(x, y, (g) => scene.bcDraw(g, "amrl|" + D.L.id + "|" + Math.round(x) + "," + Math.round(y) + "|" + D.L.la + "|" + (AS ? AS.id : ''), x, y, gg => {
+      const V = scene.vehKit(gg, x, y, 0, D.th/(Math.PI/2)); scene.amrLoad(gg, V, D.L, 0, 0, 0, [1, 0], AS); }));
   }
 }
 /* THE SEMI'S TRAILER (FLEET_STEER.avsemi.trail): its heading and where the kingpin was last step. Made straight behind the tractor
@@ -108897,6 +109002,7 @@ class WorldScene extends Phaser.Scene {
     skQueue(this, t, queuePerson, keyQueue, layerFor);   // DRIFTWOOD SKATE PARK's skaters
     scootQueue(this, t, queuePerson, layerFor);          // SCOOTERS the humanoid has set down
     semiQueue(this, t, queuePerson);                     // TRAILERS the semi has dropped
+    amrLoadQueue(this, t, queuePerson);                  // LOADS the warehouse robot has set down
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
@@ -121170,6 +121276,7 @@ class WorldScene extends Phaser.Scene {
       const LOAD = !!(data && data.load);
       if(LOAD) box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                           // the pallet
       if(!front) puck(L/2 - 10, 0, 31, 0.9);                                                     // its lidar, behind the load from here
+      if(WEAR) this.drawAmrBuild('amrstock', 'post', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir);   // (what it carries bare: AMRL)
       if(LOAD){
         const crates = [[-40, -4, -28, 28, 77, 0xc98a4a, true], [0, 32, -28, 4, 67, 0xc98a4a, true], [0, 32, 6, 28, 71, 0xb97b40, false]];
         crates.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 50) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 50));
@@ -131366,6 +131473,38 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* A WAREHOUSE LOAD (AMRL), wherever it is -- on a build or on the ground: L (its kind and size) centred at (ca, cb) on z0, its length along
+     u in the frame V draws in. A box: taped, or his skin's icon on its top; a tote: a tapered body, a lip round its rim, a dark handhold
+     at each end; a bin: a darker open mouth and a white label card on each face. Its colours from the facility skin AS, if any */
+  amrLoad(g, V, L, ca, cb, z0, u, AS){
+    const { P, sees, solid, prismH } = V, PT = q => new Phaser.Geom.Point(q.x, q.y), v = [-u[1], u[0]];
+    const M = (la, lb) => [ca + la*u[0] + lb*v[0], cb + la*u[1] + lb*v[1]];
+    const mbox = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([M(a0, b0), M(a1, b0), M(a1, b1), M(a0, b1)], h0, h1), col, null, false);
+    const top = (pts, h, col, al = 1) => { g.fillStyle(col, al); g.fillPoints(pts.map(([a, b]) => { const q = M(a, b); return PT(P(q[0], q[1], h)); }), true); };
+    const face = (nx, ny) => { const q0 = M(0, 0), q1 = M(nx, ny); return sees(q1[0] - q0[0], q1[1] - q0[1], 0); };
+    const la = L.la, lb = L.lb, h1 = z0 + L.h;
+    const BINS = AS ? [AS.acc, AS.body, AS.lid || AS.skirt || AS.stripe, _pdk(AS.acc, 0.72)] : [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], TOTE = AS ? AS.acc : 0x2a6ad8;
+    if(L.k === 'box'){ mbox(-la, la, -lb, lb, z0, h1, L.col);
+      if(!sees(0, 0, 1)) return;
+      if(AS){ const S = Math.min(la, lb)*0.64, IC = AS.iconCol === 0xf6f4ee ? 0x2a2f36 : AS.iconCol;
+        this.amrIcon(g, AS, (x, y) => { const q = M(x*S, y*S); return P(q[0], q[1], h1 + 0.25); }, 1, IC, _pdk(AS.iconCol, 0.8), L.col); return; }
+      top([[-la, -1.2], [la, -1.2], [la, 1.2], [-la, 1.2]], h1 + 0.2, 0xe8d8a8, 0.9);
+      if(L.label){ top([[-la*0.7, 3], [-la*0.1, 3], [-la*0.1, lb*0.75], [-la*0.7, lb*0.75]], h1 + 0.22, 0xf6f4ee); top([[-la*0.6, 4.5], [-la*0.2, 4.5], [-la*0.2, 5.5], [-la*0.6, 5.5]], h1 + 0.25, 0x2a2f36); }
+      return; }
+    if(L.k === 'tote'){ const col = _pdk(TOTE, L.lt || 1);
+      mbox(-la + 1, la - 1, -lb + 1, lb - 1, z0, h1 - 2.5, col); mbox(-la, la, -lb, lb, h1 - 2.5, h1, _pdk(col, 0.82));
+      if(sees(0, 0, 1)) top([[-la + 1.5, -lb + 1.5], [la - 1.5, -lb + 1.5], [la - 1.5, lb - 1.5], [-la + 1.5, lb - 1.5]], h1 + 0.05, _pdk(col, 0.5));
+      for(const sa of [-1, 1]){ if(!face(sa, 0)) continue; const e = sa*(la - 0.9);
+        g.fillStyle(0x16243f, 1); g.fillPoints([M(e, -4), M(e, 4), M(e, 4), M(e, -4)].map((q, i) => PT(P(q[0], q[1], i < 2 ? h1 - 7 : h1 - 4.5))), true); }
+      return; }
+    /* a bin */
+    const col = BINS[(L.pal || 0) % 4];
+    mbox(-la, la, -lb, lb, z0, h1 - 3, col); mbox(-la, la, -lb, lb, h1 - 3, h1, _pdk(col, 0.72));
+    for(const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ if(!face(nx, ny)) continue;
+      const q = (w, z) => { const m = nx ? M(nx*(la + 0.2), w) : M(w, ny*(lb + 0.2)); return P(m[0], m[1], z); }, zc = z0 + 7;
+      g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)].map(PT), true);
+      g.fillStyle(0x2a2f36, 1); g.fillPoints([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)].map(PT), true); }
+  }
   /* a facility skin's icon (AS.icon) in its own space -- u right, v up, about -1..1 -- laid on a face by map; fwd: which way u points to its nose */
   amrIcon(g, AS, map, fwd, IC, IC2, BGC){
     const PT = q => new Phaser.Geom.Point(q.x, q.y);
@@ -131430,6 +131569,12 @@ class WorldScene extends Phaser.Scene {
     const vel = this.ow ? Math.abs(this.ow.vel || 0) : 0;
     const crate = (a0, a1, b0, b1, h0, h1, col) => { box(a0, a1, b0, b1, h0, h1, col); if(AS){ brand((u, v) => P((a0 + a1)/2 + u, (b0 + b1)/2 + v, h1 + 0.25), Math.min(a1 - a0, b1 - b0)*0.32, col); return; } if(sees(0, 0, 1)){ g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(a0, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 + 1.2, h1 + 0.2), P(a0, (b0 + b1)/2 + 1.2, h1 + 0.2)].map(PT), true); } };
 
+    if(id === 'amrstock'){   /* (bare, its lid takes two loads: AMRL) */
+      if(st !== 'post') return;
+      const LS = amrLoadsOf('amrstock');
+      AMR_SLOTS.amrstock.map((q, i) => ({ q, L: LS[i], d: V.depth(q.a, q.b, TOP + 8) })).filter(o => o.L).sort((p, q) => p.d - q.d).forEach(o => this.amrLoad(g, V, o.L, o.q.a, o.q.b, TOP, [1, 0], AS));
+      return; }
+
     if(id === 'amrlift'){   /* SCISSOR LIFT: a deck on criss-cross arms; it rises while he stands and folds down as he drives. (Second pass --
          Sir, 2026-11-18): two stages of arms, pinned where they cross and at the ends, rollers at their sliding ends in yellow base channels;
          a hydraulic ram up the middle; a deck with a yellow-and-black chevron toe board; top and mid rails, sorted far to near; an amber
@@ -131462,9 +131607,14 @@ class WorldScene extends Phaser.Scene {
       /* its guard rail, a side at a time far to near: corner posts, a post mid-way along the long sides, a top rail and a mid rail */
       const RA = 43, RB = 29, RZ = DZ + 5, sides = [[[-RA, -RB], [RA, -RB]], [[-RA, RB], [RA, RB]], [[-RA, -RB], [-RA, RB]], [[RA, -RB], [RA, RB]]]
         .map(([p0, p1]) => ({ p0, p1, d: V.depth((p0[0] + p1[0])/2, (p0[1] + p1[1])/2, RZ + 10) })).sort((p, q) => p.d - q.d);
-      for(const sd of sides){ const { p0, p1 } = sd, mid = [(p0[0] + p1[0])/2, (p0[1] + p1[1])/2];
+      const side = sd => { const { p0, p1 } = sd, mid = [(p0[0] + p1[0])/2, (p0[1] + p1[1])/2];
         for(const q of [p0, p1].concat(p0[1] === p1[1] ? [mid] : [])) tube([q[0], q[1], RZ], [q[0], q[1], RZ + 17], 2, Y);
-        tube([p0[0], p0[1], RZ + 8.5], [p1[0], p1[1], RZ + 8.5], 1.6, _pdk(Y, 0.9)); tube([p0[0], p0[1], RZ + 17], [p1[0], p1[1], RZ + 17], 2.2, Y); }
+        tube([p0[0], p0[1], RZ + 8.5], [p1[0], p1[1], RZ + 8.5], 1.6, _pdk(Y, 0.9)); tube([p0[0], p0[1], RZ + 17], [p1[0], p1[1], RZ + 17], 2.2, Y); };
+      /* the far rails, its loads on the deck (AMRL), the near rails */
+      const dD = V.depth(0, 0, RZ + 10), LS = amrLoadsOf('amrlift');
+      sides.filter(sd => sd.d <= dD).forEach(side);
+      AMR_SLOTS.amrlift.map((q, i) => ({ q, L: LS[i], d: V.depth(q.a, q.b, RZ + 8) })).filter(o => o.L).sort((p, q) => p.d - q.d).forEach(o => this.amrLoad(g, V, o.L, o.q.a, o.q.b, RZ, [1, 0], AS));
+      sides.filter(sd => sd.d > dD).forEach(side);
       /* its beacon, on the tail corner post: amber, flashing while it moves or lifts */
       const ba = -RA, bb2 = -nearB*RB, bz = RZ + 17, moving = vel > 0.01 || Math.abs(goal - this._amrLift) > 0.03, lit = moving && Math.floor(t/260) % 2 === 0, AMB = 0xffa21a;
       this.avLathe(V, ba, bb2, [[bz, 3], [bz + 2, 3]], DARK, null, 10);
@@ -131513,17 +131663,11 @@ class WorldScene extends Phaser.Scene {
           mt([a[0], a[1], RT], [b[0], b[1], RT], 2, CG); mt([a[0], a[1], (RZ + RT)/2], [b[0], b[1], (RZ + RT)/2], 1.4, _pdk(CG, 0.85)); };
         const far = sides.filter(sd => sd.d <= dC).sort((p, q) => p.d - q.d), near = sides.filter(sd => sd.d > dC).sort((p, q) => p.d - q.d);
         far.forEach(rail);
-        /* its load: cart 0 two blue stacking totes and a box, cart 1 three taped boxes */
-        const load = k ? [[-HALF + 3, -2, -24, 0, 0xc98a4a, 38, 'box'], [-HALF + 3, -4, 2, 24, 0xb97b40, 32, 'box'], [2, HALF - 3, -22, 22, 0xd29a5a, 30, 'box']]
-                       : [[-HALF + 3, -2, -24, 24, TOTE, 30, 'tote'], [2, HALF - 3, -24, -1, TOTE, 30, 'tote'], [4, HALF - 5, 3, 22, 0xc98a4a, 36, 'box']];
-        if(!k) load.push([-HALF + 4, -3, -23, 23, AS ? _pdk(TOTE, 1.12) : 0x3a7ae0, 44, 'tote2']);
-        const items = load.map(L2 => { const q = M((L2[0] + L2[1])/2, (L2[2] + L2[3])/2); return { L2, d: V.depth(q[0], q[1], L2[6] === 'tote2' ? 38 : 22) }; }).sort((p, q) => p.d - q.d);
-        for(const { L2 } of items){ const [a0, a1, b0, b1, col, h, kind] = L2, h0 = kind === 'tote2' ? 30.5 : 16;
-          if(kind === 'box'){ mbox(a0, a1, b0, b1, h0, h, col); if(AS){ const cA = (a0 + a1)/2, cB = (b0 + b1)/2; brand((u, v) => { const q = M(cA + u, cB + v); return P(q[0], q[1], h + 0.25); }, Math.min(a1 - a0, b1 - b0)*0.3, col); } else if(sees(0, 0, 1)){ const mid = (b0 + b1)/2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([M(a0, mid - 1.2), M(a1, mid - 1.2), M(a1, mid + 1.2), M(a0, mid + 1.2)].map(q => PT(P(q[0], q[1], h + 0.2))), true); } }
-          else { mbox(a0 + 1, a1 - 1, b0 + 1, b1 - 1, h0, h - 2.5, col); mbox(a0, a1, b0, b1, h - 2.5, h, _pdk(col, 0.82));   /* (a tote: tapered body, a lip round its rim, a dark handhold at each end) */
-            for(const ea of [a0, a1]){ const nA = M(ea + (ea === a0 ? -1 : 1), 0), cA = M(ea, 0), nrm = [nA[0] - cA[0], nA[1] - cA[1]];
-              if(!sees(nrm[0], nrm[1], 0)) continue; const e = ea === a0 ? a0 + 0.9 : a1 - 0.9;
-              g.fillStyle(0x16243f, 1); g.fillPoints([M(e, -4), M(e, 4), M(e, 4), M(e, -4)].map((q, i) => PT(P(q[0], q[1], i < 2 ? h - 7 : h - 4.5))), true); } } }
+        /* its loads (AMRL: cart 0 two stacking totes, one on the other, and a box; cart 1 three taped boxes, as it always carried), far to near, a stacked one after what it sits on */
+        const LS = amrLoadsOf('amrtug'), SL = AMR_SLOTS.amrtug;
+        SL.map((q, i) => ({ q, i, L: LS[i] })).filter(o => o.q.cart === k && o.L).map(o => { const m = M(o.q.a, o.q.b), base = o.q.on != null ? SL[o.q.on] : null;
+          return { o, m, z0: base ? base.z + LS[o.q.on].h + 0.5 : o.q.z, d: V.depth(m[0], m[1], 22) + (base ? 0.001 : 0) }; })
+          .sort((p, q) => p.d - q.d).forEach(it => this.amrLoad(g, V, it.o.L, it.m[0], it.m[1], it.z0, o.u, AS));
         near.forEach(rail);
         castors(true);
         /* its A-frame draw bar, forward to its tow point */
@@ -131545,18 +131689,12 @@ class WorldScene extends Phaser.Scene {
       const posts = [[-SA, -SB], [SA, -SB], [SA, SB], [-SA, SB]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
       const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
       for(const p of posts.slice(0, 2)) post(p);
-      const BINS = AS ? [AS.acc, AS.body, AS.lid || AS.skirt || AS.stripe, _pdk(AS.acc, 0.72)] : [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], CA = [-26.5, 0, 26.5], CB = [-13, 13], RA = 12, RB = 11.5;
+            /* its bins (AMRL: six a shelf, as it always carried -- each can come out, and anything that fits can go in) */
+      const LS = amrLoadsOf('amrshelf'), SL = AMR_SLOTS.amrshelf;
       for(let i = 0; i < 4; i++){ box(-SA, SA, -SB, SB, LV[i], LV[i] + 2.5, SHELF);
-        const h0 = LV[i] + 2.5, h1 = h0 + (i === 3 ? 18 : 20), bins = [];
-        for(const ca of CA) for(const cb of CB) bins.push({ ca, cb, d: V.depth(ca, cb, h0 + 10) });
-        bins.sort((p, q) => p.d - q.d);
-        for(const bn of bins){ const col = BINS[(i + CA.indexOf(bn.ca) + 2*(bn.cb > 0)) % 4], a0 = bn.ca - RA, a1 = bn.ca + RA, b0 = bn.cb - RB, b1 = bn.cb + RB;
-          box(a0, a1, b0, b1, h0, h1 - 3, col); box(a0, a1, b0, b1, h1 - 3, h1, _pdk(col, 0.72));   /* (its open mouth: a darker band round the top) */
-          for(const [nx, ny, fx] of [[1, 0, a1], [-1, 0, a0], [0, 1, b1], [0, -1, b0]]){ if(!sees(nx, ny, 0)) continue;
-            if(nx && Math.sign(bn.ca) !== nx || ny && Math.sign(bn.cb) !== ny) continue;   /* (only an outer face carries a card) */
-            const q = nx ? (u, z) => P(fx + nx*0.2, bn.cb + u, z) : (u, z) => P(bn.ca + u, fx + ny*0.2, z), zc = h0 + 7;
-            g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)].map(PT), true);
-            g.fillStyle(0x2a2f36, 1); g.fillPoints([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)].map(PT), true); } } }
+        const h0 = LV[i] + 2.5;
+        SL.map((q, j) => ({ q, L: LS[j] })).filter(o => o.q.lv === i && o.L).map(o => ({ o, d: V.depth(o.q.a, o.q.b, h0 + 10) })).sort((p, q) => p.d - q.d)
+          .forEach(({ o }) => this.amrLoad(g, V, o.L, o.q.a, o.q.b, h0, [1, 0], AS)); }
       box(-SA, SA, -SB, SB, LV[4], LV[4] + 2.5, SHELF);
       for(const p of posts.slice(2)) post(p);
       return; }
@@ -131585,13 +131723,9 @@ class WorldScene extends Phaser.Scene {
         g.fillStyle(0xc4cad0, 1); g.fillPoints([P(a - 0.4, -BB + 1, Z + 0.25), P(a + 0.6, -BB + 1, Z + 0.25), P(a + 0.6, BB - 1, Z + 0.25), P(a - 0.4, BB - 1, Z + 0.25)].map(PT), true); } }
       drum(-farA);
       /* its boxes, riding tail to nose */
-      const BX = [{ off: 0, la: 12, lb: 14, h: 20, col: 0xc98a4a }, { off: 60, la: 10, lb: 11, h: 15, col: 0xb97b40 }].map(o => ({ ...o, a: A0 - 24 + ((run + o.off) % 120) }))
-        .filter(o => o.a - o.la > A0 - 1 && o.a + o.la < A1 + 1).sort((p, q) => V.depth(p.a, 0, 30) - V.depth(q.a, 0, 30));
-      for(const o of BX){ box(o.a - o.la, o.a + o.la, -o.lb, o.lb, Z + 0.3, Z + o.h, o.col);
-        if(AS) brand((u, v) => P(o.a + u, v, Z + o.h + 0.25), Math.min(o.la, o.lb)*0.62, o.col);
-        else if(sees(0, 0, 1)){ const hz = Z + o.h + 0.2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(o.a - o.la, -1.2, hz), P(o.a + o.la, -1.2, hz), P(o.a + o.la, 1.2, hz), P(o.a - o.la, 1.2, hz)].map(PT), true);
-          g.fillStyle(0xf6f4ee, 1); g.fillPoints([P(o.a - o.la*0.7, 3, hz), P(o.a - o.la*0.1, 3, hz), P(o.a - o.la*0.1, o.lb*0.75, hz), P(o.a - o.la*0.7, o.lb*0.75, hz)].map(PT), true);
-          g.fillStyle(0x2a2f36, 1); g.fillPoints([P(o.a - o.la*0.6, 4.5, hz + 0.05), P(o.a - o.la*0.2, 4.5, hz + 0.05), P(o.a - o.la*0.2, 5.5, hz + 0.05), P(o.a - o.la*0.6, 5.5, hz + 0.05)].map(PT), true); } }
+      const LS = amrLoadsOf('amrconv'), BX = AMR_SLOTS.amrconv.map((q, i) => ({ L: LS[i], a: A0 - 24 + ((run + q.off) % 120) })).filter(o => o.L)   /* (AMRL: whatever rides it) */
+        .filter(o => o.a - o.L.la > A0 - 1 && o.a + o.L.la < A1 + 1).sort((p, q) => V.depth(p.a, 0, 30) - V.depth(q.a, 0, 30));
+      for(const o of BX) this.amrLoad(g, V, o.L, o.a, 0, Z + 0.3, [1, 0], AS);
       frame(nearB);
       if(sees(-1, 0, 0)) motor();
       return; }
@@ -131600,7 +131734,7 @@ class WorldScene extends Phaser.Scene {
          nose, lifts it, swings it round over its far side and sets it in the tote on its tail, then next time carries it back. Round tapered
          links, a motor drum at each joint, a two-fingered gripper; its reach stays inside its lid. Everything sorted by depth */
       if(st !== 'post') return;
-      const SZ = TOP + 20, L1 = 28, L2 = 26, ST = 28, ZDN = TOP + 14, ZUP = TOP + 38, BOX = 5;
+      const WL = amrLoadsOf('amrarm')[0], BOX = WL ? Math.min(WL.la, WL.lb) : 5, SZ = TOP + 20, L1 = 28, L2 = 26, ST = 28, ZDN = TOP + 4 + (WL ? WL.h : 10), ZUP = TOP + 38;   /* (WL: the load it works, AMRL -- none, it works empty) */
       /* a round rod between two points, tapering r0 to r1 */
       const rod = (p0, p1, r0, r1, col, cap) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
         const a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1);
@@ -131615,7 +131749,7 @@ class WorldScene extends Phaser.Scene {
       const ph2 = from === 0 ? swing*Math.PI : Math.PI - swing*Math.PI;
       const wz = u < 0.12 ? ZUP + (ZDN - ZUP)*seg(0, 0.12) : u < 0.2 ? ZDN : u < 0.32 ? ZDN + (ZUP - ZDN)*seg(0.2, 0.32) : u < 0.62 ? ZUP : u < 0.74 ? ZUP + (ZDN - ZUP)*seg(0.62, 0.74) : u < 0.82 ? ZDN : ZDN + (ZUP - ZDN)*seg(0.82, 0.94);
       const wr = u >= 0.32 && u < 0.62 ? ST - 4*Math.sin(swing*Math.PI) : ST;
-      const held = u >= 0.17 && u < 0.78, grip = u < 0.12 || u >= 0.78 ? 7.5 : u < 0.2 ? 7.5 - (7.5 - BOX - 1)*seg(0.12, 0.18) : u < 0.74 ? BOX + 1 : BOX + 1 + (7.5 - BOX - 1)*seg(0.74, 0.8);
+      const held = !!WL && u >= 0.17 && u < 0.78, grip = !WL ? 7.5 :  u < 0.12 || u >= 0.78 ? 7.5 : u < 0.2 ? 7.5 - (7.5 - BOX - 1)*seg(0.12, 0.18) : u < 0.74 ? BOX + 1 : BOX + 1 + (7.5 - BOX - 1)*seg(0.74, 0.8);
       const ang = ph2*side*(nearB > 0 ? -1 : 1);   /* (always over the side away from the eye) */
       const ca = Math.cos(ang), sa = Math.sin(ang), W3 = (r, z) => [ca*r, sa*r, z], w = [-sa, ca, 0];
       /* elbow up: two links in the arm's own upright plane */
@@ -131627,7 +131761,7 @@ class WorldScene extends Phaser.Scene {
       const atNose = leg % 2 ? (u >= 0.78) : (u < 0.17), atTail = !held && !atNose;
       for(const sa2 of [1, -1]){ const a = sa2*ST;
         add([a, 0, TOP + 4], () => { box(a - 9, a + 9, -10, 10, TOP, TOP + 8, TOTE); box(a - 7.5, a + 7.5, -8.5, 8.5, TOP + 7.9, TOP + 8.05, _pdk(TOTE, 0.5)); });
-        if((sa2 > 0 && atNose) || (sa2 < 0 && atTail)) add([a, 0, TOP + 8], () => crate(a - BOX, a + BOX, -BOX, BOX, TOP + 1, TOP + 1 + 2*BOX, 0xc98a4a), 0.01); }
+        if(WL && ((sa2 > 0 && atNose) || (sa2 < 0 && atTail))) add([a, 0, TOP + 8], () => this.amrLoad(g, V, WL, a, 0, TOP + 1, [1, 0], AS), 0.01); }
       /* its base and waist */
       add([0, 0, TOP + 2], () => { this.avLathe(V, 0, 0, [[TOP, 15], [TOP + 4, 15], [TOP + 4, 11], [TOP + 6, 11]], DARK, null, 16); this.avLathe(V, 0, 0, [[TOP + 6, 10], [SZ - 5, 9], [SZ - 3, 7]], Y, null, 14); }, -50);
       add(sh, () => rod([sh[0] - w[0]*7, sh[1] - w[1]*7, SZ], [sh[0] + w[0]*7, sh[1] + w[1]*7, SZ], 7, 7, _pdk(Y, 0.9), DARK));
@@ -131639,7 +131773,7 @@ class WorldScene extends Phaser.Scene {
       const fingers = [-1, 1].map(sg => { const b0 = [wrp[0] + w[0]*sg*grip, wrp[1] + w[1]*sg*grip]; return { sg, b0, d: V.depth(b0[0], b0[1], wz - 8) }; });
       add([wrp[0], wrp[1], wz - 4.5], () => box(wrp[0] - 2.5, wrp[0] + 2.5, wrp[1] - 2.5, wrp[1] + 2.5, wz - 5.5, wz - 4, 0x3a3e46), 0.001);
       for(const fg of fingers) add([fg.b0[0], fg.b0[1], wz - 8], () => rod([fg.b0[0], fg.b0[1], wz - 4.5], [fg.b0[0], fg.b0[1], wz - 12], 1.3, 1.1, STEEL), 0.003);
-      if(held) add([wrp[0], wrp[1], wz - 8], () => crate(wrp[0] - BOX, wrp[0] + BOX, wrp[1] - BOX, wrp[1] + BOX, wz - 8 - BOX, wz - 8 + BOX, 0xc98a4a), 0.002);
+      if(held) add([wrp[0], wrp[1], wz - 8], () => this.amrLoad(g, V, WL, wrp[0], wrp[1], wz - 3 - WL.h, [w[1], -w[0]], AS), 0.002);
       byDepth(items);
       return; }
 
@@ -131663,10 +131797,10 @@ class WorldScene extends Phaser.Scene {
         /* deck boards across, gaps between */
         for(let k = 0; k < 6; k++){ const a0 = F0 + 2 + k*12, a1 = a0 + 9.5; box(a0, a1, -31, 31, PZ + 8, PZ + 10.5, k % 2 ? WOOD : _pdk(WOOD, 0.95)); }
         /* the cartons: two along, two across, two high */
-        const CZ = PZ + 10.5, CH = 18, A = [F0 + 4, (F0 + F1)/2, F1 - 4], B = [-29, 0, 29], CC = [0xc98a4a, 0xbf8244, 0xd29a5a, 0xb97b40];
-        for(let lv = 0; lv < 2; lv++){ const cs = [];
-          for(let ia = 0; ia < 2; ia++) for(let ib = 0; ib < 2; ib++) cs.push({ ia, ib, d: V.depth((A[ia] + A[ia + 1])/2, (B[ib] + B[ib + 1])/2, CZ + lv*CH + 9) });
-          cs.sort((p, q) => p.d - q.d).forEach(c => crate(A[c.ia] + 0.4, A[c.ia + 1] - 0.4, B[c.ib] + 0.4, B[c.ib + 1] - 0.4, CZ + lv*CH, CZ + (lv + 1)*CH - 0.3, CC[(c.ia + 2*c.ib + lv) % 4])); }
+        const CZ = PZ + 10.5, CH = 18, A = [F0 + 4, (F0 + F1)/2, F1 - 4], LS = amrLoadsOf('amrjack'), SL = AMR_SLOTS.amrjack;   /* (AMRL: its cartons, two high) */
+        for(let lv = 0; lv < 2; lv++) SL.map((q, i) => ({ q, L: LS[i] })).filter(o => o.q.lv === lv && o.L).map(o => ({ o, d: V.depth(hx + o.q.a, o.q.b, CZ + lv*CH + 9) }))
+          .sort((p, q) => p.d - q.d).forEach(({ o }) => this.amrLoad(g, V, o.L, hx + o.q.a, o.q.b, lv && o.q.on != null && LS[o.q.on] ? CZ + LS[o.q.on].h + 0.3 : CZ, [1, 0], AS));
+        if(!LS.every(L => L && L.wrap)) return;   /* (unwrapped once a carton is off: the film and corner boards only on a full stack) */
         const ZT = CZ + 2*CH;
         /* corner boards up its edges, where a face beside them shows */
         for(const sa of [-1, 1]) for(const sb of [-1, 1]){ if(!sees(sa, 0, 0) && !sees(0, sb, 0)) continue; const a = sa > 0 ? A[2] : A[0], b = sb*29;
