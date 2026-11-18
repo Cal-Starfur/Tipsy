@@ -128597,7 +128597,7 @@ class WorldScene extends Phaser.Scene {
         for(let zz = z0 + 4, k = 0; zz < z1 - 6; zz += 13, k++) wind(zz, 8, 4, k % 2 ? L1 : 0xf6eed6, k*23); };
       if(st === 'body') wrapZone(12, 76);
       if(st === 'face'){ wrapZone(76, 102);
-        if(front){ const q = P(hx + 1.2, 6.5, 86); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, sr(hx, 6, 86, 5)*1.6, sr(hx, 6, 86, 3.4)*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y, sr(hx, 6, 86, 1.8)); } }   // (one eye peeking through a gap)
+        if(front){ const q = P(hx + 1.2, 6.5, 86); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, sr(hx, 6, 86, 5)*1.6, sr(hx, 6, 86, 3.4)*1.6); g.fillStyle(0xff2a1a, 1); g.fillCircle(q.x, q.y, sr(hx, 6, 86, 1.8)); g.fillStyle(0xff8a6a, 0.8); g.fillCircle(q.x - sr(hx, 6, 86, 0.5), q.y - sr(hx, 6, 86, 0.5), sr(hx, 6, 86, 0.6)); } }   // (one red eye peeking through a gap -- Sir, 2026-11-18)
       if(st === 'top'){ if(!((this._courierLD || {}).A > 0.05)){   /* (the lid wrapped as his body is -- Sir, 2026-11-17): a band round its side, and the wrapping
            wound in on its top in his own octagon, ring inside ring, two tones, dark edges -- while it is shut */
           this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: C, z0: 102, z1: zl, band: true, cLt: L2, cDk: _pdk(L2, 0.85) });
