@@ -130860,13 +130860,20 @@ class WorldScene extends Phaser.Scene {
           glowAt(P(HX + 12, 0, 56.5), 0x5fe8ff, 12*this.kScale()); g.fillStyle(0x5fe8ff, 1); g.fillPoints(V0.map(PT), true);
           g.fillStyle(0xe8fdff, 1); g.fillPoints([P(HX + 11.8, -8, 55.6), P(HX + 11.8, 8, 55.6), P(HX + 11.8, 8, 57.2), P(HX + 11.8, -8, 57.2)].map(PT), true); }
       }
-      if(c === 'mail'){
-        const strap = () => { for(const sb of [-1, 1]) flankQ(sb, [[-11, 46.5], [-7, 46.5], [-7, 65.5], [-11, 65.5]], 0x6a4a2a); topQ([[-11, -HY + 1], [-7, -HY + 1], [-7, HY - 1], [-11, HY - 1]], 0x6a4a2a); };
-        if(st === 'flank') strap();
-        if(st === 'top'){ boxS(-22, 4, -11, 11, Z1, Z1 + 12, 0x8a5a2a); boxS(-22.4, -2, -11.4, 11.4, Z1 + 7, Z1 + 12.4, 0x6a4320);   /* (its satchel, its flap) */
-          if(front || sees(1, 0, 0.3)){ g.fillStyle(0xd8b04a, 1); const q = P(-1.6, 0, Z1 + 9), r = 1.6*K*2; g.fillRect(q.x - r, q.y - r*0.7, r*2, r*1.4); }
-          line([-28, -8, Z1], [-28, -8, Z1 + 28], 0x3a3e46, 1.4);   /* (its little mail flag up) */
-          g.fillStyle(0xd8261c, 1); g.fillPoints([P(-28, -8, Z1 + 28), P(-38, -8, Z1 + 28), P(-38, -8, Z1 + 21), P(-28, -8, Z1 + 21)].map(PT), true); }
+      if(c === 'mail'){   /* (second pass -- Sir, 2026-11-18): postal blue, a red and blue line either side of its white band; a leather mail bag
+           slung each side, its flap buckled, letters standing up out of its top; a strap over its back joining them; a mailbox flag up on a hinged arm */
+        const bag = sb => { const b0 = sb*(HY + 0.4), b1 = sb*(HY + 7), lo = Math.min(b0, b1), hi = Math.max(b0, b1);
+          for(const [a, h, tilt] of [[-6, 6, -1], [-1, 7, 0.6], [4, 5.5, -0.4]]) boxS(a - 2.4 + tilt, a + 2.4 + tilt, lo + 1.2, hi - 1.2, 62, 62 + h, 0xf6f6f2);   /* (letters standing in it) */
+          boxS(-10, 10, lo, hi, 47, 63, 0x8a5a2a); boxS(-10.4, 10.4, lo - 0.3, hi + 0.3, 57, 63.4, 0x6a4320);
+          if(sees(0, sb, 0)){ const bb = sb*(HY + 7.4); g.fillStyle(0xd8b04a, 1); const q = P(0, bb, 57.5), r = 1.6*K*2; g.fillRect(q.x - r, q.y - r*0.8, r*2, r*1.6);
+            g.fillStyle(0x6a4320, 1); g.fillPoints([P(-1, bb, 57), P(1, bb, 57), P(1, bb, 52), P(-1, bb, 52)].map(PT), true); } };
+        if(st === 'far') bag(-nearB);
+        if(st === 'flank'){ for(const sb of [-1, 1]){ flankQ(sb, [[-29, 50.6], [29, 50.6], [29, 51.6], [-29, 51.6]], 0xc8202a, 1, 0.9); flankQ(sb, [[-29, 57.4], [29, 57.4], [29, 58.4], [-29, 58.4]], 0x1f3a8a, 1, 0.9); }
+          topQ([[-2, -HY], [2, -HY], [2, HY], [-2, HY]], 0x6a4320, 1, Z1 + 0.35); bag(nearB); }
+        if(st === 'top'){ const PA = -26, PB = -10;   /* (the mailbox flag: a pivot on its flank, an arm up, a red flag) */
+          cylB(PA, Z1 - 3, 2.2, -HY - 0.2, -HY - 2.4, 0x3a3e46, 0x2a2d33);
+          tube([PA, -HY - 1.6, Z1 - 3], [PA - 1, -HY - 1.6, Z1 + 20], 1.8, 0xc8202a);
+          boxS(PA - 9, PA, -HY - 2.2, -HY - 1, Z1 + 13, Z1 + 21, 0xd8261c); }
       }
       if(c === 'show'){
         if(st === 'flank'){ for(const sb of [-1, 1]){ flankQ(sb, [[-20, 66], [10, 66], [10, 52], [-20, 52]], 0x8a1c24, 1, 0.9); flankQ(sb, [[-20, 53.4], [10, 53.4], [10, 52], [-20, 52]], 0xd8b04a, 1, 1);
