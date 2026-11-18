@@ -149,7 +149,7 @@
 "title": "Walk-in interior: Driftwood Books",
 "spec": "docs/kits/walkin-shop-recipe.md",
 "deps": [],
-"status": "pending",
+"status": "built",
 "note": "block 2,0 edge 1",
 "group": "Walk-in interiors: Flats shops"
 },
