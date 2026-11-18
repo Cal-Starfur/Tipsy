@@ -118106,7 +118106,7 @@ class WorldScene extends Phaser.Scene {
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
       /* THE GHOST IS ALL SHEET (Sir, 2026-11-17: "trim the body to this exact shape"): none of his body, lid, bands or hatches drawn under it,
          so nothing of the box can show past the cloth -- the sheet, then his near wheel */
-      if(CS && CS.costume === 'ghost'){ costume('top'); V.wheel(0, nearB*24, R, 8, R, wheelPhase); return; }
+      if(CS && CS.costume === 'ghost'){ this._courierLD = LD; costume('top'); V.wheel(0, nearB*24, R, 8, R, wheelPhase); return; }
       const lidTop = sees(0, 0, 1);                                                                 // (Tipsey's lidNear)
       const drawLid = () => {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid'), CS && CS.head ? { cTop: CS.head, cLt: _pdk(CS.head, 0.92), cDk: _pdk(CS.head, 0.8), print: null } : {}), LD);   // (a costume's head colour on his lid)
@@ -128563,7 +128563,16 @@ class WorldScene extends Phaser.Scene {
          mouth cut in it on his front */
       if(st !== 'top') return;
       const R = 25.5, W = 0xf4f4f6;
-      lathe(0, 0, [[5, R + 2], [24, R + 0.6], [70, R], [98, R - 1.5], [108, R - 5], [116, R - 11], [120, R - 18], [122, 0.5]], W);
+      /* (his lid still opens in it -- Sir, 2026-11-17): the sheet's crown is his lid -- cut at his lid line (102), it swings on his hinge with
+         it; when it is up, the round dark opening of his hold shows under it */
+      const LD = this._courierLD || { A: 0 }, cA = Math.cos(LD.A || 0), sA = Math.sin(LD.A || 0)*(LD.flip ? -1 : 1), yh = LD.yh || -hy, zh = 102;
+      const VL = (LD.A || 0) > 0.001 ? this.vehKit(g, x, y, z, fdir, (a, bb, h) => { const dy = bb - yh, dz = h - zh; return [a, yh + dy*cA - dz*sA, zh + dy*sA + dz*cA]; }) : V;
+      const crown = () => this.avLathe(VL, 0, 0, [[102, R - 2.6], [108, R - 5], [116, R - 11], [120, R - 18], [122, 0.5]], W, null, 14);
+      const up = (LD.A || 0) > 0.12;
+      if(up && !sees(0, 0, 1)) crown();
+      lathe(0, 0, [[5, R + 2], [24, R + 0.6], [70, R], [98, R - 1.5], [102, R - 2.6]], W);
+      if(up){ const o = []; for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; o.push(PT(P(Math.cos(th)*(R - 4), Math.sin(th)*(R - 4), 102.2))); } g.fillStyle(0x23262c, 1); g.fillPoints(o, true); }   // (the hold's opening)
+      if(!up || sees(0, 0, 1)) crown();
       for(let i = 0; i < 24; i++){ const a0 = i/24*Math.PI*2, a1 = (i + 1)/24*Math.PI*2, am = (a0 + a1)/2; if(!sees(Math.cos(am), Math.sin(am), 0)) continue; const r = R + 2;   // (its ragged hem)
         g.fillStyle(i % 2 ? 0xe6e8ee : W, 1); g.fillPoints([P(Math.cos(a0)*r, Math.sin(a0)*r, 6), P(Math.cos(a1)*r, Math.sin(a1)*r, 6), P(Math.cos(am)*(r + 0.5), Math.sin(am)*(r + 0.5), i % 2 ? 0 : 2)].map(PT), true); }
       for(const am of [0.6, 1.4, 2.3, 3.2, 4.0, 4.9, 5.7]){ if(!sees(Math.cos(am), Math.sin(am), 0)) continue; const A = P(Math.cos(am)*(R - 1.3), Math.sin(am)*(R - 1.3), 104), B = P(Math.cos(am)*(R + 1.8), Math.sin(am)*(R + 1.8), 8);   // (soft folds)
