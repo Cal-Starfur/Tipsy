@@ -28387,8 +28387,8 @@ function walkinStreetBlock(x, y, r){
 const WALKIN_BAN = { st: null, pk: null, s: null, pend: null, t: 0 };
 /* THE SHOPS' RULE (W34; Sir, 2026-11-18: "give the other shops the same knock-down rule. lets make it a general rule for these small
    shops"): every shop walk-in takes one knock-down and puts him out -- who sees him out (by: their staff ids, first choice first),
-   who speaks and the line. A room may say its own on its pocket (ban, banBy, banSay: the museum, the tea house, the bookshop). Not the
-   shops' rule: the school, the chapel, the baths, a home, the lobbies, the studios, the offices, the shelter */
+   who speaks and the line. A room may say its own on its pocket (ban, banBy, banSay: the museum, the tea house, the bookshop). Every
+   walk-in room he can drive into is on it -- the shops, and the school, chapel, baths, cottage, lobby, studios, offices and shelter */
 const WALKIN_SHOP_BAN = (() => {
   const line = n => "You've knocked a " + n + " flat. I'll see you out, and you're not to come back in.";
   const st = (v, k) => () => { try { const o = typeof v === 'function' ? v() : null; return !!(o && o[k || 'stage'] !== 'idle'); } catch(e){ return false; } };
@@ -28407,6 +28407,19 @@ const WALKIN_SHOP_BAN = (() => {
     'Tidewater Kart Works Interior':{ by: ['clerk', 'mechanic'], who: 'Kart Works Clerk', say: line('customer'), story: st(() => KW) },
     'Marina Chandlery Interior':    { by: ['clerk'], who: 'Chandlery Clerk', say: line('customer'), story: st(() => LH) },
     'Brew & Bolt Interior':         { by: ['gideon'], who: 'Gideon', say: line('customer'), story: st(() => MS) },
+    /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
+    'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
+    'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
+    'Driftwood Chapel Interior':    { by: ['verger', 'lectern'], who: 'Verger', say: line('worshipper') },
+    'Ferris Taylor Cottage Interior': { by: ['resident'], who: 'Resident', say: "You've knocked someone flat in my home. Out you go, and don't come back." },
+    'Palmline Tower Lobby':         { by: ['guard', 'reception'], who: 'Security Guard', say: line('tenant') },
+    'Tide Pool Elementary Interior':{ by: [], who: 'Teacher',   // (no first choice: a big building -- whoever of the staff is nearest)
+      say: "You've knocked someone flat in my school. I'll see you out, and you're not to come back in." },
+    'Sun Deck Motor Lodge Office':  { by: ['clerk', 'night-manager'], who: 'Desk Clerk', say: line('guest'), story: st(() => GETAWAY) },
+    'KTDE 98.1 The Tide Studios':   { by: ['receptionist', 'producer'], who: 'Receptionist', say: line('visitor'), story: st(() => RL) },
+    'Sun Deck Airfield Terminal Interior': { by: ['checkin', 'cafe'], who: 'Check-in Agent', say: line('traveller'), story: st(() => GETAWAY) },
+    'Vista Ridge Security Post Monitor Room': { by: ['day', 'night'], who: 'Security Guard', say: line('guard'), story: st(() => NW) },
+    'Pelican Port Office Interior': { by: ['port-clerk', 'harbour-master'], who: 'Port Clerk', say: line('visitor'), story: st(() => LH) },
   };
 })();
 /* the room's rule (its pocket's own, else the shops'), or null */
