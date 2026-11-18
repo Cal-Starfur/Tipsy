@@ -130676,10 +130676,23 @@ class WorldScene extends Phaser.Scene {
       const Kn = [H[0] + ka*L1, H[1], H[2] + kz*L1];
       legs.push({ H, Kn, Fp, sb, ha });
     }
-    const leg = L => { tube(L.H, L.Kn, 7, DS && DS.thigh || BODYC.top); tube(L.Kn, [L.Fp[0], L.Fp[1], L.Fp[2] + 1.5], 4.6, DS && DS.shin || DARK);
-      if(DS && DS.dog === 'neon'){ line(L.H, L.Kn, 0x5fe8ff, 1.4); line(L.Kn, L.Fp, 0x5fe8ff, 1.2); }
-      this.avLathe(V, L.Kn[0], L.Kn[1], [[L.Kn[2] - 3, 3.6], [L.Kn[2] + 3, 3.6]], DARK, null, 10);
-      this.avLathe(V, L.Fp[0], L.Fp[1], [[L.Fp[2] - FOOTR, 1.6], [L.Fp[2] - FOOTR*0.4, FOOTR], [L.Fp[2] + FOOTR*0.6, FOOTR*0.85], [L.Fp[2] + FOOTR, 0]], FOOT, null, 10); };
+    /* A LEG (Sir, 2026-11-18: "the upper leg is too simple ... at the top it should connect to the body"): a hip motor -- a drum let into the
+       torso's side -- the thigh hung off it outboard, broad at the hip and tapering to the knee, its edge chamfered, a knee drum, a tapering
+       shin to a rubber foot. Drawn inboard to outboard on the near side, outboard to inboard on the far one */
+    const slab = (p0, p1, w0, w1, th, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
+      let n2 = [-u[2], 0, u[0]]; const l2 = Math.hypot(...n2) || 1; n2 = n2.map(v => v/l2);   /* (across the leg in its own upright plane) */
+      const ring = (p, w) => { const c = Math.min(w*0.22, th*0.3); return [[w/2 - c, th/2], [w/2, th/2 - c], [w/2, -th/2 + c], [w/2 - c, -th/2], [-w/2 + c, -th/2], [-w/2, -th/2 + c], [-w/2, th/2 - c], [-w/2 + c, th/2]].map(([i, j]) => [p[0] + n2[0]*i, p[1] + j, p[2] + n2[2]*i]); };
+      const A = ring(p0, w0), B = ring(p1, w1), F = [A, B.slice().reverse()]; for(let k = 0; k < 8; k++) F.push([A[k], A[(k + 1) % 8], B[(k + 1) % 8], B[k]]); solid(F, col, null); };
+    const leg = L => { const sb = L.sb, TH = DS && DS.thigh || BODYC.top, SH = DS && DS.shin || DARK, bo = sb*(HY + 6);
+      const H = [L.H[0], bo, L.H[2]], Kn = [L.Kn[0], bo, L.Kn[2]], Fp = [L.Fp[0], bo, L.Fp[2]];
+      const motor = () => cylB(L.H[0], L.H[2], 7, sb*(HY - 1), sb*(HY + 3.6), _pdk(BODYC.top, 0.86), DARK);
+      const thigh = () => slab(H, Kn, 12, 6.5, 5, TH);
+      const knee = () => cylB(Kn[0], Kn[2], 3.8, sb*(HY + 2.8), sb*(HY + 9.2), DARK, _pdk(DARK, 1.35));
+      const shin = () => slab(Kn, [Fp[0], bo, Fp[2] + 1.5], 5.4, 3.6, 4, SH);
+      const foot = () => this.avLathe(V, Fp[0], bo, [[Fp[2] - FOOTR, 1.6], [Fp[2] - FOOTR*0.4, FOOTR], [Fp[2] + FOOTR*0.6, FOOTR*0.85], [Fp[2] + FOOTR, 0]], FOOT, null, 10);
+      const near = sb === nearB, steps = near ? [motor, thigh, shin, knee, foot] : [shin, foot, thigh, knee, motor];
+      for(const f of steps) f();
+      if(DS && DS.dog === 'neon'){ line(H, Kn, 0x5fe8ff, 1.4); line(Kn, Fp, 0x5fe8ff, 1.2); } };
     const byDepth = arr => arr.sort((p, q) => V.depth(p.ha, p.sb*20, 30) - V.depth(q.ha, q.sb*20, 30));
     /* its beacon on its back up by its head (his flag's colour -- Sir, 2026-11-18), a rail either side behind it */
     const beacon = () => { if(DS && DS.noBeacon) return;
@@ -130786,6 +130799,9 @@ class WorldScene extends Phaser.Scene {
     if(!front) head();   /* (its head behind the torso from behind) */
     this.botHull(g, x, y, z, fdir, Object.assign({ hx: HX, hy: HY, z0: Z0, z1: Z1, ch: 7, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(Z0, Z1, 'body')));
     this.botHull(g, x, y, z, fdir, { hx: HX + 0.6, hy: HY + 0.6, ch: 7, z0: 52, z1: 57, band: true, cLt: STRIPEC, cDk: STRIPED });
+    /* its belly pan, a dark plate under it, and a seam either side of its middle panel */
+    if(sees(0, 0, -1)) solid(prismH([[-30, -12], [30, -12], [30, 12], [-30, 12]], Z0 - 3, Z0), DARK, null, false);
+    for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-12, 12]){ const A = P(a, sb*(HY + 0.5), 58), B = P(a, sb*(HY + 0.5), 65); g.lineStyle(Math.max(1, 1*K), _pdk(BODYC.dk, 0.8), 1); g.lineBetween(A.x, A.y, B.x, B.y); }
     if(WEAR && !DS) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
     dogAcc('flank');
     /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
