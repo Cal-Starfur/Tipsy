@@ -43711,6 +43711,15 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'patrol:crossing', build: 'patrol', name: 'Crossing Guard', cents: 900, body: 0xd4ea3a, stripe: 0xd9dde2, costume: 'crossing', noMouth: true },
   { id: 'patrol:ranger', build: 'patrol', name: 'Park Ranger', cents: 900, body: 0x4a5a32, upper: 0xc8b080, stripe: 0x5a3a1e, costume: 'ranger', noMouth: true },
   { id: 'patrol:bouncer', build: 'patrol', name: 'Bouncer', cents: 900, body: 0x1c1d21, stripe: 0x1c1d21, costume: 'bouncer', noMouth: true },
+  /* THE ROBOT DOG'S SKINS (Sir, 2026-11-18) -- drawPatrolDog's dogAcc: each its paint and its own pieces */
+  { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0x16171b, dog: 'k9', lightbar: true },
+  { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
+  { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
+  { id: 'pdog:hazmat', build: 'pdog', name: 'Hazmat', cents: 900, body: 0xf2c02e, stripe: 0xf2c02e, dog: 'hazmat', beacon: 0x7cff5a },
+  { id: 'pdog:desert', build: 'pdog', name: 'Desert Recon', cents: 900, body: 0xc8a874, stripe: 0x8a6a40, shin: 0x4a3c26, dog: 'desert', noBeacon: true },
+  { id: 'pdog:neon', build: 'pdog', name: 'Neon Cyber', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, dog: 'neon', beacon: 0x5fe8ff, glow: 0x5fe8ff },
+  { id: 'pdog:mail', build: 'pdog', name: 'Mail Hound', cents: 900, body: 0x2a4a9a, stripe: 0xf6f6f2, dog: 'mail', noBeacon: true },
+  { id: 'pdog:show', build: 'pdog', name: 'Show Dog', cents: 900, body: 0xd9a93c, stripe: 0x8a1c24, shin: 0x6a5020, dog: 'show', noBeacon: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -128918,9 +128927,10 @@ class WorldScene extends Phaser.Scene {
   drawPatrolDog(g, V, x, y, z, t, fdir, nearB, wheelPhase, WEAR, BPW, shadow, data){
     const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0);
     const DARK = 0x2a2f36, FOOT = 0x16171b, CYAN = 0x5fe8e0;
-    const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xeef0f2, lt: 0xe1e4e8, dk: 0xc0c6cd };
-    const STRIPEC = WEAR ? SKIN.stripe : 0x2e6fd1, STRIPED = WEAR ? SKIN.stripeDk : _pdk(0x2e6fd1, 0.8), FLAGC = WEAR ? SKIN.flag : 0x2e6fd1;
-    const paintOf = (z0, z1, part) => WEAR ? { fin: BPW.fin, print: BPW.print, printPart: part, split: BPW.split ? Object.assign({}, BPW.split, { z: z0 + (z1 - z0)*0.5 }) : null } : {};
+    const DS = WEAR && SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'pdog');   /* (one of its own skins) */
+    const BODYC = DS ? { top: DS.body, lt: _pdk(DS.body, 0.92), dk: _pdk(DS.body, 0.8) } : WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xeef0f2, lt: 0xe1e4e8, dk: 0xc0c6cd };
+    const STRIPEC = DS ? DS.stripe : WEAR ? SKIN.stripe : 0x2e6fd1, STRIPED = DS ? _pdk(DS.stripe, 0.8) : WEAR ? SKIN.stripeDk : _pdk(0x2e6fd1, 0.8), FLAGC = DS && DS.beacon ? DS.beacon : WEAR ? SKIN.flag : 0x2e6fd1;
+    const paintOf = (z0, z1, part) => WEAR && !DS ? { fin: BPW.fin, print: BPW.print, printPart: part, split: BPW.split ? Object.assign({}, BPW.split, { z: z0 + (z1 - z0)*0.5 }) : null } : {};
     const HX = 36, HY = 16, Z0 = 46, Z1 = 66, HIPZ = 50, L1 = 28, L2 = 28, FOOTR = 3.4;
     const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
       const a = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
@@ -128942,31 +128952,122 @@ class WorldScene extends Phaser.Scene {
       const Kn = [H[0] + ka*L1, H[1], H[2] + kz*L1];
       legs.push({ H, Kn, Fp, sb, ha });
     }
-    const leg = L => { tube(L.H, L.Kn, 7, BODYC.top); tube(L.Kn, [L.Fp[0], L.Fp[1], L.Fp[2] + 1.5], 4.6, DARK);
+    const leg = L => { tube(L.H, L.Kn, 7, DS && DS.thigh || BODYC.top); tube(L.Kn, [L.Fp[0], L.Fp[1], L.Fp[2] + 1.5], 4.6, DS && DS.shin || DARK);
+      if(DS && DS.dog === 'neon'){ line(L.H, L.Kn, 0x5fe8ff, 1.4); line(L.Kn, L.Fp, 0x5fe8ff, 1.2); }
       this.avLathe(V, L.Kn[0], L.Kn[1], [[L.Kn[2] - 3, 3.6], [L.Kn[2] + 3, 3.6]], DARK, null, 10);
       this.avLathe(V, L.Fp[0], L.Fp[1], [[L.Fp[2] - FOOTR, 1.6], [L.Fp[2] - FOOTR*0.4, FOOTR], [L.Fp[2] + FOOTR*0.6, FOOTR*0.85], [L.Fp[2] + FOOTR, 0]], FOOT, null, 10); };
     const byDepth = arr => arr.sort((p, q) => V.depth(p.ha, p.sb*20, 30) - V.depth(q.ha, q.sb*20, 30));
     /* its beacon on its back up by its head (his flag's colour -- Sir, 2026-11-18), a rail either side behind it */
-    const beacon = () => { for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);
+    const beacon = () => { if(DS && DS.noBeacon) return;
+      if(DS && DS.lightbar){ const ph2 = data && data.still ? -1 : Math.floor(t/230) % 2; boxS(16, 30, -12, 12, Z1, Z1 + 3, 0x15181d);   /* (a red and blue light bar) */
+        for(let i = 0; i < 2; i++){ const sb = i ? 1 : -1, lit = ph2 === i, col = lit ? (i ? 0x4aa3ff : 0xff4a4a) : (i ? 0x1d3a6b : 0x5a1c1c); boxS(17, 29, sb > 0 ? 1 : -11, sb > 0 ? 11 : -1, Z1 + 3, Z1 + 7, col);
+          if(lit){ const q = P(23, sb*6, Z1 + 6), r = 12*this.kScale(); g.fillStyle(col, 0.18); g.fillCircle(q.x, q.y, r); g.fillStyle(col, 0.1); g.fillCircle(q.x, q.y, r*1.7); } }
+        return; }
+      for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);
       this.avLathe(V, 24, 0, [[Z1, 5.5], [Z1 + 3, 5.5]], DARK, null, 12);
       const lit = data && data.still ? true : Math.floor(t/500) % 2 === 0;
       this.avLathe(V, 24, 0, [[Z1 + 3, 4.6], [Z1 + 7, 4.4], [Z1 + 9.5, 2.6], [Z1 + 10.5, 0]], lit ? FLAGC : _pdk(FLAGC, 0.6), lit ? () => FLAGC : null, 12);
       if(lit){ const q = P(24, 0, Z1 + 7), r = 9*this.kScale(); g.fillStyle(FLAGC, 0.16); g.fillCircle(q.x, q.y, r); g.fillStyle(FLAGC, 0.1); g.fillCircle(q.x, q.y, r*1.7); } };
+    /* ITS SKINS (Sir, 2026-11-18): TP_BSKIN build 'pdog' -- each its paint and its own pieces, at four moments: 'far' (before the torso: what
+       hangs on its far flank), 'flank' (on the torso: decals on its sides and top), 'top' (on its back, sorted in with the near legs), 'head' */
+    const flankQ = (sb, pts, col, al = 1, off = 0.7) => { if(!sees(0, sb, 0)) return; g.fillStyle(col, al); g.fillPoints(pts.map(([a, zz]) => PT(P(a, sb*(HY + off), zz))), true); };
+    const topQ = (pts, col, al = 1, h = Z1 + 0.3) => { if(!sees(0, 0, 1)) return; g.fillStyle(col, al); g.fillPoints(pts.map(([a, b]) => PT(P(a, b, h))), true); };
+    const boxS = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
+    const ell = (ca, cz, ra, rz, n = 12) => [...Array(n)].map((_, i) => { const q = i/n*Math.PI*2; return [ca + Math.cos(q)*ra, cz + Math.sin(q)*rz]; });
+    /* a drum lying across him (axis along b) */
+    const cylB = (a, h, r, b0, b1, col, capCol) => { const n = 12, F = [], R = (bb, i) => [a + Math.cos(i/n*Math.PI*2)*r, bb, h + Math.sin(i/n*Math.PI*2)*r];
+      for(let i = 0; i < n; i++) F.push([R(b0, i), R(b0, i + 1), R(b1, i + 1), R(b1, i)]); F.push([...Array(n)].map((_, i) => R(b0, i)), [...Array(n)].map((_, i) => R(b1, i)));
+      solid(F, col, capCol ? (i, nr) => Math.abs(nr[1]) > 0.9 ? capCol : col : null); };
+    /* big stroked letters on a flank, read left to right from that side */
+    const GLY = { K: [[[-1, 1], [-1, -1]], [[1, 1], [-1, 0], [1, -1]]], '-': [[[-0.8, 0], [0.8, 0]]], 9: [[[1, 0], [-1, 0], [-1, 1], [1, 1], [1, -1], [-1, -1]]] };
+    const flankText = (sb, txt, ca, cz, w, h, gap, col, lw) => { if(!sees(0, sb, 0)) return; const bb = sb*(HY + 0.9), dir = Math.sign(P(10, bb, cz).x - P(0, bb, cz).x) || 1, n = txt.length;
+      g.lineStyle(Math.max(1.6, lw*K), col, 1);
+      for(let i = 0; i < n; i++){ const cx = ca + dir*(-(n - 1)*gap/2 + i*gap); for(const path of GLY[txt[i]]) g.strokePoints(path.map(([u, v]) => PT(P(cx + dir*u*w/2, bb, cz + v*h/2))), false); } };
+    const glowUnder = col => { for(const [k, al] of [[1.25, 0.08], [1.05, 0.12], [0.85, 0.16], [0.62, 0.2]]){ const o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push(PT(P(Math.cos(q)*48*k, Math.sin(q)*28*k, 0.5))); } g.fillStyle(col, al); g.fillPoints(o, true); } };
+    const dogAcc = st => { if(!DS) return; const c = DS.dog;
+      if(c === 'k9'){
+        if(st === 'flank') for(const sb of [-1, 1]) flankText(sb, 'K-9', -2, 58.5, 7, 11, 9.5, 0xf6f6f2, 3);
+      }
+      if(c === 'dalmatian'){
+        const SP = [[-24, 59, 3.2, 2.4], [-12, 52, 2.4, 2], [-3, 61, 3.6, 2.6], [9, 54, 2.6, 2.2], [20, 60, 3, 2.4], [-30, 50, 2, 1.8], [14, 63, 1.8, 1.4]];
+        if(st === 'flank'){ for(const sb of [-1, 1]) for(const [a, zz, ra, rz] of SP) flankQ(sb, ell(a + sb*3, zz, ra, rz), 0x16171b);
+          for(const [a, b, r] of [[-20, -6, 3.4], [-6, 7, 2.6], [8, -4, 3], [18, 8, 2.2], [-28, 6, 2]]) topQ(ell(a, b, r, r*0.8), 0x16171b); }
+        if(st === 'top'){ cylB(-12, Z1 + 7.5, 7, -11, 11, 0xd8c8a0, 0xc9a24a);   /* (the hose rolled on its back, brass ends) */
+          for(const bb of [-6, 0, 6]) if(sees(0, 0, 1)) line([-12, bb, Z1 + 14.6], [-12 + 0.01, bb + 0.01, Z1 + 14.6], 0xb8a880, 1); }
+        if(st === 'head'){ boxS(HX - 8, HX + 12, -13.5, 13.5, 64, 68, 0xc8202a); boxS(HX - 4, HX + 8, -10, 10, 68, 72, 0xc8202a);   /* (its fire helmet, a long brim behind) */
+          boxS(HX - 14, HX - 8, -11, 11, 63, 65.5, 0xa81a22);
+          if(front){ g.fillStyle(0xd8b04a, 1); g.fillPoints([P(HX + 12.4, -6, 64), P(HX + 12.4, 6, 64), P(HX + 12.4, 6, 74), P(HX + 12.4, 0, 77), P(HX + 12.4, -6, 74)].map(PT), true);
+            g.fillStyle(0x8a1c24, 1); g.fillPoints([P(HX + 12.6, -3, 67), P(HX + 12.6, 3, 67), P(HX + 12.6, 3, 72), P(HX + 12.6, -3, 72)].map(PT), true); } }
+      }
+      if(c === 'rescue'){
+        if(st === 'flank') for(const sb of [-1, 1]) flankQ(sb, [[-29, 47.5], [29, 47.5], [29, 49.5], [-29, 49.5]], 0xd9dde2);
+        if(st === 'top'){ boxS(-22, 0, -10, 10, Z1, Z1 + 11, 0xf6f6f2);   /* (its first-aid pack, a red cross on its top and sides) */
+          if(sees(0, 0, 1)){ topQ([[-13, -2], [-9, -2], [-9, 2], [-13, 2]], 0xd8261c, 1, Z1 + 11.2); topQ([[-17, -1.6], [-5, -1.6], [-5, 1.6], [-17, 1.6]], 0xd8261c, 1, Z1 + 11.2); topQ([[-12.6, -6], [-9.4, -6], [-9.4, 6], [-12.6, 6]], 0xd8261c, 1, Z1 + 11.2); }
+          for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*10.3; g.fillStyle(0xd8261c, 1); g.fillPoints([P(-12.5, bb, Z1 + 2), P(-9.5, bb, Z1 + 2), P(-9.5, bb, Z1 + 9), P(-12.5, bb, Z1 + 9)].map(PT), true); g.fillPoints([P(-15, bb, Z1 + 4), P(-7, bb, Z1 + 4), P(-7, bb, Z1 + 7), P(-15, bb, Z1 + 7)].map(PT), true); } }
+        if(st === 'head'){ boxS(HX - 2, HX + 8, -5, 5, 64, 70, 0x2a2d33);   /* (a floodlight on its head, lit) */
+          if(front){ g.fillStyle(0xfff6d8, 1); g.fillPoints([P(HX + 8.3, -4, 65), P(HX + 8.3, 4, 65), P(HX + 8.3, 4, 69), P(HX + 8.3, -4, 69)].map(PT), true);
+            const q = P(HX + 9, 0, 67), r = 10*this.kScale(); g.fillStyle(0xfff6d8, 0.18); g.fillCircle(q.x, q.y, r); g.fillStyle(0xfff6d8, 0.1); g.fillCircle(q.x, q.y, r*1.8); } }
+      }
+      if(c === 'hazmat'){
+        if(st === 'flank'){ for(const sb of [-1, 1]){ for(let k = -6; k <= 5; k++){ const a = k*5.2; flankQ(sb, [[a, 46.5], [a + 2.6, 46.5], [a + 5.4, 51.5], [a + 2.8, 51.5]], 0x16171b); }
+            /* the radiation trefoil */
+            if(sees(0, sb, 0)){ const ca = 2, cz = 58.5, bb = sb*(HY + 0.8); g.fillStyle(0x16171b, 1);
+              for(let k = 0; k < 3; k++){ const a0 = k*Math.PI*2/3 + Math.PI/2 - Math.PI/6, o = [[ca + Math.cos(a0)*1.8, cz + Math.sin(a0)*1.8]]; for(let i = 0; i <= 6; i++){ const q = a0 + i/6*Math.PI/3; o.push([ca + Math.cos(q)*7.6, cz + Math.sin(q)*7.6]); } o.push([ca + Math.cos(a0 + Math.PI/3)*2.2, cz + Math.sin(a0 + Math.PI/3)*2.2]);
+                g.fillPoints(o.map(([a, zz]) => PT(P(a, bb, zz))), true); }
+              g.fillPoints(ell(ca, cz, 1.6, 1.6).map(([a, zz]) => PT(P(a, bb, zz))), true); } } }
+        if(st === 'top'){ boxS(-18, -10, -4, 4, Z1, Z1 + 3, 0x2a2d33); tube([-14, 0, Z1 + 3], [-14, 0, Z1 + 30], 2.4, 0x8d959c);   /* (its sensor mast, a sniffer head) */
+          this.avLathe(V, -14, 0, [[Z1 + 30, 3.4], [Z1 + 36, 3.4], [Z1 + 38, 2]], 0x2a2d33, null, 10); this.avLathe(V, -14, 0, [[Z1 + 33, 3.6], [Z1 + 34.5, 3.6]], 0x7cff5a, () => 0x7cff5a, 10); }
+      }
+      if(c === 'desert'){
+        const CAMO = [[-26, 58, 6, 3.4, 0x8a6a40], [-10, 51, 7, 3, 0xa8885a], [6, 60, 6, 3.2, 0x6a5a3a], [20, 52, 5, 2.6, 0x8a6a40], [-18, 63, 4, 2, 0x6a5a3a]];
+        const bag = sb => { const b0 = sb*(HY + 0.5), b1 = sb*(HY + 6); boxS(-20, 2, Math.min(b0, b1), Math.max(b0, b1), 50, 63, 0x5a4a30); boxS(-20.5, 2.5, Math.min(b0, b1) - 0.3, Math.max(b0, b1) + 0.3, 60, 63.5, 0x4a3c26); };
+        if(st === 'far') bag(-nearB);
+        if(st === 'flank'){ for(const sb of [-1, 1]) for(const [a, zz, ra, rz, col] of CAMO) flankQ(sb, ell(a - sb*4, zz, ra, rz, 10), col);
+          for(const [a, b, ra, rb, col] of [[-22, 5, 7, 4, 0x8a6a40], [-4, -6, 6, 4, 0x6a5a3a], [14, 4, 6, 3.5, 0xa8885a]]) topQ(ell(a, b, ra, rb, 10), col);
+          bag(nearB); }
+        if(st === 'top'){ boxS(-31, -25, -2, 2, Z1, Z1 + 3, 0x2a2d33); line([-28, 0, Z1 + 3], [-30, 0, Z1 + 44], 0x16171b, 1.4); this.avLathe(V, -30, 0, [[Z1 + 43, 1.6], [Z1 + 46, 0]], 0x16171b, null, 8); }
+      }
+      if(c === 'neon'){
+        if(st === 'flank'){ g.lineStyle(Math.max(1.4, 2*K), 0x5fe8ff, 1);
+          for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [47, 65]){ const A = P(-29, sb*(HY + 0.8), zz), B = P(29, sb*(HY + 0.8), zz); g.lineBetween(A.x, A.y, B.x, B.y); }
+          for(const sb of [-1, 1]) if(sees(0, 0, 1)){ const A = P(-29, sb*(HY - 2.5), Z1 + 0.4), B = P(29, sb*(HY - 2.5), Z1 + 0.4); g.lineBetween(A.x, A.y, B.x, B.y); } }
+        if(st === 'head' && front){ g.lineStyle(Math.max(1.6, 2.4*K), 0x5fe8ff, 1); const A = P(HX + 11.5, -10, 63), B = P(HX + 11.5, 10, 63); g.lineBetween(A.x, A.y, B.x, B.y);
+          g.fillStyle(0x5fe8ff, 0.12); g.fillPoints([P(HX + 11.6, -10, 61), P(HX + 11.6, 10, 61), P(HX + 11.6, 10, 65), P(HX + 11.6, -10, 65)].map(PT), true); }
+      }
+      if(c === 'mail'){
+        const strap = () => { for(const sb of [-1, 1]) flankQ(sb, [[-11, 46.5], [-7, 46.5], [-7, 65.5], [-11, 65.5]], 0x6a4a2a); topQ([[-11, -HY + 1], [-7, -HY + 1], [-7, HY - 1], [-11, HY - 1]], 0x6a4a2a); };
+        if(st === 'flank') strap();
+        if(st === 'top'){ boxS(-22, 4, -11, 11, Z1, Z1 + 12, 0x8a5a2a); boxS(-22.4, -2, -11.4, 11.4, Z1 + 7, Z1 + 12.4, 0x6a4320);   /* (its satchel, its flap) */
+          if(front || sees(1, 0, 0.3)){ g.fillStyle(0xd8b04a, 1); const q = P(-1.6, 0, Z1 + 9), r = 1.6*K*2; g.fillRect(q.x - r, q.y - r*0.7, r*2, r*1.4); }
+          line([-28, -8, Z1], [-28, -8, Z1 + 28], 0x3a3e46, 1.4);   /* (its little mail flag up) */
+          g.fillStyle(0xd8261c, 1); g.fillPoints([P(-28, -8, Z1 + 28), P(-38, -8, Z1 + 28), P(-38, -8, Z1 + 21), P(-28, -8, Z1 + 21)].map(PT), true); }
+      }
+      if(c === 'show'){
+        if(st === 'flank'){ for(const sb of [-1, 1]){ flankQ(sb, [[-20, 66], [10, 66], [10, 52], [-20, 52]], 0x8a1c24, 1, 0.9); flankQ(sb, [[-20, 53.4], [10, 53.4], [10, 52], [-20, 52]], 0xd8b04a, 1, 1);
+            for(let k = 0; k < 10; k++){ const a = -19 + k*3.2; flankQ(sb, [[a, 52], [a + 1.2, 52], [a + 0.6, 49.5]], 0xd8b04a, 1, 1); }
+            flankQ(sb, [[17.5, 54], [20, 54], [17.5, 46], [15, 47]], 0x2a5ad8, 1, 0.95); flankQ(sb, [[20, 54], [22.5, 54], [25, 47], [22.5, 46]], 0x2a5ad8, 1, 0.95); flankQ(sb, ell(20, 59, 6, 6, 16), 0x2a5ad8, 1, 1); flankQ(sb, ell(20, 59, 4.4, 4.4, 14), 0xf6f6f2, 1, 1.05); flankQ(sb, ell(20, 59, 3, 3, 12), 0xd8b04a, 1, 1.1);   /* (a rosette, its tails) */
+            }
+          topQ([[-20, -HY + 0.5], [10, -HY + 0.5], [10, HY - 0.5], [-20, HY - 0.5]], 0x8a1c24, 1, Z1 + 0.5); }
+      }
+    };
     /* the sensor head: a squat block out front, a dark face plate with his eyes, a camera on each cheek */
-    const head = () => { solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), BODYC.top, null, false);
+    const head = () => { solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), DS && DS.head || BODYC.top, null, false);
       if(front){ V.Q([P(HX + 11.3, -9, 49.5), P(HX + 11.3, 9, 49.5), P(HX + 11.3, 9, 62.5), P(HX + 11.3, -9, 62.5)], 0x1d2228);
         this.tipseyFace(V, HX + 11.2, 56, 0.6, {}); }
-      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.4 + (HX + 11 - (HX + 4))*2/17), q = P(HX + 4, sb*11.2, 56), r = 2.2*K*2; g.fillStyle(0x1d2228, 1); g.fillCircle(q.x, q.y, r*1.5); g.fillStyle(CYAN, 1); g.fillCircle(q.x, q.y, r*0.7); } };
-    shadow(46, 26);
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.4 + (HX + 11 - (HX + 4))*2/17), q = P(HX + 4, sb*11.2, 56), r = 2.2*K*2; g.fillStyle(0x1d2228, 1); g.fillCircle(q.x, q.y, r*1.5); g.fillStyle(CYAN, 1); g.fillCircle(q.x, q.y, r*0.7); }
+      dogAcc('head'); };
+    if(DS && DS.glow) glowUnder(DS.glow); else shadow(46, 26);   /* (a glow under it, not a shadow, for the neon one) */
     for(const L of byDepth(legs.filter(L => L.sb !== nearB))) leg(L);
+    dogAcc('far');
     if(!front) head();   /* (its head behind the torso from behind) */
     this.botHull(g, x, y, z, fdir, Object.assign({ hx: HX, hy: HY, z0: Z0, z1: Z1, ch: 7, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(Z0, Z1, 'body')));
     this.botHull(g, x, y, z, fdir, { hx: HX + 0.6, hy: HY + 0.6, ch: 7, z0: 52, z1: 57, band: true, cLt: STRIPEC, cDk: STRIPED });
-    if(WEAR) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
+    if(WEAR && !DS) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
+    dogAcc('flank');
     /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
        the head, nose-on the head is nearer than the legs beside it */
     const top = legs.filter(L => L.sb === nearB).map(L => ({ d: V.depth(L.ha, L.sb*18, 28), f: () => leg(L) }));
-    top.push({ d: V.depth(24, 0, Z1 + 4), f: beacon }); if(front) top.push({ d: V.depth(HX + 4, 0, 56), f: head });
+    top.push({ d: V.depth(24, 0, Z1 + 4), f: beacon }, { d: V.depth(-12, 0, Z1 + 6), f: () => dogAcc('top') }); if(front) top.push({ d: V.depth(HX + 4, 0, 56), f: head });
     top.sort((p, q) => p.d - q.d); for(const o of top) o.f();
   }
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's): pieces worn over his egg at four moments --
