@@ -43557,7 +43557,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:knight', build: 'courier', name: 'Knight', cents: 900, body: 0xb4bac1, stripe: 0x1f3a7a, costume: 'knight', noAerial: true, noMouth: true },
   { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0x8a5a2a, stripe: 0x3a2414, costume: 'cowboy', noAerial: true, noMouth: true },
   { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true, noMouth: true },
-  { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true },
+  { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true, noMouth: true },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true },
   { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
@@ -128582,10 +128582,21 @@ class WorldScene extends Phaser.Scene {
       if(front){ for(const b of [-7.5, 7.5]){ const q = P(R + 0.4, b, 86), rr = sr(R, b, 86, 9); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.25, rr*1.9); g.fillStyle(0x30343e, 1); g.fillEllipse(q.x + rr*0.1, q.y + rr*0.2, rr*0.7, rr*1.1); }
         const q = P(R + 0.4, 0, 64), rr = sr(R, 0, 64, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.3, rr*1.9); }
       return; }
-    if(c === 'mummy'){
-      if(st === 'body') for(let i = 0; i < 7; i++){ const z0 = 20 + i*12 + (i % 2)*3; this.botHull(g, x, y, z, fdir, { hx: hx + 0.6 + (i % 2)*0.3, hy: hy + 0.6 + (i % 2)*0.3, ch: 8, z0, z1: z0 + 2.4, band: true, cLt: 0xf3ead2, cDk: 0xc9bc8e }); }   // (its wrappings)
-      if(st === 'face' && front){ onFront([[-14, 82], [14, 92], [14, 94.5], [-14, 84.5]], 0xf3ead2); }   // (a bandage slanting across his face)
-      if(st === 'top'){ const q = P(4, -nearB*14, 52), q2 = P(-2, -nearB*24, 30); g.lineStyle(Math.max(1, 3.4*K), 0xf3ead2, 1); g.lineBetween(q.x, q.y, q2.x, q2.y); }   // (a loose end trailing)
+    if(c === 'mummy'){   /* (second pass -- Sir, 2026-11-17): bandages wound round him at slants, crossing over each other in two tones with dark edges;
+         his head wrapped too, one eye peeking through a gap; strips across his lid; a loose end flapping off his back */
+      const L1 = 0xf0e6c6, L2 = 0xd6caa0, ED = 0xa8986a, sides = [[1, 0, hx, hy], [-1, 0, -hx, hy], [0, 1, hy, hx], [0, -1, -hy, hx]];
+      const strips = (z0, z1, rows, seed) => { for(const [na, nb, off, half] of sides){ if(!sees(na, nb, 0)) continue; const at = (u, zz) => na ? P(off + na*0.9, u, zz) : P(u, off + nb*0.9, zz);
+          for(let k = 0; k < rows; k++){ const zc = z0 + (k + 0.5)*(z1 - z0)/rows, tl = ((k + seed) % 2 ? 1 : -1)*2, h = (z1 - z0)/rows*0.56;
+            const pts = [at(-half, zc - tl - h), at(half, zc + tl - h), at(half, zc + tl + h), at(-half, zc - tl + h)]; g.fillStyle(k % 2 ? L2 : L1, 1); g.fillPoints(pts.map(PT), true);
+            g.lineStyle(Math.max(1, 0.8*K), ED, 1); g.lineBetween(pts[0].x, pts[0].y, pts[1].x, pts[1].y); } } };
+      if(st === 'body') strips(12, 76, 8, 0);
+      if(st === 'face' && front){ strips(76, 102, 3, 1);
+        const q = P(hx + 0.6, 6.5, 86); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, sr(hx, 6, 86, 5)*1.6, sr(hx, 6, 86, 3.4)*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y, sr(hx, 6, 86, 1.8));   // (one eye peeking through a gap)
+        onFront([[-15, 88.5], [3, 91.5], [3, 92.5], [-15, 89.5]], ED); }
+      if(st === 'face' && !front) strips(76, 102, 3, 1);
+      if(st === 'top'){ for(let i = -3; i <= 3; i++){ const a0 = i*6; g.fillStyle(i % 2 ? L1 : L2, 1); g.fillPoints([P(a0 - 2.5, -hy + 4, zl + 0.3), P(a0 + 2.5, -hy + 4, zl + 0.3), P(a0 + 4.5, hy - 4, zl + 0.3), P(a0 - 0.5, hy - 4, zl + 0.3)].map(PT), true); }
+        const t2 = t*0.004, A0 = [-hx, nearB*(hy - 4), 92], pts = [A0]; for(let i = 1; i <= 6; i++){ const u = i/6; pts.push([-hx - u*26, nearB*(hy - 2 + u*10) + Math.sin(t2 + u*3)*3.5*u, 92 - u*22 + Math.sin(t2*1.3 + u*4)*3*u]); }   // (a loose end flapping)
+        for(let i = 0; i < 6; i++){ line(pts[i], pts[i + 1], ED, 7 - i*0.6); line(pts[i], pts[i + 1], L1, 5.4 - i*0.5); } }
       return; }
     if(c === 'clown'){
       if(st === 'body'){ for(const [zz, col] of [[66, 0xd8261c], [78, 0x2aa83a], [30, 0xffd34a]]) for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(4, sb*(hy + 1), zz, 3.6, col); }   // (pompom buttons)
