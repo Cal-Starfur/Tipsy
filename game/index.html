@@ -130553,10 +130553,13 @@ class WorldScene extends Phaser.Scene {
     const half = (rings, col, near, colOf) => band(rings, col, (i, nr) => (sees(nr[0], nr[1], 0) === near) ? (colOf ? colOf(i, nr) : col) : null);
     const shield = (th, zz, s, col, rim) => { const o = [[-1, 1], [1, 1], [1, -0.1], [0, -1.2], [-1, -0.1]].map(([u, v]) => [th + u*s/30, zz + v*s]); decal(o, rim); decal(o.map(([a, zz2]) => [th + (a - th)*0.7, zz + (zz2 - zz)*0.7]), col, 1, 0.8); };
     /* a visor (a cap's bill): a flat plate out from his brow, th -w..w, from r0 at z0 out by d, dipping by dz at its tip */
-    const bill = (r0, z0, d, w, dz, col, al = 1) => { const o = []; for(let i = 0; i <= 12; i++){ const th = -w + 2*w*i/12; o.push(P(Math.cos(th)*r0, Math.sin(th)*r0, z0)); }
-      for(let i = 12; i >= 0; i--){ const th = -w + 2*w*i/12, k = Math.pow(Math.cos(th*Math.PI/2/w), 0.6), r = r0 + d*k; o.push(P(Math.cos(th)*r, Math.sin(th)*r, z0 - dz*k)); }
-      g.fillStyle(_pdk(col, 0.7), al); g.fillPoints(o.map(q => new Phaser.Geom.Point(q.x, q.y + 1.4*K*2)), true); g.fillStyle(col, al); g.fillPoints(o.map(PT), true);
-      const e = o.slice(13); g.lineStyle(Math.max(1, 1*K), _pmix(col, 0xffffff, 0.25), al); g.strokePoints(e.map(PT), false); };
+    const bill = (r0, z0, d, w, dz, col, al = 1, only) => { const IN = [], OUT = [];
+      for(let i = 0; i <= 12; i++){ const th = -w + 2*w*i/12, k = Math.pow(Math.cos(th*Math.PI/2/w), 0.6), r = r0 + d*k; IN.push({ th, q: P(Math.cos(th)*r0, Math.sin(th)*r0, z0) }); OUT.push(P(Math.cos(th)*r, Math.sin(th)*r, z0 - dz*k)); }
+      /* (only 'near' / 'far': just the slices on his side toward the eye or away -- the far ones go in before his body, behind his head) */
+      const keep = i => { if(!only) return true; const tm = (IN[i].th + IN[i + 1].th)/2; return sees(Math.cos(tm), Math.sin(tm), 0) === (only === 'near'); };
+      const dy = 1.4*K*2;
+      for(const [c2, off] of [[_pdk(col, 0.7), dy], [col, 0]]){ g.fillStyle(c2, al); for(let i = 0; i < 12; i++) if(keep(i)) g.fillPoints([IN[i].q, IN[i + 1].q, OUT[i + 1], OUT[i]].map(q => new Phaser.Geom.Point(q.x, q.y + off)), true); }
+      g.lineStyle(Math.max(1, 1*K), _pmix(col, 0xffffff, 0.25), al); for(let i = 0; i < 12; i++) if(keep(i)) g.lineBetween(OUT[i].x, OUT[i].y, OUT[i + 1].x, OUT[i + 1].y); };
     /* a peaked cap: its band, a crown flaring out past it, a bill in front (before the crown when his front is away) */
     const peakCap = (crown, bandC, billC, badge, braid) => {
       if(!front) bill(25.4, 111, 11, 1.2, 4, billC);
@@ -130644,10 +130647,10 @@ class WorldScene extends Phaser.Scene {
         for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
         { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
           decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
-      if(st === 'back' && !front) bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82);   /* (behind his head from behind: before his body, so his dome hides it -- no crown here to) */
+      if(st === 'back') bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82, 'far');   /* (its slices on his far side before his body, so his dome hides them -- no crown here to; the near ones last) */
       if(st === 'top'){
         band([[109.5, 25.6], [115.5, 24.4]], 0xf6f6f2);
-        if(front) bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82); }
+        bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82, 'near'); }
       return; }
     if(c === 'crossing'){   /* a hi-vis vest, three silver bands; an orange ball cap; a STOP paddle on its pole, clamped to his right side */
       const sb = -1, pb = sb*36;
