@@ -57368,11 +57368,11 @@ function houseCanopy(fn){
         box(A0 - 3, A1 + 3, 0, SD + 2, 236, 241, shF, shW, shS);                                                 // its top
       }, { pad: 3 });   // (its clip snug: padded a wall's 30, a run's clip reached over whoever stood before the next stretch -- Yumi at the urns)
       /* over the brewing station: tall glass jars of leaf, a dark lid each */
-      unit(20, 264, (z, r) => { for(let a = 34, k = 0; a < 254; a += 24, k++){
+      unit(20, 264, (z, r) => { for(let a = 30, k = 0; a < 256; a += 15, k++){
+        /* (sized to the shelf, Sir 2026-11-18: "these jars are too big for this shelf" -- 10 across on a board 12 deep, 24 tall under the
+           next board's 46; stacked, no part inside another: the leaf, the glass over it, the lid) */
         const leaf = ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + r) % 4];
-        /* (stacked, no part inside another -- the leaf, the glass over it, the lid: a jar on a run's seam is drawn by both runs, and an inner leaf
-           under see-through glass came out white where it doubled) */
-        cyl(a, SD/2, z, z + 21, 8, leaf, shade(leaf, 1.15)); cyl(a, SD/2, z + 21, z + 30, 8, '#cfe0dc', '#e6f0ee'); cyl(a, SD/2, z + 30, z + 34, 8.4, dark); } });
+        cyl(a, SD/2, z, z + 15, 5, leaf, shade(leaf, 1.15)); cyl(a, SD/2, z + 15, z + 21, 5, '#cfe0dc', '#e6f0ee'); cyl(a, SD/2, z + 21, z + 24, 5.3, dark); } });
       /* over the tea bar: tins in jade, red, gold and blue with gold lids, a teapot now and then */
       unit(296, 724, (z, r) => { for(let a = 308, k = 0; a < 714; a += 17, k++){
         if((k + r) % 5 === 4){ cyl(a + 4, SD/2, z, z + 12, 8, '#e9e4da', '#f4f0e6'); cyl(a + 4, SD/2, z + 12, z + 15, 3, gold); continue; }   // a teapot
