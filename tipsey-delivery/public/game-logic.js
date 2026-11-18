@@ -129044,12 +129044,29 @@ class WorldScene extends Phaser.Scene {
         const SP = [[-24, 59, 3.2, 2.4], [-12, 52, 2.4, 2], [-3, 61, 3.6, 2.6], [9, 54, 2.6, 2.2], [20, 60, 3, 2.4], [-30, 50, 2, 1.8], [14, 63, 1.8, 1.4]];
         if(st === 'flank'){ for(const sb of [-1, 1]) for(const [a, zz, ra, rz] of SP) flankQ(sb, ell(a + sb*3, zz, ra, rz), 0x16171b);
           for(const [a, b, r] of [[-20, -6, 3.4], [-6, 7, 2.6], [8, -4, 3], [18, 8, 2.2], [-28, 6, 2]]) topQ(ell(a, b, r, r*0.8), 0x16171b); }
-        if(st === 'top'){ cylB(-12, Z1 + 7.5, 7, -11, 11, 0xd8c8a0, 0xc9a24a);   /* (the hose rolled on its back, brass ends) */
-          for(const bb of [-6, 0, 6]) if(sees(0, 0, 1)) line([-12, bb, Z1 + 14.6], [-12 + 0.01, bb + 0.01, Z1 + 14.6], 0xb8a880, 1); }
-        if(st === 'head'){ boxS(HX - 8, HX + 12, -13.5, 13.5, 64, 68, 0xc8202a); boxS(HX - 4, HX + 8, -10, 10, 68, 72, 0xc8202a);   /* (its fire helmet, a long brim behind) */
-          boxS(HX - 14, HX - 8, -11, 11, 63, 65.5, 0xa81a22);
-          if(front){ g.fillStyle(0xd8b04a, 1); g.fillPoints([P(HX + 12.4, -6, 64), P(HX + 12.4, 6, 64), P(HX + 12.4, 6, 74), P(HX + 12.4, 0, 77), P(HX + 12.4, -6, 74)].map(PT), true);
-            g.fillStyle(0x8a1c24, 1); g.fillPoints([P(HX + 12.6, -3, 67), P(HX + 12.6, 3, 67), P(HX + 12.6, 3, 72), P(HX + 12.6, -3, 72)].map(PT), true); } }
+        /* (second pass -- Sir, 2026-11-18): a hose reel on its back -- red flanges, canvas hose wound between, a brass nozzle; a real fire
+           helmet -- a rounded crown with a ridge, a brim all round, long and sloping down behind, a gold shield up its front */
+        if(st === 'top'){ const RA = -12, RZ = Z1 + 10;
+          boxS(RA - 6, RA + 6, -9, 9, Z1, Z1 + 3, 0x3a3e46);
+          for(const sb of (sees(0, 1, 0) ? [-1, 1] : [1, -1])) cylB(RA, RZ, 9.5, sb*10, sb*12, 0xc8202a, 0xa81a22);   /* (the far flange first) */
+          cylB(RA, RZ, 7.2, -10, 10, 0xe8dcb4, 0xc9b88a);
+          g.lineStyle(Math.max(1, 1*K), 0xb8a478, 1);
+          for(let k = -8; k <= 8; k += 2.6){ let prev = null; for(let i = 0; i <= 14; i++){ const q = i/14*Math.PI*2; if(!sees(Math.cos(q), 0, Math.sin(q))){ prev = null; continue; } const Q = P(RA + Math.cos(q)*7.4, k, RZ + Math.sin(q)*7.4); if(prev) g.lineBetween(prev.x, prev.y, Q.x, Q.y); prev = Q; } }
+          tube([RA - 5, 9, RZ + 5], [RA - 16, 9, Z1 + 2], 2.4, 0xe8dcb4); tube([RA - 16, 9, Z1 + 2], [RA - 22, 9, Z1 + 1], 2.4, 0xd8b04a); }
+        if(st === 'head'){ const CA = HX + 2.5, BZ = 64;
+          const brim = only => { const IN = [], OUT = [];
+            for(let i = 0; i <= 24; i++){ const q = i/24*Math.PI*2, ca = Math.cos(q), sa = Math.sin(q), rr = ca > 0 ? 15 : 15 + 9*(-ca), dz = ca < 0 ? -4*(-ca) : 0;
+              IN.push({ q, p: P(CA + ca*11, sa*11, BZ + 1) }); OUT.push(P(CA + ca*rr, sa*rr*0.95, BZ + dz)); }
+            for(const [col, off] of [[0x8a141a, 1.2*K*2], [0xc8202a, 0]]){ g.fillStyle(col, 1);
+              for(let i = 0; i < 24; i++){ const qm = (IN[i].q + IN[i + 1].q)/2; if(only && sees(Math.cos(qm), Math.sin(qm), 0) !== (only === 'near')) continue;
+                g.fillPoints([IN[i].p, IN[i + 1].p, OUT[i + 1], OUT[i]].map(q => new Phaser.Geom.Point(q.x, q.y + off)), true); } } };
+          brim('far');
+          this.avLathe(V, CA, 0, [[BZ, 11.5], [BZ + 5, 11.2], [BZ + 9, 9], [BZ + 11.5, 5.5], [BZ + 12.5, 0]], 0xc8202a, null, 16);
+          line([CA - 9, 0, BZ + 8.5], [CA - 2, 0, BZ + 12.6], 0xa81a22, 2.2); line([CA - 2, 0, BZ + 12.6], [CA + 6, 0, BZ + 11.4], 0xa81a22, 2.2);   /* (its ridge) */
+          brim('near');
+          if(front){ g.fillStyle(0xa8802a, 1); g.fillPoints([P(CA + 11.6, -5.5, BZ + 2), P(CA + 11.6, 5.5, BZ + 2), P(CA + 10.6, 6, BZ + 9), P(CA + 10, 0, BZ + 12), P(CA + 10.6, -6, BZ + 9)].map(PT), true);
+            g.fillStyle(0xd8b04a, 1); g.fillPoints([P(CA + 11.8, -4.6, BZ + 2.6), P(CA + 11.8, 4.6, BZ + 2.6), P(CA + 10.8, 5, BZ + 8.6), P(CA + 10.2, 0, BZ + 11.2), P(CA + 10.8, -5, BZ + 8.6)].map(PT), true);
+            g.fillStyle(0x8a1c24, 1); g.fillPoints([P(CA + 12, -2.4, BZ + 4.6), P(CA + 12, 2.4, BZ + 4.6), P(CA + 11.4, 2.4, BZ + 8.4), P(CA + 11.4, -2.4, BZ + 8.4)].map(PT), true); } }
       }
       if(c === 'rescue'){
         if(st === 'flank') for(const sb of [-1, 1]) flankQ(sb, [[-29, 47.5], [29, 47.5], [29, 49.5], [-29, 49.5]], 0xd9dde2);
