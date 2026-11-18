@@ -130857,7 +130857,7 @@ class WorldScene extends Phaser.Scene {
       if(front){ V.Q([P(HX + 11.3, -9, 49.5), P(HX + 11.3, 9, 49.5), P(HX + 11.3, 9, 62.5), P(HX + 11.3, -9, 62.5)], 0x1d2228);
         this.tipseyFace(V, HX + 11.2, 56, 0.6, {}); }
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.4 + (HX + 11 - (HX + 4))*2/17), q = P(HX + 4, sb*11.2, 56), r = 2.2*K*2; g.fillStyle(0x1d2228, 1); g.fillCircle(q.x, q.y, r*1.5); g.fillStyle(CYAN, 1); g.fillCircle(q.x, q.y, r*0.7); }
-      dogAcc('head'); };
+      if(front) dogAcc('head'); };   /* (from behind, what it wears on its head goes over the torso: a helmet's brim runs back over its back) */
     if(DS && DS.glow) glowUnder(DS.glow); else shadow(46, 26);   /* (a glow under it, not a shadow, for the neon one) */
     for(const L of byDepth(legs.filter(L => L.sb !== nearB))) leg(L);
     dogAcc('far');
@@ -130872,7 +130872,7 @@ class WorldScene extends Phaser.Scene {
     /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
        the head, nose-on the head is nearer than the legs beside it */
     const top = legs.filter(L => L.sb === nearB).map(L => ({ d: V.depth(L.ha, L.sb*18, 28), f: () => leg(L) }));
-    top.push({ d: V.depth(24, 0, Z1 + 4), f: beacon }, { d: V.depth(-12, 0, Z1 + 6), f: () => dogAcc('top') }); if(front) top.push({ d: V.depth(HX + 4, 0, 56), f: head });
+    top.push({ d: V.depth(24, 0, Z1 + 4), f: beacon }, { d: V.depth(-12, 0, Z1 + 6), f: () => dogAcc('top') }); if(!front) top.push({ d: V.depth(HX + 2, 0, Z1 + 4), f: () => dogAcc('head') }); if(front) top.push({ d: V.depth(HX + 4, 0, 56), f: head });
     top.sort((p, q) => p.d - q.d); for(const o of top) o.f();
   }
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's): pieces worn over his egg at four moments --
