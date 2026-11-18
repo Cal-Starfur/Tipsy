@@ -30669,9 +30669,9 @@ const TH_FAMILY = (() => {
   };
 })();
 walkinStaff(TH_IN.name, [
-  { id: 'master', role: 'tea master', seed: 0x7e01, lookFn: () => TH_FAMILY.hana, fixed: true, keys: true, posts: [[440, 25, Math.PI/2, 9000, true], [360, 25, Math.PI*0.6, 3600, true], [520, 25, Math.PI*0.4, 3000, true]] },
-  { id: 'barista', role: 'tea server', seed: 0x7e05, lookFn: () => TH_FAMILY.kenji, fixed: true, posts: [[660, 25, Math.PI/2, 7000, true], [580, 25, Math.PI*0.45, 3800, true]] },
-  { id: 'brewer', role: 'tea brewer', seed: 0x7e03, lookFn: () => TH_FAMILY.yumi, fixed: true, posts: [[140, 25, Math.PI/2, 8000, true], [70, 25, Math.PI*0.7, 4200, true], [210, 25, Math.PI*0.3, 3600, true]] },
+  { id: 'master', role: 'tea master', seed: 0x7e01, lookFn: () => TH_FAMILY.hana, fixed: true, keys: true, posts: [[440, 38, Math.PI/2, 9000, true], [360, 38, Math.PI*0.6, 3600, true], [520, 38, Math.PI*0.4, 3000, true]] },
+  { id: 'barista', role: 'tea server', seed: 0x7e05, lookFn: () => TH_FAMILY.kenji, fixed: true, posts: [[660, 38, Math.PI/2, 7000, true], [580, 38, Math.PI*0.45, 3800, true]] },
+  { id: 'brewer', role: 'tea brewer', seed: 0x7e03, lookFn: () => TH_FAMILY.yumi, fixed: true, posts: [[140, 38, Math.PI/2, 8000, true], [70, 38, Math.PI*0.7, 4200, true], [210, 38, Math.PI*0.3, 3600, true]] },
   { id: 'server', role: 'tea server', seed: 0x7e02, lookFn: () => TH_FAMILY.ren, posts: [[410, 440, Math.PI/2, 6000, true], [410, 300, Math.PI/2, 4200, true], [250, 460, Math.PI, 3600, true], [600, 440, 0, 3000, true]] },
   { id: 'clerk', role: 'tea shop clerk', seed: 0x7e04, lookFn: () => TH_FAMILY.aiko, posts: [[760, 445, Math.PI, 8000, true], [610, 370, 0, 3000, true]] },
   { id: 'guest-1', role: 'guest', seed: 0x7e11, look: 'visitor', life: 'browse' },
@@ -30680,8 +30680,8 @@ walkinStaff(TH_IN.name, [
   { id: 'guest-4', role: 'guest', seed: 0x7e14, look: 'visitor', life: 'browse' },
 ]);
 walkinLife(TH_IN.name, { keep: [[0, 2000, 194, 274]], looks: [
-  { id: 'bar', spots: [[440, 118, -Math.PI/2], [560, 118, -Math.PI/2]] },
-  { id: 'brew', spots: [[150, 118, -Math.PI/2]] },
+  { id: 'bar', spots: [[440, 132, -Math.PI/2], [560, 132, -Math.PI/2]] },
+  { id: 'brew', spots: [[150, 134, -Math.PI/2]] },
   { id: 'tables', spots: [[320, 435, Math.PI/2], [500, 435, Math.PI/2], [410, 585, -Math.PI/2]] },
   { id: 'platform', spots: [[255, 380, Math.PI], [255, 540, Math.PI]] },
   { id: 'shop', spots: [[610, 370, 0], [610, 520, 0]] },
@@ -57327,14 +57327,7 @@ function houseCanopy(fn){
         F(-30, W + 30, 0, H, wall, null, 0, 0);
         F(-30, W + 30, 0, 74, trim, null, 0, 0.1); F(-30, W + 30, 74, 78, gold, null, 0, 0.2);
         F(-30, W + 30, H - 18, H, red, null, 0, 0.3);
-        /* the wall of jars over the brewing station: three shelves of big glass jars of leaf */
-        for(const z of [110, 160, 210]){ F(20, 264, z - 4, z, woodS, null, 0, 0.4);
-          for(let a = 28, k = 0; a < 254; a += 26, k++){ F(a, a + 20, z, z + 34, 'rgba(210,226,222,.85)', null, 0, 0.5); F(a + 3, a + 17, z + 2, z + 24, ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + z) % 4], null, 0, 0.6); F(a + 2, a + 18, z + 34, z + 38, dark, null, 0, 0.6); } }
-        /* the shelves of tins and teapots over the tea bar */
-        for(const [z, r] of [[120, 0], [168, 1], [216, 2]]){ F(296, 724, z - 4, z, woodS, null, 0, 0.4);
-          for(let a = 304, k = 0; a < 712; a += 16, k++){
-            if((k + r) % 5 === 4){ ring(a + 6, 0.6, z + 9, 8, '#e9e4da'); F(a + 13, a + 17, z + 8, z + 12, '#e9e4da', null, 0, 0.6); continue; }
-            F(a, a + 12, z, z + 20 + (k % 2)*6, TIN[(k + r*2) % 5], null, 0, 0.6); F(a, a + 12, z + 18 + (k % 2)*6, z + 21 + (k % 2)*6, gold, null, 0, 0.7); } }
+        /* (the jars and the tins are on real shelves now: THE SHELVES, below) */
         /* the house's name board between them, and wall lanterns along it */
         F(266, 292, 120, 250, dark, null, 0, 0.4); F(270, 288, 124, 246, gold, null, 0, 0.5); for(let k = 0; k < 5; k++) F(274, 284, 132 + k*22, 146 + k*22, dark, null, 0, 0.6);
         for(const la of [12, 280, 740, W - 18]){ F(la - 1, la + 1, 254, 270, dark, null, 0, 0.5); ring(la, 0.6, 238, 14, red); F(la - 10, la + 10, 236, 240, gold, null, 0, 0.7); }
@@ -57360,8 +57353,28 @@ function houseCanopy(fn){
       glass: 'rgba(242,230,200,.88)', frame: trim,
       low: [wall, wall, shade(wall, 0.82)], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
 
+    /* ---- THE SHELVES behind the counters (Sir, 2026-11-17: "lets upgrade behind the bar with things with real volume"): wooden shelf units
+       stood against the north wall, 18 deep -- uprights at the ends and every ~80, three boards -- the jars of leaf over the brewing station,
+       tins and teapots over the tea bar, each a thing of its own with a top and a side. Runs along the wall (runPiece, W28) ---- */
+    { const SD = 12, ZS = [112, 162, 212], shW = '#6b4a30', shF = '#5a3e28', shS = '#4a3220';
+      const unit = (A0, A1, fill) => runPiece(items, A0, A1, 0, SD, 240, (s0, s1) => [solid(s0, s1, 0, SD, 236, 'shelves')], () => {
+        for(let a = A0; a <= A1 + 0.1; a += (A1 - A0)/Math.max(1, Math.round((A1 - A0)/80))) box(a - 3, a + 3, 0, SD, 96, 236, shF, shW, shS);   // its uprights
+        ZS.forEach((z, r) => { box(A0, A1, 0, SD, z - 4, z, shW, shF, shS); fill(z, r); });
+        box(A0 - 3, A1 + 3, 0, SD + 2, 236, 241, shF, shW, shS);                                                 // its top
+      });
+      /* over the brewing station: tall glass jars of leaf, a dark lid each */
+      unit(20, 264, (z, r) => { for(let a = 34, k = 0; a < 254; a += 24, k++){
+        const leaf = ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + r) % 4];
+        cyl(a, SD/2, z, z + 30, 8, 'rgba(214,230,226,.9)', 'rgba(238,246,244,.9)'); cyl(a, SD/2, z, z + 20, 6.6, leaf); cyl(a, SD/2, z + 30, z + 34, 8.4, dark); } });
+      /* over the tea bar: tins in jade, red, gold and blue with gold lids, a teapot now and then */
+      unit(296, 724, (z, r) => { for(let a = 308, k = 0; a < 714; a += 17, k++){
+        if((k + r) % 5 === 4){ cyl(a + 4, SD/2, z, z + 12, 8, '#e9e4da', '#f4f0e6'); cyl(a + 4, SD/2, z + 12, z + 15, 3, gold); continue; }   // a teapot
+        const col = TIN[(k + r*2) % 5], h = 18 + (k % 3)*4;
+        box(a, a + 12, SD/2 - 6, SD/2 + 6, z, z + h, col, shade(col, 0.86), shade(col, 0.72)); box(a - 0.5, a + 12.5, SD/2 - 6.5, SD/2 + 6.5, z + h, z + h + 3, gold, goldD, goldD); } });
+    }
+
     /* ---- THE BREWING STATION: a dark counter, three brass urns on it, tea bowls set out ---- */
-    { const A0 = 24, A1 = 260, B0 = 50, B1 = 86;   // (50 clear behind it, against the wall: room for the brewer to walk -- at 30 nobody could reach it)
+    { const A0 = 24, A1 = 260, B0 = 64, B1 = 100;   // (52 clear behind it, between it and the shelves: room for the brewer to walk -- narrower, nobody could reach it)
       runPiece(items, A0, A1, B0, B1, 160, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'brewing counter')], () => {
         box(A0, A1, B0, B1, 0, 82, wood, woodF, woodS); F(A0 + 4, A1 - 4, 40, 44, gold, null, 0, B1 + 0.4);
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
@@ -57370,7 +57383,7 @@ function houseCanopy(fn){
       }); }
 
     /* ---- THE TEA BAR: red lacquer, a dark top, the kettle on its brazier, teapots and cups set out ---- */
-    { const A0 = 300, A1 = 720, B0 = 50, B1 = 84;   // (as the brewing counter: 50 clear behind it for the tea master)
+    { const A0 = 300, A1 = 720, B0 = 64, B1 = 98;   // (as the brewing counter: 52 clear behind it for the tea master)
       runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'tea bar')], () => {
         box(A0, A1, B0, B1, 0, 82, red, redF, redS);
         for(let a = A0 + 24; a < A1 - 10; a += 30) F(a - 1, a + 1, 10, 74, redS, null, 0, B1 + 0.3);
