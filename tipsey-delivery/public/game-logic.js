@@ -128551,18 +128551,25 @@ class WorldScene extends Phaser.Scene {
         if(front) bill(26.6, 112, 6, 0.75, 2.5, 0xe8e8e6);
         }
       return; }
-    if(c === 'lifeguard'){   /* red, a white cross front and back; a red-and-white life ring round his waist; a white visor, its green bill see-through; a whistle on a lanyard */
-      const RING = [[52, 31], [54, 35.5], [58, 38.5], [62, 38.5], [66, 35.5], [68, 31]];
+    if(c === 'lifeguard'){   /* (second pass -- Sir, 2026-11-18): red, a white cross front and back; a round red-and-white life ring at his waist, its grab
+         rope looped round it between the white blocks; a sun visor -- a white strap open on top, a big green see-through bill; a silver whistle on
+         an orange lanyard round the sides of his face */
+      const RING = []; for(let i = 0; i <= 10; i++){ const ph = -Math.PI/2 + Math.PI*i/10; RING.push([60 + Math.sin(ph)*7.5, 31 + Math.cos(ph)*7.5]); }
       const stripe = i => Math.floor((i % 24)/3) % 2 ? 0xf6f6f2 : 0xd8261c;
       const cross = th => { decal([[th - 0.08, 46], [th + 0.08, 46], [th + 0.08, 22], [th - 0.08, 22]], 0xf6f6f2); decal([[th - 0.3, 38], [th + 0.3, 38], [th + 0.3, 30], [th - 0.3, 30]], 0xf6f6f2); };
-      if(st === 'mid') half(RING, 0xd8261c, false, stripe);
-      if(st === 'body'){ cross(0); cross(Math.PI); half(RING, 0xd8261c, true, stripe);
-        sline([-0.75, 103], [-0.1, 80], 0xff8a1a, 1.6); sline([0.75, 103], [0.1, 80], 0xff8a1a, 1.6);
-        { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });   /* (the whistle, laid on his chest at the lanyard's foot) */
+      /* the grab rope: clipped at each white block's middle, a swag sagging between; near is the half toward the eye */
+      const rope = near => { g.lineStyle(Math.max(1.8, 2.8*K), 0xf0e2b4, 1);
+        for(let k = 0; k < 4; k++){ const t0 = (1.5 + 2*k)*Math.PI/4; for(let i = 0; i < 8; i++){ const u0 = i/8, u1 = (i + 1)/8, ta = t0 + u0*Math.PI/2, tb = t0 + u1*Math.PI/2, tm = (ta + tb)/2;
+          if(sees(Math.cos(tm), Math.sin(tm), 0) !== near) continue; const za = 61 - Math.sin(u0*Math.PI)*4, zb = 61 - Math.sin(u1*Math.PI)*4, ra = 39, A = P(Math.cos(ta)*ra, Math.sin(ta)*ra, za), B = P(Math.cos(tb)*ra, Math.sin(tb)*ra, zb); g.lineBetween(A.x, A.y, B.x, B.y); } } };
+      if(st === 'mid'){ half(RING, 0xd8261c, false, stripe); rope(false); }
+      if(st === 'body'){ cross(0); cross(Math.PI); half(RING, 0xd8261c, true, stripe); rope(true);
+        for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
+        { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
           decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
-      if(st === 'top'){ if(!front) bill(25.2, 113, 16, 1.25, 5, 0x2aa86a, 0.8);
-        lathe([[109, 25.9], [117, 24.4]], 0xf6f6f2);
-        if(front) bill(25.2, 113, 16, 1.25, 5, 0x2aa86a, 0.8); }
+      if(st === 'back' && !front) bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82);   /* (behind his head from behind: before his body, so his dome hides it -- no crown here to) */
+      if(st === 'top'){
+        band([[109.5, 25.6], [115.5, 24.4]], 0xf6f6f2);
+        if(front) bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82); }
       return; }
     if(c === 'crossing'){   /* a hi-vis vest, three silver bands; an orange ball cap; a STOP paddle on its pole, clamped to his right side */
       const sb = -1, pb = sb*36;
