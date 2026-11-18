@@ -45283,7 +45283,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true, noMouth: true },
   { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true, noMouth: true, head: 0xe6dab4 },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true, noMouth: true },
-  { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true },
+  { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true, noMouth: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -130347,10 +130347,23 @@ class WorldScene extends Phaser.Scene {
         for(let i = 0; i < 6; i++){ const th = i/6*Math.PI*2 + 0.3; puffs.push([Math.cos(th)*10, Math.sin(th)*10, zl + 10, C[(i + 2) % 6]]); } puffs.push([0, 0, zl + 13, C[4]]);
         puffs.sort((p1, p2) => this.depth(p1[0], p1[1], p1[2]) - this.depth(p2[0], p2[1], p2[2])); for(const [a, b, zz, col] of puffs) ball(a, b, zz, 8, col); }   // (a rainbow afro, drawn far to near)
       return; }
-    if(c === 'santa'){
-      if(st === 'body'){ band(12, 20, 0xf6f6f2); for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(hx - 4, sb*(hy - 2), 47, 2.6, 0xd8b04a); }   // (fur trim at his hem, a gold buckle on his belt)
-      if(st === 'face') onFront([[-12, 80], [-14, 66], [-9, 52], [0, 44], [9, 52], [14, 66], [12, 80], [6, 77], [0, 79], [-6, 77]], 0xf6f6f2);   // (a big white beard)
-      if(st === 'top'){ lathe(0, 0, [[zl - 1, 23], [zl + 5, 23]], 0xf6f6f2); lathe(0, 0, [[zl + 5, 18], [zl + 16, 11], [zl + 24, 4]], 0xc8202a); ball(-8, 0, zl + 23, 5, 0xf6f6f2); }   // (its hat: a fur brim, a red cone flopped back, a pompom)
+    if(c === 'santa'){   /* (second pass -- Sir, 2026-11-18): a fluffy fur hem, white fur down the front of his coat, a black belt with a big gold buckle;
+         a full white beard with a moustache, rosy cheeks; his hat one piece flopping over to one side, a fur brim and a pompom; a sack on his back */
+      const FUR = 0xf6f6f2;
+      const sack = () => { const sa = -hx - 9, sb = -nearB*4; ball(sa, sb, 70, 15, 0x8a5a2a); ball(sa + 1, sb, 86, 7, 0x7a4a20); line([sa + 1, sb, 90], [sa + 2, sb, 94], 0xd8b04a, 2); };
+      if(st === 'back' && front) sack();
+      if(st === 'body'){ band(10, 18, FUR); for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; const k = Math.min(hx/Math.max(Math.abs(ca), 0.01), hy/Math.max(Math.abs(sa), 0.01))*0.95 + 1; ball(ca*k, sa*k, 15, 3.6, FUR); }   // (fluffy hem)
+        band(42, 50, 0x16171b); if(front){ onFront([[-4, 18], [4, 18], [4, 42], [-4, 42]], FUR); const q = P(hx + 0.9, 0, 46), rr = sr(hx, 0, 46, 5.5); g.fillStyle(0xd8b04a, 1); g.fillRect(q.x - rr, q.y - rr*0.8, rr*2, rr*1.6); g.fillStyle(0x16171b, 1); g.fillRect(q.x - rr*0.55, q.y - rr*0.4, rr*1.1, rr*0.8); } }
+      if(st === 'face' && front){ for(const b of [-12, 12]){ const q = P(hx + 0.6, b, 80); g.fillStyle(0xff8a8a, 0.55); g.fillCircle(q.x, q.y, sr(hx, b, 80, 3.6)); }   // (rosy cheeks)
+        onFront([[-13, 78], [-15, 64], [-11, 52], [-5, 44], [0, 41], [5, 44], [11, 52], [15, 64], [13, 78], [7, 74], [0, 75], [-7, 74]], FUR);
+        for(const [b, zz] of [[-8, 64], [6, 58], [-3, 52], [9, 68], [-10, 56]]) ball(hx + 0.8, b, zz, 3.2, 0xffffff);   // (fluffy beard)
+        for(const sb of [-1, 1]) onFront([[0, 77], [sb*10, 78.5], [sb*13, 75], [sb*7, 74], [0, 75]], 0xe8e8e2); }   // (moustache)
+      if(st === 'top'){ if(!front) sack();
+        lathe(0, 0, [[zl - 1, 23], [zl + 5, 23]], FUR); for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2; if(!sees(Math.cos(th), Math.sin(th), 0)) continue; ball(Math.cos(th)*22, Math.sin(th)*20, zl + 2, 3.6, FUR); }
+        const sbF = -nearB, pts = []; for(let i = 0; i <= 10; i++){ const u = i/10; pts.push([-u*4, sbF*u*u*18, zl + 5 + Math.sin(u*Math.PI*0.7)*22 - u*u*12, 18*(1 - u) + 2]); }   // (its cone flopping over to one side, one piece)
+        for(const [col, wf, off] of [[0x8a0e12, 1, 0], [0xc8202a, 0.72, 0.2], [0xe8484a, 0.25, 0.55]]) for(let i = 0; i < 10; i++){ const [a0, b0, z0, r0] = pts[i], [a1, b1, z1, r1] = pts[i + 1], A = P(a0, b0, z0), B = P(a1, b1, z1), ra = sr(a0, b0, z0, r0), rb = sr(a1, b1, z1, r1);
+          g.lineStyle(Math.max(1, (ra + rb)*wf), col, 1); g.lineBetween(A.x, A.y - ra*off, B.x, B.y - rb*off); if(!off){ g.fillStyle(col, 1); g.fillCircle(A.x, A.y, ra); g.fillCircle(B.x, B.y, rb); } }
+        const e = pts[10]; ball(e[0], e[1], e[2] - 2, 5.5, FUR); }
       return; }
   }
   /* THE CARGO BOT THROUGH THE AGES (Sir, 2026-11-17: its builds are time periods): the delivery vehicle of each era, in the player's paint
