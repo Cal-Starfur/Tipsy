@@ -132998,7 +132998,18 @@ class WorldScene extends Phaser.Scene {
     if(rec.single){   // (one wide leaf: one piece, at its own middle as it swings -- in, behind the door's plane, for a walk-in's)
       const len = (rec.a1 - rec.a0)*SC, ang1 = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw1 = rec.see ? -1 : 1, a = rec.a0 + (rec.a1 - rec.a0)/2*Math.cos(ang1);
       const out1 = inw1*(len/2)*Math.sin(ang1) + inw1*2, x = along(a) + d.e.rv.x*out1, y = alongY(a) + d.e.rv.y*out1;
-      return [{ pick: 0, depth: x + y }]; }
+      /* (A LONG THIN PIECE, keyed at its middle, sorts wrong against him beside its far half -- Sir, 2026-11-18, Driftwood Books: "the door is
+         drawing over tipsey alot". So against him it goes by which side of it he is: the leaf from its hinge to its free edge, the point on it
+         straight up the screen from him (screen x = x - y); he nearer the camera than that point, the leaf before him, else after) */
+      let dep = x + y;
+      const pk = this._inside, v = pk && pk.view ? pk.view() : null, bx = this.botX + (pk && v ? v.dx : 0), by = this.botY + (pk && v ? v.dy : 0);
+      const hx = along(rec.a0), hy = alongY(rec.a0), ex = along(rec.a0 + (rec.a1 - rec.a0)*Math.cos(ang1)) + d.e.rv.x*inw1*len*Math.sin(ang1), ey = alongY(rec.a0 + (rec.a1 - rec.a0)*Math.cos(ang1)) + d.e.rv.y*inw1*len*Math.sin(ang1);
+      if(Math.hypot(bx - x, by - y) < len + 120){
+        const su = (hx - hy), sv = (ex - ey), sb = bx - by, R = 40;
+        if(sb > Math.min(su, sv) - R && sb < Math.max(su, sv) + R){
+          const t = Math.abs(sv - su) < 1e-6 ? 0.5 : Math.max(0, Math.min(1, (sb - su)/(sv - su))), qd = hx + hy + (ex + ey - hx - hy)*t;
+          dep = bx + by > qd ? Math.min(dep, bx + by - 0.5) : Math.max(dep, bx + by + 0.5); } }
+      return [{ pick: 0, depth: dep }]; }
     const half = (rec.a1 - rec.a0)/2*SC, ang = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw = rec.see && (rec.studs || rec.panes), out = (inw ? -1 : 1)*(half/2)*Math.sin(ang) + (inw ? -2 : 2);   // (a studded or panelled walk-in pair swings in: its leaves behind the door's plane)
     return [[0, rec.a0 + (rec.a1 - rec.a0)/4], [1, rec.a1 - (rec.a1 - rec.a0)/4]].map(([pick, a]) => {
       const x = along(a) + d.e.rv.x*out, y = alongY(a) + d.e.rv.y*out; return { pick, depth: x + y }; });
