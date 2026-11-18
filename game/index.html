@@ -120518,7 +120518,10 @@ class WorldScene extends Phaser.Scene {
       const drawFlag = () => { const fa = -hx + 5, fb = -nearB*(hy - 6), fz = 31;
         line([fa, fb, fz], [fa, fb, fz + 62], DARK, 1.4);
         if(!(WEAR && this.botTopper(g, V, fa, fb, fz + 62))) Q([P(fa, fb, fz + 62), P(fa - 16, fb, fz + 57), P(fa, fb, fz + 52)], WEAR ? FLAGC : 0xff7a1a); };
-      if(!flagNear) drawFlag();
+      const AB = WEAR && /^amr[a-z]+$/.test(SKIN.build || '') ? SKIN.build : null;   /* (one of its builds: drawAmrBuild) */
+      const NOFLAG = AB === 'amrshelf' || AB === 'amrlift';
+      if(AB) this.drawAmrBuild(AB, 'pre', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC);
+      if(!flagNear && !NOFLAG) drawFlag();
       this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 4, z1: 28, ch: 10, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0x23272d }, paintOf(4, 28, 'body')));
       if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 5, z1: 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
       this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 10, z1: 13, band: true, cLt: LEDC, cDk: LEDD });          // the lit band round its skirt
@@ -120527,6 +120530,8 @@ class WorldScene extends Phaser.Scene {
       this.tipseyFace(V, L/2, 20, 0.7);
       /* THE LOAD (Sir, 2026-11-10: "the bot itself shouldn't just have boxes on it"): it runs empty. A pallet of boxes rides it only when a
          mission or a working scene hands it one (data.load), drawn far to near through the fall as before */
+      if(AB){ if((!front || AB === 'amrjack') && AB !== 'amrshelf' && AB !== 'amrlift') puck(L/2 - 10, 0, 31, 0.9);   /* (the pallet jack's load is ahead of its lidar) */ this.drawAmrBuild(AB, 'post', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC);
+        if(front && AB !== 'amrshelf' && AB !== 'amrlift' && AB !== 'amrconv' && AB !== 'amrjack') puck(L/2 - 10, 0, 31, 0.9); if(flagNear && !NOFLAG) drawFlag(); return; }
       const LOAD = !!(data && data.load);
       if(LOAD) box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                           // the pallet
       if(!front) puck(L/2 - 10, 0, 31, 0.9);                                                     // its lidar, behind the load from here
@@ -130726,6 +130731,103 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* THE WAREHOUSE ROBOT'S BUILDS (Sir, 2026-11-18): AMR_BUILD -- each a different machine on its platform. Drawn at two moments: 'pre' before
+     its hull (what is behind it from here: the tugger's carts when they trail away from the eye), 'post' over its top plate (z 31). Its
+     platform is L 110 x W 76, its nose +a */
+  drawAmrBuild(id, st, g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC){
+    const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0), back = sees(-1, 0, 0);
+    const DARK = 0x2a2f36, Y = 0xf2c02e, STEEL = 0x9aa1a8, TOP = 31;
+    const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
+    const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
+      const a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
+      const n2 = [u[1]*n1[2] - u[2]*n1[1], u[2]*n1[0] - u[0]*n1[2], u[0]*n1[1] - u[1]*n1[0]];
+      const ring = p => [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => [p[0] + n1[0]*i + n2[0]*j, p[1] + n1[1]*i + n2[1]*j, p[2] + n1[2]*i + n2[2]*j]);
+      const A = ring(p0), B = ring(p1), F = [A, B.slice().reverse()]; for(let k = 0; k < 4; k++) F.push([A[k], A[(k + 1) % 4], B[(k + 1) % 4], B[k]]); solid(F, col, null); };
+    const byDepth = items => items.sort((p, q) => p.d - q.d).forEach(o => o.f());
+    const vel = this.ow ? Math.abs(this.ow.vel || 0) : 0;
+    const crate = (a0, a1, b0, b1, h0, h1, col) => { box(a0, a1, b0, b1, h0, h1, col); if(sees(0, 0, 1)){ g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(a0, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 + 1.2, h1 + 0.2), P(a0, (b0 + b1)/2 + 1.2, h1 + 0.2)].map(PT), true); } };
+
+    if(id === 'amrlift'){   /* SCISSOR LIFT: a deck on two pairs of criss-cross arms; it rises while he stands and folds down as he drives */
+      if(st !== 'post') return;
+      const goal = vel < 0.01 ? 1 : 0; this._amrLift = (this._amrLift == null ? goal : this._amrLift) + (goal - (this._amrLift == null ? goal : this._amrLift))*0.04;
+      const H = 10 + this._amrLift*58, DZ = TOP + 2 + H, A0 = -40, A1 = 40;
+      box(-44, 44, -30, 30, TOP, TOP + 2, DARK);
+      const arms = sb => { const bb = sb*26; tube([A0, bb, TOP + 2], [A1, bb, DZ], 4, Y); tube([A1, bb, TOP + 2], [A0, bb, DZ], 4, _pdk(Y, 0.85)); const m = P(0, bb, (TOP + 2 + DZ)/2); g.fillStyle(DARK, 1); g.fillCircle(m.x, m.y, 1.8*K*2); };
+      arms(-nearB);
+      tube([0, -26, (TOP + 2 + DZ)/2], [0, 26, (TOP + 2 + DZ)/2], 2.6, DARK);
+      arms(nearB);
+      box(-46, 46, -32, 32, DZ, DZ + 4, STEEL);   /* (its deck, a yellow guard rail round it) */
+      for(const [p0, p1] of [[[-44, -30], [44, -30]], [[-44, 30], [44, 30]], [[-44, -30], [-44, 30]], [[44, -30], [44, 30]]]){ tube([p0[0], p0[1], DZ + 4], [p0[0], p0[1], DZ + 20], 2, Y); tube([p0[0], p0[1], DZ + 20], [p1[0], p1[1], DZ + 20], 2, Y); }
+      return; }
+
+    if(id === 'amrtug'){   /* TUGGER TRAIN: a tow bar at its tail and two carts behind it, each a caged flatbed on four castors, loaded */
+      const carts = [0, 1].map(k => { const ca = -hx - 46 - k*84; return { k, ca, d: V.depth(ca, 0, 20) }; });
+      const cart = c => { const ca = c.ca, A0 = ca - 36, A1 = ca + 36;
+        for(const sb of [-nearB, nearB]) for(const a of [A0 + 8, A1 - 8]) if(sb === -nearB) V.wheel(a, sb*26, 6, 4, 6, wheelPhase);
+        box(A0, A1, -28, 28, 12, 16, BODYC.top);
+        for(const sb of [-nearB, nearB]) for(const a of [A0 + 8, A1 - 8]) if(sb === nearB) V.wheel(a, sb*26, 6, 4, 6, wheelPhase);
+        const cr = c.k ? [[A0 + 4, A0 + 32, -24, 0, 0xc98a4a, 40], [A0 + 4, A0 + 32, 2, 24, 0xb97b40, 34], [A0 + 36, A1 - 4, -24, 24, 0xd29a5a, 30]] : [[A0 + 4, A1 - 4, -24, -2, 0x5a7aa8, 32], [A0 + 4, A0 + 34, 2, 24, 0xc98a4a, 38], [A0 + 38, A1 - 4, 2, 24, 0xb97b40, 28]];
+        cr.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 20) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 20));
+        for(const [a0, a1, b0, b1, col, h] of cr) crate(a0, a1, b0, b1, 16, h, col);
+        tube([A1, 0, 14], [A1 + 12, 0, 14], 2.4, DARK); };   /* (its draw bar, forward to what pulls it) */
+      const trailFar = !sees(-1, 0, 0);
+      if(st === 'pre' && trailFar){ carts.sort((p, q) => p.d - q.d).forEach(cart); tube([-hx - 10, 0, 14], [-hx, 0, 14], 3, DARK); }
+      if(st === 'post' && !trailFar){ tube([-hx - 10, 0, 14], [-hx, 0, 14], 3, DARK); carts.sort((p, q) => p.d - q.d).forEach(cart); }
+      return; }
+
+    if(id === 'amrshelf'){   /* SHELF LIFTER: carried up under a tall shelf pod -- four posts, four shelves, coloured bins on each */
+      if(st !== 'post') return;
+      const S = 36, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];
+      box(-12, 12, -12, 12, TOP, Z0, DARK);   /* (its lift pad) */
+      const posts = [[-S, -S], [S, -S], [S, S], [-S, S]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
+      const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
+      for(const p of posts.slice(0, 2)) post(p);
+      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e];
+      for(let i = 0; i < 4; i++){ box(-S, S, -S, S, LV[i], LV[i] + 2.5, 0x6a7078);
+        if(i < 4){ const bins = []; for(const ba of [-1, 1]) for(const bb of [-1, 1]) bins.push({ a: ba*17, b: bb*17, d: V.depth(ba*17, bb*17, LV[i] + 10) });
+          bins.sort((p, q) => p.d - q.d); for(const bn of bins){ const col = BINS[(i + (bn.a > 0) + 2*(bn.b > 0)) % 4]; box(bn.a - 14, bn.a + 14, bn.b - 14, bn.b + 14, LV[i] + 2.5, LV[i] + 2.5 + (i === 3 ? 18 : 20), col); } } }
+      box(-S, S, -S, S, LV[4], LV[4] + 2.5, 0x6a7078);
+      for(const p of posts.slice(2)) post(p);
+      return; }
+
+    if(id === 'amrconv'){   /* CONVEYOR TOP: a roller bed along its length, side rails, boxes riding along it while it runs */
+      if(st !== 'post') return;
+      const Z = TOP + 8;
+      for(const a of [-40, 40]) for(const b of [-24, 24]) box(a - 3, a + 3, b - 3, b + 3, TOP, Z, DARK);
+      box(-52, 52, -26, 26, Z, Z + 3, 0x3a3e46);
+      if(sees(0, 0, 1)){ const ph = ((t*0.03) % 8 + 8) % 8; g.lineStyle(Math.max(1, 1.1*K), 0x8d959c, 1); for(let a = -50 + ph; a < 50; a += 8){ const A = P(a, -22, Z + 3.2), B = P(a, 22, Z + 3.2); g.lineBetween(A.x, A.y, B.x, B.y); } }
+      const rail = sb => box(-54, 54, sb*26, sb*29, Z, Z + 7, Y);
+      rail(-nearB);
+      const run = ((t*0.03) % 140 + 140) % 140, bx = [0, 1].map(k => { let a = -60 + ((run + k*70) % 140); return a; }).filter(a => a > -48 && a < 48);
+      bx.sort((p, q) => V.depth(p, 0, 50) - V.depth(q, 0, 50)); for(const a of bx) crate(a - 12, a + 12, -14, 14, Z + 3, Z + 23, 0xc98a4a);
+      rail(nearB);
+      return; }
+
+    if(id === 'amrarm'){   /* ROBOT ARM: a turret on its deck, an arm in three joints that sweeps slowly round, a two-fingered gripper */
+      if(st !== 'post') return;
+      const sw = Math.sin(t/1400)*1.3, c = Math.cos(sw), s = Math.sin(sw), R = (r, h) => [c*r, s*r, h];
+      this.avLathe(V, 0, 0, [[TOP, 16], [TOP + 6, 16], [TOP + 6, 12], [TOP + 12, 12]], DARK, null, 16);
+      const sh = [0, 0, TOP + 14], el = R(22, TOP + 58), wr = R(54, TOP + 46), tip = R(62, TOP + 30);
+      const seg = [{ p: [sh, el], w: 9, col: Y }, { p: [el, wr], w: 7, col: Y }, { p: [wr, tip], w: 4, col: DARK }];
+      const joint = (q, r) => this.avLathe(V, q[0], q[1], [[q[2] - r, r], [q[2] + r, r]], 0x3a3e46, null, 10);
+      const parts = [{ d: V.depth(...sh), f: () => joint(sh, 7) }, { d: V.depth(...el), f: () => joint(el, 5.5) }, { d: V.depth(...wr), f: () => joint(wr, 4.4) }];
+      for(const sg of seg){ const m = sg.p[0].map((v, i) => (v + sg.p[1][i])/2); parts.push({ d: V.depth(...m), f: () => tube(sg.p[0], sg.p[1], sg.w, sg.col) }); }
+      for(const sb of [-1, 1]){ const f0 = [tip[0] - s*sb*4, tip[1] + c*sb*4, tip[2]], f1 = [f0[0] + c*4, f0[1] + s*4, f0[2] - 8]; parts.push({ d: V.depth(...f1) + 0.001, f: () => tube(f0, f1, 2.2, STEEL) }); }
+      byDepth(parts);
+      return; }
+
+    if(id === 'amrjack'){   /* PALLET JACK: two long forks out of its nose under a wooden pallet, a stretch-wrapped stack on it, a backrest */
+      const F0 = hx - 4, F1 = hx + 70;
+      if(st !== (front ? 'post' : 'pre')) return;   /* (out ahead of its nose: under its hull when its nose is away) */
+      for(const sb of [-nearB, nearB]) box(F0, F1, sb*14 - 6, sb*14 + 6, 3, 7, STEEL);
+      box(F0 + 2, F1 - 2, -32, 32, 7, 15, 0xb08a58);
+      if(sees(0, 0, 1) || true){ for(const sb of [-1, 1]) if(sees(0, sb, 0)){ g.fillStyle(0x6a4a2a, 1); for(const a of [F0 + 8, (F0 + F1)/2 - 6, F1 - 20]) g.fillPoints([P(a, sb*32.1, 8.5), P(a + 12, sb*32.1, 8.5), P(a + 12, sb*32.1, 13), P(a, sb*32.1, 13)].map(PT), true); } }
+      box(F0 + 4, F1 - 4, -30, 30, 15, 58, 0xc98a4a);
+      g.fillStyle(0xdfe8f0, 0.35); for(const sb of [-1, 1]) if(sees(0, sb, 0)) g.fillPoints([P(F0 + 4, sb*30.2, 15), P(F1 - 4, sb*30.2, 15), P(F1 - 4, sb*30.2, 58), P(F0 + 4, sb*30.2, 58)].map(PT), true);
+      if(sees(1, 0, 0)) g.fillPoints([P(F1 - 3.8, -30, 15), P(F1 - 3.8, 30, 15), P(F1 - 3.8, 30, 58), P(F1 - 3.8, -30, 58)].map(PT), true);
+      if(sees(0, 0, 1)) g.fillPoints([P(F0 + 4, -30, 58.2), P(F1 - 4, -30, 58.2), P(F1 - 4, 30, 58.2), P(F0 + 4, 30, 58.2)].map(PT), true);
+      return; }
+  }
   /* THE SECURITY PATROL ROBOT'S ROBOT DOG BUILD (Sir, 2026-11-18: "the dog type bots ... it does not look a real dog in its head"): a
      four-legged robot -- Tipsey's chamfered hull for its torso (his paint, his stripe a band along it), a sensor head at its front (a dark
      face plate with his eyes, a camera each side) not a dog's head, a beacon on its back, four legs each a thigh in his body colour and a
@@ -152388,6 +152490,8 @@ requestTpProfile();
      flies and steers as the drone does, drawn as the saucer (drawDrone -> drawDroneUfo) */
   const DRONE_BUILD = [{ id: 'stock', name: 'Drone', cents: 0 }, { id: 'ufo', name: 'UFO', cents: 2000 }];
   /* THE CARGO BOT'S BUILDS (Sir, 2026-11-17: "give it time periods"): the cargo bot as the delivery vehicle of each era (drawProp's cargobot) */
+  const AMR_BUILD = [{ id: 'stock', name: 'Warehouse bot', cents: 0 }, { id: 'amrlift', name: 'Scissor Lift', cents: 2000 }, { id: 'amrtug', name: 'Tugger Train', cents: 2000 }, { id: 'amrshelf', name: 'Shelf Lifter', cents: 2000 },
+    { id: 'amrconv', name: 'Conveyor Top', cents: 2000 }, { id: 'amrarm', name: 'Robot Arm', cents: 2000 }, { id: 'amrjack', name: 'Pallet Jack', cents: 2000 }];   /* (the warehouse robot's builds -- Sir, 2026-11-18) */
   const PATROL_BUILD = [{ id: 'stock', name: 'Patrol bot', cents: 0 }, { id: 'pdog', name: 'Robot Dog', cents: 2000 }];   /* (the patrol robot's builds -- Sir, 2026-11-18) */
   const CARGO_BUILD = [{ id: 'stock', name: 'Cargo bot', cents: 0 }, { id: 'cg1900', name: '1900s Wagon', cents: 1600 }, { id: 'cg1920', name: '1920s Model-T', cents: 1600 },
     { id: 'cg1950', name: '1950s Panel Van', cents: 1600 }, { id: 'cg1970', name: '1970s Box Van', cents: 1600 }, { id: 'cg1980', name: '1980s Retro-Future', cents: 1800 }, { id: 'cg2100', name: '2100s Hover Freighter', cents: 2200 }];
@@ -152590,7 +152694,7 @@ requestTpProfile();
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
-                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]], CARGO_BUILD.slice(1), PATROL_BUILD.slice(1)), bSkin: TP_BSKIN };
+                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]], CARGO_BUILD.slice(1), PATROL_BUILD.slice(1), AMR_BUILD.slice(1)), bSkin: TP_BSKIN };
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
@@ -153286,7 +153390,7 @@ requestTpProfile();
     if (tab === 'mouth') { renderMouth(P); return; }
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
-    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', courier = fleetCur() === 'courierbot', patrol = fleetCur() === 'patrolbot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : courier ? [{ id: 'stock', name: 'Courier bot', cents: 0 }] : patrol ? PATROL_BUILD : TP_BUILD;
+    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', courier = fleetCur() === 'courierbot', patrol = fleetCur() === 'patrolbot', amr = fleetCur() === 'amr', BL = amr ? AMR_BUILD : drone ? DRONE_BUILD : cargo ? CARGO_BUILD : courier ? [{ id: 'stock', name: 'Courier bot', cents: 0 }] : patrol ? PATROL_BUILD : TP_BUILD;
       const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'ufo' ? '<ellipse cx="20" cy="5" rx="5" ry="3" fill="#a9dcec"/><ellipse cx="20" cy="9" rx="15" ry="3" fill="#cfd3d8"/><circle cx="10" cy="9" r="1" fill="#ff5a4a"/><circle cx="20" cy="11" r="1" fill="#5ae8ff"/><circle cx="30" cy="9" r="1" fill="#ffd34a"/>' : ''}${id === 'monster' ? '<circle cx="9" cy="20" r="5" fill="#24262c"/><circle cx="31" cy="20" r="5" fill="#24262c"/><rect x="15" y="2" width="10" height="1.6" fill="#fff2c4"/>' : ''}${id === 'hotrod' ? '<ellipse cx="20" cy="6" rx="5" ry="2.6" fill="#9cc9dc"/><path d="M11 7L5 1H3l2 6z" fill="#eceef1" stroke="#2e3138" stroke-width=".6"/><path d="M24 14l-3 4M27 14l-3 4" stroke="#b9bec4" stroke-width="1.2"/>' : ''}${id === 'buggy' ? '<path d="M12 6V2h12l6 4" fill="none" stroke="#2e3138" stroke-width="1.4"/><rect x="4" y="9" width="5" height="6" fill="#5d646c"/>' : ''}${id === 'tank' ? '<rect x="14" y="2" width="11" height="5" rx="1.5" fill="#eceef1"/><rect x="25" y="3.6" width="10" height="1.8" fill="#5d646c"/><rect x="7" y="16" width="26" height="6" rx="3" fill="#2a2f36"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
       P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : courier ? 'COSTUMES BELOW' : patrol ? 'HIS SHAPE (COSTUMES ON THE PATROL BOT)' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
