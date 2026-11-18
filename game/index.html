@@ -45801,6 +45801,19 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'patrol:ranger', build: 'patrol', name: 'Park Ranger', cents: 900, body: 0x4a5a32, upper: 0xc8b080, stripe: 0x5a3a1e, costume: 'ranger', noMouth: true },
   { id: 'patrol:bouncer', build: 'patrol', name: 'Bouncer', cents: 900, body: 0x1c1d21, stripe: 0x1c1d21, costume: 'bouncer', noMouth: true },
   /* THE ROBOT DOG'S SKINS (Sir, 2026-11-18) -- drawPatrolDog's dogAcc: each its paint and its own pieces */
+  /* THE WAREHOUSE ROBOT'S FACILITY SKINS (Sir, 2026-11-18: "skins based on the facilities these bots would be deployed ... color schemes and
+     similar icons that nod to known businesses"): build 'amr', worn over any of its builds -- a body (and lid, and skirt) colour, its lit
+     band, an icon on its flanks, its tail and (bare) its lid, and some a band of their own. Nods only: no real name, logo or lettering */
+  { id: 'amr:online', build: 'amr', name: 'Online Mega-Store', cents: 900, body: 0x2f3338, stripe: 0x2f3338, icon: 'parcel', iconCol: 0xff9a1a, band: 'swoosh', bandCol: 0xff9a1a },
+  { id: 'amr:parcel', build: 'amr', name: 'Parcel Carrier', cents: 900, body: 0x4a2f1c, stripe: 0xd8a83a, icon: 'shieldbox', iconCol: 0xd8a83a },
+  { id: 'amr:express', build: 'amr', name: 'Express Courier', cents: 900, body: 0x4b2a86, stripe: 0xff7a1a, skirt: 0xff7a1a, icon: 'chevron', iconCol: 0xff7a1a },
+  { id: 'amr:freight', build: 'amr', name: 'Freight Yellow', cents: 900, body: 0xf6c81e, stripe: 0xd4201f, icon: 'wingbox', iconCol: 0xd4201f, band: 'speed', bandCol: 0xd4201f },
+  { id: 'amr:bullseye', build: 'amr', name: 'Bullseye Retail', cents: 900, body: 0xf4f4f2, lid: 0xcc1f2b, stripe: 0xcc1f2b, icon: 'cartring', iconCol: 0xcc1f2b },
+  { id: 'amr:bigbox', build: 'amr', name: 'Blue & Yellow Big Box', cents: 900, body: 0x1f56b0, stripe: 0xffd21a, icon: 'flatpack', iconCol: 0xffd21a },
+  { id: 'amr:homeimp', build: 'amr', name: 'Home Improvement', cents: 900, body: 0xf26a12, stripe: 0x1d1f23, skirt: 0x1d1f23, icon: 'tools', iconCol: 0xf6f4ee },
+  { id: 'amr:grocery', build: 'amr', name: 'Grocery Fulfilment', cents: 900, body: 0xf2ead2, lid: 0x2e8b4a, stripe: 0x2e8b4a, icon: 'leaf', iconCol: 0x2e8b4a, band: 'produce', bandCol: 0x2e8b4a },
+  { id: 'amr:pharmacy', build: 'amr', name: 'Pharmacy', cents: 900, body: 0xf6f6f4, stripe: 0xd42a2a, icon: 'heartpill', iconCol: 0xd42a2a },
+  { id: 'amr:hospital', build: 'amr', name: 'Hospital Supply', cents: 900, body: 0xf6f6f4, skirt: 0x1a9a9a, stripe: 0x1a9a9a, icon: 'cross', iconCol: 0x2aa84a },
   { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0xf3f3f0, dog: 'k9', lightbar: true },
   { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
   { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
@@ -121109,8 +121122,10 @@ class WorldScene extends Phaser.Scene {
          tail (his flag, or a skin's topper), carrying empty unless it is handed a load (data.load). Worn as Tipsey's, as the others (the standing rules) */
       const L = 110, W = 76, hx = L/2, hy = W/2;
       shadow(L/2, W/2);
-      const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0x474e57, lt: 0x3a4048, dk: 0x2b3037 };
-      const LEDC = WEAR ? STRIPEC : CYAN, LEDD = WEAR ? STRIPED : _pdk(CYAN, 0.8);
+      const AS = WEAR && SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'amr');   /* (one of its facility skins) */
+      const sh3 = c => ({ top: c, lt: _pdk(c, 0.9), dk: _pdk(c, 0.78) });
+      const BODYC = AS ? sh3(AS.body) : WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0x474e57, lt: 0x3a4048, dk: 0x2b3037 };
+      const LEDC = AS ? AS.stripe : WEAR ? STRIPEC : CYAN, LEDD = AS ? _pdk(AS.stripe, 0.8) : WEAR ? STRIPED : _pdk(CYAN, 0.8);
       /* THE FLAG, AS TIPSEY'S (flagNear): in front of the body when its rear face is toward the eye, behind it when away */
       const flagNear = sees(-1, 0, 0);
       const drawFlag = () => { const fa = -hx + 5, fb = -nearB*(hy - 6), fz = 31;
@@ -121120,11 +121135,15 @@ class WorldScene extends Phaser.Scene {
       const NOFLAG = AB === 'amrshelf' || AB === 'amrlift';
       if(AB) this.drawAmrBuild(AB, 'pre', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir);
       if(!flagNear && !NOFLAG) drawFlag();
-      this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 4, z1: 28, ch: 10, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0x23272d }, paintOf(4, 28, 'body')));
-      if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 5, z1: 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
+      this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 4, z1: 28, ch: 10, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0x23272d }, AS ? {} : paintOf(4, 28, 'body')));
+      if(AS && AS.skirt) this.botHull(g, x, y, z, fdir, { hx: hx + 0.5, hy: hy + 0.5, ch: 10, z0: 4.5, z1: 12, band: true, cLt: AS.skirt, cDk: _pdk(AS.skirt, 0.8) });   /* (a skirt of its own colour) */
+      if(WEAR && !AS && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 5, z1: 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
       this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 10, z1: 13, band: true, cLt: LEDC, cDk: LEDD });          // the lit band round its skirt
-      this.botHull(g, x, y, z, fdir, { hx: hx - 4, hy: hy - 4, z0: 28, z1: 31, ch: 8, cTop: WEAR ? BODYC.top : 0xb4bbc0, cLt: WEAR ? BODYC.lt : 0x9aa1a6, cDk: WEAR ? BODYC.dk : 0x7e858a, cBottom: 0x23272d });   // its top plate
-      if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 10, s0: 10, s1: 13, dz: 19 });                    // (his skin's stripe pattern and badge)
+      if(AS) this.amrSkinDecals(g, V, AS, 'side', hx, hy, BODYC, !AB);
+      const LIDC = AS && AS.lid ? sh3(AS.lid) : BODYC;
+      this.botHull(g, x, y, z, fdir, { hx: hx - 4, hy: hy - 4, z0: 28, z1: 31, ch: 8, cTop: WEAR ? LIDC.top : 0xb4bbc0, cLt: WEAR ? LIDC.lt : 0x9aa1a6, cDk: WEAR ? LIDC.dk : 0x7e858a, cBottom: 0x23272d });   // its top plate
+      if(AS) this.amrSkinDecals(g, V, AS, 'lid', hx, hy, LIDC, !AB);
+      else if(WEAR) this.botSkinWear(g, V, { hx, hy, ch: 10, s0: 10, s1: 13, dz: 19 });                    // (his skin's stripe pattern and badge)
       this.tipseyFace(V, L/2, 20, 0.7);
       /* THE LOAD (Sir, 2026-11-10: "the bot itself shouldn't just have boxes on it"): it runs empty. A pallet of boxes rides it only when a
          mission or a working scene hands it one (data.load), drawn far to near through the fall as before */
@@ -131332,6 +131351,46 @@ class WorldScene extends Phaser.Scene {
   /* THE WAREHOUSE ROBOT'S BUILDS (Sir, 2026-11-18): AMR_BUILD -- each a different machine on its platform. Drawn at two moments: 'pre' before
      its hull (what is behind it from here: the tugger's carts when they trail away from the eye), 'post' over its top plate (z 31). Its
      platform is L 110 x W 76, its nose +a */
+  /* THE WAREHOUSE ROBOT'S FACILITY SKIN DECALS (TP_BSKIN build 'amr'): 'side' -- its band and its icon laid on each flank and its tail
+     (over its hull, under its lid); 'lid' -- the icon big on its lid while it wears no build. An icon is drawn in its own space (u right,
+     v up, about -1..1), laid on a face so it reads unmirrored from outside; arrows point to its nose */
+  amrSkinDecals(g, V, AS, st, hx, hy, BG, bare){
+    const { P, sees } = V, PT = q => new Phaser.Geom.Point(q.x, q.y), BGC = BG.top, IC = st === 'lid' && AS.lid ? AS.body : AS.iconCol, IC2 = _pdk(IC, 0.8);   /* (on a lid of its own colour the icon in its body colour) */
+    const icon = (map, fwd) => {
+      const poly = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([u, v]) => PT(map(u, v))), true); };
+      const rect = (u0, v0, u1, v1, col) => poly([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], col);
+      const circ = (cu, cv, r, col, n = 16) => poly([...Array(n)].map((_, i) => [cu + Math.cos(i/n*Math.PI*2)*r, cv + Math.sin(i/n*Math.PI*2)*r]), col);
+      const bar = (p0, p1, w, col) => { const du = p1[0] - p0[0], dv = p1[1] - p0[1], l = Math.hypot(du, dv) || 1, nu = -dv/l*w/2, nv = du/l*w/2;
+        poly([[p0[0] + nu, p0[1] + nv], [p1[0] + nu, p1[1] + nv], [p1[0] - nu, p1[1] - nv], [p0[0] - nu, p0[1] - nv]], col); };
+      switch(AS.icon){
+        case 'parcel': rect(-0.85, -0.85, 0.85, 0.5, IC); poly([[-0.85, 0.5], [0.85, 0.5], [0.62, 0.92], [-0.62, 0.92]], IC2); rect(-0.07, -0.1, 0.07, 0.92, BGC); rect(-0.3, -0.62, 0.3, -0.42, BGC); break;
+        case 'shieldbox': poly([[-0.8, 0.9], [0.8, 0.9], [0.8, 0.1], [0, -0.95], [-0.8, 0.1]], IC); rect(-0.38, -0.3, 0.38, 0.42, BGC); rect(-0.07, -0.3, 0.07, 0.42, IC); break;
+        case 'chevron': for(const x0 of [-0.55, 0.15]) poly([[x0 - 0.35, 0.8], [x0 + 0.1, 0.8], [x0 + 0.55, 0], [x0 + 0.1, -0.8], [x0 - 0.35, -0.8], [x0 + 0.1, 0]].map(([u, v]) => [u*fwd, v]), IC); break;
+        case 'wingbox': rect(-0.2*fwd, -0.55, 0.75*fwd, 0.45, IC); rect(0.2*fwd, -0.55, 0.3*fwd, 0.45, BGC);
+          for(const [v, l] of [[0.3, 0.75], [0, 0.95], [-0.3, 0.6]]) rect(-0.35*fwd - l*fwd, v - 0.09, -0.35*fwd, v + 0.09, IC); break;
+        case 'cartring': circ(0, 0, 1, IC, 24); circ(0, 0, 0.8, BGC, 24);
+          poly([[-0.5, 0.35], [0.5, 0.35], [0.36, -0.18], [-0.36, -0.18]], IC); bar([-0.5, 0.35], [-0.68, 0.55], 0.12, IC); circ(-0.24, -0.4, 0.12, IC, 10); circ(0.24, -0.4, 0.12, IC, 10); break;
+        case 'flatpack': rect(-0.9, -0.75, 0.9, -0.38, IC); rect(-0.78, -0.26, 0.78, 0.1, IC2); rect(-0.66, 0.22, 0.66, 0.58, IC); bar([0.5, 0.7], [0.85, 0.95], 0.12, IC2); break;
+        case 'tools': bar([-0.62, -0.85], [0.45, 0.55], 0.2, IC); bar([0.15, 0.85], [0.8, 0.25], 0.36, IC);
+          bar([0.62, -0.85], [-0.4, 0.5], 0.2, IC); circ(-0.5, 0.62, 0.3, IC, 14); circ(-0.58, 0.74, 0.14, BGC, 10); break;
+        case 'leaf': { const o = []; for(let i = 0; i <= 12; i++){ const q = i/12; o.push([-0.85 + 1.7*q, 0.5*Math.sin(Math.PI*q)]); } for(let i = 12; i >= 0; i--){ const q = i/12; o.push([-0.85 + 1.7*q, -0.5*Math.sin(Math.PI*q)]); }
+          const r = Math.PI/5, c = Math.cos(r), s2 = Math.sin(r); poly(o.map(([u, v]) => [u*c - v*s2, u*s2 + v*c]), IC); bar([-0.85*c, -0.85*s2], [0.6*c, 0.6*s2], 0.08, BGC); bar([-0.85*c, -0.85*s2], [-1.05*c + 0.1, -1.05*s2 - 0.12], 0.1, IC); break; }
+        case 'heartpill': circ(-0.6, 0.18, 0.3, IC, 14); circ(-0.12, 0.18, 0.3, IC, 14); poly([[-0.89, 0.08], [0.17, 0.08], [-0.36, -0.7]], IC);
+          bar([0.32, -0.62], [0.74, 0.2], 0.38, IC); bar([0.53, -0.21], [0.74, 0.2], 0.38, _pdk(IC, 0.62)); circ(0.32, -0.62, 0.19, IC, 10); circ(0.74, 0.2, 0.19, _pdk(IC, 0.62), 10); break;
+        case 'cross': rect(-0.3, -0.9, 0.3, 0.9, IC); rect(-0.9, -0.3, 0.9, 0.3, IC); break;
+      } };
+    if(st === 'side'){
+      for(const sb of [-1, 1]){ if(!sees(0, sb, 0)) continue; const bb = sb*(hy + 0.35), ra = -sb;
+        /* its own band along the flank */
+        if(AS.band === 'swoosh'){ const lo = [], hi = []; for(let i = 0; i <= 12; i++){ const a = -44 + i*88/12, q = (a + 44)/88; lo.push(P(a, bb, 7.5 + 7*q*q)); hi.push(P(a, bb, 7.5 + 7*q*q + 1.2 + 3*Math.sin(Math.PI*q))); }
+          g.fillStyle(AS.bandCol, 1); g.fillPoints(lo.concat(hi.reverse()).map(PT), true); }
+        if(AS.band === 'speed'){ g.fillStyle(AS.bandCol, 1); for(let k = 0; k < 3; k++){ const a0 = -40 + k*7; g.fillPoints([P(a0, bb, 15), P(a0 + 4, bb, 15), P(a0 + 9, bb, 26), P(a0 + 5, bb, 26)].map(PT), true); } }
+        if(AS.band === 'produce'){ for(let k = 0; k < 12; k++){ const a0 = -42 + k*7; g.fillStyle(k % 2 ? 0xf6f4ee : AS.bandCol, 1); g.fillPoints([P(a0, bb, 14.5), P(a0 + 7, bb, 14.5), P(a0 + 7, bb, 17.5), P(a0, bb, 17.5)].map(PT), true); } }
+        const ca = AS.band === 'speed' ? 6 : AS.band === 'swoosh' ? -14 : 0, cz = AS.band === 'produce' ? 22.8 : 20.4, S = AS.band === 'produce' ? 4.8 : 7;
+        icon((u, v) => P(ca + ra*u*S, bb + sb*0.05, cz + v*S), -ra); }
+      if(sees(-1, 0, 0)){ const aa = -(hx + 0.35); icon((u, v) => P(aa, -u*6.5, 20.4 + v*6.5), 1); } }
+    if(st === 'lid' && bare && sees(0, 0, 1)){ const S = 19; icon((u, v) => P(-4 + u*S, v*S, 31.3), 1);   /* (its right toward its nose) */ }
+  }
   drawAmrBuild(id, st, g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir){
     const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0), back = sees(-1, 0, 0);
     const DARK = 0x2a2f36, Y = 0xf2c02e, STEEL = 0x9aa1a8, TOP = 31;
@@ -154174,7 +154233,7 @@ requestTpProfile();
       P.className = 'grList';
       P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : courier ? 'COSTUMES BELOW' : patrol ? 'HIS SHAPE (COSTUMES ON THE PATROL BOT)' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       /* this build's own skins (TP_BSKIN), under the builds */
-      const bk = courier ? 'courier' : patrol ? (cur === 'stock' ? 'patrol' : cur) : cur, BSK = TP_BSKIN.filter(k => k.build === bk), curS = L.bSkin && L.bSkin.startsWith(bk + ':') ? L.bSkin : 'stock';   // (the courier: its costumes)
+      const bk = amr ? 'amr' : courier ? 'courier' : patrol ? (cur === 'stock' ? 'patrol' : cur) : cur, BSK = TP_BSKIN.filter(k => k.build === bk), curS = L.bSkin && L.bSkin.startsWith(bk + ':') ? L.bSkin : 'stock';   // (the courier: its costumes)
       if (BSK.length) { const sw = k => k.id === 'stock' ? '<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="#eceef1"/><rect x="8" y="13" width="24" height="2.4" fill="#c2452e"/></svg>'
           : `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="${hex(k.body)}"/><rect x="8" y="13" width="24" height="2.4" fill="${hex(k.stripe)}"/>${k.glass ? `<rect x="22" y="8.5" width="7" height="3" rx="1" fill="${hex(k.glass[0])}"/>` : ''}</svg>`;
         P.innerHTML += `<div class="grSec">${courier || patrol ? 'COSTUMES' : 'SKINS'} — ${(BL.find(c => c.id === cur) || {}).name || ''}</div><div class="grRow">` + [TP_BSKIN[0], ...BSK].map(k => `<button class="grSkin${curS === k.id ? ' sel' : ''}" data-bskin="${k.id}">${sw(k)}<span>${k.name}</span>${tagOf('bSkin', k.id, curS === k.id)}</button>`).join('') + '</div>'; }
