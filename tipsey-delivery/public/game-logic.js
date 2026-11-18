@@ -43762,7 +43762,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'pdog:desert', build: 'pdog', name: 'Desert Recon', cents: 900, body: 0xc8a874, stripe: 0x8a6a40, shin: 0x4a3c26, dog: 'desert', noBeacon: true },
   { id: 'pdog:neon', build: 'pdog', name: 'Neon Cyber', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, dog: 'neon', beacon: 0x5fe8ff, glow: 0x5fe8ff },
   { id: 'pdog:mail', build: 'pdog', name: 'Mail Hound', cents: 900, body: 0x2a4a9a, stripe: 0xf6f6f2, dog: 'mail', noBeacon: true },
-  { id: 'pdog:show', build: 'pdog', name: 'Show Dog', cents: 900, body: 0xd9a93c, stripe: 0x8a1c24, shin: 0x6a5020, dog: 'show', noBeacon: true },
+  { id: 'pdog:show', build: 'pdog', name: 'Show Dog', cents: 900, body: 0xe8b83c, stripe: 0xe8b83c, shin: 0x6a5020, dog: 'show', noBeacon: true, noRails: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -129151,16 +129151,28 @@ class WorldScene extends Phaser.Scene {
           tube([PA, -HY - 1.6, Z1 - 3], [PA - 1, -HY - 1.6, Z1 + 20], 1.8, 0xc8202a);
           boxS(PA - 9, PA, -HY - 2.2, -HY - 1, Z1 + 13, Z1 + 21, 0xd8261c); }
       }
-      if(c === 'show'){
-        if(st === 'flank'){ for(const sb of [-1, 1]){ flankQ(sb, [[-20, 66], [10, 66], [10, 52], [-20, 52]], 0x8a1c24, 1, 0.9); flankQ(sb, [[-20, 53.4], [10, 53.4], [10, 52], [-20, 52]], 0xd8b04a, 1, 1);
-            for(let k = 0; k < 10; k++){ const a = -19 + k*3.2; flankQ(sb, [[a, 52], [a + 1.2, 52], [a + 0.6, 49.5]], 0xd8b04a, 1, 1); }
-            flankQ(sb, [[17.5, 54], [20, 54], [17.5, 46], [15, 47]], 0x2a5ad8, 1, 0.95); flankQ(sb, [[20, 54], [22.5, 54], [25, 47], [22.5, 46]], 0x2a5ad8, 1, 0.95); flankQ(sb, ell(20, 59, 6, 6, 16), 0x2a5ad8, 1, 1); flankQ(sb, ell(20, 59, 4.4, 4.4, 14), 0xf6f6f2, 1, 1.05); flankQ(sb, ell(20, 59, 3, 3, 12), 0xd8b04a, 1, 1.1);   /* (a rosette, its tails) */
-            }
-          topQ([[-20, -HY + 0.5], [10, -HY + 0.5], [10, HY - 0.5], [-20, HY - 0.5]], 0x8a1c24, 1, Z1 + 0.5); }
+      if(c === 'show'){   /* (second pass -- Sir, 2026-11-18): bright polished gold; a red velvet saddle cloth draped over its back and down its sides,
+           gold-trimmed with a gold fringe; a big blue Best-in-Show rosette on each side of the cloth; a red collar with gold studs; a little gold crown */
+        const CL = 0x8a1c24, GD = 0xf0c850, GDD = 0xb88a20, C0 = -20, C1 = 12, CZ = 49;
+        const side = sb => { const b0 = sb*(HY + 0.6), b1 = sb*(HY + 1.6), lo = Math.min(b0, b1), hi = Math.max(b0, b1);
+          boxS(C0, C1, lo, hi, CZ, Z1 + 0.4, CL); boxS(C0, C1, lo - 0.1, hi + 0.1, CZ, CZ + 1.6, GD);
+          if(sees(0, sb, 0)){ const bb = sb*(HY + 1.8);
+            for(let k = 0; k < 11; k++){ const a = C0 + 0.6 + k*2.9; g.fillStyle(GDD, 1); g.fillPoints([P(a, bb, CZ), P(a + 1.6, bb, CZ), P(a + 0.8, bb, CZ - 2.8)].map(PT), true); }
+            g.fillStyle(0x2a5ad8, 1); g.fillPoints([P(-6.5, bb, 56), P(-4, bb, 56), P(-6.5, bb, 46), P(-9, bb, 47)].map(PT), true); g.fillPoints([P(-4, bb, 56), P(-1.5, bb, 56), P(1, bb, 47), P(-1.5, bb, 46)].map(PT), true);
+            for(const [r, col] of [[6.6, 0x2a5ad8], [5, 0xf6f6f2], [3.4, GD], [1.6, GDD]]){ g.fillStyle(col, 1); g.fillPoints(ell(-4, 59.5, r, r, 16).map(([u, v]) => PT(P(u, bb + sb*0.05, v))), true); } } };
+        if(st === 'far') side(-nearB);
+        if(st === 'flank'){ boxS(C0, C1, -HY - 0.6, HY + 0.6, Z1, Z1 + 1.4, CL);   /* (the cloth over its back, a gold trim at each end) */
+          for(const a of [C0, C1 - 1.6]) boxS(a, a + 1.6, -HY - 0.7, HY + 0.7, Z1 + 0.1, Z1 + 1.6, GD);
+          side(nearB); }
+        if(st === 'neck'){ boxS(HX - 8, HX - 5, -13, 13, 47, 64, 0xc8202a);   /* (its collar, behind its head, gold studs) */
+          for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [51, 56, 61]){ const q = P(HX - 6.5, sb*13.2, zz), r = 0.9*K*2; g.fillStyle(GD, 1); g.fillCircle(q.x, q.y, r); } }
+        if(st === 'head'){ const CA = HX + 3; this.avLathe(V, CA, 0, [[64, 5.2], [67.5, 5.6]], GD, null, 12);   /* (its crown: a band, five points, a jewel) */
+          for(let k = 0; k < 5; k++){ const q = k/5*Math.PI*2, ca = Math.cos(q)*5, sa = Math.sin(q)*5; if(!sees(Math.cos(q), Math.sin(q), 0.4)) continue; tube([CA + ca, sa, 67], [CA + ca*1.05, sa*1.05, 71.5], 1.6, GD); const t2 = P(CA + ca*1.05, sa*1.05, 72), r = 1*K*2; g.fillStyle(0xc8202a, 1); g.fillCircle(t2.x, t2.y, r); }
+          if(front){ const q = P(CA + 5.7, 0, 65.8), r = 1.2*K*2; g.fillStyle(0x2a5ad8, 1); g.fillCircle(q.x, q.y, r); } }
       }
     };
     /* the sensor head: a squat block out front, a dark face plate with his eyes, a camera on each cheek */
-    const head = () => { solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), DS && DS.head || BODYC.top, null, false);
+    const head = () => { dogAcc('neck'); solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), DS && DS.head || BODYC.top, null, false);
       if(front){ V.Q([P(HX + 11.3, -9, 49.5), P(HX + 11.3, 9, 49.5), P(HX + 11.3, 9, 62.5), P(HX + 11.3, -9, 62.5)], 0x1d2228);
         this.tipseyFace(V, HX + 11.2, 56, 0.6, {}); }
       for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.4 + (HX + 11 - (HX + 4))*2/17), q = P(HX + 4, sb*11.2, 56), r = 2.2*K*2; g.fillStyle(0x1d2228, 1); g.fillCircle(q.x, q.y, r*1.5); g.fillStyle(CYAN, 1); g.fillCircle(q.x, q.y, r*0.7); }
