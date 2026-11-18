@@ -130652,7 +130652,7 @@ class WorldScene extends Phaser.Scene {
     if(c === 'lifeguard'){   /* (second pass -- Sir, 2026-11-18): red, a white cross front and back; a red-and-white life ring hung on his back, its grab
          rope looped round it; a sun visor -- a white strap open on top, a big green see-through bill; a silver whistle on
          an orange lanyard round the sides of his face */
-      /* THE LIFE RING ON HIS BACK (Sir, 2026-11-18: off his middle, an accessory on his back): stood upright against his back, hung on a peg,
+      /* THE LIFE RING ON HIS BACK (Sir, 2026-11-18: off his middle, an accessory on his back): stood upright against his back,
          its tube in slices round it painted far to near (a ring is no convex solid), red and white in eight blocks, its grab rope swagged round
          its rim between the white blocks */
       const RC = [-37, 0, 75], RR = 20, RT = 5.8, NS = 24, NT = 10;
@@ -130664,8 +130664,7 @@ class WorldScene extends Phaser.Scene {
         sl.sort((p1, p2) => p1.d - p2.d); for(const o of sl) V.solid(o.F, o.col, null);
         g.lineStyle(Math.max(2.2, 3.4*K), 0xf0e2b4, 1);
         for(let k = 0; k < 4; k++){ const t0 = (1.5 + 2*k)*Math.PI/4; let prev = null; for(let i = 0; i <= 8; i++){ const u = t0 + i/8*Math.PI/2, sag = Math.sin(i/8*Math.PI)*1.6, q = rpt(u, 0, RT + 0.5 + sag); const Q = P(q[0], q[1], q[2]);
-          if(prev) g.lineBetween(prev.x, prev.y, Q.x, Q.y); prev = Q; } }
-        const { solid, prismH } = V; solid(prismH([[-33, -2.5], [-24.5, -2.5], [-24.5, 2.5], [-33, 2.5]], 96, 100), 0x5a606a, null, false); };   /* (its peg) */
+          if(prev) g.lineBetween(prev.x, prev.y, Q.x, Q.y); prev = Q; } } };   /* (no peg -- Sir, 2026-11-18) */
       const cross = (th, dz = 0) => { decal([[th - 0.08, 46 + dz], [th + 0.08, 46 + dz], [th + 0.08, 22 + dz], [th - 0.08, 22 + dz]], 0xf6f6f2); decal([[th - 0.3, 38 + dz], [th + 0.3, 38 + dz], [th + 0.3, 30 + dz], [th - 0.3, 30 + dz]], 0xf6f6f2); };
       if(st === 'back' && !back) ring();
       if(st === 'body'){ cross(0, 16); cross(Math.PI, -8);
