@@ -27927,7 +27927,10 @@ function walkinStep(R, s, dt, now, bot){
         blocked = hard = true; by = o; } }
     /* TWO IN EACH OTHER'S WAY (both walking, each held by the other): the one of them with the lower seed steps aside
        -- a body's width off the line between them, wherever it is clear -- and goes on from there; the other passes */
-    if(by && !m.trip && by._m.path && by._m.by === s && (s.seed >>> 0) < (by.seed >>> 0) && m.wait > 500 && !m.aside){
+    /* (...and at the door, one coming in and one going out, head on: the one going out steps aside -- each was held by the other for good;
+       anyone just about the room steps aside for either -- Marina Optical's customers off the street, 2026-11-18) */
+    const yieldTo = by && (!m.trip ? (!!by._m.trip || (s.seed >>> 0) < (by.seed >>> 0)) : (m.trip === 'leave' && by._m.trip === 'arrive'));
+    if(by && yieldTo && by._m.path && by._m.by === s && m.wait > 500 && !m.aside){
       const q = by._m, ex = m.a - q.a, ey = m.b - q.b, L0 = Math.hypot(ex, ey) || 1, G = walkinGrid(R);
       for(const [cx, cy] of [[-ey, ex], [ey, -ex], [ex, ey]]){
         const E = [m.a + cx/L0*40, m.b + cy/L0*40];
@@ -28205,7 +28208,7 @@ function walkinLeave(scene, R, s, t0, lock, k){
   k = k != null ? k : walkinRouteK(R, s); s._k = k;
   /* (a customer of a shop on the street: out of the door onto its step, and the street has them there -- WALKIN_STREET) */
   const fed = s.look === 'visitor' && walkinFedDoor(R);
-  const line = fed ? [D.inner, walkinStreetStep(R, s)] : walkinKeepRight([D.inner].concat(P.ways[k]), WALKIN_DAY.lane);
+  const line = fed ? walkinKeepRight([[D.inner[0] - D.n[0]*50, D.inner[1] - D.n[1]*50], D.inner, walkinStreetStep(R, s)], WALKIN_DAY.lane) : walkinKeepRight([D.inner].concat(P.ways[k]), WALKIN_DAY.lane);
   if(lock){ const q = line[1], th = Math.atan2(-D.n[1], -D.n[0]);
     line[1] = [q[0], q[1], 'beat', th, () => { R.day.locked = true; }]; }
   if(walkinBeyond(R, m.a, m.b) > 0){
@@ -28300,10 +28303,17 @@ function walkinTakeShoppers(scene, R, now){
     if(!s){ p._roomDone = true; continue; }                                      // (no room for them: in and out, as a shop without one)
     p._held = s; p._hx = q.x; p._hy = q.y;
     s.visit = (s.visit || 0) + 1; s._shop = p; s._shopLook = crowdLook(p, 0x5b0b, null); s._L = null;
-    const m = s._m = walkinLifeInit(R, s, now), at = walkinW2R(R, q.x, q.y);
-    Object.assign(m, { a: at[0], b: at[1], th: q.th, face: q.th, trip: 'arrive', path: [D.inner], spot: null, look: null, up: 0, task: null, talk: false,
+    /* (taken in within the doorway's width, clear of its jambs: a group's shoppers step aside of each other, and one taken at the jamb
+       walked into the wall and stood there -- the gate's clip, 2026-11-18) */
+    const m = s._m = walkinLifeInit(R, s, now), w0 = walkinW2R(R, q.x, q.y), rx = w0[0] - D.P0[0], ry = w0[1] - D.P0[1];
+    const tt = Math.max(-(D.half - 26), Math.min(D.half - 26, rx*D.t[0] + ry*D.t[1])), nn = Math.max(4, rx*D.n[0] + ry*D.n[1]);
+    const at = [D.P0[0] + D.t[0]*tt + D.n[0]*nn, D.P0[1] + D.t[1]*tt + D.n[1]*nn];
+    /* (in on the right of the doorway and on past it, clear of the way out -- one coming in and one going out met head on in it and stood:
+       the gate's clip, 2026-11-18. Lanes as the room's own arrivals keep, walkinKeepRight) */
+    const deep = [D.inner[0] - D.n[0]*50, D.inner[1] - D.n[1]*50], way = walkinKeepRight([at, D.inner, deep], WALKIN_DAY.lane).slice(1);
+    Object.assign(m, { a: at[0], b: at[1], th: q.th, face: q.th, trip: 'arrive', path: way, spot: null, look: null, up: 0, task: null, talk: false,
       work: false, workAt: false, beat: null, until: Infinity, moving: false, v: 0, go: now, wait: 0, stall: 0 });
-    m.goal = D.inner; s._day = 'arriving'; s._gone = false;
+    m.goal = way[way.length - 1]; s._day = 'arriving'; s._gone = false;
   }
 }
 /* the shopper let go on from the step outside the door, on their way out (their visit in the room over, or the room not lived) */
@@ -102284,10 +102294,18 @@ class WorldScene extends Phaser.Scene {
     this.queueFramePieces(tmp, pk.name, X0, Y0, 1, "pkx|" + pk.name, -1e9, it => { const a = it.a || 0, b = it.b; return a < W - 5 && b < D - 5 && vis(a, b, 170, 440) && (!_bc || (a > _bc[0] - 20 && a < _bc[1] + 20 && b > _bc[2] - 20 && b < _bc[3] + 20)); }, 0);
     tmp.shift();                                                                  // (its ground, apron and all: in its place, the floor inside its walls)
     const R = walkinLifeTick(this, pk), now = this.time.now;
+    /* (IN ITS DOORWAY, WITH THE DOOR -- Sir, 2026-11-18: "the door kit is drawing over the people coming and going from the shop": seen through
+       the hole they were drawn under the shop's image, and its live leaf, swung in beside them, over them. Whoever of the room is in the
+       doorway is drawn as the street's people in a shop's doorway are: with the door, after its leaf, clipped to the opening -- _doorWho) */
+    const sd = (this._sDoorsNear || []).find(q => pocketHiding(q.lib) === pk) || null, dw = this._doorWho;
+    const inWay = (x, y) => { if(!sd || !dw) return false; const dx = x - sd.x, dy = y - sd.y, lat = dx*sd.e.rv.x + dy*sd.e.rv.y, al = dx*sd.e.dv.x + dy*sd.e.dv.y;
+      return lat < 4 && lat > -120 && Math.abs(al) < 60; };
     for(const s of R.people){
       if(s._gone || s.knock || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order; knocked down: the knocks' own draw)
-      const q = walkinDrawState(s, now, null); if(!q || !vis(q.a, q.b, 24, 170)) continue;
+      const q = walkinDrawState(s, now, null); if(!q) continue;
       const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
+      if(inWay(x, y)){ if(!dw.has(sd)) dw.set(sd, []); dw.get(sd).push((g, tt) => this.drawWalkinPerson(g, d, tt || now, s)); continue; }
+      if(!vis(q.a, q.b, 24, 170)) continue;
       tmp.push({ depth: x + y, fn: (g, tt) => { const st0 = this._seenThrough; this._seenThrough = true; try { this.drawWalkinPerson(g, d, tt || now, s); } finally { this._seenThrough = st0; } } });
     }
     tmp.sort((p, q) => p.depth - q.depth);
