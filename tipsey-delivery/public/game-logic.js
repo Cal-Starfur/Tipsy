@@ -44090,16 +44090,16 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   /* THE WAREHOUSE ROBOT'S FACILITY SKINS (Sir, 2026-11-18: "skins based on the facilities these bots would be deployed ... color schemes and
      similar icons that nod to known businesses"): build 'amr', worn over any of its builds -- a body (and lid, and skirt) colour, its lit
      band, an icon on its flanks, its tail and (bare) its lid, and some a band of their own. Nods only: no real name, logo or lettering */
-  { id: 'amr:online', build: 'amr', name: 'Online Mega-Store', cents: 900, body: 0x2f3338, stripe: 0x2f3338, icon: 'parcel', iconCol: 0xff9a1a, band: 'swoosh', bandCol: 0xff9a1a },
-  { id: 'amr:parcel', build: 'amr', name: 'Parcel Carrier', cents: 900, body: 0x4a2f1c, stripe: 0xd8a83a, icon: 'shieldbox', iconCol: 0xd8a83a },
-  { id: 'amr:express', build: 'amr', name: 'Express Courier', cents: 900, body: 0x4b2a86, stripe: 0xff7a1a, skirt: 0xff7a1a, icon: 'chevron', iconCol: 0xff7a1a },
-  { id: 'amr:freight', build: 'amr', name: 'Freight Yellow', cents: 900, body: 0xf6c81e, stripe: 0xd4201f, icon: 'wingbox', iconCol: 0xd4201f, band: 'speed', bandCol: 0xd4201f },
-  { id: 'amr:bullseye', build: 'amr', name: 'Bullseye Retail', cents: 900, body: 0xf4f4f2, lid: 0xcc1f2b, stripe: 0xcc1f2b, icon: 'cartring', iconCol: 0xcc1f2b },
-  { id: 'amr:bigbox', build: 'amr', name: 'Blue & Yellow Big Box', cents: 900, body: 0x1f56b0, stripe: 0xffd21a, icon: 'flatpack', iconCol: 0xffd21a },
-  { id: 'amr:homeimp', build: 'amr', name: 'Home Improvement', cents: 900, body: 0xf26a12, stripe: 0x1d1f23, skirt: 0x1d1f23, icon: 'tools', iconCol: 0xf6f4ee },
-  { id: 'amr:grocery', build: 'amr', name: 'Grocery Fulfilment', cents: 900, body: 0xf2ead2, lid: 0x2e8b4a, stripe: 0x2e8b4a, icon: 'leaf', iconCol: 0x2e8b4a, band: 'produce', bandCol: 0x2e8b4a },
-  { id: 'amr:pharmacy', build: 'amr', name: 'Pharmacy', cents: 900, body: 0xf6f6f4, stripe: 0xd42a2a, icon: 'heartpill', iconCol: 0xd42a2a },
-  { id: 'amr:hospital', build: 'amr', name: 'Hospital Supply', cents: 900, body: 0xf6f6f4, skirt: 0x1a9a9a, stripe: 0x1a9a9a, icon: 'cross', iconCol: 0x2aa84a },
+  { id: 'amr:online', build: 'amr', name: 'Online Mega-Store', cents: 900, body: 0x2f3338, stripe: 0x2f3338, icon: 'parcel', iconCol: 0xff9a1a, band: 'swoosh', bandCol: 0xff9a1a, acc: 0xff9a1a },
+  { id: 'amr:parcel', build: 'amr', name: 'Parcel Carrier', cents: 900, body: 0x4a2f1c, stripe: 0xd8a83a, icon: 'shieldbox', iconCol: 0xd8a83a, acc: 0xd8a83a },
+  { id: 'amr:express', build: 'amr', name: 'Express Courier', cents: 900, body: 0x4b2a86, stripe: 0xff7a1a, skirt: 0xff7a1a, icon: 'chevron', iconCol: 0xff7a1a, acc: 0xff7a1a },
+  { id: 'amr:freight', build: 'amr', name: 'Freight Yellow', cents: 900, body: 0xf6c81e, stripe: 0xd4201f, icon: 'wingbox', iconCol: 0xd4201f, band: 'speed', bandCol: 0xd4201f, acc: 0xd4201f },
+  { id: 'amr:bullseye', build: 'amr', name: 'Bullseye Retail', cents: 900, body: 0xf4f4f2, lid: 0xcc1f2b, stripe: 0xcc1f2b, icon: 'cartring', iconCol: 0xcc1f2b, acc: 0xcc1f2b },
+  { id: 'amr:bigbox', build: 'amr', name: 'Blue & Yellow Big Box', cents: 900, body: 0x1f56b0, stripe: 0xffd21a, icon: 'flatpack', iconCol: 0xffd21a, acc: 0xffd21a },
+  { id: 'amr:homeimp', build: 'amr', name: 'Home Improvement', cents: 900, body: 0xf26a12, stripe: 0x1d1f23, skirt: 0x1d1f23, icon: 'tools', iconCol: 0xf6f4ee, acc: 0xf26a12 },
+  { id: 'amr:grocery', build: 'amr', name: 'Grocery Fulfilment', cents: 900, body: 0xf2ead2, lid: 0x2e8b4a, stripe: 0x2e8b4a, icon: 'leaf', iconCol: 0x2e8b4a, band: 'produce', bandCol: 0x2e8b4a, acc: 0x2e8b4a },
+  { id: 'amr:pharmacy', build: 'amr', name: 'Pharmacy', cents: 900, body: 0xf6f6f4, stripe: 0xd42a2a, icon: 'heartpill', iconCol: 0xd42a2a, acc: 0xd42a2a },
+  { id: 'amr:hospital', build: 'amr', name: 'Hospital Supply', cents: 900, body: 0xf6f6f4, skirt: 0x1a9a9a, stripe: 0x1a9a9a, icon: 'cross', iconCol: 0x2aa84a, acc: 0x1a9a9a },
   { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0xf3f3f0, dog: 'k9', lightbar: true },
   { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
   { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
@@ -129642,15 +129642,9 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
-  /* THE WAREHOUSE ROBOT'S BUILDS (Sir, 2026-11-18): AMR_BUILD -- each a different machine on its platform. Drawn at two moments: 'pre' before
-     its hull (what is behind it from here: the tugger's carts when they trail away from the eye), 'post' over its top plate (z 31). Its
-     platform is L 110 x W 76, its nose +a */
-  /* THE WAREHOUSE ROBOT'S FACILITY SKIN DECALS (TP_BSKIN build 'amr'): 'side' -- its band and its icon laid on each flank and its tail
-     (over its hull, under its lid); 'lid' -- the icon big on its lid while it wears no build. An icon is drawn in its own space (u right,
-     v up, about -1..1), laid on a face so it reads unmirrored from outside; arrows point to its nose */
-  amrSkinDecals(g, V, AS, st, hx, hy, BG, bare){
-    const { P, sees } = V, PT = q => new Phaser.Geom.Point(q.x, q.y), BGC = BG.top, IC = st === 'lid' && AS.lid ? AS.body : AS.iconCol, IC2 = _pdk(IC, 0.8);   /* (on a lid of its own colour the icon in its body colour) */
-    const icon = (map, fwd) => {
+  /* a facility skin's icon (AS.icon) in its own space -- u right, v up, about -1..1 -- laid on a face by map; fwd: which way u points to its nose */
+  amrIcon(g, AS, map, fwd, IC, IC2, BGC){
+    const PT = q => new Phaser.Geom.Point(q.x, q.y);
       const poly = (pts, col) => { g.fillStyle(col, 1); g.fillPoints(pts.map(([u, v]) => PT(map(u, v))), true); };
       const rect = (u0, v0, u1, v1, col) => poly([[u0, v0], [u1, v0], [u1, v1], [u0, v1]], col);
       const circ = (cu, cv, r, col, n = 16) => poly([...Array(n)].map((_, i) => [cu + Math.cos(i/n*Math.PI*2)*r, cv + Math.sin(i/n*Math.PI*2)*r]), col);
@@ -129672,7 +129666,14 @@ class WorldScene extends Phaser.Scene {
         case 'heartpill': circ(-0.6, 0.18, 0.3, IC, 14); circ(-0.12, 0.18, 0.3, IC, 14); poly([[-0.89, 0.08], [0.17, 0.08], [-0.36, -0.7]], IC);
           bar([0.32, -0.62], [0.74, 0.2], 0.38, IC); bar([0.53, -0.21], [0.74, 0.2], 0.38, _pdk(IC, 0.62)); circ(0.32, -0.62, 0.19, IC, 10); circ(0.74, 0.2, 0.19, _pdk(IC, 0.62), 10); break;
         case 'cross': rect(-0.3, -0.9, 0.3, 0.9, IC); rect(-0.9, -0.3, 0.9, 0.3, IC); break;
-      } };
+      }
+  }
+  /* THE WAREHOUSE ROBOT'S FACILITY SKIN DECALS (TP_BSKIN build 'amr'): 'side' -- its band and its icon laid on each flank and its tail
+     (over its hull, under its lid); 'lid' -- the icon big on its lid while it wears no build. An icon is drawn in its own space (u right,
+     v up, about -1..1), laid on a face so it reads unmirrored from outside; arrows point to its nose */
+  amrSkinDecals(g, V, AS, st, hx, hy, BG, bare){
+    const { P, sees } = V, PT = q => new Phaser.Geom.Point(q.x, q.y), BGC = BG.top, IC = st === 'lid' && AS.lid ? AS.body : AS.iconCol, IC2 = _pdk(IC, 0.8);   /* (on a lid of its own colour the icon in its body colour) */
+    const icon = (map, fwd) => this.amrIcon(g, AS, map, fwd, IC, IC2, BGC);
     if(st === 'side'){
       for(const sb of [-1, 1]){ if(!sees(0, sb, 0)) continue; const bb = sb*(hy + 0.35), ra = -sb;
         /* its own band along the flank */
@@ -129685,9 +129686,16 @@ class WorldScene extends Phaser.Scene {
       if(sees(-1, 0, 0)){ const aa = -(hx + 0.35); icon((u, v) => P(aa, -u*6.5, 20.4 + v*6.5), 1); } }
     if(st === 'lid' && bare && sees(0, 0, 1)){ const S = 19; icon((u, v) => P(-4 + u*S, v*S, 31.3), 1);   /* (its right toward its nose) */ }
   }
+  /* THE WAREHOUSE ROBOT'S BUILDS (Sir, 2026-11-18): AMR_BUILD -- each a different machine on its platform. Drawn at two moments: 'pre' before
+     its hull (what is behind it from here: the tugger's carts when they trail away from the eye), 'post' over its top plate (z 31). Its
+     platform is L 110 x W 76, its nose +a */
   drawAmrBuild(id, st, g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir){
     const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0), back = sees(-1, 0, 0);
-    const DARK = 0x2a2f36, Y = 0xf2c02e, STEEL = 0x9aa1a8, TOP = 31;
+    /* (its facility skin, if it wears one, colours its pieces too -- Sir, 2026-11-18: "skin all the accessories of the builds parts too":
+       its accent for what was safety yellow, its colours for bins and totes, its icon on every carton) */
+    const AS = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'amr');
+    const DARK = 0x2a2f36, Y = AS ? AS.acc : 0xf2c02e, STEEL = 0x9aa1a8, TOP = 31, TOTE = AS ? AS.acc : 0x2a6ad8;
+    const brand = (map, S, col) => { if(AS && sees(0, 0, 1)) this.amrIcon(g, AS, (u, v) => map(u*S, v*S), 1, AS.iconCol === 0xf6f4ee ? 0x2a2f36 : AS.iconCol, _pdk(AS.iconCol, 0.8), col); };
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
     const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
       const a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
@@ -129696,7 +129704,7 @@ class WorldScene extends Phaser.Scene {
       const A = ring(p0), B = ring(p1), F = [A, B.slice().reverse()]; for(let k = 0; k < 4; k++) F.push([A[k], A[(k + 1) % 4], B[(k + 1) % 4], B[k]]); solid(F, col, null); };
     const byDepth = items => items.sort((p, q) => p.d - q.d).forEach(o => o.f());
     const vel = this.ow ? Math.abs(this.ow.vel || 0) : 0;
-    const crate = (a0, a1, b0, b1, h0, h1, col) => { box(a0, a1, b0, b1, h0, h1, col); if(sees(0, 0, 1)){ g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(a0, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 + 1.2, h1 + 0.2), P(a0, (b0 + b1)/2 + 1.2, h1 + 0.2)].map(PT), true); } };
+    const crate = (a0, a1, b0, b1, h0, h1, col) => { box(a0, a1, b0, b1, h0, h1, col); if(AS){ brand((u, v) => P((a0 + a1)/2 + u, (b0 + b1)/2 + v, h1 + 0.25), Math.min(a1 - a0, b1 - b0)*0.32, col); return; } if(sees(0, 0, 1)){ g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(a0, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 + 1.2, h1 + 0.2), P(a0, (b0 + b1)/2 + 1.2, h1 + 0.2)].map(PT), true); } };
 
     if(id === 'amrlift'){   /* SCISSOR LIFT: a deck on criss-cross arms; it rises while he stands and folds down as he drives. (Second pass --
          Sir, 2026-11-18): two stages of arms, pinned where they cross and at the ends, rollers at their sliding ends in yellow base channels;
@@ -129782,13 +129790,12 @@ class WorldScene extends Phaser.Scene {
         const far = sides.filter(sd => sd.d <= dC).sort((p, q) => p.d - q.d), near = sides.filter(sd => sd.d > dC).sort((p, q) => p.d - q.d);
         far.forEach(rail);
         /* its load: cart 0 two blue stacking totes and a box, cart 1 three taped boxes */
-        const TOTE = 0x2a6ad8;
         const load = k ? [[-HALF + 3, -2, -24, 0, 0xc98a4a, 38, 'box'], [-HALF + 3, -4, 2, 24, 0xb97b40, 32, 'box'], [2, HALF - 3, -22, 22, 0xd29a5a, 30, 'box']]
                        : [[-HALF + 3, -2, -24, 24, TOTE, 30, 'tote'], [2, HALF - 3, -24, -1, TOTE, 30, 'tote'], [4, HALF - 5, 3, 22, 0xc98a4a, 36, 'box']];
-        if(!k) load.push([-HALF + 4, -3, -23, 23, 0x3a7ae0, 44, 'tote2']);
+        if(!k) load.push([-HALF + 4, -3, -23, 23, AS ? _pdk(TOTE, 1.12) : 0x3a7ae0, 44, 'tote2']);
         const items = load.map(L2 => { const q = M((L2[0] + L2[1])/2, (L2[2] + L2[3])/2); return { L2, d: V.depth(q[0], q[1], L2[6] === 'tote2' ? 38 : 22) }; }).sort((p, q) => p.d - q.d);
         for(const { L2 } of items){ const [a0, a1, b0, b1, col, h, kind] = L2, h0 = kind === 'tote2' ? 30.5 : 16;
-          if(kind === 'box'){ mbox(a0, a1, b0, b1, h0, h, col); if(sees(0, 0, 1)){ const mid = (b0 + b1)/2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([M(a0, mid - 1.2), M(a1, mid - 1.2), M(a1, mid + 1.2), M(a0, mid + 1.2)].map(q => PT(P(q[0], q[1], h + 0.2))), true); } }
+          if(kind === 'box'){ mbox(a0, a1, b0, b1, h0, h, col); if(AS){ const cA = (a0 + a1)/2, cB = (b0 + b1)/2; brand((u, v) => { const q = M(cA + u, cB + v); return P(q[0], q[1], h + 0.25); }, Math.min(a1 - a0, b1 - b0)*0.3, col); } else if(sees(0, 0, 1)){ const mid = (b0 + b1)/2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([M(a0, mid - 1.2), M(a1, mid - 1.2), M(a1, mid + 1.2), M(a0, mid + 1.2)].map(q => PT(P(q[0], q[1], h + 0.2))), true); } }
           else { mbox(a0 + 1, a1 - 1, b0 + 1, b1 - 1, h0, h - 2.5, col); mbox(a0, a1, b0, b1, h - 2.5, h, _pdk(col, 0.82));   /* (a tote: tapered body, a lip round its rim, a dark handhold at each end) */
             for(const ea of [a0, a1]){ const nA = M(ea + (ea === a0 ? -1 : 1), 0), cA = M(ea, 0), nrm = [nA[0] - cA[0], nA[1] - cA[1]];
               if(!sees(nrm[0], nrm[1], 0)) continue; const e = ea === a0 ? a0 + 0.9 : a1 - 0.9;
@@ -129809,13 +129816,13 @@ class WorldScene extends Phaser.Scene {
          turntable pad. (Second pass -- Sir, 2026-11-18: "the bins look better but the rack is too big, it looked better before"): the rack as it
          was, its own size on its deck; the bins fabric bins, each a darker open mouth and a white label card on its outer faces */
       if(st !== 'post') return;
-      const SA = 40, SB = 26, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];   /* (its own shape, well inside its lid -- 102 x 68 -- Sir: "they dont land inside the red rectangle") */
+      const SHELF = AS ? _pdk(AS.lid || AS.body, AS.body > 0xc00000 && !AS.lid ? 0.8 : 0.92) : 0x6a7078, SA = 40, SB = 26, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];   /* (its own shape, well inside its lid -- 102 x 68 -- Sir: "they dont land inside the red rectangle") */
       this.avLathe(V, 0, 0, [[TOP, 12], [Z0, 12]], DARK, null, 14); this.avLathe(V, 0, 0, [[TOP + 0.6, 12.4], [TOP + 2, 12.4]], Y, () => Y, 14);
       const posts = [[-SA, -SB], [SA, -SB], [SA, SB], [-SA, SB]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
       const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
       for(const p of posts.slice(0, 2)) post(p);
-      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], CA = [-26.5, 0, 26.5], CB = [-13, 13], RA = 12, RB = 11.5;
-      for(let i = 0; i < 4; i++){ box(-SA, SA, -SB, SB, LV[i], LV[i] + 2.5, 0x6a7078);
+      const BINS = AS ? [AS.acc, AS.body, AS.lid || AS.skirt || AS.stripe, _pdk(AS.acc, 0.72)] : [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], CA = [-26.5, 0, 26.5], CB = [-13, 13], RA = 12, RB = 11.5;
+      for(let i = 0; i < 4; i++){ box(-SA, SA, -SB, SB, LV[i], LV[i] + 2.5, SHELF);
         const h0 = LV[i] + 2.5, h1 = h0 + (i === 3 ? 18 : 20), bins = [];
         for(const ca of CA) for(const cb of CB) bins.push({ ca, cb, d: V.depth(ca, cb, h0 + 10) });
         bins.sort((p, q) => p.d - q.d);
@@ -129826,7 +129833,7 @@ class WorldScene extends Phaser.Scene {
             const q = nx ? (u, z) => P(fx + nx*0.2, bn.cb + u, z) : (u, z) => P(bn.ca + u, fx + ny*0.2, z), zc = h0 + 7;
             g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)].map(PT), true);
             g.fillStyle(0x2a2f36, 1); g.fillPoints([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)].map(PT), true); } } }
-      box(-SA, SA, -SB, SB, LV[4], LV[4] + 2.5, 0x6a7078);
+      box(-SA, SA, -SB, SB, LV[4], LV[4] + 2.5, SHELF);
       for(const p of posts.slice(2)) post(p);
       return; }
 
@@ -129836,7 +129843,7 @@ class WorldScene extends Phaser.Scene {
          green while the belt runs; boxes of two sizes, each with a white shipping label on its top. Drawn far to near: the far frame and
          rail, the bed, the boxes, the near frame and rail */
       if(st !== 'post') return;
-      const Z = TOP + 9, A0 = -36, A1 = 46, BB = 22, RB = 25, FRAME = 0x6a7078, run = ((t*0.03) % 120 + 120) % 120;
+      const Z = TOP + 9, A0 = -36, A1 = 46, BB = 22, RB = 25, FRAME = AS ? BODYC.dk : 0x6a7078, run = ((t*0.03) % 120 + 120) % 120;
       const drum = sa => { const a = sa > 0 ? A1 : A0, n = 12, F = [], R2 = (bb, i) => [a + Math.cos(i/n*Math.PI*2)*4.5, bb, Z - 1 + Math.sin(i/n*Math.PI*2)*4.5];
         for(let i = 0; i < n; i++) F.push([R2(-BB, i), R2(-BB, i + 1), R2(BB, i + 1), R2(BB, i)]); F.push([...Array(n)].map((_, i) => R2(-BB, i)), [...Array(n)].map((_, i) => R2(BB, i)));
         solid(F, 0x2f3339, (k, nr) => Math.abs(nr[1]) > 0.9 ? 0x8d959c : 0x2f3339); };
@@ -129857,7 +129864,8 @@ class WorldScene extends Phaser.Scene {
       const BX = [{ off: 0, la: 12, lb: 14, h: 20, col: 0xc98a4a }, { off: 60, la: 10, lb: 11, h: 15, col: 0xb97b40 }].map(o => ({ ...o, a: A0 - 24 + ((run + o.off) % 120) }))
         .filter(o => o.a - o.la > A0 - 1 && o.a + o.la < A1 + 1).sort((p, q) => V.depth(p.a, 0, 30) - V.depth(q.a, 0, 30));
       for(const o of BX){ box(o.a - o.la, o.a + o.la, -o.lb, o.lb, Z + 0.3, Z + o.h, o.col);
-        if(sees(0, 0, 1)){ const hz = Z + o.h + 0.2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(o.a - o.la, -1.2, hz), P(o.a + o.la, -1.2, hz), P(o.a + o.la, 1.2, hz), P(o.a - o.la, 1.2, hz)].map(PT), true);
+        if(AS) brand((u, v) => P(o.a + u, v, Z + o.h + 0.25), Math.min(o.la, o.lb)*0.62, o.col);
+        else if(sees(0, 0, 1)){ const hz = Z + o.h + 0.2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(o.a - o.la, -1.2, hz), P(o.a + o.la, -1.2, hz), P(o.a + o.la, 1.2, hz), P(o.a - o.la, 1.2, hz)].map(PT), true);
           g.fillStyle(0xf6f4ee, 1); g.fillPoints([P(o.a - o.la*0.7, 3, hz), P(o.a - o.la*0.1, 3, hz), P(o.a - o.la*0.1, o.lb*0.75, hz), P(o.a - o.la*0.7, o.lb*0.75, hz)].map(PT), true);
           g.fillStyle(0x2a2f36, 1); g.fillPoints([P(o.a - o.la*0.6, 4.5, hz + 0.05), P(o.a - o.la*0.2, 4.5, hz + 0.05), P(o.a - o.la*0.2, 5.5, hz + 0.05), P(o.a - o.la*0.6, 5.5, hz + 0.05)].map(PT), true); } }
       frame(nearB);
@@ -129894,7 +129902,7 @@ class WorldScene extends Phaser.Scene {
       /* its two totes, nose and tail; the box in one of them unless it is held */
       const atNose = leg % 2 ? (u >= 0.78) : (u < 0.17), atTail = !held && !atNose;
       for(const sa2 of [1, -1]){ const a = sa2*ST;
-        add([a, 0, TOP + 4], () => { box(a - 9, a + 9, -10, 10, TOP, TOP + 8, 0x2a6ad8); box(a - 7.5, a + 7.5, -8.5, 8.5, TOP + 7.9, TOP + 8.05, 0x163c80); });
+        add([a, 0, TOP + 4], () => { box(a - 9, a + 9, -10, 10, TOP, TOP + 8, TOTE); box(a - 7.5, a + 7.5, -8.5, 8.5, TOP + 7.9, TOP + 8.05, _pdk(TOTE, 0.5)); });
         if((sa2 > 0 && atNose) || (sa2 < 0 && atTail)) add([a, 0, TOP + 8], () => crate(a - BOX, a + BOX, -BOX, BOX, TOP + 1, TOP + 1 + 2*BOX, 0xc98a4a), 0.01); }
       /* its base and waist */
       add([0, 0, TOP + 2], () => { this.avLathe(V, 0, 0, [[TOP, 15], [TOP + 4, 15], [TOP + 4, 11], [TOP + 6, 11]], DARK, null, 16); this.avLathe(V, 0, 0, [[TOP + 6, 10], [SZ - 5, 9], [SZ - 3, 7]], Y, null, 14); }, -50);
