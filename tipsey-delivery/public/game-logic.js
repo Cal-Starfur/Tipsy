@@ -28409,6 +28409,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Tidewater Kart Works Interior':{ by: ['clerk', 'mechanic'], who: 'Kart Works Clerk', say: line('customer'), story: st(() => KW) },
     'Marina Chandlery Interior':    { by: ['clerk'], who: 'Chandlery Clerk', say: line('customer'), story: st(() => LH) },
     'Brew & Bolt Interior':         { by: ['gideon'], who: 'Gideon', say: line('customer'), story: st(() => MS) },
+    'Marina Optical Interior':      { by: ['reception', 'dispenser', 'optometrist'], who: 'Priya', say: "You've knocked a customer flat. I'll see you out, and you're not to come back in." },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -28472,9 +28473,19 @@ function walkinBanTick(scene, ow){
     const RU = walkinBanRule(pk) || {}, by = RU.by || ['desk'], rank = q => { const i = by.indexOf(q.id); return i < 0 ? 99 : i; };
     cand.sort((p, q) => rank(p) - rank(q) || Math.hypot(p._m.a - bot.a, p._m.b - bot.b) - Math.hypot(q._m.a - bot.a, q._m.b - bot.b));
     const s = cand[0], m = s._m, G = walkinGrid(R);
-    let side = 1;
-    for(const sd of [1, -1]){ const to = [bot.a + sd*MEET.gap/Math.SQRT2, bot.b - sd*MEET.gap/Math.SQRT2]; if(to[0] > 30 && to[0] < pk.w - 30 && to[1] > 30 && to[1] < pk.d - 30 && walkinClear(G, [bot.a, bot.b], to, WALKIN_CLEAR - 3, null)){ side = sd; break; } }
+    /* (the side where they stand in the open: a clear way there, and nothing between that spot and the camera -- CLAUDE.md's face to face,
+       "neither stands behind a pole, wing or wall": in an aisle between Marina Optical's frame towers Priya stood behind one, 2026-11-18. Each
+       side's spot turned a little round him (still beside him across the screen) till one is seen; else the first with a clear way) */
+    let side = 1, okTo = null, okSide = null;
+    const spotAt = (sd, tw) => { const an = (sd > 0 ? -Math.PI/4 : 3*Math.PI/4) + tw; return [bot.a + Math.cos(an)*MEET.gap, bot.b + Math.sin(an)*MEET.gap]; };
+    const inRoom = to => to[0] > 30 && to[0] < pk.w - 30 && to[1] > 30 && to[1] < pk.d - 30 && walkinClear(G, [bot.a, bot.b], to, WALKIN_CLEAR - 3, null);
+    for(const tw of [0, -0.4, 0.4, -0.7, 0.7]){ for(const sd of [1, -1]){ const to = spotAt(sd, sd > 0 ? tw : -tw);
+      if(inRoom(to) && walkinClear(G, to, [Math.min(pk.w - 1, to[0] + 50), Math.min(pk.d - 1, to[1] + 50)], WALKIN_CLEAR - 3, null)){ okTo = to; okSide = sd; break; } } if(okTo) break; }
+    if(!okTo) for(const sd of [1, -1]) if(inRoom(spotAt(sd, 0))){ okSide = sd; break; }
+    if(okSide != null) side = okSide;
     const from = { x: pk.x0 + m.a, y: pk.y0 + m.b }, M = meetWalk(ow, from, t, side, scene);
+    if(okTo){ M.to = { x: pk.x0 + okTo[0], y: pk.y0 + okTo[1] }; M.walkMs = meetWalkMs(Math.hypot(M.to.x - from.x, M.to.y - from.y));
+      M.faceTh = meetCheat(Math.atan2(ow.py - M.to.y, ow.px - M.to.x)); M.botTh = meetCheat(Math.atan2(M.to.y - ow.py, M.to.x - ow.px)); }
     const to = [M.to.x - pk.x0, M.to.y - pk.y0], path = walkinPath(R, [m.a, m.b], to, walkinAvoid(R, s, null, true)) || [to];
     B.pk = pk; B.s = s; B.M = M; B.Q = walkinPoly([[m.a, m.b]].concat(path)); B.face = M.faceTh; B.t = t; B.st = 'come'; s._hold = true; m.path = null; m.beat = null;
     return;
@@ -29202,6 +29213,191 @@ walkinLife(BK_IN.name, { keep: [[0, 2000, 273, 353]], looks: [
   { id: 'bargain', spots: [[710, 515, -Math.PI/2]] },
   { id: 'arrivals', spots: [[700, 662, -Math.PI/2]] },
 ], browseNext: bkBrowseNext, pose: bkPose, drawState: bkDrawState });
+/* ==================== MARINA OPTICAL, WALK-IN (wi-marina-optical; the room: the LIB entry 'Marina Optical Interior') ====================
+   The Flats' optician on block 2,0's east edge (its front faces east, to the camera), south of Driftwood Books, the corner past it.
+   Built by the shop recipe (docs/kits/walkin-shop-recipe.md, W33): the exterior unchanged but for its door -- its own building its volume
+   with the doorway open through the wall (vol.foot, vol.opens), the door kit's single panelled leaf 100 across (shopDoor panes, single),
+   the window and its frames closed up to give it the width; he is taken in in the doorway (glass < 0).
+   BIGGER INSIDE THAN OUT (W31): the room runs back from the shop's front into the block -- west under the bookshop's yard, north along its
+   own frontage over the gap by the bookshop, and south over the corner's charge depot to the south pavement's line, where its south wall
+   stands (no strip of yard) -- 850 x 699, the buildings it covers drawn under it while he is inside.
+   Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
+   b south, world units: the front (east) wall a 850; the door b 230..360 in it; the shop's own frontage b 71..370 */
+const MO_IN = { name: 'Marina Optical Interior', x0: 820000, y0: 400000, WALL: 30/1.3, ROOM_A0: -78, ROOM_A1: 506, ROOM_BACK: -700, H: 300, LH: 66,
+  DOOR: [122, 222], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [12, 108, 24] };   // (the shop's door and window, lab a; the window's sill, lab z)
+MO_IN.ra = la => (la - MO_IN.ROOM_A0 - MO_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b
+const MO_PLAN = walkinDefine({ name: MO_IN.name, from: 'Marina Optical', x0: MO_IN.x0, y0: MO_IN.y0,
+  lab: [MO_IN.ROOM_A0 + MO_IN.WALL, MO_IN.ROOM_A1 - MO_IN.WALL, MO_IN.ROOM_BACK + MO_IN.WALL, -MO_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (MO_IN.DOOR[0] + MO_IN.DOOR[1])/2, b: 0, half: (MO_IN.DOOR[1] - MO_IN.DOOR[0])/2*1.3 }, H: MO_IN.H, LH: MO_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
+  street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
+  /* (seen through, W11: the open doorway) */
+  openings: [{ lab: [[MO_IN.DOOR[0], 0], [MO_IN.DOOR[1], 0]], z: [0, MO_IN.DZ] }] });
+/* (W31: what it covers -- the bookshop's yard end, the charge depot on the corner, the roasters' and the bakery's backs on the south edge --
+   and what stands over it on screen: the roasters and the bakery before its south wall, the bookshop up its frontage) */
+POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
+POCKETS[POCKETS.length - 1].displace = true;
+POCKETS[POCKETS.length - 1].cornerLow = true;   // (as the tea house's and the bookshop's: walkinRoom's cornerLow, and the dim's outline)
+/* THE NAIRS, WHO KEEP IT: their own looks, set by hand (lookFn) -- an optician's dress, clinic white and the shop's marina blue. Priya at the
+   front desk, the keyholder (her black hair in a bun, a marina-blue blouse, tortoiseshell glasses on a chain -- worn); her husband Dev,
+   the optometrist, in the eye test room (a white clinic coat, wire glasses, grey at the temples); their nephew Arun, the dispensing
+   optician at the fitting table and the lab bench (a navy polo with the shop's blue, black frames). The customers are the street's own,
+   random (look: 'visitor') */
+const MO_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), M = PEOPLE_BUILD[0], W = PEOPLE_BUILD[1];
+  return {
+    priya: { build: W, skin: { c: 0xc89470, dk: 0xa67654 }, hair: H(0x1e1814, 'bun'), shirt: C(0x2f7fae), pants: C(0x2a2e3a), shoe: { c: 0x2a2224, dk: 0x1a1416 },
+             uniform: { glasses: 0x6a4024, shoeKind: 'flat' } },
+    dev:   { build: M, skin: { c: 0xbc8a66, dk: 0x9a6c4c }, hair: H(0x5a5650, 'crop'), shirt: C(0x8fa6b8), pants: C(0x3a3e48), shoe: { c: 0x2a2018, dk: 0x1a140e },
+             uniform: { vest: C(0xf2f4f4), glasses: 0x9aa0a6, shoeKind: 'dress' } },
+    arun:  { build: M, skin: { c: 0xc6926c, dk: 0xa47450 }, hair: H(0x221a16, 'crop'), shirt: C(0x24365a), pants: C(0x6a6c70), shoe: { c: 0xe8e4dc, dk: 0xc4beb2 },
+             uniform: { glasses: 0x1e2024, shoeKind: 'sneaker' } },
+  };
+})();
+/* A CUSTOMER'S VISIT (as the bookshop's: reach ONCE, then do something with it -- no endless arm pumping): at a display they take a pair
+   of frames down once and stand turning them over in their hand; then they try them on at the mirror (put on once, and turned round to
+   the room, wearing them), sit at the fitting table with Arun, and take them to the front desk and pay and go home in them -- or try
+   another display with the pair in hand. Now and then one comes for an eye test first: a while in the waiting chairs, the test chair
+   in Dev's room, and then the frames. Walkin kit hooks (walkinLife browseNext / pose / drawState); Arun carries a tray of frames */
+const MO_DISPLAYS = ['wall', 'stands', 'spinner'];
+const MO_LOOKS = MO_DISPLAYS.concat(['mirror']);
+/* the seats: where they stand to sit (stand, clear of the chair's solid), where they sit (at: a hair forward of its middle, so they sort
+   after it), which way they face, the seat's height, and what it is for */
+const MO_SEATS = [
+  { id: 'fit-1', kind: 'fit', stand: [612, 586, -Math.PI/2], at: [612, 546], th: -Math.PI/2, z: 30 },
+  { id: 'fit-2', kind: 'fit', stand: [684, 586, -Math.PI/2], at: [684, 546], th: -Math.PI/2, z: 30 },
+  { id: 'wait-1', kind: 'wait', stand: [744, 562, Math.PI], at: [791, 563], th: Math.PI, z: 30 },
+  { id: 'wait-2', kind: 'wait', stand: [744, 642, Math.PI], at: [791, 643], th: Math.PI, z: 30 },
+  { id: 'exam', kind: 'exam', stand: [262, 612, Math.PI], at: [228, 601], th: Math.PI, z: 38 },
+];
+const MO_FRAME_COLS = [0x1e2024, 0x6a4024, 0x2f6f9b, 0xa8362b, 0xc9a24a, 0x3f6b4a, 0x6b3348, 0x9aa0a6];
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up -- the hull's), a real pair's size against them:
+   a pair of frames held open before them, its lenses to the light; Arun's tray of four */
+function moHold(s){
+  if(s._moH && s._moH.v === s.visit) return s._moH;
+  const col = MO_FRAME_COLS[((s.seed >>> 0) + (s.visit || 0)*3) % MO_FRAME_COLS.length];
+  const quad = (g, at, pts, c, a) => { g.fillStyle(c, a == null ? 1 : a); g.fillPoints(pts.map(q => { const r = at.G(q[0], q[1], q[2]); return new Phaser.Geom.Point(r.x, r.y); }), true); };
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  /* one pair, across them at (x, f, h): two rims round two lenses, the bridge, the temples back toward the holder */
+  const pair = (g, at, x, f, h, c) => { const rim = (cx, r, cc, a) => { const pts = []; for(let k = 0; k < 14; k++){ const t = k/14*Math.PI*2; pts.push([cx + Math.cos(t)*r, f, h + Math.sin(t)*r*0.8]); } quad(g, at, pts, cc, a); };
+    rim(x - 4.4, 3.6, c); rim(x + 4.4, 3.6, c); rim(x - 4.4, 2.5, 0xdcecf2, 0.85); rim(x + 4.4, 2.5, 0xdcecf2, 0.85);
+    quad(g, at, [[x - 1.2, f, h + 1.4], [x + 1.2, f, h + 1.4], [x + 1.2, f, h + 0.6], [x - 1.2, f, h + 0.6]], c);
+    for(const sx of [-1, 1]) quad(g, at, [[x + sx*7.8, f, h + 1.6], [x + sx*7.8, f - 9, h + 1.2], [x + sx*7.8, f - 9, h + 0.4], [x + sx*7.8, f, h + 0.6]], _pdk(c, 0.8)); };
+  return (s._moH = { v: s.visit,
+    /* held up before them in both hands, at their chest, the lenses toward them -- the camera sees the front of a pair held by someone
+       facing it, and from behind its temples and the backs of the rims: one drawing either way, a pair being flat */
+    frames: (g, p, K, at) => { if(!at) return; pair(g, at, 0, at.hand[0] + 3, at.hand[1] + 6, col); },
+    /* in one hand at their side, folded */
+    folded: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0] + 1, h = at.hand[1];
+      hull(g, at, box(x - 1.2, x + 1.2, f - 6, f + 6, h - 2, h + 3), col); hull(g, at, box(x - 0.8, x + 0.8, f - 5, f + 5, h - 1.2, h + 2.2), 0xdcecf2); },
+    /* Arun's tray: a shallow blue tray across both forearms, four pairs on it */
+    tray: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1];
+      hull(g, at, box(-13, 13, f - 9, f + 9, h, h + 2.5), 0x1f6f9b); hull(g, at, box(-12, 12, f - 8, f + 8, h + 2.4, h + 2.7), 0xeef2f4);
+      [[-6.5, -4, 0x1e2024], [6.5, -4, 0xa8362b], [-6.5, 4, 0xc9a24a], [6.5, 4, 0x2f6f9b]].forEach(([dx, df, c]) => {
+        hull(g, at, box(dx - 5, dx + 5, f + df - 1.2, f + df + 1.2, h + 2.7, h + 4.4), c); hull(g, at, box(dx - 4, dx - 0.6, f + df - 0.8, f + df + 0.8, h + 4.3, h + 4.6), 0xdcecf2);
+        hull(g, at, box(dx + 0.6, dx + 4, f + df - 0.8, f + df + 0.8, h + 4.3, h + 4.6), 0xdcecf2); }); } });
+}
+/* how far into their seat they are drawn (0 standing by it .. 1 sat), sitting down or getting up, eased */
+function moSeatK(m, now){
+  if(m.seat && m.trip){ m.unseat = { seat: m.seat, t: now }; m.seat = null; }                                    // (their visit over while sat: up, and away)
+  if(m.seat && !m.path && m.arrive >= m.seatGo){ const u = Math.min(1, (now - m.arrive)/550); return { k: u*u*(3 - 2*u), seat: m.seat }; }
+  if(m.unseat){ const u = Math.min(1, (now - m.unseat.t)/450); if(u < 1) return { k: 1 - u*u*(3 - 2*u), seat: m.unseat.seat }; m.unseat = null; }
+  return null;
+}
+function moSeatFree(R, s, kind){
+  return MO_SEATS.filter(q => q.kind === kind && !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id)));
+}
+function moBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const sit = kind => { const fr = moSeatFree(R, s, kind), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null;
+      m.dwell = st.kind === 'exam' ? 28000 + rnd()*16000 : st.kind === 'fit' ? 20000 + rnd()*20000 : 9000 + rnd()*9000; return true; }
+    return false; };
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  if(m.seat){ const k = m.seat.kind; m.unseat = { seat: m.seat, t: now }; m.seat = null;                         // (done: up)
+    if(k === 'wait' && m.forTest && !m.tested && sit('exam')) return true;                                        // (called in for the test)
+    if(k === 'exam') m.tested = true; if(k === 'fit') m.fitted = true; }
+  if(m.atTill){ m.atTill = false; m.paid = true; }
+  if(m.paid) return leave();
+  if(m.look && MO_DISPLAYS.includes(m.look) && !m.path && !m.frames && !m.wear){ m.frames = true; m.n = (m.n || 0) + 1; }   // (from the display, in hand)
+  if(m.look === 'mirror' && !m.path && m.frames){ m.frames = false; m.wear = true; }                             // (tried on: worn)
+  const r = rnd();
+  /* (a test first, now and then: the waiting chairs, then Dev's chair -- before any frames) */
+  if(!m.n && !m.tested && !m.forTest && r < 0.3){ m.forTest = true; if(sit('wait') || sit('exam')) { m.dwell = Math.min(m.dwell, 12000); return true; } }
+  if(m.wear){
+    if(!m.fitted && r < 0.8 && sit('fit')) return true;
+    if(look('desk')){ m.atTill = true; m.dwell = 3500 + rnd()*2500; return true; }
+    return m.fitted ? leave() : false;
+  }
+  if(!m.frames) return false;                                                                                     // (to a display: the kit's pick)
+  /* (another display or two first, the pair in hand -- a visit of a few minutes) */
+  if(m.n < 3 && r < 0.35) return false;
+  if(look('mirror')){ m.dwell = 4200 + rnd()*1800; return true; }
+  return false;
+}
+function moPose(s, m, now, P){
+  const H = moHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.32, 0.36]; P.bend = [1.05, 1.0]; return; }            // (Priya at the desk: her hands on it)
+    if(s.id === 'optometrist'){ P.lift = [0.16, 0.42]; P.bend = [0.3, 1.1]; return; }                                // (Dev: a hand at the phoropter)
+    /* Arun: the tray under his arms, and at each post one pair put up on its peg, once */
+    if(since < 1800){ const k = Math.sin(Math.PI*since/1800); P.lift = [0.28, 0.3 + 0.8*k]; P.bend = [1.1, 1.15 - 0.85*k]; }
+    else { P.lift = [0.28, 0.28]; P.bend = [1.1, 1.15]; }
+    P.hold = H.tray; return;
+  }
+  if(m.wear) P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length];
+  const sk = moSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.3, 0.3]; P.bend = [1.1, 1.1]; P.headTurn = 0;
+    if(sk.seat.kind === 'exam') P.headTilt = 0.05; if(m.frames) P.hold = H.frames; return; }
+  if(m.look && MO_DISPLAYS.includes(m.look) && !m.frames && !m.wear && since < 1700){                             // (reaching for them, once)
+    const k = Math.sin(Math.PI*since/1700), low = m.look === 'spinner';
+    P.lift = [0.12, (low ? 0.6 : 1.0)*Math.min(1, k*1.6)]; P.bend = [0.2, low ? 0.5 : 0.25]; return; }
+  if(m.look && MO_DISPLAYS.includes(m.look) && m.frames){ P.lift = [0.3, 0.3]; P.bend = [1.15, 1.15]; P.headTilt = 0.22; P.headTurn = 0; P.hold = H.frames; return; }   // (stood turning them over)
+  if(m.look === 'mirror' && !m.path){
+    /* (putting them on, once: both hands up to the face, then down -- and from then on worn) */
+    if(since < 1500){ const k = Math.sin(Math.PI*since/1500); P.lift = [0.3 + 0.2*k, 0.3 + 0.2*k]; P.bend = [1.15 + 1.1*k, 1.15 + 1.1*k]; P.armsLate = k > 0.4; P.headTurn = 0; P.headTilt = 0;
+      if(since < 750){ if(k < 0.6) P.hold = H.frames; } else P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length]; return; }
+    P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length]; P.lift = [0.08, 0.1]; P.bend = [0.2, 0.2]; P.headTurn = 0; return; }
+  if(m.look === 'desk'){ P.lift = [0.1, 0.1]; P.bend = [0.2, 0.2]; P.headTurn = 0; return; }                       // (paying: nothing up)
+  if(m.frames){ P.lift = [0.1, 0.14]; P.bend = [0.2, 0.35]; P.hold = H.folded; }                                    // (the pair at their side)
+  else if(m.look){ P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25]; }                                                   // (no arm pumping at a look)
+}
+/* the pair they wear once tried on: the hull's glasses, in the frame's colour (pose.wear, over their look's uniform) */
+const MO_WEAR = MO_FRAME_COLS.map(c => ({ glasses: c }));
+function moDrawState(s, m, now, q){
+  const sk = moSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  /* (tried on at the mirror and turned round to the room: wearing them, the face to the camera a moment) */
+  if(m.look === 'mirror' && !m.path && m.arrive != null && now - m.arrive > 1700) q.th = m.th + Math.min(1, (now - m.arrive - 1700)/600)*(Math.PI/2 + 0.25 - m.th);
+  if(m.moving){ const H = moHold(s);
+    if(s.look === 'visitor'){ if(m.frames || m.wear) q.pose = Object.assign({ lift: [0.12, 0.14], bend: [0.25, 0.35] }, m.frames ? { hold: H.folded } : null, m.wear ? { wear: MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length] } : null); }
+    else if(s.id === 'dispenser') q.pose = { lift: [0.12, 0.28], bend: [0.25, 1.2], hold: H.tray }; }
+}
+walkinStaff(MO_IN.name, [
+  { id: 'reception', role: 'receptionist', seed: 0x6c01, lookFn: () => MO_FAMILY.priya, fixed: true, keys: true, posts: [[690, 50, Math.PI/2, 9000, true], [640, 52, Math.PI*0.6, 3600, true], [745, 50, Math.PI*0.4, 3000, true]] },
+  { id: 'optometrist', role: 'optometrist', seed: 0x6c02, lookFn: () => MO_FAMILY.dev, posts: [[214, 532, Math.PI/2, 9000, true], [64, 652, Math.PI, 5000, true], [150, 478, -Math.PI/2, 4000, true]] },
+  { id: 'dispenser', role: 'dispensing optician', seed: 0x6c03, lookFn: () => MO_FAMILY.arun, posts: [[648, 412, Math.PI/2, 8000, true], [64, 140, Math.PI, 6000, true], [380, 62, -Math.PI/2, 4000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x6c11, look: 'visitor', life: 'browse', only: MO_DISPLAYS },
+  { id: 'customer-2', role: 'customer', seed: 0x6c12, look: 'visitor', life: 'browse', only: MO_DISPLAYS },
+  { id: 'customer-3', role: 'customer', seed: 0x6c13, look: 'visitor', life: 'browse', only: MO_DISPLAYS },
+  { id: 'customer-4', role: 'customer', seed: 0x6c14, look: 'visitor', life: 'browse', only: MO_DISPLAYS },
+]);
+walkinLife(MO_IN.name, { keep: [[0, 2000, 255, 335]], looks: [
+  { id: 'desk', spots: [[662, 160, -Math.PI/2], [724, 160, -Math.PI/2]] },
+  { id: 'wall', spots: [[96, 58, -Math.PI/2], [236, 58, -Math.PI/2], [470, 58, -Math.PI/2]] },
+  { id: 'stands', spots: [[300, 150, Math.PI], [460, 150, Math.PI], [460, 430, Math.PI]] },
+  { id: 'spinner', spots: [[540, 404, Math.PI]] },
+  { id: 'mirror', spots: [[584, 58, -Math.PI/2]] },
+], browseNext: moBrowseNext, pose: moPose, drawState: moDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -56281,6 +56477,309 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE MARINA OPTICAL (MO_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back under the buildings
+     behind it and south over the corner, which are taken off while he is inside -- pk.displace). Frame a east, b south, z up, world units.
+     Built by the shop recipe (W33), in zones for its size:
+       the north wall    THE FRAME WALL (a 0..560), glass shelves of frames floor to 228; the mirror (a 566..600); then THE DESIGNER
+                         CASE (a 606..840), glass-fronted, and THE FRONT DESK before it (a 610..790, b 84..118), Priya behind it
+       the west wall     THE LAB BENCH (b 40..230): the lensmeter, the edger, the tools; the eye-test poster at the lane's end
+       the middle        FRAME TOWERS, freestanding (a 260 and 420 north of the lane, 420 south of it), a sunglasses spinner
+       b 255..335        the door's lane, door to back wall, clear
+       the south-west    THE EYE TEST ROOM (a 0..300, b 430..699): glass partitions, the test chair facing the chart on the west wall,
+                         the phoropter on its column, the slit-lamp desk, the lens cabinet; Dev's
+       the south-east    THE FITTING TABLE (a 560..720, b 440..500), Arun behind it, two chairs before it; the waiting chairs by the door
+       by the door       the window's display behind the shop window, a mat
+     Every shelf run, tower, bench, desk, table and partition a run of pieces (runPiece, W28): the shelves and towers a piece per bay, each
+     drawing only its own bay's frames (no pair is painted twice); what stands on the desk, the bench and the table its own piece. */
+  name:'Marina Optical Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 850, dd: 699,
+  head:'Inside Marina Optical: a wall of frames on glass shelves, a front desk, the eye test room, a fitting table',
+  tags:['interior','pocket','optician','eye test','frames','fitting table'],
+  desc:'The Flats\' optician: clinic-white plaster over a marina-blue dado, pale oak boards; a wall of frames on glass shelves along the north wall and freestanding frame towers down the middle, a glass-fronted case of designer frames behind the front desk, a lab bench with the lensmeter and the edger, a glass-walled eye test room with the test chair, the phoropter on its column and a lit chart, a fitting table with its mirrors, and waiting chairs by the door.',
+  draw(p){
+    const pl = (typeof MO_PLAN !== 'undefined' && MO_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 699, H = MO_IN.H, LH = MO_IN.LH, DZ = MO_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 'e', at: 295, half: 65 };
+    const plas = '#f2f3ef', blue = '#2f7fae', blueD = '#1f6f9b', navy = '#24365a', steel = '#9aa0a6', steelD = '#7d838a', dark = '#2a2e34';
+    const oak = '#d8c6a4', oakD = '#c4b08c', lac = '#f4f6f6', lacF = '#e4e8ea', lacS = '#cfd5d8', glassE = '#b9d4dc';
+    const extW = '#f2f2ee', extT = '#1f6f9b';                                                          // (the shop's own walls, outside: W4)
+    const FR = ['#1e2024', '#6a4024', '#2f6f9b', '#a8362b', '#c9a24a', '#3f6b4a', '#6b3348', '#9aa0a6', '#2a6b6b', '#8a5a9a'];
+    const LENS = 'rgba(214,234,242,.85)';
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    /* a disc in the a-z plane (on a face toward +b) and in the b-z plane (toward +a) */
+    const discA = (a, b, z, r, c, n) => { const pts = []; for(let k = 0; k < (n || 14); k++){ const t = k/(n || 14)*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    const discB = (a, b, z, r, c, n) => { const pts = []; for(let k = 0; k < (n || 14); k++){ const t = k/(n || 14)*Math.PI*2; pts.push(P(a, b + Math.cos(t)*r, z + Math.sin(t)*r*0.82)); } poly(pts, c); };
+    /* A PAIR OF FRAMES on a shelf, seen from the front: two rims round two lenses, the bridge, the temples folded back behind */
+    const pairA = (a, b, z, col, w) => { const r = 3.6*(w || 1), d = 4.4*(w || 1);
+      F(a - d - r - 0.4, a - d - r + 0.8, z - 1.2, z + 1.4, shade(col, 0.75), null, 0, b - 4); F(a + d + r - 0.8, a + d + r + 0.4, z - 1.2, z + 1.4, shade(col, 0.75), null, 0, b - 4);
+      T(a - d - r, a + d + r, b - 4, b, z - r*0.8 - 0.2, shade(col, 0.7));
+      discA(a - d, b, z, r, col); discA(a + d, b, z, r, col); discA(a - d, b + 0.1, z, r - 1.1, LENS); discA(a + d, b + 0.1, z, r - 1.1, LENS);
+      F(a - 1.2, a + 1.2, z + 0.6, z + 1.6, col, null, 0, b + 0.1); };
+    const pairB = (a, b, z, col, w) => { const r = 3.6*(w || 1), d = 4.4*(w || 1);
+      T(a - 4, a, b - d - r, b + d + r, z - r*0.8 - 0.2, shade(col, 0.7));
+      discB(a, b - d, z, r, col); discB(a, b + d, z, r, col); discB(a + 0.1, b - d, z, r - 1.1, LENS); discB(a + 0.1, b + d, z, r - 1.1, LENS);
+      S(a + 0.1, b - 1.2, b + 1.2, z + 0.6, z + 1.6, col); };
+    /* A SHELF RUN ALONG A (against the north wall): a piece per bay (runPiece, its own stretch -- W28), keyed at the bay's start (keyStart:
+       against the wall, nothing behind it); each bay its back panel, its glass shelves and its frames, its upright, its cornice; a cupboard
+       under. ZS the shelves' heights, zTop its top; o.glass: a glazed front (the designer case) */
+    const wallA = (A0, A1, B0, B1, ZS, zTop, seed, o) => { const n = Math.max(1, Math.round((A1 - A0)/48));
+      for(let k = 0; k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, s0, s1, B0, B1, zTop + 8, (q0, q1) => [solid(q0, q1, B0, B1, zTop, o && o.name || 'frame wall')], () => {
+          F(s0, s1, 0, zTop, lacF, null, 0, B0 + 0.6);                                           // its back panel
+          F(s0 + 3, s1 - 1, ZS[0], zTop - 6, '#fbfcfc', null, 0, B0 + 0.8);                        // (lit, white)
+          S(s0 + 3, B0 + 0.6, B1, 0, zTop, lacS);                                                // its upright's side, behind this bay
+          F(s0, s1, 0, ZS[0] - 3, lac, null, 0, B1);                                             // the cupboard under
+          F(s0 + 5, s1 - 3, 5, ZS[0] - 8, lacF, shade(lacS, 0.9), 0.8, B1 + 0.2); F(s1 - 10, s1 - 7, ZS[0]*0.5 - 3, ZS[0]*0.5 + 3, steel, null, 0, B1 + 0.4);
+          T(s0, s1, B0 + 0.6, B1, ZS[0] - 3, lacS);
+          ZS.forEach((z, r) => {
+            T(s0, s1, B0 + 0.6, B1 - 1, z, 'rgba(200,226,232,.55)'); F(s0, s1, z - 1.2, z, glassE, null, 0, B1 - 1);   // a glass shelf
+            if(r === ZS.length - 1 && !(o && o.topRow)) return;
+            const m = Math.max(1, Math.floor((s1 - s0 - 4)/22));
+            for(let i = 0; i < m; i++){ const ca = s0 + 3 + (s1 - s0 - 4)*(i + 0.5)/m, c = FR[Math.floor(hsh(seed + k*131 + r*977 + i*7)*FR.length)];
+              if(hsh(seed + k*131 + r*977 + i*7 + 3) < 0.08) continue;
+              pairA(ca, B1 - 6, z + 4.4, c); } });
+          if(o && o.glass){ F(s0 + 3, last ? s1 - 3 : s1, ZS[0], zTop - 4, 'rgba(190,214,222,.22)', null, 0, B1 + 0.5);
+            F(s0 + 10, s0 + 14, ZS[0] + 10, zTop - 12, 'rgba(255,255,255,.2)', null, 0, B1 + 0.6); }
+          F(s0, s0 + 3, 0, zTop, blue, null, 0, B1);                                             // its upright, the shop's blue
+          if(last){ F(s1 - 3, s1, 0, zTop, blue, null, 0, B1); S(s1, B0, B1, 0, zTop, lacS); }
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          T(s0 - e0, s1 + e1, B0, B1 + 3, zTop + 6, lac); F(s0 - e0, s1 + e1, zTop, zTop + 6, blueD, null, 0, B1 + 3);   // its cornice
+          if(last) S(s1 + 3, B0, B1 + 3, zTop, zTop + 6, shade(blueD, 0.8));
+        }, { pad: 3, keyStart: true });
+      } };
+    /* A FRAME TOWER, freestanding, seen from the east: a double-sided stand along b, in runs SHORTER THAN IT IS DEEP (20 on 26) keyed
+       down its middle line (W28: so one key sorts it right against a customer on either side and one at either end) */
+    const tower = (A0, A1, B0, B1, ZS, zTop, seed) => { const n = Math.max(1, Math.round((B1 - B0)/48)), mid = (A0 + A1)/2;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, A0, A1, s0, s1, zTop + 10, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'frame tower')], () => {
+          S(mid, s0, s1, 0, zTop, lacF);                                                        // its spine, the panel down its middle
+          S(mid + 0.4, s0 + 2, s1 - 2, ZS[0], zTop - 6, '#fbfcfc');
+          box(A0, A1, s0, s1, 0, ZS[0] - 3, lac, lac, lacS);                                      // its plinth
+          F(A0, A1, 0, ZS[0] - 3, lacS, null, 0, s0 + 0.1);
+          ZS.forEach((z, r) => { T(mid, A1 - 1, s0, s1, z, 'rgba(200,226,232,.55)'); S(A1 - 1, s0, s1, z - 1.2, z, glassE);
+            const m = Math.max(1, Math.floor((s1 - s0 - 2)/22));
+            for(let i = 0; i < m; i++){ const cb = s0 + 1 + (s1 - s0 - 2)*(i + 0.5)/m, c = FR[Math.floor(hsh(seed + k*131 + r*977 + i*7)*FR.length)];
+              pairB(A1 - 5, cb, z + 4.4, c); } });
+          if(first) F(A0, A1, ZS[0] - 3, zTop, lacS, null, 0, s0);                               // its end panels
+          if(last){ F(A0, A1, 0, zTop, lacS, null, 0, s1); }
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          box(A0 - 3, A1 + 3, s0 - e0, s1 + e1, zTop, zTop + 6, lac, lacS, blueD);                // its cap
+          if(last){ F(A0 - 3, A1 + 3, zTop + 6, zTop + 30, blueD, null, 0, s1 + 1); blockWordIn('FRAMES', A0 - 1, A1 + 1, zTop + 10, zTop + 26, s1 + 1.2, '#f4f6f6', null, 3); }
+        }, { alongB: true, run: 20, extra: { a: mid } });
+      } };
+
+    /* ---- THE FLOOR: pale oak boards, a mat at the door, a blue rug before the fitting table ---- */
+    T(0, W, 0, D, 0, oak);
+    for(let b = 16; b < D; b += 16) T(0, W, b - 0.5, b + 0.5, 0.2, oakD);
+    for(let k = 0; k < 40; k++){ const a = hsh(k*3 + 5)*W, b = Math.floor(hsh(k*3 + 6)*D/16)*16; T(a, a + 1, b, b + 16, 0.25, oakD); }   // the boards' ends
+    T(736, W - 4, door.at - 42, door.at + 42, 0.3, '#3a4a5a'); T(742, W - 10, door.at - 36, door.at + 36, 0.35, '#4a5a6a');
+    T(530, 752, 400, 610, 0.3, '#1f6f9b'); T(538, 744, 408, 602, 0.35, '#2f7fae');
+    for(let a = 552; a < 740; a += 30) T(a, a + 14, 412, 416, 0.4, '#e4eef2');
+    /* the exam room's floor, a cool grey */
+    T(0, 288, 442, D, 0.3, '#c9ccc8'); for(let b = 458; b < D; b += 40) T(0, 288, b - 0.5, b + 0.5, 0.35, '#b9bcb8');
+    items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#d4d6d2');
+      T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, steel); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ, cornerLow: true,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 90, blue, null, 0, 0.1); F(-30, W + 30, 90, 94, '#f8f8f6', null, 0, 0.2);
+        F(-30, W + 30, H - 20, H, blueD, null, 0, 0.3); F(-30, W + 30, H - 24, H - 20, '#e8ecee', null, 0, 0.35);
+        /* pendant lights over the frame wall, a long mirror between it and the case, the shop's name over the desk */
+        for(const la of [90, 230, 370, 510]){ F(la - 1, la + 1, 246, H - 24, dark, null, 0, 0.5); F(la - 12, la + 12, 236, 246, '#e8ecee', null, 0, 0.6); F(la - 10, la + 10, 233, 236, '#fff6d8', null, 0, 0.7); }
+        F(564, 602, 30, 214, steelD, null, 0, 0.4); F(567, 599, 33, 211, '#c8dce4', null, 0, 0.5);
+        F(572, 578, 60, 190, 'rgba(255,255,255,.35)', null, 0, 0.6); F(584, 587, 50, 120, 'rgba(255,255,255,.25)', null, 0, 0.6);
+        F(620, 830, 212, 246, navy, null, 0, 0.4); blockWordIn('MARINA OPTICAL', 626, 824, 218, 240, 0.6, '#f4f6f6', null, 4);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.1, -30, D + 30, 0, 90, shade(blue, 0.92)); S(0.2, -30, D + 30, 90, 94, '#f2f2f0');
+        S(0.3, -30, D + 30, H - 20, H, shade(blueD, 0.92)); S(0.35, -30, D + 30, H - 24, H - 20, '#e0e4e6');
+        /* over the lab bench: a pegboard of hand tools */
+        S(0.4, 46, 224, 110, 190, '#d9d4c8'); for(let b = 54; b < 220; b += 9) for(let z = 118; z < 186; z += 9) S(0.5, b, b + 1.6, z, z + 1.6, '#b9b2a2');
+        for(const [tb, tz, tl] of [[66, 160, 22], [86, 150, 26], [108, 164, 18], [130, 148, 28], [154, 158, 22], [176, 152, 24], [198, 162, 20]]){ S(0.6, tb, tb + 3, tz - tl, tz, '#2a2e34'); S(0.6, tb - 1, tb + 4, tz - 4, tz, steel); }
+        /* at the lane's end: a big eye, a poster of how the eye sees */
+        S(0.4, 252, 338, 128, 232, navy); S(0.5, 258, 332, 134, 226, '#f4f6f6');
+        { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(0.6, 295 + Math.cos(t)*28, 184 + Math.sin(t)*14)); } poly(pts, '#ffffff', '#24365a', 1.4);
+          const ir = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; ir.push(P(0.7, 295 + Math.cos(t)*12, 184 + Math.sin(t)*12)); } poly(ir, '#2f7fae');
+          const pu = []; for(let k = 0; k < 12; k++){ const t = k/12*Math.PI*2; pu.push(P(0.8, 295 + Math.cos(t)*5, 184 + Math.sin(t)*5)); } poly(pu, '#14181c'); }
+        for(let k = 0; k < 3; k++) S(0.6, 266, 324 - k*12, 146 + k*8, 150 + k*8, '#7d838a');
+        /* IN THE TEST ROOM: the chart, lit, at the test chair's eye level -- rows of letters getting smaller */
+        S(0.4, 556, 644, 96, 206, '#d8dcde'); S(0.5, 560, 640, 100, 202, '#ffffff');
+        [[18, 1], [13, 2], [10, 3], [8, 4], [6, 5], [5, 6], [4, 7]].reduce((z, [h, n]) => { const w = h*0.9, tot = n*w + (n - 1)*w*0.5, b0 = 600 - tot/2;
+          for(let i = 0; i < n; i++){ const bb = b0 + i*w*1.5; S(0.6, bb, bb + w, z - h, z, '#14181c'); S(0.65, bb + w*0.25, bb + w*0.75, z - h*0.7, z - h*0.3, '#ffffff'); }
+          return z - h - 3; }, 196);
+        S(0.6, 560, 640, 120, 121, '#c8362b');
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's white and its marina-blue trim, and its window cut in at its own sill (the
+         exterior's: lab a 12..108, z 24, x1.95) -- the near walls' outer faces are the building's own */
+      winE: [[MO_IN.ra(MO_IN.WIN[0]), MO_IN.ra(MO_IN.WIN[1]), MO_IN.WIN[2]*1.95]],
+      glass: 'rgba(146,178,196,.42)', frame: extT,
+      low: [shade(extW, 1.02), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e4e6e2' });
+
+    /* ---- THE FRAME WALL along the north wall, floor to 228 (a cupboard, six glass shelves) ---- */
+    wallA(0, 560, 0, 22, [40, 72, 104, 136, 168, 200], 228, 17);
+    /* ---- THE DESIGNER CASE behind the desk: glass-fronted ---- */
+    wallA(606, 840, 0, 22, [56, 92, 128, 164], 200, 91, { glass: true, name: 'designer case', topRow: true });
+
+    /* ---- THE FRONT DESK before it: white lacquer, a marina-blue band; 62 clear behind it for Priya (W33) ---- */
+    { const A0 = 610, A1 = 790, B0 = 84, B1 = 118;
+      /* (in runs shorter than it is deep, 30 on 34, keyed down its middle line, as the bookshop's till) */
+      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'desk')], () => {
+        box(A0, A1, B0, B1, 0, 84, lac, lac, lacS);
+        F(A0, A1, 0, 8, '#d4dadc', null, 0, B1 + 0.2); F(A0, A1, 50, 62, blue, null, 0, B1 + 0.3);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 84, 89, '#e8eef0', '#c9d2d6', '#b9c2c6');
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      /* WHAT STANDS ON IT, each its own piece (W28): the screen, a tray of glasses cases, the card reader, a little stand of cloths */
+      const on = (oa, z, fp, fn) => items.push({ a: oa, b: B1 + 0.5, z, fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(690, 62, [676, 704, 88, 104, 128], () => { box(686, 694, 94, 100, 89, 92, dark, dark, '#1e2024'); box(688, 692, 96, 99, 92, 104, '#3a3e44', '#2a2e34', '#1e2024');
+        box(676, 704, 92, 96, 102, 128, '#2a2e34', '#1e2024', '#16181c'); F(678, 702, 104, 126, '#9fc4d4', null, 0, 96.2); });   // the screen, its back to Priya
+      on(742, 62, [728, 756, 92, 112, 100], () => { box(728, 756, 92, 112, 89, 93, blueD, shade(blueD, 0.85), shade(blueD, 0.7));
+        for(let i = 0; i < 4; i++) box(731 + i*6, 736 + i*6, 94, 110, 93, 99, ['#1e2024', '#a8362b', '#2f6f9b', '#6a4024'][i], ['#16181c', '#8a2a22', '#24587c', '#54321c'][i], '#14161a'); });
+      on(772, 62, [766, 778, 100, 110, 102], () => { box(766, 778, 100, 110, 89, 92, dark, dark, '#16181c'); box(767, 777, 101, 108, 92, 102, '#3a3e44', '#2a2e34', '#1e2024'); F(768, 776, 96, 100, '#9fd4b4', null, 0, 108.1); });
+      on(632, 62, [624, 640, 96, 108, 108], () => { cyl(632, 102, 89, 92, 7, steel); tube(632, 102, 92, 632, 102, 106, 1, steel);
+        pairA(632, 104, 104, '#1e2024', 0.9); });
+    }
+
+    /* ---- THE LAB BENCH along the west wall: the lensmeter, the edger, a tray of tools; against the wall, keyed at each stretch's start ---- */
+    { const A0 = 0, A1 = 34, B0 = 40, B1 = 230;
+      runPiece(items, A0, A1, B0, B1, 100, (s0, s1) => [solid(A0, A1, s0, s1, 86, 'lab bench')], () => {
+        box(A0, A1, B0, B1, 0, 80, lacF, lacF, lacS);
+        for(let b = B0 + 6; b < B1 - 30; b += 46) S(A1 + 0.2, b, b + 40, 10, 70, shade(lacF, 1.04), shade(lacS, 0.9), 0.8);
+        box(A0, A1 + 3, B0 - 2, B1 + 2, 80, 85, '#5a6a72', '#4a5a62', '#3e4c54');
+      }, { alongB: true, keyStart: true, pad: 5 });
+      const on = (ob, z, fp, fn) => items.push({ a: A1 + 0.5, b: ob, z, fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* (keyed just after the bench's runs their pictures meet, before Arun stood at the bench before them: the order's log, 2026-11-18) */
+      on(84, 10, [4, 30, 70, 98, 136], () => {   // the lensmeter: a grey body on a stand, its eyepiece up, a lens in its holder
+        box(6, 28, 72, 96, 85, 90, '#e8ecee', '#d4dadc', '#c4cacc'); box(10, 22, 78, 90, 90, 118, '#d8dcde', '#c4cacc', '#b4babc');
+        cyl(16, 84, 118, 128, 6, '#3a3e44', '#4a4e54'); tube(16, 84, 128, 22, 84, 136, 2, '#2a2e34'); discB(28.4, 84, 104, 4, LENS); });
+      on(150, 0, [4, 32, 128, 172, 118], () => {   // the edger: a white box with a lid and its little screen
+        box(4, 32, 128, 172, 85, 112, '#f2f4f4', '#e2e6e8', '#ced4d6'); box(6, 30, 130, 170, 112, 118, '#d8dcde', '#c8ced0', '#b8bec0');
+        F(4, 32, 92, 104, '#3a3e44', null, 0, 172.1); S(32.1, 136, 160, 96, 108, '#9fc4d4'); });
+      on(206, 0, [6, 30, 192, 220, 92], () => { box(6, 30, 194, 218, 85, 88, '#2a2e34', '#1e2024', '#16181c');
+        for(let i = 0; i < 4; i++) tube(10, 198 + i*5, 89, 26, 199 + i*5, 89.5, 0.8, i % 2 ? steel : '#c9a24a'); pairB(26, 212, 91, '#a8362b', 0.8); });
+    }
+
+    /* ---- FRAME TOWERS down the middle: chest high, aisles a body wide; one south of the lane ---- */
+    tower(247, 273, 90, 210, [40, 70, 100, 130], 154, 260);
+    tower(407, 433, 90, 210, [40, 70, 100, 130], 154, 420);
+    tower(407, 433, 372, 480, [40, 70, 100, 130], 154, 433);
+    /* ---- THE SUNGLASSES SPINNER: a square column on a round foot, pairs hung on its faces in rows, its sign on top ---- */
+    items.push({ a: 500, b: 410, z: 0, fpLab: { a0: 486, a1: 514, b0: 396, b1: 424, z1: 196 }, solids: [{ name: 'spinner', c: [500, 410], r: 16, h: 190 }], draw: () => {
+      cyl(500, 410, 0, 5, 17, '#3a3e44', '#4a4e54'); cyl(500, 410, 5, 14, 3, steelD);
+      box(488, 512, 398, 422, 14, 172, lac, lacF, lacS);
+      for(let r = 0; r < 5; r++){ const z = 34 + r*28;
+        for(let k = 0; k < 2; k++){ const c = FR[(r*4 + k) % FR.length], c2 = FR[(r*4 + k + 5) % FR.length];
+          tube(512, 404 + k*12, z + 6, 515, 404 + k*12, z + 6, 0.6, steel); pairB(516, 404 + k*12, z, shade(c, 0.9), 0.7);
+          tube(494 + k*12, 422, z + 6, 494 + k*12, 425, z + 6, 0.6, steel); pairA(494 + k*12, 426, z, shade(c2, 0.9), 0.7); } }
+      box(486, 514, 396, 424, 172, 176, blueD, shade(blueD, 0.85), shade(blueD, 0.7));
+      F(488, 512, 176, 196, blueD, null, 0, 424); blockWordIn('SUN', 490, 510, 179, 193, 424.2, '#f6d860', null, 3);
+      S(512, 398, 422, 176, 196, shade(blueD, 0.8)); } });
+    /* ---- THE EYE TEST ROOM: glass partitions on a low white base (frosted on the north, clear toward the camera), a door gap ---- */
+    { const base = '#f4f6f6', baseS = '#d8dee0', frost = 'rgba(232,240,244,.55)', clear = 'rgba(190,214,222,.20)';
+      /* (in runs of 30 on a 12-deep partition keyed down its middle line: so a person standing either side of it at either end of a run sorts
+         right against it -- W28) */
+      runPiece(items, 0, 300, 430, 442, 172, (s0, s1) => [solid(s0, s1, 430, 442, 170, 'partition')], () => {
+        box(0, 300, 430, 442, 0, 70, base, base, baseS);
+        F(0, 300, 70, 168, frost, null, 0, 442); F(0, 300, 168, 172, steel, null, 0, 442.2);
+        for(let a = 0; a < 300; a += 60) F(a, a + 3, 70, 172, steel, null, 0, 442.3);
+        F(20, 280, 104, 108, 'rgba(255,255,255,.4)', null, 0, 442.4);
+        T(0, 300, 430, 442, 172, steelD);
+      }, { pad: 4, run: 30, extra: { b: 436 } });
+      for(const [q0, q1] of [[442, 470], [550, 699]])
+        runPiece(items, 288, 300, q0, q1, 172, (s0, s1) => [solid(288, 300, s0, s1, 170, 'partition')], () => {
+          box(288, 300, q0, q1, 0, 60, base, base, baseS);
+          S(300, q0, q1, 60, 168, clear); S(300, q0, q1, 168, 172, steel);
+          for(let b = q0; b < q1; b += 50) S(300.3, b, b + 3, 60, 172, steel);
+          if(q0 === 550) S(300.3, q0, q0 + 3, 0, 172, steel);
+          S(300.4, q0 + 8, q0 + 12, 70, 160, 'rgba(255,255,255,.22)');
+          T(288, 300, q0, q1, 172, steelD);
+          if(q1 === 470){ S(300.3, q1 - 3, q1, 0, 172, steel); F(288, 300, 0, 172, steelD, null, 0, q1); }
+        }, { alongB: true, pad: 4, run: 30, extra: { a: 294 } });
+      /* its sign by the gap */
+      items.push({ a: 301, b: 466, z: 40, fpLab: { a0: 300, a1: 302, b0: 444, b1: 468, z1: 150 }, solids: [], draw: () => { S(300.6, 446, 468, 128, 146, navy); S(300.8, 449, 465, 134, 140, '#f4f6f6'); } });
+    }
+    /* the lens cabinet against the partition, inside: shallow drawers of trial lenses */
+    runPiece(items, 110, 190, 442, 462, 110, (s0, s1) => [solid(s0, s1, 442, 462, 100, 'lens cabinet')], () => {
+      box(110, 190, 442, 462, 0, 96, lac, lac, lacS);
+      for(let r = 0; r < 6; r++) for(let c = 0; c < 2; c++){ const a0 = 114 + c*38, z0 = 8 + r*14; F(a0, a0 + 34, z0, z0 + 11, lacF, lacS, 0.7, 462.2); F(a0 + 14, a0 + 20, z0 + 4, z0 + 6, steel, null, 0, 462.4); }
+      box(108, 192, 440, 464, 96, 100, '#e8eef0', '#c9d2d6', '#b9c2c6');
+      for(let k = 0; k < 6; k++){ const a = 120 + k*11; discA(a, 452, 104, 4, steel); discA(a, 452.1, 104, 3, LENS); }
+    }, { pad: 4, keyStart: true });
+    /* THE TEST CHAIR: a big padded chair facing the chart, on a pump base; its arms; drawn back to front in one piece */
+    items.push({ a: 222, b: 600, z: 0, solids: [{ name: 'test chair', c: [222, 600], r: 24, h: 100 }], draw: () => {
+      const ca = 222, cb = 600, vin = '#24365a', vinF = '#1e2d4c', vinS = '#18243e';
+      cyl(ca, cb, 0, 6, 22, '#c4cacc', '#d4dadc'); cyl(ca, cb, 6, 26, 7, steelD);
+      box(ca + 2, ca + 16, cb - 20, cb + 20, 26, 104, vin, vinF, vinS);                     // its back (east)
+      box(ca - 10, ca + 14, cb - 22, cb - 15, 26, 56, vin, vinF, vinS);                     // the far arm
+      box(ca - 18, ca + 14, cb - 15, cb + 15, 26, 38, vin, vinF, vinS);                     // the seat
+      box(ca - 30, ca - 18, cb - 12, cb + 12, 6, 14, steelD, steel, steelD);                // the footrest
+      box(ca + 4, ca + 14, cb - 14, cb + 14, 104, 112, vin, vinF, vinS);                    // the headrest
+      box(ca - 10, ca + 14, cb + 15, cb + 22, 26, 56, vin, vinF, vinS); } });              // the near arm
+    /* THE PHOROPTER on its column north of the chair: the arm out over the chair, the lens head before the patient's face */
+    items.push({ a: 186, b: 562, z: 0, fpLab: { a0: 176, a1: 210, b0: 552, b1: 612, z1: 150 }, solids: [{ name: 'column', c: [186, 562], r: 9, h: 160 }], draw: () => {
+      cyl(186, 562, 0, 4, 12, '#c4cacc', '#d4dadc'); cyl(186, 562, 4, 150, 4, '#e2e6e8', '#f2f4f4');
+      tube(186, 562, 146, 198, 598, 140, 2.4, '#e2e6e8');
+      box(194, 204, 586, 614, 118, 138, '#2a2e34', '#1e2024', '#16181c');                    // the lens head
+      discB(204.2, 593, 128, 5.5, '#3a3e44'); discB(204.2, 607, 128, 5.5, '#3a3e44'); discB(204.4, 593, 128, 3, LENS); discB(204.4, 607, 128, 3, LENS); } });
+    /* THE SLIT-LAMP DESK against the south wall, a stool by it */
+    runPiece(items, 50, 150, 652, 694, 140, (s0, s1) => [solid(s0, s1, 652, 694, 80, 'slit lamp')], () => {
+      box(50, 150, 652, 694, 70, 76, lac, lacF, lacS); for(const la of [54, 146]) box(la - 3, la + 3, 656, 690, 0, 70, steel, steel, steelD);
+      box(84, 120, 660, 684, 76, 82, '#2a2e34', '#1e2024', '#16181c'); box(96, 108, 664, 680, 82, 118, '#3a3e44', '#2a2e34', '#1e2024');
+      cyl(102, 672, 118, 128, 5, '#2a2e34'); tube(90, 664, 82, 90, 664, 110, 1.4, steel); tube(114, 664, 82, 114, 664, 110, 1.4, steel); tube(90, 664, 110, 114, 664, 110, 1.4, steel);
+    }, { pad: 4, run: 30, extra: { b: 673 } });
+
+    /* ---- THE FITTING TABLE: a white table, Arun behind it (54 clear), two chairs before it ---- */
+    { const A0 = 560, A1 = 720, B0 = 440, B1 = 500;
+      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'fitting table')], () => {
+        for(const [la, lb] of [[566, 446], [714, 446], [566, 494], [714, 494]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 70, steel, steel, steelD);
+        F(A0 + 6, A1 - 6, 52, 62, lacF, null, 0, B1 - 6);
+        box(A0, A1, B0, B1, 70, 76, lac, lacF, lacS);
+      }, { pad: 5, run: 40, extra: { b: (B0 + B1)/2 } });
+      /* what stands on it, each its own piece: two tilting mirrors facing the customers, a tray of frames, a ruler and a pad */
+      const on = (oa, ob, fp, fn) => items.push({ a: oa, b: B1 + 0.5, z: 30, fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      for(const ma of [612, 684]) on(ma, 486, [ma - 14, ma + 14, 470, 492, 120], () => {
+        cyl(ma, 484, 76, 79, 9, steelD); tube(ma - 10, 482, 79, ma - 10, 482, 100, 1, steelD); tube(ma + 10, 482, 79, ma + 10, 482, 100, 1, steelD);
+        poly([P(ma - 11, 480, 82), P(ma + 11, 480, 82), P(ma + 11, 486, 118), P(ma - 11, 486, 118)], steel);
+        poly([P(ma - 9, 480.6, 84), P(ma + 9, 480.6, 84), P(ma + 9, 486.4, 116), P(ma - 9, 486.4, 116)], '#c8dce4');
+        poly([P(ma - 6, 481, 88), P(ma - 3, 481, 88), P(ma - 3, 486, 110), P(ma - 6, 486, 110)], 'rgba(255,255,255,.4)'); });
+      on(648, 458, [630, 666, 448, 470, 84], () => { box(630, 666, 448, 470, 76, 79, blueD, shade(blueD, 0.85), shade(blueD, 0.7));
+        for(let i = 0; i < 3; i++) pairA(638 + i*11, 462, 81.5, FR[(i*3 + 1) % FR.length], 0.7); });
+      on(706, 468, [698, 716, 456, 480, 80], () => { box(700, 714, 458, 478, 76, 77.5, '#f8f8f4', '#e4e4de', '#d4d4ce'); box(698, 716, 474, 477, 77.5, 78.5, steel, steel, steelD); });
+    }
+    /* its chairs, each keyed at its middle (a customer sat in one is drawn a hair forward of it: MO_SEATS) */
+    const chair = (ca, cb, face) => items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 18, h: 76 }], draw: () => {
+      const seat = '#2f7fae', seatF = '#24689a', seatS = '#1f5a86';
+      for(const [la, lb] of [[-12, -12], [12, -12], [-12, 12], [12, 12]]) tube(ca + la, cb + lb, 0, ca + la, cb + lb, 28, 1.2, steelD);
+      if(face === 'n'){ box(ca - 15, ca + 15, cb + 10, cb + 15, 28, 76, seat, seatF, seatS); box(ca - 15, ca + 15, cb - 14, cb + 15, 28, 34, seat, seatF, seatS); }
+      else { box(ca + 10, ca + 15, cb - 15, cb + 15, 28, 76, seat, seatF, seatS); box(ca - 14, ca + 15, cb - 15, cb + 15, 28, 34, seat, seatF, seatS); } } });
+    chair(612, 540, 'n'); chair(684, 540, 'n');
+    /* ---- THE WAITING CHAIRS by the door, a low table of leaflets between ---- */
+    chair(786, 562, 'w'); chair(786, 642, 'w');
+    items.push({ a: 790, b: 602, z: 0, solids: [{ name: 'low table', c: [790, 602], r: 13, h: 44 }], draw: () => {
+      cyl(790, 602, 0, 3, 9, steelD); tube(790, 602, 3, 790, 602, 38, 1.4, steel); cyl(790, 602, 38, 41, 13, lac, '#f8f8f6');
+      box(782, 796, 594, 606, 41, 43, '#2f7fae', '#24689a', '#1f5a86'); box(785, 799, 598, 610, 43, 44.5, '#f6d860', '#d8ba44', '#c4a434'); } });
+    items.push({ a: 818, b: 676, z: 0, solids: [{ name: 'plant', c: [818, 676], r: 14, h: 120 }], draw: () => {
+      cyl(818, 676, 0, 30, 13, '#e8ecee', '#f4f6f6');
+      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(818, 676, 30, 818 + Math.cos(t)*18, 676 + Math.sin(t)*14, 80 + (k % 3)*14, 2.2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+
+    /* ---- THE WINDOW'S DISPLAY behind the shop window: a low white platform, frames on little stands facing the street ---- */
+    { const b0 = MO_IN.ra(MO_IN.WIN[0]) + 4, b1 = MO_IN.ra(MO_IN.WIN[1]) - 4;
+      runPiece(items, 806, 846, b0, b1, 60, (s0, s1) => [solid(806, 846, s0, s1, 36, 'window display')], () => box(806, 846, b0, b1, 0, 34, lac, lacF, lacS), { alongB: true, run: 30, extra: { a: 826 } });
+      for(let k = 0; k < 3; k++){ const bb = b0 + 20 + k*(b1 - b0 - 40)/2, c = FR[(k*3 + 2) % FR.length], hz = 54 + (k % 2)*12;
+        items.push({ a: 838, b: bb + 12, z: 30, fpLab: { a0: 826, a1: 840, b0: bb - 11, b1: bb + 11, z1: hz + 6 }, solids: [], draw: () => {
+          cyl(832, bb, 34, 36, 6, steelD); tube(832, bb, 36, 832, bb, hz - 2, 1, steel); pairB(838, bb, hz, c, 1.1); } }); } }
+
+    /* (its door is the street's: the door kit's single panelled leaf on the shop, swung live, cut to the front wall's height from in here) */
+    walkinStaffSolids(items, MO_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -61645,6 +62144,11 @@ function houseCanopy(fn){
 },
 {
   name:'Marina Optical', xh: 166, base:'Optician', hood:'The Flats', edited:true, sc:1.3, head:'Giant spectacles across the fascia, frames behind real glass',
+  see: true,   // (a walk-in: its doorway shows the optician's, MO_IN -- W11)
+  /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
+     only once he is in it (MO_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: 166,
+         opens: [{ name: 'doorway', poly: volRect(122, 222, -90, 2), walk: true }] },
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
   desc:'The spectacles are two solid rims in the plane of the wall, round in the world rather than stretched by ZSCALE, standing proud of the fascia on a bridge with the temples folding back to the wall. The frames and the eye chart are inside a real recess behind the pane.',
   draw(p){
@@ -61692,7 +62196,9 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#f2f2ee', trim = '#1f6f9b', H = 166;
     const inner = '#5d6a76', lens = 'rgba(150,186,206,.62)';
-    const WA0 = 12, WA1 = 140, WZ0 = 24, WZ1 = 100;
+    /* (the window gives the door its width, W33: the walk-in's door is 100 across -- Tipsey and a person -- so the glass ends at 108, and
+       the frames and the eye chart behind it close up with it: GA, the old grid's a (12..140) squeezed into the new opening) */
+    const WA0 = 12, WA1 = 108, WZ0 = 24, WZ1 = 100, GA = a => WA0 + (a - 12)*(WA1 - WA0)/128, GS = (WA1 - WA0)/128;
     /* a circle in the frontage plane that is actually round: the z
        radius divides back by ZSCALE, exactly as plusOutline does */
     const ring = (a, b, z, r, n) => {
@@ -61720,28 +62226,30 @@ function houseCanopy(fn){
        a hair of clearance. */
     for(let r=0;r<3;r++){
       const sz = 38 + r*24;
-      slab(18, 94, sz-4, sz, -6, -22, shade(wall,.78), null, shade(wall,.96));
-      for(const cx of [40, 78]){
-        const cz = sz + 6;
-        const col = ['#2b4a6b','#a8362b','#c9a24a','#3f6b4a','#6b3348','#2a6b6b'][(r*2+(cx>60?1:0))%6];
-        for(const d of [-10, 10]){
-          poly(ring(cx+d, -8, cz, 8), col);
-          poly(ring(cx+d, -7.6, cz, 5.5), 'rgba(222,236,244,.62)');
+      slab(GA(18), GA(94), sz-4, sz, -6, -22, shade(wall,.78), null, shade(wall,.96));
+      for(const cx0 of [40, 78]){
+        const cx = GA(cx0), cz = sz + 6;
+        const col = ['#2b4a6b','#a8362b','#c9a24a','#3f6b4a','#6b3348','#2a6b6b'][(r*2+(cx0>60?1:0))%6];
+        for(const d of [-10*GS, 10*GS]){
+          poly(ring(cx+d, -8, cz, 8*GS), col);
+          poly(ring(cx+d, -7.6, cz, 5.5*GS), 'rgba(222,236,244,.62)');
         }
-        poly([P(cx-4,-8,cz),P(cx+4,-8,cz),P(cx+4,-8,cz-1.6),P(cx-4,-8,cz-1.6)], col);
-        for(const d of [-18, 18])                                   // temples, folded back
+        poly([P(cx-4*GS,-8,cz),P(cx+4*GS,-8,cz),P(cx+4*GS,-8,cz-1.6),P(cx-4*GS,-8,cz-1.6)], col);
+        for(const d of [-18*GS, 18*GS])                                   // temples, folded back
           poly([P(cx+d,-8,cz),P(cx+d*1.05,-16,cz-1),
                 P(cx+d*1.05,-16,cz-2.6),P(cx+d,-8,cz-1.6)], shade(col,.8));
       }
     }
-    slab(98, 130, 36, 96, -6, -14, '#ffffff', null, shade(wall,.86));        // eye chart
+    slab(GA(98), GA(130), 36, 96, -6, -14, '#ffffff', null, shade(wall,.86));        // eye chart
     for(let i=0;i<6;i++)
-      F(101, 101 + 26*(1 - i*0.15), 86 - i*9, 90 - i*9, '#3a3f4a', null,0, -5.4);
+      F(GA(101), GA(101) + 26*GS*(1 - i*0.15), 86 - i*9, 90 - i*9, '#3a3f4a', null,0, -5.4);
     ctx.restore();
     glaze(WA0, WA1, WZ0, WZ1, null, 'rgba(146,178,196,.36)');
     F(WA0 + (WA1-WA0)/2 - 2.5, WA0 + (WA1-WA0)/2 + 2.5, WZ0, WZ1, shade(wall,.72), null,0, 0.8);
 
-    shopDoor(184, wall, trim);                          // a 150.88..217.12
+    /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the marina blue, small panes over a raised panel, 100 across -- as
+       the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the optician's, its leaf live, swinging in */
+    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 100, pair: true, single: true, panes: 'rgba(170,200,214,.72)' });
 
     /* ---- fascia ----
        Was slab(0, W, 118, 126, -1, -7): a0 of 0 and a1 of W, so the
@@ -115495,8 +116003,10 @@ class WorldScene extends Phaser.Scene {
   /* (W16: walking, the legs from the distance walked, d.gait; standing, their idle pose -- walkinIdlePose) */
   drawWalkinPerson(g, d, t, s){
     const L = walkinStaffLook(s), thW = d.th - Math.PI/2, rp0 = this._roomPerson; this._roomPerson = !!(this._inside && s.room === this._inside.name);   // (only the room he is in: another room's people -- the bank's, walking to work behind the tea house -- are the street's)
+    /* (pose.wear: something worn for now over their look's uniform -- a pair of frames tried on at Marina Optical, worn home) */
+    const wr = d.pose && d.pose.wear, U = wr ? (s._wearU && s._wearU.w === wr && s._wearU.u === L.uniform ? s._wearU.U : (s._wearU = { w: wr, u: L.uniform, U: Object.assign({}, L.uniform || null, wr) }).U) : L.uniform || null;
     try { this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
-      d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
+      d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, U, false,
       Object.assign({ dress: L.dress }, d.pose || null)); } finally { this._roomPerson = rp0; }
   }
   drawFourthPerson(g, d, t, who){
