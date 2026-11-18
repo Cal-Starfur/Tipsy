@@ -45436,7 +45436,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'patrol:ranger', build: 'patrol', name: 'Park Ranger', cents: 900, body: 0x4a5a32, upper: 0xc8b080, stripe: 0x5a3a1e, costume: 'ranger', noMouth: true },
   { id: 'patrol:bouncer', build: 'patrol', name: 'Bouncer', cents: 900, body: 0x1c1d21, stripe: 0x1c1d21, costume: 'bouncer', noMouth: true },
   /* THE ROBOT DOG'S SKINS (Sir, 2026-11-18) -- drawPatrolDog's dogAcc: each its paint and its own pieces */
-  { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0x16171b, dog: 'k9', lightbar: true },
+  { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0xf3f3f0, dog: 'k9', lightbar: true },
   { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
   { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
   { id: 'pdog:hazmat', build: 'pdog', name: 'Hazmat', cents: 900, body: 0xf2c02e, stripe: 0xf2c02e, dog: 'hazmat', beacon: 0x7cff5a },
@@ -130722,8 +130722,13 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < n; i++){ const cx = ca + dir*(-(n - 1)*gap/2 + i*gap); for(const path of GLY[txt[i]]) g.strokePoints(path.map(([u, v]) => PT(P(cx + dir*u*w/2, bb, cz + v*h/2))), false); } };
     const glowUnder = col => { for(const [k, al] of [[1.25, 0.08], [1.05, 0.12], [0.85, 0.16], [0.62, 0.2]]){ const o = []; for(let i = 0; i < 20; i++){ const q = i/20*Math.PI*2; o.push(PT(P(Math.cos(q)*48*k, Math.sin(q)*28*k, 0.5))); } g.fillStyle(col, al); g.fillPoints(o, true); } };
     const dogAcc = st => { if(!DS) return; const c = DS.dog;
-      if(c === 'k9'){
-        if(st === 'flank') for(const sb of [-1, 1]) flankText(sb, 'K-9', -2, 58.5, 7, 11, 9.5, 0xf6f6f2, 3);
+      if(c === 'k9'){   /* (second pass -- Sir, 2026-11-18): a black-and-white -- a white band round it, K-9 big in white on the black above; a gold
+           star on each flank by its head; a low push bar on its head; a whip aerial at its tail; the red and blue light bar */
+        const star = (sb, ca, cz, r) => { if(!sees(0, sb, 0)) return; const o = []; for(let i = 0; i < 10; i++){ const q = -Math.PI/2 + i*Math.PI/5, rr = i % 2 ? r*0.45 : r; o.push(PT(P(ca + Math.cos(q)*rr, sb*(HY + 0.9), cz - Math.sin(q)*rr))); }
+          g.fillStyle(0xa8802a, 1); g.fillPoints(o.map(q2 => new Phaser.Geom.Point(q2.x, q2.y + 0.8)), true); g.fillStyle(0xd8b04a, 1); g.fillPoints(o, true); };
+        if(st === 'flank') for(const sb of [-1, 1]){ flankText(sb, 'K-9', -6, 61.5, 6, 7, 8.5, 0xf6f6f2, 3); star(sb, 20, 61.5, 4); }
+        if(st === 'top'){ boxS(-32, -28, -6, -2, Z1, Z1 + 2, 0x2a2d33); line([-30, -4, Z1 + 2], [-34, -4, Z1 + 40], 0x16171b, 1.2); }
+        if(st === 'head'){ const PB = 0x3a3e46; for(const bb of [-8, 8]) tube([HX + 11, bb, 47], [HX + 15, bb, 51.5], 2.2, PB); tube([HX + 15, -9.5, 51.5], [HX + 15, 9.5, 51.5], 2.2, PB); tube([HX + 13.5, -9, 47.5], [HX + 13.5, 9, 47.5], 1.8, PB); }   /* (a low push bar, under its eyes) */
       }
       if(c === 'dalmatian'){
         const SP = [[-24, 59, 3.2, 2.4], [-12, 52, 2.4, 2], [-3, 61, 3.6, 2.6], [9, 54, 2.6, 2.2], [20, 60, 3, 2.4], [-30, 50, 2, 1.8], [14, 63, 1.8, 1.4]];
