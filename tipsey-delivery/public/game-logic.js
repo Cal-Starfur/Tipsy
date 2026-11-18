@@ -128514,7 +128514,14 @@ class WorldScene extends Phaser.Scene {
           for(const th of [-1.05, 1.05]){ if(!sees(Math.cos(th), Math.sin(th), 0)) continue; const q = P(Math.cos(th)*26.2, Math.sin(th)*26.2, 113.2), rr = 1.6*K*2; g.fillStyle(GOLD, 1); g.fillCircle(q.x, q.y, rr); } } }
       return; }
     if(c === 'mallcop'){   /* (second pass -- Sir, 2026-11-18): a light-blue shirt, two pocket flaps, a silver badge, a round patch on each shoulder, a radio
-         clipped at his shoulder; dark trousers, a torch on his belt behind; a white bike helmet, its vents dark slots, a short peak. (No scooter -- Sir, 2026-11-18: he drives himself) */
+         clipped at his shoulder; dark trousers, a torch on his belt behind; a white bike helmet, its vents dark slots, a short peak. (No scooter deck or grips -- Sir, 2026-11-18: he drives himself; his two wheels kept) */
+      /* HIS WHEELS (Sir, 2026-11-18: "he needs his wheels"): a big wheel each side on an axle out of his skirt, a fender over each */
+      const wheel = sb => { const { solid, prismH } = V; solid(prismH([[-5, sb*29], [5, sb*29], [5, sb*33], [-5, sb*33]], 10, 20), 0x2a2d33, null, false);
+        V.wheel(0, sb*37, 15, 8, 15, wheelPhase);
+        const bb = sb*(37 + (sees(0, sb, 0) ? 4.6 : -4.6)), o = []; for(let i = 0; i <= 10; i++){ const th = Math.PI*0.08 + Math.PI*0.84*i/10; o.push(P(-Math.cos(th)*17.5, bb, 15 + Math.sin(th)*17.5)); }
+        for(let i = 10; i >= 0; i--){ const th = Math.PI*0.08 + Math.PI*0.84*i/10; o.push(P(-Math.cos(th)*20.5, bb, 15 + Math.sin(th)*20.5)); }
+        g.fillStyle(0x8d959c, 1); g.fillPoints(o.map(PT), true); };
+      if(st === 'back') wheel(-nearB);
       const patchR = (th, zz) => { if(!seesS(th, zz)) return; const q = S(th, zz, 0.8), p1 = S(th, zz + 5, 0.8), rr = Math.hypot(p1.x - q.x, p1.y - q.y);
         g.fillStyle(0xd8b04a, 1); g.fillCircle(q.x, q.y, rr); g.fillStyle(0x1f3a7a, 1); g.fillCircle(q.x, q.y, rr*0.78); g.fillStyle(0xf6f6f2, 1); g.fillCircle(q.x, q.y, rr*0.3); };
       if(st === 'body'){ shield(-0.55, 80, 4.5, 0xd9dde2, 0x8d959c);
@@ -128523,7 +128530,7 @@ class WorldScene extends Phaser.Scene {
         if(seesS(0.85, 94)){ const pts = [[0.72, 99], [0.98, 99], [0.98, 86], [0.72, 86]]; decal(pts, 0x16171b, 1, 1.4); decal([[0.76, 97], [0.94, 97], [0.94, 92], [0.76, 92]], 0x3a3e46, 1, 1.5);
           const A = S(0.92, 99, 1.4), B = S(0.92, 106, 2.4); g.lineStyle(Math.max(1.4, 2.2*K), 0x16171b, 1); g.lineBetween(A.x, A.y, B.x, B.y); dot(0.78, 96, 0.9, 0xff4a4a, 1.6); }
         if(seesS(Math.PI - 0.6, 52)){ decal([[Math.PI - 0.75, 58], [Math.PI - 0.45, 58], [Math.PI - 0.45, 40], [Math.PI - 0.75, 40]], 0x3a3e46, 1, 1.2); decal([[Math.PI - 0.78, 41], [Math.PI - 0.42, 41], [Math.PI - 0.42, 36], [Math.PI - 0.78, 36]], 0x16171b, 1, 1.4); } }
-      if(st === 'top'){
+      if(st === 'top'){ wheel(nearB);
         if(!front) bill(26.6, 112, 6, 0.75, 2.5, 0xe8e8e6);
         lathe([[108, 27], [118, 26.4], [127, 22.4], [134, 15.5], [139, 7], [140.5, 0]], 0xf4f4f2);
         band([[107.5, 27.2], [110, 27.1]], 0x2a5ad8);
