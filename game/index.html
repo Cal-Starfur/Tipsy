@@ -121045,7 +121045,7 @@ class WorldScene extends Phaser.Scene {
         if(!(WEAR && this.botTopper(g, V, fa, fb, fz + 62))) Q([P(fa, fb, fz + 62), P(fa - 16, fb, fz + 57), P(fa, fb, fz + 52)], WEAR ? FLAGC : 0xff7a1a); };
       const AB = WEAR && /^amr[a-z]+$/.test(SKIN.build || '') ? SKIN.build : null;   /* (one of its builds: drawAmrBuild) */
       const NOFLAG = AB === 'amrshelf' || AB === 'amrlift';
-      if(AB) this.drawAmrBuild(AB, 'pre', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC);
+      if(AB) this.drawAmrBuild(AB, 'pre', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir);
       if(!flagNear && !NOFLAG) drawFlag();
       this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: 4, z1: 28, ch: 10, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: 0x23272d }, paintOf(4, 28, 'body')));
       if(WEAR && SKIN.stripe2) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: 10, z0: 5, z1: 8, band: true, cLt: SKIN.stripe2, cDk: SKIN.stripe2Dk });
@@ -121055,7 +121055,7 @@ class WorldScene extends Phaser.Scene {
       this.tipseyFace(V, L/2, 20, 0.7);
       /* THE LOAD (Sir, 2026-11-10: "the bot itself shouldn't just have boxes on it"): it runs empty. A pallet of boxes rides it only when a
          mission or a working scene hands it one (data.load), drawn far to near through the fall as before */
-      if(AB){ if((!front || AB === 'amrjack') && AB !== 'amrshelf' && AB !== 'amrlift') puck(L/2 - 10, 0, 31, 0.9);   /* (the pallet jack's load is ahead of its lidar) */ this.drawAmrBuild(AB, 'post', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC);
+      if(AB){ if((!front || AB === 'amrjack') && AB !== 'amrshelf' && AB !== 'amrlift') puck(L/2 - 10, 0, 31, 0.9);   /* (the pallet jack's load is ahead of its lidar) */ this.drawAmrBuild(AB, 'post', g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir);
         if(front && AB !== 'amrshelf' && AB !== 'amrlift' && AB !== 'amrconv' && AB !== 'amrjack') puck(L/2 - 10, 0, 31, 0.9); if(flagNear && !NOFLAG) drawFlag(); return; }
       const LOAD = !!(data && data.load);
       if(LOAD) box(-44, 36, -32, 32, 31, 39, 0xa07a4e);                                           // the pallet
@@ -131259,7 +131259,7 @@ class WorldScene extends Phaser.Scene {
   /* THE WAREHOUSE ROBOT'S BUILDS (Sir, 2026-11-18): AMR_BUILD -- each a different machine on its platform. Drawn at two moments: 'pre' before
      its hull (what is behind it from here: the tugger's carts when they trail away from the eye), 'post' over its top plate (z 31). Its
      platform is L 110 x W 76, its nose +a */
-  drawAmrBuild(id, st, g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC){
+  drawAmrBuild(id, st, g, V, t, nearB, wheelPhase, hx, hy, BODYC, LEDC, x, y, fdir){
     const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0), back = sees(-1, 0, 0);
     const DARK = 0x2a2f36, Y = 0xf2c02e, STEEL = 0x9aa1a8, TOP = 31;
     const box = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1), col, null, false);
@@ -131314,19 +131314,69 @@ class WorldScene extends Phaser.Scene {
       if(lit){ const q = P(ba, bb2, bz + 4.5), r = 9*this.kScale(); g.fillStyle(AMB, 0.2); g.fillCircle(q.x, q.y, r); g.fillStyle(AMB, 0.1); g.fillCircle(q.x, q.y, r*1.8); }
       return; }
 
-    if(id === 'amrtug'){   /* TUGGER TRAIN: a tow bar at its tail and two carts behind it, each a caged flatbed on four castors, loaded */
-      const carts = [0, 1].map(k => { const ca = -hx - 46 - k*84; return { k, ca, d: V.depth(ca, 0, 20) }; });
-      const cart = c => { const ca = c.ca, A0 = ca - 36, A1 = ca + 36;
-        for(const sb of [-nearB, nearB]) for(const a of [A0 + 8, A1 - 8]) if(sb === -nearB) V.wheel(a, sb*26, 6, 4, 6, wheelPhase);
-        box(A0, A1, -28, 28, 12, 16, BODYC.top);
-        for(const sb of [-nearB, nearB]) for(const a of [A0 + 8, A1 - 8]) if(sb === nearB) V.wheel(a, sb*26, 6, 4, 6, wheelPhase);
-        const cr = c.k ? [[A0 + 4, A0 + 32, -24, 0, 0xc98a4a, 40], [A0 + 4, A0 + 32, 2, 24, 0xb97b40, 34], [A0 + 36, A1 - 4, -24, 24, 0xd29a5a, 30]] : [[A0 + 4, A1 - 4, -24, -2, 0x5a7aa8, 32], [A0 + 4, A0 + 34, 2, 24, 0xc98a4a, 38], [A0 + 38, A1 - 4, 2, 24, 0xb97b40, 28]];
-        cr.sort((p, q) => V.depth((p[0] + p[1])/2, (p[2] + p[3])/2, 20) - V.depth((q[0] + q[1])/2, (q[2] + q[3])/2, 20));
-        for(const [a0, a1, b0, b1, col, h] of cr) crate(a0, a1, b0, b1, 16, h, col);
-        tube([A1, 0, 14], [A1 + 12, 0, 14], 2.4, DARK); };   /* (its draw bar, forward to what pulls it) */
+    if(id === 'amrtug'){   /* TUGGER TRAIN: two loaded carts towed behind it. (Second pass -- Sir, 2026-11-18): the carts ARTICULATE -- each
+         follows its own hitch as a trailer does, swinging wide round a turn and straightening out behind (this._tug: each cart's middle in
+         the world, pulled after its tow point; held within 1 rad of what pulls it). A yellow hitch plate on its tail, an A-frame draw bar on
+         each cart, a low steel cage round its bed (the far rails before the load, the near after), swivel castors, stacking totes and taped
+         boxes. (Their reach is still past its hit box, as before: the carts pass through things.) */
+      const th = (fdir || 0)*Math.PI/2, c = Math.cos(th), s = Math.sin(th);
+      const toW = (a, b) => [x + a*c - b*s, y + a*s + b*c], toL = (wx, wy) => { const dx = wx - x, dy = wy - y; return [dx*c + dy*s, -dx*s + dy*c]; };
+      const HA = -hx - 12, BAR = 12, HALF = 36, D0 = BAR + HALF, LIVE = !!(this.ow && !this._garage && x != null);
+      if(st === 'pre' || !this._tugL){   /* (once a frame: the chain, in its own frame) */
+        const T = this._tug, ok = LIVE && T && Math.hypot(T.x - x, T.y - y) < 40 && Math.abs(Math.atan2(Math.sin(th - T.th), Math.cos(th - T.th))) < 0.2;   /* (a jump -- placed, or snapped round -- starts it straight) */
+        const L = []; let tow = [HA, 0], pd = [1, 0];
+        for(let k = 0; k < 2; k++){
+          let C = ok && T.c[k] ? toL(...T.c[k]) : [tow[0] - pd[0]*D0, tow[1] - pd[1]*D0];
+          let u = [tow[0] - C[0], tow[1] - C[1]]; const n = Math.hypot(...u) || 1; u = [u[0]/n, u[1]/n];
+          /* (held within a radian of what pulls it) */
+          const rel = Math.atan2(pd[0]*u[1] - pd[1]*u[0], pd[0]*u[0] + pd[1]*u[1]), cl = Math.max(-1, Math.min(1, rel));
+          if(cl !== rel){ const cc = Math.cos(cl), ss = Math.sin(cl); u = [pd[0]*cc - pd[1]*ss, pd[0]*ss + pd[1]*cc]; }
+          C = [tow[0] - u[0]*D0, tow[1] - u[1]*D0];
+          L.push({ C, u, v: [-u[1], u[0]] });
+          tow = [C[0] - u[0]*(HALF + 2), C[1] - u[1]*(HALF + 2)]; pd = u; }
+        this._tugL = L;
+        if(LIVE) this._tug = { x, y, th, c: L.map(o => toW(...o.C)) }; else this._tug = null; }
+      const L = this._tugL;
+      const hitch = () => { box(-hx - 6, -hx + 1, -9, 9, 9, 17, Y); tube([-hx - 4, 0, 13], [HA, 0, 13], 3, DARK); this.avLathe(V, HA, 0, [[11, 2.4], [16, 2.4]], 0x3a3e46, null, 8); };
+      const cart = (o, k) => { const M = (la, lb) => [o.C[0] + la*o.u[0] + lb*o.v[0], o.C[1] + la*o.u[1] + lb*o.v[1]];
+        const mbox = (a0, a1, b0, b1, h0, h1, col) => solid(prismH([M(a0, b0), M(a1, b0), M(a1, b1), M(a0, b1)], h0, h1), col, null, false);
+        const mt = (p0, p1, w, col) => { const A = M(p0[0], p0[1]), B = M(p1[0], p1[1]); tube([A[0], A[1], p0[2]], [B[0], B[1], p1[2]], w, col); };
+        const dC = V.depth(o.C[0], o.C[1], 20);
+        const castors = near => { for(const la of [-HALF + 8, HALF - 8]) for(const lb of [-22, 22]){ const q = M(la, lb); if((V.depth(q[0], q[1], 6) > dC) !== near) continue;
+          V.wheel(q[0], q[1], 6, 4, 6, wheelPhase); const f = M(la, lb); box(f[0] - 2.5, f[0] + 2.5, f[1] - 2.5, f[1] + 2.5, 9, 12, DARK); } };
+        castors(false);
+        mbox(-HALF, HALF, -28, 28, 12, 16, BODYC.top);
+        for(const la of [-HALF - 1.5, HALF + 1.5]) mbox(la - 1.5, la + 1.5, -28, 28, 11, 16, Y);   /* (its bumpers, fore and aft) */
+        /* the cage: a low steel rail down each side and across the back, on posts */
+        const RZ = 16, RT = 32, CG = 0x8d959c, sides = [
+          { pts: [[-HALF + 1, -26.5], [0, -26.5], [HALF - 1, -26.5]] }, { pts: [[-HALF + 1, 26.5], [0, 26.5], [HALF - 1, 26.5]] }, { pts: [[-HALF + 1, -26.5], [-HALF + 1, 26.5]] }];
+        for(const sd of sides){ const m = sd.pts[Math.floor(sd.pts.length/2)], q = M(m[0], sd.pts.length === 2 ? 0 : m[1]); sd.d = V.depth(q[0], q[1], 24); }
+        const rail = sd => { for(const p of sd.pts) mt([p[0], p[1], RZ], [p[0], p[1], RT], 2, CG); const a = sd.pts[0], b = sd.pts[sd.pts.length - 1];
+          mt([a[0], a[1], RT], [b[0], b[1], RT], 2, CG); mt([a[0], a[1], (RZ + RT)/2], [b[0], b[1], (RZ + RT)/2], 1.4, _pdk(CG, 0.85)); };
+        const far = sides.filter(sd => sd.d <= dC).sort((p, q) => p.d - q.d), near = sides.filter(sd => sd.d > dC).sort((p, q) => p.d - q.d);
+        far.forEach(rail);
+        /* its load: cart 0 two blue stacking totes and a box, cart 1 three taped boxes */
+        const TOTE = 0x2a6ad8;
+        const load = k ? [[-HALF + 3, -2, -24, 0, 0xc98a4a, 38, 'box'], [-HALF + 3, -4, 2, 24, 0xb97b40, 32, 'box'], [2, HALF - 3, -22, 22, 0xd29a5a, 30, 'box']]
+                       : [[-HALF + 3, -2, -24, 24, TOTE, 30, 'tote'], [2, HALF - 3, -24, -1, TOTE, 30, 'tote'], [4, HALF - 5, 3, 22, 0xc98a4a, 36, 'box']];
+        if(!k) load.push([-HALF + 4, -3, -23, 23, 0x3a7ae0, 44, 'tote2']);
+        const items = load.map(L2 => { const q = M((L2[0] + L2[1])/2, (L2[2] + L2[3])/2); return { L2, d: V.depth(q[0], q[1], L2[6] === 'tote2' ? 38 : 22) }; }).sort((p, q) => p.d - q.d);
+        for(const { L2 } of items){ const [a0, a1, b0, b1, col, h, kind] = L2, h0 = kind === 'tote2' ? 30.5 : 16;
+          if(kind === 'box'){ mbox(a0, a1, b0, b1, h0, h, col); if(sees(0, 0, 1)){ const mid = (b0 + b1)/2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([M(a0, mid - 1.2), M(a1, mid - 1.2), M(a1, mid + 1.2), M(a0, mid + 1.2)].map(q => PT(P(q[0], q[1], h + 0.2))), true); } }
+          else { mbox(a0 + 1, a1 - 1, b0 + 1, b1 - 1, h0, h - 2.5, col); mbox(a0, a1, b0, b1, h - 2.5, h, _pdk(col, 0.82));   /* (a tote: tapered body, a lip round its rim, a dark handhold at each end) */
+            for(const ea of [a0, a1]){ const nA = M(ea + (ea === a0 ? -1 : 1), 0), cA = M(ea, 0), nrm = [nA[0] - cA[0], nA[1] - cA[1]];
+              if(!sees(nrm[0], nrm[1], 0)) continue; const e = ea === a0 ? a0 + 0.9 : a1 - 0.9;
+              g.fillStyle(0x16243f, 1); g.fillPoints([M(e, -4), M(e, 4), M(e, 4), M(e, -4)].map((q, i) => PT(P(q[0], q[1], i < 2 ? h - 7 : h - 4.5))), true); } } }
+        near.forEach(rail);
+        castors(true);
+        /* its A-frame draw bar, forward to its tow point */
+        const fr = [HALF + BAR, 0];
+        for(const lb of [-14, 14]) mt([HALF, lb, 13], [fr[0], fr[1], 13], 2.4, DARK);
+        const r = M(...fr); this.avLathe(V, r[0], r[1], [[11.5, 2.6], [14.5, 2.6]], 0x3a3e46, null, 8); };
       const trailFar = !sees(-1, 0, 0);
-      if(st === 'pre' && trailFar){ carts.sort((p, q) => p.d - q.d).forEach(cart); tube([-hx - 10, 0, 14], [-hx, 0, 14], 3, DARK); }
-      if(st === 'post' && !trailFar){ tube([-hx - 10, 0, 14], [-hx, 0, 14], 3, DARK); carts.sort((p, q) => p.d - q.d).forEach(cart); }
+      const all = () => L.map((o, k) => ({ o, k, d: V.depth(o.C[0], o.C[1], 20) })).sort((p, q) => p.d - q.d).forEach(e => cart(e.o, e.k));
+      if(st === 'pre' && trailFar){ all(); hitch(); }
+      if(st === 'post' && !trailFar){ hitch(); all(); }
       return; }
 
     if(id === 'amrshelf'){   /* SHELF LIFTER: carried up under a tall shelf pod -- four posts, four shelves, coloured bins on each */
