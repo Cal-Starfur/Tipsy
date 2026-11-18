@@ -129732,24 +129732,24 @@ class WorldScene extends Phaser.Scene {
          turntable pad. (Second pass -- Sir, 2026-11-18: "the bins look better but the rack is too big, it looked better before"): the rack as it
          was, its own size on its deck; the bins fabric bins, each a darker open mouth and a white label card on its outer faces */
       if(st !== 'post') return;
-      const S = 31, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];   /* (inside its top plate, 68 across -- Sir: "it still seems to be hanging off the far side") */
+      const SA = 40, SB = 26, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];   /* (its own shape, well inside its lid -- 102 x 68 -- Sir: "they dont land inside the red rectangle") */
       this.avLathe(V, 0, 0, [[TOP, 12], [Z0, 12]], DARK, null, 14); this.avLathe(V, 0, 0, [[TOP + 0.6, 12.4], [TOP + 2, 12.4]], Y, () => Y, 14);
-      const posts = [[-S, -S], [S, -S], [S, S], [-S, S]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
+      const posts = [[-SA, -SB], [SA, -SB], [SA, SB], [-SA, SB]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
       const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
       for(const p of posts.slice(0, 2)) post(p);
-      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], C = 14.5, R = 12;
-      for(let i = 0; i < 4; i++){ box(-S, S, -S, S, LV[i], LV[i] + 2.5, 0x6a7078);
+      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], CA = [-26.5, 0, 26.5], CB = [-13, 13], RA = 12, RB = 11.5;
+      for(let i = 0; i < 4; i++){ box(-SA, SA, -SB, SB, LV[i], LV[i] + 2.5, 0x6a7078);
         const h0 = LV[i] + 2.5, h1 = h0 + (i === 3 ? 18 : 20), bins = [];
-        for(const ba of [-1, 1]) for(const bb of [-1, 1]) bins.push({ ca: ba*C, cb: bb*C, d: V.depth(ba*C, bb*C, h0 + 10) });
+        for(const ca of CA) for(const cb of CB) bins.push({ ca, cb, d: V.depth(ca, cb, h0 + 10) });
         bins.sort((p, q) => p.d - q.d);
-        for(const bn of bins){ const col = BINS[(i + (bn.ca > 0) + 2*(bn.cb > 0)) % 4], a0 = bn.ca - R, a1 = bn.ca + R, b0 = bn.cb - R, b1 = bn.cb + R;
+        for(const bn of bins){ const col = BINS[(i + CA.indexOf(bn.ca) + 2*(bn.cb > 0)) % 4], a0 = bn.ca - RA, a1 = bn.ca + RA, b0 = bn.cb - RB, b1 = bn.cb + RB;
           box(a0, a1, b0, b1, h0, h1 - 3, col); box(a0, a1, b0, b1, h1 - 3, h1, _pdk(col, 0.72));   /* (its open mouth: a darker band round the top) */
           for(const [nx, ny, fx] of [[1, 0, a1], [-1, 0, a0], [0, 1, b1], [0, -1, b0]]){ if(!sees(nx, ny, 0)) continue;
             if(nx && Math.sign(bn.ca) !== nx || ny && Math.sign(bn.cb) !== ny) continue;   /* (only an outer face carries a card) */
             const q = nx ? (u, z) => P(fx + nx*0.2, bn.cb + u, z) : (u, z) => P(bn.ca + u, fx + ny*0.2, z), zc = h0 + 7;
-            g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-5, zc - 2.6), q(5, zc - 2.6), q(5, zc + 2.6), q(-5, zc + 2.6)].map(PT), true);
+            g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)].map(PT), true);
             g.fillStyle(0x2a2f36, 1); g.fillPoints([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)].map(PT), true); } } }
-      box(-S, S, -S, S, LV[4], LV[4] + 2.5, 0x6a7078);
+      box(-SA, SA, -SB, SB, LV[4], LV[4] + 2.5, 0x6a7078);
       for(const p of posts.slice(2)) post(p);
       return; }
 
