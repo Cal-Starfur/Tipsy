@@ -16716,7 +16716,8 @@ function addrQuietAt(x, y){
   for(const q of addrQuiet) if(Math.hypot(q.x - x, q.y - y) < ADDR_QUIET.R) return true;
   return false;
 }
-const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
+/* (scootP: of those who come alone and not by car, the share who ride up on a scooter -- SHOP SCOOTERS) */
+const SHOPPERS = { max: 8, everyMs: 1300, spawnP: 0.6, R: 1500, fromCarP: 0.3, departP: 0.2, scootP: 0.2, walkV: 0.075, backMs: 90000, backR: 4500, doorR: 85,
   groupP: 0.4, trioP: 0.35, groupLat: 52, groupLag: 900, groupLatMax: 290, chatGap: [9000, 20000], chatMs: 2300,
   retireR: 2600, botTalkR: 420, callP: 0.2, callGap: [16000, 34000] };
 /* THE WORLD CLOCK AND THE VISIT SLOTS (docs/seeded-crowd.md): worldMs(t) is the clock everyone shares (UTC ms: the epoch is taken
@@ -30175,8 +30176,8 @@ function walkinTakeShoppers(scene, R, now){
   const d = walkinFedDoor(R), D = walkinDoorPlane(R);
   if(!d || !D || !R.pk.view()) return;
   const vis = R.people.filter(q => q.look === 'visitor'), want = walkinVisitorsWant(R.pk, vis.length);
-  for(const p of scene._shoppers || []){
-    if(p.door !== d || p._held || p._roomDone || p.dog || p.knock) continue;
+  for(const p of (scene._shoppers || []).concat(scene._seekers || [])){            // (on foot, or off a scooter stood by the kerb)
+    if(p.door !== d || p._held || p._roomDone || p.dog || p.knock || p.home) continue;
     const hi = p._hi != null ? p._hi : (p._hi = p.pts.findIndex(q => q.hide));
     if(hi < 1){ p._roomDone = true; continue; }                                  // (never walks in)
     const q = shopperAt(p, now);
@@ -30184,7 +30185,8 @@ function walkinTakeShoppers(scene, R, now){
     const s = want > 0 ? vis.find(o => !o.with && o._day === 'out' && !o._shop) : null;   // (any free customer of the room's: the street decides how busy it is)
     if(!s){ p._roomDone = true; continue; }                                      // (no room for them: in and out, as a shop without one)
     p._held = s; p._hx = q.x; p._hy = q.y;
-    s.visit = (s.visit || 0) + 1; s._shop = p; s._shopLook = crowdLook(p, 0x5b0b, null); s._L = null;
+    s.visit = (s.visit || 0) + 1; s._shop = p; s._L = null;
+    s._shopLook = (scene._seekers || []).includes(p) ? crowdLook(p, 0x5c007, { adult: true, aid: 'none' }) : crowdLook(p, 0x5b0b, null);   // (as the street drew them: a seeker's look, or a shopper's)
     /* (taken in within the doorway's width, clear of its jambs: a group's shoppers step aside of each other, and one taken at the jamb
        walked into the wall and stood there -- the gate's clip, 2026-11-18) */
     const m = s._m = walkinLifeInit(R, s, now), w0 = walkinW2R(R, q.x, q.y), rx = w0[0] - D.P0[0], ry = w0[1] - D.P0[1];
@@ -135851,7 +135853,7 @@ class WorldScene extends Phaser.Scene {
        no one. A party he has left -- all of it far off and off the screen --
        is let go, its car (still parked) free for the next. */
     /* (one of them in a shop's room: held there while its customer is, let go once not -- WALKIN_STREET) */
-    for(const p of list) if(p._held){ const s = p._held, R = s._R; if(s._shop !== p || s._gone || !R || t - (R.t || 0) > 1500) walkinShopRelease(p, t); }
+    for(const p of list.concat(this._seekers || [])) if(p._held){ const s = p._held, R = s._R; if(s._shop !== p || s._gone || !R || t - (R.t || 0) > 1500) walkinShopRelease(p, t); }
     { const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800, rf = this.crowdRef();
       const gone = p => { if(p.knock || p._held) return false; const m = shopperAt(p, t); if(!m) return true;
         if(p.vkey && Math.hypot(p.door.x - rf.x, p.door.y - rf.y) < SH.R + 300) return false;   // (a scheduled visit at a door he is near stays: it would only be made again)
@@ -135941,7 +135943,7 @@ class WorldScene extends Phaser.Scene {
         if(!party || t > t0 + party.dur){ vis.set(key, true); continue; }   // too long for its slot, or over before he came
         if(list.length + party.members.length > W.cap) continue;
         if(party.car) party.car.claim = key;
-        for(const m of party.members) list.push(m);
+        for(const m of party.members) (party.seek ? (this._seekers || (this._seekers = [])) : list).push(m);   // (by scooter: a seeker's record)
         vis.set(key, party.members);
       }
     }
@@ -135985,8 +135987,17 @@ class WorldScene extends Phaser.Scene {
         members.push(m);
       }
     };
-    let car = null;
     const _room = pocketHiding(d.lib);                  // (a walk-in's: nobody comes out of it who did not go in -- WALKIN_STREET)
+    /* BY SCOOTER (Sir, 2026-11-18: "lets add scooter riders to the shops"): one who comes alone and not by car now and then rides up on
+       a scooter -- the scooter trip's shop way (scootTrip): up the pavement, stood by the kerb beside the door, in, out and away on it.
+       Rolled off the visit's own seed, so the same for everyone; a seeker's record (the scooter drawn with them, stood while they are in) */
+    if(n === 1 && !(car0 && plan.kind < SH.fromCarP + (_room ? 0 : SH.departP)) && mulberry32((plan.seeds[2] ^ 0x5c0071) >>> 0)() < SH.scootP){
+      const rec = this.scootTrip(t0, d, null, false, { rnd: mulberry32((plan.seeds[1] ^ 0x5c0072) >>> 0), t0, far, vkey });
+      if(rec){ let el = 0; for(let i = 0; i < rec.pts.length; i++){ if(i) el += Math.hypot(rec.pts[i].x - rec.pts[i - 1].x, rec.pts[i].y - rec.pts[i - 1].y)/(rec.pts[i].v || SH.walkV); el += rec.pts[i].wait || 0; }
+        if(!room && el > W.slotMs - W.startSpread) return null;
+        return { members: [rec], dur: el, car: null, seek: true }; }
+    }
+    let car = null;
     if(car0 && plan.kind < SH.fromCarP + (_room ? 0 : SH.departP)){
       car = car0;
       if(plan.kind < SH.fromCarP)       // out of the car, round to the shop, in, out, back, in the car -- and off it goes
