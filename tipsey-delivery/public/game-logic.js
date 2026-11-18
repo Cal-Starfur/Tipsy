@@ -129753,17 +129753,38 @@ class WorldScene extends Phaser.Scene {
       for(const p of posts.slice(2)) post(p);
       return; }
 
-    if(id === 'amrconv'){   /* CONVEYOR TOP: a roller bed along its length, side rails, boxes riding along it while it runs */
+    if(id === 'amrconv'){   /* CONVEYOR TOP: a belt along its length, boxes riding it. (Second pass -- Sir, 2026-11-18): it sits inside its lid
+         (bed 82 x 48, its motor behind it, on a lid 102 x 68); a solid steel side frame down to the lid either side instead of four thin legs; a round drum
+         roller across each end; rollers across the bed rolling with the belt; yellow guide rails; a drive motor on its tail end, its lamp
+         green while the belt runs; boxes of two sizes, each with a white shipping label on its top. Drawn far to near: the far frame and
+         rail, the bed, the boxes, the near frame and rail */
       if(st !== 'post') return;
-      const Z = TOP + 8;
-      for(const a of [-40, 40]) for(const b of [-24, 24]) box(a - 3, a + 3, b - 3, b + 3, TOP, Z, DARK);
-      box(-52, 52, -26, 26, Z, Z + 3, 0x3a3e46);
-      if(sees(0, 0, 1)){ const ph = ((t*0.03) % 8 + 8) % 8; g.lineStyle(Math.max(1, 1.1*K), 0x8d959c, 1); for(let a = -50 + ph; a < 50; a += 8){ const A = P(a, -22, Z + 3.2), B = P(a, 22, Z + 3.2); g.lineBetween(A.x, A.y, B.x, B.y); } }
-      const rail = sb => box(-54, 54, sb*26, sb*29, Z, Z + 7, Y);
-      rail(-nearB);
-      const run = ((t*0.03) % 140 + 140) % 140, bx = [0, 1].map(k => { let a = -60 + ((run + k*70) % 140); return a; }).filter(a => a > -48 && a < 48);
-      bx.sort((p, q) => V.depth(p, 0, 50) - V.depth(q, 0, 50)); for(const a of bx) crate(a - 12, a + 12, -14, 14, Z + 3, Z + 23, 0xc98a4a);
-      rail(nearB);
+      const Z = TOP + 9, A0 = -36, A1 = 46, BB = 22, RB = 25, FRAME = 0x6a7078, run = ((t*0.03) % 120 + 120) % 120;
+      const drum = sa => { const a = sa > 0 ? A1 : A0, n = 12, F = [], R2 = (bb, i) => [a + Math.cos(i/n*Math.PI*2)*4.5, bb, Z - 1 + Math.sin(i/n*Math.PI*2)*4.5];
+        for(let i = 0; i < n; i++) F.push([R2(-BB, i), R2(-BB, i + 1), R2(BB, i + 1), R2(BB, i)]); F.push([...Array(n)].map((_, i) => R2(-BB, i)), [...Array(n)].map((_, i) => R2(BB, i)));
+        solid(F, 0x2f3339, (k, nr) => Math.abs(nr[1]) > 0.9 ? 0x8d959c : 0x2f3339); };
+      const frame = sb => { box(A0 - 2, A1 + 2, sb*BB, sb*(RB + 1), TOP, Z + 1, FRAME); box(A0 - 3, A1 + 3, sb*(RB - 0.5), sb*(RB + 2.5), Z + 1, Z + 8, Y); };
+      /* its drive motor behind the bed's tail, on its lid, its lamp lit while the belt runs */
+      const motor = () => { box(-49, -40, -10, 10, TOP, Z + 3, 0x3a3e46); box(-49.5, -39.5, -10.5, 10.5, Z + 3, Z + 5, Y);
+        const q = P(-44.5, 0, Z + 5), r = 2*K*2; g.fillStyle(0x3cff7a, 1); g.fillCircle(q.x, q.y, r); g.fillStyle(0x3cff7a, 0.18); g.fillCircle(q.x, q.y, r*3); };
+      /* the far end's drum first, the far frame and its rail, then the bed */
+      const farA = sees(1, 0, 0) ? -1 : 1;
+      if(!sees(-1, 0, 0)) motor();   /* (its tail away: the motor behind it all) */
+      drum(farA);
+      frame(-nearB);
+      box(A0, A1, -BB, BB, Z - 3, Z, 0x24272c);
+      if(sees(0, 0, 1)){ const ph = ((t*0.03) % 7 + 7) % 7; for(let a = A0 + 2 + ph; a < A1 - 1; a += 7){ g.fillStyle(0x8d959c, 1); g.fillPoints([P(a - 1.6, -BB + 1, Z + 0.2), P(a + 1.6, -BB + 1, Z + 0.2), P(a + 1.6, BB - 1, Z + 0.2), P(a - 1.6, BB - 1, Z + 0.2)].map(PT), true);
+        g.fillStyle(0xc4cad0, 1); g.fillPoints([P(a - 0.4, -BB + 1, Z + 0.25), P(a + 0.6, -BB + 1, Z + 0.25), P(a + 0.6, BB - 1, Z + 0.25), P(a - 0.4, BB - 1, Z + 0.25)].map(PT), true); } }
+      drum(-farA);
+      /* its boxes, riding tail to nose */
+      const BX = [{ off: 0, la: 12, lb: 14, h: 20, col: 0xc98a4a }, { off: 60, la: 10, lb: 11, h: 15, col: 0xb97b40 }].map(o => ({ ...o, a: A0 - 24 + ((run + o.off) % 120) }))
+        .filter(o => o.a - o.la > A0 - 1 && o.a + o.la < A1 + 1).sort((p, q) => V.depth(p.a, 0, 30) - V.depth(q.a, 0, 30));
+      for(const o of BX){ box(o.a - o.la, o.a + o.la, -o.lb, o.lb, Z + 0.3, Z + o.h, o.col);
+        if(sees(0, 0, 1)){ const hz = Z + o.h + 0.2; g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(o.a - o.la, -1.2, hz), P(o.a + o.la, -1.2, hz), P(o.a + o.la, 1.2, hz), P(o.a - o.la, 1.2, hz)].map(PT), true);
+          g.fillStyle(0xf6f4ee, 1); g.fillPoints([P(o.a - o.la*0.7, 3, hz), P(o.a - o.la*0.1, 3, hz), P(o.a - o.la*0.1, o.lb*0.75, hz), P(o.a - o.la*0.7, o.lb*0.75, hz)].map(PT), true);
+          g.fillStyle(0x2a2f36, 1); g.fillPoints([P(o.a - o.la*0.6, 4.5, hz + 0.05), P(o.a - o.la*0.2, 4.5, hz + 0.05), P(o.a - o.la*0.2, 5.5, hz + 0.05), P(o.a - o.la*0.6, 5.5, hz + 0.05)].map(PT), true); } }
+      frame(nearB);
+      if(sees(-1, 0, 0)) motor();
       return; }
 
     if(id === 'amrarm'){   /* ROBOT ARM: a turret on its deck, an arm in three joints that sweeps slowly round, a two-fingered gripper */
