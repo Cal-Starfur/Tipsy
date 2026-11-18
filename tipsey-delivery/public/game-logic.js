@@ -43558,7 +43558,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:cowboy', build: 'courier', name: 'Cowboy', cents: 900, body: 0x8a5a2a, stripe: 0x3a2414, costume: 'cowboy', noAerial: true, noMouth: true },
   { id: 'courier:ghost', build: 'courier', name: 'Ghost', cents: 900, body: 0xf4f4f6, stripe: 0xf4f4f6, costume: 'ghost', noAerial: true, noMouth: true },
   { id: 'courier:mummy', build: 'courier', name: 'Mummy', cents: 900, body: 0xe6dcb8, stripe: 0xd9cfa8, costume: 'mummy', noAerial: true, noMouth: true, head: 0xe6dab4 },
-  { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true },
+  { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true, noMouth: true },
   { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
@@ -128607,11 +128607,21 @@ class WorldScene extends Phaser.Scene {
         const t2 = t*0.004, A0 = [-hx, nearB*(hy - 4), 92], pts = [A0]; for(let i = 1; i <= 6; i++){ const u = i/6; pts.push([-hx - u*26, nearB*(hy - 2 + u*10) + Math.sin(t2 + u*3)*3.5*u, 92 - u*22 + Math.sin(t2*1.3 + u*4)*3*u]); }   // (a loose end flapping)
         for(let i = 0; i < 6; i++){ line(pts[i], pts[i + 1], ED, 7 - i*0.6); line(pts[i], pts[i + 1], L1, 5.4 - i*0.5); } }
       return; }
-    if(c === 'clown'){
-      if(st === 'body'){ for(const [zz, col] of [[66, 0xd8261c], [78, 0x2aa83a], [30, 0xffd34a]]) for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(4, sb*(hy + 1), zz, 3.6, col); }   // (pompom buttons)
-      if(st === 'face' && front){ ball(hx + 3, 0, 79, 4, 0xe8101a);   // (a red nose and a big bow tie)
-        for(const sb of [-1, 1]) onFront([[0, 56], [sb*12, 62], [sb*12, 50]], sb > 0 ? 0xd8261c : 0xff4ab0); ball(hx + 0.8, 0, 56, 2.4, 0xffd34a); }
-      if(st === 'top') for(const [a, b, col] of [[-6, -14, 0xff6a1a], [-6, 14, 0xff6a1a], [-12, -8, 0xffd34a], [-12, 8, 0xffd34a], [-14, 0, 0xff4ab0], [4, -16, 0x2a5ad8], [4, 16, 0x2a5ad8]]) ball(a, b, zl - 2, 6, col);   // (a rainbow wig round his crown)
+    if(c === 'clown'){   /* (second pass -- Sir, 2026-11-18): polka dots all over; a ruffled collar of alternating colours; pompom buttons; a big bow tie;
+         a red nose and a wide painted smile; a big rainbow afro round his head, puffs all round it */
+      if(st === 'body'){ const D = [0xd8261c, 0x2a5ad8, 0xffd34a, 0x2aa83a, 0xff4ab0];
+        for(const [na, nb, off] of [[1, 0, hx], [-1, 0, -hx], [0, 1, hy], [0, -1, -hy]]){ if(!sees(na, nb, 0)) continue; const half = na ? hy - 6 : hx - 6;
+          for(let i = 0; i < 9; i++){ const u = ((i*37) % 17)/17*2 - 1, zz = 18 + ((i*23) % 11)/11*46; if(na === 1 && Math.abs(u*half) < 8) continue; const q = na ? P(off + na*0.7, u*half, zz) : P(u*half, off + nb*0.7, zz); g.fillStyle(D[i % 5], 1); g.fillCircle(q.x, q.y, sr(0, 0, zz, 2.6)); } }
+        if(front) for(const [zz, col] of [[20, 0xd8261c], [32, 0x2aa83a]]) ball(hx + 1, 0, zz, 3.4, col);
+        for(let i = 0; i < 16; i++){ const th = (i + 0.5)/16*Math.PI*2, ca = Math.cos(th), sa = Math.sin(th); if(!sees(ca, sa, 0)) continue; const k = Math.min(hx/Math.max(Math.abs(ca), 0.01), hy/Math.max(Math.abs(sa), 0.01))*0.95 + 2;   // (a ruffled collar)
+          ball(ca*k, sa*k, 46, 4.4, i % 2 ? 0xf6f6f2 : 0xff4ab0); } }
+      if(st === 'face' && front){ ball(hx + 4, 0, 79, 4.4, 0xe8101a);   // (a big red nose)
+        const o = []; for(let i = 0; i <= 12; i++){ const u = i/12; o.push([-13 + u*26, 72 - Math.sin(u*Math.PI)*7]); } for(let i = 12; i >= 0; i--){ const u = i/12; o.push([-13 + u*26, 74.5 - Math.sin(u*Math.PI)*3.5]); } onFront(o, 0xd8261c);   // (a painted smile)
+        for(const sb of [-1, 1]) onFront([[0, 56], [sb*13, 62], [sb*13, 50]], sb > 0 ? 0xd8261c : 0xff4ab0); ball(hx + 1, 0, 56, 3, 0xffd34a); }   // (a big bow tie)
+      if(st === 'top'){ const C = [0xff4ab0, 0xff6a1a, 0xffd34a, 0x2aa83a, 0x2a5ad8, 0x9a4ad8], puffs = [];
+        for(let i = 0; i < 14; i++){ const th = i/14*Math.PI*2; puffs.push([Math.cos(th)*(hx - 2), Math.sin(th)*(hy + 2), zl + 2 + (i % 2)*3, C[i % 6]]); }
+        for(let i = 0; i < 6; i++){ const th = i/6*Math.PI*2 + 0.3; puffs.push([Math.cos(th)*10, Math.sin(th)*10, zl + 10, C[(i + 2) % 6]]); } puffs.push([0, 0, zl + 13, C[4]]);
+        puffs.sort((p1, p2) => this.depth(p1[0], p1[1], p1[2]) - this.depth(p2[0], p2[1], p2[2])); for(const [a, b, zz, col] of puffs) ball(a, b, zz, 8, col); }   // (a rainbow afro, drawn far to near)
       return; }
     if(c === 'santa'){
       if(st === 'body'){ band(12, 20, 0xf6f6f2); for(const sb of [-1, 1]) if(sees(0, sb, 0)) ball(hx - 4, sb*(hy - 2), 47, 2.6, 0xd8b04a); }   // (fur trim at his hem, a gold buckle on his belt)
