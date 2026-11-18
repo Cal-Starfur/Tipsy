@@ -130212,15 +130212,30 @@ class WorldScene extends Phaser.Scene {
       if(front) bill(24.6, 113, 13, 1.1, 3, billC);
       { const q = P(0, 0, 139.6), q2 = P(0, 0, 141.6), rr = Math.hypot(q2.x - q.x, q2.y - q.y); g.fillStyle(_pdk(col, 0.85), 1); g.fillCircle(q.x, q.y, rr); } };
 
-    if(c === 'museum'){   /* a navy blazer open on a white shirt and a red tie, brass buttons; a peaked cap with a gold braid and badge */
-      if(st === 'body'){ decal([[-0.46, 84], [0.46, 84], [0, 46]], 0xf3f1ea);
-        decal([[-0.08, 83.5], [0.08, 83.5], [0.06, 78.5], [-0.06, 78.5]], 0x6a141c);
-        decal([[-0.06, 78.5], [0.06, 78.5], [0.1, 60], [0, 53], [-0.1, 60]], 0x8a1c24);
-        sline([-0.46, 84], [0, 46], 0x121a2e, 1.4); sline([0.46, 84], [0, 46], 0x121a2e, 1.4);
-        for(const zz of [38, 26]) dot(0, zz, 1.9, 0xd8b04a);
-        for(const sb of [-1, 1]) for(const zz of [16, 20]) dot(sb*0.9, zz + 22, 1.4, 0xd8b04a);
-        decal([[-0.75, 76], [-0.48, 76], [-0.48, 73], [-0.75, 73]], 0xd8b04a); }
-      if(st === 'top') peakCap(0x23304d, 0x16171b, 0x16171b, 0xd8b04a, 0xd8b04a);
+    if(c === 'museum'){   /* (second pass -- Sir, 2026-11-18): a navy blazer -- its lapels one darker piece down each side of the open V, a white shirt
+         and a red tie, a red pocket square, a gold name bar, brass buttons; his ring of keys hung at
+         his left hip; behind, the coat's vent and two brass buttons at its waist; a peaked cap, a gold braid band and a gold chin cord */
+      const NAVY = 0x23304d, LAP = 0x18223a, GOLD = 0xd8b04a;
+      if(st === 'body'){
+        decal([[-0.46, 82], [0.46, 82], [0, 44]], 0xf3f1ea);
+        for(const sb of [-1, 1]){ decal([[sb*0.46, 82], [sb*0.68, 82], [sb*0.62, 75], [sb*0.76, 71], [sb*0.5, 67], [sb*0.05, 44], [0, 44]], LAP);   /* (a lapel, its notch, a lighter edge) */
+          sline([sb*0.46, 82], [0, 44], 0x4a5a86, 1.3); sline([sb*0.62, 75], [sb*0.76, 71], 0x4a5a86, 1.1); sline([sb*0.76, 71], [sb*0.05, 44], 0x4a5a86, 1.1); }
+        decal([[-0.08, 81], [0.08, 81], [0.06, 76.5], [-0.06, 76.5]], 0x6a141c);
+        decal([[-0.06, 76.5], [0.06, 76.5], [0.11, 56], [0, 49], [-0.11, 56]], 0x9a1c26);
+        for(const zz of [36, 24]) dot(0, zz, 2.1, GOLD);
+        decal([[-0.92, 80], [-0.66, 80], [-0.66, 76.5], [-0.92, 76.5]], GOLD); decal([[-0.89, 79.2], [-0.69, 79.2], [-0.69, 77.3], [-0.89, 77.3]], 0xf6e6a0);   /* (a gold name bar) */
+        decal([[0.62, 80], [0.9, 80], [0.76, 75]], 0xc8202a); sline([0.58, 74.5], [0.94, 74.5], LAP, 1.2);   /* (a pocket square in his breast pocket) */
+        sline([Math.PI, 12], [Math.PI, 40], LAP, 1.6);   /* (behind: the vent, two buttons at the waist) */
+        for(const sb of [-1, 1]) dot(Math.PI + sb*0.32, 50, 2, GOLD);
+        /* HIS KEYS (one ring at his left hip, hung off the belt, three keys hanging against his coat) */
+        { const th = 1.15; if(seesS(th, 50)){ sline([th, 62], [th, 53], 0x8d959c, 1.6);
+          const q = S(th, 48.5, 1.6), q2 = S(th, 53, 1.6), rr = Math.hypot(q2.x - q.x, q2.y - q.y); g.lineStyle(Math.max(1.2, 1.6*K), 0xc9a24a, 1); g.strokeCircle(q.x, q.y, rr);
+          for(const [dt, ln, col] of [[-0.12, 13, 0xd8b04a], [0.02, 16, 0xb4b9be], [0.14, 12, 0xc9a24a]]){ const a0 = th + dt*0.5, a1 = th + dt; decal([[a0 - 0.04, 45], [a0 + 0.04, 45], [a1 + 0.035, 45 - ln], [a1 - 0.035, 45 - ln]], col, 1, 1.4);
+            dot(a0, 44, 1.5, col, 1.4); } } } }
+      if(st === 'top'){ peakCap(NAVY, 0x16171b, 0x16171b, GOLD, GOLD);
+        { g.lineStyle(Math.max(1.4, 2*K), GOLD, 1); for(let i = 0; i < 10; i++){ const t0 = -1.05 + 2.1*i/10, t1 = t0 + 0.21; if(!sees(Math.cos(t0 + 0.105), Math.sin(t0 + 0.105), 0)) continue;   /* (the chin cord: only its side toward the eye) */
+            const A = P(Math.cos(t0)*26, Math.sin(t0)*26, 113.2), B = P(Math.cos(t1)*26, Math.sin(t1)*26, 113.2); g.lineBetween(A.x, A.y, B.x, B.y); }
+          for(const th of [-1.05, 1.05]){ if(!sees(Math.cos(th), Math.sin(th), 0)) continue; const q = P(Math.cos(th)*26.2, Math.sin(th)*26.2, 113.2), rr = 1.6*K*2; g.fillStyle(GOLD, 1); g.fillCircle(q.x, q.y, rr); } } }
       return; }
     if(c === 'mallcop'){   /* a light-blue shirt, dark trousers, a silver badge; a white bike helmet; riding a two-wheeled stand-up scooter */
       const deck = () => { const { solid, prismH } = V; solid(prismH([[-22, -30], [38, -30], [38, 30], [-22, 30]], 0, 5), 0x2a2d33, null, false); };
