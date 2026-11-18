@@ -131558,16 +131558,41 @@ class WorldScene extends Phaser.Scene {
       byDepth(items);
       return; }
 
-    if(id === 'amrjack'){   /* PALLET JACK: two long forks out of its nose under a wooden pallet, a stretch-wrapped stack on it, a backrest */
-      const F0 = hx - 4, F1 = hx + 70;
-      if(st !== (front ? 'post' : 'pre')) return;   /* (out ahead of its nose: under its hull when its nose is away) */
-      for(const sb of [-nearB, nearB]) box(F0, F1, sb*14 - 6, sb*14 + 6, 3, 7, STEEL);
-      box(F0 + 2, F1 - 2, -32, 32, 7, 15, 0xb08a58);
-      if(sees(0, 0, 1) || true){ for(const sb of [-1, 1]) if(sees(0, sb, 0)){ g.fillStyle(0x6a4a2a, 1); for(const a of [F0 + 8, (F0 + F1)/2 - 6, F1 - 20]) g.fillPoints([P(a, sb*32.1, 8.5), P(a + 12, sb*32.1, 8.5), P(a + 12, sb*32.1, 13), P(a, sb*32.1, 13)].map(PT), true); } }
-      box(F0 + 4, F1 - 4, -30, 30, 15, 58, 0xc98a4a);
-      g.fillStyle(0xdfe8f0, 0.35); for(const sb of [-1, 1]) if(sees(0, sb, 0)) g.fillPoints([P(F0 + 4, sb*30.2, 15), P(F1 - 4, sb*30.2, 15), P(F1 - 4, sb*30.2, 58), P(F0 + 4, sb*30.2, 58)].map(PT), true);
-      if(sees(1, 0, 0)) g.fillPoints([P(F1 - 3.8, -30, 15), P(F1 - 3.8, 30, 15), P(F1 - 3.8, 30, 58), P(F1 - 3.8, -30, 58)].map(PT), true);
-      if(sees(0, 0, 1)) g.fillPoints([P(F0 + 4, -30, 58.2), P(F1 - 4, -30, 58.2), P(F1 - 4, 30, 58.2), P(F0 + 4, 30, 58.2)].map(PT), true);
+    if(id === 'amrjack'){   /* PALLET JACK. (Second pass -- Sir, 2026-11-18): two forks out of its nose under a real wooden pallet -- three stringers,
+         the forks in the pockets between them, deck boards across the top with gaps; a yellow load backrest at its nose; the forks lift the
+         pallet while it drives and set it down when it stops; on it a stack of eight taped cartons, corner boards up its edges, stretch film
+         over it with a sheen. Out ahead of its nose: after its hull when its nose faces the eye, before it when away. (Its reach is past its
+         hit box, as before: the load passes through things) */
+      const F0 = hx - 4, F1 = hx + 70, BR = hx - 1;
+      const goal = vel > 0.01 ? 1 : 0; this._amrJack = (this._amrJack == null ? goal : this._amrJack) + (goal - (this._amrJack == null ? goal : this._amrJack))*0.06;
+      const LZ = this._amrJack*8, PZ = 3 + LZ, WOOD = 0xb08a58, WOODD = 0x8a6a40;
+      const backrest = () => { for(const sb of [-1, 1]) tube([BR, sb*24, 8], [BR, sb*24, 62], 3, Y);
+        for(const z of [24, 42, 62]) tube([BR, -25.5, z], [BR, 25.5, z], 2.4, z === 62 ? Y : _pdk(Y, 0.88));
+        for(const bb of [-8, 8]) tube([BR, bb, 24], [BR, bb, 62], 1.6, _pdk(Y, 0.88)); };
+      const load = () => {
+        /* forks and stringers, far to near across */
+        const low = [];
+        for(const sb of [-1, 1]) low.push({ d: V.depth((F0 + F1)/2, sb*14, 4), f: () => box(F0, F1, sb*14 - 6, sb*14 + 6, PZ - 2, PZ + 2, STEEL) });
+        for(const bc of [-27, 0, 27]) low.push({ d: V.depth((F0 + F1)/2, bc, 6) + 0.0001, f: () => box(F0 + 2, F1 - 2, bc - 3, bc + 3, PZ + 2, PZ + 8, WOODD) });
+        byDepth(low);
+        /* deck boards across, gaps between */
+        for(let k = 0; k < 6; k++){ const a0 = F0 + 2 + k*12, a1 = a0 + 9.5; box(a0, a1, -31, 31, PZ + 8, PZ + 10.5, k % 2 ? WOOD : _pdk(WOOD, 0.95)); }
+        /* the cartons: two along, two across, two high */
+        const CZ = PZ + 10.5, CH = 18, A = [F0 + 4, (F0 + F1)/2, F1 - 4], B = [-29, 0, 29], CC = [0xc98a4a, 0xbf8244, 0xd29a5a, 0xb97b40];
+        for(let lv = 0; lv < 2; lv++){ const cs = [];
+          for(let ia = 0; ia < 2; ia++) for(let ib = 0; ib < 2; ib++) cs.push({ ia, ib, d: V.depth((A[ia] + A[ia + 1])/2, (B[ib] + B[ib + 1])/2, CZ + lv*CH + 9) });
+          cs.sort((p, q) => p.d - q.d).forEach(c => crate(A[c.ia] + 0.4, A[c.ia + 1] - 0.4, B[c.ib] + 0.4, B[c.ib + 1] - 0.4, CZ + lv*CH, CZ + (lv + 1)*CH - 0.3, CC[(c.ia + 2*c.ib + lv) % 4])); }
+        const ZT = CZ + 2*CH;
+        /* corner boards up its edges, where a face beside them shows */
+        for(const sa of [-1, 1]) for(const sb of [-1, 1]){ if(!sees(sa, 0, 0) && !sees(0, sb, 0)) continue; const a = sa > 0 ? A[2] : A[0], b = sb*29;
+          box(a - (sa > 0 ? 3 : -0.4), a + (sa > 0 ? 0.4 : 3), b - (sb > 0 ? 3 : -0.4), b + (sb > 0 ? 0.4 : 3), CZ + 1, ZT - 1, 0x8a6a40); }
+        /* the film: a pale sheen over each face that shows, a brighter streak across it */
+        const film = (pts, streak) => { g.fillStyle(0xe6eef6, 0.24); g.fillPoints(pts.map(PT), true); g.fillStyle(0xffffff, 0.22); g.fillPoints(streak.map(PT), true); };
+        for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*29.6; film([P(A[0], bb, CZ), P(A[2], bb, CZ), P(A[2], bb, ZT), P(A[0], bb, ZT)], [P(A[0] + 8, bb, ZT), P(A[0] + 20, bb, ZT), P(A[0] + 46, bb, CZ), P(A[0] + 34, bb, CZ)]); }
+        for(const sa of [-1, 1]) if(sees(sa, 0, 0)){ const aa = sa > 0 ? A[2] + 0.6 : A[0] - 0.6; film([P(aa, -29, CZ), P(aa, 29, CZ), P(aa, 29, ZT), P(aa, -29, ZT)], [P(aa, -22, ZT), P(aa, -12, ZT), P(aa, 18, CZ), P(aa, 8, CZ)]); }
+        if(sees(0, 0, 1)){ g.fillStyle(0xe6eef6, 0.2); g.fillPoints([P(A[0], -29, ZT + 0.4), P(A[2], -29, ZT + 0.4), P(A[2], 29, ZT + 0.4), P(A[0], 29, ZT + 0.4)].map(PT), true); } };
+      if(st === 'pre' && !front){ load(); backrest(); }
+      if(st === 'post' && front){ backrest(); load(); }
       return; }
   }
   /* THE SECURITY PATROL ROBOT'S ROBOT DOG BUILD (Sir, 2026-11-18: "the dog type bots ... it does not look a real dog in its head"): a
