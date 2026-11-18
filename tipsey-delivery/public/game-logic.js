@@ -118562,6 +118562,7 @@ class WorldScene extends Phaser.Scene {
          second band under it), the light his flag (a skin's topper in its place), a flank badge and the stripe's pattern as the lidded
          bots'. A lathe has no flat face to print on, so a skin's print and a chameleon/flake finish do not reach it. Its pieces are
          painted far to near by their depth through the fall (a stack painted bottom to top is right only while it stands) */
+      if(WEAR && SKIN.build === 'pdog'){ this.drawPatrolDog(g, V, x, y, z, t, fdir, nearB, wheelPhase, WEAR, BPW, shadow, data); return; }   // (his robot dog build)
       shadow(32, 32);
       /* A COSTUME (Sir, 2026-11-18): TP_BSKIN build 'patrol' -- its body, upper body and band colours, and its own pieces (patrolCostume) worn over him */
       const PC = WEAR && SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'patrol');
@@ -128820,6 +128821,62 @@ class WorldScene extends Phaser.Scene {
   /* THE DUNE BUGGY's pieces: 'pre' (before the body) the far side's arms and, when the back is away from the eye, the engine; 'mid' (over
      the body, under his lid) the near arms, the far cage bar, the hoop when it stands behind the lid, the engine when it faces the eye;
      'near' (over the lid) the near cage bar and the hoop when it stands in front of the lid */
+  /* THE SECURITY PATROL ROBOT'S ROBOT DOG BUILD (Sir, 2026-11-18: "the dog type bots ... it does not look a real dog in its head"): a
+     four-legged robot -- Tipsey's chamfered hull for its torso (his paint, his stripe a band along it), a sensor head at its front (a dark
+     face plate with his eyes, a camera each side) not a dog's head, a beacon on its back, four legs each a thigh in his body colour and a
+     dark shin to a rubber foot, every knee bending back. It trots by the distance he covers (wheelPhase): diagonal pairs together, a foot
+     lifted only while it swings forward; standing, all four down. Drawn far to near: the far legs, the torso, its head and beacon, the near legs */
+  drawPatrolDog(g, V, x, y, z, t, fdir, nearB, wheelPhase, WEAR, BPW, shadow, data){
+    const { P, sees, solid, prismH, line } = V, K = this.K*0.42, PT = q => new Phaser.Geom.Point(q.x, q.y), front = sees(1, 0, 0);
+    const DARK = 0x2a2f36, FOOT = 0x16171b, CYAN = 0x5fe8e0;
+    const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xeef0f2, lt: 0xe1e4e8, dk: 0xc0c6cd };
+    const STRIPEC = WEAR ? SKIN.stripe : 0x2e6fd1, STRIPED = WEAR ? SKIN.stripeDk : _pdk(0x2e6fd1, 0.8), FLAGC = WEAR ? SKIN.flag : 0x2e6fd1;
+    const paintOf = (z0, z1, part) => WEAR ? { fin: BPW.fin, print: BPW.print, printPart: part, split: BPW.split ? Object.assign({}, BPW.split, { z: z0 + (z1 - z0)*0.5 }) : null } : {};
+    const HX = 36, HY = 16, Z0 = 46, Z1 = 66, HIPZ = 50, L1 = 28, L2 = 28, FOOTR = 3.4;
+    const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
+      const a = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
+      const n2 = [u[1]*n1[2] - u[2]*n1[1], u[2]*n1[0] - u[0]*n1[2], u[0]*n1[1] - u[1]*n1[0]];
+      const ring = p => [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => [p[0] + n1[0]*i + n2[0]*j, p[1] + n1[1]*i + n2[1]*j, p[2] + n1[2]*i + n2[2]*j]);
+      const A = ring(p0), B = ring(p1), F = [A, B.slice().reverse()]; for(let k = 0; k < 4; k++) F.push([A[k], A[(k + 1) % 4], B[(k + 1) % 4], B[k]]); solid(F, col, null); };
+    /* THE GAIT: a trot, its swing by the distance covered; stood still, every foot down */
+    const vel = WEAR && this.ow ? Math.abs(this.ow.vel || 0) : 0, amp = data && data.still ? 0 : Math.min(1, vel/0.06);
+    const ph = -(wheelPhase || 0)*0.56;
+    const legs = [];
+    for(const ha of [26, -26]) for(const sb of [-1, 1]){
+      const pair = (ha > 0) === (sb > 0) ? 0 : Math.PI, f = ph + pair, sw = Math.sin(f);
+      const dx = -9*amp*Math.cos(f), lift = sw > 0 ? sw*6*amp : 0;
+      const H = [ha, sb*(HY + 2.5), HIPZ], Fp = [ha + dx + (ha > 0 ? 2 : -2), sb*(HY + 3), FOOTR + lift];
+      /* two links in the leg's own upright plane, the knee bent back (toward -a) */
+      const va = Fp[0] - H[0], vz = Fp[2] - H[2], d = Math.min(L1 + L2 - 0.2, Math.hypot(va, vz)), ua = va/Math.hypot(va, vz), uz = vz/Math.hypot(va, vz);
+      const th = Math.acos(Math.max(-1, Math.min(1, (L1*L1 + d*d - L2*L2)/(2*L1*d)))), c = Math.cos(-th), s = Math.sin(-th);
+      const ka = ua*c - uz*s, kz = ua*s + uz*c;   /* (u turned by -th: from straight down that swings it toward -a, the knee back) */
+      const Kn = [H[0] + ka*L1, H[1], H[2] + kz*L1];
+      legs.push({ H, Kn, Fp, sb, ha });
+    }
+    const leg = L => { tube(L.H, L.Kn, 7, BODYC.top); tube(L.Kn, [L.Fp[0], L.Fp[1], L.Fp[2] + 1.5], 4.6, DARK);
+      this.avLathe(V, L.Kn[0], L.Kn[1], [[L.Kn[2] - 3, 3.6], [L.Kn[2] + 3, 3.6]], DARK, null, 10);
+      this.avLathe(V, L.Fp[0], L.Fp[1], [[L.Fp[2] - FOOTR, 1.6], [L.Fp[2] - FOOTR*0.4, FOOTR], [L.Fp[2] + FOOTR*0.6, FOOTR*0.85], [L.Fp[2] + FOOTR, 0]], FOOT, null, 10); };
+    const byDepth = arr => arr.sort((p, q) => V.depth(p.ha, p.sb*20, 30) - V.depth(q.ha, q.sb*20, 30));
+    /* its beacon on its back (his flag's colour), a rail either side of it */
+    const beacon = () => { for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);
+      this.avLathe(V, -18, 0, [[Z1, 5.5], [Z1 + 3, 5.5]], DARK, null, 12);
+      const lit = data && data.still ? true : Math.floor(t/500) % 2 === 0;
+      this.avLathe(V, -18, 0, [[Z1 + 3, 4.6], [Z1 + 7, 4.4], [Z1 + 9.5, 2.6], [Z1 + 10.5, 0]], lit ? FLAGC : _pdk(FLAGC, 0.6), lit ? () => FLAGC : null, 12);
+      if(lit){ const q = P(-18, 0, Z1 + 7), r = 9*this.kScale(); g.fillStyle(FLAGC, 0.16); g.fillCircle(q.x, q.y, r); g.fillStyle(FLAGC, 0.1); g.fillCircle(q.x, q.y, r*1.7); } };
+    /* the sensor head: a squat block out front, a dark face plate with his eyes, a camera on each cheek */
+    const head = () => { solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), BODYC.top, null, false);
+      if(front){ V.Q([P(HX + 11.3, -9, 49.5), P(HX + 11.3, 9, 49.5), P(HX + 11.3, 9, 62.5), P(HX + 11.3, -9, 62.5)], 0x1d2228);
+        this.tipseyFace(V, HX + 11.2, 56, 0.6, {}); }
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.4 + (HX + 11 - (HX + 4))*2/17), q = P(HX + 4, sb*11.2, 56), r = 2.2*K*2; g.fillStyle(0x1d2228, 1); g.fillCircle(q.x, q.y, r*1.5); g.fillStyle(CYAN, 1); g.fillCircle(q.x, q.y, r*0.7); } };
+    shadow(46, 26);
+    for(const L of byDepth(legs.filter(L => L.sb !== nearB))) leg(L);
+    if(!front) head();   /* (its head behind the torso from behind) */
+    this.botHull(g, x, y, z, fdir, Object.assign({ hx: HX, hy: HY, z0: Z0, z1: Z1, ch: 7, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(Z0, Z1, 'body')));
+    this.botHull(g, x, y, z, fdir, { hx: HX + 0.6, hy: HY + 0.6, ch: 7, z0: 52, z1: 57, band: true, cLt: STRIPEC, cDk: STRIPED });
+    if(WEAR) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
+    beacon(); if(front) head();
+    for(const L of byDepth(legs.filter(L => L.sb === nearB))) leg(L);
+  }
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's): pieces worn over his egg at four moments --
      'back' before his body (what is behind him), 'mid' sorted in among his body's parts just above his band (what wraps his waist),
      'body' after his body (on his skin), 'top' last (hats, near props). His front is +a; his egg's radius at a height is rz(z) below;
@@ -150254,6 +150311,7 @@ requestTpProfile();
      flies and steers as the drone does, drawn as the saucer (drawDrone -> drawDroneUfo) */
   const DRONE_BUILD = [{ id: 'stock', name: 'Drone', cents: 0 }, { id: 'ufo', name: 'UFO', cents: 2000 }];
   /* THE CARGO BOT'S BUILDS (Sir, 2026-11-17: "give it time periods"): the cargo bot as the delivery vehicle of each era (drawProp's cargobot) */
+  const PATROL_BUILD = [{ id: 'stock', name: 'Patrol bot', cents: 0 }, { id: 'pdog', name: 'Robot Dog', cents: 2000 }];   /* (the patrol robot's builds -- Sir, 2026-11-18) */
   const CARGO_BUILD = [{ id: 'stock', name: 'Cargo bot', cents: 0 }, { id: 'cg1900', name: '1900s Wagon', cents: 1600 }, { id: 'cg1920', name: '1920s Model-T', cents: 1600 },
     { id: 'cg1950', name: '1950s Panel Van', cents: 1600 }, { id: 'cg1970', name: '1970s Box Van', cents: 1600 }, { id: 'cg1980', name: '1980s Retro-Future', cents: 1800 }, { id: 'cg2100', name: '2100s Hover Freighter', cents: 2200 }];
   const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'rover', name: 'Moon Rover', cents: 1800 }, { id: 'tank', name: 'Tank', cents: 1800 }, { id: 'buggy', name: 'Dune Buggy', cents: 1600 }, { id: 'monster', name: 'Monster Truck', cents: 1800 }, { id: 'hotrod', name: 'Night Cruiser', cents: 1600 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
@@ -150455,7 +150513,7 @@ requestTpProfile();
                   mouth: MOUTH_LIST, mouthCol: MOUTH_COL, wheel: WHEEL_LIST, tyre: TYRE_LIST, wall: WALL_LIST,
                   tyreSize: SIZE_LIST, rig: RIG_LIST, rimCol: RIM_COL,
                   topper: TOPPER_LIST, pole: POLE_LIST, flagCol: FLAG_COL,
-                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]], CARGO_BUILD.slice(1)), bSkin: TP_BSKIN };
+                  decal: DECAL_LIST, band: BAND_LIST, decalCol: DECAL_COL, upMotor: TP_UP_MOTOR, upBatt: TP_UP_BATT, upLight: TP_UP_LIGHT, upBell: TP_UP_BELL, upGlow: TP_UP_GLOW, build: TP_BUILD.concat([DRONE_BUILD[1]], CARGO_BUILD.slice(1), PATROL_BUILD.slice(1)), bSkin: TP_BSKIN };
   /* GIDEON'S LISTS (gd4): the same shape as Tipsey's -- { id, name, hex, cents } -- so his rows are colourRow / bindColourRow / tagOf / the cart as they are;
      the stock pick of each is free, any other colour one flat price a row (a custom one too), the shapes their own */
   const GD_KIND = { gShell: ['shell', 'white'], gJoint: ['part', 'graphite'], gHand: ['part', 'graphite'], gEye: ['eye', 'cyan'], gScreen: ['screen', 'dark'], gBand: ['band', 'copper'],
@@ -151151,12 +151209,12 @@ requestTpProfile();
     if (tab === 'mouth') { renderMouth(P); return; }
     if (tab === 'wheels') { renderWheels(P); return; }
     if (tab === 'upgrades') { renderUpgrades(P); return; }
-    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', courier = fleetCur() === 'courierbot', patrol = fleetCur() === 'patrolbot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : courier ? [{ id: 'stock', name: 'Courier bot', cents: 0 }] : patrol ? [{ id: 'stock', name: 'Patrol bot', cents: 0 }] : TP_BUILD;
+    if (tab === 'build') { const L = pv || worn(), cur = L.build || 'stock', drone = !!DRONES[fleetCur()], cargo = fleetCur() === 'cargobot', courier = fleetCur() === 'courierbot', patrol = fleetCur() === 'patrolbot', BL = drone ? DRONE_BUILD : cargo ? CARGO_BUILD : courier ? [{ id: 'stock', name: 'Courier bot', cents: 0 }] : patrol ? PATROL_BUILD : TP_BUILD;
       const ic = id => `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="${id === 'racer' ? 9 : 11}" y="6" width="18" height="12" rx="1.5" fill="#eceef1"/><rect x="${id === 'racer' ? 9 : 11}" y="13" width="18" height="2" fill="#c2452e"/>${id === 'racer' ? '<path d="M27 13l8 4v2h-8z" fill="#eceef1"/><path d="M5 4h6v1.5H5z" fill="#c2452e"/><path d="M9 5.5l2 2" stroke="#2e3138" stroke-width="1"/>' : ''}${id === 'ufo' ? '<ellipse cx="20" cy="5" rx="5" ry="3" fill="#a9dcec"/><ellipse cx="20" cy="9" rx="15" ry="3" fill="#cfd3d8"/><circle cx="10" cy="9" r="1" fill="#ff5a4a"/><circle cx="20" cy="11" r="1" fill="#5ae8ff"/><circle cx="30" cy="9" r="1" fill="#ffd34a"/>' : ''}${id === 'monster' ? '<circle cx="9" cy="20" r="5" fill="#24262c"/><circle cx="31" cy="20" r="5" fill="#24262c"/><rect x="15" y="2" width="10" height="1.6" fill="#fff2c4"/>' : ''}${id === 'hotrod' ? '<ellipse cx="20" cy="6" rx="5" ry="2.6" fill="#9cc9dc"/><path d="M11 7L5 1H3l2 6z" fill="#eceef1" stroke="#2e3138" stroke-width=".6"/><path d="M24 14l-3 4M27 14l-3 4" stroke="#b9bec4" stroke-width="1.2"/>' : ''}${id === 'buggy' ? '<path d="M12 6V2h12l6 4" fill="none" stroke="#2e3138" stroke-width="1.4"/><rect x="4" y="9" width="5" height="6" fill="#5d646c"/>' : ''}${id === 'tank' ? '<rect x="14" y="2" width="11" height="5" rx="1.5" fill="#eceef1"/><rect x="25" y="3.6" width="10" height="1.8" fill="#5d646c"/><rect x="7" y="16" width="26" height="6" rx="3" fill="#2a2f36"/>' : ''}${id === 'rover' ? '<rect x="7" y="4" width="8" height="3" fill="#1f3b73"/><rect x="25" y="4" width="8" height="3" fill="#1f3b73"/><rect x="13" y="13" width="14" height="3" fill="#d8b04a"/><path d="M14 16l-3 4M26 16l3 4M20 16v4" stroke="#9aa0a6" stroke-width="1"/>' : ''}${id === 'tuktuk' ? '<rect x="9" y="3" width="22" height="3" rx="1.5" fill="#eceef1"/><rect x="13" y="8" width="9" height="5" fill="#2a2d34"/><path d="M29 14l4 5" stroke="#3a3d45" stroke-width="1.4"/><path d="M30.5 17.5a3 3 0 0 1 5 0" fill="#c2452e"/>' : ''}<circle cx="14" cy="20" r="2.6" fill="#2a2f36"/><circle cx="20" cy="20" r="2.6" fill="#2a2f36"/><circle cx="26" cy="20" r="2.6" fill="#2a2f36"/></svg>`;
       P.className = 'grList';
-      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : courier || patrol ? 'COSTUMES BELOW' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
+      P.innerHTML = '<div class="grSec">BUILD — ' + (drone ? 'THE DRONE\'S SHAPE' : cargo ? 'ITS ERA' : courier ? 'COSTUMES BELOW' : patrol ? 'HIS SHAPE (COSTUMES ON THE PATROL BOT)' : 'HIS BODY\'S SHAPE') + '</div><div class="grRow">' + BL.map(c => `<button class="grSkin${cur === c.id ? ' sel' : ''}" data-build="${c.id}">${ic(c.id)}<span>${c.name}</span>${tagOf('build', c.id, cur === c.id)}</button>`).join('') + '</div>';
       /* this build's own skins (TP_BSKIN), under the builds */
-      const bk = courier ? 'courier' : patrol ? 'patrol' : cur, BSK = TP_BSKIN.filter(k => k.build === bk), curS = L.bSkin && L.bSkin.startsWith(bk + ':') ? L.bSkin : 'stock';   // (the courier: its costumes)
+      const bk = courier ? 'courier' : patrol ? (cur === 'stock' ? 'patrol' : cur) : cur, BSK = TP_BSKIN.filter(k => k.build === bk), curS = L.bSkin && L.bSkin.startsWith(bk + ':') ? L.bSkin : 'stock';   // (the courier: its costumes)
       if (BSK.length) { const sw = k => k.id === 'stock' ? '<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="#eceef1"/><rect x="8" y="13" width="24" height="2.4" fill="#c2452e"/></svg>'
           : `<svg viewBox="0 0 40 26" width="52" height="34"><rect x="8" y="7" width="24" height="12" rx="3" fill="${hex(k.body)}"/><rect x="8" y="13" width="24" height="2.4" fill="${hex(k.stripe)}"/>${k.glass ? `<rect x="22" y="8.5" width="7" height="3" rx="1" fill="${hex(k.glass[0])}"/>` : ''}</svg>`;
         P.innerHTML += `<div class="grSec">${courier || patrol ? 'COSTUMES' : 'SKINS'} — ${(BL.find(c => c.id === cur) || {}).name || ''}</div><div class="grRow">` + [TP_BSKIN[0], ...BSK].map(k => `<button class="grSkin${curS === k.id ? ' sel' : ''}" data-bskin="${k.id}">${sw(k)}<span>${k.name}</span>${tagOf('bSkin', k.id, curS === k.id)}</button>`).join('') + '</div>'; }
