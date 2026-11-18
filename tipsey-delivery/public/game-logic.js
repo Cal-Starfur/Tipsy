@@ -43762,7 +43762,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'pdog:desert', build: 'pdog', name: 'Desert Recon', cents: 900, body: 0xc8a874, stripe: 0x8a6a40, shin: 0x4a3c26, dog: 'desert', noBeacon: true },
   { id: 'pdog:neon', build: 'pdog', name: 'Neon Cyber', cents: 900, body: 0x16171b, stripe: 0x5fe8ff, dog: 'neon', beacon: 0x5fe8ff, glow: 0x5fe8ff },
   { id: 'pdog:mail', build: 'pdog', name: 'Mail Hound', cents: 900, body: 0x2a4a9a, stripe: 0xf6f6f2, dog: 'mail', noBeacon: true },
-  { id: 'pdog:show', build: 'pdog', name: 'Show Dog', cents: 900, body: 0xe8b83c, stripe: 0xe8b83c, shin: 0x6a5020, dog: 'show', noBeacon: true, noRails: true },
+  { id: 'pdog:guard', build: 'pdog', name: 'Guard Dog', cents: 900, body: 0x16171b, stripe: 0x16171b, shin: 0xa8582a, dog: 'guard', noBeacon: true, noRails: true },
   { id: 'hotrod:checker', build: 'hotrod', name: 'Taxi', cents: 800, body: 0xf2c02e, stripe: 0xf2c02e, print: 'crChecker', taxiLight: true, noStripe: true },
   /* (six more -- Sir, 2026-11-17) */
   { id: 'hotrod:lowrider', build: 'hotrod', name: 'Lowrider', cents: 800, body: 0x6a1a8a, stripe: 0x6a1a8a, noStripe: true, print: 'crLowrider', glass: [0xd8b0ee, 0xb88ad8, 0x8a5aae], ember: [0xffd34a, 0xfff2b0], trim: { rim: 'wire', rimCol: 0xe8c050, wall: 'whitewall' } },
@@ -129151,24 +129151,21 @@ class WorldScene extends Phaser.Scene {
           tube([PA, -HY - 1.6, Z1 - 3], [PA - 1, -HY - 1.6, Z1 + 20], 1.8, 0xc8202a);
           boxS(PA - 9, PA, -HY - 2.2, -HY - 1, Z1 + 13, Z1 + 21, 0xd8261c); }
       }
-      if(c === 'show'){   /* (second pass -- Sir, 2026-11-18): bright polished gold; a red velvet saddle cloth draped over its back and down its sides,
-           gold-trimmed with a gold fringe; a big blue Best-in-Show rosette on each side of the cloth; a red collar with gold studs; a little gold crown */
-        const CL = 0x8a1c24, GD = 0xf0c850, GDD = 0xb88a20, C0 = -20, C1 = 12, CZ = 49;
-        const side = sb => { const b0 = sb*(HY + 0.6), b1 = sb*(HY + 1.6), lo = Math.min(b0, b1), hi = Math.max(b0, b1);
-          boxS(C0, C1, lo, hi, CZ, Z1 + 0.4, CL); boxS(C0, C1, lo - 0.1, hi + 0.1, CZ, CZ + 1.6, GD);
-          if(sees(0, sb, 0)){ const bb = sb*(HY + 1.8);
-            for(let k = 0; k < 11; k++){ const a = C0 + 0.6 + k*2.9; g.fillStyle(GDD, 1); g.fillPoints([P(a, bb, CZ), P(a + 1.6, bb, CZ), P(a + 0.8, bb, CZ - 2.8)].map(PT), true); }
-            g.fillStyle(0x2a5ad8, 1); g.fillPoints([P(-6.5, bb, 56), P(-4, bb, 56), P(-6.5, bb, 46), P(-9, bb, 47)].map(PT), true); g.fillPoints([P(-4, bb, 56), P(-1.5, bb, 56), P(1, bb, 47), P(-1.5, bb, 46)].map(PT), true);
-            for(const [r, col] of [[6.6, 0x2a5ad8], [5, 0xf6f6f2], [3.4, GD], [1.6, GDD]]){ g.fillStyle(col, 1); g.fillPoints(ell(-4, 59.5, r, r, 16).map(([u, v]) => PT(P(u, bb + sb*0.05, v))), true); } } };
-        if(st === 'far') side(-nearB);
-        if(st === 'flank'){ boxS(C0, C1, -HY - 0.6, HY + 0.6, Z1, Z1 + 1.4, CL);   /* (the cloth over its back, a gold trim at each end) */
-          for(const a of [C0, C1 - 1.6]) boxS(a, a + 1.6, -HY - 0.7, HY + 0.7, Z1 + 0.1, Z1 + 1.6, GD);
-          side(nearB); }
-        if(st === 'neck'){ boxS(HX - 8, HX - 5, -13, 13, 47, 64, 0xc8202a);   /* (its collar, behind its head, gold studs) */
-          for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [51, 56, 61]){ const q = P(HX - 6.5, sb*13.2, zz), r = 0.9*K*2; g.fillStyle(GD, 1); g.fillCircle(q.x, q.y, r); } }
-        if(st === 'head'){ const CA = HX + 3; this.avLathe(V, CA, 0, [[64, 5.2], [67.5, 5.6]], GD, null, 12);   /* (its crown: a band, five points, a jewel) */
-          for(let k = 0; k < 5; k++){ const q = k/5*Math.PI*2, ca = Math.cos(q)*5, sa = Math.sin(q)*5; if(!sees(Math.cos(q), Math.sin(q), 0.4)) continue; tube([CA + ca, sa, 67], [CA + ca*1.05, sa*1.05, 71.5], 1.6, GD); const t2 = P(CA + ca*1.05, sa*1.05, 72), r = 1*K*2; g.fillStyle(0xc8202a, 1); g.fillCircle(t2.x, t2.y, r); }
-          if(front){ const q = P(CA + 5.7, 0, 65.8), r = 1.2*K*2; g.fillStyle(0x2a5ad8, 1); g.fillCircle(q.x, q.y, r); } }
+      if(c === 'guard'){   /* GUARD DOG (Sir, 2026-11-18: in place of the Show Dog -- "doberman colors so black and brown"): black, rust tan on its
+           shins, its cheeks, brows over its face and a patch on its chest; red eyes; a black spiked collar; a row of steel spikes down its spine */
+        const RU = 0xa8582a, ST = 0xc9ced4;
+        const spike = (a, b, h, r, ht, up) => this.avLathe(V, a, b, up ? [[h, r], [h + ht, 0]] : [[h, r], [h + ht, 0]], ST, null, 8);
+        if(st === 'flank'){ if(sees(1, 0, 0)){ g.fillStyle(RU, 1); g.fillPoints([P(HX + 0.6, -8, 47), P(HX + 0.6, 8, 47), P(HX + 0.6, 5, 55), P(HX + 0.6, -5, 55)].map(PT), true); }
+          for(const sb of [-1, 1]){ flankQ(sb, [[12, 47], [33, 47], [33, 60], [24, 61], [16, 54]], RU, 1, 0.8); flankQ(sb, [[-33, 47], [12, 47], [12, 52], [-33, 52]], RU, 1, 0.8); } }   /* (its tan chest round onto its sides, a tan line along its belly) */   /* (its tan chest, round onto its sides) */
+        if(st === 'top'){ for(let a = -26; a <= 14; a += 6.5) spike(a, 0, Z1, 2.4, 6.5); }
+        if(st === 'neck'){ boxS(HX - 8, HX - 5, -13, 13, 49, 62, 0x16171b);
+          for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [HX - 7.4, HX - 5.6]) for(const zz of [52, 58]){ const n = [[a, sb*13, zz]]; this.avLathe(V, a, sb*13, [[zz - 0.01, 0.01]], ST, null, 4);
+            const base = [], tip = P(a, sb*16.5, zz); for(let i = 0; i < 8; i++){ const q = i/8*Math.PI*2; base.push(P(a + Math.cos(q)*1.3, sb*13.1, zz + Math.sin(q)*1.3)); }
+            const H = convexHull(base.concat([tip])).map(PT); g.fillStyle(ST, 1); g.fillPoints(H, true); g.fillStyle(0xffffff, 0.5); g.fillCircle(tip.x, tip.y, 0.6*K*2); } }
+        if(st === 'head'){ for(const sb of [-1, 1]) if(sees(0, sb, 0)){ const bb = sb*(10.6); g.fillStyle(RU, 1); g.fillPoints([P(HX - 5, sb*11.8, 48.3), P(HX + 10.8, sb*9.9, 48.3), P(HX + 10.8, sb*9.9, 55), P(HX + 4, sb*10.7, 53.5), P(HX - 5, sb*11.8, 50.5)].map(PT), true); }   /* (tan cheeks) */
+          if(front){ for(const sb of [-1, 1]){ g.fillStyle(RU, 1); g.fillPoints([P(HX + 11.4, sb*2, 63), P(HX + 11.4, sb*7, 63), P(HX + 11.4, sb*7, 64.6), P(HX + 11.4, sb*2, 64.6)].map(PT), true);   /* (tan brows over the plate) */
+              const q = P(HX + 11.6, sb*4.2, 56), r = 2.2*K*2; g.fillStyle(0xff2a2a, 0.22); g.fillCircle(q.x, q.y, r*2.2); g.fillStyle(0xff3a2a, 1); g.fillCircle(q.x, q.y, r); g.fillStyle(0xffc0b0, 1); g.fillCircle(q.x - r*0.3, q.y - r*0.3, r*0.3); }
+            g.fillStyle(RU, 1); g.fillPoints([P(HX + 11.4, -10, 48.2), P(HX + 11.4, 10, 48.2), P(HX + 11.4, 10, 49.5), P(HX + 11.4, -10, 49.5)].map(PT), true); } }   /* (a tan muzzle under the plate) */
       }
     };
     /* the sensor head: a squat block out front, a dark face plate with his eyes, a camera on each cheek */
