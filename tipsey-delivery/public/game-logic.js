@@ -27640,7 +27640,9 @@ function walkinAng(d){ while(d > Math.PI) d -= 2*Math.PI; while(d < -Math.PI) d 
 function walkinRoomLife(pk){
   if(pk._life) return pk._life;
   const L = WALKIN_LIFE.get(pk.name) || { room: pk.name, looks: [] };
-  const R = { pk, looks: L.looks || [], keep: L.keep || [], people: WALKIN_STAFF.filter(s => s.room === pk.name), t: 0, fr: -1, grid: null };
+  /* (R.spec: the room's own walkinLife declaration -- its hooks: browseNext, pose, drawState -- a room's visitors doing what its place is
+     for: Driftwood Books' browsers take a book and read it or buy it) */
+  const R = { pk, spec: L, looks: L.looks || [], keep: L.keep || [], people: WALKIN_STAFF.filter(s => s.room === pk.name), t: 0, fr: -1, grid: null };
   for(const s of R.people) s._R = R;
   return (pk._life = R);
 }
@@ -27831,6 +27833,8 @@ function walkinNext(R, s, m, now, bot){
     if(!walkinGo(R, s, m, p, p[2], walkinAvoid(R, s, bot))) m.until = now + 1500;
     return;
   }
+  /* (the room's own next step for its visitor, walkinLife's browseNext: true when it has sent them somewhere) */
+  if(life === 'browse' && R.spec && R.spec.browseNext && R.spec.browseNext(R, s, m, now, bot)) return;
   if(life === 'browse' && !s.with){
     /* (a pair goes only where there is room for both: the spot, and one beside it) */
     for(let tries = 0; tries < 5; tries++){
@@ -27986,6 +27990,8 @@ function walkinIdlePose(s, m, now, bot){
   if(s.sit != null && m.task == null && !m.talk){ P.sit = s.sit; P.legs = null;
     const w = Math.sin(now*0.0021 + (sd & 63)), up = s.hands && walkinHash(sd + Math.floor(now/9000)*17) < 0.22 && ((now/9000) % 1) < 0.3;
     P.lift = up ? [0.2, 1.6] : [0.45 + 0.04*w, 0.45 - 0.04*w]; P.bend = up ? [0.3, 0.3] : [0.95, 0.9]; }
+  /* (the room's own: walkinLife's pose(s, m, now, P) -- what is in their hands, sat in a chair) */
+  const sp = s._R && s._R.spec; if(sp && sp.pose) sp.pose(s, m, now, P);
   return P;
 }
 /* THE ROOM LIVES (once a frame, while it is seen): each of them a step */
@@ -28011,7 +28017,10 @@ function walkinLifeTick(scene, pk){
 /* what of them is drawn: { x, y } in the room's frame, heading, moving, the leg phase, the pose */
 function walkinDrawState(s, now, bot){
   const m = s._m; if(!m) return null;
-  return { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.moving ? null : walkinIdlePose(s, m, now, bot) };
+  const q = { a: m.a, b: m.b, th: m.th, moving: m.moving, gait: m.dist*(PEOPLE_ART.walkSpeed/PEOPLE_WALK_V) + (s.seed & 15), pose: m.moving ? null : walkinIdlePose(s, m, now, bot) };
+  /* (the room's own: walkinLife's drawState(s, m, now, q) -- a reader drawn in the armchair from where they stood by it, a book carried) */
+  const sp = s._R && s._R.spec; if(sp && sp.drawState) sp.drawState(s, m, now, q);
+  return q;
 }
 /* HE IS HELD BY THEM (the pocket's movement): whoever of a room's people stands where he would be */
 function walkinPeopleBlock(x, y, r){
@@ -29002,24 +29011,101 @@ const BK_FAMILY = (() => {
               uniform: { shoeKind: 'sneaker' } },
   };
 })();
+/* A BROWSER'S VISIT (Sir, 2026-11-18: "give the people in the book store the ability to get a book then leave or get a book then read it in
+   a chair ... they all just lift up an arm over and over"): at a shelf they reach for a book ONCE, take it down and stand reading it; then
+   they read it in an armchair, take it to the till and pay and go home with it, or try another shelf with it in hand. Walkin kit hooks
+   (walkinLife browseNext / pose / drawState); the staff carry a stack to shelve, a book put up once as they get to each post */
+const BK_SHELVES = ['north', 'west', 'stacks', 'bargain', 'arrivals'];
+/* the armchairs: where a reader stands to sit (stand, clear of the chair's solid), where they sit (at: a hair forward of its middle, so they
+   sort after it), which way they face, the cushion's height */
+const BK_SEATS = [
+  { id: 'chair-1', stand: [152, 512, Math.PI], at: [116, 515], th: 0, z: 30 },
+  { id: 'chair-2', stand: [244, 648, Math.PI], at: [200, 647], th: Math.PI/2, z: 30 },
+];
+/* (the hands held low enough to hold it: an arm lifted past the kit's RAISED draws nothing in its hand) */
+const BK_BOOK_COLS = [0x7a2e2a, 0x2f4f6a, 0x5a6b3a, 0x8a6a2a, 0x4a3a5a, 0x3a5a5a, 0x8f5a3a];
+/* what is in their hands: an open book (read), a closed one (carried), a stack of three (the staff's, to shelve) */
+function bkHold(s){
+  if(s._bkH && s._bkH.v === s.visit) return s._bkH;
+  const col = BK_BOOK_COLS[((s.seed >>> 0) + (s.visit || 0)*3) % BK_BOOK_COLS.length], pg = 0xf4eedc;
+  return (s._bkH = { v: s.visit,
+    open: (g, p, K0) => { const K = K0*1.4; const y = p.y + 2*K; g.fillStyle(col, 1); g.fillRect(p.x - 7.5*K, y - 6.5*K, 15*K, 7.5*K); g.fillStyle(pg, 1); g.fillRect(p.x - 6.8*K, y - 6*K, 6.3*K, 6*K); g.fillRect(p.x + 0.5*K, y - 6*K, 6.3*K, 6*K);
+      g.fillStyle(0xb8ad94, 1); for(let k = 0; k < 3; k++){ g.fillRect(p.x - 6*K, y - (4.8 - k*1.6)*K, 4.8*K, 0.5*K); g.fillRect(p.x + 1.2*K, y - (4.8 - k*1.6)*K, 4.8*K, 0.5*K); } },
+    shut: (g, p, K0) => { const K = K0*1.3; g.fillStyle(col, 1); g.fillRect(p.x - 3*K, p.y - 8*K, 6*K, 9*K); g.fillStyle(pg, 1); g.fillRect(p.x + 2*K, p.y - 7.5*K, 1*K, 8*K); },
+    stack: (g, p, K0) => { const K = K0*1.3; [0x7a2e2a, 0x2f4f6a, 0xc9b48a].forEach((c, k) => { g.fillStyle(c, 1); g.fillRect(p.x - (6 - k)*K, p.y - (3 + k*3)*K, (12 - k*1.5)*K, 3*K); g.fillStyle(pg, 1); g.fillRect(p.x + (5 - k*1.5)*K, p.y - (3 + k*3)*K + 0.6*K, 0.8*K, 1.8*K); }); } });
+}
+/* how far into their armchair they are drawn (0 standing by it .. 1 sat), sitting down or getting up, eased */
+function bkSeatK(m, now){
+  if(m.seat && m.trip){ m.unseat = { seat: m.seat, t: now }; m.seat = null; }                                    // (their visit over while they read: up, and away)
+  if(m.seat && !m.path && m.arrive >= m.seatGo){ const u = Math.min(1, (now - m.arrive)/550); return { k: u*u*(3 - 2*u), seat: m.seat }; }
+  if(m.unseat){ const u = Math.min(1, (now - m.unseat.t)/450); if(u < 1) return { k: 1 - u*u*(3 - 2*u), seat: m.unseat.seat }; m.unseat = null; }
+  return null;
+}
+function bkBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.read = true; }                                  // (done reading: up)
+  if(m.atTill){ m.atTill = false; m.paid = true; }
+  if(m.paid) return leave();
+  if(m.look && BK_SHELVES.includes(m.look) && !m.path){ m.book = true; m.shelves = (m.shelves || 0) + 1; }       // (from the shelf, in hand)
+  if(!m.book) return false;
+  /* (a shelf or two more first, as browsers do -- one book in hand, the next one looked at: a visit of a few minutes, not one) */
+  const r = rnd();
+  if(!m.read && m.shelves < 3 && r < 0.5) return false;
+  if(!m.read && r < 0.75){
+    const free = BK_SEATS.filter(q => !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id)));
+    const st = free.length ? free[Math.floor(rnd()*free.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 35000 + rnd()*45000; return true; }
+  }
+  if(m.read || r < 0.95){
+    const T = R.looks.find(q => q.id === 'till'), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has('till#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = 'till#' + i; m.look = 'till'; m.atTill = true; m.dwell = 3500 + rnd()*2500; return true; }
+    if(m.read) return leave();
+  }
+  return false;                                                                                                   // (another shelf, the book in hand)
+}
+function bkPose(s, m, now, P){
+  const H = bkHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed) return;                                                                                           // (Walter at the till: as he is)
+    /* the stack under an arm, and at each post one book put up on the shelf, once */
+    if(since < 1800){ const k = Math.sin(Math.PI*since/1800); P.lift = [0.28, 0.3 + 0.9*k]; P.bend = [1.1, 1.15 - 0.95*k]; }
+    else { P.lift = [0.28, 0.28]; P.bend = [1.1, 1.15]; }
+    P.hold = H.stack; return;
+  }
+  const sk = bkSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.28, 0.28]; P.bend = [1.25, 1.25]; P.headTilt = 0.32; P.headTurn = 0; P.hold = H.open; return; }
+  if(m.look && BK_SHELVES.includes(m.look) && !m.book && since < 1700){                                          // (reaching for it, once)
+    const k = Math.sin(Math.PI*since/1700), low = m.look === 'bargain' || m.look === 'arrivals';
+    P.lift = [0.12, (low ? 0.7 : 1.2)*Math.min(1, k*1.6)]; P.bend = [0.2, low ? 0.5 : 0.15]; return; }
+  if(m.look && BK_SHELVES.includes(m.look)){ P.lift = [0.28, 0.28]; P.bend = [1.25, 1.25]; P.headTilt = 0.3; P.headTurn = 0; P.hold = H.open; return; }   // (stood reading it)
+  if(m.book){ P.lift = [0.1, 0.14]; P.bend = [0.2, 0.35]; P.hold = H.shut; }                                      // (the book at their side)
+}
+function bkDrawState(s, m, now, q){
+  const sk = bkSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  if(m.moving && (m.book || s.look !== 'visitor') && !(s.look !== 'visitor' && s.fixed)){ const H = bkHold(s);
+    q.pose = s.look === 'visitor' ? { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.shut } : { lift: [0.12, 0.28], bend: [0.25, 1.2], hold: H.stack }; }
+}
 walkinStaff(BK_IN.name, [
   { id: 'owner', role: 'bookseller', seed: 0x6b01, lookFn: () => BK_FAMILY.walter, fixed: true, keys: true, posts: [[740, 50, Math.PI/2, 9000, true], [690, 50, Math.PI*0.6, 3600, true], [790, 48, Math.PI*0.4, 3000, true]] },
   { id: 'shelver', role: 'bookseller', seed: 0x6b02, lookFn: () => BK_FAMILY.edie, posts: [[150, 62, -Math.PI/2, 7000, true], [450, 62, -Math.PI/2, 6000, true], [62, 200, Math.PI, 5000, true]] },
   { id: 'assistant', role: 'shop assistant', seed: 0x6b03, lookFn: () => BK_FAMILY.sam, posts: [[700, 412, Math.PI/2, 7000, true], [610, 600, 0, 6000, true], [300, 420, Math.PI, 4000, true]] },
-  { id: 'browser-1', role: 'browser', seed: 0x6b11, look: 'visitor', life: 'browse' },
-  { id: 'browser-2', role: 'browser', seed: 0x6b12, look: 'visitor', life: 'browse' },
-  { id: 'browser-3', role: 'browser', seed: 0x6b13, look: 'visitor', life: 'browse' },
-  { id: 'browser-4', role: 'browser', seed: 0x6b14, look: 'visitor', life: 'browse' },
+  { id: 'browser-1', role: 'browser', seed: 0x6b11, look: 'visitor', life: 'browse', only: BK_SHELVES },
+  { id: 'browser-2', role: 'browser', seed: 0x6b12, look: 'visitor', life: 'browse', only: BK_SHELVES },
+  { id: 'browser-3', role: 'browser', seed: 0x6b13, look: 'visitor', life: 'browse', only: BK_SHELVES },
+  { id: 'browser-4', role: 'browser', seed: 0x6b14, look: 'visitor', life: 'browse', only: BK_SHELVES },
 ]);
 walkinLife(BK_IN.name, { keep: [[0, 2000, 273, 353]], looks: [
   { id: 'till', spots: [[740, 140, -Math.PI/2], [690, 140, -Math.PI/2]] },
   { id: 'north', spots: [[250, 62, -Math.PI/2], [540, 64, -Math.PI/2]] },
   { id: 'west', spots: [[62, 120, Math.PI], [62, 380, Math.PI]] },
   { id: 'stacks', spots: [[300, 170, 0], [440, 170, Math.PI], [440, 480, 0], [580, 480, Math.PI]] },
-  { id: 'nook', spots: [[135, 600, Math.PI]] },
   { id: 'bargain', spots: [[710, 515, -Math.PI/2]] },
   { id: 'arrivals', spots: [[700, 662, -Math.PI/2]] },
-] });
+], browseNext: bkBrowseNext, pose: bkPose, drawState: bkDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -56026,22 +56112,25 @@ function houseCanopy(fn){
       box(ca - 8, ca + 18, cb - 20, cb - 12, 0, 48, leather, leatherF, leatherS);           // the far arm
       box(ca - 8, ca + 18, cb - 12, cb + 12, 0, 30, leather, leatherF, leatherS);           // the seat
       box(ca - 8, ca + 16, cb - 12, cb + 12, 30, 36, '#8a4a36', '#7a3e2c', '#6a3424');      // its cushion
-      /* the shop cat, curled on it: ginger, its head on its paws */
-      ball(ca + 2, cb, 43, 9, '#d08a4a', '#e8a868'); ball(ca + 10, cb + 6, 44, 5.5, '#d08a4a', '#e8a868');
-      poly([P(ca + 8, cb + 4, 48), P(ca + 9, cb + 3, 52), P(ca + 11, cb + 4, 48)], '#b06a32'); poly([P(ca + 11, cb + 7, 48), P(ca + 13, cb + 7, 52), P(ca + 14, cb + 8, 48)], '#b06a32');
-      tube(ca - 4, cb + 6, 38, ca + 6, cb + 11, 37, 2, '#c07a3a');
       box(ca - 8, ca + 18, cb + 12, cb + 20, 0, 48, leather, leatherF, leatherS); } });      // the near arm
     items.push({ a: 200, b: 640, z: 0, solids: [{ name: 'armchair', c: [200, 640], r: 22, h: 72 }], draw: () => {
+      /* (turned to face the room -- its back to the north, so whoever reads in it faces the camera) */
       const ca = 200, cb = 640;
-      box(ca - 20, ca - 12, cb - 18, cb + 10, 0, 48, leather, leatherF, leatherS);          // the far (west) arm
-      box(ca - 12, ca + 12, cb - 18, cb + 10, 0, 30, leather, leatherF, leatherS);
-      box(ca - 12, ca + 12, cb - 16, cb + 10, 30, 36, '#8a4a36', '#7a3e2c', '#6a3424');
-      box(ca + 12, ca + 20, cb - 18, cb + 10, 0, 48, leather, leatherF, leatherS);          // the near arm
-      box(ca - 20, ca + 20, cb + 10, cb + 20, 0, 72, leather, leatherF, leatherS); } });    // its back (south)
-    items.push({ a: 175, b: 530, z: 0, solids: [{ name: 'low table', c: [175, 530], r: 20, h: 46 }], draw: () => {
-      cyl(175, 530, 0, 4, 10, caseS); cyl(175, 530, 4, 36, 3, caseF); cyl(175, 530, 36, 40, 20, case0, shade(case0, 1.15));
-      cyl(168, 526, 40, 50, 6, '#e9e4da', '#f4f0e6'); cyl(168, 526, 50, 53, 2.4, '#e9e4da');   // the teapot
-      cyl(183, 536, 40, 45, 3, '#f4f0e6'); box(170, 186, 516, 526, 40, 43, '#c9b48a', '#2f4f6a', '#25405a'); } });   // a cup, an open book
+      box(ca - 20, ca + 20, cb - 20, cb - 10, 0, 72, leather, leatherF, leatherS);          // its back (north)
+      box(ca - 20, ca - 12, cb - 10, cb + 18, 0, 48, leather, leatherF, leatherS);          // the far (west) arm
+      box(ca - 12, ca + 12, cb - 10, cb + 18, 0, 30, leather, leatherF, leatherS);
+      box(ca - 12, ca + 12, cb - 10, cb + 16, 30, 36, '#8a4a36', '#7a3e2c', '#6a3424');
+      box(ca + 12, ca + 20, cb - 10, cb + 18, 0, 48, leather, leatherF, leatherS); } });    // the near arm
+    { const ta = 150, tb = 590;   // (between the two chairs, clear of where a reader stands to sit: BK_SEATS)
+    items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'low table', c: [ta, tb], r: 20, h: 46 }], draw: () => {
+      cyl(ta, tb, 0, 4, 10, caseS); cyl(ta, tb, 4, 36, 3, caseF); cyl(ta, tb, 36, 40, 20, case0, shade(case0, 1.15));
+      cyl(ta - 7, tb - 4, 40, 50, 6, '#e9e4da', '#f4f0e6'); cyl(ta - 7, tb - 4, 50, 53, 2.4, '#e9e4da');   // the teapot
+      cyl(ta + 8, tb + 6, 40, 45, 3, '#f4f0e6'); box(ta - 5, ta + 11, tb - 14, tb - 4, 40, 43, '#c9b48a', '#2f4f6a', '#25405a'); } }); }   // a cup, an open book
+    /* the shop cat, curled asleep on the rug by the stove: ginger, its head on its paws */
+    items.push({ a: 84, b: 616, z: 0, solids: [{ name: 'cat', c: [84, 616], r: 10, h: 14 }], draw: () => { const ca = 84, cb = 616;
+      ball(ca, cb, 7, 9, '#d08a4a', '#e8a868'); ball(ca + 8, cb + 6, 8, 5.5, '#d08a4a', '#e8a868');
+      poly([P(ca + 6, cb + 4, 12), P(ca + 7, cb + 3, 16), P(ca + 9, cb + 4, 12)], '#b06a32'); poly([P(ca + 9, cb + 7, 12), P(ca + 11, cb + 7, 16), P(ca + 12, cb + 8, 12)], '#b06a32');
+      tube(ca - 6, cb + 6, 2, ca + 4, cb + 11, 1.5, 2, '#c07a3a'); } });
     items.push({ a: 42, b: 658, z: 0, solids: [{ name: 'lamp', c: [42, 658], r: 10, h: 180 }], draw: () => {
       cyl(42, 658, 0, 3, 10, brassD); tube(42, 658, 3, 42, 658, 150, 1.2, brass);
       cyl(42, 658, 148, 172, 16, '#e8d6a8', '#f6ecc8'); } });
