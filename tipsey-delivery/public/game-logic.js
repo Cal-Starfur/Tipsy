@@ -29052,6 +29052,15 @@ function bkHold(s){
     /* open, in both hands before them: 22 across, 15 tall, its foot at their hands and leant back toward their face */
     open: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1] - 1, W = 11, T = 15, lean = 7;
       const c = (x, u) => [x, f - lean*u, h + T*u];
+      /* (WHICH SIDE THE EYE SEES -- Sir, 2026-11-18: "the pages still are facing away from the reader": the pages face the reader, so the
+         camera sees them only from behind or over a shoulder; from in front it sees the book's back, its covers and spine. Which, by
+         the way the page face winds on screen) */
+      const A = at.G(...c(-W, 0)), B = at.G(...c(W, 0)), Cq = at.G(...c(-W, 1));
+      if((B.x - A.x)*(Cq.y - A.y) - (B.y - A.y)*(Cq.x - A.x) < 0){
+        quad(g, at, [c(-W - 1, -0.05), c(W + 1, -0.05), c(W + 1, 1.05), c(-W - 1, 1.05)], col);                     // its back: the covers
+        quad(g, at, [c(-1.2, -0.05), c(1.2, -0.05), c(1.2, 1.05), c(-1.2, 1.05)], _pdk(col, 0.7));                // the spine
+        quad(g, at, [c(-W + 1, 1.05), c(W - 1, 1.05), c(W - 1, 1.12), c(-W + 1, 1.12)], pg);                      // the pages' top edge
+        return; }
       quad(g, at, [c(-W - 1, -0.05), c(W + 1, -0.05), c(W + 1, 1.05), c(-W - 1, 1.05)], col);                        // the cover, round the pages
       quad(g, at, [c(-W, 0), c(-0.6, 0), c(-0.6, 1), c(-W, 1)], pg); quad(g, at, [c(0.6, 0), c(W, 0), c(W, 1), c(0.6, 1)], 0xece4cf);
       for(let k = 1; k < 5; k++){ const u = k/5.5; quad(g, at, [c(-W + 2, u), c(-2, u), c(-2, u + 0.04), c(-W + 2, u + 0.04)], line); quad(g, at, [c(2, u), c(W - 2, u), c(W - 2, u + 0.04), c(2, u + 0.04)], line); }
