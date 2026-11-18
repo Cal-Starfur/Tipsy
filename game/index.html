@@ -119828,6 +119828,9 @@ class WorldScene extends Phaser.Scene {
       const costume = st => { if(CS) this.courierCostume(CS.costume, st, V, g, t, x, y, z, fdir, nearB, hx, hy, zl); };
       shadow(26, 26);
       V.wheel(0, -nearB*24, R, 8, R, wheelPhase);
+      /* THE GHOST IS ALL SHEET (Sir, 2026-11-17: "trim the body to this exact shape"): none of his body, lid, bands or hatches drawn under it,
+         so nothing of the box can show past the cloth -- the sheet, then his near wheel */
+      if(CS && CS.costume === 'ghost'){ costume('top'); V.wheel(0, nearB*24, R, 8, R, wheelPhase); return; }
       const lidTop = sees(0, 0, 1);                                                                 // (Tipsey's lidNear)
       const drawLid = () => {
         this.botHull(g, x, y, z, fdir, Object.assign({ hx, hy, z0: zb, z1: zl, ch: 8, bev: 2.5, bevIn: 2, cTop: 0xe6e9ec, cLt: 0xd9dde0, cDk: 0xb4b9be, cBottom: 0xb2b7bf }, WEAR ? { cTop: BODYC.top, cLt: _pdk(BODYC.top, 0.92), cDk: _pdk(BODYC.top, 0.8) } : {}, paintOf(zb, zl, 'lid'), CS && CS.head ? { cTop: CS.head, cLt: _pdk(CS.head, 0.92), cDk: _pdk(CS.head, 0.8), print: null } : {}), LD);   // (a costume's head colour on his lid)
