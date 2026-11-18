@@ -46242,7 +46242,9 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
   const RUN = (o && o.run) || 50, n = Math.max(1, Math.ceil((a1 - a0)/RUN - 1e-9));
   for(let k = 0; k < n; k++){
     const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
-    items.push(Object.assign({ a: (s0 + s1)/2, b: b1, z: 0, fpLab: { a0: s0, a1: s1, b0: b0, b1: b1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
+    /* (o.keyStart: keyed at its stretch's START -- a fixture against a far wall (shelves) has nothing behind it, and keyed at its middle,
+       someone stood in front of its stretch's near end sorted before it and was painted over: the tea house's jars on Ren, 2026-11-18) */
+    items.push(Object.assign({ a: o && o.keyStart ? s0 : (s0 + s1)/2, b: b1, z: 0, fpLab: { a0: s0, a1: s1, b0: b0, b1: b1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
       const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
       /* (o.pad: how far past its front and back its clip reaches -- 30 by default, a wall's thickness; a counter with things stood on it
          (the tea house's urns) passes a few, so a run's clip does not reach over the next stretch's top where they stand) */
@@ -57366,7 +57368,7 @@ function houseCanopy(fn){
         for(let a = A0; a <= A1 + 0.1; a += (A1 - A0)/Math.max(1, Math.round((A1 - A0)/80))) box(a - 3, a + 3, 0, SD, 96, 236, shF, shW, shS);   // its uprights
         ZS.forEach((z, r) => { box(A0, A1, 0, SD, z - 4, z, shW, shF, shS); fill(z, r); });
         box(A0 - 3, A1 + 3, 0, SD + 2, 236, 241, shF, shW, shS);                                                 // its top
-      }, { pad: 3 });   // (its clip snug: padded a wall's 30, a run's clip reached over whoever stood before the next stretch -- Yumi at the urns)
+      }, { pad: 3, keyStart: true });   // (keyed at each stretch's start: against the wall, W28) (its clip snug: padded a wall's 30, a run's clip reached over whoever stood before the next stretch -- Yumi at the urns)
       /* over the brewing station: tall glass jars of leaf, a dark lid each */
       unit(20, 264, (z, r) => { for(let a = 30, k = 0; a < 256; a += 15, k++){
         /* (sized to the shelf, Sir 2026-11-18: "these jars are too big for this shelf" -- 10 across on a board 12 deep, 24 tall under the
