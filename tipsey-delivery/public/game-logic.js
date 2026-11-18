@@ -128555,17 +128555,18 @@ class WorldScene extends Phaser.Scene {
         lathe(0, 0, [[zl + 1, 13.3], [zl + 5, 13.2]], 0x3a2414); lathe(0, 0, [[zl + 5, 13], [zl + 13, 12], [zl + 16, 9], [zl + 17, 4]], 0x9a6a34);
         line([12, 0, zl + 16], [-12, 0, zl + 16], 0x6a4020, 2.4); }   // (its crown's crease)
       return; }
-    if(c === 'ghost'){   /* (second pass -- Sir, 2026-11-17): a sheet thrown over him -- rounded over his head, soft folds hanging down his sides, a
-         ragged hem all the way round below his body; big hollow eye holes over his own eyes and an "ooo" mouth */
-      const W = 0xf4f4f6, F = 0xd9dbe2;
-      if(st === 'body'){ const sides = [[1, 0, hx, hy], [-1, 0, -hx, hy], [0, 1, hy, hx], [0, -1, -hy, hx]];
-        for(const [na, nb, off, half] of sides){ if(!sees(na, nb, 0)) continue; const at = (u, zz, d = 0.9) => na ? P(off + na*d, u, zz) : P(u, off + nb*d, zz);
-          const hem = [at(-half, 30)]; for(let i = 0; i <= 10; i++){ const u = -half + i/10*2*half; hem.push(at(u, i % 2 ? 4 : 11)); } hem.push(at(half, 30)); g.fillStyle(W, 1); g.fillPoints(hem.map(PT), true);
-          for(const u of [-half*0.55, 0, half*0.55]){ const A = at(u, 98, 1), B = at(u + half*0.08, 8, 1); g.lineStyle(Math.max(1, 1.6*K), F, 1); g.lineBetween(A.x, A.y, B.x, B.y); } } }   // (its hem and its folds)
-      if(st === 'face' && front){ onFront([[-15, 76], [15, 76], [15, 96], [-15, 96]], 0xf4f4f6);   // (the sheet over his visor)
-        for(const b of [-7, 7]){ const q = P(hx + 0.6, b, 85), rr = sr(hx, b, 85, 9); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.25, rr*1.9); g.fillStyle(0x30343e, 1); g.fillEllipse(q.x + rr*0.1, q.y + rr*0.2, rr*0.7, rr*1.1); }
-        const q = P(hx + 0.6, 0, 62), rr = sr(hx, 0, 62, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.3, rr*1.9); }
-      if(st === 'top') lathe(0, 0, [[zl - 1, 23.5], [zl + 5, 22], [zl + 11, 16], [zl + 15, 7], [zl + 16, 0.5]], W);   // (the sheet rounded over his head)
+    if(c === 'ghost'){   /* (one piece of cloth -- Sir, 2026-11-17: "a single piece of cloth over the entire bot"): a sheet thrown over all of him,
+         drawn last -- rounded over his head, falling straight to a ragged hem just off the ground, a few soft folds, eye holes and an "ooo"
+         mouth cut in it on his front */
+      if(st !== 'top') return;
+      const R = 25.5, W = 0xf4f4f6;
+      lathe(0, 0, [[5, R + 2], [24, R + 0.6], [70, R], [98, R - 1.5], [108, R - 5], [116, R - 11], [120, R - 18], [122, 0.5]], W);
+      for(let i = 0; i < 24; i++){ const a0 = i/24*Math.PI*2, a1 = (i + 1)/24*Math.PI*2, am = (a0 + a1)/2; if(!sees(Math.cos(am), Math.sin(am), 0)) continue; const r = R + 2;   // (its ragged hem)
+        g.fillStyle(i % 2 ? 0xe6e8ee : W, 1); g.fillPoints([P(Math.cos(a0)*r, Math.sin(a0)*r, 6), P(Math.cos(a1)*r, Math.sin(a1)*r, 6), P(Math.cos(am)*(r + 0.5), Math.sin(am)*(r + 0.5), i % 2 ? 0 : 2)].map(PT), true); }
+      for(const am of [0.6, 1.4, 2.3, 3.2, 4.0, 4.9, 5.7]){ if(!sees(Math.cos(am), Math.sin(am), 0)) continue; const A = P(Math.cos(am)*(R - 1.3), Math.sin(am)*(R - 1.3), 104), B = P(Math.cos(am)*(R + 1.8), Math.sin(am)*(R + 1.8), 8);   // (soft folds)
+        g.lineStyle(Math.max(1, 2*K), 0xd9dbe2, 0.8); g.lineBetween(A.x, A.y, B.x, B.y); }
+      if(front){ for(const b of [-7.5, 7.5]){ const q = P(R + 0.4, b, 86), rr = sr(R, b, 86, 9); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.25, rr*1.9); g.fillStyle(0x30343e, 1); g.fillEllipse(q.x + rr*0.1, q.y + rr*0.2, rr*0.7, rr*1.1); }
+        const q = P(R + 0.4, 0, 64), rr = sr(R, 0, 64, 6); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, rr*1.3, rr*1.9); }
       return; }
     if(c === 'mummy'){
       if(st === 'body') for(let i = 0; i < 7; i++){ const z0 = 20 + i*12 + (i % 2)*3; this.botHull(g, x, y, z, fdir, { hx: hx + 0.6 + (i % 2)*0.3, hy: hy + 0.6 + (i % 2)*0.3, ch: 8, z0, z1: z0 + 2.4, band: true, cLt: 0xf3ead2, cDk: 0xc9bc8e }); }   // (its wrappings)
