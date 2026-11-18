@@ -131379,19 +131379,32 @@ class WorldScene extends Phaser.Scene {
       if(st === 'post' && !trailFar){ hitch(); all(); }
       return; }
 
-    if(id === 'amrshelf'){   /* SHELF LIFTER: carried up under a tall shelf pod -- four posts, four shelves, coloured bins on each */
+    if(id === 'amrshelf'){   /* SHELF LIFTER: carried up under a tall shelf pod. (Second pass -- Sir, 2026-11-18): the pod is a real goods-to-person
+         pod -- wider than it, standing on four legs that reach down past its sides to just off the floor, lifted on a yellow-ringed turntable
+         pad; four shelves of fabric bins, three along and two across, each a darker open mouth and a white label card on its outer faces. The
+         legs that stand behind its hull from here go before it ('pre'), the rest after (its legs' reach is a little past its hit box, ~7 a side) */
+      const PA = 54, PB = 44, FOOT = 5, Z0 = TOP + 7, LV = [Z0, Z0 + 28, Z0 + 56, Z0 + 84, Z0 + 108], POST = 0x3a3e46;
+      const corners = [[-PA, -PB], [PA, -PB], [PA, PB], [-PA, PB]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60), near: sees(Math.sign(a), 0, 0) || sees(0, Math.sign(b), 0) }));
+      const post = p => { tube([p.a, p.b, FOOT], [p.a, p.b, LV[4] + 2], 3.4, POST); this.avLathe(V, p.a, p.b, [[FOOT - 1.5, 3.2], [FOOT + 1, 3.2]], 0x16171b, null, 8); };
+      if(st === 'pre'){ corners.filter(p => !p.near).forEach(post); return; }
       if(st !== 'post') return;
-      const S = 36, Z0 = TOP + 3, LV = [Z0, Z0 + 30, Z0 + 60, Z0 + 90, Z0 + 116];
-      box(-12, 12, -12, 12, TOP, Z0, DARK);   /* (its lift pad) */
-      const posts = [[-S, -S], [S, -S], [S, S], [-S, S]].map(([a, b]) => ({ a, b, d: V.depth(a, b, 60) })).sort((p, q) => p.d - q.d);
-      const post = p => tube([p.a, p.b, Z0], [p.a, p.b, LV[4]], 3, 0x3a3e46);
-      for(const p of posts.slice(0, 2)) post(p);
-      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e];
-      for(let i = 0; i < 4; i++){ box(-S, S, -S, S, LV[i], LV[i] + 2.5, 0x6a7078);
-        if(i < 4){ const bins = []; for(const ba of [-1, 1]) for(const bb of [-1, 1]) bins.push({ a: ba*17, b: bb*17, d: V.depth(ba*17, bb*17, LV[i] + 10) });
-          bins.sort((p, q) => p.d - q.d); for(const bn of bins){ const col = BINS[(i + (bn.a > 0) + 2*(bn.b > 0)) % 4]; box(bn.a - 14, bn.a + 14, bn.b - 14, bn.b + 14, LV[i] + 2.5, LV[i] + 2.5 + (i === 3 ? 18 : 20), col); } } }
-      box(-S, S, -S, S, LV[4], LV[4] + 2.5, 0x6a7078);
-      for(const p of posts.slice(2)) post(p);
+      /* its turntable pad, up under the pod's floor */
+      this.avLathe(V, 0, 0, [[TOP, 15], [TOP + 2.5, 15], [TOP + 2.5, 13], [Z0, 13]], DARK, null, 16);
+      this.avLathe(V, 0, 0, [[TOP + 1, 15.4], [TOP + 2.6, 15.4]], Y, () => Y, 16);
+      const BINS = [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], SA = [-36, 0, 36], SB = [-22, 22], BA = 16.5, BB = 20;
+      for(let i = 0; i < 4; i++){ box(-PA, PA, -PB, PB, LV[i], LV[i] + 2.5, 0x6a7078);
+        const h0 = LV[i] + 2.5, h1 = h0 + (i === 3 ? 19 : 21), bins = [];
+        for(const ca of SA) for(const cb of SB) bins.push({ ca, cb, d: V.depth(ca, cb, h0 + 10) });
+        bins.sort((p, q) => p.d - q.d);
+        for(const bn of bins){ const col = BINS[(i + SA.indexOf(bn.ca) + 2*(bn.cb > 0)) % 4], a0 = bn.ca - BA, a1 = bn.ca + BA, b0 = bn.cb - BB, b1 = bn.cb + BB;
+          box(a0, a1, b0, b1, h0, h1 - 3, col); box(a0, a1, b0, b1, h1 - 3, h1, _pdk(col, 0.72));   /* (its open mouth: a darker band round the top) */
+          for(const [nx, ny, fx] of [[1, 0, a1], [-1, 0, a0], [0, 1, b1], [0, -1, b0]]){ if(!sees(nx, ny, 0)) continue;
+            if(nx && Math.abs(bn.ca) !== 36 || ny && Math.abs(bn.cb) !== 22) continue;   /* (only an outer face carries a card) */
+            const q = nx ? (u, z) => P(fx + nx*0.2, bn.cb + u, z) : (u, z) => P(bn.ca + u, fx + ny*0.2, z), zc = h0 + 7;
+            g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-5, zc - 2.6), q(5, zc - 2.6), q(5, zc + 2.6), q(-5, zc + 2.6)].map(PT), true);
+            g.fillStyle(0x2a2f36, 1); g.fillPoints([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)].map(PT), true); } } }
+      box(-PA, PA, -PB, PB, LV[4], LV[4] + 3, 0x6a7078);
+      corners.filter(p => p.near).sort((p, q) => p.d - q.d).forEach(post);
       return; }
 
     if(id === 'amrconv'){   /* CONVEYOR TOP: a roller bed along its length, side rails, boxes riding along it while it runs */
