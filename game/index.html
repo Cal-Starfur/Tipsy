@@ -47148,7 +47148,9 @@ function walkinRoom(items, R){
     const cut = gN.filter(([p0, p1]) => p1 > s0 && p0 < s1), sol = [];
     { let x = s0; for(const [p0, p1] of cut.slice().sort((m, q) => m[0] - q[0])){ if(p0 > x) sol.push(wallSolid(x, p0, bo - 30, bo, H)); x = Math.max(x, p1); }
       if(x < s1) sol.push(wallSolid(x, s1, bo - 30, bo, H)); }
-    items.push({ a: (s0 + s1)/2, b: bo - 30, z: 0, solids: sol, draw: () => {
+    /* (keyed at its START along the wall, not its middle: a far wall stands behind everything in the room, and a piece against it -- a shelf
+       run, the tea house's jars -- nearer its start than its middle sorted before it, and the wall painted over it. Sir, 2026-11-18) */
+    items.push({ a: s0, b: bo - 30, z: 0, solids: sol, draw: () => {
       const b00 = BOFF; BOFF = b00 + bo;
       try {
       /* (its clip a hair into the next piece: two clips that only meet leave an antialiased hairline between them -- on a dark wall, a light line) */
@@ -47179,7 +47181,7 @@ function walkinRoom(items, R){
 
   for(let k = 0, n = Math.ceil((D + 30)/150); k < n; k++){
     const s0 = -30 + (D + 30)*k/n, s1 = -30 + (D + 30)*(k + 1)/n, f0 = Math.max(0, s0);
-    items.push({ a: -30, b: (s0 + s1)/2, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => {
+    items.push({ a: -30, b: s0, z: 0, solids: [wallSolid(-30, 0, s0, s1, H)], draw: () => {   // (keyed at its start, as the north wall's)
       const e1 = k < n - 1 ? s1 + 0.6 : s1;
       clipped([P(0, f0, -2), P(0, e1, -2), P(0, e1, H + 0.5), P(0, f0, H + 0.5)], () => R.paintW(f0, s1));
       T(-30, 0, k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, H, ftop);
@@ -57360,15 +57362,17 @@ function houseCanopy(fn){
        stood against the north wall, 18 deep -- uprights at the ends and every ~80, three boards -- the jars of leaf over the brewing station,
        tins and teapots over the tea bar, each a thing of its own with a top and a side. Runs along the wall (runPiece, W28) ---- */
     { const SD = 12, ZS = [112, 162, 212], shW = '#6b4a30', shF = '#5a3e28', shS = '#4a3220';
-      const unit = (A0, A1, fill) => runPiece(items, A0, A1, 0, SD, 240, (s0, s1) => [solid(s0, s1, 0, SD, 236, 'shelves')], () => {
+      const unit = (A0, A1, fill) => runPiece(items, A0, A1, 0, SD, 262, (s0, s1) => [solid(s0, s1, 0, SD, 236, 'shelves')], () => {   // (clip to 262: the top shelf's lids rise to 246)
         for(let a = A0; a <= A1 + 0.1; a += (A1 - A0)/Math.max(1, Math.round((A1 - A0)/80))) box(a - 3, a + 3, 0, SD, 96, 236, shF, shW, shS);   // its uprights
         ZS.forEach((z, r) => { box(A0, A1, 0, SD, z - 4, z, shW, shF, shS); fill(z, r); });
         box(A0 - 3, A1 + 3, 0, SD + 2, 236, 241, shF, shW, shS);                                                 // its top
-      });
+      }, { pad: 3 });   // (its clip snug: padded a wall's 30, a run's clip reached over whoever stood before the next stretch -- Yumi at the urns)
       /* over the brewing station: tall glass jars of leaf, a dark lid each */
       unit(20, 264, (z, r) => { for(let a = 34, k = 0; a < 254; a += 24, k++){
         const leaf = ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + r) % 4];
-        cyl(a, SD/2, z, z + 30, 8, 'rgba(214,230,226,.9)', 'rgba(238,246,244,.9)'); cyl(a, SD/2, z, z + 20, 6.6, leaf); cyl(a, SD/2, z + 30, z + 34, 8.4, dark); } });
+        /* (stacked, no part inside another -- the leaf, the glass over it, the lid: a jar on a run's seam is drawn by both runs, and an inner leaf
+           under see-through glass came out white where it doubled) */
+        cyl(a, SD/2, z, z + 21, 8, leaf, shade(leaf, 1.15)); cyl(a, SD/2, z + 21, z + 30, 8, '#cfe0dc', '#e6f0ee'); cyl(a, SD/2, z + 30, z + 34, 8.4, dark); } });
       /* over the tea bar: tins in jade, red, gold and blue with gold lids, a teapot now and then */
       unit(296, 724, (z, r) => { for(let a = 308, k = 0; a < 714; a += 17, k++){
         if((k + r) % 5 === 4){ cyl(a + 4, SD/2, z, z + 12, 8, '#e9e4da', '#f4f0e6'); cyl(a + 4, SD/2, z + 12, z + 15, 3, gold); continue; }   // a teapot
