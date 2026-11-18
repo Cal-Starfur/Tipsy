@@ -45992,7 +45992,25 @@ function makeCtx2Phaser(){
       S.g.lineStyle(w, c, a);
       for(const sp of S.subs){
         if(sp.length < 2) continue;
-        S.g.strokePoints(sp.map(q => new Phaser.Geom.Point(q.x, q.y)), !!sp.closed);
+        if(!S.clip){ S.g.strokePoints(sp.map(q => new Phaser.Geom.Point(q.x, q.y)), !!sp.closed); continue; }
+        /* A STROKE IS CLIPPED AS A FILL IS (Sir, 2026-11-18, the tea house's jar shelf: every run's outlines of every jar were drawn
+           whole, its clip only cutting the fills -- the outlines of the shelf's far end lay over Ren's head): each segment cut to the
+           convex clip (Cyrus-Beck), its pieces stroked */
+        const cp = S.clip, n = sp.length, segs = sp.closed ? n : n - 1;
+        for(let i = 0; i < segs; i++){
+          const P0 = sp[i], P1 = sp[(i + 1) % n], dx = P1.x - P0.x, dy = P1.y - P0.y;
+          let t0 = 0, t1 = 1, ok = true;
+          for(let j = 0; j < cp.length && ok; j++){
+            const A = cp[j], B = cp[(j + 1) % cp.length];
+            /* inside is side() <= 0 (clipTo's convention) */
+            const sA = (B.x - A.x)*(P0.y - A.y) - (B.y - A.y)*(P0.x - A.x), dS = (B.x - A.x)*dy - (B.y - A.y)*dx;
+            if(Math.abs(dS) < 1e-9){ if(sA > 0) ok = false; continue; }
+            const t = -sA/dS;
+            if(dS > 0) t1 = Math.min(t1, t); else t0 = Math.max(t0, t);
+            if(t0 > t1) ok = false;
+          }
+          if(ok && t1 > t0) S.g.lineBetween(P0.x + dx*t0, P0.y + dy*t0, P0.x + dx*t1, P0.y + dy*t1);
+        }
       }
     },
     clip(){ if(S.subs.length) S.clip = orient(S.subs[0].slice()); },
@@ -106985,6 +107003,19 @@ class WorldScene extends Phaser.Scene {
   }
   /* the dark round a displacing room (gRoomDim): its strength the shell's fade the other way (pocketShellK: 0 inside), so it comes and goes
      with the room; the room's outline its floor and walls to their height, as the screen sees them */
+  /* someone of the street BEHIND a room bigger than its building (north or west of its near walls, outside it) whose figure falls on the
+     room on screen: not drawn while he is in it -- the room is a set, lit; they stood over its shelves (Sir, 2026-11-18, the tea house) */
+  behindRoomSet(x, y){
+    const pk = this._inside; if(!pk || !pk.displace || !POCKET_VIEW || POCKET_VIEW.pk !== pk) return false;
+    const X = pk.x0 + POCKET_VIEW.dx, Y = pk.y0 + POCKET_VIEW.dy, W = pk.w, D = pk.d;
+    if(x >= X + W + 30 || y >= Y + D + 30) return false;                          // (out in front or beside the door: the street, seen)
+    const fr = this.game.loop.frame;
+    if(this._rsFr !== fr){ this._rsFr = fr; const pts = [];
+      for(const a of [-30, W + 30]) for(const b of [-30, D + 30]) for(const z of [0, pk.h || 240]){ const q = this.W(X + a, Y + b, z); pts.push(q); }
+      this._rsBox = [Math.min(...pts.map(q => q.x)), Math.max(...pts.map(q => q.x)), Math.min(...pts.map(q => q.y)), Math.max(...pts.map(q => q.y))]; }
+    const B = this._rsBox, p0 = this.W(x, y, 0), p1 = this.W(x, y, 170);
+    return p0.x > B[0] && p0.x < B[1] && Math.max(p0.y, p1.y) > B[2] && Math.min(p0.y, p1.y) < B[3];
+  }
   roomDimDraw(){
     /* (INDOORS, VIEW 2 OR NEARER: Sir, 2026-11-17 -- in a displacing room view 3 steps to 2 for the visit, and back as he leaves, unless he
        changed it himself while inside) */
@@ -113960,6 +113991,10 @@ class WorldScene extends Phaser.Scene {
      ghosted only when they matter, and once */
   drawPersonHull(g, ax, ay, z, ...rest){
     if(!this._inWorldFlush) return this.drawPersonHullBody(g, ax, ay, z, ...rest);      // (a cache paint, a card, a lab)
+    /* (someone of the street where a room bigger than its building stands while he is in it -- pk.displace: not there, as its yard's
+       planters are not; only the room's own people are drawn in it, drawWalkinPerson -- Sir, 2026-11-18, a passer-by walking through the
+       tea house's back wall over its jar shelf) */
+    if(!this._roomPerson && (displacedAt(this, ax, ay, 0) || this.behindRoomSet(ax, ay))) return;
     const P = PERSON_DRAW, K = this.K, z0 = z || 0, pose = rest[14], lie = !!(pose && (pose.pitch || pose.roll || pose.waist));
     /* OFF SCREEN: their box, feet to crown, with a margin (nobody pops at the edge while the camera moves) */
     const A = this.W(ax, ay, z0), hw = (lie ? P.hwLie : P.hw)*K, M = P.cullM;
@@ -116610,10 +116645,10 @@ class WorldScene extends Phaser.Scene {
      busy hands at a post that is work (the engraver's pose) */
   /* (W16: walking, the legs from the distance walked, d.gait; standing, their idle pose -- walkinIdlePose) */
   drawWalkinPerson(g, d, t, s){
-    const L = walkinStaffLook(s), thW = d.th - Math.PI/2;
-    this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
+    const L = walkinStaffLook(s), thW = d.th - Math.PI/2, rp0 = this._roomPerson; this._roomPerson = !!(this._inside && s.room === this._inside.name);   // (only the room he is in: another room's people -- the bank's, walking to work behind the tea house -- are the street's)
+    try { this.drawPersonHull(g, d.x, d.y, 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe,
       d.moving ? walkSin(d.gait) : 0, d.moving, 0, 0, null, L.uniform || null, false,
-      Object.assign({ dress: L.dress }, d.pose || null));
+      Object.assign({ dress: L.dress }, d.pose || null)); } finally { this._roomPerson = rp0; }
   }
   drawFourthPerson(g, d, t, who){
     const L = partyLook(who === 'judge' ? 0x5b10 : 0x7e04, 'dad'), U = who === 'judge' ? null : FOURTH_ENGRAVER;
