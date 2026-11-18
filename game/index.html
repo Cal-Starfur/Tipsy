@@ -10633,6 +10633,30 @@ setInterval(amrLoadUiTick, 200);
     for(const ev of ["touchstart", "mousedown"]) btn.addEventListener(ev, e => e.stopPropagation(), { passive: true });
     btn.addEventListener("contextmenu", e => e.preventDefault()); }
 })();
+/* SOLID (Sir, 2026-11-18: "lets get the loads on the ground solid and ... the parts of the bots that arent included in their hit box to be
+   solid too"): a load on the ground is a box he, the cars and the people stop at (amrLoadBlocks; in amrRects as the semi's standing trailers
+   are); and the pieces of a build that reach past his hit box -- the tugger's carts, the pallet jack's pallet -- are checked along with his
+   body wherever he moves (amrExtraParts, in his own frame: a middle, an axis, half its length and width) */
+function amrLoadBlocks(x, y, r){
+  for(const D of AMRL.down){ const dx = x - D.x, dy = y - D.y; if(Math.abs(dx) + Math.abs(dy) > 160) continue;
+    const c = Math.cos(D.th), sn = Math.sin(D.th), u = dx*c + dy*sn, v = -dx*sn + dy*c;
+    const qu = Math.max(-D.L.la, Math.min(D.L.la, u)), qv = Math.max(-D.L.lb, Math.min(D.L.lb, v));
+    if(Math.hypot(u - qu, v - qv) < r) return true; }
+  return false;
+}
+function amrExtraParts(scene){
+  const b = typeof SKIN !== "undefined" ? SKIN.build : null;
+  if(b === 'amrjack') return [{ a: 88, b: 0, ua: 1, ub: 0, hl: 37, hw: 31 }];
+  if(b === 'amrtug' && scene && scene._tugL) return scene._tugL.map(o => ({ a: o.C[0] + o.u[0]*3, b: o.C[1] + o.u[1]*3, ua: o.u[0], ub: o.u[1], hl: 39, hw: 29 }));
+  return [];
+}
+/* him as the cars and the people see him: his body, the parts that reach past it, and the loads he has set down */
+function amrRects(scene, ow){
+  const c = Math.cos(ow.yaw), sn = Math.sin(ow.yaw), out = [{ x: ow.px, y: ow.py, th: ow.yaw, hl: 55, hw: 38 }];
+  for(const p of amrExtraParts(scene)) out.push({ x: ow.px + c*p.a - sn*p.b, y: ow.py + sn*p.a + c*p.b, th: ow.yaw + Math.atan2(p.ub, p.ua), hl: p.hl, hw: p.hw });
+  for(const D of AMRL.down) out.push({ x: D.x, y: D.y, th: D.th, hl: D.L.la, hw: D.L.lb });
+  return out;
+}
 /* the loads on the ground: still, cached where they are (their key: the load, the spot and the skin its colours come from) */
 function amrLoadQueue(scene, t, queuePerson){
   if(!AMRL.down.length) return;
@@ -10862,7 +10886,7 @@ function owStep(scene, dt){
                             W.solidAt(x, y, D.botR) ||
                             walkinDoorBlock(x, y, D.botR) || walkinStreetBlock(x, y, D.botR) ||   // a walk-in's locked door, and its people out on the street (THE ROOM'S DAY)
                             (derbyKartBlocks(x, y, D.botR) || kwBlocks(x, y, D.botR) || rlBlocks(x, y, D.botR) || ssBlocks(x, y, D.botR) || surfBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // the soapbox karts, wherever they are in the race (and number 4's: NUMBER 4 BUILDS A WINNER)
-                            (semiParkBlocks(x, y, D.botR) || bbRackBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing; Brew & Bolt's scooter rack (BB_RACK)
+                            (semiParkBlocks(x, y, D.botR) || bbRackBlocks(x, y, D.botR) || amrLoadBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) ||   // a trailer left standing; Brew & Bolt's scooter rack (BB_RACK)
                             (!FP.fly && gwBlocks(x, y, D.botR) ? OW_DECK_BLOCK : null) || CITY_PEOPLE.blockAt('world', x, y, D.botR, FP.fly) ||   // THE GETAWAY's charter; the people who are solid (CITY_PEOPLE.blocks: the derby's, Sun Deck Motor Lodge's)
                             (!FP.fly && !FP.step && owCurbBlocks(ow, W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null) ||   // the estate too: its streets have kerbs now (flying: over them)
                             (sierraBlocks(x, y, D.botR) || sierraCrosses(ow.px, ow.py, x, y, D.botR) ? OW_CURB_BLOCK : null) ||   // SIERRA VISTA walls
@@ -10872,7 +10896,7 @@ function owStep(scene, dt){
                             (!(FP.fly && flyFoothillCorridor(x, y)) && owNorthEdgeBlocks(W, x + (ox||0), y + (oy||0)) ? OW_CURB_BLOCK : null);   // the foothills past the north rim (a flyer: over the Flats' stretch of them, flyFoothillCorridor)
   /* A STEERED VEHICLE'S BODY (fleetBody): the capsule along its centre line, a disc of its half-width at every point of it */
   const _fb = SV || (FLEET[fleetCur()] && FLEET[fleetCur()].cls === "walk") ? fleetBody() : null, _tr = SV && SV.trail && !SEMT.bob ? owTrailer(ow, SV) : null;
-  const blockAt = SV && SV.trail && SEMT.bob ? (x, y, ox, oy) => {
+  const blockAtB = SV && SV.trail && SEMT.bob ? (x, y, ox, oy) => {
     /* BOBTAIL: just the pod, from its rear face (210 ahead of the middle) to its nose */
     const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), hw = _fb.hw*1.1;
     for(let d = 210; d <= 390; d += hw){ const r = blockAt0(x + c*d, y + s*d, ox, oy); if(r) return r; }
@@ -10890,6 +10914,19 @@ function owStep(scene, dt){
     for(let k = 1; k <= n; k++){ const d = _fb.half*k/n; const r2 = blockAt0(x + c*d, y + s*d, ox, oy) || blockAt0(x - c*d, y - s*d, ox, oy); if(r2) return r2; }
     return null;
   };
+  /* THE WAREHOUSE ROBOT'S PARTS PAST ITS HIT BOX (amrExtraParts): each a row of discs its own half-width along its own line, where it is
+     on him at (x, y). Already in something here (a turn or backing up swung a cart into it), a move is let through only if fewer of
+     their discs are in something after it than before -- he can always work them out, never drive them further in */
+  const _ax = fleetCur() === 'amr' && !SAIL && !ow.deck ? amrExtraParts(scene) : [];
+  const _axHits = (x, y, ox, oy, all) => { const c = Math.cos(ow.yaw), s = Math.sin(ow.yaw), r0 = D.botR; let n0 = 0, first = null;
+    try { for(const p of _ax){ const wx = x + c*p.a - s*p.b, wy = y + s*p.a + c*p.b, ux = c*p.ua - s*p.ub, uy = s*p.ua + c*p.ub, half = Math.max(0, p.hl - p.hw), n = Math.max(1, Math.ceil(2*half/(p.hw*0.8)));
+      D.botR = p.hw;
+      for(let k = 0; k <= n; k++){ const d = -half + 2*half*k/n, r = blockAt0(wx + ux*d, wy + uy*d, ox, oy); if(r){ n0++; first = first || r; if(!all) return { n: n0, r: first }; } } } }
+    finally { D.botR = r0; }
+    return { n: n0, r: first }; };
+  const _axNow = _ax.length ? _axHits(ow.px, ow.py, 0, 0, true).n : 0;
+  const blockAt = !_ax.length ? blockAtB : (x, y, ox, oy) => { const r = blockAtB(x, y, ox, oy); if(r) return r;
+    const h = _axHits(x, y, ox, oy, _axNow > 0); return h.n && (!_axNow || h.n >= _axNow) ? h.r : null; };
   /* it never turns itself into a wall: a turn that would put its body in one is not made */
   if(SV && dYaw && blockAt(ow.px, ow.py, 0, 0)){
     ow.yaw = owWrapAngle(ow.yaw - dYaw); dYaw = 0; slip = 0; ow.steer *= 0.5;
@@ -135567,9 +135604,9 @@ class WorldScene extends Phaser.Scene {
   botAxisPt(px, py){
     const B = this.ow && this.ow.on ? fleetBody() : null;
     if(!B) return { x: this.botX, y: this.botY, pad: 0 };
-    if(fleetCur() === "avsemi"){                                  // the rig: the nearest point on any of its real pieces' centre lines
+    if(fleetCur() === "avsemi" || fleetCur() === "amr"){         // the rig: the nearest point on any of its real pieces' centre lines (the warehouse robot: its carts, its pallet, the loads it set down)
       let best = null, bd = 1e18;
-      for(const R of semiRects(this.ow)){
+      for(const R of fleetCur() === "amr" ? amrRects(this, this.ow) : semiRects(this.ow)){
         const hx = Math.cos(R.th), hy = Math.sin(R.th), half = Math.max(0, R.hl - R.hw), s3 = Math.max(-half, Math.min(half, (px - R.x)*hx + (py - R.y)*hy)),
           qx = R.x + hx*s3, qy = R.y + hy*s3, d = (px - qx)*(px - qx) + (py - qy)*(py - qy);
         if(d < bd){ bd = d; best = { x: qx, y: qy, pad: Math.max(0, R.hw - 30) }; } }
@@ -135583,8 +135620,8 @@ class WorldScene extends Phaser.Scene {
   botBodyHas(px, py, m){
     const B = this.ow && this.ow.on ? fleetBody() : null;
     if(!B) return false;
-    if(fleetCur() === "avsemi"){
-      for(const R of semiRects(this.ow)){ const hx = Math.cos(R.th), hy = Math.sin(R.th), dx = px - R.x, dy = py - R.y;
+    if(fleetCur() === "avsemi" || fleetCur() === "amr"){
+      for(const R of fleetCur() === "amr" ? amrRects(this, this.ow) : semiRects(this.ow)){ const hx = Math.cos(R.th), hy = Math.sin(R.th), dx = px - R.x, dy = py - R.y;
         if(Math.abs(dx*hx + dy*hy) < R.hl + m && Math.abs(-dx*hy + dy*hx) < R.hw + m) return true; }
       return false;
     }
