@@ -128845,6 +128845,12 @@ class WorldScene extends Phaser.Scene {
     const disc = (th, zz, r) => [...Array(16)].map((_, i) => { const ph = i/16*Math.PI*2; return [th + Math.cos(ph)*r/Math.max(4, rz(zz)), zz + Math.sin(ph)*r]; });
     const dot = (th, zz, r, col, off = 0.9) => { decal(disc(th, zz, r*1.15), _pdk(col, 0.7), 1, off); decal(disc(th, zz, r), col, 1, off + 0.05);
       decal(disc(th - 0.3*r/Math.max(4, rz(zz)), zz + r*0.3, r*0.35), _pmix(col, 0xffffff, 0.5), 1, off + 0.1); };
+    /* a bar as a solid square tube from p0 to p1, w across (a lit side and a shaded one, not a hairline) */
+    const tube = (p0, p1, w, col) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d), u = d.map(v => v/L);
+      const a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1*w/2);
+      const n2 = [u[1]*n1[2] - u[2]*n1[1], u[2]*n1[0] - u[0]*n1[2], u[0]*n1[1] - u[1]*n1[0]];
+      const ring = p => [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) => [p[0] + n1[0]*i + n2[0]*j, p[1] + n1[1]*i + n2[1]*j, p[2] + n1[2]*i + n2[2]*j]);
+      const A = ring(p0), B = ring(p1), F = [A, B.slice().reverse()]; for(let k = 0; k < 4; k++) F.push([A[k], A[(k + 1) % 4], B[(k + 1) % 4], B[k]]); V.solid(F, col, null); };
     const lathe = (rings, col, colOf, n = 24) => this.avLathe(V, 0, 0, rings, col, colOf, n);
     /* a band round him: a lathe's sides with no end caps (a cap's disc would paint over his body) */
     const band = (rings, col, colOf, n = 24) => { const F = []; for(let j = 0; j + 1 < rings.length; j++){ const [h0, r0] = rings[j], [h1, r1] = rings[j + 1];
@@ -128962,23 +128968,24 @@ class WorldScene extends Phaser.Scene {
         band([[109.5, 25.6], [115.5, 24.4]], 0xf6f6f2);
         bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82, 'near'); }
       return; }
-    if(c === 'crossing'){   /* a hi-vis vest, three silver bands; an orange ball cap; a STOP paddle on its pole, clamped to his right side */
-      const sb = -1, pb = sb*36;
+    if(c === 'crossing'){   /* (second pass -- Sir, 2026-11-18): a hi-vis vest, its silver bands round him, braces up the front clear of his face and an X
+         across his back; an orange ball cap with a silver band; a big STOP paddle on a pole, clamped to his right side by two solid brackets */
+      const sb = -1, pb = sb*37, SIL = 0xd9dde2;
       const paddle = () => {
-        for(const zz of [52, 92]) line([0, sb*(rz(zz) + 0.5), zz], [0, pb, zz], 0x3a3e46, 2.6);
-        line([0, pb, 30], [0, pb, 156], 0xd9dde2, 3); line([0, pb, 30], [0, pb, 156], 0x8d959c, 1);
-        const zc = 172, R = 18, oct = r => { const o = []; for(let i = 0; i < 8; i++){ const a = (i + 0.5)/8*Math.PI*2; o.push(P(0.6, pb + Math.cos(a)*r, zc + Math.sin(a)*r)); } return o.map(PT); };
-        if(!front){ g.fillStyle(0xb4b9be, 1); g.fillPoints(oct(R), true); return; }
-        g.fillStyle(0xf6f6f2, 1); g.fillPoints(oct(R), true); g.fillStyle(0xd8261c, 1); g.fillPoints(oct(R - 2), true);
-        /* STOP, big enough to read: four letters stroked in white, 9 high */
-        const L = (pts, ox) => { g.lineStyle(Math.max(1.4, 1.9*K), 0xf6f6f2, 1); const o = pts.map(([u, v]) => PT(P(1, pb - ox - u*3.6, zc + v*4.6)));   /* (+b runs to his left: read left to right from in front) */ g.strokePoints(o, false); };
-        L([[1, 1], [-1, 1], [-1, 0], [1, 0], [1, -1], [-1, -1]], -12); L([[-1, 1], [1, 1]], -4); L([[0, 1], [0, -1]], -4);
-        L([[-1, 1], [1, 1], [1, -1], [-1, -1], [-1, 1]], 4); L([[-1, -1], [-1, 1], [1, 1], [1, 0], [-1, 0]], 12); };
+        for(const zz of [50, 92]) tube([0, sb*(rz(zz) - 1), zz], [0, pb, zz], 3.2, 0x3a3e46);
+        tube([0, pb, 26], [0, pb, 160], 3.4, 0xc9ced4);
+        const zc = 180, R = 22, oct = (r, a0 = 0.6) => { const o = []; for(let i = 0; i < 8; i++){ const a = (i + 0.5)/8*Math.PI*2; o.push(P(a0, pb + Math.cos(a)*r, zc + Math.sin(a)*r)); } return o.map(PT); };
+        if(!front){ g.fillStyle(0x5a606a, 1); g.fillPoints(oct(R, -0.6), true); g.fillStyle(0x8d959c, 1); g.fillPoints(oct(R - 1.6, -0.7), true); return; }
+        g.fillStyle(0xf6f6f2, 1); g.fillPoints(oct(R), true); g.fillStyle(0xd8261c, 1); g.fillPoints(oct(R - 2.4), true);
+        /* STOP, big enough to read on an iPad: four letters stroked in white, 13 high */
+        const L = (pts, ox) => { g.lineStyle(Math.max(1.8, 2.6*K), 0xf6f6f2, 1); const o = pts.map(([u, v]) => PT(P(1, pb - ox - u*3.3, zc + v*6.2))); g.strokePoints(o, false); };   /* (+b runs to his left: read left to right from in front) */
+        L([[1, 1], [-1, 1], [-1, 0], [1, 0], [1, -1], [-1, -1]], -12.3); L([[-1, 1], [1, 1]], -4.1); L([[0, 1], [0, -1]], -4.1);
+        L([[-1, 1], [1, 1], [1, -1], [-1, -1], [-1, 1]], 4.1); L([[-1, -1], [-1, 1], [1, 1], [1, 0], [-1, 0]], 12.3); };
       if(st === 'back' && !sees(0, sb, 0)) paddle();
-      if(st === 'body'){ for(const [z0, z1] of [[24, 29], [96, 100.5]]) band([[z0, rz(z0) + 0.7], [z1, rz(z1) + 0.7]], 0xd9dde2);
-        sline([0.42, 102], [0.42, 72], 0xd9dde2, 2.4); sline([-0.42, 102], [-0.42, 72], 0xd9dde2, 2.4);
-        sline([Math.PI + 0.42, 102], [Math.PI + 0.42, 72], 0xd9dde2, 2.4); sline([Math.PI - 0.42, 102], [Math.PI - 0.42, 72], 0xd9dde2, 2.4); }
-      if(st === 'top'){ ballCap(0xff7a1a, 0xe8601a); if(sees(0, sb, 0)) paddle(); }
+      if(st === 'body'){ for(const [z0, z1] of [[24, 29], [96, 100.5]]) band([[z0, rz(z0) + 0.7], [z1, rz(z1) + 0.7]], SIL);
+        for(const s2 of [-1, 1]) sline([s2*0.62, 100.5], [s2*0.62, 70], SIL, 2.8);   /* (the braces up his front, clear of his face) */
+        for(const s2 of [-1, 1]) sline([Math.PI - s2*0.62, 100.5], [Math.PI + s2*0.62, 70], SIL, 2.8); }   /* (the X across his back) */
+      if(st === 'top'){ ballCap(0xff7a1a, 0xe8601a); band([[118, 24.4], [121, 23.6]], SIL); if(sees(0, sb, 0)) paddle(); }
       return; }
     if(c === 'ranger'){   /* khaki shirt, olive trousers, a leather belt, a gold badge, a neckerchief; a broad flat-brimmed campaign hat, its crown pinched four ways */
       if(st === 'body'){ decal([[-0.13, 67], [0.13, 67], [0.13, 58], [-0.13, 58]], 0xc9a24a); decal([[-0.08, 65], [0.08, 65], [0.08, 60], [-0.08, 60]], 0x5a3a1e);
