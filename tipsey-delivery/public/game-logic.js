@@ -128975,7 +128975,11 @@ class WorldScene extends Phaser.Scene {
         for(const zz of [50, 92]) tube([0, sb*(rz(zz) - 1), zz], [0, pb, zz], 3.2, 0x3a3e46);
         tube([0, pb, 26], [0, pb, 160], 3.4, 0xc9ced4);
         const zc = 180, R = 22, oct = (r, a0 = 0.6) => { const o = []; for(let i = 0; i < 8; i++){ const a = (i + 0.5)/8*Math.PI*2; o.push(P(a0, pb + Math.cos(a)*r, zc + Math.sin(a)*r)); } return o.map(PT); };
-        if(!front){ g.fillStyle(0x5a606a, 1); g.fillPoints(oct(R, -0.6), true); g.fillStyle(0x8d959c, 1); g.fillPoints(oct(R - 1.6, -0.7), true); return; }
+        if(!front){   /* ITS BACK (Sir, 2026-11-18): SLOW, black letters on an orange field, a black rim; read left to right from behind */
+          g.fillStyle(0x16171b, 1); g.fillPoints(oct(R, -0.6), true); g.fillStyle(0xff8a1a, 1); g.fillPoints(oct(R - 2.4, -0.7), true);
+          const Lb = (pts, ox) => { g.lineStyle(Math.max(1.8, 2.6*K), 0x16171b, 1); g.strokePoints(pts.map(([u, v]) => PT(P(-1, pb + ox + u*3.3, zc + v*6.2))), false); };
+          Lb([[1, 1], [-1, 1], [-1, 0], [1, 0], [1, -1], [-1, -1]], -12.3); Lb([[-1, 1], [-1, -1], [1, -1]], -4.1);
+          Lb([[-1, 1], [1, 1], [1, -1], [-1, -1], [-1, 1]], 4.1); Lb([[-1.1, 1], [-0.55, -1], [0, 0.3], [0.55, -1], [1.1, 1]], 12.3); return; }
         g.fillStyle(0xf6f6f2, 1); g.fillPoints(oct(R), true); g.fillStyle(0xd8261c, 1); g.fillPoints(oct(R - 2.4), true);
         /* STOP, big enough to read on an iPad: four letters stroked in white, 13 high */
         const L = (pts, ox) => { g.lineStyle(Math.max(1.8, 2.6*K), 0xf6f6f2, 1); const o = pts.map(([u, v]) => PT(P(1, pb - ox - u*3.3, zc + v*6.2))); g.strokePoints(o, false); };   /* (+b runs to his left: read left to right from in front) */
