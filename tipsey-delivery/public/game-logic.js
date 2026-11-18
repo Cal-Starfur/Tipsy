@@ -129111,8 +129111,8 @@ class WorldScene extends Phaser.Scene {
         const blob = (ca, cz, ra, rz, sd) => [...Array(14)].map((_, i) => { const q = i/14*Math.PI*2, k = 1 + 0.28*Math.sin(3*q + sd) + 0.16*Math.sin(5*q + sd*2.3); return [ca + Math.cos(q)*ra*k, cz + Math.sin(q)*rz*k]; });
         const CAMO = [[-24, 59, 7, 4, 0x8a6a40, 1], [-10, 53, 8, 3.4, 0xa8885a, 2], [4, 61, 7, 3.6, 0x6a5a3a, 3], [18, 54, 6, 3, 0x8a6a40, 4], [-18, 63, 5, 2.4, 0x6a5a3a, 5], [26, 61, 4, 3, 0xa8885a, 6]];
         const pouch = sb => { const b0 = sb*(HY + 0.4), b1 = sb*(HY + 6.5), lo = Math.min(b0, b1), hi = Math.max(b0, b1);
-          boxS(-20, 2, lo, hi, 49, 63, 0x6a6a3a); boxS(-20.4, 2.4, lo - 0.3, hi + 0.3, 59, 63.6, 0x55552e);   /* (the pouch, its flap) */
-          if(sees(0, sb, 0)) for(const a of [-14, -4]){ g.fillStyle(0x3a3a20, 1); g.fillPoints([P(a - 1.2, sb*(HY + 6.8), 63.6), P(a + 1.2, sb*(HY + 6.8), 63.6), P(a + 1.2, sb*(HY + 6.8), 55), P(a - 1.2, sb*(HY + 6.8), 55)].map(PT), true);
+          boxS(-10, 12, lo, hi, 49, 63, 0x6a6a3a); boxS(-10.4, 12.4, lo - 0.3, hi + 0.3, 59, 63.6, 0x55552e);   /* (between its hips, clear of the legs) */   /* (the pouch, its flap) */
+          if(sees(0, sb, 0)) for(const a of [-4, 6]){ g.fillStyle(0x3a3a20, 1); g.fillPoints([P(a - 1.2, sb*(HY + 6.8), 63.6), P(a + 1.2, sb*(HY + 6.8), 63.6), P(a + 1.2, sb*(HY + 6.8), 55), P(a - 1.2, sb*(HY + 6.8), 55)].map(PT), true);
             g.fillStyle(0xb8a070, 1); g.fillPoints([P(a - 1.4, sb*(HY + 6.9), 57.5), P(a + 1.4, sb*(HY + 6.9), 57.5), P(a + 1.4, sb*(HY + 6.9), 55.5), P(a - 1.4, sb*(HY + 6.9), 55.5)].map(PT), true); } };
         if(st === 'far') pouch(-nearB);
         if(st === 'flank'){ for(const sb of [-1, 1]) for(const [a, zz, ra, rz, col, sd] of CAMO) flankQ(sb, blob(a - sb*3, zz, ra, rz, sd + sb), col);
@@ -129164,8 +129164,8 @@ class WorldScene extends Phaser.Scene {
     if(sees(0, 0, -1)) solid(prismH([[-30, -12], [30, -12], [30, 12], [-30, 12]], Z0 - 3, Z0), DARK, null, false);
     for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const a of [-12, 12]){ const A = P(a, sb*(HY + 0.5), 58), B = P(a, sb*(HY + 0.5), 65); g.lineStyle(Math.max(1, 1*K), _pdk(BODYC.dk, 0.8), 1); g.lineBetween(A.x, A.y, B.x, B.y); }
     if(WEAR && !DS) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
-    if(!(DS && DS.noRails)) for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);   /* (the rails along its back: on the torso, under whatever it carries) */
     dogAcc('flank');
+    if(!(DS && DS.noRails)) for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);   /* (the rails along its back: over its paint, under whatever it carries) */
     /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
        the head, nose-on the head is nearer than the legs beside it */
     const top = legs.filter(L => L.sb === nearB).map(L => ({ d: V.depth(L.ha, L.sb*18, 28), f: () => leg(L) }));
