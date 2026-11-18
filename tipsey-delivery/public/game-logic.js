@@ -129013,7 +129013,8 @@ class WorldScene extends Phaser.Scene {
       const foot = () => this.avLathe(V, Fp[0], bo, [[Fp[2] - FOOTR, 1.6], [Fp[2] - FOOTR*0.4, FOOTR], [Fp[2] + FOOTR*0.6, FOOTR*0.85], [Fp[2] + FOOTR, 0]], FOOT, null, 10);
       const near = sb === nearB, steps = near ? [motor, thigh, shin, knee, foot] : [shin, foot, thigh, knee, motor];
       for(const f of steps) f();
-      if(DS && DS.dog === 'neon'){ line(H, Kn, 0x5fe8ff, 1.4); line(Kn, Fp, 0x5fe8ff, 1.2); } };
+      if(DS && DS.dog === 'neon'){ line(H, Kn, 0x5fe8ff, 1.6); line(Kn, Fp, 0xff4ad8, 1.4);   /* (its legs lit, its feet glowing) */
+        const q = P(Fp[0], bo, 0.5), r = 6*this.kScale(); g.fillStyle(0x5fe8ff, 0.22); g.fillEllipse(q.x, q.y, r*2.4, r*1.2); g.fillStyle(0x5fe8ff, 0.12); g.fillEllipse(q.x, q.y, r*4, r*2); } };
     const byDepth = arr => arr.sort((p, q) => V.depth(p.ha, p.sb*20, 30) - V.depth(q.ha, q.sb*20, 30));
     /* its beacon on its back up by its head (his flag's colour -- Sir, 2026-11-18), a rail either side behind it */
     const beacon = () => { if(DS && DS.noBeacon) return;
@@ -129125,12 +129126,15 @@ class WorldScene extends Phaser.Scene {
           this.avLathe(V, HX - 2, 0, [[67, 5], [70, 4.6], [72.5, 2.8], [73.5, 0]], 0x55552e, null, 12);
           if(front){ const q = P(HX + 3.2, 0, 69.5), r = 1.8*K*2; g.fillStyle(0x16171b, 1); g.fillCircle(q.x, q.y, r*1.3); g.fillStyle(0x5fe8e0, 1); g.fillCircle(q.x, q.y, r*0.6); } }
       }
-      if(c === 'neon'){
+      if(c === 'neon'){   /* (second pass -- Sir, 2026-11-18): black, its band lit cyan, cyan lines round its back's edges and magenta chevrons down
+           its spine; a glowing cyan visor across its face, haloed; cyan and magenta lines down its legs, its feet lit; a soft glow under it */
+        const glowAt = (q, col, r) => { g.fillStyle(col, 0.16); g.fillCircle(q.x, q.y, r); g.fillStyle(col, 0.09); g.fillCircle(q.x, q.y, r*1.8); };
         if(st === 'flank'){ g.lineStyle(Math.max(1.4, 2*K), 0x5fe8ff, 1);
-          for(const sb of [-1, 1]) if(sees(0, sb, 0)) for(const zz of [47, 65]){ const A = P(-29, sb*(HY + 0.8), zz), B = P(29, sb*(HY + 0.8), zz); g.lineBetween(A.x, A.y, B.x, B.y); }
-          for(const sb of [-1, 1]) if(sees(0, 0, 1)){ const A = P(-29, sb*(HY - 2.5), Z1 + 0.4), B = P(29, sb*(HY - 2.5), Z1 + 0.4); g.lineBetween(A.x, A.y, B.x, B.y); } }
-        if(st === 'head' && front){ g.lineStyle(Math.max(1.6, 2.4*K), 0x5fe8ff, 1); const A = P(HX + 11.5, -10, 63), B = P(HX + 11.5, 10, 63); g.lineBetween(A.x, A.y, B.x, B.y);
-          g.fillStyle(0x5fe8ff, 0.12); g.fillPoints([P(HX + 11.6, -10, 61), P(HX + 11.6, 10, 61), P(HX + 11.6, 10, 65), P(HX + 11.6, -10, 65)].map(PT), true); }
+          if(sees(0, 0, 1)){ for(const sb of [-1, 1]){ const A = P(-29, sb*(HY - 2.5), Z1 + 0.4), B = P(29, sb*(HY - 2.5), Z1 + 0.4); g.lineBetween(A.x, A.y, B.x, B.y); }
+            for(const a of [-20, -10, 0, 10]) topQ([[a, -5], [a + 4, 0], [a, 5], [a - 2, 5], [a + 2, 0], [a - 2, -5]], 0xff4ad8, 0.95, Z1 + 0.5); } }
+        if(st === 'head' && front){ const V0 = [P(HX + 11.6, -9.5, 54), P(HX + 11.6, 9.5, 54), P(HX + 11.6, 9.5, 59), P(HX + 11.6, -9.5, 59)];
+          glowAt(P(HX + 12, 0, 56.5), 0x5fe8ff, 12*this.kScale()); g.fillStyle(0x5fe8ff, 1); g.fillPoints(V0.map(PT), true);
+          g.fillStyle(0xe8fdff, 1); g.fillPoints([P(HX + 11.8, -8, 55.6), P(HX + 11.8, 8, 55.6), P(HX + 11.8, 8, 57.2), P(HX + 11.8, -8, 57.2)].map(PT), true); }
       }
       if(c === 'mail'){
         const strap = () => { for(const sb of [-1, 1]) flankQ(sb, [[-11, 46.5], [-7, 46.5], [-7, 65.5], [-11, 65.5]], 0x6a4a2a); topQ([[-11, -HY + 1], [-7, -HY + 1], [-7, HY - 1], [-11, HY - 1]], 0x6a4a2a); };
