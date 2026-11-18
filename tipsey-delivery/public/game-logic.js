@@ -128924,7 +128924,14 @@ class WorldScene extends Phaser.Scene {
         const { solid, prismH } = V; solid(prismH([[-33, -2.5], [-24.5, -2.5], [-24.5, 2.5], [-33, 2.5]], 96, 100), 0x5a606a, null, false); };   /* (its peg) */
       const cross = (th, dz = 0) => { decal([[th - 0.08, 46 + dz], [th + 0.08, 46 + dz], [th + 0.08, 22 + dz], [th - 0.08, 22 + dz]], 0xf6f6f2); decal([[th - 0.3, 38 + dz], [th + 0.3, 38 + dz], [th + 0.3, 30 + dz], [th - 0.3, 30 + dz]], 0xf6f6f2); };
       if(st === 'back' && !back) ring();
-      if(st === 'body'){ cross(0, 24); cross(Math.PI, -8); if(back) ring();   /* (the front's cross up on his chest; the back's lower, clear of the ring) */
+      if(st === 'body'){ cross(0, 24); cross(Math.PI, -8); if(back) ring();
+        /* BLUE SUNGLASSES over his eyes (Sir, 2026-11-18): two mirrored lenses laid on his curve, a white frame, a bridge, arms back to his sides */
+        { const lens = (th, rb, rzz, cut) => [...Array(18)].map((_, k) => { const ph = k/18*Math.PI*2, c2 = Math.cos(ph), s2 = Math.sin(ph); return [th + c2*rb/rz(90), 90 + s2*rzz*(s2 > 0 ? 1 : cut)]; });
+          for(const sb of [-1, 1]){ const th = sb*0.27;
+            decal(lens(th, 7.6, 6, 1.15), 0xf6f6f2, 1, 1.0); decal(lens(th, 6.4, 4.9, 1.15), 0x1e5ad8, 1, 1.15); decal(lens(th, 6.4, 2.4, 0.2).map(([a2, zz]) => [a2, zz + 2.4]), 0x5fb0ff, 0.85, 1.25);
+            decal([[th - sb*0.05 - 0.07, 93.2], [th - sb*0.05 - 0.02, 93.2], [th - sb*0.05 - 0.09, 88.5], [th - sb*0.05 - 0.14, 88.5]], 0xffffff, 0.75, 1.3);
+            sline([sb*0.52, 92], [sb*0.95, 93], 0xf6f6f2, 2); }
+          sline([-0.06, 91.5], [0.06, 91.5], 0xf6f6f2, 2.2); }   /* (the front's cross up on his chest; the back's lower, clear of the ring) */
         for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
         { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
           decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
