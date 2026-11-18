@@ -46016,7 +46016,11 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   /* (opts.panes: a pair of panelled wooden leaves, a glazed light of small panes over a raised panel, a brass knob -- an old shop's door, the
      bookshop's (Driftwood Books): drawn by the kit, the leaves `trim`, the glass opts.panes. A walk-in's (SEE) swing in, as the studded pair) */
   const panes = (opts && opts.panes) || null;
-  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, studs, panes, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  /* (opts.single, with pair: ONE wide leaf, hinged at the a0 jamb -- a walk-in's single door (Sir, 2026-11-18, Driftwood Books: "the exterior has
+     a single door and the interior has a double ... pull a single door look into our kit"): the opening a hole and the leaf live as a pair's,
+     the one leaf its own piece (shopDoorLeafKeys), swinging in; from inside the same leaf, cut to the front wall's height) */
+  const single = !!(opts && opts.single);
+  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, single, glazed, studs, panes, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -46140,6 +46144,7 @@ function shopInterior(d, t, Z0, Z1){
    1 the a1's; null both */
 let SHOP_LEAF_PICK = null;
 function shopDoorLeaves(d){
+  if(d.single){ const L1 = [[d.a0+2, 1, d.a1-2 - (d.a0+2)]]; return SHOP_LEAF_PICK == null || SHOP_LEAF_PICK === 0 ? L1 : []; }   // (one wide leaf: pick 0 is it)
   if(!d.half && !d.pair) return [[d.a0+2, 1, d.a1-2 - (d.a0+2)]];
   const mA = (d.a0 + d.a1)/2;
   const L = [[d.a0+2, 1, mA - 1 - (d.a0+2)], [d.a1-2, -1, d.a1-2 - (mA+1)]];
@@ -61166,6 +61171,7 @@ function houseCanopy(fn){
 },
 {
   name:'Driftwood Books', xh: 336, base:'Bookshop', hood:'The Flats', edited:true, sc:1.3, tall:true,
+  signOverDoor: { a0: 170, a1: 225, b: 32 },   // (its hanging sign queued on its own after the door's leaf: part 'sign', its reach along the frontage and out)
   see: true,   // (a walk-in: its doorway shows the bookshop, BK_IN -- W11)
   /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
      only once he is in it (BK_IN's glass < 0, W32) */
@@ -61211,6 +61217,32 @@ function houseCanopy(fn){
        Geometry untouched: every edit is a colour. */
     const wall = '#9c9384', trim = '#f3eee2', H = 336, GF = 168;
     const inner = shade(wall,.35);
+    const sign = () => {
+      /* THE SIGN LANDED ON THE DISPLAY WINDOW. Scaled up as it was, the
+         arm reached b 60 and the board hung at 56..62, so it shifted
+         about 59 left on screen and covered the lower half of the shop
+         window -- which is now the showpiece, with the books and the
+         ladder behind real glass. It was not wrong before because the
+         window was an opaque panel with nothing worth seeing in it.
+
+         Two changes. The arm springs from the WALL at b 2 rather than
+         starting at b 30 in mid-air under the overhang, and it reaches
+         only b 30, so the sign hangs under the jetty instead of beyond
+         it -- which is what a jettied building gives you the overhang
+         for. And it moves right to a 170.2..225.4, so it reads screen-a
+         138.2..199.4 against a window that ends at 142.6: 4 of overlap
+         instead of 40, and the board sits over the doorway where a shop
+         sign belongs. */
+      /* (ITS OWN PIECE IN THE GAME, signOverDoor: it hangs out over the doorway, and in the shop's image the door's live leaf, queued after
+         it, swung over it -- Sir, 2026-11-18: "the door on the exterior is drawing over the sign when it opens". The shop loop draws the
+         body without it (part 'body') and it alone (part 'sign') keyed at its nearest corner, after the door) */
+      tube(W*0.86, 2, GF-14, W*0.86, 30, GF-14, 2, '#4a3a2c');
+      tube(W*0.86, 28, GF-14, W*0.86, 28, GF-26, 1.2, '#4a3a2c');
+      slab(W*0.74, W*0.98, GF-60, GF-26, 32, 26, trim, shade(wall,.6), shade(trim,1.1));
+      F(W*0.77, W*0.95, GF-50, GF-45, shade(wall,.7), null,0, 32.5);
+      F(W*0.77, W*0.91, GF-40, GF-35, shade(wall,.7), null,0, 32.5);
+        };
+    if(state.part === 'sign'){ if(state.props) sign(); return; }   // (the hanging sign alone: its own piece in the game, signOverDoor)
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#b7b1a6');   // Flats roof, over body's trim-coloured plate
     /* THE JETTY IS GONE AND SO IS EVERYTHING THAT CARRIED IT, at Sir's
@@ -61389,7 +61421,7 @@ function houseCanopy(fn){
        default to the kit's cool blue. */
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): a pair of panelled leaves, small panes over a raised panel, 100 across -- a walk-in's (see),
        its opening a hole onto the bookshop, its leaves live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 100, pair: true, panes: 'rgba(150,176,186,.72)' });
+    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 100, pair: true, single: true, panes: 'rgba(150,176,186,.72)' });
     /* THE WINDOW HEAD DOES THE TYING, not a band. It comes down from
        132 to 120, which puts it within 5 of the door surround at 114.9
        -- close enough to read as one shopfront under one line, and it
@@ -61397,28 +61429,7 @@ function houseCanopy(fn){
        a second horizontal into the busiest part of the elevation. The
        book grid follows it down to z 34..104. */
 
-    if(state.props){
-      /* THE SIGN LANDED ON THE DISPLAY WINDOW. Scaled up as it was, the
-         arm reached b 60 and the board hung at 56..62, so it shifted
-         about 59 left on screen and covered the lower half of the shop
-         window -- which is now the showpiece, with the books and the
-         ladder behind real glass. It was not wrong before because the
-         window was an opaque panel with nothing worth seeing in it.
-
-         Two changes. The arm springs from the WALL at b 2 rather than
-         starting at b 30 in mid-air under the overhang, and it reaches
-         only b 30, so the sign hangs under the jetty instead of beyond
-         it -- which is what a jettied building gives you the overhang
-         for. And it moves right to a 170.2..225.4, so it reads screen-a
-         138.2..199.4 against a window that ends at 142.6: 4 of overlap
-         instead of 40, and the board sits over the doorway where a shop
-         sign belongs. */
-      tube(W*0.86, 2, GF-14, W*0.86, 30, GF-14, 2, '#4a3a2c');
-      tube(W*0.86, 28, GF-14, W*0.86, 28, GF-26, 1.2, '#4a3a2c');
-      slab(W*0.74, W*0.98, GF-60, GF-26, 32, 26, trim, shade(wall,.6), shade(trim,1.1));
-      F(W*0.77, W*0.95, GF-50, GF-45, shade(wall,.7), null,0, 32.5);
-      F(W*0.77, W*0.91, GF-40, GF-35, shade(wall,.7), null,0, 32.5);
-    }
+    if(state.props && state.part !== 'body') sign();
     if(state.roof) box(W*0.30,W*0.54,-150,-108,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
   },
@@ -106445,7 +106456,9 @@ class WorldScene extends Phaser.Scene {
         try { for(const fn of who) fn(g, tt); } finally { this.drawClip = null; this._seenThrough = st0; }
       };
       const _lk = this.shopDoorLeafKeys(d, k);
-      if(_lk.length < 2) blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
+      /* (one leaf is its own piece too when the kit keys it -- a single wide leaf, pick 0, swinging in: at the doorway's middle it was drawn over
+         him as he came through, Driftwood Books 2026-11-18) */
+      if(_lk.length < 2 && _lk[0].pick == null) blockVQ.push({ depth: d.x + d.y + 0.3, fn: (g, tt) => this.withAlpha(g, _dk, () => {
         const clip = who && LIB.doorOpening(d.lib, G, this.K, d.flank, d.labA);
         LIB.drawDoorOpen(d.lib, g, G, this.K, d.flank, d.labA, k, clip ? between(g, tt, clip) : null);
       }) });
@@ -110687,9 +110700,16 @@ class WorldScene extends Phaser.Scene {
         }
         const porchB = (_e && _e.porch !== undefined)
           ? (_e.porch + (_e.boff || 0)) * (_e.sc || 1) : null;
-        const _bk = "hs|" + lib + "|" + Math.round(ux) + "," + Math.round(uy) + "|" + (flank ? 1 : 0) + (rear ? 1 : 0) + (porchB === null ? "" : "b");
+        /* (A SIGN OVER ITS DOOR, signOverDoor: the shop's hanging sign stands out over its doorway, and the door's live leaf -- queued after the
+           shop's image -- swung over it. The body without it, and it on its own keyed at its nearest corner, past the door: CLAUDE.md's rule for
+           what stands out over a live door. Driftwood Books, 2026-11-18) */
+        const _sg = _e && _e.signOverDoor && !rear ? _e.signOverDoor : null;
+        const _bk = "hs|" + lib + "|" + Math.round(ux) + "," + Math.round(uy) + "|" + (flank ? 1 : 0) + (rear ? 1 : 0) + (porchB === null ? "" : "b") + (_sg ? "s" : "");
         this.queueUnitStrips(vq, ux, uy, e.dv, e.rv, u.w, Math.max(STORE_DEPTH, hoodShopD(lib)), 0, (g) =>
-          this.bcDraw(g, _bk, ux, uy, gg => LIB.draw(lib, gg, G, null, this.K, porchB === null ? null : { part:'body' }, flank, rear)));
+          this.bcDraw(g, _bk, ux, uy, gg => LIB.draw(lib, gg, G, null, this.K, porchB === null && !_sg ? null : { part:'body' }, flank, rear)));
+        if(_sg){ const c = [hoodShopWorld(e, u, _e, _sg.a0, _sg.b), hoodShopWorld(e, u, _e, _sg.a1, _sg.b)], w = c[0].x + c[0].y > c[1].x + c[1].y ? c[0] : c[1];
+          vq.push({ depth: w.x + w.y + 0.5, fn: (g) => this.bcDraw(this.propLayer(g, w.x, w.y), _bk + "|sg", ux, uy,
+            gg => LIB.draw(lib, gg, G, null, this.K, { part:'sign' }, flank, rear)) }); }
         if(porchB !== null){
           const px = ux + e.dv.x*(u.w/2) + e.rv.x*porchB, py = uy + e.dv.y*(u.w/2) + e.rv.y*porchB;
           /* ...AND ITS POSTS EACH ON THEIR OWN BASE (Sir, 2026-09-26: "you
@@ -132965,6 +132985,10 @@ class WorldScene extends Phaser.Scene {
     if(!rec || !(rec.pair || rec.half) || !ent) return [{ pick: null, depth: d.x + d.y + 0.3 }];
     const SC = ent.sc || 1, lotW = ent.ww || 230, mir = (d.e.dv.x + d.e.dv.y) <= 0 && ent.mirror !== false;
     const along = a => d.ux + d.e.dv.x*(mir ? lotW - a : a)*SC, alongY = a => d.uy + d.e.dv.y*(mir ? lotW - a : a)*SC;
+    if(rec.single){   // (one wide leaf: one piece, at its own middle as it swings -- in, behind the door's plane, for a walk-in's)
+      const len = (rec.a1 - rec.a0)*SC, ang1 = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw1 = rec.see ? -1 : 1, a = rec.a0 + (rec.a1 - rec.a0)/2*Math.cos(ang1);
+      const out1 = inw1*(len/2)*Math.sin(ang1) + inw1*2, x = along(a) + d.e.rv.x*out1, y = alongY(a) + d.e.rv.y*out1;
+      return [{ pick: 0, depth: x + y }]; }
     const half = (rec.a1 - rec.a0)/2*SC, ang = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw = rec.see && (rec.studs || rec.panes), out = (inw ? -1 : 1)*(half/2)*Math.sin(ang) + (inw ? -2 : 2);   // (a studded or panelled walk-in pair swings in: its leaves behind the door's plane)
     return [[0, rec.a0 + (rec.a1 - rec.a0)/4], [1, rec.a1 - (rec.a1 - rec.a0)/4]].map(([pick, a]) => {
       const x = along(a) + d.e.rv.x*out, y = alongY(a) + d.e.rv.y*out; return { pick, depth: x + y }; });
