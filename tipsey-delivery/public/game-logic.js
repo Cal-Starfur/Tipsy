@@ -44520,7 +44520,10 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
     const s0 = a0 + (a1 - a0)*k/n, s1 = a0 + (a1 - a0)*(k + 1)/n;
     items.push(Object.assign({ a: (s0 + s1)/2, b: b1, z: 0, fpLab: { a0: s0, a1: s1, b0: b0, b1: b1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
       const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
-      for(const a of [e0, e1]) for(const b of [b0 - 30, b1 + 30]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
+      /* (o.pad: how far past its front and back its clip reaches -- 30 by default, a wall's thickness; a counter with things stood on it
+         (the tea house's urns) passes a few, so a run's clip does not reach over the next stretch's top where they stand) */
+      const PAD = o && o.pad != null ? o.pad : 30;
+      for(const a of [e0, e1]) for(const b of [b0 - PAD, b1 + PAD]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
       pts.sort((p, q) => p.x - q.x || p.y - q.y);
       const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x), lo = [], hi = [];
       for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
@@ -55654,9 +55657,14 @@ function houseCanopy(fn){
       runPiece(items, A0, A1, B0, B1, 160, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'brewing counter')], () => {
         box(A0, A1, B0, B1, 0, 82, wood, woodF, woodS); F(A0 + 4, A1 - 4, 40, 44, gold, null, 0, B1 + 0.4);
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
-        for(const ua of [60, 130, 200]){ cyl(ua, B0 + 18, 88, 92, 14, brassD); cyl(ua, B0 + 18, 92, 128, 12, brass, shade(brass, 1.15)); cyl(ua, B0 + 18, 128, 134, 7, brassD); F(ua + 10, ua + 14, 100, 104, dark, null, 0, B0 + 30.3); }
-        for(let k = 0; k < 5; k++) cyl(90 + k*26, B1 - 8, 88, 93, 4, '#f4f0e6');
-      }); }
+      }, { pad: 5 });
+      /* THE URNS, each ITS OWN PIECE on the counter (Sir, 2026-11-18: "these two farther jugs dont paint like the first one"): drawn inside the
+         counter's runs, one standing across a run's seam was painted twice, half by each, its outlines doubled. Keyed a little over the
+         counter (z 62: after the runs its clip meets -- the counter's pad 5 -- before a guest in front of it) */
+      for(const ua of [60, 130, 200]) items.push({ a: ua, b: B1 + 0.5, z: 62, solids: [], draw: () => {
+        cyl(ua, B0 + 18, 88, 92, 14, brassD); cyl(ua, B0 + 18, 92, 128, 12, brass, shade(brass, 1.15)); cyl(ua, B0 + 18, 128, 134, 7, brassD); F(ua + 10, ua + 14, 100, 104, dark, null, 0, B0 + 30.3);
+        cyl(ua + 22, B1 - 8, 88, 93, 4, '#f4f0e6'); } });   // (and a tea bowl beside it -- clear of the counter's seams)
+    }
 
     /* ---- THE TEA BAR: red lacquer, a dark top, the kettle on its brazier, teapots and cups set out ---- */
     { const A0 = 300, A1 = 720, B0 = 64, B1 = 98;   // (as the brewing counter: 52 clear behind it for the tea master)
