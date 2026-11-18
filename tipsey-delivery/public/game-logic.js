@@ -128584,17 +128584,21 @@ class WorldScene extends Phaser.Scene {
       return; }
     if(c === 'mummy'){   /* (second pass -- Sir, 2026-11-17): bandages wound round him at slants, crossing over each other in two tones with dark edges;
          his head wrapped too, one eye peeking through a gap; strips across his lid; a loose end flapping off his back */
-      const L1 = 0xf0e6c6, L2 = 0xd6caa0, ED = 0xa8986a, sides = [[1, 0, hx, hy], [-1, 0, -hx, hy], [0, 1, hy, hx], [0, -1, -hy, hx]];
-      const strips = (z0, z1, rows, seed) => { for(const [na, nb, off, half] of sides){ if(!sees(na, nb, 0)) continue; const at = (u, zz) => na ? P(off + na*0.9, u, zz) : P(u, off + nb*0.9, zz);
-          for(let k = 0; k < rows; k++){ const zc = z0 + (k + 0.5)*(z1 - z0)/rows, tl = ((k + seed) % 2 ? 1 : -1)*2, h = (z1 - z0)/rows*0.56;
-            const pts = [at(-half, zc - tl - h), at(half, zc + tl - h), at(half, zc + tl + h), at(-half, zc - tl + h)]; g.fillStyle(k % 2 ? L2 : L1, 1); g.fillPoints(pts.map(PT), true);
-            g.lineStyle(Math.max(1, 0.8*K), ED, 1); g.lineBetween(pts[0].x, pts[0].y, pts[1].x, pts[1].y); } } };
-      if(st === 'body') strips(12, 76, 8, 0);
-      if(st === 'face' && front){ strips(76, 102, 3, 1);
-        const q = P(hx + 0.6, 6.5, 86); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, sr(hx, 6, 86, 5)*1.6, sr(hx, 6, 86, 3.4)*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y, sr(hx, 6, 86, 1.8));   // (one eye peeking through a gap)
-        onFront([[-15, 88.5], [3, 91.5], [3, 92.5], [-15, 89.5]], ED); }
-      if(st === 'face' && !front) strips(76, 102, 3, 1);
-      if(st === 'top'){ for(let i = -3; i <= 3; i++){ const a0 = i*6; g.fillStyle(i % 2 ? L1 : L2, 1); g.fillPoints([P(a0 - 2.5, -hy + 4, zl + 0.3), P(a0 + 2.5, -hy + 4, zl + 0.3), P(a0 + 4.5, hy - 4, zl + 0.3), P(a0 - 0.5, hy - 4, zl + 0.3)].map(PT), true); }
+      /* (wrapped round his own shape -- Sir, 2026-11-17: "too rigid and boxy"): bands in his octagonal plan, overlapping in two tones, and
+         slanted strips wound round his faces following the chamfered corners -- nothing standing off him */
+      const L1 = 0xf0e6c6, L2 = 0xd6caa0, ED = 0xa8986a, C = 8, o = 0.9;
+      const plan = [[hx, -(hy - C)], [hx, hy - C], [hx - C, hy], [-(hx - C), hy], [-hx, hy - C], [-hx, -(hy - C)], [-(hx - C), -hy], [hx - C, -hy]];
+      const per = []; let tot = 0; for(let i = 0; i < 8; i++){ const A = plan[i], B = plan[(i + 1) % 8], l = Math.hypot(B[0] - A[0], B[1] - A[1]); per.push({ A, B, l, s0: tot, n: [ (B[1] - A[1])/l, -(B[0] - A[0])/l ] }); tot += l; }
+      const onPer = sv => { sv = ((sv % tot) + tot) % tot; for(const e of per) if(sv <= e.s0 + e.l){ const u = (sv - e.s0)/e.l; return { a: e.A[0] + (e.B[0] - e.A[0])*u + e.n[0]*o, b: e.A[1] + (e.B[1] - e.A[1])*u + e.n[1]*o, n: e.n }; } return null; };
+      const wind = (z0, rise, w, col, off) => { const N = 48; for(let i = 0; i < N; i++){ const s0 = off + i/N*tot, s1 = off + (i + 1)/N*tot, p0 = onPer(s0), p1 = onPer(s1); if(!p0 || !p1 || !sees(p0.n[0], p0.n[1], 0)) continue;
+          const z0a = z0 + (i/N)*rise, z1a = z0 + ((i + 1)/N)*rise; g.fillStyle(col, 1); g.fillPoints([P(p0.a, p0.b, z0a - w/2), P(p1.a, p1.b, z1a - w/2), P(p1.a, p1.b, z1a + w/2), P(p0.a, p0.b, z0a + w/2)].map(PT), true);
+          g.lineStyle(Math.max(1, 0.7*K), ED, 1); { const q0 = P(p0.a, p0.b, z0a - w/2), q1 = P(p1.a, p1.b, z1a - w/2); g.lineBetween(q0.x, q0.y, q1.x, q1.y); } } };
+      const wrapZone = (z0, z1) => { for(let zz = z0, k = 0; zz < z1; zz += 7, k++) this.botHull(g, x, y, z, fdir, { hx: hx + 0.6, hy: hy + 0.6, ch: C, z0: zz, z1: Math.min(z1, zz + 7.4), band: true, cLt: k % 2 ? L2 : L1, cDk: _pdk(k % 2 ? L2 : L1, 0.85) });
+        for(let zz = z0 + 4, k = 0; zz < z1 - 6; zz += 13, k++) wind(zz, 8, 4, k % 2 ? L1 : 0xf6eed6, k*23); };
+      if(st === 'body') wrapZone(12, 76);
+      if(st === 'face'){ wrapZone(76, 102);
+        if(front){ const q = P(hx + 1.2, 6.5, 86); g.fillStyle(0x16171b, 1); g.fillEllipse(q.x, q.y, sr(hx, 6, 86, 5)*1.6, sr(hx, 6, 86, 3.4)*1.6); g.fillStyle(0x7af8ff, 1); g.fillCircle(q.x, q.y, sr(hx, 6, 86, 1.8)); } }   // (one eye peeking through a gap)
+      if(st === 'top'){ for(let i = -2; i <= 2; i++){ const a0 = i*6.5, yb = hy - 7; g.fillStyle(i % 2 ? L1 : L2, 1); g.fillPoints([P(a0 - 2.8, -yb, zl + 0.3), P(a0 + 2.2, -yb, zl + 0.3), P(a0 + 3.8, yb, zl + 0.3), P(a0 - 1.2, yb, zl + 0.3)].map(PT), true); }   // (inside his lid's top)
         const t2 = t*0.004, A0 = [-hx, nearB*(hy - 4), 92], pts = [A0]; for(let i = 1; i <= 6; i++){ const u = i/6; pts.push([-hx - u*26, nearB*(hy - 2 + u*10) + Math.sin(t2 + u*3)*3.5*u, 92 - u*22 + Math.sin(t2*1.3 + u*4)*3*u]); }   // (a loose end flapping)
         for(let i = 0; i < 6; i++){ line(pts[i], pts[i + 1], ED, 7 - i*0.6); line(pts[i], pts[i + 1], L1, 5.4 - i*0.5); } }
       return; }
