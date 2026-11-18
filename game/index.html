@@ -30774,8 +30774,10 @@ function bkHold(s){
   const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
   return (s._bkH = { v: s.visit,
     /* open, in both hands before them: 22 across, 15 tall, its foot at their hands and leant back toward their face */
-    open: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1] - 1, W = 11, T = 15, lean = 7;
-      const c = (x, u) => [x, f - lean*u, h + T*u];
+    open: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2, h = at.hand[1] - 1, W = 11, T = 15;
+      /* (tipped AWAY from the reader, 45 degrees from where it was -- its foot at their hands, its top out past them, the pages turned up to
+         their eyes, as a book is read: Sir, 2026-11-18, "it needs to rotate away from the reader 45 degrees". It leant back toward the face) */
+      const c = (x, u) => [x, f - 1 + T*0.34*u, h - 1 + T*0.94*u];   // (45 off where it leant -- 25 back toward the face -- so 20 forward of upright: at 45 forward it stood edge-on to the camera for a reader facing east, all four corners on one line)
       /* (WHICH SIDE THE EYE SEES -- Sir, 2026-11-18: "the pages still are facing away from the reader": the pages face the reader, so the
          camera sees them only from behind or over a shoulder; from in front it sees the book's back, its covers and spine. Which, by
          the way the page face winds on screen) */
