@@ -106983,20 +106983,27 @@ class WorldScene extends Phaser.Scene {
     for(const { g, m } of L){ g.clear(); m.clear(); }
     if(!pk || k < 0.01){ if(k < 0.01) this._dimPk = this._inside && this._inside.displace ? this._inside : null; return; }
     const v = pk.view && pk.view(); if(!v) return;
-    const X0 = pk.x0 + v.dx - 34, Y0 = pk.y0 + v.dy - 34, X1 = pk.x0 + v.dx + pk.w + 34, Y1 = pk.y0 + v.dy + pk.d + 34, H = pk.h || 240;
-    const pts = [];
-    for(const x of [X0, X1]) for(const y of [Y0, Y1]) for(const z of [0, H]){ const q = this.W(x, y, z); pts.push({ x: q.x, y: q.y }); }
-    pts.sort((p, q) => p.x - q.x || p.y - q.y);
-    const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x), lo = [], hi = [];
-    for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
-    for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
-    lo.pop(); hi.pop(); const hull = lo.concat(hi);
-    const cx = hull.reduce((a, p) => a + p.x, 0)/hull.length, cy = hull.reduce((a, p) => a + p.y, 0)/hull.length;
+    /* (SNUG TO THE ROOM -- Sir, 2026-11-18, "tighten up the exterior shadow ... so its snug to the building's interior": its own outline,
+       not one box to the walls' full height -- the floor out to the walls' outer faces at the near walls' height, the two far walls full
+       height; each part's hull grown a little, layer by layer, for a soft edge a few pixels deep) */
+    const X = pk.x0 + v.dx, Y = pk.y0 + v.dy, Wd = pk.w, Dd = pk.d, H = pk.h || 240, LH = pk.LH || 66, T = 30;
+    const parts = [[-T, Wd + T, -T, Dd + T, 0, LH], [-T, Wd + T, -T, 0, 0, H], [-T, 0, -T, Dd + T, 0, H]];
+    const hullOf = ([a0, a1, b0, b1, z0, z1]) => {
+      const pts = [];
+      for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]){ const q = this.W(X + a, Y + b, z); pts.push({ x: q.x, y: q.y }); }
+      pts.sort((p, q) => p.x - q.x || p.y - q.y);
+      const cr = (o, p, q) => (p.x - o.x)*(q.y - o.y) - (p.y - o.y)*(q.x - o.x), lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop(); return lo.concat(hi);
+    };
+    const hulls = parts.map(hullOf);
     const vw = this.scale.gameSize.width, vh = this.scale.gameSize.height, K = this.K;
     L.forEach(({ g, m }, i) => {
-      const e = i*22*K;
+      const e = i*5*K;
       m.fillStyle(0xffffff, 1);
-      m.fillPoints(hull.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return new Phaser.Geom.Point(p.x + dx/d*e, p.y + dy/d*e); }), true);
+      for(const hull of hulls){ const cx = hull.reduce((a, p) => a + p.x, 0)/hull.length, cy = hull.reduce((a, p) => a + p.y, 0)/hull.length;
+        m.fillPoints(hull.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return new Phaser.Geom.Point(p.x + dx/d*e, p.y + dy/d*e); }), true); }
       g.fillStyle(0x0b0e14, 0.3*k); g.fillRect(-20, -20, vw + 40, vh + 40);
     });
   }
