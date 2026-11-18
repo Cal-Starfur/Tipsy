@@ -130762,17 +130762,46 @@ class WorldScene extends Phaser.Scene {
     const vel = this.ow ? Math.abs(this.ow.vel || 0) : 0;
     const crate = (a0, a1, b0, b1, h0, h1, col) => { box(a0, a1, b0, b1, h0, h1, col); if(sees(0, 0, 1)){ g.fillStyle(0xe8d8a8, 0.9); g.fillPoints([P(a0, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 - 1.2, h1 + 0.2), P(a1, (b0 + b1)/2 + 1.2, h1 + 0.2), P(a0, (b0 + b1)/2 + 1.2, h1 + 0.2)].map(PT), true); } };
 
-    if(id === 'amrlift'){   /* SCISSOR LIFT: a deck on two pairs of criss-cross arms; it rises while he stands and folds down as he drives */
+    if(id === 'amrlift'){   /* SCISSOR LIFT: a deck on criss-cross arms; it rises while he stands and folds down as he drives. (Second pass --
+         Sir, 2026-11-18): two stages of arms, pinned where they cross and at the ends, rollers at their sliding ends in yellow base channels;
+         a hydraulic ram up the middle; a deck with a yellow-and-black chevron toe board; top and mid rails, sorted far to near; an amber
+         beacon on its tail corner, flashing while it moves */
       if(st !== 'post') return;
       const goal = vel < 0.01 ? 1 : 0; this._amrLift = (this._amrLift == null ? goal : this._amrLift) + (goal - (this._amrLift == null ? goal : this._amrLift))*0.04;
-      const H = 10 + this._amrLift*58, DZ = TOP + 2 + H, A0 = -40, A1 = 40;
-      box(-44, 44, -30, 30, TOP, TOP + 2, DARK);
-      const arms = sb => { const bb = sb*26; tube([A0, bb, TOP + 2], [A1, bb, DZ], 4, Y); tube([A1, bb, TOP + 2], [A0, bb, DZ], 4, _pdk(Y, 0.85)); const m = P(0, bb, (TOP + 2 + DZ)/2); g.fillStyle(DARK, 1); g.fillCircle(m.x, m.y, 1.8*K*2); };
+      const H = 10 + this._amrLift*62, Z0 = TOP + 4, DZ = Z0 + H, ZM = Z0 + H/2, A0 = -38, A1 = 38, AB = 24, PIN = DARK;
+      const pin = (a, b, z, r) => { const m = P(a, b, z); g.fillStyle(PIN, 1); g.fillCircle(m.x, m.y, r*K*2); g.fillStyle(0x8d959c, 1); g.fillCircle(m.x - 0.3*K*2, m.y - 0.3*K*2, r*0.45*K*2); };
+      /* its base: two yellow channels along its sides on a dark cross plate */
+      box(-42, 42, -20, 20, TOP, TOP + 1.5, DARK);
+      for(const sb of [-nearB, nearB]) box(-44, 44, sb*AB - 4, sb*AB + 4, TOP, Z0, _pdk(Y, 0.9));
+      const arms = sb => { const bb = sb*(AB + 1), stg = [[Z0, ZM], [ZM, DZ]];
+        for(const [z0, z1] of stg){ tube([A0, bb, z0], [A1, bb, z1], 4, Y); tube([A1, bb, z0], [A0, bb, z1], 4, _pdk(Y, 0.85)); pin(0, bb, (z0 + z1)/2, 1.9); }
+        for(const [a, z] of [[A0, Z0], [A0, ZM], [A1, ZM], [A0, DZ]]) pin(a, bb, z, 1.6);
+        for(const z of [Z0, DZ]){ const m = P(A1, bb, z); g.fillStyle(0x16171b, 1); g.fillCircle(m.x, m.y, 2.4*K*2); g.fillStyle(0x5a6068, 1); g.fillCircle(m.x, m.y, 1*K*2); } };   /* (its rollers, at the sliding ends) */
       arms(-nearB);
-      tube([0, -26, (TOP + 2 + DZ)/2], [0, 26, (TOP + 2 + DZ)/2], 2.6, DARK);
+      /* the cross tubes at each stage's middle, and the ram from the base up to the lower one */
+      for(const z of [(Z0 + ZM)/2, (ZM + DZ)/2]) tube([0, -AB, z], [0, AB, z], 2.6, DARK);
+      const rb = [A0 + 6, 0, Z0 + 1], rt = [0, 0, (Z0 + ZM)/2], rm = rb.map((v, i) => v + (rt[i] - v)*0.55);
+      tube(rb, rm, 5.5, 0x3a3e46); tube(rm, rt, 2.8, 0xd8dde2);
       arms(nearB);
-      box(-46, 46, -32, 32, DZ, DZ + 4, STEEL);   /* (its deck, a yellow guard rail round it) */
-      for(const [p0, p1] of [[[-44, -30], [44, -30]], [[-44, 30], [44, 30]], [[-44, -30], [-44, 30]], [[44, -30], [44, 30]]]){ tube([p0[0], p0[1], DZ + 4], [p0[0], p0[1], DZ + 20], 2, Y); tube([p0[0], p0[1], DZ + 20], [p1[0], p1[1], DZ + 20], 2, Y); }
+      /* the deck: a steel floor, its edge a toe board striped yellow and black */
+      box(-46, 46, -32, 32, DZ, DZ + 5, STEEL);
+      const chev = (fa, fb, u0, u1, cst, len) => { const n = Math.ceil(len/6);
+        for(let k = 0; k < n; k++){ if(k % 2) continue; const q0 = u0 + k*6, q1 = Math.min(u1, q0 + 6), pt = (u, z) => P(...cst(u, z));
+          g.fillStyle(0x16171b, 1); g.fillPoints([pt(q0, DZ + 0.4), pt(Math.min(u1, q1 + 3), DZ + 0.4), pt(Math.min(u1, q1), DZ + 4.6), pt(Math.max(u0, q0 - 3), DZ + 4.6)].map(PT), true); } };
+      g.fillStyle(Y, 1);
+      for(const sb of [-1, 1]) if(sees(0, sb, 0)){ g.fillStyle(Y, 1); g.fillPoints([P(-46, sb*32.1, DZ + 0.3), P(46, sb*32.1, DZ + 0.3), P(46, sb*32.1, DZ + 4.7), P(-46, sb*32.1, DZ + 4.7)].map(PT), true); chev(0, sb, -46, 46, (u, z) => [u, sb*32.15, z], 92); }
+      for(const sa of [-1, 1]) if(sees(sa, 0, 0)){ g.fillStyle(Y, 1); g.fillPoints([P(sa*46.1, -32, DZ + 0.3), P(sa*46.1, 32, DZ + 0.3), P(sa*46.1, 32, DZ + 4.7), P(sa*46.1, -32, DZ + 4.7)].map(PT), true); chev(sa, 0, -32, 32, (u, z) => [sa*46.15, u, z], 64); }
+      /* its guard rail, a side at a time far to near: corner posts, a post mid-way along the long sides, a top rail and a mid rail */
+      const RA = 43, RB = 29, RZ = DZ + 5, sides = [[[-RA, -RB], [RA, -RB]], [[-RA, RB], [RA, RB]], [[-RA, -RB], [-RA, RB]], [[RA, -RB], [RA, RB]]]
+        .map(([p0, p1]) => ({ p0, p1, d: V.depth((p0[0] + p1[0])/2, (p0[1] + p1[1])/2, RZ + 10) })).sort((p, q) => p.d - q.d);
+      for(const sd of sides){ const { p0, p1 } = sd, mid = [(p0[0] + p1[0])/2, (p0[1] + p1[1])/2];
+        for(const q of [p0, p1].concat(p0[1] === p1[1] ? [mid] : [])) tube([q[0], q[1], RZ], [q[0], q[1], RZ + 17], 2, Y);
+        tube([p0[0], p0[1], RZ + 8.5], [p1[0], p1[1], RZ + 8.5], 1.6, _pdk(Y, 0.9)); tube([p0[0], p0[1], RZ + 17], [p1[0], p1[1], RZ + 17], 2.2, Y); }
+      /* its beacon, on the tail corner post: amber, flashing while it moves or lifts */
+      const ba = -RA, bb2 = -nearB*RB, bz = RZ + 17, moving = vel > 0.01 || Math.abs(goal - this._amrLift) > 0.03, lit = moving && Math.floor(t/260) % 2 === 0, AMB = 0xffa21a;
+      this.avLathe(V, ba, bb2, [[bz, 3], [bz + 2, 3]], DARK, null, 10);
+      this.avLathe(V, ba, bb2, [[bz + 2, 2.6], [bz + 5.5, 2.4], [bz + 7, 0]], lit ? AMB : _pdk(AMB, 0.6), lit ? () => AMB : null, 10);
+      if(lit){ const q = P(ba, bb2, bz + 4.5), r = 9*this.kScale(); g.fillStyle(AMB, 0.2); g.fillCircle(q.x, q.y, r); g.fillStyle(AMB, 0.1); g.fillCircle(q.x, q.y, r*1.8); }
       return; }
 
     if(id === 'amrtug'){   /* TUGGER TRAIN: a tow bar at its tail and two carts behind it, each a caged flatbed on four castors, loaded */
