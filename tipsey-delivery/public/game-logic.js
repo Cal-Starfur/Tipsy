@@ -1677,6 +1677,20 @@ const GD_PRESETS = [
   { id: 'detective', name: 'Detective', set: { gShell: 'cream', gHat: 'bowler', gHatCol: 'charcoal', gApron: 'coat', gOutCol: 'tan', gGlasses: 'monocle', gNeck: 'tie', gMouth: 'small', gShoeKind: 'dress', gShoeCol: 'brown', gPackStyle: 'none' } },
   { id: 'popstar', name: 'Pop Star', set: { gShell: 'rose', gGlasses: 'heartglass', gHat: 'headphones', gHatCol: 'pink', gDecal: 'star', gDecalCol: 'white', gEye: 'magenta', gMouth: 'smile', gBand: 'magenta', gFinish: 'gloss', gShoeKind: 'platform', gShoeCol: 'white', gPackStyle: 'wings', gPack: 'white' } },
   { id: 'scout', name: 'Scout', set: { gShell: 'olive', gHat: 'bucket', gHatCol: 'tan', gPackStyle: 'backpack', gPack: 'bronze', gGlasses: 'hex', gNeck: 'bandana', gOutCol: 'lime', gApron: 'toolbelt', gShoeKind: 'boot', gShoeCol: 'brown', gBadge: 'drop', gBadgeCol: 'copper' } },
+  /* THE FACILITY LOOKS (Sir, 2026-11-18: "i also want all of these skins for the humanoid robot ... he will be in these settings working with
+     them"): the warehouse robot's facility skins (TP_BSKIN build 'amr') as his -- its colours on his shell, his vest or apron, his hat and band, and
+     its icon on his chest (gDecal 'fac:*'); a Warehouse Worker, the floor's own: hi-vis vest, hard hat, tool belt, boots */
+  { id: 'warehouse', name: 'Warehouse Worker', set: { gShell: 'slate', gApron: 'vest', gOutCol: 'c:c8f03c', gHat: 'hardhat', gHatCol: 'yellow', gHand: 'black', gShoeKind: 'boot', gShoeCol: 'black', gNeck: 'lanyard', gBand: 'lime', gDecal: 'stripes', gDecalCol: 'c:e8ecef', gPackStyle: 'cells' } },
+  { id: 'fac-online', name: 'Online Mega-Store', set: { gShell: 'c:2f3338', gApron: 'vest', gOutCol: 'c:ff9a1a', gHat: 'hardhat', gHatCol: 'c:ff9a1a', gBand: 'orange', gDecal: 'fac:online', gDecalCol: 'c:2f3338', gShoeKind: 'boot', gShoeCol: 'black' } },
+  { id: 'fac-parcel', name: 'Parcel Carrier', set: { gShell: 'c:4a2f1c', gApron: 'vest', gOutCol: 'c:d8a83a', gHat: 'cap', gHatCol: 'c:4a2f1c', gBand: 'gold', gDecal: 'fac:parcel', gDecalCol: 'c:4a2f1c', gShoeKind: 'boot', gShoeCol: 'brown' } },
+  { id: 'fac-express', name: 'Express Courier', set: { gShell: 'c:4b2a86', gApron: 'vest', gOutCol: 'c:ff7a1a', gHat: 'cap', gHatCol: 'c:4b2a86', gBand: 'orange', gDecal: 'fac:express', gDecalCol: 'c:4b2a86', gShoeKind: 'sneaker', gShoeCol: 'white' } },
+  { id: 'fac-freight', name: 'Freight Yellow', set: { gShell: 'c:f6c81e', gApron: 'vest', gOutCol: 'c:d4201f', gHat: 'hardhat', gHatCol: 'c:d4201f', gBand: 'red', gDecal: 'fac:freight', gDecalCol: 'c:f6c81e', gShoeKind: 'boot', gShoeCol: 'black' } },
+  { id: 'fac-bullseye', name: 'Bullseye Retail', set: { gShell: 'white', gApron: 'vest', gOutCol: 'c:cc1f2b', gHat: 'cap', gHatCol: 'c:cc1f2b', gBand: 'red', gDecal: 'fac:bullseye', gDecalCol: 'white', gShoeKind: 'sneaker', gShoeCol: 'white' } },
+  { id: 'fac-bigbox', name: 'Blue & Yellow Big Box', set: { gShell: 'c:1f56b0', gApron: 'vest', gOutCol: 'c:ffd21a', gHat: 'cap', gHatCol: 'c:ffd21a', gBand: 'gold', gDecal: 'fac:bigbox', gDecalCol: 'c:1f56b0', gShoeKind: 'sneaker', gShoeCol: 'navy' } },
+  { id: 'fac-homeimp', name: 'Home Improvement', set: { gShell: 'graphite', gApron: 'apron', gOutCol: 'c:f26a12', gHat: 'hardhat', gHatCol: 'c:f26a12', gBand: 'orange', gDecal: 'fac:homeimp', gDecalCol: 'white', gShoeKind: 'boot', gShoeCol: 'brown' } },
+  { id: 'fac-grocery', name: 'Grocery Fulfilment', set: { gShell: 'cream', gApron: 'apron', gOutCol: 'c:2e8b4a', gHat: 'cap', gHatCol: 'c:2e8b4a', gBand: 'lime', gDecal: 'fac:grocery', gDecalCol: 'cream', gShoeKind: 'sneaker', gShoeCol: 'white' } },
+  { id: 'fac-pharmacy', name: 'Pharmacy', set: { gShell: 'white', gApron: 'coat', gOutCol: 'white', gBand: 'red', gDecal: 'fac:pharmacy', gDecalCol: 'c:d42a2a', gShoeKind: 'sneaker', gShoeCol: 'white', gGlasses: 'round' } },
+  { id: 'fac-hospital', name: 'Hospital Supply', set: { gShell: 'c:1a9a9a', gApron: 'coat', gOutCol: 'white', gBand: 'teal', gDecal: 'fac:hospital', gDecalCol: 'c:2aa84a', gShoeKind: 'sneaker', gShoeCol: 'white' } },
   { id: 'party', name: 'Party', set: { gShell: 'lemon', gHat: 'party', gHatCol: 'pink', gNeck: 'bowtie', gOutCol: 'pink', gMouth: 'wide', gEyeShape: 'wide', gDecal: 'star', gDecalCol: 'pink', gBand: 'lime' } },
 ];
 const GD_SHAPES = {
@@ -1700,7 +1714,8 @@ const GD_SHAPES = {
               ['saturnv','Saturn V'],['v2','V-2'],['redstone','Mercury-Redstone'],['shuttle','Shuttle'],['sls','SLS'],['booster','Reusable Booster'],['atlas','Mercury-Atlas'],
               ['rustbucket','Rust Bucket'],['pallet','Pallet'],['roadsign','Road Sign'],['skateboard','Skateboard'],['fridge','Fridge Door'],['plates','License Plates'],['sodacrate','Soda Crate']],   // (each build's skins, GSC_PAINT: scootPaintTop)
   scootSkin:[['stock','Stock'],['cruiser','Café Cruiser'],['racer','Racer'],['robo','Robo Board'],['vintage','Vintage'],['chopper','Chopper'],['offroad','Off-Road'],['rocket','Retro Rocket']],   // (the Delivery Rig cut: Sir, 2026-11-15)   // (Gideon's scooter's skins: GSC)
-  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target']],
+  decal:    [['none','None'],['stripes','Racing stripes'],['chevron','Chevron'],['star','Star'],['bolt','Bolt'],['heart','Heart'],['n1','No. 1'],['n4','No. 4'],['n7','No. 7'],['n9','No. 9'],['checker','Checkers'],['flames','Flames'],['target','Target'],
+            ['fac:online','Parcel'],['fac:parcel','Parcel Shield'],['fac:express','Express Arrow'],['fac:freight','Winged Box'],['fac:bullseye','Cart Ring'],['fac:bigbox','Flat-Pack'],['fac:homeimp','Tools'],['fac:grocery','Leaf'],['fac:pharmacy','Heart & Pill'],['fac:hospital','Green Cross']],
   apron:    [['none','None'],['apron','Apron'],['vest','Vest'],['toolbelt','Tool belt'],['sash','Sash'],['harness','Harness'],['poncho','Poncho'],['coat','Long coat'],['cape','Cape']],
   neck:     [['none','None'],['scarf','Scarf'],['bowtie','Bow tie'],['tie','Tie'],['bandana','Bandana'],['ascot','Ascot'],['collar','Collar'],['chain','Chain'],['lanyard','Lanyard']],
   badge:    [['none','None'],['dot','Dot'],['bolt','Bolt'],['star','Star'],['diamond','Diamond'],['cross','Cross'],['heart','Heart'],['shield','Shield'],['gear','Gear'],['drop','Drop'],['moon','Moon']],
@@ -8832,6 +8847,7 @@ const AMR_SLOTS = (() => {
     jack.push(sl(ia ? 49.5 : 16.5, ib ? 14.5 : -14.5, 16.6, 14.6, 18, box(16.1, 14.1, 17.7, [0xc98a4a, 0xbf8244, 0xd29a5a, 0xb97b40][(ia + 2*ib + lv) % 4], { wrap: true }), { lv, on: lv ? ia*2 + ib : null }));
   return {
     amrstock: [sl(-22, 0, 24, 30, 40, null), sl(22, 0, 20, 30, 40, null)],
+    gideon: [sl(0, 0, 25, 25, 32, null)],   /* (the humanoid's arms: one load at a time, carried in front of him -- drawHumanoid) */
     amrlift: [sl(-21, 0, 22, 26, 40, null), sl(21, 0, 22, 26, 40, null)],
     amrtug: [sl(-17.5, 0, 15.5, 24, 30, tote(15.5, 24, 14), { cart: 0, z: 16 }), sl(17.5, -12.5, 15.5, 11.5, 30, tote(15.5, 11.5, 14), { cart: 0, z: 16 }),
              sl(17.5, 12.5, 13.5, 9.5, 30, box(13.5, 9.5, 20, 0xc98a4a), { cart: 0, z: 16 }), sl(-17.5, 0, 15.5, 24, 20, tote(14.5, 23, 13.5, 1.12), { cart: 0, on: 0 }),
@@ -8845,8 +8861,8 @@ const AMR_SLOTS = (() => {
 })();
 const AMRL = { bots: {}, down: [], seq: 0 };
 function amrLoadsOf(b){ if(!AMRL.bots[b]) AMRL.bots[b] = AMR_SLOTS[b].map(q => q.def ? Object.assign({ id: ++AMRL.seq }, q.def) : null); return AMRL.bots[b]; }
-function amrBuildKey(){ const b = SKIN.build; return /^amr[a-z]+$/.test(b || '') && AMR_SLOTS[b] ? b : 'amrstock'; }
-function amrCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && fleetCur() === 'amr'); }
+function amrBuildKey(){ if(fleetCur() === 'humanoid') return 'gideon'; const b = SKIN.build; return /^amr[a-z]+$/.test(b || '') && AMR_SLOTS[b] ? b : 'amrstock'; }
+function amrCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && (fleetCur() === 'amr' || (fleetCur() === 'humanoid' && !ow.scoot && !ow.climbing && !ow.emerging && !ow.getUp))); }
 /* the top load: filled, with nothing sitting on it; the first free slot a load fits (its base filled, if it is a stacked one) */
 function amrTop(b){ const LS = amrLoadsOf(b), SL = AMR_SLOTS[b];
   for(let i = LS.length - 1; i >= 0; i--) if(LS[i] && !SL.some((q, j) => q.on === i && LS[j])) return i; return -1; }
@@ -8855,7 +8871,7 @@ function amrFree(b, L){ const LS = amrLoadsOf(b), SL = AMR_SLOTS[b];
     if(L.la <= q.la + 0.5 && L.lb <= q.lb + 0.5) return { i, turn: false };
     if(L.lb <= q.la + 0.5 && L.la <= q.lb + 0.5) return { i, turn: true }; }
   return null; }
-function amrReachPt(s, b){ const ow = s.ow, d = b === 'amrjack' ? -1 : 1; return { x: ow.px + Math.cos(ow.yaw)*d*85, y: ow.py + Math.sin(ow.yaw)*d*85, d }; }
+function amrReachPt(s, b){ const ow = s.ow, d = b === 'amrjack' ? -1 : 1, r = b === 'gideon' ? 44 : 85; return { x: ow.px + Math.cos(ow.yaw)*d*r, y: ow.py + Math.sin(ow.yaw)*d*r, d, near: b === 'gideon' ? 26 : 62 }; }
 function amrNearestDown(s){ const p = amrReachPt(s, amrBuildKey()); let best = null;
   for(const D of AMRL.down){ const d = Math.hypot(D.x - p.x, D.y - p.y); if(d < 60 && (!best || d < best.d)) best = { D, d }; }
   return best; }
@@ -8873,9 +8889,9 @@ function amrLoadToggle(s, verb){
     LS[f.i] = L; AMRL.down.splice(AMRL.down.indexOf(n.D), 1); }
   else if(verb === "Set down"){ const i = amrTop(b), L = LS[i], p = amrReachPt(s, b), c = Math.cos(ow.yaw), sn = Math.sin(ow.yaw), r = Math.max(L.la, L.lb);
     /* ahead of him (behind, the jack), clear of what is already down there: stepped aside till it is */
-    let x = ow.px + c*p.d*(62 + L.la), y = ow.py + sn*p.d*(62 + L.la);
+    let x = ow.px + c*p.d*(p.near + L.la), y = ow.py + sn*p.d*(p.near + L.la);
     for(let k = 0; k < 6; k++){ if(!AMRL.down.some(D => Math.hypot(D.x - x, D.y - y) < r + Math.max(D.L.la, D.L.lb) + 2)) break;
-      const sd = (k % 2 ? -1 : 1)*(Math.floor(k/2) + 1)*(2*r + 4); x = ow.px + c*p.d*(62 + L.la) - sn*sd; y = ow.py + sn*p.d*(62 + L.la) + c*sd; }
+      const sd = (k % 2 ? -1 : 1)*(Math.floor(k/2) + 1)*(2*r + 4); x = ow.px + c*p.d*(p.near + L.la) - sn*sd; y = ow.py + sn*p.d*(p.near + L.la) + c*sd; }
     LS[i] = null; AMRL.down.push({ L, x, y, th: ow.yaw }); }
   else return;
   if(typeof sfxThump === "function") sfxThump(0.2);
@@ -115214,6 +115230,11 @@ class WorldScene extends Phaser.Scene {
           fl(1, DC, lf); fl(0.62, mixc(DC, 0xffffff, 0.55), lf + 0.1); } }
       else if(dz === 'target' && tSeen(0)){ const DK = mixc(DC, 0x101418, 0.82); for(const [rd, col] of [[8.4, DC], [6.3, DK], [4.3, DC], [2.3, DK]]) patch(tP, lay(0, cz, ar, ell(0, 0, rd, rd, 22, 2)), col, lf + (8.4 - rd)*0.02); }
       else if(dz === 'star' || dz === 'bolt' || dz === 'heart'){ const sh = dz === 'star' ? star(1.7, 0, 0) : dz === 'bolt' ? bolt(1.7, 0, 0) : heart(1.7, 0, 0); if(tSeen(0)) patch(tP, lay(0, cz, ar, sh), DC, lf); }
+      else if(/^fac:/.test(dz) && tSeen(0)){   /* (a facility's icon -- the warehouse robot's skin's, amrIcon -- traced into polygons in its own space and laid on his chest; its cut-outs in what he wears there) */
+        const F = TP_BSKIN.find(k => k.id === 'amr:' + dz.slice(4)); if(F){ const polys = []; let cur = 0;
+          const BG = RB.apron && RB.apron !== 'none' ? RB.outCol : 0xeef0f2, cap = { fillStyle: c => { cur = c; }, fillPoints: pts => polys.push({ c: cur, pts: pts.map(q => [q.x*8.6, q.y*8.6]) }) };
+          this.amrIcon(cap, F, (u, v) => ({ x: u, y: v }), 1, DC, mixc(DC, 0x101418, 0.25), BG);
+          polys.forEach((o, k) => patch(tP, lay(0, cz, ar, o.pts), o.c, lf + k*0.01)); } }
       else if(/^n[0-9]$/.test(dz) && tSeen(0)){ const dg = +dz[1], seg = { 1: 'bc', 4: 'fgbc', 7: 'abc', 9: 'abcdfg' }[dg] || 'abc', w = 4.6, h = 6.4, t = 1.7;
         const H = zc => patch(tP, lay(0, cz, ar, [[-w, zc - cz + t/2], [w, zc - cz + t/2], [w, zc - cz - t/2], [-w, zc - cz - t/2]]), DC, lf), V = (ac, za, zb) => patch(tP, lay(0, cz, ar, [[ac - t/2, zb - cz], [ac + t/2, zb - cz], [ac + t/2, za - cz], [ac - t/2, za - cz]]), DC, lf);
         if(seg.includes('a')) H(cz + h); if(seg.includes('g')) H(cz); if(seg.includes('d')) H(cz - h);
@@ -117486,6 +117507,15 @@ class WorldScene extends Phaser.Scene {
      swing and joints. data as drawBot took it: walk (0 still .. 1 striding), gait (the stride's phase), reach (0..1, both
      arms brought forward to lift Tipsey), roll (his own: it goes over with him, pose.roll) */
   drawHumanoid(g, x, y, z, t, fdir, data){
+    /* CARRYING A LOAD (AMRL, slot 'gideon'): both arms out in front, the load held between his hands at his waist -- the warehouse's boxes,
+       totes and bins, the same ones the warehouse robot carries. Drawn after him while he faces the eye, before him when his back is to it */
+    const CL = data && data.look && !data.lift && !data.tx && !data.waist && this.ow && this.ow.on && fleetCur() === 'humanoid' && !this.ow.scoot && AMRL.bots.gideon && AMRL.bots.gideon[0];
+    if(CL){ const V = this.vehKit(g, x, y, z, fdir), wide = CL.la > CL.lb, u = wide ? [0, 1] : [1, 0], ca = 8 + (wide ? CL.lb : CL.la), AS = TP_BSKIN.find(k => k.id === (GD_LIVE.decal || '').replace('fac:', 'amr:'));
+      const box = () => this.amrLoad(g, V, CL, ca, 0, 56 - CL.h*0.35, u, AS || null), front = V.sees(1, 0, 0);
+      if(!front) box();
+      this.drawHumanoid(g, x, y, z, t, fdir, Object.assign({}, data, { lift: [0.22, 0.22], bend: [0.75, 0.75], legs: null, carryLoad: true }));
+      if(front) box();
+      return; }
     const d = data || {}, roll = d.roll || 0, walk = Math.abs(roll) > 0.35 ? 0 : (d.walk || 0), moving = walk > 0.5;
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
@@ -135139,7 +135169,7 @@ class WorldScene extends Phaser.Scene {
        which is the case that read as a car driving straight over him. */
     /* THE WAREHOUSE ROBOT, LOADED (Sir, 2026-11-18: "i dont want cars to drive through loads on the ground or on the robot"): carrying
        anything, or with its carts or pallet on, no driver is too distracted to stop for it */
-    const _amrHard = fleetCur() === "amr" && !!(this.ow && this.ow.on) && (amrExtraParts(this).length > 0 || amrLoadsOf(amrBuildKey()).some(Boolean));
+    const _amrHard = !!(this.ow && this.ow.on) && ((fleetCur() === "amr" && (amrExtraParts(this).length > 0 || amrLoadsOf(amrBuildKey()).some(Boolean))) || (fleetCur() === "humanoid" && !!(AMRL.bots.gideon && AMRL.bots.gideon[0])));   /* (and the humanoid with a load in his arms) */
     for(let i = 0; i < pos.length; i++){
       const a = pos[i];
       if(a.tr.errand) continue;                    // on an errand: an obstacle, never a follower (updateErrands)
@@ -152902,7 +152932,7 @@ requestTpProfile();
     if (key === 'finish') { const G2 = { satin: ['#cfd3d8', '#fff', .35], matte: ['#b9bdc2', '#fff', .05], gloss: ['#d6dae0', '#fff', .85], chrome: ['#aeb8c2', '#f4f8fb', .9], twotone: ['#cfd3d8', '#2f4a86', 0] }[id];
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="3" width="22" height="22" rx="6" fill="${G2[0]}"/>${id === 'twotone' ? '<rect x="9" y="15" width="22" height="10" rx="4" fill="#2f4a86"/>' : ''}<path d="M12 5h9l-5 18h-4z" fill="${G2[1]}" opacity="${G2[2]}"/></svg>`; }
     if (key === 'decal') { const C2 = '#e0453a', T2 = t => `<text x="20" y="21" text-anchor="middle" font-size="18" font-weight="700" fill="${C2}" font-family="sans-serif">${t}</text>`, D = { none: '', stripes: `<rect x="14" y="3" width="3.4" height="22" fill="${C2}"/><rect x="22.6" y="3" width="3.4" height="22" fill="${C2}"/>`, chevron: `<path d="M10 10l10 6 10-6v4l-10 6-10-6z" fill="${C2}"/>`, star: `<path d="M20 5l2.6 6 6.4.5-4.9 4.2 1.5 6.3L20 18.7 14.4 22l1.5-6.3L11 11.5l6.4-.5z" fill="${C2}"/>`,
-        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9), checker: `<path d="M10 11h4v4h-4zM18 11h4v4h-4zM26 11h4v4h-4zM14 15h4v4h-4zM22 15h4v4h-4z" fill="${C2}"/>`, flames: `<path d="M12 24c0-5 3-6 2-11 4 2 5 6 4 11zM20 24c-1-7 3-9 2-16 5 4 6 10 3 16zM27 24c0-3 2-4 1-8 3 1 4 5 2 8z" fill="${C2}"/>`, target: `<circle cx="20" cy="14" r="8" fill="${C2}"/><circle cx="20" cy="14" r="5.4" fill="#cfd3d8"/><circle cx="20" cy="14" r="3" fill="${C2}"/>` }[id];
+        bolt: `<path d="M22 4l-9 11h6l-3 9 10-12h-6z" fill="${C2}"/>`, heart: `<path d="M20 23C8 14 12 6 17 8c2 .8 3 2.5 3 2.5s1-1.7 3-2.5c5-2 9 6-3 15z" fill="${C2}"/>`, n1: T2(1), n4: T2(4), n7: T2(7), n9: T2(9), checker: `<path d="M10 11h4v4h-4zM18 11h4v4h-4zM26 11h4v4h-4zM14 15h4v4h-4zM22 15h4v4h-4z" fill="${C2}"/>`, flames: `<path d="M12 24c0-5 3-6 2-11 4 2 5 6 4 11zM20 24c-1-7 3-9 2-16 5 4 6 10 3 16zM27 24c0-3 2-4 1-8 3 1 4 5 2 8z" fill="${C2}"/>`, target: `<circle cx="20" cy="14" r="8" fill="${C2}"/><circle cx="20" cy="14" r="5.4" fill="#cfd3d8"/><circle cx="20" cy="14" r="3" fill="${C2}"/>` }[id] || (/^fac:/.test(id) ? `<rect x="13" y="8" width="14" height="12" fill="${C2}"/><path d="M13 8l3-3h8l3 3z" fill="#b8342e"/><rect x="19" y="8" width="2" height="12" fill="#cfd3d8"/>` : '');   /* (a facility's icon: a parcel card) */
       return `<svg viewBox="0 0 40 28" width="52" height="36"><rect x="9" y="2" width="22" height="24" rx="6" fill="#cfd3d8"/>${D}</svg>`; }
     if (key === 'hat') { const C = '#d9892b', D = '#8f969d', H = '<rect x="13" y="12" width="14" height="14" rx="6" fill="#cfd3d8"/>';
       const A = { none: '', cap: `<path d="M12 14a8 8 0 0 1 16 0z" fill="${C}"/><rect x="18" y="13" width="14" height="2.4" rx="1" fill="${C}"/>`, beanie: `<path d="M12 15a8 9 0 0 1 16 0z" fill="${C}"/><circle cx="20" cy="4" r="2.4" fill="${C}"/>`,
