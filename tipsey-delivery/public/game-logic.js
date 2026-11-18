@@ -128637,8 +128637,8 @@ class WorldScene extends Phaser.Scene {
         for(const [b, zz] of [[-8, 64], [6, 58], [-3, 52], [9, 68], [-10, 56]]) ball(hx + 0.8, b, zz, 3.2, 0xffffff);   // (fluffy beard)
         for(const sb of [-1, 1]) onFront([[0, 77], [sb*10, 78.5], [sb*13, 75], [sb*7, 74], [0, 75]], 0xe8e8e2); }   // (moustache)
       if(st === 'top'){ if(!front) sack();
-        lathe(0, 0, [[zl - 1, 23], [zl + 5, 23]], FUR); for(let i = 0; i < 16; i++){ const th = i/16*Math.PI*2; if(!sees(Math.cos(th), Math.sin(th), 0)) continue; ball(Math.cos(th)*22, Math.sin(th)*20, zl + 2, 3.6, FUR); }
-        const sbF = -nearB, pts = []; for(let i = 0; i <= 10; i++){ const u = i/10; pts.push([-u*4, sbF*u*u*18, zl + 5 + Math.sin(u*Math.PI*0.7)*22 - u*u*12, 18*(1 - u) + 2]); }   // (its cone flopping over to one side, one piece)
+        lathe(0, 0, [[zl - 2, 25], [zl + 5, 25]], FUR); for(let i = 0; i < 20; i++){ const th = i/20*Math.PI*2; if(!sees(Math.cos(th), Math.sin(th), 0)) continue; ball(Math.cos(th)*(hx + 2), Math.sin(th)*(hy + 2), zl + 1.5, 4.2, FUR); }   /* (its brim over his whole lid -- Sir, 2026-11-18) */
+        const sbF = -nearB, pts = []; for(let i = 0; i <= 10; i++){ const u = i/10; pts.push([-u*4, sbF*u*u*18, zl + 5 + Math.sin(u*Math.PI*0.7)*22 - u*u*12, 22*(1 - u) + 2]); }   // (its cone flopping over to one side, one piece)
         for(const [col, wf, off] of [[0x8a0e12, 1, 0], [0xc8202a, 0.72, 0.2], [0xe8484a, 0.25, 0.55]]) for(let i = 0; i < 10; i++){ const [a0, b0, z0, r0] = pts[i], [a1, b1, z1, r1] = pts[i + 1], A = P(a0, b0, z0), B = P(a1, b1, z1), ra = sr(a0, b0, z0, r0), rb = sr(a1, b1, z1, r1);
           g.lineStyle(Math.max(1, (ra + rb)*wf), col, 1); g.lineBetween(A.x, A.y - ra*off, B.x, B.y - rb*off); if(!off){ g.fillStyle(col, 1); g.fillCircle(A.x, A.y, ra); g.fillCircle(B.x, B.y, rb); } }
         const e = pts[10]; ball(e[0], e[1], e[2] - 2, 5.5, FUR); }
