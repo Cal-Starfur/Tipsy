@@ -128992,17 +128992,14 @@ class WorldScene extends Phaser.Scene {
       if(st === 'top'){ ballCap(0xff7a1a, 0xe8601a); band([[118, 24.4], [121, 23.6]], SIL); if(sees(0, sb, 0)) paddle(); }
       return; }
     if(c === 'ranger'){   /* (second pass -- Sir, 2026-11-18): khaki shirt with two flapped pockets, a gold badge, an arrowhead patch on each shoulder;
-         a red neckerchief round his neck, knotted in front, its point down his chest; a leather belt and brass buckle; a pine-tree patch on his
+         a leather belt and brass buckle; a pine-tree patch on his
          back; a broad flat-brimmed campaign hat, its brim bound dark, its crown pinched four ways to a peak */
       const KH = 0xc8b080, KHD = 0xa8905e;
       const disc = (th, zz, r) => [...Array(16)].map((_, i) => { const ph = i/16*Math.PI*2; return [th + Math.cos(ph)*r/rz(zz), zz + Math.sin(ph)*r]; });
       if(st === 'body'){ decal([[-0.13, 67], [0.13, 67], [0.13, 58], [-0.13, 58]], 0xc9a24a); decal([[-0.08, 65], [0.08, 65], [0.08, 60], [-0.08, 60]], 0x5a3a1e);
         for(const s2 of [-1, 1]){ decal([[s2*0.42, 78], [s2*0.82, 78], [s2*0.82, 74], [s2*0.62, 72], [s2*0.42, 74]], KHD); sline([s2*0.42, 78], [s2*0.82, 78], 0x8a7448, 1.2); dot(s2*0.62, 74.5, 0.9, 0x6a5a3a); }   /* (pocket flaps) */
         shield(-0.62, 87, 3.6, 0xd8b04a, 0xa8802a);
-        /* the neckerchief: a band right round his neck, a knot and its point in front */
-        band([[80, rz(80) + 0.8], [84, rz(84) + 0.8]], 0xc8402a);   /* (under his eyes) */
-        decal([[-0.36, 82], [0.36, 82], [0, 69]], 0xc8402a, 1, 1.1); decal([[-0.1, 84.5], [0.1, 84.5], [0.08, 79.5], [-0.08, 79.5]], 0x9a2a1c, 1, 1.3);
-        sline([-0.36, 82], [0, 69], 0x9a2a1c, 1.2, 1.2); sline([0.36, 82], [0, 69], 0x9a2a1c, 1.2, 1.2);
+        /* (no neckerchief -- Sir, 2026-11-18) */
         for(const s2 of [-1, 1]){ const th = s2*1.5, A = [[th - 0.2, 98], [th + 0.2, 98], [th + 0.2, 89], [th, 82], [th - 0.2, 89]];   /* (the arrowhead patch) */
           decal(A, 0x5a3a1e); decal(A.map(([a2, zz]) => [th + (a2 - th)*0.72, 91.5 + (zz - 91.5)*0.72]), 0x3a6a2a, 1, 0.8); decal([[th - 0.05, 94], [th + 0.05, 94], [th, 87]], 0xf6f6f2, 1, 0.9); }
         { const th = Math.PI, zc = 94; decal(disc(th, zc, 9), 0x5a3a1e); decal(disc(th, zc, 7.7), 0xe8dcb4, 1, 0.8);   /* (behind: a pine-tree patch, over the neckerchief) */
