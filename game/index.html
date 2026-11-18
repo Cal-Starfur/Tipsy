@@ -130581,12 +130581,12 @@ class WorldScene extends Phaser.Scene {
       this.avLathe(V, L.Kn[0], L.Kn[1], [[L.Kn[2] - 3, 3.6], [L.Kn[2] + 3, 3.6]], DARK, null, 10);
       this.avLathe(V, L.Fp[0], L.Fp[1], [[L.Fp[2] - FOOTR, 1.6], [L.Fp[2] - FOOTR*0.4, FOOTR], [L.Fp[2] + FOOTR*0.6, FOOTR*0.85], [L.Fp[2] + FOOTR, 0]], FOOT, null, 10); };
     const byDepth = arr => arr.sort((p, q) => V.depth(p.ha, p.sb*20, 30) - V.depth(q.ha, q.sb*20, 30));
-    /* its beacon on its back (his flag's colour), a rail either side of it */
+    /* its beacon on its back up by its head (his flag's colour -- Sir, 2026-11-18), a rail either side behind it */
     const beacon = () => { for(const sb of [-1, 1]) solid(prismH([[-24, sb*9 - 1.2], [8, sb*9 - 1.2], [8, sb*9 + 1.2], [-24, sb*9 + 1.2]], Z1, Z1 + 2.5), DARK, null, false);
-      this.avLathe(V, -18, 0, [[Z1, 5.5], [Z1 + 3, 5.5]], DARK, null, 12);
+      this.avLathe(V, 24, 0, [[Z1, 5.5], [Z1 + 3, 5.5]], DARK, null, 12);
       const lit = data && data.still ? true : Math.floor(t/500) % 2 === 0;
-      this.avLathe(V, -18, 0, [[Z1 + 3, 4.6], [Z1 + 7, 4.4], [Z1 + 9.5, 2.6], [Z1 + 10.5, 0]], lit ? FLAGC : _pdk(FLAGC, 0.6), lit ? () => FLAGC : null, 12);
-      if(lit){ const q = P(-18, 0, Z1 + 7), r = 9*this.kScale(); g.fillStyle(FLAGC, 0.16); g.fillCircle(q.x, q.y, r); g.fillStyle(FLAGC, 0.1); g.fillCircle(q.x, q.y, r*1.7); } };
+      this.avLathe(V, 24, 0, [[Z1 + 3, 4.6], [Z1 + 7, 4.4], [Z1 + 9.5, 2.6], [Z1 + 10.5, 0]], lit ? FLAGC : _pdk(FLAGC, 0.6), lit ? () => FLAGC : null, 12);
+      if(lit){ const q = P(24, 0, Z1 + 7), r = 9*this.kScale(); g.fillStyle(FLAGC, 0.16); g.fillCircle(q.x, q.y, r); g.fillStyle(FLAGC, 0.1); g.fillCircle(q.x, q.y, r*1.7); } };
     /* the sensor head: a squat block out front, a dark face plate with his eyes, a camera on each cheek */
     const head = () => { solid(prismH([[HX - 6, -12], [HX + 11, -10], [HX + 11, 10], [HX - 6, 12]], 48, 64), BODYC.top, null, false);
       if(front){ V.Q([P(HX + 11.3, -9, 49.5), P(HX + 11.3, 9, 49.5), P(HX + 11.3, 9, 62.5), P(HX + 11.3, -9, 62.5)], 0x1d2228);
