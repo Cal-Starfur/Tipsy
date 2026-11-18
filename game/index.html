@@ -29633,8 +29633,13 @@ function walkinStep(R, s, dt, now, bot){
           left -= Lw; if(left <= 0) break; px = w[0]; py = w[1]; } } }
     const byBot = blocked;
     let by = null;
+    /* (TWO ON THEIR WAY THROUGH THE DOOR, each in the other's way -- a queue folded on itself, coming along a porch from the side: the one
+       nearer the doorway goes first, the other waits its turn; they held each other for good -- the tea house's family, 2026-11-17) */
+    const DP = m.trip ? walkinDoorPlane(R) : null, toDoor = q => DP ? Math.hypot(q.a - DP.P0[0], q.b - DP.P0[1]) : 0;
     for(const o of R.people){ if(o === s || !o._m || o._gone) continue; const q = o._m, d0 = Math.hypot(q.a - m.a, q.b - m.b), d1 = Math.hypot(q.a - nx, q.b - ny);
-      if(d1 < WALKIN_GAP && d1 < d0){ blocked = hard = true; by = o; } }
+      if(d1 < WALKIN_GAP && d1 < d0){
+        if(DP && q.trip && toDoor(m) + 2 < toDoor(q) && d1 > WALKIN_GAP*0.45) continue;   // (first through: not held by the one behind)
+        blocked = hard = true; by = o; } }
     /* TWO IN EACH OTHER'S WAY (both walking, each held by the other): the one of them with the lower seed steps aside
        -- a body's width off the line between them, wherever it is clear -- and goes on from there; the other passes */
     if(by && !m.trip && by._m.path && by._m.by === s && (s.seed >>> 0) < (by.seed >>> 0) && m.wait > 500 && !m.aside){
@@ -30640,14 +30645,35 @@ POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Palmline Savings', 'Ma
 POCKETS[POCKETS.length - 1].displace = true;   // (W31: the room is bigger than the tea house -- what it covers is ghosted under it, the room over it: displacedLib)   // (W26: the bookshop south of it over its south wall; the bank, the room runs back under it -- TEST)
 /* ITS PEOPLE (221 x 362, a tea room): the tea master behind the counter (fixed, the keyholder), a server between the counter and the
    tables, two guests */
-const TH_MASTER_UNIFORM = { shirt: { c:0x2c4a6b, dk:0x1f3650 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
-const TH_SERVER_UNIFORM = { shirt: { c:0xb8352a, dk:0x922a21 }, pants: { c:0x26221e, dk:0x1a1714 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
+/* THE MORITA FAMILY, WHO KEEP IT (Sir, 2026-11-17: "a family owned tea house, they are Japanese ... i want the workers to be Japanese, and
+   their outfits to be part of that"): their own looks, set by hand (lookFn) -- the family's skin and black hair (the grandmother's gone
+   grey), in tea-house dress: kimono (a long dress) for the women of the house, the father in an indigo samue with a white hachimaki, the
+   son in an indigo happi over a white shirt with a red hachimaki, the daughter in a red apron over her blouse. Zori-pale shoes. The guests
+   are the street's own, random (look: 'visitor') */
+const TH_FAMILY = (() => {
+  const SK = [{ c: 0xeec7a1, dk: 0xcaa27f }, { c: 0xe6bb91, dk: 0xc49a72 }, { c: 0xf2cfab, dk: 0xd0ac88 }];
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), M = PEOPLE_BUILD[0], W = PEOPLE_BUILD[1];
+  const zori = { c: 0xe9e2d0, dk: 0xc9c1ad }, black = 0x1b1a1c;
+  const kimono = (col, obi) => ({ shirt: C(col), pants: C(col), dress: { c: col, dk: _pdk(col, 0.78), long: true }, uniform: { vest: C(obi), shoeKind: 'flat' } });
+  return {
+    /* Hana, the grandmother: the tea master, at the bar -- a deep indigo kimono, a gold obi, her hair grey in a bun */
+    hana:  Object.assign({ build: W, skin: SK[2], hair: H(0x8e8a86, 'bun'), shoe: zori }, kimono(0x27365a, 0xc9a24a)),
+    /* Yumi, the mother: at the brewing urns -- a moss kimono, a cream obi, her hair in a bun */
+    yumi:  Object.assign({ build: W, skin: SK[0], hair: H(black, 'bun'), shoe: zori }, kimono(0x4d6b4a, 0xe6dcc4)),
+    /* Kenji, the father: behind the bar with Hana -- an indigo samue, a white hachimaki */
+    kenji: { build: M, skin: SK[1], hair: H(black, 'crop'), shirt: C(0x2a3a58), pants: C(0x2a3a58), shoe: { c: 0x2b2722, dk: 0x1c1915 }, uniform: { band: C(0xf2efe6), shoeKind: 'flat' } },
+    /* Ren, the son: waiting the tables -- an indigo happi over a white shirt, a red hachimaki */
+    ren:   { build: M, skin: SK[0], hair: H(black, 'part'), shirt: C(0xf1ede4), pants: C(0x26304a), shoe: { c: 0x2b2722, dk: 0x1c1915 }, uniform: { vest: C(0x24406a), band: C(0xb8352a), shoeKind: 'sneaker' } },
+    /* Aiko, the daughter: the tea shop by the door -- a red apron over her cream blouse, her hair in a bob */
+    aiko:  { build: W, skin: SK[2], hair: H(black, 'bob'), shirt: C(0xf2ead8), pants: C(0x2a2e3a), shoe: { c: 0x2b2722, dk: 0x1c1915 }, uniform: { vest: C(0xb8352a), shoeKind: 'flat' } },
+  };
+})();
 walkinStaff(TH_IN.name, [
-  { id: 'master', role: 'tea master', seed: 0x7e01, U: TH_MASTER_UNIFORM, fixed: true, keys: true, posts: [[440, 25, Math.PI/2, 9000, true], [360, 25, Math.PI*0.6, 3600, true], [520, 25, Math.PI*0.4, 3000, true]] },
-  { id: 'barista', role: 'tea server', seed: 0x7e05, U: TH_MASTER_UNIFORM, fixed: true, posts: [[660, 25, Math.PI/2, 7000, true], [580, 25, Math.PI*0.45, 3800, true]] },
-  { id: 'brewer', role: 'tea brewer', seed: 0x7e03, U: TH_MASTER_UNIFORM, fixed: true, posts: [[140, 25, Math.PI/2, 8000, true], [70, 25, Math.PI*0.7, 4200, true], [210, 25, Math.PI*0.3, 3600, true]] },
-  { id: 'server', role: 'tea server', seed: 0x7e02, U: TH_SERVER_UNIFORM, posts: [[410, 440, Math.PI/2, 6000, true], [410, 300, Math.PI/2, 4200, true], [250, 460, Math.PI, 3600, true], [600, 440, 0, 3000, true]] },
-  { id: 'clerk', role: 'tea shop clerk', seed: 0x7e04, U: TH_SERVER_UNIFORM, posts: [[760, 445, Math.PI, 8000, true], [610, 370, 0, 3000, true]] },
+  { id: 'master', role: 'tea master', seed: 0x7e01, lookFn: () => TH_FAMILY.hana, fixed: true, keys: true, posts: [[440, 25, Math.PI/2, 9000, true], [360, 25, Math.PI*0.6, 3600, true], [520, 25, Math.PI*0.4, 3000, true]] },
+  { id: 'barista', role: 'tea server', seed: 0x7e05, lookFn: () => TH_FAMILY.kenji, fixed: true, posts: [[660, 25, Math.PI/2, 7000, true], [580, 25, Math.PI*0.45, 3800, true]] },
+  { id: 'brewer', role: 'tea brewer', seed: 0x7e03, lookFn: () => TH_FAMILY.yumi, fixed: true, posts: [[140, 25, Math.PI/2, 8000, true], [70, 25, Math.PI*0.7, 4200, true], [210, 25, Math.PI*0.3, 3600, true]] },
+  { id: 'server', role: 'tea server', seed: 0x7e02, lookFn: () => TH_FAMILY.ren, posts: [[410, 440, Math.PI/2, 6000, true], [410, 300, Math.PI/2, 4200, true], [250, 460, Math.PI, 3600, true], [600, 440, 0, 3000, true]] },
+  { id: 'clerk', role: 'tea shop clerk', seed: 0x7e04, lookFn: () => TH_FAMILY.aiko, posts: [[760, 445, Math.PI, 8000, true], [610, 370, 0, 3000, true]] },
   { id: 'guest-1', role: 'guest', seed: 0x7e11, look: 'visitor', life: 'browse' },
   { id: 'guest-2', role: 'guest', seed: 0x7e12, look: 'visitor', life: 'browse' },
   { id: 'guest-3', role: 'guest', seed: 0x7e13, look: 'visitor', life: 'browse' },
