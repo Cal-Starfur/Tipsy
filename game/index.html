@@ -30686,6 +30686,62 @@ walkinLife(TH_IN.name, { keep: [[0, 2000, 194, 274]], looks: [
   { id: 'platform', spots: [[255, 380, Math.PI], [255, 540, Math.PI]] },
   { id: 'shop', spots: [[610, 370, 0], [610, 520, 0]] },
 ] });
+/* ==================== DRIFTWOOD BOOKS, WALK-IN (wi-driftwood-books; the room: the LIB entry 'Driftwood Books Interior') ====================
+   The Flats' secondhand bookshop on block 2,0's east edge (its front faces east, to the camera), between the tea house and Marina Optical.
+   Built by the shop recipe (docs/kits/walkin-shop-recipe.md, W33): the exterior unchanged, its own building its volume with the doorway open
+   through the wall (vol.foot, vol.opens), the door kit's panelled pair 100 across (shopDoor panes), he taken in in the doorway (glass < 0).
+   BIGGER INSIDE THAN OUT (W31): the room runs back from the shop's front into the block -- west under the bank's yard, north and south along
+   its own frontage over the tea house's gap and Marina Optical -- 850 x 699, the buildings it covers drawn under it while he is inside.
+   Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
+   b south, world units: the front (east) wall a 850; the door b 248..378 in it; the shop's own frontage b 90..389 */
+const BK_IN = { name: 'Driftwood Books Interior', x0: 800000, y0: 400000, WALL: 30/1.3, ROOM_A0: -92, ROOM_A1: 492, ROOM_BACK: -700, H: 300, LH: 66,
+  DOOR: [122, 222], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [10, 108, 26] };   // (the shop's door and window, lab a; the window's sill, lab z)
+BK_IN.ra = la => (la - BK_IN.ROOM_A0 - BK_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b
+const BK_PLAN = walkinDefine({ name: BK_IN.name, from: 'Driftwood Books', x0: BK_IN.x0, y0: BK_IN.y0,
+  lab: [BK_IN.ROOM_A0 + BK_IN.WALL, BK_IN.ROOM_A1 - BK_IN.WALL, BK_IN.ROOM_BACK + BK_IN.WALL, -BK_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (BK_IN.DOOR[0] + BK_IN.DOOR[1])/2, b: 0, half: (BK_IN.DOOR[1] - BK_IN.DOOR[0])/2*1.3 }, H: BK_IN.H, LH: BK_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
+  street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
+  /* (seen through, W11: the open doorway) */
+  openings: [{ lab: [[BK_IN.DOOR[0], 0], [BK_IN.DOOR[1], 0]], z: [0, BK_IN.DZ] }] });
+/* (W31: what it covers -- the bank's back and Marina Optical -- and what stands over it on screen: the tea house behind its north wall, the
+   roasters, the bakery and the charge depot on the corner in front of its south wall) */
+POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Palmline Savings', 'Marina Optical', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE PENROSE FAMILY, WHO KEEP IT: their own looks, set by hand (lookFn) -- a secondhand bookshop's dress, knitwear and cords. Walter at the
+   till, the keyholder (grey hair and beard, his reading glasses, a mustard cardigan); his daughter Edie shelving along the walls (a green
+   cardigan over an oatmeal blouse, her red hair tied back); her son Sam at the bargain cart and the new arrivals (a navy jumper, his brown
+   curls). The browsers are the street's own, random (look: 'visitor') */
+const BK_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), M = PEOPLE_BUILD[0], W = PEOPLE_BUILD[1];
+  const brown = { c: 0x5a3e2a, dk: 0x3e2a1c };
+  return {
+    walter: { build: M, skin: { c: 0xf0c8a8, dk: 0xcca486 }, hair: H(0xb9b4ac, 'crop'), shirt: C(0xece4d2), pants: C(0x6a4a32), shoe: brown,
+              uniform: { vest: C(0xc49a3a), beard: 0xb9b4ac, glasses: 0x5a4a3a, shoeKind: 'dress' } },
+    edie:   { build: W, skin: { c: 0xf2cdb0, dk: 0xcfa98c }, hair: H(0x9a4a26, 'pony'), shirt: C(0xe8dcc4), pants: C(0x34405a), shoe: brown,
+              uniform: { vest: C(0x3f5f45), shoeKind: 'flat' } },
+    sam:    { build: M, skin: { c: 0xeec4a2, dk: 0xcaa080 }, hair: H(0x4a3222, 'curls'), shirt: C(0x2c3a5a), pants: C(0x8a7c5c), shoe: { c: 0xe8e4dc, dk: 0xc4beb2 },
+              uniform: { shoeKind: 'sneaker' } },
+  };
+})();
+walkinStaff(BK_IN.name, [
+  { id: 'owner', role: 'bookseller', seed: 0x6b01, lookFn: () => BK_FAMILY.walter, fixed: true, keys: true, posts: [[740, 50, Math.PI/2, 9000, true], [690, 50, Math.PI*0.6, 3600, true], [790, 48, Math.PI*0.4, 3000, true]] },
+  { id: 'shelver', role: 'bookseller', seed: 0x6b02, lookFn: () => BK_FAMILY.edie, posts: [[150, 62, -Math.PI/2, 7000, true], [450, 62, -Math.PI/2, 6000, true], [62, 200, Math.PI, 5000, true]] },
+  { id: 'assistant', role: 'shop assistant', seed: 0x6b03, lookFn: () => BK_FAMILY.sam, posts: [[700, 412, Math.PI/2, 7000, true], [610, 600, 0, 6000, true], [300, 420, Math.PI, 4000, true]] },
+  { id: 'browser-1', role: 'browser', seed: 0x6b11, look: 'visitor', life: 'browse' },
+  { id: 'browser-2', role: 'browser', seed: 0x6b12, look: 'visitor', life: 'browse' },
+  { id: 'browser-3', role: 'browser', seed: 0x6b13, look: 'visitor', life: 'browse' },
+  { id: 'browser-4', role: 'browser', seed: 0x6b14, look: 'visitor', life: 'browse' },
+]);
+walkinLife(BK_IN.name, { keep: [[0, 2000, 273, 353]], looks: [
+  { id: 'till', spots: [[740, 140, -Math.PI/2], [690, 140, -Math.PI/2]] },
+  { id: 'north', spots: [[250, 62, -Math.PI/2], [540, 64, -Math.PI/2]] },
+  { id: 'west', spots: [[62, 120, Math.PI], [62, 380, Math.PI]] },
+  { id: 'stacks', spots: [[300, 170, 0], [440, 170, Math.PI], [440, 480, 0], [580, 480, Math.PI]] },
+  { id: 'nook', spots: [[135, 600, Math.PI]] },
+  { id: 'bargain', spots: [[710, 515, -Math.PI/2]] },
+  { id: 'arrivals', spots: [[700, 662, -Math.PI/2]] },
+] });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -46250,7 +46306,9 @@ function runPiece(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){
       /* (fpLab: ITS OWN STRETCH as its footprint -- measured from its draw, every run's was the whole fixture's (it draws the whole, clipped),
          so lmDepth moved them all round him and the people behind the far end drew over it: Sir, 2026-11-17, "the bar is disappearing and
          reappearing") */
-      items.push(Object.assign({ a: a1, b: (s0 + s1)/2, z: 0, fpLab: { a0: a0, a1: a1, b0: s0, b1: s1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
+      /* (o.keyStart: keyed at its stretch's north end -- a fixture against the far west wall, someone east of a stretch's north end sorted
+         before it, keyed at its middle: Driftwood Books' cases, 2026-11-18) */
+      items.push(Object.assign({ a: a1, b: o.keyStart ? s0 : (s0 + s1)/2, z: 0, fpLab: { a0: a0, a1: a1, b0: s0, b1: s1, z1: zTop }, solids: solidsFor ? solidsFor(s0, s1) : undefined, draw: () => {
         const e0 = k ? s0 - 0.6 : s0 - 60, e1 = k < n - 1 ? s1 + 0.6 : s1 + 60, pts = [];
         for(const b of [e0, e1]) for(const a of [a0 - 30, a1 + 30]) for(const z of [-2, zTop]) pts.push(P(a, b, z));
         pts.sort((p, q) => p.x - q.x || p.y - q.y);
@@ -47677,7 +47735,10 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
   /* (opts.studs: a pair of solid lacquered leaves set with rows of studs, a ring pull on each -- the tea house's, drawn by the kit: the
      leaves `trim`, the studs and pulls opts.studs. A walk-in's (SEE) swing, live, as a shut door's leaves do, not slide as glass does) */
   const studs = (opts && opts.studs) || null;
-  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, studs, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  /* (opts.panes: a pair of panelled wooden leaves, a glazed light of small panes over a raised panel, a brass knob -- an old shop's door, the
+     bookshop's (Driftwood Books): drawn by the kit, the leaves `trim`, the glass opts.panes. A walk-in's (SEE) swing in, as the studded pair) */
+  const panes = (opts && opts.panes) || null;
+  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, glazed, studs, panes, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
@@ -47731,6 +47792,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
         continue;
       }
       if(studs){ shopDoorStuds((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, studs, trim, ha < mA ? la1 - la0 - 10 : 10); continue; }
+      if(panes){ shopDoorPanes((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, panes, trim, ha < mA ? la1 - la0 - 9 : 9); continue; }
       for(let k=0;k<2;k++)
         F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
       F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
@@ -47814,6 +47876,20 @@ function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
   for(let r = 0; r < 6; r++) for(let c = 0; c < n; c++){ const u = 10 + c*(len - 20)/(n - 1), zz = z0 + 18 + r*(z1 - z0 - 36)/5; rect(u - 1.6, u + 1.6, zz - 1.6, zz + 1.6, studs, 0.2); }
   rect(pullU - 3, pullU + 3, (z0 + z1)/2 - 5, (z0 + z1)/2 + 5, studs, 0.3); rect(pullU - 1.5, pullU + 1.5, (z0 + z1)/2 - 3, (z0 + z1)/2 + 3, shade(trim, 0.5), 0.35);
 }
+/* A PANELLED LEAF'S FACE (shopDoor opts.panes): its stiles and rails in the trim, a raised panel low down, a glazed light of small panes over it
+   (glazing bars three by two), a brass knob near the meeting stile -- in the leaf's own (u along it from its hinge, z) */
+function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU){
+  const H = z1 - z0, zr = z0 + H*0.40, dk = shade(trim, 0.62);
+  rect(0, len, z0, z1, shade(trim, 0.7));                                     // its edge, the frame
+  rect(3, len - 3, z0 + 3, z1 - 3, trim, 0.1);                               // stiles and rails
+  rect(9, len - 9, z0 + 12, zr - 8, shade(trim, 1.14), 0.2);                 // the raised panel
+  rect(13, len - 13, z0 + 16, zr - 12, shade(trim, 0.92), 0.3);
+  rect(8, len - 8, zr, z1 - 9, glass, 0.2);                                  // the light
+  for(let k = 1; k < 3; k++){ const u = 8 + (len - 16)*k/3; rect(u - 1, u + 1, zr, z1 - 9, dk, 0.3); }
+  rect(8, len - 8, (zr + z1 - 9)/2 - 1, (zr + z1 - 9)/2 + 1, dk, 0.3);
+  rect(10, len*0.45, z1 - 14, z1 - 11, 'rgba(255,255,255,.22)', 0.35);       // a glint on the glass
+  rect(knobU - 2.5, knobU + 2.5, z0 + H*0.36, z0 + H*0.36 + 5, '#c9a24a', 0.4);   // the knob
+}
 /* leafOnly: just the swung leaves, to lay back over someone standing
    behind them (see LIB.doorLeaves) */
 function shopDoorOpen(d, t, between, leafOnly){
@@ -47861,7 +47937,7 @@ function shopDoorOpen(d, t, between, leafOnly){
      slidePairDraw): each leaf parts from the middle over the wall beside it. They swung out (Sir, 2026-11-05, the
      trophy shop: "showing 2 doors one that opens one that doesnt") -- swung out toward the street, the near leaf lay
      across the doorway and read as still shut */
-  if(d.pair && d.see && d.studs){                                          // (a walk-in's studded pair: swung, from its two jambs -- the tea house's)
+  if(d.pair && d.see && (d.studs || d.panes)){                             // (a walk-in's studded or panelled pair: swung, from its two jambs -- the tea house's, the bookshop's)
     /* INWARD, into the shop, as a shop's front doors open (Sir, 2026-11-17: "the door is painting over tipsy" -- swung out over the street,
        the near leaf crossed him as he came up to it). From the street they are seen through the opening, so cut to it there; from
        inside (the half door, CUT) the room is open round them */
@@ -47869,7 +47945,8 @@ function shopDoorOpen(d, t, between, leafOnly){
     const clipIt = CUT == null;
     if(clipIt){ ctx.save(); poly([P(d.a0, 0.6, d.z), P(d.a1, 0.6, d.z), P(d.a1, 0.6, d.z + d.dH), P(d.a0, 0.6, d.z + d.dH)]); ctx.clip(); }
     try { for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){ const qq = Qi(hingeA, sgn);
-      shopDoorStuds((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.studs, d.trim, ln - 10); } }
+      if(d.panes) shopDoorPanes((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.panes, d.trim, ln - 9);
+      else shopDoorStuds((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.studs, d.trim, ln - 10); } }
     finally { if(clipIt) ctx.restore(); }
     return;
   }
@@ -57479,6 +57556,254 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE DRIFTWOOD BOOKS (BK_IN; the walk-in kit's walls, walkinRoom, its door in the east wall; the room runs back under the buildings
+     behind it, which are taken off while he is inside -- pk.displace). Frame a east, b south, z up, world units. Built by the shop recipe
+     (W33), in zones for its size:
+       the north wall    THE BOOKCASES (a 0..600), floor to 236, a library ladder on them; then THE RARE BOOKS (a 640..830), glass-fronted,
+                         and THE TILL COUNTER before them (a 660..820, b 78..112), Walter behind it
+       the west wall     MORE BOOKCASES (b 26..420); then THE READING NOOK (b 440..699): the stove, a rug, two armchairs and the shop cat
+       the middle        FREESTANDING STACKS, waist high and double-sided (a 230/370/510 north of the lane, 370/510 south of it), aisles a body wide
+       b 273..353        the door's lane, the runner, door to back wall, clear
+       by the door       THE BARGAIN CART and THE NEW ARRIVALS table; the window's display platform behind the shop window
+     Every case, stack and counter a run of pieces (runPiece, W28): the cases and stacks a piece per bay, each drawing only its own bay's
+     books (no book is painted twice); what stands on the counter and the tables its own piece. */
+  name:'Driftwood Books Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 850, dd: 699,
+  head:'Inside Driftwood Books: floor-to-ceiling bookcases, waist-high stacks, a till before the rare books, a reading nook by the stove',
+  tags:['interior','pocket','bookshop','secondhand books','bookcases','reading nook'],
+  desc:'The Flats\' secondhand bookshop: cream plaster over deep green, honey oak boards and a worn runner from the door; bookcases floor to cornice along the north and west walls with a library ladder, waist-high double-sided stacks down the middle, the till counter before a glass-fronted case of rare books, a reading nook of two armchairs, a rug and a wood stove (and the shop cat), a bargain cart and a table of new arrivals by the door.',
+  draw(p){
+    const pl = (typeof BK_PLAN !== 'undefined' && BK_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 699, H = BK_IN.H, LH = BK_IN.LH, DZ = BK_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 'e', at: 313, half: 65 };
+    const plas = '#ece2c8', green = '#3f5a48', greenD = '#2f4637', brass = '#c9a24a', brassD = '#a8862f', dark = '#2a221c';
+    const oak = '#a37a4c', oakD = '#8e683f', case0 = '#6b4a30', caseF = '#5a3e28', caseS = '#4a3220', caseB = '#3a281a';
+    const extW = '#9c9384', extT = '#f3eee2';                                                          // (the shop's own walls, outside: W4)
+    const BOOK = ['#7a2e2a', '#2f4f6a', '#5a6b3a', '#8a6a2a', '#4a3a5a', '#9a7a5a', '#3a5a5a', '#6a3a2a', '#c9b48a', '#2a3a4a', '#8f5a3a', '#5a2a3a'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    const ring = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(a + Math.cos(t)*r, b, z + Math.sin(t)*r)); } poly(pts, c); };
+    /* A ROW OF BOOKS standing on a board, their spines on a face: along a (spines facing +b, on the plane bF) or along b (facing +a, on aF).
+       Each a thin box of its own -- its top and its spine -- its width, height and colour seeded by where it stands; now and then a gap */
+    const booksA = (s0, s1, bF, dep, z, zMax, seed) => { for(let a = s0 + 1, i = 0; a < s1 - 2; i++){
+      const w = 3.6 + hsh(seed + i*7)*4.2; if(a + w > s1 - 0.5) break;
+      if(hsh(seed + i*7 + 3) < 0.05){ a += w + 1.5; continue; }
+      const h = (zMax - z)*(0.64 + 0.32*hsh(seed + i*7 + 1)), col = BOOK[Math.floor(hsh(seed + i*7 + 2)*BOOK.length)];
+      T(a, a + w - 0.5, bF - dep, bF, z + h, shade(col, 1.2)); F(a, a + w - 0.5, z, z + h, col, null, 0, bF);
+      if(w > 6) F(a + 1, a + w - 1.5, z + h*0.72, z + h*0.76, shade(col, 1.45), null, 0, bF + 0.1);
+      a += w; } };
+    const booksB = (s0, s1, aF, dep, z, zMax, seed) => { for(let b = s0 + 1, i = 0; b < s1 - 2; i++){
+      const w = 3.6 + hsh(seed + i*7)*4.2; if(b + w > s1 - 0.5) break;
+      if(hsh(seed + i*7 + 3) < 0.05){ b += w + 1.5; continue; }
+      const h = (zMax - z)*(0.64 + 0.32*hsh(seed + i*7 + 1)), col = BOOK[Math.floor(hsh(seed + i*7 + 2)*BOOK.length)];
+      T(aF - dep, aF, b, b + w - 0.5, z + h, shade(col, 1.2)); S(aF, b, b + w - 0.5, z, z + h, col);
+      if(w > 6) S(aF + 0.1, b + 1, b + w - 1.5, z + h*0.72, z + h*0.76, shade(col, 1.45));
+      b += w; } };
+    /* A BOOKCASE ALONG A (against the north wall, or a stack's face): a piece per bay (runPiece, each its own stretch -- W28), keyed at the
+       bay's start when it stands against the wall (keyStart); each bay draws its back, its boards and its books, its upright, and the case's
+       top and end where it has them. ZS the boards' heights, zTop its top; glass: a glazed front (the rare books) */
+    const caseA = (A0, A1, B0, B1, ZS, zTop, seed, o) => { const n = Math.max(1, Math.round((A1 - A0)/48)), SD = B1 - B0;
+      for(let k = 0; k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, s0, s1, B0, B1, zTop + 8, (q0, q1) => [solid(q0, q1, B0, B1, zTop, o && o.name || 'bookcase')], () => {
+          F(s0, s1, 0, zTop, caseB, null, 0, B0 + 0.6);                                          // its back
+          S(s0 + 4, B0 + 0.6, B1, 0, zTop, caseS);                                               // its upright's side, behind this bay's books
+          ZS.forEach((z, r) => { const zN = r + 1 < ZS.length ? ZS[r + 1] - 4 : zTop;
+            T(s0, s1, B0 + 0.6, B1, z, case0);
+            if(o && o.cupboard && r === 0){ F(s0 + 6, s1 - 2, 6, zN - 6, caseF, null, 0, B1 - 0.4); F(s1 - 10, s1 - 7, zN*0.5 - 3, zN*0.5 + 3, brass, null, 0, B1 - 0.2); }
+            else booksA(s0 + 4, last ? s1 - 4 : s1, B1 - 3, SD - 9, z, zN - 5, seed + k*131 + r*977);
+            F(s0, s1, z - 4, z, caseF, null, 0, B1); });
+          F(s0, s1, 0, ZS[0] - 4, caseF, null, 0, B1);                                           // its plinth
+          if(o && o.glass){ F(s0 + 4, last ? s1 - 4 : s1, ZS[1] - 4, zTop - 4, 'rgba(190,214,222,.22)', null, 0, B1 + 0.5);
+            F(s0 + 10, s0 + 14, ZS[1] + 8, zTop - 12, 'rgba(255,255,255,.18)', null, 0, B1 + 0.6); }
+          F(s0, s0 + 4, 0, zTop, case0, null, 0, B1);                                            // its upright
+          if(last){ F(s1 - 4, s1, 0, zTop, case0, null, 0, B1); S(s1, B0, B1, 0, zTop, caseS); }
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          T(s0 - e0, s1 + e1, B0, B1 + 3, zTop + 5, case0); F(s0 - e0, s1 + e1, zTop, zTop + 5, caseF, null, 0, B1 + 3);   // its cornice
+          if(last) S(s1 + 3, B0, B1 + 3, zTop, zTop + 5, caseS);
+        }, { pad: 3, keyStart: !!(o && o.wall) });
+      } };
+    /* ...and ALONG B (against the west wall, or a freestanding stack seen from the east): a piece per bay (runPiece alongB) -- against the
+       wall keyed at each bay's north end (keyStart: nothing stands behind it); a stack, free-standing, in runs SHORTER THAN IT IS DEEP (24 on
+       26) keyed down its middle line: only so does one key sort it right against a browser on either side of it and one at either end
+       (the order's log, 2026-11-18: keyed at its east side, a bay painted over a browser beside its north end) */
+    const caseB_ = (A0, A1, B0, B1, ZS, zTop, seed, o) => { const n = Math.max(1, Math.round((B1 - B0)/48)), SD = A1 - A0;
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, A0, A1, s0, s1, zTop + 8, (q0, q1) => [solid(A0, A1, q0, q1, zTop, o && o.name || 'bookcase')], () => {
+          if(o && o.free){ S(A0 + SD/2, s0, s1, 0, zTop, caseB); } else S(A0 + 0.6, s0, s1, 0, zTop, caseB);   // its back (a stack's: its spine)
+          const back = o && o.free ? A0 + SD/2 : A0 + 0.6;
+          F(back, A1, 0, zTop, caseS, null, 0, s0 + 4);                                          // its upright's side
+          ZS.forEach((z, r) => { const zN = r + 1 < ZS.length ? ZS[r + 1] - 4 : zTop;
+            T(back, A1, s0, s1, z, case0);
+            booksB(s0 + 4, last ? s1 - 4 : s1, A1 - 3, A1 - back - 8, z, zN - 5, seed + k*131 + r*977);
+            S(A1, s0, s1, z - 4, z, caseF); });
+          S(A1, s0, s1, 0, ZS[0] - 4, caseF);                                                     // its plinth
+          S(A1, s0, s0 + 4, 0, zTop, case0);                                                      // its upright
+          if(last){ S(A1, s1 - 4, s1, 0, zTop, case0); F(A0, A1, 0, zTop, caseS, null, 0, s1); }  // (its end panel: a stack's south end)
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          T(A0 - (o && o.free ? 3 : 0), A1 + 3, s0 - e0, s1 + e1, zTop + 5, case0); S(A1 + 3, s0 - e0, s1 + e1, zTop, zTop + 5, caseF);
+          if(last) F(A0 - (o && o.free ? 3 : 0), A1 + 3, zTop, zTop + 5, caseS, null, 0, s1 + 3);
+        }, o && o.free ? { alongB: true, run: 24, extra: { a: (A0 + A1)/2 } } : { alongB: true, keyStart: true });
+      } };
+
+    /* ---- THE FLOOR: honey oak boards, the worn runner up the lane, the threshold ---- */
+    T(0, W, 0, D, 0, oak);
+    for(let b = 16; b < D; b += 16) T(0, W, b - 0.5, b + 0.5, 0.2, oakD);
+    for(let k = 0; k < 40; k++){ const a = hsh(k*3 + 5)*W, b = Math.floor(hsh(k*3 + 6)*D/16)*16; T(a, a + 1, b, b + 16, 0.25, oakD); }   // the boards' ends
+    T(0, W - 4, door.at - 32, door.at + 32, 0.3, '#7a3b34'); T(0, W - 4, door.at - 27, door.at + 27, 0.35, '#8a4a3e');
+    T(0, W - 4, door.at - 22, door.at + 22, 0.4, '#7a3b34');
+    for(let a = 30; a < W - 20; a += 46) T(a, a + 10, door.at - 6, door.at + 6, 0.45, '#c9a46a');
+    /* the nook's rug, under the armchairs */
+    T(60, 262, 470, 680, 0.3, '#5a3a4a'); T(70, 252, 480, 670, 0.35, '#7a4a5a'); T(90, 232, 500, 650, 0.4, '#6a3a4a');
+    for(let k = 0; k < 4; k++) T(110 + k*30, 122 + k*30, 560, 590, 0.45, '#c9a46a');
+    items.push({ a: W - 6, b: door.at, z: 0, solids: [], draw: () => { T(W - 10, W + 40, door.at - door.half - 6, door.at + door.half + 6, 0.55, '#cfc8b8');
+      T(W - 2, W + 2, door.at - door.half, door.at + door.half, 0.6, brass); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ, cornerLow: true,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 96, green, null, 0, 0.1); F(-30, W + 30, 96, 100, brass, null, 0, 0.2);
+        F(-30, W + 30, H - 22, H, green, null, 0, 0.3); F(-30, W + 30, H - 26, H - 22, greenD, null, 0, 0.35);
+        /* brass sconces over the cases, a clock and a framed chart over the rare books */
+        for(const la of [120, 300, 480, 620]){ F(la - 2, la + 2, 252, 266, brassD, null, 0, 0.5); ring(la, 0.6, 270, 7, '#f6e6b8'); F(la - 8, la + 8, 262, 265, brass, null, 0, 0.7); }
+        ring(735, 0.5, 240, 22, dark); ring(735, 0.6, 240, 19, '#f4ecd8');
+        F(734, 736, 240, 254, dark, null, 0, 0.7); F(735, 747, 239, 241, dark, null, 0, 0.7);
+        for(const [fa0, fa1] of [[660, 700], [770, 820]]){ F(fa0, fa1, 214, 262, dark, null, 0, 0.4); F(fa0 + 4, fa1 - 4, 218, 258, '#d9cba6', null, 0, 0.5);
+          for(let k = 0; k < 3; k++) F(fa0 + 8, fa1 - 8 - k*6, 226 + k*10, 229 + k*10, '#7a6a4a', null, 0, 0.6); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.94));
+        S(0.1, -30, D + 30, 0, 96, shade(green, 0.92)); S(0.2, -30, D + 30, 96, 100, brass);
+        S(0.3, -30, D + 30, H - 22, H, shade(green, 0.92)); S(0.35, -30, D + 30, H - 26, H - 22, greenD);
+        /* over the nook: an old sea chart in a frame, and a shelf of plates */
+        S(0.4, 450, 530, 150, 230, dark); S(0.5, 455, 525, 155, 225, '#d9cba6');
+        for(let k = 0; k < 4; k++) S(0.6, 462 + k*14, 470 + k*14, 170 + (k % 2)*20, 200 + (k % 2)*10, '#8aa6b0');
+        S(0.6, 600, 680, 180, 184, caseF);
+        for(const pb of [610, 640, 670]){ const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(P(1.2, pb + Math.cos(t)*11, 196 + Math.sin(t)*11)); } poly(pts, '#e6e0d2'); }
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's driftwood grey and its cream trim, and its window cut in at its own sill (the
+         exterior's: lab a 10..108, z 26, x1.95) -- the near walls' outer faces are the building's own */
+      winE: [[BK_IN.ra(BK_IN.WIN[0]), BK_IN.ra(BK_IN.WIN[1]), BK_IN.WIN[2]*1.95]],
+      glass: 'rgba(127,147,160,.45)', frame: extT,
+      low: [shade(extW, 1.12), extW, shade(extW, 0.82)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#cfc6b2' });
+
+    /* ---- THE NORTH WALL'S BOOKCASES, floor to 236 (five boards), and the library ladder on them ---- */
+    caseA(0, 600, 0, 26, [14, 58, 102, 146, 190], 236, 11, { wall: true });
+    items.push({ a: 304, b: 40, z: 0, solids: [solid(302, 334, 26, 56, 230, 'ladder')], draw: () => {   // (keyed at its west rail: whoever browses before it is after it)
+      for(const ra of [304, 332]) tube(ra, 54, 0, ra, 30, 232, 1.6, '#7a5232');
+      for(let k = 1; k < 10; k++){ const u = k/10; tube(304, 54 - 24*u, 232*u, 332, 54 - 24*u, 232*u, 1.1, '#8a6240'); }
+      tube(300, 28, 236, 336, 28, 236, 1.2, brass); } });            // (its rail, along the cases' cornice)
+
+    /* ---- THE RARE BOOKS: a glass-fronted case, a cupboard under it ---- */
+    caseA(640, 830, 0, 24, [62, 108, 154], 200, 97, { wall: true, glass: true, name: 'rare books' });
+
+    /* ---- THE TILL COUNTER before them: dark oak, panelled; 54 clear behind it for Walter (W33) ---- */
+    { const A0 = 660, A1 = 820, B0 = 78, B1 = 112;
+      /* (in runs shorter than it is deep, 30 on 34, keyed down its middle line: keyed at its front, its west run painted over a customer
+         stood before its west end -- the order's log, 2026-11-18) */
+      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'counter')], () => {
+        box(A0, A1, B0, B1, 0, 82, case0, caseF, caseS);
+        for(let a = A0 + 8; a < A1 - 30; a += 38) F(a, a + 30, 12, 70, shade(caseF, 1.1), shade(caseF, 0.7), 1, B1 + 0.3);
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 82, 88, dark, '#1e1b18', '#171512');
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      /* WHAT STANDS ON IT, each its own piece (W28): the brass till, a pile of books, the banker's lamp, the bell */
+      /* (each keyed just after the counter's runs its picture meets, before a customer at the till: z, and its own footprint fp) */
+      const on = (oa, z, fp, fn) => items.push({ a: oa, b: B1 + 0.5, z, fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(700, 62, [686, 714, 86, 108, 116], () => { box(686, 714, 86, 104, 88, 104, brass, brassD, shade(brassD, 0.85)); box(688, 712, 96, 108, 88, 96, shade(brass, 0.9), brassD, brassD);
+        box(692, 708, 86, 92, 104, 116, '#2a2a2e', '#1e1e22', '#161618'); F(694, 706, 108, 114, '#d8e8c8', null, 0, 92.2); });
+      on(745, 62, [734, 756, 88, 104, 106], () => { [['#7a2e2a', 0], ['#2f4f6a', 6], ['#c9b48a', 12]].forEach(([c, z], i) => box(734 + i*2, 756 - i, 88 + i, 104 - i, 88 + z, 94 + z, shade(c, 1.2), c, shade(c, 0.8))); });
+      on(795, 62, [783, 807, 88, 100, 120], () => { cyl(795, 94, 88, 91, 6, brassD); tube(795, 94, 91, 795, 94, 114, 1.2, brass);
+        box(783, 807, 90, 100, 112, 120, '#2f6a4a', '#255a3e', '#1e4a32'); F(785, 805, 112, 113, '#f6e6b8', null, 0, 100.2); });
+      on(672, 20, [667, 677, 95, 105, 95], () => { cyl(672, 100, 88, 90, 5, dark); cyl(672, 100, 90, 95, 4, brass, shade(brass, 1.2)); });
+    }
+
+    /* ---- THE WEST WALL'S BOOKCASES, b 26..420 ---- */
+    caseB_(0, 26, 26, 420, [14, 58, 102, 146, 190], 236, 23);
+
+    /* ---- FREESTANDING STACKS down the middle: waist high, double-sided, aisles a body wide between ---- */
+    for(const c of [230, 370, 510]) caseB_(c - 13, c + 13, 100, 240, [10, 44, 78], 112, c, { free: true, name: 'stack' });
+    for(const c of [370, 510]) caseB_(c - 13, c + 13, 400, 560, [10, 44, 78], 112, c + 7, { free: true, name: 'stack' });
+
+    /* ---- THE READING NOOK: the stove, two armchairs, a low table, a standard lamp; the shop cat asleep ---- */
+    items.push({ a: 37, b: 565, z: 0, solids: [solid(12, 62, 540, 590, 300, 'stove')], draw: () => {
+      box(12, 62, 538, 592, 0, 4, '#5a5450', '#4a4440', '#3a3430');                         // its hearth
+      for(const [la, lb] of [[22, 548], [52, 548], [22, 582], [52, 582]]) box(la - 2, la + 2, lb - 2, lb + 2, 4, 16, '#1e1e20', '#1e1e20', '#161618');
+      box(18, 56, 546, 584, 16, 72, '#2a2a2c', '#222224', '#1a1a1c');
+      S(56.2, 554, 576, 26, 56, '#3a3a3c'); S(56.4, 558, 572, 30, 52, '#e07a2a'); S(56.5, 561, 569, 33, 48, '#f6b84a');   // its door, the fire behind
+      box(16, 58, 544, 586, 72, 76, '#3a3a3c', '#2a2a2c', '#222224');
+      cyl(37, 565, 76, 300, 6, '#2a2a2c', '#3a3a3c');                                       // its flue, up the wall
+      cyl(30, 556, 76, 88, 7, '#7a8a8a', '#9aaaaa'); tube(36, 556, 86, 42, 556, 90, 1.2, '#7a8a8a'); } });   // a kettle on it
+    /* the armchairs, back to front each (Sir's rule: parts of one thing in one piece, far parts first) */
+    const leather = '#7a3a2a', leatherF = '#6a3022', leatherS = '#5a281c';
+    items.push({ a: 110, b: 515, z: 0, solids: [{ name: 'armchair', c: [110, 515], r: 22, h: 72 }], draw: () => {
+      const ca = 110, cb = 515;
+      box(ca - 20, ca - 8, cb - 20, cb + 20, 0, 72, leather, leatherF, leatherS);           // its back (west)
+      box(ca - 8, ca + 18, cb - 20, cb - 12, 0, 48, leather, leatherF, leatherS);           // the far arm
+      box(ca - 8, ca + 18, cb - 12, cb + 12, 0, 30, leather, leatherF, leatherS);           // the seat
+      box(ca - 8, ca + 16, cb - 12, cb + 12, 30, 36, '#8a4a36', '#7a3e2c', '#6a3424');      // its cushion
+      /* the shop cat, curled on it: ginger, its head on its paws */
+      ball(ca + 2, cb, 43, 9, '#d08a4a', '#e8a868'); ball(ca + 10, cb + 6, 44, 5.5, '#d08a4a', '#e8a868');
+      poly([P(ca + 8, cb + 4, 48), P(ca + 9, cb + 3, 52), P(ca + 11, cb + 4, 48)], '#b06a32'); poly([P(ca + 11, cb + 7, 48), P(ca + 13, cb + 7, 52), P(ca + 14, cb + 8, 48)], '#b06a32');
+      tube(ca - 4, cb + 6, 38, ca + 6, cb + 11, 37, 2, '#c07a3a');
+      box(ca - 8, ca + 18, cb + 12, cb + 20, 0, 48, leather, leatherF, leatherS); } });      // the near arm
+    items.push({ a: 200, b: 640, z: 0, solids: [{ name: 'armchair', c: [200, 640], r: 22, h: 72 }], draw: () => {
+      const ca = 200, cb = 640;
+      box(ca - 20, ca - 12, cb - 18, cb + 10, 0, 48, leather, leatherF, leatherS);          // the far (west) arm
+      box(ca - 12, ca + 12, cb - 18, cb + 10, 0, 30, leather, leatherF, leatherS);
+      box(ca - 12, ca + 12, cb - 16, cb + 10, 30, 36, '#8a4a36', '#7a3e2c', '#6a3424');
+      box(ca + 12, ca + 20, cb - 18, cb + 10, 0, 48, leather, leatherF, leatherS);          // the near arm
+      box(ca - 20, ca + 20, cb + 10, cb + 20, 0, 72, leather, leatherF, leatherS); } });    // its back (south)
+    items.push({ a: 175, b: 530, z: 0, solids: [{ name: 'low table', c: [175, 530], r: 20, h: 46 }], draw: () => {
+      cyl(175, 530, 0, 4, 10, caseS); cyl(175, 530, 4, 36, 3, caseF); cyl(175, 530, 36, 40, 20, case0, shade(case0, 1.15));
+      cyl(168, 526, 40, 50, 6, '#e9e4da', '#f4f0e6'); cyl(168, 526, 50, 53, 2.4, '#e9e4da');   // the teapot
+      cyl(183, 536, 40, 45, 3, '#f4f0e6'); box(170, 186, 516, 526, 40, 43, '#c9b48a', '#2f4f6a', '#25405a'); } });   // a cup, an open book
+    items.push({ a: 42, b: 658, z: 0, solids: [{ name: 'lamp', c: [42, 658], r: 10, h: 180 }], draw: () => {
+      cyl(42, 658, 0, 3, 10, brassD); tube(42, 658, 3, 42, 658, 150, 1.2, brass);
+      cyl(42, 658, 148, 172, 16, '#e8d6a8', '#f6ecc8'); } });
+
+    /* ---- BY THE DOOR: THE BARGAIN CART and THE NEW ARRIVALS ---- */
+    { const A0 = 660, A1 = 760, B0 = 440, B1 = 490;
+      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 74, 'bargain cart')], () => {
+        for(const [wa, wb] of [[668, 444], [752, 444], [668, 486], [752, 486]]) cyl(wa, wb, 0, 8, 5, '#2a2a2e');
+        box(A0, A1, B0, B1, 8, 14, caseS, caseS, caseS);
+        box(A0, A1, B0, B1, 14, 56, case0, caseF, caseS);
+        /* the books in its trough, standing on their spines, their tops showing */
+        for(let a = A0 + 3, i = 0; a < A1 - 4; i++){ const w = 4 + hsh(400 + i)*4, c = BOOK[Math.floor(hsh(401 + i)*BOOK.length)], h = 10 + hsh(402 + i)*8;
+          box(a, a + w - 0.5, B0 + 4 + hsh(403 + i)*6, B1 - 4, 56, 56 + h, shade(c, 1.2), c, shade(c, 0.8)); a += w; }
+        tube(A1 - 20, B1 - 2, 56, A1 - 20, B1 - 2, 92, 0.8, dark);
+        F(A1 - 40, A1, 80, 100, '#f4ecd8', null, 0, B1 - 1.5); blockWordIn('3 FOR 5', A1 - 38, A1 - 2, 82, 98, B1 - 1.3, '#7a2e2a', null, 3);
+      }, { run: 40, extra: { b: (B0 + B1)/2 } }); }
+    { const A0 = 640, A1 = 760, B0 = 570, B1 = 630;
+      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'new arrivals')], () => {
+        for(const [la, lb] of [[644, 574], [756, 574], [644, 626], [756, 626]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 58, caseF, caseF, caseS);
+        box(A0, A1, B0, B1, 58, 64, case0, caseF, caseS);
+        F(A0 + 4, A1 - 4, 50, 58, caseS, null, 0, B1 - 4);
+      }, { pad: 5, extra: { b: (B0 + B1)/2 } });
+      /* the piles of books on it, each its own piece (W28), and a card -- keyed (z 30) after the table's runs their pictures meet, before a
+         browser at the table's front (the order's log) */
+      for(const [pa, pb, nb] of [[656, 586, 4], [688, 612, 3], [716, 588, 5], [744, 610, 3]]) items.push({ a: pa, b: B1 + 0.5, z: 30, fpLab: { a0: pa - 13, a1: pa + 13, b0: pb - 8, b1: pb + 8, z1: 64 + nb*5 }, solids: [], draw: () => {
+        for(let k = 0; k < nb; k++){ const c = BOOK[Math.floor(hsh(pa*7 + k)*BOOK.length)], j = (hsh(pa + k*3) - 0.5)*4;
+          box(pa - 11 + j, pa + 11 + j, pb - 8, pb + 8, 64 + k*5, 69 + k*5, '#efe6d0', c, shade(c, 0.8)); } } });
+      items.push({ a: 700, b: B1 + 0.6, z: 50, fpLab: { a0: 686, a1: 714, b0: 598, b1: 602, z1: 84 }, solids: [], draw: () => { F(686, 714, 64, 84, '#f4ecd8', null, 0, 600); blockWordIn('NEW IN', 688, 712, 68, 80, 600.2, '#2f4f6a', null, 3); } });
+    }
+    /* ---- THE WINDOW'S DISPLAY behind the shop window: a low platform, books propped on it facing the street ---- */
+    { const b0 = BK_IN.ra(BK_IN.WIN[0]) + 4, b1 = BK_IN.ra(BK_IN.WIN[1]) - 4;
+      runPiece(items, 806, 846, b0, b1, 60, (s0, s1) => [solid(806, 846, s0, s1, 36, 'window display')], () => box(806, 846, b0, b1, 0, 34, case0, caseF, caseS), { alongB: true, run: 30, extra: { a: 826 } });
+      for(let k = 0; k < 4; k++){ const bb = b0 + 16 + k*(b1 - b0 - 32)/3, c = BOOK[(k*5 + 2) % BOOK.length];
+        items.push({ a: 838, b: bb + 12, z: 30, fpLab: { a0: 826, a1: 836, b0: bb - 11, b1: bb + 11, z1: 66 }, solids: [], draw: () => { box(826, 830, bb - 11, bb + 11, 34, 66, shade(c, 1.2), c, shade(c, 0.8)); box(830, 836, bb - 4, bb + 4, 34, 40, caseF, caseF, caseS); } }); } }
+    /* a fern in a pot by the door, south of the lane */
+    items.push({ a: 815, b: 410, z: 0, solids: [{ name: 'plant', c: [815, 410], r: 14, h: 100 }], draw: () => {
+      cyl(815, 410, 0, 26, 13, '#a86a3a', shade('#a86a3a', 1.15));
+      for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(815, 410, 26, 815 + Math.cos(t)*20, 410 + Math.sin(t)*16, 62 + (k % 3)*8, 2, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
+
+    /* (its doors are the street's: the door kit's panelled pair on the shop, swung live, cut to the front wall's height from in here) */
+    walkinStaffSolids(items, BK_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -62563,6 +62888,11 @@ function houseCanopy(fn){
 },
 {
   name:'Driftwood Books', xh: 336, base:'Bookshop', hood:'The Flats', edited:true, sc:1.3, tall:true,
+  see: true,   // (a walk-in: its doorway shows the bookshop, BK_IN -- W11)
+  /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
+     only once he is in it (BK_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: 336,
+         opens: [{ name: 'doorway', poly: volRect(122, 222, -90, 2), walk: true }] },
   head:'Two flush storeys, books behind real glass, hanging sign',
   tags:['two full storeys','flush elevation','books behind glass','string course','swinging sign'],
   desc:'A true two-storey building with both storeys on one plane: a shopfront of 168 with the books behind a real recess and a tinted pane, and an upper floor of 168 over it divided by a single string course. The hanging sign is a board on an arm with its own thickness.',
@@ -62731,7 +63061,8 @@ function houseCanopy(fn){
        glaze()'s default tint is rgba(104,146,168,.92), which is not
        glass but a wall the colour of glass. .32 here, so the books and
        the ladder read through it. */
-    const wx1 = W*0.62;
+    /* (the window gives the door its width, W33: the walk-in's pair is 100 across -- Tipsey and a person -- so the glass ends at 108) */
+    const wx1 = 108;
     reveal(10, wx1, 26, 120, 14, inner);
     /* THE BOOKS DID NOT FIT THE OPENING, AND MY CENSUS COULD NOT SEE IT.
        The real projection is y = ((a+b)*0.5 - z*ZSCALE)*K, so b moves a
@@ -62751,7 +63082,7 @@ function houseCanopy(fn){
        z 34..104, which after the b -9 shift is 23..127.6 across and
        37..107 up, inside a 10..142.6 by 26..120 opening with 13 to 15
        of margin on every side. */
-    for(let r=0;r<4;r++) for(let i=0;i<7;i++)
+    for(let r=0;r<4;r++) for(let i=0;i<5;i++)
       F(14+i*15.43, 14+i*15.43+12.03, 34+r*18, 50+r*18,
         ['#8f2b2b','#2f6f8f','#c9a24a','#3f6b4a','#7a4a6b'][(i+r)%5], null,0,-9);
     /* THE LADDER IS GONE, at Sir's direction. It was a sliding library
@@ -62778,7 +63109,9 @@ function houseCanopy(fn){
        153.8..228.0, so 11.2 of pier from the glass and 2.0 at the
        return. Door glass passed explicitly so the fanlight does not
        default to the kit's cool blue. */
-    shopDoor(W*0.83, wall, trim, 'rgba(127,147,160,.55)');
+    /* THE DOOR IS THE DOOR KIT'S (D13, W33): a pair of panelled leaves, small panes over a raised panel, 100 across -- a walk-in's (see),
+       its opening a hole onto the bookshop, its leaves live, swinging in */
+    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 100, pair: true, panes: 'rgba(150,176,186,.72)' });
     /* THE WINDOW HEAD DOES THE TYING, not a band. It comes down from
        132 to 120, which puts it within 5 of the door surround at 114.9
        -- close enough to read as one shopfront under one line, and it
@@ -107012,6 +107345,14 @@ class WorldScene extends Phaser.Scene {
      with the room; the room's outline its floor and walls to their height, as the screen sees them */
   /* someone of the street BEHIND a room bigger than its building (north or west of its near walls, outside it) whose figure falls on the
      room on screen: not drawn while he is in it -- the room is a set, lit; they stood over its shelves (Sir, 2026-11-18, the tea house) */
+  /* does a thing at world (x, y), h tall, stand over the displacing room he is in on screen -- before or behind it? */
+  overRoomOnScreen(x, y, h){
+    const pk = this._inside; if(!pk || !pk.displace || !POCKET_VIEW || POCKET_VIEW.pk !== pk) return false;
+    const X = pk.x0 + POCKET_VIEW.dx, Y = pk.y0 + POCKET_VIEW.dy, W = pk.w, D = pk.d, pts = [];
+    for(const a of [-30, W + 30]) for(const b of [-30, D + 30]) for(const z of [0, pk.h || 240]) pts.push(this.W(X + a, Y + b, z));
+    const p0 = this.W(x, y, 0), p1 = this.W(x, y, h || 170), x0 = Math.min(...pts.map(q => q.x)), x1 = Math.max(...pts.map(q => q.x));
+    return p0.x > x0 && p0.x < x1 && Math.max(p0.y, p1.y) > Math.min(...pts.map(q => q.y)) && Math.min(p0.y, p1.y) < Math.max(...pts.map(q => q.y));
+  }
   behindRoomSet(x, y){
     const pk = this._inside; if(!pk || !pk.displace || !POCKET_VIEW || POCKET_VIEW.pk !== pk) return false;
     const X = pk.x0 + POCKET_VIEW.dx, Y = pk.y0 + POCKET_VIEW.dy, W = pk.w, D = pk.d;
@@ -111913,12 +112254,16 @@ class WorldScene extends Phaser.Scene {
     /* (CUT TO THE DADO, as the room's own near walls are -- Sir, 2026-10-30: at 0.3 the fence still stood heavy over the
        room: its bars and spears gone with the shell, its kick panel and posts standing to the knee walls' height,
        WALKIN_GATE_LOW, so the room reads clearly over it and the alley is still shut) */
-    const _gu = units && units.find(u => u.shop && pocketHiding(u.shop.lib)), _gp = _gu && pocketHiding(_gu.shop.lib);
-    const _gk = _gp ? pocketShellK(this, _gp) : 1;
+    /* (every walk-in on the edge, not its first: on block 2,0's east edge the tea house came first and the gate by Driftwood Books stood
+       full height over the bookshop's room) */
+    let _gk0 = 1; for(const u of units || []){ const p = u.shop && pocketHiding(u.shop.lib); if(p) _gk0 = Math.min(_gk0, pocketShellK(this, p)); }
     for(const [a0, a1] of commercialEdgeGatesOf(this.route && this.route.grid, e, units, authored)){
       const B = -6, mid = (a0 + a1) / 2;
       const kx = e.ox + e.dv.x*mid + e.rv.x*B, ky = e.oy + e.dv.y*mid + e.rv.y*B;
       if(displacedAt(this, kx, ky, 10)) continue;   // (under a room that displaces it: not there at all)
+      /* (and any gate standing over a displacing room on screen, whatever edge it is on -- in front of its near walls: cut low with the
+         room's shell, as the room's own edge's are. Driftwood Books: the alley gates by the depot, over its south wall) */
+      const _gk = this._inside && this._inside.displace && this.overRoomOnScreen(kx, ky, 200) ? Math.min(_gk0, pocketShellK(this, this._inside)) : _gk0;
       if(_gk < 0.998) vq.push({ depth: kx + ky - 1e-3, fn: (g) => {
         const ot = CY_GATES.get(courtyardGateKey(e, a0, a1)) || 0;
         if(ot === 0 || ot === 1) this.bcDraw(g, "agate|" + Math.round(kx) + "," + Math.round(ky) + "|" + ot + "|low", kx, ky, gg => this.drawAlleyGate(gg, e, a0, a1, B, true));
@@ -134326,7 +134671,7 @@ class WorldScene extends Phaser.Scene {
     if(!rec || !(rec.pair || rec.half) || !ent) return [{ pick: null, depth: d.x + d.y + 0.3 }];
     const SC = ent.sc || 1, lotW = ent.ww || 230, mir = (d.e.dv.x + d.e.dv.y) <= 0 && ent.mirror !== false;
     const along = a => d.ux + d.e.dv.x*(mir ? lotW - a : a)*SC, alongY = a => d.uy + d.e.dv.y*(mir ? lotW - a : a)*SC;
-    const half = (rec.a1 - rec.a0)/2*SC, ang = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), out = (rec.studs && rec.see ? -1 : 1)*(half/2)*Math.sin(ang) + (rec.studs && rec.see ? -2 : 2);   // (a studded walk-in pair swings in: its leaves behind the door's plane)
+    const half = (rec.a1 - rec.a0)/2*SC, ang = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw = rec.see && (rec.studs || rec.panes), out = (inw ? -1 : 1)*(half/2)*Math.sin(ang) + (inw ? -2 : 2);   // (a studded or panelled walk-in pair swings in: its leaves behind the door's plane)
     return [[0, rec.a0 + (rec.a1 - rec.a0)/4], [1, rec.a1 - (rec.a1 - rec.a0)/4]].map(([pick, a]) => {
       const x = along(a) + d.e.rv.x*out, y = alongY(a) + d.e.rv.y*out; return { pick, depth: x + y }; });
   }
