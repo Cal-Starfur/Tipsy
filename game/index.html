@@ -130598,8 +130598,11 @@ class WorldScene extends Phaser.Scene {
     this.botHull(g, x, y, z, fdir, Object.assign({ hx: HX, hy: HY, z0: Z0, z1: Z1, ch: 7, bev: 3, bevIn: 2.5, cTop: BODYC.top, cLt: BODYC.lt, cDk: BODYC.dk, cBottom: DARK }, paintOf(Z0, Z1, 'body')));
     this.botHull(g, x, y, z, fdir, { hx: HX + 0.6, hy: HY + 0.6, ch: 7, z0: 52, z1: 57, band: true, cLt: STRIPEC, cDk: STRIPED });
     if(WEAR) this.botSkinWear(g, V, { hx: HX, hy: HY, ch: 7, s0: 52, s1: 57, dz: 60 });
-    beacon(); if(front) head();
-    for(const L of byDepth(legs.filter(L => L.sb === nearB))) leg(L);
+    /* over the torso, far to near by depth: its near legs, its beacon and (from in front) its head -- side-on a near front leg is nearer than
+       the head, nose-on the head is nearer than the legs beside it */
+    const top = legs.filter(L => L.sb === nearB).map(L => ({ d: V.depth(L.ha, L.sb*18, 28), f: () => leg(L) }));
+    top.push({ d: V.depth(24, 0, Z1 + 4), f: beacon }); if(front) top.push({ d: V.depth(HX + 4, 0, 56), f: head });
+    top.sort((p, q) => p.d - q.d); for(const o of top) o.f();
   }
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's): pieces worn over his egg at four moments --
      'back' before his body (what is behind him), 'mid' sorted in among his body's parts just above his band (what wraps his waist),
