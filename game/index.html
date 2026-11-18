@@ -131511,17 +131511,51 @@ class WorldScene extends Phaser.Scene {
       if(sees(-1, 0, 0)) motor();
       return; }
 
-    if(id === 'amrarm'){   /* ROBOT ARM: a turret on its deck, an arm in three joints that sweeps slowly round, a two-fingered gripper */
+    if(id === 'amrarm'){   /* ROBOT ARM. (Second pass -- Sir, 2026-11-18): an industrial arm doing a job -- it picks a box out of a blue tote on its
+         nose, lifts it, swings it round over its far side and sets it in the tote on its tail, then next time carries it back. Round tapered
+         links, a motor drum at each joint, a two-fingered gripper; its reach stays inside its lid. Everything sorted by depth */
       if(st !== 'post') return;
-      const sw = Math.sin(t/1400)*1.3, c = Math.cos(sw), s = Math.sin(sw), R = (r, h) => [c*r, s*r, h];
-      this.avLathe(V, 0, 0, [[TOP, 16], [TOP + 6, 16], [TOP + 6, 12], [TOP + 12, 12]], DARK, null, 16);
-      const sh = [0, 0, TOP + 14], el = R(22, TOP + 58), wr = R(54, TOP + 46), tip = R(62, TOP + 30);
-      const seg = [{ p: [sh, el], w: 9, col: Y }, { p: [el, wr], w: 7, col: Y }, { p: [wr, tip], w: 4, col: DARK }];
-      const joint = (q, r) => this.avLathe(V, q[0], q[1], [[q[2] - r, r], [q[2] + r, r]], 0x3a3e46, null, 10);
-      const parts = [{ d: V.depth(...sh), f: () => joint(sh, 7) }, { d: V.depth(...el), f: () => joint(el, 5.5) }, { d: V.depth(...wr), f: () => joint(wr, 4.4) }];
-      for(const sg of seg){ const m = sg.p[0].map((v, i) => (v + sg.p[1][i])/2); parts.push({ d: V.depth(...m), f: () => tube(sg.p[0], sg.p[1], sg.w, sg.col) }); }
-      for(const sb of [-1, 1]){ const f0 = [tip[0] - s*sb*4, tip[1] + c*sb*4, tip[2]], f1 = [f0[0] + c*4, f0[1] + s*4, f0[2] - 8]; parts.push({ d: V.depth(...f1) + 0.001, f: () => tube(f0, f1, 2.2, STEEL) }); }
-      byDepth(parts);
+      const SZ = TOP + 20, L1 = 28, L2 = 26, ST = 28, ZDN = TOP + 14, ZUP = TOP + 38, BOX = 5;
+      /* a round rod between two points, tapering r0 to r1 */
+      const rod = (p0, p1, r0, r1, col, cap) => { const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d) || 1, u = d.map(v => v/L);
+        const a = Math.abs(u[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; let n1 = [u[1]*a[2] - u[2]*a[1], u[2]*a[0] - u[0]*a[2], u[0]*a[1] - u[1]*a[0]]; const l1 = Math.hypot(...n1); n1 = n1.map(v => v/l1);
+        const n2 = [u[1]*n1[2] - u[2]*n1[1], u[2]*n1[0] - u[0]*n1[2], u[0]*n1[1] - u[1]*n1[0]], N = 10;
+        const ring = (p, r) => [...Array(N)].map((_, k) => { const q = k/N*Math.PI*2, c2 = Math.cos(q)*r, s2 = Math.sin(q)*r; return [p[0] + n1[0]*c2 + n2[0]*s2, p[1] + n1[1]*c2 + n2[1]*s2, p[2] + n1[2]*c2 + n2[2]*s2]; });
+        const A = ring(p0, r0), B = ring(p1, r1), F = []; for(let k = 0; k < N; k++) F.push([A[k], A[(k + 1) % N], B[(k + 1) % N], B[k]]); F.push(A.slice().reverse(), B);
+        solid(F, col, cap ? (k, nr) => Math.abs(nr[0]*u[0] + nr[1]*u[1] + nr[2]*u[2]) > 0.9 ? cap : col : null); };
+      /* THE JOB: a leg every 6.4 s, nose to tail then back; within a leg lower, grip, raise, swing, lower, let go, raise */
+      const LEG = 6400, leg = Math.floor(t/LEG), u = (t % LEG)/LEG, from = leg % 2 ? Math.PI : 0;
+      const ease = v => v <= 0 ? 0 : v >= 1 ? 1 : v*v*(3 - 2*v), seg = (a0, a1) => ease((u - a0)/(a1 - a0));
+      const swing = seg(0.32, 0.62), side = 1;   /* (the angle runs 0 to pi, over its far side either way) */
+      const ph2 = from === 0 ? swing*Math.PI : Math.PI - swing*Math.PI;
+      const wz = u < 0.12 ? ZUP + (ZDN - ZUP)*seg(0, 0.12) : u < 0.2 ? ZDN : u < 0.32 ? ZDN + (ZUP - ZDN)*seg(0.2, 0.32) : u < 0.62 ? ZUP : u < 0.74 ? ZUP + (ZDN - ZUP)*seg(0.62, 0.74) : u < 0.82 ? ZDN : ZDN + (ZUP - ZDN)*seg(0.82, 0.94);
+      const wr = u >= 0.32 && u < 0.62 ? ST - 4*Math.sin(swing*Math.PI) : ST;
+      const held = u >= 0.17 && u < 0.78, grip = u < 0.12 || u >= 0.78 ? 7.5 : u < 0.2 ? 7.5 - (7.5 - BOX - 1)*seg(0.12, 0.18) : u < 0.74 ? BOX + 1 : BOX + 1 + (7.5 - BOX - 1)*seg(0.74, 0.8);
+      const ang = ph2*side*(nearB > 0 ? -1 : 1);   /* (always over the side away from the eye) */
+      const ca = Math.cos(ang), sa = Math.sin(ang), W3 = (r, z) => [ca*r, sa*r, z], w = [-sa, ca, 0];
+      /* elbow up: two links in the arm's own upright plane */
+      const dz = wz - SZ, d = Math.min(L1 + L2 - 0.5, Math.hypot(wr, dz)), t1 = Math.atan2(dz, wr) + Math.acos(Math.max(-1, Math.min(1, (L1*L1 + d*d - L2*L2)/(2*L1*d))));
+      const sh = W3(0, SZ), el = W3(Math.cos(t1)*L1, SZ + Math.sin(t1)*L1), wrp = W3(wr, wz);
+      const items = [];
+      const add = (pt, f, bias = 0) => items.push({ d: V.depth(...pt) + bias, f });
+      /* its two totes, nose and tail; the box in one of them unless it is held */
+      const atNose = leg % 2 ? (u >= 0.78) : (u < 0.17), atTail = !held && !atNose;
+      for(const sa2 of [1, -1]){ const a = sa2*ST;
+        add([a, 0, TOP + 4], () => { box(a - 9, a + 9, -10, 10, TOP, TOP + 8, 0x2a6ad8); box(a - 7.5, a + 7.5, -8.5, 8.5, TOP + 7.9, TOP + 8.05, 0x163c80); });
+        if((sa2 > 0 && atNose) || (sa2 < 0 && atTail)) add([a, 0, TOP + 8], () => crate(a - BOX, a + BOX, -BOX, BOX, TOP + 1, TOP + 1 + 2*BOX, 0xc98a4a), 0.01); }
+      /* its base and waist */
+      add([0, 0, TOP + 2], () => { this.avLathe(V, 0, 0, [[TOP, 15], [TOP + 4, 15], [TOP + 4, 11], [TOP + 6, 11]], DARK, null, 16); this.avLathe(V, 0, 0, [[TOP + 6, 10], [SZ - 5, 9], [SZ - 3, 7]], Y, null, 14); }, -50);
+      add(sh, () => rod([sh[0] - w[0]*7, sh[1] - w[1]*7, SZ], [sh[0] + w[0]*7, sh[1] + w[1]*7, SZ], 7, 7, _pdk(Y, 0.9), DARK));
+      add(sh.map((v, k) => (v + el[k])/2), () => rod(sh, el, 5.5, 4.2, Y));
+      add(el, () => rod([el[0] - w[0]*5, el[1] - w[1]*5, el[2]], [el[0] + w[0]*5, el[1] + w[1]*5, el[2]], 5, 5, _pdk(Y, 0.9), DARK));
+      add(el.map((v, k) => (v + wrp[k])/2), () => rod(el, wrp, 4, 3, Y));
+      add(wrp, () => { rod([wrp[0] - w[0]*4, wrp[1] - w[1]*4, wz], [wrp[0] + w[0]*4, wrp[1] + w[1]*4, wz], 3.6, 3.6, DARK, 0x5a6068); rod([wrp[0], wrp[1], wz - 1], [wrp[0], wrp[1], wz - 4], 3, 3, 0x3a3e46); });
+      /* the gripper: two fingers either side of the box, across the arm */
+      const fingers = [-1, 1].map(sg => { const b0 = [wrp[0] + w[0]*sg*grip, wrp[1] + w[1]*sg*grip]; return { sg, b0, d: V.depth(b0[0], b0[1], wz - 8) }; });
+      add([wrp[0], wrp[1], wz - 4.5], () => box(wrp[0] - 2.5, wrp[0] + 2.5, wrp[1] - 2.5, wrp[1] + 2.5, wz - 5.5, wz - 4, 0x3a3e46), 0.001);
+      for(const fg of fingers) add([fg.b0[0], fg.b0[1], wz - 8], () => rod([fg.b0[0], fg.b0[1], wz - 4.5], [fg.b0[0], fg.b0[1], wz - 12], 1.3, 1.1, STEEL), 0.003);
+      if(held) add([wrp[0], wrp[1], wz - 8], () => crate(wrp[0] - BOX, wrp[0] + BOX, wrp[1] - BOX, wrp[1] + BOX, wz - 8 - BOX, wz - 8 + BOX, 0xc98a4a), 0.002);
+      byDepth(items);
       return; }
 
     if(id === 'amrjack'){   /* PALLET JACK: two long forks out of its nose under a wooden pallet, a stretch-wrapped stack on it, a backrest */
