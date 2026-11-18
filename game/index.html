@@ -57402,11 +57402,15 @@ function houseCanopy(fn){
         T(A0 + 4, A1 - 4, b, b + 3, Z + 0.4, matD); T(A0 + 4, A1 - 4, Math.min(B1 - 4, b + 80) - 3, Math.min(B1 - 4, b + 80), Z + 0.4, matD); }
       items.push({ a: A0, b: B0, z: 0, solids: [solid(A0, A1, B0, B1, Z, 'mat platform')], draw: () => {} });
       for(const [ta, tb] of [[90, 380], [160, 510], [90, 600]]){
+        /* (back to front: the cushions behind the table, the table, the cushions in front of it -- all four after it, the far two lay over its
+           top: Sir, 2026-11-18, "the seating is drawing over the table") */
+        const cush = ([ca, cb]) => box(ta + ca - 12, ta + ca + 12, tb + cb - 10, tb + cb + 10, Z, Z + 8, red, redF, redS);
         items.push({ a: ta, b: tb, z: Z, solids: [{ name: 'low table', c: [ta, tb], r: 26, h: Z + 34 }], draw: () => {
+          [[-40, 0], [0, -32]].forEach(cush);
           for(const [la, lb] of [[-20, -14], [20, -14], [-20, 14], [20, 14]]) box(ta + la - 2, ta + la + 2, tb + lb - 2, tb + lb + 2, Z, Z + 22, woodS, woodS, woodS);
           box(ta - 26, ta + 26, tb - 20, tb + 20, Z + 22, Z + 28, dark, '#1e1b18', '#171512');
           cyl(ta - 6, tb - 4, Z + 28, Z + 36, 6, '#e9e4da'); cyl(ta + 10, tb + 6, Z + 28, Z + 32, 3.2, '#f4f0e6');
-          for(const [ca, cb] of [[-40, 0], [40, 0], [0, -32], [0, 32]]) box(ta + ca - 12, ta + ca + 12, tb + cb - 10, tb + cb + 10, Z, Z + 8, red, redF, redS);
+          [[40, 0], [0, 32]].forEach(cush);
         } });
       }
     }
