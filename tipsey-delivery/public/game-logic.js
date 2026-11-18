@@ -129092,15 +129092,17 @@ class WorldScene extends Phaser.Scene {
           solid(F, 0x2a2d33, (i, nr) => nr[0] > 0.9 ? 0xfff6d8 : 0x2a2d33);
           if(front){ const q = P(LA + 4.5, 0, LZ), r = 11*this.kScale(); g.fillStyle(0xfff6d8, 0.2); g.fillCircle(q.x, q.y, r); g.fillStyle(0xfff6d8, 0.1); g.fillCircle(q.x, q.y, r*1.8); } }
       }
-      if(c === 'hazmat'){
-        if(st === 'flank'){ for(const sb of [-1, 1]){ for(let k = -6; k <= 5; k++){ const a = k*5.2; flankQ(sb, [[a, 46.5], [a + 2.6, 46.5], [a + 5.4, 51.5], [a + 2.8, 51.5]], 0x16171b); }
-            /* the radiation trefoil */
-            if(sees(0, sb, 0)){ const ca = 2, cz = 58.5, bb = sb*(HY + 0.8); g.fillStyle(0x16171b, 1);
-              for(let k = 0; k < 3; k++){ const a0 = k*Math.PI*2/3 + Math.PI/2 - Math.PI/6, o = [[ca + Math.cos(a0)*1.8, cz + Math.sin(a0)*1.8]]; for(let i = 0; i <= 6; i++){ const q = a0 + i/6*Math.PI/3; o.push([ca + Math.cos(q)*7.6, cz + Math.sin(q)*7.6]); } o.push([ca + Math.cos(a0 + Math.PI/3)*2.2, cz + Math.sin(a0 + Math.PI/3)*2.2]);
-                g.fillPoints(o.map(([a, zz]) => PT(P(a, bb, zz))), true); }
-              g.fillPoints(ell(ca, cz, 1.6, 1.6).map(([a, zz]) => PT(P(a, bb, zz))), true); } } }
-        if(st === 'top'){ boxS(-18, -10, -4, 4, Z1, Z1 + 3, 0x2a2d33); tube([-14, 0, Z1 + 3], [-14, 0, Z1 + 30], 2.4, 0x8d959c);   /* (its sensor mast, a sniffer head) */
-          this.avLathe(V, -14, 0, [[Z1 + 30, 3.4], [Z1 + 36, 3.4], [Z1 + 38, 2]], 0x2a2d33, null, 10); this.avLathe(V, -14, 0, [[Z1 + 33, 3.6], [Z1 + 34.5, 3.6]], 0x7cff5a, () => 0x7cff5a, 10); }
+      if(c === 'hazmat'){   /* (second pass -- Sir, 2026-11-18): a bold black-and-yellow hazard band round it; a big radiation trefoil on its back;
+           a respirator's two filter canisters on its cheeks; its sniffer mast moved back, its sensor ring lit */
+        const tre = (map, R, col) => { g.fillStyle(col, 1);
+          for(let k = 0; k < 3; k++){ const a0 = k*Math.PI*2/3 + Math.PI/2 - Math.PI/6, o = []; for(let i = 0; i <= 6; i++){ const q = a0 + i/6*Math.PI/3; o.push(map(Math.cos(q)*R, Math.sin(q)*R)); }
+            o.push(map(Math.cos(a0 + Math.PI/3)*R*0.3, Math.sin(a0 + Math.PI/3)*R*0.3), map(Math.cos(a0)*R*0.3, Math.sin(a0)*R*0.3)); g.fillPoints(o.map(PT), true); }
+          g.fillPoints([...Array(12)].map((_, i) => map(Math.cos(i/12*Math.PI*2)*R*0.2, Math.sin(i/12*Math.PI*2)*R*0.2)).map(PT), true); };
+        if(st === 'flank'){ for(const sb of [-1, 1]) for(let k = -6; k <= 5; k++){ const a = k*5.2; flankQ(sb, [[a, 52], [a + 2.6, 52], [a + 5.4, 57], [a + 2.8, 57]], 0x16171b, 1, 0.9); }
+          if(sees(0, 0, 1)) tre((u, v) => P(-2 + v, -u, Z1 + 0.4), 7.5, 0x16171b); }
+        if(st === 'top'){ boxS(-30, -22, -4, 4, Z1, Z1 + 3, 0x2a2d33); tube([-26, 0, Z1 + 3], [-26, 0, Z1 + 30], 2.4, 0x8d959c);
+          this.avLathe(V, -26, 0, [[Z1 + 30, 3.4], [Z1 + 36, 3.4], [Z1 + 38, 2]], 0x2a2d33, null, 10); this.avLathe(V, -26, 0, [[Z1 + 33, 3.6], [Z1 + 34.5, 3.6]], 0x7cff5a, () => 0x7cff5a, 10); }
+        if(st === 'head') for(const sb of (sees(0, 1, 0) ? [-1, 1] : [1, -1])){ cylB(HX + 6, 52, 4.4, sb*11.5, sb*16, 0x3a3d45, 0x2a2d33); cylB(HX + 6, 52, 4.8, sb*15.4, sb*16.6, 0xf2c02e, 0xd8a820); }
       }
       if(c === 'desert'){
         const CAMO = [[-26, 58, 6, 3.4, 0x8a6a40], [-10, 51, 7, 3, 0xa8885a], [6, 60, 6, 3.2, 0x6a5a3a], [20, 52, 5, 2.6, 0x8a6a40], [-18, 63, 4, 2, 0x6a5a3a]];
