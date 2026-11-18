@@ -118198,12 +118198,13 @@ class WorldScene extends Phaser.Scene {
       const pc = st => { if(PC) this.patrolCostume(PC.costume, st, V, g, t, nearB, wheelPhase); };
       const LB = !PC && WEAR && SKIN.lightbar || null;
       const bodyC = PC ? PC.body : WEAR ? BPW.top : WHITE, upperC = PC ? (PC.upper || PC.body) : WEAR && BPW.split ? BPW.split.cTop : bodyC, bandC = PC ? PC.stripe : WEAR ? SKIN.stripe : 0x2e6fd1;
+      const ONE = !!PC && bodyC === upperC && bodyC === bandC;
       const parts = [
         { h: 7, draw: () => this.avLathe(V, 0, 0, [[2, 26], [12, 30]], DARK, null, 16) },
-        { h: 34, draw: () => this.avLathe(V, 0, 0, [[12, 30], [56, 31]], bodyC, null, 16) },
+        { h: 34, draw: () => this.avLathe(V, 0, 0, ONE ? [[12, 30], [56, 31], [70, 30], [104, 25]] : [[12, 30], [56, 31]], bodyC, null, 16) },   /* (ONE: a costume all one colour, his body one piece -- no seams round his middle) */
         { h: 50, draw: () => { if(WEAR && !PC && SKIN.stripe2) this.avLathe(V, 0, 0, [[47, 31.3], [53, 31.3]], SKIN.stripe2, null, 16); } },   // (the second band under the stripe, painted before it: its top cap would cover the stripe)
-        { h: 63, draw: () => this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16) },
-        { h: 87, draw: () => { this.avLathe(V, 0, 0, [[70, 30], [104, 25]], upperC, null, 16);
+        { h: 63, draw: () => { if(!ONE) this.avLathe(V, 0, 0, [[56, 31], [70, 30]], bandC, null, 16); } },
+        { h: 87, draw: () => { if(!ONE) this.avLathe(V, 0, 0, [[70, 30], [104, 25]], upperC, null, 16);
           this.tipseyFace(V, 27.4, 90, 0.85, { mouthZ: PC && PC.noMouth ? null : 63, wrap: zz => zz < 70 ? 31 - (zz - 56)/14 : 30 - (zz - 70)*5/34 });   /* (laid on his egg's curve) */               // (his face, on the upper body; a costume can drop his mouth light)
           if(WEAR && !PC) this.botSkinWear(g, V, { hx: 27.5, hy: 27.5, ch: 17, s0: 56, s1: 70, dz: 80, wrap: zz => zz < 56 ? 31 : zz < 70 ? 31 - (zz - 56)/14 : 30 - (zz - 70)*5/34 }); } },
         { h: 110, draw: () => { this.avLathe(V, 0, 0, [[104, 25], [116, 23]], 0x23272d, null, 16);
@@ -128570,7 +128571,7 @@ class WorldScene extends Phaser.Scene {
         const { solid, prismH } = V; solid(prismH([[-33, -2.5], [-24.5, -2.5], [-24.5, 2.5], [-33, 2.5]], 96, 100), 0x5a606a, null, false); };   /* (its peg) */
       const cross = (th, dz = 0) => { decal([[th - 0.08, 46 + dz], [th + 0.08, 46 + dz], [th + 0.08, 22 + dz], [th - 0.08, 22 + dz]], 0xf6f6f2); decal([[th - 0.3, 38 + dz], [th + 0.3, 38 + dz], [th + 0.3, 30 + dz], [th - 0.3, 30 + dz]], 0xf6f6f2); };
       if(st === 'back' && !back) ring();
-      if(st === 'body'){ cross(0); cross(Math.PI, -8); if(back) ring();   /* (the back's cross lower, clear of the ring) */
+      if(st === 'body'){ cross(0, 24); cross(Math.PI, -8); if(back) ring();   /* (the front's cross up on his chest; the back's lower, clear of the ring) */
         for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
         { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
           decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
