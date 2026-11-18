@@ -80,6 +80,9 @@
   wall and street face match the outside; what it covers is drawn under it, faint, while he is inside, and the world round it dims. The
   exterior is never rearranged for a room. Its door is the door kit's: a half door from inside (doors D13), and he is taken in only once
   he is in the doorway (W32). Tidewater Tea House is the exemplar.
+- Every shop walk-in is built by `docs/kits/walkin-shop-recipe.md` (walk-in kit W33): read it before starting one, copy Tidewater Tea House,
+  and run its checks -- in particular, while he is inside no one from outside (passers-by, another walk-in's staff walking to work) may be
+  drawn over the room, and nothing in it paints over its own people.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the
