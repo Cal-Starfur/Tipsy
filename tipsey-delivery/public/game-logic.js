@@ -128932,9 +128932,11 @@ class WorldScene extends Phaser.Scene {
             decal([[th - sb*0.05 - 0.07, 93.2], [th - sb*0.05 - 0.02, 93.2], [th - sb*0.05 - 0.09, 88.5], [th - sb*0.05 - 0.14, 88.5]], 0xffffff, 0.75, 1.3);
             sline([sb*0.52, 92], [sb*0.95, 93], 0xf6f6f2, 2); }
           sline([-0.06, 91.5], [0.06, 91.5], 0xf6f6f2, 2.2); }   /* (the front's cross up on his chest; the back's lower, clear of the ring) */
-        for(const sb of [-1, 1]){ sline([sb*0.95, 104], [sb*0.62, 86], 0xff8a1a, 2.2); sline([sb*0.62, 86], [sb*0.08, 80.5], 0xff8a1a, 2.2); }
+        /* the lanyard: one loop right round him at his neck, dipping in front to the whistle (lowered, just over his cross) */
+        for(let i = 0; i < 48; i++){ const t0 = -Math.PI + i/48*Math.PI*2, t1 = t0 + Math.PI*2/48, zf = th => 102 - 24*Math.pow(Math.max(0, Math.cos(th)), 3);
+          sline([t0, zf(t0)], [t1, zf(t1)], 0xff8a1a, 2.8, 1.1); }
         { const ov = (th, zz, rb, rzz) => [...Array(14)].map((_, k) => { const ph = k/14*Math.PI*2; return [th + Math.cos(ph)*rb/rz(zz), zz + Math.sin(ph)*rzz]; });
-          decal(ov(0, 79, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 79.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 79, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
+          decal(ov(0, 74, 5.2, 3), 0x8d959c, 1, 1.4); decal(ov(-0.02, 74.4, 4.4, 2.3), 0xd9dde2, 1, 1.6); decal(ov(0.1, 74, 1.3, 1.3), 0x3a3e46, 1, 1.8); } }
       if(st === 'back') bill(25, 112, 17, 1.3, 5, 0x1e8a56, 0.82, 'far');   /* (its slices on his far side before his body, so his dome hides them -- no crown here to; the near ones last) */
       if(st === 'top'){
         band([[109.5, 25.6], [115.5, 24.4]], 0xf6f6f2);
