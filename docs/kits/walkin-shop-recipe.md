@@ -58,8 +58,8 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - Check they all walk in at opening: nobody stuck at the door.
 
 ## 7b. One knock-down and he is out (W34)
-- Every shop walk-in has `ban: true` on its pocket, with `banBy` (its staff ids, who sees him out first) and `banSay` ({ who, say }: one
-  short line, the mission-talk rule). Its people can be knocked down as he reaches them (the 'walk-in staff' knock spec, reach 'seat');
+- Every shop walk-in is listed in `WALKIN_SHOP_BAN` (by: its staff ids, who sees him out first; who and say: one short line, the
+  mission-talk rule; story: when a story has the room) -- or carries its own on its pocket (`ban`, `banBy`, `banSay`). Its people can be knocked down as he reaches them (the 'walk-in staff' knock spec, reach 'seat');
   once the one he ran into is up, the keeper walks up face to face, says the line, and sees him out through the door (any wall); the
   door stays locked to him for the rest of the session (WALKIN_BAN). Driftwood Books and the tea house are the exemplars.
 

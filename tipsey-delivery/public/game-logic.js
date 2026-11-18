@@ -28347,10 +28347,10 @@ function walkinHourText(h){ const H = Math.floor(h), M = Math.round((h - H)*60),
 /* LOCKED (decision 1, "Lock when shut"): the door of a walk-in he would go in by, shut for the night -- held at it, and
    told when it opens. The door always lets him out */
 /* (shut to him from the moment it closes -- its people still going out through it -- till the keyholder has unlocked it) */
-function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && (pk._banned || walkinShut(scene, pk) || !walkinOpenNow(pk))); }
+function walkinLocked(scene, pk){ return !!(pk && pk.walkin && scene && scene._inside !== pk && ((pk._banned && !walkinBanStory(pk)) || walkinShut(scene, pk) || !walkinOpenNow(pk))); }
 function walkinLockedToast(scene, pk){
   const now = performance.now(); if(pk._lockSaid && now - pk._lockSaid < 5000) return; pk._lockSaid = now;
-  if(pk._banned){ if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " won't have you back."); return; }
+  if(pk._banned && !walkinBanStory(pk)){ if(typeof tpToast === "function") tpToast(walkinPlaceName(pk) + " won't have you back."); return; }
   const [o] = walkinHours(pk);
   if(typeof tpToast === 'function') tpToast(walkinPlaceName(pk) + " is shut. It opens at " + walkinHourText(o) + ".");
 }
@@ -28385,6 +28385,44 @@ function walkinStreetBlock(x, y, r){
    it, the worker a few steps behind to the door. From then on its door is locked to him (walkinLocked: it does not part, he is
    held at it, and told why). For the rest of this visit to the game: nothing is saved. */
 const WALKIN_BAN = { st: null, pk: null, s: null, pend: null, t: 0 };
+/* THE SHOPS' RULE (W34; Sir, 2026-11-18: "give the other shops the same knock-down rule. lets make it a general rule for these small
+   shops"): every shop walk-in takes one knock-down and puts him out -- who sees him out (by: their staff ids, first choice first),
+   who speaks and the line. A room may say its own on its pocket (ban, banBy, banSay: the museum, the tea house, the bookshop). Not the
+   shops' rule: the school, the chapel, the baths, a home, the lobbies, the studios, the offices, the shelter */
+const WALKIN_SHOP_BAN = (() => {
+  const line = n => "You've knocked a " + n + " flat. I'll see you out, and you're not to come back in.";
+  const st = (v, k) => () => { try { const o = typeof v === 'function' ? v() : null; return !!(o && o[k || 'stage'] !== 'idle'); } catch(e){ return false; } };
+  return {
+    'Seabreeze Trophies Interior':  { by: ['clerk', 'engraver'], who: 'Trophy Clerk', say: line('customer'), story: st(() => FOURTH) },
+    'Pelican Drug Interior':        { by: ['cashier', 'pharmacist'], who: 'Cashier', say: line('customer') },
+    'Dune Home & Garden Interior':  { by: ['cashier', 'associate', 'paint'], who: 'Store Associate', say: line('customer') },
+    'Saltwater Brewing Interior':   { by: ['bar', 'brewer'], who: 'Bartender', say: line('customer') },
+    'Palmline Nursery Interior':    { by: ['counter', 'bench'], who: 'Nursery Clerk', say: line('customer') },
+    'Lagoon Market Hall Interior':  { by: ['fish', 'chowder', 'greens', 'baker', 'cheese'], who: 'Stallholder', say: line('shopper') },
+    'Seaglass Coffee Interior':     { by: ['counter'], who: 'Barista', say: line('customer') },
+    'Palmline Garage Interior':     { by: ['mechanic', 'mechanic-2'], who: 'Mechanic', say: line('man') },
+    'Palmline Savings Interior':    { by: ['guard', 'teller-1'], who: 'Bank Guard', say: line('customer') },
+    'Coral Cafe Interior':          { by: ['barista', 'roaster'], who: 'Barista', say: line('customer') },
+    'Marina Deli Interior':         { by: ['clerk', 'cashier'], who: 'Deli Clerk', say: line('customer') },
+    'Tidewater Kart Works Interior':{ by: ['clerk', 'mechanic'], who: 'Kart Works Clerk', say: line('customer'), story: st(() => KW) },
+    'Marina Chandlery Interior':    { by: ['clerk'], who: 'Chandlery Clerk', say: line('customer'), story: st(() => LH) },
+    'Brew & Bolt Interior':         { by: ['gideon'], who: 'Gideon', say: line('customer'), story: st(() => MS) },
+  };
+})();
+/* the room's rule (its pocket's own, else the shops'), or null */
+function walkinBanRule(pk){
+  if(!pk) return null;
+  if(pk.ban) return { by: pk.banBy, who: pk.banSay && pk.banSay.who, say: pk.banSay && pk.banSay.say, story: pk.banStory };
+  return WALKIN_SHOP_BAN[pk.name] || null;
+}
+/* a story has the room (its own people away on it, or the story that plays there under way): the rule stands down, and a ban does
+   not shut the door on the story */
+function walkinBanStory(pk){
+  const r = walkinBanRule(pk);
+  if(r && r.story && r.story()) return true;
+  return WALKIN_STAFF.some(s => s.room === pk.name && s.away && (() => { try { return !!s.away(); } catch(e){ return false; } })());
+}
+function walkinBanOn(pk){ return !!walkinBanRule(pk) && !walkinBanStory(pk); }
 function walkinBanBusy(){ return !!WALKIN_BAN.st || !!WALKIN_BAN.pend; }
 function walkinBanned(pk){ return !!(pk && pk._banned); }
 /* a polyline of room points, walked at one pace: { pts, cum, len } and where on it at d */
@@ -28416,7 +28454,7 @@ function walkinBanTick(scene, ow){
     if(ow.deck || ow.lift) return;
     const bot = { a: ow.px - pk.x0, b: ow.py - pk.y0 };
     /* (pk.banBy: who sees him out, first choice first -- the museum's desk; a shop's keeper) */
-    const by = pk.banBy || ['desk'], rank = q => { const i = by.indexOf(q.id); return i < 0 ? 99 : i; };
+    const RU = walkinBanRule(pk) || {}, by = RU.by || ['desk'], rank = q => { const i = by.indexOf(q.id); return i < 0 ? 99 : i; };
     cand.sort((p, q) => rank(p) - rank(q) || Math.hypot(p._m.a - bot.a, p._m.b - bot.b) - Math.hypot(q._m.a - bot.a, q._m.b - bot.b));
     const s = cand[0], m = s._m, G = walkinGrid(R);
     let side = 1;
@@ -28435,7 +28473,7 @@ function walkinBanTick(scene, ow){
     if((t - B.t)*PEOPLE_WALK_V < B.Q.len) return;
     B.st = 'told';
     /* (pk.banSay: the room's own words -- who says them, and the line; the museum's by default) */
-    const BS = pk.banSay, who = BS ? (typeof BS.who === 'function' ? BS.who(s) : BS.who) : s.id === 'desk' ? 'Museum Attendant' : 'Museum Guard';
+    const BR = walkinBanRule(pk), BS = BR && BR.say ? BR : null, who = BS ? (typeof BS.who === 'function' ? BS.who(s) : BS.who) : s.id === 'desk' ? 'Museum Attendant' : 'Museum Guard';
     hospSayCard({ who, say: BS ? BS.say : "Excuse me! You've just knocked a person flat in my museum. I'm sorry, but I'll have to see you out, and I can't have you back in.", btn: "...Okay.", at, ok: () => {
       hospSayCard(null);
       /* (out through its door whichever wall it is in: the museum's is in its south wall, a shop's on the street in its east) */
@@ -96100,7 +96138,7 @@ CITY_PEOPLE.add({ name: 'store reps', where: 'Dune Home, Tidewater & Co.', solid
 /* the walk-in rooms' people: Pelican Drug's pharmacist and cashier, the museum's desk, guards and visitors (WALKIN_STAFF) */
 CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophies, the Tidewater Museum', solid: true,
   /* (a room with ban: true takes its people's knock-downs, and puts him out for it: WALKIN_BAN) */
-  knock: { kind: 'walkin', when: scene => !!(scene._inside && scene._inside.ban && !walkinBanBusy()),
+  knock: { kind: 'walkin', when: scene => !!(scene._inside && walkinBanOn(scene._inside) && !walkinBanBusy()),
     /* (met as he reaches them, before they stop him: they hold him at a body and a half (walkinPeopleBlock), past the street's
        34 -- the bookshop's people could not be knocked down at all; the chair's reach, 'seat') */
     test(p, scene, t, C){ return C.reach.seat(p.x, p.y) && !scene._knockMeet; },
