@@ -88,5 +88,5 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - A knock-down inside (W34): drive into a customer -- they are SEEN to fall, lie there and get up (not vanish and come back), then the
   keeper's meeting, both faces showing.
 - Its neighbours displaced (W31): nothing of a building it covers -- its door, its sign -- shows inside the room's outline.
-- Every fixture zoomed (W37): its west end clean against its front, its near legs in front of its shelf, everything standing on its runs
+- `node tools/review/w37.js <room>` exits 0 (W37: no runPiece clip above or below its fixture's top, no face turned away painted). Every fixture zoomed (W37): its west end clean against its front, its near legs in front of its shelf, everything standing on its runs
   whole (no straight cut down a cake or a basket).

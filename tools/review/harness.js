@@ -41,6 +41,7 @@ function serve(rev, instr){
   const types = { '.html':'text/html', '.js':'application/javascript', '.json':'application/json', '.png':'image/png', '.css':'text/css' };
   let old = rev ? execSync(`git -C "${ROOT}" show ${rev}:game/index.html`, { maxBuffer: 64 << 20 }).toString() : null;
   if(instr) old = instrument(old != null ? old : fs.readFileSync(path.join(ROOT, 'game/index.html'), 'utf8'));
+  if(typeof instr === 'function') old = instr(old);   // (a checker's own extra instrumentation on top: tools/review/w37.js)
   const srv = http.createServer((req, res) => {
     const u = decodeURIComponent(req.url.split('?')[0]);
     if(old && u === '/game/index.html'){ res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(old); return; }
