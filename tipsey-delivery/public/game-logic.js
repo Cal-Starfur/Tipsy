@@ -14859,7 +14859,7 @@ function walkinAwayDoor(scene){
     if(dr){
       const SC = ent.sc || 1, o = L(0, 0), pa = L(1, 0), pb = L(0, 1), na = Math.hypot(pa.x - o.x, pa.y - o.y) || 1, nb = Math.hypot(pb.x - o.x, pb.y - o.y) || 1;
       const dv = { x: (pa.x - o.x)/na, y: (pa.y - o.y)/na }, rv = { x: (pb.x - o.x)/nb, y: (pb.y - o.y)/nb }, da = (dr.a0 + dr.a1)/2, q = L(da, 0);
-      /* (in: drawn from inside, the door stands in the room's wall's INNER face, where its hole is cut -- on the outer face, 30 behind it, the
+      /* (in: drawn from inside, the door stands on the wall's middle line, where its hole is cut through it -- on the outer face, 15 off it, the
          leaves stood off the hole on screen, over the wall one side and the portico showing the other: Sir, 2026-11-19, "it doesnt fill the hole") */
       const w = pk.doors && pk.doors[0] && pk.doors[0].world ? pk.doors[0].world() : null, sh = WALKIN_WALL/2;
       out = { key: 'away|' + lib, lib, e: { dv, rv, ox: o.x, oy: o.y }, along: da*SC, x: q.x, y: q.y, ux: o.x, uy: o.y, flank: (dv.x + dv.y) > 0, labA: da, away: true,
