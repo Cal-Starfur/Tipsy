@@ -58988,21 +58988,23 @@ function houseCanopy(fn){
              bins, he needs to move around to get them placed"): at the pod he reaches up to its bin and pulls it out to his chest; he walks it
              round to the runner, to the side of its slot, and sets it down in reach; then walks back for the next. The bin has its own path,
              his arms point at its near face every frame (lift: the shoulder's swing from hanging, bend: the elbow, folding as it comes in) */
-          const q = S.r % 3000, m = Math.floor(S.r/3000), SHZ = 95, ARM = 40, PA0 = 752, PB0 = 1610, RA0 = 870 - 13;
+          const q = S.r % 3000, m = Math.floor(S.r/3000), SHZ = 95, ARM = 40, PA0 = 752, PAB = 772, PB0 = 1610, RA0 = 870 - 13, FACE = 726;
           const slot = TOP4[Math.min(m, 3)], sq = AMR_SLOTS.amrshelf[slot], sa = 700 - sq.b, sb = 1610 + sq.a, sz = [34, 64, 94, 124][sq.lv] + 2.5;
           const PB1 = 1610 + RSL[Math.min(m, 3)], PA1 = RA0 - 38;   /* (where he stands to set it down: beside its slot) */
           /* where he is and which way he faces: at the pod (west), walking to the runner, setting it down (east), walking back */
           let pa = PA0, pb = PB0, f = 2, walk = 0, gait = 0;
           const leg = (k, a0, b0, a1, b1) => { pa = a0 + (a1 - a0)*k; pb = b0 + (b1 - b0)*k; f = Math.atan2(b1 - b0, a1 - a0)/(Math.PI/2); walk = k > 0 && k < 1 ? 1 : 0; gait = Math.hypot(pa - a0, pb - b0)/7; };
           if(m >= 4){ pa = PA0; pb = PB0; f = 1; }
-          else if(q < 1000){ f = 2; }
-          else if(q < 1600) leg((q - 1000)/600, PA0, PB0, PA1, PB1);
+          else if(q < 1000){ f = 2; pa = PA0 + (PAB - PA0)*ease((q - 600)/250); }   /* (reaching in, then a step back as he slides it out) */
+          else if(q < 1600) leg((q - 1000)/600, PAB, PB0, PA1, PB1);
           else if(q < 2100){ pa = PA1; pb = PB1; f = 0; }
           else if(q < 2900){ leg(clamp01((q - 2150)/700), PA1, PB1, PA0, PB0); if(q < 2150 || q >= 2850) f = q < 2150 ? 0 : 2; }
           const chest = () => [pa + Math.cos(f*Math.PI/2)*24, pb + Math.sin(f*Math.PI/2)*24, 58];
           let bin = null;
           if(m < 4 && q >= 600 && q < 2100){
-            if(q < 1000){ const k = ease((q - 600)/400), c0 = chest(); bin = [sa + (c0[0] - sa)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
+            /* (slid straight out of its slot, level, till it is clear of the pod's face; then down to his chest) */
+            if(q < 800){ const k = ease((q - 600)/200); bin = [sa + (FACE + 14 - sa)*k, sb, sz]; }
+            else if(q < 1000){ const k = ease((q - 800)/200), c0 = chest(); bin = [FACE + 14 + (c0[0] - FACE - 14)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
             else if(q < 1600) bin = chest();
             else { const k = ease((q - 1600)/450), c0 = chest(); bin = [c0[0] + (RA0 - c0[0])*k, c0[1] + (PB1 - c0[1])*k, c0[2] + (31 - c0[2])*k]; } }
           /* where his hands go: the bin's near face while he reaches for it or holds it; hanging, eased, between */
@@ -59016,7 +59018,7 @@ function houseCanopy(fn){
           out.push(man(pa, pb, f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
           /* (being set down it is over the runner's lid: after the runner, not at its own place behind its middle -- the lid painted over it
              till it landed, Sir, 2026-11-19) */
-          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin, dd = q >= 1600 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : bb[0] - 12 < 740 ? Math.min(-1, 700 + 1610 - 2 - bb[0] - bb[1]) : 1;   /* (still in the pod, sliding out of its slot: before the pod, its shelf and posts over it, Sir) */ out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
+          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin, dd = q >= 1600 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : bb[0] - 12 < FACE ? Math.min(-1, 700 + 1610 - 2 - bb[0] - bb[1]) : 1;   /* (still under the pod's shelf, sliding out of its slot: before the pod; out past its face, after it -- Sir) */ out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
         else out.push(man(752, 1610, 1, {}));
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
