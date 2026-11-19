@@ -58984,8 +58984,8 @@ function houseCanopy(fn){
         out.push(bot(P0.a, P0.b, 1, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a - 13, P0.b + RSL[i], 31, CPC(SH[TOP4[i]].pal)); } }));
         for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
           const s0 = tau < 12000 ? 0 : tau < 16714 ? (tau - 12000)*PV : tau < 29286 ? 330 : tau < 32429 ? 330 + (tau - 29286)*PV : tau < 64286 ? 550 : tau < 69000 ? 550 + (tau - 64286)*PV : 0;
-          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 600)/3000) + 1)) : 0;
-          out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), bins: CPAL, wheel: s0*0.12 })); }
+          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 800)/3000) + 1)) : 0, qs = tau % 3000, slideK = tau < 12000 && qs >= 600 && qs < 800 ? ease((qs - 600)/200) : 0;
+          out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : slideK > 0 && TOP4.indexOf(i) === picked ? Object.assign({}, L, { off: [0, -27*slideK] }) : L), bins: CPAL, wheel: s0*0.12 })); }
         if(S.stop === 0){
           /* THE PICK, MOVED BY THE BIN (Sir, 2026-11-19: "he never reaches up to the top, the animation is too stiff"; "he is lazy placing the
              bins, he needs to move around to get them placed"): at the pod he reaches up to its bin and pulls it out to his chest; he walks it
@@ -59004,7 +59004,7 @@ function houseCanopy(fn){
           else if(q < 2900){ leg(clamp01((q - 2150)/700), PA1, PB1, PA0, PB0); if(q < 2150 || q >= 2850) f = q < 2150 ? 0 : 2; }
           const chest = () => [pa + Math.cos(f*Math.PI/2)*24, pb + Math.sin(f*Math.PI/2)*24, 58];
           let bin = null;
-          if(m < 4 && q >= 600 && q < 2100){
+          if(m < 4 && q >= 800 && q < 2100){
             /* (slid straight out of its slot, level, till it is clear of the pod's face; then down to his chest) */
             if(q < 800){ const k = ease((q - 600)/200); bin = [sa + (FACE + 14 - sa)*k, sb, sz]; }
             else if(q < 1000){ const k = ease((q - 800)/200), c0 = chest(); bin = [FACE + 14 + (c0[0] - FACE - 14)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
@@ -59012,7 +59012,7 @@ function houseCanopy(fn){
             else { const k = ease((q - 1600)/450), c0 = chest(); bin = [c0[0] + (RA0 - c0[0])*k, c0[1] + (PB1 - c0[1])*k, c0[2] + (31 - c0[2])*k]; } }
           /* where his hands go: the bin's near face while he reaches for it or holds it; hanging, eased, between */
           const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2);
-          const tgt = m >= 4 ? null : q < 600 ? [sa + 12, sb, sz + 10] : bin ? [bin[0] - fa*12, bin[1] - fb*12, bin[2] + 10] : null;
+          const tgt = m >= 4 ? null : q < 800 ? [sa + 12 + (q < 600 ? 0 : (FACE + 14 - sa)*ease((q - 600)/200)), sb, sz + 10] : bin ? [bin[0] - fa*12, bin[1] - fb*12, bin[2] + 10] : null;
           const reachK = m >= 4 ? 0 : q < 600 ? ease(q/350) : q < 2100 ? 1 : 1 - ease((q - 2100)/300);
           let lift = 0.08, bend = 0.15;
           if(tgt){ const fwd = Math.max(4, (tgt[0] - pa)*fa + (tgt[1] - pb)*fb), dz = tgt[2] - SHZ;
@@ -131933,7 +131933,7 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < 4; i++){ box(-SA, SA, -SB, SB, LV[i], LV[i] + 2.5, SHELF);
         const h0 = LV[i] + 2.5;
         SL.map((q, j) => ({ q, L: LS[j] })).filter(o => o.q.lv === i && o.L).map(o => ({ o, d: V.depth(o.q.a, o.q.b, h0 + 10) })).sort((p, q) => p.d - q.d)
-          .forEach(({ o }) => this.amrLoad(g, V, o.L, o.q.a, o.q.b, h0, [1, 0], AS)); }
+          .forEach(({ o }) => this.amrLoad(g, V, o.L, o.q.a + (o.L.off ? o.L.off[0] : 0), o.q.b + (o.L.off ? o.L.off[1] : 0), h0, [1, 0], AS)); }   /* (L.off: a bin being slid out of its slot by hand -- a room's picker) */
       box(-SA, SA, -SB, SB, LV[4], LV[4] + 2.5, SHELF);
       for(const p of posts.slice(2)) post(p);
       return; }
