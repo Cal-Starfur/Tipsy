@@ -29271,27 +29271,31 @@ const PS_WW = 592, PS_DD = 560, PS_WH = 250;
    street sees its back). Rebuilt by the shop recipe (Sir, 2026-11-19: "redo ... the tire shop with our new interior build rules"): the
    exterior unchanged, its volume its own building with THE OPEN BAY open through the wall (vol.opens), he taken in IN the bay (glass < 0,
    W32); BIGGER INSIDE THAN OUT (W31): the room runs back south from the garage's front into the block, over Surfside Fitness's north end
-   and the yard -- 466 x 680 (not east: the bank stands there, its own walk-in), the buildings it covers drawn under it while he is inside.
+   and the yard, and east over the bank's west end -- 700 x 760 (Sir, 2026-11-19: "i want the shop to be bigger same layout but scalled up to fill
+   the screen better"), the buildings it covers drawn under it while he is inside. The garage's own front, its bays and the side door, stay on
+   its own 466 (GW): the room's north wall runs on past them in front of the bank.
    Room frame a east, b south, world units (the lab x1.3):
      a -4..168, b 0..260     BAY 1, its roller down: a hatchback up on the two-post lift (Hank's)
      a 210..330              the open bay and the way in, kept clear from the door to the back wall
      a 362..406, b 0..36     the tool chests on the north wall; a tyre stack
-     a 40..170, b 300..370   THE TYRE CHANGER AND THE WHEEL BALANCER (Danny's)
-     a 0..36, b 400..660     THE TYRE WALL down the west wall: racks of new tyres
-     a 80..170, b 470..560   THE WHEEL DISPLAY: a stand of alloy wheels
-     a 372..410, b 320..470  THE SERVICE COUNTER (Mel behind it, east), the till and the key rack
-     a 430..460, b 520..660  THE WAITING CHAIRS along the east wall, a coffee machine */
-const PG_IN = { name: 'Palmline Garage Interior', x0: 740000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, ROOM_BACK: -569, H: 300, LH: 66,
+     a 60..200, b 400..440   THE TYRE CHANGER AND THE WHEEL BALANCER (Danny's)
+     a 0..36, b 470..740     THE TYRE WALL down the west wall: racks of new tyres
+     a 120..180, b 545..615  THE WHEEL DISPLAY: a stand of alloy wheels
+     a 480..620, b 90..230   THE TYRE STACKS: new tyres in piles under a sign
+     a 540..578, b 360..530  THE SERVICE COUNTER (Mel behind it, east), the till
+     a 668..696, b 600..720  THE WAITING CHAIRS along the east wall, a coffee machine */
+const PG_IN = { name: 'Palmline Garage Interior', x0: 740000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, ROOM_A1: 700/1.3 + 2*30/1.3, ROOM_BACK: -(760/1.3 + 2*30/1.3), GW: 466, H: 300, LH: 66,
   BAY1: [20, 152], BAY2: [168, 300], BAYZ: 114*1.95 };
 PG_IN.ra = la => (la - PG_IN.WALL)*1.3;                                             // a lab a (the shop's) in the room's frame
 const PG_PLAN = walkinDefine({ name: PG_IN.name, from: 'Palmline Garage', x0: PG_IN.x0, y0: PG_IN.y0,
-  lab: [PG_IN.WALL, PG_IN.WW - PG_IN.WALL, PG_IN.ROOM_BACK + PG_IN.WALL, -PG_IN.WALL], body: ['lot'],
+  lab: [PG_IN.WALL, PG_IN.ROOM_A1 - PG_IN.WALL, PG_IN.ROOM_BACK + PG_IN.WALL, -PG_IN.WALL], body: ['lot'],
   door: { a: (PG_IN.BAY2[0] + PG_IN.BAY2[1])/2, b: 0, half: (PG_IN.BAY2[1] - PG_IN.BAY2[0])/2*1.3, side: 'n', top: PG_IN.BAYZ },
   H: PG_IN.H, LH: PG_IN.LH, out: 60, glass: -14,   // (glass < 0: in the bay, past the wall's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out of the bay onto the north pavement, along it either way) */
   street: { to: [0, -184], routes: [[[-1500, -184], [-3600, -184]], [[1500, -184], [3600, -184]]] } });
-/* (W26/W31: what it covers -- the gym's north end -- and what stands over it on screen: the bank east of it) */
-POCKETS[POCKETS.length - 1].ghosts = ['Surfside Fitness', 'Palmline Savings'];
+/* (W26/W31: what it covers -- the gym's north end, the bank's west end -- and what stands over it on screen: the bookshop round the corner,
+   tall, in front of its south-east corner) */
+POCKETS[POCKETS.length - 1].ghosts = ['Surfside Fitness', 'Palmline Savings', 'Driftwood Books'];
 POCKETS[POCKETS.length - 1].displace = true;
 /* THE DELANEYS, WHO KEEP IT (shop recipe 7): their own looks, set by hand (lookFn) -- a garage's dress, the shop's sea-blue work shirts, dark
    work trousers and caps. Hank, the owner, at the lift (grey beard, the keyholder); his son Danny at the tyre changer and the balancer; his
@@ -29308,7 +29312,7 @@ const PG_FAMILY = (() => {
 /* A CUSTOMER'S VISIT (as the roastery's): to the counter to book the car in or pay; a while in a waiting chair with a coffee; now and then a
    look along the tyre wall or the wheels first. Paid at the counter, they go with their car keys in hand (pose.hold / drawState: WALKIN_STREET);
    nothing before they have paid (m.paid) */
-const PG_SEATS = [520, 580, 640].map((b, i) => ({ id: 'w' + i, stand: [410, b, 0], at: [443, b + 1], th: Math.PI, z: 32 }));
+const PG_SEATS = [600, 660, 720].map((b, i) => ({ id: 'w' + i, stand: [646, b, 0], at: [679, b + 1], th: Math.PI, z: 32 }));
 function pgHold(s){
   if(s._pgH && s._pgH.v === s.visit) return s._pgH;
   const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
@@ -29355,7 +29359,7 @@ function pgPose(s, m, now, P){
   }
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.1, 0.28]; P.bend = [0.2, 1.25]; P.headTurn = 0; P.headTilt = 0.1; P.hold = H.cup; return; }
-  if((m.look === 'tyres' || m.look === 'wheels') && !m.path){                                                    // (a hand on a tyre once, then looking along them)
+  if((m.look === 'tyres' || m.look === 'wheels' || m.look === 'stacks') && !m.path){                                                    // (a hand on a tyre once, then looking along them)
     if(since < 1500){ const k = Math.sin(Math.PI*since/1500); P.lift = [0.1, 0.5*Math.min(1, k*1.6)]; P.bend = [0.2, 0.4]; P.headTilt = 0.25; return; }
     P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25]; P.headTilt = 0.2; return; }
   if(m.look === 'counter' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTurn = 0; return; }
@@ -29371,17 +29375,18 @@ walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
     posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
   { id: 'mechanic-2', role: 'tyre fitter', seed: 0x6a02, lookFn: () => PG_FAMILY.danny,
-    posts: [[75, 326, Math.PI/2, 8000, true], [140, 326, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
+    posts: [[90, 366, Math.PI/2, 8000, true], [175, 366, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
   { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
-    posts: [[438, 360, Math.PI, 9000, true], [438, 430, Math.PI, 4000, true]] },
-  { id: 'customer-1', role: 'customer', seed: 0x6a11, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
-  { id: 'customer-2', role: 'customer', seed: 0x6a12, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
-  { id: 'customer-3', role: 'customer', seed: 0x6a13, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
+    posts: [[606, 410, Math.PI, 9000, true], [606, 490, Math.PI, 4000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x6a11, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
+  { id: 'customer-2', role: 'customer', seed: 0x6a12, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
+  { id: 'customer-3', role: 'customer', seed: 0x6a13, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
 ]);
-walkinLife(PG_IN.name, { keep: [[210, 330, 0, 680]], looks: [
-  { id: 'counter', spots: [[348, 360, 0], [348, 430, 0]] },
-  { id: 'tyres', spots: [[68, 450, Math.PI], [68, 540, Math.PI], [68, 620, Math.PI]] },
-  { id: 'wheels', spots: [[186, 515, Math.PI]] },
+walkinLife(PG_IN.name, { keep: [[210, 330, 0, 760]], looks: [
+  { id: 'counter', spots: [[514, 410, 0], [514, 490, 0]] },
+  { id: 'tyres', spots: [[68, 510, Math.PI], [68, 610, Math.PI], [68, 700, Math.PI]] },
+  { id: 'wheels', spots: [[212, 580, Math.PI]] },
+  { id: 'stacks', spots: [[550, 262, -Math.PI/2]] },
 ], browseNext: pgBrowseNext, pose: pgPose, drawState: pgDrawState });
 /* ==================== PALMLINE SAVINGS, WALK-IN (wi-palmline-savings; the room: the LIB entry 'Palmline Savings Interior') ====================
    The Flats' bank on block 2,0's north edge, beside the garage (its front faces north, away from the camera). The bank's whole lot behind
@@ -57136,14 +57141,14 @@ function houseCanopy(fn){
   /* INSIDE PALMLINE GARAGE (PG_IN; the walk-in kit's walls, walkinRoom, its door the open bay in the north wall). Frame a east, b south,
      z up, world units. Its pieces back to front by the kit's keys; long ones in runs (runPiece, W28) */
   name:'Palmline Garage Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 466, dd: 680,
+  ww: 700, dd: 760,
   head:'Inside Palmline Garage: a hatchback up on the two-post lift, the open bay, tool chests, a tyre changer and balancer, the tyre wall, a service counter and waiting chairs',
   tags:['interior','pocket','garage','car lift','tool chests','tyres'],
   desc:'The Flats\' two-bay garage: white stucco over a sea-blue dado, a grey epoxy floor with the bays\' yellow lines, a hatchback up on a two-post lift in the shut bay, the open bay kept clear, a run of red tool chests under a pegboard and stacks of tyres.',
   draw(p){
     const pl = (typeof PG_PLAN !== 'undefined' && PG_PLAN) || null;
     if(pl) pl.view();
-    const W = (pl && pl.W) || 466, D = (pl && pl.D) || 680, H = PG_IN.H, LH = PG_IN.LH, ra = PG_IN.ra;
+    const W = (pl && pl.W) || 700, D = (pl && pl.D) || 760, H = PG_IN.H, LH = PG_IN.LH, ra = PG_IN.ra, GW = PG_IN.GW;   // (GW: the garage's own front, its east end -- the side door, the chests)
     const door = (pl && pl.door) || { side: 'n', at: ra(234), half: 85.8 };
     const wall = '#e6e1d6', wallD = '#d3cdc1', trim = '#3c7fa0', trimD = '#2c6280', floor = '#9fa4a7', floorD = '#8e9396';
     const steel = '#8c9298', steelD = '#6f757b', steelS = '#5d6369', red = '#c23a2e', redD = '#962c23', redS = '#7e251d', dark = '#2a2f34', tyre = '#26282c';
@@ -57183,15 +57188,15 @@ function houseCanopy(fn){
         /* the open bay's drum, rolled up under its lintel */
         F(B2[0], B2[1], BZ, BZ + 18, '#767c82', null, 0, 0.5); F(B2[0], B2[1], BZ + 4, BZ + 7, '#5d6369', null, 0, 0.6);
         /* the side door (the shop's own, in the corner by the east wall) */
-        F(W - 54, W - 4, 0, 200, trimD, null, 0, 0.4); F(W - 50, W - 8, 4, 196, trim, null, 0, 0.5); F(W - 44, W - 14, 120, 180, '#9fc2d4', null, 0, 0.6);
+        F(GW - 54, GW - 4, 0, 200, trimD, null, 0, 0.4); F(GW - 50, GW - 8, 4, 196, trim, null, 0, 0.5); F(GW - 44, GW - 14, 120, 180, '#9fc2d4', null, 0, 0.6);
         /* the pegboard over the chests, its tools; a calendar between the bays */
-        F(W - 104, W - 60, 130, 250, '#b88f5e', null, 0, 0.3);
-        for(let z = 140; z < 245; z += 9) for(let a = W - 102; a < W - 62; a += 9) F(a, a + 1.4, z, z + 1.4, '#9a7448', null, 0, 0.4);
-        for(let k = 0; k < 4; k++) F(W - 98 + k*9, W - 95 + k*9, 170 - k*6, 236, '#c9ccd2', null, 0, 0.5);
+        F(GW - 104, GW - 60, 130, 250, '#b88f5e', null, 0, 0.3);
+        for(let z = 140; z < 245; z += 9) for(let a = GW - 102; a < GW - 62; a += 9) F(a, a + 1.4, z, z + 1.4, '#9a7448', null, 0, 0.4);
+        for(let k = 0; k < 4; k++) F(GW - 98 + k*9, GW - 95 + k*9, 170 - k*6, 236, '#c9ccd2', null, 0, 0.5);
         F(B1[1] + 2, B2[0] - 2, 120, 160, '#f6f3ec', null, 0, 0.5); F(B1[1] + 4, B2[0] - 4, 124, 142, '#4f9ad8', null, 0, 0.6);
         /* the name on a board high over the chests */
-        F(W - 170, W - 14, 262, 288, trimD, null, 0, 0.5); F(W - 168, W - 16, 264, 286, trim, null, 0, 0.6);
-        blockWordIn('PALMLINE GARAGE', W - 160, W - 24, 267, 283, 0.8, '#f3efe6', null, 2.2);
+        F(GW - 170, GW - 14, 262, 288, trimD, null, 0, 0.5); F(GW - 168, GW - 16, 264, 286, trim, null, 0, 0.6);
+        blockWordIn('PALMLINE GARAGE', GW - 160, GW - 24, 267, 283, 0.8, '#f3efe6', null, 2.2);
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wall, 0.94));
@@ -57224,7 +57229,7 @@ function houseCanopy(fn){
     }
 
     /* ---- THE TOOL CHESTS along the north wall's east end: red roll cabinets, their drawers, a top box ---- */
-    { const A0 = W - 104, A1 = W - 60, B1c = 36;   // (clear of the side door, W - 54 on)
+    { const A0 = GW - 104, A1 = GW - 60, B1c = 36;   // (clear of the side door, GW - 54 on)
       runPiece(items, A0, A1, 0, B1c, 128, (s0, s1) => [solid(s0, s1, 0, B1c, 128, 'tool chests')], () => {
         box(A0, A1, 2, B1c, 6, 100, red, redD, redS);
         for(let z = 18; z < 96; z += 13) F(A0 + 4, A1 - 4, z, z + 2, '#e9e4da', null, 0, B1c + 0.3);
@@ -57237,17 +57242,19 @@ function houseCanopy(fn){
     items.push({ a: 396, b: 136, z: 0, solids: [{ name: 'tyres', c: [396, 136], r: 22, h: 70 }], draw: () => { for(let k = 0; k < 5; k++) cyl(396, 136, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
 
     /* ---- THE TYRE CHANGER AND THE WHEEL BALANCER, south of bay 1, their working faces to Danny north of them (W19) ---- */
-    items.push({ a: 75, b: 382, z: 0, solids: [solid(52, 98, 362, 402, 110, 'tyre changer')], draw: () => {
-      box(52, 98, 362, 402, 0, 70, red, redD, redS); F(56, 94, 10, 60, shade(red, 1.08), redD, 0.8, 402.2);
-      tube(90, 366, 70, 90, 366, 118, 4, steelD); tube(90, 366, 118, 72, 380, 112, 3, steelD);                             // its arm over the wheel
-      cyl(75, 380, 70, 76, 18, steel, '#b8bec4'); cyl(75, 380, 76, 88, 16, tyre, '#3a3e44'); cyl(75, 380, 86, 89, 9, '#9aa0a6'); } });
-    items.push({ a: 140, b: 382, z: 0, solids: [solid(118, 162, 364, 400, 120, 'wheel balancer')], draw: () => {
-      box(118, 162, 364, 400, 0, 60, '#3a5f8a', '#2f4f74', '#27425f'); box(124, 156, 368, 380, 60, 100, '#3a5f8a', '#2f4f74', '#27425f');
-      F(128, 152, 72, 94, '#1c2025', null, 0, 380.2); F(131, 149, 76, 90, '#9fd4b4', null, 0, 380.4);                     // its readout, to the fitter
-      tube(140, 390, 66, 140, 412, 66, 2.5, steelD); cyl(140, 412, 54, 78, 4, steel); } });
+    { const ca = 90, cb = 420;
+    items.push({ a: ca, b: cb, z: 0, solids: [solid(ca - 23, ca + 23, cb - 20, cb + 20, 110, 'tyre changer')], draw: () => {
+      box(ca - 23, ca + 23, cb - 20, cb + 20, 0, 70, red, redD, redS); F(ca - 19, ca + 19, 10, 60, shade(red, 1.08), redD, 0.8, cb + 20.2);
+      tube(ca + 15, cb - 16, 70, ca + 15, cb - 16, 118, 4, steelD); tube(ca + 15, cb - 16, 118, ca - 3, cb - 2, 112, 3, steelD);   // its arm over the wheel
+      cyl(ca, cb - 2, 70, 76, 18, steel, '#b8bec4'); cyl(ca, cb - 2, 76, 88, 16, tyre, '#3a3e44'); cyl(ca, cb - 2, 86, 89, 9, '#9aa0a6'); } }); }
+    { const ca = 175, cb = 420;
+    items.push({ a: ca, b: cb, z: 0, solids: [solid(ca - 22, ca + 22, cb - 18, cb + 18, 120, 'wheel balancer')], draw: () => {
+      box(ca - 22, ca + 22, cb - 18, cb + 18, 0, 60, '#3a5f8a', '#2f4f74', '#27425f'); box(ca - 16, ca + 16, cb - 14, cb - 2, 60, 100, '#3a5f8a', '#2f4f74', '#27425f');
+      F(ca - 12, ca + 12, 72, 94, '#1c2025', null, 0, cb - 1.8); F(ca - 9, ca + 9, 76, 90, '#9fd4b4', null, 0, cb - 1.6);     // its readout, to the fitter
+      tube(ca, cb + 8, 66, ca, cb + 30, 66, 2.5, steelD); cyl(ca, cb + 30, 54, 78, 4, steel); } }); }
     /* ---- THE TYRE WALL down the west wall: steel racks, four rows of new tyres stood on edge; a piece per bay along b, keyed at its start
        (keyStart: against the wall), clipped at its own top (W37) ---- */
-    { const A0 = 0, A1 = 36, B0 = 420, B1 = 660, ZS = [0, 52, 104, 156], zTop = 206, n = Math.round((B1 - B0)/50);
+    { const A0 = 0, A1 = 36, B0 = 470, B1 = 740, ZS = [0, 52, 104, 156], zTop = 206, n = Math.round((B1 - B0)/50);
       for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n, last = k === n - 1;
         runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'tyre wall')], () => {
           for(const bb of [s0 + 2, s1 - 2]) box(A0, A1, bb - 2, bb + 2, 0, zTop, steelD, steelD, steelS);            // its uprights
@@ -57260,37 +57267,43 @@ function houseCanopy(fn){
         }, { alongB: true, pad: 3, keyStart: true });
       } }
     /* ---- THE WHEEL DISPLAY: a stand of four alloy wheels on a low plinth; one piece ---- */
-    items.push({ a: 140, b: 515, z: 0, solids: [solid(112, 168, 482, 548, 100, 'wheel display')], draw: () => {
-      box(112, 168, 482, 548, 0, 14, '#3a3e44', '#2a2e33', '#1e2125');
-      tube(140, 515, 14, 140, 515, 96, 2.5, steelD);
-      for(const [wa, wz] of [[124, 40], [156, 40], [124, 76], [156, 76]]){
+    items.push({ a: 150, b: 580, z: 0, solids: [solid(122, 178, 547, 613, 100, 'wheel display')], draw: () => {
+      box(122, 178, 547, 613, 0, 14, '#3a3e44', '#2a2e33', '#1e2125');
+      tube(150, 580, 14, 150, 580, 96, 2.5, steelD);
+      for(const [wa, wz] of [[134, 40], [166, 40], [134, 76], [166, 76]]){
         /* a wheel stood upright facing south: its tyre, the alloy's rim and spokes, the hub (discs in the a-z plane at b) */
         const disc = (r, c, bb) => { const pts = []; for(let j = 0; j < 20; j++){ const t = j/20*Math.PI*2; pts.push(P(wa + Math.cos(t)*r, bb, wz + Math.sin(t)*r)); } poly(pts, c); };
-        disc(15, tyre, 520); disc(11, '#c8ccd0', 520.4); disc(8.5, '#8c9298', 520.6);
-        for(let j = 0; j < 5; j++){ const t = j/5*Math.PI*2 + 0.3; tube(wa, 520.8, wz, wa + Math.cos(t)*9, 520.8, wz + Math.sin(t)*9, 1.3, '#d6dadc'); }
-        disc(3, '#5d6369', 521); } } });
+        disc(15, tyre, 585); disc(11, '#c8ccd0', 585.4); disc(8.5, '#8c9298', 585.6);
+        for(let j = 0; j < 5; j++){ const t = j/5*Math.PI*2 + 0.3; tube(wa, 585.8, wz, wa + Math.cos(t)*9, 585.8, wz + Math.sin(t)*9, 1.3, '#d6dadc'); }
+        disc(3, '#5d6369', 586); } } });
     /* ---- THE SERVICE COUNTER: sea-blue front, a pale top, Mel behind it (east); in runs along b, keyed down its middle; what stands on it
        its own piece (the till, a key rack on its end) ---- */
-    { const A0 = 372, A1 = 410, B0 = 320, B1 = 470, zT = 96;
+    { const A0 = 540, A1 = 578, B0 = 360, B1 = 530, zT = 96;
       runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(A0, A1, s0, s1, zT, 'counter')], () => {
         box(A0, A1, B0, B1, 0, zT - 6, trim, trimD, shade(trimD, 0.85));
         for(let b = B0 + 25; b < B1; b += 25) S(A1 + 0.2, b - 0.6, b + 0.6, 8, zT - 12, shade(trimD, 0.8));
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 6, zT, '#e9e4da', '#d6d1c6', '#c4bfb4');
         F(A0 + 4, A1 - 4, 30, 60, '#f3efe6', null, 0, B1 + 0.2); blockWordIn('TYRES', A0 + 6, A1 - 6, 38, 52, B1 + 0.4, trimD, null, 2);
       }, { alongB: true, run: 30, pad: 5, extra: { a: (A0 + A1)/2 } });
-      const tb = 400;
+      const tb = 445;
       items.push({ a: A1, b: tb, z: lcOnZ(B0, B1, 30, tb - 12, tb + 12, tb), fpLab: { a0: A0 + 6, a1: A1 - 4, b0: tb - 12, b1: tb + 12, z1: zT + 26 }, solids: [], draw: () => {
         box(A0 + 14, A1 - 6, tb - 10, tb + 10, zT, zT + 6, dark, dark, '#16181b'); box(A1 - 10, A1 - 6, tb - 10, tb + 10, zT + 6, zT + 26, '#2b3138', '#23282e', '#1c2025');
         S(A1 - 6.2, tb - 8, tb + 8, zT + 9, zT + 23, '#9fc4d4'); } }); }
+    /* ---- THE TYRE STACKS: piles of new tyres in the north-east, under a sign on its post; each pile its own piece ---- */
+    for(const [ta, tb, n] of [[500, 110, 6], [560, 110, 5], [620, 110, 6], [500, 190, 4], [560, 190, 6], [620, 190, 5]])
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'tyres', c: [ta, tb], r: 22, h: n*14 }], draw: () => { for(let k = 0; k < n; k++) cyl(ta, tb, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
+    items.push({ a: 660, b: 236, z: 0, solids: [{ name: 'sign', c: [660, 236], r: 4, h: 170 }], draw: () => {
+      tube(660, 236, 0, 660, 236, 130, 2, steelD); F(620, 700, 130, 170, trim, null, 0, 237); F(624, 696, 134, 166, '#f3efe6', null, 0, 237.2);
+      blockWordIn('NEW TYRES', 628, 692, 142, 158, 237.4, trimD, null, 2.4); } });
     /* ---- THE WAITING CHAIRS along the east wall (seats facing west, their backs to the wall), a coffee machine and a plant ---- */
-    for(const cb of [520, 580, 640]) items.push({ a: 448, b: cb, z: 0, solids: [{ name: 'chair', c: [448, cb], r: 16, h: 80 }], draw: () => {
-      for(const [la, lb] of [[-9, -10], [9, -10], [-9, 10], [9, 10]]) tube(448 + la, cb + lb, 0, 448 + la, cb + lb, 30, 1.2, dark);
-      box(434, 462, cb - 13, cb + 13, 30, 36, trim, trim, trimD); box(456, 462, cb - 13, cb + 13, 36, 78, trim, trim, trimD); } });
-    items.push({ a: 450, b: 492, z: 0, solids: [solid(438, 462, 480, 504, 120, 'coffee machine')], draw: () => {
-      box(438, 462, 480, 504, 0, 116, dark, dark, '#16181b'); F(442, 458, 60, 104, '#3a3e44', null, 0, 504.2); F(444, 456, 84, 100, '#e2b23c', null, 0, 504.4);
-      F(445, 455, 48, 56, '#16181b', null, 0, 504.4); cyl(450, 508, 40, 48, 3, '#f4f2ec'); } });
-    items.push({ a: 440, b: 670, z: 0, solids: [{ name: 'plant', c: [440, 662], r: 12, h: 110 }], draw: () => {
-      cyl(440, 662, 0, 28, 11, trim, trimD); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(440, 662, 28, 440 + Math.cos(t)*16, 662 + Math.sin(t)*12, 78 + (k % 3)*12, 2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+    for(const cb of [600, 660, 720]) items.push({ a: 682, b: cb, z: 0, solids: [{ name: 'chair', c: [682, cb], r: 16, h: 80 }], draw: () => {
+      for(const [la, lb] of [[-9, -10], [9, -10], [-9, 10], [9, 10]]) tube(682 + la, cb + lb, 0, 682 + la, cb + lb, 30, 1.2, dark);
+      box(668, 696, cb - 13, cb + 13, 30, 36, trim, trim, trimD); box(690, 696, cb - 13, cb + 13, 36, 78, trim, trim, trimD); } });
+    items.push({ a: 684, b: 560, z: 0, solids: [solid(672, 696, 548, 572, 120, 'coffee machine')], draw: () => {
+      box(672, 696, 548, 572, 0, 116, dark, dark, '#16181b'); F(676, 692, 60, 104, '#3a3e44', null, 0, 572.2); F(678, 690, 84, 100, '#e2b23c', null, 0, 572.4);
+      F(679, 689, 48, 56, '#16181b', null, 0, 572.4); cyl(684, 576, 40, 48, 3, '#f4f2ec'); } });
+    items.push({ a: 640, b: 742, z: 0, solids: [{ name: 'plant', c: [640, 734], r: 12, h: 110 }], draw: () => {
+      cyl(640, 734, 0, 28, 11, trim, trimD); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(640, 734, 28, 640 + Math.cos(t)*16, 734 + Math.sin(t)*12, 78 + (k % 3)*12, 2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
 
     walkinStaffSolids(items, PG_IN.name);
     depthSort(items);
