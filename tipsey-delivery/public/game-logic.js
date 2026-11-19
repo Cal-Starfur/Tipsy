@@ -59575,7 +59575,11 @@ function houseCanopy(fn){
         out.push(man(pos[0], pos[1], f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
         /* (by a pod's face, after the pod; set on the shuttle, after the shuttle) */
         if(cDraw){ const c = carry, dd = onRobot === -1 ? PODRA + PODB + 2 - c[0] - c[1] : onRobot === -2 ? GPA + GPB + 2 - c[0] - c[1] : onRobot ? onRobot + 2 - c[0] - c[1] : 1; out.push({ kind: 'cargo', a: c[0], b: c[1], dd: Math.max(1, dd), cargo: cDraw }); } }
-      else out.push(man(IDLE[0], IDLE[1], 1, {}));
+      else { /* (aware of the pallet jack: while it drives in with the parts pallet or out with the empty, he stands clear at his spot and
+           turns to watch it -- Sir, 2026-11-19, "this robot needs to be aware of the incoming pallet mover") */
+        const jin = jr >= 10500 && jr < RCV_T0 + 300, jout = jr >= RCV_T1 && jr < RCV_T1 + 2600;
+        const ja = jin ? [JA, 455 + (320 - 455)*clamp01((jr - 10500)/3500)] : jout ? [JA, 320 + 135*clamp01((jr - RCV_T1 - 1000)/1600)] : null;
+        out.push(man(IDLE[0], IDLE[1], ja ? face(IDLE, ja) : 1, {})); }
       /* the shuttle and its cartons, set on it off this pallet */
       const onSh = [0, 3].filter(i => jr >= JS(JOBS.findIndex(J => J.k === 'carton' && J.i === i)) + 2100*JK);
       out.push(bot(SHA, SHB, 3, { build: 'amrstock', loads: [], cargo: () => { for(const i of onSh) rcvItemKit(RCV[i], SHA, SHSL[i === 0 ? 0 : 1], 31); } }));
