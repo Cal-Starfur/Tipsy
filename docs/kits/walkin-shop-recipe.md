@@ -78,3 +78,9 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - A 40-frame run inside with the family working: nothing paints over anyone (heads clear of shelves and urns), no outsider in the room.
 - From the street at view 3: nothing of the room shows past the shop's own body.
 - `walkinCoverage` / `walkinNightCheck` clean; at night the room lit, the street dark.
+- The door (W36, D12-D15), frame-stepped (`game.loop.sleep()` and `game.step` 1/30 s a shot -- headless runs at a frame every second or two
+  and skips what happens between): walk up to it slowly from the street -- one door all the way, never a half door under a full one; stand
+  in the doorway and just inside it -- the open leaf behind him; someone leaving meets him in the doorway -- they back off and wait.
+- A knock-down inside (W34): drive into a customer -- they are SEEN to fall, lie there and get up (not vanish and come back), then the
+  keeper's meeting, both faces showing.
+- Its neighbours displaced (W31): nothing of a building it covers -- its door, its sign -- shows inside the room's outline.
