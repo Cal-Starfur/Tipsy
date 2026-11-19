@@ -14,8 +14,8 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - Draw it with `shopDoor(..., { pair: true, w, h, ... })` on the wall's own set-back (`BOFF`), never by hand. Pick a style: glass
   (slides), or a solid style such as `studs` (lacquered leaves that swing in).
 - Pick its face (`look`, Sir 2026-11-19: "can we get some door variations?"): `six` six small lights over a panel (the bookshop's), `panel` two
-  raised panels under a fixed fanlight (the roastery's -- the street's old shop door), `lite` one big light over a panel under the fanlight
-  (Marina Optical's), `french` two tall lights over a low panel. Vary it from the shops near it.
+  raised panels under a top light of three panes, in the leaf (the roastery's -- the street's old shop door), `lite` one big light over a
+  panel under the top light (Marina Optical's), `french` two tall lights over a low panel. Vary it from the shops near it.
 - It is 80 wide in the shop's lab (Sir, 2026-11-19: "i would rather the 80 and the person needs to be programmed to either get back or get
   run over"): Tipsey and no one beside him. Whoever is in or at the doorway on their way through backs off the way they came till he
   is out of it (the kit's `walkinBackOff`), or stands and is knocked down. Nothing to write. If the window narrows for it, shrink its goods.

@@ -47009,11 +47009,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
   if(SEE && pair){
     HOLE([P(a0,0.4,z+dH),P(a1,0.4,z+dH),P(a1,0.4,z),P(a0,0.4,z)]);
-    if(SHOP_DOOR_LOOKS[look] && SHOP_DOOR_LOOKS[look].fan){                     // (a fixed fanlight over the leaf: its glass, its bars, a glint)
-      F(a0+2, a1-2, z+dH-26, z+dH-4, panes || 'rgba(120,156,176,.7)', null,0,0.45);
-      for(let k=1;k<4;k++){ const u = a0+2 + (a1-a0-4)*k/4; F(u-0.8, u+0.8, z+dH-26, z+dH-4, shade(trim,.62), null,0,0.5); }
-      F(a0+5, a0+(a1-a0)*0.4, z+dH-10, z+dH-8, 'rgba(255,255,255,.25)', null,0,0.55); }
-    else F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
+    F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
     F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
     return { a0, a1, dH, pair };
   }
@@ -47148,13 +47144,21 @@ function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
 }
 /* A PANELLED LEAF'S FACE (shopDoor opts.panes): its stiles and rails in the trim, a raised panel low down, a glazed light of small panes over it
    (glazing bars three by two), a brass knob near the meeting stile -- in the leaf's own (u along it from its hinge, z) */
-const SHOP_DOOR_LOOKS = { six: { fan: false }, panel: { fan: true }, lite: { fan: true }, french: { fan: false } };
+const SHOP_DOOR_LOOKS = { six: {}, panel: { top: true }, lite: { top: true }, french: {} };
 function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look){
-  const H = z1 - z0, dk = shade(trim, 0.62), lk = look || 'six';
+  const dk = shade(trim, 0.62), lk = look || 'six';
   const panel = (u0, u1, za, zb) => { rect(u0, u1, za, zb, shade(trim, 1.14), 0.2); rect(u0 + 4, u1 - 4, za + 4, zb - 4, shade(trim, 0.92), 0.3); };
   const glint = (za, zb) => rect(10, len*0.45, zb - 5, zb - 2, 'rgba(255,255,255,.22)', 0.35);
   rect(0, len, z0, z1, shade(trim, 0.7));                                     // its edge, the frame
   rect(3, len - 3, z0 + 3, z1 - 3, trim, 0.1);                               // stiles and rails
+  /* (a look with a top light -- 'panel', 'lite': three small panes across the leaf's head, IN the leaf, swinging with it: Sir, 2026-11-19, "i think
+     the top window panes need to be part of the door". The rest of the leaf under it) */
+  if(SHOP_DOOR_LOOKS[lk] && SHOP_DOOR_LOOKS[lk].top){
+    const t0 = z1 - 26; rect(8, len - 8, t0, z1 - 7, glass, 0.2);
+    for(let k = 1; k < 3; k++){ const u = 8 + (len - 16)*k/3; rect(u - 1, u + 1, t0, z1 - 7, dk, 0.3); }
+    rect(10, len*0.45, z1 - 12, z1 - 10, 'rgba(255,255,255,.22)', 0.35);
+    z1 = t0 - 3; }
+  const H = z1 - z0;
   if(lk === 'panel'){                                                         // two raised panels, the lower the taller; solid
     const zm = z0 + H*0.55; panel(9, len - 9, z0 + 10, zm - 5); panel(9, len - 9, zm + 5, z1 - 10);
     rect(knobU - 2.5, knobU + 2.5, z0 + H*0.48, z0 + H*0.48 + 5, '#c9a24a', 0.4); return; }
@@ -47232,7 +47236,7 @@ function shopDoorOpen(d, t, between, leafOnly){
     const clipIt = CUT == null;
     if(clipIt){ ctx.save(); poly([P(d.a0, 0.6, d.z), P(d.a1, 0.6, d.z), P(d.a1, 0.6, d.z + d.dH), P(d.a0, 0.6, d.z + d.dH)]); ctx.clip(); }
     try { for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){ const qq = Qi(hingeA, sgn);
-      if(d.panes) shopDoorPanes((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH - (SHOP_DOOR_LOOKS[d.look] && SHOP_DOOR_LOOKS[d.look].fan ? 30 : 0), d.panes, d.trim, ln - 9, d.look);
+      if(d.panes) shopDoorPanes((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.panes, d.trim, ln - 9, d.look);
       else shopDoorStuds((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.studs, d.trim, ln - 10); } }
     finally { if(clipIt) ctx.restore(); }
     return;
