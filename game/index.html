@@ -60276,16 +60276,35 @@ function houseCanopy(fn){
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
         const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
-        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2300)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
         out.push(bot(P0.a, P0.b, 0, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a + (i % 2 ? 22 : -22), P0.b + (i < 2 ? -16 : 16), 31, CPC(SH[TOP4[i]].pal)); } }));
         for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
           const s0 = tau < 12000 ? 0 : tau < 16714 ? (tau - 12000)*PV : tau < 29286 ? 330 : tau < 32429 ? 330 + (tau - 29286)*PV : tau < 64286 ? 550 : tau < 69000 ? 550 + (tau - 64286)*PV : 0;
-          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 1200)/3000) + 1)) : 0;
+          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 900)/3000) + 1)) : 0;
           out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), bins: CPAL, wheel: s0*0.12 })); }
-        if(S.stop === 0){ const q = S.r % 3000, f = q < 1200 ? 2 : q < 1500 ? 2 - 2*ease((q - 1200)/300) : q < 2700 ? 0 : 2*ease((q - 2700)/300);
-          out.push(man(790, 1610, f, q < 1200 ? REACH(t) : q < 2700 ? { lift: [0.5, 0.5], bend: [0.6, 0.6] } : {}));
-          const m = Math.floor(S.r/3000);   /* (the bin he took off the pod: TOP4[m]) */
-          if(q >= 1100 && q < 2100 && m < 4){ const ff = f*Math.PI/2, ha = 790 + Math.cos(ff)*24, hb = 1610 + Math.sin(ff)*24, col = CPC(SH[TOP4[m]].pal); out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => BIN(ha, hb, 48, col) }); } }
+        if(S.stop === 0){
+          /* THE PICK, MOVED BY THE BIN (Sir, 2026-11-19: "he never reaches up to the top, the animation is too stiff"): the bin's own path --
+             in its slot on the pod, pulled out to his chest, carried round as he turns, lowered into its place on the runner -- and his arms
+             pointed at its near face every frame (lift: the shoulder's swing from hanging, bend: the elbow, folding as it comes in close) */
+          const q = S.r % 3000, m = Math.floor(S.r/3000), PA = 790, PB = 1610, SHZ = 95, ARM = 40;
+          const slot = TOP4[Math.min(m, 3)], sq = AMR_SLOTS.amrshelf[slot], sa = 700 - sq.b, sb = 1610 + sq.a, sz = [34, 64, 94, 124][sq.lv] + 2.5;
+          const ra = 880 + (m % 2 ? 22 : -22), rbb = 1610 + (m < 2 ? -16 : 16), rz = 31;
+          const turn = q < 1400 ? 0 : q < 1750 ? ease((q - 1400)/350) : q < 2500 ? 1 : 1 - ease((q - 2500)/500), f = 2 - 2*turn;
+          const chest = ff => [PA + Math.cos(ff*Math.PI/2)*24, PB + Math.sin(ff*Math.PI/2)*24, 58];
+          let bin = null;
+          if(m < 4 && q >= 900 && q < 2300){
+            if(q < 1400){ const k = ease((q - 900)/500), c0 = chest(2); bin = [sa + (c0[0] - sa)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
+            else if(q < 1750) bin = chest(f);
+            else { const k = ease((q - 1750)/550), c0 = chest(0); bin = [c0[0] + (ra - c0[0])*k, c0[1] + (rbb - c0[1])*k, c0[2] + (rz - c0[2])*k]; } }
+          /* where his hands go: the bin's near face while he reaches for it or holds it; hanging, eased, between */
+          const tgt = m >= 4 ? null : q < 900 ? [sa + 12, sb, sz + 10] : bin ? [bin[0] + (turn > 0.5 ? -12 : 12), bin[1], bin[2] + 10] : null;
+          const reachK = m >= 4 ? 0 : q < 900 ? ease(q/500) : q < 2300 ? 1 : 1 - ease((q - 2300)/400);
+          let lift = 0.08, bend = 0.15;
+          if(tgt){ const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), fwd = Math.max(4, (tgt[0] - PA)*fa + (tgt[1] - PB)*fb), dz = tgt[2] - SHZ;
+            const th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz), L = Math.min(2, th/(Math.PI/2)), B = Math.max(0, Math.min(0.95, (ARM - d)/ARM*1.7));
+            lift = 0.08 + (L - 0.08)*reachK; bend = 0.15 + (B - 0.15)*reachK; }
+          out.push(man(PA, PB, f, { lift: [lift, lift], bend: [bend, bend] }));
+          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin; out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd: 1, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
         else out.push(man(790, 1610, 1, {}));
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
