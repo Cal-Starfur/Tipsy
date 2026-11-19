@@ -134539,7 +134539,7 @@ class WorldScene extends Phaser.Scene {
      lid flaps and the dump bed. He collects and when it's full he deposits full cubes of either cardboard or plastic waste that can be
      picked up for recycling"): the cargo bot's chassis, six wheels and tray, a lower body with his face and stripe; on it an open hopper
      with a real cavity -- its inner walls and floor, the load inside filling it (data.fill 0..1: flattened cardboard in layers, or film in
-     soft white folds); a ram across its front that drives back to squeeze the load toward the back (data.press 0..1: a horizontal baler's); a door in its back that lifts
+     soft white folds); the baling done inside it, unseen; a door in its back that lifts
      to push the finished bale out onto the floor behind (data.eject 0..1) -- a strapped cube of the one material. Slatted windows down its
      sides, a recycling mark, a lamp at its front corner (green, amber, red as it fills), an amber beacon. mat: 'card' (build cgcard) or
      'film' (cgfilm); skins TP_BSKIN build cgcard / cgfilm */
@@ -134560,7 +134560,7 @@ class WorldScene extends Phaser.Scene {
     const STR = BSK ? BSK.stripe : SKIN.stripe, HOP = A.hopper != null ? A.hopper : BODY.top, ICON = A.icon != null ? A.icon : 0x2aa86a, TRIM = A.trim != null ? A.trim : 0x2a2f36;
     const { P, sees, solid, prismH, line, Q } = V, DARK = 0x2a2f36, STEEL = 0x8d959c, card = mat !== 'film';
     const LOAD = card ? 0xc98a4a : 0xe6edf2, LOADL = card ? 0xe0a868 : 0xffffff, LOADD = card ? 0x9a6a38 : 0xb9c8d2, INNER = 0x3a3f46, INNERD = 0x2a2f36;
-    const d = data || {}, fill = Math.max(0, Math.min(1, d.fill != null ? d.fill : 0.45)), press = Math.max(0, Math.min(1, d.press || 0)), eject = Math.max(0, Math.min(1, d.eject || 0));
+    const d = data || {}, fill = Math.max(0, Math.min(1, d.fill != null ? d.fill : 0.45)), eject = Math.max(0, Math.min(1, d.eject || 0)), press = 0;
     const L = 100, W = 72, hx = L/2, hy = W/2, wr = 11, wa = [-30, 0, 30], ZB = 56, ZT = 100, HA0 = -46, HA1 = 42, HB = 33, WT = 3;
     shadow(hx, hy);
     const quad = (pts, col) => Q(pts.map(q => P(...q)), col);
@@ -134582,9 +134582,9 @@ class WorldScene extends Phaser.Scene {
     if(sees(1, 0, 0)) quad([[I0, -J, ZB + WT], [I0, J, ZB + WT], [I0, J, ZT], [I0, -J, ZT]], INNER);               // (the back wall's inside, facing the front)
     else quad([[I1, -J, ZB + WT], [I1, J, ZB + WT], [I1, J, ZT], [I1, -J, ZT]], INNER);
     { const fb = -nearB*J; quad([[I0, fb, ZB + WT], [I1, fb, ZB + WT], [I1, fb, ZT], [I0, fb, ZT]], _pdk(INNER, 0.85)); }   // (the far side's inside)
-    /* THE RAM (a horizontal baler's): a steel plate across the cavity, at rest against its front wall, driven back on two rods to squeeze
-       the load toward the bale door (press); the load lies from the back wall to the ram */
-    const RA = I1 - 2 - press*(I1 - 2 - (I0 + 40)), LA = Math.min(RA - 0.5, I1);
+    /* (the baling itself is inside it, not shown -- Sir, 2026-11-19: "we don't need the compressor ... it's an internal process": the load
+       fills the cavity and goes out of the back as a bale) */
+    const LA = I1;
     if(zf > ZB + WT + 0.5){
       /* the load: its far faces against the walls, its face toward the ram, its top -- layers of flats, or soft folds of film */
       const lay = card ? 5 : 7, fb = -nearB*(J - 0.1);
@@ -134595,12 +134595,7 @@ class WorldScene extends Phaser.Scene {
       const sc = (LA - I0)/(I1 - I0);
       if(card) for(let k = 0; k < 5; k++){ const a0 = I0 + (6 + k*16)*sc, b0 = ((k*37) % 40) - 20; quad([[a0, b0 - 9, zf + 0.2], [a0 + 13*sc, b0 - 7, zf + 0.2], [a0 + 11*sc, b0 + 9, zf + 0.2], [a0 - 2*sc, b0 + 7, zf + 0.2]], k % 2 ? LOADL : 0xd49a5a); }
       else for(let k = 0; k < 6; k++){ const a0 = I0 + (8 + k*13)*sc, b0 = ((k*29) % 36) - 18; quad([[a0 - 6*sc, b0, zf + 0.2], [a0, b0 - 7, zf + 0.2], [a0 + 7*sc, b0 - 1, zf + 0.2], [a0 + 2*sc, b0 + 7, zf + 0.2]], k % 2 ? 0xffffff : 0xd6e2ea); }
-      if(sees(1, 0, 0)){ quad([[LA, -J, ZB + WT], [LA, J, ZB + WT], [LA, J, zf], [LA, -J, zf]], LOADD);
-        for(let hh = ZB + WT + lay; hh < zf; hh += lay) line([LA + 0.1, -J, hh], [LA + 0.1, J, hh], card ? 0x8a5a2a : 0xc9d6df, 1); } }
-    /* the ram: its rods from the front wall, its plate */
-    for(const rb of [-14, 14]) line([I1, rb, ZB + 22], [RA + 2, rb, ZB + 22], 0xc9ced2, 3);
-    solid(prismH([[RA, -J + 0.5], [RA + 3, -J + 0.5], [RA + 3, J - 0.5], [RA, J - 0.5]], ZB + WT, ZT - 6), STEEL, null, false);
-    if(sees(0, 0, 1)) line([RA, -J + 1, ZT - 5.8], [RA, J - 1, ZT - 5.8], 0xb9c0c6, 1.2);
+    }
     /* the hopper's outer walls (no top: the cavity), then its rim */
     const walls = [[[HA0, -HB], [HA1, -HB]], [[HA1, -HB], [HA1, HB]], [[HA1, HB], [HA0, HB]], [[HA0, HB], [HA0, -HB]]];
     for(const [p0, p1] of walls){ const na = p1[1] - p0[1], nb = -(p1[0] - p0[0]); if(!sees(na, nb, 0)) continue;
