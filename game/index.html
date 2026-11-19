@@ -137759,7 +137759,9 @@ class WorldScene extends Phaser.Scene {
          drawing over tipsey alot". So against him it goes by which side of it he is: the leaf from its hinge to its free edge, the point on it
          straight up the screen from him (screen x = x - y); he nearer the camera than that point, the leaf before him, else after) */
       let dep = x + y;
-      const pk = this._inside, v = pk && pk.view ? pk.view() : null, bx = this.botX + (pk && v ? v.dx : 0), by = this.botY + (pk && v ? v.dy : 0);
+      /* (him on the street's lines: in a room drawn there, the draw pass has already moved him onto them (drawWorld, POCKET_VIEW) -- moved again
+         he was a room's width off, never beside the leaf, and the leaf kept its middle key and drew over him: the roastery, 2026-11-19) */
+      const pk = this._inside, v = pk && pk.view && !(POCKET_VIEW && POCKET_VIEW.pk === pk) ? pk.view() : null, bx = this.botX + (pk && v ? v.dx : 0), by = this.botY + (pk && v ? v.dy : 0);
       const hx = along(rec.a0), hy = alongY(rec.a0), ex = along(rec.a0 + (rec.a1 - rec.a0)*Math.cos(ang1)) + d.e.rv.x*inw1*len*Math.sin(ang1), ey = alongY(rec.a0 + (rec.a1 - rec.a0)*Math.cos(ang1)) + d.e.rv.y*inw1*len*Math.sin(ang1);
       if(Math.hypot(bx - x, by - y) < len + 120){
         const su = (hx - hy), sv = (ex - ey), sb = bx - by, R = 40;
