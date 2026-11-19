@@ -58481,7 +58481,8 @@ function houseCanopy(fn){
         return out; } } });
       /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
          pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
-      const SH = AMR_SLOTS.amrshelf.map(q => q.def), TOP4 = SH.map((q, i) => i).filter(i => AMR_SLOTS.amrshelf[i].lv === 3).reverse(), SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07;
+      const SH = AMR_SLOTS.amrshelf.map(q => q.def), TOP4 = [18, 20, 22, 14],   /* (the bins he can reach: the pod stands facing south, its east column his side -- the top row along it, then the one under the middle; Sir: "hes grabbing the back row of bins first") */
+         SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07;
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
         const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
