@@ -8086,7 +8086,7 @@ function owDbgDraw(scene){
   });
   /* (inside Cratewell Works' hall: its buffers -- CW_FLOW) */
   const cw = scene._inside && /^Cratewell/.test(scene._inside.name || '') && CW_FLOW.bench ? ['cratewell  t ' + ((CW_FLOW.t || 0)/1000).toFixed(1) + 's  benches ' + CW_FLOW.bench.slice(1).join(' ') +
-    '  decks ' + CW_FLOW.decks + '  tug ' + CW_FLOW.tug + '  runner ' + CW_FLOW.runner + '  pallet ' + CW_FLOW.pallet] : [];
+    '  decks ' + CW_FLOW.decks + '  tug ' + CW_FLOW.tug + '  runner ' + CW_FLOW.runner + '  pallet ' + CW_FLOW.pallet + '  empties ' + CW_FLOW.empties + '  jack ' + CW_FLOW.jack + '  receiving ' + CW_FLOW.receiving] : [];
   el.textContent = [head, ...cw, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
 }
 
@@ -60596,6 +60596,31 @@ function houseCanopy(fn){
     /* THE LINE'S CLOCK: a scooter comes off the line every CYC (at UNL into its cycle); boxed at the table; the conveyor robot takes the box at
        BOX0 after it came off and gives it to the arm robot at BOX1; six to a pallet, so a pallet every 6 CYC */
     const UNL = DWELL*0.5, BOX0 = 5500 + 500, BOX1 = 5500 + 3800 + 0.78*3500, PALT = 6*CYC, PAL0 = UNL + BOX1 + 5*CYC;
+    /* THE PARTS PALLET (phase 2): its load about its middle (da along a, db along b, dz up from its deck), the order the Receiver takes it
+       off in (top first), and where each goes on the staging rack ([a, z]); the Receiver's window on the jack's clock (RCV_T0..T1) */
+    const RCV = [{ k: 'deck', da: 0, db: -9, dz: 20, la: 30, lb: 13, h: 20 },
+      { k: 'bin', da: -13, db: -19, dz: 0, la: 12, lb: 11.5, h: 20, c: 0 }, { k: 'bin', da: 13, db: -19, dz: 0, la: 12, lb: 11.5, h: 20, c: 1 },
+      { k: 'bin', da: -13, db: 5, dz: 0, la: 12, lb: 11.5, h: 20, c: 2 }, { k: 'bin', da: 13, db: 5, dz: 0, la: 12, lb: 11.5, h: 20, c: 3 },
+      { k: 'flat', da: 0, db: 26, dz: 0, la: 30, lb: 7, h: 14 }];
+    const RCV_SPOT = [[2196, 72], [2170, 30], [2200, 30], [2230, 30], [2260, 30], [2262, 72]], RCV_T0 = 17000, RCV_JOB = 3000, RCV_T1 = RCV_T0 + RCV.length*RCV_JOB;
+    const rcvQ = jr => jr >= RCV_T0 && jr < RCV_T1 ? { j: Math.floor((jr - RCV_T0)/RCV_JOB), q: (jr - RCV_T0) % RCV_JOB } : null;
+    const rcvPicked = jr => jr < RCV_T0 ? 0 : jr >= RCV_T1 ? RCV.length : Math.floor((jr - RCV_T0)/RCV_JOB) + ((jr - RCV_T0) % RCV_JOB >= 1100 ? 1 : 0);
+    const rcvPlaced = jr => jr < RCV_T0 ? 0 : jr >= RCV_T1 ? RCV.length : Math.floor((jr - RCV_T0)/RCV_JOB) + ((jr - RCV_T0) % RCV_JOB >= 2500 ? 1 : 0);
+    /* a piece of the load, in the room's kit (rcvItemKit) or on the jack's forks in its own frame (rcvItemBot, la and lb swapped) -- drawn
+       alike: the deck carton (cardboard, a blue label, its tape), a bin (the bins' own), the carton of flat boxes (strapped) */
+    const rcvItemKit = (it, a, b, z) => {
+      if(it.k === 'bin'){ BIN(a, b, z, CPC(it.c)); return; }
+      const col = it.k === 'deck' ? '#c98a4a' : '#d9b07a';
+      box(a - it.la, a + it.la, b - it.lb, b + it.lb, z, z + it.h, col, shade(col, .88), shade(col, .74)); T(a - it.la, a + it.la, b - 2, b + 2, z + it.h + 0.2, '#e3c08a');
+      if(it.k === 'deck'){ F(a - 14, a + 14, z + 6, z + 14, '#2e8bd8', null, 0, b + it.lb + 0.3); S(a + it.la + 0.3, b - 6, b + 6, z + 6, z + 14, '#2e8bd8'); }
+      else for(const da of [-15, 15]){ F(a + da - 1.5, a + da + 1.5, z, z + it.h, '#2a2f36', null, 0, b + it.lb + 0.3); T(a + da - 1.5, a + da + 1.5, b - it.lb, b + it.lb, z + it.h + 0.3, '#2a2f36'); } };
+    const rcvItemBot = (box, V, it, ca, cb, z) => { const la = it.lb, lb = it.la;
+      if(it.k === 'bin'){ const col = CPAL[it.c % 4]; box(ca - la, ca + la, cb - lb, cb + lb, z, z + 17, col); box(ca - la, ca + la, cb - lb, cb + lb, z + 17, z + 20, _pdk(col, 0.72));
+        for(const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ if(!V.sees(nx, ny, 0)) continue; const zc = z + 7, q = (w, zz) => nx ? V.P(ca + nx*(la + 0.2), cb + w, zz) : V.P(ca + w, cb + ny*(lb + 0.2), zz);
+          V.Q([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)], 0xf6f4ee); V.Q([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)], 0x2a2f36); } return; }
+      const col = it.k === 'deck' ? 0xc98a4a : 0xd9b07a; box(ca - la, ca + la, cb - lb, cb + lb, z, z + it.h, col); box(ca - 2, ca + 2, cb - lb, cb + lb, z + it.h, z + it.h + 0.3, 0xe3c08a);
+      if(it.k === 'deck') for(const [nx, ny] of [[0, 1], [0, -1], [1, 0], [-1, 0]]){ if(!V.sees(nx, ny, 0)) continue; const q = (w, zz) => nx ? V.P(ca + nx*(la + 0.3), cb + w, zz) : V.P(ca + w, cb + ny*(lb + 0.3), zz), wd = nx ? 6 : 14;
+        V.Q([q(-wd, z + 6), q(wd, z + 6), q(wd, z + 14), q(-wd, z + 14)], 0x2e8bd8); } };
     T(720, 2225, 632, 1250, 0.25, '#9ea2a4');
     for(const [a0, a1, b0, b1] of [[720, 2225, 632, 640], [720, 2225, 1242, 1250], [720, 728, 632, 1250], [2217, 2225, 632, 1250]]) T(a0, a1, b0, b1, 0.5, yel);
     for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
@@ -60801,23 +60826,78 @@ function houseCanopy(fn){
        its bay, along the south of the cell, up the east aisle and out of the roller door to Dispatch, and comes back with an empty one
        (Sir, 2026-11-19: "the pallet mover would be really helpful to bring things from production to distribution") ---- */
     { const JP = [[1720, 1412], [1720, 1390], [2275, 1390], [2275, 455], [W + 70, 455], [W + 71, 455]], JL = JP.slice(1).reduce((L, q, i) => L + Math.hypot(q[0] - JP[i][0], q[1] - JP[i][1]), 0) - 1;
-      const WAIT = 300, OUT = 10000, at = s0 => { const P0 = pathAt(JP, Math.min(s0, JL - 0.5)); if(s0 < 22) P0.fdir = 1 - s0/22; return P0; };   /* (in the bay it faces south, its forks under the pallet; it backs out round to the east) */
-      /* the pallet it carries, built as the bay's: drawn on its own forks (drawAmrBuild's amrjack, this._crewJack) */
+      const WAIT = 300, at = s0 => { const P0 = pathAt(JP, Math.min(s0, JL - 0.5)); if(s0 < 22) P0.fdir = 1 - s0/22; return P0; };   /* (in the bay it faces south, its forks under the pallet; it backs out round to the east) */
+      const plen = Q => Q.slice(1).reduce((L, q, i) => L + Math.hypot(q[0] - Q[i][0], q[1] - Q[i][1]), 0) - 1;
+      /* (PHASE 2 -- Sir, 2026-11-19: the parts come in: back in through the door with a parts pallet to Receiving (IN), the Receiver breaks it
+         down off its forks, then the empty pallet round to the arm's stack of empties (ST), and back to wait (WB)) */
+      const IN = [[W + 70, 455], [2215, 455], [2215, 300], [2215, 299]], INL = plen(IN);
+      const ST = [[2215, 300], [2215, 455], [2275, 455], [2275, 1390], [1540, 1390], [1540, 1412], [1540, 1413]], STL = plen(ST);
+      const WB = [[1540, 1412], [1540, 1390], [1998, 1390], [1999, 1390]], WBL = plen(WB);
+      /* the pallet it carries out, built as the bay's: drawn on its own forks (drawAmrBuild's amrjack, this._crewJack) */
       const JACK = (box, CZ, F0, F1, sees) => { const am = (F0 + F1)/2, far = sees(0, 1, 0) ? -1 : 1;
         for(let lv = 0; lv < 3; lv++) for(const sb of [far, -far]){ const z0 = CZ + lv*BXH; box(am - BXL/2, am + BXL/2, sb > 0 ? 0.4 : -BXW + 0.4, sb > 0 ? BXW - 0.4 : -0.4, z0, z0 + BXH - 0.4, 0xc98a4a);
           box(am - BXL/2, am + BXL/2, sb*BXW/2 - 2.5, sb*BXW/2 + 2.5, z0 + BXH - 0.4, z0 + BXH, 0xe3c08a); } };
+      /* the parts pallet coming in, on its forks: what is still on it (RCV items from n on), turned into its frame (forward is the room's -b) */
+      const JACKIN = n => (box, CZ, F0, F1, sees, V) => { const am = (F0 + F1)/2;
+        const its = RCV.slice(n).map(it => ({ it, ca: am + (0 - it.db), cb: it.da })).sort((p, q) => (p.it.dz - q.it.dz) || (V.depth(p.ca, p.cb, CZ) - V.depth(q.ca, q.cb, CZ)));
+        for(const { it, ca, cb } of its) rcvItemBot(box, V, it, ca, cb, CZ + it.dz); };
       items.push({ a: 2000, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
-        const jr = (((t - PAL0) % PALT) + PALT) % PALT; let s0, full = false, fork = 0;
-        if(jr >= PALT - 2600) s0 = WAIT*(1 - ease((jr - PALT + 2600)/2600));   /* (in from where it waits, as the last box goes on) */
-        else if(jr < 1500) s0 = 0;
-        else if(jr < 3000){ s0 = 0; full = true; fork = ease((jr - 1500)/1500); }
-        else if(jr < 3000 + OUT){ s0 = JL*ease((jr - 3000)/OUT); full = true; fork = 1; }
-        else if(jr < 15000) s0 = JL;
-        else if(jr < 15000 + OUT) s0 = JL + (WAIT - JL)*ease((jr - 15000)/OUT);
-        else s0 = WAIT;
-        const P0 = at(s0), fade = clamp01((W + 50 - P0.a)/80);
-        return fade > 0.01 ? [bot(P0.a, P0.b, P0.fdir, { build: 'amrjack', jack: full ? JACK : false, fork, wheel: s0*0.12, fade })] : []; } } });
+        const jr = (((t - PAL0) % PALT) + PALT) % PALT; let P0 = null, jack = false, fork = 0, sw = 0;
+        const on = (Q, QL, s0) => { const p = pathAt(Q, Math.max(0, Math.min(s0, QL - 0.5))); sw = s0; return p; };
+        if(jr >= PALT - 2600) P0 = at(WAIT*(1 - ease((jr - PALT + 2600)/2600)));   /* (in from where it waits, as the last box goes on) */
+        else if(jr < 1500) P0 = at(0);
+        else if(jr < 3000){ P0 = at(0); jack = JACK; fork = ease((jr - 1500)/1500); }
+        else if(jr < 11000){ P0 = at(JL*ease((jr - 3000)/8000)); jack = JACK; fork = 1; }
+        else if(jr < 12500) P0 = at(JL);
+        else if(jr < 16500){ P0 = on(IN, INL, INL*ease((jr - 12500)/4000)); jack = JACKIN(0); fork = 1; }
+        else if(jr < RCV_T0){ P0 = on(IN, INL, INL); jack = JACKIN(0); fork = 1 - ease((jr - 16500)/500); }
+        else if(jr < RCV_T1){ P0 = on(IN, INL, INL); jack = JACKIN(rcvPicked(jr)); fork = 0; }
+        else if(jr < RCV_T1 + 1000){ P0 = on(IN, INL, INL); jack = JACKIN(RCV.length); fork = ease((jr - RCV_T1)/1000); }
+        else if(jr < 44000){ const s0 = STL*ease((jr - RCV_T1 - 1000)/(44000 - RCV_T1 - 1000)); P0 = on(ST, STL, s0); if(s0 < 155) P0.fdir = 3 + clamp01((s0 - 115)/40); jack = JACKIN(RCV.length); fork = 1; }
+        else if(jr < 45500){ P0 = on(ST, STL, STL); jack = JACKIN(RCV.length); fork = 1 - ease((jr - 44000)/1000); }
+        else if(jr < 50000){ const s0 = WBL*ease((jr - 45500)/4500); P0 = on(WB, WBL, s0); if(s0 < 22) P0.fdir = 1 - s0/22; }
+        else P0 = at(WAIT);
+        CW_FLOW.jack = jr < 3000 ? 'bay' : jr < 12500 ? 'out' : jr < RCV_T1 + 1000 ? 'receiving' : jr < 45500 ? 'empty to stack' : 'wait';
+        const fade = clamp01((W + 50 - P0.a)/80);
+        return fade > 0.01 ? [bot(P0.a, P0.b, P0.fdir, { build: 'amrjack', jack, fork, wheel: (sw || P0.a + P0.b)*0.12, fade })] : []; } } });
     }
+
+    /* ---- RECEIVING (phase 2): the parts pallet's load (RCV, about its middle, PC: a deck carton on top, four bins, a carton of flat boxes);
+       the Receiver taking it off the jack's forks a piece at a time onto the staging rack on Receiving's north wall; the patrol bot by the
+       door, scanning each pallet in and out ---- */
+    items.push({ a: 2225, b: 80, z: 0, solids: [solid(2150, 2300, 24, 80, 80, 'staging rack')], draw: () => {
+      for(const a of [2152, 2226, 2298]) for(const b of [26, 78]) box(a - 2.5, a + 2.5, b - 2.5, b + 2.5, 0, 80, yel, roboD, '#a98225');
+      for(const z of [27, 69]) box(2150, 2300, 24, 80, z, z + 3, '#6a7078', '#5a6068', '#4a5058');
+      F(2160, 2290, 4, 20, dark, null, 0, 80.3); blockWordIn('STAGING', 2166, 2284, 7, 17, 80.4, yel, null, 2); }});
+    items.push({ a: 2230, b: 250, z: 0, solids: [solid(2160, 2210, 585, 635, 90, 'patrol bot')], draw: () => {}, fx: { crew: t => {
+      const out = [], jr = (((t - PAL0) % PALT) + PALT) % PALT, k = rcvPicked(jr), q = rcvQ(jr);
+      /* the Receiver: waiting by the pallet's drop; then a piece at a time -- to its side, reach, lift, round to the rack, set it down */
+      const PB = 158 + 54;
+      if(q){ const it = RCV[q.j], sp = RCV_SPOT[q.j], pick = [2262, PB + it.db], drop = [sp[0], 112], mid = [2262, 140];
+        const leg = (k2, A, B) => [A[0] + (B[0] - A[0])*k2, A[1] + (B[1] - A[1])*k2];
+        const prev = q.j > 0 ? [RCV_SPOT[q.j - 1][0], 112] : [2262, 150];
+        let pos, f = 2, walk = 0, gait = 0, lift = 0.1, bend = 0.15, carry = null;
+        const twoLeg = (k2, A, M, B) => { const d1 = Math.hypot(M[0] - A[0], M[1] - A[1]), d2 = Math.hypot(B[0] - M[0], B[1] - M[1]), u = k2*(d1 + d2); return u < d1 ? leg(u/d1, A, M) : leg((u - d1)/Math.max(1, d2), M, B); };
+        const face = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
+        if(q.q < 700){ const k2 = q.q/700; pos = twoLeg(k2, prev, mid, pick); f = face(pos, k2 < 0.5 ? mid : pick); walk = 1; gait = k2*30; if(k2 > 0.85) f = 2; }
+        else if(q.q < 1300){ pos = pick; f = 2; const k2 = clamp01((q.q - 700)/400); const z = it.dz + 10.5 + it.h/2, fwd = 2262 - (2215 + it.da) - 4, dz = z - 95;
+          const th = Math.atan2(Math.max(4, fwd), -dz); lift = 0.1 + (th/(Math.PI/2) - 0.1)*k2; bend = 0.15 + (Math.max(0, Math.min(0.9, (40 - Math.hypot(fwd, dz))/40*1.7)) - 0.15)*k2;
+          if(q.q >= 1100){ const k3 = ease((q.q - 1100)/200); carry = [2215 + it.da + (2262 - 24 - 2215 - it.da)*k3, PB + it.db, 10.5 + it.dz + (52 - 10.5 - it.dz)*k3]; lift = 0.55; bend = 0.7; } }
+        else if(q.q < 2100){ const k2 = (q.q - 1300)/800; pos = twoLeg(k2, pick, mid, drop); f = face(pos, k2 < 0.4 ? mid : drop); walk = 1; gait = k2*30; lift = 0.55; bend = 0.7;
+          carry = [pos[0] + Math.cos(f*Math.PI/2)*24, pos[1] + Math.sin(f*Math.PI/2)*24, 52]; }
+        else if(q.q < 2500){ pos = drop; f = 3; const k2 = ease((q.q - 2100)/400), c0 = [pos[0], pos[1] - 24, 52]; carry = [c0[0] + (sp[0] - c0[0])*k2, c0[1] + (52 - c0[1])*k2, c0[2] + (sp[1] - c0[2])*k2]; lift = 0.55 + 0.25*k2; bend = 0.7 - 0.4*k2; }
+        else { pos = drop; f = 3; lift = 0.1; bend = 0.15; }
+        out.push(man(pos[0], pos[1], f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
+        if(carry){ const c = carry; out.push({ kind: 'cargo', a: c[0], b: c[1], dd: 1, cargo: () => rcvItemKit(it, c[0], c[1], c[2]) }); } }
+      else out.push(man(2262, 150, 1, {}));
+      /* what is on the staging rack: what has been set down off this pallet (phases 3 and 5 take it on from here) */
+      const placed = rcvPlaced(jr);
+      for(let i = 0; i < placed; i++){ const sp = RCV_SPOT[i], it = RCV[i]; out.push({ kind: 'cargo', a: sp[0], b: 52, dd: 2, cargo: () => rcvItemKit(it, sp[0], 52, sp[1]) }); }
+      /* the patrol bot by the door: turned to the lane, scanning a pallet through */
+      const scan = jr > 9000 && jr < 11000 || jr > 12500 && jr < 14000;
+      out.push({ kind: 'bot', botKind: 'patrolbot', a: 2185, b: 610, fdir: 3.5, cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2195, 598, 66, 2260 + k2*20, 455, 30, 0.6, '#3cd06a'); } : null });   /* (south of the door's lane, out of Receiving's way: turned to the door) */
+      CW_FLOW.receiving = q ? 'piece ' + (q.j + 1) + '/' + RCV.length : placed ? 'staged ' + placed : '-';
+      return out; } } });
 
     /* ---- THE WEST END: the high rack on the west wall ---- */
     runPiece(items, 20, 110, 640, 1360, 200, (s0, s1) => [solid(20, 110, s0, s1, 200, 'high rack')], () => {
@@ -60855,7 +60935,9 @@ function houseCanopy(fn){
         CW_FLOW.pallet = n; if(n >= 0) out.push({ kind: 'cargo', a: PA, b: PB, cargo: () => palletKit(PA, PB, n) });
         return out; } } });
       /* the stack of empty pallets beside the bay */
-      items.push({ a: 1540, b: 1500, z: 0, solids: [solid(1509, 1571, 1463, 1537, 60, 'empty pallets')], draw: () => { for(let k = 0; k < 5; k++) box(1509, 1571, 1463, 1537, k*10.5, k*10.5 + 10, k % 2 ? '#b08a58' : '#a88252', '#9a7848', '#8a6a40'); }});
+      /* (how many: the arm's bay takes one as its full pallet goes, the pallet jack brings the parts pallet's empty one back -- phase 2) */
+      items.push({ a: 1540, b: 1500, z: 0, solids: [solid(1509, 1571, 1463, 1537, 60, 'empty pallets')], draw: () => {}, fx: { crew: t => { const jr = (((t - PAL0) % PALT) + PALT) % PALT, n = 4 - (jr >= 5000 ? 1 : 0) + (jr >= 45500 ? 1 : 0);
+        CW_FLOW.empties = n; return [{ kind: 'cargo', a: 1540, b: 1500, cargo: () => { for(let k = 0; k < n; k++) box(1509, 1571, 1463, 1537, k*10.5, k*10.5 + 10, k % 2 ? '#b08a58' : '#a88252', '#9a7848', '#8a6a40'); } }]; } } });
     }
 
     /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays (a 1100..1800, b 1420..1760) ---- */
@@ -121174,6 +121256,7 @@ class WorldScene extends Phaser.Scene {
      robot in a facility skin and build of its own (m.bSkin, m.build; its loads m.loads, its forks m.fork); 'cargo' nothing but its cargo -- the avatar's own SKIN, loads
      and forks put by for the draw and back after, as drawBot's data.skin does. m.cargo: what rides on it, drawn in the room's kit after it */
   drawRoomBot(g, m, x, y, z, t, name, G, K){
+    if(m.kind === 'bot'){ this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, m.data || {}); if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
       try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, crew: true }); } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
@@ -133825,7 +133908,7 @@ class WorldScene extends Phaser.Scene {
         byDepth(low);
         /* deck boards across, gaps between */
         for(let k = 0; k < 6; k++){ const a0 = F0 + 2 + k*12, a1 = a0 + 9.5; box(a0, a1, -31, 31, PZ + 8, PZ + 10.5, k % 2 ? WOOD : _pdk(WOOD, 0.95)); }
-        if(typeof CJ === 'function'){ CJ(box, PZ + 10.5, F0, F1, sees); return; }
+        if(typeof CJ === 'function'){ CJ(box, PZ + 10.5, F0, F1, sees, V); return; }
         /* the cartons: two along, two across, two high */
         const CZ = PZ + 10.5, CH = 18, A = [F0 + 4, (F0 + F1)/2, F1 - 4], LS = amrLoadsOf('amrjack'), SL = AMR_SLOTS.amrjack;   /* (AMRL: its cartons, two high) */
         for(let lv = 0; lv < 2; lv++) SL.map((q, i) => ({ q, L: LS[i] })).filter(o => o.q.lv === lv && o.L).map(o => ({ o, d: V.depth(hx + o.q.a, o.q.b, CZ + lv*CH + 9) }))
