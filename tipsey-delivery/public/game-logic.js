@@ -58874,8 +58874,11 @@ function houseCanopy(fn){
     /* ONE SET OF BIN COLOURS for the racks, the pods, the carts, the runner and the benches (Sir: "the bins that appear are not the same colour as
        the ones he is grabbing"): a bin keeps its colour from the shelf to the bench (CPAL; the robots' own bins take it, m.bins) */
     const CPAL = [0x2e8bd8, 0xe0453a, 0x2aa86a, 0xf2c02e], CPC = i => '#' + CPAL[i % 4].toString(16).padStart(6, '0');
-    const BIN = (a, b, z, col) => { box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 19, col, shade(col, .85), shade(col, .7)); T(a - 10, a + 10, b - 9.5, b + 9.5, z + 19.1, shade(col, .5));
-      F(a - 6, a + 6, z + 9, z + 13, '#f2efe6', null, 0, b + 11.7); S(a + 12.2, b - 5, b + 5, z + 9, z + 13, '#f2efe6'); };
+    /* (drawn as the robots' own bins are, amrLoad: its body, a darker lid band on top, a white label with its dark dash on each face) */
+    const BIN = (a, b, z, col) => { const dk = shade(col, .72), zc = z + 7;
+      box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, col, shade(col, .85), shade(col, .7)); box(a - 12, a + 12, b - 11.5, b + 11.5, z + 17, z + 20, dk, shade(dk, .85), shade(dk, .7));
+      F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
+      S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
     const SCOL = [];   /* (each bench's colour: the bin it is brought -- set with the supply below) */
     const BENCH = p => p < 5 ? [POS[p][0], POS[p][1] - 142, false] : [POS[p][0] + 140, RB, true];   /* (row A's behind the worker, row B's beside) */
     /* ---- THE STATIONS: row A's bench behind its worker, row B's beside (east of) its worker, clear of the robots' turn between the rows; the
