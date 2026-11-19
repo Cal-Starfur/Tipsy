@@ -14835,6 +14835,37 @@ function shopDoorsOf(grid){
   }
   return (grid._shopDoors = out);
 }
+/* EVERY COMMERCIAL WALK-IN IS A SHOP TO THE STREET (Sir, 2026-11-19: "group all the other comercial building types ... into shops or well
+   miss them with the fixes"). The street's shoppers knew only the hood shops' doors (shopDoorsOf); a walk-in built as a landmark or a whole-
+   block building -- Pelican Drug, the Market Hall, Saltwater Brewing, the bank -- had no door they could walk up to, so it missed WALKIN_STREET
+   (its customers off the street, what they leave with). Its door is found here on its block's edge -- the edge facing the way it opens, the
+   door's point along it and how far in from the edge's line it stands (lat0) -- in the shop doors' shape. Not the places with their own
+   crowd (WALKIN_OWN_CROWD: the school's pupils, the chapel's worshippers, the museum's visitors, the terminal's travellers) */
+const WALKIN_OWN_CROWD = new Set(['Tide Pool Elementary Interior', 'Driftwood Chapel Interior', 'Tidewater Museum Interior', 'Sun Deck Airfield Terminal Interior',
+  'Ferris Taylor Cottage Interior']);
+function walkinStreetDoors(grid){
+  if(grid._wkDoors) return grid._wkDoors;
+  const out = [];
+  if(!grid.blockByIJ || typeof POCKETS === 'undefined') return out;                // (not yet: asked again)
+  const shopLibs = new Set(shopDoorsOf(grid).map(d => d.lib));
+  for(const pk of POCKETS){
+    if(!pk.walkin || WALKIN_OWN_CROWD.has(pk.name) || !WALKIN_STAFF.some(q => q.room === pk.name && q.look === 'visitor')) continue;
+    const lib = [].concat(pk.hides || pk.from || [])[0]; if(!lib || shopLibs.has(lib)) continue;
+    const dr = pk.doors && pk.doors[0], w = dr && dr.world ? dr.world() : null; if(!w) continue;
+    let best = null;
+    for(const blk of grid.blockByIJ.values()){
+      blockEdgesOf(blk).forEach((e, ei) => {
+        if(Math.abs(e.rv.x - w.ox) > 0.01 || Math.abs(e.rv.y - w.oy) > 0.01) return;               // (the edge facing the way it opens)
+        const dx = w.x - e.ox, dy = w.y - e.oy, along = dx*e.dv.x + dy*e.dv.y, lat = dx*e.rv.x + dy*e.rv.y, len = e.len || 1656;
+        if(along < 0 || along > len || lat > 60 || lat < -700) return;                               // (on the block, in from its edge's line)
+        if(!best || Math.abs(lat) < Math.abs(best.lat0)) best = { key: 'walkin|' + pk.name, lib, blockKey: blk.i + "," + blk.j, edge: ei, e, along, lat0: Math.min(0, lat),
+          x: w.x, y: w.y, ux: e.ox, uy: e.oy, flank: (e.dv.x + e.dv.y) > 0, labA: 0, walkinDoor: true };
+      });
+    }
+    if(best) out.push(best);
+  }
+  return (grid._wkDoors = out);
+}
 /* EVERY HOUSE'S FRONT DOOR (RESIDENTS, see SHOPPERS): the shop doors' shape,
    home: true, bDoor how far in the yard its door is (houseDoorOf's b) */
 function homeDoorsOf(grid){
@@ -28455,7 +28486,7 @@ function walkinFedDoor(R){
   if(R._fed !== undefined) return R._fed;
   const sc = R.scene, g = sc && sc.route && sc.route.grid;
   if(!g || !g.blockByIJ || g.classic) return null;                               // (not yet: asked again)
-  const d = R.people.some(q => q.look === 'visitor') ? shopDoorsOf(g).find(q => pocketHiding(q.lib) === R.pk) || null : null;
+  const d = R.people.some(q => q.look === 'visitor') ? shopDoorsOf(g).concat(walkinStreetDoors(g)).find(q => pocketHiding(q.lib) === R.pk) || null : null;
   return (R._fed = d);
 }
 /* a world point in the room's frame */
@@ -134874,7 +134905,7 @@ class WorldScene extends Phaser.Scene {
     const k0 = Math.floor(worldMs(t)/W.slotMs);
     if(vis.size > 800) for(const [k, v] of vis) if(v === true) vis.delete(k);   // (finished: rebuilt and set again if still asked)
     const rf = this.crowdRef(), near = d => Math.abs(d.x - rf.x) + Math.abs(d.y - rf.y) < SH.R*1.4 && Math.hypot(d.x - rf.x, d.y - rf.y) < SH.R;
-    for(const d of shopDoorsOf(grid)){
+    for(const d of shopDoorsOf(grid).concat(walkinStreetDoors(grid))){              // (and every commercial walk-in's door: walkinStreetDoors)
       /* (a shop with its room in it: while it is open, its customers are the street's -- the room takes them at its door, WALKIN_STREET) */
       const _rp = pocketHiding(d.lib);
       if(!near(d) || (_rp && !(_rp.walkin && _rp.street && walkinOpenNow(_rp) && !walkinShut(this, _rp)))) continue;
@@ -134900,7 +134931,7 @@ class WorldScene extends Phaser.Scene {
     const blk = grid.blockByIJ && grid.blockByIJ.get(d.blockKey);
     if(!blk) return null;
     const E = blockEdgesOf(blk), lat = 130 + plan.lat*150;
-    const out = edgePt(e, d.along, 70), inside = edgePt(e, d.along, -60);
+    const out = edgePt(e, d.along, (d.lat0 || 0) + 70), inside = edgePt(e, d.along, (d.lat0 || 0) - 60);   // (lat0: a door set in from the edge's line -- walkinStreetDoors)
     const far = q => Math.hypot(q.x - d.x, q.y - d.y) > W.farR;
     const sgCar = plan.sgCar < 0.5 ? -1 : 1, dir = plan.dir < 0.5 ? -1 : 1;
     const all = kc.byCell.get(d.blockKey) || [], c0 = all.length ? all[Math.floor(plan.carPick*all.length)] : null;
@@ -135057,8 +135088,8 @@ class WorldScene extends Phaser.Scene {
     const vw = this.vpW ? this.vpW() : 1200, vh = this.vpH ? this.vpH() : 800;
     const offScreen = o ? o.far : q => { const w = this.W(q.x, q.y, 0); return w.x < -70 || w.x > vw + 70 || w.y < -90 || w.y > vh + 120; };
     /* the door's own way in: a house's front path, a shop's doorway */
-    const inside = d.home ? edgePt(e, d.along, d.bDoor - 40) : edgePt(e, d.along, -60);
-    const path = d.home ? [edgePt(e, d.along, d.bDoor + 22), edgePt(e, d.along, 18)] : [edgePt(e, d.along, 70)];
+    const inside = d.home ? edgePt(e, d.along, d.bDoor - 40) : edgePt(e, d.along, (d.lat0 || 0) - 60);
+    const path = d.home ? [edgePt(e, d.along, d.bDoor + 22), edgePt(e, d.along, 18)] : [edgePt(e, d.along, (d.lat0 || 0) + 70)];
     const doorPave = edgePt(e, d.along, la), seed = who ? who.seed : (rnd()*4294967296) >>> 0;
     /* LEAVING ON ONE: a standing scooter near the door, nobody's */
     if(out !== undefined ? out : rnd() < 0.5){
