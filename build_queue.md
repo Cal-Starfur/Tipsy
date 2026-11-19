@@ -94,7 +94,7 @@ graph LR
 - [?] `wi-tidewater-tea-house` Walk-in interior: Tidewater Tea House (block 2,0 edge 1) [docs/state/walkin_recipe.md]
 - [?] `wi-driftwood-books` Walk-in interior: Driftwood Books (block 2,0 edge 1) [docs/kits/walkin-shop-recipe.md]
 - [?] `wi-marina-optical` Walk-in interior: Marina Optical (block 2,0 edge 1) [test](https://cal-starfur.github.io/Tipsy/game/index.html?go=8758,1958&view=2&hour=12) [docs/kits/walkin-shop-recipe.md]
-- [ ] `wi-lagoon-coffee-roasters` Walk-in interior: Lagoon Coffee Roasters (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
+- [?] `wi-lagoon-coffee-roasters` Walk-in interior: Lagoon Coffee Roasters (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-sandpiper-bakery` Walk-in interior: Sandpiper Bakery (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-seabreeze-florist` Walk-in interior: Seabreeze Florist (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-low-tide-juice-bar` Walk-in interior: Low Tide Juice Bar (block 2,0 edge 3) [docs/kits/walkin-shop-recipe.md]
