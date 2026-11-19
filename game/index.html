@@ -59880,8 +59880,10 @@ function houseCanopy(fn){
     /* ---- THE CUPPING TABLE: a long oak table, a row of cups and their spoons, the kettle; in runs of 30 on 56, keyed down its middle ---- */
     { const A0 = 270, A1 = 390, B0 = 300, B1 = 356;
       runPiece(items, A0, A1, B0, B1, 80, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'cupping table')], () => {
-        for(const [la, lb] of [[276, 306], [384, 306], [276, 350], [384, 350]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 74, oakS, oakS, shade(oakS, 0.8));
+        const leg = (la, lb) => box(la - 3, la + 3, lb - 3, lb + 3, 0, 74, oakS, oakS, shade(oakS, 0.8));
+        leg(276, 306); leg(384, 306);
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 64, 68, oak, oak, oakS);
+        leg(276, 350); leg(384, 350);                                                                // (the front legs over the stretcher shelf)
         box(A0, A1, B0, B1, 74, 80, oakT, oak, oakS);
       }, { pad: 4, run: 30, extra: { b: (B0 + B1)/2 } });
       /* what stands on it, each its own piece: two rows of cups, a spoon in each; the kettle; a scale */
@@ -60058,9 +60060,12 @@ function houseCanopy(fn){
     /* ---- THE BENCH: a long floured table, its legs, a shelf of bowls under; in runs of 30, keyed down its middle ---- */
     { const A0 = 30, A1 = 150, B0 = 220, B1 = 270;
       runPiece(items, A0, A1, B0, B1, 86, (s0, s1) => [solid(s0, s1, B0, B1, 86, 'bench')], () => {
-        for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 80, oakS, oakS, shade(oakS, 0.8));
+        /* (the back legs, the shelf and its bowls, then the front legs: they stand in front of the shelf) */
+        const leg = (la, lb) => box(la - 3, la + 3, lb - 3, lb + 3, 0, 80, oakS, oakS, shade(oakS, 0.8));
+        leg(A0 + 5, B0 + 5); leg(A1 - 5, B0 + 5);
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 22, 26, oak, oak, oakS);
         for(let i = 0; i < 4; i++) cyl(A0 + 20 + i*27, (B0 + B1)/2, 26, 36, 9, '#e8e4dc', '#f6f3ec');
+        leg(A0 + 5, B1 - 5); leg(A1 - 5, B1 - 5);
         box(A0, A1, B0, B1, 80, 86, '#efe6d4', oakT, oak);
         for(let k = 0; k < 14; k++) T(A0 + 6 + hsh(k*3 + 1)*(A1 - A0 - 16), A0 + 10 + hsh(k*3 + 1)*(A1 - A0 - 16), B0 + 6 + hsh(k*3 + 2)*36, B0 + 9 + hsh(k*3 + 2)*36, 86.1, '#fbf8f0');
       }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
@@ -60145,8 +60150,10 @@ function houseCanopy(fn){
     /* ---- THE BREAD TABLE: an oak table for the customers, its baskets of loaves each their own piece; in runs of 30 on 46, keyed down its middle ---- */
     { const A0 = 300, A1 = 420, B0 = 460, B1 = 506, zT = 78;
       runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'bread table')], () => {
-        for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, zT - 4, oakS, oakS, shade(oakS, 0.8));
+        const leg = (la, lb) => box(la - 3, la + 3, lb - 3, lb + 3, 0, zT - 4, oakS, oakS, shade(oakS, 0.8));
+        leg(A0 + 5, B0 + 5); leg(A1 - 5, B0 + 5);
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 16, 20, oak, oak, oakS);
+        leg(A0 + 5, B1 - 5); leg(A1 - 5, B1 - 5);                                                    // (the front legs over the shelf)
         box(A0, A1, B0, B1, zT - 5, zT, oakT, oak, oakS);
         F(A0 + 30, A1 - 30, zT - 18, zT - 5, coral, null, 0, B1 + 0.1); blockWordIn('BREAD', A0 + 34, A1 - 34, zT - 16, zT - 7, B1 + 0.2, '#f6f1e6', null, 3);
       }, { pad: 4, run: 30, extra: { b: (B0 + B1)/2 } });
