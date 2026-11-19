@@ -30496,7 +30496,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Palmline Nursery Interior':    { by: ['counter', 'bench'], who: 'Nursery Clerk', say: line('customer') },
     'Lagoon Market Hall Interior':  { by: ['fish', 'chowder', 'greens', 'baker', 'cheese'], who: 'Stallholder', say: line('shopper') },
     'Seaglass Coffee Interior':     { by: ['counter'], who: 'Barista', say: line('customer') },
-    'Palmline Garage Interior':     { by: ['mechanic', 'mechanic-2'], who: 'Mechanic', say: line('man') },
+    'Palmline Garage Interior':     { by: ['mechanic', 'counter', 'mechanic-2'], who: 'Hank', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Palmline Savings Interior':    { by: ['guard', 'teller-1'], who: 'Frank', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Coral Cafe Interior':          { by: ['barista', 'roaster'], who: 'Barista', say: line('customer') },
     'Marina Deli Interior':         { by: ['clerk', 'cashier'], who: 'Deli Clerk', say: line('customer') },
@@ -31005,34 +31005,122 @@ walkinLife('Seaglass Coffee Interior', { keep: [[225, 325, 0, 330]], looks: [] }
    across the alley to the garage (592: the edge's spare taken up), 560 back into the block, its rear wing 250 high (the hall's block 460) */
 const PS_WW = 592, PS_DD = 560, PS_WH = 250;
 /* ==================== PALMLINE GARAGE, WALK-IN (wi-palmline-garage; the room: the LIB entry 'Palmline Garage Interior') ====================
-   The Flats' two-bay garage on block 2,0's north edge (its front faces north, away from the camera: the street sees its back). One room,
-   the shop's lot less the walls (W22: the floor 30 in on every side; the shop fills its lot, body 'lot'), its way in THE OPEN BAY in the
-   far north wall (door side 'n', the kit's north door: the wall stands either side and over its head, the street seen through it).
-   Room frame a east, b south, world units (the lab x1.3, z x1.95):
-     a -4..168      BAY 1, its roller down: a hatchback up on the two-post lift, the mechanic at its tail
-     a 188..360     BAY 2, the way in, open: kept clear from the door to the back wall
-     a 370..466     the tool chests on the north wall, the second mechanic at them; a tyre stack */
-const PG_IN = { name: 'Palmline Garage Interior', x0: 740000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, H: 300, LH: 66,
+   The Flats' garage and tyre shop on block 2,0's north edge, at its north-west corner (its front faces north, away from the camera: the
+   street sees its back). Rebuilt by the shop recipe (Sir, 2026-11-19: "redo ... the tire shop with our new interior build rules"): the
+   exterior unchanged, its volume its own building with THE OPEN BAY open through the wall (vol.opens), he taken in IN the bay (glass < 0,
+   W32); BIGGER INSIDE THAN OUT (W31): the room runs back south from the garage's front into the block, over Surfside Fitness's north end
+   and the yard -- 466 x 680 (not east: the bank stands there, its own walk-in), the buildings it covers drawn under it while he is inside.
+   Room frame a east, b south, world units (the lab x1.3):
+     a -4..168, b 0..260     BAY 1, its roller down: a hatchback up on the two-post lift (Hank's)
+     a 210..330              the open bay and the way in, kept clear from the door to the back wall
+     a 362..406, b 0..36     the tool chests on the north wall; a tyre stack
+     a 40..170, b 300..370   THE TYRE CHANGER AND THE WHEEL BALANCER (Danny's)
+     a 0..36, b 400..660     THE TYRE WALL down the west wall: racks of new tyres
+     a 80..170, b 470..560   THE WHEEL DISPLAY: a stand of alloy wheels
+     a 372..410, b 320..470  THE SERVICE COUNTER (Mel behind it, east), the till and the key rack
+     a 430..460, b 520..660  THE WAITING CHAIRS along the east wall, a coffee machine */
+const PG_IN = { name: 'Palmline Garage Interior', x0: 740000, y0: 400000, WALL: 30/1.3, WW: T2*4.4, DD: 276, ROOM_BACK: -569, H: 300, LH: 66,
   BAY1: [20, 152], BAY2: [168, 300], BAYZ: 114*1.95 };
 PG_IN.ra = la => (la - PG_IN.WALL)*1.3;                                             // a lab a (the shop's) in the room's frame
 const PG_PLAN = walkinDefine({ name: PG_IN.name, from: 'Palmline Garage', x0: PG_IN.x0, y0: PG_IN.y0,
-  lab: [PG_IN.WALL, PG_IN.WW - PG_IN.WALL, -(PG_IN.DD - PG_IN.WALL), -PG_IN.WALL], body: ['lot'],
+  lab: [PG_IN.WALL, PG_IN.WW - PG_IN.WALL, PG_IN.ROOM_BACK + PG_IN.WALL, -PG_IN.WALL], body: ['lot'],
   door: { a: (PG_IN.BAY2[0] + PG_IN.BAY2[1])/2, b: 0, half: (PG_IN.BAY2[1] - PG_IN.BAY2[0])/2*1.3, side: 'n', top: PG_IN.BAYZ },
-  H: PG_IN.H, LH: PG_IN.LH, out: 60, glass: 40,
+  H: PG_IN.H, LH: PG_IN.LH, out: 60, glass: -14,   // (glass < 0: in the bay, past the wall's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out of the bay onto the north pavement, along it either way) */
   street: { to: [0, -184], routes: [[[-1500, -184], [-3600, -184]], [[1500, -184], [3600, -184]]] } });
-POCKETS[POCKETS.length - 1].ghosts = ['Surfside Fitness', 'Palmline Savings'];   // (W26: the gym south of it and the bank east of it stand over its floor on screen)
-/* ITS PEOPLE (466 x 299, a workshop): the mechanic at the car on the lift (the keyholder), and a second at the tool chests and the
-   balancer. No visitors: the floor is the lift's and the bay's lane */
-const PG_MECH_UNIFORM = { shirt: { c:0x3c7fa0, dk:0x2c6280 }, pants: { c:0x2f3a44, dk:0x222a32 }, shoe: { c:0x2a2018, dk:0x1a140e },
-  cap: { c:0x2f3a44, dk:0x222a32, top:0x3a4652, badge:0xe6e1d6 }, shoeKind: 'boot' };       // the garage's sea-blue shirt, dark work trousers
+/* (W26/W31: what it covers -- the gym's north end -- and what stands over it on screen: the bank east of it) */
+POCKETS[POCKETS.length - 1].ghosts = ['Surfside Fitness', 'Palmline Savings'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE DELANEYS, WHO KEEP IT (shop recipe 7): their own looks, set by hand (lookFn) -- a garage's dress, the shop's sea-blue work shirts, dark
+   work trousers and caps. Hank, the owner, at the lift (grey beard, the keyholder); his son Danny at the tyre changer and the balancer; his
+   daughter Mel at the service counter (a sea-blue polo, her hair in a ponytail). The customers are the street's own (look: 'visitor') */
+const PG_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), M = PEOPLE_BUILD[0], W = PEOPLE_BUILD[1];
+  const shirt = C(0x3c7fa0), pants = C(0x2f3a44), boot = { c: 0x2a2018, dk: 0x1a140e }, cap = { c: 0x2f3a44, dk: 0x222a32, top: 0x3a4652, badge: 0xe6e1d6 };
+  return {
+    hank:  { build: M, skin: { c: 0xd6a47e, dk: 0xb2825e }, hair: H(0x8a8680, 'crop'), shirt, pants, shoe: boot, uniform: { cap, beard: 0x8a8680, shoeKind: 'boot' } },
+    danny: { build: M, skin: { c: 0xdcac86, dk: 0xb88a64 }, hair: H(0x5a3a22, 'crop'), shirt: C(0x2c6280), pants, shoe: boot, uniform: { cap, shoeKind: 'boot' } },
+    mel:   { build: W, skin: { c: 0xdcac86, dk: 0xb88a64 }, hair: H(0x5a3a22, 'pony'), shirt, pants: C(0x3a3e46), shoe: { c: 0xe8e4dc, dk: 0xc4beb2 }, uniform: { shoeKind: 'sneaker' } },
+  };
+})();
+/* A CUSTOMER'S VISIT (as the roastery's): to the counter to book the car in or pay; a while in a waiting chair with a coffee; now and then a
+   look along the tyre wall or the wheels first. Paid at the counter, they go with their car keys in hand (pose.hold / drawState: WALKIN_STREET);
+   nothing before they have paid (m.paid) */
+const PG_SEATS = [520, 580, 640].map((b, i) => ({ id: 'w' + i, stand: [410, b, 0], at: [443, b + 1], th: Math.PI, z: 32 }));
+function pgHold(s){
+  if(s._pgH && s._pgH.v === s.visit) return s._pgH;
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  return (s._pgH = { v: s.visit,
+    /* the car keys on their fob, hanging from the hand at their side */
+    keys: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 0.8, x + 0.8, f - 1.6, f + 1.6, h - 5.5, h - 0.5), 0x2a2c30); hull(g, at, box(x - 0.5, x + 0.5, f - 0.6, f + 0.6, h - 9, h - 5.5), 0xb8bec4); hull(g, at, box(x - 1, x + 1, f - 1, f + 1, h - 3.5, h - 2.5), 0x3c7fa0); },
+    /* a paper cup of the waiting area's coffee, held at the chest */
+    cup: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2.5, h = at.hand[1] + 1;
+      hull(g, at, box(-2.6, 2.6, f - 2.6, f + 2.6, h - 4, h + 5), 0xf4f2ec); hull(g, at, box(-2.8, 2.8, f - 2.8, f + 2.8, h + 5, h + 6.2), 0x3c7fa0); } });
+}
+function pgBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const sit = () => { const fr = PG_SEATS.filter(q => !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 20000 + rnd()*25000; return true; }
+    return false; };
+  const counter = () => { if(look('counter')){ m.atTill = true; m.dwell = 5000 + rnd()*3000; return true; } return false; };
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.waited = true; }                           // (the car's done: up)
+  if(m.atTill){ m.atTill = false; if(m.booked){ m.paid = true; m.keys = true; } else m.booked = true; }          // (booked in, then later paid)
+  if(m.paid) return leave();
+  if(m.booked && !m.waited){ if(sit()) return true; }
+  if(m.waited) return counter() || leave();
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1 && rnd() < 0.6) return counter();
+  if(m.n > 3) return counter() || leave();
+  return false;                                                                                                  // (the tyre wall or the wheels: the kit's pick)
+}
+function pgPose(s, m, now, P){
+  const H = pgHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (Mel at the counter)
+    if(s.id === 'mechanic'){ if(m.task === 0){ P.lift = [0.3, 0.3]; P.bend = [0.5, 0.5]; P.headTilt = -0.5; return; } }   // (Hank under the car: hands up at its sill)
+    const w = Math.sin(now*0.006 + (s.seed & 31)); P.lift = [0.27 + 0.03*w, 0.27 - 0.03*w]; P.bend = [0.9, 0.9]; P.headTilt = 0.3; return;   // (at a machine)
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.1, 0.28]; P.bend = [0.2, 1.25]; P.headTurn = 0; P.headTilt = 0.1; P.hold = H.cup; return; }
+  if((m.look === 'tyres' || m.look === 'wheels') && !m.path){                                                    // (a hand on a tyre once, then looking along them)
+    if(since < 1500){ const k = Math.sin(Math.PI*since/1500); P.lift = [0.1, 0.5*Math.min(1, k*1.6)]; P.bend = [0.2, 0.4]; P.headTilt = 0.25; return; }
+    P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25]; P.headTilt = 0.2; return; }
+  if(m.look === 'counter' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTurn = 0; return; }
+  if(m.keys && m.paid){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.keys; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
+}
+function pgDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  if(m.moving && s.look === 'visitor' && m.keys && m.paid) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (out with the keys)
+}
 walkinStaff(PG_IN.name, [
-  { id: 'mechanic', role: 'mechanic', seed: 0x6a01, U: PG_MECH_UNIFORM, keys: true,
+  { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
     posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
-  { id: 'mechanic-2', role: 'mechanic', seed: 0x6a02, U: PG_MECH_UNIFORM,
-    posts: [[384, 66, -Math.PI/2, 8000, true], [352, 150, 0, 4800, true]] },
+  { id: 'mechanic-2', role: 'tyre fitter', seed: 0x6a02, lookFn: () => PG_FAMILY.danny,
+    posts: [[75, 326, Math.PI/2, 8000, true], [140, 326, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
+  { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
+    posts: [[438, 360, Math.PI, 9000, true], [438, 430, Math.PI, 4000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x6a11, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
+  { id: 'customer-2', role: 'customer', seed: 0x6a12, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
+  { id: 'customer-3', role: 'customer', seed: 0x6a13, look: 'visitor', life: 'browse', only: ['tyres', 'wheels'] },
 ]);
-walkinLife(PG_IN.name, { keep: [[PG_IN.ra(PG_IN.BAY2[0]) + 8, PG_IN.ra(PG_IN.BAY2[1]) - 8, 0, 299]], looks: [] });
+walkinLife(PG_IN.name, { keep: [[210, 330, 0, 680]], looks: [
+  { id: 'counter', spots: [[348, 360, 0], [348, 430, 0]] },
+  { id: 'tyres', spots: [[68, 450, Math.PI], [68, 540, Math.PI], [68, 620, Math.PI]] },
+  { id: 'wheels', spots: [[186, 515, Math.PI]] },
+], browseNext: pgBrowseNext, pose: pgPose, drawState: pgDrawState });
 /* ==================== PALMLINE SAVINGS, WALK-IN (wi-palmline-savings; the room: the LIB entry 'Palmline Savings Interior') ====================
    The Flats' bank on block 2,0's north edge, beside the garage (its front faces north, away from the camera). The bank's whole lot behind
    its portico, less the walls (W22): the tall banking hall in front and the vault and the waiting room in the wing behind it (PS_WW x
@@ -58786,14 +58874,14 @@ function houseCanopy(fn){
   /* INSIDE PALMLINE GARAGE (PG_IN; the walk-in kit's walls, walkinRoom, its door the open bay in the north wall). Frame a east, b south,
      z up, world units. Its pieces back to front by the kit's keys; long ones in runs (runPiece, W28) */
   name:'Palmline Garage Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 466, dd: 299,
-  head:'Inside Palmline Garage: a hatchback up on the two-post lift, the open bay, tool chests and tyres',
+  ww: 466, dd: 680,
+  head:'Inside Palmline Garage: a hatchback up on the two-post lift, the open bay, tool chests, a tyre changer and balancer, the tyre wall, a service counter and waiting chairs',
   tags:['interior','pocket','garage','car lift','tool chests','tyres'],
   desc:'The Flats\' two-bay garage: white stucco over a sea-blue dado, a grey epoxy floor with the bays\' yellow lines, a hatchback up on a two-post lift in the shut bay, the open bay kept clear, a run of red tool chests under a pegboard and stacks of tyres.',
   draw(p){
     const pl = (typeof PG_PLAN !== 'undefined' && PG_PLAN) || null;
     if(pl) pl.view();
-    const W = (pl && pl.W) || 466, D = (pl && pl.D) || 299, H = PG_IN.H, LH = PG_IN.LH, ra = PG_IN.ra;
+    const W = (pl && pl.W) || 466, D = (pl && pl.D) || 680, H = PG_IN.H, LH = PG_IN.LH, ra = PG_IN.ra;
     const door = (pl && pl.door) || { side: 'n', at: ra(234), half: 85.8 };
     const wall = '#e6e1d6', wallD = '#d3cdc1', trim = '#3c7fa0', trimD = '#2c6280', floor = '#9fa4a7', floorD = '#8e9396';
     const steel = '#8c9298', steelD = '#6f757b', steelS = '#5d6369', red = '#c23a2e', redD = '#962c23', redS = '#7e251d', dark = '#2a2f34', tyre = '#26282c';
@@ -58805,7 +58893,10 @@ function houseCanopy(fn){
     T(0, W, 0, D, 0, floor);
     for(let a = 116; a < W; a += 116) T(a - 0.8, a + 0.8, 0, D, 0.2, floorD);
     for(let b = 150; b < D; b += 150) T(0, W, b - 0.8, b + 0.8, 0.2, floorD);
-    for(const a of [B1[1] + 10, B2[0] + 4, B2[1] - 4]) T(a - 2.5, a + 2.5, 8, D - 40, 0.3, '#e2b23c');
+    for(const a of [B1[1] + 10, B2[0] + 4, B2[1] - 4]) T(a - 2.5, a + 2.5, 8, 280, 0.3, '#e2b23c');
+    /* the shop's half, south of the bays: pale sealed concrete in big squares, a yellow line where the workshop ends; the lane's lines run on */
+    T(0, W, 292, D, 0.15, '#c9cccb'); for(let a = 0; a < W; a += 92) T(a - 0.6, a + 0.6, 292, D, 0.2, '#b6b9b8'); for(let b = 384; b < D; b += 92) T(0, W, b - 0.6, b + 0.6, 0.2, '#b6b9b8');
+    T(0, W, 288, 293, 0.3, '#e2b23c'); for(const a of [B2[0] + 4, B2[1] - 4]) T(a - 2.5, a + 2.5, 293, D - 30, 0.3, '#e2b23c');
     for(const [a, b, r] of [[96, 170, 18], [300, 120, 12], [250, 250, 10]]){
       const pts = []; for(let k = 0; k < 10; k++){ const t = k/10*Math.PI*2; pts.push(P(a + Math.cos(t)*r*(1 + 0.22*Math.sin(k*1.9)), b + Math.sin(t)*r*0.8, 0.25)); }
       poly(pts, 'rgba(40,42,44,.22)'); }
@@ -58882,6 +58973,62 @@ function houseCanopy(fn){
 
     /* ---- a stack of new tyres by the chests (60 clear of the low walls, W24) ---- */
     items.push({ a: 396, b: 136, z: 0, solids: [{ name: 'tyres', c: [396, 136], r: 22, h: 70 }], draw: () => { for(let k = 0; k < 5; k++) cyl(396, 136, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
+
+    /* ---- THE TYRE CHANGER AND THE WHEEL BALANCER, south of bay 1, their working faces to Danny north of them (W19) ---- */
+    items.push({ a: 75, b: 382, z: 0, solids: [solid(52, 98, 362, 402, 110, 'tyre changer')], draw: () => {
+      box(52, 98, 362, 402, 0, 70, red, redD, redS); F(56, 94, 10, 60, shade(red, 1.08), redD, 0.8, 402.2);
+      tube(90, 366, 70, 90, 366, 118, 4, steelD); tube(90, 366, 118, 72, 380, 112, 3, steelD);                             // its arm over the wheel
+      cyl(75, 380, 70, 76, 18, steel, '#b8bec4'); cyl(75, 380, 76, 88, 16, tyre, '#3a3e44'); cyl(75, 380, 86, 89, 9, '#9aa0a6'); } });
+    items.push({ a: 140, b: 382, z: 0, solids: [solid(118, 162, 364, 400, 120, 'wheel balancer')], draw: () => {
+      box(118, 162, 364, 400, 0, 60, '#3a5f8a', '#2f4f74', '#27425f'); box(124, 156, 368, 380, 60, 100, '#3a5f8a', '#2f4f74', '#27425f');
+      F(128, 152, 72, 94, '#1c2025', null, 0, 380.2); F(131, 149, 76, 90, '#9fd4b4', null, 0, 380.4);                     // its readout, to the fitter
+      tube(140, 390, 66, 140, 412, 66, 2.5, steelD); cyl(140, 412, 54, 78, 4, steel); } });
+    /* ---- THE TYRE WALL down the west wall: steel racks, four rows of new tyres stood on edge; a piece per bay along b, keyed at its start
+       (keyStart: against the wall), clipped at its own top (W37) ---- */
+    { const A0 = 0, A1 = 36, B0 = 420, B1 = 660, ZS = [0, 52, 104, 156], zTop = 206, n = Math.round((B1 - B0)/50);
+      for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n, last = k === n - 1;
+        runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'tyre wall')], () => {
+          for(const bb of [s0 + 2, s1 - 2]) box(A0, A1, bb - 2, bb + 2, 0, zTop, steelD, steelD, steelS);            // its uprights
+          ZS.forEach(z => { box(A0, A1, s0, s1, z + 2, z + 5, steel, steelD, steelS);                                   // a shelf
+            const m = Math.max(1, Math.floor((s1 - s0 - 6)/12));
+            for(let i = 0; i < m; i++){ const tb = s0 + 4 + (s1 - s0 - 8)*(i + 0.5)/m;
+              const ring = (r, a, c) => { const pts = []; for(let j = 0; j < 16; j++){ const t = j/16*Math.PI*2; pts.push(P(a, tb + Math.cos(t)*r*0.34, z + 5 + r + Math.sin(t)*r)); } poly(pts, c); };
+              box(6, A1 - 4, tb - 4.5, tb + 4.5, z + 5, z + 5 + 42, tyre, '#30343a', '#1c1e22'); ring(21, A1 - 3.8, '#3a3e44'); ring(11, A1 - 3.6, tyre); } });
+          if(last) S(A1, s1 - 4, s1, 0, zTop, steelS);
+        }, { alongB: true, pad: 3, keyStart: true });
+      } }
+    /* ---- THE WHEEL DISPLAY: a stand of four alloy wheels on a low plinth; one piece ---- */
+    items.push({ a: 140, b: 515, z: 0, solids: [solid(112, 168, 482, 548, 100, 'wheel display')], draw: () => {
+      box(112, 168, 482, 548, 0, 14, '#3a3e44', '#2a2e33', '#1e2125');
+      tube(140, 515, 14, 140, 515, 96, 2.5, steelD);
+      for(const [wa, wz] of [[124, 40], [156, 40], [124, 76], [156, 76]]){
+        /* a wheel stood upright facing south: its tyre, the alloy's rim and spokes, the hub (discs in the a-z plane at b) */
+        const disc = (r, c, bb) => { const pts = []; for(let j = 0; j < 20; j++){ const t = j/20*Math.PI*2; pts.push(P(wa + Math.cos(t)*r, bb, wz + Math.sin(t)*r)); } poly(pts, c); };
+        disc(15, tyre, 520); disc(11, '#c8ccd0', 520.4); disc(8.5, '#8c9298', 520.6);
+        for(let j = 0; j < 5; j++){ const t = j/5*Math.PI*2 + 0.3; tube(wa, 520.8, wz, wa + Math.cos(t)*9, 520.8, wz + Math.sin(t)*9, 1.3, '#d6dadc'); }
+        disc(3, '#5d6369', 521); } } });
+    /* ---- THE SERVICE COUNTER: sea-blue front, a pale top, Mel behind it (east); in runs along b, keyed down its middle; what stands on it
+       its own piece (the till, a key rack on its end) ---- */
+    { const A0 = 372, A1 = 410, B0 = 320, B1 = 470, zT = 96;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(A0, A1, s0, s1, zT, 'counter')], () => {
+        box(A0, A1, B0, B1, 0, zT - 6, trim, trimD, shade(trimD, 0.85));
+        for(let b = B0 + 25; b < B1; b += 25) S(A1 + 0.2, b - 0.6, b + 0.6, 8, zT - 12, shade(trimD, 0.8));
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 6, zT, '#e9e4da', '#d6d1c6', '#c4bfb4');
+        F(A0 + 4, A1 - 4, 30, 60, '#f3efe6', null, 0, B1 + 0.2); blockWordIn('TYRES', A0 + 6, A1 - 6, 38, 52, B1 + 0.4, trimD, null, 2);
+      }, { alongB: true, run: 30, pad: 5, extra: { a: (A0 + A1)/2 } });
+      const tb = 400;
+      items.push({ a: A1, b: tb, z: lcOnZ(B0, B1, 30, tb - 12, tb + 12, tb), fpLab: { a0: A0 + 6, a1: A1 - 4, b0: tb - 12, b1: tb + 12, z1: zT + 26 }, solids: [], draw: () => {
+        box(A0 + 14, A1 - 6, tb - 10, tb + 10, zT, zT + 6, dark, dark, '#16181b'); box(A1 - 10, A1 - 6, tb - 10, tb + 10, zT + 6, zT + 26, '#2b3138', '#23282e', '#1c2025');
+        S(A1 - 6.2, tb - 8, tb + 8, zT + 9, zT + 23, '#9fc4d4'); } }); }
+    /* ---- THE WAITING CHAIRS along the east wall (seats facing west, their backs to the wall), a coffee machine and a plant ---- */
+    for(const cb of [520, 580, 640]) items.push({ a: 448, b: cb, z: 0, solids: [{ name: 'chair', c: [448, cb], r: 16, h: 80 }], draw: () => {
+      for(const [la, lb] of [[-9, -10], [9, -10], [-9, 10], [9, 10]]) tube(448 + la, cb + lb, 0, 448 + la, cb + lb, 30, 1.2, dark);
+      box(434, 462, cb - 13, cb + 13, 30, 36, trim, trim, trimD); box(456, 462, cb - 13, cb + 13, 36, 78, trim, trim, trimD); } });
+    items.push({ a: 450, b: 492, z: 0, solids: [solid(438, 462, 480, 504, 120, 'coffee machine')], draw: () => {
+      box(438, 462, 480, 504, 0, 116, dark, dark, '#16181b'); F(442, 458, 60, 104, '#3a3e44', null, 0, 504.2); F(444, 456, 84, 100, '#e2b23c', null, 0, 504.4);
+      F(445, 455, 48, 56, '#16181b', null, 0, 504.4); cyl(450, 508, 40, 48, 3, '#f4f2ec'); } });
+    items.push({ a: 440, b: 670, z: 0, solids: [{ name: 'plant', c: [440, 662], r: 12, h: 110 }], draw: () => {
+      cyl(440, 662, 0, 28, 11, trim, trimD); for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; tube(440, 662, 28, 440 + Math.cos(t)*16, 662 + Math.sin(t)*12, 78 + (k % 3)*12, 2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
 
     walkinStaffSolids(items, PG_IN.name);
     depthSort(items);
@@ -68681,6 +68828,8 @@ function houseCanopy(fn){
 },
 {
   name:'Palmline Garage', xh: 158, base:'Garage', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
+  /* ITS VOLUME: the building with THE OPEN BAY open through the wall -- he drives into it and is taken in once he is in it (PG_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, T2*4.4, -276, 0), h: 158, opens: [{ name: 'bay', poly: volRect(168, 300, -90, 2), walk: true }] },
   fTodo:'z126..150 lettering behind board',
   wTodo:'two packing slots',
   head:'Two full-size bays, open workshop, turbine vents',
@@ -106277,6 +106426,9 @@ class WorldScene extends Phaser.Scene {
     /* (...but not another room of the building he is in -- Palmline Tower's lobby, cafe, deli: that one's share is ghosted round him, and a
        ghost is not a cut, W26: its room is not drawn through it) */
     if(inPk && [].concat(inPk.hides || []).some(h => [].concat(pk.hides || []).includes(h))) return;
+    /* (...nor any room from inside a shop walk-in that displaces its neighbours, or through a building it ghosts (Sir, 2026-11-19, inside the
+       bank: "we shouldn't be seeing all of this interiors from the other shops") -- the world outside it is dimmed street, never a lit room) */
+    if(inPk && (inPk.displace || [].concat(inPk.ghosts || []).some(g => [].concat(pk.hides || []).includes(g)))) return;
     const fr = this._wkFr, r = this._wkShell && this._wkShell.get(pk.name);
     if(!r || r.fr !== fr || pocketShellK(this, pk) < 1) return;
     const ops = walkinOpenings(pk), v = ops && pk.view(); if(!v) return;
