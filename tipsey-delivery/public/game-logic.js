@@ -109758,7 +109758,9 @@ class WorldScene extends Phaser.Scene {
       if(_dp && _dp.walkin && _dk < 1){ const k0 = this.shopDoorSwing(d, t), ent = LIB.get(d.lib), zk = ((ent && ent.zs !== undefined) ? ent.zs : 1.5)*((ent && ent.sc) || 1), cutLo = (_dp.LH || 66)/zk;
         const _dr = LIB.doorNear(d.lib, d.labA), cutHi = ((_dr && _dr.dH) || 108) + 12, cutZ = cutLo + (cutHi - cutLo)*Math.max(0, Math.min(1, _dk));
         const dv = d.e.dv, rv = d.e.rv, G0 = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
-        for(const L of this.shopDoorLeafKeys(d, k0)) blockVQ.push({ depth: L.depth - 0.01, fn: (g) => { LIB.setCut(cutZ); if(L.pick != null) LIB.setLeafPick(L.pick);
+        /* (a door in a far wall -- one facing away, walkinAwayDoor: the bank's, in its full-height north wall -- is never cut: the whole door,
+           as the wall it stands in is whole: Sir, 2026-11-19, "we dont need this door kit to be a half door ... its not on a cut away wall") */
+        for(const L of this.shopDoorLeafKeys(d, k0)) blockVQ.push({ depth: L.depth - 0.01, fn: (g) => { LIB.setCut(d.away ? null : cutZ); if(L.pick != null) LIB.setLeafPick(L.pick);
           try { LIB.drawDoorOpen(d.lib, g, G0, this.K, d.flank, d.labA, k0, null); } finally { LIB.setCut(null); LIB.setLeafPick(null); } } }); }
       if(_dk < 0.002 || (_dp && _dp.walkin && _dk < 1)) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
