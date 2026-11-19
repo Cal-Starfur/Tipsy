@@ -31865,7 +31865,7 @@ const FAC = (() => {
     /* (the hall wholly in cell 13, so its one entry draws and fades it round him: its walk-in, FAC_HALL_IN, the scooter line inside. Its
        first roller door stands open, up on its drum: the way in) */
     hall: { x0: x(260), x1: x(2380), y0: y(110), y1: y(860), wall: 240, rise: 74, teeth: 4,
-            doors: [[x(760), x(1060)], [x(1660), x(1960)]], pdoor: [x(1300), x(1370)], open: 0 },
+            doors: [[x(760), x(1060)], [x(1660), x(1960)]], pdoor: [x(1300), x(1370)], open: -1, edoor: [y(335), y(635)] },   /* (the way in: an open roller door in its EAST end, so the room can run back west and south over the yard -- Sir, 2026-11-19, "something that feels large to the robot's scale") */
     stack: { x: x(130), y: y(300), r: 54, h: 660 },
     silos: [[x(2790), y(300)], [x(2960), y(300)]], SILO_R: 68, SILO_H: 400,
     shed: { x0: x(3160), x1: x(4660), y0: y(110), y1: y(720), wall: 252, docks: [x(3300), x(3640), x(3980), x(4320)], dockW: 200 },
@@ -31887,20 +31887,21 @@ const FAC = (() => {
   };
 })();
 /* CRATEWELL WORKS' HALL, A WALK-IN (the room: the LIB entry 'Cratewell Works Hall Interior' -- the scooter and e-bike line), in cell 13's
-   frame (lab a = x - 13*BLOCK, b = 11*BLOCK - y); its door the open roller door, 300 across, in the yard face. Fully automated: no staff, and
+   frame (lab a = x - 13*BLOCK, b = 11*BLOCK - y); its door the open roller door, 300 across, in the hall's EAST end (FAC.hall.edoor). Fully automated: no staff, and
    open round the clock (its place card, 'Factory'). BIGGER INSIDE THAN OUT (Sir, 2026-11-19: "im thinking in terms of how we do our shop
    interiors for these warehouse locations. so we scale up their interior the same way" -- "both, a huge hall"; walk-in kit W31): its front
-   wall and door are the hall's own, and the room runs back to the lot line behind it (the street's pavement) and east over the silos and the
-   dispatch shed to the site's east line -- 4464 x 800. While he is in it the site's two north cells are drawn under it (displace, ghosts:
-   queueParkBlock's hl branch), the world outside dims, and the camera follows him along it (a room wider than the screen) */
-const FAC_HALL_IN = (() => { const H = FAC.hall, ox = 13*BLOCK, oy = 11*BLOCK, d = H.doors[H.open];
+   wall and door are the hall's own east end, and the room runs back west to the lot line and south over the yard to the robot lane's far side --
+   2320 x 1870, as big to the warehouse robot as a shop is to Tipsey ("no its just a narrow run now i want something that feels large to the
+   robots scale"). While he is in it what stands under it is not drawn (displace, ghosts: queueParkBlock's hl branch), the world outside
+   dims, and the camera follows him round it (a room bigger than the screen) */
+const FAC_HALL_IN = (() => { const H = FAC.hall, ox = 13*BLOCK, oy = 11*BLOCK, d = H.edoor;
   return walkinDefine({ name: 'Cratewell Works Hall Interior', from: 'Cratewell Works', x0: 900000, y0: 400000,
-    lab: [H.x0 + 30 - ox, FAC.X1 - 30 - ox, oy - (H.y1 - 30), oy - (FAC.Y0 + 30)], body: [[H.x0 - ox, H.x1 - ox, oy - H.y1, oy - H.y0]],
-    door: { a: (d[0] + d[1])/2 - ox, b: oy - H.y1, half: (d[1] - d[0])/2 }, H: H.wall, out: 36, apron: 30, glass: -14, LH: 66,
+    lab: [FAC.X0 + 30 - ox, H.x1 - 30 - ox, oy - (FAC.Y0 + 1900), oy - (FAC.Y0 + 30)], body: [[H.x0 - ox, H.x1 - ox, oy - H.y1, oy - H.y0]],
+    door: { a: H.x1 - ox, b: oy - (d[0] + d[1])/2, half: (d[1] - d[0])/2 }, H: H.wall, out: 36, apron: 30, glass: -14, LH: 66,
     street: { to: [0, 260], routes: [[[-900, 260]], [[900, 260]]] },
-    openings: [{ lab: [[d[0] - ox, oy - H.y1], [d[1] - ox, oy - H.y1]], z: [0, 170] }] }); })();
+    openings: [{ lab: [[H.x1 - ox, oy - d[0]], [H.x1 - ox, oy - d[1]]], z: [0, 170] }] }); })();
 POCKETS[POCKETS.length - 1].displace = true;   // (W31: bigger than the hall -- what it covers drawn under it)
-POCKETS[POCKETS.length - 1].ghosts = ['Cratewell Works', 'Cratewell Works Dispatch'];
+POCKETS[POCKETS.length - 1].ghosts = ['Cratewell Works'];
 const AIR = (() => {
   const Bk = BLOCK, IN = 736;
   const ij = [[7,6, "Sun Deck Airfield"], [8,6, "Sun Deck Airfield Terminal"], [9,6, "Sun Deck Airfield Cargo"],
@@ -50689,8 +50690,8 @@ function houseCanopy(fn){
       if(q[1] > q[0] && q[3] > q[2]) solids.push({ name, poly: rectLab(q), h }); };
     const addC = (name, x, y, r, h) => { if(mine(x, y)) solids.push({ name, c: [A(x), B(y)], r, h }); };
     /* (its open door's way in, through the wall's thickness and a body's depth -- the room takes him in the doorway, W32) */
-    { const od = HL.doors[HL.open]; addR('factory hall', [HL.x0, od[0], HL.y0, HL.y1], HL.wall + HL.rise + 10); addR('factory hall', [od[1], HL.x1, HL.y0, HL.y1], HL.wall + HL.rise + 10);
-      addR('factory hall', [od[0], od[1], HL.y0, HL.y1 - 140], HL.wall + HL.rise + 10); }   /* (140 deep: the warehouse robot, 55 to its nose, gets its middle past the door's plane) */
+    { const ed = HL.edoor; addR('factory hall', [HL.x0, HL.x1, HL.y0, ed[0]], HL.wall + HL.rise + 10); addR('factory hall', [HL.x0, HL.x1, ed[1], HL.y1], HL.wall + HL.rise + 10);
+      addR('factory hall', [HL.x0, HL.x1 - 140, ed[0], ed[1]], HL.wall + HL.rise + 10); }   /* (140 deep: the warehouse robot, 55 to its nose, gets its middle past the door's plane) */
     addR('dispatch shed', [SH.x0, SH.x1, SH.y0, SH.y1], SH.wall + 20);
     addR('fulfilment centre', [FC.x0, FC.x1, FC.y0, FC.y1], FC.wall + 30);
     addC('chimney', C.stack.x, C.stack.y, C.stack.r, C.stack.h);
@@ -50814,7 +50815,12 @@ function houseCanopy(fn){
                 CLIPB = [B(ty1), B(ty0)];
                 fq(hE, B(HL.y1), B(HL.y0), 0, W, shade(brick, .9), 0);
                 fq(hE, B(HL.y1), B(HL.y0), 0, 14, brickD, 0.2);
-                for(let y = HL.y0 + 80; y < HL.y1 - 120; y += 220){ fq(hE, B(y + 150), B(y), 96, 176, frame, 0.4); fq(hE, B(y + 144), B(y + 6), 101, 171, glass, 0.5); }
+                for(let y = HL.y0 + 80; y < HL.y1 - 120; y += 220){ if(y + 150 > HL.edoor[0] - 20 && y < HL.edoor[1] + 20) continue; fq(hE, B(y + 150), B(y), 96, 176, frame, 0.4); fq(hE, B(y + 144), B(y + 6), 101, 171, glass, 0.5); }
+                /* the way in: the open roller door, up on its drum, the room seen through it (a HOLE: W11) */
+                { const e0 = HL.edoor[0], e1 = HL.edoor[1], [u0, u1] = clip(hE, B(e1), B(e0)), ax = A(HL.x1) + 0.4;
+                  if(u1 > u0){ if(SEE) HOLE([P(ax, u0, 170), P(ax, u1, 170), P(ax, u1, 0), P(ax, u0, 0)]); else fq(hE, B(e1), B(e0), 0, 170, '#6b6f72', 0.4); }
+                  fq(hE, B(e1) - 10, B(e1), 0, 182, yel, 0.5); fq(hE, B(e0), B(e0) + 10, 0, 182, yel, 0.5);
+                  fq(hE, B(e1), B(e0), 170, 186, '#5a6068', 0.5); fq(hE, B(e1), B(e0), 172, 176, steel, 0.6); fq(hE, B(e1), B(e0), 180, 184, steel, 0.6); }
                 fq(hE, B(HL.y1), B(HL.y0), W - 4, W + 4, trim, 0.6);
                 CLIPB = null;
                 for(let t2 = 0; t2 < HL.teeth; t2++){ const ya = HL.y0 + t2*tooth, yb = ya + tooth, y0 = Math.max(ya, ty0), y1 = Math.min(yb, ty1); if(y1 <= y0) continue;
@@ -57692,33 +57698,30 @@ function houseCanopy(fn){
   }
 },
 {
-  /* ==================== INSIDE CRATEWELL WORKS' HALL: THE SCOOTER AND E-BIKE LINE (the walk-in kit, an hl landmark, W31: bigger than the hall) ====================
-     Sir, 2026-11-19: "a fully automated manufacturing center"; it makes scooters and e-bikes; "both, a huge hall". The room (FAC_HALL_IN, a east, b
-     south, world units: 4464 x 800) runs from the hall's own yard face and door back to the lot line and east over the silos and the dispatch shed. Its
-     door is the open roller door at a 470..770, the lane from it to the back wall kept clear. No one works here: robots do. The flow, west to east
-     along the north side and back west along the line:
-       a 20..440    b 10..80      tube stock on the north wall      b 150..300  the tube saw
-       a 820..1340  b 40..320     two robot welding cells (live arms and sparks)
-       a 1400..2280 b 30..340     the paint booth                   a 2330..2900 b 40..300  the curing oven, its mouth glowing
-       a 960..3450  z 215, b 380  the overhead conveyor: frames on hooks riding east, bare to the booth, coloured after it (live)
-       a 2960..3560 b 30..320     kitting: robots' shelf pods of parts, a robot arm picking from them (live)
-       a 3640..4440 b 20..260     the mezzanine: the control room up on columns, its consoles and glass, stairs down its west end;
-                    b 290..400     under its front: the wheel truing machines (live)
-       a 820..4300  b 520..580    the assembly line: the belt carrying frames west, built up as they go -- wheels, battery, bars (live), six robot
-                                   arms at its stations on its north side (live)
-       a 20..440    b 440..560    the test rig (live)               b 610..730  packing: the box erector, a pallet of boxed stock
-       b 430..490   the robot highway, full width, painted */
+  /* ==================== INSIDE CRATEWELL WORKS' HALL: THE SCOOTER AND E-BIKE FACTORY (the walk-in kit, an hl landmark, W31: bigger than the hall) ====================
+     Sir, 2026-11-19: "a fully automated manufacturing center"; scooters and e-bikes; "i want something that feels large to the robots scale". The room
+     (FAC_HALL_IN, a east, b south, world units: 2320 x 1870 -- 21 by 17 of the warehouse robot) runs from the hall's east end, where its door is (the open
+     roller door at b 305..605), back west to the lot line and south over the yard. No one works here: robots do. The lane from the door runs west the
+     whole floor (b 380..530), kept clear. North of it, the making; south of it, the building up; the far west wall, the control room:
+       b 10..340    tube stock (a 20..440, on the north wall) and its saw; three robot welding cells (a 500..1330); the paint booth (a 1400..2300)
+       z 215        the overhead conveyor over the lane (b 360): frames on hooks riding east, bare to the booth, coloured after it (live)
+       b 600..860   the curing oven (a 1400..2300); kitting (a 500..1100): the robots' shelf pods of parts and a picking arm (live)
+       a 20..330    the mezzanine on the west wall (b 600..1500): the control room up on columns, stairs down its north end; the wheel truing
+                    machines in front of it (live)
+       b 1000..1060 the assembly line (a 420..2250): frames riding west, built up as they go (live), six robot arms on its north side (live)
+       b 1120..1180 the second robot highway
+       b 1280..1800 the test rig, packing, the finished-goods pallets, the robots' charging pads */
   name:'Cratewell Works Hall Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 4464, dd: 800,
+  ww: 2320, dd: 1870,
   head:'Inside Cratewell Works: a fully automated scooter and e-bike factory -- welding robots, a paint booth and oven, kitting, a mezzanine control room, a long assembly line',
   tags:['interior','pocket','factory','automated','robots','welding','paint booth','curing oven','kitting','mezzanine','assembly line','scooters','e-bikes','cratewell works'],
-  desc:'The factory hall, bigger inside than out: tube stock and a saw, two robot welding cells throwing sparks, an overhead conveyor carrying frames through the paint booth and its curing oven, robots kitting parts from shelf pods, a control room up on a mezzanine over the wheel machines, and a long assembly belt where robot arms build scooters and e-bikes before a test rig spins their wheels and they are boxed.',
+  desc:'The factory hall, bigger inside than out: tube stock and a saw, three robot welding cells throwing sparks, an overhead conveyor carrying frames to the paint booth and its curing oven, robots kitting parts from shelf pods, a control room up on a mezzanine over the wheel machines, a long assembly belt where robot arms build scooters and e-bikes, a test rig, packing and the finished pallets waiting for the robots.',
   draw(p){
     const pl = (typeof FAC_HALL_IN !== 'undefined' && FAC_HALL_IN) || null;
     if(pl) pl.view();
-    const W = pl ? pl.W : 4464, D = pl ? pl.D : 800, H = pl ? pl.H : 240, AP = pl ? pl.apron : 30, LH = 66;
-    const door = (pl && pl.door) || { side: 's', at: 620, half: 150 };
-    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const W = pl ? pl.W : 2320, D = pl ? pl.D : 1870, H = pl ? pl.H : 240, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 'e', at: 455, half: 150 };
+    const DB0 = door.at - door.half, DB1 = door.at + door.half;
     const wash = '#dcd6ca', washD = '#c4bdb0', grey = '#5a6068', dark = '#2b2f35', yel = '#e8b54a', steel = '#c9ced2', steelD = '#a3a9ae', steelS = '#8d959c';
     const blue = '#2e5f9e', robo = '#e8b54a', roboD = '#c99a38', glassC = 'rgba(150,190,206,.45)';
     const PAL = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0', '#1d1f23'];
@@ -57742,42 +57745,39 @@ function houseCanopy(fn){
       if(st >= 2){ box(a - 14, a - 2, b - 4, b + 4, z + 28, z + 44, dark, '#23272d', '#1c1f23');
         tube(a + 6, b, z + 56, a + 8, b, z + 64, 1.2, dark); box(a + 2, a + 16, b - 4, b + 4, z + 64, z + 67, dark, '#23272d', '#1c1f23');
         tube(a - 22, b, z + 58, a - 24, b, z + 68, 1.2, dark); tube(a - 24, b - 14, z + 68, a - 24, b + 14, z + 68, 1.4, dark); } };
-    const arm = (a, b, sw, dip, tool, dirB) => { const s2 = dirB || 1;
+    const arm = (a, b, sw, dip, tool) => {
       cyl(a, b, 0, 34, 20, '#3a3f46', '#2b2f35'); cyl(a, b, 34, 46, 16, robo, roboD);
-      const sh = [a, b, 54], el = [a + 14*Math.sin(sw), b + s2*24, 104 - 6*dip], wr = [a + 26*Math.sin(sw), b + s2*(52 + 6*dip), 86 - 26*dip];
+      const sh = [a, b, 54], el = [a + 14*Math.sin(sw), b + 24, 104 - 6*dip], wr = [a + 26*Math.sin(sw), b + 52 + 6*dip, 86 - 26*dip];
       cyl(a, b, 46, 58, 9, roboD, robo);
       tube(sh[0], sh[1], sh[2], el[0], el[1], el[2], 6, robo); ball(el[0], el[1], el[2], 6, roboD, robo);
       tube(el[0], el[1], el[2], wr[0], wr[1], wr[2], 4.6, robo); ball(wr[0], wr[1], wr[2], 4.4, '#3a3f46', '#5a6068');
-      const tp = [wr[0], wr[1] + s2*4, wr[2] - 16]; tube(wr[0], wr[1], wr[2], tp[0], tp[1], tp[2], 2.2, tool || steelS); return tp; };
+      const tp = [wr[0], wr[1] + 4, wr[2] - 16]; tube(wr[0], wr[1], wr[2], tp[0], tp[1], tp[2], 2.2, tool || steelS); return tp; };
     const sparks = (tp, t) => { const k0 = Math.floor(t/70); ball(tp[0], tp[1], tp[2] - 2, 4.5, '#fff6c0', '#ffffff');
       for(let k = 0; k < 7; k++){ const r1 = ((k0*7 + k)*2654435761 >>> 0)/4294967296, r2 = ((k0*13 + k*5)*2246822519 >>> 0)/4294967296;
         const q0 = P(tp[0], tp[1], tp[2] - 2), q1 = P(tp[0] + (r1 - 0.5)*36, tp[1] + (r2 - 0.5)*30, tp[2] - 2 - r1*20);
         ctx.strokeStyle = k % 2 ? '#ffd27a' : '#fff1b0'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke(); } };
+    const lane = (a0, a1, b0, b1, arrows) => { T(a0, a1, b0, b1, 0.3, '#8f9599'); T(a0, a1, b0, b0 + 6, 0.5, yel); T(a0, a1, b1 - 6, b1, 0.5, yel);
+      if(arrows) for(let a = a1 - 160; a > a0 + 80; a -= 300){ const bc = (b0 + b1)/2; T(a - 40, a, bc - 5, bc + 5, 0.6, '#f2efe6'); T(a - 56, a - 40, bc - 13, bc + 13, 0.6, '#f2efe6'); } };
 
-    /* ---- THE FLOOR: sealed concrete in 120 squares; the lane from the door (yellow edges, white chevrons); the robot highway along the room; the
-       walkway lines round the cells; a threshold at the door (W13) ---- */
+    /* ---- THE FLOOR: sealed concrete in 120 squares, the two robot highways, cell lines, a threshold at the door (W13) ---- */
     T(0, W, 0, D, 0, '#a7abae');
     for(let a = 120; a < W; a += 120) T(a - 0.6, a + 0.6, 0, D, 0.15, '#979b9e');
     for(let b = 120; b < D; b += 120) T(0, W, b - 0.6, b + 0.6, 0.15, '#979b9e');
-    T(DA0 + 40, DA1 - 40, 0, D, 0.3, '#8f9599');
-    for(const a of [DA0 + 40, DA1 - 46]) T(a, a + 6, 0, D, 0.5, yel);
-    for(let b = 40; b < D - 20; b += 90){ const ac = door.at; T(ac - 22, ac + 22, b, b + 8, 0.6, '#f2efe6'); T(ac - 8, ac + 8, b - 10, b, 0.6, '#f2efe6'); }
-    T(20, W - 20, 430, 490, 0.3, '#8f9599'); T(20, W - 20, 430, 436, 0.5, yel); T(20, W - 20, 484, 490, 0.5, yel);
-    for(let a = 140; a < W - 120; a += 360){ if(a > DA0 && a < DA1) continue; T(a, a + 40, 455, 465, 0.6, '#f2efe6'); T(a + 40, a + 56, 447, 473, 0.6, '#f2efe6'); }
-    for(const [c0, c1] of [[820, 1060], [1100, 1340]]){ T(c0 - 8, c1 + 8, 320, 326, 0.5, yel); }
-    T(DA0, DA1, D, D + AP, 0.3, '#8f8a80'); T(DA0, DA1, D - 3, D + 3, 0.7, yel);
+    lane(360, W, 380, 530, true);
+    lane(360, W - 60, 1120, 1180, true);
+    T(W - 160, W - 100, 530, 1120, 0.3, '#8f9599'); T(W - 160, W - 154, 530, 1120, 0.5, yel); T(W - 106, W - 100, 530, 1120, 0.5, yel);   /* (the link between the two) */
+    for(const [c0, c1] of [[500, 750], [790, 1040], [1080, 1330]]) T(c0 - 8, c1 + 8, 330, 336, 0.5, yel);
+    T(W, W + AP, DB0, DB1, 0.3, '#8f8a80'); T(W - 3, W + 3, DB0, DB1, 0.7, yel);
 
-    /* ---- THE WALLS (the kit's): whitewashed brick over a grey dado, steel windows high along the north wall, the line's names; the south and east
-       cut low in the exterior's brick ---- */
+    /* ---- THE WALLS (the kit's): whitewashed brick over a grey dado, steel windows high, the zones' names; the south and east cut low in the
+       exterior's brick ---- */
     walkinRoom(items, { W, D, H, LH, door,
       paintN: () => {
         F(-30, W + 30, 0, H, wash, null, 0, 0);
         for(let z = 12; z < H; z += 12) F(-30, W + 30, z - 0.4, z + 0.4, washD, null, 0, 0.1);
         F(-30, W + 30, 0, 90, grey, null, 0, 0.2); F(-30, W + 30, 90, 96, yel, null, 0, 0.3);
         for(let a = 40; a < W - 60; a += 200){ F(a, a + 150, 150, 222, '#5a6068', null, 0, 0.4); for(let gx = 0; gx < 3; gx++) for(let gz = 0; gz < 2; gz++) F(a + 6 + gx*48, a + 48 + gx*48, 156 + gz*34, 186 + gz*34, '#a9c2cc', null, 0, 0.5); }
-        blockWordIn('LINE 1', 470, 770, 104, 130, 0.6, dark, null, 3);
-        blockWordIn('WELD', 900, 1260, 104, 128, 0.6, dark, null, 3);
-        blockWordIn('KITTING', 3000, 3500, 104, 128, 0.6, dark, null, 3);
+        blockWordIn('WELD', 700, 1130, 104, 128, 0.6, dark, null, 3);
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wash, .94)); S(0.2, -30, D + 30, 0, 90, shade(grey, .9)); S(0.3, -30, D + 30, 90, 96, shade(yel, .9));
@@ -57798,42 +57798,42 @@ function houseCanopy(fn){
       box(250, 300, 190, 250, 74, 140, '#e0782a', '#c4661f', '#a8561a'); F(256, 294, 92, 132, '#16181b', null, 0, 250.3);
       box(320, 396, 272, 300, 0, 26, '#3a3f46', '#2b2f35', '#22262b'); for(let k = 0; k < 5; k++) tube(326, 276 + k*4.5, 28, 390, 276 + k*4.5, 28, 1.8, steel); }});
 
-    /* ---- THE WELDING CELLS ---- */
-    for(const [ci, c0] of [820, 1100].entries()){
-      const c1 = c0 + 240, ac = c0 + 120;
-      items.push({ a: ac, b: 210, z: 0, solids: [solid(c0, c1, 40, 320, 150, 'welding cell')], draw: () => {
-        T(c0, c1, 40, 320, 0.4, '#8a8f93');
+    /* ---- THE WELDING CELLS: three, a robot arm in each (live) ---- */
+    for(const [ci, c0] of [500, 790, 1080].entries()){
+      const c1 = c0 + 250, ac = c0 + 125;
+      items.push({ a: ac, b: 210, z: 0, solids: [solid(c0, c1, 40, 330, 150, 'welding cell')], draw: () => {
+        T(c0, c1, 40, 330, 0.4, '#8a8f93');
         box(ac - 64, ac + 64, 196, 240, 0, 66, '#3a3f46', '#2b2f35', '#22262b'); box(ac - 68, ac + 68, 192, 244, 66, 70, steelD, steelS, '#7d868b');
         ebike(ac, 218, 70, steelD, 0);
-        for(const a of [c0, c1]){ for(let b = 40; b <= 320; b += 70) tube(a, b, 0, a, b, 150, 2, yel);
-          S(a, 40, 320, 0, 150, 'rgba(232,181,74,.14)'); for(const z of [8, 75, 148]) tube(a, 40, z, a, 320, z, 1.2, yel); } }});
+        for(const a of [c0, c1]){ for(let b = 40; b <= 330; b += 72) tube(a, b, 0, a, b, 150, 2, yel);
+          S(a, 40, 330, 0, 150, 'rgba(232,181,74,.14)'); for(const z of [8, 75, 148]) tube(a, 40, z, a, 330, z, 1.2, yel); } }});
       live(ac, 242, [], t => { const ph = t/1300 + ci*1.7, dip = (Math.sin(ph*2.3) + 1)/2, tp = arm(ac, 120, Math.sin(ph)*0.9, dip, dark); if(dip > 0.45) sparks(tp, t); });
-      items.push({ a: ac, b: 322, z: 0, solids: [], draw: () => {
-        for(let a = c0; a <= c1 + 1; a += 60) tube(a, 320, 0, a, 320, 150, 2, yel);
-        F(c0, c1, 0, 150, 'rgba(232,181,74,.16)', null, 0, 320.2); for(const z of [8, 75, 148]) tube(c0, 320, z, c1, 320, z, 1.2, yel);
-        F(ac - 50, ac + 50, 110, 132, '#16181b', null, 0, 320.4); blockWordIn('ROBOT CELL', ac - 46, ac + 46, 114, 128, 320.5, yel, null, 2); }});
+      items.push({ a: ac, b: 332, z: 0, solids: [], draw: () => {
+        for(let a = c0; a <= c1 + 1; a += 62.5) tube(a, 330, 0, a, 330, 150, 2, yel);
+        F(c0, c1, 0, 150, 'rgba(232,181,74,.16)', null, 0, 330.2); for(const z of [8, 75, 148]) tube(c0, 330, z, c1, 330, z, 1.2, yel);
+        F(ac - 50, ac + 50, 110, 132, '#16181b', null, 0, 330.4); blockWordIn('ROBOT CELL', ac - 46, ac + 46, 114, 128, 330.5, yel, null, 2); }});
     }
 
-    /* ---- THE PAINT BOOTH, and the curing oven after it ---- */
-    runPiece(items, 1400, 2280, 30, 340, 232, (s0, s1) => [solid(s0, s1, 30, 340, 232, 'paint booth')], () => {
-      box(1400, 2280, 30, 340, 0, 226, '#e3e6e8', '#cfd4d7', '#b9bfc4'); box(1396, 2284, 26, 344, 226, 232, '#c9ced2', '#b3b9be', '#9fa6ab');
-      for(let a = 1400; a <= 2280; a += 80) F(a - 1, a + 1, 0, 226, '#b9bfc4', null, 0, 340.2);
-      F(1440, 2240, 70, 170, '#3a3f46', null, 0, 340.3); F(1446, 2234, 76, 164, 'rgba(255,190,120,.55)', null, 0, 340.4);
-      for(let a = 1490; a < 2230; a += 110){ tube(a, 340.5, 164, a, 340.5, 150, 0.8, dark); ebike(a, 340.6, 92, PAL[Math.round(a/110) % 5], 0); }
-      F(1440, 2240, 70, 170, 'rgba(255,214,160,.18)', null, 0, 340.8);
-      F(1700, 1980, 182, 212, blue, null, 0, 340.4); blockWordIn('PAINT', 1720, 1960, 186, 208, 340.5, '#ffffff', null, 3);
+    /* ---- THE PAINT BOOTH (north of the lane), the curing oven (south of it) ---- */
+    runPiece(items, 1400, 2300, 30, 340, 232, (s0, s1) => [solid(s0, s1, 30, 340, 232, 'paint booth')], () => {
+      box(1400, 2300, 30, 340, 0, 226, '#e3e6e8', '#cfd4d7', '#b9bfc4'); box(1396, 2304, 26, 344, 226, 232, '#c9ced2', '#b3b9be', '#9fa6ab');
+      for(let a = 1400; a <= 2300; a += 75) F(a - 1, a + 1, 0, 226, '#b9bfc4', null, 0, 340.2);
+      F(1440, 2260, 70, 170, '#3a3f46', null, 0, 340.3); F(1446, 2254, 76, 164, 'rgba(255,190,120,.55)', null, 0, 340.4);
+      for(let a = 1490; a < 2250; a += 110){ tube(a, 340.5, 164, a, 340.5, 150, 0.8, dark); ebike(a, 340.6, 92, PAL[Math.round(a/110) % 5], 0); }
+      F(1440, 2260, 70, 170, 'rgba(255,214,160,.18)', null, 0, 340.8);
+      F(1710, 1990, 182, 212, blue, null, 0, 340.4); blockWordIn('PAINT', 1730, 1970, 186, 208, 340.5, '#ffffff', null, 3);
       for(const a of [1600, 2100]) cyl(a, 180, 232, 240, 30, '#9fa6ab', '#7d868b');
     }, { pad: 3 });
-    runPiece(items, 2330, 2900, 40, 300, 200, (s0, s1) => [solid(s0, s1, 40, 300, 200, 'curing oven')], () => {
-      box(2330, 2900, 40, 300, 0, 196, '#8d959c', '#7d868b', '#6b7378'); box(2326, 2904, 36, 304, 196, 204, '#7d868b', '#6b7378', '#5a6068');
-      for(let a = 2360; a < 2900; a += 60) F(a - 2, a + 2, 20, 190, '#6b7378', null, 0, 300.2);
-      F(2380, 2850, 40, 60, '#16181b', null, 0, 300.3); for(let a = 2400; a < 2840; a += 40) F(a, a + 22, 44, 56, '#ff8a3a', null, 0, 300.4);
-      F(2520, 2710, 130, 160, '#16181b', null, 0, 300.3); blockWordIn('CURE 180', 2530, 2700, 136, 156, 300.4, '#ff8a3a', null, 2);
-      cyl(2800, 170, 204, 240, 22, '#7d868b', '#5a6068');
+    runPiece(items, 1400, 2300, 600, 860, 200, (s0, s1) => [solid(s0, s1, 600, 860, 200, 'curing oven')], () => {
+      box(1400, 2300, 600, 860, 0, 196, '#8d959c', '#7d868b', '#6b7378'); box(1396, 2304, 596, 864, 196, 204, '#7d868b', '#6b7378', '#5a6068');
+      for(let a = 1430; a < 2300; a += 60) F(a - 2, a + 2, 20, 190, '#6b7378', null, 0, 860.2);
+      F(1450, 2250, 40, 60, '#16181b', null, 0, 860.3); for(let a = 1470; a < 2240; a += 40) F(a, a + 22, 44, 56, '#ff8a3a', null, 0, 860.4);
+      F(1760, 1950, 130, 160, '#16181b', null, 0, 860.3); blockWordIn('CURE 180', 1770, 1940, 136, 156, 860.4, '#ff8a3a', null, 2);
+      for(const a of [1550, 2150]) cyl(a, 730, 204, 240, 22, '#7d868b', '#5a6068');
     }, { pad: 3 });
 
-    /* ---- THE OVERHEAD CONVEYOR (b 380, z 215): frames on hooks riding east, bare to the booth and coloured after it (live, in stretches of 300) ---- */
-    { const A0 = 960, A1 = 3450, RZ = 215, BC = 380, SP = 130, V = 0.022;
+    /* ---- THE OVERHEAD CONVEYOR (b 360 over the lane, z 215): frames on hooks riding east, bare to the booth, coloured after it (live) ---- */
+    { const A0 = 560, A1 = 2260, RZ = 215, BC = 360, SP = 130, V = 0.022;
       for(let s0 = A0; s0 < A1; s0 += 300){ const s1 = Math.min(A1, s0 + 300);
         live((s0 + s1)/2, BC + 2, [], t => {
           tube(s0, BC, RZ, s1, BC, RZ, 3, '#3a3f46');
@@ -57846,40 +57846,43 @@ function houseCanopy(fn){
       }
     }
 
-    /* ---- KITTING: three of the robots' shelf pods of parts (bins of coloured bits), a robot arm picking from them into totes on a table (live) ---- */
-    for(const [pi, pa] of [3010, 3150, 3290].entries()) items.push({ a: pa + 50, b: 40, z: 0, solids: [solid(pa - 52, pa + 52, 40, 140, 150, 'parts pod')], draw: () => {
-      for(const [la, lb] of [[-48, 44], [48, 44], [-48, 136], [48, 136]]) tube(pa + la, lb, 0, pa + la, lb, 150, 2.4, '#3a3f46');
-      for(let lv = 0; lv < 4; lv++){ const z0 = 8 + lv*36; box(pa - 50, pa + 50, 42, 138, z0, z0 + 3, '#6a7078', '#5a6068', '#4a5058');
-        for(const [ba, bb] of [[-26, 66], [26, 66], [-26, 114], [26, 114]]){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e'][(lv + pi + (ba > 0) + 2*(bb > 90)) % 4];
+    /* ---- KITTING: the robots' shelf pods of parts, a picking arm filling totes on its table (live) ---- */
+    for(const [pi, pa] of [560, 700, 840].entries()) items.push({ a: pa + 50, b: 600, z: 0, solids: [solid(pa - 52, pa + 52, 600, 700, 150, 'parts pod')], draw: () => {
+      for(const [la, lb] of [[-48, 604], [48, 604], [-48, 696], [48, 696]]) tube(pa + la, lb, 0, pa + la, lb, 150, 2.4, '#3a3f46');
+      for(let lv = 0; lv < 4; lv++){ const z0 = 8 + lv*36; box(pa - 50, pa + 50, 602, 698, z0, z0 + 3, '#6a7078', '#5a6068', '#4a5058');
+        for(const [ba, bb] of [[-26, 626], [26, 626], [-26, 674], [26, 674]]){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e'][(lv + pi + (ba > 0) + 2*(bb > 650)) % 4];
           box(pa + ba - 22, pa + ba + 22, bb - 20, bb + 20, z0 + 3, z0 + 26, col, shade(col, .85), shade(col, .7)); box(pa + ba - 22, pa + ba + 22, bb - 20, bb + 20, z0 + 23, z0 + 26, shade(col, .7), shade(col, .6), shade(col, .5)); } }
-      box(pa - 52, pa + 52, 40, 140, 152, 155, '#6a7078', '#5a6068', '#4a5058'); }});
-    items.push({ a: 3150, b: 260, z: 0, solids: [solid(3000, 3300, 240, 300, 70, 'kitting table')], draw: () => {
-      box(3000, 3300, 240, 300, 0, 64, steelD, steelS, '#7d868b'); box(2996, 3304, 236, 304, 64, 68, steel, steelD, steelS);
-      for(const [ta, col] of [[3040, '#2a6ad8'], [3110, '#e0453a'], [3190, '#2aa86a'], [3260, '#2a6ad8']]){ box(ta - 26, ta + 26, 250, 290, 68, 92, col, shade(col, .85), shade(col, .7)); T(ta - 22, ta + 22, 254, 286, 92.1, shade(col, .55)); } }});
-    live(3150, 238, [{ name: 'robot arm', c: [3150, 190], r: 22, h: 120 }], t => { const ph = t/1100, dip = Math.max(0, Math.sin(ph*1.6))**2; arm(3150, 190, Math.sin(ph)*1.1, dip, steelS); });
+      box(pa - 52, pa + 52, 600, 700, 152, 155, '#6a7078', '#5a6068', '#4a5058'); }});
+    items.push({ a: 750, b: 830, z: 0, solids: [solid(540, 960, 800, 860, 70, 'kitting table')], draw: () => {
+      box(540, 960, 800, 860, 0, 64, steelD, steelS, '#7d868b'); box(536, 964, 796, 864, 64, 68, steel, steelD, steelS);
+      for(const [ta, col] of [[590, '#2a6ad8'], [680, '#e0453a'], [770, '#2aa86a'], [860, '#2a6ad8'], [930, '#f2c02e']]){ box(ta - 26, ta + 26, 810, 850, 68, 92, col, shade(col, .85), shade(col, .7)); T(ta - 22, ta + 22, 814, 846, 92.1, shade(col, .55)); } }});
+    live(750, 798, [{ name: 'robot arm', c: [750, 750], r: 22, h: 120 }], t => { const ph = t/1100, dip = Math.max(0, Math.sin(ph*1.6))**2; arm(750, 740, Math.sin(ph)*1.1, dip, steelS); });
 
-    /* ---- THE MEZZANINE: a control room up on columns over the north-east corner, its glass, its consoles (their screens to the room's back, the
-       operators' side), stairs down its west end; under its front, the wheel truing machines ---- */
-    runPiece(items, 3640, 4440, 20, 260, 270, (s0, s1) => [solid(Math.max(3640, s0), s1, 20, 60, 270, 'mezzanine')], () => {
-      for(let a = 3700; a <= 4420; a += 120) for(const b of [24, 256]) box(a - 7, a + 7, b - 7, b + 7, 0, 150, '#3a3f46', '#2b2f35', '#22262b');
-      box(3700, 4440, 20, 260, 150, 162, '#8d959c', '#7d868b', '#6b7378');
-      box(3700, 4440, 250, 262, 162, 170, yel, roboD, '#a98225');
-      box(3720, 4420, 30, 220, 162, 262, 'rgba(160,200,214,.32)', 'rgba(150,190,206,.42)', 'rgba(130,170,186,.42)');
-      for(let a = 3720; a <= 4420; a += 70) F(a - 2, a + 2, 162, 262, '#5a6068', null, 0, 220.2);
-      box(3716, 4424, 26, 224, 262, 268, '#5a6068', '#4a5058', '#3a3f46');
-      for(const ca of [3820, 4000, 4180, 4340]){ box(ca - 40, ca + 40, 150, 180, 162, 196, dark, '#23272d', '#1c1f23'); F(ca - 34, ca + 34, 184, 206, '#5fe8e0', null, 0, 150.3); }
-      for(let k = 0; k < 9; k++){ const z = 150 - k*16.6, b0 = 60 + k*18; box(3640, 3700, b0, b0 + 18, 0, z, '#8d959c', '#7d868b', '#6b7378'); }
-      tube(3640, 60, 160, 3640, 222, 10, 1.4, yel);
-    }, { keyStart: true, pad: 3 });
-    for(const [wi, wa] of [3780, 3980, 4180, 4360].entries()){
-      items.push({ a: wa, b: 350, z: 0, solids: [solid(wa - 60, wa + 60, 300, 400, 120, 'wheel truing machine')], draw: () => {
-        box(wa - 60, wa + 60, 330, 400, 0, 70, '#d6dadd', steelD, steelS); box(wa - 64, wa + 64, 326, 404, 70, 74, steel, steelD, steelS);
-        box(wa - 12, wa + 12, 300, 330, 0, 120, '#3a3f46', '#2b2f35', '#22262b'); F(wa - 40, wa + 40, 20, 50, '#16181b', null, 0, 400.3); F(wa - 34, wa + 34, 26, 44, '#7fe08a', null, 0, 400.4); }});
-      live(wa, 402, [], t => wheel(wa, 330, 74, 32, '#c9ced2', t/120 + wi));
+    /* ---- THE MEZZANINE on the west wall: the control room up on columns, its glass and consoles, stairs down its north end; the wheel truing
+       machines in front of it ---- */
+    runPiece(items, 20, 330, 600, 1500, 270, (s0, s1) => [solid(20, 60, s0, s1, 270, 'mezzanine')], () => {
+      for(let b = 640; b <= 1480; b += 120) for(const a of [24, 316]) box(a - 7, a + 7, b - 7, b + 7, 0, 150, '#3a3f46', '#2b2f35', '#22262b');
+      box(20, 330, 640, 1500, 150, 162, '#8d959c', '#7d868b', '#6b7378');
+      box(320, 332, 640, 1500, 162, 170, yel, roboD, '#a98225');
+      box(30, 300, 660, 1480, 162, 262, 'rgba(160,200,214,.32)', 'rgba(150,190,206,.42)', 'rgba(130,170,186,.42)');
+      for(let b = 660; b <= 1480; b += 70) S(300.3, b - 2, b + 2, 162, 262, '#5a6068');
+      box(26, 304, 656, 1484, 262, 268, '#5a6068', '#4a5058', '#3a3f46');
+      for(const cb of [780, 960, 1140, 1320]){ box(150, 180, cb - 40, cb + 40, 162, 196, dark, '#23272d', '#1c1f23'); S(180.4, cb - 34, cb + 34, 184, 206, '#5fe8e0'); }
+      for(let k = 0; k < 9; k++){ const z = 150 - k*16.6, a0 = 60 + k*28; box(a0, a0 + 28, 600, 640, 0, z, '#8d959c', '#7d868b', '#6b7378'); }
+      tube(60, 600, 160, 312, 600, 12, 1.4, yel);
+    }, { alongB: true, keyStart: true, pad: 3 });
+    for(const [wi, wb] of [720, 920, 1120, 1320].entries()){
+      items.push({ a: 420, b: wb, z: 0, solids: [solid(350, 460, wb - 60, wb + 60, 120, 'wheel truing machine')], draw: () => {
+        box(380, 460, wb - 60, wb + 60, 0, 70, '#d6dadd', steelD, steelS); box(376, 464, wb - 64, wb + 64, 70, 74, steel, steelD, steelS);
+        box(350, 380, wb - 12, wb + 12, 0, 120, '#3a3f46', '#2b2f35', '#22262b'); S(460.3, wb - 40, wb + 40, 20, 50, '#16181b'); S(460.4, wb - 34, wb + 34, 26, 44, '#7fe08a'); }});
+      live(430, wb + 61, [], t => { const n = 14, r = 32, sp = t/120 + wi, o = [];   /* (a wheel on its truing stand, spinning: its plane b-z, facing the room) */
+        for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(420, wb + Math.cos(q)*r, 74 + r + Math.sin(q)*r)); } poly(o, '#1b1d21');
+        const hb = []; for(let i = 0; i < 10; i++){ const q = i/10*Math.PI*2; hb.push(P(420.3, wb + Math.cos(q)*r*0.45, 74 + r + Math.sin(q)*r*0.45)); } poly(hb, '#c9ced2');
+        for(let k = 0; k < 3; k++){ const q = sp + k*Math.PI*2/3; tube(420.4, wb, 74 + r, 420.4, wb + Math.cos(q)*r*0.9, 74 + r + Math.sin(q)*r*0.9, 0.6, steelS); } });
     }
 
-    /* ---- THE ASSEMBLY LINE (a 820..4300, b 520..580): the belt, products riding west and built up as they go (live), six robot arms at its north side ---- */
-    { const A0 = 820, A1 = 4300, B0 = 520, B1 = 580, Z = 52, SP = 240, V = 0.03;
+    /* ---- THE ASSEMBLY LINE (a 520..2250, b 1000..1060): the belt, frames riding west and built up (live), six arms on its north side (live) ---- */
+    { const A0 = 520, A1 = 2250, B0 = 1000, B1 = 1060, Z = 52, SP = 240, V = 0.03;
       runPiece(items, A0, A1, B0, B1, Z + 8, (s0, s1) => [solid(s0, s1, B0, B1, Z + 8, 'assembly line')], () => {
         for(let a = A0 + 30; a < A1; a += 120) for(const b of [B0 + 6, B1 - 6]) box(a - 4, a + 4, b - 4, b + 4, 0, Z - 6, '#3a3f46', '#2b2f35', '#22262b');
         box(A0, A1, B0, B1, Z - 8, Z, '#2b2f35', '#23272d', '#1c1f23');
@@ -57890,31 +57893,46 @@ function houseCanopy(fn){
         live((s0 + s1)/2, B1 + 1, [], t => {
           const off = (t*V) % SP;
           for(let a = A1 - off; a > A0 + 10; a -= SP){ if(a < s0 || a >= s1) continue;
-            const n = Math.floor((t*V + (A1 - a))/SP), col = PAL[n % 6], st = a > 3300 ? 0 : a > 2000 ? 1 : 2;
+            const n = Math.floor((t*V + (A1 - a))/SP), col = PAL[n % 6], st = a > 1700 ? 0 : a > 1100 ? 1 : 2;
             (n % 2 ? ebike : scooter)(a, (B0 + B1)/2, Z, col, st); } });
       }
-      for(const [si, sa] of [1250, 1750, 2250, 2750, 3250, 3750].entries())
-        live(sa, 470, [{ name: 'robot arm', c: [sa, 470], r: 22, h: 120 }], t => { const ph = t/900 + si*2.1, dip = Math.max(0, Math.sin(ph))**2; arm(sa, 462, Math.sin(ph*0.5)*0.4, dip, si % 2 ? '#3a3f46' : steelS); });
+      for(const [si, sa] of [700, 980, 1260, 1540, 1820, 2100].entries())
+        live(sa, 950, [{ name: 'robot arm', c: [sa, 950], r: 22, h: 120 }], t => { const ph = t/900 + si*2.1, dip = Math.max(0, Math.sin(ph))**2; arm(sa, 942, Math.sin(ph*0.5)*0.4, dip, si % 2 ? '#3a3f46' : steelS); });
     }
 
-    /* ---- THE TEST RIG: a scooter on rollers, its wheels spinning, under a lit arch (live) ---- */
-    items.push({ a: 230, b: 500, z: 0, solids: [solid(40, 420, 440, 560, 120, 'test rig')], draw: () => {
-      box(40, 420, 450, 550, 0, 20, '#8d959c', '#7d868b', '#6b7378'); T(60, 400, 470, 530, 20.2, '#6b7378');
-      for(const a of [190, 270]) for(const sb of [-1, 1]) cyl(a, 500 + sb*10, 20, 24, 8, '#3a3f46');
-      for(const a of [120, 340]) for(const b of [450, 550]) tube(a, b, 20, a, b, 132, 3.4, grey);
-      for(const b of [450, 550]) tube(120, b, 132, 340, b, 132, 3, grey); }});
-    live(230, 552, [], t => { const spin = -t/90, lit = Math.floor(t/700) % 3 !== 0;
-      scooter(230, 500, 24, PAL[(Math.floor(t/6000)) % 6], 2, spin);
-      F(120, 340, 132, 136, lit ? '#7fe08a' : '#2b5a33', null, 0, 556.2); if(lit) ball(230, 556, 134, 6, '#c8ffd0', '#ffffff'); });
+    /* ---- THE TEST RIG (a 520..900, b 1290..1410): a scooter on rollers, its wheels spinning under a lit arch (live) ---- */
+    items.push({ a: 710, b: 1350, z: 0, solids: [solid(520, 900, 1290, 1410, 120, 'test rig')], draw: () => {
+      box(520, 900, 1300, 1400, 0, 20, '#8d959c', '#7d868b', '#6b7378'); T(540, 880, 1320, 1380, 20.2, '#6b7378');
+      for(const a of [670, 750]) for(const sb of [-1, 1]) cyl(a, 1350 + sb*10, 20, 24, 8, '#3a3f46');
+      for(const a of [600, 820]) for(const b of [1300, 1400]) tube(a, b, 20, a, b, 132, 3.4, grey);
+      for(const b of [1300, 1400]) tube(600, b, 132, 820, b, 132, 3, grey); }});
+    live(710, 1402, [], t => { const spin = -t/90, lit = Math.floor(t/700) % 3 !== 0;
+      scooter(710, 1350, 24, PAL[(Math.floor(t/6000)) % 6], 2, spin);
+      F(600, 820, 132, 136, lit ? '#7fe08a' : '#2b5a33', null, 0, 1406.2); if(lit) ball(710, 1406, 134, 6, '#c8ffd0', '#ffffff'); });
 
-    /* ---- PACKING: the box erector, a pallet of boxed stock for the robots to take ---- */
-    items.push({ a: 160, b: 690, z: 0, solids: [solid(40, 280, 610, 730, 90, 'box erector')], draw: () => {
-      box(40, 280, 620, 720, 0, 70, '#d6dadd', steelD, steelS); F(60, 140, 30, 60, '#16181b', null, 0, 720.3); F(64, 136, 34, 56, '#5fe8e0', null, 0, 720.4);
-      for(let k = 0; k < 6; k++) box(160, 270, 630, 710, 70 + k*3, 72 + k*3, '#c98a4a', '#b97b40', '#a86e36'); }});
-    items.push({ a: 370, b: 690, z: 0, solids: [solid(300, 440, 610, 730, 100, 'pallet of boxes')], draw: () => {
-      box(300, 440, 615, 725, 0, 10, '#b08a58', '#9a7848', '#8a6a40');
-      for(let lv = 0; lv < 3; lv++) for(const [a0, b0] of [[304, 619], [372, 619], [304, 672], [372, 672]]){ box(a0, a0 + 64, b0, b0 + 49, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
-        F(a0 + 14, a0 + 50, 18 + lv*28, 30 + lv*28, '#2e8bd8', null, 0, b0 + 49.2); } }});
+    /* ---- PACKING (a 520..1000, b 1500..1640): the box erector and its stack of flats ---- */
+    items.push({ a: 760, b: 1570, z: 0, solids: [solid(520, 1000, 1500, 1640, 90, 'box erector')], draw: () => {
+      box(520, 1000, 1510, 1630, 0, 70, '#d6dadd', steelD, steelS); F(540, 640, 30, 60, '#16181b', null, 0, 1630.3); F(544, 636, 34, 56, '#5fe8e0', null, 0, 1630.4);
+      for(let k = 0; k < 6; k++) box(700, 980, 1520, 1620, 70 + k*3, 72 + k*3, '#c98a4a', '#b97b40', '#a86e36');
+      for(let a = 660; a < 990; a += 14) T(a - 1.5, a + 1.5, 1520, 1620, 88.2, '#5a6068'); }});
+
+    /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays, waiting for the robots (a 1080..1780, b 1290..1720) ---- */
+    for(let r = 0; r < 2; r++) for(let c = 0; c < 4; c++){ const pa = 1120 + c*180, pb = 1330 + r*230;
+      T(pa - 70, pa + 70, pb - 70, pb - 64, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - 70, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - 70, pb + 70, 0.5, yel);
+      if((r*4 + c) % 3 === 2) continue;
+      items.push({ a: pa + 60, b: pb + 55, z: 0, solids: [solid(pa - 60, pa + 60, pb - 55, pb + 55, 100, 'pallet of boxes')], draw: () => {
+        box(pa - 60, pa + 60, pb - 55, pb + 55, 0, 10, '#b08a58', '#9a7848', '#8a6a40');
+        const lvls = 2 + ((r + c) % 2);
+        for(let lv = 0; lv < lvls; lv++) for(const [a0, b0] of [[pa - 56, pb - 51], [pa + 2, pb - 51], [pa - 56, pb + 1], [pa + 2, pb + 1]]){ box(a0, a0 + 54, b0, b0 + 50, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
+          F(a0 + 12, a0 + 42, 18 + lv*28, 30 + lv*28, PAL[(c + r + lv) % 5], null, 0, b0 + 50.2); } }});
+    }
+
+    /* ---- THE ROBOTS' CHARGING PADS (a 1880..2240, b 1300..1740): six pads, a charger post at each, lit ---- */
+    for(let r = 0; r < 3; r++) for(let c = 0; c < 2; c++){ const pa = 1960 + c*200, pb = 1360 + r*140;
+      T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
+      items.push({ a: pa - 70, b: pb - 50, z: 0, solids: [solid(pa - 96, pa - 74, pb - 14, pb + 14, 70, 'charger')], draw: () => {
+        box(pa - 96, pa - 74, pb - 14, pb + 14, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(pa - 73.6, pb - 10, pb + 10, 44, 60, '#5fe8e0'); }});
+    }
 
     depthSort(items);
   }
@@ -113065,6 +113083,7 @@ class WorldScene extends Phaser.Scene {
         const _cut = _hp && POCKET_VIEW && POCKET_VIEW.pk === _hp && _hp.cut ? _hp.cut() : 0;
         const _cutDep = _cut > 0 ? _hp.x0 + POCKET_VIEW.dx + _hp.y0 + POCKET_VIEW.dy + Math.min(0, _hp.ax0 || 0) - 200.5 : 0;
         const _dsp = displacedLib(this, _hl);
+        const _ovr = /^Cratewell Works/.test(_hl) && this._inside && this._inside.name === 'Cratewell Works Hall Interior';
         items.forEach((it, n) => {
           if(it.shell && _cut <= 0 && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
           if(it.shell && it.cutTop && _cut > 0 && _cut < it.cutTop) return;   // (whole or not at all: the ER's canopy)
@@ -113073,6 +113092,7 @@ class WorldScene extends Phaser.Scene {
           const _fu = _gk < 1 ? _gk : it.fadeUnder && !_ct && !(this.ow && this.ow.deck) && this.botX > it.fadeUnder[0] && this.botX < it.fadeUnder[1] && this.botY > it.fadeUnder[2] && this.botY < it.fadeUnder[3] ? 0.3 : 1;   // (him under it: see-through)
           const q = fr.toWorld(it.a || 0, it.b);
           if(_dsp && displacedAt(this, q.x, q.y, 120)) return;   // (under a room that displaces it, inside its outline: not drawn at all -- the silos stood up over the hall's back wall)
+          if(_ovr && this.overRoomOnScreen(q.x, q.y, 300)) return;   // (the factory's own pieces standing over its hall on screen -- the fulfilment centre's roof over the charging pads -- off while he is in it: W26)
           /* (cut: the tiles under the tower go before the whole room; the podium's wings beside it sort by their own
              place -- after the street's cars and palms behind them -- but never past him: Sir, 2026-10-26, "the world
              drawing over the hospital") */
@@ -129033,7 +129053,7 @@ class WorldScene extends Phaser.Scene {
     { const _rp = this._inside; const _v = _rp && _rp.displace && POCKET_VIEW && POCKET_VIEW.pk === _rp ? POCKET_VIEW : null;
       if(_v){ /* (in whichever frame he is drawn in here: the room's own, off the map, or the street's -- POCKET_VIEW's shift) */
         const own = Math.abs(this.botX - (_rp.x0 + _rp.w/2)) < 5000, sx = own ? 0 : _v.dx, sy = own ? 0 : _v.dy;
-        const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : _rp.w > 2600 ? 0.8 : 0;   /* (a room far wider than the screen -- Cratewell Works' hall: the camera follows him along it) */
+        const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : _rp.w > 2600 || _rp.d > 1200 ? 0.8 : 0;   /* (a room far bigger than the screen -- Cratewell Works' hall: the camera follows him round it) */
         camTargetX = cx + (this.botX - cx)*f; camTargetY = cy + (this.botY - cy)*f;
         /* (on the middle of the room as the screen sees it -- its floor AND its walls: aimed at the floor alone, the back walls' tops went off
            the screen's top with room to spare at its foot) */
