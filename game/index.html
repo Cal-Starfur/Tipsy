@@ -16597,7 +16597,11 @@ function walkinAwayDoor(scene){
     if(dr){
       const SC = ent.sc || 1, o = L(0, 0), pa = L(1, 0), pb = L(0, 1), na = Math.hypot(pa.x - o.x, pa.y - o.y) || 1, nb = Math.hypot(pb.x - o.x, pb.y - o.y) || 1;
       const dv = { x: (pa.x - o.x)/na, y: (pa.y - o.y)/na }, rv = { x: (pb.x - o.x)/nb, y: (pb.y - o.y)/nb }, da = (dr.a0 + dr.a1)/2, q = L(da, 0);
-      out = { key: 'away|' + lib, lib, e: { dv, rv, ox: o.x, oy: o.y }, along: da*SC, x: q.x, y: q.y, ux: o.x, uy: o.y, flank: (dv.x + dv.y) > 0, labA: da, away: true };
+      /* (in: drawn from inside, the door stands on the wall's middle line, where its hole is cut through it -- on the outer face, 15 off it, the
+         leaves stood off the hole on screen, over the wall one side and the portico showing the other: Sir, 2026-11-19, "it doesnt fill the hole") */
+      const w = pk.doors && pk.doors[0] && pk.doors[0].world ? pk.doors[0].world() : null, sh = WALKIN_WALL/2;
+      out = { key: 'away|' + lib, lib, e: { dv, rv, ox: o.x, oy: o.y }, along: da*SC, x: q.x, y: q.y, ux: o.x, uy: o.y, flank: (dv.x + dv.y) > 0, labA: da, away: true,
+              inX: w ? w.ox*sh : 0, inY: w ? w.oy*sh : 0 };
     }
   }
   return (pk._awayDoor = out);
@@ -31175,7 +31179,7 @@ walkinLife(PG_IN.name, { keep: [[210, 330, 0, 760]], looks: [
      a 540..610             two loan desks, a chair before each
      a 440..640, b 400..520 the waiting room: a sofa, armchairs, a low table, palms */
 const PS_IN = { name: 'Palmline Savings Interior', x0: 760000, y0: 400000, WALL: 30/1.3, WW: PS_WW, DD: PS_DD, REC: 66, H: 480, LH: 66,
-  DOOR: [PS_WW/2 - 48.5, PS_WW/2 + 48.5], DOORZ: 240*1.95,
+  DOOR: [PS_WW/2 - 48.5, PS_WW/2 + 48.5], DOORZ: 240*1.95,   // (the opening as high as the door's leaves: they are its full 240, the top light in them)
   VAULT: { a1: 300, b0: 360, door: [410, 510], h: 92 } };   // (its door in its EAST wall, b 410..510, shut: it faces the camera)
 const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: PS_IN.x0, y0: PS_IN.y0,
   lab: [PS_IN.WALL, PS_IN.WW - PS_IN.WALL, -(PS_IN.DD - PS_IN.WALL), -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
@@ -111570,7 +111574,7 @@ class WorldScene extends Phaser.Scene {
          eased from the full door's head down to the front wall's height as the shell goes, and the full door not drawn over it) */
       if(_dp && _dp.walkin && _dk < 1){ const k0 = this.shopDoorSwing(d, t), ent = LIB.get(d.lib), zk = ((ent && ent.zs !== undefined) ? ent.zs : 1.5)*((ent && ent.sc) || 1), cutLo = (_dp.LH || 66)/zk;
         const _dr = LIB.doorNear(d.lib, d.labA), cutHi = ((_dr && _dr.dH) || 108) + 12, cutZ = cutLo + (cutHi - cutLo)*Math.max(0, Math.min(1, _dk));
-        const dv = d.e.dv, rv = d.e.rv, G0 = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
+        const dv = d.e.dv, rv = d.e.rv, ix = d.inX || 0, iy = d.inY || 0, G0 = (a, b, h) => this.W(d.ux + ix + dv.x*a + rv.x*b, d.uy + iy + dv.y*a + rv.y*b, h);
         /* (a door in a far wall -- one facing away, walkinAwayDoor: the bank's, in its full-height north wall -- is never cut: the whole door,
            as the wall it stands in is whole: Sir, 2026-11-19, "we dont need this door kit to be a half door ... its not on a cut away wall") */
         for(const L of this.shopDoorLeafKeys(d, k0)) blockVQ.push({ depth: L.depth - 0.01, fn: (g) => { LIB.setCut(d.away ? null : cutZ); if(L.pick != null) LIB.setLeafPick(L.pick);
