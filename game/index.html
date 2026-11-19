@@ -30209,16 +30209,20 @@ function walkinTakeShoppers(scene, R, now){
     if(hi < 1){ p._roomDone = true; continue; }                                  // (never walks in)
     const q = shopperAt(p, now);
     if(!q || q.i !== hi || !q.moving) continue;                                  // (on their way in through the door: from its step to inside)
+    /* (taken in within the doorway's width, clear of its jambs: a group's shoppers step aside of each other, and one taken at the jamb
+       walked into the wall and stood there -- the gate's clip, 2026-11-18) */
+    const w0 = walkinW2R(R, q.x, q.y), rx = w0[0] - D.P0[0], ry = w0[1] - D.P0[1];
+    const tt = Math.max(-(D.half - 26), Math.min(D.half - 26, rx*D.t[0] + ry*D.t[1])), nn = rx*D.n[0] + ry*D.n[1];
+    const at = [D.P0[0] + D.t[0]*tt + D.n[0]*nn, D.P0[1] + D.t[1]*tt + D.n[1]*nn];
+    /* (ONE AT A TIME THROUGH IT: a group walking up together was taken in on top of itself, and two starting closer than a body held each
+       other for good outside the shut door -- Marina Optical, 2026-11-18. The next of them is taken once the one before has made room) */
+    if(R.people.some(o => o._m && !o._gone && o._day !== 'out' && Math.hypot(o._m.a - at[0], o._m.b - at[1]) < WALKIN_GAP + 6)) continue;
     const s = want > 0 ? vis.find(o => !o.with && o._day === 'out' && !o._shop) : null;   // (any free customer of the room's: the street decides how busy it is)
     if(!s){ p._roomDone = true; continue; }                                      // (no room for them: in and out, as a shop without one)
     p._held = s; p._hx = q.x; p._hy = q.y;
-    s.visit = (s.visit || 0) + 1; s._shop = p; s._L = null;
+    s.visit = (s.visit || 0) + 1; s._shop = p; s._L = null; s._wear = null;
     s._shopLook = (scene._seekers || []).includes(p) ? crowdLook(p, 0x5c007, { adult: true, aid: 'none' }) : crowdLook(p, 0x5b0b, null);   // (as the street drew them: a seeker's look, or a shopper's)
-    /* (taken in within the doorway's width, clear of its jambs: a group's shoppers step aside of each other, and one taken at the jamb
-       walked into the wall and stood there -- the gate's clip, 2026-11-18) */
-    const m = s._m = walkinLifeInit(R, s, now), w0 = walkinW2R(R, q.x, q.y), rx = w0[0] - D.P0[0], ry = w0[1] - D.P0[1];
-    const tt = Math.max(-(D.half - 26), Math.min(D.half - 26, rx*D.t[0] + ry*D.t[1])), nn = Math.max(4, rx*D.n[0] + ry*D.n[1]);
-    const at = [D.P0[0] + D.t[0]*tt + D.n[0]*nn, D.P0[1] + D.t[1]*tt + D.n[1]*nn];
+    const m = s._m = walkinLifeInit(R, s, now);
     /* (in on the right of the doorway and on past it, clear of the way out -- one coming in and one going out met head on in it and stood:
        the gate's clip, 2026-11-18. Lanes as the room's own arrivals keep, walkinKeepRight) */
     const deep = [D.inner[0] - D.n[0]*50, D.inner[1] - D.n[1]*50], way = walkinKeepRight([at, D.inner, deep], WALKIN_DAY.lane).slice(1);
@@ -30242,16 +30246,19 @@ function walkinStreetStep(R, s){
 }
 /* out on the step: the street has them */
 function walkinToStreet(R, s, now){
-  const p = s._shop, sc = R.scene;
-  s._shop = null; s._shopLook = null;
-  if(p){ if(p._held === s) walkinShopRelease(p, now); return; }
+  const p = s._shop, sc = R.scene, w = s._wear;
+  /* (in what they wear out of the room -- s._wear, set by the room: Marina Optical's new glasses -- over the body the street draws) */
+  const dress = L => w ? Object.assign({}, L, { uniform: Object.assign({}, L.uniform || null, w) }) : L;
+  const L0 = dress(walkinStaffLook(s));
+  s._shop = null; s._shopLook = null; s._wear = null;
+  if(p){ if(p._held === s){ if(w) p.L0 = L0; walkinShopRelease(p, now); } return; }
   /* (one who was in before anyone saw: a new shopper, in their body, away along the pavement one way or the other) */
   const d = walkinFedDoor(R), g = sc && sc.route && sc.route.grid, blk = d && g && g.blockByIJ.get(d.blockKey);
   if(!blk || !sc._shoppers) return;
   const E = blockEdgesOf(blk), la = 130 + Math.random()*150, out = edgePt(d.e, d.along, 70), pave = edgePt(d.e, d.along, la);
   const away = paveRoute(E, d.edge, d.along, la, Math.random() < 0.5 ? -1 : 1, 4500, q => Math.hypot(q.x - d.x, q.y - d.y) > CROWD_WORLD.farR);
   sc._shoppers.push({ door: d, seed: s.seed >>> 0, t0: now, pts: [out, pave].concat(away.slice(1)), grp: null, gk: 0, vkey: null, car: null, depart: false,
-    L0: walkinStaffLook(s), _roomDone: true });
+    L0, _roomDone: true });
 }
 /* a visitor and whoever is with them (a pair comes and goes together) */
 function walkinParty(R, s){ const f = R.people.filter(q => q.with === s.id); return [s].concat(f); }
@@ -31308,7 +31315,8 @@ function moSeatFree(R, s, kind){
 function moBrowseNext(R, s, m, now, bot){
   if(s.look !== 'visitor') return false;
   const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
-  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  /* (out of the door: in what they wear -- the pair they paid for on, or none: WALKIN_STREET carries it onto the street, s._wear) */
+  const leave = () => { if(!m.paid) m.wear = false; s._wear = m.wear ? moWearOf(s, m) : null; s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
   const sit = kind => { const fr = moSeatFree(R, s, kind), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
     if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null;
       m.dwell = st.kind === 'exam' ? 28000 + rnd()*16000 : st.kind === 'fit' ? 20000 + rnd()*20000 : 9000 + rnd()*9000; return true; }
@@ -31320,9 +31328,10 @@ function moBrowseNext(R, s, m, now, bot){
   if(m.seat){ const k = m.seat.kind; m.unseat = { seat: m.seat, t: now }; m.seat = null;                         // (done: up)
     if(k === 'wait' && m.forTest && !m.tested && sit('exam')) return true;                                        // (called in for the test)
     if(k === 'exam') m.tested = true; if(k === 'fit') m.fitted = true; }
-  if(m.atTill){ m.atTill = false; m.paid = true; }
+  /* (paid: most wear them out of the shop -- sunglasses nearly always -- the rest have them put in a case) */
+  if(m.atTill){ m.atTill = false; m.paid = true; if(m.wear && rnd() > (m.sun ? 0.9 : 0.7)) m.wear = false; }
   if(m.paid) return leave();
-  if(m.look && MO_DISPLAYS.includes(m.look) && !m.path && !m.frames && !m.wear){ m.frames = true; m.n = (m.n || 0) + 1; }   // (from the display, in hand)
+  if(m.look && MO_DISPLAYS.includes(m.look) && !m.path && !m.frames && !m.wear){ m.frames = true; m.sun = m.look === 'spinner'; m.n = (m.n || 0) + 1; }   // (from the display, in hand)
   if(m.look === 'mirror' && !m.path && m.frames){ m.frames = false; m.wear = true; }                             // (tried on: worn)
   const r = rnd();
   /* (a test first, now and then: the waiting chairs, then Dev's chair -- before any frames) */
@@ -31348,7 +31357,7 @@ function moPose(s, m, now, P){
     else { P.lift = [0.28, 0.28]; P.bend = [1.1, 1.15]; }
     P.hold = H.tray; return;
   }
-  if(m.wear) P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length];
+  if(m.wear && (m.paid || s._day !== 'leaving')) P.wear = moWearOf(s, m);   // (not paid for and on their way: left on the display, not worn out)
   const sk = moSeatK(m, now);
   if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.3, 0.3]; P.bend = [1.1, 1.1]; P.headTurn = 0;
     if(sk.seat.kind === 'exam') P.headTilt = 0.05; if(m.frames) P.hold = H.frames; return; }
@@ -31359,21 +31368,25 @@ function moPose(s, m, now, P){
   if(m.look === 'mirror' && !m.path){
     /* (putting them on, once: both hands up to the face, then down -- and from then on worn) */
     if(since < 1500){ const k = Math.sin(Math.PI*since/1500); P.lift = [0.3 + 0.2*k, 0.3 + 0.2*k]; P.bend = [1.15 + 1.1*k, 1.15 + 1.1*k]; P.armsLate = k > 0.4; P.headTurn = 0; P.headTilt = 0;
-      if(since < 750){ if(k < 0.6) P.hold = H.frames; } else P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length]; return; }
-    P.wear = MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length]; P.lift = [0.08, 0.1]; P.bend = [0.2, 0.2]; P.headTurn = 0; return; }
+      if(since < 750){ if(k < 0.6) P.hold = H.frames; } else P.wear = moWearOf(s, m); return; }
+    P.wear = moWearOf(s, m); P.lift = [0.08, 0.1]; P.bend = [0.2, 0.2]; P.headTurn = 0; return; }
   if(m.look === 'desk'){ P.lift = [0.1, 0.1]; P.bend = [0.2, 0.2]; P.headTurn = 0; return; }                       // (paying: nothing up)
   if(m.frames){ P.lift = [0.1, 0.14]; P.bend = [0.2, 0.35]; P.hold = H.folded; }                                    // (the pair at their side)
   else if(m.look){ P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25]; }                                                   // (no arm pumping at a look)
 }
-/* the pair they wear once tried on: the hull's glasses, in the frame's colour (pose.wear, over their look's uniform) */
+/* the pair they wear once tried on: the hull's glasses, in the frame's colour (pose.wear, over their look's uniform); off the spinner,
+   sunglasses -- dark lenses */
 const MO_WEAR = MO_FRAME_COLS.map(c => ({ glasses: c }));
+const MO_SUN = [0x1e2024, 0x6a4024, 0x2f6f9b, 0xa8362b, 0xc9a24a].map(c => ({ glasses: c, lens: 0x2a3440 }));
+function moWearOf(s, m){ const k = (s.seed >>> 0) + (s.visit || 0)*3; return m && m.sun ? MO_SUN[k % MO_SUN.length] : MO_WEAR[k % MO_WEAR.length]; }
 function moDrawState(s, m, now, q){
   const sk = moSeatK(m, now);
   if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
   /* (tried on at the mirror and turned round to the room: wearing them, the face to the camera a moment) */
   if(m.look === 'mirror' && !m.path && m.arrive != null && now - m.arrive > 1700) q.th = m.th + Math.min(1, (now - m.arrive - 1700)/600)*(Math.PI/2 + 0.25 - m.th);
   if(m.moving){ const H = moHold(s);
-    if(s.look === 'visitor'){ if(m.frames || m.wear) q.pose = Object.assign({ lift: [0.12, 0.14], bend: [0.25, 0.35] }, m.frames ? { hold: H.folded } : null, m.wear ? { wear: MO_WEAR[((s.seed >>> 0) + (s.visit || 0)*3) % MO_WEAR.length] } : null); }
+    const wr = m.wear && (m.paid || s._day !== 'leaving');
+    if(s.look === 'visitor'){ if(m.frames || wr) q.pose = Object.assign({ lift: [0.12, 0.14], bend: [0.25, 0.35] }, m.frames && s._day !== 'leaving' ? { hold: H.folded } : null, wr ? { wear: moWearOf(s, m) } : null); }
     else if(s.id === 'dispenser') q.pose = { lift: [0.12, 0.28], bend: [0.25, 1.2], hold: H.tray }; }
 }
 walkinStaff(MO_IN.name, [
@@ -109494,7 +109507,7 @@ class WorldScene extends Phaser.Scene {
          not over the shut door: the gate, 2026-10-30, caught them popping out of one on a scooter trip) */
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
-        if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null);
+        if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null, false, L.uniform);   // (what they wear rides with them: glasses off a shop -- they went when they got on)
         else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
       });
     }
@@ -116756,8 +116769,9 @@ class WorldScene extends Phaser.Scene {
       if(uniform && uniform.glasses && faceB > 0){
         const gr = build.headR*1.01, ez = z0 + (z1 - z0)*0.42;
         this.quadOn(g, [G(-gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez + 4), G(gr*0.86, gr, ez - 1.5), G(-gr*0.86, gr, ez - 1.5)], uniform.glasses);
-        this.quadOn(g, [G(-gr*0.7, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez - 0.2), G(-gr*0.7, gr + 0.2, ez - 0.2)], 0x9fc4d4);
-        this.quadOn(g, [G(gr*0.12, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez - 0.2), G(gr*0.12, gr + 0.2, ez - 0.2)], 0x9fc4d4);
+        const ln = uniform.lens != null ? uniform.lens : 0x9fc4d4;   // (uniform.lens: dark for sunglasses)
+        this.quadOn(g, [G(-gr*0.7, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez + 2.6), G(-gr*0.12, gr + 0.2, ez - 0.2), G(-gr*0.7, gr + 0.2, ez - 0.2)], ln);
+        this.quadOn(g, [G(gr*0.12, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez + 2.6), G(gr*0.7, gr + 0.2, ez - 0.2), G(gr*0.12, gr + 0.2, ez - 0.2)], ln);
       }
 
       /* PEAKED CAP — crown box sitting on the same head, plus a peak on
