@@ -55,6 +55,10 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
   - leave **at least 52** between a shelf and the counter in front of it, so the staff can walk behind it.
 - Size things to what holds them (a jar narrower than its shelf is deep).
 - Draw parts of one object back to front in one piece (cushions behind a table, the table, cushions in front).
+- Inside a piece nothing is sorted for you (W37): paint only the faces the eye sees (tops, south +b, east +a -- never a west end or a north
+  face by hand; `box()` already does it right), and order the parts by depth: back legs, the shelf and what is on it, front legs, the top.
+- A `runPiece` fixture's `zTop` is its real top (the height its draw reaches), never a round number above it: a taller clip lets the next
+  run repaint the top over whatever stands on the run before it (W37).
 
 ## 7. The people
 - Staff are the shop's own people, with their own looks set by hand (`lookFn`) and their own dress, fitting the shop -- the tea house's
@@ -84,3 +88,5 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - A knock-down inside (W34): drive into a customer -- they are SEEN to fall, lie there and get up (not vanish and come back), then the
   keeper's meeting, both faces showing.
 - Its neighbours displaced (W31): nothing of a building it covers -- its door, its sign -- shows inside the room's outline.
+- Every fixture zoomed (W37): its west end clean against its front, its near legs in front of its shelf, everything standing on its runs
+  whole (no straight cut down a cake or a basket).
