@@ -58507,7 +58507,7 @@ function houseCanopy(fn){
         if(r >= RT0[i]) return { s: RSTOP[i], stop: i, r: r - RT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
     /* ---- ROW B'S SUPPLY (fx.crew): the runner from goods to person up to the line and along the south of it, a tote to each of row B's
        benches, and back; once every SUP, half a SUP after the tugger ---- */
-    const RBP = [[880, 1610], [880, 1300], [1790, 1300], [1791, 1300]], RBS = [0, 320, 620, 920, 1220], RBDW = [12000, 1400, 1400, 1400, 1400], RB0 = SUP/2;
+    const RBP = [[870, 1610], [870, 1300], [1790, 1300], [1791, 1300]], RBS = [0, 320, 620, 920, 1220], RBDW = [12000, 1400, 1400, 1400, 1400], RB0 = SUP/2;
     const RBV = 2*1220/(SUP - RBDW.reduce((q, d) => q + d, 0) - 600);
     const RBT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RBS.length; i++){ tt += (RBS[i] - s0)/RBV; RBT0.push(tt); tt += RBDW[i]; s0 = RBS[i]; } }
     for(const [j, p] of [5, 6, 7, 8].entries()) SUPT[p] = RB0 + RBT0[j + 1] + 700;
@@ -58534,43 +58534,53 @@ function houseCanopy(fn){
       /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
          pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
       const SH = AMR_SLOTS.amrshelf.map(q => q.def), TOP4 = [18, 20, 22, 14],   /* (the bins he can reach: the pod stands facing south, its east column his side -- the top row along it, then the one under the middle; Sir: "hes grabbing the back row of bins first") */
-         SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07;
+         SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07, RSL = [-36, -12, 12, 36];
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
         const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
-        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2300)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
-        out.push(bot(P0.a, P0.b, 0, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a + (i % 2 ? 22 : -22), P0.b + (i < 2 ? -16 : 16), 31, CPC(SH[TOP4[i]].pal)); } }));
+        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        /* (the runner faces south, its four bins in a row down its west side -- his side, each in his reach as he steps along it) */
+        out.push(bot(P0.a, P0.b, 1, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a - 13, P0.b + RSL[i], 31, CPC(SH[TOP4[i]].pal)); } }));
         for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
           const s0 = tau < 12000 ? 0 : tau < 16714 ? (tau - 12000)*PV : tau < 29286 ? 330 : tau < 32429 ? 330 + (tau - 29286)*PV : tau < 64286 ? 550 : tau < 69000 ? 550 + (tau - 64286)*PV : 0;
-          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 900)/3000) + 1)) : 0;
+          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 600)/3000) + 1)) : 0;
           out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), bins: CPAL, wheel: s0*0.12 })); }
         if(S.stop === 0){
-          /* THE PICK, MOVED BY THE BIN (Sir, 2026-11-19: "he never reaches up to the top, the animation is too stiff"): the bin's own path --
-             in its slot on the pod, pulled out to his chest, carried round as he turns, lowered into its place on the runner -- and his arms
-             pointed at its near face every frame (lift: the shoulder's swing from hanging, bend: the elbow, folding as it comes in close) */
-          const q = S.r % 3000, m = Math.floor(S.r/3000), PA = 790, PB = 1610, SHZ = 95, ARM = 40;
+          /* THE PICK, MOVED BY THE BIN (Sir, 2026-11-19: "he never reaches up to the top, the animation is too stiff"; "he is lazy placing the
+             bins, he needs to move around to get them placed"): at the pod he reaches up to its bin and pulls it out to his chest; he walks it
+             round to the runner, to the side of its slot, and sets it down in reach; then walks back for the next. The bin has its own path,
+             his arms point at its near face every frame (lift: the shoulder's swing from hanging, bend: the elbow, folding as it comes in) */
+          const q = S.r % 3000, m = Math.floor(S.r/3000), SHZ = 95, ARM = 40, PA0 = 752, PB0 = 1610, RA0 = 870 - 13;
           const slot = TOP4[Math.min(m, 3)], sq = AMR_SLOTS.amrshelf[slot], sa = 700 - sq.b, sb = 1610 + sq.a, sz = [34, 64, 94, 124][sq.lv] + 2.5;
-          const ra = 880 + (m % 2 ? 22 : -22), rbb = 1610 + (m < 2 ? -16 : 16), rz = 31;
-          const turn = q < 1400 ? 0 : q < 1750 ? ease((q - 1400)/350) : q < 2500 ? 1 : 1 - ease((q - 2500)/500), f = 2 - 2*turn;
-          const chest = ff => [PA + Math.cos(ff*Math.PI/2)*24, PB + Math.sin(ff*Math.PI/2)*24, 58];
+          const PB1 = 1610 + RSL[Math.min(m, 3)], PA1 = RA0 - 38;   /* (where he stands to set it down: beside its slot) */
+          /* where he is and which way he faces: at the pod (west), walking to the runner, setting it down (east), walking back */
+          let pa = PA0, pb = PB0, f = 2, walk = 0, gait = 0;
+          const leg = (k, a0, b0, a1, b1) => { pa = a0 + (a1 - a0)*k; pb = b0 + (b1 - b0)*k; f = Math.atan2(b1 - b0, a1 - a0)/(Math.PI/2); walk = k > 0 && k < 1 ? 1 : 0; gait = Math.hypot(pa - a0, pb - b0)/7; };
+          if(m >= 4){ pa = PA0; pb = PB0; f = 1; }
+          else if(q < 1000){ f = 2; }
+          else if(q < 1600) leg((q - 1000)/600, PA0, PB0, PA1, PB1);
+          else if(q < 2100){ pa = PA1; pb = PB1; f = 0; }
+          else if(q < 2900){ leg(clamp01((q - 2150)/700), PA1, PB1, PA0, PB0); if(q < 2150 || q >= 2850) f = q < 2150 ? 0 : 2; }
+          const chest = () => [pa + Math.cos(f*Math.PI/2)*24, pb + Math.sin(f*Math.PI/2)*24, 58];
           let bin = null;
-          if(m < 4 && q >= 900 && q < 2300){
-            if(q < 1400){ const k = ease((q - 900)/500), c0 = chest(2); bin = [sa + (c0[0] - sa)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
-            else if(q < 1750) bin = chest(f);
-            else { const k = ease((q - 1750)/550), c0 = chest(0); bin = [c0[0] + (ra - c0[0])*k, c0[1] + (rbb - c0[1])*k, c0[2] + (rz - c0[2])*k]; } }
+          if(m < 4 && q >= 600 && q < 2100){
+            if(q < 1000){ const k = ease((q - 600)/400), c0 = chest(); bin = [sa + (c0[0] - sa)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
+            else if(q < 1600) bin = chest();
+            else { const k = ease((q - 1600)/450), c0 = chest(); bin = [c0[0] + (RA0 - c0[0])*k, c0[1] + (PB1 - c0[1])*k, c0[2] + (31 - c0[2])*k]; } }
           /* where his hands go: the bin's near face while he reaches for it or holds it; hanging, eased, between */
-          const tgt = m >= 4 ? null : q < 900 ? [sa + 12, sb, sz + 10] : bin ? [bin[0] + (turn > 0.5 ? -12 : 12), bin[1], bin[2] + 10] : null;
-          const reachK = m >= 4 ? 0 : q < 900 ? ease(q/500) : q < 2300 ? 1 : 1 - ease((q - 2300)/400);
+          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2);
+          const tgt = m >= 4 ? null : q < 600 ? [sa + 12, sb, sz + 10] : bin ? [bin[0] - fa*12, bin[1] - fb*12, bin[2] + 10] : null;
+          const reachK = m >= 4 ? 0 : q < 600 ? ease(q/350) : q < 2100 ? 1 : 1 - ease((q - 2100)/300);
           let lift = 0.08, bend = 0.15;
-          if(tgt){ const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), fwd = Math.max(4, (tgt[0] - PA)*fa + (tgt[1] - PB)*fb), dz = tgt[2] - SHZ;
+          if(tgt){ const fwd = Math.max(4, (tgt[0] - pa)*fa + (tgt[1] - pb)*fb), dz = tgt[2] - SHZ;
             const th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz), L = Math.min(2, th/(Math.PI/2)), B = Math.max(0, Math.min(0.95, (ARM - d)/ARM*1.7));
             lift = 0.08 + (L - 0.08)*reachK; bend = 0.15 + (B - 0.15)*reachK; }
-          out.push(man(PA, PB, f, { lift: [lift, lift], bend: [bend, bend] }));
+          out.push(man(pa, pb, f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
           if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin; out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd: 1, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
-        else out.push(man(790, 1610, 1, {}));
+        else out.push(man(752, 1610, 1, {}));
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
-      T(877, 883, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1794, 1297, 1303, 0.35, '#5fb8e8');
+      T(867, 873, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1794, 1297, 1303, 0.35, '#5fb8e8');
     }
 
     /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
