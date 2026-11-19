@@ -57,6 +57,11 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - One per counter or station, posts on the working side of their station (W19), plus a server who moves and visitors who browse.
 - Check they all walk in at opening: nobody stuck at the door.
 
+## 7a. Customers are the street's (W35)
+- Nothing to write: the kit takes the street's shoppers in at its door (on foot, out of a car, off a scooter) and sends them back out as
+  street people. What they leave with is whatever your `pose` / `drawState` hooks draw on them as they go out (`wear`, `hold`): give a
+  paid customer their purchase there (a book at their side, the new glasses on), and nothing unpaid. The kit carries it onto the street.
+
 ## 7b. One knock-down and he is out (W34)
 - Every shop walk-in is listed in `WALKIN_SHOP_BAN` (by: its staff ids, who sees him out first; who and say: one short line, the
   mission-talk rule; story: when a story has the room) -- or carries its own on its pocket (`ban`, `banBy`, `banSay`). Its people can be knocked down as he reaches them (the 'walk-in staff' knock spec, reach 'seat');

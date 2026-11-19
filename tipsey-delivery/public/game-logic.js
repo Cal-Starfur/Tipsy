@@ -28508,19 +28508,24 @@ function walkinStreetStep(R, s){
 }
 /* out on the step: the street has them */
 function walkinToStreet(R, s, now){
-  const p = s._shop, sc = R.scene, w = s._wear;
+  /* WHAT THEY LEAVE WITH (W35, the kit's, for every room: Sir, 2026-11-18, "make it part of the kit so you dont have to run it for every
+     single shop"): whatever the room draws on them as they go out of its door -- pose.wear (worn: Marina Optical's new pair) and pose.hold
+     with the arms that hold it (in hand: a book bought at Driftwood Books) -- goes onto the street with them. A room gives its customers
+     their purchase through its own pose / drawState hooks; it has nothing to do at the door */
+  const q0 = walkinDrawState(s, now, null), P0 = (q0 && q0.pose) || {};
+  const p = s._shop, sc = R.scene, w = P0.wear || s._wear, carry = P0.hold ? { hold: P0.hold, lift: P0.lift, bend: P0.bend } : null;
   /* (in what they wear out of the room -- s._wear, set by the room: Marina Optical's new glasses -- over the body the street draws) */
   const dress = L => w ? Object.assign({}, L, { uniform: Object.assign({}, L.uniform || null, w) }) : L;
   const L0 = dress(walkinStaffLook(s));
   s._shop = null; s._shopLook = null; s._wear = null;
-  if(p){ if(p._held === s){ if(w) p.L0 = L0; walkinShopRelease(p, now); } return; }
+  if(p){ if(p._held === s){ if(w) p.L0 = L0; p.carry = carry; walkinShopRelease(p, now); } return; }
   /* (one who was in before anyone saw: a new shopper, in their body, away along the pavement one way or the other) */
   const d = walkinFedDoor(R), g = sc && sc.route && sc.route.grid, blk = d && g && g.blockByIJ.get(d.blockKey);
   if(!blk || !sc._shoppers) return;
   const E = blockEdgesOf(blk), la = 130 + Math.random()*150, out = edgePt(d.e, d.along, 70), pave = edgePt(d.e, d.along, la);
   const away = paveRoute(E, d.edge, d.along, la, Math.random() < 0.5 ? -1 : 1, 4500, q => Math.hypot(q.x - d.x, q.y - d.y) > CROWD_WORLD.farR);
   sc._shoppers.push({ door: d, seed: s.seed >>> 0, t0: now, pts: [out, pave].concat(away.slice(1)), grp: null, gk: 0, vkey: null, car: null, depart: false,
-    L0, _roomDone: true });
+    L0, carry, _roomDone: true });
 }
 /* a visitor and whoever is with them (a pair comes and goes together) */
 function walkinParty(R, s){ const f = R.people.filter(q => q.with === s.id); return [s].concat(f); }
@@ -29451,12 +29456,15 @@ function bkPose(s, m, now, P){
     const k = Math.sin(Math.PI*since/1700), low = m.look === 'bargain' || m.look === 'arrivals';
     P.lift = [0.12, (low ? 0.7 : 1.2)*Math.min(1, k*1.6)]; P.bend = [0.2, low ? 0.5 : 0.15]; return; }
   if(m.look && BK_SHELVES.includes(m.look)){ P.lift = [0.28, 0.28]; P.bend = [1.25, 1.25]; P.headTilt = 0.3; P.headTurn = 0; P.hold = H.open; return; }   // (stood reading it)
-  if(m.book){ P.lift = [0.1, 0.14]; P.bend = [0.2, 0.35]; P.hold = H.shut; }                                      // (the book at their side)
+  if(m.book && (m.paid || s._day !== 'leaving')){ P.lift = [0.1, 0.14]; P.bend = [0.2, 0.35]; P.hold = H.shut; }   // (the book at their side)
 }
 function bkDrawState(s, m, now, q){
   const sk = bkSeatK(m, now);
   if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
-  if(m.moving && (m.book || s.look !== 'visitor') && !(s.look !== 'visitor' && s.fixed)){ const H = bkHold(s);
+  /* (out of the door with it only if it is paid for -- read in a chair and not bought, it stays on the shelf; a bought one goes onto the
+     street with them, WALKIN_STREET) */
+  const bk = m.book && (m.paid || s._day !== 'leaving');
+  if(m.moving && (bk || s.look !== 'visitor') && !(s.look !== 'visitor' && s.fixed)){ const H = bkHold(s);
     q.pose = s.look === 'visitor' ? { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.shut } : { lift: [0.12, 0.28], bend: [0.25, 1.2], hold: H.stack }; }
 }
 walkinStaff(BK_IN.name, [
@@ -107951,7 +107959,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5b0b, sp.dog ? { adult: true, aid: 'dog' } : null);   // (by whether they have a dog, not whether it is on screen: the look must not change)
         this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, m.moving ? walkAt(m.x, m.y) : 0, m.moving,
-          0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, L.dress ? { dress: L.dress } : null);
+          0, dogOn ? DOG_PAIR.liftT : 0, leash, L.uniform, false, sp.carry ? Object.assign({ dress: L.dress }, sp.carry) : L.dress ? { dress: L.dress } : null);   // (sp.carry: what they came out of a shop's room holding -- WALKIN_STREET)
       });
     }
     /* (the stories' people matter to play: their ghost when hidden, PERSON_DRAW) */
@@ -108025,7 +108033,7 @@ class WorldScene extends Phaser.Scene {
       queuePerson(m.x, m.y, (g, tt) => {
         const L = crowdLook(sp, 0x5c007, { adult: true, aid: 'none' }), build = L.build, sk = L.skin, sh = L.shirt, pa = L.pants, ha = L.hair, so = L.shoe;
         if(m.ride) this.drawScooterRider(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, sp.brand, tt, 0, m.moving ? (tt*0.02) : null, false, L.uniform);   // (what they wear rides with them: glasses off a shop -- they went when they got on)
-        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null);
+        else this.drawPersonHull(layerFor(m.x, m.y), m.x, m.y, 0, m.th - Math.PI/2, build, sk, sh, pa, ha, so, m.moving ? walkAt(m.x, m.y) : 0, m.moving, 0, 0, null, L.uniform, false, sp.carry ? Object.assign({ dress: L.dress }, sp.carry) : L.dress ? { dress: L.dress } : null);   // (sp.carry: off a shop's room, in hand -- on the scooter it rides in their bag)
       });
     }
     this.queueMallCrowd(blockVQ, t);      // the mall's shoppers and cliques (MALL_CROWD), when he is in it
