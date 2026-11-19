@@ -110410,11 +110410,15 @@ class WorldScene extends Phaser.Scene {
       /* A WALK-IN'S DOOR FROM INSIDE IS A HALF DOOR (Sir, 2026-11-17: "i thought it would close and be a half door"): while the shell is off
          round him, its leaves stay -- cut to the room's front wall's height, as its walls are (LIB.setCut) -- swinging for whoever uses
          them and shut behind him; the full door fades over them as the shell does (below) */
-      if(_dp && _dp.walkin && _dk < 1){ const k0 = this.shopDoorSwing(d, t), ent = LIB.get(d.lib), zk = ((ent && ent.zs !== undefined) ? ent.zs : 1.5)*((ent && ent.sc) || 1), cutZ = (_dp.LH || 66)/zk;
+      /* (ONE DOOR WHILE THE SHELL FADES -- Sir, 2026-11-19, Lagoon Coffee Roasters: "im seeing the split half and the full door": he near its
+         door, the shell part-faded, the half door was drawn whole AND the full door over it at the shell's alpha. Now the one door, its cut
+         eased from the full door's head down to the front wall's height as the shell goes, and the full door not drawn over it) */
+      if(_dp && _dp.walkin && _dk < 1){ const k0 = this.shopDoorSwing(d, t), ent = LIB.get(d.lib), zk = ((ent && ent.zs !== undefined) ? ent.zs : 1.5)*((ent && ent.sc) || 1), cutLo = (_dp.LH || 66)/zk;
+        const _dr = LIB.doorNear(d.lib, d.labA), cutHi = ((_dr && _dr.dH) || 108) + 12, cutZ = cutLo + (cutHi - cutLo)*Math.max(0, Math.min(1, _dk));
         const dv = d.e.dv, rv = d.e.rv, G0 = (a, b, h) => this.W(d.ux + dv.x*a + rv.x*b, d.uy + dv.y*a + rv.y*b, h);
         for(const L of this.shopDoorLeafKeys(d, k0)) blockVQ.push({ depth: L.depth - 0.01, fn: (g) => { LIB.setCut(cutZ); if(L.pick != null) LIB.setLeafPick(L.pick);
           try { LIB.drawDoorOpen(d.lib, g, G0, this.K, d.flank, d.labA, k0, null); } finally { LIB.setCut(null); LIB.setLeafPick(null); } } }); }
-      if(_dk < 0.002) continue;
+      if(_dk < 0.002 || (_dp && _dp.walkin && _dk < 1)) continue;
       const k = this.shopDoorSwing(d, t), who = inDoor.get(d);
       /* (a walk-in's glazed pair is never in the cache: drawn here shut too -- W11, its opening a hole the room shows in) */
       const see = d._see != null ? d._see : (d._see = !!(_dp && (LIB.doorNear(d.lib, d.labA) || {}).see));
