@@ -60519,7 +60519,7 @@ function houseCanopy(fn){
         for(let z = 12; z < H; z += 12) F(-30, W + 30, z - 0.4, z + 0.4, washD, null, 0, 0.1);
         F(-30, W + 30, 0, 90, grey, null, 0, 0.2); F(-30, W + 30, 90, 96, yel, null, 0, 0.3);
         for(let a = 40; a < W - 60; a += 200){ F(a, a + 150, 150, 222, '#5a6068', null, 0, 0.4); for(let gx = 0; gx < 3; gx++) for(let gz = 0; gz < 2; gz++) F(a + 6 + gx*48, a + 48 + gx*48, 156 + gz*34, 186 + gz*34, '#a9c2cc', null, 0, 0.5); }
-        blockWordIn('ASSEMBLY', 1000, 1540, 104, 128, 0.6, dark, null, 3); F(2150, 2300, 180, 204, '#16181b', null, 0, 0.62); blockWordIn('RECEIVING', 2156, 2294, 184, 200, 0.7, yel, null, 2);
+        blockWordIn('ASSEMBLY', 1000, 1540, 104, 128, 0.6, dark, null, 3); F(2150, 2300, 180, 204, '#16181b', null, 0, 0.62); blockWordIn('RECEIVING', 2156, 2294, 184, 200, 0.7, yel, null, 2); F(1880, 2080, 182, 206, '#16181b', null, 0, 0.62); blockWordIn('PICK FACE', 1886, 2074, 186, 202, 0.7, yel, null, 2);
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wash, .94)); S(0.2, -30, D + 30, 0, 90, shade(grey, .9)); S(0.3, -30, D + 30, 90, 96, shade(yel, .9));
@@ -60630,24 +60630,22 @@ function houseCanopy(fn){
     T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
     T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
 
-    /* ---- KITTING: the parts racks along the north wall (bins in the runners' and the stations' colours) ---- */
-    runPiece(items, 420, 1830, 10, 96, 170, (s0, s1) => [solid(s0, s1, 10, 96, 170, 'parts rack')], () => {
-      for(let a = 420; a <= 1830; a += 130) box(a - 4, a + 4, 10, 96, 0, 170, blue, shade(blue, .85), shade(blue, .7));
-      for(const z of [10, 50, 90, 130]){ box(420, 1830, 12, 94, z, z + 4, '#6a7078', '#5a6068', '#4a5058');
-        for(let a = 428; a < 1822; a += 34){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a8088'][Math.floor(a/34 + z/40) % 5];
-          box(a, a + 30, 50, 92, z + 4, z + 30, col, shade(col, .85), shade(col, .7)); F(a + 6, a + 24, z + 18, z + 26, '#f2efe6', null, 0, 92.2); } }
-      box(420, 1830, 10, 96, 170, 174, '#6a7078', '#5a6068', '#4a5058');
-    }, { keyStart: true, pad: 3 });
-    /* ---- THE PICK FACE (a 1850..2110, on the north wall by Receiving): a flow rack -- its lanes sloping down to the aisle, the bins the rack
-       pickers load the tugger from at the front, the back loaded from Receiving (live bins in phase 3) ---- */
-    runPiece(items, 1850, 2110, 10, 110, 150, (s0, s1) => [solid(s0, s1, 10, 110, 150, 'pick face')], () => {
-      for(const a of [1852, 1980, 2108]) for(const b of [14, 106]) box(a - 3, a + 3, b - 3, b + 3, 0, 150, yel, roboD, '#a98225');
-      for(const [lv, z] of [[0, 18], [1, 62], [2, 106]]){ for(let a = 1856; a < 2104; a += 6){ const zz = (b) => z + (110 - b)*0.08; tube(a, 12, zz(12), a, 108, zz(108), 0.8, '#8d959c'); }
-        box(1850, 2110, 104, 110, z - 2, z + 2, yel, roboD, '#a98225'); box(1850, 2110, 10, 16, z + 6, z + 10, yel, roboD, '#a98225'); }
-      for(const [lv, z] of [[0, 18], [1, 62], [2, 106]]) for(let i = 0; i < 6; i++){ const a = 1874 + i*42; for(const b of [86, 58, 30]) BIN(a, b, z + (110 - b)*0.08 + 2, CPC(i + lv)); }   /* (full for now: phase 3 makes them run down and refill) */
-      box(1850, 2110, 10, 110, 150, 154, '#6a7078', '#5a6068', '#4a5058');
-      F(1880, 2080, 128, 144, dark, null, 0, 110.3); blockWordIn('PICK FACE', 1886, 2074, 131, 141, 110.4, yel, null, 2);
-    }, { keyStart: true, pad: 3 });
+    /* (the bins' one set of colours -- CPAL, below -- needed here first) */
+    const CPAL = [0x2e8bd8, 0xe0453a, 0x2aa86a, 0xf2c02e], CPC = i => '#' + CPAL[i % 4].toString(16).padStart(6, '0');
+    /* ---- THE PARTS STORE: no shelving -- the warehouse's own shelf pods, parked in a row along the north wall, each on its marked square
+       (Sir, 2026-11-19: "all the shelving in the warehouse needs to be warehouse bot shelves that are organized"); the two at its east end
+       (a 1910, 2030) are the pick face the rack pickers load the tugger from. Parked, so each is cached as a still piece (fx.pod) ---- */
+    const podSq = (a, b, alongB) => { const la = alongB ? 42 : 59, lb = alongB ? 59 : 42; T(a - la, a + la, b - lb, b + lb, 0.3, '#9ea2a4');
+      for(const [a0, a1, b0, b1] of [[a - la, a + la, b - lb, b - lb + 4], [a - la, a + la, b + lb - 4, b + lb], [a - la, a - la + 4, b - lb, b + lb], [a + la - 4, a + la, b - lb, b + lb]]) T(a0, a1, b0, b1, 0.5, '#5fb8e8');
+      T(a - 3, a + 3, b - 3, b + 3, 0.6, '#16181b'); };
+    const POD_FULL = AMR_SLOTS.amrshelf.map(q => q.def);
+    for(let i = 0; i < 12; i++){ const pa = 470 + i*120, pb = 60;
+      podSq(pa, pb, false);
+      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 55, pa + 55, pb - 38, pb + 38, 150, 'shelf pod')], draw: () => {}, fx: { pod: { kind: 'amr', a: pa, b: pb, fdir: 0, bSkin: BSK, build: 'amrshelf', loads: POD_FULL, bins: CPAL } } });
+    }
+    for(const pa of [1910, 2030]){ podSq(pa, 60, false);
+      items.push({ a: pa, b: 60, z: 0, solids: [solid(pa - 55, pa + 55, 22, 98, 150, 'pick face pod')], draw: () => {}, fx: { pod: { kind: 'amr', a: pa, b: 60, fdir: 0, bSkin: BSK, build: 'amrshelf', loads: POD_FULL, bins: CPAL } } }); }
+    T(1852, 2090, 104, 110, 0.5, yel); 
     /* ---- RECEIVING (a 2140..2310, b 20..360, by the roller door): where the parts come in -- the shipping jack's drop, the Receiver's floor
        (phase 2) ---- */
     T(2140, 2310, 20, 360, 0.25, '#b7bcbf');
@@ -60666,7 +60664,6 @@ function houseCanopy(fn){
       for(let i = 0; i < n; i++){ const d = -22 + i*14.5; box(alongB ? a - 7 : a + d - 5, alongB ? a + 7 : a + d + 5, alongB ? b + d - 5 : b - 7, alongB ? b + d + 5 : b + 7, z + 8, z + 18, '#3a3f46', '#2b2f35', '#22262b'); } };
     /* ONE SET OF BIN COLOURS for the racks, the pods, the carts, the runner and the benches (Sir: "the bins that appear are not the same colour as
        the ones he is grabbing"): a bin keeps its colour from the shelf to the bench (CPAL; the robots' own bins take it, m.bins) */
-    const CPAL = [0x2e8bd8, 0xe0453a, 0x2aa86a, 0xf2c02e], CPC = i => '#' + CPAL[i % 4].toString(16).padStart(6, '0');
     /* (drawn as the robots' own bins are, amrLoad: its body, a darker lid band on top, a white label with its dark dash on each face) */
     const BIN = (a, b, z, col) => { const dk = shade(col, .72), zc = z + 7;
       box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, col, shade(col, .85), shade(col, .7)); box(a - 12, a + 12, b - 11.5, b + 11.5, z + 17, z + 20, dk, shade(dk, .85), shade(dk, .7));
@@ -60909,13 +60906,11 @@ function houseCanopy(fn){
       CW_FLOW.receiving = q ? 'piece ' + (q.j + 1) + '/' + RCV.length : placed ? 'staged ' + placed : '-';
       return out; } } });
 
-    /* ---- THE WEST END: the high rack on the west wall ---- */
-    runPiece(items, 20, 110, 640, 1360, 200, (s0, s1) => [solid(20, 110, s0, s1, 200, 'high rack')], () => {
-      for(let b = 640; b <= 1360; b += 120) for(const a of [24, 106]) box(a - 4, a + 4, b - 4, b + 4, 0, 200, blue, shade(blue, .85), shade(blue, .7));
-      for(const [lv, z] of [10, 60, 110, 160].entries()){ box(20, 110, 640, 1360, z, z + 5, yel, roboD, '#a98225');
-        for(let b = 648; b < 1352; b += 44){ if((b + lv*44) % 132 === 72) continue; box(30, 100, b, b + 38, z + 5, z + 38, '#c98a4a', '#b97b40', '#a86e36'); F(46, 84, z + 14, z + 26, PAL[(b/44 + lv) % 5 | 0], null, 0, b + 38.2); } }
-    }, { alongB: true, keyStart: true, pad: 3 });
-    /* ---- THE ROBOTS' CHARGING PADS by the high rack (a 340..700, b 1084..1436): six pads, a charger post at each; the scissor lift parked
+    /* ---- THE WEST END: reserve stock in shelf pods parked along the west wall, facing south, each on its square (the high rack gone) ---- */
+    for(let i = 0; i < 6; i++){ const pb = 700 + i*120, pa = 62;
+      podSq(pa, pb, true);
+      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 38, pa + 38, pb - 55, pb + 55, 150, 'shelf pod')], draw: () => {}, fx: { pod: { kind: 'amr', a: pa, b: pb, fdir: 1, bSkin: BSK, build: 'amrshelf', loads: POD_FULL, bins: CPAL } } }); }
+    /* ---- THE ROBOTS' CHARGING PADS by the reserve pods (a 340..700, b 1084..1436): six pads, a charger post at each; the scissor lift parked
        on charge (a humanoid's way up a level, Sir), a spare robot on another ---- */
     for(let r = 0; r < 3; r++) for(let c = 0; c < 2; c++){ const pa = 440 + c*180, pb = 1140 + r*120;
       T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
@@ -106352,6 +106347,10 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: mx + my + (m.dd || 0) + zd, fn: (g, t) => this.drawRoomBot(g, m, mx, my, z0 || 0, t || T0, name, G, K) }); } }
       /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
          hatchback up on its lift. Never a car drawn anew in a room's own kit: Sir, 2026-11-17, "we want to use our own car art") */
+      /* (it.fx.pod: one of the game's own robots PARKED in a room -- { kind 'amr', a, b, fdir, build, loads, bins } as drawRoomBot takes it --
+         cached as a still piece: Cratewell's shelf pods along its walls) */
+      else if(it.fx && it.fx.pod){ const c = it.fx.pod, cx = x0 + c.a, cy = y0 + sb*c.b;
+        vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|pod|" + n, cx, cy, gg => this.drawRoomBot(gg, c, cx, cy, z0 || 0, 0, name, G, K)) }); }
       else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
         vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|car|" + n, cx, cy, gg => { const sv = this._paintIdx; this._paintIdx = null;
           try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, null, c.seed != null ? c.seed : null, null); } finally { this._paintIdx = sv; } }) }); }
