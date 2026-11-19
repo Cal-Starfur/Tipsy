@@ -60937,8 +60937,13 @@ function houseCanopy(fn){
        move: pick and place in its own frame, u through the move (gripped from u 0.17, let go at 0.78), the bin it carries; a pod slides a bin
        out to its face for the arm and back in after it */
     const ARMU0 = 0.17, ARMU1 = 0.78;
-    const HELDBIN = (col, empty) => (box, w, z) => { box(w[0] - 12, w[0] + 12, w[1] - 11.5, w[1] + 11.5, z - 20, empty ? z - 0.5 : z - 3, col);
-      if(empty) box(w[0] - 10, w[0] + 10, w[1] - 9.5, w[1] + 9.5, z - 0.6, z - 0.4, 0x23272d); else box(w[0] - 12, w[0] + 12, w[1] - 11.5, w[1] + 11.5, z - 3, z, _pdk(col, 0.72)); };   /* (goods to person's pods: the four bins picked (TOP4) and the four slots the empties go back into (R4), all on the side it is worked from) */
+    /* (in the arm's grip a bin is drawn as on the pods and the carts, amrLoad's: its body, the darker lid band, the white label with its dash on
+       each face that shows -- Sir: "they should have lids"; an empty one open) */
+    const HELDBIN = (col, empty) => (box, w, z, V) => { const z0 = z - 20, la = 12, lb = 11.5;
+      { box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z0, z - 3, col); box(w[0] - la, w[0] + la, w[1] - lb, w[1] + lb, z - 3, z, _pdk(col, 0.72)); }
+      if(!V) return;
+      for(const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ if(!V.sees(nx, ny, 0)) continue; const zc = z0 + 7, q = (u, zz) => nx ? V.P(w[0] + nx*(la + 0.2), w[1] + u, zz) : V.P(w[0] + u, w[1] + ny*(lb + 0.2), zz);
+        V.Q([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)], 0xf6f4ee); V.Q([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)], 0x2a2f36); } };   /* (goods to person's pods: the four bins picked (TOP4) and the four slots the empties go back into (R4), all on the side it is worked from) */
     const S5 = [7, 9, 11, 15, 13], PODX = 1910, PODY = 2030, PODB = 60, PODRA = 2190;   /* (the pick face's two pods, their homes; where the returns pod parks at Receiving; the five slots they work, on their south side) */
     /* a piece of the load, in the room's kit (rcvItemKit) or on the jack's forks in its own frame (rcvItemBot, la and lb swapped) -- drawn
        alike: the deck carton (cardboard, a blue label, its tape), a bin (the bins' own), the carton of flat boxes (strapped) */
@@ -61000,8 +61005,7 @@ function houseCanopy(fn){
     /* (drawn as the robots' own bins are, amrLoad: its body, a darker lid band on top, a white label with its dark dash on each face) */
     /* (empty: an open bin -- no lid, its inside dark -- coming back from a bench to be refilled, phase 3) */
     const BIN = (a, b, z, col, empty) => { const dk = shade(col, .72), zc = z + 7;
-      if(empty){ box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 20, col, shade(col, .85), shade(col, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 20.1, '#23272d'); }
-      else { box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, col, shade(col, .85), shade(col, .7)); box(a - 12, a + 12, b - 11.5, b + 11.5, z + 17, z + 20, dk, shade(dk, .85), shade(dk, .7)); }
+      {   /* (empty or full, a bin keeps its lid -- Sir, 2026-11-19: "they should have lids") */ box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, col, shade(col, .85), shade(col, .7)); box(a - 12, a + 12, b - 11.5, b + 11.5, z + 17, z + 20, dk, shade(dk, .85), shade(dk, .7)); }
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
       S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
     const SCOL = [];   /* (each bench's colour: the bin it is brought -- set with the supply below) */
@@ -61075,7 +61079,7 @@ function houseCanopy(fn){
     /* THE PICK FACE'S TWO PODS (phase 3): each cycle one is the full pod (the pickers load the tugger from it) and one the returns pod (they
        set the tugger's empties into it); the returns pod drives to Receiving, has its five bins refilled, and comes home full -- next cycle's
        full pod, while the emptied one stays as next cycle's returns pod. A bin keeps its colour all the way round (binPal) */
-    const TUGB = AMR_SLOTS.amrtug.map((q, i) => ({ k: 'bin', la: Math.min(12, q.la - 1), lb: Math.min(11.5, q.lb - 1), h: 16, pal: i % 4 })), binPal = m => TUGB[TUGLD[m]].pal;
+    const TUGB = AMR_SLOTS.amrtug.map((q, i) => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i % 4 })),   /* (the pods' own bin, the same size everywhere) */ binPal = m => TUGB[TUGLD[m]].pal;
     const podPath = h => [[h, PODB], [h, 140], [PODRA, 140], [PODRA, PODB], [PODRA, PODB + 1]];
     const podState = t => { const c = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - c*PALT, xFull = ((c % 2) + 2) % 2 === 0, out = [];
       for(const [h, isF] of [[PODX, xFull], [PODY, !xFull]]){ const loads = POD_FULL.slice(); let a = h, b = PODB;
@@ -61122,7 +61126,7 @@ function houseCanopy(fn){
         CW_FLOW.pods = PS.map(pd => (pd.isF ? 'full ' : 'returns ') + pd.loads.filter((L, i) => S5.includes(i) && L && !L.empty).length + '/' + pd.loads.filter((L, i) => S5.includes(i) && L && L.empty).length).join(', ');
         /* the pick face's arm robot, parked between the pods and the carts (facing east): its ten moves while the tugger is in */
         { const AA = 1930, AB = 140, fr = w => [w[0] - AA, w[1] - AB, w[2]];
-          const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 16]; };
+          const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
           const podW = (h, m) => { const sq = AMR_SLOTS.amrshelf[S5[m]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5 + 20]; };
           let arm = { pick: fr(cartW(TUGLD[0])), place: fr(podW(PODX, 0)), u: null };
           if(jr < 20000){ const J = Math.floor(jr/2000), m = J >> 1, u = (jr - J*2000)/2000, full = J % 2 === 1;
@@ -134001,8 +134005,7 @@ class WorldScene extends Phaser.Scene {
       return; }
     /* a bin */
     const col = BINS[(L.pal || 0) % 4];
-    if(L.empty){ mbox(-la, la, -lb, lb, z0, h1, col); if(sees(0, 0, 1)) top([[-la + 1.5, -lb + 1.5], [la - 1.5, -lb + 1.5], [la - 1.5, lb - 1.5], [-la + 1.5, lb - 1.5]], h1 + 0.05, 0x23272d); }   /* (an empty bin, open: phase 3's returns) */
-    else { mbox(-la, la, -lb, lb, z0, h1 - 3, col); mbox(-la, la, -lb, lb, h1 - 3, h1, _pdk(col, 0.72)); }
+    {   /* (empty or full, a bin keeps its lid) */ mbox(-la, la, -lb, lb, z0, h1 - 3, col); mbox(-la, la, -lb, lb, h1 - 3, h1, _pdk(col, 0.72)); }
     for(const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ if(!face(nx, ny)) continue;
       const q = (w, z) => { const m = nx ? M(nx*(la + 0.2), w) : M(w, ny*(lb + 0.2)); return P(m[0], m[1], z); }, zc = z0 + 7;
       g.fillStyle(0xf6f4ee, 1); g.fillPoints([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)].map(PT), true);
@@ -134289,7 +134292,7 @@ class WorldScene extends Phaser.Scene {
       const fingers = [-1, 1].map(sg => { const b0 = [wrp[0] + w[0]*sg*cGrip, wrp[1] + w[1]*sg*cGrip]; return { sg, b0, d: V.depth(b0[0], b0[1], cWz - 8) }; });
       add([wrp[0], wrp[1], cWz - 4.5], () => box(wrp[0] - 2.5, wrp[0] + 2.5, wrp[1] - 2.5, wrp[1] + 2.5, cWz - 5.5, cWz - 4, 0x3a3e46), 0.001);
       for(const fg of fingers) add([fg.b0[0], fg.b0[1], cWz - 8], () => rod([fg.b0[0], fg.b0[1], cWz - 4.5], [fg.b0[0], fg.b0[1], cWz - (CA ? 24 : 12)], 1.3, 1.1, STEEL), 0.003);
-      if(CA && cHeld && CA.held) add([wrp[0], wrp[1], cWz - 16], () => CA.held(box, wrp, cWz - 3), 0.002);
+      if(CA && cHeld && CA.held) add([wrp[0], wrp[1], cWz - 16], () => CA.held(box, wrp, cWz - 3, V), 0.002);
       else if(held && !CA) add([wrp[0], wrp[1], wz - 8], () => this.amrLoad(g, V, WL, wrp[0], wrp[1], wz - 3 - WL.h, [w[1], -w[0]], AS), 0.002);
       byDepth(items);
       return; }
