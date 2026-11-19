@@ -31854,12 +31854,14 @@ const FAC = (() => {
   const X0 = 13*Bk + IN, X1 = 15*Bk - IN, Y0 = 11*Bk + IN, Y1 = 13*Bk - IN, x = v => X0 + v, y = v => Y0 + v;
   return {
     cells, site: [X0, X1, Y0, Y1], X0, X1, Y0, Y1, FH: 110,
-    hall: { x0: x(260), x1: x(2620), y0: y(110), y1: y(860), wall: 240, rise: 74, teeth: 4,
-            doors: [[x(760), x(1060)], [x(1760), x(2060)]], pdoor: [x(1360), x(1430)] },
+    /* (the hall wholly in cell 13, so its one entry draws and fades it round him: its walk-in, FAC_HALL_IN, the scooter line inside. Its
+       first roller door stands open, up on its drum: the way in) */
+    hall: { x0: x(260), x1: x(2380), y0: y(110), y1: y(860), wall: 240, rise: 74, teeth: 4,
+            doors: [[x(760), x(1060)], [x(1660), x(1960)]], pdoor: [x(1300), x(1370)], open: 0 },
     stack: { x: x(130), y: y(300), r: 54, h: 660 },
     silos: [[x(2790), y(300)], [x(2960), y(300)]], SILO_R: 68, SILO_H: 400,
     shed: { x0: x(3160), x1: x(4660), y0: y(110), y1: y(720), wall: 252, docks: [x(3300), x(3640), x(3980), x(4320)], dockW: 200 },
-    walk: [x(260), x(2620), y(878), y(938)],
+    walk: [x(260), x(2380), y(878), y(938)],
     lane: [x(260), x(4540), y(1000), y(1820)], laneW: 70,
     racks: [[x(700), y(1400)], [x(880), y(1400)], [x(1060), y(1400)], [x(1240), y(1400)], [x(2900), y(1400)], [x(3080), y(1400)], [x(3260), y(1400)]],
     pallets: [[x(3380), y(840)], [x(3720), y(860)], [x(4400), y(840)], [x(1700), y(1420)], [x(1820), y(1420)], [x(3600), y(1420)]],
@@ -31876,6 +31878,15 @@ const FAC = (() => {
     gate: [x(1200), x(1700)], pgate: [x(2800), x(2900)], cgate: [x(3900), x(4250)]
   };
 })();
+/* CRATEWELL WORKS' HALL, A WALK-IN (the room: the LIB entry 'Cratewell Works Hall Interior' -- the scooter and e-bike line). The hall's
+   floor less the walls' 30 (W22), in cell 13's frame (lab a = x - 13*BLOCK, b = 11*BLOCK - y); its door the open roller door, 300 across, in
+   the yard face. Fully automated: no staff, and open round the clock (its place card, 'Factory') */
+const FAC_HALL_IN = (() => { const H = FAC.hall, ox = 13*BLOCK, oy = 11*BLOCK, d = H.doors[H.open];
+  return walkinDefine({ name: 'Cratewell Works Hall Interior', from: 'Cratewell Works', x0: 900000, y0: 400000,
+    lab: [H.x0 + 30 - ox, H.x1 - 30 - ox, oy - (H.y1 - 30), oy - (H.y0 + 30)], body: [[H.x0 - ox, H.x1 - ox, oy - H.y1, oy - H.y0]],
+    door: { a: (d[0] + d[1])/2 - ox, b: oy - H.y1, half: (d[1] - d[0])/2 }, H: H.wall, out: 36, apron: 30, glass: -14, LH: 66,
+    street: { to: [0, 260], routes: [[[-900, 260]], [[900, 260]]] },
+    openings: [{ lab: [[d[0] - ox, oy - H.y1], [d[1] - ox, oy - H.y1]], z: [0, 170] }] }); })();
 const AIR = (() => {
   const Bk = BLOCK, IN = 736;
   const ij = [[7,6, "Sun Deck Airfield"], [8,6, "Sun Deck Airfield Terminal"], [9,6, "Sun Deck Airfield Cargo"],
@@ -50663,7 +50674,9 @@ function houseCanopy(fn){
     const addR = (name, r, h) => { const q = [Math.max(r[0], R[0]), Math.min(r[1], R[1]), Math.max(r[2], R[2]), Math.min(r[3], R[3])];
       if(q[1] > q[0] && q[3] > q[2]) solids.push({ name, poly: rectLab(q), h }); };
     const addC = (name, x, y, r, h) => { if(mine(x, y)) solids.push({ name, c: [A(x), B(y)], r, h }); };
-    addR('factory hall', [HL.x0, HL.x1, HL.y0, HL.y1], HL.wall + HL.rise + 10);
+    /* (its open door's way in, through the wall's thickness and a body's depth -- the room takes him in the doorway, W32) */
+    { const od = HL.doors[HL.open]; addR('factory hall', [HL.x0, od[0], HL.y0, HL.y1], HL.wall + HL.rise + 10); addR('factory hall', [od[1], HL.x1, HL.y0, HL.y1], HL.wall + HL.rise + 10);
+      addR('factory hall', [od[0], od[1], HL.y0, HL.y1 - 140], HL.wall + HL.rise + 10); }   /* (140 deep: the warehouse robot, 55 to its nose, gets its middle past the door's plane) */
     addR('dispatch shed', [SH.x0, SH.x1, SH.y0, SH.y1], SH.wall + 20);
     addR('fulfilment centre', [FC.x0, FC.x1, FC.y0, FC.y1], FC.wall + 30);
     addC('chimney', C.stack.x, C.stack.y, C.stack.r, C.stack.h);
@@ -50674,6 +50687,7 @@ function houseCanopy(fn){
     for(const [la, lb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) addC('water tower leg', TW.x + la*TW.legs, TW.y + lb*TW.legs, 12, TW.z0);
     for(let x = CN.x0; x <= CN.x1 + 1; x += (CN.x1 - CN.x0)/5) for(const y of [CN.y0, CN.y1]) addC('canopy post', x, y, 10, CN.z);
     addR('guard booth', C.booth, 120);
+    for(let q = 0; q < 6; q++){ const cx = CN.x0 + (CN.x1 - CN.x0)*(q + 0.5)/6; addR('charger', [cx - 14, cx + 14, CN.y1 - 34, CN.y1 - 10], 70); }
     for(const [x, y] of C.cars) addR('car', [x - 105, x + 105, y - 52, y + 52], 90);
     /* the fence: the lot line, its gates open */
     const T6 = 7, gaps = [C.gate, C.pgate, C.cgate].sort((p, q) => p[0] - q[0]), fenceRuns = [[C.X0, C.Y0, C.X1, C.Y0, false], [C.X0, C.Y0, C.X0, C.Y1, false], [C.X1, C.Y0, C.X1, C.Y1, true]];
@@ -50685,6 +50699,7 @@ function houseCanopy(fn){
       tags: ['four cells', 'factory', 'sawtooth roof', 'chimney', 'silos', 'loading docks', 'fulfilment centre', 'truck yard', 'water tower', 'robot lane', 'charging canopy', 'warehouse robots'],
       desc: "Cratewell Works on four cells of the Warehouse District: a brick factory hall under a sawtooth roof, its chimney and silos, the dispatch shed, a fulfilment centre with six truck docks and its truck yard, a water tower, the robots' charging canopy and lane, racking and pallets, the staff parking, all inside a steel fence.",
       vol: { foot: [[0,0],[0,0],[0,0]], h: 700, solids, opens: [], marks: {} },
+      ...(k === 0 ? { see: true } : {}),   // (the hall's open door shows its room: FAC_HALL_IN, walkinThrough)
       draw(p){
         const conc = '#bdb8ad', concJ = '#aaa59a', asph = '#5a5d63', yel = '#e8b54a', paint = '#f2efe6', walkC = '#4f6f8a';
         const brick = '#9a4e3a', brickD = '#83412f', brickL = '#a95a44', trim = '#d9d2c3', dark = '#2b2f35', glass = '#3f5866', frame = '#5a6068';
@@ -50749,7 +50764,7 @@ function houseCanopy(fn){
           for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
             const tx0 = HL.x0 + c*tw, tx1 = tx0 + tw, ty0 = HL.y0 + r*th, ty1 = ty0 + th;
             if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
-            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+            items.push({ a: A(tx1), b: B(ty0), z: 0, shell: true, draw: () => {      // (shell: the hall's walk-in -- FAC_HALL_IN -- fades round him as he goes in)
               if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, W + HL.rise + 10)) return;
               for(let t2 = 0; t2 < HL.teeth; t2++){ const ya = HL.y0 + t2*tooth, yb = ya + tooth, y0 = Math.max(ya, ty0), y1 = Math.min(yb, ty1); if(y1 <= y0) continue;
                 const z0 = W + HL.rise*(1 - (y0 - ya)/tooth), z1 = W + HL.rise*(1 - (y1 - ya)/tooth);
@@ -50765,8 +50780,14 @@ function houseCanopy(fn){
                   if(HL.doors.some(([d0, d1]) => x + 200 > d0 && x < d1) || (x + 200 > HL.pdoor[0] && x < HL.pdoor[1])) continue;
                   fq(hS, A(x) + 20, A(x) + 255, 96, 176, frame, 0.4);
                   for(let gx = 0; gx < 4; gx++) for(let gz = 0; gz < 2; gz++) fq(hS, A(x) + 26 + gx*57.5, A(x) + 74 + gx*57.5, 101 + gz*38, 133 + gz*38, glass, 0.5); }
-                /* the roller doors, down (steel slats in a yellow frame) */
-                for(const [d0, d1] of HL.doors){ fq(hS, A(d0), A(d1), 0, 178, frame, 0.4);
+                /* the roller doors: the open one up on its drum, the room seen through it (a HOLE: W11); the other down (steel slats in a yellow frame) */
+                for(const [di, [d0, d1]] of HL.doors.entries()){
+                  if(di === HL.open){ const [u0, u1] = clip(hS, A(d0), A(d1));
+                    if(u1 > u0){ if(SEE) HOLE([P(u0, hS.at - 0.4, 170), P(u1, hS.at - 0.4, 170), P(u1, hS.at - 0.4, 0), P(u0, hS.at - 0.4, 0)]); else fq(hS, A(d0), A(d1), 0, 170, '#6b6f72', 0.4); }
+                    fq(hS, A(d0) - 10, A(d0), 0, 182, yel, 0.5); fq(hS, A(d1), A(d1) + 10, 0, 182, yel, 0.5);
+                    fq(hS, A(d0), A(d1), 170, 186, '#5a6068', 0.5); fq(hS, A(d0), A(d1), 172, 176, steel, 0.6); fq(hS, A(d0), A(d1), 180, 184, steel, 0.6);
+                    continue; }
+                  fq(hS, A(d0), A(d1), 0, 178, frame, 0.4);
                   fq(hS, A(d0) + 8, A(d1) - 8, 0, 170, steel, 0.5); for(let z = 12; z < 170; z += 12) fq(hS, A(d0) + 8, A(d1) - 8, z, z + 2, shade(steel, .82), 0.6);
                   fq(hS, A(d0) - 10, A(d0), 0, 182, yel, 0.5); fq(hS, A(d1), A(d1) + 10, 0, 182, yel, 0.5); fq(hS, A(d0), A(d1), 178, 186, yel, 0.5); }
                 fq(hS, A(HL.pdoor[0]), A(HL.pdoor[1]), 0, 110, blue, 0.4); fq(hS, A(HL.pdoor[0]) + 8, A(HL.pdoor[1]) - 8, 60, 100, light, 0.5);
@@ -57653,6 +57674,211 @@ function houseCanopy(fn){
       else pc(1560, 380, () => plantAt(1560, 380, false), sC([1560, 380], 14, 50, 'plant'));
       pc(1340, 380, () => plantAt(1340, 380, false), sC([1340, 380], 14, 50, 'plant'));
     }
+    depthSort(items);
+  }
+},
+{
+  /* ==================== INSIDE CRATEWELL WORKS' HALL: THE SCOOTER AND E-BIKE LINE (the walk-in kit, an hl landmark) ====================
+     Sir, 2026-11-19: "lets build the interiors ... this is going to be a fully automated manufacturing center"; it makes scooters and e-bikes.
+     The hall's floor less the walls' 30 (FAC_HALL_IN, a east, b south, world units: 2060 x 690), its door the open roller door in the yard face
+     at a 470..770 -- the lane from it to the back wall kept clear, a robot lane painted on it. No one works here: robots do. West to east:
+       a 20..430   b 10..80     tube stock racked on the north wall (cantilever arms, bundles of aluminium tube)
+                   b 140..280   the tube saw: a cutting cell, its blade guard, the cut lengths in a tray
+       a 820..1300 b 40..300    two welding cells in yellow mesh, a robot arm in each welding a frame on its jig (live: the arm, the sparks)
+       a 1360..2030 b 30..300   the paint booth, its window lit, frames hanging inside; an exhaust stack
+       a 830..2030 z 215        the overhead conveyor (b 330): frames on hooks riding east from the welders into the booth (live)
+       a 820..2040 b 440..500   the assembly line: a belt carrying scooters and e-bikes west, built up as they go (live), three robot arms at its
+                                stations on its north side (live)
+       a 40..420   b 400..520   the test rig: a scooter on rollers, its wheels spinning under a light arch (live)
+                   b 560..660   packing: flat boxes, a boxed stack on a pallet for the robots to take to the fulfilment centre */
+  name:'Cratewell Works Hall Interior', xh: 240, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 2060, dd: 690,
+  head:'Inside Cratewell Works: a fully automated scooter and e-bike line -- welding robots, a paint booth, an assembly belt',
+  tags:['interior','pocket','factory','automated','robots','welding','paint booth','assembly line','scooters','e-bikes','cratewell works'],
+  desc:'The factory hall: tube stock and a saw, two robot welding cells throwing sparks, an overhead conveyor carrying frames into the paint booth, an assembly belt where robot arms build scooters and e-bikes, and a test rig spinning their wheels before they are boxed.',
+  draw(p){
+    const pl = (typeof FAC_HALL_IN !== 'undefined' && FAC_HALL_IN) || null;
+    if(pl) pl.view();
+    const W = pl ? pl.W : 2060, D = pl ? pl.D : 690, H = pl ? pl.H : 240, AP = pl ? pl.apron : 30, LH = 66;
+    const door = (pl && pl.door) || { side: 's', at: 620, half: 150 };
+    const DA0 = door.at - door.half, DA1 = door.at + door.half;
+    const brick = '#9a4e3a', wash = '#dcd6ca', washD = '#c4bdb0', grey = '#5a6068', dark = '#2b2f35', yel = '#e8b54a', steel = '#c9ced2', steelD = '#a3a9ae', steelS = '#8d959c';
+    const blue = '#2e5f9e', robo = '#e8b54a', roboD = '#c99a38', glassC = 'rgba(150,190,206,.45)';
+    const PAL = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0', '#1d1f23'];
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'machine', poly: volRect(a0, a1, b0, b1), h });
+    /* a live piece: drawn each frame in the kit (fx.kit, after its item) */
+    const live = (a, b, sol, kit) => items.push({ a, b, z: 0, solids: sol, draw: () => {}, fx: { kit } });
+    /* a wheel standing up, its plane a-z (the line runs along a) */
+    const wheel = (a, b, z0, r, col, spin) => { const n = 14, o = [];
+      for(let i = 0; i < n; i++){ const q = i/n*Math.PI*2; o.push(P(a + Math.cos(q)*r, b, z0 + r + Math.sin(q)*r)); }
+      poly(o, '#1b1d21'); const hub = []; for(let i = 0; i < 10; i++){ const q = i/10*Math.PI*2; hub.push(P(a + Math.cos(q)*r*0.45, b + 0.3, z0 + r + Math.sin(q)*r*0.45)); } poly(hub, col || steelD);
+      if(spin != null) for(let k = 0; k < 3; k++){ const q = spin + k*Math.PI*2/3; tube(a, b + 0.4, z0 + r, a + Math.cos(q)*r*0.9, b + 0.4, z0 + r + Math.sin(q)*r*0.9, 0.6, steelS); } };
+    /* the products: a scooter or an e-bike, nose to -a (they ride west), built up by stage 0 (frame) .. 2 (complete) */
+    const scooter = (a, b, z, col, st, spin) => {
+      if(st >= 1){ wheel(a - 26, b, z, 8, null, spin); wheel(a + 26, b, z, 8, null, spin); }
+      box(a - 28, a + 28, b - 7, b + 7, z + 10, z + 15, col, shade(col, .85), shade(col, .7));
+      tube(a + 24, b, z + 12, a + 30, b, z + 16, 1.4, dark);
+      tube(a - 24, b, z + 14, a - 26, b, z + 66, 1.8, st >= 2 ? col : steelS);
+      if(st >= 2){ tube(a - 26, b - 15, z + 66, a - 26, b + 15, z + 66, 1.6, dark); for(const sb of [-1, 1]) tube(a - 26, b + sb*12, z + 66, a - 26, b + sb*15, z + 66, 2.2, '#16171b'); } };
+    const ebike = (a, b, z, col, st, spin) => {
+      if(st >= 1){ wheel(a - 32, b, z, 15, null, spin); wheel(a + 32, b, z, 15, null, spin); }
+      const R2 = [a + 32, b, z + 15], S2 = [a + 6, b, z + 56], BB = [a + 2, b, z + 20], HT = [a - 22, b, z + 58], FA = [a - 32, b, z + 15];
+      for(const [p0, p1] of [[R2, S2], [R2, BB], [BB, S2], [BB, HT], [S2, HT], [HT, FA]]) tube(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], 1.8, col);
+      if(st >= 2){ box(a - 14, a - 2, b - 4, b + 4, z + 28, z + 44, dark, '#23272d', '#1c1f23');   /* (its battery on the down tube) */
+        tube(a + 6, b, z + 56, a + 8, b, z + 64, 1.2, dark); box(a + 2, a + 16, b - 4, b + 4, z + 64, z + 67, dark, '#23272d', '#1c1f23');
+        tube(a - 22, b, z + 58, a - 24, b, z + 68, 1.2, dark); tube(a - 24, b - 14, z + 68, a - 24, b + 14, z + 68, 1.4, dark); } };
+    /* a robot arm on a pedestal, reaching toward +b (its work): base, two links, a tool; dip 0..1 lowers it */
+    const arm = (a, b, sw, dip, tool) => {
+      cyl(a, b, 0, 34, 20, '#3a3f46', '#2b2f35'); cyl(a, b, 34, 46, 16, robo, roboD);
+      const sh = [a, b, 54], el = [a + 14*Math.sin(sw), b + 24, 104 - 6*dip], wr = [a + 26*Math.sin(sw), b + 52 + 6*dip, 86 - 26*dip];
+      cyl(a, b, 46, 58, 9, roboD, robo);
+      tube(sh[0], sh[1], sh[2], el[0], el[1], el[2], 6, robo); ball(el[0], el[1], el[2], 6, roboD, robo);
+      tube(el[0], el[1], el[2], wr[0], wr[1], wr[2], 4.6, robo); ball(wr[0], wr[1], wr[2], 4.4, '#3a3f46', '#5a6068');
+      const tp = [wr[0], wr[1] + 4, wr[2] - 16]; tube(wr[0], wr[1], wr[2], tp[0], tp[1], tp[2], 2.2, tool || steelS); return tp; };
+
+    /* ---- THE FLOOR: sealed concrete in 120 squares, the robot lane from the door (yellow edges, white chevrons), the walkway lines round the
+       cells, a threshold at the door (W13) ---- */
+    T(0, W, 0, D, 0, '#a7abae');
+    for(let a = 120; a < W; a += 120) T(a - 0.6, a + 0.6, 0, D, 0.15, '#979b9e');
+    for(let b = 120; b < D; b += 120) T(0, W, b - 0.6, b + 0.6, 0.15, '#979b9e');
+    T(DA0 + 40, DA1 - 40, 0, D, 0.3, '#8f9599');
+    for(const a of [DA0 + 40, DA1 - 46]) T(a, a + 6, 0, D, 0.5, yel);
+    for(let b = 40; b < D - 20; b += 90){ const ac = door.at; T(ac - 22, ac + 22, b, b + 8, 0.6, '#f2efe6'); T(ac - 8, ac + 8, b - 10, b, 0.6, '#f2efe6'); }
+    T(DA1 - 40, 800, 330, 370, 0.3, '#8f9599'); T(20, DA0 + 40, 330, 370, 0.3, '#8f9599');   /* (the cross lane: to the line's end and to packing) */
+    for(const [a0, a1] of [[20, DA0 + 40], [DA1 - 40, 800]]){ T(a0, a1, 330, 336, 0.5, yel); T(a0, a1, 364, 370, 0.5, yel); }
+    for(const c0 of [820, 1080]){ T(c0 - 8, c0 + 228, 300, 306, 0.5, yel); }
+    T(DA0, DA1, D, D + AP, 0.3, '#8f8a80'); T(DA0, DA1, D - 3, D + 3, 0.7, yel);
+
+    /* ---- THE WALLS (the kit's): whitewashed brick over a grey dado, steel windows high on the north wall, the line's name; the south and east cut
+       low in the exterior's brick ---- */
+    walkinRoom(items, { W, D, H, LH, door,
+      paintN: () => {
+        F(-30, W + 30, 0, H, wash, null, 0, 0);
+        for(let z = 12; z < H; z += 12) F(-30, W + 30, z - 0.4, z + 0.4, washD, null, 0, 0.1);
+        F(-30, W + 30, 0, 90, grey, null, 0, 0.2); F(-30, W + 30, 90, 96, yel, null, 0, 0.3);
+        for(let a = 40; a < W - 60; a += 200){ F(a, a + 150, 150, 222, '#5a6068', null, 0, 0.4); for(let gx = 0; gx < 3; gx++) for(let gz = 0; gz < 2; gz++) F(a + 6 + gx*48, a + 48 + gx*48, 156 + gz*34, 186 + gz*34, '#a9c2cc', null, 0, 0.5); }
+        blockWordIn('LINE 1', 470, 770, 104, 130, 0.6, dark, null, 3);
+        blockWordIn('SCOOTERS + E-BIKES', 1360, 2030, 104, 128, 0.6, dark, null, 3);
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(wash, .94)); S(0.2, -30, D + 30, 0, 90, shade(grey, .9)); S(0.3, -30, D + 30, 90, 96, shade(yel, .9));
+        for(let b = 60; b < D - 80; b += 220){ S(0.4, b, b + 150, 150, 222, '#5a6068'); for(let gx = 0; gx < 3; gx++) S(0.5, b + 6 + gx*48, b + 48 + gx*48, 156, 216, '#9fb8c2'); }
+      },
+      low: ['#a95a44', '#9a4e3a', '#83412f'], cap: ['#d9d2c3', '#c9c2b3', '#b9b2a3'], ftop: '#b9aa96', frame: grey, glass: glassC });
+
+    /* ---- A: THE TUBE STOCK on the north wall (cantilever arms, three levels of aluminium tube) ---- */
+    runPiece(items, 20, 430, 8, 80, 150, (s0, s1) => [solid(s0, s1, 8, 80, 150, 'tube rack')], () => {
+      for(let a = 30; a <= 420; a += 130){ box(a - 6, a + 6, 8, 20, 0, 150, blue, shade(blue, .85), shade(blue, .7));
+        for(const z of [36, 82, 128]) box(a - 4, a + 4, 20, 78, z, z + 5, blue, shade(blue, .85), shade(blue, .7)); }
+      for(const z of [41, 87, 133]) for(let b = 26; b < 76; b += 7) tube(22, b, z + 3, 428, b, z + 3, 2.6, (b/7) % 2 ? steel : '#b5bcc2');
+    }, { keyStart: true, pad: 3 });
+    /* ---- the tube saw: its bed, the blade's guard, a cut length on it, the tray of lengths ---- */
+    items.push({ a: 270, b: 210, z: 0, solids: [solid(140, 400, 150, 270, 110, 'tube saw')], draw: () => {
+      box(140, 400, 160, 260, 0, 70, '#d6dadd', steelD, steelS);
+      box(146, 394, 166, 254, 70, 74, steelD, steelS, '#7d868b');
+      for(let a = 150; a < 390; a += 20) cyl(a, 210, 74, 78, 4, steelS);
+      tube(150, 210, 82, 380, 210, 82, 3, steel);
+      box(250, 300, 180, 240, 74, 140, '#e0782a', '#c4661f', '#a8561a');   /* (the blade's guard) */
+      F(256, 294, 92, 132, '#16181b', null, 0, 240.3); cyl(275, 240, 100, 104, 2, '#f2efe6');
+      box(320, 396, 268, 300, 0, 26, '#3a3f46', '#2b2f35', '#22262b');
+      for(let k = 0; k < 6; k++) tube(326, 272 + k*4.5, 28, 390, 272 + k*4.5, 28, 1.8, steel); }});
+
+    /* ---- B: THE WELDING CELLS: a floor plate, the jig with a frame on it, yellow mesh round three sides (the near side its own piece), the
+       arm (live) and its sparks ---- */
+    for(const [ci, c0] of [820, 1080].entries()){
+      const c1 = c0 + 220, ac = c0 + 110;
+      items.push({ a: ac, b: 200, z: 0, solids: [solid(c0, c1, 40, 300, 150, 'welding cell')], draw: () => {
+        T(c0, c1, 40, 300, 0.4, '#8a8f93');
+        box(ac - 60, ac + 60, 190, 232, 0, 66, '#3a3f46', '#2b2f35', '#22262b'); box(ac - 64, ac + 64, 186, 236, 66, 70, steelD, steelS, '#7d868b');
+        ebike(ac, 211, 70, steelD, 0);   /* (a bare frame on the jig) */
+        for(const a of [c0, c1]){ for(let b = 40; b <= 300; b += 65) tube(a, b, 0, a, b, 150, 2, yel);
+          S(a, 40, 300, 0, 150, 'rgba(232,181,74,.14)'); for(const z of [8, 75, 148]) tube(a, 40, z, a, 300, z, 1.2, yel); } }});
+      live(ac, 232, [], t => {   /* (the arm, welding: it works along the frame's joints, a shower of sparks while it is down) */
+        const ph = t/1300 + ci*1.7, sw = Math.sin(ph)*0.9, dip = (Math.sin(ph*2.3) + 1)/2;
+        const tp = arm(ac, 120, sw, dip, '#2b2f35');
+        if(dip > 0.45){ const k0 = Math.floor(t/70);
+          ball(tp[0], tp[1], tp[2] - 2, 4.5, '#fff6c0', '#ffffff');
+          for(let k = 0; k < 7; k++){ const r1 = ((k0*7 + k)*2654435761 >>> 0)/4294967296, r2 = ((k0*13 + k*5)*2246822519 >>> 0)/4294967296;
+            const q0 = P(tp[0], tp[1], tp[2] - 2), q1 = P(tp[0] + (r1 - 0.5)*36, tp[1] + (r2 - 0.5)*30, tp[2] - 2 - r1*20);
+            ctx.strokeStyle = k % 2 ? '#ffd27a' : '#fff1b0'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(q0.x, q0.y); ctx.lineTo(q1.x, q1.y); ctx.stroke(); } } });
+      items.push({ a: ac, b: 302, z: 0, solids: [], draw: () => {   /* (the near mesh, in front of the arm) */
+        for(let a = c0; a <= c1 + 1; a += 55) tube(a, 300, 0, a, 300, 150, 2, yel);
+        F(c0, c1, 0, 150, 'rgba(232,181,74,.16)', null, 0, 300.2); for(const z of [8, 75, 148]) tube(c0, 300, z, c1, 300, z, 1.2, yel);
+        F(ac - 50, ac + 50, 110, 132, '#16181b', null, 0, 300.4); blockWordIn('ROBOT CELL', ac - 46, ac + 46, 114, 128, 300.5, yel, null, 2); }});
+    }
+
+    /* ---- C: THE PAINT BOOTH: a long box of white panels, its window lit warm with frames hanging inside, the name, an exhaust stack ---- */
+    runPiece(items, 1360, 2030, 30, 300, 232, (s0, s1) => [solid(s0, s1, 30, 300, 232, 'paint booth')], () => {
+      box(1360, 2030, 30, 300, 0, 226, '#e3e6e8', '#cfd4d7', '#b9bfc4');
+      box(1356, 2034, 26, 304, 226, 232, '#c9ced2', '#b3b9be', '#9fa6ab');
+      for(let a = 1360; a <= 2030; a += 67) F(a - 1, a + 1, 0, 226, '#b9bfc4', null, 0, 300.2);
+      F(1400, 1990, 70, 170, '#3a3f46', null, 0, 300.3); F(1406, 1984, 76, 164, 'rgba(255,190,120,.55)', null, 0, 300.4);
+      for(let a = 1450; a < 1980; a += 110){ tube(a, 300.5, 164, a, 300.5, 150, 0.8, dark); ebike(a, 300.6, 92, PAL[Math.round(a/110) % 5], 0); }
+      F(1400, 1990, 70, 170, 'rgba(255,214,160,.18)', null, 0, 300.8);
+      F(1580, 1810, 182, 212, blue, null, 0, 300.4); blockWordIn('PAINT', 1600, 1790, 186, 208, 300.5, '#ffffff', null, 3);
+      cyl(1900, 150, 232, 240, 34, '#9fa6ab', '#7d868b');
+    }, { pad: 3 });
+
+    /* ---- D: THE OVERHEAD CONVEYOR (b 330, z 215): its rail on hangers to the roof; frames on hooks riding east from the welders into the booth,
+       bare steel going in (live, in stretches of 300, each its own piece) ---- */
+    { const A0 = 830, A1 = 2030, RZ = 215, BC = 330, SP = 120, V = 0.022;
+      for(let s0 = A0; s0 < A1; s0 += 300){ const s1 = Math.min(A1, s0 + 300);
+        live((s0 + s1)/2, BC + 2, [], t => {
+          tube(s0, BC, RZ, s1, BC, RZ, 3, '#3a3f46');
+          for(let a = s0 + 75; a < s1; a += 150) tube(a, BC, RZ, a, BC, H, 1.6, '#5a6068');
+          const off = (t*V) % SP;
+          for(let a = A0 + off; a < A1; a += SP){ if(a < s0 || a >= s1) continue;
+            tube(a, BC, RZ, a, BC, RZ - 50, 0.9, dark);
+            if(a < 1360) ebike(a, BC, RZ - 120, steelD, 0); } });
+      }
+    }
+
+    /* ---- E: THE ASSEMBLY LINE: the belt (a 820..2040, b 440..500) on legs, its rollers, side rails; products riding west, built up as they go
+       (live, in stretches of 300 keyed just in front of the belt); three robot arms at its stations on its north side (live) ---- */
+    { const A0 = 820, A1 = 2040, B0 = 440, B1 = 500, Z = 52, SP = 230, V = 0.03;
+      runPiece(items, A0, A1, B0, B1, Z + 8, (s0, s1) => [solid(s0, s1, B0, B1, Z + 8, 'assembly line')], () => {
+        for(let a = A0 + 30; a < A1; a += 120) for(const b of [B0 + 6, B1 - 6]) box(a - 4, a + 4, b - 4, b + 4, 0, Z - 6, '#3a3f46', '#2b2f35', '#22262b');
+        box(A0, A1, B0, B1, Z - 8, Z, '#2b2f35', '#23272d', '#1c1f23');
+        for(let a = A0 + 10; a < A1; a += 14) T(a - 1.5, a + 1.5, B0 + 4, B1 - 4, Z + 0.2, '#5a6068');
+        for(const sb of [B0, B1]) box(A0, A1, sb - 3, sb + 3, Z, Z + 8, yel, roboD, '#a98225');
+      }, { pad: 4 });
+      for(let s0 = A0; s0 < A1; s0 += 300){ const s1 = Math.min(A1, s0 + 300);
+        live((s0 + s1)/2, B1 + 1, [], t => {
+          const off = (t*V) % SP;
+          for(let k = 0, a = A1 - off; a > A0 + 10; a -= SP, k++){ if(a < s0 || a >= s1) continue;
+            const n = Math.floor((t*V + (A1 - a))/SP), col = PAL[n % 6], st = a > 1700 ? 0 : a > 1350 ? 1 : 2;
+            (n % 2 ? ebike : scooter)(a, (B0 + B1)/2, Z, col, st); } });
+      }
+      for(const [si, sa] of [1150, 1500, 1850].entries()){
+        live(sa, 400, [{ name: 'robot arm', c: [sa, 400], r: 22, h: 120 }], t => {
+          const ph = t/900 + si*2.1, dip = Math.max(0, Math.sin(ph))**2;
+          arm(sa, 392, Math.sin(ph*0.5)*0.4, dip, si === 1 ? '#3a3f46' : steelS); });
+      }
+    }
+
+    /* ---- F: THE TEST RIG: a scooter on rollers, its wheels spinning, under a lit arch (live) ---- */
+    items.push({ a: 230, b: 470, z: 0, solids: [solid(40, 420, 400, 520, 120, 'test rig')], draw: () => {
+      box(40, 420, 410, 510, 0, 20, '#8d959c', '#7d868b', '#6b7378'); T(60, 400, 430, 490, 20.2, '#6b7378');
+      for(const a of [190, 270]) for(const sb of [-1, 1]) cyl(a, 460 + sb*10, 20, 24, 8, '#3a3f46');
+      /* (the light arch: four posts and two beams -- a frame, not a slab) */
+      for(const a of [120, 340]) for(const b of [410, 510]) tube(a, b, 20, a, b, 132, 3.4, grey);
+      for(const b of [410, 510]) tube(120, b, 132, 340, b, 132, 3, grey); }});
+    live(230, 512, [], t => {
+      const spin = -t/90, lit = Math.floor(t/700) % 3 !== 0;
+      scooter(230, 460, 24, PAL[(Math.floor(t/6000)) % 6], 2, spin);
+      F(120, 340, 132, 136, lit ? '#7fe08a' : '#2b5a33', null, 0, 516.2);
+      if(lit){ ball(230, 516, 134, 6, '#c8ffd0', '#ffffff'); } });
+
+    /* ---- G: PACKING: a box erector (flat boxes in, a box out), a pallet of boxed scooters waiting for the robots ---- */
+    items.push({ a: 200, b: 620, z: 0, solids: [solid(40, 260, 560, 660, 90, 'box erector')], draw: () => {
+      box(40, 260, 570, 650, 0, 70, '#d6dadd', steelD, steelS); F(60, 140, 30, 60, '#16181b', null, 0, 650.3); F(64, 136, 34, 56, '#5fe8e0', null, 0, 650.4);
+      for(let k = 0; k < 6; k++) box(150, 250, 580, 640, 70 + k*3, 72 + k*3, '#c98a4a', '#b97b40', '#a86e36'); }});
+    items.push({ a: 360, b: 620, z: 0, solids: [solid(290, 430, 560, 670, 100, 'pallet of boxes')], draw: () => {
+      box(290, 430, 560, 670, 0, 10, '#b08a58', '#9a7848', '#8a6a40');
+      for(let lv = 0; lv < 3; lv++) for(const [a0, b0] of [[294, 564], [362, 564], [294, 617], [362, 617]]){ box(a0, a0 + 64, b0, b0 + 49, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
+        F(a0 + 14, a0 + 50, 18 + lv*28, 30 + lv*28, '#2e8bd8', null, 0, b0 + 49.2); } }});
+
     depthSort(items);
   }
 },
@@ -147009,6 +147235,7 @@ tpMapExplore();
    are dealt off a hash of its name, from TP_PLACE_COPY (per base type). */
 /* the write-up, tip and three reviews per base type (80 of them) */
 const TP_PLACE_COPY = {
+  "Factory": { price:"$$", hours:[0,24], blurb:"Cratewell Works: a fully automated factory building scooters and e-bikes round the clock, robots on every line.", tip:"Locals say the robots never stop, so the roller door is always up.", reviews:["Watched a frame go from bare tube to boxed e-bike without a single person touching it.","The welding sparks through the door at night are something.","Quiet for a factory. Just hums."] },
   "Comic shop": { price:"$", hours:[11,19], blurb:"Cosy comic shop with new issues every Wednesday, back-issue boxes and a soft spot for surf comics.", tip:"Regulars say ask them to hold your pull list so nothing sells out.", reviews:["They remembered my pull list after one visit. Proper comic shop.","Found three back issues I'd been hunting for years.","Small, crammed and perfect. The owner's recommendations are spot on."] },
   "Pizzeria": { price:"$$", hours:[11,23], blurb:"Wood-oven pizzeria turning out blistered margheritas and big slices to take down to the beach.", tip:"Locals say order the white pie and ask for it well done.", reviews:["Crust is charred in all the right places. Best slice in The Flats.","Took a whole pie to the beach and it was still hot.","Friendly, fast and the garlic knots are dangerous."] },
   "Dry cleaner": { price:"$$", hours:[7,19], blurb:"Same-day dry cleaner pressing shirts, suits and salt-stained beach linens.", tip:"Customers say drop off before nine for same-day pickup.", reviews:["Got a red wine stain out of a white shirt. Wizards.","Shirts come back crisp and on hangers every time.","Quick, careful and they fixed a loose button without asking."] },
