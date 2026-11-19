@@ -115788,7 +115788,7 @@ class WorldScene extends Phaser.Scene {
     const RAISED = 0.5;
     /* (pose.armOut / pose.legOut [far, near]: each arm swung out to the side from its shoulder, each leg from its hip -- LX) */
     const lxOn = (side, out, a0, h0) => { const v = out ? out[side === nearSide ? 1 : 0] : 0; if(!v) return; const th = side*v; LX.on = true; LX.a0 = a0; LX.h0 = h0; LX.c = Math.cos(th); LX.s = Math.sin(th); };
-    const arm = (side, isCarryArm) => { lxOn(side, pose && pose.armOut, side*(build.torsoW/2 - 1), shoulderZ); const r = armOf(side, isCarryArm); LX.on = false; if(r !== false) shoulderCap(side); };
+    const arm = (side, isCarryArm) => { lxOn(side, pose && pose.armOut, side*(build.torsoW/2 - 1), shoulderZ); const r = armOf(side, isCarryArm); LX.on = false; if(r !== false || RB) shoulderCap(side); };   /* (a robot keeps its shoulder joint with the arm raised -- it is a joint, not a sleeve's lid: Sir, 2026-11-19, "when he's reaching he is losing his shoulder pieces") */
     const armOf = (side, isCarryArm) => {
       const shoulderAx = side*(build.torsoW/2 - 1);
       /* A POSED ARM (pose.lift): swung from the shoulder, the elbow bent on,
