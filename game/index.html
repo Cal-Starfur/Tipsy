@@ -59803,7 +59803,7 @@ function houseCanopy(fn){
     /* ---- THE BAR: a dark oak counter with a teal tile front and a pale top, 116 clear behind it for Ana (W33); in runs shorter than it is
        deep (30 on 46), keyed down its middle line ---- */
     { const A0 = 600, A1 = 830, B0 = 140, B1 = 186;
-      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'bar')], () => {
+      runPiece(items, A0, A1, B0, B1, 93, (s0, s1) => [solid(s0, s1, B0, B1, 96, 'bar')], () => {
         box(A0, A1, B0, B1, 0, 88, oak, oak, oakS);
         F(A0, A1, 0, 8, oakS, null, 0, B1 + 0.2);
         F(A0 + 2, A1 - 2, 12, 80, teal, null, 0, B1 + 0.2);
@@ -59879,7 +59879,7 @@ function houseCanopy(fn){
 
     /* ---- THE CUPPING TABLE: a long oak table, a row of cups and their spoons, the kettle; in runs of 30 on 56, keyed down its middle ---- */
     { const A0 = 270, A1 = 390, B0 = 300, B1 = 356;
-      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'cupping table')], () => {
+      runPiece(items, A0, A1, B0, B1, 80, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'cupping table')], () => {
         for(const [la, lb] of [[276, 306], [384, 306], [276, 350], [384, 350]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 74, oakS, oakS, shade(oakS, 0.8));
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 64, 68, oak, oak, oakS);
         box(A0, A1, B0, B1, 74, 80, oakT, oak, oakS);
@@ -59913,7 +59913,7 @@ function houseCanopy(fn){
 
     /* ---- THE TABLES, each in runs (30 on 44, keyed at the middle line), two chairs, a cup on each ---- */
     const table = (ta, tb) => {
-      runPiece(items, ta - 22, ta + 22, tb - 22, tb + 22, 90, (s0, s1) => [solid(s0, s1, tb - 22, tb + 22, 76, 'table')], () => {
+      runPiece(items, ta - 22, ta + 22, tb - 22, tb + 22, 76, (s0, s1) => [solid(s0, s1, tb - 22, tb + 22, 76, 'table')], () => {
         cyl(ta, tb, 0, 3, 12, dark); tube(ta, tb, 3, ta, tb, 72, 2, dark); cyl(ta, tb, 72, 76, 22, oakT, '#c4946a'); }, { pad: 4, run: 30, extra: { b: tb } });
       items.push({ a: ta, b: tb, z: lcOnZ(ta - 22, ta + 22, 30, ta - 10, ta + 10, ta), fpLab: { a0: ta - 10, a1: ta + 10, b0: tb - 8, b1: tb + 8, z1: 86 }, solids: [], draw: () => {
         cyl(ta - 5, tb + 2, 76, 77, 5, '#f4f2ec'); cyl(ta - 5, tb + 2, 77, 84, 3.2, '#f4f2ec', '#5a3a22'); box(ta + 3, ta + 9, tb - 6, tb + 2, 76, 78, '#c48a5a', '#a87448', '#946038'); } });
@@ -59930,7 +59930,7 @@ function houseCanopy(fn){
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low oak platform, bags and a little sample roaster facing the street ---- */
     { const a0 = LC_IN.ra(LC_IN.WIN[0]) + 4, a1 = LC_IN.ra(LC_IN.WIN[1]) - 4;
-      runPiece(items, a0, a1, 662, 692, 50, (s0, s1) => [solid(s0, s1, 662, 692, 36, 'window display')], () => {
+      runPiece(items, a0, a1, 662, 692, 34, (s0, s1) => [solid(s0, s1, 662, 692, 36, 'window display')], () => {
         box(a0, a1, 662, 692, 0, 34, oak, oak, oakS); }, { pad: 4, run: 24, extra: { b: 677 } });
       for(let k = 0; k < 4; k++){ const ca = a0 + 14 + k*(a1 - a0 - 28)/3;
         items.push({ a: ca, b: 692.5, z: 30, fpLab: { a0: ca - 8, a1: ca + 8, b0: 670, b1: 686, z1: 60 }, solids: [], draw: () => {
@@ -60057,7 +60057,7 @@ function houseCanopy(fn){
 
     /* ---- THE BENCH: a long floured table, its legs, a shelf of bowls under; in runs of 30, keyed down its middle ---- */
     { const A0 = 30, A1 = 150, B0 = 220, B1 = 270;
-      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 86, 'bench')], () => {
+      runPiece(items, A0, A1, B0, B1, 86, (s0, s1) => [solid(s0, s1, B0, B1, 86, 'bench')], () => {
         for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 80, oakS, oakS, shade(oakS, 0.8));
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 22, 26, oak, oak, oakS);
         for(let i = 0; i < 4; i++) cyl(A0 + 20 + i*27, (B0 + B1)/2, 26, 36, 9, '#e8e4dc', '#f6f3ec');
@@ -60112,7 +60112,7 @@ function houseCanopy(fn){
     /* ---- THE PASTRY CASE: a coral-fronted counter, glass to the customers over three trays of pastries and cakes, a pale top; 108 clear behind
        it for Maggie and the bread wall's 28; in runs of 30 on 52, keyed down its middle line ---- */
     { const A0 = 330, A1 = 720, B0 = 240, B1 = 292, zC = 48, zT = 100;
-      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'pastry case')], () => {
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'pastry case')], () => {
         box(A0, A1, B0, B1, 0, zC, coral, coral, coralD);
         F(A0, A1, 0, 6, coralD, null, 0, B1 + 0.2);
         for(let a = A0 + 30; a < A1; a += 30) F(a - 0.5, a + 0.5, 8, zC - 4, coralD, null, 0, B1 + 0.2);
@@ -60136,7 +60136,7 @@ function houseCanopy(fn){
       on(362, [348, 376, 252, 280, 140], () => { cyl(362, 266, zT, zT + 3, 13, '#e8e2d4'); tube(362, 266, zT + 3, 362, 266, zT + 9, 1.6, steel); cyl(362, 266, zT + 9, zT + 11, 12, '#f4f2ec');
         const z = cake(362, 266, zT + 11, 1, 9, '#f6f0e2', '#e48aac'); ball(362, 266, z + 1, 1.8, '#c8323a'); });   // (shown bare on its stand: a glass dome over it read as a black cap)
       on(470, [456, 484, 254, 278, 118], () => basket(456, 484, 254, 278, zT, 2, 5, 0));
-      on(590, [582, 598, 258, 274, 124], () => { cyl(590, 266, zT, zT + 20, 7, 'rgba(220,232,236,.5)', 'rgba(230,240,244,.6)'); for(let k = 0; k < 4; k++) box(586, 594, 262, 270, zT + 2 + k*4, zT + 5 + k*4, '#d8b07a', '#c89a62', '#b08452'); cyl(590, 266, zT + 20, zT + 23, 7.4, oakT); });
+      on(590, [582, 598, 258, 274, 124], () => { cyl(590, 266, zT, zT + 20, 7, '#d8e6ea', '#eef4f6'); for(let k = 0; k < 4; k++) box(586, 594, 262, 270, zT + 2 + k*4, zT + 5 + k*4, '#d8b07a', '#c89a62', '#b08452'); cyl(590, 266, zT + 20, zT + 23, 7.4, oakT); });
       on(694, [682, 708, 248, 278, 126], () => { box(684, 704, 252, 270, zT, zT + 6, dark, dark, blk); box(688, 700, 258, 266, zT + 6, zT + 11, '#3a3634', dark, blk);
         box(684, 706, 248, 252, zT + 11, zT + 30, '#2a2826', '#1e1c1a', '#16140f'); F(686, 704, zT + 13, zT + 28, '#9fc4d4', null, 0, 247.9);
         box(700, 708, 272, 278, zT, zT + 4, blk, blk, blk); F(701, 707, zT + 2, zT + 3.5, '#9fd4b4', null, 0, 278.1); });
@@ -60144,7 +60144,7 @@ function houseCanopy(fn){
 
     /* ---- THE BREAD TABLE: an oak table for the customers, its baskets of loaves each their own piece; in runs of 30 on 46, keyed down its middle ---- */
     { const A0 = 300, A1 = 420, B0 = 460, B1 = 506, zT = 78;
-      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'bread table')], () => {
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'bread table')], () => {
         for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, zT - 4, oakS, oakS, shade(oakS, 0.8));
         box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 16, 20, oak, oak, oakS);
         box(A0, A1, B0, B1, zT - 5, zT, oakT, oak, oakS);
@@ -60165,7 +60165,7 @@ function houseCanopy(fn){
 
     /* ---- THE TABLES, each in runs (30 on 44, keyed at the middle line), two chairs, a plate and a cup on each ---- */
     const table = (ta, tb) => {
-      runPiece(items, ta - 22, ta + 22, tb - 22, tb + 22, 90, (s0, s1) => [solid(s0, s1, tb - 22, tb + 22, 76, 'table')], () => {
+      runPiece(items, ta - 22, ta + 22, tb - 22, tb + 22, 76, (s0, s1) => [solid(s0, s1, tb - 22, tb + 22, 76, 'table')], () => {
         cyl(ta, tb, 0, 3, 12, dark); tube(ta, tb, 3, ta, tb, 72, 2, dark); cyl(ta, tb, 72, 76, 22, '#f4efe4', '#fbf8f0'); cyl(ta, tb, 75.4, 76, 21, sky, '#f4efe4'); }, { pad: 4, run: 30, extra: { b: tb } });
       items.push({ a: ta, b: tb, z: lcOnZ(ta - 22, ta + 22, 30, ta - 10, ta + 10, ta), fpLab: { a0: ta - 10, a1: ta + 10, b0: tb - 8, b1: tb + 8, z1: 86 }, solids: [], draw: () => {
         cyl(ta - 5, tb + 2, 76, 77, 6, '#fbfaf6'); pastry(ta - 5, tb + 2, 77, (ta/40|0) % 4); cyl(ta + 7, tb - 3, 76, 83, 3.2, '#fbfaf6', '#5a3a22'); } });
@@ -60182,7 +60182,7 @@ function houseCanopy(fn){
 
     /* ---- THE WINDOW'S DISPLAY behind the shop window: a low oak platform, a tiered stand of cakes, loaves and a basket facing the street ---- */
     { const a0 = Math.max(4, SB_IN.ra(SB_IN.WIN[0])) + 4, a1 = SB_IN.ra(SB_IN.WIN[1]) - 4;
-      runPiece(items, a0, a1, 662, 692, 50, (s0, s1) => [solid(s0, s1, 662, 692, 36, 'window display')], () => {
+      runPiece(items, a0, a1, 662, 692, 34, (s0, s1) => [solid(s0, s1, 662, 692, 36, 'window display')], () => {
         box(a0, a1, 662, 692, 0, 34, oak, oak, oakS); F(a0, a1, 4, 30, coral, null, 0, 692.1); }, { pad: 4, run: 24, extra: { b: 677 } });
       for(let k = 0; k < 4; k++){ const ca = a0 + 14 + k*(a1 - a0 - 28)/3;
         items.push({ a: ca, b: 692.5, z: 30, fpLab: { a0: ca - 12, a1: ca + 12, b0: 666, b1: 688, z1: 90 }, solids: [], draw: () => {
