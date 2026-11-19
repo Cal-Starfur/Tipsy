@@ -6346,7 +6346,10 @@ function owDbgDraw(scene){
     return h.k + (h.n > 1 ? ' x' + h.n : '') +
            '  @' + h.x + ',' + h.y + '  ' + age + 's' + (h.kk ? '  ' + h.kk : '');
   });
-  el.textContent = [head, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
+  /* (inside Cratewell Works' hall: its buffers -- CW_FLOW) */
+  const cw = scene._inside && /^Cratewell/.test(scene._inside.name || '') && CW_FLOW.bench ? ['cratewell  t ' + ((CW_FLOW.t || 0)/1000).toFixed(1) + 's  benches ' + CW_FLOW.bench.slice(1).join(' ') +
+    '  decks ' + CW_FLOW.decks + '  tug ' + CW_FLOW.tug + '  runner ' + CW_FLOW.runner + '  pallet ' + CW_FLOW.pallet] : [];
+  el.textContent = [head, ...cw, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
 }
 
 /* ---------- FREEZE WATCHDOG (2026-08-27) ----------
@@ -8886,6 +8889,8 @@ const AMR_SLOTS = (() => {
   };
 })();
 const AMRL = { bots: {}, down: [], seq: 0, crew: null };
+/* CRATEWELL'S BUFFERS, as its crews last drew them (the debug panel's line: every level should come round the same each cycle) */
+let CW_FLOW = {};
 function amrLoadsOf(b){ if(AMRL.crew) return AMRL.crew; if(!AMRL.bots[b]) AMRL.bots[b] = AMR_SLOTS[b].map(q => q.def ? Object.assign({ id: ++AMRL.seq }, q.def) : null); return AMRL.bots[b]; }
 function amrBuildKey(){ if(fleetCur() === 'humanoid') return 'gideon'; const b = SKIN.build; return /^amr[a-z]+$/.test(b || '') && AMR_SLOTS[b] ? b : 'amrstock'; }
 function amrCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && (fleetCur() === 'amr' || (fleetCur() === 'humanoid' && !ow.scoot && !ow.climbing && !ow.emerging && !ow.getUp))); }
@@ -58771,7 +58776,7 @@ function houseCanopy(fn){
         for(let z = 12; z < H; z += 12) F(-30, W + 30, z - 0.4, z + 0.4, washD, null, 0, 0.1);
         F(-30, W + 30, 0, 90, grey, null, 0, 0.2); F(-30, W + 30, 90, 96, yel, null, 0, 0.3);
         for(let a = 40; a < W - 60; a += 200){ F(a, a + 150, 150, 222, '#5a6068', null, 0, 0.4); for(let gx = 0; gx < 3; gx++) for(let gz = 0; gz < 2; gz++) F(a + 6 + gx*48, a + 48 + gx*48, 156 + gz*34, 186 + gz*34, '#a9c2cc', null, 0, 0.5); }
-        blockWordIn('ASSEMBLY', 1100, 1640, 104, 128, 0.6, dark, null, 3);
+        blockWordIn('ASSEMBLY', 1000, 1540, 104, 128, 0.6, dark, null, 3); F(2150, 2300, 180, 204, '#16181b', null, 0, 0.62); blockWordIn('RECEIVING', 2156, 2294, 184, 200, 0.7, yel, null, 2);
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(wash, .94)); S(0.2, -30, D + 30, 0, 90, shade(grey, .9)); S(0.3, -30, D + 30, 90, 96, shade(yel, .9));
@@ -58831,7 +58836,7 @@ function houseCanopy(fn){
        mover's aisle ---- */
     const RA = 800, RB = 1200, SA = [2000, 1700, 1400, 1100, 800];
     const POS = [...SA.map(a => [a, RA]), ...SA.slice().reverse().map(a => [a, RB])];   /* (the loop: row A west, row B east; ten stops) */
-    const NPOS = POS.length, NCAR = NPOS, CYC = 9000, DWELL = 6200, STAGE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8];
+    const HALL_TS = 0.6, NPOS = POS.length, NCAR = NPOS, CYC = 9000, DWELL = 6200, STAGE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8];
     /* ONE PRODUCT (Sir, 2026-11-19: "the assembly line should be uniform and at the end it should be a finished product"): the Cratewell
        scooter, one colour, on every robot; and out of the end of the line, a box, a pallet, distribution -- all on the line's one clock */
     const PCOL = '#2e8bd8', BXC = '#c98a4a', BXL = 100, BXW = 30, BXH = 30;
@@ -58852,19 +58857,34 @@ function houseCanopy(fn){
     for(const [a0, a1, b0, b1] of [[720, 2225, 632, 640], [720, 2225, 1242, 1250], [720, 728, 632, 1250], [2217, 2225, 632, 1250]]) T(a0, a1, b0, b1, 0.5, yel);
     for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
         T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
-    { const RP = [[500, 200], [2180, 200], [2180, 590], [500, 590]];
+    { const RP = [[500, 200], [2100, 200], [2100, 590], [500, 590]];
       for(let i = 0; i < 4; i++){ const [a0, b0] = RP[i], [a1, b1] = RP[(i + 1) % 4]; T(Math.min(a0, a1) - 3, Math.max(a0, a1) + 3, Math.min(b0, b1) - 3, Math.max(b0, b1) + 3, 0.35, '#5fb8e8'); } }
     T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
     T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
 
     /* ---- KITTING: the parts racks along the north wall (bins in the runners' and the stations' colours) ---- */
-    runPiece(items, 420, 2240, 10, 96, 170, (s0, s1) => [solid(s0, s1, 10, 96, 170, 'parts rack')], () => {
-      for(let a = 420; a <= 2240; a += 130) box(a - 4, a + 4, 10, 96, 0, 170, blue, shade(blue, .85), shade(blue, .7));
-      for(const z of [10, 50, 90, 130]){ box(420, 2240, 12, 94, z, z + 4, '#6a7078', '#5a6068', '#4a5058');
-        for(let a = 428; a < 2232; a += 34){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a8088'][Math.floor(a/34 + z/40) % 5];
+    runPiece(items, 420, 1830, 10, 96, 170, (s0, s1) => [solid(s0, s1, 10, 96, 170, 'parts rack')], () => {
+      for(let a = 420; a <= 1830; a += 130) box(a - 4, a + 4, 10, 96, 0, 170, blue, shade(blue, .85), shade(blue, .7));
+      for(const z of [10, 50, 90, 130]){ box(420, 1830, 12, 94, z, z + 4, '#6a7078', '#5a6068', '#4a5058');
+        for(let a = 428; a < 1822; a += 34){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a8088'][Math.floor(a/34 + z/40) % 5];
           box(a, a + 30, 50, 92, z + 4, z + 30, col, shade(col, .85), shade(col, .7)); F(a + 6, a + 24, z + 18, z + 26, '#f2efe6', null, 0, 92.2); } }
-      box(420, 2240, 10, 96, 170, 174, '#6a7078', '#5a6068', '#4a5058');
+      box(420, 1830, 10, 96, 170, 174, '#6a7078', '#5a6068', '#4a5058');
     }, { keyStart: true, pad: 3 });
+    /* ---- THE PICK FACE (a 1850..2110, on the north wall by Receiving): a flow rack -- its lanes sloping down to the aisle, the bins the rack
+       pickers load the tugger from at the front, the back loaded from Receiving (live bins in phase 3) ---- */
+    runPiece(items, 1850, 2110, 10, 110, 150, (s0, s1) => [solid(s0, s1, 10, 110, 150, 'pick face')], () => {
+      for(const a of [1852, 1980, 2108]) for(const b of [14, 106]) box(a - 3, a + 3, b - 3, b + 3, 0, 150, yel, roboD, '#a98225');
+      for(const [lv, z] of [[0, 18], [1, 62], [2, 106]]){ for(let a = 1856; a < 2104; a += 6){ const zz = (b) => z + (110 - b)*0.08; tube(a, 12, zz(12), a, 108, zz(108), 0.8, '#8d959c'); }
+        box(1850, 2110, 104, 110, z - 2, z + 2, yel, roboD, '#a98225'); box(1850, 2110, 10, 16, z + 6, z + 10, yel, roboD, '#a98225'); }
+      for(const [lv, z] of [[0, 18], [1, 62], [2, 106]]) for(let i = 0; i < 6; i++){ const a = 1874 + i*42; for(const b of [86, 58, 30]) BIN(a, b, z + (110 - b)*0.08 + 2, CPC(i + lv)); }   /* (full for now: phase 3 makes them run down and refill) */
+      box(1850, 2110, 10, 110, 150, 154, '#6a7078', '#5a6068', '#4a5058');
+      F(1880, 2080, 128, 144, dark, null, 0, 110.3); blockWordIn('PICK FACE', 1886, 2074, 131, 141, 110.4, yel, null, 2);
+    }, { keyStart: true, pad: 3 });
+    /* ---- RECEIVING (a 2140..2310, b 20..360, by the roller door): where the parts come in -- the shipping jack's drop, the Receiver's floor
+       (phase 2) ---- */
+    T(2140, 2310, 20, 360, 0.25, '#b7bcbf');
+    for(const [a0, a1, b0, b1] of [[2140, 2310, 20, 28], [2140, 2310, 352, 360], [2140, 2148, 20, 360], [2302, 2310, 20, 360]]) T(a0, a1, b0, b1, 0.5, yel);
+    for(let b = 40; b < 350; b += 24) T(2150, 2300, b, b + 10, 0.3, '#c9cdd0');
 
     /* ---- THE SUPPLY CLOCK (Sir, 2026-11-19: "make them all real"): every bench holds a tote of four parts, one taken for each scooter; every
        four scooters (SUP) the tugger brings row A its totes and the frame rack its decks (the rack pickers load it), and the runner brings row B
@@ -58929,9 +58949,10 @@ function houseCanopy(fn){
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
           out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => prod(ha, hb, 44, PCOL, false, 0, 0) }); } }
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
-      for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU);
+      CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
+      for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
         out.push({ kind: 'cargo', a: ba, b: bb, dd: 2, cargo: () => partTote(ba, bb, 63, alB, n, SCOL[p]) }); }
-      { const n = partsLeft(t, SUPT[0], REACHU + 300), pa = POS[0][0], pb = RA - 155;
+      { const n = partsLeft(t, SUPT[0], REACHU + 300), pa = POS[0][0], pb = RA - 155; CW_FLOW.decks = n;
         out.push({ kind: 'cargo', a: pa, b: pb, dd: 1, cargo: () => { for(let i = 0; i < n; i++) prod(pa + (i % 2 ? 44 : -44), pb, i < 2 ? 24 : 68, PCOL, false, 0, 0); } }); }
       /* (the last one off, on the packing table: the finished scooter, folded, the box built up round it and closed -- till the conveyor robot
          takes it) */
@@ -58944,7 +58965,7 @@ function houseCanopy(fn){
 
     /* ---- ROW A'S SUPPLY (fx.crew): the tugger round the kitting loop -- loaded at the rack by the two pickers, a tote at a time, then along the
        line side dropping the frame rack's decks and a tote at each of row A's benches; once round every SUP ---- */
-    const RP = [[1300, 200], [2180, 200], [2180, 590], [500, 590], [500, 200]], RL = pathLen(RP), RSTOP = [0, ...[2000, 1700, 1400, 1100, 800].map(a => 880 + 390 + 2180 - a)];
+    const RP = [[2040, 200], [2100, 200], [2100, 590], [500, 590], [500, 200]], RL = pathLen(RP), RSTOP = [0, ...[2000, 1700, 1400, 1100, 800].map(a => 60 + 390 + 2100 - a)];   /* (its east side pulled in to a 2100 for Receiving; loaded at the pick face, a 1850..2110) */
     const RDW = [8000, 1400, 1400, 1400, 1400, 1400], RV = RL/(SUP - RDW.reduce((q, d) => q + d, 0)), TUGLD = [4, 2, 1, 0, 3];
     /* (its stops' start times, and the refills: the frame rack and stations 4, 3, 2, 1 -- SUPT[p]) */
     const RT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RSTOP.length; i++){ tt += (RSTOP[i] - s0)/RV; RT0.push(tt); tt += RDW[i]; s0 = RSTOP[i]; } }
@@ -58967,10 +58988,10 @@ function houseCanopy(fn){
         const out = [], S = tugAt(t), P0 = pathAt(RP, S.s);
         /* how many are on it: loaded one each 1400 at the rack, one off at each stop after */
         const k = S.stop === 0 ? Math.max(0, Math.min(5, Math.floor((S.r - 1650)/1400) + 1)) : 5 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
-        const loads = AMR_SLOTS.amrtug.map((q, i) => TUGLD.slice(0, k).includes(i) ? TUG[i] : null);
+        CW_FLOW.tug = k; const loads = AMR_SLOTS.amrtug.map((q, i) => TUGLD.slice(0, k).includes(i) ? TUG[i] : null);
         out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, bins: CPAL, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
         /* the rack pickers: at the tugger's carts while it is in, a tote off the rack and onto a cart, turn about */
-        for(const [j, pa] of [[0, 1120], [1, 1220]]){
+        for(const [j, pa] of [[0, 1880], [1, 1960]]){
           if(S.stop === 0 && S.r < 8000){ const q = ((S.r - j*1400) % 2800 + 2800) % 2800, f = q < 900 ? 3 : q < 1200 ? 3 - 2*ease((q - 900)/300) : q < 2100 ? 1 : 1 + 2*ease((q - 2100)/300);
             out.push(man(pa, 140, f, q < 900 ? REACH(t) : q < 2100 ? { lift: [0.45, 0.45], bend: [0.7, 0.7] } : {}));
             const m = Math.floor((S.r - 800)/1400);   /* (the m-th onto the carts: TUGLD[m], in its own colour) */
@@ -58984,7 +59005,7 @@ function houseCanopy(fn){
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
         const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
-        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done); CW_FLOW.runner = k;
         /* (the runner faces south, its four bins in a row down its west side -- his side, each in his reach as he steps along it) */
         out.push(bot(P0.a, P0.b, 1, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a - 13, P0.b + RSL[i], 31, CPC(SH[TOP4[i]].pal)); } }));
         for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
@@ -59088,7 +59109,7 @@ function houseCanopy(fn){
                      bot(AA, PB, 3, { build: 'amrarm', arm: { pick, place, u: ju, held: HELD } })];
         /* the pallet in the bay: full till the pallet jack lifts it, an empty one off the stack once it has gone, a box on it each CYC */
         const jr = (((t - PAL0) % PALT) + PALT) % PALT, n = jr < 1500 ? 6 : jr < 5000 ? -1 : jr < CYC ? 0 : Math.min(5, Math.floor((jr - CYC)/CYC) + 1);
-        if(n >= 0) out.push({ kind: 'cargo', a: PA, b: PB, cargo: () => palletKit(PA, PB, n) });
+        CW_FLOW.pallet = n; if(n >= 0) out.push({ kind: 'cargo', a: PA, b: PB, cargo: () => palletKit(PA, PB, n) });
         return out; } } });
       /* the stack of empty pallets beside the bay */
       items.push({ a: 1540, b: 1500, z: 0, solids: [solid(1509, 1571, 1463, 1537, 60, 'empty pallets')], draw: () => { for(let k = 0; k < 5; k++) box(1509, 1571, 1463, 1537, k*10.5, k*10.5 + 10, k % 2 ? '#b08a58' : '#a88252', '#9a7848', '#8a6a40'); }});
@@ -59104,6 +59125,9 @@ function houseCanopy(fn){
         for(let lv = 0; lv < lvls; lv++) for(const [a0, b0] of [[pa - 56, pb - 51], [pa + 2, pb - 51], [pa - 56, pb + 1], [pa + 2, pb + 1]]){ box(a0, a0 + 54, b0, b0 + 50, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
           F(a0 + 12, a0 + 42, 18 + lv*28, 30 + lv*28, PAL[(c + r + lv) % 5], null, 0, b0 + 50.2); } }});
     }
+    /* THE HALL'S PACE (Sir, 2026-11-19: "the pacing is too fast"): every crew here on the hall's own clock, 0.6 of the game's -- a scooter
+       off the line every 15 s, the benches' bins every minute, a pallet every 90 s -- all of it in step as before */
+    for(const it of items) if(it.fx && it.fx.crew) it.fx.ts = HALL_TS;
     depthSort(items);
   }
 },
@@ -104488,7 +104512,7 @@ class WorldScene extends Phaser.Scene {
          fdir, ... }] (drawRoomBot). Cratewell Works' hall: Sir, 2026-11-19, "use our humanoid robots for assembly and our warehouse bots to move
          them around from station to station") */
       else if(it.fx && it.fx.crew){ const T0 = this.time.now, M = 300*K;
-        for(const m of it.fx.crew(T0)){ const mx = x0 + m.a, my = y0 + sb*m.b, p = this.W(mx, my, 0);
+        for(const m of it.fx.crew(T0*(it.fx.ts || 1))){   /* (fx.ts: the room's own clock, slower or faster than the game's -- Cratewell's 0.6) */ const mx = x0 + m.a, my = y0 + sb*m.b, p = this.W(mx, my, 0);
           if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) continue;
           vq.push({ depth: mx + my + (m.dd || 0) + zd, fn: (g, t) => this.drawRoomBot(g, m, mx, my, z0 || 0, t || T0, name, G, K) }); } }
       /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
