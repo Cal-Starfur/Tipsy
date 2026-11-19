@@ -4998,7 +4998,24 @@ function zoomLoad(){
   zoomDepth = (n >= 1 && n <= 3) ? n : 1;
   return zoomDepth;
 }
-function zoomK(){ return ZOOM_K[zoomDepth - 1]; }
+function zoomK(){
+  /* A SHOP ROOM FILLS THE SCREEN (Sir, 2026-11-19: "go even bigger and optimize to get as much screen for the shop as possible" -- every
+     shop room): at view 2 inside a room that displaces its block (pk.displace), the scale is the room's own -- its floor and walls, as the
+     camera holds them (on their middle), fitted to the screen clear of the side rails -- not the street's 0.70; out of it, the street's again */
+  const k = ZOOM_K[zoomDepth - 1];
+  if(zoomDepth !== 2) return k;
+  const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, pk = s && s._inside;
+  return pk && pk.displace ? roomFitK(s, pk) || k : k;
+}
+const ROOM_FIT = { side: 14, top: 8, min: 0.42, max: 1.1 };   // (a hair clear of the screen's edges -- the room's corners may pass under the side rails; the least and most it scales)
+function roomFitK(s, pk){
+  const vw = s.vpW ? s.vpW() : s.scale.width, vh = s.vpH ? s.vpH() : s.scale.height;
+  if(!(vw > 0 && vh > 0) || !(pk.w > 0 && pk.d > 0)) return null;
+  const S = pk.w + pk.d + 2*WALKIN_WALL, H = pk.h || 300;           // (the room's outline on screen: W + D across, (W + D)/2 + its walls' height down)
+  if(pk.w > 2600 || pk.d > 1200) return null;                         // (a hall far bigger than any screen -- Cratewell's: the camera follows him round it)
+  const k = Math.min((vw - 2*ROOM_FIT.side)/S, (vh - 2*ROOM_FIT.top)/(S/2 + H));
+  return Math.max(ROOM_FIT.min, Math.min(ROOM_FIT.max, k));
+}
 
 /* ---------- ATTRACT MODE ----------
    One switch, so a bad splash is a one-line revert rather than an
@@ -14827,6 +14844,26 @@ function realPickupOf(grid, hoodIdx, name, quiet){
    to the street (rv) and along it (dv), and what LIB.drawDoorOpen needs to
    swing it -- the unit's origin, the flank and the door in the entry's
    unmirrored lab. Front edges only (a rear shop's door faces away). */
+/* A WALK-IN WHOSE DOOR FACES AWAY (a north or west front -- the bank's portico: Sir, 2026-11-19, "lets make a new door kit for the bank"): the
+   street never sees that door (shopDoorsOf skips those edges: the building's back stands between), but from inside it is the room's door,
+   the kit's half door. While he is in such a room (or its shell is fading round him), its door joins the shop doors, in their shape, built
+   from the building's own frame (landmarkLabWorld): the half door swings for whoever uses it, as a street-facing walk-in's does */
+function walkinAwayDoor(scene){
+  const pk = scene && scene._inside; if(!pk || !pk.walkin) return null;
+  const lib = [].concat(pk.from || pk.hides || [])[0], grid = scene.route && scene.route.grid; if(!lib || !grid) return null;
+  if(pk._awayDoor !== undefined) return pk._awayDoor;
+  let out = null;
+  const rec = LIB.doorOf(lib), L = landmarkLabWorld(lib), ent = LIB.get(lib);
+  if(rec && rec.length && L && ent && !shopDoorsOf(grid).some(d => d.lib === lib)){
+    const dr = rec.find(r => r.see && r.pair) || null;
+    if(dr){
+      const SC = ent.sc || 1, o = L(0, 0), pa = L(1, 0), pb = L(0, 1), na = Math.hypot(pa.x - o.x, pa.y - o.y) || 1, nb = Math.hypot(pb.x - o.x, pb.y - o.y) || 1;
+      const dv = { x: (pa.x - o.x)/na, y: (pa.y - o.y)/na }, rv = { x: (pb.x - o.x)/nb, y: (pb.y - o.y)/nb }, da = (dr.a0 + dr.a1)/2, q = L(da, 0);
+      out = { key: 'away|' + lib, lib, e: { dv, rv, ox: o.x, oy: o.y }, along: da*SC, x: q.x, y: q.y, ux: o.x, uy: o.y, flank: (dv.x + dv.y) > 0, labA: da, away: true };
+    }
+  }
+  return (pk._awayDoor = out);
+}
 function shopDoorsOf(grid){
   if(grid._shopDoors) return grid._shopDoors;
   const out = [];
@@ -29407,7 +29444,9 @@ const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: P
   door: { a: PS_IN.WW/2, b: -PS_IN.REC, half: (PS_IN.DOOR[1] - PS_IN.DOOR[0])/2*1.3, side: 'n', top: PS_IN.DOORZ },
   H: PS_IN.H, LH: PS_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out under the portico onto the north pavement, along it either way) */
-  street: { to: [0, -270], routes: [[[-1500, -270], [-3600, -270]], [[1500, -270], [3600, -270]]] } });
+  street: { to: [0, -270], routes: [[[-1500, -270], [-3600, -270]], [[1500, -270], [3600, -270]]] },
+  /* (seen through, W11: the doorway, the door kit's pair in it) */
+  openings: [{ lab: [[PS_IN.DOOR[0], -PS_IN.REC], [PS_IN.DOOR[1], -PS_IN.REC]], z: [0, 240] }] });
 POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books', 'Palmline Garage'];   // (W26: the tea house and the bookshop round the corner, the garage beside it, over its walls and floor on screen)
 /* (W31/W36: displaced -- the tea house's and the bookshop's rooms and their staff walking to work are not drawn over the hall) */
 POCKETS[POCKETS.length - 1].displace = true;
@@ -47516,7 +47555,7 @@ function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
 }
 /* A PANELLED LEAF'S FACE (shopDoor opts.panes): its stiles and rails in the trim, a raised panel low down, a glazed light of small panes over it
    (glazing bars three by two), a brass knob near the meeting stile -- in the leaf's own (u along it from its hinge, z) */
-const SHOP_DOOR_LOOKS = { six: {}, panel: { top: true }, lite: { top: true }, french: {} };
+const SHOP_DOOR_LOOKS = { six: {}, panel: { top: true }, lite: { top: true }, french: {}, bank: { top: true } };
 function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look){
   const dk = shade(trim, 0.62), lk = look || 'six';
   const panel = (u0, u1, za, zb) => { rect(u0, u1, za, zb, shade(trim, 1.14), 0.2); rect(u0 + 4, u1 - 4, za + 4, zb - 4, shade(trim, 0.92), 0.3); };
@@ -47538,6 +47577,15 @@ function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look){
     const zr = z0 + H*0.42; panel(9, len - 9, z0 + 10, zr - 7);
     rect(8, len - 8, zr, z1 - 8, glass, 0.2); glint(zr, z1 - 8);
     rect(knobU - 2.5, knobU + 2.5, z0 + H*0.38, z0 + H*0.38 + 5, '#c9a24a', 0.4); return; }
+  if(lk === 'bank'){                                                          // A BANK'S DOOR (Sir, 2026-11-19: "lets make a new door kit for the bank"):
+    /* a tall bronze leaf, one full-height light of plate glass over a bronze kick plate, a slim rail across it at the pull's height, and a long
+       brass pull bar up the meeting stile -- the top light of three panes over it (top: true), all in the leaf, swinging with it */
+    const zk = z0 + H*0.13; rect(7, len - 7, z0 + 6, zk, shade(trim, 1.12), 0.2); rect(10, len - 10, z0 + 9, zk - 3, shade(trim, 0.9), 0.3);   // the kick plate
+    rect(7, len - 7, zk + 3, z1 - 7, glass, 0.2);                                                                   // the plate glass
+    rect(7, len - 7, z0 + H*0.5 - 1.5, z0 + H*0.5 + 1.5, dk, 0.3);                                                // its rail
+    rect(10, len*0.42, z1 - 16, z1 - 12, 'rgba(255,255,255,.24)', 0.35); rect(10, len*0.28, z1 - 24, z1 - 21, 'rgba(255,255,255,.16)', 0.35);
+    rect(knobU - 2, knobU + 2, z0 + H*0.3, z0 + H*0.72, '#d8b866', 0.4); rect(knobU - 3.5, knobU + 3.5, z0 + H*0.3 - 2, z0 + H*0.3 + 2, '#b8963e', 0.45);
+    rect(knobU - 3.5, knobU + 3.5, z0 + H*0.72 - 2, z0 + H*0.72 + 2, '#b8963e', 0.45); return; }
   if(lk === 'french'){                                                        // two tall lights side by side over a low panel
     const zr = z0 + H*0.24, um = len/2; panel(9, len - 9, z0 + 8, zr - 6);
     rect(8, um - 3, zr, z1 - 8, glass, 0.2); rect(um + 3, len - 8, zr, z1 - 8, glass, 0.2);
@@ -67684,6 +67732,7 @@ function houseCanopy(fn){
 },
 {
   name:'Palmline Savings', xh: 460, base:'Bank', hood:'The Flats', edited:true, sc:1.3, tall:true, ww: PS_WW, dd: PS_DD,
+  see: true,   // (a walk-in: its doorway shows the hall, PS_IN -- W11)
   /* (BIGGER, Sir 2026-11-17: "the building isn't big enough to be what it needs to be ... we see a vault door but there is no room for a
      vault": across the alley to the garage, PS_WW, and back into the block, PS_DD -- the hall's tall block as it was, 276 deep, and a lower
      wing behind it, PS_WH, for the vault and the waiting room) */
@@ -67763,9 +67812,11 @@ function houseCanopy(fn){
     F(rA0, rA1, 0, rZ, shade(wall,.82), null, 0, -deep);            // back wall
     S(rA0, 0, -deep, 0, rZ, shade(wall,.66));                       // jamb
     T(rA0, rA1, 0, -deep, 0, shade(wall,.9));                       // portico floor
-    F(WW/2 - 48.5, WW/2 + 48.5, 0, 240, shade(wall,.56), null, 0, -deep+1); // the doorway
-    F(WW/2 - 42.5, WW/2 + 42.5, 10, 228, '#5a6f7a', null, 0, -deep+1.6);
-    F(WW/2 - 40.5, WW/2 - 18.5, 20, 218, 'rgba(250,244,225,.16)', null, 0, -deep+2);
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, the bank's own face, 'bank'): a pair of tall bronze leaves of plate glass, 97 across and the
+       doorway's full 240 high, set back on the portico's back wall (BOFF); a walk-in's (see), its opening a hole onto the hall, its leaves
+       live, swinging in -- and from inside, the same leaves cut to the north wall's height. It was painted on the wall: nothing opened */
+    { const b0 = BOFF; BOFF = b0 - (deep - 1);
+      try { shopDoor(WW/2, wall, '#6e5432', 'rgba(150,180,196,.55)', WW, 0, { w: 97, h: 240, pair: true, panes: 'rgba(160,190,204,.66)', look: 'bank' }); } finally { BOFF = b0; } }
     slab(WW/2 - 56.5, WW/2 + 56.5, 240, 254, -deep+2, -deep+10, shade(wall,.9));
     /* TWO WINDOWS, FLANKING. Four at a step of 106 put the middle pair
        on 140..196 and 246..302 against a doorway running 153.8..251 --
@@ -109202,6 +109253,7 @@ class WorldScene extends Phaser.Scene {
        drawn with the door, between its lit room and its swung leaf */
     this._sDoorsNear = (this.route && this.route.grid && this.route.grid._kerbCars)
       ? shopDoorsOf(this.route.grid).filter(d => Math.abs(d.x - this.botX) + Math.abs(d.y - this.botY) <= 3200) : [];
+    { const _ad = walkinAwayDoor(this); if(_ad) this._sDoorsNear = this._sDoorsNear.concat([_ad]); }
     this._doorWho = new Map();
     for(const blk of visBlocks){
       const cuts = (blk.type !== "park") ? this.route.cutEdges[blk.i + "," + blk.j] : null;
@@ -130715,6 +130767,8 @@ class WorldScene extends Phaser.Scene {
         /* (on the middle of the room as the screen sees it -- its floor AND its walls: aimed at the floor alone, the back walls' tops went off
            the screen's top with room to spare at its foot) */
         camTargetZ += ((_rp.h || 240)*0.5)*(1 - f); } }
+    /* (the room's own scale at view 2, fitted to the screen -- zoomK: taken up as he is taken in and given back as he comes out) */
+    { const _wk = zoomK(); if(Math.abs(this.K - _wk) > 1e-4) zoomApply(); }
     const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
     /* EASE PER MILLISECOND, NOT PER FRAME (Sir on-device, 2026-09-17:
        "everything moves while i move", screen recording). The recording
