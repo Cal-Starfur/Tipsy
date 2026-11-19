@@ -6263,6 +6263,23 @@ function showroomButton(scene){
   if(b.style.display !== '') b.style.display = '';
 }
 
+/* THE FACTORY BUTTON (Sir, 2026-11-19: Cratewell Works stands in the Warehouse District, still behind the hood lock): shown while the debug
+   switch is on, it lifts the hood lock for this session and stands him at the factory's truck gate, on the street, facing in */
+function factoryButton(scene){
+  let b = document.getElementById('facGo');
+  const want = !!OW_DBG && !!(scene && scene.ow && scene.ow.on) && !document.body.classList.contains('tpGarage');
+  if(!want){ if(b) b.style.display = 'none'; return; }
+  if(!b){
+    b = document.createElement('button');
+    b.id = 'facGo'; b.textContent = 'Factory';
+    b.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:100000;height:40px;padding:0 16px;border-radius:20px;border:0;' +
+      'background:rgba(20,22,26,.86);color:#ffb36b;font:700 14px system-ui,-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+    b.onclick = e => { e.stopPropagation(); HOOD_LOCK.active = false; owStandUpAt(scene, (FAC.gate[0] + FAC.gate[1])/2, FAC.Y1 + 220, -Math.PI/2); if(typeof owDbgToast === 'function') owDbgToast('Cratewell Works: the hood lock is off till reload'); };
+    document.body.appendChild(b);
+  }
+  if(b.style.display !== '') b.style.display = '';
+}
+
 /* Confirmation, so five taps that did nothing visible are not mistaken
    for five taps that failed. Self-removing, no state. */
 function owDbgToast(msg){
@@ -18524,6 +18541,9 @@ const HOOD_BLOCK_LANDMARKS = [
   [9,7, "Sun Deck Airfield Hangars"],
   [9,8, "Sun Deck Airfield South Apron"],
   [8,8, "Sun Deck Airfield Fuel Farm"],
+  /* Cratewell Works (see FAC): the Warehouse District's factory, one entry per cell */
+  [13,11, "Cratewell Works"],
+  [14,11, "Cratewell Works Dispatch"],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -31794,6 +31814,36 @@ const HOSP = (() => {
    and declares its share -- its region is the cell node to node, so the
    swallowed streets are shared out between the cells either side. The
    windsocks, the beacon and the radar are live (each entry's `live`). */
+/* ==================== CRATEWELL WORKS (Sir, 2026-11-19: "lets create a factory in a hood ... warehouse district 2 block site") ====================
+   A factory on the Warehouse District's two-cell park, 13,11 and 14,11 (one merged park: no street between them), where the warehouse
+   robots and Gideon will work. WORLD UNITS, as AIR: each cell's entry ('Cratewell Works', 'Cratewell Works Dispatch') draws and declares its
+   own share, its region the cell node to node. The site is the buildable ground of both and the street they swallowed: x 41400..46184,
+   y 35144..36800. On it, north to south: the factory hall (brick, a sawtooth roof, two roller doors and a personnel door on its yard face,
+   CRATEWELL WORKS along its parapet) with its chimney at its west end; two silos in the gap; the dispatch shed (steel cladding, four
+   loading docks); then the yard -- concrete, a yellow robot lane round it, a green walkway along the hall, outdoor racking, pallets, the
+   staff parking. A steel fence on the lot line: solid sheet on the two far sides, open palisade on the two near ones (the yard reads
+   through them), a truck gate and a people gate in the street face (the camera's side). The ground is concrete: no lawn (CLAUDE.md) */
+const FAC = (() => {
+  const Bk = BLOCK, IN = 736;
+  const ij = [[13, 11, "Cratewell Works"], [14, 11, "Cratewell Works Dispatch"]];
+  const cells = ij.map(([i, j, name]) => ({ i, j, name, region: [i*Bk, (i + 1)*Bk, j*Bk, (j + 1)*Bk] }));
+  const X0 = 13*Bk + IN, X1 = 15*Bk - IN, Y0 = 11*Bk + IN, Y1 = 12*Bk - IN;
+  return {
+    cells, site: [X0, X1, Y0, Y1], X0, X1, Y0, Y1, FH: 110,
+    hall: { x0: X0 + 260, x1: X0 + 2620, y0: Y0 + 110, y1: Y0 + 860, wall: 240, rise: 74, teeth: 4,
+            doors: [[X0 + 760, X0 + 1060], [X0 + 1760, X0 + 2060]], pdoor: [X0 + 1360, X0 + 1430] },
+    stack: { x: X0 + 130, y: Y0 + 300, r: 54, h: 660 },
+    silos: [[X0 + 2790, Y0 + 300], [X0 + 2960, Y0 + 300]], SILO_R: 68, SILO_H: 400,
+    shed: { x0: X0 + 3160, x1: X0 + 4660, y0: Y0 + 110, y1: Y0 + 720, wall: 252, docks: [X0 + 3300, X0 + 3640, X0 + 3980, X0 + 4320], dockW: 200 },
+    gate: [X0 + 2780, X0 + 3180], pgate: [X0 + 560, X0 + 660],
+    lane: [X0 + 260, X0 + 4540, Y0 + 980, Y0 + 1370], laneW: 70,
+    walk: [X0 + 260, X0 + 2620, Y0 + 878, Y0 + 938],
+    racks: [[X0 + 300, Y0 + 1540], [X0 + 480, Y0 + 1540], [X0 + 660, Y0 + 1540], [X0 + 840, Y0 + 1540]],
+    pallets: [[X0 + 3380, Y0 + 840], [X0 + 3720, Y0 + 860], [X0 + 4400, Y0 + 840], [X0 + 2300, Y0 + 1520], [X0 + 2420, Y0 + 1520]],
+    park: { x0: X0 + 3560, x1: X0 + 4700, y0: Y0 + 1396, y1: Y0 + 1636, n: 6 },   /* (the cars 210 long, inside the fence at Y1: Sir's screenshot rule, nothing poking past) */
+    cars: [[X0 + 3655, Y0 + 1512, 0], [X0 + 4035, Y0 + 1512, 1], [X0 + 4415, Y0 + 1512, 2]]
+  };
+})();
 const AIR = (() => {
   const Bk = BLOCK, IN = 736;
   const ij = [[7,6, "Sun Deck Airfield"], [8,6, "Sun Deck Airfield Terminal"], [9,6, "Sun Deck Airfield Cargo"],
@@ -50558,6 +50608,237 @@ function houseCanopy(fn){
             for(let z = 30; z < 160; z += 40) tube(a, b, z, a, b, z + 18, 3.6, '#c2452e');
           }});
         }
+        depthSort(items);
+        kerb(p,'none');
+      }
+    };
+  }
+  /* ==================== CRATEWELL WORKS' ENTRIES (see FAC) ====================
+     facEntry(k) is the entry for FAC.cells[k], in that cell's north-west frame (lab a = x - i*BLOCK, b = j*BLOCK - y), drawing and
+     declaring only its own region, as airEntry does: the ground clipped to it and to the site; the hall and the shed grids of near-square
+     tiles keyed at their north-east corners, so he sorts right against every face; the fence in runs of 130, each a piece of its own;
+     the chimney, the silos, the racks, the pallets and the cars pieces of their own. All still: cached (bcDraw, through queueParkBlock) */
+  function facEntry(k){
+    const C = FAC, cell = C.cells[k], ox = cell.i*BLOCK, oy = cell.j*BLOCK, R = cell.region;
+    const A = x => x - ox, B = y => oy - y;
+    const mine = (x, y) => x >= R[0] && x < R[1] && y >= R[2] && y < R[3];
+    const rectLab = r => volRect(A(r[0]), A(r[1]), B(r[3]), B(r[2]));
+    const HL = C.hall, SH = C.shed;
+    /* ---- the solids, each by its share in this cell ---- */
+    const solids = [];
+    const addR = (name, r, h) => { const q = [Math.max(r[0], R[0]), Math.min(r[1], R[1]), Math.max(r[2], R[2]), Math.min(r[3], R[3])];
+      if(q[1] > q[0] && q[3] > q[2]) solids.push({ name, poly: rectLab(q), h }); };
+    const addC = (name, x, y, r, h) => { if(mine(x, y)) solids.push({ name, c: [A(x), B(y)], r, h }); };
+    addR('factory hall', [HL.x0, HL.x1, HL.y0, HL.y1], HL.wall + HL.rise + 10);
+    addR('dispatch shed', [SH.x0, SH.x1, SH.y0, SH.y1], SH.wall + 20);
+    addC('chimney', C.stack.x, C.stack.y, C.stack.r, C.stack.h);
+    for(const [x, y] of C.silos) addC('silo', x, y, C.SILO_R, C.SILO_H);
+    for(const [x, y] of C.racks) addR('racking', [x - 80, x + 80, y - 34, y + 34], 170);
+    for(const [x, y] of C.pallets) addR('pallet stack', [x - 46, x + 46, y - 46, y + 46], 70);
+    for(const [x, y] of C.cars) addR('car', [x - 50, x + 50, y - 105, y + 105], 90);
+    /* the fence: the lot line, its gates open */
+    const T6 = 7, FY = [C.Y0, C.Y1], FX = [C.X0, C.X1];
+    const fenceRuns = [[C.X0, C.Y0, C.X1, C.Y0, false], [C.X0, C.Y0, C.X0, C.Y1, false], [C.X1, C.Y0, C.X1, C.Y1, true],
+                       [C.X0, C.Y1, C.pgate[0], C.Y1, true], [C.pgate[1], C.Y1, C.gate[0], C.Y1, true], [C.gate[1], C.Y1, C.X1, C.Y1, true]];
+    for(const [x0, y0, x1, y1] of fenceRuns) addR('fence', [Math.min(x0, x1) - T6, Math.max(x0, x1) + T6, Math.min(y0, y1) - T6, Math.max(y0, y1) + T6], C.FH + 10);
+    return {
+      name: cell.name, xh: 700, base: 'Factory', hood: 'Warehouse Dist.', edited: true, tall: true, block: true, ww: 3128, dd: 3128,
+      head: cell.name + ', Cratewell Works',
+      tags: ['two cells', 'factory', 'sawtooth roof', 'chimney', 'silos', 'loading docks', 'robot lane', 'warehouse robots'],
+      desc: "Cratewell Works on the Warehouse District's two-cell park: a brick factory hall under a sawtooth roof, its chimney, two silos, the dispatch shed and its four loading docks, and a concrete yard with a painted robot lane, racking, pallets and the staff parking, all inside a steel fence.",
+      vol: { foot: [[0,0],[0,0],[0,0]], h: 700, solids, opens: [], marks: {} },
+      draw(p){
+        const conc = '#bdb8ad', concJ = '#aaa59a', yel = '#e8b54a', paint = '#f2efe6', green = '#3f8a5a';
+        const brick = '#9a4e3a', brickD = '#83412f', brickL = '#a95a44', trim = '#d9d2c3', dark = '#2b2f35', glass = '#3f5866', frame = '#5a6068';
+        const roofC = '#9aa3aa', clad = '#c9ced3', cladD = '#adb3b9', blue = '#2e5f9e', steel = '#8d959c';
+        let CLIPA = null, CLIPB = null;
+        const clip = (f, u0, u1) => { const c = f.pl === 'F' ? CLIPA : CLIPB; return c ? [Math.max(u0, c[0]), Math.min(u1, c[1])] : [u0, u1]; };
+        const fq = (f, u0, u1, z0, z1, fill, off) => {
+          off = off || 0; [u0, u1] = clip(f, u0, u1); if(u1 <= u0) return;
+          if(f.pl === 'F') F(u0, u1, z0, z1, fill, null, 0, f.at + f.out*off); else S(f.at + f.out*off, u0, u1, z0, z1, fill);
+        };
+        const fword = (f, txt, u0, u1, z0, z1, col, off) => {
+          txt = String(txt).toUpperCase();
+          const n = txt.length, px = Math.min((u1 - u0)/(n*6 - 1), (z1 - z0)*ZSCALE/7);
+          if(px*K < 0.7) return;
+          const pz = px/ZSCALE, st0 = (u0 + u1)/2 - (n*6 - 1)*px/2, zTop = (z0 + z1)/2 + 3.5*pz;
+          for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of blockGlyphRects(txt[i]))
+            fq(f, st0 + (i*6 + c0)*px, st0 + (i*6 + c1)*px, zTop - r1*pz, zTop - r0*pz, col, off);
+        };
+        const Tw = (r, z, fill) => T(A(r[0]), A(r[1]), B(r[3]), B(r[2]), z, fill);
+        const S0 = C.site;
+        const G_ = (r, z, fill) => { const q = [Math.max(r[0], S0[0], R[0] - 4), Math.min(r[1], S0[1], R[1] + 4), Math.max(r[2], S0[2], R[2] - 4), Math.min(r[3], S0[3], R[3] + 4)];
+          if(q[1] > q[0] && q[3] > q[2]) Tw(q, z, fill); };
+        /* ================= THE GROUND ================= */
+        if(inView(A(R[0]), A(R[1]), B(R[3]), B(R[2]), 0, 40)){
+          G_(S0, 0.4, conc);
+          for(let x = S0[0] + 300; x < S0[1]; x += 300) G_([x - 1, x + 1, S0[2], S0[3]], 0.5, concJ);
+          for(let y = S0[2] + 300; y < S0[3]; y += 300) G_([S0[0], S0[1], y - 1, y + 1], 0.5, concJ);
+          /* the robot lane: a yellow loop, its arrows */
+          const L = C.lane, w = C.laneW;
+          for(const [x0, x1, y0, y1] of [[L[0], L[1], L[2], L[2] + 6], [L[0], L[1], L[3] - 6, L[3]], [L[0], L[0] + 6, L[2], L[3]], [L[1] - 6, L[1], L[2], L[3]],
+                                          [L[0] + w, L[1] - w, L[2] + w, L[2] + w + 6], [L[0] + w, L[1] - w, L[3] - w - 6, L[3] - w], [L[0] + w, L[0] + w + 6, L[2] + w, L[3] - w], [L[1] - w - 6, L[1] - w, L[2] + w, L[3] - w]])
+            G_([x0, x1, y0, y1], 0.6, yel);
+          for(let x = L[0] + 300; x < L[1] - 200; x += 600){ const yc = L[2] + w/2; G_([x, x + 40, yc - 6, yc + 6], 0.6, paint); G_([x + 40, x + 60, yc - 14, yc + 14], 0.6, paint); }
+          for(let x = L[1] - 300; x > L[0] + 200; x -= 600){ const yc = L[3] - w/2; G_([x - 40, x, yc - 6, yc + 6], 0.6, paint); G_([x - 60, x - 40, yc - 14, yc + 14], 0.6, paint); }
+          /* the walkway along the hall, green between white lines, and its crossing to the people gate */
+          const Wk = C.walk; G_(Wk, 0.55, green); G_([Wk[0], Wk[1], Wk[2], Wk[2] + 5], 0.6, paint); G_([Wk[0], Wk[1], Wk[3] - 5, Wk[3]], 0.6, paint);
+          for(let y = Wk[3] + 20; y < C.Y1 - 10; y += 46) G_([C.pgate[0] + 6, C.pgate[1] - 6, y, y + 24], 0.6, paint);
+          /* the dock apron, its guide lines; the hatched staging squares */
+          G_([SH.x0, SH.x1, SH.y1, SH.y1 + 190], 0.5, '#a39e93');
+          for(const d of SH.docks){ G_([d - 4, d, SH.y1, SH.y1 + 190], 0.6, yel); G_([d + SH.dockW, d + SH.dockW + 4, SH.y1, SH.y1 + 190], 0.6, yel); }
+          for(const [x, y] of C.pallets){ G_([x - 60, x + 60, y - 60, y - 54], 0.6, yel); G_([x - 60, x + 60, y + 54, y + 60], 0.6, yel); G_([x - 60, x - 54, y - 60, y + 60], 0.6, yel); G_([x + 54, x + 60, y - 60, y + 60], 0.6, yel); }
+          /* the parking stalls */
+          const Pk = C.park; for(let s = 0; s <= Pk.n; s++){ const x = Pk.x0 + (Pk.x1 - Pk.x0)*s/Pk.n; G_([x - 3, x + 3, Pk.y0, Pk.y1], 0.6, paint); }
+          G_([Pk.x0, Pk.x1, Pk.y0, Pk.y0 + 5], 0.6, paint);
+          /* the drive in from the truck gate, darker, and its stop line */
+          G_([C.gate[0], C.gate[1], SH.y1 + 190, C.Y1], 0.45, '#9f9a8f');
+          G_([C.gate[0] + 10, C.gate[1] - 10, C.Y1 - 60, C.Y1 - 50], 0.6, paint);
+        }
+        /* ================= THE PIECES ================= */
+        const items = [];
+        /* ---- THE FACTORY HALL: brick under a sawtooth roof (its glazing faces north, its slopes the yard). Tiles keyed at their
+           north-east corners; the yard face and the east end drawn by the tiles along them, clipped to the tile ---- */
+        { const nx = Math.max(1, Math.round((HL.x1 - HL.x0)/420)), ny = Math.max(1, Math.round((HL.y1 - HL.y0)/420));
+          const tw = (HL.x1 - HL.x0)/nx, th = (HL.y1 - HL.y0)/ny, tooth = (HL.y1 - HL.y0)/HL.teeth, W = HL.wall;
+          const hS = { pl:'F', at: B(HL.y1), out: -1 }, hE = { pl:'S', at: A(HL.x1), out: 1 };
+          const Zt = y => { const k = Math.min(HL.teeth - 1, Math.floor((y - HL.y0)/tooth)), ya = HL.y0 + k*tooth; return W + HL.rise*(1 - (y - ya)/tooth); };
+          for(let c = 0; c < nx; c++) for(let r = 0; r < ny; r++){
+            const tx0 = HL.x0 + c*tw, tx1 = tx0 + tw, ty0 = HL.y0 + r*th, ty1 = ty0 + th;
+            if(!mine((tx0 + tx1)/2, (ty0 + ty1)/2)) continue;
+            items.push({ a: A(tx1), b: B(ty0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(ty1), B(ty0), 0, W + HL.rise + 10)) return;
+              /* the roof: each tooth's slope, from its high north edge down to the yard */
+              for(let t2 = 0; t2 < HL.teeth; t2++){ const ya = HL.y0 + t2*tooth, yb = ya + tooth, y0 = Math.max(ya, ty0), y1 = Math.min(yb, ty1); if(y1 <= y0) continue;
+                const z0 = W + HL.rise*(1 - (y0 - ya)/tooth), z1 = W + HL.rise*(1 - (y1 - ya)/tooth);
+                poly([P(A(tx0), B(y0), z0), P(A(tx1), B(y0), z0), P(A(tx1), B(y1), z1), P(A(tx0), B(y1), z1)], shade(roofC, 1.06));
+                for(let x = HL.x0 + 70; x < HL.x1; x += 70) if(x > tx0 && x < tx1) tube(A(x), B(y0), z0 + 0.4, A(x), B(y1), z1 + 0.4, 1, shade(roofC, .86));
+                if(y0 === ya && ya > HL.y0) tube(A(tx0), B(ya), W + HL.rise, A(tx1), B(ya), W + HL.rise, 1.6, shade(roofC, .7)); }
+              CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
+              /* the yard face: brick, its pilasters, a band of steel windows, the roller doors, the personnel door, the name */
+              if(r === ny - 1){
+                fq(hS, A(HL.x0), A(HL.x1), 0, W, brick, 0);
+                fq(hS, A(HL.x0), A(HL.x1), 0, 14, brickD, 0.2);
+                for(let x = HL.x0; x <= HL.x1 + 1; x += 295) fq(hS, A(x) - 14, A(x) + 14, 0, W, brickL, 0.3);
+                for(let x = HL.x0 + 40; x < HL.x1 - 60; x += 295){
+                  if(HL.doors.some(([d0, d1]) => x + 200 > d0 && x < d1) || (x + 200 > HL.pdoor[0] && x < HL.pdoor[1])) continue;
+                  fq(hS, A(x) + 20, A(x) + 255, 96, 176, frame, 0.4);
+                  for(let gx = 0; gx < 4; gx++) for(let gz = 0; gz < 2; gz++) fq(hS, A(x) + 26 + gx*57.5, A(x) + 74 + gx*57.5, 101 + gz*38, 133 + gz*38, glass, 0.5); }
+                for(const [d0, d1] of HL.doors){ fq(hS, A(d0), A(d1), 0, 178, dark, 0.4);
+                  fq(hS, A(d0) + 8, A(d1) - 8, 0, 170, steel, 0.5); for(let z = 12; z < 170; z += 12) fq(hS, A(d0) + 8, A(d1) - 8, z, z + 2, shade(steel, .82), 0.6);
+                  fq(hS, A(d0) - 10, A(d0), 0, 182, yel, 0.5); fq(hS, A(d1), A(d1) + 10, 0, 182, yel, 0.5); fq(hS, A(d0), A(d1), 178, 186, yel, 0.5); }
+                fq(hS, A(HL.pdoor[0]), A(HL.pdoor[1]), 0, 110, '#2e5f9e', 0.4); fq(hS, A(HL.pdoor[0]) + 8, A(HL.pdoor[1]) - 8, 60, 100, glass, 0.5);
+                fq(hS, A(HL.x0), A(HL.x1), W - 46, W - 6, dark, 0.6);
+                fword(hS, 'CRATEWELL WORKS', A(HL.x0) + 300, A(HL.x1) - 300, W - 44, W - 8, '#f2efe6', 0.8);
+                fq(hS, A(HL.x0), A(HL.x1), W - 4, W + 4, trim, 0.6);
+              }
+              CLIPA = CLIPB = null;
+              /* the east end: brick, its windows, each tooth's gable */
+              if(c === nx - 1){
+                CLIPB = [B(ty1), B(ty0)];
+                fq(hE, B(HL.y1), B(HL.y0), 0, W, shade(brick, .9), 0);
+                fq(hE, B(HL.y1), B(HL.y0), 0, 14, brickD, 0.2);
+                for(let y = HL.y0 + 80; y < HL.y1 - 120; y += 220){ fq(hE, B(y + 150), B(y), 96, 176, frame, 0.4); fq(hE, B(y + 144), B(y + 6), 101, 171, glass, 0.5); }
+                fq(hE, B(HL.y1), B(HL.y0), W - 4, W + 4, trim, 0.6);
+                CLIPB = null;
+                for(let t2 = 0; t2 < HL.teeth; t2++){ const ya = HL.y0 + t2*tooth, yb = ya + tooth, y0 = Math.max(ya, ty0), y1 = Math.min(yb, ty1); if(y1 <= y0) continue;
+                  const ax = A(HL.x1); poly([P(ax, B(y0), W), P(ax, B(y0), W + HL.rise*(1 - (y0 - ya)/tooth)), P(ax, B(y1), W + HL.rise*(1 - (y1 - ya)/tooth)), P(ax, B(y1), W)], shade(brick, .84)); }
+              }
+            }});
+          }
+        }
+        /* ---- THE DISPATCH SHED: steel cladding, a flat roof behind a parapet, four loading docks on the yard face ---- */
+        { const nx = Math.max(1, Math.round((SH.x1 - SH.x0)/420)), W = SH.wall, tw = (SH.x1 - SH.x0)/nx;
+          const sS = { pl:'F', at: B(SH.y1), out: -1 }, sE = { pl:'S', at: A(SH.x1), out: 1 };
+          for(let c = 0; c < nx; c++){
+            const tx0 = SH.x0 + c*tw, tx1 = tx0 + tw;
+            if(!mine((tx0 + tx1)/2, (SH.y0 + SH.y1)/2)) continue;
+            items.push({ a: A(tx1), b: B(SH.y0), z: 0, draw: () => {
+              if(!inView(A(tx0), A(tx1), B(SH.y1), B(SH.y0), 0, W + 20)) return;
+              T(A(tx0), A(tx1), B(SH.y1), B(SH.y0), W, '#b7bcc0');
+              for(let y = SH.y0 + 120; y < SH.y1; y += 120) T(A(tx0), A(tx1), B(y + 1), B(y - 1), W + 0.3, '#a6abaf');
+              CLIPA = [A(tx0), A(tx1)];
+              fq(sS, A(SH.x0), A(SH.x1), 0, W, clad, 0);
+              for(let x = SH.x0 + 24; x < SH.x1; x += 24) fq(sS, A(x) - 1.5, A(x) + 1.5, 0, W, cladD, 0.2);
+              fq(sS, A(SH.x0), A(SH.x1), W - 40, W, blue, 0.4);
+              fword(sS, 'DISPATCH', A(SH.x0) + 400, A(SH.x1) - 400, W - 36, W - 4, '#ffffff', 0.6);
+              for(const [di, d] of SH.docks.entries()){ const d1 = d + SH.dockW;
+                fq(sS, A(d) - 12, A(d1) + 12, 26, 186, '#16181b', 0.4);
+                fq(sS, A(d), A(d1), 34, 178, '#3a3f46', 0.5); for(let z = 44; z < 178; z += 12) fq(sS, A(d), A(d1), z, z + 2, '#2f343a', 0.6);
+                fq(sS, A(d) - 4, A(d1) + 4, 0, 30, '#8f8a80', 0.4);
+                for(const x of [d + 22, d1 - 40]) fq(sS, A(x), A(x) + 18, 6, 26, '#1b1d21', 0.8);
+                fq(sS, A(d) + 70, A(d1) - 70, 188, 206, yel, 0.6);
+                fword(sS, String(di + 1), A(d) + 70, A(d1) - 70, 189, 205, dark, 0.8); }
+              fq(sS, A(SH.x0), A(SH.x1), W, W + 14, shade(clad, .9), 0.3);
+              CLIPA = null;
+              if(c === nx - 1){ fq(sE, B(SH.y1), B(SH.y0), 0, W, shade(clad, .9), 0); for(let y = SH.y0 + 24; y < SH.y1; y += 24) fq(sE, B(y) - 1.5, B(y) + 1.5, 0, W, cladD, 0.2);
+                fq(sE, B(SH.y1), B(SH.y0), W - 40, W, shade(blue, .9), 0.4); fq(sE, B(SH.y1), B(SH.y0), W, W + 14, shade(clad, .82), 0.3); }
+            }});
+          }
+        }
+        /* ---- the chimney: a brick stack, white bands near its top ---- */
+        if(mine(C.stack.x, C.stack.y)) items.push({ a: A(C.stack.x + C.stack.r), b: B(C.stack.y - C.stack.r), z: 0, draw: () => {
+          const a = A(C.stack.x), b = B(C.stack.y), S2 = C.stack;
+          if(!inView(a - 80, a + 80, b - 80, b + 80, 0, S2.h + 10)) return;
+          cyl(a, b, 0, 40, S2.r + 14, '#7d7468'); cyl(a, b, 40, S2.h, S2.r, brick, '#2b2b2b');
+          for(const z of [S2.h - 120, S2.h - 70]) cyl(a, b, z, z + 22, S2.r + 1.5, '#f2efe6', '#f2efe6');
+          cyl(a, b, S2.h - 12, S2.h, S2.r + 6, '#3a3f46', '#1c1f23'); }});
+        /* ---- the silos: steel drums on legs, a stepped cap, a ladder up the yard side ---- */
+        for(const [sx, sy] of C.silos) if(mine(sx, sy)) items.push({ a: A(sx + C.SILO_R), b: B(sy - C.SILO_R), z: 0, draw: () => {
+          const a = A(sx), b = B(sy), Rr = C.SILO_R, Hh = C.SILO_H;
+          if(!inView(a - 90, a + 90, b - 90, b + 90, 0, Hh + 60)) return;
+          for(const [la, lb] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) tube(a + la*Rr, b + lb*Rr, 0, a + la*Rr, b + lb*Rr, 70, 4, steel);
+          cyl(a, b, 60, 90, Rr*0.55, '#a3a9ae');
+          cyl(a, b, 90, Hh, Rr, '#d6dadd');
+          for(let z = 140; z < Hh; z += 70) cyl(a, b, z, z + 3, Rr + 0.8, '#b9bfc4', '#d6dadd');
+          cyl(a, b, Hh, Hh + 20, Rr*0.72, '#c9ced3'); cyl(a, b, Hh + 20, Hh + 34, Rr*0.4, '#bcc2c7'); cyl(a, b, Hh + 34, Hh + 44, Rr*0.18, '#aeb4b9');
+          tube(a - 10, b - Rr - 4, 0, a - 10, b - Rr - 4, Hh + 10, 1.4, '#5a6068'); tube(a + 10, b - Rr - 4, 0, a + 10, b - Rr - 4, Hh + 10, 1.4, '#5a6068');
+          for(let z = 20; z < Hh; z += 18) tube(a - 10, b - Rr - 4, z, a + 10, b - Rr - 4, z, 0.9, '#5a6068'); }});
+        /* ---- the outdoor racking: a bay each, orange uprights, blue beams, pallets of cartons on three levels ---- */
+        for(const [rx, ry] of C.racks) if(mine(rx, ry)) items.push({ a: A(rx + 80), b: B(ry - 34), z: 0, draw: () => {
+          if(!inView(A(rx - 80), A(rx + 80), B(ry + 34), B(ry - 34), 0, 180)) return;
+          const cols = ['#c98a4a', '#b97b40', '#d29a5a'];
+          for(const [lz, k] of [[6, 0], [64, 1], [122, 2]]){
+            box(A(rx - 72), A(rx + 72), B(ry + 30), B(ry - 30), lz, lz + 7, '#a07a4e', '#8a6a40', '#7a5c38');
+            box(A(rx - 66), A(rx - 4), B(ry + 26), B(ry - 26), lz + 7, lz + 46 - k*4, cols[k], shade(cols[k], .88), shade(cols[k], .76));
+            box(A(rx + 4), A(rx + 66), B(ry + 26), B(ry - 26), lz + 7, lz + 40, cols[(k + 1) % 3], shade(cols[(k + 1) % 3], .88), shade(cols[(k + 1) % 3], .76)); }
+          for(const z of [60, 118, 168]) for(const sb of [-1, 1]) tube(A(rx - 78), B(ry + sb*32), z, A(rx + 78), B(ry + sb*32), z, 2.2, '#2e5f9e');
+          for(const sa of [-1, 1]) for(const sb of [-1, 1]) tube(A(rx + sa*78), B(ry + sb*32), 0, A(rx + sa*78), B(ry + sb*32), 172, 2.6, '#e0782a'); }});
+        /* ---- the pallets waiting at the docks and by the racking: cartons, stretch-wrapped ---- */
+        for(const [px, py] of C.pallets) if(mine(px, py)) items.push({ a: A(px + 46), b: B(py - 46), z: 0, draw: () => {
+          if(!inView(A(px - 50), A(px + 50), B(py + 50), B(py - 50), 0, 80)) return;
+          box(A(px - 46), A(px + 46), B(py + 46), B(py - 46), 0, 10, '#b08a58', '#9a7848', '#8a6a40');
+          box(A(px - 42), A(px + 42), B(py + 42), B(py - 42), 10, 62, '#c98a4a', '#b97b40', '#a86e36');
+          box(A(px - 42), A(px + 42), B(py + 1.5), B(py - 1.5), 62, 62.6, '#e8d8a8', '#e8d8a8', '#e8d8a8'); }});
+        /* ---- the staff's cars, still, in their stalls ---- */
+        for(const [cx, cy, n] of C.cars) if(mine(cx, cy)) items.push({ a: A(cx + 50), b: B(cy - 105), z: 0, draw: () => {
+          if(!inView(A(cx - 60), A(cx + 60), B(cy + 120), B(cy - 120), 0, 100)) return;
+          gameCar(A(cx), B(cy), 0, 0, ((n + 31)*2654435761) >>> 0, n === 1 ? 'truck' : 'car'); }});   /* (nose in: its length across the stall lines' run) */
+        /* ---- THE FENCE, in runs of 130: sheet steel on the far sides, an open palisade on the near ones ---- */
+        for(const [x0, y0, x1, y1, near] of fenceRuns){
+          const Ln = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(Ln/130));
+          for(let s2 = 0; s2 < n; s2++){
+            const xa = x0 + (x1 - x0)*s2/n, ya = y0 + (y1 - y0)*s2/n, xb = x0 + (x1 - x0)*(s2 + 1)/n, yb = y0 + (y1 - y0)*(s2 + 1)/n;
+            if(!mine((xa + xb)/2, (ya + yb)/2)) continue;
+            items.push({ a: A(Math.max(xa, xb)), b: B(Math.min(ya, yb)), z: 0.5, draw: () => {
+              if(!inView(A(Math.min(xa, xb)) - 10, A(Math.max(xa, xb)) + 10, B(Math.max(ya, yb)) - 10, B(Math.min(ya, yb)) + 10, 0, C.FH + 10)) return;
+              const q = (x, y, z) => P(A(x), B(y), z), H = C.FH;
+              if(near){
+                for(let s3 = 0; s3 <= 6; s3++){ const x = xa + (xb - xa)*s3/6, y = ya + (yb - ya)*s3/6; tube(A(x), B(y), 0, A(x), B(y), H, 1.1, '#3a3f46'); }
+                for(const z of [14, H - 8]) tube(A(xa), B(ya), z, A(xb), B(yb), z, 1.4, '#3a3f46');
+              } else {
+                poly([q(xa, ya, 0), q(xb, yb, 0), q(xb, yb, H), q(xa, ya, H)], '#7f8a8f');
+                for(let s3 = 1; s3 < 10; s3++){ const t3 = s3/10, x = xa + (xb - xa)*t3, y = ya + (yb - ya)*t3; tube(A(x), B(y), 0, A(x), B(y), H, 0.6, '#6c767b'); }
+              }
+              tube(A(xa), B(ya), 0, A(xa), B(ya), H + 6, 2.6, '#2b2f35');
+            }});
+          }
+        }
+        /* ---- the gates' posts, yellow-capped, and the truck gate's slide rolled back behind the fence ---- */
+        for(const x of [C.gate[0], C.gate[1], C.pgate[0], C.pgate[1]]) if(mine(x, C.Y1)) items.push({ a: A(x + 14), b: B(C.Y1 - 14), z: 0.6, draw: () => {
+          if(!inView(A(x) - 20, A(x) + 20, B(C.Y1) - 20, B(C.Y1) + 20, 0, C.FH + 40)) return;
+          box(A(x - 12), A(x + 12), B(C.Y1 + 12), B(C.Y1 - 12), 0, C.FH + 24, '#3a3f46', '#2b2f35', '#22262b');
+          box(A(x - 15), A(x + 15), B(C.Y1 + 15), B(C.Y1 - 15), C.FH + 24, C.FH + 30, yel, '#c99a3a', '#b38730'); }});
         depthSort(items);
         kerb(p,'none');
       }
@@ -78954,6 +79235,8 @@ hospEntry(2),
 hospEntry(3),
 /* ---- SUN DECK AIRFIELD (see AIR): built by airEntry() ---- */
 airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), airEntry(6), airEntry(7),
+/* ---- CRATEWELL WORKS (see FAC): built by facEntry() ---- */
+facEntry(0), facEntry(1),
 /* ---- PELICAN HARBOR (Sir, 2026-10-01: "i want a harbor building down at
    the end"). The harbor house at the head of Harbor Road, behind the plaza
    and the turning circle (see PELICAN HARBOR, harborGeo().bldg): a runs
@@ -135881,6 +136164,7 @@ class WorldScene extends Phaser.Scene {
       try { if(new URLSearchParams(location.search).get('showroom') === '1') this.showroomOpen(); } catch(e){}
     }
     showroomButton(this);
+    factoryButton(this);
     if(this._sr){ this.showroomFrame(t, dt); return; }
     /* commit last frame's camera ease (see ONE CAMERA PER FRAME in
        drawRobot) before anything this frame projects. If a snap wrote
@@ -142514,6 +142798,7 @@ const MAP_LANDMARK_GROUPS = {
   air:  { name: "Sun Deck Airfield", icon: "\u2708\uFE0F", pin: "#2f5f9e", built: false,   // the infield stays grass; the runway and buildings drawn on it
           cells: ["Sun Deck Airfield", "Sun Deck Airfield Terminal", "Sun Deck Airfield Cargo", "Sun Deck Airfield East",
                   "Sun Deck Airfield Fire Station", "Sun Deck Airfield Hangars", "Sun Deck Airfield South Apron", "Sun Deck Airfield Fuel Farm"] },
+  fac:  { name: "Cratewell Works", icon: "\u{1F3ED}", pin: "#9a4e3a", built: true, cells: ["Cratewell Works", "Cratewell Works Dispatch"] },
   /* Marina Parking (see MARINA): a garage, not a green */
   marina: { name: "Marina Parking", icon: "\u{1F17F}\uFE0F", pin: "#1f6f8b", built: true, cells: ["Marina Parking"] }
 };
