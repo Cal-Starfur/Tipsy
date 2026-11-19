@@ -59180,8 +59180,10 @@ function houseCanopy(fn){
        shuttle. A parts carton goes once its last bin is filled (flattened, for the baler: phase 7) */
     /* (phase 4) then the goods-to-person pod parked beside the pallet: its four empty bins (R4) filled from the third carton, each slid
        back into the slot it was picked from (TOP4) */
-    const JOBS = [{ k: 'carton', i: 0 }, { k: 'fill', bin: 0, c: 1 }, { k: 'fill', bin: 1, c: 1 }, { k: 'fill', bin: 2, c: 1 }, { k: 'fill', bin: 3, c: 2 }, { k: 'fill', bin: 4, c: 2 },
-      { k: 'fillB', bin: 0, c: 4 }, { k: 'fillB', bin: 1, c: 4 }, { k: 'fillB', bin: 2, c: 4 }, { k: 'fillB', bin: 3, c: 4 }, { k: 'carton', i: 3 }];
+    /* (the arm robots' phase: the goods-to-person pod's four first -- off the top carton -- then the flat boxes, then row A's five, its pod in
+       once the pick face is done) */
+    const JOBS = [{ k: 'carton', i: 0 }, { k: 'fillB', bin: 0, c: 4 }, { k: 'fillB', bin: 1, c: 4 }, { k: 'fillB', bin: 2, c: 4 }, { k: 'fillB', bin: 3, c: 4 }, { k: 'carton', i: 3 },
+      { k: 'fill', bin: 0, c: 1 }, { k: 'fill', bin: 1, c: 1 }, { k: 'fill', bin: 2, c: 1 }, { k: 'fill', bin: 3, c: 2 }, { k: 'fill', bin: 4, c: 2 }];
     const RCV_T0 = 14500, RCV_JOB = 2400, RCV_T1 = RCV_T0 + JOBS.length*RCV_JOB, JS = j => RCV_T0 + j*RCV_JOB;
     const rcvQ = jr => jr >= RCV_T0 && jr < RCV_T1 ? { j: Math.floor((jr - RCV_T0)/RCV_JOB), q: (jr - RCV_T0) % RCV_JOB } : null;
     /* what is still on the pallet: the cartons till they are taken (or used up) */
@@ -59191,7 +59193,14 @@ function houseCanopy(fn){
     /* (where things stand at Receiving: the jack and its pallet (JA, PB), the Receiver beside it (RX); the shuttle (SH*); the goods-to-person
        pod's spot (GPA, GPB), facing south so the side its bins are worked from is to the east) */
     const JA = 2282, PB = 232, SHA = 2282, SHB = 130, SHSL = [110, 156], GPA = 2160, GPB = 300;   /* (the Receiver works the gap between the pod (west of him, facing south) and the pallet and the shuttle (east): nothing tall in front of him from the eye) */
-    const TOP4 = [18, 20, 22, 14], R4 = [6, 8, 10, 12];   /* (goods to person's pods: the four bins picked (TOP4) and the four slots the empties go back into (R4), all on the side it is worked from) */
+    const TOP4 = [18, 20, 22, 14], R4 = [6, 8, 10, 12];
+    /* THE ARM ROBOTS AT THE SHELF PODS (Sir, 2026-11-19: "use the palletizing arm robot and program it to do the new task"): the palletizer's
+       own robot -- its arm given a job (this._crewArm) -- parked at the pick face and at goods to person in place of the humanoid pickers. A
+       move: pick and place in its own frame, u through the move (gripped from u 0.17, let go at 0.78), the bin it carries; a pod slides a bin
+       out to its face for the arm and back in after it */
+    const ARMU0 = 0.17, ARMU1 = 0.78;
+    const HELDBIN = (col, empty) => (box, w, z) => { box(w[0] - 12, w[0] + 12, w[1] - 11.5, w[1] + 11.5, z - 20, empty ? z - 0.5 : z - 3, col);
+      if(empty) box(w[0] - 10, w[0] + 10, w[1] - 9.5, w[1] + 9.5, z - 0.6, z - 0.4, 0x23272d); else box(w[0] - 12, w[0] + 12, w[1] - 11.5, w[1] + 11.5, z - 3, z, _pdk(col, 0.72)); };   /* (goods to person's pods: the four bins picked (TOP4) and the four slots the empties go back into (R4), all on the side it is worked from) */
     const S5 = [7, 9, 11, 15, 13], PODX = 1910, PODY = 2030, PODB = 60, PODRA = 2190;   /* (the pick face's two pods, their homes; where the returns pod parks at Receiving; the five slots they work, on their south side) */
     /* a piece of the load, in the room's kit (rcvItemKit) or on the jack's forks in its own frame (rcvItemBot, la and lb swapped) -- drawn
        alike: the deck carton (cardboard, a blue label, its tape), a bin (the bins' own), the carton of flat boxes (strapped) */
@@ -59319,7 +59328,7 @@ function houseCanopy(fn){
     /* ---- ROW A'S SUPPLY (fx.crew): the tugger round the kitting loop -- loaded at the rack by the two pickers, a tote at a time, then along the
        line side dropping the frame rack's decks and a tote at each of row A's benches; once round every SUP ---- */
     const RP = [[2040, 200], [2100, 200], [2100, 590], [500, 590], [500, 200]], RL = pathLen(RP), RSTOP = [0, ...[2000, 1700, 1400, 1100, 800].map(a => 60 + 390 + 2100 - a)];   /* (its east side pulled in to a 2100 for Receiving; loaded at the pick face, a 1850..2110) */
-    const RDW = [12000, 1400, 1400, 1400, 1400, 1400], RV = RL/(SUP - RDW.reduce((q, d) => q + d, 0)), TUGLD = [4, 2, 1, 0, 5];   /* (five slots, none stacked on another: the empties come off in turn) */
+    const RDW = [20000, 1400, 1400, 1400, 1400, 1400], RV = RL/(SUP - RDW.reduce((q, d) => q + d, 0)), TUGLD = [4, 2, 1, 0, 5];   /* (five slots, none stacked on another: the empties come off in turn) */
     /* (its stops' start times, and the refills: the frame rack and stations 4, 3, 2, 1 -- SUPT[p]) */
     const RT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RSTOP.length; i++){ tt += (RSTOP[i] - s0)/RV; RT0.push(tt); tt += RDW[i]; s0 = RSTOP[i]; } }
     const SUPT = []; SUPT[0] = PAL0 + RT0[1] + 700; for(const [j, p] of [4, 3, 2, 1].entries()) SUPT[p] = PAL0 + RT0[j + 2] + 700;   /* (phase 3: on the pallet clock -- it loads at the pick face as each cycle starts) */
@@ -59333,14 +59342,16 @@ function houseCanopy(fn){
     const podState = t => { const c = Math.floor((t - PAL0)/PALT), jr = t - PAL0 - c*PALT, xFull = ((c % 2) + 2) % 2 === 0, out = [];
       for(const [h, isF] of [[PODX, xFull], [PODY, !xFull]]){ const loads = POD_FULL.slice(); let a = h, b = PODB;
         for(let m = 0; m < 5; m++){ const L = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: binPal(m) }; let v = null;
-          if(isF) v = jr < 12000 && jr < m*2400 + 500 ? L : null;
-          else if(jr < 12000) v = jr >= m*2400 + 1300 ? Object.assign({}, L, { empty: true }) : null;
-          else { const J = JS(1 + m);
+          /* (the pick face's arm: move 2m an empty off the carts into the returns pod, move 2m+1 a full out of the full pod onto the carts) */
+          const tf = (2*m + 1)*2000, te = 2*m*2000;
+          if(isF) v = jr < tf ? L : jr < tf + 300 ? Object.assign({}, L, { off: [0, 26*ease((jr - tf)/300)] }) : jr < tf + 2000*ARMU0 ? Object.assign({}, L, { off: [0, 26] }) : jr < 20000 ? null : null;
+          else if(jr < 20000) v = jr < te + 2000*ARMU1 ? null : jr < te + 2000*ARMU1 + 300 ? Object.assign({}, L, { empty: true, off: [0, 26*(1 - ease((jr - te - 2000*ARMU1)/300))] }) : Object.assign({}, L, { empty: true });
+          else { const J = JS(6 + m);
             v = jr < J + 600*JK ? Object.assign({}, L, { empty: true }) : jr < J + 900*JK ? Object.assign({}, L, { empty: true, off: [0, 26*ease((jr - J - 600*JK)/(300*JK))] })
               : jr < J + 2750*JK ? null : jr < J + 3000*JK ? Object.assign({}, L, { off: [0, 26*(1 - ease((jr - J - 2750*JK)/(250*JK)))] }) : L; }
           loads[S5[m]] = v; }
         if(!isF){ const Q = podPath(h), QL = 80 + Math.abs(PODRA - h) + 80;
-          const s0 = jr < 12000 ? 0 : jr < 16500 ? QL*ease((jr - 12000)/4500) : jr < 28900 ? QL : jr < 33900 ? QL*(1 - ease((jr - 28900)/5000)) : 0;
+          const s0 = jr < 20000 ? 0 : jr < 24500 ? QL*ease((jr - 20000)/4500) : jr < 40900 ? QL : jr < 45900 ? QL*(1 - ease((jr - 40900)/5000)) : 0;
           const P1 = pathAt(Q, Math.min(s0, QL - 0.5)); a = P1.a; b = P1.b; }
         out.push({ a, b, loads, isF, home: h }); }
       return out; };
@@ -59362,7 +59373,7 @@ function houseCanopy(fn){
         const d = S.stop === 0 ? 0 : Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
         const loads = AMR_SLOTS.amrtug.map(() => null);
         for(let m = 0; m < 5; m++){ const i = TUGLD[m], L = TUG[i];
-          if(S.stop === 0 && jr < 12000) loads[i] = jr >= m*2400 + 1300 ? L : jr >= m*2400 + 500 ? null : Object.assign({}, L, { empty: true });
+          if(S.stop === 0 && jr < 20000) loads[i] = jr >= (2*m + 1)*2000 + 2000*ARMU1 ? L : jr >= 2*m*2000 + 2000*ARMU0 ? null : Object.assign({}, L, { empty: true });
           else loads[i] = m >= 5 - d ? Object.assign({}, L, { empty: true }) : L; }
         CW_FLOW.tug = loads.filter(L => L && !L.empty).length + ' full ' + loads.filter(L => L && L.empty).length + ' empty';
         out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, bins: CPAL, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
@@ -59371,15 +59382,15 @@ function houseCanopy(fn){
         const PS = podState(t);
         for(const pd of PS) out.push(bot(pd.a, pd.b, 0, { build: 'amrshelf', loads: pd.loads, bins: CPAL }));
         CW_FLOW.pods = PS.map(pd => (pd.isF ? 'full ' : 'returns ') + pd.loads.filter((L, i) => S5.includes(i) && L && !L.empty).length + '/' + pd.loads.filter((L, i) => S5.includes(i) && L && L.empty).length).join(', ');
-        for(const pd of PS){ const pa = pd.home, pb = 125;
-          if(jr < 12000){ const m = Math.floor(jr/2400), q = jr % 2400; if(m > 4){ out.push(man(pa, pb, 1, {})); continue; }
-            const fromPod = pd.isF, f0 = fromPod ? 3 : 1, f1 = fromPod ? 1 : 3;
-            const f = q < 700 ? f0 : q < 1000 ? f0 + (f1 - f0)*ease((q - 700)/300) : q < 1700 ? f1 : q < 2000 ? f1 + (f0 - f1)*ease((q - 1700)/300) : f0;
-            const pose = q < 700 ? (fromPod ? REACH(t) : { lift: [0.35, 0.35], bend: [0.2, 0.2] }) : q < 1700 ? { lift: [0.5, 0.5], bend: [0.65, 0.65] } : {};
-            out.push(man(pa, pb, f, pose));
-            if(q >= 500 && q < 1300){ const ff = f*Math.PI/2, ha = pa + Math.cos(ff)*24, hb = pb + Math.sin(ff)*24, col = CPC(binPal(m)), emp = !fromPod;
-              out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => BIN(ha, hb, 48, col, emp) }); } }
-          else out.push(man(pa, pb, 1, {})); }
+        /* the pick face's arm robot, parked between the pods and the carts (facing east): its ten moves while the tugger is in */
+        { const AA = 1930, AB = 140, fr = w => [w[0] - AA, w[1] - AB, w[2]];
+          const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 16]; };
+          const podW = (h, m) => { const sq = AMR_SLOTS.amrshelf[S5[m]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5 + 20]; };
+          let arm = { pick: fr(cartW(TUGLD[0])), place: fr(podW(PODX, 0)), u: null };
+          if(jr < 20000){ const J = Math.floor(jr/2000), m = J >> 1, u = (jr - J*2000)/2000, full = J % 2 === 1;
+            const fP = PS.find(pd => pd.isF), rP = PS.find(pd => !pd.isF), col = CPAL[binPal(m) % 4];
+            arm = full ? { pick: fr(podW(fP.home, m)), place: fr(cartW(TUGLD[m])), u, held: HELDBIN(col, false) } : { pick: fr(cartW(TUGLD[m])), place: fr(podW(rP.home, m)), u, held: HELDBIN(col, true) }; }
+          out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
         return out; } } });
       /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
          pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
@@ -59392,7 +59403,7 @@ function houseCanopy(fn){
            the fulls off the pod onto it (jobs 0-3, then 4-7, each 3000) */
         const delivered = S.stop === 0 ? 0 : Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done), kk = 4 - delivered;
         const placed = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 12000 - 2050)/3000) + 1)) : 0;
-        const rbin = i => { const pal = SH[TOP4[i]].pal; if(S.stop === 0) return S.r < i*3000 + 700 ? 'e' : i < placed ? 'f' : null; return i < kk ? 'f' : 'e'; };
+        const rbin = i => { if(S.stop === 0) return S.r < i*3000 + 3000*ARMU0 ? 'e' : S.r >= (4 + i)*3000 + 3000*ARMU1 ? 'f' : null; return i < kk ? 'f' : 'e'; };
         CW_FLOW.runner = [0, 1, 2, 3].map(rbin).map(v => v || '-').join('');
         /* (the runner faces south, its four bins in a row down its west side -- his side, each in his reach as he steps along it) */
         out.push(bot(P0.a, P0.b, 1, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < 4; i++){ const v = rbin(i); if(v) BIN(P0.a - 13, P0.b + RSL[i], 31, CPC(SH[TOP4[i]].pal), v === 'e'); } } }));
@@ -59405,87 +59416,32 @@ function houseCanopy(fn){
         for(let pk = 0; pk < 2; pk++){ const u = (((t - PAL0 - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP), rq = u % 3000, m = Math.floor(u/3000);
           const L = SH.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: SH[TOP4[i]].pal });
           let P1, fd = null, s0 = 0;
-          const Rj = i => JS(6 + i) - RB0 + SUP;   /* (the Receiver's job for its bin i, on this pod's round: in the cycle after its visit) */
+          const Rj = i => JS(1 + i) - RB0 + SUP;   /* (the Receiver's job for its bin i, on this pod's round: in the cycle after its visit) */
           for(let i = 0; i < 4; i++){ let top = null, ret = null;
             if(u < D0){ /* at the stop: empty i into R4[i] during job i; full i out of TOP4[i] during job 4+i */
-              ret = u < i*3000 + 1800 ? null : u < i*3000 + 2050 ? Object.assign(fullOf(i), { empty: true, off: [0, -27*(1 - ease((u - i*3000 - 1800)/250))] }) : Object.assign(fullOf(i), { empty: true });
-              const t4 = 12000 + i*3000; top = u < t4 + 600 ? fullOf(i) : u < t4 + 800 ? Object.assign(fullOf(i), { off: [0, -27*ease((u - t4 - 600)/200)] }) : null; }
+              const tr = i*3000 + 3000*ARMU1; ret = u < tr ? null : u < tr + 300 ? Object.assign(fullOf(i), { empty: true, off: [0, -27*(1 - ease((u - tr)/300))] }) : Object.assign(fullOf(i), { empty: true });
+              const t4 = 12000 + i*3000; top = u < t4 ? fullOf(i) : u < t4 + 400 ? Object.assign(fullOf(i), { off: [0, -27*ease((u - t4)/400)] }) : u < t4 + 3000*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null; }
             else { const J = Rj(i);
               ret = u < J + 600*JK ? Object.assign(fullOf(i), { empty: true }) : u < J + 900*JK ? Object.assign(fullOf(i), { empty: true, off: [0, -26*ease((u - J - 600*JK)/(300*JK))] }) : null;
               top = u < J + 2750*JK ? null : u < J + 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((u - J - 2750*JK)/(250*JK)))] }) : fullOf(i); }
             L[TOP4[i]] = top; L[R4[i]] = ret; }
-          const AT0 = D0, LV0 = SUP + 38800 - RB0, LV1 = LV0 + 11500, IN0 = 2*SUP - 3000;
+          const AT0 = D0, LV0 = SUP + 26800 - RB0, LV1 = LV0 + 11500, IN0 = 2*SUP - 3000;
           if(u < D0){ P1 = { a: 700, b: 1610 }; fd = 1; }
-          else if(u < LV0 && u < AT0 + 21500){ s0 = GTRL*clamp01((u - AT0)/21500); P1 = pathAt(GTR, Math.min(s0, GTRL - 0.5)); if(s0 > GTRL - (455 - GPB)) fd = 1; }   /* (backs in the last of the way, facing south) */
+          else if(u < LV0 && u < AT0 + 19500){ s0 = GTRL*clamp01((u - AT0)/19500); P1 = pathAt(GTR, Math.min(s0, GTRL - 0.5)); if(s0 > GTRL - (455 - GPB)) fd = 1; }   /* (backs in the last of the way, facing south) */
           else if(u < LV0){ P1 = { a: GPA, b: GPB }; fd = 1; }
           else if(u < LV1){ s0 = GRTL*clamp01((u - LV0)/11500); P1 = pathAt(GRT, Math.min(s0, GRTL - 0.5)); }
           else if(u < IN0){ P1 = { a: 480, b: 1500 }; fd = 0; }
           else { s0 = GINL*ease((u - IN0)/3000); P1 = pathAt(GIN, Math.min(s0, GINL - 0.5)); if(s0 > GINL - 115) fd = 1; }
           out.push(bot(P1.a, P1.b, fd != null ? fd : P1.fdir, { build: 'amrshelf', loads: L, bins: CPAL, wheel: s0*0.12 }));
           if(u < D0) CW_FLOW.gtp = 'pod ' + (pk + 1) + ' at the stop'; }
-        if(S.stop === 0 && S.r < 12000){
-          /* (phase 4) AN EMPTY BACK INTO THE POD: to the runner beside its slot, the empty up off it, round to the pod, up to its slot and slid in */
-          const q = S.r % 3000, e = Math.floor(S.r/3000), SHZ = 95, ARM = 40, PA0 = 752, PAB = 772, PB0 = 1610, RA0 = 870 - 13, FACE = 726;
-          const sq = AMR_SLOTS.amrshelf[R4[e]], sa = 700 - sq.b, sb = 1610 + sq.a, sz = [34, 64, 94, 124][sq.lv] + 2.5, PB1 = 1610 + RSL[e], PA1 = RA0 - 38;
-          let pa = PA0, pb = PB0, f = 2, walk = 0, gait = 0, bin = null;
-          const leg = (k, a0, b0, a1, b1) => { pa = a0 + (a1 - a0)*k; pb = b0 + (b1 - b0)*k; f = Math.atan2(b1 - b0, a1 - a0)/(Math.PI/2); walk = k > 0 && k < 1 ? 1 : 0; gait = Math.hypot(pa - a0, pb - b0)/7; };
-          if(q < 500) leg(q/500, PA0, PB0, PA1, PB1);
-          else if(q < 900){ pa = PA1; pb = PB1; f = 0; }
-          else if(q < 1500) leg((q - 900)/600, PA1, PB1, PAB, sb);
-          else if(q < 2050){ pa = PAB; pb = sb; f = 2; }
-          else if(q < 2600) leg((q - 2050)/550, PAB, sb, PA0, PB0);
-          else { f = 2; }
-          if(q >= 1500 && q < 2050) f = 2;
-          const chest = () => [pa + Math.cos(f*Math.PI/2)*24, pb + Math.sin(f*Math.PI/2)*24, 58];
-          if(q >= 700 && q < 1800){ if(q < 900){ const k = ease((q - 700)/200), c0 = chest(); bin = [RA0 + (c0[0] - RA0)*k, PB1 + (c0[1] - PB1)*k, 31 + (c0[2] - 31)*k]; }
-            else if(q < 1500) bin = chest();
-            else { const k = ease((q - 1500)/300), c0 = chest(); bin = [c0[0] + (FACE + 14 - c0[0])*k, c0[1] + (sb - c0[1])*k, c0[2] + (sz - c0[2])*k]; } }
-          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2);
-          const tgt = q < 700 ? (q > 400 ? [RA0, PB1, 41] : null) : bin ? [bin[0] - fa*12, bin[1] - fb*12, bin[2] + 10] : q < 2050 ? [sa + 12 + 27*(1 - ease((q - 1800)/250)), sb, sz + 10] : null;
-          const reachK = q < 400 ? 0 : q < 700 ? ease((q - 400)/300) : q < 2050 ? 1 : 1 - ease((q - 2050)/300);
-          let lift = 0.08, bend = 0.15;
-          if(tgt){ const fwd = Math.max(4, (tgt[0] - pa)*fa + (tgt[1] - pb)*fb), dz = tgt[2] - SHZ;
-            const th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz), Lq = Math.min(2, th/(Math.PI/2)), B = Math.max(0, Math.min(0.95, (ARM - d)/ARM*1.7));
-            lift = 0.08 + (Lq - 0.08)*reachK; bend = 0.15 + (B - 0.15)*reachK; }
-          out.push(man(pa, pb, f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
-          if(bin){ const col = CPC(SH[TOP4[e]].pal), bb = bin, dd = q < 900 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : 1; out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col, true) }); } }
-        else if(S.stop === 0){
-          /* THE PICK, MOVED BY THE BIN (Sir, 2026-11-19: "he never reaches up to the top, the animation is too stiff"; "he is lazy placing the
-             bins, he needs to move around to get them placed"): at the pod he reaches up to its bin and pulls it out to his chest; he walks it
-             round to the runner, to the side of its slot, and sets it down in reach; then walks back for the next. The bin has its own path,
-             his arms point at its near face every frame (lift: the shoulder's swing from hanging, bend: the elbow, folding as it comes in) */
-          const q = (S.r - 12000) % 3000, m = Math.floor((S.r - 12000)/3000), SHZ = 95, ARM = 40, PA0 = 752, PAB = 772, PB0 = 1610, RA0 = 870 - 13, FACE = 726;
-          const slot = TOP4[Math.min(m, 3)], sq = AMR_SLOTS.amrshelf[slot], sa = 700 - sq.b, sb = 1610 + sq.a, sz = [34, 64, 94, 124][sq.lv] + 2.5;
-          const PB1 = 1610 + RSL[Math.min(m, 3)], PA1 = RA0 - 38;   /* (where he stands to set it down: beside its slot) */
-          /* where he is and which way he faces: at the pod (west), walking to the runner, setting it down (east), walking back */
-          let pa = PA0, pb = PB0, f = 2, walk = 0, gait = 0;
-          const leg = (k, a0, b0, a1, b1) => { pa = a0 + (a1 - a0)*k; pb = b0 + (b1 - b0)*k; f = Math.atan2(b1 - b0, a1 - a0)/(Math.PI/2); walk = k > 0 && k < 1 ? 1 : 0; gait = Math.hypot(pa - a0, pb - b0)/7; };
-          if(m >= 4){ pa = PA0; pb = PB0; f = 1; }
-          else if(q < 1000){ f = 2; pa = PA0 + (PAB - PA0)*ease((q - 600)/250); }   /* (reaching in, then a step back as he slides it out) */
-          else if(q < 1600) leg((q - 1000)/600, PAB, PB0, PA1, PB1);
-          else if(q < 2100){ pa = PA1; pb = PB1; f = 0; }
-          else if(q < 2900){ leg(clamp01((q - 2150)/700), PA1, PB1, PA0, PB0); if(q < 2150 || q >= 2850) f = q < 2150 ? 0 : 2; }
-          const chest = () => [pa + Math.cos(f*Math.PI/2)*24, pb + Math.sin(f*Math.PI/2)*24, 58];
-          let bin = null;
-          if(m < 4 && q >= 800 && q < 2100){
-            /* (slid straight out of its slot, level, till it is clear of the pod's face; then down to his chest) */
-            if(q < 800){ const k = ease((q - 600)/200); bin = [sa + (FACE + 14 - sa)*k, sb, sz]; }
-            else if(q < 1000){ const k = ease((q - 800)/200), c0 = chest(); bin = [FACE + 14 + (c0[0] - FACE - 14)*k, sb + (c0[1] - sb)*k, sz + (c0[2] - sz)*k]; }
-            else if(q < 1600) bin = chest();
-            else { const k = ease((q - 1600)/450), c0 = chest(); bin = [c0[0] + (RA0 - c0[0])*k, c0[1] + (PB1 - c0[1])*k, c0[2] + (31 - c0[2])*k]; } }
-          /* where his hands go: the bin's near face while he reaches for it or holds it; hanging, eased, between */
-          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2);
-          const tgt = m >= 4 ? null : q < 800 ? [sa + 12 + (q < 600 ? 0 : (FACE + 14 - sa)*ease((q - 600)/200)), sb, sz + 10] : bin ? [bin[0] - fa*12, bin[1] - fb*12, bin[2] + 10] : null;
-          const reachK = m >= 4 ? 0 : q < 600 ? ease(q/350) : q < 2100 ? 1 : 1 - ease((q - 2100)/300);
-          let lift = 0.08, bend = 0.15;
-          if(tgt){ const fwd = Math.max(4, (tgt[0] - pa)*fa + (tgt[1] - pb)*fb), dz = tgt[2] - SHZ;
-            const th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz), L = Math.min(2, th/(Math.PI/2)), B = Math.max(0, Math.min(0.95, (ARM - d)/ARM*1.7));
-            lift = 0.08 + (L - 0.08)*reachK; bend = 0.15 + (B - 0.15)*reachK; }
-          out.push(man(pa, pb, f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
-          /* (being set down it is over the runner's lid: after the runner, not at its own place behind its middle -- the lid painted over it
-             till it landed, Sir, 2026-11-19) */
-          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin, dd = q >= 1600 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : bb[0] - 12 < FACE ? Math.min(-1, 700 + 1610 - 2 - bb[0] - bb[1]) : 1;   /* (still under the pod's shelf, sliding out of its slot: before the pod; out past its face, after it -- Sir) */ out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
-        else out.push(man(752, 1610, 1, {}));
+        /* goods to person's arm robot, parked between the pod's stop and the runner (facing north): the four empties off the runner into the
+           pod (R4), then the four fulls out of it (TOP4) onto the runner, a move every 3000 */
+        { const AA = 785, AB = 1610, fr = w => [AB - w[1], w[0] - AA, w[2]];
+          const runW = i => [P0.a - 13, P0.b + RSL[i], 31 + 20], podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [700 - sq.b + 27, 1610 + sq.a, [34, 64, 94, 124][sq.lv] + 2.5 + 20]; };
+          let arm = { pick: fr(podW(TOP4[0])), place: fr(runW(0)), u: null };
+          if(S.stop === 0 && S.r < 24000){ const J = Math.floor(S.r/3000), u = (S.r - J*3000)/3000, i = J & 3, col = CPAL[SH[TOP4[i]].pal % 4];
+            arm = J < 4 ? { pick: fr(runW(i)), place: fr(podW(R4[i])), u, held: HELDBIN(col, true) } : { pick: fr(podW(TOP4[i])), place: fr(runW(i)), u, held: HELDBIN(col, false) }; }
+          out.push(bot(AA, AB, 3, { build: 'amrarm', arm })); }
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
       T(867, 873, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1794, 1297, 1303, 0.35, '#5fb8e8');
