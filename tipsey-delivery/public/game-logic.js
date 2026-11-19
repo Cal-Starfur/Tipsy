@@ -58071,7 +58071,6 @@ function houseCanopy(fn){
         F(A0 + 2, A1 - 2, 12, 80, teal, null, 0, B1 + 0.2);
         for(let a = A0 + 10; a < A1; a += 10) F(a - 0.4, a + 0.4, 12, 80, tealD, null, 0, B1 + 0.3);
         for(let z = 22; z < 80; z += 10) F(A0 + 2, A1 - 2, z - 0.4, z + 0.4, tealD, null, 0, B1 + 0.3);
-        S(A0, B0, B1, 12, 80, shade(teal, 0.85));
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 88, 93, '#e8e2d4', '#d4ccbc', '#c4bcac');
       }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
       /* WHAT STANDS ON IT, each its own piece (W28): the espresso machine, two grinders, the cake dome, the till -- keyed on the bar's middle
@@ -58169,7 +58168,7 @@ function houseCanopy(fn){
             if(r === 1 && i % 3 === 1){ cyl(ca, B1 - 6, z, z + 18, 4, '#f4f2ec', '#e8e4dc'); continue; }                  // (a mug or two)
             if(r === 1 && i % 3 === 2){ box(ca - 5, ca + 5, B1 - 10, B1 - 2, z, z + 22, '#d8e4e8', '#c8d4d8', '#b8c4c8'); continue; }   // (a pour-over kit)
             bagA(ca, B1 - 2, z, ROAST[(i + r*3) % ROAST.length], 0.8); bagA(ca, B0 + 10, z, ROAST[(i + r*3 + 2) % ROAST.length], 0.8); } });
-        S(A0, B0, B1, 0, zTop, oakS); S(A1, B0, B1, 0, zTop, shade(oak, 0.8));
+        S(A1, B0, B1, 0, zTop, shade(oak, 0.8));                                                    // (its east end: the west end faces away, never painted over the front)
         box(A0 - 2, A1 + 2, B0 - 2, B1 + 2, zTop, zTop + 4, oakT, oak, oakS);
         F(A0 + 40, A1 - 40, zTop + 4, zTop + 24, tealD, null, 0, mid); blockWordIn('BEANS', A0 + 44, A1 - 44, zTop + 7, zTop + 21, mid + 0.2, '#f4efe4', null, 3);
       }, { pad: 4, run: 30, extra: { b: mid } });
@@ -58383,7 +58382,6 @@ function houseCanopy(fn){
         box(A0, A1, B0, B1, 0, zC, coral, coral, coralD);
         F(A0, A1, 0, 6, coralD, null, 0, B1 + 0.2);
         for(let a = A0 + 30; a < A1; a += 30) F(a - 0.5, a + 0.5, 8, zC - 4, coralD, null, 0, B1 + 0.2);
-        S(A0, B0, B1, 0, zC, shade(coral, 0.85));
         T(A0, A1, B0, B1, zC, '#f4efe4');
         F(A0, A1, zC, zT, '#f6f1e6', null, 0, B0 + 6);                                              // (its back panel, the staff's side, low)
         /* three trays of pastries inside, stepped up to the back */
@@ -58394,7 +58392,7 @@ function houseCanopy(fn){
         F(A0, A1, zC, zT - 4, glass, null, 0, B1);                                                   // the glass to the customers
         F(A0, A1, zT - 26, zT - 23, 'rgba(255,255,255,.28)', null, 0, B1 + 0.1);
         for(let a = A0 + 65; a < A1; a += 65) F(a - 0.8, a + 0.8, zC, zT - 4, steelL, null, 0, B1 + 0.2);
-        S(A0, B0, B1, zC, zT - 4, 'rgba(200,226,236,.26)'); S(A1, B0, B1, zC, zT - 4, 'rgba(200,226,236,.2)');
+        S(A1, B0, B1, zC, zT - 4, 'rgba(200,226,236,.2)');                                          // (the east end's glass; the west end faces away from the eye)
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, '#f4efe4', '#e4dccc', '#d4ccbc');
       }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
       /* WHAT STANDS ON IT, each its own piece (W28): the cake on its stand, a basket of rolls, a jar of biscotti, the till -- keyed on the case's middle line
