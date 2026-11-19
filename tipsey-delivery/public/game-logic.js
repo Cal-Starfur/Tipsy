@@ -57748,9 +57748,8 @@ function houseCanopy(fn){
        b 632..1250  the assembly cell (a 720..2225, hatched, solid): ten stops in two rows (b 800 west, b 1200 east), eight warehouse robots with a
                     scooter or an e-bike on a jig pulsed round them together; a humanoid at each stop facing the job, its bench and andon
                     behind it; the loader at the frame rack, the packer at the packing table
-       a 2240..2312 the pallet jack robot's aisle, the packing pallet to the door
-       a 20..720    the west end (no mezzanine: Sir, "taking up a tone of space for no reason"): the high rack and the scissor lift robot
-                    filling its top; goods to person -- two shelf pod robots taking turns at a humanoid picker
+       b 1390, a 2275  the pallet jack robot's way from the arm robot's bay out of the roller door to Dispatch
+       a 20..720    the west end (no mezzanine: Sir, "taking up a tone of space for no reason"): the high rack; goods to person -- two shelf pod robots taking turns at a humanoid picker
        b 1330       the conveyor robot, packing table to the arm robot stacking the pallets. Every build of the warehouse robot works here
        b 1430..1770 the finished-goods pallets, the robots' charging pads */
   name:'Cratewell Works Hall Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
@@ -57883,8 +57882,8 @@ function houseCanopy(fn){
         T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
     { const RP = [[500, 200], [2180, 200], [2180, 590], [500, 590]];
       for(let i = 0; i < 4; i++){ const [a0, b0] = RP[i], [a1, b1] = RP[(i + 1) % 4]; T(Math.min(a0, a1) - 3, Math.max(a0, a1) + 3, Math.min(b0, b1) - 3, Math.max(b0, b1) + 3, 0.35, '#5fb8e8'); } }
-    T(2240, 2312, 640, 1400, 0.3, '#8f9599'); T(2240, 2246, 640, 1400, 0.5, yel); T(2306, 2312, 640, 1400, 0.5, yel);
-    for(const pb of [700, 1340]){ T(2236, 2316, pb - 52, pb - 46, 0.6, '#f2efe6'); T(2236, 2316, pb + 46, pb + 52, 0.6, '#f2efe6'); }
+    T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
+    T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
 
     /* ---- KITTING: the parts racks along the north wall (bins in the runners' and the stations' colours) ---- */
     runPiece(items, 420, 2240, 10, 96, 170, (s0, s1) => [solid(s0, s1, 10, 96, 170, 'parts rack')], () => {
@@ -57963,33 +57962,32 @@ function houseCanopy(fn){
         return out; } } });
     }
 
-    /* ---- THE PALLET MOVER (fx.crew): the pallet jack robot up the east aisle with a pallet of boxed scooters for the door, back for the next ---- */
-    { const B0 = 1340, B1 = 700, TT = 22000, CART = AMR_SLOTS.amrjack.map(q => q.def);
-      items.push({ a: 2276, b: 1020, z: 0, solids: [solid(2240, 2312, 1380, 1440, 40, 'packing pallets')], draw: () => {}, fx: { crew: t => {
-        const r = ((t % TT) + TT) % TT; let b, full, fork;
-        if(r < 3000){ b = B0; full = r > 1200; fork = clamp01((r - 1500)/1200); }
-        else if(r < 11000){ b = B0 + (B1 - B0)*ease((r - 3000)/8000); full = true; fork = 1; }
-        else if(r < 14000){ b = B1; full = r < 12800; fork = 1 - clamp01((r - 11000)/1200); }
-        else { b = B1 + (B0 - B1)*ease((r - 14000)/8000); full = false; fork = 0; }
-        return [bot(2276, b, 3, { build: 'amrjack', loads: full ? CART : [], fork, wheel: b*0.12 })]; } } });
+    /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
+       its bay, along the south of the cell, up the east aisle and out of the roller door to Dispatch, and comes back with an empty one
+       (Sir, 2026-11-19: "the pallet mover would be really helpful to bring things from production to distribution") ---- */
+    { const JP = [[1720, 1520], [1720, 1390], [2275, 1390], [2275, 455], [W + 70, 455], [W + 71, 455]], JL = JP.slice(1).reduce((L, q, i) => L + Math.hypot(q[0] - JP[i][0], q[1] - JP[i][1]), 0) - 1;
+      const TT = 38000, GO = 15000, CART = AMR_SLOTS.amrjack.map(q => q.def);
+      items.push({ a: 2000, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
+        const r = ((t % TT) + TT) % TT; let s0, full, fork;
+        if(r < 4000){ s0 = 0; full = r > 1200; fork = clamp01((r - 1500)/1200); }
+        else if(r < 4000 + GO){ s0 = JL*ease((r - 4000)/GO); full = true; fork = 1; }
+        else if(r < 22000){ s0 = JL; full = false; fork = 0; }
+        else if(r < 22000 + GO){ s0 = JL*(1 - ease((r - 22000)/GO)); full = false; fork = 0; }
+        else { s0 = 0; full = false; fork = 0; }
+        const P0 = pathAt(JP, Math.min(s0, JL - 0.5)), fade = clamp01((W + 50 - P0.a)/80);
+        return fade > 0.01 ? [bot(P0.a, P0.b, P0.fdir, { build: 'amrjack', loads: full ? CART : [], fork, wheel: s0*0.12, fade })] : []; } } });
     }
 
-    /* ---- THE WEST END: the high rack on the west wall, the scissor lift robot putting cartons up on its top level (fx.crew); goods to person
+    /* ---- THE WEST END: the high rack on the west wall; goods to person
        -- two shelf pod robots bringing their bins round to a humanoid picker in turn ---- */
     runPiece(items, 20, 110, 640, 1360, 200, (s0, s1) => [solid(20, 110, s0, s1, 200, 'high rack')], () => {
       for(let b = 640; b <= 1360; b += 120) for(const a of [24, 106]) box(a - 4, a + 4, b - 4, b + 4, 0, 200, blue, shade(blue, .85), shade(blue, .7));
       for(const [lv, z] of [10, 60, 110, 160].entries()){ box(20, 110, 640, 1360, z, z + 5, yel, roboD, '#a98225');
         for(let b = 648; b < 1352; b += 44){ if((b + lv*44) % 132 === 72) continue; box(30, 100, b, b + 38, z + 5, z + 38, '#c98a4a', '#b97b40', '#a86e36'); F(46, 84, z + 14, z + 26, PAL[(b/44 + lv) % 5 | 0], null, 0, b + 38.2); } }
     }, { alongB: true, keyStart: true, pad: 3 });
-    { const BOX2 = AMR_SLOTS.amrlift.map(() => ({ k: 'box', la: 20, lb: 24, h: 22, col: 0xc98a4a })), TT = 16000, A0 = 470, A1 = 170, B = 960;
-      const SH = AMR_SLOTS.amrshelf.map(q => q.def), SP = [[420, 1250], [420, 1400], [660, 1400], [660, 1120], [420, 1120]], SL = pathLen(SP), SV = 0.07, SD = 4200, ST = SL/SV + SD;
-      items.push({ a: 360, b: 1150, z: 0, solids: [solid(330, 720, 1080, 1440, 120, 'goods to person'), solid(110, 520, 920, 1000, 120, 'lift run')], draw: () => {}, fx: { crew: t => {
-        const out = [], r = ((t % TT) + TT) % TT; let a, deck = 0, full = true;
-        if(r < 4000) a = A0 + (A1 - A0)*ease(r/4000);
-        else if(r < 9000){ a = A1; const q = r - 4000; deck = q < 1800 ? ease(q/1800) : q < 3200 ? 1 : 1 - ease((q - 3200)/1800); full = q < 2400; }
-        else if(r < 13000){ a = A1 + (A0 - A1)*ease((r - 9000)/4000); full = false; }
-        else { a = A0; full = r > 14500; }
-        out.push(bot(a, B, 2, { build: 'amrlift', deck, loads: full ? BOX2 : [], wheel: a*0.12 }));
+    { const SH = AMR_SLOTS.amrshelf.map(q => q.def), SP = [[420, 1250], [420, 1400], [660, 1400], [660, 1120], [420, 1120]], SL = pathLen(SP), SV = 0.07, SD = 4200, ST = SL/SV + SD;
+      items.push({ a: 360, b: 1150, z: 0, solids: [solid(330, 720, 1080, 1440, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
+        const out = [];
         let busy = false;
         for(let k = 0; k < 2; k++){ const q = (((t + k*ST/2) % ST) + ST) % ST, s0 = q < SD ? 0 : (q - SD)*SV, P0 = pathAt(SP, s0); if(q < SD) busy = true;
           out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrshelf', loads: SH, wheel: s0*0.12 })); }
@@ -58000,36 +57998,32 @@ function houseCanopy(fn){
 
     /* ---- OUT TO THE PALLETS: the conveyor robot takes the packed boxes from the packing table west to the arm robot, which stacks them onto
        the pallets (fx.crew) ---- */
-    { const CV = AMR_SLOTS.amrconv.map(q => q.def), TT = 18000, A0 = 2160, A1 = 1900, B = 1330;
-      items.push({ a: 1990, b: 1440, z: 0, solids: [solid(1830, 1950, 1470, 1590, 120, 'palletizing robot')], draw: () => {}, fx: { crew: t => {
+    { const CV = AMR_SLOTS.amrconv.map(q => q.def), TT = 18000, A0 = 2160, A1 = 1900, B = 1300;
+      items.push({ a: 1990, b: 1440, z: 0, solids: [solid(1835, 1945, 1462, 1538, 120, 'palletizing robot')], draw: () => {}, fx: { crew: t => {
         const r = ((t % TT) + TT) % TT; let a, full;
         if(r < 3500){ a = A0; full = r > 1500; } else if(r < 8500){ a = A0 + (A1 - A0)*ease((r - 3500)/5000); full = true; }
         else if(r < 12500){ a = A1; full = r < 11000; } else { a = A1 + (A0 - A1)*ease((r - 12500)/5000); full = false; }
         const run = (r > 1000 && r < 3500) || (r > 8500 && r < 11000);
-        return [bot(a, B, 2, { build: 'amrconv', loads: full ? CV : [], vel: run ? 0.06 : 0, wheel: a*0.12 }), bot(1890, 1530, 3, { build: 'amrarm', loads: [AMR_SLOTS.amrarm[0].def] })]; } } });
+        return [bot(a, B, 2, { build: 'amrconv', loads: full ? CV : [], vel: run ? 0.06 : 0, wheel: a*0.12 }), bot(1890, 1500, 2, { build: 'amrarm', loads: [AMR_SLOTS.amrarm[0].def] })]; } } });
     }
 
     /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays (a 1100..1800, b 1420..1760) ---- */
     for(let r = 0; r < 2; r++) for(let c = 0; c < 4; c++){ const pa = 1180 + c*180, pb = 1500 + r*200;
       T(pa - 70, pa + 70, pb - 70, pb - 64, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - 70, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - 70, pb + 70, 0.5, yel);
-      if((r*4 + c) % 3 === 2) continue;
+      if((r*4 + c) % 3 === 2 || (r === 0 && c === 3)) continue;   /* (r 0 c 3: the arm robot's bay, the pallet mover's to take) */
       items.push({ a: pa + 60, b: pb + 55, z: 0, solids: [solid(pa - 60, pa + 60, pb - 55, pb + 55, 100, 'pallet of boxes')], draw: () => {
         box(pa - 60, pa + 60, pb - 55, pb + 55, 0, 10, '#b08a58', '#9a7848', '#8a6a40');
         const lvls = 2 + ((r + c) % 2);
         for(let lv = 0; lv < lvls; lv++) for(const [a0, b0] of [[pa - 56, pb - 51], [pa + 2, pb - 51], [pa - 56, pb + 1], [pa + 2, pb + 1]]){ box(a0, a0 + 54, b0, b0 + 50, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
           F(a0 + 12, a0 + 42, 18 + lv*28, 30 + lv*28, PAL[(c + r + lv) % 5], null, 0, b0 + 50.2); } }});
     }
-    /* the packing table's pallet, waiting for the mover (by the east aisle's south bay) */
-    items.push({ a: 2276, b: 1440, z: 0, solids: [], draw: () => { box(2246, 2306, 1384, 1436, 0, 10, '#b08a58', '#9a7848', '#8a6a40');
-      for(const [a0, b0] of [[2248, 1386], [2278, 1386], [2248, 1412], [2278, 1412]]) box(a0, a0 + 27, b0, b0 + 23, 10, 34, '#c98a4a', '#b97b40', '#a86e36'); }});
-
     /* ---- THE ROBOTS' CHARGING PADS (a 420..1000, b 1430..1740): six pads, a charger post at each, two robots on charge (fx.crew) ---- */
     for(let r = 0; r < 2; r++) for(let c = 0; c < 3; c++){ const pa = 520 + c*200, pb = 1500 + r*160;
       T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
       items.push({ a: pa - 70, b: pb - 50, z: 0, solids: [solid(pa - 96, pa - 74, pb - 14, pb + 14, 70, 'charger')], draw: () => {
         box(pa - 96, pa - 74, pb - 14, pb + 14, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(pa - 73.6, pb - 10, pb + 10, 44, 60, '#5fe8e0'); }});
     }
-    items.push({ a: 720, b: 1580, z: 0, solids: [solid(470, 580, 1462, 1538, 40, 'robot on charge'), solid(870, 980, 1622, 1698, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(525, 1500, 2), bot(925, 1660, 2, { build: 'amrstock' })] } });
+    items.push({ a: 720, b: 1580, z: 0, solids: [solid(470, 580, 1462, 1538, 40, 'robot on charge'), solid(870, 980, 1622, 1698, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(525, 1500, 2, { build: 'amrlift' }), bot(925, 1660, 2, { build: 'amrstock' })] } });   /* (the scissor lift parked on charge: a humanoid's way up a level, Sir) */
 
     depthSort(items);
   }
@@ -118313,7 +118307,7 @@ class WorldScene extends Phaser.Scene {
          chain of carts, kept between frames under its key) */
       AMRL.crew = m.loads || []; this._amrJack = m.fork || 0; this._amrLift = m.deck || 0; this._crewVel = m.build === 'amrlift' ? (m.deck > 0.5 ? 0 : 0.05) : m.fork ? 0.05 : (m.vel || 0);
       this._tug = m.key ? TS[m.key] || null : null; this._tugL = null;
-      try { this.drawBot(g, 'amr', x, y, z, t, m.fdir, m.wheel || 0, 0, { paint: true }); if(m.key) TS[m.key] = this._tug; }
+      try { const d0 = gg => this.drawBot(gg, 'amr', x, y, z, t, m.fdir, m.wheel || 0, 0, { paint: true }); if(m.fade != null && m.fade < 1) this.withFade(g, m.fade, () => d0(g)); else d0(g); if(m.key) TS[m.key] = this._tug; }
       finally { for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, saved); AMRL.crew = null; this._amrJack = jk; this._amrLift = lf; this._crewVel = cv; this._tug = tg; this._tugL = tl; }
     }
     if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) });
