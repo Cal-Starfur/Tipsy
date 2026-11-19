@@ -46509,6 +46509,8 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true, noMouth: true },
   { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true, noMouth: true },
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's) -- patrolCostume. upper: his upper body's colour */
+  /* Cratewell Works' own (Sir, 2026-11-19: "our security bot needs to be skinned to our brand and given a security look") */
+  { id: 'patrol:cratewell', build: 'patrol', name: 'Cratewell Security', cents: 900, body: 0xf6c81e, upper: 0xf6c81e, stripe: 0xd4201f, costume: 'cratewell', noMouth: true },
   { id: 'patrol:museum', build: 'patrol', name: 'Museum Guard', cents: 900, body: 0x23304d, stripe: 0x23304d, costume: 'museum', noMouth: true },
   { id: 'patrol:mallcop', build: 'patrol', name: 'Mall Cop', cents: 900, body: 0x2a2d35, upper: 0x9cbbe0, stripe: 0x16171b, costume: 'mallcop', noMouth: true },
   { id: 'patrol:lifeguard', build: 'patrol', name: 'Lifeguard', cents: 900, body: 0xd8261c, stripe: 0xd8261c, costume: 'lifeguard', noMouth: true },
@@ -60941,7 +60943,7 @@ function houseCanopy(fn){
       out.push(bot(SHA, SHB, 3, { build: 'amrstock', loads: [], cargo: () => { for(const i of onSh) rcvItemKit(RCV[i], SHA, SHSL[i === 0 ? 0 : 1], 31); } }));
       /* the patrol bot by the door: turned to the lane, scanning a pallet through */
       const scan = jr > 9000 && jr < 11000 || jr > 12500 && jr < 14000;
-      out.push({ kind: 'bot', botKind: 'patrolbot', a: 2185, b: 610, fdir: 3.5, cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2195, 598, 66, 2260 + k2*20, 455, 30, 0.6, '#3cd06a'); } : null });   /* (south of the door's lane, out of Receiving's way: turned to the door) */
+      out.push({ kind: 'bot', botKind: 'patrolbot', bSkin: 'patrol:cratewell', a: 2185, b: 600, fdir: 0.2, cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2208, 596, 70, 2290 + k2*16, 470, 34, 0.6, '#3cd06a'); } : null });   /* (facing the door and the eye: his badge to the camera) */   /* (south of the door's lane, out of Receiving's way: turned to the door) */
       CW_FLOW.receiving = q ? 'job ' + (q.j + 1) + '/' + JOBS.length + ' ' + JOBS[q.j].k : '-';
       return out; } } });
 
@@ -121304,7 +121306,10 @@ class WorldScene extends Phaser.Scene {
      robot in a facility skin and build of its own (m.bSkin, m.build; its loads m.loads, its forks m.fork); 'cargo' nothing but its cargo -- the avatar's own SKIN, loads
      and forks put by for the draw and back after, as drawBot's data.skin does. m.cargo: what rides on it, drawn in the room's kit after it */
   drawRoomBot(g, m, x, y, z, t, name, G, K){
-    if(m.kind === 'bot'){ this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, m.data || {}); if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
+    if(m.kind === 'bot'){ const sv = m.bSkin ? Object.assign({}, SKIN) : null;
+      if(sv){ for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k]; Object.assign(SKIN, SKIN_BASE, { bSkin: m.bSkin, build: m.build || null }); }
+      try { this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, Object.assign({}, m.data || {}, sv ? { paint: true } : {})); }
+      finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
       try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, crew: true }); } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
@@ -134289,6 +134294,33 @@ class WorldScene extends Phaser.Scene {
         { g.lineStyle(Math.max(1.4, 2*K), GOLD, 1); for(let i = 0; i < 10; i++){ const t0 = -1.05 + 2.1*i/10, t1 = t0 + 0.21; if(!sees(Math.cos(t0 + 0.105), Math.sin(t0 + 0.105), 0)) continue;   /* (the chin cord: only its side toward the eye) */
             const A = P(Math.cos(t0)*26, Math.sin(t0)*26, 113.2), B = P(Math.cos(t1)*26, Math.sin(t1)*26, 113.2); g.lineBetween(A.x, A.y, B.x, B.y); }
           for(const th of [-1.05, 1.05]){ if(!sees(Math.cos(th), Math.sin(th), 0)) continue; g.fillStyle(GOLD, 1); g.fillPoints([...Array(12)].map((_, k) => { const ph = k/12*Math.PI*2, t2 = th + Math.cos(ph)*1.7/26.3; return PT(P(Math.cos(t2)*26.3, Math.sin(t2)*26.3, 113.2 + Math.sin(ph)*1.7)); }), true); } } }
+      return; }
+    if(c === 'cratewell'){   /* CRATEWELL SECURITY: the brand's yellow over charcoal, its red; a black tactical vest on his chest -- two silver
+         reflective bands round him, a red shield badge with the yellow wings, a radio at his shoulder, red shoulder flashes; on his back a black
+         panel with the wings and a reflective bar; a silver hi-vis band round his waist; on his crown a smoked camera dome under a red and amber
+         beacon, flashing in turn */
+      const VEST = 0x1d1f23, REF = 0xd9dde2, RED = 0xd4201f, YEL = 0xf6c81e;
+      const wings = (th, zz, s2, col) => { for(const sb of [-1, 1]) for(const [dz, l] of [[2.2, 1], [0, 0.82], [-2.2, 0.6]]) decal([[th + sb*0.05, zz + dz + 0.8], [th + sb*(0.05 + 0.2*l*s2), zz + dz + 0.8], [th + sb*(0.05 + 0.2*l*s2), zz + dz - 0.8], [th + sb*0.05, zz + dz - 0.8]], col, 1, 1.1); };
+      if(st === 'body'){
+        /* the vest: its front, round to his sides, a V at the neck under his face */
+        patch(0.3, 2*Math.PI - 0.3, 40, 80, VEST, 1, 0.8); decal([[-0.32, 80], [0.32, 80], [0.32, 40], [-0.32, 40]].map(([a, z]) => [a, z]), VEST, 1, 0.8);
+        decal([[-0.34, 80.2], [0, 72], [0.34, 80.2]], YEL, 1, 0.85);   /* (the vest wraps him, a V at the neck under his face) */
+        for(const zz of [50, 60]) patch(0, 2*Math.PI, zz, zz + 2.6, REF, 1, 0.95);
+        shield(-0.5, 71, 4.6, RED, YEL); wings(-0.5, 71.5, 0.35, YEL);
+        /* on his back: the wings in yellow over a red bar */
+        decal([[Math.PI - 0.5, 76], [Math.PI + 0.5, 76], [Math.PI + 0.5, 66], [Math.PI - 0.5, 66]], RED, 1, 1); wings(Math.PI, 71, 1.2, YEL);
+        for(const sb of [-1, 1]) patch(sb*1.25, sb*1.65, 92, 98, RED, 1, 0.9);
+        if(seesS(0.85, 94)){ decal([[0.72, 99], [0.98, 99], [0.98, 86], [0.72, 86]], 0x16171b, 1, 1.4); decal([[0.76, 97], [0.94, 97], [0.94, 92], [0.76, 92]], 0x3a3e46, 1, 1.5);
+          const A = S(0.92, 99, 1.4), B = S(0.92, 106, 2.4); g.lineStyle(Math.max(1.4, 2.2*K), 0x16171b, 1); g.lineBetween(A.x, A.y, B.x, B.y); dot(0.78, 96, 0.9, 0x3cd06a, 1.6); } }
+      if(st === 'mid') half([[33, 31.2], [37, 31.2]], REF, true);
+      if(st === 'top'){
+        const on = Math.floor(t/350) % 2;
+        lathe([[136.5, 9], [139.5, 9]], 0x2a2d33);
+        lathe([[139.5, 8], [143, 7.6], [146, 5.5], [147.5, 0]], 0x3a4048, (i, nr) => nr[2] > 0.6 ? 0x4e5560 : 0x30353c);   /* (the smoked camera dome) */
+        lathe([[147.5, 3.2], [149, 3.2]], 0x2a2d33);
+        lathe([[149, 3.6], [155, 3.4], [156, 0]], on ? RED : 0x7a1a14);
+        lathe([[156, 2.6], [159, 2.4], [160, 0]], on ? 0x8a5a10 : 0xffb21a);
+        { const q = P(0, 0, on ? 152 : 158); g.fillStyle(on ? RED : 0xffb21a, 0.25); g.fillCircle(q.x, q.y, 12*K*2); } }
       return; }
     if(c === 'mallcop'){   /* (second pass -- Sir, 2026-11-18): a light-blue shirt, two pocket flaps, a silver badge, a round patch on each shoulder, a radio
          clipped at his shoulder; dark trousers, a torch on his belt behind; a white bike helmet, its vents dark slots, a short peak. (No scooter deck or grips -- Sir, 2026-11-18: he drives himself; his two wheels kept) */
