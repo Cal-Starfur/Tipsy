@@ -44728,9 +44728,11 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'rover:star', build: 'rover', name: 'Star Ranger', cents: 1000, body: 0x1f2f5e, stripe: 0xd9a93c, print: 'rvStar', roverPart: 'boosters', noDish: true, noFlag: true /* (no mast or star -- Sir, 2026-11-17) */, noStripe: true /* (no gold band over its stars) */ /* (second pass -- Sir, 2026-11-17: twin rockets on his back, a gold star turning on his mast) */, noSolar: true, lidCol: [0x2a3f78, 0x22346a, 0x1a2852], eye: 0xffd34a, trim: { rimCol: 0xd9a93c } },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   /* THE CARGO BOT'S ERA SKINS (Sir, 2026-11-17): three for each era -- its body colour and its accents (acc: drawCargoEra) */
-  /* the waste collector's (drawCargoWaste): acc.hopper, acc.icon, acc.chev (hazard chevrons on its tailgate) */
-  { id: 'cgwaste:cratewell', build: 'cgwaste', name: 'Cratewell Works', cents: 900, body: 0xf6c81e, stripe: 0xd4201f, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
-  { id: 'cgwaste:city', build: 'cgwaste', name: 'City Recycling', cents: 900, body: 0x2a8a4a, stripe: 0xf4f4f0, acc: { hopper: 0x2f9a52, icon: 0xf4f4f0, chev: false, trim: 0x1d3a26 } },
+  /* the balers' (drawCargoBaler): acc.hopper, acc.icon, acc.chev (hazard chevrons on the bale door); the cardboard one's stripe brown, the plastic one's blue */
+  { id: 'cgcard:cratewell', build: 'cgcard', name: 'Cratewell Works', cents: 900, body: 0xf6c81e, stripe: 0x8a5a2a, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
+  { id: 'cgcard:city', build: 'cgcard', name: 'City Recycling', cents: 900, body: 0x2a8a4a, stripe: 0x8a5a2a, acc: { hopper: 0x2f9a52, icon: 0xf4f4f0, chev: false, trim: 0x1d3a26 } },
+  { id: 'cgfilm:cratewell', build: 'cgfilm', name: 'Cratewell Works', cents: 900, body: 0xf6c81e, stripe: 0x2a6ad8, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
+  { id: 'cgfilm:city', build: 'cgfilm', name: 'City Recycling', cents: 900, body: 0x2a8a4a, stripe: 0x2a6ad8, acc: { hopper: 0x2f9a52, icon: 0xf4f4f0, chev: false, trim: 0x1d3a26 } },
   { id: 'cg1900:post', build: 'cg1900', name: 'Post Wagon', cents: 800, body: 0xb8231c, stripe: 0x1d1f26, acc: { canvas: 0x2a2d33, frame: 0x16171b, prop: 'mail' } },
   { id: 'cg1900:bakery', build: 'cg1900', name: 'Bakery', cents: 800, body: 0xf3ead2, stripe: 0x2f6a3a, acc: { canvas: 0x3f8a4a, frame: 0x5a3418, prop: 'loaf' } },
   { id: 'cg1900:ice', build: 'cg1900', name: 'Ice Wagon', cents: 800, body: 0x5a8ac8, stripe: 0xf4f4f0, acc: { canvas: 0xf4f8fc, frame: 0x23365a, prop: 'ice' } },
@@ -121333,7 +121335,7 @@ class WorldScene extends Phaser.Scene {
          opens on his hinge with his lid (data.lid: the fleet avatar's, Tipsey's own lidAng) -- the hold inside, the lidar
          riding on it */
       if(WEAR && /^cg\d{4}$/.test(SKIN.build || '')){ this.drawCargoEra(SKIN.build, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB); return; }   // (its era build: drawCargoEra)
-      if(WEAR && SKIN.build === 'cgwaste'){ this.drawCargoWaste(g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB, data); return; }   // (the waste collector: drawCargoWaste)
+      if(WEAR && (SKIN.build === 'cgcard' || SKIN.build === 'cgfilm')){ this.drawCargoBaler(SKIN.build === 'cgfilm' ? 'film' : 'card', g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB, data); return; }   // (the balers: drawCargoBaler)
       const L = 100, W = 72, hx = L/2, hy = W/2, z0 = 18, z1 = 86, zl = 97, wr = 11, wa = [-30, 0, 30];
       const A = data && data.lid || 0, LD = { A, flip: !!(data && data.lidFlip), yh: data && data.lidFlip ? hy : -hy, zh: z1 };
       const BODYC = WEAR ? { top: BPW.top, lt: BPW.lt, dk: BPW.dk } : { top: 0xf4f5f6, lt: 0xe1e4e8, dk: 0xc0c6cd };
@@ -132795,77 +132797,102 @@ class WorldScene extends Phaser.Scene {
      cg1900 a wooden wagon with a canvas top on hoops; cg1920 a Model-T van, black hood and brass radiator; cg1950 a bulbous two-tone
      panel van with a split windscreen; cg1970 a square box van with wood-grain sides; cg1980 a neon-trimmed wedge; cg2100 a hover
      freighter on glowing pads, a cargo pod on its back */
-  /* THE WASTE COLLECTOR (Sir, 2026-11-19: the cargo bot "specialized to receive waste and skinned to be in our factory"): his chassis, six
-     wheels and tray, a lower body with his face and stripe; on it a hopper -- two roof flaps hinged at its long sides that open to be fed
-     (data.flaps 0..1; his lid, worn), slatted windows down each side with the load showing through them as it fills (data.fill 0..1:
-     flattened cardboard in layers, wads of film), a lamp at its front corner (green, amber, red as it fills), a tailgate with hazard
-     chevrons at its back, an amber beacon; it tips back about its rear foot to empty (data.tip 0..1), the tailgate swinging out and the
-     load sliding off its floor. Skins (TP_BSKIN build 'cgwaste'): its body, stripe, hopper and icon colours */
-  drawCargoWaste(g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB, data){
-    const BSK = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === 'cgwaste'), A = (BSK && BSK.acc) || {};
+  /* THE BALERS (Sir, 2026-11-19: "make the cavity real ... what he does is bale the cardboard and plastic. Two separate bots ... remove the
+     lid flaps and the dump bed. He collects and when it's full he deposits full cubes of either cardboard or plastic waste that can be
+     picked up for recycling"): the cargo bot's chassis, six wheels and tray, a lower body with his face and stripe; on it an open hopper
+     with a real cavity -- its inner walls and floor, the load inside filling it (data.fill 0..1: flattened cardboard in layers, or film in
+     soft white folds); a ram across its front that drives back to squeeze the load toward the back (data.press 0..1: a horizontal baler's); a door in its back that lifts
+     to push the finished bale out onto the floor behind (data.eject 0..1) -- a strapped cube of the one material. Slatted windows down its
+     sides, a recycling mark, a lamp at its front corner (green, amber, red as it fills), an amber beacon. mat: 'card' (build cgcard) or
+     'film' (cgfilm); skins TP_BSKIN build cgcard / cgfilm */
+  baleCube(V, a, b, h, mat, la, lb, lh, alongB){
+    const { solid, prismH, line, P, sees } = V, card = mat !== 'film', C0 = card ? 0xc98a4a : 0xe6edf2, C1 = card ? 0xb17640 : 0xc9d6df, ST = card ? 0x2a2f36 : 0x2a6ad8;
+    la = la || 20; lb = lb || 20; lh = lh || 36;
+    /* its layers: alternating shades, so it reads as pressed sheets; then its straps round it */
+    const n = 6; for(let i = 0; i < n; i++){ const h0 = h + lh*i/n, h1 = h + lh*(i + 1)/n; solid(prismH([[a - la, b - lb], [a + la, b - lb], [a + la, b + lb], [a - la, b + lb]], h0, h1), i % 2 ? C0 : C1, null, false); }
+    for(const k of [-0.5, 0.5]){ const off = k*(alongB ? lb : la);
+      if(alongB){ for(const sa of [-1, 1]) if(sees(sa, 0, 0)) line([a + sa*(la + 0.2), b + off, h], [a + sa*(la + 0.2), b + off, h + lh], ST, 1.6);
+        if(sees(0, 0, 1)) line([a - la, b + off, h + lh + 0.2], [a + la, b + off, h + lh + 0.2], ST, 1.6); }
+      else { for(const sb of [-1, 1]) if(sees(0, sb, 0)) line([a + off, b + sb*(lb + 0.2), h], [a + off, b + sb*(lb + 0.2), h + lh], ST, 1.6);
+        if(sees(0, 0, 1)) line([a + off, b - lb, h + lh + 0.2], [a + off, b + lb, h + lh + 0.2], ST, 1.6); } }
+  }
+  drawCargoBaler(mat, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB, data){
+    const bld = mat === 'film' ? 'cgfilm' : 'cgcard', BSK = SKIN.bSkin && TP_BSKIN.find(k => k.id === SKIN.bSkin && k.build === bld), A = (BSK && BSK.acc) || {};
     const BODY = BSK ? { top: BSK.body, lt: _pdk(BSK.body, 0.91), dk: _pdk(BSK.body, 0.79) } : { top: BPW.top, lt: BPW.lt, dk: BPW.dk };
     const STR = BSK ? BSK.stripe : SKIN.stripe, HOP = A.hopper != null ? A.hopper : BODY.top, ICON = A.icon != null ? A.icon : 0x2aa86a, TRIM = A.trim != null ? A.trim : 0x2a2f36;
-    const { P, sees, solid, prismH, line, Q } = V, DARK = 0x2a2f36, CARD = 0xc98a4a, CARDL = 0xe0a868, FILM = 0xe8eef2;
-    const d = data || {}, fill = Math.max(0, Math.min(1, d.fill != null ? d.fill : 0.45)), flaps = Math.max(0, Math.min(1, d.flaps != null ? d.flaps : (d.lid || 0)/(Math.PI*0.6))), tip = Math.max(0, Math.min(1, d.tip || 0));
-    const L = 100, W = 72, hx = L/2, hy = W/2, wr = 11, wa = [-30, 0, 30], ZB = 56, ZT = 98, HA0 = -48, HA1 = 44, HB = 33;
+    const { P, sees, solid, prismH, line, Q } = V, DARK = 0x2a2f36, STEEL = 0x8d959c, card = mat !== 'film';
+    const LOAD = card ? 0xc98a4a : 0xe6edf2, LOADL = card ? 0xe0a868 : 0xffffff, LOADD = card ? 0x9a6a38 : 0xb9c8d2, INNER = 0x3a3f46, INNERD = 0x2a2f36;
+    const d = data || {}, fill = Math.max(0, Math.min(1, d.fill != null ? d.fill : 0.45)), press = Math.max(0, Math.min(1, d.press || 0)), eject = Math.max(0, Math.min(1, d.eject || 0));
+    const L = 100, W = 72, hx = L/2, hy = W/2, wr = 11, wa = [-30, 0, 30], ZB = 56, ZT = 100, HA0 = -46, HA1 = 42, HB = 33, WT = 3;
     shadow(hx, hy);
-    /* the hopper's frame: tipped back about its rear foot (a HA0, z ZB) by th */
-    const th = tip*0.95, ct = Math.cos(th), st = Math.sin(th), R = (a, b, h) => [HA0 + (a - HA0)*ct - (h - ZB)*st, b, ZB + (a - HA0)*st + (h - ZB)*ct];
-    const rbox = (a0, a1, b0, b1, h0, h1, col, colOf) => { const c = [[a0, b0], [a1, b0], [a1, b1], [a0, b1]];
-      const F = [c.map(([a, b]) => R(a, b, h0)).reverse(), c.map(([a, b]) => R(a, b, h1))];
-      for(let i = 0; i < 4; i++){ const [p0, p1] = [c[i], c[(i + 1) % 4]]; F.push([R(p0[0], p0[1], h0), R(p1[0], p1[1], h0), R(p1[0], p1[1], h1), R(p0[0], p0[1], h1)]); }
-      solid(F, col, colOf || null, false); };
     const quad = (pts, col) => Q(pts.map(q => P(...q)), col);
+    const backNear = sees(-1, 0, 0), frontNear = sees(1, 0, 0);
+    /* the bale going out of its back: from its floor, out of the door, down onto the floor behind it (before it all while its back is away) */
+    const zf = ZB + WT + fill*(ZT - ZB - WT - 6);
+    const bale = () => { if(eject <= 0) return; const k = eject, ba = k < 0.6 ? HA0 + 20 - (k/0.6)*44 : HA0 - 24 - (k - 0.6)/0.4*8, bz = k < 0.6 ? ZB + WT : Math.max(0, (ZB + WT)*(1 - (k - 0.6)/0.25));
+      this.baleCube(V, ba, 0, bz, mat, 19, 19, 34, false); };
+    if(!backNear) bale();
     /* far wheels, the tray, the lower body, its stripe, his face */
     for(const a of wa) V.wheel(a, -nearB*(hy + 4), wr, 8, wr, wheelPhase);
     this.botHull(g, x, y, z, fdir, { hx: 46, hy: 30, z0: 8, z1: 19, ch: 8, cTop: 0x3f434c, cLt: 0x3a3d45, cDk: 0x2e3138, cBottom: DARK, outline: false, topEdge: false });
     this.botHull(g, x, y, z, fdir, { hx, hy, z0: 18, z1: ZB, ch: 9, bev: 3, bevIn: 2.5, cTop: BODY.top, cLt: BODY.lt, cDk: BODY.dk, cBottom: DARK });
     this.botHull(g, x, y, z, fdir, { hx: hx + 0.8, hy: hy + 0.8, ch: 9, z0: 26, z1: 34, band: true, cLt: STR, cDk: _pdk(STR, 0.8) });
     this.tipseyFace(V, hx, 45, 1.2, { mouthZ: 22 });
-    /* the hopper: its walls, the slatted windows with the load behind them, the recycling mark, the tailgate */
-    const near = nearB, front = sees(1, 0, 0), zf = ZB + 4 + fill*(ZT - ZB - 10);
-    const flapsDraw = side => { if(flaps < 0.02 && side !== 0) return;
-      const ang = flaps*1.95, sb = side, hinge = sb*HB, dd = HB, b1 = sb*(HB - dd*Math.cos(ang)), h1 = ZT + dd*Math.sin(ang);
-      const pts = [R(HA0 + 2, hinge, ZT), R(HA1 - 2, hinge, ZT), R(HA1 - 2, b1, h1), R(HA0 + 2, b1, h1)];
-      const nz = Math.cos(ang); quad(pts, nz > 0.2 ? _pmix(HOP, 0xffffff, 0.08) : _pdk(HOP, 0.82)); line(pts[2], pts[3], _pdk(HOP, 0.6), 1.2); };
-    /* (a flap swung up past upright on the far side goes behind the hopper) */
-    const farFlap = -near, flapUp = flaps*1.95 > Math.PI/2;
-    /* emptying: the load sliding off its floor out behind -- before the hopper while its back is away from the eye, after it when toward */
-    const spill = () => { if(tip <= 0.35) return; const k = (tip - 0.35)/0.65; for(let i = 0; i < 3; i++){ const a0 = HA0 - 10 - k*30 - i*8, h = Math.max(0, ZB - 8 - k*40 + i*6);
-      solid(prismH([[a0 - 12, -20 + i*6], [a0 + 12, -20 + i*6], [a0 + 12, 12 + i*6], [a0 - 12, 12 + i*6]], h, h + 3), i === 1 ? FILM : CARD, null, false); } };
-    const backNear = sees(-1, 0, 0);
-    if(!backNear) spill();
-    if(flaps > 0.02 && flapUp) flapsDraw(farFlap);
-    rbox(HA0, HA1, -HB, HB, ZB, ZT, HOP);
-    /* the slatted windows: four slots on each side, the load behind them up to its fill */
-    for(const sb of [-1, 1]){ const bb = sb*(HB + 0.3); if(!sees(0, sb, 0)) continue;
+    /* THE CAVITY: the opening dark, its far inner walls, its floor, the load in it to its fill, the platen when it is down in it */
+    const I0 = HA0 + WT, I1 = HA1 - WT, J = HB - WT;
+    quad([[I0, -J, ZB + WT], [I1, -J, ZB + WT], [I1, J, ZB + WT], [I0, J, ZB + WT]], INNERD);
+    if(sees(1, 0, 0)) quad([[I0, -J, ZB + WT], [I0, J, ZB + WT], [I0, J, ZT], [I0, -J, ZT]], INNER);               // (the back wall's inside, facing the front)
+    else quad([[I1, -J, ZB + WT], [I1, J, ZB + WT], [I1, J, ZT], [I1, -J, ZT]], INNER);
+    { const fb = -nearB*J; quad([[I0, fb, ZB + WT], [I1, fb, ZB + WT], [I1, fb, ZT], [I0, fb, ZT]], _pdk(INNER, 0.85)); }   // (the far side's inside)
+    /* THE RAM (a horizontal baler's): a steel plate across the cavity, at rest against its front wall, driven back on two rods to squeeze
+       the load toward the bale door (press); the load lies from the back wall to the ram */
+    const RA = I1 - 2 - press*(I1 - 2 - (I0 + 40)), LA = Math.min(RA - 0.5, I1);
+    if(zf > ZB + WT + 0.5){
+      /* the load: its far faces against the walls, its face toward the ram, its top -- layers of flats, or soft folds of film */
+      const lay = card ? 5 : 7, fb = -nearB*(J - 0.1);
+      quad([[I0, fb, ZB + WT], [LA, fb, ZB + WT], [LA, fb, zf], [I0, fb, zf]], LOADD);
+      for(let hh = ZB + WT + lay; hh < zf; hh += lay) line([I0, fb + nearB*0.1, hh], [LA, fb + nearB*0.1, hh], card ? 0x8a5a2a : 0xc9d6df, 1);
+      if(!sees(1, 0, 0)) quad([[I0 + 0.1, -J, ZB + WT], [I0 + 0.1, J, ZB + WT], [I0 + 0.1, J, zf], [I0 + 0.1, -J, zf]], LOADD);
+      quad([[I0, -J, zf], [LA, -J, zf], [LA, J, zf], [I0, J, zf]], LOAD);
+      const sc = (LA - I0)/(I1 - I0);
+      if(card) for(let k = 0; k < 5; k++){ const a0 = I0 + (6 + k*16)*sc, b0 = ((k*37) % 40) - 20; quad([[a0, b0 - 9, zf + 0.2], [a0 + 13*sc, b0 - 7, zf + 0.2], [a0 + 11*sc, b0 + 9, zf + 0.2], [a0 - 2*sc, b0 + 7, zf + 0.2]], k % 2 ? LOADL : 0xd49a5a); }
+      else for(let k = 0; k < 6; k++){ const a0 = I0 + (8 + k*13)*sc, b0 = ((k*29) % 36) - 18; quad([[a0 - 6*sc, b0, zf + 0.2], [a0, b0 - 7, zf + 0.2], [a0 + 7*sc, b0 - 1, zf + 0.2], [a0 + 2*sc, b0 + 7, zf + 0.2]], k % 2 ? 0xffffff : 0xd6e2ea); }
+      if(sees(1, 0, 0)){ quad([[LA, -J, ZB + WT], [LA, J, ZB + WT], [LA, J, zf], [LA, -J, zf]], LOADD);
+        for(let hh = ZB + WT + lay; hh < zf; hh += lay) line([LA + 0.1, -J, hh], [LA + 0.1, J, hh], card ? 0x8a5a2a : 0xc9d6df, 1); } }
+    /* the ram: its rods from the front wall, its plate */
+    for(const rb of [-14, 14]) line([I1, rb, ZB + 22], [RA + 2, rb, ZB + 22], 0xc9ced2, 3);
+    solid(prismH([[RA, -J + 0.5], [RA + 3, -J + 0.5], [RA + 3, J - 0.5], [RA, J - 0.5]], ZB + WT, ZT - 6), STEEL, null, false);
+    if(sees(0, 0, 1)) line([RA, -J + 1, ZT - 5.8], [RA, J - 1, ZT - 5.8], 0xb9c0c6, 1.2);
+    /* the hopper's outer walls (no top: the cavity), then its rim */
+    const walls = [[[HA0, -HB], [HA1, -HB]], [[HA1, -HB], [HA1, HB]], [[HA1, HB], [HA0, HB]], [[HA0, HB], [HA0, -HB]]];
+    for(const [p0, p1] of walls){ const na = p1[1] - p0[1], nb = -(p1[0] - p0[0]); if(!sees(na, nb, 0)) continue;
+      const nx = Math.sign(na), ny = Math.sign(nb), col = nx > 0 ? _pmix(HOP, 0xffffff, 0.04) : ny ? _pdk(HOP, ny === nearB ? 0.9 : 0.8) : _pdk(HOP, 0.86);
+      quad([[p0[0], p0[1], ZB], [p1[0], p1[1], ZB], [p1[0], p1[1], ZT], [p0[0], p0[1], ZT]], col); }
+    for(const [a0, a1, b0, b1] of [[HA0, HA1, -HB, -J], [HA0, HA1, J, HB], [HA0, I0, -J, J], [I1, HA1, -J, J]]) quad([[a0, b0, ZT], [a1, b0, ZT], [a1, b1, ZT], [a0, b1, ZT]], _pmix(HOP, 0xffffff, 0.12));
+    /* the slatted windows on its near side, the load showing through to its fill; the recycling mark */
+    for(const sb of [-1, 1]){ if(!sees(0, sb, 0)) continue; const bb = sb*(HB + 0.3);
       for(let k = 0; k < 4; k++){ const a0 = -42 + k*11, a1 = a0 + 6.5, h0 = ZB + 6, h1 = ZT - 8;
-        quad([R(a0, bb, h0), R(a1, bb, h0), R(a1, bb, h1), R(a0, bb, h1)], 0x1d2026);
-        if(zf > h0 + 1){ const hz = Math.min(h1, zf); quad([R(a0, bb + sb*0.1, h0), R(a1, bb + sb*0.1, h0), R(a1, bb + sb*0.1, hz), R(a0, bb + sb*0.1, hz)], CARD);
-          for(let hh = h0 + 4; hh < hz - 1; hh += 5) line(R(a0, bb + sb*0.2, hh), R(a1, bb + sb*0.2, hh), (hh/5 | 0) % 3 === 0 ? FILM : CARDL, 1); } }
-      /* the recycling mark, on its front half */
-      const S = 12, ac = 24, hc = (ZB + ZT)/2, map = (u, v) => P(...R(ac + u*S*sb*-1, bb + sb*0.25, hc + v*S));
-      if(typeof DECAL_SHAPES !== 'undefined' && DECAL_SHAPES.recycle) for(const pl of DECAL_SHAPES.recycle.polys) Q(pl.p.map(([u, v]) => map(u, v)), ICON);
-      line(R(HA0 + 1, bb + sb*0.2, ZB + 2), R(HA1 - 1, bb + sb*0.2, ZB + 2), TRIM, 1.4); }
-    /* the recycling mark on its front too, big, where it is seen coming */
-    if(sees(1, 0, 0) && typeof DECAL_SHAPES !== 'undefined' && DECAL_SHAPES.recycle){ const S = 15, hc = (ZB + ZT)/2 + 2;
-      for(const pl of DECAL_SHAPES.recycle.polys) Q(pl.p.map(([u, v]) => P(...R(HA1 + 0.3, u*S, hc + v*S))), ICON); }
-    /* the tailgate at its back: hinged at its top, swinging out as it tips; hazard chevrons */
-    if(backNear){ const og = tip*1.1, gx = (h) => HA0 - 0.4 - (ZT - h)*Math.sin(og), gz = h => ZT - (ZT - h)*Math.cos(og);
-      const pts = [R(gx(ZB + 2), -HB + 1, gz(ZB + 2)), R(gx(ZB + 2), HB - 1, gz(ZB + 2)), R(gx(ZT - 2), HB - 1, gz(ZT - 2)), R(gx(ZT - 2), -HB + 1, gz(ZT - 2))];
-      quad(pts, _pdk(HOP, 0.9));
-      if(A.chev !== false) for(let k = -3; k < 3; k++){ const b0 = k*11, hA = ZB + 6, hB = ZT - 6; quad([R(gx(hA), b0, gz(hA)), R(gx(hA), b0 + 5, gz(hA)), R(gx(hB), b0 + 13, gz(hB)), R(gx(hB), b0 + 8, gz(hB))].map(q => [q[0] - 0.3, q[1], q[2]]), DARK); } }
-    if(backNear) spill();
-    /* the open top: the dark inside and the load's top, then the flaps */
-    if(flaps > 0.02 && sees(0, 0, 1)){ quad([R(HA0 + 3, -HB + 3, ZT + 0.2), R(HA1 - 3, -HB + 3, ZT + 0.2), R(HA1 - 3, HB - 3, ZT + 0.2), R(HA0 + 3, HB - 3, ZT + 0.2)], 0x1d2026);
-      const s2 = 0.92*Math.min(1, (zf - ZB)/(ZT - ZB)); quad([R(HA0 + 6, -HB + 6, ZT + 0.3), R(HA0 + 6 + (HA1 - HA0 - 12)*s2, -HB + 6, ZT + 0.3), R(HA0 + 6 + (HA1 - HA0 - 12)*s2, HB - 6, ZT + 0.3), R(HA0 + 6, HB - 6, ZT + 0.3)], CARD); }
-    if(flaps <= 0.02){ quad([R(HA0, -HB, ZT + 0.1), R(HA1, -HB, ZT + 0.1), R(HA1, HB, ZT + 0.1), R(HA0, HB, ZT + 0.1)], _pmix(HOP, 0xffffff, 0.06)); line(R(HA0, 0, ZT + 0.2), R(HA1, 0, ZT + 0.2), _pdk(HOP, 0.6), 1.2); }
-    else { if(!flapUp) flapsDraw(farFlap); flapsDraw(near); }
-    /* the fill lamp at its front corner, the beacon at its back */
-    { const lc = fill < 0.5 ? 0x3cd06a : fill < 0.85 ? 0xf2b02e : 0xe0453a, q = P(...R(HA1 - 4, near*(HB - 4), ZT + 3)); g.fillStyle(lc, 1); g.fillCircle(q.x, q.y, 2.6*this.K); g.fillStyle(lc, 0.2); g.fillCircle(q.x, q.y, 6*this.K); }
-    { const bq = R(HA0 + 8, 0, ZT); this.avLathe(V, bq[0], 0, [[bq[2], 4], [bq[2] + 3, 4]], DARK, null, 10); const on = (d.moving || tip > 0) && Math.floor(t/300) % 2 === 0;
-      this.avLathe(V, bq[0], 0, [[bq[2] + 3, 3.4], [bq[2] + 8, 3]], on ? 0xffb21a : 0xb06a10, null, 10); if(on){ const q = P(bq[0], 0, bq[2] + 6); g.fillStyle(0xffb21a, 0.22); g.fillCircle(q.x, q.y, 10*this.K); } }
-    for(const a of wa) V.wheel(a, near*(hy + 4), wr, 8, wr, wheelPhase);
+        quad([[a0, bb, h0], [a1, bb, h0], [a1, bb, h1], [a0, bb, h1]], 0x1d2026);
+        if(zf > h0 + 1){ const hz = Math.min(h1, zf); quad([[a0, bb + sb*0.1, h0], [a1, bb + sb*0.1, h0], [a1, bb + sb*0.1, hz], [a0, bb + sb*0.1, hz]], LOAD);
+          for(let hh = h0 + 4; hh < hz - 1; hh += 5) line([a0, bb + sb*0.2, hh], [a1, bb + sb*0.2, hh], card ? LOADL : 0xc9d6df, 1); } }
+      const S = 12, ac = 22, hc = (ZB + ZT)/2;
+      if(typeof DECAL_SHAPES !== 'undefined' && DECAL_SHAPES.recycle) for(const pl of DECAL_SHAPES.recycle.polys) Q(pl.p.map(([u, v]) => P(ac - u*S*sb, bb + sb*0.25, hc + v*S)), ICON);
+      line([HA0 + 1, bb + sb*0.2, ZB + 2], [HA1 - 1, bb + sb*0.2, ZB + 2], TRIM, 1.4); }
+    if(frontNear && typeof DECAL_SHAPES !== 'undefined' && DECAL_SHAPES.recycle){ const S = 14, hc = (ZB + ZT)/2;
+      for(const pl of DECAL_SHAPES.recycle.polys) Q(pl.p.map(([u, v]) => P(HA1 + 0.3, u*S, hc + v*S)), ICON);
+      /* what it takes, on a plate under the mark: a stack of flats, or a wad of film */
+      quad([[HA1 + 0.35, -10, ZB + 4], [HA1 + 0.35, 10, ZB + 4], [HA1 + 0.35, 10, ZB + 12], [HA1 + 0.35, -10, ZB + 12]], card ? 0xc98a4a : 0xe6edf2); }
+    /* the bale door in its back: lifting to let the bale out; its hazard chevrons */
+    if(backNear){ const dz = eject < 0.15 ? eject/0.15 : eject < 0.85 ? 1 : 1 - (eject - 0.85)/0.15, lift = dz*40, a = HA0 - 0.4;
+      quad([[a, -21, ZB + 2], [a, 21, ZB + 2], [a, 21, ZB + 44], [a, -21, ZB + 44]], 0x1d2026);
+      const d0 = ZB + 2 + lift, d1 = ZB + 44 + lift; quad([[a - 0.3, -21, d0], [a - 0.3, 21, d0], [a - 0.3, 21, d1], [a - 0.3, -21, d1]], _pdk(HOP, 0.9));
+      if(A.chev !== false) for(let k = -2; k < 2; k++){ const b0 = k*10.5; quad([[a - 0.6, b0, d0 + 4], [a - 0.6, b0 + 5, d0 + 4], [a - 0.6, b0 + 12, d1 - 4], [a - 0.6, b0 + 7, d1 - 4]].map(q => [q[0], Math.max(-20, Math.min(20, q[1])), q[2]]), DARK); } }
+    /* the fill lamp, the beacon */
+    { const lc = fill < 0.5 ? 0x3cd06a : fill < 0.85 ? 0xf2b02e : 0xe0453a, q = P(HA1 - 4, nearB*(HB - 4), ZT + 3); g.fillStyle(lc, 1); g.fillCircle(q.x, q.y, 2.6*this.K); g.fillStyle(lc, 0.2); g.fillCircle(q.x, q.y, 6*this.K); }
+    { const BA = HA0 + 4, BB = -nearB*(HB - 4), BZ = ZT; line([BA, BB, BZ], [BA, BB, BZ + 16], DARK, 2); this.avLathe(V, BA, BB, [[BZ + 16, 4], [BZ + 19, 4]], DARK, null, 10); const on = (d.moving || press > 0 || eject > 0) && Math.floor(t/300) % 2 === 0;
+      this.avLathe(V, BA, BB, [[BZ + 19, 3.4], [BZ + 24, 3]], on ? 0xffb21a : 0xb06a10, null, 10); if(on){ const q = P(BA, BB, BZ + 22); g.fillStyle(0xffb21a, 0.22); g.fillCircle(q.x, q.y, 10*this.K); } }
+    for(const a of wa) V.wheel(a, nearB*(hy + 4), wr, 8, wr, wheelPhase);
+    if(backNear) bale();
   }
   drawCargoEra(era, g, x, y, z, t, fdir, V, BPW, shadow, wheelPhase, nearB){
     /* AN ERA'S OWN SKIN (Sir, 2026-11-17: TP_BSKIN with build cgNNNN): its body colour, and its accents (acc) in the era's own parts --
@@ -153851,7 +153878,7 @@ requestTpProfile();
     { id: 'amrconv', name: 'Conveyor Top', cents: 2000 }, { id: 'amrarm', name: 'Robot Arm', cents: 2000 }, { id: 'amrjack', name: 'Pallet Jack', cents: 2000 }];   /* (the warehouse robot's builds -- Sir, 2026-11-18) */
   const PATROL_BUILD = [{ id: 'stock', name: 'Patrol bot', cents: 0 }, { id: 'pdog', name: 'Robot Dog', cents: 2000 }];   /* (the patrol robot's builds -- Sir, 2026-11-18) */
   const CARGO_BUILD = [{ id: 'stock', name: 'Cargo bot', cents: 0 }, { id: 'cg1900', name: '1900s Wagon', cents: 1600 }, { id: 'cg1920', name: '1920s Model-T', cents: 1600 },
-    { id: 'cg1950', name: '1950s Panel Van', cents: 1600 }, { id: 'cgwaste', name: 'Waste Collector', cents: 1800 }, { id: 'cg1970', name: '1970s Box Van', cents: 1600 }, { id: 'cg1980', name: '1980s Retro-Future', cents: 1800 }, { id: 'cg2100', name: '2100s Hover Freighter', cents: 2200 }];
+    { id: 'cg1950', name: '1950s Panel Van', cents: 1600 }, { id: 'cgcard', name: 'Cardboard Baler', cents: 1800 }, { id: 'cgfilm', name: 'Plastic Baler', cents: 1800 }, { id: 'cg1970', name: '1970s Box Van', cents: 1600 }, { id: 'cg1980', name: '1980s Retro-Future', cents: 1800 }, { id: 'cg2100', name: '2100s Hover Freighter', cents: 2200 }];
   const TP_BUILD = [{ id: 'stock', name: 'Classic', cents: 0 }, { id: 'racer', name: 'Racer', cents: 1500 }, { id: 'rover', name: 'Moon Rover', cents: 1800 }, { id: 'tank', name: 'Tank', cents: 1800 }, { id: 'buggy', name: 'Dune Buggy', cents: 1600 }, { id: 'monster', name: 'Monster Truck', cents: 1800 }, { id: 'hotrod', name: 'Night Cruiser', cents: 1600 }];   // (the Tuk-tuk tried and dropped -- Sir, 2026-11-16; its TP_BUILDS shape kept, unlisted)   // (HIS BUILDS: racerKit)
   const TP_UP_MOTOR = UP1('Speed Motor', 1200), TP_UP_BATT = UP1('Battery', 900), TP_UP_LIGHT = UP1('Headlight', 600), TP_UP_BELL = UP1('Bell', 400);
   const TP_UP_GLOW = [{ id: 'stock', name: 'None', cents: 0 }].concat(['cyan', 'pink', 'purple', 'green', 'orange', 'red', 'white'].map(id => ({ id, name: id[0].toUpperCase() + id.slice(1), cents: 700 })));
