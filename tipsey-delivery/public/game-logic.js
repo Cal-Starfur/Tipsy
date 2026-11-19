@@ -27897,6 +27897,23 @@ function walkinGrid(R){
   return R.grid;
 }
 /* how far (a, b) is from a solid (0 inside it): a circle {c, r} or a polygon {poly} */
+/* A FALL THAT CLEARS THE ROOM (Sir, 2026-11-19, Sandpiper Bakery: "the person is falling through the counter"): someone knocked down in a
+   room goes over the way he pushed them -- into the pastry case they stood at. Before the fall starts, the push is turned (the least turn
+   first: 0, then +-30, +-60 ... up to straight back) till the body laid at the fall's end, feet to head, lies clear of the room's fixtures and
+   walls; none clear, the push stays as it was */
+function walkinFallClear(K){
+  const pk = K && K.pk, R = pk && pk._life; if(!R || !K.imp || !K.look || !K.look[0]) return;
+  const G = walkinGrid(R), a0 = K.x - pk.x0, b0 = K.y - pk.y0, th = K.thW + Math.PI/2, c = Math.cos(th), sn = Math.sin(th), M = 6;
+  const clearAt = (a, b) => a > M && b > M && a < G.W - M && b < G.D - M && G.sol.every(q => walkinSolidDist(q, a, b) >= M);
+  for(const off of [0, 0.52, -0.52, 1.05, -1.05, 1.57, -1.57, 2.09, -2.09, 2.62, -2.62, Math.PI]){
+    const ci = Math.cos(off), si = Math.sin(off), imp = { x: K.imp.x*ci - K.imp.y*si, y: K.imp.x*si + K.imp.y*ci };
+    const fr = fallenFrame(K.thW, K.side, imp, STREET_RIDER.offSide, K.look[0], 1), Dd = fr.D, L = Dd.shoulderH + Dd.hr*2;
+    let ok = true;
+    for(let k = 0; k <= 8 && ok; k++){ const la = fr.F.a + fr.ua*L*k/8, lb = fr.F.b + fr.ub*L*k/8;
+      if(!clearAt(a0 + la*c - lb*sn, b0 + la*sn + lb*c)) ok = false; }
+    if(ok){ K.imp = imp; return; }
+  }
+}
 function walkinSolidDist(q, a, b){
   if(q.c) return Math.max(0, Math.hypot(a - q.c[0], b - q.c[1]) - q.r);
   const P = q.poly; let inside = false, d = Infinity;
@@ -135225,6 +135242,7 @@ class WorldScene extends Phaser.Scene {
       conf: null, confDone: false, seed: (Math.random()*1e9) >>> 0 }, o);
     if(o.chair){ K.t0 = t - SR.fallMs - SR.downMs; K.upSaid = true; }              // (his bump on their chair: on their feet already, no fall -- the ballroom's guests)
     o.ref.knock = K; list.push(K);
+    if(K.pk && K.pk.walkin && !K.scoot) walkinFallClear(K);                     // (in a room: over the way that clears its fixtures -- walkinFallClear)
     /* five down out in the street: the police (POLICE_CALL.pile) */
     if(!this._inside && this.state === "play" && this.ow && this.ow.on){
       const PC = POLICE_CALL.pile;
