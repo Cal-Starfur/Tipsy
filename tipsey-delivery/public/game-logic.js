@@ -58381,7 +58381,12 @@ function houseCanopy(fn){
     const partTote = (a, b, z, alongB, n, col) => { const la = alongB ? 13 : 30, lb = alongB ? 30 : 13;
       box(a - la, a + la, b - lb, b + lb, z, z + 14, col, shade(col, .85), shade(col, .7)); T(a - la + 2, a + la - 2, b - lb + 2, b + lb - 2, z + 14.1, shade(col, .45));
       for(let i = 0; i < n; i++){ const d = -22 + i*14.5; box(alongB ? a - 7 : a + d - 5, alongB ? a + 7 : a + d + 5, alongB ? b + d - 5 : b - 7, alongB ? b + d + 5 : b + 7, z + 8, z + 18, '#3a3f46', '#2b2f35', '#22262b'); } };
-    const SCOL = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0', '#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0'];
+    /* ONE SET OF BIN COLOURS for the racks, the pods, the carts, the runner and the benches (Sir: "the bins that appear are not the same colour as
+       the ones he is grabbing"): a bin keeps its colour from the shelf to the bench (CPAL; the robots' own bins take it, m.bins) */
+    const CPAL = [0x2e8bd8, 0xe0453a, 0x2aa86a, 0xf2c02e], CPC = i => '#' + CPAL[i % 4].toString(16).padStart(6, '0');
+    const BIN = (a, b, z, col) => { box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 19, col, shade(col, .85), shade(col, .7)); T(a - 10, a + 10, b - 9.5, b + 9.5, z + 19.1, shade(col, .5));
+      F(a - 6, a + 6, z + 9, z + 13, '#f2efe6', null, 0, b + 11.7); S(a + 12.2, b - 5, b + 5, z + 9, z + 13, '#f2efe6'); };
+    const SCOL = [];   /* (each bench's colour: the bin it is brought -- set with the supply below) */
     const BENCH = p => p < 5 ? [POS[p][0], POS[p][1] - 142, false] : [POS[p][0] + 140, RB, true];   /* (row A's behind the worker, row B's beside) */
     /* ---- THE STATIONS: row A's bench behind its worker, row B's beside (east of) its worker, clear of the robots' turn between the rows; the
        frame rack at the first, the packing table at the last ---- */
@@ -58458,34 +58463,38 @@ function houseCanopy(fn){
       if(r >= back) return { s: Math.max(0, 1220 - (r - back)*RBV), stop: -1, done: 4, r };
       for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
         if(r >= RBT0[i]) return { s: RBS[i], stop: i, r: r - RBT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
-    { const TUG = AMR_SLOTS.amrtug.map(q => q.def), TOTE = (a, b, z, col) => { box(a - 13, a + 13, b - 10, b + 10, z, z + 12, col, shade(col, .85), shade(col, .7)); T(a - 11, a + 11, b - 8, b + 8, z + 12.1, shade(col, .45)); };
+    { const TUG = AMR_SLOTS.amrtug.map((q, i) => ({ k: 'bin', la: Math.min(12, q.la - 1), lb: Math.min(11.5, q.lb - 1), h: 16, pal: i % 4 })), TOTE = (a, b, z, col) => { box(a - 13, a + 13, b - 10, b + 10, z, z + 12, col, shade(col, .85), shade(col, .7)); T(a - 11, a + 11, b - 8, b + 8, z + 12.1, shade(col, .45)); };
+      for(let p = 1; p <= 4; p++) SCOL[p] = CPC(TUG[TUGLD[p - 1]].pal);   /* (row A's benches: the bin each is brought, the last on dropped first) */
       items.push({ a: 1340, b: 380, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
         const out = [], S = tugAt(t), P0 = pathAt(RP, S.s);
         /* how many are on it: loaded one each 1400 at the rack, one off at each stop after */
-        const k = S.stop === 0 ? Math.max(0, Math.min(5, Math.floor((S.r - 800)/1400) + 1)) : 5 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        const k = S.stop === 0 ? Math.max(0, Math.min(5, Math.floor((S.r - 1650)/1400) + 1)) : 5 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
         const loads = AMR_SLOTS.amrtug.map((q, i) => TUGLD.slice(0, k).includes(i) ? TUG[i] : null);
-        out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
+        out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, bins: CPAL, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
         /* the rack pickers: at the tugger's carts while it is in, a tote off the rack and onto a cart, turn about */
         for(const [j, pa] of [[0, 1120], [1, 1220]]){
           if(S.stop === 0 && S.r < 8000){ const q = ((S.r - j*1400) % 2800 + 2800) % 2800, f = q < 900 ? 3 : q < 1200 ? 3 - 2*ease((q - 900)/300) : q < 2100 ? 1 : 1 + 2*ease((q - 2100)/300);
             out.push(man(pa, 140, f, q < 900 ? REACH(t) : q < 2100 ? { lift: [0.45, 0.45], bend: [0.7, 0.7] } : {}));
-            if(q >= 800 && q < 1900){ const ff = f*Math.PI/2, ha = pa + Math.cos(ff)*24, hb = 140 + Math.sin(ff)*24; out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => TOTE(ha, hb, 52, SCOL[(j + Math.floor(S.r/2800)) % 5]) }); } }
+            const m = Math.floor((S.r - 800)/1400);   /* (the m-th onto the carts: TUGLD[m], in its own colour) */
+            if(q >= 800 && q < 1650 && m >= 0 && m < 5){ const ff = f*Math.PI/2, ha = pa + Math.cos(ff)*24, hb = 140 + Math.sin(ff)*24, col = CPC(TUG[TUGLD[m]].pal); out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => BIN(ha, hb, 48, col) }); } }
           else out.push(man(pa, 140, 1, {})); }
         return out; } } });
       /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
          pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
       const SH = AMR_SLOTS.amrshelf.map(q => q.def), TOP4 = SH.map((q, i) => i).filter(i => AMR_SLOTS.amrshelf[i].lv === 3).reverse(), SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07;
+      for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
         const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
         const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
-        out.push(bot(P0.a, P0.b, 0, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) TOTE(P0.a + (i % 2 ? 22 : -22), P0.b + (i < 2 ? -16 : 16), 31, SCOL[5 + (i % 4)]); } }));
+        out.push(bot(P0.a, P0.b, 0, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) BIN(P0.a + (i % 2 ? 22 : -22), P0.b + (i < 2 ? -16 : 16), 31, CPC(SH[TOP4[i]].pal)); } }));
         for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
           const s0 = tau < 12000 ? 0 : tau < 16714 ? (tau - 12000)*PV : tau < 29286 ? 330 : tau < 32429 ? 330 + (tau - 29286)*PV : tau < 64286 ? 550 : tau < 69000 ? 550 + (tau - 64286)*PV : 0;
           const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 1200)/3000) + 1)) : 0;
-          out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), wheel: s0*0.12 })); }
+          out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), bins: CPAL, wheel: s0*0.12 })); }
         if(S.stop === 0){ const q = S.r % 3000, f = q < 1200 ? 2 : q < 1500 ? 2 - 2*ease((q - 1200)/300) : q < 2700 ? 0 : 2*ease((q - 2700)/300);
           out.push(man(790, 1610, f, q < 1200 ? REACH(t) : q < 2700 ? { lift: [0.5, 0.5], bend: [0.6, 0.6] } : {}));
-          if(q >= 1100 && q < 2200){ const ff = f*Math.PI/2, ha = 790 + Math.cos(ff)*24, hb = 1610 + Math.sin(ff)*24; out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => TOTE(ha, hb, 52, SCOL[5 + (Math.floor(S.r/3000) % 4)]) }); } }
+          const m = Math.floor(S.r/3000);   /* (the bin he took off the pod: TOP4[m]) */
+          if(q >= 1100 && q < 2100 && m < 4){ const ff = f*Math.PI/2, ha = 790 + Math.cos(ff)*24, hb = 1610 + Math.sin(ff)*24, col = CPC(SH[TOP4[m]].pal); out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => BIN(ha, hb, 48, col) }); } }
         else out.push(man(790, 1610, 1, {}));
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
@@ -118860,10 +118869,10 @@ class WorldScene extends Phaser.Scene {
       Object.assign(SKIN, SKIN_BASE, { bSkin: m.bSkin || null, build: m.build || null });
       /* (its own: the jack's forks, the lift's deck -- held where the room puts them, its speed what keeps them there -- and the tugger's
          chain of carts, kept between frames under its key) */
-      AMRL.crew = m.loads || []; this._crewJack = m.jack === undefined ? null : m.jack; this._crewArm = m.arm || null; this._amrJack = m.fork || 0; this._amrLift = m.deck || 0; this._crewVel = m.build === 'amrlift' ? (m.deck > 0.5 ? 0 : 0.05) : m.fork ? 0.05 : (m.vel || 0);
+      AMRL.crew = m.loads || []; this._crewJack = m.jack === undefined ? null : m.jack; this._crewArm = m.arm || null; this._crewBins = m.bins || null; this._amrJack = m.fork || 0; this._amrLift = m.deck || 0; this._crewVel = m.build === 'amrlift' ? (m.deck > 0.5 ? 0 : 0.05) : m.fork ? 0.05 : (m.vel || 0);
       this._tug = m.key ? TS[m.key] || null : null; this._tugL = null;
       try { const d0 = gg => this.drawBot(gg, 'amr', x, y, z, t, m.fdir, m.wheel || 0, 0, { paint: true }); if(m.fade != null && m.fade < 1) this.withFade(g, m.fade, () => d0(g)); else d0(g); if(m.key) TS[m.key] = this._tug; }
-      finally { for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, saved); AMRL.crew = null; this._amrJack = jk; this._crewJack = null; this._crewArm = null; this._amrLift = lf; this._crewVel = cv; this._tug = tg; this._tugL = tl; }
+      finally { for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, saved); AMRL.crew = null; this._amrJack = jk; this._crewJack = null; this._crewArm = null; this._crewBins = null; this._amrLift = lf; this._crewVel = cv; this._tug = tg; this._tugL = tl; }
     }
     if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) });
   }
@@ -131172,7 +131181,7 @@ class WorldScene extends Phaser.Scene {
     const top = (pts, h, col, al = 1) => { g.fillStyle(col, al); g.fillPoints(pts.map(([a, b]) => { const q = M(a, b); return PT(P(q[0], q[1], h)); }), true); };
     const face = (nx, ny) => { const q0 = M(0, 0), q1 = M(nx, ny); return sees(q1[0] - q0[0], q1[1] - q0[1], 0); };
     const la = L.la, lb = L.lb, h1 = z0 + L.h;
-    const BINS = AS ? [AS.acc, AS.body, AS.lid || AS.skirt || AS.stripe, _pdk(AS.acc, 0.72)] : [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e], TOTE = AS ? AS.acc : 0x2a6ad8;
+    const BINS = this._crewBins || (AS ? [AS.acc, AS.body, AS.lid || AS.skirt || AS.stripe, _pdk(AS.acc, 0.72)] : [0x2a6ad8, 0xd8461c, 0x2aa86a, 0xf2c02e]), TOTE = AS ? AS.acc : 0x2a6ad8;   /* (a room's own bins: this._crewBins, drawRoomBot) */
     if(L.k === 'box'){ mbox(-la, la, -lb, lb, z0, h1, L.col);
       if(!sees(0, 0, 1)) return;
       if(AS){ const S = Math.min(la, lb)*0.64, IC = AS.iconCol === 0xf6f4ee ? 0x2a2f36 : AS.iconCol;
