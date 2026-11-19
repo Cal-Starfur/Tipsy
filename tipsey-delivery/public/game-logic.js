@@ -28759,7 +28759,7 @@ const WALKIN_SHOP_BAN = (() => {
     'Lagoon Market Hall Interior':  { by: ['fish', 'chowder', 'greens', 'baker', 'cheese'], who: 'Stallholder', say: line('shopper') },
     'Seaglass Coffee Interior':     { by: ['counter'], who: 'Barista', say: line('customer') },
     'Palmline Garage Interior':     { by: ['mechanic', 'mechanic-2'], who: 'Mechanic', say: line('man') },
-    'Palmline Savings Interior':    { by: ['guard', 'teller-1'], who: 'Bank Guard', say: line('customer') },
+    'Palmline Savings Interior':    { by: ['guard', 'teller-1'], who: 'Frank', say: "You've knocked a customer flat. Out you go, and don't come back in." },
     'Coral Cafe Interior':          { by: ['barista', 'roaster'], who: 'Barista', say: line('customer') },
     'Marina Deli Interior':         { by: ['clerk', 'cashier'], who: 'Deli Clerk', say: line('customer') },
     'Tidewater Kart Works Interior':{ by: ['clerk', 'mechanic'], who: 'Kart Works Clerk', say: line('customer'), story: st(() => KW) },
@@ -29312,29 +29312,111 @@ const PS_IN = { name: 'Palmline Savings Interior', x0: 760000, y0: 400000, WALL:
 const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: PS_IN.x0, y0: PS_IN.y0,
   lab: [PS_IN.WALL, PS_IN.WW - PS_IN.WALL, -(PS_IN.DD - PS_IN.WALL), -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
   door: { a: PS_IN.WW/2, b: -PS_IN.REC, half: (PS_IN.DOOR[1] - PS_IN.DOOR[0])/2*1.3, side: 'n', top: PS_IN.DOORZ },
-  H: PS_IN.H, LH: PS_IN.LH, out: 60, glass: 40,
+  H: PS_IN.H, LH: PS_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out under the portico onto the north pavement, along it either way) */
   street: { to: [0, -270], routes: [[[-1500, -270], [-3600, -270]], [[1500, -270], [3600, -270]]] } });
 POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books', 'Palmline Garage'];   // (W26: the tea house and the bookshop round the corner, the garage beside it, over its walls and floor on screen)
-/* ITS PEOPLE (710 x 582): three tellers behind the counter (fixed), two loan officers at their desks (fixed), the guard by the door (the
-   keyholder), three customers -- at the windows, the desks, the line, the waiting room */
-const PS_TELLER_UNIFORM = { shirt: { c:0xf4f2ec, dk:0xd6d3ca }, pants: { c:0x2f3e46, dk:0x222d33 }, shoe: { c:0x1c1f23, dk:0x101214 }, shoeKind: 'dress' };
+/* (W31/W36: displaced -- the tea house's and the bookshop's rooms and their staff walking to work are not drawn over the hall) */
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE BANK'S PEOPLE (shop recipe 7, W33): their own looks, set by hand (lookFn) -- a bank's dress, white shirts and the bank's sea-grey:
+   Eleanor Pike, the manager, at the first loan desk (silver bob, a navy suit); Marcus Webb, the loan officer, at the second (a grey suit,
+   glasses); the tellers in white shirts and sea-grey waistcoats -- June (curls), Ravi (crop), Tess (a bun); Frank, the guard, the keyholder,
+   in the security uniform. The customers are the street's own (look: 'visitor') */
+const PS_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), M = PEOPLE_BUILD[0], W = PEOPLE_BUILD[1];
+  const navy = C(0x2c3a52), sea = C(0x6f8f96), white = C(0xf4f2ec), dress = { c: 0x1c1f23, dk: 0x101214 };
+  const teller = (build, skin, hair) => ({ build, skin, hair, shirt: white, pants: C(0x2f3e46), shoe: dress, uniform: { vest: sea, shoeKind: 'dress' } });
+  return {
+    eleanor: { build: W, skin: { c: 0xe6c2a4, dk: 0xc4a082 }, hair: H(0xc8c4bc, 'bob'), shirt: navy, pants: navy, shoe: dress, uniform: { vest: white, shoeKind: 'dress', chain: 0xc9a24a } },
+    marcus:  { build: M, skin: { c: 0x8a5a3c, dk: 0x6c4430 }, hair: H(0x1a1412, 'crop'), shirt: C(0x5a6068), pants: C(0x4a5058), shoe: dress, uniform: { vest: white, glasses: 0x2a2c30, shoeKind: 'dress' } },
+    june:    teller(W, { c: 0xc89470, dk: 0xa67654 }, H(0x2a1c14, 'curlsBig')),
+    ravi:    teller(M, { c: 0xb07a52, dk: 0x8e5e3e }, H(0x161210, 'crop')),
+    tess:    teller(W, { c: 0xecc8a8, dk: 0xcaa686 }, H(0x8a5a32, 'bun')),
+    frank:   (() => { const U = SECURITY_UNIFORM; return { build: M, skin: { c: 0xd8a882, dk: 0xb48660 }, hair: H(0x6a6660, 'crop'), shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: Object.assign({}, U, { beard: 0x6a6660 }) }; })(),
+  };
+})();
+/* A CUSTOMER'S VISIT (as the roastery's: one errand, then out with what they came for): to a teller's window, a few words over the glass,
+   and an envelope of cash to take away; or a while in the chair before a loan desk and a navy folder of papers to take away; now and then a
+   wait in an armchair first. What they leave with goes out of the door with them (pose.hold / drawState: WALKIN_STREET), and nothing before
+   it is handed over (m.done) */
+const PS_SEATS = [
+  { id: 'desk1', stand: [606, 126, Math.PI], at: [575, 124], th: -Math.PI/2, z: 42, desk: true },
+  { id: 'desk2', stand: [606, 296, Math.PI], at: [575, 294], th: -Math.PI/2, z: 42, desk: true },
+  { id: 'chairW', stand: [420, 474, -Math.PI/2], at: [423, 441], th: 0, z: 34 },
+  { id: 'chairE', stand: [620, 474, -Math.PI/2], at: [617, 441], th: Math.PI, z: 34 },
+];
+function psHold(s){
+  if(s._psH && s._psH.v === s.visit) return s._psH;
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  return (s._psH = { v: s.visit,
+    /* an envelope, held at their side by its end: 9 by 5, thin, the bank's sea-grey band */
+    env: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 0.6, x + 0.6, f - 4.5, f + 4.5, h - 6, h + 0.5), 0xf6f3ea); hull(g, at, box(x - 0.7, x + 0.7, f - 4.6, f + 4.6, h - 2.4, h - 1.4), 0x6f8f96); },
+    /* a navy folder of papers, held before them at the chest */
+    folder: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2.5, h = at.hand[1];
+      hull(g, at, box(-6, 6, f - 1.2, f + 1.2, h - 2, h + 13), 0x2c3a52); hull(g, at, box(-5.4, 5.4, f + 1.2, f + 1.4, h + 0.5, h + 11), 0xf4f2ec); } });
+}
+function psBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const sit = desk => { const fr = PS_SEATS.filter(q => !!q.desk === desk && !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = desk ? 22000 + rnd()*16000 : 9000 + rnd()*9000; return true; }
+    return false; };
+  if(m.seat){ const was = m.seat; m.unseat = { seat: m.seat, t: now }; m.seat = null; if(was.desk){ m.done = true; m.folder = true; } }   // (up from the desk with the papers)
+  if(m.atWin){ m.atWin = false; m.done = true; m.env = true; }                                                  // (the envelope over the counter)
+  if(m.done) return leave();
+  const r = rnd();
+  m.n = (m.n || 0) + 1;
+  const win = () => { if(look('window')){ m.atWin = true; m.dwell = 6000 + rnd()*4000; return true; } return false; };
+  if(m.n === 1){ if(r < 0.25 && sit(false)) return true; if(r < 0.65 && win()) return true; if(sit(true)) return true; return win(); }
+  if(rnd() < 0.5 ? sit(true) : win()) return true;
+  if(m.n > 4) return leave();
+  return win() || sit(true);
+}
+function psPose(s, m, now, P){
+  const H = psHold(s);
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (at the counter or the desk: both hands on its work)
+    P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; return;                                                           // (Frank: hands at his sides)
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = sk.seat.desk ? [0.28, 0.28] : [0.1, 0.12]; P.bend = sk.seat.desk ? [1.1, 1.1] : [0.6, 0.6]; P.headTurn = 0; P.headTilt = 0.1; return; }
+  if(m.look === 'window' && !m.path){ P.lift = [0.1, 0.26]; P.bend = [0.2, 0.9]; P.headTurn = 0; return; }   // (a hand on the counter's rail, no pumping)
+  if(m.folder && m.done){ P.lift = [0.26, 0.26]; P.bend = [1.2, 1.2]; P.hold = H.folder; return; }
+  if(m.env && m.done){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.env; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
+}
+function psDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  if(m.moving && s.look === 'visitor' && m.done){ const H = psHold(s);
+    /* (out of the door with what they came for) */
+    if(m.folder) q.pose = { lift: [0.26, 0.26], bend: [1.2, 1.2], hold: H.folder };
+    else if(m.env) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.env }; }
+}
 walkinStaff(PS_IN.name, [
-  { id: 'teller-1', role: 'bank teller', seed: 0x5a01, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 70, 0, 9000, true], [70, 96, -0.4, 3000, true]] },
-  { id: 'teller-2', role: 'bank teller', seed: 0x5a02, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 150, 0, 8000, true], [70, 124, 0.4, 2600, true]] },
-  { id: 'teller-3', role: 'bank teller', seed: 0x5a05, U: PS_TELLER_UNIFORM, fixed: true, posts: [[84, 230, 0, 8600, true], [70, 256, -0.3, 2800, true]] },
-  { id: 'officer', role: 'loan officer', seed: 0x5a03, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 40, Math.PI/2, 9000, true]] },
-  { id: 'officer-2', role: 'loan officer', seed: 0x5a06, U: CONSULTANT_UNIFORM, fixed: true, posts: [[575, 210, Math.PI/2, 9000, true]] },
-  { id: 'guard', role: 'bank guard', seed: 0x5a04, U: SECURITY_UNIFORM, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 440, -Math.PI/4, 5000, true]] },
-  { id: 'customer-1', role: 'customer', seed: 0x5a11, look: 'visitor', life: 'browse' },
-  { id: 'customer-2', role: 'customer', seed: 0x5a12, look: 'visitor', life: 'browse' },
-  { id: 'customer-3', role: 'customer', seed: 0x5a13, look: 'visitor', life: 'browse' },
+  { id: 'teller-1', role: 'bank teller', seed: 0x5a01, lookFn: () => PS_FAMILY.june, fixed: true, posts: [[84, 70, 0, 9000, true], [70, 96, -0.4, 3000, true]] },
+  { id: 'teller-2', role: 'bank teller', seed: 0x5a02, lookFn: () => PS_FAMILY.ravi, fixed: true, posts: [[84, 150, 0, 8000, true], [70, 124, 0.4, 2600, true]] },
+  { id: 'teller-3', role: 'bank teller', seed: 0x5a05, lookFn: () => PS_FAMILY.tess, fixed: true, posts: [[84, 230, 0, 8600, true], [70, 256, -0.3, 2800, true]] },
+  { id: 'officer', role: 'bank manager', seed: 0x5a03, lookFn: () => PS_FAMILY.eleanor, fixed: true, posts: [[575, 40, Math.PI/2, 9000, true]] },
+  { id: 'officer-2', role: 'loan officer', seed: 0x5a06, lookFn: () => PS_FAMILY.marcus, fixed: true, posts: [[575, 210, Math.PI/2, 9000, true]] },
+  { id: 'guard', role: 'bank guard', seed: 0x5a04, lookFn: () => PS_FAMILY.frank, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 440, -Math.PI/4, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x5a11, look: 'visitor', life: 'browse', only: ['window'] },
+  { id: 'customer-2', role: 'customer', seed: 0x5a12, look: 'visitor', life: 'browse', only: ['window'] },
+  { id: 'customer-3', role: 'customer', seed: 0x5a13, look: 'visitor', life: 'browse', only: ['window'] },
 ]);
 walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
-  { id: 'window-1', spots: [[186, 70, Math.PI]] }, { id: 'window-2', spots: [[186, 150, Math.PI]] }, { id: 'window-3', spots: [[186, 230, Math.PI]] },
-  { id: 'desk-1', spots: [[575, 126, -Math.PI/2]] }, { id: 'desk-2', spots: [[575, 296, -Math.PI/2]] },
-  { id: 'waiting', spots: [[470, 450, 0], [600, 440, Math.PI]] },
-] });
+  { id: 'window', spots: [[186, 70, Math.PI], [186, 150, Math.PI], [186, 230, Math.PI]] },
+], browseNext: psBrowseNext, pose: psPose, drawState: psDrawState });
 /* ==================== TIDEWATER TEA HOUSE, WALK-IN (wi-tidewater-tea-house; the room: the LIB entry 'Tidewater Tea House Interior') ====================
    The Flats' tea house on block 2,0's east edge (its front faces east, to the camera), behind its colonnade. Its walls stand 40 in from
    the lot's ends (wallIn) and its front wall on the frontage, the porch out over the pavement; its lab here is the entry's draw frame plus
@@ -57167,21 +57249,26 @@ function houseCanopy(fn){
         for(let b = B0 + 22; b < B1 - 10; b += 22) S(A1 + 0.3, b - 1, b + 1, 8, 88, woodS);
         box(A0 - 4, A1 + 6, B0 - 4, B1 + 4, 96, 104, '#6e4a31', '#5c3b26', '#4a2f1e');
         box(A1 + 2, A1 + 5, B0, B1, 60, 63, brass, brassD, brassD);
-        for(const tb of [70, 150, 230]) box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025');
         /* (its glass a low screen, to the tellers' shoulders: their faces over it, never hidden behind it -- Sir, 2026-11-17) */
         for(let b = B0; b <= B1 + 0.1; b += 26) box(A0 + 14, A0 + 18, b - 2, b + 2, 104, 144, brass, brassD, brassD);
         S(A0 + 16, B0, B1, 112, 144, 'rgba(190,216,226,.32)');
         box(A0 + 12, A0 + 20, B0, B1, 144, 148, brass, brassD, brassD);
-      }, { alongB: true, run: 44 }); }
+      }, { alongB: true, run: 44 });
+      /* (the tellers' screens stand ON it: each its own piece (W28, recipe 3), keyed on the counter's east side just after the last of its
+         runs it stands on -- lcOnZ along b) */
+      for(const tb of [70, 150, 230]) items.push({ a: A1, b: tb, z: lcOnZ(B0, B1, 44, tb - 12, tb + 12, tb), fpLab: { a0: A0 + 4, a1: A0 + 26, b0: tb - 12, b1: tb + 12, z1: 122 }, solids: [], draw: () => {
+        box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025'); } }); }
 
     /* ---- TWO LOAN DESKS: dark wood, a banker's lamp and a screen (to the officer), a chair before each ---- */
     for(const [B0, B1] of [[60, 96], [230, 266]]){ const A0 = 540, A1 = 610;
-      runPiece(items, A0, A1, B0, B1, 112, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
+      runPiece(items, A0, A1, B0, B1, 76, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
         box(A0, A1, B0, B1, 0, 70, wood, woodF, woodS); box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 70, 76, '#6e4a31', '#5c3b26', '#4a2f1e');
-        box(566, 592, B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025');
-        cyl(552, B0 + 14, 76, 104, 1.6, brass); box(544, 560, B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33');
-        box(598, 608, B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2');
       });
+      /* (what stands on it, each its own piece keyed on its middle line after the run it stands on: the screen, the banker's lamp, the papers) */
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(579, [566, 592, B0 + 4, B0 + 10, 100], () => box(566, 592, B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025'));
+      on(552, [544, 560, B0 + 8, B0 + 20, 112], () => { cyl(552, B0 + 14, 76, 104, 1.6, brass); box(544, 560, B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33'); });
+      on(603, [598, 608, B1 - 18, B1 - 6, 80], () => box(598, 608, B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2'));
       const cb = B1 + 30;
       items.push({ a: 575, b: cb, z: 0, solids: [{ name: 'chair', c: [575, cb], r: 14, h: 80 }], draw: () => {
         for(const [la, lb] of [[-10, -8], [10, -8], [-10, 8], [10, 8]]) box(575 + la - 1.5, 575 + la + 1.5, cb + lb - 1.5, cb + lb + 1.5, 0, 40, woodS, woodS, woodS);
@@ -67429,7 +67516,8 @@ function houseCanopy(fn){
      vault": across the alley to the garage, PS_WW, and back into the block, PS_DD -- the hall's tall block as it was, 276 deep, and a lower
      wing behind it, PS_WH, for the vault and the waiting room) */
   /* (the portico is open: he drives in under the order to the banking hall's door on its back wall -- a walk-in, PS_IN) */
-  vol: { opens: [{ name: 'portico', poly: volRect(16, PS_WW - 16, -66, 2), walk: true }] },
+  vol: { opens: [{ name: 'portico', poly: volRect(16, PS_WW - 16, -66, 2), walk: true },
+                  { name: 'doorway', poly: volRect(PS_WW/2 - 40, PS_WW/2 + 40, -66 - 90, -64), walk: true }] },   // (the hall's door open through its wall: he is taken in IN the doorway, PS_IN's glass < 0 -- W32)
   wTodo:'two packing slots',
   cTodo:'3 pavement props need collision volumes',   // the entrance steps
   head:'Hexastyle giant order, deep portico, pediment, stone steps',
