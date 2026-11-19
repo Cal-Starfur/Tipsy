@@ -58371,21 +58371,34 @@ function houseCanopy(fn){
       box(420, 2240, 10, 96, 170, 174, '#6a7078', '#5a6068', '#4a5058');
     }, { keyStart: true, pad: 3 });
 
-    /* ---- THE STATIONS: behind each stop, the station's bench of parts and its andon light; the frame rack at the first, the packing table
-       at the last ---- */
+    /* ---- THE SUPPLY CLOCK (Sir, 2026-11-19: "make them all real"): every bench holds a tote of four parts, one taken for each scooter; every
+       four scooters (SUP) the tugger brings row A its totes and the frame rack its decks (the rack pickers load it), and the runner brings row B
+       its totes (the goods-to-person picker loads it from the shelf pods). Everything here is on the line's clock */
+    const SUP = 4*CYC, NPART = 4, REACHU = DWELL + 400 - 500;
+    /* parts left: four at the refill (at rT, mod SUP), one gone at each reach for the next part since (reachU into each cycle) */
+    const partsLeft = (t, rT, reachU) => { const last = t - ((((t - rT) % SUP) + SUP) % SUP), n = Math.floor((t - reachU)/CYC) - Math.floor((last - reachU)/CYC); return Math.max(0, NPART - n); };
+    /* a tote of parts on a bench (along a, or b): the station's colour, its parts showing over the rim */
+    const partTote = (a, b, z, alongB, n, col) => { const la = alongB ? 13 : 30, lb = alongB ? 30 : 13;
+      box(a - la, a + la, b - lb, b + lb, z, z + 14, col, shade(col, .85), shade(col, .7)); T(a - la + 2, a + la - 2, b - lb + 2, b + lb - 2, z + 14.1, shade(col, .45));
+      for(let i = 0; i < n; i++){ const d = -22 + i*14.5; box(alongB ? a - 7 : a + d - 5, alongB ? a + 7 : a + d + 5, alongB ? b + d - 5 : b - 7, alongB ? b + d + 5 : b + 7, z + 8, z + 18, '#3a3f46', '#2b2f35', '#22262b'); } };
+    const SCOL = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0', '#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e', '#7a4ae0'];
+    const BENCH = p => p < 5 ? [POS[p][0], POS[p][1] - 142, false] : [POS[p][0] + 140, RB, true];   /* (row A's behind the worker, row B's beside) */
+    /* ---- THE STATIONS: row A's bench behind its worker, row B's beside (east of) its worker, clear of the robots' turn between the rows; the
+       frame rack at the first, the packing table at the last ---- */
     for(let p = 1; p < NPOS - 1; p++){ const [pa, pb] = POS[p];
-      items.push({ a: pa, b: pb - 125, z: 0, solids: [], draw: () => {
+      if(p < 5) items.push({ a: pa, b: pb - 125, z: 0, solids: [], draw: () => {
         box(pa - 50, pa + 50, pb - 160, pb - 125, 0, 60, '#d6dadd', steelD, steelS); box(pa - 52, pa + 52, pb - 162, pb - 123, 60, 63, steel, steelD, steelS);
-        for(const [k, ba] of [-32, 0, 32].entries()){ const col = ['#2e8bd8', '#e0453a', '#2aa86a', '#f2c02e'][(p + k) % 4]; box(pa + ba - 13, pa + ba + 13, pb - 156, pb - 130, 63, 76, col, shade(col, .85), shade(col, .7)); }
         F(pa - 16, pa + 16, 30, 50, dark, null, 0, pb - 124.6); blockWordIn(String(p), pa - 12, pa + 12, 33, 47, pb - 124.4, yel, null, 2);
         tube(pa + 62, pb - 142, 0, pa + 62, pb - 142, 150, 1.8, grey); for(const [z, c] of [[150, '#3fd06a'], [141, '#f2c02e'], [132, '#7a2a24']]) cyl(pa + 62, pb - 142, z - 8, z, 4.5, c, shade(c, .8)); }});
+      else items.push({ a: pa + 158, b: RB, z: 0, solids: [], draw: () => {
+        box(pa + 122, pa + 158, RB - 48, RB + 48, 0, 60, '#d6dadd', steelD, steelS); box(pa + 120, pa + 160, RB - 50, RB + 50, 60, 63, steel, steelD, steelS);
+        S(pa + 158.4, RB - 16, RB + 16, 30, 50, dark); S(pa + 158.6, RB - 12, RB + 12, 36, 44, yel);
+        tube(pa + 140, RB - 60, 0, pa + 140, RB - 60, 150, 1.8, grey); for(const [z, c] of [[150, '#3fd06a'], [141, '#f2c02e'], [132, '#7a2a24']]) cyl(pa + 140, RB - 60, z - 8, z, 4.5, c, shade(c, .8)); }});
     }
     { const [pa, pb] = POS[0];
       items.push({ a: pa, b: pb - 125, z: 0, solids: [], draw: () => {
         for(const a of [pa - 92, pa + 92]) box(a - 4, a + 4, pb - 160, pb - 150, 0, 130, grey, shade(grey, .85), shade(grey, .7));
-        tube(pa - 92, pb - 155, 128, pa + 92, pb - 155, 128, 2.4, grey);
-        for(const [k, da] of [-44, 44].entries()){ tube(pa + da, pb - 155, 128, pa + da, pb - 155, 110, 0.9, dark);
-          prod(pa + da, pb - 155, 40, PCOL, false, 0, 0); } }});
+        tube(pa - 92, pb - 155, 128, pa + 92, pb - 155, 128, 2.4, grey); for(const z of [40, 84]) tube(pa - 92, pb - 155, z, pa + 92, pb - 155, z, 1.6, grey); }});
     }
     { const [pa, pb] = POS[NPOS - 1];
       items.push({ a: 2170, b: pb + 40, z: 0, solids: [], draw: () => {
@@ -58406,9 +58419,17 @@ function houseCanopy(fn){
       }
       for(let p = 0; p < NPOS; p++){ const [pa, pb] = POS[p], here = ((p - c) % NPOS + NPOS) % NPOS < NCAR;
         const w0 = 500, w1 = DWELL - 500, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - 400))/400) : clamp01((u - w1)/400);
-        if(p === NPOS - 1){ out.push(man(2090, pb, 2 - 2*s, on ? WORK(t) : s > 0.9 ? REACH(t) : {})); continue; }
+        if(p >= 5){ out.push(man(pa + 88, pb, 2 - 2*s, on ? WORK(t + p*700) : s > 0.9 ? REACH(t + p*500) : {})); continue; }   /* (row B and the packer: beside the job, the bench or table to the east) */
         out.push(man(pa, pb - 78, 1 + 2*s, on ? WORK(t + p*700) : s > 0.9 ? REACH(t + p*500) : {}));
       }
+      /* (the loader: takes a deck off the frame rack as the robots move, carries it round and lays it on the empty jig) */
+      { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
+          out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => prod(ha, hb, 44, PCOL, false, 0, 0) }); } }
+      /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
+      for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU);
+        out.push({ kind: 'cargo', a: ba, b: bb, dd: 2, cargo: () => partTote(ba, bb, 63, alB, n, SCOL[p]) }); }
+      { const n = partsLeft(t, SUPT[0], REACHU + 300), pa = POS[0][0], pb = RA - 155;
+        out.push({ kind: 'cargo', a: pa, b: pb, dd: 1, cargo: () => { for(let i = 0; i < n; i++) prod(pa + (i % 2 ? 44 : -44), pb, i < 2 ? 24 : 68, PCOL, false, 0, 0); } }); }
       /* (the last one off, on the packing table: the finished scooter, folded, the box built up round it and closed -- till the conveyor robot
          takes it) */
       { const age = (((t - UNL) % CYC) + CYC) % CYC, TA = 2172, TB = RB;
@@ -58418,27 +58439,57 @@ function houseCanopy(fn){
           else carton(TA, TB, 63, false); } }); }
       return out; } } });
 
-    /* ---- THE RUNNERS (fx.crew): two warehouse robots round the kitting loop with totes of parts -- the bare one with two on its lid, the
-       tugger with its train of carts -- they stop under the rack to be loaded by
-       the pickers, and again at the line side to drop off; the pickers walk the rack ---- */
-    { const RP = [[1300, 200], [2180, 200], [2180, 590], [500, 590], [500, 200]], RL = pathLen(RP), V = 0.11, STOPS = [[0, 3200], [880 + 390 + 880, 2600]];
-      const TC = RL/V + STOPS.reduce((q, s) => q + s[1], 0);
-      const at = tt => { let r = ((tt % TC) + TC) % TC, s = 0; for(const [sd, dw] of STOPS){ const go = (sd - s)/V; if(r < go) return { s: s + r*V, stop: -1 }; r -= go; s = sd; if(r < dw) return { s, stop: STOPS.findIndex(q => q[0] === sd), r }; r -= dw; }
-        return { s: s + r*V, stop: -1 }; };
-      const TOTES = [{ k: 'tote', la: 22, lb: 28, h: 22, lt: 1 }, { k: 'tote', la: 18, lb: 28, h: 22, lt: 2 }], TUG = AMR_SLOTS.amrtug.map(q => q.def);
+    /* ---- ROW A'S SUPPLY (fx.crew): the tugger round the kitting loop -- loaded at the rack by the two pickers, a tote at a time, then along the
+       line side dropping the frame rack's decks and a tote at each of row A's benches; once round every SUP ---- */
+    const RP = [[1300, 200], [2180, 200], [2180, 590], [500, 590], [500, 200]], RL = pathLen(RP), RSTOP = [0, ...[2000, 1700, 1400, 1100, 800].map(a => 880 + 390 + 2180 - a)];
+    const RDW = [8000, 1400, 1400, 1400, 1400, 1400], RV = RL/(SUP - RDW.reduce((q, d) => q + d, 0)), TUGLD = [4, 2, 1, 0, 3];
+    /* (its stops' start times, and the refills: the frame rack and stations 4, 3, 2, 1 -- SUPT[p]) */
+    const RT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RSTOP.length; i++){ tt += (RSTOP[i] - s0)/RV; RT0.push(tt); tt += RDW[i]; s0 = RSTOP[i]; } }
+    const SUPT = []; SUPT[0] = RT0[1] + 700; for(const [j, p] of [4, 3, 2, 1].entries()) SUPT[p] = RT0[j + 2] + 700;
+    const tugAt = t => { const r = ((t % SUP) + SUP) % SUP; for(let i = RSTOP.length - 1; i >= 0; i--){ if(r >= RT0[i] + RDW[i]){ const s0 = RSTOP[i] + (r - RT0[i] - RDW[i])*RV; return { s: Math.min(s0, i + 1 < RSTOP.length ? RSTOP[i + 1] : RL), stop: -1, done: i }; }
+        if(r >= RT0[i]) return { s: RSTOP[i], stop: i, r: r - RT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
+    /* ---- ROW B'S SUPPLY (fx.crew): the runner from goods to person up to the line and along the south of it, a tote to each of row B's
+       benches, and back; once every SUP, half a SUP after the tugger ---- */
+    const RBP = [[880, 1610], [880, 1300], [1790, 1300], [1791, 1300]], RBS = [0, 320, 620, 920, 1220], RBDW = [12000, 1400, 1400, 1400, 1400], RB0 = SUP/2;
+    const RBV = 2*1220/(SUP - RBDW.reduce((q, d) => q + d, 0) - 600);
+    const RBT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RBS.length; i++){ tt += (RBS[i] - s0)/RBV; RBT0.push(tt); tt += RBDW[i]; s0 = RBS[i]; } }
+    for(const [j, p] of [5, 6, 7, 8].entries()) SUPT[p] = RB0 + RBT0[j + 1] + 700;
+    const runAt = t => { const r = (((t - RB0) % SUP) + SUP) % SUP, back = RBT0[4] + RBDW[4];
+      if(r >= back) return { s: Math.max(0, 1220 - (r - back)*RBV), stop: -1, done: 4, r };
+      for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
+        if(r >= RBT0[i]) return { s: RBS[i], stop: i, r: r - RBT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
+    { const TUG = AMR_SLOTS.amrtug.map(q => q.def), TOTE = (a, b, z, col) => { box(a - 13, a + 13, b - 10, b + 10, z, z + 12, col, shade(col, .85), shade(col, .7)); T(a - 11, a + 11, b - 8, b + 8, z + 12.1, shade(col, .45)); };
       items.push({ a: 1340, b: 380, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
-        const out = [];
-        for(let k = 0; k < 2; k++){ const S = at(t + k*TC/2), P0 = pathAt(RP, S.s), full = S.s > 0 && S.s < STOPS[1][0] || (S.stop === 0 && S.r > 2000) || (S.stop === 1 && S.r < 1300);
-          out.push(k ? bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads: full ? TUG : [], wheel: S.s*0.12, vel: S.stop < 0 ? V : 0 })
-                     : bot(P0.a, P0.b, P0.fdir, { build: 'amrstock', loads: full ? TOTES : [], wheel: S.s*0.12 })); }
-        for(const [k, A0, A1] of [[0, 900, 1300], [1, 1600, 2000]]){ const per = (A1 - A0)/0.05, TT = 2*per + 2*2600, r = ((t + k*3100) % TT + TT) % TT;
-          let a, f, pose = {}, walk = 0, gait = 0;
-          if(r < 2600){ a = A0; f = 3; pose = REACH(t); }
-          else if(r < 2600 + per){ a = A0 + (r - 2600)*0.05; f = 0; walk = 1; gait = a/9; }
-          else if(r < 5200 + per){ a = A1; f = 3; pose = REACH(t + 900); }
-          else { a = A1 - (r - 5200 - per)*0.05; f = 2; walk = 1; gait = a/9; }
-          out.push(man(a, 140, f, Object.assign({ walk, gait }, pose))); }
+        const out = [], S = tugAt(t), P0 = pathAt(RP, S.s);
+        /* how many are on it: loaded one each 1400 at the rack, one off at each stop after */
+        const k = S.stop === 0 ? Math.max(0, Math.min(5, Math.floor((S.r - 800)/1400) + 1)) : 5 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        const loads = AMR_SLOTS.amrtug.map((q, i) => TUGLD.slice(0, k).includes(i) ? TUG[i] : null);
+        out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
+        /* the rack pickers: at the tugger's carts while it is in, a tote off the rack and onto a cart, turn about */
+        for(const [j, pa] of [[0, 1120], [1, 1220]]){
+          if(S.stop === 0 && S.r < 8000){ const q = ((S.r - j*1400) % 2800 + 2800) % 2800, f = q < 900 ? 3 : q < 1200 ? 3 - 2*ease((q - 900)/300) : q < 2100 ? 1 : 1 + 2*ease((q - 2100)/300);
+            out.push(man(pa, 140, f, q < 900 ? REACH(t) : q < 2100 ? { lift: [0.45, 0.45], bend: [0.7, 0.7] } : {}));
+            if(q >= 800 && q < 1900){ const ff = f*Math.PI/2, ha = pa + Math.cos(ff)*24, hb = 140 + Math.sin(ff)*24; out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => TOTE(ha, hb, 52, SCOL[(j + Math.floor(S.r/2800)) % 5]) }); } }
+          else out.push(man(pa, 140, 1, {})); }
         return out; } } });
+      /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
+         pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
+      const SH = AMR_SLOTS.amrshelf.map(q => q.def), TOP4 = SH.map((q, i) => i).filter(i => AMR_SLOTS.amrshelf[i].lv === 3).reverse(), SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07;
+      items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
+        const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1219.5));
+        const k = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 2100)/3000) + 1)) : 4 - Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
+        out.push(bot(P0.a, P0.b, 0, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < k; i++) TOTE(P0.a + (i % 2 ? 22 : -22), P0.b + (i < 2 ? -16 : 16), 31, SCOL[5 + (i % 4)]); } }));
+        for(let pk = 0; pk < 2; pk++){ const tau = (((t - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP);
+          const s0 = tau < 12000 ? 0 : tau < 16714 ? (tau - 12000)*PV : tau < 29286 ? 330 : tau < 32429 ? 330 + (tau - 29286)*PV : tau < 64286 ? 550 : tau < 69000 ? 550 + (tau - 64286)*PV : 0;
+          const P1 = pathAt(SP, s0 % 880), picked = tau < 12000 ? Math.max(0, Math.min(4, Math.floor((tau - 1200)/3000) + 1)) : 0;
+          out.push(bot(P1.a, P1.b, P1.fdir, { build: 'amrshelf', loads: SH.map((L, i) => TOP4.indexOf(i) >= 0 && TOP4.indexOf(i) < picked ? null : L), wheel: s0*0.12 })); }
+        if(S.stop === 0){ const q = S.r % 3000, f = q < 1200 ? 2 : q < 1500 ? 2 - 2*ease((q - 1200)/300) : q < 2700 ? 0 : 2*ease((q - 2700)/300);
+          out.push(man(790, 1610, f, q < 1200 ? REACH(t) : q < 2700 ? { lift: [0.5, 0.5], bend: [0.6, 0.6] } : {}));
+          if(q >= 1100 && q < 2200){ const ff = f*Math.PI/2, ha = 790 + Math.cos(ff)*24, hb = 1610 + Math.sin(ff)*24; out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => TOTE(ha, hb, 52, SCOL[5 + (Math.floor(S.r/3000) % 4)]) }); } }
+        else out.push(man(790, 1610, 1, {}));
+        return out; } } });
+      T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
+      T(877, 883, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1794, 1297, 1303, 0.35, '#5fb8e8');
     }
 
     /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
@@ -58463,23 +58514,20 @@ function houseCanopy(fn){
         return fade > 0.01 ? [bot(P0.a, P0.b, P0.fdir, { build: 'amrjack', jack: full ? JACK : false, fork, wheel: s0*0.12, fade })] : []; } } });
     }
 
-    /* ---- THE WEST END: the high rack on the west wall; goods to person
-       -- two shelf pod robots bringing their bins round to a humanoid picker in turn ---- */
+    /* ---- THE WEST END: the high rack on the west wall ---- */
     runPiece(items, 20, 110, 640, 1360, 200, (s0, s1) => [solid(20, 110, s0, s1, 200, 'high rack')], () => {
       for(let b = 640; b <= 1360; b += 120) for(const a of [24, 106]) box(a - 4, a + 4, b - 4, b + 4, 0, 200, blue, shade(blue, .85), shade(blue, .7));
       for(const [lv, z] of [10, 60, 110, 160].entries()){ box(20, 110, 640, 1360, z, z + 5, yel, roboD, '#a98225');
         for(let b = 648; b < 1352; b += 44){ if((b + lv*44) % 132 === 72) continue; box(30, 100, b, b + 38, z + 5, z + 38, '#c98a4a', '#b97b40', '#a86e36'); F(46, 84, z + 14, z + 26, PAL[(b/44 + lv) % 5 | 0], null, 0, b + 38.2); } }
     }, { alongB: true, keyStart: true, pad: 3 });
-    { const SH = AMR_SLOTS.amrshelf.map(q => q.def), SP = [[420, 1250], [420, 1400], [660, 1400], [660, 1120], [420, 1120]], SL = pathLen(SP), SV = 0.07, SD = 4200, ST = SL/SV + SD;
-      items.push({ a: 360, b: 1150, z: 0, solids: [solid(330, 720, 1080, 1440, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
-        const out = [];
-        let busy = false;
-        for(let k = 0; k < 2; k++){ const q = (((t + k*ST/2) % ST) + ST) % ST, s0 = q < SD ? 0 : (q - SD)*SV, P0 = pathAt(SP, s0); if(q < SD) busy = true;
-          out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrshelf', loads: SH, wheel: s0*0.12 })); }
-        out.push(man(505, 1268, 1.7, busy ? REACH(t) : {}));
-        return out; } } });
-      T(330, 720, 1080, 1086, 0.5, yel); T(330, 720, 1434, 1440, 0.5, yel); T(330, 336, 1080, 1440, 0.5, yel); T(714, 720, 1080, 1440, 0.5, yel);
+    /* ---- THE ROBOTS' CHARGING PADS by the high rack (a 340..700, b 1084..1436): six pads, a charger post at each; the scissor lift parked
+       on charge (a humanoid's way up a level, Sir), a spare robot on another ---- */
+    for(let r = 0; r < 3; r++) for(let c = 0; c < 2; c++){ const pa = 440 + c*180, pb = 1140 + r*120;
+      T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
+      items.push({ a: pa - 70, b: pb - 50, z: 0, solids: [solid(pa - 96, pa - 74, pb - 14, pb + 14, 70, 'charger')], draw: () => {
+        box(pa - 96, pa - 74, pb - 14, pb + 14, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(pa - 73.6, pb - 10, pb + 10, 44, 60, '#5fe8e0'); }});
     }
+    items.push({ a: 620, b: 1300, z: 0, solids: [solid(385, 495, 1102, 1178, 40, 'robot on charge'), solid(565, 675, 1342, 1418, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(440, 1140, 2, { build: 'amrlift' }), bot(620, 1380, 2)] } });
 
     /* ---- OUT TO THE PALLETS: the conveyor robot takes each boxed scooter off the packing table to the arm robot's side; the arm lifts it off
        the conveyor and builds it onto the pallet in its bay (Sir: the arm had been moving a box from one side of itself to the other) -- six to a pallet, then the pallet jack robot takes it (fx.crew, on the line's clock) ---- */
@@ -58515,14 +58563,6 @@ function houseCanopy(fn){
         for(let lv = 0; lv < lvls; lv++) for(const [a0, b0] of [[pa - 56, pb - 51], [pa + 2, pb - 51], [pa - 56, pb + 1], [pa + 2, pb + 1]]){ box(a0, a0 + 54, b0, b0 + 50, 10 + lv*28, 37 + lv*28, '#c98a4a', '#b97b40', '#a86e36');
           F(a0 + 12, a0 + 42, 18 + lv*28, 30 + lv*28, PAL[(c + r + lv) % 5], null, 0, b0 + 50.2); } }});
     }
-    /* ---- THE ROBOTS' CHARGING PADS (a 420..1000, b 1430..1740): six pads, a charger post at each, two robots on charge (fx.crew) ---- */
-    for(let r = 0; r < 2; r++) for(let c = 0; c < 3; c++){ const pa = 520 + c*200, pb = 1500 + r*160;
-      T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
-      items.push({ a: pa - 70, b: pb - 50, z: 0, solids: [solid(pa - 96, pa - 74, pb - 14, pb + 14, 70, 'charger')], draw: () => {
-        box(pa - 96, pa - 74, pb - 14, pb + 14, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(pa - 73.6, pb - 10, pb + 10, 44, 60, '#5fe8e0'); }});
-    }
-    items.push({ a: 720, b: 1580, z: 0, solids: [solid(470, 580, 1462, 1538, 40, 'robot on charge'), solid(870, 980, 1622, 1698, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(525, 1500, 2, { build: 'amrlift' }), bot(925, 1660, 2, { build: 'amrstock' })] } });   /* (the scissor lift parked on charge: a humanoid's way up a level, Sir) */
-
     depthSort(items);
   }
 },
