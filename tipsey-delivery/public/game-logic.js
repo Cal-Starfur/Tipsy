@@ -58859,12 +58859,12 @@ function houseCanopy(fn){
        BOX0 after it came off and gives it to the arm robot at BOX1; six to a pallet, so a pallet every 6 CYC */
     const UNL = DWELL*0.5, BOX0 = 5500 + 500, BOX1 = 5500 + 3800 + 0.78*3500, PALT = 6*CYC, PAL0 = UNL + BOX1 + 5*CYC;
     /* THE PARTS PALLET (phase 2): its load about its middle (da along a, db along b, dz up from its deck), the order the Receiver takes it
-       off in (top first), and where each goes on the staging rack ([a, z]); the Receiver's window on the jack's clock (RCV_T0..T1) */
+       off in (top first); the Receiver's window on the jack's clock (RCV_T0..T1) */
     const RCV = [{ k: 'deck', da: 0, db: -9, dz: 20, la: 30, lb: 13, h: 20 },
       { k: 'bin', da: -13, db: -19, dz: 0, la: 12, lb: 11.5, h: 20, c: 0 }, { k: 'bin', da: 13, db: -19, dz: 0, la: 12, lb: 11.5, h: 20, c: 1 },
       { k: 'bin', da: -13, db: 5, dz: 0, la: 12, lb: 11.5, h: 20, c: 2 }, { k: 'bin', da: 13, db: 5, dz: 0, la: 12, lb: 11.5, h: 20, c: 3 },
       { k: 'flat', da: 0, db: 26, dz: 0, la: 30, lb: 7, h: 14 }];
-    const RCV_SPOT = [[2196, 72], [2170, 30], [2200, 30], [2230, 30], [2260, 30], [2262, 72]], RCV_T0 = 17000, RCV_JOB = 3000, RCV_T1 = RCV_T0 + RCV.length*RCV_JOB;
+    const RCV_T0 = 17000, RCV_JOB = 3000, RCV_T1 = RCV_T0 + RCV.length*RCV_JOB;
     const rcvQ = jr => jr >= RCV_T0 && jr < RCV_T1 ? { j: Math.floor((jr - RCV_T0)/RCV_JOB), q: (jr - RCV_T0) % RCV_JOB } : null;
     const rcvPicked = jr => jr < RCV_T0 ? 0 : jr >= RCV_T1 ? RCV.length : Math.floor((jr - RCV_T0)/RCV_JOB) + ((jr - RCV_T0) % RCV_JOB >= 1100 ? 1 : 0);
     const rcvPlaced = jr => jr < RCV_T0 ? 0 : jr >= RCV_T1 ? RCV.length : Math.floor((jr - RCV_T0)/RCV_JOB) + ((jr - RCV_T0) % RCV_JOB >= 2500 ? 1 : 0);
@@ -59127,34 +59127,44 @@ function houseCanopy(fn){
     /* ---- RECEIVING (phase 2): the parts pallet's load (RCV, about its middle, PC: a deck carton on top, four bins, a carton of flat boxes);
        the Receiver taking it off the jack's forks a piece at a time onto the staging rack on Receiving's north wall; the patrol bot by the
        door, scanning each pallet in and out ---- */
-    items.push({ a: 2225, b: 80, z: 0, solids: [solid(2150, 2300, 24, 80, 80, 'staging rack')], draw: () => {
-      for(const a of [2152, 2226, 2298]) for(const b of [26, 78]) box(a - 2.5, a + 2.5, b - 2.5, b + 2.5, 0, 80, yel, roboD, '#a98225');
-      for(const z of [27, 69]) box(2150, 2300, 24, 80, z, z + 3, '#6a7078', '#5a6068', '#4a5058');
-      F(2160, 2290, 4, 20, dark, null, 0, 80.3); blockWordIn('STAGING', 2166, 2284, 7, 17, 80.4, yel, null, 2); }});
-    items.push({ a: 2230, b: 250, z: 0, solids: [solid(2160, 2210, 585, 635, 90, 'patrol bot')], draw: () => {}, fx: { crew: t => {
+    items.push({ a: 2230, b: 250, z: 0, solids: [solid(2160, 2210, 585, 635, 90, 'patrol bot'), solid(2170, 2280, 22, 98, 150, 'staging pod'), solid(2242, 2318, 85, 195, 60, 'supply shuttle')], draw: () => {}, fx: { crew: t => {
       const out = [], jr = (((t - PAL0) % PALT) + PALT) % PALT, k = rcvPicked(jr), q = rcvQ(jr);
-      /* the Receiver: waiting by the pallet's drop; then a piece at a time -- to its side, reach, lift, round to the rack, set it down */
-      const PB = 158 + 54;
-      if(q){ const it = RCV[q.j], sp = RCV_SPOT[q.j], pick = [2262, PB + it.db], drop = [sp[0], 112], mid = [2262, 140];
+      /* STAGING ON ROBOTS (Sir, 2026-11-19: "that should be a warehouse robot shelf, not just some made-up shelf"): the bins go into a shelf
+         pod parked at Receiving's north wall (facing east, its south column his side), the cartons onto the stock robot parked by the pallet
+         -- the supply shuttle (phase 5). The Receiver works from the pallet's west side: reach, lift, round to the pod or the shuttle, set it in */
+      const PB = 212, PODA = 2225, PODB = 60, SHA = 2280, SHB = 140, SLOTS = [7, 9, 11, 15], SHSL = [162, 118];
+      const dest = i => { const it = RCV[i]; if(it.k === 'bin'){ const sq = AMR_SLOTS.amrshelf[SLOTS[i - 1]]; return { a: PODA + sq.a, b: PODB + sq.b, z: [34, 64, 94, 124][sq.lv] + 2.5, stand: [PODA + sq.a, 112], f: 3, pod: true }; }
+        const sb = SHSL[it.k === 'deck' ? 0 : 1]; return { a: SHA, b: sb, z: 31, stand: [2228, sb], f: 0, pod: false }; };
+      const mid = [2168, 150], placed = rcvPlaced(jr);
+      let slide = null;
+      if(q){ const it = RCV[q.j], D = dest(q.j), pick = [2168, PB + it.db], drop = D.stand;
         const leg = (k2, A, B) => [A[0] + (B[0] - A[0])*k2, A[1] + (B[1] - A[1])*k2];
-        const prev = q.j > 0 ? [RCV_SPOT[q.j - 1][0], 112] : [2262, 150];
-        let pos, f = 2, walk = 0, gait = 0, lift = 0.1, bend = 0.15, carry = null;
-        const twoLeg = (k2, A, M, B) => { const d1 = Math.hypot(M[0] - A[0], M[1] - A[1]), d2 = Math.hypot(B[0] - M[0], B[1] - M[1]), u = k2*(d1 + d2); return u < d1 ? leg(u/d1, A, M) : leg((u - d1)/Math.max(1, d2), M, B); };
+        const prev = q.j > 0 ? dest(q.j - 1).stand : [2168, 150];
+        let pos, f = 0, walk = 0, gait = 0, lift = 0.1, bend = 0.15, carry = null;
+        const twoLeg = (k2, A, M, B) => { const d1 = Math.hypot(M[0] - A[0], M[1] - A[1]), d2 = Math.hypot(B[0] - M[0], B[1] - M[1]), u = k2*(d1 + d2); return u < d1 ? leg(u/Math.max(1, d1), A, M) : leg((u - d1)/Math.max(1, d2), M, B); };
         const face = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
-        if(q.q < 700){ const k2 = q.q/700; pos = twoLeg(k2, prev, mid, pick); f = face(pos, k2 < 0.5 ? mid : pick); walk = 1; gait = k2*30; if(k2 > 0.85) f = 2; }
-        else if(q.q < 1300){ pos = pick; f = 2; const k2 = clamp01((q.q - 700)/400); const z = it.dz + 10.5 + it.h/2, fwd = 2262 - (2215 + it.da) - 4, dz = z - 95;
-          const th = Math.atan2(Math.max(4, fwd), -dz); lift = 0.1 + (th/(Math.PI/2) - 0.1)*k2; bend = 0.15 + (Math.max(0, Math.min(0.9, (40 - Math.hypot(fwd, dz))/40*1.7)) - 0.15)*k2;
-          if(q.q >= 1100){ const k3 = ease((q.q - 1100)/200); carry = [2215 + it.da + (2262 - 24 - 2215 - it.da)*k3, PB + it.db, 10.5 + it.dz + (52 - 10.5 - it.dz)*k3]; lift = 0.55; bend = 0.7; } }
+        const aim = (pz, fx, k2) => { const dz = pz - 95, th = Math.atan2(Math.max(4, fx), -dz); lift = 0.1 + (th/(Math.PI/2) - 0.1)*k2; bend = 0.15 + (Math.max(0, Math.min(0.9, (40 - Math.hypot(fx, dz))/40*1.7)) - 0.15)*k2; };
+        if(q.q < 700){ const k2 = q.q/700; pos = twoLeg(k2, prev, mid, pick); f = face(pos, k2 < 0.5 ? mid : pick); walk = 1; gait = k2*30; if(k2 > 0.85) f = 0; }
+        else if(q.q < 1300){ pos = pick; f = 0; aim(it.dz + 10.5 + it.h/2, (2215 + it.da) - 2168 - it.la, clamp01((q.q - 700)/400));
+          if(q.q >= 1100){ const k3 = ease((q.q - 1100)/200), hx = 2168 + 24; carry = [2215 + it.da + (hx - 2215 - it.da)*k3, PB + it.db, 10.5 + it.dz + (52 - 10.5 - it.dz)*k3]; lift = 0.55; bend = 0.7; } }
         else if(q.q < 2100){ const k2 = (q.q - 1300)/800; pos = twoLeg(k2, pick, mid, drop); f = face(pos, k2 < 0.4 ? mid : drop); walk = 1; gait = k2*30; lift = 0.55; bend = 0.7;
           carry = [pos[0] + Math.cos(f*Math.PI/2)*24, pos[1] + Math.sin(f*Math.PI/2)*24, 52]; }
-        else if(q.q < 2500){ pos = drop; f = 3; const k2 = ease((q.q - 2100)/400), c0 = [pos[0], pos[1] - 24, 52]; carry = [c0[0] + (sp[0] - c0[0])*k2, c0[1] + (52 - c0[1])*k2, c0[2] + (sp[1] - c0[2])*k2]; lift = 0.55 + 0.25*k2; bend = 0.7 - 0.4*k2; }
-        else { pos = drop; f = 3; lift = 0.1; bend = 0.15; }
+        else if(q.q < 2500){ pos = drop; f = D.f; const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), c0 = [pos[0] + fa*24, pos[1] + fb*24, 52];
+          if(D.pod){ /* (to just outside the pod's face, then slid in by the pod itself, its own shelves over it) */
+            const out0 = [D.a, D.b + 26, D.z]; if(q.q < 2350){ const k2 = ease((q.q - 2100)/250); carry = [c0[0] + (out0[0] - c0[0])*k2, c0[1] + (out0[1] - c0[1])*k2, c0[2] + (out0[2] - c0[2])*k2]; aim(carry[2] + 10, Math.abs((carry[1] - pos[1])) - 12, 1); }
+            else { slide = { i: q.j, off: 26*(1 - ease((q.q - 2350)/150)) }; aim(D.z + 10, Math.abs(D.b + slide.off + 12 - pos[1]), 1); } }
+          else { const k2 = ease((q.q - 2100)/400); carry = [c0[0] + (D.a - c0[0])*k2, c0[1] + (D.b - c0[1])*k2, c0[2] + (D.z - c0[2])*k2]; lift = 0.55 - 0.2*k2; bend = 0.7 - 0.3*k2; } }
+        else { pos = drop; f = D.f; lift = 0.1; bend = 0.15; }
         out.push(man(pos[0], pos[1], f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
-        if(carry){ const c = carry; out.push({ kind: 'cargo', a: c[0], b: c[1], dd: 1, cargo: () => rcvItemKit(it, c[0], c[1], c[2]) }); } }
-      else out.push(man(2262, 150, 1, {}));
-      /* what is on the staging rack: what has been set down off this pallet (phases 3 and 5 take it on from here) */
-      const placed = rcvPlaced(jr);
-      for(let i = 0; i < placed; i++){ const sp = RCV_SPOT[i], it = RCV[i]; out.push({ kind: 'cargo', a: sp[0], b: 52, dd: 2, cargo: () => rcvItemKit(it, sp[0], 52, sp[1]) }); }
+        if(carry){ const c = carry, dd = D.pod || D.a > c[0] ? 1 : 1; out.push({ kind: 'cargo', a: c[0], b: c[1], dd: !D.pod && q.q >= 2100 ? SHA + D.b + 2 - c[0] - c[1] : dd, cargo: () => rcvItemKit(it, c[0], c[1], c[2]) }); } }
+      else out.push(man(2168, 150, 0, {}));
+      /* the staging pod: the bins set into it off this pallet (and the one going in); the shuttle: its cartons, drawn as on the pallet */
+      const POD = AMR_SLOTS.amrshelf.map(() => null);
+      for(let i = 1; i < RCV.length; i++){ if(RCV[i].k !== 'bin') continue; const si = SLOTS[i - 1], L = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: RCV[i].c };
+        if(i < placed) POD[si] = L; else if(slide && slide.i === i) POD[si] = Object.assign({}, L, { off: [0, slide.off] }); }
+      out.push(bot(PODA, PODB, 0, { build: 'amrshelf', loads: POD, bins: CPAL }));
+      const onSh = RCV.map((it, i) => ({ it, i })).filter(o => o.it.k !== 'bin' && o.i < placed);
+      out.push(bot(SHA, SHB, 3, { build: 'amrstock', loads: [], cargo: () => { for(const { it } of onSh) rcvItemKit(it, SHA, SHSL[it.k === 'deck' ? 0 : 1], 31); } }));
       /* the patrol bot by the door: turned to the lane, scanning a pallet through */
       const scan = jr > 9000 && jr < 11000 || jr > 12500 && jr < 14000;
       out.push({ kind: 'bot', botKind: 'patrolbot', a: 2185, b: 610, fdir: 3.5, cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2195, 598, 66, 2260 + k2*20, 455, 30, 0.6, '#3cd06a'); } : null });   /* (south of the door's lane, out of Receiving's way: turned to the door) */
