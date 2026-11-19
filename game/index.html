@@ -16504,7 +16504,7 @@ function getGenericPickupShops(grid){
    the robot pulls up in front of it. A real pickup not listed here uses
    the middle of its lot. */
 const PICKUP_DOOR_A = {
-  "Lagoon Coffee Roasters": 175,                          // shopDoor(175, ..., { w: 100 }) -- the walk-in's door, a 125..225
+  "Lagoon Coffee Roasters": 175,                          // shopDoor(175, ..., { w: 80 }) -- the walk-in's door, a 135..215
   "Sandpiper Bakery":       230 - 9 - 66.24/2,            // dx1 = W - 9, dx0 = dx1 - dW
   "Cove Creamery":          230*0.84,                     // shopDoor(W*0.84, ...)
 };
@@ -29847,6 +29847,10 @@ function walkinStep(R, s, dt, now, bot){
                                                  //  people, 2026-11-17, threw reading its first point)
   if(m.path && (!m.go || now >= m.go)){
     const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy);
+    /* (backed off out of the doorway for him: held here, turned to it, till he is out of it -- walkinBackOff) */
+    if(T[2] === 'hold'){ const D = walkinDoorPlane(R), bb = bot && D ? walkinBeyond(R, bot.a, bot.b) : 1e9, bt = bot && D ? Math.abs((bot.a - D.P0[0])*D.t[0] + (bot.b - D.P0[1])*D.t[1]) : 1e9;
+      if(Math.abs(bb) < 120 && bt < D.half + 60){ m.moving = false; m.v = 0; if(D) turnTo(Math.atan2(D.P0[1] - m.b, D.P0[0] - m.a)); return; }
+      m.path.shift(); if(!m.path.length) m.path = null; return; }
     if(L < 0.5){ m.path.shift();
       if(m.aside){ m.aside = false; if(m.path.length && m.goal && !walkinGo(R, s, m, m.goal, m.face, walkinAvoid(R, s, bot))) m.path = [m.goal]; return; }   // (stepped aside: on from there)
       if(T[2] === 'beat'){ m.a = T[0]; m.b = T[1]; m.moving = false; m.v = 0; m.beat = { until: now + WALKIN_DAY.lockMs, th: T[3], fn: T[4] }; if(!m.path.length) m.path = null; return; }
@@ -29899,7 +29903,11 @@ function walkinStep(R, s, dt, now, bot){
       /* (held 1.6 s: a way round; held through three ways round, or none: they give it up and do something else) */
       /* (on their way in or out -- a set way through the door and along the street -- they wait their turn) */
       /* (...but him standing in their way: they go round him, a body and a half off his side, where it is clear) */
-      if(m.trip){ if(byBot && !by && m.wait > 900 && walkinDetour(R, s, m, bot)) m.wait = 0; else if(m.wait > 1600) m.wait = 0; }
+      /* (IN THE DOORWAY, HIM COMING THROUGH -- Sir, 2026-11-19: "the person needs to be programmed to either get back or get run over": a door
+         a body and him wide has no way round him, so whoever is in it or about it on their way through backs off, the way they came, out of
+         his line and clear of the door, and goes on once he is by -- or stands there and is run over) */
+      if(m.trip && byBot && !by && !m.aside && m.path[0][2] !== 'hold' && m.wait > 250 && walkinBackOff(R, s, m, bot)) m.wait = 0;
+      else if(m.trip){ if(byBot && !by && m.wait > 900 && walkinDetour(R, s, m, bot)) m.wait = 0; else if(m.wait > 1600) m.wait = 0; }
       else if(m.wait > 1600){ m.wait = 0;
         const g = m.goal, ok = (m.stall = (m.stall || 0) + 1) <= 3 && g && walkinGo(R, s, m, g, m.face, walkinAvoid(R, s, bot, true));
         if(!ok){ m.path = null; m.moving = false; m.v = 0; m.until = now + 2500; m.stall = 0; if(m.spot && !s.with) m.spot = null; } }
@@ -30112,6 +30120,21 @@ function walkinStreetPlan(scene, R){
 /* ROUND HIM (on their way in or out, him standing in it): two points a body and a half off his side -- theirs first --
    before him and past him, where it is clear (in the room its grid, out on the street the city's solids); false if
    neither side is */
+/* BACKING OFF OUT OF THE DOORWAY FOR HIM (walkinStep): one on their way through a door, him in it or at it ahead of them, steps back the way
+   they came -- along the door's normal, to their own side of it, a body and him clear of its plane -- and wait there ('hold') till he is out
+   of the doorway, then on along their own way through it. False when they are not about the doorway or there is nowhere to back to */
+function walkinBackOff(R, s, m, bot){
+  const D = walkinDoorPlane(R); if(!D || !bot) return false;
+  const bm = walkinBeyond(R, m.a, m.b), bb = walkinBeyond(R, bot.a, bot.b), tm = Math.abs((m.a - D.P0[0])*D.t[0] + (m.b - D.P0[1])*D.t[1]);
+  if(Math.abs(bm) > 110 || tm > D.half + 40 || Math.abs(bb) > 140) return false;
+  const sd = bm >= bb ? 1 : -1, back = WALKIN_BOT + 70;                            // (their side of him: out on the street, or into the room)
+  const want = Math.max(Math.abs(bm), Math.abs(bb) + back)*sd, Q = [m.a + D.n[0]*(want - bm), m.b + D.n[1]*(want - bm)];
+  const pk = R.pk, v = pk.view && pk.view(), sc = R.scene;
+  const ok = sd > 0 ? !!(sc && v && owSpotClear(sc, pk.x0 + v.dx + Q[0], pk.y0 + v.dy + Q[1], 18)) : walkinClear(walkinGrid(R), Q, Q, WALKIN_CLEAR - 2, null);
+  if(!ok || Math.hypot(Q[0] - m.a, Q[1] - m.b) < 8) return false;
+  if(!m.path) m.path = []; m.path.unshift(Q, [Q[0], Q[1], 'hold']);
+  return true;
+}
 function walkinDetour(R, s, m, bot){
   if(!m.path || !m.path.length || !bot) return false;
   const T = m.path[0], dx = T[0] - m.a, dy = T[1] - m.b, L = Math.hypot(dx, dy) || 1, u = [dx/L, dy/L], n = [-u[1], u[0]];
@@ -31036,7 +31059,7 @@ walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
 /* (BIGGER INSIDE THAN OUT, W31 -- Sir, 2026-11-17: "what if we build the interior to be bigger than the exterior": the room runs back past
    the building's own back, BACK, to ROOM_BACK and ROOM_A1, under the buildings behind it, which are drawn under it while he is inside) */
 const TH_IN = { name: 'Tidewater Tea House Interior', x0: 780000, y0: 400000, WALL: 30/1.3, A0: 40, A1: T2*4.4 - 40, BACK: -216, ROOM_BACK: -700, ROOM_A1: T2*4.4 - 40 + 230, H: 300, LH: 66,
-  DOOR: [154, 252], DOORZ: 112*1.95 };
+  DOOR: [163, 243], DOORZ: 112*1.95 };
 const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0: TH_IN.x0, y0: TH_IN.y0,
   /* (its north wall on the block's own edge, the pavement's line -- from the tea house's walls, 40 in (wallIn), the strip between showed the
      yard's sand in the corner by the pavement once the shell was off: Sir, 2026-11-17) */
@@ -31103,7 +31126,7 @@ walkinLife(TH_IN.name, { keep: [[0, 2000, 194, 274]], looks: [
    Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
    b south, world units: the front (east) wall a 850; the door b 248..378 in it; the shop's own frontage b 90..389 */
 const BK_IN = { name: 'Driftwood Books Interior', x0: 800000, y0: 400000, WALL: 30/1.3, ROOM_A0: -92, ROOM_A1: 492, ROOM_BACK: -700, H: 300, LH: 66,
-  DOOR: [122, 222], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [10, 108, 26] };   // (the shop's door and window, lab a; the window's sill, lab z)
+  DOOR: [132, 212], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [10, 108, 26] };   // (the shop's door and window, lab a; the window's sill, lab z)
 BK_IN.ra = la => (la - BK_IN.ROOM_A0 - BK_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b
 const BK_PLAN = walkinDefine({ name: BK_IN.name, from: 'Driftwood Books', x0: BK_IN.x0, y0: BK_IN.y0,
   lab: [BK_IN.ROOM_A0 + BK_IN.WALL, BK_IN.ROOM_A1 - BK_IN.WALL, BK_IN.ROOM_BACK + BK_IN.WALL, -BK_IN.WALL], body: [[0, 230, -276, 0]],
@@ -31277,7 +31300,7 @@ walkinLife(BK_IN.name, { keep: [[0, 2000, 273, 353]], looks: [
    Lab frame (the shop's): a south along the frontage from its north end, b east (0 the wall, negative into the block). Room frame a east,
    b south, world units: the front (east) wall a 850; the door b 230..360 in it; the shop's own frontage b 71..370 */
 const MO_IN = { name: 'Marina Optical Interior', x0: 820000, y0: 400000, WALL: 30/1.3, ROOM_A0: -78, ROOM_A1: 506, ROOM_BACK: -700, H: 300, LH: 66,
-  DOOR: [122, 222], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [12, 108, 24] };   // (the shop's door and window, lab a; the window's sill, lab z)
+  DOOR: [132, 212], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [12, 108, 24] };   // (the shop's door and window, lab a; the window's sill, lab z)
 MO_IN.ra = la => (la - MO_IN.ROOM_A0 - MO_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's b
 const MO_PLAN = walkinDefine({ name: MO_IN.name, from: 'Marina Optical', x0: MO_IN.x0, y0: MO_IN.y0,
   lab: [MO_IN.ROOM_A0 + MO_IN.WALL, MO_IN.ROOM_A1 - MO_IN.WALL, MO_IN.ROOM_BACK + MO_IN.WALL, -MO_IN.WALL], body: [[0, 230, -276, 0]],
@@ -31469,7 +31492,7 @@ walkinLife(MO_IN.name, { keep: [[0, 2000, 255, 335]], looks: [
    into the block). Room frame a east, b south, world units: the front (south) wall b 700; the door a 431..561 in it; the shop's own
    frontage a 269..568 */
 const LC_IN = { name: 'Lagoon Coffee Roasters Interior', x0: 840000, y0: 400000, WALL: 30/1.3, ROOM_A0: -230, ROOM_A1: 469.69, ROOM_BACK: -585, H: 300, LH: 66,
-  DOOR: [125, 225], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [14, 118, 22] };   // (the shop's door and window, lab a; the window's sill, lab z)
+  DOOR: [135, 215], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [14, 118, 22] };   // (the shop's door and window, lab a; the window's sill, lab z)
 LC_IN.ra = la => (la - LC_IN.ROOM_A0 - LC_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's a
 const LC_PLAN = walkinDefine({ name: LC_IN.name, from: 'Lagoon Coffee Roasters', x0: LC_IN.x0, y0: LC_IN.y0,
   lab: [LC_IN.ROOM_A0 + LC_IN.WALL, LC_IN.ROOM_A1 - LC_IN.WALL, LC_IN.ROOM_BACK + LC_IN.WALL, -LC_IN.WALL], body: [[0, 230, -276, 0]],
@@ -64075,7 +64098,7 @@ function houseCanopy(fn){
   /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
      only once he is in it (LC_IN's glass < 0, W32) */
   vol: { foot: volRect(0, 230, -276, 0), h: 210,
-         opens: [{ name: 'doorway', poly: volRect(125, 225, -90, 2), walk: true }] },
+         opens: [{ name: 'doorway', poly: volRect(135, 215, -90, 2), walk: true }] },
   head:'The roaster, the bins and the flue behind one deep window',
   tags:['turned roaster','round drum door','bean bins','flue through the roof','bare footway'],
   desc:'The roastery is inside the shop where it belongs: a drum on its firebox with a round hinged door, bins of beans beside it, and the flue carrying up through the roof. Nothing on the footway.',
@@ -64172,7 +64195,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the lagoon teal, small panes over a raised panel, 100 across (a 125..225)
        -- as the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the roastery, its leaf live, swinging in */
-    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 100, pair: true, single: true, panes: 'rgba(170,204,206,.72)' });
+    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,206,.72)' });
 
     /* ---- fascia ---- */
     slab(0, W, 136, 170, 4, 0, shade(wall,1.2), null, trim);
@@ -64693,7 +64716,7 @@ function houseCanopy(fn){
      wall's thickness -- he drives into it, and is taken into the room only once he is in it (TH_IN's glass < 0; Sir, 2026-11-17: "the
      jump to interior is too soon ... it will help sell the cut if it doesnt switch prior to entry"). Draw frame (the wall at b -60) */
   vol: { foot: volRect(40, T2*4.4 - 40, -276, -60), h: 288,
-         opens: [{ name: 'doorway', poly: volRect(154, 252, -150, -58), walk: true }] },   // (deep enough to take his body: the room has him before its far end)
+         opens: [{ name: 'doorway', poly: volRect(163, 243, -150, -58), walk: true }] },   // (deep enough to take his body: the room has him before its far end)
   /* FRONT ON THE LINE, WALKWAY OUT TO THE KERB (Sir: "i want the front of
      it in line with the other shops and the awning to be further out onto
      the sidewalk ... lets just move it to the edge where it belongs").
@@ -65014,7 +65037,7 @@ function houseCanopy(fn){
        lacquer and gold, on the set-back wall (BOFF + FB: D8) -- a walk-in's (see), so its opening a hole onto the room and its leaves
        live: they swing for whoever uses them, and from inside stand cut to the front wall's height (the walk-in kit's half door) */
     { const b00 = BOFF; BOFF = b00 + FB + 0.9;
-      try { shopDoor(203, wall, '#b8352a', null, WW, 0, { w: 98, h: 112, pair: true, studs: gold }); } finally { BOFF = b00; } }
+      try { shopDoor(203, wall, '#b8352a', null, WW, 0, { w: 80, h: 112, pair: true, studs: gold }); } finally { BOFF = b00; } }
     F(150, 256, 124, 156, dark, null, 0, FB+0.6);                   // the name plaque
     F(154, 252, 126, 154, gold, null, 0, FB+0.9);
     F(158, 248, 130, 150, shade(dark,1.4), null,0, FB+1.2);
@@ -65174,7 +65197,7 @@ function houseCanopy(fn){
   /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
      only once he is in it (BK_IN's glass < 0, W32) */
   vol: { foot: volRect(0, 230, -276, 0), h: 336,
-         opens: [{ name: 'doorway', poly: volRect(122, 222, -90, 2), walk: true }] },
+         opens: [{ name: 'doorway', poly: volRect(132, 212, -90, 2), walk: true }] },
   head:'Two flush storeys, books behind real glass, hanging sign',
   tags:['two full storeys','flush elevation','books behind glass','string course','swinging sign'],
   desc:'A true two-storey building with both storeys on one plane: a shopfront of 168 with the books behind a real recess and a tinted pane, and an upper floor of 168 over it divided by a single string course. The hanging sign is a board on an arm with its own thickness.',
@@ -65419,7 +65442,7 @@ function houseCanopy(fn){
        default to the kit's cool blue. */
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): a pair of panelled leaves, small panes over a raised panel, 100 across -- a walk-in's (see),
        its opening a hole onto the bookshop, its leaves live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 100, pair: true, single: true, panes: 'rgba(150,176,186,.72)' });
+    shopDoor(172, wall, trim, 'rgba(127,147,160,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(150,176,186,.72)' });
     /* THE WINDOW HEAD DOES THE TYING, not a band. It comes down from
        132 to 120, which puts it within 5 of the door surround at 114.9
        -- close enough to read as one shopfront under one line, and it
@@ -65453,7 +65476,7 @@ function houseCanopy(fn){
   /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
      only once he is in it (MO_IN's glass < 0, W32) */
   vol: { foot: volRect(0, 230, -276, 0), h: 166,
-         opens: [{ name: 'doorway', poly: volRect(122, 222, -90, 2), walk: true }] },
+         opens: [{ name: 'doorway', poly: volRect(132, 212, -90, 2), walk: true }] },
   tags:['oversized spectacles','eye chart','clean white','frame display','deep reveal'],
   desc:'The spectacles are two solid rims in the plane of the wall, round in the world rather than stretched by ZSCALE, standing proud of the fascia on a bridge with the temples folding back to the wall. The frames and the eye chart are inside a real recess behind the pane.',
   draw(p){
@@ -65554,7 +65577,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the marina blue, small panes over a raised panel, 100 across -- as
        the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the optician's, its leaf live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 100, pair: true, single: true, panes: 'rgba(170,200,214,.72)' });
+    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,200,214,.72)' });
 
     /* ---- fascia ----
        Was slab(0, W, 118, 126, -1, -7): a0 of 0 and a1 of W, so the
@@ -99972,7 +99995,10 @@ CITY_PEOPLE.add({ name: 'walk-in staff', where: 'Pelican Drug, Seabreeze Trophie
     /* (met as he reaches them, before they stop him: they hold him at a body and a half (walkinPeopleBlock), past the street's
        34 -- the bookshop's people could not be knocked down at all; the chair's reach, 'seat') */
     test(p, scene, t, C){ return C.reach.seat(p.x, p.y) && !scene._knockMeet; },
-    make(p){ const L = cpLook(p); return { look: cpLookPlain(L), uni: L.uniform, mood: p.kind === 'visitor' || Math.random() < 0.5 ? 'polite' : 'mad' }; },
+    /* (pk: the room they are in -- its fall drawn where the room is drawn, on the street's lines (POCKET_VIEW), as the hospital's; without it
+       they were knocked down at the room's own place off the map: they vanished and came back, never seen to fall -- Sir, 2026-11-19, the
+       roastery: "the customer didnt fall over") */
+    make(p, scene){ const L = cpLook(p); return { pk: scene._inside, look: cpLookPlain(L), uni: L.uniform, mood: p.kind === 'visitor' || Math.random() < 0.5 ? 'polite' : 'mad' }; },
     done(K, p, scene){ if(K && scene._inside) WALKIN_BAN.pend = scene._inside; } },
   each(scene, t, fn){
     for(const s of WALKIN_STAFF){
@@ -136676,7 +136702,10 @@ class WorldScene extends Phaser.Scene {
          floor's height, ordered where the frame stands (MALL_VIEW), as the
          crowd is (queueMallCrowd) */
       const inMall = K.kind === "mall" || K.kind === "staff" || K.kind === "cast" || K.kind === "mallseat", kz = K.z || 0, dOff = inMall && MALL_VIEW ? MALL_VIEW.dx + MALL_VIEW.dy : 0;
-      const room = fn => inMall ? this.inRoomCoords(fn) : fn();
+      /* (one of the room he is in, down in it: the room's own person -- never taken for a passer-by over the room and left undrawn
+         (drawPersonHull's _roomPerson); the roastery's customer vanished while down, 2026-11-19) */
+      const own = !!(pv && this._inside && K0.pk === this._inside);
+      const room = fn => { if(inMall) return this.inRoomCoords(fn); if(!own) return fn(); const rp0 = this._roomPerson; this._roomPerson = true; try { return fn(); } finally { this._roomPerson = rp0; } };
       const seen = (x, y) => room(() => this.visProp("people", x, y, kz));
       let roll = 0, body = null, stood = null, walker = null;
       if(el < SR.fallMs){ const u = el/SR.fallMs; roll = sm(u); body = { down: u*u, pose: u, rise: 0, k: sm(u), land: 0 }; }

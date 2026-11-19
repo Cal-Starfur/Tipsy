@@ -13,7 +13,9 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 ## 2. The door is the door kit's (D0, D12, D13)
 - Draw it with `shopDoor(..., { pair: true, w, h, ... })` on the wall's own set-back (`BOFF`), never by hand. Pick a style: glass
   (slides), or a solid style such as `studs` (lacquered leaves that swing in).
-- It is at least ~100 wide (Tipsey plus a person).
+- It is 80 wide in the shop's lab (Sir, 2026-11-19: "i would rather the 80 and the person needs to be programmed to either get back or get
+  run over"): Tipsey and no one beside him. Whoever is in or at the doorway on their way through backs off the way they came till he
+  is out of it (the kit's `walkinBackOff`), or stands and is knocked down. Nothing to write. If the window narrows for it, shrink its goods.
 - Each leaf is its own piece at its own side of the doorway (handled by the kit: `shopDoorLeafKeys`).
 - From inside it is a **half door**: the same leaves cut to the front wall's height, swinging for whoever uses them (the kit does it).
 
