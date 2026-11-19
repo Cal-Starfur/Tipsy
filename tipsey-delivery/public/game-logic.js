@@ -14767,7 +14767,7 @@ function getGenericPickupShops(grid){
    the middle of its lot. */
 const PICKUP_DOOR_A = {
   "Lagoon Coffee Roasters": 175,                          // shopDoor(175, ..., { w: 80 }) -- the walk-in's door, a 135..215
-  "Sandpiper Bakery":       230 - 9 - 66.24/2,            // dx1 = W - 9, dx0 = dx1 - dW
+  "Sandpiper Bakery":       185,                          // shopDoor(185, ..., { w: 80 }) -- the walk-in's door, a 145..225
   "Cove Creamery":          230*0.84,                     // shopDoor(W*0.84, ...)
 };
 /* ONE REAL SHOP AS A PICKUP. The same fields buildGenericPickupShops
@@ -28745,6 +28745,9 @@ const WALKIN_SHOP_BAN = (() => {
     'Brew & Bolt Interior':         { by: ['gideon'], who: 'Gideon', say: line('customer'), story: st(() => MS) },
     'Marina Optical Interior':      { by: ['reception', 'dispenser', 'optometrist'], who: 'Priya', say: "You've knocked a customer flat. I'll see you out, and you're not to come back in." },
     'Lagoon Coffee Roasters Interior': { by: ['barista', 'roaster', 'server'], who: 'Ana', say: "You've knocked a customer flat. Out you go, and don't come back in." },
+    /* (the Cake Run's baker and Gus's cake: while either has the bakery, the rule stands down) */
+    'Sandpiper Bakery Interior':    { by: ['counter', 'baker', 'helper'], who: 'Maggie', say: "You've knocked a customer flat. Out you go, love, and don't come back in.",
+      story: () => { try { return ['brief', 'carry', 'back'].includes(CAKE_RUN.stage) || (typeof ANNIV !== 'undefined' && ANNIV.stage === 'cake'); } catch(e){ return false; } } },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -29917,6 +29920,171 @@ walkinLife(LC_IN.name, { keep: [[456, 537, 0, 2000]], looks: [
   { id: 'retail', spots: [[285, 466, Math.PI/2], [365, 572, -Math.PI/2]] },
   { id: 'cupping', spots: [[300, 394, -Math.PI/2], [360, 394, -Math.PI/2]] },
 ], browseNext: lcBrowseNext, pose: lcPose, drawState: lcDrawState });
+/* ==================== SANDPIPER BAKERY, WALK-IN (wi-sandpiper-bakery; the room: the LIB entry 'Sandpiper Bakery Interior') ====================
+   The Flats' bakery on block 2,0's south edge (its front faces south, to the camera), between Seabreeze Florist and the roastery. Built by the
+   shop recipe (docs/kits/walkin-shop-recipe.md, W33): the exterior unchanged but for its door -- its own building its volume with the doorway
+   open through the wall (vol.foot, vol.opens), the door kit's single leaf 80 across ('french'), the window narrowed 10 for it; he is taken in
+   in the doorway (glass < 0).
+   BIGGER INSIDE THAN OUT (W31): the room runs back from the shop's front north into the block and east under the roastery and over the charge
+   depot (the bakery's door is at its own east end, so the room cannot go west) -- 850 x 700, the buildings it covers drawn under it while he
+   is inside. Only one room is live at a time: it lies under the roastery's own room, and under Marina Optical's.
+   Lab frame (the shop's, a south-edge shop's mirror undone): a east along the frontage from its west end, b south (0 the wall, negative into the
+   block). The entry is zs 1 (rebuilt on the game anchors): its lab z is x1.3 in the world, not the roastery's x1.95. Room frame a east, b south,
+   world units: the front (south) wall b 700; the door a 158..263 in it; the shop's own frontage a -30..269 */
+const SB_IN = { name: 'Sandpiper Bakery Interior', x0: 860000, y0: 400000, WALL: 30/1.3, ROOM_A0: 0, ROOM_A1: 699.69, ROOM_BACK: -585, H: 300, LH: 66,
+  DOOR: [145, 225], DZ: 161.92, DOORZ: 161.92*1.3, WIN: [14, 131, 22] };   // (the shop's door and window, lab a; the door's head and the window's sill, lab z -- SHOP_DOOR_H; zs 1: lab z x1.3)
+SB_IN.ra = la => (la - SB_IN.ROOM_A0 - SB_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's a
+const SB_PLAN = walkinDefine({ name: SB_IN.name, from: 'Sandpiper Bakery', x0: SB_IN.x0, y0: SB_IN.y0,
+  lab: [SB_IN.ROOM_A0 + SB_IN.WALL, SB_IN.ROOM_A1 - SB_IN.WALL, SB_IN.ROOM_BACK + SB_IN.WALL, -SB_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (SB_IN.DOOR[0] + SB_IN.DOOR[1])/2, b: 0, half: (SB_IN.DOOR[1] - SB_IN.DOOR[0])/2*1.3 }, H: SB_IN.H, LH: SB_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it either way and round the corners) */
+  street: { to: [0, 184], routes: [[[-1130, 184], [-1130, 1600]], [[900, 184], [900, 1600]]] },
+  /* (seen through, W11: the open doorway) */
+  openings: [{ lab: [[SB_IN.DOOR[0], 0], [SB_IN.DOOR[1], 0]], z: [0, SB_IN.DZ] }] });
+/* (W31: what it covers -- the roastery to its east, the charge depot on the corner, Marina Optical's back and the bookshop's yard end -- and
+   what stands over it on screen) */
+POCKETS[POCKETS.length - 1].ghosts = ['Lagoon Coffee Roasters', 'Charge depot', 'Marina Optical', 'Driftwood Books', 'Palmline Savings'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE MARLOWES, WHO KEEP IT: their own looks, set by hand (lookFn) -- a bakery's dress, whites and the shop's coral. The baker himself, in his
+   whites and cap, at the oven, the bench and the proving rack: THE SAME MAN the street sees (BAKER_UNIFORM on BAKER_SEED's body, staffLook --
+   the one who brings out the Cake Run's tier and Gus's cake), away from the room while a story has him out on the pavement; Maggie at the
+   pastry case and the till, the keyholder (brown hair in a bob, a cream blouse, the coral apron); their daughter Wren on the floor and the
+   bread shelves (a ponytail, a coral tee, a white apron), a tray of loaves on her arms. The customers are the street's own (look: 'visitor') */
+const SB_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), W = PEOPLE_BUILD[1];
+  let bk = null;   // (the roster isn't up while this file loads: his body made the first time he is drawn)
+  return {
+    get baker(){ if(!bk){ const B = staffLook(BAKER_SEED), U = BAKER_UNIFORM; bk = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; } return bk; },
+    maggie: { build: W, skin: { c: 0xe2b896, dk: 0xc09574 }, hair: H(0x6a4428, 'bob'), shirt: C(0xf2eadb), pants: C(0x4a4440), shoe: { c: 0x3a2a22, dk: 0x241a14 },
+              uniform: { vest: C(0xd9735a), shoeKind: 'flat' } },
+    wren:   { build: W, skin: { c: 0xe0b48e, dk: 0xbe916c }, hair: H(0x8a5a32, 'pony'), shirt: C(0xd9735a), pants: C(0x3a3e48), shoe: { c: 0xe8e4dc, dk: 0xc4beb2 },
+              uniform: { vest: C(0xfbfaf6), shoeKind: 'sneaker' } },
+  };
+})();
+/* the baker is out of the room while a story has him (the Cake Run's tier, Gus's cake: out of the street door to Tipsey -- shopDoorWalkers) */
+function sbBakerAway(){
+  try { return !!(CAKE_RUN.baker || (typeof ANNIV !== 'undefined' && ANNIV.giver && ANNIV.giver.look === BAKER_UNIFORM)); } catch(e){ return false; }
+}
+/* A CUSTOMER'S VISIT (as the roastery's: reach ONCE, then do something with it -- no endless arm pumping): most go to the pastry case and order,
+   and pay, and are handed a paper bag of pastries or a cake box; with a bag some sit at a table with a croissant a while first; some take a loaf
+   off the bread table, once, and carry it to the case to pay; now and then one stops to admire the wedding cake on its stand. What they paid for
+   goes out of the door with them (pose.hold / drawState: WALKIN_STREET). Wren carries a tray of loaves */
+const SB_SHELVES = ['bread'];
+const SB_TABLES = [[560, 470], [720, 560], [560, 630]];
+/* the table chairs (as the roastery's): where they stand to sit, where they sit (a hair forward of its middle), which way, the seat's height */
+const SB_SEATS = SB_TABLES.flatMap(([ta, tb], i) => [
+  { id: 't' + i + 'w', stand: [ta - 38, tb + 44, -Math.PI/2], at: [ta - 35, tb + 2], th: 0, z: 30 },
+  { id: 't' + i + 'e', stand: [ta + 38, tb + 44, -Math.PI/2], at: [ta + 41, tb + 2], th: Math.PI, z: 30 }]);
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a white paper bag with the
+   shop's coral band, by its folded top at their side; a white cake box tied with the pink ribbon, before them in both hands (the street baker's
+   box, smaller); a baguette in its paper sleeve at their side; a croissant at the chest; Wren's tray of loaves */
+function sbHold(s){
+  if(s._sbH && s._sbH.v === s.visit) return s._sbH;
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const loafs = [0xc98a4a, 0xb87a3c, 0xd49a58];
+  return (s._sbH = { v: s.visit,
+    /* the bag, 7 by 4, 13 tall, by its folded top */
+    bag: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 2.4, x + 2.4, f - 3.6, f + 3.6, h - 14, h - 1.5), 0xf6f1e6); hull(g, at, box(x - 2, x + 2, f - 3.4, f + 3.4, h - 1.6, h + 0.8), 0xe4dccb);
+      hull(g, at, box(x - 2.6, x + 2.6, f - 3.7, f + 3.7, h - 9, h - 6), 0xd9735a); },
+    /* the cake box before them, 15 square, 10 tall, its ribbon both ways and a bow */
+    box: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 6, h = at.hand[1] - 2;
+      hull(g, at, box(-7.5, 7.5, f - 7.5, f + 7.5, h, h + 10), 0xf6f3ec); hull(g, at, box(-7.5, 7.5, f - 7.5, f + 7.5, h + 10, h + 10.4), 0xffffff);
+      hull(g, at, box(-1.2, 1.2, f - 7.7, f + 7.7, h, h + 10.6), 0xe48aac); hull(g, at, box(-7.7, 7.7, f - 1.2, f + 1.2, h, h + 10.6), 0xe48aac);
+      hull(g, at, box(-2.6, 2.6, f - 1.6, f + 1.6, h + 10.4, h + 12.4), 0xc9708f); },
+    /* a baguette upright at their side, its lower half in a paper sleeve */
+    loaf: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
+      hull(g, at, box(x - 1.7, x + 1.7, f - 1.7, f + 1.7, h - 10, h + 14), 0xc98a4a); hull(g, at, box(x - 1.3, x + 1.3, f - 1.3, f + 1.3, h + 14, h + 16), 0xb87a3c);
+      hull(g, at, box(x - 2.1, x + 2.1, f - 2.1, f + 2.1, h - 11, h + 3), 0xefe6d2); },
+    /* the loaf held up before them, once taken down */
+    loafUp: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1];
+      hull(g, at, box(-11, 11, f - 1.8, f + 1.8, h, h + 3.6), 0xc98a4a); hull(g, at, box(-12, -10, f - 1.4, f + 1.4, h + 0.4, h + 3.2), 0xb87a3c); },
+    /* a croissant at the chest */
+    croissant: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2.5, h = at.hand[1] + 1;
+      hull(g, at, box(-4.5, 4.5, f - 2, f + 2, h, h + 3), 0xd49a58); hull(g, at, box(-2.4, 2.4, f - 2.4, f + 2.4, h + 0.4, h + 3.8), 0xc98a4a); },
+    /* Wren's tray: a wooden tray across both forearms, four loaves on it */
+    tray: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1];
+      hull(g, at, box(-12, 12, f - 8, f + 8, h, h + 1.6), 0x946a42); hull(g, at, box(-11, 11, f - 7, f + 7, h + 1.6, h + 2.4), 0xb98a5c);
+      [[-6, -3.5], [6, -3.5], [-6, 3.5], [6, 3.5]].forEach(([dx, df], k) => hull(g, at, box(dx - 4.5, dx + 4.5, f + df - 3, f + df + 3, h + 2.4, h + 7), loafs[k % 3])); } });
+}
+function sbBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const sit = () => { const fr = SB_SEATS.filter(q => !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
+    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 25000 + rnd()*30000; return true; }
+    return false; };
+  const order = () => { if(look('counter')){ m.atTill = true; m.dwell = 6000 + rnd()*3000; return true; } return false; };
+  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.sat = true; }                               // (the croissant eaten: up)
+  /* (paid at the case: the loaf they brought to it, or what was boxed or bagged for them -- it goes out of the door with them, WALKIN_STREET) */
+  if(m.atTill){ m.atTill = false; m.paid = true; if(!m.loaf){ if(rnd() < 0.3) m.box = true; else m.bag = true; } }
+  if(m.paid){ if(m.bag && !m.sat && rnd() < 0.5 && sit()) return true; return leave(); }
+  if(m.look === 'bread' && !m.path) m.loaf = true;                                                               // (off the table, in hand)
+  if(m.look === 'cakes' && !m.path) m.cake = true;
+  const r = rnd();
+  m.n = (m.n || 0) + 1;
+  if(m.n === 1){ if(r < 0.55 && order()) return true; if(r < 0.72 && look('cakes')){ m.dwell = 6000 + rnd()*5000; return true; } return false; }   // (to the bread table: the kit's pick)
+  if(m.loaf || m.cake || m.n > 3){ if(order()) return true; if(m.n > 6) return leave(); }
+  return false;
+}
+function sbPose(s, m, now, P){
+  const H = sbHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (Maggie at the case: both hands on its top)
+    if(s.id === 'baker'){                                                                                         // (the baker: kneading at the bench, a peel at the oven, a tray off the rack)
+      if(m.task === 1){ P.lift = [0.3, 0.3]; P.bend = [0.6, 0.6]; P.headTilt = 0.2; return; }
+      if(m.task === 2){ P.lift = [0.24, 0.3]; P.bend = [1.1, 1.2]; P.headTilt = 0.1; return; }
+      const w = Math.sin(now*0.007 + 1.3); P.lift = [0.27 + 0.03*w, 0.27 - 0.03*w]; P.bend = [0.95, 0.95]; P.headTilt = 0.3; P.headTurn = 0; return; }
+    /* Wren: the tray on her arms, and at each post a loaf set out, once */
+    if(since < 1800){ const k = Math.sin(Math.PI*since/1800); P.lift = [0.28, 0.28 + 0.02*k]; P.bend = [1.1, 1.15 - 0.6*k]; }
+    else { P.lift = [0.28, 0.28]; P.bend = [1.1, 1.15]; }
+    P.hold = H.tray; return;
+  }
+  const sk = lcSeatK(m, now);
+  if(sk && sk.k > 0.5){ P.sit = sk.seat.z; P.legs = null; P.lift = [0.26, 0.28]; P.bend = [1.2, 1.3]; P.headTurn = 0; P.headTilt = 0.1; P.hold = H.croissant; return; }
+  if(m.look === 'bread' && !m.path && !m.loaf){                                                                  // (reaching for a loaf, once, then holding it up)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.62*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = 0.3; return; }
+    P.lift = [0.3, 0.3]; P.bend = [1.15, 1.15]; P.headTilt = 0.25; P.headTurn = 0; P.hold = H.loafUp; return; }
+  if(m.look === 'cakes' && !m.path){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = 0.22; P.headTurn = 0; return; }   // (admiring the tiers: hands down)
+  if(m.look === 'counter' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTilt = 0.18; P.headTurn = 0; if(m.loaf) P.hold = H.loaf; return; }   // (ordering, paying: nothing up)
+  if(m.box && m.paid){ P.lift = [0.26, 0.26]; P.bend = [1.2, 1.2]; P.hold = H.box; return; }                     // (the box before them)
+  if(m.bag && m.paid){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.bag; return; }                     // (the bag at their side)
+  if(m.loaf && (m.paid || s._day !== 'leaving')){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.loaf; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
+}
+function sbDrawState(s, m, now, q){
+  const sk = lcSeatK(m, now);
+  if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
+  if(m.moving){ const H = sbHold(s);
+    /* (out of the door with what they paid for -- the box, the bag, the loaf; a loaf not paid for stays on the table) */
+    if(s.look === 'visitor'){ if(m.box && m.paid) q.pose = { lift: [0.26, 0.26], bend: [1.2, 1.2], hold: H.box };
+      else if(m.bag && m.paid) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.bag };
+      else if(m.loaf && (m.paid || s._day !== 'leaving')) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: H.loaf }; }
+    else if(s.id === 'helper') q.pose = { lift: [0.28, 0.28], bend: [1.1, 1.15], hold: H.tray }; }
+}
+walkinStaff(SB_IN.name, [
+  { id: 'counter', role: 'shop assistant', seed: 0x5b01, lookFn: () => SB_FAMILY.maggie, fixed: true, keys: true, posts: [[420, 200, Math.PI/2, 9000, true], [560, 200, Math.PI/2, 4000, true], [680, 200, Math.PI/2, 3000, true]] },
+  { id: 'baker', role: 'baker', seed: BAKER_SEED, lookFn: () => SB_FAMILY.baker, away: sbBakerAway,
+    posts: [[90, 192, Math.PI/2, 9000, true], [84, 132, -Math.PI/2, 6000, true], [92, 372, Math.PI, 5000, true]] },
+  { id: 'helper', role: 'baker\'s assistant', seed: 0x5b03, lookFn: () => SB_FAMILY.wren, posts: [[520, 62, -Math.PI/2, 7000, true], [462, 483, Math.PI, 6000, true], [640, 520, Math.PI*0.25, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0x5b11, look: 'visitor', life: 'browse', only: SB_SHELVES },
+  { id: 'customer-2', role: 'customer', seed: 0x5b12, look: 'visitor', life: 'browse', only: SB_SHELVES },
+  { id: 'customer-3', role: 'customer', seed: 0x5b13, look: 'visitor', life: 'browse', only: SB_SHELVES },
+  { id: 'customer-4', role: 'customer', seed: 0x5b14, look: 'visitor', life: 'browse', only: SB_SHELVES },
+]);
+walkinLife(SB_IN.name, { keep: [[170, 251, 0, 2000]], looks: [
+  { id: 'counter', spots: [[430, 324, -Math.PI/2], [540, 324, -Math.PI/2], [650, 324, -Math.PI/2]] },
+  { id: 'bread', spots: [[330, 432, Math.PI/2], [395, 432, Math.PI/2]] },
+  { id: 'cakes', spots: [[330, 566, Math.PI/2]] },
+], browseNext: sbBrowseNext, pose: sbPose, drawState: sbDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -58010,6 +58178,259 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE SANDPIPER BAKERY (SB_IN; the walk-in kit's walls, walkinRoom, its door in the south wall; the room runs back north into the block and
+     east under the roastery and over the charge depot, which are taken off while he is inside -- pk.displace). Frame a east, b south, z up,
+     world units. Built by the shop recipe (W33), in zones for its size:
+       the north-west   THE BAKEHOUSE: the deck oven on the back wall (a 18..148), its flue up through the ceiling; THE BENCH (a 30..150,
+                        b 220..270) floured, dough and a rolling pin on it (the baker's); THE PROVING RACK and A PALLET OF FLOUR down the west wall
+       the north wall   THE BREAD WALL (a 290..840): baskets and shelves of loaves, keyed at each bay's start
+       the middle       THE PASTRY CASE (a 330..720, b 240..292), Maggie behind it: glass to the customers, pastries and cakes on three trays
+                        inside, the cake dome, a bread basket and the till each their own piece on top; THE BREAD TABLE (a 300..420, b 460..506)
+                        with its baskets of loaves; THE WEDDING CAKE on its stand (a 330, b 615) -- three tiers, the Cake Run's sort
+       a 170..251       the door's lane, door to back wall, clear
+       the south-east   THREE LITTLE TABLES with two chairs each
+       by the door      the window's display behind the shop window: tiered stands, loaves and a cake
+     Every shelf run, the bench, the case, the tables a run of pieces (runPiece, W28); what stands on them its own piece (lcOnZ). */
+  name:'Sandpiper Bakery Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 850, dd: 700,
+  head:'Inside Sandpiper Bakery: a deck oven and a floured bench, a bread wall, a glass pastry case, a bread table, a wedding cake on its stand',
+  tags:['interior','pocket','bakery','deck oven','bread wall','pastry case','wedding cake'],
+  desc:'The Flats\' bakery: cream plaster over white tiles and a coral dado, a terracotta and cream chequered floor; a steel deck oven with three glowing decks and its flue on the back wall, a floured bench with dough, a rack of proving trays and a pallet of flour sacks; a bread wall of loaves in baskets; a glass pastry case with croissants, tarts and cakes, a cake dome and the till on it; a bread table; a three-tier wedding cake on a stand; three little tables.',
+  draw(p){
+    const pl = (typeof SB_PLAN !== 'undefined' && SB_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 700, H = SB_IN.H, LH = SB_IN.LH, DZ = SB_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 's', at: 210, half: 52 };
+    const plas = '#f3e9d6', tile = '#f6f3ec', tileL = '#ddd6c8', coral = '#d9735a', coralD = '#b85c45', sky = '#7cbad0', cream = '#f2e6cc';
+    const steel = '#9aa0a6', steelD = '#7d838a', steelL = '#c8ccd0', dark = '#2a2624', blk = '#1e1c1a';
+    const oak = '#b98a5c', oakT = '#cfa274', oakS = '#946a42', terra = '#c8826a', terraD = '#b87460', wicker = '#c9a26a', wickerD = '#a8844e';
+    const crust = ['#c98a4a', '#b87a3c', '#d49a58', '#a86a32'], glass = 'rgba(200,226,236,.34)';
+    const extW = '#e8d9bd', extT = '#d9735a';                                                          // (the shop's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    /* a loaf seen on a shelf or in a basket: a round boule, a long batard, a baguette -- a box with a rounded top, its score in a darker crust */
+    const loaf = (a, b, z, kind, seed) => { const c = crust[seed % crust.length];
+      if(kind === 0){ cyl(a, b, z, z + 6, 7, c, shade(c, 1.12)); ball(a, b, z + 6, 5.4, shade(c, 1.08), shade(c, 1.2)); return; }
+      if(kind === 1){ box(a - 10, a + 10, b - 5, b + 5, z, z + 7, shade(c, 1.12), c, shade(c, 0.86)); T(a - 6, a + 6, b - 1, b + 1, z + 7.1, shade(c, 0.8)); return; }
+      box(a - 2.2, a + 2.2, b - 2.2, b + 2.2, z, z + 30, shade(c, 1.1), c, shade(c, 0.86)); };
+    const basket = (a0, a1, b0, b1, z, n, seed, kind) => {
+      box(a0, a1, b0, b1, z, z + 9, wicker, wicker, wickerD); T(a0 + 2, a1 - 2, b0 + 2, b1 - 2, z + 2, '#8a6a3a');
+      for(let i = 0; i < n; i++) loaf(a0 + (a1 - a0)*(i + 0.5)/n, (b0 + b1)/2, z + 2, kind != null ? kind : (seed + i) % 2, seed + i);
+      F(a0, a1, z + 4, z + 9, wicker, null, 0, b1 + 0.1); for(let a = a0 + 4; a < a1; a += 5) F(a - 0.4, a + 0.4, z, z + 9, wickerD, null, 0, b1 + 0.2); };
+    /* a pastry on a tray: croissants, tarts, cinnamon swirls, cream slices */
+    const pastry = (a, b, z, k) => {
+      if(k === 0){ box(a - 5, a + 5, b - 3, b + 3, z, z + 4, '#d49a58', '#c98a4a', '#b87a3c'); T(a - 2, a + 2, b - 3, b + 3, z + 4.2, '#e0aa66'); return; }
+      if(k === 1){ cyl(a, b, z, z + 3, 5, '#d8b07a', '#e8c48a'); cyl(a, b, z + 3, z + 3.6, 3.8, '#c8323a', '#d84a4a'); return; }
+      if(k === 2){ cyl(a, b, z, z + 3.5, 5, '#c98a4a', '#d8a066'); T(a - 2.5, a + 2.5, b - 0.5, b + 0.5, z + 3.7, '#8a5a2a'); return; }
+      box(a - 5, a + 5, b - 3, b + 3, z, z + 5, '#f6f0e2', '#e8c48a', '#d8b07a'); F(a - 5, a + 5, z + 2, z + 3, '#f4efe4', null, 0, b + 3.1); };
+    /* a cake: tiers of cylinders, white icing, coral piping */
+    const cake = (a, b, z, tiers, r0, ice, pipe) => { let zz = z, r = r0;
+      for(let t = 0; t < tiers; t++){ const h = 13 - t*1.5; cyl(a, b, zz, zz + h, r, shade(ice, 0.95), ice); cyl(a, b, zz + h - 1.4, zz + h, r + 0.6, pipe || coral, ice); zz += h; r *= 0.72; }
+      return zz; };
+
+    /* ---- THE FLOOR: terracotta and cream in a chequer, a mat at the door ---- */
+    T(0, W, 0, D, 0, cream);
+    for(let a = 0, i = 0; a < W; a += 50, i++) for(let b = 0, j = 0; b < D; b += 50, j++) if((i + j) % 2) T(a, Math.min(W, a + 50), b, Math.min(D, b + 50), 0.15, terra);
+    for(let a = 50; a < W; a += 50) T(a - 0.5, a + 0.5, 0, D, 0.2, terraD);
+    for(let b = 50; b < D; b += 50) T(0, W, b - 0.5, b + 0.5, 0.2, terraD);
+    T(door.at - 44, door.at + 44, 640, D - 4, 0.35, '#5a3a30'); T(door.at - 38, door.at + 38, 646, D - 10, 0.4, '#6a4438');
+    items.push({ a: door.at, b: D - 6, z: 0, solids: [], draw: () => { T(door.at - door.half - 6, door.at + door.half + 6, D - 10, D + 40, 0.55, '#d4cec2');
+      T(door.at - door.half, door.at + door.half, D - 2, D + 2, 0.6, steel); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 160, tile, null, 0, 0.05);                                                   // (white tiles to 160)
+        for(let z = 12; z < 160; z += 12) F(-30, W + 30, z - 0.4, z + 0.4, tileL, null, 0, 0.1);
+        for(let z = 0, r = 0; z < 160; z += 12, r++) for(let a = (r % 2) ? -18 : -30; a < W + 30; a += 24) F(a - 0.4, a + 0.4, z, z + 12, tileL, null, 0, 0.12);
+        F(-30, W + 30, 0, 10, coralD, null, 0, 0.15); F(-30, W + 30, 160, 168, coral, null, 0, 0.2);
+        F(-30, W + 30, H - 18, H, coral, null, 0, 0.3);
+        /* the lane's end: a framed print of a sandpiper on the shore */
+        F(178, 244, 190, 262, oakS, null, 0, 0.4); F(184, 238, 196, 256, '#e8eef0', null, 0, 0.5); F(184, 238, 196, 214, '#c8b48a', null, 0, 0.55);
+        F(184, 238, 214, 222, '#7cbad0', null, 0, 0.55); F(206, 222, 220, 232, '#8a6a4a', null, 0, 0.6); F(218, 226, 230, 234, '#5a4a3a', null, 0, 0.62); F(208, 209.5, 210, 220, '#3a3030', null, 0, 0.62); F(214, 215.5, 210, 220, '#3a3030', null, 0, 0.62);
+        /* over the bread wall: the shop's name, and the chalkboard of the day's bakes */
+        F(300, 830, 248, 290, coral, null, 0, 0.4); blockWordIn('SANDPIPER BAKERY', 316, 814, 256, 282, 0.6, '#f6f1e6', null, 4);
+        F(380, 740, 176, 242, '#3a3a36', null, 0, 0.4); F(384, 736, 180, 238, '#2a2c2a', null, 0, 0.5);
+        for(let r = 0; r < 4; r++){ F(396, 540, 226 - r*13, 228 - r*13, '#e8e2d4', null, 0, 0.6); F(580, 722, 226 - r*13, 228 - r*13, '#e8e2d4', null, 0, 0.6); }
+        F(556, 562, 186, 232, '#e48aac', null, 0, 0.6);
+        /* bunting along the top, coral, cream and sky (as the gable outside) */
+        for(let k = 0; k < 26; k++){ const a = 8 + k*32; poly([P(a, 0.7, H - 26), P(a + 22, 0.7, H - 26), P(a + 11, 0.7, H - 40)], [sky, cream, coral][k % 3]); }
+        /* pendant lights over the case */
+        for(const la of [420, 525, 630]){ F(la - 1, la + 1, 236, H - 18, dark, null, 0, 0.5); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.05, -30, D + 30, 0, 160, shade(tile, 0.94));
+        for(let z = 12; z < 160; z += 12) S(0.1, -30, D + 30, z - 0.4, z + 0.4, shade(tileL, 0.94));
+        S(0.15, -30, D + 30, 0, 10, shade(coralD, 0.9)); S(0.2, -30, D + 30, 160, 168, shade(coral, 0.9)); S(0.3, -30, D + 30, H - 18, H, shade(coral, 0.9));
+        /* over the bench: a shelf of tins and a clock */
+        S(0.4, 180, 300, 200, 204, shade(oak, 0.85));
+        for(let k = 0; k < 5; k++) S(0.5, 188 + k*22, 202 + k*22, 204, 222 + (k % 2)*6, [coral, sky, '#c9a24a', steelL, coral][k]);
+        S(0.4, 440, 480, 210, 250, '#f6f1e6'); S(0.5, 444, 476, 214, 246, '#fbfaf6'); S(0.6, 459, 461, 226, 244, dark); S(0.6, 459, 471, 229, 231, dark);
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's cream wall and coral trim, and its window cut in at its own sill (the exterior's:
+         lab a 14..131, z 22, x1.3 -- zs 1) -- the near walls' outer faces are the building's own */
+      winS: [[Math.max(4, SB_IN.ra(SB_IN.WIN[0])), SB_IN.ra(SB_IN.WIN[1]), SB_IN.WIN[2]*1.3]],
+      glass: 'rgba(104,146,168,.42)', frame: extT,
+      low: [shade(extW, 1.02), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e4d6bc' });
+
+    /* ---- THE DECK OVEN on the back wall: a steel body of three decks, their doors glowing, the hood over it and the flue up through the ceiling;
+       its controls on the east cheek; drawn back to front in one piece, keyed at its middle ---- */
+    items.push({ a: 83, b: 50, z: 0, fpLab: { a0: 18, a1: 148, b0: 4, b1: 98, z1: H }, solids: [solid(18, 148, 4, 96, 200, 'oven')], draw: () => {
+      tube(83, 40, 200, 83, 40, H, 8, steel); for(const z of [236, 270]) cyl(83, 40, z, z + 4, 10, steelD);        // (the flue)
+      box(18, 148, 4, 96, 0, 14, dark, dark, blk);                                                                 // its stand
+      box(20, 146, 6, 94, 14, 186, steelL, steel, steelD);
+      for(let k = 0; k < 3; k++){ const z0 = 26 + k*52;
+        F(28, 138, z0, z0 + 40, steelD, null, 0, 94.2); F(34, 132, z0 + 8, z0 + 30, '#3a2a20', null, 0, 94.3); F(38, 128, z0 + 11, z0 + 27, '#e8763a', null, 0, 94.4);
+        F(42, 124, z0 + 14, z0 + 18, '#f6c86a', null, 0, 94.5);
+        tube(40, 97, z0 + 36, 126, 97, z0 + 36, 1.4, steelL); }
+      box(14, 152, 0, 100, 186, 200, steelL, steel, steelD);                                                       // the hood
+      blockWordIn('SANDPIPER', 34, 132, 188, 198, 100.2, '#3a3634', null, 3);
+      S(146.2, 30, 70, 120, 170, dark); for(let k = 0; k < 3; k++) S(146.4, 36 + k*12, 44 + k*12, 150, 158, ['#e8382e', '#9fd4b4', '#f6d860'][k]); S(146.4, 34, 66, 128, 142, '#9fc4d4'); } });
+
+    /* ---- THE BENCH: a long floured table, its legs, a shelf of bowls under; in runs of 30, keyed down its middle ---- */
+    { const A0 = 30, A1 = 150, B0 = 220, B1 = 270;
+      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, 86, 'bench')], () => {
+        for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, 80, oakS, oakS, shade(oakS, 0.8));
+        box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 22, 26, oak, oak, oakS);
+        for(let i = 0; i < 4; i++) cyl(A0 + 20 + i*27, (B0 + B1)/2, 26, 36, 9, '#e8e4dc', '#f6f3ec');
+        box(A0, A1, B0, B1, 80, 86, '#efe6d4', oakT, oak);
+        for(let k = 0; k < 14; k++) T(A0 + 6 + hsh(k*3 + 1)*(A1 - A0 - 16), A0 + 10 + hsh(k*3 + 1)*(A1 - A0 - 16), B0 + 6 + hsh(k*3 + 2)*36, B0 + 9 + hsh(k*3 + 2)*36, 86.1, '#fbf8f0');
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      /* (on it, each its own piece: two rounds of dough and a rolling pin, keyed on its middle line after the run it stands on) */
+      for(const [da, kind] of [[58, 0], [92, 0], [128, 1]]){
+        items.push({ a: da, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 30, da - 12, da + 12, da), fpLab: { a0: da - 12, a1: da + 12, b0: B0 + 8, b1: B1 - 8, z1: 100 }, solids: [], draw: () => {
+          if(kind === 0){ cyl(da, 245, 86, 92, 10, '#f2e4c4', '#fbf0d8'); ball(da, 245, 92, 7, '#f6ead0', '#fff6e0'); return; }
+          tube(da - 14, 240, 89, da + 14, 250, 89, 3, oakT); tube(da - 19, 238.5, 89, da - 14, 240, 89, 1.2, oakS); tube(da + 14, 250, 89, da + 19, 251.5, 89, 1.2, oakS); } }); }
+    }
+
+    /* ---- THE PROVING RACK on the west wall: a steel rack of trays, loaves rising on them; one piece, keyed at its middle ---- */
+    items.push({ a: 32, b: 372, z: 0, fpLab: { a0: 8, a1: 56, b0: 342, b1: 402, z1: 190 }, solids: [solid(8, 56, 342, 402, 190, 'rack')], draw: () => {
+      for(const [la, lb] of [[10, 344], [54, 344], [10, 400], [54, 400]]) tube(la, lb, 0, la, lb, 188, 1.4, steelD);
+      for(let k = 0; k < 8; k++){ const z = 14 + k*22; box(10, 54, 344, 400, z, z + 2, steelL, steel, steelD);
+        for(let i = 0; i < 3; i++) loaf(32, 352 + i*20, z + 2, k % 3 === 2 ? 0 : 1, k*3 + i); }
+      box(8, 56, 342, 402, 188, 190, steel, steel, steelD); } });
+
+    /* ---- A PALLET OF FLOUR SACKS by the west wall, keyed at its middle ---- */
+    items.push({ a: 48, b: 500, z: 0, fpLab: { a0: 8, a1: 88, b0: 460, b1: 540, z1: 84 }, solids: [solid(8, 88, 460, 540, 84, 'flour')], draw: () => {
+      box(8, 88, 460, 540, 0, 4, '#a07a52', '#8a6640', '#7a5838'); for(const bb of [464, 500, 536]) box(8, 88, bb - 4, bb + 4, 4, 9, '#a07a52', '#8a6640', '#7a5838');
+      box(8, 88, 460, 540, 9, 12, '#b08a62', '#a07a52', '#8a6640');
+      for(let L = 0; L < 3; L++){ const z = 12 + L*24;
+        for(let i = 0; i < 2; i++){ const a0 = 10 + i*39, a1 = a0 + 37, b0 = 462, b1 = 538;
+          box(a0, a1, b0, b1, z, z + 22, '#f4efe4', '#ece6d8', '#d8d0c0'); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, z + 23, '#faf6ee');
+          F(a0 + 8, a1 - 8, z + 6, z + 15, i ? sky : coral, null, 0, b1 + 0.1); } } } });
+
+    /* ---- THE BREAD WALL along the north wall, floor to 220: a cupboard under, four shelves of loaves in baskets over it; a piece per bay
+       (runPiece, its own stretch -- W28), keyed at the bay's start (keyStart: against the wall, nothing behind it) ---- */
+    { const A0 = 290, A1 = 840, B0 = 0, B1 = 28, ZS = [70, 108, 146, 184], zTop = 220, n = Math.round((A1 - A0)/50);
+      for(let k = 0; k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, s0, s1, B0, B1, zTop + 8, (q0, q1) => [solid(q0, q1, B0, B1, zTop, 'bread wall')], () => {
+          F(s0, s1, 0, zTop, oakS, null, 0, B0 + 0.6);                                              // its back panel
+          S(s0 + 3, B0 + 0.6, B1, 0, zTop, shade(oak, 0.8));
+          F(s0, s1, 0, ZS[0] - 3, coral, null, 0, B1); F(s0 + 4, s1 - 4, 8, ZS[0] - 9, shade(coral, 1.08), coralD, 0.8, B1 + 0.2);   // the cupboard
+          T(s0, s1, B0 + 0.6, B1, ZS[0] - 3, oakT);
+          ZS.forEach((z, r) => {
+            T(s0, s1, B0 + 0.6, B1, z, oakT); F(s0, s1, z - 3, z, oak, null, 0, B1);                  // a shelf
+            if(r === ZS.length - 1){ for(let i = 0; i < 2; i++) basket(s0 + 4 + i*(s1 - s0 - 8)/2, s0 + 2 + (i + 1)*(s1 - s0 - 8)/2, 5, 25, z, 1, k*11 + i, 2); return; }
+            if(hsh(k*31 + r*7) < 0.45) basket(s0 + 4, s1 - 4, 6, 24, z, 3, k*7 + r*3, r % 2);
+            else { const m = Math.max(1, Math.floor((s1 - s0 - 6)/16)); for(let i = 0; i < m; i++) loaf(s0 + 4 + (s1 - s0 - 8)*(i + 0.5)/m, 16, z, (k + r + i) % 2, k*13 + r*5 + i); } });
+          F(s0, s0 + 3, 0, zTop, oakS, null, 0, B1);                                                 // its upright
+          if(last){ F(s1 - 3, s1, 0, zTop, oakS, null, 0, B1); S(s1, B0, B1, 0, zTop, shade(oak, 0.75)); }
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          T(s0 - e0, s1 + e1, B0, B1 + 3, zTop + 6, oakT); F(s0 - e0, s1 + e1, zTop, zTop + 6, coralD, null, 0, B1 + 3);   // its cornice
+          if(last) S(s1 + 3, B0, B1 + 3, zTop, zTop + 6, shade(coralD, 0.8));
+        }, { pad: 3, keyStart: true });
+      } }
+
+    /* ---- THE PASTRY CASE: a coral-fronted counter, glass to the customers over three trays of pastries and cakes, a pale top; 108 clear behind
+       it for Maggie and the bread wall's 28; in runs of 30 on 52, keyed down its middle line ---- */
+    { const A0 = 330, A1 = 720, B0 = 240, B1 = 292, zC = 48, zT = 100;
+      runPiece(items, A0, A1, B0, B1, 150, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'pastry case')], () => {
+        box(A0, A1, B0, B1, 0, zC, coral, coral, coralD);
+        F(A0, A1, 0, 6, coralD, null, 0, B1 + 0.2);
+        for(let a = A0 + 30; a < A1; a += 30) F(a - 0.5, a + 0.5, 8, zC - 4, coralD, null, 0, B1 + 0.2);
+        S(A0, B0, B1, 0, zC, shade(coral, 0.85));
+        T(A0, A1, B0, B1, zC, '#f4efe4');
+        F(A0, A1, zC, zT, '#f6f1e6', null, 0, B0 + 6);                                              // (its back panel, the staff's side, low)
+        /* three trays of pastries inside, stepped up to the back */
+        [[B1 - 12, zC + 2], [B1 - 26, zC + 16], [B1 - 40, zC + 30]].forEach(([tb, tz], r) => {
+          T(A0 + 4, A1 - 4, tb - 6, tb + 6, tz, '#e8e4dc'); F(A0 + 4, A1 - 4, tz - 1.4, tz, '#c8c0b0', null, 0, tb + 6);
+          for(let i = 0; i < 24; i++){ const pa = A0 + 12 + i*(A1 - A0 - 24)/23; if(r === 2 && i % 6 === 3){ cake(pa, tb, tz, 2, 7, '#f6f0e2', ['#e48aac', coral, sky][(i/6|0) % 3]); continue; }
+            pastry(pa, tb, tz, (i + r*2) % 4); } });
+        F(A0, A1, zC, zT - 4, glass, null, 0, B1);                                                   // the glass to the customers
+        F(A0, A1, zT - 26, zT - 23, 'rgba(255,255,255,.28)', null, 0, B1 + 0.1);
+        for(let a = A0 + 65; a < A1; a += 65) F(a - 0.8, a + 0.8, zC, zT - 4, steelL, null, 0, B1 + 0.2);
+        S(A0, B0, B1, zC, zT - 4, 'rgba(200,226,236,.26)'); S(A1, B0, B1, zC, zT - 4, 'rgba(200,226,236,.2)');
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, '#f4efe4', '#e4dccc', '#d4ccbc');
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      /* WHAT STANDS ON IT, each its own piece (W28): the cake on its stand, a basket of rolls, a jar of biscotti, the till -- keyed on the case's middle line
+         just after the last of its runs it stands on (lcOnZ), so a customer at the case or Maggie behind it sorts round each by its own place */
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 30, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(362, [348, 376, 252, 280, 140], () => { cyl(362, 266, zT, zT + 3, 13, '#e8e2d4'); tube(362, 266, zT + 3, 362, 266, zT + 9, 1.6, steel); cyl(362, 266, zT + 9, zT + 11, 12, '#f4f2ec');
+        const z = cake(362, 266, zT + 11, 1, 9, '#f6f0e2', '#e48aac'); ball(362, 266, z + 1, 1.8, '#c8323a'); });   // (shown bare on its stand: a glass dome over it read as a black cap)
+      on(470, [456, 484, 254, 278, 118], () => basket(456, 484, 254, 278, zT, 2, 5, 0));
+      on(590, [582, 598, 258, 274, 124], () => { cyl(590, 266, zT, zT + 20, 7, 'rgba(220,232,236,.5)', 'rgba(230,240,244,.6)'); for(let k = 0; k < 4; k++) box(586, 594, 262, 270, zT + 2 + k*4, zT + 5 + k*4, '#d8b07a', '#c89a62', '#b08452'); cyl(590, 266, zT + 20, zT + 23, 7.4, oakT); });
+      on(694, [682, 708, 248, 278, 126], () => { box(684, 704, 252, 270, zT, zT + 6, dark, dark, blk); box(688, 700, 258, 266, zT + 6, zT + 11, '#3a3634', dark, blk);
+        box(684, 706, 248, 252, zT + 11, zT + 30, '#2a2826', '#1e1c1a', '#16140f'); F(686, 704, zT + 13, zT + 28, '#9fc4d4', null, 0, 247.9);
+        box(700, 708, 272, 278, zT, zT + 4, blk, blk, blk); F(701, 707, zT + 2, zT + 3.5, '#9fd4b4', null, 0, 278.1); });
+    }
+
+    /* ---- THE BREAD TABLE: an oak table for the customers, its baskets of loaves each their own piece; in runs of 30 on 46, keyed down its middle ---- */
+    { const A0 = 300, A1 = 420, B0 = 460, B1 = 506, zT = 78;
+      runPiece(items, A0, A1, B0, B1, 110, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'bread table')], () => {
+        for(const [la, lb] of [[A0 + 5, B0 + 5], [A1 - 5, B0 + 5], [A0 + 5, B1 - 5], [A1 - 5, B1 - 5]]) box(la - 3, la + 3, lb - 3, lb + 3, 0, zT - 4, oakS, oakS, shade(oakS, 0.8));
+        box(A0 + 4, A1 - 4, B0 + 4, B1 - 4, 16, 20, oak, oak, oakS);
+        box(A0, A1, B0, B1, zT - 5, zT, oakT, oak, oakS);
+        F(A0 + 30, A1 - 30, zT - 18, zT - 5, coral, null, 0, B1 + 0.1); blockWordIn('BREAD', A0 + 34, A1 - 34, zT - 16, zT - 7, B1 + 0.2, '#f6f1e6', null, 3);
+      }, { pad: 4, run: 30, extra: { b: (B0 + B1)/2 } });
+      for(const [ba, kind] of [[322, 0], [360, 1], [398, 2]])
+        items.push({ a: ba, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 30, ba - 16, ba + 16, ba), fpLab: { a0: ba - 16, a1: ba + 16, b0: B0 + 6, b1: B1 - 6, z1: zT + 40 }, solids: [], draw: () => {
+          if(kind === 2){ box(ba - 12, ba + 12, 470, 496, zT, zT + 9, wicker, wicker, wickerD); for(let i = 0; i < 5; i++) loaf(ba - 8 + i*4, 478 + (i % 2)*8, zT + 2, 2, i); return; }
+          basket(ba - 16, ba + 16, 470, 496, zT, 2, ba, kind); } });
+    }
+
+    /* ---- THE WEDDING CAKE on its stand: a round coral plinth, a glass cover's foot, three white tiers with coral piping and a topper; one piece ---- */
+    items.push({ a: 330, b: 615, z: 0, solids: [{ name: 'cake stand', c: [330, 615], r: 30, h: 150 }], draw: () => {
+      cyl(330, 615, 0, 70, 26, coral, shade(coral, 1.08)); cyl(330, 615, 62, 70, 28, coralD, '#f4efe4');
+      cyl(330, 615, 70, 73, 22, '#e8e2d4', '#f4f2ec');
+      const z = cake(330, 615, 73, 3, 18, '#fbf8f0', '#e48aac');
+      for(const d of [-2.4, 2.4]){ tube(330 + d, 615, z, 330 + d, 615, z + 9, 0.9, d < 0 ? '#2a2c30' : '#fbfaf6'); ball(330 + d, 615, z + 10.5, 1.8, '#e2b896'); } } });
+
+    /* ---- THE TABLES, each in runs (30 on 44, keyed at the middle line), two chairs, a plate and a cup on each ---- */
+    const table = (ta, tb) => {
+      runPiece(items, ta - 22, ta + 22, tb - 22, tb + 22, 90, (s0, s1) => [solid(s0, s1, tb - 22, tb + 22, 76, 'table')], () => {
+        cyl(ta, tb, 0, 3, 12, dark); tube(ta, tb, 3, ta, tb, 72, 2, dark); cyl(ta, tb, 72, 76, 22, '#f4efe4', '#fbf8f0'); cyl(ta, tb, 75.4, 76, 21, sky, '#f4efe4'); }, { pad: 4, run: 30, extra: { b: tb } });
+      items.push({ a: ta, b: tb, z: lcOnZ(ta - 22, ta + 22, 30, ta - 10, ta + 10, ta), fpLab: { a0: ta - 10, a1: ta + 10, b0: tb - 8, b1: tb + 8, z1: 86 }, solids: [], draw: () => {
+        cyl(ta - 5, tb + 2, 76, 77, 6, '#fbfaf6'); pastry(ta - 5, tb + 2, 77, (ta/40|0) % 4); cyl(ta + 7, tb - 3, 76, 83, 3.2, '#fbfaf6', '#5a3a22'); } });
+    };
+    /* a chair keyed at its middle (a customer sat in one is drawn a hair forward of it: SB_SEATS) */
+    const chair = (ca, cb, face) => items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'chair', c: [ca, cb], r: 18, h: 76 }], draw: () => {
+      for(const [la, lb] of [[-11, -11], [11, -11], [-11, 11], [11, 11]]) tube(ca + la, cb + lb, 0, ca + la, cb + lb, 28, 1.2, dark);
+      if(face === 'e'){ box(ca - 15, ca - 10, cb - 14, cb + 14, 28, 72, coral, coral, coralD); box(ca - 14, ca + 14, cb - 14, cb + 14, 28, 33, '#f4efe4', coral, coralD); }
+      else { box(ca + 10, ca + 15, cb - 14, cb + 14, 28, 72, coral, coral, coralD); box(ca - 14, ca + 14, cb - 14, cb + 14, 28, 33, '#f4efe4', coral, coralD); } } });
+    for(const [ta, tb] of SB_TABLES){ table(ta, tb); chair(ta - 38, tb, 'e'); chair(ta + 38, tb, 'w'); }
+    items.push({ a: 826, b: 676, z: 0, solids: [{ name: 'plant', c: [826, 676], r: 14, h: 130 }], draw: () => {
+      cyl(826, 676, 0, 32, 13, sky, '#9ccade');
+      for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(826, 676, 32, 826 + Math.cos(t)*18, 676 + Math.sin(t)*14, 84 + (k % 3)*16, 2.2, k % 2 ? '#3f7a4a' : '#4f8f58'); } } });
+
+    /* ---- THE WINDOW'S DISPLAY behind the shop window: a low oak platform, a tiered stand of cakes, loaves and a basket facing the street ---- */
+    { const a0 = Math.max(4, SB_IN.ra(SB_IN.WIN[0])) + 4, a1 = SB_IN.ra(SB_IN.WIN[1]) - 4;
+      runPiece(items, a0, a1, 662, 692, 50, (s0, s1) => [solid(s0, s1, 662, 692, 36, 'window display')], () => {
+        box(a0, a1, 662, 692, 0, 34, oak, oak, oakS); F(a0, a1, 4, 30, coral, null, 0, 692.1); }, { pad: 4, run: 24, extra: { b: 677 } });
+      for(let k = 0; k < 4; k++){ const ca = a0 + 14 + k*(a1 - a0 - 28)/3;
+        items.push({ a: ca, b: 692.5, z: 30, fpLab: { a0: ca - 12, a1: ca + 12, b0: 666, b1: 688, z1: 90 }, solids: [], draw: () => {
+          if(k === 1){ tube(ca, 677, 34, ca, 677, 80, 1, steel); for(const [z, r] of [[48, 11], [64, 8]]){ cyl(ca, 677, z, z + 1.5, r, '#f4f2ec'); for(let i = 0; i < 4; i++){ const t = i/4*Math.PI*2; pastry(ca + Math.cos(t)*r*0.55, 677 + Math.sin(t)*r*0.4, z + 1.5, i); } } return; }
+          if(k === 2){ cake(ca, 677, 34, 2, 10, '#fbf8f0', '#e48aac'); return; }
+          basket(ca - 11, ca + 11, 668, 686, 34, 2, k*5, k === 0 ? 0 : 1); } }); } }
+
+    /* (its door is the street's: the door kit's single leaf on the shop, swung live, cut to the front wall's height from in here) */
+    walkinStaffSolids(items, SB_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -62556,6 +62977,11 @@ function houseCanopy(fn){
   name:'Sandpiper Bakery', xh: 252, base:'Bakery', hood:'The Flats', edited:true, sc:1.3, head:'Curved gable, brick flue, bunting on the arch',
   cTodo:'1 pavement props need collision volumes',
   zs:1,                                   // already rebuilt on the game anchors
+  see: true,   // (a walk-in: its doorway shows the bakery, SB_IN -- W11)
+  /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
+     only once he is in it (SB_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: STORE_H,
+         opens: [{ name: 'doorway', poly: volRect(145, 225, -90, 2), walk: true }] },
   tags:['deep gable parapet','sign on the gable','bunting on the arch','brick stack','recessed door'],
   desc:'The gable is a real parapet with 30 units of depth and a capped coping, so it stands above the roofline instead of lying on it. Bunting is pinned around the arch rather than strung across the shopfront, and the flue is brick so it no longer disappears into a roof of its own colour.',
   draw(p){
@@ -62676,8 +63102,10 @@ function houseCanopy(fn){
     /* window: sill on the kick, head at the game's window line
        (dZ1 + 14), and it stops short of the door rather than being a
        fixed fraction of W -- the door owns its end of the frontage. */
-    const dW = SHOP_DOOR_W, dH = SHOP_DOOR_H;
-    const dx1 = W - 9, dx0 = dx1 - dW;
+    /* (the walk-in's door is 80 across, W33/D14: Tipsey and no one beside him -- a 145..225, as far east as the kit's clamp lets it, so the
+       window gives up 10 and its loaves close up with it) */
+    const dW = 80, dH = SHOP_DOOR_H;
+    const dx1 = W - 5, dx0 = dx1 - dW;
     const gz0 = 22, gz1 = SHOP_DOOR_H + 14, ax0 = 14, ax1 = dx0 - 14;
     /* the reveal ran 30 units above the pane, so a brown rectangle sat
        between the glass head and the arch. It stops at the glass now --
@@ -62690,15 +63118,16 @@ function houseCanopy(fn){
        pavement, which is the cream bar that was cutting across the
        window and hanging off the left jamb. Inside the shop now, under
        the loaves that stand on it. */
-    slab(ax0+14, ax1-30, gz1-74, gz1-64, -4, -16, shade(wall,1.05));
+    slab(ax0+12, ax1-12, gz1-74, gz1-64, -4, -16, shade(wall,1.05));
     /* THEY WERE OUTSIDE. The loaves sat at b = +8..+18, and positive b
        is toward the street, which under this projection also shifts them
        LEFT on screen -- far enough that the first one cleared the window
        jamb entirely and appeared to be sitting on the pavement. Negative
        b puts them back in the shop, behind the pane where they belong. */
+    const LA = i => ax0 + 20 + i*(ax1 - ax0 - 40)/4;
     depthSort([0,1,2,3,4].map(i => ({
-      a: 34+i*19, b: -7 - (i%2)*7, z: 0,
-      draw: () => cyl(34+i*19, -7 - (i%2)*7, gz1-64, gz1-42, 9, i%2 ? '#c98a4a' : '#b87a3c')
+      a: LA(i), b: -7 - (i%2)*7, z: 0,
+      draw: () => cyl(LA(i), -7 - (i%2)*7, gz1-64, gz1-42, 9, i%2 ? '#c98a4a' : '#b87a3c')
     })));
     const aPt = (t,bb) => {
       const u=1-t, a = u*u*ax0 + 2*u*t*((ax0+ax1)/2) + t*t*ax1;
@@ -62728,8 +63157,11 @@ function houseCanopy(fn){
        A shopfront door is a hole in a wall. Everything below is on the
        frontage plane within a unit and a half of it, so nothing has a
        side face to cast onto the flank. */
-    shopDoor((dx0+dx1)/2, wall, trim);
-    if(state.props) box(dx0-6, dx1+6, 2, 20, 0, 9, '#c3c8be','#adb2a4','#999e91');
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the bakery's coral, 80 across (a 145..225), its face 'french' -- two tall lights
+       over a low panel, the pastries seen through it (the roastery next door is 'panel'); a walk-in's (see), its opening a hole onto the
+       bakery, its leaf live, swinging in */
+    shopDoor((dx0+dx1)/2, wall, trim, 'rgba(104,146,168,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,214,.72)', look: 'french' });
+    if(state.props) box(dx0-4, Math.min(W, dx1+4), 2, 20, 0, 9, '#c3c8be','#adb2a4','#999e91');
 
     /* ---------------- ROOF ----------------
        The flue was shade(trim,1.05) -- the EXACT colour body() paints
