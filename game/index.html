@@ -60754,7 +60754,7 @@ function houseCanopy(fn){
           out.push(man(pa, pb, f, { lift: [lift, lift], bend: [bend, bend], walk, gait }));
           /* (being set down it is over the runner's lid: after the runner, not at its own place behind its middle -- the lid painted over it
              till it landed, Sir, 2026-11-19) */
-          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin, dd = q >= 1600 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : 1; out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
+          if(bin){ const col = CPC(SH[TOP4[m]].pal), bb = bin, dd = q >= 1600 ? Math.max(1, P0.a + P0.b + 2 - bb[0] - bb[1]) : bb[0] - 12 < 740 ? Math.min(-1, 700 + 1610 - 2 - bb[0] - bb[1]) : 1;   /* (still in the pod, sliding out of its slot: before the pod, its shelf and posts over it, Sir) */ out.push({ kind: 'cargo', a: bb[0], b: bb[1], dd, cargo: () => BIN(bb[0], bb[1], bb[2], col) }); } }
         else out.push(man(752, 1610, 1, {}));
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
