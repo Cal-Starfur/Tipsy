@@ -48737,13 +48737,21 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
      a single door and the interior has a double ... pull a single door look into our kit"): the opening a hole and the leaf live as a pair's,
      the one leaf its own piece (shopDoorLeafKeys), swinging in; from inside the same leaf, cut to the front wall's height) */
   const single = !!(opts && opts.single);
-  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, single, glazed, studs, panes, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
+  /* (opts.look: THE LEAF'S FACE, a panelled walk-in door's (Sir, 2026-11-19: "can we get some door variations?"): 'six' six small lights over a
+     raised panel (the default); 'panel' two raised panels, solid, under a fixed fanlight in the head of the opening -- the street's old shop
+     door; 'lite' one big light over a panel, under the fanlight; 'french' two tall lights side by side over a low panel. SHOP_DOOR_LOOKS) */
+  const look = (opts && opts.look) || 'six';
+  if(DOOR_REC) DOOR_REC.push({ a0: a0 + AOFF, a1: a1 + AOFF, z, dH, trim, half: !!(opts && opts.half), pair, single, glazed, studs, panes, look, see: SEE && pair, boff: BOFF, aoff: 0 });   // (boff: the set-back it was drawn at -- the entry's, or a wall set back further: Pelican Harbor's chandlery)
   F(a0-4, a1+4, z, z+dH+7, shade(wall,.90), null, 0, 0.3);       // painted surround
   /* A WALK-IN'S DOOR (SEE, a pair: Seabreeze Trophies -- W11): the opening a hole in the shop's image, the room drawn
      under it; its glazed leaves live, shut or open (shopDoorOpen), so the cache holds no leaf to paint over */
   if(SEE && pair){
     HOLE([P(a0,0.4,z+dH),P(a1,0.4,z+dH),P(a1,0.4,z),P(a0,0.4,z)]);
-    F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
+    if(SHOP_DOOR_LOOKS[look] && SHOP_DOOR_LOOKS[look].fan){                     // (a fixed fanlight over the leaf: its glass, its bars, a glint)
+      F(a0+2, a1-2, z+dH-26, z+dH-4, panes || 'rgba(120,156,176,.7)', null,0,0.45);
+      for(let k=1;k<4;k++){ const u = a0+2 + (a1-a0-4)*k/4; F(u-0.8, u+0.8, z+dH-26, z+dH-4, shade(trim,.62), null,0,0.5); }
+      F(a0+5, a0+(a1-a0)*0.4, z+dH-10, z+dH-8, 'rgba(255,255,255,.25)', null,0,0.55); }
+    else F(a0+2, a1-2, z+dH-26, z+dH-4, 'rgba(120,156,176,.36)', null,0,0.45);
     F(a0+2, a1-2, z+dH-30, z+dH-26, shade(trim,.8), null,0,0.7);  // transom rail
     return { a0, a1, dH, pair };
   }
@@ -48791,7 +48799,7 @@ function shopDoor(aMid, wall, trim, glass, wid, base, opts){
         continue;
       }
       if(studs){ shopDoorStuds((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, studs, trim, ha < mA ? la1 - la0 - 10 : 10); continue; }
-      if(panes){ shopDoorPanes((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, panes, trim, ha < mA ? la1 - la0 - 9 : 9); continue; }
+      if(panes){ shopDoorPanes((u0, u1, z0, z1, c, off) => F(la0 + u0, la0 + u1, z0, z1, c, null, 0, 0.9 + (off || 0)), la1 - la0, z, z + dH - 30, panes, trim, ha < mA ? la1 - la0 - 9 : 9, look); continue; }
       for(let k=0;k<2;k++)
         F(la0+6, la1-6, z+dH*0.07+k*dH*0.36, z+dH*0.30+k*dH*0.36, shade(trim,1.18), shade(trim,.7), 1.5, 0.9);
       F(ha, ha+4, z+dH*0.40, z+dH*0.53, '#d8c28a', null, 0, 1.2); // its handle, at the meeting stiles
@@ -48878,10 +48886,27 @@ function shopDoorStuds(rect, len, z0, z1, studs, trim, pullU){
 }
 /* A PANELLED LEAF'S FACE (shopDoor opts.panes): its stiles and rails in the trim, a raised panel low down, a glazed light of small panes over it
    (glazing bars three by two), a brass knob near the meeting stile -- in the leaf's own (u along it from its hinge, z) */
-function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU){
-  const H = z1 - z0, zr = z0 + H*0.40, dk = shade(trim, 0.62);
+const SHOP_DOOR_LOOKS = { six: { fan: false }, panel: { fan: true }, lite: { fan: true }, french: { fan: false } };
+function shopDoorPanes(rect, len, z0, z1, glass, trim, knobU, look){
+  const H = z1 - z0, dk = shade(trim, 0.62), lk = look || 'six';
+  const panel = (u0, u1, za, zb) => { rect(u0, u1, za, zb, shade(trim, 1.14), 0.2); rect(u0 + 4, u1 - 4, za + 4, zb - 4, shade(trim, 0.92), 0.3); };
+  const glint = (za, zb) => rect(10, len*0.45, zb - 5, zb - 2, 'rgba(255,255,255,.22)', 0.35);
   rect(0, len, z0, z1, shade(trim, 0.7));                                     // its edge, the frame
   rect(3, len - 3, z0 + 3, z1 - 3, trim, 0.1);                               // stiles and rails
+  if(lk === 'panel'){                                                         // two raised panels, the lower the taller; solid
+    const zm = z0 + H*0.55; panel(9, len - 9, z0 + 10, zm - 5); panel(9, len - 9, zm + 5, z1 - 10);
+    rect(knobU - 2.5, knobU + 2.5, z0 + H*0.48, z0 + H*0.48 + 5, '#c9a24a', 0.4); return; }
+  if(lk === 'lite'){                                                          // one big light over a panel
+    const zr = z0 + H*0.42; panel(9, len - 9, z0 + 10, zr - 7);
+    rect(8, len - 8, zr, z1 - 8, glass, 0.2); glint(zr, z1 - 8);
+    rect(knobU - 2.5, knobU + 2.5, z0 + H*0.38, z0 + H*0.38 + 5, '#c9a24a', 0.4); return; }
+  if(lk === 'french'){                                                        // two tall lights side by side over a low panel
+    const zr = z0 + H*0.24, um = len/2; panel(9, len - 9, z0 + 8, zr - 6);
+    rect(8, um - 3, zr, z1 - 8, glass, 0.2); rect(um + 3, len - 8, zr, z1 - 8, glass, 0.2);
+    for(const zz of [zr + (z1 - 8 - zr)/3, zr + 2*(z1 - 8 - zr)/3]){ rect(8, um - 3, zz - 0.8, zz + 0.8, dk, 0.3); rect(um + 3, len - 8, zz - 0.8, zz + 0.8, dk, 0.3); }
+    glint(zr, z1 - 8);
+    rect(knobU - 2.5, knobU + 2.5, z0 + H*0.42, z0 + H*0.42 + 5, '#c9a24a', 0.4); return; }
+  const zr = z0 + H*0.40;                                                     // 'six': six small lights over a raised panel
   rect(9, len - 9, z0 + 12, zr - 8, shade(trim, 1.14), 0.2);                 // the raised panel
   rect(13, len - 13, z0 + 16, zr - 12, shade(trim, 0.92), 0.3);
   rect(8, len - 8, zr, z1 - 9, glass, 0.2);                                  // the light
@@ -48945,7 +48970,7 @@ function shopDoorOpen(d, t, between, leafOnly){
     const clipIt = CUT == null;
     if(clipIt){ ctx.save(); poly([P(d.a0, 0.6, d.z), P(d.a1, 0.6, d.z), P(d.a1, 0.6, d.z + d.dH), P(d.a0, 0.6, d.z + d.dH)]); ctx.clip(); }
     try { for(const [hingeA, sgn, ln] of shopDoorLeaves(d)){ const qq = Qi(hingeA, sgn);
-      if(d.panes) shopDoorPanes((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.panes, d.trim, ln - 9);
+      if(d.panes) shopDoorPanes((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH - (SHOP_DOOR_LOOKS[d.look] && SHOP_DOOR_LOOKS[d.look].fan ? 30 : 0), d.panes, d.trim, ln - 9, d.look);
       else shopDoorStuds((u0, u1, za, zb, c, off) => rect(qq, u0, u1, za, zb, c, null, 0, off), ln, z0, d.z + d.dH, d.studs, d.trim, ln - 10); } }
     finally { if(clipIt) ctx.restore(); }
     return;
@@ -64195,7 +64220,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the lagoon teal, small panes over a raised panel, 100 across (a 125..225)
        -- as the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the roastery, its leaf live, swinging in */
-    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,206,.72)' });
+    shopDoor(175, wall, trim, 'rgba(140,180,185,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,204,206,.72)', look: 'panel' });
 
     /* ---- fascia ---- */
     slab(0, W, 136, 170, 4, 0, shade(wall,1.2), null, trim);
@@ -65577,7 +65602,7 @@ function houseCanopy(fn){
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the marina blue, small panes over a raised panel, 100 across -- as
        the street always saw it, one door (single); a walk-in's (see), its opening a hole onto the optician's, its leaf live, swinging in */
-    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,200,214,.72)' });
+    shopDoor(172, wall, trim, 'rgba(146,178,196,.55)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(170,200,214,.72)', look: 'lite' });
 
     /* ---- fascia ----
        Was slab(0, W, 118, 126, -1, -7): a0 of 0 and a1 of W, so the
