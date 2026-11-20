@@ -55749,8 +55749,8 @@ function houseCanopy(fn){
           for(let b = Math.max(s0 + 6, 270); b < Math.min(s1 - 4, 354); b += 18) cyl(440, b, 93, 111, 6, 'rgba(207,227,232,.92)', cream);        // jars
         } }); }
       /* four stools down the customers' side */
-      for(const b of [100, 180, 260, 340]) items.push({ a: 628, b, z: 0, solids: [{ name: 'stool', c: [628, b], r: 14, h: 34 }], draw: () => {
-        cyl(628, b, 0, 3, 11, dark, dark); tube(628, b, 3, 628, b, 25, 2, dark); cyl(628, b, 25, 30, 11, copper, '#e8a550'); } });
+      for(const b of [100, 180, 260, 340]) items.push({ a: 628, b, z: 0, solids: [{ name: 'stool', c: [628, b], r: 14, h: 48 }], draw: () => {
+        cyl(628, b, 0, 3, 11, dark, dark); tube(628, b, 3, 628, b, 43, 2, dark); cyl(628, b, 43, 48, 11, copper, '#e8a550'); } });   // (a bar stool at the 75 counter: its seat at 48 -- Sir, 2026-11-20, stools)
     }
     /* the robots' charging nook against the east wall, b 440..540: a rubber mat with a bolt on it, three posts */
     { const NA = 800;
@@ -56233,10 +56233,10 @@ function houseCanopy(fn){
           poly([P(x0, pb0 - 8, 100), P(x1, pb0 - 8, 100), P(x1, pb1 + 8, 100), P(x0, pb1 + 8, 100)], c);
           poly([P(x0, pb1 + 8, 100), P(x1, pb1 + 8, 100), P(x1, pb1 + 8, 94), P(x0, pb1 + 8, 94)], shade(c, 0.78)); } } }); }
     for(const [a, b, d] of KW_YARD.benches)                                                                                                            // the infield benches, facing the straights
-      items.push({ a, b, z: 0, solids: [solid(a - 36, a + 36, b - 8, b + 8, 40, 'bench')], draw: () => {
-        for(const la of [a - 30, a + 30]) box(la - 3, la + 3, b - 6, b + 6, 0, 17, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
-        box(a - 36, a + 36, b - 7, b + 7, 17, 21, woodL, wood, woodD);
-        box(a - 36, a + 36, b + d*6, b + d*9, 21, 38, woodL, wood, woodD); } });
+      items.push({ a, b, z: 0, solids: [solid(a - 36, a + 36, b - 8, b + 8, 57, 'bench')], draw: () => {
+        for(const la of [a - 30, a + 30]) box(la - 3, la + 3, b - 6, b + 6, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // (its seat at a bench's 40 -- Sir, 2026-11-20, benches)
+        box(a - 36, a + 36, b - 7, b + 7, 36, 40, woodL, wood, woodD);
+        box(a - 36, a + 36, b + d*6, b + d*9, 40, 57, woodL, wood, woodD); } });
     /* ---- THE TEST CHUTE: its back board and start bar, the deck, the slope in runs, the rails stepped down it ---- */
     if(KW_YARD.chute){
     items.push({ a: (A0 + AD)/2, b: (B0 + B1)/2, z: 0, solids: [solid(A0 - 6, AD, B0, B1, Z + 60, 'test chute deck')], draw: () => {
@@ -56554,11 +56554,11 @@ function houseCanopy(fn){
       for(const [x0, y0, x1, y1] of sides) host.solids.push(solid(Math.min(x0, x1) - 5, Math.max(x0, x1) + 5, Math.min(y0, y1) - 5, Math.max(y0, y1) + 5, 56, 'rope'));
     };
     /* a museum bench: a buttoned leather seat on a bronze frame, in runs along a */
-    const bench = (a0, a1, b0, b1) => { for(const [s0, s1, first, last] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 44, 'bench')], draw: () => {
-      for(const ea of [first ? s0 + 6 : null, last ? s1 - 6 : null]) if(ea != null) for(const eb of [b0 + 5, b1 - 5]) cyl(ea, eb, 0, 30, 2.4, bronzeD, bronze);
-      runBox(s0, s1, b0 + 2, b1 - 2, 26, 30, bronze, bronzeD, bronzeD, true, first, last);
-      runBox(first ? s0 - 2 : s0, last ? s1 + 2 : s1, b0, b1, 30, 42, '#6b3b2c', '#57301f', '#4a281b', true, first, last);
-      for(let a = Math.ceil(s0/20)*20 + 10; a < s1 - 4; a += 20) for(const bb of [b0 + 10, b1 - 10]) plateCircle(a, bb, 42.3, 1.6, '#3e2217');
+    const bench = (a0, a1, b0, b1) => { for(const [s0, s1, first, last] of runs(a0, a1, 50)) items.push({ a: (s0 + s1)/2, b: b1, z: 0, solids: [solid(s0, s1, b0, b1, 40, 'bench')], draw: () => {
+      for(const ea of [first ? s0 + 6 : null, last ? s1 - 6 : null]) if(ea != null) for(const eb of [b0 + 5, b1 - 5]) cyl(ea, eb, 0, 28, 2.4, bronzeD, bronze);   // (its seat at 40 -- Sir, 2026-11-20, benches)
+      runBox(s0, s1, b0 + 2, b1 - 2, 24, 28, bronze, bronzeD, bronzeD, true, first, last);
+      runBox(first ? s0 - 2 : s0, last ? s1 + 2 : s1, b0, b1, 28, 40, '#6b3b2c', '#57301f', '#4a281b', true, first, last);
+      for(let a = Math.ceil(s0/20)*20 + 10; a < s1 - 4; a += 20) for(const bb of [b0 + 10, b1 - 10]) plateCircle(a, bb, 40.3, 1.6, '#3e2217');
       T(s0 + (first ? 2 : 0), s1 - (last ? 2 : 0), (b0 + b1)/2 - 0.6, (b0 + b1)/2 + 0.6, 42.4, '#4a281b');
     }}); };
     /* a wall sconce: a bronze plate, an arm, a lit glass bowl (high on a far wall, its own small piece) */
@@ -58146,13 +58146,13 @@ function houseCanopy(fn){
       }});
     }
     /* ---- STOOLS along the bar's east face (a 112, b 322..388) ---- */
-    for(const sb of [322, 344, 366, 388]) items.push({ a: 112, b: sb, z: 0, solids: [{ name: 'stool', c: [112, sb], r: 10, h: 50 }], draw: () => {
-      cyl(112, sb, 0, 44, 2.4, darkF); cyl(112, sb, 44, 50, 9.5, '#7a4a26'); plateCircle(112, sb, 50, 9.5, '#8f5a30', '#5c3719', 1.2);
+    for(const sb of [322, 344, 366, 388]) items.push({ a: 112, b: sb, z: 0, solids: [{ name: 'stool', c: [112, sb], r: 10, h: 48 }], draw: () => {
+      cyl(112, sb, 0, 42, 2.4, darkF); cyl(112, sb, 42, 48, 9.5, '#7a4a26'); plateCircle(112, sb, 48, 9.5, '#8f5a30', '#5c3719', 1.2);   // (a bar stool: 48)
     }});
     /* ---- HIGH TABLES by the east window (a 322, b 330 and 405): a round top on a post, a stool north and south of each ---- */
     for(const tb of [330, 405]){
-      items.push({ a: 322, b: tb, z: 0, solids: [{ name: 'table', c: [322, tb], r: 26, h: 72 }, { name: 'stool', c: [322, tb - 38], r: 10, h: 50 }, { name: 'stool', c: [322, tb + 38], r: 10, h: 50 }], draw: () => {
-        for(const sb of [tb - 38, tb + 38]){ cyl(322, sb, 0, 44, 2.4, darkF); cyl(322, sb, 44, 50, 9.5, '#7a4a26'); plateCircle(322, sb, 50, 9.5, '#8f5a30', '#5c3719', 1.2); }
+      items.push({ a: 322, b: tb, z: 0, solids: [{ name: 'table', c: [322, tb], r: 26, h: 72 }, { name: 'stool', c: [322, tb - 38], r: 10, h: 48 }, { name: 'stool', c: [322, tb + 38], r: 10, h: 48 }], draw: () => {
+        for(const sb of [tb - 38, tb + 38]){ cyl(322, sb, 0, 42, 2.4, darkF); cyl(322, sb, 42, 48, 9.5, '#7a4a26'); plateCircle(322, sb, 48, 9.5, '#8f5a30', '#5c3719', 1.2); }
         cyl(322, tb, 0, 3, 14, darkT); cyl(322, tb, 3, 66, 3, darkF); cyl(322, tb, 66, 72, 26, '#8a6f4e'); plateCircle(322, tb, 72, 26, '#9a7f5a', '#6f5636', 1.6);
         cyl(322, tb + 4, 72, 80, 3.4, '#e8d9a8');                                         // a candle
       }});
@@ -58306,8 +58306,8 @@ function houseCanopy(fn){
     }
     /* a bench on the west wall (a 10..34, b 560..650): slats on two cheeks */
     items.push({ a: 22, b: 605, z: 0, solids: [solid(10, 34, 560, 650, 40, 'bench')], draw: () => {
-      for(const sb of [566, 636]) box(12, 32, sb, sb + 8, 0, 28, dark, darkF, darkS);
-      for(let k = 0; k < 4; k++) box(10, 34, 560 + k*23, 560 + k*23 + 20, 28, 33, wood, woodF, woodS);
+      for(const sb of [566, 636]) box(12, 32, sb, sb + 8, 0, 35, dark, darkF, darkS);   // (its seat at 40 -- Sir, 2026-11-20, benches)
+      for(let k = 0; k < 4; k++) box(10, 34, 560 + k*23, 560 + k*23 + 20, 35, 40, wood, woodF, woodS);
     }});
     /* palms in pots either side of the door, clear of its lane (a 316..412) */
     for(const [ca, cb] of [[270, 650], [458, 650]]) items.push({ a: ca, b: cb, z: 0, solids: [{ name: 'palm', c: [ca, cb], r: 20, h: 100 }], draw: () => pot(ca, cb) });
@@ -58795,7 +58795,7 @@ function houseCanopy(fn){
     const oak = '#8a6a46', oakF = '#6f5236', oakS = '#5b432b', oakL = '#a98259', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const stool = (ca, cb) => { cyl(ca, cb, 0, 30, 2.4, '#3a3e46'); cyl(ca, cb, 30, 34, 9, teal, tealL); for(const q of [0, 2.1, 4.2]) tube(ca, cb, 14, ca + 8*Math.cos(q), cb + 8*Math.sin(q), 0, 1, '#3a3e46'); };
+    const stool = (ca, cb) => { cyl(ca, cb, 0, 34, 2.4, '#3a3e46'); cyl(ca, cb, 34, 38, 9, teal, tealL);   /* (at a 62 bistro table: a chair's height, 38 -- Sir, 2026-11-20, stools) */ for(const q of [0, 2.1, 4.2]) tube(ca, cb, 14, ca + 8*Math.cos(q), cb + 8*Math.sin(q), 0, 1, '#3a3e46'); };
 
     /* ---- THE FLOOR: 30-square tiles, cream and sea-glass, a threshold stone at the door (W13) and a coir mat just inside ---- */
     T(0, W, 0, D, 0, '#e4dccb');
@@ -58873,7 +58873,7 @@ function houseCanopy(fn){
 
     /* ---- THREE BISTRO TABLES east of the lane (round, 52 across, 60 high), two stools each ---- */
     for(const [ta, tb] of [[440, 90], [490, 190], [400, 260]]){
-      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'bistro table', c: [ta, tb], r: 24, h: 62 }, { name: 'stool', c: [ta - 30, tb + 4], r: 10, h: 36 }, { name: 'stool', c: [ta + 28, tb - 12], r: 10, h: 36 }], draw: () => {
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'bistro table', c: [ta, tb], r: 24, h: 62 }, { name: 'stool', c: [ta - 30, tb + 4], r: 10, h: 38 }, { name: 'stool', c: [ta + 28, tb - 12], r: 10, h: 38 }], draw: () => {
         stool(ta - 30, tb + 4); stool(ta + 28, tb - 12);
         cyl(ta, tb, 0, 56, 2.6, '#3a3e46'); cyl(ta, tb, 0, 3, 11, '#3a3e46');
         cyl(ta, tb, 56, 60, 24, oakL, oakF); plateCircle(ta, tb, 60, 23, oakL, oak, 1);
@@ -58983,9 +58983,9 @@ function houseCanopy(fn){
 
     /* ---- THE BENCH under the print (a 6..42, b 420..540): a walnut seat on steel legs, facing east ---- */
     items.push({ a: 24, b: 480, z: 0, solids: [solid(6, 42, 420, 540, 40, 'bench')], draw: () => {
-      for(const b of [428, 532]) box(10, 38, b - 3, b + 3, 0, 34, steel, steelD, steelS);
-      box(6, 42, 420, 540, 34, 42, walnutL, walnut, shade(walnut, 0.8));
-      box(6, 12, 420, 540, 42, 86, walnutL, walnut, shade(walnut, 0.8));
+      for(const b of [428, 532]) box(10, 38, b - 3, b + 3, 0, 32, steel, steelD, steelS);   // (its seat at 40 -- Sir, 2026-11-20, benches)
+      box(6, 42, 420, 540, 32, 40, walnutL, walnut, shade(walnut, 0.8));
+      box(6, 12, 420, 540, 40, 84, walnutL, walnut, shade(walnut, 0.8));
     }});
 
     /* ---- A PALM in a stone pot past the bench (a 4..40, b 592..628), clear of the west pair's corner ---- */
@@ -59056,7 +59056,7 @@ function houseCanopy(fn){
     const oak = '#a98259', oakF = '#8a6a46', oakD = '#6f5236', steel = '#c9ced2', steelD = '#a9b0b5', steelS = '#8f969b', copper = '#c4783a', dark = '#2b3138';
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
-    const stool = (a, b) => { cyl(a, b, 0, 54, 2.2, '#3a3e46'); cyl(a, b, 54, 60, 10, coral, coralL); };
+    const stool = (a, b) => { cyl(a, b, 0, 42, 2.2, '#3a3e46'); cyl(a, b, 42, 48, 10, coral, coralL); };   // (a bar stool at the 74 long table and window bar: 48 -- Sir, 2026-11-20, stools)
     const table = (a, b) => { cyl(a, b, 0, 3, 11, '#3a3e46'); cyl(a, b, 0, 56, 2.6, '#3a3e46'); cyl(a, b, 56, 60, 24, oak, oakF); plateCircle(a, b, 60, 23, oak, oakF, 1); };
     /* (its seat at 38, the adults' chairs' height: Sir, 2026-11-20) */
     const chair = (a, b, dir) => { box(a - 12, a + 12, b - 12, b + 12, 0, 34, '#3a3e46', '#2b3036', '#23292f'); box(a - 12, a + 12, b - 12, b + 12, 34, 38, coral, coralD, coralD);
@@ -59110,10 +59110,10 @@ function houseCanopy(fn){
     for(const [ta, tb] of [[110, 300], [250, 300], [110, 470], [250, 470]])
       items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 60 }, { name: 'chair', c: [ta - 40, tb], r: 13, h: 84 }, { name: 'chair', c: [ta + 40, tb], r: 13, h: 84 }],
         draw: () => { chair(ta - 40, tb, 'e'); table(ta, tb); chair(ta + 40, tb, 'w'); } });
-    runPiece(items, 540, 780, 548, 652, 82, (s0, s1) => [solid(s0, s1, 580, 620, 74, 'long table'), ...[570, 630, 690, 750].filter(a => a >= s0 && a < s1).flatMap(a => [{ name: 'stool', c: [a, 560], r: 10, h: 60 }, { name: 'stool', c: [a, 640], r: 10, h: 60 }])], () => {
+    runPiece(items, 540, 780, 548, 652, 82, (s0, s1) => [solid(s0, s1, 580, 620, 74, 'long table'), ...[570, 630, 690, 750].filter(a => a >= s0 && a < s1).flatMap(a => [{ name: 'stool', c: [a, 560], r: 10, h: 48 }, { name: 'stool', c: [a, 640], r: 10, h: 48 }])], () => {
       for(const a of [570, 630, 690, 750]) stool(a, 560); for(const a of [546, 774]) box(a - 3, a + 3, 586, 614, 0, 70, oakD, oakD, oakD); box(540, 780, 580, 620, 70, 74, oak, oakF, oakD);   // (its legs, then its top over them: W37)
       for(const a of [600, 700]) cyl(a, 600, 74, 82, 5, '#f6f3ea'); for(const a of [570, 630, 690, 750]) stool(a, 640); });
-    runPiece(items, 30, 340, 666, 724, 82, (s0, s1) => [solid(s0, s1, 700, 724, 74, 'window bar'), ...[70, 140, 210, 280].filter(a => a >= s0 && a < s1).map(a => ({ name: 'stool', c: [a, 678], r: 10, h: 60 }))], () => {
+    runPiece(items, 30, 340, 666, 724, 82, (s0, s1) => [solid(s0, s1, 700, 724, 74, 'window bar'), ...[70, 140, 210, 280].filter(a => a >= s0 && a < s1).map(a => ({ name: 'stool', c: [a, 678], r: 10, h: 48 }))], () => {
       for(const a of [70, 140, 210, 280]) stool(a, 678); for(const a of [36, 334]) box(a - 3, a + 3, 702, 722, 0, 70, oakD, oakD, oakD); box(30, 340, 700, 724, 70, 74, oak, oakF, oakD);
       cyl(120, 712, 74, 82, 5, '#f6f3ea'); cyl(250, 712, 74, 80, 5, '#f6f3ea'); });
     for(const [a, b] of [[810, 760], [24, 620]]) items.push({ a, b, z: 0, solids: [{ name: 'plant', c: [a, b], r: 16, h: 60 }], draw: () => {
@@ -59726,8 +59726,8 @@ function houseCanopy(fn){
       items.push({ a: ta, b: tb, z: 0, solids: [{ name: 'table', c: [ta, tb], r: 24, h: 72 }], draw: () => {
         cyl(ta, tb, 0, 6, 12, woodS); cyl(ta, tb, 6, 60, 4, woodF); cyl(ta, tb, 60, 66, 26, wood, shade(wood, 1.12));
         cyl(ta - 6, tb - 4, 66, 74, 6, '#e9e4da'); cyl(ta + 8, tb + 6, 66, 70, 3.2, '#f4f0e6'); } });
-      for(const da of [-38, 38]) items.push({ a: ta + da, b: tb, z: 0, solids: [{ name: 'stool', c: [ta + da, tb], r: 10, h: 44 }], draw: () => {
-        cyl(ta + da, tb, 0, 40, 9, woodF); cyl(ta + da, tb, 40, 46, 11, red, shade(red, 1.15)); } });
+      for(const da of [-38, 38]) items.push({ a: ta + da, b: tb, z: 0, solids: [{ name: 'stool', c: [ta + da, tb], r: 10, h: 48 }], draw: () => {
+        cyl(ta + da, tb, 0, 42, 9, woodF); cyl(ta + da, tb, 42, 48, 11, red, shade(red, 1.15)); } });   // (at the 72 tea table: a bar stool, 48)
     }
 
     /* ---- THE TEA SHOP by the door: two display tables of tins, a stack of boxed teas, the price cards ---- */
@@ -60950,8 +60950,8 @@ function houseCanopy(fn){
     for(const a of [310, 1342]) items.push({ a, b: CB + 59, z: 0, when: flats, draw: () => F(a - 2, a + 2, 0, H, shade(plas, 0.86), null, 0, CB + 0.5) });
     /* a bench and a plant in the lift lobby, against its side walls, clear of the cars' lanes */
     items.push({ a: LOB[0] + 24, b: 230, z: 0, when: flats, solids: on(FL, LOB[0] + 4, LOB[0] + 40, 180, 280, 40, 'bench'), draw: () => {
-      for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 34, '#c9ced2', '#a9b0b5', '#8f969b');
-      box(LOB[0] + 4, LOB[0] + 40, 180, 280, 34, 42, wood, woodD, shade(woodD, 0.8)); } });
+      for(const b of [186, 274]) box(LOB[0] + 8, LOB[0] + 36, b - 3, b + 3, 0, 32, '#c9ced2', '#a9b0b5', '#8f969b');   // (its seat at 40)
+      box(LOB[0] + 4, LOB[0] + 40, 180, 280, 32, 40, wood, woodD, shade(woodD, 0.8)); } });
     items.push({ a: LOB[1] - 24, b: 250, z: 0, when: flats, solids: onC(FL, [LOB[1] - 24, 250], 16, 60, 'plant'), draw: () => {
       cyl(LOB[1] - 24, 250, 0, 48, 16, stoneD, stoneL); plateCircle(LOB[1] - 24, 250, 48, 14, '#5a4636', null, 0);
       for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(LOB[1] - 24, 250, 48, LOB[1] - 24 + 26*Math.cos(t), 250 + 26*Math.sin(t), 96, 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
@@ -62165,11 +62165,11 @@ function houseCanopy(fn){
     /* ---- THE LOUNGE (a 700..1200, b 300..540): four rows of two benches facing the board, a blue cushion on a steel frame with a back, a low table between ---- */
     for(const bb of [290, 370, 450, 530]){
       for(const a0 of [710, 1040]){
-        items.push({ a: a0 + 80, b: bb + 20, z: 0, solids: [solid(a0, a0 + 160, bb, bb + 42, 46, 'bench')], draw: () => {
-          for(const lx of [a0 + 8, a0 + 146]) box(lx, lx + 6, bb + 8, bb + 36, 0, 20, steelD, steelD, steelS);
-          box(a0, a0 + 160, bb, bb + 10, 20, 62, shade(blueL, 0.92), shade(blueL, 0.78), shade(blueL, 0.64));                // the back (north side)
-          box(a0, a0 + 160, bb + 10, bb + 42, 20, 34, blueL, shade(blueL, 0.85), shade(blueL, 0.7));                           // the seat
-          for(const m of [a0 + 80]) F(m - 1, m + 1, 22, 34, shade(blueD, 0.9), null, 0, bb + 42.1);
+        items.push({ a: a0 + 80, b: bb + 20, z: 0, solids: [solid(a0, a0 + 160, bb, bb + 42, 52, 'bench')], draw: () => {
+          for(const lx of [a0 + 8, a0 + 146]) box(lx, lx + 6, bb + 8, bb + 36, 0, 26, steelD, steelD, steelS);              // (its seat at 40 -- Sir, 2026-11-20, benches)
+          box(a0, a0 + 160, bb, bb + 10, 26, 68, shade(blueL, 0.92), shade(blueL, 0.78), shade(blueL, 0.64));                // the back (north side)
+          box(a0, a0 + 160, bb + 10, bb + 42, 26, 40, blueL, shade(blueL, 0.85), shade(blueL, 0.7));                           // the seat
+          for(const m of [a0 + 80]) F(m - 1, m + 1, 28, 40, shade(blueD, 0.9), null, 0, bb + 42.1);
         }});
       }
     }
@@ -62706,9 +62706,9 @@ function houseCanopy(fn){
     }, 'chart table');
     /* ---- THE WAITING BENCHES on the west wall's south half, and a brass stand with the day's notices ---- */
     for(const [b0, b1] of [[620, 860], [920, 1160]]) thing(52, 120, b0, b1, 60, () => {
-      for(const b of [b0 + 12, b1 - 12]) box(54, 118, b - 6, b + 6, 0, 30, woodD, woodD, shade(woodD, 0.8));
-      box(54, 118, b0, b1, 30, 38, shade(wood, 1.15), wood, woodD); box(54, 62, b0, b1, 38, 70, wood, shade(wood, 0.9), woodD);
-      F(56, 116, 40, 60, navy, null, 0, b1 + 0.2);
+      for(const b of [b0 + 12, b1 - 12]) box(54, 118, b - 6, b + 6, 0, 32, woodD, woodD, shade(woodD, 0.8));   // (its seat at 40 -- Sir, 2026-11-20, benches)
+      box(54, 118, b0, b1, 32, 40, shade(wood, 1.15), wood, woodD); box(54, 62, b0, b1, 40, 72, wood, shade(wood, 0.9), woodD);
+      F(56, 116, 42, 62, navy, null, 0, b1 + 0.2);
     }, 'bench');
     /* ---- THE SHIP'S MODEL on its plinth, in the lane's east: a hull, a mast and two sails, under a glass hood ---- */
     thing(R.ship[0], R.ship[1], R.ship[2], R.ship[3], 150, () => {
@@ -80952,10 +80952,10 @@ marinaEntry(),
       cyl(50, 590, 0, 28, 12, '#b0583a', '#c9694a');
       for(const [da, db, h] of [[0, 0, 74], [-8, 4, 58], [8, -4, 62], [4, 8, 50]]) cyl(50 + da, 590 + db, 28, 28 + h, 3.5, '#4f7a4a', '#6aa05a');
     }});
-    for(const [b0, b1] of [[40, 150], [190, 300]]) for(const [s0, s1] of runs(b0, b1, 37)) items.push({ a: (s0 + s1)/2, b: 738, z: 0, solids: [solid(s0, s1, 724, 752, 44, 'bench')], draw: () => {
-      if(s0 < b0 + 1) box(s0, s0 + 6, 728, 748, 0, 36, woodD, woodD, shade(woodD, .85));
-      if(s1 > b1 - 1) box(s1 - 6, s1, 728, 748, 0, 36, woodD, woodD, shade(woodD, .85));
-      box(s0, s1, 726, 750, 36, 42, wood, shade(wood, .92), woodD);                        // (its seat over its ends: W37)
+    for(const [b0, b1] of [[40, 150], [190, 300]]) for(const [s0, s1] of runs(b0, b1, 37)) items.push({ a: (s0 + s1)/2, b: 738, z: 0, solids: [solid(s0, s1, 724, 752, 40, 'bench')], draw: () => {
+      if(s0 < b0 + 1) box(s0, s0 + 6, 728, 748, 0, 34, woodD, woodD, shade(woodD, .85));   // (its seat at 40 -- Sir, 2026-11-20, benches)
+      if(s1 > b1 - 1) box(s1 - 6, s1, 728, 748, 0, 34, woodD, woodD, shade(woodD, .85));
+      box(s0, s1, 726, 750, 34, 40, wood, shade(wood, .92), woodD);                        // (its seat over its ends: W37)
     }});
 
     /* ---- THE RETAIL SHELVES, along the east wall in front of reception: leads, toys, bagged food; a display and the donation box ---- */
