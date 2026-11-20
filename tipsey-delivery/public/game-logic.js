@@ -99708,7 +99708,7 @@ function streetLook(seed, opts){
                        L.uniform = { cap: { c: pick(BRIGHT).c, dk: 0x3a3a3a, top: 0xf6f6f2, badge: 0x1a1a1e, hard: true }, glasses: 0x1a1a1e }; break; }   // the helmet, the shades
     case 'lifeguard':{ L.shirt = { c: 0xf6f6f2, dk: 0xd6d3ca, tank: true }; L.pants = Object.assign({}, _pcol(0xe2483d), { shorts: true }); L.shoe = sk(_pcol(0x3a2e24), 'sandal');
                        L.uniform = { cap: { c: 0xe2483d, dk: 0xb83a30, top: 0xf05a4a, badge: 0xf6f6f2 }, glasses: 0x1a1a1e }; break; }
-    case 'goth': case 'hipster': case 'gangster': case 'sneakerhead': cliqueDress(kind, pr, pick, L, her); break;   // the mall's cliques (MALL_KIDS), on the street too
+    case 'goth': case 'hipster': case 'gangster': case 'sneakerhead': cliqueDress(kind, pr, pick, L, her, seed); break;   // the mall's cliques (MALL_KIDS), on the street too
     case 'postie':   { L.shirt = _pcol(0x8ab4d8); L.pants = Object.assign({}, _pcol(0x26355a), { shorts: pr() < 0.6 }); L.shoe = sk(_pcol(0x1a1a1e), 'boot');
                        L.uniform = { cap: { c: 0x26355a, dk: 0x1b2742, top: 0x2c3d66, badge: 0xe8c96a } }; break; }
     case 'yoga':     { L.shirt = { c: pick(PASTEL).c, dk: pick(PASTEL).dk, tank: true }; L.pants = pick([_pcol(0x1a1a1e), _pcol(0x4a3a5c), _pcol(0x3a4658)]);
@@ -99733,7 +99733,7 @@ function streetLook(seed, opts){
 }
 /* THE CLIQUES' DRESS (from the mall's old look table): the goths in black with a chain and platforms, the hipsters in a
    beanie and glasses, the gangsters in a cap and a gold chain, the sneakerheads in a hood and loud shoes */
-function cliqueDress(kind, pr, pick, L, her){
+function cliqueDress(kind, pr, pick, L, her, seed){
   const P = (c, dk) => ({ c, dk });
   if(kind === 'goth'){
     const black = P(0x1d1b22, 0x131117);
@@ -99758,6 +99758,9 @@ function cliqueDress(kind, pr, pick, L, her){
     Object.assign(L, { shirt: hood, pants: pick([P(0x5a5e66, 0x45484f), P(0x1c1c20, 0x111114)]), hair: pick([0x1a1a1a, 0x3a2b20, 0x6a4a2a]),
       shoe: Object.assign(pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]), { kind: 'sneaker' }),   // (the loud trainers they're named for -- with no kind they came out as sandals, boots: Sir, 2026-11-20, "and sneaker heads?")
       uniform: { hood, cap: pr() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
+    /* SOME WITH A CHAIN (Sir, 2026-11-20: "some of them should wear a chain too some times"): a third of them, gold or silver -- off a roll of
+       its own from the seed, so no look already rolled changes (people kit P20) */
+    { const cr = mulberry32(((seed || 0) ^ 0xc4a1) >>> 0); if(cr() < 0.34) L.uniform.chain = cr() < 0.6 ? 0xe8c15a : 0xc9ccd4; }
   }
 }
 /* A BODY OFF THE ROSTER FOR A ROLE IN A UNIFORM (Sir, 2026-10-24: "pick them all up and run them how everything else
