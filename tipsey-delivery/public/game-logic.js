@@ -59433,15 +59433,15 @@ function houseCanopy(fn){
           if(sb > 0) F(a - 22, a + 22, z0 + 9, z0 + 21, yel, null, 0, b1 + 0.3); } } };
     /* (a pallet on a jack's forks, drawn as the bays' -- Sir, 2026-11-20: "the art is different"): the jack's forks bare, the pallet the room's own
        out in front of it, turned with it, up as the forks lift; queued at its own place (behind the jack facing north or west, in front else) */
-    const onForks = (P, fork, n) => { const fa = Math.cos(P.fdir*Math.PI/2), fb = Math.sin(P.fdir*Math.PI/2), pa = P.a + fa*68, pb = P.b + fb*68, al = Math.abs(fa) > 0.5;
-      return { kind: 'cargo', a: pa, b: pb, cargo: () => palletKit(pa, pb, n, al, 3 + 8*fork) }; };
+    const onForks = (P, fork, n) => { const fa = Math.cos(P.fdir*Math.PI/2), fb = Math.sin(P.fdir*Math.PI/2), pa = P.a + fa*88, pb = P.b + fb*88, al = Math.abs(fa) > 0.5;
+      return { kind: 'cargo', a: pa, b: pb, cargo: () => palletKit(pa, pb, n, al, 8*fork) }; };
     /* THE LINE'S CLOCK: a scooter comes off the line every CYC (at UNL into its cycle); boxed at the table; the conveyor robot takes the box at
        BOX0 after it came off and gives it to the arm robot at BOX1; six to a pallet, so a pallet every 6 CYC */
     const UNL = DWELL*0.5, BOX0 = 5500 + 500, BOX1 = 5500 + 3800 + 0.78*3500, PALT = 6*CYC, PAL0 = UNL + BOX1 + 5*CYC;
     /* (phase 6) THE STORAGE BAYS: two rows either side of an aisle (AY), each worked from the aisle -- the north row's facing north, the south
        row's facing south; pallet p goes into bay p % 6 at 4500 into its cycle and is shipped four cycles on (the shipping jack's lift) */
     const SB = [[1180, 1500], [1360, 1500], [1180, 1700], [1360, 1700], [1540, 1700], [1720, 1700]], AY = 1600;
-    const bayStop = k => SB[k][1] < AY ? [SB[k][0], 1568] : [SB[k][0], 1632];   /* (the pallet 68 ahead of the jack, on its forks, as at Receiving) */
+    const bayStop = k => SB[k][1] < AY ? [SB[k][0], 1588] : [SB[k][0], 1612];   /* (the pallet 88 ahead of the jack, the middle of its forks: hx 55 + 33) */
     const bayHas = (t, k) => { const c = Math.floor((t - PAL0)/PALT); for(let q = c - 5; q <= c; q++){ if(((q % 6) + 6) % 6 !== k) continue;
       const tIn = PAL0 + q*PALT + 4500, tOut = PAL0 + (q + 4)*PALT + 50600; if(t >= tIn && t < tOut) return true; } return false; };    /* THE PARTS PALLET (phase 2): its load about its middle (da along a, db along b, dz up from its deck), the order the Receiver takes it
        off in (top first); the Receiver's window on the jack's clock (RCV_T0..T1) */
@@ -59797,7 +59797,7 @@ function houseCanopy(fn){
         const sx = L*ease(clamp01(k)); for(const g of S){ if(sx <= g.L + g.d || g === S[S.length - 1]){ const u = clamp01((sx - g.L)/g.d), f = Math.atan2(g.B[1] - g.A[1], g.B[0] - g.A[0])/(Math.PI/2) + (g.r ? 2 : 0);
           return { a: g.A[0] + (g.B[0] - g.A[0])*u, b: g.A[1] + (g.B[1] - g.A[1])*u, fdir: f, s: sx }; } }
         const E = pts[pts.length - 1]; return { a: E[0], b: E[1], fdir: 1, s: 0 }; };
-      const A0 = [1720, 1432], STK = [1540, 1568], DOOR = [W + 70, 455], hold = (P, f) => ({ a: P[0], b: P[1], fdir: f, s: 0 });
+      const A0 = [1720, 1412], STK = [1540, 1588], DOOR = [W + 70, 455], hold = (P, f) => ({ a: P[0], b: P[1], fdir: f, s: 0 });
       const into = (k, from) => { const [pa] = SB[k], sp = bayStop(k); return [from, [pa, AY], sp]; };
       const outOf = k => { const [pa] = SB[k], sp = bayStop(k); return [sp, [pa, AY, 'r']]; };
       items.push({ a: 2000, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => {
