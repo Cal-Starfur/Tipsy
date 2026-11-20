@@ -61615,11 +61615,12 @@ function houseCanopy(fn){
        (RBPK). The station's robot goes west along the lane (b 1410) and up to the stop; it comes back by a 620 into its spot; as it leaves,
        the spare rolls in */
     const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RPOD = [430, 850], RBIN = [SROB[0], SROB[1], 31];   /* (RPOD: the empties' rack beside the picker) */
-    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[1280, 1120, 960, 800][k], 1510];
+    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[460, 580, 700, 820][k], 1620];   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
     const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
       const EMP = [ST, [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, [PK[0], RBL], [pa, RBL], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
-      return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin }; };
+      const E0 = (80 + pa - SROB[0])/RBV0 + 400;   /* (the spare sets off once the empty is off the lane, turned up to the stop: never the two on the lane at once) */
+      return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin, E0 }; };
     /* -> the two robots of row B's station 8-k on the goods-to-person clock r */
     const rbBots = (k, r) => { const G = rbGeo(k), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
       let P, kind;
@@ -61628,11 +61629,11 @@ function houseCanopy(fn){
       else if(q < G.tin + 6000 + G.tout){ P = sg(G.RET, (q - G.tin - 6000)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 1 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
-      if(q < 1200) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
-      else if(q < 1200 + G.tent) out.push({ P: sg(G.ENT, (q - 1200)/G.tent), kind: 'full' });
+      if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
+      else if(q < G.E0 + G.tent) out.push({ P: sg(G.ENT, (q - G.E0)/G.tent), kind: 'full' });
       else out.push({ P: null, kind: 'station' });
       return out; };
-    for(let k = 0; k < 4; k++){ const G = rbGeo(k); SUPT[8 - k] = PAL0 + RB0 + G.X + 1200 + G.tent; }   /* (full as the spare rolls in) */
+    for(let k = 0; k < 4; k++){ const G = rbGeo(k); SUPT[8 - k] = PAL0 + RB0 + G.X + G.E0 + G.tent; }   /* (full as the spare rolls in) */
     const runAt = t => { const r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, back = RBT0[4] + RBDW[4];
       if(r >= back) return { s: Math.max(0, 1665 - (r - back)*RBV), stop: -1, done: 4, r };
       for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
