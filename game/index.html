@@ -122673,16 +122673,44 @@ class WorldScene extends Phaser.Scene {
 
     /* ---- the near wheels, over their arches (data.wheelOff: the front one off for work -- the hub left, Palmline Garage's lift) ---- */
     if(!edgeOn) for(const a of wA){ if(data && data.wheelOff && a > 0){ const hp = P(a, nearB*(hw - 1), cz); g.fillStyle(0x3a3e44, 1); g.fillCircle(hp.x, hp.y, 4.5*this.K*0.42); continue; } wheel(a, nearB); }
-    /* ---- data.doorOpen (0..1): THE NEAR FRONT DOOR SWUNG OPEN on its front hinge -- someone getting out or in (Palmline Garage's service cycle):
-       the dark of the cab in its opening, the door out from the flank, its window and handle ---- */
-    if(data && data.doorOpen > 0.01 && !edgeOn){
-      const aH = Math.max(aDoor0, aDoor1), aT = Math.min(aDoor0, aDoor1), dw = aH - aT, ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
-      flank([[aT + 1, H(30)], [aH - 1, H(30)], [aH - 1, H(64)], [aT + 1, H(64)]], 0x23262b);
+    /* ---- data.doorOpen (0..1): THE NEAR FRONT DOOR SWUNG OPEN on its front hinge -- someone getting out or in (Palmline Garage's service cycle).
+       The opening the whole door's, sill to roof: the cab seen in it -- its floor, the far side's inside, the front seat (cushion and back), the
+       steering wheel -- clipped to the opening; then the door out from the flank, whole: its panel to the window line, its window frame and
+       glass up to the roof, the front edge slanting as the windscreen pillar does (Sir, 2026-11-20: "the door you added was only half the door
+       and the inside of the car didnt have any depth") ---- */
+    if(data && data.doorOpen > 0.01 && !edgeOn && B.gh){
+      const GH = B.gh, aH = Math.min(Math.max(aDoor0, aDoor1), GH.f0), aT = Math.max(Math.min(aDoor0, aDoor1), GH.r0 + 4), dw = aH - aT;
+      const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang), bT = nearB*GH.w1, aTop = Math.min(aH - (GH.f0 - GH.f1), aH);
+      /* the opening, on the flank: the panel's part and the window's (the top inset as the glass is) */
+      const op = [P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aTop, bT, GH.top), P(aT, bT, GH.top)];
+      Q(op, 0x4a443e);
+      { const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
+        this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, col, aa); };
+        try {
+          const IN = 0x5c544b, WALL = 0x8a7f72, fl = H(30) - 4, wb = hw - 7;
+          Q([P(aH + 4, -wb, fl), P(aH + 4, wb, fl), P(aT - 30, wb, fl), P(aT - 30, -wb, fl)], IN);                                      // the floor
+          Q([P(aT - 30, -nearB*wb, fl), P(aH + 4, -nearB*wb, fl), P(aH + 4, -nearB*wb, deck), P(aT - 30, -nearB*wb, deck)], WALL);      // the far door's inside
+          Q([P(aT - 30, -nearB*wb, deck), P(aH + 4, -nearB*wb, deck), P(aH + 4, -nearB*wb, GH.top), P(aT - 30, -nearB*wb, GH.top)], 0xa9bcc6);   // and its window, seen through
+          Q([P(aT - 30, -nearB*(wb - 2), deck), P(aH + 4, -nearB*(wb - 2), deck), P(aH + 4, -nearB*(wb - 2), deck + 3), P(aT - 30, -nearB*(wb - 2), deck + 3)], 0x4b5058);   // its sill and window line
+          /* the front seat on the near side: its cushion, then its back */
+          const fs = (aT + aH)/2 - 4, b0 = nearB*4, b1 = nearB*(hw - 9), Zc = fl + 22;
+          solid(prismH([[fs - 10, Math.min(b0, b1)], [fs + 8, Math.min(b0, b1)], [fs + 8, Math.max(b0, b1)], [fs - 10, Math.max(b0, b1)]], fl, Zc), 0xa8977f);
+          solid(prismH([[fs - 14, Math.min(b0, b1)], [fs - 8, Math.min(b0, b1)], [fs - 8, Math.max(b0, b1)], [fs - 14, Math.max(b0, b1)]], fl, deck + 14), 0x96866f);
+          /* the dash, and the steering wheel's rim on it (a ring of quads, clipped as the rest is -- lines are not) */
+          solid(prismH([[aH - 2, -wb], [aH + 6, -wb], [aH + 6, wb], [aH - 2, wb]], deck - 10, deck + 2), 0x3c3f45);
+          const bc = nearB*(hw - 5)/2, aW = aH - 7, hW = deck + 6;
+          for(let k = 0; k < 12; k++){ const p0 = k/12*Math.PI*2, p1 = (k + 1)/12*Math.PI*2, r0 = 7, r1 = 5.2;
+            Q([P(aW, bc + Math.cos(p0)*r0, hW + Math.sin(p0)*r0), P(aW, bc + Math.cos(p1)*r0, hW + Math.sin(p1)*r0), P(aW, bc + Math.cos(p1)*r1, hW + Math.sin(p1)*r1), P(aW, bc + Math.cos(p0)*r1, hW + Math.sin(p0)*r1)], 0x232528); }
+        } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; } }
+      /* the door, swung: u along it from its front hinge, out from the flank */
       const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
-      Q([D(0, H(29)), D(dw, H(29)), D(dw, H(65)), D(0, H(65))], col.body);
-      Q([D(4, H(50)), D(dw - 3, H(50)), D(dw - 3, H(63)), D(4, H(63))], 0x5a6f7a);
-      Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);
-      Q([D(dw, H(29)), D(dw, H(65)), D(dw, H(65), -2.5), D(dw, H(29), -2.5)], col.bodyDk);
+      const uTop = aH - aTop;                                                                     // (its window's front edge at the roof, set back by the pillar's slant)
+      Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to window line
+      Q([D(0, deck), D(dw, deck), D(dw, GH.top), D(uTop, GH.top)], col.body);                       // the window frame
+      Q([D(2.5, deck + 1.5), D(dw - 2.5, deck + 1.5), D(dw - 2.5, GH.top - 2.5), D(uTop + 2.5, GH.top - 2.5)], 0x7f98a6);   // its glass
+      Q([D(3, deck + 3, 0.1), D(dw*0.45, deck + 3, 0.1), D(dw*0.3, GH.top - 3.5, 0.1), D(uTop + 3, GH.top - 3.5, 0.1)], 0x9fb4c0);   // a glint
+      Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
+      Q([D(dw, H(29)), D(dw, GH.top), D(dw, GH.top, -2.5), D(dw, H(29), -2.5)], col.bodyDk);       // its rear edge, its thickness
     }
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
