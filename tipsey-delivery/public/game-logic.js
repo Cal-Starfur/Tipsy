@@ -121087,6 +121087,7 @@ class WorldScene extends Phaser.Scene {
       const own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
       this.quadOn = (gg, pts, cl, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, cl, aa); };
       try {
+        prevQ.call(this, g, hull, 0x5f5850);                                                                     // (the cab's own dark first, the whole pane: nothing of the world behind the car shows through its glass)
         const WALL = 0x8a7f72, fl = H(30) - 10, Zc = fl + 14, wb = hw - 7, fb2 = -nearB*wb;
         const far = [[GH.f0, -nearB*GH.w0, deck], [GH.r0, -nearB*GH.w0, GH.hr0 || deck], [GH.r1, -nearB*GH.w1, GH.top], [GH.f1, -nearB*GH.w1, GH.top]];
         Q([P(GH.r0, fb2, fl), P(GH.f0, fb2, fl), P(GH.f0, fb2, deck), P(GH.r0, fb2, GH.hr0 || deck)], WALL);              // the far side's inside
