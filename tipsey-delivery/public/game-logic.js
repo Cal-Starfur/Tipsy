@@ -59451,7 +59451,9 @@ function houseCanopy(fn){
        the part he fits -- the rear wheel, the front fork, the deck, the stem, the bars, the lamps -- turned to it, crouched or bent over to it,
        his hands on it (each arm aimed at its own point on the scooter: hP), and working it in the job's own rhythm. The scooter: along a, its
        front west; a local x is a0 + x*1.45, its height JZ + h*1.45. -> { at (where he stands), f, lift, bend, waist, drop, legs } */
-    const SK = (a0, b0, x, y, h) => [a0 + x*1.45, b0 + y*1.45, JZ + h*1.45];
+    /* (a point on the scooter, given in the old model's terms (prod: x along it, front west, h up) and put where the game's own scooter has
+       it -- its wheels at +-26, deck at 12 over the jig's top (36), the post up to the bars 18 ahead of its middle at about 77) */
+    const SK = (a0, b0, x, y, h) => { const up = h > 20, hz = h <= 16 ? h*0.78 : 12 + (h - 16)*1.3; return [a0 + (up && x < -20 ? -18 : x), b0 + y*1.45, 36 + hz]; };
     const hP = (at, f, T1, T2, crouch, waist) => { const LH = HUMANOID_BUILD.legH, drop = LH*crouch, Ls = 42, hp = LH - drop, fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
       const shz = hp + Ls*Math.cos(waist), shf = Ls*Math.sin(waist), arm = T => { const fwd = Math.max(2, (T[0] - at[0])*fv[0] + (T[1] - at[1])*fv[1] - shf), dz = T[2] - shz, th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz);
         return [Math.max(0, (th - waist)/(Math.PI/2)), Math.max(0, Math.min(0.95, (40 - d)/40*1.7))]; };
@@ -59526,6 +59528,9 @@ function houseCanopy(fn){
        scooter, one colour, on every robot; and out of the end of the line, a box, a pallet, distribution -- all on the line's one clock */
     const PCOL = '#2e8bd8', BXC = '#c98a4a', BXL = 100, BXW = 30, BXH = 30;
     /* the scooter folded (its stem down along its deck): what goes in the box */
+    /* THE SCOOTER THE LINE BUILDS: the game's own (drawScooterRider, the stock build in Cratewell's blue), part-built stage by stage; along a,
+       its front west */
+    const CWS = { name: 'Cratewell', c: 0x2e8bd8, cDk: 0x1f6aa8 }, SCO = (a, b, z, st, dd) => ({ kind: 'scooter', a, b, z, th: Math.PI/2, stage: st >= 8 ? null : st, brand: CWS, dd: dd || 3 });
     const folded = (a, b, z) => { prod(a, b, z, PCOL, false, 3, 0); tube(a - 35, b, z + 22, a + 30, b, z + 26, 2.6, PCOL); tube(a - 37, b - 20, z + 22, a - 37, b + 20, z + 22, 2.3, dark); };
     /* a boxed scooter, its long side along a (or b): taped, the Cratewell label on its side */
     const carton = (a, b, z, alongB, h) => { const la = alongB ? BXW/2 : BXL/2, lb = alongB ? BXL/2 : BXW/2, z1 = z + (h == null ? BXH : h);
@@ -59690,13 +59695,13 @@ function houseCanopy(fn){
       const KP = 1.0, zf = z + 6;   /* (sitting up at the rim, showing over it) */
       for(let i = 0; i < n; i++){ const pa = a - 5 + i*10, pb = b - 4 + i*8;
         switch(p){
-          case 1: wheel(pa, b, zf + 8*KP, 8*KP, '#3a3f46'); break;   /* (stage 1: the rear wheel, wh(26, 8)) */
-          case 2: wheel(pa, b, zf + 8*KP, 8*KP, null); tube(pa, b, zf + 8*KP, pa + 2*KP, b, zf + 14*KP, 1.6*KP, steelS); break;   /* (stage 2: the front wheel and its fork) */
-          case 3: box(a - 19*KP, a + 19*KP, pb - 5.5*KP, pb + 5.5*KP, zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#1d1f23', '#16171b', '#121316'); break;   /* (stage 3: the grip tape) */
+          case 1: wheel(pa, b, zf + 7*KP, 7*KP, '#24262c'); break;   /* (stage 1: the rear wheel -- RIDER.wheelR, SCOOT.wheel) */
+          case 2: wheel(pa, b, zf + 7*KP, 7*KP, '#24262c'); tube(pa, b, zf + 7*KP, pa + 2*KP, b, zf + 16*KP, 1.8*KP, '#9aa3ad'); break;   /* (stage 2: the front wheel and its fork, SCOOT.metal) */
+          case 3: box(a - 19*KP, a + 19*KP, pb - 5.5*KP, pb + 5.5*KP, zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#3d424c', '#34383f', '#2b2f35'); break;   /* (stage 3: the grip tape, SCOOT.grip) */
           case 4: tube(a - 26*KP, pb, zf + 12, a + 26*KP, pb, zf + 13, 1.8*KP, PCOL); break;   /* (stage 4: the stem, in the frame's colour) */
-          case 5: tube(pa, b - 15*KP, zf + 12, pa, b + 15*KP, zf + 12, 1.6*KP, dark); break;   /* (stage 5: the bars) */
-          case 6: for(const e of [-1, 1]) tube(pa, b + e*3, zf + 12, pa, b + e*3 + e*4*KP, zf + 12, 2.2*KP, '#16171b'); break;   /* (stage 6: a pair of grips) */
-          case 7: ball(pa, b - 3, zf + 13, 2.6*KP, '#8d959c', '#b9c0c6'); box(pa - 1.5*KP, pa + 1.5*KP, b + 3, b + 3 + 6*KP, zf + 10, zf + 10 + 3*KP, '#7a2a24', '#6a2420', '#5a1e1a'); break;   /* (stage 7: the head lamp and the tail light, unlit) */
+          case 5: tube(pa, b - 11, zf + 12, pa, b + 11, zf + 12, 2.6*0.6, '#9aa3ad'); break;   /* (stage 5: the bars, SCOOT.metal) */
+          case 6: for(const e of [-1, 1]) tube(pa, b + e*2, zf + 12, pa, b + e*2 + e*7, zf + 12, 3.6*0.6, '#3d424c'); break;   /* (stage 6: a pair of grips, SCOOT.grip) */
+          case 7: ball(pa, b - 3, zf + 13, 2.6*KP, '#2a2f36', '#fff3c4'); box(pa - 1.5*KP, pa + 1.5*KP, b + 3, b + 3 + 6*KP, zf + 10, zf + 10 + 3*KP, '#e03a2f', '#c4322a', '#a82a23'); break;   /* (stage 7: the head lamp and the tail light) */
           case 8: box(pa - 3, pa + 3, b - 4, b + 4, zf + 11, zf + 12, '#f6f4ee', '#e0ddd4', '#c9c5ba'); box(pa - 2, pa + 2, b - 1, b + 1, zf + 12, zf + 12.2, '#3fd06a'); break;   /* (stage 8 fits no part -- the test: its pass tags) */
           default: box(pa - 2.4, pa + 2.4, b - 3, b + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); } }
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
@@ -59731,7 +59736,7 @@ function houseCanopy(fn){
         const col = PCOL, eb = false;
         /* (a stage is done half way through the stand: loaded at the first stop, lifted off at the last) */
         const st = u < DWELL*0.5 ? (p ? STAGE[p - 1] : -1) : STAGE[p], gone = p === NPOS - 1 && u >= DWELL*0.5;
-        out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); if(st >= 0 && !gone) prod(a, b, JZ, col, eb, st, tt); } }));
+        out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); } })); if(st >= 0 && !gone) out.push(SCO(a, b, 36, st, 4));
       }
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
@@ -59743,7 +59748,7 @@ function houseCanopy(fn){
           const pose = age < 2500 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 6000 ? WORK(t + p*700) : age >= 8200 ? REACH(t + p*500) : {};
           out.push(man(PK[0], PK[1], f, Object.assign(pose, age >= 2500 && age < 6000 ? { waist: 0.35 } : {})));
           if(age < 2500){ const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PK[0] + fa*30, hb = PK[1] + fb*30;
-            out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => { if(age < 1500) prod(ha, hb, 22, PCOL, false, 8, tt); else folded(ha, hb, 30); } }); }
+            if(age < 1500) out.push(SCO(ha, hb, 30, 8, 2)); else out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => folded(ha, hb, 30) }); }
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
@@ -59756,7 +59761,7 @@ function houseCanopy(fn){
       }
       /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
-          out.push({ kind: 'cargo', a: ha, b: hb, dd: 1, cargo: () => prod(ha, hb, 44, PCOL, false, 0, 0) }); } }
+          out.push(SCO(ha, hb, 40, 0, 1)); } }
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
@@ -118993,7 +118998,11 @@ class WorldScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 1);
       for(let i = 0; i < 16; i++){ const u = ((i*0.618034) % 1)*0.96 + 0.02, v = (((i*0.7548777) % 1) - 0.5)*2*(M - 0.8), q = at(u, v); g.fillCircle(q.x, q.y, (i % 3 === 0 ? 0.9 : 0.55)*this.K*0.42*1.4); } }
   }
-  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni){
+  drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni, stage){
+    /* (stage: the scooter part-built, as Cratewell Works' line builds it -- 0 the deck alone, 1 + the rear wheel, 2 + the front wheel and fork,
+       3 + the grip tape, 4 + the stem, 5 + the bars, 6 + the grips, 7 + the lamps; none: the whole scooter. Sir, 2026-11-20: "build the actual
+       in-game scooter") */
+    const ST = stage == null ? 9 : stage;
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
     const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, prismB, oct, loftSeg, line, wheel } = KV;
     /* (the builds' shapes are SIDE profiles swept across, as their garage cards are drawn -- Sir, 2026-11-15, "the little drawings for the
@@ -119055,12 +119064,12 @@ class WorldScene extends Phaser.Scene {
       const M = [A[0] + (B[0] - A[0])*0.45, sb*w, A[2] + (B[2] - A[2])*0.45]; line(A, M, 0xe4e8ec, 2.8); line(M, B, 0xd8a03a, 4.6); line([M[0], sb*w, M[2] - 0.2], [M[0], sb*w, M[2] + 1], 0x2a2f36, 5); };   // (gold fork tubes, chrome sliders, a dark seal)
     const fU0 = Math.max(0.2, Math.asin(Math.max(-1, Math.min(1, (RD - WHL[0][1])/(WHL[0][1] + 3)))));     // (fz: the top of the back tyre; hb: where each hand is across, the shoulders')
     const vHas = k => k === 'mirrors' && sty === 'vintage' && brand.paint === 'mod';         // (the Mod Target's mirrors)
-    if(hasFork) forkLeg(KV.sees(0, 1, 0) ? -1 : 1);                                         // (the far fork leg, under the wheels)
+    if(hasFork && ST >= 2) forkLeg(KV.sees(0, 1, 0) ? -1 : 1);                                         // (the far fork leg, under the wheels)
     if(sty === 'robo'){                                                                         // the glow on the ground under it, and its two thrusters
       const gl = (brand.up && brand.up.glow && GSC_UP.glow[brand.up.glow]) || brand.glow || 0x5ee8d8, c = P(0, 0, 0.5); g.fillStyle(gl, 0.28); g.fillEllipse(c.x, c.y, 70*this.K*0.42*1.4, 24*this.K*0.42*1.4);   // (a skin's own glow: GSC_LIVERY)
       g.fillStyle(0xffffff, 0.22); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4); g.fillStyle(gl, 0.25); g.fillEllipse(c.x, c.y, 40*this.K*0.42*1.4, 13*this.K*0.42*1.4);
       for(const a of [-18, 18]) solid(prismH([[a - 5, -4.5], [a + 5, -4.5], [a + 5, 4.5], [a - 5, 4.5]], RD - 9, RD - 4), 0x2a2f36, (k, n) => n[2] < -0.5 ? gl : 0x2a2f36); }
-    else for(const [a0, r, wd0] of WHL){
+    else for(const [a0, r, wd0] of WHL){ if((a0 < 0 ? 1 : 2) > ST) continue;
       /* ITS WHEELS (GSC_WH, Sir 2026-11-16, "rims and wheel packages"): a rim style, a rim colour, a tyre -- 'stock' keeps the build's own */
       const WH = brand.wh, knobby = WH && (WH.tyre === 'knobby' || WH.tyre === 'allterrain') || sty === 'offroad' && !(WH && WH.tyre !== 'stock'), fine = WH && WH.tyre === 'allterrain', wd = WH && WH.tyre === 'fat' ? wd0*1.6 : WH && WH.tyre === 'slick' ? wd0*0.8 : wd0;
       /* its knobbly tread (Sir, 2026-11-16): a toothed outline on both faces of the tyre, drawn BEFORE it so the tyre covers all but the
@@ -119080,7 +119089,7 @@ class WorldScene extends Phaser.Scene {
     if(brand.up && brand.up.motor && wheeled) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0];   // the Speed Motor in the back wheel's hub
       const disc = (rr, col) => { const o = []; for(let i = 0; i < 14; i++){ const w = i/14*Math.PI*2; o.push(P(a0 + Math.cos(w)*rr, sb*(wd/2 + 0.35), r + Math.sin(w)*rr)); } g.fillStyle(col, 1); g.fillPoints(o, true); };
       disc(r*0.56, acc0); disc(r*0.44, 0x1c1d20); disc(r*0.16, 0x9aa2a8); }
-    if(wheeled && sty !== 'offroad' && sty !== 'vintage')                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
+    if(wheeled && sty !== 'offroad' && sty !== 'vintage' && ST >= 1)                                      // the swingarm from the deck's tail back to the rear axle, on the seen side, outside the tyre (Sir, 2026-11-15)
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
         line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
         const h = P(a0, b, r); g.fillStyle(0x9aa2a8, 1); g.fillCircle(h.x, h.y, 1.4*this.K*0.42*1.4); }
@@ -119126,7 +119135,7 @@ class WorldScene extends Phaser.Scene {
       else if(sty === 'junk' || scrap){ if(brand.paint) this.junkDeck(g, P, KV, solid, prismH, prismB, oct, loftSeg, line, brand.paint, DB, DF, RD);   // a skin's deck: the scrap itself, shaped as it is
         else solid(prismH(plan, RD - 6, RD), 0xa77b4a, (k, n) => n[2] > 0.9 ? 0x8f6639 : (n[2] < -0.5 ? 0x6e4e2c : 0xa77b4a)); }   // a crate for a deck   // a crate for a deck
       else solid(prismH(plan, sty === 'rocket' ? RD - 7 : RD - 4, RD), brand.c,
-        (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : SCOOT.grip) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
+        (k, n) => n[2] > 0.9 ? (sty === 'cruiser' ? 0xb5834f : ST >= 3 ? SCOOT.grip : brand.c) : (n[2] < -0.5 ? brand.cDk : brand.c)); }
     if(sty === 'junk'){                                                                         // the crate's slats, a patch on top (the accent) and one on the side (the body colour)
       if(!brand.paint){ for(let a = DB + 4; a < DF - 2; a += 9) line([a, -6.6, RD + 0.1], [a, 6.6, RD + 0.1], 0x6e4e2c, 0.9);   // (a skin's deck is its own scrap)
         for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) for(const h of [RD - 2, RD - 4]) line([DB, sb*7.05, h], [DF, sb*7.05, h], 0x6e4e2c, 0.8);
@@ -119184,7 +119193,7 @@ class WorldScene extends Phaser.Scene {
       if(sty === 'offroad'){ const r = WHL[0][1], hc = r + 6.8;                               // the Off-Road's back fender matches its front: as skinny, raised as high (Sir, 2026-11-16)
         const band = arcPts(WHL[0][0], hc, r + 4.6, r + 4.6, 0.12, Math.PI - 0.1, 12).concat(arcPts(WHL[0][0], hc, r + 3, r + 3, Math.PI - 0.1, 0.12, 12)), qq = prismB(band, -3.4, 3.4);
         solid(qq.raw ? qq.raw() : qq, cF, (k, nn) => nn[2] < -0.3 ? brand.cDk : cF); }
-    else
+    else if(ST >= 1)
       fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, sty === 'junk' ? acc0 : brand.acc != null ? cF : brand.cDk);   // (an arc centred on the back wheel -- it was a flat pad hovering off-centre, Sir 2026-11-15)   // the rear fender (an accented one's in its body colour: Gideon's white -- Sir, 2026-11-15, "the tail should be white too")
     if(sty === 'offroad' && brand.paint){ const lv = GSC_LIVERY[brand.paint] || {};             // a skin's side number plates over the back wheel
       /* (mounted up under the raised back fender, just outside its sides -- Sir, 2026-11-16) */
@@ -119193,7 +119202,7 @@ class WorldScene extends Phaser.Scene {
         this.numberPlate(g, (x, y) => P(-23.4 + sb*x*0.95, sb*4.25, hp + y), 5.4, 3.4, lv.plate, lv.num, lv.digit); } }
     if(wheeled && sty !== 'vintage' && sty !== 'racer'){ const [a0, r, wd] = WHL[0], hc = sty === 'offroad' ? r + 6.8 : r, R0 = r + 3.05, hw = sty === 'offroad' ? 3.4 : wd/2 + 1.5;   // (Metal flake on the back fender)
       flake([0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0].map((u, i) => [a0 + R0*Math.cos(u), nearSb*hw*(i % 2 ? 0.2 : 0.75), hc + R0*Math.sin(u)]), 0.7); }
-    if(sty !== 'rocket' && sty !== 'racer'){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'junk' ? P(DB - 0.4, 0, RD - 2.5) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
+    if(sty !== 'rocket' && sty !== 'racer' && ST >= 7){ const tl = sty === 'vintage' ? P(-R.wheelA - 12.5, 0, RD + 6) : sty === 'robo' ? P(-31.5, 0, RD - 2) : sty === 'junk' ? P(DB - 0.4, 0, RD - 2.5) : sty === 'offroad' ? P(WHL[0][0] - (WHL[0][1] + 4.9)*Math.cos(0.5), 0, WHL[0][1] + 6.8 + (WHL[0][1] + 4.9)*Math.sin(0.5)) : P(WHL[0][0] - (WHL[0][1] + 3.3)*Math.cos(0.45), 0, WHL[0][1] + (WHL[0][1] + 2)*Math.sin(0.45));
       g.fillStyle(0xe03a2f, 1); g.fillCircle(tl.x, tl.y, 1.6*this.K*0.42*1.4); }
     const tail = () => {                                                                        // the tall pieces at the back
       if(sty === 'racer'){                                                                      // the spoiler: a thin blade, raked up at its trailing edge, wider than the scooter,
@@ -119251,12 +119260,13 @@ class WorldScene extends Phaser.Scene {
       const covered = sty === 'cruiser' || sty === 'racer' || sty === 'vintage';            // (a fender or fairing over the front tyre: the stem rises out of its top)
       const tyreTop = forkTop;                     // (the Off-Road's: over its high fender)
       const zTop = sty === 'cruiser' ? WR*2 + 3 : sty === 'racer' ? RD + 12 : sty === 'vintage' ? RD + 26 : sty === 'rocket' ? RD - 1 : wheeled ? tyreTop : RD;
-      if(wheeled && !covered){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
+      if(wheeled && !covered && ST >= 2){ const q = stemAt(kAt(tyreTop)), w = WHL[1][2]/2 + 0.9;        // the fork either side of the tyre, and the neck from the deck's nose up over the tyre
         line([DF - 1, 0, RD - 1.5], q, stemCol, 4.5);
         if(sty === 'offroad'){ const r = WHL[1][1], hc = forkTop - r - 5.2;   // its motocross front fender: the full wrap, raised whole up to the fork crown (Sir, 2026-11-16, "move the whole thing up")
           const band = arcPts(SA, hc, r + 4.6, r + 4.6, 0.1, Math.PI - 0.12, 12).concat(arcPts(SA, hc, r + 3, r + 3, Math.PI - 0.12, 0.1, 12)), qq = prismB(band, -3.4, 3.4), F = qq.raw ? qq.raw() : qq;
           solid(F, cF, (k, nn) => nn[2] < -0.3 ? brand.cDk : cF); }
         forkLeg(KV.sees(0, 1, 0) ? 1 : -1); }                                                 // (the near one, over them)
+      if(ST < 4) return;
       line(stemAt(kAt(zTop)), [barA, 0, barH], stemCol, sty === 'junk' ? 4.5 : 6);
       flake([0.22, 0.34, 0.46, 0.58, 0.7, 0.82, 0.92].map(k => stemAt(Math.max(k, kAt(zTop)))), 0.7);   // (Metal flake up the post)
       if(sty === 'junk') line(stemAt(0.42), stemAt(0.52), 0xb9bec4, 7);                       // a wrap of duct tape round it
@@ -119276,7 +119286,9 @@ class WorldScene extends Phaser.Scene {
               const A = P(barA - 1, sb2, barH + 12), B = P(barA - 1, sb2, barH + 7.5), C = P(barA - 8, sb2, barH + 9.8); g.fillStyle(TIP.flag != null ? TIP.flag : 0xff5722, 1); g.fillTriangle(A.x, A.y, B.x, B.y, C.x, C.y); } }
           else { const sb2 = hb + 5.5; line([barA, sb2, barH], [barA, sb2, barH + 3], 0x2a2f36, 1.4); if(typeof this.botTopper === "function") this.botTopper(g, { P, sees: KV.sees }, barA, sb2, barH + 3, 0.55); }   // (out on the bar's end, as the flags -- Sir, 2026-11-16)
         } finally { Object.assign(SKIN, keep); } }
+      if(ST < 5) return;
       line([barA, -hb - 6, barH], [barA, hb + 6, barH], sty === 'junk' ? 0x8a8f96 : SCOOT.metal, sty === 'junk' ? 3.4 : 2.6);
+      if(ST < 6) return;
       for(const sb of [-1, 1]) line([barA, sb*(hb - 3), barH], [barA, sb*(hb + 6), barH], SCOOT.grip, 3.6);
       if(sty === 'offroad' && brand.paint){ const c = stemAt(kAt(barH - 8)), lv = GSC_LIVERY[brand.paint] || {}, fr = KV.sees(1, 0, 0);   // a skin's front number plate on the stem (motocross)
         this.numberPlate(g, (x, y) => P(c[0] + 1.6, -x, c[2] + y), 5, 4.2, fr ? lv.plate : 0x2a2f36, fr ? lv.num : null, lv.digit); }
@@ -119296,6 +119308,7 @@ class WorldScene extends Phaser.Scene {
           for(const sb of [-1, 1]) mirror(sa, sb*(w - 3), sz, sb*w, sz + up, r); }
         for(const sb of [-1, 1]) mirror(barA, sb*(hb + 4), barH, sb*(hb + 12), barH + 19, 6); }
       if(sty === 'offroad' && brand.paint) return;                                             // (its number plate where the lamp was)
+      if(ST < 7) return;
       const hp = P(barA + 2, 0, barH - 10), hr = (sty === 'vintage' ? 2.2 : 1)*(brand.up && brand.up.light ? 1.7 : 1);   // (the Headlight: a big lamp)               // (the Vintage's big chrome headlamp)
       g.fillStyle(sty === 'vintage' ? 0xc9ced3 : 0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 2.4*hr*this.K*0.42*1.4);
       g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.5*hr*this.K*0.42*1.4);
@@ -120774,6 +120787,7 @@ class WorldScene extends Phaser.Scene {
       if(sv){ for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k]; Object.assign(SKIN, SKIN_BASE, { bSkin: m.bSkin, build: m.build || null }); }
       try { this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, Object.assign({}, m.data || {}, sv ? { paint: true } : {})); }
       finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
+    if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Cratewell's line) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
       try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, crew: true }); } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
