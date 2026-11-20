@@ -45725,23 +45725,29 @@ const LIB = (function(){
     'Tidewater Tea House Interior': [[/^brewing counter$/, 88, 75], [/^tea bar$/, 88, 75]],
     'Marina Deli Interior': [[/^back counter$/, 90, 75], [/^till$/, 88, 75]],
     'Sun Deck Airfield Terminal Interior': [[/^cafe counter$/, 84, 75], [/^cafe back bar$/, 90, 75]],
-    'Vista Ridge Security Post Monitor Room': [[/^counter$/, 88, 75]],
     /* CHAIRS (Sir, 2026-11-20: "standardize the kids chairs at 28, and standardize the adult chairs at 38"): the seat's top, the same way --
        the legs and base scaled, the seat, its back and arms moved with it (the sitters' seats moved to match: PS_SEATS, BK_SEATS, ...) */
-    'Ferris Taylor Cottage Interior': [[/^chair$/, 26, 38], [/^armchair$/, 28, 38]],
+    'Ferris Taylor Cottage Interior': [[/^chair$/, 26, 38], [/^armchair$/, 28, 38], [/^table$/, 56, 60]],
     'Driftwood Books Interior': [[/^counter$/, 88, 75], [/^armchair$/, 30, 38]],
-    'Sun Deck Motor Lodge Office': [[/^chair$/, 30, 38]],
-    'Lagoon Coffee Roasters Interior': [[/^bar$/, 93, 75], [/^back bar$/, 90, 75], [/^chair$/, 33, 38]],
-    'Sandpiper Bakery Interior': [[/^chair$/, 33, 38]],
+    'Sun Deck Motor Lodge Office': [[/^chair$/, 30, 38], [/^desk$/, 50, 60, s => s.h <= 50], [/^desk$/, 70, 66, s => s.h > 50]],
+    'Lagoon Coffee Roasters Interior': [[/^bar$/, 93, 75], [/^back bar$/, 90, 75], [/^chair$/, 33, 38], [/^table$/, 76, 66]],
+    'Sandpiper Bakery Interior': [[/^chair$/, 33, 38], [/^table$/, 76, 66]],
     'Marina Optical Interior': [[/^chair$/, 34, 38]],
     'Palmline Garage Interior': [[/^counter$/, 96, 75], [/^chair$/, 36, 38]],
-    'Palmline Savings Interior': [[/^tellers' counter$/, 104, 75], [/^chair$/, 46, 38], [/^armchair$/, 34, 38]],
-    'Tide Pool Elementary Interior': [[/^serving counter$/, 48, 65], [/^counter$/, 52, 65], [/^chair$/, 27, 28]]
+    'Palmline Savings Interior': [[/^tellers' counter$/, 104, 75], [/^chair$/, 46, 38], [/^armchair$/, 34, 38], [/^desk$/, 76, 66]],
+    'Tide Pool Elementary Interior': [[/^serving counter$/, 48, 65], [/^counter$/, 52, 65], [/^chair$/, 27, 28], [/^teacher desk$/, 48, 60],
+      [/^desk$/, 52, 60, s => s.h === 52], [/^desk$/, 48, 60, s => s.h === 54], [/^desk$/, 56, 60, s => s.h === 60 && s.poly && Math.min(...s.poly.map(p => p[1])) >= 80],
+      [/^desk$/, 50, 60, s => s.h === 60 && s.poly && Math.min(...s.poly.map(p => p[1])) < 80]],
+    /* TABLES AND DESKS one sits at: 60..66 against a 38 seat (Sir, 2026-11-20: "i think do 60-66") */
+    'Lagoon Baths Interior': [[/^desk$/, 78, 66]],
+    'Lagoon Market Hall Interior': [[/^table$/, 55, 60]],
+    'KTDE 98.1 The Tide Studios': [[/^desk$/, 72, 66, s => s.h === 72], [/^desk$/, 74, 66, s => s.h === 74]],
+    'Vista Ridge Security Post Monitor Room': [[/^counter$/, 88, 75], [/^desk$/, 75, 66]]
   };
   function counterFitMark(name, items){
     const F = COUNTER_FIT[name]; if(!F || !items) return;
     const rects = [];
-    for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name || !(s.poly || s.c)) continue; const f = F.find(q => q[0].test(s.name)); if(!f) continue;
+    for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name || !(s.poly || s.c)) continue; const f = F.find(q => q[0].test(s.name) && (!q[3] || q[3](s))); if(!f) continue;
       let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
       if(s.poly) for(const [a, b] of s.poly){ a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
       else { a0 = s.c[0] - s.r; a1 = s.c[0] + s.r; b0 = s.c[1] - s.r; b1 = s.c[1] + s.r; }

@@ -30,6 +30,9 @@ counters' solid names, the top it was drawn to and the top it is drawn to now --
 **Chairs: an adult's seat at 38, a child's at 28** (Sir, 2026-11-20), the sitter's seat (`*_SEATS` z, `sit`) a little under it (35 on
 38). Old chairs are brought to it through the same `COUNTER_FIT` table.
 
+**Tables and desks one sits at: 60 to 66** (Sir, 2026-11-20), against a 38 seat; low and coffee tables, a child's desk, a bar-height
+table with stools and a standing work table are their own kinds. Old ones brought in by `COUNTER_FIT`.
+
 **Hunting inconsistencies:** `node tools/review/consistency.js [room]` measures every walk-in room's fixtures by kind (chairs, stools,
 benches, sofas, tables, desks, counters, workbenches, shelves, cabinets, lockers, beds -- by what their solids are called) and lists the
 ones well off their kind's typical size; the typical sizes go into `library.json` (`fixtures`). A review list, not a gate: a low table or
