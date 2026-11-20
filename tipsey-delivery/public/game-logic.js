@@ -59685,17 +59685,19 @@ function houseCanopy(fn){
     const partTotes = (a, b, n, col, p) => { for(const j of [-1, 0, 1]) partTote(a + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col, p); };   /* (a station's three, two parts each) */
     const partTote = (a, b, z, alongB, n, col, p) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
       box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, c, shade(c, .85), shade(c, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 17.1, shade(c, .4));
-      /* (what the station fits, not a generic part -- Sir, 2026-11-20: "I want the bins to hold the parts these stations actually add") */
-      for(let i = 0; i < n; i++){ const pa = a - 5 + i*10, pb = b - 4 + i*8, zz = z + 6, z1 = zz + 12;
+      /* (what the station fits -- the very piece prod() draws on the scooter at that stage, its sizes, widths and colours, at KP of the
+         scooter's own scale, laid in the bin; Sir, 2026-11-20: "make sure these are the same as the parts from the actual scooter") */
+      const KP = 1.0, zf = z + 6;   /* (sitting up at the rim, showing over it) */
+      for(let i = 0; i < n; i++){ const pa = a - 5 + i*10, pb = b - 4 + i*8;
         switch(p){
-          case 1: wheel(pa, b, zz + 15, 6.5, '#2b2f35'); break;   /* (rear wheels, stood on edge) */
-          case 2: wheel(pa, b, zz + 15, 6.5, '#2b2f35'); tube(pa, b, zz + 15, pa - 2, b, zz + 25, 1.2, '#8d959c'); break;   /* (front wheels in their forks) */
-          case 3: box(a - 9, a + 9, b - 8, b + 8, z1 + i*1.6, z1 + 1.2 + i*1.6, '#1d1f23', '#16171b', '#121316'); break;   /* (grip tape sheets, a stack) */
-          case 4: tube(a - 10, pb, zz + 16, a + 10, pb, zz + 20, 1.8, PCOL); break;   /* (stems, laid in) */
-          case 5: tube(pa, b - 10, zz + 18, pa, b + 10, zz + 18, 1.4, '#2b2f35'); for(const e of [-1, 1]) tube(pa, b + e*7, zz + 18, pa, b + e*10, zz + 18, 2.2, '#16171b'); break;   /* (handlebars) */
-          case 6: for(const e of [-1, 1]) box(pa - 2, pa + 2, b + e*4 - 3, b + e*4 + 3, z1, z1 + 9, '#16171b', '#121316', '#0e0f11'); box(pa - 1, pa + 1, b - 6, b + 6, z1 + 9, z1 + 10, '#8d959c'); break;   /* (grips and a brake lever) */
-          case 7: ball(pa, b - 4, zz + 18, 3, '#fff6c0', '#ffffff'); box(pa - 1.5, pa + 1.5, b + 2, b + 7, z1 + 3, z1 + 7, '#d4301f', '#b02818', '#901f12'); break;   /* (a head lamp and a tail light) */
-          case 8: box(a - 8, a + 8, pb - 3, pb + 3, z1, z1 + 7, '#3a3f46', '#2b2f35', '#22262b'); box(a + 3, a + 6, pb - 3.2, pb + 3.2, z1 + 5, z1 + 6, '#3fd06a'); break;   /* (battery packs, fitted at test) */
+          case 1: wheel(pa, b, zf + 8*KP, 8*KP, '#3a3f46'); break;   /* (stage 1: the rear wheel, wh(26, 8)) */
+          case 2: wheel(pa, b, zf + 8*KP, 8*KP, null); tube(pa, b, zf + 8*KP, pa + 2*KP, b, zf + 14*KP, 1.6*KP, steelS); break;   /* (stage 2: the front wheel and its fork) */
+          case 3: box(a - 19*KP, a + 19*KP, pb - 5.5*KP, pb + 5.5*KP, zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#1d1f23', '#16171b', '#121316'); break;   /* (stage 3: the grip tape) */
+          case 4: tube(a - 26*KP, pb, zf + 12, a + 26*KP, pb, zf + 13, 1.8*KP, PCOL); break;   /* (stage 4: the stem, in the frame's colour) */
+          case 5: tube(pa, b - 15*KP, zf + 12, pa, b + 15*KP, zf + 12, 1.6*KP, dark); break;   /* (stage 5: the bars) */
+          case 6: for(const e of [-1, 1]) tube(pa, b + e*3, zf + 12, pa, b + e*3 + e*4*KP, zf + 12, 2.2*KP, '#16171b'); break;   /* (stage 6: a pair of grips) */
+          case 7: ball(pa, b - 3, zf + 13, 2.6*KP, '#8d959c', '#b9c0c6'); box(pa - 1.5*KP, pa + 1.5*KP, b + 3, b + 3 + 6*KP, zf + 10, zf + 10 + 3*KP, '#7a2a24', '#6a2420', '#5a1e1a'); break;   /* (stage 7: the head lamp and the tail light, unlit) */
+          case 8: box(pa - 3, pa + 3, b - 4, b + 4, zf + 11, zf + 12, '#f6f4ee', '#e0ddd4', '#c9c5ba'); box(pa - 2, pa + 2, b - 1, b + 1, zf + 12, zf + 12.2, '#3fd06a'); break;   /* (stage 8 fits no part -- the test: its pass tags) */
           default: box(pa - 2.4, pa + 2.4, b - 3, b + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); } }
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
       S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
