@@ -31213,6 +31213,19 @@ const PG_SVC = { N: 20, KINDS: ['hatch', 'car', 'wagon', 'coupe', 'suvsmall'], C
 function pgSvcPath(pts, u){ const L = []; let tot = 0; for(let i = 1; i < pts.length; i++){ const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); tot += d; }
   let d = Math.max(0, Math.min(1, u))*tot; for(let i = 1; i < pts.length; i++){ if(d <= L[i - 1] || i === pts.length - 1){ const k = L[i - 1] ? Math.min(1, d/L[i - 1]) : 1, a = pts[i - 1], b = pts[i];
     return { a: a[0] + (b[0] - a[0])*k, b: a[1] + (b[1] - a[1])*k, th: Math.atan2(b[1] - a[1], b[0] - a[0]) }; } d -= L[i - 1]; } return { a: pts[0][0], b: pts[0][1], th: 0 }; }
+/* THE OPEN DOOR in the room (as drawCar swings it: on its front hinge, out 1.05 rad) and THE WAY OUT ROUND IT (Sir, 2026-11-20: "when he
+   gets out does he just walk through the door and the lift? he should get out and go around"): out of the seat into the wedge between the
+   door and the car, through the gap between the door's tip and the near lift post, round the tip, and away in front of the door */
+function pgSvcDoor(kind){
+  const S = PG_SVC, c = S._door || (S._door = {}); if(c[kind]) return c[kind];
+  const CK = CAR_KINDS[kind] || CAR_KINDS.car, CR = CARC, hw = CR.wid/2, B0 = CAR_BODIES[CK.body](CR.len/2, hw, 114), len = B0.len || CR.len;
+  const B = len === CR.len ? B0 : CAR_BODIES[CK.body](len/2, hw, 114), GH = B.gh, aH = Math.min(Math.max(B.door0, B.door1), GH.f0), aT = Math.max(Math.min(B.door0, B.door1), GH.r0 + 4);
+  const ang = 1.05, sa = Math.sin(ang), ca = Math.cos(ang), dw = aH - aT, H = [S.CA + hw, S.CM + aH];
+  const at = (u, n) => [H[0] + u*sa - n*ca, H[1] - u*ca - n*sa];                    // (u along the door from its hinge; n off it, + into the wedge)
+  const tip = at(dw, 0), u1 = Math.min(dw - 4, 50);
+  const path = [[H[0] + Math.sin(ang/2)*20, H[1] - Math.cos(ang/2)*20], at(u1, 9), at(dw + 14, 12), at(dw + 16, -14), [Math.max(235, tip[0] + 20), 230]];
+  return (c[kind] = { hinge: H, dw, ang, tip, mid: at(dw/2, 0), path });
+}
 /* the garage's clock: ms into its day */
 function pgSvcDayMs(t){
   const fixed = typeof NIGHT_CLOCK !== 'undefined' && NIGHT_CLOCK.time != null;
@@ -31234,7 +31247,7 @@ function pgSvc(t){
   out.roller = in_(0, 4) ? sm(ph(0, 4)) : in_(4, 18) ? 1 : in_(18, 22) ? 1 - sm(ph(18, 22)) : in_(X(84), X(80)) ? sm(ph(X(84), X(80))) : in_(X(80), X(64)) ? 1 : in_(X(64), X(60)) ? 1 - sm(ph(X(64), X(60))) : 0;
   out.lift = in_(70, 78) ? sm(ph(70, 78)) : in_(78, X(150)) ? 1 : in_(X(150), X(142)) ? 1 - sm(ph(X(150), X(142))) : 0;
   const carB = s < 4 ? null : s < 16 ? S.OUT + (S.CM - S.OUT)*sm(ph(4, 16)) : s < X(76) ? S.CM : s < X(64) ? S.CM + (S.OUT - S.CM)*sm(ph(X(76), X(64))) : null;
-  const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 29) ? 1 : in_(29, 32) ? 1 - sm(ph(29, 32)) : in_(X(98), X(95)) ? sm(ph(X(98), X(95))) : in_(X(95), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
+  const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 31) ? 1 : in_(31, 34) ? 1 - sm(ph(31, 34)) : in_(X(100), X(97)) ? sm(ph(X(100), X(97))) : in_(X(97), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
   if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: in_(4, 16) || in_(X(76), X(64)), wheel: carB*0.05,
     wheelOff: in_(90, X(170)), doorOpen };
   /* the owner: out of the car by the open door (25..29), to the counter (29..40), the keys over (40..50), out of the bay (50..62); back in
@@ -31242,15 +31255,17 @@ function pgSvc(t){
   const look = streetLook((seed ^ 0x51) >>> 0, { adult: true, aid: 'none' });
   const walk = (pts, a, b) => { const q = pgSvcPath(pts, ph(a, b)); return { a: q.a, b: q.b, th: q.th, moving: true, L: look }; };
   const stand = (p, th) => ({ a: p[0], b: p[1], th, moving: false, L: look });
-  const SEAT = [S.CA + 52, 186], SIDE = S.SIDE, DESK = S.DESK, DOOR = S.DOOR;   // (SEAT: just out of the driver's door, the car's near flank at a 129; SIDE a step away from it)
-  if(in_(25, 29)) out.owner = walk([SEAT, SIDE], 25, 29);
-  else if(in_(29, 40)) out.owner = walk([SIDE, [230, 300], DESK], 29, 40);
+  const DR = pgSvcDoor(kind), OUTW = DR.path, SIDE = OUTW[OUTW.length - 1], DESK = S.DESK, DOOR = S.DOOR;   // (OUTW: out of the seat, round the open door)
+  out.door = DR;
+  if(in_(25, 31)) out.owner = walk(OUTW, 25, 31);
+  else if(in_(31, 40)) out.owner = walk([SIDE, [230, 300], DESK], 31, 40);
   else if(in_(40, 50)){ out.owner = stand(DESK, 0); out.owner.atDesk = 'drop'; }
   else if(in_(50, 62)) out.owner = walk([DESK, [274, 300], DOOR], 50, 62);
   else if(in_(X(130), X(120))) out.owner = walk([DOOR, [274, 300], DESK], X(130), X(120));
   else if(in_(X(120), X(110))){ out.owner = stand(DESK, 0); out.owner.atDesk = 'pay'; }
-  else if(in_(X(110), X(98))) out.owner = walk([DESK, [230, 300], SIDE], X(110), X(98));
-  else if(in_(X(95), X(91))) out.owner = walk([SIDE, SEAT], X(95), X(91));
+  else if(in_(X(110), X(100))) out.owner = walk([DESK, [230, 300], SIDE], X(110), X(100));
+  else if(in_(X(100), X(97))) out.owner = stand(OUTW[3], Math.atan2(OUTW[2][1] - OUTW[3][1], OUTW[2][0] - OUTW[3][0]));   // (waits for the door)
+  else if(in_(X(97), X(91))) out.owner = walk(OUTW.slice(0, 4).reverse(), X(97), X(91));
   out.phase = s < 22 ? 'in' : s < 62 ? 'drop' : s < X(130) ? 'work' : s < X(84) ? 'collect' : s < X(60) ? 'out' : 'gap';
   out.slot = n; out.s = s;
   return out;
@@ -31259,7 +31274,9 @@ function pgSvc(t){
 function pgSvcNow(){ const sc = (typeof game !== 'undefined' && game.scene) ? game.scene.getScene('world') : null; return sc ? sc.time.now : 0; }
 walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
-    posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
+    posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]],
+    /* (his way along the car's flank crosses its door's swing: while it is open he stays where he is -- the owner's, round it) */
+    away: () => { const c = pgSvc(pgSvcNow()).car; return !!(c && c.doorOpen > 0); }, awayAt: () => null },
   { id: 'mechanic-2', role: 'tyre fitter', seed: 0x6a02, lookFn: () => PG_FAMILY.danny,
     posts: [[90, 366, Math.PI/2, 8000, true], [175, 366, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
   { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
@@ -106996,9 +107013,12 @@ class WorldScene extends Phaser.Scene {
          | null } -- the car drawn by drawCar where it is now (cached while it stands), its owner by the person drawer, each in the room's order) */
       else if(it.fx && it.fx.svc){ const S = it.fx.svc(this.time.now);
         if(S.car){ const c = S.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0), still = !c.moving && (c.z <= 0 || c.z >= PG_SVC.CZ);
-          const dat = { wheelOff: !!c.wheelOff, doorOpen: c.doorOpen || 0 }, still2 = still && (dat.doorOpen <= 0 || dat.doorOpen >= 1);
+          const dat = { wheelOff: !!c.wheelOff, doorOpen: c.doorOpen || 0, doorOut: (c.doorOpen || 0) > 0.01 ? {} : null }, still2 = still && !dat.doorOut;
           const dc = gg => { const sv = this._paintIdx; this._paintIdx = null; try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, c.moving ? c.wheel : null, c.seed, dat); } finally { this._paintIdx = sv; } };
-          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still2 ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b) + "|" + (dat.wheelOff ? 'w' : '') + Math.round(dat.doorOpen), cx, cy, dc) : dc(g) }); }
+          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still2 ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b) + "|" + (dat.wheelOff ? 'w' : ''), cx, cy, dc) : dc(g) });
+          /* (the open door: drawn after the car, at its own middle -- the owner in the wedge behind it, the post beside it) */
+          if(dat.doorOut && S.door){ const m = S.door.mid, dx = x0 + m[0], dy = y0 + sb*m[1];
+            vq.push({ depth: dx + dy + zd, fn: (g) => { if(!dat.doorOut.fn) return; const sv = this._paintIdx; this._paintIdx = null; try { dat.doorOut.fn(g); } finally { this._paintIdx = sv; } } }); } }
         if(S.owner){ const o = S.owner, L = o.L, ox = x0 + o.a, oy = y0 + sb*o.b, thW = Math.atan2(sb*Math.sin(o.th), Math.cos(o.th)) - Math.PI/2;
           /* (the room's own person: never taken for a passer-by over the room and dropped -- drawPersonHull's _roomPerson) */
           vq.push({ depth: ox + oy + zd, fn: (g) => { const rp0 = this._roomPerson; this._roomPerson = true;
@@ -122729,13 +122749,17 @@ class WorldScene extends Phaser.Scene {
         } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; } }
       /* the door, swung: u along it from its front hinge, out from the flank */
       const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
-      const uTop = aH - aTop;                                                                     // (its window's front edge at the roof, set back by the pillar's slant)
+      const uTop = aH - aTop;
+      /* (data.doorOut: the swung door handed back to be drawn as its own piece, in the room's order -- someone can stand behind it) */
+      const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);                                                                     // (its window's front edge at the roof, set back by the pillar's slant)
       Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to window line
       Q([D(0, deck), D(dw, deck), D(dw, GH.top), D(uTop, GH.top)], col.body);                       // the window frame
       Q([D(2.5, deck + 1.5), D(dw - 2.5, deck + 1.5), D(dw - 2.5, GH.top - 2.5), D(uTop + 2.5, GH.top - 2.5)], 0x7f98a6);   // its glass
       Q([D(3, deck + 3, 0.1), D(dw*0.45, deck + 3, 0.1), D(dw*0.3, GH.top - 3.5, 0.1), D(uTop + 3, GH.top - 3.5, 0.1)], 0x9fb4c0);   // a glint
       Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
       Q([D(dw, H(29)), D(dw, GH.top), D(dw, GH.top, -2.5), D(dw, H(29), -2.5)], col.bodyDk);       // its rear edge, its thickness
+      };
+      if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
     }
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
