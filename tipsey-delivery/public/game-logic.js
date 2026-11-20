@@ -117304,10 +117304,20 @@ class WorldScene extends Phaser.Scene {
     /* the sleeve, from p0 to its end p1 along the upper arm, over the bare arm, and its hem: a band round its end (a ring, no fill -- a disc there
        would lie over the arm coming out of it). A tank top has none */
     const sleeveOn = (p0, p1) => { if(pShirt.tank) return; const w = build.armW*sleeveW;
+      const L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) || 1, u = [(p1[0] - p0[0])/L, (p1[1] - p0[1])/L], out = sees3(0, u[0], u[1]);
+      const hem = () => { if(!far) limb(_armAC, [p1[0] - u[0]*0.9, p1[1] - u[1]*0.9], [p1[0] + u[0]*0.2, p1[1] + u[1]*0.2], w*0.97, w*0.97, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false); };
+      if(!out) hem();   // (its end turned away: the hem is the farther, under the sleeve -- over it, its dark end lay on the sleeve as a lid)
       limb(_armAC, p0, p1, w, w, pSleeve.c, pSleeve.dk, 0.95, 0);
-      if(!far){ const L = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) || 1, u = [(p1[0] - p0[0])/L, (p1[1] - p0[1])/L];
-        limb(_armAC, [p1[0] - u[0]*0.9, p1[1] - u[1]*0.9], [p1[0] + u[0]*0.2, p1[1] + u[1]*0.2], w*0.97, w*0.97, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false); } };
-    let _armAC = 0;   // (ELB: how far the sleeve and its hem run past the elbow -- 2 and 2.2 stuck out at the bend's outside, past the forearm)
+      if(out) hem(); };
+    let _armAC = 0;
+    /* the upper arm (from s0 to the elbow E, at angle ang from the shoulder S) and its sleeve, back to front along it: pointed toward the eye,
+       the part in the sleeve, the sleeve, then the bare part coming out of it (drawn whole first, the sleeve's end lay over it as a flat lid --
+       Sir, 2026-11-20, "we see his face but we should not see it"); pointed away, the arm whole and the sleeve over it */
+    const upperIn = (S, ang, s0, E) => {
+      if(pShirt.tank || !sees3(0, Math.sin(ang), -Math.cos(ang))){ limb(_armAC, s0, ext(E, S, ELB), skinW, skinW, pSkin.c, pSkin.dk, 0.9, 0); sleeveOn(s0, along(S, ang, SLE)); return; }
+      limb(_armAC, s0, along(S, ang, SLE), skinW, skinW, pSkin.c, pSkin.dk, 0.95, 0);
+      sleeveOn(s0, along(S, ang, SLE));
+      limb(_armAC, along(S, ang, SLE - 1), ext(E, S, ELB), skinW*0.95, skinW*0.95, pSkin.c, pSkin.dk, 0.9/0.95, 0); };   // (ELB: how far the sleeve and its hem run past the elbow -- 2 and 2.2 stuck out at the bend's outside, past the forearm)
     const shoulderCap = side => RB ? prism(side*(build.torsoW/2 - 1), 0, build.armW*sleeveW*1.12, build.armW*sleeveW*1.12, shoulderH - 4.5, shoulderH + 1, jointP, { top: 0.5, topCol: hullTones(jointP).c, edge: false })
       : limb(side*(build.torsoW/2 - 1), along([0, shoulderZ], capAng, 3.5), along([0, shoulderZ], capAng, -2), build.armW*sleeveW*1.12/1.06, build.armW*sleeveW*1.12/1.06, pSleeve.c, pSleeve.dk, 0.5, 1);
     const handP = RB ? { c: RB.hand, dk: _pdk(RB.hand, 0.8) } : pSkin, hingeP = RB ? jointP : pSkin;   // (a robot's: dark hands, its joints)
@@ -117490,8 +117500,7 @@ class WorldScene extends Phaser.Scene {
         const raised = Math.abs(ang) > RAISED;
         const upper = () => { const s0 = raised ? ext(S, E, 3) : RB ? S : along(S, ang, SLV0);
           if(RB){ limb(shoulderAx, s0, ext(E, S, ELB), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0); return; }
-          limb(shoulderAx, s0, ext(E, S, ELB), skinW, skinW, pSkin.c, pSkin.dk, 0.9, 0);                                          // the upper arm, bare
-          sleeveOn(s0, along(S, ang, SLE)); };
+          upperIn(S, ang, s0, E); };
         /* the sleeve's hem: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that root painted a skin patch
            over the sleeve's end -- Sir, 2026-10-24) -- but under a forearm that crosses in front of it: a hand in the lap, its forearm toward
            the eye, had the hem painted across it, a band over the arm (Sir, 2026-11-14: "the elbow is drawn over the forearm") */
@@ -117538,7 +117547,7 @@ class WorldScene extends Phaser.Scene {
         limb(shoulderAx, along(E, fa, foreLen - 1.5), along(Hd, fa, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist: first, the forearm over its top (rule 2c)
         limb(shoulderAx, along(S, sw, sleeveLen - 2), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
         if(RB) limb(shoulderAx, S, ext(E, S, ELB), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
-        else { limb(shoulderAx, along(S, sw, SLV0), ext(E, S, ELB), skinW, skinW, pSkin.c, pSkin.dk, 0.9, 0); sleeveOn(along(S, sw, SLV0), along(S, sw, SLE)); }   // the bare upper arm, its sleeve over it
+        else upperIn(S, sw, along(S, sw, SLV0), E);   // the bare upper arm, its sleeve over it
         if(false) limb(shoulderAx, along(S, sw, sleeveLen - 0.5), ext(E, S, ELB + 0.2), elbowW*1.02, elbowW*1.02, pSleeve.dk, _pdk(pSleeve.dk, 0.9), 1, 0, false);   // the sleeve's hem
         aidHand(side, shoulderAx, Hd, fa, E);
         return;
@@ -117554,13 +117563,20 @@ class WorldScene extends Phaser.Scene {
       /* caps: 1 the far end, 2 the near. Only the arm's OUTER ends get one (Sir, 2026-10-11: "a weird elbow joint") */
       const seg = (p0, p1, ha, hb, cSide, cFront, cCap, caps = 3, taper = 1) => ringSeg(armCorner, cT, sT, p0, p1, ha, hb, cSide, cFront, cCap, caps, taper);
       const raised = theta > RAISED;
-      if(front){ seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, handP.dk, handP.c, handP.dk, 1, 0.85);   // the hand, from the wrist: first, the forearm over its top (rule 2c)
+      const armOut = () => { seg(sleeveLen+foreLen - 1.5, sleeveLen+foreLen+5.5, wristW, wristW, handP.dk, handP.c, handP.dk, 1, 0.85);   // the hand, from the wrist: first, the forearm over its top (rule 2c)
                  if(RB) seg(sleeveLen - 2, sleeveLen+foreLen, elbowW, elbowW, pSkin.dk, pSkin.c, pSkin.dk, 0, 0.82);
-                 else seg(SLE - 1, sleeveLen+foreLen, skinW, skinW, pSkin.dk, pSkin.c, pSkin.dk, 0, wristW/skinW); }   // (the bare arm from the sleeve's end to the wrist: straight here, one piece)
+                 else seg(SLE - 1, sleeveLen+foreLen, skinW, skinW, pSkin.dk, pSkin.c, pSkin.dk, 0, wristW/skinW); };   // (the bare arm from the sleeve's end to the wrist: straight here, one piece)
+      const sleeve = () => {
+        if(RB) seg(0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
+        else if(!pShirt.tank){ const body = () => seg(raised ? -3 : SLV0, SLE, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.95),
+            hem = () => { if(!far) seg(SLE - 0.9, SLE + 0.2, build.armW*sleeveW*0.97, build.armW*sleeveW*0.97, pSleeve.dk, _pdk(pSleeve.dk, 0.9), _pdk(pSleeve.dk, 0.9), 0, 1); };
+          if(sees3(0, sT, -cT)){ body(); hem(); } else { hem(); body(); } } };   // the sleeve to half way, its hem -- the farther first (its end turned away: the hem under the sleeve)
+      /* (back to front along the arm: pointed toward the eye the sleeve is the farther and goes first, the bare arm coming out of it after --
+         drawn the other way the sleeve's end lay over the arm as a flat lid, Sir, 2026-11-20, "we see his face but we should not see it") */
+      if(!RB && back && front && sees3(0, sT, -cT)){ sleeve(); armOut(); return raised ? false : undefined; }
+      if(front) armOut();
       if(!back) return raised ? false : undefined;
-      if(RB) seg(0, sleeveLen + 2, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.86);
-      else if(!pShirt.tank){ seg(raised ? -3 : SLV0, SLE, build.armW*sleeveW, build.armW*sleeveW, pSleeve.dk, pSleeve.c, pSleeve.c, 0, 0.95);
-        if(!far) seg(SLE - 0.9, SLE + 0.2, build.armW*sleeveW*0.97, build.armW*sleeveW*0.97, pSleeve.dk, _pdk(pSleeve.dk, 0.9), _pdk(pSleeve.dk, 0.9), 0, 1); }   // the sleeve to half way, its hem
+      sleeve();
       if(raised) return false;
     };
     /* THE HEAD ON A PILLOW (pose.headTilt: Sir, 2026-10-29, "fix the head of all the patients to not be tilted to the side"):
