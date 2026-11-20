@@ -118090,9 +118090,14 @@ class WorldScene extends Phaser.Scene {
         const PL = []; for(let i = 0; i <= M; i++){ const ph = p0 - (Math.PI + 2*p0)*i/M; PL.push([Math.cos(ph)*A, c0 + Math.sin(ph)*B]); }
         for(let i = 0; i < PL.length - 1; i++){ const [a0, b0] = PL[i], [a1, b1] = PL[i + 1], da = a1 - a0, db = b1 - b0, L = Math.hypot(da, db) || 1, na = -db/L*cw, nb = da/L*cw;
           this.quadOn(g, [G(a0 - na, b0 - nb, zl), G(a0 + na, b0 + nb, zl), G(a1 + na + da/L*0.3, b1 + nb + db/L*0.3, zl), G(a1 - na + da/L*0.3, b1 - nb + db/L*0.3, zl)], uniform.chain); } }
-      for(const sd of (eye3[0] > 0 ? [-1, 1] : [1, -1])) for(let i = 0; i < N; i++){ const t0 = i/N, t1 = (i + 1)/N, aO = u => sd*(w + (1.2 - w)*u), aI = u => sd*((w - 2.4) + (-1.2 - (w - 2.4))*u), zz = u => zt + (zb - zt)*u;
+      /* (each strand's top is the loop's end, the same width: from it down over the shoulder's edge to the chest -- they had met with the edge
+         showing between, Sir, 2026-11-20, "the chain still doesnt connect") */
+      { const kt = kz(shoulderH), raT = RA*kt*(hv ? 0.9 : 1), rbT = RB2*kt*(hv ? 0.9 : 1), bL = a => rbT*Math.sqrt(Math.max(0, 1 - (a/raT)*(a/raT)))*0.95, zl = shoulderH + 0.08;
+        if(sees3(0, 0, 1)) for(const sd of [-1, 1]){ const o = sd*(w + 1.1), n = sd*(w - 1.1);
+          this.quadOn(g, [G(o, bL(o), zl), G(n, bL(n), zl), on(n, zt), on(o, zt)], uniform.chain); } }
+      for(const sd of (eye3[0] > 0 ? [-1, 1] : [1, -1])) for(let i = 0; i < N; i++){ const t0 = i/N, t1 = (i + 1)/N, aO = u => sd*((w + 1.1) + (1.2 - (w + 1.1))*u), aI = u => sd*((w - 1.1) + (-1.2 - (w - 1.1))*u), zz = u => zt + (zb - zt)*u;
         { const am = (aO(t0) + aI(t0) + aO(t1) + aI(t1))/4, zmid = zz((t0 + t1)/2), k = kz(zmid), ra = RA*k, rb = RB2*k, bm = rb*Math.sqrt(Math.max(0, 1 - (am/ra)*(am/ra)));
-          if(!seesE(am/(ra*ra), bm/(rb*rb), 0, 0.3)) continue; }   // (only where the chest under it faces the eye: round the side it showed as a sliver past the body's edge)
+          if(!seesE(am/(ra*ra), bm/(rb*rb), 0, 0.08)) continue; }   // (only where the chest under it faces the eye: round the side it showed as a sliver past the body's edge)
         this.quadOn(g, [on(aO(t0), zz(t0)), on(aI(t0), zz(t0)), on(aI(t1), zz(t1)), on(aO(t1), zz(t1))], uniform.chain); }
     }
     /* GIDEON'S OUTFIT (RB.apron, RB.neck, RB.badge, RB.outCol, RB.badgeCol: gd4c): a vest or an apron, a scarf, bow tie or tie, a badge on the chest, worn over the
