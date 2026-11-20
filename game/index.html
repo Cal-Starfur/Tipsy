@@ -31249,10 +31249,11 @@ function pgSvc(t){
   const carB = s < 4 ? null : s < 16 ? S.OUT + (S.CM - S.OUT)*sm(ph(4, 16)) : s < X(76) ? S.CM : s < X(64) ? S.CM + (S.OUT - S.CM)*sm(ph(X(76), X(64))) : null;
   const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 31) ? 1 : in_(31, 34) ? 1 - sm(ph(31, 34)) : in_(X(100), X(97)) ? sm(ph(X(100), X(97))) : in_(X(97), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
   if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: in_(4, 16) || in_(X(76), X(64)), wheel: carB*0.05,
-    wheelOff: in_(90, X(170)), doorOpen };
+    wheelOff: in_(90, X(170)), doorOpen, rider: null };
   /* the owner: out of the car by the open door (25..29), to the counter (29..40), the keys over (40..50), out of the bay (50..62); back in
      (X(130)..X(120)), paying (..X(110)), to the car (..X(98)), in through the open door (X(95)..X(91)) */
   const look = streetLook((seed ^ 0x51) >>> 0, { adult: true, aid: 'none' });
+  if(out.car && (s < 25 || s >= X(91))) out.car.rider = look;          // (at the wheel, seen through the glass: in, and out again)
   const walk = (pts, a, b) => { const q = pgSvcPath(pts, ph(a, b)); return { a: q.a, b: q.b, th: q.th, moving: true, L: look }; };
   const stand = (p, th) => ({ a: p[0], b: p[1], th, moving: false, L: look });
   const DR = pgSvcDoor(kind), OUTW = DR.path, SIDE = OUTW[OUTW.length - 1], DESK = S.DESK, DOOR = S.DOOR;   // (OUTW: out of the seat, round the open door)
@@ -107029,9 +107030,9 @@ class WorldScene extends Phaser.Scene {
          | null } -- the car drawn by drawCar where it is now (cached while it stands), its owner by the person drawer, each in the room's order) */
       else if(it.fx && it.fx.svc){ const S = it.fx.svc(this.time.now);
         if(S.car){ const c = S.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0), still = !c.moving && (c.z <= 0 || c.z >= PG_SVC.CZ);
-          const dat = { wheelOff: !!c.wheelOff, doorOpen: c.doorOpen || 0, doorOut: (c.doorOpen || 0) > 0.01 ? {} : null }, still2 = still && !dat.doorOut;
+          const dat = { wheelOff: !!c.wheelOff, doorOpen: c.doorOpen || 0, doorOut: (c.doorOpen || 0) > 0.01 ? {} : null, cabin: { rider: c.rider || null } }, still2 = still && !dat.doorOut;
           const dc = gg => { const sv = this._paintIdx; this._paintIdx = null; try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, c.moving ? c.wheel : null, c.seed, dat); } finally { this._paintIdx = sv; } };
-          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still2 ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b) + "|" + (dat.wheelOff ? 'w' : ''), cx, cy, dc) : dc(g) });
+          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still2 ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b) + "|" + (dat.wheelOff ? 'w' : '') + (c.rider ? 'r' : ''), cx, cy, dc) : dc(g) });
           /* (the open door: drawn after the car, at its own middle -- the owner in the wedge behind it, the post beside it) */
           if(dat.doorOut && S.door){ const m = S.door.mid, dx = x0 + m[0], dy = y0 + sb*m[1];
             vq.push({ depth: dx + dy + zd, fn: (g) => { if(!dat.doorOut.fn) return; const sv = this._paintIdx; this._paintIdx = null; try { dat.doorOut.fn(g); } finally { this._paintIdx = sv; } } }); } }
@@ -122320,7 +122321,10 @@ class WorldScene extends Phaser.Scene {
     const lerp3 = (p, q, u) => [p[0] + (q[0] - p[0])*u, p[1] + (q[1] - p[1])*u, p[2] + (q[2] - p[2])*u];
     /* a point on a quad face, u along c0->c1, v from that edge to c3->c2 */
     const on = (c, u, v) => lerp3(lerp3(c[0], c[1], u), lerp3(c[3], c[2], u), v);
-    const pane = (c, u0, u1, v0, v1, colr) => Q([on(c, u0, v0), on(c, u1, v0), on(c, u1, v1), on(c, u0, v1)].map(p => P(p[0], p[1], p[2])), colr);
+    const pane = (c, u0, u1, v0, v1, colr, see) => { const pts = [on(c, u0, v0), on(c, u1, v0), on(c, u1, v1), on(c, u0, v1)].map(p => P(p[0], p[1], p[2]));
+      /* (data.cabin: SEE-THROUGH GLASS -- the cab's inside drawn clipped to the pane, the glass over it tinted, not solid) */
+      if(see && cabinIn){ cabinIn(pts); this.quadOn(g, pts, colr, 0.38); } else Q(pts, colr); };
+    let cabinIn = null;
     /* a flat shape on the near flank, (a, h) pairs */
     const fb = nearB*(hw + 0.4);
     const flank = (pts, colr, bb) => Q(pts.map(([a, h]) => P(a, bb === undefined ? fb : bb, h)), colr);
@@ -122603,21 +122607,21 @@ class WorldScene extends Phaser.Scene {
     const pillar = isPolice ? POL_WHITE : (CK.pillar || col.body);
     const faces = [
       { q: [c.bfl, c.bfr, c.tfr, c.tfl], col: pillar, glass: q => {                       // the screen
-          pane(q, 0.06, 0.94, 0.05, 0.93, CR.windshield);
+          pane(q, 0.06, 0.94, 0.05, 0.93, CR.windshield, true);
           Q([on(q, 0.2, 0.05), on(q, 0.33, 0.05), on(q, 0.52, 0.93), on(q, 0.39, 0.93)].map(p => P(p[0], p[1], p[2])), 0xc6e0ea);
           Q([on(q, 0.37, 0.05), on(q, 0.41, 0.05), on(q, 0.6, 0.93), on(q, 0.56, 0.93)].map(p => P(p[0], p[1], p[2])), 0xc6e0ea);
         } },
       { q: [c.brr, c.brl, c.trl, c.trr], col: pillar, glass: q => {                       // the back glass
-          pane(q, ...B.backGlass, 0x7fa3b5);
+          pane(q, ...B.backGlass, 0x7fa3b5, true);
         } },
       ...[-1, 1].map(sb => {
         const q = sb > 0 ? [c.bfr, c.brr, c.trr, c.tfr] : [c.bfl, c.brl, c.trl, c.tfl];
         return { q, col: pillar, glass: q => {                                             // the door glass
           const S = SIDE[B.side || (twoDoor ? "one" : "two")];
-          if(S){ for(const [u0, u1, v1] of S) pane(q, u0, u1, 0.1, v1 || 0.87, CR.glass); return; }
-          pane(q, 0.07, 0.47, 0.1, 0.87, CR.glass);
-          pane(q, 0.53, 0.88, 0.1, 0.87, CR.glass);
-          pane(q, 0.1, 0.2, 0.3, 0.8, 0x5c6874);                                           // a glint in the front pane
+          if(S){ for(const [u0, u1, v1] of S) pane(q, u0, u1, 0.1, v1 || 0.87, CR.glass, true); return; }
+          pane(q, 0.07, 0.47, 0.1, 0.87, CR.glass, true);
+          pane(q, 0.53, 0.88, 0.1, 0.87, CR.glass, true);
+          if(!cabinIn) pane(q, 0.1, 0.2, 0.3, 0.8, 0x5c6874);                              // a glint in the front pane
         } };
       }),
       { q: [c.tfl, c.tfr, c.trr, c.trl], col: col.roof, glass: q => {                     // the roof (and its stripes)
@@ -122693,12 +122697,41 @@ class WorldScene extends Phaser.Scene {
         solid(prismH([[GH.r0 - 2, -hw + 6], [GH.r0 + 12, -hw + 6], [GH.r0 + 12, hw - 6], [GH.r0 - 2, hw - 6]], deck, deck + 6), 0x2a2f36);   // the folded hood
       };
       if(nose){ tub(); screen(); } else { screen(); tub(); }
-    } else for(const f of faces){
+    } else {
+    /* THE CAB SEEN THROUGH ITS GLASS (data.cabin { rider: a look | null } -- Sir, 2026-11-20: "the interior of these customers cars
+       ... their windows to be see through so we can see our customer inside of the car"): the far side's inside, the seats, the dash and
+       wheel, and the driver on the near side, drawn once for each pane, clipped to it, back to front; the pane tinted over them */
+    if(data && data.cabin && !edgeOn) cabinIn = hull => {
+      const own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
+      this.quadOn = (gg, pts, cl, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, cl, aa); };
+      try {
+        const WALL = 0x8a7f72, fl = H(30) - 10, Zc = fl + 14, wb = hw - 7, fb2 = -nearB*wb;
+        const far = [[GH.f0, -nearB*GH.w0, deck], [GH.r0, -nearB*GH.w0, GH.hr0 || deck], [GH.r1, -nearB*GH.w1, GH.top], [GH.f1, -nearB*GH.w1, GH.top]];
+        Q([P(GH.r0, fb2, fl), P(GH.f0, fb2, fl), P(GH.f0, fb2, deck), P(GH.r0, fb2, GH.hr0 || deck)], WALL);              // the far side's inside
+        Q(far.map(p => P(p[0], p[1], p[2])), 0xb4c4cc);                                                                  // and its glass, the day through it
+        Q([P(GH.r0, -hw, GH.top - 3), P(GH.f0, -hw, GH.top - 3), P(GH.f0, hw, GH.top - 3), P(GH.r0, hw, GH.top - 3)], 0xd8d2c8);   // the headliner
+        const endA = nose ? GH.r0 + 2 : GH.f0 - 2;
+        Q([P(endA, -wb, fl), P(endA, wb, fl), P(endA, wb, deck + 4), P(endA, -wb, deck + 4)], shadeC(WALL, 0.9));           // the far end's inside
+        const base = (sa, b0, b1) => solid(prismH([[sa - 10, b0], [sa + 6, b0], [sa + 6, b1], [sa - 10, b1]], fl, Zc), 0xa8977f);
+        const back = (sa, b0, b1) => solid(prismH([[sa - 13, b0], [sa - 8, b0], [sa - 8, b1], [sa - 13, b1]], fl, deck + 14), 0x96866f);
+        const fs = GH.f0 - 34, rs = fs - 46, dash = () => solid(prismH([[GH.f0 - 6, -wb], [GH.f0 + 2, -wb], [GH.f0 + 2, wb], [GH.f0 - 6, wb]], deck - 10, deck + 2), 0x3c3f45);
+        const bc = nearB*(hw - 5)/2, aW = fs + 28, hW = deck + 2;
+        const wheel = () => { for(let k = 0; k < 12; k++){ const p0 = k/12*Math.PI*2, p1 = (k + 1)/12*Math.PI*2, r0 = 8, r1 = 6;
+          Q([P(aW, bc + Math.cos(p0)*r0, hW + Math.sin(p0)*r0), P(aW, bc + Math.cos(p1)*r0, hW + Math.sin(p1)*r0), P(aW, bc + Math.cos(p1)*r1, hW + Math.sin(p1)*r1), P(aW, bc + Math.cos(p0)*r1, hW + Math.sin(p0)*r1)], 0x232528); } };
+        const driver = () => { if(data.cabin.rider) this.vehRider(g, x, y, z + lift, fdir, fs - 2, bc, fl, data.cabin.rider, { sit: Zc - fl, reach: [aW - fs - 1, data.cabin.rider.build.legH + hW - Zc] }, hull); };
+        const rear = () => { base(rs, -wb + 2, wb - 2); back(rs, -wb + 2, wb - 2); };
+        const front = () => { base(fs, -wb + 2, -4); base(fs, 4, wb - 2);
+          if(nose){ back(fs, -wb + 2, -4); back(fs, 4, wb - 2); driver(); wheel(); dash(); }
+          else { dash(); wheel(); driver(); back(fs, -wb + 2, -4); back(fs, 4, wb - 2); } };
+        if(nose){ rear(); front(); } else { front(); rear(); }
+      } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; }
+    };
+    for(const f of faces){
       const n = nrm(f.q);
       if(!sees(n[0], n[1], n[2])) continue;
       Q(f.q.map(p => P(p[0], p[1], p[2])), shadeC(f.col, lit(n)));
       if(f.glass) f.glass(f.q);
-    }
+    } }
     if(nose) line([GH.f0 + 2, -GH.w0 + 2, deck + 0.4], [GH.f0 + 2, GH.w0 - 2, deck + 0.4], TRIM, 1.6);   // the cowl
     mirror(nearB)();
     (nose ? atFront : atRear)();
