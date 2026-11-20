@@ -8,6 +8,8 @@
      foot     a part drawn after one that STANDS ON IT -- a plate, plinth or base under something's foot, wider than it toward the
               eye, painted second: its top and its near faces land over the foot (Sir, 2026-11-20, Palmline Garage: "the base of
               this upright is drawing over the vertical piece"). Paint the base first, the thing on it after
+     behind   a part drawn after one it stands wholly behind (past its back face, within its width, no higher than its top) -- a
+              fixture's far-side parts, its working face turned away (Seaglass's espresso machine: group heads over its back)
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
    node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding
@@ -32,11 +34,19 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
     let cur = null, stack = 0;
     window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([a, b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
     window.__RVK = (n, args, ph) => { if(!cur) return;
-      if(ph === 0){ if(stack++ === 0) cur.prim = { n, args: Array.from(args).slice(0, 7), pts: [], inRun: !!window.__W37in, line: (n === 'S' || n === 'F') ? ((new Error().stack.split('\n')[3] || '').match(/:(\d+):\d+\)?$/) || [])[1] : null }; }
+      if(ph === 0){ if(stack++ === 0) cur.prim = { n, args: Array.from(args).slice(0, 7), pts: [], inRun: !!window.__W37in, line: ((new Error().stack.split('\n')[3] || '').match(/:(\d+):\d+\)?$/) || [])[1] }; }
       else if(--stack === 0 && cur.prim){ cur.prims.push(cur.prim); cur.prim = null; } };
     const bb = pts => { const o = { a0: 1e9, a1: -1e9, b0: 1e9, b1: -1e9, z0: 1e9, z1: -1e9 }; for(const [a, b, z] of pts){ o.a0 = Math.min(o.a0, a); o.a1 = Math.max(o.a1, a); o.b0 = Math.min(o.b0, b); o.b1 = Math.max(o.b1, b); o.z0 = Math.min(o.z0, z); o.z1 = Math.max(o.z1, z); } return o; };
     const scr = q => ({ x0: q.a0 - q.b1, x1: q.a1 - q.b0, y0: (q.a0 + q.b0)/2 - q.z1, y1: (q.a1 + q.b1)/2 - q.z0 });
     const found = [], VOL = new Set(['box', 'cyl', 'tube', 'ball', 'prism', 'slab']);
+    /* the area where one box's silhouette lies over another's, on screen at 1x (what L, drawn second, paints over E) */
+    const hull2 = q => { const pts = []; for(const a of [q.a0, q.a1]) for(const b of [q.b0, q.b1]) for(const z of [q.z0, q.z1]) pts.push(G(a, b, z));
+      pts.sort((p, r) => p.x - r.x || p.y - r.y); const cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+      for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+      lo.pop(); hi.pop(); return lo.concat(hi); };
+    const paintOver = (qL, qE) => { const c = clipConvex(hull2(qL), hull2(qE)); if(!c || c.length < 3) return 0; let A = 0;
+      for(let i = 0; i < c.length; i++){ const p = c[i], r = c[(i + 1) % c.length]; A += p.x*r.y - r.x*p.y; } return Math.abs(A)/2; };
     /* (--png: the piece alone, 4x, the two parts' outlines over it -- base red, what stands on it blue) */
     let nShot = 0;
     const shot = (name, it, P, qL, qE) => { const S = 4, pad = 24; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
@@ -98,11 +108,24 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             /* (under it: its top at E's bottom -- castors, feet, a plinth; or a plate round its whole footprint, up no higher than partway:
                the lift post's. Not a band on E's face from the same height -- a kick strip sat in front of it is drawn after, rightly) */
             const under = q.z1 <= e.z0 + 0.5 && q.z1 >= e.z0 - 2;
-            const plate = q.a0 <= e.a0 + 0.5 && q.a1 >= e.a1 - 0.5 && q.b0 <= e.b0 + 0.5 && q.b1 >= e.b1 - 0.5 && q.z0 <= e.z0 + 0.5 && q.z1 < e.z0 + (e.z1 - e.z0)*0.5;
+            const plate = q.a0 <= e.a0 + 0.5 && q.a1 >= e.a1 - 0.5 && q.b0 <= e.b0 + 0.5 && q.b1 >= e.b1 - 0.5 && q.z0 <= e.z0 + 0.5 && q.z1 - q.z0 <= Math.min(12, (e.z1 - e.z0)*0.25);   // (thin: a plate, not a seat block round a statue's body)
             if(!under && !plate) continue;
             if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
             const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
-            if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ')' };
+            if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') (line ' + L.line + ', it line ' + E.line + ')' };
+              if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
+          }
+          /* behind: L drawn after E though it stands wholly BEHIND E -- past E's back face (north, or west), within E's width and no higher
+             than its top: a fixture's far-side parts, its working face turned away from the eye (Seaglass Coffee's espresso machine: its
+             group heads, cups and drip tray painted across its back -- Sir, 2026-11-20, "look at all this mess"). Paint them first */
+          for(const E of before){ const e = E.q;
+            if(!VOL.has(E.n) || !VOL.has(L.n)) continue;
+            if(q.z1 > e.z1 + 0.5 || q.z0 < e.z0 - 0.5) continue;
+            const bN = q.b0 < e.b0 - 0.5 && q.b1 <= e.b0 + 3 && q.a0 >= e.a0 - 1 && q.a1 <= e.a1 + 1;
+            const bW = q.a0 < e.a0 - 0.5 && q.a1 <= e.a0 + 3 && q.b0 >= e.b0 - 1 && q.b1 <= e.b1 + 1;
+            if(!bN && !bW) continue;
+            const ar = paintOver(q, e);                                     // (how much of E it paints over, in square units at 1x)
+            if(ar > 16){ const f = { room: name, kind: 'behind', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' in front of it (its back at ' + (bN ? 'b ' + Math.round(e.b0) : 'a ' + Math.round(e.a0)) + ') (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* order: L drawn after E, L behind E (it ends within 5 of E's near start on a or b and reaches well behind it), overlapping on screen */
@@ -120,20 +143,20 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
     return { rooms: rooms.length, found };
   }, [want, PNG]);
   if(PNG){ const fs = require('fs'), path = require('path'); fs.mkdirSync(PNG, { recursive: true }); let k = 0;
-    for(const f of out.found) if(f.png){ const fn = path.join(PNG, 'foot_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.data.split(',')[1], 'base64'));
+    for(const f of out.found) if(f.png){ const fn = path.join(PNG, f.kind + '_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.data.split(',')[1], 'base64'));
       fs.writeFileSync(fn.replace(/\.png$/, '.json'), JSON.stringify({ room: f.room, at: f.at, what: f.what, ov: f.png.ov, hE: f.png.hE, hL: f.png.hL })); f.what += '  -> ' + fn; delete f.png; }
     /* (and each one marked up: tools/review/w37_mark.py -- the piece with the spot circled, beside a close-up, the base's paint over the foot filled) */
     try { require('child_process').execSync('python3 ' + JSON.stringify(path.join(__dirname, 'w37_mark.py')) + ' ' + JSON.stringify(PNG), { stdio: 'inherit' }); } catch(e){ console.log('(w37_mark.py: ' + e.message + ')'); } }
-  const fix = t => t.replace(/\(line (\d+)\)/, (m, n) => '(line ' + (+n - OFF) + ')');
+  const fix = t => t.replace(/\(line (\d+)\)/, (m, n) => '(line ' + (+n - OFF) + ')').replace(/\(line (\d+), it line (\d+)\)/, (m, n, k) => '(line ' + (+n - OFF) + ', it line ' + (+k - OFF) + ')');
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'behind', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
   }
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
-  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'error') ? 1 : 0);
+  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'behind' || f.kind === 'error') ? 1 : 0);
 })();

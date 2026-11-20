@@ -10,7 +10,7 @@ def font(n):
     return ImageFont.load_default()
 
 d0 = sys.argv[1]
-for fn in sorted(glob.glob(os.path.join(d0, 'foot_*.json'))):
+for fn in sorted(glob.glob(os.path.join(d0, '*_[0-9]*.json'))):
     J = json.load(open(fn)); im = Image.open(fn[:-5] + '.png').convert('RGB')
     pts = J['ov'] or (J['hE'] + J['hL'])
     xs = [p[0] for p in J['hE'] + J['hL']]; ys = [p[1] for p in J['hE'] + J['hL']]
@@ -30,7 +30,9 @@ for fn in sorted(glob.glob(os.path.join(d0, 'foot_*.json'))):
     F.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(255, 0, 200), width=6)
     k = min(1, 560/full.height, 700/full.width); full = full.resize((int(full.width*k), int(full.height*k)))
     cap1 = J['room'] + '  @' + ','.join(map(str, J['at']))
-    cap2 = 'the base (red) is painted AFTER what stands on it (blue): magenta = where the base paints over its foot'
+    behind = os.path.basename(fn).startswith('behind')
+    cap2 = ('red is BEHIND blue but painted after it: magenta = where it paints over the front piece' if behind else
+            'the base (red) is painted AFTER what stands on it (blue): magenta = where the base paints over its foot')
     cap3 = J['what'].split('  ->')[0]
     W = full.width + crop.width + 60; H = max(full.height, crop.height) + 110
     out = Image.new('RGB', (W, H), 'white'); O = ImageDraw.Draw(out)

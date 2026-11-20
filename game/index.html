@@ -48880,14 +48880,15 @@ function walkinRoom(items, R){
       runBox(s0, s1, q0, q1, 0, sill, top, front, side, run);
       runBox(s0, s1, q0 - 2, q1 + 2, sill, sill + 4, ctop, cfront, cside, run);
       F(s0 - e0, s1 + e1, sill + 4, LH - 3, glassC, null, 0, mid);
-      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(e - 2, e + 2, mid - 2, mid + 2, sill + 4, LH, fr, fr, frD);
-      box(s0 - e0, s1 + e1, mid - 2, mid + 2, LH - 3, LH, fr, fr, frD);
+      /* (its far post, then the head, then its near post: the head runs behind the near one -- W37 behind) */
+      const pst = e => { if(e >= s0 - 0.01 && e <= s1 + 0.01) box(e - 2, e + 2, mid - 2, mid + 2, sill + 4, LH, fr, fr, frD); };
+      pst(Math.min(w0, w1)); box(s0 - e0, s1 + e1, mid - 2, mid + 2, LH - 3, LH, fr, fr, frD); pst(Math.max(w0, w1));
     } else {
       runBox(q0, q1, s0, s1, 0, sill, top, front, side, run);
       runBox(q0 - 2, q1 + 2, s0, s1, sill, sill + 4, ctop, cfront, cside, run);
       S(mid, s0 - e0, s1 + e1, sill + 4, LH - 3, glassC);
-      for(const e of [w0, w1]) if(e >= s0 - 0.01 && e <= s1 + 0.01) box(mid - 2, mid + 2, e - 2, e + 2, sill + 4, LH, fr, fr, frD);
-      box(mid - 2, mid + 2, s0 - e0, s1 + e1, LH - 3, LH, fr, fr, frD);
+      const pst = e => { if(e >= s0 - 0.01 && e <= s1 + 0.01) box(mid - 2, mid + 2, e - 2, e + 2, sill + 4, LH, fr, fr, frD); };
+      pst(Math.min(w0, w1)); box(mid - 2, mid + 2, s0 - e0, s1 + e1, LH - 3, LH, fr, fr, frD); pst(Math.max(w0, w1));
     }
   };
   const wallRun = (a0, a1, b0, b1, wins, jLo, jHi) => {
@@ -48976,9 +48977,9 @@ function soapKartS(a, b, z, col, dk, no, part, o){
     wheel(-48, -1); wheel(46, -1);
     bx(-62, 40, -24, 24, 10, 13, dk, dk, shade(dk, .85));                                   // the floor
     bx(-62, 40, -24, -20, 13, 30, col, dk, shade(dk, .85));                                 // far wall
+    bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark (before the seat back in front of it: W37 behind)
     bx(-62, -50, -20, 20, 13, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // tail and seat back
     if(opt.stripe) bx(-62, -50, -5, 5, 52, 52.4, opt.stripe, opt.stripe, opt.stripe);     // the stripe over the seat back
-    bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark
   }
   if(front){
     bx(18, 40, -20, 20, 13, 30, col, dk, shade(dk, .85));                                   // the deck over his legs
@@ -55350,13 +55351,13 @@ function houseCanopy(fn){
         runBox(BA0, BA1, s0, s1, 66, 72, woodL, shade(woodL, 0.9), shade(woodL, 0.8), false, first, last);
         if(s0 <= 240 && s1 > 240) for(let k = 0; k < 4; k++) box(BA0 + 14, BA0 + 44, 226 + k*12, 236 + k*12, 26, 36, '#d8dcdf', '#b8bcc0', '#9ea2a6');   // boxes of blanks
         if(s0 <= sb && s1 > sb){                                                           // the machine
+          box(sa - 8, sa + 8, sb - 16, sb + 16, 72, 80, dark, darkF, darkS);               // the vice (west of the machine, behind it: first -- W37 behind)
+          box(sa - 5, sa + 5, sb - 12, sb + 12, 80, 82, gold, goldD, goldD);               // a plate in it
           box(sa + 10, sa + 44, sb - 17, sb + 17, 72, 110, '#5a6068', '#44494f', '#3a3f45');
           box(sa + 26, sa + 40, sb - 10, sb + 10, 110, 150, '#6b727a', '#555b62', '#4a4f55');
           box(sa - 6, sa + 34, sb - 8, sb + 8, 140, 152, '#6b727a', '#555b62', '#4a4f55');
           box(sa - 6, sa + 6, sb - 6, sb + 6, sz + 10, 140, '#d8dcdf', '#b8bcc0', '#9ea2a6');
           cyl(sa, sb, sz, sz + 10, 2, gold);                                               // the cutter
-          box(sa - 8, sa + 8, sb - 16, sb + 16, 72, 80, dark, darkF, darkS);               // the vice
-          box(sa - 5, sa + 5, sb - 12, sb + 12, 80, 82, gold, goldD, goldD);               // a plate in it
         }
         if(s0 <= 262 && s1 > 262){                                                         // the lamp, on a bent arm over the work
           cyl(744, 262, 72, 76, 10, dark);
@@ -55535,9 +55536,9 @@ function houseCanopy(fn){
        frame with a pull ring. Closed for now; it opens for Gideon's climb */
     { const L0 = 120, L1 = 150, rail = '#8f969d', railD = '#6e757c';   // (nudged 30 west of where it was: room between it and the bean shelves)
       items.push({ a: (L0 + L1)/2, b: 60, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 60, its order key: it sorts after the far wall's pieces either side of it, not under them)
+        for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall (behind the rails: first -- W37 behind)
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
-        for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall
       } });
       /* its panel, shut or open (MINDING THE SHOP: MS.hatchOpen, the climb): a plank panel with a pull ring over the opening, or thrown
          back against the wall with the sky showing through */
@@ -55622,8 +55623,8 @@ function houseCanopy(fn){
     }
     /* a stack of crates and a sack of beans by the partition */
     items.push({ a: 380, b: 190, z: 0, solids: [solid(352, 404, 166, 214, 60, 'crates')], draw: () => {
-      box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350');
-      box(354, 402, 168, 212, 24, 28, woodD, woodD, woodD); } });
+      box(352, 404, 166, 214, 0, 28, '#c9a66b', '#b08e58', '#987a4a'); box(354, 402, 168, 212, 24, 28, woodD, woodD, woodD);   // (its band before the crate on it: W37 foot)
+      box(360, 400, 172, 208, 28, 56, '#d4b27a', '#b89a64', '#a08350'); } });
 
     /* ---- THE SERVICE COUNTER (2026-11-06: "counter and espresso bar"): a slatted copper-edged counter down the middle of the east
        side, a 560..604, b 70..390, the staff's aisle behind it (a 452..560, Gideon at his till) and its stools on the customers' side.
@@ -56000,7 +56001,7 @@ function houseCanopy(fn){
         runBox(4, A1 - 4, s0 + (first ? 5 : 0), s1 - (last ? 5 : 0), 20, 24, woodD, shade(woodD, 0.9), shade(woodD, 0.8), false, first, last);
         if(s0 < 140) box(10, 44, s0 + 4, s1 - 4, 24, 40, '#5a6f86', '#4a5d70', '#3e4f60');                   // boxes of bolts under it
         runBox(0, A1, s0, s1, 70, 76, woodL, shade(woodL, 0.9), shade(woodL, 0.8), false, first, last);
-        if(s0 <= 226 && s1 > 226){ box(40, 58, 214, 238, 76, 86, '#3a5f8a', '#2f4f74', '#27425f'); box(30, 40, 222, 230, 80, 84, '#8f969d', '#6e757c', '#596067'); }   // the vice
+        if(s0 <= 226 && s1 > 226){ box(30, 40, 222, 230, 80, 84, '#8f969d', '#6e757c', '#596067'); box(40, 58, 214, 238, 76, 86, '#3a5f8a', '#2f4f74', '#27425f'); }   // the vice (its jaw, behind it, first: W37 behind)
         if(s0 <= 110 && s1 > 110) soapWheel(28, 110, 76, 'b', 1);                                             // a wheel off a kart
         if(s0 <= 170 && s1 > 170){ cyl(30, 168, 76, 86, 6, '#c23a2e'); cyl(44, 182, 76, 80, 9, '#5e646b'); }   // a tin of grease, a tray of nuts
       }}); }
@@ -57895,8 +57896,9 @@ function houseCanopy(fn){
     items.push({ a: 650, b: 66, z: 0, solids: [solid(610, 690, 40, 90, 60, 'sofa')], draw: () => {
       box(610, 690, 40, 90, 0, 22, '#5d7f8a', '#4d6c76', '#3f5a63');                  // the base
       box(610, 690, 40, 54, 22, 62, '#6a8e9a', '#557886', '#456470');                  // the back
-      box(610, 624, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470'); box(676, 690, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');   // the arms
-      box(624, 676, 54, 90, 22, 30, '#7fa2ae', '#6a8e9a', '#557886');                  // the cushions
+      box(610, 624, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the west arm
+      box(624, 676, 54, 90, 22, 30, '#7fa2ae', '#6a8e9a', '#557886');                  // the cushions (between the arms: before the east one -- W37 behind)
+      box(676, 690, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the east arm
       box(632, 650, 56, 70, 30, 44, '#e2b93b', '#c9a02e', '#a8841f');                  // a scatter cushion
     }});
     items.push({ a: 702, b: 55, z: 0, solids: [{ name: 'lamp', c: [702, 55], r: 6, h: 150 }], draw: () => {
@@ -57928,8 +57930,8 @@ function houseCanopy(fn){
     /* ---- TROLLEYS, south-west under the window (nested wire carts) ---- */
     /* (60 clear of the front wall's inside face, b 380..430 of 510: nearer, the wall's cap covers it on screen -- W24) */
     items.push({ a: 45, b: 405, z: 0, solids: [solid(22, 70, 382, 430, 40, 'trolleys')], draw: () => {
+      box(20, 72, 380, 432, 4, 10, '#3d4448', darkF, darkS);                            // (its base first, the trolleys on it: W37 foot)
       for(let k = 0; k < 3; k++) box(22 + k*5, 70 + k*5 - 10, 384, 428, 10 + k*3, 36 + k*3, '#c9ced2', '#9aa0a2', '#868c90');
-      box(20, 72, 380, 432, 4, 10, '#3d4448', darkF, darkS);
     }});
 
     walkinStaffSolids(items, 'Dune Home & Garden Interior');
@@ -58466,8 +58468,10 @@ function houseCanopy(fn){
     /* the chair at the table's east end, facing west (a 166..184, b 105..123) */
     items.push({ a: 175, b: 114, z: 0, solids: [solid(166, 184, 105, 123, 44, 'chair')], draw: () => {
       for(const [a, b] of [[168, 107], [168, 121], [182, 107], [182, 121]]) cyl(a, b, 0, 22, 1.8, oakF);
-      box(166, 184, 105, 123, 22, 26, oakL, oak, oakF); for(const b of [107, 121]) box(181, 184, b - 1.5, b + 1.5, 26, 70, oak, oakF, oakS);
-      box(181, 184, 105, 123, 62, 70, oakL, oak, oakF); box(181, 184, 108, 120, 44, 56, oakL, oak, oakF);
+      box(166, 184, 105, 123, 22, 26, oakL, oak, oakF);
+      /* (its back north to south -- W37 behind: the far upright, the slat and the rail between, the near upright) */
+      box(181, 184, 105.5, 108.5, 26, 70, oak, oakF, oakS); box(181, 184, 108, 120, 44, 56, oakL, oak, oakF); box(181, 184, 105, 123, 62, 70, oakL, oak, oakF);
+      box(181, 184, 119.5, 122.5, 26, 70, oak, oakF, oakS);
     }});
 
     /* the old dwelling's fixtures stand where they stood in it, moved to its place in the L (a +264, b +464: the shift is the frame's, AOFF/BOFF, so their numbers stay as drawn) */
@@ -58500,11 +58504,12 @@ function houseCanopy(fn){
       for(const b of [b0, b0 + 37]) box(a0 + 12, a0 + 46, b, b + 9, 16, 44, shade(col, 1.06), col, shade(col, 0.8));
     };
     items.push({ a: 92, b: 75, z: 0, solids: [solid(50, 134, 10, 140, 50, 'bed')], draw: () => {         // the bed, its head at the north wall
-      box(48, 136, 6, 12, 0, 74, oakL, oak, oakF); box(50, 134, 136, 142, 0, 38, oakL, oak, oakF);
+      box(48, 136, 6, 12, 0, 74, oakL, oak, oakF);
       box(50, 134, 10, 140, 0, 22, oakL, oak, oakF);
       box(52, 132, 14, 138, 22, 34, '#f6f1e2', '#e6dfcc', '#d3cbb6');
+      for(const a of [58, 96]) box(a, a + 34, 16, 42, 34, 46, '#fbf7ee', '#ebe4d2', '#d8d0bc');                        // the pillows (north of the quilt: first)
       box(52, 132, 62, 138, 34, 41, '#6a96ac', trim, trimD); box(52, 132, 62, 66, 41, 43, '#d9c7a0', '#d9c7a0', '#d9c7a0');   // the quilt, folded at the head
-      for(const a of [58, 96]) box(a, a + 34, 16, 42, 34, 46, '#fbf7ee', '#ebe4d2', '#d8d0bc');
+      box(50, 134, 136, 142, 0, 38, oakL, oak, oakF);                                                             // the footboard, nearest: last (W37 behind)
     }});
     items.push({ a: 32, b: 24, z: 0, solids: [solid(18, 46, 10, 38, 46, 'bedside table')], draw: () => {
       box(18, 46, 10, 38, 0, 46, oakL, oak, oakF); F(20, 44, 22, 40, oak, oakF, 1, 38.2); F(30, 34, 30, 34, brassC, null, 0, 38.4);
@@ -58880,7 +58885,7 @@ function houseCanopy(fn){
       F(130, 270, 40, 52, teal, null, 0, 375.2);
       box(126, 274, 326, 379, 90, 96, stoneL, stone, stoneD);
       blockWordIn('RECEPTION', 150, 250, 60, 80, 375.3, '#efe7d6', null, 3);
-      for(const a of [165, 235]){ box(a - 18, a + 18, 340, 344, 112, 136, dark, dark, '#1c2126'); box(a - 2, a + 2, 344, 348, 96, 112, steelS, steelS, steelS); box(a - 10, a + 10, 342, 352, 96, 98, steelD, steelD, steelS); }
+      for(const a of [165, 235]){ box(a - 10, a + 10, 342, 352, 96, 98, steelD, steelD, steelS); box(a - 18, a + 18, 340, 344, 112, 136, dark, dark, '#1c2126'); box(a - 2, a + 2, 344, 348, 96, 112, steelS, steelS, steelS); }   // (its foot first, then the screen, the neck in front of it: W37)
       box(192, 212, 360, 372, 96, 100, '#f3ecdc', '#e2dccb', '#cfc8b6');                                           // a visitors' book
       cyl(250, 366, 96, 104, 5, '#f3ecdc'); ball(250, 366, 110, 8, '#c4603a', '#e07a52');                      // a bowl of oranges
     });
@@ -59003,7 +59008,8 @@ function houseCanopy(fn){
     runPiece(items, 500, 800, 300, 348, 120, (s0, s1) => [solid(s0, s1, 300, 348, 88, 'counter')], () => {
       box(500, 800, 300, 348, 0, 82, coral, coralD, shade(coral, 0.7)); for(let a = 506; a < 796; a += 20) F(a, a + 18, 30, 60, '#f3ecdc', null, 0, 348.2);
       box(498, 802, 298, 350, 82, 88, oak, oakF, oakD);
-      box(560, 640, 306, 334, 88, 120, steel, steelD, steelS); for(const a of [580, 620]){ box(a - 6, a + 6, 300, 308, 98, 108, dark, dark, '#1c2126'); cyl(a, 304, 88, 96, 4, '#f6f3ea'); }
+      for(const a of [580, 620]){ cyl(a, 304, 88, 96, 4, '#f6f3ea'); box(a - 6, a + 6, 300, 308, 98, 108, dark, dark, '#1c2126'); }   // (its group heads and cups, on its far side: before it -- W37 behind)
+      box(560, 640, 306, 334, 88, 120, steel, steelD, steelS);
       box(570, 584, 332, 336, 104, 114, '#d8483a', '#b5382c', '#8f2b22');
       box(720, 752, 310, 334, 88, 96, dark, dark, '#1c2126'); box(722, 750, 328, 334, 96, 110, '#3a3e46', '#2b3036', '#23292f');
       box(504, 548, 304, 344, 88, 94, steelD, steelD, steelS); box(504, 548, 304, 344, 94, 120, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
@@ -59260,12 +59266,14 @@ function houseCanopy(fn){
     { const A0 = 0, A1 = 36, B0 = 470, B1 = 740, ZS = [0, 52, 104, 156], zTop = 206, n = Math.round((B1 - B0)/50);
       for(let k = 0; k < n; k++){ const s0 = B0 + (B1 - B0)*k/n, s1 = B0 + (B1 - B0)*(k + 1)/n, last = k === n - 1;
         runPiece(items, A0, A1, s0, s1, zTop, (q0, q1) => [solid(A0, A1, q0, q1, zTop, 'tyre wall')], () => {
-          for(const bb of [s0 + 2, s1 - 2]) box(A0, A1, bb - 2, bb + 2, 0, zTop, steelD, steelD, steelS);            // its uprights
+          /* (north to south -- W37 behind: its far upright, the shelves and their tyres, then its near upright over them) */
+          box(A0, A1, s0, s0 + 4, 0, zTop, steelD, steelD, steelS);                                                       // its far upright
           ZS.forEach(z => { box(A0, A1, s0, s1, z + 2, z + 5, steel, steelD, steelS);                                   // a shelf
             const m = Math.max(1, Math.floor((s1 - s0 - 6)/12));
             for(let i = 0; i < m; i++){ const tb = s0 + 4 + (s1 - s0 - 8)*(i + 0.5)/m;
               const ring = (r, a, c) => { const pts = []; for(let j = 0; j < 16; j++){ const t = j/16*Math.PI*2; pts.push(P(a, tb + Math.cos(t)*r*0.34, z + 5 + r + Math.sin(t)*r)); } poly(pts, c); };
               box(6, A1 - 4, tb - 4.5, tb + 4.5, z + 5, z + 5 + 42, tyre, '#30343a', '#1c1e22'); ring(21, A1 - 3.8, '#3a3e44'); ring(11, A1 - 3.6, tyre); } });
+          box(A0, A1, s1 - 4, s1, 0, zTop, steelD, steelD, steelS);                                                       // its near upright
           if(last) S(A1, s1 - 4, s1, 0, zTop, steelS);
         }, { alongB: true, pad: 3, keyStart: true });
       } }
@@ -59551,18 +59559,22 @@ function houseCanopy(fn){
        tins and teapots over the tea bar, each a thing of its own with a top and a side. Runs along the wall (runPiece, W28) ---- */
     { const SD = 12, ZS = [112, 162, 212], shW = '#6b4a30', shF = '#5a3e28', shS = '#4a3220';
       const unit = (A0, A1, fill) => runPiece(items, A0, A1, 0, SD, 241, (s0, s1) => [solid(s0, s1, 0, SD, 236, 'shelves')], () => {   // (clipped at its own top, the top shelf's lids: W37)
-        for(let a = A0; a <= A1 + 0.1; a += (A1 - A0)/Math.max(1, Math.round((A1 - A0)/80))) box(a - 3, a + 3, 0, SD, 96, 236, shF, shW, shS);   // its uprights
-        ZS.forEach((z, r) => { box(A0, A1, 0, SD, z - 4, z, shW, shF, shS); fill(z, r); });
+        /* (west to east -- back to front along the wall, W37 behind: the boards, then each upright and what stands in the bay east of it; drawn
+           whole, the uprights first, a tin just west of one was painted over it) */
+        const ups = []; for(let a = A0; a <= A1 + 0.1; a += (A1 - A0)/Math.max(1, Math.round((A1 - A0)/80))) ups.push(a);
+        ZS.forEach(z => box(A0, A1, 0, SD, z - 4, z, shW, shF, shS));
+        ups.forEach((u, i) => { box(u - 3, u + 3, 0, SD, 96, 236, shF, shW, shS);                                   // its uprights
+          const lo = i ? u : -1e9, hi = i < ups.length - 1 ? ups[i + 1] : 1e9; ZS.forEach((z, r) => fill(z, r, lo, hi)); });
         box(A0 - 3, A1 + 3, 0, SD + 2, 236, 241, shF, shW, shS);                                                 // its top
       }, { pad: 3, keyStart: true });   // (keyed at each stretch's start: against the wall, W28) (its clip snug: padded a wall's 30, a run's clip reached over whoever stood before the next stretch -- Yumi at the urns)
       /* over the brewing station: tall glass jars of leaf, a dark lid each */
-      unit(20, 264, (z, r) => { for(let a = 30, k = 0; a < 256; a += 15, k++){
+      unit(20, 264, (z, r, lo, hi) => { for(let a = 30, k = 0; a < 256; a += 15, k++){ if(a < lo || a >= hi) continue;
         /* (sized to the shelf, Sir 2026-11-18: "these jars are too big for this shelf" -- 10 across on a board 12 deep, 24 tall under the
            next board's 46; stacked, no part inside another: the leaf, the glass over it, the lid) */
         const leaf = ['#5a4a2a', '#3f6b52', '#8a5a2a', '#2f3a24'][(k + r) % 4];
         cyl(a, SD/2, z, z + 15, 5, leaf, shade(leaf, 1.15)); cyl(a, SD/2, z + 15, z + 21, 5, '#cfe0dc', '#e6f0ee'); cyl(a, SD/2, z + 21, z + 24, 5.3, dark); } });
       /* over the tea bar: tins in jade, red, gold and blue with gold lids, a teapot now and then */
-      unit(296, 724, (z, r) => { for(let a = 308, k = 0; a < 714; a += 17, k++){
+      unit(296, 724, (z, r, lo, hi) => { for(let a = 308, k = 0; a < 714; a += 17, k++){ if(a + 6 < lo || a + 6 >= hi) continue;
         if((k + r) % 5 === 4){ cyl(a + 4, SD/2, z, z + 12, 8, '#e9e4da', '#f4f0e6'); cyl(a + 4, SD/2, z + 12, z + 15, 3, gold); continue; }   // a teapot
         const col = TIN[(k + r*2) % 5], h = 18 + (k % 3)*4;
         box(a, a + 12, SD/2 - 6, SD/2 + 6, z, z + h, col, shade(col, 0.86), shade(col, 0.72)); box(a - 0.5, a + 12.5, SD/2 - 6.5, SD/2 + 6.5, z + h, z + h + 3, gold, goldD, goldD); } });
@@ -61866,8 +61878,8 @@ function houseCanopy(fn){
       box(960, 1230, 100, 140, 0, 80, red, shade(red, 0.8), shade(red, 0.65));
       for(let a = 966; a < 1226; a += 20) F(a, a + 16, 24, 56, '#f4f1ea', null, 0, 140.2);                                              // the tile band on its front
       box(958, 1232, 98, 142, 80, 84, oakL, oak, oakF);
+      for(const a of [1004, 1032]){ cyl(a, 104, 84, 92, 4, '#f6f3ea'); box(a - 5, a + 5, 101, 108, 94, 102, '#2b3138', '#23292f', '#1c2126'); }   // its group heads and cups (far side: first -- W37 behind)
       box(986, 1050, 106, 132, 84, 112, steel, steelD, steelS); box(988, 1048, 108, 130, 112, 116, steelD, steelD, steelS);              // the espresso machine
-      for(const a of [1004, 1032]){ box(a - 5, a + 5, 101, 108, 94, 102, '#2b3138', '#23292f', '#1c2126'); cyl(a, 104, 84, 92, 4, '#f6f3ea'); }
       box(1100, 1130, 108, 128, 84, 92, '#2b3138', '#23292f', '#1c2126'); box(1102, 1128, 122, 128, 92, 106, '#3a3e46', '#2b3036', '#23292f');   // the till, its back to us
       box(1170, 1226, 102, 138, 84, 90, steelD, steelD, steelS); box(1170, 1226, 102, 138, 90, 114, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');   // the pastry case
       for(const a of [1184, 1204]) for(const b of [114, 128]) cyl(a, b, 90, 94, 5, '#c98a4a', '#e0b27a');
@@ -82187,9 +82199,10 @@ marinaEntry(),
       /* ---------- THE MUSIC ROOM ---------- */
       { const r = R2.music;
         T(r.a0 + 200, r.a1 - 200, 740, 1000, 0.5, '#8a2f3c'); T(r.a0 + 210, r.a1 - 210, 750, 990, 0.55, '#a8404e');
-        furn(2380, 2520, 1490, 1534, 130, 'piano', () => { box(2380, 2520, 1492, 1534, 0, 108, '#2b2a30', '#222126', '#1a191d'); box(2378, 2522, 1490, 1534, 108, 114, '#3a3940', '#2b2a30', '#222126');
-          F(2386, 2514, 20, 84, '#1f1e23', null, 0, 1492.4); box(2388, 2512, 1478, 1492, 56, 62, '#f4f2ec', '#e4e0d6', '#d4d0c6');
-          for(let a = 2392; a < 2510; a += 9) F(a, a + 0.8, 56, 62, '#2b2a30', null, 0, 1478.6); });
+        furn(2380, 2520, 1490, 1534, 130, 'piano', () => {
+          /* (its keys on the far side, the player's (north): before its body -- W37 behind) */
+          box(2388, 2512, 1478, 1492, 56, 62, '#f4f2ec', '#e4e0d6', '#d4d0c6');
+          box(2380, 2520, 1492, 1534, 0, 108, '#2b2a30', '#222126', '#1a191d'); box(2378, 2522, 1490, 1534, 108, 114, '#3a3940', '#2b2a30', '#222126'); });
         items.push({ a: 2450, b: 1458, z: 0, solids: [solid(2430, 2470, 1448, 1470, 30, 'stool', true)], draw: () => { cyl(2450, 1458, 0, 24, 14, '#6a4c30', '#8a6a46'); } });
         furn(3000, 3110, 590, 660, 100, 'drums', () => { cyl(3050, 626, 0, 34, 24, '#c2452e', '#e8e4d6'); cyl(3010, 610, 40, 62, 12, '#2f7f86', '#e8e4d6'); cyl(3090, 610, 40, 62, 12, '#2f7f86', '#e8e4d6');
           tube(3050, 600, 34, 3050, 600, 80, 1.2, steel); cyl(3050, 600, 78, 80, 18, '#d9ad3c', '#f1d27a'); tube(3030, 650, 0, 3030, 650, 60, 1.2, steel); cyl(3030, 650, 58, 60, 14, '#d9ad3c', '#f1d27a'); });
