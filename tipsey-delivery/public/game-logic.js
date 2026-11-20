@@ -29509,26 +29509,31 @@ function pgSvc(t){
   out.roller = in_(0, 4) ? sm(ph(0, 4)) : in_(4, 18) ? 1 : in_(18, 22) ? 1 - sm(ph(18, 22)) : in_(X(84), X(80)) ? sm(ph(X(84), X(80))) : in_(X(80), X(64)) ? 1 : in_(X(64), X(60)) ? 1 - sm(ph(X(64), X(60))) : 0;
   out.lift = in_(70, 78) ? sm(ph(70, 78)) : in_(78, X(150)) ? 1 : in_(X(150), X(142)) ? 1 - sm(ph(X(150), X(142))) : 0;
   const carB = s < 4 ? null : s < 16 ? S.OUT + (S.CM - S.OUT)*sm(ph(4, 16)) : s < X(76) ? S.CM : s < X(64) ? S.CM + (S.OUT - S.CM)*sm(ph(X(76), X(64))) : null;
-  const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 31) ? 1 : in_(31, 34) ? 1 - sm(ph(31, 34)) : in_(X(100), X(97)) ? sm(ph(X(100), X(97))) : in_(X(97), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
+  const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 28.5) ? 1 : in_(28.5, 31.5) ? 1 - sm(ph(28.5, 31.5)) : in_(X(100), X(97)) ? sm(ph(X(100), X(97))) : in_(X(97), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
   if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: in_(4, 16) || in_(X(76), X(64)), wheel: carB*0.05,
     wheelOff: in_(90, X(170)), doorOpen, rider: null };
   /* the owner: out of the car by the open door (25..29), to the counter (29..40), the keys over (40..50), out of the bay (50..62); back in
      (X(130)..X(120)), paying (..X(110)), to the car (..X(98)), in through the open door (X(95)..X(91)) */
   const look = streetLook((seed ^ 0x51) >>> 0, { adult: true, aid: 'none' });
   if(out.car && (s < 25 || s >= X(91))) out.car.rider = look;          // (at the wheel, seen through the glass: in, and out again)
-  const walk = (pts, a, b) => { const q = pgSvcPath(pts, ph(a, b)); return { a: q.a, b: q.b, th: q.th, moving: true, L: look }; };
+  /* (Sir, 2026-11-20: "is there an issue with the way our guy is walking?" -- each leg was stretched over its window, 18..63 a second,
+     his steps in slow motion or hurried, and he snapped round at each corner. Now: at the people's own pace (PEOPLE_WALK_V), early in
+     the window -- or late, to leave at its end -- standing the rest; turning through the corners, his heading from a little behind
+     him to a little ahead) */
+  const walk = (pts, a, b, late) => { let tot = 0; for(let i = 1; i < pts.length; i++) tot += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    const V = PEOPLE_WALK_V*1000, t0 = late ? Math.max(a, b - tot/V) : a, d = Math.max(0, Math.min(tot, (s - t0)*V)), at = e => pgSvcPath(pts, Math.max(0, Math.min(tot, e))/(tot || 1));
+    const q = at(d), q0 = at(d - 10), q1 = at(d + 10), th = (q1.a !== q0.a || q1.b !== q0.b) ? Math.atan2(q1.b - q0.b, q1.a - q0.a) : q.th;
+    return { a: q.a, b: q.b, th, moving: s >= t0 && d < tot, L: look }; };
   const stand = (p, th) => ({ a: p[0], b: p[1], th, moving: false, L: look });
   const DR = pgSvcDoor(kind), OUTW = DR.path, SIDE = OUTW[OUTW.length - 1], DESK = S.DESK, DOOR = S.DOOR;   // (OUTW: out of the seat, round the open door)
   out.door = DR;
-  if(in_(25, 31)) out.owner = walk(OUTW, 25, 31);
-  else if(in_(31, 40)) out.owner = walk([SIDE, [230, 300], DESK], 31, 40);
+  if(in_(25, 40)) out.owner = walk([...OUTW, [230, 300], DESK], 25, 40);              // (out round the door and on to the counter, no stop)
   else if(in_(40, 50)){ out.owner = stand(DESK, 0); out.owner.atDesk = 'drop'; }
-  else if(in_(50, 62)) out.owner = walk([DESK, [274, 300], DOOR], 50, 62);
+  else if(in_(50, 62)) out.owner = walk([DESK, [274, 300], DOOR], 50, 62, true);
   else if(in_(X(130), X(120))) out.owner = walk([DOOR, [274, 300], DESK], X(130), X(120));
   else if(in_(X(120), X(110))){ out.owner = stand(DESK, 0); out.owner.atDesk = 'pay'; }
-  else if(in_(X(110), X(100))) out.owner = walk([DESK, [230, 300], SIDE], X(110), X(100));
-  else if(in_(X(100), X(97))) out.owner = stand(OUTW[3], Math.atan2(OUTW[2][1] - OUTW[3][1], OUTW[2][0] - OUTW[3][0]));   // (waits for the door)
-  else if(in_(X(97), X(91))) out.owner = walk(OUTW.slice(0, 4).reverse(), X(97), X(91));
+  else if(in_(X(110), X(97))) out.owner = walk([DESK, [230, 300], SIDE, OUTW[3]], X(110), X(97));   // (to the car, and waits there for the door)
+  else if(in_(X(97), X(91))) out.owner = walk(OUTW.slice(0, 4).reverse(), X(97), X(91), true);     // (in round it, at the seat as he gets in)
   out.phase = s < 22 ? 'in' : s < 62 ? 'drop' : s < X(130) ? 'work' : s < X(84) ? 'collect' : s < X(60) ? 'out' : 'gap';
   out.slot = n; out.s = s;
   return out;
