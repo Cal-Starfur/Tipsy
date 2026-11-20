@@ -61001,6 +61001,21 @@ function houseCanopy(fn){
     const bot = (a, b, fdir, x) => Object.assign({ kind: 'amr', a, b, fdir, bSkin: BSK }, x || {});
     const man = (a, b, fdir, x) => Object.assign({ kind: 'humanoid', a, b, fdir, look: LOOK, lift: [0.08, 0.08], bend: [0.15, 0.15] }, x || {});
     const WORK = t => ({ lift: [0.58 + 0.14*Math.sin(t/230), 0.58 + 0.14*Math.sin(t/230 + 2.1)], bend: [0.62 + 0.1*Math.sin(t/310), 0.62 - 0.1*Math.sin(t/310)] });
+    /* EACH STATION ITS OWN HANDS (Sir, 2026-11-20: "every humanoid needs different motion of what they are doing on the scooter"): the job's
+       height (lift 0.5 the deck, 1 shoulder high at the bars) and its rhythm -- df a small turn of his body along the job */
+    const WORKS = (p, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), sq = (k, ph) => Math.max(0, S(k, ph));
+      switch(p){
+        case 0: return { lift: [0.55 + 0.05*S(400), 0.55 + 0.05*S(400)], bend: [0.35 + 0.15*sq(400), 0.35 + 0.15*sq(400)], df: 0.08*S(900) };   /* (the deck squared on the jig: both hands flat, pressing it home) */
+        case 1: return { lift: [0.5, 0.55 + 0.12*S(110)], bend: [0.75, 0.55 + 0.25*S(110, 1.6)], df: -0.12 };   /* (the rear wheel: one hand holds it, the other runs the nut down) */
+        case 2: return { lift: [0.6 + 0.1*S(260), 0.6 + 0.1*S(260, Math.PI)], bend: [0.6 + 0.15*S(260, 1.6), 0.6 + 0.15*S(260, 1.6 + Math.PI)], df: 0.12 };   /* (the front wheel and fork: spun hand over hand, checked true) */
+        case 3: return { lift: [0.45 + 0.1*S(700), 0.45 + 0.1*S(700)], bend: [0.2 + 0.3*sq(700, 1), 0.2 + 0.3*sq(700, 1)], df: 0.2*S(700) };   /* (the grip tape: long smoothing strokes along the deck, both hands together) */
+        case 4: return { lift: [0.95 + 0.04*S(500), 0.7 + 0.08*S(160)], bend: [0.3, 0.7 + 0.15*S(160, 1)], df: -0.1 };   /* (the stem: held upright in one hand, clamped with the other) */
+        case 5: return { lift: [1.05 + 0.08*S(150), 1.05 + 0.08*S(150, 2.4)], bend: [0.45 + 0.1*S(150, 1), 0.45 + 0.1*S(150, 3.4)], df: 0.06*S(1100) };   /* (the bars: both hands up at them, the clamp bolts in turn) */
+        case 6: return { lift: [1.0, 0.85 + 0.2*sq(220)], bend: [0.35, 0.8 - 0.4*sq(220)], df: 0.15*S(1300) };   /* (grips and brake levers: one bar steadied, grips pushed on in short shoves) */
+        case 7: return { lift: [0.95 + 0.05*S(600), 0.5 + 0.05*S(600, 2)], bend: [0.6 + 0.2*S(240), 0.4], df: 0.25*S(1500) };   /* (the lamps: one hand at the head lamp, the other at the tail light, turning between) */
+        case 8: return { lift: [0.6, 0.6 + 0.1*sq(350)], bend: [0.95, 0.9 - 0.1*sq(350)], df: 0.18*S(1700) };   /* (the test: a tablet held in front, tapped, looking it over end to end) */
+        default: return { lift: [0.7 + 0.25*sq(900), 0.7 + 0.25*sq(900)], bend: [0.5, 0.5], df: 0 };   /* (the packer: lifting the finished one off) */
+      } };
     const REACH = t => ({ lift: [0.78, 0.78 + 0.1*Math.sin(t/260)], bend: [0.18, 0.18] });
 
     /* A SCOOTER OR AN E-BIKE ON ITS JIG, built up a stage at a station (st: 0 the bare frame, 1 rear wheel, 2 front wheel and fork, 3 its battery,
@@ -61209,8 +61224,9 @@ function houseCanopy(fn){
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
         const [pa, pb] = POS[p], here = ((p - c) % NPOS + NPOS) % NPOS < NCAR;
         const w0 = 500, w1 = DWELL - 500, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - 400))/400) : clamp01((u - w1)/400);
-        if(p >= 5){ out.push(man(pa + 88, pb, 2 - 2*s, on ? WORK(t + p*700) : s > 0.9 ? REACH(t + p*500) : {})); continue; }   /* (row B and the packer: beside the job, the bench or table to the east) */
-        out.push(man(pa, pb - 78, 1 + 2*s, on ? WORK(t + p*700) : s > 0.9 ? REACH(t + p*500) : {}));
+        const wk = on ? WORKS(p, t + p*700) : null;
+        if(p >= 5){ out.push(man(pa + 88, pb, 2 - 2*s + (wk ? wk.df : 0), wk ? wk : s > 0.9 ? REACH(t + p*500) : {})); continue; }   /* (row B and the packer: beside the job, the bench or table to the east) */
+        out.push(man(pa, pb - 78, 1 + 2*s + (wk ? wk.df : 0), wk ? wk : s > 0.9 ? REACH(t + p*500) : {}));
       }
       /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
