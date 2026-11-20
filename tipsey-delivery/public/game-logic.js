@@ -99666,7 +99666,7 @@ function streetLook(seed, opts){
     case 'skater':   { const b = pick(BRIGHT); L.shirt = b; L.uniform = { hood: { c: b.c, dk: b.dk }, beanie: pick([_pcol(0x1a1a1e), _pcol(0x2f6fb0), _pcol(0xe2483d)]) };
                        L.pants = pr() < 0.5 ? Object.assign({}, PEOPLE_PANTS[1], { shorts: true }) : PEOPLE_PANTS[1]; L.shoe = sk(pick([_pcol(0xf6f6f2), _pcol(0xe2483d)]), 'sneaker'); break; }
     case 'worker':   { L.shirt = pick([_pcol(0x6b6b6b), _pcol(0x3f8f8a), _pcol(0x4a6c9c)]); L.pants = pick([_pcol(0x3a4658), _pcol(0x6b4a34)]); L.shoe = sk(_pcol(0x5c4530), 'boot');
-                       L.uniform = { vest: _pcol(0xf2e22a), cap: { c: 0xf2c82a, dk: 0xc49f1a, top: 0xffd94a, badge: 0xf2c82a, hard: true } }; break; }
+                       L.uniform = { vest: _pcol(0xf2e22a), hivis: true, cap: { c: 0xf2c82a, dk: 0xc49f1a, top: 0xffd94a, badge: 0xf2c82a, hard: true } }; break; }
     case 'punk':     { L.hair = hp(pick([0xff4fa3, 0x7fd36a, 0x4fd8ff, 0xffb02e]), 'mohawk'); L.shirt = { c: 0x1a1a1e, dk: 0x101012, tank: pr() < 0.5 }; L.pants = _pcol(0x1a1a1e);
                        L.shoe = Object.assign({}, _pcol(0x1a1a1e), { platform: true }); L.uniform = { chain: 0xc9ced2 }; break; }
     case 'scrubs':   { const c = pick(SCRUBS); L.shirt = c; L.pants = c; L.shoe = sk(_pcol(0xf6f6f2), 'sneaker'); break; }                  // off shift from Marina General
@@ -118039,7 +118039,12 @@ class WorldScene extends Phaser.Scene {
                                    : (hv ? 1.1 : 0.86) + ((hv ? 0.9 : 1) - (hv ? 1.1 : 0.86))*(zz - zm)/(shoulderH - zm);
         const ra = build.torsoW/2*kA, rb = build.torsoD/2*kB, s0 = sAt(zA), s1 = sAt(zm), s2 = sAt(zB);
         prism(0, 0, ra*s0, rb*s0, zA, zm + 0.3, uniform.vest, { top: s1/s0, noTop: true, ring: true, n: 12 });
-        prism(0, 0, ra*s1, rb*s1, zm, zB, uniform.vest, { top: s2/s1, noTop: true, ring: true, n: 12 }); }   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
+        prism(0, 0, ra*s1, rb*s1, zm, zB, uniform.vest, { top: s2/s1, noTop: true, ring: true, n: 12 });
+        /* A HI-VIS VEST (uniform.hivis, the worker's: Sir, 2026-11-20, "a vest goes over the shoulder"): a strap up over each shoulder,
+           front to back, and two reflective bands round it */
+        if(uniform.hivis){ const V = uniform.vest, hk = hullTones(V), sw = ra*0.2, sa = ra*s2*0.62, sbh = rb*s2*0.86, SIL = { c: 0xd6dade, dk: 0x9aa0a6 };
+          for(const sd of [-1, 1]) box(sd*sa, 0, sw, sbh, shoulderH - 0.2, shoulderH + 0.5, _pmix(hk.lt, V.c, 0.6), V.dk, V.c);
+          for(const zb of [zA + 2, zm + 3]){ const k0 = sAt(zb), k1 = sAt(zb + 2); prism(0, 0, ra*k0*1.01, rb*k0*1.01, zb, zb + 2, SIL, { top: k1/k0, noTop: true, ring: true, n: 12 }); } } }   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
     if(uniform && uniform.chain && faceB > 0){
