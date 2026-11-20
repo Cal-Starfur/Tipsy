@@ -61391,9 +61391,13 @@ function houseCanopy(fn){
     /* parts left: four at the refill (at rT, mod SUP), one gone at each reach for the next part since (reachU into each cycle) */
     const partsLeft = (t, rT, reachU) => { const last = t - ((((t - rT) % SUP) + SUP) % SUP), n = Math.floor((t - reachU)/CYC) - Math.floor((last - reachU)/CYC); return Math.max(0, NPART - n); };
     /* a tote of parts on a bench (along a, or b): the station's colour, its parts showing over the rim */
-    const partTote = (a, b, z, alongB, n, col) => { const la = alongB ? 13 : 30, lb = alongB ? 30 : 13;
-      box(a - la, a + la, b - lb, b + lb, z, z + 14, col, shade(col, .85), shade(col, .7)); T(a - la + 2, a + la - 2, b - lb + 2, b + lb - 2, z + 14.1, shade(col, .45));
-      for(let i = 0; i < n; i++){ const d = -22.5 + i*9; box(alongB ? a - 7 : a + d - 3.6, alongB ? a + 7 : a + d + 3.6, alongB ? b + d - 3.6 : b - 7, alongB ? b + d + 3.6 : b + 7, z + 8, z + 18, '#3a3f46', '#2b2f35', '#22262b'); } };
+    /* a station's bin, open: the same bin as on the shelves and robots (BIN's size, its label), its lid off at the station and the parts in it --
+       Sir, 2026-11-20: "the bin transforms from a square to a rectangle" */
+    const partTote = (a, b, z, alongB, n, col) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
+      box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, c, shade(c, .85), shade(c, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 17.1, shade(c, .4));
+      for(let i = 0; i < n; i++){ const pa = a - 6 + (i % 3)*6, pb = b - 4 + Math.floor(i/3)*8; box(pa - 2.4, pa + 2.4, pb - 3, pb + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); }
+      F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
+      S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
     /* ONE SET OF BIN COLOURS for the racks, the pods, the carts, the runner and the benches (Sir: "the bins that appear are not the same colour as
        the ones he is grabbing"): a bin keeps its colour from the shelf to the bench (CPAL; the robots' own bins take it, m.bins) */
     /* (drawn as the robots' own bins are, amrLoad: its body, a darker lid band on top, a white label with its dark dash on each face) */
