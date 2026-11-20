@@ -1680,6 +1680,7 @@ const GD_PRESETS = [
   /* THE FACILITY LOOKS (Sir, 2026-11-18: "i also want all of these skins for the humanoid robot ... he will be in these settings working with
      them"): the warehouse robot's facility skins (TP_BSKIN build 'amr') as his -- its colours on his shell, his vest or apron, his hat and band, and
      its icon on his chest (gDecal 'fac:*'); a Warehouse Worker, the floor's own: hi-vis vest, hard hat, tool belt, boots */
+  { id: 'cratewell', name: 'Cratewell Works', set: { gShell: 'c:f6c81e', gFinish: 'twotone', gShell2: 'c:2a2f36', gJoint: 'graphite', gHand: 'black', gBand: 'c:d4201f', gHat: 'hardhat', gHatCol: 'c:2a2f36', gBadge: 'gear', gBadgeCol: 'c:d4201f', gDecal: 'chevron', gDecalCol: 'c:d4201f', gShoeKind: 'boot', gShoeCol: 'black', gPack: 'graphite', gPackStyle: 'cells' } },   /* (Cratewell Works' own humanoids: the fleet's yellow, red and charcoal -- Sir, 2026-11-20: "our humanoid isn't skinned properly") */
   { id: 'warehouse', name: 'Warehouse Worker', set: { gShell: 'slate', gApron: 'vest', gOutCol: 'c:c8f03c', gHat: 'hardhat', gHatCol: 'yellow', gHand: 'black', gShoeKind: 'boot', gShoeCol: 'black', gNeck: 'lanyard', gBand: 'lime', gDecal: 'stripes', gDecalCol: 'c:e8ecef', gPackStyle: 'cells' } },
   { id: 'fac-online', name: 'Online Mega-Store', set: { gShell: 'c:2f3338', gApron: 'vest', gOutCol: 'c:ff9a1a', gHat: 'hardhat', gHatCol: 'c:ff9a1a', gBand: 'orange', gDecal: 'fac:online', gDecalCol: 'c:2f3338', gShoeKind: 'boot', gShoeCol: 'black' } },
   { id: 'fac-parcel', name: 'Parcel Carrier', set: { gShell: 'c:4a2f1c', gApron: 'vest', gOutCol: 'c:d8a83a', gHat: 'cap', gHatCol: 'c:4a2f1c', gBand: 'gold', gDecal: 'fac:parcel', gDecalCol: 'c:4a2f1c', gShoeKind: 'boot', gShoeCol: 'brown' } },
@@ -59340,7 +59341,7 @@ function houseCanopy(fn){
 
     /* ---- THE CREW (fx.crew: the game's own robots, drawRoomBot): Cratewell's humanoids in the Warehouse Worker look, its warehouse robots in
        Freight Yellow ---- */
-    const LOOK = typeof gideonPartsOf === 'function' ? gideonPartsOf('warehouse') : null, BSK = 'amr:freight';
+    const LOOK = typeof gideonPartsOf === 'function' ? gideonPartsOf('cratewell') : null, BSK = 'amr:freight';
     const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u*u*(3 - 2*u), clamp01 = u => u < 0 ? 0 : u > 1 ? 1 : u;
     /* along a polyline at distance s (closed: back to its first point), its heading turning through each corner over its last 40 */
     const pathAt = (pts, s) => { let L = 0; const seg = []; for(let i = 0; i < pts.length; i++){ const p0 = pts[i], p1 = pts[(i + 1) % pts.length], l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); seg.push([p0, p1, l, L]); L += l; }
