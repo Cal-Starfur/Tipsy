@@ -45189,6 +45189,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'amr:grocery', build: 'amr', name: 'Grocery Fulfilment', cents: 900, body: 0xf2ead2, lid: 0x2e8b4a, stripe: 0x2e8b4a, icon: 'leaf', iconCol: 0x2e8b4a, band: 'produce', bandCol: 0x2e8b4a, acc: 0x2e8b4a },
   { id: 'amr:pharmacy', build: 'amr', name: 'Pharmacy', cents: 900, body: 0xf6f6f4, stripe: 0xd42a2a, icon: 'heartpill', iconCol: 0xd42a2a, acc: 0xd42a2a },
   { id: 'amr:hospital', build: 'amr', name: 'Hospital Supply', cents: 900, body: 0xf6f6f4, skirt: 0x1a9a9a, stripe: 0x1a9a9a, icon: 'cross', iconCol: 0x2aa84a, acc: 0x1a9a9a },
+  { id: 'pdog:cratewell', build: 'pdog', name: 'Cratewell Security', cents: 900, body: 0xf6c81e, head: 0x2a2f36, thigh: 0x2a2f36, stripe: 0xd4201f, dog: 'cratewell', beacon: 0xff3b2f },   /* (Cratewell Works' hall dog, phase 7) */
   { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0xf3f3f0, dog: 'k9', lightbar: true },
   { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
   { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
@@ -59837,8 +59838,12 @@ function houseCanopy(fn){
           else if(jr < 6100){ P = hold(STK, 3); jack = JACKIN([]); fork = ease((jr - 5700)/400); }
           else if(jr < 7900){ P = drv(Q3, (jr - 6100)/1800); jack = JACKIN([]); fork = 1; }
           else if(jr < 8300){ P = hold(A0, 1); jack = JACKIN([]); fork = 1 - ease((jr - 7900)/400); }
+          else if(jr >= 27500 && jr < 49100){ const CHG = [A0, [1720, 1390, 'r'], [720, 1390], [720, 1260], [620, 1260]], CHB = [[620, 1260], [720, 1260, 'r'], [720, 1390], [1720, 1390], A0];
+            /* (phase 7: on charge in its long wait -- out to a pad by the reserve pods while the runner waits at goods to person, the way clear) */
+            if(jr < 31600) P = drv(CHG, (jr - 27500)/4100); else if(jr < 45000){ P = hold([620, 1260], 2); const on = Math.floor(t/600) % 2;
+              out.push({ kind: 'cargo', a: 530, b: 1260, cargo: () => box(525.5, 527, 1250, 1270, 24, 60, on ? '#bffcf8' : '#5fe8e0') }); } else P = drv(CHB, (jr - 45000)/4100); }
           else P = hold(A0, 1);
-          CW_FLOW.jack = jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
+          CW_FLOW.jack = jr >= 27500 && jr < 49100 ? (jr >= 31600 && jr < 45000 ? 'charging' : 'to the charger') : jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
           const nL = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;
           out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: nL >= 0 || underPal(P) ? 'under' : false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
@@ -59972,9 +59977,15 @@ function houseCanopy(fn){
           if(deckFull) rcvItemKit(RCV[0], a, b - 22, 31);
           if(flatFull) rcvItemKit(RCV[3], a, b + 22, 31); else if(flatFlat) flatC(a, b + 22, 31, RCV[3]); } }));
         /* the baler, the loader's: what has gone into it since its last bale */
-        { const n = nDrop(t), k = ((n % 6) + 6) % 6, td = jr >= DW0 + P5C*CARRY_GO ? DW0 : jr >= LW0 + P5C*CARRY_GO ? LW0 : DW0 - PALT, ej = clamp01((jr - td - P5C)/2400);
-          out.push({ kind: 'bot', botKind: 'cargobot', bSkin: 'cgcard:cratewell', build: 'cgcard', a: BALER[0], b: BALER[1], fdir: 0, data: { fill: k === 0 && ej < 1 ? 1 - ej*0.9 : 0.1 + k*0.15, eject: n >= 6 ? (k === 0 ? Math.max(0.02, ej) : 1) : 0 } });
-          CW_FLOW.baler = k + '/6'; }
+        /* (phase 7 -- its recycling run: at its sixth carton, full, it drives the bale out of the door to Dispatch along its own lane (b 530,
+           clear of the jacks' 455 and the tugger's 590), puts it out there and comes back empty -- before the next carton) */
+        { const n = nDrop(t), k = ((n % 6) + 6) % 6, tt = (jr - 52500 + PALT) % PALT, run = k === 0 && n > 0 && tt < 8000;
+          const BRUN = [BALER, [BALER[0], 530], [W + 70, 530], [W + 71, 530]], BBACK = [[W + 70, 530], [BALER[0], 530], BALER, [BALER[0], BALER[1] + 1]];
+          let P = { a: BALER[0], b: BALER[1], fdir: 0 }, s0 = 0;
+          if(run){ if(tt < 3000){ P = along(BRUN, tt/3000); s0 = tt; } else if(tt < 5000) P = null; else if(tt < 8000){ P = along(BBACK, (tt - 5000)/3000); s0 = tt; if(tt > 7800) P.fdir = 0; } }
+          const full = k === 0 && n > 0 && !(tt >= 5000 && tt < 20000);   /* (full from its sixth carton till it is out of the door; empty after, till the next goes in) */
+          if(P && P.a < W + 30) out.push({ kind: 'bot', botKind: 'cargobot', bSkin: 'cgcard:cratewell', build: 'cgcard', a: P.a, b: P.b, fdir: P.fdir, wheel: s0*0.05, data: { fill: full ? 1 : 0.1 + k*0.15, eject: 0 } });
+          CW_FLOW.baler = run ? (tt < 3000 ? 'out with a bale' : tt < 5000 ? 'at Dispatch' : 'back') : (k === 0 && n > 0 && tt >= 8000 ? 0 : k) + '/6'; }
         const L0 = [POS[0][0], RA - 78], FS = [FEED[0], RA - 78], fa = [FEED[0], FEED[1], 31];
         /* the loader's spell: the feeder's empty carton folded into the baler; the shuttle's full deck carton onto the feeder; back to his place */
         if(deckWin(jr)){ const q = jr - DW0, SS = [D1[0] - 60, D1[1] - 22], sh = [D1[0], D1[1] - 22, 31];
@@ -59999,6 +60010,12 @@ function houseCanopy(fn){
           out.push({ kind: 'cargo', a: 2172, b: 1130, dd: 2, cargo: () => { for(let i = 0; i < n; i++) box(2122, 2222, 1116, 1144, 63 + i*2.6, 65.2 + i*2.6, '#d9b07a', '#c49c68', '#b08a58'); } }); }
         return out; } } });
     }
+
+    /* ---- PHASE 7: THE SECURITY DOG (fx.crew) -- the patrol bot's dog build in Cratewell's colours, walking the strip inside the line between
+       its two rows, round and round, watching both ---- */
+    { const DL = [[960, 935], [1840, 935], [1840, 1065], [960, 1065]], DLL = 2*(880 + 130);
+      items.push({ a: 1400, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => { const s0 = (t*0.06) % DLL, P = pathAt(DL, s0);
+        return [{ kind: 'bot', botKind: 'patrolbot', bSkin: 'pdog:cratewell', build: 'pdog', a: P.a, b: P.b, fdir: P.fdir, wheel: s0*0.12 }]; } } }); }
 
     /* ---- THE WEST END: reserve stock in shelf pods parked along the west wall, facing south, each on its square (the high rack gone) ---- */
     for(let i = 0; i < 6; i++){ const pb = 700 + i*120, pa = 62;
