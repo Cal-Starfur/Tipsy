@@ -59817,7 +59817,7 @@ function houseCanopy(fn){
           else P = hold(A0, 1);
           CW_FLOW.jack = jr < 2100 ? 'arm bay' : jr < 4700 ? 'to bay ' + (kIn + 1) : jr < 6100 ? 'empty off the stack' : jr < 8300 ? 'empty to the arm' : 'arm bay';
           const nL = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;
-          out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
+          out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackIn', jack: nL >= 0 ? 'under' : false, fork, wheel: (P.s || P.a + P.b)*0.12 })); if(nL >= 0) out.push(onForks(P, fork, nL)); }
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
            the oldest pallet out */
         { const cs = Math.floor((t - PAL0 - 9500)/PALT), u = t - PAL0 - 9500 - cs*PALT, ko = (((cs - 4) % 6) + 6) % 6, jr2 = u + 9500;
@@ -59836,7 +59836,7 @@ function houseCanopy(fn){
           else { P = drv(Q5, (jr2 - 51400)/(PALT + 9500 - 51400)); jack = JACK; fork = 1; }
           CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 51400 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
           if(P){ const fade = clamp01((W + 50 - P.a)/80); if(fade > 0.01){ const own = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;   /* (the parts pallet stays the jack's own: its load the Receiver's) */
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 ? false : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); } } }
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); } } }
         CW_FLOW.stored = SB.map((q, k) => bayHas(t, k) ? 'P' : '.').join('');
         return out; } } });
     }
@@ -133109,6 +133109,7 @@ class WorldScene extends Phaser.Scene {
       const load = () => {
         /* (a room's pallet jack, drawRoomBot: this._crewJack false -- its forks bare, no pallet; a function -- its own load on the pallet) */
         const CJ = this._crewJack;
+        if(CJ === 'under') return;   /* (its forks in under a pallet the room draws itself -- Cratewell's onForks: hidden, or they paint over it) */
         if(CJ === false){ for(const sb of [-1, 1]) box(F0, F1, sb*14 - 6, sb*14 + 6, PZ - 2, PZ + 2, STEEL); return; }
         /* forks and stringers, far to near across */
         const low = [];
