@@ -59645,7 +59645,8 @@ function houseCanopy(fn){
     for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
         T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
     /* (row A's parts robots' one-way loop to the pick face: up a 1700, along b 200, down a 2150, back along b 440 -- the tugger's loop gone) */
-    for(const [a0, a1, b0, b1] of [[1697, 1703, 200, 440], [1700, 2150, 197, 203], [2147, 2153, 200, 440], [780, 2153, 437, 443]]) T(a0, a1, b0, b1, 0.35, '#5fb8e8');
+    for(const [a0, a1, b0, b1] of [[780, 1763, 517, 523], [1757, 1763, 200, 520], [1760, 2150, 197, 203], [2147, 2153, 200, 440], [780, 2153, 437, 443]]) T(a0, a1, b0, b1, 0.35, '#5fb8e8');   /* (row A's closed loop: empties east on b 520, fulls west on b 440) */
+    for(const a of [1660, 1400, 1100, 800]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
     T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
     T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
     T(1110, 2312, 1572, 1628, 0.3, '#8f9599'); T(1110, 2240, 1572, 1576, 0.5, yel); T(1110, 2312, 1624, 1628, 0.5, yel); T(2240, 2312, 1428, 1628, 0.3, '#8f9599'); T(2306, 2312, 1428, 1628, 0.5, yel);   /* (phase 6: the storage aisle, and the lane on to it) */
@@ -59745,9 +59746,12 @@ function houseCanopy(fn){
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
-        if(p < 5){ const jrA = (((t - PAL0) % PALT) + PALT) % PALT, P = raTrip(p - 1, jrA);
-          if(!P) out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) }));
-          else { const m = p - 1, q = P.q, S = STKM, AU = S/3, nf = [0, 1, 2].filter(j => q >= (m + 1)*S + j*AU + AU*ARMU1).length, stack = q < m*S + S*0.35, no = [0, 1, 2].filter(j => q >= lidT(m) + 250*j + 150).length;
+        if(p < 5){ const jrA = (((t - PAL0) % PALT) + PALT) % PALT, m = p - 1, S = STKM, AU = S/3;
+          for(const R of raBots(m, jrA)){
+            if(R.kind === 'station' || !R.P){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) })); continue; }
+            const P = R.P, q = R.jr, A = m*S + 600;
+            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, SCOL[p], 3, 3) })); continue; }
+            const qq = (((q - A) % PALT) + PALT) % PALT + A, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => qq >= (m + 1)*S + j*AU + AU*ARMU1).length, stack = R.kind === 'empty' || qq < m*S + S*0.35, no = [0, 1, 2].filter(j => qq >= lidT(m) + 250*j + 150).length;
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, SCOL[p]); else if(nf) BIN3(P.a, P.b, P.fdir, 31, SCOL[p], nf, no); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
@@ -59785,15 +59789,35 @@ function houseCanopy(fn){
        tugger parked by him (LTUG); Sir, 2026-11-20: "it should be part of the process so maybe a humanoid does it") */
     const LTUG = [2030, 360], LIDT = m => { const q = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q.cart ? -201 : -115; return [LTUG[0] + cx + q.a, LTUG[1] + q.b, (q.z || 16) + 20]; };
     const lidT = m => (m + 2)*STKM + 700;   /* (robot m at PFC from here) */
-    const raTrip = (m, jr) => { const p = m + 1, pa = POS[p][0], ST = [pa, 658], S = STKM, V = 0.3;
-      const IN = p === 1 ? [ST, [pa, 200], PFA] : [ST, [pa, 440], [1700, 440], [1700, 200], PFA], OUT = [PFC, [2150, 440], [pa, 440], ST];
-      const tin = plenP(IN.concat([[PFA[0] + 1, PFA[1]]]))/V, tout = plenP(OUT.concat([[pa, 659]]))/V, A = m*S + 600;
-      const legs = [[A - tin, A, IN], [A, (m + 1)*S, null, PFA, 0], [(m + 1)*S, (m + 1)*S + 900, [PFA, PFB]], [(m + 1)*S + 900, (m + 2)*S, null, PFB, 0], [(m + 2)*S, (m + 2)*S + 700, [PFB, [2150, 200], PFC]], [(m + 2)*S + 700, (m + 3)*S, null, PFC, 1], [(m + 3)*S, (m + 3)*S + tout, OUT]];
-      for(const sh of [0, -PALT, PALT]){ const q = jr + sh; if(q < legs[0][0] || q >= legs[legs.length - 1][1]) continue;
-        for(const L of legs){ if(q < L[0] || q >= L[1]) continue; if(!L[2]) return { a: L[3][0], b: L[3][1], fdir: L[4], q, m };
-          const Q = L[2].concat([[L[2][L[2].length - 1][0] + 0.01, L[2][L[2].length - 1][1]]]), P = pathAt(Q, Math.min(plenP(Q)*ease((q - L[0])/(L[1] - L[0])), plenP(L[2]) - 0.01)); P.q = q; P.m = m; return P; } }
-      return null; };
-    const raHome = m => { const pa = POS[m + 1][0]; return (m + 3)*STKM + (110 + (2150 - pa) + 218)/0.3; };
+    /* ROW A'S CLOSED LOOP (Sir, 2026-11-20: "the loops need to be closed -- an empty gets back in line to get filled and an already filled one
+       takes its place"): two robots a station. One works at the station; the other waits full, its lids off, in its parking spot north of the
+       lanes (RAPK). When the station's robot is due a refill it leaves east along the empties' lane (b 520), up a 1760 to the pick face --
+       empties off, 3 full on, lids off -- and back west along the fulls' lane (b 440) into the parking spot; as it leaves, the spare rolls
+       down into the station. q: time since the station's empty left (X) */
+    const RAV = 0.3, RAPK = m => [m === 0 ? 1660 : POS[m + 1][0], 330];
+    const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), S = STKM;
+      const EMP = [ST, [pa, 520], [1760, 520], [1760, 200], PFA], RET = [PFC, [2150, 440], [PK[0], 440], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], 658], ST];
+      const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RAV, tout = len(RET)/RAV, tent = len(ENT)/RAV;
+      const A = m*S + 600, X = A - tin;
+      return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X }; };
+    const seg = (Q, k) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k)), plenP(Q) - 0.01)); };
+    /* -> the two robots of station m+1 at pallet-clock jr: { P, kind ('station' | 'empty' | 'load' | 'full'), jr } */
+    const raBots = (m, jr) => { const G = raGeo(m), S = STKM, q = (((jr - G.X) % PALT) + PALT) % PALT, out = [], A = G.tin, j0 = G.X;
+      /* (the one that left: empty out, loaded, back to park) */
+      let P, kind;
+      if(q < G.tin){ P = seg(G.EMP, q/G.tin); kind = 'empty'; }
+      else { const jl = j0 + q, ld = [[A, A + S - 600, null, PFA, 0], [A + S - 600, A + S + 300, [PFA, PFB]], [A + S + 300, A + 2*S - 600, null, PFB, 0], [A + 2*S - 600, A + 2*S + 100, [PFB, [2150, 200], PFC]], [A + 2*S + 100, A + 3*S - 600, null, PFC, 1]];
+        const L = ld.find(L => q >= L[0] && q < L[1]);
+        if(L){ P = L[2] ? seg(L[2], (q - L[0])/(L[1] - L[0])) : { a: L[3][0], b: L[3][1], fdir: L[4] }; kind = 'load'; }
+        else if(q < A + 3*S - 600 + G.tout){ P = seg(G.RET, (q - A - 3*S + 600)/G.tout); kind = 'full'; }
+        else { P = { a: G.PK[0], b: G.PK[1], fdir: 3 }; kind = 'full'; } }
+      out.push({ P, kind, jr: j0 + q });
+      /* (the spare: waiting in its spot, then into the station as the other leaves; at the station after) */
+      if(q < 1200) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 3 }, kind: 'full' });
+      else if(q < 1200 + G.tent){ const P2 = seg(G.ENT, (q - 1200)/G.tent); out.push({ P: P2, kind: 'full' }); }
+      else out.push({ P: null, kind: 'station' });
+      return out; };
+    const raSet = m => { const G = raGeo(m); return G.X + 1200 + G.tent; };   /* (the station full again as the spare is in) */
     const tugAt = t => { const r = (((t - PAL0) % SUP) + SUP) % SUP; for(let i = RSTOP.length - 1; i >= 0; i--){ if(r >= RT0[i] + RDW[i]){ const s0 = RSTOP[i] + (r - RT0[i] - RDW[i])*RV; return { s: Math.min(s0, i + 1 < RSTOP.length ? RSTOP[i + 1] : RL), stop: -1, done: i }; }
         if(r >= RT0[i]) return { s: RSTOP[i], stop: i, r: r - RT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
     /* THE PICK FACE'S TWO PODS (phase 3): each cycle one is the full pod (the pickers load the tugger from it) and one the returns pod (they
@@ -59820,7 +59844,7 @@ function houseCanopy(fn){
     /* (the pick face's moves: the Receiver's move m -- an empty off the carts back onto the shelf -- from STKM*m, the arm's -- a full out of the
        full pod onto the carts -- from STKM*m + STKM/2; where the bins are) */
     const STKM = 3000;   /* (the pick face's beat: a robot every 3000 -- its lids off at a third stop, PFC) */
-    for(let m = 0; m < 4; m++) SUPT[m + 1] = PAL0 + raHome(m);   /* (row A's: full again as its robot is back) */
+    for(let m = 0; m < 4; m++) SUPT[m + 1] = PAL0 + raSet(m);   /* (row A's: full as the spare rolls in) */
     const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
     const podFace = (h, m, j) => { const sq = AMR_SLOTS.amrshelf[GRP(m, true)[j == null ? 1 : j]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
     /* ---- ROW B'S SUPPLY (fx.crew): the runner from goods to person up to the line and along the south of it, a tote to each of row B's
