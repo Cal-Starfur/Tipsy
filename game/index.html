@@ -61002,21 +61002,42 @@ function houseCanopy(fn){
     const bot = (a, b, fdir, x) => Object.assign({ kind: 'amr', a, b, fdir, bSkin: BSK }, x || {});
     const man = (a, b, fdir, x) => Object.assign({ kind: 'humanoid', a, b, fdir, look: LOOK, lift: [0.08, 0.08], bend: [0.15, 0.15] }, x || {});
     const WORK = t => ({ lift: [0.58 + 0.14*Math.sin(t/230), 0.58 + 0.14*Math.sin(t/230 + 2.1)], bend: [0.62 + 0.1*Math.sin(t/310), 0.62 - 0.1*Math.sin(t/310)] });
-    /* EACH STATION ITS OWN HANDS (Sir, 2026-11-20: "every humanoid needs different motion of what they are doing on the scooter"): the job's
-       height (lift 0.5 the deck, 1 shoulder high at the bars) and its rhythm -- df a small turn of his body along the job */
-    const WORKS = (p, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), sq = (k, ph) => Math.max(0, S(k, ph));
+    /* EACH STATION AT ITS OWN PART (Sir, 2026-11-20: "they need to look like they are actually doing what they are doing"): he stands at
+       the part he fits -- the rear wheel, the front fork, the deck, the stem, the bars, the lamps -- turned to it, crouched or bent over to it,
+       his hands on it (each arm aimed at its own point on the scooter: hP), and working it in the job's own rhythm. The scooter: along a, its
+       front west; a local x is a0 + x*1.45, its height JZ + h*1.45. -> { at (where he stands), f, lift, bend, waist, drop, legs } */
+    const SK = (a0, b0, x, y, h) => [a0 + x*1.45, b0 + y*1.45, JZ + h*1.45];
+    const hP = (at, f, T1, T2, crouch, waist) => { const LH = HUMANOID_BUILD.legH, drop = LH*crouch, Ls = 42, hp = LH - drop, fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
+      const shz = hp + Ls*Math.cos(waist), shf = Ls*Math.sin(waist), arm = T => { const fwd = Math.max(2, (T[0] - at[0])*fv[0] + (T[1] - at[1])*fv[1] - shf), dz = T[2] - shz, th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz);
+        return [Math.max(0, (th - waist)/(Math.PI/2)), Math.max(0, Math.min(0.95, (40 - d)/40*1.7))]; };
+      const A1 = arm(T1), A2 = arm(T2), ca = Math.acos(Math.max(-1, Math.min(1, 1 - crouch)));
+      return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs: crouch > 0 ? { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] } : undefined }; };
+    const faceTo = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
+    const JOBAT = (p, a, b, u, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), N = p >= 5 ? -48 : -50;
+      const job = (at, look, T1, T2, crouch, waist) => Object.assign({ at, f: faceTo(at, look) }, hP(at, faceTo(at, look), T1, T2, crouch, waist));
+      const add = (P, da, db, dz) => [P[0] + da, P[1] + db, P[2] + dz];
       switch(p){
-        case 0: return { lift: [0.55 + 0.05*S(400), 0.55 + 0.05*S(400)], bend: [0.35 + 0.15*sq(400), 0.35 + 0.15*sq(400)], df: 0.08*S(900) };   /* (the deck squared on the jig: both hands flat, pressing it home) */
-        case 1: return { lift: [0.5, 0.55 + 0.12*S(110)], bend: [0.75, 0.55 + 0.25*S(110, 1.6)], df: -0.12 };   /* (the rear wheel: one hand holds it, the other runs the nut down) */
-        case 2: return { lift: [0.6 + 0.1*S(260), 0.6 + 0.1*S(260, Math.PI)], bend: [0.6 + 0.15*S(260, 1.6), 0.6 + 0.15*S(260, 1.6 + Math.PI)], df: 0.12 };   /* (the front wheel and fork: spun hand over hand, checked true) */
-        case 3: return { lift: [0.45 + 0.1*S(700), 0.45 + 0.1*S(700)], bend: [0.2 + 0.3*sq(700, 1), 0.2 + 0.3*sq(700, 1)], df: 0.2*S(700) };   /* (the grip tape: long smoothing strokes along the deck, both hands together) */
-        case 4: return { lift: [0.95 + 0.04*S(500), 0.7 + 0.08*S(160)], bend: [0.3, 0.7 + 0.15*S(160, 1)], df: -0.1 };   /* (the stem: held upright in one hand, clamped with the other) */
-        case 5: return { lift: [1.05 + 0.08*S(150), 1.05 + 0.08*S(150, 2.4)], bend: [0.45 + 0.1*S(150, 1), 0.45 + 0.1*S(150, 3.4)], df: 0.06*S(1100) };   /* (the bars: both hands up at them, the clamp bolts in turn) */
-        case 6: return { lift: [1.0, 0.85 + 0.2*sq(220)], bend: [0.35, 0.8 - 0.4*sq(220)], df: 0.15*S(1300) };   /* (grips and brake levers: one bar steadied, grips pushed on in short shoves) */
-        case 7: return { lift: [0.95 + 0.05*S(600), 0.5 + 0.05*S(600, 2)], bend: [0.6 + 0.2*S(240), 0.4], df: 0.25*S(1500) };   /* (the lamps: one hand at the head lamp, the other at the tail light, turning between) */
-        case 8: return { lift: [0.6, 0.6 + 0.1*sq(350)], bend: [0.95, 0.9 - 0.1*sq(350)], df: 0.18*S(1700) };   /* (the test: a tablet held in front, tapped, looking it over end to end) */
-        default: return { lift: [0.7 + 0.25*sq(900), 0.7 + 0.25*sq(900)], bend: [0.5, 0.5], df: 0 };   /* (the packer: lifting the finished one off) */
-      } };
+        case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 62], T, add(T, -14 + 3*S(300), 0, 0), add(T, 14 - 3*S(300), 0, 0), 0.1, 0.4); }   /* (the deck squared on the jig, pressed home with both hands) */
+        case 1: { const T = SK(a, b, 26, -5, 8), at = [T[0] + 4, b + N + 4];   /* (the rear wheel: crouched at it, one hand holding the tyre, the other running the axle nut round) */
+          return job(at, T, add(T, 0, -2, 8), add(T, 4*Math.cos(t/120), -4, 4*Math.sin(t/120)), 0.38, 0.45); }
+        case 2: { const T = SK(a, b, -26, -5, 8), at = [T[0] - 2, b + N + 4], k = S(380);   /* (the front wheel on the fork: crouched, spinning it hand over hand to see it runs true) */
+          return job(at, T, add(T, 6*k, -2, 9*Math.cos(t/380)), add(T, -6*k, -2, -9*Math.cos(t/380)), 0.38, 0.45); }
+        case 3: { const sw = 22*S(650), T = SK(a, b, sw/1.45, 0, 16.4), at = [a + sw*0.4, b + N];   /* (the grip tape: bent over the deck, smoothing it down in long strokes, both hands) */
+          return job(at, T, add(T, -7, -3, 0), add(T, 7, 3, 0), 0.12, 0.6); }
+        case 4: { const S1 = SK(a, b, -25, 0, 46), S2 = SK(a, b, -24, 0, 15), at = [S1[0] + 14, b + N + 6];   /* (the stem: held upright in one hand, its clamp done up at the foot with the other) */
+          return job(at, S1, S1, add(S2, 3*Math.cos(t/140), -4, 3*Math.sin(t/140)), 0.18, 0.3); }
+        case 5: { const L = SK(a, b, -26, -14, 66), R = SK(a, b, -26, 14, 66), at = [L[0] + 6, b + N - 6], k = Math.floor(t/1400) % 2;   /* (the bars: up at the clamp, a bolt each side in turn) */
+          const tw = (P, on) => on ? add(P, 2*Math.cos(t/110), 0, 2*Math.sin(t/110)) : P; return job(at, SK(a, b, -26, 0, 66), tw(add(SK(a, b, -26, -3, 66), 0, 0, 0), !k), tw(SK(a, b, -26, 3, 66), k), 0, 0.05); }
+        case 6: { const e = Math.floor(t/2200) % 2 ? 1 : -1, G = SK(a, b, -26, e*13, 66), shove = Math.max(0, S(170))*6, at = [G[0] + 10, b + N - 6];   /* (grips and brake levers: the bar steadied, the grip shoved home at one end, then the other) */
+          return job(at, G, SK(a, b, -26, 0, 66), add(G, 0, -e*shove + e*4, 0), 0, 0.05); }
+        case 7: { const LP = SK(a, b, -27.5, 0, 56), TL = SK(a, b, 30, 0, 14), atL = [LP[0] + 4, b + N], atT = [TL[0] - 2, b + N + 4], mid = DWELL*0.5;   /* (the lamps: the head lamp fitted up at the bars, then along to the tail light, crouched to it) */
+          if(u < mid) return job(atL, LP, add(LP, -2, -4, -3), add(LP, 2*Math.cos(t/150), 0, 2*Math.sin(t/150)), 0, 0.1);
+          if(u < mid + 700){ const k = (u - mid)/700, at = [atL[0] + (atT[0] - atL[0])*k, atL[1] + (atT[1] - atL[1])*k]; return { at, f: faceTo(atL, atT), walk: 1, gait: k*(atT[0] - atL[0])/7, lift: [0.1, 0.1], bend: [0.2, 0.2] }; }
+          return job(atT, TL, add(TL, 0, -4, 2), add(TL, 2*Math.cos(t/150), 2, 2*Math.sin(t/150)), 0.36, 0.45); }
+        case 8: { const tap = Math.floor(t/2600) % 3 === 2, G = SK(a, b, -26, -12, 66), at = [a - 10, b + N - 6], tab = [at[0] + 6, at[1] + 22, 74];   /* (the test: the tablet in his hands, now and then a hand to the throttle at the grip, the lamps blinking) */
+          return tap ? job(at, G, tab, add(G, 0, 0, 0), 0, 0) : Object.assign({ at, f: faceTo(at, [a - 10, b]) + 0.15*S(1700) }, hP(at, faceTo(at, [a - 10, b]), add(tab, -4, 0, 2*Math.max(0, S(200))), add(tab, 4, 0, 0), 0, 0)); }
+      }
+      return null; };
     const REACH = t => ({ lift: [0.78, 0.78 + 0.1*Math.sin(t/260)], bend: [0.18, 0.18] });
 
     /* A SCOOTER OR AN E-BIKE ON ITS JIG, built up a stage at a station (st: 0 the bare frame, 1 rear wheel, 2 front wheel and fork, 3 its battery,
@@ -61225,9 +61246,15 @@ function houseCanopy(fn){
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
         const [pa, pb] = POS[p], here = ((p - c) % NPOS + NPOS) % NPOS < NCAR;
         const w0 = 500, w1 = DWELL - 500, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - 400))/400) : clamp01((u - w1)/400);
-        const wk = on ? WORKS(p, t + p*700) : null;
-        if(p >= 5){ out.push(man(pa + 88, pb, 2 - 2*s + (wk ? wk.df : 0), wk ? wk : s > 0.9 ? REACH(t + p*500) : {})); continue; }   /* (row B and the packer: beside the job, the bench or table to the east) */
-        out.push(man(pa, pb - 78, 1 + 2*s + (wk ? wk.df : 0), wk ? wk : s > 0.9 ? REACH(t + p*500) : {}));
+        if(p === NPOS - 1){ out.push(man(pa + 88, pb, 2 - 2*s, on ? WORK(t + p*700) : s > 0.9 ? REACH(t + p*500) : {})); continue; }   /* (the packer: beside the job, the table to the east) */
+        /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
+        const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = p < 5 ? [J0.at[0], pb - 142] : [pa + 140, pb], fb = faceTo(J0.at, bench);
+        if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); continue; }
+        let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
+        if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
+          if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
+        let df = fb - J0.f; df = ((df + 2) % 4 + 4) % 4 - 2;   /* (the short way round) */
+        out.push(man(at[0], at[1], J0.f + df*s, s > 0.9 ? REACH(t + p*500) : {}));
       }
       /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
@@ -121967,7 +121994,7 @@ class WorldScene extends Phaser.Scene {
       try { this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, Object.assign({}, m.data || {}, sv ? { paint: true } : {})); }
       finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
-      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, crew: true }); } finally { this._roomPerson = rp0; } }
+      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, crew: true }); } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
       const saved = Object.assign({}, SKIN), jk = this._amrJack, lf = this._amrLift, cv = this._crewVel, tg = this._tug, tl = this._tugL, TS = this._crewTug || (this._crewTug = {});
       for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
