@@ -61507,8 +61507,8 @@ function houseCanopy(fn){
           if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
         let df = fb - J0.f; df = ((df + 2) % 4 + 4) % 4 - 2;   /* (the short way round) */
         out.push(man(at[0], at[1], J0.f + df*s, s > 0.9 ? REACH(t + p*500) : {}));
-        if(p >= 1 && p <= 7 && here && (u > w1 + 250 || u <= w0)){ const ff = (J0.f + df*s)*Math.PI/2, ha = at[0] + Math.cos(ff)*36, hb = at[1] + Math.sin(ff)*36;   /* (the next part out of his bin and in his hands, as he turns back to the scooter) */
-          out.push({ kind: 'cargo', a: ha, b: hb, dd: Math.max(2, (at[0] + at[1]) - (ha + hb) + 4), cargo: () => PART(p, ha, hb, 66) }); }   /* (after him: in front of his chest) */
+        if(p >= 1 && p <= 7 && here && s > 0.9){ const ff = (J0.f + df*s)*Math.PI/2, ha = at[0] + Math.cos(ff)*39, hb = at[1] + Math.sin(ff)*39;   /* (at his hands: REACH's arms, 19 to the elbow and 21 on, swung 0.78 of level from the shoulder at 95 -- out 39, down to 85) */   /* (the next part out of his bin and in his hands, as he turns back to the scooter) */
+          out.push({ kind: 'cargo', a: ha, b: hb, dd: Math.max(2, (at[0] + at[1]) - (ha + hb) + 4), cargo: () => PART(p, ha, hb, 84) }); }   /* (after him: in front of his chest) */
       }
       /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
