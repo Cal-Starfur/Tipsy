@@ -57896,9 +57896,10 @@ function houseCanopy(fn){
     items.push({ a: 650, b: 66, z: 0, solids: [solid(610, 690, 40, 90, 60, 'sofa')], draw: () => {
       box(610, 690, 40, 90, 0, 22, '#5d7f8a', '#4d6c76', '#3f5a63');                  // the base
       box(610, 690, 40, 54, 22, 62, '#6a8e9a', '#557886', '#456470');                  // the back
-      box(610, 624, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the west arm
+      /* (the arms from the back forward, not through it: run under the back their tops showed as a step at its ends -- Sir, 2026-11-20) */
+      box(610, 624, 54, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the west arm
       box(624, 676, 54, 90, 22, 30, '#7fa2ae', '#6a8e9a', '#557886');                  // the cushions (between the arms: before the east one -- W37 behind)
-      box(676, 690, 40, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the east arm
+      box(676, 690, 54, 90, 22, 44, '#6a8e9a', '#557886', '#456470');                  // the east arm
       box(632, 650, 56, 70, 30, 44, '#e2b93b', '#c9a02e', '#a8841f');                  // a scatter cushion
     }});
     items.push({ a: 702, b: 55, z: 0, solids: [{ name: 'lamp', c: [702, 55], r: 6, h: 150 }], draw: () => {
@@ -59008,12 +59009,15 @@ function houseCanopy(fn){
     runPiece(items, 500, 800, 300, 348, 120, (s0, s1) => [solid(s0, s1, 300, 348, 88, 'counter')], () => {
       box(500, 800, 300, 348, 0, 82, coral, coralD, shade(coral, 0.7)); for(let a = 506; a < 796; a += 20) F(a, a + 18, 30, 60, '#f3ecdc', null, 0, 348.2);
       box(498, 802, 298, 350, 82, 88, oak, oakF, oakD);
+      /* the pastry case at its west end: west of the machine, behind it -- first (W37 behind): its base, the pastries, the glass over them */
+      box(504, 548, 304, 344, 88, 94, steelD, steelD, steelS);
+      for(const b of [312, 326, 338]) for(const a of [514, 538]) cyl(a, b, 94, 100, 6, '#c98a4a', '#e0b27a');
+      box(504, 548, 304, 344, 94, 120, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
       for(const a of [580, 620]){ cyl(a, 304, 88, 96, 4, '#f6f3ea'); box(a - 6, a + 6, 300, 308, 98, 108, dark, dark, '#1c2126'); }   // (its group heads and cups, on its far side: before it -- W37 behind)
       box(560, 640, 306, 334, 88, 120, steel, steelD, steelS);
       box(570, 584, 332, 336, 104, 114, '#d8483a', '#b5382c', '#8f2b22');
       box(720, 752, 310, 334, 88, 96, dark, dark, '#1c2126'); box(722, 750, 328, 334, 96, 110, '#3a3e46', '#2b3036', '#23292f');
-      box(504, 548, 304, 344, 88, 94, steelD, steelD, steelS); box(504, 548, 304, 344, 94, 120, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
-      for(const b of [312, 326, 338]) for(const a of [514, 538]) cyl(a, b, 94, 100, 6, '#c98a4a', '#e0b27a'); });
+    });
     /* ---- THE ROASTER by the west wall (Brew & Bolt's own: a steel base, the copper drum, its hopper and flue) and the sacks ---- */
     items.push({ a: 150, b: 150, z: 0, solids: [solid(30, 150, 40, 150, 130, 'roaster')], draw: () => {
       box(30, 150, 40, 150, 0, 34, steel, steelD, steelS); cyl(90, 95, 34, 96, 36, copper, '#e8a550');
