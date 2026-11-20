@@ -31412,10 +31412,10 @@ const PS_FAMILY = (() => {
    wait in an armchair first. What they leave with goes out of the door with them (pose.hold / drawState: WALKIN_STREET), and nothing before
    it is handed over (m.done) */
 const PS_SEATS = [
-  { id: 'desk1', stand: [746, 126, Math.PI], at: [715, 124], th: -Math.PI/2, z: 42, desk: true },
-  { id: 'desk2', stand: [746, 296, Math.PI], at: [715, 294], th: -Math.PI/2, z: 42, desk: true },
-  { id: 'chairW', stand: [570, 604, -Math.PI/2], at: [573, 571], th: 0, z: 34 },
-  { id: 'chairE', stand: [770, 604, -Math.PI/2], at: [767, 571], th: Math.PI, z: 34 },
+  { id: 'desk1', stand: [746, 126, Math.PI], at: [715, 124], th: -Math.PI/2, z: 34, desk: true },
+  { id: 'desk2', stand: [746, 296, Math.PI], at: [715, 294], th: -Math.PI/2, z: 34, desk: true },
+  { id: 'chairW', stand: [570, 604, -Math.PI/2], at: [573, 571], th: 0, z: 38 },
+  { id: 'chairE', stand: [770, 604, -Math.PI/2], at: [767, 571], th: Math.PI, z: 38 },
 ];
 function psHold(s){
   if(s._psH && s._psH.v === s.visit) return s._psH;
@@ -31607,8 +31607,8 @@ const BK_SHELVES = ['north', 'west', 'stacks', 'bargain', 'arrivals'];
 /* the armchairs: where a reader stands to sit (stand, clear of the chair's solid), where they sit (at: a hair forward of its middle, so they
    sort after it), which way they face, the cushion's height */
 const BK_SEATS = [
-  { id: 'chair-1', stand: [152, 512, Math.PI], at: [116, 515], th: 0, z: 30 },
-  { id: 'chair-2', stand: [244, 648, Math.PI], at: [200, 647], th: Math.PI/2, z: 30 },
+  { id: 'chair-1', stand: [152, 512, Math.PI], at: [116, 515], th: 0, z: 38 },
+  { id: 'chair-2', stand: [244, 648, Math.PI], at: [200, 647], th: Math.PI/2, z: 38 },
 ];
 /* (the hands held low enough to hold it: an arm lifted past the kit's RAISED draws nothing in its hand) */
 const BK_BOOK_COLS = [0x7a2e2a, 0x2f4f6a, 0x5a6b3a, 0x8a6a2a, 0x4a3a5a, 0x3a5a5a, 0x8f5a3a];
@@ -31781,10 +31781,10 @@ const MO_LOOKS = MO_DISPLAYS.concat(['mirror']);
 /* the seats: where they stand to sit (stand, clear of the chair's solid), where they sit (at: a hair forward of its middle, so they sort
    after it), which way they face, the seat's height, and what it is for */
 const MO_SEATS = [
-  { id: 'fit-1', kind: 'fit', stand: [612, 586, -Math.PI/2], at: [612, 546], th: -Math.PI/2, z: 30 },
-  { id: 'fit-2', kind: 'fit', stand: [684, 586, -Math.PI/2], at: [684, 546], th: -Math.PI/2, z: 30 },
-  { id: 'wait-1', kind: 'wait', stand: [744, 562, Math.PI], at: [791, 563], th: Math.PI, z: 30 },
-  { id: 'wait-2', kind: 'wait', stand: [744, 642, Math.PI], at: [791, 643], th: Math.PI, z: 30 },
+  { id: 'fit-1', kind: 'fit', stand: [612, 586, -Math.PI/2], at: [612, 546], th: -Math.PI/2, z: 34 },
+  { id: 'fit-2', kind: 'fit', stand: [684, 586, -Math.PI/2], at: [684, 546], th: -Math.PI/2, z: 34 },
+  { id: 'wait-1', kind: 'wait', stand: [744, 562, Math.PI], at: [791, 563], th: Math.PI, z: 34 },
+  { id: 'wait-2', kind: 'wait', stand: [744, 642, Math.PI], at: [791, 643], th: Math.PI, z: 34 },
   { id: 'exam', kind: 'exam', stand: [262, 612, Math.PI], at: [228, 601], th: Math.PI, z: 38 },
 ];
 const MO_FRAME_COLS = [0x1e2024, 0x6a4024, 0x2f6f9b, 0xa8362b, 0xc9a24a, 0x3f6b4a, 0x6b3348, 0x9aa0a6];
@@ -31978,12 +31978,12 @@ const LC_SHELVES = ['beans', 'retail'];
 /* the table chairs: where they stand to sit (stand, clear of the chair's solid), where they sit (at: a hair forward of its middle, so they
    sort after it), which way they face, the seat's height */
 const LC_SEATS = [
-  { id: 't1w', stand: [612, 424, -Math.PI/2], at: [615, 382], th: 0, z: 30 },
-  { id: 't1e', stand: [688, 424, -Math.PI/2], at: [691, 382], th: Math.PI, z: 30 },
-  { id: 't2w', stand: [742, 514, -Math.PI/2], at: [745, 472], th: 0, z: 30 },
-  { id: 't2e', stand: [818, 514, -Math.PI/2], at: [821, 472], th: Math.PI, z: 30 },
-  { id: 't3w', stand: [612, 624, -Math.PI/2], at: [615, 582], th: 0, z: 30 },
-  { id: 't3e', stand: [688, 624, -Math.PI/2], at: [691, 582], th: Math.PI, z: 30 },
+  { id: 't1w', stand: [612, 424, -Math.PI/2], at: [615, 382], th: 0, z: 35 },
+  { id: 't1e', stand: [688, 424, -Math.PI/2], at: [691, 382], th: Math.PI, z: 35 },
+  { id: 't2w', stand: [742, 514, -Math.PI/2], at: [745, 472], th: 0, z: 35 },
+  { id: 't2e', stand: [818, 514, -Math.PI/2], at: [821, 472], th: Math.PI, z: 35 },
+  { id: 't3w', stand: [612, 624, -Math.PI/2], at: [615, 582], th: 0, z: 35 },
+  { id: 't3e', stand: [688, 624, -Math.PI/2], at: [691, 582], th: Math.PI, z: 35 },
 ];
 const LC_BAG_COLS = [0x2f7f86, 0xc8553d, 0xc9a24a, 0x3f6b4a, 0x6b3348];
 /* what is in their hands, drawn in their own frame (at.G: across them, forward, up -- the hull's), a real size against them: a takeaway cup
@@ -32149,8 +32149,8 @@ const SB_SHELVES = ['bread'];
 const SB_TABLES = [[560, 470], [720, 560], [560, 630]];
 /* the table chairs (as the roastery's): where they stand to sit, where they sit (a hair forward of its middle), which way, the seat's height */
 const SB_SEATS = SB_TABLES.flatMap(([ta, tb], i) => [
-  { id: 't' + i + 'w', stand: [ta - 38, tb + 44, -Math.PI/2], at: [ta - 35, tb + 2], th: 0, z: 30 },
-  { id: 't' + i + 'e', stand: [ta + 38, tb + 44, -Math.PI/2], at: [ta + 41, tb + 2], th: Math.PI, z: 30 }]);
+  { id: 't' + i + 'w', stand: [ta - 38, tb + 44, -Math.PI/2], at: [ta - 35, tb + 2], th: 0, z: 35 },
+  { id: 't' + i + 'e', stand: [ta + 38, tb + 44, -Math.PI/2], at: [ta + 41, tb + 2], th: Math.PI, z: 35 }]);
 /* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a white paper bag with the
    shop's coral band, by its folded top at their side; a white cake box tied with the pink ribbon, before them in both hands (the street baker's
    box, smaller); a baguette in its paper sleeve at their side; a croissant at the chest; Wren's tray of loaves */
@@ -47460,21 +47460,29 @@ const LIB = (function(){
     'Palmline Nursery Interior': [[/^counter$/, 84, 75]],
     'Seaglass Coffee Interior': [[/^counter$/, 84, 75], [/^back bar$/, 90, 75]],
     'Coral Cafe Interior': [[/^counter$/, 88, 75], [/^back bar$/, 90, 75]],
-    'Palmline Garage Interior': [[/^counter$/, 96, 75]],
-    'Palmline Savings Interior': [[/^tellers' counter$/, 104, 75]],
     'Tidewater Tea House Interior': [[/^brewing counter$/, 88, 75], [/^tea bar$/, 88, 75]],
-    'Driftwood Books Interior': [[/^counter$/, 88, 75]],
-    'Lagoon Coffee Roasters Interior': [[/^bar$/, 93, 75], [/^back bar$/, 90, 75]],
     'Marina Deli Interior': [[/^back counter$/, 90, 75], [/^till$/, 88, 75]],
-    'Tide Pool Elementary Interior': [[/^serving counter$/, 48, 65], [/^counter$/, 52, 65]],
     'Sun Deck Airfield Terminal Interior': [[/^cafe counter$/, 84, 75], [/^cafe back bar$/, 90, 75]],
-    'Vista Ridge Security Post Monitor Room': [[/^counter$/, 88, 75]]
+    'Vista Ridge Security Post Monitor Room': [[/^counter$/, 88, 75]],
+    /* CHAIRS (Sir, 2026-11-20: "standardize the kids chairs at 28, and standardize the adult chairs at 38"): the seat's top, the same way --
+       the legs and base scaled, the seat, its back and arms moved with it (the sitters' seats moved to match: PS_SEATS, BK_SEATS, ...) */
+    'Ferris Taylor Cottage Interior': [[/^chair$/, 26, 38], [/^armchair$/, 28, 38]],
+    'Driftwood Books Interior': [[/^counter$/, 88, 75], [/^armchair$/, 30, 38]],
+    'Sun Deck Motor Lodge Office': [[/^chair$/, 30, 38]],
+    'Lagoon Coffee Roasters Interior': [[/^bar$/, 93, 75], [/^back bar$/, 90, 75], [/^chair$/, 33, 38]],
+    'Sandpiper Bakery Interior': [[/^chair$/, 33, 38]],
+    'Marina Optical Interior': [[/^chair$/, 34, 38]],
+    'Palmline Garage Interior': [[/^counter$/, 96, 75], [/^chair$/, 36, 38]],
+    'Palmline Savings Interior': [[/^tellers' counter$/, 104, 75], [/^chair$/, 46, 38], [/^armchair$/, 34, 38]],
+    'Tide Pool Elementary Interior': [[/^serving counter$/, 48, 65], [/^counter$/, 52, 65], [/^chair$/, 27, 28]]
   };
   function counterFitMark(name, items){
     const F = COUNTER_FIT[name]; if(!F || !items) return;
     const rects = [];
-    for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name || !s.poly) continue; const f = F.find(q => q[0].test(s.name)); if(!f) continue;
-      let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9; for(const [a, b] of s.poly){ a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+    for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name || !(s.poly || s.c)) continue; const f = F.find(q => q[0].test(s.name)); if(!f) continue;
+      let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
+      if(s.poly) for(const [a, b] of s.poly){ a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      else { a0 = s.c[0] - s.r; a1 = s.c[0] + s.r; b0 = s.c[1] - s.r; b1 = s.c[1] + s.r; }
       rects.push([a0 - 3, a1 + 3, b0 - 3, b1 + 3, f[1], f[2]]); }
     for(const it of items){ const a = it.a || 0, b = it.b || 0, r = rects.find(q => a >= q[0] && a <= q[1] && b >= q[2] && b <= q[3]); if(r) it.zfit = [r[4], r[5]]; }
   }
@@ -59044,8 +59052,9 @@ function houseCanopy(fn){
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     const stool = (a, b) => { cyl(a, b, 0, 54, 2.2, '#3a3e46'); cyl(a, b, 54, 60, 10, coral, coralL); };
     const table = (a, b) => { cyl(a, b, 0, 3, 11, '#3a3e46'); cyl(a, b, 0, 56, 2.6, '#3a3e46'); cyl(a, b, 56, 60, 24, oak, oakF); plateCircle(a, b, 60, 23, oak, oakF, 1); };
-    const chair = (a, b, dir) => { box(a - 12, a + 12, b - 12, b + 12, 0, 42, '#3a3e46', '#2b3036', '#23292f'); box(a - 12, a + 12, b - 12, b + 12, 42, 46, coral, coralD, coralD);
-      const bk = { n: [a - 12, a + 12, b + 8, b + 12], s: [a - 12, a + 12, b - 12, b - 8], e: [a - 12, a - 8, b - 12, b + 12], w: [a + 8, a + 12, b - 12, b + 12] }[dir]; box(bk[0], bk[1], bk[2], bk[3], 46, 84, coral, coralD, coralD); };
+    /* (its seat at 38, the adults' chairs' height: Sir, 2026-11-20) */
+    const chair = (a, b, dir) => { box(a - 12, a + 12, b - 12, b + 12, 0, 34, '#3a3e46', '#2b3036', '#23292f'); box(a - 12, a + 12, b - 12, b + 12, 34, 38, coral, coralD, coralD);
+      const bk = { n: [a - 12, a + 12, b + 8, b + 12], s: [a - 12, a + 12, b - 12, b - 8], e: [a - 12, a - 8, b - 12, b + 12], w: [a + 8, a + 12, b - 12, b + 12] }[dir]; box(bk[0], bk[1], bk[2], bk[3], 38, 76, coral, coralD, coralD); };
 
     /* ---- THE FLOOR: 45 tiles, cream and terracotta in a check, a threshold at the pair ---- */
     T(0, W, 0, D, 0, '#efe5d3');
