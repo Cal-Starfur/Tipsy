@@ -61328,8 +61328,8 @@ function houseCanopy(fn){
        GRP(c, south) those three, bottom up: the pick face's pods are worked from the south, goods to person's from their other face */
     const GRP = (c, south) => { const o = []; for(let i = 0; i < 4; i++){ const ci = (((c - i - (south ? 2 : 0)) % 4) + 4) % 4; if(ci <= 2) o.push(6*i + 2*ci + (south ? 1 : 0)); } return o; };
     /* (the three on a robot's deck, along it; nested when empty) */
-    const BIN3 = (a, b, fd, z, col, n, open) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1])/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col); else BIN(pt[0], pt[1], z, col, false); } } };
+    const BIN3 = (a, b, fd, z, col, n, open, p) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1])/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col, p); else BIN(pt[0], pt[1], z, col, false); } } };
     const STACK3 = (a, b, z, col) => { for(let i = 0; i < 3; i++) BIN(a, b, z + i*4, col, true); };
     /* THE ARM ROBOTS AT THE SHELF PODS (Sir, 2026-11-19: "use the palletizing arm robot and program it to do the new task"): the palletizer's
        own robot -- its arm given a job (this._crewArm) -- parked at the pick face and at goods to person in place of the humanoid pickers. A
@@ -61419,10 +61419,21 @@ function houseCanopy(fn){
     /* a tote of parts on a bench (along a, or b): the station's colour, its parts showing over the rim */
     /* a station's bin, open: the same bin as on the shelves and robots (BIN's size, its label), its lid off at the station and the parts in it --
        Sir, 2026-11-20: "the bin transforms from a square to a rectangle" */
-    const partTotes = (a, b, n, col) => { for(const j of [-1, 0, 1]) partTote(a + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col); };   /* (a station's three, two parts each) */
-    const partTote = (a, b, z, alongB, n, col) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
+    const partTotes = (a, b, n, col, p) => { for(const j of [-1, 0, 1]) partTote(a + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col, p); };   /* (a station's three, two parts each) */
+    const partTote = (a, b, z, alongB, n, col, p) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
       box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, c, shade(c, .85), shade(c, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 17.1, shade(c, .4));
-      for(let i = 0; i < n; i++){ const pa = a - 6 + (i % 3)*6, pb = b - 4 + Math.floor(i/3)*8; box(pa - 2.4, pa + 2.4, pb - 3, pb + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); }
+      /* (what the station fits, not a generic part -- Sir, 2026-11-20: "I want the bins to hold the parts these stations actually add") */
+      for(let i = 0; i < n; i++){ const pa = a - 5 + i*10, pb = b - 4 + i*8, zz = z + 6, z1 = zz + 12;
+        switch(p){
+          case 1: wheel(pa, b, zz + 15, 6.5, '#2b2f35'); break;   /* (rear wheels, stood on edge) */
+          case 2: wheel(pa, b, zz + 15, 6.5, '#2b2f35'); tube(pa, b, zz + 15, pa - 2, b, zz + 25, 1.2, '#8d959c'); break;   /* (front wheels in their forks) */
+          case 3: box(a - 9, a + 9, b - 8, b + 8, z1 + i*1.6, z1 + 1.2 + i*1.6, '#1d1f23', '#16171b', '#121316'); break;   /* (grip tape sheets, a stack) */
+          case 4: tube(a - 10, pb, zz + 16, a + 10, pb, zz + 20, 1.8, PCOL); break;   /* (stems, laid in) */
+          case 5: tube(pa, b - 10, zz + 18, pa, b + 10, zz + 18, 1.4, '#2b2f35'); for(const e of [-1, 1]) tube(pa, b + e*7, zz + 18, pa, b + e*10, zz + 18, 2.2, '#16171b'); break;   /* (handlebars) */
+          case 6: for(const e of [-1, 1]) box(pa - 2, pa + 2, b + e*4 - 3, b + e*4 + 3, z1, z1 + 9, '#16171b', '#121316', '#0e0f11'); box(pa - 1, pa + 1, b - 6, b + 6, z1 + 9, z1 + 10, '#8d959c'); break;   /* (grips and a brake lever) */
+          case 7: ball(pa, b - 4, zz + 18, 3, '#fff6c0', '#ffffff'); box(pa - 1.5, pa + 1.5, b + 2, b + 7, z1 + 3, z1 + 7, '#d4301f', '#b02818', '#901f12'); break;   /* (a head lamp and a tail light) */
+          case 8: box(a - 8, a + 8, pb - 3, pb + 3, z1, z1 + 7, '#3a3f46', '#2b2f35', '#22262b'); box(a + 3, a + 6, pb - 3.2, pb + 3.2, z1 + 5, z1 + 6, '#3fd06a'); break;   /* (battery packs, fitted at test) */
+          default: box(pa - 2.4, pa + 2.4, b - 3, b + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); } }
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
       S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
     /* ONE SET OF BIN COLOURS for the racks, the pods, the carts, the runner and the benches (Sir: "the bins that appear are not the same colour as
@@ -61486,11 +61497,11 @@ function houseCanopy(fn){
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
         if(p < 5){ const jrA = (((t - PAL0) % PALT) + PALT) % PALT, m = p - 1, S = STKM, AU = S/3;
           for(const R of raBots(m, jrA)){
-            if(R.kind === 'station' || !R.P){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) })); continue; }
+            if(R.kind === 'station' || !R.P){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
             const P = R.P, q = R.jr, A = m*S + 600;
-            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, SCOL[p], 3, 3) })); continue; }
+            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, SCOL[p], 3, 3, p) })); continue; }
             const qq = (((q - A) % PALT) + PALT) % PALT + A, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => qq >= (m + 1)*S + j*AU + AU*ARMU1).length, stack = R.kind === 'empty' || qq < m*S + S*0.35, no = [0, 1, 2].filter(j => qq >= lidT(m) + 250*j + 150).length;
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, SCOL[p]); else if(nf) BIN3(P.a, P.b, P.fdir, 31, SCOL[p], nf, no); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, SCOL[p]); else if(nf) BIN3(P.a, P.b, P.fdir, 31, SCOL[p], nf, no, p); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
@@ -61668,7 +61679,7 @@ function houseCanopy(fn){
            at the stop by the humanoid, the full on by the arm) */
         const rbAt = []; for(let k = 0; k < 4; k++){ const p = 8 - k, col = CPC(k);
           for(const R of rbBots(k, r)){
-            if(R.kind === 'station'){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) })); continue; }
+            if(R.kind === 'station'){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
             const P = R.P, A = RBA[k], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
             if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3) })); continue; }
             const stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
