@@ -61333,9 +61333,9 @@ function houseCanopy(fn){
        GRP(c, south) those three, bottom up: the pick face's pods are worked from the south, goods to person's from their other face */
     const GRP = (c, south) => { const o = []; for(let i = 0; i < 4; i++){ const ci = (((c - i - (south ? 2 : 0)) % 4) + 4) % 4; if(ci <= 2) o.push(6*i + 2*ci + (south ? 1 : 0)); } return o; };
     /* (the three on a robot's deck, along it; nested when empty) */
-    const BIN3 = (a, b, fd, z, col, n, open, p) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1])/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col, p); else BIN(pt[0], pt[1], z, col, false); } } };
-    const EMPTY3 = (a, b, fd, z, col) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)]; for(const pt of [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]))) partTote(pt[0], pt[1], z, false, 0, col); };   /* (a robot's three empties, open, side by side -- Sir: "this should have 3 bins on it") */
+    const BIN3 = (a, b, fd, z, col, n, open, p) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*(26*j - 10), b + v[1]*(26*j - 10)]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1] + 10)/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col, p); else BIN(pt[0], pt[1], z, col, false); } } };
+    const EMPTY3 = (a, b, fd, z, col) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)]; for(const pt of [-1, 0, 1].map(j => [a + v[0]*(26*j - 10), b + v[1]*(26*j - 10)]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]))) partTote(pt[0], pt[1], z, false, 0, col); };   /* (a robot's three empties, open, side by side -- Sir: "this should have 3 bins on it") */
     const STACK3 = (a, b, z, col) => { for(let i = 0; i < 3; i++) BIN(a, b, z + i*4, col, true); };
     /* THE ARM ROBOTS AT THE SHELF PODS (Sir, 2026-11-19: "use the palletizing arm robot and program it to do the new task"): the palletizer's
        own robot -- its arm given a job (this._crewArm) -- parked at the pick face and at goods to person in place of the humanoid pickers. A
@@ -61425,7 +61425,8 @@ function houseCanopy(fn){
     /* a tote of parts on a bench (along a, or b): the station's colour, its parts showing over the rim */
     /* a station's bin, open: the same bin as on the shelves and robots (BIN's size, its label), its lid off at the station and the parts in it --
        Sir, 2026-11-20: "the bin transforms from a square to a rectangle" */
-    const partTotes = (a, b, n, col, p) => { for(const j of [-1, 0, 1]) partTote(a + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col, p); };   /* (a station's three, two parts each) */
+    /* (a robot's three bins set back toward its tail, clear of the lidar on its nose -- Sir, 2026-11-20: "the lidar should not be drawn over by the boxes") */
+    const partTotes = (a, b, n, col, p) => { for(const j of [-1, 0, 1]) partTote(a - 10 + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col, p); };   /* (a station's three, two parts each) */
     const partTote = (a, b, z, alongB, n, col, p) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
       box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, c, shade(c, .85), shade(c, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 17.1, shade(c, .4));
       /* (what the station fits -- the very piece prod() draws on the scooter at that stage, its sizes, widths and colours, at KP of the
