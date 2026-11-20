@@ -61367,14 +61367,15 @@ function houseCanopy(fn){
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
       S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
     const SCOL = [];   /* (each bench's colour: the bin it is brought -- set with the supply below) */
-    const BENCH = p => [p === 5 ? 960 : POS[p][0], POS[p][1] - 142, false];   /* (every bench behind its worker, off the robots' way -- row B's inside the loop, the runner's to stock; the first of row B east of the loop's turn. Sir, 2026-11-20: "are these supply bins blocking the movement of the warehouse bots") */
+    const BENCH = p => [p === 5 ? 900 : POS[p][0], POS[p][1] - 142, false];   /* (every bench behind its worker, off the robots' way -- row B's inside the loop, the runner's to stock; the first of row B east of the loop's turn. Sir, 2026-11-20: "are these supply bins blocking the movement of the warehouse bots") */
     /* ---- THE STATIONS: row A's bench behind its worker, row B's beside (east of) its worker, clear of the robots' turn between the rows; the
        frame rack at the first, the packing table at the last ---- */
-    for(let p = 1; p < NPOS - 1; p++){ const pa = BENCH(p)[0], pb = POS[p][1];
-      items.push({ a: pa, b: pb - 125, z: 0, solids: [], draw: () => {
-        box(pa - 50, pa + 50, pb - 160, pb - 125, 0, 60, '#d6dadd', steelD, steelS); box(pa - 52, pa + 52, pb - 162, pb - 123, 60, 63, steel, steelD, steelS);
-        F(pa - 16, pa + 16, 30, 50, dark, null, 0, pb - 124.6); blockWordIn(String(p), pa - 12, pa + 12, 33, 47, pb - 124.4, yel, null, 2);
-        tube(pa + 62, pb - 142, 0, pa + 62, pb - 142, 150, 1.8, grey); for(const [z, c] of [[150, '#3fd06a'], [141, '#f2c02e'], [132, '#7a2a24']]) cyl(pa + 62, pb - 142, z - 8, z, 4.5, c, shade(c, .8)); }});
+    /* (the benches gone -- Sir, 2026-11-20: "replace the part stations with a warehouse bot that just rolls in with parts": each station's parts
+       on a stock robot parked where its bench stood, the line's crew below; a post with its number and stack light stays) */
+    for(let p = 1; p < NPOS - 1; p++){ const pa = BENCH(p)[0] + 70, pb = POS[p][1] - 142;
+      items.push({ a: pa + 4, b: pb + 4, z: 0, solids: [], draw: () => {
+        tube(pa, pb, 0, pa, pb, 150, 1.8, grey); box(pa - 9, pa + 9, pb - 1.2, pb + 1.2, 96, 116, dark, dark, dark); blockWordIn(String(p), pa - 7, pa + 7, 99, 113, pb + 1.4, yel, null, 2);
+        for(const [z, c] of [[150, '#3fd06a'], [141, '#f2c02e'], [132, '#7a2a24']]) cyl(pa, pb, z - 8, z, 4.5, c, shade(c, .8)); }});
     }
 
     /* ---- THE LINE AT WORK (fx.crew): ten robots, the scooter on each, pulsed round the ten stops together (CYC: they stand
@@ -61416,7 +61417,7 @@ function houseCanopy(fn){
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
-        out.push({ kind: 'cargo', a: ba, b: bb, dd: alB ? 19 : 18, cargo: () => partTote(ba, bb, 63, alB, n, SCOL[p]) }); }   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
+        out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTote(ba, bb, 31, false, n, SCOL[p]) })); }   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
@@ -61474,12 +61475,12 @@ function houseCanopy(fn){
     const podFace = (h, m) => { const sq = AMR_SLOTS.amrshelf[S5[m]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
     /* ---- ROW B'S SUPPLY (fx.crew): the runner from goods to person up to the line and along the south of it, a tote to each of row B's
        benches, and back; once every SUP, half a SUP after the tugger ---- */
-    const RBP = [[870, 1610], [870, 1300], [950, 1300], [950, 990], [1700, 990], [1701, 990]], RBS = [0, 710, 850, 1150, 1450], RBDW = [27000, 1400, 1400, 1400, 1400], RB0 = SUP/2;   /* (the benches inside the loop: in across row B at a 950 while the line stands -- its 27000 at goods to person times the crossings into the robots' dwell, both ways) */   /* (phase 4: at goods to person the empties go into the pod before the fulls come off it -- eight jobs) */
-    const RBV = 2*1450/(SUP - RBDW.reduce((q, d) => q + d, 0) - 600);
+    const RBP = [[870, 1610], [870, 1300], [1000, 1300], [1000, 975], [900, 975], [1700, 975], [1701, 975]], RBS = [0, 865, 1065, 1365, 1665], RBDW = [27000, 1400, 1400, 1400, 1400], RB0 = SUP/2;   /* (the benches inside the loop: in across row B at a 950 while the line stands -- its 27000 at goods to person times the crossings into the robots' dwell, both ways) */   /* (phase 4: at goods to person the empties go into the pod before the fulls come off it -- eight jobs) */
+    const RBV = 2*1665/(SUP - RBDW.reduce((q, d) => q + d, 0) - 600);
     const RBT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RBS.length; i++){ tt += (RBS[i] - s0)/RBV; RBT0.push(tt); tt += RBDW[i]; s0 = RBS[i]; } }
     for(const [j, p] of [5, 6, 7, 8].entries()) SUPT[p] = PAL0 + RB0 + RBT0[j + 1] + 700;
     const runAt = t => { const r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, back = RBT0[4] + RBDW[4];
-      if(r >= back) return { s: Math.max(0, 1450 - (r - back)*RBV), stop: -1, done: 4, r };
+      if(r >= back) return { s: Math.max(0, 1665 - (r - back)*RBV), stop: -1, done: 4, r };
       for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
         if(r >= RBT0[i]) return { s: RBS[i], stop: i, r: r - RBT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
     { const TUG = TUGB, TOTE = (a, b, z, col) => { box(a - 13, a + 13, b - 10, b + 10, z, z + 12, col, shade(col, .85), shade(col, .7)); T(a - 11, a + 11, b - 8, b + 8, z + 12.1, shade(col, .45)); };
@@ -61514,7 +61515,7 @@ function houseCanopy(fn){
          SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07, RSL = [-36, -12, 12, 36];
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
-        const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1449.5)), D0 = RBDW[0];
+        const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1664.5)), D0 = RBDW[0];
         /* THE RUNNER'S BINS: out full, a full off and the empty back on at each bench; at goods to person the empties off into the pod, then
            the fulls off the pod onto it (jobs 0-3, then 4-7, each 3000) */
         const delivered = S.stop === 0 ? 0 : Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done), kk = 4 - delivered;
