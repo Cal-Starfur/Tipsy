@@ -101489,12 +101489,12 @@ function cliqueDress(kind, pr, pick, L, her){
     const capC = pick([{ c: 0x1a1a1e, dk: 0x101012, top: 0x24242a }, { c: 0xb8282e, dk: 0x8a1e22, top: 0xc83238 }, { c: 0x1f3a6e, dk: 0x162a52, top: 0x26468a }]);
     Object.assign(L, { shirt: pick([P(0xf2f0ea, 0xcfcdc6), P(0xf2f0ea, 0xcfcdc6), P(0x1c1c20, 0x111114), P(0xb8282e, 0x8a1e22), P(0x2a4a8a, 0x1f3868)]),
       pants: pick([P(0x34465e, 0x263446), P(0x9a8a62, 0x786b4b), P(0x2a2a2e, 0x1c1c1f)]), hair: pick([0x1a1a1a, 0x2a1d14, 0x1a1a1a]),
-      shoe: pick([P(0xf6f6f2, 0xcfcfca), P(0x1a1a1e, 0x101012)]),
+      shoe: Object.assign(pick([P(0xf6f6f2, 0xcfcfca), P(0x1a1a1e, 0x101012)]), { kind: 'sneaker' }),   // (trainers: with no kind the shoe was rolled from everyone's -- sandals, dress shoes)
       uniform: { cap: pr() < 0.75 ? Object.assign({ badge: capC.c, back: pr() < 0.5 }, capC) : null, chain: 0xe8c15a } });
   } else if(kind === 'sneakerhead'){
     const hood = pick([P(0xe86a2a, 0xb85020), P(0x3aa860, 0x2c8048), P(0x7a4ac8, 0x5c38a0), P(0x2a5ad8, 0x1f44a8), P(0x8a8e94, 0x6a6e74)]);
     Object.assign(L, { shirt: hood, pants: pick([P(0x5a5e66, 0x45484f), P(0x1c1c20, 0x111114)]), hair: pick([0x1a1a1a, 0x3a2b20, 0x6a4a2a]),
-      shoe: pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]),
+      shoe: Object.assign(pick([P(0xf6f6f2, 0xd84a3a), P(0xf2e24a, 0xc8b83a), P(0x3ad8a0, 0x2aa87a), P(0xf6f6f2, 0x2a5ad8)]), { kind: 'sneaker' }),   // (the loud trainers they're named for -- with no kind they came out as sandals, boots: Sir, 2026-11-20, "and sneaker heads?")
       uniform: { hood, cap: pr() < 0.3 ? { c: 0x1a1a1e, dk: 0x101012, top: 0x24242a, badge: 0x1a1a1e, back: true } : null } });
   }
 }
