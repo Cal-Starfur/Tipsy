@@ -1,0 +1,2413 @@
+{
+ "about": "The object library: what the game already draws, from the game itself (node tools/library_index.js). Reference the nearest thing here before drawing something new -- its drawer, its size against a person (PERSON_H 124), its colours, how it is built (docs/kits/library.md, L0). Sizes: len / wid / roof / height are the build numbers (world units; a person is 124 tall). measured: the thing drawn once at K 1, facing the same way -- screenTop is how far its silhouette rises over its ground point on screen (its height, plus a little of its length for long things: read a car's height from roof), screenW / screenH its silhouette, vsPerson screenTop against a person.",
+ "built": "2026-11-20",
+ "person": {
+  "PERSON_H": 124,
+  "height": 124,
+  "build": {
+   "n": "bt",
+   "legH": 47,
+   "legW": 10,
+   "hipW": 19,
+   "torsoW": 26.32,
+   "torsoD": 19,
+   "torsoH": 40,
+   "headR": 12.5,
+   "armW": 7,
+   "armLen": 37,
+   "hairStyle": "long"
+  },
+  "measured": {
+   "screenTop": 122,
+   "screenW": 44,
+   "screenH": 132,
+   "vsPerson": 0.98
+  }
+ },
+ "dogs": [
+  {
+   "breed": "chihuahua",
+   "size": 0.8,
+   "body": 1,
+   "girth": 1,
+   "leg": 1,
+   "head": 1,
+   "muzzle": 1,
+   "ear": "bat",
+   "tail": "curl",
+   "marks": [
+    "scar",
+    "tremble"
+   ],
+   "coats": [
+    {
+     "n": "fawn",
+     "body": "#c98d4b",
+     "dk": "#a06e38",
+     "chest": "#e8d9b8",
+     "ear": "#d99a8c"
+    },
+    {
+     "n": "cream",
+     "body": "#e3d3b3",
+     "dk": "#bfa987",
+     "chest": "#f3ece0",
+     "ear": "#dca493"
+    },
+    {
+     "n": "blk&tan",
+     "body": "#33363e",
+     "dk": "#22242b",
+     "chest": "#c98d4b",
+     "ear": "#b0837b"
+    }
+   ],
+   "measured": {
+    "screenTop": 18,
+    "screenW": 24,
+    "screenH": 22,
+    "vsPerson": 0.15
+   }
+  },
+  {
+   "breed": "labrador",
+   "size": 2.9,
+   "body": 1.05,
+   "girth": 1.05,
+   "leg": 1.05,
+   "head": 0.72,
+   "muzzle": 1.2,
+   "ear": "flop",
+   "tail": "straight",
+   "marks": [],
+   "coats": [
+    {
+     "n": "yellow",
+     "body": "#e2c48a",
+     "dk": "#bfa06a",
+     "chest": "#f0e2c0",
+     "ear": "#cfae78"
+    },
+    {
+     "n": "black",
+     "body": "#2a2c32",
+     "dk": "#1b1d22",
+     "chest": "#2a2c32",
+     "ear": "#1b1d22"
+    },
+    {
+     "n": "chocolate",
+     "body": "#5c3a26",
+     "dk": "#42291a",
+     "chest": "#5c3a26",
+     "ear": "#42291a"
+    }
+   ],
+   "measured": {
+    "screenTop": 53,
+    "screenW": 81,
+    "screenH": 67,
+    "vsPerson": 0.43
+   }
+  },
+  {
+   "breed": "shepherd",
+   "size": 3.25,
+   "body": 1.1,
+   "girth": 0.95,
+   "leg": 1.1,
+   "head": 0.7,
+   "muzzle": 1.4,
+   "ear": "prick",
+   "tail": "low",
+   "marks": [
+    "saddle"
+   ],
+   "coats": [
+    {
+     "n": "black & tan",
+     "body": "#b8864a",
+     "dk": "#8a6234",
+     "chest": "#c9a070",
+     "ear": "#1c1d22"
+    },
+    {
+     "n": "sable",
+     "body": "#9a7a4a",
+     "dk": "#6e5634",
+     "chest": "#b89a6a",
+     "ear": "#2a2420"
+    }
+   ],
+   "measured": {
+    "screenTop": 63,
+    "screenW": 93,
+    "screenH": 79,
+    "vsPerson": 0.51
+   }
+  },
+  {
+   "breed": "golden",
+   "size": 2.95,
+   "body": 1.05,
+   "girth": 1.1,
+   "leg": 1,
+   "head": 0.72,
+   "muzzle": 1.15,
+   "ear": "flop",
+   "tail": "plume",
+   "marks": [],
+   "coats": [
+    {
+     "n": "gold",
+     "body": "#d9a24e",
+     "dk": "#b0813a",
+     "chest": "#e8c98a",
+     "ear": "#b0813a"
+    },
+    {
+     "n": "light gold",
+     "body": "#e6c27a",
+     "dk": "#bf9c5a",
+     "chest": "#f2e0b8",
+     "ear": "#bf9c5a"
+    }
+   ],
+   "measured": {
+    "screenTop": 57,
+    "screenW": 84,
+    "screenH": 72,
+    "vsPerson": 0.46
+   }
+  },
+  {
+   "breed": "dachshund",
+   "size": 1.55,
+   "body": 1.7,
+   "girth": 0.95,
+   "leg": 0.45,
+   "head": 0.85,
+   "muzzle": 1.4,
+   "ear": "long",
+   "tail": "straight",
+   "marks": [],
+   "coats": [
+    {
+     "n": "red",
+     "body": "#a8552a",
+     "dk": "#7e3e1e",
+     "chest": "#a8552a",
+     "ear": "#7e3e1e"
+    },
+    {
+     "n": "black & tan",
+     "body": "#24262c",
+     "dk": "#17181c",
+     "chest": "#b8864a",
+     "ear": "#17181c"
+    }
+   ],
+   "measured": {
+    "screenTop": 27,
+    "screenW": 58,
+    "screenH": 37,
+    "vsPerson": 0.22
+   }
+  },
+  {
+   "breed": "corgi",
+   "size": 1.7,
+   "body": 1.35,
+   "girth": 1.1,
+   "leg": 0.5,
+   "head": 0.95,
+   "muzzle": 1,
+   "ear": "prick",
+   "tail": "stub",
+   "marks": [],
+   "coats": [
+    {
+     "n": "red & white",
+     "body": "#d08a4a",
+     "dk": "#a86a36",
+     "chest": "#f4efe4",
+     "ear": "#a86a36"
+    },
+    {
+     "n": "tricolor",
+     "body": "#2a2c32",
+     "dk": "#1b1d22",
+     "chest": "#f4efe4",
+     "ear": "#b8864a"
+    }
+   ],
+   "measured": {
+    "screenTop": 33,
+    "screenW": 56,
+    "screenH": 43,
+    "vsPerson": 0.27
+   }
+  },
+  {
+   "breed": "poodle",
+   "size": 2.9,
+   "body": 0.95,
+   "girth": 0.9,
+   "leg": 1.2,
+   "head": 0.7,
+   "muzzle": 1.2,
+   "ear": "long",
+   "tail": "pom",
+   "marks": [
+    "pom"
+   ],
+   "coats": [
+    {
+     "n": "white",
+     "body": "#f2efe8",
+     "dk": "#d2cec4",
+     "chest": "#f2efe8",
+     "ear": "#d2cec4"
+    },
+    {
+     "n": "apricot",
+     "body": "#e8b98a",
+     "dk": "#c4966a",
+     "chest": "#e8b98a",
+     "ear": "#c4966a"
+    },
+    {
+     "n": "black",
+     "body": "#26272c",
+     "dk": "#18191d",
+     "chest": "#26272c",
+     "ear": "#18191d"
+    }
+   ],
+   "measured": {
+    "screenTop": 54,
+    "screenW": 76,
+    "screenH": 67,
+    "vsPerson": 0.44
+   }
+  },
+  {
+   "breed": "bulldog",
+   "size": 1.85,
+   "body": 0.85,
+   "girth": 1.35,
+   "leg": 0.75,
+   "head": 1,
+   "muzzle": 0.5,
+   "ear": "fold",
+   "tail": "stub",
+   "marks": [
+    "jowl"
+   ],
+   "coats": [
+    {
+     "n": "white & brindle",
+     "body": "#f0ece2",
+     "dk": "#cfc9bb",
+     "chest": "#f0ece2",
+     "ear": "#7a5a3a"
+    },
+    {
+     "n": "fawn",
+     "body": "#d2a876",
+     "dk": "#a98455",
+     "chest": "#f0e6d2",
+     "ear": "#8a6a4a"
+    }
+   ],
+   "measured": {
+    "screenTop": 36,
+    "screenW": 52,
+    "screenH": 45,
+    "vsPerson": 0.29
+   }
+  },
+  {
+   "breed": "husky",
+   "size": 2.85,
+   "body": 1.05,
+   "girth": 1,
+   "leg": 1.1,
+   "head": 0.72,
+   "muzzle": 1.2,
+   "ear": "prick",
+   "tail": "curl",
+   "marks": [
+    "mask"
+   ],
+   "coats": [
+    {
+     "n": "grey & white",
+     "body": "#6e7480",
+     "dk": "#4e535c",
+     "chest": "#f2f2ee",
+     "ear": "#4e535c"
+    },
+    {
+     "n": "black & white",
+     "body": "#2a2c32",
+     "dk": "#1b1d22",
+     "chest": "#f2f2ee",
+     "ear": "#1b1d22"
+    },
+    {
+     "n": "red & white",
+     "body": "#b87a4a",
+     "dk": "#8e5a34",
+     "chest": "#f2f2ee",
+     "ear": "#8e5a34"
+    }
+   ],
+   "measured": {
+    "screenTop": 60,
+    "screenW": 76,
+    "screenH": 74,
+    "vsPerson": 0.48
+   }
+  }
+ ],
+ "cats": [
+  {
+   "breed": "cat",
+   "size": 1.35,
+   "body": 1.15,
+   "girth": 0.85,
+   "leg": 0.95,
+   "head": 0.82,
+   "muzzle": 0.22,
+   "ear": "prick",
+   "tail": "cat",
+   "eye": "#9cc24a",
+   "nose": "#d98a8a",
+   "coats": [
+    {
+     "n": "orange tabby",
+     "body": "#d98a3a",
+     "dk": "#b06a26",
+     "chest": "#f2dcb8",
+     "ear": "#e8a3a0"
+    },
+    {
+     "n": "black",
+     "body": "#2a2a2e",
+     "dk": "#1c1c20",
+     "chest": "#2a2a2e",
+     "ear": "#5a3a3e"
+    },
+    {
+     "n": "tuxedo",
+     "body": "#2a2a2e",
+     "dk": "#1c1c20",
+     "chest": "#f2efe8",
+     "ear": "#5a3a3e"
+    },
+    {
+     "n": "grey",
+     "body": "#8a8f98",
+     "dk": "#6b7078",
+     "chest": "#c8ccd2",
+     "ear": "#d9a0a6"
+    },
+    {
+     "n": "cream",
+     "body": "#e8dcc4",
+     "dk": "#c9b998",
+     "chest": "#f6f0e2",
+     "ear": "#e8a8a6"
+    },
+    {
+     "n": "brown tabby",
+     "body": "#8a6a4a",
+     "dk": "#6a4e34",
+     "chest": "#d8c4a4",
+     "ear": "#d9a0a0"
+    }
+   ],
+   "measured": {
+    "screenTop": 29,
+    "screenW": 42,
+    "screenH": 36,
+    "vsPerson": 0.23
+   }
+  },
+  {
+   "breed": "kitten",
+   "size": 0.95,
+   "body": 1.05,
+   "girth": 0.9,
+   "leg": 0.95,
+   "head": 0.95,
+   "muzzle": 0.2,
+   "ear": "prick",
+   "tail": "cat",
+   "eye": "#d9b440",
+   "nose": "#d98a8a",
+   "coats": [
+    {
+     "n": "orange tabby",
+     "body": "#d98a3a",
+     "dk": "#b06a26",
+     "chest": "#f2dcb8",
+     "ear": "#e8a3a0"
+    },
+    {
+     "n": "black",
+     "body": "#2a2a2e",
+     "dk": "#1c1c20",
+     "chest": "#2a2a2e",
+     "ear": "#5a3a3e"
+    },
+    {
+     "n": "tuxedo",
+     "body": "#2a2a2e",
+     "dk": "#1c1c20",
+     "chest": "#f2efe8",
+     "ear": "#5a3a3e"
+    },
+    {
+     "n": "grey",
+     "body": "#8a8f98",
+     "dk": "#6b7078",
+     "chest": "#c8ccd2",
+     "ear": "#d9a0a6"
+    },
+    {
+     "n": "cream",
+     "body": "#e8dcc4",
+     "dk": "#c9b998",
+     "chest": "#f6f0e2",
+     "ear": "#e8a8a6"
+    },
+    {
+     "n": "brown tabby",
+     "body": "#8a6a4a",
+     "dk": "#6a4e34",
+     "chest": "#d8c4a4",
+     "ear": "#d9a0a0"
+    }
+   ],
+   "measured": {
+    "screenTop": 21,
+    "screenW": 30,
+    "screenH": 26,
+    "vsPerson": 0.17
+   }
+  }
+ ],
+ "cars": [
+  {
+   "kind": "car",
+   "body": "sedan",
+   "livery": "rolled",
+   "add": [],
+   "len": 225,
+   "wid": 90,
+   "roof": 114,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 167,
+    "screenW": 306,
+    "screenH": 241,
+    "vsPerson": 1.35
+   }
+  },
+  {
+   "kind": "truck",
+   "body": "pickup",
+   "livery": "rolled",
+   "add": [],
+   "len": 225,
+   "wid": 90,
+   "roof": 110,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 145,
+    "screenW": 308,
+    "screenH": 219,
+    "vsPerson": 1.17
+   }
+  },
+  {
+   "kind": "policecar",
+   "body": "sedan",
+   "livery": "police",
+   "add": [
+    "pushbar",
+    "whiteDoors",
+    "star",
+    "spotlight",
+    "lightbar"
+   ],
+   "len": 225,
+   "wid": 90,
+   "roof": 114,
+   "doors": 4,
+   "paints": [],
+   "measured": {
+    "screenTop": 147,
+    "screenW": 306,
+    "screenH": 221,
+    "vsPerson": 1.19
+   }
+  },
+  {
+   "kind": "hatch",
+   "body": "hatch",
+   "livery": "rolled",
+   "add": [],
+   "len": 190,
+   "wid": 90,
+   "roof": 112,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 171,
+    "screenW": 271,
+    "screenH": 237,
+    "vsPerson": 1.38
+   }
+  },
+  {
+   "kind": "coupe",
+   "body": "coupe",
+   "livery": "rolled",
+   "add": [],
+   "len": 225,
+   "wid": 90,
+   "roof": 104,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 135,
+    "screenW": 306,
+    "screenH": 209,
+    "vsPerson": 1.09
+   }
+  },
+  {
+   "kind": "convertible",
+   "body": "convertible",
+   "livery": "bright",
+   "add": [],
+   "len": 225,
+   "wid": 90,
+   "roof": 90,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#e8b92e",
+     "roof": "#d9ab26"
+    },
+    {
+     "body": "#d8402f",
+     "roof": "#c73a2b"
+    },
+    {
+     "body": "#2f7fc8",
+     "roof": "#2a73b5"
+    },
+    {
+     "body": "#3f9a5a",
+     "roof": "#398c52"
+    },
+    {
+     "body": "#ef7d2a",
+     "roof": "#dc7226"
+    },
+    {
+     "body": "#8a4fc0",
+     "roof": "#7e48b0"
+    },
+    {
+     "body": "#21a3b5",
+     "roof": "#1e95a6"
+    },
+    {
+     "body": "#e8eaee",
+     "roof": "#dcdfe3"
+    },
+    {
+     "body": "#24272d",
+     "roof": "#24272d"
+    },
+    {
+     "body": "#9ccc3c",
+     "roof": "#8fbd37"
+    }
+   ],
+   "measured": {
+    "screenTop": 143,
+    "screenW": 306,
+    "screenH": 217,
+    "vsPerson": 1.15
+   }
+  },
+  {
+   "kind": "wagon",
+   "body": "wagon",
+   "livery": "rolled",
+   "add": [
+    "roofRails"
+   ],
+   "len": 225,
+   "wid": 90,
+   "roof": 112,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 184,
+    "screenW": 307,
+    "screenH": 258,
+    "vsPerson": 1.48
+   }
+  },
+  {
+   "kind": "suvsmall",
+   "body": "suvsmall",
+   "livery": "rolled",
+   "add": [
+    "roofRails"
+   ],
+   "len": 215,
+   "wid": 90,
+   "deck": 68,
+   "roof": 116,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 194,
+    "screenW": 297,
+    "screenH": 266,
+    "vsPerson": 1.56
+   }
+  },
+  {
+   "kind": "suv",
+   "body": "suv",
+   "livery": "rolled",
+   "add": [
+    "roofRails"
+   ],
+   "len": 240,
+   "wid": 90,
+   "deck": 70,
+   "roof": 122,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 212,
+    "screenW": 324,
+    "screenH": 290,
+    "vsPerson": 1.71
+   }
+  },
+  {
+   "kind": "minivan",
+   "body": "minivan",
+   "livery": "rolled",
+   "add": [],
+   "len": 230,
+   "wid": 90,
+   "roof": 122,
+   "doors": "slide",
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 194,
+    "screenW": 311,
+    "screenH": 270,
+    "vsPerson": 1.56
+   }
+  },
+  {
+   "kind": "sportscar",
+   "body": "sports",
+   "livery": "bright",
+   "add": [
+    "spoiler"
+   ],
+   "len": 225,
+   "wid": 90,
+   "deck": 54,
+   "roof": 88,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#e8b92e",
+     "roof": "#d9ab26"
+    },
+    {
+     "body": "#d8402f",
+     "roof": "#c73a2b"
+    },
+    {
+     "body": "#2f7fc8",
+     "roof": "#2a73b5"
+    },
+    {
+     "body": "#3f9a5a",
+     "roof": "#398c52"
+    },
+    {
+     "body": "#ef7d2a",
+     "roof": "#dc7226"
+    },
+    {
+     "body": "#8a4fc0",
+     "roof": "#7e48b0"
+    },
+    {
+     "body": "#21a3b5",
+     "roof": "#1e95a6"
+    },
+    {
+     "body": "#e8eaee",
+     "roof": "#dcdfe3"
+    },
+    {
+     "body": "#24272d",
+     "roof": "#24272d"
+    },
+    {
+     "body": "#9ccc3c",
+     "roof": "#8fbd37"
+    }
+   ],
+   "measured": {
+    "screenTop": 145,
+    "screenW": 308,
+    "screenH": 219,
+    "vsPerson": 1.17
+   }
+  },
+  {
+   "kind": "musclecar",
+   "body": "coupe",
+   "livery": "bright",
+   "add": [
+    "scoop",
+    "stripes"
+   ],
+   "len": 225,
+   "wid": 90,
+   "roof": 104,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#e8b92e",
+     "roof": "#d9ab26"
+    },
+    {
+     "body": "#d8402f",
+     "roof": "#c73a2b"
+    },
+    {
+     "body": "#2f7fc8",
+     "roof": "#2a73b5"
+    },
+    {
+     "body": "#3f9a5a",
+     "roof": "#398c52"
+    },
+    {
+     "body": "#ef7d2a",
+     "roof": "#dc7226"
+    },
+    {
+     "body": "#8a4fc0",
+     "roof": "#7e48b0"
+    },
+    {
+     "body": "#21a3b5",
+     "roof": "#1e95a6"
+    },
+    {
+     "body": "#e8eaee",
+     "roof": "#dcdfe3"
+    },
+    {
+     "body": "#24272d",
+     "roof": "#24272d"
+    },
+    {
+     "body": "#9ccc3c",
+     "roof": "#8fbd37"
+    }
+   ],
+   "measured": {
+    "screenTop": 135,
+    "screenW": 306,
+    "screenH": 209,
+    "vsPerson": 1.09
+   }
+  },
+  {
+   "kind": "classic50",
+   "body": "classic50",
+   "livery": "pastel",
+   "add": [
+    "fins",
+    "chromeTrim",
+    "twoTone"
+   ],
+   "len": 235,
+   "wid": 90,
+   "deck": 62,
+   "roof": 102,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#8fd3c0",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#e9a0b4",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#9cc4e4",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#eee0b0",
+     "roof": "#b8453a"
+    },
+    {
+     "body": "#c7b3e0",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#f2c28f",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#b9dc9a",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#d8574c",
+     "roof": "#f2efe6"
+    }
+   ],
+   "measured": {
+    "screenTop": 151,
+    "screenW": 320,
+    "screenH": 228,
+    "vsPerson": 1.22
+   }
+  },
+  {
+   "kind": "taxi",
+   "body": "sedan",
+   "livery": "taxi",
+   "add": [
+    "taxiSign",
+    "checker"
+   ],
+   "len": 225,
+   "wid": 90,
+   "roof": 114,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#f2c230",
+     "roof": "#f2c230"
+    }
+   ],
+   "measured": {
+    "screenTop": 167,
+    "screenW": 306,
+    "screenH": 241,
+    "vsPerson": 1.35
+   }
+  },
+  {
+   "kind": "limo",
+   "body": "limo",
+   "livery": "formal",
+   "add": [],
+   "len": 330,
+   "wid": 90,
+   "roof": 112,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#1f2228",
+     "roof": "#1f2228"
+    },
+    {
+     "body": "#eceef1",
+     "roof": "#e2e4e8"
+    },
+    {
+     "body": "#a9b1bb",
+     "roof": "#9ca4ae"
+    },
+    {
+     "body": "#cdb98f",
+     "roof": "#c1ad84"
+    },
+    {
+     "body": "#2e3a56",
+     "roof": "#29344d"
+    }
+   ],
+   "measured": {
+    "screenTop": 173,
+    "screenW": 410,
+    "screenH": 274,
+    "vsPerson": 1.4
+   }
+  },
+  {
+   "kind": "offroad",
+   "body": "offroad",
+   "livery": "earth",
+   "add": [
+    "spare",
+    "pushbar"
+   ],
+   "len": 205,
+   "wid": 90,
+   "roof": 112,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#6b7a4a",
+     "roof": "#606e42"
+    },
+    {
+     "body": "#c8b083",
+     "roof": "#b9a277"
+    },
+    {
+     "body": "#a8443a",
+     "roof": "#9a3d34"
+    },
+    {
+     "body": "#2b2d30",
+     "roof": "#2b2d30"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#3e5f7a",
+     "roof": "#38566e"
+    },
+    {
+     "body": "#d98a2b",
+     "roof": "#cb8128"
+    },
+    {
+     "body": "#7b8a8c",
+     "roof": "#707e80"
+    }
+   ],
+   "measured": {
+    "screenTop": 193,
+    "screenW": 291,
+    "screenH": 262,
+    "vsPerson": 1.56
+   }
+  },
+  {
+   "kind": "microcar",
+   "body": "micro",
+   "livery": "pastel",
+   "add": [],
+   "len": 150,
+   "wid": 90,
+   "deck": 62,
+   "roof": 108,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#8fd3c0",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#e9a0b4",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#9cc4e4",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#eee0b0",
+     "roof": "#b8453a"
+    },
+    {
+     "body": "#c7b3e0",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#f2c28f",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#b9dc9a",
+     "roof": "#f2efe6"
+    },
+    {
+     "body": "#d8574c",
+     "roof": "#f2efe6"
+    }
+   ],
+   "measured": {
+    "screenTop": 157,
+    "screenW": 236,
+    "screenH": 213,
+    "vsPerson": 1.27
+   }
+  },
+  {
+   "kind": "evhatch",
+   "body": "evhatch",
+   "livery": "ev",
+   "add": [
+    "chargePort",
+    "evTrim"
+   ],
+   "len": 190,
+   "wid": 90,
+   "roof": 112,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#e8eaee",
+     "roof": "#2a2f36"
+    },
+    {
+     "body": "#9aa7b5",
+     "roof": "#2a2f36"
+    },
+    {
+     "body": "#4a9aa8",
+     "roof": "#2a2f36"
+    },
+    {
+     "body": "#2c3138",
+     "roof": "#14171b"
+    },
+    {
+     "body": "#c4473c",
+     "roof": "#2a2f36"
+    },
+    {
+     "body": "#5a7fb8",
+     "roof": "#2a2f36"
+    },
+    {
+     "body": "#a8c9a0",
+     "roof": "#2a2f36"
+    }
+   ],
+   "measured": {
+    "screenTop": 171,
+    "screenW": 271,
+    "screenH": 237,
+    "vsPerson": 1.38
+   }
+  },
+  {
+   "kind": "crewcab",
+   "body": "crewcab",
+   "livery": "rolled",
+   "add": [],
+   "len": 272,
+   "wid": 90,
+   "roof": 110,
+   "doors": 4,
+   "paints": [
+    {
+     "body": "#9aa7b5",
+     "roof": "#8695a5"
+    },
+    {
+     "body": "#c45a4e",
+     "roof": "#af4f44"
+    },
+    {
+     "body": "#5678a8",
+     "roof": "#4c6c99"
+    },
+    {
+     "body": "#e4e6ea",
+     "roof": "#d6d9dd"
+    },
+    {
+     "body": "#2b2e34",
+     "roof": "#26292e"
+    },
+    {
+     "body": "#4f7a5a",
+     "roof": "#476e51"
+    },
+    {
+     "body": "#2f4466",
+     "roof": "#2a3d5c"
+    },
+    {
+     "body": "#c9b994",
+     "roof": "#bcad88"
+    },
+    {
+     "body": "#5d636c",
+     "roof": "#555b63"
+    },
+    {
+     "body": "#7d3038",
+     "roof": "#722c33"
+    },
+    {
+     "body": "#3f8f8f",
+     "roof": "#398282"
+    },
+    {
+     "body": "#d9b440",
+     "roof": "#cca83b"
+    }
+   ],
+   "measured": {
+    "screenTop": 160,
+    "screenW": 355,
+    "screenH": 246,
+    "vsPerson": 1.29
+   }
+  },
+  {
+   "kind": "liftedpickup",
+   "body": "lifted",
+   "livery": "bright",
+   "add": [
+    "roofLights",
+    "pushbar"
+   ],
+   "len": 236,
+   "wid": 90,
+   "roof": 110,
+   "doors": 2,
+   "paints": [
+    {
+     "body": "#e8b92e",
+     "roof": "#d9ab26"
+    },
+    {
+     "body": "#d8402f",
+     "roof": "#c73a2b"
+    },
+    {
+     "body": "#2f7fc8",
+     "roof": "#2a73b5"
+    },
+    {
+     "body": "#3f9a5a",
+     "roof": "#398c52"
+    },
+    {
+     "body": "#ef7d2a",
+     "roof": "#dc7226"
+    },
+    {
+     "body": "#8a4fc0",
+     "roof": "#7e48b0"
+    },
+    {
+     "body": "#21a3b5",
+     "roof": "#1e95a6"
+    },
+    {
+     "body": "#e8eaee",
+     "roof": "#dcdfe3"
+    },
+    {
+     "body": "#24272d",
+     "roof": "#24272d"
+    },
+    {
+     "body": "#9ccc3c",
+     "roof": "#8fbd37"
+    }
+   ],
+   "measured": {
+    "screenTop": 182,
+    "screenW": 319,
+    "screenH": 259,
+    "vsPerson": 1.47
+   }
+  }
+ ],
+ "vans": [
+  {
+   "kind": "hiroofvan",
+   "len": 250,
+   "roof": 156,
+   "pal": "fleet",
+   "add": [
+    "band"
+   ],
+   "measured": {
+    "screenTop": 241,
+    "screenW": 340,
+    "screenH": 322,
+    "vsPerson": 1.94
+   }
+  },
+  {
+   "kind": "minibus",
+   "len": 292,
+   "wid": 94,
+   "roof": 150,
+   "pal": "shuttle",
+   "add": [
+    "band",
+    "busDoor",
+    "busWindows",
+    "roofAC"
+   ],
+   "measured": {
+    "screenTop": 247,
+    "screenW": 386,
+    "screenH": 339,
+    "vsPerson": 1.99
+   }
+  },
+  {
+   "kind": "icecreamtruck",
+   "len": 240,
+   "roof": 144,
+   "pal": "icecream",
+   "add": [
+    "band",
+    "serve",
+    "awning",
+    "coneSign",
+    "cone"
+   ],
+   "measured": {
+    "screenTop": 229,
+    "screenW": 330,
+    "screenH": 307,
+    "vsPerson": 1.85
+   }
+  },
+  {
+   "kind": "tacotruck",
+   "len": 270,
+   "roof": 160,
+   "pal": "taco",
+   "add": [
+    "band",
+    "serve",
+    "flap",
+    "taco",
+    "roofAC"
+   ],
+   "measured": {
+    "screenTop": 250,
+    "screenW": 360,
+    "screenH": 336,
+    "vsPerson": 2.02
+   }
+  },
+  {
+   "kind": "mailtruck",
+   "len": 196,
+   "roof": 140,
+   "pal": "mail",
+   "add": [
+    "mailBands",
+    "eagle"
+   ],
+   "measured": {
+    "screenTop": 212,
+    "screenW": 286,
+    "screenH": 279,
+    "vsPerson": 1.71
+   }
+  },
+  {
+   "kind": "campervan",
+   "len": 220,
+   "roof": 130,
+   "pal": "camper",
+   "add": [
+    "twoTone",
+    "campWindows",
+    "popTop",
+    "vNose"
+   ],
+   "measured": {
+    "screenTop": 209,
+    "screenW": 310,
+    "screenH": 282,
+    "vsPerson": 1.69
+   }
+  },
+  {
+   "kind": "shopvan",
+   "roof": 128,
+   "pal": "shop",
+   "add": [
+    "rails",
+    "shopPanel"
+   ],
+   "measured": {
+    "screenTop": 208,
+    "screenW": 314,
+    "screenH": 282,
+    "vsPerson": 1.68
+   }
+  },
+  {
+   "kind": "armouredcar",
+   "len": 236,
+   "roof": 140,
+   "pal": "armour",
+   "add": [
+    "band",
+    "armour",
+    "pushbar",
+    "roofHatch"
+   ],
+   "measured": {
+    "screenTop": 222,
+    "screenW": 328,
+    "screenH": 299,
+    "vsPerson": 1.79
+   }
+  },
+  {
+   "kind": "policewagon",
+   "len": 256,
+   "roof": 152,
+   "pal": "police",
+   "add": [
+    "policeBand",
+    "star",
+    "barWindows",
+    "pushbar",
+    "lightbar"
+   ],
+   "measured": {
+    "screenTop": 239,
+    "screenW": 348,
+    "screenH": 321,
+    "vsPerson": 1.93
+   }
+  }
+ ],
+ "props": [
+  {
+   "kind": "dog",
+   "measured": {
+    "screenTop": 59,
+    "screenW": 40,
+    "screenH": 90,
+    "vsPerson": 0.48
+   }
+  },
+  {
+   "kind": "lamp",
+   "measured": {
+    "screenTop": 331,
+    "screenW": 114,
+    "screenH": 341,
+    "vsPerson": 2.67
+   }
+  },
+  {
+   "kind": "palm",
+   "measured": {
+    "screenTop": 531,
+    "screenW": 180,
+    "screenH": 531,
+    "vsPerson": 4.28
+   }
+  },
+  {
+   "kind": "palmDwarf",
+   "measured": {
+    "screenTop": 150,
+    "screenW": 129,
+    "screenH": 150,
+    "vsPerson": 1.21
+   }
+  },
+  {
+   "kind": "scooter",
+   "measured": {
+    "screenTop": 51,
+    "screenW": 67,
+    "screenH": 63,
+    "vsPerson": 0.41
+   }
+  },
+  {
+   "kind": "trash",
+   "measured": {
+    "screenTop": 7,
+    "screenW": 42,
+    "screenH": 18,
+    "vsPerson": 0.06
+   }
+  },
+  {
+   "kind": "cone",
+   "measured": {
+    "screenTop": 38,
+    "screenW": 38,
+    "screenH": 47,
+    "vsPerson": 0.31
+   }
+  },
+  {
+   "kind": "hydrantFlood",
+   "measured": {
+    "screenTop": 68,
+    "screenW": 200,
+    "screenH": 100,
+    "vsPerson": 0.55
+   }
+  },
+  {
+   "kind": "hydrant",
+   "measured": {
+    "screenTop": 26,
+    "screenW": 24,
+    "screenH": 32,
+    "vsPerson": 0.21
+   }
+  },
+  {
+   "kind": "hydrantBurst",
+   "measured": {
+    "screenTop": 26,
+    "screenW": 109,
+    "screenH": 78,
+    "vsPerson": 0.21
+   }
+  },
+  {
+   "kind": "robot",
+   "measured": {
+    "screenTop": 116,
+    "screenW": 105,
+    "screenH": 138,
+    "vsPerson": 0.94
+   }
+  },
+  {
+   "kind": "burrito",
+   "measured": null
+  },
+  {
+   "kind": "planter",
+   "measured": {
+    "screenTop": 47,
+    "screenW": 46,
+    "screenH": 56,
+    "vsPerson": 0.38
+   }
+  },
+  {
+   "kind": "signalpost",
+   "measured": {
+    "screenTop": 350,
+    "screenW": 154,
+    "screenH": 364,
+    "vsPerson": 2.82
+   }
+  },
+  {
+   "kind": "signalhead",
+   "measured": {
+    "error": "TypeError: Cannot read properties of undefined (reading 'i')"
+   }
+  },
+  {
+   "kind": "people",
+   "measured": {
+    "screenTop": 126,
+    "screenW": 55,
+    "screenH": 145,
+    "vsPerson": 1.02
+   }
+  },
+  {
+   "kind": "william",
+   "measured": {
+    "screenTop": 156,
+    "screenW": 48,
+    "screenH": 146,
+    "vsPerson": 1.26
+   }
+  },
+  {
+   "kind": "firetruck",
+   "measured": {
+    "screenTop": 294,
+    "screenW": 510,
+    "screenH": 416,
+    "vsPerson": 2.37
+   }
+  },
+  {
+   "kind": "fueltruck",
+   "measured": {
+    "screenTop": 274,
+    "screenW": 518,
+    "screenH": 400,
+    "vsPerson": 2.21
+   }
+  },
+  {
+   "kind": "flatbed",
+   "measured": {
+    "screenTop": 160,
+    "screenW": 385,
+    "screenH": 251,
+    "vsPerson": 1.29
+   }
+  },
+  {
+   "kind": "beertruck",
+   "measured": {
+    "screenTop": 184,
+    "screenW": 385,
+    "screenH": 275,
+    "vsPerson": 1.48
+   }
+  },
+  {
+   "kind": "jet",
+   "measured": {
+    "screenTop": 399,
+    "screenW": 664,
+    "screenH": 495,
+    "vsPerson": 3.22
+   }
+  },
+  {
+   "kind": "cessna",
+   "measured": {
+    "screenTop": 278,
+    "screenW": 634,
+    "screenH": 374,
+    "vsPerson": 2.24
+   }
+  },
+  {
+   "kind": "twin",
+   "measured": {
+    "screenTop": 306,
+    "screenW": 694,
+    "screenH": 442,
+    "vsPerson": 2.47
+   }
+  },
+  {
+   "kind": "twinopen",
+   "measured": {
+    "screenTop": 306,
+    "screenW": 694,
+    "screenH": 442,
+    "vsPerson": 2.47
+   }
+  },
+  {
+   "kind": "van",
+   "measured": {
+    "screenTop": 208,
+    "screenW": 314,
+    "screenH": 282,
+    "vsPerson": 1.68
+   }
+  },
+  {
+   "kind": "tipseyvan",
+   "measured": {
+    "screenTop": 207,
+    "screenW": 315,
+    "screenH": 281,
+    "vsPerson": 1.67
+   }
+  },
+  {
+   "kind": "ambulance",
+   "measured": {
+    "screenTop": 207,
+    "screenW": 315,
+    "screenH": 281,
+    "vsPerson": 1.67
+   }
+  },
+  {
+   "kind": "bin",
+   "measured": {
+    "screenTop": 88,
+    "screenW": 74,
+    "screenH": 102,
+    "vsPerson": 0.71
+   }
+  },
+  {
+   "kind": "paper",
+   "measured": null
+  },
+  {
+   "kind": "can",
+   "measured": null
+  },
+  {
+   "kind": "slab",
+   "measured": {
+    "screenTop": 47,
+    "screenW": 192,
+    "screenH": 97,
+    "vsPerson": 0.38
+   }
+  },
+  {
+   "kind": "sidewalkend",
+   "measured": {
+    "screenTop": 118,
+    "screenW": 464,
+    "screenH": 232,
+    "vsPerson": 0.95
+   }
+  },
+  {
+   "kind": "sidewalkbegin",
+   "measured": {
+    "screenTop": 118,
+    "screenW": 464,
+    "screenH": 232,
+    "vsPerson": 0.95
+   }
+  },
+  {
+   "kind": "pigeons",
+   "measured": {
+    "screenTop": 44,
+    "screenW": 57,
+    "screenH": 63,
+    "vsPerson": 0.35
+   }
+  },
+  {
+   "kind": "burnoutMark",
+   "measured": {
+    "screenTop": 48,
+    "screenW": 194,
+    "screenH": 96,
+    "vsPerson": 0.39
+   }
+  },
+  {
+   "kind": "grade",
+   "measured": {
+    "screenTop": 37,
+    "screenW": 118,
+    "screenH": 60,
+    "vsPerson": 0.3
+   }
+  },
+  {
+   "kind": "sidewalkbeginTurn",
+   "measured": {
+    "screenTop": 118,
+    "screenW": 648,
+    "screenH": 324,
+    "vsPerson": 0.95
+   }
+  },
+  {
+   "kind": "crack",
+   "measured": {
+    "screenTop": 17,
+    "screenW": 114,
+    "screenH": 66,
+    "vsPerson": 0.14
+   }
+  }
+ ],
+ "doors": {
+  "SHOP_DOOR_H": 161.92,
+  "DOOR_H": 184,
+  "looks": [
+   "six",
+   "panel",
+   "lite",
+   "french",
+   "bank"
+  ]
+ },
+ "roomKit": {
+  "fx": {
+   "car": "a parked car (drawCar), cached",
+   "svc": "a service cycle: car + owner (pgSvc)",
+   "pod": "a parked robot (drawRoomBot)",
+   "dog": "a dog or cat ({ cat: true | \"kitten\" }) by the dog hull, cached",
+   "kit": "a live part of a fixture, state() caches it"
+  },
+  "pieces": [
+   "walkinRoom",
+   "runPiece",
+   "runBox",
+   "box",
+   "cyl",
+   "tube",
+   "ball",
+   "prism",
+   "F",
+   "S",
+   "T"
+  ],
+  "rules": "docs/kits/walkin.md W37 (1)-(6); node tools/review/w37.js"
+ },
+ "lines": {
+  "drawers": {
+   "drawHullEmblem": 103287,
+   "drawSideDecal": 103306,
+   "drawBandPattern": 103325,
+   "drawSkullEmblem": 103377,
+   "drawStripeStars": 103443,
+   "drawAlleyGate": 105188,
+   "drawSierraVista": 105247,
+   "drawSierraRound": 106207,
+   "drawKerbRound": 106226,
+   "drawGuardBooth": 106421,
+   "drawNssGarageOpen": 107643,
+   "drawNssGardenGround": 107727,
+   "drawNssGardenItem": 107759,
+   "drawDuneGroup": 107817,
+   "drawDuneTufts": 107834,
+   "drawDunePath": 107850,
+   "drawDuneRope": 107861,
+   "drawLifeguardTower": 108139,
+   "drawLifeguardRamp": 108192,
+   "drawLifeguardFlag": 108205,
+   "drawFmSpill": 108323,
+   "drawFmCarry": 108383,
+   "drawVmFlag": 108809,
+   "drawVmFlame": 108844,
+   "drawFencePanel": 108892,
+   "drawFleetParked": 108998,
+   "drawSierraEdge": 109268,
+   "drawHarborTrailer": 109295,
+   "drawHarborRack": 109380,
+   "drawHarborRocks": 109404,
+   "drawHarborPerson": 109513,
+   "drawHarborBuy": 109519,
+   "drawHarborPicnic": 109540,
+   "drawCypress": 109558,
+   "drawAgave": 109575,
+   "drawBoatGangway": 109645,
+   "drawBoatDoorLive": 109690,
+   "drawBoatCustomer": 109705,
+   "drawHarborAnchor": 109760,
+   "drawHarborRound": 109793,
+   "drawHarborParkGround": 109803,
+   "drawHarborGround": 109884,
+   "drawGroundPass": 110059,
+   "drawWorld": 111128,
+   "drawWorldIn": 111306,
+   "drawDoorAssembly": 113963,
+   "drawPickupBayCached": 114146,
+   "drawPickupBay": 114151,
+   "drawBeacon": 114202,
+   "drawMatAt": 114248,
+   "drawMatHighlight": 114303,
+   "drawMatAR": 114345,
+   "drawMatQuad": 114368,
+   "drawHouseUnit": 114429,
+   "drawStoreUnit": 114608,
+   "drawCornerStoreUnit": 114767,
+   "drawWoodFence": 115068,
+   "drawChainFence": 115085,
+   "drawFenceGap": 115113,
+   "drawGateFence": 115129,
+   "drawShopDoor": 115155,
+   "drawBagTop": 115213,
+   "drawBagBody": 115225,
+   "drawPickupUnit": 115284,
+   "drawSolidFenceRow": 115457,
+   "drawParkingStripes": 115495,
+   "drawBenchProp": 115505,
+   "drawLibUnit": 115817,
+   "drawHorseHull": 116881,
+   "drawKerbStoneOver": 117384,
+   "drawWilliamHull": 117995,
+   "drawLampHull": 118015,
+   "drawPersonHull": 118275,
+   "drawPersonGhost": 118299,
+   "drawPersonHullBody": 118413,
+   "drawPersonHullBodyAt": 118418,
+   "drawTippedChair": 120010,
+   "drawFallenHull": 120080,
+   "drawScooterRider": 120415,
+   "drawHospDoctor": 120748,
+   "drawHeartCooler": 120755,
+   "drawHospMedic": 120773,
+   "drawCakePerson": 120782,
+   "drawHandGift": 120812,
+   "drawTears": 120909,
+   "drawAnnivRosa": 120925,
+   "drawWalkinPerson": 120937,
+   "drawFourthPerson": 120945,
+   "drawCast": 120962,
+   "drawBarDrinks": 121041,
+   "drawSlideFx": 121080,
+   "drawPlayFx": 121106,
+   "drawEscalatorSteps": 121598,
+   "drawMallStaff": 121875,
+   "drawPieceFx": 121897,
+   "drawBallWalker": 121956,
+   "drawCakeTopper": 121967,
+   "drawCakeCart": 122010,
+   "drawWeddingCake": 122026,
+   "drawBallroomMat": 122052,
+   "drawVaultShut": 122061,
+   "drawSvcDoors": 122082,
+   "drawHospLiftDoors": 122093,
+   "drawEdoorLeaves": 122106,
+   "drawMdoorLeaves": 122108,
+   "drawGlassLeaves": 122110,
+   "drawHospWalker": 122123,
+   "drawHospGurney": 122133,
+   "drawHospRider": 122154,
+   "drawHospPushed": 122159,
+   "drawVaultPlatform": 122165,
+   "drawShaftLight": 122177,
+   "drawRoomBot": 122191,
+   "drawHumanoid": 122211,
+   "drawCrew": 122226,
+   "drawFishRod": 122264,
+   "drawFishLine": 122289,
+   "drawFishUnder": 122354,
+   "drawOfficer": 122396,
+   "drawPalmGround": 122408,
+   "drawVehicleShadow": 122464,
+   "drawCar": 122509,
+   "drawVan": 123073,
+   "drawVanDress": 123340,
+   "drawVanRoof": 123531,
+   "drawAvPod": 123594,
+   "drawAutoBoat": 123945,
+   "drawBot": 124144,
+   "drawDrone": 124464,
+   "drawAvSensors": 124702,
+   "drawWorkTruck": 125062,
+   "drawRig": 125289,
+   "drawPlant": 125970,
+   "drawHeli": 126222,
+   "drawPlane": 126381,
+   "drawAircraft": 126652,
+   "drawJet": 126818,
+   "drawDogHull": 126924,
+   "drawDogPair": 127136,
+   "drawProp": 127259,
+   "drawRobotOrSunk": 129472,
+   "drawFleetAvatar": 129532,
+   "drawLhLamp": 129556,
+   "drawTipseyParked": 129568,
+   "drawLhLight": 129583,
+   "drawFlyShadow": 129596,
+   "drawFleetAvatarAt": 129607,
+   "drawSplash": 129683,
+   "drawBotBody": 129752,
+   "drawBotBodyRaw": 129775,
+   "drawCans": 130059,
+   "drawDroneUfo": 130097,
+   "drawNpcRobotBody": 130106,
+   "drawRobot": 130126,
+   "drawSplitCanopy": 133579,
+   "drawLid": 133622,
+   "drawItems": 133906,
+   "drawAmrBuild": 134692,
+   "drawPatrolDog": 134980,
+   "drawCargoBaler": 135741,
+   "drawCargoEra": 135814,
+   "drawHullPrism": 136552,
+   "drawMissionCarried": 136699,
+   "drawBox": 136707,
+   "drawWheel": 136744,
+   "drawGearItem": 136879,
+   "drawBurnoutSmoke": 137201,
+   "drawPoleCoil": 137239,
+   "drawTopper": 137257,
+   "drawPole": 137619,
+   "drawFlagCloth": 137649,
+   "drawFlag": 137714,
+   "drawTapeLine": 140490,
+   "drawHospSpill": 140511,
+   "drawCakeSpill": 140543,
+   "drawHospWreck": 140612,
+   "drawTapeSpan": 140624,
+   "drawHUD": 141012,
+   "drawRobotMarker": 147136,
+   "drawRailPath": 149917,
+   "drawRouteMap": 151165
+  },
+  "looks": {
+   "dogLookOf": 3038,
+   "catLookOf": 3057,
+   "partyLook": 3681,
+   "williamLook": 4119,
+   "folkLook": 16854,
+   "crowdLook": 16856,
+   "bwLook": 19746,
+   "staffLook": 20932,
+   "gothMomLook": 21746,
+   "gothLunaLook": 21773,
+   "almsLook": 27290,
+   "mallLook": 28210,
+   "mallJailLook": 28948,
+   "storeRepLook": 28976,
+   "walkinStaffLook": 29627,
+   "hospFolkLook": 35540,
+   "hospCastLook": 35734,
+   "hospCastPushLook": 35735,
+   "hospWalkerLook": 35737,
+   "okaforLook": 38625,
+   "gownLook": 39389,
+   "lieLook": 39391,
+   "cpLook": 91765,
+   "cpKnockLook": 91783,
+   "afLook": 91910,
+   "marinaAttLook": 91943,
+   "anglerLook": 92901,
+   "fyLook": 93530,
+   "skLook": 93906,
+   "cplLook": 94527,
+   "cplKerbLook": 94742,
+   "cplCrewLook": 94786,
+   "msGidLook": 96298,
+   "msCamLook": 96716,
+   "ssWaltLook": 98684,
+   "surfKidLook": 99258,
+   "surfMeleLook": 99299,
+   "surfKaiLook": 99368,
+   "phOfficerLook": 100479,
+   "gwCamLook": 100879,
+   "vehRiderLook": 101180,
+   "streetLook": 101186,
+   "custLook": 101292,
+   "cpStreetLook": 101293
+  },
+  "tables": {
+   "DOG_BREEDS": 3019,
+   "CAT_BREEDS": 3051,
+   "CAR_KINDS": 4937,
+   "CAR_BODIES": 4813,
+   "VAN_KINDS": 6544,
+   "SHOP_DOOR_LOOKS": 49502,
+   "PERSON_H": 13897,
+   "CARC": 4720,
+   "VANC": 6498,
+   "DOG": 3001
+  }
+ }
+}

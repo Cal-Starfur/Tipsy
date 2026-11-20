@@ -16,6 +16,13 @@ variations are good but the draw issues can be cut down"):
    while still: `fx.car` / `fx.svc` (cars), `fx.pod` (robots), `fx.dog` (dogs and cats, `cat: true`); people are the room's staff and
    visitors (`walkinStaff`, `walkinLife`).
 
+**The database:** `docs/kits/library.json`, built from the game by `node tools/library_index.js` (rerun it after adding something). One
+entry per thing: people (the standard body), every dog breed and cat, every car and van kind, every street prop kind, the door looks --
+each with its build numbers (length, width, roof or height; 124 is a person), its colours (coats, paints), its marks or add-ons, and its
+size measured off its own drawing (`measured`: how far it rises on screen, its silhouette, and that against a person); then every drawer,
+look function and table with its line in `game/index.html`. To start something new, look up its nearest relative there and build to its
+numbers.
+
 Find a drawer: `grep -n "^  draw<Name>(" game/index.html`; its kind lists and looks are the `const ..._KINDS / _BREEDS / _LOOKS`
 tables. The labs (`labs/`) are where most of them were built and can be opened on their own.
 
