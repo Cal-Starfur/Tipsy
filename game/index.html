@@ -6745,11 +6745,11 @@ function zoomK(){
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, pk = s && s._inside;
   return pk && pk.displace ? roomFitK(s, pk) || k : k;
 }
-const ROOM_FIT = { side: 14, top: 8, min: 0.42, max: 1.1 };   // (a hair clear of the screen's edges -- the room's corners may pass under the side rails; the least and most it scales)
+const ROOM_FIT = { side: 14, top: 8, min: 0.42, max: 1.1, hCap: 300 };   // (hCap: the most of its walls' height the fit makes room for -- a taller hall's back walls run off the top, Sir 2026-11-20: "lets get the bank to take up the whole screen")   // (a hair clear of the screen's edges -- the room's corners may pass under the side rails; the least and most it scales)
 function roomFitK(s, pk){
   const vw = s.vpW ? s.vpW() : s.scale.width, vh = s.vpH ? s.vpH() : s.scale.height;
   if(!(vw > 0 && vh > 0) || !(pk.w > 0 && pk.d > 0)) return null;
-  const S = pk.w + pk.d + 2*WALKIN_WALL, H = pk.h || 300;           // (the room's outline on screen: W + D across, (W + D)/2 + its walls' height down)
+  const S = pk.w + pk.d + 2*WALKIN_WALL, H = Math.min(pk.h || 300, ROOM_FIT.hCap);   // (the room's outline on screen: W + D across, (W + D)/2 + its walls' height down -- at most hCap of it)
   if(pk.w > 2600 || pk.d > 1200) return null;                         // (a hall far bigger than any screen -- Cratewell's: the camera follows him round it)
   const k = Math.min((vw - 2*ROOM_FIT.side)/S, (vh - 2*ROOM_FIT.top)/(S/2 + H));
   return Math.max(ROOM_FIT.min, Math.min(ROOM_FIT.max, k));
@@ -132558,7 +132558,7 @@ class WorldScene extends Phaser.Scene {
         camTargetX = cx + (this.botX - cx)*f; camTargetY = cy + (this.botY - cy)*f;
         /* (on the middle of the room as the screen sees it -- its floor AND its walls: aimed at the floor alone, the back walls' tops went off
            the screen's top with room to spare at its foot) */
-        camTargetZ += ((_rp.h || 240)*0.5)*(1 - f); } }
+        camTargetZ += (Math.min(_rp.h || 240, ROOM_FIT.hCap)*0.5)*(1 - f); } }   // (on as much of the walls as the fit counts: ROOM_FIT.hCap)
     /* (the room's own scale at view 2, fitted to the screen -- zoomK: taken up as he is taken in and given back as he comes out) */
     { const _wk = zoomK(); if(Math.abs(this.K - _wk) > 1e-4) zoomApply(); }
     const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
