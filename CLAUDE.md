@@ -65,10 +65,10 @@
   the reference.
 
 ## Other rules
-- Reuse the object library first: `docs/kits/library.md` lists what the game already draws (people, dogs, cats, cars, vans, robots,
-  doors, street props, room kit). Use the real drawer with its own look or kind -- never redraw a library thing in boxes for one place;
-  for a variant, extend its table (a breed, a kind, a look) so everywhere gets it. New objects are fine: build them to the kit's rules
-  and add them to the library.
+- Reference the object library first: `docs/kits/library.md` lists what the game already draws (people, dogs, cats, cars, vans,
+  robots, doors, street props, room kit). Drawing new things and variations is welcome -- build them from their nearest library relative
+  (its drawer, proportions, toning, part order), which has already been through the draw fixes, so they come out right the first time;
+  a variant can go in its relative's table (a breed, a kind, a look). Add what you make to the library.
 - Fix root causes, not symptoms. Measure before patching.
 - Any change has to work in both the web and Reddit (Devvit) builds.
 - A live door (sliding or swinging leaves, lift doors) is queued at its own point. Anything that stands out over it -- a canopy,

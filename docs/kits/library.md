@@ -1,18 +1,20 @@
-# The object library: reuse first (L0)
+# The object library: reference it first (L0)
 
-**The rule** (Sir, 2026-11-20: "we need to also make a rule that points to the library of objects we have. we can create new
-objects but referencing what we already have will help to keep everything consistent"):
+**The rule** (Sir, 2026-11-20: "we can create new objects but referencing what we already have will help to keep everything
+consistent"; "i think its nice to draw new stuff but referencing what we have is important to get it done correct the first time. the
+variations are good but the draw issues can be cut down"):
 
-1. **Before drawing anything, look here.** If the game already draws the thing -- a person, a dog, a cat, a car, a van, a robot,
-   a door, a lamp, a bench, a palm, a kart wheel -- use its drawer, with its own look/kind/seed. Never redraw it in boxes for one
-   room (the animal shelter's box dogs and cats, 2026-11-20, were exactly this).
-2. **Need a variant? Extend the library, not the room.** A new breed goes in `DOG_BREEDS`/`CAT_BREEDS`, a new car in `CAR_KINDS`,
-   a new door look in `SHOP_DOOR_LOOKS`, a new street look through `streetLook`/a `*Look` in the people kit -- so every place gets it.
-3. **A genuinely new object** is fine -- build it to the kit's rules (W37: back to front, a base before what stands on it, the far
-   side first, parts meeting never running into each other) as a named drawer or kind others can call, and **add it to this list**.
-4. **In a room** (walk-in kit) the library's moving or living things go in as the room's fx pieces, which call the real drawer in
-   the room's order and cache it while still: `fx.car` / `fx.svc` (cars), `fx.pod` (robots), `fx.dog` (dogs and cats, `cat: true`).
-   People are the room's staff and visitors (`walkinStaff`, `walkinLife`), never drawn by hand.
+1. **Look here first.** Before drawing something, find the nearest thing the game already draws and reference it -- its drawer, its
+   proportions against a person (`PERSON_H` 124), its colours and toning, how its parts are ordered and fitted. The library's pieces have
+   already been through the draw-order and alignment fixes; starting from them gets a new object right the first time.
+2. **New things and variations are welcome.** Draw a new object, or a new take on one we have, freely -- built the way its nearest
+   library relative is built, to the kit's rules (W37: back to front, a base before what stands on it, the far side first, parts
+   meeting, never running into each other). Where it is a variant of a library thing (another breed, another car, another door), adding
+   it to that thing's table (`DOG_BREEDS`, `CAT_BREEDS`, `CAR_KINDS`, `SHOP_DOOR_LOOKS`, a `*Look`) gives it the drawer's fixes for free.
+3. **Add what you make to this list**, so the next one can reference it.
+4. **In a room** (walk-in kit) a library thing can go in as the room's fx piece, which calls its drawer in the room's order and caches it
+   while still: `fx.car` / `fx.svc` (cars), `fx.pod` (robots), `fx.dog` (dogs and cats, `cat: true`); people are the room's staff and
+   visitors (`walkinStaff`, `walkinLife`).
 
 Find a drawer: `grep -n "^  draw<Name>(" game/index.html`; its kind lists and looks are the `const ..._KINDS / _BREEDS / _LOOKS`
 tables. The labs (`labs/`) are where most of them were built and can be opened on their own.
@@ -57,7 +59,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 |---|---|---|
 | Walls, windows, the door hole | `walkinRoom` (`runBox`, `winIn`) | `docs/kits/walkin.md` |
 | Long fixtures (counters, shelves, bars) | `runPiece` | W28; W37 for what goes inside |
-| Primitives | `box`, `cyl`, `tube`, `ball`, `prism`, `F` / `S` / `T` faces | only for the room's own fixtures, never for a library thing above |
+| Primitives | `box`, `cyl`, `tube`, `ball`, `prism`, `F` / `S` / `T` faces | the room's own fixtures, and anything new -- referencing the library's relative |
 | An exemplar room | Tidewater Tea House | `docs/kits/walkin-shop-recipe.md` |
 
 When you add a drawer, a kind, a breed or a look, add its row here.
