@@ -45,6 +45,8 @@ exemplar** (`TH_IN`, `TH_PLAN`, `TH_FAMILY`, the LIB entry 'Tidewater Tea House 
 - Where the room's front wall is on a street corner, `cornerLow: true` so the far wall's corner over it is cut low.
 
 ## 6. Furnishing the room
+
+Reuse the object library first (`docs/kits/library.md`, L0): people, animals, cars, robots and doors are the game's own drawers, put in as the room's fx pieces (`fx.car`, `fx.svc`, `fx.pod`, `fx.dog`); only the room's own fixtures are built from the kit's primitives.
 - Lay it out in **zones** for its size: counters and shelving along the far walls, a seating area, tables in the middle with aisles a
   body wide, a corner by the door. Keep the door's lane clear from the door to the back wall (`walkinLife` keep).
 - Give things **real volume** -- boxes and cylinders with tops and sides, never flat paint on a wall for shelves of goods.
