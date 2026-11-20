@@ -93,7 +93,10 @@
 - People: build a new person off the people we have and vary them through the roll (people kit P19, P20: a `streetLook` kind or
   a `rosterBody` in a uniform, clothes from the hull's wardrobe, a new option on its own roll so no look already in the game changes).
   Inside a body, back to front and parts meeting, as W37 is for furniture (P21, P22: the far arm before the torso, the shoulder along
-  the arm); check with `node tools/review/people_hull.js --png <dir>`.
+  the arm); check with `node tools/review/people_hull.js --png <dir>` and the depth test `node tools/review/people_depth.js --png <dir>`.
+- Anything that wraps round another piece (a band, a hem, a cuff, a collar, a brim, a hat's band) is a ring -- only its faces toward
+  the eye -- never a filled solid, whose silhouette lays a flat lid over what it wraps; a piece that wraps round another is split by depth
+  (its part behind, the thing, its part in front), as a cap's bill round its crown.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the

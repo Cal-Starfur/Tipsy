@@ -1,0 +1,111 @@
+/* THE PEOPLE DEPTH TEST (people kit P21 / P22, Sir, 2026-11-20: "why was this not caught by our rules?"). people_hull.js asks one
+   question of the body's parts (the far arm over the torso); this one asks it of every face the person drawer paints: is it painted
+   over a face that is NEARER the eye? A real depth test, a z-buffer kept beside the painter's order:
+
+     every point the drawer makes goes through the scene's W(x, y, z), which is wrapped here (nothing in the game changes, so it runs on
+     an old build too, --rev): each point carries its depth, x + y + z (the view runs along (1, 1, 1): what is nearer has more of it).
+     Every face (quadOn) is laid into the buffer, its depth across it from its corners'. Where a face is laid over a pixel whose depth
+     is nearer than its own by more than TOL, that is a fault: a brim over its crown, a band's filled disc over what it wraps, a sleeve's
+     end over the arm coming out of it, the jaw over the hair, the far arm over the body.
+
+   A piece's filled silhouette (the hull a limb or a prism lays first, so no seam shows) is a face too, its depth from its corners --
+   a rough one: a review list, not a gate. Each fault is the pair: what was there, what went over it (the body's part marks,
+   drawPersonHullBody's this._pTag), and its size in pixels.
+
+   node tools/review/people_depth.js [--rev <git ref>] [--look name] [--png dir] [--scale 3] [--lod 0]      exits 0 */
+const H = require('./harness.js'), fs = require('fs'), path = require('path');
+const arg = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
+const REV = arg('--rev'), PNG = arg('--png'), ONLY = arg('--look'), SCALE = +(arg('--scale') || 3), LOD = +(arg('--lod') || 0);
+const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type: 'woman', heavy: false }], ['heavy', 13, { type: 'man', heavy: true }],
+  ['business', 15, { type: 'business' }], ['jogger', 16, { type: 'jogger' }], ['skater', 17, { type: 'skater' }], ['worker', 18, { type: 'worker' }],
+  ['elderWoman', 19, { type: 'elderWoman' }], ['surfer', 4, { type: 'surfer' }], ['punk', 8, { type: 'punk' }], ['postie', 5, { type: 'postie' }],
+  ['tourist', 9, { type: 'tourist' }], ['kid', 21, { type: 'kid' }], ['cane', 22, { type: 'cane' }]].filter(l => !ONLY || l[0] === ONLY);
+(async () => {
+  const h = await H.open({ rev: REV || null }); await h.boot();
+  const res = await h.page.evaluate(async ({ LOOKS, png, S, LOD }) => {
+    const sc = game.scene.getScene('world'), CW = 115*S, CH = 165*S, TOL = 2.5, MINPX = Math.max(4, Math.round(1.5*S*S));
+    const FACES = [0, 1, 2, 3, 4, 5, 6, 7].map(k => k*Math.PI/4);
+    const POSES = [['stand', {}], ['walk', { walk: 1.1, moving: true }], ['table', { pose: { lift: [0.28, 0.28], bend: [1.1, 1.1] } }],
+      ['raised', { lift: 0.6 }], ['sit', { pose: { sit: 35 } }]];
+    const W0 = sc.W, Q0 = sc.quadOn, CH0 = window.convexHull;
+    /* a piece's filled silhouette is laid through convexHull: marked, so it is told from a face */
+    window.convexHull = function(pts){ const r = CH0(pts); try { r.__hull = true; } catch(e){} return r; };
+    let rec = null, tag = 'body';
+    /* the wrap: every screen point the drawer makes keeps its depth; every face is kept with its corners' */
+    const recent = new Map(), key = (x, y) => Math.round(x*2) + ',' + Math.round(y*2);
+    sc.W = function(x, y, z){ const p = W0.call(this, x, y, z); if(rec){ const d = x + y + (z || 0); try { p.__d = d; } catch(e){} recent.set(key(p.x, p.y), d); } return p; };
+    sc.quadOn = function(g, pts, color, alpha = 1){
+      if(rec && alpha >= 0.3 && pts && pts.length >= 3){
+        const q = []; let ok = true;
+        for(const p of pts){ let d = p.__d;
+          if(d == null){ for(const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]){ const v = recent.get((Math.round(p.x*2) + dx) + ',' + (Math.round(p.y*2) + dy)); if(v != null){ d = v; break; } } }
+          if(d == null){ ok = false; break; } q.push([p.x, p.y, d]); }
+        if(ok) rec.push({ q, tag, n: rec.length, hull: !!pts.__hull });
+      }
+      return Q0.call(this, g, pts, color, alpha); };
+    sc._pTag = t => { tag = t; };
+    const sv = { camX: sc.camX, camY: sc.camY, camZ: sc.camZ, K: sc.K, cx: sc.cx, cy: sc.cy, lod: sc._pLodFix };
+    const out = [], pngs = [];
+    for(const [name, seed, opts] of LOOKS){
+      const L = name === 'kid' ? Object.assign({ kind: 'kid' }, partyLook(seed, 'kid')) : streetLook(seed, opts);
+      Object.assign(sc, { camX: 0, camY: 0, camZ: 0, K: S }); sc._roomPerson = true; sc._pLodFix = LOD;
+      const Wd = CW*FACES.length, Hd = CH*POSES.length;
+      const g = sc.add.graphics(); g.fillStyle(0xf4f1ea, 1); g.fillRect(0, 0, Wd, Hd);
+      const marks = [];
+      POSES.forEach(([pn, P], r) => FACES.forEach((th, c) => {
+        rec = []; recent.clear(); tag = 'body';
+        sc.cx = CW*c + CW/2; sc.cy = CH*r + CH - 20*S;
+        try { sc.drawPersonHullBody(g, 0, 0, 0, th, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, P.walk ? walkSin(P.walk) : 0, !!P.moving, 0, P.lift || 0, null, L.uniform, false, Object.assign({ dress: L.dress }, P.pose || {})); }
+        finally { const R = rec; rec = null;
+          /* the z-buffer: this cell's own */
+          const x0 = CW*c, y0 = CH*r, Z = new Float32Array(CW*CH).fill(-1e9), O = new Int32Array(CW*CH).fill(-1), pairs = new Map();
+          /* THE LIDS: a piece's silhouette (its hull) is the base coat its own faces paint over; what of it none of them covers is a flat disc
+             left lying over whatever it hides -- a band's filled middle over the crown it wraps, a sleeve's open end over the arm */
+          let hullPx = null, hullTag = '', hullN = -1; const lids = [];
+          const hulls = [];
+          const closePiece = () => { if(!hullPx) return; hulls.push([hullPx, hullTag, hullN]); hullPx = null; };
+          const lidsAtEnd = () => { for(const [set, t, hn] of hulls){ let n = 0, pts = []; const ex = i => O[i] === -2 - hn;   // (still showing when the whole person is drawn, and solid: a pixel and its four neighbours -- a silhouette's edge-on sliver is not a lid)
+              for(const i of set) if(ex(i) && ex(i - 1) && ex(i + 1) && ex(i - CW) && ex(i + CW)){ n++; if(pts.length < 4000) pts.push(i % CW + x0, (i/CW | 0) + y0); }
+            if(n >= MINPX*2) lids.push({ tag: t, px: n, pts }); } };
+          const raster = (q, fn) => { for(let t = 1; t < q.length - 1; t++){ const A = q[0], B = q[t], C = q[t + 1];
+              const minx = Math.max(0, Math.floor(Math.min(A[0], B[0], C[0]) - x0)), maxx = Math.min(CW - 1, Math.ceil(Math.max(A[0], B[0], C[0]) - x0));
+              const miny = Math.max(0, Math.floor(Math.min(A[1], B[1], C[1]) - y0)), maxy = Math.min(CH - 1, Math.ceil(Math.max(A[1], B[1], C[1]) - y0));
+              const den = (B[1] - C[1])*(A[0] - C[0]) + (C[0] - B[0])*(A[1] - C[1]); if(Math.abs(den) < 1e-6) continue;
+              for(let py = miny; py <= maxy; py++) for(let px = minx; px <= maxx; px++){ const X = px + x0 + 0.5, Y = py + y0 + 0.5;
+                const w1 = ((B[1] - C[1])*(X - C[0]) + (C[0] - B[0])*(Y - C[1]))/den, w2 = ((C[1] - A[1])*(X - C[0]) + (A[0] - C[0])*(Y - C[1]))/den, w3 = 1 - w1 - w2;
+                if(w1 < -1e-4 || w2 < -1e-4 || w3 < -1e-4) continue;
+                fn(py*CW + px, w1*A[2] + w2*B[2] + w3*C[2], px + x0, py + y0); } } };
+          for(const f of R){
+            if(f.hull){ closePiece(); hullPx = new Set(); hullTag = f.tag; hullN = f.n;
+              raster(f.q, i => { hullPx.add(i); O[i] = -2 - f.n; Z[i] = -1e9; }); continue; }   // (its silhouette: no depth of its own -- what it covers is hidden, what covers it is judged by its faces)
+            if(hullPx && f.tag !== hullTag) closePiece();
+            raster(f.q, (i, d, X, Y) => {
+              if(O[i] >= 0 && O[i] !== f.n && Z[i] > d + TOL){ const k = R[O[i]].tag + ' > ' + f.tag + ' #' + O[i] + '<' + f.n; const e = pairs.get(k) || { under: R[O[i]].tag, over: f.tag, px: 0, pts: [] }; e.px++; if(e.pts.length < 4000) e.pts.push(X, Y); pairs.set(k, e); }
+              Z[i] = d; O[i] = f.n; }); }
+          closePiece(); lidsAtEnd();
+          for(const l of lids){ out.push({ look: name, pose: pn, facing: Math.round(th*180/Math.PI), under: 'lid', over: l.tag, px: l.px, pieces: 1 }); for(let j = 0; j < l.pts.length; j += 2) marks.push(l.pts[j], l.pts[j + 1]); }
+          /* the faults, by part pair (each piece pair a fault of its own; small ones dropped) */
+          const byPart = new Map();
+          for(const e of pairs.values()){ if(e.px < MINPX) continue; const k = e.under + ' under ' + e.over; const b = byPart.get(k) || { under: e.under, over: e.over, px: 0, n: 0 }; b.px += e.px; b.n++; byPart.set(k, b); for(let j = 0; j < e.pts.length; j += 2) marks.push(e.pts[j], e.pts[j + 1]); }
+          for(const b of byPart.values()) out.push({ look: name, pose: pn, facing: Math.round(th*180/Math.PI), under: b.under, over: b.over, px: b.px, pieces: b.n });
+        } }));
+      g.generateTexture('__pd', Wd, Hd); g.destroy();
+      if(png && marks.length){ const d = sc.textures.getBase64('__pd'); const im = new Image(); await new Promise(r => { im.onload = r; im.src = d; });
+        const cv = document.createElement('canvas'); cv.width = Wd; cv.height = Hd; const x = cv.getContext('2d'); x.drawImage(im, 0, 0);
+        x.fillStyle = 'rgba(255,0,200,0.85)'; for(let j = 0; j < marks.length; j += 2) x.fillRect(marks[j], marks[j + 1], 1, 1);
+        pngs.push([name, cv.toDataURL('image/png')]); }
+      sc.textures.remove('__pd');
+    }
+    sc.W = W0; sc.quadOn = Q0; sc._pTag = null; window.convexHull = CH0;
+    Object.assign(sc, { camX: sv.camX, camY: sv.camY, camZ: sv.camZ, K: sv.K, cx: sv.cx, cy: sv.cy }); sc._pLodFix = sv.lod; sc._roomPerson = false;
+    return { out, pngs };
+  }, { LOOKS, png: !!PNG, S: SCALE, LOD });
+  await h.close();
+  if(PNG){ fs.mkdirSync(PNG, { recursive: true }); for(const [n, d] of res.pngs) fs.writeFileSync(path.join(PNG, 'depth_' + n + '.png'), Buffer.from(d.split(',')[1], 'base64')); }
+  /* the summary: by part pair, then each look's worst */
+  const agg = new Map(); for(const f of res.out){ const k = f.under + ' under ' + f.over; const a = agg.get(k) || { cases: 0, px: 0, looks: new Set() }; a.cases++; a.px += f.px; a.looks.add(f.look); agg.set(k, a); }
+  console.log('people depth test' + (REV ? ' at ' + REV : '') + ': ' + LOOKS.length + ' looks x 8 facings x 5 poses, view ' + (LOD + 1) + '; a face painted over a nearer one, by what was under and what went over:');
+  for(const [k, a] of [...agg.entries()].sort((x, y) => y[1].px - x[1].px)) console.log('  ' + k.padEnd(28) + String(a.cases).padStart(4) + ' cases  ' + String(a.px).padStart(6) + ' px   ' + [...a.looks].join(', '));
+  if(process.argv.includes('--list')) for(const f of res.out.sort((x, y) => y.px - x.px)) console.log('  ' + f.look.padEnd(11) + f.pose.padEnd(7) + String(f.facing).padStart(4) + 'deg  ' + (f.under + ' under ' + f.over).padEnd(28) + f.px + ' px (' + f.pieces + ')');
+  console.log(res.out.length + ' faults in all' + (h.errs && h.errs.length ? '; page errors: ' + h.errs.join(' | ') : ''));
+})();
