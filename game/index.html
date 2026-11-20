@@ -29598,7 +29598,7 @@ function walkinCoverage(){
              (arms busy) at a post marked work; nobody comes or goes, they are there when the room is (no pop, no fade)
      listed  every one in CITY_PEOPLE ('walk-in staff') with the same position and look the draw uses
    walkinStaff(room, [{ id, role, seed, U | look:'visitor', posts: [[a, b, heading, holdMs, work?], ...], life?, route?,
-                        with?, fixed?, pace?, away?(), awayAt?(now) }]) */
+                        with?, fixed?, pace?, away?(), awayAt?(now, m) -> { x, y, th, moving?, work? }, awayDrawn? }]) */
 const WALKIN_STAFF = [];
 function walkinStaff(room, list){ for(const s of list) WALKIN_STAFF.push(Object.assign({ room }, s)); }
 /* the pocket a member stands in, found once */
@@ -29660,7 +29660,7 @@ function walkinShut(scene, pk){
    between visits: their day), not while a story has them (s.away(): the engraver, walked by Fourth Place). A room
    nobody has been near: everyone while it is open */
 function walkinStaffHere(scene, s, pk){
-  if(s.away && s.away()) return false;
+  if(s.away && !s.awayDrawn && s.away()) return false;              // (awayDrawn: the story only moves them -- still drawn as the room's)
   return walkinDayLive(scene, pk) ? !s._gone : !walkinShut(scene, pk);
 }
 /* ==================== PEOPLE WITH LIFE (the walk-in kit, W16: docs/kits/walkin.md; Sir, 2026-10-30: "i want the
@@ -29943,9 +29943,11 @@ function walkinStep(R, s, dt, now, bot){
   const m = s._m || walkinLifeInit(R, s, now);
   /* the story has them (Fourth Place's engraver): where it puts them, and from there again after */
   if(s.away && s.away()){
-    const q = s.awayAt && s.awayAt(now), pk = R.pk;
-    if(q){ m.a = q.x - pk.x0; m.b = q.y - pk.y0; m.th = q.th != null ? q.th : m.th; m.face = m.th; }
-    m.path = null; m.moving = false; m.v = 0; m.task = null; m.until = now + 4000; m.away = true;
+    const q = s.awayAt && s.awayAt(now, m), pk = R.pk;
+    /* (q.moving: the story walks them -- their steps counted for the gait; q.work: at work where it puts them) */
+    if(q){ const na = q.x - pk.x0, nb = q.y - pk.y0; if(q.moving) m.dist = (m.dist || 0) + Math.hypot(na - m.a, nb - m.b);
+      m.a = na; m.b = nb; m.th = q.th != null ? q.th : m.th; m.face = m.th; }
+    m.path = null; m.moving = !!(q && q.moving); m.v = m.moving ? PEOPLE_WALK_V : 0; m.task = null; m.until = now + 4000; m.away = true; m.work = !!(q && q.work);
     return;
   }
   if(m.away){ m.away = false; m.until = now + 3000; }
@@ -31154,6 +31156,9 @@ function pgHold(s){
     /* the car keys on their fob, hanging from the hand at their side */
     keys: (g, p, K, at) => { if(!at) return; const x = at.a, f = at.hand[0], h = at.hand[1];
       hull(g, at, box(x - 0.8, x + 0.8, f - 1.6, f + 1.6, h - 5.5, h - 0.5), 0x2a2c30); hull(g, at, box(x - 0.5, x + 0.5, f - 0.6, f + 0.6, h - 9, h - 5.5), 0xb8bec4); hull(g, at, box(x - 1, x + 1, f - 1, f + 1, h - 3.5, h - 2.5), 0x3c7fa0); },
+    /* the car's wheel, carried in both hands before him (the service: Danny to the tyre changer and back) */
+    wheel: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 12, h = at.hand[1] + 8, ring = (r, f0, f1) => { const o = []; for(let k = 0; k < 12; k++){ const ph = k/12*Math.PI*2; o.push([Math.cos(ph)*r, f0, h + Math.sin(ph)*r], [Math.cos(ph)*r, f1, h + Math.sin(ph)*r]); } return o; };
+      hull(g, at, ring(19, f - 5, f + 5), 0x1d1f23); hull(g, at, ring(12, f + 5.1, f + 5.3), 0xb8bec4); hull(g, at, ring(4, f + 5.4, f + 5.6), 0x6a7076); },
     /* a paper cup of the waiting area's coffee, held at the chest */
     cup: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2.5, h = at.hand[1] + 1;
       hull(g, at, box(-2.6, 2.6, f - 2.6, f + 2.6, h - 4, h + 5), 0xf4f2ec); hull(g, at, box(-2.8, 2.8, f - 2.8, f + 2.8, h + 5, h + 6.2), 0x3c7fa0); } });
@@ -31193,6 +31198,7 @@ function pgPose(s, m, now, P){
   P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
 }
 function pgDrawState(s, m, now, q){
+  if(m.away && m._svcHold){ q.pose = Object.assign({}, q.pose || {}, { lift: [0.26, 0.26], bend: [1.2, 1.2], hold: pgHold(s)[m._svcHold] }); return; }   // (the wheel in his hands)
   const sk = lcSeatK(m, now);
   if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
   if(m.moving && s.look === 'visitor' && ((m.keys && m.paid) || (m.collect === false && !m.done))) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (in with the keys to drop off, or out with them)
@@ -31273,8 +31279,47 @@ function pgSvc(t){
   else if(in_(X(110), X(97))) out.owner = walk([DESK, [230, 300], SIDE, OUTW[3]], X(110), X(97));   // (to the car, and waits there for the door)
   else if(in_(X(97), X(91))) out.owner = walk(OUTW.slice(0, 4).reverse(), X(97), X(91), true);     // (in round it, at the seat as he gets in)
   out.phase = s < 22 ? 'in' : s < 62 ? 'drop' : s < X(130) ? 'work' : s < X(84) ? 'collect' : s < X(60) ? 'out' : 'gap';
-  out.slot = n; out.s = s;
+  out.slot = n; out.s = s; out.E = E;
   return out;
+}
+/* THE WORK ON THE CAR (Sir, 2026-11-20: "is there a point when the car gets lifted up and has its oil changed? ... its never worked on"):
+   while it is up, Hank at its engine, the drain caddy's funnel swung up under it and the oil running down into it; Danny takes the near
+   front wheel off, carries it to the tyre changer, works it there, and carries it back on. pgCrewAt(id, t, from): where that one of
+   them is { a, b, th, moving, work, hold } -- null when the car does not need them (their own day then); from: where they were */
+const PG_CREW = { HANK: [176, 246], WHEEL: [152, 190], CHANGER: [90, 368], VIA: [176, 300] };
+function pgCrewAt(id, t, from){
+  const S = pgSvc(t); if(!S.car || S.slot == null) return null;
+  const s = S.s, E = (S.E || 1800), X = k => E - k, C = PG_CREW, V = PEOPLE_WALK_V*1000;
+  const go = (pts, a, b, late) => { let tot = 0; for(let i = 1; i < pts.length; i++) tot += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    const t0 = late ? Math.max(a, b - tot/V) : a, d = Math.max(0, Math.min(tot, (s - t0)*V)), at = e => pgSvcPath(pts, Math.max(0, Math.min(tot, e))/(tot || 1));
+    const q = at(d), q0 = at(d - 10), q1 = at(d + 10), th = (q1.a !== q0.a || q1.b !== q0.b) ? Math.atan2(q1.b - q0.b, q1.a - q0.a) : q.th;
+    return { a: q.a, b: q.b, th, moving: s >= t0 && d < tot, arrived: d >= tot }; };
+  const fr = from || C.HANK;
+  if(id === 'mechanic'){
+    if(s < 64 || s >= X(148)) return null;
+    const TH = Math.atan2(206 - C.HANK[1], 116 - C.HANK[0]);                                    // (to the funnel under the engine)
+    if(s < 84){ const q = go([fr, C.HANK], 64, 84); if(q.arrived) Object.assign(q, { th: TH, work: true }); return q; }
+    return { a: C.HANK[0], b: C.HANK[1], th: TH, moving: false, work: true };
+  }
+  if(id === 'mechanic-2'){
+    if(s < 82 || s >= X(166)) return null;
+    if(s < 90){ const q = go([from || C.WHEEL, C.WHEEL], 82, 90); if(q.arrived) Object.assign(q, { th: Math.PI, work: true }); return q; }
+    if(s < 106){ const q = go([C.WHEEL, C.VIA, C.CHANGER], 90, 106); q.hold = 'wheel'; if(q.arrived) q.th = Math.PI/2; return q; }
+    if(s < X(196)) return { a: C.CHANGER[0], b: C.CHANGER[1], th: Math.PI/2, moving: false, work: true };
+    if(s < X(176)){ const q = go([C.CHANGER, C.VIA, C.WHEEL], X(196), X(176), true); q.hold = 'wheel'; if(q.arrived) q.th = Math.PI; return q; }
+    return { a: C.WHEEL[0], b: C.WHEEL[1], th: Math.PI, moving: false, work: true, hold: s < X(170) ? 'wheel' : null };
+  }
+  return null;
+}
+/* walkinStaff's away / awayAt for one of them: the crew's script, from where they stood when it took them */
+function pgCrewHook(id){
+  return { away: () => !!pgCrewAt(id, pgSvcNow(), null),
+    awayAt: (now, m) => { const S = pgSvc(now), pk = POCKETS.find(p => p.name === PG_IN.name); if(!pk) return null;
+      const key = S.slot + ':' + Math.floor((typeof Date !== 'undefined' ? Date.now() : 0)/864e5);
+      if(m && m._svcKey !== key){ m._svcKey = key; m._svcFrom = [m.a, m.b]; }
+      const q = pgCrewAt(id, now, m && m._svcFrom); if(!q) return null;
+      if(m) m._svcHold = q.hold || null;
+      return { x: pk.x0 + q.a, y: pk.y0 + q.b, th: q.th, moving: q.moving, work: q.work }; } };
 }
 /* the room's clock for it (the game's time, as the room's people) */
 function pgSvcNow(){ const sc = (typeof game !== 'undefined' && game.scene) ? game.scene.getScene('world') : null; return sc ? sc.time.now : 0; }
@@ -31282,9 +31327,10 @@ walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
     posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]],
     /* (his way along the car's flank crosses its door's swing: while it is open he stays where he is -- the owner's, round it) */
-    away: () => { const c = pgSvc(pgSvcNow()).car; return !!(c && c.doorOpen > 0); }, awayAt: () => null },
+    away: () => { const c = pgSvc(pgSvcNow()).car; return !!(c && c.doorOpen > 0) || pgCrewHook('mechanic').away(); },
+    awayAt: (now, m) => pgCrewHook('mechanic').awayAt(now, m), awayDrawn: true },
   { id: 'mechanic-2', role: 'tyre fitter', seed: 0x6a02, lookFn: () => PG_FAMILY.danny,
-    posts: [[90, 366, Math.PI/2, 8000, true], [175, 366, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
+    posts: [[90, 366, Math.PI/2, 8000, true], [175, 366, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]], ...pgCrewHook('mechanic-2'), awayDrawn: true },
   { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
     posts: [[606, 410, Math.PI, 9000, true], [606, 490, Math.PI, 4000, true]] },
   /* (ONE customer at a time -- Sir, 2026-11-20: "its a come in drop off your car and leave and wait in a caffe type of shop. there probably
@@ -59177,6 +59223,18 @@ function houseCanopy(fn){
     /* ---- a stack of new tyres by the chests (60 clear of the low walls, W24) ---- */
     items.push({ a: 396, b: 136, z: 0, solids: [{ name: 'tyres', c: [396, 136], r: 22, h: 70 }], draw: () => { for(let k = 0; k < 5; k++) cyl(396, 136, k*14, k*14 + 13, 20, '#2b2e32', tyre); } });
 
+    /* ---- THE OIL DRAIN CADDY by the lift's front (the service's work, pgCrewAt): a yellow tank on castors, its funnel on an arm;
+       while the car is up and Hank at it, the funnel swung up under the engine and the old oil running down into it ---- */
+    { const ka = 150, kb = 224, fa = 116, fb = 206, CZc = PG_SVC.CZ;
+      items.push({ a: ka, b: kb, z: 0, solids: [solid(ka - 11, ka + 11, kb - 11, kb + 11, 70, 'oil drain')], draw: () => {},
+        fx: { kit: () => { const S = pgSvc(pgSvcNow()), up = S.car && S.lift >= 1 && S.s >= 84 && S.s < (S.E || 1800) - 158, drain = up && S.s < 640;
+            for(const [da, db] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) cyl(ka + da, kb + db, 0, 5, 3, '#2a2d31');
+            cyl(ka, kb, 5, 34, 11, '#e2b23c', '#c99a2c'); cyl(ka, kb, 34, 37, 12, '#3a3e44');
+            tube(ka + 6, kb + 6, 34, ka + 6, kb + 6, 62, 2.2, '#5d6369');
+            if(up){ tube(ka + 6, kb + 6, 62, fa, fb, CZc + 4, 2.2, '#5d6369'); cyl(fa, fb, CZc + 4, CZc + 10, 9, '#e2b23c', '#2a2016');
+              if(drain) tube(fa - 2, fb - 2, CZc + 20, fa - 2, fb - 2, CZc + 9, 1.4, '#3a2a12'); }
+            else cyl(ka + 6, kb + 6, 62, 68, 9, '#e2b23c', '#2a2016'); },
+          state: () => { const S = pgSvc(pgSvcNow()), up = S.car && S.lift >= 1 && S.s >= 84 && S.s < (S.E || 1800) - 158; return up ? (S.s < 640 ? 'drain' : 'up') : 'idle'; } } }); }
     /* ---- THE TYRE CHANGER AND THE WHEEL BALANCER, south of bay 1, their working faces to Danny north of them (W19) ---- */
     { const ca = 90, cb = 420;
     items.push({ a: ca, b: cb, z: 0, solids: [solid(ca - 23, ca + 23, cb - 20, cb + 20, 110, 'tyre changer')], draw: () => {
@@ -106906,7 +106964,7 @@ class WorldScene extends Phaser.Scene {
     const inWay = (x, y) => { if(!sd || !dw) return false; const dx = x - sd.x, dy = y - sd.y, lat = dx*sd.e.rv.x + dy*sd.e.rv.y, al = dx*sd.e.dv.x + dy*sd.e.dv.y;
       return lat < 4 && lat > -120 && Math.abs(al) < 60; };
     for(const s of R.people){
-      if(s._gone || s.knock || (s.away && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order; knocked down: the knocks' own draw)
+      if(s._gone || s.knock || (s.away && !s.awayDrawn && s.away()) || walkinOnStreet(s)) continue;          // (out past the door: the street's, drawn in its order; knocked down: the knocks' own draw)
       const q = walkinDrawState(s, now, null); if(!q) continue;
       const x = X0 + q.a, y = Y0 + q.b, d = { x, y, th: q.th, moving: q.moving, gait: q.gait, pose: q.pose };
       if(inWay(x, y)){ if(!dw.has(sd)) dw.set(sd, []); dw.get(sd).push((g, tt) => this.drawWalkinPerson(g, d, tt || now, s)); continue; }
