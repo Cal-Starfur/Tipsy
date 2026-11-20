@@ -31142,7 +31142,7 @@ const PG_FAMILY = (() => {
 /* A CUSTOMER'S VISIT (as the roastery's): to the counter to book the car in or pay; a while in a waiting chair with a coffee; now and then a
    look along the tyre wall or the wheels first. Paid at the counter, they go with their car keys in hand (pose.hold / drawState: WALKIN_STREET);
    nothing before they have paid (m.paid) */
-const PG_SEATS = [600, 660, 720].map((b, i) => ({ id: 'w' + i, stand: [646, b, 0], at: [679, b + 1], th: Math.PI, z: 32 }));
+const PG_SEATS = [];   // (nobody waits in the shop: they drop the car off and go -- the chairs stand there)
 function pgHold(s){
   if(s._pgH && s._pgH.v === s.visit) return s._pgH;
   const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
@@ -31158,6 +31158,8 @@ function pgHold(s){
     cup: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 2.5, h = at.hand[1] + 1;
       hull(g, at, box(-2.6, 2.6, f - 2.6, f + 2.6, h - 4, h + 5), 0xf4f2ec); hull(g, at, box(-2.8, 2.8, f - 2.8, f + 2.8, h + 5, h + 6.2), 0x3c7fa0); } });
 }
+/* (a garage's visit: in to the counter to drop the car off -- the keys handed over, and out to wait elsewhere -- or to collect it, paid, and out
+   with the keys; now and then a look along the tyres first. Nobody waits in the shop: Sir, 2026-11-20) */
 function pgBrowseNext(R, s, m, now, bot){
   if(s.look !== 'visitor') return false;
   const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
@@ -31166,19 +31168,12 @@ function pgBrowseNext(R, s, m, now, bot){
     const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
     if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
     return false; };
-  const sit = () => { const fr = PG_SEATS.filter(q => !R.people.some(o => o !== s && o._m && !o._gone && (o._m.seat === q || o._m.spot === q.id))), st = fr.length ? fr[Math.floor(rnd()*fr.length)] : null;
-    if(st && walkinGo(R, s, m, st.stand, st.stand[2], avoid)){ m.seat = st; m.seatGo = now; m.spot = st.id; m.look = null; m.dwell = 20000 + rnd()*25000; return true; }
-    return false; };
-  const counter = () => { if(look('counter')){ m.atTill = true; m.dwell = 5000 + rnd()*3000; return true; } return false; };
-  if(m.seat){ m.unseat = { seat: m.seat, t: now }; m.seat = null; m.waited = true; }                           // (the car's done: up)
-  if(m.atTill){ m.atTill = false; if(m.booked){ m.paid = true; m.keys = true; } else m.booked = true; }          // (booked in, then later paid)
-  if(m.paid) return leave();
-  if(m.booked && !m.waited){ if(sit()) return true; }
-  if(m.waited) return counter() || leave();
+  if(m.atTill){ m.atTill = false; m.done = true; if(m.collect){ m.paid = true; m.keys = true; } }              // (the keys over the counter, one way or the other)
+  if(m.done) return leave();
   m.n = (m.n || 0) + 1;
-  if(m.n === 1 && rnd() < 0.6) return counter();
-  if(m.n > 3) return counter() || leave();
-  return false;                                                                                                  // (the tyre wall or the wheels: the kit's pick)
+  if(m.n === 1){ m.collect = rnd() < 0.5; if(rnd() < 0.4) return false; }                                       // (a look along the tyres first: the kit's pick)
+  if(look('counter')){ m.atTill = true; m.dwell = 6000 + rnd()*4000; return true; }
+  return m.n > 3 ? leave() : false;
 }
 function pgPose(s, m, now, P){
   const H = pgHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
@@ -31193,13 +31188,14 @@ function pgPose(s, m, now, P){
     if(since < 1500){ const k = Math.sin(Math.PI*since/1500); P.lift = [0.1, 0.5*Math.min(1, k*1.6)]; P.bend = [0.2, 0.4]; P.headTilt = 0.25; return; }
     P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25]; P.headTilt = 0.2; return; }
   if(m.look === 'counter' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTurn = 0; return; }
+  if(!m.collect && !m.done){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.keys; return; }   // (dropping off: their keys in hand till the counter)
   if(m.keys && m.paid){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.hold = H.keys; return; }
   P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
 }
 function pgDrawState(s, m, now, q){
   const sk = lcSeatK(m, now);
   if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
-  if(m.moving && s.look === 'visitor' && m.keys && m.paid) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (out with the keys)
+  if(m.moving && s.look === 'visitor' && ((m.keys && m.paid) || (m.collect === false && !m.done))) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (in with the keys to drop off, or out with them)
 }
 walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
@@ -31208,9 +31204,9 @@ walkinStaff(PG_IN.name, [
     posts: [[90, 366, Math.PI/2, 8000, true], [175, 366, Math.PI/2, 6000, true], [384, 66, -Math.PI/2, 4000, true]] },
   { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
     posts: [[606, 410, Math.PI, 9000, true], [606, 490, Math.PI, 4000, true]] },
+  /* (ONE customer at a time -- Sir, 2026-11-20: "its a come in drop off your car and leave and wait in a caffe type of shop. there probably
+     should be 1 customer in there at a time max") */
   { id: 'customer-1', role: 'customer', seed: 0x6a11, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
-  { id: 'customer-2', role: 'customer', seed: 0x6a12, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
-  { id: 'customer-3', role: 'customer', seed: 0x6a13, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
 ]);
 walkinLife(PG_IN.name, { keep: [[210, 330, 0, 760]], looks: [
   { id: 'counter', spots: [[514, 410, 0], [514, 490, 0]] },
