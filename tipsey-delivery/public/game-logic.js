@@ -57024,17 +57024,20 @@ function houseCanopy(fn){
       for(let a = 44; a < 208; a += 18) F(a, a + 16, 30, 62, '#c6d6d2', null, 0, 136.2);                                    // the tile band on its front
       box(38, 212, 94, 138, 80, 84, oakL, oak, oakF);
       /* the espresso machine (a 60..122, b 104..128): body, two group heads and a drip tray on its north side (the barista's), cups on its warmer */
+      /* (its working side is the NORTH, away from the eye: the drip tray, the cups and the group heads stand behind the body, so they are
+         painted first and the body over them -- painted after it they lay across its back: W37, Sir 2026-11-20 "look at all this mess") */
+      box(64, 118, 98, 104, 84, 87, '#8f969b', '#7d868b', '#6a7378');                                                       // the drip tray
+      for(const a of [78, 104]){ cyl(a, 102, 87, 93, 4, '#f6f3ea'); box(a - 5, a + 5, 99, 104, 94, 102, '#2b3138', '#23292f', '#1c2126'); }    // cups on the tray, the group heads over them
       box(60, 122, 104, 128, 84, 112, steel, steelD, steelS);
       box(62, 120, 106, 126, 112, 116, steelD, steelD, steelS);
-      for(const a of [78, 104]){ box(a - 5, a + 5, 99, 106, 94, 102, '#2b3138', '#23292f', '#1c2126'); cyl(a, 102, 84, 92, 4, '#f6f3ea'); }    // group heads (north), cups under them
-      box(64, 118, 98, 104, 84, 87, '#8f969b', '#7d868b', '#6a7378');                                                       // the drip tray
       box(70, 82, 126, 130, 100, 108, '#d8483a', '#b5382c', '#8f2b22');                                                      // its dial, on the back
       /* the till (a 160..190, b 106..126): its keys and screen on the north side, the barista's; we see its back */
       box(160, 190, 106, 126, 84, 92, '#2b3138', '#23292f', '#1c2126');
       box(162, 188, 120, 126, 92, 106, '#3a3e46', '#2b3036', '#23292f');                                                    // (its screen and keys are on the north side, the barista's)
       /* the pastry case at the east end (a 186..208, b 98..134), glass on a teal base, croissants and a tart */
-      box(186, 208, 98, 134, 84, 90, steelD, steelD, steelS); box(186, 208, 98, 134, 90, 112, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
-      for(const b of [104, 116, 128]){ cyl(197, b, 90, 94, 5, '#c98a4a', '#e0b27a'); }
+      box(190, 210, 98, 134, 84, 90, steelD, steelD, steelS);                                                              // (clear of the till: it overlapped it, W37 foot)
+      for(const b of [104, 116, 128]){ cyl(200, b, 90, 94, 5, '#c98a4a', '#e0b27a'); }                                    // (inside the glass: before it)
+      box(190, 210, 98, 134, 90, 112, 'rgba(205,230,240,.45)', 'rgba(175,210,224,.5)', 'rgba(150,190,206,.5)');
     }});
 
     /* ---- THE SACKS on the west wall (a 8..44, b 170..290): burlap sacks of beans, three stacked, a scoop on one ---- */
