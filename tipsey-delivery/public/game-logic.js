@@ -118035,7 +118035,7 @@ class WorldScene extends Phaser.Scene {
          down the vest's edge -- Sir, 2026-11-20, "fix the shoulder scraps"; people_hull.js. It stands out front and back, 1.14, where nothing hangs) */
       /* (the body's own profile, a little outside it: in to the waist and out to the chest, twelve-sided as it is -- one straight cone of eight
          ran inside the body at the waist and was painted over it, people_depth.js, Sir, 2026-11-20, "fix them all") */
-      { const hv = build.heavy, zm = hipH + build.torsoH*0.42, zA = hipH + build.torsoH*0.16, zB = shoulderH - 1.5, kA = 1.02, kB = 1.12;
+      { const hv = build.heavy, zm = hipH + build.torsoH*0.42, zA = hipH + build.torsoH*0.16, zB = uniform.hivis ? shoulderH : shoulderH - 1.5, kA = 1.02, kB = 1.12;
         const sAt = zz => zz <= zm ? (hv ? 0.93 : 0.9) + ((hv ? 1.1 : 0.86) - (hv ? 0.93 : 0.9))*(zz - (hipH - 1.5))/(zm + 1 - (hipH - 1.5))
                                    : (hv ? 1.1 : 0.86) + ((hv ? 0.9 : 1) - (hv ? 1.1 : 0.86))*(zz - zm)/(shoulderH - zm);
         const ra = build.torsoW/2*kA, rb = build.torsoD/2*kB, s0 = sAt(zA), s1 = sAt(zm), s2 = sAt(zB);
@@ -118043,8 +118043,13 @@ class WorldScene extends Phaser.Scene {
         prism(0, 0, ra*s1, rb*s1, zm, zB, uniform.vest, { top: s2/s1, noTop: true, ring: true, n: 12 });
         /* A HI-VIS VEST (uniform.hivis, the worker's: Sir, 2026-11-20, "a vest goes over the shoulder"): a strap up over each shoulder,
            front to back, and two reflective bands round it */
-        if(uniform.hivis){ const V = uniform.vest, hk = hullTones(V), sw = ra*0.2, sa = ra*s2*0.62, sbh = rb*s2*0.86, SIL = { c: 0xd6dade, dk: 0x9aa0a6 };
-          for(const sd of [-1, 1]) box(sd*sa, 0, sw, sbh, shoulderH - 0.2, shoulderH + 0.5, _pmix(hk.lt, V.c, 0.6), V.dk, V.c);
+        if(uniform.hivis){ const V = uniform.vest, hk = hullTones(V), SIL = { c: 0xd6dade, dk: 0x9aa0a6 };
+          /* (each strap the vest's own cloth lying on the shoulder's top, following its curve -- boxes stood up off it in a lighter yellow:
+             Sir, 2026-11-20, "that looks really messy construcktion and its not even the same color") */
+          if(sees3(0, 0, 1)){ const tR = (build.heavy ? 0.9 : 1)*0.985, TA = build.torsoW/2*tR, TB = build.torsoD/2*tR, zt = shoulderH + 0.05;
+            for(const sd of [-1, 1]){ const a0 = sd*TA*0.38, a1 = sd*TA*0.82, F = [], Bk = [];
+              for(let k = 0; k <= 6; k++){ const aa = a0 + (a1 - a0)*k/6, bb = TB*Math.sqrt(Math.max(0, 1 - (aa/TA)*(aa/TA))); F.push(G(aa, bb, zt)); Bk.unshift(G(aa, -bb, zt)); }
+              this.quadOn(g, F.concat(Bk), hk.c); } }
           for(const zb of [zA + 2, zm + 3]){ const k0 = sAt(zb), k1 = sAt(zb + 2); prism(0, 0, ra*k0*1.01, rb*k0*1.01, zb, zb + 2, SIL, { top: k1/k0, noTop: true, ring: true, n: 12 }); } } }   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
