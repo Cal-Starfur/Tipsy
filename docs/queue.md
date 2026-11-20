@@ -13,7 +13,7 @@ benches 40), the people kit's rules for who is in it.
 
 | Room | W37 flags (2026-11-20) | Notes |
 |---|---|---|
-| Seabreeze Ballroom Interior | 0 (fixed 2026-11-20) | Heights still off: the bar 110 (to 75) and its stools' seats 72 (to 48, four guests on them, the bartenders' drinks with it); the coat counter 104 (to 75); the lounge's armchairs and sofa seats 46 (to 38, a couple on the sofa). The banquet tables 66 and chairs 38 done. |
+| Seabreeze Ballroom Interior | 0 | Done 2026-11-20: W37 clean; the banquet tables 66 and chairs 38, the bar 75 and its stools 48, the coat counter 75, the lounge's seats 38. Left: the walk-in recipe's people checks. |
 | Seabreeze Ballroom Basement | 0 (fixed 2026-11-20) | Not yet measured for heights. |
 | Maritime Mall Interior | 205 | The biggest. |
 | Marina General Interior | 82 | The hospital. |

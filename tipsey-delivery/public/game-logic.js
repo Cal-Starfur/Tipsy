@@ -52997,8 +52997,8 @@ function houseCanopy(fn){
        piece, 1270..1400, sorts at a + b 2550 and went over the sofa's east
        end, Sir 2026-10-23 -- and before the low table in front of it, 2580) */
     items.push({ a: 1150, b: HB + 90, z: 0, dk: HB + 1360, solids: [{ name:'sofa', poly: volRect(990, 1332, HB + 40, HB + 140), h: 96 }],
-      cast: [{ a: 1090, b: HB + 96, z: 0, th: Math.PI/2, sit: 46, seed: 521, kind: 'woman', lift: [0.25, 0.42], bend: 1.1, hold: 'flute' },
-             { a: 1210, b: HB + 96, z: 0, th: Math.PI/2 + 0.25, sit: 46, seed: 522, kind: 'man', lift: [0.25, 0.25], bend: 0.9, hold: null }],
+      cast: [{ a: 1090, b: HB + 96, z: 0, th: Math.PI/2, sit: 38, seed: 521, kind: 'woman', lift: [0.25, 0.42], bend: 1.1, hold: 'flute' },
+             { a: 1210, b: HB + 96, z: 0, th: Math.PI/2 + 0.25, sit: 38, seed: 522, kind: 'man', lift: [0.25, 0.25], bend: 0.9, hold: null }],
       /* THE LOUNGE'S SEATS, DRAWN FAR TO NEAR (Sir, 2026-10-23: "the seating
          looks like its not drawoing properly"). The sofa's far (west) arm went
          in `after`, over the woman sitting by it; now only the near (east)
@@ -53009,22 +53009,22 @@ function houseCanopy(fn){
          back the frame and its two cushions; the arms on it either end; the seat's cushions between the arms,
          in front of the back's */
       seat: () => {
-        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 78, HB + 138, 30, 48, sofaL, sofa, sofaD);   // the seat cushions
+        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 78, HB + 138, 22, 38, sofaL, sofa, sofaD);   // the seat cushions (to a chair's 38: they were 48 -- Sir, 2026-11-20)
       },
       draw: () => {
         /* (its east end: the back, the near arm and the base all flush at 1332 -- the back went out past the arm,
            Sir 2026-10-23, "still not far enough", and then the arm and base stood in from it: "it needs to line up") */
         for(const a of [996, 1326]) for(const b of [HB + 46, HB + 134]) cyl(a, b, 0, 6, 4, goldD);   // its feet
-        box(990, 1332, HB + 40, HB + 140, 6, 30, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));    // the base
-        box(990, 1010, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD);                // the far arm: before the back and its cushions (W37: drawn after them it went over them)
-        T(990, 1010, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05));
-        box(1010, 1332, HB + 40, HB + 60, 30, 100, sofaL, sofa, sofaD);               // the back's frame: from the far arm's inner edge (past it, its west end stood out) to the near arm's outer edge
+        box(990, 1332, HB + 40, HB + 140, 6, 22, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));    // the base
+        box(990, 1010, HB + 40, HB + 140, 22, 64, sofaL, sofa, sofaD);                // the far arm: before the back and its cushions (W37: drawn after them it went over them)
+        T(990, 1010, HB + 40, HB + 140, 64.2, shade(sofaL, 1.05));
+        box(1010, 1332, HB + 40, HB + 60, 22, 100, sofaL, sofa, sofaD);               // the back's frame: from the far arm's inner edge (past it, its west end stood out) to the near arm's outer edge
         T(1010, 1332, HB + 40, HB + 60, 100.2, shade(sofaL, 1.05));
-        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 60, HB + 78, 30, 90, sofaL, shade(sofa, 1.06), sofaD);   // the back's cushions
+        for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 60, HB + 78, 22, 90, sofaL, shade(sofa, 1.06), sofaD);   // the back's cushions
         /* a gold cushion in each corner, flat against the back's (it stood 14 out from it and read as a block sticking out, Sir 2026-10-23) */
-        box(1014, 1044, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
-        box(1278, 1308, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
-      }, after: () => { box(1312, 1332, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD); T(1312, 1332, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05)); } });   // the near arm: over them
+        box(1014, 1044, HB + 78, HB + 85, 38, 68, '#c9a24a', '#b08a3a', '#9a7830');
+        box(1278, 1308, HB + 78, HB + 85, 38, 68, '#c9a24a', '#b08a3a', '#9a7830');
+      }, after: () => { box(1312, 1332, HB + 40, HB + 140, 22, 64, sofaL, sofa, sofaD); T(1312, 1332, HB + 40, HB + 140, 64.2, shade(sofaL, 1.05)); } });   // the near arm: over them
     items.push({ a: 1150, b: HB + 230, z: 0, solids: [{ name:'low table', poly: volRect(1060, 1240, HB + 200, HB + 260), h: 42 }], draw: () => {
       box(1060, 1240, HB + 200, HB + 260, 0, 36, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(1054, 1246, HB + 194, HB + 266, 36, 42, '#3a2a1c', '#3a2a1c', '#2a1e14');
@@ -53041,9 +53041,9 @@ function houseCanopy(fn){
         /* (the seat as wide as the back, Sir 2026-10-23: "the chairs seats arnt as wide as their backs" -- its
            base runs the back's whole width, the arms stand on it either side, the cushion between them) */
         const a0 = f > 0 ? ca - 26 : ca - 40, a1 = f > 0 ? ca + 40 : ca + 26;
-        const arm = (b0) => { box(a0, a1, b0, b0 + 14, 30, 66, sofaL, sofa, sofaD); T(a0, a1, b0, b0 + 14, 66.2, shade(sofaL, 1.05)); };
-        const base = () => box(a0, a1, cb - 40, cb + 40, 6, 30, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));
-        const cushion = () => box(a0 + 2, a1 - 2, cb - 26, cb + 26, 30, 46, sofaL, sofa, sofaD);
+        const arm = (b0) => { box(a0, a1, b0, b0 + 14, 22, 58, sofaL, sofa, sofaD); T(a0, a1, b0, b0 + 14, 58.2, shade(sofaL, 1.05)); };
+        const base = () => box(a0, a1, cb - 40, cb + 40, 6, 22, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));
+        const cushion = () => box(a0 + 2, a1 - 2, cb - 26, cb + 26, 22, 38, sofaL, sofa, sofaD);   // (the seat at a chair's 38: it was 46)
         for(const a of [ca - 36, ca + 36]) for(const b of [cb - 36, cb + 36]) cyl(a, b, 0, 6, 3.5, goldD);   // its feet
         if(f > 0) back();                          // (the west chair's back is the far side: first)
         base(); arm(cb - 40); cushion(); arm(cb + 26);
@@ -53068,12 +53068,12 @@ function houseCanopy(fn){
       ball(1560, HB + 80, 150, 18, '#3f7f45', '#5a9a5c');
     }});
     /* ---- THE COAT CHECK: its counter (the coats and their rail gone: Sir, 2026-10-18) ---- */
-    items.push({ a: 445, b: HB + 165, z: 0, solids: [{ name:'coat counter', poly: volRect(290, 600, HB + 140, HB + 190), h: 104 }], draw: () => {
-      box(290, 600, HB + 140, HB + 190, 0, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
-      box(284, 606, HB + 134, HB + 196, 98, 104, '#3a2a1c', '#3a2a1c', '#2a1e14');
-      box(290, 600, HB + 188, HB + 192, 10, 90, gold, gold, goldD);                  // a gold rail down its front
-      ball(560, HB + 165, 110, 7, gold, '#fff2c8');                                   // its bell
-      for(const [a, c] of [[380, '#e0c88a'], [420, '#f4efe2']]) box(a, a + 26, HB + 150, HB + 168, 104, 106, c, shade(c, 0.9), shade(c, 0.8));   // tickets
+    items.push({ a: 445, b: HB + 165, z: 0, solids: [{ name:'coat counter', poly: volRect(290, 600, HB + 140, HB + 190), h: 75 }], draw: () => {   // (a counter's 75: it was 104 -- Sir, 2026-11-20)
+      box(290, 600, HB + 140, HB + 190, 0, 69, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+      box(290, 600, HB + 188, HB + 192, 8, 62, gold, gold, goldD);                   // a gold rail down its front (before the top that overhangs it: W37)
+      box(284, 606, HB + 134, HB + 196, 69, 75, '#3a2a1c', '#3a2a1c', '#2a1e14');
+      ball(560, HB + 165, 81, 7, gold, '#fff2c8');                                    // its bell
+      for(const [a, c] of [[380, '#e0c88a'], [420, '#f4efe2']]) box(a, a + 26, HB + 150, HB + 168, 75, 77, c, shade(c, 0.9), shade(c, 0.8));   // tickets
     }});
     /* the service elevator down to the basement (SVC), behind the coat check */
     svcLiftItems(items, 230, SVC_FINISH.hall);
@@ -53169,25 +53169,27 @@ function houseCanopy(fn){
        (Sir: "we need two bartenders"): one shaking a cocktail, one polishing
        a glass -- drawn each frame, just before the bar. A flap closes each
        end: behind the bar is theirs */
-    const BARTENDERS = [{ a: 58, b: 270, z: 28, th: 0.15, seed: 11, kind: 'bartender', anim: 'serve', hold: 'glass', home: 270, guests: [356, 452], drinks: ['coupe', 'pint'], off: 0 },
-                        { a: 58, b: 820, z: 28, th: -0.2, seed: 12, kind: 'bartender', anim: 'serve', hold: 'glass', home: 820, guests: [740, 644], drinks: ['tumbler', 'flute'], off: 10000 }];
+    const BARTENDERS = [{ a: 58, b: 270, z: 4, th: 0.15, seed: 11, kind: 'bartender', anim: 'serve', hold: 'glass', home: 270, guests: [356, 452], drinks: ['coupe', 'pint'], off: 0 },
+                        { a: 58, b: 820, z: 4, th: -0.2, seed: 12, kind: 'bartender', anim: 'serve', hold: 'glass', home: 820, guests: [740, 644], drinks: ['tumbler', 'flute'], off: 10000 }];
     /* THE NORTH FLAP ON ITS OWN (Sir, 2026-10-23: "the door is drawing over
        the bartender"): it is behind the bartender at that end, but painted
        with the bar it went after him. Its own piece, before them both */
-    items.push({ a: 55, b: 216, z: 0, solids: [{ name:'bar flap', poly: volRect(0, 110, 210, 222), h: 110 }], draw: () => {
-      box(0, 110, 210, 222, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+    items.push({ a: 55, b: 216, z: 0, solids: [{ name:'bar flap', poly: volRect(0, 110, 210, 222), h: 75 }], draw: () => {
+      box(0, 110, 210, 222, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
     }});
-    items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 110 },
-        { name:'bar flap', poly: volRect(0, 110, 878, 890), h: 110 }],
+    /* (THE BAR AT A COUNTER'S HEIGHT, 75, its top 65..75 -- it was 110, the bartenders on a 28 board behind it: Sir, 2026-11-20, "lets make
+       the ballroom fixes we found"; its stools' seats 48, the drinks set on its top) */
+    items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 75 },
+        { name:'bar flap', poly: volRect(0, 110, 878, 890), h: 75 }],
       liveFirst: true,
       /* (serving: BAR_SERVE -- each his station at an end of the bar, his two guests, what they drink; the second half a loop behind) */
       live: BARTENDERS, fx: { kind: 'bardrinks', a: 0, b: 0, who: BARTENDERS }, draw: () => {
-      box(0, 110, 222, 878, 0, 28, '#5c3a21', '#4e311c', '#422917');      // the bartenders' board
-      box(0, 110, 878, 890, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap, up to the top (to 104 it ran into it: W37) (the north one: its own piece)
-      box(110, 200, 220, 880, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
-      box(104, 206, 214, 878, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top (to the south flap, not into it: W37)
-      box(198, 202, 220, 880, 10, 90, gold, gold, goldD);                   // a gold rail down its front
-      for(const b of [320, 560, 800]) { cyl(150, b, 110, 128, 7, '#c9a24a'); ball(150, b, 134, 8, '#fff2c8', '#fffbe4'); }   // bar lamps
+      box(0, 110, 222, 878, 0, 4, '#5c3a21', '#4e311c', '#422917');       // the bartenders' mat
+      box(0, 110, 878, 890, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap, up to the top (the north one: its own piece)
+      box(110, 200, 220, 880, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
+      box(198, 202, 220, 880, 8, 58, gold, gold, goldD);                    // a gold rail down its front (before the top that overhangs it: W37)
+      box(104, 206, 214, 878, 65, 75, '#3a2a1c', '#3a2a1c', '#2a1e14');     // the top (to the south flap, not into it: W37)
+      for(const b of [320, 560, 800]) { cyl(150, b, 75, 93, 7, '#c9a24a'); ball(150, b, 99, 8, '#fff2c8', '#fffbe4'); }   // bar lamps
     }});
     /* THE STOOLS, and the guests on some of them (Sir: "people sitting at
        the bar"), turned to the bar or to each other, a drink in hand. Each
@@ -53196,12 +53198,12 @@ function houseCanopy(fn){
                          644: ['woman', Math.PI*0.82, [0.85, 0.5], 1.05, 'flute'], 740: ['man', Math.PI, [0.92, 0.92], 0.3, null] };
     for(let b = 260; b <= 840; b += 96){
       const gu = BAR_GUESTS[b];
-      const cast = gu ? [{ a: 245 - 6*Math.cos(gu[1]), b: b - 6*Math.sin(gu[1]), z: 0, th: gu[1], sit: 72, seed: 200 + b, kind: gu[0], lift: gu[2], bend: gu[3], hold: gu[4], grp: b < 600 ? 'b1' : 'b2' }] : null;
+      const cast = gu ? [{ a: 245 - 6*Math.cos(gu[1]), b: b - 6*Math.sin(gu[1]), z: 0, th: gu[1], sit: 48, seed: 200 + b, kind: gu[0], lift: gu[2], bend: gu[3], hold: gu[4], grp: b < 600 ? 'b1' : 'b2' }] : null;
       const stool = () => {
-        cyl(245, b, 0, 66, 4, '#8d959c');
-        cyl(245, b, 62, 72, 16, velvet, shade(velvet, 1.2));
+        cyl(245, b, 0, 44, 4, '#8d959c');
+        cyl(245, b, 40, 48, 16, velvet, shade(velvet, 1.2));                 // (a bar stool's seat at 48)
       };
-      items.push({ a: 245, b, z: 0, dk: 712 + b*1e-3, solids: [{ name:'bar stool', c: [245, b], r: gu ? 24 : 16, h: gu ? 140 : 70 }], cast,
+      items.push({ a: 245, b, z: 0, dk: 712 + b*1e-3, solids: [{ name:'bar stool', c: [245, b], r: gu ? 24 : 16, h: gu ? 116 : 48 }], cast,
                    draw: gu ? () => {} : stool, seat: gu ? stool : null });
     }
 
@@ -119721,7 +119723,7 @@ class WorldScene extends Phaser.Scene {
   drawBarDrinks(g, fx, x0, y0, sb, t){
     const K = this.K;
     for(const c of fx.who) for(const d of barDrinksAt(c, t)){
-      const P = z => this.W(x0 + 176, y0 + sb*d.b, z), o = P(110);
+      const P = z => this.W(x0 + 176, y0 + sb*d.b, z - 35), o = P(110);   // (the ballroom's bar top at 75, Sir 2026-11-20: the glasses as drawn for 110, set 35 down)
       g.fillStyle(0xf6f0dc, 1); g.fillEllipse(o.x, o.y, 13*K, 6.5*K);
       if(d.kind === 'coupe'){ const q = P(119); g.lineStyle(1.2*K, 0xdfe8ee, 1); g.lineBetween(o.x, o.y, q.x, q.y);
         g.fillStyle(0xe86a7a, 1); g.fillEllipse(q.x, q.y, 11*K, 4.5*K); g.lineStyle(1*K, 0xeef5f8, 1); g.strokeEllipse(q.x, q.y, 11*K, 4.5*K); }
