@@ -90,6 +90,10 @@
 - Every shop walk-in is built by `docs/kits/walkin-shop-recipe.md` (walk-in kit W33): read it before starting one, copy Tidewater Tea House,
   and run its checks -- in particular, while he is inside no one from outside (passers-by, another walk-in's staff walking to work) may be
   drawn over the room, and nothing in it paints over its own people.
+- People: build a new person off the people we have and vary them through the roll (people kit P19, P20: a `streetLook` kind or
+  a `rosterBody` in a uniform, clothes from the hull's wardrobe, a new option on its own roll so no look already in the game changes).
+  Inside a body, back to front and parts meeting, as W37 is for furniture (P21, P22: the far arm before the torso, the shoulder along
+  the arm); check with `node tools/review/people_hull.js --png <dir>`.
 - Changes that depend on saved state: say so, and give a console line to seed it
   (the artifact boots with empty localStorage).
 - No secondary grass: a house, shop or landmark never paints its own lawn over the

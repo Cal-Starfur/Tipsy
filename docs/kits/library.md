@@ -45,7 +45,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 
 | Thing | Drawer | Looks / kinds | Notes |
 |---|---|---|---|
-| People (everyone) | `drawPersonHull` (`drawPersonHullBody` sat/posed), `drawWalkinPerson` in rooms | `streetLook(seed, opts)`, `rosterBody`, the `*Look` functions (`staffLook`, `custLook`, `crowdLook`, `folkLook`, ...) | `docs/kits/people.md`. Seated in a vehicle: `vehRider` / `vehRiderLook`. Holding things: `pose.hold`. |
+| People (everyone) | `drawPersonHull` (`drawPersonHullBody` sat/posed), `drawWalkinPerson` in rooms | `streetLook(seed, opts)`, `rosterBody`, the `*Look` functions (`staffLook`, `custLook`, `crowdLook`, `folkLook`, ...) | `docs/kits/people.md` (P19 model off these, P20 vary by the roll, P21/P22 draw order and fit: `tools/review/people_hull.js`). Seated in a vehicle: `vehRider` / `vehRiderLook`. Holding things: `pose.hold`. |
 | Dogs | `drawDogHull` (pairs with an owner: `drawDogPair`, `drawProp('dog')`) | `DOG_BREEDS` (9), `dogLookOf(seed, breed)` | labs/dog-lab.html, dog-gallery.html |
 | Cats | `drawDogHull` with a cat look | `CAT_BREEDS` (cat, kitten), `catLookOf(seed, kitten)` | tail `'cat'`, `eyeC`, no collar |
 | Horses | `drawHorseHull` | | |
