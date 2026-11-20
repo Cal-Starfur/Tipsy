@@ -128,6 +128,31 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(ar > 16){ const f = { room: name, kind: 'behind', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' in front of it (its back at ' + (bN ? 'b ' + Math.round(e.b0) : 'a ' + Math.round(e.a0)) + ') (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
+          /* inside: L and E (two solid boxes of the piece) SHARE A VOLUME -- one run partly into the other, a corner of each inside the
+             other, so whichever is painted second cuts a notch out of the first (Dune's sofa: its arms run back under its back, a step at
+             its ends -- Sir, 2026-11-20, "whats causing that alignment issue?"). Not a joint where one passes clean through the other (a
+             board through a post: it reaches past the post both ways along one line, the post past it both ways along another), nor
+             one wholly inside the other, nor a hair's touch (each overlap over 1.5) */
+          for(const E of before){ const e = E.q;
+            if(L.n !== 'box' || E.n !== 'box') continue;
+            const oa = Math.min(q.a1, e.a1) - Math.max(q.a0, e.a0), ob = Math.min(q.b1, e.b1) - Math.max(q.b0, e.b0), oz = Math.min(q.z1, e.z1) - Math.max(q.z0, e.z0);
+            if(!(oa > 2.5 && ob > 2.5 && oz > 2.5)) continue;                                  // (a part set 2 into a face -- a dial, a knob -- is how it is fixed on)
+            const inn = (x, y) => x.a0 >= y.a0 - 0.5 && x.a1 <= y.a1 + 0.5 && x.b0 >= y.b0 - 0.5 && x.b1 <= y.b1 + 0.5 && x.z0 >= y.z0 - 0.5 && x.z1 <= y.z1 + 0.5;
+            if(inn(q, e) || inn(e, q)) continue;                                                // (one wholly in the other: a band, an inlay, what stands in a case)
+            /* (what stands IN a container and out of its top -- a baguette in its basket: within its walls, on its floor or over it; the
+               container's own front is drawn again over it) */
+            if(q.a0 >= e.a0 - 0.5 && q.a1 <= e.a1 + 0.5 && q.b0 >= e.b0 - 0.5 && q.b1 <= e.b1 + 0.5 && q.z0 >= e.z0 && q.z1 > e.z1) continue;
+            const span = (x0, x1, y0, y1) => x0 < y0 - 0.5 && x1 > y1 + 0.5;                    // (x reaches past y both ways)
+            const thruL = [span(q.a0, q.a1, e.a0, e.a1), span(q.b0, q.b1, e.b0, e.b1), span(q.z0, q.z1, e.z0, e.z1)], thruE = [span(e.a0, e.a1, q.a0, q.a1), span(e.b0, e.b1, q.b0, q.b1), span(e.z0, e.z1, q.z0, q.z1)];
+            if(thruL.some(Boolean) && thruE.some(Boolean)) continue;                                // (a joint: crossed)
+            /* (what shows: L, painted second, has a SEEN face -- its top, its south side, its east end -- ending inside E, so that face is
+               painted across E as a step; a corner joint whose faces run flush -- a window's post and head -- shows nothing) */
+            const inside = (x1, y0, y1) => x1 > y0 + 0.5 && x1 < y1 - 0.5;
+            if(!(inside(q.z1, e.z0, e.z1) || inside(q.b1, e.b0, e.b1) || inside(q.a1, e.a0, e.a1))) continue;
+            const f = { room: name, kind: 'inside', at: [Math.round((Math.max(q.a0, e.a0) + Math.min(q.a1, e.a1))/2), Math.round((Math.max(q.b0, e.b0) + Math.min(q.b1, e.b1))/2)],
+              what: L.n + ' (a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') runs into the ' + E.n + ' (a ' + Math.round(e.a0) + '..' + Math.round(e.a1) + ', b ' + Math.round(e.b0) + '..' + Math.round(e.b1) + ', z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') by ' + [oa, ob, oz].map(v => v.toFixed(0)).join(' x ') + ' (line ' + L.line + ', it line ' + E.line + ')' };
+            if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break;
+          }
           /* order: L drawn after E, L behind E (it ends within 5 of E's near start on a or b and reaches well behind it), overlapping on screen */
           for(const E of before){ const e = E.q;
             if(!VOL.has(E.n) || !VOL.has(L.n)) continue;                            // (volumes only: a face on a face is paint)
@@ -151,7 +176,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'behind', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'behind', 'inside', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
