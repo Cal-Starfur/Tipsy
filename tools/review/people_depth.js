@@ -12,7 +12,14 @@
    a rough one: a review list, not a gate. Each fault is the pair: what was there, what went over it (the body's part marks,
    drawPersonHullBody's this._pTag), and its size in pixels.
 
-   node tools/review/people_depth.js [--rev <git ref>] [--look name] [--png dir] [--scale 3] [--lod 0]      exits 0 */
+   node tools/review/people_depth.js [--rev <git ref>] [--look name] [--png dir] [--scale 3] [--lod 0] [--list]      a review list, exits 0
+
+   THE GATE (Sir, 2026-11-20: "create the corresponding tool to keep the consistancy from here forward for all people"):
+   node tools/review/people_depth.js --gate      compares every case (look, pose, facing, what was under and what went over) with
+     tools/review/people_depth_baseline.json and FAILS (exit 1) on any that is new or has grown (more than a quarter and 40 px): a
+     change to how people are drawn may not add a fault. Run it after any change to the person drawer, a look or a pose.
+   node tools/review/people_depth.js --update    writes the baseline -- after a fix (the numbers only go down), or when Sir has
+     agreed a new one is right; commit the baseline with that change. Both at the gate's own settings (scale 3, view 1, every look) */
 const H = require('./harness.js'), fs = require('fs'), path = require('path');
 const arg = k => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : null; };
 const REV = arg('--rev'), PNG = arg('--png'), ONLY = arg('--look'), SCALE = +(arg('--scale') || 3), LOD = +(arg('--lod') || 0);
@@ -22,7 +29,7 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
   ['tourist', 9, { type: 'tourist' }], ['kid', 21, { type: 'kid' }], ['cane', 22, { type: 'cane' }]].filter(l => !ONLY || l[0] === ONLY);
 (async () => {
   const h = await H.open({ rev: REV || null }); await h.boot();
-  const res = await h.page.evaluate(async ({ LOOKS, png, S, LOD }) => {
+  const res = await h.page.evaluate(async ({ LOOKS, png, S, LOD, DBG }) => {
     const sc = game.scene.getScene('world'), CW = 115*S, CH = 165*S, TOL = 2.5, MINPX = Math.max(4, Math.round(1.5*S*S));
     const FACES = [0, 1, 2, 3, 4, 5, 6, 7].map(k => k*Math.PI/4);
     const POSES = [['stand', {}], ['walk', { walk: 1.1, moving: true }], ['table', { pose: { lift: [0.28, 0.28], bend: [1.1, 1.1] } }],
@@ -45,7 +52,7 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
       return Q0.call(this, g, pts, color, alpha); };
     sc._pTag = t => { tag = t; };
     const sv = { camX: sc.camX, camY: sc.camY, camZ: sc.camZ, K: sc.K, cx: sc.cx, cy: sc.cy, lod: sc._pLodFix };
-    const out = [], pngs = [];
+    const out = [], pngs = [], dbg = [];
     for(const [name, seed, opts] of LOOKS){
       const L = name === 'kid' ? Object.assign({ kind: 'kid' }, partyLook(seed, 'kid')) : streetLook(seed, opts);
       Object.assign(sc, { camX: 0, camY: 0, camZ: 0, K: S }); sc._roomPerson = true; sc._pLodFix = LOD;
@@ -58,7 +65,7 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
         try { sc.drawPersonHullBody(g, 0, 0, 0, th, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, P.walk ? walkSin(P.walk) : 0, !!P.moving, 0, P.lift || 0, null, L.uniform, false, Object.assign({ dress: L.dress }, P.pose || {})); }
         finally { const R = rec; rec = null;
           /* the z-buffer: this cell's own */
-          const x0 = CW*c, y0 = CH*r, Z = new Float32Array(CW*CH).fill(-1e9), O = new Int32Array(CW*CH).fill(-1), pairs = new Map();
+          const x0 = CW*c, y0 = CH*r, Z = new Float32Array(CW*CH).fill(-1e9), O = new Int32Array(CW*CH).fill(-1), F = new Int32Array(CW*CH).fill(-1), pairs = new Map();
           /* THE LIDS: a piece's silhouette (its hull) is the base coat its own faces paint over; what of it none of them covers is a flat disc
              left lying over whatever it hides -- a band's filled middle over the crown it wraps, a sleeve's open end over the arm */
           let hullPx = null, hullTag = '', hullN = -1; const lids = [];
@@ -77,15 +84,19 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
                 fn(py*CW + px, w1*A[2] + w2*B[2] + w3*C[2], px + x0, py + y0); } } };
           for(const f of R){
             if(f.hull){ closePiece(); hullPx = new Set(); hullTag = f.tag; hullN = f.n;
-              raster(f.q, i => { hullPx.add(i); O[i] = -2 - f.n; Z[i] = -1e9; }); continue; }   // (its silhouette: no depth of its own -- what it covers is hidden, what covers it is judged by its faces)
+              raster(f.q, i => { hullPx.add(i); O[i] = -2 - f.n; Z[i] = -1e9; F[i] = -1; }); continue; }   // (its silhouette: no depth of its own -- what it covers is hidden, what covers it is judged by its faces)
             if(hullPx && f.tag !== hullTag) closePiece();
             raster(f.q, (i, d, X, Y) => {
-              if(O[i] >= 0 && O[i] !== f.n && Z[i] > d + TOL){ const k = R[O[i]].tag + ' > ' + f.tag + ' #' + O[i] + '<' + f.n; const e = pairs.get(k) || { under: R[O[i]].tag, over: f.tag, px: 0, pts: [] }; e.px++; if(e.pts.length < 4000) e.pts.push(X, Y); pairs.set(k, e); }
+              F[i] = (O[i] >= 0 && O[i] !== f.n && Z[i] > d + TOL) ? O[i] : -1;   // (a fault while it shows: what it was laid over, nearer; anything laid over it later decides again)
               Z[i] = d; O[i] = f.n; }); }
+          /* the faults still showing when the whole person is drawn, by the pair of faces */
+          for(let i = 0; i < CW*CH; i++){ if(F[i] < 0 || O[i] < 0) continue; const u = R[F[i]], v = R[O[i]], k = u.n + '<' + v.n;
+            const e = pairs.get(k) || { under: u.tag, over: v.tag, px: 0, pts: [], a: u, b: v, dz: 0 }; e.px++; if(e.pts.length < 4000) e.pts.push(i % CW + x0, (i/CW | 0) + y0); pairs.set(k, e); }
           closePiece(); lidsAtEnd();
           for(const l of lids){ out.push({ look: name, pose: pn, facing: Math.round(th*180/Math.PI), under: 'lid', over: l.tag, px: l.px, pieces: 1 }); for(let j = 0; j < l.pts.length; j += 2) marks.push(l.pts[j], l.pts[j + 1]); }
           /* the faults, by part pair (each piece pair a fault of its own; small ones dropped) */
           const byPart = new Map();
+          if(DBG && DBG === name + ':' + pn + ':' + Math.round(th*180/Math.PI)) for(const e of pairs.values()) if(e.px >= MINPX) dbg.push( e.under + '#' + e.a.n + ' (' + e.a.q.length + ' pts, d ' + e.a.q.map(v => v[2].toFixed(1)).join('/') + ') under ' + e.over + '#' + e.b.n + ' (' + e.b.q.length + ' pts, d ' + e.b.q.map(v => v[2].toFixed(1)).join('/') + ') ' + e.px + 'px, by ' + e.dz.toFixed(1));
           for(const e of pairs.values()){ if(e.px < MINPX) continue; const k = e.under + ' under ' + e.over; const b = byPart.get(k) || { under: e.under, over: e.over, px: 0, n: 0 }; b.px += e.px; b.n++; byPart.set(k, b); for(let j = 0; j < e.pts.length; j += 2) marks.push(e.pts[j], e.pts[j + 1]); }
           for(const b of byPart.values()) out.push({ look: name, pose: pn, facing: Math.round(th*180/Math.PI), under: b.under, over: b.over, px: b.px, pieces: b.n });
         } }));
@@ -98,9 +109,10 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
     }
     sc.W = W0; sc.quadOn = Q0; sc._pTag = null; window.convexHull = CH0;
     Object.assign(sc, { camX: sv.camX, camY: sv.camY, camZ: sv.camZ, K: sv.K, cx: sv.cx, cy: sv.cy }); sc._pLodFix = sv.lod; sc._roomPerson = false;
-    return { out, pngs };
-  }, { LOOKS, png: !!PNG, S: SCALE, LOD });
+    return { out, pngs, dbg };
+  }, { LOOKS, png: !!PNG, S: SCALE, LOD, DBG: arg('--dbg') });
   await h.close();
+  for(const l of res.dbg) console.log(l);
   if(PNG){ fs.mkdirSync(PNG, { recursive: true }); for(const [n, d] of res.pngs) fs.writeFileSync(path.join(PNG, 'depth_' + n + '.png'), Buffer.from(d.split(',')[1], 'base64')); }
   /* the summary: by part pair, then each look's worst */
   const agg = new Map(); for(const f of res.out){ const k = f.under + ' under ' + f.over; const a = agg.get(k) || { cases: 0, px: 0, looks: new Set() }; a.cases++; a.px += f.px; a.looks.add(f.look); agg.set(k, a); }
@@ -108,4 +120,19 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
   for(const [k, a] of [...agg.entries()].sort((x, y) => y[1].px - x[1].px)) console.log('  ' + k.padEnd(28) + String(a.cases).padStart(4) + ' cases  ' + String(a.px).padStart(6) + ' px   ' + [...a.looks].join(', '));
   if(process.argv.includes('--list')) for(const f of res.out.sort((x, y) => y.px - x.px)) console.log('  ' + f.look.padEnd(11) + f.pose.padEnd(7) + String(f.facing).padStart(4) + 'deg  ' + (f.under + ' under ' + f.over).padEnd(28) + f.px + ' px (' + f.pieces + ')');
   console.log(res.out.length + ' faults in all' + (h.errs && h.errs.length ? '; page errors: ' + h.errs.join(' | ') : ''));
+  /* the baseline and the gate */
+  const BASE = path.join(H.ROOT, 'tools/review/people_depth_baseline.json'), keyOf = f => [f.look, f.pose, f.facing, f.under + ' under ' + f.over].join('|');
+  const now = {}; for(const f of res.out){ const k = keyOf(f); now[k] = (now[k] || 0) + f.px; }
+  if(process.argv.includes('--update')){
+    if(ONLY || REV || SCALE !== 3 || LOD !== 0){ console.log('--update needs the gate\'s own settings: every look, scale 3, view 1, this build'); process.exit(2); }
+    fs.writeFileSync(BASE, JSON.stringify({ about: 'people_depth.js --gate: every depth fault people are drawn with now (look|pose|facing|under under over: px). A change may not add one or grow one; --update after a fix.', cases: now }, null, 1) + '\n');
+    console.log('wrote ' + Object.keys(now).length + ' cases to ' + path.relative(H.ROOT, BASE)); }
+  if(process.argv.includes('--gate')){
+    if(!fs.existsSync(BASE)){ console.log('no baseline: node tools/review/people_depth.js --update'); process.exit(2); }
+    const base = JSON.parse(fs.readFileSync(BASE, 'utf8')).cases, bad = [];
+    for(const [k, px] of Object.entries(now)){ const b = base[k] || 0; if(px > b*1.25 + 40) bad.push([k, b, px]); }
+    let better = 0; for(const [k, b] of Object.entries(base)) if((now[k] || 0) < b*0.8 - 20) better++;
+    if(bad.length){ console.log('\nGATE FAIL: ' + bad.length + ' depth faults new or grown (was -> now px):'); for(const [k, b, px] of bad.sort((x, y) => (y[2] - y[1]) - (x[2] - x[1])).slice(0, 40)) console.log('  ' + k.padEnd(52) + String(b).padStart(6) + ' -> ' + px);
+      console.log('look at them: --png <dir> --look <name>; fix them, or --update only once Sir agrees'); process.exit(1); }
+    console.log('\nGATE PASS: no depth fault new or grown' + (better ? '; ' + better + ' cases better than the baseline -- --update to lock them in' : '')); }
 })();

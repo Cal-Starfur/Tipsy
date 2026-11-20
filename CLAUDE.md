@@ -94,6 +94,9 @@
   a `rosterBody` in a uniform, clothes from the hull's wardrobe, a new option on its own roll so no look already in the game changes).
   Inside a body, back to front and parts meeting, as W37 is for furniture (P21, P22: the far arm before the torso, the shoulder along
   the arm); check with `node tools/review/people_hull.js --png <dir>` and the depth test `node tools/review/people_depth.js --png <dir>`.
+  After any change to how people are drawn (the person drawer, a look, a pose, a garment), `node tools/review/people_depth.js --gate`
+  must PASS: no depth fault new or grown against `tools/review/people_depth_baseline.json`. After a fix, `--update` and commit the
+  baseline with it; a new fault is locked in only when I've agreed.
 - Anything that wraps round another piece (a band, a hem, a cuff, a collar, a brim, a hat's band) is a ring -- only its faces toward
   the eye -- never a filled solid, whose silhouette lays a flat lid over what it wraps; a piece that wraps round another is split by depth
   (its part behind, the thing, its part in front), as a cap's bill round its crown.
