@@ -61322,8 +61322,8 @@ function houseCanopy(fn){
        GRP(c, south) those three, bottom up: the pick face's pods are worked from the south, goods to person's from their other face */
     const GRP = (c, south) => { const o = []; for(let i = 0; i < 4; i++){ const ci = (((c - i - (south ? 2 : 0)) % 4) + 4) % 4; if(ci <= 2) o.push(6*i + 2*ci + (south ? 1 : 0)); } return o; };
     /* (the three on a robot's deck, along it; nested when empty) */
-    const BIN3 = (a, b, fd, z, col, n) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1])/26) + 1; if(j < n) BIN(pt[0], pt[1], z, col, false); } };
+    const BIN3 = (a, b, fd, z, col, n, open) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*26*j, b + v[1]*26*j]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1])/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col); else BIN(pt[0], pt[1], z, col, false); } } };
     const STACK3 = (a, b, z, col) => { for(let i = 0; i < 3; i++) BIN(a, b, z + i*4, col, true); };
     /* THE ARM ROBOTS AT THE SHELF PODS (Sir, 2026-11-19: "use the palletizing arm robot and program it to do the new task"): the palletizer's
        own robot -- its arm given a job (this._crewArm) -- parked at the pick face and at goods to person in place of the humanoid pickers. A
@@ -61479,8 +61479,8 @@ function houseCanopy(fn){
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
         if(p < 5){ const jrA = (((t - PAL0) % PALT) + PALT) % PALT, P = raTrip(p - 1, jrA);
           if(!P) out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) }));
-          else { const m = p - 1, q = P.q, S = STKM, AU = S/3, nf = [0, 1, 2].filter(j => q >= (m + 1)*S + j*AU + AU*ARMU1).length, stack = q < m*S + S*0.35;
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, SCOL[p]); else if(nf) BIN3(P.a, P.b, P.fdir, 31, SCOL[p], nf); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
+          else { const m = p - 1, q = P.q, S = STKM, AU = S/3, nf = [0, 1, 2].filter(j => q >= (m + 1)*S + j*AU + AU*ARMU1).length, stack = q < m*S + S*0.35, no = [0, 1, 2].filter(j => q >= lidT(m) + 250*j + 150).length;
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, SCOL[p]); else if(nf) BIN3(P.a, P.b, P.fdir, 31, SCOL[p], nf, no); } })); } } }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
@@ -61512,16 +61512,20 @@ function houseCanopy(fn){
        A's takes its empty bin to the pick face in turn and comes back with a full one: up a 1700, along b 200 to the first spot (PFA, the
        Receiver takes the empty off into the returns pod), on to the second (PFB, the arm sets a full one on out of the full pod), round by a
        2150 and back along b 440. Bin m is station m + 1's; at PFA from m*STKM, at PFB from (m + 1)*STKM */
-    const PFA = [1810, 200], PFB = [2060, 200], PFBIN = d => [d[0], 182, 31];
+    const PFA = [1810, 200], PFB = [2060, 200], PFC = [2150, 330], PFBIN = d => [d[0], 182, 31];
+    /* (PFC: the robot's lids off -- the lid handler, a humanoid, lifts its three lids and drops them in the bin of their colour on the lid
+       tugger parked by him (LTUG); Sir, 2026-11-20: "it should be part of the process so maybe a humanoid does it") */
+    const LTUG = [2030, 360], LIDT = m => { const q = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q.cart ? -201 : -115; return [LTUG[0] + cx + q.a, LTUG[1] + q.b, (q.z || 16) + 20]; };
+    const lidT = m => (m + 2)*STKM + 700;   /* (robot m at PFC from here) */
     const raTrip = (m, jr) => { const p = m + 1, pa = POS[p][0], ST = [pa, 658], S = STKM, V = 0.3;
-      const IN = p === 1 ? [ST, [pa, 200], PFA] : [ST, [pa, 440], [1700, 440], [1700, 200], PFA], OUT = [PFB, [2150, 200], [2150, 440], [pa, 440], ST];
+      const IN = p === 1 ? [ST, [pa, 200], PFA] : [ST, [pa, 440], [1700, 440], [1700, 200], PFA], OUT = [PFC, [2150, 440], [pa, 440], ST];
       const tin = plenP(IN.concat([[PFA[0] + 1, PFA[1]]]))/V, tout = plenP(OUT.concat([[pa, 659]]))/V, A = m*S + 600;
-      const legs = [[A - tin, A, IN], [A, (m + 1)*S, null, PFA, 0], [(m + 1)*S, (m + 1)*S + 900, [PFA, PFB]], [(m + 1)*S + 900, (m + 2)*S, null, PFB, 0], [(m + 2)*S, (m + 2)*S + tout, OUT]];
+      const legs = [[A - tin, A, IN], [A, (m + 1)*S, null, PFA, 0], [(m + 1)*S, (m + 1)*S + 900, [PFA, PFB]], [(m + 1)*S + 900, (m + 2)*S, null, PFB, 0], [(m + 2)*S, (m + 2)*S + 700, [PFB, [2150, 200], PFC]], [(m + 2)*S + 700, (m + 3)*S, null, PFC, 1], [(m + 3)*S, (m + 3)*S + tout, OUT]];
       for(const sh of [0, -PALT, PALT]){ const q = jr + sh; if(q < legs[0][0] || q >= legs[legs.length - 1][1]) continue;
         for(const L of legs){ if(q < L[0] || q >= L[1]) continue; if(!L[2]) return { a: L[3][0], b: L[3][1], fdir: L[4], q, m };
           const Q = L[2].concat([[L[2][L[2].length - 1][0] + 0.01, L[2][L[2].length - 1][1]]]), P = pathAt(Q, Math.min(plenP(Q)*ease((q - L[0])/(L[1] - L[0])), plenP(L[2]) - 0.01)); P.q = q; P.m = m; return P; } }
       return null; };
-    const raHome = m => { const pa = POS[m + 1][0]; return (m + 2)*STKM + (90 + 240 + (2150 - pa) + 218)/0.3; };
+    const raHome = m => { const pa = POS[m + 1][0]; return (m + 3)*STKM + (110 + (2150 - pa) + 218)/0.3; };
     const tugAt = t => { const r = (((t - PAL0) % SUP) + SUP) % SUP; for(let i = RSTOP.length - 1; i >= 0; i--){ if(r >= RT0[i] + RDW[i]){ const s0 = RSTOP[i] + (r - RT0[i] - RDW[i])*RV; return { s: Math.min(s0, i + 1 < RSTOP.length ? RSTOP[i + 1] : RL), stop: -1, done: i }; }
         if(r >= RT0[i]) return { s: RSTOP[i], stop: i, r: r - RT0[i], done: i - 1 }; } return { s: 0, stop: 0, r: 0, done: -1 }; };
     /* THE PICK FACE'S TWO PODS (phase 3): each cycle one is the full pod (the pickers load the tugger from it) and one the returns pod (they
@@ -61547,7 +61551,7 @@ function houseCanopy(fn){
       return out; };
     /* (the pick face's moves: the Receiver's move m -- an empty off the carts back onto the shelf -- from STKM*m, the arm's -- a full out of the
        full pod onto the carts -- from STKM*m + STKM/2; where the bins are) */
-    const STKM = 2400;
+    const STKM = 3000;   /* (the pick face's beat: a robot every 3000 -- its lids off at a third stop, PFC) */
     for(let m = 0; m < 4; m++) SUPT[m + 1] = PAL0 + raHome(m);   /* (row A's: full again as its robot is back) */
     const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
     const podFace = (h, m, j) => { const sq = AMR_SLOTS.amrshelf[GRP(m, true)[j == null ? 1 : j]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
@@ -61589,6 +61593,20 @@ function houseCanopy(fn){
         const PS = podState(t);
         for(const pd of PS) out.push(bot(pd.a, pd.b, 0, { build: 'amrshelf', loads: pd.loads, bins: CPAL }));
         CW_FLOW.pods = PS.map(pd => (pd.isF ? 'full ' : 'returns ') + pd.loads.filter((L, i) => S5.includes(i) && L && !L.empty).length + '/' + pd.loads.filter((L, i) => S5.includes(i) && L && L.empty).length).join(', ');
+        /* THE LID TUGGER, parked in the loop's middle, a bin of each colour on its carts; and THE LID HANDLER at PFC: each robot's three lids
+           lifted off and stacked in his hands, walked round to the bin of their colour, dropped in, back to his spot */
+        { const ldL = AMR_SLOTS.amrtug.map(() => null); [0, 1, 2, 3].forEach(m => { ldL[[0, 1, 2, 6][m]] = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: m, empty: true }; });
+          out.push(bot(LTUG[0], LTUG[1], 0, { build: 'amrtug', loads: ldL, bins: CPAL }));
+          const HS = [2105, 318], mL = [0, 1, 2, 3].find(m => jr >= lidT(m) && jr < lidT(m) + 2200);
+          if(mL == null) out.push(man(HS[0], HS[1], 0, {}));
+          else { const q = jr - lidT(mL), dz = LIDT(mL), DS = [dz[0], 326], col = CPC(mL), n = q < 750 ? Math.min(3, Math.floor((q + 100)/250)) : q < 1450 ? 3 : 0;
+            let pos = HS, f = 0, pose = {}, hand = null;
+            if(q < 750){ const j = Math.min(2, Math.floor(q/250)), k2 = (q % 250)/250; pose = { lift: [0.75 + 0.15*Math.sin(k2*Math.PI), 0.75 + 0.15*Math.sin(k2*Math.PI)], bend: [0.4, 0.4] }; hand = [HS[0] + 24, PFC[1] - 26 + 26*j, 62]; }
+            else if(q < 1300){ const k2 = ease((q - 750)/550); pos = [HS[0] + (DS[0] - HS[0])*k2, HS[1] + (DS[1] - HS[1])*k2]; f = 2; pose = { walk: 1, gait: k2*Math.abs(DS[0] - HS[0])/7, lift: [0.55, 0.55], bend: [0.7, 0.7] }; hand = [pos[0] - 18, pos[1], 54]; }
+            else if(q < 1600){ pos = DS; f = 1; const k2 = ease((q - 1300)/300); pose = { lift: [0.55 + 0.2*k2, 0.55 + 0.2*k2], bend: [0.7 - 0.3*k2, 0.7 - 0.3*k2] }; hand = q < 1450 ? [DS[0], DS[1] + 18 + 10*k2, 54 - 10*k2] : null; }
+            else { const k2 = ease(clamp01((q - 1600)/550)); pos = [DS[0] + (HS[0] - DS[0])*k2, DS[1] + (HS[1] - DS[1])*k2]; pose = { walk: k2 < 1 ? 1 : 0, gait: k2*Math.abs(DS[0] - HS[0])/7 }; }
+            out.push(man(pos[0], pos[1], f, pose));
+            if(hand && n){ const h = hand; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: 3, cargo: () => { for(let i = 0; i < n; i++) box(h[0] - 12, h[0] + 12, h[1] - 11.5, h[1] + 11.5, h[2] + i*3, h[2] + i*3 + 2.6, shade(col, .72), shade(col, .62), shade(col, .52)); } }); } } }
         /* THE PICK FACE: the arm robot parked south of the carts, its arm long enough to reach over them to the pods -- a full out of the full
            pod onto the carts (from 2000 in each 4000); the humanoid in the strip between the pods and the carts -- each empty off the carts and
            back onto the shelf, into the returns pod (the first 4000 of each) */
