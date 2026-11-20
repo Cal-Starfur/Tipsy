@@ -59139,9 +59139,10 @@ function houseCanopy(fn){
     T(PA0, PA1, PB, -30, 0.5, shade(stone, 0.9));
     for(let a = PA0 + 60; a < PA1; a += 60) T(a - 0.6, a + 0.6, PB, -30, 0.55, shade(stone, 0.8));
     T(PA0, PA1, PB, PB + 5, 0.6, shade(stone, 0.78));
-    items.push({ a: door.at, b: 6, z: 0, solids: [], draw: () => {
-      T(door.at - door.half - 6, door.at + door.half + 6, -40, 8, 0.65, shade(stone, 0.9));
-      T(door.at - door.half, door.at + door.half, -4, 0, 0.7, brass); } });
+    /* (the threshold with the floor too: as a piece keyed inside the door it sorted after the door's leaves and painted over their feet --
+       Sir, 2026-11-20, "this is now paining over the door") */
+    T(door.at - door.half - 6, door.at + door.half + 6, -40, 8, 0.65, shade(stone, 0.9));
+    T(door.at - door.half, door.at + door.half, -4, 0, 0.7, brass);
 
     /* ---- THE WALLS (the kit's): limestone over the sea-grey dado, pilasters; the clock and the name over the door; on the west wall
        the safe-deposit boxes, in the vault ---- */
