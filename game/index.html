@@ -31197,6 +31197,53 @@ function pgDrawState(s, m, now, q){
   if(sk){ const A = sk.seat.at; q.a = m.a + (A[0] - m.a)*sk.k; q.b = m.b + (A[1] - m.b)*sk.k; if(sk.k > 0.5) q.th = sk.seat.th; q.moving = false; q.pose = walkinIdlePose(s, m, now, null); }
   if(m.moving && s.look === 'visitor' && ((m.keys && m.paid) || (m.collect === false && !m.done))) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (in with the keys to drop off, or out with them)
 }
+/* THE SERVICE CYCLE (Sir, 2026-11-20: "what about the car does it belong to that customer? will the work get finished and he picks that car up and
+   another car comes in shortly after"): one car at a time, on the room's own clock, a cycle of PG_SVC.P ms --
+     in       bay 1's roller goes up, the car drives in nose first from the street and stops over the lift; the roller comes down
+     drop     its owner gets out, walks to Mel at the counter, hands over the keys and goes out by the open bay
+     work     the lift takes it up; Hank works under it; the lift brings it down
+     collect  the owner comes back in, pays at the counter, walks to the car and gets in
+     out      the roller goes up, the car backs out into the street, the roller comes down; a while, and the next car (another model and
+              colour, another owner)
+   pgSvc(t) says where everything is: the car { a, b, z, kind, seed, wheel }, the lift's height, the roller's opening, the owner { a, b, th, moving } */
+const PG_SVC = { P: 160000, KINDS: ['hatch', 'car', 'wagon', 'coupe', 'suvsmall'], CA: 84, CM: 132.5, CZ: 78, OUT: -300, SIDE: [175, 236] };
+function pgSvcPath(pts, u){ const L = []; let tot = 0; for(let i = 1; i < pts.length; i++){ const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); tot += d; }
+  let d = Math.max(0, Math.min(1, u))*tot; for(let i = 1; i < pts.length; i++){ if(d <= L[i - 1] || i === pts.length - 1){ const k = L[i - 1] ? Math.min(1, d/L[i - 1]) : 1, a = pts[i - 1], b = pts[i];
+    return { a: a[0] + (b[0] - a[0])*k, b: a[1] + (b[1] - a[1])*k, th: Math.atan2(b[1] - a[1], b[0] - a[0]) }; } d -= L[i - 1]; } return { a: pts[0][0], b: pts[0][1], th: 0 }; }
+function pgSvc(t){
+  t += PG_SVC.off || 0;                                                             // (off: a shift of its clock -- the headless checks step through it)
+  const S = PG_SVC, n = Math.floor(t/S.P), u = t - n*S.P, s = u/1000, sm = k => { k = Math.max(0, Math.min(1, k)); return k*k*(3 - 2*k); };
+  const seed = (Math.imul(n + 1, 0x9e3779b1) ^ 0x6a5c) >>> 0, kind = S.KINDS[seed % S.KINDS.length];
+  const ph = (a, b) => (s - a)/(b - a);
+  const out = { n, kind, seed, car: null, lift: 0, roller: 0, owner: null, phase: '' };
+  const DOOR = [274, -70], DESK = [514, 410], SIDE = S.SIDE;
+  /* the roller: up for the car in (0..11) and out (138..151) */
+  out.roller = s < 2 ? sm(ph(0, 2)) : s < 9 ? 1 : s < 12 ? 1 - sm(ph(9, 12)) : s < 136 ? 0 : s < 138 ? sm(ph(136, 138)) : s < 148 ? 1 : s < 151 ? 1 - sm(ph(148, 151)) : 0;
+  /* the lift: up 36..40, down 110..114 */
+  out.lift = s < 36 ? 0 : s < 40 ? sm(ph(36, 40)) : s < 110 ? 1 : s < 114 ? 1 - sm(ph(110, 114)) : 0;
+  /* the car: driving in 2..9, there till 140, backing out 140..148 */
+  const carB = s < 2 ? null : s < 9 ? S.OUT + (S.CM - S.OUT)*sm(ph(2, 9)) : s < 140 ? S.CM : s < 148 ? S.CM + (S.OUT - S.CM)*sm(ph(140, 148)) : null;
+  if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: (s >= 2 && s < 9) || (s >= 140 && s < 148), wheel: carB*0.05 };
+  /* the owner: out of the car 10..12, to the counter 12..21, there 21..27, out of the bay 27..36; back in 114..123, paying 123..129, to the car
+     129..137, in it */
+  const look = streetLook((seed ^ 0x51) >>> 0, { adult: true, aid: 'none' });
+  const walk = (pts, a, b) => { const q = pgSvcPath(pts, ph(a, b)); return { a: q.a, b: q.b, th: q.th, moving: true, L: look }; };
+  const stand = (p, th) => ({ a: p[0], b: p[1], th, moving: false, L: look });
+  if(s >= 10 && s < 12) out.owner = stand(SIDE, Math.PI/2);
+  else if(s >= 12 && s < 21) out.owner = walk([SIDE, [250, 300], DESK], 12, 21);
+  else if(s >= 21 && s < 27){ out.owner = stand(DESK, 0); out.owner.atDesk = 'drop'; }
+  else if(s >= 27 && s < 36) out.owner = walk([DESK, [274, 300], DOOR], 27, 36);
+  else if(s >= 114 && s < 123) out.owner = walk([DOOR, [274, 300], DESK], 114, 123);
+  else if(s >= 123 && s < 129){ out.owner = stand(DESK, 0); out.owner.atDesk = 'pay'; }
+  else if(s >= 129 && s < 137) out.owner = walk([DESK, [250, 300], SIDE], 129, 137);
+  out.phase = s < 10 ? 'in' : s < 36 ? 'drop' : s < 114 ? 'work' : s < 138 ? 'collect' : s < 151 ? 'out' : 'gap';
+  /* (shut: no cars come and go -- the bay empty, the roller down, nobody in. Its hours are the garage's own, walkinOpenNow) */
+  const pk = S._pk || (S._pk = POCKETS.find(q => q.name === PG_IN.name));
+  if(pk && typeof walkinOpenNow === 'function' && !walkinOpenNow(pk)){ out.car = null; out.owner = null; out.roller = 0; out.lift = 0; out.phase = 'shut'; }
+  return out;
+}
+/* the room's clock for it (the game's time, as the room's people) */
+function pgSvcNow(){ const sc = (typeof game !== 'undefined' && game.scene) ? game.scene.getScene('world') : null; return sc ? sc.time.now : 0; }
 walkinStaff(PG_IN.name, [
   { id: 'mechanic', role: 'mechanic', seed: 0x6a01, lookFn: () => PG_FAMILY.hank, keys: true,
     posts: [[84, 270, -Math.PI/2, 9000, true], [160, 200, Math.PI, 4200, true], [160, 60, Math.PI, 3600, true]] },
@@ -31205,8 +31252,7 @@ walkinStaff(PG_IN.name, [
   { id: 'counter', role: 'service clerk', seed: 0x6a03, lookFn: () => PG_FAMILY.mel, fixed: true,
     posts: [[606, 410, Math.PI, 9000, true], [606, 490, Math.PI, 4000, true]] },
   /* (ONE customer at a time -- Sir, 2026-11-20: "its a come in drop off your car and leave and wait in a caffe type of shop. there probably
-     should be 1 customer in there at a time max") */
-  { id: 'customer-1', role: 'customer', seed: 0x6a11, look: 'visitor', life: 'browse', only: ['tyres', 'wheels', 'stacks'] },
+     should be 1 customer in there at a time max"): the car's owner, the service cycle's (pgSvc), drawn with it -- no other visitors */
 ]);
 walkinLife(PG_IN.name, { keep: [[210, 330, 0, 760]], looks: [
   { id: 'counter', spots: [[514, 410, 0], [514, 490, 0]] },
@@ -59017,15 +59063,11 @@ function houseCanopy(fn){
 
     /* ---- THE WALLS (the kit's): white stucco over the sea-blue dado; the north wall's inside -- the shut bay's roller from in here,
        the open bay's lintel, the side door -- and the west wall's tyres on their hooks ---- */
-    walkinRoom(items, { W, D, H, LH, door, doorTop: BZ,
+    walkinRoom(items, { W, D, H, LH, door, doorTop: BZ, gapsN: [[B1[0] + 4, B1[1] - 4, BZ], [door.at - door.half, door.at + door.half, BZ]],   // (bay 1 open through the wall too: its roller is live)
       paintN: () => {
         F(-30, W + 30, 0, H, wall, null, 0, 0);
         F(-30, W + 30, 0, 70, trim, null, 0, 0.1); F(-30, W + 30, 70, 74, trimD, null, 0, 0.2);
-        /* the shut bay's roller curtain, its slats and its vision strip, and its drum over it */
-        F(B1[0] + 4, B1[1] - 4, 0, BZ, '#8c9298', null, 0, 0.3);
-        for(let z = 10; z < BZ - 10; z += 21) F(B1[0] + 6, B1[1] - 6, z, z + 3, '#767c82', null, 0, 0.4);
-        F(B1[0] + 6, B1[1] - 6, BZ - 70, BZ - 52, '#5d6a74', null, 0, 0.45);
-        for(let k = 0; k < 4; k++) F(B1[0] + 18 + (B1[1] - B1[0] - 36)*k/4, B1[0] + 18 + (B1[1] - B1[0] - 36)*(k + 0.62)/4, BZ - 67, BZ - 55, '#9fc2d4', null, 0, 0.5);
+        /* bay 1's drum over its opening (its roller curtain is live: the service cycle rolls it up for the car -- below) */
         F(B1[0], B1[1], BZ, BZ + 18, '#767c82', null, 0, 0.5);
         /* the open bay's drum, rolled up under its lintel */
         F(B2[0], B2[1], BZ, BZ + 18, '#767c82', null, 0, 0.5); F(B2[0], B2[1], BZ + 4, BZ + 7, '#5d6369', null, 0, 0.6);
@@ -59051,6 +59093,18 @@ function houseCanopy(fn){
       },
       low: [wall, trim, trimD], cap: [wall, wall, wallD], ftop: shade(wall, 0.9) });
 
+    /* ---- BAY 1'S ROLLER CURTAIN, live (pgSvc's roller: 0 down .. 1 up): its slats and vision strip from its foot up to the drum; a solid
+       across the opening (he does not go out through it) ---- */
+    items.push({ a: (B1[0] + B1[1])/2, b: 1, z: 0, solids: [solid(B1[0], B1[1], -30, -2, BZ, 'roller door')], draw: () => {},
+      fx: { kit: () => { const u = pgSvc(pgSvcNow()).roller, z0 = u*(BZ - 6);
+          if(z0 >= BZ - 7) return;
+          F(B1[0] + 4, B1[1] - 4, z0, BZ, '#8c9298', null, 0, -0.5);
+          for(let z = BZ - 11; z > z0 + 4; z -= 21) F(B1[0] + 6, B1[1] - 6, z, z + 3, '#767c82', null, 0, -0.4);
+          if(BZ - 70 > z0){ F(B1[0] + 6, B1[1] - 6, Math.max(z0, BZ - 70), BZ - 52, '#5d6a74', null, 0, -0.35);
+            for(let k = 0; k < 4; k++) F(B1[0] + 18 + (B1[1] - B1[0] - 36)*k/4, B1[0] + 18 + (B1[1] - B1[0] - 36)*(k + 0.62)/4, Math.max(z0, BZ - 67), BZ - 55, '#9fc2d4', null, 0, -0.3); }
+          F(B1[0] + 4, B1[1] - 4, z0, z0 + 4, '#5d6369', null, 0, -0.2); },
+        state: () => { const u = pgSvc(pgSvcNow()).roller; return u <= 0 || u >= 1 ? 'r' + Math.round(u) : null; } } });
+
     /* ---- BAY 1: THE TWO-POST LIFT and a hatchback up on it, nose in -- THE GAME'S OWN CAR (drawCar, the piece's fx.car: Sir, 2026-11-17,
        "we want to use our own car art"), 225 x 90. Its posts either side, each its own piece (the far one behind the car, the near one and
        the beam over in front of it); the arms out under its sills go with the far post ---- */
@@ -59058,11 +59112,15 @@ function houseCanopy(fn){
       const postA = [ca - cw - 20, ca + cw + 20], PB = [CM - 12, CM + 12];
       const post = pa => { box(pa - 9, pa + 9, PB[0], PB[1], 0, 236, steel, steelD, steelS); box(pa - 12, pa + 12, PB[0] - 4, PB[1] + 4, 0, 6, steelD, steelS, steelS);
         F(pa - 3, pa + 3, 20, 230, '#e2b23c', null, 0, PB[1] + 0.3); };
-      items.push({ a: postA[0], b: PB[1], z: 0, solids: [solid(postA[0] - 9, postA[0] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => {
-        post(postA[0]);
-        for(const ab of [CB0 + 50, CB1 - 50]) for(const pa of postA) tube(pa, CM, CZ - 4, ca + Math.sign(pa - ca)*(cw - 14), ab, CZ - 4, 3, steelD); } });
-      items.push({ a: ca, b: CM, z: 0, solids: [solid(ca - cw, ca + cw, CB0, CB1, CZ + 90, 'car on the lift')], draw: () => {},
-        fx: { car: { kind: 'hatch', a: ca, b: CM, z: CZ, fdir: 1, seed: 0x6a5c } } });
+      items.push({ a: postA[0], b: PB[1], z: 0, solids: [solid(postA[0] - 9, postA[0] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => post(postA[0]) });
+      /* THE LIFT'S ARMS, at the car's height as the lift takes it up and down (the service cycle: pgSvc), a live part cached while still */
+      items.push({ a: postA[0], b: PB[1] + 0.5, z: 0, solids: [], draw: () => {},
+        fx: { kit: () => { const z = 4 + pgSvc(pgSvcNow()).lift*(CZ - 8); for(const ab of [CB0 + 50, CB1 - 50]) for(const pa of postA) tube(pa, CM, z, ca + Math.sign(pa - ca)*(cw - 14), ab, z, 3, steelD);
+          for(const pa of postA) box(pa - 6, pa + 6, PB[0] - 2, PB[1] + 2, z - 4, z + 6, steelD, steelS, steelS); },
+          state: () => { const S = pgSvc(pgSvcNow()); return S.lift <= 0 || S.lift >= 1 ? 'l' + Math.round(S.lift) : null; } } });
+      /* THE CUSTOMER'S CAR AND ITS OWNER (the service cycle, pgSvc): the game's own car, driving in, up on the lift, down, backing out; its
+         owner on foot between it, the counter and the bay -- each drawn where it is, in the room's order (fx.svc) */
+      items.push({ a: ca, b: CM, z: 0, solids: [solid(ca - cw, ca + cw, CB0, CB1, CZ + 90, 'car on the lift')], draw: () => {}, fx: { svc: t => pgSvc(t) } });
       items.push({ a: postA[1], b: PB[1], z: 0, solids: [solid(postA[1] - 9, postA[1] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => {
         post(postA[1]);
         tube(postA[0], CM, 238, postA[1], CM, 238, 5, steelD); } });                                       // the beam over
@@ -106847,6 +106905,17 @@ class WorldScene extends Phaser.Scene {
          hatchback up on its lift. Never a car drawn anew in a room's own kit: Sir, 2026-11-17, "we want to use our own car art") */
       /* (it.fx.pod: one of the game's own robots PARKED in a room -- { kind 'amr', a, b, fdir, build, loads, bins } as drawRoomBot takes it --
          cached as a still piece: Cratewell's shelf pods along its walls) */
+      /* (it.fx.svc(t): a SERVICE CYCLE -- Palmline Garage's: { car: { kind, a, b, z, seed, moving, wheel } | null, owner: { a, b, th, moving, L }
+         | null } -- the car drawn by drawCar where it is now (cached while it stands), its owner by the person drawer, each in the room's order) */
+      else if(it.fx && it.fx.svc){ const S = it.fx.svc(this.time.now);
+        if(S.car){ const c = S.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0), still = !c.moving && (c.z <= 0 || c.z >= PG_SVC.CZ);
+          const dc = gg => { const sv = this._paintIdx; this._paintIdx = null; try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, c.moving ? c.wheel : null, c.seed, null); } finally { this._paintIdx = sv; } };
+          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b), cx, cy, dc) : dc(g) }); }
+        if(S.owner){ const o = S.owner, L = o.L, ox = x0 + o.a, oy = y0 + sb*o.b, thW = Math.atan2(sb*Math.sin(o.th), Math.cos(o.th)) - Math.PI/2;
+          /* (the room's own person: never taken for a passer-by over the room and dropped -- drawPersonHull's _roomPerson) */
+          vq.push({ depth: ox + oy + zd, fn: (g) => { const rp0 = this._roomPerson; this._roomPerson = true;
+            try { this.drawPersonHull(g, ox, oy, z0 || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, o.moving ? walkAt(ox, oy) : 0, o.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
+            finally { this._roomPerson = rp0; } } }); } }
       else if(it.fx && it.fx.pod){ const c = it.fx.pod, cx = x0 + c.a, cy = y0 + sb*c.b;
         vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|pod|" + n, cx, cy, gg => this.drawRoomBot(gg, c, cx, cy, z0 || 0, 0, name, G, K)) }); }
       else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
