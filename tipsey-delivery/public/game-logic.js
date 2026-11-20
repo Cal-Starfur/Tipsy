@@ -59461,7 +59461,7 @@ function houseCanopy(fn){
       return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs: crouch > 0 ? { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] } : undefined }; };
     const faceTo = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
     const JOBAT = (p, a, b, u, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), N = p >= 5 ? 48 : -50;   /* (row B's from the south side now) */
-      const job = (at, look, T1, T2, crouch, waist) => Object.assign({ at, f: faceTo(at, look) }, hP(at, faceTo(at, look), T1, T2, crouch, waist));
+      const job = (at, look, T1, T2, crouch, waist) => Object.assign({ at, f: faceTo(at, look), hT: T1 }, hP(at, faceTo(at, look), T1, T2, crouch, waist));
       const add = (P, da, db, dz) => [P[0] + da, P[1] + db, P[2] + dz];
       switch(p){
         case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 62], T, add(T, -14 + 3*S(300), 0, 0), add(T, 14 - 3*S(300), 0, 0), 0.1, 0.4); }   /* (the deck squared on the jig, pressed home with both hands) */
@@ -59688,6 +59688,15 @@ function houseCanopy(fn){
     /* a station's bin, open: the same bin as on the shelves and robots (BIN's size, its label), its lid off at the station and the parts in it --
        Sir, 2026-11-20: "the bin transforms from a square to a rectangle" */
     /* (a robot's three bins set back toward its tail, clear of the lidar on its nose -- Sir, 2026-11-20: "the lidar should not be drawn over by the boxes") */
+    /* ONE PART, as the bins hold it, at a point (Sir, 2026-11-20: "are the robots actually grabbing the parts like they were grabbing the bins?") */
+    const PART = (p, a, b, z) => { switch(p){
+      case 1: wheel(a, b, z, 7, '#24262c'); break;
+      case 2: wheel(a, b, z, 7, '#24262c'); tube(a, b, z, a + 2, b, z + 9, 1.8, '#9aa3ad'); break;
+      case 3: box(a - 19, a + 19, b - 5.5, b + 5.5, z, z + 1.4, '#3d424c', '#34383f', '#2b2f35'); break;
+      case 4: tube(a, b, z - 13, a, b, z + 13, 1.8, PCOL); break;
+      case 5: tube(a, b - 11, z, a, b + 11, z, 1.6, '#9aa3ad'); break;
+      case 6: for(const e of [-1, 1]) tube(a, b + e*2, z, a, b + e*9, z, 2.2, '#3d424c'); break;
+      case 7: ball(a, b - 3, z, 2.6, '#2a2f36', '#fff3c4'); box(a - 1.5, a + 1.5, b + 3, b + 9, z - 1.5, z + 1.5, '#e03a2f', '#c4322a', '#a82a23'); break; } };
     const partTotes = (a, b, n, col, p) => { for(const j of [-1, 0, 1]) partTote(a - 10 + 26*j, b, 31, false, Math.max(0, Math.min(2, n - 2*(j + 1))), col, p); };   /* (a station's three, two parts each) */
     const partTote = (a, b, z, alongB, n, col, p) => { const c = typeof col === 'number' ? '#' + col.toString(16).padStart(6, '0') : col, zc = z + 7;
       box(a - 12, a + 12, b - 11.5, b + 11.5, z, z + 17, c, shade(c, .85), shade(c, .7)); T(a - 10.5, a + 10.5, b - 10, b + 10, z + 17.1, shade(c, .4));
@@ -59753,12 +59762,15 @@ function houseCanopy(fn){
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
+        if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: (pb - h[1]) + 6, cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (the part in his hands, being fitted: on the scooter from half the stand) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, Object.assign({}, J0, at[1] < pb ? { dd: pb - at[1] + 2 } : {}))); continue; }   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
         if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
           if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
         let df = fb - J0.f; df = ((df + 2) % 4 + 4) % 4 - 2;   /* (the short way round) */
         out.push(man(at[0], at[1], J0.f + df*s, s > 0.9 ? REACH(t + p*500) : {}));
+        if(p >= 1 && p <= 7 && here && (u > w1 + 250 || u <= w0)){ const ff = (J0.f + df*s)*Math.PI/2, ha = at[0] + Math.cos(ff)*36, hb = at[1] + Math.sin(ff)*36;   /* (the next part out of his bin and in his hands, as he turns back to the scooter) */
+          out.push({ kind: 'cargo', a: ha, b: hb, dd: Math.max(2, (at[0] + at[1]) - (ha + hb) + 4), cargo: () => PART(p, ha, hb, 66) }); }   /* (after him: in front of his chest) */
       }
       /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
       { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
@@ -60257,7 +60269,7 @@ function houseCanopy(fn){
 
     /* ---- PHASE 7: THE SECURITY DOG (fx.crew) -- the patrol bot's dog build in Cratewell's colours, walking the strip inside the line between
        its two rows, round and round, watching both ---- */
-    { const DL = [[900, 960], [1900, 960], [1900, 1040], [900, 1040]], DLL = 2*(1000 + 80);   /* (the inside of the loop is his now: no robot drives through it) */
+    { const DL = [[200, 1822], [2250, 1822], [2250, 1846], [200, 1846]], DLL = 2*(2050 + 24);   /* (out of the build area -- Sir, 2026-11-20: "the security dog should not be inside the build area" -- along the south wall, past the storage bays) */   /* (the inside of the loop is his now: no robot drives through it) */
       items.push({ a: 1400, b: 1000, z: 0, solids: [], draw: () => {}, fx: { crew: t => { const s0 = (t*0.06) % DLL, P = pathAt(DL, s0);
         return [{ kind: 'bot', botKind: 'patrolbot', bSkin: 'pdog:cratewell', build: 'pdog', a: P.a, b: P.b, fdir: P.fdir, wheel: s0*0.12 }]; } } }); }
 
