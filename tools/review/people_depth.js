@@ -26,7 +26,11 @@ const REV = arg('--rev'), PNG = arg('--png'), ONLY = arg('--look'), SCALE = +(ar
 const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type: 'woman', heavy: false }], ['heavy', 13, { type: 'man', heavy: true }],
   ['business', 15, { type: 'business' }], ['jogger', 16, { type: 'jogger' }], ['skater', 17, { type: 'skater' }], ['worker', 18, { type: 'worker' }],
   ['elderWoman', 19, { type: 'elderWoman' }], ['surfer', 4, { type: 'surfer' }], ['punk', 8, { type: 'punk' }], ['postie', 5, { type: 'postie' }],
-  ['tourist', 9, { type: 'tourist' }], ['kid', 21, { type: 'kid' }], ['cane', 22, { type: 'cane' }]].filter(l => !ONLY || l[0] === ONLY);
+  ['tourist', 9, { type: 'tourist' }], ['kid', 21, { type: 'kid' }], ['cane', 22, { type: 'cane' }], ['humanoid', 0, null],
+  /* (Gideon dressed: his wardrobe's hats, packs, aprons and neck pieces, round six of him -- the hats are the tourists' too) */
+  ['gideonA', 0, { hat: 'cap', packStyle: 'jet', apron: 'vest', neck: 'scarf' }], ['gideonB', 0, { hat: 'cowboy', packStyle: 'satchel', apron: 'cape', neck: 'chain' }],
+  ['gideonC', 0, { hat: 'tophat', packStyle: 'wings', apron: 'coat', neck: 'bandana' }], ['gideonD', 0, { hat: 'hardhat', packStyle: 'solar', apron: 'toolbelt', neck: 'collar' }],
+  ['gideonE', 0, { hat: 'bucket', packStyle: 'backpack', apron: 'poncho', neck: 'lanyard' }], ['gideonF', 0, { hat: 'crown', packStyle: 'dish', apron: 'harness', neck: 'ascot' }]].filter(l => !ONLY || l[0] === ONLY);
 (async () => {
   const h = await H.open({ rev: REV || null }); await h.boot();
   const res = await h.page.evaluate(async ({ LOOKS, png, S, LOD, DBG }) => {
@@ -57,7 +61,11 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
     const sv = { camX: sc.camX, camY: sc.camY, camZ: sc.camZ, K: sc.K, cx: sc.cx, cy: sc.cy, lod: sc._pLodFix };
     const out = [], pngs = [], dbg = [];
     for(const [name, seed, opts] of LOOKS){
-      const L = name === 'kid' ? Object.assign({ kind: 'kid' }, partyLook(seed, 'kid')) : streetLook(seed, opts);
+      /* (the humanoid robot, Cratewell's line and Gideon: the same drawer in his shell, HUMANOID_SKIN on the uniform -- drawHumanoid's) */
+      const L = name.startsWith('gideon') ? { build: HUMANOID_BUILD, skin: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, hair: HUMANOID_WHITE, shoe: HUMANOID_FOOT, dress: null,
+          uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { hatCol: 0x2f6fb0, outCol: 0xd9892b }, opts) }) }
+        : name === 'humanoid' ? { build: HUMANOID_BUILD, skin: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, hair: HUMANOID_WHITE, shoe: HUMANOID_FOOT, uniform: HUMANOID_SKIN, dress: null }
+        : name === 'kid' ? Object.assign({ kind: 'kid' }, partyLook(seed, 'kid')) : streetLook(seed, opts);
       Object.assign(sc, { camX: 0, camY: 0, camZ: 0, K: S }); sc._roomPerson = true; sc._pLodFix = LOD;
       const Wd = CW*FACES.length, Hd = CH*POSES.length;
       const g = sc.add.graphics(); g.fillStyle(0xf4f1ea, 1); g.fillRect(0, 0, Wd, Hd);

@@ -117268,7 +117268,10 @@ class WorldScene extends Phaser.Scene {
       const PK = { c: RB.pack, dk: _pdk(RB.pack, 0.8) }, PD = { c: _pdk(RB.pack, 0.68), dk: _pdk(RB.pack, 0.52) }, PL = { c: _pmix(RB.pack, 0xffffff, 0.14), dk: RB.pack };
       const MT = { c: 0xb9c0c7, dk: 0x8f969d }, TRIM = RB.band != null ? RB.band : 0xe79a35, Q = (pts, c) => this.quadOn(g, pts, c);
       /* what is farther from his back goes down last when his back is to the eye, first when his front is (it is behind him then) */
-      const run = list => { if(cape) list = [capeDraw].concat(list); if(faceB > 0) list = list.slice().reverse(); for(const f of list) f(); };
+      /* (the pack's own pieces in their own order whichever way he faces -- a base before the case on it, the case before its lid, the far latch
+         first: reversed with his front to the eye, the case was painted over its lid (people_depth.js, Sir, 2026-11-20, "a pass on the humanoid
+         robot"). Only the cape, between his back and the pack, moves: before the pack with his back to the eye, after it with his front) */
+      const run = list => { if(cape && faceB <= 0) capeDraw(); for(const f of list) f(); if(cape && faceB > 0) capeDraw(); };
       /* THE CAPE (his Clothes, 'cape'): from his shoulders down his back, flaring as it falls, a darker hem; his lining shows from the front */
       const capeDraw = () => {
         const OC = RB.outCol != null ? RB.outCol : 0xd9892b, OP = { c: OC, dk: _pdk(OC, 0.78) }, LN = { c: _pmix(OC, 0xffffff, 0.22), dk: _pmix(OC, 0xffffff, 0.04) }, OD = { c: _pdk(OC, 0.7), dk: _pdk(OC, 0.54) }, zt = shoulderH - 1.6, zb = 38;
@@ -117798,16 +117801,19 @@ class WorldScene extends Phaser.Scene {
         const zb = fz + r*(RB ? 0.58 : 0.5), rr = rAt(zb)*1.06 + (RB ? 0 : 1.4), zt = z1, hh = HW.hat, quadC = (pts, c) => this.quadOn(g, pts, c);
         /* THE BILL grows out of the crown's own rim: a fan from the crown's front arc out to a rounded edge, tipped down a touch, with a lip under it
            (it was a separate slab stood on the head) */
-        const bill = (len, top, edge) => { const N = 12, inn = [], out = [], out2 = [];
+        /* (part 'far' / 'near': split round the crown by depth, as the people's caps -- whole, before or after the crown by which way he faced,
+           the half behind the crown lay over it; Sir, 2026-11-20, "a pass on the humanoid robot") */
+        const bill = (len, top, edge, part) => { const N = 12, inn = [], out = [], out2 = [], dep = [];
           for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.8 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
-            inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); }
-          for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
+            inn.push(G(sn2*rr*1.01, c*rr*1.01, zb + 1.4)); out.push(G(sn2*ro, c*ro, zb - 0.5)); out2.push(G(sn2*ro, c*ro, zb - 1.7)); dep.push(sn2*ro*(cs + sn) + c*ro*(cs - sn)); }
+          for(let i = 0; i < N; i++){ if(part && ((dep[i] + dep[i + 1] > 0) !== (part === 'near'))) continue;
+            this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? top.c : _pmix(top.c, top.dk, 0.25));
             this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], edge.dk); }
           /* far side: the head's crown stands in front of it, so it goes down again over the bill */
-          if(faceB < 0 && RB) prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c }); };   // (a person's: the hair is there, and the crown covers the bill)
+          if(!part && faceB < 0 && RB) prism(0, 0, r, r, zj, z1, pSkin, { top: 0.7, edge: false, n: 12, topCol: hullTones(pSkin).c }); };   // (a person's: the hair is there, and the crown covers the bill)
         const grow4 = q => { let cx = 0, cy = 0; for(const p of q){ cx += p.x; cy += p.y; } cx /= 4; cy /= 4; return q.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*0.4, y: p.y + dy/d*0.4 }; }); };
         /* (the peak is on his front: with his back to the eye it is behind the crown, so it goes down first) */
-        if(hh === 'cap'){ const pk = () => bill(7.5, HP2, HP); if(faceB < 0) pk(); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); if(faceB >= 0) pk(); }
+        if(hh === 'cap'){ bill(7.5, HP2, HP, 'far'); prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, n: 12 }); bill(7.5, HP2, HP, 'near'); }
         else if(hh === 'beanie' || hh === 'prop'){ prism(0, 0, rr, rr, zb - 3, zb + 10, HP, { top: 0.74, n: 12 }); prism(0, 0, rr*1.04, rr*1.04, zb - 3, zb + 2, HP2, { n: 12, noTop: true, ring: true });
           if(hh === 'beanie') prism(0, 0, rr*0.3, rr*0.3, zb + 10, zb + 15, HP, { top: 0.7, n: 8 });
           else { prism(0, 0, 1.3, 1.3, zb + 10, zb + 14, ST, { n: 6 }); const bz = zb + 14.4;
@@ -117819,7 +117825,7 @@ class WorldScene extends Phaser.Scene {
         else if(hh === 'antenna' || hh === 'twin'){
           const ant = (ax, h) => { prism(ax, 0, 1.1, 1.1, zt - 3, zt + h, ST, { n: 6 }); prism(ax, 0, 3, 3, zt + h, zt + h + 5, HP, { top: 0.7, n: 8 }); };
           if(hh === 'antenna') ant(0, 22); else { ant(-r*0.4, 20); ant(r*0.4, 15); } }
-        else if(hh === 'visor'){ const pk = () => bill(8.5, HP, HP2); if(faceB < 0) pk(); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); if(faceB >= 0) pk(); }
+        else if(hh === 'visor'){ bill(8.5, HP, HP2, 'far'); prism(0, 0, rr*1.0, rr*1.0, zb - 1, zb + 3.6, HP2, { n: 12, ring: true, noTop: true }); bill(8.5, HP, HP2, 'near'); }
         else if(hh === 'party'){ prism(0, 0, rr*0.76, rr*0.76, zb - 1, zb + 26, HP, { top: 0.08, n: 12 }); prism(0, 0, rr*0.3, rr*0.3, zb + 25, zb + 30, HP2, { top: 0.8, n: 8 }); }
         else if(hh === 'crown'){ prism(0, 0, rr, rr, zb - 1, zb + 6, HP, { n: 12 });
           for(let k = 0; k < 5; k++){ const an = k/5*Math.PI*2 + 0.3; prism(Math.sin(an)*rr*0.82, Math.cos(an)*rr*0.82, 2.6, 2.6, zb + 6, zb + 15, HP, { top: 0.2, n: 6 }); } }
@@ -118172,7 +118178,11 @@ class WorldScene extends Phaser.Scene {
     const quad = (pts, col, al) => T.quadOn(g, pts, col, al == null ? 1 : al);
     const grow = (pts, e) => { let cx = 0, cy = 0; for(const p of pts){ cx += p.x; cy += p.y; } cx /= pts.length; cy /= pts.length;
       return pts.map(p => { const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1; return { x: p.x + dx/d*e, y: p.y + dy/d*e }; }); };
-    const tP = (an, z, l) => { const k = tk(z), q = sp(ra*k, rb*k, an, l || 0); return Gf(q[0], q[1], z); };
+    /* (OV: while what is worn at the neck and the chest goes on, how far the garment over the body stands off it there -- a poncho flaring
+       out, a coat or a vest -- so a scarf, a lanyard, a badge lies on it, not on the body under it; people_depth.js, Sir, 2026-11-20, "a pass
+       on the humanoid robot") */
+    let OV = null;
+    const tP = (an, z, l) => { const k = tk(z), q = sp(ra*k, rb*k, an, (l || 0) + (OV ? OV(an, z) : 0)); return Gf(q[0], q[1], z); };
     const hP = (an, z, l) => { const k = hk(z), q = sp(r*k, r*k, an, l || 0); return Gf(q[0], q[1], z); };
     const tSeen = an => sees3(Math.cos(PI/2 - an)/ra, Math.sin(PI/2 - an)/rb, 0), hSeen = an => sees3(Math.sin(an), Math.cos(an), 0);
     /* cells of a surface between two angles (numbers, or functions of z) and two heights; o: lift, dz, br (extra row breaks), inside, tone, al */
@@ -118469,7 +118479,10 @@ class WorldScene extends Phaser.Scene {
         strip(tP, rb, path.map(([a, z]) => [a, z + 2.9]), 0.7, OL.c, lf + 0.15, 1, tSeen); strip(tP, rb, path.map(([a, z]) => [a, z - 2.9]), 0.7, OD.c, lf + 0.15, 1, tSeen);
         const a0 = -0.9; if(tSeen(a0)){ patch(tP, ell(a0, zm + 5.5 + 16*Math.sin(a0), 0.2, 3.2, 14, 2), 0xd9c27a, lf + 0.6); patch(tP, ell(a0, zm + 5.5 + 16*Math.sin(a0), 0.11, 1.8, 12, 2), OD.c, lf + 0.9); }
       }
-      /* -- the NECK: a scarf, a bow tie, a tie, a bandana, a lanyard, each on the shoulders and chest */
+      /* -- the NECK: a scarf, a bow tie, a tie, a bandana, a lanyard, each on the shoulders and chest -- over what he wears */
+      { const zt2 = shoulderH + 0.3, zb2 = zm - 9;
+        OV = ap === 'poncho' ? ((an, z) => { const u = Math.max(0, Math.min(1, (zt2 - z)/(zt2 - zb2))); return Math.max(0, rb*(1.03 + 0.78*u - tk(z))) + 0.9; })
+           : ap === 'coat' || ap === 'vest' ? ((an, z) => z <= shoulderH - 0.3 ? 1.2 : 0) : null; }
       if(nk === 'scarf'){
         const sz0 = shoulderH - 3.2, sz1 = hz0 + 1.2;
         cone(sz0, sz0 + 3.2, hr*0.82, hr*0.78, OP); cone(sz0 + 3.2, sz1, hr*0.76, hr*0.7, OL);
@@ -118546,6 +118559,7 @@ class WorldScene extends Phaser.Scene {
             if(bd === 'moon') patch(tP, lay(an0, cz, ar, ell(1.7, 0.3, 3.2, 3.2, 18, 2)), mixc(BC, 0x1c1f23, 0.78), lf + 0.6); }
         }
       }
+      OV = null;
     };
     /* a ring of cloth round the neck from z0 to z1, its radius k0 below and k1 above (a scarf, a bandana, a lanyard's loop) */
     const cone = (z0, z1, k0, k1, col) => { const T0 = hullTones(col); for(let i = 0; i < 12; i++){ const t0 = (i + 0.5)/12*PI*2, t1 = (i + 1.5)/12*PI*2, mA = Math.cos((t0 + t1)/2), mB = Math.sin((t0 + t1)/2);
