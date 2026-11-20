@@ -2409,5 +2409,140 @@
    "VANC": 6498,
    "DOG": 3001
   }
+ },
+ "fixtures": {
+  "about": "Room fixtures, by kind, across every walk-in room (node tools/review/consistency.js): the typical (median) solid height and footprint depth -- build a new one to these; the outliers it lists are the inconsistencies to look at.",
+  "norms": {
+   "shelf": {
+    "count": 174,
+    "height": 150,
+    "depth": 30,
+    "heightRange": [
+     60,
+     236
+    ],
+    "rooms": 18
+   },
+   "counter": {
+    "count": 156,
+    "height": 92,
+    "depth": 34,
+    "heightRange": [
+     60,
+     196
+    ],
+    "rooms": 22
+   },
+   "workbench": {
+    "count": 21,
+    "height": 84,
+    "depth": 45,
+    "heightRange": [
+     70,
+     86
+    ],
+    "rooms": 6
+   },
+   "table": {
+    "count": 97,
+    "height": 72,
+    "depth": 40,
+    "heightRange": [
+     36,
+     84
+    ],
+    "rooms": 21
+   },
+   "bench": {
+    "count": 70,
+    "height": 46,
+    "depth": 30,
+    "heightRange": [
+     28,
+     86
+    ],
+    "rooms": 9
+   },
+   "sofa": {
+    "count": 7,
+    "height": 70,
+    "depth": 32,
+    "heightRange": [
+     60,
+     70
+    ],
+    "rooms": 3
+   },
+   "stool": {
+    "count": 39,
+    "height": 50,
+    "depth": 20,
+    "heightRange": [
+     30,
+     60
+    ],
+    "rooms": 6
+   },
+   "locker": {
+    "count": 108,
+    "height": 86,
+    "depth": 16,
+    "heightRange": [
+     86,
+     132
+    ],
+    "rooms": 2
+   },
+   "desk": {
+    "count": 105,
+    "height": 50,
+    "depth": 36,
+    "heightRange": [
+     44,
+     100
+    ],
+    "rooms": 10
+   },
+   "cabinet": {
+    "count": 18,
+    "height": 90,
+    "depth": 32,
+    "heightRange": [
+     90,
+     150
+    ],
+    "rooms": 5
+   },
+   "chair": {
+    "count": 121,
+    "height": 50,
+    "depth": 25,
+    "heightRange": [
+     44,
+     100
+    ],
+    "rooms": 11
+   },
+   "bed": {
+    "count": 1,
+    "height": 50,
+    "depth": 84,
+    "heightRange": [
+     50,
+     50
+    ],
+    "rooms": 1
+   },
+   "wardrobe": {
+    "count": 1,
+    "height": 172,
+    "depth": 36,
+    "heightRange": [
+     172,
+     172
+    ],
+    "rooms": 1
+   }
+  }
  }
 }

@@ -23,6 +23,11 @@ size measured off its own drawing (`measured`: how far it rises on screen, its s
 look function and table with its line in `game/index.html`. To start something new, look up its nearest relative there and build to its
 numbers.
 
+**Hunting inconsistencies:** `node tools/review/consistency.js [room]` measures every walk-in room's fixtures by kind (chairs, stools,
+benches, sofas, tables, desks, counters, workbenches, shelves, cabinets, lockers, beds -- by what their solids are called) and lists the
+ones well off their kind's typical size; the typical sizes go into `library.json` (`fixtures`). A review list, not a gate: a low table or
+a child's desk is meant to differ -- an armchair counted to its back in one room and to its seat in the next is not.
+
 Find a drawer: `grep -n "^  draw<Name>(" game/index.html`; its kind lists and looks are the `const ..._KINDS / _BREEDS / _LOOKS`
 tables. The labs (`labs/`) are where most of them were built and can be opened on their own.
 
