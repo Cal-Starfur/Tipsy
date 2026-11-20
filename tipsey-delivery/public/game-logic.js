@@ -57475,9 +57475,9 @@ function houseCanopy(fn){
     /* ---- THE TOOL CHESTS along the north wall's east end: red roll cabinets, their drawers, a top box ---- */
     { const A0 = GW - 104, A1 = GW - 60, B1c = 36;   // (clear of the side door, GW - 54 on)
       runPiece(items, A0, A1, 0, B1c, 128, (s0, s1) => [solid(s0, s1, 0, B1c, 128, 'tool chests')], () => {
+        for(let k = 0; k < 2; k++) box(A0 + 6 + k*28, A0 + 12 + k*28, B1c - 1, B1c + 2, 0, 6, dark, dark, dark);   // (its castors first, the cabinet on them: W37 foot)
         box(A0, A1, 2, B1c, 6, 100, red, redD, redS);
         for(let z = 18; z < 96; z += 13) F(A0 + 4, A1 - 4, z, z + 2, '#e9e4da', null, 0, B1c + 0.3);
-        for(let k = 0; k < 2; k++) box(A0 + 6 + k*28, A0 + 12 + k*28, B1c - 1, B1c + 2, 0, 6, dark, dark, dark);
         box(A0 + 6, A1 - 22, 6, B1c - 4, 100, 126, red, redD, redS); F(A0 + 10, A1 - 26, 108, 110, '#e9e4da', null, 0, B1c - 3.7);
         box(A1 - 18, A1 - 6, 10, 22, 100, 108, '#3a5f8a', '#2f4f74', '#27425f');                             // a box of sockets
       }); }

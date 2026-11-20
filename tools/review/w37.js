@@ -5,9 +5,12 @@
               it: the bakery's cakes) -- or below it (its own top cut off)
      back     a side face (S) painted at the WEST end of what that piece already drew (a face turned away from the eye, drawn over
               the front: the bakery's case), or a front face (F) at the NORTH side of it
+     foot     a part drawn after one that STANDS ON IT -- a plate, plinth or base under something's foot, wider than it toward the
+              eye, painted second: its top and its near faces land over the foot (Sir, 2026-11-20, Palmline Garage: "the base of
+              this upright is drawing over the vertical piece"). Paint the base first, the thing on it after
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
-   node tools/review/w37.js [room name filter]      exits 1 on any clip or back finding */
+   node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding */
 const H = require('./harness.js');
 let OFF = 0;   // (the lines the instrumentation adds above the rooms: what a served line number is less, in game/index.html)
 const ADD0 = html => html
@@ -60,6 +63,20 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             const pts = before.flatMap(p => p.pts).filter(inR);
             if(pts.some(p => p[1] > bv + 2) && !pts.some(p => p[1] < bv - 2)) found.push({ room: name, kind: 'back', at: [Math.round((q.a0 + q.a1)/2), Math.round(bv)], what: 'F at b ' + bv.toFixed(1) + ' is the north side of what it drew first (line ' + L.line + ')' });
           }
+          /* foot: L drawn after E, L under E's foot (from at or below E's bottom up to no higher than partway up it), their footprints
+             overlapping, L reaching nearer the eye (further east or south) than E: L's top and near faces paint over E's foot */
+          for(const E of before){ const e = E.q;
+            if(!VOL.has(E.n) || !VOL.has(L.n)) continue;
+            if(!(q.a0 < e.a1 - 0.5 && q.a1 > e.a0 + 0.5 && q.b0 < e.b1 - 0.5 && q.b1 > e.b0 + 0.5)) continue;
+            /* (under it: its top at E's bottom -- castors, feet, a plinth; or a plate round its whole footprint, up no higher than partway:
+               the lift post's. Not a band on E's face from the same height -- a kick strip sat in front of it is drawn after, rightly) */
+            const under = q.z1 <= e.z0 + 0.5 && q.z1 >= e.z0 - 2;
+            const plate = q.a0 <= e.a0 + 0.5 && q.a1 >= e.a1 - 0.5 && q.b0 <= e.b0 + 0.5 && q.b1 >= e.b1 - 0.5 && q.z0 <= e.z0 + 0.5 && q.z1 < e.z0 + (e.z1 - e.z0)*0.5;
+            if(!under && !plate) continue;
+            if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
+            const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
+            if(ox > 1 && oy > 1){ found.push({ room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ')' }); break; }
+          }
           /* order: L drawn after E, L behind E (it ends within 5 of E's near start on a or b and reaches well behind it), overlapping on screen */
           for(const E of before){ const e = E.q;
             if(!VOL.has(E.n) || !VOL.has(L.n)) continue;                            // (volumes only: a face on a face is paint)
@@ -78,12 +95,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
   }
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
-  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'error') ? 1 : 0);
+  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'error') ? 1 : 0);
 })();
