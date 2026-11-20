@@ -119480,16 +119480,27 @@ class WorldScene extends Phaser.Scene {
         const cR = build.headR*1.12;
         const peakB = (cap.back ? -1 : 1)*(cR + build.headR*0.55);   // worn backwards (cap.back: the mall's gangsters)
         const drawCrown = () => {
-          prism(0, 0, cR, cR, cz0, cz1, cap, { top: cap.hard ? 0.55 : 0.82, topCol: cap.top, n: 12 });
+          prism(0, 0, cR, cR, cz0, cz1, cap, { top: cap.hard ? 0.55 : 0.82, topCol: cap.top, n: 12 });   // (top: the crown's top against its foot -- the badge reads it, rAt)
           /* badge on the forward face of the crown */
-          const bq = [ G(-cR*0.30, cR*1.005, cz1-2.0), G(cR*0.30, cR*1.005, cz1-2.0),
-                       G(cR*0.30, cR*1.005, cz1-6.5), G(-cR*0.30, cR*1.005, cz1-6.5) ];
+          /* (on the crown's face at each height: a hard hat's crown narrows to its top (0.55), and a badge at the full width stood off it as a tab) */
+          const tp = cap.hard ? 0.55 : 0.82, rAt = z => cR*(1 - (1 - tp)*(z - cz0)/(cz1 - cz0))*0.975,   /* (0.975: the twelve-sided crown is a flat face at the front, cos 15 = 0.966 of its corners) */ zt = cz1 - (cap.hard ? 4.5 : 2.0), zb2 = cz1 - (cap.hard ? 8.5 : 6.5);
+          const bq = [ G(-rAt(zt)*0.30, rAt(zt), zt), G(rAt(zt)*0.30, rAt(zt), zt),
+                       G(rAt(zb2)*0.30, rAt(zb2), zb2), G(-rAt(zb2)*0.30, rAt(zb2), zb2) ];
           if(sees3(0, 1, 0) && !cap.noPeak) this.quadOn(g, bq, cap.badge);   // (only with the cap's front toward the eye: drawn on the far side, it showed through on the back of the cap)
         };
-        const drawPeak = () => box(0, peakB*0.62, cR*0.92, build.headR*0.42,
-                                   cz0 - 0.5, cz0 + 2.0, cap.top, cap.dk, cap.c);
+        const drawPeak = () => capBill(cR, cz0 + 1, { c: cap.top || cap.c, dk: cap.dk }, { c: _pdk(cap.top || cap.c, 0.9), dk: cap.dk }, cap.back ? -1 : 1);
         /* depth of the peak's centre vs the crown's, in the same world
            metric drawWorld sorts on */
+        /* THE BILL (every peaked cap: a hard hat, a postie's, a lifeguard's, a cyclist's helmet, a sailor's, one worn backwards -- Sir,
+           2026-11-20, "i thought we fixed hat brims to not be just a rectangle"; the crew's round cap had it, the rest kept a flat box): grown
+           from the crown's own rim, a fan out to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade. dir -1:
+           worn backwards */
+        const grow4 = q => { let cx = 0, cy = 0; for(const q0 of q){ cx += q0.x; cy += q0.y; } cx /= 4; cy /= 4; return q.map(q0 => { const dx = q0.x - cx, dy = q0.y - cy, d = Math.hypot(dx, dy) || 1; return { x: q0.x + dx/d*0.4, y: q0.y + dy/d*0.4 }; }); };
+        const capBill = (rr, zb, HP, HP2, dir) => { const N = 12, len = build.headR*0.6, inn = [], out = [], out2 = [];                  // (a shorter bill, set a little lower on the crown's rim)
+          for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an)*dir, sn2 = Math.sin(an), ro = rr*1.01 + 0.5 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
+            inn.push(G(sn2*rr*0.97, c*rr*0.97, zb + 0.4)); out.push(G(sn2*ro, c*ro, zb - 1.6)); out2.push(G(sn2*ro, c*ro, zb - 2.8)); }
+          for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
+            this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], HP.dk); } };
         const pw = { x: ax - peakB*0.62*sn, y: ay + peakB*0.62*cs };
         const peakNearer = (pw.x + pw.y) > (ax + ay);
         if(cap.round){
@@ -119497,12 +119508,7 @@ class WorldScene extends Phaser.Scene {
              rounded crown (a twelve-sided prism, its top domed) in the crew orange, and a bill grown from the crown's own rim, a fan out
              to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade -- as Gideon's 'cap' (RB.hat) */
           const rr = cR*0.98, zb = cz0 + 1, HP = { c: cap.c, dk: cap.dk }, HP2 = { c: _pdk(cap.c, 0.84), dk: _pdk(cap.c, 0.64) };
-          const grow4 = q => { let cx = 0, cy = 0; for(const q0 of q){ cx += q0.x; cy += q0.y; } cx /= 4; cy /= 4; return q.map(q0 => { const dx = q0.x - cx, dy = q0.y - cy, d = Math.hypot(dx, dy) || 1; return { x: q0.x + dx/d*0.4, y: q0.y + dy/d*0.4 }; }); };
-          const bill = () => { const N = 12, len = build.headR*0.6, inn = [], out = [], out2 = [];                  // (a shorter bill, set a little lower on the crown's rim)
-            for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an), sn2 = Math.sin(an), ro = rr*1.01 + 0.5 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
-              inn.push(G(sn2*rr*0.97, c*rr*0.97, zb + 0.4)); out.push(G(sn2*ro, c*ro, zb - 1.6)); out2.push(G(sn2*ro, c*ro, zb - 2.8)); }
-            for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
-              this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], HP.dk); } };
+          const bill = () => capBill(rr, zb, HP, HP2, 1);
           const crown = () => { prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, topCol: cap.top, n: 12 });
             if(sees3(0, 1, 0)){ const bq = [G(-rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 2.8), G(-rr*0.30, rr*1.005, zb + 2.8)]; this.quadOn(g, bq, cap.badge); } };
           if(peakNearer){ crown(); bill(); } else { bill(); crown(); }
