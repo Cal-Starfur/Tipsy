@@ -11,7 +11,9 @@
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
    node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding
-     --png <dir>   each foot finding's piece drawn alone, 4x, the base outlined red and what stands on it blue: <dir>/foot_N.png */
+     --png <dir>   each foot finding's piece drawn alone, 4x, and marked up (<dir>/foot_N_marked.png): the spot circled on the whole
+                   piece, beside a close-up of it -- what stands there outlined blue, the base drawn after it red, and where the base
+                   paints over its foot filled magenta */
 const H = require('./harness.js');
 let OFF = 0;   // (the lines the instrumentation adds above the rooms: what a served line number is less, in game/index.html)
 const ADD0 = html => html
@@ -49,9 +51,15 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const outline = (q, c) => { const C = [[q.a0, q.b0], [q.a1, q.b0], [q.a1, q.b1], [q.a0, q.b1]]; g4.lineStyle(2, c, 1);
         for(const z of [q.z0, q.z1]){ g4.beginPath(); C.forEach(([a, b], k) => { const p = G4(a, b, z); k ? g4.lineTo(p.x, p.y) : g4.moveTo(p.x, p.y); }); g4.closePath(); g4.strokePath(); }
         for(const [a, b] of C){ const p = G4(a, b, q.z0), r = G4(a, b, q.z1); g4.lineBetween(p.x, p.y, r.x, r.y); } };
-      outline(qE, 0x2060ff); outline(qL, 0xff2020);
+      const hullOf = q => { const pts = []; for(const a of [q.a0, q.a1]) for(const b of [q.b0, q.b1]) for(const z of [q.z0, q.z1]) pts.push(G4(a, b, z));
+        pts.sort((p, r) => p.x - r.x || p.y - r.y); const cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+        for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+        for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+        lo.pop(); hi.pop(); return lo.concat(hi); };
+      const hE = hullOf(qE), hL = hullOf(qL), ov = clipConvex(hL.map(p => ({ x: p.x, y: p.y })), hE.map(p => ({ x: p.x, y: p.y }))) || [];
       const key = '__w37foot' + (nShot++); g4.generateTexture(key, w, hh); g4.destroy();
-      const data = sc.textures.getBase64(key); sc.textures.remove(key); return data; };
+      const data = sc.textures.getBase64(key); sc.textures.remove(key);
+      return { data, ov: ov.map(p => [Math.round(p.x), Math.round(p.y)]), hE: hE.map(p => [Math.round(p.x), Math.round(p.y)]), hL: hL.map(p => [Math.round(p.x), Math.round(p.y)]) }; };
     const rooms = [...new Set(POCKETS.filter(p => p.walkin).map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));
     for(const name of rooms){
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
@@ -112,7 +120,10 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
     return { rooms: rooms.length, found };
   }, [want, PNG]);
   if(PNG){ const fs = require('fs'), path = require('path'); fs.mkdirSync(PNG, { recursive: true }); let k = 0;
-    for(const f of out.found) if(f.png){ const fn = path.join(PNG, 'foot_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.split(',')[1], 'base64')); f.what += '  -> ' + fn; delete f.png; } }
+    for(const f of out.found) if(f.png){ const fn = path.join(PNG, 'foot_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.data.split(',')[1], 'base64'));
+      fs.writeFileSync(fn.replace(/\.png$/, '.json'), JSON.stringify({ room: f.room, at: f.at, what: f.what, ov: f.png.ov, hE: f.png.hE, hL: f.png.hL })); f.what += '  -> ' + fn; delete f.png; }
+    /* (and each one marked up: tools/review/w37_mark.py -- the piece with the spot circled, beside a close-up, the base's paint over the foot filled) */
+    try { require('child_process').execSync('python3 ' + JSON.stringify(path.join(__dirname, 'w37_mark.py')) + ' ' + JSON.stringify(PNG), { stdio: 'inherit' }); } catch(e){ console.log('(w37_mark.py: ' + e.message + ')'); } }
   const fix = t => t.replace(/\(line (\d+)\)/, (m, n) => '(line ' + (+n - OFF) + ')');
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
