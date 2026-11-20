@@ -31180,16 +31180,19 @@ walkinLife(PG_IN.name, { keep: [[210, 330, 0, 760]], looks: [
      a 440..640, b 400..520 the waiting room: a sofa, armchairs, a low table, palms */
 const PS_IN = { name: 'Palmline Savings Interior', x0: 760000, y0: 400000, WALL: 30/1.3, WW: PS_WW, DD: PS_DD, REC: 66, H: 530, LH: 66,   // (H 530: a lintel of wall over its 468-high door -- at 480 the wall's cap crossed the door's head on screen)
   DOOR: [PS_WW/2 - 48.5, PS_WW/2 + 48.5], DOORZ: 240*1.95,   // (the opening as high as the door's leaves: they are its full 240, the top light in them)
-  VAULT: { a1: 300, b0: 360, door: [410, 510], h: 92 } };   // (its door in its EAST wall, b 410..510, shut: it faces the camera)
+  VAULT: { a1: 300, b0: 360, door: [410, 510], h: 92 },
+  /* (THE ROOM BIGGER THAN THE BANK, W31 -- Sir, 2026-11-20: "lets make the bank bigger so its not so croweded": 850 x 760, east over the tea
+     house's west end and south into the block; BW the bank's own width inside, where its front's door, cash machines and sign stay) */
+  RW: 850, RD: 760, BW: 710, DX: 140, DY: 130 };   // (DX, DY: how far the desks and the waiting room moved east and south into the new floor)   // (its door in its EAST wall, b 410..510, shut: it faces the camera)
 const PS_PLAN = walkinDefine({ name: PS_IN.name, from: 'Palmline Savings', x0: PS_IN.x0, y0: PS_IN.y0,
-  lab: [PS_IN.WALL, PS_IN.WW - PS_IN.WALL, -(PS_IN.DD - PS_IN.WALL), -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
+  lab: [PS_IN.WALL, PS_IN.WALL + PS_IN.RW/1.3, -(PS_IN.REC + PS_IN.WALL) - PS_IN.RD/1.3, -(PS_IN.REC + PS_IN.WALL)], body: ['lot'],
   door: { a: PS_IN.WW/2, b: -PS_IN.REC, half: (PS_IN.DOOR[1] - PS_IN.DOOR[0])/2*1.3, side: 'n', top: PS_IN.DOORZ },
   H: PS_IN.H, LH: PS_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out under the portico onto the north pavement, along it either way) */
   street: { to: [0, -270], routes: [[[-1500, -270], [-3600, -270]], [[1500, -270], [3600, -270]]] },
   /* (seen through, W11: the doorway, the door kit's pair in it) */
   openings: [{ lab: [[PS_IN.DOOR[0], -PS_IN.REC], [PS_IN.DOOR[1], -PS_IN.REC]], z: [0, 240] }] });
-POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books', 'Palmline Garage'];   // (W26: the tea house and the bookshop round the corner, the garage beside it, over its walls and floor on screen)
+POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Driftwood Books', 'Palmline Garage', 'Marina Optical', 'Surfside Fitness', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];   // (850 x 760: the shops south of it stand over its south corners on screen too)   // (W26: the tea house and the bookshop round the corner, the garage beside it, over its walls and floor on screen)
 /* (W31/W36: displaced -- the tea house's and the bookshop's rooms and their staff walking to work are not drawn over the hall) */
 POCKETS[POCKETS.length - 1].displace = true;
 /* THE BANK'S PEOPLE (shop recipe 7, W33): their own looks, set by hand (lookFn) -- a bank's dress, white shirts and the bank's sea-grey:
@@ -31214,10 +31217,10 @@ const PS_FAMILY = (() => {
    wait in an armchair first. What they leave with goes out of the door with them (pose.hold / drawState: WALKIN_STREET), and nothing before
    it is handed over (m.done) */
 const PS_SEATS = [
-  { id: 'desk1', stand: [606, 126, Math.PI], at: [575, 124], th: -Math.PI/2, z: 42, desk: true },
-  { id: 'desk2', stand: [606, 296, Math.PI], at: [575, 294], th: -Math.PI/2, z: 42, desk: true },
-  { id: 'chairW', stand: [420, 474, -Math.PI/2], at: [423, 441], th: 0, z: 34 },
-  { id: 'chairE', stand: [620, 474, -Math.PI/2], at: [617, 441], th: Math.PI, z: 34 },
+  { id: 'desk1', stand: [746, 126, Math.PI], at: [715, 124], th: -Math.PI/2, z: 42, desk: true },
+  { id: 'desk2', stand: [746, 296, Math.PI], at: [715, 294], th: -Math.PI/2, z: 42, desk: true },
+  { id: 'chairW', stand: [570, 604, -Math.PI/2], at: [573, 571], th: 0, z: 34 },
+  { id: 'chairE', stand: [770, 604, -Math.PI/2], at: [767, 571], th: Math.PI, z: 34 },
 ];
 function psHold(s){
   if(s._psH && s._psH.v === s.visit) return s._psH;
@@ -31281,14 +31284,14 @@ walkinStaff(PS_IN.name, [
   { id: 'teller-1', role: 'bank teller', seed: 0x5a01, lookFn: () => PS_FAMILY.june, fixed: true, posts: [[84, 70, 0, 9000, true], [70, 96, -0.4, 3000, true]] },
   { id: 'teller-2', role: 'bank teller', seed: 0x5a02, lookFn: () => PS_FAMILY.ravi, fixed: true, posts: [[84, 150, 0, 8000, true], [70, 124, 0.4, 2600, true]] },
   { id: 'teller-3', role: 'bank teller', seed: 0x5a05, lookFn: () => PS_FAMILY.tess, fixed: true, posts: [[84, 230, 0, 8600, true], [70, 256, -0.3, 2800, true]] },
-  { id: 'officer', role: 'bank manager', seed: 0x5a03, lookFn: () => PS_FAMILY.eleanor, fixed: true, posts: [[575, 40, Math.PI/2, 9000, true]] },
-  { id: 'officer-2', role: 'loan officer', seed: 0x5a06, lookFn: () => PS_FAMILY.marcus, fixed: true, posts: [[575, 210, Math.PI/2, 9000, true]] },
-  { id: 'guard', role: 'bank guard', seed: 0x5a04, lookFn: () => PS_FAMILY.frank, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 440, -Math.PI/4, 5000, true]] },
+  { id: 'officer', role: 'bank manager', seed: 0x5a03, lookFn: () => PS_FAMILY.eleanor, fixed: true, posts: [[575 + PS_IN.DX, 40, Math.PI/2, 9000, true]] },
+  { id: 'officer-2', role: 'loan officer', seed: 0x5a06, lookFn: () => PS_FAMILY.marcus, fixed: true, posts: [[575 + PS_IN.DX, 210, Math.PI/2, 9000, true]] },
+  { id: 'guard', role: 'bank guard', seed: 0x5a04, lookFn: () => PS_FAMILY.frank, keys: true, posts: [[460, 30, Math.PI/2, 9000, true], [360, 520, -Math.PI/4, 5000, true]] },
   { id: 'customer-1', role: 'customer', seed: 0x5a11, look: 'visitor', life: 'browse', only: ['window'] },
   { id: 'customer-2', role: 'customer', seed: 0x5a12, look: 'visitor', life: 'browse', only: ['window'] },
   { id: 'customer-3', role: 'customer', seed: 0x5a13, look: 'visitor', life: 'browse', only: ['window'] },
 ]);
-walkinLife(PS_IN.name, { keep: [[288, 422, 0, 582]], looks: [
+walkinLife(PS_IN.name, { keep: [[288, 422, 0, 760]], looks: [
   { id: 'window', spots: [[186, 70, Math.PI], [186, 150, Math.PI], [186, 230, Math.PI]] },
 ], browseNext: psBrowseNext, pose: psPose, drawState: psDrawState });
 /* ==================== TIDEWATER TEA HOUSE, WALK-IN (wi-tidewater-tea-house; the room: the LIB entry 'Tidewater Tea House Interior') ====================
@@ -59105,14 +59108,14 @@ function houseCanopy(fn){
   /* INSIDE PALMLINE SAVINGS (PS_IN; the walk-in kit's walls, walkinRoom, its door on the portico's back wall in the north wall). Frame
      a east, b south, z up, world units. Long pieces in runs (runPiece, W28) */
   name:'Palmline Savings Interior', xh: 480, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
-  ww: 710, dd: 582,
+  ww: 850, dd: 760,
   head:'Inside Palmline Savings: a marble banking hall, the tellers\' counter, the vault, loan desks and a waiting room',
   tags:['interior','pocket','bank','tellers','vault','marble'],
   desc:'The Flats\' bank: a tall limestone hall with a sea-grey dado and pilasters and a chequered marble floor; the tellers\' counter of dark wood and glass down the west side; behind it the vault, its round steel door shut, safe-deposit boxes on its wall and the cash cart and the gold inside; two loan desks and a waiting room with a sofa and palms.',
   draw(p){
     const pl = (typeof PS_PLAN !== 'undefined' && PS_PLAN) || null;
     if(pl) pl.view();
-    const W = (pl && pl.W) || 710, D = (pl && pl.D) || 582, H = PS_IN.H, LH = PS_IN.LH, DZ = PS_IN.DOORZ, V = PS_IN.VAULT;
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 760, H = PS_IN.H, LH = PS_IN.LH, DZ = PS_IN.DOORZ, V = PS_IN.VAULT, BW = PS_IN.BW, DX = PS_IN.DX, DY = PS_IN.DY;
     const door = (pl && pl.door) || { side: 'n', at: 355, half: 63 };
     const stone = '#f0ece2', stoneD = '#dcd6c8', stoneS = '#c9c2b2', trim = '#6f8f96', trimD = '#56737a';
     const wood = '#5c3b26', woodF = '#4a2f1e', woodS = '#3b2518', brass = '#c9a24a', brassD = '#a8862f';
@@ -59129,7 +59132,7 @@ function houseCanopy(fn){
       if((i + j) % 2 === 0) T(a, Math.min(a + C, W - 12), b, Math.min(b + C, D - 12), 0.2, marbleA);
     for(const [a0, a1, b0, b1] of [[0, W, 0, 12], [0, W, D - 12, D], [0, 12, 0, D], [W - 12, W, 0, D]]) T(a0, a1, b0, b1, 0.25, '#b9b2a2');
     T(0, V.a1, V.b0, D, 0.3, '#8e969a'); for(let a = 40; a < V.a1; a += 40) T(a - 0.8, a + 0.8, V.b0, D, 0.35, '#7d858a');
-    T(400, 660, 380, 540, 0.3, '#7a3a3a'); T(408, 652, 388, 532, 0.35, '#8e4646');                                  // the waiting room's rug
+    T(400 + DX, 660 + DX, 380 + DY, 540 + DY, 0.3, '#7a3a3a'); T(408 + DX, 652 + DX, 388 + DY, 532 + DY, 0.35, '#8e4646');                                  // the waiting room's rug
     /* THE PORTICO'S FLOOR, from the door out to the pavement (Sir, 2026-11-19: "the banks interior isn't making it to the sidewalk ... sand
        colored squares outside of the door"): the bank's own building is off while he is inside (displace), its portico with it, so the room
        lays the portico's stone itself -- its width, from the wall out to the pavement line (lab b 0: the floor's north edge is lab -(REC +
@@ -59150,20 +59153,20 @@ function houseCanopy(fn){
       paintN: () => {
         F(-30, W + 30, 0, H, stone, null, 0, 0);
         F(-30, W + 30, 0, 80, trim, null, 0, 0.1); F(-30, W + 30, 80, 86, trimD, null, 0, 0.2);
-        for(const a of [24, 190, door.at - door.half - 40, door.at + door.half + 40, W - 190, W - 24]) { F(a - 12, a + 12, 86, H - 30, stoneD, null, 0, 0.2); F(a - 16, a + 16, H - 34, H - 22, stoneS, null, 0, 0.3); }
+        for(const a of [24, 190, door.at - door.half - 40, door.at + door.half + 40, BW - 190, BW - 24, W - 24]) { F(a - 12, a + 12, 86, H - 30, stoneD, null, 0, 0.2); F(a - 16, a + 16, H - 34, H - 22, stoneS, null, 0, 0.3); }
         F(-30, W + 30, H - 22, H, stoneD, null, 0, 0.3);
         F(door.at - door.half - 10, door.at - door.half, 0, DZ + 10, stoneS, null, 0, 0.3); F(door.at + door.half, door.at + door.half + 10, 0, DZ + 10, stoneS, null, 0, 0.3);
         F(door.at - door.half - 10, door.at + door.half + 10, DZ, DZ + 10, stoneS, null, 0, 0.3);
         /* the bank's name on a mounted board high between the east pilasters, over the cash machines (Sir, 2026-11-20: painted on the wall "it
            doesnt look good"): sea-grey, a brass border, brass letters */
-        { const s0 = W - 178, s1 = W - 36, z0 = 362, z1 = 412;
+        { const s0 = BW - 178, s1 = BW - 36, z0 = 362, z1 = 412;
           F(s0 - 4, s1 + 4, z0 - 4, z1 + 4, brassD, null, 0, 0.5); F(s0, s1, z0, z1, trimD, null, 0, 0.6); F(s0 + 3, s1 - 3, z0 + 3, z1 - 3, trim, null, 0, 0.65);
           blockWordIn('PALMLINE', s0 + 10, s1 - 10, z0 + 27, z1 - 7, 0.7, brass, null, 2.6); blockWordIn('SAVINGS', s0 + 18, s1 - 18, z0 + 8, z0 + 23, 0.7, brass, null, 2.2); }
         /* the clock between the pilasters, west of the door */
         { const ca = 107, cz = 300, pts = [], pin = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(ca + Math.cos(t)*30, 0.5, cz + Math.sin(t)*30)); pin.push(P(ca + Math.cos(t)*25, 0.6, cz + Math.sin(t)*25)); }
           poly(pts, brass); poly(pin, '#fbf8f0'); tube(ca, 0.7, cz, ca, 0.7, cz + 18, 1.4, '#2b2f34'); tube(ca, 0.7, cz, ca + 13, 0.7, cz, 1.4, '#2b2f34'); }
         /* two cash machines in the wall east of the door */
-        for(const ma of [W - 150, W - 100]){ F(ma - 20, ma + 20, 40, 190, '#3b4248', null, 0, 0.4); F(ma - 14, ma + 14, 120, 170, '#7fb6d0', null, 0, 0.5); F(ma - 14, ma + 14, 90, 110, '#596067', null, 0, 0.5); }
+        for(const ma of [BW - 150, BW - 100]){ F(ma - 20, ma + 20, 40, 190, '#3b4248', null, 0, 0.4); F(ma - 14, ma + 14, 120, 170, '#7fb6d0', null, 0, 0.5); F(ma - 14, ma + 14, 90, 110, '#596067', null, 0, 0.5); }
       },
       paintW: () => {
         S(0, -30, D + 30, 0, H, shade(stone, 0.94));
@@ -59226,33 +59229,36 @@ function houseCanopy(fn){
       for(const tb of [70, 150, 230]) items.push({ a: A1, b: tb, z: lcOnZ(B0, B1, 44, tb - 12, tb + 12, tb), fpLab: { a0: A0 + 4, a1: A0 + 26, b0: tb - 12, b1: tb + 12, z1: 122 }, solids: [], draw: () => {
         box(A0 + 4, A0 + 26, tb - 12, tb + 12, 104, 122, '#2b3138', '#23282e', '#1c2025'); } }); }
 
-    /* ---- TWO LOAN DESKS: dark wood, a banker's lamp and a screen (to the officer), a chair before each ---- */
-    for(const [B0, B1] of [[60, 96], [230, 266]]){ const A0 = 540, A1 = 610;
+    /* ---- TWO LOAN DESKS (moved DX east into the bigger room): dark wood, a banker's lamp and a screen (to the officer), a chair before each ---- */
+    for(const [B0, B1] of [[60, 96], [230, 266]]){ const A0 = 540 + DX, A1 = 610 + DX;
       runPiece(items, A0, A1, B0, B1, 76, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
         box(A0, A1, B0, B1, 0, 70, wood, woodF, woodS); box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 70, 76, '#6e4a31', '#5c3b26', '#4a2f1e');
       });
       /* (what stands on it, each its own piece keyed on its middle line after the run it stands on: the screen, the banker's lamp, the papers) */
       const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
-      on(579, [566, 592, B0 + 4, B0 + 10, 100], () => box(566, 592, B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025'));
-      on(552, [544, 560, B0 + 8, B0 + 20, 112], () => { cyl(552, B0 + 14, 76, 104, 1.6, brass); box(544, 560, B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33'); });
-      on(603, [598, 608, B1 - 18, B1 - 6, 80], () => box(598, 608, B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2'));
+      on((579 + DX), [(566 + DX), (592 + DX), B0 + 4, B0 + 10, 100], () => box((566 + DX), (592 + DX), B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025'));
+      on((552 + DX), [(544 + DX), (560 + DX), B0 + 8, B0 + 20, 112], () => { cyl((552 + DX), B0 + 14, 76, 104, 1.6, brass); box((544 + DX), (560 + DX), B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33'); });
+      on((603 + DX), [(598 + DX), (608 + DX), B1 - 18, B1 - 6, 80], () => box((598 + DX), (608 + DX), B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2'));
       const cb = B1 + 30;
-      items.push({ a: 575, b: cb, z: 0, solids: [{ name: 'chair', c: [575, cb], r: 14, h: 80 }], draw: () => {
-        for(const [la, lb] of [[-10, -8], [10, -8], [-10, 8], [10, 8]]) box(575 + la - 1.5, 575 + la + 1.5, cb + lb - 1.5, cb + lb + 1.5, 0, 40, woodS, woodS, woodS);
-        box(563, 587, cb - 12, cb + 12, 40, 46, '#7a2a2a', '#5e2020', '#4a1a1a'); box(563, 587, cb + 8, cb + 12, 46, 84, wood, woodF, woodS); } });
+      items.push({ a: (575 + DX), b: cb, z: 0, solids: [{ name: 'chair', c: [(575 + DX), cb], r: 14, h: 80 }], draw: () => {
+        for(const [la, lb] of [[-10, -8], [10, -8], [-10, 8], [10, 8]]) box((575 + DX) + la - 1.5, (575 + DX) + la + 1.5, cb + lb - 1.5, cb + lb + 1.5, 0, 40, woodS, woodS, woodS);
+        box((563 + DX), (587 + DX), cb - 12, cb + 12, 40, 46, '#7a2a2a', '#5e2020', '#4a1a1a'); box((563 + DX), (587 + DX), cb + 8, cb + 12, 46, 84, wood, woodF, woodS); } });
     }
 
-    /* ---- THE WAITING ROOM on its rug: a sofa facing north, two armchairs, a low table, two palms in brass pots ---- */
-    { const leather = '#2f4a5a', leatherF = '#263d4a', leatherS = '#1f323d';
-      runPiece(items, 440, 600, 490, 522, 70, (s0, s1) => [solid(s0, s1, 490, 522, 70, 'sofa')], () => {
-        box(440, 600, 490, 522, 0, 34, leather, leatherF, leatherS); box(440, 600, 506, 522, 34, 70, leather, leatherF, leatherS);
-        box(440, 452, 490, 522, 34, 52, leather, leatherF, leatherS); box(588, 600, 490, 522, 34, 52, leather, leatherF, leatherS); });
-      runPiece(items, 470, 570, 420, 456, 40, (s0, s1) => [solid(s0, s1, 420, 456, 40, 'low table')], () => {
-        box(470, 570, 420, 456, 30, 36, '#6e4a31', '#5c3b26', '#4a2f1e'); for(const [la, lb] of [[474, 424], [566, 424], [474, 452], [566, 452]]) box(la - 2, la + 2, lb - 2, lb + 2, 0, 30, woodS, woodS, woodS);
-        box(500, 530, 430, 446, 36, 40, '#e9e4da', '#d6d1c6', '#c4bfb4'); });
-      for(const ca of [420, 620]) items.push({ a: ca, b: 440, z: 0, solids: [{ name: 'armchair', c: [ca, 440], r: 18, h: 70 }], draw: () => {
-        box(ca - 18, ca + 18, 422, 458, 0, 34, leather, leatherF, leatherS); box(ca < 500 ? ca - 18 : ca + 6, ca < 500 ? ca - 6 : ca + 18, 422, 458, 34, 68, leather, leatherF, leatherS); } });
-      for(const [pa, pb] of [[640, 360], [420, 360]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'palm', c: [pa, pb], r: 14, h: 120 }], draw: () => {
+    /* ---- THE WAITING ROOM on its rug (moved DX east and DY south into the bigger room): a sofa facing north, two armchairs, a low table, two
+       palms in brass pots ---- */
+    { const leather = '#2f4a5a', leatherF = '#263d4a', leatherS = '#1f323d', a = x => x + DX, b = y => y + DY;
+      runPiece(items, a(440), a(600), b(490), b(522), 70, (s0, s1) => [solid(s0, s1, b(490), b(522), 70, 'sofa')], () => {
+        box(a(440), a(600), b(490), b(522), 0, 34, leather, leatherF, leatherS); box(a(440), a(600), b(506), b(522), 34, 70, leather, leatherF, leatherS);
+        box(a(440), a(452), b(490), b(522), 34, 52, leather, leatherF, leatherS); box(a(588), a(600), b(490), b(522), 34, 52, leather, leatherF, leatherS); });
+      runPiece(items, a(470), a(570), b(420), b(456), 40, (s0, s1) => [solid(s0, s1, b(420), b(456), 40, 'low table')], () => {
+        for(const [la, lb] of [[474, 424], [566, 424]]) box(a(la) - 2, a(la) + 2, b(lb) - 2, b(lb) + 2, 0, 30, woodS, woodS, woodS);   // (the back legs first, then the top, the front legs over -- W37)
+        box(a(470), a(570), b(420), b(456), 30, 36, '#6e4a31', '#5c3b26', '#4a2f1e');
+        for(const [la, lb] of [[474, 452], [566, 452]]) box(a(la) - 2, a(la) + 2, b(lb) - 2, b(lb) + 2, 0, 30, woodS, woodS, woodS);
+        box(a(500), a(530), b(430), b(446), 36, 40, '#e9e4da', '#d6d1c6', '#c4bfb4'); });
+      for(const ca of [a(420), a(620)]) items.push({ a: ca, b: b(440), z: 0, solids: [{ name: 'armchair', c: [ca, b(440)], r: 18, h: 70 }], draw: () => {
+        box(ca - 18, ca + 18, b(422), b(458), 0, 34, leather, leatherF, leatherS); box(ca < a(500) ? ca - 18 : ca + 6, ca < a(500) ? ca - 6 : ca + 18, b(422), b(458), 34, 68, leather, leatherF, leatherS); } });
+      for(const [pa, pb] of [[a(640), b(360)], [a(420), b(360)]]) items.push({ a: pa, b: pb, z: 0, solids: [{ name: 'palm', c: [pa, pb], r: 14, h: 120 }], draw: () => {
         cyl(pa, pb, 0, 28, 14, brass, brassD); tube(pa, pb, 28, pa, pb, 70, 2, '#6b5a3a');
         for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2; tube(pa, pb, 70, pa + Math.cos(t)*26, pb + Math.sin(t)*20, 58, 2.6, k % 2 ? '#4f7a4a' : '#5f8f58'); } } });
     }
