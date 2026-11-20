@@ -119564,8 +119564,8 @@ class WorldScene extends Phaser.Scene {
          (the face is forward, b, and only drawn when it is toward the eye) */
       if(uniform && uniform.beanie){
         const bn = uniform.beanie, r = build.headR*1.12;
-        prism(0, 0, r*0.98, r*0.98, z0 + (z1 - z0)*0.62, z1 + 6, bn, { top: 0.55, n: 12 });
-        prism(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, { c: bn.dk, dk: _pdk(bn.dk, 0.8) }, { noTop: true });
+        prism(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.62, z1 + 6, bn, { top: 0.52, n: 12 });   // (its foot the band's width, so the band's top meets it -- narrower, the band's corners stood out beside it as tabs)
+        prism(0, 0, r*1.04, r*1.04, z0 + (z1 - z0)*0.48, z0 + (z1 - z0)*0.66, { c: bn.dk, dk: _pdk(bn.dk, 0.8) }, { noTop: true, ring: true, n: 12 });   // (the turned-up band: a ring round the crown, only its faces toward the eye -- filled, its hull lay over the crown above it as a disc, Sir, 2026-11-20, "the base of this hat is still drawing through the top")
       }
       /* A PARTY HAT (Shelly's): a cone on the crown, its pompom */
       if(uniform && uniform.partyHat){
