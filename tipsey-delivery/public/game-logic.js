@@ -117463,10 +117463,18 @@ class WorldScene extends Phaser.Scene {
         /* (its length the bend's: the corner between two arms of half-width w turned by the bend is filled by a piece w*tan(bend/2) each way --
            a fixed 0.9 w stuck out past both as a lump at the elbow, Sir, 2026-11-20, "the elbow piece ... still causing issues") */
         const hingeL = elbowW*Math.min(1.1, Math.tan(Math.abs(bend)/2)) + 0.3;
-        if(!far && front) limb(shoulderAx, along(E, ang + bend/2, -hingeL), along(E, ang + bend/2, hingeL), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
+        /* (with the sleeve: in the far arm's 'back' half, behind the torso -- drawn with the forearm in front of it, it stuck out beside the
+           forearm's root, Sir, 2026-11-20, "the far elbow ie not aligned properly") */
+        if(!far && back) limb(shoulderAx, along(E, ang + bend/2, -hingeL), along(E, ang + bend/2, hingeL), elbowW*0.98, elbowW*0.98, hingeP.c, hingeP.dk, 1, 0);
         const atHead = !!(pose && (pose.armLate || pose.armsLate));
-        const fore = () => { limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);   // the hand, from the wrist: FIRST -- it is lower, and its filled top (the hull of its two ends) is covered by the forearm that is drawn over it (rule 2c)
-                             limb(shoulderAx, atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0); };   // (atHead: from just out of the elbow, its round end inside the upper arm, not past its outside)   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
+        /* (the hand first -- it is lower, and its filled top is covered by the forearm drawn over it (rule 2c) -- unless the forearm points toward
+           the eye: then the hand is the nearer and goes on after it, or the forearm's end covered the hand's root as a disc across the wrist
+           (Sir, 2026-11-20, "the hand a lower arm have a draw order face issue")) */
+        const handOut = sees3(0, Hd[0] - E[0], Hd[1] - E[1]);
+        const fore = () => { const hand = () => limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);
+                             if(!handOut) hand();
+                             limb(shoulderAx, atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
+                             if(handOut) hand(); };   // (atHead: from just out of the elbow, its round end inside the upper arm, not past its outside)   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
         const raised = Math.abs(ang) > RAISED;
         const upper = () => limb(shoulderAx, raised ? ext(S, E, 3) : RB ? S : along(S, ang, SLV0), ext(E, S, ELB), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0);
         /* the sleeve's hem: it wraps the forearm's root where it runs up into the sleeve (the forearm nearer, that root painted a skin patch
@@ -117480,7 +117488,13 @@ class WorldScene extends Phaser.Scene {
         if(!front){ upper(); return raised ? false : undefined; }                       // (the 'back' half: the sleeve, its shoulder by arm())
         /* (a forearm across the elbow's front hides the sleeve's end: no hem there -- drawn under it, its band stood out round the forearm's root as a
            dark lump, Sir, 2026-11-20, "the elbow piece ... still causing issues") */
-        if(!back){ if(crosses) fore(); else { fore(); hem(); } }                // (the 'front' half, over the torso)
+        /* (the far arm lifted toward the eye, its 'front' half: the sleeve's lower part too, where it has come out past the body's front --
+           with all of the sleeve behind the torso the forearm stood out of nothing, its elbow off the sleeve's end, Sir, 2026-11-20, "the far
+           elbow ie not aligned properly") */
+        const upperOut = () => { const sa = Math.sin(ang), L0 = sa > 0.01 ? (build.torsoD/2)/sa : 1e9; if(raised || L0 >= sleeveLen - 1) return;
+          const t0 = Math.max(SLV0, L0)/sleeveLen, w0 = build.armW*sleeveW*(1 - 0.14*t0);
+          limb(shoulderAx, along(S, ang, Math.max(SLV0, L0)), ext(E, S, ELB), w0, w0, pSleeve.c, pSleeve.dk, 0.86/(1 - 0.14*t0), 0); };
+        if(!back){ upperOut(); if(crosses) fore(); else { fore(); hem(); } }                // (the 'front' half, over the torso)
         else if(foreNear){ upper(); if(crosses) fore(); else { fore(); hem(); } } else { fore(); upper(); hem(); }
         aidHand(side, shoulderAx, Hd, ang + bend, E);
         if(raised) return false;
