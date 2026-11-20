@@ -3,7 +3,9 @@
    footprint's short and long sides -- against the same kind everywhere else: the typical (median) of each kind, and every one well
    off it (over 25% in height, or 40% in its footprint's short side), listed. Writes the typical sizes into docs/kits/library.json
    (fixtures) so a new room builds to them.
-   node tools/review/consistency.js [room filter]      prints the outliers; exits 0 (a review list, not a gate) */
+   node tools/review/consistency.js [room filter] [--all]      prints the outliers; exits 0 (a review list, not a gate). The walk-ins by
+   default -- the rooms held to the standards, whose sizes are the typical ones written to library.json; --all takes the older rooms too
+   (docs/queue.md), and writes nothing */
 const H = require('./harness.js'), fs = require('fs'), path = require('path');
 const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving bench|bench top/], ['locker', /locker/], ['wardrobe', /wardrobe/],
   ['chair', /\bchairs?\b|armchair/], ['stool', /stool/], ['bench', /bench|pew/], ['sofa', /sofa|couch|settee/],
@@ -12,9 +14,9 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
 (async () => {
   const want = process.argv.slice(2).find((a, i, A) => !a.startsWith('--') && A[i - 1] !== '--kind') || '';
   const h = await H.open(); await h.boot();
-  const rows = await h.page.evaluate(want => {
+  const rows = await h.page.evaluate(([want, ALL]) => {
     const G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z }), out = [];
-    const rooms = [...new Set(POCKETS.map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
+    const rooms = [...new Set(POCKETS.filter(p => p.walkin || ALL).map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
     for(const name of rooms){ const items = LIB.collect(name, G, 1) || [], seen = new Set();
       for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name) continue;
         let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
@@ -23,7 +25,7 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
         else continue;
         const key = s.name + '|' + Math.round(a0) + ',' + Math.round(b0) + ',' + Math.round(s.h || 0); if(seen.has(key)) continue; seen.add(key);
         out.push({ room: name, name: s.name, h: s.h || 0, short: Math.min(a1 - a0, b1 - b0), long: Math.max(a1 - a0, b1 - b0), at: [Math.round((a0 + a1)/2), Math.round((b0 + b1)/2)] }); } }
-    return out; }, want);
+    return out; }, [want, process.argv.includes('--all')]);
   await h.close();
   const kindOf = n => { const l = n.toLowerCase(); for(const [k, re] of KINDS) if(re.test(l)) return k; return null; };
   const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length/2)] : 0; };
@@ -44,7 +46,7 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
   for(const f of flagged.sort((x, y) => x.kind.localeCompare(y.kind) || Math.abs(y.dh) - Math.abs(x.dh)))
     console.log('  ' + f.kind.padEnd(8) + f.room + ' @' + f.at + '  "' + f.name + '"  height ' + Math.round(f.h) + ' (typical ' + f.mh + (Math.abs(f.dh) > 0.25 ? ', ' + (f.dh > 0 ? '+' : '') + Math.round(f.dh*100) + '%' : '') + ')  depth ' + Math.round(f.short) + ' (typical ' + Math.round(f.ms) + (Math.abs(f.ds) > 0.4 ? ', ' + (f.ds > 0 ? '+' : '') + Math.round(f.ds*100) + '%' : '') + ')');
   /* the typical sizes into the library's database */
-  if(!want){ const fn = path.join(H.ROOT, 'docs/kits/library.json');
+  if(!want && !process.argv.includes('--all')){ const fn = path.join(H.ROOT, 'docs/kits/library.json');
     if(fs.existsSync(fn)){ const db = JSON.parse(fs.readFileSync(fn, 'utf8')); db.fixtures = { about: 'Room fixtures, by kind, across every walk-in room (node tools/review/consistency.js): the typical (median) solid height and footprint depth -- build a new one to these; the outliers it lists are the inconsistencies to look at.', norms };
       fs.writeFileSync(fn, JSON.stringify(db, null, 1) + '\n'); console.log('\nwrote fixtures into', path.relative(H.ROOT, fn)); } }
 })();
