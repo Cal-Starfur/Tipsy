@@ -31198,48 +31198,61 @@ function pgDrawState(s, m, now, q){
   if(m.moving && s.look === 'visitor' && ((m.keys && m.paid) || (m.collect === false && !m.done))) q.pose = { lift: [0.12, 0.14], bend: [0.25, 0.35], hold: pgHold(s).keys };   // (in with the keys to drop off, or out with them)
 }
 /* THE SERVICE CYCLE (Sir, 2026-11-20: "what about the car does it belong to that customer? will the work get finished and he picks that car up and
-   another car comes in shortly after"): one car at a time, on the room's own clock, a cycle of PG_SVC.P ms --
-     in       bay 1's roller goes up, the car drives in nose first from the street and stops over the lift; the roller comes down
-     drop     its owner gets out, walks to Mel at the counter, hands over the keys and goes out by the open bay
-     work     the lift takes it up; Hank works under it; the lift brings it down
-     collect  the owner comes back in, pays at the counter, walks to the car and gets in
-     out      the roller goes up, the car backs out into the street, the roller comes down; a while, and the next car (another model and
-              colour, another owner)
-   pgSvc(t) says where everything is: the car { a, b, z, kind, seed, wheel }, the lift's height, the roller's opening, the owner { a, b, th, moving } */
-const PG_SVC = { P: 160000, KINDS: ['hatch', 'car', 'wagon', 'coupe', 'suvsmall'], CA: 84, CM: 132.5, CZ: 78, OUT: -300, SIDE: [175, 236] };
+   another car comes in shortly after"; "the cycle is to fast ... the person doesn't get out of the car ... on the daily cycle. 20 cars per day ...
+   it cant be pull in stall pull out. the car needs to be worked on"). ON THE GARAGE'S DAY: its hours (8..18, the place card's) in PG_SVC.N slots,
+   one car each -- 20 a day, a slot of 30 minutes -- and within a slot, seconds from its start (the ends counted back from its close):
+     in       the roller up, the car drives in slowly nose first onto the lift, the roller down (0..22)
+     out of   the driver's door opens, the owner steps out, the door shuts (22..32); to Mel at the counter with the keys, and out by the bay
+     work     the lift takes it up, the near front wheel off -- Hank under it, Danny at the tyre changer -- for most of the slot; the wheel back
+              on, the lift down
+     collect  the owner back, paying at the counter, to the car; the door opens, in, it shuts
+     out      the roller up, the car backs slowly out into the street, the roller down; the bay empty till the next slot
+   pgSvc(t) says where everything is: the car { a, b, z, kind, seed, moving, wheel, wheelOff, doorOpen }, the lift, the roller, the owner. Its
+   clock: the game's hour (walkinClockHour) -- the real time of day, or a fixed hour (?hour=) carried on by the scene's own clock */
+const PG_SVC = { N: 20, KINDS: ['hatch', 'car', 'wagon', 'coupe', 'suvsmall'], CA: 84, CM: 132.5, CZ: 78, OUT: -300, SIDE: [178, 222], DOOR: [274, -70], DESK: [514, 410] };
 function pgSvcPath(pts, u){ const L = []; let tot = 0; for(let i = 1; i < pts.length; i++){ const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); tot += d; }
   let d = Math.max(0, Math.min(1, u))*tot; for(let i = 1; i < pts.length; i++){ if(d <= L[i - 1] || i === pts.length - 1){ const k = L[i - 1] ? Math.min(1, d/L[i - 1]) : 1, a = pts[i - 1], b = pts[i];
     return { a: a[0] + (b[0] - a[0])*k, b: a[1] + (b[1] - a[1])*k, th: Math.atan2(b[1] - a[1], b[0] - a[0]) }; } d -= L[i - 1]; } return { a: pts[0][0], b: pts[0][1], th: 0 }; }
+/* the garage's clock: ms into its day */
+function pgSvcDayMs(t){
+  const fixed = typeof NIGHT_CLOCK !== 'undefined' && NIGHT_CLOCK.time != null;
+  return walkinClockHour()*3.6e6 + (fixed ? t : 0) + (PG_SVC.off || 0);   // (off: a shift of its clock -- the headless checks step through it)
+}
 function pgSvc(t){
-  t += PG_SVC.off || 0;                                                             // (off: a shift of its clock -- the headless checks step through it)
-  const S = PG_SVC, n = Math.floor(t/S.P), u = t - n*S.P, s = u/1000, sm = k => { k = Math.max(0, Math.min(1, k)); return k*k*(3 - 2*k); };
-  const seed = (Math.imul(n + 1, 0x9e3779b1) ^ 0x6a5c) >>> 0, kind = S.KINDS[seed % S.KINDS.length];
-  const ph = (a, b) => (s - a)/(b - a);
-  const out = { n, kind, seed, car: null, lift: 0, roller: 0, owner: null, phase: '' };
-  const DOOR = [274, -70], DESK = [514, 410], SIDE = S.SIDE;
-  /* the roller: up for the car in (0..11) and out (138..151) */
-  out.roller = s < 2 ? sm(ph(0, 2)) : s < 9 ? 1 : s < 12 ? 1 - sm(ph(9, 12)) : s < 136 ? 0 : s < 138 ? sm(ph(136, 138)) : s < 148 ? 1 : s < 151 ? 1 - sm(ph(148, 151)) : 0;
-  /* the lift: up 36..40, down 110..114 */
-  out.lift = s < 36 ? 0 : s < 40 ? sm(ph(36, 40)) : s < 110 ? 1 : s < 114 ? 1 - sm(ph(110, 114)) : 0;
-  /* the car: driving in 2..9, there till 140, backing out 140..148 */
-  const carB = s < 2 ? null : s < 9 ? S.OUT + (S.CM - S.OUT)*sm(ph(2, 9)) : s < 140 ? S.CM : s < 148 ? S.CM + (S.OUT - S.CM)*sm(ph(140, 148)) : null;
-  if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: (s >= 2 && s < 9) || (s >= 140 && s < 148), wheel: carB*0.05 };
-  /* the owner: out of the car 10..12, to the counter 12..21, there 21..27, out of the bay 27..36; back in 114..123, paying 123..129, to the car
-     129..137, in it */
+  const S = PG_SVC, sm = k => { k = Math.max(0, Math.min(1, k)); return k*k*(3 - 2*k); };
+  const out = { car: null, lift: 0, roller: 0, owner: null, phase: 'shut' };
+  const pk = S._pk || (S._pk = POCKETS.find(q => q.name === PG_IN.name));
+  const hrs = pk && typeof walkinHours === 'function' ? walkinHours(pk) : [8, 18], slotMs = (hrs[1] - hrs[0])*3.6e6/S.N;
+  const day = pgSvcDayMs(t), into = ((day % 864e5) + 864e5) % 864e5 - hrs[0]*3.6e6;
+  if(into < 0 || into >= (hrs[1] - hrs[0])*3.6e6) return out;                       // (shut: the bay empty, the roller down, nobody in)
+  const n = Math.floor(into/slotMs), s = (into - n*slotMs)/1000, E = slotMs/1000;      // (s: seconds into this car's slot; E: the slot's length)
+  const dayN = Math.floor((typeof Date !== 'undefined' ? Date.now() : 0)/864e5);
+  const seed = (Math.imul(dayN*S.N + n + 1, 0x9e3779b1) ^ 0x6a5c) >>> 0, kind = S.KINDS[seed % S.KINDS.length];
+  const ph = (a, b) => (s - a)/(b - a), in_ = (a, b) => s >= a && s < b;
+  /* the ends counted back from the slot's close */
+  const X = k => E - k;
+  out.roller = in_(0, 4) ? sm(ph(0, 4)) : in_(4, 18) ? 1 : in_(18, 22) ? 1 - sm(ph(18, 22)) : in_(X(84), X(80)) ? sm(ph(X(84), X(80))) : in_(X(80), X(64)) ? 1 : in_(X(64), X(60)) ? 1 - sm(ph(X(64), X(60))) : 0;
+  out.lift = in_(70, 78) ? sm(ph(70, 78)) : in_(78, X(150)) ? 1 : in_(X(150), X(142)) ? 1 - sm(ph(X(150), X(142))) : 0;
+  const carB = s < 4 ? null : s < 16 ? S.OUT + (S.CM - S.OUT)*sm(ph(4, 16)) : s < X(76) ? S.CM : s < X(64) ? S.CM + (S.OUT - S.CM)*sm(ph(X(76), X(64))) : null;
+  const doorOpen = in_(22, 25) ? sm(ph(22, 25)) : in_(25, 29) ? 1 : in_(29, 32) ? 1 - sm(ph(29, 32)) : in_(X(98), X(95)) ? sm(ph(X(98), X(95))) : in_(X(95), X(91)) ? 1 : in_(X(91), X(88)) ? 1 - sm(ph(X(91), X(88))) : 0;
+  if(carB != null) out.car = { kind, seed, a: S.CA, b: carB, z: out.lift*S.CZ, fdir: 1, moving: in_(4, 16) || in_(X(76), X(64)), wheel: carB*0.05,
+    wheelOff: in_(90, X(170)), doorOpen };
+  /* the owner: out of the car by the open door (25..29), to the counter (29..40), the keys over (40..50), out of the bay (50..62); back in
+     (X(130)..X(120)), paying (..X(110)), to the car (..X(98)), in through the open door (X(95)..X(91)) */
   const look = streetLook((seed ^ 0x51) >>> 0, { adult: true, aid: 'none' });
   const walk = (pts, a, b) => { const q = pgSvcPath(pts, ph(a, b)); return { a: q.a, b: q.b, th: q.th, moving: true, L: look }; };
   const stand = (p, th) => ({ a: p[0], b: p[1], th, moving: false, L: look });
-  if(s >= 10 && s < 12) out.owner = stand(SIDE, Math.PI/2);
-  else if(s >= 12 && s < 21) out.owner = walk([SIDE, [250, 300], DESK], 12, 21);
-  else if(s >= 21 && s < 27){ out.owner = stand(DESK, 0); out.owner.atDesk = 'drop'; }
-  else if(s >= 27 && s < 36) out.owner = walk([DESK, [274, 300], DOOR], 27, 36);
-  else if(s >= 114 && s < 123) out.owner = walk([DOOR, [274, 300], DESK], 114, 123);
-  else if(s >= 123 && s < 129){ out.owner = stand(DESK, 0); out.owner.atDesk = 'pay'; }
-  else if(s >= 129 && s < 137) out.owner = walk([DESK, [250, 300], SIDE], 129, 137);
-  out.phase = s < 10 ? 'in' : s < 36 ? 'drop' : s < 114 ? 'work' : s < 138 ? 'collect' : s < 151 ? 'out' : 'gap';
-  /* (shut: no cars come and go -- the bay empty, the roller down, nobody in. Its hours are the garage's own, walkinOpenNow) */
-  const pk = S._pk || (S._pk = POCKETS.find(q => q.name === PG_IN.name));
-  if(pk && typeof walkinOpenNow === 'function' && !walkinOpenNow(pk)){ out.car = null; out.owner = null; out.roller = 0; out.lift = 0; out.phase = 'shut'; }
+  const SEAT = [S.CA + 52, 186], SIDE = S.SIDE, DESK = S.DESK, DOOR = S.DOOR;   // (SEAT: just out of the driver's door, the car's near flank at a 129; SIDE a step away from it)
+  if(in_(25, 29)) out.owner = walk([SEAT, SIDE], 25, 29);
+  else if(in_(29, 40)) out.owner = walk([SIDE, [230, 300], DESK], 29, 40);
+  else if(in_(40, 50)){ out.owner = stand(DESK, 0); out.owner.atDesk = 'drop'; }
+  else if(in_(50, 62)) out.owner = walk([DESK, [274, 300], DOOR], 50, 62);
+  else if(in_(X(130), X(120))) out.owner = walk([DOOR, [274, 300], DESK], X(130), X(120));
+  else if(in_(X(120), X(110))){ out.owner = stand(DESK, 0); out.owner.atDesk = 'pay'; }
+  else if(in_(X(110), X(98))) out.owner = walk([DESK, [230, 300], SIDE], X(110), X(98));
+  else if(in_(X(95), X(91))) out.owner = walk([SIDE, SEAT], X(95), X(91));
+  out.phase = s < 22 ? 'in' : s < 62 ? 'drop' : s < X(130) ? 'work' : s < X(84) ? 'collect' : s < X(60) ? 'out' : 'gap';
+  out.slot = n; out.s = s;
   return out;
 }
 /* the room's clock for it (the game's time, as the room's people) */
@@ -106958,8 +106971,9 @@ class WorldScene extends Phaser.Scene {
          | null } -- the car drawn by drawCar where it is now (cached while it stands), its owner by the person drawer, each in the room's order) */
       else if(it.fx && it.fx.svc){ const S = it.fx.svc(this.time.now);
         if(S.car){ const c = S.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0), still = !c.moving && (c.z <= 0 || c.z >= PG_SVC.CZ);
-          const dc = gg => { const sv = this._paintIdx; this._paintIdx = null; try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, c.moving ? c.wheel : null, c.seed, null); } finally { this._paintIdx = sv; } };
-          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b), cx, cy, dc) : dc(g) }); }
+          const dat = { wheelOff: !!c.wheelOff, doorOpen: c.doorOpen || 0 }, still2 = still && (dat.doorOpen <= 0 || dat.doorOpen >= 1);
+          const dc = gg => { const sv = this._paintIdx; this._paintIdx = null; try { this.drawCar(gg, c.kind || 'car', cx, cy, cz, 0, c.fdir || 0, c.moving ? c.wheel : null, c.seed, dat); } finally { this._paintIdx = sv; } };
+          vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => still2 ? this.bcDraw(g, lk + "|svc|" + n + "|" + c.kind + "|" + c.seed + "|" + Math.round(c.z) + "|" + Math.round(c.b) + "|" + (dat.wheelOff ? 'w' : '') + Math.round(dat.doorOpen), cx, cy, dc) : dc(g) }); }
         if(S.owner){ const o = S.owner, L = o.L, ox = x0 + o.a, oy = y0 + sb*o.b, thW = Math.atan2(sb*Math.sin(o.th), Math.cos(o.th)) - Math.PI/2;
           /* (the room's own person: never taken for a passer-by over the room and dropped -- drawPersonHull's _roomPerson) */
           vq.push({ depth: ox + oy + zd, fn: (g) => { const rp0 = this._roomPerson; this._roomPerson = true;
@@ -122657,8 +122671,19 @@ class WorldScene extends Phaser.Scene {
       const sp = P(sa + 3.4, sb, deck + 9.5); g.fillStyle(0xfff3c4, 1); g.fillCircle(sp.x, sp.y, 2.2*this.K*0.42);
     }
 
-    /* ---- the near wheels, over their arches ---- */
-    if(!edgeOn) for(const a of wA) wheel(a, nearB);
+    /* ---- the near wheels, over their arches (data.wheelOff: the front one off for work -- the hub left, Palmline Garage's lift) ---- */
+    if(!edgeOn) for(const a of wA){ if(data && data.wheelOff && a > 0){ const hp = P(a, nearB*(hw - 1), cz); g.fillStyle(0x3a3e44, 1); g.fillCircle(hp.x, hp.y, 4.5*this.K*0.42); continue; } wheel(a, nearB); }
+    /* ---- data.doorOpen (0..1): THE NEAR FRONT DOOR SWUNG OPEN on its front hinge -- someone getting out or in (Palmline Garage's service cycle):
+       the dark of the cab in its opening, the door out from the flank, its window and handle ---- */
+    if(data && data.doorOpen > 0.01 && !edgeOn){
+      const aH = Math.max(aDoor0, aDoor1), aT = Math.min(aDoor0, aDoor1), dw = aH - aT, ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
+      flank([[aT + 1, H(30)], [aH - 1, H(30)], [aH - 1, H(64)], [aT + 1, H(64)]], 0x23262b);
+      const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
+      Q([D(0, H(29)), D(dw, H(29)), D(dw, H(65)), D(0, H(65))], col.body);
+      Q([D(4, H(50)), D(dw - 3, H(50)), D(dw - 3, H(63)), D(4, H(63))], 0x5a6f7a);
+      Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);
+      Q([D(dw, H(29)), D(dw, H(65)), D(dw, H(65), -2.5), D(dw, H(29), -2.5)], col.bodyDk);
+    }
 
     /* ---- the cruiser's light bar: a dark housing, red one side, blue the other ---- */
     if(has("lightbar")){
