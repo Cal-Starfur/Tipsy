@@ -61262,7 +61262,7 @@ function houseCanopy(fn){
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
-        out.push({ kind: 'cargo', a: ba, b: bb, dd: 2, cargo: () => partTote(ba, bb, 63, alB, n, SCOL[p]) }); }
+        out.push({ kind: 'cargo', a: ba, b: bb, dd: alB ? 19 : 18, cargo: () => partTote(ba, bb, 63, alB, n, SCOL[p]) }); }   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
