@@ -59154,7 +59154,11 @@ function houseCanopy(fn){
         F(-30, W + 30, H - 22, H, stoneD, null, 0, 0.3);
         F(door.at - door.half - 10, door.at - door.half, 0, DZ + 10, stoneS, null, 0, 0.3); F(door.at + door.half, door.at + door.half + 10, 0, DZ + 10, stoneS, null, 0, 0.3);
         F(door.at - door.half - 10, door.at + door.half + 10, DZ, DZ + 10, stoneS, null, 0, 0.3);
-        blockWordIn('PALMLINE SAVINGS', door.at + door.half + 40, W - 30, 300, 330, 0.6, trimD, null, 2.6);   // (east of the door, over the cash machines: the door is the wall's full height)
+        /* the bank's name on a mounted board high between the east pilasters, over the cash machines (Sir, 2026-11-20: painted on the wall "it
+           doesnt look good"): sea-grey, a brass border, brass letters */
+        { const s0 = W - 178, s1 = W - 36, z0 = 362, z1 = 412;
+          F(s0 - 4, s1 + 4, z0 - 4, z1 + 4, brassD, null, 0, 0.5); F(s0, s1, z0, z1, trimD, null, 0, 0.6); F(s0 + 3, s1 - 3, z0 + 3, z1 - 3, trim, null, 0, 0.65);
+          blockWordIn('PALMLINE', s0 + 10, s1 - 10, z0 + 27, z1 - 7, 0.7, brass, null, 2.6); blockWordIn('SAVINGS', s0 + 18, s1 - 18, z0 + 8, z0 + 23, 0.7, brass, null, 2.2); }
         /* the clock between the pilasters, west of the door */
         { const ca = 107, cz = 300, pts = [], pin = []; for(let k = 0; k < 20; k++){ const t = k/20*Math.PI*2; pts.push(P(ca + Math.cos(t)*30, 0.5, cz + Math.sin(t)*30)); pin.push(P(ca + Math.cos(t)*25, 0.6, cz + Math.sin(t)*25)); }
           poly(pts, brass); poly(pin, '#fbf8f0'); tube(ca, 0.7, cz, ca, 0.7, cz + 18, 1.4, '#2b2f34'); tube(ca, 0.7, cz, ca + 13, 0.7, cz, 1.4, '#2b2f34'); }
