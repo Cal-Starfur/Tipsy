@@ -119809,9 +119809,15 @@ class WorldScene extends Phaser.Scene {
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
     if(uniform && uniform.chain && faceB > 0){
-      const td = build.torsoD/2 + 0.6, w = build.torsoW*0.3, zt = shoulderH - 1, zb = shoulderH - build.torsoH*0.42;
-      this.quadOn(g, [G(-w, td, zt), G(-w + 2.4, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
-      this.quadOn(g, [G(w - 2.4, td, zt), G(w, td, zt), G(1.2, td, zb), G(-1.2, td, zb)], uniform.chain);
+      /* (each strand laid on the chest's curve at its height, a hair off it -- on a flat plane in front of the chest it stood off the body at
+         the sides and showed past its edge; Sir, 2026-11-20, "fix ... the punk chain") */
+      const hv = build.heavy, zm = hipH + build.torsoH*0.42, kz = zz => (hv ? 1.1 : 0.86) + ((hv ? 0.9 : 1) - (hv ? 1.1 : 0.86))*(zz - zm)/(shoulderH - zm);
+      const RA = build.torsoW/2, RB2 = build.torsoD/2, w = build.torsoW*0.3, zt = shoulderH - 0.1, zb = shoulderH - build.torsoH*0.42, N = 6;
+      const on = (a, zz) => { const k = kz(zz), ra = RA*k, rb = RB2*k; return G(a, rb*Math.sqrt(Math.max(0, 1 - (a/ra)*(a/ra))) + 0.5, zz); };
+      for(const sd of (eye3[0] > 0 ? [-1, 1] : [1, -1])) for(let i = 0; i < N; i++){ const t0 = i/N, t1 = (i + 1)/N, aO = u => sd*(w + (1.2 - w)*u), aI = u => sd*((w - 2.4) + (-1.2 - (w - 2.4))*u), zz = u => zt + (zb - zt)*u;
+        { const am = (aO(t0) + aI(t0) + aO(t1) + aI(t1))/4, zmid = zz((t0 + t1)/2), k = kz(zmid), ra = RA*k, rb = RB2*k, bm = rb*Math.sqrt(Math.max(0, 1 - (am/ra)*(am/ra)));
+          if(!seesE(am/(ra*ra), bm/(rb*rb), 0, 0.3)) continue; }   // (only where the chest under it faces the eye: round the side it showed as a sliver past the body's edge)
+        this.quadOn(g, [on(aO(t0), zz(t0)), on(aI(t0), zz(t0)), on(aI(t1), zz(t1)), on(aO(t1), zz(t1))], uniform.chain); }
     }
     /* GIDEON'S OUTFIT (RB.apron, RB.neck, RB.badge, RB.outCol, RB.badgeCol: gd4c): a vest or an apron, a scarf, bow tie or tie, a badge on the chest, worn over the
        shell, over the torso and under the arms (as the stab vest and the chain are). The front pieces only while he faces the eye */

@@ -40,12 +40,15 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
     let rec = null, tag = 'body';
     /* the wrap: every screen point the drawer makes keeps its depth; every face is kept with its corners' */
     const recent = new Map(), key = (x, y) => Math.round(x*2) + ',' + Math.round(y*2);
-    sc.W = function(x, y, z){ const p = W0.call(this, x, y, z); if(rec){ const d = x + y + (z || 0); try { p.__d = d; } catch(e){} recent.set(key(p.x, p.y), d); } return p; };
+    sc.W = function(x, y, z){ const p = W0.call(this, x, y, z); if(rec){ const d = x + y + (z || 0); try { p.__d = d; } catch(e){} const k = key(p.x, p.y); let L = recent.get(k); if(!L) recent.set(k, L = []); L.push([p.x, p.y, d]); if(L.length > 6) L.shift(); } return p; };
     sc.quadOn = function(g, pts, color, alpha = 1){
       if(rec && alpha >= 0.3 && pts && pts.length >= 3){
         const q = []; let ok = true;
         for(const p of pts){ let d = p.__d;
-          if(d == null){ for(const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]){ const v = recent.get((Math.round(p.x*2) + dx) + ',' + (Math.round(p.y*2) + dy)); if(v != null){ d = v; break; } } }
+          if(d == null){ let best = 1e9;   // (a point copied from one the drawer made -- grown half a pixel: the NEAREST made point's depth, never just the first one near)
+            for(let dx = -2; dx <= 2; dx++) for(let dy = -2; dy <= 2; dy++){ const L = recent.get((Math.round(p.x*2) + dx) + ',' + (Math.round(p.y*2) + dy)); if(!L) continue;
+              for(const [x, y, v] of L){ const e = (x - p.x)*(x - p.x) + (y - p.y)*(y - p.y); if(e < best){ best = e; d = v; } } }
+            if(best > 1.2) d = null; }
           if(d == null){ ok = false; break; } q.push([p.x, p.y, d]); }
         if(ok) rec.push({ q, tag, n: rec.length, hull: !!pts.__hull });
       }
