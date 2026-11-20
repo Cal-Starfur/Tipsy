@@ -59472,7 +59472,7 @@ function houseCanopy(fn){
           let arm = { pick: fr([AA + 40, AB + 40, 70]), place: fr(podFace(PODX, 0)), u: null, L1: 112, L2: 104 };   /* (at rest, turned away from the strip he works) */
           if(jr < 20000 && jr % 4000 >= 2000){ const m = Math.floor(jr/4000), u = (jr % 4000 - 2000)/2000, fP = PS.find(pd => pd.isF), col = CPAL[binPal(m) % 4], pf = podFace(fP.home, m);
             arm = { pick: fr([pf[0], pf[1], pf[2] + 20]), place: fr(cartW(TUGLD[m])), u, held: HELDBIN(col, false), L1: 112, L2: 104 }; }
-          out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
+          out.push(bot(AA, AB, 0, { build: 'amrarm', arm, dd: RP[0][0] + RP[0][1] + 10 - AA - AB })); }   /* (after the tugger: its carts, drawn with it at its nose, are behind the arm -- Sir: "the tugger's trailer is drawing over the other robot") */
         { const IDL = [1960, 140], rP = PS.find(pd => !pd.isF);
           if(jr < 20000){ const m = Math.floor(jr/4000), q = jr % 4000, cw = cartW(TUGLD[m]), pf = podFace(rP.home, m);
             const prev = m ? [podFace(rP.home, m - 1)[0], 124] : IDL;
