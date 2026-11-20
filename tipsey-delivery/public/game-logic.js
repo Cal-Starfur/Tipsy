@@ -59859,19 +59859,30 @@ function houseCanopy(fn){
     /* (row B's robots outside the loop now: out of their spots onto the lane south of them (b 1410), west along it and down the a 870 lane to
        the stop, out by a 960 and back along the lane -- one at a time on the lane: each sets off once the one before last is home, and is
        off the lane before the one at the stop leaves it) */
-    const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, RBIN = [857, 1610, 31];
-    const rbPA = k => BENCH(8 - k)[0];
-    const rbTrip = (k, r) => { const pa = rbPA(k), ST = [pa, 1330], A = RBA[k];
-      const IN = [ST, [pa, RBL], [870, RBL], [870, 1490]], OUT = [[870, 1610], [960, 1610], [960, RBL], [pa, RBL], ST];
-      const tin = (80 + Math.abs(pa - 870) + 80)/RBV0, tout = (90 + 200 + Math.abs(pa - 960) + 80)/RBV0;
-      const legs = [[A - 400 - tin, A - 400, IN], [A - 400, A, [[870, 1490], [870, 1610]]], [A, A + 6000, null, [870, 1610], 1], [A + 6000, A + 6000 + tout, OUT]];
-      const T0 = legs[0][0], T1 = legs[legs.length - 1][1];
-      for(const sh of [0, -SUP, SUP]){ const q = r + sh; if(q < T0 || q >= T1) continue;
-        for(const L of legs){ if(q < L[0] || q >= L[1]) continue; if(!L[2]) return { a: L[3][0], b: L[3][1], fdir: L[4], q, A };
-          const Q = L[2].concat([[L[2][L[2].length - 1][0] + 0.01, L[2][L[2].length - 1][1]]]), P = pathAt(Q, Math.min(plenP(Q)*ease((q - L[0])/(L[1] - L[0])), plenP(L[2]) - 0.01)); P.q = q; P.A = A; return P; } }
-      return null; };   /* (null: at its station) */
-    const rbHome = k => RBA[k] + 6000 + (90 + 200 + Math.abs(rbPA(k) - 960) + 80)/RBV0;
-    for(let k = 0; k < 4; k++) SUPT[8 - k] = PAL0 + RB0 + rbHome(k);   /* (its tote full again as it is back) */
+    /* ROW B'S CLOSED LOOP AT THE WEST WALL (Sir, 2026-11-20: "we have another row of shelf pods that row B can queue at, and we need a picker
+       system there too"): goods to person moved to the west wall -- its pod stops in front of the reserve pods (SPOD), the parts robot beside
+       it (SROB), the picker and the arm between. Two robots a station: one at it, the other waiting full in its spot south of the lane
+       (RBPK). The station's robot goes west along the lane (b 1410) and up to the stop; it comes back by a 620 into its spot; as it leaves,
+       the spare rolls in */
+    const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RBIN = [SROB[0], SROB[1], 31];
+    const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[1280, 1120, 960, 800][k], 1510];
+    const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
+      const EMP = [ST, [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, [PK[0], RBL], [pa, RBL], ST];
+      const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
+      return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin }; };
+    /* -> the two robots of row B's station 8-k on the goods-to-person clock r */
+    const rbBots = (k, r) => { const G = rbGeo(k), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
+      let P, kind;
+      if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
+      else if(q < G.tin + 6000){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }
+      else if(q < G.tin + 6000 + G.tout){ P = sg(G.RET, (q - G.tin - 6000)/G.tout); kind = 'full'; }
+      else { P = { a: G.PK[0], b: G.PK[1], fdir: 1 }; kind = 'full'; }
+      out.push({ P, kind, rr: G.X + q });
+      if(q < 1200) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
+      else if(q < 1200 + G.tent) out.push({ P: sg(G.ENT, (q - 1200)/G.tent), kind: 'full' });
+      else out.push({ P: null, kind: 'station' });
+      return out; };
+    for(let k = 0; k < 4; k++){ const G = rbGeo(k); SUPT[8 - k] = PAL0 + RB0 + G.X + 1200 + G.tent; }   /* (full as the spare rolls in) */
     const runAt = t => { const r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, back = RBT0[4] + RBDW[4];
       if(r >= back) return { s: Math.max(0, 1665 - (r - back)*RBV), stop: -1, done: 4, r };
       for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
@@ -59913,15 +59924,18 @@ function houseCanopy(fn){
       const SH = AMR_SLOTS.amrshelf.map(q => q.def),   /* (TOP4: the bins he can reach -- the pod stands facing south, its east column his side, the top row along it, then the one under the middle; Sir: "hes grabbing the back row of bins first") */
          SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07, RSL = [-36, -12, 12, 36];
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(8 - p);   /* (row B's benches: the bin each is brought off the pod) */
-      items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
+      items.push({ a: 700, b: 1450, z: 0, solids: [solid(SPOD[0] - 40, SPOD[0] + 40, SPOD[1] - 57, SPOD[1] + 57, 150, 'pick face pod')], draw: () => {}, fx: { crew: t => {
         const out = [], r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, D0 = RBDW[0];
         /* ROW B'S PARTS ROBOTS: at their stations the tote on the deck, its parts going down; out and back with the bin (empty out, the empty off
            at the stop by the humanoid, the full on by the arm) */
-        const rbAt = []; for(let k = 0; k < 4; k++){ const p = 8 - k, P = rbTrip(k, r), col = CPC(k);
-          if(!P){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) })); rbAt[k] = 'home'; continue; }
-          const q = P.q, A = P.A, stack = q < A + 1077, nf = q >= A + 6000 ? 3 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length, atStop = q >= A && q < A + 6000;
-          rbAt[k] = atStop ? 'stop' : q < A ? 'in' : 'back';
-          out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf); } })); }
+        const rbAt = []; for(let k = 0; k < 4; k++){ const p = 8 - k, col = CPC(k);
+          for(const R of rbBots(k, r)){
+            if(R.kind === 'station'){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p]) })); continue; }
+            const P = R.P, A = RBA[k], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
+            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3) })); continue; }
+            const stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
+            rbAt[k] = R.kind;
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) STACK3(P.a, P.b, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf); } })); } }
         CW_FLOW.runner = rbAt.join(' ');
         /* THE RUNNER'S BINS: out full, a full off and the empty back on at each bench; at goods to person the empties off into the pod, then
            the fulls off the pod onto it (jobs 0-3, then 4-7, each 3000) */
@@ -59929,7 +59943,7 @@ function houseCanopy(fn){
            out of TOP4); then away to Receiving -- by the west aisle and the lane to the door -- to wait beside the pallet for the Receiver to
            fill its empties and slide them back into TOP4; then home by the lane and the west aisle to wait at the corner, and in for its next
            visit. The other pod is always half a round behind */
-        const GTR = [[700, 1610], [700, 1720], [250, 1720], [250, 455], [GPA, 455], [GPA, GPB], [GPA, GPB - 1]], GRT = [[GPA, GPB], [GPA, 455], [250, 455], [250, 1500], [480, 1500], [481, 1500]], GIN = [[480, 1500], [700, 1500], [700, 1610], [700, 1611]];
+        const GTR = [SPOD, [SPOD[0], 455], [GPA, 455], [GPA, GPB], [GPA, GPB - 1]], GRT = [[GPA, GPB], [GPA, 455], [190, 455], [190, 1460], [SPOD[0], 1460], [SPOD[0] + 1, 1460]], GIN = [[SPOD[0], 1460], [SPOD[0], SPOD[1]], [SPOD[0], SPOD[1] - 1]];   /* (out north, home by the west aisle to wait south of the stop, in from the south) */
         const GTRL = plenP(GTR), GRTL = plenP(GRT), GINL = plenP(GIN);
         for(let pk = 0; pk < 2; pk++){ const u = (((t - PAL0 - RB0 - pk*SUP) % (2*SUP)) + 2*SUP) % (2*SUP), rq = u % 3000, m = Math.floor(u/3000);
           const L = SH.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
@@ -59945,35 +59959,36 @@ function houseCanopy(fn){
                 : u < J + 2750*JK ? null : u < J + 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((u - J - 2750*JK)/(250*JK)))] }) : fullOf(i); }
             L[GRP(i, false)[jj]] = v; }
           const AT0 = D0, LV0 = SUP + 24400 - RB0, LV1 = LV0 + 11500, IN0 = 2*SUP - 3000;
-          if(u < D0){ P1 = { a: 700, b: 1610 }; fd = 1; }
+          if(u < D0){ P1 = { a: SPOD[0], b: SPOD[1] }; fd = 1; }
           else if(u < LV0 && u < AT0 + 14000){ s0 = GTRL*clamp01((u - AT0)/14000); P1 = pathAt(GTR, Math.min(s0, GTRL - 0.5)); if(s0 > GTRL - (455 - GPB)) fd = 1; }   /* (backs in the last of the way, facing south) */
           else if(u < LV0){ P1 = { a: GPA, b: GPB }; fd = 1; }
           else if(u < LV1){ s0 = GRTL*clamp01((u - LV0)/11500); P1 = pathAt(GRT, Math.min(s0, GRTL - 0.5)); }
-          else if(u < IN0){ P1 = { a: 480, b: 1500 }; fd = 0; }
-          else { s0 = GINL*ease((u - IN0)/3000); P1 = pathAt(GIN, Math.min(s0, GINL - 0.5)); if(s0 > GINL - 115) fd = 1; }
+          else if(u < IN0){ P1 = { a: SPOD[0], b: 1460 }; fd = 1; }
+          else { s0 = GINL*ease((u - IN0)/3000); P1 = pathAt(GIN, Math.min(s0, GINL - 0.5)); fd = 1; }
           out.push(bot(P1.a, P1.b, fd != null ? fd : P1.fdir, { build: 'amrshelf', loads: L, bins: CPAL, wheel: s0*0.12 }));
           if(u < D0) CW_FLOW.gtp = 'pod ' + (pk + 1) + ' at the stop'; }
         /* goods to person's arm robot, parked between the pod's stop and the runner (facing north): the four empties off the runner into the
            pod (R4), then the four fulls out of it (TOP4) onto the runner, a move every 3000 */
         /* (the humanoid back at his job -- the runner's empties onto the shelf, into the pod's R4 -- the arm robot, parked south of the gap,
            taking the fulls out of TOP4 onto the runner) */
-        const runW = i => RBIN, podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [700 - sq.b + 27, 1610 + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
-        { const AA = 795, AB = 1708, fr = w => [w[0] - AA, w[1] - AB, w[2]];
-          const rest = i => [RBP[0][0] - 13, RBP[0][1] + RSL[i], 31];   /* (at rest over the runner's stop, not after the runner itself once it has gone -- its arm had stretched across the hall after it) */
+        const runW = i => RBIN, podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [SPOD[0] - sq.b + 27, SPOD[1] + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
+        { const AA = SPOD[0] + 95, AB = SPOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
+          const rest = i => [SROB[0] - 13, SROB[1] + RSL[i], 31];   /* (at rest over the runner's stop, not after the runner itself once it has gone -- its arm had stretched across the hall after it) */
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
-          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [870, 1610 - 26 + 26*jj, 31];
+          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [SROB[0], SROB[1] - 26 + 26*jj, 31];
             arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELDBIN(col, false), L1: 98, L2: 92 }; }
           out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
-        { const IDL = [800, 1505];   /* (waiting north of the gap, clear of the arm's swing) */
-          const kh = [0, 1, 2, 3].find(k => r >= RBA[k] && r < RBA[k] + 6400); if(kh != null){ const i = kh, q0 = r - RBA[i], rw = [870, 1610, 31], pw = podW(GRP(i, false)[1]), prev = IDL;
+        { const IDL = [SPOD[0] + 100, SPOD[1] - 105];   /* (waiting north of the gap, clear of the arm's swing) */
+          const kh = [0, 1, 2, 3].find(k => r >= RBA[k] && r < RBA[k] + 6400); if(kh != null){ const i = kh, q0 = r - RBA[i], rw = [SROB[0], SROB[1], 31], pw = podW(GRP(i, false)[1]), prev = IDL;
             const uq = q0 < 2000 ? 0.65*q0/2000 : q0 < 4400 ? 0.65 : Math.min(1, 0.65 + 0.35*(q0 - 4400)/2000);   /* (the nested three off; held while the arm loads the fulls; into the pod where those came out) */
             const J = carryJob(uq*6400, 6400, prev, { stand: [rw[0] - 34, rw[1]], f: 0, at: rw }, { stand: [pw[0] + 24, pw[1]], f: 2, at: pw }, CPC(i));
             out.push(man(J.pos[0], J.pos[1], J.f, J.pose));
-            if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[0] < 742 ? 700 + 1610 + 2 - b[0] - b[1] : b[0] > 845 ? Math.max(1, 870 + 1610 + 2 - b[0] - b[1]) : 1, cargo: () => STACK3(b[0], b[1], b[2], J.col) }); } }
+            if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[0] < SPOD[0] + 42 ? SPOD[0] + SPOD[1] + 2 - b[0] - b[1] : b[0] > SROB[0] - 25 ? Math.max(1, SROB[0] + SROB[1] + 2 - b[0] - b[1]) : 1, cargo: () => STACK3(b[0], b[1], b[2], J.col) }); } }
           else out.push(man(IDL[0], IDL[1], 1, {})); }
         return out; } } });
-      T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
-      T(867, 873, 1410, 1450, 0.35, '#5fb8e8'); T(800, 1583, 1407, 1413, 0.35, '#5fb8e8'); T(957, 963, 1410, 1610, 0.35, '#5fb8e8');   /* (row B's lane, south of its parts robots) */
+      T(270, 560, 900, 906, 0.5, yel); T(270, 560, 1150, 1156, 0.5, yel); T(270, 276, 900, 1156, 0.5, yel); T(554, 560, 900, 1156, 0.5, yel);   /* (the west pick face's box) */
+      T(497, 503, 1000, 1410, 0.35, '#5fb8e8'); T(500, 1583, 1407, 1413, 0.35, '#5fb8e8'); T(617, 623, 1000, 1410, 0.35, '#5fb8e8');   /* (row B's lane: west to the stop up a 500, back down a 620) */
+      for(const k of [0, 1, 2, 3]){ const [a, b] = RBPK(k); for(const [a0, a1, b0, b1] of [[a - 46, a + 46, b - 64, b - 60], [a - 46, a + 46, b + 60, b + 64], [a - 46, a - 42, b - 64, b + 64], [a + 42, a + 46, b - 64, b + 64]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (row B's full spares' spots) */
     }
 
     /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
