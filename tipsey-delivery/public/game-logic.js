@@ -1298,6 +1298,25 @@ const DOG_BREEDS = [
     coats: [{ n:'grey & white', body:0x6e7480, dk:0x4e535c, chest:0xf2f2ee, ear:0x4e535c }, { n:'black & white', body:0x2a2c32, dk:0x1b1d22, chest:0xf2f2ee, ear:0x1b1d22 }, { n:'red & white', body:0xb87a4a, dk:0x8e5a34, chest:0xf2f2ee, ear:0x8e5a34 }] }
 ];
 function dogLookOf(seed, breed){ const B = breed || DOG_BREEDS[(seed >>> 12) % DOG_BREEDS.length]; return { B, coat: B.coats[seed % B.coats.length], blindSide: B.scar ? ((seed & 4) ? 1 : -1) : 0, L: DOG.len*B.size }; }
+/* CATS (Sir, 2026-11-20: "if these are cats we need to do a pass on the game to fix them to be in line with how we are doing dogs"):
+   drawn by the dog hull itself, so they are made as the dogs are -- lofted rings, toned faces -- on a cat's build: a longer, slimmer body
+   on lighter legs, a rounder head with a short muzzle and a pink nose, pricked ears, a long tail that rises and turns up at its tip
+   (tail 'cat'), eyes in colour with a slit (eyeC), no collar. catLookOf(seed) as dogLookOf: a breed and a coat off the seed */
+const CAT_COATS = [
+  { n:'orange tabby', body:0xd98a3a, dk:0xb06a26, chest:0xf2dcb8, ear:0xe8a3a0 },
+  { n:'black', body:0x2a2a2e, dk:0x1c1c20, chest:0x2a2a2e, ear:0x5a3a3e },
+  { n:'tuxedo', body:0x2a2a2e, dk:0x1c1c20, chest:0xf2efe8, ear:0x5a3a3e },
+  { n:'grey', body:0x8a8f98, dk:0x6b7078, chest:0xc8ccd2, ear:0xd9a0a6 },
+  { n:'cream', body:0xe8dcc4, dk:0xc9b998, chest:0xf6f0e2, ear:0xe8a8a6 },
+  { n:'brown tabby', body:0x8a6a4a, dk:0x6a4e34, chest:0xd8c4a4, ear:0xd9a0a0 }
+];
+const CAT_BREEDS = [
+  { n: 'cat', cat: true, size: 1.35, body: 1.15, girth: 0.85, leg: 0.95, head: 0.82, muzzle: 0.22, ear: 'prick', earH: 0.85, tail: 'cat',
+    eyeC: 0x9cc24a, nose: 0xd98a8a, coats: CAT_COATS },
+  { n: 'kitten', cat: true, size: 0.95, body: 1.05, girth: 0.9, leg: 0.95, head: 0.95, muzzle: 0.2, ear: 'prick', earH: 1.0, tail: 'cat',
+    eyeC: 0xd9b440, nose: 0xd98a8a, coats: CAT_COATS }
+];
+function catLookOf(seed, kitten){ const B = CAT_BREEDS[kitten ? 1 : 0]; return { B, coat: B.coats[(seed >>> 3) % B.coats.length], blindSide: 0, L: DOG.len*B.size, cat: true }; }
 /* the collar, in the dog's own frame, standing (the leash's end: drawDogPair) */
 function dogCollarAt(look){ const L = look.L, B = look.B; return { a: 6*L*B.body + 1.6*L, h: DOG.legH*L*B.leg + 5*L*B.girth*0.72 + 2.8*L }; }
 /* the dog's position/heading/stride at time t — a PURE function of
@@ -78837,18 +78856,6 @@ marinaEntry(),
     const items = [];
     const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
     const runs = (lo, hi, step) => { const n = Math.max(1, Math.ceil((hi - lo)/(step || 40) - 1e-9)), r = []; for(let k = 0; k < n; k++) r.push([lo + (hi - lo)*k/n, lo + (hi - lo)*(k + 1)/n]); return r; };
-    /* a dog (or a cat) facing south: its legs, body, head, ears and tail, in a coat; z its floor */
-    const pet = (a, b, z, coat, big, face) => {
-      const k = big ? 1 : 0.6, dk = shade(coat, 0.78);
-      box(a - 1.5*k, a + 1.5*k, b - 19*k, b - 12*k, z + 18*k, z + 26*k, dk, dk, shade(dk, .8));                // tail (behind it: first -- W37)
-      for(const [da, db] of [[-6, -9], [6, -9], [-6, 7], [6, 7]]) box(a + da*k - 2*k, a + da*k + 2*k, b + db*k - 2*k, b + db*k + 2*k, z, z + 9*k, dk, dk, shade(dk, .8));
-      box(a - 8*k, a + 8*k, b - 13*k, b + 11*k, z + 8*k, z + 24*k, shade(coat, 1.1), coat, dk);                // body
-      /* (its head out of its body's front, its muzzle out of the head's, its ears on its top: parts against each other, not into each other -- W37 inside) */
-      box(a - 6*k, a + 6*k, b + 11*k, b + 21*k, z + 17*k, z + 32*k, shade(coat, 1.1), coat, dk);              // head
-      box(a - 4*k, a + 4*k, b + 21*k, b + 25*k, z + 18*k, z + 24*k, '#d8c2a6', '#c9b293', '#b9a283');          // muzzle
-      box(a - 6*k, a - 3*k, b + 12*k, b + 16*k, z + 32*k, z + 38*k, dk, dk, shade(dk, .8)); box(a + 3*k, a + 6*k, b + 12*k, b + 16*k, z + 32*k, z + 38*k, dk, dk, shade(dk, .8));   // ears
-      box(a - 4.5*k, a - 2*k, b + 19*k, b + 20.5*k, z + 26*k, z + 28*k, '#1d1d20', '#1d1d20', '#1d1d20'); box(a + 2*k, a + 4.5*k, b + 19*k, b + 20.5*k, z + 26*k, z + 28*k, '#1d1d20', '#1d1d20', '#1d1d20');   // eyes
-    };
     const COATS = ['#c98a52', '#6b5a48', '#e8dcc4', '#3d3a3a', '#b5651d', '#d9c9a8', '#8a8f94'];
 
     /* ---- THE FLOOR: pale vinyl, a darker tile every other; the threshold and a mat at the door ---- */
@@ -78955,8 +78962,9 @@ marinaEntry(),
       cyl(37, 155, 0, 150, 5, '#c9a874'); cyl(37, 155, 0, 150, 2, '#b8975d');
       box(14, 60, 132, 178, 0, 10, '#a89270', '#8f7b5a', '#7c6a4d');
       box(18, 56, 140, 170, 62, 70, '#c0a47a', '#a98e66', '#8f7a56'); box(14, 60, 132, 178, 112, 120, '#c0a47a', '#a98e66', '#8f7a56');
-      pet(37, 152, 120, '#c98a52', false);
     }});
+    /* (its cats, and the cat room's, are the game's own: CAT_BREEDS through the dog hull -- Sir, 2026-11-20) */
+    items.push({ a: 37, b: 155, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 46, b: 162, z: 120, seed: 0xca7001, th: 2.2, sit: 1 } } });
 
     /* ---- THE CAT ROOM, east of the lane: a glass room b 190..380, a 520..700, its door on the west side (b 270..320); a cat tree, a bed, cats ---- */
     const glassC = 'rgba(190,220,232,.26)', frameC = '#8fa0a8';
@@ -78970,12 +78978,15 @@ marinaEntry(),
     items.push({ a: 640, b: 250, z: 0, solids: [solid(626, 654, 236, 264, 150, 'cat tree')], draw: () => {
       cyl(640, 250, 0, 150, 5, '#c9a874'); box(626, 654, 236, 264, 0, 8, '#a89270', '#8f7b5a', '#7c6a4d');
       box(622, 658, 232, 268, 58, 66, '#c0a47a', '#a98e66', '#8f7a56'); box(626, 654, 236, 264, 108, 116, '#c0a47a', '#a98e66', '#8f7a56');
-      pet(640, 248, 116, '#e8dcc4', false); pet(640, 250, 66, '#3d3a3a', false);
     }});
+    items.push({ a: 640, b: 250, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 647, b: 256, z: 116, seed: 0xca7020, th: 2.0, sit: 1 } } });
+    items.push({ a: 640.5, b: 250.5, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 650, b: 246, z: 66, seed: 0xca7008, th: 1.4, sit: 0 } } });
     items.push({ a: 560, b: 330, z: 0, draw: () => {
-      box(540, 590, 312, 348, 0, 22, '#a98e66', '#8f7a56', '#7c6a4d'); pet(566, 326, 22, '#b5651d', false);
-      cyl(676, 214, 0.6, 5, 7, '#3f7fb0', '#7fb8e0'); pet(668, 338, 0.6, '#8a8f94', false);
+      box(540, 590, 312, 348, 0, 22, '#a98e66', '#8f7a56', '#7c6a4d');
+      cyl(676, 214, 0.6, 5, 7, '#3f7fb0', '#7fb8e0');
     }});
+    items.push({ a: 565, b: 330, z: 0, draw: () => {}, fx: { dog: { cat: 'kitten', a: 565, b: 330, z: 22, seed: 0xca7000, th: 2.4, sit: 1 } } });
+    items.push({ a: 668, b: 338, z: 0, draw: () => {}, fx: { dog: { cat: true, a: 668, b: 338, z: 0.6, seed: 0xca7018, th: 2.8, sit: 0 } } });
 
     /* ---- THE WAITING CORNER, west of the lane, in front of the pen: a rug, a pamphlet table, a plant, two benches on the front wall ---- */
     T(70, 290, 580, 730, 0.5, '#b9a7c9'); T(78, 282, 588, 722, 0.6, '#cdbfdb'); T(100, 260, 610, 700, 0.7, '#b9a7c9');
@@ -105516,9 +105527,9 @@ class WorldScene extends Phaser.Scene {
       /* (it.fx.dog: one of THE GAME'S OWN DOGS in a room -- { a, b, z, seed, th, sit, breed? } -- the dog hull with a look off its seed
          (dogLookOf), standing or sat, cached as a still piece: the animal shelter's kennels) */
       else if(it.fx && it.fx.dog){ const c = it.fx.dog, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (z0 || 0) + (c.z || 0), th = Math.atan2(sb*Math.sin(c.th || 0), Math.cos(c.th || 0));
-        const look = c._look || (c._look = dogLookOf(c.seed >>> 0, c.breed != null ? DOG_BREEDS[c.breed % DOG_BREEDS.length] : undefined));
+        const look = c._look || (c._look = c.cat ? catLookOf(c.seed >>> 0, c.cat === 'kitten') : dogLookOf(c.seed >>> 0, c.breed != null ? DOG_BREEDS[c.breed % DOG_BREEDS.length] : undefined));   // (c.cat: one of the game's cats -- CAT_BREEDS)
         vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => this.bcDraw(g, lk + "|dog|" + n, cx, cy, gg => this.drawDogHull(gg, cx, cy, cz, th, look,
-          { t: 0, walkPhase: 0, walkAmt: 0, sit: c.sit || 0, noCollar: false, tr: 0, tailCurl: DOG.tailCurl, startle: 0 })) }); }
+          { t: 0, walkPhase: 0, walkAmt: 0, sit: c.sit || 0, noCollar: !!look.cat, tr: 0, tailCurl: DOG.tailCurl, startle: 0 })) }); }
       else if(it.fx && it.fx.pod){ const c = it.fx.pod, cx = x0 + c.a, cy = y0 + sb*c.b;
         vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|pod|" + n, cx, cy, gg => this.drawRoomBot(gg, c, cx, cy, z0 || 0, 0, name, G, K)) }); }
       else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
@@ -125222,7 +125233,7 @@ class WorldScene extends Phaser.Scene {
       for(let k = 0; k < K; k++){ const ph = -1.25 + 2.5*k/(K - 1), rr = r*Math.cos(ph); rings.push(ring([c[0], c[1], c[2] + r*Math.sin(ph)*rh], [0, 0, 1], rr*rb, rr*ra, o.n || 10)); }
       loft(rings, pair, Object.assign({ cap0: true, cap1: true }, o)); };
     const P3 = (c, dk) => ({ c, dk: dk == null ? _pdk(c, 0.8) : dk });
-    const BODY = P3(coat.body, coat.dk), CHEST = P3(coat.chest), EAR = P3(coat.ear), DARK = P3(D.nose, _pdk(D.nose, 0.7)), COLLAR = P3(D.collar, D.collarDk);
+    const BODY = P3(coat.body, coat.dk), CHEST = P3(coat.chest), EAR = P3(coat.ear), DARK = P3(B.nose || D.nose, _pdk(B.nose || D.nose, 0.7)), COLLAR = P3(D.collar, D.collarDk);
 
     /* ---- pose anchors ---- */
     const legH = D.legH*L*B.leg;
@@ -125314,7 +125325,9 @@ class WorldScene extends Phaser.Scene {
     const eye = s => () => {                      // the eye and its glint
       if(!sees([0.5, s*0.75, 0.2])) return;
       const c = G(headA + headR*0.42, jb + s*headR*0.44, headH + headR*0.12);
-      g.fillStyle(D.eye, 1); g.fillCircle(c.x, c.y, px(headR*0.21));
+      if(B.eyeC){ g.fillStyle(B.eyeC, 1); g.fillCircle(c.x, c.y, px(headR*0.22));                    // (a cat's: the iris in colour, a slit)
+        g.fillStyle(D.eye, 1); g.fillEllipse(c.x, c.y, px(headR*0.09), px(headR*0.36)); }
+      else { g.fillStyle(D.eye, 1); g.fillCircle(c.x, c.y, px(headR*0.21)); }
       g.fillStyle(D.glint, 1); g.fillCircle(c.x - px(headR*0.07), c.y - px(headR*0.08), px(headR*0.06));
       if(coat.n === "blk&tan"){ const eb = G(headA + headR*0.28, jb + s*headR*0.46, headH + headR*0.46); g.fillStyle(0xc98d4b, 1); g.fillCircle(eb.x, eb.y, px(headR*0.12)); }
     };
@@ -125330,6 +125343,10 @@ class WorldScene extends Phaser.Scene {
       if(T === 'curl'){                           // sickle curl over the back (the chihuahua, the husky)
         const rr = 3.9*L, Ca = rearA - 0.8*L, Ch = rearH + bodyR*0.15 + rr, thMax = Math.min((0.55 + 0.85*tailCurlNow)*Math.PI, 1.9*Math.PI), n = 8;
         for(let i = 0; i <= n; i++){ const u = i/n, ang = u*thMax; pts.push([Ca - rr*Math.sin(ang), 1.0*L + u*0.8*L, Ch - rr*Math.cos(ang)]); rads.push((1.25 - u*0.55)*L); }
+      } else if(T === 'cat'){                     // a cat's: long and thin, out low from the rump, rising, its tip turned up
+        const n = 9, len = 10*L;
+        for(let i = 0; i <= n; i++){ const u = i/n, up = u < 0.6 ? u*0.8 : 0.48 + (u - 0.6)*2.2;
+          pts.push([rearA - 0.4*L - len*(u < 0.75 ? u : 0.75 + (u - 0.75)*0.3), 0.6*L*u, rearH + bodyR*0.1 + up*5.5*L]); rads.push((0.95 - u*0.35)*L); }
       } else if(T === 'stub'){ sphere([rearA - 1.2*L, 0, rearH + bodyR*0.55], 1.3*L, P3(coat.dk), { K: 4, n: 8 }); return; }
       else {                                      // straight (the lab), low (the shepherd), plume (the golden), pom (the poodle)
         const n = 7, len = T === 'pom' ? 4.5*L : 7*L, rise = T === 'low' ? -4.5*L : T === 'plume' ? 2.5*L : 1.5*L;
