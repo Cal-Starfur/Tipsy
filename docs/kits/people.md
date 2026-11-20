@@ -63,4 +63,4 @@
 5. **`hospWalkAt` snaps the heading on arrival.**
 6. **The −π/2 is written at each caller** (27 of 60 call sites leave it out). Fix: `drawPerson(heading, look, state)`.
 7. **No separation off the street.** Only route and city walkers step round each other.
-8. **Shoulder scraps (`people_hull.js` *shard*, 2026-11-20):** a few pixels of the far shoulder show past a vest's edge (business, worker), past the hood or a child's head when the far arm is lifted, and at the far detail level. The far arm no longer paints over the body anywhere (*over*: none).
+8. **Shoulder scraps (`people_hull.js` *shard*):** the vests' (business, worker -- the vest reached out over the far arm) fixed 2026-11-20. What it still lists (11 at view 1) are glimpses of the far arm behind the body -- a sliver of an arm swinging back, the far shoulder past the neck as they reach forward -- the right shapes; a review list, not a gate. The far arm no longer paints over the body anywhere (*over*: none).

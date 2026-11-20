@@ -117866,7 +117866,9 @@ class WorldScene extends Phaser.Scene {
        rather than painted on. Uses the hull's own box() so it inherits
        the same face-selection as everything else. */
     if(uniform && uniform.vest){
-      prism(0, 0, build.torsoW/2*1.07, build.torsoD/2*1.14, hipH + build.torsoH*0.16, shoulderH - 1.5, uniform.vest, { bot: 0.9, noTop: true, ring: true });   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
+      /* (as wide as the body, 1.01: at 1.07 it reached out over the far arm, which hangs at the body's side, and left a sliver of its shoulder
+         down the vest's edge -- Sir, 2026-11-20, "fix the shoulder scraps"; people_hull.js. It stands out front and back, 1.14, where nothing hangs) */
+      prism(0, 0, build.torsoW/2*1.01, build.torsoD/2*1.14, hipH + build.torsoH*0.16, shoulderH - 1.5, uniform.vest, { bot: 0.9, noTop: true, ring: true });   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
     }
     /* a chain hung round the neck, a V down the chest (uniform.chain) */
     if(uniform && uniform.chain && faceB > 0){
