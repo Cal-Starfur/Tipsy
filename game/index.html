@@ -61417,7 +61417,7 @@ function houseCanopy(fn){
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
-        out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTote(ba, bb, 31, false, n, SCOL[p]) })); }   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
+        if(p < 5) out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTote(ba, bb, 31, false, n, SCOL[p]) })); }   /* (row B's: goods to person's crew, they come and go) */   /* (its parts robot, parked facing east, the tote on its deck) */   /* (after its bench: the bench is keyed at its near edge -- Sir: "none of these parts bins are drawing on top of their station") */
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
@@ -61478,7 +61478,26 @@ function houseCanopy(fn){
     const RBP = [[870, 1610], [870, 1300], [1000, 1300], [1000, 975], [900, 975], [1700, 975], [1701, 975]], RBS = [0, 865, 1065, 1365, 1665], RBDW = [27000, 1400, 1400, 1400, 1400], RB0 = SUP/2;   /* (the benches inside the loop: in across row B at a 950 while the line stands -- its 27000 at goods to person times the crossings into the robots' dwell, both ways) */   /* (phase 4: at goods to person the empties go into the pod before the fulls come off it -- eight jobs) */
     const RBV = 2*1665/(SUP - RBDW.reduce((q, d) => q + d, 0) - 600);
     const RBT0 = []; { let tt = 0, s0 = 0; for(let i = 0; i < RBS.length; i++){ tt += (RBS[i] - s0)/RBV; RBT0.push(tt); tt += RBDW[i]; s0 = RBS[i]; } }
-    for(const [j, p] of [5, 6, 7, 8].entries()) SUPT[p] = PAL0 + RB0 + RBT0[j + 1] + 700;
+    /* ROW B'S PARTS ROBOTS (Sir, 2026-11-20: "this bot doesn't need to be in here" -- the parts runner gone): each of row B's robots takes its
+       own empty tote out to goods to person and comes back with a full one -- out across row B, in at the stop, the empty off into the pod by
+       the humanoid and a full one on by the arm, back across. Bin k (station 8 - k) is at the stop from RBA[k]; each crossing of the line
+       (RBX in, RBY out, at a 1000) falls in the robots' dwell and never two at once (worked out by hand: see the checks) */
+    const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBX = [-2550, 3850, 5000, 16650], RBY = [7467, 13867, 20970, 29970], RBIN = [857, 1610, 31];
+    const rbTrip = (k, r) => { const p = 8 - k, pa = p === 5 ? 900 : POS[p][0], ST = [pa, 1058], tl = (Math.abs(pa - 1000) + 83)/RBV0, A = RBA[k], X = RBX[k], Y = RBY[k];
+      const legs = [[X - tl, X, [ST, [pa, 975], [1000, 975]]], [X, X + 1083, [[1000, 975], [1000, 1300]]]];
+      if(k === 2) legs.push([X + 1083, X + 2150, [[1000, 1300], [870, 1300], [870, 1490]]], [X + 2150, A - 400, null, [870, 1490], 1], [A - 400, A, [[870, 1490], [870, 1610]]]);
+      else legs.push([X + 1083, A, [[1000, 1300], [870, 1300], [870, 1610]]]);
+      legs.push([A, A + 6000, null, [870, 1610], 1]);
+      if(k < 2) legs.push([A + 6000, Y, [[870, 1610], [960, 1610], [960, 1300], [1000, 1300]]]);
+      else legs.push([A + 6000, A + 6533, [[870, 1610], [960, 1610], [960, 1540]]], [A + 6533, Y - 933, null, [960, 1540], 3], [Y - 933, Y, [[960, 1540], [960, 1300], [1000, 1300]]]);
+      legs.push([Y, Y + 1083, [[1000, 1300], [1000, 975]]], [Y + 1083, Y + 1083 + tl, [[1000, 975], [pa, 975], ST]]);
+      const T0 = legs[0][0], T1 = legs[legs.length - 1][1];
+      for(const sh of [0, -SUP, SUP]){ const q = r + sh; if(q < T0 || q >= T1) continue;
+        for(const L of legs){ if(q < L[0] || q >= L[1]) continue; if(!L[2]) return { a: L[3][0], b: L[3][1], fdir: L[4], q, A };
+          const k2 = (q - L[0])/(L[1] - L[0]), P = pathAt(L[2].concat([[L[2][L[2].length - 1][0] + 0.01, L[2][L[2].length - 1][1]]]), Math.min(plenP(L[2].concat([[L[2][L[2].length - 1][0] + 0.01, L[2][L[2].length - 1][1]]]))*ease(k2), plenP(L[2]) - 0.01)); P.q = q; P.A = A; return P; } }
+      return null; };   /* (null: at its station) */
+    const rbHome = k => { const p = 8 - k, pa = p === 5 ? 900 : POS[p][0]; return RBY[k] + 1083 + (Math.abs(pa - 1000) + 83)/RBV0; };
+    for(let k = 0; k < 4; k++) SUPT[8 - k] = PAL0 + RB0 + rbHome(k);   /* (its tote full again as it is back) */
     const runAt = t => { const r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, back = RBT0[4] + RBDW[4];
       if(r >= back) return { s: Math.max(0, 1665 - (r - back)*RBV), stop: -1, done: 4, r };
       for(let i = RBS.length - 1; i >= 0; i--){ if(r >= RBT0[i] + RBDW[i]) return { s: RBS[i] + (r - RBT0[i] - RBDW[i])*RBV, stop: -1, done: i, r };
@@ -61515,15 +61534,17 @@ function houseCanopy(fn){
          SP = [[700, 1610], [700, 1720], [480, 1720], [480, 1500], [700, 1500]], PV = 0.07, RSL = [-36, -12, 12, 36];
       for(let p = 5; p <= 8; p++) SCOL[p] = CPC(SH[TOP4[8 - p]].pal);   /* (row B's benches: the bin each is brought off the pod) */
       items.push({ a: 700, b: 1450, z: 0, solids: [solid(440, 940, 1450, 1770, 120, 'goods to person')], draw: () => {}, fx: { crew: t => {
-        const out = [], S = runAt(t), P0 = pathAt(RBP, Math.min(S.s, 1664.5)), D0 = RBDW[0];
+        const out = [], r = (((t - PAL0 - RB0) % SUP) + SUP) % SUP, D0 = RBDW[0];
+        /* ROW B'S PARTS ROBOTS: at their stations the tote on the deck, its parts going down; out and back with the bin (empty out, the empty off
+           at the stop by the humanoid, the full on by the arm) */
+        const rbAt = []; for(let k = 0; k < 4; k++){ const p = 8 - k, P = rbTrip(k, r), col = CPC(SH[TOP4[k]].pal);
+          if(!P){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTote(ba, bb, 31, false, n, SCOL[p]) })); rbAt[k] = 'home'; continue; }
+          const q = P.q, A = P.A, bin = q < A + 900 ? 'e' : q >= A + 3000 + 3000*ARMU1 ? 'f' : q >= A + 6000 ? 'f' : null, atStop = q >= A && q < A + 6000;
+          rbAt[k] = atStop ? 'stop' : q < A ? 'in' : 'back';
+          out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: bin ? () => BIN(atStop ? RBIN[0] : P.a, atStop ? RBIN[1] : P.b, 31, col, bin === 'e') : null })); }
+        CW_FLOW.runner = rbAt.join(' ');
         /* THE RUNNER'S BINS: out full, a full off and the empty back on at each bench; at goods to person the empties off into the pod, then
            the fulls off the pod onto it (jobs 0-3, then 4-7, each 3000) */
-        const delivered = S.stop === 0 ? 0 : Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done), kk = 4 - delivered;
-        const placed = S.stop === 0 ? Math.max(0, Math.min(4, Math.floor((S.r - 12000 - 2050)/3000) + 1)) : 0;
-        const rbin = i => { if(S.stop === 0) return S.r < i*3000 + 3000*0.3 ? 'e' : S.r >= (4 + i)*3000 + 3000*ARMU1 ? 'f' : null; return i < kk ? 'f' : 'e'; };
-        CW_FLOW.runner = [0, 1, 2, 3].map(rbin).map(v => v || '-').join('');
-        /* (the runner faces south, its four bins in a row down its west side -- his side, each in his reach as he steps along it) */
-        out.push(bot(P0.a, P0.b, 1, { wheel: S.s*0.12, cargo: () => { for(let i = 0; i < 4; i++){ const v = rbin(i); if(v) BIN(P0.a - 13, P0.b + RSL[i], 31, CPC(SH[TOP4[i]].pal), v === 'e'); } } }));
         /* THE TWO GOODS-TO-PERSON PODS (phase 4), each on its own two-cycle round: in at the stop for its visit (the empties into R4, the fulls
            out of TOP4); then away to Receiving -- by the west aisle and the lane to the door -- to wait beside the pallet for the Receiver to
            fill its empties and slide them back into TOP4; then home by the lane and the west aisle to wait at the corner, and in for its next
@@ -61536,8 +61557,8 @@ function houseCanopy(fn){
           const Rj = i => JS(i) - RB0 + SUP;   /* (the Receiver's job for its bin i, on this pod's round: in the cycle after its visit) */
           for(let i = 0; i < 4; i++){ let top = null, ret = null;
             if(u < D0){ /* at the stop: empty i into R4[i] during job i; full i out of TOP4[i] during job 4+i */
-              const tr = i*3000 + 3000*CARRY_GO; ret = u < tr ? null : u < tr + 300 ? Object.assign(fullOf(i), { empty: true, off: [0, -27*(1 - ease((u - tr)/300))] }) : Object.assign(fullOf(i), { empty: true });
-              const t4 = 12000 + i*3000; top = u < t4 ? fullOf(i) : u < t4 + 400 ? Object.assign(fullOf(i), { off: [0, -27*ease((u - t4)/400)] }) : u < t4 + 3000*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null; }
+              const tr = RBA[i] + 3000*CARRY_GO; ret = u < tr ? null : u < tr + 300 ? Object.assign(fullOf(i), { empty: true, off: [0, -27*(1 - ease((u - tr)/300))] }) : Object.assign(fullOf(i), { empty: true });
+              const t4 = RBA[i] + 3000; top = u < t4 ? fullOf(i) : u < t4 + 400 ? Object.assign(fullOf(i), { off: [0, -27*ease((u - t4)/400)] }) : u < t4 + 3000*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null; }
             else { const J = Rj(i);
               ret = u < J + 600*JK ? Object.assign(fullOf(i), { empty: true }) : u < J + 900*JK ? Object.assign(fullOf(i), { empty: true, off: [0, -26*ease((u - J - 600*JK)/(300*JK))] }) : null;
               top = u < J + 2750*JK ? null : u < J + 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((u - J - 2750*JK)/(250*JK)))] }) : fullOf(i); }
@@ -61555,22 +61576,22 @@ function houseCanopy(fn){
            pod (R4), then the four fulls out of it (TOP4) onto the runner, a move every 3000 */
         /* (the humanoid back at his job -- the runner's empties onto the shelf, into the pod's R4 -- the arm robot, parked south of the gap,
            taking the fulls out of TOP4 onto the runner) */
-        const runW = i => [P0.a - 13, P0.b + RSL[i], 31], podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [700 - sq.b + 27, 1610 + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
+        const runW = i => RBIN, podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [700 - sq.b + 27, 1610 + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
         { const AA = 795, AB = 1708, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           const rest = i => [RBP[0][0] - 13, RBP[0][1] + RSL[i], 31];   /* (at rest over the runner's stop, not after the runner itself once it has gone -- its arm had stretched across the hall after it) */
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
-          if(S.stop === 0 && S.r >= 12000 && S.r < 24000){ const J = Math.floor(S.r/3000), u = (S.r - J*3000)/3000, i = J & 3, col = CPAL[SH[TOP4[i]].pal % 4], pw = podW(TOP4[i]), rw = runW(i);
+          const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 3000 && r < RBA[k] + 6000); if(ka != null){ const u = (r - RBA[ka] - 3000)/3000, i = ka, col = CPAL[SH[TOP4[i]].pal % 4], pw = podW(TOP4[i]), rw = runW(i);
             arm = { pick: fr([pw[0], pw[1], pw[2] + 20]), place: fr([rw[0], rw[1], rw[2] + 20]), u, held: HELDBIN(col, false), L1: 98, L2: 92 }; }
           out.push(bot(AA, AB, 0, { build: 'amrarm', arm })); }
         { const IDL = [800, 1505];   /* (waiting north of the gap, clear of the arm's swing) */
-          if(S.stop === 0 && S.r < 12000){ const i = Math.floor(S.r/3000), q = S.r % 3000, rw = runW(i), pw = podW(R4[i]), prev = i ? [podW(R4[i - 1])[0] + 24, podW(R4[i - 1])[1]] : IDL;
+          const kh = [0, 1, 2, 3].find(k => r >= RBA[k] && r < RBA[k] + 3000); if(kh != null){ const i = kh, q = r - RBA[i], rw = runW(i), pw = podW(R4[i]), prev = IDL;
             const J = carryJob(q, 3000, prev, { stand: [rw[0] - 34, rw[1]], f: 0, at: rw }, { stand: [pw[0] + 24, pw[1]], f: 2, at: pw }, CPC(SH[TOP4[i]].pal));
             out.push(man(J.pos[0], J.pos[1], J.f, J.pose));
-            if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[0] < 742 ? 700 + 1610 + 2 - b[0] - b[1] : b[0] > 845 ? Math.max(1, P0.a + P0.b + 2 - b[0] - b[1]) : 1, cargo: () => BIN(b[0], b[1], b[2], J.col, true) }); } }
+            if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[0] < 742 ? 700 + 1610 + 2 - b[0] - b[1] : b[0] > 845 ? Math.max(1, 870 + 1610 + 2 - b[0] - b[1]) : 1, cargo: () => BIN(b[0], b[1], b[2], J.col, true) }); } }
           else out.push(man(IDL[0], IDL[1], 1, {})); }
         return out; } } });
       T(440, 940, 1450, 1456, 0.5, yel); T(440, 940, 1764, 1770, 0.5, yel); T(440, 446, 1450, 1770, 0.5, yel); T(934, 940, 1450, 1770, 0.5, yel);
-      T(867, 873, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1794, 1297, 1303, 0.35, '#5fb8e8');
+      T(867, 873, 1300, 1450, 0.35, '#5fb8e8'); T(877, 1003, 1297, 1303, 0.35, '#5fb8e8'); T(997, 1003, 975, 1300, 0.35, '#5fb8e8'); T(957, 963, 1300, 1610, 0.35, '#5fb8e8');
     }
 
     /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
