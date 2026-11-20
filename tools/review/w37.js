@@ -10,7 +10,8 @@
               this upright is drawing over the vertical piece"). Paint the base first, the thing on it after
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
-   node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding */
+   node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding
+     --png <dir>   each foot finding's piece drawn alone, 4x, the base outlined red and what stands on it blue: <dir>/foot_N.png */
 const H = require('./harness.js');
 let OFF = 0;   // (the lines the instrumentation adds above the rooms: what a served line number is less, in game/index.html)
 const ADD0 = html => html
@@ -21,9 +22,10 @@ const ADD0 = html => html
     '\nfunction runPiece__w37(items, a0, a1, b0, b1, zTop, solidsFor, draw, o){');
 const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : require('fs').readFileSync(require('path').join(H.ROOT, 'game/index.html'), 'utf8'); if(src) OFF = out.split('\n').length - src.split('\n').length; return out; };
 (async () => {
-  const want = process.argv.slice(2).find(a => !a.startsWith('--')) || '';
+  const want = process.argv.slice(2).find((a, i, A) => !a.startsWith('--') && A[i - 1] !== '--png') || '';
   const h = await H.open({ instr: ADD, rev: process.env.REV || null }); await h.boot();
-  const out = await h.page.evaluate(want => {
+  const pi = process.argv.indexOf('--png'), PNG = pi > 0 ? process.argv[pi + 1] : null;
+  const out = await h.page.evaluate(([want, PNG]) => {
     const sc = game.scene.getScene('world'), g = sc.add.graphics(), G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z });
     let cur = null, stack = 0;
     window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([a, b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
@@ -33,6 +35,23 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
     const bb = pts => { const o = { a0: 1e9, a1: -1e9, b0: 1e9, b1: -1e9, z0: 1e9, z1: -1e9 }; for(const [a, b, z] of pts){ o.a0 = Math.min(o.a0, a); o.a1 = Math.max(o.a1, a); o.b0 = Math.min(o.b0, b); o.b1 = Math.max(o.b1, b); o.z0 = Math.min(o.z0, z); o.z1 = Math.max(o.z1, z); } return o; };
     const scr = q => ({ x0: q.a0 - q.b1, x1: q.a1 - q.b0, y0: (q.a0 + q.b0)/2 - q.z1, y1: (q.a1 + q.b1)/2 - q.z0 });
     const found = [], VOL = new Set(['box', 'cyl', 'tube', 'ball', 'prism', 'slab']);
+    /* (--png: the piece alone, 4x, the two parts' outlines over it -- base red, what stands on it blue) */
+    let nShot = 0;
+    const shot = (name, it, P, qL, qE) => { const S = 4, pad = 24; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for(const p of P) for(const [a, b, z] of p.pts){ const x = (a - b)*S, y = ((a + b)/2 - z)*S; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      if(x1 - x0 > 1800){ const cx = ((qE.a0 + qE.a1)/2 - (qE.b0 + qE.b1)/2)*S; x0 = cx - 600; x1 = cx + 600; }
+      if(y1 - y0 > 1400){ const cy = (((qE.a0 + qE.a1)/2 + (qE.b0 + qE.b1)/2)/2 - qE.z0)*S; y0 = cy - 500; y1 = cy + 400; }
+      const G4 = (a, b, z) => ({ x: (a - b)*S - x0 + pad, y: ((a + b)/2 - z)*S - y0 + pad }), w = Math.ceil(x1 - x0 + 2*pad), hh = Math.ceil(y1 - y0 + 2*pad);
+      const g4 = sc.add.graphics(); g4.fillStyle(0xffffff, 1); g4.fillRect(0, 0, w, hh);
+      const save = window.__RVP3, saveK = window.__RVK; window.__RVP3 = () => {}; window.__RVK = () => {};
+      try { LIB.drawItem(name, g4, G4, S, it); } catch(err){}
+      window.__RVP3 = save; window.__RVK = saveK;
+      const outline = (q, c) => { const C = [[q.a0, q.b0], [q.a1, q.b0], [q.a1, q.b1], [q.a0, q.b1]]; g4.lineStyle(2, c, 1);
+        for(const z of [q.z0, q.z1]){ g4.beginPath(); C.forEach(([a, b], k) => { const p = G4(a, b, z); k ? g4.lineTo(p.x, p.y) : g4.moveTo(p.x, p.y); }); g4.closePath(); g4.strokePath(); }
+        for(const [a, b] of C){ const p = G4(a, b, q.z0), r = G4(a, b, q.z1); g4.lineBetween(p.x, p.y, r.x, r.y); } };
+      outline(qE, 0x2060ff); outline(qL, 0xff2020);
+      const key = '__w37foot' + (nShot++); g4.generateTexture(key, w, hh); g4.destroy();
+      const data = sc.textures.getBase64(key); sc.textures.remove(key); return data; };
     const rooms = [...new Set(POCKETS.filter(p => p.walkin).map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));
     for(const name of rooms){
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
@@ -75,7 +94,8 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!under && !plate) continue;
             if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
             const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
-            if(ox > 1 && oy > 1){ found.push({ room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ')' }); break; }
+            if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ')' };
+              if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* order: L drawn after E, L behind E (it ends within 5 of E's near start on a or b and reaches well behind it), overlapping on screen */
           for(const E of before){ const e = E.q;
@@ -90,7 +110,9 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
     }
     g.destroy();
     return { rooms: rooms.length, found };
-  }, want);
+  }, [want, PNG]);
+  if(PNG){ const fs = require('fs'), path = require('path'); fs.mkdirSync(PNG, { recursive: true }); let k = 0;
+    for(const f of out.found) if(f.png){ const fn = path.join(PNG, 'foot_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.split(',')[1], 'base64')); f.what += '  -> ' + fn; delete f.png; } }
   const fix = t => t.replace(/\(line (\d+)\)/, (m, n) => '(line ' + (+n - OFF) + ')');
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
