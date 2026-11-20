@@ -59953,10 +59953,10 @@ function houseCanopy(fn){
           for(const R of rbBots(k, r)){
             if(R.kind === 'station'){ const [ba, bb] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
             const P = R.P, A = RBA[k], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
-            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3) })); continue; }
-            const stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
+            if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3, 3, 8 - k) })); continue; }
+            const no = [0, 1, 2].filter(j => q >= A + 4400 + 200*j + 150).length, stack = R.kind === 'empty' || q < A + 1077, nf = R.kind === 'empty' ? 0 : [0, 1, 2].filter(j => q >= A + 2000 + j*800 + 800*ARMU1).length;
             rbAt[k] = R.kind;
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) EMPTY3(P.a, P.b, P.fdir, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf); } })); } }
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => { if(stack) EMPTY3(P.a, P.b, P.fdir, 31, col); else if(nf) BIN3(P.a, P.b, P.fdir, 31, col, nf, no, 8 - k); } })); } }
         CW_FLOW.runner = rbAt.join(' ');
         /* THE RUNNER'S BINS: out full, a full off and the empty back on at each bench; at goods to person the empties off into the pod, then
            the fulls off the pod onto it (jobs 0-3, then 4-7, each 3000) */
@@ -60012,6 +60012,23 @@ function houseCanopy(fn){
             out.push(man(J.pos[0], J.pos[1], J.f, J.pose));
             if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[1] < RPOD[1] + 60 ? Math.max(1, RPOD[0] + RPOD[1] + 2 - b[0] - b[1]) : b[0] > SROB[0] - 25 ? Math.max(1, SROB[0] + SROB[1] + 2 - b[0] - b[1]) : 1, cargo: () => STACK3(b[0], b[1], b[2], J.col) }); } }
           else out.push(man(IDL[0], IDL[1], 1, {})); }
+        /* ROW B'S LID HANDLER (Sir, 2026-11-20: "do the lid handler for row B too"): once the arm has loaded a robot's three, he lifts their
+           lids off, stacks them in his hands, walks them to the lid tugger parked north-east of the stop and drops them in the bin of their
+           colour, and back to his spot east of the robot */
+        { const LT = [820, 880], ldL = AMR_SLOTS.amrtug.map(() => null); [0, 1, 2, 3].forEach(m => { ldL[[0, 1, 2, 6][m]] = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: m, empty: true }; });
+          out.push(bot(LT[0], LT[1], 0, { build: 'amrtug', loads: ldL, bins: CPAL }));
+          const slot = m => { const q2 = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q2.cart ? -201 : -115; return [LT[0] + cx + q2.a, LT[1] + q2.b]; };
+          const HS = [548, 1000], kL = [0, 1, 2, 3].find(k => r >= RBA[k] + 4400 && r < RBA[k] + 6000);
+          if(kL == null) out.push(man(HS[0], HS[1], 2, {}));
+          else { const q = r - RBA[kL] - 4400, dz = slot(kL), DS = [dz[0], LT[1] + 26], col = CPC(kL), n = q < 600 ? Math.min(3, Math.floor((q + 100)/200)) : q < 1100 ? 3 : 0;
+            let pos = HS, f = 2, pose = {}, hand = null;
+            const walk = (k2, A, B) => { pos = [A[0] + (B[0] - A[0])*k2, A[1] + (B[1] - A[1])*k2]; f = Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2); return { walk: k2 < 1 ? 1 : 0, gait: k2*Math.hypot(B[0] - A[0], B[1] - A[1])/7 }; };
+            if(q < 600){ const j = Math.min(2, Math.floor(q/200)), k2 = (q % 200)/200; pose = { lift: [0.75 + 0.15*Math.sin(k2*Math.PI), 0.75 + 0.15*Math.sin(k2*Math.PI)], bend: [0.4, 0.4] }; hand = [HS[0] - 24, SROB[1] + 10 - 26*j, 62]; }
+            else if(q < 1000){ pose = Object.assign(walk(ease((q - 600)/400), HS, DS), { lift: [0.55, 0.55], bend: [0.7, 0.7] }); hand = [pos[0] + 18*Math.cos(f*Math.PI/2), pos[1] + 18*Math.sin(f*Math.PI/2), 54]; }
+            else if(q < 1200){ pos = DS; f = 3; const k2 = ease((q - 1000)/200); pose = { lift: [0.55 + 0.2*k2, 0.55 + 0.2*k2], bend: [0.7 - 0.3*k2, 0.7 - 0.3*k2] }; hand = q < 1100 ? [DS[0], DS[1] - 18 - 6*k2, 54 - 10*k2] : null; }
+            else pose = walk(ease((q - 1200)/400), DS, HS);
+            out.push(man(pos[0], pos[1], f, pose));
+            if(hand && n){ const h = hand; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: 3, cargo: () => { for(let i = 0; i < n; i++) box(h[0] - 12, h[0] + 12, h[1] - 11.5, h[1] + 11.5, h[2] + i*3, h[2] + i*3 + 2.6, shade(col, .72), shade(col, .62), shade(col, .52)); } }); } } }
         return out; } } });
       T(270, 560, 900, 906, 0.5, yel); T(270, 560, 1150, 1156, 0.5, yel); T(270, 276, 900, 1156, 0.5, yel); T(554, 560, 900, 1156, 0.5, yel);   /* (the west pick face's box) */
       T(497, 503, 1000, 1410, 0.35, '#5fb8e8'); T(500, 1583, 1407, 1413, 0.35, '#5fb8e8'); T(617, 623, 1000, 1410, 0.35, '#5fb8e8');   /* (row B's lane: west to the stop up a 500, back down a 620) */
