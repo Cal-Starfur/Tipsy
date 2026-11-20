@@ -122843,9 +122843,12 @@ class WorldScene extends Phaser.Scene {
       const DW = (p, du, dh, o) => D(aH - p[0] + (du || 0), p[2] + (dh || 0), o);         // (a point of the window's hole, on the swung door)
       const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);
       Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to belt
-      Q([D(0, deck), D(dw, deck), DW(W3[2], 3, 3), DW(W3[3], -3, 3)], col.body);                   // the window's frame
-      Q([DW(W3[0], 0, 2), DW(W3[1], 0, 2), DW(W3[2]), DW(W3[3])], 0x7f98a6);                     // its glass
-      Q([DW(W3[0], 3, 3, 0.1), lerpP(DW(W3[0], 0, 3, 0.1), DW(W3[1], 0, 3, 0.1), 0.4), lerpP(DW(W3[3], 0, -2, 0.1), DW(W3[2], 0, -2, 0.1), 0.25), DW(W3[3], 3, -2, 0.1)], 0x9fb4c0);   // a glint
+      /* the window's frame, a ring round the glass; the glass SEE-THROUGH as the car's own (Sir, 2026-11-20: "when the door closes it
+         doesnt look like it has a see through window"), the opening and the cab behind it showing through */
+      const fo = [D(0, deck), D(dw, deck), DW(W3[2], 3, 3), DW(W3[3], -3, 3)], fi = [DW(W3[0], 0, 2), DW(W3[1], 0, 2), DW(W3[2]), DW(W3[3])];
+      for(let k = 0; k < 4; k++){ const k1 = (k + 1) % 4; Q([fo[k], fo[k1], fi[k1], fi[k]], col.body); }
+      this.quadOn(gg, fi, CR.glass, 0.38);                                                        // its glass
+      this.quadOn(gg, [DW(W3[0], 3, 3, 0.1), lerpP(DW(W3[0], 0, 3, 0.1), DW(W3[1], 0, 3, 0.1), 0.4), lerpP(DW(W3[3], 0, -2, 0.1), DW(W3[2], 0, -2, 0.1), 0.25), DW(W3[3], 3, -2, 0.1)], 0xc6e0ea, 0.25);   // a glint
       Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
       Q([D(dw, H(29)), D(dw, deck), DW(W3[2], 3, 3), DW(W3[2], 3, 3, -2.5), D(dw, deck, -2.5), D(dw, H(29), -2.5)], col.bodyDk);   // its rear edge, its thickness
       };
