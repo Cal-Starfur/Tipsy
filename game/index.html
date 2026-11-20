@@ -118727,13 +118727,19 @@ class WorldScene extends Phaser.Scene {
              back's hair, painted after the head, laid it over the cap as a dark ring. That is all under the hat: left out */
           if(cut != null && q0.h >= cut - 0.01 && q1.h >= cut - 0.01 && q2.h >= cut - 0.01 && q3.h >= cut - 0.01) return;
           const mh = (q0.h + q1.h + q2.h + q3.h)/4, mbb = (q0.b + q2.b)/2 - o.cb;
-          const low = o.behind || (mh < earZ && mbb < 0);                                     // what hangs below the ears behind the head, or a whole loft behind it (a tail, a bun)
-          if(pass === 'low' ? !low : low) return;                                              // ...belongs to the other pass
           const e1 = [q1.a - q0.a, q1.b - q0.b, q1.h - q0.h], e2 = [q3.a - q0.a, q3.b - q0.b, q3.h - q0.h];
           let nx = e1[1]*e2[2] - e1[2]*e2[1], ny = e1[2]*e2[0] - e1[0]*e2[2], nz = e1[0]*e2[1] - e1[1]*e2[0];
           const ma = (q0.a + q2.a)/2 - o.ca - (o.off ? o.off(0.5)[0] : 0), mb = (q0.b + q2.b)/2 - o.cb - (o.off ? o.off(0.5)[1] : 0);
           if(nx*ma + ny*mb + nz*0.2 < 0){ nx = -nx; ny = -ny; nz = -nz; }                      // outward, away from the shell's axis
           const L = Math.hypot(nx, ny, nz) || 1; nx /= L; ny /= L; nz /= L;
+          /* what hangs below the ears behind the head, or a whole loft behind it (a tail, a bun), goes before the head and the body -- but not
+             the hair over the back of the head's side between the chin and the ears, turned out to the side and not well behind the head from the
+             eye: the head is inside it there, and drawn before the head the back of its jaw lay over it (Sir, 2026-11-20, "the rear of the head is
+             drawing over this hair piece"). (A face turned down, a bob's flared underside, stays: after the head it lay over the chin) */
+          const dv = ma*(cs + sn) + mb*(cs - sn);                                                  // (its depth from the eye against the head's middle: the world's a + b)
+          const sideOver = mh >= z0 && nz > -0.15 && dv > -r*0.35;
+          const low = o.behind || (mh < earZ && mbb < 0 && !sideOver);
+          if(pass === 'low' ? !low : low) return;                                              // ...belongs to the other pass
           if(!sees3(nx, ny, nz)) return;
           const lit = Math.max(0, Math.min(1, 0.1 + 0.55*Math.abs(ny) + 1.0*Math.max(0, nz) + (o.behind ? 0.3 : -0.1)*Math.abs(nx)));   // (a tail, a bun: lit from the side too, or it hung as a flat slab)
           const cx = (s0.x + s1.x + s2.x + s3.x)/4, cy = (s0.y + s1.y + s2.y + s3.y)/4;
