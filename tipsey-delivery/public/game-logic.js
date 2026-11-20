@@ -57493,9 +57493,15 @@ function houseCanopy(fn){
             for(const [da, db] of [[-7, -7], [7, -7], [-7, 7], [7, 7]]) cyl(ka + da, kb + db, 0, 5, 3, '#2a2d31');
             cyl(ka, kb, 5, 34, 11, '#e2b23c', '#c99a2c'); cyl(ka, kb, 34, 37, 12, '#3a3e44');
             tube(ka + 6, kb + 6, 34, ka + 6, kb + 6, 62, 2.2, '#5d6369');
-            if(up){ tube(ka + 6, kb + 6, 62, fa, fb, CZc + 4, 2.2, '#5d6369'); cyl(fa, fb, CZc + 4, CZc + 10, 9, '#e2b23c', '#2a2016');
-              if(drain) tube(fa - 2, fb - 2, CZc + 20, fa - 2, fb - 2, CZc + 9, 1.4, '#3a2a12'); }
-            else cyl(ka + 6, kb + 6, 62, 68, 9, '#e2b23c', '#2a2016'); },
+            if(!up) cyl(ka + 6, kb + 6, 62, 68, 9, '#e2b23c', '#2a2016'); },
+          state: () => { const S = pgSvc(pgSvcNow()), up = S.car && S.lift >= 1 && S.s >= 84 && S.s < (S.E || 1800) - 158; return up ? 'up' : 'idle'; } } });
+      /* (its funnel up under the engine, and its arm: a piece of their own keyed UNDER the car -- inside its footprint -- so the car's body
+         paints over them where they meet: keyed with the caddy, the funnel was drawn over the car's front corner (Sir, 2026-11-20)) */
+      items.push({ a: 84, b: 100, z: 0, solids: [], draw: () => {},
+        fx: { kit: () => { const S = pgSvc(pgSvcNow()), up = S.car && S.lift >= 1 && S.s >= 84 && S.s < (S.E || 1800) - 158, drain = up && S.s < 640;
+            if(!up) return;
+            tube(ka + 6, kb + 6, 62, fa, fb, CZc + 4, 2.2, '#5d6369'); cyl(fa, fb, CZc + 4, CZc + 10, 9, '#e2b23c', '#2a2016');
+            if(drain) tube(fa - 2, fb - 2, CZc + 20, fa - 2, fb - 2, CZc + 9, 1.4, '#3a2a12'); },
           state: () => { const S = pgSvc(pgSvcNow()), up = S.car && S.lift >= 1 && S.s >= 84 && S.s < (S.E || 1800) - 158; return up ? (S.s < 640 ? 'drain' : 'up') : 'idle'; } } }); }
     /* ---- THE TYRE CHANGER AND THE WHEEL BALANCER, south of bay 1, their working faces to Danny north of them (W19) ---- */
     { const ca = 90, cb = 420;
