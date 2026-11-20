@@ -57401,7 +57401,7 @@ function houseCanopy(fn){
        "we want to use our own car art"), 225 x 90. Its posts either side, each its own piece (the far one behind the car, the near one and
        the beam over in front of it); the arms out under its sills go with the far post ---- */
     { const ca = 84, cw = 45, CB0 = 20, CB1 = 245, CM = (CB0 + CB1)/2, CZ = 78;
-      const postA = [ca - cw - 20, ca + cw + 20], PB = [CM - 12, CM + 12];
+      const postA = [ca - cw - 28, ca + cw + 34], PB = [CM - 12, CM + 12];
       const post = pa => { box(pa - 9, pa + 9, PB[0], PB[1], 0, 236, steel, steelD, steelS); box(pa - 12, pa + 12, PB[0] - 4, PB[1] + 4, 0, 6, steelD, steelS, steelS);
         F(pa - 3, pa + 3, 20, 230, '#e2b23c', null, 0, PB[1] + 0.3); };
       items.push({ a: postA[0], b: PB[1], z: 0, solids: [solid(postA[0] - 9, postA[0] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => post(postA[0]) });
