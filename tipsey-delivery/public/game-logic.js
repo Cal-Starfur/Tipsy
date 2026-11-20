@@ -59424,9 +59424,9 @@ function houseCanopy(fn){
       for(const [h, isF] of [[PODX, xFull], [PODY, !xFull]]){ const loads = POD_FULL.slice(); let a = h, b = PODB;
         for(let m = 0; m < 5; m++){ const L = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: binPal(m) }; let v = null;
           /* (the pick face's arm: move 2m an empty off the carts into the returns pod, move 2m+1 a full out of the full pod onto the carts) */
-          const tf = m*4000 + 2000, te = m*4000;   /* (the humanoid's move m: an empty off the carts into the returns pod; the arm's: a full out of the full pod onto the carts) */
-          if(isF) v = jr < tf ? L : jr < tf + 300 ? Object.assign({}, L, { off: [0, 26*ease((jr - tf)/300)] }) : jr < tf + 2000*ARMU0 ? Object.assign({}, L, { off: [0, 26] }) : jr < 20000 ? null : null;
-          else if(jr < 20000) v = jr < te + 4000*CARRY_GO ? null : jr < te + 4000*CARRY_GO + 300 ? Object.assign({}, L, { empty: true, off: [0, 26*(1 - ease((jr - te - 4000*CARRY_GO)/300))] }) : Object.assign({}, L, { empty: true });
+          const tf = m*STKM + STKM/2, te = m*STKM;   /* (the humanoid's move m: an empty off the carts into the returns pod; the arm's: a full out of the full pod onto the carts) */
+          if(isF) v = jr < tf ? L : jr < tf + 300 ? Object.assign({}, L, { off: [0, 26*ease((jr - tf)/300)] }) : jr < tf + STKM*ARMU0 ? Object.assign({}, L, { off: [0, 26] }) : jr < 20000 ? null : null;
+          else if(jr < 20000) v = jr < te + STKM*CARRY_GO ? null : jr < te + STKM*CARRY_GO + 300 ? Object.assign({}, L, { empty: true, off: [0, 26*(1 - ease((jr - te - STKM*CARRY_GO)/300))] }) : Object.assign({}, L, { empty: true });
           else { const J = JS(6 + m);
             v = jr < J + 600*JK ? Object.assign({}, L, { empty: true }) : jr < J + 900*JK ? Object.assign({}, L, { empty: true, off: [0, 26*ease((jr - J - 600*JK)/(300*JK))] })
               : jr < J + 2750*JK ? null : jr < J + 3000*JK ? Object.assign({}, L, { off: [0, 26*(1 - ease((jr - J - 2750*JK)/(250*JK)))] }) : L; }
@@ -59436,6 +59436,11 @@ function houseCanopy(fn){
           const P1 = pathAt(Q, Math.min(s0, QL - 0.5)); a = P1.a; b = P1.b; }
         out.push({ a, b, loads, isF, home: h }); }
       return out; };
+    /* (the pick face's moves: the Receiver's move m -- an empty off the carts back onto the shelf -- from STKM*m, the arm's -- a full out of the
+       full pod onto the carts -- from STKM*m + STKM/2; where the bins are) */
+    const STKM = 2400;
+    const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
+    const podFace = (h, m) => { const sq = AMR_SLOTS.amrshelf[S5[m]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
     /* ---- ROW B'S SUPPLY (fx.crew): the runner from goods to person up to the line and along the south of it, a tote to each of row B's
        benches, and back; once every SUP, half a SUP after the tugger ---- */
     const RBP = [[870, 1610], [870, 1300], [1790, 1300], [1791, 1300]], RBS = [0, 320, 620, 920, 1220], RBDW = [24000, 1400, 1400, 1400, 1400], RB0 = SUP/2;   /* (phase 4: at goods to person the empties go into the pod before the fulls come off it -- eight jobs) */
@@ -59454,7 +59459,7 @@ function houseCanopy(fn){
         const d = S.stop === 0 ? 0 : Math.max(0, S.stop > 0 ? (S.r > 700 ? S.stop : S.stop - 1) : S.done);
         const loads = AMR_SLOTS.amrtug.map(() => null);
         for(let m = 0; m < 5; m++){ const i = TUGLD[m], L = TUG[i];
-          if(S.stop === 0 && jr < 20000) loads[i] = jr >= m*4000 + 2000 + 2000*ARMU1 ? L : jr >= m*4000 + 4000*0.3 ? null : Object.assign({}, L, { empty: true });
+          if(S.stop === 0 && jr < 20000) loads[i] = jr >= m*STKM + STKM/2 + STKM*ARMU1 ? L : jr >= m*STKM + STKM*0.3 ? null : Object.assign({}, L, { empty: true });
           else loads[i] = m >= 5 - d ? Object.assign({}, L, { empty: true }) : L; }
         CW_FLOW.tug = loads.filter(L => L && !L.empty).length + ' full ' + loads.filter(L => L && L.empty).length + ' empty';
         out.push(bot(P0.a, P0.b, P0.fdir, { build: 'amrtug', key: 'cwTug', loads, bins: CPAL, wheel: S.s*0.12, vel: S.stop < 0 ? RV : 0 }));
@@ -59466,20 +59471,11 @@ function houseCanopy(fn){
         /* THE PICK FACE: the arm robot parked south of the carts, its arm long enough to reach over them to the pods -- a full out of the full
            pod onto the carts (from 2000 in each 4000); the humanoid in the strip between the pods and the carts -- each empty off the carts and
            back onto the shelf, into the returns pod (the first 4000 of each) */
-        const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
-        const podFace = (h, m) => { const sq = AMR_SLOTS.amrshelf[S5[m]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
         { const AA = 1930, AB = 262, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           let arm = { pick: fr([AA + 40, AB + 40, 70]), place: fr(podFace(PODX, 0)), u: null, L1: 112, L2: 104 };   /* (at rest, turned away from the strip he works) */
-          if(jr < 20000 && jr % 4000 >= 2000){ const m = Math.floor(jr/4000), u = (jr % 4000 - 2000)/2000, fP = PS.find(pd => pd.isF), col = CPAL[binPal(m) % 4], pf = podFace(fP.home, m);
+          const ja = jr - STKM/2; if(ja >= 0 && ja < 5*STKM){ const m = Math.floor(ja/STKM), u = (ja % STKM)/STKM, fP = PS.find(pd => pd.isF), col = CPAL[binPal(m) % 4], pf = podFace(fP.home, m);
             arm = { pick: fr([pf[0], pf[1], pf[2] + 20]), place: fr(cartW(TUGLD[m])), u, held: HELDBIN(col, false), L1: 112, L2: 104 }; }
           out.push(bot(AA, AB, 0, { build: 'amrarm', arm, dd: RP[0][0] + RP[0][1] + 10 - AA - AB })); }   /* (after the tugger: its carts, drawn with it at its nose, are behind the arm -- Sir: "the tugger's trailer is drawing over the other robot") */
-        { const IDL = [1960, 140], rP = PS.find(pd => !pd.isF);
-          if(jr < 20000){ const m = Math.floor(jr/4000), q = jr % 4000, cw = cartW(TUGLD[m]), pf = podFace(rP.home, m);
-            const prev = m ? [podFace(rP.home, m - 1)[0], 124] : IDL;
-            const J = carryJob(q, 4000, prev, { stand: [cw[0], 162], f: 1, at: [cw[0], cw[1], cw[2] - 20] }, { stand: [pf[0], 124], f: 3, at: pf }, CPC(binPal(m)));
-            out.push(man(J.pos[0], J.pos[1], J.f, J.pose));
-            if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[1] < 112 ? rP.a + rP.b + 2 - b[0] - b[1] : 1, cargo: () => BIN(b[0], b[1], b[2], J.col, true) }); } }
-          else out.push(man(IDL[0], IDL[1], 1, {})); }
         return out; } } });
       /* the runner, its totes on its lid; and goods to person: the two shelf pods taking turns at the stop, the picker taking a part from the
          pod and putting it in the runner's tote while it is in (pods: each in for every other visit, waiting its turn round the loop) */
@@ -59606,7 +59602,22 @@ function houseCanopy(fn){
       const endStand = j => j < 0 ? IDLE : JOBS[j].k === 'carton' ? [GX, SHSL[JOBS[j].i === 0 ? 0 : 1]] : JOBS[j].k === 'fill' ? slotA(JOBS[j].bin).stand : slotB(TOP4[JOBS[j].bin]).stand;
       let lift = 0.1, bend = 0.15;
       const aim = (pz, fx, k2) => { const dz = pz - 95, th = Math.atan2(Math.max(4, fx), -dz); lift = 0.1 + (th/(Math.PI/2) - 0.1)*k2; bend = 0.15 + (Math.max(0, Math.min(0.9, (40 - Math.hypot(fx, dz))/40*1.7)) - 0.15)*k2; };
-      if(q){ const J = JOBS[q.j], prev = endStand(q.j - 1), Q = q.q/JK; let pos, f = 0, walk = 0, gait = 0, carry = null, cDraw = null, onRobot = null;
+      /* THE RECEIVER STOCKS THE PICK FACE TOO (Sir, 2026-11-20: "I wanted to use the other humanoid for this stocking job"): before the parts
+         pallet is in he walks over, puts the tugger's five empties back onto the shelf, into the returns pod, as the arm loads the fulls, and
+         walks back to Receiving for the pallet */
+      const STK_IN = PALT - 3600, STK_END = 5*STKM, PFI = [1990, 128], via = [2150, 128];   /* (along the strip in front of the pods, clear of the tugger) */
+      const walkPath = (k, pts) => { const L = []; let T = 0; for(let i = 1; i < pts.length; i++){ const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); L.push(d); T += d; }
+        let r = k*T; for(let i = 1; i < pts.length; i++){ if(r <= L[i - 1] || i === pts.length - 1){ const kk = L[i - 1] ? Math.min(1, r/L[i - 1]) : 1, A = pts[i - 1], B = pts[i]; return { p: [A[0] + (B[0] - A[0])*kk, A[1] + (B[1] - A[1])*kk], f: face(A, B), g: k*T/7 }; } r -= L[i - 1]; }
+        return { p: pts[pts.length - 1], f: 0, g: 0 }; };
+      if(jr >= STK_IN || jr < STK_END + 2400){
+        if(jr >= STK_IN){ const W2 = walkPath(clamp01((jr - STK_IN)/3000), [IDLE, via, PFI]); out.push(man(W2.p[0], W2.p[1], jr - STK_IN < 3000 ? W2.f : 3, { walk: jr - STK_IN < 3000 ? 1 : 0, gait: W2.g })); }
+        else if(jr < STK_END){ const m = Math.floor(jr/STKM), qq = jr % STKM, rP = podState(t).find(pd => !pd.isF), cw = cartW(TUGLD[m]), pf = podFace(rP.home, m);
+          const prev = m ? [podFace(rP.home, m - 1)[0], 124] : PFI;
+          const J2 = carryJob(qq, STKM, prev, { stand: [cw[0], 162], f: 1, at: [cw[0], cw[1], cw[2] - 20] }, { stand: [pf[0], 124], f: 3, at: pf }, CPC(binPal(m)));
+          out.push(man(J2.pos[0], J2.pos[1], J2.f, J2.pose));
+          if(J2.bin){ const b = J2.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[1] < 112 ? rP.a + rP.b + 2 - b[0] - b[1] : 1, cargo: () => BIN(b[0], b[1], b[2], J2.col, true) }); } }
+        else { const from = [podFace(podState(t).find(pd => !pd.isF).home, 4)[0], 124], W2 = walkPath(clamp01((jr - STK_END)/2400), [from, via, IDLE]); out.push(man(W2.p[0], W2.p[1], jr - STK_END < 2400 ? W2.f : 1, { walk: jr - STK_END < 2400 ? 1 : 0, gait: W2.g })); } }
+      else if(q){ const J = JOBS[q.j], prev = endStand(q.j - 1), Q = q.q/JK; let pos, f = 0, walk = 0, gait = 0, carry = null, cDraw = null, onRobot = null;
         const go = (k2, A, B, f1) => { pos = leg(k2, A, B); f = Math.hypot(B[0] - A[0], B[1] - A[1]) > 2 ? face(A, B) : f1; walk = k2 > 0 && k2 < 1 && Math.hypot(B[0] - A[0], B[1] - A[1]) > 2 ? 1 : 0; gait = k2*Math.hypot(B[0] - A[0], B[1] - A[1])/7; if(k2 > 0.9) f = f1; };
         const chest = () => [pos[0] + Math.cos(f*Math.PI/2)*24, pos[1] + Math.sin(f*Math.PI/2)*24, 52];
         if(J.k === 'carton'){ const it = RCV[J.i], pick = [GX, PB + it.db], drop = [GX, SHSL[J.i === 0 ? 0 : 1]], ce = [JA - it.la, PB + it.db, 10.5 + it.dz];
