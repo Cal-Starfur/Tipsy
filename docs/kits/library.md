@@ -23,6 +23,10 @@ size measured off its own drawing (`measured`: how far it rises on screen, its s
 look function and table with its line in `game/index.html`. To start something new, look up its nearest relative there and build to its
 numbers.
 
+**Counters: 65 to 75.** A counter's top (a shop counter, a bar, a till, a back counter) is 65..75 against a person's 124 (Sir,
+2026-11-20). Build a new one in the range; an old one out of it is brought in by `COUNTER_FIT` in the shop library (its room, its
+counters' solid names, the top it was drawn to and the top it is drawn to now -- `zFit` scales the counter and moves what stands on it).
+
 **Hunting inconsistencies:** `node tools/review/consistency.js [room]` measures every walk-in room's fixtures by kind (chairs, stools,
 benches, sofas, tables, desks, counters, workbenches, shelves, cabinets, lockers, beds -- by what their solids are called) and lists the
 ones well off their kind's typical size; the typical sizes go into `library.json` (`fixtures`). A review list, not a gate: a low table or

@@ -47444,7 +47444,43 @@ const LIB = (function(){
      scene's palette (LIB.setCityPave), so a site's forecourt can lay the
      very tiles the pavement in front of it has. Null in the labs. */
   let CITY_PAVE = null;
+  /* ZMAP -- a height map for one piece's drawing (zFit): COUNTERS IN ONE RANGE (Sir, 2026-11-20: "i like a range but it needs to be 65
+     to 75" -- a counter's top 65..75 against a person's 124). zFit(t0, t1, fn) draws fn with a counter whose top was t0 brought to t1:
+     its body scaled, everything over its top -- tills, screens, cups, signs -- moved by the difference, so all of it stays on it */
+  let ZMAP = null;
+  /* THE ROOMS' COUNTERS, each brought into the range (65..75): the room, its counters by the name of their solids, the top each was drawn
+     to and the top it is drawn to now. Every piece keyed inside a counter's footprint -- the counter's own runs and what stands on it as
+     its own piece -- is drawn through zFit (LIB.collect marks it). A counter already in the range is not listed */
+  const COUNTER_FIT = {
+    'Seabreeze Trophies Interior': [[/^counter$/, 58, 65]],
+    'Brew & Bolt Interior': [[/^counter$/, 96, 75], [/^back bar$/, 93, 75]],
+    'Tidewater Kart Works Interior': [[/^counter$/, 92, 75]],
+    'Pelican Drug Interior': [[/^counter$/, 60, 65], [/^checkout$/, 58, 65]],
+    'Dune Home & Garden Interior': [[/^counter$/, 58, 65], [/^checkout$/, 58, 65]],
+    'Palmline Nursery Interior': [[/^counter$/, 84, 75]],
+    'Seaglass Coffee Interior': [[/^counter$/, 84, 75], [/^back bar$/, 90, 75]],
+    'Coral Cafe Interior': [[/^counter$/, 88, 75], [/^back bar$/, 90, 75]],
+    'Palmline Garage Interior': [[/^counter$/, 96, 75]],
+    'Palmline Savings Interior': [[/^tellers' counter$/, 104, 75]],
+    'Tidewater Tea House Interior': [[/^brewing counter$/, 88, 75], [/^tea bar$/, 88, 75]],
+    'Driftwood Books Interior': [[/^counter$/, 88, 75]],
+    'Lagoon Coffee Roasters Interior': [[/^bar$/, 93, 75], [/^back bar$/, 90, 75]],
+    'Marina Deli Interior': [[/^back counter$/, 90, 75], [/^till$/, 88, 75]],
+    'Tide Pool Elementary Interior': [[/^serving counter$/, 48, 65], [/^counter$/, 52, 65]],
+    'Sun Deck Airfield Terminal Interior': [[/^cafe counter$/, 84, 75], [/^cafe back bar$/, 90, 75]],
+    'Vista Ridge Security Post Monitor Room': [[/^counter$/, 88, 75]]
+  };
+  function counterFitMark(name, items){
+    const F = COUNTER_FIT[name]; if(!F || !items) return;
+    const rects = [];
+    for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name || !s.poly) continue; const f = F.find(q => q[0].test(s.name)); if(!f) continue;
+      let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9; for(const [a, b] of s.poly){ a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      rects.push([a0 - 3, a1 + 3, b0 - 3, b1 + 3, f[1], f[2]]); }
+    for(const it of items){ const a = it.a || 0, b = it.b || 0, r = rects.find(q => a >= q[0] && a <= q[1] && b >= q[2] && b <= q[3]); if(r) it.zfit = [r[4], r[5]]; }
+  }
+  function zFit(t0, t1, fn){ const prev = ZMAP; ZMAP = z => z <= t0 ? z*t1/t0 : z + (t1 - t0); try { return fn(); } finally { ZMAP = prev; } }
   function P(a, b, z){
+    if(ZMAP) z = ZMAP(z);
     if(TURN){ a = TURN.w - a; b = -TURN.d - b; }        // see turned() in the kit
     a += AOFF;
     if(MIRROR) a = MIRROR - a;
@@ -91544,6 +91580,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       ctx.__bind(NULL_GFX);
       try { shop.draw(PAL[0]); }
       finally { state.emit = null; SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
+      counterFitMark(name, got);                                                          // (its counters into the range: COUNTER_FIT)
       return got;
     },
     drawItem(name, g, G, k, item, flank, edge){
@@ -91552,7 +91589,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       if(!ctx) ctx = makeCtx2Phaser();
       this._enter(shop, G, k, flank, edge);
       ctx.__bind(g);
-      try { item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
+      try { if(item.zfit) zFit(item.zfit[0], item.zfit[1], () => item.draw()); else item.draw(); } finally { SHOP_SLOT = null; MIRROR = 0; BOFF = 0; AOFF = 0; }
       return true;
     },
     /* clip: [a0, a1, b0, b1] in the entry's frame -- only the ground inside it (a walk-in's floor seen from the

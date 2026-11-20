@@ -10,7 +10,7 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
   ['desk', /\bdesk/], ['counter', /counter|\bbar\b|till/], ['table', /\btables?\b/],
   ['shelf', /shel(f|ves)|rack|bookcase|gondola/], ['bed', /\bbed\b/], ['cabinet', /cabinet|chest|dresser/]];
 (async () => {
-  const want = process.argv.slice(2).find(a => !a.startsWith('--')) || '';
+  const want = process.argv.slice(2).find((a, i, A) => !a.startsWith('--') && A[i - 1] !== '--kind') || '';
   const h = await H.open(); await h.boot();
   const rows = await h.page.evaluate(want => {
     const G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z }), out = [];
@@ -37,6 +37,9 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
       if(Math.abs(dh) > 0.25 || Math.abs(ds) > 0.4) flagged.push({ kind: k, ...r, dh, ds, mh, ms }); } }
   console.log(rows.length + ' solids in ' + new Set(rows.map(r => r.room)).size + ' rooms; typical sizes (median):');
   for(const [k, n] of Object.entries(norms)) console.log('  ' + k.padEnd(8) + ' height ' + String(n.height).padStart(4) + '  depth ' + String(Math.round(n.depth)).padStart(4) + '   (' + n.count + ' in ' + n.rooms + ' rooms, heights ' + n.heightRange.join('..') + ')');
+  if(process.argv.includes('--kind')){ const k = process.argv[process.argv.indexOf('--kind') + 1]; const seen = {};
+    for(const r of by[k] || []){ const key = r.room + '|' + r.name + '|' + r.h; (seen[key] = seen[key] || { ...r, n: 0 }).n++; }
+    console.log('\nall ' + k + ':'); for(const r of Object.values(seen).sort((x, y) => x.h - y.h)) console.log('  ' + String(r.h).padStart(4) + '  ' + r.room + '  "' + r.name + '" x' + r.n + ' @' + r.at); }
   console.log('\nwell off their kind (' + flagged.length + '):');
   for(const f of flagged.sort((x, y) => x.kind.localeCompare(y.kind) || Math.abs(y.dh) - Math.abs(x.dh)))
     console.log('  ' + f.kind.padEnd(8) + f.room + ' @' + f.at + '  "' + f.name + '"  height ' + Math.round(f.h) + ' (typical ' + f.mh + (Math.abs(f.dh) > 0.25 ? ', ' + (f.dh > 0 ? '+' : '') + Math.round(f.dh*100) + '%' : '') + ')  depth ' + Math.round(f.short) + ' (typical ' + Math.round(f.ms) + (Math.abs(f.ds) > 0.4 ? ', ' + (f.ds > 0 ? '+' : '') + Math.round(f.ds*100) + '%' : '') + ')');
