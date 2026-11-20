@@ -117517,10 +117517,20 @@ class WorldScene extends Phaser.Scene {
            the eye: then the hand is the nearer and goes on after it, or the forearm's end covered the hand's root as a disc across the wrist
            (Sir, 2026-11-20, "the hand a lower arm have a draw order face issue")) */
         const handOut = sees3(0, Hd[0] - E[0], Hd[1] - E[1]);
-        const fore = () => { const hand = () => limb(shoulderAx, along(E, ang + bend, foreLen - 1.5), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);
+        /* THE BODY'S FRONT (the far arm split, Sir, 2026-11-20: "the far arm is drawing over the body"): what of the far arm is past the torso's
+           front -- its depth (b) past half the torso's, and the arm's own width -- is drawn in front of it; the rest behind. The forearm in the
+           'front' half starts where it comes out (cutF), not at the elbow behind the body, and the upper arm likewise (upperOut) */
+        const bFront = build.torsoD/2 + elbowW, fa2 = ang + bend, fd = Math.sin(fa2);
+        const cutF = phase === 'front' && E[0] < bFront ? (fd > 0.01 ? (bFront - E[0])/fd : 1e9) : 0;
+        const fore = () => { if(cutF >= foreLen + 5.5) return;
+                             const hand = () => limb(shoulderAx, along(E, ang + bend, Math.max(foreLen - 1.5, cutF)), along(Hd, ang + bend, 5.5), wristW, wristW, handP.c, handP.dk, 0.85, 1);
+                             if(cutF >= foreLen - 1.5){ hand(); return; }
                              if(!handOut) hand();
-                             limb(shoulderAx, atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
-                             if(handOut) hand(); };   // (atHead: from just out of the elbow, its round end inside the upper arm, not past its outside)   // (its root inside the hem band, never past it: the sleeve runs 2 on over it)
+                             if(cutF > 0){ const R0 = atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), db = Hd[0] - R0[0];   // (cut on the whole forearm's own axis and taper: no step where it comes out)
+                               const t = db > 0.01 ? Math.min(0.97, Math.max(0, (bFront - R0[0])/db)) : 0, k = 1 - 0.18*t, w = elbowW*k;
+                               limb(shoulderAx, [R0[0] + db*t, R0[1] + (Hd[1] - R0[1])*t], Hd, w, w, pSkin.c, pSkin.dk, 0.82/k, 0); }
+                             else limb(shoulderAx, atHead ? along(E, ang + bend, elbowW*0.7) : along(S, ang, sleeveLen - 0.3), Hd, elbowW, elbowW, pSkin.c, pSkin.dk, 0.82, 0);
+                             if(handOut) hand(); };
         const raised = Math.abs(ang) > RAISED;
         const upper = () => { const s0 = raised ? ext(S, E, 3) : RB ? S : along(S, ang, SLV0);
           if(RB){ limb(shoulderAx, s0, ext(E, S, ELB), build.armW*sleeveW, build.armW*sleeveW, pSleeve.c, pSleeve.dk, 0.86, 0); return; }
@@ -117533,13 +117543,13 @@ class WorldScene extends Phaser.Scene {
            upper arm is the nearer: the forearm's elbow end had shown through it (Sir, 2026-11-15, "the bottom of the lower arm drawn
            through the upper arm"). There, nearer is which reaches further toward the eye, the hand or the elbow) */
         const foreNear = (atHead ? (Hd[0] - E[0]) : ((E[0] + Hd[0])/2 - E[0]/2))*faceB > 0, crosses = foreNear && Math.cos(bend) < 0.75;   // (bent past ~40 degrees toward the eye: the forearm lies across the elbow's front)
-        if(!front){ upper(); return raised ? false : undefined; }                       // (the 'back' half: the sleeve, its shoulder by arm())
+        if(!front){ upper(); fore(); return raised ? false : undefined; }   // (the far arm's 'back' half: the sleeve, and the forearm whole -- the torso covers what is behind it; what is past its front is drawn again after it)                       // (the 'back' half: the sleeve, its shoulder by arm())
         /* (a forearm across the elbow's front hides the sleeve's end: no hem there -- drawn under it, its band stood out round the forearm's root as a
            dark lump, Sir, 2026-11-20, "the elbow piece ... still causing issues") */
         /* (the far arm lifted toward the eye, its 'front' half: the sleeve's lower part too, where it has come out past the body's front --
            with all of the sleeve behind the torso the forearm stood out of nothing, its elbow off the sleeve's end, Sir, 2026-11-20, "the far
            elbow ie not aligned properly") */
-        const upperOut = () => { const sa = Math.sin(ang), L0 = sa > 0.01 ? (build.torsoD/2)/sa : 1e9; if(raised || L0 >= sleeveLen - 1) return;
+        const upperOut = () => { const sa = Math.sin(ang), L0 = sa > 0.01 ? (build.torsoD/2 + skinW)/sa : 1e9; if(raised || L0 >= sleeveLen - 1) return;
           const t0 = Math.max(SLV0, L0)/sleeveLen;
           if(RB){ const w0 = build.armW*sleeveW*(1 - 0.14*t0); limb(shoulderAx, along(S, ang, Math.max(SLV0, L0)), ext(E, S, ELB), w0, w0, pSleeve.c, pSleeve.dk, 0.86/(1 - 0.14*t0), 0); return; }
           const w0 = skinW*(1 - 0.1*t0); limb(shoulderAx, along(S, ang, Math.max(SLV0, L0)), ext(E, S, ELB), w0, w0, pSkin.c, pSkin.dk, 0.9/(1 - 0.1*t0), 0);
