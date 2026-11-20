@@ -78884,12 +78884,18 @@ marinaEntry(),
       const n = 4;
       for(let k = 0; k < n; k++){
         const a0 = lo + (hi - lo)*k/n, a1 = lo + (hi - lo)*(k + 1)/n, mid = (a0 + a1)/2, kk = ki++, has = [0, 1, 3, 4, 6, 7].includes(kk);
-        items.push({ a: mid, b: 56, z: 0, solids: [solid(a0, a1, 6, 100, 112, 'kennel')], draw: () => {
+        /* (Sir, 2026-11-20: "the costa palma animal shelter isnt using our dogs we have for the game already": its dogs are the game's
+           own (drawDogHull, a breed and coat off the seed: dogLookOf), each its own piece between the kennel's back -- floor, dividers,
+           bed, bowl -- and its chain-link front, which stands over it) */
+        items.push({ a: mid, b: 20, z: 0, draw: () => {
           T(a0, a1, 6, 100, 0.4, conc);                                                              // its floor
-          S(a0, 6, 100, 0, 108, mesh); S(a1, 6, 100, 0, 108, mesh);                                  // the dividers
+          S(a0, 6, 100, 0, 108, mesh);                                                               // the far divider
           box(mid - 24, mid + 24, 14, 54, 0.4, 7, '#b04a4a', '#9a3f3f', '#833434');                  // a bed
           cyl(a0 + 14, 90, 0.4, 7, 6, '#3f7fb0', '#7fb8e0');                                         // a bowl
-          if(has) pet(mid, 44, 7, COATS[kk % COATS.length], true);
+        }});
+        if(has) items.push({ a: mid, b: 40, z: 0, draw: () => {}, fx: { dog: { a: mid - 4, b: 38, z: 7, seed: 0x5e1700 + kk*7919, th: Math.PI/2 + (kk % 2 ? 0.5 : -0.4), sit: kk % 3 === 1 ? 1 : 0 } } });
+        items.push({ a: mid, b: 99, z: 0, solids: [solid(a0, a1, 6, 100, 112, 'kennel')], draw: () => {
+          S(a1, 6, 100, 0, 108, mesh);                                                               // the near divider
           F(a0, a1, 0, 108, mesh, null, 0, 100);                                                     // the chain-link front
           F(a0, a1, 100, 108, post, null, 0, 100.4);
           for(const aa of [a0, a1]) cyl(aa, 100, 0, 112, 2.6, post);
@@ -78929,8 +78935,8 @@ marinaEntry(),
     for(const [s0, s1] of runs(320, 400, 40)) items.push({ a: 290, b: (s0 + s1)/2, z: 0, solids: [solid(287, 293, s0, s1, 56, 'pen')], draw: () => {
       fence(290, 290, s0, s1, 'b'); for(const bb of [s0, s1]) cyl(290, bb, 0, 56, 2.4, post); } });
     for(const [s0, s1] of runs(260, 320, 30)) items.push({ a: 290, b: (s0 + s1)/2, z: 0, draw: () => { cyl(290, s0, 0, 56, 2.4, post); cyl(290, s1, 0, 56, 2.4, post); } });   // the gate's posts
+    items.push({ a: 176, b: 286, z: 0, draw: () => {}, fx: { dog: { a: 176, b: 286, z: 0.7, seed: 0x5e17aa, th: 0.9, sit: 0, breed: 5 } } });   // (a pup in the pen: the game's own dog)
     items.push({ a: 190, b: 300, z: 0, draw: () => {
-      pet(176, 286, 0.7, '#d9c9a8', false);
       ball(222, 318, 5, 5, '#d8464a'); box(196, 214, 340, 346, 0.7, 5, '#f4f1ea', '#e0dcd0', '#cdc8bb');
       cyl(130, 240, 0.7, 5, 9, '#3f7fb0', '#7fb8e0');
     }});
@@ -105498,6 +105504,12 @@ class WorldScene extends Phaser.Scene {
           vq.push({ depth: ox + oy + zd, fn: (g) => { const rp0 = this._roomPerson; this._roomPerson = true;
             try { this.drawPersonHull(g, ox, oy, z0 || 0, thW, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, o.moving ? walkAt(ox, oy) : 0, o.moving, 0, 0, null, L.uniform, false, L.dress ? { dress: L.dress } : null); }
             finally { this._roomPerson = rp0; } } }); } }
+      /* (it.fx.dog: one of THE GAME'S OWN DOGS in a room -- { a, b, z, seed, th, sit, breed? } -- the dog hull with a look off its seed
+         (dogLookOf), standing or sat, cached as a still piece: the animal shelter's kennels) */
+      else if(it.fx && it.fx.dog){ const c = it.fx.dog, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (z0 || 0) + (c.z || 0), th = Math.atan2(sb*Math.sin(c.th || 0), Math.cos(c.th || 0));
+        const look = c._look || (c._look = dogLookOf(c.seed >>> 0, c.breed != null ? DOG_BREEDS[c.breed % DOG_BREEDS.length] : undefined));
+        vq.push({ depth: cx + cy + zd + 1e-3, fn: (g) => this.bcDraw(g, lk + "|dog|" + n, cx, cy, gg => this.drawDogHull(gg, cx, cy, cz, th, look,
+          { t: 0, walkPhase: 0, walkAmt: 0, sit: c.sit || 0, noCollar: false, tr: 0, tailCurl: DOG.tailCurl, startle: 0 })) }); }
       else if(it.fx && it.fx.pod){ const c = it.fx.pod, cx = x0 + c.a, cy = y0 + sb*c.b;
         vq.push({ depth: d + 1e-3, fn: (g) => this.bcDraw(g, lk + "|pod|" + n, cx, cy, gg => this.drawRoomBot(gg, c, cx, cy, z0 || 0, 0, name, G, K)) }); }
       else if(it.fx && it.fx.car){ const c = it.fx.car, cx = x0 + c.a, cy = y0 + sb*c.b, cz = (c.z || 0) + (z0 || 0);
