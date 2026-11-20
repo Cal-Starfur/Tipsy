@@ -122806,12 +122806,20 @@ class WorldScene extends Phaser.Scene {
        and the inside of the car didnt have any depth") ---- */
     if(data && data.doorOpen > 0.01 && !edgeOn && B.gh){
       const GH = B.gh, aH = Math.min(Math.max(aDoor0, aDoor1), GH.f0), aT = Math.max(Math.min(aDoor0, aDoor1), GH.r0 + 4), dw = aH - aT;
-      const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang), bT = nearB*GH.w1, aTop = Math.min(aH - (GH.f0 - GH.f1), aH);
-      /* the opening, on the flank: the panel's part and the window's (the top inset as the glass is) */
-      const aTr = Math.max(aT, GH.r1 + 2);   // (its top's back corner no further back than the roof: a coupe's long door runs past it, and cut into it)
-      const op = [P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aTop, bT, GH.top), P(aTr, bT, GH.top), P(aT, fb, deck)];
-      Q(op, 0x4a443e);
-      { const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
+      const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang);
+      /* THE OPENING FOLLOWS THE PAINTED DOOR (Sir, 2026-11-20: "you are not following the painted art to create where the door is"):
+         below the belt, the panel between its shut lines (aT..aH); above it, the door's own pane as the greenhouse paints it -- the near
+         face's front pane (SIDE), from the belt up to the pane's top, the A-pillar before it, the B-pillar (or a coupe's quarter light,
+         its pane cut at the door's shut line) behind it and the roof rail over it left whole. Two convex pieces, each filled and the
+         cab's inside drawn clipped to it */
+      const fq = nearB > 0 ? [c.bfr, c.brr, c.trr, c.tfr] : [c.bfl, c.brl, c.trl, c.tfl];
+      const SP = SIDE[B.side || (twoDoor ? "one" : "two")], pn = SP ? SP[0] : [0.07, 0.47, 0.87];
+      const uD = (GH.f0 - aT)/(GH.f0 - GH.r0), u0 = pn[0], u1 = Math.min(pn[1], uD - 0.02), v1 = pn[2] || 0.87;
+      const W3 = [on(fq, u0, 0), on(fq, u1, 0), on(fq, u1, v1), on(fq, u0, v1)];        // (the window's hole: [a, b, h] on the face)
+      const pieces = [[P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aT, fb, deck)], W3.map(p => P(p[0], p[1], p[2]))];
+      for(const op of pieces){
+        Q(op, 0x4a443e);
+        const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
         this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, col, aa); };
         try {
           const IN = 0x5c544b, WALL = 0x8a7f72, fl = H(30) - 4, wb = hw - 7;
@@ -122829,17 +122837,17 @@ class WorldScene extends Phaser.Scene {
           for(let k = 0; k < 12; k++){ const p0 = k/12*Math.PI*2, p1 = (k + 1)/12*Math.PI*2, r0 = 7, r1 = 5.2;
             Q([P(aW, bc + Math.cos(p0)*r0, hW + Math.sin(p0)*r0), P(aW, bc + Math.cos(p1)*r0, hW + Math.sin(p1)*r0), P(aW, bc + Math.cos(p1)*r1, hW + Math.sin(p1)*r1), P(aW, bc + Math.cos(p0)*r1, hW + Math.sin(p0)*r1)], 0x232528); }
         } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; } }
-      /* the door, swung: u along it from its front hinge, out from the flank */
+      /* the door, swung: u along it from its front hinge, out from the flank; its upper part the same window, with its frame round it */
       const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
-      const uTop = aH - aTop, uTr = aH - aTr;
-      /* (data.doorOut: the swung door handed back to be drawn as its own piece, in the room's order -- someone can stand behind it) */
-      const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);                                                                     // (its window's front edge at the roof, set back by the pillar's slant)
-      Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to window line
-      Q([D(0, deck), D(dw, deck), D(uTr, GH.top), D(uTop, GH.top)], col.body);                       // the window frame
-      Q([D(2.5, deck + 1.5), D(dw - 2.5, deck + 1.5), D(uTr - 2.5, GH.top - 2.5), D(uTop + 2.5, GH.top - 2.5)], 0x7f98a6);   // its glass
-      Q([D(3, deck + 3, 0.1), D(dw*0.45, deck + 3, 0.1), D(dw*0.3, GH.top - 3.5, 0.1), D(uTop + 3, GH.top - 3.5, 0.1)], 0x9fb4c0);   // a glint
+      const lerpP = (A, B, k) => ({ x: A.x + (B.x - A.x)*k, y: A.y + (B.y - A.y)*k });
+      const DW = (p, du, dh, o) => D(aH - p[0] + (du || 0), p[2] + (dh || 0), o);         // (a point of the window's hole, on the swung door)
+      const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);
+      Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to belt
+      Q([D(0, deck), D(dw, deck), DW(W3[2], 3, 3), DW(W3[3], -3, 3)], col.body);                   // the window's frame
+      Q([DW(W3[0], 0, 2), DW(W3[1], 0, 2), DW(W3[2]), DW(W3[3])], 0x7f98a6);                     // its glass
+      Q([DW(W3[0], 3, 3, 0.1), lerpP(DW(W3[0], 0, 3, 0.1), DW(W3[1], 0, 3, 0.1), 0.4), lerpP(DW(W3[3], 0, -2, 0.1), DW(W3[2], 0, -2, 0.1), 0.25), DW(W3[3], 3, -2, 0.1)], 0x9fb4c0);   // a glint
       Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
-      Q([D(dw, H(29)), D(dw, deck), D(uTr, GH.top), D(uTr, GH.top, -2.5), D(dw, deck, -2.5), D(dw, H(29), -2.5)], col.bodyDk);       // its rear edge, its thickness
+      Q([D(dw, H(29)), D(dw, deck), DW(W3[2], 3, 3), DW(W3[2], 3, 3, -2.5), D(dw, deck, -2.5), D(dw, H(29), -2.5)], col.bodyDk);   // its rear edge, its thickness
       };
       if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
     }
