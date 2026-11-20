@@ -6743,9 +6743,60 @@ function zoomK(){
   const k = ZOOM_K[zoomDepth - 1];
   if(zoomDepth !== 2) return k;
   const s = (typeof game !== "undefined" && game.scene) ? game.scene.getScene("world") : null, pk = s && s._inside;
-  return pk && pk.displace ? roomFitK(s, pk) || k : k;
+  return pk && pk.displace ? (roomCover(s, pk) || {}).K || roomFitK(s, pk) || k : k;
 }
 const ROOM_FIT = { side: 14, top: 8, min: 0.42, max: 1.1, hCap: 300 };   // (hCap: the most of its walls' height the fit makes room for -- a taller hall's back walls run off the top, Sir 2026-11-20: "lets get the bank to take up the whole screen")   // (a hair clear of the screen's edges -- the room's corners may pass under the side rails; the least and most it scales)
+/* THE ROOM COVERS THE SCREEN (Sir, 2026-11-20: "still have some edges we want full covrage"): an iso room is a diamond on screen and can't
+   fill a rectangle while it is all in view -- so at view 2 the scale is the least that puts the WHOLE SCREEN inside the room's outline (its
+   floor and wall footprint, its back walls standing up from the far edges), and the camera follows him, held where the screen stays inside
+   it (roomCoverAim). In screen units at K = 1, the room's own corner (its floor's north-west) at 0: x = a - b, y = (a + b)/2 - z */
+function roomCoverPoly(pk){
+  const Wl = pk.w + 30, Dl = pk.d + 30, H = pk.h || 300, A = -30, B = -30;
+  const S = (a, b, z) => [a - b, (a + b)/2 - z];
+  return [S(A, Dl, H), S(A, B, H), S(Wl, B, H), S(Wl, B, 0), S(Wl, Dl, 0), S(A, Dl, 0)];   // (a convex hexagon, clockwise on screen)
+}
+function polyClip(P, Q){   // (P clipped to convex Q: Sutherland-Hodgman)
+  let out = P;
+  for(let i = 0; i < Q.length && out.length; i++){
+    const a = Q[i], b = Q[(i + 1) % Q.length], inn = p => (b[0] - a[0])*(p[1] - a[1]) - (b[1] - a[1])*(p[0] - a[0]) >= 0, src = out; out = [];
+    for(let j = 0; j < src.length; j++){ const p = src[j], q = src[(j + 1) % src.length], pi = inn(p), qi = inn(q);
+      if(pi) out.push(p);
+      if(pi !== qi){ const d1 = (b[0] - a[0])*(p[1] - a[1]) - (b[1] - a[1])*(p[0] - a[0]), d2 = (b[0] - a[0])*(q[1] - a[1]) - (b[1] - a[1])*(q[0] - a[0]), t = d1/(d1 - d2);
+        out.push([p[0] + (q[0] - p[0])*t, p[1] + (q[1] - p[1])*t]); } }
+  }
+  return out;
+}
+/* where the screen's middle (the camera) may be, at scale K: the room's outline less the screen round it -- every screen corner inside */
+function roomCoverRegion(s, pk, K){
+  let P = roomCoverPoly(pk);
+  { const ar = P.reduce((m, p, i) => { const q = P[(i + 1) % P.length]; return m + p[0]*q[1] - q[0]*p[1]; }, 0); if(ar < 0) P = P.slice().reverse(); }
+  const w = s.vpW ? s.vpW() : s.scale.width, h = s.vpH ? s.vpH() : s.scale.height, cx = s.cx != null ? s.cx : w/2, cyK = h/2 - TILE*0.5*K + 10;
+  const l = -cx/K, r = (w - cx)/K, t = -cyK/K, bo = (h - cyK)/K;
+  let R = P;
+  for(const [ox, oy] of [[l, t], [r, t], [r, bo], [l, bo]]){ R = polyClip(R, P.map(p => [p[0] - ox, p[1] - oy])); if(R.length < 3) return null; }
+  return R;
+}
+function roomCover(s, pk){
+  if(!(pk.w > 0 && pk.d > 0) || pk.w > 2600 || pk.d > 1200) return null;
+  const w = s.vpW ? s.vpW() : s.scale.width, h = s.vpH ? s.vpH() : s.scale.height, key = pk.w + 'x' + pk.d + '|' + (pk.h || 300) + '|' + w + 'x' + h;
+  if(pk._cover && pk._cover.key === key) return pk._cover;
+  let lo = 0.3, hi = 4;
+  if(!roomCoverRegion(s, pk, hi)) return (pk._cover = { key, K: null });
+  for(let i = 0; i < 30; i++){ const m = (lo + hi)/2; if(roomCoverRegion(s, pk, m)) hi = m; else lo = m; }
+  return (pk._cover = { key, K: hi*1.02 });
+}
+/* the camera's aim: his place on screen, kept inside the region the screen covers the room from -- [u, v], the room's screen units */
+function roomCoverAim(s, pk, K, u, v){
+  const R = roomCoverRegion(s, pk, K); if(!R) return null;
+  let inside = true;
+  for(let i = 0; i < R.length; i++){ const a = R[i], b = R[(i + 1) % R.length]; if((b[0] - a[0])*(v - a[1]) - (b[1] - a[1])*(u - a[0]) < 0){ inside = false; break; } }
+  if(inside) return [u, v];
+  let best = null, bd = 1e18;
+  for(let i = 0; i < R.length; i++){ const a = R[i], b = R[(i + 1) % R.length], ex = b[0] - a[0], ey = b[1] - a[1], L2 = ex*ex + ey*ey || 1;
+    const tt = Math.max(0, Math.min(1, ((u - a[0])*ex + (v - a[1])*ey)/L2)), px = a[0] + ex*tt, py = a[1] + ey*tt, d = (px - u)**2 + (py - v)**2;
+    if(d < bd){ bd = d; best = [px, py]; } }
+  return best;
+}
 function roomFitK(s, pk){
   const vw = s.vpW ? s.vpW() : s.scale.width, vh = s.vpH ? s.vpH() : s.scale.height;
   if(!(vw > 0 && vh > 0) || !(pk.w > 0 && pk.d > 0)) return null;
@@ -132589,9 +132640,19 @@ class WorldScene extends Phaser.Scene {
         const own = Math.abs(this.botX - (_rp.x0 + _rp.w/2)) < 5000, sx = own ? 0 : _v.dx, sy = own ? 0 : _v.dy;
         const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : _rp.w > 2600 || _rp.d > 1200 ? 0.8 : 0;   /* (a room far bigger than the screen -- Cratewell Works' hall: the camera follows him round it) */
         camTargetX = cx + (this.botX - cx)*f; camTargetY = cy + (this.botY - cy)*f;
+        /* (view 2, the room covering the screen -- roomCover: on him, held where the screen stays inside the room's outline) */
+        const _cv = zoomDepth === 2 && f === 0 ? roomCover(this, _rp) : null;
+        if(_cv && _cv.K){ const X0 = _rp.x0 + sx, Y0 = _rp.y0 + sy, bu = (this.botX - X0) - (this.botY - Y0), bv = ((this.botX - X0) + (this.botY - Y0))/2 - 60;
+          const aim = roomCoverAim(this, _rp, this.K, bu, bv);
+          /* (but HIM first: never held off the screen at a near wall -- the bakery's door is in its south wall: kept 90 px inside its edges,
+             a sliver of the room's edge let show rather than him lost) */
+          if(aim){ const vw = this.vpW(), vh = this.vpH(), m = 90/this.K, l = -(this.cx - 0)/this.K + m, r = (vw - this.cx)/this.K - m, t = -this.cy/this.K + m, b = (vh - this.cy)/this.K - m - 60;
+            aim[0] = Math.max(bu - r, Math.min(bu - l, aim[0])); aim[1] = Math.max(bv - b, Math.min(bv - t, aim[1])); }
+          if(aim){ const vz = aim[1] + camTargetZ; camTargetX = X0 + vz + aim[0]/2; camTargetY = Y0 + vz - aim[0]/2; _rp._coverAim = true; } }
+        else _rp._coverAim = false;
         /* (on the middle of the room as the screen sees it -- its floor AND its walls: aimed at the floor alone, the back walls' tops went off
            the screen's top with room to spare at its foot) */
-        camTargetZ += (Math.min(_rp.h || 240, ROOM_FIT.hCap)*0.5)*(1 - f); } }   // (on as much of the walls as the fit counts: ROOM_FIT.hCap)
+        if(!_rp._coverAim) camTargetZ += (Math.min(_rp.h || 240, ROOM_FIT.hCap)*0.5)*(1 - f); } }   // (on as much of the walls as the fit counts: ROOM_FIT.hCap)
     /* (the room's own scale at view 2, fitted to the screen -- zoomK: taken up as he is taken in and given back as he comes out) */
     { const _wk = zoomK(); if(Math.abs(this.K - _wk) > 1e-4) zoomApply(); }
     const camVmul = ((this._slAPI && this._slAPI.SL && this._slAPI.SL.vmul) || 1) * (this._botAboard ? 5 : 1);
