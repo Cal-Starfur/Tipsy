@@ -59140,13 +59140,13 @@ function houseCanopy(fn){
        "we want to use our own car art"), 225 x 90. Its posts either side, each its own piece (the far one behind the car, the near one and
        the beam over in front of it); the arms out under its sills go with the far post ---- */
     { const ca = 84, cw = 45, CB0 = 20, CB1 = 245, CM = (CB0 + CB1)/2, CZ = 78;
-      const postA = [ca - cw - 28, ca + cw + 34], PB = [CM - 12, CM + 12];
+      const postA = [ca - cw - 28, ca + cw + 44], PM = CM - 26, PB = [PM - 12, PM + 12];   // (back from the driver's door's swing, out from the car: Sir, 2026-11-20)
       const post = pa => { box(pa - 9, pa + 9, PB[0], PB[1], 0, 236, steel, steelD, steelS); box(pa - 12, pa + 12, PB[0] - 4, PB[1] + 4, 0, 6, steelD, steelS, steelS);
         F(pa - 3, pa + 3, 20, 230, '#e2b23c', null, 0, PB[1] + 0.3); };
       items.push({ a: postA[0], b: PB[1], z: 0, solids: [solid(postA[0] - 9, postA[0] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => post(postA[0]) });
       /* THE LIFT'S ARMS, at the car's height as the lift takes it up and down (the service cycle: pgSvc), a live part cached while still */
       items.push({ a: postA[0], b: PB[1] + 0.5, z: 0, solids: [], draw: () => {},
-        fx: { kit: () => { const z = 4 + pgSvc(pgSvcNow()).lift*(CZ - 8); for(const ab of [CB0 + 50, CB1 - 50]) for(const pa of postA) tube(pa, CM, z, ca + Math.sign(pa - ca)*(cw - 14), ab, z, 3, steelD);
+        fx: { kit: () => { const z = 4 + pgSvc(pgSvcNow()).lift*(CZ - 8); for(const ab of [CB0 + 50, CB1 - 50]) for(const pa of postA) tube(pa, PM, z, ca + Math.sign(pa - ca)*(cw - 14), ab, z, 3, steelD);
           for(const pa of postA) box(pa - 6, pa + 6, PB[0] - 2, PB[1] + 2, z - 4, z + 6, steelD, steelS, steelS); },
           state: () => { const S = pgSvc(pgSvcNow()); return S.lift <= 0 || S.lift >= 1 ? 'l' + Math.round(S.lift) : null; } } });
       /* THE CUSTOMER'S CAR AND ITS OWNER (the service cycle, pgSvc): the game's own car, driving in, up on the lift, down, backing out; its
@@ -59154,7 +59154,7 @@ function houseCanopy(fn){
       items.push({ a: ca, b: CM, z: 0, solids: [solid(ca - cw, ca + cw, CB0, CB1, CZ + 90, 'car on the lift')], draw: () => {}, fx: { svc: t => pgSvc(t) } });
       items.push({ a: postA[1], b: PB[1], z: 0, solids: [solid(postA[1] - 9, postA[1] + 9, PB[0], PB[1], 240, 'lift post')], draw: () => {
         post(postA[1]);
-        tube(postA[0], CM, 238, postA[1], CM, 238, 5, steelD); } });                                       // the beam over
+        tube(postA[0], PM, 238, postA[1], PM, 238, 5, steelD); } });                                       // the beam over
       /* the stack of tyres off it by the west wall */
       items.push({ a: 18, b: 270, z: 0, solids: [{ name: 'tyres', c: [18, 270], r: 18, h: 60 }], draw: () => { for(let k = 0; k < 4; k++) cyl(18, 270, k*14, k*14 + 13, 18, '#2b2e32', tyre); } });
     }
