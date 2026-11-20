@@ -121070,7 +121070,8 @@ class WorldScene extends Phaser.Scene {
       const GH = B.gh, aH = Math.min(Math.max(aDoor0, aDoor1), GH.f0), aT = Math.max(Math.min(aDoor0, aDoor1), GH.r0 + 4), dw = aH - aT;
       const ang = Math.min(1, data.doorOpen)*1.05, ca = Math.cos(ang), sa = Math.sin(ang), bT = nearB*GH.w1, aTop = Math.min(aH - (GH.f0 - GH.f1), aH);
       /* the opening, on the flank: the panel's part and the window's (the top inset as the glass is) */
-      const op = [P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aTop, bT, GH.top), P(aT, bT, GH.top)];
+      const aTr = Math.max(aT, GH.r1 + 2);   // (its top's back corner no further back than the roof: a coupe's long door runs past it, and cut into it)
+      const op = [P(aT, fb, H(30)), P(aH, fb, H(30)), P(aH, fb, deck), P(aTop, bT, GH.top), P(aTr, bT, GH.top), P(aT, fb, deck)];
       Q(op, 0x4a443e);
       { const hull = op.map(q => ({ x: q.x, y: q.y })), own = Object.prototype.hasOwnProperty.call(this, "quadOn"), prevQ = this.quadOn;
         this.quadOn = (gg, pts, col, aa) => { const cp = clipConvex(pts, hull); if(cp) prevQ.call(this, gg, cp, col, aa); };
@@ -121092,15 +121093,15 @@ class WorldScene extends Phaser.Scene {
         } finally { if(own) this.quadOn = prevQ; else delete this.quadOn; } }
       /* the door, swung: u along it from its front hinge, out from the flank */
       const D = (u, h, o) => P(aH - u*ca, fb + nearB*(u*sa + (o || 0)), h);
-      const uTop = aH - aTop;
+      const uTop = aH - aTop, uTr = aH - aTr;
       /* (data.doorOut: the swung door handed back to be drawn as its own piece, in the room's order -- someone can stand behind it) */
       const drawDoor = gg => { const Q = (pts, c) => this.quadOn(gg, pts, c);                                                                     // (its window's front edge at the roof, set back by the pillar's slant)
       Q([D(0, H(29)), D(dw, H(29)), D(dw, deck), D(0, deck)], col.body);                           // the panel, sill to window line
-      Q([D(0, deck), D(dw, deck), D(dw, GH.top), D(uTop, GH.top)], col.body);                       // the window frame
-      Q([D(2.5, deck + 1.5), D(dw - 2.5, deck + 1.5), D(dw - 2.5, GH.top - 2.5), D(uTop + 2.5, GH.top - 2.5)], 0x7f98a6);   // its glass
+      Q([D(0, deck), D(dw, deck), D(uTr, GH.top), D(uTop, GH.top)], col.body);                       // the window frame
+      Q([D(2.5, deck + 1.5), D(dw - 2.5, deck + 1.5), D(uTr - 2.5, GH.top - 2.5), D(uTop + 2.5, GH.top - 2.5)], 0x7f98a6);   // its glass
       Q([D(3, deck + 3, 0.1), D(dw*0.45, deck + 3, 0.1), D(dw*0.3, GH.top - 3.5, 0.1), D(uTop + 3, GH.top - 3.5, 0.1)], 0x9fb4c0);   // a glint
       Q([D(dw - 12, H(51.5), 0.4), D(dw - 4, H(51.5), 0.4), D(dw - 4, H(54), 0.4), D(dw - 12, H(54), 0.4)], CHROME);   // the handle
-      Q([D(dw, H(29)), D(dw, GH.top), D(dw, GH.top, -2.5), D(dw, H(29), -2.5)], col.bodyDk);       // its rear edge, its thickness
+      Q([D(dw, H(29)), D(dw, deck), D(uTr, GH.top), D(uTr, GH.top, -2.5), D(dw, deck, -2.5), D(dw, H(29), -2.5)], col.bodyDk);       // its rear edge, its thickness
       };
       if(data.doorOut) data.doorOut.fn = drawDoor; else drawDoor(g);
     }
