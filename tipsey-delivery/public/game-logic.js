@@ -117825,7 +117825,7 @@ class WorldScene extends Phaser.Scene {
                        G(rAt(zb2)*0.30, rAt(zb2), zb2), G(-rAt(zb2)*0.30, rAt(zb2), zb2) ];
           if(sees3(0, 1, 0) && !cap.noPeak) this.quadOn(g, bq, cap.badge);   // (only with the cap's front toward the eye: drawn on the far side, it showed through on the back of the cap)
         };
-        const drawPeak = () => capBill(cR, cz0 + 1, { c: cap.top || cap.c, dk: cap.dk }, { c: _pdk(cap.top || cap.c, 0.9), dk: cap.dk }, cap.back ? -1 : 1);
+        const drawPeak = part => capBill(cR, cz0 + 1, { c: cap.top || cap.c, dk: cap.dk }, { c: _pdk(cap.top || cap.c, 0.9), dk: cap.dk }, cap.back ? -1 : 1, part);
         /* depth of the peak's centre vs the crown's, in the same world
            metric drawWorld sorts on */
         /* THE BILL (every peaked cap: a hard hat, a postie's, a lifeguard's, a cyclist's helmet, a sailor's, one worn backwards -- Sir,
@@ -117833,10 +117833,15 @@ class WorldScene extends Phaser.Scene {
            from the crown's own rim, a fan out to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade. dir -1:
            worn backwards */
         const grow4 = q => { let cx = 0, cy = 0; for(const q0 of q){ cx += q0.x; cy += q0.y; } cx /= 4; cy /= 4; return q.map(q0 => { const dx = q0.x - cx, dy = q0.y - cy, d = Math.hypot(dx, dy) || 1; return { x: q0.x + dx/d*0.4, y: q0.y + dy/d*0.4 }; }); };
-        const capBill = (rr, zb, HP, HP2, dir) => { const N = 12, len = build.headR*0.6, inn = [], out = [], out2 = [];                  // (a shorter bill, set a little lower on the crown's rim)
+        /* (part 'far' / 'near': it wraps round the crown's sides, so it is drawn in two -- its panels behind the crown's middle before the crown,
+           the rest after. Whole, before or after by where its middle lies, the half behind lay over the crown -- Sir, 2026-11-20, "the hats brim
+           is visible through the top") */
+        const capBill = (rr, zb, HP, HP2, dir, part) => { const N = 12, len = build.headR*0.6, inn = [], out = [], out2 = [], dep = [];                  // (a shorter bill, set a little lower on the crown's rim)
           for(let i = 0; i <= N; i++){ const an = -1.15 + 2.3*i/N, c = Math.cos(an)*dir, sn2 = Math.sin(an), ro = rr*1.01 + 0.5 + len*Math.pow(Math.max(0, Math.cos(an*1.36)), 0.6);
-            inn.push(G(sn2*rr*0.97, c*rr*0.97, zb + 0.4)); out.push(G(sn2*ro, c*ro, zb - 1.6)); out2.push(G(sn2*ro, c*ro, zb - 2.8)); }
-          for(let i = 0; i < N; i++){ this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
+            inn.push(G(sn2*rr*0.97, c*rr*0.97, zb + 0.4)); out.push(G(sn2*ro, c*ro, zb - 1.6)); out2.push(G(sn2*ro, c*ro, zb - 2.8));
+            dep.push(sn2*ro*(cs + sn) + c*ro*(cs - sn)); }   // (its depth against the crown's middle, the world's a + b)
+          for(let i = 0; i < N; i++){ if(part && ((dep[i] + dep[i + 1] > 0) !== (part === 'near'))) continue;
+            this.quadOn(g, grow4([inn[i], inn[i + 1], out[i + 1], out[i]]), i % 2 ? HP2.c : _pmix(HP2.c, HP2.dk, 0.25));
             this.quadOn(g, [out[i], out[i + 1], out2[i + 1], out2[i]], HP.dk); } };
         const pw = { x: ax - peakB*0.62*sn, y: ay + peakB*0.62*cs };
         const peakNearer = (pw.x + pw.y) > (ax + ay);
@@ -117845,13 +117850,13 @@ class WorldScene extends Phaser.Scene {
              rounded crown (a twelve-sided prism, its top domed) in the crew orange, and a bill grown from the crown's own rim, a fan out
              to a rounded edge tipped down a touch, with a lip under it, its panels alternating a shade -- as Gideon's 'cap' (RB.hat) */
           const rr = cR*0.98, zb = cz0 + 1, HP = { c: cap.c, dk: cap.dk }, HP2 = { c: _pdk(cap.c, 0.84), dk: _pdk(cap.c, 0.64) };
-          const bill = () => capBill(rr, zb, HP, HP2, 1);
+          const bill = part => capBill(rr, zb, HP, HP2, 1, part);
           const crown = () => { prism(0, 0, rr, rr, zb - 1, zb + 9, HP, { top: 0.8, topCol: cap.top, n: 12 });
             if(sees3(0, 1, 0)){ const bq = [G(-rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 7.2), G(rr*0.30, rr*1.005, zb + 2.8), G(-rr*0.30, rr*1.005, zb + 2.8)]; this.quadOn(g, bq, cap.badge); } };
-          if(peakNearer){ crown(); bill(); } else { bill(); crown(); }
+          bill('far'); crown(); bill('near');
         } else
         if(cap.noPeak) drawCrown();   // (a theatre's scrub cap: the crown alone -- Sir, 2026-10-28, "the hats shouldn't have a bill on the front")
-        else if(peakNearer){ drawCrown(); drawPeak(); } else { drawPeak(); drawCrown(); }
+        else { drawPeak('far'); drawCrown(); drawPeak('near'); }
       }
     };
     /* long hair hangs down the BACK — has to draw before the torso/
