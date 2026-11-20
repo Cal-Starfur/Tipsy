@@ -119,11 +119,13 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
              than its top: a fixture's far-side parts, its working face turned away from the eye (Seaglass Coffee's espresso machine: its
              group heads, cups and drip tray painted across its back -- Sir, 2026-11-20, "look at all this mess"). Paint them first */
           for(const E of before){ const e = E.q;
-            if(!VOL.has(E.n) || !VOL.has(L.n)) continue;
-            if(q.z1 > e.z1 + 0.5 || q.z0 < e.z0 - 0.5) continue;
-            const bN = q.b0 < e.b0 - 0.5 && q.b1 <= e.b0 + 3 && q.a0 >= e.a0 - 1 && q.a1 <= e.a1 + 1;
-            const bW = q.a0 < e.a0 - 0.5 && q.a1 <= e.a0 + 3 && q.b0 >= e.b0 - 1 && q.b1 <= e.b1 + 1;
-            if(!bN && !bW) continue;
+            if(!VOL.has(E.n) || !VOL.has(L.n) || L.n === 'prism' || E.n === 'prism') continue;   // (a prism's box is its extrusion's, not its shape)
+            /* (BEHIND, wholly: past E's back face on one axis -- north of it, west of it, or under it -- and on none of the three
+               in front of it (east, south or over it): then E is nearer wherever they meet on screen, whatever their sizes -- the
+               engraver's spindle, hung west of its column and lower than it, Sir 2026-11-20) */
+            const bN = q.b1 <= e.b0 + 3 && q.b0 < e.b0 - 0.5, bW = q.a1 <= e.a0 + 3 && q.a0 < e.a0 - 0.5, bU = q.z1 <= e.z0 + 0.5 && q.z0 < e.z0 - 0.5;
+            const fr = q.a0 >= e.a1 - 0.5 || q.b0 >= e.b1 - 0.5 || q.z0 >= e.z1 - 0.5;
+            if(!(bN || bW || bU) || fr) continue;
             const ar = paintOver(q, e);                                     // (how much of E it paints over, in square units at 1x)
             if(ar > 16){ const f = { room: name, kind: 'behind', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' in front of it (its back at ' + (bN ? 'b ' + Math.round(e.b0) : 'a ' + Math.round(e.a0)) + ') (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
