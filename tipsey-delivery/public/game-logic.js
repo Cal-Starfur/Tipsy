@@ -59556,7 +59556,7 @@ function houseCanopy(fn){
     const PKD = [2088, 1290];   /* (the conveyor robot's dock: south of the packer, who stands east of the last stop -- the box built on it there) */
     /* (phase 6) THE STORAGE BAYS: two rows either side of an aisle (AY), each worked from the aisle -- the north row's facing north, the south
        row's facing south; pallet p goes into bay p % 6 at 4500 into its cycle and is shipped four cycles on (the shipping jack's lift) */
-    const SB = [[1180, 1500], [1360, 1500], [1180, 1730], [1360, 1730], [1540, 1730], [1720, 1730]], AY = 1600;   /* (the south row out to 1730: a jack at a bay of one row clears the pallets of the other) */
+    const SB = [[1000, 1730], [1180, 1730], [1360, 1730], [1540, 1730], [1720, 1730], [1900, 1730]], AY = 1600;   /* (one row along the south wall -- Sir, 2026-11-20: "we can move our pallets into a row to give some room") */   /* (the south row out to 1730: a jack at a bay of one row clears the pallets of the other) */
     const JKD = 106;   /* (a pallet on a jack's forks: its middle 106 ahead of the jack, its near end against the backrest -- hx 55 - 1, + 50 + 2) */
     const bayStop = k => [SB[k][0], SB[k][1] < AY ? SB[k][1] + JKD : SB[k][1] - JKD];
     const bayHas = (t, k) => { const c = Math.floor((t - PAL0)/PALT); for(let q = c - 5; q <= c; q++){ if(((q % 6) + 6) % 6 !== k) continue;
@@ -60218,7 +60218,7 @@ function houseCanopy(fn){
     }
 
     /* ---- THE FINISHED GOODS: pallets of boxed scooters and e-bikes in hatched bays (a 1100..1800, b 1420..1760) ---- */
-    for(let r = 0; r < 2; r++) for(let c = 0; c < 4; c++){ const pa = 1180 + c*180, pb = r ? 1730 : 1500;
+    for(const [pa, pb] of [[1540, 1500], [1720, 1500], ...SB]){   /* (the empties' and the arm's bays, and the six storage bays in their row) */
       T(pa - 70, pa + 70, pb - 70, pb - 64, 0.5, yel); T(pa - 70, pa + 70, pb + 64, pb + 70, 0.5, yel); T(pa - 70, pa - 64, pb - 70, pb + 70, 0.5, yel); T(pa + 64, pa + 70, pb - 70, pb + 70, 0.5, yel);
     }
     /* (phase 6: the six storage bays, each a pallet of six boxed scooters while it holds one -- a still piece, cached by its state) */
