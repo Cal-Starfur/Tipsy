@@ -61491,7 +61491,7 @@ function houseCanopy(fn){
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
-        if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); continue; }
+        if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, Object.assign({}, J0, at[1] < pb ? { dd: pb - at[1] + 2 } : {}))); continue; }   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
         if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
           if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
