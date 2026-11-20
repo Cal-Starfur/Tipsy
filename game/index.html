@@ -119801,9 +119801,13 @@ class WorldScene extends Phaser.Scene {
         if(uniform.hivis){ const V = uniform.vest, hk = hullTones(V), SIL = { c: 0xd6dade, dk: 0x9aa0a6 };
           /* (each strap the vest's own cloth lying on the shoulder's top, following its curve -- boxes stood up off it in a lighter yellow:
              Sir, 2026-11-20, "that looks really messy construcktion and its not even the same color") */
-          if(sees3(0, 0, 1)){ const tR = (build.heavy ? 0.9 : 1)*0.985, TA = build.torsoW/2*tR, TB = build.torsoD/2*tR, zt = shoulderH + 0.05;
+          if(sees3(0, 0, 1)){ const tR = (build.heavy ? 0.9 : 1), TA = build.torsoW/2*tR*0.96, TB = build.torsoD/2*tR*0.96, VA = ra*s2, VB = rb*s2, zt = shoulderH + 0.05, N = 24;
+            /* its top edge: the cloth's thickness, a rim from just inside the body's edge out to the vest's -- without it the shirt's shoulder edge
+               and its outline showed between the vest and the straps (Sir, 2026-11-20, "even the vest has a gap at the beveled edge") */
+            for(let i = 0; i < N; i++){ const t0 = i/N*Math.PI*2, t1 = (i + 1)/N*Math.PI*2;
+              this.quadOn(g, [G(Math.cos(t0)*TA, Math.sin(t0)*TB, zt), G(Math.cos(t0)*VA, Math.sin(t0)*VB, zt), G(Math.cos(t1)*VA, Math.sin(t1)*VB, zt), G(Math.cos(t1)*TA, Math.sin(t1)*TB, zt)], hk.c); }
             for(const sd of [-1, 1]){ const a0 = sd*TA*0.38, a1 = sd*TA*0.82, F = [], Bk = [];
-              for(let k = 0; k <= 6; k++){ const aa = a0 + (a1 - a0)*k/6, bb = TB*Math.sqrt(Math.max(0, 1 - (aa/TA)*(aa/TA))); F.push(G(aa, bb, zt)); Bk.unshift(G(aa, -bb, zt)); }
+              for(let k = 0; k <= 6; k++){ const aa = a0 + (a1 - a0)*k/6, bb = VB*Math.sqrt(Math.max(0, 1 - (aa/VA)*(aa/VA))); F.push(G(aa, bb, zt)); Bk.unshift(G(aa, -bb, zt)); }   // (front to back across to the vest's own edge)
               this.quadOn(g, F.concat(Bk), hk.c); } }
           for(const zb of [zA + 2, zm + 3]){ const k0 = sAt(zb), k1 = sAt(zb + 2); prism(0, 0, ra*k0*1.01, rb*k0*1.01, zb, zb + 2, SIL, { top: k1/k0, noTop: true, ring: true, n: 12 }); } } }   // (a ring round the torso: its hull would lay a disc across the neck, D-FILL)
     }
@@ -119814,6 +119818,16 @@ class WorldScene extends Phaser.Scene {
       const hv = build.heavy, zm = hipH + build.torsoH*0.42, kz = zz => (hv ? 1.1 : 0.86) + ((hv ? 0.9 : 1) - (hv ? 1.1 : 0.86))*(zz - zm)/(shoulderH - zm);
       const RA = build.torsoW/2, RB2 = build.torsoD/2, w = build.torsoW*0.3, zt = shoulderH - 0.1, zb = shoulderH - build.torsoH*0.42, N = 6;
       const on = (a, zz) => { const k = kz(zz), ra = RA*k, rb = RB2*k; return G(a, rb*Math.sqrt(Math.max(0, 1 - (a/ra)*(a/ra))) + 0.5, zz); };
+      /* ROUND THE NECK (Sir, 2026-11-20: "the cain ... doesnt go around the nect"): from the top of each strand over the shoulder's top and
+         round behind the neck, a band on the shoulders (the neck and the head, drawn after, cover what of it is behind them) */
+      if(sees3(0, 0, 1)){ const kt = kz(shoulderH), ra = RA*kt*(hv ? 0.9 : 1), rb = RB2*kt*(hv ? 0.9 : 1), zl = shoulderH + 0.08, cw = 1.1, M = 16;
+        const bF = rb*Math.sqrt(Math.max(0, 1 - (w/ra)*(w/ra))), bk = rb*0.62;
+        /* (one oval through both strands' tops and round behind the neck: centre c forward of the neck's middle, half-depth B, half-width A
+           so that it passes through (±w, bF)) */
+        const A = w*1.05, q = Math.sqrt(1 - (w/A)*(w/A)), c0 = (bF*0.95 - q*bk)/(1 + q), B = bk + c0, p0 = Math.asin(q);   // (through (±w, bF) and (0, -bk), half-width a hair past the strands)
+        const PL = []; for(let i = 0; i <= M; i++){ const ph = p0 - (Math.PI + 2*p0)*i/M; PL.push([Math.cos(ph)*A, c0 + Math.sin(ph)*B]); }
+        for(let i = 0; i < PL.length - 1; i++){ const [a0, b0] = PL[i], [a1, b1] = PL[i + 1], da = a1 - a0, db = b1 - b0, L = Math.hypot(da, db) || 1, na = -db/L*cw, nb = da/L*cw;
+          this.quadOn(g, [G(a0 - na, b0 - nb, zl), G(a0 + na, b0 + nb, zl), G(a1 + na + da/L*0.3, b1 + nb + db/L*0.3, zl), G(a1 - na + da/L*0.3, b1 - nb + db/L*0.3, zl)], uniform.chain); } }
       for(const sd of (eye3[0] > 0 ? [-1, 1] : [1, -1])) for(let i = 0; i < N; i++){ const t0 = i/N, t1 = (i + 1)/N, aO = u => sd*(w + (1.2 - w)*u), aI = u => sd*((w - 2.4) + (-1.2 - (w - 2.4))*u), zz = u => zt + (zb - zt)*u;
         { const am = (aO(t0) + aI(t0) + aO(t1) + aI(t1))/4, zmid = zz((t0 + t1)/2), k = kz(zmid), ra = RA*k, rb = RB2*k, bm = rb*Math.sqrt(Math.max(0, 1 - (am/ra)*(am/ra)));
           if(!seesE(am/(ra*ra), bm/(rb*rb), 0, 0.3)) continue; }   // (only where the chest under it faces the eye: round the side it showed as a sliver past the body's edge)
