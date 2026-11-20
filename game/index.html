@@ -48141,11 +48141,12 @@ function svcLiftItems(items, H, U){
      doors goes after them, who is in the car before) */
   const MID = (S0.door[0] + S0.door[1])/2;
   items.push({ a: E + 3, b: MID, z: 0, draw: () => {
-    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, 162, H - 14, U.wallL, U.wall, U.wallD);   // a hair into its sides
-    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, H - 14, H, U.trim, U.trim, U.trimD);     // the walls' gold band, on over the doors
-    box(S0.a1, E + 2, S0.door[0] - 6, S0.door[0], 0, 166, U.trim, U.trim, U.trimD);
-    box(S0.a1, E + 2, S0.door[1], S0.door[1] + 6, 0, 166, U.trim, U.trim, U.trimD);
+    /* (W37: the frame first -- its posts, the lintel on them -- then the wall over the doors standing on the lintel, then the band on that) */
+    box(S0.a1, E + 2, S0.door[0] - 6, S0.door[0], 0, 162, U.trim, U.trim, U.trimD);
+    box(S0.a1, E + 2, S0.door[1], S0.door[1] + 6, 0, 162, U.trim, U.trim, U.trimD);
     box(S0.a1, E + 2, S0.door[0] - 6, S0.door[1] + 6, 162, 168, U.trim, U.trim, U.trimD);
+    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, 168, H - 14, U.wallL, U.wall, U.wallD);   // a hair into its sides (from the lintel's top, 168: from 162 it ran down into the lintel and the posts)
+    box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, H - 14, H, U.trim, U.trim, U.trimD);     // the walls' gold band, on over the doors
     ball(E + 3, MID, 186, 6, U.trim, U.lamp);
   }});
   items.push({ a: E + 2, b: MID, z: 0, draw: () =>                                       // the roof, over the west wall's top too: one cornice
@@ -54753,11 +54754,11 @@ function houseCanopy(fn){
            Sir 2026-10-23, "still not far enough", and then the arm and base stood in from it: "it needs to line up") */
         for(const a of [996, 1326]) for(const b of [HB + 46, HB + 134]) cyl(a, b, 0, 6, 4, goldD);   // its feet
         box(990, 1332, HB + 40, HB + 140, 6, 30, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));    // the base
+        box(990, 1010, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD);                // the far arm: before the back and its cushions (W37: drawn after them it went over them)
+        T(990, 1010, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05));
         box(1010, 1332, HB + 40, HB + 60, 30, 100, sofaL, sofa, sofaD);               // the back's frame: from the far arm's inner edge (past it, its west end stood out) to the near arm's outer edge
         T(1010, 1332, HB + 40, HB + 60, 100.2, shade(sofaL, 1.05));
         for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 60, HB + 78, 30, 90, sofaL, shade(sofa, 1.06), sofaD);   // the back's cushions
-        box(990, 1010, HB + 40, HB + 140, 30, 72, sofaL, sofa, sofaD);                // the far arm: before them
-        T(990, 1010, HB + 40, HB + 140, 72.2, shade(sofaL, 1.05));
         /* a gold cushion in each corner, flat against the back's (it stood 14 out from it and read as a block sticking out, Sir 2026-10-23) */
         box(1014, 1044, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
         box(1278, 1308, HB + 78, HB + 85, 48, 78, '#c9a24a', '#b08a3a', '#9a7830');
@@ -54835,7 +54836,7 @@ function houseCanopy(fn){
       box(440, 1160, 30, 300, 0, 60, stage, shade(stage, 0.8), shade(stage, 0.68));
       for(let b = 50; b < 300; b += 50) T(440, 1160, b, b + 2, 60.2, shade(stage, 0.86));   // its boards
       box(436, 1164, 296, 304, 0, 62, gold, gold, goldD);            // a gold lip down its front
-      box(436, 1164, 296, 304, 0, 10, velvet, velvet, shade(velvet, 0.8));   // and a velvet kick
+      box(434, 1166, 302, 306, 0, 10, velvet, velvet, shade(velvet, 0.8));   // and a velvet kick (on the lip's face, not inside it: W37)
       box(740, 860, 304, 344, 0, 30, stage, shade(stage, 0.8), shade(stage, 0.68));   // the step down
       for(let a = 470; a < 1140; a += 60) ball(a, 304, 40, 5, '#fff2c8', '#fffbe4');   // footlights
       /* THE GRAND PIANO (Sir, 2026-10-23, "a pass on the inside of the
@@ -54920,9 +54921,9 @@ function houseCanopy(fn){
       /* (serving: BAR_SERVE -- each his station at an end of the bar, his two guests, what they drink; the second half a loop behind) */
       live: BARTENDERS, fx: { kind: 'bardrinks', a: 0, b: 0, who: BARTENDERS }, draw: () => {
       box(0, 110, 222, 878, 0, 28, '#5c3a21', '#4e311c', '#422917');      // the bartenders' board
-      box(0, 110, 878, 890, 0, 104, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap (the north one: its own piece)
+      box(0, 110, 878, 890, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap, up to the top (to 104 it ran into it: W37) (the north one: its own piece)
       box(110, 200, 220, 880, 0, 100, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
-      box(104, 206, 214, 886, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top
+      box(104, 206, 214, 878, 100, 110, '#3a2a1c', '#3a2a1c', '#2a1e14');   // the top (to the south flap, not into it: W37)
       box(198, 202, 220, 880, 10, 90, gold, gold, goldD);                   // a gold rail down its front
       for(const b of [320, 560, 800]) { cyl(150, b, 110, 128, 7, '#c9a24a'); ball(150, b, 134, 8, '#fff2c8', '#fffbe4'); }   // bar lamps
     }});
@@ -54953,36 +54954,36 @@ function houseCanopy(fn){
       [[0, -88], [88, 0], [0, 88], [-88, 0]].forEach(([da, db], ci) => {
         const ca = ta + da, cb = tb + db, behind = ca + cb < ta + tb, taken = SEATS[ti].includes(ci);
         const seat = () => {
-          box(ca - 16, ca + 16, cb - 16, cb + 16, 0, 44, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
-          box(ca - 18, ca + 18, cb - 18, cb + 18, 44, 50, velvet, shade(velvet, 0.8), shade(velvet, 0.7));
+          box(ca - 16, ca + 16, cb - 16, cb + 16, 0, 32, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          box(ca - 18, ca + 18, cb - 18, cb + 18, 32, 38, velvet, shade(velvet, 0.8), shade(velvet, 0.7));
         };
         const back = () => {                                                     // on the side away from the table
           const oa = Math.sign(da)*14, ob = Math.sign(db)*14;
-          if(oa) box(ca + oa - 3, ca + oa + 3, cb - 16, cb + 16, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
-          else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 50, 92, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          if(oa) box(ca + oa - 3, ca + oa + 3, cb - 16, cb + 16, 38, 80, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
+          else box(ca - 16, ca + 16, cb + ob - 3, cb + ob + 3, 38, 80, goldD, shade(goldD, 0.85), shade(goldD, 0.72));
         };
         const toast = (ti + ci) % 2 === 0, seed = 100 + ti*10 + ci;
-        const cast = taken ? [{ a: ca + da/88*6, b: cb + db/88*6, z: 0, th: Math.atan2(-db, -da), sit: 50, seed, kind: seed % 3 ? 'woman' : 'man', grp: 't' + ti,
+        const cast = taken ? [{ a: ca + da/88*6, b: cb + db/88*6, z: 0, th: Math.atan2(-db, -da), sit: 38, seed, kind: seed % 3 ? 'woman' : 'man', grp: 't' + ti,
                                  lift: toast ? [0.25, 0.42] : [0.25, 0.25], bend: toast ? 1.15 : 0.9, hold: toast ? 'wine' : null }] : null;
-        items.push({ a: ca, b: cb, z: 0, solids: [{ name:'chair', c: [ca, cb], r: taken ? 22 : 18, h: taken ? 130 : 90 }], cast,
+        items.push({ a: ca, b: cb, z: 0, solids: [{ name:'chair', c: [ca, cb], r: taken ? 22 : 18, h: taken ? 118 : 80 }], cast,
           draw: () => { if(behind || !taken){ seat(); back(); } }, seat: !behind && taken ? seat : null, after: !behind && taken ? back : null });
       });
-      items.push({ a: ta, b: tb, z: 0, solids: [{ name:'table', c: [ta, tb], r: 60, h: 76 }], draw: () => {
-        cyl(ta, tb, 0, 76, 58, cloth, shade(cloth, 1.04));                      // the cloth, to the floor
-        cyl(ta, tb, 72, 76, 59, shade(cloth, 0.95), cloth);                      // its hem over the edge
+      items.push({ a: ta, b: tb, z: 0, solids: [{ name:'table', c: [ta, tb], r: 60, h: 66 }], draw: () => {   // (a table one sits at: 66, against the chairs' 38 -- Sir, 2026-11-20, the ballroom's tables)
+        cyl(ta, tb, 0, 66, 58, cloth, shade(cloth, 1.04));                      // the cloth, to the floor
+        cyl(ta, tb, 62, 66, 59, shade(cloth, 0.95), cloth);                      // its hem over the edge
         /* A PLACE AT EACH CHAIR: a plate with a gold rim, a folded napkin on
            it, a wine glass to its right (the four chairs: N, E, S, W) */
         [[0, -1], [1, 0], [0, 1], [-1, 0]].forEach(([ua, ub]) => {
           const pa = ta + ua*36, pb = tb + ub*36, ga = pa - ub*16 + ua*6, gb = pb + ua*16 + ub*6;
-          cyl(pa, pb, 76, 77.5, 12, '#e0c88a', '#ffffff');
-          T(pa - 4, pa + 4, pb - 4, pb + 4, 78, velvet);
-          cyl(ga, gb, 76, 82, 1, '#d6e3ea'); cyl(ga, gb, 82, 90, 3.2, '#d6e3ea', '#9a2a36');
+          cyl(pa, pb, 66, 67.5, 12, '#e0c88a', '#ffffff');
+          T(pa - 4, pa + 4, pb - 4, pb + 4, 68, velvet);
+          cyl(ga, gb, 66, 72, 1, '#d6e3ea'); cyl(ga, gb, 72, 80, 3.2, '#d6e3ea', '#9a2a36');
         });
         /* the centrepiece: blush and white roses low in a gold bowl, a votive either side */
-        cyl(ta, tb, 76, 84, 11, gold, shade(gold, 0.8));
-        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2 + ti; ball(ta + 12*Math.cos(t), tb + 12*Math.sin(t), 87, 5.5, k % 2 ? '#3f7f45' : '#5a9a5c'); }
-        for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2 + ti*0.7, rr = k ? 8 : 0; ball(ta + rr*Math.cos(t), tb + rr*Math.sin(t), 91 + (k ? 0 : 3), 5.5, k % 2 ? '#f6e9e4' : '#e9b8bd', '#ffffff'); }
-        for(const [da, db] of [[-18, 14], [18, -14]]){ cyl(ta + da, tb + db, 76, 84, 3.5, '#f6f0dc'); ball(ta + da, tb + db, 86, 3, '#ffd27a', '#fff2c8'); }
+        cyl(ta, tb, 66, 74, 11, gold, shade(gold, 0.8));
+        for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2 + ti; ball(ta + 12*Math.cos(t), tb + 12*Math.sin(t), 77, 5.5, k % 2 ? '#3f7f45' : '#5a9a5c'); }
+        for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2 + ti*0.7, rr = k ? 8 : 0; ball(ta + rr*Math.cos(t), tb + rr*Math.sin(t), 81 + (k ? 0 : 3), 5.5, k % 2 ? '#f6e9e4' : '#e9b8bd', '#ffffff'); }
+        for(const [da, db] of [[-18, 14], [18, -14]]){ cyl(ta + da, tb + db, 66, 74, 3.5, '#f6f0dc'); ball(ta + da, tb + db, 76, 3, '#ffd27a', '#fff2c8'); }
       }});
     });
 
@@ -55162,9 +55163,12 @@ function houseCanopy(fn){
                    live: [{ a, b, z: 0, th, seed, kind, anim, ph: k*1.7 }], draw: () => {} });
     });
     items.push({ a: 160, b: 560, z: 0, solids: [{ name:'shelves', poly: volRect(40, 280, 520, 600), h: 180 }], draw: () => {   // the dry store's shelves
-      for(const z of [0, 60, 120, 176]) box(40, 280, 520, 600, z, z + 4, steelL, steel, steelD);
-      for(const [a, b] of [[44, 524], [276, 524], [44, 596], [276, 596]]) cyl(a, b, 0, 180, 2.5, steelD);
-      for(let k = 0; k < 9; k++){ const a = 56 + k*25, c = ['#c9a46a', '#e9d6a8', '#b8752a', '#efe4cc'][k % 4]; box(a, a + 20, 540, 580, 4, 40, shade(c, 1.1), c, shade(c, 0.85)); box(a, a + 20, 540, 580, 64, 96, shade(c, 1.1), c, shade(c, 0.85)); }
+      /* (W37: the back posts, then each shelf and what stands on it, bottom up, then the front posts -- all the shelves first, the goods after,
+         had the lower goods painted over the shelf above them; Sir, 2026-11-20, "look over the rest of the ball room") */
+      for(const [a, b] of [[44, 524], [276, 524]]) cyl(a, b, 0, 180, 2.5, steelD);
+      const goods = z0 => { for(let k = 0; k < 9; k++){ const a = 56 + k*25, c = ['#c9a46a', '#e9d6a8', '#b8752a', '#efe4cc'][k % 4]; box(a, a + 20, 540, 580, z0, z0 + (z0 ? 32 : 36), shade(c, 1.1), c, shade(c, 0.85)); } };
+      for(const z of [0, 60, 120, 176]){ box(40, 280, 520, 600, z, z + 4, steelL, steel, steelD); if(z < 100) goods(z + 4); }
+      for(const [a, b] of [[44, 596], [276, 596]]) cyl(a, b, 0, 180, 2.5, steelD);
     }});
     /* ---- STORAGE ---- */
     items.push({ a: 1400, b: 1000, z: 0, solids: [{ name:'crates', poly: volRect(1330, 1470, 950, 1050), h: 120 }], draw: () => {

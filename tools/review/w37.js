@@ -70,7 +70,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const key = '__w37foot' + (nShot++); g4.generateTexture(key, w, hh); g4.destroy();
       const data = sc.textures.getBase64(key); sc.textures.remove(key);
       return { data, ov: ov.map(p => [Math.round(p.x), Math.round(p.y)]), hE: hE.map(p => [Math.round(p.x), Math.round(p.y)]), hL: hL.map(p => [Math.round(p.x), Math.round(p.y)]) }; };
-    const rooms = [...new Set(POCKETS.filter(p => p.walkin).map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));
+    const rooms = [...new Set(POCKETS.map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
     for(const name of rooms){
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
       const items = LIB.collect(name, G, 1) || [];

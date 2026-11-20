@@ -14,7 +14,7 @@ const KINDS = [['workbench', /work ?bench|lab bench|potting bench|engraving benc
   const h = await H.open(); await h.boot();
   const rows = await h.page.evaluate(want => {
     const G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z }), out = [];
-    const rooms = [...new Set(POCKETS.filter(p => p.walkin).map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));
+    const rooms = [...new Set(POCKETS.map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
     for(const name of rooms){ const items = LIB.collect(name, G, 1) || [], seen = new Set();
       for(const it of items) for(const s of (it.solids || [])){ if(!s || !s.name) continue;
         let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9;
