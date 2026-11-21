@@ -59658,8 +59658,8 @@ function houseCanopy(fn){
     for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
         T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
     /* (row A's parts robots' one-way loop to the pick face: up a 1700, along b 200, down a 2150, back along b 440 -- the tugger's loop gone) */
-    for(const [a0, a1, b0, b1] of [[780, 1763, 517, 523], [1757, 1763, 200, 520], [1760, 2150, 197, 203], [2147, 2153, 200, 440], [780, 2153, 437, 443]]) T(a0, a1, b0, b1, 0.35, '#5fb8e8');   /* (row A's closed loop: empties east on b 520, fulls west on b 440) */
-    for(const a of [1660, 1400, 1100, 800]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
+    for(const [a0, a1, b0, b1] of [[780, 1703, 517, 523], [1697, 1703, 200, 520], [1700, 2080, 197, 203], [2077, 2083, 200, 440], [780, 2083, 437, 443]]) T(a0, a1, b0, b1, 0.35, '#5fb8e8');   /* (row A's closed loop: empties east on b 520, fulls west on b 440) */
+    for(const a of [1560, 1400, 1100, 800]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
     T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
     T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
     T(1110, 2312, 1572, 1628, 0.3, '#8f9599'); T(1110, 2240, 1572, 1576, 0.5, yel); T(1110, 2312, 1624, 1628, 0.5, yel); T(2240, 2312, 1428, 1628, 0.3, '#8f9599'); T(2306, 2312, 1428, 1628, 0.5, yel);   /* (phase 6: the storage aisle, and the lane on to it) */
@@ -59675,7 +59675,7 @@ function houseCanopy(fn){
     const POD_FULL = AMR_SLOTS.amrshelf.map(q => q.def);
     for(let i = 0; i < 12; i++){ const pa = 470 + i*120, pb = 60;
       podSq(pa, pb, false);
-      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 55, pa + 55, pb - 38, pb + 38, 150, 'shelf pod')], draw: () => {}, fx: { pod: { kind: 'amr', a: pa, b: pb, fdir: 0, bSkin: BSK, build: 'amrshelf', loads: POD_FULL, bins: CPAL } } });
+      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 55, pa + 55, pb - 38, pb + 38, 150, 'shelf pod')], draw: () => {} });   /* (the pods themselves move up the line: the pick face's crew) */
     }
     for(const pa of [1910, 2030]) podSq(pa, 60, false);   /* (the pick face's two pods themselves move: drawn live with the tugger's crew, phase 3) */
     T(1852, 2090, 104, 110, 0.5, yel); 
@@ -59823,19 +59823,19 @@ function houseCanopy(fn){
        A's takes its empty bin to the pick face in turn and comes back with a full one: up a 1700, along b 200 to the first spot (PFA, the
        Receiver takes the empty off into the returns pod), on to the second (PFB, the arm sets a full one on out of the full pod), round by a
        2150 and back along b 440. Bin m is station m + 1's; at PFA from m*STKM, at PFB from (m + 1)*STKM */
-    const PFA = [1810, 200], PFB = [2060, 200], PFC = [2150, 330], PFBIN = d => [d[0], 182, 31];
+    const PFA = [1810, 200], PFB = [2060, 200], PFC = [2080, 330], PFBIN = d => [d[0], 182, 31];
     /* (PFC: the robot's lids off -- the lid handler, a humanoid, lifts its three lids and drops them in the bin of their colour on the lid
        tugger parked by him (LTUG); Sir, 2026-11-20: "it should be part of the process so maybe a humanoid does it") */
-    const LTUG = [2030, 360], LIDT = m => { const q = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q.cart ? -201 : -115; return [LTUG[0] + cx + q.a, LTUG[1] + q.b, (q.z || 16) + 20]; };
+    const LTUG = [1972, 375],   /* (between the up lane (a 1700) and the lid stop (a 2080), north of the fulls' lane: clear of every robot's way -- tools/review/crew_spacing.js) */ LIDT = m => { const q = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q.cart ? -201 : -115; return [LTUG[0] + cx + q.a, LTUG[1] + q.b, (q.z || 16) + 20]; };
     const lidT = m => (m + 2)*STKM + 700;   /* (robot m at PFC from here) */
     /* ROW A'S CLOSED LOOP (Sir, 2026-11-20: "the loops need to be closed -- an empty gets back in line to get filled and an already filled one
        takes its place"): two robots a station. One works at the station; the other waits full, its lids off, in its parking spot north of the
        lanes (RAPK). When the station's robot is due a refill it leaves east along the empties' lane (b 520), up a 1760 to the pick face --
        empties off, 3 full on, lids off -- and back west along the fulls' lane (b 440) into the parking spot; as it leaves, the spare rolls
        down into the station. q: time since the station's empty left (X) */
-    const RAV = 0.3, RAPK = m => [m === 0 ? 1660 : POS[m + 1][0], 330];
+    const RAV = 0.3, RAPK = m => [m === 0 ? 1560 : POS[m + 1][0], 330];
     const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), S = STKM;
-      const EMP = [ST, [pa, 520], [1760, 520], [1760, 200], PFA], RET = [PFC, [2150, 440], [PK[0], 440], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], 658], ST];
+      const EMP = [ST, [pa, 520], [1700, 520], [1700, 200], PFA], RET = [PFC, [2080, 440], [PK[0], 440], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], 658], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RAV, tout = len(RET)/RAV, tent = len(ENT)/RAV;
       const A = m*S + 600, X = A - tin;
       return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X }; };
@@ -59845,7 +59845,7 @@ function houseCanopy(fn){
       /* (the one that left: empty out, loaded, back to park) */
       let P, kind;
       if(q < G.tin){ P = seg(G.EMP, q/G.tin); kind = 'empty'; }
-      else { const jl = j0 + q, ld = [[A, A + S - 600, null, PFA, 0], [A + S - 600, A + S + 300, [PFA, PFB]], [A + S + 300, A + 2*S - 600, null, PFB, 0], [A + 2*S - 600, A + 2*S + 100, [PFB, [2150, 200], PFC]], [A + 2*S + 100, A + 3*S - 600, null, PFC, 1]];
+      else { const jl = j0 + q, ld = [[A, A + S - 600, null, PFA, 0], [A + S - 600, A + S + 300, [PFA, PFB]], [A + S + 300, A + 2*S - 600, null, PFB, 0], [A + 2*S - 600, A + 2*S + 100, [PFB, [2080, 200], PFC]], [A + 2*S + 100, A + 3*S - 600, null, PFC, 1]];
         const L = ld.find(L => q >= L[0] && q < L[1]);
         if(L){ P = L[2] ? seg(L[2], (q - L[0])/(L[1] - L[0])) : { a: L[3][0], b: L[3][1], fdir: L[4] }; kind = 'load'; }
         else if(q < A + 3*S - 600 + G.tout){ P = seg(G.RET, (q - A - 3*S + 600)/G.tout); kind = 'full'; }
@@ -59875,14 +59875,17 @@ function houseCanopy(fn){
             v = jj !== 1 ? (jr < J + 3000*JK ? Object.assign({}, L, { empty: true }) : L) : jr < J + 600*JK ? Object.assign({}, L, { empty: true }) : jr < J + 900*JK ? Object.assign({}, L, { empty: true, off: [0, 26*ease((jr - J - 600*JK)/(300*JK))] })
               : jr < J + 2750*JK ? null : jr < J + 3000*JK ? Object.assign({}, L, { off: [0, 26*(1 - ease((jr - J - 2750*JK)/(250*JK)))] }) : L; }   /* (at Receiving he fills the middle one; the other two as he puts it back) */
           loads[GRP(m, true)[jj]] = v; }
+        let hide = false, fd = 0;
         if(!isF){ const Q = podPath(h), QL = 80 + Math.abs(PODRA - h) + 80;
-          const s0 = jr < 20000 ? 0 : jr < 24500 ? QL*ease((jr - 20000)/4500) : jr < 40900 ? QL : jr < 45900 ? QL*(1 - ease((jr - 40900)/5000)) : 0;
-          const P1 = pathAt(Q, Math.min(s0, QL - 0.5)); a = P1.a; b = P1.b; }
-        out.push({ a, b, loads, isF, home: h }); }
+          if(jr < 40900){ const s0 = jr < 20000 ? 0 : jr < 24500 ? QL*ease((jr - 20000)/4500) : QL; const P1 = pathAt(Q, Math.min(s0, QL - 0.5)); a = P1.a; b = P1.b; }
+          else if(jr < NQ_BACK){ const QB = [[PODRA, PODB], [PODRA, 140], [NQ_A(0), 140], [NQ_A(0), PODB], [NQ_A(0), PODB - 1]], P1 = pathAt(QB, Math.min(plenP(QB)*ease((jr - 40900)/(NQ_BACK - 40900)), plenP(QB) - 0.5)); a = P1.a; b = P1.b; fd = P1.fdir; }   /* (refilled, to the end of the line) */
+          else hide = true; }   /* (in the line now: drawn with it) */
+        out.push({ a, b, loads, isF, home: h, hide, fd }); }
       return out; };
     /* (the pick face's moves: the Receiver's move m -- an empty off the carts back onto the shelf -- from STKM*m, the arm's -- a full out of the
        full pod onto the carts -- from STKM*m + STKM/2; where the bins are) */
     const STKM = 3000;   /* (the pick face's beat: a robot every 3000 -- its lids off at a third stop, PFC) */
+    const NQ_A = i => 470 + i*120, NQ_SHIFT = 25000, NQ_BACK = 47400;   /* (the north line's slots, west (its end) to east (its front); when it moves up; when the refilled pod is back) */
     for(let m = 0; m < 4; m++) SUPT[m + 1] = PAL0 + raSet(m);   /* (row A's: full as the spare rolls in) */
     const cartW = i => { const q = AMR_SLOTS.amrtug[i], cx = q.cart ? -201 : -115; return [RP[0][0] + cx + q.a, RP[0][1] + q.b, (q.z || 16) + 20]; };
     const podFace = (h, m, j) => { const sq = AMR_SLOTS.amrshelf[GRP(m, true)[j == null ? 1 : j]]; return [h + sq.a, PODB + sq.b + 26, [34, 64, 94, 124][sq.lv] + 2.5]; };
@@ -59914,8 +59917,8 @@ function houseCanopy(fn){
     const rbBots = (k, r) => { const G = rbGeo(k), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
       let P, kind;
       if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
-      else if(q < G.tin + 6000){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }
-      else if(q < G.tin + 6000 + G.tout){ P = sg(G.RET, (q - G.tin - 6000)/G.tout); kind = 'full'; }
+      else if(q < G.tin + 5400){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }   /* (away once loaded and its lids are off, clear of the stop and down its own lane before the next empty comes up the other: crew_spacing.js) */
+      else if(q < G.tin + 5400 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 1 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
       if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
@@ -59934,13 +59937,24 @@ function houseCanopy(fn){
         /* the pick face's pods, and its two pickers -- each at its own pod: at the full one, a full bin out of its slot and onto a cart; at the
            returns pod, an empty off a cart and into its slot; turning about between, the bin in hand */
         const PS = podState(t);
-        for(const pd of PS) out.push(bot(pd.a, pd.b, 0, { build: 'amrshelf', loads: pd.loads, bins: CPAL }));
+        for(const pd of PS) if(!pd.hide) out.push(bot(pd.a, pd.b, pd.fd || 0, { build: 'amrshelf', loads: pd.loads, bins: CPAL }));
+        /* THE NORTH LINE (Sir, 2026-11-20: "when we get a shelf to pull from it needs to come from the front of the line"): once the returns
+           pod has gone for its refill, the line's front pod rolls into its place at the pick face and the rest move up a slot; the refilled
+           pod drives back to the end of the line */
+        { const hR = PS.find(pd => !pd.isF).home;
+          for(let i = 0; i < 12; i++){ let P = { a: NQ_A(i), b: PODB, fdir: 0 };
+            if(jr >= NQ_SHIFT && jr < NQ_SHIFT + 3000){ const k = ease((jr - NQ_SHIFT)/3000);
+              if(i < 11) P = { a: NQ_A(i) + 120*k, b: PODB, fdir: 0 };
+              else { const QF = [[NQ_A(11), PODB], [NQ_A(11), 140], [hR, 140], [hR, PODB], [hR, PODB - 1]], P1 = pathAt(QF, Math.min(plenP(QF)*k, plenP(QF) - 0.5)); P = P1; } }
+            else if(jr >= NQ_SHIFT + 3000){ if(i === 0 && jr < NQ_BACK) continue; if(i === 11) P = { a: hR, b: PODB, fdir: 0 }; }   /* (slot 0 empty till the refilled one is back; the front one waiting at the pick face) */
+            if(jr >= NQ_SHIFT + 3000 && i === 0 && jr >= NQ_BACK){ P = { a: NQ_A(0), b: PODB, fdir: 0 }; }
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrshelf', loads: POD_FULL, bins: CPAL })); } }
         CW_FLOW.pods = PS.map(pd => (pd.isF ? 'full ' : 'returns ') + pd.loads.filter((L, i) => S5.includes(i) && L && !L.empty).length + '/' + pd.loads.filter((L, i) => S5.includes(i) && L && L.empty).length).join(', ');
         /* THE LID TUGGER, parked in the loop's middle, a bin of each colour on its carts; and THE LID HANDLER at PFC: each robot's three lids
            lifted off and stacked in his hands, walked round to the bin of their colour, dropped in, back to his spot */
         { const ldL = AMR_SLOTS.amrtug.map(() => null); [0, 1, 2, 3].forEach(m => { ldL[[0, 1, 2, 6][m]] = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: m, empty: true }; });
-          out.push(bot(LTUG[0], LTUG[1], 0, { build: 'amrtug', loads: ldL, bins: CPAL }));
-          const HS = [2105, 318], mL = [0, 1, 2, 3].find(m => jr >= lidT(m) && jr < lidT(m) + 2200);
+          out.push(bot(LTUG[0], LTUG[1], 0, { build: 'amrtug', loads: ldL, bins: CPAL, dd: -112 }));   /* (sorted at its carts, not its nose: a pod passing behind them is not painted over -- Sir, 2026-11-20) */
+          const HS = [2030, 322], mL = [0, 1, 2, 3].find(m => jr >= lidT(m) && jr < lidT(m) + 2200);
           if(mL == null) out.push(man(HS[0], HS[1], 0, {}));
           else { const q = jr - lidT(mL), dz = LIDT(mL), DS = [dz[0], 326], col = CPC(mL), n = q < 750 ? Math.min(3, Math.floor((q + 100)/250)) : q < 1450 ? 3 : 0;
             let pos = HS, f = 0, pose = {}, hand = null;
@@ -59990,7 +60004,7 @@ function houseCanopy(fn){
            the arm takes the fulls out. Then it moves over beside the picker (RPOD) and, for the next visit, takes the empties he puts in. Full of
            empties it goes to Receiving to be refilled, waits south of the stop, and comes in full again. U: this pod's time in its round */
         const DV = 25300, RSH = [SPOD, [SPOD[0], RPOD[1]], RPOD, [RPOD[0] + 1, RPOD[1]]], GTR2 = [RPOD, [RPOD[0], 455], [GPA, 455], [GPA, GPB], [GPA, GPB - 1]], RSHL = plenP(RSH), GTR2L = plenP(GTR2);
-        for(let pk = 0; pk < 3; pk++){ const U = (((t - PAL0 - RB0 - pk*SUP) % (3*SUP)) + 3*SUP) % (3*SUP), u = U % SUP;
+        for(let pk = 0; pk < 8; pk++){ const U = (((t - PAL0 - RB0 - pk*SUP) % (8*SUP)) + 8*SUP) % (8*SUP), u = U % SUP;
           const L = SH.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
           let P1, fd = null, s0 = 0;
           for(let i = 0; i < 4; i++) for(let jj = 0; jj < 3; jj++){ let v;
@@ -60002,15 +60016,18 @@ function houseCanopy(fn){
             else v = jj !== 1 ? (U < J + 3000*JK ? Object.assign(fullOf(i), { empty: true }) : fullOf(i)) : U < J + 600*JK ? Object.assign(fullOf(i), { empty: true }) : U < J + 900*JK ? Object.assign(fullOf(i), { empty: true, off: [0, -26*ease((U - J - 600*JK)/(300*JK))] })
               : U < J + 2750*JK ? null : U < J + 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((U - J - 2750*JK)/(250*JK)))] }) : fullOf(i);
             L[GRP(i, false)[jj]] = v; }
-          const LV = 2*SUP + 24400 - RB0, LV1 = LV + 11500, IN0 = 3*SUP - 3000;
+          /* (the west line, Sir, 2026-11-20: refilled, back to the end of the line (b 700); the line moves up a slot (120 south) each visit; from
+             its front (b 1300) into the stop) */
+          const LV = 2*SUP + 24400 - RB0, LV1 = LV + 11500, IN0 = 8*SUP - 3000, WQ = i => [62, 700 + i*120];
           if(U < DV + 1400){ P1 = { a: SPOD[0], b: SPOD[1] }; fd = 1; }
           else if(U < DV + 2900){ s0 = RSHL*ease((U - DV - 1400)/1500); P1 = pathAt(RSH, Math.min(s0, RSHL - 0.5)); fd = 1; }   /* (over beside the picker) */
           else if(U < SUP + DV){ P1 = { a: RPOD[0], b: RPOD[1] }; fd = 1; }
           else if(U < SUP + DV + 14000){ s0 = GTR2L*clamp01((U - SUP - DV)/14000); P1 = pathAt(GTR2, Math.min(s0, GTR2L - 0.5)); if(s0 > GTR2L - (455 - GPB)) fd = 1; }
           else if(U < LV){ P1 = { a: GPA, b: GPB }; fd = 1; }
-          else if(U < LV1){ s0 = GRTL*clamp01((U - LV)/11500); P1 = pathAt(GRT, Math.min(s0, GRTL - 0.5)); }
-          else if(U < IN0){ P1 = { a: SPOD[0], b: 1460 }; fd = 1; }
-          else { s0 = GINL*ease((U - IN0)/3000); P1 = pathAt(GIN, Math.min(s0, GINL - 0.5)); fd = 1; }
+          else if(U < LV1){ const GRW = [[GPA, GPB], [GPA, 455], [190, 455], [190, 700], [62, 700], [61, 700]], L2 = plenP(GRW); s0 = L2*ease((U - LV)/11500); P1 = pathAt(GRW, Math.min(s0, L2 - 0.5)); if(s0 > L2 - 130) fd = 2; }
+          else if(U < IN0){ let sl = 0; for(let kk = 3; kk <= 7; kk++){ const ts = kk*SUP - 3000; if(U >= ts + 2000) sl++; else if(U >= ts){ sl += ease((U - ts)/2000); } }
+            P1 = { a: 62, b: 700 + sl*120 }; fd = 1; }   /* (in the line, moving up as the front one leaves) */
+          else { const GF = [[62, 1300], [190, 1300], [190, 1460], [SPOD[0], 1460], [SPOD[0], SPOD[1]], [SPOD[0], SPOD[1] - 1]], L3 = plenP(GF); s0 = L3*ease((U - IN0)/3000); P1 = pathAt(GF, Math.min(s0, L3 - 0.5)); if(s0 > L3 - 465) fd = 1; }
           out.push(bot(P1.a, P1.b, fd != null ? fd : P1.fdir, { build: 'amrshelf', loads: L, bins: CPAL, wheel: s0*0.12 }));
           if(U < DV) CW_FLOW.gtp = 'pod ' + (pk + 1) + ' at the stop'; }
         /* goods to person's arm robot, parked between the pod's stop and the runner (facing north): the four empties off the runner into the
@@ -60035,7 +60052,7 @@ function houseCanopy(fn){
            lids off, stacks them in his hands, walks them to the lid tugger parked north-east of the stop and drops them in the bin of their
            colour, and back to his spot east of the robot */
         { const LT = [620, 900], ldL = AMR_SLOTS.amrtug.map(() => null); [0, 1, 2, 3].forEach(m => { ldL[[0, 1, 2, 6][m]] = { k: 'bin', la: 12, lb: 11.5, h: 20, pal: m, empty: true }; });
-          out.push(bot(LT[0], LT[1], 1, { build: 'amrtug', loads: ldL, bins: CPAL }));   /* (parked facing south in the pick face's own corner, west of the line, its carts trailing north -- Sir: "what is this tugger doing in here") */
+          out.push(bot(LT[0], LT[1], 1, { build: 'amrtug', loads: ldL, bins: CPAL, dd: -112 }));   /* (parked facing south in the pick face's own corner, west of the line, its carts trailing north -- Sir: "what is this tugger doing in here") */
           const slot = m => { const q2 = AMR_SLOTS.amrtug[[0, 1, 2, 6][m]], cx = q2.cart ? -201 : -115; return [LT[0] - q2.b, LT[1] + cx + q2.a]; };
           const HS = [548, 1000], kL = [0, 1, 2, 3].find(k => r >= RBA[k] + 4400 && r < RBA[k] + 6000);
           if(kL == null) out.push(man(HS[0], HS[1], 2, {}));
@@ -60283,7 +60300,7 @@ function houseCanopy(fn){
     /* ---- THE WEST END: reserve stock in shelf pods parked along the west wall, facing south, each on its square (the high rack gone) ---- */
     for(let i = 0; i < 6; i++){ const pb = 700 + i*120, pa = 62;
       podSq(pa, pb, true);
-      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 38, pa + 38, pb - 55, pb + 55, 150, 'shelf pod')], draw: () => {}, fx: { pod: { kind: 'amr', a: pa, b: pb, fdir: 1, bSkin: BSK, build: 'amrshelf', loads: POD_FULL, bins: CPAL } } }); }
+      items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 38, pa + 38, pb - 55, pb + 55, 150, 'shelf pod')], draw: () => {} }); }   /* (the pods move up this line: goods to person's crew) */
     /* ---- THE ROBOTS' CHARGING PADS by the reserve pods (a 340..700, b 1084..1436): six pads, a charger post at each; the scissor lift parked
        on charge (a humanoid's way up a level, Sir), a spare robot on another ---- */
     for(let r = 0; r < 3; r++) for(let c = 0; c < 2; c++){ const pa = 120 + c*180, pb = 110 + r*120;   /* (in the north-west corner, out of the work -- Sir, 2026-11-20) */
