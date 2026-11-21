@@ -58591,13 +58591,13 @@ function houseCanopy(fn){
       box(a0 + 12, a0 + 46, b0 + 9, b0 + 37, 16, 28, shade(col, 1.12), col, shade(col, 0.82));
       box(a0 + 12, a0 + 46, b0 + 37, b0 + 46, 16, 44, shade(col, 1.06), col, shade(col, 0.8));
     };
-    items.push({ a: 92, b: 75, z: 0, solids: [solid(50, 134, 10, 140, 50, 'bed')], draw: () => {         // the bed, its head at the north wall
-      box(48, 136, 6, 12, 0, 74, oakL, oak, oakF);
-      box(50, 134, 10, 140, 0, 22, oakL, oak, oakF);
-      box(52, 132, 14, 138, 22, 34, '#f6f1e2', '#e6dfcc', '#d3cbb6');
-      for(const a of [58, 96]) box(a, a + 34, 16, 42, 34, 46, '#fbf7ee', '#ebe4d2', '#d8d0bc');                        // the pillows (north of the quilt: first)
-      box(52, 132, 62, 138, 34, 41, '#6a96ac', trim, trimD); box(52, 132, 62, 66, 41, 43, '#d9c7a0', '#d9c7a0', '#d9c7a0');   // the quilt, folded at the head
-      box(50, 134, 136, 142, 0, 38, oakL, oak, oakF);                                                             // the footboard, nearest: last (W37 behind)
+    items.push({ a: 92, b: 75, z: 0, solids: [solid(50, 134, 10, 140, 66, 'bed')], draw: () => {         // the bed, its head at the north wall (its mattress at 50: Sir, 2026-11-20)
+      box(48, 136, 6, 12, 0, 90, oakL, oak, oakF);
+      box(50, 134, 10, 140, 0, 38, oakL, oak, oakF);
+      box(52, 132, 14, 138, 38, 50, '#f6f1e2', '#e6dfcc', '#d3cbb6');
+      for(const a of [58, 96]) box(a, a + 34, 16, 42, 50, 62, '#fbf7ee', '#ebe4d2', '#d8d0bc');                        // the pillows (north of the quilt: first)
+      box(52, 132, 62, 138, 50, 57, '#6a96ac', trim, trimD); box(52, 132, 62, 66, 57, 59, '#d9c7a0', '#d9c7a0', '#d9c7a0');   // the quilt, folded at the head
+      box(50, 134, 136, 142, 0, 54, oakL, oak, oakF);                                                             // the footboard, nearest: last (W37 behind)
     }});
     items.push({ a: 32, b: 24, z: 0, solids: [solid(18, 46, 10, 38, 46, 'bedside table')], draw: () => {
       box(18, 46, 10, 38, 0, 46, oakL, oak, oakF); F(20, 44, 22, 40, oak, oakF, 1, 38.2); F(30, 34, 30, 34, brassC, null, 0, 38.4);
@@ -61078,8 +61078,8 @@ function houseCanopy(fn){
       pc(1375, 150, () => { box(1370, 1380, 0, 300, 0, LH, plas, shade(plas, 0.95), shade(plas, 0.88)); box(1369, 1381, -1, 301, LH, LH + 4, stoneL, stone, stoneD); }, sR(1370, 1380, 0, 300, LH + 4, 'partition'));
       pc(1520, 250, () => { T(1420, 1620, 150, 380, 1.2, C.rug[0]); T(1430, 1610, 160, 370, 1.3, C.rug[1]); });
       pcr(1384, 1594, 2, 220, 200, () => { box(1440, 1600, 2, 22, 0, 130, C.wood[0], C.wood[1], C.wood[2]); F(1450, 1590, 60, 124, f === 11 ? '#d8cbb4' : '#2f3e66', null, 0, 22.2);   // its headboard
-        box(1446, 1594, 22, 220, 0, 38, C.top[0], C.top[1], C.top[2]); box(1448, 1592, 24, 218, 38, 46, '#f6f3ea', '#e6e1d6', '#d6cfc1');
-        box(1448, 1592, 120, 218, 46, 49, C.bed[0], C.bed[1], C.bed[2]); for(const a of [1460, 1528]) box(a, a + 56, 30, 66, 46, 58, '#fbf8f1', '#ece7dc', '#ddd6c8');
+        box(1446, 1594, 22, 220, 0, 42, C.top[0], C.top[1], C.top[2]); box(1448, 1592, 24, 218, 42, 50, '#f6f3ea', '#e6e1d6', '#d6cfc1');   // (its mattress at 50: Sir, 2026-11-20)
+        box(1448, 1592, 120, 218, 50, 53, C.bed[0], C.bed[1], C.bed[2]); for(const a of [1460, 1528]) box(a, a + 56, 30, 66, 50, 62, '#fbf8f1', '#ece7dc', '#ddd6c8');
         for(const a of [1406]){ box(a - 22, a + 22, 6, 46, 0, 50, C.wood[0], C.wood[1], C.wood[2]); cyl(a, 26, 50, 70, 9, '#f4e7c4', '#fff6dc'); }   // (one: the east side keeps 60 off the glass, W24)
         artOn(1460, 1580, 150, 186, C.art, C.wood[2]); }, 130, 'bed');
       pcr(1460, 1580, 232, 258, 60, () => { box(1460, 1580, 232, 258, 0, 40, C.chair[0], C.chair[1], C.chair[2]); }, 40, 'bench');
@@ -65201,7 +65201,12 @@ function houseCanopy(fn){
       for(const [u0, u1] of rb) F(Math.max(a0, u0), Math.min(a1, u1), WH - 4, WH, bandD, null, 0, fb + (sb ? 0.2 : -0.2));
     };
     /* a bed: frame, mattress, blanket over the foot, pillow at the head; sleeper: someone under the blanket */
-    const bed = (r, head, sleeper, couch, part, look) => {   // (part: 'base' under a patient; over them 'coverFar' and 'coverNear', the blanket's halves, and 'foot', the near board; else the whole bed. look.build: their body)
+    /* BEDS AT 50 (Sir, 2026-11-20: "lets standardize to 50"): the mattress's top at 50 against a person's 124 -- the bed below drawn as it was,
+       stretched from the floor-frame (8) to the mattress (its 40 to 50), what is on it and its boards moved up the same 10; the patients in
+       them with it (hospInZf(n) + 50) */
+    const BEDZ = z => z <= 8 ? z : z <= 40 ? 8 + (z - 8)*42/32 : z + 10;
+    const bed = (...A) => { const prev = ZMAP; ZMAP = prev ? (z => prev(BEDZ(z))) : BEDZ; try { return bed0(...A); } finally { ZMAP = prev; } };
+    const bed0 = (r, head, sleeper, couch, part, look) => {   // (part: 'base' under a patient; over them 'coverFar' and 'coverNear', the blanket's halves, and 'foot', the near board; else the whole bed. look.build: their body)
       const [a0, a1, b0, b1] = r, hb = head === 'n' || head === 's', pil = 34;
       const board = (far) => {
         const hz = hb ? (head === 'n' ? b0 : b1 - 4) : (head === 'w' ? a0 : a1 - 4), fz = hb ? (head === 'n' ? b1 - 4 : b0) : (head === 'w' ? a1 - 4 : a0);
@@ -65586,7 +65591,7 @@ function houseCanopy(fn){
         if(!ONWALL) FDK.push({ r, dk, h: FH[u.k] || 110 });
         const sol = ONWALL ? null : ROUND[u.k] ? { name: u.k, c: [am, bm], r: ROUND[u.k], h: 120, fl: n }
                   : u.k === 'table' ? { name: u.k, poly: R(r[0] - 6, r[1] + 44, r[2] - 6, r[3] + 34), h: 60, fl: n }
-                  : { name: u.k, poly: R(r[0], r[1], r[2], r[3]), h: u.k === 'chair' ? 56 : u.k === 'bed' || u.k === 'gurney' ? 60 : 100, fl: n };
+                  : { name: u.k, poly: R(r[0], r[1], r[2], r[3]), h: u.k === 'chair' ? 56 : u.k === 'bed' ? 70 : u.k === 'gurney' ? 60 : 100, fl: n };
         /* SOMEONE IN THE BED (Sir, 2026-10-26: "we still don't have people in the hospital beds"): their head on the
            pillow, face up, in the colours of one of the street's people (partyLook's patient), and the blanket over the
            shape of them. Not the knocked-down body laid in it: in a bed headed away from us its head turned its face to
@@ -65598,7 +65603,7 @@ function houseCanopy(fn){
           const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd], look = { build: LK.build };
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 40, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.34, -0.34], fl: n }],   // (tilt: propped to look down the bed -- less with their head at our end, or we see only the back of it)
+            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 50, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.34, -0.34], fl: n }],   // (tilt: propped to look down the bed -- less with their head at our end, or we see only the back of it)
             draw: () => bed(r, hd, true, false, 'base'),
             layers: [{ cast: 'body' }, { draw: () => bed(r, hd, true, false, 'coverFar', look) }, { cast: 'armFar' },
                      { draw: () => bed(r, hd, true, false, 'coverNear', look) }, { cast: 'armNear' }, { cast: 'head' }, { draw: () => bed(r, hd, true, false, 'foot') }] });
@@ -65621,7 +65626,7 @@ function houseCanopy(fn){
           const ft = hd === 'n' ? [am, r[3] - BED_SOLE] : hd === 's' ? [am, r[2] + BED_SOLE] : hd === 'w' ? [r[1] - BED_SOLE, bm] : [r[0] + BED_SOLE, bm];
           const th = { n: Math.PI/2, s: -Math.PI/2, w: 0, e: Math.PI }[hd];
           items.push({ a: am, b: bm, z: 0, dk, frontOf, backOf, when, solids: sol ? [sol] : undefined,
-            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 40, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
+            cast: [{ a: ft[0], b: ft[1], z: hospInZf(n) + 50, th, lie: true, tilt: hd === 'n' || hd === 'w' ? 0.75 : 0.3, seed, kind: 'patient', lift: [0.06, 0.06], bend: [0.06, 0.06], armOut: [-0.2, -0.2], bare: true, fl: n }],
             draw: () => bed(r, hd, false, true), layers: [{ cast: 'body' }, { cast: 'armFar' }, { cast: 'armNear' }, { cast: 'head' }] });   // (a lying cast is drawn only by its piece's layers)
           continue;
         }
@@ -104887,11 +104892,11 @@ class WorldScene extends Phaser.Scene {
     items.forEach(({ o, k }) => this.withAlpha(g, k, () => {
       if(o.k === 'bed'){
         const [x0, x1, y0, y1] = o.r, cx = (x0 + x1)/2;
-        boxW(x0, x1, y0, y1, z, z + 24);                                   // the frame
-        boxW(x0 + 4, x1 - 4, y0 + 4, y1 - 4, z + 24, z + 32);              // the mattress
-        boxW(x0 + 14, x1 - 14, y0 + 8, y0 + 38, z + 32, z + 42);          // the pillow
-        boxW(x0 + 8, x1 - 8, y0 + 50, y1 - 12, z + 32, z + 46);            // the blanket over the patient
-        const h = W(cx, y0 + 26, z + 50), K = this.K;
+        boxW(x0, x1, y0, y1, z, z + 40);                                   // the frame (the mattress at 50, as the beds are: Sir, 2026-11-20)
+        boxW(x0 + 4, x1 - 4, y0 + 4, y1 - 4, z + 40, z + 50);              // the mattress
+        boxW(x0 + 14, x1 - 14, y0 + 8, y0 + 38, z + 50, z + 60);          // the pillow
+        boxW(x0 + 8, x1 - 8, y0 + 50, y1 - 12, z + 50, z + 64);            // the blanket over the patient
+        const h = W(cx, y0 + 26, z + 66), K = this.K;
         g.fillStyle(XD, 1); g.fillEllipse(h.x, h.y + 1.5*K, 17*K, 13*K);
         g.fillStyle(XL, 1); g.fillEllipse(h.x, h.y, 16*K, 12*K);           // the patient's head on the pillow
         return;
