@@ -17,7 +17,7 @@ benches 40), the people kit's rules for who is in it.
 | Seabreeze Ballroom Basement | 0 (fixed 2026-11-20) | Not yet measured for heights. |
 | Maritime Mall Interior | 205 | The biggest. |
 | Marina General Interior | 82 | The hospital. |
-| Palmline Tower Floors | 50 | |
+| Palmline Tower Floors | 4 (the doorways' light: drawn last on purpose) | Done 2026-11-21: W37; the sofas rebuilt; chairs 38, dining tables and the desk 66, the kitchen counter, island and bar 75, their stools 48, the armchairs 38. Left: the recipe's people checks. |
 | Brew & Bolt Roof | 1 | |
 
 Run per room: `node tools/review/w37.js "<room>" --png <dir>` and `node tools/review/consistency.js "<room>" --kind <kind>`.

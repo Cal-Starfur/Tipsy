@@ -60988,10 +60988,10 @@ function houseCanopy(fn){
     const brassC = ['#d8b45a', '#c9a24a', '#a8843a'];
     /* a chair facing dir ('n' 's' 'e' 'w'): its seat, its back on the far side, four legs */
     const chairAt = (a, b, dir, C) => { const r = 13;
-      for(const [da, db] of [[-r + 3, -r + 3], [r - 3, -r + 3], [-r + 3, r - 3], [r - 3, r - 3]]) box(a + da - 1.5, a + da + 1.5, b + db - 1.5, b + db + 1.5, 0, 40, C[2], C[2], C[2]);
-      box(a - r, a + r, b - r, b + r, 40, 46, C[0], C[1], C[2]);
+      for(const [da, db] of [[-r + 3, -r + 3], [r - 3, -r + 3], [-r + 3, r - 3], [r - 3, r - 3]]) box(a + da - 1.5, a + da + 1.5, b + db - 1.5, b + db + 1.5, 0, 32, C[2], C[2], C[2]);
+      box(a - r, a + r, b - r, b + r, 32, 38, C[0], C[1], C[2]);   // (its seat at 38: the furniture standards, Sir 2026-11-20; brought in 2026-11-21, the older rooms' upgrade)
       const bk = { n: [a - r, a + r, b + r - 4, b + r], s: [a - r, a + r, b - r, b - r + 4], e: [a - r, a - r + 4, b - r, b + r], w: [a + r - 4, a + r, b - r, b + r] }[dir];
-      box(bk[0], bk[1], bk[2], bk[3], 46, 88, C[0], C[1], C[2]); };
+      box(bk[0], bk[1], bk[2], bk[3], 38, 80, C[0], C[1], C[2]); };
     const plantAt = (a, b, big) => { const r = big ? 18 : 14, h = big ? 50 : 40;
       cyl(a, b, 0, h, r, stoneD, stoneL); plateCircle(a, b, h, r - 2, '#5a4636', null, 0);
       for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; tube(a, b, h, a + (big ? 34 : 26)*Math.cos(t), b + (big ? 34 : 26)*Math.sin(t), h + (big ? 70 : 54), 3, k % 2 ? '#4f7a4a' : '#5f8f58'); } };
@@ -61005,7 +61005,7 @@ function houseCanopy(fn){
       const C = PHT[f], is = () => fl() === f, pc = (a, b, draw, solids) => items.push({ a, b, z: 0, when: is, solids, draw }), O = [f];
       const sR = (a0, a1, b0, b1, h, nm) => on(O, a0, a1, b0, b1, h, nm), sC = (c, r, h, nm) => onC(O, c, r, h, nm);
       /* (a long piece in runs, each keyed at its own stretch: runPiece) */
-      const pcr = (a0, a1, b0, b1, zTop, draw, h, nm) => runPiece(items, a0, a1, b0, b1, zTop, (s0, s1) => sR(s0, s1, b0, b1, h, nm), draw, { extra: { when: is } });
+      const pcr = (a0, a1, b0, b1, zTop, draw, h, nm) => runPiece(items, a0, a1, b0, b1, zTop, (s0, s1) => sR(s0, s1, b0, b1, h, nm), draw, { extra: { when: is } });   // (zTop: the piece's real top, never higher -- W37 clip; set 2026-11-21 in the older rooms' upgrade)
 
       /* THE FOYER at the lift: a console on the core's face west of the car, a mirror over it; art on the face east of it; a runner to the glass */
       pc(680, 118, () => { box(640, 720, 112, 134, 0, 76, C.wood[0], C.wood[1], C.wood[2]); box(636, 724, 110, 136, 76, 80, C.top[0], C.top[1], C.top[2]);
@@ -61029,75 +61029,76 @@ function houseCanopy(fn){
            between the arms at a chair's 38; pillows against the back. Far to near (W37): the far side first, the near arm (east) and a near
            back last */
         /* the sofa facing the fire (its back to the glass) and two armchairs either side of the coffee table */
-        pcr(180, 380, 330, 390, 100, () => sofaOf(C)(180, 380, 330, 390, false, [212, 330]), 74, 'sofa');   // (THE SOFA: sofaOf)
-        pcr(225, 335, 210, 270, 60, () => { box(225, 335, 210, 270, 0, 30, C.wood[0], C.wood[1], C.wood[2]); box(240, 262, 225, 240, 30, 34, '#f3ecdc', '#e2dccb', '#cfc8b6'); cyl(310, 245, 30, 40, 8, '#e9e4da'); }, 40, 'coffee table');
-        for(const [a, dir] of [[150, 'e'], [420, 'w']]) pc(a, 240, () => { box(a - 26, a + 26, 214, 266, 0, 36, C.chair[0], C.chair[1], C.chair[2]);
-          const bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26]; box(bk[0], bk[1], 214, 266, 36, 76, C.chair[0], C.chair[1], C.chair[2]);
-          for(const b of [214, 256]) box(a - 26, a + 26, b, b + 10, 36, 54, C.chair[0], C.chair[1], C.chair[2]); }, sR(a - 26, a + 26, 214, 266, 76, 'armchair'));
+        pcr(180, 380, 330, 390, 74, () => sofaOf(C)(180, 380, 330, 390, false, [212, 330]), 74, 'sofa');   // (THE SOFA: sofaOf)
+        pcr(225, 335, 210, 270, 40, () => { box(225, 335, 210, 270, 0, 30, C.wood[0], C.wood[1], C.wood[2]); box(240, 262, 225, 240, 30, 34, '#f3ecdc', '#e2dccb', '#cfc8b6'); cyl(310, 245, 30, 40, 8, '#e9e4da'); }, 40, 'coffee table');
+        for(const [a, dir] of [[150, 'e'], [420, 'w']]) pc(a, 240, () => { box(a - 26, a + 26, 214, 266, 0, 38, C.chair[0], C.chair[1], C.chair[2]);   // (its seat at 38)
+          const bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26], back = () => box(bk[0], bk[1], 214, 266, 38, 78, C.chair[0], C.chair[1], C.chair[2]);
+          const arms = () => { for(const b of [214, 256]) box(dir === 'e' ? a - 16 : a - 26, dir === 'e' ? a + 26 : a + 16, b, b + 10, 38, 56, C.chair[0], C.chair[1], C.chair[2]); };   // (the arms up to the back, not into it: W37)
+          if(dir === 'e'){ back(); arms(); } else { arms(); back(); } }, sR(a - 26, a + 26, 214, 266, 78, 'armchair'));
         /* a bookcase on the north wall east of the fire, a floor lamp, plants */
-        pcr(450, 590, 2, 32, 200, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
+        pcr(450, 590, 2, 32, 176, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [40, 84, 128]){ box(454, 586, 6, 30, z, z + 3, C.wood[1], C.wood[1], C.wood[2]); for(let k = 0; k < 12; k++) box(458 + k*10.5, 466 + k*10.5, 10, 28, z + 3, z + 26 + (k % 3)*4, ['#7f9a80', '#c4603a', '#e9e4da', '#3a4a6a'][k % 4], '#a69f91', '#8a8478'); } }, 176, 'bookcase');
         pc(470, 330, () => { cyl(470, 330, 0, 4, 12, '#2b3138'); tube(470, 330, 4, 470, 330, 150, 1.4, '#2b3138'); cyl(470, 330, 150, 172, 15, '#f4e7c4', '#fff6dc'); }, sC([470, 330], 12, 170, 'lamp'));
         pc(60, 380, () => plantAt(60, 380, true), sC([60, 380], 18, 60, 'plant'));
       } else {
         /* the library wall: shelves the north wall's length west of the core, a rolling ladder */
-        runPiece(items, 20, 600, 2, 44, 200, (s0, s1) => sR(s0, s1, 2, 44, 190, 'library'), () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
+        runPiece(items, 20, 600, 2, 44, 192, (s0, s1) => sR(s0, s1, 2, 44, 190, 'library'), () => { box(20, 600, 2, 34, 0, 190, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [30, 72, 114, 156]){ box(24, 596, 6, 32, z, z + 3, C.wood[1], C.wood[1], C.wood[2]);
             for(let k = 0; k < 54; k++) box(28 + k*10.5, 36 + k*10.5, 10, 30, z + 3, z + 24 + (k*7 % 4)*4, ['#8a3a3a', '#2f3e66', '#c9a24a', '#3f5a3f', '#e9e4da'][k % 5], '#5a3d28', '#4a3220'); }
           tube(420, 40, 0, 430, 30, 190, 1.6, '#c9a24a'); tube(460, 40, 0, 470, 30, 190, 1.6, '#c9a24a'); for(let z = 20; z < 190; z += 30) tube(422 + z/19, 38 - z/19, z, 462 + z/19, 38 - z/19, z, 1.2, '#c9a24a'); }, { extra: { when: is } });
         /* two velvet sofas facing each other across a brass-and-glass table, a reading chair by the ladder */
         for(const [b0, b1, backN] of [[140, 194, true], [300, 354, false]]) pc(330, (b0 + b1)/2, () => sofaOf(C)(240, 420, b0, b1, backN, null), sR(240, 420, b0, b1, 74, 'sofa'));   // (rebuilt: sofaAt)
-        pc(330, 240, () => { box(280, 380, 216, 264, 34, 37, 'rgba(205,230,240,.55)', 'rgba(175,210,224,.6)', 'rgba(150,190,206,.6)');
-          for(const a of [284, 376]) for(const b of [220, 260]) box(a - 2, a + 2, b - 2, b + 2, 0, 34, brassC[0], brassC[1], brassC[2]); cyl(330, 240, 37, 52, 10, '#e9e4da'); ball(330, 240, 60, 11, '#c45a6a'); }, sR(280, 380, 216, 264, 52, 'table'));
+        pc(330, 240, () => { for(const a of [284, 376]) for(const b of [220, 260]) box(a - 2, a + 2, b - 2, b + 2, 0, 34, brassC[0], brassC[1], brassC[2]);   // (its legs, then the glass on them: W37)
+          box(280, 380, 216, 264, 34, 37, 'rgba(205,230,240,.55)', 'rgba(175,210,224,.6)', 'rgba(150,190,206,.6)'); cyl(330, 240, 37, 52, 10, '#e9e4da'); ball(330, 240, 60, 11, '#c45a6a'); }, sR(280, 380, 216, 264, 52, 'table'));
         /* the grand piano by the glass, its lid up, its bench */
-        pc(130, 330, () => { box(70, 200, 280, 380, 26, 64, '#14161a', '#0c0d10', '#1c1f24');
+        pc(130, 330, () => { box(110, 160, 240, 262, 0, 40, '#14161a', '#0c0d10', '#1c1f24');   // (W37, far to near: its bench north of it first, its legs, the case on them, the music desk, the lid up over it)
           for(const [a, b] of [[80, 290], [190, 290], [140, 370]]) box(a - 4, a + 4, b - 4, b + 4, 0, 26, '#14161a', '#0c0d10', '#1c1f24');
-          poly([P(70, 380, 64), P(200, 380, 64), P(200, 300, 140), P(70, 300, 140)], '#1c1f24'); box(70, 200, 270, 282, 52, 60, '#f4f1e8', '#e9e4da', '#d6cfc1');
-          box(110, 160, 240, 262, 0, 40, '#14161a', '#0c0d10', '#1c1f24'); }, [...sR(70, 200, 270, 380, 140, 'piano'), ...sR(110, 160, 240, 262, 40, 'piano bench')]);
+          box(70, 200, 270, 282, 52, 60, '#f4f1e8', '#e9e4da', '#d6cfc1'); box(70, 200, 280, 380, 26, 64, '#14161a', '#0c0d10', '#1c1f24');
+          poly([P(70, 380, 64), P(200, 380, 64), P(200, 300, 140), P(70, 300, 140)], '#1c1f24'); }, [...sR(70, 200, 270, 380, 140, 'piano'), ...sR(110, 160, 240, 262, 40, 'piano bench')]);
         /* the bar on the west wall: a cabinet, bottles, two stools */
-        pc(22, 260, () => { box(4, 44, 190, 330, 0, 92, C.wood[0], C.wood[1], C.wood[2]); box(2, 46, 188, 332, 92, 96, brassC[0], brassC[1], brassC[2]);
-          for(let k = 0; k < 9; k++) cyl(16, 200 + k*14, 96, 118 + (k % 3)*6, 4, ['#3f5a3f', '#8a3a3a', '#c9a24a'][k % 3]); S(4.5, 196, 324, 140, 190, '#c9d3d6'); }, sR(4, 46, 188, 332, 120, 'bar'));
-        for(const b of [220, 300]) pc(70, b, () => { cyl(70, b, 0, 56, 2.4, brassC[1]); cyl(70, b, 56, 62, 11, C.chair[0], C.chair[1]); }, sC([70, b], 11, 62, 'stool'));
+        pc(22, 260, () => { box(4, 44, 190, 330, 0, 71, C.wood[0], C.wood[1], C.wood[2]); box(2, 46, 188, 332, 71, 75, brassC[0], brassC[1], brassC[2]);   // (a counter's 75)
+          for(let k = 0; k < 9; k++) cyl(16, 200 + k*14, 75, 97 + (k % 3)*6, 4, ['#3f5a3f', '#8a3a3a', '#c9a24a'][k % 3]); S(4.5, 196, 324, 140, 190, '#c9d3d6'); }, sR(4, 46, 188, 332, 109, 'bar'));
+        for(const b of [220, 300]) pc(70, b, () => { cyl(70, b, 0, 42, 2.4, brassC[1]); cyl(70, b, 42, 48, 11, C.chair[0], C.chair[1]); }, sC([70, b], 11, 48, 'stool'));   // (a bar stool's 48)
         pc(470, 380, () => plantAt(470, 380, true), sC([470, 380], 18, 60, 'plant'));
       }
 
       /* DINING: a table for six (11) or a round one for six (12), its chairs, a pendant over it */
       if(f === 11){
-        pc(945, 280, () => { box(880, 1010, 248, 312, 66, 72, C.wood[0], C.wood[1], C.wood[2]); for(const a of [886, 1004]) for(const b of [254, 306]) box(a - 3, a + 3, b - 3, b + 3, 0, 66, C.wood[2], C.wood[2], C.wood[2]);
-          cyl(945, 280, 72, 90, 8, '#e9e4da'); for(const k of [-12, 0, 12]) tube(945 + k, 280, 90, 945 + k*2, 280, 106, 1.4, '#5f8f58'); }, sR(880, 1010, 248, 312, 72, 'dining table'));
-        for(const [a, b, d] of [[905, 226, 's'], [985, 226, 's'], [905, 334, 'n'], [985, 334, 'n'], [858, 280, 'e'], [1032, 280, 'w']]) pc(a, b, () => chairAt(a, b, d, C.chair), sC([a, b], 14, 88, 'chair'));
+        pc(945, 280, () => { for(const a of [886, 1004]) for(const b of [254, 306]) box(a - 3, a + 3, b - 3, b + 3, 0, 60, C.wood[2], C.wood[2], C.wood[2]); box(880, 1010, 248, 312, 60, 66, C.wood[0], C.wood[1], C.wood[2]);   // (its legs, then its top over them: W37; its top at 66)
+          cyl(945, 280, 66, 84, 8, '#e9e4da'); for(const k of [-12, 0, 12]) tube(945 + k, 280, 84, 945 + k*2, 280, 100, 1.4, '#5f8f58'); }, sR(880, 1010, 248, 312, 66, 'dining table'));
+        for(const [a, b, d] of [[905, 226, 's'], [985, 226, 's'], [905, 334, 'n'], [985, 334, 'n'], [858, 280, 'e'], [1032, 280, 'w']]) pc(a, b, () => chairAt(a, b, d, C.chair), sC([a, b], 14, 80, 'chair'));
       } else {
-        pc(945, 280, () => { cyl(945, 280, 0, 6, 20, brassC[1]); cyl(945, 280, 6, 66, 5, brassC[1]); cyl(945, 280, 66, 72, 60, C.wood[0], C.wood[1]); plateCircle(945, 280, 72, 59, C.wood[0], C.wood[1], 1);
-          for(let k = 0; k < 3; k++) cyl(945 + 18*Math.cos(k*2.1), 280 + 18*Math.sin(k*2.1), 72, 84, 4, '#f4e7c4'); }, sC([945, 280], 60, 84, 'dining table'));
+        pc(945, 280, () => { cyl(945, 280, 0, 6, 20, brassC[1]); cyl(945, 280, 6, 60, 5, brassC[1]); cyl(945, 280, 60, 66, 60, C.wood[0], C.wood[1]); plateCircle(945, 280, 66, 59, C.wood[0], C.wood[1], 1);   // (its top at 66)
+          for(let k = 0; k < 3; k++) cyl(945 + 18*Math.cos(k*2.1), 280 + 18*Math.sin(k*2.1), 66, 78, 4, '#f4e7c4'); }, sC([945, 280], 60, 78, 'dining table'));
         for(let k = 0; k < 6; k++){ const t = k/6*Math.PI*2 + 0.5, a = 945 + 84*Math.cos(t), b = 280 + 84*Math.sin(t), d = Math.abs(Math.cos(t)) > Math.abs(Math.sin(t)) ? (Math.cos(t) > 0 ? 'w' : 'e') : (Math.sin(t) > 0 ? 'n' : 's');
-          pc(a, b, () => chairAt(a, b, d, C.chair), sC([a, b], 14, 88, 'chair')); }
+          pc(a, b, () => chairAt(a, b, d, C.chair), sC([a, b], 14, 80, 'chair')); }
       }
 
       /* THE KITCHEN: the run on the north wall -- the fridge, cabinets, the sink, the range and its hood, wall cabinets over -- and the island
          with its stools */
-      pcr(1050, 1352, 2, 44, 220, () => {
+      pcr(1050, 1352, 2, 44, 190, () => {
         box(1050, 1104, 2, 44, 0, 190, '#c9ced2', '#a9b0b5', '#8f969b'); F(1076, 1078, 100, 150, '#7d848a', null, 0, 44.2);       // the fridge
-        box(1104, 1350, 4, 40, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1102, 1352, 2, 42, 84, 88, C.top[0], C.top[1], C.top[2]);
-        for(let a = 1110; a < 1345; a += 40) F(a, a + 36, 8, 78, shade(C.cab[0], 0.94), null, 0, 40.2);
-        box(1150, 1200, 8, 34, 88, 89, '#a9b0b5', '#8f969b', '#7d848a'); tube(1175, 10, 88, 1175, 18, 112, 1.2, '#c9ced2');      // the sink, its tap
-        box(1240, 1300, 6, 38, 88, 90, '#2b3138', '#23292f', '#1c2126'); for(const [a, b] of [[1255, 15], [1285, 15], [1255, 30], [1285, 30]]) plateCircle(a, b, 90.5, 6, '#3a3e46', '#55595f', 1);   // the range
-        box(1236, 1304, 4, 30, 150, 190, '#c9ced2', '#a9b0b5', '#8f969b');                                                       // its hood
-        for(const [a0, a1] of [[1104, 1230], [1310, 1350]]){ box(a0, a1, 4, 30, 130, 190, C.cab[0], C.cab[1], C.cab[2]); for(let a = a0 + 4; a < a1 - 4; a += 42) F(a, Math.min(a1 - 4, a + 38), 134, 186, shade(C.cab[0], 0.94), null, 0, 30.2); }
+        box(1104, 1350, 4, 40, 0, 71, C.cab[0], C.cab[1], C.cab[2]); box(1102, 1352, 2, 42, 71, 75, C.top[0], C.top[1], C.top[2]);   // (a counter's 75)
+        for(let a = 1110; a < 1345; a += 40) F(a, a + 36, 8, 65, shade(C.cab[0], 0.94), null, 0, 40.2);
+        box(1150, 1200, 8, 34, 75, 76, '#a9b0b5', '#8f969b', '#7d848a'); tube(1175, 10, 75, 1175, 18, 99, 1.2, '#c9ced2');      // the sink, its tap
+        box(1240, 1300, 6, 38, 75, 77, '#2b3138', '#23292f', '#1c2126'); for(const [a, b] of [[1255, 15], [1285, 15], [1255, 30], [1285, 30]]) plateCircle(a, b, 77.5, 6, '#3a3e46', '#55595f', 1);   // the range
+        const upper = ([a0, a1]) => { box(a0, a1, 4, 30, 130, 190, C.cab[0], C.cab[1], C.cab[2]); for(let a = a0 + 4; a < a1 - 4; a += 42) F(a, Math.min(a1 - 4, a + 38), 134, 186, shade(C.cab[0], 0.94), null, 0, 30.2); };
+        upper([1104, 1230]); box(1236, 1304, 4, 30, 150, 190, '#c9ced2', '#a9b0b5', '#8f969b'); upper([1310, 1350]);   // the wall cupboards and the hood between them, west to east (W37)
       }, 190, 'kitchen');
-      pcr(1096, 1304, 146, 198, 130, () => { box(1100, 1300, 150, 194, 0, 84, C.cab[0], C.cab[1], C.cab[2]); box(1096, 1304, 146, 198, 84, 90, C.top[0], C.top[1], C.top[2]);
-        cyl(1150, 172, 90, 100, 14, f === 11 ? '#e9e4da' : brassC[0]); for(const k of [0, 1, 2]) ball(1144 + k*6, 170, 104, 5, ['#c4603a', '#f2c14e', '#5f8f58'][k]); }, 90, 'island');
-      for(const a of [1130, 1180, 1230, 1280]) pc(a, 222, () => { cyl(a, 222, 0, 56, 2, f === 11 ? '#2b3138' : brassC[1]); cyl(a, 222, 56, 62, 11, C.chair[0], C.chair[1]); box(a - 10, a + 10, 230, 233, 62, 82, C.chair[0], C.chair[1], C.chair[2]); }, sC([a, 222], 11, 82, 'stool'));
+      pcr(1096, 1304, 146, 198, 89, () => { box(1100, 1300, 150, 194, 0, 69, C.cab[0], C.cab[1], C.cab[2]); box(1096, 1304, 146, 198, 69, 75, C.top[0], C.top[1], C.top[2]);   // (a counter's 75)
+        cyl(1150, 172, 75, 85, 14, f === 11 ? '#e9e4da' : brassC[0]); for(const k of [0, 1, 2]) ball(1144 + k*6, 170, 89, 5, ['#c4603a', '#f2c14e', '#5f8f58'][k]); }, 75, 'island');
+      for(const a of [1130, 1180, 1230, 1280]) pc(a, 222, () => { cyl(a, 222, 0, 42, 2, f === 11 ? '#2b3138' : brassC[1]); cyl(a, 222, 42, 48, 11, C.chair[0], C.chair[1]); box(a - 10, a + 10, 230, 233, 48, 68, C.chair[0], C.chair[1], C.chair[2]); }, sC([a, 222], 11, 68, 'stool'));   // (a bar stool's 48)
 
       /* THE BEDROOM, behind a low partition (a 1370..1380, from the north wall to b 300: its way in along the glass) */
       pc(1375, 150, () => { box(1370, 1380, 0, 300, 0, LH, plas, shade(plas, 0.95), shade(plas, 0.88)); box(1369, 1381, -1, 301, LH, LH + 4, stoneL, stone, stoneD); }, sR(1370, 1380, 0, 300, LH + 4, 'partition'));
       pc(1520, 250, () => { T(1420, 1620, 150, 380, 1.2, C.rug[0]); T(1430, 1610, 160, 370, 1.3, C.rug[1]); });
-      pcr(1384, 1594, 2, 220, 200, () => { box(1440, 1600, 2, 22, 0, 130, C.wood[0], C.wood[1], C.wood[2]); F(1450, 1590, 60, 124, f === 11 ? '#d8cbb4' : '#2f3e66', null, 0, 22.2);   // its headboard
+      pcr(1384, 1594, 2, 220, 190, () => { for(const a of [1406]){ box(a - 22, a + 22, 6, 46, 0, 50, C.wood[0], C.wood[1], C.wood[2]); cyl(a, 26, 50, 70, 9, '#f4e7c4', '#fff6dc'); }   // (the bedside table, west of the bed: first -- W37; one: the east side keeps 60 off the glass, W24)
+        box(1440, 1600, 2, 22, 0, 130, C.wood[0], C.wood[1], C.wood[2]); F(1450, 1590, 60, 124, f === 11 ? '#d8cbb4' : '#2f3e66', null, 0, 22.2);   // its headboard
         box(1446, 1594, 22, 220, 0, 42, C.top[0], C.top[1], C.top[2]); box(1448, 1592, 24, 218, 42, 50, '#f6f3ea', '#e6e1d6', '#d6cfc1');   // (its mattress at 50: Sir, 2026-11-20)
         box(1448, 1592, 120, 218, 50, 53, C.bed[0], C.bed[1], C.bed[2]); for(const a of [1460, 1528]) box(a, a + 56, 30, 66, 50, 62, '#fbf8f1', '#ece7dc', '#ddd6c8');
-        for(const a of [1406]){ box(a - 22, a + 22, 6, 46, 0, 50, C.wood[0], C.wood[1], C.wood[2]); cyl(a, 26, 50, 70, 9, '#f4e7c4', '#fff6dc'); }   // (one: the east side keeps 60 off the glass, W24)
         artOn(1460, 1580, 150, 186, C.art, C.wood[2]); }, 130, 'bed');
-      pcr(1460, 1580, 232, 258, 60, () => { box(1460, 1580, 232, 258, 0, 40, C.chair[0], C.chair[1], C.chair[2]); }, 40, 'bench');
-      if(f === 12) pc(1530, 330, () => { box(1500, 1560, 300, 360, 0, 74, C.wood[0], C.wood[1], C.wood[2]); box(1516, 1550, 340, 344, 74, 100, '#1e2226', '#15181b', '#2b3036'); chairAt(1480, 330, 'e', C.chair); }, [...sR(1500, 1560, 300, 360, 100, 'desk'), ...sC([1480, 330], 14, 88, 'chair')]);
+      pcr(1460, 1580, 232, 258, 40, () => { box(1460, 1580, 232, 258, 0, 40, C.chair[0], C.chair[1], C.chair[2]); }, 40, 'bench');
+      if(f === 12) pc(1530, 330, () => { chairAt(1480, 330, 'e', C.chair); box(1500, 1560, 300, 360, 0, 66, C.wood[0], C.wood[1], C.wood[2]); box(1516, 1550, 340, 344, 66, 92, '#1e2226', '#15181b', '#2b3036'); }, [...sR(1500, 1560, 300, 360, 92, 'desk'), ...sC([1480, 330], 14, 80, 'chair')]);
       else pc(1560, 380, () => plantAt(1560, 380, false), sC([1560, 380], 14, 50, 'plant'));
       pc(1340, 380, () => plantAt(1340, 380, false), sC([1340, 380], 14, 50, 'plant'));
     }
