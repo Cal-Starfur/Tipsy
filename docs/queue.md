@@ -20,6 +20,13 @@ benches 40), the people kit's rules for who is in it.
 | Palmline Tower Floors | 4 (the doorways' light: drawn last on purpose) | Done 2026-11-21: W37; the sofas rebuilt; chairs 38, dining tables and the desk 66, the kitchen counter, island and bar 75, their stools 48, the armchairs 38. Left: the recipe's people checks. |
 | Brew & Bolt Roof | 1 | |
 
+Sizes: the full-block rooms (the ballroom, the mall, the hospital) keep their size and stay on the street's lines (POCKET_VIEW). Moving
+them off the map to grow them was tried and dropped (Sir, 2026-11-21: "lets just leave the full block rooms alone for now this is going to
+be a tone of extra work for very little reason"). Upgrade them in place; don't grow or move them.
+
+Order: the small ones first (the Basement's heights, Brew & Bolt Roof's one flag), then Marina General, then the Mall. Each room is its
+own commit to `main`, with before/after sheets shown to Sir before any height change lands.
+
 Run per room: `node tools/review/w37.js "<room>" --png <dir>` and `node tools/review/consistency.js "<room>" --kind <kind>`.
 
 ## 2. Waiting on Sir's decision
