@@ -59866,8 +59866,8 @@ function houseCanopy(fn){
     const rbBots = (k, r) => { const G = rbGeo(k), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
       let P, kind;
       if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
-      else if(q < G.tin + 5400){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }   /* (away once loaded and its lids are off, clear of the stop and down its own lane before the next empty comes up the other: crew_spacing.js) */
-      else if(q < G.tin + 5400 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
+      else if(q < G.tin + 4950){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }   /* (away once loaded and its lids are off, clear of the stop and down its own lane before the next empty comes up the other: crew_spacing.js) */
+      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 1 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
       if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
@@ -59891,8 +59891,8 @@ function houseCanopy(fn){
     const raBots = (m, r) => { const G = raGeo(m), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
       let P, kind;
       if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
-      else if(q < G.tin + 5400){ P = { a: AROB[0], b: AROB[1], fdir: 3 }; kind = 'load'; }
-      else if(q < G.tin + 5400 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
+      else if(q < G.tin + 4950){ P = { a: AROB[0], b: AROB[1], fdir: 3 }; kind = 'load'; }
+      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 3 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
       if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 3 }, kind: 'full' });
@@ -59969,7 +59969,7 @@ function houseCanopy(fn){
         /* (the humanoid back at his job -- the runner's empties onto the shelf, into the pod's R4 -- the arm robot, parked south of the gap,
            taking the fulls out of TOP4 onto the runner) */
         const runW = i => RBIN, podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [SPOD[0] - sq.b + 27, SPOD[1] + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; }, podWR = si => { const sq = AMR_SLOTS.amrshelf[si]; return [RPOD[0] - sq.b + 27, RPOD[1] + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
-        { const AA = SPOD[0] + 95, AB = SPOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
+        { const AA = SPOD[0] + 83, AB = SPOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           const rest = i => [SROB[0] - 13, SROB[1] + RSL[i], 31];   /* (at rest over the runner's stop, not after the runner itself once it has gone -- its arm had stretched across the hall after it) */
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
           const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [SROB[0], SROB[1] - 26 + 26*jj, 31];
@@ -60017,7 +60017,7 @@ function houseCanopy(fn){
         /* the arm robot, parked south of the gap: the fulls out of the pod onto the parts robot; the picker north of it, the parts robot's
            empties into the rack pod -- as row B's */
         const podW = si => { const sq = AMR_SLOTS.amrshelf[si]; return [APOD[0] - sq.b + 27, APOD[1] + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; }, podWR = si => { const sq = AMR_SLOTS.amrshelf[si]; return [ARPOD[0] - sq.b + 27, ARPOD[1] + sq.a, [34, 64, 94, 124][sq.lv] + 2.5]; };
-        { const AA = APOD[0] + 95, AB = APOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
+        { const AA = APOD[0] + 83, AB = APOD[1] + 98, fr = w => [w[0] - AA, w[1] - AB, w[2]];
           const rest = i => [AROB[0] - 13, AROB[1] + RSL[i], 31];
           let arm = { pick: fr([rest(1)[0] + 10, rest(1)[1] + 30, 60]), place: fr(rest(0)), u: null, L1: 98, L2: 92 };
           const ka = [0, 1, 2, 3].find(k => r >= RBA[k] + 2000 && r < RBA[k] + 4400); if(ka != null){ const jj = Math.floor((r - RBA[ka] - 2000)/800), u = ((r - RBA[ka] - 2000) % 800)/800, i = ka, col = CPAL[i], pw = podW(GRP(i, false)[jj]), rw = [AROB[0], AROB[1] - 26 + 26*jj, 31];
