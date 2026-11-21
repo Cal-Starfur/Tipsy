@@ -8979,6 +8979,7 @@ const AMR_SLOTS = (() => {
 const AMRL = { bots: {}, down: [], seq: 0, crew: null };
 /* CRATEWELL'S BUFFERS, as its crews last drew them (the debug panel's line: every level should come round the same each cycle) */
 let CW_FLOW = {};
+var CREW_TAP = null;   /* (set to [] by tools/review/crew_spacing.js: each room robot drawn is pushed to it) */
 function amrLoadsOf(b){ if(AMRL.crew) return AMRL.crew; if(!AMRL.bots[b]) AMRL.bots[b] = AMR_SLOTS[b].map(q => q.def ? Object.assign({ id: ++AMRL.seq }, q.def) : null); return AMRL.bots[b]; }
 function amrBuildKey(){ if(fleetCur() === 'humanoid') return 'gideon'; const b = SKIN.build; return /^amr[a-z]+$/.test(b || '') && AMR_SLOTS[b] ? b : 'amrstock'; }
 function amrCan(s){ const ow = s && s.ow; return !!(ow && ow.on && !s.attract && s.state === "play" && !s._garage && !s._inside && owTripMode(s.mode) && (fleetCur() === 'amr' || (fleetCur() === 'humanoid' && !ow.scoot && !ow.climbing && !ow.emerging && !ow.getUp))); }
@@ -105728,6 +105729,7 @@ class WorldScene extends Phaser.Scene {
          them around from station to station") */
       else if(it.fx && it.fx.crew){ const T0 = this.time.now, M = 300*K;
         for(const m of it.fx.crew(T0*(it.fx.ts || 1))){   /* (fx.ts: the room's own clock, slower or faster than the game's -- Cratewell's 0.6) */ const mx = x0 + m.a, my = y0 + sb*m.b, p = this.W(mx, my, 0);
+          if(typeof CREW_TAP !== 'undefined' && CREW_TAP) CREW_TAP.push({ room: name, kind: m.kind, build: m.build || m.botKind || null, a: m.a, b: m.b, fdir: m.fdir, jack: !!m.jack && m.jack !== false, key: m.key || null });   /* (tools/review/crew_spacing.js: who is where, every robot, to find any two on top of one another) */
           if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) continue;
           vq.push({ depth: mx + my + (m.dd || 0) + zd, fn: (g, t) => this.drawRoomBot(g, m, mx, my, z0 || 0, t || T0, name, G, K) }); } }
       /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
