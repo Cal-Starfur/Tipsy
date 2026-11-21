@@ -61336,15 +61336,15 @@ function houseCanopy(fn){
        back into the slot it was picked from (TOP4) */
     /* (the arm robots' phase: the goods-to-person pod's four first -- off the top carton -- then the flat boxes, then row A's five, its pod in
        once the pick face is done) */
-    const JOBS = [{ k: 'fillB', bin: 0, c: 4 }, { k: 'fillB', bin: 1, c: 4 }, { k: 'fillB', bin: 2, c: 4 }, { k: 'fillB', bin: 3, c: 4 },
+    const JOBS = [{ k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 },
       { k: 'fill', bin: 0, c: 1 }, { k: 'fill', bin: 1, c: 1 }, { k: 'fill', bin: 2, c: 1 }, { k: 'fill', bin: 3, c: 2 }, { k: 'idle', c: -1 }, { k: 'carton', i: 0 }, { k: 'carton', i: 3 }];   /* (the two cartons last: the shuttle is back from its round by then, and leaves with both, phase 5) */
     const JDECK = 9, JFLAT = 10;
     const RCV_T0 = 14500, RCV_JOB = 2400, RCV_T1 = RCV_T0 + JOBS.length*RCV_JOB, JS = j => RCV_T0 + j*RCV_JOB;
     const rcvQ = jr => jr >= RCV_T0 && jr < RCV_T1 ? { j: Math.floor((jr - RCV_T0)/RCV_JOB), q: (jr - RCV_T0) % RCV_JOB } : null;
     /* what is still on the pallet: the cartons till they are taken (or used up) */
     const JK = RCV_JOB/3000;   /* (a job's moves on its 3000 beat, scaled to the job) */
-    const rcvOn = jr => { if(jr < RCV_T0) return [0, 1, 2, 3, 4]; if(jr >= RCV_T1) return [];
-      return [0, 1, 2, 3, 4].filter(i => { const last = JOBS.reduce((q, J, j) => (J.k === 'carton' ? J.i === i : J.c === i) ? j : q, -1); return jr < JS(last) + (JOBS[last].k === 'carton' ? 1100 : 2000)*JK; }); };
+    const rcvOn = jr => { if(jr < RCV_T0) return [0, 1, 2, 3];   /* (row B's parts carton gone: its pods are stocked on the west wall) */ if(jr >= RCV_T1) return [];
+      return [0, 1, 2, 3].filter(i => { const last = JOBS.reduce((q, J, j) => (J.k === 'carton' ? J.i === i : J.c === i) ? j : q, -1); return last >= 0 && jr < JS(last) + (JOBS[last].k === 'carton' ? 1100 : 2000)*JK; }); };
     /* (where things stand at Receiving: the jack and its pallet (JA, PB), the Receiver beside it (RX); the shuttle (SH*); the goods-to-person
        pod's spot (GPA, GPB), facing south so the side its bins are worked from is to the east) */
     const JA = 2282, PB = 232, SHA = 2282, SHB = 430, SHSL = [408, 452], GPA = 2160, GPB = 300;   /* (phase 5: the shuttle waits south of the pallet, out of the jack's lane while it is in -- its way in and out clear of the goods-to-person pod) */   /* (the Receiver works the gap between the pod (west of him, facing south) and the pallet and the shuttle (east): nothing tall in front of him from the eye) */
@@ -61760,23 +61760,24 @@ function houseCanopy(fn){
           const L = SH.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
           let P1, fd = null, s0 = 0;
           for(let i = 0; i < 4; i++) for(let jj = 0; jj < 3; jj++){ let v;
-            const ta = RBA[i] + 2000 + jj*800, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = SUP + JS(i) - RB0 + SUP;
+            const ta = RBA[i] + 2000 + jj*800, tr = SUP + RBA[i] + 4400 + 2000*(CARRY_GO - 0.65)/0.35, J = 2*SUP - 1000;   /* (back in the west line, the wall's stock: full again -- no trip to Receiving) */
             if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 800*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
             else if(U < tr) v = null;
             else if(U < tr + 300) v = Object.assign(fullOf(i), { empty: true, off: [0, 27*(1 - ease((U - tr)/300))] });
             else if(U < J) v = Object.assign(fullOf(i), { empty: true });
-            else v = jj !== 1 ? (U < J + 3000*JK ? Object.assign(fullOf(i), { empty: true }) : fullOf(i)) : U < J + 600*JK ? Object.assign(fullOf(i), { empty: true }) : U < J + 900*JK ? Object.assign(fullOf(i), { empty: true, off: [0, -26*ease((U - J - 600*JK)/(300*JK))] })
-              : U < J + 2750*JK ? null : U < J + 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((U - J - 2750*JK)/(250*JK)))] }) : fullOf(i);
+            else v = fullOf(i);
             L[GRP(i, false)[jj]] = v; }
           /* (the west line, Sir, 2026-11-20: refilled, back to the end of the line (b 700); the line moves up a slot (120 south) each visit; from
              its front (b 1300) into the stop) */
-          const LV = 2*SUP + 24400 - RB0, LV1 = LV + 11500, IN0 = 8*SUP - 3000, WQ = i => [62, 700 + i*120];
+          const LV = 2*SUP - 1000, LV1 = LV, IN0 = 8*SUP - 3000, WQ = i => [62, 700 + i*120];
           if(U < DV + 1400){ P1 = { a: SPOD[0], b: SPOD[1] }; fd = 1; }
           else if(U < DV + 2900){ s0 = RSHL*ease((U - DV - 1400)/1500); P1 = pathAt(RSH, Math.min(s0, RSHL - 0.5)); fd = 1; }   /* (over beside the picker) */
           else if(U < SUP + DV){ P1 = { a: RPOD[0], b: RPOD[1] }; fd = 1; }
-          else if(U < SUP + DV + 14000){ s0 = GTR2L*clamp01((U - SUP - DV)/14000); P1 = pathAt(GTR2, Math.min(s0, GTR2L - 0.5)); if(s0 > GTR2L - (455 - GPB)) fd = 1; }
-          else if(U < LV){ P1 = { a: GPA, b: GPB }; fd = 1; }
-          else if(U < LV1){ const GRW = [[GPA, GPB], [GPA, 455], [190, 455], [190, 700], [62, 700], [61, 700]], L2 = plenP(GRW); s0 = L2*ease((U - LV)/11500); P1 = pathAt(GRW, Math.min(s0, L2 - 0.5)); if(s0 > L2 - 130) fd = 2; }
+          /* (Sir, 2026-11-20: "the wall in the west is what refills row B": no trip to Receiving -- the used pod waits by the line's end and
+             rolls into it as its last slot frees, the wall's stock) */
+          else if(U < SUP + DV + 5000){ const GH = [RPOD, [190, RPOD[1]], [190, 580], [62, 580], [61, 580]], L2 = plenP(GH); s0 = L2*ease((U - SUP - DV)/5000); P1 = pathAt(GH, Math.min(s0, L2 - 0.5)); if(s0 > L2 - 130) fd = 2; }
+          else if(U < 2*SUP - 2500){ P1 = { a: 62, b: 580 }; fd = 1; }
+          else if(U < 2*SUP - 1000){ P1 = { a: 62, b: 580 + 120*ease((U - 2*SUP + 2500)/1500) }; fd = 1; }
           else if(U < IN0){ let sl = 0; for(let kk = 3; kk <= 7; kk++){ const ts = kk*SUP - 3000; if(U >= ts + 2000) sl++; else if(U >= ts){ sl += ease((U - ts)/2000); } }
             P1 = { a: 62, b: 700 + sl*120 }; fd = 1; }   /* (in the line, moving up as the front one leaves) */
           else { const GF = [[62, 1300], [190, 1300], [190, 1460], [SPOD[0], 1460], [SPOD[0], SPOD[1]], [SPOD[0], SPOD[1] - 1]], L3 = plenP(GF); s0 = L3*ease((U - IN0)/3000); P1 = pathAt(GF, Math.min(s0, L3 - 0.5)); if(s0 > L3 - 465) fd = 1; }
@@ -61879,8 +61880,8 @@ function houseCanopy(fn){
           const Q4 = [STK, [STK[0], AY, 'r'], ...into(ko, [STK[0], AY]).slice(1)], Q5 = [...outOf(ko), [2275, AY], [2275, 455], [DOOR[0] + 1, 455]];
           let P, jack = false, fork = 0;
           if(u < 1000) P = null;
-          else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3, 4]); fork = 1; }
-          else if(jr2 < RCV_T0){ P = hold([JA, 300], 3); jack = JACKIN([0, 1, 2, 3, 4]); fork = 1 - ease((u - 4500)/500); }
+          else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3]); fork = 1; }
+          else if(jr2 < RCV_T0){ P = hold([JA, 300], 3); jack = JACKIN([0, 1, 2, 3]); fork = 1 - ease((u - 4500)/500); }
           else if(jr2 < RCV_T1){ P = hold([JA, 300], 3); jack = JACKIN(rcvOn(jr2)); }
           else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 300], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
           else if(jr2 < 48400){ P = drv(ST, (jr2 - RCV_T1 - 1000)/(48400 - RCV_T1 - 1000)); jack = JACKIN([]); fork = 1; }
