@@ -60308,7 +60308,7 @@ function houseCanopy(fn){
         const jrR = (((t + (ju == null ? 0 : (0.78 - ju)*ARMT) - PAL0) % PALT) + PALT) % PALT, iBox = (Math.round(jrR/CYC) + 5) % 6;
         const place = [0, PA + (iBox % 2 ? 15 : -15) - AA, 10.5 + Math.floor(iBox/2)*BXH + BXH], pick = [0, 1894 - AA, 31 + BXH];
         const out = [bot(CPt.a, CPt.b, CPt.fdir, { build: 'amrstock', loads: [], wheel: s0*0.12, cargo: has ? () => carton(CPt.a, CPt.b, 31, alongB) : bx >= 0 ? () => { folded(CPt.a, CPt.b, 31); if(bx > 100) carton(CPt.a, CPt.b, 31, false, bx < 1700 ? 4 + 26*ease((bx - 100)/1600) : null); } : null }),
-                     bot(AA, PB, 3, { build: 'amrarm', arm: { pick, place, u: ju, held: HELD } })];
+                     bot(AA, PB, 3, { build: 'amrarm', arm: { pick, place, u: ju, held: HELD }, dd: ju != null && ju > 0.05 && ju < 0.55 ? 1894 - AA + 6 : 0 })   /* (while it lifts the box off the box robot, after that robot -- Sir, 2026-11-20: "when the arm picks up the box it is drawn over by the robot it came off") */];
         /* the pallet in the bay: full till the pallet jack lifts it, an empty one off the stack once it has gone, a box on it each CYC */
         const jr = (((t - PAL0) % PALT) + PALT) % PALT, n = jr < 1500 ? 6 : jr < 8300 ? -1 : jr < CYC ? 0 : Math.min(5, Math.floor((jr - CYC)/CYC) + 1);
         CW_FLOW.pallet = n; if(n >= 0) out.push({ kind: 'cargo', a: PA, b: PB, cargo: () => palletKit(PA, PB, n) });
