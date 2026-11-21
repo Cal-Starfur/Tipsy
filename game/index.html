@@ -61425,7 +61425,7 @@ function houseCanopy(fn){
       for(const [a0, a1, b0, b1] of [[a - la, a + la, b - lb, b - lb + 4], [a - la, a + la, b + lb - 4, b + lb], [a - la, a - la + 4, b - lb, b + lb], [a + la - 4, a + la, b - lb, b + lb]]) T(a0, a1, b0, b1, 0.5, '#5fb8e8');
       T(a - 3, a + 3, b - 3, b + 3, 0.6, '#16181b'); };
     const POD_FULL = AMR_SLOTS.amrshelf.map(q => q.def);
-    for(let i = 0; i < 12; i++){ const pa = 470 + i*120, pb = 60;
+    for(let i = 0; i < 9; i++){ const pa = 470 + i*120, pb = 60;   /* (nine: the three nearest the door gone, room by the pick face -- Sir, 2026-11-20: "we can remove the first 3 shelf robots to create some room") */
       podSq(pa, pb, false);
       items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 55, pa + 55, pb - 38, pb + 38, 150, 'shelf pod')], draw: () => {} });   /* (the pods themselves move up the line: the pick face's crew) */
     }
@@ -61694,11 +61694,11 @@ function houseCanopy(fn){
            pod has gone for its refill, the line's front pod rolls into its place at the pick face and the rest move up a slot; the refilled
            pod drives back to the end of the line */
         { const hR = PS.find(pd => !pd.isF).home;
-          for(let i = 0; i < 12; i++){ let P = { a: NQ_A(i), b: PODB, fdir: 0 };
+          for(let i = 0; i < 9; i++){ let P = { a: NQ_A(i), b: PODB, fdir: 0 };
             if(jr >= NQ_SHIFT && jr < NQ_SHIFT + 3000){ const k = ease((jr - NQ_SHIFT)/3000);
-              if(i < 11) P = { a: NQ_A(i) + 120*k, b: PODB, fdir: 0 };
-              else { const QF = [[NQ_A(11), PODB], [NQ_A(11), 140], [hR, 140], [hR, PODB], [hR, PODB - 1]], P1 = pathAt(QF, Math.min(plenP(QF)*k, plenP(QF) - 0.5)); P = P1; } }
-            else if(jr >= NQ_SHIFT + 3000){ if(i === 0 && jr < NQ_BACK) continue; if(i === 11) P = { a: hR, b: PODB, fdir: 0 }; }   /* (slot 0 empty till the refilled one is back; the front one waiting at the pick face) */
+              if(i < 8) P = { a: NQ_A(i) + 120*k, b: PODB, fdir: 0 };
+              else { const QF = [[NQ_A(8), PODB], [NQ_A(8), 140], [hR, 140], [hR, PODB], [hR, PODB - 1]], P1 = pathAt(QF, Math.min(plenP(QF)*k, plenP(QF) - 0.5)); P = P1; } }
+            else if(jr >= NQ_SHIFT + 3000){ if(i === 0 && jr < NQ_BACK) continue; if(i === 8) P = { a: hR, b: PODB, fdir: 0 }; }   /* (slot 0 empty till the refilled one is back; the front one waiting at the pick face) */
             if(jr >= NQ_SHIFT + 3000 && i === 0 && jr >= NQ_BACK){ P = { a: NQ_A(0), b: PODB, fdir: 0 }; }
             out.push(bot(P.a, P.b, P.fdir, { build: 'amrshelf', loads: POD_FULL, bins: CPAL })); } }
         CW_FLOW.pods = PS.map(pd => (pd.isF ? 'full ' : 'returns ') + pd.loads.filter((L, i) => S5.includes(i) && L && !L.empty).length + '/' + pd.loads.filter((L, i) => S5.includes(i) && L && L.empty).length).join(', ');
@@ -61898,7 +61898,7 @@ function houseCanopy(fn){
     /* ---- RECEIVING (phase 2): the parts pallet's load (RCV, about its middle, PC: a deck carton on top, four bins, a carton of flat boxes);
        the Receiver taking it off the jack's forks a piece at a time onto the staging rack on Receiving's north wall; the patrol bot by the
        door, scanning each pallet in and out ---- */
-    items.push({ a: 2230, b: 250, z: 0, solids: [solid(2160, 2210, 585, 635, 90, 'patrol bot'), solid(2244, 2320, 392, 468, 60, 'supply shuttle')], draw: () => {}, fx: { crew: t => {
+    items.push({ a: 2230, b: 250, z: 0, solids: [solid(2244, 2320, 392, 468, 60, 'supply shuttle')], draw: () => {}, fx: { crew: t => {
       const out = [], jr = (((t - PAL0) % PALT) + PALT) % PALT, q = rcvQ(jr);
       /* THE RECEIVER (phases 2 and 3): the deck carton off the pallet onto the shuttle; then the returns pod's five empty bins, parked here,
          refilled one at a time -- out of its slot, carried to the parts carton, filled over it, back in; then the flat-box carton onto the
@@ -61968,7 +61968,7 @@ function houseCanopy(fn){
       /* (the shuttle itself, and its round: phase 5's crew below) */
       /* the patrol bot by the door: turned to the lane, scanning a pallet through */
       const scan = jr > 8000 && jr < 9500 || jr > 10500 && jr < 12000;
-      out.push({ kind: 'bot', botKind: 'patrolbot', bSkin: 'patrol:cratewell', a: 2185, b: 600, fdir: 0.2, cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2208, 596, 70, 2290 + k2*16, 470, 34, 0.6, '#3cd06a'); } : null });   /* (facing the door and the eye: his badge to the camera) */   /* (south of the door's lane, out of Receiving's way: turned to the door) */
+      out.push({ kind: 'bot', botKind: 'patrolbot', bSkin: 'patrol:cratewell', a: 2395, b: 690, fdir: 2.6,   /* (outside the roller door, off the doorway -- Sir, 2026-11-20: "a lot of this is in the only doorway") */ cargo: scan ? () => { for(const k2 of [-1, 0, 1]) tube(2375, 676, 70, 2300 + k2*16, 470, 34, 0.6, '#3cd06a'); } : null });   /* (facing the door and the eye: his badge to the camera) */   /* (south of the door's lane, out of Receiving's way: turned to the door) */
       CW_FLOW.receiving = q ? 'job ' + (q.j + 1) + '/' + JOBS.length + ' ' + JOBS[q.j].k : '-';
       return out; } } });
 
