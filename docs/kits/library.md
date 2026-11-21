@@ -37,6 +37,8 @@ table with stools and a standing work table are their own kinds. Old ones brough
 
 **Beds: the mattress's top at 50** (Sir, 2026-11-20); a patient or sleeper lies on it at 50.
 
+**Sofas: the seat at 38**, as a chair's (Sir, 2026-11-20); a sofa is built as the ballroom lounge's is -- feet, a base the whole footprint, the back on its own side of the base, the arms from the back forward, the seat's cushions between them (Palmline Tower's `sofaOf`).
+
 **Hunting inconsistencies:** `node tools/review/consistency.js [room]` measures every walk-in room's fixtures by kind (chairs, stools,
 benches, sofas, tables, desks, counters, workbenches, shelves, cabinets, lockers, beds -- by what their solids are called) and lists the
 ones well off their kind's typical size; the typical sizes go into `library.json` (`fixtures`). A review list, not a gate: a low table or
