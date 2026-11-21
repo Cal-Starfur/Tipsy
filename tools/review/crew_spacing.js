@@ -1,5 +1,5 @@
 /* CREW SPACING -- are any two robots on top of one another? (Sir, 2026-11-20: "all the robots should know not to be on top of one
-   another"). Boots the game headless, takes Tipsey into Cratewell Works' hall with the whole floor in view, steps the hall's clock
+   another"). Boots the game headless, takes Tipsey into Kickstand Scooter Co.' hall with the whole floor in view, steps the hall's clock
    through whole cycles and, every step, reads every room robot drawn (CREW_TAP, filled by the room-crew loop), builds each one's
    footprint on the floor (a rotated box from its build; a pallet jack's load out ahead of it; a tugger's carts behind it) and
    reports every pair whose footprints overlap: when, where, which two, how deep. Humanoids are left out (they walk round the
@@ -53,7 +53,7 @@ const nameOf = m => (m.key || m.build || m.kind) + '@' + Math.round(m.a) + ',' +
   const found = new Map(); let steps = 0, seen = 0;
   for(let ms = 0; ms < SECS*1000; ms += STEP){
     const tap = await p.evaluate(st => { CREW_TAP = []; _T += st; game.step(_T, st); const r = CREW_TAP; CREW_TAP = null; return { t: game.scene.getScene('world').time.now, r }; }, STEP);
-    steps++; const R = tap.r.filter(m => m.room && /Cratewell/.test(m.room) && (m.kind === 'amr' || m.kind === 'bot')); seen = Math.max(seen, R.length);
+    steps++; const R = tap.r.filter(m => m.room && /Kickstand/.test(m.room) && (m.kind === 'amr' || m.kind === 'bot')); seen = Math.max(seen, R.length);
     const F = R.map(m => FOOT(m).map(f => corners(m, f)));
     for(let i = 0; i < R.length; i++) for(let j = i + 1; j < R.length; j++){ let d = 0;
       for(const A of F[i]) for(const B of F[j]) d = Math.max(d, overlap(A, B));

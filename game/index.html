@@ -3437,7 +3437,7 @@ const GD_PRESETS = [
   /* THE FACILITY LOOKS (Sir, 2026-11-18: "i also want all of these skins for the humanoid robot ... he will be in these settings working with
      them"): the warehouse robot's facility skins (TP_BSKIN build 'amr') as his -- its colours on his shell, his vest or apron, his hat and band, and
      its icon on his chest (gDecal 'fac:*'); a Warehouse Worker, the floor's own: hi-vis vest, hard hat, tool belt, boots */
-  { id: 'cratewell', name: 'Cratewell Works', set: { gEar: 'graphite', gShell: 'c:f6c81e', gFinish: 'twotone', gShell2: 'c:2a2f36', gJoint: 'graphite', gHand: 'black', gBand: 'c:d4201f', gBadge: 'gear', gBadgeCol: 'c:d4201f', gDecal: 'chevron', gDecalCol: 'c:d4201f', gShoeKind: 'boot', gShoeCol: 'black', gPack: 'graphite', gPackStyle: 'cells' } },   /* (Cratewell Works' own humanoids: the fleet's yellow, red and charcoal -- Sir, 2026-11-20: "our humanoid isn't skinned properly") */
+  { id: 'cratewell', name: 'Kickstand Scooter Co.', set: { gEar: 'graphite', gShell: 'c:f6c81e', gFinish: 'twotone', gShell2: 'c:2a2f36', gJoint: 'graphite', gHand: 'black', gBand: 'c:d4201f', gBadge: 'gear', gBadgeCol: 'c:d4201f', gDecal: 'chevron', gDecalCol: 'c:d4201f', gShoeKind: 'boot', gShoeCol: 'black', gPack: 'graphite', gPackStyle: 'cells' } },   /* (Kickstand Scooter Co.' own humanoids: the fleet's yellow, red and charcoal -- Sir, 2026-11-20: "our humanoid isn't skinned properly") */
   { id: 'warehouse', name: 'Warehouse Worker', set: { gShell: 'slate', gApron: 'vest', gOutCol: 'c:c8f03c', gHat: 'hardhat', gHatCol: 'yellow', gHand: 'black', gShoeKind: 'boot', gShoeCol: 'black', gNeck: 'lanyard', gBand: 'lime', gDecal: 'stripes', gDecalCol: 'c:e8ecef', gPackStyle: 'cells' } },
   { id: 'fac-online', name: 'Online Mega-Store', set: { gShell: 'c:2f3338', gApron: 'vest', gOutCol: 'c:ff9a1a', gHat: 'hardhat', gHatCol: 'c:ff9a1a', gBand: 'orange', gDecal: 'fac:online', gDecalCol: 'c:2f3338', gShoeKind: 'boot', gShoeCol: 'black' } },
   { id: 'fac-parcel', name: 'Parcel Carrier', set: { gShell: 'c:4a2f1c', gApron: 'vest', gOutCol: 'c:d8a83a', gHat: 'cap', gHatCol: 'c:4a2f1c', gBand: 'gold', gDecal: 'fac:parcel', gDecalCol: 'c:4a2f1c', gShoeKind: 'boot', gShoeCol: 'brown' } },
@@ -6821,7 +6821,7 @@ function roomFitK(s, pk){
   const vw = s.vpW ? s.vpW() : s.scale.width, vh = s.vpH ? s.vpH() : s.scale.height;
   if(!(vw > 0 && vh > 0) || !(pk.w > 0 && pk.d > 0)) return null;
   const S = pk.w + pk.d + 2*WALKIN_WALL, H = Math.min(pk.h || 300, ROOM_FIT.hCap);   // (the room's outline on screen: W + D across, (W + D)/2 + its walls' height down -- at most hCap of it)
-  if(pk.w > 2600 || pk.d > 1200) return null;                         // (a hall far bigger than any screen -- Cratewell's: the camera follows him round it)
+  if(pk.w > 2600 || pk.d > 1200) return null;                         // (a hall far bigger than any screen -- Kickstand's: the camera follows him round it)
   const k = Math.min((vw - 2*ROOM_FIT.side)/S, (vh - 2*ROOM_FIT.top)/(S/2 + H));
   return Math.max(ROOM_FIT.min, Math.min(ROOM_FIT.max, k));
 }
@@ -8098,7 +8098,7 @@ function showroomButton(scene){
   if(b.style.display !== '') b.style.display = '';
 }
 
-/* THE FACTORY BUTTON (Sir, 2026-11-19: Cratewell Works stands in the Warehouse District, still behind the hood lock): shown while the debug
+/* THE FACTORY BUTTON (Sir, 2026-11-19: Kickstand Scooter Co. stands in the Warehouse District, still behind the hood lock): shown while the debug
    switch is on, it lifts the hood lock for this session and stands him at the factory's truck gate, on the street, facing in */
 function factoryButton(scene){
   let b = document.getElementById('facGo');
@@ -8109,7 +8109,7 @@ function factoryButton(scene){
     b.id = 'facGo'; b.textContent = 'Factory';
     b.style.cssText = 'position:fixed;left:16px;bottom:16px;z-index:100000;height:40px;padding:0 16px;border-radius:20px;border:0;' +
       'background:rgba(20,22,26,.86);color:#ffb36b;font:700 14px system-ui,-apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-    b.onclick = e => { e.stopPropagation(); HOOD_LOCK.active = false; owStandUpAt(scene, (FAC.gate[0] + FAC.gate[1])/2, FAC.Y1 + 220, -Math.PI/2); if(typeof owDbgToast === 'function') owDbgToast('Cratewell Works: the hood lock is off till reload'); };
+    b.onclick = e => { e.stopPropagation(); HOOD_LOCK.active = false; owStandUpAt(scene, (FAC.gate[0] + FAC.gate[1])/2, FAC.Y1 + 220, -Math.PI/2); if(typeof owDbgToast === 'function') owDbgToast('Kickstand Scooter Co.: the hood lock is off till reload'); };
     document.body.appendChild(b);
   }
   if(b.style.display !== '') b.style.display = '';
@@ -8172,8 +8172,8 @@ function owDbgDraw(scene){
     return h.k + (h.n > 1 ? ' x' + h.n : '') +
            '  @' + h.x + ',' + h.y + '  ' + age + 's' + (h.kk ? '  ' + h.kk : '');
   });
-  /* (inside Cratewell Works' hall: its buffers -- CW_FLOW) */
-  const cw = scene._inside && /^Cratewell/.test(scene._inside.name || '') && CW_FLOW.bench ? ['cratewell  t ' + ((CW_FLOW.t || 0)/1000).toFixed(1) + 's  benches ' + CW_FLOW.bench.slice(1).join(' ') +
+  /* (inside Kickstand Scooter Co.' hall: its buffers -- CW_FLOW) */
+  const cw = scene._inside && /^Kickstand/.test(scene._inside.name || '') && CW_FLOW.bench ? ['cratewell  t ' + ((CW_FLOW.t || 0)/1000).toFixed(1) + 's  benches ' + CW_FLOW.bench.slice(1).join(' ') +
     '  decks ' + CW_FLOW.decks + '  tug ' + CW_FLOW.tug + '  pods ' + CW_FLOW.pods + '  runner ' + CW_FLOW.runner + '  shuttle ' + CW_FLOW.shuttle + '  flats ' + CW_FLOW.flats + '  pallet ' + CW_FLOW.pallet + '  empties ' + CW_FLOW.empties + '  jack ' + CW_FLOW.jack + '  receiving ' + CW_FLOW.receiving] : [];
   el.textContent = [head, ...cw, ...(rows.length ? rows : ['(no contacts yet)'])].join('\n');
 }
@@ -14889,7 +14889,7 @@ function cornerUnitsOf(blk){
 }
 
 /* CELLS GIVEN OVER TO A SITE (Sir, 2026-11-19: "lets double the size [of the factory] to four blocks"): their roll overridden, so worldgen
-   merges them into the park beside them -- the streets between swallowed, the houses never placed. Cratewell Works (FAC) takes the
+   merges them into the park beside them -- the streets between swallowed, the houses never placed. Kickstand Scooter Co. (FAC) takes the
    two housing cells south of its park, 13,12 and 14,12, for a 2 x 2 site */
 const BLOCK_TYPE_SET = { "13,12": "park", "14,12": "park" };
 function buildBlockLayout(grid, seed){
@@ -20442,11 +20442,11 @@ const HOOD_BLOCK_LANDMARKS = [
   [9,7, "Sun Deck Airfield Hangars"],
   [9,8, "Sun Deck Airfield South Apron"],
   [8,8, "Sun Deck Airfield Fuel Farm"],
-  /* Cratewell Works (see FAC): the Warehouse District's factory, one entry per cell */
-  [13,11, "Cratewell Works"],
-  [14,11, "Cratewell Works Dispatch"],
-  [13,12, "Cratewell Works Fulfilment"],
-  [14,12, "Cratewell Works Yard"],
+  /* Kickstand Scooter Co. (see FAC): the Warehouse District's factory, one entry per cell */
+  [13,11, "Kickstand Scooter Co."],
+  [14,11, "Kickstand Scooter Co. Dispatch"],
+  [13,12, "Kickstand Scooter Co. Fulfilment"],
+  [14,12, "Kickstand Scooter Co. Yard"],
 ];
 /* THE FRAME A HOOD LANDMARK STANDS IN (Sir, 2026-09-17: "its heading and
    door should be [on the] camera facing side"). A row with a 4th field
@@ -34429,13 +34429,13 @@ const HOSP = (() => {
    and declares its share -- its region is the cell node to node, so the
    swallowed streets are shared out between the cells either side. The
    windsocks, the beacon and the radar are live (each entry's `live`). */
-/* ==================== CRATEWELL WORKS (Sir, 2026-11-19: "lets create a factory in a hood ... warehouse district 2 block site";
+/* ==================== KICKSTAND SCOOTER CO. (Sir, 2026-11-19: "lets create a factory in a hood ... warehouse district 2 block site";
    "lets double the size to four blocks") ====================
    A factory on four cells of the Warehouse District, 13..14 x 11..12 (its park pair and the two housing cells south of it, given over:
    BLOCK_TYPE_SET), one merged site with no streets inside, where the warehouse robots and Gideon will work. WORLD UNITS, as AIR: each
    cell's entry draws and declares its own share, its region the cell node to node. The site is the buildable ground of the four and the
    streets they swallowed: x 41400..46184, y 35144..39928 (4784 square). On it, north to south:
-     the factory hall (brick, a sawtooth roof, roller doors, CRATEWELL WORKS on its parapet), its chimney, two silos, the dispatch shed and
+     the factory hall (brick, a sawtooth roof, roller doors, KICKSTAND SCOOTER CO. on its parapet), its chimney, two silos, the dispatch shed and
      its four docks; the upper yard with a yellow robot lane looping round outdoor racking; the fulfilment centre (a big flat-roofed shed,
      six truck docks on its south face, robot doors on its east end, a glazed office at its south-east corner) and its truck yard, trailers
      backed to the docks; east of it a water tower, the robots' charging canopy, the staff parking and the guard booth at the gates.
@@ -34444,7 +34444,7 @@ const HOSP = (() => {
    by the cell its middle is in, so its solid is kept wholly in that cell: the lines at x 43792 and y 37536) */
 const FAC = (() => {
   const Bk = BLOCK, IN = 736;
-  const ij = [[13, 11, "Cratewell Works"], [14, 11, "Cratewell Works Dispatch"], [13, 12, "Cratewell Works Fulfilment"], [14, 12, "Cratewell Works Yard"]];
+  const ij = [[13, 11, "Kickstand Scooter Co."], [14, 11, "Kickstand Scooter Co. Dispatch"], [13, 12, "Kickstand Scooter Co. Fulfilment"], [14, 12, "Kickstand Scooter Co. Yard"]];
   const cells = ij.map(([i, j, name]) => ({ i, j, name, region: [i*Bk, (i + 1)*Bk, j*Bk, (j + 1)*Bk] }));
   const X0 = 13*Bk + IN, X1 = 15*Bk - IN, Y0 = 11*Bk + IN, Y1 = 13*Bk - IN, x = v => X0 + v, y = v => Y0 + v;
   return {
@@ -34472,7 +34472,7 @@ const FAC = (() => {
     gate: [x(1200), x(1700)], pgate: [x(2800), x(2900)], cgate: [x(3900), x(4250)]
   };
 })();
-/* CRATEWELL WORKS' HALL, A WALK-IN (the room: the LIB entry 'Cratewell Works Hall Interior' -- the scooter and e-bike line), in cell 13's
+/* KICKSTAND SCOOTER CO.' HALL, A WALK-IN (the room: the LIB entry 'Kickstand Scooter Co. Hall Interior' -- the scooter and e-bike line), in cell 13's
    frame (lab a = x - 13*BLOCK, b = 11*BLOCK - y); its door the open roller door, 300 across, in the hall's EAST end (FAC.hall.edoor). Fully automated: no staff, and
    open round the clock (its place card, 'Factory'). BIGGER INSIDE THAN OUT (Sir, 2026-11-19: "im thinking in terms of how we do our shop
    interiors for these warehouse locations. so we scale up their interior the same way" -- "both, a huge hall"; walk-in kit W31): its front
@@ -34481,13 +34481,13 @@ const FAC = (() => {
    robots scale"). While he is in it what stands under it is not drawn (displace, ghosts: queueParkBlock's hl branch), the world outside
    dims, and the camera follows him round it (a room bigger than the screen) */
 const FAC_HALL_IN = (() => { const H = FAC.hall, ox = 13*BLOCK, oy = 11*BLOCK, d = H.edoor;
-  return walkinDefine({ name: 'Cratewell Works Hall Interior', from: 'Cratewell Works', x0: 900000, y0: 400000,
+  return walkinDefine({ name: 'Kickstand Scooter Co. Hall Interior', from: 'Kickstand Scooter Co.', x0: 900000, y0: 400000,
     lab: [FAC.X0 + 30 - ox, H.x1 - 30 - ox, oy - (FAC.Y0 + 1900), oy - (FAC.Y0 + 30)], body: [[H.x0 - ox, H.x1 - ox, oy - H.y1, oy - H.y0]],
     door: { a: H.x1 - ox, b: oy - (d[0] + d[1])/2, half: (d[1] - d[0])/2 }, H: H.wall, out: 36, apron: 30, glass: -14, LH: 66,
     street: { to: [0, 260], routes: [[[-900, 260]], [[900, 260]]] },
     openings: [{ lab: [[H.x1 - ox, oy - d[0]], [H.x1 - ox, oy - d[1]]], z: [0, 170] }] }); })();
 POCKETS[POCKETS.length - 1].displace = true;   // (W31: bigger than the hall -- what it covers drawn under it)
-POCKETS[POCKETS.length - 1].ghosts = ['Cratewell Works'];
+POCKETS[POCKETS.length - 1].ghosts = ['Kickstand Scooter Co.'];
 const AIR = (() => {
   const Bk = BLOCK, IN = 736;
   const ij = [[7,6, "Sun Deck Airfield"], [8,6, "Sun Deck Airfield Terminal"], [9,6, "Sun Deck Airfield Cargo"],
@@ -46888,9 +46888,9 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'rover:tug', build: 'rover', name: 'Space Tug', cents: 1000, body: 0xeceef1, stripe: 0xff7a1a, print: 'rvTug', noSolar: true, noDish: true, lidCol: [0xd8dde2, 0xb9bec4, 0x8d959c], roverPart: 'tug', noFlag: true, eye: 0xff9a3a, trim: { rimCol: 0xff7a1a } },
   /* THE CARGO BOT'S ERA SKINS (Sir, 2026-11-17): three for each era -- its body colour and its accents (acc: drawCargoEra) */
   /* the balers' (drawCargoBaler): acc.hopper, acc.icon, acc.chev (hazard chevrons on the bale door); the cardboard one's stripe brown, the plastic one's blue */
-  { id: 'cgcard:cratewell', build: 'cgcard', name: 'Cratewell Works', cents: 900, body: 0xf6c81e, stripe: 0x8a5a2a, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
+  { id: 'cgcard:cratewell', build: 'cgcard', name: 'Kickstand Scooter Co.', cents: 900, body: 0xf6c81e, stripe: 0x8a5a2a, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
   { id: 'cgcard:city', build: 'cgcard', name: 'City Recycling', cents: 900, body: 0x2a8a4a, stripe: 0x8a5a2a, acc: { hopper: 0x2f9a52, icon: 0xf4f4f0, chev: false, trim: 0x1d3a26 } },
-  { id: 'cgfilm:cratewell', build: 'cgfilm', name: 'Cratewell Works', cents: 900, body: 0xf6c81e, stripe: 0x2a6ad8, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
+  { id: 'cgfilm:cratewell', build: 'cgfilm', name: 'Kickstand Scooter Co.', cents: 900, body: 0xf6c81e, stripe: 0x2a6ad8, acc: { hopper: 0xf6c81e, icon: 0xd4201f, chev: true, trim: 0x2a2f36 } },
   { id: 'cgfilm:city', build: 'cgfilm', name: 'City Recycling', cents: 900, body: 0x2a8a4a, stripe: 0x2a6ad8, acc: { hopper: 0x2f9a52, icon: 0xf4f4f0, chev: false, trim: 0x1d3a26 } },
   { id: 'cg1900:post', build: 'cg1900', name: 'Post Wagon', cents: 800, body: 0xb8231c, stripe: 0x1d1f26, acc: { canvas: 0x2a2d33, frame: 0x16171b, prop: 'mail' } },
   { id: 'cg1900:bakery', build: 'cg1900', name: 'Bakery', cents: 800, body: 0xf3ead2, stripe: 0x2f6a3a, acc: { canvas: 0x3f8a4a, frame: 0x5a3418, prop: 'loaf' } },
@@ -46925,8 +46925,8 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'courier:clown', build: 'courier', name: 'Clown', cents: 900, body: 0xf6f6f2, stripe: 0x2a5ad8, costume: 'clown', noAerial: true, noMouth: true },
   { id: 'courier:santa', build: 'courier', name: 'Santa', cents: 900, body: 0xc8202a, stripe: 0x16171b, costume: 'santa', noAerial: true, noMouth: true },
   /* THE SECURITY PATROL ROBOT'S COSTUMES (Sir, 2026-11-18: guard costumes, as the courier's) -- patrolCostume. upper: his upper body's colour */
-  /* Cratewell Works' own (Sir, 2026-11-19: "our security bot needs to be skinned to our brand and given a security look") */
-  { id: 'patrol:cratewell', build: 'patrol', name: 'Cratewell Security', cents: 900, body: 0xf6c81e, upper: 0xf6c81e, stripe: 0xd4201f, costume: 'cratewell', noMouth: true },
+  /* Kickstand Scooter Co.' own (Sir, 2026-11-19: "our security bot needs to be skinned to our brand and given a security look") */
+  { id: 'patrol:cratewell', build: 'patrol', name: 'Kickstand Security', cents: 900, body: 0xf6c81e, upper: 0xf6c81e, stripe: 0xd4201f, costume: 'cratewell', noMouth: true },
   { id: 'patrol:museum', build: 'patrol', name: 'Museum Guard', cents: 900, body: 0x23304d, stripe: 0x23304d, costume: 'museum', noMouth: true },
   { id: 'patrol:mallcop', build: 'patrol', name: 'Mall Cop', cents: 900, body: 0x2a2d35, upper: 0x9cbbe0, stripe: 0x16171b, costume: 'mallcop', noMouth: true },
   { id: 'patrol:lifeguard', build: 'patrol', name: 'Lifeguard', cents: 900, body: 0xd8261c, stripe: 0xd8261c, costume: 'lifeguard', noMouth: true },
@@ -46947,7 +46947,7 @@ const TP_BSKIN = [{ id: 'stock', name: 'Factory', cents: 0 },
   { id: 'amr:grocery', build: 'amr', name: 'Grocery Fulfilment', cents: 900, body: 0xf2ead2, lid: 0x2e8b4a, stripe: 0x2e8b4a, icon: 'leaf', iconCol: 0x2e8b4a, band: 'produce', bandCol: 0x2e8b4a, acc: 0x2e8b4a },
   { id: 'amr:pharmacy', build: 'amr', name: 'Pharmacy', cents: 900, body: 0xf6f6f4, stripe: 0xd42a2a, icon: 'heartpill', iconCol: 0xd42a2a, acc: 0xd42a2a },
   { id: 'amr:hospital', build: 'amr', name: 'Hospital Supply', cents: 900, body: 0xf6f6f4, skirt: 0x1a9a9a, stripe: 0x1a9a9a, icon: 'cross', iconCol: 0x2aa84a, acc: 0x1a9a9a },
-  { id: 'pdog:cratewell', build: 'pdog', name: 'Cratewell Security', cents: 900, body: 0xf6c81e, head: 0x2a2f36, thigh: 0x2a2f36, stripe: 0xd4201f, dog: 'cratewell', beacon: 0xff3b2f },   /* (Cratewell Works' hall dog, phase 7) */
+  { id: 'pdog:cratewell', build: 'pdog', name: 'Kickstand Security', cents: 900, body: 0xf6c81e, head: 0x2a2f36, thigh: 0x2a2f36, stripe: 0xd4201f, dog: 'cratewell', beacon: 0xff3b2f },   /* (Kickstand Scooter Co.' hall dog, phase 7) */
   { id: 'pdog:k9', build: 'pdog', name: 'K-9 Unit', cents: 900, body: 0x16171b, head: 0xf3f3f0, thigh: 0xf3f3f0, stripe: 0xf3f3f0, dog: 'k9', lightbar: true },
   { id: 'pdog:dalmatian', build: 'pdog', name: 'Firehouse Dalmatian', cents: 900, body: 0xf6f6f2, stripe: 0xc8202a, dog: 'dalmatian', noBeacon: true },
   { id: 'pdog:rescue', build: 'pdog', name: 'Search & Rescue', cents: 900, body: 0xff7a1a, stripe: 0xd9dde2, dog: 'rescue', beacon: 0xffb200 },
@@ -53357,7 +53357,7 @@ function houseCanopy(fn){
       }
     };
   }
-  /* ==================== CRATEWELL WORKS' ENTRIES (see FAC) ====================
+  /* ==================== KICKSTAND SCOOTER CO.' ENTRIES (see FAC) ====================
      facEntry(k) is the entry for FAC.cells[k], in that cell's north-west frame (lab a = x - i*BLOCK, b = j*BLOCK - y), drawing and
      declaring only its own region, as airEntry does: the ground clipped to it and to the site; the hall, the sheds and the fulfilment
      centre grids of near-square tiles keyed at their north-east corners, so he sorts right against every face; a trailer in three lengths,
@@ -53396,9 +53396,9 @@ function houseCanopy(fn){
     for(const [x0, y0, x1, y1] of fenceRuns) addR('fence', [Math.min(x0, x1) - T6, Math.max(x0, x1) + T6, Math.min(y0, y1) - T6, Math.max(y0, y1) + T6], C.FH + 10);
     return {
       name: cell.name, xh: 700, base: 'Factory', hood: 'Warehouse Dist.', edited: true, tall: true, block: true, ww: 3128, dd: 3128,
-      head: cell.name + ', Cratewell Works',
+      head: cell.name + ', Kickstand Scooter Co.',
       tags: ['four cells', 'factory', 'sawtooth roof', 'chimney', 'silos', 'loading docks', 'fulfilment centre', 'truck yard', 'water tower', 'robot lane', 'charging canopy', 'warehouse robots'],
-      desc: "Cratewell Works on four cells of the Warehouse District: a brick factory hall under a sawtooth roof, its chimney and silos, the dispatch shed, a fulfilment centre with six truck docks and its truck yard, a water tower, the robots' charging canopy and lane, racking and pallets, the staff parking, all inside a steel fence.",
+      desc: "Kickstand Scooter Co. on four cells of the Warehouse District: a brick factory hall under a sawtooth roof, its chimney and silos, the dispatch shed, a fulfilment centre with six truck docks and its truck yard, a water tower, the robots' charging canopy and lane, racking and pallets, the staff parking, all inside a steel fence.",
       vol: { foot: [[0,0],[0,0],[0,0]], h: 700, solids, opens: [], marks: {} },
       ...(k === 0 ? { see: true } : {}),   // (the hall's open door shows its room: FAC_HALL_IN, walkinThrough)
       draw(p){
@@ -53493,7 +53493,7 @@ function houseCanopy(fn){
                   fq(hS, A(d0) - 10, A(d0), 0, 182, yel, 0.5); fq(hS, A(d1), A(d1) + 10, 0, 182, yel, 0.5); fq(hS, A(d0), A(d1), 178, 186, yel, 0.5); }
                 fq(hS, A(HL.pdoor[0]), A(HL.pdoor[1]), 0, 110, blue, 0.4); fq(hS, A(HL.pdoor[0]) + 8, A(HL.pdoor[1]) - 8, 60, 100, light, 0.5);
                 fq(hS, A(HL.x0), A(HL.x1), W - 46, W - 6, dark, 0.6);
-                fword(hS, 'CRATEWELL WORKS', A(HL.x0) + 300, A(HL.x1) - 300, W - 44, W - 8, '#f2efe6', 0.8);
+                fword(hS, 'KICKSTAND SCOOTER CO.', A(HL.x0) + 300, A(HL.x1) - 300, W - 44, W - 8, '#f2efe6', 0.8);
                 fq(hS, A(HL.x0), A(HL.x1), W - 4, W + 4, trim, 0.6);
               }
               CLIPA = CLIPB = null;
@@ -61090,7 +61090,7 @@ function houseCanopy(fn){
   }
 },
 {
-  /* ==================== INSIDE CRATEWELL WORKS' HALL: THE SCOOTER AND E-BIKE FACTORY (the walk-in kit, an hl landmark, W31: bigger than the hall) ====================
+  /* ==================== INSIDE KICKSTAND SCOOTER CO.' HALL: THE SCOOTER AND E-BIKE FACTORY (the walk-in kit, an hl landmark, W31: bigger than the hall) ====================
      Sir, 2026-11-19: "a fully automated manufacturing center"; scooters and e-bikes; "i want something that feels large to the robots scale". The room
      (FAC_HALL_IN, a east, b south, world units: 2320 x 1870 -- 21 by 17 of the warehouse robot) runs from the hall's east end, where its door is (the open
      roller door at b 305..605), back west to the lot line and south over the yard. No one works here: robots do -- the game's own (fx.crew,
@@ -61105,9 +61105,9 @@ function houseCanopy(fn){
        the end of the line: the finished scooter lifted onto the packing table, folded and boxed; the conveyor robot takes each box to the arm
                     robot building the pallet in its bay, six to a pallet; the pallet jack takes the full one out of the door. Every build works here
        b 1430..1770 the finished-goods pallets, the robots' charging pads */
-  name:'Cratewell Works Hall Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  name:'Kickstand Scooter Co. Hall Interior', xh: 280, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
   ww: 2320, dd: 1870,
-  head:'Inside Cratewell Works: a robot-run scooter and e-bike factory -- warehouse robots carry each build from station to station, humanoid robots assemble it',
+  head:'Inside Kickstand Scooter Co.: a robot-run scooter and e-bike factory -- warehouse robots carry each build from station to station, humanoid robots assemble it',
   tags:['interior','pocket','factory','automated','robots','humanoid','warehouse robot','kitting','goods to person','tugger','scissor lift','palletizing','assembly stations','scooters','e-bikes','cratewell works'],
   desc:'The factory hall, bigger inside than out, run by robots: humanoids pick parts off the racks and build scooters and e-bikes at ten open stations, warehouse robots carry each one on a jig from station to station, ferry totes of parts on a tugger train, bring shelf pods to a picker, lift cartons onto the high rack, convey the packed boxes to an arm robot stacking the pallets and take them to the door.',
   draw(p){
@@ -61176,7 +61176,7 @@ function houseCanopy(fn){
       },
       low: ['#a95a44', '#9a4e3a', '#83412f'], cap: ['#d9d2c3', '#c9c2b3', '#b9b2a3'], ftop: '#b9aa96', frame: grey, glass: glassC });
 
-    /* ---- THE CREW (fx.crew: the game's own robots, drawRoomBot): Cratewell's humanoids in the Warehouse Worker look, its warehouse robots in
+    /* ---- THE CREW (fx.crew: the game's own robots, drawRoomBot): Kickstand's humanoids in the Warehouse Worker look, its warehouse robots in
        Freight Yellow ---- */
     const LOOK = typeof gideonPartsOf === 'function' ? gideonPartsOf('cratewell') : null, BSK = 'amr:freight';
     const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u*u*(3 - 2*u), clamp01 = u => u < 0 ? 0 : u > 1 ? 1 : u;
@@ -61268,15 +61268,15 @@ function houseCanopy(fn){
     const RA = 800, RB = 1200, SA = [2000, 1700, 1400, 1100, 800];
     const POS = [...SA.map(a => [a, RA]), ...SA.slice().reverse().map(a => [a, RB])];   /* (the loop: row A west, row B east; ten stops) */
     const HALL_TS = 0.6, NPOS = POS.length, NCAR = NPOS, CYC = 9000, DWELL = 6200, STAGE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8];
-    /* ONE PRODUCT (Sir, 2026-11-19: "the assembly line should be uniform and at the end it should be a finished product"): the Cratewell
+    /* ONE PRODUCT (Sir, 2026-11-19: "the assembly line should be uniform and at the end it should be a finished product"): the Kickstand
        scooter, one colour, on every robot; and out of the end of the line, a box, a pallet, distribution -- all on the line's one clock */
     const PCOL = '#2e8bd8', BXC = '#c98a4a', BXL = 100, BXW = 30, BXH = 30;
     /* the scooter folded (its stem down along its deck): what goes in the box */
-    /* THE SCOOTER THE LINE BUILDS: the game's own (drawScooterRider, the stock build in Cratewell's blue), part-built stage by stage; along a,
+    /* THE SCOOTER THE LINE BUILDS: the game's own (drawScooterRider, the stock build in Kickstand's blue), part-built stage by stage; along a,
        its front west */
-    const CWS = { name: 'Cratewell', c: 0x2e8bd8, cDk: 0x1f6aa8 }, SCO = (a, b, z, st, dd) => ({ kind: 'scooter', a, b, z, th: Math.PI/2, stage: st >= 8 ? null : st, brand: CWS, dd: dd || 3 });
+    const CWS = { name: 'Kickstand', c: 0x2e8bd8, cDk: 0x1f6aa8 }, SCO = (a, b, z, st, dd) => ({ kind: 'scooter', a, b, z, th: Math.PI/2, stage: st >= 8 ? null : st, brand: CWS, dd: dd || 3 });
     const folded = (a, b, z) => { prod(a, b, z, PCOL, false, 3, 0); tube(a - 35, b, z + 22, a + 30, b, z + 26, 2.6, PCOL); tube(a - 37, b - 20, z + 22, a - 37, b + 20, z + 22, 2.3, dark); };
-    /* a boxed scooter, its long side along a (or b): taped, the Cratewell label on its side */
+    /* a boxed scooter, its long side along a (or b): taped, the Kickstand label on its side */
     const carton = (a, b, z, alongB, h) => { const la = alongB ? BXW/2 : BXL/2, lb = alongB ? BXL/2 : BXW/2, z1 = z + (h == null ? BXH : h);
       box(a - la, a + la, b - lb, b + lb, z, z1, BXC, shade(BXC, .88), shade(BXC, .74));
       if(h == null){ if(alongB) T(a - 2.5, a + 2.5, b - lb, b + lb, z1 + 0.2, '#e3c08a'); else T(a - la, a + la, b - 2.5, b + 2.5, z1 + 0.2, '#e3c08a');
@@ -83814,7 +83814,7 @@ hospEntry(2),
 hospEntry(3),
 /* ---- SUN DECK AIRFIELD (see AIR): built by airEntry() ---- */
 airEntry(0), airEntry(1), airEntry(2), airEntry(3), airEntry(4), airEntry(5), airEntry(6), airEntry(7),
-/* ---- CRATEWELL WORKS (see FAC): built by facEntry() ---- */
+/* ---- KICKSTAND SCOOTER CO. (see FAC): built by facEntry() ---- */
 facEntry(0), facEntry(1), facEntry(2), facEntry(3),
 /* ---- PELICAN HARBOR (Sir, 2026-10-01: "i want a harbor building down at
    the end"). The harbor house at the head of Harbor Road, behind the plaza
@@ -97805,8 +97805,8 @@ function spTick(scene, ow){
 }
 /* the story's people, drawn: the night guard out of his door and back, Luna (at the wall, walking round, at the gate),
    the parked Tipsey and the robots on the dock and the loop; the torch ahead of the patrol robot after dark */
-/* CRATEWELL WORKS' SECURITY DOG (Sir, 2026-11-20: "let's get the dog bot outside of the building doing a patrol along the building, along
-   these walls"): the patrol bot's dog build in Cratewell's colours, walking the hall's south wall and up its east wall as far as short of the
+/* KICKSTAND SCOOTER CO.' SECURITY DOG (Sir, 2026-11-20: "let's get the dog bot outside of the building doing a patrol along the building, along
+   these walls"): the patrol bot's dog build in Kickstand's colours, walking the hall's south wall and up its east wall as far as short of the
    roller door, and back -- drawn as a room's crew member is (drawRoomBot: its skin and build put on for the draw) */
 function cwDogQueue(scene, t, queuePerson){
   if(typeof FAC === 'undefined' || !FAC.hall || scene._inside) return;   /* (inside, the hall's room draws its own, outside its walls) */
@@ -107503,17 +107503,17 @@ class WorldScene extends Phaser.Scene {
           if(fk < 1) this.withFade(g, fk, () => dr(g)); else if(st != null) this.bcDraw(g, lk + "|fx|" + n + "|" + st, qx, qy, dr); else dr(g); } }); }
       /* (it.fx.crew(t): THE GAME'S OWN ROBOTS AT WORK IN A ROOM -- the warehouse robot and the humanoid, drawn by drawBot as they are
          in the street, each queued at its own place on the floor so they sort with the room and with him: [{ kind 'amr' | 'humanoid', a, b,
-         fdir, ... }] (drawRoomBot). Cratewell Works' hall: Sir, 2026-11-19, "use our humanoid robots for assembly and our warehouse bots to move
+         fdir, ... }] (drawRoomBot). Kickstand Scooter Co.' hall: Sir, 2026-11-19, "use our humanoid robots for assembly and our warehouse bots to move
          them around from station to station") */
       else if(it.fx && it.fx.crew){ const T0 = this.time.now, M = 300*K;
-        for(const m of it.fx.crew(T0*(it.fx.ts || 1))){   /* (fx.ts: the room's own clock, slower or faster than the game's -- Cratewell's 0.6) */ const mx = x0 + m.a, my = y0 + sb*m.b, p = this.W(mx, my, 0);
+        for(const m of it.fx.crew(T0*(it.fx.ts || 1))){   /* (fx.ts: the room's own clock, slower or faster than the game's -- Kickstand's 0.6) */ const mx = x0 + m.a, my = y0 + sb*m.b, p = this.W(mx, my, 0);
           if(typeof CREW_TAP !== 'undefined' && CREW_TAP) CREW_TAP.push({ room: name, kind: m.kind, build: m.build || m.botKind || null, a: m.a, b: m.b, fdir: m.fdir, jack: !!m.jack && m.jack !== false, key: m.key || null });   /* (tools/review/crew_spacing.js: who is where, every robot, to find any two on top of one another) */
           if(p.x < -M || p.x > vw + M || p.y < -M || p.y > vh + M) continue;
           vq.push({ depth: mx + my + (m.dd || 0) + zd, fn: (g, t) => this.drawRoomBot(g, m, mx, my, z0 || 0, t || T0, name, G, K) }); } }
       /* (it.fx.car: THE GAME'S OWN CAR standing in a room -- { kind, a, b, z, fdir, seed }: drawCar, cached as a still piece; Palmline Garage's
          hatchback up on its lift. Never a car drawn anew in a room's own kit: Sir, 2026-11-17, "we want to use our own car art") */
       /* (it.fx.pod: one of the game's own robots PARKED in a room -- { kind 'amr', a, b, fdir, build, loads, bins } as drawRoomBot takes it --
-         cached as a still piece: Cratewell's shelf pods along its walls) */
+         cached as a still piece: Kickstand's shelf pods along its walls) */
       /* (it.fx.svc(t): a SERVICE CYCLE -- Palmline Garage's: { car: { kind, a, b, z, seed, moving, wheel } | null, owner: { a, b, th, moving, L }
          | null } -- the car drawn by drawCar where it is now (cached while it stands), its owner by the person drawer, each in the room's order) */
       else if(it.fx && it.fx.svc){ const S = it.fx.svc(this.time.now);
@@ -112247,7 +112247,7 @@ class WorldScene extends Phaser.Scene {
     amrLoadQueue(this, t, queuePerson);                  // LOADS the warehouse robot has set down
     msQueue(this, t, queuePerson, keyQueue, layerFor);   // MINDING THE SHOP: Gideon on the street, Tipsey parked while the humanoid has his shop
     ppQueue(this, t, queuePerson, keyQueue, layerFor);   // PAW POINT's people and dogs, ADOPTION DAY's, and Tipsey parked while the humanoid walks Biscuit
-    cwDogQueue(this, t, queuePerson);                    // CRATEWELL WORKS' security dog round the hall's south and east walls
+    cwDogQueue(this, t, queuePerson);                    // KICKSTAND SCOOTER CO.' security dog round the hall's south and east walls
     if(WORLDGEN_COAST) nwQueue(this, t, queuePerson, keyQueue, layerFor);   // VISTA RIDGE SECURITY POST's patrol robots, NIGHT WATCH's people, its torch, Tipsey parked
     motelQueue(this, t, queuePerson, layerFor);        // SUN DECK MOTOR LODGE's court and van; THE GETAWAY's people and charter
     rlQueue(this, t, queuePerson, layerFor);           // REQUEST LINE: Ollie, Maya; the station's receptionist and DJ while the story has them
@@ -117275,7 +117275,7 @@ class WorldScene extends Phaser.Scene {
        landmarks below are */
     const _hl = blk.i !== undefined ? hoodLandmarkAtIJ(blk.i, blk.j) : null;
     if(_hl){
-      const _hn0 = vq.length;   // (a room that displaces this landmark -- Cratewell Works' hall: its pieces go under the room while he is in it)
+      const _hn0 = vq.length;   // (a room that displaces this landmark -- Kickstand Scooter Co.' hall: its pieces go under the room while he is in it)
       const fr = hoodLandmarkFrame(blk.i, blk.j);
       const G = (a, b, h) => { const q = fr.toWorld(a, b); return this.W(q.x, q.y, h); };
       /* IN PIECES, each at its own world depth (see LIB.collect). One key
@@ -117342,7 +117342,7 @@ class WorldScene extends Phaser.Scene {
         const _cut = _hp && POCKET_VIEW && POCKET_VIEW.pk === _hp && _hp.cut ? _hp.cut() : 0;
         const _cutDep = _cut > 0 ? _hp.x0 + POCKET_VIEW.dx + _hp.y0 + POCKET_VIEW.dy + Math.min(0, _hp.ax0 || 0) - 200.5 : 0;
         const _dsp = displacedLib(this, _hl);
-        const _ovr = /^Cratewell Works/.test(_hl) && this._inside && this._inside.name === 'Cratewell Works Hall Interior';
+        const _ovr = /^Kickstand Scooter Co./.test(_hl) && this._inside && this._inside.name === 'Kickstand Scooter Co. Hall Interior';
         items.forEach((it, n) => {
           if(it.shell && _cut <= 0 && _hsk < 0.002) return;   // (its inside stands there: POCKET_VIEW)
           if(it.shell && it.cutTop && _cut > 0 && _cut < it.cutTop) return;   // (whole or not at all: the ER's canopy)
@@ -120868,7 +120868,7 @@ class WorldScene extends Phaser.Scene {
       for(let i = 0; i < 16; i++){ const u = ((i*0.618034) % 1)*0.96 + 0.02, v = (((i*0.7548777) % 1) - 0.5)*2*(M - 0.8), q = at(u, v); g.fillCircle(q.x, q.y, (i % 3 === 0 ? 0.9 : 0.55)*this.K*0.42*1.4); } }
   }
   drawScooterRider(g, ax, ay, z, thW, build, pSkin, pShirt, pPants, pHair, pShoe, brand, t, startleAlpha, wheelPhase, noRider, uni, stage){
-    /* (stage: the scooter part-built, as Cratewell Works' line builds it -- 0 the deck alone, 1 + the rear wheel, 2 + the front wheel and fork,
+    /* (stage: the scooter part-built, as Kickstand Scooter Co.' line builds it -- 0 the deck alone, 1 + the rear wheel, 2 + the front wheel and fork,
        3 + the grip tape, 4 + the stem, 5 + the bars, 6 + the grips, 7 + the lamps; none: the whole scooter. Sir, 2026-11-20: "build the actual
        in-game scooter") */
     const ST = stage == null ? 9 : stage;
@@ -122655,8 +122655,8 @@ class WorldScene extends Phaser.Scene {
     if(m.kind === 'bot'){ const sv = m.bSkin ? Object.assign({}, SKIN) : null;
       if(sv){ for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k]; Object.assign(SKIN, SKIN_BASE, { bSkin: m.bSkin, build: m.build || null }); }
       try { this.drawBot(g, m.botKind, x, y, z, t, m.fdir, m.wheel || 0, 0, Object.assign({}, m.data || {}, sv ? { paint: true } : {})); }
-      finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Cratewell's door) */
-    if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Cratewell's line) */
+      finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Kickstand's door) */
+    if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Kickstand's line) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
       try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, crew: true }); } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
@@ -133626,7 +133626,7 @@ class WorldScene extends Phaser.Scene {
     { const _rp = this._inside; const _v = _rp && _rp.displace && POCKET_VIEW && POCKET_VIEW.pk === _rp ? POCKET_VIEW : null;
       if(_v){ /* (in whichever frame he is drawn in here: the room's own, off the map, or the street's -- POCKET_VIEW's shift) */
         const own = Math.abs(this.botX - (_rp.x0 + _rp.w/2)) < 5000, sx = own ? 0 : _v.dx, sy = own ? 0 : _v.dy;
-        const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : _rp.w > 2600 || _rp.d > 1200 ? 0.8 : 0;   /* (a room far bigger than the screen -- Cratewell Works' hall: the camera follows him round it) */
+        const cx = _rp.x0 + sx + _rp.w/2, cy = _rp.y0 + sy + _rp.d/2, f = zoomDepth <= 1 ? 0.65 : _rp.w > 2600 || _rp.d > 1200 ? 0.8 : 0;   /* (a room far bigger than the screen -- Kickstand Scooter Co.' hall: the camera follows him round it) */
         camTargetX = cx + (this.botX - cx)*f; camTargetY = cy + (this.botY - cy)*f;
         /* (view 2, the room covering the screen -- roomCover: on him, held where the screen stays inside the room's outline) */
         const _cv = zoomDepth === 2 && f === 0 ? roomCover(this, _rp) : null;
@@ -135336,7 +135336,7 @@ class WorldScene extends Phaser.Scene {
          links, a motor drum at each joint, a two-fingered gripper; its reach stays inside its lid. Everything sorted by depth */
       if(st !== 'post') return;
       /* (A ROOM'S ARM AT A REAL JOB, this._crewArm -- Sir, 2026-11-19, "its picking up boxes and moving them to the other side of its own
-         self": Cratewell's palletizer: { pick, place: [a, b, z] in its own frame (z the top of what it grips), u: 0..1 through the job or null
+         self": Kickstand's palletizer: { pick, place: [a, b, z] in its own frame (z the top of what it grips), u: 0..1 through the job or null
          idle, held(box, wrist, z): the load it carries, drawn in its frame } -- longer links to reach off its own lid, no totes) */
       const CA = this._crewArm || null;
       const WL = CA ? null : amrLoadsOf('amrarm')[0], BOX = WL ? Math.min(WL.la, WL.lb) : CA ? 16 : 5, SZ = TOP + 20, L1 = CA ? (CA.L1 || 72) : 28, L2 = CA ? (CA.L2 || 68) : 26, ST = 28, ZDN = TOP + 4 + (WL ? WL.h : 10), ZUP = TOP + 38;   /* (WL: the load it works, AMRL -- none, it works empty) */
@@ -135414,7 +135414,7 @@ class WorldScene extends Phaser.Scene {
       const load = () => {
         /* (a room's pallet jack, drawRoomBot: this._crewJack false -- its forks bare, no pallet; a function -- its own load on the pallet) */
         const CJ = this._crewJack;
-        if(CJ === 'under') return;   /* (its forks in under a pallet the room draws itself -- Cratewell's onForks: hidden, or they paint over it) */
+        if(CJ === 'under') return;   /* (its forks in under a pallet the room draws itself -- Kickstand's onForks: hidden, or they paint over it) */
         if(CJ === false){ for(const sb of [-1, 1]) box(F0, F1, sb*14 - 6, sb*14 + 6, PZ - 2, PZ + 2, STEEL); return; }
         /* forks and stringers, far to near across */
         const low = [];
@@ -147937,7 +147937,7 @@ const MAP_LANDMARK_GROUPS = {
   air:  { name: "Sun Deck Airfield", icon: "\u2708\uFE0F", pin: "#2f5f9e", built: false,   // the infield stays grass; the runway and buildings drawn on it
           cells: ["Sun Deck Airfield", "Sun Deck Airfield Terminal", "Sun Deck Airfield Cargo", "Sun Deck Airfield East",
                   "Sun Deck Airfield Fire Station", "Sun Deck Airfield Hangars", "Sun Deck Airfield South Apron", "Sun Deck Airfield Fuel Farm"] },
-  fac:  { name: "Cratewell Works", icon: "\u{1F3ED}", pin: "#9a4e3a", built: true, cells: ["Cratewell Works", "Cratewell Works Dispatch", "Cratewell Works Fulfilment", "Cratewell Works Yard"] },
+  fac:  { name: "Kickstand Scooter Co.", icon: "\u{1F3ED}", pin: "#9a4e3a", built: true, cells: ["Kickstand Scooter Co.", "Kickstand Scooter Co. Dispatch", "Kickstand Scooter Co. Fulfilment", "Kickstand Scooter Co. Yard"] },
   /* Marina Parking (see MARINA): a garage, not a green */
   marina: { name: "Marina Parking", icon: "\u{1F17F}\uFE0F", pin: "#1f6f8b", built: true, cells: ["Marina Parking"] }
 };
@@ -152033,7 +152033,7 @@ tpMapExplore();
    are dealt off a hash of its name, from TP_PLACE_COPY (per base type). */
 /* the write-up, tip and three reviews per base type (80 of them) */
 const TP_PLACE_COPY = {
-  "Factory": { price:"$$", hours:[0,24], blurb:"Cratewell Works: a fully automated factory building scooters and e-bikes round the clock, robots on every line.", tip:"Locals say the robots never stop, so the roller door is always up.", reviews:["Watched a frame go from bare tube to boxed e-bike without a single person touching it.","The welding sparks through the door at night are something.","Quiet for a factory. Just hums."] },
+  "Factory": { price:"$$", hours:[0,24], blurb:"Kickstand Scooter Co.: a fully automated factory building scooters and e-bikes round the clock, robots on every line.", tip:"Locals say the robots never stop, so the roller door is always up.", reviews:["Watched a frame go from bare tube to boxed e-bike without a single person touching it.","The welding sparks through the door at night are something.","Quiet for a factory. Just hums."] },
   "Comic shop": { price:"$", hours:[11,19], blurb:"Cosy comic shop with new issues every Wednesday, back-issue boxes and a soft spot for surf comics.", tip:"Regulars say ask them to hold your pull list so nothing sells out.", reviews:["They remembered my pull list after one visit. Proper comic shop.","Found three back issues I'd been hunting for years.","Small, crammed and perfect. The owner's recommendations are spot on."] },
   "Pizzeria": { price:"$$", hours:[11,23], blurb:"Wood-oven pizzeria turning out blistered margheritas and big slices to take down to the beach.", tip:"Locals say order the white pie and ask for it well done.", reviews:["Crust is charred in all the right places. Best slice in The Flats.","Took a whole pie to the beach and it was still hot.","Friendly, fast and the garlic knots are dangerous."] },
   "Dry cleaner": { price:"$$", hours:[7,19], blurb:"Same-day dry cleaner pressing shirts, suits and salt-stained beach linens.", tip:"Customers say drop off before nine for same-day pickup.", reviews:["Got a red wine stain out of a white shirt. Wizards.","Shirts come back crisp and on hangers every time.","Quick, careful and they fixed a loose button without asking."] },
@@ -158568,7 +158568,7 @@ const GO_SPOTS = {
   sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
   /* (Marina General's ground floor, in its lift lobby facing the two glass lifts -- Sir, 2026-11-17, "a link that puts tipsy at the lift":
      ?go=hosplift. A spot in a room: [x, y, yaw, the room's own setup]) */
-  /* (Cratewell Works' hall, just inside its roller door, looking in over the line -- Sir, 2026-11-20: "give me a link that I can jump to this
+  /* (Kickstand Scooter Co.' hall, just inside its roller door, looking in over the line -- Sir, 2026-11-20: "give me a link that I can jump to this
      factory": ?go=cratewell) */
   cratewell: () => [FAC_HALL_IN.x0 + 2150, FAC_HALL_IN.y0 + 455, Math.PI],
   hosplift: () => { const c = HOSP_IN.cars; return [HOSP_IN.x0 + c[0][0] - 200, HOSP_IN.y0 + (c[0][2] + c[1][3])/2, 0, s => hospInSetFloor(s, 1)]; },

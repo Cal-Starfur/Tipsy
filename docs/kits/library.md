@@ -53,7 +53,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Dogs | `drawDogHull` (pairs with an owner: `drawDogPair`, `drawProp('dog')`) | `DOG_BREEDS` (9), `dogLookOf(seed, breed)` | labs/dog-lab.html, dog-gallery.html |
 | Cats | `drawDogHull` with a cat look | `CAT_BREEDS` (cat, kitten), `catLookOf(seed, kitten)` | tail `'cat'`, `eyeC`, no collar |
 | Horses | `drawHorseHull` | | |
-| Humanoid robots | `drawHumanoid`, `drawProp('humanoid')` | | Cratewell's line |
+| Humanoid robots | `drawHumanoid`, `drawProp('humanoid')` | | Kickstand's line |
 | Pigeons | `drawProp('pigeons')` | | |
 
 ## Vehicles and robots

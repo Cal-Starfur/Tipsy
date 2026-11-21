@@ -61,7 +61,7 @@ const LOOKS = [['man', 11, { type: 'man', heavy: false }], ['woman', 12, { type:
     const sv = { camX: sc.camX, camY: sc.camY, camZ: sc.camZ, K: sc.K, cx: sc.cx, cy: sc.cy, lod: sc._pLodFix };
     const out = [], pngs = [], dbg = [];
     for(const [name, seed, opts] of LOOKS){
-      /* (the humanoid robot, Cratewell's line and Gideon: the same drawer in his shell, HUMANOID_SKIN on the uniform -- drawHumanoid's) */
+      /* (the humanoid robot, Kickstand's line and Gideon: the same drawer in his shell, HUMANOID_SKIN on the uniform -- drawHumanoid's) */
       const L = name.startsWith('gideon') ? { build: HUMANOID_BUILD, skin: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, hair: HUMANOID_WHITE, shoe: HUMANOID_FOOT, dress: null,
           uniform: Object.assign({}, HUMANOID_SKIN, { robot: Object.assign({}, HUMANOID_SKIN.robot, { hatCol: 0x2f6fb0, outCol: 0xd9892b }, opts) }) }
         : name === 'humanoid' ? { build: HUMANOID_BUILD, skin: HUMANOID_WHITE, shirt: HUMANOID_WHITE, pants: HUMANOID_WHITE, hair: HUMANOID_WHITE, shoe: HUMANOID_FOOT, uniform: HUMANOID_SKIN, dress: null }
