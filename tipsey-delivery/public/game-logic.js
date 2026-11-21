@@ -133613,7 +133613,10 @@ class WorldScene extends Phaser.Scene {
       add([wrp[0], wrp[1], cWz - 4.5], () => { const r0 = [wrp[0] - wg[0]*(cGrip + 2.5), wrp[1] - wg[1]*(cGrip + 2.5), cWz - 5], r1 = [wrp[0] + wg[0]*(cGrip + 2.5), wrp[1] + wg[1]*(cGrip + 2.5), cWz - 5];
         rod(r0, r1, 2.6, 2.6, 0x3a3e46, 0x5a6068); box(wrp[0] - 2.5, wrp[0] + 2.5, wrp[1] - 2.5, wrp[1] + 2.5, cWz - 5.5, cWz - 4, 0x3a3e46); }, 0.001);
       for(const fg of fingers) add([fg.b0[0], fg.b0[1], cWz - 8], () => rod([fg.b0[0], fg.b0[1], cWz - 4.5], [fg.b0[0], fg.b0[1], cWz - (CA ? 24 : 12)], 1.3, 1.1, STEEL), 0.003);
-      if(CA && cHeld && CA.held) add([wrp[0], wrp[1], cWz - 16], () => CA.held(box, wrp, cWz - 3, V), 0.002);
+      /* (what it holds drawn as the room draws it, with no outline round it -- the robot kit rings a closed solid; the box resting on the
+         robot has none: Sir, 2026-11-20, "a dark outline on the box that isn't in the resting box") */
+      const boxNR = (a0, a1, b0, b1, h0, h1, col) => { const q = prismH([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], h0, h1); q.noRing = true; solid(q, col, null, false); };
+      if(CA && cHeld && CA.held) add([wrp[0], wrp[1], cWz - 16], () => CA.held(boxNR, wrp, cWz - 3, V), 0.002);
       else if(held && !CA) add([wrp[0], wrp[1], wz - 8], () => this.amrLoad(g, V, WL, wrp[0], wrp[1], wz - 3 - WL.h, [w[1], -w[0]], AS), 0.002);
       byDepth(items);
       return; }
