@@ -2133,8 +2133,8 @@ function partyPose(c, t){
   } else if(c.anim === 'stir'){                              // at the stove: the near hand stirring round the pot
     const u = t*0.007 + ph; o.lift = [0.35, 0.95 + 0.07*Math.sin(u)]; o.bend = [0.5, 0.95 + 0.25*Math.cos(u)];
     o.th += 0.05*Math.sin(u); o.da = 1.5*Math.sin(t*0.0009 + ph);
-  } else if(c.anim === 'chop'){                              // at the island: the knife hand up and down, quick
-    const u = Math.abs(Math.sin(t*0.013 + ph)); o.lift = [0.75, 0.8 + 0.3*u]; o.bend = [0.9, 0.7 + 0.4*u];
+  } else if(c.anim === 'chop'){                              // at the island (75): the knife hand up and down, quick, over the board
+    const u = Math.abs(Math.sin(t*0.013 + ph)); o.lift = [0.5, 0.45 + 0.3*u]; o.bend = [0.9, 0.7 + 0.4*u];
     o.dz = 0.4*u;
   } else if(c.anim === 'pipe'){                              // icing the cake: both hands to it, working round slowly
     const u = Math.sin(t*0.002 + ph); o.lift = [0.85, 0.9]; o.bend = [1.0 + 0.15*u, 1.1 - 0.15*u];
@@ -53394,12 +53394,13 @@ function houseCanopy(fn){
     /* the kitchen's low wall to the storage, its doorway in the middle */
     run(0, 900, KB, KB + 30, [false, true]); run(1300, W, KB, KB + 30, [true, false]);   // (their doorway's ends stand free)
     /* ---- THE KITCHEN ---- */
-    items.push({ a: 550, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(300, 800, 0, 90), h: 100 }], draw: () => {
-      box(300, 800, 0, 90, 0, 96, '#3a3f44', steel, steelD);
+    /* (a kitchen counter's height, 75 -- docs/kits/library.md; Sir, 2026-11-21) */
+    items.push({ a: 550, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(300, 800, 0, 90), h: 79 }], draw: () => {
+      box(300, 800, 0, 90, 0, 75, '#3a3f44', steel, steelD);
       for(let a = 320; a + 90 <= 800; a += 116){
-        F(a, a + 90, 14, 70, '#1d2125', null, 0, 90.4);
-        F(a + 8, a + 82, 74, 78, steelL, null, 0, 90.6);
-        for(const da of [18, 45, 72]) ball(a + da, 60, 99, 9, '#202428', '#3a3f44');
+        F(a, a + 90, 10, 54, '#1d2125', null, 0, 90.4);
+        F(a + 8, a + 82, 58, 61, steelL, null, 0, 90.6);
+        for(const da of [18, 45, 72]) ball(a + da, 60, 78, 9, '#202428', '#3a3f44');
       }
     }});
     items.push({ a: 1500, b: 60, z: 0, solids: [{ name:'fridge', poly: volRect(1440, 1560, 0, 120), h: 230 }], draw: () => {
@@ -53407,12 +53408,12 @@ function houseCanopy(fn){
       F(1498, 1502, 20, 222, steelD, null, 0, 120.5);
       for(const a of [1484, 1512]) F(a, a + 4, 110, 170, '#e9ecef', null, 0, 120.7);
     }});
-    items.push({ a: 800, b: 370, z: 0, solids: [{ name:'island', poly: volRect(620, 980, 300, 440), h: 92 }], draw: () => {
-      box(620, 980, 300, 440, 0, 86, steel, steelD, shade(steelD, 0.85));
-      box(612, 988, 292, 448, 86, 92, steelL, steel, steelD);
-      cyl(680, 340, 92, 120, 22, '#9aa1a7', '#c4c9ce');
-      box(760, 820, 380, 420, 92, 96, '#8a6a46', '#7a5c3c', '#6a4f33');
-      for(const [a, c] of [[880, '#e9d6a8'], [930, '#d9b38a']]) cyl(a, 350, 92, 108, 14, c, shade(c, 1.1));
+    items.push({ a: 800, b: 370, z: 0, solids: [{ name:'island', poly: volRect(620, 980, 300, 440), h: 75 }], draw: () => {   // (a kitchen counter, 75)
+      box(620, 980, 300, 440, 0, 69, steel, steelD, shade(steelD, 0.85));
+      box(612, 988, 292, 448, 69, 75, steelL, steel, steelD);
+      cyl(680, 340, 75, 103, 22, '#9aa1a7', '#c4c9ce');
+      box(760, 820, 380, 420, 75, 79, '#8a6a46', '#7a5c3c', '#6a4f33');
+      for(const [a, c] of [[880, '#e9d6a8'], [930, '#d9b38a']]) cyl(a, 350, 75, 91, 14, c, shade(c, 1.1));
     }});
     items.push({ a: 1080, b: 600, z: 0, solids: [{ name:'cake table', c: [1080, 600], r: 62, h: 76 }], draw: () => {
       cyl(1080, 600, 0, 76, 58, '#f4efe2', shade('#f4efe2', 1.04));
