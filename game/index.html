@@ -158569,6 +158569,9 @@ const GO_SPOTS = {
   sierra: [3128, -2400], harbor: [-3600, -9000], sealion: [-6700, -14900],
   /* (Marina General's ground floor, in its lift lobby facing the two glass lifts -- Sir, 2026-11-17, "a link that puts tipsy at the lift":
      ?go=hosplift. A spot in a room: [x, y, yaw, the room's own setup]) */
+  /* (Cratewell Works' hall, just inside its roller door, looking in over the line -- Sir, 2026-11-20: "give me a link that I can jump to this
+     factory": ?go=cratewell) */
+  cratewell: () => [FAC_HALL_IN.x0 + 2150, FAC_HALL_IN.y0 + 455, Math.PI],
   hosplift: () => { const c = HOSP_IN.cars; return [HOSP_IN.x0 + c[0][0] - 200, HOSP_IN.y0 + (c[0][2] + c[1][3])/2, 0, s => hospInSetFloor(s, 1)]; },
 };
 (function(){
