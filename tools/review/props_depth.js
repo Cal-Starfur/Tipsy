@@ -32,7 +32,9 @@ const KINDS = pos ? pos.split(',') : KINDS_ALL.slice(), PNG = arg('--png', null)
   const h = await H.open(); await h.boot();
   out.push(...await h.page.evaluate(([KINDS, MIN, PNG]) => {
     const s = game.scene.getScene('world'), R = 4, res = [];
-    const lineOf = () => { const st = new Error().stack.split('\n'); for(const l of st){ const m = l.match(/index\.html:(\d+):\d+/); if(m && !/props_depth|quadOn|hullRuns|fillPoints/.test(l)) return +m[1]; } return 0; };
+    /* the source line that painted it, and the two lines that called that (a shared drawer -- the fleet's solid(), its Q -- says
+       nothing alone): '125270<123610<123520' */
+    const lineOf = () => { const st = new Error().stack.split('\n'), L = []; for(const l of st){ const m = l.match(/index\.html:(\d+):\d+/); if(m && !/props_depth|quadOn|hullRuns|fillPoints/.test(l)) L.push(m[1]); if(L.length === 3) break; } return L.join('<') || '0'; };
     for(const kind of KINDS) for(const fdir of [0, 1, 2, 3]){
       /* the prop alone, at the camera's own point, nothing else drawn */
       const X = s.camX, Y = s.camY, faces = [], byObj = new WeakMap(), byXY = new Map();

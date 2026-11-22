@@ -128053,7 +128053,7 @@ class WorldScene extends Phaser.Scene {
           lump.push({ x: bx + Math.cos(a2)*rr, y: by + Math.sin(a2)*rr });
         }
         const kx = bx + (rng()-0.5)*R*0.5, ky = by + (rng()-0.5)*R*0.5;
-        items.push({ x:bx, y:by, r:R, draw: () => {
+        items.push({ layer: 2, x:bx, y:by, r:R, draw: () => {
           poly(lump.map(p => W(p.x, p.y, 0.8)), T3.bagC);
           this.edgeOn(g, lump.map(p => W(p.x, p.y, 0.8)), T3.bagShade, 1.2);
           const top = [];
@@ -128084,7 +128084,7 @@ class WorldScene extends Phaser.Scene {
         const nx = -dyu, ny = dxu;
         const p0 = { x: cx2 - dxu*L/2, y: cy2 - dyu*L/2 };
         const p1 = { x: cx2 + dxu*L/2, y: cy2 + dyu*L/2 };
-        items.push({ x:cx2, y:cy2, r:L/2, draw: () => {
+        items.push({ layer: 1, x:cx2, y:cy2, r:L/2, draw: () => {
           const zB = 1.4*botS;
           poly([
             W(p0.x + nx*r, p0.y + ny*r, zB), W(p1.x + nx*r*0.72, p1.y + ny*r*0.72, zB),
@@ -128120,7 +128120,7 @@ class WorldScene extends Phaser.Scene {
         const kind2 = rng();
         if(kind2 < 0.4){
           const r = 2.4 + rng()*1.6;
-          items.push({ flat: true, x:bx, y:by, r, draw: () => {
+          items.push({ layer: 0, x:bx, y:by, r, draw: () => {
             circ(bx, by, r, 1, T3.paper, T3.paperShade, 8);
             circ(bx + r*0.3, by + r*0.3, r*0.45, 1.4, T3.paperShade, undefined, 7);
           }});
@@ -128128,7 +128128,7 @@ class WorldScene extends Phaser.Scene {
           const th = rng()*Math.PI*2, L2 = 6, r2 = 2;
           const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
           const col = rng() < 0.5 ? T3.canA : T3.canB;
-          items.push({ flat: true, x:bx, y:by, r:L2/2, draw: () => {
+          items.push({ layer: 0, x:bx, y:by, r:L2/2, draw: () => {
             poly([
               W(bx - du.x*L2/2 + nu.x*r2, by - du.y*L2/2 + nu.y*r2, 1),
               W(bx + du.x*L2/2 + nu.x*r2, by + du.y*L2/2 + nu.y*r2, 1),
@@ -128142,7 +128142,7 @@ class WorldScene extends Phaser.Scene {
           const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
           const col = T3.wrap[Math.floor(rng()*T3.wrap.length)];
           const w2 = 2.4 + rng()*2, h2 = 1.6 + rng()*1.4;
-          items.push({ flat: true, x:bx, y:by, r:w2, draw: () => {
+          items.push({ layer: 0, x:bx, y:by, r:w2, draw: () => {
             poly([
               W(bx - du.x*w2 + nu.x*h2, by - du.y*w2 + nu.y*h2, 0.8),
               W(bx + du.x*w2 + nu.x*h2, by + du.y*w2 + nu.y*h2, 0.8),
@@ -128158,9 +128158,10 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* no shadow under litter: static props cast none (LOOK_RULES 3, SP6) */
-      /* (the flat bits on the ground first, the bag and the bottle lying over them after -- props kit SP13: a bit drawn after the bag
-         by its middle's depth painted its paper over the bag's top) */
-      items.sort((a2,b2) => (!!b2.flat - !!a2.flat) || (a2.x + a2.y) - (b2.x + b2.y));
+      /* (by height, then depth -- props kit SP13: they are scattered at random and can lie over each other, so the flat bits on the
+         ground first, the bottle on its side over them, the bag, the tallest, last; by depth alone a bit or the bottle drawn after
+         the bag painted over its top) */
+      items.sort((a2,b2) => (a2.layer - b2.layer) || (a2.x + a2.y) - (b2.x + b2.y));
       for(const it of items) it.draw();
     } else if(kind === "cone"){
       /* approved in cone hit lab (2026-07-09): ONE rigid geometry driven
