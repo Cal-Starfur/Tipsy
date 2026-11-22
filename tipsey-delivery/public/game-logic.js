@@ -48755,11 +48755,14 @@ function houseWin(a0, a1, z0, z1, bf, frame, sill, dir, opts){
     F(am-1.5, am+1.5, z0, z1, frame, null, 0, bf + 0.8*d);
     F(a0, a1, zm-1.5, zm+1.5, frame, null, 0, bf + 0.8*d);
   }
+  /* (W37: the window box hangs under the sill -- it first, the sill over it, the flowers last) */
+  if(o.box){
+    if(d > 0) slab(a0-2, a1+2, z0-24, z0-10, bf+12, bf, o.box);
+    else      slab(a0-2, a1+2, z0-24, z0-10, bf-12, bf, o.box);
+  }
   if(d > 0) slab(a0-7, a1+7, z0-9, z0-4, bf+7, bf, sill);
   else      slab(a0-7, a1+7, z0-9, z0-4, bf-7, bf, sill);
   if(o.box){                                                  // window box, flowers on top
-    if(d > 0) slab(a0-2, a1+2, z0-24, z0-10, bf+12, bf, o.box);
-    else      slab(a0-2, a1+2, z0-24, z0-10, bf-12, bf, o.box);
     const bb = bf + 7*d;
     for(let k = 0; k < 5; k++){
       const aa = a0 + 3 + (a1-a0-6)*k/4;
@@ -49008,7 +49011,7 @@ function houseParapetRoof(a0, a1, bf, bb, H, h, t, wall){
   T(a0, a1, bb, bf, H, shade(wall,.8));
   const nearF = !state.back;                                   // near b face: front view bf, back view bb
   const ringB = (b0, b1) => box(a0, a1, b0, b1, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
-  const sideA = a => box(a-t/2, a+t/2, bb, bf, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
+  const sideA = a => box(a-t/2, a+t/2, bb+t, bf-t, H, H+h, shade(wall,1.04), wall, shade(wall,.8));   // (between the two rings, meeting them: W37)
   if(nearF) ringB(bb, bb+t); else ringB(bf-t, bf);
   sideA(FLANK_RIGHT ? a0 + t/2 : a1 - t/2);
   sideA(FLANK_RIGHT ? a1 - t/2 : a0 + t/2);
@@ -49210,9 +49213,9 @@ function houseEndLogs(a0, a1, bf, bb, z0, z1, col){
 
 /* a porch rocker */
 function houseRocker(a, b, col){
+  for(const aa of [a-9, a+9]) box(aa-1.5, aa+1.5, b-8, b+8, 0, 14, shade(col,.8), shade(col,.7), shade(col,.6));   // (its rockers first, the seat on them: W37)
   box(a-11, a+11, b-9, b+9, 14, 18, col, shade(col,.88), shade(col,.76));
   box(a-11, a+11, b-9, b-5, 18, 48, col, shade(col,.88), shade(col,.76));
-  for(const aa of [a-9, a+9]) box(aa-1.5, aa+1.5, b-8, b+8, 0, 14, shade(col,.8), shade(col,.7), shade(col,.6));
 }
 
 
@@ -49393,7 +49396,8 @@ function houseHalfCone(ac, b, r, n, z0, z1, roof){
    and are drawn with the yard ('far', straight after this.yard); the near
    side is in front of it and goes last in fore() ('near'). From behind the
    roles swap: the near side and the back go last in back(). */
-function houseYardRun(f, col, axis, fixed, u0, u1){
+function houseYardRun(f, col, axis, fixed, u0, u1, ext){
+  const e0 = ext ? ext[0] : 0, e1 = ext ? ext[1] : 0;   // (houseYardFence's corners: a solid run's body carried on past its ends (or short of them), its decoration not; a post run's end post left out)
   const Q = (a, b, z0, z1, cl) => axis === 'a' ? F(a, b, z0, z1, cl, null, 0, fixed) : S(fixed, a, b, z0, z1, cl);
   const pt = (u, z) => axis === 'a' ? P(u, fixed, z) : P(fixed, u, z);
   const bx = (a, b, t, z0, z1, cl) => axis === 'a' ? box(a, b, fixed - t, fixed + t, z0, z1, shade(cl,1.04), cl, shade(cl,.8))
@@ -49401,7 +49405,9 @@ function houseYardRun(f, col, axis, fixed, u0, u1){
   const ball2 = (u, z, r, cl) => axis === 'a' ? ball(u, fixed, z, r, cl) : ball(fixed, u, z, r, cl);
   const h = f.h, c1 = col(f.col), cap = col(f.cap);
   /* posts never overhang the run's ends, so a run that starts at the lot line stays in the lot */
-  const posts = (every, ph, cl, t) => { for(let u = u0; u <= u1 + 0.1; u += every){ const m = Math.min(Math.max(u, u0 + t), u1 - t); bx(m - t, m + t, t, 0, ph, cl); } };
+  const posts = (every, ph, cl, t) => { for(let u = u0; u <= u1 + 0.1; u += every){ const m = Math.min(Math.max(u, u0 + t), u1 - t);
+    if((e0 > 0 && m <= u0 + t + 0.01) || (e1 > 0 && m >= u1 - t - 0.01)) continue;   // (a side run's post stands on this corner: one post there, not two run into each other -- W37)
+    bx(m - t, m + t, t, 0, ph, cl); } };
   switch(f.style){
     case 'picket':
       Q(u0, u1, h*0.28, h*0.28 + 3, shade(c1,.86)); Q(u0, u1, h*0.66, h*0.66 + 3, shade(c1,.86));
@@ -49413,13 +49419,13 @@ function houseYardRun(f, col, axis, fixed, u0, u1){
       if(f.pier) posts(118, h + 8, col(f.pier), axis === 'a' ? 2 : 6); else posts(120, h + 2, shade(c1,1.3), axis === 'a' ? 2 : 3);
       break;
     case 'hedge':
-      bx(u0, u1, 5, 0, h, c1);
+      bx(u0 - e0, u1 + e1, 5, 0, h, c1);
       for(let u = u0 + 8; u < u1; u += 16) ball2(u, h, 5, c1);
       break;
     case 'wall':
-      bx(u0, u1, 4, 0, h, c1);
+      bx(u0 - e0, u1 + e1, 4, 0, h, c1);
       if(f.stones) for(let u = u0 + 6; u < u1 - 8; u += 13) Q(u, u + 8, 4 + (u % 3)*3, 11 + (u % 3)*3, shade(c1,.8));
-      if(cap) bx(u0 - 1, u1 + 1, 5, h, h + 4, cap);
+      if(cap) bx(u0 - e0 - 1, u1 + e1 + 1, 5, h, h + 4, cap);
       if(f.balls) for(let u = u0 + 6; u < u1; u += 12) ball2(u, h, 4.2, c1);
       break;
     case 'bamboo':
@@ -49442,7 +49448,11 @@ function houseYardFence(sh, c, part){
   const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB;
   const aL = 7, aR = W - 7, bF = -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
   const nearA = FLANK_RIGHT ? aR : aL, farA = FLANK_RIGHT ? aL : aR;
-  const side = a => houseYardRun(f, col, 'b', a, bR, bF);
+  /* (W37: a solid run -- a hedge, a wall -- meets at the back corners face to face: the rear run carried out over the sides' outer
+     half, the sides from its near face, so neither runs into the other whichever is drawn first) */
+  const boxy = f.style === 'hedge' || f.style === 'wall', tS = f.style === 'hedge' ? 5 : 4;
+  const side = a => houseYardRun(f, col, 'b', a, bR, bF, boxy ? [-HOUSE_YARD_BACK[f.style][1], 0] : null);
+  const ext = boxy ? [tS, tS] : [1, 1];   // (the rear run's ends, where the sides meet it: a solid run carried out over them, a post left to the side's)
   /* A BACK GATE (game-side, 2026-09-29, Ferris Taylor: "we want access to
      their back yards"). A city lot backs onto the open middle of its
      block, so a fenced yard there takes a gap in its rear run, centred,
@@ -49450,8 +49460,8 @@ function houseYardFence(sh, c, part){
      solid. Set on the city copies only (see FERRIS TAYLOR'S HOUSES);
      Sierra's houses and the lab carry no backGate and draw as before. */
   const gA = f.backGate ? W/2 - f.backGate : 0, gB = f.backGate ? W/2 + f.backGate : 0;
-  const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR);
-                       else { houseYardRun(f, col, 'a', bR, aL, gA); houseYardRun(f, col, 'a', bR, gB, aR); } };
+  const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR, ext);
+                       else { houseYardRun(f, col, 'a', bR, aL, gA, [ext[0], 0]); houseYardRun(f, col, 'a', bR, gB, aR, [0, ext[1]]); } };
   if(part === 'far'){ if(!state.back){ rear(); side(farA); } else side(farA); }
   else { if(!state.back) side(nearA); else { side(nearA); rear(); } }
 }
@@ -49802,6 +49812,8 @@ function houseCanopy(fn){
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               /* the south face, on the south row */
               if(r === n - 1){
+                faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);   // (W37: the tower's face first, then the plinth standing out in front of it)
+                faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
                 { const pe = T.podium !== 'S' ? coveFlushEnd(T, 'S') : null;                // (the south shops' plinth, flush to the pavement, ending at its last flush shop: coveFlushE)
                   if(pe !== null){
                     if(tx0 < pe) T_(tx0, Math.min(tx1, pe), T.y1, PLY, GT, stoneL);
@@ -49809,8 +49821,6 @@ function houseCanopy(fn){
                     faceQ(southP, A(T.x0), A(pe), 0, GT, stone, 0);
                     faceQ(southP, A(T.x0), A(pe), GT - 10, GT, stoneL, 0.3);
                   } }
-                faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);
-                faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'S'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(southF, A(sh.span[0]), A(sh.span[1]), H, sh.lobby) : shopfront(southF, A(sh.span[0]), A(sh.span[1]), H, sh);
@@ -49819,6 +49829,8 @@ function houseCanopy(fn){
               }
               /* the east face, on the east column */
               if(c === n - 1){
+                faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);   // (W37: the tower's face first, then the plinth standing out in front of it)
+                faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
                 /* (the east shops' plinth, flush to the pavement, ending at its last flush shop: its top, its end, its face -- coveFlushE) */
                 { const pe = T.podium !== 'E' ? coveFlushEnd(T, 'E') : null;
                   if(pe !== null){
@@ -49827,8 +49839,6 @@ function houseCanopy(fn){
                     faceQ(eastP, B(pe), B(T.y0), 0, GT, stone, 0);
                     faceQ(eastP, B(pe), B(T.y0), GT - 10, GT, stoneL, 0.3);
                   } }
-                faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);
-                faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'E'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(eastF, B(sh.span[1]), B(sh.span[0]), H, sh.lobby) : shopfront(eastF, B(sh.span[1]), B(sh.span[0]), H, sh);
@@ -49847,8 +49857,11 @@ function houseCanopy(fn){
               CLIPA = CLIPB = null;
               /* the roof, its parapet and the crown */
               T_(tx0, tx1, ty0, ty1, TOP, '#a9a397');
-              if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD);
-              if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD);
+              /* (W37: the east parapet from the south one's face, meeting it at the corner; the far one first -- whichever b the eye sees:
+                 the lab's b runs against the world's y) */
+              const ptE = () => { if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1) + (r === n - 1 ? 8 : 0), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD); };
+              const ptS = () => { if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD); };
+              if(P(0, 1, 0).y < P(0, 0, 0).y){ ptE(); ptS(); } else { ptS(); ptE(); }
               const cx0 = Math.max(tx0, T.x0 + 140), cx1 = Math.min(tx1, T.x1 - 140), cy0 = Math.max(ty0, T.y0 + 180), cy1 = Math.min(ty1, T.y1 - 180);
               if(cx1 > cx0 && cy1 > cy0){
                 box(A(cx0), A(cx1), B(cy1), B(cy0), TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
@@ -50580,7 +50593,8 @@ function houseCanopy(fn){
                   box(A(e[0] - 44), A(e[1] + 44), fb - 20, fb, EZ, EZ + 12, stoneL, stone, stoneD);
                   /* the canopy: a slab out over the footway, its fascia blue */
                   const c0 = A(e[0] - 24), c1 = A(e[1] + 24), cb = fb - 96, cz0 = 118, cz1 = 140;
-                  box(c0, c1, cb, fb, cz0, cz1, '#e9ecef', blue, shade(blue, .78));
+                  /* (W37: its ends stop at the piers' street faces; between the piers it runs on back to the wall, only its top seen there) */
+                  box(c0, c1, cb, fb - 16, cz0, cz1, '#e9ecef', blue, shade(blue, .78)); T(A(e[0]), A(e[1]), fb - 16, fb, cz1, '#e9ecef');
                   T(c0 + 6, c1 - 6, cb + 6, fb - 4, cz1 + 0.5, '#dfe3e7');
                   fword({ pl:'F', at: cb, out: -1 }, 'MAIN ENTRANCE', c0 + 60, c1 - 60, cz0 + 2, cz1 - 2, '#ffffff', 0.4);
                 }
@@ -50604,7 +50618,7 @@ function houseCanopy(fn){
                 fword(pE, 'EMERGENCY', B(5000) + 30, B(4300) - 30, PD.top + 8, PD.top + 50, '#ffffff', 1.2);
               }
               CLIPA = CLIPB = null;
-              if(r === m - 1){
+              const ringF = () => { if(r !== m - 1) return;
                 box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
                 /* THE NAME, standing on the parapet over the entrance -- laid
                    after the parapet, which used to cover the foot of every
@@ -50615,13 +50629,17 @@ function houseCanopy(fn){
                 fq(pS, A(e[0]) - 170, A(e[1]) + 170, PD.top + 62, PD.top + 66, shade(blue, 1.25), 1.1);
                 fword(pS, 'MARINA GENERAL HOSPITAL', A(e[0]) - 150, A(e[1]) + 150, PD.top + 20, PD.top + 58, '#ffffff', 1.2);
                 CLIPA = null;
-              }
+              };
               /* ITS PARAPET ALL ROUND (Sir: "what about the rest of the hospital
                  does it still miss its back side rim?"): the north, east and
                  west edges as the front */
-              if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD);
-              if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
-              if(c === 0) box(A(PD.x0), A(PD.x0) + 8, B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
+              const ringN = () => { if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD); };
+              const ends = () => { const pb0 = B(ty1) + (r === m - 1 ? 8 : 0), pb1 = B(ty0) - (r === 0 ? 8 : 0);
+                if(c === 0) box(A(PD.x0), A(PD.x0) + 8, pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD);
+                if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD); };
+              /* (W37: the ends run between the front's and the back's and meet them at the corners; the far one first, the ends, the
+                 near one last -- whichever b the eye sees: the lab's b runs against the world's y) */
+              if(P(0, 1, 0).y < P(0, 0, 0).y){ ringN(); ends(); ringF(); } else { ringF(); ends(); ringN(); }
               /* the tower, where it stands over this tile */
               const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
               if(ax1 > ax0 && ay1 > ay0){
@@ -50638,11 +50656,15 @@ function houseCanopy(fn){
                   fq(tE, B(TW.y1), B(TW.y0), PD.top + 2*TW.FH + 6, PD.top + 2*TW.FH + 14, blue, 0.8);
                 }
                 CLIPA = CLIPB = null;
-                if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD);
-                if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
-                /* and its crown on round the back: the north and west edges */
-                if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD);
-                if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
+                /* its crown round the front and on round the back: the north and west edges. (W37: the ends run between the front's
+                   and the back's, meeting them at the corners; the far one first, the ends, the near one last -- whichever b the eye
+                   sees: the lab's b runs against the world's y) */
+                const cb0 = B(ay1) + (ay1 === TW.y1 ? 8 : 0), cb1 = B(ay0) - (ay0 === TW.y0 ? 8 : 0);
+                const crS = () => { if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD); };
+                const crN = () => { if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD); };
+                const crE = () => { if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, cb0, cb1, TOP, CROWN, wallL, wall, wallD);
+                                    if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), cb0, cb1, TOP, CROWN, wallL, wall, wallD); };
+                if(P(0, 1, 0).y < P(0, 0, 0).y){ crN(); crE(); crS(); } else { crS(); crE(); crN(); }
                 /* the crown's name, the red cross, the helipad, the plant */
                 if(ay1 === TW.y1 && ax0 <= 18275 && 18275 < ax1){
                   F(A(17300), A(19250), TOP + 6, CROWN + 70, blue, null, 0, B(TW.y1) - 1);
@@ -51881,7 +51903,7 @@ function houseCanopy(fn){
             items.push({ a: A(tx + 56), b: B(y0), z: 0, draw: () => {
               if(!inView(A(tx - 60), A(tx + 60), B(y1), B(y0), 0, 190)) return;
               if(s2 === 0) for(const sb of [-1, 1]) tube(A(tx + sb*40), B(y0 + 120), 0, A(tx + sb*40), B(y0 + 120), 46, 3, '#3a3f46');   /* (its landing legs) */
-              if(s2 === segs - 1) for(const yy of [y1 - 150, y1 - 90]) for(const sb of [-1, 1]) box(A(tx + sb*56 - (sb > 0 ? 18 : 0)), A(tx + sb*56 + (sb < 0 ? 18 : 0)), B(yy + 28), B(yy - 28), 0, 46, '#1b1d21', '#16171b', '#121316');
+              if(s2 === segs - 1) for(const yy of ((P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? [y1 - 90, y1 - 150] : [y1 - 150, y1 - 90])) for(const sb of [-1, 1]) box(A(tx + sb*56 - (sb > 0 ? 18 : 0)), A(tx + sb*56 + (sb < 0 ? 18 : 0)), B(yy + 28), B(yy - 28), 0, 46, '#1b1d21', '#16171b', '#121316');   /* (its wheels, the far axle first, whichever b the eye sees: W37) */
               box(A(tx - 55), A(tx + 55), B(y1), B(y0), 46, 176, colB, shade(colB, .9), shade(colB, .8));
               S(A(tx + 55) + 0.4, B(y1), B(y0), 150, 160, shade(band, .9));   /* (its band on its seen side only, as the sheds' east ends: a box of it painted its top over the roof) */
               if(s2 === segs - 1){ const fs = { pl:'F', at: B(y1), out: -1 };
@@ -54496,8 +54518,8 @@ function houseCanopy(fn){
       for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
         items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
       items.push({ a: ra, b: pb0 + 18, z: 0, solids: [solid(pa0 + 14, pa1 - 14, pb0 + 6, pb0 + 30, 42, 'pit bench')], draw: () => {            // the pit bench, paint cans and a rack of wheels
+        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // (its legs, then the top they hold up: W37)
         box(pa0 + 14, pa1 - 14, pb0 + 8, pb0 + 28, 36, 40, woodL, wood, woodD);
-        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
         for(const [ca, col] of [[pa0 + 30, '#2a6fb0'], [pa0 + 44, '#f2b544'], [pa0 + 58, '#d8352a']]) cyl(ca, pb0 + 18, 40, 52, 6, col, shade(col, 0.8));
         for(let k = 0; k < 3; k++) cyl(pa1 - 36, pb0 + 18, 40 + k*9, 48 + k*9, 12, k % 2 ? '#26282c' : '#2e3034', k === 2 ? '#1e1e22' : null); } });
       items.push({ a: ra, b: pb1 - 76, z: 0, solids: [solid(ra - 50, ra + 50, pb1 - 148, pb1 - 12, 54, 'parked kart')], draw: () => soapKartS(ra, pb1 - 76, 0, '#e8e4da', '#c4bfb2', 5, null, { stripe: '#d8352a' }) });
@@ -61595,9 +61617,11 @@ function houseCanopy(fn){
         });
         const garb = ['#141216', '#2a1f33', '#1d1b22', '#3a1a24', '#141216', '#2b2433'];
         for(const [r0, r1, rb] of [[L0 + 110, L0 + 230, bF + 120], [L0 + 110, L0 + 230, bF + 250], [R0 + 10, R0 + 160, bF + 260]]) fit(r0, r1, rb - 14, rb + 14, 128, null, null, () => {   // rails
-          for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 14, rb + 14, 0, 4, '#2a2a2e', '#202024', '#18181b'); box(a, a + 4, rb - 2, rb + 2, 0, 124, '#3a3a40', '#2a2a2e', '#2a2a2e'); }
+          const upright = a => { box(a - 2, a + 6, rb - 14, rb + 14, 0, 4, '#2a2a2e', '#202024', '#18181b'); box(a, a + 4, rb - 2, rb + 2, 0, 124, '#3a3a40', '#2a2a2e', '#2a2a2e'); };
+          upright(r0 + 2);                                                                                // (the far upright, the garments, the near upright: W37)
           let k = 0;
           for(let a = r0 + 12; a < r1 - 14; a += 13, k++){ const c = garb[(k + rb) % 6]; box(a, a + 10, rb - 12, rb + 12, 40 + (k % 3)*8, 118, c, shade(c, 1.2), shade(c, 0.8)); }
+          upright(r1 - 6);
           box(r0 + 2, r1 - 2, rb - 2, rb + 2, 120, 124, '#3a3a40', '#2a2a2e', '#2a2a2e');
         });
         glassCase(L0 + 4, L0 + 104, bS - 210, bS - 160, 80, () => {                                         // silver: chains, chokers, rings
@@ -61607,8 +61631,8 @@ function houseCanopy(fn){
         });
         fit(L0 + 10, L0 + 130, bS - 120, bS - 70, 60, '#1d1b22', '#141216', () => {                       // platform boots on a riser
           for(let k = 0; k < 3; k++){ const ba = L0 + 26 + k*38, bb = bS - 96;
-            box(ba, ba + 14, bb - 8, bb + 8, 60, 70, '#141216', '#0b0a0d', '#0b0a0d'); box(ba + 2, ba + 12, bb - 6, bb + 2, 70, 96, '#1d1b22', '#141216', '#141216');
-            box(ba + 1, ba + 13, bb - 8, bb + 8, 60, 64, '#c9ccd4', '#a8aeb2', '#8a9094'); }
+            box(ba, ba + 14, bb - 8, bb + 8, 60, 70, '#141216', '#0b0a0d', '#0b0a0d'); box(ba + 1, ba + 13, bb - 8, bb + 8, 60, 64, '#c9ccd4', '#a8aeb2', '#8a9094');
+            box(ba + 2, ba + 12, bb - 6, bb + 2, 70, 96, '#1d1b22', '#141216', '#141216'); }   // (the sole and its band, then the shaft on it: W37)
         });
         for(const [ca, cb] of [[L1 - 30, bF + 60], [R0 + 30, bF + 60]]) fit(ca - 10, ca + 10, cb - 10, cb + 10, 120, null, null, () => {   // candles on iron stands
           cyl(ca, cb, 0, 4, 10, '#141216'); cyl(ca, cb, 4, 96, 1.6, '#2a2a2e'); cyl(ca, cb, 96, 100, 8, '#2a2a2e');
@@ -61624,9 +61648,10 @@ function houseCanopy(fn){
         });
         boards(L0 + 30, L1); boards(R0, R1);   // (clear of the shared side wall, which cut into the first board: Sir, 2026-10-15)
         fit(L0 + 20, L1 - 10, bF + 240, bF + 256, 112, null, null, () => {                                  // a wetsuit rail
-          for(const a of [L0 + 20, L1 - 14]) box(a, a + 4, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
-          box(L0 + 20, L1 - 10, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
+          box(L0 + 20, L0 + 24, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');   // (the far upright, the suits, the bar between the uprights, the near upright: W37)
           for(let a = L0 + 34; a < L1 - 26; a += 22){ box(a, a + 14, bF + 242, bF + 254, 30, 106, '#1f2226', '#16181b', '#101214'); F(a + 2, a + 12, 60, 64, '#2f7f86', null, 0, bF + 254.3); }
+          box(L0 + 24, L1 - 14, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
+          box(L1 - 14, L1 - 10, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
         });
         fit(R0 + 10, R1 - 30, bF + 220, bF + 300, 40, '#cfc6b5', '#b9b0a0', () => {                           // folded tees
           const tc = ['#2f7f86', '#f2b48a', '#f6f0e4', '#4a5568', '#e2483d'];
@@ -61816,7 +61841,7 @@ function houseCanopy(fn){
         /* (a chair with someone in it is solid, as the ballroom's: bump it and they get up to have words -- updateKnocks) */
         items.push({ a: ca, b: cb, z: 0, lvl: up, xr: !!up, dk: dkUp(da + db), cast: who || undefined,
                      solids: who ? [{ name: 'chair', c: [ca, cb], r: 18, h: z0 + 120, lvl: up }] : undefined,
-                     draw: far ? () => { back(); seat(); } : seat, after: far ? undefined : back });
+                     draw: far ? () => { seat(); back(); } : seat, after: far ? undefined : back });   // (the seat, then the back that stands on it: W37)
       });
     };
     /* (none in the middle, round the fountain, nor by the doors -- Sir:
@@ -62670,9 +62695,11 @@ function houseCanopy(fn){
 
       /* a clothes rail: a steel bar on two uprights, garments hung along it */
       const rack = (r0, r1, rb, lv, hues) => fit(r0, r1, rb - 16, rb + 16, 128, lv, z => {
-        for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); }
+        const upright = a => { box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); };
+        upright(r0 + 2);                                                     // (the far upright, the garments, the near upright: W37)
         let k = 0;
         for(let a = r0 + 14; a < r1 - 16; a += 15, k++){ const c = hues[k % hues.length]; box(a, a + 11, rb - 13, rb + 13, z + 46 + (k % 3)*6, z + 118, c, shade(c, 0.86), shade(c, 0.72)); }
+        upright(r1 - 6);
         box(r0 + 2, r1 - 2, rb - 2, rb + 2, z + 120, z + 124, steel, steelD, steelD);
       });
       /* a table of folded stacks */
@@ -62797,9 +62824,8 @@ function houseCanopy(fn){
         fit(-2080, -1760, 40, 380, 240, 1, z => {
           const A0 = -2080, A1 = -1760, B0 = 40, B1 = 380, H = 40, R = 16, zr = z + H;
           const pads = ['#e2483d', '#4f9ad8', '#ffd34a', '#7fd36a'], rim = '#4f9ad8';
-          const post = (pa, pb, top) => { box(pa - 8, pa + 8, pb - 8, pb + 8, z, top, '#ffd34a', '#e8b54a', '#c89a3a'); ball(pa, pb, top + 7, 9, '#e2483d'); };
-          /* the back: its posts and the netting between them, the board over it */
-          post(A0 + 8, B0 + 8, z + 118); post(A1 - 8, B0 + 8, z + 118); post(A0 + 8, B1 - 8, z + 118);
+          const post = (pa, pb, top, bot) => { box(pa - 8, pa + 8, pb - 8, pb + 8, bot === undefined ? z : bot, top, '#ffd34a', '#e8b54a', '#c89a3a'); ball(pa, pb, top + 7, 9, '#e2483d'); };
+          /* the back: the netting between its posts, the board over it (the posts stand on the rims: each after the rims under it, W37) */
           F(A0 + 16, A1 - 16, zr + 8, z + 112, 'rgba(255,255,255,.10)', null, 0, B0 + 8);
           for(let a = A0 + 30; a < A1 - 16; a += 18) F(a, a + 1.6, zr + 8, z + 112, 'rgba(40,48,70,.32)', null, 0, B0 + 8.2);
           for(let h = zr + 20; h < z + 112; h += 18) F(A0 + 16, A1 - 16, h, h + 1.6, 'rgba(40,48,70,.32)', null, 0, B0 + 8.2);
@@ -62812,7 +62838,8 @@ function houseCanopy(fn){
           /* the walls, the two back rims */
           box(A0, A1, B0, B1, z, zr, '#e2483d', '#c03a30', '#a83228');
           box(A0, A1, B0, B0 + R, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
-          box(A0, A0 + R, B0, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
+          box(A0, A0 + R, B0 + R, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));   // (from the back rim's face: W37)
+          post(A0 + 8, B0 + 8, z + 118, zr + 8);                                  // the back corner's post, on the two back rims
           /* the balls: a dark bed for the gaps, then a packed, lumpy heap, far ones first */
           T(A0 + R, A1 - R, B0 + R, B1 - R, zr - 14, '#1d3460');
           const bc = ['#e2483d', '#ffd34a', '#4f9ad8', '#7fd36a', '#f6f0e4', '#ff8ac0', '#ff9a3a'], heap = [];
@@ -62824,14 +62851,21 @@ function houseCanopy(fn){
           /* the slide, in the back corner, coming down toward you into the
              balls: posts, a deck with its rail, a ladder up its side, the
              chute with rails either side, a striped canopy */
-          { const tz = z + 96, y1 = '#ffd34a', y2 = '#e8b54a', y3 = '#c89a3a', pst = (pa, pb) => box(pa - 5, pa + 5, pb - 5, pb + 5, zr - 10, tz + 96, y1, y2, y3);
-            pst(-2070, 52); pst(-2014, 52); pst(-2070, 106);
-            box(-2076, -2008, 46, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a');
-            box(-2076, -2072, 46, 112, tz + 8, tz + 34, 'rgba(79,154,216,.5)', 'rgba(63,128,184,.5)', 'rgba(51,106,154,.5)');
-            box(-2012, -2008, 46, 112, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228');
-            for(const lb of [64, 96]) box(-2006, -2000, lb, lb + 4, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');   // the ladder
-            for(let r = 0; r < 4; r++) box(-2006, -2000, 64, 100, zr + 8 + r*16, zr + 12 + r*16, '#f6f0e4', '#e6dccb', '#d6ccbb');
-            pst(-2014, 106);
+          { const tz = z + 96, y1 = '#ffd34a', y2 = '#e8b54a', y3 = '#c89a3a', pst = (pa, pb, z0, z1, b0) => box(pa - 5, pa + 5, b0 === undefined ? pb - 5 : b0, pb + 5, z0, z1, y1, y2, y3);
+            /* (back to front, parts meeting face to face, W37: the posts up to the deck, the deck -- round the pit's corner post,
+               which the far post stands in, all but its near face -- the far post above it, the west rail from its face, round
+               the near west post, the other posts, the east rail through them, the ladder's far rail, its rungs, its near rail;
+               the east rail and the post by the board from the board's face, the rail from that post's face) */
+            pst(-2070, 52, zr - 10, tz, 56); pst(-2014, 52, zr - 10, tz); pst(-2070, 106, zr - 10, tz); pst(-2014, 106, zr - 10, tz);
+            box(-2076, -2064, 56, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a'); box(-2064, -2008, 46, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a');
+            pst(-2070, 52, tz + 8, z + 118, 56); pst(-2070, 52, z + 118, tz + 96);
+            const wRail = (b0, b1) => box(-2076, -2072, b0, b1, tz + 8, tz + 34, 'rgba(79,154,216,.5)', 'rgba(63,128,184,.5)', 'rgba(51,106,154,.5)');
+            wRail(57, 101); pst(-2070, 106, tz + 8, tz + 96); wRail(111, 112);
+            pst(-2014, 52, tz + 8, tz + 96, 48); pst(-2014, 106, tz + 8, tz + 96);
+            box(-2009, -2008, 48, 57, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228'); box(-2012, -2008, 57, 112, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228');
+            box(-2006, -2000, 64, 68, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');   // the ladder
+            for(let r = 0; r < 4; r++) box(-2006, -2000, 68, 96, zr + 8 + r*16, zr + 12 + r*16, '#f6f0e4', '#e6dccb', '#d6ccbb');
+            box(-2006, -2000, 96, 100, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');
             poly([P(-2062, 112, tz + 4), P(-2022, 112, tz + 4), P(-2022, 214, zr - 4), P(-2062, 214, zr - 4)], y1, y3, 1);   // the chute
             for(const ra of [-2066, -2022]) poly([P(ra, 112, tz + 4), P(ra, 112, tz + 16), P(ra, 214, zr + 8), P(ra, 214, zr - 4)], ra < -2040 ? y2 : y3, '#b08430', 0.8),
               poly([P(ra, 112, tz + 16), P(ra + 4, 112, tz + 16), P(ra + 4, 214, zr + 8), P(ra, 214, zr + 8)], y1, null, 0);
@@ -62848,6 +62882,7 @@ function houseCanopy(fn){
           k = 1;
           for(let b = B0 + 20; b < B1 - 20; b += 50, k++){ const b2 = Math.min(B1 - 20, b + 44), c = pads[k % 4];
             S(A1 + 0.4, b, b2, z + 6, zr - 6, shade(c, 0.84)); S(A1 + 0.6, b + 4, b2 - 4, zr - 14, zr - 10, c); }
+          post(A1 - 8, B0 + 8, z + 118, zr + 8); post(A0 + 8, B1 - 8, z + 118, zr + 8);   // the other back posts, on the side rims
           post(A1 - 8, B1 - 8, zr + 20);
         }, { fx: { kind: 'pit', a: 0, b: 0, a0: -2000, a1: -1776, b0: 140, b1: 364, zb: Z2 + 34 } });   // kids wading in it (live), clear of the slide
         /* the pizza counter, its oven behind it, the menu over it */
@@ -62904,9 +62939,10 @@ function houseCanopy(fn){
           legs(5156, 5504, 1534, 1616, z, 12, walD);
           box(5150, 5510, 1530, 1620, z + 12, z + 44, oat, oatD, oatS);
           box(5150, 5510, 1530, 1556, z + 44, z + 92, oat, oatD, oatS);
-          for(const a of [5150, 5486]) box(a, a + 24, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);
+          box(5150, 5174, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);          // (the far arm, the cushions, the near arm: W37)
           for(const a of [5180, 5330]) box(a, a + 140, 1558, 1612, z + 44, z + 54, shade(oat, 1.05), oatD, oatS);
           for(const [a, c] of [[5200, olive], [5440, clay]]) box(a, a + 40, 1560, 1572, z + 54, z + 90, c, shade(c, 0.85), shade(c, 0.72));   // throw cushions
+          box(5486, 5510, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);
         });
         for(const [ca, f] of [[5140, 1], [5520, -1]]) fit(ca - 40, ca + 40, 1770, 1850, 84, 0, z => {   // armchairs, olive, turned to the table
           legs(ca - 36, ca + 36, 1774, 1846, z, 14, walD);
@@ -62967,14 +63003,21 @@ function houseCanopy(fn){
           legs(6476, 6684, 1884, 1926, z, 30, walD); box(6470, 6690, 1880, 1930, z + 30, z + 44, oat, oatD, oatS);
         });
         /* THE SHELVING along the east wall: ceramics, books, baskets */
+        /* (W37, Sir 2026-11-22: "redraw the shelving front as base, lip and posts"): its side toward the eye (east) is open -- a base,
+           a lip at the top and a post at each end -- not a solid panel, which painted last hid every shelf; the back panel (west) first,
+           the shelves between the two sides and what stands on them, then the open front */
         for(const sb of [2060, 2300]) fit(6860, 6940, sb, sb + 200, 210, 0, z => {
-          for(const a of [6860, 6934]) box(a, a + 6, sb, sb + 200, z, z + 210, wal, walD, walS);
+          box(6860, 6866, sb, sb + 200, z, z + 210, wal, walD, walS);                                         // the back panel
           for(let r = 0; r < 4; r++){ const zz = z + 20 + r*58;
-            box(6860, 6940, sb, sb + 200, zz, zz + 5, wal, walD, walS);
+            box(6866, 6934, sb, sb + 200, zz, zz + 5, wal, walD, walS);
             for(let k = 0; k < 4; k++){ const vb = sb + 26 + k*48, c = ['#e9e2d4', olive, clay, '#8a9aa6', cream, char][(r*3 + k + sb) % 6];
               if((r + k) % 3 === 1) box(6872, 6928, vb - 18, vb + 18, zz + 5, zz + 30, '#b89a6a', '#a3865a', '#8f744c');   // a woven basket
               else vase(6900, vb, zz + 5, 9, 22 + ((r + k) % 3)*8, c); }
           }
+          box(6934, 6940, sb, sb + 6, z, z + 210, wal, walD, walS);                                           // the open front: its far post,
+          box(6934, 6940, sb + 6, sb + 194, z, z + 20, wal, walD, walS);                                      // its base,
+          box(6934, 6940, sb + 6, sb + 194, z + 202, z + 210, wal, walD, walS);                               // its lip,
+          box(6934, 6940, sb + 194, sb + 200, z, z + 210, wal, walD, walS);                                   // and its near post
         });
         /* THE LINEN THROWS, folded in stacks on a long table */
         fit(6320, 6560, 2140, 2240, 100, 0, z => {
@@ -62994,9 +63037,10 @@ function houseCanopy(fn){
         });
         for(const a of [5450, 5580, 5710, 5840]) fit(a - 18, a + 18, 990, 1026, 80, 0, z => { cyl(a, 1008, z, z + 70, 3, brass); cyl(a, 1008, z + 70, z + 78, 18, walD, wal); });
         for(const [s0, s1] of [[5100, 5300], [6100, 6400], [6500, 6800]]) fit(s0, s1, 420, 470, 200, 0, z => {
-          for(let r = 0; r < 4; r++){ const zz = z + 30 + r*50; box(s0, s1, 420, 470, zz, zz + 5, wal, walD, walS);
+          box(s0, s0 + 6, 420, 470, z, z + 200, wal, walD, walS);                 // (the far upright, the shelves between the two, the near upright: W37)
+          for(let r = 0; r < 4; r++){ const zz = z + 30 + r*50; box(s0 + 6, s1 - 6, 420, 470, zz, zz + 5, wal, walD, walS);
             for(let a = s0 + 20; a < s1 - 20; a += 40) cyl(a, 445, zz + 5, zz + 20 + (a % 3)*6, 13, ['#e9e2d4', char, clay, olive][(a/40 + r) % 4 | 0], '#f3ece0'); }
-          for(const a of [s0, s1 - 6]) box(a, a + 6, 420, 470, z, z + 200, wal, walD, walS);
+          box(s1 - 6, s1, 420, 470, z, z + 200, wal, walD, walS);
         });
         /* UPSTAIRS: HIGH TIDE ARCADE (Sir, 2026-10-14: "our arcade has real
            arcade games and ski ball and all of that and a counter for ticket
@@ -63159,8 +63203,10 @@ function houseCanopy(fn){
           box((5714 + dx), (5722 + dx), 650, 658, z, z + 96, '#3a3f45', '#2b3138', '#23292f');
           box((5688 + dx), (5748 + dx), 648, 660, z + 96, z + 118, '#1a1d21', '#23272c', '#141619');
           F((5692 + dx), (5716 + dx), z + 100, z + 114, '#ff5a3c', null, 0, 660.3); F((5720 + dx), (5744 + dx), z + 100, z + 114, '#4fd8ff', null, 0, 660.3);
+          /* (west legs, the stretchers, east legs: back to front, W37) */
+          for(const [la, lb] of [[(5634 + dx), 664], [(5634 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
           box((5658 + dx), (5670 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214'); box((5766 + dx), (5778 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214');
-          for(const [la, lb] of [[(5634 + dx), 664], [(5792 + dx), 664], [(5634 + dx), 756], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
+          for(const [la, lb] of [[(5792 + dx), 664], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
           box((5620 + dx), (5816 + dx), 658, 768, z + 32, z + 44, '#2f6fb0', '#2f6fb0', '#255a90');                    // its skirt
           F((5620 + dx), (5816 + dx), z + 35, z + 38, '#ffd34a', null, 0, 768.3);
           T((5628 + dx), (5808 + dx), 666, 760, z + 44.4, '#d8f2fb');
@@ -63170,8 +63216,9 @@ function houseCanopy(fn){
             ctx.beginPath(); pts.forEach((q, n) => n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.strokeStyle = c; ctx.lineWidth = 1.4*K; ctx.stroke(); };
           ring((5718 + dx), 713, 22, '#e2483d');
           for(const [ga, gc] of [[(5628 + dx), '#e2483d'], [(5802 + dx), '#2f6fb0']]) T(ga, ga + 6, 693, 733, z + 45, '#1a1d21');
-          for(const [b0_, b1_] of [[658, 666], [760, 768]]) box((5620 + dx), (5816 + dx), b0_, b1_, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails
+          box((5620 + dx), (5816 + dx), 658, 666, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails: the far one, the ends, the near one (W37)
           box((5620 + dx), (5628 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
+          box((5620 + dx), (5816 + dx), 760, 768, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
           /* (the mallets and the puck are live: fx 'hockey') */
           F((5688 + dx), (5748 + dx), z + 118, z + 121, '#ffd34a', null, 0, 660.3);
         }, { fx: { kind: 'hockey', a: 0, b: 0, dx } });
@@ -63444,7 +63491,7 @@ function houseCanopy(fn){
       if(!part || part === 'base'){
         for(const [a, b] of [[a0 + 10, b0 + 10], [a1 - 10, b0 + 10], [a0 + 10, b1 - 10], [a1 - 10, b1 - 10]]) cyl(a, b, 0, 10, 4, '#3a3f44', '#4a5056');
         board(true);
-        box(a0, a1, b0, b1, 8, 30, steelL, steel, steelD);
+        if(hb) box(a0, a1, b0 + 4, b1, 8, 30, steelL, steel, steelD); else box(a0 + 4, a1, b0, b1, 8, 30, steelL, steel, steelD);   // (the frame from the far board's face: W37, they meet)
         box(a0 + 2, a1 - 2, b0 + 2, b1 - 2, 30, 40, white, '#e6e6e2', '#d6d6d2');
         if(!couch && !sleeper) box(blk[0], blk[1], blk[2], blk[3], 40, 46, blue, shade(blue, 0.9), shade(blue, 0.82));   // (made up, empty)
         box(pl[0], pl[1], pl[2], pl[3], 40, sleeper && !couch ? 45 : 50, white, '#e6e6e2', '#d6d6d2');   // (flatter under a head)
@@ -63513,15 +63560,16 @@ function houseCanopy(fn){
     const BX = (q, z0, z1, c0, c1, c2) => box(q[0], q[1], q[2], q[3], z0, z1, c0, c1, c2);
     /* the desk faces the room, away from whoever sits at it between it and the wall: its screen at its front edge, turned to them */
     const desk = (r, face) => { const W = FW(r, face), Dd = FDp(r, face);
-      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 40, grey, greyD, greyS); BX(RB(r, face, W - 40, W - 4, 4, Dd - 4), 0, 40, grey, greyD, greyS);
+      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 40, grey, greyD, greyS); BX(RB(r, face, Math.max(W - 40, 40), W - 4, 4, Dd - 4), 0, 40, grey, greyD, greyS);   // (a narrow desk's two pedestals meet: W37)
       box(r[0], r[1], r[2], r[3], 40, 46, lam, lamD, lamS);
       BX(RB(r, face, W/2 - 6, W/2 + 6, 12, 22), 46, 50, steelD, steelD, steelD); BX(RB(r, face, W/2 - 16, W/2 + 16, 14, 18), 50, 72, '#1d2125', '#2b3036', '#1a1d21');
       BQ(r, face, W/2 - 14, W/2 + 14, 53, 70, '#2c4a66', 18.3); };
     const station = (r, front) => { const [a0, a1, b0, b1] = r;
       box(a0, a1, b0, b1, 0, 56, lam, band, bandD);
       const rim = front === 's' ? [a0, a1, b1 - 8, b1] : front === 'n' ? [a0, a1, b0, b0 + 8] : front === 'w' ? [a0, a0 + 8, b0, b1] : [a1 - 8, a1, b0, b1];
-      box(rim[0], rim[1], rim[2], rim[3], 56, 70, lam, lamD, lamS);
-      box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 60, 80, '#1d2125', '#2b3036', '#1a1d21'); };
+      const rimB = () => box(rim[0], rim[1], rim[2], rim[3], 56, 70, lam, lamD, lamS);
+      const scr = () => box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 60, 80, '#1d2125', '#2b3036', '#1a1d21');
+      if(front === 's' || front === 'e'){ scr(); rimB(); } else { rimB(); scr(); } };   // (the screen behind a rim toward us, before it: W37)
     /* a chair in three parts -- legs, seat, back -- so whoever sits in it is drawn between them (it.seat, it.after: as the ballroom's sofa) */
     const CH = '#4f7fa8', CHd = '#3d6686', CHs = '#2f5068';
     const chairLegs = (r) => { const [a0, a1, b0, b1] = r; for(const [a, b] of [[a0 + 4, b0 + 4], [a1 - 4, b0 + 4], [a0 + 4, b1 - 4], [a1 - 4, b1 - 4]]) cyl(a, b, 0, 22, 2.5, steelD, steelD); };
@@ -63536,7 +63584,7 @@ function houseCanopy(fn){
         for(let u = 30; u < W - 20; u += 60) FQ(r, face, u, u + 16, 20, 23, '#f2f2ee', -0.4); return; }
       /* open shelves, stocked: boxes and bottles in a few colours, the shelf's edge over each row; its back panel and
          its two ends, far to near (the back behind the goods when its open front faces us, over them when it does not) */
-      const seen = SEEN(face), panel = q => BX(q, 6, 110, greyD, greyS, greyS), back = RB(r, face, 0, W, Dd - 2, Dd);
+      const seen = SEEN(face), panel = q => BX(q, 6, 110, greyD, greyS, greyS), back = RB(r, face, 2, W - 2, Dd - 2, Dd);   // (the back between the two ends, meeting them: W37)
       box(r[0], r[1], r[2], r[3], 0, 6, greyD, greyS, greyS);
       panel(RB(r, face, 0, 2, 0, Dd)); if(seen) panel(back);
       const cols = ['#c9a46a', '#e9d6a8', '#4f9ad8', '#efe4cc', '#e2483d', '#7fd36a'];
@@ -64578,11 +64626,12 @@ function houseCanopy(fn){
     const wall = '#fbf1d2', trim = '#4a9fd1', H = 140;
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#e3dccb');   // Flats roof, over body's trim-coloured plate
-    slab(0,W, H, H+10, -1, -12, trim);
     /* fTodo cleared: at 0..W with a back face of -6 the return landed on
        screen-a 236 against 230. 12 puts it on 224. The parapet above
-       stays full width -- that one is a cornice. */
+       stays full width -- that one is a cornice. (The frieze first, the
+       cornice over it after: it hangs under it -- W37.) */
     slab(12, W-12, H-14, H, -1, -6, '#fbf3f5');
+    slab(0,W, H, H+10, -1, -12, trim);
     F(12,W*0.62, 30, 92, '#bcdde2', shade(trim,.85), 3);
     slab(12,W*0.62, 88, 98, -1, -7, trim);
     F(18,W*0.56, 36, 52, '#fbf3f5', null,0,-1);
@@ -67691,13 +67740,14 @@ function houseCanopy(fn){
             const s0 = W*0.18, s1 = W*0.68, sz0 = H+44, sz1 = H+66;
             cyl(s0+7, -40, H+16, sz1, 3, '#6d747c');
             cyl(s1-7, -40, H+16, sz1, 3, '#6d747c');
-            slab(s0, s1, sz1-4, sz1, -36, -44, '#7d838a', '#5d646b', '#8f969d');
+            /* (bottom up -- W37: the bottom member, the bars standing on it, the top member they hang under, the posts) */
             slab(s0, s1, sz0, sz0+4, -36, -44, '#7d838a', '#5d646b', '#8f969d');
-            slab(s0, s0+4, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d');
-            slab(s1-4, s1, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d');
             for(let i=1;i<4;i++)
               slab(s0+(s1-s0)*i/4-1.5, s0+(s1-s0)*i/4+1.5, sz0+4, sz1-4,
-                   -38, -42, '#6d747c'); } }
+                   -38, -42, '#6d747c');
+            slab(s0, s1, sz1-4, sz1, -36, -44, '#7d838a', '#5d646b', '#8f969d');
+            slab(s0, s0+4, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d');
+            slab(s1-4, s1, sz0, sz1, -36, -44, '#6d747c', '#5d646b', '#8f969d'); } }
       ]);
     }
     /* stoop removed at Sir's direction: the entrance is level now, and
@@ -68239,8 +68289,8 @@ function houseCanopy(fn){
     const wall = '#f0d9b0', trim = '#d9735a', H = 152, pb = 52;
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#c9b89a');   // Flats roof, over body's trim-coloured plate
+    slab(0,W, H-12, H, -1, -6, shade(wall,1.08));                     // (the frieze, then the cornice over it: W37 hung)
     slab(0,W, H, H+12, -1, -12, shade(wall,.62));
-    slab(0,W, H-12, H, -1, -6, shade(wall,1.08));
     F(14,W*0.54, 24, 100, '#5d4a3a', shade(wall,.6), 3);
     F(20,W*0.48, 32, 64, shade(wall,1.15), null,0,-1);
     shopDoor(W*0.75, wall, '#6b4a30', null, W, 0, { half:true });
@@ -68561,7 +68611,6 @@ function houseCanopy(fn){
        live, swinging in -- and from inside, the same leaves cut to the north wall's height. It was painted on the wall: nothing opened */
     { const b0 = BOFF; BOFF = b0 - (deep - 1);
       try { shopDoor(WW/2, wall, '#6e5432', 'rgba(150,180,196,.55)', WW, 0, { w: 97, h: 240, pair: true, panes: 'rgba(160,190,204,.66)', look: 'bank' }); } finally { BOFF = b0; } }
-    slab(WW/2 - 56.5, WW/2 + 56.5, 240, 254, -deep+2, -deep+10, shade(wall,.9));
     /* TWO WINDOWS, FLANKING. Four at a step of 106 put the middle pair
        on 140..196 and 246..302 against a doorway running 153.8..251 --
        both of them across the entrance -- and the fourth ran to 408
@@ -68575,6 +68624,7 @@ function houseCanopy(fn){
        lands on 318..388 -- inside the clip, and 3 clear of the door. */
     for(const [wa0,wa1] of [[40,110],[WW/2-150,WW/2-80],[WW/2+52,WW/2+122],[WW-150,WW-80]])
       F(wa0, wa1, 60, 310, '#4a5a64', shade(wall,.72), 2, -deep+1.6);
+    slab(WW/2 - 56.5, WW/2 + 56.5, 240, 254, -deep+2, -deep+10, shade(wall,.9));   // the door's head, standing forward of the windows' wall: after them (W37 back)
     ctx.restore();
 
     /* ---- the podium the order stands on ---- */
@@ -69321,7 +69371,6 @@ function houseCanopy(fn){
     const wall = '#1f2f44', trim = '#37e0d0', H = 168;
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#26364a');   // Flats roof, over body's trim-coloured plate
-    slab(0,W, H, H+12, -1, -12, shade(wall,2.0));
     F(10,W-10, 0, 120, '#0c0c14', null,0, 1);
     /* THE CABINETS WERE STANDING IN THE STREET. Five ran 26..178, then
        four, and all of them sat at b 2..22 -- OUTSIDE the glass line at
@@ -69336,6 +69385,7 @@ function houseCanopy(fn){
        is now what the head always said it was -- a black hole with one
        door in it, and the sign does all the work. cTodo is gone. */
     shopDoor(W*0.82, shade(wall,1.6), shade(wall,2.2), 'rgba(55,224,208,.30)');
+    slab(10,W-10, H-58, H-52, -1, -8, shade(wall,2.4));               // (the band under the fascia first: it hangs under it -- W37; its note below)
     slab(10,W-10, 116, 126, -1, -8, trim);
     /* THE SIGN WAS ON THE ROOF, NOT ON THE SHOP. It ran z 146..188 at a
        pitch of 15 with 12-unit blocks. The wall top is 168 and the
@@ -69367,17 +69417,21 @@ function houseCanopy(fn){
     const sign = '#e04b8a';
     const bl = [[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[2,2],[4,0],[4,1],[4,2],[5,2],[6,2],
                 [8,0],[8,1],[8,2],[9,0],[10,0],[10,1],[10,2]];
-    for(const [bx,bz] of bl){
-      const x0 = 44 + bx*12, z0 = 154 - bz*12;
-      slab(x0, x0+10, z0, z0+10, -2, -10, sign, shade(sign,.7), shade(sign,1.3));
-    }
+    /* (back to front -- W37: the bottom row first, each block under the one over it; along a row the far end first, whichever
+       end the eye sees; then the cornice, which the top row stands back under) */
+    { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      for(const [bx,bz] of bl.slice().sort((u, v) => v[1] - u[1] || (seeE ? u[0] - v[0] : v[0] - u[0]))){
+        const x0 = 44 + bx*12, z0 = 154 - bz*12;
+        slab(x0, x0+10, z0, z0+10, -2, -10, sign, shade(sign,.7), shade(sign,1.3));
+      } }
+    slab(0,W, H, H+12, -1, -12, shade(wall,2.0));
     /* MARGIN 6 AGAINST A RECESS OF 8. This band ran 6..W-6 at b -1..-8
        and landed screen-a 7..232 -- 2 past the right return, which is
        the fTodo this shop was carrying. Rule 1: the a-margin has to
        beat the recess depth. 10 leaves 2 of pier and puts it on exactly
        the same screen span as the fascia band above it, 11..228, so the
-       two now stack flush instead of one overhanging the other. */
-    slab(10,W-10, H-58, H-52, -1, -8, shade(wall,2.4));
+       two now stack flush instead of one overhanging the other. (Drawn
+       above, before the fascia it hangs under.) */
     /* THE A-BOARD IS GONE TOO. It stood at b 26..54 with its near face
        at a W*0.06 = 13.8, which is screen-a -40.2: forty units out on
        the neighbour's pavement, the worst overrun measured on this
@@ -69530,13 +69584,13 @@ function houseCanopy(fn){
     const wall = '#35555a', trim = '#c9a24a', H = 176, WW = 178;
     body(wall, trim, H, WW);
     T(0, WW, -D, 0, H+0.4, '#2c4448');   // Flats roof, over body's trim-coloured plate
-    slab(0,WW, H, H+10, -1, -12, shade(wall,.7));
     /* MARGIN 4 AGAINST A RECESS OF 10. The board ran 4..WW-4 at b -1..
        -10 and landed screen-a 5..184 on a 178 frontage -- six past the
        far return. Rule 1 again: a slab at negative b projects RIGHT by
        its own depth, so the a-margin has to beat it. Margin 12 puts it
        on 13..176 with 2 of pier at each end. */
     slab(12,WW-12, 116, H-8, -1, -10, shade(wall,1.25), null, trim);
+    slab(0,WW, H, H+10, -1, -12, shade(wall,.7));                      // the cornice, over the board (after it: W37 behind)
     /* THE LETTERING WAS BEHIND THE BOARD IT IS PAINTED ON. b -10.5
        against a board whose back face is -10 -- inside the board,
        surviving on call order alone, and gone the moment anything
@@ -70754,10 +70808,14 @@ function houseCanopy(fn){
          steps, so it gets three: cushion at 44, arms at 64, back at 88,
          and the cushion is pitched lighter than the frame rather than
          within a shade of it. */
+      /* (its parts meet face to face -- W37: the arms and the cushion from the back's face, the cushion between the arms; the
+         far arm, the cushion, the near arm, whichever end the eye sees) */
+      const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      const arm = a0 => box(a0,a0+14, -34,-14, 18, 64, '#a06a82','#8e5c73','#7c4e64');
       box(40,130, -44,-34, 18, 88, '#a06a82','#8e5c73','#7c4e64');   // back
-      box(40,54,  -40,-14, 18, 64, '#a06a82','#8e5c73','#7c4e64');   // arm
-      box(116,130,-40,-14, 18, 64, '#a06a82','#8e5c73','#7c4e64');   // arm
-      box(48,122, -38,-16, 18, 44, '#d7a2b4','#c48fa2','#ad7b8d');   // cushion
+      arm(seeE ? 40 : 116);
+      box(54,116, -34,-16, 18, 44, '#d7a2b4','#c48fa2','#ad7b8d');   // cushion
+      arm(seeE ? 116 : 40);
       box(44,84,  -42,-18, DK1, DK1+74, '#c49a68','#d3aa79','#ac855a');   // wardrobe
       F(62,66, DK1+6, DK1+68, shade(wall,1.2), null,0, -17.5);            // its door line
       cyl(112, -24, DK1, DK1+56, 2.4, '#c9ccd0');                         // standard lamp
@@ -70771,12 +70829,17 @@ function houseCanopy(fn){
 
     bay(B2[0], B2[1], () => {
       // dining set on the ground floor
+      /* (back to front -- W37: the far chair, the table, the near chair, whichever end the eye sees; a chair's back, then its
+         seat from the back's face) */
+      const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      const chair = aa => {                                               // two chairs
+        box(aa,aa+24, -36,-30, 18, 76, '#c49a68','#d3aa79','#ac855a');    // back
+        box(aa,aa+24, -30,-16, 18, 40, '#c49a68','#d3aa79','#ac855a');    // seat
+      };
+      chair(seeE ? 262 : 358);
       for(const aa of [292, 344]) box(aa,aa+8, -38,-16, 18, 46, '#ac855a','#bd956a','#997448');
       box(286,354, -42,-12, 46, 54, '#dcb489','#c8a077','#b08c66');       // table top
-      for(const aa of [262, 358]){                                        // two chairs
-        box(aa,aa+24, -36,-16, 18, 40, '#c49a68','#d3aa79','#ac855a');    // seat
-        box(aa,aa+24, -36,-30, 18, 76, '#c49a68','#d3aa79','#ac855a');    // back
-      }
+      chair(seeE ? 358 : 262);
       box(276,330, -42,-18, DK1, DK1+50, '#c49a68','#d3aa79','#ac855a');  // chest, on the deck
       for(let k=0;k<3;k++)
         F(282,324, DK1+8+k*14, DK1+18+k*14, shade('#c49a68',1.24), null,0, -17.5);
@@ -71482,31 +71545,37 @@ function houseCanopy(fn){
     slab(CA0+10, CA1-10, H+240, H+254, -298, -562, shade(wall,.72));
     F(440, 610, H+150, H+206, shade(wall,.66), null, 0, -301);      // louvre
 
-    slab(0, WW, H, H+16, -1, -16, trim);                            // cornice
     slab(0, WW, 0, 28, -1, -10, shade(wall,.68));                   // plinth
 
-    /* ---- the order: four pilasters, capped ---- */
-    for(const pa of [26, 296, 752, 1022]){
-      slab(pa-18, pa+18, 28, 394, 2, -10, shade(wall,1.12));
-      slab(pa-24, pa+24, 394, 412, 4, -12, trim);
-    }
-
-    /* ---- the flanking bays: posters below, tall windows above ----
+    /* ---- the order (four pilasters, capped), the flanking bays (posters below, tall windows above) and the name board
+       between them, ALONG THE FRONT FAR END FIRST (W37): a frame's end runs back past the pilaster beside it, so whichever
+       of the two is nearer the seen end goes second -- the eye sees +a, or mirrored -a. Then the capitals over them, then
+       the cornice over those.
        Both bays are the same composition mirrored about the centre, so
        they run off one offset rather than being written twice. */
-    for(const off of [0, 706]){
-      for(const q of [64, 166]){                                    // poster frames
-        slab(q+off, q+off+92, 70, 232, 1, -9, shade(wall,1.18), null, trim);
-        F(q+off+8, q+off+84, 80, 222, ['#c2452e','#2a5c6c'][q===64?0:1], null, 0, 1.6);
-        F(q+off+16, q+off+76, 176, 210, shade(trim,1.1), null, 0, 2);
+    { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, parts = [];
+      for(const pa of [26, 296, 752, 1022])
+        parts.push([pa, () => slab(pa-18, pa+18, 28, 394, 2, -10, shade(wall,1.12))]);
+      for(const off of [0, 706]){
+        for(const q of [64, 166])                                   // poster frames
+          parts.push([q+off+46, () => {
+            slab(q+off, q+off+92, 70, 232, 1, -9, shade(wall,1.18), null, trim);
+            F(q+off+8, q+off+84, 80, 222, ['#c2452e','#2a5c6c'][q===64?0:1], null, 0, 1.6);
+            F(q+off+16, q+off+76, 176, 210, shade(trim,1.1), null, 0, 2); }]);
+        for(const q of [59, 132, 205])                              // tall windows
+          parts.push([q+off+29, () => {
+            slab(q+off-6, q+off+64, 244, 386, 1, -11, shade(wall,1.1), null, trim);
+            reveal(q+off, q+off+58, 252, 378, 14, shade(wall,.5));
+            glaze(q+off, q+off+58, 252, 378, null, 'rgba(96,120,140,.86)');
+            F(q+off+27, q+off+31, 252, 378, shade(wall,1.1), null, 0, 1.4); }]);
       }
-      for(const q of [59, 132, 205]){                               // tall windows
-        slab(q+off-6, q+off+64, 244, 386, 1, -11, shade(wall,1.1), null, trim);
-        reveal(q+off, q+off+58, 252, 378, 14, shade(wall,.5));
-        glaze(q+off, q+off+58, 252, 378, null, 'rgba(96,120,140,.86)');
-        F(q+off+27, q+off+31, 252, 378, shade(wall,1.1), null, 0, 1.4);
-      }
+      parts.push([524, () => {                                      // the name board, over the marquee
+        slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
+        F(340, 708, 268, 326, trim, null, 0, -0.5); }]);
+      parts.sort((u, v) => seeE ? u[0] - v[0] : v[0] - u[0]).forEach(([, f]) => f());
+      for(const pa of [26, 296, 752, 1022]) slab(pa-24, pa+24, 394, 412, 4, -12, trim);
     }
+    slab(0, WW, H, H+16, -1, -16, trim);                            // cornice
 
     /* ---- the entrance: four doors, and the marquee over them ---- */
     for(const md of [398.4, 482.4, 566.4, 650.4])
@@ -71539,9 +71608,7 @@ function houseCanopy(fn){
     }
     for(let i=0;i<14;i++) ball(MA0+16+(MA1-MA0-32)*(i+0.5)/14, MB-10, 158, 5, '#ffe8a8');
 
-    /* ---- the name board, over the marquee ---- */
-    slab(318, 730, 250, 344, -1, -10, shade(wall,1.2), null, trim);
-    F(340, 708, 268, 326, trim, null, 0, -0.5);
+    /* ---- the name board, over the marquee: drawn with the order, above ---- */
 
     /* ONLY THE SEEN END IS DRESSED, and after body(). Both flanks were
        drawn unconditionally -- the a = 0 one before body(), the a = WW one
@@ -71720,7 +71787,6 @@ function houseCanopy(fn){
         T(x0+8+(x1-x0-16)*k/5, x0+8+(x1-x0-16)*(k+0.55)/5, 12, 40, 0.8, shade(trim,.82));
     }
 
-    slab(0, WW, H, H+14, -1, -16, trim);                // cornice
     slab(0, WW, 0, 26, -1, -10, shade(wall,.70));       // plinth
 
     /* ---- three appliance bays ---- */
@@ -71745,6 +71811,7 @@ function houseCanopy(fn){
       glaze(w0, w0+48, 270, 322, null, 'rgba(96,120,140,.86)');
       F(w0+22, w0+26, 270, 322, shade(wall,1.1), null, 0, 1.4);
     }
+    slab(0, WW, H, H+14, -1, -16, trim);                // cornice (after the windows under it: W37 behind)
 
     /* ---- the drill tower ----
        WHICH END OF IT EXISTS is asked rather than asserted, the same
@@ -71924,13 +71991,16 @@ function houseCanopy(fn){
 
     /* ---- the floor lines, and two floors of flats ---- */
     for(const fz of [176, 344]) slab(0, W, fz, fz+10, -1, -8, shade(wall,1.1));
-    for(const fz of [206, 374]) for(const c of [45, 115, 185]){
+    /* (W37: a window's cill first, its surround standing on it after; the windows far end first -- a surround's end runs back
+       past the next cill -- the eye sees +a, or mirrored -a) */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+    for(const fz of [206, 374]) for(const c of seeE ? [45, 115, 185] : [185, 115, 45]){
+      slab(c-32, c+32, fz-12, fz-6, 4, -8, shade(wall,.9));            // cill
       slab(c-32, c+32, fz-6, fz+106, 1, -11, shade(wall,1.15), null, trim);
       reveal(c-26, c+26, fz, fz+100, 14, shade(wall,.44));
       glaze(c-26, c+26, fz, fz+100, null, 'rgba(112,132,140,.80)');
       F(c-2, c+2, fz, fz+100, shade(wall,1.15), null,0, 1.4);          // meeting rail stile
       F(c-26, c+26, fz+48, fz+54, shade(wall,1.15), null,0, 1.4);      // meeting rail
-      slab(c-32, c+32, fz-12, fz-6, 4, -8, shade(wall,.9));            // cill
     }
 
     if(state.props){
@@ -72057,7 +72127,6 @@ function houseCanopy(fn){
     const BAYS = [[16,170],[186,340],[438,592]];
     body(wall, trim, H, WW, DD);
     T(0, WW, -DD, 0, H+0.4, '#3f555c');                 // roof, over body's near-white plate
-    slab(0, WW, H, H+14, -1, -16, shade(wall,.7));      // cornice
     slab(0, WW, 0, 24, -1, -10, shade(wall,.62));       // plinth
 
     /* ---- three deep bays, with the stock inside them ----
@@ -72131,6 +72200,7 @@ function houseCanopy(fn){
       glaze(c-32, c+32, 254, 320, null, 'rgba(120,116,132,.82)');
       F(c-2, c+2, 254, 320, shade(wall,1.1), null,0, 1.4);
     }
+    slab(0, WW, H, H+14, -1, -16, shade(wall,.7));      // cornice (after the windows under it: W37 behind)
 
     /* ---- the awning over the forecourt ----
        It reaches b 52, so it swings 52 each way between mirrored edges:
@@ -73102,10 +73172,10 @@ function houseCanopy(fn){
     if(state.props){
       /* the beer garden: picnic tables down the left arm, a planter at
          each end of the run */
-      const table = (ta, tb) => {
+      const table = (ta, tb) => {                                  // (the legs first, the benches and the top they hold after: W37 foot)
+        for(const la of [ta-36, ta+36]) box(la-3, la+3, tb-30, tb+30, 0, 40, '#6b5540','#5c4836','#4a3a2a');
         for(const d of [-34, 34]) slab(ta-40, ta+40, 22, 28, tb+d+10, tb+d-10, '#8a6f4e', null, shade('#8a6f4e',1.2));
         slab(ta-48, ta+48, 40, 46, tb+22, tb-22, '#9a7f5a', null, shade('#9a7f5a',1.2));
-        for(const la of [ta-36, ta+36]) box(la-3, la+3, tb-30, tb+30, 0, 40, '#6b5540','#5c4836','#4a3a2a');
       };
       for(let r=0;r<4;r++) for(const ta of [110, 240]) items.push({ a: ta, b: -120 - r*130, draw: () => table(ta, -120 - r*130) });
       for(const pb of [-70, -640]) items.push({ a: 175, b: pb, draw: () => {
@@ -73607,6 +73677,7 @@ function houseCanopy(fn){
        the depth of what stands in it, which is the rule the Pottery
        shelves were re-set out on. */
     slab(30, 234, 26, 32, -8, -30, shade(wall,.86), null, shade(wall,.96));
+    box(56, 140, -24,-10, 26, 40, '#6a6a6e','#7a7a7e','#5a5a5e');     // the bench (under the lowest tier: before it, W37)
     for(let r=0;r<4;r++){
       const z = 46 + r*26;
       slab(38, 226, z-4, z, -14, -30, shade(wall,.78), null, shade(wall,.94));
@@ -73615,7 +73686,6 @@ function houseCanopy(fn){
         sneaker(46 + i*23, z, 0.2, -20, col, col === '#e0e0dc' ? '#9a9a9e' : inner);
       }
     }
-    box(56, 140, -24,-10, 26, 40, '#6a6a6e','#7a7a7e','#5a5a5e');     // the bench
     /* NO GRAPHIC PANEL. There was a red board on the back wall at
        z 100..150, and the shelf tiers run to 124 -- so three quarters of
        it was behind the stock and what showed was an L of red poking
@@ -73795,10 +73865,11 @@ function houseCanopy(fn){
     const BA0 = 96, BA1 = 300, FB = 0, BB = -296;      // the shop, mid-plot, on the line
     const YW0 = 20, YW1 = WW - 20, YBK = -DD + 20;      // the yard round it
     const FH = 46;
-    const yWall = (a0,a1,b0,b1) => {
-      box(a0, a1, b0, b1, 0, FH, shade(wall,.86), shade(wall,.64), shade(wall,.52));
-      slab(a0-3, a1+3, FH, FH+7, b1+3, b0-3, shade(wall,1.08), null, shade(wall,1.22));
-    };
+    /* a run of the yard wall and its coping (3 proud of it all round). The corners belong to the arms: the back run stops at
+       their faces and its coping at theirs, so the runs meet face to face (W37 inside) */
+    const yBox = (a0,a1,b0,b1) => box(a0, a1, b0, b1, 0, FH, shade(wall,.86), shade(wall,.64), shade(wall,.52));
+    const yCap = (a0,a1,b0,b1) => slab(a0, a1, FH, FH+7, b1, b0, shade(wall,1.08), null, shade(wall,1.22));
+    const yWall = (a0,a1,b0,b1) => { yBox(a0, a1, b0, b1); yCap(a0-3, a1+3, b0-3, b1+3); };
 
     /* ---- ground, and the far half of the perimeter ----
        Only the back and the far arm go before the building. The near
@@ -73809,8 +73880,13 @@ function houseCanopy(fn){
        was drawn with the back wall. */
     T(0, WW, -DD, 0, 0.4, '#cfc6b2');
     T(YW0, YW1, YBK, -12, 0.6, '#b8ae98');
-    yWall(YW0, YW1, YBK, YBK+12);
-    yWall(YW0, YW0+12, YBK, -12);
+    /* (the back run and the far arm: both walls, then both copings on them -- W37 foot -- the two meeting along a, so the far
+       one first, whichever end the eye sees) */
+    { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      const back = [() => yBox(YW0+12, YW1-12, YBK, YBK+12), () => yCap(YW0+15, YW1-15, YBK-3, YBK+15)];
+      const arm = [() => yBox(YW0, YW0+12, YBK, -12), () => yCap(YW0-3, YW0+15, YBK-3, -9)];
+      const [f, n] = seeE ? [arm, back] : [back, arm];
+      f[0](); n[0](); f[1](); n[1](); }
 
     /* ---- stock on the back run, before the building ---- */
     for(let k=0;k<4;k++)
@@ -74449,7 +74525,6 @@ function houseCanopy(fn){
     const inner = '#3a3040', floor = '#b49a7a';
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#93b3b0');                   // roof, over body's pale plate
-    slab(0, W, H, H+12, 4, 0, trim);                    // cornice
 
     /* ---- the lobby, and the stair inside it ---- */
     slab(0, W, 0, 130, 4, 0, shade(wall,1.06), null, trim);
@@ -74519,6 +74594,7 @@ function houseCanopy(fn){
     for(let k=1;k<5;k++)
       F(16 + (W-32)*k/5 - 3, 16 + (W-32)*k/5 + 3, 190, 312, shade(wall,.8), null,0, 0.8);
     F(16, W-16, 248, 254, shade(wall,.8), null,0, 0.8);
+    slab(0, W, H, H+12, 4, 0, trim);                    // cornice (after the studio window under it: W37 behind)
 
     if(state.roof) box(W*0.26,W*0.52,-150,-110,H,H+22,'#8f969d','#787f86','#697077');
     kerb(p,'none');
@@ -75282,16 +75358,17 @@ function houseCanopy(fn){
         for(let k=0;k<4;k++) ball(pa + 10*s*Math.cos(k*1.57+0.4), pb + 10*s*Math.sin(k*1.57+0.4), 34*s, 11*s, col);
       };
       for(let r=0;r<3;r++){                                                  // staging, far to near
-        const bb = GB1 + 90 + r*110;
-        slab(GA0+26, GA1-26, 40, 48, bb+24, bb-24, '#8a6f4e', null, shade('#8a6f4e',1.18));
+        const bb = GB1 + 90 + r*110;                                         // (under each top first, the top over them: W37 hung)
         for(const la of [GA0+40, GA0+110, GA1-40]) cyl(la, bb, 0, 40, 6, shade('#8a6f4e',.8));
         for(let i=0;i<6;i++)
           plant(GA0+42 + i*34, bb, 0.62, ['#4e8058','#3f6b4a','#c26a7e','#e8c34a','#6b9a52','#b4674a'][i]);
+        if(r === 2)
+          for(let i=0;i<3;i++)                                                // bagged compost, under the near staging
+            for(let k=0;k<3;k++)
+              box(GA0+30+i*72, GA0+92+i*72, GB0-60, GB0-14, k*15, k*15+15,
+                  '#5a5348','#6b6355','#4a443b');
+        slab(GA0+26, GA1-26, 40, 48, bb+24, bb-24, '#8a6f4e', null, shade('#8a6f4e',1.18));
       }
-      for(let i=0;i<3;i++)                                                    // bagged compost
-        for(let k=0;k<3;k++)
-          box(GA0+30+i*72, GA0+92+i*72, GB0-60, GB0-14, k*15, k*15+15,
-              '#5a5348','#6b6355','#4a443b');
     }
     for(let k=0;k<7;k++)                                                     // shade lattice overhead
       tube(GA0+8, GB1+14+k*(GB0-GB1-28)/6, GH, GA1-8, GB1+14+k*(GB0-GB1-28)/6, GH, 2, shade(wall,.86));
@@ -75950,9 +76027,14 @@ function houseCanopy(fn){
       const N = M.bayN[2], bw = (M.bayN[1] - M.bayN[0])/N;
       for(let k = 0; k < N; k++){ const u0 = M.bayN[0] + bw*k, u1 = u0 + bw; if(u0 < a0 - 0.5 || u1 > a1 + 0.5) continue; room(true, u0, u1, k, 0); room(true, u0, u1, k + 1, GZ + 8); }
       /* the parapet: a turquoise band along the front, a rim on the roof's other edges */
+      /* (back to front and meeting face to face -- W37: the back rim first, stopping at the east end's rim; the east rim up to
+         the front band's back; the band last. The back rim and the east rim meet along a: the far one first, whichever end is seen) */
+      { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+        const backRim = () => box(a0 - e0, last ? a1 - 8 : a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
+        if(!last || seeE) backRim();
+        if(last) box(a1 - 8, a1, M.N.b0, M.N.b1 - 8, RZ, PZ, shade(trim, 1.2), trim, trimD);
+        if(last && !seeE) backRim(); }
       box(a0 - e0, a1 + e1, M.N.b1 - 8, M.N.b1 + 2, RZ, PZ, shade(trim, 1.2), trim, trimD);
-      box(a0 - e0, a1 + e1, M.N.b0, M.N.b0 + 8, RZ, PZ - 4, shade(wall, 1.04), wallS, wallD);
-      if(last) box(a1 - 8, a1, M.N.b0, M.N.b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
       if(state.roof && first) for(const [ra, rb] of [[200, -1520], [380, -1480]]) box(ra - 26, ra + 26, rb - 18, rb + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
       if(state.roof && !first && !last) box(760 - 26, 760 + 26, -1520 - 18, -1520 + 18, RZ, RZ + 22, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
     }});
@@ -75974,9 +76056,13 @@ function houseCanopy(fn){
       T(M.W.a0, M.W.a1, b0 - e0, b1 + e1, RZ, roofc);
       const N = M.bayW[2], bw = (M.bayW[1] - M.bayW[0])/N;
       for(let k = 0; k < N; k++){ const u0 = M.bayW[0] + bw*k, u1 = u0 + bw; if(u0 < b0 - 0.5 || u1 > b1 + 0.5) continue; room(false, u0, u1, k + 3, 0); room(false, u0, u1, k + 4, GZ + 8); }
-      box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
-      box(M.W.a0, M.W.a0 + 8, b0 - e0, b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
-      if(last) box(M.W.a0, M.W.a1, b1 - 8, b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
+      /* (back to front and meeting face to face -- W37: the back rim first, stopping at the south end's rim; the south rim up to
+         the front band's back, the two meeting along a: the far one first, whichever end is seen) */
+      box(M.W.a0, M.W.a0 + 8, b0 - e0, last ? b1 - 8 : b1 + e1, RZ, PZ - 4, shade(wall, 1.04), wallD, wallS);
+      { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, southRim = () => box(M.W.a0, M.W.a1 - 8, b1 - 8, b1, RZ, PZ, shade(trim, 1.2), trim, trimD);
+        if(last && seeE) southRim();
+        box(M.W.a1 - 8, M.W.a1 + 2, b0 - e0, b1 + e1, RZ, PZ, shade(trim, 1.2), shade(trim, 0.9), trim);
+        if(last && !seeE) southRim(); }
     }});
     wTile(M.W.b0, -1012, true, false); wTile(-1012, M.W.b1, false, true);
 
@@ -76082,7 +76168,7 @@ function houseCanopy(fn){
           poly(pts, q.col); for(let i = 0; i < 16; i += 2){ const t0 = i/16*Math.PI*2, t1 = (i + 1)/16*Math.PI*2;
             poly([P(q.a, q.b, 98), P(q.a + Math.cos(t0)*44, q.b + Math.sin(t0)*44, 82), P(q.a + Math.cos(t1)*44, q.b + Math.sin(t1)*44, 82)], '#f6f4ee'); } }
         else if(q.kind === 'ladder'){ for(const d of [-12, 12]) tube(q.a + d, q.b + 6, 0, q.a + d, q.b - 6, 36, 1.6, steel); }
-        else if(q.kind === 'board'){ box(q.a - q.w/2, q.a + q.w/2, q.b - 6, q.b + 6, 12, 16, '#f2efe6', '#2f9e9a', '#237774'); box(q.a + q.w/2 - 16, q.a + q.w/2, q.b - 8, q.b + 8, 0, 12, '#d7d2c4', '#bcb6a6', '#a8a292'); }
+        else if(q.kind === 'board'){ box(q.a + q.w/2 - 16, q.a + q.w/2, q.b - 8, q.b + 8, 0, 12, '#d7d2c4', '#bcb6a6', '#a8a292'); box(q.a - q.w/2, q.a + q.w/2, q.b - 6, q.b + 6, 12, 16, '#f2efe6', '#2f9e9a', '#237774'); }   // (its stand, then the board on it: W37 foot)
       }});
     }
     /* THE POOL'S FENCE, in runs: steel posts, two rails, pickets; open at its gate */
@@ -76188,7 +76274,7 @@ function houseCanopy(fn){
       poly(ktdeOutline(10).map(([a, b]) => P(a, b, RZ)), roofc);
       if(state.roof) for(const [ra, rb] of [[1000, -1200], [1150, -1250], [400, -1300], [1200, -600]]) box(ra - 30, ra + 30, rb - 20, rb + 20, RZ, RZ + 24, shade(roofc, 1.3), shade(roofc, 1.08), shade(roofc, 0.9));
       box(B.a0, B.a1, B.b0, B.b0 + 8, RZ, PZ, shade(wall, 1.04), wallS, wallS);          // the back rim
-      box(B.a0, B.a0 + 8, B.b0, B.b1, RZ, PZ, shade(wall, 1.04), wallS, wallS);          // the west rim
+      box(B.a0, B.a0 + 8, B.b0 + 8, B.b1, RZ, PZ, shade(wall, 1.04), wallS, wallS);      // the west rim (from the back rim's face: W37 inside)
       band(RZ, PZ, wall, 0, B.a0, B.b0);
       band(PZ - 4, PZ, teal, 0.3, B.a0, B.b0);                                          // its teal coping
       /* the coping's top, round the corner */
@@ -77109,13 +77195,6 @@ function houseCanopy(fn){
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#8f969a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -16, shade(wall,.72));                    // cornice, may wrap
-    slab(0,W, H-16, H, 3, 0, shade(wall,1.10), null, shade(wall,1.2));
-    /* the string courses run 0..W because the terrace bounds them, and
-       they are PROUD -- bFront 3, bBack 0 -- so there is no recess to
-       overrun. The fTodo was three of them at -7 landing 7 past the
-       return, plus the frieze at -10. */
-    for(const cv of [140, 250, 350])
-      slab(0,W, cv, cv+10, 3, 0, shade(wall,.86), null, shade(wall,1.14));
 
     /* ---- the sashes: three ranks, real reveals, stone cills ---- */
     for(let fl=0; fl<3; fl++){
@@ -77146,6 +77225,14 @@ function houseCanopy(fn){
     shopDoor(DMID, wall, trim);
     slab(DMID-52, DMID+52, 122, 140, 6, -1, shade(wall,1.08), null, shade(wall,1.22));
     F(DMID-44, DMID+44, 126, 136, shade(wall,.62), null, 0, 6.5);
+    slab(0,W, H-16, H, 3, 0, shade(wall,1.10), null, shade(wall,1.2));
+    /* the string courses run 0..W because the terrace bounds them, and
+       they are PROUD -- bFront 3, bBack 0 -- so there is no recess to
+       overrun. The fTodo was three of them at -7 landing 7 past the
+       return, plus the frieze at -10. After the heads and the entablature
+       under them, the top rank's heads running up into the band (W37). */
+    for(const cv of [140, 250, 350])
+      slab(0,W, cv, cv+10, 3, 0, shade(wall,.86), null, shade(wall,1.14));
 
     if(state.props){
       /* brass, PROUD of the pier -- bFront 5, bBack 0 -- and on the pier,
@@ -77485,16 +77572,19 @@ function houseCanopy(fn){
     /* the piers are PROUD -- bFront 4, bBack 0 -- so there is no recess
        to overrun, and the outer two sit inside the frontage instead of
        four past it. */
-    for(const [x0,x1] of PIERS)
-      slab(x0, x1, 0, H, 4, 0, shade(wall,1.10), null, shade(wall,1.24));
-    for(const cv of [160, 310])
-      slab(0,W, cv, cv+12, 3, 0, shade(wall,.80), null, shade(wall,1.06));
+    /* the piers far end first, the way in's surround (proud of them) after the pier on its far side and before the one on its
+       near side: its seen end return runs back past that pier's face (W37 behind; the eye sees +a or, mirrored, -a) */
+    { const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      for(const k of seeE ? [0, 1, 2, 3] : [3, 2, 1, 0]){ const [x0,x1] = PIERS[k];
+        slab(x0, x1, 0, H, 4, 0, shade(wall,1.10), null, shade(wall,1.24));
+        if(k === (seeE ? 2 : 3)) slab(BAYS[2][0], BAYS[2][1], 0, 126, 5, -1, shade(wall,.86), null, shade(wall,1.1)); } }
 
     for(let fl=0; fl<3; fl++){
       const z0 = [24, 184, 334][fl], z1 = z0 + 116;
+      if(fl)                                                          // the course: after the heads under it, before the cills over it (W37)
+        slab(0,W, [160, 310][fl-1], [160, 310][fl-1]+12, 3, 0, shade(wall,.80), null, shade(wall,1.06));
       BAYS.forEach(([x0,x1], i) => {
         if(fl === 0 && i === 2){                                      // the way in
-          slab(x0, x1, 0, 126, 5, -1, shade(wall,.86), null, shade(wall,1.1));
           shopDoor(DMID, wall, trim);
           return;
         }
@@ -77502,10 +77592,14 @@ function houseCanopy(fn){
           /* a loading door: a real recess with the leaf standing IN it,
              not a surround painted in front of a leaf behind it */
           reveal(x0, x1, z0, z1, 12, shade(wall,.42));
+          ctx.save();                                                 // (seen only through the opening, as reveal()'s plate: its
+          poly([P(x0,0,z1),P(x1,0,z1),P(x1,0,z0),P(x0,0,z0)]);       //  end and top, set back, would show past it over the pier -- W37)
+          ctx.clip();
           slab(x0+3, x1-3, z0+2, z1-2, -3, -11, '#6a5442', shade(trim,1.2));
           for(let k=0;k<6;k++)
             F(x0+7, x1-7, z0+8+k*18, z0+14+k*18, '#7c644e', null, 0, -2.5);
           F((x0+x1)/2-2.4, (x0+x1)/2+2.4, z0+2, z1-2, trim, null, 0, -2.4);
+          ctx.restore();
           slab(x0-6, x1+6, z1, z1+10, 5, -1, shade(wall,1.02));       // lintel
           for(const ha2 of [x0+10, x1-10])                            // hinge straps
             F(ha2-2, ha2+2, z0+10, z1-10, shade(trim,1.4), null, 0, -2.3);
@@ -77597,7 +77691,6 @@ function houseCanopy(fn){
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#9da6a4');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+14, -1, -16, shade(wall,.74));                    // cornice, may wrap
-    slab(0,W, 142, 154, 3, 0, shade(wall,.86), null, shade(wall,1.12));
     slab(0,W, H-20, H, 3, 0, shade(wall,1.04), null, shade(wall,1.16));
 
     /* ---- the ground floor: two windows and the doorcase ---- */
@@ -77614,6 +77707,7 @@ function houseCanopy(fn){
     shopDoor(DMID, wall, trim);
     slab(S0-20, S1+20, 120, 142, 7, -1, shade(wall,1.10), null, shade(wall,1.24));
     F(S0-10, S1+10, 126, 137, shade(wall,.58), null, 0, 7.5);          // the name, on the frieze
+    slab(0,W, 142, 154, 3, 0, shade(wall,.86), null, shade(wall,1.12));   // (the string course stands on the frieze: after it, W37 foot)
     /* THE PLAQUE IS GONE at Sir's direction -- and it was also wrong
        where it stood: a 170.12..186.12 is inside the right ground
        window's 160..216, so a bronze panel was screwed across its glass.
@@ -78015,15 +78109,6 @@ marinaEntry(),
        cream lid -- fine on a stone shopfront, wrong here. */
     T(0, WW, -DD, 0, H+0.4, shade(wall,1.06));
     slab(0,WW, H, H+12, -1, -14, shade(wall,1.35));
-    for(const cv of [160, 290])
-      slab(0,WW, cv, cv+10, 3, 0, shade(wall,1.5), null, shade(wall,1.7));
-
-    /* ---- the headline band: above the door's surround top at 114.95 ---- */
-    F(4,WW-4, 124, 156, '#15181e', null,0, -1);
-    slab(4,WW-4, 120, 124, 4, -1, shade(wall,1.5));
-    slab(4,WW-4, 156, 160, 4, -1, shade(wall,1.5));
-    for(let i=0;i<24;i++)
-      F(12+i*((WW-24)/24), 12+(i+0.7)*((WW-24)/24), 132, 148, '#e8c34a', null,0,-1.5);
 
     /* ---- two ranks of windows ---- */
     for(let fl=0; fl<2; fl++){
@@ -78054,6 +78139,16 @@ marinaEntry(),
       slab(BAY[0]-7, BAY[1]+7, 110, 120, 5, -1, '#c2452e', null, shade('#c2452e',1.2));
       F(BAY[0]+14, BAY[1]-14, 0, 4, '#2b3138', null, 0, 1.2);          // the threshold plate
     }
+
+    /* ---- the headline band: above the door's surround top at 114.95; after the ground's heads
+       that hang under it, before the cornice course that stands on it -- W37 ---- */
+    F(4,WW-4, 124, 156, '#15181e', null,0, -1);
+    slab(4,WW-4, 120, 124, 4, -1, shade(wall,1.5));
+    slab(4,WW-4, 156, 160, 4, -1, shade(wall,1.5));
+    for(let i=0;i<24;i++)
+      F(12+i*((WW-24)/24), 12+(i+0.7)*((WW-24)/24), 132, 148, '#e8c34a', null,0,-1.5);
+    for(const cv of [160, 290])
+      slab(0,WW, cv, cv+10, 3, 0, shade(wall,1.5), null, shade(wall,1.7));
 
     if(state.props){
       /* THE CLOCK, round and proud. r 15 in a needs r 10 in z, because
@@ -78187,11 +78282,10 @@ marinaEntry(),
     body(wall, trim, H);
     T(0, W, -D, 0, H+0.4, '#8f969a');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+12, -1, -14, shade(wall,.7));
-    slab(0,W, H-18, H, 4, 0, shade(wall,1.1), null, shade(wall,1.22));
     for(const cv of [180, 310])
       slab(0,W, cv, cv+10, 3, 0, shade(wall,.88), null, shade(wall,1.1));
 
-    /* ---- two ranks over ---- */
+    /* ---- two ranks over (before the cornice band: the top rank's heads hang under it -- W37 hung) ---- */
     for(let fl=0; fl<2; fl++){
       const z0 = 210 + fl*130;
       for(let i=0;i<4;i++){
@@ -78204,6 +78298,7 @@ marinaEntry(),
         slab(x0-5, x1+5, z0+84, z0+91, 4, -1, shade(wall,1.04));
       }
     }
+    slab(0,W, H-18, H, 4, 0, shade(wall,1.1), null, shade(wall,1.22));
 
     /* ---- the ground: barred windows, then the doorcase ---- */
     for(const [x0,x1] of [[14, 66], [164, 216]]){
@@ -78215,9 +78310,15 @@ marinaEntry(),
       tube(x0+2, -2, 75, x1-2, -2, 75, 1.5, '#2b3138');
       slab(x0-5, x1+5, 118, 126, 4, -1, shade(wall,1.04));
     }
+    shopDoor(DMID, wall, trim);
+    if(state.props){
+      /* the entrance steps, on the line and under the doorcase (before the pilasters beside them: their ends run back
+         past the pilasters' faces -- W37 behind) */
+      box(78, 152, 0, 22, 0, 10, shade(wall,1.02), shade(wall,.86), shade(wall,.76));
+      box(84, 146, 0, 15, 10, 20, shade(wall,1.04), shade(wall,.88), shade(wall,.78));
+    }
     for(const pa of [S0-16, S1+2])                             // doorcase pilasters
       slab(pa, pa+14, 10, 124, 6, -1, shade(wall,1.08), null, shade(wall,1.2));
-    shopDoor(DMID, wall, trim);
 
     /* ---- THE CHEQUER BAND, which is what actually says police ----
        A small lamp high up and a blank dark board told you nothing at a
@@ -78246,11 +78347,7 @@ marinaEntry(),
        entrance steps, and nothing on this building projects above head
        height at all. */
 
-    if(state.props){
-      /* the entrance steps, on the line and under the doorcase */
-      box(78, 152, 0, 22, 0, 10, shade(wall,1.02), shade(wall,.86), shade(wall,.76));
-      box(84, 146, 0, 15, 10, 20, shade(wall,1.04), shade(wall,.88), shade(wall,.78));
-    }
+    /* (the entrance steps: drawn with the doorcase, above) */
     if(state.roof){
       box(W*0.56,W*0.84,-160,-116,H,H+26,'#8f969d','#787f86','#697077');
       box(W*0.22, W*0.30, -78, -62, H+12, H+18, '#9aa0a6','#8d949a','#7d848a');
@@ -79460,8 +79557,8 @@ marinaEntry(),
       const pl = (pts, fill, stroke, lw) => poly(pts.map(([u, z, off]) => pt(u, z, off)), fill, stroke, lw);
       const r = (u0, u1, z0, z1, fill, off, stroke, lw) => pl([[u0, z1, off], [u1, z1, off], [u1, z0, off], [u0, z0, off]], fill, stroke, lw);
       /* a box standing out from the face by d */
-      const proj = (u0, u1, d, z0, z1, top, front, side) => {
-        const q0 = plane, q1 = plane + nrm*d, lo = Math.min(q0, q1), hi = Math.max(q0, q1);
+      const proj = (u0, u1, d, z0, z1, top, front, side, d0) => {                                       // (d0: where it starts out from the face, when it stands on a skin of that depth -- W37: meet it, never run into it)
+        const q0 = plane + nrm*(d0 || 0), q1 = plane + nrm*d, lo = Math.min(q0, q1), hi = Math.max(q0, q1);
         if(kind === 'b') box(u0, u1, lo, hi, z0, z1, top, front, side); else box(lo, hi, u0, u1, z0, z1, top, front, side);
       };
       const circ = (u, z, rad, fill, off) => { if(kind === 'b') faceCircle(u, plane + nrm*(off || 0), z, rad, fill); };
@@ -79499,7 +79596,7 @@ marinaEntry(),
       cyl(lp[0], lp[1], cr - 52, cr - 34, 5, '#f3dca0'); cyl(lp[0], lp[1], cr - 56, cr - 52, 6.5, iron);
     };
     /* ---------- THE PARTS OF A FRONT ---------- */
-    const window2 = (fc, c, ww, z0, z1, shutters, see) => {
+    const window2 = (fc, c, ww, z0, z1, shutters, see, wbw) => {         // (wbw: the width of the flower box under it, whose back half goes in under the cill first)
       const hw = ww/2;
       fc.r(c - hw - 7, c + hw + 7, z0 - 7, z1 + 9, shade(stone, 1.12), 0.2);                               // the stone surround
       if(see && SEE){                                                                                      // (a walk-in's: the opening a hole, the room under it, W11; the glass a tint)
@@ -79513,12 +79610,16 @@ marinaEntry(),
       fc.r(c - hw + 3, c + hw - 3, (z0 + z1)/2 - 1.6, (z0 + z1)/2 + 1.6, trim, 1.1);                        // transom
       fc.r(c - hw - 9, c + hw + 9, z1 + 3, z1 + 11, stone, 1.3);                                           // the lintel...
       fc.r(c - 7, c + 7, z1 + 3, z1 + 15, shade(stone, 1.2), 1.5);                                         // ...and its keystone
+      if(wbw) windowBox(fc, c, wbw, z0, 'back');                                                          // (W37: the box's back, in under the cill, before it)
       fc.proj(c - hw - 10, c + hw + 10, 9, z0 - 10, z0 - 2, shade(stone, 1.1), stone, stoneD);             // the cill
       if(shutters) for(const s of [-1, 1]){ const u0 = s < 0 ? c - hw - 22 : c + hw + 6; fc.r(u0, u0 + 16, z0, z1, trim, 0.9, trimD, 1);
         for(let zz = z0 + 6; zz < z1; zz += 7) fc.r(u0 + 2, u0 + 14, zz, zz + 2.2, trimD, 1.0); }
     };
-    const windowBox = (fc, c, ww, z) => {                                                                  // a box of flowers under a window
-      fc.proj(c - ww/2 - 8, c + ww/2 + 8, 14, z - 22, z - 6, '#7a4c34', '#8c5a3e', '#5f3a28');
+    const windowBox = (fc, c, ww, z, part) => {                                                            // a box of flowers under a window
+      /* W37: the cill (9 out, its bottom at z - 10) sits in the box's back: the back up to the cill's bottom, drawn before the
+         cill (part 'back', from window2), then the front beyond the cill's face, up to the box's top */
+      if(part === 'back'){ fc.proj(c - ww/2 - 8, c + ww/2 + 8, 9, z - 22, z - 10, '#7a4c34', '#8c5a3e', '#5f3a28'); return; }
+      fc.proj(c - ww/2 - 8, c + ww/2 + 8, 14, z - 22, z - 6, '#7a4c34', '#8c5a3e', '#5f3a28', 9);
       const cols = ['#d94f6a', '#f2c94c', '#f7f2e4', '#e6683c'];
       for(let k = 0; k < 7; k++){ const u = c - ww/2 - 4 + k*(ww + 8)/6; fc.r(u - 3, u + 3, z - 6, z + 3 + (k % 2)*3, k % 3 === 1 ? leaf2 : cols[k % 4], 1.2); }
     };
@@ -79540,10 +79641,10 @@ marinaEntry(),
       headed(fc, c, 22, 108, 112, 18, 'rgba(176,208,222,.78)', 1.1);                                       // the fanlight
       }
       if(!see){                                                                                             // (a walk-in's door: the step and the hood stand apart -- doorStepHood below -- so nothing in front widens the wall's footprint and sorts it over him at the glass)
-      fc.proj(c - 52, c + 52, 22, 0, 6, shade(stone, 1.12), stone, stoneD);                                // the step
-      /* the hood over it, on two brackets */
-      fc.proj(c - 52, c + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
+      fc.proj(c - 52, c + 52, 22, 0, 6, shade(stone, 1.12), stone, stoneD, 4);                             // the step, off the plinth's face (W37)
+      /* the hood over it, on two brackets (the brackets first: they hang under it, W37) */
       for(const s of [-1, 1]) fc.proj(c + s*42 - 3, c + s*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);
+      fc.proj(c - 52, c + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
       }
       fc.r(c + (flip ? 52 : -52) - 4, c + (flip ? 52 : -52) + 4, 100, 128, '#f3dca0', 1.4, iron, 1);       // its lantern
     };
@@ -79551,7 +79652,7 @@ marinaEntry(),
     const dwelling = (fc, x0, x1, flip, see) => {
       const c = (x0 + x1)/2, w = x1 - x0, s = flip ? -1 : 1;
       doorway(fc, c - s*w*0.2, flip, see);
-      window2(fc, c + s*w*0.24, 56, 54, 130, true, see);
+      window2(fc, c + s*w*0.24, 56, 54, 130, true, see, 56);
       windowBox(fc, c + s*w*0.24, 56, 54);
     };
     /* a roof dormer on a gable range's visible slope, at u along it */
@@ -79654,7 +79755,8 @@ marinaEntry(),
       /* THE LEDGES ARE THIN SKINS ON THE TWO FACES THE CAMERA SEES, never whole boxes: a box's flat top is the tower's full
          footprint, and painted after the wall it laid a grey slab over the face (the doors and windows sat on that) */
       const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
-      const ledge = (z0, z1, out, top, front, side) => { fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); fcA.proj(b0 - out, b1 + out, out, z0, z1, top, front, side); };
+      /* (the side face's ledge first, up to the front one's back: the front one stands south of it and takes the corner, W37) */
+      const ledge = (z0, z1, out, top, front, side) => { fcA.proj(b0 - out, b1, out, z0, z1, top, front, side); fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); };
       ledge(0, 34, 4, shade(stone, 1.06), stone, stoneD);
       ledge(196, 206, 3, shade(stone, 1.1), stone, stoneD);
       box(a0 - 5, a1 + 5, b0 - 5, b1 + 5, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);
@@ -79663,15 +79765,15 @@ marinaEntry(),
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
           const lowOuter = a0 === CA0;                                  // (the free corner is the building's outer edge, whichever side that is on the screen: never the edge against the range)
           f.r(lowOuter ? a0 : a1 - w, lowOuter ? a0 + w : a1, z, z + 22, shade(stone, 1.04), 0.3, stoneD, 0.8); }
-        window2(f, cA, 52, 232, 318, false);
-        if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true);
+        window2(f, cA, 52, 232, 318, false, undefined, door2 ? 56 : 0);
+        if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true, undefined, 56);
         windowBox(f, cA, 56, door2 ? 232 : 62);
       }
       if(extA){ const f = FC('a', sa > 0 ? a1 : a0, sa);
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
           f.r(b1 - w, b1, z, z + 22, shade(stone, 1.0), 0.3, stoneD, 0.8); }
         window2(f, cB, 52, 232, 318, false);
-        window2(f, cB, 56, 62, 142, true); windowBox(f, cB, 56, 62);
+        window2(f, cB, 56, 62, 142, true, undefined, 56); windowBox(f, cB, 56, 62);
       }
       /* the hipped roof, its four faces, far two first */
       const rb = TH, pk = TH + 138, ov = 2, ap = [cA, cB, pk];
@@ -79710,8 +79812,8 @@ marinaEntry(),
         const dc = (x0 + x1)/2 + (x1 - x0)*0.2;
         it(dc, CB1 + 11, () => { T(dc - 52, dc + 52, CB1, CB1 + 22, 0.5, shade(stone, 1.12)); T(dc - 52, dc + 52, CB1 + 19, CB1 + 22, 0.7, stone); }, 0, true);
         it(dc, CB1 + 18, () => { const fc = RG('a', x0, x1, CB1 - RD, CB1).fc;
-          fc.proj(dc - 52, dc + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
-          for(const sg of [-1, 1]) fc.proj(dc + sg*42 - 3, dc + sg*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD); }, 0, true);
+          for(const sg of [-1, 1]) fc.proj(dc + sg*42 - 3, dc + sg*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);   // (the brackets before the hood they hold up, W37)
+          fc.proj(dc - 52, dc + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD); }, 0, true);
       }
     }
 
@@ -79719,7 +79821,11 @@ marinaEntry(),
     it(GM, CB1 - RD/2, () => {
       const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
       /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
-      wallBox(g0, f0, CB1 - RD, CB1, 0, TH); wallBox(f1, g1, CB1 - RD, CB1, 0, TH); wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
+      /* (the far pier, the bridge, the near pier: the bridge's seen end lies in the near pier's face, W37; a mirrored on some edges) */
+      const pierW = () => wallBox(g0, f0, CB1 - RD, CB1, 0, TH), pierE = () => wallBox(f1, g1, CB1 - RD, CB1, 0, TH);
+      if(sa > 0) pierW(); else pierE();
+      wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
+      if(sa > 0) pierE(); else pierW();
       const f = FC('b', CB1, 1);
       f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
@@ -79734,7 +79840,8 @@ marinaEntry(),
       f.r(GM - 12, GM + 12, 252, 270, shade(gold, .92), 1.1, shade(gold, .66), 1);
       /* the buttresses either side, stepped */
       for(const s of [-1, 1]){ const u = s < 0 ? g0 + 6 : g1 - 6;
-        f.proj(u - 14, u + 14, 10, 0, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
+        f.proj(u - 14, u + 14, 10, 0, 34, shade(stone, 1.08), stone, stoneD, 4);                          // (its foot off the plinth's face, W37)
+        f.proj(u - 14, u + 14, 10, 34, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
       /* the lettering band, on a stone course over the arch */
       f.r(g0 + 24, g1 - 24, 276, 312, shade(stone, 1.1), 0.5, stoneD, 1);
       word('FERRIS TAYLOR ALMSHOUSES', g0 + 32, g1 - 32, 282, 306, CB1 + 1.2, trimD, null, 4);
@@ -79823,7 +79930,8 @@ marinaEntry(),
       const f = FC('b', b1, 1), sd = FC('a', sa > 0 ? c1 : c0, sa);
       f.proj(c0 - 4, c1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD); sd.proj(b0, b1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);   // (the plinth a skin on the faces, not a box whose top slabs over the wall)
       /* the buttresses, the doorway in a pointed arch, the rose window in the gable */
-      for(const u of [c0 + 6, c1 - 6]) f.proj(u - 12, u + 12, 12, 0, CHH - 40, shade(stone, 1.1), stone, stoneD);
+      for(const u of [c0 + 6, c1 - 6]){ f.proj(u - 12, u + 12, 12, 0, 34, shade(stone, 1.1), stone, stoneD, 4);   // (its foot off the plinth's face, W37)
+        f.proj(u - 12, u + 12, 12, 34, CHH - 40, shade(stone, 1.1), stone, stoneD); }
       const pointed = (c, hw, z0, z1, rise, fill, off, stroke, lw) => { const pts = [[c - hw, z0, off], [c - hw, z1, off]];
         for(let k = 1; k < 8; k++){ const t = k/8; pts.push([c - hw + hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
         pts.push([c, z1 + rise, off]); for(let k = 7; k >= 1; k--){ const t = k/8; pts.push([c + hw - hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
@@ -79832,7 +79940,7 @@ marinaEntry(),
       pointed(cA, 46, 0, 118, 66, dark, 0.6);
       for(const s of [-1, 1]){ pointed(cA + s*23, 20, 0, 112, 36, shade(door, 1.0), 0.9, shade(door, .66), 1); f.r(cA + s*23 + (s < 0 ? 12 : -12) - 2, cA + s*23 + (s < 0 ? 12 : -12) + 2, 60, 70, gold, 1.3); }
       f.r(cA - 1.6, cA + 1.6, 0, 150, shade(door, .66), 1.0);
-      f.proj(cA - 64, cA + 64, 26, 0, 8, shade(stone, 1.12), stone, stoneD);
+      f.proj(cA - 64, cA + 64, 26, 0, 8, shade(stone, 1.12), stone, stoneD, 4);                       // the step, off the plinth's face (W37)
       for(const s of [-1, 1]) pointed(cA + s*128, 17, 70, 176, 60, glassT, 0.8, trim, 1.4);
       for(const s of [-1, 1]) f.r(cA + s*128 - 1.4, cA + s*128 + 1.4, 70, 236, trim, 1.1);
       /* the rose window: a stone ring, a coloured glass, spokes */
@@ -80177,11 +80285,12 @@ marinaEntry(),
          of its canopy posts. */
       const bench = (a, b) => add([a - 62, a + 62, b - 15, b + 12], () => {
         const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
-        for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
-        box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+        /* (W37: the legs, the seat on them, the back posts up off the seat -- their foot hidden in it -- then the back rail) */
         for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
         box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
         for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
+        for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 28, 50, '#5d646b', iron, '#40454a');   // back posts
+        box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
       });
       for(const ba of PL.benches) bench(ba, SF1 + 34);
       /* TREES (2026-09-18, Sir: "the trees at the school are looking
@@ -81288,11 +81397,12 @@ marinaEntry(),
        slatted seat, which covers the legs' tops as it should. */
     const bench = (a, b) => items.push({ a, b, draw: () => {
       const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
-      for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
-      box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+      /* (W37: the legs, the seat on them, the back posts up off the seat -- their foot hidden in it -- then the back rail) */
       for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
       box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
       for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
+      for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 28, 50, '#5d646b', iron, '#40454a');   // back posts
+      box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
     }});
     const bollard = (a) => items.push({ a, b: -24, draw: () => cyl(a, -24, 0, 42, 7, '#7d8488', '#c9ced1') });
     const flag = (a, b, col) => items.push({ a, b, h: 470, draw: () => {
@@ -82843,8 +82953,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        the road's centreline, its two white posts stand on the sidewalks (560 either side) and a beam carries the board
        290 up, clear of the trucks. The arrow is gone. */
     const LIFT = 290;
-    for(const a of [-560, 560]) box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
-    box(-572, 572, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
+    /* W37: the far post, the board hung under the beam, the beam between the posts' faces, the near post (a mirrored on
+       some edges) */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, post = a => box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
+    post(seeE ? -560 : 560);
     /* the board holds both lines (Sir, 2026-10-02: "the pelican harbor
        signe doesnt fit the words" -- HARBOR, 7 x 9 = 63 tall from 186,
        hung 27 below a board that stopped at 150). A blockWord is 7 x px
@@ -82854,6 +82966,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(-286, 286, 206 + LIFT, 212 + LIFT, GOLD, null, 0, 14.4);
     blockWord('PELICAN', 0, 288 + LIFT, 10, 14.6, WHITE, null);
     blockWord('HARBOR', 0, 196 + LIFT, 9, 14.6, GOLD, null);
+    box(-548, 548, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
+    post(seeE ? 560 : -560);
     for(const a of [-560, 560]) ball(a, 0, 626, 14, GOLD);
   }
 },
@@ -82897,17 +83011,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   front(){
     const C = this.C;
     if(!inView(-260, 260, -180, 260, 0, 400)) return;
-    /* the counter across the front, timber-clad, its top, LIVE BAIT on a teal plate */
-    box(-188, 188, 122, 150, 8, 82, C.wood, C.woodD, C.woodK);                                             // (waist high: the keeper shows over it)
+    /* the west front post, behind the counter's end (W37); the counter across the front, timber-clad, its top, LIVE BAIT on a teal plate */
+    box(-210, -188, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);
+    /* (W37: its ends stand against the walls' and the posts' faces, never seen: its top and front only, no end face painted
+       over the east wall that went first. The kiosk is drawn in the world's frame) */
+    T(-188, 188, 122, 150, 82, C.wood); F(-188, 188, 8, 82, C.woodD, null, 0, 150);                                             // (waist high: the keeper shows over it)
     for(let z = 22; z < 80; z += 16) F(-188, 188, z, z + 2, '#9a6a36', null, 0, 150.3);
-    box(-196, 196, 116, 158, 82, 88, '#e9e1d2', '#d6cbb7', '#c4b9a3');
+    T(-188, 188, 116, 158, 88, '#e9e1d2'); F(-188, 188, 82, 88, '#d6cbb7', null, 0, 158);                // its top, between the walls and posts (W37: it ran into them)
     F(-84, 84, 28, 70, C.teal, null, 0, 150.6);
     blockWordIn('LIVE BAIT', -78, 78, 36, 64, 150.8, '#ffffff', null);
     /* a scale and a jar of lures on the counter */
     box(110, 150, 122, 146, 88, 96, '#c9d0d3', '#a4adb1', '#8e979b');
     box(-150, -126, 122, 146, 88, 114, 'rgba(210,232,240,0.55)', 'rgba(180,205,215,0.55)', 'rgba(160,190,200,0.55)');
     /* the front posts, up to the plate */
-    for(const a of [-199, 199]) box(a - 11, a + 11, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);
+    box(188, 210, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);                                             // (the west one went first)
     /* a short striped valance under the eave, high, so the keeper shows under it */
     for(let a = -188, k = 0; a < 188; a += 47, k++)
       poly([P(a, 150, 300), P(a + 47, 150, 300), P(a + 47, 172, 286), P(a, 172, 286)], k % 2 ? C.wall : C.teal);
@@ -82943,15 +83060,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        navy:'#1f3a4d', gold:'#e8b54a', white:'#f3efe6', wood:'#a87b4f', woodD:'#86603b', conc:'#d9d6cc' },
   draw(p){
     const P0 = FM_PLAN;
+    /* back to front (W37): the cold store (the back posts stand on its roof), the back posts, the hall's pieces north to
+       south, the front posts, then the trusses -- high over the whole hall, in front of all of it below them -- the sign, the roof */
     this.roofParts().forEach(fn => fn());
-    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY){ this.post(x, P0.HB); this.truss(x); }
-    for(const [a0, a1] of P0.ISLE) this.island(a0, a1, a0, a1, true);
+    this.store(0);
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HB);
     for(const [a0, a1, k] of P0.BACK) this.back(a0, a1, k, a0, a1, true);
+    this.bell(0);
+    for(const [a0, a1] of P0.ISLE) this.island(a0, a1, a0, a1, true);
     for(const [a0, a1] of P0.FRONT) this.bed(a0, a1, a0, a1, true);
     this.taco(P0.TACO.y0, P0.TACO.y1, true);
     for(const [x, y] of P0.TABLES) this.table(x, y);
     for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HF);
-    this.store(0); this.pylon(true); this.neon(0, 0, true); this.bell(0); this.roof();
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.truss(x);
+    this.pylon(true); this.neon(0, 0, true); this.roof();
   },
   roofParts(){ return []; },
   /* a green steel post on its plinth, the bracket under the tie beam */
@@ -83145,6 +83267,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   taco(y0, y1, open, part){
     const C = this.C, TC = FM_PLAN.TACO, red = '#c8462e', yel = '#f2c14b', back = part !== 'front', front = part !== 'back';
     if(!inView(TC.x0, TC.x1 + 10, y0, y1, 0, 330)) return;
+    if(back && y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end, behind the counter: first (W37)
     if(front){
     box(TC.x1 - 46, TC.x1, y0, y1, 0, 100, '#d9b48a', '#b9864f', '#a8763f');                    // the counter, timber-clad
     for(let z = 14; z < 96; z += 16) S(TC.x1 + 0.4, y0, y1, z, z + 2, '#9a6a36');
@@ -83155,7 +83278,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(TC.x0, TC.x0 + 70, y0, y1, 0, 92, C.steel, C.steelD, shade(C.steelD, .9));               // the griddle bench
     if(open){ T(TC.x0 + 6, TC.x0 + 64, Math.max(y0, TC.y0 + 60), Math.min(y1, TC.y0 + 260), 93, '#2b2b2b');
               for(let y = Math.max(y0, TC.y0 + 80); y < Math.min(y1, TC.y0 + 250); y += 34) ball(TC.x0 + 34, y, 96, 6, '#e3b26a', '#f1cc8f'); }   // tortillas on the plancha
-    if(y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end
     }
     if(front && y1 === TC.y1){
       /* the menu board, over the south end, to the forecourt */
@@ -83191,7 +83313,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(d0, d1, zb, dh, '#c4cbcf', null, 0, S.y1 + 0.8);                                          // the roller door, rolled up by u
     for(let z = zb + 12; z < dh; z += 14) F(d0, d1, z, z + 2, '#a9b1b5', null, 0, S.y1 + 0.9);
     for(const a of [d0 - 24, d1 + 8]) box(a, a + 16, S.y1, S.y1 + 10, 40, 80, '#2a2a2a', '#1f1f1f', '#151515');   // bumpers
-    box(d0 + 40, d1 - 40, S.y1 - 4, S.y1 + 24, H - 40, H - 30, '#59636a', '#4a535a', '#3d454b');   // the lamp's hood
+    box(d0 + 40, d1 - 40, S.y1, S.y1 + 24, H - 40, H - 30, '#59636a', '#4a535a', '#3d454b');   // the lamp's hood, off the wall's face (W37: it ran 4 into it)
     slab(S.x0 + 60, S.x0 + 220, H - 90, H - 34, S.y1 + 2, S.y1 - 2, C.navy, shade(C.navy, .8), shade(C.navy, 1.2));
     blockWordIn('ICE', S.x0 + 70, S.x0 + 210, H - 84, H - 40, S.y1 + 2.2, C.white, null);
     box(S.x1 - 160, S.x1 - 40, S.y1 + 10, S.y1 + 70, 0, 50, '#f7f8f8', '#e3e7e8', '#d1d6d8');   // a stack of crates by the door
@@ -83201,12 +83323,17 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   pylon(open){
     const Q = FM_PLAN.PYLON, x = Q.x, y = Q.y, L = fmSignLift(), z0 = L + 274;          // z0: the eave's top, where its legs stand
     if(!inView(x - 200, x + 200, y - 30, y + 30, z0 - 10, L + 600)) return;
-    for(const a of [x - 130, x + 130]){ box(a - 14, a + 14, y - 14, y + 14, z0 - 4, z0 + 4, '#4a5258', '#3b4248', '#2f353a');   // its feet bolted to the eave
-      box(a - 8, a + 8, y - 8, y + 8, z0, L + 360, '#4a5258', '#3b4248', '#2f353a'); }
+    /* W37: the stays behind, the far leg, the OPEN / CLOSED box between the legs, the near leg (a mirrored on some
+       edges), then the sign box on the legs' tops */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+    const leg = a => { box(a - 14, a + 14, y - 14, y + 14, z0 - 4, z0 + 4, '#4a5258', '#3b4248', '#2f353a');   // its feet bolted to the eave
+      box(a - 8, a + 8, y - 8, y + 8, z0, L + 360, '#4a5258', '#3b4248', '#2f353a'); };
     for(const a of [x - 130, x + 130]) tube(a, y - 8, L + 330, a, y - 140, z0 + 40, 2.5, '#3b4248');   // stays back to the roof
+    leg(seeE ? x - 130 : x + 130);
+    box(x - 110, x + 110, y - 8, y + 8, L + 300, L + 344, '#22262b', '#16191d', '#101215');     // OPEN / CLOSED
+    leg(seeE ? x + 130 : x - 130);
     box(x - 190, x + 190, y - 12, y + 12, L + 360, L + 560, '#22262b', '#16191d', '#101215');   // the box the tubes are on
     F(x - 186, x + 186, L + 364, L + 556, '#1b1e22', null, 0, y + 12.2);
-    box(x - 110, x + 110, y - 8, y + 8, L + 300, L + 344, '#22262b', '#16191d', '#101215');     // OPEN / CLOSED
   },
   /* THE NEON (live): the fish in tubes, its tail flicking between two strokes, an eye that winks, bubbles, FISH
      MARKET in pink under it; at night the glass glows; OPEN or CLOSED lit in its box. t the clock, nl the night */
@@ -83233,8 +83360,11 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   bell(sw){
     const B = FM_PLAN.BELL, x = B.x, y = B.y;
     if(!inView(x - 40, x + 40, y - 40, y + 40, 0, 260)) return;
-    box(x - 4, x + 4, y - 4, y + 4, 0, 250, '#4a5258', '#3b4248', '#2f353a');
-    box(x - 4, x + 34, y - 3, y + 3, 238, 246, '#4a5258', '#3b4248', '#2f353a');
+    /* W37: the arm meets the post's east face; the far one first (a mirrored on some edges) */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, bpost = () => box(x - 4, x + 4, y - 4, y + 4, 0, 250, '#4a5258', '#3b4248', '#2f353a');
+    if(seeE) bpost();
+    box(x + 4, x + 34, y - 3, y + 3, 238, 246, '#4a5258', '#3b4248', '#2f353a');
+    if(!seeE) bpost();
     const px = x + 28, pz = 236, L = 34, c = Math.cos(sw), s = Math.sin(sw);
     const at = (u, v) => P(px + u*c - v*s*0.2, y + u*s, pz - v);
     const bp = [[-10, 6], [10, 6], [16, L], [-16, L]].map(([u, v]) => P(px + u, y + s*v*0.9, pz - v*Math.cos(sw*0.5)));
@@ -83258,8 +83388,11 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const P0 = PP_PLAN;
     for(const r of ppFenceRuns()) this.fence(r, 0, 1);
     this.aframe(); this.tunnel(); for(let k = 0; k < P0.WEAVE.n; k++) this.pole(k); for(const x of P0.HURDLES) this.hurdle(x);
-    this.fountain(); for(const q of ppPavPosts()) this.pavPost(q[0], q[1]); this.table(); this.sign(); this.bags();
-    this.leaf(P0.GA, P0.Y1, 0); this.leaf(P0.GB, P0.PEN.y0, Math.PI); this.roof(1);
+    /* (the pavilion's back posts, the table between them, its front posts: W37) */
+    const tm = (P0.TABLE.y0 + P0.TABLE.y1)/2;
+    this.fountain(); this.backBeam(); for(const q of ppPavPosts()) if(q[1] < tm) this.pavPost(q[0], q[1]);
+    this.table(); for(const q of ppPavPosts()) if(q[1] >= tm) this.pavPost(q[0], q[1]); this.sign(); this.bags();
+    this.leaf(P0.GA, P0.Y1, 0); this.leaf(P0.GB, P0.PEN.y0, Math.PI); this.roof(1, true);
   },
   /* a straight run of chain-link (r: x0, y0, x1, y1, along x or y), the piece from u0 to u1 of it (0..1): the mesh, the
      top rail and the posts (each piece its own posts; the run's far end capped by its last piece) */
@@ -83371,10 +83504,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   /* the roof: a teal tin gable along x on the posts, its fascia; and on adoption day the banner hung under the front
      eave (k: 0 rolled up .. 1 hung) */
-  roof(k){
+  backBeam(){ const C = this.C, V = PP_PLAN.PAV, E = V.eave;
+    if(inView(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E)) box(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8)); },
+  roof(k, noBack){
     const C = this.C, V = PP_PLAN.PAV, o = V.oh, x0 = V.x0 - o, x1 = V.x1 + o, y0 = V.y0 - o, y1 = V.y1 + o, ym = (V.y0 + V.y1)/2, E = V.eave, R = V.ridge;
     if(!inView(x0, x1, y0, y1, E - 60, R + 4)) return;
-    box(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
+    if(!noBack){ this.backBeam();
+    /* W37: the back posts stand just south of the back beam, their heads beside it: their heads again over it (in the game the
+       posts are their own pieces, drawn before the roof; draw() puts the beam before them) -- the faces the eye sees, as pavPost's */
+    for(const [x, y] of ppPavPosts()) if(y < (V.y0 + V.y1)/2){
+      T(x - 6, x + 6, y - 6, y + 6, E - 4, C.cream); boxSides(x - 6, x + 6, y - 6, y + 6, E - 14, E - 4, shade(C.cream, .92), shade(C.cream, .8)); } }
     box(V.x0 - 4, V.x1 + 4, V.y1 - 4, V.y1 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
     poly([P(x0, y0, E), P(x1, y0, E), P(x1, ym, R), P(x0, ym, R)], shade(C.teal, .82));
     poly([P(x1, ym, R), P(x1, y0, E), P(x1, y1, E)], shade(C.cream, .86));                        // the gable end
@@ -83670,9 +83809,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        lit lens on the face turned to the park (the lamp kit's night glow sits on the lens) */
     for(const s of [-1, 1]){
       const cx = x + s*24, cy = y - s*24;
-      box(cx - 3, cx + 3, cy - 3, cy + 3, h - 2, h + 6, C.post, C.post, shade(C.post, 0.8));
       box(cx - 11, cx + 11, cy - 7, cy + 7, h - 13, h + 1, C.lamp, C.lampD, shade(C.lampD, 0.85));
       box(cx - 13, cx + 13, cy - 9, cy + 9, h + 1, h + 4, C.postL, C.post, shade(C.post, 0.85));
+      box(cx - 3, cx + 3, cy - 3, cy + 3, h + 4, h + 6, C.post, C.post, shade(C.post, 0.8));     // the bracket up from the hood to the arm (W37: it stood down inside the housing)
       F(cx - 9, cx + 9, h - 11, h - 2, C.lensD, null, 0, cy + 7.2);
       F(cx - 7.5, cx + 7.5, h - 9.5, h - 3.5, C.lens, null, 0, cy + 7.5);
     }
@@ -83717,8 +83856,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        conc:'#c9c5ba', concD:'#aaa597', navy:'#23405e', gold:'#d9b45a', sage:'#8fa58a', agave:'#6f9a86', agaveD:'#557a6a', lav:'#8f7fc8' },
   draw(p){
     const P0 = SP_PLAN;
+    /* (back to front, W37: the mast stands behind the post, the dock east of it) */
+    this.mast(); this.camHead(P0.MAST.face); this.post();
     this.dock(); for(let k = 0; k < P0.PADS.length; k++) this.chargePost(k);
-    this.post(); this.mast(); this.camHead(P0.MAST.face);
     for(const bd of P0.BEDS) this.bed(bd);
   },
   /* THE POST: its walls (stucco on a stone plinth), the door's surround and its opening, the two arched windows, the
@@ -83754,8 +83894,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       S(B.x1 + 1.2, y0 - 12, y1 + 12, z0 - 8, z0, C.stoneD); }
     /* the lamp beside the door: a black iron lantern on a bracket */
     { const lx = D.x1 + 26, lz = 132;
+      box(lx - 7, lx + 7, B.y1 + 8, B.y1 + 22, lz, lz + 18, '#2b2b2b', 'rgba(250,214,140,.9)', 'rgba(230,190,120,.9)');   // the lantern before the bracket over it (W37)
       box(lx - 2, lx + 2, B.y1, B.y1 + 14, lz + 18, lz + 21, '#2b2b2b', '#2b2b2b', '#1f1f1f');
-      box(lx - 7, lx + 7, B.y1 + 8, B.y1 + 22, lz, lz + 18, '#2b2b2b', 'rgba(250,214,140,.9)', 'rgba(230,190,120,.9)');
       box(lx - 9, lx + 9, B.y1 + 6, B.y1 + 24, lz + 18, lz + 22, '#2b2b2b', '#2b2b2b', '#1f1f1f'); }
     /* THE ROOF: a red tile hip over the walls and its overhang, tiles in courses down each slope, a ridge cap */
     { const o = B.oh, X0 = B.x0 - o, X1 = B.x1 + o, Y0 = B.y0 - o, Y1 = B.y1 + o, ym = (Y0 + Y1)/2, h = (Y1 - Y0)/2, ze = H, zr = B.ridge;
@@ -83811,9 +83951,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(M.x - 16, M.x + 16, M.y - 16, M.y + 16, 0, 14, C.conc, C.conc, C.concD);
     cyl(M.x, M.y, 14, M.h, 5, C.steel, C.steelD);
     box(M.x - 9, M.x + 9, M.y + 5, M.y + 13, 90, 122, '#9aa2a8', '#8a9298', '#737b80');
-    box(M.x - 30, M.x + 30, M.y - 3, M.y + 3, M.h - 40, M.h - 34, C.steelL, C.steel, C.steelD);
-    for(const s of [-1, 1]){ box(M.x + s*30 - 6, M.x + s*30 + 6, M.y - 6, M.y + 6, M.h - 56, M.h - 40, '#2f3438', '#2f3438', '#24282b');
+    for(const s of [-1, 1]){ box(M.x + s*30 - 6, M.x + s*30 + 6, M.y - 6, M.y + 6, M.h - 56, M.h - 40, '#2f3438', '#2f3438', '#24282b');   // the lamps before the crossarm they hang from (W37)
       faceCircle(M.x + s*30, M.y + 6.2, M.h - 48, 4, '#6b2a2a'); }
+    box(M.x - 30, M.x + 30, M.y - 3, M.y + 3, M.h - 40, M.h - 34, C.steelL, C.steel, C.steelD);
     ball(M.x, M.y, M.h + 2, 6, C.steelL);
   },
   /* the camera head on its pan mount, turned to ang (radians, world: 0 is +x): a white housing, its sun hood, the
@@ -84367,19 +84507,27 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(let a = 72; a < 750; a += 40) T(a, a + 20, bb, bf, H + 0.2, shade(c.cap,.86));
     const RH = 30, rail = shade(c.trim,.95), post = c.trim;
     for(const a of [90, 720]){ cyl(a, bf - 26, H, H + 20, 11, '#b8683a', '#5f8f4f'); ball(a, bf - 26, H + 28, 12, '#5f8f4f'); }
+    /* W37: an end rail runs back from the front rail's north face (its corner post is the front rail's), so it stands wholly
+       behind the front: the far end, what is on the deck, the seen end (a mirrored on some edges), then the front -- its curb
+       before the posts on it, the corner posts with it */
     const sideRail = aS => {                                 // an end rail, on the plane a = aS
-      box(aS - 3, aS + 3, bb, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+      box(aS - 3, aS + 3, bb, bf - 6, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
       for(let b = bb + 6; b < bf - 2; b += 12) S(aS, b, b + 2.4, H + 5, H + RH, rail);
-      for(const b of [bb + 3, (bb + bf)/2, bf - 3]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-      box(aS - 3, aS + 3, bb, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+      for(const b of [bb + 3, (bb + bf)/2]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+      box(aS - 3, aS + 3, bb, bf - 6, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
     };
-    sideRail(64);
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, seeS = (P(0, 1, 0).y - P(0, 0, 0).y) > 0;
+    const front = () => {
+      box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+      for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
+      for(const a of [64, 202, 340, 478, 616, 746]) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+      box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+    };
+    if(!seeS) front();                                       // (from behind the front rail is the far one)
+    sideRail(seeE ? 64 : 746);
     if(d > 0) this.deckKit(c, H, bb, bf);                    // inside the far rail, behind the front one
-    box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
-    for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
-    for(let a = 64; a <= 746; a += 138) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-    box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
-    sideRail(746);
+    sideRail(seeE ? 746 : 64);
+    if(seeS) front();
   },
   /* ON THE DECK (Sir: "one should have a swimming pool and furniture on
      its roof deck the other just needs furniture"). Which one comes off
@@ -84419,13 +84567,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       /* an outdoor dining set under an umbrella */
       const ta = 590, tb = (bb + bf)/2;
       const chair = (a, b, backB) => {
+        for(const [da, db] of [[-8, -8], [6, -8], [-8, 6], [6, 6]]) box(a + da, a + da + 2, b + db, b + db + 2, H, H + 11, shade(wood,.8), shade(wood,.8), shade(wood,.65));   // the legs before the seat (W37)
         box(a - 9, a + 9, b - 9, b + 9, H + 11, H + 14, wood, shade(wood,.85), shade(wood,.7));
-        for(const [da, db] of [[-8, -8], [6, -8], [-8, 6], [6, 6]]) box(a + da, a + da + 2, b + db, b + db + 2, H, H + 11, shade(wood,.8), shade(wood,.8), shade(wood,.65));
         box(a - 9, a + 9, backB - 1.5, backB + 1.5, H + 14, H + 32, shade(wood,1.05), wood, shade(wood,.7));
       };
       chair(ta - 22, tb - 34, tb - 43); chair(ta + 22, tb - 34, tb - 43);          // the far pair first
+      for(const [da, db] of [[-36, -18], [34, -18], [-36, 16], [34, 16]]) box(ta + da, ta + da + 2.5, tb + db, tb + db + 2.5, H, H + 22, shade(wood,.8), shade(wood,.8), shade(wood,.65));   // the legs before the top (W37)
       box(ta - 40, ta + 40, tb - 22, tb + 22, H + 22, H + 25, shade(wood,1.1), wood, shade(wood,.75));
-      for(const [da, db] of [[-36, -18], [34, -18], [-36, 16], [34, 16]]) box(ta + da, ta + da + 2.5, tb + db, tb + db + 2.5, H, H + 22, shade(wood,.8), shade(wood,.8), shade(wood,.65));
       chair(ta - 22, tb + 34, tb + 43); chair(ta + 22, tb + 34, tb + 43);
       umbrella(ta, tb, '#c9622a');
     }
@@ -84525,10 +84673,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     slab(am - hw - 8, am + hw + 8, -2, 0, b + 4, b, shade(c.cap,.9));                           // the threshold
   },
   lantern(a, z, c){
+    box(a - 6, a + 6, 1, 13, z - 3, z, shade(c.iron,1.1), c.iron, shade(c.iron,.7));         // its base, before the glass on it (W37)
     box(a - 1.5, a + 1.5, 0, 6, z + 14, z + 17, c.iron, c.iron, shade(c.iron,.7));            // the bracket, off the pier
     box(a - 5, a + 5, 2, 12, z, z + 16, '#f0d48a', '#e2c070', '#b89850');                    // the glass, lit
     box(a - 6, a + 6, 1, 13, z + 16, z + 19, shade(c.iron,1.1), c.iron, shade(c.iron,.7));   // its cap
-    box(a - 6, a + 6, 1, 13, z - 3, z, shade(c.iron,1.1), c.iron, shade(c.iron,.7));         // and base
   },
   gardenWall(c){                              // the split-level's: back to the house's east wall
     box(-4, 50, -44, -34, 0, 42, shade(c.wall,.95), c.wall, shade(c.wall,.8));
@@ -84708,7 +84856,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     slab(452, 548, 110, 116, -34, -60, shade(c.roof,.8));      // tiled door hood
     poly([P(452,-34,116), P(548,-34,116), P(548,-60,128), P(452,-60,128)], c.roof, shade(c.roof,.6), 1);
-    slab(440, 560, 136, 140, -44, -60, shade(c.wall,.85));    // balconette floor
+    /* balconette floor (W37: the window's cill, drawn with the wall, sits on its back: the floor round it, never under it --
+       the two ends beside the cill, then the front past its face) */
+    { const fl = shade(c.wall,.85), seeE = FLANK_RIGHT;   // (the ends: their tops and the outer end seen, the faces toward the cill unseen)
+      for(const [a0, a1] of [[440, 449], [551, 560]]) T(a0, a1, -60, -53, 140, shade(fl, 1.14));
+      slab(440, 560, 136, 140, -44, -53, fl);
+      S(seeE ? 560 : 440, -60, -44, 136, 140, shade(fl, .78)); }                // (its seen end the whole depth, in one: no seam)
     for(let a = 444; a <= 556; a += 7) F(a, a+1.6, 140, 168, c.iron, null, 0, -44);
     F(440, 560, 166, 169, c.iron, null, 0, -43.8);
     this.gwall(c);
@@ -85114,8 +85267,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(270, 540, -110, -84, 236, 252, c.trim, shade(c.trim,.94), shade(c.trim,.8));
     houseFrontGable(270, 540, -84, -150, 252, 300, 6, c.roof, c.trim, 1, { back0:true, barge:c.trim, gable:shade(c.trim,.96) });
     for(const [a0, a1] of (this.hedges || [[30, 330], [480, 780]])){
-      for(const [b0, b1] of [[-100,-90],[-70,-60]]) box(a0, a1, b0, b1, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
-      for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -100, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      /* W37: the back run, the two ends between the runs (meeting their faces), the front run */
+      box(a0, a1, -100, -90, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -90, -70, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      box(a0, a1, -70, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
     }
     for(const [nm, aa] of [['urn L', 340], ['urn R', 470]])
       houseProp(nm, () => { cyl(aa, -30, 0, 10, 7, '#c9c3b8'); cyl(aa, -30, 10, 28, 12, '#d8d2c6', '#e6e0d4'); ball(aa, -30, 32, 10, '#4f7a4a'); });
@@ -85263,8 +85418,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseFrontGable(160, 300, -62, -76, 98, 120, 4, c.roof, c.trim, 1, { back0:true, barge:c.trim });
     this.stonewall();
     houseProp('bench', () => {
+      for(const aa of [75, 113]) box(aa-2, aa+2, -48, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(71, 117, -50, -38, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [75, 113]) box(aa-2, aa+2, -48, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -85425,13 +85580,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(24, 436, -80, -516, [[38,96]], c.trim);
     for(let z = 16; z < 116; z += 9) poly([P(24,-80.2,z), P(436,-80.2,z)], null, shade(c.wall,.9), 1);   // lap siding
     houseDoorway(160, -80, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    this.beds(c);                                              // (the bed along the facade, under the window box: before it, W37)
     houseWin(300, 400, 38, 96, -80, c.trim, shade(c.trim,.9), 1, { shutter:c.shut, box:c.box });
     houseGableRoof(24, 436, -80, -516, 118, 240, 12, c.roof, c.wall, 1);
     if(state.roof) box(90, 110, -310, -286, 220, 272, '#b8715a', '#9c5e4a', '#84503f');   // chimney
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.beds(c); this.porch(c); this.fence(c);
+    this.porch(c); this.fence(c);
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   back(p){
@@ -86149,8 +86305,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     if(state.roof) beachRail(20, 520, 246, 24, d > 0 ? -58 : -478, d);
   },
   pergola(c){
-    for(const [a, b] of [[536, -106], [770, -106], [536, -480], [770, -480]]) box(a - 4, a + 4, b - 4, b + 4, 118, 214, c.clad, shade(c.clad,.85), shade(c.clad,.7));
-    for(let b = -110; b > -490; b -= 54) box(530, 776, b - 5, b, 212, 218, shade(c.clad,1.08), c.clad, shade(c.clad,.75));
+    /* W37: north to south -- the beams and the posts in the order they stand, so a beam in front of the rear posts is
+       painted after them and the front posts after the beam they hold up */
+    const parts = [];
+    for(const [a, b] of [[536, -106], [770, -106], [536, -480], [770, -480]]) parts.push([b, () => box(a - 4, a + 4, b - 4, b + 4, 118, 214, c.clad, shade(c.clad,.85), shade(c.clad,.7))]);
+    for(let b = -110; b > -490; b -= 54) parts.push([b - 2.5, () => box(530, 776, b - 5, b, 212, 218, shade(c.clad,1.08), c.clad, shade(c.clad,.75))]);
+    parts.sort((x, y) => x[0] - y[0]).forEach(x => x[1]());
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -86429,8 +86589,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
     }
     houseProp('bench', () => {
+      for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(70, 116, -62, -48, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -86857,8 +87017,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.porch(c); this.fence();
     houseProp('lamp', () => { cyl(26, -30, 0, 84, 2.5, '#2a2a2e'); box(20, 32, -36, -24, 84, 98, '#3a3a3e', 'rgba(250,230,160,.85)', 'rgba(230,205,140,.85)'); });
     houseProp('bench', () => {
+      for(const aa of [94, 136]) box(aa-2, aa+2, -50, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(90, 140, -52, -38, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [94, 136]) box(aa-2, aa+2, -50, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -87814,8 +87974,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   gate(c){
     const tower = a0 => { for(const [dz, ins] of [[0,0],[50,4],[90,8],[120,12]]) box(a0 + ins, a0 + 30 - ins, -24 + ins/2, -4 - ins/2, dz, dz + (dz < 120 ? 50 - (dz === 50 ? 10 : dz === 90 ? 20 : 0) : 20), shade(c.stone,1.06), c.stone, shade(c.stone,.8)); };
-    for(const [a0, a1] of [[6, 280], [400, 804]]){ box(a0, a1, -14, -4, 0, 36, shade(c.stone,1.04), c.stone, shade(c.stone,.8)); box(a0-1, a1+1, -15, -3, 36, 40, c.roof, shade(c.roof,.9), shade(c.roof,.75)); }
-    tower(280); tower(370);
+    const wall = (a0, a1) => { box(a0, a1, -14, -4, 0, 36, shade(c.stone,1.04), c.stone, shade(c.stone,.8)); box(a0-1, a1+1, -15, -3, 36, 40, c.roof, shade(c.roof,.9), shade(c.roof,.75)); };
+    /* W37: west to east as the eye sees it -- the walls meet the towers' faces (a mirrored on some edges) */
+    if(FLANK_RIGHT){ wall(6, 280); tower(280); tower(370); wall(400, 804); }
+    else { wall(400, 804); tower(370); tower(280); wall(6, 280); }
   },
   trees(){
     for(const [nm, aa] of [['frangipani L', 60], ['frangipani R', 520]])
@@ -87977,8 +88139,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(const [nm, aa] of [['pot L', 300], ['pot R', 510]])
       houseProp(nm, () => { ball(aa, -60, 18, 16, '#b86a4a'); cyl(aa, -60, 26, 36, 9, '#a55a3c'); ball(aa, -60, 44, 10, '#6b9a5a'); });
     houseProp('bench', () => {
+      for(const aa of [124, 176]) box(aa-2, aa+2, -78, -66, 0, 16, shade(c.wood,.7), shade(c.wood,.6), shade(c.wood,.5));   // the legs before the seat on them (W37)
       box(120, 180, -80, -64, 16, 20, c.wood, shade(c.wood,.88), shade(c.wood,.76));
-      for(const aa of [124, 176]) box(aa-2, aa+2, -78, -66, 0, 16, shade(c.wood,.7), shade(c.wood,.6), shade(c.wood,.5));
     });
   },
   draw(p){
@@ -88509,18 +88671,21 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(60, 400, -140, -450, [[4,138]], c.steel, { plain:true, w:4, pitch:34, skipFront:0, skipBack:0 });
     if(d > 0) houseDoorway(230, -140, CITY_HOUSE_SC, c.steel, c.leaf, 1);
   },
-  frame(c){
-    for(const [a, b] of [[30,-480],[165,-480],[295,-480],[430,-480],[30,-110],[165,-110],[295,-110],[430,-110]]) box(a-4, a+4, b-4, b+4, 2, 142, c.steel, shade(c.steel,1.3), shade(c.steel,1.15));
+  frame(c, part){                              // (part 'back': the back row of posts alone, before the glass box they stand behind -- W37; 'front': the rest)
+    for(const [a, b] of [[30,-480],[165,-480],[295,-480],[430,-480],[30,-110],[165,-110],[295,-110],[430,-110]])
+      if(!part || (part === 'back') === (b < -300)) box(a-4, a+4, b-4, b+4, 2, 142, c.steel, shade(c.steel,1.3), shade(c.steel,1.15));
+    if(part === 'back') return;
     box(20, 440, -490, -100, 142, 154, c.slab, shade(c.slab,.92), shade(c.slab,.8));
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.frame(c);
+    this.frame(c, 'front');
     houseProp('oak', () => { cyl(400, -50, 0, 110, 8, '#5a4030'); ball(400, -50, 160, 56, '#3f6b3e'); ball(370, -40, 140, 38, '#4a7a48'); ball(426, -60, 180, 32, '#36603a'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
+    this.frame(c, 'back');
     this.glass(c, 1);
   },
   back(p){
@@ -88576,11 +88741,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       F(82, 298, 190, 228, 'rgba(170,205,220,.28)', null, 0, -109.2);
       for(let a = 135; a < 300; a += 55) F(a-1, a+1, 140, 230, '#1f262b', null, 0, -109);
     }
-    houseProp('planter', () => { box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'); for(let a = 286; a < 318; a += 8) F(a, a+1, 0, 36, '#8a8a86', null, 0, -41.6); ball(300, -60, 44, 14, '#5c8a56'); });
-    houseProp('bench', () => {
+    /* (the bench and the planter, the far one first: the bench west of the planter and behind its face -- W37; a mirrored on some edges) */
+    const planter = () => houseProp('planter', () => { box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'); for(let a = 286; a < 318; a += 8) F(a, a+1, 0, 36, '#8a8a86', null, 0, -41.6); ball(300, -60, 44, 14, '#5c8a56'); });
+    const bench = () => houseProp('bench', () => {
       for(const z of [0, 7]) box(230, 276, -80, -62, z, z+5, '#c9a878', '#b8966a', '#a0845a');
       box(230, 276, -80, -62, 14, 20, '#c9a878', '#b8966a', '#a0845a');
     });
+    if(FLANK_RIGHT){ bench(); planter(); } else { planter(); bench(); }        // (FLANK_RIGHT: the east end is the seen one)
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -88739,18 +88906,24 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseProp('for sale sign', () => {
       const W = '#f7f4ec', Ws = '#e2ddd0', Wd = '#cbc5b6', bb = -36;
       const word = (t, a0, a1, z0, z1, col) => { if(typeof blockWordIn === 'function') blockWordIn(t, a0, a1, z0, z1, bb - 1.6, col, null); };
-      box(106, 114, -44, -36, 0, 172, W, Ws, Wd);                    // post
-      box(106, 230, -43, -37, 156, 164, W, Ws, Wd);                  // arm
-      ball(110, -40, 176, 6, W);                                     // finial
-      for(const a of [134, 206]) box(a - 1, a + 1, -41, -39, 136, 156, '#6d747c', '#5d646b', '#4a4f55');   // hooks
+      /* W37: the arm meets the post's east face; whichever is further from the eye first (a mirrored on some edges); the
+         board before the hooks it hangs on, the hooks before the arm */
+      const seeE = FLANK_RIGHT;                                    // (the east end seen)
+      const post = () => box(106, 114, -44, -36, 0, 172, W, Ws, Wd);
+      /* the brochure box: on the post's east face, up to the board's west face (W37: it ran into it), west of the board */
+      const brochure = () => box(114, 124, -42, -34, 52, 72, 'rgba(216,230,234,.9)', 'rgba(190,210,216,.9)', 'rgba(170,192,200,.9)');
+      if(seeE){ post(); brochure(); }
       box(124, 216, -42, -38, 64, 136, W, Ws, Wd);                   // the board
+      for(const a of [134, 206]) box(a - 1, a + 1, -41, -39, 136, 156, '#6d747c', '#5d646b', '#4a4f55');   // hooks
+      box(114, 230, -43, -37, 156, 164, W, Ws, Wd);                  // arm
+      if(!seeE){ brochure(); post(); }
+      ball(110, -40, 176, 6, W);                                     // finial
       F(126, 214, 104, 134, c.brand, null, 0, bb - 0.6);
       word('FOR SALE', 130, 210, 108, 130, '#fbf7ee');
       word('TIDE REALTY', 130, 210, 74, 96, c.ink);
       box(132, 204, -41, -39, 166, 190, W, Ws, Wd);                  // the rider, on the arm
       F(134, 202, 168, 188, c.brand, null, 0, bb - 1.2);
       word('LOT', 140, 196, 171, 185, '#fbf7ee');
-      box(114, 126, -42, -34, 52, 72, 'rgba(216,230,234,.9)', 'rgba(190,210,216,.9)', 'rgba(170,192,200,.9)');   // brochure box
     });
   },
   draw(p){
@@ -89223,9 +89396,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       const c = METAL[m];
       box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
       box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
+      /* the handles meet the bowl's faces: the far one before it, the near one after (W37; a mirrored on some edges) */
+      const hW = () => box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]),
+            hE = () => box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]), seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      (seeE ? hW : hE)();
       box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
-      box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
-      box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      (seeE ? hE : hW)();
     };
     /* AS BIG AS ITS INSIDE (Sir, 2026-10-17: "lets make the exterior of our
        shop match the interior foot print"): 585 x 462 lab, x1.3 the room's
@@ -89460,9 +89636,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           faceCircle(ac, 1.1, zc, 2.4, '#5e646b'); }
         /* two barn lamps either side of the board: a short arm off the wall, a green dome over the bulb */
         for(const ac of KW_PLAN.LAMPS){
-          box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e');
           box(ac - 3, ac + 3, 8, 14, DH + 28, DH + 31, '#fff2c8', '#f2e2b0', '#e2d098');                 // the bulb first, under its dome (W37: hung)
-          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532'); }
+          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532');
+          box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e'); }                  // the arm over the dome, after it (W37: hung)
         /* the verges: white barge boards up the gambrel, a hair proud of the gable */
         for(let i = 0; i < 4; i++){ const [a0, z0] = prof[i], [a1, z1] = prof[i + 1];
           poly([P(a0, OH + 0.2, z0), P(a1, OH + 0.2, z1), P(a1, OH + 0.2, z1 - 6), P(a0, OH + 0.2, z0 - 6)], trim);
@@ -89541,9 +89717,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                                                  : box(fixed - 2, fixed + 2, bN(u1), bN(u0), z0, z1, FW[0], FW[1], FW[2]);
             const post = u => alongA ? box(u - 5, u + 5, bN(fixed + 5), bN(fixed - 5), 0, F.h, FWD[0], FWD[1], FWD[2])
                                      : box(fixed - 5, fixed + 5, bN(u + 5), bN(u - 5), 0, F.h, FWD[0], FWD[1], FWD[2]);
+            /* W37: far post, the rails up to the next post's face, then that post -- from the end away from the eye (a is
+               mirrored on some edges; along n, b = -736 - n, so a higher n is nearer only where the eye sees -b: the game, whose
+               world y runs with n -- the lab sees +b); the rails meet the posts' faces, never run into them */
+            const nearHi = alongA ? (P(1, 0, 0).y - P(0, 0, 0).y) > 0 : (P(0, 1, 0).y - P(0, 0, 0).y) < 0;
+            if(!nearHi) pts.reverse();
             for(let k = 0; k < pts.length; k++){
+              if(k){ const u0 = Math.min(pts[k-1], pts[k]) + 5, u1 = Math.max(pts[k-1], pts[k]) - 5;
+                R(u0, u1, 12, 16); R(u0, u1, 25, 29); }
               post(pts[k]);
-              if(k) { R(pts[k-1], pts[k], 12, 16); R(pts[k-1], pts[k], 25, 29); }
             }
           };
           const gatePost = (a, n) => { box(a - 8, a + 8, bN(n + 8), bN(n - 8), 0, 50, FWD[0], FWD[1], FWD[2]);
@@ -89618,15 +89800,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         /* the rails, both sides, stepped down the slope: the west in one piece
            (behind him), the east in short ones (in front of him) */
         const railSeg = (a0, a1, n0, n1) => box(a0, a1, bN(n1), bN(n0), 0, rz(n0) + 18, WOODD[0], WOODD[1], WOODD[2]);
+        /* a run of segments, the far (north) one first (W37: down the slope they come toward the eye) */
+        const railRun = (a0, a1, m0, m1) => { const segs = [];
+          for(let n = m0; n < m1; n += STEP) segs.push([n, Math.min(m1, n + STEP)]);
+          const sb = (P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? 1 : -1;      // (the eye sees +b in the lab, -b in the game: the far end first either way)
+          segs.sort((x, y) => sb*((bN(x[0]) + bN(x[1])) - (bN(y[0]) + bN(y[1])))).forEach(([n0, n1]) => railSeg(a0, a1, n0, n1)); };
         const STEP = 70;
         items.push({ a: D.a0 - 12, b: bN(D.top0), z: 0,
           solids: [{ name:'derby rail W', poly: volRect(D.a0 - 12, D.a0, bN(D.foot), bN(D.top0)), h: D.RZ + 18 }],
-          draw: () => { for(let n = D.top0; n < D.foot; n += STEP) railSeg(D.a0 - 12, D.a0, n, Math.min(D.foot, n + STEP)); } });
+          draw: () => railRun(D.a0 - 12, D.a0, D.top0, D.foot) });
         for(let n0 = D.top0; n0 < D.foot; n0 += STEP*3){
           const n1 = Math.min(D.foot, n0 + STEP*3);
           items.push({ a: D.a1 + 12, b: bN(n1), z: 0,
             solids: [{ name:'derby rail E', poly: volRect(D.a1, D.a1 + 12, bN(n1), bN(n0)), h: rz(n0) + 18 }],
-            draw: () => { for(let n = n0; n < n1; n += STEP) railSeg(D.a1, D.a1 + 12, n, Math.min(n1, n + STEP)); } });
+            draw: () => railRun(D.a1, D.a1 + 12, n0, n1) });
         }
         /* the start gate: two posts at the platform's front, a banner across.
            ON THE RAILS (Sir, 2026-10-17: "this is looking wanky and not fitting
@@ -89636,8 +89823,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         { const nb = D.top1 - 8, Z = D.RZ, H = D.RZ + 130, PA = [D.a0 - 6, D.a1 + 6];
           items.push({ a: D.a1 + 12, b: bN(nb), z: 0,
             draw: () => {
-              for(const a of PA) box(a - 6, a + 6, bN(nb + 6), bN(nb - 6), Z, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
-              box(PA[0], PA[1], bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              /* W37: the far post, the banner between the posts' faces, the near post (a mirrored on some edges) */
+              const gp = a => box(a - 6, a + 6, bN(nb + 6), bN(nb - 6), Z, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
+              const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+              gp(seeE ? PA[0] : PA[1]);
+              box(PA[0] + 6, PA[1] - 6, bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              gp(seeE ? PA[1] : PA[0]);
               const w = (D.a1 - D.a0 - 20)/10;
               for(let k = 0; k < 10; k++){ const q = D.a0 + 10 + k*w;                                                 // its chequered hem
                 poly([P(q,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-42),P(q,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
@@ -89692,10 +89883,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
             solids: [{ name:'podium', poly: volRect(A0, A1, bN(n1), bN(DERBY_STEP.n1)), h: 40 }],
             draw: () => {
               /* its steps, at the back: half each place's height (DERBY_STEP), the way up */
-              for(const [a, h] of steps) box(a + 6, a + w - 6, bN(n0), bN(DERBY_STEP.n1), 0, h/2, '#e4e0d6', '#cfcabe', '#b8b4aa');
+              const stepRow = () => { for(const [a, h] of steps) box(a + 6, a + w - 6, bN(n0), bN(DERBY_STEP.n1), 0, h/2, '#e4e0d6', '#cfcabe', '#b8b4aa'); };
+              /* (W37: whichever of the steps and the blocks stands further from the eye first: the eye sees +b in the lab, -b in
+                 the game -- there the steps are at the back) */
+              const sb = (P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? 1 : -1, stepsFront = sb*(bN(DERBY_STEP.n1) - bN(n1)) > 0;
+              if(!stepsFront) stepRow();
               for(const [a, h, m] of steps){
               box(a, a + w, bN(n1), bN(n0), 0, h, '#f4f2ec', '#dcd8ce', '#c4c0b6');
-              poly([P(a+w*0.3,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.8),P(a+w*0.3,bN(n1)-0.4,h*0.8)], m); } },
+              poly([P(a+w*0.3,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.8),P(a+w*0.3,bN(n1)-0.4,h*0.8)], m); }
+              if(stepsFront) stepRow(); },
             live: DERBY_RACE.podium }); }
         /* ---- the JUDGE'S TENT: a pop-up canopy over a table, the judge at it ---- */
         { const A0 = 1936, A1 = 2276, n0 = 3154, n1 = 3414, H = 150, am = (A0 + A1)/2, nm = (n0 + n1)/2;
