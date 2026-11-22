@@ -89285,8 +89285,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           for(let a = 12; a < WW - 6; a += 24){ faceCircle(a, 0.8, H - 15, 5.2, copperD); faceCircle(a, 1.0, H - 15, 3.6, copper); F(a - 2.4, a + 2.4, H - 15.6, H - 14.4, copperD, null, 0, 1.2); }
           /* two goosenecks over the name board, their domes lit at night */
           for(const a of (doorMid ? [64, WW - 64] : [WW*0.5])){
-            tube(a, 0.5, 150, a, 15, 163, 1.4, dark); box(a - 7, a + 7, 11, 23, 158, 168, copper, copperD, dark);
-            box(a - 3, a + 3, 14, 20, 154, 158, '#fff2c8', '#f2e2b0', '#e2d098');
+            /* (W37: the bulb hangs under the dome -- painted first, the dome over it; Sir, 2026-11-22: "the light painting over the lamp") */
+            tube(a, 0.5, 150, a, 15, 163, 1.4, dark); box(a - 3, a + 3, 14, 20, 154, 158, '#fff2c8', '#f2e2b0', '#e2d098');
+            box(a - 7, a + 7, 11, 23, 158, 168, copper, copperD, dark);
           }
           /* the corner blade (the south leg's, on its east end): a thin board on an arm, a cup with a bolt for steam on its seen face */
           if(doorMid){
@@ -89460,8 +89461,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         /* two barn lamps either side of the board: a short arm off the wall, a green dome over the bulb */
         for(const ac of KW_PLAN.LAMPS){
           box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e');
-          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532');
-          box(ac - 3, ac + 3, 8, 14, DH + 28, DH + 31, '#fff2c8', '#f2e2b0', '#e2d098'); }
+          box(ac - 3, ac + 3, 8, 14, DH + 28, DH + 31, '#fff2c8', '#f2e2b0', '#e2d098');                 // the bulb first, under its dome (W37: hung)
+          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532'); }
         /* the verges: white barge boards up the gambrel, a hair proud of the gable */
         for(let i = 0; i < 4; i++){ const [a0, z0] = prof[i], [a1, z1] = prof[i + 1];
           poly([P(a0, OH + 0.2, z0), P(a1, OH + 0.2, z1), P(a1, OH + 0.2, z1 - 6), P(a0, OH + 0.2, z0 - 6)], trim);
@@ -116570,7 +116571,6 @@ class WorldScene extends Phaser.Scene {
       this.quadOn(g, [W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA+aw,bB,zB-ad), W(topA+aw,bA,zA-ad)], L.poleDk);
     }
     const hz2 = H - L.armDrop;
-    box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
 
     /* lens housing (always) + the light itself (night, into gGlow) */
     const lp = W(topA, armL, hz2 - L.headH);
@@ -116592,6 +116592,9 @@ class WorldScene extends Phaser.Scene {
     const lensDropY = lensH*K*0.55*0.5;
     g.fillStyle(L.glassDay, 1);
     g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
+    /* THE HEAD OVER ITS LENS (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the lens is
+       on the head's underside, which the eye never sees from above, so the head covers all of it but the sliver that shows below */
+    box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
     if(isNightNow()){
       /* A HIDDEN LAMP'S LIGHT IS A GHOST TOO (Sir, on-device at the
          Seabreeze Ballroom, 2026-09-29: "the light from the street lamp

@@ -31,6 +31,11 @@ Run per room: `node tools/review/w37.js "<room>" --png <dir>` and `node tools/re
 
 ## 2. Waiting on Sir's decision
 
+- W37 everywhere (2026-11-22): `node tools/review/w37.js --every` checks every entry the library draws -- shops, houses, landmarks, their
+  signs and lamps -- not just the rooms (248 entries). The lamps' fault (a bulb or lens painted after the shade it hangs under: `hung`) fixed
+  at Brew & Bolt, Tidewater Kart Works and the street lamp. Still listed: hung 66 (legs painted after the bench or table top they hold up,
+  trim under cornices, Ferris Taylor Cottages' runs), foot 149, behind 479, inside 343, back 58. Fix them, and in what order?
+
 - People: long sleeves for suits (and which uniforms)?
 - People: the hands-forward pose seen from behind -- the hands show as stubs at the shoulders; change it or leave it?
 - Shelves: check none taller than its room's walls pokes past them.

@@ -8,11 +8,17 @@
      foot     a part drawn after one that STANDS ON IT -- a plate, plinth or base under something's foot, wider than it toward the
               eye, painted second: its top and its near faces land over the foot (Sir, 2026-11-20, Palmline Garage: "the base of
               this upright is drawing over the vertical piece"). Paint the base first, the thing on it after
+     hung     a part drawn after one it HANGS UNDER -- its top at the other's bottom, within its footprint: a bulb under its shade, a
+              lens under a lamp's head (Sir, 2026-11-22, Brew & Bolt's goosenecks: "the light painting over the lamp"). Its top face
+              lands on the near faces of what it hangs from. Paint it first, what it hangs from after (foot is the same, for a base
+              wider than what stands on it)
      behind   a part drawn after one it stands wholly behind (past its back face, within its width, no higher than its top) -- a
               fixture's far-side parts, its working face turned away (Seaglass's espresso machine: group heads over its back)
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
-   node tools/review/w37.js [room name filter]      exits 1 on any clip, back or foot finding
+   node tools/review/w37.js [room name filter]      exits 1 on any clip, back, foot, hung or behind finding
+     --every       every entry the library draws (the shops, landmarks and their signs and lamps as well as the rooms): an entry
+                   drawn whole (no depthSort) is checked as one piece
      --png <dir>   each foot finding's piece drawn alone, 4x, and marked up (<dir>/foot_N_marked.png): the spot circled on the whole
                    piece, beside a close-up of it -- what stands there outlined blue, the base drawn after it red, and where the base
                    paints over its foot filled magenta */
@@ -29,7 +35,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   const want = process.argv.slice(2).find((a, i, A) => !a.startsWith('--') && A[i - 1] !== '--png') || '';
   const h = await H.open({ instr: ADD, rev: process.env.REV || null }); await h.boot();
   const pi = process.argv.indexOf('--png'), PNG = pi > 0 ? process.argv[pi + 1] : null;
-  const out = await h.page.evaluate(([want, PNG]) => {
+  const out = await h.page.evaluate(([want, PNG, EVERY]) => {
     const sc = game.scene.getScene('world'), g = sc.add.graphics(), G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z });
     let cur = null, stack = 0;
     window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([a, b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
@@ -56,7 +62,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const G4 = (a, b, z) => ({ x: (a - b)*S - x0 + pad, y: ((a + b)/2 - z)*S - y0 + pad }), w = Math.ceil(x1 - x0 + 2*pad), hh = Math.ceil(y1 - y0 + 2*pad);
       const g4 = sc.add.graphics(); g4.fillStyle(0xffffff, 1); g4.fillRect(0, 0, w, hh);
       const save = window.__RVP3, saveK = window.__RVK; window.__RVP3 = () => {}; window.__RVK = () => {};
-      try { LIB.drawItem(name, g4, G4, S, it); } catch(err){}
+      try { if(it.draw === null) LIB.draw(name, g4, G4, undefined, S); else LIB.drawItem(name, g4, G4, S, it); } catch(err){}
       window.__RVP3 = save; window.__RVK = saveK;
       const outline = (q, c) => { const C = [[q.a0, q.b0], [q.a1, q.b0], [q.a1, q.b1], [q.a0, q.b1]]; g4.lineStyle(2, c, 1);
         for(const z of [q.z0, q.z1]){ g4.beginPath(); C.forEach(([a, b], k) => { const p = G4(a, b, z); k ? g4.lineTo(p.x, p.y) : g4.moveTo(p.x, p.y); }); g4.closePath(); g4.strokePath(); }
@@ -70,14 +76,15 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       const key = '__w37foot' + (nShot++); g4.generateTexture(key, w, hh); g4.destroy();
       const data = sc.textures.getBase64(key); sc.textures.remove(key);
       return { data, ov: ov.map(p => [Math.round(p.x), Math.round(p.y)]), hE: hE.map(p => [Math.round(p.x), Math.round(p.y)]), hL: hL.map(p => [Math.round(p.x), Math.round(p.y)]) }; };
-    const rooms = [...new Set(POCKETS.map(p => p.name))].filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
+    const rooms = (EVERY ? [...new Set(window.__RVK_shops().map(s => s.name))] : [...new Set(POCKETS.map(p => p.name))]).filter(n => LIB.get(n) && n.includes(want));   // (every room the library draws, the older pockets -- the ballroom -- as well as the walk-ins)
     for(const name of rooms){
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
-      const items = LIB.collect(name, G, 1) || [];
+      let items = []; try { items = LIB.collect(name, G, 1) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
+      let whole = false; if(!items.length && EVERY){ whole = true; items = [{ a: 0, b: 0, z: 0, draw: null }]; }
       const runs = new Map();
       items.forEach((it, i) => {
         cur = { prims: [], prim: null, runZ: -1e9 }; stack = 0;
-        try { LIB.drawItem(name, g, G, 1, it); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
+        try { if(whole) LIB.draw(name, g, G, undefined, 1); else LIB.drawItem(name, g, G, 1, it); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
         const rec = cur; cur = null;
         const P = rec.prims.filter(p => p.pts.length >= 3).map(p => Object.assign(p, { q: bb(p.pts) }));
         /* clip: one per fixture (its runs share the draw) */
@@ -113,6 +120,18 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
             const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
             if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') (line ' + L.line + ', it line ' + E.line + ')' };
+              f.__L = L; if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
+          }
+          /* hung: L drawn after E, L HANGING UNDER E -- its top at E's bottom (within 2), their footprints overlapping, L no wider
+             toward the eye than E (wider is foot's): L's top face lands on E's near faces (Brew & Bolt's goosenecks, a bulb under its
+             copper dome). Not a plate under a foot (foot's) */
+          if(!found.length || found[found.length - 1].__L !== L) for(const E of before){ const e = E.q;
+            if(!VOL.has(E.n) || !VOL.has(L.n)) continue;
+            if(!(q.z1 <= e.z0 + 0.5 && q.z1 >= e.z0 - 2 && e.z1 - e.z0 > 1)) continue;
+            if(!(q.a0 < e.a1 - 0.5 && q.a1 > e.a0 + 0.5 && q.b0 < e.b1 - 0.5 && q.b1 > e.b0 + 0.5)) continue;
+            if(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5) continue;                                     // (reaching nearer: foot's)
+            const ar = paintOver(q, e);
+            if(ar > 16){ const f = { room: name, kind: 'hung', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') hung under the ' + E.n + ' (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') and drawn after it (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* behind: L drawn after E though it stands wholly BEHIND E -- past E's back face (north, or west), within E's width and no higher
@@ -166,9 +185,9 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         });
       });
     }
-    g.destroy();
+    g.destroy(); for(const f of found) delete f.__L;
     return { rooms: rooms.length, found };
-  }, [want, PNG]);
+  }, [want, PNG, process.argv.includes('--every')]);
   if(PNG){ const fs = require('fs'), path = require('path'); fs.mkdirSync(PNG, { recursive: true }); let k = 0;
     for(const f of out.found) if(f.png){ const fn = path.join(PNG, f.kind + '_' + (++k) + '.png'); fs.writeFileSync(fn, Buffer.from(f.png.data.split(',')[1], 'base64'));
       fs.writeFileSync(fn.replace(/\.png$/, '.json'), JSON.stringify({ room: f.room, at: f.at, what: f.what, ov: f.png.ov, hE: f.png.hE, hL: f.png.hL })); f.what += '  -> ' + fn; delete f.png; }
@@ -178,12 +197,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'behind', 'inside', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
   }
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
-  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'behind' || f.kind === 'error') ? 1 : 0);
+  process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'hung' || f.kind === 'behind' || f.kind === 'error') ? 1 : 0);
 })();
