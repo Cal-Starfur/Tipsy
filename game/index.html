@@ -64719,14 +64719,21 @@ function houseCanopy(fn){
           legs(6476, 6684, 1884, 1926, z, 30, walD); box(6470, 6690, 1880, 1930, z + 30, z + 44, oat, oatD, oatS);
         });
         /* THE SHELVING along the east wall: ceramics, books, baskets */
+        /* (W37, Sir 2026-11-22: "redraw the shelving front as base, lip and posts"): its side toward the eye (east) is open -- a base,
+           a lip at the top and a post at each end -- not a solid panel, which painted last hid every shelf; the back panel (west) first,
+           the shelves between the two sides and what stands on them, then the open front */
         for(const sb of [2060, 2300]) fit(6860, 6940, sb, sb + 200, 210, 0, z => {
-          for(const a of [6860, 6934]) box(a, a + 6, sb, sb + 200, z, z + 210, wal, walD, walS);
+          box(6860, 6866, sb, sb + 200, z, z + 210, wal, walD, walS);                                         // the back panel
           for(let r = 0; r < 4; r++){ const zz = z + 20 + r*58;
-            box(6860, 6940, sb, sb + 200, zz, zz + 5, wal, walD, walS);
+            box(6866, 6934, sb, sb + 200, zz, zz + 5, wal, walD, walS);
             for(let k = 0; k < 4; k++){ const vb = sb + 26 + k*48, c = ['#e9e2d4', olive, clay, '#8a9aa6', cream, char][(r*3 + k + sb) % 6];
               if((r + k) % 3 === 1) box(6872, 6928, vb - 18, vb + 18, zz + 5, zz + 30, '#b89a6a', '#a3865a', '#8f744c');   // a woven basket
               else vase(6900, vb, zz + 5, 9, 22 + ((r + k) % 3)*8, c); }
           }
+          box(6934, 6940, sb, sb + 6, z, z + 210, wal, walD, walS);                                           // the open front: its far post,
+          box(6934, 6940, sb + 6, sb + 194, z, z + 20, wal, walD, walS);                                      // its base,
+          box(6934, 6940, sb + 6, sb + 194, z + 202, z + 210, wal, walD, walS);                               // its lip,
+          box(6934, 6940, sb + 194, sb + 200, z, z + 210, wal, walD, walS);                                   // and its near post
         });
         /* THE LINEN THROWS, folded in stacks on a long table */
         fit(6320, 6560, 2140, 2240, 100, 0, z => {
