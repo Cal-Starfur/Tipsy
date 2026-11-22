@@ -55808,9 +55808,12 @@ function houseCanopy(fn){
           box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, CAPZ, cream, cream, alongA && k === n - 1 ? LIP : cream);   /* (its east end face carries on the fascia's bright edge to the corner) */
           /* (the fascia's bright edge, as it has it: along the OUTER edge of the top -- the north run's north side, the west run's west side) */
           if(alongA) T(p0, p1 + (k < n - 1 ? 0.5 : 0), q0, q0 + 5, CAPZ + 0.05, LIP); else T(p0, p0 + 5, q0, q1 + (k < n - 1 ? 0.5 : 0), CAPZ + 0.05, LIP); } : () => {} }); } };
-    edge(0, EA, EN, EN + EW, true, true);                                                    // north: to the fascia's outer edge, so the two caps meet in one corner
+    /* (EWA: the west cap on the shell's own west edge, a -31 -- the shell's roof runs 31 past the room's a 0, and a cap at 0 left a strip
+       of roof outside it; Sir, 2026-11-22: "why is that part not on the edge") */
+    const EWA = -31;
+    edge(EWA, EA, EN, EN + EW, true, true);                                                  // north: to the fascia's outer edge, so the two caps meet in one corner
     for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < EN + EW) it.dk -= 300;
-    edge(0, EW, EN + EW, D, false, true);                                                    // west
+    edge(EWA, EWA + EW, EN + EW, D, false, true);                                            // west: on the shell's west edge
     edge(W - PT, W, PT, D - PT, false, false); edge(0, W, D - PT, D, true, false);           // (east, south: the shell's own fascia; their solids only)
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
