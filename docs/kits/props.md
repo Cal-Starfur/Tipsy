@@ -20,6 +20,7 @@
 | SP10 | **Signals only for real approaches**, one entry each, never split. The head and arm are overhead and not solid. | 6 | K | ☐ |
 | SP11 | **Variation is seeded from world position.** | 3 | K | static |
 | SP12 | **One bench kit, one tree kit, one lamp kit** (variants are options, not copies). | 12 | C (4 bench drawers, 2+ lamp drawers) | static |
+| SP13 | **Inside a prop, back to front, and faces from the eye** (W37 for the street -- Sir, 2026-11-22, the street lamp: "we need to create a kit for this type of street issue so that we can get it contained and fixed globally for all street builds"). A prop's drawer is turned by its facing (`fdir` turns W), so which walls face the eye is ASKED of W, never assumed: `sA = W(1,0,0).y > W(0,0,0).y` (the +a wall seen, else the -a), the same for b; the right-hand wall the dark one. Parts meet face to face (the lamp's arm runs from the pole's face to the head's, never from the pole's middle into the head); what hangs under is painted before what it hangs from (the lens before the head); a part reaching away from the eye is painted before what it reaches from (the arm and head before the pole); flat bits on the ground before what lies over them (the trash). | -- | K (lamp, trash); the rest pass | ✅ `node tools/review/props_depth.js` (every street prop x 4 facings, a depth grid over every face it paints: exits 1 on any face painted over a nearer one; `--fleet` adds the vehicles, advisory) |
 
 **Approved values:**
 - **Lamp:** 315 high (2.54 × person), pole 12, arm 88.

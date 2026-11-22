@@ -116511,8 +116511,13 @@ class WorldScene extends Phaser.Scene {
     const H = L.height * hVar;
     const lean = zz => tilt * zz;
 
+    /* FACES FROM THE EYE (props kit SP13 -- Sir, 2026-11-22: "a draw order issue on this street lamp"): W turns with the lamp's facing,
+       so which of its walls face the eye is asked of W, never assumed (+a, +b are the near walls only at facing 0): sA / sB the seen
+       side along a and b, aRight whether the a-wall is the one on the right (the dark one, as the light falls) */
+    const W0 = W(0, 0, 0), sA = (W(1, 0, 0).y - W0.y) > 0 ? 1 : -1, sB = (W(0, 1, 0).y - W0.y) > 0 ? 1 : -1;
+    const aRight = (W(sA, 0, 0).x - W0.x) > 0;
     const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false, all4=false) => {
-      const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz);
+      const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz), cAw = aRight ? cA : cB, cBw = aRight ? cB : cA;
       /* ALL FOUR WALLS FOR THE BASE (Sir, on-device: "the base of the
          street lamps doesnt have all its faces"). A standalone box here
          draws its two camera-facing walls and nothing else, which is
@@ -116523,8 +116528,8 @@ class WorldScene extends Phaser.Scene {
          walls first, then the top, then the near ones: the painter order
          a solid needs. */
       if(all4){
-        this.quadOn(g, [c(-1,-1,z1), c(-1,1,z1), c(-1,1,z0), c(-1,-1,z0)], cA);
-        this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,-1,z0), c(-1,-1,z0)], cB);
+        this.quadOn(g, [c(-sA,-1,z1), c(-sA,1,z1), c(-sA,1,z0), c(-sA,-1,z0)], cAw);
+        this.quadOn(g, [c(-1,-sB,z1), c(1,-sB,z1), c(1,-sB,z0), c(-1,-sB,z0)], cBw);
       }
       /* noTop: when another segment of the SAME footprint sits flush
          on top (pole segment -> pole segment), this segment's top cap
@@ -116537,8 +116542,8 @@ class WorldScene extends Phaser.Scene {
          it. The base doesn't use this -- it's wider than the pole, so
          its top is a genuinely visible ledge, not a stacking artifact. */
       if(!noTop) this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
-      this.quadOn(g, [c(1,-1,z1), c(1,1,z1), c(1,1,z0), c(1,-1,z0)], cA);
-      this.quadOn(g, [c(-1,1,z1), c(1,1,z1), c(1,1,z0), c(-1,1,z0)], cB);
+      this.quadOn(g, [c(sA,-1,z1), c(sA,1,z1), c(sA,1,z0), c(sA,-1,z0)], cAw);
+      this.quadOn(g, [c(-1,sB,z1), c(1,sB,z1), c(1,sB,z0), c(-1,sB,z0)], cBw);
     };
 
     /* NO CAST SHADOW under the base (Sir: "i want to get rid of its
@@ -116546,10 +116551,10 @@ class WorldScene extends Phaser.Scene {
        read as a smudge rather than as light. */
     box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base, false, true);
     const segN = 3;
-    for(let i = 0; i < segN; i++){
+    const pole = () => { for(let i = 0; i < segN; i++){
       const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
       box(lean((z0+z1)/2), 0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole, i < segN-1);
-    }
+    } };
     const topA = lean(H);
 
     /* gooseneck arm + fixture. +b is toward the ROAD (b increases with
@@ -116562,14 +116567,19 @@ class WorldScene extends Phaser.Scene {
        old building-row behaviour for any lamp without one. */
     const aSign = (hz.armSign === -1) ? -1 : 1;
     const armL = L.armLen * armVar * aSign, seg = 3;
-    for(let i = 0; i < seg; i++){
-      const u0 = i/seg, u1 = (i+1)/seg;
-      const bA = armL*u0, bB = armL*u1;
-      const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
-      const aw = L.poleW*0.4375, ad = L.poleW*0.625;   // arm half-width / underside depth, kept in proportion to the pole
-      this.quadOn(g, [W(topA-aw,bA,zA), W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA-aw,bB,zB)], L.pole);
-      this.quadOn(g, [W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA+aw,bB,zB-ad), W(topA+aw,bA,zA-ad)], L.poleDk);
-    }
+    /* THE ARM MEETS THE POLE AND THE HEAD FACE TO FACE (SP13): it runs from the pole's face to the head's, not from the pole's middle
+       into the head -- begun inside the pole its side was painted over the pole, and run into the head its top crossed the head's
+       (Sir, 2026-11-22). Its seen side only (sA); its segments near-last; and the whole arm and head before the pole when it reaches
+       away from the eye (behind the pole's top), after it when it reaches toward it */
+    const armB0 = aSign*L.poleW/2, armB1 = armL - aSign*L.headW/2*0.6, toEye = (W(0, aSign, 0).y - W0.y) > 0;
+    const arm = () => { const aw = L.poleW*0.4375, ad = L.poleW*0.625, sd = topA + sA*aw;   // arm half-width / underside depth, kept in proportion to the pole
+      for(let k = 0; k < seg; k++){ const i = toEye ? k : seg - 1 - k;
+        const u0 = i/seg, u1 = (i+1)/seg;
+        const bA = armB0 + (armB1 - armB0)*u0, bB = armB0 + (armB1 - armB0)*u1;
+        const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
+        this.quadOn(g, [W(topA-aw,bA,zA), W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA-aw,bB,zB)], L.pole);
+        this.quadOn(g, [W(sd,bA,zA), W(sd,bB,zB), W(sd,bB,zB-ad), W(sd,bA,zA-ad)], aRight ? L.poleDk : L.pole);
+      } };
     const hz2 = H - L.armDrop;
 
     /* lens housing (always) + the light itself (night, into gGlow) */
@@ -116592,11 +116602,14 @@ class WorldScene extends Phaser.Scene {
     const lensDropY = lensH*K*0.55*0.5;
     /* (lit at night in the lens's own place, under the head -- not on gGlow over it) */
     const litNow = isNightNow() ? (hz.mal ? flickerAt(hz.lampSeed, t) : 1) : 0;
+    const head = () => {
     g.fillStyle(litNow > 0.5 ? 0xffe9c0 : L.glassDay, 1);
     g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
     /* THE HEAD OVER ITS LENS (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the lens is
        on the head's underside, which the eye never sees from above, so the head covers all of it but the sliver that shows below */
     box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
+    };
+    if(toEye){ pole(); arm(); head(); } else { head(); arm(); pole(); }
     if(isNightNow()){
       /* A HIDDEN LAMP'S LIGHT IS A GHOST TOO (Sir, on-device at the
          Seabreeze Ballroom, 2026-09-29: "the light from the street lamp
@@ -126368,7 +126381,7 @@ class WorldScene extends Phaser.Scene {
         const kind2 = rng();
         if(kind2 < 0.4){
           const r = 2.4 + rng()*1.6;
-          items.push({ x:bx, y:by, r, draw: () => {
+          items.push({ flat: true, x:bx, y:by, r, draw: () => {
             circ(bx, by, r, 1, T3.paper, T3.paperShade, 8);
             circ(bx + r*0.3, by + r*0.3, r*0.45, 1.4, T3.paperShade, undefined, 7);
           }});
@@ -126376,7 +126389,7 @@ class WorldScene extends Phaser.Scene {
           const th = rng()*Math.PI*2, L2 = 6, r2 = 2;
           const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
           const col = rng() < 0.5 ? T3.canA : T3.canB;
-          items.push({ x:bx, y:by, r:L2/2, draw: () => {
+          items.push({ flat: true, x:bx, y:by, r:L2/2, draw: () => {
             poly([
               W(bx - du.x*L2/2 + nu.x*r2, by - du.y*L2/2 + nu.y*r2, 1),
               W(bx + du.x*L2/2 + nu.x*r2, by + du.y*L2/2 + nu.y*r2, 1),
@@ -126390,7 +126403,7 @@ class WorldScene extends Phaser.Scene {
           const du = {x:Math.cos(th), y:Math.sin(th)}, nu = {x:-du.y, y:du.x};
           const col = T3.wrap[Math.floor(rng()*T3.wrap.length)];
           const w2 = 2.4 + rng()*2, h2 = 1.6 + rng()*1.4;
-          items.push({ x:bx, y:by, r:w2, draw: () => {
+          items.push({ flat: true, x:bx, y:by, r:w2, draw: () => {
             poly([
               W(bx - du.x*w2 + nu.x*h2, by - du.y*w2 + nu.y*h2, 0.8),
               W(bx + du.x*w2 + nu.x*h2, by + du.y*w2 + nu.y*h2, 0.8),
@@ -126406,7 +126419,9 @@ class WorldScene extends Phaser.Scene {
       }
 
       /* no shadow under litter: static props cast none (LOOK_RULES 3, SP6) */
-      items.sort((a2,b2) => (a2.x + a2.y) - (b2.x + b2.y));
+      /* (the flat bits on the ground first, the bag and the bottle lying over them after -- props kit SP13: a bit drawn after the bag
+         by its middle's depth painted its paper over the bag's top) */
+      items.sort((a2,b2) => (!!b2.flat - !!a2.flat) || (a2.x + a2.y) - (b2.x + b2.y));
       for(const it of items) it.draw();
     } else if(kind === "cone"){
       /* approved in cone hit lab (2026-07-09): ONE rigid geometry driven
