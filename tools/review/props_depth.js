@@ -20,11 +20,14 @@ const STREET = ['lamp', 'signalpost', 'hydrant', 'bin', 'cone', 'planter', 'palm
   'robot', 'courierbot', 'cargobot', 'patrolbot', 'amr'];
 const FLEET = ['humanoid', 'avpod', 'avshuttle', 'avsweeper', 'avgarbage', 'avdump', 'avforklift', 'avsemi', 'robotaxi', 'van', 'tipseyvan',
   'ambulance', 'firetruck', 'flatbed', 'fueltruck', 'beertruck', 'burrito'];
-const KINDS_ALL = STREET.concat(args.includes('--fleet') ? FLEET : []);
+const KINDS_ALL = STREET.concat(args.includes('--fleet') ? FLEET : []);   // (--fleet also adds every car:<kind> and van:<kind>, read from the game)
 const pos = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--')));
-const KINDS = pos ? pos.split(',') : KINDS_ALL, PNG = arg('--png', null), MIN = +arg('--min', 12);
+const KINDS = pos ? pos.split(',') : KINDS_ALL.slice(), PNG = arg('--png', null), MIN = +arg('--min', 12);
 (async () => {
   const out = [], perrs = [];
+  if(!pos && args.includes('--fleet')){ const h = await H.open(); await h.boot();
+    const ks = await h.page.evaluate(() => Object.keys(CAR_KINDS).map(k => 'car:' + k).concat(Object.keys(VAN_KINDS).map(k => 'van:' + k)));
+    await h.close(); KINDS.push(...ks); FLEET.push(...ks); }
   for(let c = 0; c < KINDS.length; c += 5){                   // (a fresh page every five kinds: one page for all of them runs out of memory)
   const h = await H.open(); await h.boot();
   out.push(...await h.page.evaluate(([KINDS, MIN, PNG]) => {
@@ -40,9 +43,11 @@ const KINDS = pos ? pos.split(',') : KINDS_ALL, PNG = arg('--png', null), MIN = 
       const fp0 = g.fillPoints.bind(g); g.fillPoints = (pts, ...r) => {
         const w3 = pts.map(p => byObj.get(p) || byXY.get(Math.round(p.x*100) + ',' + Math.round(p.y*100)) || null);
         /* (a translucent face -- shading laid over a part, a crease -- is paint, not a part) */
-        faces.push({ w3: w3.every(Boolean) && alp > 0.95 ? w3 : null, col, line: lineOf() }); return fp0(pts, ...r); };
+        faces.push({ w3: w3.every(Boolean) && alp > 0.95 ? w3 : null, col, line: lineOf(), hole: !!s._paintHole }); return fp0(pts, ...r); };
       const save = { xr: XRAY.propMax, vb: s._visBlocks }; XRAY.propMax = 0; s._visBlocks = null;
-      try { s.drawProp(g, kind, X, Y, 1000, fdir, 0, 0, 7, null); } catch(e){ res.push({ kind, fdir, err: String(e).slice(0, 100) }); }
+      try { if(kind.startsWith('car:')) s.drawCar(g, kind.slice(4), X, Y, 0, 1000, fdir, 0, 7, null);
+            else if(kind.startsWith('van:')) s.drawVan(g, kind.slice(4), X, Y, 0, 1000, fdir, 0, 7, null);
+            else s.drawProp(g, kind, X, Y, 1000, fdir, 0, 0, 7, null); } catch(e){ res.push({ kind, fdir, err: String(e).slice(0, 100) }); }
       XRAY.propMax = save.xr; s._visBlocks = save.vb; s.W = W0; g.destroy();
       /* the depth grid */
       const F = faces.map((f, i) => Object.assign(f, { i })).filter(f => f.w3 && f.w3.length >= 3);
@@ -73,7 +78,7 @@ const KINDS = pos ? pos.split(',') : KINDS_ALL, PNG = arg('--png', null), MIN = 
           if(!inside) continue;
           const dx = px - o[0], dy = py - o[1], u = (dx*pl.s2[1] - dy*pl.s2[0])/pl.det, v = (pl.s1[0]*dy - pl.s1[1]*dx)/pl.det, d = d0 + u*de1 + v*de2;
           const k = (py - y0)*GW + (px - x0), t = top[k];
-          if(!flat){ top[k] = -1; continue; }
+          if(!flat || f.hole){ top[k] = -1; continue; }          // (a hole -- a wheel arch, painted dark first -- is empty: what is painted in it is behind it)
           if(t >= 0 && d < dep[k] - 3.5){ const key = t + '>' + f.i; pairs.set(key, (pairs.get(key) || 0) + 1); if(bad) bad[k] = 1; }
           top[k] = f.i; dep[k] = d;
         }
