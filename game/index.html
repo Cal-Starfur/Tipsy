@@ -50493,11 +50493,14 @@ function houseWin(a0, a1, z0, z1, bf, frame, sill, dir, opts){
     F(am-1.5, am+1.5, z0, z1, frame, null, 0, bf + 0.8*d);
     F(a0, a1, zm-1.5, zm+1.5, frame, null, 0, bf + 0.8*d);
   }
+  /* (W37: the window box hangs under the sill -- it first, the sill over it, the flowers last) */
+  if(o.box){
+    if(d > 0) slab(a0-2, a1+2, z0-24, z0-10, bf+12, bf, o.box);
+    else      slab(a0-2, a1+2, z0-24, z0-10, bf-12, bf, o.box);
+  }
   if(d > 0) slab(a0-7, a1+7, z0-9, z0-4, bf+7, bf, sill);
   else      slab(a0-7, a1+7, z0-9, z0-4, bf-7, bf, sill);
   if(o.box){                                                  // window box, flowers on top
-    if(d > 0) slab(a0-2, a1+2, z0-24, z0-10, bf+12, bf, o.box);
-    else      slab(a0-2, a1+2, z0-24, z0-10, bf-12, bf, o.box);
     const bb = bf + 7*d;
     for(let k = 0; k < 5; k++){
       const aa = a0 + 3 + (a1-a0-6)*k/4;
@@ -50746,7 +50749,7 @@ function houseParapetRoof(a0, a1, bf, bb, H, h, t, wall){
   T(a0, a1, bb, bf, H, shade(wall,.8));
   const nearF = !state.back;                                   // near b face: front view bf, back view bb
   const ringB = (b0, b1) => box(a0, a1, b0, b1, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
-  const sideA = a => box(a-t/2, a+t/2, bb, bf, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
+  const sideA = a => box(a-t/2, a+t/2, bb+t, bf-t, H, H+h, shade(wall,1.04), wall, shade(wall,.8));   // (between the two rings, meeting them: W37)
   if(nearF) ringB(bb, bb+t); else ringB(bf-t, bf);
   sideA(FLANK_RIGHT ? a0 + t/2 : a1 - t/2);
   sideA(FLANK_RIGHT ? a1 - t/2 : a0 + t/2);
@@ -50948,9 +50951,9 @@ function houseEndLogs(a0, a1, bf, bb, z0, z1, col){
 
 /* a porch rocker */
 function houseRocker(a, b, col){
+  for(const aa of [a-9, a+9]) box(aa-1.5, aa+1.5, b-8, b+8, 0, 14, shade(col,.8), shade(col,.7), shade(col,.6));   // (its rockers first, the seat on them: W37)
   box(a-11, a+11, b-9, b+9, 14, 18, col, shade(col,.88), shade(col,.76));
   box(a-11, a+11, b-9, b-5, 18, 48, col, shade(col,.88), shade(col,.76));
-  for(const aa of [a-9, a+9]) box(aa-1.5, aa+1.5, b-8, b+8, 0, 14, shade(col,.8), shade(col,.7), shade(col,.6));
 }
 
 
@@ -51131,7 +51134,8 @@ function houseHalfCone(ac, b, r, n, z0, z1, roof){
    and are drawn with the yard ('far', straight after this.yard); the near
    side is in front of it and goes last in fore() ('near'). From behind the
    roles swap: the near side and the back go last in back(). */
-function houseYardRun(f, col, axis, fixed, u0, u1){
+function houseYardRun(f, col, axis, fixed, u0, u1, ext){
+  const e0 = ext ? ext[0] : 0, e1 = ext ? ext[1] : 0;   // (houseYardFence's corners: a solid run's body carried on past its ends (or short of them), its decoration not; a post run's end post left out)
   const Q = (a, b, z0, z1, cl) => axis === 'a' ? F(a, b, z0, z1, cl, null, 0, fixed) : S(fixed, a, b, z0, z1, cl);
   const pt = (u, z) => axis === 'a' ? P(u, fixed, z) : P(fixed, u, z);
   const bx = (a, b, t, z0, z1, cl) => axis === 'a' ? box(a, b, fixed - t, fixed + t, z0, z1, shade(cl,1.04), cl, shade(cl,.8))
@@ -51139,7 +51143,9 @@ function houseYardRun(f, col, axis, fixed, u0, u1){
   const ball2 = (u, z, r, cl) => axis === 'a' ? ball(u, fixed, z, r, cl) : ball(fixed, u, z, r, cl);
   const h = f.h, c1 = col(f.col), cap = col(f.cap);
   /* posts never overhang the run's ends, so a run that starts at the lot line stays in the lot */
-  const posts = (every, ph, cl, t) => { for(let u = u0; u <= u1 + 0.1; u += every){ const m = Math.min(Math.max(u, u0 + t), u1 - t); bx(m - t, m + t, t, 0, ph, cl); } };
+  const posts = (every, ph, cl, t) => { for(let u = u0; u <= u1 + 0.1; u += every){ const m = Math.min(Math.max(u, u0 + t), u1 - t);
+    if((e0 > 0 && m <= u0 + t + 0.01) || (e1 > 0 && m >= u1 - t - 0.01)) continue;   // (a side run's post stands on this corner: one post there, not two run into each other -- W37)
+    bx(m - t, m + t, t, 0, ph, cl); } };
   switch(f.style){
     case 'picket':
       Q(u0, u1, h*0.28, h*0.28 + 3, shade(c1,.86)); Q(u0, u1, h*0.66, h*0.66 + 3, shade(c1,.86));
@@ -51151,13 +51157,13 @@ function houseYardRun(f, col, axis, fixed, u0, u1){
       if(f.pier) posts(118, h + 8, col(f.pier), axis === 'a' ? 2 : 6); else posts(120, h + 2, shade(c1,1.3), axis === 'a' ? 2 : 3);
       break;
     case 'hedge':
-      bx(u0, u1, 5, 0, h, c1);
+      bx(u0 - e0, u1 + e1, 5, 0, h, c1);
       for(let u = u0 + 8; u < u1; u += 16) ball2(u, h, 5, c1);
       break;
     case 'wall':
-      bx(u0, u1, 4, 0, h, c1);
+      bx(u0 - e0, u1 + e1, 4, 0, h, c1);
       if(f.stones) for(let u = u0 + 6; u < u1 - 8; u += 13) Q(u, u + 8, 4 + (u % 3)*3, 11 + (u % 3)*3, shade(c1,.8));
-      if(cap) bx(u0 - 1, u1 + 1, 5, h, h + 4, cap);
+      if(cap) bx(u0 - e0 - 1, u1 + e1 + 1, 5, h, h + 4, cap);
       if(f.balls) for(let u = u0 + 6; u < u1; u += 12) ball2(u, h, 4.2, c1);
       break;
     case 'bamboo':
@@ -51180,7 +51186,11 @@ function houseYardFence(sh, c, part){
   const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB;
   const aL = 7, aR = W - 7, bF = -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
   const nearA = FLANK_RIGHT ? aR : aL, farA = FLANK_RIGHT ? aL : aR;
-  const side = a => houseYardRun(f, col, 'b', a, bR, bF);
+  /* (W37: a solid run -- a hedge, a wall -- meets at the back corners face to face: the rear run carried out over the sides' outer
+     half, the sides from its near face, so neither runs into the other whichever is drawn first) */
+  const boxy = f.style === 'hedge' || f.style === 'wall', tS = f.style === 'hedge' ? 5 : 4;
+  const side = a => houseYardRun(f, col, 'b', a, bR, bF, boxy ? [-HOUSE_YARD_BACK[f.style][1], 0] : null);
+  const ext = boxy ? [tS, tS] : [1, 1];   // (the rear run's ends, where the sides meet it: a solid run carried out over them, a post left to the side's)
   /* A BACK GATE (game-side, 2026-09-29, Ferris Taylor: "we want access to
      their back yards"). A city lot backs onto the open middle of its
      block, so a fenced yard there takes a gap in its rear run, centred,
@@ -51188,8 +51198,8 @@ function houseYardFence(sh, c, part){
      solid. Set on the city copies only (see FERRIS TAYLOR'S HOUSES);
      Sierra's houses and the lab carry no backGate and draw as before. */
   const gA = f.backGate ? W/2 - f.backGate : 0, gB = f.backGate ? W/2 + f.backGate : 0;
-  const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR);
-                       else { houseYardRun(f, col, 'a', bR, aL, gA); houseYardRun(f, col, 'a', bR, gB, aR); } };
+  const rear = () => { if(!f.backGate) houseYardRun(f, col, 'a', bR, aL, aR, ext);
+                       else { houseYardRun(f, col, 'a', bR, aL, gA, [ext[0], 0]); houseYardRun(f, col, 'a', bR, gB, aR, [0, ext[1]]); } };
   if(part === 'far'){ if(!state.back){ rear(); side(farA); } else side(farA); }
   else { if(!state.back) side(nearA); else { side(nearA); rear(); } }
 }
@@ -51540,6 +51550,8 @@ function houseCanopy(fn){
               CLIPA = [A(tx0), A(tx1)]; CLIPB = [B(ty1), B(ty0)];
               /* the south face, on the south row */
               if(r === n - 1){
+                faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);   // (W37: the tower's face first, then the plinth standing out in front of it)
+                faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
                 { const pe = T.podium !== 'S' ? coveFlushEnd(T, 'S') : null;                // (the south shops' plinth, flush to the pavement, ending at its last flush shop: coveFlushE)
                   if(pe !== null){
                     if(tx0 < pe) T_(tx0, Math.min(tx1, pe), T.y1, PLY, GT, stoneL);
@@ -51547,8 +51559,6 @@ function houseCanopy(fn){
                     faceQ(southP, A(T.x0), A(pe), 0, GT, stone, 0);
                     faceQ(southP, A(T.x0), A(pe), GT - 10, GT, stoneL, 0.3);
                   } }
-                faceQ(southF, A(T.x0), A(T.x1), zbS, GT, stone, 0);
-                faceQ(southF, A(T.x0), A(T.x1), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'S'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(southF, A(sh.span[0]), A(sh.span[1]), H, sh.lobby) : shopfront(southF, A(sh.span[0]), A(sh.span[1]), H, sh);
@@ -51557,6 +51567,8 @@ function houseCanopy(fn){
               }
               /* the east face, on the east column */
               if(c === n - 1){
+                faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);   // (W37: the tower's face first, then the plinth standing out in front of it)
+                faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
                 /* (the east shops' plinth, flush to the pavement, ending at its last flush shop: its top, its end, its face -- coveFlushE) */
                 { const pe = T.podium !== 'E' ? coveFlushEnd(T, 'E') : null;
                   if(pe !== null){
@@ -51565,8 +51577,6 @@ function houseCanopy(fn){
                     faceQ(eastP, B(pe), B(T.y0), 0, GT, stone, 0);
                     faceQ(eastP, B(pe), B(T.y0), GT - 10, GT, stoneL, 0.3);
                   } }
-                faceQ(eastF, B(T.y1), B(T.y0), zbE, GT, stone, 0);
-                faceQ(eastF, B(T.y1), B(T.y0), GT - 10, GT, stoneL, 0.3);
                 if(T.podium === 'E'){
                   for(const sh of COVE_PLAZA_SHOPS) if(C.towers[sh.tower] === T)
                     sh.lobby ? lobby(eastF, B(sh.span[1]), B(sh.span[0]), H, sh.lobby) : shopfront(eastF, B(sh.span[1]), B(sh.span[0]), H, sh);
@@ -51585,8 +51595,11 @@ function houseCanopy(fn){
               CLIPA = CLIPB = null;
               /* the roof, its parapet and the crown */
               T_(tx0, tx1, ty0, ty1, TOP, '#a9a397');
-              if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD);
-              if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD);
+              /* (W37: the east parapet from the south one's face, meeting it at the corner; the far one first -- whichever b the eye sees:
+                 the lab's b runs against the world's y) */
+              const ptE = () => { if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1) + (r === n - 1 ? 8 : 0), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD); };
+              const ptS = () => { if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD); };
+              if(P(0, 1, 0).y < P(0, 0, 0).y){ ptE(); ptS(); } else { ptS(); ptE(); }
               const cx0 = Math.max(tx0, T.x0 + 140), cx1 = Math.min(tx1, T.x1 - 140), cy0 = Math.max(ty0, T.y0 + 180), cy1 = Math.min(ty1, T.y1 - 180);
               if(cx1 > cx0 && cy1 > cy0){
                 box(A(cx0), A(cx1), B(cy1), B(cy0), TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
@@ -52318,7 +52331,8 @@ function houseCanopy(fn){
                   box(A(e[0] - 44), A(e[1] + 44), fb - 20, fb, EZ, EZ + 12, stoneL, stone, stoneD);
                   /* the canopy: a slab out over the footway, its fascia blue */
                   const c0 = A(e[0] - 24), c1 = A(e[1] + 24), cb = fb - 96, cz0 = 118, cz1 = 140;
-                  box(c0, c1, cb, fb, cz0, cz1, '#e9ecef', blue, shade(blue, .78));
+                  /* (W37: its ends stop at the piers' street faces; between the piers it runs on back to the wall, only its top seen there) */
+                  box(c0, c1, cb, fb - 16, cz0, cz1, '#e9ecef', blue, shade(blue, .78)); T(A(e[0]), A(e[1]), fb - 16, fb, cz1, '#e9ecef');
                   T(c0 + 6, c1 - 6, cb + 6, fb - 4, cz1 + 0.5, '#dfe3e7');
                   fword({ pl:'F', at: cb, out: -1 }, 'MAIN ENTRANCE', c0 + 60, c1 - 60, cz0 + 2, cz1 - 2, '#ffffff', 0.4);
                 }
@@ -52342,7 +52356,7 @@ function houseCanopy(fn){
                 fword(pE, 'EMERGENCY', B(5000) + 30, B(4300) - 30, PD.top + 8, PD.top + 50, '#ffffff', 1.2);
               }
               CLIPA = CLIPB = null;
-              if(r === m - 1){
+              const ringF = () => { if(r !== m - 1) return;
                 box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
                 /* THE NAME, standing on the parapet over the entrance -- laid
                    after the parapet, which used to cover the foot of every
@@ -52353,13 +52367,17 @@ function houseCanopy(fn){
                 fq(pS, A(e[0]) - 170, A(e[1]) + 170, PD.top + 62, PD.top + 66, shade(blue, 1.25), 1.1);
                 fword(pS, 'MARINA GENERAL HOSPITAL', A(e[0]) - 150, A(e[1]) + 150, PD.top + 20, PD.top + 58, '#ffffff', 1.2);
                 CLIPA = null;
-              }
+              };
               /* ITS PARAPET ALL ROUND (Sir: "what about the rest of the hospital
                  does it still miss its back side rim?"): the north, east and
                  west edges as the front */
-              if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD);
-              if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
-              if(c === 0) box(A(PD.x0), A(PD.x0) + 8, B(ty1), B(ty0), PD.top, PD.top + 14, wallL, wall, wallD);
+              const ringN = () => { if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD); };
+              const ends = () => { const pb0 = B(ty1) + (r === m - 1 ? 8 : 0), pb1 = B(ty0) - (r === 0 ? 8 : 0);
+                if(c === 0) box(A(PD.x0), A(PD.x0) + 8, pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD);
+                if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD); };
+              /* (W37: the ends run between the front's and the back's and meet them at the corners; the far one first, the ends, the
+                 near one last -- whichever b the eye sees: the lab's b runs against the world's y) */
+              if(P(0, 1, 0).y < P(0, 0, 0).y){ ringN(); ends(); ringF(); } else { ringF(); ends(); ringN(); }
               /* the tower, where it stands over this tile */
               const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
               if(ax1 > ax0 && ay1 > ay0){
@@ -52376,11 +52394,15 @@ function houseCanopy(fn){
                   fq(tE, B(TW.y1), B(TW.y0), PD.top + 2*TW.FH + 6, PD.top + 2*TW.FH + 14, blue, 0.8);
                 }
                 CLIPA = CLIPB = null;
-                if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD);
-                if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
-                /* and its crown on round the back: the north and west edges */
-                if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD);
-                if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, B(ay1), B(ay0), TOP, CROWN, wallL, wall, wallD);
+                /* its crown round the front and on round the back: the north and west edges. (W37: the ends run between the front's
+                   and the back's, meeting them at the corners; the far one first, the ends, the near one last -- whichever b the eye
+                   sees: the lab's b runs against the world's y) */
+                const cb0 = B(ay1) + (ay1 === TW.y1 ? 8 : 0), cb1 = B(ay0) - (ay0 === TW.y0 ? 8 : 0);
+                const crS = () => { if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD); };
+                const crN = () => { if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD); };
+                const crE = () => { if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, cb0, cb1, TOP, CROWN, wallL, wall, wallD);
+                                    if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), cb0, cb1, TOP, CROWN, wallL, wall, wallD); };
+                if(P(0, 1, 0).y < P(0, 0, 0).y){ crN(); crE(); crS(); } else { crS(); crE(); crN(); }
                 /* the crown's name, the red cross, the helipad, the plant */
                 if(ay1 === TW.y1 && ax0 <= 18275 && 18275 < ax1){
                   F(A(17300), A(19250), TOP + 6, CROWN + 70, blue, null, 0, B(TW.y1) - 1);
@@ -53619,7 +53641,7 @@ function houseCanopy(fn){
             items.push({ a: A(tx + 56), b: B(y0), z: 0, draw: () => {
               if(!inView(A(tx - 60), A(tx + 60), B(y1), B(y0), 0, 190)) return;
               if(s2 === 0) for(const sb of [-1, 1]) tube(A(tx + sb*40), B(y0 + 120), 0, A(tx + sb*40), B(y0 + 120), 46, 3, '#3a3f46');   /* (its landing legs) */
-              if(s2 === segs - 1) for(const yy of [y1 - 150, y1 - 90]) for(const sb of [-1, 1]) box(A(tx + sb*56 - (sb > 0 ? 18 : 0)), A(tx + sb*56 + (sb < 0 ? 18 : 0)), B(yy + 28), B(yy - 28), 0, 46, '#1b1d21', '#16171b', '#121316');
+              if(s2 === segs - 1) for(const yy of ((P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? [y1 - 90, y1 - 150] : [y1 - 150, y1 - 90])) for(const sb of [-1, 1]) box(A(tx + sb*56 - (sb > 0 ? 18 : 0)), A(tx + sb*56 + (sb < 0 ? 18 : 0)), B(yy + 28), B(yy - 28), 0, 46, '#1b1d21', '#16171b', '#121316');   /* (its wheels, the far axle first, whichever b the eye sees: W37) */
               box(A(tx - 55), A(tx + 55), B(y1), B(y0), 46, 176, colB, shade(colB, .9), shade(colB, .8));
               S(A(tx + 55) + 0.4, B(y1), B(y0), 150, 160, shade(band, .9));   /* (its band on its seen side only, as the sheds' east ends: a box of it painted its top over the roof) */
               if(s2 === segs - 1){ const fs = { pl:'F', at: B(y1), out: -1 };
@@ -56234,8 +56256,8 @@ function houseCanopy(fn){
       for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
         items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
       items.push({ a: ra, b: pb0 + 18, z: 0, solids: [solid(pa0 + 14, pa1 - 14, pb0 + 6, pb0 + 30, 42, 'pit bench')], draw: () => {            // the pit bench, paint cans and a rack of wheels
+        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));   // (its legs, then the top they hold up: W37)
         box(pa0 + 14, pa1 - 14, pb0 + 8, pb0 + 28, 36, 40, woodL, wood, woodD);
-        for(const la of [pa0 + 18, pa1 - 22]) box(la, la + 4, pb0 + 10, pb0 + 26, 0, 36, woodD, shade(woodD, 0.9), shade(woodD, 0.8));
         for(const [ca, col] of [[pa0 + 30, '#2a6fb0'], [pa0 + 44, '#f2b544'], [pa0 + 58, '#d8352a']]) cyl(ca, pb0 + 18, 40, 52, 6, col, shade(col, 0.8));
         for(let k = 0; k < 3; k++) cyl(pa1 - 36, pb0 + 18, 40 + k*9, 48 + k*9, 12, k % 2 ? '#26282c' : '#2e3034', k === 2 ? '#1e1e22' : null); } });
       items.push({ a: ra, b: pb1 - 76, z: 0, solids: [solid(ra - 50, ra + 50, pb1 - 148, pb1 - 12, 54, 'parked kart')], draw: () => soapKartS(ra, pb1 - 76, 0, '#e8e4da', '#c4bfb2', 5, null, { stripe: '#d8352a' }) });
@@ -65182,7 +65204,7 @@ function houseCanopy(fn){
       if(!part || part === 'base'){
         for(const [a, b] of [[a0 + 10, b0 + 10], [a1 - 10, b0 + 10], [a0 + 10, b1 - 10], [a1 - 10, b1 - 10]]) cyl(a, b, 0, 10, 4, '#3a3f44', '#4a5056');
         board(true);
-        box(a0, a1, b0, b1, 8, 30, steelL, steel, steelD);
+        if(hb) box(a0, a1, b0 + 4, b1, 8, 30, steelL, steel, steelD); else box(a0 + 4, a1, b0, b1, 8, 30, steelL, steel, steelD);   // (the frame from the far board's face: W37, they meet)
         box(a0 + 2, a1 - 2, b0 + 2, b1 - 2, 30, 40, white, '#e6e6e2', '#d6d6d2');
         if(!couch && !sleeper) box(blk[0], blk[1], blk[2], blk[3], 40, 46, blue, shade(blue, 0.9), shade(blue, 0.82));   // (made up, empty)
         box(pl[0], pl[1], pl[2], pl[3], 40, sleeper && !couch ? 45 : 50, white, '#e6e6e2', '#d6d6d2');   // (flatter under a head)
@@ -65251,15 +65273,16 @@ function houseCanopy(fn){
     const BX = (q, z0, z1, c0, c1, c2) => box(q[0], q[1], q[2], q[3], z0, z1, c0, c1, c2);
     /* the desk faces the room, away from whoever sits at it between it and the wall: its screen at its front edge, turned to them */
     const desk = (r, face) => { const W = FW(r, face), Dd = FDp(r, face);
-      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 40, grey, greyD, greyS); BX(RB(r, face, W - 40, W - 4, 4, Dd - 4), 0, 40, grey, greyD, greyS);
+      BX(RB(r, face, 4, 40, 4, Dd - 4), 0, 40, grey, greyD, greyS); BX(RB(r, face, Math.max(W - 40, 40), W - 4, 4, Dd - 4), 0, 40, grey, greyD, greyS);   // (a narrow desk's two pedestals meet: W37)
       box(r[0], r[1], r[2], r[3], 40, 46, lam, lamD, lamS);
       BX(RB(r, face, W/2 - 6, W/2 + 6, 12, 22), 46, 50, steelD, steelD, steelD); BX(RB(r, face, W/2 - 16, W/2 + 16, 14, 18), 50, 72, '#1d2125', '#2b3036', '#1a1d21');
       BQ(r, face, W/2 - 14, W/2 + 14, 53, 70, '#2c4a66', 18.3); };
     const station = (r, front) => { const [a0, a1, b0, b1] = r;
       box(a0, a1, b0, b1, 0, 56, lam, band, bandD);
       const rim = front === 's' ? [a0, a1, b1 - 8, b1] : front === 'n' ? [a0, a1, b0, b0 + 8] : front === 'w' ? [a0, a0 + 8, b0, b1] : [a1 - 8, a1, b0, b1];
-      box(rim[0], rim[1], rim[2], rim[3], 56, 70, lam, lamD, lamS);
-      box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 60, 80, '#1d2125', '#2b3036', '#1a1d21'); };
+      const rimB = () => box(rim[0], rim[1], rim[2], rim[3], 56, 70, lam, lamD, lamS);
+      const scr = () => box((a0 + a1)/2 - 16, (a0 + a1)/2 + 16, (b0 + b1)/2 - 2, (b0 + b1)/2 + 2, 60, 80, '#1d2125', '#2b3036', '#1a1d21');
+      if(front === 's' || front === 'e'){ scr(); rimB(); } else { rimB(); scr(); } };   // (the screen behind a rim toward us, before it: W37)
     /* a chair in three parts -- legs, seat, back -- so whoever sits in it is drawn between them (it.seat, it.after: as the ballroom's sofa) */
     const CH = '#4f7fa8', CHd = '#3d6686', CHs = '#2f5068';
     const chairLegs = (r) => { const [a0, a1, b0, b1] = r; for(const [a, b] of [[a0 + 4, b0 + 4], [a1 - 4, b0 + 4], [a0 + 4, b1 - 4], [a1 - 4, b1 - 4]]) cyl(a, b, 0, 22, 2.5, steelD, steelD); };
@@ -65274,7 +65297,7 @@ function houseCanopy(fn){
         for(let u = 30; u < W - 20; u += 60) FQ(r, face, u, u + 16, 20, 23, '#f2f2ee', -0.4); return; }
       /* open shelves, stocked: boxes and bottles in a few colours, the shelf's edge over each row; its back panel and
          its two ends, far to near (the back behind the goods when its open front faces us, over them when it does not) */
-      const seen = SEEN(face), panel = q => BX(q, 6, 110, greyD, greyS, greyS), back = RB(r, face, 0, W, Dd - 2, Dd);
+      const seen = SEEN(face), panel = q => BX(q, 6, 110, greyD, greyS, greyS), back = RB(r, face, 2, W - 2, Dd - 2, Dd);   // (the back between the two ends, meeting them: W37)
       box(r[0], r[1], r[2], r[3], 0, 6, greyD, greyS, greyS);
       panel(RB(r, face, 0, 2, 0, Dd)); if(seen) panel(back);
       const cols = ['#c9a46a', '#e9d6a8', '#4f9ad8', '#efe4cc', '#e2483d', '#7fd36a'];
