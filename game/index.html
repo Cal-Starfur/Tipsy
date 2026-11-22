@@ -63333,9 +63333,11 @@ function houseCanopy(fn){
         });
         const garb = ['#141216', '#2a1f33', '#1d1b22', '#3a1a24', '#141216', '#2b2433'];
         for(const [r0, r1, rb] of [[L0 + 110, L0 + 230, bF + 120], [L0 + 110, L0 + 230, bF + 250], [R0 + 10, R0 + 160, bF + 260]]) fit(r0, r1, rb - 14, rb + 14, 128, null, null, () => {   // rails
-          for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 14, rb + 14, 0, 4, '#2a2a2e', '#202024', '#18181b'); box(a, a + 4, rb - 2, rb + 2, 0, 124, '#3a3a40', '#2a2a2e', '#2a2a2e'); }
+          const upright = a => { box(a - 2, a + 6, rb - 14, rb + 14, 0, 4, '#2a2a2e', '#202024', '#18181b'); box(a, a + 4, rb - 2, rb + 2, 0, 124, '#3a3a40', '#2a2a2e', '#2a2a2e'); };
+          upright(r0 + 2);                                                                                // (the far upright, the garments, the near upright: W37)
           let k = 0;
           for(let a = r0 + 12; a < r1 - 14; a += 13, k++){ const c = garb[(k + rb) % 6]; box(a, a + 10, rb - 12, rb + 12, 40 + (k % 3)*8, 118, c, shade(c, 1.2), shade(c, 0.8)); }
+          upright(r1 - 6);
           box(r0 + 2, r1 - 2, rb - 2, rb + 2, 120, 124, '#3a3a40', '#2a2a2e', '#2a2a2e');
         });
         glassCase(L0 + 4, L0 + 104, bS - 210, bS - 160, 80, () => {                                         // silver: chains, chokers, rings
@@ -63345,8 +63347,8 @@ function houseCanopy(fn){
         });
         fit(L0 + 10, L0 + 130, bS - 120, bS - 70, 60, '#1d1b22', '#141216', () => {                       // platform boots on a riser
           for(let k = 0; k < 3; k++){ const ba = L0 + 26 + k*38, bb = bS - 96;
-            box(ba, ba + 14, bb - 8, bb + 8, 60, 70, '#141216', '#0b0a0d', '#0b0a0d'); box(ba + 2, ba + 12, bb - 6, bb + 2, 70, 96, '#1d1b22', '#141216', '#141216');
-            box(ba + 1, ba + 13, bb - 8, bb + 8, 60, 64, '#c9ccd4', '#a8aeb2', '#8a9094'); }
+            box(ba, ba + 14, bb - 8, bb + 8, 60, 70, '#141216', '#0b0a0d', '#0b0a0d'); box(ba + 1, ba + 13, bb - 8, bb + 8, 60, 64, '#c9ccd4', '#a8aeb2', '#8a9094');
+            box(ba + 2, ba + 12, bb - 6, bb + 2, 70, 96, '#1d1b22', '#141216', '#141216'); }   // (the sole and its band, then the shaft on it: W37)
         });
         for(const [ca, cb] of [[L1 - 30, bF + 60], [R0 + 30, bF + 60]]) fit(ca - 10, ca + 10, cb - 10, cb + 10, 120, null, null, () => {   // candles on iron stands
           cyl(ca, cb, 0, 4, 10, '#141216'); cyl(ca, cb, 4, 96, 1.6, '#2a2a2e'); cyl(ca, cb, 96, 100, 8, '#2a2a2e');
@@ -63362,9 +63364,10 @@ function houseCanopy(fn){
         });
         boards(L0 + 30, L1); boards(R0, R1);   // (clear of the shared side wall, which cut into the first board: Sir, 2026-10-15)
         fit(L0 + 20, L1 - 10, bF + 240, bF + 256, 112, null, null, () => {                                  // a wetsuit rail
-          for(const a of [L0 + 20, L1 - 14]) box(a, a + 4, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
-          box(L0 + 20, L1 - 10, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
+          box(L0 + 20, L0 + 24, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');   // (the far upright, the suits, the bar between the uprights, the near upright: W37)
           for(let a = L0 + 34; a < L1 - 26; a += 22){ box(a, a + 14, bF + 242, bF + 254, 30, 106, '#1f2226', '#16181b', '#101214'); F(a + 2, a + 12, 60, 64, '#2f7f86', null, 0, bF + 254.3); }
+          box(L0 + 24, L1 - 14, bF + 246, bF + 250, 108, 112, '#9aa1a6', '#80878c', '#6f767b');
+          box(L1 - 14, L1 - 10, bF + 240, bF + 256, 0, 112, '#9aa1a6', '#80878c', '#6f767b');
         });
         fit(R0 + 10, R1 - 30, bF + 220, bF + 300, 40, '#cfc6b5', '#b9b0a0', () => {                           // folded tees
           const tc = ['#2f7f86', '#f2b48a', '#f6f0e4', '#4a5568', '#e2483d'];
@@ -63554,7 +63557,7 @@ function houseCanopy(fn){
         /* (a chair with someone in it is solid, as the ballroom's: bump it and they get up to have words -- updateKnocks) */
         items.push({ a: ca, b: cb, z: 0, lvl: up, xr: !!up, dk: dkUp(da + db), cast: who || undefined,
                      solids: who ? [{ name: 'chair', c: [ca, cb], r: 18, h: z0 + 120, lvl: up }] : undefined,
-                     draw: far ? () => { back(); seat(); } : seat, after: far ? undefined : back });
+                     draw: far ? () => { seat(); back(); } : seat, after: far ? undefined : back });   // (the seat, then the back that stands on it: W37)
       });
     };
     /* (none in the middle, round the fountain, nor by the doors -- Sir:
@@ -64408,9 +64411,11 @@ function houseCanopy(fn){
 
       /* a clothes rail: a steel bar on two uprights, garments hung along it */
       const rack = (r0, r1, rb, lv, hues) => fit(r0, r1, rb - 16, rb + 16, 128, lv, z => {
-        for(const a of [r0 + 2, r1 - 6]){ box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); }
+        const upright = a => { box(a - 2, a + 6, rb - 16, rb + 16, z, z + 4, steelD, shade(steelD, 0.9), shade(steelD, 0.8)); box(a, a + 4, rb - 2, rb + 2, z, z + 124, steel, steelD, steelD); };
+        upright(r0 + 2);                                                     // (the far upright, the garments, the near upright: W37)
         let k = 0;
         for(let a = r0 + 14; a < r1 - 16; a += 15, k++){ const c = hues[k % hues.length]; box(a, a + 11, rb - 13, rb + 13, z + 46 + (k % 3)*6, z + 118, c, shade(c, 0.86), shade(c, 0.72)); }
+        upright(r1 - 6);
         box(r0 + 2, r1 - 2, rb - 2, rb + 2, z + 120, z + 124, steel, steelD, steelD);
       });
       /* a table of folded stacks */
@@ -64535,9 +64540,8 @@ function houseCanopy(fn){
         fit(-2080, -1760, 40, 380, 240, 1, z => {
           const A0 = -2080, A1 = -1760, B0 = 40, B1 = 380, H = 40, R = 16, zr = z + H;
           const pads = ['#e2483d', '#4f9ad8', '#ffd34a', '#7fd36a'], rim = '#4f9ad8';
-          const post = (pa, pb, top) => { box(pa - 8, pa + 8, pb - 8, pb + 8, z, top, '#ffd34a', '#e8b54a', '#c89a3a'); ball(pa, pb, top + 7, 9, '#e2483d'); };
-          /* the back: its posts and the netting between them, the board over it */
-          post(A0 + 8, B0 + 8, z + 118); post(A1 - 8, B0 + 8, z + 118); post(A0 + 8, B1 - 8, z + 118);
+          const post = (pa, pb, top, bot) => { box(pa - 8, pa + 8, pb - 8, pb + 8, bot === undefined ? z : bot, top, '#ffd34a', '#e8b54a', '#c89a3a'); ball(pa, pb, top + 7, 9, '#e2483d'); };
+          /* the back: the netting between its posts, the board over it (the posts stand on the rims: each after the rims under it, W37) */
           F(A0 + 16, A1 - 16, zr + 8, z + 112, 'rgba(255,255,255,.10)', null, 0, B0 + 8);
           for(let a = A0 + 30; a < A1 - 16; a += 18) F(a, a + 1.6, zr + 8, z + 112, 'rgba(40,48,70,.32)', null, 0, B0 + 8.2);
           for(let h = zr + 20; h < z + 112; h += 18) F(A0 + 16, A1 - 16, h, h + 1.6, 'rgba(40,48,70,.32)', null, 0, B0 + 8.2);
@@ -64550,7 +64554,8 @@ function houseCanopy(fn){
           /* the walls, the two back rims */
           box(A0, A1, B0, B1, z, zr, '#e2483d', '#c03a30', '#a83228');
           box(A0, A1, B0, B0 + R, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
-          box(A0, A0 + R, B0, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
+          box(A0, A0 + R, B0 + R, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));   // (from the back rim's face: W37)
+          post(A0 + 8, B0 + 8, z + 118, zr + 8);                                  // the back corner's post, on the two back rims
           /* the balls: a dark bed for the gaps, then a packed, lumpy heap, far ones first */
           T(A0 + R, A1 - R, B0 + R, B1 - R, zr - 14, '#1d3460');
           const bc = ['#e2483d', '#ffd34a', '#4f9ad8', '#7fd36a', '#f6f0e4', '#ff8ac0', '#ff9a3a'], heap = [];
@@ -64562,14 +64567,21 @@ function houseCanopy(fn){
           /* the slide, in the back corner, coming down toward you into the
              balls: posts, a deck with its rail, a ladder up its side, the
              chute with rails either side, a striped canopy */
-          { const tz = z + 96, y1 = '#ffd34a', y2 = '#e8b54a', y3 = '#c89a3a', pst = (pa, pb) => box(pa - 5, pa + 5, pb - 5, pb + 5, zr - 10, tz + 96, y1, y2, y3);
-            pst(-2070, 52); pst(-2014, 52); pst(-2070, 106);
-            box(-2076, -2008, 46, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a');
-            box(-2076, -2072, 46, 112, tz + 8, tz + 34, 'rgba(79,154,216,.5)', 'rgba(63,128,184,.5)', 'rgba(51,106,154,.5)');
-            box(-2012, -2008, 46, 112, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228');
-            for(const lb of [64, 96]) box(-2006, -2000, lb, lb + 4, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');   // the ladder
-            for(let r = 0; r < 4; r++) box(-2006, -2000, 64, 100, zr + 8 + r*16, zr + 12 + r*16, '#f6f0e4', '#e6dccb', '#d6ccbb');
-            pst(-2014, 106);
+          { const tz = z + 96, y1 = '#ffd34a', y2 = '#e8b54a', y3 = '#c89a3a', pst = (pa, pb, z0, z1, b0) => box(pa - 5, pa + 5, b0 === undefined ? pb - 5 : b0, pb + 5, z0, z1, y1, y2, y3);
+            /* (back to front, parts meeting face to face, W37: the posts up to the deck, the deck -- round the pit's corner post,
+               which the far post stands in, all but its near face -- the far post above it, the west rail from its face, round
+               the near west post, the other posts, the east rail through them, the ladder's far rail, its rungs, its near rail;
+               the east rail and the post by the board from the board's face, the rail from that post's face) */
+            pst(-2070, 52, zr - 10, tz, 56); pst(-2014, 52, zr - 10, tz); pst(-2070, 106, zr - 10, tz); pst(-2014, 106, zr - 10, tz);
+            box(-2076, -2064, 56, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a'); box(-2064, -2008, 46, 112, tz, tz + 8, '#4f9ad8', '#3f80b8', '#336a9a');
+            pst(-2070, 52, tz + 8, z + 118, 56); pst(-2070, 52, z + 118, tz + 96);
+            const wRail = (b0, b1) => box(-2076, -2072, b0, b1, tz + 8, tz + 34, 'rgba(79,154,216,.5)', 'rgba(63,128,184,.5)', 'rgba(51,106,154,.5)');
+            wRail(57, 101); pst(-2070, 106, tz + 8, tz + 96); wRail(111, 112);
+            pst(-2014, 52, tz + 8, tz + 96, 48); pst(-2014, 106, tz + 8, tz + 96);
+            box(-2009, -2008, 48, 57, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228'); box(-2012, -2008, 57, 112, tz + 28, tz + 34, '#e2483d', '#c03a30', '#a83228');
+            box(-2006, -2000, 64, 68, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');   // the ladder
+            for(let r = 0; r < 4; r++) box(-2006, -2000, 68, 96, zr + 8 + r*16, zr + 12 + r*16, '#f6f0e4', '#e6dccb', '#d6ccbb');
+            box(-2006, -2000, 96, 100, zr - 10, tz + 34, '#f6f0e4', '#e6dccb', '#d6ccbb');
             poly([P(-2062, 112, tz + 4), P(-2022, 112, tz + 4), P(-2022, 214, zr - 4), P(-2062, 214, zr - 4)], y1, y3, 1);   // the chute
             for(const ra of [-2066, -2022]) poly([P(ra, 112, tz + 4), P(ra, 112, tz + 16), P(ra, 214, zr + 8), P(ra, 214, zr - 4)], ra < -2040 ? y2 : y3, '#b08430', 0.8),
               poly([P(ra, 112, tz + 16), P(ra + 4, 112, tz + 16), P(ra + 4, 214, zr + 8), P(ra, 214, zr + 8)], y1, null, 0);
@@ -64586,6 +64598,7 @@ function houseCanopy(fn){
           k = 1;
           for(let b = B0 + 20; b < B1 - 20; b += 50, k++){ const b2 = Math.min(B1 - 20, b + 44), c = pads[k % 4];
             S(A1 + 0.4, b, b2, z + 6, zr - 6, shade(c, 0.84)); S(A1 + 0.6, b + 4, b2 - 4, zr - 14, zr - 10, c); }
+          post(A1 - 8, B0 + 8, z + 118, zr + 8); post(A0 + 8, B1 - 8, z + 118, zr + 8);   // the other back posts, on the side rims
           post(A1 - 8, B1 - 8, zr + 20);
         }, { fx: { kind: 'pit', a: 0, b: 0, a0: -2000, a1: -1776, b0: 140, b1: 364, zb: Z2 + 34 } });   // kids wading in it (live), clear of the slide
         /* the pizza counter, its oven behind it, the menu over it */
@@ -64642,9 +64655,10 @@ function houseCanopy(fn){
           legs(5156, 5504, 1534, 1616, z, 12, walD);
           box(5150, 5510, 1530, 1620, z + 12, z + 44, oat, oatD, oatS);
           box(5150, 5510, 1530, 1556, z + 44, z + 92, oat, oatD, oatS);
-          for(const a of [5150, 5486]) box(a, a + 24, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);
+          box(5150, 5174, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);          // (the far arm, the cushions, the near arm: W37)
           for(const a of [5180, 5330]) box(a, a + 140, 1558, 1612, z + 44, z + 54, shade(oat, 1.05), oatD, oatS);
           for(const [a, c] of [[5200, olive], [5440, clay]]) box(a, a + 40, 1560, 1572, z + 54, z + 90, c, shade(c, 0.85), shade(c, 0.72));   // throw cushions
+          box(5486, 5510, 1556, 1620, z + 44, z + 66, oat, oatD, oatS);
         });
         for(const [ca, f] of [[5140, 1], [5520, -1]]) fit(ca - 40, ca + 40, 1770, 1850, 84, 0, z => {   // armchairs, olive, turned to the table
           legs(ca - 36, ca + 36, 1774, 1846, z, 14, walD);
@@ -64732,9 +64746,10 @@ function houseCanopy(fn){
         });
         for(const a of [5450, 5580, 5710, 5840]) fit(a - 18, a + 18, 990, 1026, 80, 0, z => { cyl(a, 1008, z, z + 70, 3, brass); cyl(a, 1008, z + 70, z + 78, 18, walD, wal); });
         for(const [s0, s1] of [[5100, 5300], [6100, 6400], [6500, 6800]]) fit(s0, s1, 420, 470, 200, 0, z => {
-          for(let r = 0; r < 4; r++){ const zz = z + 30 + r*50; box(s0, s1, 420, 470, zz, zz + 5, wal, walD, walS);
+          box(s0, s0 + 6, 420, 470, z, z + 200, wal, walD, walS);                 // (the far upright, the shelves between the two, the near upright: W37)
+          for(let r = 0; r < 4; r++){ const zz = z + 30 + r*50; box(s0 + 6, s1 - 6, 420, 470, zz, zz + 5, wal, walD, walS);
             for(let a = s0 + 20; a < s1 - 20; a += 40) cyl(a, 445, zz + 5, zz + 20 + (a % 3)*6, 13, ['#e9e2d4', char, clay, olive][(a/40 + r) % 4 | 0], '#f3ece0'); }
-          for(const a of [s0, s1 - 6]) box(a, a + 6, 420, 470, z, z + 200, wal, walD, walS);
+          box(s1 - 6, s1, 420, 470, z, z + 200, wal, walD, walS);
         });
         /* UPSTAIRS: HIGH TIDE ARCADE (Sir, 2026-10-14: "our arcade has real
            arcade games and ski ball and all of that and a counter for ticket
@@ -64897,8 +64912,10 @@ function houseCanopy(fn){
           box((5714 + dx), (5722 + dx), 650, 658, z, z + 96, '#3a3f45', '#2b3138', '#23292f');
           box((5688 + dx), (5748 + dx), 648, 660, z + 96, z + 118, '#1a1d21', '#23272c', '#141619');
           F((5692 + dx), (5716 + dx), z + 100, z + 114, '#ff5a3c', null, 0, 660.3); F((5720 + dx), (5744 + dx), z + 100, z + 114, '#4fd8ff', null, 0, 660.3);
+          /* (west legs, the stretchers, east legs: back to front, W37) */
+          for(const [la, lb] of [[(5634 + dx), 664], [(5634 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
           box((5658 + dx), (5670 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214'); box((5766 + dx), (5778 + dx), 660, 768, z + 16, z + 20, '#1a1d21', '#141619', '#101214');
-          for(const [la, lb] of [[(5634 + dx), 664], [(5792 + dx), 664], [(5634 + dx), 756], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
+          for(const [la, lb] of [[(5792 + dx), 664], [(5792 + dx), 756]]) box(la, la + 10, lb, lb + 10, z, z + 32, '#3a3f45', '#2b3138', '#23292f');
           box((5620 + dx), (5816 + dx), 658, 768, z + 32, z + 44, '#2f6fb0', '#2f6fb0', '#255a90');                    // its skirt
           F((5620 + dx), (5816 + dx), z + 35, z + 38, '#ffd34a', null, 0, 768.3);
           T((5628 + dx), (5808 + dx), 666, 760, z + 44.4, '#d8f2fb');
@@ -64908,8 +64925,9 @@ function houseCanopy(fn){
             ctx.beginPath(); pts.forEach((q, n) => n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.strokeStyle = c; ctx.lineWidth = 1.4*K; ctx.stroke(); };
           ring((5718 + dx), 713, 22, '#e2483d');
           for(const [ga, gc] of [[(5628 + dx), '#e2483d'], [(5802 + dx), '#2f6fb0']]) T(ga, ga + 6, 693, 733, z + 45, '#1a1d21');
-          for(const [b0_, b1_] of [[658, 666], [760, 768]]) box((5620 + dx), (5816 + dx), b0_, b1_, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails
+          box((5620 + dx), (5816 + dx), 658, 666, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails: the far one, the ends, the near one (W37)
           box((5620 + dx), (5628 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
+          box((5620 + dx), (5816 + dx), 760, 768, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
           /* (the mallets and the puck are live: fx 'hockey') */
           F((5688 + dx), (5748 + dx), z + 118, z + 121, '#ffd34a', null, 0, 660.3);
         }, { fx: { kind: 'hockey', a: 0, b: 0, dx } });
