@@ -81198,8 +81198,8 @@ marinaEntry(),
       const pl = (pts, fill, stroke, lw) => poly(pts.map(([u, z, off]) => pt(u, z, off)), fill, stroke, lw);
       const r = (u0, u1, z0, z1, fill, off, stroke, lw) => pl([[u0, z1, off], [u1, z1, off], [u1, z0, off], [u0, z0, off]], fill, stroke, lw);
       /* a box standing out from the face by d */
-      const proj = (u0, u1, d, z0, z1, top, front, side) => {
-        const q0 = plane, q1 = plane + nrm*d, lo = Math.min(q0, q1), hi = Math.max(q0, q1);
+      const proj = (u0, u1, d, z0, z1, top, front, side, d0) => {                                       // (d0: where it starts out from the face, when it stands on a skin of that depth -- W37: meet it, never run into it)
+        const q0 = plane + nrm*(d0 || 0), q1 = plane + nrm*d, lo = Math.min(q0, q1), hi = Math.max(q0, q1);
         if(kind === 'b') box(u0, u1, lo, hi, z0, z1, top, front, side); else box(lo, hi, u0, u1, z0, z1, top, front, side);
       };
       const circ = (u, z, rad, fill, off) => { if(kind === 'b') faceCircle(u, plane + nrm*(off || 0), z, rad, fill); };
@@ -81237,7 +81237,7 @@ marinaEntry(),
       cyl(lp[0], lp[1], cr - 52, cr - 34, 5, '#f3dca0'); cyl(lp[0], lp[1], cr - 56, cr - 52, 6.5, iron);
     };
     /* ---------- THE PARTS OF A FRONT ---------- */
-    const window2 = (fc, c, ww, z0, z1, shutters, see) => {
+    const window2 = (fc, c, ww, z0, z1, shutters, see, wbw) => {         // (wbw: the width of the flower box under it, whose back half goes in under the cill first)
       const hw = ww/2;
       fc.r(c - hw - 7, c + hw + 7, z0 - 7, z1 + 9, shade(stone, 1.12), 0.2);                               // the stone surround
       if(see && SEE){                                                                                      // (a walk-in's: the opening a hole, the room under it, W11; the glass a tint)
@@ -81251,12 +81251,16 @@ marinaEntry(),
       fc.r(c - hw + 3, c + hw - 3, (z0 + z1)/2 - 1.6, (z0 + z1)/2 + 1.6, trim, 1.1);                        // transom
       fc.r(c - hw - 9, c + hw + 9, z1 + 3, z1 + 11, stone, 1.3);                                           // the lintel...
       fc.r(c - 7, c + 7, z1 + 3, z1 + 15, shade(stone, 1.2), 1.5);                                         // ...and its keystone
+      if(wbw) windowBox(fc, c, wbw, z0, 'back');                                                          // (W37: the box's back, in under the cill, before it)
       fc.proj(c - hw - 10, c + hw + 10, 9, z0 - 10, z0 - 2, shade(stone, 1.1), stone, stoneD);             // the cill
       if(shutters) for(const s of [-1, 1]){ const u0 = s < 0 ? c - hw - 22 : c + hw + 6; fc.r(u0, u0 + 16, z0, z1, trim, 0.9, trimD, 1);
         for(let zz = z0 + 6; zz < z1; zz += 7) fc.r(u0 + 2, u0 + 14, zz, zz + 2.2, trimD, 1.0); }
     };
-    const windowBox = (fc, c, ww, z) => {                                                                  // a box of flowers under a window
-      fc.proj(c - ww/2 - 8, c + ww/2 + 8, 14, z - 22, z - 6, '#7a4c34', '#8c5a3e', '#5f3a28');
+    const windowBox = (fc, c, ww, z, part) => {                                                            // a box of flowers under a window
+      /* W37: the cill (9 out, its bottom at z - 10) sits in the box's back: the back up to the cill's bottom, drawn before the
+         cill (part 'back', from window2), then the front beyond the cill's face, up to the box's top */
+      if(part === 'back'){ fc.proj(c - ww/2 - 8, c + ww/2 + 8, 9, z - 22, z - 10, '#7a4c34', '#8c5a3e', '#5f3a28'); return; }
+      fc.proj(c - ww/2 - 8, c + ww/2 + 8, 14, z - 22, z - 6, '#7a4c34', '#8c5a3e', '#5f3a28', 9);
       const cols = ['#d94f6a', '#f2c94c', '#f7f2e4', '#e6683c'];
       for(let k = 0; k < 7; k++){ const u = c - ww/2 - 4 + k*(ww + 8)/6; fc.r(u - 3, u + 3, z - 6, z + 3 + (k % 2)*3, k % 3 === 1 ? leaf2 : cols[k % 4], 1.2); }
     };
@@ -81278,10 +81282,10 @@ marinaEntry(),
       headed(fc, c, 22, 108, 112, 18, 'rgba(176,208,222,.78)', 1.1);                                       // the fanlight
       }
       if(!see){                                                                                             // (a walk-in's door: the step and the hood stand apart -- doorStepHood below -- so nothing in front widens the wall's footprint and sorts it over him at the glass)
-      fc.proj(c - 52, c + 52, 22, 0, 6, shade(stone, 1.12), stone, stoneD);                                // the step
-      /* the hood over it, on two brackets */
-      fc.proj(c - 52, c + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
+      fc.proj(c - 52, c + 52, 22, 0, 6, shade(stone, 1.12), stone, stoneD, 4);                             // the step, off the plinth's face (W37)
+      /* the hood over it, on two brackets (the brackets first: they hang under it, W37) */
       for(const s of [-1, 1]) fc.proj(c + s*42 - 3, c + s*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);
+      fc.proj(c - 52, c + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
       }
       fc.r(c + (flip ? 52 : -52) - 4, c + (flip ? 52 : -52) + 4, 100, 128, '#f3dca0', 1.4, iron, 1);       // its lantern
     };
@@ -81289,7 +81293,7 @@ marinaEntry(),
     const dwelling = (fc, x0, x1, flip, see) => {
       const c = (x0 + x1)/2, w = x1 - x0, s = flip ? -1 : 1;
       doorway(fc, c - s*w*0.2, flip, see);
-      window2(fc, c + s*w*0.24, 56, 54, 130, true, see);
+      window2(fc, c + s*w*0.24, 56, 54, 130, true, see, 56);
       windowBox(fc, c + s*w*0.24, 56, 54);
     };
     /* a roof dormer on a gable range's visible slope, at u along it */
@@ -81392,7 +81396,8 @@ marinaEntry(),
       /* THE LEDGES ARE THIN SKINS ON THE TWO FACES THE CAMERA SEES, never whole boxes: a box's flat top is the tower's full
          footprint, and painted after the wall it laid a grey slab over the face (the doors and windows sat on that) */
       const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
-      const ledge = (z0, z1, out, top, front, side) => { fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); fcA.proj(b0 - out, b1 + out, out, z0, z1, top, front, side); };
+      /* (the side face's ledge first, up to the front one's back: the front one stands south of it and takes the corner, W37) */
+      const ledge = (z0, z1, out, top, front, side) => { fcA.proj(b0 - out, b1, out, z0, z1, top, front, side); fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); };
       ledge(0, 34, 4, shade(stone, 1.06), stone, stoneD);
       ledge(196, 206, 3, shade(stone, 1.1), stone, stoneD);
       box(a0 - 5, a1 + 5, b0 - 5, b1 + 5, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);
@@ -81401,15 +81406,15 @@ marinaEntry(),
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
           const lowOuter = a0 === CA0;                                  // (the free corner is the building's outer edge, whichever side that is on the screen: never the edge against the range)
           f.r(lowOuter ? a0 : a1 - w, lowOuter ? a0 + w : a1, z, z + 22, shade(stone, 1.04), 0.3, stoneD, 0.8); }
-        window2(f, cA, 52, 232, 318, false);
-        if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true);
+        window2(f, cA, 52, 232, 318, false, undefined, door2 ? 56 : 0);
+        if(door2) { doorway(f, cA, flip); } else window2(f, cA, 56, 62, 142, true, undefined, 56);
         windowBox(f, cA, 56, door2 ? 232 : 62);
       }
       if(extA){ const f = FC('a', sa > 0 ? a1 : a0, sa);
         for(let z = 36; z < TH - 20; z += 44){ const w = (z/44 | 0) % 2 ? 26 : 38;
           f.r(b1 - w, b1, z, z + 22, shade(stone, 1.0), 0.3, stoneD, 0.8); }
         window2(f, cB, 52, 232, 318, false);
-        window2(f, cB, 56, 62, 142, true); windowBox(f, cB, 56, 62);
+        window2(f, cB, 56, 62, 142, true, undefined, 56); windowBox(f, cB, 56, 62);
       }
       /* the hipped roof, its four faces, far two first */
       const rb = TH, pk = TH + 138, ov = 2, ap = [cA, cB, pk];
@@ -81448,8 +81453,8 @@ marinaEntry(),
         const dc = (x0 + x1)/2 + (x1 - x0)*0.2;
         it(dc, CB1 + 11, () => { T(dc - 52, dc + 52, CB1, CB1 + 22, 0.5, shade(stone, 1.12)); T(dc - 52, dc + 52, CB1 + 19, CB1 + 22, 0.7, stone); }, 0, true);
         it(dc, CB1 + 18, () => { const fc = RG('a', x0, x1, CB1 - RD, CB1).fc;
-          fc.proj(dc - 52, dc + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD);
-          for(const sg of [-1, 1]) fc.proj(dc + sg*42 - 3, dc + sg*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD); }, 0, true);
+          for(const sg of [-1, 1]) fc.proj(dc + sg*42 - 3, dc + sg*42 + 3, 28, 130, 160, shade(trim, .9), trim, trimD);   // (the brackets before the hood they hold up, W37)
+          fc.proj(dc - 52, dc + 52, 36, 160, 170, shade(trim, 1.1), trim, trimD); }, 0, true);
       }
     }
 
@@ -81457,7 +81462,11 @@ marinaEntry(),
     it(GM, CB1 - RD/2, () => {
       const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
       /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
-      wallBox(g0, f0, CB1 - RD, CB1, 0, TH); wallBox(f1, g1, CB1 - RD, CB1, 0, TH); wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
+      /* (the far pier, the bridge, the near pier: the bridge's seen end lies in the near pier's face, W37; a mirrored on some edges) */
+      const pierW = () => wallBox(g0, f0, CB1 - RD, CB1, 0, TH), pierE = () => wallBox(f1, g1, CB1 - RD, CB1, 0, TH);
+      if(sa > 0) pierW(); else pierE();
+      wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
+      if(sa > 0) pierE(); else pierW();
       const f = FC('b', CB1, 1);
       f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
@@ -81472,7 +81481,8 @@ marinaEntry(),
       f.r(GM - 12, GM + 12, 252, 270, shade(gold, .92), 1.1, shade(gold, .66), 1);
       /* the buttresses either side, stepped */
       for(const s of [-1, 1]){ const u = s < 0 ? g0 + 6 : g1 - 6;
-        f.proj(u - 14, u + 14, 10, 0, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
+        f.proj(u - 14, u + 14, 10, 0, 34, shade(stone, 1.08), stone, stoneD, 4);                          // (its foot off the plinth's face, W37)
+        f.proj(u - 14, u + 14, 10, 34, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
       /* the lettering band, on a stone course over the arch */
       f.r(g0 + 24, g1 - 24, 276, 312, shade(stone, 1.1), 0.5, stoneD, 1);
       word('FERRIS TAYLOR ALMSHOUSES', g0 + 32, g1 - 32, 282, 306, CB1 + 1.2, trimD, null, 4);
@@ -81561,7 +81571,8 @@ marinaEntry(),
       const f = FC('b', b1, 1), sd = FC('a', sa > 0 ? c1 : c0, sa);
       f.proj(c0 - 4, c1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD); sd.proj(b0, b1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);   // (the plinth a skin on the faces, not a box whose top slabs over the wall)
       /* the buttresses, the doorway in a pointed arch, the rose window in the gable */
-      for(const u of [c0 + 6, c1 - 6]) f.proj(u - 12, u + 12, 12, 0, CHH - 40, shade(stone, 1.1), stone, stoneD);
+      for(const u of [c0 + 6, c1 - 6]){ f.proj(u - 12, u + 12, 12, 0, 34, shade(stone, 1.1), stone, stoneD, 4);   // (its foot off the plinth's face, W37)
+        f.proj(u - 12, u + 12, 12, 34, CHH - 40, shade(stone, 1.1), stone, stoneD); }
       const pointed = (c, hw, z0, z1, rise, fill, off, stroke, lw) => { const pts = [[c - hw, z0, off], [c - hw, z1, off]];
         for(let k = 1; k < 8; k++){ const t = k/8; pts.push([c - hw + hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
         pts.push([c, z1 + rise, off]); for(let k = 7; k >= 1; k--){ const t = k/8; pts.push([c + hw - hw*t, z1 + rise*Math.sin(t*Math.PI/2)*(1 - 0.1*t), off]); }
@@ -81570,7 +81581,7 @@ marinaEntry(),
       pointed(cA, 46, 0, 118, 66, dark, 0.6);
       for(const s of [-1, 1]){ pointed(cA + s*23, 20, 0, 112, 36, shade(door, 1.0), 0.9, shade(door, .66), 1); f.r(cA + s*23 + (s < 0 ? 12 : -12) - 2, cA + s*23 + (s < 0 ? 12 : -12) + 2, 60, 70, gold, 1.3); }
       f.r(cA - 1.6, cA + 1.6, 0, 150, shade(door, .66), 1.0);
-      f.proj(cA - 64, cA + 64, 26, 0, 8, shade(stone, 1.12), stone, stoneD);
+      f.proj(cA - 64, cA + 64, 26, 0, 8, shade(stone, 1.12), stone, stoneD, 4);                       // the step, off the plinth's face (W37)
       for(const s of [-1, 1]) pointed(cA + s*128, 17, 70, 176, 60, glassT, 0.8, trim, 1.4);
       for(const s of [-1, 1]) f.r(cA + s*128 - 1.4, cA + s*128 + 1.4, 70, 236, trim, 1.1);
       /* the rose window: a stone ring, a coloured glass, spokes */
@@ -81915,11 +81926,12 @@ marinaEntry(),
          of its canopy posts. */
       const bench = (a, b) => add([a - 62, a + 62, b - 15, b + 12], () => {
         const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
-        for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
-        box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+        /* (W37: the legs, the seat on them, the back posts up off the seat -- their foot hidden in it -- then the back rail) */
         for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
         box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
         for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
+        for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 28, 50, '#5d646b', iron, '#40454a');   // back posts
+        box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
       });
       for(const ba of PL.benches) bench(ba, SF1 + 34);
       /* TREES (2026-09-18, Sir: "the trees at the school are looking
@@ -83026,11 +83038,12 @@ marinaEntry(),
        slatted seat, which covers the legs' tops as it should. */
     const bench = (a, b) => items.push({ a, b, draw: () => {
       const wood = '#9a7452', woodL = '#a9825e', woodD = '#6f5334', iron = '#4f555b';
-      for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 22, 50, '#5d646b', iron, '#40454a');   // back posts
-      box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
+      /* (W37: the legs, the seat on them, the back posts up off the seat -- their foot hidden in it -- then the back rail) */
       for(const la of [a - 50, a + 50]) box(la - 4, la + 4, b - 10, b + 10, 0, 22, '#5d646b', iron, '#40454a'); // legs
       box(a - 62, a + 62, b - 12, b + 12, 22, 28, woodL, wood, woodD);                                          // the seat
       for(const sb of [b - 4, b + 4]) T(a - 62, a + 62, sb - 0.6, sb + 0.6, 28.2, woodD);                       // slat gaps
+      for(const la of [a - 50, a + 50]) box(la - 3, la + 3, b - 14, b - 9, 28, 50, '#5d646b', iron, '#40454a');   // back posts
+      box(a - 62, a + 62, b - 15, b - 10, 34, 48, woodL, wood, woodD);                                          // the back rail
     }});
     const bollard = (a) => items.push({ a, b: -24, draw: () => cyl(a, -24, 0, 42, 7, '#7d8488', '#c9ced1') });
     const flag = (a, b, col) => items.push({ a, b, h: 470, draw: () => {
@@ -84581,8 +84594,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        the road's centreline, its two white posts stand on the sidewalks (560 either side) and a beam carries the board
        290 up, clear of the trucks. The arrow is gone. */
     const LIFT = 290;
-    for(const a of [-560, 560]) box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
-    box(-572, 572, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
+    /* W37: the far post, the board hung under the beam, the beam between the posts' faces, the near post (a mirrored on
+       some edges) */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, post = a => box(a - 12, a + 12, -12, 12, 0, 620, '#e8e4da', WHITE, '#d6d0c2');
+    post(seeE ? -560 : 560);
     /* the board holds both lines (Sir, 2026-10-02: "the pelican harbor
        signe doesnt fit the words" -- HARBOR, 7 x 9 = 63 tall from 186,
        hung 27 below a board that stopped at 150). A blockWord is 7 x px
@@ -84592,6 +84607,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(-286, 286, 206 + LIFT, 212 + LIFT, GOLD, null, 0, 14.4);
     blockWord('PELICAN', 0, 288 + LIFT, 10, 14.6, WHITE, null);
     blockWord('HARBOR', 0, 196 + LIFT, 9, 14.6, GOLD, null);
+    box(-548, 548, -10, 10, 590, 620, '#e8e4da', WHITE, '#d6d0c2');                                   // the beam
+    post(seeE ? 560 : -560);
     for(const a of [-560, 560]) ball(a, 0, 626, 14, GOLD);
   }
 },
@@ -84635,17 +84652,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   front(){
     const C = this.C;
     if(!inView(-260, 260, -180, 260, 0, 400)) return;
-    /* the counter across the front, timber-clad, its top, LIVE BAIT on a teal plate */
-    box(-188, 188, 122, 150, 8, 82, C.wood, C.woodD, C.woodK);                                             // (waist high: the keeper shows over it)
+    /* the west front post, behind the counter's end (W37); the counter across the front, timber-clad, its top, LIVE BAIT on a teal plate */
+    box(-210, -188, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);
+    /* (W37: its ends stand against the walls' and the posts' faces, never seen: its top and front only, no end face painted
+       over the east wall that went first. The kiosk is drawn in the world's frame) */
+    T(-188, 188, 122, 150, 82, C.wood); F(-188, 188, 8, 82, C.woodD, null, 0, 150);                                             // (waist high: the keeper shows over it)
     for(let z = 22; z < 80; z += 16) F(-188, 188, z, z + 2, '#9a6a36', null, 0, 150.3);
-    box(-196, 196, 116, 158, 82, 88, '#e9e1d2', '#d6cbb7', '#c4b9a3');
+    T(-188, 188, 116, 158, 88, '#e9e1d2'); F(-188, 188, 82, 88, '#d6cbb7', null, 0, 158);                // its top, between the walls and posts (W37: it ran into them)
     F(-84, 84, 28, 70, C.teal, null, 0, 150.6);
     blockWordIn('LIVE BAIT', -78, 78, 36, 64, 150.8, '#ffffff', null);
     /* a scale and a jar of lures on the counter */
     box(110, 150, 122, 146, 88, 96, '#c9d0d3', '#a4adb1', '#8e979b');
     box(-150, -126, 122, 146, 88, 114, 'rgba(210,232,240,0.55)', 'rgba(180,205,215,0.55)', 'rgba(160,190,200,0.55)');
     /* the front posts, up to the plate */
-    for(const a of [-199, 199]) box(a - 11, a + 11, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);
+    box(188, 210, 139, 161, 8, 300, C.wall, C.wallD, C.wallK);                                             // (the west one went first)
     /* a short striped valance under the eave, high, so the keeper shows under it */
     for(let a = -188, k = 0; a < 188; a += 47, k++)
       poly([P(a, 150, 300), P(a + 47, 150, 300), P(a + 47, 172, 286), P(a, 172, 286)], k % 2 ? C.wall : C.teal);
@@ -84681,15 +84701,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        navy:'#1f3a4d', gold:'#e8b54a', white:'#f3efe6', wood:'#a87b4f', woodD:'#86603b', conc:'#d9d6cc' },
   draw(p){
     const P0 = FM_PLAN;
+    /* back to front (W37): the cold store (the back posts stand on its roof), the back posts, the hall's pieces north to
+       south, the front posts, then the trusses -- high over the whole hall, in front of all of it below them -- the sign, the roof */
     this.roofParts().forEach(fn => fn());
-    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY){ this.post(x, P0.HB); this.truss(x); }
-    for(const [a0, a1] of P0.ISLE) this.island(a0, a1, a0, a1, true);
+    this.store(0);
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HB);
     for(const [a0, a1, k] of P0.BACK) this.back(a0, a1, k, a0, a1, true);
+    this.bell(0);
+    for(const [a0, a1] of P0.ISLE) this.island(a0, a1, a0, a1, true);
     for(const [a0, a1] of P0.FRONT) this.bed(a0, a1, a0, a1, true);
     this.taco(P0.TACO.y0, P0.TACO.y1, true);
     for(const [x, y] of P0.TABLES) this.table(x, y);
     for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.post(x, P0.HF);
-    this.store(0); this.pylon(true); this.neon(0, 0, true); this.bell(0); this.roof();
+    for(let x = P0.HX0; x <= P0.HX1; x += P0.BAY) this.truss(x);
+    this.pylon(true); this.neon(0, 0, true); this.roof();
   },
   roofParts(){ return []; },
   /* a green steel post on its plinth, the bracket under the tie beam */
@@ -84883,6 +84908,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   taco(y0, y1, open, part){
     const C = this.C, TC = FM_PLAN.TACO, red = '#c8462e', yel = '#f2c14b', back = part !== 'front', front = part !== 'back';
     if(!inView(TC.x0, TC.x1 + 10, y0, y1, 0, 330)) return;
+    if(back && y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end, behind the counter: first (W37)
     if(front){
     box(TC.x1 - 46, TC.x1, y0, y1, 0, 100, '#d9b48a', '#b9864f', '#a8763f');                    // the counter, timber-clad
     for(let z = 14; z < 96; z += 16) S(TC.x1 + 0.4, y0, y1, z, z + 2, '#9a6a36');
@@ -84893,7 +84919,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(TC.x0, TC.x0 + 70, y0, y1, 0, 92, C.steel, C.steelD, shade(C.steelD, .9));               // the griddle bench
     if(open){ T(TC.x0 + 6, TC.x0 + 64, Math.max(y0, TC.y0 + 60), Math.min(y1, TC.y0 + 260), 93, '#2b2b2b');
               for(let y = Math.max(y0, TC.y0 + 80); y < Math.min(y1, TC.y0 + 250); y += 34) ball(TC.x0 + 34, y, 96, 6, '#e3b26a', '#f1cc8f'); }   // tortillas on the plancha
-    if(y0 === TC.y0) box(TC.x0, TC.x1, TC.y0 - 10, TC.y0, 0, 100, '#d9b48a', '#b9864f', '#a8763f');  // the north end
     }
     if(front && y1 === TC.y1){
       /* the menu board, over the south end, to the forecourt */
@@ -84929,7 +84954,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(d0, d1, zb, dh, '#c4cbcf', null, 0, S.y1 + 0.8);                                          // the roller door, rolled up by u
     for(let z = zb + 12; z < dh; z += 14) F(d0, d1, z, z + 2, '#a9b1b5', null, 0, S.y1 + 0.9);
     for(const a of [d0 - 24, d1 + 8]) box(a, a + 16, S.y1, S.y1 + 10, 40, 80, '#2a2a2a', '#1f1f1f', '#151515');   // bumpers
-    box(d0 + 40, d1 - 40, S.y1 - 4, S.y1 + 24, H - 40, H - 30, '#59636a', '#4a535a', '#3d454b');   // the lamp's hood
+    box(d0 + 40, d1 - 40, S.y1, S.y1 + 24, H - 40, H - 30, '#59636a', '#4a535a', '#3d454b');   // the lamp's hood, off the wall's face (W37: it ran 4 into it)
     slab(S.x0 + 60, S.x0 + 220, H - 90, H - 34, S.y1 + 2, S.y1 - 2, C.navy, shade(C.navy, .8), shade(C.navy, 1.2));
     blockWordIn('ICE', S.x0 + 70, S.x0 + 210, H - 84, H - 40, S.y1 + 2.2, C.white, null);
     box(S.x1 - 160, S.x1 - 40, S.y1 + 10, S.y1 + 70, 0, 50, '#f7f8f8', '#e3e7e8', '#d1d6d8');   // a stack of crates by the door
@@ -84939,12 +84964,17 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   pylon(open){
     const Q = FM_PLAN.PYLON, x = Q.x, y = Q.y, L = fmSignLift(), z0 = L + 274;          // z0: the eave's top, where its legs stand
     if(!inView(x - 200, x + 200, y - 30, y + 30, z0 - 10, L + 600)) return;
-    for(const a of [x - 130, x + 130]){ box(a - 14, a + 14, y - 14, y + 14, z0 - 4, z0 + 4, '#4a5258', '#3b4248', '#2f353a');   // its feet bolted to the eave
-      box(a - 8, a + 8, y - 8, y + 8, z0, L + 360, '#4a5258', '#3b4248', '#2f353a'); }
+    /* W37: the stays behind, the far leg, the OPEN / CLOSED box between the legs, the near leg (a mirrored on some
+       edges), then the sign box on the legs' tops */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+    const leg = a => { box(a - 14, a + 14, y - 14, y + 14, z0 - 4, z0 + 4, '#4a5258', '#3b4248', '#2f353a');   // its feet bolted to the eave
+      box(a - 8, a + 8, y - 8, y + 8, z0, L + 360, '#4a5258', '#3b4248', '#2f353a'); };
     for(const a of [x - 130, x + 130]) tube(a, y - 8, L + 330, a, y - 140, z0 + 40, 2.5, '#3b4248');   // stays back to the roof
+    leg(seeE ? x - 130 : x + 130);
+    box(x - 110, x + 110, y - 8, y + 8, L + 300, L + 344, '#22262b', '#16191d', '#101215');     // OPEN / CLOSED
+    leg(seeE ? x + 130 : x - 130);
     box(x - 190, x + 190, y - 12, y + 12, L + 360, L + 560, '#22262b', '#16191d', '#101215');   // the box the tubes are on
     F(x - 186, x + 186, L + 364, L + 556, '#1b1e22', null, 0, y + 12.2);
-    box(x - 110, x + 110, y - 8, y + 8, L + 300, L + 344, '#22262b', '#16191d', '#101215');     // OPEN / CLOSED
   },
   /* THE NEON (live): the fish in tubes, its tail flicking between two strokes, an eye that winks, bubbles, FISH
      MARKET in pink under it; at night the glass glows; OPEN or CLOSED lit in its box. t the clock, nl the night */
@@ -84971,8 +85001,11 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   bell(sw){
     const B = FM_PLAN.BELL, x = B.x, y = B.y;
     if(!inView(x - 40, x + 40, y - 40, y + 40, 0, 260)) return;
-    box(x - 4, x + 4, y - 4, y + 4, 0, 250, '#4a5258', '#3b4248', '#2f353a');
-    box(x - 4, x + 34, y - 3, y + 3, 238, 246, '#4a5258', '#3b4248', '#2f353a');
+    /* W37: the arm meets the post's east face; the far one first (a mirrored on some edges) */
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, bpost = () => box(x - 4, x + 4, y - 4, y + 4, 0, 250, '#4a5258', '#3b4248', '#2f353a');
+    if(seeE) bpost();
+    box(x + 4, x + 34, y - 3, y + 3, 238, 246, '#4a5258', '#3b4248', '#2f353a');
+    if(!seeE) bpost();
     const px = x + 28, pz = 236, L = 34, c = Math.cos(sw), s = Math.sin(sw);
     const at = (u, v) => P(px + u*c - v*s*0.2, y + u*s, pz - v);
     const bp = [[-10, 6], [10, 6], [16, L], [-16, L]].map(([u, v]) => P(px + u, y + s*v*0.9, pz - v*Math.cos(sw*0.5)));
@@ -84996,8 +85029,11 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const P0 = PP_PLAN;
     for(const r of ppFenceRuns()) this.fence(r, 0, 1);
     this.aframe(); this.tunnel(); for(let k = 0; k < P0.WEAVE.n; k++) this.pole(k); for(const x of P0.HURDLES) this.hurdle(x);
-    this.fountain(); for(const q of ppPavPosts()) this.pavPost(q[0], q[1]); this.table(); this.sign(); this.bags();
-    this.leaf(P0.GA, P0.Y1, 0); this.leaf(P0.GB, P0.PEN.y0, Math.PI); this.roof(1);
+    /* (the pavilion's back posts, the table between them, its front posts: W37) */
+    const tm = (P0.TABLE.y0 + P0.TABLE.y1)/2;
+    this.fountain(); this.backBeam(); for(const q of ppPavPosts()) if(q[1] < tm) this.pavPost(q[0], q[1]);
+    this.table(); for(const q of ppPavPosts()) if(q[1] >= tm) this.pavPost(q[0], q[1]); this.sign(); this.bags();
+    this.leaf(P0.GA, P0.Y1, 0); this.leaf(P0.GB, P0.PEN.y0, Math.PI); this.roof(1, true);
   },
   /* a straight run of chain-link (r: x0, y0, x1, y1, along x or y), the piece from u0 to u1 of it (0..1): the mesh, the
      top rail and the posts (each piece its own posts; the run's far end capped by its last piece) */
@@ -85109,10 +85145,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   /* the roof: a teal tin gable along x on the posts, its fascia; and on adoption day the banner hung under the front
      eave (k: 0 rolled up .. 1 hung) */
-  roof(k){
+  backBeam(){ const C = this.C, V = PP_PLAN.PAV, E = V.eave;
+    if(inView(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E)) box(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8)); },
+  roof(k, noBack){
     const C = this.C, V = PP_PLAN.PAV, o = V.oh, x0 = V.x0 - o, x1 = V.x1 + o, y0 = V.y0 - o, y1 = V.y1 + o, ym = (V.y0 + V.y1)/2, E = V.eave, R = V.ridge;
     if(!inView(x0, x1, y0, y1, E - 60, R + 4)) return;
-    box(V.x0 - 4, V.x1 + 4, V.y0 - 4, V.y0 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
+    if(!noBack){ this.backBeam();
+    /* W37: the back posts stand just south of the back beam, their heads beside it: their heads again over it (in the game the
+       posts are their own pieces, drawn before the roof; draw() puts the beam before them) -- the faces the eye sees, as pavPost's */
+    for(const [x, y] of ppPavPosts()) if(y < (V.y0 + V.y1)/2){
+      T(x - 6, x + 6, y - 6, y + 6, E - 4, C.cream); boxSides(x - 6, x + 6, y - 6, y + 6, E - 14, E - 4, shade(C.cream, .92), shade(C.cream, .8)); } }
     box(V.x0 - 4, V.x1 + 4, V.y1 - 4, V.y1 + 4, E - 14, E, C.cream, shade(C.cream, .92), shade(C.cream, .8));
     poly([P(x0, y0, E), P(x1, y0, E), P(x1, ym, R), P(x0, ym, R)], shade(C.teal, .82));
     poly([P(x1, ym, R), P(x1, y0, E), P(x1, y1, E)], shade(C.cream, .86));                        // the gable end
@@ -85408,9 +85450,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        lit lens on the face turned to the park (the lamp kit's night glow sits on the lens) */
     for(const s of [-1, 1]){
       const cx = x + s*24, cy = y - s*24;
-      box(cx - 3, cx + 3, cy - 3, cy + 3, h - 2, h + 6, C.post, C.post, shade(C.post, 0.8));
       box(cx - 11, cx + 11, cy - 7, cy + 7, h - 13, h + 1, C.lamp, C.lampD, shade(C.lampD, 0.85));
       box(cx - 13, cx + 13, cy - 9, cy + 9, h + 1, h + 4, C.postL, C.post, shade(C.post, 0.85));
+      box(cx - 3, cx + 3, cy - 3, cy + 3, h + 4, h + 6, C.post, C.post, shade(C.post, 0.8));     // the bracket up from the hood to the arm (W37: it stood down inside the housing)
       F(cx - 9, cx + 9, h - 11, h - 2, C.lensD, null, 0, cy + 7.2);
       F(cx - 7.5, cx + 7.5, h - 9.5, h - 3.5, C.lens, null, 0, cy + 7.5);
     }
@@ -85455,8 +85497,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
        conc:'#c9c5ba', concD:'#aaa597', navy:'#23405e', gold:'#d9b45a', sage:'#8fa58a', agave:'#6f9a86', agaveD:'#557a6a', lav:'#8f7fc8' },
   draw(p){
     const P0 = SP_PLAN;
+    /* (back to front, W37: the mast stands behind the post, the dock east of it) */
+    this.mast(); this.camHead(P0.MAST.face); this.post();
     this.dock(); for(let k = 0; k < P0.PADS.length; k++) this.chargePost(k);
-    this.post(); this.mast(); this.camHead(P0.MAST.face);
     for(const bd of P0.BEDS) this.bed(bd);
   },
   /* THE POST: its walls (stucco on a stone plinth), the door's surround and its opening, the two arched windows, the
@@ -85492,8 +85535,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       S(B.x1 + 1.2, y0 - 12, y1 + 12, z0 - 8, z0, C.stoneD); }
     /* the lamp beside the door: a black iron lantern on a bracket */
     { const lx = D.x1 + 26, lz = 132;
+      box(lx - 7, lx + 7, B.y1 + 8, B.y1 + 22, lz, lz + 18, '#2b2b2b', 'rgba(250,214,140,.9)', 'rgba(230,190,120,.9)');   // the lantern before the bracket over it (W37)
       box(lx - 2, lx + 2, B.y1, B.y1 + 14, lz + 18, lz + 21, '#2b2b2b', '#2b2b2b', '#1f1f1f');
-      box(lx - 7, lx + 7, B.y1 + 8, B.y1 + 22, lz, lz + 18, '#2b2b2b', 'rgba(250,214,140,.9)', 'rgba(230,190,120,.9)');
       box(lx - 9, lx + 9, B.y1 + 6, B.y1 + 24, lz + 18, lz + 22, '#2b2b2b', '#2b2b2b', '#1f1f1f'); }
     /* THE ROOF: a red tile hip over the walls and its overhang, tiles in courses down each slope, a ridge cap */
     { const o = B.oh, X0 = B.x0 - o, X1 = B.x1 + o, Y0 = B.y0 - o, Y1 = B.y1 + o, ym = (Y0 + Y1)/2, h = (Y1 - Y0)/2, ze = H, zr = B.ridge;
@@ -85549,9 +85592,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(M.x - 16, M.x + 16, M.y - 16, M.y + 16, 0, 14, C.conc, C.conc, C.concD);
     cyl(M.x, M.y, 14, M.h, 5, C.steel, C.steelD);
     box(M.x - 9, M.x + 9, M.y + 5, M.y + 13, 90, 122, '#9aa2a8', '#8a9298', '#737b80');
-    box(M.x - 30, M.x + 30, M.y - 3, M.y + 3, M.h - 40, M.h - 34, C.steelL, C.steel, C.steelD);
-    for(const s of [-1, 1]){ box(M.x + s*30 - 6, M.x + s*30 + 6, M.y - 6, M.y + 6, M.h - 56, M.h - 40, '#2f3438', '#2f3438', '#24282b');
+    for(const s of [-1, 1]){ box(M.x + s*30 - 6, M.x + s*30 + 6, M.y - 6, M.y + 6, M.h - 56, M.h - 40, '#2f3438', '#2f3438', '#24282b');   // the lamps before the crossarm they hang from (W37)
       faceCircle(M.x + s*30, M.y + 6.2, M.h - 48, 4, '#6b2a2a'); }
+    box(M.x - 30, M.x + 30, M.y - 3, M.y + 3, M.h - 40, M.h - 34, C.steelL, C.steel, C.steelD);
     ball(M.x, M.y, M.h + 2, 6, C.steelL);
   },
   /* the camera head on its pan mount, turned to ang (radians, world: 0 is +x): a white housing, its sun hood, the
@@ -86105,19 +86148,27 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(let a = 72; a < 750; a += 40) T(a, a + 20, bb, bf, H + 0.2, shade(c.cap,.86));
     const RH = 30, rail = shade(c.trim,.95), post = c.trim;
     for(const a of [90, 720]){ cyl(a, bf - 26, H, H + 20, 11, '#b8683a', '#5f8f4f'); ball(a, bf - 26, H + 28, 12, '#5f8f4f'); }
+    /* W37: an end rail runs back from the front rail's north face (its corner post is the front rail's), so it stands wholly
+       behind the front: the far end, what is on the deck, the seen end (a mirrored on some edges), then the front -- its curb
+       before the posts on it, the corner posts with it */
     const sideRail = aS => {                                 // an end rail, on the plane a = aS
-      box(aS - 3, aS + 3, bb, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+      box(aS - 3, aS + 3, bb, bf - 6, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
       for(let b = bb + 6; b < bf - 2; b += 12) S(aS, b, b + 2.4, H + 5, H + RH, rail);
-      for(const b of [bb + 3, (bb + bf)/2, bf - 3]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-      box(aS - 3, aS + 3, bb, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+      for(const b of [bb + 3, (bb + bf)/2]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+      box(aS - 3, aS + 3, bb, bf - 6, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
     };
-    sideRail(64);
+    const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, seeS = (P(0, 1, 0).y - P(0, 0, 0).y) > 0;
+    const front = () => {
+      box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+      for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
+      for(const a of [64, 202, 340, 478, 616, 746]) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+      box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+    };
+    if(!seeS) front();                                       // (from behind the front rail is the far one)
+    sideRail(seeE ? 64 : 746);
     if(d > 0) this.deckKit(c, H, bb, bf);                    // inside the far rail, behind the front one
-    box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
-    for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
-    for(let a = 64; a <= 746; a += 138) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-    box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
-    sideRail(746);
+    sideRail(seeE ? 746 : 64);
+    if(seeS) front();
   },
   /* ON THE DECK (Sir: "one should have a swimming pool and furniture on
      its roof deck the other just needs furniture"). Which one comes off
@@ -86157,13 +86208,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       /* an outdoor dining set under an umbrella */
       const ta = 590, tb = (bb + bf)/2;
       const chair = (a, b, backB) => {
+        for(const [da, db] of [[-8, -8], [6, -8], [-8, 6], [6, 6]]) box(a + da, a + da + 2, b + db, b + db + 2, H, H + 11, shade(wood,.8), shade(wood,.8), shade(wood,.65));   // the legs before the seat (W37)
         box(a - 9, a + 9, b - 9, b + 9, H + 11, H + 14, wood, shade(wood,.85), shade(wood,.7));
-        for(const [da, db] of [[-8, -8], [6, -8], [-8, 6], [6, 6]]) box(a + da, a + da + 2, b + db, b + db + 2, H, H + 11, shade(wood,.8), shade(wood,.8), shade(wood,.65));
         box(a - 9, a + 9, backB - 1.5, backB + 1.5, H + 14, H + 32, shade(wood,1.05), wood, shade(wood,.7));
       };
       chair(ta - 22, tb - 34, tb - 43); chair(ta + 22, tb - 34, tb - 43);          // the far pair first
+      for(const [da, db] of [[-36, -18], [34, -18], [-36, 16], [34, 16]]) box(ta + da, ta + da + 2.5, tb + db, tb + db + 2.5, H, H + 22, shade(wood,.8), shade(wood,.8), shade(wood,.65));   // the legs before the top (W37)
       box(ta - 40, ta + 40, tb - 22, tb + 22, H + 22, H + 25, shade(wood,1.1), wood, shade(wood,.75));
-      for(const [da, db] of [[-36, -18], [34, -18], [-36, 16], [34, 16]]) box(ta + da, ta + da + 2.5, tb + db, tb + db + 2.5, H, H + 22, shade(wood,.8), shade(wood,.8), shade(wood,.65));
       chair(ta - 22, tb + 34, tb + 43); chair(ta + 22, tb + 34, tb + 43);
       umbrella(ta, tb, '#c9622a');
     }
@@ -86263,10 +86314,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     slab(am - hw - 8, am + hw + 8, -2, 0, b + 4, b, shade(c.cap,.9));                           // the threshold
   },
   lantern(a, z, c){
+    box(a - 6, a + 6, 1, 13, z - 3, z, shade(c.iron,1.1), c.iron, shade(c.iron,.7));         // its base, before the glass on it (W37)
     box(a - 1.5, a + 1.5, 0, 6, z + 14, z + 17, c.iron, c.iron, shade(c.iron,.7));            // the bracket, off the pier
     box(a - 5, a + 5, 2, 12, z, z + 16, '#f0d48a', '#e2c070', '#b89850');                    // the glass, lit
     box(a - 6, a + 6, 1, 13, z + 16, z + 19, shade(c.iron,1.1), c.iron, shade(c.iron,.7));   // its cap
-    box(a - 6, a + 6, 1, 13, z - 3, z, shade(c.iron,1.1), c.iron, shade(c.iron,.7));         // and base
   },
   gardenWall(c){                              // the split-level's: back to the house's east wall
     box(-4, 50, -44, -34, 0, 42, shade(c.wall,.95), c.wall, shade(c.wall,.8));
@@ -86446,7 +86497,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     slab(452, 548, 110, 116, -34, -60, shade(c.roof,.8));      // tiled door hood
     poly([P(452,-34,116), P(548,-34,116), P(548,-60,128), P(452,-60,128)], c.roof, shade(c.roof,.6), 1);
-    slab(440, 560, 136, 140, -44, -60, shade(c.wall,.85));    // balconette floor
+    /* balconette floor (W37: the window's cill, drawn with the wall, sits on its back: the floor round it, never under it --
+       the two ends beside the cill, then the front past its face) */
+    { const fl = shade(c.wall,.85), seeE = FLANK_RIGHT;   // (the ends: their tops and the outer end seen, the faces toward the cill unseen)
+      for(const [a0, a1] of [[440, 449], [551, 560]]) T(a0, a1, -60, -53, 140, shade(fl, 1.14));
+      slab(440, 560, 136, 140, -44, -53, fl);
+      S(seeE ? 560 : 440, -60, -44, 136, 140, shade(fl, .78)); }                // (its seen end the whole depth, in one: no seam)
     for(let a = 444; a <= 556; a += 7) F(a, a+1.6, 140, 168, c.iron, null, 0, -44);
     F(440, 560, 166, 169, c.iron, null, 0, -43.8);
     this.gwall(c);
@@ -86852,8 +86908,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     box(270, 540, -110, -84, 236, 252, c.trim, shade(c.trim,.94), shade(c.trim,.8));
     houseFrontGable(270, 540, -84, -150, 252, 300, 6, c.roof, c.trim, 1, { back0:true, barge:c.trim, gable:shade(c.trim,.96) });
     for(const [a0, a1] of (this.hedges || [[30, 330], [480, 780]])){
-      for(const [b0, b1] of [[-100,-90],[-70,-60]]) box(a0, a1, b0, b1, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
-      for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -100, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      /* W37: the back run, the two ends between the runs (meeting their faces), the front run */
+      box(a0, a1, -100, -90, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      for(const aa of [a0, a1 - 10]) box(aa, aa + 10, -90, -70, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
+      box(a0, a1, -70, -60, 0, 22, '#4f7a42', '#426a38', '#3a5e32');
     }
     for(const [nm, aa] of [['urn L', 340], ['urn R', 470]])
       houseProp(nm, () => { cyl(aa, -30, 0, 10, 7, '#c9c3b8'); cyl(aa, -30, 10, 28, 12, '#d8d2c6', '#e6e0d4'); ball(aa, -30, 32, 10, '#4f7a4a'); });
@@ -87001,8 +87059,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseFrontGable(160, 300, -62, -76, 98, 120, 4, c.roof, c.trim, 1, { back0:true, barge:c.trim });
     this.stonewall();
     houseProp('bench', () => {
+      for(const aa of [75, 113]) box(aa-2, aa+2, -48, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(71, 117, -50, -38, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [75, 113]) box(aa-2, aa+2, -48, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -87163,13 +87221,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(24, 436, -80, -516, [[38,96]], c.trim);
     for(let z = 16; z < 116; z += 9) poly([P(24,-80.2,z), P(436,-80.2,z)], null, shade(c.wall,.9), 1);   // lap siding
     houseDoorway(160, -80, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    this.beds(c);                                              // (the bed along the facade, under the window box: before it, W37)
     houseWin(300, 400, 38, 96, -80, c.trim, shade(c.trim,.9), 1, { shutter:c.shut, box:c.box });
     houseGableRoof(24, 436, -80, -516, 118, 240, 12, c.roof, c.wall, 1);
     if(state.roof) box(90, 110, -310, -286, 220, 272, '#b8715a', '#9c5e4a', '#84503f');   // chimney
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.beds(c); this.porch(c); this.fence(c);
+    this.porch(c); this.fence(c);
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   back(p){
@@ -87887,8 +87946,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     if(state.roof) beachRail(20, 520, 246, 24, d > 0 ? -58 : -478, d);
   },
   pergola(c){
-    for(const [a, b] of [[536, -106], [770, -106], [536, -480], [770, -480]]) box(a - 4, a + 4, b - 4, b + 4, 118, 214, c.clad, shade(c.clad,.85), shade(c.clad,.7));
-    for(let b = -110; b > -490; b -= 54) box(530, 776, b - 5, b, 212, 218, shade(c.clad,1.08), c.clad, shade(c.clad,.75));
+    /* W37: north to south -- the beams and the posts in the order they stand, so a beam in front of the rear posts is
+       painted after them and the front posts after the beam they hold up */
+    const parts = [];
+    for(const [a, b] of [[536, -106], [770, -106], [536, -480], [770, -480]]) parts.push([b, () => box(a - 4, a + 4, b - 4, b + 4, 118, 214, c.clad, shade(c.clad,.85), shade(c.clad,.7))]);
+    for(let b = -110; b > -490; b -= 54) parts.push([b - 2.5, () => box(530, 776, b - 5, b, 212, 218, shade(c.clad,1.08), c.clad, shade(c.clad,.75))]);
+    parts.sort((x, y) => x[0] - y[0]).forEach(x => x[1]());
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -88167,8 +88230,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
     }
     houseProp('bench', () => {
+      for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(70, 116, -62, -48, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -88595,8 +88658,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.porch(c); this.fence();
     houseProp('lamp', () => { cyl(26, -30, 0, 84, 2.5, '#2a2a2e'); box(20, 32, -36, -24, 84, 98, '#3a3a3e', 'rgba(250,230,160,.85)', 'rgba(230,205,140,.85)'); });
     houseProp('bench', () => {
+      for(const aa of [94, 136]) box(aa-2, aa+2, -50, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(90, 140, -52, -38, 16, 20, '#a8835c', '#96744f', '#836544');
-      for(const aa of [94, 136]) box(aa-2, aa+2, -50, -40, 0, 16, '#6b5038', '#5a4230', '#4d3828');
     });
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
@@ -89552,8 +89615,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   gate(c){
     const tower = a0 => { for(const [dz, ins] of [[0,0],[50,4],[90,8],[120,12]]) box(a0 + ins, a0 + 30 - ins, -24 + ins/2, -4 - ins/2, dz, dz + (dz < 120 ? 50 - (dz === 50 ? 10 : dz === 90 ? 20 : 0) : 20), shade(c.stone,1.06), c.stone, shade(c.stone,.8)); };
-    for(const [a0, a1] of [[6, 280], [400, 804]]){ box(a0, a1, -14, -4, 0, 36, shade(c.stone,1.04), c.stone, shade(c.stone,.8)); box(a0-1, a1+1, -15, -3, 36, 40, c.roof, shade(c.roof,.9), shade(c.roof,.75)); }
-    tower(280); tower(370);
+    const wall = (a0, a1) => { box(a0, a1, -14, -4, 0, 36, shade(c.stone,1.04), c.stone, shade(c.stone,.8)); box(a0-1, a1+1, -15, -3, 36, 40, c.roof, shade(c.roof,.9), shade(c.roof,.75)); };
+    /* W37: west to east as the eye sees it -- the walls meet the towers' faces (a mirrored on some edges) */
+    if(FLANK_RIGHT){ wall(6, 280); tower(280); tower(370); wall(400, 804); }
+    else { wall(400, 804); tower(370); tower(280); wall(6, 280); }
   },
   trees(){
     for(const [nm, aa] of [['frangipani L', 60], ['frangipani R', 520]])
@@ -89715,8 +89780,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(const [nm, aa] of [['pot L', 300], ['pot R', 510]])
       houseProp(nm, () => { ball(aa, -60, 18, 16, '#b86a4a'); cyl(aa, -60, 26, 36, 9, '#a55a3c'); ball(aa, -60, 44, 10, '#6b9a5a'); });
     houseProp('bench', () => {
+      for(const aa of [124, 176]) box(aa-2, aa+2, -78, -66, 0, 16, shade(c.wood,.7), shade(c.wood,.6), shade(c.wood,.5));   // the legs before the seat on them (W37)
       box(120, 180, -80, -64, 16, 20, c.wood, shade(c.wood,.88), shade(c.wood,.76));
-      for(const aa of [124, 176]) box(aa-2, aa+2, -78, -66, 0, 16, shade(c.wood,.7), shade(c.wood,.6), shade(c.wood,.5));
     });
   },
   draw(p){
@@ -90247,18 +90312,21 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(60, 400, -140, -450, [[4,138]], c.steel, { plain:true, w:4, pitch:34, skipFront:0, skipBack:0 });
     if(d > 0) houseDoorway(230, -140, CITY_HOUSE_SC, c.steel, c.leaf, 1);
   },
-  frame(c){
-    for(const [a, b] of [[30,-480],[165,-480],[295,-480],[430,-480],[30,-110],[165,-110],[295,-110],[430,-110]]) box(a-4, a+4, b-4, b+4, 2, 142, c.steel, shade(c.steel,1.3), shade(c.steel,1.15));
+  frame(c, part){                              // (part 'back': the back row of posts alone, before the glass box they stand behind -- W37; 'front': the rest)
+    for(const [a, b] of [[30,-480],[165,-480],[295,-480],[430,-480],[30,-110],[165,-110],[295,-110],[430,-110]])
+      if(!part || (part === 'back') === (b < -300)) box(a-4, a+4, b-4, b+4, 2, 142, c.steel, shade(c.steel,1.3), shade(c.steel,1.15));
+    if(part === 'back') return;
     box(20, 440, -490, -100, 142, 154, c.slab, shade(c.slab,.92), shade(c.slab,.8));
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.frame(c);
+    this.frame(c, 'front');
     houseProp('oak', () => { cyl(400, -50, 0, 110, 8, '#5a4030'); ball(400, -50, 160, 56, '#3f6b3e'); ball(370, -40, 140, 38, '#4a7a48'); ball(426, -60, 180, 32, '#36603a'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
+    this.frame(c, 'back');
     this.glass(c, 1);
   },
   back(p){
@@ -90314,11 +90382,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       F(82, 298, 190, 228, 'rgba(170,205,220,.28)', null, 0, -109.2);
       for(let a = 135; a < 300; a += 55) F(a-1, a+1, 140, 230, '#1f262b', null, 0, -109);
     }
-    houseProp('planter', () => { box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'); for(let a = 286; a < 318; a += 8) F(a, a+1, 0, 36, '#8a8a86', null, 0, -41.6); ball(300, -60, 44, 14, '#5c8a56'); });
-    houseProp('bench', () => {
+    /* (the bench and the planter, the far one first: the bench west of the planter and behind its face -- W37; a mirrored on some edges) */
+    const planter = () => houseProp('planter', () => { box(282, 318, -78, -42, 0, 36, '#e8e8e4', '#d8d8d4', '#c0c0bc'); for(let a = 286; a < 318; a += 8) F(a, a+1, 0, 36, '#8a8a86', null, 0, -41.6); ball(300, -60, 44, 14, '#5c8a56'); });
+    const bench = () => houseProp('bench', () => {
       for(const z of [0, 7]) box(230, 276, -80, -62, z, z+5, '#c9a878', '#b8966a', '#a0845a');
       box(230, 276, -80, -62, 14, 20, '#c9a878', '#b8966a', '#a0845a');
     });
+    if(FLANK_RIGHT){ bench(); planter(); } else { planter(); bench(); }        // (FLANK_RIGHT: the east end is the seen one)
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -90477,18 +90547,24 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseProp('for sale sign', () => {
       const W = '#f7f4ec', Ws = '#e2ddd0', Wd = '#cbc5b6', bb = -36;
       const word = (t, a0, a1, z0, z1, col) => { if(typeof blockWordIn === 'function') blockWordIn(t, a0, a1, z0, z1, bb - 1.6, col, null); };
-      box(106, 114, -44, -36, 0, 172, W, Ws, Wd);                    // post
-      box(106, 230, -43, -37, 156, 164, W, Ws, Wd);                  // arm
-      ball(110, -40, 176, 6, W);                                     // finial
-      for(const a of [134, 206]) box(a - 1, a + 1, -41, -39, 136, 156, '#6d747c', '#5d646b', '#4a4f55');   // hooks
+      /* W37: the arm meets the post's east face; whichever is further from the eye first (a mirrored on some edges); the
+         board before the hooks it hangs on, the hooks before the arm */
+      const seeE = FLANK_RIGHT;                                    // (the east end seen)
+      const post = () => box(106, 114, -44, -36, 0, 172, W, Ws, Wd);
+      /* the brochure box: on the post's east face, up to the board's west face (W37: it ran into it), west of the board */
+      const brochure = () => box(114, 124, -42, -34, 52, 72, 'rgba(216,230,234,.9)', 'rgba(190,210,216,.9)', 'rgba(170,192,200,.9)');
+      if(seeE){ post(); brochure(); }
       box(124, 216, -42, -38, 64, 136, W, Ws, Wd);                   // the board
+      for(const a of [134, 206]) box(a - 1, a + 1, -41, -39, 136, 156, '#6d747c', '#5d646b', '#4a4f55');   // hooks
+      box(114, 230, -43, -37, 156, 164, W, Ws, Wd);                  // arm
+      if(!seeE){ brochure(); post(); }
+      ball(110, -40, 176, 6, W);                                     // finial
       F(126, 214, 104, 134, c.brand, null, 0, bb - 0.6);
       word('FOR SALE', 130, 210, 108, 130, '#fbf7ee');
       word('TIDE REALTY', 130, 210, 74, 96, c.ink);
       box(132, 204, -41, -39, 166, 190, W, Ws, Wd);                  // the rider, on the arm
       F(134, 202, 168, 188, c.brand, null, 0, bb - 1.2);
       word('LOT', 140, 196, 171, 185, '#fbf7ee');
-      box(114, 126, -42, -34, 52, 72, 'rgba(216,230,234,.9)', 'rgba(190,210,216,.9)', 'rgba(170,192,200,.9)');   // brochure box
     });
   },
   draw(p){
@@ -90961,9 +91037,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       const c = METAL[m];
       box(a - 5*s, a + 5*s, b - 4*s, b + 4*s, z, z + 4*s, '#3b2e24', '#30251d', '#2a2019');
       box(a - 1.2*s, a + 1.2*s, b - 1.2*s, b + 1.2*s, z + 4*s, z + 9*s, c[0], c[1], c[2]);
+      /* the handles meet the bowl's faces: the far one before it, the near one after (W37; a mirrored on some edges) */
+      const hW = () => box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]),
+            hE = () => box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]), seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+      (seeE ? hW : hE)();
       box(a - 4.5*s, a + 4.5*s, b - 3.5*s, b + 3.5*s, z + 9*s, z + 19*s, c[0], c[1], c[2]);
-      box(a - 7*s, a - 4.5*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
-      box(a + 4.5*s, a + 7*s, b - 1*s, b + 1*s, z + 12*s, z + 17*s, c[0], c[1], c[2]);
+      (seeE ? hE : hW)();
     };
     /* AS BIG AS ITS INSIDE (Sir, 2026-10-17: "lets make the exterior of our
        shop match the interior foot print"): 585 x 462 lab, x1.3 the room's
@@ -91198,9 +91277,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           faceCircle(ac, 1.1, zc, 2.4, '#5e646b'); }
         /* two barn lamps either side of the board: a short arm off the wall, a green dome over the bulb */
         for(const ac of KW_PLAN.LAMPS){
-          box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e');
           box(ac - 3, ac + 3, 8, 14, DH + 28, DH + 31, '#fff2c8', '#f2e2b0', '#e2d098');                 // the bulb first, under its dome (W37: hung)
-          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532'); }
+          box(ac - 7, ac + 7, 5, 17, DH + 31, DH + 36, '#2c6a4f', '#24553f', '#1d4532');
+          box(ac - 2, ac + 2, 0, 9, DH + 38, DH + 41, '#2a2e33', '#202428', '#181b1e'); }                  // the arm over the dome, after it (W37: hung)
         /* the verges: white barge boards up the gambrel, a hair proud of the gable */
         for(let i = 0; i < 4; i++){ const [a0, z0] = prof[i], [a1, z1] = prof[i + 1];
           poly([P(a0, OH + 0.2, z0), P(a1, OH + 0.2, z1), P(a1, OH + 0.2, z1 - 6), P(a0, OH + 0.2, z0 - 6)], trim);
@@ -91279,9 +91358,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                                                  : box(fixed - 2, fixed + 2, bN(u1), bN(u0), z0, z1, FW[0], FW[1], FW[2]);
             const post = u => alongA ? box(u - 5, u + 5, bN(fixed + 5), bN(fixed - 5), 0, F.h, FWD[0], FWD[1], FWD[2])
                                      : box(fixed - 5, fixed + 5, bN(u + 5), bN(u - 5), 0, F.h, FWD[0], FWD[1], FWD[2]);
+            /* W37: far post, the rails up to the next post's face, then that post -- from the end away from the eye (a is
+               mirrored on some edges; along n, b = -736 - n, so a higher n is nearer only where the eye sees -b: the game, whose
+               world y runs with n -- the lab sees +b); the rails meet the posts' faces, never run into them */
+            const nearHi = alongA ? (P(1, 0, 0).y - P(0, 0, 0).y) > 0 : (P(0, 1, 0).y - P(0, 0, 0).y) < 0;
+            if(!nearHi) pts.reverse();
             for(let k = 0; k < pts.length; k++){
+              if(k){ const u0 = Math.min(pts[k-1], pts[k]) + 5, u1 = Math.max(pts[k-1], pts[k]) - 5;
+                R(u0, u1, 12, 16); R(u0, u1, 25, 29); }
               post(pts[k]);
-              if(k) { R(pts[k-1], pts[k], 12, 16); R(pts[k-1], pts[k], 25, 29); }
             }
           };
           const gatePost = (a, n) => { box(a - 8, a + 8, bN(n + 8), bN(n - 8), 0, 50, FWD[0], FWD[1], FWD[2]);
@@ -91356,15 +91441,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         /* the rails, both sides, stepped down the slope: the west in one piece
            (behind him), the east in short ones (in front of him) */
         const railSeg = (a0, a1, n0, n1) => box(a0, a1, bN(n1), bN(n0), 0, rz(n0) + 18, WOODD[0], WOODD[1], WOODD[2]);
+        /* a run of segments, the far (north) one first (W37: down the slope they come toward the eye) */
+        const railRun = (a0, a1, m0, m1) => { const segs = [];
+          for(let n = m0; n < m1; n += STEP) segs.push([n, Math.min(m1, n + STEP)]);
+          const sb = (P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? 1 : -1;      // (the eye sees +b in the lab, -b in the game: the far end first either way)
+          segs.sort((x, y) => sb*((bN(x[0]) + bN(x[1])) - (bN(y[0]) + bN(y[1])))).forEach(([n0, n1]) => railSeg(a0, a1, n0, n1)); };
         const STEP = 70;
         items.push({ a: D.a0 - 12, b: bN(D.top0), z: 0,
           solids: [{ name:'derby rail W', poly: volRect(D.a0 - 12, D.a0, bN(D.foot), bN(D.top0)), h: D.RZ + 18 }],
-          draw: () => { for(let n = D.top0; n < D.foot; n += STEP) railSeg(D.a0 - 12, D.a0, n, Math.min(D.foot, n + STEP)); } });
+          draw: () => railRun(D.a0 - 12, D.a0, D.top0, D.foot) });
         for(let n0 = D.top0; n0 < D.foot; n0 += STEP*3){
           const n1 = Math.min(D.foot, n0 + STEP*3);
           items.push({ a: D.a1 + 12, b: bN(n1), z: 0,
             solids: [{ name:'derby rail E', poly: volRect(D.a1, D.a1 + 12, bN(n1), bN(n0)), h: rz(n0) + 18 }],
-            draw: () => { for(let n = n0; n < n1; n += STEP) railSeg(D.a1, D.a1 + 12, n, Math.min(n1, n + STEP)); } });
+            draw: () => railRun(D.a1, D.a1 + 12, n0, n1) });
         }
         /* the start gate: two posts at the platform's front, a banner across.
            ON THE RAILS (Sir, 2026-10-17: "this is looking wanky and not fitting
@@ -91374,8 +91464,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
         { const nb = D.top1 - 8, Z = D.RZ, H = D.RZ + 130, PA = [D.a0 - 6, D.a1 + 6];
           items.push({ a: D.a1 + 12, b: bN(nb), z: 0,
             draw: () => {
-              for(const a of PA) box(a - 6, a + 6, bN(nb + 6), bN(nb - 6), Z, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
-              box(PA[0], PA[1], bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              /* W37: the far post, the banner between the posts' faces, the near post (a mirrored on some edges) */
+              const gp = a => box(a - 6, a + 6, bN(nb + 6), bN(nb - 6), Z, H, '#e8e4da', '#c9c4b8', '#b0aa9c');
+              const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0;
+              gp(seeE ? PA[0] : PA[1]);
+              box(PA[0] + 6, PA[1] - 6, bN(nb + 3), bN(nb - 3), H - 36, H - 4, '#d8352a', '#b82a20', '#9a231a');       // the banner
+              gp(seeE ? PA[1] : PA[0]);
               const w = (D.a1 - D.a0 - 20)/10;
               for(let k = 0; k < 10; k++){ const q = D.a0 + 10 + k*w;                                                 // its chequered hem
                 poly([P(q,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-36),P(q+w,bN(nb+3.3),H-42),P(q,bN(nb+3.3),H-42)], k % 2 ? '#f4f2ec' : '#1e1e22'); }
@@ -91430,10 +91524,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
             solids: [{ name:'podium', poly: volRect(A0, A1, bN(n1), bN(DERBY_STEP.n1)), h: 40 }],
             draw: () => {
               /* its steps, at the back: half each place's height (DERBY_STEP), the way up */
-              for(const [a, h] of steps) box(a + 6, a + w - 6, bN(n0), bN(DERBY_STEP.n1), 0, h/2, '#e4e0d6', '#cfcabe', '#b8b4aa');
+              const stepRow = () => { for(const [a, h] of steps) box(a + 6, a + w - 6, bN(n0), bN(DERBY_STEP.n1), 0, h/2, '#e4e0d6', '#cfcabe', '#b8b4aa'); };
+              /* (W37: whichever of the steps and the blocks stands further from the eye first: the eye sees +b in the lab, -b in
+                 the game -- there the steps are at the back) */
+              const sb = (P(0, 1, 0).y - P(0, 0, 0).y) > 0 ? 1 : -1, stepsFront = sb*(bN(DERBY_STEP.n1) - bN(n1)) > 0;
+              if(!stepsFront) stepRow();
               for(const [a, h, m] of steps){
               box(a, a + w, bN(n1), bN(n0), 0, h, '#f4f2ec', '#dcd8ce', '#c4c0b6');
-              poly([P(a+w*0.3,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.8),P(a+w*0.3,bN(n1)-0.4,h*0.8)], m); } },
+              poly([P(a+w*0.3,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.25),P(a+w*0.7,bN(n1)-0.4,h*0.8),P(a+w*0.3,bN(n1)-0.4,h*0.8)], m); }
+              if(stepsFront) stepRow(); },
             live: DERBY_RACE.podium }); }
         /* ---- the JUDGE'S TENT: a pop-up canopy over a table, the judge at it ---- */
         { const A0 = 1936, A1 = 2276, n0 = 3154, n1 = 3414, H = 150, am = (A0 + A1)/2, nm = (n0 + n1)/2;
