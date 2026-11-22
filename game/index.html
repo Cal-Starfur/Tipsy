@@ -55813,7 +55813,7 @@ function houseCanopy(fn){
     const EWA = -31;
     edge(EWA, EA, EN, EN + EW, true, true);                                                  // north: to the fascia's outer edge, so the two caps meet in one corner
     for(const it of items) if(it.solids && it.solids[0] && it.solids[0].name === 'parapet' && it.b < EN + EW) it.dk -= 300;
-    edge(EWA, EWA + EW, EN + EW, D, false, true);                                            // west: on the shell's west edge
+    edge(EWA, EWA + EW, EN + EW, 847, false, true);                                          // west: on the shell's west edge, south to the front fascia's inner edge (b 847, as the east one's a 847 -- Sir, 2026-11-22: "in this corner they dont meet")
     edge(W - PT, W, PT, D - PT, false, false); edge(0, W, D - PT, D, true, false);           // (east, south: the shell's own fascia; their solids only)
     /* ---- THE EAST CUP SIGN, redrawn: the shell's own is baked into its image, so the far parapet (which has to draw over the
        neighbour's roof) came out in front of it. This covers it exactly (board, posts, cup, steam, bolt: the shell's sign in this
