@@ -17,6 +17,9 @@
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
    node tools/review/w37.js [room name filter]      exits 1 on any clip, back, foot, hung or behind finding
+     --gate        with --every: exits 1 only on a finding NEW or GROWN against tools/review/w37_baseline.json (per entry and kind --
+                   the faults still open stay listed, they don't block); --update writes the baseline from this run (after a fix,
+                   committed with it; a new fault is locked in only when Sir has agreed)
      --every       every entry the library draws (the shops, landmarks and their signs and lamps as well as the rooms): an entry
                    drawn whole (no depthSort) is checked as one piece
      --png <dir>   each foot finding's piece drawn alone, 4x, and marked up (<dir>/foot_N_marked.png): the spot circled on the whole
@@ -204,5 +207,20 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   }
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
+  /* THE GATE (CLAUDE.md, Sir 2026-11-22: "yes add it"): per entry and kind, against the baseline */
+  const GK = ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside'];
+  if(process.argv.includes('--gate') || process.argv.includes('--update')){
+    const fs = require('fs'), path = require('path'), fn = path.join(__dirname, 'w37_baseline.json'), cnt = {};
+    for(const f of out.found) if(GK.includes(f.kind)){ const k = f.room + ' | ' + f.kind; cnt[k] = (cnt[k] || 0) + 1; }
+    if(process.argv.includes('--update')){ const keep = fs.existsSync(fn) && want ? JSON.parse(fs.readFileSync(fn, 'utf8')) : {};
+      for(const k of Object.keys(keep)) if(k.split(' | ')[0].includes(want)) delete keep[k];
+      const all = Object.assign(keep, cnt), sorted = {}; for(const k of Object.keys(all).sort()) sorted[k] = all[k];
+      fs.writeFileSync(fn, JSON.stringify(sorted, null, 1) + '\n'); console.log('\nbaseline written: ' + Object.values(sorted).reduce((a, b) => a + b, 0) + ' open findings in ' + Object.keys(sorted).length + ' entry/kinds'); process.exit(0); }
+    const base = fs.existsSync(fn) ? JSON.parse(fs.readFileSync(fn, 'utf8')) : {}, grown = [];
+    for(const [k, n] of Object.entries(cnt)) if(n > (base[k] || 0)) grown.push(k + ': ' + (base[k] || 0) + ' -> ' + n);
+    const shrunk = Object.entries(base).filter(([k, n]) => k.split(' | ')[0].includes(want) && (cnt[k] || 0) < n).length;
+    console.log('\nGATE: ' + (grown.length ? 'FAIL -- new or grown against the baseline:\n  ' + grown.join('\n  ') : 'PASS') + (shrunk ? '\n(' + shrunk + ' entry/kinds fewer than the baseline: --update and commit it)' : ''));
+    process.exit(grown.length ? 1 : 0);
+  }
   process.exit(out.found.some(f => f.kind === 'clip' || f.kind === 'back' || f.kind === 'foot' || f.kind === 'hung' || f.kind === 'behind' || f.kind === 'error') ? 1 : 0);
 })();
