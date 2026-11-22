@@ -116590,7 +116590,9 @@ class WorldScene extends Phaser.Scene {
        meets the lens plane and the light reads as emerging from beneath
        the fixture. Screen space, so +y is down. */
     const lensDropY = lensH*K*0.55*0.5;
-    g.fillStyle(L.glassDay, 1);
+    /* (lit at night in the lens's own place, under the head -- not on gGlow over it) */
+    const litNow = isNightNow() ? (hz.mal ? flickerAt(hz.lampSeed, t) : 1) : 0;
+    g.fillStyle(litNow > 0.5 ? 0xffe9c0 : L.glassDay, 1);
     g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
     /* THE HEAD OVER ITS LENS (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the lens is
        on the head's underside, which the eye never sees from above, so the head covers all of it but the sliver that shows below */
@@ -116642,9 +116644,14 @@ class WorldScene extends Phaser.Scene {
            the room in front covers it -- Sir, 2026-10-18: "this street lamp
            light shouldn't be drawing on top of the elevator") */
         if(this._xrayInProp && !POCKET_VIEW) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
-        const bloomH = L.headW*0.462*K*0.8;
-        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, lp.y + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
-        gl.fillStyle(0xffe9c0, 0.9*lit); gl.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
+        /* THE BLOOM BELOW THE HEAD (Sir, 2026-11-22: "the light painting over the lamp"): gGlow is over everything, so the bloom
+           starts at the head's lowest edge on screen and spreads down from it -- the lens itself is the lamp's own, under the head */
+        const bloomH = L.headW*0.462*K*0.8, hw = L.headW/2, hb = L.headW/2*0.6;
+        /* (the head's lower outline straight under the lens: its near bottom edges, at the lens's x) */
+        const hc = (sa, sb) => W(topA + sa*hw, armL + sb*hb, hz2 - L.headH), rim = [hc(-1, -1), hc(-1, 1), hc(1, 1), hc(1, -1), hc(-1, -1)];
+        let hy = lp.y; for(let i = 0; i < 4; i++){ const p0 = rim[i], p1 = rim[i + 1];
+          if((lp.x - p0.x)*(lp.x - p1.x) <= 0 && Math.abs(p1.x - p0.x) > 1e-6) hy = Math.max(hy, p0.y + (p1.y - p0.y)*(lp.x - p0.x)/(p1.x - p0.x)); }
+        gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, hy + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
       }
     }
   }
