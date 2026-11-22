@@ -55860,8 +55860,10 @@ function houseCanopy(fn){
           poly([P(inA0, inB0, z0), P(inA0, inB1, z0), P(inA0, inB1, z1), P(inA0, inB0, z1)], shade(c, 0.86)); }                    // west wall's
         /* the ladder down the shaft: the same rails and rungs as come up out of it (the lid's piece), on the same line, so it is one ladder */
         { const LB = PT + 11 + BBR.HS;
-          for(let z = 32 - 16*Math.ceil((32 - (CH - SD))/16); z < CH; z += 16) box(120, 150, LB - 1.5, LB + 1.5, z - 1.5, z + 1.5, steel, steel, steelD);   // its rungs, every 16 as above (boxes: they keep to the clip)
-          for(const x of [120, 150]) box(x - 2.2, x + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD); }                         // its rails
+          /* (W37: the west rail, the rungs, then the east rail -- the rungs' west ends are behind the west rail) */
+          box(120 - 2.2, 120 + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD);                                                     // its west rail
+          for(let z = 32 - 16*Math.ceil((32 - (CH - SD))/16); z < CH; z += 16) box(122.2, 147.8, LB - 1.5, LB + 1.5, z - 1.5, z + 1.5, steel, steel, steelD);   // its rungs, every 16 as above, rail to rail (boxes: they keep to the clip)
+          box(150 - 2.2, 150 + 2.2, LB - 3, LB + 3, CH - SD, CH, steel, steel, steelD); }                                                   // its east rail
         ctx.restore(); } });
     }
     /* (the lid: shut over the opening, or thrown back against the north parapet -- MS.hatchOpen, from the start of the climb) */

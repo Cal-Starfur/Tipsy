@@ -18,7 +18,7 @@ benches 40), the people kit's rules for who is in it.
 | Maritime Mall Interior | 205 | The biggest. |
 | Marina General Interior | 82 | The hospital. |
 | Palmline Tower Floors | 4 (the doorways' light: drawn last on purpose) | Done 2026-11-21: W37; the sofas rebuilt; chairs 38, dining tables and the desk 66, the kitchen counter, island and bar 75, their stools 48, the armchairs 38. Left: the recipe's people checks. |
-| Brew & Bolt Roof | 1 | |
+| Brew & Bolt Roof | 0 (fixed 2026-11-22) | Done 2026-11-22: the shaft's ladder painted west rail, rungs rail to rail, east rail (the rungs ran into the west rail, drawn after them). No furniture to measure (the mast, a vent, the AC unit). |
 
 Sizes: the full-block rooms (the ballroom, the mall, the hospital) keep their size and stay on the street's lines (POCKET_VIEW). Moving
 them off the map to grow them was tried and dropped (Sir, 2026-11-21: "lets just leave the full block rooms alone for now this is going to
