@@ -129806,7 +129806,7 @@ class WorldScene extends Phaser.Scene {
           /* the arm rides with the post, pointing along fdir = armF */
           /* (the design pass, Sir 2026-11-23: a street-name blade hung under the arm near the pole -- green, a white rim -- drawn before
              the arm over it; the arm's tip capped, a collar a hair proud of it, as the mast's end plate) */
-          const blade = () => { const b0 = armZ - 7 - 18, b1 = armZ - 7 - 3, a0 = 20, a1 = 82,   /* (a1 82: clear of the head's lid, 101..125 -- drawn after the head, its end painted over the lid's corner) */ sb = (rv.x + rv.y) > 0 ? 1 : -1;
+          const blade = () => { const b0 = armZ - 7 - 18, b1 = armZ - 7 - 3, a0 = 28, a1 = 82,   /* (a0 28: clear of the pole; a1 82: clear of the head's lid, 101..125 -- drawn after the head, its end painted over the lid's corner) */ sb = (rv.x + rv.y) > 0 ? 1 : -1;
             box(a0, a1, -0.8, 0.8, b0, b1, 0x1d5e36, 0x1d5e36, 0x174a2b);
             const F = (u0, u1, z0, z1, c) => { g.fillStyle(c, 1); g.fillPoints([W(u0, sb*1, z0), W(u1, sb*1, z0), W(u1, sb*1, z1), W(u0, sb*1, z1)], true); };
             F(a0 + 1.5, a1 - 1.5, b0 + 1.5, b1 - 1.5, 0xe9ede8); F(a0 + 2.6, a1 - 2.6, b0 + 2.6, b1 - 2.6, 0x1d5e36);
