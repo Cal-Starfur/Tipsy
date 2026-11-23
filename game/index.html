@@ -55343,14 +55343,16 @@ function houseCanopy(fn){
     run(0, 900, KB, KB + 30, [false, true]); run(1300, W, KB, KB + 30, [true, false]);   // (their doorway's ends stand free)
     /* ---- THE KITCHEN ---- */
     /* (a kitchen counter's height, 75 -- docs/kits/library.md; Sir, 2026-11-21) */
-    items.push({ a: 550, b: 45, z: 0, solids: [{ name:'ovens', poly: volRect(300, 800, 0, 90), h: 79 }], draw: () => {
+    /* (the ovens' run as runPiece -- the long-fixture rule: one piece keyed at its middle painted its fronts over the cook stood at its
+       west end; Sir, 2026-11-23, the recipe's people checks, tools/review/room_people.js) */
+    runPiece(items, 300, 800, 0, 90, 78, (s0, s1) => [{ name:'ovens', poly: volRect(s0, s1, 0, 90), h: 79 }], () => {
       box(300, 800, 0, 90, 0, 75, '#3a3f44', steel, steelD);
       for(let a = 320; a + 90 <= 800; a += 116){
         F(a, a + 90, 10, 54, '#1d2125', null, 0, 90.4);
         F(a + 8, a + 82, 58, 61, steelL, null, 0, 90.6);
         for(const da of [18, 45, 72]) ball(a + da, 60, 78, 9, '#202428', '#3a3f44');
       }
-    }});
+    });
     items.push({ a: 1500, b: 60, z: 0, solids: [{ name:'fridge', poly: volRect(1440, 1560, 0, 120), h: 230 }], draw: () => {
       box(1440, 1560, 0, 120, 0, 230, steelL, steel, steelD);
       F(1498, 1502, 20, 222, steelD, null, 0, 120.5);

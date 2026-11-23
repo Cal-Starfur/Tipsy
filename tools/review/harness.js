@@ -21,7 +21,7 @@ function loadPlaywright(){
    outside can reach them. For a review run only, the page is served with each one wrapped by a
    recorder (window.__RVK(name, args, 0 before | 1 after)), and the closure's state and entry list
    handed out (window.__RVK_ctx, window.__RVK_shops). The game itself is never changed. */
-const LIB_PRIMS = ['F', 'S', 'T', 'box', 'slab', 'prism', 'glaze', 'reveal', 'shopDoor', 'blockWord', 'blockWordIn', 'faceCircle'];
+const LIB_PRIMS = ['F', 'S', 'T', 'box', 'slab', 'prism', 'glaze', 'reveal', 'shopDoor', 'blockWord', 'blockWordIn', 'faceCircle', 'poly'];   // (poly: a face drawn by hand or by pathRun -- the checkers' smallest part)
 function instrument(html){
   const L0 = html.indexOf('const LIB = (function(){');
   if(L0 < 0) return html;
