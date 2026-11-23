@@ -59819,15 +59819,15 @@ function houseCanopy(fn){
        back into the slot it was picked from (TOP4) */
     /* (the arm robots' phase: the goods-to-person pod's four first -- off the top carton -- then the flat boxes, then row A's five, its pod in
        once the pick face is done) */
-    const JOBS = [{ k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 },
+    const JOBS = [{ k: 'fill', bin: 0, c: 1 }, { k: 'fill', bin: 1, c: 1 }, { k: 'fill', bin: 2, c: 2 }, { k: 'fill', bin: 3, c: 2 },   /* (row A's pod of empties, parked by him: a colour a job -- Sir, 2026-11-23: "shelves with empty bins should come to him to be refilled") */
       { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'idle', c: -1 }, { k: 'carton', i: 0 }, { k: 'carton', i: 3 }];   /* (the two cartons last: the shuttle is back from its round by then, and leaves with both, phase 5) */
     const JDECK = 9, JFLAT = 10;
     const RCV_T0 = 14500, RCV_JOB = 2400, RCV_T1 = RCV_T0 + JOBS.length*RCV_JOB, JS = j => RCV_T0 + j*RCV_JOB;
     const rcvQ = jr => jr >= RCV_T0 && jr < RCV_T1 ? { j: Math.floor((jr - RCV_T0)/RCV_JOB), q: (jr - RCV_T0) % RCV_JOB } : null;
     /* what is still on the pallet: the cartons till they are taken (or used up) */
     const JK = RCV_JOB/3000;   /* (a job's moves on its 3000 beat, scaled to the job) */
-    const rcvOn = jr => { if(jr < RCV_T0) return [0, 3];   /* (row A's parts cartons gone too: its pods are stocked from the north wall, 2026-11-21) */   /* (row B's parts carton gone: its pods are stocked on the west wall) */ if(jr >= RCV_T1) return [];
-      return [0, 3].filter(i => { const last = JOBS.reduce((q, J, j) => (J.k === 'carton' ? J.i === i : J.c === i) ? j : q, -1); return last >= 0 && jr < JS(last) + (JOBS[last].k === 'carton' ? 1100 : 2000)*JK; }); };
+    const rcvOn = jr => { if(jr < RCV_T0) return [0, 1, 2, 3];   /* (row A's parts cartons gone too: its pods are stocked from the north wall, 2026-11-21) */   /* (row B's parts carton gone: its pods are stocked on the west wall) */ if(jr >= RCV_T1) return [];
+      return [0, 1, 2, 3].filter(i => { const last = JOBS.reduce((q, J, j) => (J.k === 'carton' ? J.i === i : J.c === i) ? j : q, -1); return last >= 0 && jr < JS(last) + (JOBS[last].k === 'carton' ? 1100 : 2000)*JK; }); };
     /* (where things stand at Receiving: the jack and its pallet (JA, PB), the Receiver beside it (RX); the shuttle (SH*); the goods-to-person
        pod's spot (GPA, GPB), facing south so the side its bins are worked from is to the east) */
     const JA = 2240, PB = 232, SHA = 2120, SHB = 232, SHSL = [210, 254],   /* (Receiving in the corner north of the door, off its way -- Sir, 2026-11-23: "he should be sorting stuff but use the room so it doesn't block the door": the pallet on the east, the shuttle on the west, the Receiver between, turning from one to the other) */ GPA = 2160, GPB = 300;   /* (phase 5: the shuttle waits south of the pallet, out of the jack's lane while it is in -- its way in and out clear of the goods-to-person pod) */   /* (the Receiver works the gap between the pod (west of him, facing south) and the pallet and the shuttle (east): nothing tall in front of him from the eye) */
@@ -59872,7 +59872,7 @@ function houseCanopy(fn){
       if(!V) return;
       for(const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){ if(!V.sees(nx, ny, 0)) continue; const zc = z0 + 7, q = (u, zz) => nx ? V.P(w[0] + nx*(la + 0.2), w[1] + u, zz) : V.P(w[0] + u, w[1] + ny*(lb + 0.2), zz);
         V.Q([q(-4.5, zc - 2.6), q(4.5, zc - 2.6), q(4.5, zc + 2.6), q(-4.5, zc + 2.6)], 0xf6f4ee); V.Q([q(-3.6, zc - 0.4), q(3.6, zc - 0.4), q(3.6, zc + 0.6), q(-3.6, zc + 0.6)], 0x2a2f36); } };   /* (goods to person's pods: the four bins picked (TOP4) and the four slots the empties go back into (R4), all on the side it is worked from) */
-    const S5 = [7, 9, 11, 15, 13], PODX = 1910, PODY = 2030, PODB = 60, PODRA = 2190;   /* (the pick face's two pods, their homes; where the returns pod parks at Receiving; the five slots they work, on their south side) */
+    const S5 = [7, 9, 11, 15, 13], PODX = 1910, PODY = 2030, PODB = 60, PODRA = 2170;   /* (the pick face's two pods, their homes; where the returns pod parks at Receiving; the five slots they work, on their south side) */
     /* a piece of the load, in the room's kit (rcvItemKit) or on the jack's forks in its own frame (rcvItemBot, la and lb swapped) -- drawn
        alike: the deck carton (cardboard, a blue label, its tape), a bin (the bins' own), the carton of flat boxes (strapped) */
     const rcvItemKit = (it, a, b, z) => {
@@ -59909,10 +59909,10 @@ function houseCanopy(fn){
     /* THE NORTH LINE (Sir, 2026-11-21: row A's pick face "pulling from its own wall"): six pods along the north wall, the line's front at
        its west end over row A's stop, its back at a 930, the slot it waits in to join beyond (a 1070); the pods themselves move: row A's
        pick face's crew */
-    for(let i = 0; i < 6; i++){ const pa = 330 + i*120, pb = 62;
+    for(let i = 0; i < 5; i++){ const pa = 330 + i*120, pb = 62;
       podSq(pa, pb, false);
       items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 55, pa + 55, pb - 38, pb + 38, 150, 'shelf pod')], draw: () => {} }); }
-    podSq(1070, 62, false);
+    podSq(930, 62, false); podSq(PODRA, PODB, false);   /* (where it waits to join; its spot at Receiving) */
     /* ---- RECEIVING (a 2140..2310, b 20..360, by the roller door): where the parts come in -- the shipping jack's drop, the Receiver's floor
        (phase 2) ---- */
     T(2060, 2310, 20, 360, 0.25, '#b7bcbf');
@@ -60209,8 +60209,8 @@ function houseCanopy(fn){
          into the stop */
       items.push({ a: 700, b: 380, z: 0, solids: [solid(APOD[0] - 40, APOD[0] + 40, APOD[1] - 57, APOD[1] + 57, 150, 'pick face pod')], draw: () => {}, fx: { crew: t => {
         const out = [], r = (((t - PAL0) % SUP) + SUP) % SUP;
-        const DV = 25300, RSH = [APOD, [APOD[0], ARPOD[1]], ARPOD, [ARPOD[0] + 1, ARPOD[1]]], RSHL = plenP(RSH), LB = 62, WT = 1070, BK = 930;
-        const GH = [ARPOD, [WT, ARPOD[1]], [WT, LB], [WT, LB - 1]], GHL = plenP(GH), GF = [[APOD[0], LB], APOD, [APOD[0], APOD[1] + 1]], GFL = plenP(GF), IN0 = 8*SUP - 3400;
+        const DV = 25300, RSH = [APOD, [APOD[0], ARPOD[1]], ARPOD, [ARPOD[0] + 1, ARPOD[1]]], RSHL = plenP(RSH), LB = 62, WT = 930, BK = 810;
+        const RT = [ARPOD, [1990, ARPOD[1]], [1990, PODB], [PODRA, PODB], [PODRA + 1, PODB]], RTL = plenP(RT), RBK = [[PODRA, PODB], [WT, LB], [WT - 1, LB]], RBKL = plenP(RBK), RF1 = 2*SUP + JS(3) + RCV_JOB + 300, GF = [[APOD[0], LB], APOD, [APOD[0], APOD[1] + 1]], GFL = plenP(GF), IN0 = 8*SUP - 3400;
         for(let pk = 0; pk < 8; pk++){ const U = (((t - PAL0 - pk*SUP) % (8*SUP)) + 8*SUP) % (8*SUP);
           const L = POD_FULL.slice(), fullOf = i => ({ k: 'bin', la: 12, lb: 11.5, h: 20, pal: i });
           let P1, fd = null, s0 = 0;
@@ -60219,16 +60219,20 @@ function houseCanopy(fn){
             if(U < DV) v = U < ta ? fullOf(i) : U < ta + 200 ? Object.assign(fullOf(i), { off: [0, -27*ease((U - ta)/200)] }) : U < ta + 800*ARMU0 ? Object.assign(fullOf(i), { off: [0, -27] }) : null;
             else if(U < tr) v = null;
             else if(U < tr + 300) v = Object.assign(fullOf(i), { empty: true, off: [0, 27*(1 - ease((U - tr)/300))] });
-            else if(U < J) v = Object.assign(fullOf(i), { empty: true });
-            else v = fullOf(i);
+            else if(U < 2*SUP + JS(i)) v = Object.assign(fullOf(i), { empty: true });
+            else { const q = U - 2*SUP - JS(i);   /* (at Receiving: he fills the middle one; the other two as he puts it back) */
+              v = jj !== 1 ? (q < 3000*JK ? Object.assign(fullOf(i), { empty: true }) : fullOf(i)) : q < 600*JK ? Object.assign(fullOf(i), { empty: true }) : q < 900*JK ? Object.assign(fullOf(i), { empty: true, off: [0, -26*ease((q - 600*JK)/(300*JK))] })
+                : q < 2750*JK ? null : q < 3000*JK ? Object.assign(fullOf(i), { off: [0, -26*(1 - ease((q - 2750*JK)/(250*JK)))] }) : fullOf(i); }
             L[GRP(i, false)[jj]] = v; }
           if(U < DV + 1400){ P1 = { a: APOD[0], b: APOD[1] }; fd = 1; }
           else if(U < DV + 2900){ s0 = RSHL*ease((U - DV - 1400)/1500); P1 = pathAt(RSH, Math.min(s0, RSHL - 0.5)); fd = 1; }   /* (over beside the picker) */
           else if(U < SUP + DV + 600){ P1 = { a: ARPOD[0], b: ARPOD[1] }; fd = 1; }   /* (away once the picker is back at his spot, clear of its way east) */
-          else if(U < SUP + DV + 5600){ s0 = GHL*ease((U - SUP - DV - 600)/5000); P1 = pathAt(GH, Math.min(s0, GHL - 0.5)); }   /* (east under the line, up to the slot beyond its back) */
-          else if(U < 2*SUP - 1900){ P1 = { a: WT, b: LB }; fd = 3 - clamp01((U - SUP - DV - 5600)/800); }   /* (turned to face along the line) */
-          else if(U < 2*SUP - 500){ P1 = { a: WT - (WT - BK)*ease((U - 2*SUP + 1900)/1400), b: LB }; fd = 2; }   /* (in at the back, just behind the one ahead moving up) */
-          else if(U < IN0){ let sl = 0; for(let kk = 3; kk <= 7; kk++){ const ts = kk*SUP - 2200; if(U >= ts + 1700) sl++; else if(U >= ts) sl += ease((U - ts)/1700); }
+          else if(U < SUP + DV + 14600){ s0 = RTL*ease((U - SUP - DV - 600)/14000); P1 = pathAt(RT, Math.min(s0, RTL - 0.5)); if(s0 > RTL - 182) fd = 2; }   /* (its empties to the Receiver: east under the line, backed into its spot north of the pallet) */
+          else if(U < RF1){ P1 = { a: PODRA, b: PODB }; fd = 2; }   /* (refilled there, a colour at a time) */
+          else if(U < RF1 + 10000){ s0 = RBKL*ease((U - RF1)/10000); P1 = pathAt(RBK, Math.min(s0, RBKL - 0.5)); fd = 2; }   /* (full, back west along the wall to wait at the line's back) */
+          else if(U < 3*SUP - 1900){ P1 = { a: WT, b: LB }; fd = 2; }
+          else if(U < 3*SUP - 500){ P1 = { a: WT - (WT - BK)*ease((U - 3*SUP + 1900)/1400), b: LB }; fd = 2; }   /* (in at the back, just behind the one ahead moving up) */
+          else if(U < IN0){ let sl = 0; for(let kk = 4; kk <= 7; kk++){ const ts = kk*SUP - 2200; if(U >= ts + 1700) sl++; else if(U >= ts) sl += ease((U - ts)/1700); }
             P1 = { a: BK - sl*120, b: LB }; fd = 2; }   /* (up the line a slot as the front one leaves) */
           else { s0 = GFL*ease(clamp01((U - IN0)/2600)); P1 = pathAt(GF, Math.min(s0, GFL - 0.5)); fd = 2 - clamp01((s0 - 40)/80); }   /* (from the front straight down into the stop, turning as it clears the line) */
           out.push(bot(P1.a, P1.b, fd != null ? fd : P1.fdir, { build: 'amrshelf', loads: L, bins: CPAL, wheel: s0*0.12 }));
@@ -60313,8 +60317,8 @@ function houseCanopy(fn){
           const Q4 = [STK, [STK[0], AY, 'r'], ...into(ko, [STK[0], AY]).slice(1)], Q5 = [...outOf(ko), [2275, AY], [2275, 455], [DOOR[0] + 1, 455]];
           let P, jack = false, fork = 0;
           if(u < 1000) P = null;
-          else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 3]); fork = 1; }
-          else if(jr2 < RCV_T0){ P = hold([JA, 300], 3); jack = JACKIN([0, 3]); fork = 1 - ease((u - 4500)/500); }
+          else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3]); fork = 1; }
+          else if(jr2 < RCV_T0){ P = hold([JA, 300], 3); jack = JACKIN([0, 1, 2, 3]); fork = 1 - ease((u - 4500)/500); }
           else if(jr2 < RCV_T1){ P = hold([JA, 300], 3); jack = JACKIN(rcvOn(jr2)); }
           else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 300], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
           else if(jr2 < 48400){ P = drv(ST, (jr2 - RCV_T1 - 1000)/(48400 - RCV_T1 - 1000)); jack = JACKIN([]); fork = 1; }
@@ -60344,7 +60348,7 @@ function houseCanopy(fn){
       const face = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
       const lvZ = sq => [34, 64, 94, 124][sq.lv] + 2.5;
       /* a slot in the world: row A's pod (facing east, worked from the south) or the goods-to-person pod here (facing north, worked from the west) */
-      const slotA = m => { const sq = AMR_SLOTS.amrshelf[GRP(m, true)[1]]; return { a: PODRA + sq.a, b: PODB + sq.b, z: lvZ(sq), out: [0, 1], stand: [PODRA + sq.a, 112], f: 3 }; };
+      const slotA = m => { const sq = AMR_SLOTS.amrshelf[GRP(m, false)[1]]; return { a: PODRA - sq.a, b: PODB - sq.b, z: lvZ(sq), out: [0, 1], stand: [PODRA - sq.a, 112], f: 3 }; };   /* (row A's pod parked facing west: its bins' side, south, to him) */
       const slotB = si => { const sq = AMR_SLOTS.amrshelf[si]; return { a: GPA - sq.b, b: GPB + sq.a, z: lvZ(sq), out: [1, 0], stand: [GX, GPB + sq.a], f: 2 }; };
       const fillSpot = c => [GX, PB + RCV[c].db];
       const endStand = j => j < 0 || JOBS[j].k === 'idle' ? IDLE : JOBS[j].k === 'carton' ? [GX, SHSL[JOBS[j].i === 0 ? 0 : 1]] : JOBS[j].k === 'fill' ? slotA(JOBS[j].bin).stand : slotB(GRP(JOBS[j].bin, false)[1]).stand;
