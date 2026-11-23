@@ -97,7 +97,7 @@ graph LR
 - [?] `wi-lagoon-coffee-roasters` Walk-in interior: Lagoon Coffee Roasters (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [?] `wi-sandpiper-bakery` Walk-in interior: Sandpiper Bakery (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
 - [?] `wi-seabreeze-florist` Walk-in interior: Seabreeze Florist (block 2,0 edge 2) [docs/kits/walkin-shop-recipe.md]
-- [ ] `wi-low-tide-juice-bar` Walk-in interior: Low Tide Juice Bar (block 2,0 edge 3) [docs/kits/walkin-shop-recipe.md]
+- [?] `wi-low-tide-juice-bar` Walk-in interior: Low Tide Juice Bar (block 2,0 edge 3) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-surfside-fitness` Walk-in interior: Surfside Fitness (block 2,0 edge 3) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-driftwood-home` Walk-in interior: Driftwood Home (block 3,1 edge 0) [docs/kits/walkin-shop-recipe.md]
 - [ ] `wi-sandpiper-shoes` Walk-in interior: Sandpiper Shoes (block 3,1 edge 0) [docs/kits/walkin-shop-recipe.md]
