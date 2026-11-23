@@ -60015,7 +60015,8 @@ function houseCanopy(fn){
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
       for(let p = 0; p < NPOS; p++){ if((p === 0 && (deckWin(jr5) || dumpWin(jr5))) || (p === NPOS - 1 && flatWin(jr5))) continue;   /* (off with the shuttle: phase 5's crew draws him) */
         const [pa, pb] = POS[p], here = ((p - c) % NPOS + NPOS) % NPOS < NCAR;
-        const w0 = 500, w1 = DWELL - 500, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - 400))/400) : clamp01((u - w1)/400);
+        const OF = [0, 380, 90, 560, 240, 470, 150, 330, 60, 0][p], OB = [0, 120, 420, 60, 300, 200, 520, 80, 360, 0][p], TT = [400, 460, 340, 520, 380, 430, 360, 490, 410, 400][p];   /* (each station on its own time: turning to the job and back to the bench at its own moment and pace -- Sir, 2026-11-23: "all of row A's robots are acting in unison") */
+        const w0 = 400 + OF, w1 = DWELL - 400 - OB, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - TT))/TT) : clamp01((u - w1)/TT);
         if(p === NPOS - 1){   /* (the packer -- Sir, 2026-11-20: "he should be boxing on that warehouse bot, then it goes to the picker"): turned to the line
              robot to lift the finished one off, folding it in his hands, then boxing it on the conveyor robot docked south of him (PKD) */
           const age = (((t - UNL) % CYC) + CYC) % CYC, PK = [PKD[0], RB + 5], toS = age < 600 ? ease(age/600) : age < 7400 ? 1 : 1 - ease((age - 7400)/800), f = 2 - toS;
@@ -60025,7 +60026,7 @@ function houseCanopy(fn){
             if(age < 1500) out.push(SCO(ha, hb, 30, 8, 2)); else out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => folded(ha, hb, 30) }); }
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
-        const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
+        const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
         if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
@@ -157616,7 +157617,7 @@ const GO_SPOTS = {
 };
 (function(){
   let q = null, v = null, lh = null, ms = null;
-  try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); ms = p.get('ms'); } catch(e){}
+  let free = false; try { const p = new URLSearchParams(location.search); q = p.get('go'); v = p.get('view'); lh = p.get('lh'); ms = p.get('ms'); free = p.get('free') === '1' || q === 'cratewell'; } catch(e){}   /* (free: the neighbourhood lock off, to drive round from there -- Sir, 2026-11-23: "for the link you provide that zone guard needs to be disabled") */
   if(typeof window !== 'undefined') window.lhPickupLink = function(){ return location.href.split('?')[0] + '?go=-4880,-13180,-1.57&view=2&lh=pickup'; };
   if(typeof window !== 'undefined') window.lhStartLink = function(){ return location.href.split('?')[0] + '?go=-4750,-13950,-1.57&view=2&lh=chandlery'; };
   if(typeof window !== 'undefined') window.tpGoHere = function(){
@@ -157645,7 +157646,7 @@ const GO_SPOTS = {
       try {
         if(s.state === 'play' && s.ow){
           if(window.garageClose && document.body.classList.contains('tpGarage')) try { window.garageClose(); } catch(e){}
-          if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; owStandUpAt(s, x, y, yaw); if(room) room(s); if(v) zoomSet(+v); }
+          if(Math.hypot(s.ow.px - x, s.ow.py - y) > 300){ held = 0; if(free) HOOD_LOCK.active = false; owStandUpAt(s, x, y, yaw); if(room) room(s); if(v) zoomSet(+v); }
           else held++;
         }
       } catch(e){}
