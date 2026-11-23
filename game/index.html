@@ -48118,22 +48118,25 @@ function svcLiftItems(items, H, U){
   const S0 = SVC, E = S0.a1 + 16;
   T(S0.a0, S0.a1, S0.b0, S0.b1, 0.6, '#6a7076');
   const solid = (a0, a1, b0, b1) => ({ name:'service lift', poly: volRect(a0, a1, b0, b1), h: H });
-  /* a wall of the car: dado below, panel above, a trim band at the top */
-  const wall = (a0, a1, b0, b1) => {
-    box(a0, a1, b0, b1, 0, 70, U.dado, shade(U.dado, 0.9), shade(U.dado, 0.78));
-    box(a0, a1, b0, b1, 70, H - 14, U.wallL, U.wall, U.wallD);
-    box(a0, a1, b0, b1, H - 14, H, U.trim, U.trim, U.trimD);
+  /* a wall of the car: dado below, panel above, a trim band at the top -- each ONE run round the car's corners (the corner rule,
+     pathRun: Sir, 2026-11-22), the north wall round into the east face's north side, the front wall round into its south side; each
+     split on the north / front wall where the corner's square begins (its inner corner), the corner going with the east face's item, as it did */
+  const wall = (pts, t, legs) => {
+    pathRun(pts, t, 0, 70, U.dado, shade(U.dado, 0.9), shade(U.dado, 0.78), legs);
+    pathRun(pts, t, 70, H - 14, U.wallL, U.wall, U.wallD, legs);
+    pathRun(pts, t, H - 14, H, U.trim, U.trim, U.trimD, legs);
   };
-  items.push({ a: (S0.a0 + E)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, E, S0.b0 - 16, S0.b0)], draw: () => wall(S0.a0, E, S0.b0 - 16, S0.b0) });
+  const NP = [[S0.a0, S0.b0 - 8], [S0.a1, S0.b0 - 8], [E - 8, S0.b0 - 8], [E - 8, S0.door[0]]];
   /* its south wall is the building's front wall there (Sir, 2026-10-18: "the
-     building and elevator need to be unified"), 30 thick as that wall is;
+     building and elevator need to be unified"), 30 thick as that wall is --
+     and the east face's south side with it, 30 thick, one run round the corner;
      the west is the building's west wall */
-  items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(S0.a0 - 30, E, S0.b1 - 30, S0.b1) });
-  /* its east face, the doors in it: each side drawn over the end of the
-     wall it meets (the north wall's, the front wall's), so the face runs
-     on unbroken (Sir, 2026-10-19: "there are seams every where") */
-  for(const [b0, b1, d0, d1] of [[S0.b0, S0.door[0], S0.b0 - 16, S0.door[0]], [S0.door[1], S0.b1 - 30, S0.door[1], S0.b1]])
-    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(S0.a1, E, d0, d1) });
+  const FP = [[S0.a0 - 30, S0.b1 - 15], [S0.a1 - 14, S0.b1 - 15], [E - 15, S0.b1 - 15], [E - 15, S0.door[1]]];
+  items.push({ a: (S0.a0 + E)/2, b: S0.b0 - 8, z: 0, solids: [solid(S0.a0, E, S0.b0 - 16, S0.b0)], draw: () => wall(NP, 8, [0]) });
+  items.push({ a: (S0.a0 + E)/2, b: S0.b1 - 15, z: 0, solids: [solid(S0.a0 - 30, E, S0.b1 - 30, S0.b1)], draw: () => wall(FP, 15, [0]) });
+  /* its east face, the doors in it: each side the corner it turns (the north wall's, the front wall's) */
+  for(const [b0, b1, pts, t] of [[S0.b0, S0.door[0], NP, 8], [S0.door[1], S0.b1 - 30, FP, 15]])
+    items.push({ a: S0.a1 + 8, b: (b0 + b1)/2, z: 0, solids: [solid(S0.a1, E, b0, b1)], draw: () => wall(pts, t, [1, 2]) });
   /* the header over the doors, its frame round them and its lamp; the roof
      and its cornice, after everything of the car */
   /* (sorted at the doorway, not the car's far corner -- Sir, 2026-10-18: a
@@ -48228,6 +48231,23 @@ function pathRun(pts, t, z0, z1, top, front, side, legs){
     const i0 = want[c], i1 = want[e] + 1, Ls = Lp.slice(i0, i1 + 1).map(q => q.slice()), Rs = Rp.slice(i0, i1 + 1).map(q => q.slice());
     const a = ends(i0), b = ends(i1 - 1), k = Ls.length - 1; Ls[0] = a[0]; Rs[0] = a[2]; Ls[k] = b[1]; Rs[k] = b[3];
     poly(Ls.concat(Rs.reverse()).map(q => P(q[0], q[1], z1)), top); c = e + 1; }
+}
+/* A RING ROUND A RECTANGLE, ONE TILE'S STRETCH OF IT (a parapet, a crown round a roof drawn in tiles): pathRun along the ring's
+   centre line -- ra0 / ra1 its a at the west / east sides, rbF / rbN its b at the front (b low) / back -- clipped to the tile
+   (ta0..ta1, tbF..tbN); F, N, W, E: whether the tile holds the front, back, west, east side. Each chain of sides the tile holds is
+   one piece, mitred where it turns (the corner rule). Far chains first */
+function rectRingRun(ra0, ra1, rbF, rbN, ta0, ta1, tbF, tbN, F, N, W, E, t, z0, z1, top, front, side){
+  const sg = [F && [[W ? ra0 : ta0, rbF], [E ? ra1 : ta1, rbF]], E && [[ra1, F ? rbF : tbF], [ra1, N ? rbN : tbN]],
+              N && [[E ? ra1 : ta1, rbN], [W ? ra0 : ta0, rbN]], W && [[ra0, N ? rbN : tbN], [ra0, F ? rbF : tbF]]];
+  const chains = [];
+  if(sg.every(Boolean)){ const am = (ra0 + ra1)/2;   // (the whole ring in one tile: two runs, each round two corners, meeting on its front and back)
+    chains.push([[am, rbF], [ra1, rbF], [ra1, rbN], [am, rbN]], [[am, rbN], [ra0, rbN], [ra0, rbF], [am, rbF]]); }
+  else for(let i = 0; i < 4; i++) if(sg[i] && !sg[(i + 3) % 4]){ const ch = sg[i].slice();
+    for(let k = (i + 1) % 4; sg[k] && k !== i; k = (k + 1) % 4) ch.push(sg[k][1]);
+    chains.push(ch); }
+  const my = ch => ch.reduce((s, q) => s + P(q[0], q[1], z0).y, 0)/ch.length;
+  chains.sort((p, q) => my(p) - my(q));
+  for(const ch of chains) pathRun(ch, t, z0, z1, top, front, side);
 }
 /* box's two seen faces and no top: a band round something (a label) */
 function boxSides(a0,a1,b0,b1,z0,z1,front,side){
@@ -48334,8 +48354,8 @@ const TROPHY_METAL = {
    own colours as he stashes them, the top plank first (the lower two are
    behind him when he is on the pad). */
 const STASH_SHELF = { Z: [74, 42, 10], A0: 58, A1: 280, D: 18, slots: [82, 122, 162, 202] };   // down with the trophy wall's (TROPHY_WALL): all three rows in the garage's view; filled from the top row, the one with nothing over it
-function depotStashShelf(){
-  const SS = STASH_SHELF, B0 = DEPOT_GEOM.ROOM.b0, D = SS.D;
+function depotStashShelf(st){
+  const SS = STASH_SHELF, B0 = DEPOT_GEOM.ROOM.b0, D = SS.D, TW = TROPHY_WALL;
   const WOOD = ['#8a6446', '#6e4f38', '#5b412e'];
   const got = (typeof tpCollect !== "undefined") ? tpCollect.stashed : [];
   /* ROW BY ROW, FROM THE BOTTOM (Sir, 2026-10-10: "these dont fit and they
@@ -48343,8 +48363,13 @@ function depotStashShelf(){
      -- which covers the tops of the things under it, as it does in a real
      shelf, instead of their being painted over every plank */
   for(const z of [...SS.Z].sort((p, q) => p - q)){
-    /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
-    box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") -- and, with the trophy wall up, ONE plank
+       round the corner from the trophy wall's (the corner rule, pathRun: Sir, 2026-11-22), the trophies on it, then the stashed things */
+    const cg = st && TW.GROUPS.find(g => g[0] === B0);
+    if(st) for(const [b0, b1] of TW.GROUPS) if(b0 !== B0) box(TW.A, TW.A + TW.depth, b0, b1, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    if(cg) pathRun([[TW.A + TW.depth/2, cg[1]], [TW.A + TW.depth/2, B0 + D/2], [SS.A1, B0 + D/2]], D/2, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    else box(SS.A0, SS.A1, B0, B0 + D, z, z + 4, WOOD[0], WOOD[1], WOOD[2]);
+    if(st) depotTrophyWall(st, z);
     COLLECT_SHELF.forEach((c, i) => {
       if(!got.includes(c.id)) return;
       const per = SS.slots.length;
@@ -48566,19 +48591,13 @@ function stashThing(c, a, b, zz){
     }
   }
 }
-function depotTrophyWall(st){
-  const TW = TROPHY_WALL, A = TW.A, D = TW.depth;
-  const WOOD = ['#8a6446', '#6e4f38', '#5b412e'];
-  /* ROW BY ROW, FROM THE BOTTOM, as the stash shelves (Sir, 2026-10-10: "i
-     dont like how the trophys and items dont fit inbetween the shelves"):
-     each plank, then the trophies on it, then the plank over it, whose
-     front edge covers their tops as a real shelf does -- all the planks
-     first painted every cup over the plank above it */
-  for(const zp of [...TW.SHELF_Z, TW.TOP_Z].sort((p, q) => p - q)){
-  for(const [b0, b1] of TW.GROUPS){
-    /* the plank alone: no brackets (Sir, 2026-10-10: "get rid of all the shelf supports") */
-    box(A, A + D, b0, b1, zp, zp + 4, WOOD[0], WOOD[1], WOOD[2]);
-  }
+/* the trophies on one row of the trophy wall, zp its plank's z. ROW BY ROW, FROM THE BOTTOM, as the stash shelves (Sir, 2026-10-10:
+   "i dont like how the trophys and items dont fit inbetween the shelves"): each plank, then the trophies on it, then the plank over
+   it, whose front edge covers their tops as a real shelf does -- all the planks first painted every cup over the plank above it. The
+   rows are depotStashShelf's: its planks run on round the corner into these, one piece (the corner rule, pathRun) */
+function depotTrophyWall(st, zp){
+  const TW = TROPHY_WALL;
+  {
   TW.slots.forEach((q, i) => {
     const t = st[i];
     if(!t || !t.earned || q.z !== zp + 4) return;
@@ -51681,11 +51700,9 @@ function houseCanopy(fn){
               CLIPA = CLIPB = null;
               /* the roof, its parapet and the crown */
               T_(tx0, tx1, ty0, ty1, TOP, '#a9a397');
-              /* (W37: the east parapet from the south one's face, meeting it at the corner; the far one first -- whichever b the eye sees:
-                 the lab's b runs against the world's y) */
-              const ptE = () => { if(c === n - 1) box(A(T.x1) - 8, A(T.x1), B(ty1) + (r === n - 1 ? 8 : 0), B(ty0), TOP, TOP + 22, stoneL, stone, stoneD); };
-              const ptS = () => { if(r === n - 1) box(A(tx0), A(tx1), B(T.y1), B(T.y1) + 8, TOP, TOP + 22, stoneL, stone, stoneD); };
-              if(P(0, 1, 0).y < P(0, 0, 0).y){ ptE(); ptS(); } else { ptS(); ptE(); }
+              /* the south and east parapets: one run round their corner (the corner rule, pathRun -- Sir, 2026-11-22) */
+              rectRingRun(A(T.x0) + 4, A(T.x1) - 4, B(T.y1) + 4, B(T.y0) - 4, A(tx0), A(tx1), B(ty1), B(ty0),
+                          r === n - 1, false, false, c === n - 1, 4, TOP, TOP + 22, stoneL, stone, stoneD);
               const cx0 = Math.max(tx0, T.x0 + 140), cx1 = Math.min(tx1, T.x1 - 140), cy0 = Math.max(ty0, T.y0 + 180), cy1 = Math.min(ty1, T.y1 - 180);
               if(cx1 > cx0 && cy1 > cy0){
                 box(A(cx0), A(cx1), B(cy1), B(cy0), TOP, CROWN, '#cfc9bb', '#bdb6a8', '#a69f91');
@@ -52443,7 +52460,6 @@ function houseCanopy(fn){
               }
               CLIPA = CLIPB = null;
               const ringF = () => { if(r !== m - 1) return;
-                box(A(tx0), A(tx1), B(PD.y1), B(PD.y1) + 8, PD.top, PD.top + 14, wallL, wall, wallD);
                 /* THE NAME, standing on the parapet over the entrance -- laid
                    after the parapet, which used to cover the foot of every
                    letter (an I read as a T, an R as an F) */
@@ -52457,13 +52473,11 @@ function houseCanopy(fn){
               /* ITS PARAPET ALL ROUND (Sir: "what about the rest of the hospital
                  does it still miss its back side rim?"): the north, east and
                  west edges as the front */
-              const ringN = () => { if(r === 0) box(A(tx0), A(tx1), B(PD.y0) - 8, B(PD.y0), PD.top, PD.top + 14, wallL, wall, wallD); };
-              const ends = () => { const pb0 = B(ty1) + (r === m - 1 ? 8 : 0), pb1 = B(ty0) - (r === 0 ? 8 : 0);
-                if(c === 0) box(A(PD.x0), A(PD.x0) + 8, pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD);
-                if(c === n - 1) box(A(PD.x1) - 8, A(PD.x1), pb0, pb1, PD.top, PD.top + 14, wallL, wall, wallD); };
-              /* (W37: the ends run between the front's and the back's and meet them at the corners; the far one first, the ends, the
-                 near one last -- whichever b the eye sees: the lab's b runs against the world's y) */
-              if(P(0, 1, 0).y < P(0, 0, 0).y){ ringN(); ends(); ringF(); } else { ringF(); ends(); ringN(); }
+              /* (the corner rule, pathRun -- Sir, 2026-11-22: the front, the ends and the back ONE run round each corner, this tile's
+                 stretch of it; then the name on the front's) */
+              rectRingRun(A(PD.x0) + 4, A(PD.x1) - 4, B(PD.y1) + 4, B(PD.y0) - 4, A(tx0), A(tx1), B(ty1), B(ty0),
+                          r === m - 1, r === 0, c === 0, c === n - 1, 4, PD.top, PD.top + 14, wallL, wall, wallD);
+              ringF();
               /* the tower, where it stands over this tile */
               const ax0 = Math.max(tx0, TW.x0), ax1 = Math.min(tx1, TW.x1), ay0 = Math.max(ty0, TW.y0), ay1 = Math.min(ty1, TW.y1);
               if(ax1 > ax0 && ay1 > ay0){
@@ -52483,12 +52497,9 @@ function houseCanopy(fn){
                 /* its crown round the front and on round the back: the north and west edges. (W37: the ends run between the front's
                    and the back's, meeting them at the corners; the far one first, the ends, the near one last -- whichever b the eye
                    sees: the lab's b runs against the world's y) */
-                const cb0 = B(ay1) + (ay1 === TW.y1 ? 8 : 0), cb1 = B(ay0) - (ay0 === TW.y0 ? 8 : 0);
-                const crS = () => { if(ay1 === TW.y1) box(A(ax0), A(ax1), B(TW.y1), B(TW.y1) + 8, TOP, CROWN, wallL, wall, wallD); };
-                const crN = () => { if(ay0 === TW.y0) box(A(ax0), A(ax1), B(TW.y0) - 8, B(TW.y0), TOP, CROWN, wallL, wall, wallD); };
-                const crE = () => { if(ax0 === TW.x0) box(A(TW.x0), A(TW.x0) + 8, cb0, cb1, TOP, CROWN, wallL, wall, wallD);
-                                    if(ax1 === TW.x1) box(A(TW.x1) - 8, A(TW.x1), cb0, cb1, TOP, CROWN, wallL, wall, wallD); };
-                if(P(0, 1, 0).y < P(0, 0, 0).y){ crN(); crE(); crS(); } else { crS(); crE(); crN(); }
+                /* (one run round its corners: the corner rule, pathRun) */
+                rectRingRun(A(TW.x0) + 4, A(TW.x1) - 4, B(TW.y1) + 4, B(TW.y0) - 4, A(ax0), A(ax1), B(ay1), B(ay0),
+                            ay1 === TW.y1, ay0 === TW.y0, ax0 === TW.x0, ax1 === TW.x1, 4, TOP, CROWN, wallL, wall, wallD);
                 /* the crown's name, the red cross, the helipad, the plant */
                 if(ay1 === TW.y1 && ax0 <= 18275 && 18275 < ax1){
                   F(A(17300), A(19250), TOP + 6, CROWN + 70, blue, null, 0, B(TW.y1) - 1);
@@ -53274,8 +53285,9 @@ function houseCanopy(fn){
                 fq(tE, B(TM.y1), B(TM.y0), 94, TOP, shade(blue, .85), 0.6);
               }
               CLIPA = CLIPB = null;
-              if(r === ny - 1) box(A(tx0), A(tx1), B(TM.y1), B(TM.y1) + 8, TOP, TOP + 10, wallL, wall, wallD);
-              if(c === nx - 1) box(A(TM.x1) - 8, A(TM.x1), B(ty1), B(ty0), TOP, TOP + 10, wallL, wall, wallD);
+              /* its parapet, front and east: one run round the corner (the corner rule, pathRun) */
+              rectRingRun(A(TM.x0) + 4, A(TM.x1) - 4, B(TM.y1) + 4, B(TM.y0) - 4, A(tx0), A(tx1), B(ty1), B(ty0),
+                          r === ny - 1, false, false, c === nx - 1, 4, TOP, TOP + 10, wallL, wall, wallD);
             }});
           }
           /* ---- the control tower on its roof: a white shaft, the glass cab,
@@ -53413,18 +53425,45 @@ function houseCanopy(fn){
            east-west run, the east face of a north-south one -- and the
            airfield's name painted along the street side east of the gate ---- */
         const steel = '#a7aeb3', rib = '#8b9297', ribL = '#bfc6ca', cap = '#d3d8db';
+        /* (the corner rule, pathRun -- Sir, 2026-11-22: where two walls meet at a corner it is ONE piece, mitred, drawn with the
+           east-west run's piece that ends there, on a little way round it; the north-south run's piece starts past it, a hair in.
+           Its straight ends between pieces and at the gates run 4 past their points, as the boxes did) */
+        const wEnds = new Map(), wk = (x, y) => Math.round(x) + ',' + Math.round(y);
+        for(const w of C.walls) for(const [px, py, qx, qy] of [[w[0], w[1], w[2], w[3]], [w[2], w[3], w[0], w[1]]]){
+          const l = Math.hypot(qx - px, qy - py) || 1, k = wk(px, py);
+          if(!wEnds.has(k)) wEnds.set(k, []); wEnds.get(k).push([(qx - px)/l, (qy - py)/l]); }
+        const wallPath = f => {
+          const l = Math.hypot(f[2] - f[0], f[3] - f[1]) || 1, d = [(f[2] - f[0])/l, (f[3] - f[1])/l], ew = f[1] === f[3];
+          const turn = (x, y, u) => (wEnds.get(wk(x, y)) || []).find(v => Math.abs(v[0]*u[0] + v[1]*u[1]) < 0.01);   // the other wall's way, from this corner
+          const pts = [], own = [];
+          const u0 = turn(f[0], f[1], d), u1 = turn(f[2], f[3], d);
+          if(!u0) pts.push([f[0] - d[0]*4, f[1] - d[1]*4]);
+          /* (the stub round the corner ends a hair into the other run, no end face of its own: the path runs on along it, undrawn) */
+          else if(ew){ pts.push([f[0] + u0[0]*18, f[1] + u0[1]*18], [f[0] + u0[0]*4, f[1] + u0[1]*4], [f[0], f[1]]); own.push(false, true); }
+          else { pts.push([f[0], f[1]], [f[0] + d[0]*4, f[1] + d[1]*4]); own.push(false); }
+          if(!u1) pts.push([f[2] + d[0]*4, f[3] + d[1]*4]);
+          else if(ew){ pts.push([f[2], f[3]], [f[2] + u1[0]*4, f[3] + u1[1]*4], [f[2] + u1[0]*18, f[3] + u1[1]*18]); }
+          else pts.push([f[2] - d[0]*4, f[3] - d[1]*4], [f[2], f[3]]);
+          own.push(true); if(u1){ if(ew) own.push(true, false); else own.push(false); }
+          /* the span of its ribbed face (the y1 face of an east-west run, the x1 face of a north-south one) along it: to the corner's
+             outer line, or its inner one where that face is the corner's inside -- its ribs and strips stop where the face does */
+          const k = ew ? 1 : 0, r = runRect(f), lo = ew ? r[0] : r[2], hi = ew ? r[1] : r[3];
+          const span = [u0 ? (u0[k] > 0 ? f[k ? 0 : 1] + 4 : lo) : lo, u1 ? (u1[k] > 0 ? f[k ? 2 : 3] - 4 : hi) : hi];
+          return { pts: pts.map(([x, y]) => [A(x), B(y)]), legs: own.map((o, i) => o ? i : -1).filter(i => i >= 0), span };
+        };
         for(const f of wallRuns){
           const [x0, x1, y0, y1] = runRect(f);
           if(!mine((x0 + x1)/2, (y0 + y1)/2)) continue;
-          const ew = f[1] === f[3];
+          const ew = f[1] === f[3], WP = wallPath(f);
           items.push({ a: A(x1), b: B(y0), z: 0, draw: () => {
             if(!inView(A(x0), A(x1), B(y1), B(y0), 0, C.FH + 10)) return;
-            box(A(x0), A(x1), B(y1), B(y0), 0, C.FH, cap, steel, shade(steel, .88));
+            pathRun(WP.pts, 4, 0, C.FH, cap, steel, shade(steel, .88), WP.legs);
             if(ew){
               const bb = B(y1) - 0.3;
-              for(let x = Math.ceil(x0/14)*14; x < x1 - 4; x += 14){ F(A(x), A(x + 4), 2, C.FH - 3, rib, null, 0, bb); F(A(x + 4), A(x + 6), 2, C.FH - 3, ribL, null, 0, bb); }
-              F(A(x0), A(x1), 0, 4, shade(steel, .7), null, 0, bb - 0.1);
-              F(A(x0), A(x1), C.FH - 4, C.FH, cap, null, 0, bb - 0.1);
+              const [s0, s1] = WP.span;
+              for(let x = Math.ceil(s0/14)*14; x < s1 - 4; x += 14){ F(A(x), A(x + 4), 2, C.FH - 3, rib, null, 0, bb); F(A(x + 4), A(x + 6), 2, C.FH - 3, ribL, null, 0, bb); }
+              F(A(s0), A(s1), 0, 4, shade(steel, .7), null, 0, bb - 0.1);
+              F(A(s0), A(s1), C.FH - 4, C.FH, cap, null, 0, bb - 0.1);
               if(Math.abs(y1 - C.drives[0].y) < 1 && x1 > C.sign[0] && x0 < C.sign[1]){
                 CLIPA = [A(Math.max(x0, C.sign[0])), A(Math.min(x1, C.sign[1]))];
                 const sf = { pl:'F', at: bb, out: -1 };
@@ -53434,9 +53473,10 @@ function houseCanopy(fn){
               }
             } else {
               const aa = A(x1) + 0.3;
-              for(let y = Math.ceil(y0/14)*14; y < y1 - 4; y += 14){ S(aa, B(y + 4), B(y), 2, C.FH - 3, rib); S(aa, B(y + 6), B(y + 4), 2, C.FH - 3, ribL); }
-              S(aa + 0.1, B(y1), B(y0), 0, 4, shade(steel, .7));
-              S(aa + 0.1, B(y1), B(y0), C.FH - 4, C.FH, cap);
+              const [s0, s1] = WP.span;
+              for(let y = Math.ceil(s0/14)*14; y < s1 - 4; y += 14){ S(aa, B(y + 4), B(y), 2, C.FH - 3, rib); S(aa, B(y + 6), B(y + 4), 2, C.FH - 3, ribL); }
+              S(aa + 0.1, B(s1), B(s0), 0, 4, shade(steel, .7));
+              S(aa + 0.1, B(s1), B(s0), C.FH - 4, C.FH, cap);
             }
           }});
         }
@@ -53962,21 +54002,46 @@ function houseCanopy(fn){
       out.push([a0, a1, b0, b1]);
       return out;
     };
-    const railing = (a0, a1, b0, b1) => {
-      for(const q of gateCut(a0, a1, b0, b1)) railBox(...q);
+    /* THE RAILING ROUND ITS CORNERS IN ONE PIECE (the corner rule, pathRun -- Sir, 2026-11-22). Each run's centre line
+       (railLines: along a or b, its centre c, its old extent u0..u1 -- 12 past each end, so at a corner the two crossed and
+       stood out past each other) ends at the corner, where its centre meets the other's: the base mitred there, ONE piece,
+       drawn with the run along a and on a little way round (to its inner corner: its half-thickness, 6), the run along b starting there a
+       hair in; their posts and rails meet on the corner's post */
+    const railLines = railSegs.map(r => { const along = (r[1]-r[0]) > Math.abs(r[3]-r[2]);
+      return along ? { along, c: (r[2]+r[3])/2, u0: r[0], u1: r[1], r, e: [r[0], r[1]], p: [r[0], r[1]], k: [null, null] }
+                   : { along, c: (r[0]+r[1])/2, u0: r[2], u1: r[3], r, e: [r[2], r[3]], p: [r[2], r[3]], k: [null, null] }; });
+    for(const H of railLines) if(H.along) for(const V of railLines) if(!V.along){
+      if(!(H.r[0] <= V.r[1] && H.r[1] >= V.r[0] && H.r[2] <= V.r[3] && H.r[3] >= V.r[2])) continue;
+      const hi = Math.abs(H.u0 - V.c) < Math.abs(H.u1 - V.c) ? 0 : 1, vi = Math.abs(V.u0 - H.c) < Math.abs(V.u1 - H.c) ? 0 : 1;
+      if(Math.abs(H.e[hi] - V.c) > 20 || Math.abs(V.e[vi] - H.c) > 20) continue;    // (only where they meet end to end)
+      const sv = vi === 0 ? 1 : -1;                                                  // the way V runs on from the corner
+      H.e[hi] = H.p[hi] = V.c; H.k[hi] = { stub: H.c + sv*6 };
+      V.p[vi] = H.c; V.e[vi] = H.c + sv*6; V.k[vi] = { at: H.c };
+    }
+    const railing = (a0, a1, b0, b1, L) => {
+      for(const q of gateCut(a0, a1, b0, b1)) railBox(...q, L);
     };
-    const railBox = (a0, a1, b0, b1) => {
-      box(a0, a1, b0, b1, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6));
-      const along = (a1 - a0) > Math.abs(b1 - b0);
-      const n = Math.max(2, Math.round((along ? a1-a0 : Math.abs(b1-b0)) / 30));
-      const mb = (b0+b1)/2, ma = (a0+a1)/2;
-      for(let i=0;i<=n;i++){
-        const t = i/n;
-        cyl(along ? a0 + (a1-a0)*t : ma, along ? mb : b0 + (b1-b0)*t, 10, 60, 2.2, iron);
+    const railBox = (a0, a1, b0, b1, L) => {
+      const along = L.along, c = L.c, u0 = along ? a0 : b0, u1 = along ? a1 : b1;
+      const pt = u => along ? [u, c] : [c, u];
+      /* the base: this piece's stretch of the run's line, and the corner at either end that is the run's */
+      const d0 = Math.max(u0, L.e[0]), d1 = Math.min(u1, L.e[1]);
+      if(d1 > d0 + 0.01){
+        const pts = [], own = [], st = u0 <= L.u0 + 0.01 && L.k[0], en = u1 >= L.u1 - 0.01 && L.k[1];
+        /* (the stub round the corner ends a hair into the other run, no end face of its own: the path runs on along it, undrawn) */
+        const on = s => c + (s - c)*3;
+        if(st){ if(along){ pts.push([d0, on(L.k[0].stub)], [d0, L.k[0].stub]); own.push(false, true); } else { pts.push(pt(L.k[0].at)); own.push(false); } }
+        pts.push(pt(d0), pt(d1)); own.push(true);
+        if(en){ if(along){ pts.push([d1, L.k[1].stub], [d1, on(L.k[1].stub)]); own.push(true, false); } else { pts.push(pt(L.k[1].at)); own.push(false); } }
+        pathRun(pts, 6, 0, 10, shade(wall,.9), shade(wall,.7), shade(wall,.6), own.map((o, i) => o ? i : -1).filter(i => i >= 0));
       }
-      for(const z of [16, 54])
-        poly(along ? [P(a0,mb,z),P(a1,mb,z),P(a1,mb,z+4),P(a0,mb,z+4)]
-                   : [P(ma,b0,z),P(ma,b1,z),P(ma,b1,z+4),P(ma,b0,z+4)], iron);
+      /* its posts and rails, along its line to the corner's post */
+      const q0 = Math.max(u0, L.p[0]), q1 = Math.min(u1, L.p[1]);
+      if(q1 <= q0 + 0.01) return;
+      const n = Math.max(2, Math.round((q1 - q0) / 30));
+      for(let i=0;i<=n;i++){ const p = pt(q0 + (q1 - q0)*i/n); cyl(p[0], p[1], 10, 60, 2.2, iron); }
+      const A0 = pt(q0), A1 = pt(q1);
+      for(const z of [16, 54]) poly([P(A0[0],A0[1],z),P(A1[0],A1[1],z),P(A1[0],A1[1],z+4),P(A0[0],A0[1],z+4)], iron);
     };
 
     /* ---- the stones, the yews, and the railing, all one sorted list ---- */
@@ -54057,7 +54122,7 @@ function houseCanopy(fn){
          in a depth-sorted queue. Cut into 140s, every piece's midpoint
          is accurate for its own extent, and railing() already spaces
          its posts by length so the joins do not show. */
-      .concat(railSegs.flatMap(r => {
+      .concat(railSegs.flatMap((r, ri) => {
         const along = (r[1]-r[0]) > Math.abs(r[3]-r[2]);
         const len = along ? r[1]-r[0] : r[3]-r[2];
         const n = Math.max(1, Math.round(len / 140));
@@ -54067,7 +54132,7 @@ function houseCanopy(fn){
           const q = along ? [r[0]+(r[1]-r[0])*t0, r[0]+(r[1]-r[0])*t1, r[2], r[3]]
                           : [r[0], r[1], r[2]+(r[3]-r[2])*t0, r[2]+(r[3]-r[2])*t1];
           const mid = [(q[0]+q[1])/2, (q[2]+q[3])/2];
-          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3]), mid,
+          out.push([mid[0]+mid[1], () => railing(q[0], q[1], q[2], q[3], railLines[ri]), mid,
                     gateCut(q[0], q[1], q[2], q[3]).map(r => ({ name:'railing', poly: volRect(r[0], r[1], r[2], r[3]), h: 60 }))]);
         }
         return out;
@@ -55177,6 +55242,8 @@ function houseCanopy(fn){
     const wallSolid = (a0, a1, b0, b1, h) => ({ name:'wall', poly: volRect(a0, a1, b0, b1), h: h || H });
     /* a far wall's cap: the ground floor's slab, cut */
     const slabTop = (a0, a1, b0, b1) => { box(a0, a1, b0, b1, H - 24, H, concL, conc, concD); };
+    /* (the north and west walls' cap: ONE run round their corner -- the corner rule, pathRun -- split on the west wall's straight) */
+    const capNW = [[VA[0], -15], [-15, -15], [-15, 30], [-15, D + 30]], slabNW = legs => pathRun(capNW, 15, H - 24, H, concL, conc, concD, legs);
     /* ---- THE FAR WALLS, full height up to the street, their inside faces ---- */
     /* (dk: before anything standing against them, whatever its middle --
        Sir, 2026-10-18, the dry store's shelves painted over by the wall) */
@@ -55189,14 +55256,14 @@ function houseCanopy(fn){
       poly([P(300, 70, 220), P(800, 70, 220), P(770, 40, 196), P(330, 40, 196)], steelD);
       for(const a of [120, 1000, 1300]) { tube(a, 8, H - 30, a, 8, 120, 3, '#8a6a46'); }  // pipes down the wall
       tube(0, 10, H - 40, W, 10, H - 40, 4, '#a0522d');                                 // and one along it
-      slabTop(-30, VA[0], -30, 0);
+      slabNW([0, 1]);
     }});
     items.push({ a: -15, b: D/2, z: 0, dk: -200, solids: [wallSolid(-30, 0, -30, D + 30)], draw: () => {
       S(0, 0, D, 0, H - 24, shade(concL, 0.92));
       for(let z = 30; z < H - 24; z += 30) S(0.2, 0, D, z, z + 1, shade(conc, 0.95));   // the poured lifts
       tube(10, 0, H - 40, 10, D, H - 40, 4, '#a0522d');
       tube(14, 0, H - 60, 14, D, H - 60, 3, '#7a8a96');
-      slabTop(-30, 0, 0, D + 30);
+      slabNW([2]);
     }});
     /* the vault's north wall: far, full height, brick (it is older than the hall) */
     items.push({ a: (VA[0] + VA[1])/2, b: VB[0] - 15, z: 0, solids: [wallSolid(W + 30, VA[1] + 30, VB[0] - 30, VB[0])], draw: () => {
@@ -57432,8 +57499,7 @@ function houseCanopy(fn){
          whether or not the garage is up: seen through the open door from
          the street as well (Sir: "my trophy shelf is missing in the shop
          when we are just launching") */
-      if(state.trophies) depotTrophyWall(state.trophies);
-      depotStashShelf();
+      depotStashShelf(state.trophies);
       charger(BACK[0], BACK[1], 0, -1);
 
     }
@@ -58402,12 +58468,18 @@ function houseCanopy(fn){
 
     /* ---- THE BATHS: a marble kerb round each (24 wide, 14 high), the sides in runs; the water between, a solid to him ---- */
     for(const [x0, x1] of [[140, 292], [437, 589]]){
-      const k0 = x0 - 24, k1 = x1 + 24, y0 = 106, y1 = 524, mk = (a0, a1, b0, b1) => box(a0, a1, b0, b1, 0, 14, '#e6e2d4', marbleD, marbleS);
-      items.push({ a: (k0 + k1)/2, b: 118, z: 0, solids: [solid(k0, k1, y0, y1, 14, 'bath')], draw: () => mk(k0, k1, y0, 130) });     // the north kerb
-      items.push({ a: (k0 + k1)/2, b: 512, z: 0, solids: [], draw: () => mk(k0, k1, 500, y1) });                                       // the south kerb
-      for(const [s0, s1] of [[130, 255], [255, 380], [380, 500]]){
-        items.push({ a: k0 + 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk(k0, x0, s0, s1) });
-        items.push({ a: k1 - 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk(x1, k1, s0, s1) });
+      const k0 = x0 - 24, k1 = x1 + 24, y0 = 106, y1 = 524;
+      /* (ONE kerb round the bath, mitred at its corners -- the corner rule, pathRun: Sir, 2026-11-22 -- each piece drawing its
+         legs of it: the north and south kerbs round their corners to 130 / 500, the sides' runs between. The ring runs on past
+         its start, undrawn, so no piece has an end face where it meets the next) */
+      const w = k0 + 12, e = k1 - 12;
+      const ring = [[w, 380], [w, 255], [w, 130], [w, 118], [e, 118], [e, 130], [e, 255], [e, 380], [e, 500], [e, 512], [w, 512], [w, 500], [w, 380], [w, 255], [w, 130]];
+      const mk = legs => pathRun(ring, 12, 0, 14, '#e6e2d4', marbleD, marbleS, legs);
+      items.push({ a: (k0 + k1)/2, b: 118, z: 0, solids: [solid(k0, k1, y0, y1, 14, 'bath')], draw: () => mk([2, 3, 4]) });     // the north kerb
+      items.push({ a: (k0 + k1)/2, b: 512, z: 0, solids: [], draw: () => mk([8, 9, 10]) });                                    // the south kerb
+      for(const [s0, s1, lw, le] of [[130, 255, 1, 5], [255, 380, 12, 6], [380, 500, 11, 7]]){
+        items.push({ a: k0 + 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk([lw]) });
+        items.push({ a: k1 - 12, b: (s0 + s1)/2, z: 0, solids: [], draw: () => mk([le]) });
       }
     }
     /* ---- THE COLONNADE: a column each side of the lane every 100 (a 304 and 424), b 160..460 ---- */
@@ -64661,8 +64733,13 @@ function houseCanopy(fn){
           blockWordIn('BALL PIT', -2000, -1840, z + 128, z + 148, B0 + 8.4, '#fff6e4', null, 3);
           /* the walls, the two back rims */
           box(A0, A1, B0, B1, z, zr, '#e2483d', '#c03a30', '#a83228');
-          box(A0, A1, B0, B0 + R, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
-          box(A0, A0 + R, B0 + R, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));   // (from the back rim's face: W37)
+          /* (the rim ONE run round the pit, mitred at its corners -- the corner rule, pathRun: Sir, 2026-11-22: its back legs here, the
+             north and west round their corner, split on the straight where the far corners' squares begin (their inner corner: no more of
+             the back's inner face goes over the balls than the old side rims did); the rest after the balls, round the near corners; the ring runs on, undrawn, past each end so neither part has an end face where they meet) */
+          const rc0 = A0 + R/2, rc1 = A1 - R/2, rb0 = B0 + R/2, rb1 = B1 - R/2;
+          const rimRing = [[rc1 + 8, rb0], [rc1 - R/2, rb0], [rc0, rb0], [rc0, rb1 - R/2], [rc0, rb1], [rc1, rb1], [rc1, rb0], [rc1 - R/2, rb0], [rc1 - 24, rb0]];
+          const rimRun = legs => pathRun(rimRing, R/2, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74), legs);
+          rimRun([1, 2]);
           post(A0 + 8, B0 + 8, z + 118, zr + 8);                                  // the back corner's post, on the two back rims
           /* the balls: a dark bed for the gaps, then a packed, lumpy heap, far ones first */
           T(A0 + R, A1 - R, B0 + R, B1 - R, zr - 14, '#1d3460');
@@ -64698,8 +64775,7 @@ function houseCanopy(fn){
             poly([P(-2004, 42, cz), P(-2004, 116, cz), ap], '#f6f0e4', '#d6ccbb', 1);
             ball(-2042, 79, tz + 130, 6, '#ffd34a'); }
           /* the front rims, their padded panels, the front posts */
-          box(A0, A1, B1 - R, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
-          box(A1 - R, A1, B0, B1, zr, zr + 8, rim, shade(rim, 0.86), shade(rim, 0.74));
+          rimRun([3, 4, 5, 6]);
           let k = 0;
           for(let a = A0 + 20; a < A1 - 20; a += 50, k++){ const a2 = Math.min(A1 - 20, a + 44), c = pads[k % 4];
             F(a, a2, z + 6, zr - 6, c, null, 0, B1 + 0.4); F(a + 4, a2 - 4, zr - 14, zr - 10, shade(c, 1.2), null, 0, B1 + 0.6); }
@@ -65040,9 +65116,10 @@ function houseCanopy(fn){
             ctx.beginPath(); pts.forEach((q, n) => n ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.strokeStyle = c; ctx.lineWidth = 1.4*K; ctx.stroke(); };
           ring((5718 + dx), 713, 22, '#e2483d');
           for(const [ga, gc] of [[(5628 + dx), '#e2483d'], [(5802 + dx), '#2f6fb0']]) T(ga, ga + 6, 693, 733, z + 45, '#1a1d21');
-          box((5620 + dx), (5816 + dx), 658, 666, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');   // its rails: the far one, the ends, the near one (W37)
-          box((5620 + dx), (5628 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2'); box((5808 + dx), (5816 + dx), 666, 760, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
-          box((5620 + dx), (5816 + dx), 760, 768, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2');
+          /* its rails: ONE run round the table, mitred at its corners (the corner rule, pathRun -- Sir, 2026-11-22); the ring meets
+             itself on the west end, run on a little past there undrawn so neither end has a face */
+          { const ra0 = 5624 + dx, ra1 = 5812 + dx;
+            pathRun([[ra0, 740], [ra0, 713], [ra0, 662], [ra1, 662], [ra1, 764], [ra0, 764], [ra0, 713], [ra0, 690]], 4, z + 44, z + 50, '#e9eef0', '#d0d6da', '#b8bec2', [1, 2, 3, 4, 5]); }
           /* (the mallets and the puck are live: fx 'hockey') */
           F((5688 + dx), (5748 + dx), z + 118, z + 121, '#ffd34a', null, 0, 660.3);
         }, { fx: { kind: 'hockey', a: 0, b: 0, dx } });
@@ -65408,13 +65485,16 @@ function houseCanopy(fn){
         for(let u = 30; u < W - 20; u += 60) FQ(r, face, u, u + 16, 20, 23, '#f2f2ee', -0.4); return; }
       /* open shelves, stocked: boxes and bottles in a few colours, the shelf's edge over each row; its back panel and
          its two ends, far to near (the back behind the goods when its open front faces us, over them when it does not) */
-      const seen = SEEN(face), panel = q => BX(q, 6, 110, greyD, greyS, greyS), back = RB(r, face, 2, W - 2, Dd - 2, Dd);   // (the back between the two ends, meeting them: W37)
+      /* (its two ends and its back ONE run of panel round its two back corners -- the corner rule, pathRun: Sir, 2026-11-22 -- split
+         on an end's straight just in from the back: whichever is drawn after the goods, the back with it when it faces us) */
+      const seen = SEEN(face), U = [[1, 0], [1, Dd - 2], [1, Dd - 1], [W - 1, Dd - 1], [W - 1, Dd - 2], [W - 1, 0]].map(([u, v]) => FP(r, face, u, v));
+      const panels = legs => pathRun(U, 1, 6, 110, greyD, greyS, greyS, legs);
       box(r[0], r[1], r[2], r[3], 0, 6, greyD, greyS, greyS);
-      panel(RB(r, face, 0, 2, 0, Dd)); if(seen) panel(back);
+      panels(seen ? [0, 1, 2, 3] : [0]);
       const cols = ['#c9a46a', '#e9d6a8', '#4f9ad8', '#efe4cc', '#e2483d', '#7fd36a'];
       [6, 42, 78].forEach((z, i) => { BX(RB(r, face, 2, W - 2, 0, Dd - 2), z, z + 4, greyD, greyS, greyS);
         for(let u = 6, k = 0; u + 18 <= W - 4; u += 24, k++){ const c = cols[(k + i) % cols.length]; if((k*7 + i) % 5 === 0) continue; BX(RB(r, face, u, u + 18, 6, Dd - 8), z + 4, z + 4 + 18 + (k % 3)*6, shade(c, 1.1), c, shade(c, 0.85)); } });
-      if(!seen) panel(back); panel(RB(r, face, W - 2, W, 0, Dd));
+      panels(seen ? [4] : [1, 2, 3, 4]);
       box(r[0], r[1], r[2], r[3], 110, 114, greyD, greyS, greyS); };
     const bench = (r, glass, face) => { const W = FW(r, face), Dd = FDp(r, face), vm = Dd/2;
       box(r[0], r[1], r[2], r[3], 0, 60, lam, lamD, lamS); box(r[0] - 2, r[1] + 2, r[2] - 2, r[3] + 2, 60, 66, '#2d3135', '#3a3f44', '#24282c');   // white units, a black worktop
