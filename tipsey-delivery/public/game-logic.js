@@ -31221,10 +31221,10 @@ function sfBrowseNext(R, s, m, now, bot){
   if(!m.water && sfTakesWater(s) && look('fridge')){ m.dwell = 2600; return true; }
   return desk() || leave();
 }
-/* AN EXERCISE BIKE'S MIDDLE, between its rider's legs (pose.between): the flywheel, its guard, the frame down to the back foot and the crank's hub
+/* AN EXERCISE BIKE'S MIDDLE, between its rider's legs (pose.between): the frame (the beam, the down tube, the bars' post), the flywheel and the crank's hub
    -- the bike's own (SF_BIKES' piece) drawn again in the rider's frame (G: across, forward, up; the rider sat at the saddle, the frame 2 up: z + 2,
-   forward 264 - b), so the far leg is behind it and the near one before it. Back to front as the piece is: the flywheel (on the bike's east side),
-   the guard, the frame, the hub */
+   forward 264 - b), so the far leg is behind it and the near one before it. Back to front as the piece is: the frame down its middle, the
+   flywheel on the bike's east side, the crank's hub */
 function sfBikeMiddle(g, G){
   const o = G(0, 0, 0), e = G(1, 0, 0), E = (e.x - o.x) > 0 ? 1 : -1;               // (+across toward the east, or west)
   const W = (a, b, z) => G(a*E, 264 - b, z + 2);                                    // (a across from the bike's middle, east +; b and z the world's: sat at 50, the frame 2 up)
@@ -31235,10 +31235,9 @@ function sfBikeMiddle(g, G){
   const disc = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(W(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } fill(pts, c); };
   const box = (a0, a1, b0, b1, z0, z1, c) => { const pts = []; for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]) pts.push(W(a, b, z)); fill(pts, c); };
   const rod = (b0, z0, b1, z1, r, c) => fill([W(-r, b0, z0 - r), W(r, b0, z0 - r), W(-r, b0, z0 + r), W(r, b0, z0 + r), W(-r, b1, z1 - r), W(r, b1, z1 - r), W(-r, b1, z1 + r), W(r, b1, z1 + r)], c);
-  disc(3, 222, 24, 20, 0x868c90); disc(3.4, 222, 24, 15, 0xc8ccd0); disc(3.6, 222, 24, 5, 0x2f3a3f);
-  box(-4, 4, 208, 238, 22, 50, 0xc94e44); box(-4, 4, 208, 238, 49.4, 50, 0xe2574c);
-  rod(234, 10, 270, 5, 2.8, 0x2f3a3f); rod(238, 28, 264, 8, 2.6, 0x2f3a3f); rod(250, 5, 250, 11, 2.4, 0x2f3a3f);
-  disc(4, 250, 14, 5.4, 0x262e33); disc(4.3, 250, 14, 2, 0xc8ccd0);
+  rod(208, 6, 274, 6, 2.6, 0x2f3a3f); rod(250, 14, 228, 36, 2.4, 0x2f3a3f); rod(226, 8, 230, 66, 2.6, 0x2f3a3f);   // (the post up to under its head)
+  disc(5, 216, 21, 17, 0xe2574c); disc(5.3, 216, 21, 14.5, 0x3e4a50); disc(5.5, 216, 21, 5, 0xc8ccd0); disc(5.7, 216, 21, 2, 0x2f3a3f);
+  disc(5, 250, 14, 5.4, 0x262e33); disc(5.3, 250, 14, 2, 0xc8ccd0);
 }
 function sfPose(s, m, now, P){
   const H = sfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
@@ -60841,16 +60840,19 @@ function houseCanopy(fn){
        either side -- "the hands dont make contact to the handle bar grips"), the crank's hub 14 up and 14 before the saddle. Each its own piece keyed
        at its middle. Inside one, back to front: the front foot, the flywheel under its guard, the bars' post and the bars, the frame, the back foot,
        the crank's hub, the saddle's post and the saddle ---- */
+    /* (the design pass, Sir, 2026-11-23: "a design pass on the bike ... it may have some draw issues": no box guard -- the flywheel a coral-rimmed
+       wheel on the bike's east side, the side to the eye, over the frame behind it; the frame a beam, a down tube and the bars' post, all down its
+       middle. Back to front: the feet, the beam on them, the down tube, the post and the bars, the flywheel, the saddle's post and the saddle, the
+       crank's hub. A rider's middle (sfBikeMiddle) draws the same frame and flywheel again between their legs) */
     SF_BIKES.forEach(c => items.push({ a: c, b: 240, z: 0, solids: [solid(c - 18, c + 18, 204, 278, 75, 'bike')], draw: () => {
-      box(c - 18, c + 18, 204, 212, 0, 5, char, char, charD);
-      disc(c + 3, 222, 24, 20, steelD); disc(c + 3.4, 222, 24, 15, steelL); disc(c + 3.6, 222, 24, 5, char);
-      box(c - 4, c + 4, 208, 238, 22, 50, coral, coral, coralD);
-      tube(c, 222, 48, c, 230, 68, 2.4, char); box(c - 2.5, c + 2.5, 226, 234, 66, 71, charD, charD, blk); tube(c - 18, 230, 73, c + 18, 230, 73, 1.8, charD);
+      box(c - 18, c + 18, 204, 212, 0, 5, char, char, charD); box(c - 18, c + 18, 270, 278, 0, 5, char, char, charD);
+      tube(c, 208, 6, c, 274, 6, 2.6, char);
+      tube(c, 250, 14, c, 228, 36, 2.4, char);
+      tube(c, 226, 8, c, 230, 70, 2.6, char); box(c - 2.5, c + 2.5, 226, 234, 68, 72, charD, charD, blk); tube(c - 18, 230, 73, c + 18, 230, 73, 1.8, charD);
       tube(c - 19.5, 230, 73, c - 13, 230, 73, 2.6, blk); tube(c + 13, 230, 73, c + 19.5, 230, 73, 2.6, blk);
-      tube(c, 234, 10, c, 270, 5, 2.8, char); tube(c, 238, 28, c, 264, 8, 2.6, char);
-      box(c - 18, c + 18, 270, 278, 0, 5, char, char, charD);
-      tube(c, 250, 5, c, 250, 11, 2.4, char); disc(c + 4, 250, 14, 5.4, charD); disc(c + 4.3, 250, 14, 2, steelL);   // (the crank's hub, the rider's feet round it)
-      tube(c, 266, 5, c, 264, 46, 2.6, char); box(c - 5, c + 5, 254, 274, 46, 50, blk, charD, blk); } }));
+      disc(c + 5, 216, 21, 17, coral); disc(c + 5.3, 216, 21, 14.5, charL); disc(c + 5.5, 216, 21, 5, steelL); disc(c + 5.7, 216, 21, 2, char);   // (a dark weighted flywheel, a coral rim)
+      tube(c, 266, 6, c, 264, 46, 2.6, char); box(c - 5, c + 5, 254, 274, 46, 50, blk, charD, blk);
+      disc(c + 5, 250, 14, 5.4, charD); disc(c + 5.3, 250, 14, 2, steelL); } }));   // (the crank's hub, the rider's feet round it)
 
     /* ---- THE POWER RACK on the weights floor: four posts and a frame over, the bar on its hooks loaded with a plate each end; keyed at its middle.
        Inside it, back to front: the north posts (west first) and the north rail, the bar and its plates, the south posts and the south rail ---- */
