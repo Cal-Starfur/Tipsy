@@ -264,6 +264,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         for(const A of thin) if(A.ax === 'a') for(const B of thin) if(B.ax === 'b'){
           const a = A.q, b = B.q, oz = Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0);
           if(oz < 0.5*Math.min(a.z1 - a.z0, b.z1 - b.z0)) continue;
+          if(Math.abs(a.z1 - b.z1) > 2) continue;   // (two tops: a low rim meeting a taller band face to face -- not one piece, pathRun has one height)
           /* they meet at an end of each: B's a-band within reach of one of A's ends, A's b-band within reach of one of B's ends */
           const tol = 1.5, nearEnd = (x0, x1, y0, y1) => (Math.abs(x0 - y0) <= tol + (x1 - x0)) || (Math.abs(x1 - y1) <= tol + (x1 - x0));
           const touchA = b.a0 <= a.a1 + tol && b.a1 >= a.a0 - tol && nearEnd(b.a0, b.a1, a.a0, a.a1);
