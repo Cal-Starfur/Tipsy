@@ -140342,7 +140342,11 @@ class WorldScene extends Phaser.Scene {
     const rec = LIB.doorNear(d.lib, d.labA), ent = LIB.get(d.lib);
     if(!rec || !(rec.pair || rec.half) || !ent) return [{ pick: null, depth: d.x + d.y + 0.3 }];
     const SC = ent.sc || 1, lotW = ent.ww || 230, mir = (d.e.dv.x + d.e.dv.y) <= 0 && ent.mirror !== false;
-    const along = a => d.ux + d.e.dv.x*(mir ? lotW - a : a)*SC, alongY = a => d.uy + d.e.dv.y*(mir ? lotW - a : a)*SC;
+    /* (an away door from inside, walkinAwayDoor, is drawn on the wall's INNER face, inX/inY in from where it is recorded: keyed there too -- keyed
+       at the outer face, 30 behind where its leaf stands, the leaf swung into the Low Tide Juice Bar sorted before him in its doorway and he was
+       drawn over it, Sir 2026-11-23) */
+    const ix = d.inX || 0, iy = d.inY || 0;
+    const along = a => d.ux + ix + d.e.dv.x*(mir ? lotW - a : a)*SC, alongY = a => d.uy + iy + d.e.dv.y*(mir ? lotW - a : a)*SC;
     if(rec.single){   // (one wide leaf: one piece, at its own middle as it swings -- in, behind the door's plane, for a walk-in's)
       const len = (rec.a1 - rec.a0)*SC, ang1 = SHOPDOOR_ART.openAngle*Math.max(0, Math.min(1, k)), inw1 = rec.see ? -1 : 1, a = rec.a0 + (rec.a1 - rec.a0)/2*Math.cos(ang1);
       const out1 = inw1*(len/2)*Math.sin(ang1) + inw1*2, x = along(a) + d.e.rv.x*out1, y = alongY(a) + d.e.rv.y*out1;
