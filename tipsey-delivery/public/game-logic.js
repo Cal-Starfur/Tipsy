@@ -29821,8 +29821,9 @@ const TH_PLAN = walkinDefine({ name: TH_IN.name, from: 'Tidewater Tea House', x0
   door: { a: (TH_IN.DOOR[0] + TH_IN.DOOR[1])/2, b: 0, half: (TH_IN.DOOR[1] - TH_IN.DOOR[0])/2*1.3 }, H: TH_IN.H, LH: TH_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in)
   /* (its way to and from the street, THE ROOM'S DAY: out under the colonnade onto the east pavement, along it either way) */
   street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
-  /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] }] });
+  /* (seen through, W11: the open doorway, and the four lattice screens -- the tea room behind them, clipped to the shop's own body) */
+  openings: [{ lab: [[TH_IN.DOOR[0], 0], [TH_IN.DOOR[1], 0]], z: [0, 112] },
+    ...[[52, 96], [102, 144], [262, 304], [310, 354]].map(([a0, a1]) => ({ lab: [[a0, 0], [a1, 0]], z: [22, 132], glass: true }))] });
 POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Palmline Savings', 'Marina Optical'];
 POCKETS[POCKETS.length - 1].cornerLow = true;   // (its north-east corner cut low over the frontage: walkinRoom's, and the dim's snug outline, roomDimDraw)
 /* (ONE KNOCK-DOWN AND HE IS OUT, W34: Hana sees him to the door and the tea house will not have him back -- WALKIN_BAN) */
@@ -29887,8 +29888,8 @@ const BK_PLAN = walkinDefine({ name: BK_IN.name, from: 'Driftwood Books', x0: BK
   door: { a: (BK_IN.DOOR[0] + BK_IN.DOOR[1])/2, b: 0, half: (BK_IN.DOOR[1] - BK_IN.DOOR[0])/2*1.3 }, H: BK_IN.H, LH: BK_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
   /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
   street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
-  /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[BK_IN.DOOR[0], 0], [BK_IN.DOOR[1], 0]], z: [0, BK_IN.DZ] }] });
+  /* (seen through, W11: the open doorway and the window -- the window display behind it, clipped to the shop's own body) */
+  openings: [{ lab: [[BK_IN.DOOR[0], 0], [BK_IN.DOOR[1], 0]], z: [0, BK_IN.DZ] }, { lab: [[BK_IN.WIN[0], 0], [BK_IN.WIN[1], 0]], z: [BK_IN.WIN[2], 120], glass: true }] });
 /* (W31: what it covers -- the bank's back and Marina Optical -- and what stands over it on screen: the tea house behind its north wall, the
    roasters, the bakery and the charge depot on the corner in front of its south wall) */
 POCKETS[POCKETS.length - 1].ghosts = ['Tidewater Tea House', 'Palmline Savings', 'Marina Optical', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
@@ -30062,7 +30063,7 @@ const MO_PLAN = walkinDefine({ name: MO_IN.name, from: 'Marina Optical', x0: MO_
   /* (its way to and from the street, THE ROOM'S DAY: out onto the east pavement, along it either way) */
   street: { to: [200, 0], routes: [[[200, -1500], [200, -3600]], [[200, 1500], [200, 3600]]] },
   /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[MO_IN.DOOR[0], 0], [MO_IN.DOOR[1], 0]], z: [0, MO_IN.DZ] }] });
+  openings: [{ lab: [[MO_IN.DOOR[0], 0], [MO_IN.DOOR[1], 0]], z: [0, MO_IN.DZ] }, { lab: [[MO_IN.WIN[0], 0], [MO_IN.WIN[1], 0]], z: [MO_IN.WIN[2], 100], glass: true }] });
 /* (W31: what it covers -- the bookshop's yard end, the charge depot on the corner, the roasters' and the bakery's backs on the south edge --
    and what stands over it on screen: the roasters and the bakery before its south wall, the bookshop up its frontage) */
 POCKETS[POCKETS.length - 1].ghosts = ['Driftwood Books', 'Lagoon Coffee Roasters', 'Sandpiper Bakery', 'Charge depot'];
@@ -30254,7 +30255,7 @@ const LC_PLAN = walkinDefine({ name: LC_IN.name, from: 'Lagoon Coffee Roasters',
   /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it either way and round the corners) */
   street: { to: [0, 184], routes: [[[-1457, 184], [-1457, 1600]], [[567, 184], [567, 1600]]] },
   /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[LC_IN.DOOR[0], 0], [LC_IN.DOOR[1], 0]], z: [0, LC_IN.DZ] }] });
+  openings: [{ lab: [[LC_IN.DOOR[0], 0], [LC_IN.DOOR[1], 0]], z: [0, LC_IN.DZ] }, { lab: [[LC_IN.WIN[0], 0], [LC_IN.WIN[1], 0]], z: [LC_IN.WIN[2], 118], glass: true }] });
 /* (W31: what it covers -- the bakery to its west, the charge depot on the corner, Marina Optical's back and the bookshop's yard end -- and
    what stands over it on screen) */
 POCKETS[POCKETS.length - 1].ghosts = ['Sandpiper Bakery', 'Charge depot', 'Marina Optical', 'Driftwood Books', 'Palmline Savings'];
@@ -30429,7 +30430,7 @@ const SB_PLAN = walkinDefine({ name: SB_IN.name, from: 'Sandpiper Bakery', x0: S
   /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it either way and round the corners) */
   street: { to: [0, 184], routes: [[[-1130, 184], [-1130, 1600]], [[900, 184], [900, 1600]]] },
   /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[SB_IN.DOOR[0], 0], [SB_IN.DOOR[1], 0]], z: [0, SB_IN.DZ] }] });
+  openings: [{ lab: [[SB_IN.DOOR[0], 0], [SB_IN.DOOR[1], 0]], z: [0, SB_IN.DZ] }, { lab: [[SB_IN.WIN[0], 0], [SB_IN.WIN[1], 0]], z: [SB_IN.WIN[2], 161.92 + 14], glass: true }] });
 /* (W31: what it covers -- the roastery to its east, the charge depot on the corner, Marina Optical's back and the bookshop's yard end -- and
    what stands over it on screen) */
 POCKETS[POCKETS.length - 1].ghosts = ['Lagoon Coffee Roasters', 'Charge depot', 'Marina Optical', 'Driftwood Books', 'Palmline Savings'];
@@ -64966,7 +64967,10 @@ function houseCanopy(fn){
 
     /* ---- one shopfront band, both openings cut out of it ---- */
     slab(0, W, 0, 130, 4, 0, shade(wall,1.1), null, trim);
-    reveal(WA0, WA1, 22, 118, 60, inner);
+    /* (a walk-in's window, W11: a hole onto the room -- the room's own window display shows through it; the painted roaster only
+       where no room is drawn under it) */
+    revealOpen(WA0, WA1, 22, 118, SEE ? 8 : 60, inner);   // (shallow over the room: a 60-deep return covered half the glass)
+    if(!SEE){
     ctx.save();
     poly([P(WA0,0,118),P(WA1,0,118),P(WA1,0,22),P(WA0,0,22)]);
     ctx.clip();
@@ -65006,7 +65010,8 @@ function houseCanopy(fn){
       ball(sa, -22 - i*8, 49+sz, 10*GS, '#c9b48e', '#d8c49e');
     }
     ctx.restore();
-    glaze(WA0, WA1, 22, 118, null, 'rgba(140,180,185,.30)');
+    }
+    glaze(WA0, WA1, 22, 118, null, SEE ? WALKIN_PANE : 'rgba(140,180,185,.30)');
     for(let k=1;k<4;k++) F(WA0 + (WA1-WA0)*k/4 - 3, WA0 + (WA1-WA0)*k/4 + 3, 22, 118, shade(wall,1.2), null,0, 0.8);
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the lagoon teal, small panes over a raised panel, 100 across (a 125..225)
@@ -65188,19 +65193,22 @@ function houseCanopy(fn){
     /* reveal() hardcodes b = +2, which is toward the street, so the dark
        backing sat a touch PROUD of the pane and showed as a dark sliver
        down the left jamb. Drawn directly here so it can sit behind. */
-    F(ax0, ax1, gz0, gz1+2, '#4a3a2a', null, 0, -1.2);
+    /* (a walk-in's window, W11: the pane's rectangle a hole onto the room, its own window display seen through; the backing, the shelf and
+       its loaves only where no room is drawn under it) */
+    if(SEE) revealOpen(ax0, ax1, gz0, gz1, 2, '#4a3a2a');
+    else F(ax0, ax1, gz0, gz1+2, '#4a3a2a', null, 0, -1.2);
     /* the shelf was at b = +6..+20 -- outside the glass, out over the
        pavement, which is the cream bar that was cutting across the
        window and hanging off the left jamb. Inside the shop now, under
        the loaves that stand on it. */
-    slab(ax0+12, ax1-12, gz1-74, gz1-64, -4, -16, shade(wall,1.05));
+    if(!SEE) slab(ax0+12, ax1-12, gz1-74, gz1-64, -4, -16, shade(wall,1.05));
     /* THEY WERE OUTSIDE. The loaves sat at b = +8..+18, and positive b
        is toward the street, which under this projection also shifts them
        LEFT on screen -- far enough that the first one cleared the window
        jamb entirely and appeared to be sitting on the pavement. Negative
        b puts them back in the shop, behind the pane where they belong. */
     const LA = i => ax0 + 20 + i*(ax1 - ax0 - 40)/4;
-    depthSort([0,1,2,3,4].map(i => ({
+    if(!SEE) depthSort([0,1,2,3,4].map(i => ({
       a: LA(i), b: -7 - (i%2)*7, z: 0,
       draw: () => cyl(LA(i), -7 - (i%2)*7, gz1-64, gz1-42, 9, i%2 ? '#c98a4a' : '#b87a3c')
     })));
@@ -65209,7 +65217,7 @@ function houseCanopy(fn){
       const z = u*u*gz1 + 2*u*t*(gz1+38) + t*t*gz1;
       return P(a,bb,z);
     };
-    glaze(ax0, ax1, gz0, gz1, null);
+    glaze(ax0, ax1, gz0, gz1, null, SEE ? WALKIN_PANE : null);
     ctx.beginPath();
     let q = aPt(0,-0.4); ctx.moveTo(q.x,q.y);
     for(let i=1;i<=N;i++){ q = aPt(i/N,-0.4); ctx.lineTo(q.x,q.y); }
@@ -65851,8 +65859,11 @@ function houseCanopy(fn){
        would have made -- jamb backing, lit paper, lattice, glass. */
     const screen = (x0, x1) => {
       F(x0-5, x1+5, 16, 140, shade(wall,.72), null, 0, FB+0.6);     // surround
-      F(x0, x1, 22, 132, '#3a2f26', null, 0, FB-20);                // the jamb backing
-      F(x0, x1, 22, 132, '#f2e6c8', null, 0, FB-16);                // lit paper behind
+      /* (a walk-in's window, W11: the screen a lattice over glass, a hole onto the tea room behind it -- no paper; the street's paper
+         screen only where no room is drawn under it) */
+      if(SEE){ const q = [P(x0,FB-16,132),P(x1,FB-16,132),P(x1,FB-16,22),P(x0,FB-16,22)]; ctx.save(); poly(q); ctx.clip(); HOLE(q); ctx.restore(); }
+      else { F(x0, x1, 22, 132, '#3a2f26', null, 0, FB-20);         // the jamb backing
+             F(x0, x1, 22, 132, '#f2e6c8', null, 0, FB-16); }       // lit paper behind
       for(let i=1;i<3;i++) F(x0+(x1-x0)*i/3-2.4, x0+(x1-x0)*i/3+2.4, 22, 132, trim, null,0, FB-13);
       for(let k=1;k<3;k++) F(x0, x1, 22+110*k/3-2.4, 22+110*k/3+2.4, trim, null,0, FB-13);
       /* THREE PANELS, NOT THIRTY. Six by five diamonds on a 62-wide
@@ -65861,6 +65872,7 @@ function houseCanopy(fn){
          as lattice, so it is one diamond per bay on a coarser grid. */
       for(let i=0;i<3;i++) for(let k=0;k<3;k++){
         const ca = x0+(x1-x0)*(i+0.5)/3, cz = 22+110*(k+0.5)/3;
+        if(SEE){ poly([P(ca-10.5,FB-12.6,cz),P(ca,FB-12.6,cz+10.5),P(ca+10.5,FB-12.6,cz),P(ca,FB-12.6,cz-10.5)], null, trim, 3); continue; }   // (the lattice's diamond, open)
         poly([P(ca-13,FB-12.6,cz),P(ca,FB-12.6,cz+13),P(ca+13,FB-12.6,cz),P(ca,FB-12.6,cz-13)], trim);
         poly([P(ca-8,FB-12.4,cz),P(ca,FB-12.4,cz+8),P(ca+8,FB-12.4,cz),P(ca,FB-12.4,cz-8)], '#f2e6c8');
       }
@@ -66232,7 +66244,7 @@ function houseCanopy(fn){
        the ladder read through it. */
     /* (the window gives the door its width, W33: the walk-in's pair is 100 across -- Tipsey and a person -- so the glass ends at 108) */
     const wx1 = 108;
-    reveal(10, wx1, 26, 120, 14, inner);
+    revealOpen(10, wx1, 26, 120, 14, inner);   // (a walk-in's window, W11: a hole onto the room, its own window display seen through)
     /* THE BOOKS DID NOT FIT THE OPENING, AND MY CENSUS COULD NOT SEE IT.
        The real projection is y = ((a+b)*0.5 - z*ZSCALE)*K, so b moves a
        thing VERTICALLY as well as horizontally -- and every screen check
@@ -66251,7 +66263,7 @@ function houseCanopy(fn){
        z 34..104, which after the b -9 shift is 23..127.6 across and
        37..107 up, inside a 10..142.6 by 26..120 opening with 13 to 15
        of margin on every side. */
-    for(let r=0;r<4;r++) for(let i=0;i<5;i++)
+    if(!SEE) for(let r=0;r<4;r++) for(let i=0;i<5;i++)   // (the painted books only where no room is drawn under it)
       F(14+i*15.43, 14+i*15.43+12.03, 34+r*18, 50+r*18,
         ['#8f2b2b','#2f6f8f','#c9a24a','#3f6b4a','#7a4a6b'][(i+r)%5], null,0,-9);
     /* THE LADDER IS GONE, at Sir's direction. It was a sliding library
@@ -66261,7 +66273,7 @@ function houseCanopy(fn){
        with the ladder drawn behind it, surviving on call order alone.
        Making the window a real recess is what put it on show, and it
        came off one render later. */
-    glaze(10, wx1, 26, 120, null, 'rgba(127,147,160,.32)');
+    glaze(10, wx1, 26, 120, null, SEE ? WALKIN_PANE : 'rgba(127,147,160,.32)');
 
     /* ---- the entrance ----
        CLAMPED, and the extra window was covering it. W*0.84 = 193.2
@@ -66379,8 +66391,10 @@ function houseCanopy(fn){
     T(0, W, -D, 0, H+0.4, '#9aa6ad');   // Flats roof, over body's trim-coloured plate
     slab(0,W, H, H+8, -1, -12, trim);
 
-    /* ---- the window: recess, goods, pane ---- */
-    reveal(WA0, WA1, WZ0, WZ1, 26, inner);
+    /* ---- the window: recess, goods, pane (a walk-in's, W11: a hole onto the room, its own frames display seen through; the painted
+       shelves only where no room is drawn under it) ---- */
+    revealOpen(WA0, WA1, WZ0, WZ1, 26, inner);
+    if(!SEE){
     ctx.save();
     poly([P(WA0,0,WZ1),P(WA1,0,WZ1),P(WA1,0,WZ0),P(WA0,0,WZ0)]);
     ctx.clip();
@@ -66410,7 +66424,8 @@ function houseCanopy(fn){
     for(let i=0;i<6;i++)
       F(GA(101), GA(101) + 26*GS*(1 - i*0.15), 86 - i*9, 90 - i*9, '#3a3f4a', null,0, -5.4);
     ctx.restore();
-    glaze(WA0, WA1, WZ0, WZ1, null, 'rgba(146,178,196,.36)');
+    }
+    glaze(WA0, WA1, WZ0, WZ1, null, SEE ? WALKIN_PANE : 'rgba(146,178,196,.36)');
     F(WA0 + (WA1-WA0)/2 - 2.5, WA0 + (WA1-WA0)/2 + 2.5, WZ0, WZ1, shade(wall,.72), null,0, 0.8);
 
     /* THE DOOR IS THE DOOR KIT'S (D13, W33): one wide panelled leaf in the marina blue, small panes over a raised panel, 100 across -- as
