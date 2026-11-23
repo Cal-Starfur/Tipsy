@@ -31155,7 +31155,7 @@ const SF_TREADS = [430, 510, 590, 670, 750], SF_BIKES = [470, 550, 630, 710];
    standing; the bikes' saddles and the bench at their seats) */
 const SF_SEATS = [
   ...SF_TREADS.map((c, i) => ({ id: 'tread' + i, kind: 'tread', stand: [c, 152, -Math.PI/2], at: [c, 86], th: -Math.PI/2, z: 0 })),
-  ...SF_BIKES.map((c, i) => ({ id: 'bike' + i, kind: 'bike', stand: [c + 36, 262, Math.PI], at: [c, 264], th: -Math.PI/2, z: 38 })),
+  ...SF_BIKES.map((c, i) => ({ id: 'bike' + i, kind: 'bike', stand: [c + 40, 264, Math.PI], at: [c, 264], th: -Math.PI/2, z: 50 })),
   { id: 'bench', kind: 'bench', stand: [340, 528, -Math.PI/2], at: [340, 484], th: Math.PI/2, z: 40 },
 ];
 /* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a folded towel over the hand at
@@ -31222,12 +31222,12 @@ function sfBrowseNext(R, s, m, now, bot){
   return desk() || leave();
 }
 /* AN EXERCISE BIKE'S MIDDLE, between its rider's legs (pose.between): the flywheel, its guard, the frame down to the back foot and the crank's hub
-   -- the bike's own (SF_BIKES' piece) drawn again in the rider's frame (G: across, forward, up; the rider sat at the saddle, the frame 14 up: z + 14,
+   -- the bike's own (SF_BIKES' piece) drawn again in the rider's frame (G: across, forward, up; the rider sat at the saddle, the frame 2 up: z + 2,
    forward 264 - b), so the far leg is behind it and the near one before it. Back to front as the piece is: the flywheel (on the bike's east side),
    the guard, the frame, the hub */
 function sfBikeMiddle(g, G){
   const o = G(0, 0, 0), e = G(1, 0, 0), E = (e.x - o.x) > 0 ? 1 : -1;               // (+across toward the east, or west)
-  const W = (a, b, z) => G(a*E, 264 - b, z + 14);                                   // (a across from the bike's middle, east +; b and z the world's)
+  const W = (a, b, z) => G(a*E, 264 - b, z + 2);                                    // (a across from the bike's middle, east +; b and z the world's: sat at 50, the frame 2 up)
   const fill = (pts, c) => { const P = pts.slice().sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
     for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
     for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
@@ -31235,10 +31235,10 @@ function sfBikeMiddle(g, G){
   const disc = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(W(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } fill(pts, c); };
   const box = (a0, a1, b0, b1, z0, z1, c) => { const pts = []; for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]) pts.push(W(a, b, z)); fill(pts, c); };
   const rod = (b0, z0, b1, z1, r, c) => fill([W(-r, b0, z0 - r), W(r, b0, z0 - r), W(-r, b0, z0 + r), W(r, b0, z0 + r), W(-r, b1, z1 - r), W(r, b1, z1 - r), W(-r, b1, z1 + r), W(r, b1, z1 + r)], c);
-  disc(2, 224, 20, 16, 0x868c90); disc(2.4, 224, 20, 12, 0xc8ccd0); disc(2.6, 224, 20, 4, 0x2f3a3f);
-  box(-3, 3, 214, 236, 18, 40, 0xc94e44); box(-3, 3, 214, 236, 39.4, 40, 0xe2574c);
-  rod(232, 8, 262, 4, 2.4, 0x2f3a3f); rod(236, 22, 262, 6, 2.2, 0x2f3a3f); rod(248, 4, 248, 10, 2.2, 0x2f3a3f);
-  disc(3, 248, 13, 4.4, 0x262e33); disc(3.3, 248, 13, 1.6, 0xc8ccd0);
+  disc(3, 222, 24, 20, 0x868c90); disc(3.4, 222, 24, 15, 0xc8ccd0); disc(3.6, 222, 24, 5, 0x2f3a3f);
+  box(-4, 4, 208, 238, 22, 50, 0xc94e44); box(-4, 4, 208, 238, 49.4, 50, 0xe2574c);
+  rod(234, 10, 270, 5, 2.8, 0x2f3a3f); rod(238, 28, 264, 8, 2.6, 0x2f3a3f); rod(250, 5, 250, 11, 2.4, 0x2f3a3f);
+  disc(4, 250, 14, 5.4, 0x262e33); disc(4.3, 250, 14, 2, 0xc8ccd0);
 }
 function sfPose(s, m, now, P){
   const H = sfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
@@ -31253,7 +31253,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; P.between = sfBikeMiddle; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
+      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [14, 16], r: 8 }; P.between = sfBikeMiddle; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
@@ -60836,20 +60836,21 @@ function houseCanopy(fn){
       box(c - 25, c + 25, 22, 36, 100, 114, charL, char, charD); F(c - 13, c + 13, 103, 111, '#4fb3c8', null, 0, 36.1); F(c - 10, c - 4, 106, 108, cream, null, 0, 36.2);
       tube(c - 22, 34, 102, c - 22, 66, 94, 1.3, gearD); tube(c + 22, 34, 102, c + 22, 66, 94, 1.3, gearD); } }));
 
-    /* ---- FOUR BIKES before them, facing north: each its own piece keyed at its middle. Inside one, back to front: the front foot, the flywheel
-       under its guard, the bars' post and the bars, the frame, the back foot, the saddle's post and the saddle ---- */
-    SF_BIKES.forEach(c => items.push({ a: c, b: 240, z: 0, solids: [solid(c - 14, c + 14, 206, 276, 60, 'bike')], draw: () => {
-      box(c - 14, c + 14, 208, 214, 0, 4, char, char, charD);
-      disc(c + 2, 224, 20, 16, steelD); disc(c + 2.4, 224, 20, 12, steelL); disc(c + 2.6, 224, 20, 4, char);
-      box(c - 3, c + 3, 214, 236, 18, 40, coral, coral, coralD);
-      /* the bars where a rider's hands are (seated at 38, arms out at the bike's pose: 34 before the saddle's middle, 16 either side, at 61 --
-         Sir, 2026-11-23: "the hands dont make contact to the handle bar grips"): the post up from the frame, the bar across, a grip each end */
-      tube(c, 222, 36, c, 230, 56, 2, char); box(c - 2, c + 2, 227, 233, 54, 59, charD, charD, blk); tube(c - 17, 230, 60, c + 17, 230, 60, 1.6, charD);
-      tube(c - 18.5, 230, 60, c - 13, 230, 60, 2.3, blk); tube(c + 13, 230, 60, c + 18.5, 230, 60, 2.3, blk);
-      tube(c, 232, 8, c, 262, 4, 2.4, char); tube(c, 236, 22, c, 262, 6, 2.2, char);
-      box(c - 14, c + 14, 262, 270, 0, 4, char, char, charD);
-      tube(c, 248, 4, c, 248, 10, 2.2, char); disc(c + 3, 248, 13, 4.4, charD); disc(c + 3.3, 248, 13, 1.6, steelL);   // (the crank's hub, the rider's feet round it)
-      tube(c, 262, 4, c, 264, 34, 2.2, char); box(c - 4, c + 4, 256, 272, 34, 38, blk, charD, blk); } }));
+    /* ---- FOUR BIKES before them, facing north, a person's size (Sir, 2026-11-23: "lets scale the bikes better"): 36 across its feet, 74 long,
+       the saddle at 50 (a rider's hips), the bars at 73 where a rider's hands are (arms out at the bike's pose: 34 before the saddle's middle, 16
+       either side -- "the hands dont make contact to the handle bar grips"), the crank's hub 14 up and 14 before the saddle. Each its own piece keyed
+       at its middle. Inside one, back to front: the front foot, the flywheel under its guard, the bars' post and the bars, the frame, the back foot,
+       the crank's hub, the saddle's post and the saddle ---- */
+    SF_BIKES.forEach(c => items.push({ a: c, b: 240, z: 0, solids: [solid(c - 18, c + 18, 204, 278, 75, 'bike')], draw: () => {
+      box(c - 18, c + 18, 204, 212, 0, 5, char, char, charD);
+      disc(c + 3, 222, 24, 20, steelD); disc(c + 3.4, 222, 24, 15, steelL); disc(c + 3.6, 222, 24, 5, char);
+      box(c - 4, c + 4, 208, 238, 22, 50, coral, coral, coralD);
+      tube(c, 222, 48, c, 230, 68, 2.4, char); box(c - 2.5, c + 2.5, 226, 234, 66, 71, charD, charD, blk); tube(c - 18, 230, 73, c + 18, 230, 73, 1.8, charD);
+      tube(c - 19.5, 230, 73, c - 13, 230, 73, 2.6, blk); tube(c + 13, 230, 73, c + 19.5, 230, 73, 2.6, blk);
+      tube(c, 234, 10, c, 270, 5, 2.8, char); tube(c, 238, 28, c, 264, 8, 2.6, char);
+      box(c - 18, c + 18, 270, 278, 0, 5, char, char, charD);
+      tube(c, 250, 5, c, 250, 11, 2.4, char); disc(c + 4, 250, 14, 5.4, charD); disc(c + 4.3, 250, 14, 2, steelL);   // (the crank's hub, the rider's feet round it)
+      tube(c, 266, 5, c, 264, 46, 2.6, char); box(c - 5, c + 5, 254, 274, 46, 50, blk, charD, blk); } }));
 
     /* ---- THE POWER RACK on the weights floor: four posts and a frame over, the bar on its hooks loaded with a plate each end; keyed at its middle.
        Inside it, back to front: the north posts (west first) and the north rail, the bar and its plates, the south posts and the south rail ---- */
@@ -119894,8 +119895,8 @@ class WorldScene extends Phaser.Scene {
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
       /* PEDALLING (pose.pedal { ph, c: [forward, up] the crank's middle, r }, Sir, 2026-11-23, Surfside Fitness: "the person on the exercise
          bike isn't biking"): the foot round the crank, the far one half a turn on; the knee where thigh and shin meet (the thigh its own length,
-         the shin the seated shin's), bent up and forward */
-      if(pose.pedal){ const pd = pose.pedal, t = pd.ph + (side > 0 ? 0 : Math.PI), L1 = thL, L2 = Math.hypot(3, shin);
+         the shin the rest of the leg's length), bent up and forward */
+      if(pose.pedal){ const pd = pose.pedal, t = pd.ph + (side > 0 ? 0 : Math.PI), L1 = thL, L2 = build.legH - thL;   // (the leg its own length: not the seated shin, which is the seat's height)
         A = [pd.c[0] + Math.cos(t)*pd.r, pd.c[1] + Math.sin(t)*pd.r];
         const dx = A[0], dy = A[1] - hipH, d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, Math.hypot(dx, dy))), ang = Math.atan2(dy, dx),
           al = Math.acos(Math.max(-1, Math.min(1, (L1*L1 + d*d - L2*L2)/(2*L1*d))));
