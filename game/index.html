@@ -32296,7 +32296,7 @@ const FL_PLAN = walkinDefine({ name: FL_IN.name, from: 'Seabreeze Florist', x0: 
   /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it either way and round the corners) */
   street: { to: [0, 184], routes: [[[-781, 184], [-781, 1600]], [[1249, 184], [1249, 1600]]] },
   /* (seen through, W11: the open doorway) */
-  openings: [{ lab: [[FL_IN.DOOR[0], 0], [FL_IN.DOOR[1], 0]], z: [0, FL_IN.DZ] }] });
+  openings: [{ lab: [[FL_IN.DOOR[0], 0], [FL_IN.DOOR[1], 0]], z: [0, FL_IN.DZ] }, { lab: [[FL_IN.WIN[0], 0], [FL_IN.WIN[1], 0]], z: [FL_IN.WIN[2], 104], glass: true }] });
 /* (W31: what it covers -- the bakery to its east and the roastery's west end -- and what stands over it on screen: the juice bar round the
    corner over its west wall) */
 POCKETS[POCKETS.length - 1].ghosts = ['Sandpiper Bakery', 'Lagoon Coffee Roasters', 'Charge depot', 'Marina Optical', 'Low Tide Juice Bar', 'Surfside Fitness'];
@@ -48946,6 +48946,9 @@ function revealOpen(a0, a1, z0, z1, deep, col){
   T(a0, a1, 0, -d, z0, shade(col,.72));
   ctx.restore();
 }
+/* A WALK-IN'S WINDOW PANE (W11, Sir, 2026-11-23: "whats behind the window should be seen"): over a hole onto the room (revealOpen), the
+   glass is a light tint, not the street's near-opaque sheet -- the room's window display reads through it; its reflections stay */
+const WALKIN_PANE = 'rgba(132,178,192,.34)';
 function glaze(a0, a1, z0, z1, frame, tint){
   /* The stack used to run -0.4 for the tint and then -0.6, -0.7 for the
      reflections and the bright edge -- each highlight DEEPER than the
@@ -67018,9 +67021,10 @@ function houseCanopy(fn){
        side. The trellis stands PROUD at b 2 and stops at z 104, under
        the sign band, so nothing it does can reach the canopy. */
     /* (the walk-in's door is 80 across, W33/D14: the window gives up 12 at its door end, 34..126, its pier to the door's surround kept) */
-    reveal(34, 126, 16, 104, 13, '#8fae9c');
-    F(44, 116, 40, 46, '#dfe6d2', null,0, -1.5);                   // shelf line, inside the pane
-    glaze(34, 126, 16, 104, null);
+    /* (a walk-in's window, W11: a hole onto the room -- what stands behind the glass is the room's own window display, not paint) */
+    revealOpen(34, 126, 16, 104, 13, '#8fae9c');
+    if(!SEE) F(44, 116, 40, 46, '#dfe6d2', null,0, -1.5);          // shelf line, inside the pane (only where no room shows)
+    glaze(34, 126, 16, 104, null, SEE ? WALKIN_PANE : null);        // (a pane he sees the room through: light, W11)
     slab(30, 130, 100, 108, -1, -9, shade(trim,1.25));
     /* THE DOOR WAS WRAPPING THE CORNER, same as the hardware store:
        W*0.83 asks for 190.9 and the surround's far edge lands on 228
