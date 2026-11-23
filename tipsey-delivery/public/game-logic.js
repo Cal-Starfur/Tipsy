@@ -16326,6 +16326,24 @@ function hoodBlockGroundOf(grid, blk){
   }
   return null;
 }
+/* A SHOP'S LAWN (Sir, 2026-11-23, Low Tide Juice Bar's patio: "it should probably be grass"): an entry's `lawn`, [[a0, a1, b0, b1]] in its lab,
+   as world rects in this block -- the ground pass lays the city's lawn there, as it does a whole-block landmark's (ground:'grass'), so no shop
+   paints a lawn of its own (no secondary grass). Once per grid */
+function hoodShopLawnsOf(grid, blk){
+  if(!grid || !blk || blk.i === undefined || typeof landmarkLabWorld !== 'function') return [];
+  const M = grid._shopLawns || (grid._shopLawns = new Map()), key = blk.i + "," + blk.j;
+  if(M.has(key)) return M.get(key);
+  const out = [];
+  for(const s of hoodShopsOf(grid)){
+    if(s.blockKey !== key) continue;
+    const e = LIB.get(s.lib); if(!e || !e.lawn) continue;
+    const L = landmarkLabWorld(s.lib); if(!L) return out;   // (not placed yet: asked again, not kept)
+    for(const [a0, a1, b0, b1] of e.lawn){ const c = [L(a0, b0), L(a1, b1)];
+      out.push({ x0: Math.min(c[0].x, c[1].x), x1: Math.max(c[0].x, c[1].x), y0: Math.min(c[0].y, c[1].y), y1: Math.max(c[0].y, c[1].y) }); }
+  }
+  M.set(key, out);
+  return out;
+}
 function hoodWholeBlockEdge(grid, blk){
   for(const [i, j, ei, list] of HOOD_SHOP_SITES){
     if(i !== blk.i || j !== blk.j) continue;
@@ -30958,6 +30976,16 @@ function ltHold(s){
       hull(g, at, box(-10, 10, f - 7, f + 7, h, h + 9), 0xb98a5c); hull(g, at, box(-9, 9, f - 6, f + 6, h + 9, h + 9.6), 0x946a42);
       [[-5, -3], [5, -3], [0, 0], [-5, 3], [5, 3]].forEach(([dx, df], k) => hull(g, at, ring(dx, f + df, h + 9, 3).concat(ring(dx, f + df, h + 13, 2.2)), k % 2 ? 0xf29b3a : 0xe8862a));
       hull(g, at, box(-10, 10, f + 6.6, f + 7.2, h + 1, h + 4), 0xc9a26a); hull(g, at, box(-10, 10, f + 6.6, f + 7.2, h + 5.5, h + 8.5), 0xc9a26a); } });
+}
+/* the patio's customers (the kiosk's LIB entry, patioSets): who sits at each of its four tables -- side -1 the stool at b - 24, +1 at b + 24 --
+   the street's own adults (streetLook), each with a smoothie from the bar on the table before them, made once */
+const LT_PATIO = [[-1, 1], [-1], [1], [-1, 1]];
+function ltPatioSitters(i){
+  const C = ltPatioSitters._c || (ltPatioSitters._c = []);
+  if(C[i]) return C[i];
+  return (C[i] = (LT_PATIO[i] || []).map(side => { const seed = (0x17b00 + i*16 + (side + 1)) >>> 0, s = { seed, visit: 0 };
+    return { side, sit: 36, juice: '#' + LT_JUICE[(seed >>> 2) % LT_JUICE.length].toString(16).padStart(6, '0'), look: streetLook(seed, { adult: true, aid: 'none' }),
+             pose: { lift: [0.1, 0.27], bend: [0.3, 0.9], headTilt: 0.12 } }; }));   // (a hand out on the table round the cup, the other in the lap)
 }
 /* (a third of the visits take a bottle out of the fridge; the rest only look in it: most come for a smoothie) */
 function ltTakesBottle(s){ return (((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0) % 3 === 0; }
@@ -46300,6 +46328,18 @@ const LIB = (function(){
     const mir = (pa.x - p0.x)*(pb.y - p0.y) - (pa.y - p0.y)*(pb.x - p0.x) < 0;
     const sy = mir ? -1 : 1;
     GAME_CAR(ctx.__state.g, (x, y, h) => P(a + x/SC, b + sy*y/SC, z + h/zs), kind || 'car', mir ? (4 - fdir) % 4 : fdir, seed);
+  }
+  /* THE GAME'S OWN PEOPLE, SEATED (Sir, 2026-11-23, Low Tide Juice Bar's patio: "the seating should have customers enjoying a juice they got
+     from inside"): the scene hands the kit its person drawer once (LIB.setPersonArt), as it does its car; gamePerson sits one at lab (a, b),
+     on a seat sitZ (world units) over z, facing lab angle face (0 toward +a, PI/2 toward +b), the street's own body and look (spec.look) and
+     pose (spec.pose). Still, so they go in the entry's cached image with it. Mirrored frames as gameCar's */
+  let GAME_PERSON = null;
+  function gamePerson(a, b, z, face, spec){
+    if(!GAME_PERSON || !ctx || !ctx.__state.g) return;
+    const zs = SC * ZSCALE;
+    const p0 = P(a, b, z), pa = P(a + 1, b, z), pb = P(a, b + 1, z);
+    const sy = (pa.x - p0.x)*(pb.y - p0.y) - (pa.y - p0.y)*(pb.x - p0.x) < 0 ? -1 : 1;
+    GAME_PERSON(ctx.__state.g, (x, y, h) => P(a + x/SC, b + sy*y/SC, z + h/zs), Math.atan2(sy*Math.sin(face), Math.cos(face)), spec);
   }
   let ctx = null;
   /* the kit reads state.roof and state.props and nothing else of the
@@ -70295,6 +70335,7 @@ function houseCanopy(fn){
 },
 {
   name:'Low Tide Juice Bar', xh: 140, base:'Juice bar', hood:'The Flats', edited:true, sc:1.3, ww: T2*4.4,
+  lawn: [[180, T2*4.4, -T2*3, 0]],   // (the patio's ground: the city's lawn, laid by the ground pass -- hoodShopLawnsOf)
   see: true,   // (a walk-in: its doorway shows the juice bar's room, LT_IN -- W11; its front faces away, west, so only from inside)
   head:'Juice kiosk on one slot, a tiled patio with umbrella tables on the other',
   tags:['two packing slots','patio is a side lot, not the pavement','striped awning','fruit sign','drivable patio'],
@@ -70333,28 +70374,43 @@ function houseCanopy(fn){
   /* the patio floor and its back planters: ground, so drawn before the
      sort (see the fuel island's note on a long kerb and depth keys) */
   patioGround(k){
-    const { LA0, LA1, LB, tile, grout } = k;
-    T(LA0, LA1, 0, LB, 0.4, tile);
-    for(let a = LA0 + 32; a < LA1 - 4; a += 32) T(a - 0.8, a + 0.8, 0, LB, 0.6, grout);
-    for(let b = -32; b > LB + 4; b -= 32) T(LA0, LA1, b - 0.8, b + 0.8, 0.6, grout);
+    /* (THE PATIO IS LAWN, Sir 2026-11-23: "the ground should be something other than the tan squares, it should probably be grass" -- the
+       city's own lawn, laid by the ground pass under the lot (the entry's `lawn`, hoodShopLawnsOf), never painted here: no secondary grass) */
+    const { LA0, LA1, LB } = k;
     box(LA0 + 8, LA1 - 8, LB + 4, LB + 30, 0, 24, '#c98b5a', '#b0774a', '#94623b');
     for(let a = LA0 + 22; a < LA1 - 16; a += 26) ball(a, LB + 17, 32, 11, a % 52 < 26 ? '#5f9a4a' : '#6fae52');
   },
   /* one bistro set: two chairs, the table, the umbrella. Everything
      stands on the ground, so the sort key is a + b (see the fuel lot). */
+  /* THE CUSTOMERS AT THE TABLES (Sir, 2026-11-23: "the seating should have customers enjoying a juice they got from inside the place"): the
+     street's own people (ltPatioSitters), each on a stool with a smoothie from the bar on the table before them, drawn with their stool by the
+     game's person drawer (gamePerson). Inside a set, back to front by what P says is nearer (on the west edge the stool at b - 24 is the near
+     one): the far stool and its sitter, the table, the near stool and its sitter -- a stool's back after its sitter when it stands between
+     them and the eye -- then the umbrella over all */
   patioSets(k){
     const wood = '#7a5a3c', top = '#f2f2ee';
     return k.tables.map(([a, b], i) => ({ a, b, z: 0, draw: () => {
-      const chair = (ca, cb, back) => {
-        box(ca - 7, ca + 7, cb - 7, cb + 7, 16, 19, shade(wood,1.1), wood, shade(wood,.75));
+      const seat = (ca, cb) => {
         cyl(ca, cb, 0, 16, 1.6, shade(wood,.8));
-        if(back) box(ca - 7, ca + 7, cb - 8, cb - 5, 19, 34, shade(wood,1.05), wood, shade(wood,.7));
+        box(ca - 7, ca + 7, cb - 7, cb + 7, 16, 19, shade(wood,1.1), wood, shade(wood,.75));
       };
-      chair(a, b - 24, true);                                  // the far chair first
+      const back = (ca, cb) => box(ca - 7, ca + 7, cb - 8, cb - 5, 19, 34, shade(wood,1.05), wood, shade(wood,.7));
+      const near = P(a, b + 24, 0).y > P(a, b - 24, 0).y ? 1 : -1, who = typeof ltPatioSitters === 'function' ? ltPatioSitters(i) : [];
+      const stool = side => { const cb = b + side*24, st = who.find(q => q.side === side), backNear = side === near;
+        seat(a, cb);
+        if(side < 0 && !backNear) back(a, cb);
+        if(st) gamePerson(a, cb, 0, side < 0 ? Math.PI/2 : -Math.PI/2, st);   // (facing the table)
+        if(side < 0 && backNear) back(a, cb); };
+      stool(-near);                                            // the far stool first
       cyl(a, b, 0, 28, 2.2, '#4a4f55');
       plateCircle(a, b, 28, 16, top, shade(top,.7), 1);
-      ball(a - 5, b + 3, 32, 3.5, i % 2 ? '#f29b3a' : '#9ccf4a');   // a glass on the table
-      chair(a, b + 24, false);
+      /* each customer's smoothie on the table before them, a hand on it: its juice, the clear cup over it, the dome, the straw (held at the
+         chest the cup was lost behind their own arms and the table top); at an empty table a glass left behind */
+      if(!who.length) ball(a - 5, b + 3, 32, 3.5, i % 2 ? '#f29b3a' : '#9ccf4a');
+      for(const st of who.slice().sort((p, q) => P(a, b + p.side*9, 0).y - P(a, b + q.side*9, 0).y)){ const cb = b + st.side*9, ca = a + 4, c = st.juice;
+        cyl(ca, cb, 28.4, 34.5, 2.4, c, shade(c, 1.12)); cyl(ca, cb, 28.4, 35, 2.6, 'rgba(220,236,240,.35)', 'rgba(236,246,248,.5)');
+        cyl(ca, cb, 35, 36.2, 2.6, '#f4f6f6', '#ffffff'); tube(ca + 0.6, cb, 36, ca + 1.2, cb - st.side*0.6, 40, 0.5, '#8cc63f'); }
+      stool(near);
       const col = k.shades[i % k.shades.length];
       cyl(a, b, 28, 96, 1.6, '#e8e2d6');
       plateCircle(a, b, 92, 42, shade(col,.78));
@@ -91754,6 +91810,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     setLeafPick(i){ SHOP_LEAF_PICK = (i === null || i === undefined) ? null : i; },
     /* the scene's car art for gameCar(): fn(g, W, kind, fdir, seed) */
     setCarArt(fn){ GAME_CAR = fn || null; },
+    /* the scene's person art for gamePerson(): fn(g, W, face, spec) */
+    setPersonArt(fn){ GAME_PERSON = fn || null; },
     /* g   -- the Phaser Graphics to draw into
        G   -- (a, b, h) => screen point, the game's own W() composed with
               whatever anchor the caller chose
@@ -102530,6 +102588,13 @@ class WorldScene extends Phaser.Scene {
       const sc = Object.create(this);
       sc.W = Wf; sc._xrayInProp = true;
       this.drawProp.call(sc, g, kind, 0, 0, 0, fdir, 0, null, seed);
+    });
+    /* ...and its seated people (gamePerson: a shop's patio customers), the person drawer's body on the entry's frame */
+    LIB.setPersonArt((g, Wf, face, spec) => {
+      const sc = Object.create(this), L = spec.look, pz = spec.pose || {};
+      sc.W = Wf; sc._xrayInProp = true;
+      this.drawPersonHullBody.call(sc, g, 0, 0, 0, face - Math.PI/2, L.build, L.skin, L.shirt, L.pants, L.hair, L.shoe, 0, false, 0, 0, null, L.uniform, false,
+        { sit: spec.sit, dress: L.dress, veil: L.veil, lift: pz.lift, bend: pz.bend, hold: pz.hold || null, headTurn: pz.headTurn, headTilt: pz.headTilt });
     });
     /* reused every frame by the sidewalk hash queries so the lookup does
        not allocate a fresh result array sixty times a second */
@@ -117831,7 +117896,10 @@ class WorldScene extends Phaser.Scene {
       }
       return;
     }
-    if(blk.type === "commercial") return this.fillBlockInterior(g, blk, hoodBlockGroundOf(this.route && this.route.grid, blk) === "grass" ? GRASS : PLAZA);
+    if(blk.type === "commercial"){ this.fillBlockInterior(g, blk, hoodBlockGroundOf(this.route && this.route.grid, blk) === "grass" ? GRASS : PLAZA);
+      /* (a shop's lot that stands on lawn -- its entry's `lawn`: the juice bar's patio -- the city's own lawn, laid here with the block's ground) */
+      for(const r of hoodShopLawnsOf(this.route && this.route.grid, blk)) this.fillBlockInterior(g, { ...blk, ...r }, GRASS);
+      return; }
     this.fillBlockInterior(g, blk, GRASS); // housing yard
   }
   queueBlockContent(vq, blk, excludeEdges=null){

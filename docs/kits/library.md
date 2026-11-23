@@ -65,6 +65,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Thing | Drawer | Kinds | Notes |
 |---|---|---|---|
 | Cars | `drawCar(g, kind, x, y, z, t, fdir, wheelPhase, seed, data)` | `CAR_KINDS`, `CAR_BODIES` | `data.doorOpen`, `data.wheelOff`, `data.cabin { rider }` (see-through glass), `data.doorOut`. In a room: `fx.car`, `fx.svc`. |
+| Seated people in a shop's cached image | `gamePerson(a, b, z, face, { sit, look, pose })` in the kit (the scene's person drawer, `LIB.setPersonArt`, as `gameCar` is the car) | Low Tide Juice Bar's patio customers (`ltPatioSitters`) |
 | Vans and trucks | `drawVan`, `drawWorkTruck`, `drawProp('firetruck' / 'flatbed' / 'beertruck' / ...)` | `VAN_KINDS` | |
 | Tipsey and other delivery robots | `drawRobot`, `drawBot`, `drawRoomBot` (rooms: `fx.pod`), `drawNpcRobotBody` | `drawProp('robot' / 'courierbot' / 'cargobot' / 'patrolbot' / 'amr')` | |
 | AV fleet | `drawAvPod`, `drawProp('avpod' / 'avshuttle' / 'avsweeper' / ...)` | | |
