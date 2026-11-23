@@ -2719,14 +2719,14 @@ const PALM = {
   scale: 1.8,
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
-  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e, rib: 0x7fb46a, ribB: 0x5a8f50,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
   scale: 1.3,
   height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
-  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e, rib: 0x7fb46a, ribB: 0x5a8f50,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 
@@ -116916,7 +116916,9 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawBenchProp(g, x, y, dv, mid){   // (mid: drawn after the far end, before the boards -- who sits on a bench turned away from the eye)
-    const rv = DIRV[(DIRV.indexOf(dv)+1)%4] || {x:-dv.y,y:dv.x};
+    /* (a heading not taken from DIRV itself -- an equal {x, y} -- found -1 and wrapped to DIRV[0], rv along dv: a bench drawn as a
+       sliver. It is a quarter turn on either way) */
+    const di = DIRV.indexOf(dv), rv = di >= 0 ? DIRV[(di+1)%4] : { x: -dv.y, y: dv.x };
     const B = BENCH_ART;
     const G = (a,b,h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
     const hw = B.w/2, D = B.depth, S = B.seatH, T = B.slatT;
@@ -116971,9 +116973,15 @@ class WorldScene extends Phaser.Scene {
        pocket between the arm and the seat, which from the front reads as
        a bite out of the seat board rather than as daylight under an arm.
        The front runs straight down from the arm to the ground. */
+    /* CAST ENDS STAND ON TWO LEGS (a design pass, Sir 2026-11-23: "do a pass on all the street props"): the end was one solid slab
+       down to the ground, which read as a concrete block under each arm. A park bench's cast end is a frame -- a back leg under the
+       raked post, a front leg under the arm, daylight between them under the seat -- each leg with a small flared foot. Same outline
+       above the seat (arm, post, seat height, footprint), so sitters and collision are untouched. */
+    const LW = 7, GAP = S - T - 8, MID = (12 + D - 4)/2;
     const END = [
-      [12, 0], [12, S-T], [2, S+B.backH], [16, S+B.backH], [23, S+B.armH],
-      [D-4, S+B.armH], [D-4, 0]
+      [10, 0], [12, 4], [12, S-T], [2, S+B.backH], [16, S+B.backH], [23, S+B.armH],
+      [D-4, S+B.armH], [D-4, 4], [D-2, 0], [D-4-LW-2, 0], [D-4-LW, 4], [D-4-LW, GAP - 3],
+      [MID, GAP + 1.5], [12+LW, GAP - 3], [12+LW, 4], [12+LW+2, 0]
     ];
     /* THE BOARDS RUN BETWEEN THE ENDS, not across them.
 
@@ -129054,66 +129062,78 @@ class WorldScene extends Phaser.Scene {
       /* NO SHADOW (Sir, 2026-09-29: "lets get rid of the shadow from the
          palms"): the cast shade and the base blob are both gone. */
 
-      const SEG = 8, spine = [];
+      /* A DESIGN PASS (Sir, 2026-11-23: "do a pass on all the street props"). The trunk was eight bands in two hard tones -- a striped
+         pole -- and each frond a chain of separate bow-tie triangles with daylight between them, which read as dashes rather than a
+         leaf. Now: ONE trunk silhouette, flared where it meets the grate, with a shaded side (a cylinder, not a ribbon) and leaf-scar
+         rings that curve round it; and each frond ONE leaf -- a stalk, widest a third of the way out, tapering to its tip, its leaflets
+         sawn into the edge and hanging (the lower edge wider than the upper), a light midrib down it. Same crown, lengths, sway and
+         colours' family; fewer fills than the triangles were. Scratch points are the scene's own (no allocation per frame: palms sway,
+         so they draw live). */
+      const SEG = 8, spine = this._palmSpine || (this._palmSpine = Array.from({ length: SEG + 1 }, () => ({ x: 0, y: 0, w: 0 })));
       for(let i=0; i<=SEG; i++){
-        const u = i/SEG;
-        spine.push({ x: o.x + (lean*H*u*u + sway*u*u)*K, y: o.y - H*u*K, w: (7.5 - 4.5*u)*K });
+        const u = i/SEG, fl = Math.max(0, 1 - u*5), sp = spine[i];
+        sp.x = o.x + (lean*H*u*u + sway*u*u)*K; sp.y = o.y - H*u*K; sp.w = (7.5 - 4.5*u + 3.2*fl*fl)*K;
       }
-      for(let i=0; i<SEG; i++){
-        const a2 = spine[i], b2 = spine[i+1];
-        this.quadOn(g, [
-          {x:a2.x-a2.w/2, y:a2.y}, {x:a2.x+a2.w/2, y:a2.y},
-          {x:b2.x+b2.w/2, y:b2.y}, {x:b2.x-b2.w/2, y:b2.y}
-        ], i % 2 === 0 ? P.trunk : P.trunkDk);
-        if(i % 2 === 1){
-          g.lineStyle(1.5, P.ring, 1);
-          g.lineBetween(a2.x-a2.w/2, a2.y, a2.x+a2.w/2, a2.y);
-        }
+      const TP = this._palmTrunk || (this._palmTrunk = Array.from({ length: 2*SEG + 2 }, () => ({ x: 0, y: 0 })));
+      const trunkPoly = (l0, l1, col) => {                    // the trunk between fractions l0..l1 of its width (-1 left edge, +1 right)
+        for(let i=0; i<=SEG; i++){ const sp = spine[i], a = TP[i], b = TP[2*SEG + 1 - i];
+          a.x = sp.x + l0*sp.w/2; a.y = sp.y; b.x = sp.x + l1*sp.w/2; b.y = sp.y; }
+        this.quadOn(g, TP, col);
+      };
+      trunkPoly(-1, 1, P.trunk);
+      trunkPoly(0.2, 1, P.trunkDk);                           // its shaded side
+      /* leaf-scar rings: a cylinder's ring seen from above bows down at its middle */
+      g.lineStyle(Math.max(1, 0.75*K), P.ring, 1);
+      for(let i=1; i<SEG*2; i++){
+        const k0 = i >> 1, f = (i & 1) ? 0.5 : 0, s0 = spine[k0], s1 = spine[k0 + 1];
+        const cx = s0.x + (s1.x - s0.x)*f, cy = s0.y + (s1.y - s0.y)*f, hw = (s0.w + (s1.w - s0.w)*f)/2;
+        g.beginPath(); g.moveTo(cx - hw, cy); g.lineTo(cx, cy + hw*0.32); g.lineTo(cx + hw, cy); g.strokePath();
       }
       const crown = spine[SEG];
       const XG = this.xrayGhost();
-      const fronds = [];
+      const fronds = this._palmFronds || (this._palmFronds = []);
       for(let i=0; i<P.fronds; i++){
         const baseA = PS.fa[i];
         const dirY = Math.sin(baseA)*0.45 - 0.12;
-        fronds.push({
-          dirX: Math.cos(baseA), dirY,
-          flut: Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind,
-          len: PS.fl[i]*(P.spread || 1)*K,
-          back: dirY < -0.18
-        });
+        const f2 = fronds[i] || (fronds[i] = {});
+        f2.dirX = Math.cos(baseA); f2.dirY = dirY;
+        f2.flut = Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind;
+        f2.len = PS.fl[i]*(P.spread || 1)*K;
+        f2.back = dirY < -0.18;
       }
+      const STEPS = 10, FP = this._palmFrond || (this._palmFrond = Array.from({ length: 4*STEPS + 1 }, () => ({ x: 0, y: 0 })));
+      const CP = this._palmRib || (this._palmRib = Array.from({ length: STEPS + 1 }, () => ({ x: 0, y: 0 })));
+      const LW = u => 10.5*K*Math.sin(Math.PI*Math.pow(u, 0.72));
       const drawFrond = (f2, color) => {
-        const steps = 7;
-        let px = crown.x, py = crown.y;
-        for(let sI=1; sI<=steps; sI++){
-          const u = sI/steps;
-          const nx = crown.x + f2.dirX*f2.len*u;
-          const ny = crown.y + f2.dirY*f2.len*u + (P.droop*30*u*u + f2.flut*26*u)*K;
-          const lw = (9 - 7*u)*K;
-          const tx2 = nx - px, ty2 = ny - py;
-          const tl = Math.hypot(tx2, ty2) || 1;
-          const pxn = -ty2/tl, pyn = tx2/tl;
-          /* leaf corners hoisted so the x-ray mirror below draws the
-             SAME two triangles rather than a second copy of the
-             arithmetic that could drift from it */
-          const ax = px + pxn*lw + tx2*0.3, ay = py + pyn*lw + ty2*0.3;
-          const bx = px - pxn*lw + tx2*0.3, by = py - pyn*lw + ty2*0.3;
-          g.fillStyle(color, 1);
-          g.fillTriangle(px, py, nx, ny, ax, ay);
-          g.fillTriangle(px, py, nx, ny, bx, by);
-          /* X-RAY: fronds are fillTriangle, the trunk is quadOn. Only
-             the trunk was reaching the ghost, so an occluded palm read
-             as a bare teal post with no head on it (Sir on-device). */
-          if(XG){
-            /* the ghost stops at the cover's line too (see drawProp's x-ray) */
-            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: ax, y: ay }]);
-            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: bx, y: by }]);
-          }
-          px = nx; py = ny;
+        CP[0].x = crown.x; CP[0].y = crown.y;
+        for(let sI=1; sI<=STEPS; sI++){
+          const u = sI/STEPS;
+          CP[sI].x = crown.x + f2.dirX*f2.len*u;
+          CP[sI].y = crown.y + f2.dirY*f2.len*u + (P.droop*30*u*u + f2.flut*26*u)*K;
         }
+        /* the leaf, one polygon: out along one edge -- each leaflet's tip swept toward the frond's tip, then the notch back in at the
+           next rib point -- to the tip, and home along the other. The edge on the screen's lower side is the hanging one: wider. */
+        FP[0].x = crown.x; FP[0].y = crown.y;
+        for(let sI=0; sI<STEPS; sI++){
+          const p = CP[sI], q = CP[sI + 1], tx = q.x - p.x, ty = q.y - p.y, tl = Math.hypot(tx, ty) || 1;
+          let nx = -ty/tl, ny = tx/tl; if(ny < 0){ nx = -nx; ny = -ny; }    // (n points down the screen)
+          const wm = LW((sI + 0.6)/STEPS), wq = LW((sI + 1)/STEPS)*0.45;
+          const mx = p.x + tx*0.8, my = p.y + ty*0.8;
+          const Lt = FP[1 + 2*sI], Ln = FP[2 + 2*sI];                         // the hanging side: out from the crown
+          Lt.x = mx + nx*wm*1.25; Lt.y = my + ny*wm*1.25; Ln.x = q.x + nx*wq*1.25; Ln.y = q.y + ny*wq*1.25;
+          const j = STEPS - 1 - sI, Rt = FP[2*STEPS + 1 + 2*j], Rn = FP[2*STEPS + 2 + 2*j];   // the upper side: home to the crown
+          const wp = LW(sI/STEPS)*0.45;
+          Rt.x = mx - nx*wm*0.7; Rt.y = my - ny*wm*0.7; Rn.x = p.x - nx*wp*0.7; Rn.y = p.y - ny*wp*0.7;
+        }
+        this.quadOn(g, FP, color);
+        /* X-RAY: the leaf to the ghost too, or an occluded palm reads as a bare teal post with no head on it (Sir on-device) */
+        if(XG) this.xrayGhostFill(XG, FP);
+        g.lineStyle(Math.max(1, 0.9*K), color === P.frondA ? P.rib : P.ribB, 1);
+        g.beginPath(); g.moveTo(CP[0].x, CP[0].y);
+        for(let sI=1; sI<STEPS; sI++) g.lineTo(CP[sI].x, CP[sI].y);
+        g.strokePath();
       };
-      for(const f2 of fronds) if(f2.back) drawFrond(f2, P.frondB);
+      for(let i=0; i<P.fronds; i++) if(fronds[i].back) drawFrond(fronds[i], P.frondB);
       for(let i=0; i<3; i++){
         const a3 = phase + i*2.1;
         const ccx = crown.x + Math.cos(a3)*6*K, ccy = crown.y + 4*K + Math.sin(a3)*3*K;
@@ -129121,7 +129141,7 @@ class WorldScene extends Phaser.Scene {
         g.fillCircle(ccx, ccy, 4.2*K);
         if(XG && !(this._xrayCutY != null && ccy < this._xrayCutY)){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
       }
-      for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
+      for(let i=0; i<P.fronds; i++) if(!fronds[i].back) drawFrond(fronds[i], P.frondA);
     } else if(kind === "scooter"){
       /* approved in scooter hit lab (2026-07-09): the dumped pose is
          a stylized squash (M below), not a rigid rotation — see the
@@ -129286,6 +129306,23 @@ class WorldScene extends Phaser.Scene {
             const m0 = stemBaseH + (stemTipH - stemBaseH)*0.55, aa = stemBaseA + (stemTipA - stemBaseA)*0.55;
             this.quadOn(g, convexHull(ringAt(aa, 0, m0, 2.9, VV, U, 8).concat(ringAt(aa + 0.2, 0, m0 + 4, 2.8, VV, U, 8))), 0xf4f5f2);
           } },
+        /* (a design pass, 2026-11-23) THE FORK AND THE FRONT FENDER: the stem stood on the deck with the front wheel loose ahead of it.
+           A rental's stem comes down to the front axle -- a fork leg on the wheel's near side, from the stem's foot to the hub -- with a
+           fender over the wheel as the rear has. And a white stripe down the deck's near side (the rental's livery), on that face */
+        { d: dAt(fwA, 0, wheelH) + 0.3, fn: () => {
+            const sd = GG(fwA, 3, wheelH).y > GG(fwA, -3, wheelH).y ? 3.2 : -3.2;    // (the side lower on the screen at one height is the near one)
+            this.quadOn(g, convexHullKeep(ringAt(stemBaseA + 1, sd*0.6, stemBaseH, 2.1, U, HHH, 8).concat(ringAt(fwA, sd, wheelH, 1.5, U, HHH, 8))), brand.cDk);
+            const hb = GG(fwA, sd, wheelH); g.fillStyle(S.hub, 1); g.fillCircle(hb.x, hb.y, 0.9*this.K*0.42*2.4);
+          } },
+        { d: dAt(fwA, 0, wheelH + wheelR) + 0.5, fn: () => {
+            const f0 = fwA - wheelR*0.5, f1 = fwA + wheelR*0.85, fh = wheelH + wheelR*0.92 + 0.6;
+            this.quadOn(g, convexHull([GG(f0, -2.4, fh), GG(f1, -2.4, fh - 1.2), GG(f1, 2.4, fh - 1.2), GG(f0, 2.4, fh),
+                                       GG(f1, -2.4, fh - 2.4), GG(f1, 2.4, fh - 2.4)]), brand.cDk);
+          } },
+        { d: dAt(-2, 0, 3) + 0.1, fn: () => {
+            const sb = GG(-2, 7, 3).y > GG(-2, -7, 3).y ? 7.05 : -7.05;
+            if(layAmount < 0.5 || (ssn - scs) > 0) this.quadOn(g, [GG(-17, sb, 3.6), GG(13, sb, 3.6), GG(13, sb, 2.4), GG(-17, sb, 2.4)], 0xf4f5f2);
+          } },
         { d: dAt(stemTipA + 3, 0, stemTipH - 5), fn: () => {
             const hp = GG(stemTipA + 2.8, 0, stemTipH - 6); g.fillStyle(0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 1.7*this.K*0.42*2.4);
             g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.1*this.K*0.42*2.4);
@@ -129348,7 +129385,12 @@ class WorldScene extends Phaser.Scene {
               W(bx + Math.cos(a2-0.5)*R*0.8, by + Math.sin(a2-0.5)*R*0.8, 0.9)
             ], T3.bagShade, 0.55);
           }
-          circ(kx, ky, 1.8*bagS, 5*bagS, T3.bagDeep);
+          /* (a design pass, 2026-11-23) its handles tied off: two ears standing up out of the knot (their roots under it), so the lump reads as a carrier bag */
+          /* (the knot and the two ears back to front: the one lower on the screen at the ground is the nearer -- the bag turns with W) */
+          const ear = s => { const e0 = W(kx - s*1.4*bagS, ky + s*1.4*bagS, 5*bagS), e1 = W(kx + s*3.4*bagS, ky + s*0.8*bagS, 10*bagS), e2 = W(kx + s*0.8*bagS, ky - s*0.6*bagS, 5.2*bagS);
+            poly([e0, e1, e2], s < 0 ? T3.bagHi : T3.bagC); this.edgeOn(g, [e0, e1, e2], T3.bagShade, 0.9); };
+          const knot = [[W(kx, ky, 0).y, 0], [W(kx - 0.9*bagS, ky - 0.5*bagS, 0).y, -1], [W(kx + 0.9*bagS, ky + 0.5*bagS, 0).y, 1]].sort((a2, b2) => a2[0] - b2[0]);
+          for(const [, s] of knot) if(s) ear(s); else circ(kx, ky, 1.8*bagS, 5*bagS, T3.bagDeep);
         }});
       }
 
@@ -130625,18 +130667,21 @@ class WorldScene extends Phaser.Scene {
         }
         for(const it of data.items){
           const p = W(it.x, it.y, it.z);
+          /* (a design pass, 2026-11-23) the paper and the can lie IN the world, not flat to the screen: a sheet was a screen rectangle
+             and a can an upright red bean whatever way it fell. The sheet is a quad turned by its own angle, a fold across it; the can a
+             short cylinder on its side, its body and its silver lid end toward the eye (its rolled-away end never drawn) */
+          const sz = it.size, ca = Math.cos(it.ang), sa = Math.sin(it.ang);
           if(it.kind === "paper"){
-            g.fillStyle(TRASH_ART.paper, 1);
-            g.fillRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
-            g.lineStyle(1, TRASH_ART.paperShade, 1);
-            g.strokeRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
+            const u = sz*0.45, v = sz*0.33, P0 = (du, dv, dz) => W(it.x + ca*du - sa*dv, it.y + sa*du + ca*dv, it.z + dz);
+            this.quadOn(g, [P0(-u, -v, 0), P0(u, -v, 0.6), P0(u, v, 0), P0(-u, v, 0.4)], TRASH_ART.paper);
+            this.quadOn(g, [P0(-u*0.1, -v, 0.3), P0(u, -v, 0.6), P0(u, v, 0), P0(-u*0.1, v, 0.2)], TRASH_ART.paperShade, 0.55);
           } else if(it.kind === "can"){
-            g.fillStyle(TRASH_ART.canA, 1);
-            g.fillEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
-            g.fillStyle(TRASH_ART.canHi, 1);
-            g.fillEllipse(p.x - it.size*K*0.15, p.y, it.size*K*0.2, it.size*K*0.9);
-            g.lineStyle(1, TRASH_ART.outline, 1);
-            g.strokeEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
+            const L2 = sz*0.5, r2 = sz*0.28, P0 = (du, dv, dz) => W(it.x + ca*du - sa*dv, it.y + sa*du + ca*dv, it.z + r2 + dz);
+            this.quadOn(g, [P0(-L2, -r2, 0), P0(L2, -r2, 0), P0(L2, 0, r2), P0(L2, r2, 0), P0(-L2, r2, 0), P0(-L2, 0, r2)], TRASH_ART.canA);
+            this.quadOn(g, [P0(-L2*0.2, -r2*0.7, r2*0.7), P0(L2*0.3, -r2*0.7, r2*0.7), P0(L2*0.3, 0, r2), P0(-L2*0.2, 0, r2)], TRASH_ART.canHi, 0.8);
+            const e = (W(it.x + ca*L2, it.y + sa*L2, 0).y > W(it.x - ca*L2, it.y - sa*L2, 0).y) ? L2 : -L2, ring = [];
+            for(let k = 0; k < 8; k++){ const th = k/8*Math.PI*2; ring.push(P0(e, Math.cos(th)*r2, Math.sin(th)*r2)); }
+            this.quadOn(g, ring, TRASH_ART.canB); this.edgeOn(g, ring, TRASH_ART.outline, 0.8);
           } else {
             const col = TRASH_ART.wrap[Math.floor(it.ang) % TRASH_ART.wrap.length];
             const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
