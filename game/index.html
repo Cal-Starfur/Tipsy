@@ -62051,14 +62051,21 @@ function houseCanopy(fn){
     /* (a point on the scooter, given in the old model's terms (prod: x along it, front west, h up) and put where the game's own scooter has
        it -- its wheels at +-26, deck at 12 over the jig's top (36), the post up to the bars 18 ahead of its middle at about 77) */
     const SK = (a0, b0, x, y, h) => { const up = h > 20, hz = h <= 16 ? h*0.78 : 12 + (h - 16)*1.3; return [a0 + (up && x < -20 ? -18 : x), b0 + y*1.45, 36 + hz]; };
-    const hP = (at, f, T1, T2, crouch, waist) => { const LH = HUMANOID_BUILD.legH, drop = LH*crouch, Ls = 42, hp = LH - drop, fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
-      const shz = hp + Ls*Math.cos(waist), shf = Ls*Math.sin(waist), arm = T => { const fwd = Math.max(2, (T[0] - at[0])*fv[0] + (T[1] - at[1])*fv[1] - shf), dz = T[2] - shz, th = Math.atan2(fwd, -dz), d = Math.hypot(fwd, dz);
-        return [Math.max(0, (th - waist)/(Math.PI/2)), Math.max(0, Math.min(0.95, (40 - d)/40*1.7))]; };
+    /* A WORKER'S POSE FOR HIS HANDS' TARGETS (Sir, 2026-11-23: "the joints and their movements need to look better"): each arm reaches its
+       target as two links -- the shoulder where his lean and crouch put it, the upper arm and forearm the humanoid's own (armLen 0.48 / 0.52),
+       the elbow below -- as the drawer's own reach does; crouched on both knees (crouch), or down on one knee (kneel: the near leg forward,
+       its shin upright, the far knee on the floor) */
+    const hP = (at, f, T1, T2, crouch, waist, kneel) => { const B = HUMANOID_BUILD, LH = B.legH, kn = kneel || 0, drop = kn ? LH*0.5*kn : LH*crouch, Ls = B.torsoH - 1, hp = LH - drop, fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
+      const L1 = B.armLen*0.48, L2 = B.armLen*0.52, shz = hp + Ls*Math.cos(waist), shf = Ls*Math.sin(waist), c1 = v => Math.max(-1, Math.min(1, v));
+      const arm = T => { const fwd = (T[0] - at[0])*fv[0] + (T[1] - at[1])*fv[1] - shf, dz = T[2] - shz, d = Math.min(Math.max(Math.hypot(fwd, dz), Math.abs(L1 - L2) + 0.5), L1 + L2 - 0.5);
+        const thT = Math.atan2(fwd, -dz), al = Math.acos(c1((L1*L1 + d*d - L2*L2)/(2*L1*d))), be = Math.acos(c1((L2*L2 + d*d - L1*L1)/(2*L2*d)));
+        return [Math.max(-0.2, (thT - al - waist)/(Math.PI/2)), Math.min(2.6, al + be)]; };
       const A1 = arm(T1), A2 = arm(T2), ca = Math.acos(Math.max(-1, Math.min(1, 1 - crouch)));
-      return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs: crouch > 0 ? { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] } : undefined }; };
+      const legs = kn ? { [-1]: [0.05*kn, 1.55*kn], [1]: [1.45*kn, 1.5*kn] } : crouch > 0 ? { [-1]: [ca, 2*ca], [1]: [ca, 2*ca] } : undefined;
+      return { lift: [A1[0], A2[0]], bend: [A1[1], A2[1]], waist, drop, legs }; };
     const faceTo = (A, B) => Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2);
     const JOBAT = (p, a, b, u, t) => { const S = (k, ph) => Math.sin(t/k + (ph || 0)), N = p >= 5 ? 48 : -50;   /* (row B's from the south side now) */
-      const job = (at, look, T1, T2, crouch, waist) => Object.assign({ at, f: faceTo(at, look), hT: T1 }, hP(at, faceTo(at, look), T1, T2, crouch, waist));
+      const job = (at, look, T1, T2, crouch, waist, kneel) => Object.assign({ at, f: faceTo(at, look), hT: T1 }, hP(at, faceTo(at, look), T1, T2, crouch, waist, kneel));
       const add = (P, da, db, dz) => [P[0] + da, P[1] + db, P[2] + dz];
       switch(p){
         case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 62], T, add(T, -14 + 3*S(300), 0, 0), add(T, 14 - 3*S(300), 0, 0), 0.1, 0.4); }   /* (the deck squared on the jig, pressed home with both hands) */
@@ -62066,7 +62073,7 @@ function houseCanopy(fn){
              on one knee with the wheel from his bin, offered onto the axle and pushed home, the nut run on by hand, then done up with his wrench,
              the wheel given a spin to see it runs true, and up again */
           const W = SK(a, b, 26, -5, 8), at = [W[0] + 4, b + N - Math.sign(N)*4], E = (u0, u1) => ease(clamp01((u - u0)/(u1 - u0))), f = faceTo(at, W), fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
-          const cr = 0.38*E(700, 1300)*(1 - E(4900, 5500)), axle = add(W, 0, -2, 8), held = [at[0] + fv[0]*24, at[1] + fv[1]*24, 58];
+          const kn = E(700, 1300)*(1 - E(4900, 5500)), axle = add(W, 0, -2, 8), held = [at[0] + fv[0]*24, at[1] + fv[1]*24, 58];
           const lerp3 = (A, B, k) => [A[0] + (B[0] - A[0])*k, A[1] + (B[1] - A[1])*k, A[2] + (B[2] - A[2])*k];
           let T1, T2, tool = null;
           if(u < 1300){ T1 = lerp3(held, axle, E(700, 1300)); T2 = add(T1, 0, 3, -7); }   /* (the wheel brought down to the axle in both hands) */
@@ -62075,7 +62082,7 @@ function houseCanopy(fn){
           else if(u < 4300){ const ang = 0.9*Math.sin(t/160); T1 = add(W, 0, -3, 8); T2 = add(W, 0, -8, 0); tool = [T2[0], T2[1], T2[2], ang]; }   /* (done up with his wrench, a quarter turn at a time) */
           else if(u < 4900){ const k = (u - 4300)/600; T1 = add(W, 0, -2, 0); T2 = add(W, 7 - 14*ease(k % 1), -4, 7); }   /* (a spin of the wheel to see it runs true) */
           else { T1 = add(W, -4, -6, 18 + 20*E(4900, 5500)); T2 = add(W, 4, -6, 18 + 20*E(4900, 5500)); }   /* (up again, done) */
-          return Object.assign(job(at, W, T1, T2, cr, 0.45*(cr/0.38) + 0.15), { tool }); }
+          return Object.assign(job(at, W, T1, T2, 0, 0.12 + 0.38*kn, kn), { tool }); }
         case 2: { const T = SK(a, b, -26, -5, 8), at = [T[0] - 2, b + N - Math.sign(N)*4], k = S(380);   /* (the front wheel on the fork: crouched, spinning it hand over hand to see it runs true) */
           return job(at, T, add(T, 6*k, -2, 9*Math.cos(t/380)), add(T, -6*k, -2, -9*Math.cos(t/380)), 0.38, 0.45); }
         case 3: { const sw = 22*S(650), T = SK(a, b, sw/1.45, 0, 16.4), at = [a + sw*0.4, b + N];   /* (the grip tape: bent over the deck, smoothing it down in long strokes, both hands) */
