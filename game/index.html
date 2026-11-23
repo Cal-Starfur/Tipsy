@@ -64873,12 +64873,18 @@ function houseCanopy(fn){
         });
         /* THE DINING ROOM: a walnut table for six, a vase down its middle */
         rug(5060, 5600, 2020, 2400, '#cfc3ae', '#a99b84');
-        fit(5170, 5490, 2150, 2270, 66, 0, z => {
-          legs(5180, 5480, 2158, 2262, z, 56, walD);                             // (a table one sits at, 66 -- docs/kits/library.md; Sir, 2026-11-23)
-          box(5170, 5490, 2150, 2270, z + 56, z + 66, wal, walD, walS);
+        /* the table one sits at (66 -- docs/kits/library.md), IN RUNS (runPiece, the long-fixture rule -- Sir, 2026-11-23, "we also have that
+           sort issue here too"): keyed at its middle, 320 long, the chairs at its near west end sorted before it and the ones at its far
+           east end after it; each run of 50 keyed at its own stretch sorts against the chairs beside it. What stands on it is its own
+           piece, keyed in front of it */
+        runPiece(items, 5170, 5490, 2150, 2270, 66, (s0, s1) => [wallSolid(s0, s1, 2150, 2270, 66, 'fixture', 0)], () => {
+          legs(5180, 5480, 2158, 2262, 0, 56, walD);
+          box(5170, 5490, 2150, 2270, 56, 66, wal, walD, walS);
+        }, { extra: { lvl: 0 } });
+        fit(5280, 5450, 2185, 2235, 106, 0, z => {
           vase(5300, 2210, z + 66, 12, 36, '#d9cbb3'); vase(5360, 2205, z + 66, 9, 26, olive);
           cyl(5420, 2212, z + 66, z + 70, 22, '#efe6d6', '#f6f0e6');
-        });
+        }, { a: 5491, b: 2272 });   // (after the table's last run, at its east end: it sits on all of them)
         const dchair = (ca, cb, dir) => fit(ca - 22, ca + 22, cb - 22, cb + 22, 74, 0, z => {   // dir: which side its back is (0 n, 1 s, 2 w, 3 e)
           legs(ca - 20, ca + 20, cb - 20, cb + 20, z, 32, walD);                 // (its seat at 38)
           box(ca - 22, ca + 22, cb - 22, cb + 22, z + 32, z + 38, oat, oatD, oatS);
