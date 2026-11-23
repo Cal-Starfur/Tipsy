@@ -82670,9 +82670,9 @@ marinaEntry(),
       T(r.a0 + 80, r.a0 + 350, 190, 330, 0.5, '#2f7f86'); T(r.a0 + 90, r.a0 + 340, 198, 322, 0.55, '#4c9ca3');      // the story rug
       for(let k = 0; k < 6; k++) T(r.a0 + 110 + k*35, r.a0 + 122 + k*35, 210, 222, 0.6, [yel, red, '#f4f0e6'][k % 3]);
       { const a0 = r.a0 + 440, a1 = r.a0 + 640, b0 = 220, b1 = 270;                                                  // the reading table and its chairs
-        furn(a0, a1, b0, b1, 46, 'reading table', () => { for(const [ea, eb] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, woodD, woodD, woodD);
+        runPiece(items, a0, a1, b0, b1, 46.1, (s0, s1) => [solid(s0, s1, b0, b1, 46, 'reading table')], () => { for(const [ea, eb] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, woodD, woodD, woodD);
           box(a0, a1, b0, b1, 38, 44, woodL, wood, woodD); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, 44.1, '#e0bf8a');
-          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } });
+          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } }, { run: 50 });   // (in runs: 200 long keyed at its middle, it sorted after the chair at its west end)
         for(const x of [a0 + 36, a0 + 100, a0 + 164]){ chair(x, b1 + 24, [blue, teal, '#e8b54a'][(x/10 | 0) % 3]); } }
       /* the librarian's desk by the door (the check-out), a book cart, bean bags in the corner, a globe on a stand */
       { const a0 = r.a0 + 560, a1 = r.a0 + 700, b0 = 340, b1 = 376;
@@ -82710,7 +82710,7 @@ marinaEntry(),
         const a0 = k.a0 + 6, a1 = k.a0 + 200; box(a0, a1, 0, 42, 0, 50, steelL, steel, steelD); for(const [bx] of [[a0 + 20], [a0 + 70], [a0 + 120], [a0 + 168]]) { cyl(bx + 8, 21, 50, 52, 10, '#2b3138', '#454d54'); }
         for(const bx of [a0 + 18, a0 + 66, a0 + 114]) { cyl(bx + 8, 21, 52, 60, 9, '#3a4046', '#5a626a'); }
         box(a0, a1, 4, 38, 130, 168, steel, steelL, steelD); for(let k2 = 0; k2 < 3; k2++) F(a0 + 14 + k2*60, a0 + 38 + k2*60, 134, 160, '#8a9397', null, 0, 38.2);
-        cyl(a0 + 98, 21, 168, 232, 10, steelD, steelL); });
+        cyl(a0 + 98, 21, 168, 232, 10, steelD, steelL); }, { a: k.a0 + 103 });   // (keyed at the middle of what it draws, a0..a0 + 200: at its solid's middle it sorted after the prep table in front of it)
       furn(k.a1 - 70, k.a1 - 10, 0, 46, 190, 'fridge', () => { const a0 = k.a1 - 70, a1 = k.a1 - 10; box(a0, a1, 0, 46, 0, 150, '#e9eef0', '#cfd6d9', '#a9b1b5'); F(a0 + 2, a1 - 2, 100, 102, '#aab3b8', null, 0, 46.2); S(a0 + 2, 70, 80, 60, 90, '#8f9a9f'); });
       for(const [s0, s1] of runs(70, 340, 60)) furn(k.a0 + 140, k.a0 + 190, s0, s1, 60, 'prep table', () => { const a0 = k.a0 + 140, a1 = k.a0 + 190; box(a0, a1, s0, s1, 0, 42, steelL, steel, steelD); T(a0 - 1, a1 + 1, s0, s1, 44, '#e9eef0');
         if(s0 < 190 && s1 > 190){ cyl(a0 + 25, 190, 44, 52, 14, '#d4d8da', '#eef1f2'); cyl(a0 + 25, 190, 52, 54, 12, '#7a8a90'); } });
@@ -82721,7 +82721,7 @@ marinaEntry(),
     { const r = R.office;
       /* the front counter across the middle (a gate in it, east end), the secretary's desk behind it, filing, the copier */
       for(const [s0, s1, first, last] of runs(r.a0 + 20, r.a1 - 140, 60)) furn(s0, s1, 252, 280, 90, 'counter', () => {
-        box(s0, s1, 252, 280, 0, 46, '#2f7f86', '#2a7077', '#24626a'); box(s0 - 1, s1 + 1, 250, 282, 46, 52, '#ece6d8', '#ddd5c4', '#cfc6b2'); F(s0, s1, 6, 40, tealL, null, 0, 280.2);
+        box(s0, s1, 252, 280, 0, 46, '#2f7f86', '#2a7077', '#24626a'); box(first ? s0 - 1 : s0, last ? s1 + 1 : s1, 250, 282, 46, 52, '#ece6d8', '#ddd5c4', '#cfc6b2'); F(s0, s1, 6, 40, tealL, null, 0, 280.2);   // (its top's overhang only at the ends: run into the next run's stretch, it was under that run's base, painted after it)
         if(first){ box(s0 + 12, s0 + 40, 258, 266, 52, 80, '#30353b', '#262a2f', '#1f2226'); } });
       furn(r.a0 + 60, r.a0 + 170, 150, 190, 54, 'desk', () => { const a0 = r.a0 + 60, a1 = r.a0 + 170; for(const [ea, eb] of [[a0 + 4, 154], [a1 - 4, 154], [a0 + 4, 186], [a1 - 4, 186]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 42, woodD, woodD, woodD);
         box(a0, a1, 150, 190, 42, 48, woodL, wood, woodD); box(a0 + 40, a0 + 66, 158, 164, 48, 74, '#30353b', '#262a2f', '#1f2226');
@@ -82798,11 +82798,13 @@ marinaEntry(),
       for(const x of [1500, 2300, 3330, 3670, 4300, 5000, 6500]){ partB(x - 7, x + 7, FB, D);
         items.push({ a: x, b: FB, z: 0, draw: () => box(x - 8, x + 8, FB - 2, FB + 10, 0, LH + 3, tealL, tealD, tealD) }); }
       /* a whiteboard on its stand (the working face to the room: south), the foot's two legs */
-      const stand = (a, b, w) => furn(a - w/2, a + w/2, b - 6, b + 6, 190, 'board', () => {
+      /* (in runs, each keyed at its own stretch (Sir, 2026-11-23, "fix them all"): 260 long keyed at its middle, the door frame behind its
+         east end and the lab's printer sorted after it and painted over the board) */
+      const stand = (a, b, w) => runPiece(items, a - w/2, a + w/2, b - 6, b + 6, 196, (s0, s1) => [solid(s0, s1, b - 6, b + 6, 190, 'board')], () => {
         for(const ea of [a - w/2 + 14, a + w/2 - 14]) box(ea - 2, ea + 2, b - 5, b + 5, 0, 96, steel, steelD, steelD);
         box(a - w/2, a + w/2, b - 3, b + 3, 96, 196, '#9aa6ab', '#8a9397', '#6f787c'); F(a - w/2 + 4, a + w/2 - 4, 100, 192, '#fbfbf8', null, 0, b + 3.2);
         for(const [q, col] of [[-0.3, '#2f6fb0'], [0.05, red], [0.32, green]]) F(a + q*w, a + q*w + 40, 150 + (q*50 | 0), 153 + (q*50 | 0), col, null, 0, b + 3.4);
-        F(a - w/2 + 4, a + w/2 - 4, 100, 104, '#c4cacc', null, 0, b + 3.5); });
+        F(a - w/2 + 4, a + w/2 - 4, 100, 104, '#c4cacc', null, 0, b + 3.5); }, { run: 50 });
       /* ---------- THE TWO FRONT CLASSROOMS ---------- */
       for(const r of [R2.classC, R2.classD]){
         const c = (r.a0 + r.a1)/2;
@@ -82819,10 +82821,14 @@ marinaEntry(),
       }
       /* ---------- THE AUDITORIUM ---------- */
       { const r = R2.audi;
-        for(const [s0, s1, first, last] of runs(60, 1440, 90)) furn(s0, s1, 560, 700, 40, 'stage', () => {
-          box(s0, s1, 560, 700, 0, 34, '#b88a58', '#8a6a46', '#6f5334'); T(s0, s1, 560, 700, 34, '#c99a64'); for(let b = 570; b < 700; b += 20) T(s0, s1, b, b + 0.8, 34.1, '#a87f4c');
-          F(s0, s1, 4, 12, '#6f5334', null, 0, 700.2); }, { solids: [solid(s0, s1, 560, 700, 34, 'stage', true)] });
-        for(const [s0, s1] of runs(60, 1440, 60)) items.push({ a: (s0 + s1)/2, b: 565, z: 0, draw: () => { box(s0, s1, 561, 567, 34, 214, '#9a2f3c', '#7f2430', '#6a1e29');
+        /* (the stage's runs meet the curtain face to face (Sir, 2026-11-23, "fix them all"): its strip under the curtain, 560..567, is drawn
+           in the curtain's piece, before it, and the runs start at its front -- they ran under it and, keyed after it, painted their top over
+           its foot. A run under the podium, 718..782, keyed before the podium on it: the run across it painted over its base) */
+        for(const [s0, s1] of [...runs(60, 718, 90), [718, 782], ...runs(782, 1440, 90)]) furn(s0, s1, 560, 700, 40, 'stage', () => {
+          box(s0, s1, 567, 700, 0, 34, '#b88a58', '#8a6a46', '#6f5334'); T(s0, s1, 567, 700, 34, '#c99a64'); for(let b = 570; b < 700; b += 20) T(s0, s1, b, b + 0.8, 34.1, '#a87f4c');
+          F(s0, s1, 4, 12, '#6f5334', null, 0, 700.2); }, Object.assign({ b: 658, solids: [solid(s0, s1, 560, 700, 34, 'stage', true)] }, s0 === 718 ? { b: 628 } : null));
+        for(const [s0, s1, , last] of runs(60, 1440, 60)) items.push({ a: (s0 + s1)/2, b: 565, z: 0, draw: () => { T(s0, s1, 560, 567, 34, '#c99a64'); if(last) S(s1, 560, 567, 0, 34, '#6f5334');
+          box(s0, s1, 561, 567, 34, 214, '#9a2f3c', '#7f2430', '#6a1e29');
           for(let a = Math.ceil(s0/24)*24; a < s1; a += 24) F(a, a + 12, 34, 214, '#b23f4c', null, 0, 567.3); } });
         blockWordIn('TIDE POOL ELEMENTARY', 520, 980, 190, 206, 568, '#e8b54a', null, 9);
         furn(720, 780, 604, 640, 100, 'podium', () => { box(722, 778, 606, 638, 34, 90, woodL, wood, woodD); box(718, 782, 604, 640, 90, 96, wood, woodD, woodD); F(730, 770, 44, 84, tealD, null, 0, 638.2); });
@@ -82857,10 +82863,12 @@ marinaEntry(),
         for(const [s0, s1] of runs(r.a0 + 40, r.a0 + 160, 60)) furn(s0, s1, 580, 610, 70, 'cases', () => box(s0, s1, 580, 610, 0, 60, '#4a3a2a', '#5a4634', '#3a2c20')); }
       /* ---------- THE ENTRANCE HALL'S SPINE: the touch tank, benches, plants, the school map ---------- */
       { const r = R2.spine;
-        furn(3600, 3656, 620, 920, 80, 'tide pool tank', () => { for(const [s0, s1] of [[620, 920]]){ box(3600, 3656, s0, s1, 0, 40, '#8a6a46', '#7a5a38', '#654a2e'); box(3598, 3658, s0 - 2, s1 + 2, 40, 46, wood, woodD, woodD);
+        /* (in runs along b, each keyed at its own stretch, Sir 2026-11-23 "fix them all": 300 long keyed at its 70% mark, it sorted after
+           classroom D's bookcase across the wall from its north end and painted over it) */
+        runPiece(items, 3600, 3656, 620, 920, 48, (s0, s1) => [solid(3600, 3656, s0, s1, 80, 'tide pool tank')], () => { for(const [s0, s1] of [[620, 920]]){ box(3600, 3656, s0, s1, 0, 40, '#8a6a46', '#7a5a38', '#654a2e'); box(3598, 3658, s0 - 2, s1 + 2, 40, 46, wood, woodD, woodD);
             T(3604, 3652, s0 + 6, s1 - 6, 44, '#7ac0d0'); T(3608, 3648, s0 + 10, s1 - 10, 44.2, 'rgba(160,220,230,.6)');
             for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
-            for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } });
+            for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } }, { alongB: true });
         // (the spine's benches are gone, Sir 2026-11-08: "these benches in the schools entry can be removed")
         for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
           for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
