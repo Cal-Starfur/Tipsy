@@ -31215,7 +31215,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      P.pedal = { ph: now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; return; }   //  the feet round the cranks: the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
+      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
