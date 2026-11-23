@@ -7109,7 +7109,7 @@ const ADA_PAD = { pad: 0xf4c430, edge: 0xb9911f, dome: 0xd9a21f, cap: 0xffdc6e }
    walk, its lit lip (lip: how far outside the joint), and the valley crease down each side of the run */
 const RAMP_ART = { flare: 0xcbc6b8, flareK: 0.24, padK: 0.14, grooves: 4, groove: 0x9d978a, grooveA: 0.42, shade: 0x4a443a,
                    joint: 0x8a8477, lit: 0xe6e1d4, lip: 2.5, crease: 0x9b7a1a };
-const KERB_STONE = { h: 8, w: 22, top: 0xf4f1e8, face: 0xe2ded0, dk: 0x6e6a5e };
+const KERB_STONE = { h: 8, w: 22, top: 0xdcd7cb, face: 0xcbc6b9, dk: 0x6e6a5e };   // (toned down from near-white 0xf4f1e8 / 0xe2ded0 -- Sir, 2026-11-23: "lets take the white down some its very bright")
 const GUT_JOINT = 0x878174;    // ... and between two bays of the gutter channel
 const KERB_JOINT = 0xc4bfb0;   // the joint between two kerb stones (kerbRun: LAID IN STONES)
 /* THE SIDEWALK ITSELF (sidewalk pass, 2026-11-23, Sir: "what about the sidewalk itself?"). The walk read as a flat two-tone
@@ -7132,7 +7132,7 @@ const PAVE_ART = {
   patch: 0xd6d5d0, stainK: 0.86,
   iron: 0x6e7174, ironDk: 0x45484c, ironLit: 0x9c9e9f, slot: 0x2a2c2e, boxLid: 0x8e8b84
 };
-const KERB_ARRIS = 0xffffff;   // the lit roll where a kerb's top meets its road face
+const KERB_ARRIS = 0xece8de;   // the lit roll where a kerb's top meets its road face (was pure white: with the top toned down, a soft highlight)
 const GUT_GRIME = 0x7c766a;    // the gutter's dirty strip along the kerb's foot
 const GUT_LIP = 0x34363b;      // the joint where the gutter's concrete meets the asphalt
 const GULLY_MOUTH = 0x24221e;  // a corner gully's kerb inlet
