@@ -49121,6 +49121,10 @@ function soapKartS(a, b, z, col, dk, no, part, o){
   const TRACK = SOAP_TRACK, opt = o || {};
   const bx = (u0, u1, v0, v1, z0, z1, c0, c1, c2) => box(a + v0, a + v1, b - u1, b - u0, z + z0, z + z1, c0, c1, c2);
   const back = part !== 'front', front = part !== 'back', wheels = opt.wheels !== false;
+  /* the tub's walls and tail, z 13..30: ONE PIECE round its two corners (the corner rule) -- far wall (4 thick), the tail (12),
+     the near wall -- legs: its far wall and tail before the driver, its near wall after him; the seat back stands on the tail */
+  const tub = legs => pathRun([[a - 22, b - 40], [a - 22, b + 56], [a + 22, b + 56], [a + 22, b - 40]], [2, 6, 2], z + 13, z + 30,
+                              col, shade(dk, .9), shade(dk, .85), legs);
   if(opt.bare){ col = '#d9b98a'; dk = '#b8955f'; }                                                 // (plywood, before its paint)
   const wheel = (wu, wv) => { const sv = Math.sign(wv), bent = !!opt.bent && wu > 0 && sv > 0;
     if(!wheels){ tube(a + 24*sv, b - wu, z + 11, a + 30*sv, b - wu, z + 11, 1.6, '#3a3e44'); return; }   // (a stub of axle: its wheel to come)
@@ -49129,14 +49133,14 @@ function soapKartS(a, b, z, col, dk, no, part, o){
   if(back){
     wheel(-48, -1); wheel(46, -1);
     bx(-62, 40, -24, 24, 10, 13, dk, dk, shade(dk, .85));                                   // the floor
-    bx(-62, 40, -24, -20, 13, 30, col, dk, shade(dk, .85));                                 // far wall
+    tub([0, 1]);                                                                            // far wall and tail, round their corner
     bx(-50, 18, -20, 20, 13, 13.4, '#3a3430', '#3a3430', '#3a3430');                        // the cockpit's floor, dark (before the seat back in front of it: W37 behind)
-    bx(-62, -50, -20, 20, 13, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // tail and seat back
+    bx(-62, -50, -20, 20, 30, 52, shade(col, .9), shade(dk, .9), shade(dk, .75));          // the seat back, up off the tail
     if(opt.stripe) bx(-62, -50, -5, 5, 52, 52.4, opt.stripe, opt.stripe, opt.stripe);     // the stripe over the seat back
   }
   if(front){
     bx(18, 40, -20, 20, 13, 30, col, dk, shade(dk, .85));                                   // the deck over his legs
-    bx(-62, 40, 20, 24, 13, 30, col, dk, shade(dk, .85));                                   // near wall
+    tub([2]);                                                                               // near wall, from the tail's corner
     poly([P(a-24,b-40,z+30),P(a-12,b-70,z+20),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], shade(col, 1.08));
     poly([P(a+24,b-40,z+10),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a+24,b-40,z+30)], dk);
     poly([P(a-12,b-70,z+12),P(a+12,b-70,z+12),P(a+12,b-70,z+20),P(a-12,b-70,z+20)], shade(dk, .8));
@@ -49840,29 +49844,38 @@ function rearBody(wall, trim, H, wid, dep, roof){
 }
 /* the front parapet seen from the roof side: its inner face is b = -t */
 function rearParapet(a0, a1, H, h, t, col){ slab(a0, a1, H, H+h, -t, -1, col); }
-/* a plain service door with its frame, push bar and a concrete step */
-function rearDoor(aMid, wall, col, d, h){
+/* a plain service door with its frame, push bar and a concrete step.
+   part (W37: what is flat on the wall before what stands out of it, when a window's sill or a shutter's hood laps the door):
+   'face' the frame, leaf and bar alone, 'step' the step alone; unset both */
+function rearDoor(aMid, wall, col, d, h, part){
   const dd = d===undefined ? D : d, hh = h || 150, hw = 32, b = -dd - 0.6;
-  F(aMid-hw-6, aMid+hw+6, 0, hh+6, shade(wall,.64), null,0,b);
-  F(aMid-hw, aMid+hw, 0, hh, col, shade(col,.62), 1.5, b-0.4);
-  F(aMid-hw+8, aMid+hw-8, hh*0.52, hh*0.56, shade(col,.72), null,0,b-0.8);
-  box(aMid-hw-10, aMid+hw+10, -dd-22, -dd, 0, 8, shade(wall,.86), shade(wall,.72), shade(wall,.62));
+  if(part !== 'step'){
+    F(aMid-hw-6, aMid+hw+6, 0, hh+6, shade(wall,.64), null,0,b);
+    F(aMid-hw, aMid+hw, 0, hh, col, shade(col,.62), 1.5, b-0.4);
+    F(aMid-hw+8, aMid+hw-8, hh*0.52, hh*0.56, shade(col,.72), null,0,b-0.8);
+  }
+  if(part !== 'face') box(aMid-hw-10, aMid+hw+10, -dd-22, -dd, 0, 8, shade(wall,.86), shade(wall,.72), shade(wall,.62));
 }
-/* a back window: frame, dark glass with a sky band at the head, a sill */
-function rearWindow(a0, a1, z0, z1, wall, d){
+/* a back window: frame, dark glass with a sky band at the head, a sill. part: 'face' the frame and glass alone, 'sill' the
+   sill alone (as rearDoor's) */
+function rearWindow(a0, a1, z0, z1, wall, d, part){
   const dd = d===undefined ? D : d, b = -dd - 0.6;
-  F(a0-5, a1+5, z0-5, z1+5, shade(wall,.7), null,0,b);
-  F(a0, a1, z0, z1, '#3a4850', null,0,b-0.4);
-  F(a0, a1, z1-(z1-z0)*0.42, z1, 'rgba(170,200,215,.35)', null,0,b-0.6);
-  slab(a0-8, a1+8, z0-10, z0-5, -dd-8, -dd, shade(wall,.82));
+  if(part !== 'sill'){
+    F(a0-5, a1+5, z0-5, z1+5, shade(wall,.7), null,0,b);
+    F(a0, a1, z0, z1, '#3a4850', null,0,b-0.4);
+    F(a0, a1, z1-(z1-z0)*0.42, z1, 'rgba(170,200,215,.35)', null,0,b-0.6);
+  }
+  if(part !== 'face') slab(a0-8, a1+8, z0-10, z0-5, -dd-8, -dd, shade(wall,.82));
 }
-/* a roller shutter: frame, slats, a bottom rail */
-function rearShutter(a0, a1, z1, wall, d){
+/* a roller shutter: frame, slats, a bottom rail. part: 'face' the frame and slats alone, 'hood' its box alone (as rearDoor's) */
+function rearShutter(a0, a1, z1, wall, d, part){
   const dd = d===undefined ? D : d, b = -dd - 0.6;
-  F(a0-8, a1+8, 0, z1+10, shade(wall,.64), null,0,b);
-  F(a0, a1, 0, z1, '#a2a8ad', null,0,b-0.4);
-  for(let z=12; z<z1; z+=12) F(a0, a1, z-1.5, z, '#7f868c', null,0,b-0.8);
-  slab(a0-10, a1+10, z1+10, z1+22, -dd-14, -dd, '#8f969d');
+  if(part !== 'hood'){
+    F(a0-8, a1+8, 0, z1+10, shade(wall,.64), null,0,b);
+    F(a0, a1, 0, z1, '#a2a8ad', null,0,b-0.4);
+    for(let z=12; z<z1; z+=12) F(a0, a1, z-1.5, z, '#7f868c', null,0,b-0.8);
+  }
+  if(part !== 'face') slab(a0-10, a1+10, z1+10, z1+22, -dd-14, -dd, '#8f969d');
 }
 function downpipe(a, H, col, d){
   const b = -(d===undefined ? D : d) - 1.2;
@@ -50256,15 +50269,20 @@ function flatsDrawChemist(p, c){
 /* the chemist's rear, shared by both liveries exactly as its front is */
 function flatsChemistBack(p, c){
     const wall = '#f0f2f0', trim = c.trim, H = 172;
-    /* the raised name panel stands at the front, above the roof: far side */
-    slab(W*0.30,W*0.70, H+8, H+30, -12, -2, wall, null, shade(wall,1.1));
     rearBody(wall, trim, H, W, D, '#b3bcb8');
     slab(0, W, H, H+8, -12, -1, trim);
+    /* the raised name panel stands at the front, on the parapet: the parapet first (W37 foot) */
+    slab(W*0.30,W*0.70, H+8, H+30, -12, -2, wall, null, shade(wall,1.1));
     rearWindow(30, 66, 84, 120, wall);
     F(34, 62, 88, 106, 'rgba(230,235,240,.45)', null,0,-D-1.2);   // frosted: the dispensary
-    rearDoor(160, wall, trim);
+    rearDoor(160, wall, trim, undefined, undefined, 'face');
     extractor(106, 132, 10);
-    depthSort([ { a: 110, b: -D-32, z: 0, draw: () => wheelieBin(110, trim) } ]);
+    /* the door's step meets the bin's faces rather than running into it (W37 inside): two pieces round the bin's corner, sorted
+       with the bin -- the bin stands in front of the one behind it and behind the end of the other */
+    const s0 = shade(wall,.86), s1 = shade(wall,.72), s2 = shade(wall,.62);
+    depthSort([ { a: 122, b: -D-7, z: 0, draw: () => box(118, 127, -D-14, -D, 0, 8, s0, s1, s2) },
+                { a: 110, b: -D-32, z: 0, draw: () => wheelieBin(110, trim) },
+                { a: 164, b: -D-11, z: 0, draw: () => box(127, 202, -D-22, -D, 0, 8, s0, s1, s2) } ]);
     if(state.roof){
       box(W*0.12,W*0.36,-120,-70,H,H+30,'#c3c8cc','#a8aeb3','#95999e');
       box(W*0.62,W*0.84,-160,-120,H,H+18,'#9aa0a6','#7d838a','#6a7076');
@@ -50828,13 +50846,9 @@ function houseArch(aMid, bf, h, r, rise, col, d){
 /* a flat roof inside a parapet: plate, then the ring far-to-near */
 function houseParapetRoof(a0, a1, bf, bb, H, h, t, wall){
   T(a0, a1, bb, bf, H, shade(wall,.8));
-  const nearF = !state.back;                                   // near b face: front view bf, back view bb
-  const ringB = (b0, b1) => box(a0, a1, b0, b1, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
-  const sideA = a => box(a-t/2, a+t/2, bb+t, bf-t, H, H+h, shade(wall,1.04), wall, shade(wall,.8));   // (between the two rings, meeting them: W37)
-  if(nearF) ringB(bb, bb+t); else ringB(bf-t, bf);
-  sideA(FLANK_RIGHT ? a0 + t/2 : a1 - t/2);
-  sideA(FLANK_RIGHT ? a1 - t/2 : a0 + t/2);
-  if(nearF) ringB(bf-t, bf); else ringB(bb, bb+t);
+  /* the ring round it is ONE PIECE round its corners (the corner rule): mitred along its centre line, t thick, the far half
+     first whichever way it is seen -- the same faces and colours the four boxes it was had */
+  rectRingRun(a0 + t/2, a1 - t/2, bf - t/2, bb + t/2, a0, a1, bf, bb, true, true, true, true, t/2, H, H+h, shade(wall,1.04), wall, shade(wall,.8));
 }
 
 /* brick courses on a face plane */
@@ -71900,12 +71914,15 @@ function houseCanopy(fn){
     const wall = '#eee9dc', trim = '#1f4a6b', H = 186;
     slab(0, W, H, H+10, -12, -1, trim);                 // the front parapet, from the roof side
     rearBody(wall, trim, H, W, D, '#a6aca9');
-    rearShutter(20, 140, 132, wall);                           // the sorting-office bay
-    rearDoor(186, wall, trim);
-    /* a mail trolley by the bay */
-    box(150, 186, -D-60, -D-20, 10, 60, '#c2452e', '#a53a26', '#8a3020');
+    /* (what is flat on the wall first, what stands out of it after: the shutter's hood laps the door's frame -- W37 back) */
+    rearShutter(20, 140, 132, wall, undefined, 'face');        // the sorting-office bay
+    rearDoor(186, wall, trim, undefined, undefined, 'face');
+    rearShutter(20, 140, 132, wall, undefined, 'hood');
+    rearDoor(186, wall, trim, undefined, undefined, 'step');
+    /* a mail trolley by the bay: sorted with the crate beside it (W37 behind) */
     depthSort([
-      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 1, D, 20) }
+      { a: 110, b: -D-33, z: 0, draw: () => crateStack(110, '#b89468', 1, D, 20) },
+      { a: 168, b: -D-40, z: 0, draw: () => box(150, 186, -D-60, -D-20, 10, 60, '#c2452e', '#a53a26', '#8a3020') }
     ]);
     if(state.roof) box(W*0.14,W*0.36,-160,-120,H,H+22,'#9aa0a6','#7d838a','#6a7076');
   }
@@ -87114,6 +87131,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   yard(c){
     T(305, 375, -94, 0, 0.6, '#c9c1b0');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(286, 394, -140, -94, 3, '#d8d2c4');
   },
   brackets(a0, a1, b, z, c){ for(let a = a0 + 14; a < a1 - 10; a += 40){ F(a, a+4, z-14, z, c.accent, null, 0, b); F(a+7, a+11, z-14, z, c.accent, null, 0, b); } },
@@ -87159,11 +87179,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
     this.main(c, 1);
+    this.porchDeck(c);
     this.tower(c);
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); this.fore(p);
+    this.yard(c); this.porchDeck(c); this.fore(p);
     this.tower(c);
     this.main(c, -1);
     houseProp('ac unit', () => acUnit(120, 0, 480));
@@ -87346,7 +87367,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
              { name:'bin', poly:[[682,-480],[718,-480],[718,-444],[682,-444]], h:52, prop:true } ],
     marks:{ door:[405,-150], mat:[405,-150+35.4] }
   },
-  yard(c){
+  yard(c){},
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(270, 540, -150, -86, 3, '#dcd6c8');
   },
   hood(a0, a1, z, b){ poly([P(a0-6,b+0.5,z), P((a0+a1)/2,b+0.5,z+12), P(a1+6,b+0.5,z)], '#fbf8f0', '#b8b4ac', 1); },
@@ -87397,11 +87420,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.yard(c);
     this.wing(c, 60, 250, 1, { hi:false });
     this.centre(c, 1);
+    this.porchDeck(c);
     this.wing(c, 560, 750, 1, { lo:false });
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); this.fore(p);
+    this.yard(c); this.porchDeck(c); this.fore(p);
     this.wing(c, 560, 750, -1, { lo:false });
     this.centre(c, -1);
     this.wing(c, 60, 250, -1, { hi:false });
@@ -87669,9 +87693,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 460, -80, 0, '#7fa35a');
     T(90, 230, -34, 0, 0.6, '#d8d2c2');                        // path
+    for(let b = -30; b < 0; b += 12) poly([P(90,b,0.7), P(230,b,0.7)], null, '#c4bdab', 1);
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(56, 264, -80, -34, 1.2, shade(c.trim,.9));               // porch deck, flush with the path
     F(56, 264, 0, 1.2, shade(c.trim,.7), null, 0, -34);
-    for(let b = -30; b < 0; b += 12) poly([P(90,b,0.7), P(230,b,0.7)], null, '#c4bdab', 1);
   },
   beds(c){
     for(const aa of [300, 344, 388]){                          // bed along the facade
@@ -87702,6 +87729,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(24, 436, -80, -516, [[38,96]], c.trim);
     for(let z = 16; z < 116; z += 9) poly([P(24,-80.2,z), P(436,-80.2,z)], null, shade(c.wall,.9), 1);   // lap siding
     houseDoorway(160, -80, CITY_HOUSE_SC, c.trim, c.leaf, 1);
+    this.porchDeck(c);
     this.beds(c);                                              // (the bed along the facade, under the window box: before it, W37)
     houseWin(300, 400, 38, 96, -80, c.trim, shade(c.trim,.9), 1, { shutter:c.shut, box:c.box });
     houseGableRoof(24, 436, -80, -516, 118, 240, 12, c.roof, c.wall, 1);
@@ -87714,7 +87742,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); houseYardFence(this, c, 'far'); this.beds(c); this.fence(c); this.porch(c);  // far side first
+    this.yard(c); this.porchDeck(c); houseYardFence(this, c, 'far'); this.beds(c); this.fence(c); this.porch(c);  // far side first
     houseMass(24, 436, -80, -516, 118, c.wall, -1);
     houseSideWins(24, 436, -80, -516, [[38,96]], c.trim);
     for(let z = 16; z < 116; z += 9) poly([P(24,-516.2,z), P(436,-516.2,z)], null, shade(c.wall,.86), 1);
@@ -87748,6 +87776,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 460, -70, 0, '#7fa35a');
     T(160, 300, -26, 0, 0.6, '#cbc4b2');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(60, 400, -70, -26, 1.2, shade(c.trim,.86));
     F(60, 400, 0, 1.2, shade(c.trim,.66), null, 0, -26);
   },
@@ -87772,11 +87803,12 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseDoorway(230, -70, CITY_HOUSE_SC, c.trim, c.leaf, 1);
     houseWin(56, 128, 34, 96, -70, c.trim, c.trim, 1);
     houseWin(332, 404, 34, 96, -70, c.trim, c.trim, 1);
+    this.porchDeck(c);
     houseFrontGable(32, 428, -70, -520, 116, 172, 12, c.roof, c.wall, 1, { gable:c.shing, shingle:true, barge:c.trim });
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); this.fore(p);
+    this.yard(c); this.porchDeck(c); this.fore(p);
     houseMass(32, 428, -70, -520, 116, c.wall, -1);
     houseSideWins(32, 428, -70, -520, [[36,94]], c.trim);
     for(let z = 16; z < 114; z += 8) poly([P(32,-520.2,z), P(428,-520.2,z)], null, shade(c.wall,.84), 1);
@@ -87811,6 +87843,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 809.6, -150, 0, '#7fa35a');
     T(215, 285, -92, 0, 0.6, '#c9c1b0');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(80, 320, -150, -92, 2, shade(c.trim,.84));
   },
   shingles(a0, a1, z0, z1, b, c){ for(let z = z0 + 6; z < z1; z += 6) poly([P(a0,b,z), P(a1,b,z)], null, shade(c.wall,.84), 1); },
@@ -87857,12 +87892,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
     this.walls(c, 1);
+    this.porchDeck(c);
     this.dormer(c);
     this.bay(c);
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); this.fore(p);
+    this.yard(c); this.porchDeck(c); this.fore(p);
     this.bay(c);
     this.walls(c, -1);
     houseProp('ac unit', () => acUnit(120, 0, 470));
@@ -88623,6 +88659,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
+    /* (the rocker and the planter stand behind the porch piers and rail: they first -- W37) */
+    houseProp('rocker', () => houseRocker(110, -130, '#8a5a3a'));
+    houseProp('planter', () => { cyl(350, -130, 3, 24, 12, '#6b6660', '#7a756e'); ball(350, -130, 32, 12, '#4f8a4a'); });
     for(const aa of [70, 170, 290, 390]){
       box(aa-9, aa+9, -106, -92, 3, 38, shade(c.brick,1.06), c.brick, shade(c.brick,.8));
       box(aa-6, aa+6, -104, -94, 38, 106, c.trim, shade(c.trim,.92), shade(c.trim,.78));
@@ -88638,8 +88677,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       // (the hedge itself: one piece with the yard hedge -- yardFence.join; its balls here)
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
     }
-    houseProp('rocker', () => houseRocker(110, -130, '#8a5a3a'));
-    houseProp('planter', () => { cyl(350, -130, 3, 24, 12, '#6b6660', '#7a756e'); ball(350, -130, 32, 12, '#4f8a4a'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -89100,6 +89137,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 460, -110, 0, '#7fa35a');
     T(234, 306, -64, 0, 0.6, '#c9c1b0');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(214, 326, -110, -64, 1.2, shade(c.trim,.86));
   },
   wing(c){
@@ -89155,13 +89195,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     houseSideWins(30, 400, -110, -500, [[36,96],[140,196]], c.trim, { skipFront:90 });
     houseDoorway(270, -110, CITY_HOUSE_SC, c.trim, c.leaf, 1);
     houseWin(240, 300, 140, 200, -110, c.trim, c.trim, 1);
+    this.porchDeck(c);
     houseHip(30, 400, -110, -500, 226, 300, 12, c.roof);
     this.wing(c);
     this.turret(c);
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.yard(c); this.porchDeck(c); houseYardFence(this, c, 'far'); this.fore(p);
     this.turret(c); this.wing(c);
     houseMass(30, 400, -110, -500, 226, c.wall, -1);
     for(let z = 16; z < 224; z += 8) poly([P(30,-500.2,z), P(400,-500.2,z)], null, shade(c.wall,.84), 1);
@@ -89278,6 +89319,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 809.6, -150, 0, '#7fa35a');
     T(275, 345, -80, 0, 0.6, '#cbc4b2');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(116, 504, -150, -80, 2, shade(c.trim,.84));
   },
   walls(c, d){
@@ -89304,24 +89348,25 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
+    houseProp('rocker', () => houseRocker(170, -120, '#8a5a3a'));   // (behind the porch piers: it first -- W37)
     for(const aa of [130, 230, 390, 490]){
       box(aa-11, aa+11, -94, -78, 2, 40, shade(c.stone,1.06), c.stone, shade(c.stone,.8));
       box(aa-7, aa+7, -91, -81, 40, 100, c.trim, shade(c.trim,.92), shade(c.trim,.78));
     }
     F(120, 500, 100, 108, c.trim, shade(c.trim,.7), 1, -80);
     houseFrontGable(120, 500, -80, -150, 108, 160, 10, c.roof, c.trim, 1, { back0:true, gable:c.shing, shingle:true, barge:c.trim });
-    houseProp('rocker', () => houseRocker(170, -120, '#8a5a3a'));
     houseProp('birdbath', () => { cyl(640, -60, 0, 28, 4, c.stone); plateCircle(640, -60, 28, 11, shade(c.stone,1.06), shade(c.stone,.7), 1); plateCircle(640, -60, 29, 8, '#8fc4d6'); });
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
     this.yard(c);
     this.walls(c, 1);
+    this.porchDeck(c);
     this.roofs(c, 1);
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); this.fore(p);
+    this.yard(c); this.porchDeck(c); this.fore(p);
     this.walls(c, -1);
     this.roofs(c, -1);
     houseProp('ac unit', () => acUnit(120, 0, 470));
@@ -89500,6 +89545,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   yard(c){
     houseLawn(0, 809.6, -170, 0, '#7a9e58');
     T(370, 440, -76, 0, 0.6, '#b0654a');
+  },
+  /* (the porch deck stands in front of the wall: after the wall from the street -- W37 back -- before it from behind) */
+  porchDeck(c){
     T(222, 588, -170, -76, 3, '#dcd6c8');
     F(222, 588, 0, 3, '#c4bdae', null, 0, -76);
   },
@@ -89543,13 +89591,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     this.yard(c); houseYardFence(this, c, 'far');
     houseMass(60, 750, -170, -490, 240, c.wall, 1);
     this.facade(c);
+    this.porchDeck(c);
     houseSideWins(60, 750, -170, -490, [[40,120],[150,225]], c.trim);
     houseProfileRoof(60, 750, this.prof, 10, c.roof, c.wall, { barge:c.trim });
     this.chimneys();
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.yard(c); houseYardFence(this, c, 'far'); this.fore(p);
+    this.yard(c); this.porchDeck(c); houseYardFence(this, c, 'far'); this.fore(p);
     houseMass(60, 750, -170, -490, 240, c.wall, -1);
     for(let z = 12; z < 238; z += 8) poly([P(60,-490.2,z), P(750,-490.2,z)], null, shade(c.wall,.86), 1);
     houseSideWins(60, 750, -170, -490, [[40,120],[150,225]], c.trim);
@@ -89593,14 +89642,15 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
+    /* (the rockers stand behind the porch posts and rail: they first -- W37) */
+    houseProp('rocker L', () => houseRocker(200, -118, '#8a5a3a'));
+    houseProp('rocker R', () => houseRocker(610, -118, '#8a5a3a'));
     for(const aa of [36, 150, 260, 370, 440, 550, 660, 774]) box(aa-4, aa+4, -88, -80, 0, 112, c.trim, shade(c.trim,.9), shade(c.trim,.76));
     for(const [a0, a1] of [[40, 366], [444, 770]]){
       F(a0, a1, 30, 34, c.trim, null, 0, -84); F(a0, a1, 6, 9, c.trim, null, 0, -84);
       for(let a = a0 + 5; a < a1 - 2; a += 8) F(a, a+2, 9, 30, c.trim, null, 0, -84);
     }
     houseProfileRoof(30, 780, [[-80,112],[-150,136]], 8, c.roof, c.wall, { seams:14, ext1:false, gable:shade(c.trim,.9) });
-    houseProp('rocker L', () => houseRocker(200, -118, '#8a5a3a'));
-    houseProp('rocker R', () => houseRocker(610, -118, '#8a5a3a'));
     houseProp('mailbox', () => {
       box(476, 480, -13, -9, 0, 40, '#6b5038', '#5a4230', '#4d3828');
       box(470, 486, -18, -4, 40, 52, c.accent, shade(c.accent,.8), shade(c.accent,.65));
@@ -90318,7 +90368,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     T(40, 420, -480, -140, 170, shade(c.wall,.8));
     const nearB = d > 0 ? -140 : -480;
     for(const [a0, a1, z] of [[40,140,190],[140,320,204],[320,420,190]]) box(a0, a1, d > 0 ? nearB - 8 : nearB, d > 0 ? nearB : nearB + 8, 170, z, shade(c.wall,1.04), c.wall, shade(c.wall,.8));
-    for(const a of [90, 230, 370]) box(a-4, a+4, d > 0 ? nearB : nearB - 20, d > 0 ? nearB + 20 : nearB, 160, 166, '#8a6848', '#7a5a3c', '#6a4e34');
     if(d > 0){
       for(let z = 0; z < 110; z += 10) for(const a0 of [180, 270]) F(a0, a0 + 10, z, z + 10, (z/10) % 2 ? c.tile : '#f7f4ec', null, 0, -139.6);
       for(let a = 180; a < 280; a += 10) F(a, a + 10, 110, 120, (a/10) % 2 ? c.tile : '#f7f4ec', null, 0, -139.6);
@@ -90334,6 +90383,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       houseWin(100, 160, 40, 110, -480, c.trim, c.trim, -1, { plain:true });
       rearDoor(300, c.wall, c.leaf, 480, 92);
     }
+    /* (the vigas stand out of the wall over the door: after what is on the wall -- W37 back) */
+    for(const a of [90, 230, 370]) box(a-4, a+4, d > 0 ? nearB : nearB - 20, d > 0 ? nearB + 20 : nearB, 160, 166, '#8a6848', '#7a5a3c', '#6a4e34');
   },
   flags(){
     const cols = ['#d9368a','#f2d36a','#2f9a9a','#e0602a','#6ad0e0','#8a4ad6'];
