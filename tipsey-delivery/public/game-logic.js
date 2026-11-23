@@ -47795,6 +47795,10 @@ function walkinRoom(items, R){
       try {
       /* (its clip a hair into the next piece: two clips that only meet leave an antialiased hairline between them -- on a dark wall, a light line) */
       const e1 = k < n - 1 ? s1 + 0.6 : s1;
+      /* (its west jamb's face, seen in the gap: before the wall's inner face, which stands in front of it -- after it, the jamb's far top stood
+         up over the wall above the door, past the door's frame: Sir, 2026-11-23, Low Tide Juice Bar, "whats this piece of the door thats
+         breaking the frame") */
+      for(const [p0, , top] of cut) if(p0 >= s0 && p0 < s1) S(p0, -30, 0, 0, top, fside);
       if(s1 > f0){
         if(!cut.length) clipped([P(f0, 0, -2), P(e1, 0, -2), P(e1, 0, H + 0.5), P(f0, 0, H + 0.5)], () => paint(f0, s1));
         /* (each piece of wall round a door its own clip: the canvas port clips to ONE shape, so a path of several rects kept only the first --
@@ -47805,7 +47809,6 @@ function walkinRoom(items, R){
           let x = f0; for(const [p0, p1, top] of cut.slice().sort((m, q) => m[0] - q[0])){ if(p0 > x) rect(x, p0, -2, H + 0.5); rect(Math.max(x, p0), Math.min(e1, p1), top, H + 0.5); x = Math.max(x, p1); }
           if(x < e1) rect(x, e1, -2, H + 0.5); }
       }
-      for(const [p0, , top] of cut) if(p0 >= s0 && p0 < s1) S(p0, -30, 0, 0, top, fside);                       // its west jamb, seen in the gap
       T(k ? s0 - 0.5 : s0, k < n - 1 ? s1 + 0.5 : s1, -30, 0, H, ftop);
       if(k === n - 1 && last) S(s1, -30, 0, 0, H, fside);                         // its end, over the east wall
       } finally { BOFF = b00; }
