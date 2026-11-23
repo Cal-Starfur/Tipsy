@@ -80,6 +80,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Houses | `drawHouseUnit`, `labs/houses.js` | `docs/kits/houses.md` -- no house lawns |
 | Shopfronts | `drawStoreUnit`, `drawCornerStoreUnit`, `labs/flats-shops.js` | `docs/kits/shops.md` |
 | Lamps, signals, hydrants, bins, cones, planters, palms, trash | `drawProp(kind)`: `lamp`, `signalpost`, `signalhead`, `hydrant`, `bin`, `cone`, `planter`, `palm`, `palmDwarf`, `trash`, `paper`, `can`; `drawLampHull`, `drawPlant`, `drawAgave`, `drawCypress`; `arcStrip` (a band, collar or shaded side round a round prop: only the arc the eye sees, asked of the normal in world -- the cone's collars, the bin's band) | `docs/kits/props.md` (SP1: one registry) |
+| Pavement: paving slabs, kerb and gutter, heaved slab, spall, kerb-ramp pad | the ground pass (ground cache): `paveSlabOn` (a slab, its joint, the lit arris inside its far edges), `kerbRun` (stones jointed on the paving's T2 lattice), the gutter `band`; `drawProp(kind)`: `slab` (`slabGeo`), `crack` (`crackGeo`: the hole's walls only where seen, the near rim keeps the floor at grade), `sidewalkend`/`sidewalkbegin`/`sidewalkbeginTurn` with `tactilePad` (domes in the pad's plane) | `docs/kits/props.md` |
 | Benches, fences, gates, flags | `drawBenchProp`, `drawWoodFence`, `drawChainFence`, `drawGateFence`, `drawFlag` | |
 | Wheels and tyres | `drawWheel`, `soapWheel` | |
 

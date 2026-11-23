@@ -2928,14 +2928,117 @@ function flickerAt(seed, t){
 }
 const SLAB_ART = {
   top: 0xc4bdae, topDk: 0x9d9687, gap: 0x4a4238,
-  rootA: 0x8a6a48, rootB: 0x6f5439
+  rootA: 0x8a6a48, rootB: 0x6f5439,
+  /* pavement pass (2026-11-23): the top by its tilt, the end wedge, the lip's arris, the crack */
+  topLit: 0xd2cbbc, topDk2: 0xb7b0a1, wallEnd: 0xa69f90, arris: 0xe6e0d2, crack: 0x7d7669
 };
+/* THE HEAVED SLAB'S SEEDED PARTS, once per slab (drawProp's "slab"): the root's bulge heights along it, and the crack across
+   the top a third of the way in from the raised edge with its spur toward that edge (flat [a, b, ...] lists in the slab's
+   own frame). Same seed the slab always had. */
+const SLAB_GEO = new Map();
+function slabGeo(x, y, sd){
+  const key = Math.round(x) + ',' + Math.round(y) + ',' + sd;
+  let sg = SLAB_GEO.get(key);
+  if(sg) return sg;
+  const rng = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51ab) >>> 0);
+  const root = [];
+  for(let i = 0; i <= 7; i++){ const u = i/7; root.push(Math.max(0.6, (1.4 + Math.sin(u*Math.PI)*3.0 + (rng() - 0.5)*1.2) * Math.min(1, Math.sin(u*Math.PI)*2.2 + 0.25))); }
+  const yUp = sd*TILE, yc = yUp - sd*(26 + rng()*10), main = [];
+  for(let i = 0; i <= 5; i++){
+    const a = -TILE + 2*TILE*i/5, b = Math.max(-TILE + 3, Math.min(TILE - 3, yc + (i === 0 || i === 5 ? 0 : (rng() - 0.5)*9)));
+    main.push(a, b);
+  }
+  const k = 2 + Math.floor(rng()*2), spur = [main[2*k], main[2*k + 1]];
+  let sa = main[2*k], sb = main[2*k + 1];
+  for(let j = 0; j < 2; j++){ sa += (rng() - 0.5)*10; sb += sd*(6 + rng()*6); sb = Math.max(-TILE + 3, Math.min(TILE - 3, sb)); spur.push(sa, sb); }
+  sg = { root, cracks: [main, spur] };
+  SLAB_GEO.set(key, sg);
+  return sg;
+}
 
 /* approved crack (crack lab v3): broken-off piece (spall) */
 const CRACK_ART = {
-  sidewalk: { crack:0x5d574c, core:0x453f36, piece:0xa89f8f, wall:0x8f8879, rubble:0x968d7c },
-  road:     { crack:0x2c2e34, core:0x14161a, piece:0x3a3d44, wall:0x2f3138, rubble:0x35383f }
+  sidewalk: { crack:0x5d574c, core:0x453f36, piece:0xa89f8f, wall:0x8f8879, wallDk:0x6f685c, rubble:0x968d7c },   // wallDk: a hole's right-facing wall (SP13)
+  road:     { crack:0x2c2e34, core:0x14161a, piece:0x3a3d44, wall:0x2f3138, wallDk:0x222429, rubble:0x35383f }
 };
+
+/* THE SPALL'S SHAPE, built once per crack (pavement pass, 2026-11-23; drawn by drawProp's "crack"). Seeded off the crack's
+   position (and its len), in the tile's own frame: poly is the hole -- the fracture A..B first (nf points), then the tile's
+   corners back round to A -- with inS the sign that turns an edge's left normal into the hole. The fracture is pulled square
+   to its chord toward the slab's middle and jittered only across the chord, fading at its ends, so it never crosses itself.
+   Kept in a Map: cracks are drawn live every frame and this is the only part that costs. */
+const CRACK_GEO = new Map();
+function crackGeo(x, y, dlen){
+  const key = Math.round(x) + ',' + Math.round(y) + ',' + (dlen || 0);
+  let cg = CRACK_GEO.get(key);
+  if(cg) return cg;
+  const rng = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x3c99) >>> 0);
+  const len = dlen || (24 + Math.floor(rng()*49));
+  const jag = 0.6 + rng()*1.0;
+  const nBr = 1 + Math.floor(rng()*2);
+  const drop = 3.3 + rng()*2.2;
+  const T = TILE - 2, lim = T - 2;
+  const arc = 0.4 + (len/84)*1.4;
+  const bite = Math.min(46, 10 + len*0.5);
+  const perim = tv => {
+    tv = ((tv % 4) + 4) % 4;
+    const e = Math.floor(tv), u = tv - e;
+    if(e === 0) return { x:-T + 2*T*u, y:-T };
+    if(e === 1) return { x: T, y:-T + 2*T*u };
+    if(e === 2) return { x: T - 2*T*u, y: T };
+    return { x:-T, y: T - 2*T*u };
+  };
+  const tA = rng()*4, tB = tA + arc;
+  const A = perim(tA), B = perim(tB);
+  const cx = B.x - A.x, cy = B.y - A.y, cl = Math.hypot(cx, cy) || 1;
+  const mx = (A.x + B.x)/2, my = (A.y + B.y)/2;
+  let nx = -cy/cl, ny = cx/cl;
+  if(nx*mx + ny*my > 0){ nx = -nx; ny = -ny; }                 // toward the slab's middle, away from the corner it bites
+  const N = Math.max(5, 4 + Math.round(len/10));
+  const cl2 = v => Math.max(-lim, Math.min(lim, v));
+  const poly = [];
+  for(let i = 0; i <= N; i++){
+    const u = i/N, s = Math.sin(Math.PI*u);
+    if(i === 0 || i === N){ poly.push(i ? { x: B.x, y: B.y } : { x: A.x, y: A.y }); continue; }
+    const off = Math.pow(s, 0.8)*bite*0.6 + (rng() - 0.5)*9*jag*s;   // (a broken corner, not a missing slab)
+    poly.push({ x: cl2(A.x + cx*u + nx*off), y: cl2(A.y + cy*u + ny*off) });
+  }
+  const nf = poly.length;
+  const corners = [];
+  for(let c = Math.ceil(tA); c < tB; c++) corners.push(perim(c));
+  for(let k = corners.length - 1; k >= 0; k--) poly.push(corners[k]);
+  let area = 0;
+  for(let i = 0; i < poly.length; i++){ const p = poly[i], q = poly[(i + 1) % poly.length]; area += p.x*q.y - q.x*p.y; }
+  /* a hairline across a big piece: from the fracture's middle back toward the corner it broke off */
+  let hair = null;
+  if(bite > 26){
+    const f = poly[Math.floor(N*0.45)];
+    hair = [f.x - nx*2, f.y - ny*2, cl2(mx - nx*5 + cx/cl*(rng() - 0.5)*12), cl2(my - ny*5 + cy/cl*(rng() - 0.5)*12)];
+  }
+  /* rubble on the piece, along the break */
+  const chips = [];
+  const nCh = 3 + Math.floor(rng()*3);
+  for(let i = 0; i < nCh; i++){
+    const f = poly[1 + Math.floor(rng()*(N - 1))], d = 3 + rng()*5;
+    chips.push({ x: f.x - nx*d, y: f.y - ny*d, r: 1.4 + rng()*1.8, dk: rng() < 0.5 });
+  }
+  /* hairlines running on from the fracture into the intact slab */
+  const branches = [];
+  for(let b = 0; b < nBr; b++){
+    const f = poly[1 + Math.floor(rng()*(N - 1))];
+    let bx = f.x, by = f.y, ba = Math.atan2(ny, nx) + (rng() - 0.5)*1.4, bl = 6 + rng()*8;
+    const br = [bx, by];
+    for(let k = 0; k < 3; k++){
+      bx = cl2(bx + Math.cos(ba)*bl); by = cl2(by + Math.sin(ba)*bl);
+      br.push(bx, by);
+      ba += (rng() - 0.5)*1.2*jag; bl *= 0.6;
+    }
+    branches.push(br);
+  }
+  cg = { poly, nf, inS: area > 0 ? 1 : -1, drop, hair, chips, branches };
+  CRACK_GEO.set(key, cg);
+  return cg;
+}
 
 /* approved trash (trash lab v1): seeded litter cluster */
 const TRASH_ART = {
@@ -7000,7 +7103,10 @@ function vehicleSolid(rect, a, b, kind, prop, arr){
    can repaint the stone in front of it (see KERB_PARK): 8 high, 22 wide,
    standing in the asphalt with its pavement face on ROAD_HALF; painted
    white top, paler road face, dark seam. */
+const ADA_PAD = { pad: 0xf4c430, edge: 0xb9911f, dome: 0xd9a21f, cap: 0xffdc6e };   // a kerb ramp's tactile pad (tactilePad)
 const KERB_STONE = { h: 8, w: 22, top: 0xf4f1e8, face: 0xe2ded0, dk: 0x6e6a5e };
+const GUT_JOINT = 0x878174;    // ... and between two bays of the gutter channel
+const KERB_JOINT = 0xc4bfb0;   // the joint between two kerb stones (kerbRun: LAID IN STONES)
 const L_OUT_R = T2;           // the outside of a 90-degree bend: fillet radius to the kerb's face (the estate's OUT_R too)
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
@@ -107995,6 +108101,56 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(w, color, 1);
     g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
   }
+  /* ONE PAVING SLAB (pavement pass, 2026-11-23, Sir: "there are other street oriented draws like the sidewalk itself"). The
+     slab, its joint, and the joint's TOOLED EDGE: concrete slabs are laid with a rounded arris along every joint, and the arris
+     on the near side of a groove catches the light -- a pale hairline just inside the slab's two FAR edges (the ones up the
+     screen; the ground pass never turns, so which they are is fixed: pts run (-,-), (+,-), (+,+), (-,+) in world, pts[0] the
+     far corner). It is what turns a chequer of flat tones into laid slabs. Ground pass only (the ground cache paints it once). */
+  paveSlabOn(g, pts, col, edge){
+    this.quadOn(g, pts, col);
+    this.edgeOn(g, pts, edge, 1);
+    if(this.drawClip) return;
+    const p0 = pts[0], p1 = pts[1], p3 = pts[3];
+    const cx = (p0.x + pts[2].x)*0.5, cy = (p0.y + pts[2].y)*0.5;
+    const span = cy - p0.y;
+    if(span < 6) return;                                     // far out: a hairline would only grey the slab
+    const f = 1.6/span;
+    const lit = (((Math.min(255, ((col >> 16) & 255) + 28)) << 16) | ((Math.min(255, ((col >> 8) & 255) + 28)) << 8) | Math.min(255, (col & 255) + 25));
+    g.lineStyle(1, lit, 0.9);
+    g.beginPath();
+    g.moveTo(p3.x + (cx - p3.x)*f, p3.y + (cy - p3.y)*f);
+    g.lineTo(p0.x + (cx - p0.x)*f, p0.y + (cy - p0.y)*f);
+    g.lineTo(p1.x + (cx - p1.x)*f, p1.y + (cy - p1.y)*f);
+    g.strokePath();
+  }
+
+  /* THE TACTILE PAD of a kerb ramp (pavement pass, 2026-11-23): the yellow landing and its truncated domes. The domes were
+     screen-flat 1.5px dots on the pad's corners and edges; each is now a dome on a 6 x 6 grid set in from the edge, drawn in
+     the pad's own plane through Wf (so it foreshortens and turns with it): its round foot in the darker yellow, a lit cap
+     toward the light. Wf is the ramp's local W; a0..a1 along it, b0..b1 across, z the pad's height. In the ground pass for
+     the world's ramps (the ground cache paints it once). */
+  tactilePad(g, Wf, a0, a1, b0, b1, z){
+    const pad = [Wf(a0, b0, z), Wf(a1, b0, z), Wf(a1, b1, z), Wf(a0, b1, z)];
+    this.quadOn(g, pad, ADA_PAD.pad);
+    this.edgeOn(g, pad, ADA_PAD.edge, 1.5);
+    const n = 6, da = (a1 - a0)/n, db = (b1 - b0)/n, r = Math.min(Math.abs(da), Math.abs(db))*0.26;
+    if(r*this.K < 1.1) return;                                   // too small to be more than a speckle
+    const ring = this._padRing || (this._padRing = [{}, {}, {}, {}, {}, {}, {}, {}]);
+    const dome = (ca, cb, rr, zz, col) => {
+      for(let k = 0; k < 8; k++){ const th = k*Math.PI/4, q = Wf(ca + Math.cos(th)*rr, cb + Math.sin(th)*rr, zz); ring[k].x = q.x; ring[k].y = q.y; }
+      this.quadOn(g, ring, col);
+    };
+    /* the cap sits toward screen up-left (the light), whatever way the pad turns: that screen direction in the pad's a, b */
+    const t = Wf(a0, b0, z), u = Wf(a0 + 1, b0, z), v = Wf(a0, b0 + 1, z);
+    const ux = u.x - t.x, uy = u.y - t.y, vx = v.x - t.x, vy = v.y - t.y, det = ux*vy - vx*uy;
+    let la = det ? (-vy + vx)/det : 0, lb = det ? (-ux + uy)/det : 0;
+    const ll = Math.hypot(la, lb) || 1; la *= r*0.3/ll; lb *= r*0.3/ll;
+    for(let i = 0; i < n; i++) for(let j = 0; j < n; j++){
+      const ca = a0 + da*(i + 0.5), cb = b0 + db*(j + 0.5);
+      dome(ca, cb, r, z + 0.3, ADA_PAD.dome);
+      dome(ca + la, cb + lb, r*0.5, z + 0.8, ADA_PAD.cap);
+    }
+  }
 
   /* ---------- world drawing ---------- */
   /* WHAT STANDS IN FRONT OF HIM, as a mask for his light (see gBotGlow
@@ -111917,8 +112073,7 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, pts, paveParity(bx, by) === 0 ? GRASS.a : GRASS.b);
             continue;
           }
-          this.quadOn(g, pts, paveParity(bx, by) === 0 ? d.pave : d.paveB);
-          this.edgeOn(g, pts, d.paveEdge, 1);
+          this.paveSlabOn(g, pts, paveParity(bx, by) === 0 ? d.pave : d.paveB, d.paveEdge);
         }
       }
     }
@@ -111956,8 +112111,7 @@ class WorldScene extends Phaser.Scene {
         this.W(rn.x+half, rn.y+half, 0), this.W(rn.x-half, rn.y+half, 0)
       ];
       if(!onScreen(pts)) continue;
-      this.quadOn(g, pts, rn.parity === 0 ? d.pave : d.paveB);
-      this.edgeOn(g, pts, d.paveEdge, 1);
+      this.paveSlabOn(g, pts, rn.parity === 0 ? d.pave : d.paveB, d.paveEdge);
     }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
                                      this.camX, this.camY, flatSpan, this._qCorner)){
@@ -111968,8 +112122,7 @@ class WorldScene extends Phaser.Scene {
         this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
       ];
       if(!onScreen(pts)) continue;
-      this.quadOn(g, pts, cell.parity === 0 ? d.pave : d.paveB);
-      this.edgeOn(g, pts, d.paveEdge, 1);
+      this.paveSlabOn(g, pts, cell.parity === 0 ? d.pave : d.paveB, d.paveEdge);
     }
     /* center line: flat road paint, no depth. */
     /* This loop had NO cull whatsoever -- it painted the stripe on every
@@ -112225,6 +112378,13 @@ class WorldScene extends Phaser.Scene {
         const o0 = sgn*(ROAD_HALF - KERB_W - CURB_W), o1 = sgn*(ROAD_HALF - KERB_W);
         const pt = (t, o) => this.W(sx + dv.x*t + rv.x*o, sy + dv.y*t + rv.y*o, 0.6);
         this.quadOn(g, [pt(s0,o0), pt(s1,o0), pt(s1,o1), pt(s0,o1)], GUT);
+        /* the channel is poured in bays too: a joint across it on the paving's T2 lattice, under each kerb joint */
+        const P0 = sx*dv.x + sy*dv.y, dir = dv.x + dv.y, w0 = P0 + dir*s0, w1 = P0 + dir*s1;
+        g.lineStyle(1, GUT_JOINT, 1);
+        for(let wj = Math.ceil((Math.min(w0, w1) + 6)/T2)*T2; wj <= Math.max(w0, w1) - 6; wj += T2){
+          const sj = (wj - P0)*dir, a = pt(sj, o0), b = pt(sj, o1);
+          g.lineBetween(a.x, a.y, b.x, b.y);
+        }
       };
       /* THE STONE STANDS IN THE GUTTER, not on the footway (Sir: "i dont
          like how its eating into the side walk"). Its outer face is the
@@ -112316,6 +112476,23 @@ class WorldScene extends Phaser.Scene {
            survives the night tint and gives the step an edge to read. */
         const oSeam = oIn - (oIn - oOut) * 0.14;
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oSeam,h1), pt(s0,oSeam,h0)], KERB_DK);
+        /* LAID IN STONES (pavement pass, 2026-11-23). A kerb is a row of cut stones, not one extrusion: a joint across the
+           top and down the road face the eye sees (asked of W: that face's normal is -sgn*rv), on the paving's own T2 lattice
+           so every kerb joint lines up with a joint in the slabs behind it. Straight full-height runs only; the flares and
+           the corner sweeps stay whole stones. */
+        if(h0 === h1 && s1 - s0 > T2*0.5){
+          const roadFace = (this.W(-sgn*rv.x, -sgn*rv.y, 0).y - this.W(0, 0, 0).y) > 0;
+          const P0 = sx*dv.x + sy*dv.y, dir = dv.x + dv.y;           // world coordinate along the street at s = 0, and its sense
+          const w0 = P0 + dir*s0, w1 = P0 + dir*s1;
+          const lo = Math.min(w0, w1) + 6, hi = Math.max(w0, w1) - 6;  // (not a joint on the run's own ends)
+          g.lineStyle(1, KERB_JOINT, 1);
+          for(let wj = Math.ceil(lo/T2)*T2; wj <= hi; wj += T2){
+            const sj = (wj - P0)*dir;
+            const a = pt(sj, oIn, h0), b = pt(sj, oOut, h0);
+            g.lineBetween(a.x, a.y, b.x, b.y);
+            if(roadFace){ const c = pt(sj, oIn, Math.min(h0, 3)); g.lineBetween(a.x, a.y, c.x, c.y); }
+          }
+        }
       };
       /* A KERB ONLY BREAKS WHERE A STREET LEAVES IT (Sir, on-device, with
          the robot stopped against nothing: "i thought we fixed this issue
@@ -130930,16 +131107,28 @@ class WorldScene extends Phaser.Scene {
     } else if(kind === "slab"){
       /* approved in ramp lab v2: heaved slab — the ramp concept redesigned
          into ONE sidewalk tile (92×92), lifted along one side edge by a
-         palm root, flush at the other. Draw order: soil gap under the
-         raised edges → exposed joint walls → root bulge → top wedge +
-         seeded cracks + chipped lip. lift/side/root ride on the hazard
-         object (data); cracks/chips are position-seeded like every prop. */
+         palm root, flush at the other. lift/side/root ride on the hazard
+         object (data); the crack and the root's bulges are position-seeded
+         like every prop. */
+      /* A SLAB THAT HAS LIFTED (pavement pass, 2026-11-23, Sir: "the tilted pieces"). It read as a flat tile with scribbles:
+         two to four wandering hairlines over the whole top and screen-flat chip ellipses, both end walls and the raised wall
+         drawn whatever way they faced, and a top in the paving's own flat tone. Now, as a tilted slab is seen:
+         - the top takes the light by its tilt: toward the eye (the raised edge away) it is paler, away from it darker;
+         - one crack across it where a heaved slab breaks, along the root's line a third of the way in from the raised
+           edge, with a short spur -- not a web of scribbles;
+         - the raised edge's wall and the two wedge-shaped end walls drawn only where the eye sees them (asked of W), the
+           raised wall with a pale arris along its top so the lip reads as an edge to catch a wheel;
+         - the root a rounded thing, dark under and lit along its back, swelling out of the gap and tapering away;
+         - the gap's soil shadow and the root stay where they were (under the raised edge), and nothing changes size: the
+           lift, the side and the footprint are the hazard's own, so the sim's trip and ride heights are untouched. */
       const D = data || { lift: 6, side: 1, root: true };
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x51ab) >>> 0;
-      const rng = mulberry32(seed);
       const A = SLAB_ART, L = D.lift, sd = D.side;
+      const sg = slabGeo(x, y, sd);
       const yFlush = -sd*TILE, yUp = sd*TILE;
       const ZT = dy => L * ((sd*dy + TILE) / (2*TILE));
+      const o = W(0, 0, 0), seen = (nx, ny) => (W(nx, ny, 0).y - o.y) > 1e-6;
+      const upSeen = seen(0, sd);                                  // the raised edge's wall faces the eye
+      const top = upSeen ? A.topDk2 : A.topLit;                     // the top tilts away from the eye / toward it
 
       /* soil shadow in the opened gap */
       this.quadOn(g, [
@@ -130947,68 +131136,49 @@ class WorldScene extends Phaser.Scene {
         W(TILE + 4, yUp + sd*4, 0), W(-TILE - 4, yUp + sd*4, 0)
       ], A.gap, 0.55);
 
-      /* exposed joint walls: triangles at both travel joints, full
-         lifted wall along the raised side edge */
-      for(const jx of [-TILE, TILE]){
-        this.quadOn(g, [W(jx, yFlush, 0), W(jx, yUp, ZT(yUp)), W(jx, yUp, 0)], A.topDk, 0.9);
-      }
-      this.quadOn(g, [
-        W(-TILE, yUp, ZT(yUp)), W(TILE, yUp, ZT(yUp)),
-        W(TILE, yUp, 0), W(-TILE, yUp, 0)
-      ], A.topDk);
-      this.edgeOn(g, [
-        W(-TILE, yUp, ZT(yUp)), W(TILE, yUp, ZT(yUp)),
-        W(TILE, yUp, 0), W(-TILE, yUp, 0)
-      ], A.gap, 1.2);
-
-      /* the culprit: palm root shouldering the raised edge up */
-      if(D.root){
-        const segsN = 6;
-        for(let i=0; i<segsN; i++){
-          const t0 = i/segsN, t1 = (i+1)/segsN;
-          const x0 = -TILE + 2*TILE*t0, x1 = -TILE + 2*TILE*t1;
-          const bump = 2.2 + Math.sin(t0*Math.PI)*2.2 + (rng()-0.5)*1.2;
-          const pts = [
-            W(x0, yUp + sd*2, 0), W(x1, yUp + sd*2, 0),
-            W(x1, yUp + sd*7, bump), W(x0, yUp + sd*7, bump)
-          ];
-          this.quadOn(g, pts, i%2 ? A.rootA : A.rootB);
-          this.edgeOn(g, pts, A.rootB, 1);
+      /* the culprit: palm root shouldering the raised edge up -- a rounded root, dark below, lit along its back */
+      const drawRoot = () => {
+        const rb = sg.root, nR = rb.length - 1;
+        for(let i = 0; i < nR; i++){
+          const x0 = -TILE - 6 + (2*TILE + 12)*i/nR, x1 = -TILE - 6 + (2*TILE + 12)*(i + 1)/nR;
+          const h0 = rb[i], h1 = rb[i + 1], w0 = 1.5 + h0*0.9, w1 = 1.5 + h1*0.9, c = yUp + sd*4.5;
+          this.quadOn(g, [W(x0, c - w0, 0), W(x1, c - w1, 0), W(x1, c + w1, 0), W(x0, c + w0, 0)], A.rootB);
+          this.quadOn(g, [W(x0, c - w0*0.55, h0), W(x1, c - w1*0.55, h1), W(x1, c + w1*0.15, h1*0.8), W(x0, c + w0*0.15, h0*0.8)], A.rootA);
         }
+      };
+      if(D.root && !upSeen) drawRoot();                             // behind the slab: before it
+
+      /* the walls the eye sees: the raised edge, and the wedge at whichever end faces it */
+      for(const jx of [-TILE, TILE]){
+        if(!seen(jx > 0 ? 1 : -1, 0)) continue;
+        this.quadOn(g, [W(jx, yFlush, 0), W(jx, yUp, ZT(yUp)), W(jx, yUp, 0)], A.wallEnd);
+      }
+      if(upSeen){
+        const wall = [W(-TILE, yUp, ZT(yUp)), W(TILE, yUp, ZT(yUp)), W(TILE, yUp, 0), W(-TILE, yUp, 0)];
+        this.quadOn(g, wall, A.topDk);
+        this.edgeOn(g, wall, A.gap, 1);
       }
 
       /* top wedge */
-      const top = [
+      const topQ = [
         W(-TILE, yFlush, ZT(yFlush)), W(TILE, yFlush, ZT(yFlush)),
         W(TILE, yUp, ZT(yUp)), W(-TILE, yUp, ZT(yUp))
       ];
-      this.quadOn(g, top, A.top);
-      this.edgeOn(g, top, A.topDk, 1.5);
-
-      /* hairline cracks radiating from the stressed (raised) edge */
-      g.lineStyle(1.2, A.topDk, 0.8);
-      const nCracks = 2 + Math.floor(rng()*3);
-      for(let i=0; i<nCracks; i++){
-        let px = -TILE*0.7 + rng()*TILE*1.4;
-        let py = yUp - sd*(4 + rng()*8);
-        let p = W(px, py, ZT(py) + 0.1);
-        g.beginPath(); g.moveTo(p.x, p.y);
-        for(let k=0; k<4; k++){
-          px += (rng()-0.5)*22;
-          py -= sd*(8 + rng()*14);
-          py = Math.max(-TILE+3, Math.min(TILE-3, py));
-          const q = W(px, py, ZT(py) + 0.1);
-          g.lineTo(q.x, q.y);
-        }
-        g.strokePath();
+      this.quadOn(g, topQ, top);
+      this.edgeOn(g, topQ, A.topDk, 1);
+      if(upSeen){                                                   // the arris along the lip
+        const a = W(-TILE + 1, yUp - sd*1.2, ZT(yUp - sd*1.2) + 0.05), b = W(TILE - 1, yUp - sd*1.2, ZT(yUp - sd*1.2) + 0.05);
+        g.lineStyle(1, A.arris, 0.9); g.lineBetween(a.x, a.y, b.x, b.y);
       }
 
-      /* chipped lip along the raised edge */
-      for(let i=0; i<4; i++){
-        const cxp = -TILE + 8 + rng()*(2*TILE - 16);
-        const p = W(cxp, yUp - sd*1.5, ZT(yUp) + 0.1);
-        g.fillStyle(A.gap, 0.5);
-        g.fillEllipse(p.x, p.y, (3 + rng()*4)*this.K*0.6, (1.5 + rng()*2)*this.K*0.6);
+      if(D.root && upSeen) drawRoot();                              // in front of the raised wall: after it
+
+      /* the crack across it, and its spur */
+      g.lineStyle(1.2, A.crack, 0.9);
+      for(const ln of sg.cracks){
+        g.beginPath();
+        for(let k = 0; k < ln.length; k += 2){ const q = W(ln[k], ln[k + 1], ZT(ln[k + 1]) + 0.1); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+        g.strokePath();
       }
     } else if(kind === "sidewalkend"){
       /* approved in sidewalkend lab: ADA curb ramp, exactly 2x3 sidewalk
@@ -131078,16 +131248,7 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
                       W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
       // ADA pad: the flat landing tile, dome-textured
-      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
-        const p = W(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
+      this.tactilePad(g, W, 0, wHalf, -T2s/2, T2s/2, streetZ);
     } else if(kind === "sidewalkbegin"){
       /* the ascending mirror of prop.sidewalkend — completes the pair.
          Restored: this and sidewalkbeginTurn were added in 728c97d but
@@ -131122,16 +131283,7 @@ class WorldScene extends Phaser.Scene {
       this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,sidewalkZ),
                       W(wHalf,T2s/2,sidewalkZ), W(0,T2s/2,streetZ)], 0x968f81, 1.5);
       // ADA pad: the flat landing tile, dome-textured — street-facing end
-      this.quadOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [W(-wHalf,-T2s/2,streetZ), W(0,-T2s/2,streetZ),
-                      W(0,T2s/2,streetZ), W(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
-        const p = W(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
+      this.tactilePad(g, W, -wHalf, 0, -T2s/2, T2s/2, streetZ);
     } else if(kind === "pigeons"){
       /* the flock — ported verbatim from labs/pigeon-lab.html (v5).
          Everything is seeded off the flock's WORLD anchor (x,y) and
@@ -131326,16 +131478,7 @@ class WorldScene extends Phaser.Scene {
                       W(0,T2s/2,streetZ), W(-wHalf,T2s/2,sidewalkZ)], 0xb5afa2);
       this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
                       W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb5afa2);
-      this.quadOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [W(0,-T2s/2,streetZ), W(wHalf,-T2s/2,streetZ),
-                      W(wHalf,T2s/2,streetZ), W(0,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = wHalf*(ci/4);
-        const p = W(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
+      this.tactilePad(g, W, 0, wHalf, -T2s/2, T2s/2, streetZ);
 
       // CORNER: a road-colored square standing in for the arc turn
       const cx = wHalf + 46, cy = 0;
@@ -131348,16 +131491,7 @@ class WorldScene extends Phaser.Scene {
                       Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0xb5afa2);
       this.edgeOn(g, [Wup(-wHalf,-crossHalf,sidewalkZ), Wup(wHalf,-crossHalf,sidewalkZ),
                       Wup(wHalf,crossHalf,sidewalkZ), Wup(-wHalf,crossHalf,sidewalkZ)], 0x968f81, 2);
-      this.quadOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
-                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xf4c430);
-      this.edgeOn(g, [Wup(-wHalf,-T2s/2,streetZ), Wup(0,-T2s/2,streetZ),
-                      Wup(0,T2s/2,streetZ), Wup(-wHalf,T2s/2,streetZ)], 0xb9911f, 1.5);
-      for(let ri=0; ri<5; ri++) for(let ci=0; ci<5; ci++){
-        const py = -T2s/2 + T2s*(ri/4), px = -wHalf + wHalf*(ci/4);
-        const p = Wup(px, py, streetZ);
-        g.fillStyle(0xc9911f, 0.8);
-        g.fillCircle(p.x, p.y, 1.5);
-      }
+      this.tactilePad(g, Wup, -wHalf, 0, -T2s/2, T2s/2, streetZ);
       this.quadOn(g, [Wup(0,-T2s/2,streetZ), Wup(wHalf,-T2s/2,sidewalkZ),
                       Wup(wHalf,T2s/2,sidewalkZ), Wup(0,T2s/2,streetZ)], 0xb5afa2);
     } else if(kind === "crack"){
@@ -131371,114 +131505,68 @@ class WorldScene extends Phaser.Scene {
          explicit surface tag set at generation time — sidewalk cracks
          (from the sidewalk hazard loop) always get sidewalk tones,
          road cracks (from the decorative road-crack loop) always get
-         asphalt tones. The old data.row>=2 guess was wrong both ways:
-         sidewalk cracks in lanes 2-3 got asphalt tones, and road
-         cracks (which never had a `row` field at all) fell through
-         to sidewalk tones by default. */
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x3c99) >>> 0;
-      const rng = mulberry32(seed);
+         asphalt tones. */
+      /* THE PIECE IN ITS HOLE (pavement pass, 2026-11-23, Sir: "the broken pieces"). It drew a jagged figure-8 that crossed
+         itself: the fracture was pulled RADIALLY toward the tile's centre, and on a long break, whose chord already passes
+         near the centre, the pull carried points straight through it to the far side -- the path doubled back over itself,
+         and every fracture wall was drawn whatever way it faced, so the backs of the near ones lay over the piece as dark
+         ribbons. And the hole had no walls along the tile's own edges, so the sunk piece met the next slab flush.
+         Now, as a hole is seen:
+         - the fracture is pulled one way, square to its chord (toward the slab's middle) and jittered only across the chord,
+           fading to nothing at its ends: a path that cannot cross itself;
+         - the hole's walls, fracture and tile edge alike, are drawn only where the eye sees them (the face into the hole
+           turned toward the eye, asked of W), far ones first, lit left and shaded right (SP13);
+         - the walls the eye cannot see are the near rim: their top edge hides the floor behind them, so the piece's floor
+           comes up to that rim rather than sliding out past it over the slab in front;
+         - the hairlines run on from the fracture into the intact slab; the rubble lies flat on the piece (quads in its
+           plane, not screen ellipses).
+         The shape is seeded off the position and built once (CRACK_GEO), so a frame only projects it. */
       const pal = (data && data.surface === "road") ? CRACK_ART.road : CRACK_ART.sidewalk;
-      const len = (data && data.len) || (24 + Math.floor(rng()*49));
-      const jag = 0.6 + rng()*1.0;
-      const nBr = 1 + Math.floor(rng()*3);
-      const drop = 3.3 + rng()*2.2;
-      const T = TILE - 2, ZT = 0.5;
-      const arc = 0.4 + (len/84) * 1.4;
-      const bite = Math.min(58, 10 + len*0.5);
-
-      const perim = tv => {
-        tv = ((tv % 4) + 4) % 4;
-        const e = Math.floor(tv), u = tv - e;
-        if(e === 0) return { x:-T + 2*T*u, y:-T };
-        if(e === 1) return { x: T, y:-T + 2*T*u };
-        if(e === 2) return { x: T - 2*T*u, y: T };
-        return { x:-T, y: T - 2*T*u };
-      };
-      const tA = rng()*4, tB = tA + arc;
-      const A = perim(tA), B = perim(tB);
-
-      /* fracture path A->B, pulled inward by the bite, seeded jitter */
-      const N = Math.max(5, 4 + Math.round(len/10));
-      const frac = [];
-      for(let i=0; i<=N; i++){
-        const u = i/N;
-        let fx = A.x + (B.x - A.x)*u, fy = A.y + (B.y - A.y)*u;
-        const inward = Math.pow(Math.sin(Math.PI*u), 0.8) * bite;
-        const mag = Math.hypot(fx, fy) || 1;
-        fx -= (fx/mag) * inward;
-        fy -= (fy/mag) * inward;
-        if(i > 0 && i < N){
-          fx += (rng()-0.5) * 9 * jag;
-          fy += (rng()-0.5) * 9 * jag;
-        }
-        frac.push({ x: Math.max(-T, Math.min(T, fx)),
-                    y: Math.max(-T, Math.min(T, fy)) });
+      const cg = crackGeo(x, y, data && data.len);
+      const ZT = 0.5, drop = cg.drop, poly = cg.poly, n = poly.length;
+      /* which walls the eye sees: the face into the hole (inward normal) turned toward the eye */
+      const o = W(0, 0, 0), vis = cg.vis || (cg.vis = new Array(n)), zv = cg.zv || (cg.zv = new Array(n));
+      for(let i = 0; i < n; i++){
+        const p = poly[i], q = poly[(i + 1) % n];
+        const ex = q.x - p.x, ey = q.y - p.y, nx = -ey*cg.inS, ny = ex*cg.inS;
+        vis[i] = (W(nx, ny, 0).y - o.y) > 1e-6;
       }
-
-      /* piece region: fracture + boundary walk back B->A */
-      const bound = [];
-      for(let c2 = Math.ceil(tA); c2 < tB; c2++) bound.push(perim(c2));
-      const region = frac.concat([B]).concat(bound.reverse());
-
-      /* sunken piece top */
-      this.quadOn(g, region.map(p => W(p.x, p.y, ZT - drop)), pal.piece);
-      this.edgeOn(g, region.map(p => W(p.x, p.y, ZT - drop)), pal.core, 1);
-
-      /* hairline across the piece itself when it's big */
-      if(bite > 26){
-        const m0 = frac[Math.floor(N*0.3)], m1 = frac[Math.floor(N*0.7)];
-        g.lineStyle(1, pal.core, 0.9);
-        const q0 = W(m0.x*0.6, m0.y*0.6, ZT - drop + 0.1);
-        const q1 = W(m1.x*0.9, m1.y*0.9, ZT - drop + 0.1);
-        g.lineBetween(q0.x, q0.y, q1.x, q1.y);
+      for(let i = 0; i < n; i++) zv[i] = (vis[i] || vis[(i + n - 1) % n]) ? ZT - drop : ZT;   // the near rim keeps the floor up at grade
+      /* the floor: the broken piece */
+      const fl = [];
+      for(let i = 0; i < n; i++) fl.push(W(poly[i].x, poly[i].y, zv[i]));
+      this.quadOn(g, fl, pal.piece);
+      /* a hairline across a big piece, and the rubble lying on it */
+      if(cg.hair){
+        const h0 = W(cg.hair[0], cg.hair[1], ZT - drop*0.6), h1 = W(cg.hair[2], cg.hair[3], ZT - drop*0.6);
+        g.lineStyle(1, pal.core, 0.8); g.lineBetween(h0.x, h0.y, h1.x, h1.y);
       }
-
-      /* rubble chips on the piece near the break */
-      const nCh = 3 + Math.floor(rng()*3);
-      for(let i=0; i<nCh; i++){
-        const fp = frac[1 + Math.floor(rng()*(N-1))];
-        const p = W(fp.x*(0.82 + rng()*0.1), fp.y*(0.82 + rng()*0.1), ZT - drop + 0.3);
-        g.fillStyle(rng() < 0.5 ? pal.crack : pal.rubble, 0.95);
-        g.fillEllipse(p.x, p.y, (2 + rng()*3.5)*this.K*0.5, (1.2 + rng()*2)*this.K*0.5);
+      for(const c of cg.chips){
+        const r = c.r, zc = ZT - drop + 0.3;
+        this.quadOn(g, [W(c.x - r, c.y, zc), W(c.x, c.y - r*0.7, zc + 0.4), W(c.x + r*0.8, c.y, zc), W(c.x, c.y + r*0.7, zc)], c.dk ? pal.crack : pal.rubble);
       }
-
-      /* exposed fracture wall: the intact slab's broken face */
-      for(let i=0; i<frac.length-1; i++){
-        const a2 = frac[i], b2 = frac[i+1];
-        this.quadOn(g, [
-          W(a2.x, a2.y, ZT), W(b2.x, b2.y, ZT),
-          W(b2.x, b2.y, ZT - drop), W(a2.x, a2.y, ZT - drop)
-        ], i % 2 ? pal.core : pal.wall);
+      /* the walls the eye sees, far first; left-facing lit, right-facing shaded */
+      const order = cg.order || (cg.order = []);
+      order.length = 0;
+      for(let i = 0; i < n; i++) if(vis[i]) order.push(i);
+      const mid = i => { const p = poly[i], q = poly[(i + 1) % n]; return W((p.x + q.x)/2, (p.y + q.y)/2, 0).y; };
+      order.sort((a, b) => mid(a) - mid(b));
+      for(const i of order){
+        const j = (i + 1) % n, p = poly[i], q = poly[j];
+        const ex = q.x - p.x, ey = q.y - p.y, sx2 = W(-ey*cg.inS, ex*cg.inS, 0).x - o.x;
+        this.quadOn(g, [W(p.x, p.y, ZT), W(q.x, q.y, ZT), W(q.x, q.y, zv[j]), W(p.x, p.y, zv[i])],
+                    sx2 < 0 ? pal.wall : pal.wallDk);
       }
-
-      /* ragged lip along the fracture at top level */
-      g.lineStyle(1.4, pal.crack, 1);
+      /* the broken edge at grade: the fracture's lip, and the hairlines running on into the slab */
+      g.lineStyle(1.3, pal.crack, 1);
       g.beginPath();
-      const l0 = W(frac[0].x, frac[0].y, ZT);
-      g.moveTo(l0.x, l0.y);
-      for(let i=1; i<frac.length; i++){
-        const q = W(frac[i].x, frac[i].y, ZT);
-        g.lineTo(q.x, q.y);
-      }
+      for(let i = 0; i < cg.nf; i++){ const q = W(poly[i].x, poly[i].y, ZT); if(i) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
       g.strokePath();
-
-      /* hairlines radiating into the intact slab */
-      for(let b=0; b<nBr; b++){
-        const i0 = 1 + Math.floor(rng()*(N-1));
-        let bx = frac[i0].x, by = frac[i0].y;
-        const mag = Math.hypot(bx, by) || 1;
-        let ba = Math.atan2(-by/mag, -bx/mag) + (rng()-0.5)*1.4;
-        let bl = 5 + rng()*8;
-        for(let k=0; k<3; k++){
-          const nx2 = Math.max(-T, Math.min(T, bx + Math.cos(ba)*bl));
-          const ny2 = Math.max(-T, Math.min(T, by + Math.sin(ba)*bl));
-          g.lineStyle(Math.max(0.8, (1.5 - k*0.45)*this.K*0.4), pal.crack, 0.95);
-          const p1 = W(bx, by, ZT), p2 = W(nx2, ny2, ZT);
-          g.lineBetween(p1.x, p1.y, p2.x, p2.y);
-          bx = nx2; by = ny2;
-          ba += (rng()-0.5)*1.2*jag;
-          bl *= 0.6;
-        }
+      for(const br of cg.branches){
+        g.lineStyle(1, pal.crack, 0.9);
+        g.beginPath();
+        for(let k = 0; k < br.length; k += 2){ const q = W(br[k], br[k + 1], ZT); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+        g.strokePath();
       }
     }
   }
