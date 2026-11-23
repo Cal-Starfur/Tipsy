@@ -75107,9 +75107,11 @@ function houseCanopy(fn){
     const chunk = (s0, s1, n = 120) => { const out = [];
       for(let x = s0; x < s1 - 0.5; x += n) out.push([x, Math.min(s1, x+n)]); return out; };
     const yWall = (a0,a1,b0,b1) => {
+      /* (the coping 3 proud of the wall, and 3 past the run's free ends only: past a joint between two pieces it lay over the next
+         piece's wall, which sorted after it and painted over it) */
       const piece = (p0, p1, q0, q1) => items.push({ a: (p0+p1)/2, b: (q0+q1)/2, draw: () => {
         box(p0, p1, q0, q1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
-        slab(p0-3, p1+3, FH, FH+8, q1+3, q0-3, shade(wall,1.05), null, shade(wall,1.2));
+        slab(p0 - (p0 === a0 ? 3 : 0), p1 + (p1 === a1 ? 3 : 0), FH, FH+8, q1 + (q1 === b1 ? 3 : 0), q0 - (q0 === b0 ? 3 : 0), shade(wall,1.05), null, shade(wall,1.2));
       } });
       if(a1 - a0 >= b1 - b0) for(const [c0, c1] of chunk(a0, a1)) piece(c0, c1, b0, b1);
       else for(const [c0, c1] of chunk(b0, b1)) piece(a0, a1, c0, c1);
@@ -75207,10 +75209,12 @@ function houseCanopy(fn){
         slab(ta-48, ta+48, 40, 46, tb+22, tb-22, '#9a7f5a', null, shade('#9a7f5a',1.2));
       };
       for(let r=0;r<4;r++) for(const ta of [110, 240]) items.push({ a: ta, b: -120 - r*130, draw: () => table(ta, -120 - r*130) });
-      for(const pb of [-70, -640]) items.push({ a: 175, b: pb, draw: () => {
+      /* (a planter 230 long: runPiece, each run keyed at its own stretch -- keyed at its middle, the table behind its east end
+         sorted after it and painted its legs over it) */
+      for(const pb of [-70, -640]) runPiece(items, 60, 290, pb-18, pb+18, 36, null, () => {
         box(60, 290, pb-18, pb+18, 0, 30, shade(wall,.9), shade(wall,.72), shade(wall,.6));
         for(let x = 80; x < 280; x += 40) ball(x, pb, 36, 16, ['#4e8058','#3f6b4a','#568a5e'][(x/40)%3|0]);
-      } });
+      }, { pad: 0 });   // (its clip its own stretch: padded, a run's clip reached over the next stretch's front, behind the tables' benches)
     }
 
     /* ---- THE BREWHOUSE, one item: back wall, flanks, tap room, upper
@@ -81261,11 +81265,13 @@ marinaEntry(),
       box(s0, s1, 520, 550, 0, 66, wood, teal, tealD);                                // (a counter's height: 66 and its top, under the waist)
       box(s0 - 0.5, s1 + 0.5, 518, 552, 66, 72, '#e4d3b0', '#cdb98f', '#b9a578');
     }});
-    items.push({ a: 600, b: 526, z: 0, draw: () => {
+    /* (what stands on the counter, each its own piece keyed just after the last run it stands on -- one piece keyed at the screen,
+       the runs under the phone and the bell sorted after it and painted their tops over them) */
+    items.push({ a: 618, b: 548, z: 0, draw: () => {
       box(582, 618, 524, 542, 72, 74, '#40454c', '#40454c', '#30343a'); F(586, 614, 74, 100, '#2e3a40', null, 0, 525); F(588, 612, 77, 97, '#9fd0e0', null, 0, 525.4);   // a screen
-      box(660, 674, 530, 542, 72, 80, '#c24a3a', '#c24a3a', '#a03a2c');                                                                                                   // a phone
-      cyl(700, 538, 72, 78, 6, '#d9b44a', '#f0d27a');                                                                                                                     // the bell
     }});
+    items.push({ a: 674, b: 530, z: 0, draw: () => box(660, 674, 530, 542, 72, 80, '#c24a3a', '#c24a3a', '#a03a2c') });                                            // a phone
+    items.push({ a: 706, b: 538, z: 0, draw: () => cyl(700, 538, 72, 78, 6, '#d9b44a', '#f0d27a') });                                                              // the bell
     for(const [s0, s1] of runs(735, 795, 30)) items.push({ a: (s0 + s1)/2, b: 190, z: 0, solids: [solid(s0, s1, 130, 250, 90, 'stock')], draw: () => {
       for(const [b0, b1, c] of [[134, 168, '#c98a52'], [172, 206, '#b5651d'], [210, 246, '#d9c9a8']]){
         box(s0 + 2, s1 - 2, b0, b1, 0, 44, shade(c, 1.1), c, shade(c, .8)); box(s0 + 4, s1 - 4, b0 + 2, b1 - 2, 44, 80, shade(c, 1.08), shade(c, .96), shade(c, .76));
@@ -81841,6 +81847,7 @@ marinaEntry(),
         R.fc.proj(x0, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
         R.fc.r(x0, x1, 150, 158, stone, 0.3); R.fc.r(x0, x1, H - 12, H, shade(trim, 1.0), 0.5);
         dwelling(R.fc, x0, x1, flip, flip);                             // (the east one, a 1824..2128, is the walk-in: the room inside, CTG_IN)
+        gateEnd(FC('b', CB1, 1), x0, x1);                         // (the gatehouse's face: the street front)
         roof(R, x0, x1, H, RH, null);
         dormer(R, (x0 + x1)/2 + (flip ? -30 : 30));
         chimney(R, (x0 + x1)/2 + (flip ? 74 : -74), H + RH, false);
@@ -81857,6 +81864,18 @@ marinaEntry(),
     }
 
     /* ============ THE GATEHOUSE: the arch, the clock, the lettering, a hipped roof with its vane ============ */
+    /* the buttresses either side of its front, stepped, and the plinth's return past its ends -- cut to the stretch u0..u1 */
+    const gateButt = (f, u0, u1) => {
+      const pj = (p0, p1, d, z0, z1, d0) => { const q0 = Math.max(p0, u0), q1 = Math.min(p1, u1); if(q1 > q0 + 0.01) f.proj(q0, q1, d, z0, z1, shade(stone, 1.08), stone, stoneD, d0); };
+      for(const s of [-1, 1]){ const u = s < 0 ? A.GA0 + 6 : A.GA1 - 6;
+        pj(u - 14, u + 14, 10, 0, 34, 4);                          // (its foot off the plinth's face, W37)
+        pj(u - 14, u + 14, 10, 34, 130); pj(u - 12, u + 12, 8, 130, 210); }
+    };
+    const gateEnd = (f, x0, x1) => {   // (a street dwelling's end against the gatehouse: the plinth's return and the buttress past g0 / g1)
+      const lo = x1 === A.GA0 ? A.GA0 - 20 : A.GA1, hi = x1 === A.GA0 ? A.GA0 : A.GA1 + 20;
+      if(x1 === A.GA0) f.proj(A.GA0 - 4, A.GA0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); else f.proj(A.GA1, A.GA1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      gateButt(f, lo, hi);
+    };
     it(GM, CB1 - RD/2, () => {
       const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
       /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
@@ -81866,7 +81885,9 @@ marinaEntry(),
       wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
       if(sa > 0) pierE(); else pierW();
       const f = FC('b', CB1, 1);
-      f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      /* (the plinth and the buttresses only over the gatehouse's own front, g0..g1: what stands out past its ends, over the
+         dwellings' fronts, each dwelling draws after its wall -- gateEnd -- or the dwelling sorted after it painted its wall over them) */
+      f.proj(g0, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
       tunnelView(f, GM, A.FGW, 182, 76, RD);
@@ -81878,9 +81899,7 @@ marinaEntry(),
       }
       f.r(GM - 12, GM + 12, 252, 270, shade(gold, .92), 1.1, shade(gold, .66), 1);
       /* the buttresses either side, stepped */
-      for(const s of [-1, 1]){ const u = s < 0 ? g0 + 6 : g1 - 6;
-        f.proj(u - 14, u + 14, 10, 0, 34, shade(stone, 1.08), stone, stoneD, 4);                          // (its foot off the plinth's face, W37)
-        f.proj(u - 14, u + 14, 10, 34, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
+      gateButt(f, g0, g1);
       /* the lettering band, on a stone course over the arch */
       f.r(g0 + 24, g1 - 24, 276, 312, shade(stone, 1.1), 0.5, stoneD, 1);
       word('FERRIS TAYLOR ALMSHOUSES', g0 + 32, g1 - 32, 282, 306, CB1 + 1.2, trimD, null, 4);
@@ -91796,14 +91815,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                world y runs with n -- the lab sees +b); the rails meet the posts' faces, never run into them */
             const nearHi = alongA ? (P(1, 0, 0).y - P(0, 0, 0).y) > 0 : (P(0, 1, 0).y - P(0, 0, 0).y) < 0;
             if(!nearHi) pts.reverse();
+            /* (a corner post is neither run's: its own piece, keyed against both (cornerPost below) -- drawn by each run, the one
+               sorted second painted its copy over the other's rail end) */
+            const corner = u => alongA ? Math.abs(u - F.a0) < 0.01 || Math.abs(u - F.a1) < 0.01 : Math.abs(u - F.n0) < 0.01 || Math.abs(u - F.n1) < 0.01;
             for(let k = 0; k < pts.length; k++){
               if(k){ const u0 = Math.min(pts[k-1], pts[k]) + 5, u1 = Math.max(pts[k-1], pts[k]) - 5;
                 R(u0, u1, 12, 16); R(u0, u1, 25, 29); }
-              post(pts[k]);
+              if(!corner(pts[k])) post(pts[k]);
             }
           };
           const gatePost = (a, n) => { box(a - 8, a + 8, bN(n + 8), bN(n - 8), 0, 50, FWD[0], FWD[1], FWD[2]);
                                        box(a - 10, a + 10, bN(n + 10), bN(n - 10), 50, 55, FW[0], FW[1], FW[2]); };
+          /* WHICH SIDES ARE FAR, asked of the projection (the game sees -b, the lab +b): a piece of a far side is keyed at its far end,
+             of a near side at its near end, each at its posts' near face; a gate post at its near corner */
+          const dep = (a, b) => P(a, b, 0).y, seeA = dep(1, 0) > dep(0, 0), seeB = dep(0, 1) > dep(0, 0);
           const side = (key, alongA, fixed, lo, hi) => {
             const cuts = [lo];
             for(const g of GATES[key]) cuts.push(g - F.gw/2, g + F.gw/2);
@@ -91817,15 +91842,17 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                    sides (N, W) by its far end: the north run behind the start ramp,
                    keyed at its east end, sorted after the ramp and drew through it
                    (Sir: "the fence is showing through the ramp") */
-                const far = key === 'N' || key === 'W';
-                items.push({ a: alongA ? (far ? u : u1) : fixed + 5, b: alongA ? bN(fixed + 5) : bN(far ? u : u1), z: 0,
+                const far = alongA ? (key === 'N') !== seeB : (key === 'W') === seeA;
+                const ka = alongA ? (far === seeA ? u : u1) : (seeA ? fixed + 5 : fixed - 5);
+                const kb = alongA ? bN(seeB ? fixed - 5 : fixed + 5) : (far === seeB ? bN(u1) : bN(u));
+                items.push({ a: ka, b: kb, z: 0,
                   solids: [{ name:'park fence', poly: sol, h: F.h }],
                   draw: () => run(alongA, fixed, u, u1) });
               }
             }
             for(const g of GATES[key]) for(const u of [g - F.gw/2, g + F.gw/2]){
               const a = alongA ? u : fixed, n = alongA ? fixed : u;
-              items.push({ a: a + 10, b: bN(n + 10), z: 0,
+              items.push({ a: seeA ? a + 10 : a - 10, b: bN(seeB ? n - 10 : n + 10), z: 0,
                 solids: [{ name:'park gate post', poly: volRect(a - 8, a + 8, bN(n + 8), bN(n - 8)), h: 55 }],
                 draw: () => gatePost(a, n) });
             }
@@ -91834,6 +91861,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           side('S', true, F.n1, F.a0, F.a1);
           side('W', false, F.a0, F.n0, F.n1);
           side('E', false, F.a1, F.n0, F.n1);
+          /* the four corner posts: keyed at the post's far corner where both runs come toward the eye from it (their rails paint
+             over it), its near corner where both go away (it over theirs), its middle where one does each */
+          for(const [ca, cn] of [[F.a0, F.n0], [F.a1, F.n0], [F.a0, F.n1], [F.a1, F.n1]]){
+            const d0 = dep(ca, bN(cn)), tA = dep(ca + (ca === F.a0 ? 100 : -100), bN(cn)) > d0, tN = dep(ca, bN(cn + (cn === F.n0 ? 100 : -100))) > d0;
+            const k = tA && tN ? -1 : !tA && !tN ? 1 : 0;
+            items.push({ a: ca + k*(seeA ? 5 : -5), b: bN(cn) + k*(seeB ? 5 : -5), z: 0,
+              draw: () => box(ca - 5, ca + 5, bN(cn + 5), bN(cn - 5), 0, F.h, FWD[0], FWD[1], FWD[2]) });
+          }
         }
         /* THE COURSE ITSELF IS THE PARK'S FOR GOOD (Number 4 Builds a Winner, 2026-11-01: the club's karts are tested
            down it after derby day -- the dirt lane, the finish, the start ramp and its rails, derbyZ's terrain);
@@ -91867,8 +91902,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           for(let k = 0; k < 8; k++){ const a0 = A0 + k*(A1-A0)/8;
             poly([P(a0,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1),Z+0.5),P(a0,bN(D.top1),Z+0.5)], k % 2 ? '#f4f2ec' : '#d8352a'); }
         }});
-        /* the back of the platform: a plank wall, solid */
-        items.push({ a: D.a0 - 12, b: bN(D.top0 - 12), z: 0,
+        /* the back of the platform: a plank wall, solid. Keyed at its far end where it is the ramp's far side (the game: the
+           eye sees -b), at its near end where it is the near side (the lab sees +b: the east rail's top run, behind it, drew over it) */
+        const backNear = (P(0, 1, 0).y - P(0, 0, 0).y) > 0;
+        items.push({ a: backNear ? D.a1 + 12 : D.a0 - 12, b: bN(D.top0 - 12), z: 0,
           solids: [{ name:'derby ramp back', poly: volRect(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12)), h: D.RZ + 40 }],
           draw: () => box(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12), 0, D.RZ + 40, WOODD[0], WOODD[1], WOODD[2]) });
         /* the rails, both sides, stepped down the slope: the west in one piece
