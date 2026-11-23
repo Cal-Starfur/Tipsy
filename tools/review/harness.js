@@ -27,8 +27,10 @@ function instrument(html){
   if(L0 < 0) return html;
   let head = html.slice(0, L0), body = html.slice(L0);
   body = body.replace('const LIB = (function(){', 'const LIB = (function(){\nwindow.__RVK_ctx = () => ({ MIRROR, SC, ZSCALE, FLANK_RIGHT, W }); window.__RVK_shops = () => SHOPS;');
-  /* every point the library draws, in its own frame (before the mirror): window.__RVP3(a, b, z) */
-  body = body.replace('  function P(a, b, z){\n', '  function P(a, b, z){\n    if(window.__RVP3) window.__RVP3(a, b, z);\n');
+  /* every point the library draws, in its own frame (before the mirror), with the frame's slide (AOFF, BOFF) on it -- where it is
+     drawn: a piece drawn with a shift, as Ferris Taylor Cottage's old fixtures moved into its L, is checked where it stands, not at
+     the numbers it was written with: window.__RVP3(a, b, z) */
+  body = body.replace('  function P(a, b, z){\n', '  function P(a, b, z){\n    if(window.__RVP3) window.__RVP3(a + AOFF, b + BOFF, z);\n');
   for(const n of LIB_PRIMS){
     const re = new RegExp('\\nfunction ' + n + '\\(');
     if(!re.test(body)) continue;

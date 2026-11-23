@@ -21,7 +21,7 @@ async function shoot(rev, dir){
            piece's own dk), not in the order they were collected: drawn as collected a parked car painted over a sign in front of it,
            and two floors' dining rooms over each other -- Sir, 2026-11-23, "car is drawing over the sign", "this looks really funky") */
         const shown = items.filter(it => { try { return !it.when || it.when(); } catch(e){ return true; } })
-          .map((it, k) => ({ it, k, d: it.dk != null ? it.dk : it.a + it.b })).sort((x, y) => x.d - y.d || x.k - y.k).map(o => o.it);
+          .map((it, k) => { let d = null; try { d = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){} return { it, k, d: d != null ? d : (it.a || 0) + (it.b || 0) + (it.z || 0) }; }).sort((x, y) => x.d - y.d || x.k - y.k).map(o => o.it);
         const drawAll = (g, G, S) => { LIB.ground(name, g, G, S); if(items.length) for(const it of shown){ try { LIB.drawItem(name, g, G, S, it); } catch(e){} } else LIB.draw(name, g, G, undefined, S); };
         /* its extent, from every point it draws */
         let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; window.__RVP3 = (a, b, z) => { const x = a - b, y = (a + b)/2 - z; if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; };
