@@ -61861,7 +61861,7 @@ function houseCanopy(fn){
        the picker and the arm between. Two robots a station: one at it, the other waiting full in its spot north of the lane (RAPK); the
        station's robot goes west along the lane (b 520) and up to the stop, back down a 620 and along the lane to its spot; as it leaves,
        the spare rolls in. On the pallet clock (row B's is half a SUP on) */
-    const RAL = 520, APOD = [330, 330], AROB = [500, 330], ARPOD = [430, 180], RAPK = m => [[720, 840, 960, 1080][m], 330];   /* (the full spares side by side by the pick face, as row B's -- Sir, 2026-11-23: "I like how the lower group is tighter") */
+    const RAL = 520, APOD = [330, 330], AROB = [500, 330], ARPOD = [430, 180], RAPK = m => [[1080, 960, 840, 720][m], 330];   /* (the full spares side by side by the pick face, as row B's -- Sir, 2026-11-23: "I like how the lower group is tighter") */
     const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), A = RBA[m];
       const EMP = [ST, [pa, RAL], [AROB[0], RAL], AROB], RET = [AROB, [620, AROB[1]], [620, RAL], [PK[0], RAL], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], RAL], [pa, RAL], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
@@ -61995,7 +61995,7 @@ function houseCanopy(fn){
           if(U < DV + 1400){ P1 = { a: APOD[0], b: APOD[1] }; fd = 1; }
           else if(U < DV + 2900){ s0 = RSHL*ease((U - DV - 1400)/1500); P1 = pathAt(RSH, Math.min(s0, RSHL - 0.5)); fd = 1; }   /* (over beside the picker) */
           else if(U < SUP + DV + 600){ P1 = { a: ARPOD[0], b: ARPOD[1] }; fd = 1; }   /* (away once the picker is back at his spot, clear of its way east) */
-          else if(U < SUP + DV + 20700){ s0 = RTL*ease((U - SUP - DV - 600)/20100); P1 = pathAt(RT, Math.min(s0, RTL - 0.5)); if(s0 > RTL - 182) fd = 2; }   /* (its empties to the Receiver: east under the line, backed into its spot north of the pallet) */
+          else if(U < SUP + DV + 24600){ s0 = RTL*ease((U - SUP - DV - 600)/24000); P1 = pathAt(RT, Math.min(s0, RTL - 0.5)); if(s0 > RTL - 182) fd = 2; }   /* (its empties to the Receiver: east under the line, backed into its spot north of the pallet) */
           else if(U < RF1){ P1 = { a: PODRA, b: PODB }; fd = 2; }   /* (refilled there, a colour at a time) */
           else if(U < RF1 + 10000){ s0 = RBKL*ease((U - RF1)/10000); P1 = pathAt(RBK, Math.min(s0, RBKL - 0.5)); fd = 2; }   /* (full, back west along the wall to wait at the line's back) */
           else if(U < 3*SUP - 1900){ P1 = { a: WT, b: LB }; fd = 2; }
@@ -62259,12 +62259,14 @@ function houseCanopy(fn){
       items.push({ a: pa, b: pb, z: 0, solids: [solid(pa - 38, pa + 38, pb - 55, pb + 55, 150, 'shelf pod')], draw: () => {} }); }   /* (the pods move up this line: goods to person's crew) */
     /* ---- THE ROBOTS' CHARGING PADS by the reserve pods (a 340..700, b 1084..1436): six pads, a charger post at each; the scissor lift parked
        on charge (a humanoid's way up a level, Sir), a spare robot on another ---- */
-    for(const [pa, pb] of [[2070, 1735], [2240, 1735]]){   /* (in the south-east corner past the storage row: the north-west corner is row A's pick face now -- Sir, 2026-11-21) */
+    for(const [pa, pb] of [[2070, 1735]]){   /* (in the south-east corner past the storage row: the north-west corner is row A's pick face now -- Sir, 2026-11-21) */
       T(pa - 80, pa + 80, pb - 56, pb + 56, 0.5, '#ff7a1a'); T(pa - 68, pa + 68, pb - 44, pb + 44, 0.6, '#a6aaa9');
       items.push({ a: pa - 70, b: pb - 50, z: 0, solids: [solid(pa - 96, pa - 74, pb - 14, pb + 14, 70, 'charger')], draw: () => {
         box(pa - 96, pa - 74, pb - 14, pb + 14, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(pa - 73.6, pb - 10, pb + 10, 44, 60, '#5fe8e0'); }});
     }
-    items.push({ a: 2240, b: 1735, z: 0, solids: [solid(2185, 2295, 1697, 1773, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(2240, 1735, 2, { build: 'amrlift' })] } });
+    T(44, 156, 1560, 1720, 0.5, '#ff7a1a'); T(56, 144, 1572, 1708, 0.6, '#a6aaa9');   /* (the scissor lift's pad in the south-west corner, clear of row B's road -- tools: trails) */
+    items.push({ a: 70, b: 1530, z: 0, solids: [solid(86, 114, 1518, 1540, 70, 'charger')], draw: () => { box(86, 114, 1518, 1540, 0, 70, '#3a3f46', '#2b2f35', '#22262b'); S(114.4, 1522, 1536, 44, 60, '#5fe8e0'); } });
+    items.push({ a: 100, b: 1640, z: 0, solids: [solid(62, 138, 1585, 1695, 40, 'robot on charge')], draw: () => {}, fx: { crew: () => [bot(100, 1640, 1, { build: 'amrlift' })] } });
 
     /* ---- OUT TO THE PALLETS: the conveyor robot takes each boxed scooter off the packing table to the arm robot's side; the arm lifts it off
        the conveyor and builds it onto the pallet in its bay (Sir: the arm had been moving a box from one side of itself to the other) -- six to a pallet, then the pallet jack robot takes it (fx.crew, on the line's clock) ---- */
