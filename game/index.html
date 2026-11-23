@@ -89793,12 +89793,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     for(const [a, b] of [[604,-276],[756,-276],[604,-124],[756,-124]]) cyl(a, b, 8, 110, 5, c.wood, shade(c.wood,1.1));
     houseHip(596, 764, -116, -284, 110, 190, 12, c.roof);
   },
-  gate(c){
+  gate(c, which){
     const tower = a0 => { for(const [dz, ins] of [[0,0],[50,4],[90,8],[120,12]]) box(a0 + ins, a0 + 30 - ins, -24 + ins/2, -4 - ins/2, dz, dz + (dz < 120 ? 50 - (dz === 50 ? 10 : dz === 90 ? 20 : 0) : 20), shade(c.stone,1.06), c.stone, shade(c.stone,.8)); };
     const wall = (a0, a1) => { box(a0, a1, -14, -4, 0, 36, shade(c.stone,1.04), c.stone, shade(c.stone,.8)); box(a0-1, a1+1, -15, -3, 36, 40, c.roof, shade(c.roof,.9), shade(c.roof,.75)); };
     /* W37: west to east as the eye sees it -- the walls meet the towers' faces (a mirrored on some edges) */
-    /* (its walls either side: one piece with the yard wall, drawn by houseYardFence -- yardFence.join; the towers here) */
-    if(FLANK_RIGHT){ tower(280); tower(370); } else { tower(370); tower(280); }
+    /* (its walls either side: one piece with the yard wall, drawn by houseYardFence -- yardFence.join; the towers here, each on its own
+       side of that run: the one behind its wall's end before it, the one in front of its wall's end after it -- which, the end the eye
+       sees, FLANK_RIGHT) */
+    const before = FLANK_RIGHT ? 370 : 280, after = FLANK_RIGHT ? 280 : 370;
+    if(which !== 'after') tower(before);
+    if(which !== 'before') tower(after);
   },
   trees(){
     for(const [nm, aa] of [['frangipani L', 60], ['frangipani R', 520]])
@@ -89809,8 +89813,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.roof(c);
     /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    this.gate(c, 'before');
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
-    this.gate(c);
+    this.gate(c, 'after');
     this.trees();
   },
   draw(p){
