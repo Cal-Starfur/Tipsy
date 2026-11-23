@@ -92,5 +92,6 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Runs round corners (walls and caps, fences, hedges, parapets, kerbs, counters with returns) | `pathRun(pts, t, z0, z1, top, front, side, legs)` | One piece, mitred: the corner rule (CLAUDE.md). Rancho Hacienda's yard wall (`yardFence.join`) is the exemplar |
 | Primitives | `box`, `cyl`, `tube`, `ball`, `prism`, `F` / `S` / `T` faces | the room's own fixtures, and anything new -- referencing the library's relative |
 | An exemplar room | Tidewater Tea House | `docs/kits/walkin-shop-recipe.md` |
+| Flowers: a galvanised bucket of stems (roses, a mixed bunch, sunflowers, eucalyptus, gladioli), a terracotta pot (fern, succulent, orchid, little palm), a glass-doored flower cooler, a tiered bucket stand | `bucket`, `pot` in the LIB entry 'Seabreeze Florist Interior'; held: `flHold` (a bunch, the same wrapped in kraft, a pot, a bucket of stems) | heads drawn far first (W37 inside); each stand's column of buckets its own piece |
 
 When you add a drawer, a kind, a breed or a look, add its row here.

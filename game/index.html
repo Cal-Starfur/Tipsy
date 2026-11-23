@@ -30634,6 +30634,9 @@ const WALKIN_SHOP_BAN = (() => {
     /* (the Cake Run's baker and Gus's cake: while either has the bakery, the rule stands down) */
     'Sandpiper Bakery Interior':    { by: ['counter', 'baker', 'helper'], who: 'Maggie', say: "You've knocked a customer flat. Out you go, love, and don't come back in.",
       story: () => { try { return ['brief', 'carry', 'back'].includes(CAKE_RUN.stage) || (typeof ANNIV !== 'undefined' && ANNIV.stage === 'cake'); } catch(e){ return false; } } },
+    /* (Gus's roses: while the story has the florist's, the rule stands down) */
+    'Seabreeze Florist Interior':   { by: ['counter', 'florist', 'helper'], who: 'Iris', say: "You've knocked a customer flat. Out you go, and don't come back in.",
+      story: () => { try { return typeof ANNIV !== 'undefined' && ANNIV.stage === 'flowers'; } catch(e){ return false; } } },
     /* (and every other room he can drive into -- Sir, 2026-11-18: "include the places you left out") */
     'Costa Palma Animal Shelter Interior': { by: ['reception', 'kennel-hand'], who: 'Receptionist', say: line('visitor'), story: st(() => ADOPT) },
     'Lagoon Baths Interior':        { by: ['desk', 'pool'], who: 'Attendant', say: line('bather') },
@@ -32273,6 +32276,158 @@ walkinLife(SB_IN.name, { keep: [[170, 251, 0, 2000]], looks: [
   { id: 'bread', spots: [[330, 432, Math.PI/2], [395, 432, Math.PI/2]] },
   { id: 'cakes', spots: [[330, 566, Math.PI/2]] },
 ], browseNext: sbBrowseNext, pose: sbPose, drawState: sbDrawState });
+/* ==================== SEABREEZE FLORIST, WALK-IN (wi-seabreeze-florist; the room: the LIB entry 'Seabreeze Florist Interior') ====================
+   The Flats' florist on block 2,0's south edge (its front faces south, to the camera), west of Sandpiper Bakery. Built by the shop recipe
+   (docs/kits/walkin-shop-recipe.md, W33): the exterior unchanged but for its door -- its own building its volume with the doorway open
+   through the wall (vol.foot, vol.opens), the door kit's single leaf 80 across ('lite'), the window narrowed 12 for it; he is taken in in
+   the doorway (glass < 0).
+   BIGGER INSIDE THAN OUT (W31): the room runs back from the shop's front north into the block and east under the bakery and the roastery's
+   west end (its door is at its own east end, as the bakery's) -- 850 x 700, the buildings it covers drawn under it while he is inside. Only
+   one room is live at a time: it lies under the bakery's own room and the roastery's.
+   Lab frame (the shop's, a south-edge shop's mirror undone): a east along the frontage from its west end, b south (0 the wall, negative into
+   the block). The shop is not rebuilt on the game anchors (no zs): its lab z is x1.95 in the world, as the roastery's. Room frame a east, b
+   south, world units: the front (south) wall b 700; the door a 152..256 in it; the shop's own frontage a -30..269 */
+const FL_IN = { name: 'Seabreeze Florist Interior', x0: 880000, y0: 400000, WALL: 30/1.3, ROOM_A0: 0, ROOM_A1: 699.69, ROOM_BACK: -585, H: 300, LH: 66,
+  DOOR: [140, 220], DZ: 107.9, DOORZ: 107.9*1.95, WIN: [34, 126, 16] };   // (the shop's door and window, lab a; the window's sill, lab z -- x1.95)
+FL_IN.ra = la => (la - FL_IN.ROOM_A0 - FL_IN.WALL)*1.3;                    // a lab a (along the frontage) as the room's a
+const FL_PLAN = walkinDefine({ name: FL_IN.name, from: 'Seabreeze Florist', x0: FL_IN.x0, y0: FL_IN.y0,
+  lab: [FL_IN.ROOM_A0 + FL_IN.WALL, FL_IN.ROOM_A1 - FL_IN.WALL, FL_IN.ROOM_BACK + FL_IN.WALL, -FL_IN.WALL], body: [[0, 230, -276, 0]],
+  door: { a: (FL_IN.DOOR[0] + FL_IN.DOOR[1])/2, b: 0, half: (FL_IN.DOOR[1] - FL_IN.DOOR[0])/2*1.3 }, H: FL_IN.H, LH: FL_IN.LH, out: 60, glass: -14,   // (glass < 0: in the doorway, past the door's plane, before he is taken in -- W32)
+  /* (its way to and from the street, THE ROOM'S DAY: out onto the south pavement, along it either way and round the corners) */
+  street: { to: [0, 184], routes: [[[-781, 184], [-781, 1600]], [[1249, 184], [1249, 1600]]] },
+  /* (seen through, W11: the open doorway) */
+  openings: [{ lab: [[FL_IN.DOOR[0], 0], [FL_IN.DOOR[1], 0]], z: [0, FL_IN.DZ] }] });
+/* (W31: what it covers -- the bakery to its east and the roastery's west end -- and what stands over it on screen: the juice bar round the
+   corner over its west wall) */
+POCKETS[POCKETS.length - 1].ghosts = ['Sandpiper Bakery', 'Lagoon Coffee Roasters', 'Charge depot', 'Marina Optical', 'Low Tide Juice Bar', 'Surfside Fitness'];
+POCKETS[POCKETS.length - 1].displace = true;
+/* THE PAGES, WHO KEEP IT: their own looks, set by hand (lookFn) -- a florist's dress, the shop's seafoam and green aprons. The florist
+   herself at the workbench, the cooler and the stands: THE SAME WOMAN the street sees (FLORIST_UNIFORM on her own body, staffLook -- the one
+   who brings out Gus's roses), away from the room while the story has her out on the pavement; Iris Page at the till, the keyholder (silver
+   hair in a bun, a sage cardigan, the seafoam apron); her grandson Rowan on the floor, a bucket of fresh stems on his arms (a cap, a
+   white tee, the green apron). The customers are the street's own (look: 'visitor') */
+const FL_SEED = 0xf10e5;   // (the florist's body: annivFlorist's giver -- shopDoorWalkers' seed for her)
+const FL_FAMILY = (() => {
+  const H = (c, style) => ({ c, dk: _pdk(c, 0.75), style }), C = c => ({ c, dk: _pdk(c, 0.78) }), W = PEOPLE_BUILD[1];
+  let fl = null;   // (the roster isn't up while this file loads: her body made the first time she is drawn)
+  return {
+    get florist(){ if(!fl){ const B = staffLook(FL_SEED), U = FLORIST_UNIFORM; fl = { build: B.build, skin: B.skin, hair: B.hair, shirt: U.shirt, pants: U.pants, shoe: U.shoe, uniform: U }; } return fl; },
+    iris:  { build: W, skin: { c: 0xe8c4a4, dk: 0xc8a282 }, hair: H(0xd8d4ce, 'bun'), shirt: C(0x9cb49a), pants: C(0x4a4f58), shoe: { c: 0x5a3e2c, dk: 0x3e2a1e },
+             uniform: { vest: C(0x4f9e8a), shoeKind: 'flat' } },
+    rowan: { build: PEOPLE_BUILD[0], skin: { c: 0xa87a56, dk: 0x86603f }, hair: H(0x2a1e16, 'crop'), shirt: C(0xf4f2ec), pants: C(0x3a3e48), shoe: { c: 0x2a2c30, dk: 0x1a1c20 },
+             uniform: { vest: C(0x4f8a5a), cap: { c: 0x3f7f6e, dk: 0x2f6050, top: 0x4f9e8a, badge: 0xf4f6ee }, shoeKind: 'sneaker' } },
+  };
+})();
+/* the florist is out of the room while Gus's roses have her (out of the street door to Tipsey -- shopDoorWalkers) */
+function flFloristAway(){
+  try { return !!(typeof ANNIV !== 'undefined' && ANNIV.giver && ANNIV.giver.look === FLORIST_UNIFORM); } catch(e){ return false; }
+}
+/* A CUSTOMER'S VISIT (as the bakery's: reach ONCE, then do something with it): most choose a bunch from a stand or the tall buckets by the
+   east wall -- the stems lifted out once and held -- and take it to the till, where it is wrapped in kraft paper; some take a potted plant
+   off the plant table to pay for. What they paid for goes out of the door with them (pose.hold / drawState: WALKIN_STREET). Rowan carries a
+   bucket of fresh stems from the cooler to the stands */
+const FL_SHELVES = ['standA', 'standB', 'tall', 'plants'];
+const FL_BLOOMS = [0xd98a9e, 0xe8c34a, 0xc2452e, 0xf4f6ee, 0xb48ad0, 0xf0a060];
+/* what is in their hands, drawn in their own frame (at.G: across them, forward, up), a real size against them: a loose bunch, stems down at
+   the chest; the same wrapped in a cone of kraft paper tied with seafoam; a potted plant before them in both hands; Rowan's bucket of stems */
+function flHold(s){
+  if(s._flH && s._flH.v === s.visit) return s._flH;
+  const hull = (g, at, pts, c) => { const P = pts.map(q => at.G(q[0], q[1], q[2])).sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const box = (x0, x1, b0, b1, z0, z1) => { const o = []; for(const x of [x0, x1]) for(const b of [b0, b1]) for(const z of [z0, z1]) o.push([x, b, z]); return o; };
+  const ring = (x, f, z, r) => { const o = []; for(let k = 0; k < 8; k++){ const t = k/8*Math.PI*2; o.push([x + Math.cos(t)*r, f + Math.sin(t)*r, z]); } return o; };
+  const seed = ((s.seed >>> 0) ^ Math.imul(s.visit || 0, 0x9e3779b1)) >>> 0, c0 = FL_BLOOMS[seed % FL_BLOOMS.length], c1 = FL_BLOOMS[(seed >>> 4) % FL_BLOOMS.length];
+  /* the heads of a bunch: five blooms over the stems' top, the back ones first (far, then near: a head never over one in front of it) */
+  const heads = (g, at, x, f, z) => { [[-4.2, 2.6, 0.6], [4.2, 2.6, 0.8], [0, 2.2, 3.2], [-4.4, -1.4, 2.2], [4.4, -1.4, 2.6], [-2, -3.2, 0.4], [2.2, -3.2, 0.6]].forEach(([dx, df, dz], k) =>
+    hull(g, at, ring(x + dx, f + df, z + dz, 3.4).concat(ring(x + dx, f + df, z + dz + 3, 2.4)), k % 2 ? c1 : c0)); };
+  return (s._flH = { v: s.visit,
+    /* a loose bunch, upright at the chest: the stems, the heads over them */
+    bunch: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1];
+      hull(g, at, box(-2.4, 2.4, f - 1.8, f + 1.8, h - 10, h + 16), 0x4f7a4a); heads(g, at, 0, f, h + 16); },
+    /* the same wrapped: a cone of kraft paper from the hand up, its seafoam tie, the heads in its mouth */
+    wrap: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 3, h = at.hand[1];
+      hull(g, at, ring(0, f, h - 10, 1.8).concat(ring(0, f, h + 18, 9.4)), 0xc8a676); heads(g, at, 0, f, h + 16);
+      hull(g, at, ring(0, f + 0.3, h + 1, 4.4).concat(ring(0, f + 0.3, h + 3, 5.2)), 0x4f9e8a); },
+    /* a potted plant before them in both hands: a terracotta pot, its leaves over it */
+    pot: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 5, h = at.hand[1] - 3;
+      hull(g, at, ring(0, f, h, 4.2).concat(ring(0, f, h + 9, 5.6)), 0xb86a4a); hull(g, at, ring(0, f, h + 9, 6).concat(ring(0, f, h + 10.4, 6.2)), 0xa25a3c);
+      hull(g, at, ring(0, f, h + 10, 6.4).concat(ring(0, f, h + 20, 4.4)), 0x4f8f58); hull(g, at, ring(-1.5, f - 1, h + 16, 3.4).concat(ring(-1.5, f - 1, h + 23, 1.8)), 0x3f7a4a); },
+    /* Rowan's bucket: a galvanised bucket before him in both hands, stems standing in it, the heads over them */
+    bucket: (g, p, K, at) => { if(!at) return; const f = at.hand[0] + 6, h = at.hand[1] - 6;
+      hull(g, at, box(-3.4, 3.4, f - 2.6, f + 2.6, h + 10, h + 30), 0x4f7a4a); heads(g, at, 0, f, h + 30);
+      hull(g, at, ring(0, f, h, 7).concat(ring(0, f, h + 16, 8.6)), 0xa8aeb0); hull(g, at, ring(0, f, h + 15, 8.8).concat(ring(0, f, h + 16.4, 8.8)), 0xc8ccd0); } });
+}
+function flBrowseNext(R, s, m, now, bot){
+  if(s.look !== 'visitor') return false;
+  const rnd = m.rnd, avoid = walkinAvoid(R, s, bot);
+  const leave = () => { s._visitEnd = now; m.spot = null; m.look = null; m.until = now + 4000; return true; };   // (THE ROOM'S DAY walks them out)
+  const look = id => { const T = R.looks.find(q => q.id === id), taken = new Set(R.people.filter(o => o !== s && o._m && !o._gone).map(o => o._m.spot));
+    const i = T ? T.spots.findIndex((p, k) => !taken.has(id + '#' + k)) : -1;
+    if(i >= 0 && walkinGo(R, s, m, T.spots[i], T.spots[i][2], avoid)){ m.spot = id + '#' + i; m.look = id; return true; }
+    return false; };
+  const order = () => { if(look('till')){ m.atTill = true; m.dwell = 6000 + rnd()*4000; return true; } return false; };
+  /* (paid at the till: the bunch wrapped, or the pot -- it goes out of the door with them, WALKIN_STREET) */
+  if(m.atTill){ m.atTill = false; m.paid = true; }
+  if(m.paid) return leave();
+  if((m.look === 'standA' || m.look === 'standB' || m.look === 'tall') && !m.path && !m.pot) m.bunch = true;   // (lifted out of its bucket, in hand)
+  if(m.look === 'plants' && !m.path && !m.bunch) m.pot = true;
+  m.n = (m.n || 0) + 1;
+  if(m.bunch || m.pot){ if(order()) return true; if(m.n > 5) return leave(); }
+  if(m.n > 4) return leave();
+  return false;                                                                                                 // (to a stand: the kit's pick)
+}
+function flPose(s, m, now, P){
+  const H = flHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
+  if(s.look !== 'visitor'){
+    if(s.fixed){ P.lift = [0.28, 0.3]; P.bend = [1.0, 0.95]; P.headTurn = 0; return; }                         // (Iris at the till: both hands on its top)
+    if(s.id === 'florist'){                                                                                       // (the florist: arranging at the bench, stems out of the cooler)
+      if(m.task === 1){ P.lift = [0.1, 0.55]; P.bend = [0.3, 0.5]; P.headTilt = 0.1; return; }
+      if(m.task === 2){ P.lift = [0.24, 0.3]; P.bend = [1.0, 1.1]; P.headTilt = 0.3; return; }
+      const w = Math.sin(now*0.006 + 0.7); P.lift = [0.27 + 0.03*w, 0.27 - 0.03*w]; P.bend = [0.95, 0.95]; P.headTilt = 0.3; P.headTurn = 0; return; }
+    /* Rowan: the bucket on his arms, and at each post a stem set out, once */
+    if(since < 1800){ const k = Math.sin(Math.PI*since/1800); P.lift = [0.26, 0.26 + 0.02*k]; P.bend = [1.15, 1.2 - 0.6*k]; }
+    else { P.lift = [0.26, 0.26]; P.bend = [1.15, 1.2]; }
+    P.hold = H.bucket; return;
+  }
+  const stand = m.look === 'standA' || m.look === 'standB' || m.look === 'tall';
+  if(stand && !m.path && !m.bunch){                                                                              // (reaching into a bucket, once, then holding the bunch)
+    if(since < 1600){ const k = Math.sin(Math.PI*since/1600); P.lift = [0.1, 0.62*Math.min(1, k*1.6)]; P.bend = [0.2, 0.45]; P.headTilt = 0.3; return; }
+    P.lift = [0.1, 0.3]; P.bend = [0.2, 1.15]; P.headTilt = 0.25; P.headTurn = 0; P.hold = H.bunch; return; }
+  if(m.look === 'plants' && !m.path && !m.pot){ P.lift = [0.08, 0.1]; P.bend = [0.2, 0.25]; P.headTilt = 0.3; P.headTurn = 0; return; }   // (looking the plants over)
+  if(m.look === 'till' && !m.path){ P.lift = [0.1, 0.12]; P.bend = [0.2, 0.3]; P.headTilt = 0.18; P.headTurn = 0; if(m.bunch) P.hold = H.bunch; if(m.pot) P.hold = H.pot; if(m.pot){ P.lift = [0.26, 0.26]; P.bend = [1.2, 1.2]; } return; }
+  if(m.bunch && m.paid){ P.lift = [0.1, 0.3]; P.bend = [0.2, 1.15]; P.hold = H.wrap; return; }                  // (the wrapped bunch at the chest)
+  if(m.pot){ P.lift = [0.26, 0.26]; P.bend = [1.2, 1.2]; P.hold = H.pot; return; }                                // (the pot before them)
+  if(m.bunch){ P.lift = [0.1, 0.3]; P.bend = [0.2, 1.15]; P.hold = H.bunch; return; }
+  P.lift = [0.06, 0.08]; P.bend = [0.2, 0.25];                                                                     // (no arm pumping at a look)
+}
+function flDrawState(s, m, now, q){
+  if(!m.moving) return;
+  const H = flHold(s);
+  /* (out of the door with what they paid for -- the wrapped bunch, the pot; a bunch not paid for goes back in its bucket) */
+  if(s.look === 'visitor'){ if(m.bunch && m.paid) q.pose = { lift: [0.12, 0.3], bend: [0.25, 1.15], hold: H.wrap };
+    else if(m.pot && (m.paid || s._day !== 'leaving')) q.pose = { lift: [0.26, 0.26], bend: [1.2, 1.2], hold: H.pot };
+    else if(m.bunch && s._day !== 'leaving') q.pose = { lift: [0.12, 0.3], bend: [0.25, 1.15], hold: H.bunch }; }
+  else if(s.id === 'helper') q.pose = { lift: [0.26, 0.26], bend: [1.15, 1.2], hold: H.bucket };
+}
+walkinStaff(FL_IN.name, [
+  { id: 'counter', role: 'shop assistant', seed: 0xf1a01, lookFn: () => FL_FAMILY.iris, fixed: true, keys: true, posts: [[730, 266, Math.PI/2, 9000, true], [680, 266, Math.PI/2, 4000, true], [780, 266, Math.PI/2, 3000, true]] },
+  { id: 'florist', role: 'florist', seed: FL_SEED, lookFn: () => FL_FAMILY.florist, away: flFloristAway,
+    posts: [[80, 216, Math.PI/2, 9000, true], [400, 108, -Math.PI/2, 6000, true], [520, 108, -Math.PI/2, 5000, true]] },
+  { id: 'helper', role: 'florist\'s assistant', seed: 0xf1a03, lookFn: () => FL_FAMILY.rowan, posts: [[460, 108, -Math.PI/2, 7000, true], [385, 266, Math.PI/2, 6000, true], [762, 530, 0, 5000, true]] },
+  { id: 'customer-1', role: 'customer', seed: 0xf1a11, look: 'visitor', life: 'browse', only: FL_SHELVES },
+  { id: 'customer-2', role: 'customer', seed: 0xf1a12, look: 'visitor', life: 'browse', only: FL_SHELVES },
+  { id: 'customer-3', role: 'customer', seed: 0xf1a13, look: 'visitor', life: 'browse', only: FL_SHELVES },
+  { id: 'customer-4', role: 'customer', seed: 0xf1a14, look: 'visitor', life: 'browse', only: FL_SHELVES },
+]);
+walkinLife(FL_IN.name, { keep: [[164, 245, 0, 2000]], looks: [
+  { id: 'till', spots: [[690, 388, -Math.PI/2], [775, 388, -Math.PI/2]] },
+  { id: 'standA', spots: [[335, 398, -Math.PI/2], [430, 398, -Math.PI/2]] },
+  { id: 'standB', spots: [[335, 600, -Math.PI/2], [430, 600, -Math.PI/2]] },
+  { id: 'tall', spots: [[760, 468, 0], [760, 600, 0]] },
+  { id: 'plants', spots: [[80, 548, -Math.PI/2]] },
+], browseNext: flBrowseNext, pose: flPose, drawState: flDrawState });
 /* ==================== PALMLINE TOWER LOBBY, WALK-IN (pt1, docs/palmline-tower-plan.md; the room: the LIB entry 'Palmline Tower Lobby') ====================
    The tower's double-height lobby between Coral Cafe and Marina Deli, on the street's lines (walkinDefine, a rim site's frame: a east along the
    rim, b 0 on the pavement line and negative into the lot). The room is the lobby's span less the walls' 30 (W22): lab a LOB0+30..LOB1-30, b
@@ -61100,6 +61255,278 @@ function houseCanopy(fn){
   }
 },
 {
+  /* INSIDE SEABREEZE FLORIST (FL_IN; the walk-in kit's walls, walkinRoom, its door in the south wall; the room runs back north into the block and
+     east under the bakery and the roastery's west end, which are taken off while he is inside -- pk.displace). Frame a east, b south, z up, world
+     units. Built by the shop recipe (W33), in zones for its size:
+       the back wall    THE FLOWER COOLER (a 300..640): glass doors on two shelves of buckets, FRESH CUT FLOWERS over them; THE VASE SHELVES
+                        (a 660..840): glass vases, terracotta pots and a watering can
+       the north-west   THE WORKBENCH (a 20..140, b 250..300), zinc-topped, a bouquet laid out on kraft paper, a ribbon reel and a jar of
+                        eucalyptus on it (the florist's, facing the room); THE PAPER RACK on the west wall behind it: three rolls and the ribbons
+       a 164..245       the door's lane, door to back wall, clear
+       the middle       TWO TIERED STANDS (a 300..470, b 300..360 and b 500..560): three steps of buckets, a column of three their own piece
+       the north-east   THE TILL COUNTER (a 640..820, b 300..350), Iris behind it: the till, a vase of roses, the kraft roll and a card stand
+                        each their own piece on top
+       the east wall    THE TALL BUCKETS: sunflowers, eucalyptus and gladioli in floor buckets
+       the south-west   THE PLANT TABLE (78, 470): a round table of potted plants; THE WINDOW'S DISPLAY behind the shop window
+       the south-east   a monstera and an olive in big pots
+     Every long fixture a run of pieces (runPiece, W28); what stands on them its own piece (lcOnZ). Heights (docs/kits/library.md): the bench and
+     the till counter 75, the plant table 66. */
+  name:'Seabreeze Florist Interior', xh: 300, tall:true, block:true, place:'pocket', zs: 1, mirror: false,
+  ww: 850, dd: 700,
+  head:'Inside Seabreeze Florist: a glass flower cooler, tiered stands of buckets, a zinc workbench, a till counter, tall buckets of sunflowers, a plant table',
+  tags:['interior','pocket','florist','flower cooler','bucket stands','workbench','potted plants'],
+  desc:'The Flats\' florist: white plaster over a beadboard dado and a seafoam rail, whitewashed floorboards; a glass-doored flower cooler of buckets on the back wall and shelves of vases and pots beside it; a zinc-topped workbench with a bouquet laid out on kraft paper and the paper rolls on the wall behind; two tiered stands of buckets; a till counter with roses; sunflowers, eucalyptus and gladioli in tall buckets down the east wall; a round table of potted plants; a monstera and an olive by the front.',
+  draw(p){
+    const pl = (typeof FL_PLAN !== 'undefined' && FL_PLAN) || null;
+    if(pl) pl.view();
+    const W = (pl && pl.W) || 850, D = (pl && pl.D) || 700, H = FL_IN.H, LH = FL_IN.LH, DZ = FL_IN.DOORZ;
+    const door = (pl && pl.door) || { side: 's', at: 204, half: 52 };
+    const plas = '#f1f2ec', bead = '#f6f7f2', beadL = '#dde2da', sea = '#4f9e8a', seaD = '#3f7f6e', seaL = '#7cbcaa', sage = '#9cb49a';
+    const galv = '#a8aeb0', galvL = '#c8ccd0', galvD = '#868c90', water = '#3d5a4a', steelL = '#d4d8da', dark = '#2a2624', blk = '#1e1c1a';
+    const oak = '#c9a57a', oakT = '#dcc09a', oakS = '#a8845a', wash = '#ebe4d6', washD = '#cfc4b0', zinc = '#b8bec0', zincL = '#ccd2d4';
+    const terra = '#b86a4a', terraT = '#c8805e', terraD = '#9a5638', leaf = '#4f8f58', leafD = '#3f7a4a', leafL = '#6aa86c', kraft = '#c8a676', kraftL = '#d8ba8c';
+    const blooms = ['#d98a9e', '#e8c34a', '#c2452e', '#f4f6ee', '#b48ad0', '#f0a060', '#e86a8a'];
+    const extW = '#f6f7f2', extT = '#4f9e8a';                                                          // (the shop's own walls, outside: W4)
+    const items = [];
+    const solid = (a0, a1, b0, b1, h, name) => ({ name: name || 'fixture', poly: volRect(a0, a1, b0, b1), h });
+    const hsh = i => { let x = Math.imul((i | 0) ^ 0x9e3779b9, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return (x >>> 0)/4294967296; };
+    /* A BUCKET OF STEMS: the galvanised bucket, its water, then the stems out of it and their heads, the far ones first (back to front, W37
+       inside); kind 0 roses and tulips (a mix of one colour), 1 a mixed bunch, 2 tall (sunflowers), 3 tall (eucalyptus), 4 tall (gladioli) */
+    const bucket = (a, b, z, r, h, kind, seed) => {
+      cyl(a, b, z, z + h, r, galv, galvL); cyl(a, b, z + h - 0.6, z + h, r - 1.4, water, water);
+      F(a - r*0.7, a + r*0.7, z + h*0.62, z + h*0.62 + 1.2, galvD, null, 0, b + r*0.72);              // (its band, on the face we see)
+      const tall = kind >= 2, n = tall ? 4 : 6, heads = [];
+      for(let j = 0; j < n; j++){ const t = (j/n)*Math.PI*2 + hsh(seed*7 + j)*0.8, rr = r*(0.25 + 0.4*hsh(seed*11 + j));
+        const fa = a + Math.cos(t)*rr*1.3, fb = b + Math.sin(t)*rr, fz = z + h + (tall ? 70 + hsh(seed + j*5)*30 : 14 + hsh(seed + j*5)*10);
+        heads.push([fa, fb, fz, j]); }
+      heads.sort((p, q) => p[1] - q[1] || p[0] - q[0]);
+      for(const [fa, fb, fz] of heads) tube(a + (fa - a)*0.3, b + (fb - b)*0.3, z + h - 1, fa, fb, fz, tall ? 1.3 : 0.9, leafD);
+      for(const [fa, fb, fz, j] of heads){
+        if(kind === 2){ cyl(fa, fb, fz, fz + 2, 7, '#d8a830', '#e8c34a'); cyl(fa, fb, fz + 2, fz + 2.6, 3.4, '#5a3a1e', '#6a4424'); continue; }
+        if(kind === 3){ for(let k = 0; k < 4; k++) ball(fa + (k % 2 ? 1.5 : -1.5), fb, fz - k*7, 2.6, '#8fb0a0', '#a8c4b6'); continue; }
+        if(kind === 4){ for(let k = 0; k < 4; k++) ball(fa, fb, fz - k*6, 2.8 - k*0.2, blooms[(seed + 6) % blooms.length], '#f6c8d6'); continue; }
+        const c = kind === 0 ? blooms[seed % blooms.length] : blooms[(seed + j) % blooms.length];
+        ball(fa, fb, fz, 4.2, c, shade(c, 1.18)); }
+    };
+    /* a terracotta pot, its plant: 0 a fern, 1 a succulent, 2 an orchid, 3 a little palm */
+    const pot = (a, b, z, r, kind) => {
+      cyl(a, b, z, z + r*1.3, r*0.82, terra, terraT); cyl(a, b, z + r*1.3 - 2.4, z + r*1.3, r, terraD, terraT); cyl(a, b, z + r*1.3 - 0.4, z + r*1.3, r - 1.6, '#5a3e2a', '#5a3e2a');
+      const zt = z + r*1.3;
+      if(kind === 1){ for(let k = 0; k < 5; k++){ const t = k/5*Math.PI*2; ball(a + Math.cos(t)*r*0.45, b + Math.sin(t)*r*0.35, zt + 3, r*0.38, '#7fa88a', '#9cc4a6'); } ball(a, b, zt + 5, r*0.42, '#8fb89a', '#acd0b4'); return; }
+      if(kind === 2){ tube(a, b, zt, a, b, zt + 34, 0.8, leafD); for(let k = 0; k < 4; k++) ball(a + 2 + k*1.6, b, zt + 34 - k*6, 3.2, '#f4f0f6', '#fbf8fc'); box(a - 6, a + 6, b - 2, b + 2, zt, zt + 3, leaf, leaf, leafD); return; }
+      const nl = kind === 3 ? 6 : 9;
+      for(let k = 0; k < nl; k++){ const t = k/nl*Math.PI*2; tube(a, b, zt, a + Math.cos(t)*r*1.4, b + Math.sin(t)*r*1.0, zt + (kind === 3 ? 30 : 14) + (k % 3)*5, kind === 3 ? 1.6 : 2.2, k % 2 ? leaf : leafL); }
+    };
+
+    /* ---- THE FLOOR: whitewashed boards along the room, their butt joints staggered; a mat at the door ---- */
+    T(0, W, 0, D, 0, wash);
+    for(let b = 24, r = 0; b < D; b += 24, r++){ T(0, W, b - 0.5, b + 0.5, 0.2, washD);
+      for(let a = (r % 3)*70 + 40; a < W; a += 210) T(a - 0.5, a + 0.5, b - 24, b, 0.25, washD); }
+    T(door.at - 44, door.at + 44, 640, D - 4, 0.35, '#3f5a50'); T(door.at - 38, door.at + 38, 646, D - 10, 0.4, '#4f6c60');
+    items.push({ a: door.at, b: D - 6, z: 0, solids: [], draw: () => { T(door.at - door.half - 6, door.at + door.half + 6, D - 10, D + 40, 0.55, '#d4cec2');
+      T(door.at - door.half, door.at + door.half, D - 2, D + 2, 0.6, galvL); } });
+
+    /* ---- THE WALLS (the kit's) ---- */
+    walkinRoom(items, { W, D, H, LH, door, doorTop: DZ,
+      paintN: () => {
+        F(-30, W + 30, 0, H, plas, null, 0, 0);
+        F(-30, W + 30, 0, 110, bead, null, 0, 0.05);                                                   // (beadboard to 110)
+        for(let a = -24; a < W + 30; a += 12) F(a - 0.4, a + 0.4, 6, 110, beadL, null, 0, 0.1);
+        F(-30, W + 30, 0, 6, seaD, null, 0, 0.15); F(-30, W + 30, 110, 116, sea, null, 0, 0.2);
+        F(-30, W + 30, H - 18, H, sea, null, 0, 0.3);
+        /* the lane's end: a framed botanical print -- a stem of foxgloves */
+        F(176, 236, 150, 240, oakS, null, 0, 0.4); F(182, 230, 156, 234, '#f4f1e6', null, 0, 0.5);
+        F(205, 207, 166, 224, '#4f7a4a', null, 0, 0.6); for(let k = 0; k < 6; k++) F(198 + (k % 2)*8, 206 + (k % 2)*8, 196 + k*5, 201 + k*5, ['#c86a9a', '#d98ab0'][k % 2], null, 0, 0.62);
+        F(194, 218, 168, 172, '#5f8a5a', null, 0, 0.6);
+        /* over the cooler and the shelves: the shop's name */
+        F(300, 840, 236, 274, sea, null, 0, 0.4); blockWordIn('SEABREEZE FLORIST', 320, 820, 244, 266, 0.6, '#f4f6ee', null, 4);
+        /* a garland of dried flowers along the top, sage and blush */
+        for(let k = 0; k < 26; k++){ const a = 10 + k*32; F(a, a + 18, H - 30, H - 22, k % 2 ? sage : '#e8c4c4', null, 0, 0.7); }
+        /* pendant lights over the till */
+        for(const la of [680, 780]){ F(la - 1, la + 1, 236, H - 18, dark, null, 0, 0.5); }
+      },
+      paintW: () => {
+        S(0, -30, D + 30, 0, H, shade(plas, 0.95));
+        S(0.05, -30, D + 30, 0, 110, shade(bead, 0.94));
+        for(let b = -24; b < D + 30; b += 12) S(0.1, b - 0.4, b + 0.4, 6, 110, shade(beadL, 0.94));
+        S(0.15, -30, D + 30, 0, 6, shade(seaD, 0.9)); S(0.2, -30, D + 30, 110, 116, shade(sea, 0.9)); S(0.3, -30, D + 30, H - 18, H, shade(sea, 0.9));
+        /* a clock over the plant table, and a chalkboard of the day's stems */
+        S(0.4, 450, 490, 200, 240, '#f6f1e6'); S(0.5, 454, 486, 204, 236, '#fbfaf6'); S(0.6, 469, 471, 216, 234, dark); S(0.6, 469, 481, 219, 221, dark);
+        S(0.4, 540, 640, 150, 230, oakS); S(0.5, 544, 636, 154, 226, '#2a2c2a');
+        for(let r = 0; r < 5; r++) S(0.6, 552, 600 + (r % 2)*20, 214 - r*13, 216 - r*13, '#e8e2d4');
+      },
+      /* THE FRONT WALL AS THE STREET SEES IT (W4): the shop's white wall and seafoam trim, and its window cut in at its own sill (the exterior's:
+         lab a 34..126, z 16, x1.95) -- the near walls' outer faces are the building's own */
+      winS: [[Math.max(4, FL_IN.ra(FL_IN.WIN[0])), FL_IN.ra(FL_IN.WIN[1]), FL_IN.WIN[2]*1.95]],
+      glass: 'rgba(150,205,200,.42)', frame: extT,
+      low: [shade(extW, 1.0), extW, shade(extW, 0.86)], cap: [extT, shade(extT, 0.94), shade(extT, 0.84)], ftop: '#e4e8e0' });
+
+    /* ---- THE FLOWER COOLER on the back wall: a white-framed cabinet, six glass doors on two shelves of buckets, its header lettered; a piece
+       per door (runPiece, its own stretch -- W28), keyed at the door's start (keyStart: against the wall, nothing behind it) ---- */
+    { const A0 = 300, A1 = 640, B0 = 0, B1 = 64, zTop = 216, n = 6, SH = [10, 104];
+      runPiece(items, A0, A1, B0, B1, zTop, (s0, s1) => [solid(s0, s1, B0, B1, zTop, 'cooler')], () => {
+        F(A0, A1, 0, 200, '#dfe9e6', null, 0, B0 + 0.6);                                              // its lit back
+        T(A0, A1, B0 + 0.6, B1 - 2, 200, '#eef4f2');                                                   // its ceiling, seen through the glass
+        SH.forEach((z, r) => {
+          box(A0 + 2, A1 - 2, B0 + 2, B1 - 4, z - 4, z, steelL, galvL, galvD);                       // a shelf
+          for(let i = 0; i < 11; i++){ const ba = A0 + 18 + i*(A1 - A0 - 36)/10; bucket(ba, 30, z, 11, 22, (i + r) % 3 === 2 ? 1 : 0, i*5 + r*17 + 3); } });
+        F(A0, A1, 0, 8, seaD, null, 0, B1);                                                            // the plinth
+        F(A0, A1, 8, 200, 'rgba(200,232,236,.26)', null, 0, B1);                                       // the glass
+        F(A0, A1, 150, 154, 'rgba(255,255,255,.22)', null, 0, B1 + 0.05);
+        for(let k = 0; k <= n; k++){ const a = A0 + (A1 - A0)*k/n; F(Math.max(A0, a - 2.5), Math.min(A1, a + 2.5), 8, 200, '#f4f6f2', null, 0, B1 + 0.1);
+          if(k < n){ F(a + 6, a + 8, 80, 128, galvD, null, 0, B1 + 0.2); } }                         // (the frames, a handle on each door)
+        S(A1, B0, B1, 0, 200, '#e4e8e2');                                                              // (its east end: the west faces away)
+        box(A0 - 2, A1 + 2, B0, B1 + 2, 200, zTop, '#f4f6f2', '#eef1ec', '#dfe4dc');                  // the header
+        blockWordIn('FRESH CUT FLOWERS', A0 + 30, A1 - 30, 203, 213, B1 + 2.2, seaD, null, 3);
+      }, { pad: 3, keyStart: true, run: (A1 - A0)/n });
+    }
+
+    /* ---- THE VASE SHELVES beside it: an oak case of four shelves -- glass vases, terracotta pots, a watering can; a piece per bay, keyed at the
+       bay's start ---- */
+    { const A0 = 660, A1 = 840, B0 = 0, B1 = 30, ZS = [44, 88, 132, 176], zTop = 204, n = 4;
+      for(let k = 0; k < n; k++){ const s0 = A0 + (A1 - A0)*k/n, s1 = A0 + (A1 - A0)*(k + 1)/n, first = k === 0, last = k === n - 1;
+        runPiece(items, s0, s1, B0, B1, zTop + 6, (q0, q1) => [solid(q0, q1, B0, B1, zTop, 'vase shelves')], () => {
+          F(s0, s1, 0, zTop, oakS, null, 0, B0 + 0.6);                                                // its back panel
+          F(s0, s1, 0, ZS[0] - 3, bead, null, 0, B1); F(s0 + 4, s1 - 4, 6, ZS[0] - 8, shade(bead, 0.96), beadL, 0.8, B1 + 0.2);   // the cupboard
+          ZS.forEach((z, r) => {
+            T(s0, s1, B0 + 0.6, B1, z, oakT); F(s0, s1, z - 3, z, oak, null, 0, B1);                   // a shelf
+            if(r === ZS.length - 1) return;
+            const m = 3; for(let i = 0; i < m; i++){ const va = s0 + 9 + i*(s1 - s0 - 18)/(m - 1), kind = Math.floor(hsh(k*17 + r*5 + i)*4);
+              if(kind === 0) cyl(va, 15, z, z + 24, 5, 'rgba(176,214,208,.55)', 'rgba(200,232,226,.7)');
+              else if(kind === 1){ cyl(va, 15, z, z + 14, 6, 'rgba(176,206,214,.5)', 'rgba(200,228,232,.7)'); cyl(va, 15, z + 14, z + 20, 3, 'rgba(176,206,214,.5)', 'rgba(200,228,232,.7)'); }
+              else if(kind === 2) pot(va, 15, z, 6, 1);
+              else { cyl(va, 15, z, z + 10, 6, terra, terraT); } } });
+          /* (the top shelf: a watering can in the second bay, stacked pots elsewhere) */
+          const z = ZS[ZS.length - 1];
+          if(k === 1){ cyl((s0 + s1)/2, 15, z, z + 16, 8, galv, galvL); tube((s0 + s1)/2 + 6, 15, z + 6, (s0 + s1)/2 + 18, 15, z + 20, 1.4, galv); tube((s0 + s1)/2 - 4, 15, z + 16, (s0 + s1)/2 + 4, 15, z + 22, 1.2, galvD); }
+          else for(let i = 0; i < 3; i++) cyl(s0 + 12 + i*(s1 - s0 - 24)/2, 15, z, z + 12, 6, terra, terraT);
+          F(s0, s0 + 3, 0, zTop, oakS, null, 0, B1);                                                 // its upright
+          if(last){ F(s1 - 3, s1, 0, zTop, oakS, null, 0, B1); S(s1, B0, B1, 0, zTop, shade(oak, 0.75)); }
+          const e0 = first ? 3 : 0.5, e1 = last ? 3 : 0.5;
+          T(s0 - e0, s1 + e1, B0, B1 + 3, zTop + 6, oakT); F(s0 - e0, s1 + e1, zTop, zTop + 6, seaD, null, 0, B1 + 3);   // its cornice
+          if(last) S(s1 + 3, B0, B1 + 3, zTop, zTop + 6, shade(seaD, 0.8));
+        }, { pad: 3, keyStart: true });
+      } }
+
+    /* ---- THE PAPER RACK on the west wall over the bench: three rolls on their rods (kraft, white, blush), the ribbon spools over them; one
+       piece, keyed at its middle ---- */
+    items.push({ a: 16, b: 275, z: 0, fpLab: { a0: 0, a1: 18, b0: 216, b1: 334, z1: 196 }, solids: [], draw: () => {
+      for(const bb of [218, 332]){ box(0.5, 14, bb - 2, bb + 2, 112, 192, oakS, oakS, shade(oakS, 0.8)); }
+      [[122, kraft], [142, '#f4f1e6'], [162, '#e8c4c4']].forEach(([z, c]) => { tube(8, 222, z, 8, 328, z, 7, c); F(4, 12, z - 7, z - 3, shade(c, 0.85), null, 0, 328.2); });
+      tube(8, 220, 184, 8, 330, 184, 1, galvD);
+      for(let k = 0; k < 8; k++){ const bb = 230 + k*13; tube(8, bb - 4, 184, 8, bb + 4, 184, 4.5, [sea, '#e86a8a', '#f4f6ee', '#e8c34a', sage, '#b48ad0', '#c2452e', kraftL][k]); }
+    } });
+
+    /* ---- THE WORKBENCH: a long table with a zinc top, its legs, a shelf of kraft paper and a bucket under; in runs of 30, keyed down its middle ---- */
+    { const A0 = 20, A1 = 140, B0 = 250, B1 = 300, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'workbench')], () => {
+        /* (the back legs, the shelf and what is on it, then the front legs: they stand in front of the shelf) */
+        const leg = (la, lb) => box(la - 3, la + 3, lb - 3, lb + 3, 0, zT - 5, oakS, oakS, shade(oakS, 0.8));
+        leg(A0 + 5, B0 + 5); leg(A1 - 5, B0 + 5);
+        box(A0 + 8, A1 - 8, B0 + 8, B1 - 8, 18, 22, oak, oak, oakS);                                 // (between its legs: W37 inside)
+        for(let k = 0; k < 4; k++) box(A0 + 14, A0 + 60, B0 + 12, B1 - 12, 22 + k*2.4, 24.4 + k*2.4, k % 2 ? kraftL : kraft, kraft, shade(kraft, 0.85));
+        cyl(A1 - 30, (B0 + B1)/2, 22, 44, 11, galv, galvL);
+        leg(A0 + 5, B1 - 5); leg(A1 - 5, B1 - 5);
+        box(A0, A1, B0, B1, zT - 5, zT, zincL, zinc, shade(zinc, 0.85));
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      /* (on it, each its own piece: a bouquet laid on kraft paper, a ribbon reel and scissors, a jar of eucalyptus -- keyed on its middle line
+         after the run it stands on) */
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 30, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      on(56, [32, 84, 256, 294, 92], () => { poly([P(32, 262, zT + 0.3), P(80, 256, zT + 0.3), P(84, 292, zT + 0.3), P(36, 294, zT + 0.3)], kraftL);
+        for(let k = 0; k < 7; k++) tube(42, 276 + k*1.4, zT + 2, 66, 272 + k*2.6, zT + 2, 0.9, leafD);
+        [[66, 270], [70, 278], [66, 286], [74, 274], [74, 284]].forEach(([fa, fb], k) => ball(fa, fb, zT + 4, 4, blooms[(k*2) % blooms.length], shade(blooms[(k*2) % blooms.length], 1.18))); });
+      on(104, [94, 114, 262, 290, 86], () => { cyl(102, 270, zT, zT + 5, 6, sea, seaL); cyl(102, 270, zT + 5, zT + 5.5, 2, '#f4f6ee');
+        tube(96, 284, zT + 0.6, 112, 288, zT + 0.6, 0.8, galvD); ball(95, 283, zT + 0.8, 1.6, '#e8382e'); });
+      on(128, [120, 136, 266, 286, 124], () => { cyl(128, 276, zT, zT + 16, 5.5, 'rgba(176,214,208,.6)', 'rgba(200,232,226,.75)');
+        for(let k = 0; k < 4; k++){ const t = k/4*Math.PI*2; tube(128, 276, zT + 15, 128 + Math.cos(t)*5, 276 + Math.sin(t)*3, zT + 40, 0.8, leafD);
+          for(let j = 0; j < 3; j++) ball(128 + Math.cos(t)*(2 + j*1.2), 276 + Math.sin(t)*(1.2 + j*0.7), zT + 22 + j*6, 2.2, '#8fb0a0', '#a8c4b6'); } });
+    }
+
+    /* ---- TWO TIERED STANDS: three whitewashed steps rising to the back, a bucket of stems on each step; in runs (34 on 60), keyed down its
+       middle; each column of three buckets its own piece, back to front, keyed after the runs it stands on ---- */
+    const stand = (A0, A1, B0, B1, seed) => {
+      const ST = [[B0, B0 + 20, 54], [B0 + 20, B0 + 40, 34], [B0 + 40, B1, 14]];
+      runPiece(items, A0, A1, B0, B1, 54, (s0, s1) => [solid(s0, s1, B0, B1, 54, 'stand')], () => {
+        for(const [b0, b1, z] of ST){ box(A0, A1, b0, b1, 0, z, '#f2ede2', wash, washD); F(A0, A1, z - 2, z, oakS, null, 0, b1 + 0.1); }
+      }, { pad: 4, run: 34, extra: { b: (B0 + B1)/2 } });
+      const n = 5, cw = (A1 - A0)/n;
+      for(let i = 0; i < n; i++){ const ca = A0 + cw*(i + 0.5);
+        items.push({ a: ca, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 34, ca - 10, ca + 10, ca), fpLab: { a0: ca - 14, a1: ca + 14, b0: B0, b1: B1, z1: 110 }, solids: [], draw: () => {
+          ST.forEach(([b0, b1, z], r) => bucket(ca, (b0 + b1)/2, z, 9, 18, (i + r) % 4 === 3 ? 1 : 0, seed + i*3 + r*7)); } }); }
+    };
+    stand(300, 470, 300, 360, 11); stand(300, 470, 500, 560, 29);
+
+    /* ---- THE TILL COUNTER: seafoam beadboard to the customers, an oak top; 266 clear behind it for Iris and the shelves; in runs of 30 on 50,
+       keyed down its middle line ---- */
+    { const A0 = 640, A1 = 820, B0 = 300, B1 = 350, zT = 75;
+      runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'till counter')], () => {
+        box(A0, A1, B0, B1, 0, zT - 4, sea, sea, seaD);
+        F(A0, A1, 0, 6, seaD, null, 0, B1 + 0.2);
+        for(let a = A0 + 10; a < A1; a += 10) F(a - 0.4, a + 0.4, 8, zT - 10, seaD, null, 0, B1 + 0.2);
+        S(A1, B0, B1, 6, zT - 4, shade(sea, 0.86));
+        box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, oakT, oak, oakS);
+      }, { pad: 5, run: 30, extra: { b: (B0 + B1)/2 } });
+      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 30, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* a vase of red roses */
+      on(664, [654, 674, 314, 336, 140], () => { cyl(664, 325, zT, zT + 24, 6, 'rgba(176,214,208,.55)', 'rgba(200,232,226,.7)');
+        const hd = []; for(let k = 0; k < 7; k++){ const t = k/7*Math.PI*2; hd.push([664 + Math.cos(t)*6, 325 + Math.sin(t)*4, zT + 46 + (k % 3)*4]); }
+        hd.sort((p, q) => p[1] - q[1]); for(const h of hd) tube(664, 325, zT + 22, h[0], h[1], h[2], 0.8, leafD);
+        for(const h of hd) ball(h[0], h[1], h[2], 4, '#c2252e', '#d8434a'); });
+      /* the kraft roll on its holder, the paper drawn off over the counter's front */
+      on(716, [690, 742, 306, 330, 100], () => { for(const la of [694, 738]) box(la - 2, la + 2, 312, 322, zT, zT + 16, galvD, galvD, shade(galvD, 0.8));
+        tube(694, 317, zT + 12, 738, 317, zT + 12, 6, kraft); poly([P(696, 323, zT + 8), P(736, 323, zT + 8), P(736, 330, zT + 0.4), P(696, 330, zT + 0.4)], kraftL); });
+      /* a card stand */
+      on(758, [750, 766, 320, 340, 104], () => { box(752, 764, 326, 334, zT, zT + 4, oakS, oakS, shade(oakS, 0.8));
+        for(let k = 0; k < 3; k++) F(752 + k*1, 764 - k*1, zT + 4 + k*7, zT + 11 + k*7, ['#f4f1e6', '#e8c4c4', '#dfe6d2'][k], null, 0, 334 - k*3); });
+      /* the till */
+      on(796, [784, 810, 300, 330, 126], () => { box(786, 806, 304, 322, zT, zT + 6, dark, dark, blk); box(790, 802, 310, 318, zT + 6, zT + 11, '#3a3634', dark, blk);
+        box(786, 808, 300, 304, zT + 11, zT + 30, '#2a2826', '#1e1c1a', '#16140f');                // (its screen on the far face, Iris's: not painted -- W37)
+        box(802, 810, 324, 330, zT, zT + 4, blk, blk, blk); F(803, 809, zT + 2, zT + 3.5, '#9fd4b4', null, 0, 330.1); });
+    }
+
+    /* ---- THE TALL BUCKETS down the east wall: sunflowers, eucalyptus, gladioli; each its own piece ---- */
+    [[436, 2], [481, 3], [526, 4], [571, 2], [616, 3]].forEach(([bb, kind], i) =>
+      items.push({ a: 820, b: bb, z: 0, solids: [{ name: 'bucket', c: [820, bb], r: 16, h: 150 }], draw: () => bucket(820, bb, 0, 15, 40, kind, 41 + i*5) }));
+
+    /* ---- THE PLANT TABLE: a round oak table on a pedestal, potted plants on it, each its own piece ---- */
+    { const ta = 78, tb = 470, zT = 66;
+      runPiece(items, ta - 42, ta + 42, tb - 42, tb + 42, zT, (s0, s1) => [solid(s0, s1, tb - 42, tb + 42, zT, 'plant table')], () => {
+        cyl(ta, tb, 0, 4, 18, oakS, oak); tube(ta, tb, 4, ta, tb, zT - 4, 4, oakS); cyl(ta, tb, zT - 4, zT, 42, oak, oakT); }, { pad: 4, run: 28, extra: { b: tb } });
+      [[60, 452, 0], [98, 456, 2], [56, 488, 1], [96, 490, 3]].forEach(([pa, pb, kind]) =>
+        items.push({ a: pa, b: pb, z: lcOnZ(ta - 42, ta + 42, 28, pa - 9, pa + 9, pa), fpLab: { a0: pa - 12, a1: pa + 12, b0: pb - 10, b1: pb + 10, z1: zT + 50 }, solids: [], draw: () => pot(pa, pb, zT, 9, kind) }));
+    }
+
+    /* ---- BIG POTS by the front: a monstera, an olive ---- */
+    items.push({ a: 560, b: 650, z: 0, solids: [{ name: 'plant', c: [560, 650], r: 24, h: 150 }], draw: () => {
+      cyl(560, 650, 0, 34, 20, terra, terraT); cyl(560, 650, 30, 34, 22, terraD, terraT); cyl(560, 650, 33.6, 34, 19, '#5a3e2a', '#5a3e2a');
+      /* (its leaves: broad, split, on long stalks -- each a flattened ball of two greens, the far ones first) */
+      const lv = []; for(let k = 0; k < 11; k++){ const t = k/11*Math.PI*2 + 0.3, rr = 16 + (k % 3)*9; lv.push([560 + Math.cos(t)*rr, 650 + Math.sin(t)*rr*0.75, 64 + (k % 4)*22]); }
+      lv.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
+      for(const [la, lb, lz] of lv) tube(560, 650, 34, la, lb, lz - 6, 1.4, leafD);
+      for(const [la, lb, lz] of lv){ ball(la, lb, lz, 15, leafD, leaf); ball(la + 2, lb + 2, lz + 3, 10, leaf, leafL); } } });
+    items.push({ a: 720, b: 655, z: 0, solids: [{ name: 'plant', c: [720, 655], r: 20, h: 170 }], draw: () => {
+      cyl(720, 655, 0, 30, 16, '#e8e2d6', '#f2ede2'); cyl(720, 655, 29.6, 30, 14, '#5a3e2a', '#5a3e2a');
+      tube(720, 655, 30, 718, 655, 110, 2.4, '#7a6a52'); tube(718, 655, 100, 708, 652, 140, 1.4, '#7a6a52'); tube(719, 655, 104, 732, 658, 146, 1.4, '#7a6a52');
+      /* (its crown: a cloud of small grey-green clumps, the far and low ones first) */
+      const cr = []; for(let k = 0; k < 16; k++){ const t = k*2.39996, rr = 8 + 14*hsh(k*3 + 7); cr.push([720 + Math.cos(t)*rr, 655 + Math.sin(t)*rr*0.8, 128 + 40*hsh(k*5 + 1), 9 + 4*hsh(k*7 + 2)]); }
+      cr.sort((p, q) => p[1] - q[1] || p[2] - q[2]);
+      for(const [la, lb, lz, r] of cr) ball(la, lb, lz, r, '#7a9a72', '#9cbc90'); } });
+
+    /* ---- THE WINDOW'S DISPLAY behind the shop window: a low platform, a tall urn of mixed stems in the middle and buckets beside it ---- */
+    { const a0 = Math.max(4, FL_IN.ra(FL_IN.WIN[0])) + 4, a1 = FL_IN.ra(FL_IN.WIN[1]) - 4;
+      runPiece(items, a0, a1, 662, 692, 30, (s0, s1) => [solid(s0, s1, 662, 692, 32, 'window display')], () => {
+        box(a0, a1, 662, 692, 0, 30, '#f2ede2', wash, washD); F(a0, a1, 4, 26, sea, null, 0, 692.1); }, { pad: 4, run: 24, extra: { b: 677 } });
+      for(let k = 0; k < 3; k++){ const ca = a0 + 18 + k*(a1 - a0 - 36)/2;
+        items.push({ a: ca, b: 692.5, z: 30, fpLab: { a0: ca - 14, a1: ca + 14, b0: 664, b1: 690, z1: 140 }, solids: [], draw: () => {
+          if(k === 1){ cyl(ca, 677, 30, 56, 10, '#e8e2d6', '#f2ede2'); bucket(ca, 677, 56, 9, 2, 1, 77); return; }
+          bucket(ca, 677, 30, 10, 22, k ? 0 : 1, 60 + k*9); } }); } }
+
+    /* (its door is the street's: the door kit's single leaf on the shop, swung live, cut to the front wall's height from in here) */
+    walkinStaffSolids(items, FL_IN.name);
+    depthSort(items);
+  }
+},
+{
   /* ==================== PALMLINE TOWER'S FLOORS (pt3/pt4/pt4b: one pocket, PT_FLOORS, every floor of the tower over the podium) ====================
      The tower's footprint less the walls' 30: 1652 x 460 (lab a TA0+30..TA1-30, b TB+30..TF-30), a east, b south, world units, drawn at the floor's
      height (pk.z: ptFloorZ). Sir, 2026-11-17: "all but the top 2 ... floor 11 and 12 will be penthouse ... no hall way ... only 1 elevator door":
@@ -66551,6 +66978,11 @@ function houseCanopy(fn){
 {
   name:'Seabreeze Florist', xh: 156, base:'Florist', hood:'The Flats', edited:true, sc:1.3, head:'Scalloped canopy, bucket rows, trellis',
   cTodo:'5 pavement props need collision volumes',
+  see: true,   // (a walk-in: its doorway shows the florist's, FL_IN -- W11)
+  /* ITS VOLUME: the building itself with THE DOORWAY OPEN through the wall's thickness -- he drives into it, and is taken into the room
+     only once he is in it (FL_IN's glass < 0, W32) */
+  vol: { foot: volRect(0, 230, -276, 0), h: 156,
+         opens: [{ name: 'doorway', poly: volRect(140, 220, -90, 2), walk: true }] },
   tags:['blooms inside and out','round buckets','trellis','glazed over','soft palette'],
   desc:'There are flowers inside the window as well as out on the pavement, and the pane glazes over the inside ones so the two sets sit at different depths instead of on the same plane.',
   draw(p){
@@ -66585,14 +67017,18 @@ function houseCanopy(fn){
        with a 6-unit pier, and 4.88 to the door surround on the other
        side. The trellis stands PROUD at b 2 and stops at z 104, under
        the sign band, so nothing it does can reach the canopy. */
-    reveal(34, 138, 16, 104, 13, '#8fae9c');
-    F(44, 128, 40, 46, '#dfe6d2', null,0, -1.5);                   // shelf line, inside the pane
-    glaze(34, 138, 16, 104, null);
-    slab(30, 142, 100, 108, -1, -9, shade(trim,1.25));
+    /* (the walk-in's door is 80 across, W33/D14: the window gives up 12 at its door end, 34..126, its pier to the door's surround kept) */
+    reveal(34, 126, 16, 104, 13, '#8fae9c');
+    F(44, 116, 40, 46, '#dfe6d2', null,0, -1.5);                   // shelf line, inside the pane
+    glaze(34, 126, 16, 104, null);
+    slab(30, 130, 100, 108, -1, -9, shade(trim,1.25));
     /* THE DOOR WAS WRAPPING THE CORNER, same as the hardware store:
        W*0.83 asks for 190.9 and the surround's far edge lands on 228
        against a 230 return. 180 leaves a 12.88 pier. */
-    shopDoor(180, wall, trim, 'rgba(150,205,200,.5)');
+    /* THE DOOR IS THE DOOR KIT'S (D13-D15, W33): one leaf in the shop's seafoam, 80 across (a 140..220), its face 'lite' -- one big light
+       over a panel, the buckets seen through it (the bakery next door is 'french'); a walk-in's (see), its opening a hole onto the
+       florist's, its leaf live, swinging in */
+    shopDoor(180, wall, trim, 'rgba(150,205,200,.5)', W, 0, { w: 80, pair: true, single: true, panes: 'rgba(176,214,208,.72)', look: 'lite' });
     slab(16,W-16, 108, 132, -1, -9, trim);
     /* the panel goes ON the band, not behind it: the band's front face
        is b -1 and its back is -9, and this sat at -9.5 */
