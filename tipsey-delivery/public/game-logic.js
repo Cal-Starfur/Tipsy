@@ -60218,8 +60218,20 @@ function houseCanopy(fn){
       const add = (P, da, db, dz) => [P[0] + da, P[1] + db, P[2] + dz];
       switch(p){
         case 0: { const T = SK(a, b, 0, 0, 16); return job([a, b - 62], T, add(T, -14 + 3*S(300), 0, 0), add(T, 14 - 3*S(300), 0, 0), 0.1, 0.4); }   /* (the deck squared on the jig, pressed home with both hands) */
-        case 1: { const T = SK(a, b, 26, -5, 8), at = [T[0] + 4, b + N - Math.sign(N)*4];   /* (the rear wheel: crouched at it, one hand holding the tyre, the other running the axle nut round) */
-          return job(at, T, add(T, 0, -2, 8), add(T, 4*Math.cos(t/120), -4, 4*Math.sin(t/120)), 0.38, 0.45); }
+        case 1: {   /* STATION 1, THE REAR WHEEL, a job of its own (Sir, 2026-11-23: "improve their ability to do their job as an individual"): down
+             on one knee with the wheel from his bin, offered onto the axle and pushed home, the nut run on by hand, then done up with his wrench,
+             the wheel given a spin to see it runs true, and up again */
+          const W = SK(a, b, 26, -5, 8), at = [W[0] + 4, b + N - Math.sign(N)*4], E = (u0, u1) => ease(clamp01((u - u0)/(u1 - u0))), f = faceTo(at, W), fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
+          const cr = 0.38*E(700, 1300)*(1 - E(4900, 5500)), axle = add(W, 0, -2, 8), held = [at[0] + fv[0]*24, at[1] + fv[1]*24, 58];
+          const lerp3 = (A, B, k) => [A[0] + (B[0] - A[0])*k, A[1] + (B[1] - A[1])*k, A[2] + (B[2] - A[2])*k];
+          let T1, T2, tool = null;
+          if(u < 1300){ T1 = lerp3(held, axle, E(700, 1300)); T2 = add(T1, 0, 3, -7); }   /* (the wheel brought down to the axle in both hands) */
+          else if(u < 2200){ const k = Math.sin((u - 1300)/90)*1.5; T1 = add(axle, 0, k, 0); T2 = add(W, 0, -2, 0); }   /* (worked onto it, pushed home) */
+          else if(u < 3100){ T1 = axle; T2 = add(W, 4*Math.cos(t/120), -4, 4*Math.sin(t/120)); }   /* (the nut run on by hand) */
+          else if(u < 4300){ const ang = 0.9*Math.sin(t/160); T1 = add(W, 0, -3, 8); T2 = add(W, 0, -8, 0); tool = [T2[0], T2[1], T2[2], ang]; }   /* (done up with his wrench, a quarter turn at a time) */
+          else if(u < 4900){ const k = (u - 4300)/600; T1 = add(W, 0, -2, 0); T2 = add(W, 7 - 14*ease(k % 1), -4, 7); }   /* (a spin of the wheel to see it runs true) */
+          else { T1 = add(W, -4, -6, 18 + 20*E(4900, 5500)); T2 = add(W, 4, -6, 18 + 20*E(4900, 5500)); }   /* (up again, done) */
+          return Object.assign(job(at, W, T1, T2, cr, 0.45*(cr/0.38) + 0.15), { tool }); }
         case 2: { const T = SK(a, b, -26, -5, 8), at = [T[0] - 2, b + N - Math.sign(N)*4], k = S(380);   /* (the front wheel on the fork: crouched, spinning it hand over hand to see it runs true) */
           return job(at, T, add(T, 6*k, -2, 9*Math.cos(t/380)), add(T, -6*k, -2, -9*Math.cos(t/380)), 0.38, 0.45); }
         case 3: { const sw = 22*S(650), T = SK(a, b, sw/1.45, 0, 16.4), at = [a + sw*0.4, b + N];   /* (the grip tape: bent over the deck, smoothing it down in long strokes, both hands) */
@@ -60528,6 +60540,7 @@ function houseCanopy(fn){
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
         if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
+        if(on && J0.tool){ const w = J0.tool; out.push({ kind: 'cargo', a: w[0], b: w[1], dd: Math.max(6, J0.at[0] + Math.max(pb, J0.at[1]) + 9 - w[0] - w[1]), cargo: () => { tube(w[0], w[1], w[2], w[0] + 15*Math.cos(w[3]), w[1] - 2, w[2] + 15*Math.sin(w[3]), 2.4, '#c8ccd2'); box(w[0] - 1.6, w[0] + 1.6, w[1] - 3.6, w[1] - 0.4, w[2] - 1.6, w[2] + 1.6, '#3d424c', '#34383f', '#2b2f35'); } }); }   /* (his wrench, the socket on the nut, the handle swinging) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
         if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
