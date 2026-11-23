@@ -50,10 +50,14 @@ const FRAMES = +arg('--frames', 40), GAP = +arg('--gap', 400), AT = arg('--at', 
        fixture clipped to its own stretch) */
     proto.W = function(x, y, z){ const ret = W0.call(this, x, y, z), c = R.cur, lp = fromP; fromP = false; if(c && !skipW && isFinite(x) && isFinite(y)){ z = z || 0; const sp = { x: ret.x, y: ret.y }; if(R.person){ grow(R.person, x, y, z); R.person.sp.push(sp); } else { if(!lp){ grow(c.box, x, y, z); (c.box.sp || (c.box.sp = [])).push(sp); } c.n++; if(prim){ grow(prim, x, y, z); prim.sp.push(sp); }
         if(!c.site){ const st = new Error().stack.split('\n').slice(2, 9).map(l => (l.match(/index\.html:(\d+):/) || [])[1]).filter(Boolean); c.site = st.slice(0, 4).join('<'); } } } return ret; };
+    /* (the person drawer's own bookkeeping -- its cull and its x-ray rays, personVis, projected round them -- is not drawing either: only
+       the body it draws counts) */
+    const PH0 = proto.drawPersonHull;
+    proto.drawPersonHull = function(...a){ skipW++; try { return PH0.apply(this, a); } finally { skipW--; } };
     proto.drawPersonHullBody = function(g, ax, ay, z, ...rest){
       const c = R.cur; if(!c || R.person) return B0.call(this, g, ax, ay, z, ...rest);
       const P = { x0: Infinity, y0: Infinity, z0: Infinity, x1: -Infinity, y1: -Infinity, z1: -Infinity, at: [Math.round(ax), Math.round(ay)], sp: [], room: !!this._roomPerson, inPiece: c.parts.length > 0 };   // (in a piece: drawn after the piece's own library parts -- a seated guest in its image)
-      R.person = P; try { return B0.call(this, g, ax, ay, z, ...rest); } finally { R.person = null; if(isFinite(P.x0)) c.people.push(P); } };
+      const sk = skipW; skipW = 0; R.person = P; try { return B0.call(this, g, ax, ay, z, ...rest); } finally { R.person = null; skipW = sk; if(isFinite(P.x0)) c.people.push(P); } };
   });
   const found = [], seen = new Set(); let lastFrame = null, NP = 0;
   const PER = +arg('--frames', spots.length > 1 ? 12 : 40);
@@ -124,6 +128,7 @@ const FRAMES = +arg('--frames', 40), GAP = +arg('--gap', 400), AT = arg('--at', 
           /* (not in one frame: a room drawn off the map at its view -- the mall's -- next to the street's pieces on the map: their places
              cannot be compared, only pieces within a block of each other are) */
           if(Math.abs((q.x0 + q.x1)/2 - (P.x0 + P.x1)/2) > 6000 || Math.abs((q.y0 + q.y1)/2 - (P.y0 + P.y1)/2) > 6000) continue;
+          if(q.z1 < P.z0 - 60) continue;   // (a whole floor under them: the mall's gallery x-rayed over the floor below, seen through on purpose)
           const bk = q.x1 <= P.x0 + T || q.y1 <= P.y0 + T || q.z1 <= P.z0 + T || (q.z1 <= P.z0 + 6 && q.z1 - q.z0 <= 6), fr = q.x0 >= P.x1 - T || q.y0 >= P.y1 - T || q.z0 >= P.z1 - T;
           if(!bk || fr) continue;
           const ar = over(q, P); if(ar < 30) continue;
