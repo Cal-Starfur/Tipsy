@@ -59853,7 +59853,7 @@ function houseCanopy(fn){
       return [0, 1, 2, 3].filter(i => { const last = JOBS.reduce((q, J, j) => (J.k === 'carton' && J.i === i) ? j : q, -1); return last >= 0 && jr < JS(last) + (JOBS[last].k === 'carton' ? 1100 : 2000)*JK; }); };
     /* (where things stand at Receiving: the jack and its pallet (JA, PB), the Receiver beside it (RX); the shuttle (SH*); the goods-to-person
        pod's spot (GPA, GPB), facing south so the side its bins are worked from is to the east) */
-    const JA = 2240, PB = 292, SHA = 2105, SHB = 232, SHSL = [210, 254], PR = [2240, 175], PRA = 2212, PRB = c => c === 1 ? 162 : 188,   /* (PR: the parts robot north of the pallet, its two open parts cartons along its west half) */   /* (Receiving in the corner north of the door, off its way -- Sir, 2026-11-23: "he should be sorting stuff but use the room so it doesn't block the door": the pallet on the east, the shuttle on the west, the Receiver between, turning from one to the other) */ GPA = 2160, GPB = 300;   /* (phase 5: the shuttle waits south of the pallet, out of the jack's lane while it is in -- its way in and out clear of the goods-to-person pod) */   /* (the Receiver works the gap between the pod (west of him, facing south) and the pallet and the shuttle (east): nothing tall in front of him from the eye) */
+    const JA = 2240, PB = 400 - JKD, SHA = 2105, SHB = 232, SHSL = [210, 254], PR = [2240, 175], PRA = 2212, PRB = c => c === 1 ? 162 : 188,   /* (PR: the parts robot north of the pallet, its two open parts cartons along its west half) */   /* (Receiving in the corner north of the door, off its way -- Sir, 2026-11-23: "he should be sorting stuff but use the room so it doesn't block the door": the pallet on the east, the shuttle on the west, the Receiver between, turning from one to the other) */ GPA = 2160, GPB = 300;   /* (phase 5: the shuttle waits south of the pallet, out of the jack's lane while it is in -- its way in and out clear of the goods-to-person pod) */   /* (the Receiver works the gap between the pod (west of him, facing south) and the pallet and the shuttle (east): nothing tall in front of him from the eye) */
     const TOP4 = [18, 20, 22, 14], R4 = [6, 8, 10, 12];
     /* THREE BINS OF A COLOUR A PARTS ROBOT (Sir, 2026-11-20: "let's have the picker pick 3 bins of the same color for each parts bot"): a pod's
        face holds three bins of each colour, one a level on three of its four levels (the shelf's colours: (level + column + 2*side) % 4) --
@@ -60303,9 +60303,15 @@ function houseCanopy(fn){
           if(sees(0, sb, 0)){ const fb = sb > 0 ? BXW - 0.4 : -BXW + 0.4; box(am - 22, am + 22, sb > 0 ? fb : fb - 0.3, sb > 0 ? fb + 0.3 : fb, z0 + 9, z0 + 21, 0xe8b54a); } } };   /* (its label on the side out, as the bay's: PALBOX) */
       const JACK0 = Object.assign(() => {}, { empty: true });   /* (an empty pallet: drawn as the bays', onForks) */
       /* the parts pallet coming in, on its forks: what is still on it (RCV items from n on), turned into its frame (forward is the room's -b) */
-      const JACKIN = on => on.length === 0 ? JACK0 : (box, CZ, F0, F1, sees, V) => { const am = (F0 + F1)/2;
+      const JACKIN = on => on.length === 0 ? JACK0 : Object.assign((box, CZ, F0, F1, sees, V) => { const am = (F0 + F1)/2;
         const its = RCV.filter((it, i) => on.includes(i)).map(it => ({ it, ca: am + (0 - it.db), cb: it.da })).sort((p, q) => (p.it.dz - q.it.dz) || (V.depth(p.ca, p.cb, CZ) - V.depth(q.ca, q.cb, CZ)));
-        for(const { it, ca, cb } of its) rcvItemBot(box, V, it, ca, cb, CZ + it.dz); };
+        for(const { it, ca, cb } of its) rcvItemBot(box, V, it, ca, cb, CZ + it.dz); }, { on });
+      /* the parts pallet on the jack's forks drawn as it is when it is set down -- the pallet kit, its cartons in the room's own kit (Sir,
+         2026-11-23: "the art changes when the pallet is placed down") -- turned with the jack */
+      const partsOnForks = (P, fork, on) => { const fa = Math.cos(P.fdir*Math.PI/2), fb = Math.sin(P.fdir*Math.PI/2), pa = P.a + fa*JKD, pb = P.b + fb*JKD, al = Math.abs(fa) > 0.5, z0 = 8*fork;
+        return { kind: 'cargo', a: pa, b: pb, cargo: () => { palletKit(pa, pb, 0, al, z0);
+          for(const i of [0, 1, 2, 3].filter(i => on.includes(i)).sort((x, y) => RCV[x].dz - RCV[y].dz)){ const it = RCV[i], ia = pa + it.da*(-fb) - it.db*fa, ib = pb + it.da*fa - it.db*fb;
+            rcvItemKit(al ? Object.assign({}, it, { la: it.lb, lb: it.la }) : it, ia, ib, 10.5 + z0 + it.dz); } } }; };
       /* PHASE 6: STORAGE AND SHIPPING (Sir, 2026-11-20). Two pallet jacks. THE INSIDE JACK takes each full pallet out of the arm robot's bay
          to the next storage bay in turn (SB, round the six), then an empty off the stack back into the arm's bay. THE SHIPPING JACK owns the
          door: in with the parts pallet to Receiving, its empty round to the stack, then the oldest stored pallet out to Dispatch. The bays are
@@ -60344,19 +60350,19 @@ function houseCanopy(fn){
         /* the shipping jack, on its own round from outside (u: from 9500 into the pallet clock): the parts pallet in, the empty to the stack,
            the oldest pallet out */
         { const cs = Math.floor((t - PAL0 - 9500)/PALT), u = t - PAL0 - 9500 - cs*PALT, ko = (((cs - 4) % 6) + 6) % 6, jr2 = u + 9500;
-          const IN = [DOOR, [JA, 455], [JA, 360]], ST = [[JA, 360], [JA, 455, 'r'], [2275, 455], [2275, AY], [STK[0], AY], STK];
+          const IN = [DOOR, [JA, 455], [JA, 400]], ST = [[JA, 400], [JA, 455, 'r'], [2275, 455], [2275, AY], [STK[0], AY], STK];
           const Q4 = [STK, [STK[0], AY, 'r'], ...into(ko, [STK[0], AY]).slice(1)], Q5 = [...outOf(ko), [2275, AY], [2275, 455], [DOOR[0] + 1, 455]];
           let P, jack = false, fork = 0;
           if(u < 1000) P = null;
           else if(u < 4500){ P = drv(IN, (u - 1000)/3500); jack = JACKIN([0, 1, 2, 3]); fork = 1; }
-          else if(jr2 < RCV_T0){ P = hold([JA, 360], 3); jack = JACKIN([0, 1, 2, 3]); fork = 1 - ease((u - 4500)/500); }
+          else if(jr2 < RCV_T0){ P = hold([JA, 400], 3); jack = JACKIN([0, 1, 2, 3]); fork = 1 - ease((u - 4500)/500); }
           /* (Sir, 2026-11-23: "this pallet mover should be dropping off the supplies and then going away, only returning to pick up the empty":
              the parts pallet set down at Receiving, the jack backs out and away through the door; it comes back in under the empty as the
              Receiver takes the last carton off) */
-          else if(jr2 < RCV_T0 + 3000){ P = drv([[JA, 360], [JA, 455, 'r'], [DOOR[0] + 1, 455]], (jr2 - RCV_T0)/3000); jack = Math.hypot(P.a - JA, P.b - 360) < 110 ? 'under' : false; }
+          else if(jr2 < RCV_T0 + 3000){ P = drv([[JA, 400], [JA, 455, 'r'], [DOOR[0] + 1, 455]], (jr2 - RCV_T0)/3000); jack = Math.hypot(P.a - JA, P.b - 400) < 110 ? 'under' : false; }
           else if(jr2 < RCV_T1 - 2500) P = null;
-          else if(jr2 < RCV_T1){ P = drv(IN, (jr2 - RCV_T1 + 2500)/2500); jack = Math.hypot(P.a - JA, P.b - 360) < 110 ? 'under' : false; }
-          else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 360], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
+          else if(jr2 < RCV_T1){ P = drv(IN, (jr2 - RCV_T1 + 2500)/2500); jack = Math.hypot(P.a - JA, P.b - 400) < 110 ? 'under' : false; }
+          else if(jr2 < RCV_T1 + 1000){ P = hold([JA, 400], 3); jack = JACKIN([]); fork = ease((jr2 - RCV_T1)/1000); }
           else if(jr2 < 48400){ P = drv(ST, (jr2 - RCV_T1 - 1000)/(48400 - RCV_T1 - 1000)); jack = JACKIN([]); fork = 1; }
           else if(jr2 < 49400){ P = hold(STK, 3); jack = JACKIN([]); fork = 1 - ease((jr2 - 48400)/1000); }
           else if(jr2 < 50600) P = drv(Q4, (jr2 - 49400)/1200);
@@ -60364,7 +60370,8 @@ function houseCanopy(fn){
           else { P = drv(Q5, (jr2 - 51400)/(PALT + 9500 - 51400)); jack = JACK; fork = 1; }
           CW_FLOW.ship = !P ? 'outside' : u < 4500 ? 'in with parts' : jr2 >= RCV_T0 && jr2 < RCV_T1 ? (jr2 < RCV_T0 + 3000 ? 'away' : 'back for the empty') : jr2 < RCV_T1 + 1000 ? 'receiving' : jr2 < 49400 ? 'empty to the stack' : jr2 < 51400 ? 'to bay ' + (ko + 1) : 'out with bay ' + (ko + 1);
           if(P){ const fade = clamp01((W + 50 - P.a)/80); if(fade > 0.01){ const own = jack === JACK ? 6 : jack && jack.empty ? 0 : -1;   /* (the parts pallet stays the jack's own: its load the Receiver's) */
-            out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 || (!jack && underPal(P)) ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); } } }
+            const pOn = jack && jack.on;
+            out.push(bot(P.a, P.b, P.fdir, { build: 'amrjack', key: 'cwJackShip', jack: own >= 0 || pOn || (!jack && underPal(P)) ? 'under' : jack, fork, wheel: (P.s || P.a + P.b)*0.12, fade })); if(own >= 0 && fade > 0.99) out.push(onForks(P, fork, own)); if(pOn && fade > 0.99) out.push(partsOnForks(P, fork, pOn)); } } }
         CW_FLOW.stored = SB.map((q, k) => bayHas(t, k) ? 'P' : '.').join('');
         return out; } } });
     }
@@ -60423,7 +60430,7 @@ function houseCanopy(fn){
       else { /* (aware of the pallet jack: while it drives in with the parts pallet or out with the empty, he stands clear at his spot and
            turns to watch it -- Sir, 2026-11-19, "this robot needs to be aware of the incoming pallet mover") */
         const jin = jr >= 10500 && jr < RCV_T0 + 300, jout = jr >= RCV_T1 && jr < RCV_T1 + 2600;
-        const ja = jin ? [JA, 455 + (380 - 455)*clamp01((jr - 10500)/3500)] : jout ? [JA, 380 + 75*clamp01((jr - RCV_T1 - 1000)/1600)] : null;
+        const ja = jin ? [JA, 455 + (420 - 455)*clamp01((jr - 10500)/3500)] : jout ? [JA, 420 + 35*clamp01((jr - RCV_T1 - 1000)/1600)] : null;
         out.push(man(IDLE[0], IDLE[1], ja ? face(IDLE, ja) : 1, {})); }
       /* the shuttle and its cartons, set on it off this pallet */
       /* (the shuttle itself, and its round: phase 5's crew below) */
