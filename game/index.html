@@ -81652,8 +81652,13 @@ marinaEntry(),
       /* THE LEDGES ARE THIN SKINS ON THE TWO FACES THE CAMERA SEES, never whole boxes: a box's flat top is the tower's full
          footprint, and painted after the wall it laid a grey slab over the face (the doors and windows sat on that) */
       const fcB = FC('b', b1 + 0, 1), fcA = FC('a', sa > 0 ? a1 : a0, sa);
-      /* (the side face's ledge first, up to the front one's back: the front one stands south of it and takes the corner, W37) */
-      const ledge = (z0, z1, out, top, front, side) => { fcA.proj(b0 - out, b1, out, z0, z1, top, front, side); fcB.proj(a0 - out, a1 + out, out, z0, z1, top, front, side); };
+      /* (ONE PIECE round the corner, the corner rule: the side face's ledge and the front one's, one pathRun mitred at the tower's
+         corner -- out thick, its outer lines straight round -- from the side's far end (b0 - out) to the front's (a0 - out / a1 + out)) */
+      /* (only along the faces that stand free -- extA, extB: a face against a range is inside it, and the buried legs' corner stood
+         out as a stub in the court's corner) */
+      const ledge = (z0, z1, out, top, front, side) => { const aS = (sa > 0 ? a1 : a0) + sa*out/2, bS = b1 + out/2, aF = sa > 0 ? a0 - out : a1 + out;
+        const pts = extA && extB ? [[aS, b0 - out], [aS, bS], [aF, bS]] : extA ? [[aS, b0 - out], [aS, b1 + out]] : extB ? [[aS + sa*out/2, bS], [aF, bS]] : null;
+        if(pts) pathRun(pts, out/2, z0, z1, top, front, side); };
       ledge(0, 34, 4, shade(stone, 1.06), stone, stoneD);
       ledge(196, 206, 3, shade(stone, 1.1), stone, stoneD);
       box(a0 - 5, a1 + 5, b0 - 5, b1 + 5, TH - 14, TH, shade(stone, 1.1), shade(stone, 1.02), stoneD);
@@ -81763,12 +81768,18 @@ marinaEntry(),
     });
 
     /* ============ THE SIDE RANGES: two runs of dwellings with a tunnel between, bridged over ============ */
+    /* THE COURT'S INNER CORNER, ONE PIECE (the corner rule, pathRun): where the side range whose court face the eye sees meets the
+       back lodge, their plinths are one run round the corner -- the range's piece draws its stretch, the lodge's (drawn after it)
+       the corner and its own, split on the range's straight run just past the mitre, short of the first door's step) */
+    const KP = (() => { const aK = (sa > 0 ? CA0 + RD : CA1 - RD) + sa*2, bK = CB0 + RD + 2;
+      return [[sa > 0 ? A.BW0 : A.BE1, bK], [aK, bK], [aK, bK + 4], [aK, A.SG0]]; })();
+    const kerbK = legs => pathRun(KP, 2, 0, 30, shade(stone, 1.06), stone, stoneD, legs);
     const sideRange = (a0, a1, facing) => {
       /* facing: 'out' for the range whose outer face the camera sees, 'in' for the one whose court face it sees, null for neither */
       const R = RG('b', CB0 + RD, CB1 - RD, a0, a1), fc = R.fc;
       const seg = (b0, b1, flipBase, dorm, chim) => it((a0 + a1)/2, (b0 + b1)/2, () => {
         R.wb(b0, b1, 0, H);
-        fc.proj(b0, b1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
+        if(facing === 'in' && b0 === CB0 + RD && sb > 0) kerbK([2]); else fc.proj(b0, b1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
         if(facing){
           fc.r(b0, b1, 150, 158, stone, 0.3); fc.r(b0, b1, H - 12, H, shade(trim, 1.0), 0.5);
           const n = Math.round((b1 - b0)/232);
@@ -81804,9 +81815,9 @@ marinaEntry(),
     /* ============ THE BACK RANGE: a lodge each side, a tunnel through each, and the chapel between ============ */
     const backLodge = (x0, x1, g0, g1) => {
       const R = RG('a', x0, x1, CB0, CB0 + RD), fc = R.fc, mid = (g0 + g1)/2;
-      it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); fc.proj(x0, g0, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
+      it((x0 + g0)/2, CB0 + RD/2, () => { R.wb(x0, g0, 0, H); if(sa > 0 && sb > 0 && x0 === CA0 + RD) kerbK([0, 1]); else fc.proj(x0, g0, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(x0, g0, 150, 158, stone, 0.3); fc.r(x0, g0, H - 12, H, trim, 0.5);
         if(g0 - x0 > 60) window2(fc, (x0 + g0)/2, 36, 70, 140, true); roof(R, x0, g0, H, RH, null); chimney(R, (x0 + g0)/2, H + RH, false); });   // (its chimney in its own piece: never a piece inside a piece)
-      it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); fc.proj(g1, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
+      it((g1 + x1)/2, CB0 + RD/2, () => { R.wb(g1, x1, 0, H); if(sa < 0 && sb > 0 && x1 === CA1 - RD) kerbK([0, 1]); else fc.proj(g1, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD); fc.r(g1, x1, 150, 158, stone, 0.3); fc.r(g1, x1, H - 12, H, trim, 0.5);
         if(x1 - g1 > 60) window2(fc, (g1 + x1)/2, 36, 70, 140, true); roof(R, g1, x1, H, RH, null); });
       it(mid, CB0 + RD/2, () => {
         const hwG = (g1 - g0)/2;
@@ -81825,7 +81836,8 @@ marinaEntry(),
       const c0 = A.CH0, c1 = A.CH1, b0 = CB0, b1 = A.CHB, CHH = A.CHH, cA = GM;
       wallBox(c0, c1, b0, b1, 0, CHH, '#f1e9d6');
       const f = FC('b', b1, 1), sd = FC('a', sa > 0 ? c1 : c0, sa);
-      f.proj(c0 - 4, c1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD); sd.proj(b0, b1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);   // (the plinth a skin on the faces, not a box whose top slabs over the wall)
+      { const aS = (sa > 0 ? c1 : c0) + sa*2;                                                                 // (the plinth a skin on the faces, not a box whose top slabs over the wall; ONE PIECE round its corner, pathRun)
+        pathRun([[sa > 0 ? c0 - 4 : c1 + 4, b1 + 2], [aS, b1 + 2], [aS, b0]], 2, 0, 34, shade(stone, 1.06), stone, stoneD); }
       /* the buttresses, the doorway in a pointed arch, the rose window in the gable */
       for(const u of [c0 + 6, c1 - 6]){ f.proj(u - 12, u + 12, 12, 0, 34, shade(stone, 1.1), stone, stoneD, 4);   // (its foot off the plinth's face, W37)
         f.proj(u - 12, u + 12, 12, 34, CHH - 40, shade(stone, 1.1), stone, stoneD); }
@@ -84878,14 +84890,16 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   name:'Harbor Kiosk', xh: 360, base:'Kiosk', hood:'The Flats', edited:true, zs:1, ww: 480, dd: 360,
   head:'the bait and tackle shop on Pelican Harbor\'s apron', tags:['kiosk', 'bait shop'], desc:'An open-fronted bait and tackle shop with a counter, a worker behind it and tackle on its walls.',
   C: { wall:'#f3efe6', wallD:'#ece6d8', wallK:'#d8d2c4', teal:'#2f6f7e', navy:'#1f3a4d', wood:'#d9b48a', woodD:'#b9864f', woodK:'#a8763f', floor:'#c8b08a' },
+  wallRun: [[-199, 150], [-199, -139], [199, -139], [199, -128], [199, 150]],   // the walls' centre line, 22 thick: west, back, east (see back())
   draw(p){ if(!inView(-260, 260, -200, 260, 0, 400)) return; this.back(); this.front(); },
   back(){
     const C = this.C;
     if(!inView(-230, 230, -170, 170, 0, 310)) return;
     box(-210, 210, -150, 150, 0, 8, C.floor, shade(C.floor, .9), shade(C.floor, .8));                     // the floor, boarded
     for(let a = -190; a < 200; a += 30) T(a, a + 1.5, -150, 150, 8.2, shade(C.floor, .85));
-    box(-210, 210, -150, -128, 8, 300, C.wall, C.wallD, C.wallK);                                          // the back wall
-    box(-210, -188, -128, 150, 8, 300, C.wall, C.wallD, C.wallK);                                          // the west wall
+    /* the walls, ONE PIECE round their two back corners (the corner rule, pathRun): the west wall, the back, and the east wall's
+       stretch along the back wall's end; the rest of the east wall last, over what is inside it (this.wallRun, its legs: the split on the east wall's straight run, at the back wall's inner face) */
+    pathRun(this.wallRun, 11, 8, 300, C.wall, C.wallD, C.wallK, [0, 1, 2]);
     F(-188, 188, 8, 300, '#e6dfd0', null, 0, -127.6);                                                      // the back wall inside
     /* the shelves of tackle: boards, and boxes of lures, line and hooks in their colours */
     const rng = mulberry32(0x7ac1e);
@@ -84902,7 +84916,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     T(-182, -114, -96, 36, 96.5, '#6fb3c8');
     for(const b of [-60, -20, 20]) ball(-148, b, 98, 3, '#e8f6fb', '#ffffff');
     /* the east wall last, over what is inside it */
-    box(188, 210, -128, 150, 8, 300, C.wall, C.wallD, C.wallK);
+    pathRun(this.wallRun, 11, 8, 300, C.wall, C.wallD, C.wallK, [3]);
     for(let z = 26; z < 300; z += 24) S(210.3, -150, 150, z, z + 2, C.wallK);                              // its clapboard
   },
   front(){
@@ -86407,18 +86421,29 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     /* W37: an end rail runs back from the front rail's north face (its corner post is the front rail's), so it stands wholly
        behind the front: the far end, what is on the deck, the seen end (a mirrored on some edges), then the front -- its curb
        before the posts on it, the corner posts with it */
-    const sideRail = aS => {                                 // an end rail, on the plane a = aS
-      box(aS - 3, aS + 3, bb, bf - 6, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
+    /* ONE PIECE round each front corner (the corner rule, pathRun): the curb and the top rail each one run, 6 thick, from the west
+       end rail's back round the front to the east one's -- split in legs on the front's straight run (FR), each end rail drawn
+       with its corner and the front's first stretch (its balusters and its corner post on it), the front's middle with front() */
+    const FR = [76, 734], rp = [[64, bb], [64, bf - 3], [FR[0], bf - 3], [FR[1], bf - 3], [746, bf - 3], [746, bb]];
+    const curb = legs => pathRun(rp, 3, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8), legs);
+    const topRail = legs => pathRun(rp, 3, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8), legs);
+    const frontBits = (a0, a1) => {                          // the front's balusters and posts in [a0, a1)
+      for(let a = 66; a < 746; a += 12) if(a >= a0 && a < a1) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
+      for(const a of [64, 202, 340, 478, 616, 746]) if(a >= a0 && a < a1) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
+    };
+    const sideRail = aS => {                                 // an end rail, on the plane a = aS, with its corner
+      const legs = aS === 64 ? [0, 1] : [3, 4];
+      curb(legs);
       for(let b = bb + 6; b < bf - 2; b += 12) S(aS, b, b + 2.4, H + 5, H + RH, rail);
       for(const b of [bb + 3, (bb + bf)/2]) box(aS - 2.5, aS + 2.5, b - 2.5, b + 2.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-      box(aS - 3, aS + 3, bb, bf - 6, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+      if(aS === 64) frontBits(-1e9, FR[0]); else frontBits(FR[1], 1e9);
+      topRail(legs);
     };
     const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, seeS = (P(0, 1, 0).y - P(0, 0, 0).y) > 0;
     const front = () => {
-      box(60, 750, bf - 6, bf, H, H + 5, c.cap, shade(c.wall,.96), shade(c.wall,.8));
-      for(let a = 66; a < 746; a += 12) F(a, a + 2.4, H + 5, H + RH, rail, null, 0, bf - 3);
-      for(const a of [64, 202, 340, 478, 616, 746]) box(a - 2.5, a + 2.5, bf - 5.5, bf - 0.5, H + 5, H + RH + 3, shade(post,1.1), post, shade(post,.8));
-      box(60, 750, bf - 6, bf, H + RH, H + RH + 4, shade(rail,1.15), rail, shade(rail,.8));
+      curb([2]);
+      frontBits(FR[0], FR[1]);
+      topRail([2]);
     };
     if(!seeS) front();                                       // (from behind the front rail is the far one)
     sideRail(seeE ? 64 : 746);
