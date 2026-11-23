@@ -48209,7 +48209,16 @@ function pathRun(pts, t, z0, z1, top, front, side, legs){
     const d = dir(i), nl = [-d[1], d[0]], [l0, l1, r0, r1] = ends(i), E = [[l0, l1, nl], [r1, r0, [-nl[0], -nl[1]]]];
     if(i === 0) E.push([r0, l0, [-d[0], -d[1]]]);
     if(i === n - 2) E.push([l1, r1, d]);
-    for(const [e0, e1, nn] of E) if(seen(nn[0], nn[1])) faces.push({ e0, e1, nn, y: P((e0[0] + e1[0])/2, (e0[1] + e1[1])/2, z0).y });
+    /* (a side face meeting the next leg's at an INSIDE corner -- the concave side of the turn -- runs a hair past the corner, so no
+       anti-aliased seam shows between the two; never at an outside corner, where it would poke past the mitre) */
+    const turn = v => { const a = dir(v - 1), b = dir(v); return a[0]*b[1] - a[1]*b[0]; };
+    const concave = (v, left) => v > 0 && v < n - 1 && has.has(v === i ? i - 1 : i + 1) && (left ? turn(v) > 1e-6 : turn(v) < -1e-6);
+    const hair = (p, toward, on) => { if(!on) return p; const dx = p[0] - toward[0], dy = p[1] - toward[1], l = Math.hypot(dx, dy) || 1; return [p[0] + dx/l*0.4, p[1] + dy/l*0.4]; };
+    for(const [k, [e0, e1, nn]] of E.entries()) if(seen(nn[0], nn[1])){
+      let f0 = e0, f1 = e1;
+      if(k === 0){ f0 = hair(e0, e1, concave(i, true)); f1 = hair(e1, e0, concave(i + 1, true)); }
+      else if(k === 1){ f0 = hair(e0, e1, concave(i + 1, false)); f1 = hair(e1, e0, concave(i, false)); }
+      faces.push({ e0: f0, e1: f1, nn, y: P((e0[0] + e1[0])/2, (e0[1] + e1[1])/2, z0).y }); }
   }
   faces.sort((x, y) => x.y - y.y);
   for(const f of faces) poly([P(f.e0[0], f.e0[1], z1), P(f.e1[0], f.e1[1], z1), P(f.e1[0], f.e1[1], z0), P(f.e0[0], f.e0[1], z0)],
@@ -123345,7 +123354,9 @@ class WorldScene extends Phaser.Scene {
     const bumper = (front, part) => () => {
       const a0 = front ? hl - 12 : -hl + 12, a1 = front ? hl + 2 : -hl - 2, sg = front ? 1 : -1;
       const aE = front ? ST[0][0] : ST[ST.length - 1][0], bAt = a => hw - 3 - 4*(a - a0)/(a1 - a0);
-      const pl = part === 'in' ? [[a0, -hw + 3], [aE, -bAt(aE)], [aE, bAt(aE)], [a0, hw - 3]]
+      /* ('in', under the body: inside its lower bevel, ins in from the flanks -- its sides poked out through the bevel and the body,
+         painted after, covered them where they stood in front -- Sir, 2026-11-22; the 'out' lip keeps the bumper's full width) */
+      const ins = 6, pl = part === 'in' ? [[a0, -hw + 3 + ins], [aE, -bAt(aE) + ins], [aE, bAt(aE) - ins], [a0, hw - 3 - ins]]
         : part === 'out' ? [[aE, -bAt(aE)], [a1, -hw + 7], [a1, hw - 7], [aE, bAt(aE)]] : [[a0, -hw + 3], [a1, -hw + 7], [a1, hw - 7], [a0, hw - 3]];
       solid(prismH(pl, bz[0], bz[1]), (B.stepBumper || has("chromeTrim")) && (!front || has("chromeTrim")) ? CHROME : TRIM);
       if(part === 'in') return;
@@ -123656,11 +123667,12 @@ class WorldScene extends Phaser.Scene {
            well is. The driver's hands on the wheel, the passenger's in their lap */
         const riders = [1, -1].map(side => ({ side, bc: side*(hw - 5)/2, L: vehRiderLook(((seed ^ 0x2c1b) + (side > 0 ? 0 : 0x51)) >>> 0) }));
         const rider = R => {
-          const aH = fs - 2, bc = R.bc, d = R.side > 0, aW = aH + 30, hW = Z + 30;
+          /* (the wheel and the driver's hands behind the raked windscreen -- Sir, 2026-11-22: they poked through it, the screen painted over them) */
+          const aH = fs - 2, bc = R.bc, d = R.side > 0, aW = aH + 20, hW = Z + 26;
           this.vehRider(g, x, y, z + lift, fdir, aH, bc, fl, R.L, { sit: Z - fl, reach: d ? [aW - aH - 3, R.L.build.legH + hW - Z] : [16, R.L.build.legH + 8] }, clip);
           if(d){ const rim = []; for(let k = 0; k <= 10; k++){ const ph = k/10*Math.PI*2; rim.push([aW + 1, bc + Math.cos(ph)*8, hW + Math.sin(ph)*8]); }
             for(let k = 0; k < 10; k++) line(rim[k], rim[k + 1], 0x1d1f23, 2.4);
-            line([aW + 1, bc, hW], [GH.f0 - 4, bc, Z + 2], 0x1d1f23, 2.4); }
+            line([aW + 1, bc, hW], [GH.f0 - 6, bc, Z + 2], 0x1d1f23, 2.4); }
         };
         const frontRow = () => {
           base(fs, -hw + 9, -4); base(fs, 4, hw - 9);
@@ -126643,7 +126655,13 @@ class WorldScene extends Phaser.Scene {
           } finally { this.drawClip = c0; this._paintHole = false; }
           if(!c0){ const hp = [[a0 + 22, -w0 + 6], [aHd - 28, -w0 + 6], [aHd - 28, w0 - 6], [a0 + 22, w0 - 6]], pts = [];
             for(const [aa, bb] of hp){ pts.push(P(aa, bb, zf), P(aa, bb, H + 18)); }
-            this.drawClip = convexHullKeep([...mouth, ...hp.map(([aa, bb]) => P(aa, bb, H + 18))]);
+            /* (and above each near rim edge -- the rims the eye sees are in front of the heap: the hull alone reached a sliver over them,
+               Sir 2026-11-22) */
+            let cl = convexHullKeep([...mouth, ...hp.map(([aa, bb]) => P(aa, bb, H + 18))]);
+            const above = (A, B) => { const dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, ux = dx/L*1e5, uy = dy/L*1e5;
+              const L1 = { x: A.x - ux, y: A.y - uy }, L2 = { x: B.x + ux, y: B.y + uy }; return [L1, L2, { x: L2.x, y: L2.y - 1e6 }, { x: L1.x, y: L1.y - 1e6 }]; };
+            for(const [i, nn] of [[0, [0, -1]], [1, [1, 0]], [2, [0, 1]], [3, [-1, 0]]]) if(cl && sees(nn[0], nn[1], 0)) cl = clipConvex(cl, above(mouth[i], mouth[(i + 1) % 4]));
+            this.drawClip = cl || mouth;
             try { solid(prismB([[a0 + 22, zf], [aHd - 28, zf], [aHd - 44, H + 18], [a0 + 42, H + 18]], -w0 + 6, w0 - 6), 0x9a8f7e, (i, n) => n[2] > 0.5 ? 0xa89c88 : 0x8a7f6e); }
             finally { this.drawClip = c0; } } }
         wearFlank(aHd, a0, h0 + 24, H - 8, hw);                                                                  // (his print and finish over the tub's flank)
