@@ -59796,6 +59796,10 @@ function houseCanopy(fn){
     const CWS = { name: 'Kickstand', c: 0x2e8bd8, cDk: 0x1f6aa8 }, SCO = (a, b, z, st, dd) => ({ kind: 'scooter', a, b, z, th: Math.PI/2, stage: st >= 8 ? null : st, brand: CWS, dd: dd || 3 });
     const folded = (a, b, z) => { prod(a, b, z, PCOL, false, 3, 0); tube(a - 35, b, z + 22, a + 30, b, z + 26, 2.6, PCOL); tube(a - 37, b - 20, z + 22, a - 37, b + 20, z + 22, 2.3, dark); };
     /* a boxed scooter, its long side along a (or b): taped, the Kickstand label on its side */
+    const openCarton = (a, b, z, alongB, inside) => { const la = alongB ? BXW/2 : BXL/2, lb = alongB ? BXL/2 : BXW/2;   /* (a box set out open, its flaps down its sides: what the packer puts the scooter in) */
+      box(a - la, a + la, b - lb, b + lb, z, z + BXH, BXC, shade(BXC, .88), shade(BXC, .74)); T(a - la + 1.5, a + la - 1.5, b - lb + 1.5, b + lb - 1.5, z + BXH + 0.1, '#6a4a2a');
+      if(inside) T(a - la + 6, a + la - 6, b - 4, b + 4, z + BXH + 0.2, PCOL);   /* (the folded scooter's deck showing inside) */
+      F(a - la, a + la, z + BXH - 8, z + BXH, shade(BXC, .8), null, 0, b + lb + 0.3); };
     const carton = (a, b, z, alongB, h) => { const la = alongB ? BXW/2 : BXL/2, lb = alongB ? BXL/2 : BXW/2, z1 = z + (h == null ? BXH : h);
       box(a - la, a + la, b - lb, b + lb, z, z1, BXC, shade(BXC, .88), shade(BXC, .74));
       if(h == null){ if(alongB) T(a - 2.5, a + 2.5, b - lb, b + lb, z1 + 0.2, '#e3c08a'); else T(a - la, a + la, b - 2.5, b + 2.5, z1 + 0.2, '#e3c08a');
@@ -60009,7 +60013,7 @@ function houseCanopy(fn){
         const a = POS[p][0] + (POS[q][0] - POS[p][0])*mv, b = POS[p][1] + (POS[q][1] - POS[p][1])*mv;
         const col = PCOL, eb = false;
         /* (a stage is done half way through the stand: loaded at the first stop, lifted off at the last) */
-        const st = u < DWELL*0.5 ? (p ? STAGE[p - 1] : -1) : STAGE[p], gone = p === NPOS - 1 && u >= DWELL*0.5;
+        const st = u < DWELL*0.5 ? (p ? STAGE[p - 1] : -1) : STAGE[p], gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
         out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); } })); if(st >= 0 && !gone) out.push(SCO(a, b, 36, st, 4));
       }
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
@@ -60019,11 +60023,19 @@ function houseCanopy(fn){
         const w0 = 400 + OF, w1 = DWELL - 400 - OB, on = here && u > w0 && u < w1, s = on ? 0 : u <= w0 ? 1 - clamp01((u - (w0 - TT))/TT) : clamp01((u - w1)/TT);
         if(p === NPOS - 1){   /* (the packer -- Sir, 2026-11-20: "he should be boxing on that warehouse bot, then it goes to the picker"): turned to the line
              robot to lift the finished one off, folding it in his hands, then boxing it on the conveyor robot docked south of him (PKD) */
-          const age = (((t - UNL) % CYC) + CYC) % CYC, PK = [PKD[0], RB + 5], toS = age < 600 ? ease(age/600) : age < 7400 ? 1 : 1 - ease((age - 7400)/800), f = 2 - toS;
-          const pose = age < 2500 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 6000 ? WORK(t + p*700) : age >= 8200 ? REACH(t + p*500) : {};
-          out.push(man(PK[0], PK[1], f, Object.assign(pose, age >= 2500 && age < 6000 ? { waist: 0.35 } : {})));
-          if(age < 2500){ const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PK[0] + fa*30, hb = PK[1] + fb*30;
-            if(age < 1500) out.push(SCO(ha, hb, 30, 8, 2)); else out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => folded(ha, hb, 30) }); }
+          /* (Sir, 2026-11-23: "the warehouse robot should show up and then he puts the box, then he picks up the scooter and folds it and
+             places it in the box"): the conveyor robot docks south of him (by 1900); he takes a box off his supply robot (east), sets it open on
+             the conveyor robot, turns to the line robot (west) and lifts the finished scooter off, folds it as he turns back, lowers it into
+             the box and closes it; the robot takes it to the arm (7000). age: from the last stage done */
+          const age = (((t - UNL) % CYC) + CYC) % CYC, PK = [PKD[0], RB + 5], E = (a0, a1) => ease(clamp01((age - a0)/(a1 - a0)));
+          const f = age < 900 ? 2 - 2*E(0, 900) : age < 1500 ? 0 : age < 2000 ? E(1500, 2000) : age < 2600 ? 1 : age < 2850 ? 1 + E(2600, 2850) : age < 3100 ? 2 : age < 4200 ? 2 - E(3200, 4200) : age < 8000 ? 1 : 1 + E(8000, 8900);
+          const pose = age < 900 ? {} : age < 1500 ? REACH(t + p*500) : age < 2600 ? { lift: [0.55 + 0.25*(age > 2000 ? 1 - E(2000, 2500) : 0), 0.55 + 0.25*(age > 2000 ? 1 - E(2000, 2500) : 0)], bend: [0.7, 0.7] }
+            : age < 3100 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 4300 ? { lift: [0.75, 0.75], bend: [0.6, 0.6] } : age < 5000 ? { lift: [0.6, 0.6], bend: [0.4, 0.4], waist: 0.35 } : age < 5900 ? Object.assign(WORK(t + p*700), { waist: 0.35 }) : {};
+          out.push(man(PK[0], PK[1], f, pose));
+          const fa = Math.cos(f*Math.PI/2), fb = Math.sin(f*Math.PI/2), ha = PK[0] + fa*30, hb = PK[1] + fb*30;
+          if(age >= 1200 && age < 2500){ const zz = age < 2000 ? 40 : 40 - 9*E(2000, 2500); out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => openCarton(ha, hb, zz, false) }); }   /* (the box off his supply, opened, onto the robot) */
+          else if(age >= 2950 && age < 3700) out.push(SCO(ha, hb, 30, 8, 2));   /* (the finished scooter off the line robot) */
+          else if(age >= 3700 && age < 4300) out.push({ kind: 'cargo', a: ha, b: hb, dd: 2, cargo: tt => folded(ha, hb, 30) });   /* (folded in his hands) */
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
@@ -60553,14 +60565,15 @@ function houseCanopy(fn){
       const HELD = (box, w, z) => { box(w[0] - BXL/2, w[0] + BXL/2, w[1] - BXW/2, w[1] + BXW/2, z - BXH, z, 0xc98a4a); box(w[0] - BXL/2, w[0] + BXL/2, w[1] - 2.5, w[1] + 2.5, z, z + 0.4, 0xe3c08a); };
       items.push({ a: 1990, b: 1440, z: 0, solids: [solid(1774, 1850, 1445, 1555, 120, 'palletizing robot')], draw: () => {}, fx: { crew: t => {
         const rr = (((t - UNL - 5500) % CYC) + CYC) % CYC; let s0;
-        if(rr < 1500) s0 = 0; else if(rr < ARM0) s0 = CL*ease((rr - 1500)/(ARM0 - 1500)); else if(rr < 4500) s0 = CL; else if(rr < 6000) s0 = CL*(1 - ease((rr - 4500)/1500)); else s0 = 0;   /* (back from the arm once it has the box, docked by the packer for the next to be boxed on it) */
+        if(rr < 1500) s0 = 0; else if(rr < ARM0) s0 = CL*ease((rr - 1500)/(ARM0 - 1500)); else if(rr < 4400) s0 = CL; else if(rr < 5400) s0 = CL*(1 - ease((rr - 4400)/1000)); else s0 = 0;   /* (back sooner: docked by the packer before he lifts the next one off -- he sets its box on first) */   /* (back from the arm once it has the box, docked by the packer for the next to be boxed on it) */
         const CPt = pathAt(CP, Math.min(s0, CL - 0.5)), alongB = Math.abs(Math.sin(CPt.fdir*Math.PI/2)) > 0.5;
         const ju = rr >= ARM0 && rr < ARM0 + ARMT ? (rr - ARM0)/ARMT : null;
         const has = rr >= 500 && (ju == null ? rr < ARM0 : ju < 0.17), run = rr < 1500 || ju != null, age = (((t - UNL) % CYC) + CYC) % CYC, bx = age >= 2500 && age < 6000 ? age - 2500 : -1;   /* (bx: the box going up round the folded one on its deck) */
         /* which place on the pallet this box goes to: the count there when it is set down */
         const jrR = (((t + (ju == null ? 0 : (0.78 - ju)*ARMT) - PAL0) % PALT) + PALT) % PALT, iBox = (Math.round(jrR/CYC) + 5) % 6;
         const place = [0, PA + (iBox % 2 ? 15 : -15) - AA, 10.5 + Math.floor(iBox/2)*BXH + BXH], pick = [0, 1894 - AA, 31 + BXH];
-        const out = [bot(CPt.a, CPt.b, CPt.fdir, { build: 'amrstock', loads: [], wheel: s0*0.12, cargo: has ? () => carton(CPt.a, CPt.b, 31, alongB) : bx >= 0 ? () => { folded(CPt.a, CPt.b, 31); if(bx > 100) carton(CPt.a, CPt.b, 31, false, bx < 1700 ? 4 + 26*ease((bx - 100)/1600) : null); } : null }),
+        const out = [bot(CPt.a, CPt.b, CPt.fdir, { build: 'amrstock', loads: [], wheel: s0*0.12, cargo: has ? () => carton(CPt.a, CPt.b, 31, alongB) : age >= 2500 && age < 6000 && s0 === 0 ? () => { const k = clamp01((age - 4300)/700);   /* (the open box he set on; the folded scooter lowered into it; then closed) */
+            if(age >= 5450) carton(CPt.a, CPt.b, 31, false); else { if(age >= 4300 && age < 5000) folded(CPt.a, CPt.b, 31 + BXH + 30*(1 - ease(k)) - 6); openCarton(CPt.a, CPt.b, 31, false, age >= 4900); } } : null }),
                      bot(AA, PB, 3, { build: 'amrarm', arm: { pick, place, u: ju, held: HELD }, dd: ju != null && ju > 0.05 && ju < 0.55 ? 1894 - AA + 6 : 0 })   /* (while it lifts the box off the box robot, after that robot -- Sir, 2026-11-20: "when the arm picks up the box it is drawn over by the robot it came off") */];
         /* the pallet in the bay: full till the pallet jack lifts it, an empty one off the stack once it has gone, a box on it each CYC */
         const jr = (((t - PAL0) % PALT) + PALT) % PALT, n = jr < 1500 ? 6 : jr < 8300 ? -1 : jr < CYC ? 0 : Math.min(5, Math.floor((jr - CYC)/CYC) + 1);
