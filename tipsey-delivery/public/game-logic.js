@@ -770,6 +770,9 @@ function convexHull(pts){
 /* (the one the review's fill check leaves alone: a piece that is a deliberate filled shape -- a flame, a pouch's silhouette -- calls this, not convexHull) */
 const convexHullKeep = convexHull;
 function mulberry32(a){ return function(){ a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/* the park planting's colour helpers (drawParkShrub, drawParkBed): a colour scaled toward black or white, and two mixed */
+function parkPlantShade(c, k){ return ((Math.min(255, ((c >> 16) & 255)*k)|0) << 16) | ((Math.min(255, ((c >> 8) & 255)*k)|0) << 8) | (Math.min(255, (c & 255)*k)|0); }
+function parkPlantMix(c1, c2, t){ const m = s => Math.round(((c1 >> s) & 255)*(1 - t) + ((c2 >> s) & 255)*t); return (m(16) << 16) | (m(8) << 8) | m(0); }
 /* clip a polygon of screen points {x,y} to a CONVEX screen polygon
    (Sutherland-Hodgman); null when nothing is left. The scene's drawClip
    (quadOn / edgeOn) uses it to show someone only through a doorway. */
@@ -108980,7 +108983,7 @@ class WorldScene extends Phaser.Scene {
   queueFlowers(vq){
     const F = FLOWERS, ox = F.ox, oy = F.oy;
     if(!this.visWorldPt(ox, oy, 1100, 200)) return;
-    const hedge = 0x3f7a4a, hedgeL = 0x4e8d58, path = 0xcfc4a8, pathD = 0xb3a88c, wood = 0xe9e2d0, woodD = 0xb9b09a, green = 0x5f9a4c, greenD = 0x477a3a;
+    const hedge = 0x3f7a4a, hedgeL = 0x4e8d58, hedgeD = 0x356640, path = 0xcfc4a8, pathD = 0xb3a88c, wood = 0xe9e2d0, woodD = 0xb9b09a, green = 0x5f9a4c, greenD = 0x477a3a;
     const kit = g => this.lgKit(g, { x: ox, y: oy });
     const item = (key, a, b, fn) => vq.push({ depth: ox + a + oy + b, fn: g => this.bcDraw(g, "fl|" + key, ox + a, oy + b, gg => fn(kit(gg))) });
     /* the ground: the ring walk, the four paths, a flagged apron at each arbor */
@@ -108995,7 +108998,7 @@ class WorldScene extends Phaser.Scene {
     /* a bed: a hedge round it, the soil, the flowers */
     F.beds.forEach((bd, k) => item("bed" + k, (bd.a0 + bd.a1)/2, bd.b1, ({ P, q, sh, box, post }) => {
       const t = 7, h = 20;
-      box(bd.a0, bd.a1, bd.b0, bd.b0 + t, 0, h, sh(hedgeL, 1.05), hedgeL, hedge); box(bd.a0, bd.a0 + t, bd.b0, bd.b1, 0, h, sh(hedgeL, 1.05), hedgeL, hedge);
+      box(bd.a0, bd.a1, bd.b0, bd.b0 + t, 0, h, sh(hedgeL, 1.26), hedgeD, hedgeL); box(bd.a0, bd.a0 + t, bd.b0, bd.b1, 0, h, sh(hedgeL, 1.26), hedgeD, hedgeL);
       q([P(bd.a0 + t, bd.b0 + t, 0.8), P(bd.a1 - t, bd.b0 + t, 0.8), P(bd.a1 - t, bd.b1 - t, 0.8), P(bd.a0 + t, bd.b1 - t, 0.8)], 0x4a3524);
       const rn = m => ((k*131 + m*53) % 97)/97, nc = Math.max(3, Math.round((bd.a1 - bd.a0 - 2*t)/26)), nr = Math.max(3, Math.round((bd.b1 - bd.b0 - 2*t)/24));
       for(let r = 0; r < nr; r++) for(let c = 0; c < nc; c++){
@@ -109013,7 +109016,7 @@ class WorldScene extends Phaser.Scene {
           default: post(a, b, 1.4, 0, 26, greenD); post(a, b, 4.6*w, 26, 34, pick([0xf2b8c6, 0xf6f0e4, 0xc8a8e8], r + 2*c));
         }
       }
-      box(bd.a0, bd.a1, bd.b1 - t, bd.b1, 0, h, sh(hedgeL, 1.05), hedgeL, hedge); box(bd.a1 - t, bd.a1, bd.b0, bd.b1, 0, h, sh(hedgeL, 1.05), hedgeL, hedge);
+      box(bd.a0, bd.a1, bd.b1 - t, bd.b1, 0, h, sh(hedgeL, 1.26), hedgeD, hedgeL); box(bd.a1 - t, bd.a1, bd.b0, bd.b1, 0, h, sh(hedgeL, 1.26), hedgeD, hedgeL);
     }));
     /* an arbor over each path's outer end: two posts, a beam, slats, a climbing rose and sweet pea */
     F.arbors.forEach(([a, b, w], k) => item("arbor" + k, a, b + (w === 'a' ? 55 : 0), ({ P, q, sh, box, post }) => {
@@ -117803,6 +117806,144 @@ class WorldScene extends Phaser.Scene {
     for(const q of P){ const L = lit(q); g.fillStyle(tone(col, 1.02*L), 1); g.fillCircle(q.x - q.r*0.2, q.y - q.r*0.22, q.r*0.66);
       if(L > 1.06){ g.fillStyle(tone(col, 1.16*L), 1); g.fillCircle(q.x - q.r*0.34, q.y - q.r*0.38, q.r*0.3); } }
   }
+  /* PARK PLANTING (the parks pass, 2026-11-23 -- Sir: "look over the parks and trees and flower beds and all that they need a pass").
+     The park kit's shrubs and flower beds (queueParkPlants: the park trail's ~1000 shrubs and ~85 beds, Costa Palma's park) were three
+     flat discs and a mulch oval sprinkled with dots. Each now reads as the thing, built off the street planter's mound (drawProp
+     "planter": one shaded mass under every puff, then each puff's lit side far to near) at park scale:
+     - A SHRUB is a clump of foliage puffs, not one disc: the whole mass in shade first, then each puff's lit side up and to the
+       screen-left (SP13: lit left, dark right), a scalloped skirt where it meets the grass, and blooms as heads on the lit faces,
+       toned down on the shade side. Its foliage green picks its kind (a border of one green is one planting): the deep green is a
+       clipped boxwood ball, the light green an upright shrub, the others loose mounds; puff count, lean and height are seeded off
+       its position, so no two are clones.
+     - A BED is a raised oval: a stone edging set stone by stone (a top with its joints, its face showing on the near side), a
+       soil rim in its shadow, and the planting massed in drifts across it -- a low edging row round the rim, the drifts of its two
+       colours (and a pale third) running across it in waves, and down its middle either taller spires or bigger mounds (its own
+       seed), every clump foliage first and flowers on top, far to near.
+     All of it is screen circles over world points (a round plant looks the same from every side), so nothing turns wrong at any
+     facing; it is all drawn once into the plant's cached image (bcDraw, keyed at its foot), never per frame. */
+  drawParkShrub(g, p, rr){
+    const K = this.K, r = p.r, x = p.x, y = p.y, col = p.col, bloom = p.bloom;
+    const sh = parkPlantShade, dark = sh(col, 0.62), mid = col, lit = parkPlantMix(sh(col, 1.16), 0xe8f0a0, 0.12), hi = parkPlantMix(sh(col, 1.32), 0xf4f8c8, 0.25);
+    /* its kind, from its green (a border run shares one), so a run is one planting */
+    const kind = col === 0x46743f && !bloom ? "ball" : col === 0x6a9a52 ? "upright" : "mound";
+    const puffs = [];
+    const add = (a, d, z, rad) => puffs.push({ x: x + Math.cos(a)*d*r*1.12, y: y + Math.sin(a)*d*r*1.12, z: z*r*1.08, rad: rad*r*1.14 });   // (x1.1: the clump fills the old dome's spread)
+    if(kind === "ball"){
+      /* a clipped boxwood: one clean dome, a soft roll from lit to shade, a couple of clipped tufts */
+      const c = this.W(x, y, 0.72*r), R = 0.86*r*K;
+      /* its skirt on the grass: the dark lip under the dome */
+      g.fillStyle(sh(col, 0.5), 1); { const b = this.W(x, y, 0.08*r); g.fillEllipse(b.x + R*0.1, b.y - R*0.05, R*1.3, R*0.36); }
+      g.fillStyle(dark, 1); g.fillCircle(c.x, c.y + R*0.05, R*0.9);
+      g.fillStyle(mid, 1); g.fillCircle(c.x - R*0.12, c.y - R*0.1, R*0.8);
+      g.fillStyle(lit, 1); g.fillCircle(c.x - R*0.3, c.y - R*0.32, R*0.52);
+      /* the clipped surface's grain: a few shade flecks on the dark side, lit flecks on the lit */
+      for(let k = 0; k < 7; k++){ const a = rr()*Math.PI*2, d = (0.3 + rr()*0.42)*R, fx = c.x + Math.cos(a)*d, fy = c.y + Math.sin(a)*d*0.9;
+        g.fillStyle(fx > c.x ? sh(col, 0.66) : sh(col, 1.1), 1); g.fillCircle(fx, fy, R*0.08); }
+      g.fillStyle(hi, 1); g.fillCircle(c.x - R*0.42, c.y - R*0.48, R*0.22);
+      return;
+    }
+    if(kind === "upright"){
+      /* an upright shrub: a stacked, leaning clump, taller than wide */
+      const lean = rr()*Math.PI*2, ld = 0.08 + rr()*0.1;
+      add(0, 0, 0.42, 0.5); add(lean, ld, 0.86, 0.44); add(lean, ld*2, 1.24, 0.34);
+      for(let k = 0, n = 3 + Math.floor(rr()*2); k < n; k++) add(k/n*Math.PI*2 + rr()*0.7, 0.36 + rr()*0.12, 0.42 + rr()*0.42, 0.3 + rr()*0.06);
+    } else {
+      /* a loose mound: a crown, an inner ring, an outer ring spilling to the grass */
+      add(0, rr()*0.08, 0.92 + rr()*0.14, 0.46);
+      const nIn = 3 + Math.floor(rr()*2), nOut = 5 + Math.floor(rr()*3);
+      for(let k = 0; k < nIn; k++) add(k/nIn*Math.PI*2 + rr()*0.6, 0.3, 0.68 + rr()*0.12, 0.4 + rr()*0.05);
+      for(let k = 0; k < nOut; k++) add(k/nOut*Math.PI*2 + rr()*0.4, 0.58 + rr()*0.1, 0.36 + rr()*0.12, 0.34 + rr()*0.06);
+    }
+    for(const f of puffs){ const c = this.W(f.x, f.y, f.z); f.sx = c.x; f.sy = c.y; f.k = this.W(f.x, f.y, 0).y; }
+    puffs.sort((a, b) => a.k - b.k);
+    const zMid = puffs.reduce((m, f) => m + f.z, 0)/puffs.length, foot = this.W(x, y, 0);
+    /* the whole mass in shade first, with a scalloped skirt where it meets the grass */
+    g.fillStyle(dark, 1);
+    for(const f of puffs) g.fillCircle(f.sx, f.sy, f.rad*K);
+    g.fillStyle(sh(col, 0.5), 1);
+    for(const f of puffs) if(f.z < zMid) g.fillCircle(f.sx + f.rad*K*0.12, f.sy + f.rad*K*0.4, f.rad*K*0.62);
+    /* each puff's lit side, far to near; the highlight only on the upper ones; blooms on the lit faces */
+    for(const f of puffs){
+      /* (no dark ring round each puff: the mass is one shrub, the lumps read by their lit sides alone) */
+      const R = f.rad*K, up = f.z >= zMid;
+      g.fillStyle(up ? mid : sh(col, 0.84), 1); g.fillCircle(f.sx - R*0.2, f.sy - R*0.24, R*0.8);     // (the lower puffs in the canopy's own shade)
+      g.fillStyle(up ? lit : sh(col, 0.98), 1); g.fillCircle(f.sx - R*0.34, f.sy - R*0.4, R*(up ? 0.48 : 0.36));
+      if(f.z >= zMid*1.15){ g.fillStyle(hi, 1); g.fillCircle(f.sx - R*0.44, f.sy - R*0.52, R*0.18); }
+      /* blooms: a few small trusses of florets, more on the upper puffs, in shade on the shade side */
+      if(bloom && rr() < (up ? 0.85 : 0.45)){
+        const hx = f.sx + (rr() - 0.6)*R*0.9, hy = f.sy - R*(0.15 + rr()*0.45), fr = Math.max(1.3, 0.075*r*K);
+        const shade = hx > foot.x + r*K*0.2, c0 = shade ? sh(bloom, 0.72) : bloom, c1 = shade ? sh(bloom, 0.9) : parkPlantMix(bloom, 0xffffff, 0.4);
+        g.fillStyle(c0, 1);
+        for(const [ox, oy] of [[-0.9, 0.4], [0.9, 0.4], [0, -0.5]]) g.fillCircle(hx + ox*fr*1.1, hy + oy*fr, fr*1.1);
+        g.fillStyle(c1, 1); g.fillCircle(hx - fr*0.6, hy - fr*0.5, fr*0.8);
+      }
+    }
+  }
+  drawParkBed(g, p, rr){
+    const K = this.K, x = p.x, y = p.y, L = p.len, Wd = 58, ax = p.ax, ay = p.ay, sh = parkPlantShade;
+    const at = (u, v) => ({ x: x + ax*u - ay*v, y: y + ay*u + ax*v });
+    const ell = (l, w, z) => Array.from({ length: 32 }, (_, k) => { const th = k/32*Math.PI*2, q = at(Math.cos(th)*l, Math.sin(th)*w); return this.W(q.x, q.y, z); });
+    /* THE EDGING: a raised stone kerb, its face showing on the near side, its top set stone by stone (the joints are the dark
+       under them), then the soil, darker in the edging's shadow at its rim */
+    const ZE = 5, EO = 12, EI = 3, stone = 0xb3ab9a, stoneD = 0x7f776a;
+    this.quadOn(g, ell(L + EO, Wd + EO, 0), stoneD);
+    this.quadOn(g, ell(L + EO, Wd + EO, ZE), sh(stoneD, 1.1));
+    { const N = Math.max(22, Math.round((L + Wd)*0.16)), gap = 0.045;
+      for(let k = 0; k < N; k++){
+        const t0 = k/N*Math.PI*2 + gap, t1 = (k + 1)/N*Math.PI*2 - gap, q = (t, l, w) => { const c = at(Math.cos(t)*l, Math.sin(t)*w); return this.W(c.x, c.y, ZE); };
+        const tone = 0.93 + rr()*0.14, s0 = this.W(x, y, 0).x, m = q((t0 + t1)/2, L + EO, Wd + EO);
+        /* (the stones on the screen-right of the bed a shade darker: SP13) */
+        this.quadOn(g, [q(t0, L + EO, Wd + EO), q((t0 + t1)/2, L + EO, Wd + EO), q(t1, L + EO, Wd + EO), q(t1, L + EI, Wd + EI), q(t0, L + EI, Wd + EI)],
+          sh(stone, tone*(m.x > s0 + L*K*0.4 ? 0.9 : 1)));
+      }
+    }
+    this.quadOn(g, ell(L + EI, Wd + EI, ZE + 0.3), 0x3e2a1c);
+    this.quadOn(g, ell(L - 2, Wd - 4, ZE + 0.4), 0x5a3d28);
+    /* massed: the planting's own low foliage covers the soil but for a rim inside the edging */
+    this.quadOn(g, ell(L - 9, Wd - 12, ZE + 2.5), 0x3d6636);
+    /* THE PLANTING, in drifts: its style and its pale third colour off its own seed */
+    const spires = rr() < 0.5, pale = [0xf4f0e2, 0xf6e6ee, 0xfaf0c8][Math.floor(rr()*3)], spireC = rr() < 0.5 ? p.bloom2 : 0x7a5cc8;
+    const drifts = [p.bloom, p.bloom2, pale, p.bloom], nD = 3 + Math.floor(rr()*2), ph = rr()*6.28;
+    const edgeKind = rr() < 0.55 ? "alyssum" : "lime";
+    const items = [], Z = ZE + 0.5;
+    const clump = (u, v, fn) => { const q = at(u, v); items.push({ k: this.W(q.x, q.y, 0).y, q, fn }); };
+    /* a clump's foliage: its lit side on the carpet's shade (the carpet is that shade); out on the soil at the rim, its own shade under it */
+    const fol = (q, z, rad, c, own) => { const s = this.W(q.x, q.y, z), R = rad*K;
+      if(own){ g.fillStyle(sh(c, 0.66), 1); g.fillCircle(s.x, s.y, R); }
+      g.fillStyle(c, 1); g.fillCircle(s.x - R*0.22, s.y - R*0.26, R*0.76);
+      return s; };
+    /* a flower head is one disc (a bed is hundreds of them: one fill each keeps its paint cheap); the first in a clump, up on its lit
+       side, a shade lighter, the ones on the bed's shade side a shade darker */
+    const head = (sx, sy, rad, c, shade, lead) => { const r = rad*K*1.12, w = r*1.08; g.fillStyle(shade ? sh(c, 0.78) : lead ? parkPlantMix(c, 0xffffff, 0.35) : c, 1);
+      g.fillTriangle(sx - w, sy, sx, sy - r, sx + w, sy); g.fillTriangle(sx - w, sy, sx + w, sy, sx, sy + r*0.8); };   // (a small rosette: two triangles, no path to fill)
+    const sx0 = this.W(x, y, 0).x;
+    for(let u = -L; u <= L; u += 13){
+      for(const vv of [-0.76, -0.46, -0.2, 0.06, 0.32, 0.6]){
+        const uu = u + (rr() - 0.5)*6 + (Math.round(vv*4) & 1 ? 6 : 0), v = vv*Wd + (rr() - 0.5)*6;
+        const e = (uu/(L - 4))**2 + (v/(Wd - 6))**2;
+        if(e > 0.9) continue;
+        const rim = Math.abs(vv) > 0.7 || e > 0.6, middle = vv === 0.06;
+        if(rim){
+          clump(uu, v, q => { const s = fol(q, Z + 4, 6.2 + rr()*1.4, edgeKind === "lime" ? 0x9cbf5e : 0x6f9a50, true);
+            if(edgeKind === "alyssum"){ g.fillStyle(0xf6f4ec, 1); for(let k = 0; k < 2; k++) g.fillCircle(s.x + (rr() - 0.6)*7*K, s.y - rr()*4*K, 1.7*K); } });
+          continue;
+        }
+        const d = Math.min(nD - 1, Math.max(0, Math.floor((uu/L + 1)*nD/2 + Math.sin(v*0.07 + ph)*0.4))), dc = drifts[d];
+        if(middle && spires){
+          clump(uu, v, q => { const s = fol(q, Z + 6, 6.4, 0x4f7f45), hgt = 22 + rr()*12, shd = s.x > sx0 + L*K*0.3;
+            for(let z = 10; z < hgt; z += 4.6){ const c = this.W(q.x, q.y, Z + z), t = (z - 10)/(hgt - 10);
+              head(c.x + Math.sin(z*1.3)*0.8*K, c.y, 3.3 - t*1.3, spireC, shd, t > 0.6); } });
+        } else {
+          const big = middle;
+          clump(uu, v, q => { const s = fol(q, Z + (big ? 10 : 7), big ? 9.5 : 7.2, big ? 0x4a7a40 : 0x558845), shd = s.x > sx0 + L*K*0.3;
+            const n = big ? 3 : 2, R = big ? 6.5 : 5;
+            for(let k = n - 1; k >= 0; k--) head(s.x + (k ? (rr() - 0.4)*R*1.4 : -R*0.35)*K, s.y - (k ? 1 + rr()*R*0.7 : R*0.8)*K, (big ? 3.8 : 3.3) + rr()*0.6, dc, shd, k === 0); });
+        }
+      }
+    }
+    items.sort((a, b) => a.k - b.k);
+    for(const it of items) it.fn(it.q);
+  }
   /* A PARK'S PLANTS, each culled on its own and each still one cached (the park trail's: shrubs, beds, trees, benches;
      anything else through drawProp) -- the park kit, also the Costa Palma letters' park's (cplQueuePark) */
   queueParkPlants(vq, list){
@@ -117825,7 +117966,7 @@ class WorldScene extends Phaser.Scene {
       return c.x + (r*P + M)*K >= 0 && c.x - (l*P + M)*K <= gw && c.y + (d*P + M)*K >= 0 && c.y - (u*P + M)*K <= gh; };
     const vis = p => {
       if(p.kind === "shrub"){ const r = p.r; return box(p.x, p.y, 2*r, 2*r, 2.6*r, 1.2*r); }
-      if(p.kind === "bed"){ const L = p.len + 10; return box(p.x, p.y, 1.5*L + 10, 1.5*L + 10, 0.75*L + 30, 0.75*L + 10); }
+      if(p.kind === "bed"){ const L = p.len + 14; return box(p.x, p.y, 1.5*L + 10, 1.5*L + 10, 0.75*L + 30, 0.75*L + 10); }
       if(p.kind === "tree"){ const h = p.h || 1; return box(p.x, p.y, 160*h + 30, 160*h + 30, 350*h + 40, 20); }
       return this.visProp(p.kind, p.x, p.y);
     };
@@ -117845,27 +117986,9 @@ class WorldScene extends Phaser.Scene {
         const shadow = () => {};   // static props cast no shadow (SP6)
         const rr = mulberry32(((Math.round(x)*7919) ^ (Math.round(y)*104729)) >>> 0);
         if(p.kind === "shrub"){
-          const r = p.r;
-          shadow(r);
-          dot(x, y, r*0.7, r*1.08, shadeC(p.col, 0.72));
-          dot(x - r*0.12, y - r*0.12, r*0.9, r*0.95, p.col);
-          dot(x - r*0.35, y - r*0.25, r*1.15, r*0.5, shadeC(p.col, 1.18));
-          if(p.bloom) for(let k = 0; k < 7; k++){
-            const a = rr()*Math.PI*2, d = rr()*r*0.75;
-            dot(x + Math.cos(a)*d*0.6, y + Math.sin(a)*d*0.6, r*0.9 + rr()*r*0.5, 4.2, p.bloom);
-          }
+          this.drawParkShrub(g, p, rr);                       // (PARK PLANTING: drawParkShrub)
         } else if(p.kind === "bed"){
-          const L = p.len, Wd = 58, ax = p.ax, ay = p.ay;
-          const ell = (l, w, z) => Array.from({ length: 24 }, (_, k) => { const th = k/24*Math.PI*2;
-            const u = Math.cos(th)*l, v = Math.sin(th)*w; return this.W(x + ax*u - ay*v, y + ay*u + ax*v, z); });
-          this.quadOn(g, ell(L + 10, Wd + 10, 0.8), 0x9c9484);          // the stone edging
-          this.quadOn(g, ell(L, Wd, 1), 0x5a3d28);                      // the mulch
-          for(let k = 0; k < 34; k++){
-            const u = (rr()*2 - 1)*L*0.85, v = (rr()*2 - 1)*Wd*0.7*Math.sqrt(1 - (u/L)**2);
-            const fx = x + ax*u - ay*v, fy = y + ay*u + ax*v;
-            dot(fx, fy, 8, 7, 0x4f7f45);
-            dot(fx, fy, 16, 4.6, rr() < 0.6 ? p.bloom : p.bloom2);
-          }
+          this.drawParkBed(g, p, rr);                         // (PARK PLANTING: drawParkBed)
         } else if(p.kind === "tree"){
           /* no ground shadow (Sir: "lose the shadows under the trees"); the tree itself: drawShadeTree */
           this.drawShadeTree(g, x, y, p.h || 1, p.col, rr);
