@@ -43,6 +43,9 @@
   live item; the rest of the building stays cached.
 - Draw into the `g` you are handed (or `this.g`), never straight into `this.gWorld`:
   the cache interleaves images with world layers, and `gWorld` sits under all of them.
+  After a `bcDraw` in the same queue item, draw into `this.g`: laying its image opens a new segment on top, and the `g`
+  you were handed (or `layerFor(...)`) is now UNDER the image (Sir, 2026-11-23: the stop lights' heads under their arms,
+  the pickup mats' highlight under the mat). `node tools/review/stale_seg.js --rooms` must report 0 sites.
 - `bcDraw` keys must be stable: what the thing is and where, never time, the robot's
   position or a random value. If the perf panel's building cache `live` count keeps
   rising while the robot stands still, something is repainting every frame.

@@ -98004,9 +98004,9 @@ function ssShutAt(now){
   const S = SS.shut, R = SS_RUN.shut;
   if(!S) return null;
   const pts = n => n.map(q => ssPW(q[0], q[1]));
-  if(!S.inP){ S.inP = pts([R.from, R.stop]); S.outP = pts(R.out); S.inMs = fmPolyLen(S.inP)/R.v + 1500; S.outMs = fmPolyLen(S.outP)/R.v + 1500; }
+  if(!S.inP){ S.inP = pts([R.from, R.stop]); S.outP = pts(R.out); S.inMs = polyLen(S.inP)/R.v + 1500; S.outMs = polyLen(S.outP)/R.v + 1500; }
   const t = now - S.t0;
-  const along = (P, ms, u) => { const L = fmPolyLen(P), d = meetWalkFrac(u, ms)*L, q = walkPathPoint(P, d), a = walkPathPoint(P, Math.max(0, d - 30)), b = walkPathPoint(P, Math.min(L, d + 30)); return { x: q.x, y: q.y, yaw: Math.atan2(b.y - a.y, b.x - a.x) }; };
+  const along = (P, ms, u) => { const L = polyLen(P), d = meetWalkFrac(u, ms)*L, q = walkPathPoint(P, d), a = walkPathPoint(P, Math.max(0, d - 30)), b = walkPathPoint(P, Math.min(L, d + 30)); return { x: q.x, y: q.y, yaw: Math.atan2(b.y - a.y, b.x - a.x) }; };
   if(t < S.inMs){ const q = along(S.inP, S.inMs, t); return Object.assign(q, { moving: true, ph: 'in' }); }
   if(t < S.inMs + R.dwell){ const q = S.inP[1]; return { x: q.x, y: q.y, yaw: -Math.PI/2, moving: false, ph: 'stop', door: Math.min(1, (t - S.inMs)/500, (S.inMs + R.dwell - t)/500) }; }
   if(t < S.inMs + R.dwell + S.outMs){ const q = along(S.outP, S.outMs, t - S.inMs - R.dwell); return Object.assign(q, { moving: true, ph: 'out' }); }
@@ -98599,7 +98599,7 @@ function surfGuardAt(now){
 }
 const SURF_PATROL = { dwell: 7000, v: 0.062 };
 function surfSurferAt(i, now){
-  const pts = SURF.surfers[i].map(q => ({ x: q[0], y: q[1] })), L = fmPolyLen(pts), T = L/SURF_PATROL.v, D = SURF_PATROL.dwell, cyc = 2*(T + D);
+  const pts = SURF.surfers[i].map(q => ({ x: q[0], y: q[1] })), L = polyLen(pts), T = L/SURF_PATROL.v, D = SURF_PATROL.dwell, cyc = 2*(T + D);
   const t = (now + i*cyc*0.37) % cyc;
   const at = (d, back) => { const q = walkPathPoint(pts, d), a = walkPathPoint(pts, Math.max(0, d - 30)), b = walkPathPoint(pts, Math.min(L, d + 30));
     const th = Math.atan2(b.y - a.y, b.x - a.x) + (back ? Math.PI : 0); return { x: q.x, y: q.y, th }; };
@@ -108382,7 +108382,7 @@ class WorldScene extends Phaser.Scene {
         this.bcDraw(g, "hb|tub|" + x + "," + y, x, y, gg => {
           post(gg, x, y, 54, 0.3, 46, 0xb9b2a4, 0xa39c8e, 0x8f887b);           // the tub
           post(gg, x, y, 56, 54, 40, 0x6b5a44, 0x6b5a44, 0x6b5a44); });
-        this.drawProp(g, 'palm', x, y, t2, 0, 56); } });
+        this.drawProp(this.g, 'palm', x, y, t2, 0, 56); } });   // (into this.g: the segment over the tub's image -- STALE SEGMENT, tools/review/stale_seg.js)
     }
     /* SEA LION POINT: the statue, its sign, the cypress and the agaves */
     { const pk = hg.park;
@@ -110638,7 +110638,10 @@ class WorldScene extends Phaser.Scene {
        so "in front of the robot" is just a larger depth key and the
        sort already handles it. Kept as a function so every call site
        reads the same; it simply has nothing left to decide. */
-    const layerFor = (px, py) => g;
+    /* (the segment on top NOW, this.g: a building-cache image laid earlier in the same item (bcDraw) opens a new segment over itself,
+       and what is drawn after into the one before goes UNDER the image -- the stop lights' heads under their arms, the pickup mats'
+       highlight under the mat. Sir, 2026-11-23: "lets hunt for that bug everywhere". tools/review/stale_seg.js holds it) */
+    const layerFor = (px, py) => this.g;
 
     /* moved up from below: cars/traffic now need world position before
        the body depth-sort runs (see the trafficPts block after the
@@ -111982,7 +111985,7 @@ class WorldScene extends Phaser.Scene {
                        : this.drawMatAt(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _mm.style);
                      if(!_mhid){
                        base();
-                       this.drawMatHighlight(lg, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
+                       this.drawMatHighlight(this.g, _mm.ax, _mm.ay, _mm.dv, _mm.rv, 0, 0, _hl, tt);
                      } else {
                        /* the rug ghosts teal; its targeting ring keeps its own
                           colours on the ghost layer, over the building */
@@ -112010,7 +112013,7 @@ class WorldScene extends Phaser.Scene {
       }
       hazVQ.push({ depth: H.x + H.y - T2, fn: (gg, tt) => {
         const lg = layerFor(H.x, H.y), base = () => this.drawPickupBay(lg, H.ax, H.ay, H.dv, H.rv, null, true);
-        if(!hid){ this.drawPickupBayCached(lg, H.ax, H.ay, H.dv, H.rv, null, true); this.drawMatHighlight(lg, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
+        if(!hid){ this.drawPickupBayCached(lg, H.ax, H.ay, H.dv, H.rv, null, true); this.drawMatHighlight(this.g, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
         else { this.xrayMirror(base); this.drawMatHighlight(this.gXProp, H.ax, H.ay, H.dv, H.rv, 0, 0, hl, tt); }
       }});
       queueBeacon(H.x, H.y, "heart");
@@ -112025,7 +112028,7 @@ class WorldScene extends Phaser.Scene {
           const hl = matHighlightState(this, B.mat, this.mode);
           hazVQ.push({ depth: bx + by - T2, fn: (gg, tt) => { const lg = layerFor(bx, by);
             if(!B.inPk) this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false);
-            this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
+            this.drawMatHighlight(this.g, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
         } }
       if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon, undefined, B.depth); }
     }
@@ -112034,7 +112037,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST){ const B = fmBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
@@ -112044,7 +112047,7 @@ class WorldScene extends Phaser.Scene {
     { const B = adBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
@@ -112054,7 +112057,7 @@ class WorldScene extends Phaser.Scene {
       const bz = B0 && B0.pocket && B0.pocket.z ? B0.pocket.z() : 0;
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 5000 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 5000 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon, bz ? { s: 1, a: 1, dz: bz, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: bz } : undefined);
     }
@@ -112113,7 +112116,7 @@ class WorldScene extends Phaser.Scene {
     if(WORLDGEN_COAST){ const B = nwBayNow(this);
       if(B && B.mat && !B.beaconOnly && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon);
     }
@@ -112125,7 +112128,7 @@ class WorldScene extends Phaser.Scene {
           const hl = matHighlightState(this, B.mat, this.mode);
           hazVQ.push({ depth: bx + by - T2, fn: (gg, tt) => { const lg = layerFor(bx, by);
             if(!B.inPk) this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false);
-            this.drawMatHighlight(lg, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
+            this.drawMatHighlight(this.g, B.ax + hv.dx, B.ay + hv.dy, B.dv, B.rv, 0, 0, hl, tt); } });
         } }
       if(B){ const bx = B.x + hv.dx, by = B.y + hv.dy; if(this.visProp("chargestation", bx, by)) queueBeacon(bx, by, B.icon); } }
     /* NUMBER 4 BUILDS A WINNER's bay (kwBayNow): by number 4's bale, inside the Kart Works, Palmline Nursery's
@@ -112135,7 +112138,7 @@ class WorldScene extends Phaser.Scene {
       const B = pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : B0;
       if(B && B.mat && this.visProp("chargestation", B.x, B.y, B.z || 0)){
         const hl = matHighlightState(this, B.mat, this.mode), bz = B.zf || B.z || 0;
-        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 2*T2 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2 + (bz ? 2*T2 : 0), fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false, bz); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, bz, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y, B.z || 0)) queueBeacon(B.x, B.y, B.icon, B.z ? { s: 1, a: 1, dz: B.z, spin: 0, shA: 1, shX: B.x, shY: B.y, sz: B.z } : undefined);
     }
@@ -112146,7 +112149,7 @@ class WorldScene extends Phaser.Scene {
       const B = pv ? Object.assign({}, B0, { x: B0.x + pv.dx, y: B0.y + pv.dy, ax: B0.ax + pv.dx, ay: B0.ay + pv.dy, mat: owMatFrame(B0.ax + pv.dx, B0.ay + pv.dy, B0.dv, B0.rv) }) : B0;
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* LETTERS ON THE HILL's bay (cplBayNow): the letters' park's pavement to start (out of its dusk the bay alone), the Fleet's
@@ -112154,7 +112157,7 @@ class WorldScene extends Phaser.Scene {
     { const B = cplBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* OPEN HOUSE's bay (ohBayNow): the fire station's pavement (out of its window the bay alone), the yard's start; the
@@ -112162,7 +112165,7 @@ class WorldScene extends Phaser.Scene {
     { const B = ohBayNow(this);
       if(B && B.mat && !B.beaconOnly && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* SUNSET SALUTE's bay (ssBayNow): by Walt's bench (in its window with its beacon; outside it the bay alone, and Walt
@@ -112170,7 +112173,7 @@ class WorldScene extends Phaser.Scene {
     { const B = ssBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* SUNSET SESSION's bay (surfBayNow): on the boardwalk by the surf school's walk (at dusk with its beacon; at other times
@@ -112178,7 +112181,7 @@ class WorldScene extends Phaser.Scene {
     { const B = surfBayNow(this);
       if(B && B.mat && this.visProp("chargestation", B.x, B.y)){
         const hl = matHighlightState(this, B.mat, this.mode);
-        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(lg, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
+        hazVQ.push({ depth: B.x + B.y - T2, fn: (gg, tt) => { const lg = layerFor(B.x, B.y); this.drawPickupBayCached(lg, B.ax, B.ay, B.dv, B.rv, null, false); this.drawMatHighlight(this.g, B.ax, B.ay, B.dv, B.rv, 0, 0, hl, tt); } });
       }
       if(B && !B.noBeacon && this.visProp("chargestation", B.x, B.y)) queueBeacon(B.x, B.y, B.icon); }
     /* THE GIFTS OUT IN THE WORLD (GIFT_WORLD): the hospital's gift art, small and low over its shadow, bobbing and
@@ -112260,7 +112263,7 @@ class WorldScene extends Phaser.Scene {
           if(ax){
             const dv = sp.dv, rv = sp.rv, hl = matHighlightState(this, sp.mat, "freeroam");
             hazVQ.push({ depth: gt.x + gt.y - T2, fn: (gg, tt) => { const lg = layerFor(gt.x, gt.y);
-              this.drawPickupBayCached(lg, sp.ax, sp.ay, dv, rv, null, false); this.drawMatHighlight(lg, sp.ax, sp.ay, dv, rv, 0, 0, hl, tt); }});
+              this.drawPickupBayCached(lg, sp.ax, sp.ay, dv, rv, null, false); this.drawMatHighlight(this.g, sp.ax, sp.ay, dv, rv, 0, 0, hl, tt); }});
           }
           queueBeacon(gt.x, gt.y, it.icon, { s: 1.3, a: 1, dz: -28, spin: 0, shA: 1 });
         }
@@ -112495,7 +112498,7 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: bay.x + bay.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bay.x, bay.y);
           this.drawPickupBayCached(lg, bay.ax, bay.ay, bay.dv, bay.rv, bay.shop || null, true);
-          this.drawMatHighlight(lg, bay.ax, bay.ay, bay.dv, bay.rv, 0, 0, hl, tt);
+          this.drawMatHighlight(this.g, bay.ax, bay.ay, bay.dv, bay.rv, 0, 0, hl, tt);
         }});
       }
       if(bay) queueBeacon(bay.x, bay.y, st === 'flowers' ? "flower" : st === 'cake' ? "cake" : "heart");
@@ -112524,7 +112527,7 @@ class WorldScene extends Phaser.Scene {
       if(!GOTH.mom && owTripMode(this.mode) && this.visProp("chargestation", h.x, h.y)){
         const hl = matHighlightState(this, h.mat, this.mode);
         hazVQ.push({ depth: h.x + h.y - T2, fn: (gg, tt) => { const lg = layerFor(h.x, h.y);
-          this.drawPickupBayCached(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(lg, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
+          this.drawPickupBayCached(lg, h.ax, h.ay, h.dv, h.rv, null, true); this.drawMatHighlight(this.g, h.ax, h.ay, h.dv, h.rv, 0, 0, hl, tt); } });
       }
       if(!GOTH.mom) queueBeacon(h.x, h.y, "house");
       const mp = gothMomAt(now);
@@ -112608,7 +112611,7 @@ class WorldScene extends Phaser.Scene {
         hazVQ.push({ depth: bk.x + bk.y - T2, fn: (gg, tt) => {
           const lg = layerFor(bk.x, bk.y);
           this.drawPickupBayCached(lg, bk.ax, bk.ay, bk.dv, bk.rv, bk.shop, 'cake');
-          this.drawMatHighlight(lg, bk.ax, bk.ay, bk.dv, bk.rv, 0, 0, hl, tt);
+          this.drawMatHighlight(this.g, bk.ax, bk.ay, bk.dv, bk.rv, 0, 0, hl, tt);
         }});
         queueBeacon(bk.x, bk.y, "cake");
       }
@@ -112715,7 +112718,7 @@ class WorldScene extends Phaser.Scene {
               if(m.id === "heart") this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, null, true);
               else if(m.id === "pickup" && m.shop) this.drawPickupBay(lg, m.ax, m.ay, m.dv, m.rv, m.shop);
               else this.drawMatAt(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, m.style);
-              if(L.hl) this.drawMatHighlight(lg, m.ax, m.ay, m.dv, m.rv, 0, 0, L.hl, tt);
+              if(L.hl) this.drawMatHighlight(this.g, m.ax, m.ay, m.dv, m.rv, 0, 0, L.hl, tt);
             });
           }});
         }
