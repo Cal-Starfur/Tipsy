@@ -60588,7 +60588,8 @@ function houseCanopy(fn){
       const X = (u, v) => alongB ? [a + v, b + u] : [a + u, b + v];   /* (u along the robot, v across it, from the bin's middle) */
       for(let i = 0; i < n; i++){ const [pa, pbx] = X(-5 + i*10, 0), [qa, pb] = X(0, -4 + i*8), [ia, ib] = X(-5 + i*10, -4 + i*8);
         switch(p){
-          case 1: wheel(pa, pbx, zf + 7*KP, 7*KP, '#24262c'); break;   /* (stage 1: the rear wheel -- RIDER.wheelR, SCOOT.wheel) */
+          case 1: { const [fa, fb] = alongB ? [0, 1] : [1, 0]; wheel(pa, pbx, zf, 7*KP, '#b9bfc6', 0.6);   /* (stage 1: the scooter's own back wheel as he carries it -- tyre, light rim and spokes, its blue fender over -- Sir, 2026-11-23: "the part in the bin and in his hand aren't matching") */
+            for(let k = 0; k < 14; k++){ const q0 = 0.12 + k*0.055, q1 = q0 + 0.11; tube(pa + fa*9*Math.cos(Math.PI*q0), pbx + fb*9*Math.cos(Math.PI*q0), zf + 7 + 9*Math.sin(Math.PI*q0), pa + fa*9*Math.cos(Math.PI*q1), pbx + fb*9*Math.cos(Math.PI*q1), zf + 7 + 9*Math.sin(Math.PI*q1), 2.6, PCOL); } } break;
           case 2: wheel(pa, pbx, zf + 7*KP, 7*KP, '#24262c'); { const [ta, tb] = X(-5 + i*10 + 2*KP, 0); tube(pa, pbx, zf + 7*KP, ta, tb, zf + 16*KP, 1.8*KP, '#9aa3ad'); } break;   /* (stage 2: the front wheel and its fork, SCOOT.metal) */
           case 3: { const [c0, d0] = X(-19*KP, -4 + i*8 - 5.5*KP), [c1, d1] = X(19*KP, -4 + i*8 + 5.5*KP); box(Math.min(c0, c1), Math.max(c0, c1), Math.min(d0, d1), Math.max(d0, d1), zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#3d424c', '#34383f', '#2b2f35'); } break;   /* (stage 3: the grip tape, SCOOT.grip) */
           case 4: { const [c0, d0] = X(-26*KP, -4 + i*8), [c1, d1] = X(26*KP, -4 + i*8); tube(c0, d0, zf + 12, c1, d1, zf + 13, 1.8*KP, PCOL); } break;   /* (stage 4: the stem, in the frame's colour) */
@@ -60654,7 +60655,7 @@ function houseCanopy(fn){
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
-        if(on && p >= 1 && p <= 7 && (J0.fit != null ? Math.max(500, u - [0, 380, 90, 560, 240, 470, 150, 330, 60, 0][p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => { PART(p, h[0], h[1], pz); if(p === 1) for(let k = 0; k < 12; k++){ const q0 = 0.1 + k*0.067, q1 = q0 + 0.075; tube(h[0] + 9.5*Math.cos(Math.PI*q0), h[1], pz + 7 + 9.5*Math.sin(Math.PI*q0), h[0] + 9.5*Math.cos(Math.PI*q1), h[1], pz + 7 + 9.5*Math.sin(Math.PI*q1), 3.6, PCOL); } } }); }   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
+        if(on && p >= 1 && p <= 7 && (J0.fit != null ? Math.max(500, u - [0, 380, 90, 560, 240, 470, 150, 330, 60, 0][p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; const ddH = Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]); if(p === 1) out.push(SCO(h[0] - 26, h[1], h[2] - 7, 'rear', ddH + 26)); else out.push({ kind: 'cargo', a: h[0], b: h[1], dd: ddH, cargo: () => PART(p, h[0], h[1], pz) }); }   /* (station 1's: the scooter's own back wheel, fender and swingarm, drawn by the scooter's drawer -- just as it then shows on the scooter: Sir, "the rim on the wheel appears at placement") */   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
         if(on && J0.tool){ const w = J0.tool; out.push({ kind: 'cargo', a: w[0], b: w[1], dd: Math.max(6, J0.at[0] + Math.max(pb, J0.at[1]) + 9 - w[0] - w[1]), cargo: () => { tube(w[0], w[1], w[2], w[0] + 15*Math.cos(w[3]), w[1] - 2, w[2] + 15*Math.sin(w[3]), 2.4, '#c8ccd2'); box(w[0] - 1.6, w[0] + 1.6, w[1] - 3.6, w[1] - 0.4, w[2] - 1.6, w[2] + 1.6, '#3d424c', '#34383f', '#2b2f35'); } }); }   /* (his wrench, the socket on the nut, the handle swinging) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
@@ -120590,7 +120591,7 @@ class WorldScene extends Phaser.Scene {
     /* (stage: the scooter part-built, as Kickstand Scooter Co.' line builds it -- 0 the deck alone, 1 + the rear wheel, 2 + the front wheel and fork,
        3 + the grip tape, 4 + the stem, 5 + the bars, 6 + the grips, 7 + the lamps; none: the whole scooter. Sir, 2026-11-20: "build the actual
        in-game scooter") */
-    const ST = stage == null ? 9 : stage;
+    const OR = stage === 'rear', ST = OR ? 1 : stage == null ? 9 : stage;   /* (OR: the back wheel alone with its fender and swingarm -- the part a line worker carries to the scooter, Kickstand Scooter Co.) */
     const R = RIDER, fwd = thW + Math.PI/2, fc = Math.cos(fwd), fs = Math.sin(fwd);
     const KV = this.vehKit(g, ax, ay, z, fwd/(Math.PI/2)), { P, solid, prismH, prismB, oct, loftSeg, line, wheel } = KV;
     /* (the builds' shapes are SIDE profiles swept across, as their garage cards are drawn -- Sir, 2026-11-15, "the little drawings for the
@@ -120604,7 +120605,7 @@ class WorldScene extends Phaser.Scene {
     const shZ = build.legH + build.torsoH - 1, arm = build.armLen, th = R.lift*LIFT_MAX_ANGLE;
     const barA = R.riderA + arm*Math.sin(th), barH = R.deck + shZ - arm*Math.cos(th);
     g.fillStyle(0x000000, 0.16);
-    { /* its shadow on the ground: an oval under it in its own frame, so it turns with it and fits each build's length (Sir, 2026-11-16,
+    if(!OR) { /* its shadow on the ground: an oval under it in its own frame, so it turns with it and fits each build's length (Sir, 2026-11-16,
          "what's the deal with the shadow": it was a fixed screen oval, wrong whenever the scooter wasn't side-on) */
       const st0 = brand.style, a0 = st0 === 'rocket' ? 3 : st0 === 'chopper' ? 3 : 0, la = st0 === 'rocket' ? 42 : st0 === 'chopper' ? 40 : 36, wb = st0 === 'rocket' && RKT_KIT[brand.paint] && (RKT_KIT[brand.paint].wings || RKT_KIT[brand.paint].boosters) ? 15 : 10;
       const o = []; for(let i = 0; i < 20; i++){ const w = i/20*Math.PI*2; o.push(P(a0 + Math.cos(w)*la, Math.sin(w)*wb, 0)); } g.fillPoints(o, true); }
@@ -120681,6 +120682,7 @@ class WorldScene extends Phaser.Scene {
       for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)){ const [a0, r, wd] = WHL[0], b = sb*(wd/2 + 1);
         line([DB + 2, b, RD - 2.5], [a0, b, r], sty === 'junk' ? 0x8a8f96 : 0x5d646c, 3.6);
         const h = P(a0, b, r); g.fillStyle(0x9aa2a8, 1); g.fillCircle(h.x, h.y, 1.4*this.K*0.42*1.4); }
+    if(OR){ if(!sty) fenderArc(WHL[0][0], WHL[0][1], WHL[0][2]/2 + 1.5, fU0, Math.PI - 0.1, brand.acc != null ? cF : brand.cDk); return; }   /* (the back wheel alone: its fender too, then nothing else) */
     if(sty === 'offroad'){                                                                      // the shocks from each axle up to the deck, the skid plate under it
       for(const [a0, r, wd] of WHL) for(const sb of [-1, 1]) if(KV.sees(0, sb, 0)) line([a0 + (a0 < 0 ? r + 2 : -(r + 2)), sb*(wd/2 + 1), RD - 4], [a0, sb*(wd/2 + 1), r], acc0, 2.6);   // (on the seen side, outside the tyre)
       solid(prismH([[DB + 3, -5], [DF - 3, -5], [DF - 3, 5], [DB + 3, 5]], RD - 7, RD - 4), 0x3b4048);
