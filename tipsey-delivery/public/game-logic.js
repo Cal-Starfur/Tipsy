@@ -60316,7 +60316,7 @@ function houseCanopy(fn){
     const GRP = (c, south) => { const o = []; for(let i = 0; i < 4; i++){ const ci = (((c - i - (south ? 2 : 0)) % 4) + 4) % 4; if(ci <= 2) o.push(6*i + 2*ci + (south ? 1 : 0)); } return o; };
     /* (the three on a robot's deck, along it; nested when empty) */
     const BIN3 = (a, b, fd, z, col, n, open, p) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)], pts = [-1, 0, 1].map(j => [a + v[0]*(26*j - 10), b + v[1]*(26*j - 10)]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
-      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1] + 10)/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, false, 2, col, p); else BIN(pt[0], pt[1], z, col, false); } } };
+      for(const pt of pts){ const j = Math.round(((pt[0] - a)*v[0] + (pt[1] - b)*v[1] + 10)/26) + 1; if(j < n){ if(j < (open || 0)) partTote(pt[0], pt[1], z, Math.abs(Math.sin(Math.round(fd)*Math.PI/2)) > 0.5, 2, col, p); else BIN(pt[0], pt[1], z, col, false); } } };
     const EMPTY3 = (a, b, fd, z, col) => { const v = [Math.cos(fd*Math.PI/2), Math.sin(fd*Math.PI/2)]; for(const pt of [-1, 0, 1].map(j => [a + v[0]*(26*j - 10), b + v[1]*(26*j - 10)]).sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]))) partTote(pt[0], pt[1], z, false, 0, col); };   /* (a robot's three empties, open, side by side -- Sir: "this should have 3 bins on it") */
     const STACK3 = (a, b, z, col) => { for(let i = 0; i < 3; i++) BIN(a, b, z + i*4, col, true); };
     /* THE ARM ROBOTS AT THE SHELF PODS (Sir, 2026-11-19: "use the palletizing arm robot and program it to do the new task"): the palletizer's
@@ -60414,16 +60414,19 @@ function houseCanopy(fn){
       /* (what the station fits -- the very piece prod() draws on the scooter at that stage, its sizes, widths and colours, at KP of the
          scooter's own scale, laid in the bin; Sir, 2026-11-20: "make sure these are the same as the parts from the actual scooter") */
       const KP = 1.0, zf = z + 6;   /* (sitting up at the rim, showing over it) */
-      for(let i = 0; i < n; i++){ const pa = a - 5 + i*10, pb = b - 4 + i*8;
+      /* (laid along the robot: turned with it when it stands along b -- Sir, 2026-11-23: "are the parts rotating with the robot as it turns?
+         they shouldn't be" -- the parts turn with their bin, not round in it) */
+      const X = (u, v) => alongB ? [a + v, b + u] : [a + u, b + v];   /* (u along the robot, v across it, from the bin's middle) */
+      for(let i = 0; i < n; i++){ const [pa, pbx] = X(-5 + i*10, 0), [qa, pb] = X(0, -4 + i*8), [ia, ib] = X(-5 + i*10, -4 + i*8);
         switch(p){
-          case 1: wheel(pa, b, zf + 7*KP, 7*KP, '#24262c'); break;   /* (stage 1: the rear wheel -- RIDER.wheelR, SCOOT.wheel) */
-          case 2: wheel(pa, b, zf + 7*KP, 7*KP, '#24262c'); tube(pa, b, zf + 7*KP, pa + 2*KP, b, zf + 16*KP, 1.8*KP, '#9aa3ad'); break;   /* (stage 2: the front wheel and its fork, SCOOT.metal) */
-          case 3: box(a - 19*KP, a + 19*KP, pb - 5.5*KP, pb + 5.5*KP, zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#3d424c', '#34383f', '#2b2f35'); break;   /* (stage 3: the grip tape, SCOOT.grip) */
-          case 4: tube(a - 26*KP, pb, zf + 12, a + 26*KP, pb, zf + 13, 1.8*KP, PCOL); break;   /* (stage 4: the stem, in the frame's colour) */
-          case 5: tube(pa, b - 11, zf + 12, pa, b + 11, zf + 12, 2.6*0.6, '#9aa3ad'); break;   /* (stage 5: the bars, SCOOT.metal) */
-          case 6: for(const e of [-1, 1]) tube(pa, b + e*2, zf + 12, pa, b + e*2 + e*7, zf + 12, 3.6*0.6, '#3d424c'); break;   /* (stage 6: a pair of grips, SCOOT.grip) */
-          case 7: ball(pa, b - 3, zf + 13, 2.6*KP, '#2a2f36', '#fff3c4'); box(pa - 1.5*KP, pa + 1.5*KP, b + 3, b + 3 + 6*KP, zf + 10, zf + 10 + 3*KP, '#e03a2f', '#c4322a', '#a82a23'); break;   /* (stage 7: the head lamp and the tail light) */
-          case 8: box(pa - 3, pa + 3, b - 4, b + 4, zf + 11, zf + 12, '#f6f4ee', '#e0ddd4', '#c9c5ba'); box(pa - 2, pa + 2, b - 1, b + 1, zf + 12, zf + 12.2, '#3fd06a'); break;   /* (stage 8 fits no part -- the test: its pass tags) */
+          case 1: wheel(pa, pbx, zf + 7*KP, 7*KP, '#24262c'); break;   /* (stage 1: the rear wheel -- RIDER.wheelR, SCOOT.wheel) */
+          case 2: wheel(pa, pbx, zf + 7*KP, 7*KP, '#24262c'); { const [ta, tb] = X(-5 + i*10 + 2*KP, 0); tube(pa, pbx, zf + 7*KP, ta, tb, zf + 16*KP, 1.8*KP, '#9aa3ad'); } break;   /* (stage 2: the front wheel and its fork, SCOOT.metal) */
+          case 3: { const [c0, d0] = X(-19*KP, -4 + i*8 - 5.5*KP), [c1, d1] = X(19*KP, -4 + i*8 + 5.5*KP); box(Math.min(c0, c1), Math.max(c0, c1), Math.min(d0, d1), Math.max(d0, d1), zf + 11 + i*1.4*KP, zf + 11 + (i + 1)*1.4*KP, '#3d424c', '#34383f', '#2b2f35'); } break;   /* (stage 3: the grip tape, SCOOT.grip) */
+          case 4: { const [c0, d0] = X(-26*KP, -4 + i*8), [c1, d1] = X(26*KP, -4 + i*8); tube(c0, d0, zf + 12, c1, d1, zf + 13, 1.8*KP, PCOL); } break;   /* (stage 4: the stem, in the frame's colour) */
+          case 5: { const [c0, d0] = X(-5 + i*10, -11), [c1, d1] = X(-5 + i*10, 11); tube(c0, d0, zf + 12, c1, d1, zf + 12, 2.6*0.6, '#9aa3ad'); } break;   /* (stage 5: the bars, SCOOT.metal) */
+          case 6: for(const e of [-1, 1]){ const [c0, d0] = X(-5 + i*10, e*2), [c1, d1] = X(-5 + i*10, e*2 + e*7); tube(c0, d0, zf + 12, c1, d1, zf + 12, 3.6*0.6, '#3d424c'); } break;   /* (stage 6: a pair of grips, SCOOT.grip) */
+          case 7: { const [la, lb] = X(-5 + i*10, -3), [ta, tb] = X(-5 + i*10, 6); ball(la, lb, zf + 13, 2.6*KP, '#2a2f36', '#fff3c4'); box(ta - 1.5*KP - (alongB ? 1.5 : 0), ta + 1.5*KP + (alongB ? 1.5 : 0), tb - 3*KP + (alongB ? 1.5 : 0), tb + 3*KP - (alongB ? 1.5 : 0), zf + 10, zf + 10 + 3*KP, '#e03a2f', '#c4322a', '#a82a23'); } break;   /* (stage 7: the head lamp and the tail light) */
+          case 8: box(ia - 3, ia + 3, ib - 4, ib + 4, zf + 11, zf + 12, '#f6f4ee', '#e0ddd4', '#c9c5ba'); box(ia - 2, ia + 2, ib - 1, ib + 1, zf + 12, zf + 12.2, '#3fd06a'); break;   /* (stage 8 fits no part -- the test: its pass tags) */
           default: box(pa - 2.4, pa + 2.4, b - 3, b + 3, z + 12, z + 20, '#3a3f46', '#2b2f35', '#22262b'); } }
       F(a - 4.5, a + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee', null, 0, b + 11.7); F(a - 3.6, a + 3.6, zc - 0.4, zc + 0.6, '#2a2f36', null, 0, b + 11.75);
       S(a + 12.2, b - 4.5, b + 4.5, zc - 2.6, zc + 2.6, '#f6f4ee'); S(a + 12.25, b - 3.6, b + 3.6, zc - 0.4, zc + 0.6, '#2a2f36'); };
