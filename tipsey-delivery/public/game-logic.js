@@ -5369,6 +5369,41 @@ const ADA_PAD = { pad: 0xf4c430, edge: 0xb9911f, dome: 0xd9a21f, cap: 0xffdc6e }
 const KERB_STONE = { h: 8, w: 22, top: 0xf4f1e8, face: 0xe2ded0, dk: 0x6e6a5e };
 const GUT_JOINT = 0x878174;    // ... and between two bays of the gutter channel
 const KERB_JOINT = 0xc4bfb0;   // the joint between two kerb stones (kerbRun: LAID IN STONES)
+/* THE SIDEWALK ITSELF (sidewalk pass, 2026-11-23, Sir: "what about the sidewalk itself?"). The walk read as a flat two-tone
+   chequer of diamonds. It is poured concrete laid in panels, so (all ground, painted once by the ground cache):
+   - ONE MATERIAL: the chequer's two tones pulled toward each other (calm: parity 0 sits calm of the way from pave to paveB,
+     parity 1 at 1 - calm) and every slab nudged by its own seeded roll (+/- jit) -- a little life, never noise;
+   - TOOLED CONTROL JOINTS: a dark groove inside each slab's two far edges with a lit lip beside it (paveSlabOn);
+   - SCORED PANELS: on about half the frontages (by block, as one pour would be) each slab is scored into quarters, a
+     fainter groove than the joint;
+   - THE ODD SLAB: weathered (a shade darker, a soft stain) or patched (part of it re-poured, paler and cooler, its own joint);
+   - UTILITY COVERS: now and then a small iron meter lid or a concrete pull box in a slab's quarter, never on the kerb row
+     (the palms and furniture stand there).
+   The kerb gets a lit ROUNDED ARRIS where its top rolls onto the road face; the gutter a grimy strip along the kerb's foot and
+   a dark joint where it meets the asphalt; the corner gullies a kerb inlet (a dark mouth in the stone over the grate). */
+const PAVE_ART = {
+  calm: 0.34, jit: 0.09,
+  grooveK: 0.82, lipAdd: 22,          // the groove: paveEdge darkened; the lip: the slab's tone lifted
+  scoreA: 0.5,                         // the quarter scoring's strength against the joint's
+  weatherP: 1/24, patchP: 1/45, coverP: 1/22,
+  patch: 0xd6d5d0, stainK: 0.86,
+  iron: 0x6e7174, ironDk: 0x45484c, ironLit: 0x9c9e9f, slot: 0x2a2c2e, boxLid: 0x8e8b84
+};
+const KERB_ARRIS = 0xffffff;   // the lit roll where a kerb's top meets its road face
+const GUT_GRIME = 0x7c766a;    // the gutter's dirty strip along the kerb's foot
+const GUT_LIP = 0x34363b;      // the joint where the gutter's concrete meets the asphalt
+const GULLY_MOUTH = 0x24221e;  // a corner gully's kerb inlet
+/* a slab's seeded roll, 0..1: stable per slab (its T2 index) and per purpose (salt) */
+function paveRoll(ix, iy, salt){
+  let h = (Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iy | 0, 0x165667b1) ^ Math.imul(salt | 0, 0x9e3779b1)) >>> 0;
+  h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0; h ^= h >>> 16;
+  return (h >>> 0)/4294967296;
+}
+/* a colour t of the way from a to b (t past 1 carries on beyond b) */
+function mixC(a, b, t){
+  const f = s => Math.max(0, Math.min(255, Math.round(((a >> s) & 255) + ((((b >> s) & 255) - ((a >> s) & 255))*t))));
+  return (f(16) << 16) | (f(8) << 8) | f(0);
+}
 const L_OUT_R = T2;           // the outside of a 90-degree bend: fillet radius to the kerb's face (the estate's OUT_R too)
 const SIDEWALK_ROWS = 4;     // per side — the sidewalk width already live in-game
 const SIDEWALK_W = SIDEWALK_ROWS*T2;
@@ -12691,7 +12726,7 @@ function buildSidewalkGeometry(grid){
             const along = OVERSHOOT + (ai+0.5)*T2;
             const x = e.a.x + dv.x*along + rv.x*perp;
             const y = e.a.y + dv.y*along + rv.y*perp;
-            runs.push({ x, y, parity: paveParity(x, y) });
+            runs.push({ x, y, parity: paveParity(x, y), lane: t });
           }
         }
     }
@@ -106779,27 +106814,83 @@ class WorldScene extends Phaser.Scene {
     g.lineStyle(w, color, 1);
     g.strokePoints(pts.map(p => new Phaser.Geom.Point(p.x, p.y)), true);
   }
-  /* ONE PAVING SLAB (pavement pass, 2026-11-23, Sir: "there are other street oriented draws like the sidewalk itself"). The
-     slab, its joint, and the joint's TOOLED EDGE: concrete slabs are laid with a rounded arris along every joint, and the arris
-     on the near side of a groove catches the light -- a pale hairline just inside the slab's two FAR edges (the ones up the
-     screen; the ground pass never turns, so which they are is fixed: pts run (-,-), (+,-), (+,+), (-,+) in world, pts[0] the
-     far corner). It is what turns a chequer of flat tones into laid slabs. Ground pass only (the ground cache paints it once). */
-  paveSlabOn(g, pts, col, edge){
+  /* ONE PAVING SLAB (pavement pass, 2026-11-23; the sidewalk pass, 2026-11-23, Sir: "what about the sidewalk itself?" -- see
+     PAVE_ART). pts run (-,-), (+,-), (+,+), (-,+) in world, pts[0] the far corner (the ground pass never turns, so which edges
+     are far is fixed); wx, wy the slab's centre (its T2 index seeds everything: stable, never time or the camera); lane its row
+     out from the kerb when it is a mid-block run's (0 the kerb row), else undefined. Ground is flat, so the slab's own u, v
+     (u along pts[0]->pts[1], v along pts[0]->pts[3]) map to the screen affinely: no W per detail. Ground pass only (the ground
+     cache paints it once). In order: the slab's tone, its outline (the walk's edge and the joints), a patch or a stain, the
+     quarter scoring, a utility cover, and last the control joint along its two far edges -- a dark groove with a lit lip. */
+  paveSlabOn(g, pts, d, wx, wy, lane){
+    const PA = PAVE_ART;
+    const ix = Math.floor(wx/T2), iy = Math.floor(wy/T2), par = (ix + iy) & 1;
+    const odd = paveRoll(ix, iy, 2);
+    const weathered = odd < PA.weatherP, patched = !weathered && odd > 1 - PA.patchP;
+    let t = (par ? 1 - PA.calm : PA.calm) + (paveRoll(ix, iy, 1) - 0.5)*2*PA.jit;
+    if(weathered) t += 0.55;                                 // a shade past paveB: older, dirtier concrete
+    const col = mixC(d.pave, d.paveB, t);
     this.quadOn(g, pts, col);
-    this.edgeOn(g, pts, edge, 1);
-    if(this.drawClip) return;
-    const p0 = pts[0], p1 = pts[1], p3 = pts[3];
-    const cx = (p0.x + pts[2].x)*0.5, cy = (p0.y + pts[2].y)*0.5;
-    const span = cy - p0.y;
-    if(span < 6) return;                                     // far out: a hairline would only grey the slab
-    const f = 1.6/span;
-    const lit = (((Math.min(255, ((col >> 16) & 255) + 28)) << 16) | ((Math.min(255, ((col >> 8) & 255) + 28)) << 8) | Math.min(255, (col & 255) + 25));
-    g.lineStyle(1, lit, 0.9);
-    g.beginPath();
-    g.moveTo(p3.x + (cx - p3.x)*f, p3.y + (cy - p3.y)*f);
-    g.lineTo(p0.x + (cx - p0.x)*f, p0.y + (cy - p0.y)*f);
-    g.lineTo(p1.x + (cx - p1.x)*f, p1.y + (cy - p1.y)*f);
-    g.strokePath();
+    if(this.drawClip){ this.edgeOn(g, pts, d.paveEdge, 1); return; }
+    const p0 = pts[0], p1 = pts[1], p2 = pts[2], p3 = pts[3];
+    g.lineStyle(1, d.paveEdge, 1);
+    g.beginPath(); g.moveTo(p0.x, p0.y); g.lineTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.lineTo(p3.x, p3.y); g.closePath(); g.strokePath();
+    const span = (p2.y - p0.y)*0.5;
+    if(span < 6) return;                                     // far out: detail would only grey the slab
+    const ex = p1.x - p0.x, ey = p1.y - p0.y, fx = p3.x - p0.x, fy = p3.y - p0.y;
+    const X = (u, v) => p0.x + ex*u + fx*v, Y = (u, v) => p0.y + ey*u + fy*v;
+    const Q = (u0, u1, v0, v1) => [{ x: X(u0, v0), y: Y(u0, v0) }, { x: X(u1, v0), y: Y(u1, v0) },
+                                   { x: X(u1, v1), y: Y(u1, v1) }, { x: X(u0, v1), y: Y(u0, v1) }];
+    const K = this.K, lw = Math.max(1, K*0.7);
+    const lit = mixC(col, 0xffffff, PA.lipAdd/Math.max(1, 255 - ((col >> 8) & 255)));
+    const groove = shadeN(d.paveEdge, PA.grooveK);
+    const line = (u0, v0, u1, v1) => { g.beginPath(); g.moveTo(X(u0, v0), Y(u0, v0)); g.lineTo(X(u1, v1), Y(u1, v1)); g.strokePath(); };
+    /* the odd slab: a part re-poured (paler, cooler, its own sawn joint), or weathered with a soft stain */
+    if(patched){
+      const alongU = paveRoll(ix, iy, 3) < 0.5, cut = 0.38 + paveRoll(ix, iy, 4)*0.3;
+      this.quadOn(g, alongU ? Q(cut, 1, 0, 1) : Q(0, 1, cut, 1), mixC(col, PA.patch, 0.45));
+      g.lineStyle(lw, groove, 0.85);
+      if(alongU) line(cut, 0, cut, 1); else line(0, cut, 1, cut);
+    } else if(weathered){
+      const cu = 0.3 + paveRoll(ix, iy, 5)*0.4, cv = 0.3 + paveRoll(ix, iy, 6)*0.4, R = 0.13 + paveRoll(ix, iy, 7)*0.1;
+      const sc = shadeN(col, PA.stainK);
+      for(const rk of [1, 0.72, 0.45]){                        // soft-edged: three washes, each smaller and on the last
+        const B = [];
+        for(let k = 0; k < 12; k++){ const th = k/12*Math.PI*2, rr = R*rk*(0.72 + paveRoll(ix + k, iy, 8)*0.28);
+          const u = cu + Math.cos(th)*rr*1.25, v = cv + Math.sin(th)*rr; B.push({ x: X(u, v), y: Y(u, v) }); }
+        this.quadOn(g, B, sc, 0.2);
+      }
+    }
+    /* quarter scoring, by frontage: a block's pour is scored or it is not */
+    if(paveRoll(Math.floor(wx/BLOCK), Math.floor(wy/BLOCK), 9) < 0.5){
+      const o = 1.3/T2;
+      for(const [c, d0] of [[groove, 0], [lit, o]]){         // the groove, then its lip: one path each
+        g.lineStyle(1, c, PA.scoreA); g.beginPath();
+        g.moveTo(X(0.5 + d0, 0.02), Y(0.5 + d0, 0.02)); g.lineTo(X(0.5 + d0, 0.98), Y(0.5 + d0, 0.98));
+        g.moveTo(X(0.02, 0.5 + d0), Y(0.02, 0.5 + d0)); g.lineTo(X(0.98, 0.5 + d0), Y(0.98, 0.5 + d0));
+        g.strokePath();
+      }
+    }
+    /* a utility cover, off the kerb row: an iron meter lid, or a concrete pull box in an iron frame */
+    if(lane !== undefined && lane > 0 && !patched && paveRoll(ix, iy, 10) < PA.coverP){
+      const cu = paveRoll(ix, iy, 11) < 0.5 ? 0.25 : 0.75, cv = paveRoll(ix, iy, 12) < 0.5 ? 0.25 : 0.75;
+      const box = paveRoll(ix, iy, 13) < 0.4, alongU = paveRoll(ix, iy, 14) < 0.5;
+      const hu = (box ? (alongU ? 15 : 9) : 11)/T2, hv = (box ? (alongU ? 9 : 15) : 11)/T2, fr = 2.2/T2;
+      const u0 = cu - hu + fr, u1 = cu + hu - fr, v0 = cv - hv + fr, v1 = cv + hv - fr;
+      this.quadOn(g, Q(cu - hu, cu + hu, cv - hv, cv + hv), PA.ironDk);
+      this.quadOn(g, Q(u0, u1, v0, v1), box ? PA.boxLid : PA.iron);
+      g.lineStyle(1, PA.ironLit, 1);                          // the lid's far edges catch the light
+      g.beginPath(); g.moveTo(X(u0, v1), Y(u0, v1)); g.lineTo(X(u0, v0), Y(u0, v0)); g.lineTo(X(u1, v0), Y(u1, v0)); g.strokePath();
+      if(span > 12){                                          // the two lifting holes
+        const s = 1.6/T2, du = alongU || !box ? hu*0.5 : 0, dv = alongU || !box ? 0 : hv*0.5;
+        for(const k of [-1, 1]) this.quadOn(g, Q(cu + k*du - s, cu + k*du + s, cv + k*dv - s, cv + k*dv + s), PA.slot);
+      }
+    }
+    /* the control joint: the groove just inside the far edges, its lit lip beside it */
+    const gi = 0.8/T2, li = 2.4/T2;
+    g.lineStyle(Math.max(1, K*0.9), groove, 1);
+    g.beginPath(); g.moveTo(X(gi, 1), Y(gi, 1)); g.lineTo(X(gi, gi), Y(gi, gi)); g.lineTo(X(1, gi), Y(1, gi)); g.strokePath();
+    g.lineStyle(lw, lit, 0.9);
+    g.beginPath(); g.moveTo(X(li, 1), Y(li, 1)); g.lineTo(X(li, li), Y(li, li)); g.lineTo(X(1, li), Y(1, li)); g.strokePath();
   }
 
   /* THE TACTILE PAD of a kerb ramp (pavement pass, 2026-11-23): the yellow landing and its truncated domes. The domes were
@@ -110751,7 +110842,7 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, pts, paveParity(bx, by) === 0 ? GRASS.a : GRASS.b);
             continue;
           }
-          this.paveSlabOn(g, pts, paveParity(bx, by) === 0 ? d.pave : d.paveB, d.paveEdge);
+          this.paveSlabOn(g, pts, d, bx, by);
         }
       }
     }
@@ -110789,7 +110880,7 @@ class WorldScene extends Phaser.Scene {
         this.W(rn.x+half, rn.y+half, 0), this.W(rn.x-half, rn.y+half, 0)
       ];
       if(!onScreen(pts)) continue;
-      this.paveSlabOn(g, pts, rn.parity === 0 ? d.pave : d.paveB, d.paveEdge);
+      this.paveSlabOn(g, pts, d, rn.x, rn.y, rn.lane);
     }
     for(const cell of manhattanQuery(paveHash(r.grid, "sidewalkCornerCells", "swCornerHash"),
                                      this.camX, this.camY, flatSpan, this._qCorner)){
@@ -110800,7 +110891,7 @@ class WorldScene extends Phaser.Scene {
         this.W(cell.x+half, cell.y+half, 0), this.W(cell.x-half, cell.y+half, 0)
       ];
       if(!onScreen(pts)) continue;
-      this.paveSlabOn(g, pts, cell.parity === 0 ? d.pave : d.paveB, d.paveEdge);
+      this.paveSlabOn(g, pts, d, cell.x, cell.y);
     }
     /* center line: flat road paint, no depth. */
     /* This loop had NO cull whatsoever -- it painted the stripe on every
@@ -111056,6 +111147,11 @@ class WorldScene extends Phaser.Scene {
         const o0 = sgn*(ROAD_HALF - KERB_W - CURB_W), o1 = sgn*(ROAD_HALF - KERB_W);
         const pt = (t, o) => this.W(sx + dv.x*t + rv.x*o, sy + dv.y*t + rv.y*o, 0.6);
         this.quadOn(g, [pt(s0,o0), pt(s1,o0), pt(s1,o1), pt(s0,o1)], GUT);
+        /* A CONCRETE PAN, NOT A STRIPE (sidewalk pass, 2026-11-23): the water runs along the kerb's foot and leaves its grime
+           there -- a darker strip on the kerb side -- and the pan meets the asphalt at a dark joint */
+        const og = o1 - sgn*CURB_W*0.3;
+        this.quadOn(g, [pt(s0,og), pt(s1,og), pt(s1,o1), pt(s0,o1)], GUT_GRIME, 0.45);
+        { const a = pt(s0, o0), b = pt(s1, o0); g.lineStyle(Math.max(1, this.K*0.8), GUT_LIP, 0.9); g.lineBetween(a.x, a.y, b.x, b.y); }
         /* the channel is poured in bays too: a joint across it on the paving's T2 lattice, under each kerb joint */
         const P0 = sx*dv.x + sy*dv.y, dir = dv.x + dv.y, w0 = P0 + dir*s0, w1 = P0 + dir*s1;
         g.lineStyle(1, GUT_JOINT, 1);
@@ -111154,6 +111250,11 @@ class WorldScene extends Phaser.Scene {
            survives the night tint and gives the step an edge to read. */
         const oSeam = oIn - (oIn - oOut) * 0.14;
         this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oSeam,h1), pt(s0,oSeam,h0)], KERB_DK);
+        /* THE ROUNDED ARRIS (sidewalk pass, 2026-11-23): a kerb's road edge is rounded, and the roll catches the light -- a
+           lit band on the top just inside the seam, so the edge reads as a rolled lip over the shadow line, not a flat top
+           butted to a stripe. The corners, the flares, the L fillets and drawKerbStoneOver carry the same band. */
+        const oAr = oIn - (oIn - oOut) * 0.28;
+        this.quadOn(g, [pt(s0,oSeam,h0), pt(s1,oSeam,h1), pt(s1,oAr,h1), pt(s0,oAr,h0)], KERB_ARRIS);
         /* LAID IN STONES (pavement pass, 2026-11-23). A kerb is a row of cut stones, not one extrusion: a joint across the
            top and down the road face the eye sees (asked of W: that face's normal is -sgn*rv), on the paving's own T2 lattice
            so every kerb joint lines up with a joint in the slabs behind it. Straight full-height runs only; the flares and
@@ -111268,8 +111369,9 @@ class WorldScene extends Phaser.Scene {
                the kerb's paving edge so the step reads at night; the wedge
                is drawn instead of the stone over its length, and carried
                no such line, so the seam stopped dead at every ramp. */
-            const oSeam = oIn - (oIn - oOut) * 0.14;
+            const oSeam = oIn - (oIn - oOut) * 0.14, oAr = oIn - (oIn - oOut) * 0.28;
             this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oSeam,KERB_H), p(sPad,oSeam,zT), p(sPad,oIn,zT)], KERB_DK);
+            this.quadOn(g, [p(sEdge,oSeam,KERB_H), p(sEdge,oAr,KERB_H), p(sPad,oAr,zT), p(sPad,oSeam,zT)], KERB_ARRIS);   // (the arris, as kerbRun)
           };
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
@@ -111293,6 +111395,10 @@ class WorldScene extends Phaser.Scene {
           this.quadOn(g, [p(-34,o0,0.8), p(34,o0,0.8), p(34,o1,0.8), p(-34,o1,0.8)], 0x55524a);
           for(let a = -28; a < 28; a += 9)
             this.quadOn(g, [p(a,o0,1), p(a + 4,o0,1), p(a + 4,o1,1), p(a,o1,1)], 0x2e2c28);
+          if((this.W(-sgn*rv.x, -sgn*rv.y, 0).y - this.W(0, 0, 0).y) > 0){   // the kerb inlet over it (see the corners' gully)
+            const ok = sgn*(ROAD_HALF - KERB_W);
+            this.quadOn(g, [p(-22,ok,4.6), p(22,ok,4.6), p(22,ok,1.2), p(-22,ok,1.2)], GULLY_MOUTH);
+          }
         };
         if(!sideOpen(edge.b, sgn)) gully(len + TANG);
         if(!sideOpen(edge.a, sgn) && !edge.a.conn[(edge.f + 2) % 4] && !edge.a.svGate && !edge.a.harborEnd) gully(-TANG);   // the estate's street carries on through the gate
@@ -111327,11 +111433,11 @@ class WorldScene extends Phaser.Scene {
         while(da > Math.PI) da -= 2*Math.PI;
         while(da < -Math.PI) da += 2*Math.PI;
         const N = 8, at = (rad, t) => ({ x: cx + rad*Math.cos(a0 + da*t), y: cy + rad*Math.sin(a0 + da*t) });
-        const ring = (r0, r1, z0, z1, col) => {
+        const ring = (r0, r1, z0, z1, col, al = 1) => {
           for(let k = 0; k < N; k++){
             const p0 = at(r0, k/N), p1 = at(r0, (k+1)/N), q0 = at(r1, (k+1)/N), q1 = at(r1, k/N);
             this.quadOn(g, [this.W(p0.x,p0.y,z1), this.W(p1.x,p1.y,z1),
-                            this.W(q0.x,q0.y,z0 === z1 ? z1 : z0), this.W(q1.x,q1.y,z0 === z1 ? z1 : z0)], col);
+                            this.W(q0.x,q0.y,z0 === z1 ? z1 : z0), this.W(q1.x,q1.y,z0 === z1 ? z1 : z0)], col, al);
           }
         };
         const faceArc = (rad, z0, z1, col) => {
@@ -111346,9 +111452,19 @@ class WorldScene extends Phaser.Scene {
         /* radius grows toward the road: KR is the paving edge, so the kerb
            is the first 22 out into the asphalt and the gutter the next */
         ring(KR + KERB_W, KR + KERB_W + CURB_W, 0.6, 0.6, GUT);     // the gutter, in the asphalt
+        ring(KR + KERB_W, KR + KERB_W + CURB_W*0.3, 0.6, 0.6, GUT_GRIME, 0.45);   // its grime and its joint, as band
+        { g.lineStyle(Math.max(1, this.K*0.8), GUT_LIP, 0.9); g.beginPath();
+          for(let k = 0; k <= N; k++){ const p = at(KR + KERB_W + CURB_W, k/N), q = this.W(p.x, p.y, 0.6); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
+          g.strokePath(); }
         faceArc(KR + KERB_W, 0, 3, KERB_DK);                        // shadow where it meets the gutter
         faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
         faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
+        /* THE GULLY'S KERB INLET (sidewalk pass, 2026-11-23): the water goes in through a mouth in the stone over the grate --
+           a dark slot low in the road face across the grate's sweep. On the face, so the top (next) covers it wherever that
+           face is turned away. */
+        { const gm = 0.3/Math.max(1e-6, Math.abs(da)), R = KR + KERB_W;
+          for(let k = 0; k < 3; k++){ const p0 = at(R, 0.5 - gm + 2*gm*k/3), p1 = at(R, 0.5 - gm + 2*gm*(k + 1)/3);
+            this.quadOn(g, [this.W(p0.x,p0.y,4.6), this.W(p1.x,p1.y,4.6), this.W(p1.x,p1.y,1.2), this.W(p0.x,p0.y,1.2)], GULLY_MOUTH); } }
         ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
         /* THE SEAM ON THE SAME EDGE AS THE STRAIGHTS (Sir, on-device,
            2026-09-23: "the dark line is on the inside of the curve but it
@@ -111359,6 +111475,7 @@ class WorldScene extends Phaser.Scene {
            seam on KR, the opposite edge, so it floated inside the curve
            and met neither straight. Now the last 14% before the road. */
         ring(KR + KERB_W*0.86, KR + KERB_W, KERB_H, KERB_H, KERB_DK);  // the seam on its road edge, as kerbRun
+        ring(KR + KERB_W*0.72, KR + KERB_W*0.86, KERB_H, KERB_H, KERB_ARRIS);  // and the arris inside it, as kerbRun
         /* THE GULLY, at the bottom of the sweep where the water goes */
         /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
            the drain channels edge"). It was a straight 68 x 34 slab laid
@@ -111440,6 +111557,7 @@ class WorldScene extends Phaser.Scene {
         faceO(OR - KERB_W, -1, 0, 3, KERB_DK);                                   // shadow where it meets the channel
         ringO(OR - KERB_W, OR, KERB_H, KERB_H, KERB_TOP);                         // the top
         ringO(OR - KERB_W, OR - KERB_W*0.86, KERB_H, KERB_H, KERB_DK);            // the seam, road edge as kerbRun
+        ringO(OR - KERB_W*0.86, OR - KERB_W*0.72, KERB_H, KERB_H, KERB_ARRIS);    // the arris, as kerbRun
         const CAP = KERB_H * 2.5;
         const capOn = (tx, ty, bx, by, ix, iy) => {
           const p = (s2, o2, h) => this.W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
@@ -111451,6 +111569,7 @@ class WorldScene extends Phaser.Scene {
           }
           quadV([p(0, 0, KERB_H), p(CAP, 0, KERB_H), p(CAP, KERB_W, KERB_H), p(0, KERB_W, KERB_H)], KERB_TOP);
           quadV([p(0, KERB_W, KERB_H), p(CAP, KERB_W, KERB_H), p(CAP, KERB_W*0.86, KERB_H), p(0, KERB_W*0.86, KERB_H)], KERB_DK);
+          quadV([p(0, KERB_W*0.86, KERB_H), p(CAP, KERB_W*0.86, KERB_H), p(CAP, KERB_W*0.72, KERB_H), p(0, KERB_W*0.72, KERB_H)], KERB_ARRIS);
         };
         capOn(Ox + e1.x*OR, Oy + e1.y*OR, -e0.x, -e0.y, -e1.x, -e1.y);
         capOn(Ox + e0.x*OR, Oy + e0.y*OR, -e1.x, -e1.y, -e0.x, -e0.y);
@@ -117763,8 +117882,9 @@ class WorldScene extends Phaser.Scene {
     const pt = (a, o, z) => this.W(e.ox + e.dv.x*a + e.rv.x*o, e.oy + e.dv.y*a + e.rv.y*o, z);
     this.quadOn(g, [pt(al0,oOut,H), pt(al1,oOut,H), pt(al1,oOut,0), pt(al0,oOut,0)], KERB_STONE.face);
     this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oOut,H), pt(al0,oOut,H)], KERB_STONE.top);
-    const oSeam = oIn - (oIn - oOut) * 0.14;
+    const oSeam = oIn - (oIn - oOut) * 0.14, oAr = oIn - (oIn - oOut) * 0.28;
     this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oSeam,H), pt(al0,oSeam,H)], KERB_STONE.dk);
+    this.quadOn(g, [pt(al0,oSeam,H), pt(al1,oSeam,H), pt(al1,oAr,H), pt(al0,oAr,H)], KERB_ARRIS);
   }
 
   /* ---------- STREET FURNITURE, every block, every frontage ----------
