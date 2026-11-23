@@ -89,6 +89,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 |---|---|---|
 | Walls, windows, the door hole | `walkinRoom` (`runBox`, `winIn`) | `docs/kits/walkin.md` |
 | Long fixtures (counters, shelves, bars) | `runPiece` | W28; W37 for what goes inside |
+| Runs round corners (walls and caps, fences, hedges, parapets, kerbs, counters with returns) | `pathRun(pts, t, z0, z1, top, front, side, legs)` | One piece, mitred: the corner rule (CLAUDE.md). Rancho Hacienda's yard wall (`yardFence.join`) is the exemplar |
 | Primitives | `box`, `cyl`, `tube`, `ball`, `prism`, `F` / `S` / `T` faces | the room's own fixtures, and anything new -- referencing the library's relative |
 | An exemplar room | Tidewater Tea House | `docs/kits/walkin-shop-recipe.md` |
 

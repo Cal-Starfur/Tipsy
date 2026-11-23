@@ -102,6 +102,11 @@
   `node tools/review/props_depth.js` must PASS: no draw-order fault new or grown against `tools/review/w37_baseline.json` (W37:
   back to front, faces the eye sees, parts meeting; the props kit's SP13 for street props, faces asked of W since they turn). After a
   fix, `--every --update` and commit the baseline with it; a new fault is locked in only when I've agreed.
+- A corner is one piece (Sir, 2026-11-22: "place a rule so that the consistency is there for future builds"): anything that runs round
+  a corner -- a wall and its cap, a fence, a hedge, a parapet, a roof cap, a kerb, a counter with a return -- is drawn with `pathRun`
+  along its path of corner points (mitred, one top, its outer lines straight round, only the faces the eye sees), never as boxes
+  butted at the corner. Where a house or a room must be drawn between its far and near legs, split it with `legs` on a straight
+  stretch, not at a corner. `w37.js` lists any two runs meeting at a corner as two boxes (`corner`); the gate holds it.
 - Anything that wraps round another piece (a band, a hem, a cuff, a collar, a brim, a hat's band) is a ring -- only its faces toward
   the eye -- never a filled solid, whose silhouette lays a flat lid over what it wraps; a piece that wraps round another is split by depth
   (its part behind, the thing, its part in front), as a cap's bill round its crown.

@@ -12,6 +12,10 @@
               lens under a lamp's head (Sir, 2026-11-22, Brew & Bolt's goosenecks: "the light painting over the lamp"). Its top face
               lands on the near faces of what it hangs from. Paint it first, what it hangs from after (foot is the same, for a base
               wider than what stands on it)
+     corner   two runs -- walls, caps, fences, kerbs, parapets: thin boxes, three times as long as they are thick -- meeting at a right
+              angle as two boxes, anywhere in the entry (Sir, 2026-11-22: "all of these corners ... aligned better and cleaner ... 1 piece"):
+              a corner is one piece, pathRun (mitred, one top, its outer lines straight round); 'step' when their outer faces don't
+              line up or their thicknesses differ, 'butt' when they line up but meet as two
      behind   a part drawn after one it stands wholly behind (past its back face, within its width, no higher than its top) -- a
               fixture's far-side parts, its working face turned away (Seaglass's espresso machine: group heads over its back)
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
@@ -84,12 +88,13 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
       let items = []; try { items = LIB.collect(name, G, 1) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
       let whole = false; if(!items.length && EVERY){ whole = true; items = [{ a: 0, b: 0, z: 0, draw: null }]; }
-      const runs = new Map();
+      const runs = new Map(), entryP = [];
       items.forEach((it, i) => {
         cur = { prims: [], prim: null, runZ: -1e9 }; stack = 0;
         try { if(whole) LIB.draw(name, g, G, undefined, 1); else LIB.drawItem(name, g, G, 1, it); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
         const rec = cur; cur = null;
         const P = rec.prims.filter(p => p.pts.length >= 3).map(p => Object.assign(p, { q: bb(p.pts) }));
+        for(const p of P) if(p.n === 'box' && !p.inRun) entryP.push(p);
         /* clip: one per fixture (its runs share the draw) */
         if(it.__run){ const R = it.__run, key = [R.a0, R.a1, R.b0, R.b1, R.zTop].join(',');
           if(!runs.has(key) && rec.runZ > -1e9){ runs.set(key, 1);
@@ -187,6 +192,28 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           }
         });
       });
+      /* corner: two thin runs meeting at a right angle as two boxes (the entry's boxes, any pieces) */
+      { const thin = entryP.map(p => { const q = p.q, la = q.a1 - q.a0, lb = q.b1 - q.b0, h = q.z1 - q.z0;
+          if(h < 2) return null;
+          if(la >= 3*lb && lb <= 30 && la >= 20) return { p, q, ax: 'a', t: lb };
+          if(lb >= 3*la && la <= 30 && lb >= 20) return { p, q, ax: 'b', t: la };
+          return null; }).filter(Boolean);
+        const seenK = new Set();
+        for(const A of thin) if(A.ax === 'a') for(const B of thin) if(B.ax === 'b'){
+          const a = A.q, b = B.q, oz = Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0);
+          if(oz < 0.5*Math.min(a.z1 - a.z0, b.z1 - b.z0)) continue;
+          /* they meet at an end of each: B's a-band within reach of one of A's ends, A's b-band within reach of one of B's ends */
+          const tol = 1.5, nearEnd = (x0, x1, y0, y1) => (Math.abs(x0 - y0) <= tol + (x1 - x0)) || (Math.abs(x1 - y1) <= tol + (x1 - x0));
+          const touchA = b.a0 <= a.a1 + tol && b.a1 >= a.a0 - tol && nearEnd(b.a0, b.a1, a.a0, a.a1);
+          const touchB = a.b0 <= b.b1 + tol && a.b1 >= b.b0 - tol && nearEnd(a.b0, a.b1, b.b0, b.b1);
+          if(!touchA || !touchB) continue;
+          const k = [a.a0, a.b0, a.z0, b.a0, b.b0, b.z0].map(Math.round).join(','); if(seenK.has(k)) continue; seenK.add(k);
+          /* aligned: their outer lines meet (A's outer a-end on B's outer a-face, B's outer b-end on A's outer b-face) and one thickness */
+          const alA = Math.min(Math.abs(a.a0 - b.a0), Math.abs(a.a1 - b.a1)) < 0.6, alB = Math.min(Math.abs(b.b0 - a.b0), Math.abs(b.b1 - a.b1)) < 0.6;
+          const kind = alA && alB && Math.abs(A.t - B.t) < 0.6 ? 'butt' : 'step';
+          found.push({ room: name, kind: 'corner', at: [Math.round((b.a0 + b.a1)/2), Math.round((a.b0 + a.b1)/2)],
+            what: kind + ': a run along a (t ' + A.t.toFixed(0) + ', z ' + Math.round(a.z0) + '..' + Math.round(a.z1) + ') meets one along b (t ' + B.t.toFixed(0) + ') as two boxes (line ' + A.p.line + ', it line ' + B.p.line + ')' });
+        } }
     }
     g.destroy(); for(const f of found) delete f.__L;
     return { rooms: rooms.length, found };
@@ -200,7 +227,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
@@ -208,7 +235,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
   /* THE GATE (CLAUDE.md, Sir 2026-11-22: "yes add it"): per entry and kind, against the baseline */
-  const GK = ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside'];
+  const GK = ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner'];
   if(process.argv.includes('--gate') || process.argv.includes('--update')){
     const fs = require('fs'), path = require('path'), fn = path.join(__dirname, 'w37_baseline.json'), cnt = {};
     for(const f of out.found) if(GK.includes(f.kind)){ const k = f.room + ' | ' + f.kind; cnt[k] = (cnt[k] || 0) + 1; }
