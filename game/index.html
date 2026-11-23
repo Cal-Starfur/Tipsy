@@ -4611,13 +4611,25 @@ const BIN_HIT = (() => {
 /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 · red.
    hydrantBurst is the same rigid hydrant with a sheared front nozzle,
    animated water arc, and a puddle spanning most of the neighboring tile. */
+/* (Sir, 2026-11-23: "probably too small") a street hydrant's own size: 52 tall to the operating nut's top, knee to hip
+   on a person of 124 and a little under Tipsey's 61 -- it was 20. baseR the base flange, barR the barrel at the outlets,
+   nozH the outlets' axis, nozR a hose outlet's bore, tip where a sheared hose outlet ends (the jet's start). The
+   jumps over it scale with it: see HJ_VS. */
 const HYD = {
-  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  height: 52, baseR: 11, barR: 7.1, nozH: 22, nozR: 3.4, tip: 11.6,
+  wet: 0x3d3a33,
   cap: 0xb5342b, capDk: 0x8a2822,
   nut: 0x3a3d43,
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* where a burst hydrant's flood lies along the walk (the sim's centre: 8 + pudDir*T2 from the hydrant) and where its jet
+   comes down -- in that water, or, for a flood on the hydrant's own tile (pudDir 0, the jump course), a hop out. The
+   hose outlet toward the flood is the one that shears. */
+function hydFloodA(d){ return 8 + ((d && d.pudDir) ? d.pudDir*T2 : 0); }
+function hydJetLandA(d){ const a = hydFloodA(d); return (d && d.pudDir) ? a : (a >= 0 ? 1 : -1)*(HYD.tip + 26); }
+const _HYD_OUTLETS = [[0, 3.4, 5], [Math.PI, 3.4, 5], [Math.PI*0.5, 4.8, 3.2]];   // [angle, bore, stub length]: two hose outlets, the pumper
+const _HYD_JET_P = Array.from({ length: 18 }, () => ({ x: 0, y: 0 })), _HYD_JET_C = Array.from({ length: 9 }, () => ({ x: 0, y: 0 }));   // the jet's points, kept (it draws every frame)
 /* cargo damage meter (spec: red-zone dwell damage) — a top-speed
    hydrant/scooter bonk deals ~55-62 damage in one shot (kick*mult,
    speed capped at 0.15), so this needs to stay well under "one hit
@@ -7079,7 +7091,8 @@ const PROP_EXT_PAD = 1.25, PROP_EXT_MIN = 24;
 const PROP_EXT = {
   bin:[38,38,90,14], burrito:[40,40,40,40], can:[40,40,40,40],
   car:[158,158,153,59], cone:[18,18,43,9], crack:[88,88,45,49],
-  dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[15,15,26,6],
+  dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[19,19,54,8],   /* (hydrant re-measured at the street size, 2026-11-23; hydrantJet: the burst jet, its splash and spray, queued on its own) */
+  hydrantJet:[130,130,66,70],
   hydrantBurst:[107,107,54,53],
   /* hydrantFlood is DERIVED, not sampled -- it is the only kind whose
      art is a closed formula rather than a drawing, so a bound can be
@@ -7087,8 +7100,11 @@ const PROP_EXT = {
      with |A| <= 8 + T2 + HYD_SLIP.pud = 141.4 and |B| <= 1.5*T2 = 138.
      DIRV components are unit axes, so |dv.x - dv.y| = |rv.x - rv.y| = 1
      and the 2:1 iso gives |sx| <= (|A| + |B|) = 279.4 and
-     |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad. */
-  hydrantFlood:[280,280,140,140], lamp:[113,113,347,56],
+     |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad.
+     (The water pass, 2026-11-23: the wet band round it runs to 1.06 x a
+     wavering edge of at most 1.085, so the semi-axes reach 1.15 x the
+     sim's: |A| <= 8 + T2 + 47.6 = 147.6, |B| <= 158.7, sum 306.3.) */
+  hydrantFlood:[307,307,154,154], lamp:[113,113,347,56],
   palm:[267,251,639,16], palmDwarf:[108,111,176,11],   /* x PALM.scale 1.8 / PALM_DWARF.scale 1.3 */ paper:[40,40,40,40],
   people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
   policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
@@ -7604,7 +7620,7 @@ const OW_D = {
      widened to the thing's actual footprint. */
   /* pr1: lamp, palm, hydrant and bin take their radius from the ART (PROP_FOOT: the drawn base
      half-width plus a hair), not a padded number; owContact adds the body's reach (botR*0.72) */
-  hzLamp: 11, hzPalm: 9, hzHydrant: 10, hzBin: 28, hzPlanter: 44,
+  hzLamp: 11, hzPalm: 9, hzHydrant: 12,   /* (hydrant: its base flange, 11, at the street size -- was 10 on the 20-tall toy) */ hzBin: 28, hzPlanter: 44,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -104039,7 +104055,7 @@ class WorldScene extends Phaser.Scene {
       /* touchdown */
       /* PITCH: nose follows the velocity vector, eased so leaving the lip
          does not snap the attitude. Straight from the lab. */
-      const pT = Math.atan2(this.hjAir.vz, Math.max(this.speed, 1e-4)) * 0.6;
+      const pT = Math.atan2(this.hjAir.vz / HJ_VS, Math.max(this.speed, 1e-4)) * 0.6;   // (the attitude of the unstretched arc)
       this.pitch += (pT - this.pitch) * Math.min(1, 0.030*dt);
       /* Land on the CATCH ramp's plane — deliberately NOT hjSlabZ(),
          which also reports the kicker he is still standing over at
@@ -106527,6 +106543,17 @@ class WorldScene extends Phaser.Scene {
      Drawn from the HYDRANT's anchor (the branch applies its own landA),
      keyed at the FLOOD's centre, pinned to gWorld -- the depth key and
      the paint are then two views of the same tile. */
+  /* A BURST HYDRANT'S JET, its own item (the water pass, 2026-11-23): it reaches up to a tile along the walk into its
+     flood, so it is keyed at its own middle, not the hydrant's anchor -- someone standing at its far end sorts against
+     the water there -- and it is the only live part: the hydrant's iron is cached (hydrantBody). Drawn from the
+     hydrant's anchor; the branch lays it out. layerOf(g, x, y): the caller's layer for a point, or none */
+  queueHydrantJet(vq, wx, wy, f, data, layerOf){
+    if(!this.visProp("hydrantJet", wx, wy)) return;
+    const fq = ((Math.round(f || 0) % 4) + 4) % 4, dv = DIRV[fq];
+    const la = hydJetLandA(data), mid = (la + (la >= 0 ? 1 : -1)*HYD.tip)*0.5;
+    const mx = wx + dv.x*mid, my = wy + dv.y*mid;
+    vq.push({ depth: mx + my, fn:(gg, tt) => this.drawProp(layerOf ? layerOf(gg, mx, my) : gg, "hydrantJet", wx, wy, tt, f, 0, null, null, data) });
+  }
   queueHydrantFlood(vq, g, wp, f, data){
     const fq = ((Math.round(f || 0) % 4) + 4) % 4, dv = DIRV[fq];
     const off = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
@@ -114045,8 +114072,9 @@ class WorldScene extends Phaser.Scene {
          both branches were g, so the flush's own gg is the same answer) */
       /* a walked dog's owner counts too (see DOG_PAIR) */
       const _own = hz.type === "dog" ? dogOwnerWorldAt(t, hz, wp.x, wp.y) : null;
+      if(hz.type === "hydrant" && hz.burst) this.queueHydrantJet(hazVQ, wp.x, wp.y, hz.f, hz, null);
       if(this.visProp(hz.type, ebx, eby) || (_own && this.visProp("people", _own.x, _own.y))){
-        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
+        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type === "hydrant" && hz.burst ? "hydrantBody" : hz.type;
         hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(gg, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
       }
       if(hz.clusterExtras){
@@ -118994,6 +119022,8 @@ class WorldScene extends Phaser.Scene {
         const _st = _cw || hazSpotWorld(cp, 0, 0);
         const cx = _st ? _st.x : cp.wx,
               cy = _st ? _st.y : cp.wy, cf = cp.f, cobj = cp;
+        /* a burst hydrant's jet is live and long: its own item, keyed along it (queueHydrantJet); the iron stays an image */
+        if(ct === "hydrant" && cp.burst) this.queueHydrantJet(vq, cx, cy, cf, cp, (gg, jx, jy) => this.propLayer(gg, jx, jy));
         /* PER-PROP SCREEN GATE. The block is on screen or we would not
            be in this method, but a block is far larger than the visible
            diamond, so most of its frontage furniture is off screen even
@@ -119014,7 +119044,7 @@ class WorldScene extends Phaser.Scene {
         /* (lying where it was left -- a cone, planter or scooter that starts the day knocked over, cp.phi at rest -- is
            as still as standing: cached too, the lie in its key. The census, 2026-10-30: four in ten cones and half the
            scooters drew live every frame for good) */
-        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined;   // (a burst hydrant too: its sheared iron is as still, the water queued apart)
         /* A WALKER CALLING AT A SHOP goes in through its door (WALK_PLAN): in the doorway they are drawn with the
            door -- between its lit room and its swung leaf, clipped to the opening -- as the shoppers are, not over
            the shop front (they used to walk into the shut door and vanish on the step) */
@@ -119027,8 +119057,9 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: ebx+eby,
                   fn:(g,tt)=>{
                     const lg = this.propLayer(g, ltx, lty);
-                    if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
-                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : ""), cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                    const dk = ct === "hydrant" && cp.burst ? "hydrantBody" : ct;
+                    if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, dk, cx, cy, tt, cf, 0, null, null, cobj);
+                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : "") + (dk !== ct ? "|b" : ""), cx, cy, gg => this.drawProp(gg, dk, cx, cy, 0, cf, 0, null, null, cobj));
                   } });
       }
     }
@@ -129685,98 +129716,148 @@ class WorldScene extends Phaser.Scene {
          The two semi-axes are the SIM's, unchanged (see the hydroplane
          test): |sdx| < HYD_SLIP.pud along the walk, +-1.5*T2 across,
          with the road-ward side clamped to TILE*0.85 so the water does
-         not overflow the kerb. Art and slip zone still agree. */
-      const HH = HYD;
+         not overflow the kerb. Art and slip zone still agree.
+         THE WATER PASS (Sir, 2026-11-23: "do a pass on the water coming out and the puddle it makes"): it was two flat
+         pale rings. Now, bottom up: the concrete darkened where it is wet, a band a little past the water's edge; a wet
+         run from the hydrant's foot out to it; the water itself, its edge wavering (seeded from where it lies, so it
+         holds still), a deeper middle; the sky's sheen across its far half; and rings running out from where the jet
+         comes down. Same semi-axes, same centre: only paint. Ground circles are screen ellipses (the iso camera never
+         turns), so the sheen and the ripples cost no points */
+      const HH = HYD, K = this.K;
       const grow = (data && data.burstT !== undefined)
         ? Math.min(1, (t - data.burstT)/1800) : 1;
-      const landA = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
-      const floodRing = (radA, radBPos, radBNeg, nn=16) => {
+      const landA = hydFloodA(data), jd = landA >= 0 ? 1 : -1;
+      const ph0 = ((Math.round(x)*13 + Math.round(y)*7) % 97) * 0.065;
+      const A0 = HYD_SLIP.pud * grow, BN = T2*1.5 * grow, BP = TILE*0.85 * grow;
+      const floodRing = (s, nn) => {
         const pts = [];
-        for(let i=0; i<nn; i++){
-          const phi = (i/nn)*Math.PI*2;
-          const radB = Math.sin(phi) >= 0 ? radBPos : radBNeg;
-          pts.push(W(landA + Math.cos(phi)*radA, Math.sin(phi)*radB, 0.3));
+        for(let i = 0; i < nn; i++){
+          const phi = (i/nn)*Math.PI*2, sn = Math.sin(phi);
+          const wob = s*(1 + 0.05*Math.sin(3*phi + ph0) + 0.035*Math.sin(5*phi + ph0*1.7));
+          pts.push(W(landA + Math.cos(phi)*A0*wob, sn*(sn >= 0 ? BP : BN)*wob, 0.3));
         }
         return pts;
       };
-      const outerA = HYD_SLIP.pud * grow;
-      const outerBNeg = T2*1.5 * grow, outerBPos = TILE*0.85 * grow;
-      this.quadOn(g, floodRing(outerA, outerBPos, outerBNeg), HH.water, 0.28);
-      this.quadOn(g, floodRing(outerA*0.62, outerBPos*0.62, outerBNeg*0.62), HH.water, 0.22);
-    } else if(kind === "hydrant" || kind === "hydrantBurst"){
-      /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6.
-         hydrantBurst shears the front nozzle open with an animated water
-         arc and a puddle that paints early (ground layer, like the
-         shadow) so the hydrant's own body always draws over it. */
-      const HH = HYD;
-      const bursting = kind === "hydrantBurst" || !!(data && data.burst);
-      /* the "facing" checks below (puddle, spray, breakable nozzle) all
-         gate on hth -- a per-hydrant RANDOM decorative rotation, not the
-         route's actual heading or camera direction. For the static lab
-         gallery (kind==="hydrantBurst", no live data) that randomness is
-         fine, just visual variety across instances. But for a real,
-         player-triggered burst (data.burst) it meant roughly half of
-         all burst hydrants never showed water at all -- the slip/
-         collision physics don't care about hth, so the player could
-         hydroplane with nothing visible to explain it (reported
-         2026-07-24). forceVisible makes the breakable nozzle's spray +
-         puddle always show for a live burst; the decorative rear nozzle
-         and the static gallery kind are untouched. */
-      const forceVisible = !!(data && data.burst);
-      const grow = (data && data.burstT !== undefined)
-        ? Math.min(1, (t - data.burstT)/1800) : 1;
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
-      const rng = mulberry32(seed);
-      const hth = rng()*Math.PI*2;
-      const hcs = Math.cos(hth), hsn = Math.sin(hth);
-      const height = HH.height;
-      const GG = (a, b, h) => W(a*hcs - b*hsn, a*hsn + b*hcs, h);
-
-      /* no ground shadow: static props cast none (SP6) */
-
-      /* GALLERY RINGS ONLY. A LIVE flood (data.burst) is no longer drawn
-         here at all -- it is its own ground kind, "hydrantFlood", queued
-         into the ground pass at the flood's own centre so it can never
-         sort in front of something standing in it. See that branch for
-         why, and for the sim's two semi-axes.
-         What is left is the lab's static gallery kind, which has no
-         world queue to move into: a thrown-landing ring at the sheared
-         nozzle's tip, circular (radB === radA), gated on the hydrant's
-         own decorative rotation exactly as before. Unchanged. */
-      if(bursting && !(data && data.burst)){
-        const nc0 = 1, ns0 = 0;
-        const facing0 = (nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0) || forceVisible;
-        if(facing0){
-          const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
-          const landA = tipA0 + nc0*26, landB = ns0*26;
-          const puddleRing = (rad, nn=16) => {
-            const pts = [];
-            for(let i=0; i<nn; i++){
-              const phi = (i/nn)*Math.PI*2;
-              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
-            }
-            return pts;
-          };
-          this.quadOn(g, puddleRing(TILE*0.85 * grow), HH.water, 0.28);
-          this.quadOn(g, puddleRing(TILE*0.55 * grow), HH.water, 0.22);
+      if(grow > 0.02){
+        this.quadOn(g, floodRing(1.06, 20), HH.wet, 0.2);                                  // the wet concrete round it
+        /* the run from the hydrant's foot to the water (a burst on its own tile has none) */
+        const aE = landA - jd*A0*0.7;
+        if(jd*aE > 6) this.quadOn(g, [W(jd*4, -9, 0.3), W(jd*4, 9, 0.3), W(aE, 14*grow + 6, 0.3), W(aE, -14*grow - 6, 0.3)], HH.wet, 0.2);
+        this.quadOn(g, [W(0, -15*grow, 0.3), W(15*grow, 0, 0.3), W(0, 15*grow, 0.3), W(-15*grow, 0, 0.3)], HH.wet, 0.18);   // wet round its foot
+        this.quadOn(g, floodRing(1.0, 20), HH.water, 0.42);
+        this.quadOn(g, floodRing(0.64, 16), HH.waterDk, 0.24);
+        /* the sheen: the sky in the water's far half, a long light streak and a brighter core, breathing a little */
+        const sp = W(landA - jd*A0*0.15, -BN*0.32, 0.3), sh = 0.24 + 0.06*Math.sin(t*0.0021 + ph0);
+        g.fillStyle(0xf4fbff, sh);       g.fillEllipse(sp.x, sp.y, A0*1.3*K, A0*0.2*K);
+        g.fillStyle(0xffffff, sh*1.4);   g.fillEllipse(sp.x - A0*0.12*K, sp.y, A0*0.55*K, A0*0.07*K);
+        /* ripples where the jet comes down, running out and fading */
+        const rp = W(hydJetLandA(data), 0, 0.3);
+        for(let k = 0; k < 3; k++){
+          const u = (t*0.0011 + k/3) % 1, r = (3 + 22*u)*grow;
+          g.lineStyle(Math.max(1, 1.1*K), 0xffffff, 0.5*(1 - u));
+          g.strokeEllipse(rp.x, rp.y, r*2.83*K, r*1.41*K);
         }
       }
-
-      /* THE DESIGN PASS (Sir, 2026-11-23: "a pass on all the street props"). It was same-red hulls stacked -- barrel,
-         shoulder, dome, nozzles -- a red blob with no lit side and no parts. Now a cast-iron post as one is built: a base
-         flange on the pavement, the barrel, the bonnet's band, the bonnet's dome, the five-sided operating nut on top,
-         two hose outlets and the big pumper outlet between them, each with its cap and nut. Every turned piece is shaded
-         as a cylinder -- lit on the left, a highlight strip, the shade side right -- and the eye is ASKED of W (SP13): fA/fB
-         is the local direction toward the eye, rA/rB screen-right, so the four facings and the seeded turn hth all read
-         the same. Outlets pointing away are painted before the body, those toward the eye after it, their caps beyond. */
+    } else if(kind === "hydrant" || kind === "hydrantBody" || kind === "hydrantBurst" || kind === "hydrantJet"){
+      /* A STREET HYDRANT, AT A STREET HYDRANT'S SIZE (Sir, 2026-11-23: "probably too small"): 52 tall, knee to hip on a
+         person of 124 (it was 20 -- a toy at his ankle). Its parts:
+           hydrant      the whole thing (a burst one draws its jet too: the gallery, a lab, any caller of the old kind)
+           hydrantBody  the cast iron only -- a burst one's sheared outlet included -- so the street can cache it
+           hydrantJet   the burst's jet, its spray, its splash and the thrown droplets: live, queued on its own key
+           hydrantBurst the static gallery's burst (no live data): body, jet and its own flood in one
+         ORIENTED, NOT SPUN: the pumper outlet faces the road (+b), the hose outlets run along the walk, as they are set on
+         a kerb; the one that shears is the one toward the flood (pudDir), so the jet lands in the water the sim slides
+         you on. */
+      const HH = HYD;
+      const live = !!(data && data.burst);
+      const bursting = kind === "hydrantBurst" || kind === "hydrantJet" || live;
+      const landA = hydFloodA(data), jd = landA >= 0 ? 1 : -1;
+      if(kind === "hydrantBurst" && !live) this.drawProp(g, "hydrantFlood", x, y, t, fdir, z, null, null, data);
       const HP = Math.PI*0.5;
-      const o0 = GG(0, 0, 0), oA = GG(1, 0, 0), oB = GG(0, 1, 0);
+      const o0 = W(0, 0, 0), oA = W(1, 0, 0), oB = W(0, 1, 0);
       const mxA = oA.x - o0.x, mxB = oB.x - o0.x, myA = oA.y - o0.y, myB = oB.y - o0.y;
       const rl = Math.hypot(mxA, mxB) || 1, rA = mxA/rl, rB = mxB/rl;              // screen-right, local
       let fA = -rB, fB = rA; if(fA*myA + fB*myB < 0){ fA = -fA; fB = -fB; }           // toward the eye, local
+      const NOZ_H = HH.nozH;
+
+      /* THE JET. A tapered stream out of the bore -- a darker edge, a light core with a glint running along it --
+         that breaks up into spray and droplets two thirds of the way down, comes down in a splash, and throws the
+         droplets the shear spilled (data.items). Its centreline is a parabola in the walk's own plane through W; its
+         width is laid across it on the screen, as a tube of water shows. Nothing kept: a few points a frame. */
+      const jet = () => {
+        const K = this.K, a0 = jd*HH.tip, L = hydJetLandA(data)*jd - HH.tip;
+        const zAt = u => NOZ_H*(1 - u*u) + L*0.2*u*(1 - u);
+        const N = 8, U1 = 0.7, P = _HYD_JET_P, C = _HYD_JET_C;
+        for(let i = 0; i <= N; i++){ const u = U1*i/N, p = W(a0 + jd*L*u, 0, zAt(u)); C[i].x = p.x; C[i].y = p.y; }
+        const ribbon = (wk, col, al) => {
+          for(let i = 0; i <= N; i++){
+            const i0 = i > 0 ? i - 1 : 0, i1 = i < N ? i + 1 : N;
+            let tx = C[i1].x - C[i0].x, ty = C[i1].y - C[i0].y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+            const w = HH.nozR*wk*(0.85 + 1.5*U1*i/N)*K*(i === N ? 0.6 : 1);
+            P[i].x = C[i].x - ty*w; P[i].y = C[i].y + tx*w;
+            P[2*N + 1 - i].x = C[i].x + ty*w; P[2*N + 1 - i].y = C[i].y - tx*w;
+          }
+          this.quadOn(g, P, col, al);
+        };
+        ribbon(1, HH.waterDk, 0.78);
+        ribbon(0.62, HH.water, 0.9);
+        ribbon(0.24, 0xf4fcff, 0.85);
+        /* a glint running down the core */
+        for(let k = 0; k < 2; k++){
+          const u = ((t*0.0024 + k*0.5) % 1)*U1*0.9, q = W(a0 + jd*L*u, 0, zAt(u) + 0.3);
+          g.fillStyle(0xffffff, 0.75); g.fillEllipse(q.x, q.y, (2.2 + 2*u)*K, (1.1 + u)*K);
+        }
+        /* where it breaks up: spray, then droplets falling out of it, each on its own loop (seeded by its index) */
+        for(let i = 0; i < 14; i++){
+          const h1 = ((i*0.618034) % 1), h2 = ((i*0.414214 + 0.3) % 1);
+          const ph = (t*0.0019 + h1) % 1, u = 0.6 + 0.42*ph;
+          const q = W(a0 + jd*L*u + (h2 - 0.5)*5, (h1 - 0.5)*9*ph, Math.max(0.4, zAt(u) + (h2 - 0.5)*5*ph));
+          g.fillStyle(i % 3 === 0 ? 0xf4fcff : (i % 3 === 1 ? HH.water : HH.waterDk), 0.85*(1 - 0.55*ph));
+          g.fillCircle(q.x, q.y, (1.5 - 0.7*ph)*K*0.55);
+        }
+        g.fillStyle(HH.water, 0.32);                                                   // the mist over the fall
+        const mq = W(a0 + jd*L*0.86, 0, zAt(0.86));
+        g.fillEllipse(mq.x, mq.y, (10 + L*0.08)*K, 7*K);
+        /* the splash: a foam patch and a crown of drops thrown up and out where it lands */
+        const sp = W(a0 + jd*L, 0, 0.4);
+        g.fillStyle(0xf4fcff, 0.55); g.fillEllipse(sp.x, sp.y, 15*K, 7.5*K);
+        g.fillStyle(0xffffff, 0.7);  g.fillEllipse(sp.x, sp.y, 7*K, 3.5*K);
+        for(let k = 0; k < 9; k++){
+          const ph = (t*0.0034 + k*0.37) % 1, an = k*0.698 + 0.4, rr = 2 + 10*ph;
+          const q = W(a0 + jd*L + Math.cos(an)*rr, Math.sin(an)*rr, 0.4 + 16*ph*(1 - ph));
+          g.fillStyle(k % 2 ? 0xf4fcff : HH.water, 0.85*(1 - ph));
+          g.fillCircle(q.x, q.y, (1.2 - 0.5*ph)*K*0.55);
+        }
+        /* burst droplets: plain local W(), same convention as bin/planter debris. Airborne ones get a short fall
+           streak; landed ones flatten into little splash ellipses that fade as life runs out */
+        if(data && data.items && data.items.length){
+          for(const it of data.items){
+            const p = W(it.x, it.y, it.z);
+            const a = Math.max(0, Math.min(1, it.life));
+            if(!it.landed){
+              g.fillStyle(it.col, 0.9*a);
+              g.fillCircle(p.x, p.y, it.size*K*0.42);
+              const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
+              g.lineStyle(Math.max(1, it.size*K*0.25), it.col, 0.4*a);
+              g.lineBetween(p2.x, p2.y, p.x, p.y);
+            } else {
+              g.fillStyle(it.col, 0.5*a);
+              g.fillEllipse(p.x, p.y, it.size*K*1.1*(2-a), it.size*K*0.45*(2-a));
+            }
+          }
+        }
+      };
+      if(kind === "hydrantJet") jet(); else {
+
+      /* THE BODY (the design pass, Sir 2026-11-23): a cast-iron post as one is built -- a base flange with its bolts on
+         the pavement, the barrel, the bonnet's band, the bonnet's dome, the five-sided operating nut on top, two hose
+         outlets and the big pumper outlet between them, each with its cap and nut. Every turned piece is shaded as a
+         cylinder -- lit on the left, a highlight strip, the shade side right -- and the eye is ASKED of W (SP13): fA/fB is
+         the local direction toward the eye, rA/rB screen-right, so all four facings read the same. Outlets pointing away
+         are painted before the body, those toward the eye after it, their caps beyond. */
       const C_LT = 0xd65a4b, C_MID = HH.cap, C_TOP = 0xc54639, C_DK = HH.capDk, C_RIM = 0x6c1f1a;
       const N_TOP = 0x5b5f67, N_DK = 0x26282c;
-      const at = (R, th, h) => { const c = Math.cos(th)*R, s = Math.sin(th)*R; return GG(c*fA + s*rA, c*fB + s*rB, h); };
+      const at = (R, th, h) => { const c = Math.cos(th)*R, s = Math.sin(th)*R; return W(c*fA + s*rA, c*fB + s*rB, h); };
       const arc = (R, h, t0, t1, n) => { const P = []; for(let k = 0; k <= n; k++) P.push(at(R, t0 + (t1 - t0)*k/n, h)); return P; };
       /* a turned piece's side, h0..h1 at radii r0..r1: its silhouette, a highlight strip left of front, the shade side */
       const turned = (h0, r0, h1, r1) => {
@@ -129791,72 +129872,54 @@ class WorldScene extends Phaser.Scene {
       const nut = (cA, cB, cZ, uA, uB, uZ, vA, vB, vZ, nA, nB, nZ, R, L) => {
         const P0 = [], P1 = [];
         for(let k = 0; k < 5; k++){ const ps = 2*Math.PI*k/5 + 0.3, c = Math.cos(ps)*R, s = Math.sin(ps)*R;
-          const a = cA + c*uA + s*vA, b = cB + c*uB + s*vB, z = cZ + c*uZ + s*vZ;
-          P0.push(GG(a, b, z)); P1.push(GG(a + nA*L, b + nB*L, z + nZ*L)); }
+          const a = cA + c*uA + s*vA, b = cB + c*uB + s*vB, zz = cZ + c*uZ + s*vZ;
+          P0.push(W(a, b, zz)); P1.push(W(a + nA*L, b + nB*L, zz + nZ*L)); }
         for(let k = 0; k < 5; k++){ const k1 = (k + 1) % 5, ps = 2*Math.PI*(k + 0.5)/5 + 0.3;
           const wA = Math.cos(ps)*uA + Math.sin(ps)*vA, wB = Math.cos(ps)*uB + Math.sin(ps)*vB, wZ = Math.cos(ps)*uZ + Math.sin(ps)*vZ;
           if(wA*fA + wB*fB + wZ*0.35 <= 0) continue;                                   // a side turned from the eye
           this.quadOn(g, [P0[k], P0[k1], P1[k1], P1[k]], (wA*rA + wB*rB) > 0.2 ? N_DK : HH.nut); }
         this.quadOn(g, P1, N_TOP);
       };
-      /* an outlet along local (nc, ns) at hgt: its stub from the barrel, a cap a size up, the cap's nut -- or, sheared, the
-         open bore. Its end face shows only turned toward the eye */
-      const NOZ_H = height*0.42;
+      /* an outlet along local (nc, ns) at NOZ_H: its stub from the barrel, a cap a size up, the cap's nut -- or, sheared,
+         the open bore. Its end face shows only turned toward the eye */
       const outlet = (ang, r, len, sheared) => {
         const nc = Math.cos(ang), ns = Math.sin(ang), pA = -ns, pB = nc;
         const toEye = nc*fA + ns*fB > 0.02;
         const ring = (s, rad, n = 12) => { const P = [];
-          for(let i = 0; i < n; i++){ const ph = (i/n)*Math.PI*2, c = Math.cos(ph)*rad, z = NOZ_H + Math.sin(ph)*rad;
-            P.push(GG(nc*s + pA*c, ns*s + pB*c, z)); }
+          for(let i = 0; i < n; i++){ const ph = (i/n)*Math.PI*2, c = Math.cos(ph)*rad, zz = NOZ_H + Math.sin(ph)*rad;
+            P.push(W(nc*s + pA*c, ns*s + pB*c, zz)); }
           return P; };
         const under = (s, rad) => { const P = [];
           for(let i = 0; i <= 6; i++){ const ph = Math.PI*(1.08 + 0.84*i/6);
-            P.push(GG(nc*s + pA*Math.cos(ph)*rad, ns*s + pB*Math.cos(ph)*rad, NOZ_H + Math.sin(ph)*rad)); }
+            P.push(W(nc*s + pA*Math.cos(ph)*rad, ns*s + pB*Math.cos(ph)*rad, NOZ_H + Math.sin(ph)*rad)); }
           return P; };
         const tube = (s0, s1, rad, col) => {
           this.quadOn(g, convexHullKeep(ring(s0, rad).concat(ring(s1, rad))), col);
           this.quadOn(g, convexHullKeep(under(s0, rad).concat(under(s1, rad))), C_DK);
         };
-        const s0 = 4.2, s1 = s0 + len, capR = r*1.28, s2 = s1 + 1.5;
+        const s0 = HH.barR - 0.5, s1 = s0 + len, capR = r*1.28, s2 = s1 + 2.2;
         const stub = () => tube(s0, s1, r, C_MID);
         const cap = () => { if(!sheared) tube(s1, s2, capR, C_MID); };
         const face = () => {
           if(!toEye) return;
-          if(sheared){ this.quadOn(g, ring(s1 + 0.05, r*0.92), HH.nut); this.quadOn(g, ring(s1 + 0.1, r*0.5), C_RIM); return; }
+          if(sheared){ this.quadOn(g, ring(s1 + 0.05, r*0.92), HH.nut); this.quadOn(g, ring(s1 + 0.1, r*0.55), C_RIM); return; }
           this.quadOn(g, ring(s2 + 0.05, capR*0.96), C_TOP);
-          nut(nc*(s2 + 0.05), ns*(s2 + 0.05), NOZ_H, pA, pB, 0, 0, 0, 1, nc, ns, 0, r*0.45, 0.8);
+          nut(nc*(s2 + 0.05), ns*(s2 + 0.05), NOZ_H, pA, pB, 0, 0, 0, 1, nc, ns, 0, r*0.45, 1.6);
         };
         if(toEye){ stub(); cap(); face(); } else { cap(); stub(); }
       };
-      const hnozzleSpray = () => {
-        if(!bursting) return;
-        const nc = 1, ns = 0;
-        const tipA = 4.2 + 3.2, tipB = 0;
-        const hgt = NOZ_H;
-        const n = 9;
-        for(let i=0; i<n; i++){
-          const u = ((t*0.0026 + i/n) % 1);
-          const dist = u * 26;
-          const arcH = hgt + 14*u - 26*u*u;
-          const pt = GG(tipA + nc*dist, tipB + ns*dist, Math.max(arcH, 0.5));
-          const alpha = 0.9 * (1 - u*0.55);
-          const r2 = Math.max(0.6, 1.6 - u*1.0);
-          g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, alpha);
-          g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
-        }
-      };
       /* the body, bottom up: each piece sits on the last, so painting upward is back to front */
       const body = () => {
-        turned(0, 7.6, 1.8, 7.6); lid(7.6, 1.8, C_TOP);                                // the base flange
+        turned(0, HH.baseR, 3.5, HH.baseR); lid(HH.baseR, 3.5, C_TOP);                  // the base flange
         for(let k = 0; k < 6; k++){ const th = -1.25 + k*0.5;                          // its bolt heads, the front half
-          const ca = Math.cos(th)*6.3, sa = Math.sin(th)*6.3;
+          const ca = Math.cos(th)*9.3, sa = Math.sin(th)*9.3;
           const pa = ca*fA + sa*rA, pb = ca*fB + sa*rB;
-          this.quadOn(g, [GG(pa - 0.6, pb - 0.6, 1.85), GG(pa + 0.6, pb - 0.6, 1.85), GG(pa + 0.6, pb + 0.6, 1.85), GG(pa - 0.6, pb + 0.6, 1.85)], C_DK); }
-        turned(1.8, 5.1, 14.4, 4.7);                                                   // the barrel
-        turned(14.4, 5.9, 16.1, 5.9); lid(5.9, 16.1, C_TOP);                           // the bonnet's band
+          this.quadOn(g, [W(pa - 0.9, pb - 0.9, 3.55), W(pa + 0.9, pb - 0.9, 3.55), W(pa + 0.9, pb + 0.9, 3.55), W(pa - 0.9, pb + 0.9, 3.55)], C_DK); }
+        turned(3.5, HH.barR + 0.3, 32.5, HH.barR - 0.4);                               // the barrel
+        turned(32.5, 8.7, 36, 8.7); lid(8.7, 36, C_TOP);                               // the bonnet's band
         /* the bonnet: a dome on the band, its silhouette, a highlight and the shade side round it */
-        const DR = 5.2, DH = 5.0, NR = 7, rings = [];
-        for(let i = 0; i <= NR; i++){ const u = i/NR*HP*0.88; rings.push([DR*Math.cos(u), 16.1 + DH*Math.sin(u)]); }
+        const DR = 7.9, DH = 11.5, NR = 7, rings = [];
+        for(let i = 0; i <= NR; i++){ const u = i/NR*HP*0.88; rings.push([DR*Math.cos(u), 36 + DH*Math.sin(u)]); }
         const dAll = []; for(const [rr, hh] of rings) dAll.push(...arc(rr, hh, -Math.PI, Math.PI, 14));
         this.quadOn(g, convexHullKeep(dAll), C_MID);
         const band = (t0, t1, i1, col) => { const L = [], R = [];
@@ -129866,37 +129929,19 @@ class WorldScene extends Phaser.Scene {
         band(0.42, HP, NR, C_DK);
         band(1.2, HP, NR, C_RIM);
         lid(rings[NR][0], rings[NR][1], C_TOP);
-        nut(0, 0, rings[NR][1], 1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 2.0);                // the operating nut
+        nut(0, 0, rings[NR][1], 1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, HH.height - rings[NR][1]);   // the operating nut
       };
 
-      const outlets = [[0, 2.0, 3.2, bursting], [Math.PI, 2.0, 3.2, false], [HP, 2.7, 2.0, false]];
-      const sprayToEye = fA > 0;
-      if(!sprayToEye) hnozzleSpray();
-      for(const [ang, r, len, sh] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB <= 0.02) outlet(ang, r, len, sh);
+      /* hose outlets along the walk (the one toward the flood shears), the pumper toward the road */
+      const shA = jd > 0 ? 0 : Math.PI;
+      const outlets = _HYD_OUTLETS;
+      const drawJet = bursting && kind !== "hydrantBody";
+      const jetToEye = jd*fA > 0;
+      if(drawJet && !jetToEye) jet();
+      for(const [ang, r, len] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB <= 0.02) outlet(ang, r, len, bursting && ang === shA);
       body();
-      for(const [ang, r, len, sh] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB > 0.02) outlet(ang, r, len, sh);
-      if(sprayToEye) hnozzleSpray();
-
-      /* burst droplets: plain local W(), not decoratively rotated —
-         same convention as bin/planter debris. Airborne droplets get
-         a short fall streak; landed ones flatten into little splash
-         ellipses that fade as life runs out (they evaporate into the
-         flood rather than settling like leaves). */
-      if(data && data.items && data.items.length){
-        for(const it of data.items){
-          const p = W(it.x, it.y, it.z);
-          const a = Math.max(0, Math.min(1, it.life));
-          if(!it.landed){
-            g.fillStyle(it.col, 0.9*a);
-            g.fillCircle(p.x, p.y, it.size*this.K*0.42);
-            const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
-            g.lineStyle(Math.max(1, it.size*this.K*0.25), it.col, 0.4*a);
-            g.lineBetween(p2.x, p2.y, p.x, p.y);
-          } else {
-            g.fillStyle(it.col, 0.5*a);
-            g.fillEllipse(p.x, p.y, it.size*this.K*1.1*(2-a), it.size*this.K*0.45*(2-a));
-          }
-        }
+      for(const [ang, r, len] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB > 0.02) outlet(ang, r, len, bursting && ang === shA);
+      if(drawJet && jetToEye) jet();
       }
     } else if(kind === "robot"){
       /* other robots (requested 2026-07-24): a simplified sibling body,
@@ -135727,13 +135772,14 @@ class WorldScene extends Phaser.Scene {
      leaves/trash do. One-shot at the burst moment; the standing spray
      arc + growing puddle remain the persistent part. */
   spillHydrantWater(hz){
-    const n = 16 + Math.floor(Math.random()*8);
+    const n = 16 + Math.floor(Math.random()*8), jd = hydJetLandA(hz) >= 0 ? 1 : -1;
     for(let i=0; i<n; i++){
       hz.items.push({
         col: Math.random() < 0.65 ? HYD.water : HYD.waterDk,
         size: 1 + Math.random()*1.5,
-        x: 6 + Math.random()*4, y: (Math.random()-0.5)*6, z: 10 + Math.random()*5,
-        vx: (Math.random()-0.2)*2.5, vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.0,
+        /* out of the sheared hose outlet (the one toward the flood: hydJetLandA), at its height */
+        x: jd*(HYD.tip + Math.random()*4), y: (Math.random()-0.5)*6, z: HYD.nozH - 2 + Math.random()*5,
+        vx: jd*(Math.random()*2.5 + 0.3), vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.2,
         life: 1, landed: false
       });
     }
@@ -144836,6 +144882,14 @@ function tpApplySkin(id){
 
 
 /* ---------- the jump dials ---------- */
+/* THE JUMP GROWS WITH THE HYDRANT (2026-11-23: the hydrant went from 20 tall to 52, Sir: "probably too small").
+   Over 20 + clear 16 = 36 the arc only just cleared; over 52 + 16 = 68 not one of the ten levels had a pass band
+   (measured with hjSolveBand: none above a hydrant of 34). So the arc is stretched UPWARD by HJ_VS = 68 / 36 and
+   nothing else moves: pow and grav both x HJ_VS keep reach (2 v^2 pow / grav) and hang time (2 v pow / grav)
+   exactly, every height -- the clearance line included -- scales by HJ_VS, and slam / HJ_VS keeps the landing kick
+   per unit of the old descent. So every pass band is the same to the bit (re-solved, 2026-11-23: all ten identical);
+   he just flies higher, peaks 47-90 -> 89-170, over a hydrant his own height. */
+const HJ_VS = (HYD.height + 16) / 36;
 const HJ_JUMP = {
   /* speed and pow now come from the CHARGE (see HJ_CH below) — they are
      no longer fixed. grav, clear, bias, slam stay world constants. */
@@ -144852,7 +144906,7 @@ const HJ_JUMP = {
      Solved across all ten levels first: every band held to within 0.5%
      of charge. Hang is now ~1040ms at level 1 rising to ~1620ms at
      level 10, down from ~2200ms. */
-  grav: 0.000340,   // = 0.000085 * k^2 — TUNED ON DEVICE
+  grav: 0.000340 * HJ_VS,   // = 0.000085 * k^2 — TUNED ON DEVICE (x HJ_VS: the arc stretched up with the hydrant)
   clear: 16,        // arc must beat HYD.height + clear — TUNED ON DEVICE
   /* airborne depth bias (spec §2 option 1) — TUNED ON DEVICE, and the
      tune was load-bearing, not cosmetic. Measured min depth margin over
@@ -144865,7 +144919,7 @@ const HJ_JUMP = {
      f2 is the binding heading: it fails last and by the least. Check f2
      FIRST on any future change to the depth sort. */
   bias: 2.0,
-  slam: 11,         // = 22 / k — landing tilt kick per unit of descent velocity
+  slam: 11 / HJ_VS, // = 22 / k — landing tilt kick per unit of descent velocity (/ HJ_VS: descent is HJ_VS faster)
   shadow: true
 };
 /* ============================================================
@@ -145016,7 +145070,7 @@ const HJ_CH = {
      sat at 42% of it), and now crosses it around level 3 and tops out at
      1.80x. Pushing past his own governor is the point of the mission. */
   sp0: 0.0, sp1: 0.330,     // speed at charge 0 / 1
-  pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
+  pw0: 1.30*HJ_VS,  pw1: 0.68*HJ_VS,    // pow  at charge 0 / 1  (DOWN as charge rises; x HJ_VS: the arc stretched up with the hydrant)
   /* landing absorption on the catch ramp: absMin at dead centre,
      absMin+absGrad at the very edge. Deliberately shallow — at LOW
      charge that makes the whole slab a clean landing (level 1 is
@@ -145543,7 +145597,7 @@ const SL = {
                 // 500 units of clear road in front of every ramp is the
                 // tradeoff for that one jump actually working.
   kReach: 5.0,  // how far the jump carries at full speed, in T2
-  kPeak:  40,   // apex height above the lip, in world units
+  kPeak: 100,   // apex height above the lip, in world units (was 40; the hydrants under it grew 20 -> 52, 2026-11-23: a clean pass over both from 83% of top speed, was 80%. Reach is solved from it, so it carries as far)
   rowA: 0,      // low edge of the sidewalk band the course uses
   rowB: 3,      // high edge — 0..3 is the whole walk
   lead: 5.0,    // run-up before the first cone, in T2 (2026-08-13, Sir's
