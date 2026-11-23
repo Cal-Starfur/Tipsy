@@ -63302,7 +63302,7 @@ function houseCanopy(fn){
         const a = POS[p][0] + (POS[q][0] - POS[p][0])*mv, b = POS[p][1] + (POS[q][1] - POS[p][1])*mv;
         const col = PCOL, eb = false;
         /* (a stage is done half way through the stand: loaded at the first stop, lifted off at the last) */
-        const fitU = p === 1 ? 1300 + 380*0.6 : DWELL*0.5, st = u < fitU ? (p ? STAGE[p - 1] : -1) : STAGE[p],   /* (station 1's: once his wheel is on -- his moment, OF 380) */ gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
+        const fitU = p === 1 ? 1300 + 380*0.6 : p === 0 ? 1500 : DWELL*0.5, st = u < fitU ? (p ? STAGE[p - 1] : -1) : STAGE[p],   /* (station 1's: once his wheel is on -- his moment, OF 380) */ gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
         out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); } })); if(st >= 0 && !gone) out.push(SCO(a, b, 36, st, 4));
       }
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
@@ -63331,6 +63331,23 @@ function houseCanopy(fn){
         if(on && p >= 1 && p <= 7 && (J0.fit != null ? Math.max(500, u - [0, 380, 90, 560, 240, 470, 150, 330, 60, 0][p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; const ddH = Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]); if(p === 1) out.push(SCO(h[0] - 26, h[1], h[2] - 7, 'rear', ddH + 26)); else out.push({ kind: 'cargo', a: h[0], b: h[1], dd: ddH, cargo: () => PART(p, h[0], h[1], pz) }); }   /* (station 1's: the scooter's own back wheel, fender and swingarm, drawn by the scooter's drawer -- just as it then shows on the scooter: Sir, "the rim on the wheel appears at placement") */   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
         if(on && J0.tool){ const w = J0.tool; out.push({ kind: 'cargo', a: w[0], b: w[1], dd: Math.max(6, J0.at[0] + Math.max(pb, J0.at[1]) + 9 - w[0] - w[1]), cargo: () => { tube(w[0], w[1], w[2], w[0] + 15*Math.cos(w[3]), w[1] - 2, w[2] + 15*Math.sin(w[3]), 2.4, '#c8ccd2'); box(w[0] - 1.6, w[0] + 1.6, w[1] - 3.6, w[1] - 0.4, w[2] - 1.6, w[2] + 1.6, '#3d424c', '#34383f', '#2b2f35'); } }); }   /* (his wrench, the socket on the nut, the handle swinging) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
+        /* STATION 0, THE LOADER (Sir, 2026-11-23: "let's do that one next"): between robots he turns to the deck feeder behind him, steps to its
+           open carton, bends in with both arms and lifts out a deck -- the scooter's own -- holds it across his chest by its two ends, turns back
+           and, as the next robot stops, lays it on the jig (it shows there from 1500) and presses it home */
+        if(p === 0 && here && !on && !(u >= w0 && u < 1500)){ const o = u > w1 ? u - w1 : u + CYC - w1, OFF = CYC - w1 + w0, at0 = J0.at, E = (u0, u1) => ease(clamp01((o - u0)/(u1 - u0)));
+          const S = [at0[0], FEED[1] + 40], fB = 3, fW = 1, inC = [FEED[0], FEED[1] + 4, 40];
+          let pos = at0, f = fW, pose = {}, held = false, pp = null;
+          if(o < 500) f = fW + 2*E(0, 500);
+          else if(o < 1100){ const k = E(500, 1100); pos = [at0[0], at0[1] + (S[1] - at0[1])*k]; f = fB; pose = { walk: k < 1 ? 1 : 0, gait: k*Math.abs(S[1] - at0[1])/7 }; }
+          else if(o < 1900){ pos = S; f = fB; const k = E(1100, 1600), T = [inC[0], S[1] - 20 + (inC[1] - S[1] + 20)*k, 70 + (inC[2] - 70)*k]; pose = hP(S, f, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*k); held = o >= 1600; pp = [T[0], T[1], T[2]]; }   /* (both hands in, either end of a deck) */
+          else if(o < 2400){ pos = S; f = fB; const k = E(1900, 2400), T = [inC[0], inC[1] + (S[1] - 20 - inC[1])*k, inC[2] + (68 - inC[2])*k]; pose = hP(S, f, [T[0] - 18, T[1], T[2]], [T[0] + 18, T[1], T[2]], 0, 0.35*(1 - k)); held = true; pp = T; }   /* (lifted out, up to his chest) */
+          else { const k = E(2400, OFF - 300), kw = E(2600, OFF - 300); f = fB - 2*E(2400, 2900); pos = [at0[0], S[1] + (at0[1] - S[1])*kw]; const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; pp = [pos[0] + fv[0]*20, pos[1] + fv[1]*20, 68];
+            pose = Object.assign({ walk: kw > 0 && kw < 1 ? 1 : 0, gait: kw*Math.abs(S[1] - at0[1])/7 }, hP(pos, f, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.05)); held = true; }   /* (turned back to the line with it, back to his place) */
+          if(held){ const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)]; out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, fv[0] + fv[1] > 0 ? Math.max(4, pos[0] + pos[1] + 10 - pp[0] - pp[1]) : Math.min(-2, pos[0] + pos[1] - 6 - pp[0] - pp[1]))); }
+          out.push(man(pos[0], pos[1], f, pose)); continue; }
+        if(p === 0 && here && u >= w0 && u < 1500){ const at0 = J0.at, k = ease(clamp01((u - w0)/(1500 - w0))), Jd = [pa, pb, 36 + 12 + 1.5], st = [at0[0], at0[1] + 20, 68], pp = [st[0] + (Jd[0] - st[0])*k, st[1] + (Jd[1] - st[1])*k, st[2] + (Jd[2] - st[2])*k];
+          out.push(SCO(pp[0], pp[1], pp[2] - 12 - 1.5, 0, Math.max(4, at0[0] + at0[1] + 10 - pp[0] - pp[1])));   /* (laid on the jig in both hands) */
+          out.push(man(at0[0], at0[1], 1, hP(at0, 1, [pp[0] - 18, pp[1], pp[2]], [pp[0] + 18, pp[1], pp[2]], 0, 0.1 + 0.35*k))); continue; }
         /* STATION 1 BETWEEN WHEELS (Sir, 2026-11-23: "he stays in the same spot to grab it but it's very far away, he is only doing a straight arm
            reach"): he turns, steps over to his parts robot, reaches down into a bin with bent arms and lifts a wheel out -- the scooter's own back
            wheel, as it goes on -- brings it up to his chest, steps back to his place and turns to the next scooter with it */
@@ -63359,9 +63376,6 @@ function houseCanopy(fn){
         if(p >= 1 && p <= 7 && here && s > 0.9){ const ff = (J0.f + df*s)*Math.PI/2, ha = at[0] + Math.cos(ff)*39, hb = at[1] + Math.sin(ff)*39;   /* (at his hands: REACH's arms, 19 to the elbow and 21 on, swung 0.78 of level from the shoulder at 95 -- out 39, down to 85) */   /* (the next part out of his bin and in his hands, as he turns back to the scooter) */
           out.push({ kind: 'cargo', a: ha, b: hb, dd: Math.max(2, (at[0] + at[1]) - (ha + hb) + 4), cargo: () => PART(p, ha, hb, 84) }); }   /* (after him: in front of his chest) */
       }
-      /* (the loader: takes a deck out of the feeder's carton as the robots move, carries it round and lays it on the empty jig) */
-      { const hold = u >= REACHU + 300 || u < UNL; if(hold){ const s = u >= REACHU + 300 ? 1 : u < 500 ? 1 - clamp01((u - 100)/400) : 0, f = (1 + 2*s)*Math.PI/2, ha = POS[0][0] + Math.cos(f)*26, hb = RA - 78 + Math.sin(f)*26;
-          out.push(SCO(ha, hb, 40, 0, 1)); } }
       /* (the benches' totes and the frame rack's decks: what is left of the parts since the last refill) */
       CW_FLOW.t = t; CW_FLOW.bench = CW_FLOW.bench || [];
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
@@ -63379,7 +63393,11 @@ function houseCanopy(fn){
       /* (the deck feeder: a stock robot parked behind the loader, the open deck carton on it -- he takes each deck out of the box; off it
          while he swaps the empty for the shuttle's full one, phase 5) */
       { const n = partsLeft(t, SUPT[0], REACHU + 300), on = !(jr5 >= DW0 + P5C*0.3 && jr5 < DECK_SET); CW_FLOW.decks = on ? n : 'swap';
-        out.push(bot(FEED[0], FEED[1], 0, { build: 'amrstock', loads: [], cargo: on ? () => openDeckCarton(FEED[0], FEED[1], 31, n) : null })); }
+        out.push(bot(FEED[0], FEED[1], 0, { build: 'amrstock', loads: [], cargo: on ? () => openDeckCarton(FEED[0], FEED[1], 31, -2) : null }));   /* (its floor and back walls) */
+        /* (the decks in it drawn by the scooter's own drawer, the very deck he lays on the jig -- Sir, 2026-11-23, station 0 "the same way"), then its
+           front wall over them */
+        if(on){ for(let i = 0; i < n; i++){ const db = i % 2 ? 9.5 : -9.5, lv = Math.floor(i/2); out.push(SCO(FEED[0], FEED[1] + db, 38 + lv*4, 0, 2 + i*0.01)); }
+          out.push({ kind: 'cargo', a: FEED[0], b: FEED[1], dd: 30, cargo: () => openDeckCarton(FEED[0], FEED[1], 31, -1) }); } }
       return out; } } });
 
     /* ---- ROW A'S SUPPLY (fx.crew): the tugger round the kitting loop -- loaded at the rack by the two pickers, a tote at a time, then along the
@@ -63396,10 +63414,12 @@ function houseCanopy(fn){
        flat-box carton, folded, go in -- Sir, 2026-11-20: "take the cardboard from each and put it in a recycling bot") */
     const FEED = [2000, 652], BALER = [1830, 600], BALS = [1912, 650], BALD = [1866, 615, 104], BVIA = [1930, 722];   /* (off the parts robots' lane (b 520), on the open floor west of the feeder -- Sir, 2026-11-20: "this recycle bot is crowding this roadway") */   /* (the baler out of the crush by the feeder -- Sir, 2026-11-20: "our recycle bot is crowded in" -- in the strip the tugger had; the loader round the feeder to it, BVIA) */
     const openDeckCarton = (a, b, z, n) => { const it = RCV[0], la = it.la, lb = it.lb, h = it.h, col = '#c98a4a', W = 2;
+      if(n === -1){ box(a - la, a + la, b + lb - W, b + lb, z, z + h, col, shade(col, .88), shade(col, .74)); F(a - 14, a + 14, z + 9, z + 18, '#2e8bd8', null, 0, b + lb + 0.3); return; }   /* (its front wall alone, over the decks in it) */
       box(a - la, a + la, b - lb, b + lb, z, z + 1.5, shade(col, .6), shade(col, .55), shade(col, .5));
       box(a - la, a + la, b - lb, b - lb + W, z, z + h, col, shade(col, .88), shade(col, .74)); box(a - la, a - la + W, b - lb, b + lb, z, z + h, col, shade(col, .88), shade(col, .74));
       box(a + la - W, a + la, b - lb, b + lb, z, z + h, col, shade(col, .88), shade(col, .74));
-      for(let i = 0; i < n; i++) prod(a, b + (i % 2 ? 9.5 : -9.5), z + 1.5 - 14.5 + Math.floor(i/2)*8.5, PCOL, false, 0, 0);
+      if(n >= 0) for(let i = 0; i < n; i++) prod(a, b + (i % 2 ? 9.5 : -9.5), z + 1.5 - 14.5 + Math.floor(i/2)*8.5, PCOL, false, 0, 0);
+      if(n === -2) return;
       box(a - la, a + la, b + lb - W, b + lb, z, z + h, col, shade(col, .88), shade(col, .74)); F(a - 14, a + 14, z + 9, z + 18, '#2e8bd8', null, 0, b + lb + 0.3); };
     const SUPT = []; SUPT[0] = PAL0 + RT0[1] + 700; for(const [j, p] of [4, 3, 2, 1].entries()) SUPT[p] = PAL0 + RT0[j + 2] + 700;   /* (phase 3: on the pallet clock -- it loads at the pick face as each cycle starts) */
     SUPT[0] = PAL0 + DECK_SET;   /* (phase 5: the frame rack's decks come in the shuttle's carton, unpacked by the loader) */
