@@ -60334,17 +60334,19 @@ function houseCanopy(fn){
         case 1: {   /* STATION 1, THE REAR WHEEL, a job of its own (Sir, 2026-11-23: "improve their ability to do their job as an individual"): down
              on one knee with the wheel from his bin, offered onto the axle and pushed home, the nut run on by hand, then done up with his wrench,
              the wheel given a spin to see it runs true, and up again */
-          const W = SK(a, b, 26, -5, 8), at = [W[0] + 4, b + N - Math.sign(N)*4], E = (u0, u1) => ease(clamp01((u - u0)/(u1 - u0))), f = faceTo(at, W), fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
-          const kn = E(700, 1300)*(1 - E(4900, 5500)), axle = add(W, 0, -2, 8), held = [at[0] + fv[0]*24, at[1] + fv[1]*24, 58];
+          /* (the wheel goes where the game scooter's own rear wheel is -- RIDER: 26 behind the middle, radius 7, on the jig's top at 36 -- and
+             is set on there, his hands on it, the moment the stage shows it: Sir, 2026-11-23, "his hand never places that part in that area, it jumps") */
+          const W = [a + 26, b, 43], at = [W[0] + 4, b + N - Math.sign(N)*4], E = (u0, u1) => ease(clamp01((u - u0)/(u1 - u0))), f = faceTo(at, W), fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)];
+          const kn = E(700, 1300)*(1 - E(4900, 5500)), sg = -Math.sign(N), held = [at[0] + fv[0]*24, at[1] + fv[1]*24, 54];
           const lerp3 = (A, B, k) => [A[0] + (B[0] - A[0])*k, A[1] + (B[1] - A[1])*k, A[2] + (B[2] - A[2])*k];
-          let T1, T2, tool = null;
-          if(u < 1300){ T1 = lerp3(held, axle, E(700, 1300)); T2 = add(T1, 0, 3, -7); }   /* (the wheel brought down to the axle in both hands) */
-          else if(u < 2200){ const k = Math.sin((u - 1300)/90)*1.5; T1 = add(axle, 0, k, 0); T2 = add(W, 0, -2, 0); }   /* (worked onto it, pushed home) */
-          else if(u < 3100){ T1 = axle; T2 = add(W, 4*Math.cos(t/120), -4, 4*Math.sin(t/120)); }   /* (the nut run on by hand) */
-          else if(u < 4300){ const ang = 0.9*Math.sin(t/160); T1 = add(W, 0, -3, 8); T2 = add(W, 0, -8, 0); tool = [T2[0], T2[1], T2[2], ang]; }   /* (done up with his wrench, a quarter turn at a time) */
-          else if(u < 4900){ const k = (u - 4300)/600; T1 = add(W, 0, -2, 0); T2 = add(W, 7 - 14*ease(k % 1), -4, 7); }   /* (a spin of the wheel to see it runs true) */
-          else { T1 = add(W, -4, -6, 18 + 20*E(4900, 5500)); T2 = add(W, 4, -6, 18 + 20*E(4900, 5500)); }   /* (up again, done) */
-          return Object.assign(job(at, W, T1, T2, 0, 0.12 + 0.38*kn, kn), { tool }); }
+          let T1, T2, tool = null, pp = null;
+          if(u < 1300){ pp = lerp3(held, W, E(700, 1300)); T1 = add(pp, 2, -sg*4, 6); T2 = add(pp, -5, -sg*4, -3); }   /* (the wheel carried down in both hands, onto the axle) */
+          else if(u < 2200){ const k = Math.sin((u - 1300)/90)*1.2; T1 = add(W, 2, -sg*4 + k, 6); T2 = add(W, -5, -sg*4, -3); }   /* (pushed home on it) */
+          else if(u < 3100){ T1 = add(W, 2, -sg*4, 6); T2 = add(W, 3*Math.cos(t/120), -sg*6, 3*Math.sin(t/120)); }   /* (the nut run on by hand) */
+          else if(u < 4300){ const ang = 0.9*Math.sin(t/160); T1 = add(W, 2, -sg*4, 6); T2 = add(W, 0, -sg*8, 0); tool = [T2[0], T2[1], T2[2], ang]; }   /* (done up with his wrench) */
+          else if(u < 4900){ const k = (u - 4300)/600; T1 = add(W, -2, -sg*4, -2); T2 = add(W, 6 - 12*ease(k % 1), -sg*4, 7); }   /* (a spin of the wheel) */
+          else { T1 = add(W, -4, -sg*8, 14 + 22*E(4900, 5500)); T2 = add(W, 4, -sg*8, 14 + 22*E(4900, 5500)); }   /* (up again, done) */
+          return Object.assign(job(at, W, T1, T2, 0, 0.12 + 0.38*kn, kn), { tool, pp, fit: 1300 }); }
         case 2: { const T = SK(a, b, -26, -5, 8), at = [T[0] - 2, b + N - Math.sign(N)*4], k = S(380);   /* (the front wheel on the fork: crouched, spinning it hand over hand to see it runs true) */
           return job(at, T, add(T, 6*k, -2, 9*Math.cos(t/380)), add(T, -6*k, -2, -9*Math.cos(t/380)), 0.38, 0.45); }
         case 3: { const sw = 22*S(650), T = SK(a, b, sw/1.45, 0, 16.4), at = [a + sw*0.4, b + N];   /* (the grip tape: bent over the deck, smoothing it down in long strokes, both hands) */
@@ -60626,7 +60628,7 @@ function houseCanopy(fn){
         const a = POS[p][0] + (POS[q][0] - POS[p][0])*mv, b = POS[p][1] + (POS[q][1] - POS[p][1])*mv;
         const col = PCOL, eb = false;
         /* (a stage is done half way through the stand: loaded at the first stop, lifted off at the last) */
-        const st = u < DWELL*0.5 ? (p ? STAGE[p - 1] : -1) : STAGE[p], gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
+        const fitU = p === 1 ? 1300 + 380*0.6 : DWELL*0.5, st = u < fitU ? (p ? STAGE[p - 1] : -1) : STAGE[p],   /* (station 1's: once his wheel is on -- his moment, OF 380) */ gone = p === NPOS - 1 && u >= UNL + 3000;   /* (the finished one stays on the last stop till the packer lifts it off -- after he has set the box on the conveyor robot) */
         out.push(bot(a, b, 2, { wheel: (a + b)*0.12, cargo: tt => { jig(a, b); } })); if(st >= 0 && !gone) out.push(SCO(a, b, 36, st, 4));
       }
       const jr5 = (((t - PAL0) % PALT) + PALT) % PALT;
@@ -60652,7 +60654,7 @@ function houseCanopy(fn){
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? Math.max(500, u - OF*0.6) : 501, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
-        if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
+        if(on && p >= 1 && p <= 7 && (J0.fit != null ? Math.max(500, u - [0, 380, 90, 560, 240, 470, 150, 330, 60, 0][p]*0.6) < J0.fit : u < DWELL*0.5) && J0.hT){ const h = J0.pp || J0.hT, pz = J0.pp ? h[2] - 7 : h[2] + 4; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => { PART(p, h[0], h[1], pz); if(p === 1) for(let k = 0; k < 12; k++){ const q0 = 0.1 + k*0.067, q1 = q0 + 0.075; tube(h[0] + 9.5*Math.cos(Math.PI*q0), h[1], pz + 7 + 9.5*Math.sin(Math.PI*q0), h[0] + 9.5*Math.cos(Math.PI*q1), h[1], pz + 7 + 9.5*Math.sin(Math.PI*q1), 3.6, PCOL); } } }); }   /* (in his hands until it is on: the wheel with its fender, as the scooter has it) */   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
         if(on && J0.tool){ const w = J0.tool; out.push({ kind: 'cargo', a: w[0], b: w[1], dd: Math.max(6, J0.at[0] + Math.max(pb, J0.at[1]) + 9 - w[0] - w[1]), cargo: () => { tube(w[0], w[1], w[2], w[0] + 15*Math.cos(w[3]), w[1] - 2, w[2] + 15*Math.sin(w[3]), 2.4, '#c8ccd2'); box(w[0] - 1.6, w[0] + 1.6, w[1] - 3.6, w[1] - 0.4, w[2] - 1.6, w[2] + 1.6, '#3d424c', '#34383f', '#2b2f35'); } }); }   /* (his wrench, the socket on the nut, the handle swinging) */
         if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
