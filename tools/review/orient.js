@@ -35,6 +35,13 @@ const H = require('./harness.js'), fs = require('fs'), path = require('path');
     try { for(const r of HOOD_RIM_SITES) if(r.axis === 'x') for(let x = r.from; x <= r.to; x += 1500) stops.push([x, r.at + 300], [x, r.at + r.out*(r.depth || 800)/2]); } catch(e){}
     zoomSet(3);
     for(const [x, y] of stops){ try { owStandUpAt(s, x, y, Math.PI); } catch(e){ continue; } await new Promise(r => setTimeout(r, 300)); }
+    /* THE CELL ENTRIES, wherever the tour went: each drawn in its cell's north-west frame, b = j*BLOCK - y (the hospital's, Cove Grove's,
+       the airfield's, Kickstand's, Marina Parking's; Tidewater Green Park's G = W(x0 + a, y0 - b)) -- b turned on every day's map, so they
+       are listed even when that day's route did not place them */
+    const cellNames = [];
+    for(const n of ['HOSP', 'COVE', 'AIR', 'FAC']){ try { const v = (0, eval)(n); if(v && v.cells) for(const c of v.cells) cellNames.push(c.name); } catch(e){} }
+    cellNames.push('Marina Parking', 'Tidewater Green Park');
+    for(const n of cellNames) if(!O[n]) O[n] = { pieces: { '1,1,-1': 1 }, whole: { '1,1,-1': 1 } };
     const out = {}; for(const n of Object.keys(O).sort()){ const e = {}; for(const k of ['pieces', 'whole']){ const L = Object.keys(O[n][k]).sort(); if(L.length) e[k] = L; } out[n] = e; }
     return out;
   });

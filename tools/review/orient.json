@@ -54,6 +54,30 @@
    "1,-1,-1"
   ]
  },
+ "Cove Grove North Tower": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Cove Grove Plaza": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Cove Grove West Tower": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
  "Cove Pottery": {
   "whole": [
    "1,1,1"
@@ -117,6 +141,38 @@
   ]
  },
  "Kauai Plantation Cottage": {
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Kickstand Scooter Co.": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Kickstand Scooter Co. Dispatch": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Kickstand Scooter Co. Fulfilment": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Kickstand Scooter Co. Yard": {
+  "pieces": [
+   "1,1,-1"
+  ],
   "whole": [
    "1,1,-1"
   ]
@@ -194,6 +250,14 @@
  "Marina Optical Interior": {
   "pieces": [
    "1,1,1"
+  ]
+ },
+ "Marina Parking": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
   ]
  },
  "Marina Pharmacy": {
@@ -399,6 +463,70 @@
    "1,1,-1"
   ]
  },
+ "Sun Deck Airfield": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield Cargo": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield East": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield Fire Station": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield Fuel Farm": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield Hangars": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield South Apron": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
+ "Sun Deck Airfield Terminal": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
+  ]
+ },
  "Surfside Fitness": {
   "whole": [
    "1,-1,-1"
@@ -432,6 +560,14 @@
  "Tide Pool Elementary Interior": {
   "pieces": [
    "1,1,1"
+  ]
+ },
+ "Tidewater Green Park": {
+  "pieces": [
+   "1,1,-1"
+  ],
+  "whole": [
+   "1,1,-1"
   ]
  },
  "Tidewater Museum": {
