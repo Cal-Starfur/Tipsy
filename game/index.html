@@ -129731,22 +129731,6 @@ class WorldScene extends Phaser.Scene {
       const hcs = Math.cos(hth), hsn = Math.sin(hth);
       const height = HH.height;
       const GG = (a, b, h) => W(a*hcs - b*hsn, a*hsn + b*hcs, h);
-      const dAt = (a, b, h) => a*(hcs+hsn) + b*(hcs-hsn) + h*0.4;
-
-      const rOf = h => {
-        const u = h / height;
-        if(u < 0.08) return HH.baseR;
-        if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
-        return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
-      };
-      const place = (h, r, n=14) => {
-        const pts = [];
-        for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
-          pts.push(GG(c3, s3, h));
-        }
-        return pts;
-      };
 
       /* no ground shadow: static props cast none (SP6) */
 
@@ -129778,35 +129762,77 @@ class WorldScene extends Phaser.Scene {
         }
       }
 
-      const hbarrel = () => {
-        const n = 6, all = [];
-        for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
-        this.quadOn(g, convexHullKeep(all), HH.cap);
+      /* THE DESIGN PASS (Sir, 2026-11-23: "a pass on all the street props"). It was same-red hulls stacked -- barrel,
+         shoulder, dome, nozzles -- a red blob with no lit side and no parts. Now a cast-iron post as one is built: a base
+         flange on the pavement, the barrel, the bonnet's band, the bonnet's dome, the five-sided operating nut on top,
+         two hose outlets and the big pumper outlet between them, each with its cap and nut. Every turned piece is shaded
+         as a cylinder -- lit on the left, a highlight strip, the shade side right -- and the eye is ASKED of W (SP13): fA/fB
+         is the local direction toward the eye, rA/rB screen-right, so the four facings and the seeded turn hth all read
+         the same. Outlets pointing away are painted before the body, those toward the eye after it, their caps beyond. */
+      const HP = Math.PI*0.5;
+      const o0 = GG(0, 0, 0), oA = GG(1, 0, 0), oB = GG(0, 1, 0);
+      const mxA = oA.x - o0.x, mxB = oB.x - o0.x, myA = oA.y - o0.y, myB = oB.y - o0.y;
+      const rl = Math.hypot(mxA, mxB) || 1, rA = mxA/rl, rB = mxB/rl;              // screen-right, local
+      let fA = -rB, fB = rA; if(fA*myA + fB*myB < 0){ fA = -fA; fB = -fB; }           // toward the eye, local
+      const C_LT = 0xd65a4b, C_MID = HH.cap, C_TOP = 0xc54639, C_DK = HH.capDk, C_RIM = 0x6c1f1a;
+      const N_TOP = 0x5b5f67, N_DK = 0x26282c;
+      const at = (R, th, h) => { const c = Math.cos(th)*R, s = Math.sin(th)*R; return GG(c*fA + s*rA, c*fB + s*rB, h); };
+      const arc = (R, h, t0, t1, n) => { const P = []; for(let k = 0; k <= n; k++) P.push(at(R, t0 + (t1 - t0)*k/n, h)); return P; };
+      /* a turned piece's side, h0..h1 at radii r0..r1: its silhouette, a highlight strip left of front, the shade side */
+      const turned = (h0, r0, h1, r1) => {
+        this.quadOn(g, arc(r0, h0, -HP, HP, 10).concat(arc(r1, h1, HP, 3*HP, 10)), C_MID);
+        this.quadOn(g, arc(r0, h0, -1.05, -0.6, 3).concat(arc(r1, h1, -0.6, -1.05, 3)), C_LT);
+        this.quadOn(g, arc(r0, h0, 0.42, HP, 6).concat(arc(r1, h1, HP, 0.42, 6)), C_DK);
+        this.quadOn(g, arc(r0, h0, 1.2, HP, 3).concat(arc(r1, h1, HP, 1.2, 3)), C_RIM);
       };
-      const hshoulder = () => {
-        const h0 = height*0.75, h1 = height*0.9;
-        this.quadOn(g, convexHullKeep(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
+      const lid = (R, h, col) => this.quadOn(g, arc(R, h, -Math.PI, Math.PI, 18), col);
+      /* a five-sided nut standing on a face whose outward normal is (nA,nB,nZ) -- up for the operating nut, an outlet's
+         axis for its cap's: its sides seen from the eye, then its face */
+      const nut = (cA, cB, cZ, uA, uB, uZ, vA, vB, vZ, nA, nB, nZ, R, L) => {
+        const P0 = [], P1 = [];
+        for(let k = 0; k < 5; k++){ const ps = 2*Math.PI*k/5 + 0.3, c = Math.cos(ps)*R, s = Math.sin(ps)*R;
+          const a = cA + c*uA + s*vA, b = cB + c*uB + s*vB, z = cZ + c*uZ + s*vZ;
+          P0.push(GG(a, b, z)); P1.push(GG(a + nA*L, b + nB*L, z + nZ*L)); }
+        for(let k = 0; k < 5; k++){ const k1 = (k + 1) % 5, ps = 2*Math.PI*(k + 0.5)/5 + 0.3;
+          const wA = Math.cos(ps)*uA + Math.sin(ps)*vA, wB = Math.cos(ps)*uB + Math.sin(ps)*vB, wZ = Math.cos(ps)*uZ + Math.sin(ps)*vZ;
+          if(wA*fA + wB*fB + wZ*0.35 <= 0) continue;                                   // a side turned from the eye
+          this.quadOn(g, [P0[k], P0[k1], P1[k1], P1[k]], (wA*rA + wB*rB) > 0.2 ? N_DK : HH.nut); }
+        this.quadOn(g, P1, N_TOP);
       };
-      const hdome = () => {
-        const domeBase = height*0.9, domeR = HH.domeR;
-        const n = 8, rings = [];
-        for(let i=0; i<=n; i++){
-          const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
-          rings.push(place(domeBase + u*domeR*0.9, r2));
-        }
-        const all = []; for(const r2 of rings) all.push(...r2);
-        this.quadOn(g, convexHullKeep(all), HH.cap);
-        const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
-        g.fillStyle(HH.capDk, 1);
-        g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
+      /* an outlet along local (nc, ns) at hgt: its stub from the barrel, a cap a size up, the cap's nut -- or, sheared, the
+         open bore. Its end face shows only turned toward the eye */
+      const NOZ_H = height*0.42;
+      const outlet = (ang, r, len, sheared) => {
+        const nc = Math.cos(ang), ns = Math.sin(ang), pA = -ns, pB = nc;
+        const toEye = nc*fA + ns*fB > 0.02;
+        const ring = (s, rad, n = 12) => { const P = [];
+          for(let i = 0; i < n; i++){ const ph = (i/n)*Math.PI*2, c = Math.cos(ph)*rad, z = NOZ_H + Math.sin(ph)*rad;
+            P.push(GG(nc*s + pA*c, ns*s + pB*c, z)); }
+          return P; };
+        const under = (s, rad) => { const P = [];
+          for(let i = 0; i <= 6; i++){ const ph = Math.PI*(1.08 + 0.84*i/6);
+            P.push(GG(nc*s + pA*Math.cos(ph)*rad, ns*s + pB*Math.cos(ph)*rad, NOZ_H + Math.sin(ph)*rad)); }
+          return P; };
+        const tube = (s0, s1, rad, col) => {
+          this.quadOn(g, convexHullKeep(ring(s0, rad).concat(ring(s1, rad))), col);
+          this.quadOn(g, convexHullKeep(under(s0, rad).concat(under(s1, rad))), C_DK);
+        };
+        const s0 = 4.2, s1 = s0 + len, capR = r*1.28, s2 = s1 + 1.5;
+        const stub = () => tube(s0, s1, r, C_MID);
+        const cap = () => { if(!sheared) tube(s1, s2, capR, C_MID); };
+        const face = () => {
+          if(!toEye) return;
+          if(sheared){ this.quadOn(g, ring(s1 + 0.05, r*0.92), HH.nut); this.quadOn(g, ring(s1 + 0.1, r*0.5), C_RIM); return; }
+          this.quadOn(g, ring(s2 + 0.05, capR*0.96), C_TOP);
+          nut(nc*(s2 + 0.05), ns*(s2 + 0.05), NOZ_H, pA, pB, 0, 0, 0, 1, nc, ns, 0, r*0.45, 0.8);
+        };
+        if(toEye){ stub(); cap(); face(); } else { cap(); stub(); }
       };
-      const hnozzleSpray = (ang, r) => () => {
+      const hnozzleSpray = () => {
         if(!bursting) return;
-        const nc = Math.cos(ang), ns = Math.sin(ang);
-        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || forceVisible;
-        if(!facing) return;
-        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
-        const hgt = height*0.42;
+        const nc = 1, ns = 0;
+        const tipA = 4.2 + 3.2, tipB = 0;
+        const hgt = NOZ_H;
         const n = 9;
         for(let i=0; i<n; i++){
           const u = ((t*0.0026 + i/n) % 1);
@@ -129819,42 +129845,37 @@ class WorldScene extends Phaser.Scene {
           g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
         }
       };
-      const hnozzle = (ang, r, breakable) => () => {
-        const nc = Math.cos(ang), ns = Math.sin(ang);
-        const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
-        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
-        const hgt = height*0.42;
-        const ring = (a0,b0,rad) => {
-          const pts = [];
-          for(let i=0;i<10;i++){
-            const phi=(i/10)*Math.PI*2;
-            const perpA = -ns, perpB = nc;
-            pts.push(GG(a0 + Math.cos(phi)*rad*perpA, b0 + Math.cos(phi)*rad*perpB, hgt + Math.sin(phi)*rad));
-          }
-          return pts;
-        };
-        this.quadOn(g, convexHullKeep(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
-        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
-        if(!facing) return;
-        if(bursting && breakable){
-          this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
-          this.quadOn(g, ring(tipA,tipB,r*0.5), HH.capDk);
-        } else {
-          this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
-        }
+      /* the body, bottom up: each piece sits on the last, so painting upward is back to front */
+      const body = () => {
+        turned(0, 7.6, 1.8, 7.6); lid(7.6, 1.8, C_TOP);                                // the base flange
+        for(let k = 0; k < 6; k++){ const th = -1.25 + k*0.5;                          // its bolt heads, the front half
+          const ca = Math.cos(th)*6.3, sa = Math.sin(th)*6.3;
+          const pa = ca*fA + sa*rA, pb = ca*fB + sa*rB;
+          this.quadOn(g, [GG(pa - 0.6, pb - 0.6, 1.85), GG(pa + 0.6, pb - 0.6, 1.85), GG(pa + 0.6, pb + 0.6, 1.85), GG(pa - 0.6, pb + 0.6, 1.85)], C_DK); }
+        turned(1.8, 5.1, 14.4, 4.7);                                                   // the barrel
+        turned(14.4, 5.9, 16.1, 5.9); lid(5.9, 16.1, C_TOP);                           // the bonnet's band
+        /* the bonnet: a dome on the band, its silhouette, a highlight and the shade side round it */
+        const DR = 5.2, DH = 5.0, NR = 7, rings = [];
+        for(let i = 0; i <= NR; i++){ const u = i/NR*HP*0.88; rings.push([DR*Math.cos(u), 16.1 + DH*Math.sin(u)]); }
+        const dAll = []; for(const [rr, hh] of rings) dAll.push(...arc(rr, hh, -Math.PI, Math.PI, 14));
+        this.quadOn(g, convexHullKeep(dAll), C_MID);
+        const band = (t0, t1, i1, col) => { const L = [], R = [];
+          for(let i = 0; i <= i1; i++){ const [rr, hh] = rings[i]; L.push(at(rr, t0, hh)); R.push(at(rr, t1, hh)); }
+          this.quadOn(g, arc(rings[0][0], rings[0][1], t0, t1, 4).concat(R.slice(1), L.slice(1).reverse()), col); };
+        band(-1.0, -0.5, 4, C_LT);
+        band(0.42, HP, NR, C_DK);
+        band(1.2, HP, NR, C_RIM);
+        lid(rings[NR][0], rings[NR][1], C_TOP);
+        nut(0, 0, rings[NR][1], 1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 2.0);                // the operating nut
       };
 
-      const domeBase = height*0.9, domeR = HH.domeR;
-      const hparts = [
-        { d: dAt(0,0,height*0.3), fn: hbarrel },
-        { d: dAt(0,0,height*0.82), fn: hshoulder },
-        { d: dAt(HH.baseR*0.55*Math.cos(0), HH.baseR*0.55*Math.sin(0), height*0.42), fn: hnozzle(0, HH.nozR, true) },
-        { d: dAt(HH.baseR*0.55*Math.cos(Math.PI), HH.baseR*0.55*Math.sin(Math.PI), height*0.42), fn: hnozzle(Math.PI, HH.nozR, false) },
-        { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
-        { d: dAt(HH.baseR*0.55 + HH.nozR*2.2 + 20, 0, height*0.42 + 8), fn: hnozzleSpray(0, HH.nozR) }
-      ];
-      hparts.sort((p1, p2) => p1.d - p2.d);
-      for(const pt of hparts) pt.fn();
+      const outlets = [[0, 2.0, 3.2, bursting], [Math.PI, 2.0, 3.2, false], [HP, 2.7, 2.0, false]];
+      const sprayToEye = fA > 0;
+      if(!sprayToEye) hnozzleSpray();
+      for(const [ang, r, len, sh] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB <= 0.02) outlet(ang, r, len, sh);
+      body();
+      for(const [ang, r, len, sh] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB > 0.02) outlet(ang, r, len, sh);
+      if(sprayToEye) hnozzleSpray();
 
       /* burst droplets: plain local W(), not decoratively rotated —
          same convention as bin/planter debris. Airborne droplets get
