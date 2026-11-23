@@ -61069,7 +61069,11 @@ function houseCanopy(fn){
       for(let p = 1; p < NPOS - 1; p++){ const [ba, bb, alB] = BENCH(p), n = partsLeft(t, SUPT[p], REACHU); CW_FLOW.bench[p] = n;
         if(p < 5){ const rA = (((t - PAL0) % SUP) + SUP) % SUP, m = p - 1, col = SCOL[p];   /* (row A's: the same as row B's, on the pallet clock) */
           for(const R of raBots(m, rA)){
-            if(R.kind === 'station'){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, n, SCOL[p], p) })); continue; }
+            if(R.kind === 'station'){ out.push(bot(ba, bb, 0, { build: 'amrstock', loads: [], cargo: () => partTotes(ba, bb, p === 1 ? 0 : n, SCOL[p], p) }));
+              /* (station 1's wheels in its bins drawn by the scooter's own drawer, the very wheel he carries and sets on -- Sir, 2026-11-23: "it still
+                 looks a lot different in the box"): each stood up across its bin, two side by side */
+              if(p === 1) for(const j of [-1, 0, 1]){ const nj = Math.max(0, Math.min(2, n - 2*(j + 1))), ta = ba - 10 + 26*j; for(let i = 0; i < nj; i++){ const wa = ta - 5 + i*10; out.push({ kind: 'scooter', a: wa, b: bb + 26, z: 31 + 9, th: 0, stage: 'rear', brand: CWS, dd: Math.max(4, ba + bb + 30 - wa - (bb + 26) + 26*j) }); } }   /* (stood across the bin, side by side) */
+              continue; }
             const P = R.P, A = RBA[m], q = ((((R.rr - A) % SUP) + SUP) % SUP) + A;
             if(R.kind === 'full'){ out.push(bot(P.a, P.b, P.fdir, { build: 'amrstock', loads: [], wheel: (P.a + P.b)*0.12, cargo: () => BIN3(P.a, P.b, P.fdir, 31, col, 3, 3, p) })); continue; }
             const st = [0, 1, 2].map(j => R.kind === 'empty' ? 1 : q >= A + 1000 + j*1200 + 800*ARMU1 ? 2 : q < A + 1600*j + 1600*0.3 ? 1 : 0);   /* (each place in its turn: his empty lifted off, the arm's full set on -- open, no lids) */
