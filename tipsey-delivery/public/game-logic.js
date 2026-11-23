@@ -981,14 +981,14 @@ const PALM = {
   scale: 1.8,
   height: 165, fronds: 8, droop: 1.0, wind: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
-  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e, rib: 0x7fb46a, ribB: 0x5a8f50,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 const PALM_DWARF = {   // approved in palm lab: bush-type dwarf palm
   scale: 1.3,
   height: 55, fronds: 8, droop: 0.3, wind: 0.3, spread: 1.0, trunkLean: 0.16,
   trunk: 0x8a6a48, trunkDk: 0x6f5439, ring: 0x7a5c40,
-  frondA: 0x4e8f4a, frondB: 0x3f7a3e,
+  frondA: 0x4e8f4a, frondB: 0x3f7a3e, rib: 0x7fb46a, ribB: 0x5a8f50,
   coco: 0x6b4f33, cocoHi: 0x7d5e40, shadow: 0x000000
 };
 
@@ -1154,8 +1154,21 @@ const LAMP = {
   base: 0x33363d, baseDk: 0x282b31,
   head: 0x2e3138, headDk: 0x24262c,
   glassDay: 0xb5bac4, glassNight: 0xffe9c0, glow: 0xffe0a0,
-  shadow: 0x000000
+  shadow: 0x000000,
+  /* (the design pass, 2026-11-23: the lit side of each round part, the cobra head's dome top, the bowl's two sides by day) */
+  shade: { baseL: 0x40434a, poleL: 0x484c53, headL: 0x41454c, headT: 0x52565e, glassL: 0xccd0d8, glassD: 0x969ca6, door: 0x1d1f24 }
 };
+/* the lamp's plans, CCW about +h in its own frame (a, b): a square (the plinth); an octagon with its flat faces square to a and b
+   (apothem 1 -- the iso eye sees two flats and the chamfer between, a round post's light, middle and shade); the cobra head's
+   outline (a across in half-widths, u along the arm in half-lengths, -1 the rear where the arm comes in, +1 the nose) */
+function lampMix(c1, c2, u){
+  const r = ((c1 >> 16) & 255) + ((((c2 >> 16) & 255) - ((c1 >> 16) & 255))*u), gg = ((c1 >> 8) & 255) + ((((c2 >> 8) & 255) - ((c1 >> 8) & 255))*u),
+        b = (c1 & 255) + (((c2 & 255) - (c1 & 255))*u);
+  return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(b);
+}
+const LAMP_SQ = [[1, -1], [1, 1], [-1, 1], [-1, -1]];
+const LAMP_OCT = Array.from({ length: 8 }, (_, k) => { const th = (k + 0.5)*Math.PI/4, r = 1/Math.cos(Math.PI/8); return [Math.cos(th)*r, Math.sin(th)*r]; });
+const LAMP_COBRA = [[0.45, -1], [0.85, -0.45], [1, 0.2], [0.85, 0.7], [0.45, 1], [-0.45, 1], [-0.85, 0.7], [-1, 0.2], [-0.85, -0.45], [-0.45, -1]];
 const LAMP_VARY = {
   hMin: 0.92, hMax: 1.10,      // pole height spread
   armMin: 0.85, armMax: 1.18,  // arm reach spread
@@ -1197,9 +1210,15 @@ const TRASH_ART = {
 };
 
 /* approved cone (cone lab, 2026-07-07) */
+/* STREET PROPS PASS (2026-11-23): a real cone stands on a square rubber base wider than its foot, and wears reflective white
+   collars. The foot narrows to 6.8 (was 8.5, all but the base's own half-width, so the base read as a rim under a fat cone) and the
+   base shows round it; `band` is the upper collar (the slalom's palettes recolour it), `lowBand` the narrow white one under it.
+   The rest angle (CONE_HIT.phiRest) is set by the tip, unchanged. */
 const CONE = {
-  height: 38, base: 18, band: 0,
-  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000
+  height: 38, base: 18, band: 6, lowBand: 3.5, foot: 6.8, tipR: 1.8,
+  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000,
+  shade: 0xe5640c,                                               // the cone's right-hand side (SP13)
+  slabTop: 0xc9560c, slabL: 0xa8470a, slabR: 0x8a3a08, slabDk: 0x6f2f07   // the base: a deeper orange, its own piece
 };
 /* approved in cone hit lab (2026-07-09): rigid pivot-fall physics.
    ONE integrator drives every cone — no keyframes, no binary
@@ -1210,7 +1229,7 @@ const CONE = {
    it, topples past it, so the fall threshold emerges from the
    geometry rather than a tuned number. phiRest is solved once from
    the live CONE dimensions (the slant line's ground-contact angle). */
-const coneR = h => 8.5 - (8.5 - 1.8) * (h / CONE.height);
+const coneR = h => CONE.foot - (CONE.foot - CONE.tipR) * (h / CONE.height);
 const CONE_HIT = (() => {
   const pvt = CONE.base/2, H = CONE.height;
   const phiBal = Math.atan(pvt / (3 + H*0.25));
@@ -2854,13 +2873,25 @@ const BIN_HIT = (() => {
 /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6 · red.
    hydrantBurst is the same rigid hydrant with a sheared front nozzle,
    animated water arc, and a puddle spanning most of the neighboring tile. */
+/* (Sir, 2026-11-23: "probably too small") a street hydrant's own size: 52 tall to the operating nut's top, knee to hip
+   on a person of 124 and a little under Tipsey's 61 -- it was 20. baseR the base flange, barR the barrel at the outlets,
+   nozH the outlets' axis, nozR a hose outlet's bore, tip where a sheared hose outlet ends (the jet's start). The
+   jumps over it scale with it: see HJ_VS. */
 const HYD = {
-  height: 20, baseR: 8, domeR: 6.5, nozR: 2.6,
+  height: 52, baseR: 11, barR: 7.1, nozH: 22, nozR: 3.4, tip: 11.6,
+  wet: 0x3d3a33,
   cap: 0xb5342b, capDk: 0x8a2822,
   nut: 0x3a3d43,
   water: 0xbfe6f2, waterDk: 0x8fc8dc,
   shadow: 0x000000
 };
+/* where a burst hydrant's flood lies along the walk (the sim's centre: 8 + pudDir*T2 from the hydrant) and where its jet
+   comes down -- in that water, or, for a flood on the hydrant's own tile (pudDir 0, the jump course), a hop out. The
+   hose outlet toward the flood is the one that shears. */
+function hydFloodA(d){ return 8 + ((d && d.pudDir) ? d.pudDir*T2 : 0); }
+function hydJetLandA(d){ const a = hydFloodA(d); return (d && d.pudDir) ? a : (a >= 0 ? 1 : -1)*(HYD.tip + 26); }
+const _HYD_OUTLETS = [[0, 3.4, 5], [Math.PI, 3.4, 5], [Math.PI*0.5, 4.8, 3.2]];   // [angle, bore, stub length]: two hose outlets, the pumper
+const _HYD_JET_P = Array.from({ length: 18 }, () => ({ x: 0, y: 0 })), _HYD_JET_C = Array.from({ length: 9 }, () => ({ x: 0, y: 0 }));   // the jet's points, kept (it draws every frame)
 /* cargo damage meter (spec: red-zone dwell damage) — a top-speed
    hydrant/scooter bonk deals ~55-62 damage in one shot (kick*mult,
    speed capped at 0.15), so this needs to stay well under "one hit
@@ -2934,6 +2965,7 @@ const HYD_SLIP = {
    box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
 const PLANTER = {
   box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
+  lip: 0xa39a8b, lipL: 0x8f8577, lipR: 0x7b7266, inner: 0x524a40,   // the rim (planter pass, 2026-11-23)
   soil: 0x4a3f34, stalk: 0x5c6b3f,
   shadow: 0x000000
 };
@@ -5321,7 +5353,8 @@ const PROP_EXT_PAD = 1.25, PROP_EXT_MIN = 24;
 const PROP_EXT = {
   bin:[38,38,90,14], burrito:[40,40,40,40], can:[40,40,40,40],
   car:[158,158,153,59], cone:[18,18,43,9], crack:[88,88,45,49],
-  dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[15,15,26,6],
+  dog:[73,73,54,32], grade:[72,72,36,36], hydrant:[19,19,54,8],   /* (hydrant re-measured at the street size, 2026-11-23; hydrantJet: the burst jet, its splash and spray, queued on its own) */
+  hydrantJet:[130,130,66,70],
   hydrantBurst:[107,107,54,53],
   /* hydrantFlood is DERIVED, not sampled -- it is the only kind whose
      art is a closed formula rather than a drawing, so a bound can be
@@ -5329,8 +5362,11 @@ const PROP_EXT = {
      with |A| <= 8 + T2 + HYD_SLIP.pud = 141.4 and |B| <= 1.5*T2 = 138.
      DIRV components are unit axes, so |dv.x - dv.y| = |rv.x - rv.y| = 1
      and the 2:1 iso gives |sx| <= (|A| + |B|) = 279.4 and
-     |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad. */
-  hydrantFlood:[280,280,140,140], lamp:[113,113,347,56],
+     |sy| <= (|A| + |B|)/2 = 139.7. Rounded up, before the x1.25 pad.
+     (The water pass, 2026-11-23: the wet band round it runs to 1.06 x a
+     wavering edge of at most 1.085, so the semi-axes reach 1.15 x the
+     sim's: |A| <= 8 + T2 + 47.6 = 147.6, |B| <= 158.7, sum 306.3.) */
+  hydrantFlood:[307,307,154,154], lamp:[113,113,347,56],
   palm:[267,251,639,16], palmDwarf:[108,111,176,11],   /* x PALM.scale 1.8 / PALM_DWARF.scale 1.3 */ paper:[40,40,40,40],
   people:[83,83,166,37], pigeons:[98,98,60,49], planter:[36,36,67,11],
   policecar:[158,158,153,59], robot:[50,50,129,22], scooter:[36,36,62,17],
@@ -5846,7 +5882,7 @@ const OW_D = {
      widened to the thing's actual footprint. */
   /* pr1: lamp, palm, hydrant and bin take their radius from the ART (PROP_FOOT: the drawn base
      half-width plus a hair), not a padded number; owContact adds the body's reach (botR*0.72) */
-  hzLamp: 11, hzPalm: 9, hzHydrant: 10, hzBin: 28, hzPlanter: 44,
+  hzLamp: 11, hzPalm: 9, hzHydrant: 12,   /* (hydrant: its base flange, 11, at the street size -- was 10 on the 20-tall toy) */ hzBin: 28, hzPlanter: 44,
   hzRobot: 34, hzScooter: 28, hzTrash: 28, hzPeople: 22, hzDog: 20,
   hzFlat: 34,            // drive-over trigger radius for cracks and slabs
   /* FLAT KICK, DELIBERATELY UNABLE TO CHAIN. First value was 0.42 and
@@ -102281,7 +102317,7 @@ class WorldScene extends Phaser.Scene {
       /* touchdown */
       /* PITCH: nose follows the velocity vector, eased so leaving the lip
          does not snap the attitude. Straight from the lab. */
-      const pT = Math.atan2(this.hjAir.vz, Math.max(this.speed, 1e-4)) * 0.6;
+      const pT = Math.atan2(this.hjAir.vz / HJ_VS, Math.max(this.speed, 1e-4)) * 0.6;   // (the attitude of the unstretched arc)
       this.pitch += (pT - this.pitch) * Math.min(1, 0.030*dt);
       /* Land on the CATCH ramp's plane — deliberately NOT hjSlabZ(),
          which also reports the kicker he is still standing over at
@@ -104769,6 +104805,17 @@ class WorldScene extends Phaser.Scene {
      Drawn from the HYDRANT's anchor (the branch applies its own landA),
      keyed at the FLOOD's centre, pinned to gWorld -- the depth key and
      the paint are then two views of the same tile. */
+  /* A BURST HYDRANT'S JET, its own item (the water pass, 2026-11-23): it reaches up to a tile along the walk into its
+     flood, so it is keyed at its own middle, not the hydrant's anchor -- someone standing at its far end sorts against
+     the water there -- and it is the only live part: the hydrant's iron is cached (hydrantBody). Drawn from the
+     hydrant's anchor; the branch lays it out. layerOf(g, x, y): the caller's layer for a point, or none */
+  queueHydrantJet(vq, wx, wy, f, data, layerOf){
+    if(!this.visProp("hydrantJet", wx, wy)) return;
+    const fq = ((Math.round(f || 0) % 4) + 4) % 4, dv = DIRV[fq];
+    const la = hydJetLandA(data), mid = (la + (la >= 0 ? 1 : -1)*HYD.tip)*0.5;
+    const mx = wx + dv.x*mid, my = wy + dv.y*mid;
+    vq.push({ depth: mx + my, fn:(gg, tt) => this.drawProp(layerOf ? layerOf(gg, mx, my) : gg, "hydrantJet", wx, wy, tt, f, 0, null, null, data) });
+  }
   queueHydrantFlood(vq, g, wp, f, data){
     const fq = ((Math.round(f || 0) % 4) + 4) % 4, dv = DIRV[fq];
     const off = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
@@ -106090,6 +106137,31 @@ class WorldScene extends Phaser.Scene {
     if(this.drawClip){ pts = clipConvex(pts, this.drawClip); if(!pts) return; }
     g.fillStyle(color, alpha);
     g.fillPoints(pts, false, false);
+  }
+  /* A STRIP ROUND A ROUND PROP (street props pass, 2026-11-23: the cone's bands, its shaded side, the bin's band). A band round a
+     body is a ring -- only the arc the eye sees -- never a filled solid whose top lays a lid over what it wraps. P(psi, h, r) is the
+     prop's own point on the ring of radius r at height h; N(psi, out) writes the outward normal there in WORLD x, y, z (through the
+     prop's facing and tip: asked, never assumed). The arc kept is where the normal faces the eye (x + y + z > 0); with side 1 only
+     its right-hand part (x - y > 0: the dark side, SP13). Its two ends are found where the test crosses zero, so the strip runs to
+     the silhouette. One scratch normal, no closures per sample. */
+  arcStrip(g, P, N, h0, r0, h1, r1, side, col, alpha = 1, n = 28){
+    const nn = this._arcN || (this._arcN = { x: 0, y: 0, z: 0 }), TAU = Math.PI*2;
+    const m = psi => { N(psi, nn); const v = nn.x + nn.y + nn.z; return side ? Math.min(v, (nn.x - nn.y)*side) : v; };
+    const ms = this._arcM || (this._arcM = []);
+    let s = -1;
+    for(let i = 0; i < n; i++) ms[i] = m(i/n*TAU);
+    for(let i = 0; i < n; i++) if(ms[i] > 0 && ms[(i + n - 1) % n] <= 0){ s = i; break; }
+    if(s < 0) return;
+    const ps = this._arcPs || (this._arcPs = []); ps.length = 0;   // (scratch: drawn live for a falling cone)
+    { const i0 = (s + n - 1) % n, f = ms[i0]/(ms[i0] - ms[s]); ps.push((s - 1 + f)/n*TAU); }
+    let i = s, c = 0;
+    while(ms[i] > 0 && c < n){ ps.push(i/n*TAU); const j = (i + 1) % n;
+      if(ms[j] <= 0){ const f = ms[i]/(ms[i] - ms[j]); ps.push((i + f)/n*TAU); }
+      i = j; c++; }
+    const pts = this._arcPts || (this._arcPts = []); pts.length = 0;
+    for(let k = 0; k < ps.length; k++) pts.push(P(ps[k], h1, r1));
+    for(let k = ps.length - 1; k >= 0; k--) pts.push(P(ps[k], h0, r0));
+    this.quadOn(g, pts, col, alpha);
   }
   /* A FUSED PIECE (PERSON_DRAW's LOD: the people's rounded pieces at views 2 and 3). A ring's side faces as runs: the
      faces toward the light (tone 0-3 of the nine) one strip in lit; the rest left to the silhouette under them in its
@@ -112262,8 +112334,9 @@ class WorldScene extends Phaser.Scene {
          both branches were g, so the flush's own gg is the same answer) */
       /* a walked dog's owner counts too (see DOG_PAIR) */
       const _own = hz.type === "dog" ? dogOwnerWorldAt(t, hz, wp.x, wp.y) : null;
+      if(hz.type === "hydrant" && hz.burst) this.queueHydrantJet(hazVQ, wp.x, wp.y, hz.f, hz, null);
       if(this.visProp(hz.type, ebx, eby) || (_own && this.visProp("people", _own.x, _own.y))){
-        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type;
+        const dhz = hz, dwx = wp.x, dwy = wp.y, dwz = wp.z, dhf = hz.f, dht = hz.type === "hydrant" && hz.burst ? "hydrantBody" : hz.type;
         hazVQ.push({ depth: ebx+eby, fn:(gg,tt)=>this.drawProp(gg, dht, dwx, dwy, tt, dhf, dwz, null, null, dhz) });
       }
       if(hz.clusterExtras){
@@ -115165,7 +115238,9 @@ class WorldScene extends Phaser.Scene {
   }
 
   drawBenchProp(g, x, y, dv, mid){   // (mid: drawn after the far end, before the boards -- who sits on a bench turned away from the eye)
-    const rv = DIRV[(DIRV.indexOf(dv)+1)%4] || {x:-dv.y,y:dv.x};
+    /* (a heading not taken from DIRV itself -- an equal {x, y} -- found -1 and wrapped to DIRV[0], rv along dv: a bench drawn as a
+       sliver. It is a quarter turn on either way) */
+    const di = DIRV.indexOf(dv), rv = di >= 0 ? DIRV[(di+1)%4] : { x: -dv.y, y: dv.x };
     const B = BENCH_ART;
     const G = (a,b,h) => this.W(x + dv.x*a + rv.x*b, y + dv.y*a + rv.y*b, h);
     const hw = B.w/2, D = B.depth, S = B.seatH, T = B.slatT;
@@ -115220,9 +115295,15 @@ class WorldScene extends Phaser.Scene {
        pocket between the arm and the seat, which from the front reads as
        a bite out of the seat board rather than as daylight under an arm.
        The front runs straight down from the arm to the ground. */
+    /* CAST ENDS STAND ON TWO LEGS (a design pass, Sir 2026-11-23: "do a pass on all the street props"): the end was one solid slab
+       down to the ground, which read as a concrete block under each arm. A park bench's cast end is a frame -- a back leg under the
+       raked post, a front leg under the arm, daylight between them under the seat -- each leg with a small flared foot. Same outline
+       above the seat (arm, post, seat height, footprint), so sitters and collision are untouched. */
+    const LW = 7, GAP = S - T - 8, MID = (12 + D - 4)/2;
     const END = [
-      [12, 0], [12, S-T], [2, S+B.backH], [16, S+B.backH], [23, S+B.armH],
-      [D-4, S+B.armH], [D-4, 0]
+      [10, 0], [12, 4], [12, S-T], [2, S+B.backH], [16, S+B.backH], [23, S+B.armH],
+      [D-4, S+B.armH], [D-4, 4], [D-2, 0], [D-4-LW-2, 0], [D-4-LW, 4], [D-4-LW, GAP - 3],
+      [MID, GAP + 1.5], [12+LW, GAP - 3], [12+LW, 4], [12+LW+2, 0]
     ];
     /* THE BOARDS RUN BETWEEN THE ENDS, not across them.
 
@@ -117203,6 +117284,8 @@ class WorldScene extends Phaser.Scene {
         const _st = _cw || hazSpotWorld(cp, 0, 0);
         const cx = _st ? _st.x : cp.wx,
               cy = _st ? _st.y : cp.wy, cf = cp.f, cobj = cp;
+        /* a burst hydrant's jet is live and long: its own item, keyed along it (queueHydrantJet); the iron stays an image */
+        if(ct === "hydrant" && cp.burst) this.queueHydrantJet(vq, cx, cy, cf, cp, (gg, jx, jy) => this.propLayer(gg, jx, jy));
         /* PER-PROP SCREEN GATE. The block is on screen or we would not
            be in this method, but a block is far larger than the visible
            diamond, so most of its frontage furniture is off screen even
@@ -117223,7 +117306,7 @@ class WorldScene extends Phaser.Scene {
         /* (lying where it was left -- a cone, planter or scooter that starts the day knocked over, cp.phi at rest -- is
            as still as standing: cached too, the lie in its key. The census, 2026-10-30: four in ten cones and half the
            scooters drew live every frame for good) */
-        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined && !cp.burst;
+        const pristine = CF_STILL_KINDS.has(ct) && !eff && !cp.hit && !cp.slide && !cp.slideB && cp.hitT === undefined && cp.kickT === undefined;   // (a burst hydrant too: its sheared iron is as still, the water queued apart)
         /* A WALKER CALLING AT A SHOP goes in through its door (WALK_PLAN): in the doorway they are drawn with the
            door -- between its lit room and its swung leaf, clipped to the opening -- as the shoppers are, not over
            the shop front (they used to walk into the shut door and vanish on the step) */
@@ -117236,8 +117319,9 @@ class WorldScene extends Phaser.Scene {
         vq.push({ depth: ebx+eby,
                   fn:(g,tt)=>{
                     const lg = this.propLayer(g, ltx, lty);
-                    if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, ct, cx, cy, tt, cf, 0, null, null, cobj);
-                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : ""), cx, cy, gg => this.drawProp(gg, ct, cx, cy, 0, cf, 0, null, null, cobj));
+                    const dk = ct === "hydrant" && cp.burst ? "hydrantBody" : ct;
+                    if(!pristine || this.xrayPropCut(ct, cx, cy) > 0) return this.drawProp(lg, dk, cx, cy, tt, cf, 0, null, null, cobj);
+                    this.bcDraw(lg, "cf|" + cp.key + (cp.phi ? "|" + Math.round(cp.phi*100) : "") + (dk !== ct ? "|b" : ""), cx, cy, gg => this.drawProp(gg, dk, cx, cy, 0, cf, 0, null, null, cobj));
                   } });
       }
     }
@@ -117674,6 +117758,24 @@ class WorldScene extends Phaser.Scene {
      both come from lampSeed. At night the glow (layered pool + lens
      + faint column) draws into this.gGlow — ADD, ABOVE the tint —
      and broken lamps run it through flickerAt. */
+  /* A CONVEX SOLID OF RINGS (the lamp's parts): R its rings of screen points, bottom to top, each CCW about +h in the part's frame and
+     the same count; s0 the screen winding of a face toward the eye in that frame. Each side face is drawn when its own winding matches
+     (it faces the eye -- at any facing, asked of the projection, never assumed: props kit SP13), toned by where it sits across the
+     part on screen (the left cL, the right cD, as the light falls); the top cap last when `top`. A convex solid's faces toward the eye
+     never overlap, so no order among them is needed */
+  lampSolid(g, R, s0, cL, cD, cT, top){
+    const n = R[0].length, B = R[0];
+    let cx = 0; for(let i = 0; i < n; i++) cx += B[i].x; cx /= n;
+    let hw = 1e-6; for(let i = 0; i < n; i++) hw = Math.max(hw, Math.abs(B[i].x - cx));
+    for(let r = 0; r + 1 < R.length; r++){ const A = R[r], C = R[r + 1];
+      for(let i = 0; i < n; i++){ const j = (i + 1) % n, p0 = A[i], p1 = A[j], p2 = C[j], p3 = C[i];
+        const ar = (p1.x - p0.x)*(p2.y - p0.y) - (p2.x - p0.x)*(p1.y - p0.y) + (p2.x - p0.x)*(p3.y - p0.y) - (p3.x - p0.x)*(p2.y - p0.y);
+        if(ar*s0 <= 0.02) continue;
+        const u = Math.max(0, Math.min(1, 0.5 + 0.75*((p0.x + p1.x + p2.x + p3.x)/4 - cx)/hw));
+        this.quadOn(g, [p0, p1, p2, p3], lampMix(cL, cD, u));
+      } }
+    if(top) this.quadOn(g, R[R.length - 1], cT);
+  }
   drawLampHull(g, W, t, hz){
     const L = LAMP, K = this.K;
     const r = mulberry32((hz.lampSeed || 1) >>> 0);
@@ -117684,103 +117786,77 @@ class WorldScene extends Phaser.Scene {
     const H = L.height * hVar;
     const lean = zz => tilt * zz;
 
-    /* FACES FROM THE EYE (props kit SP13 -- Sir, 2026-11-22: "a draw order issue on this street lamp"): W turns with the lamp's facing,
-       so which of its walls face the eye is asked of W, never assumed (+a, +b are the near walls only at facing 0): sA / sB the seen
-       side along a and b, aRight whether the a-wall is the one on the right (the dark one, as the light falls) */
-    const W0 = W(0, 0, 0), sA = (W(1, 0, 0).y - W0.y) > 0 ? 1 : -1, sB = (W(0, 1, 0).y - W0.y) > 0 ? 1 : -1;
-    const aRight = (W(sA, 0, 0).x - W0.x) > 0;
-    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false, all4=false) => {
-      const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz), cAw = aRight ? cA : cB, cBw = aRight ? cB : cA;
-      /* ALL FOUR WALLS FOR THE BASE (Sir, on-device: "the base of the
-         street lamps doesnt have all its faces"). A standalone box here
-         draws its two camera-facing walls and nothing else, which is
-         right for the pole -- nothing can see behind it. The base is
-         wider than the pole and sits on open pavement, so its two FAR
-         walls are in view whenever the lamp is off to one side of the
-         camera, and without them the base reads as a torn sheet. Far
-         walls first, then the top, then the near ones: the painter order
-         a solid needs. */
-      if(all4){
-        this.quadOn(g, [c(-sA,-1,z1), c(-sA,1,z1), c(-sA,1,z0), c(-sA,-1,z0)], cAw);
-        this.quadOn(g, [c(-1,-sB,z1), c(1,-sB,z1), c(1,-sB,z0), c(-1,-sB,z0)], cBw);
-      }
-      /* noTop: when another segment of the SAME footprint sits flush
-         on top (pole segment -> pole segment), this segment's top cap
-         is never actually visible -- the segment above only draws its
-         2 NEAR walls (the far 2 are assumed hidden, standard for a
-         standalone box), which leaves the FAR corner of this segment's
-         top cap uncovered. On a broken/leaning lamp (mal), that lean
-         staggers each segment sideways just enough to expose the
-         sliver. Skipping the cap on every segment but the last removes
-         it. The base doesn't use this -- it's wider than the pole, so
-         its top is a genuinely visible ledge, not a stacking artifact. */
-      if(!noTop) this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
-      this.quadOn(g, [c(sA,-1,z1), c(sA,1,z1), c(sA,1,z0), c(sA,-1,z0)], cAw);
-      this.quadOn(g, [c(-1,sB,z1), c(1,sB,z1), c(1,sB,z0), c(-1,sB,z0)], cBw);
-    };
+    /* THE DESIGN PASS (Sir, 2026-11-23: "we should do a pass on all the street props" -- it read as a bare dark pole with a small box on
+       a bent arm). Now a fitting: a cast footing with a flared bell and a collar, a round shaft that tapers to a capped top, a service
+       door low on the shaft, a slim arm, and a cobra head -- long along the arm, its dome sloping to the nose, its refractor bowl hung on
+       the underside. Every part is a convex solid of rings (lampSolid): its side faces drawn where their screen winding says they face
+       the eye (so all four facings come out right by construction -- SP13, faces asked of W, never assumed), toned by where they sit
+       across it (the left lit, the right dark, as the light falls). Parts stack bottom to top and meet face to face.
+       FACES FROM THE EYE (props kit SP13 -- Sir, 2026-11-22: "a draw order issue on this street lamp"): sA the seen side along a (the
+       arm's side face), s0 the screen winding of a face that faces up (+h) in the lamp's frame */
+    const W0 = W(0, 0, 0), sA = (W(1, 0, 0).y - W0.y) > 0 ? 1 : -1;
+    const Wa = W(1, 0, 0), Wb = W(0, 1, 0), s0 = ((Wa.x - W0.x)*(Wb.y - W0.y) - (Wb.x - W0.x)*(Wa.y - W0.y)) > 0 ? 1 : -1;
+    /* a ring round the lamp's axis (its lean at that height): the unit plan T (CCW about +h), radius r */
+    const ring = (T, r, z, aC = 0) => { const c = aC + lean(z), P = new Array(T.length); for(let i = 0; i < T.length; i++) P[i] = W(c + T[i][0]*r, T[i][1]*r, z); return P; };
+    const SH = L.shade, solid = (R, cL, cD, cT, top = true) => this.lampSolid(g, R, s0, cL, cD, cT, top);
 
-    /* NO CAST SHADOW under the base (Sir: "i want to get rid of its
-       shadow"). Nothing else on this pavement casts one, so the ellipse
-       read as a smudge rather than as light. */
-    box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base, false, true);
-    const segN = 3;
-    const pole = () => { for(let i = 0; i < segN; i++){
-      const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
-      box(lean((z0+z1)/2), 0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole, i < segN-1);
-    } };
+    /* NO CAST SHADOW under the base (Sir: "i want to get rid of its shadow"). Nothing else on this pavement casts one. */
+    const rTop = L.poleW/2*1.08, rFoot = L.poleW/2*1.32;   // the shaft's taper, foot to top (an octagon's apothem: as wide to the eye as the old square post)
+    const pole = () => {
+      /* the footing: a low square plinth, a flared bell on it (round, its flare in two tiers), a collar a hair proud of both */
+      solid([ring(LAMP_SQ, L.baseW/2, 0), ring(LAMP_SQ, L.baseW/2, 3)], L.base, L.baseDk, L.base);
+      solid([ring(LAMP_OCT, L.baseW/2*0.92, 3), ring(LAMP_OCT, L.baseW/2*0.86, 7), ring(LAMP_OCT, L.baseW/2*0.82, L.baseH)], SH.baseL, L.baseDk, L.base, false);
+      solid([ring(LAMP_OCT, L.baseW/2*0.87, L.baseH), ring(LAMP_OCT, L.baseW/2*0.87, L.baseH + 3)], SH.baseL, L.baseDk, L.base);
+      /* the shaft, round and tapering, to just over the arm's root */
+      solid([ring(LAMP_OCT, rFoot, L.baseH + 3), ring(LAMP_OCT, rTop, H + 3)], SH.poleL, L.poleDk, L.pole, false);
+      /* its service door, low on the face the arm's side is seen from: on the face, in its plane (a decal, foreshortened with it) */
+      { const ad = lean(30) + sA*(rFoot*0.985 + 0.15), dw = rFoot*0.3;
+        this.quadOn(g, [W(ad, -dw, 24), W(ad, dw, 24), W(ad, dw, 38), W(ad, -dw, 38)], SH.door); }
+      /* the cap: a low cone a hair wider than the shaft's top */
+      solid([ring(LAMP_OCT, rTop*1.12, H + 3), ring(LAMP_OCT, rTop*0.55, H + 6.5)], SH.poleL, L.poleDk, L.pole);
+    };
     const topA = lean(H);
 
-    /* gooseneck arm + fixture. +b is toward the ROAD (b increases with
-       offsetUnits, and laneOffset gets more negative as the lane index
-       rises -- lane 0 is curb side, lane 3 building side). So the arm
-       must swing +b from the building row and -b from the curb row for
-       the head to hang over the WALKING band either way; the light
-       never reaches out over the road. hz.armSign carries that verdict
-       from the spawner (see the STREETLAMPS block), defaulting to the
-       old building-row behaviour for any lamp without one. */
+    /* the arm + head. +b is toward the ROAD (b increases with offsetUnits, and laneOffset gets more negative as the lane index
+       rises -- lane 0 is curb side, lane 3 building side). So the arm must swing +b from the building row and -b from the curb row
+       for the head to hang over the WALKING band either way; the light never reaches out over the road. hz.armSign carries that
+       verdict from the spawner (see the STREETLAMPS block), defaulting to the old building-row behaviour for any lamp without one. */
     const aSign = (hz.armSign === -1) ? -1 : 1;
     const armL = L.armLen * armVar * aSign, seg = 3;
-    /* THE ARM MEETS THE POLE AND THE HEAD FACE TO FACE (SP13): it runs from the pole's face to the head's, not from the pole's middle
-       into the head -- begun inside the pole its side was painted over the pole, and run into the head its top crossed the head's
-       (Sir, 2026-11-22). Its seen side only (sA); its segments near-last; and the whole arm and head before the pole when it reaches
+    /* the cobra head: its plan (LAMP_COBRA) hl along the arm either side of armL, hw across; a skirt, then a dome scaled toward its
+       rear (so the rear is one flat face, upright, for the arm to meet) and sloping down to the nose */
+    const hz2 = H - L.armDrop, hw = L.headW/2, hl = L.headW*0.58;
+    const hTop = hz2 + 1.5, hBot = hTop - L.headH, hBelt = hBot + L.headH*0.5;
+    const plan = (z, k, drop = 0) => { const P = new Array(LAMP_COBRA.length), n = LAMP_COBRA.length;
+      for(let i = 0; i < n; i++){ const q = LAMP_COBRA[aSign > 0 ? i : n - 1 - i];   // (mirrored along b when the arm swings -b: kept CCW)
+        P[i] = W(topA + q[0]*hw*k, armL + aSign*hl*(-1 + (q[1] + 1)*k + drop), z); }
+      return P; };
+    /* THE ARM MEETS THE POLE AND THE HEAD FACE TO FACE (SP13): from the shaft's face to the head's rear face, slim, tapering toward
+       the head; its top and its seen side (sA); its segments near-last; and the whole arm and head before the pole when it reaches
        away from the eye (behind the pole's top), after it when it reaches toward it */
-    const armB0 = aSign*L.poleW/2, armB1 = armL - aSign*L.headW/2*0.6, toEye = (W(0, aSign, 0).y - W0.y) > 0;
-    const arm = () => { const aw = L.poleW*0.4375, ad = L.poleW*0.625, sd = topA + sA*aw;   // arm half-width / underside depth, kept in proportion to the pole
+    const armB0 = aSign*(rTop + (rFoot - rTop)*3/(H - L.baseH)), armB1 = armL - aSign*hl, toEye = (W(0, aSign, 0).y - W0.y) > 0;
+    const arm = () => { const w0 = L.poleW*0.3, w1 = L.poleW*0.22, d0 = L.poleW*0.42, d1 = L.poleW*0.34;
       for(let k = 0; k < seg; k++){ const i = toEye ? k : seg - 1 - k;
-        const u0 = i/seg, u1 = (i+1)/seg;
+        const u0 = i/seg, u1 = (i+1)/seg, awA = w0 + (w1 - w0)*u0, awB = w0 + (w1 - w0)*u1, adA = d0 + (d1 - d0)*u0, adB = d0 + (d1 - d0)*u1;
         const bA = armB0 + (armB1 - armB0)*u0, bB = armB0 + (armB1 - armB0)*u1;
         const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
-        this.quadOn(g, [W(topA-aw,bA,zA), W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA-aw,bB,zB)], L.pole);
-        this.quadOn(g, [W(sd,bA,zA), W(sd,bB,zB), W(sd,bB,zB-ad), W(sd,bA,zA-ad)], aRight ? L.poleDk : L.pole);
+        this.quadOn(g, [W(topA-awA,bA,zA), W(topA+awA,bA,zA), W(topA+awB,bB,zB), W(topA-awB,bB,zB)], L.pole);
+        this.quadOn(g, [W(topA+sA*awA,bA,zA), W(topA+sA*awB,bB,zB), W(topA+sA*awB,bB,zB-adB), W(topA+sA*awA,bA,zA-adA)], (W(sA, 0, 0).x - W0.x) > 0 ? L.poleDk : SH.poleL);
       } };
-    const hz2 = H - L.armDrop;
 
-    /* lens housing (always) + the light itself (night, into gGlow) */
-    const lp = W(topA, armL, hz2 - L.headH);
-    const lensW = L.headW*0.615, lensH = L.headW*0.269;   // lens tracks the fixture box
-    /* HANG THE LIGHT UNDER THE FIXTURE, DO NOT STRADDLE IT.
-       lp is the UNDERSIDE of the head box, but fillEllipse centres on
-       the point it is given -- so every glow disc drawn at lp put half
-       its height INSIDE the housing. The lens disc got away with it
-       (same layer as the head, small radius), but the bloom did not:
-       it is 0.462*headW tall and goes into gGlow, which composites
-       above the night multiply and above the lamp itself, so its top
-       half painted straight through the housing and showed out the top.
-       Reported on-device 2026-08-27; the wider pole made it obvious but
-       it was always there.
-
-       Each disc is now dropped by half its own height, so its top edge
-       meets the lens plane and the light reads as emerging from beneath
-       the fixture. Screen space, so +y is down. */
-    const lensDropY = lensH*K*0.55*0.5;
+    /* lens housing (always) + the light itself (night, into gGlow). lp: the bowl's lowest point, under the head's middle */
+    const bowlZ = hBot - L.headH*0.32;
+    const lp = W(topA, armL + aSign*hl*0.12, bowlZ);
+    const lensDropY = 0;   // (the light starts at the bowl's underside itself now: the bowl is a solid hung below the head)
     /* (lit at night in the lens's own place, under the head -- not on gGlow over it) */
     const litNow = isNightNow() ? (hz.mal ? flickerAt(hz.lampSeed, t) : 1) : 0;
+    const headRim = plan(hBot, 1);
     const head = () => {
-    g.fillStyle(litNow > 0.5 ? 0xffe9c0 : L.glassDay, 1);
-    g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
-    /* THE HEAD OVER ITS LENS (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the lens is
-       on the head's underside, which the eye never sees from above, so the head covers all of it but the sliver that shows below */
-    box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
+      /* THE BOWL UNDER THE HEAD (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the
+         refractor hangs on the head's underside, its rim inside the head's; from above the head covers it but the band that shows below */
+      const lit = litNow > 0.5;
+      solid([plan(hBot, 0.8, 0.22), plan(bowlZ, 0.5, 0.62)], lit ? 0xfff3d6 : SH.glassL, lit ? 0xffd890 : SH.glassD, lit ? 0xffe9c0 : L.glassDay, false);
+      solid([headRim, plan(hBelt, 1), plan(hTop, 0.6)], SH.headL, L.headDk, SH.headT);
     };
     if(toEye){ pole(); arm(); head(); } else { head(); arm(); pole(); }
     if(isNightNow()){
@@ -117832,10 +117908,10 @@ class WorldScene extends Phaser.Scene {
         if(this._xrayInProp && !POCKET_VIEW) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
         /* THE BLOOM BELOW THE HEAD (Sir, 2026-11-22: "the light painting over the lamp"): gGlow is over everything, so the bloom
            starts at the head's lowest edge on screen and spreads down from it -- the lens itself is the lamp's own, under the head */
-        const bloomH = L.headW*0.462*K*0.8, hw = L.headW/2, hb = L.headW/2*0.6;
+        const bloomH = L.headW*0.462*K*0.8;
         /* (the head's lower outline straight under the lens: its near bottom edges, at the lens's x) */
-        const hc = (sa, sb) => W(topA + sa*hw, armL + sb*hb, hz2 - L.headH), rim = [hc(-1, -1), hc(-1, 1), hc(1, 1), hc(1, -1), hc(-1, -1)];
-        let hy = lp.y; for(let i = 0; i < 4; i++){ const p0 = rim[i], p1 = rim[i + 1];
+        const rim = headRim, nR = rim.length;
+        let hy = lp.y; for(let i = 0; i < nR; i++){ const p0 = rim[i], p1 = rim[(i + 1) % nR];
           if((lp.x - p0.x)*(lp.x - p1.x) <= 0 && Math.abs(p1.x - p0.x) > 1e-6) hy = Math.max(hy, p0.y + (p1.y - p0.y)*(lp.x - p0.x)/(p1.x - p0.x)); }
         gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, hy + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
       }
@@ -127311,66 +127387,78 @@ class WorldScene extends Phaser.Scene {
       /* NO SHADOW (Sir, 2026-09-29: "lets get rid of the shadow from the
          palms"): the cast shade and the base blob are both gone. */
 
-      const SEG = 8, spine = [];
+      /* A DESIGN PASS (Sir, 2026-11-23: "do a pass on all the street props"). The trunk was eight bands in two hard tones -- a striped
+         pole -- and each frond a chain of separate bow-tie triangles with daylight between them, which read as dashes rather than a
+         leaf. Now: ONE trunk silhouette, flared where it meets the grate, with a shaded side (a cylinder, not a ribbon) and leaf-scar
+         rings that curve round it; and each frond ONE leaf -- a stalk, widest a third of the way out, tapering to its tip, its leaflets
+         sawn into the edge and hanging (the lower edge wider than the upper), a light midrib down it. Same crown, lengths, sway and
+         colours' family; fewer fills than the triangles were. Scratch points are the scene's own (no allocation per frame: palms sway,
+         so they draw live). */
+      const SEG = 8, spine = this._palmSpine || (this._palmSpine = Array.from({ length: SEG + 1 }, () => ({ x: 0, y: 0, w: 0 })));
       for(let i=0; i<=SEG; i++){
-        const u = i/SEG;
-        spine.push({ x: o.x + (lean*H*u*u + sway*u*u)*K, y: o.y - H*u*K, w: (7.5 - 4.5*u)*K });
+        const u = i/SEG, fl = Math.max(0, 1 - u*5), sp = spine[i];
+        sp.x = o.x + (lean*H*u*u + sway*u*u)*K; sp.y = o.y - H*u*K; sp.w = (7.5 - 4.5*u + 3.2*fl*fl)*K;
       }
-      for(let i=0; i<SEG; i++){
-        const a2 = spine[i], b2 = spine[i+1];
-        this.quadOn(g, [
-          {x:a2.x-a2.w/2, y:a2.y}, {x:a2.x+a2.w/2, y:a2.y},
-          {x:b2.x+b2.w/2, y:b2.y}, {x:b2.x-b2.w/2, y:b2.y}
-        ], i % 2 === 0 ? P.trunk : P.trunkDk);
-        if(i % 2 === 1){
-          g.lineStyle(1.5, P.ring, 1);
-          g.lineBetween(a2.x-a2.w/2, a2.y, a2.x+a2.w/2, a2.y);
-        }
+      const TP = this._palmTrunk || (this._palmTrunk = Array.from({ length: 2*SEG + 2 }, () => ({ x: 0, y: 0 })));
+      const trunkPoly = (l0, l1, col) => {                    // the trunk between fractions l0..l1 of its width (-1 left edge, +1 right)
+        for(let i=0; i<=SEG; i++){ const sp = spine[i], a = TP[i], b = TP[2*SEG + 1 - i];
+          a.x = sp.x + l0*sp.w/2; a.y = sp.y; b.x = sp.x + l1*sp.w/2; b.y = sp.y; }
+        this.quadOn(g, TP, col);
+      };
+      trunkPoly(-1, 1, P.trunk);
+      trunkPoly(0.2, 1, P.trunkDk);                           // its shaded side
+      /* leaf-scar rings: a cylinder's ring seen from above bows down at its middle */
+      g.lineStyle(Math.max(1, 0.75*K), P.ring, 1);
+      for(let i=1; i<SEG*2; i++){
+        const k0 = i >> 1, f = (i & 1) ? 0.5 : 0, s0 = spine[k0], s1 = spine[k0 + 1];
+        const cx = s0.x + (s1.x - s0.x)*f, cy = s0.y + (s1.y - s0.y)*f, hw = (s0.w + (s1.w - s0.w)*f)/2;
+        g.beginPath(); g.moveTo(cx - hw, cy); g.lineTo(cx, cy + hw*0.32); g.lineTo(cx + hw, cy); g.strokePath();
       }
       const crown = spine[SEG];
       const XG = this.xrayGhost();
-      const fronds = [];
+      const fronds = this._palmFronds || (this._palmFronds = []);
       for(let i=0; i<P.fronds; i++){
         const baseA = PS.fa[i];
         const dirY = Math.sin(baseA)*0.45 - 0.12;
-        fronds.push({
-          dirX: Math.cos(baseA), dirY,
-          flut: Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind,
-          len: PS.fl[i]*(P.spread || 1)*K,
-          back: dirY < -0.18
-        });
+        const f2 = fronds[i] || (fronds[i] = {});
+        f2.dirX = Math.cos(baseA); f2.dirY = dirY;
+        f2.flut = Math.sin(t*0.0021 + phase + i*1.7) * 0.06 * P.wind;
+        f2.len = PS.fl[i]*(P.spread || 1)*K;
+        f2.back = dirY < -0.18;
       }
+      const STEPS = 10, FP = this._palmFrond || (this._palmFrond = Array.from({ length: 4*STEPS + 1 }, () => ({ x: 0, y: 0 })));
+      const CP = this._palmRib || (this._palmRib = Array.from({ length: STEPS + 1 }, () => ({ x: 0, y: 0 })));
+      const LW = u => 10.5*K*Math.sin(Math.PI*Math.pow(u, 0.72));
       const drawFrond = (f2, color) => {
-        const steps = 7;
-        let px = crown.x, py = crown.y;
-        for(let sI=1; sI<=steps; sI++){
-          const u = sI/steps;
-          const nx = crown.x + f2.dirX*f2.len*u;
-          const ny = crown.y + f2.dirY*f2.len*u + (P.droop*30*u*u + f2.flut*26*u)*K;
-          const lw = (9 - 7*u)*K;
-          const tx2 = nx - px, ty2 = ny - py;
-          const tl = Math.hypot(tx2, ty2) || 1;
-          const pxn = -ty2/tl, pyn = tx2/tl;
-          /* leaf corners hoisted so the x-ray mirror below draws the
-             SAME two triangles rather than a second copy of the
-             arithmetic that could drift from it */
-          const ax = px + pxn*lw + tx2*0.3, ay = py + pyn*lw + ty2*0.3;
-          const bx = px - pxn*lw + tx2*0.3, by = py - pyn*lw + ty2*0.3;
-          g.fillStyle(color, 1);
-          g.fillTriangle(px, py, nx, ny, ax, ay);
-          g.fillTriangle(px, py, nx, ny, bx, by);
-          /* X-RAY: fronds are fillTriangle, the trunk is quadOn. Only
-             the trunk was reaching the ghost, so an occluded palm read
-             as a bare teal post with no head on it (Sir on-device). */
-          if(XG){
-            /* the ghost stops at the cover's line too (see drawProp's x-ray) */
-            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: ax, y: ay }]);
-            this.xrayGhostFill(XG, [{ x: px, y: py }, { x: nx, y: ny }, { x: bx, y: by }]);
-          }
-          px = nx; py = ny;
+        CP[0].x = crown.x; CP[0].y = crown.y;
+        for(let sI=1; sI<=STEPS; sI++){
+          const u = sI/STEPS;
+          CP[sI].x = crown.x + f2.dirX*f2.len*u;
+          CP[sI].y = crown.y + f2.dirY*f2.len*u + (P.droop*30*u*u + f2.flut*26*u)*K;
         }
+        /* the leaf, one polygon: out along one edge -- each leaflet's tip swept toward the frond's tip, then the notch back in at the
+           next rib point -- to the tip, and home along the other. The edge on the screen's lower side is the hanging one: wider. */
+        FP[0].x = crown.x; FP[0].y = crown.y;
+        for(let sI=0; sI<STEPS; sI++){
+          const p = CP[sI], q = CP[sI + 1], tx = q.x - p.x, ty = q.y - p.y, tl = Math.hypot(tx, ty) || 1;
+          let nx = -ty/tl, ny = tx/tl; if(ny < 0){ nx = -nx; ny = -ny; }    // (n points down the screen)
+          const wm = LW((sI + 0.6)/STEPS), wq = LW((sI + 1)/STEPS)*0.45;
+          const mx = p.x + tx*0.8, my = p.y + ty*0.8;
+          const Lt = FP[1 + 2*sI], Ln = FP[2 + 2*sI];                         // the hanging side: out from the crown
+          Lt.x = mx + nx*wm*1.25; Lt.y = my + ny*wm*1.25; Ln.x = q.x + nx*wq*1.25; Ln.y = q.y + ny*wq*1.25;
+          const j = STEPS - 1 - sI, Rt = FP[2*STEPS + 1 + 2*j], Rn = FP[2*STEPS + 2 + 2*j];   // the upper side: home to the crown
+          const wp = LW(sI/STEPS)*0.45;
+          Rt.x = mx - nx*wm*0.7; Rt.y = my - ny*wm*0.7; Rn.x = p.x - nx*wp*0.7; Rn.y = p.y - ny*wp*0.7;
+        }
+        this.quadOn(g, FP, color);
+        /* X-RAY: the leaf to the ghost too, or an occluded palm reads as a bare teal post with no head on it (Sir on-device) */
+        if(XG) this.xrayGhostFill(XG, FP);
+        g.lineStyle(Math.max(1, 0.9*K), color === P.frondA ? P.rib : P.ribB, 1);
+        g.beginPath(); g.moveTo(CP[0].x, CP[0].y);
+        for(let sI=1; sI<STEPS; sI++) g.lineTo(CP[sI].x, CP[sI].y);
+        g.strokePath();
       };
-      for(const f2 of fronds) if(f2.back) drawFrond(f2, P.frondB);
+      for(let i=0; i<P.fronds; i++) if(fronds[i].back) drawFrond(fronds[i], P.frondB);
       for(let i=0; i<3; i++){
         const a3 = phase + i*2.1;
         const ccx = crown.x + Math.cos(a3)*6*K, ccy = crown.y + 4*K + Math.sin(a3)*3*K;
@@ -127378,7 +127466,7 @@ class WorldScene extends Phaser.Scene {
         g.fillCircle(ccx, ccy, 4.2*K);
         if(XG && !(this._xrayCutY != null && ccy < this._xrayCutY)){ XG.g.fillStyle(XRAY.col, XG.a); XG.g.fillCircle(ccx, ccy, 4.2*K); }
       }
-      for(const f2 of fronds) if(!f2.back) drawFrond(f2, P.frondA);
+      for(let i=0; i<P.fronds; i++) if(!fronds[i].back) drawFrond(fronds[i], P.frondA);
     } else if(kind === "scooter"){
       /* approved in scooter hit lab (2026-07-09): the dumped pose is
          a stylized squash (M below), not a rigid rotation — see the
@@ -127543,6 +127631,23 @@ class WorldScene extends Phaser.Scene {
             const m0 = stemBaseH + (stemTipH - stemBaseH)*0.55, aa = stemBaseA + (stemTipA - stemBaseA)*0.55;
             this.quadOn(g, convexHull(ringAt(aa, 0, m0, 2.9, VV, U, 8).concat(ringAt(aa + 0.2, 0, m0 + 4, 2.8, VV, U, 8))), 0xf4f5f2);
           } },
+        /* (a design pass, 2026-11-23) THE FORK AND THE FRONT FENDER: the stem stood on the deck with the front wheel loose ahead of it.
+           A rental's stem comes down to the front axle -- a fork leg on the wheel's near side, from the stem's foot to the hub -- with a
+           fender over the wheel as the rear has. And a white stripe down the deck's near side (the rental's livery), on that face */
+        { d: dAt(fwA, 0, wheelH) + 0.3, fn: () => {
+            const sd = GG(fwA, 3, wheelH).y > GG(fwA, -3, wheelH).y ? 3.2 : -3.2;    // (the side lower on the screen at one height is the near one)
+            this.quadOn(g, convexHullKeep(ringAt(stemBaseA + 1, sd*0.6, stemBaseH, 2.1, U, HHH, 8).concat(ringAt(fwA, sd, wheelH, 1.5, U, HHH, 8))), brand.cDk);
+            const hb = GG(fwA, sd, wheelH); g.fillStyle(S.hub, 1); g.fillCircle(hb.x, hb.y, 0.9*this.K*0.42*2.4);
+          } },
+        { d: dAt(fwA, 0, wheelH + wheelR) + 0.5, fn: () => {
+            const f0 = fwA - wheelR*0.5, f1 = fwA + wheelR*0.85, fh = wheelH + wheelR*0.92 + 0.6;
+            this.quadOn(g, convexHull([GG(f0, -2.4, fh), GG(f1, -2.4, fh - 1.2), GG(f1, 2.4, fh - 1.2), GG(f0, 2.4, fh),
+                                       GG(f1, -2.4, fh - 2.4), GG(f1, 2.4, fh - 2.4)]), brand.cDk);
+          } },
+        { d: dAt(-2, 0, 3) + 0.1, fn: () => {
+            const sb = GG(-2, 7, 3).y > GG(-2, -7, 3).y ? 7.05 : -7.05;
+            if(layAmount < 0.5 || (ssn - scs) > 0) this.quadOn(g, [GG(-17, sb, 3.6), GG(13, sb, 3.6), GG(13, sb, 2.4), GG(-17, sb, 2.4)], 0xf4f5f2);
+          } },
         { d: dAt(stemTipA + 3, 0, stemTipH - 5), fn: () => {
             const hp = GG(stemTipA + 2.8, 0, stemTipH - 6); g.fillStyle(0x2a2f36, 1); g.fillCircle(hp.x, hp.y, 1.7*this.K*0.42*2.4);
             g.fillStyle(0xfff3c4, 1); g.fillCircle(hp.x, hp.y, 1.1*this.K*0.42*2.4);
@@ -127605,7 +127710,12 @@ class WorldScene extends Phaser.Scene {
               W(bx + Math.cos(a2-0.5)*R*0.8, by + Math.sin(a2-0.5)*R*0.8, 0.9)
             ], T3.bagShade, 0.55);
           }
-          circ(kx, ky, 1.8*bagS, 5*bagS, T3.bagDeep);
+          /* (a design pass, 2026-11-23) its handles tied off: two ears standing up out of the knot (their roots under it), so the lump reads as a carrier bag */
+          /* (the knot and the two ears back to front: the one lower on the screen at the ground is the nearer -- the bag turns with W) */
+          const ear = s => { const e0 = W(kx - s*1.4*bagS, ky + s*1.4*bagS, 5*bagS), e1 = W(kx + s*3.4*bagS, ky + s*0.8*bagS, 10*bagS), e2 = W(kx + s*0.8*bagS, ky - s*0.6*bagS, 5.2*bagS);
+            poly([e0, e1, e2], s < 0 ? T3.bagHi : T3.bagC); this.edgeOn(g, [e0, e1, e2], T3.bagShade, 0.9); };
+          const knot = [[W(kx, ky, 0).y, 0], [W(kx - 0.9*bagS, ky - 0.5*bagS, 0).y, -1], [W(kx + 0.9*bagS, ky + 0.5*bagS, 0).y, 1]].sort((a2, b2) => a2[0] - b2[0]);
+          for(const [, s] of knot) if(s) ear(s); else circ(kx, ky, 1.8*bagS, 5*bagS, T3.bagDeep);
         }});
       }
 
@@ -127741,9 +127851,11 @@ class WorldScene extends Phaser.Scene {
       };
       const dAt = (u, v, h) => {
         const tt = tip(u, h);
-        return (tt.u*fc - v*fsn) + (tt.u*fsn + v*fc) + tt.z*0.4;
+        /* in WORLD depth (props pass): the local frame turns with the facing (W maps a along dv, b along rv), so a + b alone
+           sorted the base's open end under the body at two of the four facings */
+        return (dv.x + dv.y)*(tt.u*fc - v*fsn) + (rv.x + rv.y)*(tt.u*fsn + v*fc) + tt.z*0.4;
       };
-      const rOf = hh => 8.5 - (8.5 - 1.8) * (hh / H);   // per-instance taper (visual variety, as before)
+      const rOf = hh => C.foot - (C.foot - C.tipR) * (hh / H);   // per-instance taper (visual variety, as before)
       const place = (hh, r, n=12) => {
         const pts = [];
         for(let i=0; i<n; i++){
@@ -127752,30 +127864,61 @@ class WorldScene extends Phaser.Scene {
         }
         return pts;
       };
+      /* a local direction (u, v, h) through the tip and the facing to WORLD x, y, z: which faces the eye sees is asked of it
+         (x + y + z > 0), and which is the right-hand, dark one (x - y > 0) -- SP13, at every facing and mid-fall */
+      const nW = (nu, nv, nh, o) => {
+        const u2 = nu*cphi + nh*sphi, z2 = -nu*sphi + nh*cphi;
+        const a = u2*fc - nv*fsn, b = u2*fsn + nv*fc;
+        o.x = dv.x*a + rv.x*b; o.y = dv.y*a + rv.y*b; o.z = z2; return o;
+      };
+      const slope = (C.foot - C.tipR)/H;
+      const ringP = (psi, hh, r) => L(Math.cos(psi)*r, Math.sin(psi)*r, hh);
+      const ringN = (psi, o) => nW(Math.cos(psi), Math.sin(psi), slope, o);
+      const nv0 = { x: 0, y: 0, z: 0 };
 
       /* shadow removed (requested) — the cone sits directly on its
          base slab with no cast ellipse. */
 
+      /* THE BASE IS A SQUARE SLAB, its own piece (props pass): the faces the eye sees, each in its own tone (the right-hand one
+         dark), the top a deeper orange than the cone so the two separate, the cone's foot standing in it with a ring of base all
+         round. The hull under it is only a backstop for the mid-fall poses. */
       const baseSlab = () => {
         const hb = C.base/2, pts = [];
         for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
           pts.push(L(bc[0], bc[1], 0)); pts.push(L(bc[0], bc[1], 3));
         }
-        this.quadOn(g, convexHullKeep(pts), C.bodyDk);
-        const nu = sphi, nz = cphi;
-        if(nu*fc + nu*fsn + nz > 0.05){
+        this.quadOn(g, convexHullKeep(pts), C.slabDk);
+        for(let k = 0; k < 4; k++){
+          const nu = k === 0 ? 1 : k === 1 ? -1 : 0, nv = k === 2 ? 1 : k === 3 ? -1 : 0;
+          nW(nu, nv, 0, nv0);
+          if(nv0.x + nv0.y + nv0.z <= 0.02) continue;
+          const q = nu ? [L(nu*hb,-hb,0), L(nu*hb,hb,0), L(nu*hb,hb,3), L(nu*hb,-hb,3)]
+                       : [L(-hb,nv*hb,0), L(hb,nv*hb,0), L(hb,nv*hb,3), L(-hb,nv*hb,3)];
+          this.quadOn(g, q, (nv0.x - nv0.y) > 0 ? C.slabR : C.slabL);
+        }
+        nW(0, 0, 1, nv0);
+        if(nv0.x + nv0.y + nv0.z > 0.05){
           const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
-          this.quadOn(g, top, C.body);
-          this.edgeOn(g, top, C.bodyDk, 1.5);
+          this.quadOn(g, top, C.slabTop);
         }
       };
+      /* the cone: its silhouette, the right-hand side in shade, then the reflective collars -- rings, the arc the eye sees only
+         (a band round a piece is never a filled solid), each with its own right-hand part shaded -- and the dark tip. */
       const body = () => {
-        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, C.tipR))), C.body);
+        this.arcStrip(g, ringP, ringN, 3, rOf(3), H, C.tipR, 1, C.shade);
+        const band = (h0, h1, col) => {
+          this.arcStrip(g, ringP, ringN, h0, rOf(h0) + 0.25, h1, rOf(h1) + 0.25, 0, col);
+          this.arcStrip(g, ringP, ringN, h0, rOf(h0) + 0.25, h1, rOf(h1) + 0.25, 1, 0x000000, 0.16);
+        };
+        if(C.lowBand > 0) band(H*0.3, H*0.3 + C.lowBand, 0xf4f5f7);
         if(C.band > 0){
           const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
-          this.quadOn(g, convexHullKeep(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+          band(b0, b1, C.band_c);
         }
-        this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
+        /* the foot's collar where the cone meets its base */
+        this.arcStrip(g, ringP, ringN, 3, rOf(3) + 0.7, 4.4, rOf(4.4) + 0.7, 0, C.bodyDk);
+        this.quadOn(g, place(H, C.tipR, 8), C.bodyDk);
       };
       /* THE OPEN BOTTOM (2026-08-27, Sir on-device: "this knocked cone
          looks upside down because of the angle").
@@ -127799,10 +127942,10 @@ class WorldScene extends Phaser.Scene {
          the dark tip cap if it fell toward. Either way one end is
          unmistakably the bottom and the taper can be read. */
       const baseCap = () => {
-        const nub = -sphi, nzb = -cphi;
-        if(nub*fc + nub*fsn + nzb <= 0.05) return;
+        nW(0, 0, -1, nv0);
+        if(nv0.x + nv0.y + nv0.z <= 0.05) return;
         const ring = place(2, rOf(2), 14);
-        this.quadOn(g, ring, C.bodyDk);
+        this.quadOn(g, ring, C.slabDk);                        // the dark inside (props pass: it was mid orange, a lid, not a hole)
         this.edgeOn(g, ring, C.body, 1.2);
       };
       const cparts = [
@@ -127835,197 +127978,256 @@ class WorldScene extends Phaser.Scene {
          The two semi-axes are the SIM's, unchanged (see the hydroplane
          test): |sdx| < HYD_SLIP.pud along the walk, +-1.5*T2 across,
          with the road-ward side clamped to TILE*0.85 so the water does
-         not overflow the kerb. Art and slip zone still agree. */
-      const HH = HYD;
+         not overflow the kerb. Art and slip zone still agree.
+         THE WATER PASS (Sir, 2026-11-23: "do a pass on the water coming out and the puddle it makes"): it was two flat
+         pale rings. Now, bottom up: the concrete darkened where it is wet, a band a little past the water's edge; a wet
+         run from the hydrant's foot out to it; the water itself, its edge wavering (seeded from where it lies, so it
+         holds still), a deeper middle; the sky's sheen across its far half; and rings running out from where the jet
+         comes down. Same semi-axes, same centre: only paint. Ground circles are screen ellipses (the iso camera never
+         turns), so the sheen and the ripples cost no points */
+      const HH = HYD, K = this.K;
       const grow = (data && data.burstT !== undefined)
         ? Math.min(1, (t - data.burstT)/1800) : 1;
-      const landA = 8 + ((data && data.pudDir) ? data.pudDir * T2 : 0);
-      const floodRing = (radA, radBPos, radBNeg, nn=16) => {
+      const landA = hydFloodA(data), jd = landA >= 0 ? 1 : -1;
+      const ph0 = ((Math.round(x)*13 + Math.round(y)*7) % 97) * 0.065;
+      const A0 = HYD_SLIP.pud * grow, BN = T2*1.5 * grow, BP = TILE*0.85 * grow;
+      const floodRing = (s, nn) => {
         const pts = [];
-        for(let i=0; i<nn; i++){
-          const phi = (i/nn)*Math.PI*2;
-          const radB = Math.sin(phi) >= 0 ? radBPos : radBNeg;
-          pts.push(W(landA + Math.cos(phi)*radA, Math.sin(phi)*radB, 0.3));
+        for(let i = 0; i < nn; i++){
+          const phi = (i/nn)*Math.PI*2, sn = Math.sin(phi);
+          const wob = s*(1 + 0.05*Math.sin(3*phi + ph0) + 0.035*Math.sin(5*phi + ph0*1.7));
+          pts.push(W(landA + Math.cos(phi)*A0*wob, sn*(sn >= 0 ? BP : BN)*wob, 0.3));
         }
         return pts;
       };
-      const outerA = HYD_SLIP.pud * grow;
-      const outerBNeg = T2*1.5 * grow, outerBPos = TILE*0.85 * grow;
-      this.quadOn(g, floodRing(outerA, outerBPos, outerBNeg), HH.water, 0.28);
-      this.quadOn(g, floodRing(outerA*0.62, outerBPos*0.62, outerBNeg*0.62), HH.water, 0.22);
-    } else if(kind === "hydrant" || kind === "hydrantBurst"){
-      /* approved in hydrant lab: height 20 · base 8 · dome 6.5 · nozzle 2.6.
-         hydrantBurst shears the front nozzle open with an animated water
-         arc and a puddle that paints early (ground layer, like the
-         shadow) so the hydrant's own body always draws over it. */
-      const HH = HYD;
-      const bursting = kind === "hydrantBurst" || !!(data && data.burst);
-      /* the "facing" checks below (puddle, spray, breakable nozzle) all
-         gate on hth -- a per-hydrant RANDOM decorative rotation, not the
-         route's actual heading or camera direction. For the static lab
-         gallery (kind==="hydrantBurst", no live data) that randomness is
-         fine, just visual variety across instances. But for a real,
-         player-triggered burst (data.burst) it meant roughly half of
-         all burst hydrants never showed water at all -- the slip/
-         collision physics don't care about hth, so the player could
-         hydroplane with nothing visible to explain it (reported
-         2026-07-24). forceVisible makes the breakable nozzle's spray +
-         puddle always show for a live burst; the decorative rear nozzle
-         and the static gallery kind are untouched. */
-      const forceVisible = !!(data && data.burst);
-      const grow = (data && data.burstT !== undefined)
-        ? Math.min(1, (t - data.burstT)/1800) : 1;
-      const seed = ((Math.round(x)*7919) ^ (Math.round(y)*104729) ^ 0x4a7d) >>> 0;
-      const rng = mulberry32(seed);
-      const hth = rng()*Math.PI*2;
-      const hcs = Math.cos(hth), hsn = Math.sin(hth);
-      const height = HH.height;
-      const GG = (a, b, h) => W(a*hcs - b*hsn, a*hsn + b*hcs, h);
-      const dAt = (a, b, h) => a*(hcs+hsn) + b*(hcs-hsn) + h*0.4;
-
-      const rOf = h => {
-        const u = h / height;
-        if(u < 0.08) return HH.baseR;
-        if(u < 0.75) return HH.baseR*0.62 - (HH.baseR*0.62 - HH.baseR*0.5)*((u-0.08)/0.67);
-        return HH.baseR*0.5 + (HH.baseR*0.78 - HH.baseR*0.5) * ((u-0.75)/0.25);
-      };
-      const place = (h, r, n=14) => {
-        const pts = [];
-        for(let i=0; i<n; i++){
-          const phi = (i/n)*Math.PI*2, c3 = Math.cos(phi)*r, s3 = Math.sin(phi)*r;
-          pts.push(GG(c3, s3, h));
-        }
-        return pts;
-      };
-
-      /* no ground shadow: static props cast none (SP6) */
-
-      /* GALLERY RINGS ONLY. A LIVE flood (data.burst) is no longer drawn
-         here at all -- it is its own ground kind, "hydrantFlood", queued
-         into the ground pass at the flood's own centre so it can never
-         sort in front of something standing in it. See that branch for
-         why, and for the sim's two semi-axes.
-         What is left is the lab's static gallery kind, which has no
-         world queue to move into: a thrown-landing ring at the sheared
-         nozzle's tip, circular (radB === radA), gated on the hydrant's
-         own decorative rotation exactly as before. Unchanged. */
-      if(bursting && !(data && data.burst)){
-        const nc0 = 1, ns0 = 0;
-        const facing0 = (nc0*(hcs+hsn) + ns0*(hcs-hsn) > 0) || forceVisible;
-        if(facing0){
-          const tipA0 = HH.baseR*0.55 + HH.nozR*2.2;
-          const landA = tipA0 + nc0*26, landB = ns0*26;
-          const puddleRing = (rad, nn=16) => {
-            const pts = [];
-            for(let i=0; i<nn; i++){
-              const phi = (i/nn)*Math.PI*2;
-              pts.push(GG(landA + Math.cos(phi)*rad, landB + Math.sin(phi)*rad, 0.3));
-            }
-            return pts;
-          };
-          this.quadOn(g, puddleRing(TILE*0.85 * grow), HH.water, 0.28);
-          this.quadOn(g, puddleRing(TILE*0.55 * grow), HH.water, 0.22);
+      if(grow > 0.02){
+        this.quadOn(g, floodRing(1.06, 20), HH.wet, 0.2);                                  // the wet concrete round it
+        /* the run from the hydrant's foot to the water (a burst on its own tile has none) */
+        const aE = landA - jd*A0*0.7;
+        if(jd*aE > 6) this.quadOn(g, [W(jd*4, -9, 0.3), W(jd*4, 9, 0.3), W(aE, 14*grow + 6, 0.3), W(aE, -14*grow - 6, 0.3)], HH.wet, 0.2);
+        this.quadOn(g, [W(0, -15*grow, 0.3), W(15*grow, 0, 0.3), W(0, 15*grow, 0.3), W(-15*grow, 0, 0.3)], HH.wet, 0.18);   // wet round its foot
+        this.quadOn(g, floodRing(1.0, 20), HH.water, 0.42);
+        this.quadOn(g, floodRing(0.64, 16), HH.waterDk, 0.24);
+        /* the sheen: the sky in the water's far half, a long light streak and a brighter core, breathing a little */
+        const sp = W(landA - jd*A0*0.15, -BN*0.32, 0.3), sh = 0.24 + 0.06*Math.sin(t*0.0021 + ph0);
+        g.fillStyle(0xf4fbff, sh);       g.fillEllipse(sp.x, sp.y, A0*1.3*K, A0*0.2*K);
+        g.fillStyle(0xffffff, sh*1.4);   g.fillEllipse(sp.x - A0*0.12*K, sp.y, A0*0.55*K, A0*0.07*K);
+        /* ripples where the jet comes down, running out and fading */
+        const rp = W(hydJetLandA(data), 0, 0.3);
+        for(let k = 0; k < 3; k++){
+          const u = (t*0.0015 + k/3) % 1, r = (3 + 22*u)*grow;
+          g.lineStyle(Math.max(1, 1.1*K), 0xffffff, 0.5*(1 - u));
+          g.strokeEllipse(rp.x, rp.y, r*2.83*K, r*1.41*K);
         }
       }
+    } else if(kind === "hydrant" || kind === "hydrantBody" || kind === "hydrantBurst" || kind === "hydrantJet"){
+      /* A STREET HYDRANT, AT A STREET HYDRANT'S SIZE (Sir, 2026-11-23: "probably too small"): 52 tall, knee to hip on a
+         person of 124 (it was 20 -- a toy at his ankle). Its parts:
+           hydrant      the whole thing (a burst one draws its jet too: the gallery, a lab, any caller of the old kind)
+           hydrantBody  the cast iron only -- a burst one's sheared outlet included -- so the street can cache it
+           hydrantJet   the burst's jet, its spray, its splash and the thrown droplets: live, queued on its own key
+           hydrantBurst the static gallery's burst (no live data): body, jet and its own flood in one
+         ORIENTED, NOT SPUN: the pumper outlet faces the road (+b), the hose outlets run along the walk, as they are set on
+         a kerb; the one that shears is the one toward the flood (pudDir), so the jet lands in the water the sim slides
+         you on. */
+      const HH = HYD;
+      const live = !!(data && data.burst);
+      const bursting = kind === "hydrantBurst" || kind === "hydrantJet" || live;
+      const landA = hydFloodA(data), jd = landA >= 0 ? 1 : -1;
+      if(kind === "hydrantBurst" && !live) this.drawProp(g, "hydrantFlood", x, y, t, fdir, z, null, null, data);
+      const HP = Math.PI*0.5;
+      const o0 = W(0, 0, 0), oA = W(1, 0, 0), oB = W(0, 1, 0);
+      const mxA = oA.x - o0.x, mxB = oB.x - o0.x, myA = oA.y - o0.y, myB = oB.y - o0.y;
+      const rl = Math.hypot(mxA, mxB) || 1, rA = mxA/rl, rB = mxB/rl;              // screen-right, local
+      let fA = -rB, fB = rA; if(fA*myA + fB*myB < 0){ fA = -fA; fB = -fB; }           // toward the eye, local
+      const NOZ_H = HH.nozH;
 
-      const hbarrel = () => {
-        const n = 6, all = [];
-        for(let i=0; i<=n; i++) all.push(...place(i/n*height*0.9, rOf(i/n*height*0.9)));
-        this.quadOn(g, convexHullKeep(all), HH.cap);
-      };
-      const hshoulder = () => {
-        const h0 = height*0.75, h1 = height*0.9;
-        this.quadOn(g, convexHullKeep(place(h0, rOf(h0)).concat(place(h1, rOf(h1)))), HH.cap);
-      };
-      const hdome = () => {
-        const domeBase = height*0.9, domeR = HH.domeR;
-        const n = 8, rings = [];
-        for(let i=0; i<=n; i++){
-          const u = i/n, r2 = domeR * Math.cos(u*Math.PI*0.5);
-          rings.push(place(domeBase + u*domeR*0.9, r2));
-        }
-        const all = []; for(const r2 of rings) all.push(...r2);
-        this.quadOn(g, convexHullKeep(all), HH.cap);
-        const capTop = GG(0, 0, domeBase + domeR*0.9 + 1);
-        g.fillStyle(HH.capDk, 1);
-        g.fillCircle(capTop.x, capTop.y, 1.8*this.K*0.45);
-      };
-      const hnozzleSpray = (ang, r) => () => {
-        if(!bursting) return;
-        const nc = Math.cos(ang), ns = Math.sin(ang);
-        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || forceVisible;
-        if(!facing) return;
-        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
-        const hgt = height*0.42;
-        const n = 9;
-        for(let i=0; i<n; i++){
-          const u = ((t*0.0026 + i/n) % 1);
-          const dist = u * 26;
-          const arcH = hgt + 14*u - 26*u*u;
-          const pt = GG(tipA + nc*dist, tipB + ns*dist, Math.max(arcH, 0.5));
-          const alpha = 0.9 * (1 - u*0.55);
-          const r2 = Math.max(0.6, 1.6 - u*1.0);
-          g.fillStyle(u > 0.82 ? HH.waterDk : HH.water, alpha);
-          g.fillCircle(pt.x, pt.y, r2*this.K*0.4);
-        }
-      };
-      const hnozzle = (ang, r, breakable) => () => {
-        const nc = Math.cos(ang), ns = Math.sin(ang);
-        const baseA = nc*(HH.baseR*0.55), baseB = ns*(HH.baseR*0.55);
-        const tipA = nc*(HH.baseR*0.55 + r*2.2), tipB = ns*(HH.baseR*0.55 + r*2.2);
-        const hgt = height*0.42;
-        const ring = (a0,b0,rad) => {
-          const pts = [];
-          for(let i=0;i<10;i++){
-            const phi=(i/10)*Math.PI*2;
-            const perpA = -ns, perpB = nc;
-            pts.push(GG(a0 + Math.cos(phi)*rad*perpA, b0 + Math.cos(phi)*rad*perpB, hgt + Math.sin(phi)*rad));
+      /* THE JET. A tapered stream out of the bore that breaks up into clumps and spray part way down, comes down in a
+         splash, and throws the droplets the shear spilled (data.items). Its centreline is a parabola in the walk's own
+         plane through W; its width is laid across it on the screen, as a tube of water shows.
+         IT FLOWS (Sir, 2026-11-23: "the stream doesnt seem to be flowing it seems like a solid paint job"): everything
+         in it moves outward with t -- bulges travel down its edge, bright streaks and glints run from the bore to the
+         break, the solid part's end frays back and forth, clumps tear off it and fall, spray flies off its sides on its
+         own little arcs, the splash throws drops on a short cycle. Each moving bit is a phase off t and its index, no
+         state; the stream's points are kept arrays (it draws every frame). */
+      const jet = () => {
+        const K = this.K, a0 = jd*HH.tip, L = hydJetLandA(data)*jd - HH.tip;
+        const zAt = u => NOZ_H*(1 - u*u) + L*0.2*u*(1 - u);
+        const N = 8, P = _HYD_JET_P, C = _HYD_JET_C;
+        const U1 = 0.56 + 0.05*Math.sin(t*0.013) + 0.03*Math.sin(t*0.031);           // where the solid stream frays
+        for(let i = 0; i <= N; i++){ const u = U1*i/N, p = W(a0 + jd*L*u, 0, zAt(u)); C[i].x = p.x; C[i].y = p.y; }
+        const ribbon = (wk, col, al, ph) => {
+          for(let i = 0; i <= N; i++){
+            const i0 = i > 0 ? i - 1 : 0, i1 = i < N ? i + 1 : N;
+            let tx = C[i1].x - C[i0].x, ty = C[i1].y - C[i0].y; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+            const bulge = 1 + 0.2*Math.sin(i*1.9 - t*0.021 + ph) + 0.08*Math.sin(i*4.3 - t*0.047 + ph);   // travelling down it
+            const w = HH.nozR*wk*(0.85 + 1.4*U1*i/N)*K*bulge*(i === N ? 0.45 : 1);
+            P[i].x = C[i].x - ty*w; P[i].y = C[i].y + tx*w;
+            P[2*N + 1 - i].x = C[i].x + ty*w; P[2*N + 1 - i].y = C[i].y - tx*w;
           }
-          return pts;
+          this.quadOn(g, P, col, al);
         };
-        this.quadOn(g, convexHullKeep(ring(baseA,baseB,r).concat(ring(tipA,tipB,r))), HH.cap);
-        const facing = (nc*(hcs+hsn) + ns*(hcs-hsn) > 0) || (breakable && forceVisible);
-        if(!facing) return;
-        if(bursting && breakable){
-          this.quadOn(g, ring(tipA,tipB,r*0.9), HH.nut);
-          this.quadOn(g, ring(tipA,tipB,r*0.5), HH.capDk);
-        } else {
-          this.quadOn(g, ring(tipA,tipB,r*0.8), HH.capDk);
+        ribbon(1, HH.waterDk, 0.72, 0);
+        ribbon(0.64, HH.water, 0.85, 1.3);
+        ribbon(0.22, 0xf4fcff, 0.8, 2.6);
+        /* streaks running down it, bore to break, each a short bright dash off the centre line */
+        for(let k = 0; k < 6; k++){
+          const p = (t*0.0017 + k/6) % 1, u = p*U1, du = 0.05 + 0.05*p, off = (k % 3 - 1)*0.45*HH.nozR*(1 + p);
+          const q0 = W(a0 + jd*L*u, off, zAt(u) + 0.2), q1 = W(a0 + jd*L*(u + du), off, zAt(u + du) + 0.2);
+          g.lineStyle(Math.max(1, (1.3 - 0.5*p)*K), 0xffffff, 0.9*Math.sin(Math.PI*p));
+          g.lineBetween(q0.x, q0.y, q1.x, q1.y);
         }
-      };
-
-      const domeBase = height*0.9, domeR = HH.domeR;
-      const hparts = [
-        { d: dAt(0,0,height*0.3), fn: hbarrel },
-        { d: dAt(0,0,height*0.82), fn: hshoulder },
-        { d: dAt(HH.baseR*0.55*Math.cos(0), HH.baseR*0.55*Math.sin(0), height*0.42), fn: hnozzle(0, HH.nozR, true) },
-        { d: dAt(HH.baseR*0.55*Math.cos(Math.PI), HH.baseR*0.55*Math.sin(Math.PI), height*0.42), fn: hnozzle(Math.PI, HH.nozR, false) },
-        { d: dAt(0,0, domeBase+domeR*0.9), fn: hdome },
-        { d: dAt(HH.baseR*0.55 + HH.nozR*2.2 + 20, 0, height*0.42 + 8), fn: hnozzleSpray(0, HH.nozR) }
-      ];
-      hparts.sort((p1, p2) => p1.d - p2.d);
-      for(const pt of hparts) pt.fn();
-
-      /* burst droplets: plain local W(), not decoratively rotated —
-         same convention as bin/planter debris. Airborne droplets get
-         a short fall streak; landed ones flatten into little splash
-         ellipses that fade as life runs out (they evaporate into the
-         flood rather than settling like leaves). */
-      if(data && data.items && data.items.length){
-        for(const it of data.items){
-          const p = W(it.x, it.y, it.z);
-          const a = Math.max(0, Math.min(1, it.life));
-          if(!it.landed){
-            g.fillStyle(it.col, 0.9*a);
-            g.fillCircle(p.x, p.y, it.size*this.K*0.42);
-            const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
-            g.lineStyle(Math.max(1, it.size*this.K*0.25), it.col, 0.4*a);
-            g.lineBetween(p2.x, p2.y, p.x, p.y);
-          } else {
-            g.fillStyle(it.col, 0.5*a);
-            g.fillEllipse(p.x, p.y, it.size*this.K*1.1*(2-a), it.size*this.K*0.45*(2-a));
+        /* glints riding the core */
+        for(let k = 0; k < 3; k++){
+          const p = (t*0.0023 + k/3) % 1, u = p*U1, q = W(a0 + jd*L*u, 0, zAt(u) + 0.3);
+          g.fillStyle(0xffffff, 0.8*Math.sin(Math.PI*p)); g.fillEllipse(q.x, q.y, (2.4 + 2*p)*K, (1.1 + p)*K);
+        }
+        /* where it breaks up: clumps tearing off the end and falling the rest of the way, spreading as they go */
+        for(let i = 0; i < 16; i++){
+          const h1 = (i*0.618034) % 1, h2 = (i*0.414214 + 0.3) % 1;
+          const p = (t*0.0024 + h1) % 1, u = U1 - 0.06 + (1.02 - U1 + 0.06)*p;
+          const da = (h2 - 0.5)*4*p, db = (h1 - 0.5)*8*p, dz = (h2 - 0.5)*4*p;
+          const r = (2.6 - 1.2*p)*K*0.6, al = 0.9*(1 - 0.5*p);
+          const q = W(a0 + jd*(L*u + da), db, Math.max(0.4, zAt(u) + dz));
+          const q2 = W(a0 + jd*(L*(u - 0.025) + da), db*0.9, Math.max(0.4, zAt(u - 0.025) + dz));
+          g.fillStyle(i % 3 ? HH.water : HH.waterDk, al); g.fillCircle(q.x, q.y, r); g.fillCircle(q2.x, q2.y, r*0.8);
+          if(i % 3 === 0){ g.fillStyle(0xffffff, al*0.8); g.fillCircle(q.x - r*0.3, q.y - r*0.3, r*0.45); }
+        }
+        /* spray flying off the stream's sides on little arcs of their own and falling away */
+        for(let i = 0; i < 16; i++){
+          const h1 = (i*0.754877) % 1, h2 = (i*0.569840 + 0.1) % 1;
+          const p = (t*0.0016 + h2) % 1, u0 = 0.15 + 0.8*h1, u = Math.min(1, u0 + 0.18*p);
+          const q = W(a0 + jd*L*u, (h2 - 0.5)*26*p, Math.max(0.3, zAt(u) + 7*p - 16*p*p));
+          g.fillStyle(i % 2 ? 0xf4fcff : HH.water, 0.8*(1 - p));
+          g.fillCircle(q.x, q.y, (1.2 - 0.5*p)*K*0.6);
+        }
+        const mq = W(a0 + jd*L*0.86, 0, zAt(0.86));                                    // the mist over the fall, breathing
+        g.fillStyle(HH.water, 0.26 + 0.08*Math.sin(t*0.009));
+        g.fillEllipse(mq.x, mq.y, (10 + L*0.08)*K*(1 + 0.1*Math.sin(t*0.013)), 7*K);
+        /* the splash: a churning foam patch and a crown of drops thrown up and out where it lands, on a short cycle */
+        const sp = W(a0 + jd*L, 0, 0.4), fz = 1 + 0.14*Math.sin(t*0.023) + 0.06*Math.sin(t*0.057);
+        g.fillStyle(0xf4fcff, 0.55); g.fillEllipse(sp.x, sp.y, 15*K*fz, 7.5*K*(2 - fz));
+        g.fillStyle(0xffffff, 0.7);  g.fillEllipse(sp.x, sp.y, 7*K*(2 - fz), 3.5*K*fz);
+        for(let k = 0; k < 12; k++){
+          const ph = (t*0.0042 + k*0.37) % 1, an = k*0.524 + 0.4 + 0.3*Math.floor(t*0.0042 + k*0.37), rr = 2 + (8 + (k % 3)*3)*ph;
+          const q = W(a0 + jd*L + Math.cos(an)*rr, Math.sin(an)*rr, 0.4 + (12 + (k % 4)*4)*ph*(1 - ph));
+          g.fillStyle(k % 2 ? 0xf4fcff : HH.water, 0.85*(1 - ph));
+          g.fillCircle(q.x, q.y, (1.2 - 0.5*ph)*K*0.55);
+        }
+        /* burst droplets: plain local W(), same convention as bin/planter debris. Airborne ones get a short fall
+           streak; landed ones flatten into little splash ellipses that fade as life runs out */
+        if(data && data.items && data.items.length){
+          for(const it of data.items){
+            const p = W(it.x, it.y, it.z);
+            const a = Math.max(0, Math.min(1, it.life));
+            if(!it.landed){
+              g.fillStyle(it.col, 0.9*a);
+              g.fillCircle(p.x, p.y, it.size*K*0.42);
+              const p2 = W(it.x - it.vx*1.4, it.y - it.vy*1.4, it.z - it.vz*1.4 + 0.6);
+              g.lineStyle(Math.max(1, it.size*K*0.25), it.col, 0.4*a);
+              g.lineBetween(p2.x, p2.y, p.x, p.y);
+            } else {
+              g.fillStyle(it.col, 0.5*a);
+              g.fillEllipse(p.x, p.y, it.size*K*1.1*(2-a), it.size*K*0.45*(2-a));
+            }
           }
         }
+      };
+      if(kind === "hydrantJet") jet(); else {
+
+      /* THE BODY (the design pass, Sir 2026-11-23): a cast-iron post as one is built -- a base flange with its bolts on
+         the pavement, the barrel, the bonnet's band, the bonnet's dome, the five-sided operating nut on top, two hose
+         outlets and the big pumper outlet between them, each with its cap and nut. Every turned piece is shaded as a
+         cylinder -- lit on the left, a highlight strip, the shade side right -- and the eye is ASKED of W (SP13): fA/fB is
+         the local direction toward the eye, rA/rB screen-right, so all four facings read the same. Outlets pointing away
+         are painted before the body, those toward the eye after it, their caps beyond. */
+      const C_LT = 0xd65a4b, C_MID = HH.cap, C_TOP = 0xc54639, C_DK = HH.capDk, C_RIM = 0x6c1f1a;
+      const N_TOP = 0x5b5f67, N_DK = 0x26282c;
+      const at = (R, th, h) => { const c = Math.cos(th)*R, s = Math.sin(th)*R; return W(c*fA + s*rA, c*fB + s*rB, h); };
+      const arc = (R, h, t0, t1, n) => { const P = []; for(let k = 0; k <= n; k++) P.push(at(R, t0 + (t1 - t0)*k/n, h)); return P; };
+      /* a turned piece's side, h0..h1 at radii r0..r1: its silhouette, a highlight strip left of front, the shade side */
+      const turned = (h0, r0, h1, r1) => {
+        this.quadOn(g, arc(r0, h0, -HP, HP, 10).concat(arc(r1, h1, HP, 3*HP, 10)), C_MID);
+        this.quadOn(g, arc(r0, h0, -1.05, -0.6, 3).concat(arc(r1, h1, -0.6, -1.05, 3)), C_LT);
+        this.quadOn(g, arc(r0, h0, 0.42, HP, 6).concat(arc(r1, h1, HP, 0.42, 6)), C_DK);
+        this.quadOn(g, arc(r0, h0, 1.2, HP, 3).concat(arc(r1, h1, HP, 1.2, 3)), C_RIM);
+      };
+      const lid = (R, h, col) => this.quadOn(g, arc(R, h, -Math.PI, Math.PI, 18), col);
+      /* a five-sided nut standing on a face whose outward normal is (nA,nB,nZ) -- up for the operating nut, an outlet's
+         axis for its cap's: its sides seen from the eye, then its face */
+      const nut = (cA, cB, cZ, uA, uB, uZ, vA, vB, vZ, nA, nB, nZ, R, L) => {
+        const P0 = [], P1 = [];
+        for(let k = 0; k < 5; k++){ const ps = 2*Math.PI*k/5 + 0.3, c = Math.cos(ps)*R, s = Math.sin(ps)*R;
+          const a = cA + c*uA + s*vA, b = cB + c*uB + s*vB, zz = cZ + c*uZ + s*vZ;
+          P0.push(W(a, b, zz)); P1.push(W(a + nA*L, b + nB*L, zz + nZ*L)); }
+        for(let k = 0; k < 5; k++){ const k1 = (k + 1) % 5, ps = 2*Math.PI*(k + 0.5)/5 + 0.3;
+          const wA = Math.cos(ps)*uA + Math.sin(ps)*vA, wB = Math.cos(ps)*uB + Math.sin(ps)*vB, wZ = Math.cos(ps)*uZ + Math.sin(ps)*vZ;
+          if(wA*fA + wB*fB + wZ*0.35 <= 0) continue;                                   // a side turned from the eye
+          this.quadOn(g, [P0[k], P0[k1], P1[k1], P1[k]], (wA*rA + wB*rB) > 0.2 ? N_DK : HH.nut); }
+        this.quadOn(g, P1, N_TOP);
+      };
+      /* an outlet along local (nc, ns) at NOZ_H: its stub from the barrel, a cap a size up, the cap's nut -- or, sheared,
+         the open bore. Its end face shows only turned toward the eye */
+      const outlet = (ang, r, len, sheared) => {
+        const nc = Math.cos(ang), ns = Math.sin(ang), pA = -ns, pB = nc;
+        const toEye = nc*fA + ns*fB > 0.02;
+        const ring = (s, rad, n = 12) => { const P = [];
+          for(let i = 0; i < n; i++){ const ph = (i/n)*Math.PI*2, c = Math.cos(ph)*rad, zz = NOZ_H + Math.sin(ph)*rad;
+            P.push(W(nc*s + pA*c, ns*s + pB*c, zz)); }
+          return P; };
+        const under = (s, rad) => { const P = [];
+          for(let i = 0; i <= 6; i++){ const ph = Math.PI*(1.08 + 0.84*i/6);
+            P.push(W(nc*s + pA*Math.cos(ph)*rad, ns*s + pB*Math.cos(ph)*rad, NOZ_H + Math.sin(ph)*rad)); }
+          return P; };
+        const tube = (s0, s1, rad, col) => {
+          this.quadOn(g, convexHullKeep(ring(s0, rad).concat(ring(s1, rad))), col);
+          this.quadOn(g, convexHullKeep(under(s0, rad).concat(under(s1, rad))), C_DK);
+        };
+        const s0 = HH.barR - 0.5, s1 = s0 + len, capR = r*1.28, s2 = s1 + 2.2;
+        const stub = () => tube(s0, s1, r, C_MID);
+        const cap = () => { if(!sheared) tube(s1, s2, capR, C_MID); };
+        const face = () => {
+          if(!toEye) return;
+          if(sheared){ this.quadOn(g, ring(s1 + 0.05, r*0.92), HH.nut); this.quadOn(g, ring(s1 + 0.1, r*0.55), C_RIM); return; }
+          this.quadOn(g, ring(s2 + 0.05, capR*0.96), C_TOP);
+          nut(nc*(s2 + 0.05), ns*(s2 + 0.05), NOZ_H, pA, pB, 0, 0, 0, 1, nc, ns, 0, r*0.45, 1.6);
+        };
+        if(toEye){ stub(); cap(); face(); } else { cap(); stub(); }
+      };
+      /* the body, bottom up: each piece sits on the last, so painting upward is back to front */
+      const body = () => {
+        turned(0, HH.baseR, 3.5, HH.baseR); lid(HH.baseR, 3.5, C_TOP);                  // the base flange
+        for(let k = 0; k < 6; k++){ const th = -1.25 + k*0.5;                          // its bolt heads, the front half
+          const ca = Math.cos(th)*9.3, sa = Math.sin(th)*9.3;
+          const pa = ca*fA + sa*rA, pb = ca*fB + sa*rB;
+          this.quadOn(g, [W(pa - 0.9, pb - 0.9, 3.55), W(pa + 0.9, pb - 0.9, 3.55), W(pa + 0.9, pb + 0.9, 3.55), W(pa - 0.9, pb + 0.9, 3.55)], C_DK); }
+        turned(3.5, HH.barR + 0.3, 32.5, HH.barR - 0.4);                               // the barrel
+        turned(32.5, 8.7, 36, 8.7); lid(8.7, 36, C_TOP);                               // the bonnet's band
+        /* the bonnet: a dome on the band, its silhouette, a highlight and the shade side round it */
+        const DR = 7.9, DH = 11.5, NR = 7, rings = [];
+        for(let i = 0; i <= NR; i++){ const u = i/NR*HP*0.88; rings.push([DR*Math.cos(u), 36 + DH*Math.sin(u)]); }
+        const dAll = []; for(const [rr, hh] of rings) dAll.push(...arc(rr, hh, -Math.PI, Math.PI, 14));
+        this.quadOn(g, convexHullKeep(dAll), C_MID);
+        const band = (t0, t1, i1, col) => { const L = [], R = [];
+          for(let i = 0; i <= i1; i++){ const [rr, hh] = rings[i]; L.push(at(rr, t0, hh)); R.push(at(rr, t1, hh)); }
+          this.quadOn(g, arc(rings[0][0], rings[0][1], t0, t1, 4).concat(R.slice(1), L.slice(1).reverse()), col); };
+        band(-1.0, -0.5, 4, C_LT);
+        band(0.42, HP, NR, C_DK);
+        band(1.2, HP, NR, C_RIM);
+        lid(rings[NR][0], rings[NR][1], C_TOP);
+        nut(0, 0, rings[NR][1], 1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, HH.height - rings[NR][1]);   // the operating nut
+      };
+
+      /* hose outlets along the walk (the one toward the flood shears), the pumper toward the road */
+      const shA = jd > 0 ? 0 : Math.PI;
+      const outlets = _HYD_OUTLETS;
+      const drawJet = bursting && kind !== "hydrantBody";
+      const jetToEye = jd*fA > 0;
+      if(drawJet && !jetToEye) jet();
+      for(const [ang, r, len] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB <= 0.02) outlet(ang, r, len, bursting && ang === shA);
+      body();
+      for(const [ang, r, len] of outlets) if(Math.cos(ang)*fA + Math.sin(ang)*fB > 0.02) outlet(ang, r, len, bursting && ang === shA);
+      if(drawJet && jetToEye) jet();
       }
     } else if(kind === "robot"){
       /* other robots (requested 2026-07-24): a simplified sibling body,
@@ -128256,119 +128458,127 @@ class WorldScene extends Phaser.Scene {
         return { dx: tt.u*fc - v*fsn, dy: tt.u*fsn + v*fc, z: tt.z };
       };
       const GT = (a, b, h) => { const p = TP(a, b, h); return GG(p.dx, p.dy, p.z); };
-      const dAt = (a, b, h) => { const p = TP(a, b, h); return p.dx + p.dy + p.z*0.4; };
+      const dAt = (a, b, h) => { const p = TP(a, b, h); return (dv.x + dv.y)*p.dx + (rv.x + rv.y)*p.dy + p.z*0.4; };   // world depth: the local frame turns with the facing (props pass)
       const baseShrink = 0.82;
       const corner = (sx, sy, h, shrink=1) => GT(sx*hw*shrink, sy*hd*shrink, h);
 
       /* planter body shadow removed (requested). */
 
       {
+        /* THE PLANTER PASS (street props, 2026-11-23: its plants read as lollipops on sticks). The box gets a rim -- a lip
+           standing proud of the walls round the top, its own lighter top, the dark of the inner walls inside it and the soil sunk
+           below it -- and the plant is a mound of foliage filling the box and spilling a little over the rim, each puff a shaded
+           ball (its dark body, the lit side, a highlight on the crown), no stalks; the grasses and succulents are blades fanning
+           out of the soil, not stars on sticks. Faces from the eye (SP13): every wall, lip and top is asked of its normal in WORLD
+           (through the facing and the tip), the right-hand wall dark. */
+        const lipT = 2.6*scale, lipO = 1.2*scale, wall = 2.4*scale, soilD = 1.8*scale;
+        const iw = hw - wall, id = hd - wall, Hb = H - lipT;
+        const shr = h => baseShrink + (1 - baseShrink)*h/H;
+        const nWp = (a, b, h, o) => {
+          const p1 = TP(a, b, h), p0 = TP(0, 0, 0), dx = p1.dx - p0.dx, dy = p1.dy - p0.dy;
+          o.x = dv.x*dx + rv.x*dy; o.y = dv.y*dx + rv.y*dy; o.z = p1.z - p0.z; return o;
+        };
+        const nn = { x: 0, y: 0, z: 0 };
+        const sees = (a, b, h) => { nWp(a, b, h, nn); return nn.x + nn.y + nn.z > 0.02; };
+        const rightHand = () => (nn.x - nn.y) > 0;
+        /* a ring of walls from h0 to h1, half-widths (w0, d0) at h0 and (w1, d1) at h1: the walls the eye sees */
+        const walls = (h0, w0, d0, h1, w1, d1, cL, cR) => {
+          for(const s of [1, -1]){
+            if(sees(s, 0, 0)) this.quadOn(g, [GT(s*w1, -d1, h1), GT(s*w1, d1, h1), GT(s*w0, d0, h0), GT(s*w0, -d0, h0)], rightHand() ? cR : cL);
+            if(sees(0, s, 0)) this.quadOn(g, [GT(-w1, s*d1, h1), GT(w1, s*d1, h1), GT(w0, s*d0, h0), GT(-w0, s*d0, h0)], rightHand() ? cR : cL);
+          }
+        };
         const pbox = () => {
-          /* silhouette backstop, tipped poses only: the two visible
-             side faces below are picked by the STANDING camera test
-             (faceX/faceY from dv) -- once the pot rotates, the set of
-             camera-facing faces changes (the base can come into view)
-             and gaps would show. A filled hull of all 8 corners
-             underneath keeps every mid-fall/fallen pose solid without
-             touching the standing art (guarded, phi=0 skips it). */
+          /* silhouette backstop, tipped poses only (the walls below are asked of the eye, but a pot mid-fall shows its base too) */
           if(phi > 0.05){
             const hull = [];
             for(const sx of [-1,1]) for(const sy of [-1,1]){
-              hull.push(corner(sx,sy,H)); hull.push(corner(sx,sy,0,baseShrink));
+              hull.push(GT(sx*(hw + lipO), sy*(hd + lipO), H)); hull.push(corner(sx,sy,0,baseShrink));
             }
-            this.quadOn(g, convexHull(hull), PL.boxDk);
+            this.quadOn(g, convexHull(hull), PL.boxDk2);
           }
-          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
-          this.quadOn(g, top, PL.box);
-          this.edgeOn(g, top, PL.boxDk, 1.2);
-          /* the two outward faces visible under this fixed camera —
-             was hardcoded to faceX=1,faceY=1, which is ONLY correct
-             when fdir===0 (dv={1,0}). The collidable planter hazard
-             (and now block-wrap scatter) can spawn at any of the 4
-             facings via facingAt()/scatterBlockProp, and for the other
-             3 the hardcoded version drew the WRONG two faces — this is
-             the exact same "which 2 box faces face the camera" problem
-             drawPersonHull already solves correctly for a continuous
-             heading (faceA=sign(cs+sn), faceB=sign(cs-sn)); dv is just
-             (cos,sin) of this box's 90°-snapped heading, so the same
-             formula applies directly, for any orientation. */
-          const faceX = Math.sign(dv.x + dv.y) || 1;
-          const faceY = Math.sign(dv.x - dv.y) || 1;
-          const xFace = [
-            corner(faceX,-1,H), corner(faceX,1,H),
-            corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
-          ];
-          this.quadOn(g, xFace, faceX > 0 ? PL.boxDk : PL.boxDk2);
-          /* yFace overlaps xFace by a hair at their shared edge (sx
-             pushed just past 1) — a defensive seam guard. The two
-             faces meet at an exact edge, and without a tiny overlap,
-             sub-pixel rasterization gaps at that seam can make the
-             face drawn first (xFace) show through as a sliver on some
-             renderers, even though both faces are geometrically valid
-             (verified: comparable non-degenerate area on every facing
-             direction, nothing else drawn over it — this is purely a
-             rasterization seam fix, invisible at normal zoom).
-             The far corner used to be hardcoded to -1, written back
-             when "past 1" only ever meant the +1 case — it never
-             tracked faceX flipping to -1 (fdir 2/3), so instead of
-             spanning the box's actual far edge it sat 0.03 units from
-             the near corner: a sliver, not a face. -faceX is that far
-             edge for either sign, so this is now the same full-width
-             face (plus the same seam overlap) at every heading. */
-          const yFace = [
-            corner(-faceX,faceY,H), corner(faceX*1.03,faceY,H),
-            corner(faceX*1.03,faceY,0,baseShrink), corner(-faceX,faceY,0,baseShrink)
-          ];
-          this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
-          const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
-          this.quadOn(g, soil, PL.soil);
+          walls(0, hw*baseShrink, hd*baseShrink, Hb, hw*shr(Hb), hd*shr(Hb), PL.boxDk, PL.boxDk2);
+          walls(Hb, hw + lipO, hd + lipO, H, hw + lipO, hd + lipO, PL.lipL, PL.lipR);
+          if(sees(0, 0, 1)){
+            /* the rim's top is a frame round the opening (not a lid with the soil painted on it); through the opening, the inner
+               faces of the far walls (those whose outer faces are turned away), then the soil sunk below the rim, each cut to it */
+            const ow = hw + lipO, od = hd + lipO, hs = H - soilD;
+            this.quadOn(g, [GT(-ow,-od,H), GT(ow,-od,H), GT(iw,-id,H), GT(-iw,-id,H)], PL.lip);
+            this.quadOn(g, [GT(ow,-od,H), GT(ow,od,H), GT(iw,id,H), GT(iw,-id,H)], PL.lip);
+            this.quadOn(g, [GT(ow,od,H), GT(-ow,od,H), GT(-iw,id,H), GT(iw,id,H)], PL.lip);
+            this.quadOn(g, [GT(-ow,od,H), GT(-ow,-od,H), GT(-iw,-id,H), GT(-iw,id,H)], PL.lip);
+            const open = [GT(-iw,-id,H), GT(iw,-id,H), GT(iw,id,H), GT(-iw,id,H)];
+            for(const s of [1, -1]){
+              if(!sees(s, 0, 0)){ const q = clipConvex([GT(s*iw,-id,H), GT(s*iw,id,H), GT(s*iw,id,hs), GT(s*iw,-id,hs)], open); if(q) this.quadOn(g, q, PL.inner); }
+              if(!sees(0, s, 0)){ const q = clipConvex([GT(-iw,s*id,H), GT(iw,s*id,H), GT(iw,s*id,hs), GT(-iw,s*id,hs)], open); if(q) this.quadOn(g, q, PL.inner); }
+            }
+            const soil = clipConvex([GT(-iw,-id,hs), GT(iw,-id,hs), GT(iw,id,hs), GT(-iw,id,hs)], open);
+            if(soil) this.quadOn(g, soil, PL.soil);
+          }
         };
         const pbush = () => {
-          const baseH = H + 1;
-          const n = fullness;
-          const puffs = [];
-          puffs.push({ a:0, b:0, h:baseH + bushH*0.55, r:bushH*0.5, c:V.leafA });
-          for(let i=0; i<n; i++){
-            const ang = (i/n)*Math.PI*2 + rng()*0.4;
-            const rr = (boxW*0.28 + rng()*boxW*0.12);
-            const hh = baseH + bushH*(0.3 + rng()*0.55);
-            const size = bushH*(0.28 + rng()*0.16);
-            const shade = rng();
-            const col = shade < 0.33 ? V.leafA : shade < 0.66 ? V.leafB : V.leafC;
-            puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col, ang });
-          }
-          puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
-          for(const pf of puffs){
-            const s0 = GT(pf.a*0.25, pf.b*0.25, baseH - 0.4);
-            const s1 = GT(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
-            g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
-            g.lineBetween(s0.x, s0.y, s1.x, s1.y);
-            const c = GT(pf.a, pf.b, pf.h);
-            g.fillStyle(pf.c, 1);
-            if(V.style === "spiky"){
-              // ornamental-grass blade: thin triangles radiating from
-              // the stalk tip instead of one round puff
-              const nb = 4;
-              for(let bIdx=0; bIdx<nb; bIdx++){
-                const bAng = (pf.ang || 0) + (bIdx/nb)*Math.PI*2 + rng()*0.3;
-                const tip = GT(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
-                const base1 = GT(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                const base2 = GT(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                g.fillTriangle(tip.x, tip.y, base1.x, base1.y, base2.x, base2.y);
-              }
-            } else {
-              g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
+          const baseH = H - soilD;
+          const K = this.K;
+          if(V.style === "spiky"){
+            /* blades fanning out of the soil, the far ones first; a succulent's shorter and broader */
+            const succ = V.n === "succulent", nb = fullness*3, blades = [];
+            for(let i=0; i<nb; i++){
+              const ang = rng()*Math.PI*2, rad = Math.sqrt(rng())*0.8;
+              const ca = Math.cos(ang), sa = Math.sin(ang);
+              const ba = ca*rad*iw, bb = sa*rad*id;
+              const lean = (succ ? 0.38 : 0.5)*bushH*(0.4 + rng()*0.6);
+              const th = baseH + bushH*(succ ? 0.4 + 0.3*rng() : 0.7 + 0.5*rng());
+              const sh = rng();
+              blades.push({ ba, bb, ca, sa, ta: ba + ca*lean, tb: bb + sa*lean, th, w: (succ ? 2.4 : 1.4)*scale,
+                            c: sh < 0.33 ? V.leafA : sh < 0.66 ? V.leafB : V.leafC, d: dAt(ba + ca*lean*0.5, bb + sa*lean*0.5, (baseH + th)/2) });
             }
-          }
-          if(flowering){
-            const nf = Math.max(2, Math.round(n*0.6));
-            for(let i=0; i<nf; i++){
-              const ang = rng()*Math.PI*2;
-              const rr = boxW*0.22 + rng()*boxW*0.16;
-              const hh = baseH + bushH*(0.45 + rng()*0.5);
-              const c = GT(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+            blades.sort((p1, p2) => p1.d - p2.d);
+            for(const bl of blades){
+              const b1 = GT(bl.ba - bl.sa*bl.w, bl.bb + bl.ca*bl.w, baseH), b2 = GT(bl.ba + bl.sa*bl.w, bl.bb - bl.ca*bl.w, baseH);
+              const tp = GT(bl.ta, bl.tb, bl.th);
+              g.fillStyle(bl.c, 1);
+              g.fillTriangle(tp.x, tp.y, b1.x, b1.y, b2.x, b2.y);
+            }
+            if(flowering){
               g.fillStyle(V.flower, 1);
-              g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+              for(let i=0; i<3; i++){
+                const bl = blades[blades.length - 1 - i*2]; if(!bl) break;
+                const c = GT(bl.ba + (bl.ta - bl.ba)*0.7, bl.bb + (bl.tb - bl.bb)*0.7, baseH + (bl.th - baseH)*0.7);   // on the blade, not off its tip
+                g.fillCircle(c.x, c.y, Math.max(1.2, 1.3*scale*K));
+              }
+            }
+            return;
+          }
+          /* a mound: a crown, an inner ring, an outer ring round the rim (the front of it spilling over), far ones first */
+          const puffs = [{ a: 0, b: 0, h: baseH + bushH*0.72, r: bushH*0.3 }];
+          const nIn = Math.max(3, Math.round(fullness/2)), nOut = fullness + 2;
+          for(let i=0; i<nIn; i++){
+            const ang = (i/nIn)*Math.PI*2 + rng()*0.6;
+            puffs.push({ a: Math.cos(ang)*iw*0.45, b: Math.sin(ang)*id*0.5, h: baseH + bushH*(0.48 + rng()*0.1), r: bushH*(0.25 + rng()*0.04) });
+          }
+          for(let i=0; i<nOut; i++){
+            const ang = (i/nOut)*Math.PI*2 + rng()*0.4;
+            puffs.push({ a: Math.cos(ang)*iw*1.02, b: Math.sin(ang)*id*1.15, h: baseH + bushH*(0.2 + rng()*0.14), r: bushH*(0.21 + rng()*0.06) });
+          }
+          for(const pf of puffs) pf.d = dAt(pf.a, pf.b, pf.h);
+          puffs.sort((p1, p2) => p1.d - p2.d);
+          /* the shaded mass first, every puff (one shrub, not a pile of balls), then each puff's lit side far to near: the dark
+             shows only under the lumps and down the right-hand side */
+          const hiH = baseH + bushH*0.42;
+          g.fillStyle(V.leafB, 1);
+          for(const pf of puffs){ const c = GT(pf.a, pf.b, pf.h); g.fillCircle(c.x, c.y, pf.r*K); }
+          for(const pf of puffs){
+            const c = GT(pf.a, pf.b, pf.h), r = pf.r*K;
+            g.fillStyle(V.leafA, 1);
+            g.fillCircle(c.x - r*0.2, c.y - r*0.24, r*0.74);
+            if(pf.h > hiH){
+              g.fillStyle(V.leafC, 1);
+              g.fillCircle(c.x - r*0.32, c.y - r*0.42, r*0.36);
+            }
+            if(flowering && rng() < 0.55){
+              g.fillStyle(V.flower, 1);
+              g.fillCircle(c.x + (rng() - 0.6)*r*0.9, c.y - r*(0.1 + rng()*0.5), Math.max(1.1, 1.1*scale*K));
+              g.fillCircle(c.x + (rng() - 0.3)*r*0.9, c.y - r*(0.2 + rng()*0.4), Math.max(1.1, 1.1*scale*K));
             }
           }
         };
@@ -128763,7 +128973,7 @@ class WorldScene extends Phaser.Scene {
       const dAt = (u, v, h) => {
         const tt = tip(u, h);
         const a2 = (tt.u + slide)*fc - v*fsn, b2 = (tt.u + slide)*fsn + v*fc;
-        return a2 + b2 + tt.z*0.4;
+        return (dv.x + dv.y)*a2 + (rv.x + rv.y)*b2 + tt.z*0.4;   // world depth: the local frame turns with the facing (props pass)
       };
       const place = (h, r, n=14) => {
         const pts = [];
@@ -128774,6 +128984,13 @@ class WorldScene extends Phaser.Scene {
         return pts;
       };
 
+      /* the barrel's ring point and its outward normal in WORLD x, y, z (through the tip and the facing), for arcStrip */
+      const binP = (psi, h, r) => L(Math.cos(psi)*r, Math.sin(psi)*r, h);
+      const binN = (psi, o) => {
+        const nu = Math.cos(psi), nv = Math.sin(psi), u2 = nu*cphi, z2 = -nu*sphi;
+        const a = u2*fc - nv*fsn, b = u2*fsn + nv*fc;
+        o.x = dv.x*a + rv.x*b; o.y = dv.y*a + rv.y*b; o.z = z2; return o;
+      };
       const mid = tip(0, H*0.5);
       const kk = Math.min(1, sphi*1.1);
       /* no ground shadow: static props cast none (SP6) */
@@ -128800,9 +129017,19 @@ class WorldScene extends Phaser.Scene {
         const lowerN = 3, lower = [];
         for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
         this.quadOn(g, convexHullKeep(lower), B.bodyDk, 0.2);
+        /* THE BAND IS A RING ROUND THE BARREL while the lid is on (props pass, 2026-11-23): it was a filled solid, its top a white
+           lid laid over the barrel with the liner's dark mouth painted on it -- a hole two thirds up a shut bin. Shut, only the arc
+           the eye sees, the barrel running on above it to the lid. Open, the band IS the mouth (HB is b1): its rim and the dark
+           liner in it, as before. Either way the right-hand side of the barrel goes into shade (SP13). */
+        this.arcStrip(g, binP, binN, 0, binR(0), HB, binR(HB), 1, 0x000000, 0.14);
         if(B.band > 0){
-          this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
-          this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
+          if(HB === H){
+            this.arcStrip(g, binP, binN, b0, binR(b0) + 0.3, b1, binR(b1) + 0.3, 0, B.band_c);
+            this.arcStrip(g, binP, binN, b0, binR(b0) + 0.3, b1, binR(b1) + 0.3, 1, 0x000000, 0.16);
+          } else {
+            this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
+            this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
+          }
         }
         /* liner lip: camera-facing test, same pattern used everywhere
            else in this projection (rotated local normal dotted with
@@ -128851,21 +129078,24 @@ class WorldScene extends Phaser.Scene {
           g.fillCircle(knob.x, knob.y, 2.2*bs*K*0.45);
         }
       };
+      /* THE FOOT PEDAL IS A PLATE ON THE PAVEMENT (props pass): it was a screen-flat ellipse with a stroke for its lever, and the
+         lever ran from INSIDE the barrel (0.55 of its radius) -- a scratch down the can whenever the pedal side faced the eye. Now
+         a plate in the ground's own plane, its front edge where the eye sees it, butting the barrel's foot. Whether it is in front
+         of the barrel or behind is asked of its normal in world (binN), not of the local frame, which turns with the facing. */
+      const pedalN = binN(0, { x: 0, y: 0, z: 0 }), pedalFront = (pedalN.x + pedalN.y) > 0, pedalSN = { x: 0, y: 0, z: 0 };
       const bpedal = () => {
         if(phi > 0.05) return;
-        const a0 = L(B.baseR*0.55, 0, 1.5*bs);
-        const a1 = L(B.baseR*0.95, 0, 5.5*bs);
-        g.lineStyle(Math.max(1.5, 1.4*bs*K*0.4), B.pedalDk, 1);
-        g.lineBetween(a0.x, a0.y, a1.x, a1.y);
-        const p0 = L(B.baseR*0.95, -3.2*bs, 0.6*bs), p1 = L(B.baseR*1.25, 3.2*bs, 0.6*bs);
-        g.fillStyle(B.pedal, 1);
-        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*bs*K*0.42, 3*bs*K*0.42);
+        const u0 = binR(0)*0.96, u1 = binR(0) + 6*bs, hw2 = 3.4*bs, h1 = 1.4*bs;
+        this.quadOn(g, [L(u0, -hw2, h1), L(u1, -hw2, h1), L(u1, hw2, h1), L(u0, hw2, h1)], B.pedal);
+        const sN = binN(Math.PI/2, pedalSN), sv = (sN.x + sN.y) > 0 ? 1 : -1;
+        this.quadOn(g, [L(u0, sv*hw2, 0), L(u1, sv*hw2, 0), L(u1, sv*hw2, h1), L(u0, sv*hw2, h1)], B.pedalDk);
+        if(pedalFront) this.quadOn(g, [L(u1, -hw2, 0), L(u1, hw2, 0), L(u1, hw2, h1), L(u1, -hw2, h1)], B.pedalDk);
       };
 
       const bparts = [
         { d: dAt(0, 0, 1.5*bs), fn: bbody },
-        { d: dAt(B.baseR*0.9, 0, 3*bs), fn: bpedal },
-        { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*(fc + fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
+        { d: dAt(0, 0, 1.5*bs) + (pedalFront ? 1 : -1), fn: bpedal },
+        { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*((dv.x + dv.y)*fc + (rv.x + rv.y)*fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
@@ -128882,18 +129112,21 @@ class WorldScene extends Phaser.Scene {
         }
         for(const it of data.items){
           const p = W(it.x, it.y, it.z);
+          /* (a design pass, 2026-11-23) the paper and the can lie IN the world, not flat to the screen: a sheet was a screen rectangle
+             and a can an upright red bean whatever way it fell. The sheet is a quad turned by its own angle, a fold across it; the can a
+             short cylinder on its side, its body and its silver lid end toward the eye (its rolled-away end never drawn) */
+          const sz = it.size, ca = Math.cos(it.ang), sa = Math.sin(it.ang);
           if(it.kind === "paper"){
-            g.fillStyle(TRASH_ART.paper, 1);
-            g.fillRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
-            g.lineStyle(1, TRASH_ART.paperShade, 1);
-            g.strokeRect(p.x - it.size*K*0.4, p.y - it.size*K*0.3, it.size*K*0.8, it.size*K*0.6);
+            const u = sz*0.45, v = sz*0.33, P0 = (du, dv, dz) => W(it.x + ca*du - sa*dv, it.y + sa*du + ca*dv, it.z + dz);
+            this.quadOn(g, [P0(-u, -v, 0), P0(u, -v, 0.6), P0(u, v, 0), P0(-u, v, 0.4)], TRASH_ART.paper);
+            this.quadOn(g, [P0(-u*0.1, -v, 0.3), P0(u, -v, 0.6), P0(u, v, 0), P0(-u*0.1, v, 0.2)], TRASH_ART.paperShade, 0.55);
           } else if(it.kind === "can"){
-            g.fillStyle(TRASH_ART.canA, 1);
-            g.fillEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
-            g.fillStyle(TRASH_ART.canHi, 1);
-            g.fillEllipse(p.x - it.size*K*0.15, p.y, it.size*K*0.2, it.size*K*0.9);
-            g.lineStyle(1, TRASH_ART.outline, 1);
-            g.strokeEllipse(p.x, p.y, it.size*K*0.7, it.size*K*1.1);
+            const L2 = sz*0.5, r2 = sz*0.28, P0 = (du, dv, dz) => W(it.x + ca*du - sa*dv, it.y + sa*du + ca*dv, it.z + r2 + dz);
+            this.quadOn(g, [P0(-L2, -r2, 0), P0(L2, -r2, 0), P0(L2, 0, r2), P0(L2, r2, 0), P0(-L2, r2, 0), P0(-L2, 0, r2)], TRASH_ART.canA);
+            this.quadOn(g, [P0(-L2*0.2, -r2*0.7, r2*0.7), P0(L2*0.3, -r2*0.7, r2*0.7), P0(L2*0.3, 0, r2), P0(-L2*0.2, 0, r2)], TRASH_ART.canHi, 0.8);
+            const e = (W(it.x + ca*L2, it.y + sa*L2, 0).y > W(it.x - ca*L2, it.y - sa*L2, 0).y) ? L2 : -L2, ring = [];
+            for(let k = 0; k < 8; k++){ const th = k/8*Math.PI*2; ring.push(P0(e, Math.cos(th)*r2, Math.sin(th)*r2)); }
+            this.quadOn(g, ring, TRASH_ART.canB); this.edgeOn(g, ring, TRASH_ART.outline, 0.8);
           } else {
             const col = TRASH_ART.wrap[Math.floor(it.ang) % TRASH_ART.wrap.length];
             const c2 = Math.cos(it.ang), s3 = Math.sin(it.ang);
@@ -133825,13 +134058,14 @@ class WorldScene extends Phaser.Scene {
      leaves/trash do. One-shot at the burst moment; the standing spray
      arc + growing puddle remain the persistent part. */
   spillHydrantWater(hz){
-    const n = 16 + Math.floor(Math.random()*8);
+    const n = 16 + Math.floor(Math.random()*8), jd = hydJetLandA(hz) >= 0 ? 1 : -1;
     for(let i=0; i<n; i++){
       hz.items.push({
         col: Math.random() < 0.65 ? HYD.water : HYD.waterDk,
         size: 1 + Math.random()*1.5,
-        x: 6 + Math.random()*4, y: (Math.random()-0.5)*6, z: 10 + Math.random()*5,
-        vx: (Math.random()-0.2)*2.5, vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.0,
+        /* out of the sheared hose outlet (the one toward the flood: hydJetLandA), at its height */
+        x: jd*(HYD.tip + Math.random()*4), y: (Math.random()-0.5)*6, z: HYD.nozH - 2 + Math.random()*5,
+        vx: jd*(Math.random()*2.5 + 0.3), vy: (Math.random()-0.5)*2.2, vz: 0.8 + Math.random()*1.2,
         life: 1, landed: false
       });
     }
@@ -142934,6 +143168,14 @@ function tpApplySkin(id){
 
 
 /* ---------- the jump dials ---------- */
+/* THE JUMP GROWS WITH THE HYDRANT (2026-11-23: the hydrant went from 20 tall to 52, Sir: "probably too small").
+   Over 20 + clear 16 = 36 the arc only just cleared; over 52 + 16 = 68 not one of the ten levels had a pass band
+   (measured with hjSolveBand: none above a hydrant of 34). So the arc is stretched UPWARD by HJ_VS = 68 / 36 and
+   nothing else moves: pow and grav both x HJ_VS keep reach (2 v^2 pow / grav) and hang time (2 v pow / grav)
+   exactly, every height -- the clearance line included -- scales by HJ_VS, and slam / HJ_VS keeps the landing kick
+   per unit of the old descent. So every pass band is the same to the bit (re-solved, 2026-11-23: all ten identical);
+   he just flies higher, peaks 47-90 -> 89-170, over a hydrant his own height. */
+const HJ_VS = (HYD.height + 16) / 36;
 const HJ_JUMP = {
   /* speed and pow now come from the CHARGE (see HJ_CH below) — they are
      no longer fixed. grav, clear, bias, slam stay world constants. */
@@ -142950,7 +143192,7 @@ const HJ_JUMP = {
      Solved across all ten levels first: every band held to within 0.5%
      of charge. Hang is now ~1040ms at level 1 rising to ~1620ms at
      level 10, down from ~2200ms. */
-  grav: 0.000340,   // = 0.000085 * k^2 — TUNED ON DEVICE
+  grav: 0.000340 * HJ_VS,   // = 0.000085 * k^2 — TUNED ON DEVICE (x HJ_VS: the arc stretched up with the hydrant)
   clear: 16,        // arc must beat HYD.height + clear — TUNED ON DEVICE
   /* airborne depth bias (spec §2 option 1) — TUNED ON DEVICE, and the
      tune was load-bearing, not cosmetic. Measured min depth margin over
@@ -142963,7 +143205,7 @@ const HJ_JUMP = {
      f2 is the binding heading: it fails last and by the least. Check f2
      FIRST on any future change to the depth sort. */
   bias: 2.0,
-  slam: 11,         // = 22 / k — landing tilt kick per unit of descent velocity
+  slam: 11 / HJ_VS, // = 22 / k — landing tilt kick per unit of descent velocity (/ HJ_VS: descent is HJ_VS faster)
   shadow: true
 };
 /* ============================================================
@@ -143114,7 +143356,7 @@ const HJ_CH = {
      sat at 42% of it), and now crosses it around level 3 and tops out at
      1.80x. Pushing past his own governor is the point of the mission. */
   sp0: 0.0, sp1: 0.330,     // speed at charge 0 / 1
-  pw0: 1.30,  pw1: 0.68,    // pow  at charge 0 / 1  (DOWN as charge rises)
+  pw0: 1.30*HJ_VS,  pw1: 0.68*HJ_VS,    // pow  at charge 0 / 1  (DOWN as charge rises; x HJ_VS: the arc stretched up with the hydrant)
   /* landing absorption on the catch ramp: absMin at dead centre,
      absMin+absGrad at the very edge. Deliberately shallow — at LOW
      charge that makes the whole slab a clean landing (level 1 is
@@ -143641,7 +143883,7 @@ const SL = {
                 // 500 units of clear road in front of every ramp is the
                 // tradeoff for that one jump actually working.
   kReach: 5.0,  // how far the jump carries at full speed, in T2
-  kPeak:  40,   // apex height above the lip, in world units
+  kPeak: 100,   // apex height above the lip, in world units (was 40; the hydrants under it grew 20 -> 52, 2026-11-23: a clean pass over both from 83% of top speed, was 80%. Reach is solved from it, so it carries as far)
   rowA: 0,      // low edge of the sidewalk band the course uses
   rowB: 3,      // high edge — 0..3 is the whole walk
   lead: 5.0,    // run-up before the first cone, in T2 (2026-08-13, Sir's
@@ -153614,12 +153856,15 @@ function tpHydrantSvg(size){
   </svg>`;
 }
 /* flat front-view of the game's actual cone prop — colors from the CONE
-   constant above (body:0xff7a1a, bodyDk:0xd85f0a). No white band: CONE.band
-   is 0 in the live game, so that stripe never actually renders. */
+   constant above (body:0xff7a1a, bodyDk:0xd85f0a), with its two white
+   collars (CONE.band and CONE.lowBand, at 0.52 and 0.30 of the height, since
+   the street props pass) and its deeper-orange base (CONE.slabTop). */
 function tpConeSvg(size){
   return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
-    <rect x="4.5" y="21.6" width="15" height="3.6" rx="1.2" fill="#d85f0a"/>
+    <rect x="4.5" y="21.6" width="15" height="3.6" rx="1.2" fill="#c9560c"/>
     <path d="M8.6 21.8 11.5 4.3a1.05 1.05 0 0 1 2.07 0l2.83 17.5z" fill="#ff7a1a"/>
+    <path d="M10.11 12.7 10.57 9.9h3.91l.45 2.8z" fill="#f4f5f7"/>
+    <path d="M9.47 16.55 9.74 14.95h5.55l.26 1.6z" fill="#f4f5f7"/>
     <ellipse cx="12.5" cy="4.6" rx="1.6" ry="1.2" fill="#d85f0a"/>
   </svg>`;
 }
