@@ -2892,8 +2892,21 @@ const LAMP = {
   base: 0x33363d, baseDk: 0x282b31,
   head: 0x2e3138, headDk: 0x24262c,
   glassDay: 0xb5bac4, glassNight: 0xffe9c0, glow: 0xffe0a0,
-  shadow: 0x000000
+  shadow: 0x000000,
+  /* (the design pass, 2026-11-23: the lit side of each round part, the cobra head's dome top, the bowl's two sides by day) */
+  shade: { baseL: 0x40434a, poleL: 0x484c53, headL: 0x41454c, headT: 0x52565e, glassL: 0xccd0d8, glassD: 0x969ca6, door: 0x1d1f24 }
 };
+/* the lamp's plans, CCW about +h in its own frame (a, b): a square (the plinth); an octagon with its flat faces square to a and b
+   (apothem 1 -- the iso eye sees two flats and the chamfer between, a round post's light, middle and shade); the cobra head's
+   outline (a across in half-widths, u along the arm in half-lengths, -1 the rear where the arm comes in, +1 the nose) */
+function lampMix(c1, c2, u){
+  const r = ((c1 >> 16) & 255) + ((((c2 >> 16) & 255) - ((c1 >> 16) & 255))*u), gg = ((c1 >> 8) & 255) + ((((c2 >> 8) & 255) - ((c1 >> 8) & 255))*u),
+        b = (c1 & 255) + (((c2 & 255) - (c1 & 255))*u);
+  return (Math.round(r) << 16) | (Math.round(gg) << 8) | Math.round(b);
+}
+const LAMP_SQ = [[1, -1], [1, 1], [-1, 1], [-1, -1]];
+const LAMP_OCT = Array.from({ length: 8 }, (_, k) => { const th = (k + 0.5)*Math.PI/4, r = 1/Math.cos(Math.PI/8); return [Math.cos(th)*r, Math.sin(th)*r]; });
+const LAMP_COBRA = [[0.45, -1], [0.85, -0.45], [1, 0.2], [0.85, 0.7], [0.45, 1], [-0.45, 1], [-0.85, 0.7], [-1, 0.2], [-0.85, -0.45], [-0.45, -1]];
 const LAMP_VARY = {
   hMin: 0.92, hMax: 1.10,      // pole height spread
   armMin: 0.85, armMax: 1.18,  // arm reach spread
@@ -119412,6 +119425,24 @@ class WorldScene extends Phaser.Scene {
      both come from lampSeed. At night the glow (layered pool + lens
      + faint column) draws into this.gGlow — ADD, ABOVE the tint —
      and broken lamps run it through flickerAt. */
+  /* A CONVEX SOLID OF RINGS (the lamp's parts): R its rings of screen points, bottom to top, each CCW about +h in the part's frame and
+     the same count; s0 the screen winding of a face toward the eye in that frame. Each side face is drawn when its own winding matches
+     (it faces the eye -- at any facing, asked of the projection, never assumed: props kit SP13), toned by where it sits across the
+     part on screen (the left cL, the right cD, as the light falls); the top cap last when `top`. A convex solid's faces toward the eye
+     never overlap, so no order among them is needed */
+  lampSolid(g, R, s0, cL, cD, cT, top){
+    const n = R[0].length, B = R[0];
+    let cx = 0; for(let i = 0; i < n; i++) cx += B[i].x; cx /= n;
+    let hw = 1e-6; for(let i = 0; i < n; i++) hw = Math.max(hw, Math.abs(B[i].x - cx));
+    for(let r = 0; r + 1 < R.length; r++){ const A = R[r], C = R[r + 1];
+      for(let i = 0; i < n; i++){ const j = (i + 1) % n, p0 = A[i], p1 = A[j], p2 = C[j], p3 = C[i];
+        const ar = (p1.x - p0.x)*(p2.y - p0.y) - (p2.x - p0.x)*(p1.y - p0.y) + (p2.x - p0.x)*(p3.y - p0.y) - (p3.x - p0.x)*(p2.y - p0.y);
+        if(ar*s0 <= 0.02) continue;
+        const u = Math.max(0, Math.min(1, 0.5 + 0.75*((p0.x + p1.x + p2.x + p3.x)/4 - cx)/hw));
+        this.quadOn(g, [p0, p1, p2, p3], lampMix(cL, cD, u));
+      } }
+    if(top) this.quadOn(g, R[R.length - 1], cT);
+  }
   drawLampHull(g, W, t, hz){
     const L = LAMP, K = this.K;
     const r = mulberry32((hz.lampSeed || 1) >>> 0);
@@ -119422,103 +119453,77 @@ class WorldScene extends Phaser.Scene {
     const H = L.height * hVar;
     const lean = zz => tilt * zz;
 
-    /* FACES FROM THE EYE (props kit SP13 -- Sir, 2026-11-22: "a draw order issue on this street lamp"): W turns with the lamp's facing,
-       so which of its walls face the eye is asked of W, never assumed (+a, +b are the near walls only at facing 0): sA / sB the seen
-       side along a and b, aRight whether the a-wall is the one on the right (the dark one, as the light falls) */
-    const W0 = W(0, 0, 0), sA = (W(1, 0, 0).y - W0.y) > 0 ? 1 : -1, sB = (W(0, 1, 0).y - W0.y) > 0 ? 1 : -1;
-    const aRight = (W(sA, 0, 0).x - W0.x) > 0;
-    const box = (aC, bC, ha, hb, z0, z1, cTop, cA, cB, noTop=false, all4=false) => {
-      const c = (sa, sb, zz) => W(aC + sa*ha, bC + sb*hb, zz), cAw = aRight ? cA : cB, cBw = aRight ? cB : cA;
-      /* ALL FOUR WALLS FOR THE BASE (Sir, on-device: "the base of the
-         street lamps doesnt have all its faces"). A standalone box here
-         draws its two camera-facing walls and nothing else, which is
-         right for the pole -- nothing can see behind it. The base is
-         wider than the pole and sits on open pavement, so its two FAR
-         walls are in view whenever the lamp is off to one side of the
-         camera, and without them the base reads as a torn sheet. Far
-         walls first, then the top, then the near ones: the painter order
-         a solid needs. */
-      if(all4){
-        this.quadOn(g, [c(-sA,-1,z1), c(-sA,1,z1), c(-sA,1,z0), c(-sA,-1,z0)], cAw);
-        this.quadOn(g, [c(-1,-sB,z1), c(1,-sB,z1), c(1,-sB,z0), c(-1,-sB,z0)], cBw);
-      }
-      /* noTop: when another segment of the SAME footprint sits flush
-         on top (pole segment -> pole segment), this segment's top cap
-         is never actually visible -- the segment above only draws its
-         2 NEAR walls (the far 2 are assumed hidden, standard for a
-         standalone box), which leaves the FAR corner of this segment's
-         top cap uncovered. On a broken/leaning lamp (mal), that lean
-         staggers each segment sideways just enough to expose the
-         sliver. Skipping the cap on every segment but the last removes
-         it. The base doesn't use this -- it's wider than the pole, so
-         its top is a genuinely visible ledge, not a stacking artifact. */
-      if(!noTop) this.quadOn(g, [c(-1,-1,z1), c(1,-1,z1), c(1,1,z1), c(-1,1,z1)], cTop);
-      this.quadOn(g, [c(sA,-1,z1), c(sA,1,z1), c(sA,1,z0), c(sA,-1,z0)], cAw);
-      this.quadOn(g, [c(-1,sB,z1), c(1,sB,z1), c(1,sB,z0), c(-1,sB,z0)], cBw);
-    };
+    /* THE DESIGN PASS (Sir, 2026-11-23: "we should do a pass on all the street props" -- it read as a bare dark pole with a small box on
+       a bent arm). Now a fitting: a cast footing with a flared bell and a collar, a round shaft that tapers to a capped top, a service
+       door low on the shaft, a slim arm, and a cobra head -- long along the arm, its dome sloping to the nose, its refractor bowl hung on
+       the underside. Every part is a convex solid of rings (lampSolid): its side faces drawn where their screen winding says they face
+       the eye (so all four facings come out right by construction -- SP13, faces asked of W, never assumed), toned by where they sit
+       across it (the left lit, the right dark, as the light falls). Parts stack bottom to top and meet face to face.
+       FACES FROM THE EYE (props kit SP13 -- Sir, 2026-11-22: "a draw order issue on this street lamp"): sA the seen side along a (the
+       arm's side face), s0 the screen winding of a face that faces up (+h) in the lamp's frame */
+    const W0 = W(0, 0, 0), sA = (W(1, 0, 0).y - W0.y) > 0 ? 1 : -1;
+    const Wa = W(1, 0, 0), Wb = W(0, 1, 0), s0 = ((Wa.x - W0.x)*(Wb.y - W0.y) - (Wb.x - W0.x)*(Wa.y - W0.y)) > 0 ? 1 : -1;
+    /* a ring round the lamp's axis (its lean at that height): the unit plan T (CCW about +h), radius r */
+    const ring = (T, r, z, aC = 0) => { const c = aC + lean(z), P = new Array(T.length); for(let i = 0; i < T.length; i++) P[i] = W(c + T[i][0]*r, T[i][1]*r, z); return P; };
+    const SH = L.shade, solid = (R, cL, cD, cT, top = true) => this.lampSolid(g, R, s0, cL, cD, cT, top);
 
-    /* NO CAST SHADOW under the base (Sir: "i want to get rid of its
-       shadow"). Nothing else on this pavement casts one, so the ellipse
-       read as a smudge rather than as light. */
-    box(0, 0, L.baseW/2, L.baseW/2, 0, L.baseH, L.base, L.baseDk, L.base, false, true);
-    const segN = 3;
-    const pole = () => { for(let i = 0; i < segN; i++){
-      const z0 = L.baseH + (H - L.baseH)*i/segN, z1 = L.baseH + (H - L.baseH)*(i+1)/segN;
-      box(lean((z0+z1)/2), 0, L.poleW/2, L.poleW/2, z0, z1, L.pole, L.poleDk, L.pole, i < segN-1);
-    } };
+    /* NO CAST SHADOW under the base (Sir: "i want to get rid of its shadow"). Nothing else on this pavement casts one. */
+    const rTop = L.poleW/2*1.08, rFoot = L.poleW/2*1.32;   // the shaft's taper, foot to top (an octagon's apothem: as wide to the eye as the old square post)
+    const pole = () => {
+      /* the footing: a low square plinth, a flared bell on it (round, its flare in two tiers), a collar a hair proud of both */
+      solid([ring(LAMP_SQ, L.baseW/2, 0), ring(LAMP_SQ, L.baseW/2, 3)], L.base, L.baseDk, L.base);
+      solid([ring(LAMP_OCT, L.baseW/2*0.92, 3), ring(LAMP_OCT, L.baseW/2*0.86, 7), ring(LAMP_OCT, L.baseW/2*0.82, L.baseH)], SH.baseL, L.baseDk, L.base, false);
+      solid([ring(LAMP_OCT, L.baseW/2*0.87, L.baseH), ring(LAMP_OCT, L.baseW/2*0.87, L.baseH + 3)], SH.baseL, L.baseDk, L.base);
+      /* the shaft, round and tapering, to just over the arm's root */
+      solid([ring(LAMP_OCT, rFoot, L.baseH + 3), ring(LAMP_OCT, rTop, H + 3)], SH.poleL, L.poleDk, L.pole, false);
+      /* its service door, low on the face the arm's side is seen from: on the face, in its plane (a decal, foreshortened with it) */
+      { const ad = lean(30) + sA*(rFoot*0.985 + 0.15), dw = rFoot*0.3;
+        this.quadOn(g, [W(ad, -dw, 24), W(ad, dw, 24), W(ad, dw, 38), W(ad, -dw, 38)], SH.door); }
+      /* the cap: a low cone a hair wider than the shaft's top */
+      solid([ring(LAMP_OCT, rTop*1.12, H + 3), ring(LAMP_OCT, rTop*0.55, H + 6.5)], SH.poleL, L.poleDk, L.pole);
+    };
     const topA = lean(H);
 
-    /* gooseneck arm + fixture. +b is toward the ROAD (b increases with
-       offsetUnits, and laneOffset gets more negative as the lane index
-       rises -- lane 0 is curb side, lane 3 building side). So the arm
-       must swing +b from the building row and -b from the curb row for
-       the head to hang over the WALKING band either way; the light
-       never reaches out over the road. hz.armSign carries that verdict
-       from the spawner (see the STREETLAMPS block), defaulting to the
-       old building-row behaviour for any lamp without one. */
+    /* the arm + head. +b is toward the ROAD (b increases with offsetUnits, and laneOffset gets more negative as the lane index
+       rises -- lane 0 is curb side, lane 3 building side). So the arm must swing +b from the building row and -b from the curb row
+       for the head to hang over the WALKING band either way; the light never reaches out over the road. hz.armSign carries that
+       verdict from the spawner (see the STREETLAMPS block), defaulting to the old building-row behaviour for any lamp without one. */
     const aSign = (hz.armSign === -1) ? -1 : 1;
     const armL = L.armLen * armVar * aSign, seg = 3;
-    /* THE ARM MEETS THE POLE AND THE HEAD FACE TO FACE (SP13): it runs from the pole's face to the head's, not from the pole's middle
-       into the head -- begun inside the pole its side was painted over the pole, and run into the head its top crossed the head's
-       (Sir, 2026-11-22). Its seen side only (sA); its segments near-last; and the whole arm and head before the pole when it reaches
+    /* the cobra head: its plan (LAMP_COBRA) hl along the arm either side of armL, hw across; a skirt, then a dome scaled toward its
+       rear (so the rear is one flat face, upright, for the arm to meet) and sloping down to the nose */
+    const hz2 = H - L.armDrop, hw = L.headW/2, hl = L.headW*0.58;
+    const hTop = hz2 + 1.5, hBot = hTop - L.headH, hBelt = hBot + L.headH*0.5;
+    const plan = (z, k, drop = 0) => { const P = new Array(LAMP_COBRA.length), n = LAMP_COBRA.length;
+      for(let i = 0; i < n; i++){ const q = LAMP_COBRA[aSign > 0 ? i : n - 1 - i];   // (mirrored along b when the arm swings -b: kept CCW)
+        P[i] = W(topA + q[0]*hw*k, armL + aSign*hl*(-1 + (q[1] + 1)*k + drop), z); }
+      return P; };
+    /* THE ARM MEETS THE POLE AND THE HEAD FACE TO FACE (SP13): from the shaft's face to the head's rear face, slim, tapering toward
+       the head; its top and its seen side (sA); its segments near-last; and the whole arm and head before the pole when it reaches
        away from the eye (behind the pole's top), after it when it reaches toward it */
-    const armB0 = aSign*L.poleW/2, armB1 = armL - aSign*L.headW/2*0.6, toEye = (W(0, aSign, 0).y - W0.y) > 0;
-    const arm = () => { const aw = L.poleW*0.4375, ad = L.poleW*0.625, sd = topA + sA*aw;   // arm half-width / underside depth, kept in proportion to the pole
+    const armB0 = aSign*(rTop + (rFoot - rTop)*3/(H - L.baseH)), armB1 = armL - aSign*hl, toEye = (W(0, aSign, 0).y - W0.y) > 0;
+    const arm = () => { const w0 = L.poleW*0.3, w1 = L.poleW*0.22, d0 = L.poleW*0.42, d1 = L.poleW*0.34;
       for(let k = 0; k < seg; k++){ const i = toEye ? k : seg - 1 - k;
-        const u0 = i/seg, u1 = (i+1)/seg;
+        const u0 = i/seg, u1 = (i+1)/seg, awA = w0 + (w1 - w0)*u0, awB = w0 + (w1 - w0)*u1, adA = d0 + (d1 - d0)*u0, adB = d0 + (d1 - d0)*u1;
         const bA = armB0 + (armB1 - armB0)*u0, bB = armB0 + (armB1 - armB0)*u1;
         const zA = H - L.armDrop*u0*u0, zB = H - L.armDrop*u1*u1;
-        this.quadOn(g, [W(topA-aw,bA,zA), W(topA+aw,bA,zA), W(topA+aw,bB,zB), W(topA-aw,bB,zB)], L.pole);
-        this.quadOn(g, [W(sd,bA,zA), W(sd,bB,zB), W(sd,bB,zB-ad), W(sd,bA,zA-ad)], aRight ? L.poleDk : L.pole);
+        this.quadOn(g, [W(topA-awA,bA,zA), W(topA+awA,bA,zA), W(topA+awB,bB,zB), W(topA-awB,bB,zB)], L.pole);
+        this.quadOn(g, [W(topA+sA*awA,bA,zA), W(topA+sA*awB,bB,zB), W(topA+sA*awB,bB,zB-adB), W(topA+sA*awA,bA,zA-adA)], (W(sA, 0, 0).x - W0.x) > 0 ? L.poleDk : SH.poleL);
       } };
-    const hz2 = H - L.armDrop;
 
-    /* lens housing (always) + the light itself (night, into gGlow) */
-    const lp = W(topA, armL, hz2 - L.headH);
-    const lensW = L.headW*0.615, lensH = L.headW*0.269;   // lens tracks the fixture box
-    /* HANG THE LIGHT UNDER THE FIXTURE, DO NOT STRADDLE IT.
-       lp is the UNDERSIDE of the head box, but fillEllipse centres on
-       the point it is given -- so every glow disc drawn at lp put half
-       its height INSIDE the housing. The lens disc got away with it
-       (same layer as the head, small radius), but the bloom did not:
-       it is 0.462*headW tall and goes into gGlow, which composites
-       above the night multiply and above the lamp itself, so its top
-       half painted straight through the housing and showed out the top.
-       Reported on-device 2026-08-27; the wider pole made it obvious but
-       it was always there.
-
-       Each disc is now dropped by half its own height, so its top edge
-       meets the lens plane and the light reads as emerging from beneath
-       the fixture. Screen space, so +y is down. */
-    const lensDropY = lensH*K*0.55*0.5;
+    /* lens housing (always) + the light itself (night, into gGlow). lp: the bowl's lowest point, under the head's middle */
+    const bowlZ = hBot - L.headH*0.32;
+    const lp = W(topA, armL + aSign*hl*0.12, bowlZ);
+    const lensDropY = 0;   // (the light starts at the bowl's underside itself now: the bowl is a solid hung below the head)
     /* (lit at night in the lens's own place, under the head -- not on gGlow over it) */
     const litNow = isNightNow() ? (hz.mal ? flickerAt(hz.lampSeed, t) : 1) : 0;
+    const headRim = plan(hBot, 1);
     const head = () => {
-    g.fillStyle(litNow > 0.5 ? 0xffe9c0 : L.glassDay, 1);
-    g.fillEllipse(lp.x, lp.y + lensDropY, lensW*K*0.55, lensH*K*0.55);
-    /* THE HEAD OVER ITS LENS (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the lens is
-       on the head's underside, which the eye never sees from above, so the head covers all of it but the sliver that shows below */
-    box(topA, armL, L.headW/2, L.headW/2*0.6, hz2 - L.headH, hz2, L.head, L.headDk, L.head);
+      /* THE BOWL UNDER THE HEAD (W37: what hangs under is painted first -- Sir, 2026-11-22: "the light painting over the lamp"): the
+         refractor hangs on the head's underside, its rim inside the head's; from above the head covers it but the band that shows below */
+      const lit = litNow > 0.5;
+      solid([plan(hBot, 0.8, 0.22), plan(bowlZ, 0.5, 0.62)], lit ? 0xfff3d6 : SH.glassL, lit ? 0xffd890 : SH.glassD, lit ? 0xffe9c0 : L.glassDay, false);
+      solid([headRim, plan(hBelt, 1), plan(hTop, 0.6)], SH.headL, L.headDk, SH.headT);
     };
     if(toEye){ pole(); arm(); head(); } else { head(); arm(); pole(); }
     if(isNightNow()){
@@ -119570,10 +119575,10 @@ class WorldScene extends Phaser.Scene {
         if(this._xrayInProp && !POCKET_VIEW) pool(gl, (gg, c, a) => gg.fillStyle(c, a)); else this.glowInWorld(pool);
         /* THE BLOOM BELOW THE HEAD (Sir, 2026-11-22: "the light painting over the lamp"): gGlow is over everything, so the bloom
            starts at the head's lowest edge on screen and spreads down from it -- the lens itself is the lamp's own, under the head */
-        const bloomH = L.headW*0.462*K*0.8, hw = L.headW/2, hb = L.headW/2*0.6;
+        const bloomH = L.headW*0.462*K*0.8;
         /* (the head's lower outline straight under the lens: its near bottom edges, at the lens's x) */
-        const hc = (sa, sb) => W(topA + sa*hw, armL + sb*hb, hz2 - L.headH), rim = [hc(-1, -1), hc(-1, 1), hc(1, 1), hc(1, -1), hc(-1, -1)];
-        let hy = lp.y; for(let i = 0; i < 4; i++){ const p0 = rim[i], p1 = rim[i + 1];
+        const rim = headRim, nR = rim.length;
+        let hy = lp.y; for(let i = 0; i < nR; i++){ const p0 = rim[i], p1 = rim[(i + 1) % nR];
           if((lp.x - p0.x)*(lp.x - p1.x) <= 0 && Math.abs(p1.x - p0.x) > 1e-6) hy = Math.max(hy, p0.y + (p1.y - p0.y)*(lp.x - p0.x)/(p1.x - p0.x)); }
         gl.fillStyle(L.glow, 0.5*lit);  gl.fillEllipse(lp.x, hy + bloomH*0.5, L.headW*0.923*K*0.8, bloomH);
       }
