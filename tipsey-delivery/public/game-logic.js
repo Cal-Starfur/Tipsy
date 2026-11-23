@@ -60127,7 +60127,7 @@ function houseCanopy(fn){
     const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), A = RBA[m];
       const EMP = [ST, [pa, RAL], [AROB[0], RAL], AROB], RET = [AROB, [620, AROB[1]], [620, RAL], [PK[0], RAL], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], RAL], [pa, RAL], ST];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
-      const E0 = (ST[1] - RAL + pa - AROB[0])/RBV0 + 400;   /* (as row B's: the spare sets off once the empty is off the lane) */
+      const E0 = (ST[1] - RAL + pa - AROB[0])/RBV0 + 400 + (m === 3 ? 1500 : 0);   /* (as row B's: the spare sets off once the empty is off the lane; station 4's a little later, behind station 3's robot coming back along the lane) */
       return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin, E0 }; };
     /* -> the two robots of row A's station m+1 on the pallet clock r */
     const raBots = (m, r) => { const G = raGeo(m), q = (((r - G.X) % SUP) + SUP) % SUP, out = [], sg = (Q, k2) => { const Q2 = Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]]); return pathAt(Q2, Math.min(plenP(Q2)*ease(clamp01(k2)), plenP(Q) - 0.01)); };
