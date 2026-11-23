@@ -31202,6 +31202,25 @@ function sfBrowseNext(R, s, m, now, bot){
   if(!m.water && sfTakesWater(s) && look('fridge')){ m.dwell = 2600; return true; }
   return desk() || leave();
 }
+/* AN EXERCISE BIKE'S MIDDLE, between its rider's legs (pose.between): the flywheel, its guard, the frame down to the back foot and the crank's hub
+   -- the bike's own (SF_BIKES' piece) drawn again in the rider's frame (G: across, forward, up; the rider sat at the saddle, the frame 14 up: z + 14,
+   forward 264 - b), so the far leg is behind it and the near one before it. Back to front as the piece is: the flywheel (on the bike's east side),
+   the guard, the frame, the hub */
+function sfBikeMiddle(g, G){
+  const o = G(0, 0, 0), e = G(1, 0, 0), E = (e.x - o.x) > 0 ? 1 : -1;               // (+across toward the east, or west)
+  const W = (a, b, z) => G(a*E, 264 - b, z + 14);                                   // (a across from the bike's middle, east +; b and z the world's)
+  const fill = (pts, c) => { const P = pts.slice().sort((p, q) => p.x - q.x || p.y - q.y), cr = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x), lo = [], hi = [];
+    for(const p of P){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    lo.pop(); hi.pop(); g.fillStyle(c, 1); g.fillPoints(lo.concat(hi).map(p => new Phaser.Geom.Point(p.x, p.y)), true); };
+  const disc = (a, b, z, r, c) => { const pts = []; for(let k = 0; k < 16; k++){ const t = k/16*Math.PI*2; pts.push(W(a, b + Math.cos(t)*r, z + Math.sin(t)*r)); } fill(pts, c); };
+  const box = (a0, a1, b0, b1, z0, z1, c) => { const pts = []; for(const a of [a0, a1]) for(const b of [b0, b1]) for(const z of [z0, z1]) pts.push(W(a, b, z)); fill(pts, c); };
+  const rod = (b0, z0, b1, z1, r, c) => fill([W(-r, b0, z0 - r), W(r, b0, z0 - r), W(-r, b0, z0 + r), W(r, b0, z0 + r), W(-r, b1, z1 - r), W(r, b1, z1 - r), W(-r, b1, z1 + r), W(r, b1, z1 + r)], c);
+  disc(2, 224, 20, 16, 0x868c90); disc(2.4, 224, 20, 12, 0xc8ccd0); disc(2.6, 224, 20, 4, 0x2f3a3f);
+  box(-3, 3, 214, 236, 18, 40, 0xc94e44); box(-3, 3, 214, 236, 39.4, 40, 0xe2574c);
+  rod(232, 8, 262, 4, 2.4, 0x2f3a3f); rod(236, 22, 262, 6, 2.2, 0x2f3a3f); rod(248, 4, 248, 10, 2.2, 0x2f3a3f);
+  disc(3, 248, 13, 4.4, 0x262e33); disc(3.3, 248, 13, 1.6, 0xc8ccd0);
+}
 function sfPose(s, m, now, P){
   const H = sfHold(s), since = m.arrive != null ? now - m.arrive : 1e9;
   if(s.look !== 'visitor'){
@@ -31215,7 +31234,7 @@ function sfPose(s, m, now, P){
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
     if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
-      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
+      P.pedal = { ph: -now*0.009 + (s.seed & 63), c: [16, 28], r: 8 }; P.between = sfBikeMiddle; return; }   //  the feet round the cranks, forward over the top (the angle falling: Sir, 2026-11-23, "peddling but in the wrong direction"): the hub at 14 over the floor, 16 before the saddle -- the person's frame is 14 up, the hips 52 on the seat at 38)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
@@ -120636,7 +120655,10 @@ class WorldScene extends Phaser.Scene {
     if(pose && pose.part === 'shins'){ if(sit != null){ if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); } return; }
     /* seated facing the eye the thighs come out over the lap: after the body */
     const lapLate = sit != null && faceB > 0;
-    if(sit != null && !lapLate){ PT && PT('legs'); if(!(pose && pose.astride)) seatLeg(-nearSide); seatLeg(nearSide); }   // (astride: the far leg is behind the bike -- Sir, 2026-10-15, "still seeing all of both legs")
+    /* (pose.between(g, G): what stands BETWEEN the legs -- an exercise bike's frame: after the far leg, before the near one, so the far leg is
+       behind the bike and the near one in front of it. Sir, 2026-11-23, Surfside Fitness: "the far leg should not be drawing over the bike") */
+    const between = () => { if(pose && pose.between) pose.between(g, G); };
+    if(sit != null && !lapLate){ PT && PT('legs'); if(!(pose && pose.astride)) seatLeg(-nearSide); between(); seatLeg(nearSide); }   // (astride: the far leg is behind the bike -- Sir, 2026-10-15, "still seeing all of both legs")
     if(faceB > 0){ PT && PT('back'); hairBack(); veil(); }
     if(RB && faceB > 0) robotPack();
     /* BOTH ARMS UP (bothArms: a rider's two hands on the bar). The far arm
@@ -120719,7 +120741,7 @@ class WorldScene extends Phaser.Scene {
     if(RB && RB.decal && RB.decal !== 'none' && faceB > 0) GS.decal(RB);
     if(RB && RB.packStyle && RB.packStyle !== 'none') GS.straps(RB, RB.packStyle, faceB > 0);   // (the pack's straps over his shoulders and down his chest)
     if(RB && faceB < 0) robotPack();   // (his back to the eye: the pack goes on over what he wears on his back -- the apron's straps, the vest, the sash -- and under his arms)
-    if(lapLate){ PT && PT('lap'); if(!pose.astride) seatLeg(-nearSide); seatLeg(nearSide); }
+    if(lapLate){ PT && PT('lap'); if(!pose.astride) seatLeg(-nearSide); between(); seatLeg(nearSide); }
     /* (pose.armsLate: both hands up at the face -- Gideon's to his head, msDistressPose -- both arms over the head when they face the eye) */
     if(farFront && !noArms && !farLate){ PT && PT('farArmFront'); arm(-nearSide, false, 'front'); }
     PT && PT('held');
