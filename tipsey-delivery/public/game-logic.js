@@ -5364,7 +5364,7 @@ function vehicleSolid(rect, a, b, kind, prop, arr){
 /* THE KERB STONE, hoisted out of drawWorld (2026-10-06) so a parked car
    can repaint the stone in front of it (see KERB_PARK): 8 high, 22 wide,
    standing in the asphalt with its pavement face on ROAD_HALF; painted
-   white top, paler road face, dark seam. */
+   white top, its faces the same paint in shade, dark seam (kerbPath, KERB_ART). */
 const ADA_PAD = { pad: 0xf4c430, edge: 0xb9911f, dome: 0xd9a21f, cap: 0xffdc6e };   // a kerb ramp's tactile pad (tactilePad)
 /* a world kerb ramp's run and flares (drawProp's sidewalkend, THE SLOPE READS AS A SLOPE): the flares' concrete, how far the light
    moves it (flareK) and the pad (padK, an overlay), the broom grooves (grooves per flare, along its contours), the joint with the
@@ -5398,6 +5398,25 @@ const KERB_ARRIS = 0xffffff;   // the lit roll where a kerb's top meets its road
 const GUT_GRIME = 0x7c766a;    // the gutter's dirty strip along the kerb's foot
 const GUT_LIP = 0x34363b;      // the joint where the gutter's concrete meets the asphalt
 const GULLY_MOUTH = 0x24221e;  // a corner gully's kerb inlet
+/* THE KERB ITSELF (kerb pass, 2026-11-23, Sir: "ok lets do a pass on the curb itself"): the dials of kerbPath, the one drawer of
+   every kerb stone. faceLit / faceDark: a vertical face's paint, the white top's shaded by which way the face turns (the props'
+   light, SP13: screen-left lit, screen-right dark) -- the road face had been the top's paint at 0.93, so from the seat the stone
+   read as a flat white stripe; ao: the lower face (aoH above the foot) darkened that far toward the foot, so the face shades
+   down into the gutter as a block's does; footH: the dark line where the stone stands in the gutter; arris0..arris1 the bright roll on the top at the road edge, ..glow its soft
+   fall-off (glowA), as fractions of the stone's width; seamW the dark seam's weight on the road edge (world units, never under a
+   pixel), centred seamF in from the edge so it lies on the top's lip and leaves the face its height; backA the hairline where the top meets the paving; jointK a joint down a face, the face's paint darkened. */
+const KERB_ART = { faceLit: 0.76, faceDark: 0.63, ao: 0.28, aoH: 1.4, footH: 1.8,
+                   arris0: 0.1, arris1: 0.19, glow: 0.3, glowA: 0.55, seamW: 1.8, seamF: 0.05, backA: 0.4, jointK: 0.82,
+                   mouthLip: 0x4a4740 };
+/* the joints of a straight kerb stretch from section a to b (kerbPath's u, 0..1): on the paving's own T2 lattice along the street,
+   so every kerb joint lines up with a joint in the slabs behind it; none within 6 of the stretch's ends, none on a stub */
+function kerbLatticeJoints(a, b){
+  const alongX = Math.abs(b.rx - a.rx) >= Math.abs(b.ry - a.ry), w0 = alongX ? a.rx : a.ry, w1 = alongX ? b.rx : b.ry;
+  const out = [];
+  if(Math.abs(w1 - w0) <= T2*0.5) return out;
+  for(let wj = Math.ceil((Math.min(w0, w1) + 6)/T2)*T2; wj <= Math.max(w0, w1) - 6; wj += T2) out.push((wj - w0)/(w1 - w0));
+  return out;
+}
 /* a slab's seeded roll, 0..1: stable per slab (its T2 index) and per purpose (salt) */
 function paveRoll(ix, iy, salt){
   let h = (Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iy | 0, 0x165667b1) ^ Math.imul(salt | 0, 0x9e3779b1)) >>> 0;
@@ -106219,7 +106238,7 @@ class WorldScene extends Phaser.Scene {
        channel. rampK = 0 draws every LEVEL stretch; rampK = k draws only the
        slope of ramp k, which the ramp pass needs before its east block. ---- */
     const KH = 8, KW = 22, GW = CURB_W, FL = T2, RAMP_HALF = TILE;
-    const GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+    const GUTC = 0x9a9488;      // (the stone itself is the city's: kerbPath)
     const runZ = (rn, sAt) => {                               // height along a run: straight between its points
       let acc = 0;
       for(let q = 0; q < rn.pts.length - 1; q++){
@@ -106335,10 +106354,7 @@ class WorldScene extends Phaser.Scene {
                that straight's top (measured: a grey triangle at the tangent).
                Culled per segment by its outward normal against the view,
                nearer = larger x + y. The paving face faces out along u, the
-               road face in along -u. */
-            const faceO = (rad, sgnN, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA, q = u((t0 + t1)/2);
-              if(sgnN*(q.x + q.y) <= 0) continue;
-              quad([A(rad, t0, h0), A(rad, t1, h0), A(rad, t1, h1), A(rad, t0, h1)], col); } };
+               road face in along -u. (kerbPath asks it of W, stretch by stretch.) */
             /* the wedge is one paving tile: its own shade by the city's
                parity, at the ASPHALT's height (the road rects draw at shelf
                + 1), or a 1.5 px sliver of road shows along its tile edges */
@@ -106359,10 +106375,12 @@ class WorldScene extends Phaser.Scene {
               if(onScreen(P2)) this.edgeOn(g, [P2[0], P2[1]], PAVEEDGE, 1); }
             ringO(OR - KW - GW, OR - KW, 0.6, 0.6, GUTC);                          // the channel
             fil = { side: { x: dv.x, y: dv.y }, now: filNow, stone: () => {
-              faceO(OR, 1, 0, KH, KFACE); faceO(OR - KW, -1, 0, KH, KFACE);        // both faces, the visible side only
-              faceO(OR - KW, -1, 0, 3, KDK);                                       // its shadow in the channel
-              ringO(OR - KW, OR, KH, KH, KTOP);                                    // the top, last
-              ringO(OR - KW, OR - KW*0.86, KH, KH, KDK);                           // the seam, road edge like the straights
+              /* the stone round the fillet: the city's kerb, one piece (kerbPath -- the visible faces only, the top last, the
+                 seam on the road edge like the straights) */
+              { const SS = [];
+                for(let i = 0; i <= 16; i++){ const q = u(i/16);
+                  SS.push({ rx: Ox + q.x*(OR - KW), ry: Oy + q.y*(OR - KW), px: Ox + q.x*OR, py: Oy + q.y*OR, z: zc, h: KH }); }
+                this.kerbPath(g, SS, {}); }
               /* AND ON OVER EACH JOIN by a short length of the straight's own
                  top and seam. A straight draws its hidden face first and lets
                  its top cover it, but at its end that face pokes out below
@@ -106372,9 +106390,8 @@ class WorldScene extends Phaser.Scene {
                  same colour as the stone it lies on, so nothing else changes. */
               const CAP = KH * 2.5;
               const capOn = (tx, ty, bx, by, ix, iy) => {       // tangent, back along the straight, in toward the road
-                const p = (s2, o2, h) => this.W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, zc + h);
-                quad([p(0, 0, KH), p(CAP, 0, KH), p(CAP, KW, KH), p(0, KW, KH)], KTOP);
-                quad([p(0, KW, KH), p(CAP, KW, KH), p(CAP, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
+                const sec = s2 => ({ rx: tx + bx*s2 + ix*KW, ry: ty + by*s2 + iy*KW, px: tx + bx*s2, py: ty + by*s2, z: zc, h: KH });
+                this.kerbPath(g, [sec(0), sec(CAP)], {});
               };
               capOn(Ox + side.x*OR, Oy + side.y*OR, -dv.x, -dv.y, -side.x, -side.y);   // the arriving run
               capOn(Ox + dv.x*OR, Oy + dv.y*OR, -side.x, -side.y, -dv.x, -dv.y);       // the run leaving
@@ -106390,12 +106407,11 @@ class WorldScene extends Phaser.Scene {
             for(const [a0, a1] of clip(s0, s1)) for(const [b0, b1] of splitAt(a0, a1)){
               const t = u => h0 + (h1 - h0) * ((u - s0) / ((s1 - s0) || 1));
               const ha = t(b0), hb = t(b1);
-              quad([P(b0,oOut,ha), P(b1,oOut,hb), P(b1,oOut,0), P(b0,oOut,0)], KFACE);
-              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oIn,0), P(b0,oIn,0)], KFACE);
-              quad([P(b0,oIn,Math.min(ha,3)), P(b1,oIn,Math.min(hb,3)), P(b1,oIn,0), P(b0,oIn,0)], KDK);
-              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oOut,hb), P(b0,oOut,ha)], KTOP);
-              const oSeam = oIn - (oIn - oOut) * 0.14;
-              quad([P(b0,oIn,ha), P(b1,oIn,hb), P(b1,oSeam,hb), P(b0,oSeam,ha)], KDK);
+              /* the city's kerb stone (kerbPath), standing on the run's own slope; laid in stones where it is level */
+              const sec = (sA, h) => ({ rx: ax + dv.x*sA + rv.x*oIn, ry: ay + dv.y*sA + rv.y*oIn, px: ax + dv.x*sA + rv.x*oOut, py: ay + dv.y*sA + rv.y*oOut,
+                                        z: runZ(rn, sA), h });
+              const SS = [sec(b0, ha), sec(b1, hb)];
+              this.kerbPath(g, SS, { joints: ha === KH && hb === KH && SS[0].z === SS[1].z ? kerbLatticeJoints(SS[0], SS[1]) : null });
             }
           };
           /* a driveway's dropped kerb (see THE DRIVEWAYS in sierraGeo): the
@@ -106454,10 +106470,11 @@ class WorldScene extends Phaser.Scene {
               at.h = h0; const A0 = at(r0, t0), A1 = at(r0, t1); at.h = h1; const B1 = at(r1, t1), B0 = at(r1, t0); at.h = 0;
               quad([A0, A1, B1, B0], col); } };
             ringQ(KR + KW, KR + KW + GW, 0.6, 0.6, GUTC);                         // the channel
-            ringQ(KR, KR, 0, KH, KFACE); ringQ(KR + KW, KR + KW, 0, KH, KFACE);    // both faces
-            ringQ(KR + KW, KR + KW, 0, 3, KDK);                                    // its shadow in the channel
-            ringQ(KR, KR + KW, KH, KH, KTOP);                                      // the top, last
-            ringQ(KR + KW*0.86, KR + KW, KH, KH, KDK);                             // the night seam, road edge like the straights (see THE SEAM ON THE SAME EDGE)
+            /* the stone round it, one piece: the city's corner (kerbPath, one radius stone, the night seam on the road edge) */
+            { const SS = [];
+              for(let i = 0; i <= 15; i++){ const t = i/15, ux = -side.x*(1 - t) + dv.x*t, uy = -side.y*(1 - t) + dv.y*t, m = Math.hypot(ux, uy) || 1;
+                SS.push({ rx: cx + (KR + KW)*ux/m, ry: cy + (KR + KW)*uy/m, px: cx + KR*ux/m, py: cy + KR*uy/m, z: zc, h: KH }); }
+              this.kerbPath(g, SS, { joints: [0, 15] }); }
             /* the grate in the channel at the arc's low point */
             const gm = { x: -side.x + dv.x, y: -side.y + dv.y }, gl = Math.hypot(gm.x, gm.y);
             const gx = cx + gm.x/gl*(KR + KW + GW/2), gy = cy + gm.y/gl*(KR + KW + GW/2);
@@ -106785,8 +106802,9 @@ class WorldScene extends Phaser.Scene {
         const band = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
           Q([pt(r0,t0,h0), pt(r0,t1,h0), pt(r1,t1,h1), pt(r1,t0,h1)], col); } };
         band(KR + KW, KR + KW + GW, 0.6, 0.6, GUTC);
-        band(KR, KR, 0, KH, KFACE); band(KR + KW, KR + KW, 0, KH, KFACE);
-        band(KR, KR + KW, KH, KH, KTOP);
+        const SS = [];                                       // the stone, one piece (kerbPath)
+        for(let i = 0; i <= 15; i++){ const r = pt(KR + KW, i/15, 0), q = pt(KR, i/15, 0); SS.push({ rx: r[0], ry: r[1], px: q[0], py: q[1], z, h: KH }); }
+        this.kerbPath(g, SS, { joints: [0, 15] });
       }
       /* the channel first, opening where the fillet's channel meets it */
       { const phiG = phiF;
@@ -106806,13 +106824,10 @@ class WorldScene extends Phaser.Scene {
                      : t > W0 - WF && t < W0 ? KH + (KLIP - KH)*ez((t - (W0 - WF))/WF)
                      : t > W1 && t < W1 + WF ? KLIP + (KH - KLIP)*ez((t - W1)/WF) : KH;
       const NK = 96;                                         // finer than N, so the flares ease smoothly
-      for(let i = 0; i < NK; i++){
-        const t0 = phi + (2*Math.PI - 2*phi) * i/NK, t1 = phi + (2*Math.PI - 2*phi) * (i+1)/NK, h0 = hAt(t0), h1 = hAt(t1);
-        const o0 = p(c.r, t0), o1 = p(c.r, t1), i0 = p(c.r - KW, t0), i1 = p(c.r - KW, t1);
-        Q([[o0[0],o0[1],z],[o1[0],o1[1],z],[o1[0],o1[1],z + h1],[o0[0],o0[1],z + h0]], KFACE);
-        Q([[i0[0],i0[1],z],[i1[0],i1[1],z],[i1[0],i1[1],z + h1],[i0[0],i0[1],z + h0]], KFACE);
-        Q([[o0[0],o0[1],z + h0],[o1[0],o1[1],z + h1],[i1[0],i1[1],z + h1],[i0[0],i0[1],z + h0]], KTOP);
-      }
+      { const SS = [];                                       // the ring's stone, one piece (kerbPath): road edge inside, paving out
+        for(let i = 0; i <= NK; i++){ const t = phi + (2*Math.PI - 2*phi) * i/NK, r = p(c.r - KW, t), q = p(c.r, t);
+          SS.push({ rx: r[0], ry: r[1], px: q[0], py: q[1], z, h: hAt(t) }); }
+        this.kerbPath(g, SS, {}); }
       const gy = c.y + c.r - KW - GW/2, gx = c.x - 120;
       Q([[gx - 34, gy - 14, z + 0.8],[gx + 34, gy - 14, z + 0.8],[gx + 34, gy + 14, z + 0.8],[gx - 34, gy + 14, z + 0.8]], 0x55524a);
       for(let a = -28; a < 28; a += 9) Q([[gx + a, gy - 14, z + 1],[gx + a + 4, gy - 14, z + 1],[gx + a + 4, gy + 14, z + 1],[gx + a, gy + 14, z + 1]], 0x2e2c28);
@@ -107109,7 +107124,7 @@ class WorldScene extends Phaser.Scene {
     const W = (x, y, z) => this.W(c.x + x, c.y + y, z);
     const quad = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
     const poly = (pts, z, col) => quad(pts.map(p => W(p[0], p[1], z)), col);
-    const KH = 8, KW = 22, GW = CURB_W, GUTC = 0x9a9488, KTOP = 0xf4f1e8, KFACE = 0xe2ded0, KDK = 0x6e6a5e;
+    const KH = 8, KW = 22, GW = CURB_W, GUTC = 0x9a9488;      // (the stone's paint: kerbPath)
     const LAWN = 0x9fbd6a, LAWN2 = 0x97b563, ROADC = d.road;
     /* the ring as a 72-gon, for clipping the paving */
     const NR = 72, ring = [];
@@ -107207,23 +107222,11 @@ class WorldScene extends Phaser.Scene {
               W(Math.cos(t1)*r1, Math.sin(t1)*r1, h1), W(Math.cos(t0)*r1, Math.sin(t0)*r1, h1)], col);
       }
     };
-    const face = (a0, a1, rad, sgnN, h0, h1, col, n) => {             // sgnN +1: faces out from the centre
-      for(let i = 0; i < n; i++){
-        const t0 = a0 + (a1 - a0)*i/n, t1 = a0 + (a1 - a0)*(i+1)/n, tm = (t0 + t1)/2;
-        if(sgnN*(Math.cos(tm) + Math.sin(tm)) <= 0) continue;
-        quad([W(Math.cos(t0)*rad, Math.sin(t0)*rad, h0), W(Math.cos(t1)*rad, Math.sin(t1)*rad, h0),
-              W(Math.cos(t1)*rad, Math.sin(t1)*rad, h1), W(Math.cos(t0)*rad, Math.sin(t0)*rad, h1)], col);
-      }
-    };
     for(const [a0, a1] of arcs) band(a0, a1, c.r - KW - GW, c.r - KW, 0.6, 0.6, GUTC, NARC);
     /* the fillets' channels, radius growing toward the road */
     const fband = (f, r0, r1, h0, h1, col) => { for(let i = 0; i < NF; i++){ const t0 = i/NF, t1 = (i+1)/NF;
       const A0 = f.at(r0, t0), A1 = f.at(r0, t1), B1 = f.at(r1, t1), B0 = f.at(r1, t0);
       quad([W(A0[0], A0[1], h0), W(A1[0], A1[1], h0), W(B1[0], B1[1], h1), W(B0[0], B0[1], h1)], col); } };
-    const fface = (f, rad, sgnN, h0, h1, col) => { for(let i = 0; i < NF; i++){ const t0 = i/NF, t1 = (i+1)/NF, tm = f.a1 + f.da*(t0 + t1)/2;
-      if(sgnN*(Math.cos(tm) + Math.sin(tm)) <= 0) continue;
-      const A0 = f.at(rad, t0), A1 = f.at(rad, t1);
-      quad([W(A0[0], A0[1], h0), W(A1[0], A1[1], h0), W(A1[0], A1[1], h1), W(A0[0], A0[1], h1)], col); } };
     for(const f of fillets) fband(f, c.rf + KW, c.rf + KW + GW, 0.6, 0.6, GUTC);
     /* a grate at each side's low point, mid-channel */
     for(const t of [0, Math.PI]){
@@ -107232,19 +107235,16 @@ class WorldScene extends Phaser.Scene {
       quad([G(-34,-14,0.8), G(34,-14,0.8), G(34,14,0.8), G(-34,14,0.8)], 0x55524a);
       for(let a = -28; a < 28; a += 9) quad([G(a,-14,1), G(a + 4,-14,1), G(a + 4,14,1), G(a,14,1)], 0x2e2c28);
     }
-    for(const [a0, a1] of arcs){
-      face(a0, a1, c.r, 1, 0, KH, KFACE, NARC);                         // paving face
-      face(a0, a1, c.r - KW, -1, 0, KH, KFACE, NARC);                   // road face
-      face(a0, a1, c.r - KW, -1, 0, 3, KDK, NARC);                      // its shadow in the channel
-      band(a0, a1, c.r - KW, c.r, KH, KH, KTOP, NARC);                  // the top
-      band(a0, a1, c.r - KW, c.r - KW*0.86, KH, KH, KDK, NARC);         // the seam, road edge as the straights
-    }
-    for(const f of fillets){
-      fface(f, c.rf, -1, 0, KH, KFACE); fface(f, c.rf + KW, 1, 0, KH, KFACE);
-      fface(f, c.rf + KW, 1, 0, 3, KDK);
-      fband(f, c.rf, c.rf + KW, KH, KH, KTOP);
-      fband(f, c.rf + KW*0.86, c.rf + KW, KH, KH, KDK);
-    }
+    /* THE STONE: the city's kerb (kerbPath), one piece round each arc and each fillet -- the faces the eye sees in the paint
+       shaded by which way they turn, one top, the arris, the seam on the road edge as the straights. Sections in world. */
+    const arcStone = (a0, a1, rRoad, rPave, n, o2) => { const SS = [];
+      for(let i = 0; i <= n; i++){ const t = a0 + (a1 - a0)*i/n, cs = Math.cos(t), sn = Math.sin(t);
+        SS.push({ rx: c.x + cs*rRoad, ry: c.y + sn*rRoad, px: c.x + cs*rPave, py: c.y + sn*rPave, h: KH }); }
+      this.kerbPath(g, SS, o2 || {}); };
+    for(const [a0, a1] of arcs) arcStone(a0, a1, c.r - KW, c.r, NARC);
+    for(const f of fillets){ const SS = [];
+      for(let i = 0; i <= NF; i++){ const A = f.at(c.rf + KW, i/NF), B = f.at(c.rf, i/NF); SS.push({ rx: c.x + A[0], ry: c.y + A[1], px: c.x + B[0], py: c.y + B[1], h: KH }); }
+      this.kerbPath(g, SS, { joints: [0, NF] }); }
     /* AND ON OVER EACH JOIN, as the estate's fillets do: a short length of
        the stone it meets -- the street's straight, and the ring -- laid again
        over the arc's end, top and visible face, so neither shows its cut end
@@ -107255,21 +107255,13 @@ class WorldScene extends Phaser.Scene {
     { const CAPL = KH * 2.5, SL = c.out - c.fx + 2;
       for(const f of fillets){
         const tx = f.sx*RH, ty = f.sy*c.fx, bx = 0, by = f.sy, ix = -f.sx, iy = 0;
-        const p = (s2, o2, h) => W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
-        if(-(ix + iy) > 0) quad([p(0, 0, KH), p(SL, 0, KH), p(SL, 0, 0), p(0, 0, 0)], KFACE);
-        if((ix + iy) > 0){
-          quad([p(0, KW, KH), p(SL, KW, KH), p(SL, KW, 0), p(0, KW, 0)], KFACE);
-          quad([p(0, KW, 3), p(SL, KW, 3), p(SL, KW, 0), p(0, KW, 0)], KDK);
-        }
-        quad([p(0, 0, KH), p(SL, 0, KH), p(SL, KW, KH), p(0, KW, KH)], KTOP);
-        quad([p(0, KW, KH), p(SL, KW, KH), p(SL, KW*0.86, KH), p(0, KW*0.86, KH)], KDK);
+        const sec = s2 => ({ rx: c.x + tx + bx*s2 + ix*KW, ry: c.y + ty + by*s2 + iy*KW, px: c.x + tx + bx*s2, py: c.y + ty + by*s2, h: KH });
+        this.kerbPath(g, [sec(0), sec(SL)], {});
         /* the ring's end: from the fillet's ring tangent, a few degrees on
            round the ring away from the street */
         const aT = Math.atan2(f.sy*fyc, f.sx*fxc), dA = -f.sx*f.sy*CAPL / c.r;   // toward the ring's own side
         const lo = Math.min(aT, aT + dA), hi = Math.max(aT, aT + dA);
-        face(lo, hi, c.r, 1, 0, KH, KFACE, 2); face(lo, hi, c.r - KW, -1, 0, KH, KFACE, 2); face(lo, hi, c.r - KW, -1, 0, 3, KDK, 2);
-        band(lo, hi, c.r - KW, c.r, KH, KH, KTOP, 2);
-        band(lo, hi, c.r - KW, c.r - KW*0.86, KH, KH, KDK, 2);
+        arcStone(lo, hi, c.r - KW, c.r, 2);
       }
     }
     /* ---- 4. THE ISLAND: its channel, its stone, then its raised lawn with
@@ -107277,14 +107269,11 @@ class WorldScene extends Phaser.Scene {
     if(!o.island) return;
     const TAU = Math.PI*2;
     band(0, TAU, c.ri + KW, c.ri + KW + GW, 0.6, 0.6, GUTC, 40);
-    face(0, TAU, c.ri + KW, 1, 0, KH, KFACE, 40);
-    face(0, TAU, c.ri + KW, 1, 0, 3, KDK, 40);
+    arcStone(0, TAU, c.ri + KW, c.ri, 40, { noBack: true });   // its stone (the lawn inside stands at its height: no back face)
     const isl = []; for(let i = 0; i < 40; i++){ const t = i/40*TAU; isl.push([Math.cos(t)*c.ri, Math.sin(t)*c.ri]); }
     poly(isl, KH, LAWN);
     const isl2 = []; for(let i = 0; i < 40; i++){ const t = i/40*TAU; isl2.push([Math.cos(t)*(c.ri - 40), Math.sin(t)*(c.ri - 40)]); }
     poly(isl2, KH + 0.2, LAWN2);
-    band(0, TAU, c.ri, c.ri + KW, KH, KH, KTOP, 40);
-    band(0, TAU, c.ri + KW*0.86, c.ri + KW, KH, KH, KDK, 40);
     poly([[-130, -120], [130, -120], [130, 120], [-130, 120]], KH + 0.4, 0xd9d0bc);             // the booth's apron
     poly([[-130, -8], [-c.ri + 30, -8], [-c.ri + 30, 8], [-130, 8]], KH + 0.4, 0xd9d0bc);      // and a path out to each gate post
     poly([[130, -8], [c.ri - 30, -8], [c.ri - 30, 8], [130, 8]], KH + 0.4, 0xd9d0bc);
@@ -111697,7 +111686,7 @@ class WorldScene extends Phaser.Scene {
          white top and white road face against grey asphalt and sand
          paving, with the shadow line left dark so the step still reads
          as a step rather than as a flat stripe. */
-      const GUT = 0x9a9488, KERB_TOP = KERB_STONE.top, KERB_FACE = KERB_STONE.face, KERB_DK = KERB_STONE.dk;
+      const GUT = 0x9a9488;      // (the stone's own paint: KERB_STONE, KERB_ART -- kerbPath)
       /* CLEAR OF THE PAVEMENT, BY CONSTRUCTION (Sir: "move it to the edge
          of the last lane of the sidewalk i dont want it to over lap it at
          all"). Height is what covers ground behind: raising z by h lifts
@@ -111809,51 +111798,17 @@ class WorldScene extends Phaser.Scene {
         r.grid._kerbCuts.set(ck, out);
         return out;
       };
-      const kerbRun = (sgn, s0, s1, h0, h1) => {
-        const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
-        const pt = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
-        /* FACES FIRST, TOP LAST (Sir, on-device: "clean up all the little
-           corners that dont line up"). The pavement-side face used to be
-           drawn after the top; on every kerb whose pavement side faces
-           away from the camera that face is hidden in reality, but drawn
-           last it painted a pale band over the top's back half -- a band
-           the flares and the corner arc did not have, so every join
-           showed a step. A top drawn last covers whichever face is behind
-           it and leaves the one facing the camera, on either side of the
-           street, which is all painter's order needs here. */
-        this.quadOn(g, [pt(s0,oOut,h0), pt(s1,oOut,h1), pt(s1,oOut,0), pt(s0,oOut,0)], KERB_FACE);
-        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_FACE);
-        this.quadOn(g, [pt(s0,oIn,Math.min(h0,3)), pt(s1,oIn,Math.min(h1,3)), pt(s1,oIn,0), pt(s0,oIn,0)], KERB_DK);
-        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oOut,h1), pt(s0,oOut,h0)], KERB_TOP);
-        /* AND A LINE WHERE IT MEETS THE PAVING. At night the palette pulls
-           the white stone (0xf4f1e8) to about 142,149,180 and the paving to
-           115 -- 30 apart, which is nothing on a phone, so the kerb read as
-           absent even where it was drawn. A dark seam on its pavement edge
-           survives the night tint and gives the step an edge to read. */
-        const oSeam = oIn - (oIn - oOut) * 0.14;
-        this.quadOn(g, [pt(s0,oIn,h0), pt(s1,oIn,h1), pt(s1,oSeam,h1), pt(s0,oSeam,h0)], KERB_DK);
-        /* THE ROUNDED ARRIS (sidewalk pass, 2026-11-23): a kerb's road edge is rounded, and the roll catches the light -- a
-           lit band on the top just inside the seam, so the edge reads as a rolled lip over the shadow line, not a flat top
-           butted to a stripe. The corners, the flares, the L fillets and drawKerbStoneOver carry the same band. */
-        const oAr = oIn - (oIn - oOut) * 0.28;
-        this.quadOn(g, [pt(s0,oSeam,h0), pt(s1,oSeam,h1), pt(s1,oAr,h1), pt(s0,oAr,h0)], KERB_ARRIS);
-        /* LAID IN STONES (pavement pass, 2026-11-23). A kerb is a row of cut stones, not one extrusion: a joint across the
-           top and down the road face the eye sees (asked of W: that face's normal is -sgn*rv), on the paving's own T2 lattice
-           so every kerb joint lines up with a joint in the slabs behind it. Straight full-height runs only; the flares and
-           the corner sweeps stay whole stones. */
-        if(h0 === h1 && s1 - s0 > T2*0.5){
-          const roadFace = (this.W(-sgn*rv.x, -sgn*rv.y, 0).y - this.W(0, 0, 0).y) > 0;
-          const P0 = sx*dv.x + sy*dv.y, dir = dv.x + dv.y;           // world coordinate along the street at s = 0, and its sense
-          const w0 = P0 + dir*s0, w1 = P0 + dir*s1;
-          const lo = Math.min(w0, w1) + 6, hi = Math.max(w0, w1) - 6;  // (not a joint on the run's own ends)
-          g.lineStyle(1, KERB_JOINT, 1);
-          for(let wj = Math.ceil(lo/T2)*T2; wj <= hi; wj += T2){
-            const sj = (wj - P0)*dir;
-            const a = pt(sj, oIn, h0), b = pt(sj, oOut, h0);
-            g.lineBetween(a.x, a.y, b.x, b.y);
-            if(roadFace){ const c = pt(sj, oIn, Math.min(h0, 3)); g.lineBetween(a.x, a.y, c.x, c.y); }
-          }
-        }
+      /* a kerb stretch's cross-section at s along the edge: its road edge, its paving edge, its top's height (kerbPath) */
+      const kSec = (sgn, s, h) => { const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
+        return { rx: sx + dv.x*s + rv.x*oIn, ry: sy + dv.y*s + rv.y*oIn, px: sx + dv.x*s + rv.x*oOut, py: sy + dv.y*s + rv.y*oOut, h }; };
+      /* FACES FIRST, TOP LAST (Sir, on-device: "clean up all the little corners that dont line up"); AND A LINE WHERE IT MEETS
+         THE PAVING (the dark seam that survives the night tint); THE ROUNDED ARRIS (sidewalk pass); LAID IN STONES (pavement
+         pass: joints on the paving's T2 lattice, straight full-height runs only -- the flares and the sweeps stay whole stones).
+         All of it is kerbPath now (kerb pass, 2026-11-23): the same stone, in the same order, as the flares, the corners, the
+         L fillets, the rounds and the stone over a parked car. capA / capB: the run stops square here (a flat drive's mouth). */
+      const kerbRun = (sgn, s0, s1, h0, h1, capA, capB) => {
+        const S = [kSec(sgn, s0, h0), kSec(sgn, s1, h1)];
+        this.kerbPath(g, S, { joints: h0 === h1 && s1 - s0 > T2*0.5 ? kerbLatticeJoints(S[0], S[1]) : null, capA, capB });
       };
       /* A KERB ONLY BREAKS WHERE A STREET LEAVES IT (Sir, on-device, with
          the robot stopped against nothing: "i thought we fixed this issue
@@ -111891,7 +111846,7 @@ class WorldScene extends Phaser.Scene {
                  : sideOpen(edge.a, sgn) ? 0 : -TANG - (lOut(edge.a, (edge.f + 2) % 4) ? ROAD_HALF - L_OUT_R : 0);
         const s1 = len + (sideOpen(edge.b, sgn) ? 0 : TANG + (lOut(edge.b, edge.f) ? ROAD_HALF - L_OUT_R : 0));
         band(sgn, s0, s1);
-        let cur = s0;
+        let cur = s0, capNext = false;
         for(const [c0, c1, flat] of cuts){
           /* THE FLARES ARE OUTSIDE THE PAD, the drop is across it: full
              kerb up to the flare, flare down, flush the width of the pad,
@@ -111931,38 +111886,20 @@ class WorldScene extends Phaser.Scene {
              cover, still showed, and the end read as a square block. The
              wedge replaces the stone over its length instead. */
           const fs0 = Math.max(cur, c0 - FL);
-          if(fs0 - cur > 1) kerbRun(sgn, cur, fs0, KERB_H, KERB_H);
-          const flare = (sEdge, sPad) => {
-            const oIn = sgn*(ROAD_HALF - KERB_W), oOut = sgn*ROAD_HALF;
-            const p = (s, o, z) => this.W(sx + dv.x*s + rv.x*o, sy + dv.y*s + rv.y*o, z);
-            /* same order as kerbRun, so the wedge and the stone it
-               continues are built identically and meet without a step:
-               both triangle faces, then the sloping top over them. The
-               low end sits at the pad's own height (WORLD_RAMP.streetZ),
-               so its corner lands on the pad's corner on screen too. */
-            const zT = WORLD_RAMP.streetZ;
-            this.quadOn(g, [p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oOut,0), p(sEdge,oOut,0)], KERB_FACE);
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_FACE);
-            this.quadOn(g, [p(sEdge,oIn,Math.min(KERB_H,3)), p(sPad,oIn,zT), p(sPad,oIn,0), p(sEdge,oIn,0)], KERB_DK);
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oOut,KERB_H), p(sPad,oOut,zT), p(sPad,oIn,zT)], KERB_TOP);
-            /* AND THE SEAM RUNS DOWN THE FLARE TOO (Sir, on-device, circling
-               a ramp wedge: "i think we are missing the dark line on the
-               down slope part of the curbs"). kerbRun lays a dark line on
-               the kerb's paving edge so the step reads at night; the wedge
-               is drawn instead of the stone over its length, and carried
-               no such line, so the seam stopped dead at every ramp. */
-            const oSeam = oIn - (oIn - oOut) * 0.14, oAr = oIn - (oIn - oOut) * 0.28;
-            this.quadOn(g, [p(sEdge,oIn,KERB_H), p(sEdge,oSeam,KERB_H), p(sPad,oSeam,zT), p(sPad,oIn,zT)], KERB_DK);
-            this.quadOn(g, [p(sEdge,oSeam,KERB_H), p(sEdge,oAr,KERB_H), p(sPad,oAr,zT), p(sPad,oSeam,zT)], KERB_ARRIS);   // (the arris, as kerbRun)
-          };
+          if(fs0 - cur > 1) kerbRun(sgn, cur, fs0, KERB_H, KERB_H, capNext, flat);   // (a flat mouth: the stone stops square, its end face shown)
+          /* THE FLARE, the same stone as the run it continues (kerbPath): both faces it shows, then the sloping top, its arris
+             and THE SEAM DOWN THE FLARE TOO (Sir, on-device, circling a ramp wedge: "i think we are missing the dark line on the
+             down slope part of the curbs"). The low end sits at the pad's own height (WORLD_RAMP.streetZ), so its corner lands on
+             the pad's corner on screen too. */
+          const flare = (sEdge, sPad) => this.kerbPath(g, [kSec(sgn, sEdge, KERB_H), kSec(sgn, sPad, WORLD_RAMP.streetZ)]);
           /* the kerb picks up again at the far edge of the pad; the second
              flare is drawn over ITS first FL, same as the first */
           if(!flat) flare(fs0, c0);
           const fs1 = Math.min(s1, c1 + FL);
           if(!flat) flare(fs1, c1);
-          cur = fs1;
+          cur = fs1; capNext = !!flat;
         }
-        if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H);
+        if(s1 - cur > 1) kerbRun(sgn, cur, s1, KERB_H, KERB_H, capNext, false);
         /* AND THE WATER STILL HAS TO GO SOMEWHERE (Sir, on-device on the
            rim: "we got our curb in these gaps but no drain"). The city's
            gullies belong to the corner sweeps, and a junction with no
@@ -111979,7 +111916,8 @@ class WorldScene extends Phaser.Scene {
             this.quadOn(g, [p(a,o0,1), p(a + 4,o0,1), p(a + 4,o1,1), p(a,o1,1)], 0x2e2c28);
           if((this.W(-sgn*rv.x, -sgn*rv.y, 0).y - this.W(0, 0, 0).y) > 0){   // the kerb inlet over it (see the corners' gully)
             const ok = sgn*(ROAD_HALF - KERB_W);
-            this.quadOn(g, [p(-22,ok,4.6), p(22,ok,4.6), p(22,ok,1.2), p(-22,ok,1.2)], GULLY_MOUTH);
+            this.kerbMouthOn(g, sx + dv.x*(sNode - 22) + rv.x*ok, sy + dv.y*(sNode - 22) + rv.y*ok,
+                                sx + dv.x*(sNode + 22) + rv.x*ok, sy + dv.y*(sNode + 22) + rv.y*ok);
           }
         };
         if(!sideOpen(edge.b, sgn)) gully(len + TANG);
@@ -112002,7 +111940,7 @@ class WorldScene extends Phaser.Scene {
          white top and white road face against grey asphalt and sand
          paving, with the shadow line left dark so the step still reads
          as a step rather than as a flat stripe. */
-      const GUT = 0x9a9488, KERB_TOP = KERB_STONE.top, KERB_FACE = KERB_STONE.face, KERB_DK = KERB_STONE.dk;
+      const GUT = 0x9a9488;      // (the stone's own paint: KERB_STONE, KERB_ART -- kerbPath)
       const QUAD = [[0,1],[1,2],[2,3],[3,0]];           // the two legs each quadrant needs
       for(let q = 0; q < 4; q++){
         const [f0, f1] = QUAD[q];
@@ -112022,13 +111960,6 @@ class WorldScene extends Phaser.Scene {
                             this.W(q0.x,q0.y,z0 === z1 ? z1 : z0), this.W(q1.x,q1.y,z0 === z1 ? z1 : z0)], col, al);
           }
         };
-        const faceArc = (rad, z0, z1, col) => {
-          for(let k = 0; k < N; k++){
-            const p0 = at(rad, k/N), p1 = at(rad, (k+1)/N);
-            this.quadOn(g, [this.W(p0.x,p0.y,z1), this.W(p1.x,p1.y,z1),
-                            this.W(p1.x,p1.y,z0), this.W(p0.x,p0.y,z0)], col);
-          }
-        };
         /* radius grows toward the road: KR is tangent to the pavement
            edge, so the stone is the first 46 out and the gutter the next */
         /* radius grows toward the road: KR is the paving edge, so the kerb
@@ -112038,26 +111969,16 @@ class WorldScene extends Phaser.Scene {
         { g.lineStyle(Math.max(1, this.K*0.8), GUT_LIP, 0.9); g.beginPath();
           for(let k = 0; k <= N; k++){ const p = at(KR + KERB_W + CURB_W, k/N), q = this.W(p.x, p.y, 0.6); if(k) g.lineTo(q.x, q.y); else g.moveTo(q.x, q.y); }
           g.strokePath(); }
-        faceArc(KR + KERB_W, 0, 3, KERB_DK);                        // shadow where it meets the gutter
-        faceArc(KR + KERB_W, 3, KERB_H, KERB_FACE);                 // the kerb's road face
-        faceArc(KR, 0, KERB_H, KERB_FACE);                          // down onto the paving (behind the top -- see kerbRun)
-        /* THE GULLY'S KERB INLET (sidewalk pass, 2026-11-23): the water goes in through a mouth in the stone over the grate --
-           a dark slot low in the road face across the grate's sweep. On the face, so the top (next) covers it wherever that
-           face is turned away. */
-        { const gm = 0.3/Math.max(1e-6, Math.abs(da)), R = KR + KERB_W;
-          for(let k = 0; k < 3; k++){ const p0 = at(R, 0.5 - gm + 2*gm*k/3), p1 = at(R, 0.5 - gm + 2*gm*(k + 1)/3);
-            this.quadOn(g, [this.W(p0.x,p0.y,4.6), this.W(p1.x,p1.y,4.6), this.W(p1.x,p1.y,1.2), this.W(p0.x,p0.y,1.2)], GULLY_MOUTH); } }
-        ring(KR, KR + KERB_W, KERB_H, KERB_H, KERB_TOP);            // its top, last
-        /* THE SEAM ON THE SAME EDGE AS THE STRAIGHTS (Sir, on-device,
-           2026-09-23: "the dark line is on the inside of the curve but it
-           should be on the outside and connect the other dark lines").
-           kerbRun lays its seam from oIn -- the stone's ROAD edge -- 14%
-           of the way in. Here radius grows toward the road, so KR is the
-           paving edge and KR + KERB_W the road edge; the arc had its
-           seam on KR, the opposite edge, so it floated inside the curve
-           and met neither straight. Now the last 14% before the road. */
-        ring(KR + KERB_W*0.86, KR + KERB_W, KERB_H, KERB_H, KERB_DK);  // the seam on its road edge, as kerbRun
-        ring(KR + KERB_W*0.72, KR + KERB_W*0.86, KERB_H, KERB_H, KERB_ARRIS);  // and the arris inside it, as kerbRun
+        /* THE STONE ROUND THE CORNER, ONE PIECE (kerb pass, 2026-11-23; CLAUDE.md "a corner is one piece"): kerbPath along the
+           sweep, finer than the channel (NK) so the road face's tone turns smoothly with it and never steps from facet to facet;
+           one top. THE SEAM ON THE SAME EDGE AS THE STRAIGHTS (Sir, on-device, 2026-09-23: "the dark line is on the inside of the
+           curve but it should be on the outside and connect the other dark lines"): kerbPath lays it on the road edge, here the
+           larger radius (KR + KERB_W), and the arris inside it, as on the straights. One radius stone, a joint at each tangent.
+           THE GULLY'S KERB INLET (sidewalk pass): a mouth in the road face over the grate's sweep, where that face is seen. */
+        { const NK = 15, S = [];
+          for(let k = 0; k <= NK; k++){ const r = at(KR + KERB_W, k/NK), q = at(KR, k/NK); S.push({ rx: r.x, ry: r.y, px: q.x, py: q.y, h: KERB_H }); }
+          const gm = 0.3/Math.max(1e-6, Math.abs(da));
+          this.kerbPath(g, S, { joints: [0, NK], mouths: [[NK*(0.5 - gm), NK*(0.5 + gm)]] }); }
         /* THE GULLY, at the bottom of the sweep where the water goes */
         /* A CURVED GRATE, INSIDE THE CHANNEL (Sir, on-device: "its hitting
            the drain channels edge"). It was a straight 68 x 34 slab laid
@@ -112109,9 +112030,6 @@ class WorldScene extends Phaser.Scene {
         const quadV = (P, col) => { if(this.ptsOnScreen(P)) this.quadOn(g, P, col); };
         const ringO = (r0, r1, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA;
           quadV([A(r0, t0, h0), A(r0, t1, h0), A(r1, t1, h1), A(r1, t0, h1)], col); } };
-        const faceO = (rad, sgnN, h0, h1, col) => { for(let i = 0; i < NA; i++){ const t0 = i/NA, t1 = (i+1)/NA, p = u((t0 + t1)/2);
-          if(sgnN*(p.x + p.y) <= 0) continue;
-          quadV([A(rad, t0, h0), A(rad, t1, h0), A(rad, t1, h1), A(rad, t0, h1)], col); } };
         if(!this.ptsOnScreen([this.W(Cx, Cy, 0), this.W(Ox, Oy, 0), this.W(Cx - (e0.x + e1.x)*OR*2, Cy - (e0.y + e1.y)*OR*2, KERB_H)])) continue;
         /* the square C..C-OR is exactly one paving tile (OR = T2 = CELL):
            the city's own checker shade, no seam stroke -- half of it is
@@ -112135,23 +112053,17 @@ class WorldScene extends Phaser.Scene {
           quadV([p(0, 0, 0), p(RR, 0, 0), p(RR, 6, 0), p(0, 6, 0)], d.road);
           quadV([p(OR - KERB_W - CURB_W, 0, 0.6), p(OR - KERB_W, 0, 0.6), p(OR - KERB_W, 6, 0.6), p(OR - KERB_W - CURB_W, 6, 0.6)], GUT);
         }
-        faceO(OR, 1, 0, KERB_H, KERB_FACE); faceO(OR - KERB_W, -1, 0, KERB_H, KERB_FACE);
-        faceO(OR - KERB_W, -1, 0, 3, KERB_DK);                                   // shadow where it meets the channel
-        ringO(OR - KERB_W, OR, KERB_H, KERB_H, KERB_TOP);                         // the top
-        ringO(OR - KERB_W, OR - KERB_W*0.86, KERB_H, KERB_H, KERB_DK);            // the seam, road edge as kerbRun
-        ringO(OR - KERB_W*0.86, OR - KERB_W*0.72, KERB_H, KERB_H, KERB_ARRIS);    // the arris, as kerbRun
+        /* the stone round the fillet, one piece (kerbPath): radius grows toward the paving here, so the road edge is the
+           smaller radius; then a short CAP of each straight laid again over its end at the tangent, top and the face it shows,
+           so neither shows its cut end as a tick on the other */
+        { const S = [], NK = 16;
+          for(let i = 0; i <= NK; i++){ const p = u(i/NK);
+            S.push({ rx: Ox + p.x*(OR - KERB_W), ry: Oy + p.y*(OR - KERB_W), px: Ox + p.x*OR, py: Oy + p.y*OR, h: KERB_H }); }
+          this.kerbPath(g, S); }
         const CAP = KERB_H * 2.5;
         const capOn = (tx, ty, bx, by, ix, iy) => {
-          const p = (s2, o2, h) => this.W(tx + bx*s2 + ix*o2, ty + by*s2 + iy*o2, h);
-          /* the visible face too, so the straight's face end is not a tick */
-          if(-(ix + iy) > 0) quadV([p(0, 0, KERB_H), p(CAP, 0, KERB_H), p(CAP, 0, 0), p(0, 0, 0)], KERB_FACE);
-          if((ix + iy) > 0){
-            quadV([p(0, KERB_W, KERB_H), p(CAP, KERB_W, KERB_H), p(CAP, KERB_W, 0), p(0, KERB_W, 0)], KERB_FACE);
-            quadV([p(0, KERB_W, 3), p(CAP, KERB_W, 3), p(CAP, KERB_W, 0), p(0, KERB_W, 0)], KERB_DK);
-          }
-          quadV([p(0, 0, KERB_H), p(CAP, 0, KERB_H), p(CAP, KERB_W, KERB_H), p(0, KERB_W, KERB_H)], KERB_TOP);
-          quadV([p(0, KERB_W, KERB_H), p(CAP, KERB_W, KERB_H), p(CAP, KERB_W*0.86, KERB_H), p(0, KERB_W*0.86, KERB_H)], KERB_DK);
-          quadV([p(0, KERB_W*0.86, KERB_H), p(CAP, KERB_W*0.86, KERB_H), p(CAP, KERB_W*0.72, KERB_H), p(0, KERB_W*0.72, KERB_H)], KERB_ARRIS);
+          const sec = s2 => ({ rx: tx + bx*s2 + ix*KERB_W, ry: ty + by*s2 + iy*KERB_W, px: tx + bx*s2, py: ty + by*s2, h: KERB_H });
+          this.kerbPath(g, [sec(0), sec(CAP)]);
         };
         capOn(Ox + e1.x*OR, Oy + e1.y*OR, -e0.x, -e0.y, -e1.x, -e1.y);
         capOn(Ox + e0.x*OR, Oy + e0.y*OR, -e1.x, -e1.y, -e0.x, -e0.y);
@@ -118464,12 +118376,142 @@ class WorldScene extends Phaser.Scene {
      toward the camera: pavement face, top, seam. Same quads, same paint. */
   drawKerbStoneOver(g, e, al0, al1){
     const H = KERB_STONE.h, oOut = SIDEWALK_W, oIn = SIDEWALK_W + KERB_STONE.w;
-    const pt = (a, o, z) => this.W(e.ox + e.dv.x*a + e.rv.x*o, e.oy + e.dv.y*a + e.rv.y*o, z);
-    this.quadOn(g, [pt(al0,oOut,H), pt(al1,oOut,H), pt(al1,oOut,0), pt(al0,oOut,0)], KERB_STONE.face);
-    this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oOut,H), pt(al0,oOut,H)], KERB_STONE.top);
-    const oSeam = oIn - (oIn - oOut) * 0.14, oAr = oIn - (oIn - oOut) * 0.28;
-    this.quadOn(g, [pt(al0,oIn,H), pt(al1,oIn,H), pt(al1,oSeam,H), pt(al0,oSeam,H)], KERB_STONE.dk);
-    this.quadOn(g, [pt(al0,oSeam,H), pt(al1,oSeam,H), pt(al1,oAr,H), pt(al0,oAr,H)], KERB_ARRIS);
+    const sec = a => ({ rx: e.ox + e.dv.x*a + e.rv.x*oIn, ry: e.oy + e.dv.y*a + e.rv.y*oIn,
+                        px: e.ox + e.dv.x*a + e.rv.x*oOut, py: e.oy + e.dv.y*a + e.rv.y*oOut, h: H });
+    const S = [sec(al0), sec(al1)];
+    this.kerbPath(g, S, { cull: false, joints: kerbLatticeJoints(S[0], S[1]) });   // the same stone, joints and all, as kerbRun lays (in its cache image: no screen cull)
+  }
+  /* ONE KERB, ALONG ITS PATH (kerb pass, 2026-11-23, Sir: "ok lets do a pass on the curb itself"). Every kerb stone in the city --
+     the straights, the flares down into a ramp or a drive, the corner sweeps, the outside of an L and its caps, the gate and
+     harbor rounds, the stone laid back over a parked car -- is this one drawer, so they are one stone wherever they meet (a corner
+     is one piece: the sweep is one path, one top). S: its cross-sections in order, each { rx, ry, px, py, h }: the road edge and
+     the paving edge (world) and the top's height there. In pass order, nothing depth-sorted inside it (W37):
+       1. the faces the eye sees (asked of W, stretch by stretch), each in the white paint SHADED BY WHICH WAY IT FACES (KERB_ART:
+          SP13's light), so the stone reads as a block of real height and a sweep reads as round, its tone turning with it. The road
+          face shades down toward its foot (a darker lower band) and the dark foot line where it stands in the gutter (the step reads as a
+          step at night); a square end (o.capA / o.capB) its end face; a gully (o.mouths: [u0, u1] along the path) its inlet;
+       2. the top, one polygon per sweep (no seams between the pieces of a curve);
+       3. the rounded arris: a soft lit fall-off then the bright roll at the road edge; a hairline where the top meets the paving
+          (lit where that face is seen, dark where it is turned away);
+       4. the dark seam ON the road edge (Sir, 2026-09-23; the ramps' "dark line on the down slope part"): a crisp line on the edge
+          itself, at least a pixel at every view, round every corner and down every flare;
+       5. the joints (o.joints: positions along the path, in sections): across the top and down the faces the eye sees.
+     u along the path counts sections: 0 at S[0], 1 at S[1], fractions between; a section's z (default 0) is the ground it stands
+     on (the estate's terraces), h measured up from it. o.noBack: no paving face (the gate island's lawn stands at the stone's
+     height). */
+  kerbPath(g, S, o){
+    const n = S.length - 1;
+    if(n < 1) return;
+    o = o || {};
+    const KA = KERB_ART, KS = KERB_STONE, top = KS.top, K = this.K;
+    const O = this.W(0, 0, 0), X = this.W(1, 0, 0), Y = this.W(0, 1, 0);
+    const ax = X.x - O.x, bx = Y.x - O.x, ay = X.y - O.y, by = Y.y - O.y, hs = Math.SQRT2/(Math.hypot(ax, bx) || 1);
+    const seen = (nx, ny) => nx*ay + ny*by > 1e-6;
+    const tone = (nx, ny) => { const s = Math.max(-1, Math.min(1, (nx*ax + ny*bx)*hs));
+      return shadeN(top, KA.faceLit + (KA.faceDark - KA.faceLit)*(s + 1)*0.5); };
+    const lerp = (a, b, f) => a + (b - a)*f;
+    const R = (s, z) => this.W(s.rx, s.ry, (s.z || 0) + z), P = (s, z) => this.W(s.px, s.py, (s.z || 0) + z);
+    const F = (s, f, z) => this.W(lerp(s.rx, s.px, f), lerp(s.ry, s.py, f), (s.z || 0) + z);    // f of the way from the road edge to the paving
+    const at = u => { const k = Math.max(0, Math.min(n - 1, Math.floor(u))), f = u - k, a = S[k], b = S[k + 1];
+      return { k, rx: lerp(a.rx, b.rx, f), ry: lerp(a.ry, b.ry, f), px: lerp(a.px, b.px, f), py: lerp(a.py, b.py, f), h: lerp(a.h, b.h, f),
+               z: lerp(a.z || 0, b.z || 0, f) }; };
+    if(o.cull !== false){                                          // a path wholly off the screen (or the cache tile) costs nothing
+      const B = this._kpB || (this._kpB = []); B.length = 0;
+      for(const s of S) B.push(R(s, s.h), P(s, 0), R(s, 0));
+      if(!this.ptsOnScreen(B)) return;
+    }
+    /* each stretch's road-face normal (out of the stone toward the road) and the two faces' paint */
+    const NR = this._kpN || (this._kpN = []);
+    for(let k = 0; k < n; k++){
+      const a = S[k], b = S[k + 1];
+      let dx = b.rx - a.rx, dy = b.ry - a.ry;
+      if(Math.abs(dx) + Math.abs(dy) < 1e-6){ dx = b.px - a.px; dy = b.py - a.py; }
+      const m = Math.hypot(dx, dy) || 1;
+      let nx = dy/m, ny = -dx/m;
+      if(nx*(a.rx + b.rx - a.px - b.px) + ny*(a.ry + b.ry - a.py - b.py) < 0){ nx = -nx; ny = -ny; }
+      const rs = seen(nx, ny), bs = !o.noBack && seen(-nx, -ny);
+      NR[k] = { nx, ny, rs, bs, col: rs ? tone(nx, ny) : bs ? tone(-nx, -ny) : 0 };
+    }
+    /* 1. the faces */
+    const foot = KA.footH, dk = KS.dk;
+    for(let k = 0; k < n; k++){
+      const a = S[k], b = S[k + 1], N = NR[k];
+      if(N.rs){
+        this.quadOn(g, [R(a, a.h), R(b, b.h), R(b, 0), R(a, 0)], N.col);
+        this.quadOn(g, [R(a, Math.min(a.h, foot + KA.aoH)), R(b, Math.min(b.h, foot + KA.aoH)), R(b, 0), R(a, 0)], mixC(N.col, dk, KA.ao));
+        this.quadOn(g, [R(a, Math.min(a.h, foot)), R(b, Math.min(b.h, foot)), R(b, 0), R(a, 0)], dk);
+      } else if(N.bs) this.quadOn(g, [P(a, a.h), P(b, b.h), P(b, 0), P(a, 0)], N.col);
+    }
+    const cap = (s, t, dir) => {                                   // a square end: its face, if it is turned to the eye
+      let ex = ((t.rx + t.px) - (s.rx + s.px))*dir, ey = ((t.ry + t.py) - (s.ry + s.py))*dir;
+      const m = Math.hypot(ex, ey) || 1; ex /= -m; ey /= -m;
+      if(!seen(ex, ey)) return;
+      this.quadOn(g, [R(s, s.h), P(s, s.h), P(s, 0), R(s, 0)], tone(ex, ey));
+      this.quadOn(g, [R(s, Math.min(s.h, foot)), P(s, Math.min(s.h, foot)), P(s, 0), R(s, 0)], dk);
+    };
+    if(o.capA) cap(S[0], S[1], 1);
+    if(o.capB) cap(S[n], S[n - 1], 1);
+    if(o.mouths) for(const [u0, u1] of o.mouths){
+      for(let i = 0; i < 3; i++){
+        const A = at(u0 + (u1 - u0)*i/3), B = at(u0 + (u1 - u0)*(i + 1)/3);
+        if(!NR[A.k].rs) continue;
+        this.kerbMouthOn(g, A.rx, A.ry, B.rx, B.ry);
+      }
+    }
+    /* 2.-3. the top and its arris, a polygon per sweep of up to 12 stretches (one is simple however the path turns) */
+    const band = (f0, f1, col, al) => {
+      for(let k0 = 0; k0 < n; k0 += 12){
+        const k1 = Math.min(n, k0 + 12), pts = [];
+        for(let k = k0; k <= k1; k++) pts.push(F(S[k], f0, S[k].h));
+        for(let k = k1; k >= k0; k--) pts.push(F(S[k], f1, S[k].h));
+        this.quadOn(g, pts, col, al);
+      }
+    };
+    band(0, 1, top, 1);
+    band(KA.arris1, KA.glow, KERB_ARRIS, KA.glowA);
+    band(KA.arris0, KA.arris1, KERB_ARRIS, 1);
+    if(!o.noBack){
+      for(const lit of [true, false]){
+        let any = false;
+        for(let k = 0; k < n && !any; k++) any = NR[k].bs === lit;
+        if(!any) continue;
+        g.lineStyle(1, lit ? KERB_ARRIS : dk, lit ? 0.7 : KA.backA);
+        g.beginPath();
+        let open = false;
+        for(let k = 0; k < n; k++){
+          if(NR[k].bs !== lit){ open = false; continue; }
+          const p0 = P(S[k], S[k].h), p1 = P(S[k + 1], S[k + 1].h);
+          if(!open){ g.moveTo(p0.x, p0.y); open = true; }
+          g.lineTo(p1.x, p1.y);
+        }
+        g.strokePath();
+      }
+    }
+    /* 4. the seam */
+    g.lineStyle(Math.max(1, Math.round(KA.seamW*K)), dk, 1);       // (a whole pixel: a fractional stroke breaks into dots)
+    g.beginPath();
+    for(let k = 0; k <= n; k++){ const p = F(S[k], KA.seamF, S[k].h); if(k) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y); }
+    g.strokePath();
+    /* 5. the joints */
+    if(o.joints && o.joints.length){
+      for(const u of o.joints){
+        const s = at(u), N = NR[s.k];
+        g.lineStyle(1, KERB_JOINT, 1);
+        const a = R(s, s.h), b = P(s, s.h);
+        g.lineBetween(a.x, a.y, b.x, b.y);
+        if(N.rs || N.bs){
+          g.lineStyle(1, shadeN(N.col, KA.jointK), 1);
+          const c = N.rs ? R(s, Math.min(s.h, foot)) : P(s, 0);
+          g.lineBetween(N.rs ? a.x : b.x, N.rs ? a.y : b.y, c.x, c.y);
+        }
+      }
+    }
+  }
+  /* A GULLY'S KERB INLET, in the road face between two road-edge points (the face's turned to the eye -- the caller asks): the
+     dark mouth in the stone, with the inlet's lip at its foot catching a little light. */
+  kerbMouthOn(g, x0, y0, x1, y1){
+    this.quadOn(g, [this.W(x0, y0, 4.6), this.W(x1, y1, 4.6), this.W(x1, y1, 1.2), this.W(x0, y0, 1.2)], GULLY_MOUTH);
+    this.quadOn(g, [this.W(x0, y0, 1.9), this.W(x1, y1, 1.9), this.W(x1, y1, 1.2), this.W(x0, y0, 1.2)], KERB_ART.mouthLip);
   }
 
   /* ---------- STREET FURNITURE, every block, every frontage ----------
