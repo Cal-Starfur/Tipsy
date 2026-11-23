@@ -109,7 +109,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
               if(R && along === 'b'){ q.b0 = Math.max(q.b0, R.b0); q.b1 = Math.min(q.b1, R.b1); }
               if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line }); }
             let dk = null; try { dk = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){}
-            if(cut.length) sortRec.push({ i, it, key: dk != null ? dk : (it.a || 0) + (it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
+            if(cut.length) sortRec.push({ i, it, occ: !!it.occ, key: dk != null ? dk : (it.a || 0) + (it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
               fix: it.__run ? [it.__run.a0, it.__run.a1, it.__run.b0, it.__run.b1, it.__run.zTop].join(',') : null, line: it.__run ? it.__run.line : (P[0] && P[0].line) }); } }
         /* clip: one per fixture (its runs share the draw) */
         if(it.__run){ const R = it.__run, key = [R.a0, R.a1, R.b0, R.b1, R.zTop].join(',');
@@ -218,6 +218,9 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         const seenS = new Set();
         for(let x = 0; x < ord.length; x++) for(let y = x + 1; y < ord.length; y++){
           const E = ord[x], L = ord[y];                 // (E painted first, L after)
+          /* (a street lot's pieces with occ are not sorted by key: queueExteriorLot's occDepth orders them by their place in the list
+             and by where he stands, in the street's frame, turned from this one -- not checked here) */
+          if(E.occ || L.occ) continue;
           if(E.fix && E.fix === L.fix) continue;
           if(!ovS(E.box, L.box)) continue;
           let worst = null;
