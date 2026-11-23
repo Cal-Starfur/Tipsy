@@ -29,6 +29,13 @@ own commit to `main`, with before/after sheets shown to Sir before any height ch
 
 Run per room: `node tools/review/w37.js "<room>" --png <dir>` and `node tools/review/consistency.js "<room>" --kind <kind>`.
 
+The recipe's people checks (2026-11-23): `node tools/review/room_people.js "<room>"` -- he stands at spots over the whole room, the
+world drawn 12 frames at each, every piece judged part by part against every person drawn before it (over) and anyone outside behind
+the room drawn over it (outsider). Ballroom, Basement (its ovens fixed: runPiece), Brew & Bolt Roof clean. Left to look at: Marina
+General's main doors over someone just outside them (unconfirmed in shots), the Mall's ground-floor walker over someone on the gallery
+above (x-ray), people at the Mall's west door (coming in: fine). Palmline Tower Floors drew no one (its floors' people not reached).
+Not done: seated people against the new seat heights.
+
 ## 2. Waiting on Sir's decision
 
 - W37 everywhere (2026-11-22, closed 2026-11-23): `w37.js --every` 1096 -> 8 open (the gate's baseline). The checker now knows the
