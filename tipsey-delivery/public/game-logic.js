@@ -31214,7 +31214,8 @@ function sfPose(s, m, now, P){
   }
   const sk = lcSeatK(m, now);
   if(sk && sk.k > 0.5){ const st = sk.seat;
-    if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0; return; }   // (hands on the bars)
+    if(st.kind === 'bike'){ P.sit = st.z; P.legs = null; P.lift = [0.55, 0.55]; P.bend = [0.35, 0.35]; P.headTilt = 0.15; P.headTurn = 0;   // (hands on the bars,
+      P.pedal = { ph: now*0.009 + (s.seed & 63), c: [16, 13], r: 8 }; return; }                                                                //  the feet round the cranks)
     if(st.kind === 'bench'){ const w = 0.5 + 0.5*Math.sin(now*0.0035); P.sit = st.z; P.legs = null; P.lift = [0.2, 0.25 + 0.45*w]; P.bend = [0.3, 1.5 - 0.6*w]; P.headTurn = 0; P.hold = H.bell; return; }   // (seated curls)
     P.lift = [0.2, 0.2]; P.bend = [1.2, 1.2]; P.headTurn = 0; return; }                                          // (the treadmill: drawn running, drawState)
   if(m.look === 'dumbbells' && !m.path){                                                                          // (a dumbbell off the rack, once; then curls)
@@ -60803,6 +60804,7 @@ function houseCanopy(fn){
       tube(c, 222, 38, c, 216, 58, 2, char); tube(c - 11, 214, 60, c + 11, 214, 60, 1.6, charD); box(c - 2, c + 2, 213, 219, 56, 62, charD, charD, blk);
       tube(c, 232, 8, c, 262, 4, 2.4, char); tube(c, 236, 22, c, 262, 6, 2.2, char);
       box(c - 14, c + 14, 262, 270, 0, 4, char, char, charD);
+      tube(c, 248, 4, c, 248, 10, 2.2, char); disc(c + 3, 248, 13, 4.4, charD); disc(c + 3.3, 248, 13, 1.6, steelL);   // (the crank's hub, the rider's feet round it)
       tube(c, 262, 4, c, 264, 34, 2.2, char); box(c - 4, c + 4, 256, 272, 34, 38, blk, charD, blk); } }));
 
     /* ---- THE POWER RACK on the weights floor: four posts and a frame over, the bar on its hooks loaded with a plate each end; keyed at its middle.
@@ -119803,6 +119805,14 @@ class WorldScene extends Phaser.Scene {
       let Kp = [thL, hipH], A = [thL + 3, hipH - shin];
       if(pose.astride){ aC = side*(build.hipW*0.3 + 6);                                      // ASTRIDE a bike: knee down and forward against the tank, the foot back up on its peg
         Kp = [thL*0.85, hipH - 10]; A = [thL*0.3, hipH - build.legH*0.5]; }
+      /* PEDALLING (pose.pedal { ph, c: [forward, up] the crank's middle, r }, Sir, 2026-11-23, Surfside Fitness: "the person on the exercise
+         bike isn't biking"): the foot round the crank, the far one half a turn on; the knee where thigh and shin meet (the thigh its own length,
+         the shin the seated shin's), bent up and forward */
+      if(pose.pedal){ const pd = pose.pedal, t = pd.ph + (side > 0 ? 0 : Math.PI), L1 = thL, L2 = Math.hypot(3, shin);
+        A = [pd.c[0] + Math.cos(t)*pd.r, pd.c[1] + Math.sin(t)*pd.r];
+        const dx = A[0], dy = A[1] - hipH, d = Math.max(Math.abs(L1 - L2) + 0.5, Math.min(L1 + L2 - 0.5, Math.hypot(dx, dy))), ang = Math.atan2(dy, dx),
+          al = Math.acos(Math.max(-1, Math.min(1, (L1*L1 + d*d - L2*L2)/(2*L1*d))));
+        Kp = [L1*Math.cos(ang + al), hipH + L1*Math.sin(ang + al)]; }
       const thC = dress || pPants, shC = dress ? (dress.long ? dress : pSkin) : pPants;
       if(pose.part !== 'upper'){
         if(aid && aid.cast === side){ A = [thL + 22, hipH - shin*0.45];                       // (in plaster: the leg out straight in front, the heel down)
