@@ -51134,8 +51134,8 @@ function houseHalfCone(ac, b, r, n, z0, z1, roof){
    and are drawn with the yard ('far', straight after this.yard); the near
    side is in front of it and goes last in fore() ('near'). From behind the
    roles swap: the near side and the back go last in back(). */
-function houseYardRun(f, col, axis, fixed, u0, u1, ext){
-  const e0 = ext ? ext[0] : 0, e1 = ext ? ext[1] : 0;   // (houseYardFence's corners: a solid run's body carried on past its ends (or short of them), its decoration not; a post run's end post left out)
+function houseYardRun(f, col, axis, fixed, u0, u1, ext, capEnd){
+  const e0 = ext ? ext[0] : 0, e1 = ext ? ext[1] : 0, k0 = capEnd ? capEnd[0] : 1, k1 = capEnd ? capEnd[1] : 1;   // (capEnd: the cap's overhang past each end; -1 stops it at a front wall's cap)   // (houseYardFence's corners: a solid run's body carried on past its ends (or short of them), its decoration not; a post run's end post left out)
   const Q = (a, b, z0, z1, cl) => axis === 'a' ? F(a, b, z0, z1, cl, null, 0, fixed) : S(fixed, a, b, z0, z1, cl);
   const pt = (u, z) => axis === 'a' ? P(u, fixed, z) : P(fixed, u, z);
   const bx = (a, b, t, z0, z1, cl) => axis === 'a' ? box(a, b, fixed - t, fixed + t, z0, z1, shade(cl,1.04), cl, shade(cl,.8))
@@ -51163,7 +51163,7 @@ function houseYardRun(f, col, axis, fixed, u0, u1, ext){
     case 'wall':
       bx(u0 - e0, u1 + e1, 4, 0, h, c1);
       if(f.stones) for(let u = u0 + 6; u < u1 - 8; u += 13) Q(u, u + 8, 4 + (u % 3)*3, 11 + (u % 3)*3, shade(c1,.8));
-      if(cap) bx(u0 - e0 - 1, u1 + e1 + 1, 5, h, h + 4, cap);
+      if(cap) bx(u0 - e0 - k0, u1 + e1 + k1, 5, h, h + 4, cap);
       if(f.balls) for(let u = u0 + 6; u < u1; u += 12) ball2(u, h, 4.2, c1);
       break;
     case 'bamboo':
@@ -51184,12 +51184,14 @@ function houseYardFence(sh, c, part){
   const f = sh.yardFence; if(!f) return;
   const col = k => (k && c[k]) || k;
   const W = sh.ww || HOUSE_SINGLE, D = sh.dd || HOUSE_DEPTH_LAB;
-  const aL = 7, aR = W - 7, bF = -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
+  /* (f.front: the back face of the house's own front garden wall -- the sides end against it face to face, their cap at its cap, not
+     run on into it to b -8 -- W37; Sir, 2026-11-22: "fix the fence ... ones too") */
+  const aL = 7, aR = W - 7, bF = f.front != null ? f.front : -8, bR = -(D - HOUSE_YARD_BACK[f.style][0]);
   const nearA = FLANK_RIGHT ? aR : aL, farA = FLANK_RIGHT ? aL : aR;
   /* (W37: a solid run -- a hedge, a wall -- meets at the back corners face to face: the rear run carried out over the sides' outer
      half, the sides from its near face, so neither runs into the other whichever is drawn first) */
   const boxy = f.style === 'hedge' || f.style === 'wall', tS = f.style === 'hedge' ? 5 : 4;
-  const side = a => houseYardRun(f, col, 'b', a, bR, bF, boxy ? [-HOUSE_YARD_BACK[f.style][1], 0] : null);
+  const side = a => houseYardRun(f, col, 'b', a, bR, bF, boxy ? [-HOUSE_YARD_BACK[f.style][1], 0] : null, f.front != null ? [1, -1] : null);
   const ext = boxy ? [tS, tS] : [1, 1];   // (the rear run's ends, where the sides meet it: a solid run carried out over them, a post left to the side's)
   /* A BACK GATE (game-side, 2026-09-29, Ferris Taylor: "we want access to
      their back yards"). A city lot backs onto the open middle of its
@@ -77089,23 +77091,28 @@ function houseCanopy(fn){
     mesh('b', GA1-6, GB0, GB1, GH);                                          // right
     for(const [ga,gb] of [[GA0,GB1+6],[GA1-6,GB1+6],[GA1-6,GB0]]) cyl(ga, gb, 0, GH+8, 6, shade(wall,.78));
     if(state.props){
-      const plant = (pa, pb, s, col) => {
-        cyl(pa, pb, 0, 16*s, 11*s, '#8a5a3a');
-        plateCircle(pa, pb, 16*s, 9*s, '#4a3a26');
-        cyl(pa, pb, 16*s, 30*s, 3*s, '#6b5a3a');
-        for(let k=0;k<4;k++) ball(pa + 10*s*Math.cos(k*1.57+0.4), pb + 10*s*Math.sin(k*1.57+0.4), 34*s, 11*s, col);
+      const plant = (pa, pb, s, col, z0 = 0) => {
+        cyl(pa, pb, z0, z0 + 16*s, 11*s, '#8a5a3a');
+        plateCircle(pa, pb, z0 + 16*s, 9*s, '#4a3a26');
+        cyl(pa, pb, z0 + 16*s, z0 + 30*s, 3*s, '#6b5a3a');
+        for(let k=0;k<4;k++) ball(pa + 10*s*Math.cos(k*1.57+0.4), pb + 10*s*Math.sin(k*1.57+0.4), z0 + 34*s, 11*s, col);
       };
+      /* THE STAGING (Sir, 2026-11-22: "fix ... the compost bag ones too"): the pots stand ON each staging's top (they stood on the floor
+         under it, painted after it so they looked on top), the near staging's compost bags under it, two high, between its legs (they
+         stood where its legs and pots were, and up through its top). Along a, far end first whichever end the eye sees (a mirrored on
+         some edges) -- W37 */
+      const seeE = (P(1, 0, 0).y - P(0, 0, 0).y) > 0, alongA = list => seeE ? list : list.slice().reverse();
       for(let r=0;r<3;r++){                                                  // staging, far to near
-        const bb = GB1 + 90 + r*110;                                         // (under each top first, the top over them: W37 hung)
-        for(const la of [GA0+40, GA0+110, GA1-40]) cyl(la, bb, 0, 40, 6, shade('#8a6f4e',.8));
-        for(let i=0;i<6;i++)
-          plant(GA0+42 + i*34, bb, 0.62, ['#4e8058','#3f6b4a','#c26a7e','#e8c34a','#6b9a52','#b4674a'][i]);
-        if(r === 2)
-          for(let i=0;i<3;i++)                                                // bagged compost, under the near staging
-            for(let k=0;k<3;k++)
-              box(GA0+30+i*72, GA0+92+i*72, GB0-60, GB0-14, k*15, k*15+15,
-                  '#5a5348','#6b6355','#4a443b');
+        const bb = GB1 + 90 + r*110;
+        const under = [[GA0+40, 'leg'], [GA0+110, 'leg'], [GA1-40, 'leg']];
+        if(r === 2) under.push([GA0+75, 'bags', GA0+48, GA0+102], [GA0+149, 'bags', GA0+122, GA0+176]);
+        for(const u of alongA(under.sort((x, y) => x[0] - y[0]))){
+          if(u[1] === 'leg') cyl(u[0], bb, 0, 40, 6, shade('#8a6f4e',.8));
+          else for(let k=0;k<2;k++) box(u[2], u[3], bb-18, bb+18, k*15, k*15+15, '#5a5348','#6b6355','#4a443b');   // bagged compost
+        }
         slab(GA0+26, GA1-26, 40, 48, bb+24, bb-24, '#8a6f4e', null, shade('#8a6f4e',1.18));
+        for(const i of alongA([0, 1, 2, 3, 4, 5]))
+          plant(GA0+42 + i*34, bb, 0.62, ['#4e8058','#3f6b4a','#c26a7e','#e8c34a','#6b9a52','#b4674a'][i], 48);
       }
     }
     for(let k=0;k<7;k++)                                                     // shade lattice overhead
@@ -86532,7 +86539,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Two-storey Spanish revival: tile hip roofs, garage wing, arched door',
   desc:'Starter double. Two-storey stucco block with a single-storey garage wing and driveway; low garden wall with a gap for the path; arched delivery door under a tiled hood; iron balconette above it.',
   tags:['double','two-storey','garage','tile roof'],
-  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof' },
+  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof', front:-10 },
   door:[500, -60],
   liv:[ { wall:'#f2e6d2', trim:'#6b4a36', roof:'#c0613f', leaf:'#5a3a28', iron:'#2a2a2e', gar:'#e6dccb' },
         { wall:'#f4d8c4', trim:'#3f5a4a', roof:'#b85a3c', leaf:'#3f5a4a', iron:'#2a2a2e', gar:'#efe4d4' },
@@ -86602,8 +86609,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       S(seeE ? 560 : 440, -60, -44, 136, 140, shade(fl, .78)); }                // (its seen end the whole depth, in one: no seam)
     for(let a = 444; a <= 556; a += 7) F(a, a+1.6, 140, 168, c.iron, null, 0, -44);
     F(440, 560, 166, 169, c.iron, null, 0, -43.8);
-    this.gwall(c);
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+    this.gwall(c);
   },
   back(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -86630,7 +86638,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Hacienda: long tile roof over a seven-arch front arcade, courtyard wall',
   desc:'A long single-storey Spanish hacienda: a red-tile roof running out over a front arcade of seven arches on thick piers, deep-set grilled windows and a plank door in the shade behind, terracotta floor, a low courtyard wall with an open timber gate, and big clay pots.',
   tags:['double','hacienda','arcade','tile roof','spanish'],
-  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof' },
+  yardFence:{ style:'wall', h:26, col:'wall', cap:'roof', front:-14 },
   door:[405, -150],
   liv:[ { wall:'#efe2cc', roof:'#b8583a', trim:'#5a3a28', leaf:'#5a3a28', floor:'#b86a4a' },
         { wall:'#f2dcc4', roof:'#a84e34', trim:'#3f4a3e', leaf:'#3f4a3e', floor:'#a8604a' },
@@ -86686,6 +86694,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     this.arcade(c);
     houseProfileRoof(60, 750, this.prof, 12, c.roof, c.wall, { noEnds:true });
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
     for(const [a0, a1] of [[6, 370], [440, 804]]){
       box(a0, a1, -14, -4, 0, 26, shade(c.wall,1.02), c.wall, shade(c.wall,.8));
       box(a0-1, a1+1, -15, -3, 26, 30, c.roof, shade(c.roof,.9), shade(c.roof,.75));
@@ -86693,7 +86703,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     F(372, 378, 0, 44, c.trim, null, 0, -9); F(432, 438, 0, 44, c.trim, null, 0, -9);
     for(const [nm, aa] of [['pot L', 300], ['pot R', 520]])
       houseProp(nm, () => { ball(aa, -50, 18, 16, '#b86a4a'); cyl(aa, -50, 26, 36, 9, '#a55a3c'); ball(aa, -50, 44, 10, '#6b9a5a'); });
-    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -87195,7 +87204,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Saltbox: two storeys in front, one behind, a long catslide roof',
   desc:'New England saltbox in cranberry clapboard: two storeys on the street, the roof running long and low to a single storey at the back, a big centre chimney, a pedimented door between pilasters, and a fieldstone wall.',
   tags:['single','saltbox','colonial','chimney'],
-  yardFence:{ style:'wall', h:22, col:'#b3ada2', stones:true },
+  yardFence:{ style:'wall', h:22, col:'#b3ada2', stones:true, front:-12 },
   door:[230, -110],
   liv:[ { wall:'#9c3b34', trim:'#f4ecdc', roof:'#4a4642', leaf:'#2f3a30', stone:'#b3ada2' },
         { wall:'#5a6f7a', trim:'#f4efe4', roof:'#44403c', leaf:'#8a3a30', stone:'#a8a296' },
@@ -87222,12 +87231,13 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     houseFrontGable(186, 274, -96, -110, 102, 122, 4, c.roof, c.trim, 1, { back0:true, barge:c.trim });
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
     for(const [a0, a1] of [[6, 195], [265, 454]]){
       box(a0, a1, -12, -2, 0, 22, '#b3ada2', '#a19b90', '#8a857b');
       for(let a = a0 + 6; a < a1; a += 13) F(a, a+8, 4 + (a % 3)*3, 11 + (a % 3)*3, '#8f897e', null, 0, -1.6);
     }
     houseProp('lantern', () => { cyl(330, -34, 0, 70, 2.5, '#2a2a2e'); box(324, 336, -40, -28, 70, 84, '#2a2a2e', 'rgba(250,220,150,.85)', 'rgba(225,195,130,.85)'); });
-    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -88202,7 +88212,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'American Foursquare: boxy two storeys, hip roof, dormer, full porch',
   desc:'A square two-storey Foursquare under a broad hip with a gabled dormer, clapboard below and shingle above, and a full-width porch on square columns over brick piers with a rail either side of the steps.',
   tags:['single','foursquare','hip','porch','dormer'],
-  yardFence:{ style:'hedge', h:24, col:'#5c8a4c' },
+  yardFence:{ style:'hedge', h:24, col:'#5c8a4c', front:-18 },
   door:[230, -160],
   liv:[ { wall:'#c9b98f', upper:'#8a9a7a', trim:'#f5f0e2', roof:'#4a4642', leaf:'#5a3a28', brick:'#9c5a44' },
         { wall:'#b8c4cc', upper:'#6f7f8a', trim:'#f7f4ec', roof:'#44403c', leaf:'#8a2f2f', brick:'#8a5444' },
@@ -88248,13 +88258,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(let a = a0 + 5; a < a1 - 2; a += 8) F(a, a+2, 11, 30, c.trim, null, 0, -97);
     }
     houseProfileRoof(60, 400, [[-96,106],[-160,128]], 8, c.roof, c.wall, { ext1:false, gable:shade(c.trim,.9) });
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
     for(const [a0, a1] of [[6, 190], [270, 454]]){
       box(a0, a1, -18, -6, 0, 24, '#5c8a4c', '#4f7a42', '#426a38');
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
     }
     houseProp('rocker', () => houseRocker(110, -130, '#8a5a3a'));
     houseProp('planter', () => { cyl(350, -130, 3, 24, 12, '#6b6660', '#7a756e'); ball(350, -130, 32, 12, '#4f8a4a'); });
-    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -88284,7 +88295,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Dutch Colonial: gambrel roof, long shed dormer, stone end chimney',
   desc:'Clapboard Dutch Colonial under a flared gambrel: a long shed dormer with three windows across the lower slope, a fanlit door under a small hood, shutters, a fieldstone chimney up the seen end and a clipped hedge.',
   tags:['single','dutch colonial','gambrel','dormer','chimney'],
-  yardFence:{ style:'hedge', h:24, col:'#5c8a4c' },
+  yardFence:{ style:'hedge', h:24, col:'#5c8a4c', front:-18 },
   door:[230, -110],
   liv:[ { wall:'#efe0b0', trim:'#fbf8f0', roof:'#4a4e52', leaf:'#2e4d68', shut:'#3f5a4a', stone:'#a8a296' },
         { wall:'#c9d6da', trim:'#fbfaf6', roof:'#44403c', leaf:'#8a2f2f', shut:'#2e4d68', stone:'#9c978c' },
@@ -88322,6 +88333,8 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     const c = this.liv[state.pal % this.liv.length];
     slab(188, 272, 110, 116, -88, -110, shade(c.roof,.85));
     for(const aa of [192, 268]) poly([P(aa,-109,100), P(aa,-89,110), P(aa,-109,110)], c.trim);
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
     for(const [a0, a1] of [[6, 195], [265, 454]]){
       box(a0, a1, -18, -6, 0, 24, '#5c8a4c', '#4f7a42', '#426a38');
       for(let a = a0 + 8; a < a1; a += 16) ball(a, -12, 24, 7, '#5c8a4c');
@@ -88330,7 +88343,6 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
       for(const aa of [74, 112]) box(aa-2, aa+2, -60, -50, 0, 16, '#6b5038', '#5a4230', '#4d3828');   // the legs before the seat on them (W37)
       box(70, 116, -62, -48, 16, 20, '#a8835c', '#96744f', '#836544');
     });
-    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -88794,7 +88806,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Prairie style: stacked low hips, deep eaves, ribbon windows, urns',
   desc:'Wright-flavoured Prairie house: a long ground floor and a narrower upper floor, each under a low hip with a deep overhang, dark timber bands, ribbon windows, a broad low chimney, a low garden wall and two planter urns flanking the walk.',
   tags:['double','prairie','hip','deep eaves'],
-  yardFence:{ style:'wall', h:22, col:'wall', cap:'wood' },
+  yardFence:{ style:'wall', h:22, col:'wall', cap:'wood', front:-14 },
   door:[405, -120],
   liv:[ { wall:'#e2d2b0', wood:'#5a4030', roof:'#4e5a52', leaf:'#5a4030', urn:'#a89a80' },
         { wall:'#d8c7a8', wood:'#3f4a3e', roof:'#5a4a3e', leaf:'#3f4a3e', urn:'#9c9280' },
@@ -88850,8 +88862,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   },
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
-    this.roofs(c, 1); this.gwall(c); this.urns(c);
+    this.roofs(c, 1);
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
     if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
+    this.gwall(c); this.urns(c);
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
@@ -89668,7 +89682,7 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   head:'Balinese villa: two-tier steep roof, carved teak, split gate, open bale pavilion',
   desc:'A Balinese garden villa: carved teak walls under a two-tier roof whose steep upper tier rises from the ridge of the lower, a split stone gate with a stepped wall at the street, an open bale pavilion on four posts, a lotus pond and frangipani trees.',
   tags:['double','balinese','tiered roof','pavilion','garden'],
-  yardFence:{ style:'wall', h:36, col:'stone', cap:'roof' },
+  yardFence:{ style:'wall', h:36, col:'stone', cap:'roof', front:-14 },
   door:[340, -170],
   liv:[ { wood:'#8a5a34', roof:'#4a3a30', stone:'#8f8a80', leaf:'#5a3a1e', gold:'#c9a24a' },
         { wood:'#a06a3e', roof:'#3e3a34', stone:'#9c968a', leaf:'#4a2e1a', gold:'#d4b060' },
@@ -89725,9 +89739,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
   fore(p){
     const c = this.liv[state.pal % this.liv.length];
     this.roof(c);
+    /* (the near side of the yard fence before the front garden wall it ends against -- W37) */
+    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
     this.gate(c);
     this.trees();
-    if(!state.back) houseYardFence(this, this.liv[state.pal % this.liv.length], 'near');
   },
   draw(p){
     const c = this.liv[state.pal % this.liv.length];
