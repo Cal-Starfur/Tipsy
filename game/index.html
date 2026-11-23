@@ -48154,7 +48154,9 @@ function svcLiftItems(items, H, U){
     box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, H - 14, H, U.trim, U.trim, U.trimD);     // the walls' gold band, on over the doors
     ball(E + 3, MID, 186, 6, U.trim, U.lamp);
   }});
-  items.push({ a: E + 2, b: MID, z: 0, draw: () =>                                       // the roof, over the west wall's top too: one cornice
+  /* (keyed after every piece of the car -- the header, the east face's two sides -- that it caps: at the doorway it went before the
+     east face's south side, whose band then painted over the cornice -- w37 sort; no one out in front of the car meets it on screen) */
+  items.push({ a: E + 2, b: MID, z: 0, dk: Math.max(E + 3 + MID, S0.a1 + 8 + (S0.b0 + S0.door[0])/2, S0.a1 + 8 + (S0.door[1] + S0.b1 - 30)/2) + 0.5, draw: () =>   // the roof, over the west wall's top too: one cornice
     box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H, H + 10, U.trim, U.trim, U.trimD) });
 }
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
@@ -54800,14 +54802,7 @@ function houseCanopy(fn){
       for(const b of [330, 560, 760])                            // its sheen, slanting
         poly([P(0.6, b, 312), P(0.6, b + 34, 312), P(0.6, b - 46, 110), P(0.6, b - 80, 110)], '#b4c9d3');
       for(const b of [443, 657]) S(0.7, b - 4, b + 4, 110, 312, gold);   // posts between its panels
-      box(0, 34, 230, 870, 28, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.8));   // the cabinet
-      for(let b = 238; b < 860; b += 79){
-        S(34.3, b, b + 71, 36, 92, shade(oakD, 1.14));           // its doors
-        S(34.5, b + 5, b + 66, 41, 87, shade(oakD, 1.02));
-        ball(34.8, b + 62, 64, 2.2, gold, '#fff2c8');            // a knob
-      }
-      box(0, 38, 226, 874, 98, 102, '#3a2a1c', '#2a1e14', '#33251a');   // its top
-      for(let b = 246; b < 862; b += 15) cyl(18, b, 102, 113, 4, '#d6e3ea', '#eef5f8');   // glasses, upside down
+      /* (the cabinet below it, its top and the glasses on it: their own piece, BACK_CAB, after the bar's north flap) */
       /* a bottle at b on a shelf at z, standing at a = 13 off the mirror */
       const BOTTLE = {
         wine:   { w: 12, r: 5.5, h: 24, neck: 11, nr: 2.0, cap: '#7a2e2a', cols: ['#2f5a33', '#4a1c24', '#3b4a2a'], lab: '#efe4cc', sh: true },
@@ -55094,6 +55089,24 @@ function houseCanopy(fn){
     items.push({ a: 55, b: 216, z: 0, solids: [{ name:'bar flap', poly: volRect(0, 110, 210, 222), h: 75 }], draw: () => {
       box(0, 110, 210, 222, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
     }});
+    /* BACK_CAB: the back bar's cabinet, with panelled doors, its top and the glasses upside down on it. It stands 38 out from the
+       west wall, south of the north flap (b 226..874): keyed with the wall (-61) the flap, after it, painted over its north end (w37
+       sort). Its own piece, after the flap and before the bartenders (queued with the bar, 710): behind the bar, between the flaps,
+       no one else stands near it */
+    items.push({ a: 19, b: 550, z: 0, dk: 272, draw: () => {
+      box(0, 34, 230, 870, 28, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.8));   // the cabinet
+      for(let b = 238; b < 860; b += 79){
+        S(34.3, b, b + 71, 36, 92, shade(oakD, 1.14));           // its doors
+        S(34.5, b + 5, b + 66, 41, 87, shade(oakD, 1.02));
+        ball(34.8, b + 62, 64, 2.2, gold, '#fff2c8');            // a knob
+      }
+      box(0, 38, 226, 874, 98, 102, '#3a2a1c', '#2a1e14', '#33251a');   // its top
+      for(let b = 246; b < 862; b += 15) cyl(18, b, 102, 113, 4, '#d6e3ea', '#eef5f8');   // glasses, upside down
+    }});
+    /* THE BARTENDERS' MAT, its own flat piece first (it was drawn in the bar's piece, after the bartenders queued just before it: it
+       painted over their legs, and over the cabinet's doors -- Sir, 2026-11-23; w37 sort): after the north flap it meets (271), before the
+       cabinet (BACK_CAB, 272) and all behind the bar */
+    items.push({ a: 55, b: 550, z: 0, dk: 271.5, draw: () => box(0, 110, 222, 878, 0, 4, '#5c3a21', '#4e311c', '#422917') });
     /* (THE BAR AT A COUNTER'S HEIGHT, 75, its top 65..75 -- it was 110, the bartenders on a 28 board behind it: Sir, 2026-11-20, "lets make
        the ballroom fixes we found"; its stools' seats 48, the drinks set on its top) */
     items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 75 },
@@ -55101,7 +55114,6 @@ function houseCanopy(fn){
       liveFirst: true,
       /* (serving: BAR_SERVE -- each his station at an end of the bar, his two guests, what they drink; the second half a loop behind) */
       live: BARTENDERS, fx: { kind: 'bardrinks', a: 0, b: 0, who: BARTENDERS }, draw: () => {
-      box(0, 110, 222, 878, 0, 4, '#5c3a21', '#4e311c', '#422917');       // the bartenders' mat
       box(0, 110, 878, 890, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap, up to the top (the north one: its own piece)
       box(110, 200, 220, 880, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(198, 202, 220, 880, 8, 58, gold, gold, goldD);                    // a gold rail down its front (before the top that overhangs it: W37)
@@ -55712,18 +55724,25 @@ function houseCanopy(fn){
 
     /* ---- THE BACK ROOM'S TWO LOW PARTITIONS (W6: one piece each, cut for the door): the east one a 408..424 down from the
        north wall, the south one b 408..424 along to the east one, its door gap a 130..250 ---- */
-    const part = (a0, a1, b0, b1) => {
-      const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.max(1, Math.ceil((hi - lo)/WALKIN_NEAR_RUN - 1e-9));
+    /* (its cream cap overhangs 1 round the run, but only at the run's two ends along it: between sections it stops where the base's
+       0.5 seam does (the next one's cap laps 0.5 back over it: no seam), or the next section's base, keyed after, paints over the cap's overhang -- w37 sort. `cuts`, the section ends
+       along it, where given; `cap0`, where the cap starts at the run's first end -- the door post's cap, which it meets) */
+    const part = (a0, a1, b0, b1, cuts, cap0) => {
+      const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n0 = Math.max(1, Math.ceil((hi - lo)/WALKIN_NEAR_RUN - 1e-9));
+      const C = cuts || Array.from({ length: n0 + 1 }, (_, k) => lo + (hi - lo)*k/n0), n = C.length - 1;
       for(let k = 0; k < n; k++){
-        const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        const s0 = C[k], s1 = C[k + 1], p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        const e1 = k < n - 1 ? 0.5 : 0, c0 = k > 0 ? -0.5 : cap0 !== undefined ? cap0 - s0 : -1, c1 = k < n - 1 ? 0.5 : 1;
         items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, BK.h, 'partition')], draw: () => {
-          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, BK.h - 6, '#7a5238', '#7a5238', '#5b3d2a');
-          box(p0 - 1, p1 + (alongA && k < n - 1 ? 0.5 : 0) + 1, q0 - 1, q1 + (!alongA && k < n - 1 ? 0.5 : 0) + 1, BK.h - 6, BK.h, cream, '#e4d9c0', '#d0c4a8'); } });
+          box(p0, p1 + (alongA ? e1 : 0), q0, q1 + (!alongA ? e1 : 0), 0, BK.h - 6, '#7a5238', '#7a5238', '#5b3d2a');
+          box(alongA ? p0 + c0 : p0 - 1, alongA ? p1 + c1 : p1 + 1, !alongA ? q0 + c0 : q0 - 1, !alongA ? q1 + c1 : q1 + 1, BK.h - 6, BK.h, cream, '#e4d9c0', '#d0c4a8'); } });
       }
     };
-    part(BK.a - BK.T/2, BK.a + BK.T/2, 0, BK.b + BK.T/2);
+    /* (the east one cut where the back bar against it is, 60..360 every 50, and halfway between: a section of it never starts in
+       the far half of one of the bar's, which is keyed 24 east of it, or it paints over the bar -- w37 sort) */
+    part(BK.a - BK.T/2, BK.a + BK.T/2, 0, BK.b + BK.T/2, [0, 30, 60, 85, 110, 135, 160, 185, 210, 235, 260, 285, 310, 335, 360, 392, BK.b + BK.T/2]);
     part(0, BK.door[0], BK.b - BK.T/2, BK.b + BK.T/2);
-    part(BK.door[1], BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2);
+    part(BK.door[1] + 9, BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2, undefined, BK.door[1] + 9);   // (from the door post's east side, its cap 249..259 -- the post's body runs to it: not under the post's cap -- w37 sort)
     T(BK.door[0], BK.door[1], BK.b - 8, BK.b + 8, 0.6, '#8f969d');   // the door's threshold
 
     for(const [ta, tb, seats] of BB_IN.TABLES) if(seats === 4){ T(ta - 62, ta + 62, tb - 62, tb + 62, 0.42, '#7a3a2a'); T(ta - 56, ta + 56, tb - 56, tb + 56, 0.46, '#d9892b'); T(ta - 52, ta + 52, tb - 52, tb + 52, 0.5, '#efe2c8'); }
@@ -55794,7 +55813,7 @@ function houseCanopy(fn){
        (a 140..190): two steel rails, rungs, wall brackets, and at the top a roof hatch in the ceiling, a plank panel in a steel
        frame with a pull ring. Closed for now; it opens for Gideon's climb */
     { const L0 = 120, L1 = 150, rail = '#8f969d', railD = '#6e757c';   // (nudged 30 west of where it was: room between it and the bean shelves)
-      items.push({ a: (L0 + L1)/2, b: 60, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 60, its order key: it sorts after the far wall's pieces either side of it, not under them)
+      items.push({ a: (L0 + L1)/2, b: 54, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 54, its order key: it sorts after the far wall's pieces either side of it, not under them -- and before its rails on up the shaft, b 55, which stand on its tops: w37 sort)
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall (behind the rails: first -- W37 behind)
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
@@ -55868,7 +55887,7 @@ function houseCanopy(fn){
        GD_DOOR): swung open against the sides while he is about, swinging shut while his garage is open */
     { const DA0 = 130, DA1 = 250, DB0 = 408, DB1 = 424, DH = 98;
       for(const x of [DA0 - 8, DA1]) items.push({ a: x + 4, b: 416, z: 0, solids: [solid(x, x + 8, DB0, DB1, DH, 'door post')], draw: () => {
-        box(x, x + 8, DB0, DB1, 0, DH - 6, '#7a5238', '#7a5238', '#5b3d2a'); box(x - 1, x + 9, DB0 - 1, DB1 + 1, DH - 6, DH, cream, '#e4d9c0', '#d0c4a8'); } });
+        box(x, x + (x === DA1 ? 9.5 : 8), DB0, DB1, 0, DH - 6, '#7a5238', '#7a5238', '#5b3d2a'); box(x - 1, x + 9, DB0 - 1, DB1 + 1, DH - 6, DH, cream, '#e4d9c0', '#d0c4a8'); } });   // (the east post's body to its cap's east side, 259 (and 0.5 on, under the partition: no seam), where the partition meets it)
       items.push({ a: (DA0 + DA1)/2, b: 416, z: 0, solids: [], draw: () => { T(DA0, DA1, DB0, DB1, 0.9, '#8e6a43'); T(DA0 + 4, DA1 - 4, DB0 + 5, DB1 - 5, 1.0, '#a07a50'); } });
     }
     /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
@@ -55931,8 +55950,10 @@ function houseCanopy(fn){
       for(let k = 0, m = Math.ceil(300/50); k < m; k++){ const s0 = 60 + 300*k/m, s1 = 60 + 300*(k + 1)/m;
         items.push({ a: 440, b: (s0 + s1)/2, z: 0, solids: [solid(428, 452, s0, s1, 100, 'back bar')], draw: () => {
           box(428, 452, s0, s1 + 0.5, 0, 88, '#8a5b3a', '#7a4f33', '#5f3d27'); box(426, 454, s0, s1 + 0.5, 88, 93, woodL, wood, woodD);
-          if(s0 <= 100 && s1 > 100){ box(432, 448, 88, 112, 93, 124, steelD, steel, steelS); cyl(440, 100, 124, 134, 8, '#c4cbd1', '#e4eaee'); }      // a grinder
-          if(s0 <= 160 && s1 > 160){ box(432, 448, 148, 172, 93, 124, steelD, steel, steelS); cyl(440, 160, 124, 134, 8, '#c4cbd1', '#e4eaee'); }
+          /* the grinders (b 88..112 and 148..172, across a section's end: each section draws its own stretch of the body, the next
+             one's top keyed after it would paint over the rest -- w37 sort) */
+          for(const [g0, g1, gc] of [[88, 112, 100], [148, 172, 160]]){ const t0 = Math.max(g0, s0), t1 = Math.min(g1, s1);
+            if(t1 > t0) box(432, 448, t0, t1, 93, 124, steelD, steel, steelS); if(s0 <= gc && s1 > gc) cyl(440, gc, 124, 134, 8, '#c4cbd1', '#e4eaee'); }
           if(s0 <= 230 && s1 > 230){ cyl(440, 230, 93, 112, 9, copper, '#e8a550'); tube(449, 230, 106, 456, 230, 98, 1.6, copper); }                // the kettle
           for(let b = Math.max(s0 + 6, 270); b < Math.min(s1 - 4, 354); b += 18) cyl(440, b, 93, 111, 6, 'rgba(207,227,232,.92)', cream);        // jars
         } }); }
@@ -56409,8 +56430,10 @@ function houseCanopy(fn){
       items.push({ a, b, z: 0, solids: [{ name: 'tyre barrier', c: [a, b], r: 18, h: 22 }], draw: () => { for(let k = 0; k < 2; k++) cyl(a, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 1 ? '#1e1e22' : null); } });
     { const gb = TR.start + 14, ga0 = TR.a0 - TR.hw - 10, ga1 = TR.a0 + TR.hw + 10;
       for(const ga of [ga0, ga1]) items.push({ a: ga, b: gb, z: 0, solids: [solid(ga - 4, ga + 4, gb - 4, gb + 4, 112, 'start gantry')], draw: () => box(ga - 4, ga + 4, gb - 4, gb + 4, 0, 112, '#e8e4da', '#c9c4b8', '#b0aa9c') });
-      items.push({ a: TR.a0, b: gb, z: 96, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
-        for(let k = 0; k < m; k++) box(ga0 + k*w, ga0 + (k + 1)*w, gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
+      /* the banner: its squares between the posts' faces, not on into them; keyed between the two posts (dk, 50 past its middle -- past
+         anyone just behind it, under the east post's 55): at its height, 96, it went after the east post, its end over the post's face (w37 sort) */
+      items.push({ a: TR.a0, b: gb, z: 96, dk: TR.a0 + gb + 50, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
+        for(let k = 0; k < m; k++) box(Math.max(ga0 + 4, ga0 + k*w), Math.min(ga1 - 4, ga0 + (k + 1)*w), gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
     { const [pa0, pa1, pb0, pb1] = KW_YARD.pit, ra = (pa0 + pa1)/2;
       for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
         items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
