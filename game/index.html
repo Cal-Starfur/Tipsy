@@ -2224,6 +2224,17 @@ const HOODS = [
    file has already executed once at load. */
 const DISTRICT_COLS = 4, DISTRICT_ROWS = 3;   // 4*3 = 12, one cell per hood
 const DISTRICT_W = 9, DISTRICT_H = 9;          // blocks per district, each side
+/* THE STREET A SIGNAL'S ARM RUNS ALONG, as the map names it (tpStreetLbls): a street along x (row j) from its district's own names, one
+   along y (column i) numbered, 1st St, 2nd St ...; the suffix (Ave, St, Way) dropped from a named one to fit the blade, as the real
+   blades shorten it. sg: { node: { i, j }, armF } */
+function signalStreetName(sg){
+  if(!sg || !sg.node) return '';
+  const { i, j } = sg.node, alongX = DIRV[sg.armF].x !== 0;
+  if(alongX){ const h = hoodAt(i, j); const nm = h && h.streets ? h.streets[((j % h.streets.length) + h.streets.length) % h.streets.length] : '';
+    return String(nm || '').replace(/\s+(Ave|St|Way|Blvd|Rd|Dr|Ln|Ct|Pl)\.?$/i, '').toUpperCase(); }
+  const n = i + 1, suf = (n % 10 === 1 && n !== 11) ? 'ST' : (n % 10 === 2 && n !== 12) ? 'ND' : (n % 10 === 3 && n !== 13) ? 'RD' : 'TH';
+  return n + suf + ' ST';
+}
 function hoodAt(i, j){
   const dc = Math.max(0, Math.min(DISTRICT_COLS-1, Math.floor(i/DISTRICT_W)));
   const dr = Math.max(0, Math.min(DISTRICT_ROWS-1, Math.floor(j/DISTRICT_H)));
@@ -92395,6 +92406,9 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
     setView(w, h){ VIEW = (w && h) ? { w, h } : null; },
     /* draw only up to z (kit units); null for whole (see CUT) */
     setCut(z){ CUT = (z === null || z === undefined) ? null : z; },
+    /* the block font's glyph as rects [c0, c1, r0, r1] (5 wide, 7 high, row 0 the top): for lettering drawn outside the kit -- the
+       stop lights' street-name blades */
+    glyphRects(ch){ return blockGlyphRects(String(ch).toUpperCase()); },
     setLeafPick(i){ SHOP_LEAF_PICK = (i === null || i === undefined) ? null : i; },
     /* the scene's car art for gameCar(): fn(g, W, kind, fdir, seed) */
     setCarArt(fn){ GAME_CAR = fn || null; },
@@ -129796,7 +129810,16 @@ class WorldScene extends Phaser.Scene {
             box(a0, a1, -0.8, 0.8, b0, b1, 0x1d5e36, 0x1d5e36, 0x174a2b);
             const F = (u0, u1, z0, z1, c) => { g.fillStyle(c, 1); g.fillPoints([W(u0, sb*1, z0), W(u1, sb*1, z0), W(u1, sb*1, z1), W(u0, sb*1, z1)], true); };
             F(a0 + 1.5, a1 - 1.5, b0 + 1.5, b1 - 1.5, 0xe9ede8); F(a0 + 2.6, a1 - 2.6, b0 + 2.6, b1 - 2.6, 0x1d5e36);
-            for(const [u0, u1] of [[a0 + 6, a0 + 22], [a0 + 25, a0 + 33], [a0 + 36, a0 + 56]]) F(u0, u1, b0 + 6, b1 - 6, 0xe9ede8);   // its name, as strokes
+            /* ITS NAME (Sir, 2026-11-23: "i wonder if we can get the street name on that sign"): the street that runs along the arm --
+               the one the cars under it are about to cross -- as the map names it (signalStreetName), in the shops' block font, fitted
+               to the blade and reading left to right whichever way the arm points; too small to read at this zoom, strokes */
+            const name = signalStreetName(S), n = name.length, px = Math.min(1.3, (a1 - a0 - 8)/(n*6 - 1));
+            if(n && px*this.K >= 0.6){
+              const L = (n*6 - 1)*px, ac = (a0 + a1)/2, dir = W(1, sb, 0).x > W(0, sb, 0).x ? 1 : -1, zT = (b0 + b1)/2 + 3.5*px;
+              for(let i = 0; i < n; i++) for(const [c0, c1, r0, r1] of LIB.glyphRects(name[i])){
+                const u0 = ac - dir*L/2 + dir*(i*6 + c0)*px, u1 = ac - dir*L/2 + dir*(i*6 + c1)*px;
+                F(Math.min(u0, u1), Math.max(u0, u1), zT - r1*px, zT - r0*px, 0xf2f4f0); } }
+            else for(const [u0, u1] of [[a0 + 6, a0 + 22], [a0 + 25, a0 + 33], [a0 + 36, a0 + 56]]) F(u0, u1, b0 + 6, b1 - 6, 0xe9ede8);
             box(a0 + 8, a0 + 11, -1.2, 1.2, b1, armZ - 7, C_DARK_X, C_DARK_Y, C_DARK_T); box(a1 - 11, a1 - 8, -1.2, 1.2, b1, armZ - 7, C_DARK_X, C_DARK_Y, C_DARK_T); };
           const armNear = dv.x > 0 || dv.y > 0;
           /* (the cap at the tip: after the arm when the tip is the near end, before it when the arm runs away from the eye -- props_depth) */
