@@ -65866,6 +65866,9 @@ function houseCanopy(fn){
       if(SEE){ const q = [P(x0,FB-16,132),P(x1,FB-16,132),P(x1,FB-16,22),P(x0,FB-16,22)]; ctx.save(); poly(q); ctx.clip(); HOLE(q); ctx.restore(); }
       else { F(x0, x1, 22, 132, '#3a2f26', null, 0, FB-20);         // the jamb backing
              F(x0, x1, 22, 132, '#f2e6c8', null, 0, FB-16); }       // lit paper behind
+      /* the glass BEHIND the lattice (Sir, 2026-11-23: "they should be behind the design not out in front of it"): painted before the bars
+         and diamonds, a hair behind their plane, so the lattice stands in front of it */
+      F(x0, x1, 22, 132, 'rgba(178,196,190,.20)', null, 0, FB-14);
       for(let i=1;i<3;i++) F(x0+(x1-x0)*i/3-2.4, x0+(x1-x0)*i/3+2.4, 22, 132, trim, null,0, FB-13);
       for(let k=1;k<3;k++) F(x0, x1, 22+110*k/3-2.4, 22+110*k/3+2.4, trim, null,0, FB-13);
       /* THREE PANELS, NOT THIRTY. Six by five diamonds on a 62-wide
@@ -65878,7 +65881,6 @@ function houseCanopy(fn){
         poly([P(ca-13,FB-12.6,cz),P(ca,FB-12.6,cz+13),P(ca+13,FB-12.6,cz),P(ca,FB-12.6,cz-13)], trim);
         poly([P(ca-8,FB-12.4,cz),P(ca,FB-12.4,cz+8),P(ca+8,FB-12.4,cz),P(ca,FB-12.4,cz-8)], '#f2e6c8');
       }
-      F(x0, x1, 22, 132, 'rgba(178,196,190,.20)', null, 0, FB+0.4);  // glass
       F(x0-8, x1+8, 132, 144, shade(trim,1.05), null, 0, FB+0.8);    // head
     };
     /* (narrower, to give the doors room: the doors are 98 now, wide enough for him and a guest -- Sir, 2026-11-17, "can we make them wider") */
