@@ -70029,6 +70029,10 @@ function houseCanopy(fn){
             for(let i=0;i<4;i++) cyl(184, -34, i*10, i*10+10, 14, i%2?'#2b2f33':'#33383d'); } },
         { a: 232, b: -80, z: 55, draw: () => {
             /* the truck: box body, tail to the street */
+            /* (the bumper at the tail: seen from behind the garage -- b turned, its north edge -- the tail is the far end, so the
+               bumper goes first, before the axles and the body in front of it: W37 behind) */
+            const seeS = (P(0, 1, 0).y - P(0, 0, 0).y) > 0, bumper = () => box(tA0-3, tA1+3, -22, -16, 8, 16, '#767c82','#878d94','#5f656b');
+            if(!seeS) bumper();
             box(tA0-3, tA1+3, -118, -92, 0, 17, '#1a1e22','#23282d','#15181b');   // rear axle
             box(tA0-3, tA1+3, -46, -26, 0, 17, '#1a1e22','#23282d','#15181b');    // front axle
             box(tA0, tA1, -140, -20, 15, 94, shade(cab,1.15), cab, shade(cab,.78));
@@ -70036,7 +70040,7 @@ function houseCanopy(fn){
             F(tA0+31, tA1-27, 22, 86, shade(cab,.7), null, 0, -19.2);             // door split
             F(tA0+8, tA0+14, 48, 56, '#c9ced3', null, 0, -19.0);                  // handles
             F(tA1-14, tA1-8, 48, 56, '#c9ced3', null, 0, -19.0);
-            box(tA0-3, tA1+3, -22, -16, 8, 16, '#767c82','#878d94','#5f656b');    // bumper
+            if(seeS) bumper();                                                      // bumper
             F(tA0+3, tA0+11, 26, 34, '#c94f4f', null, 0, -19.0);                  // lamps
             F(tA1-11, tA1-3, 26, 34, '#c94f4f', null, 0, -19.0);
             slab(tA0, tA1, 94, 98, -22, -138, shade(cab,1.3)); } },
