@@ -57990,8 +57990,10 @@ function houseCanopy(fn){
           F(478, 486, 60, 64, darkS, null, 0, cb0 + 21.2);                            // its stand
         }
         if(s0 <= 515 && s1 > 515) for(const [g0, g1, h] of [[504, 520, 12], [522, 534, 9]]) box(g0, g1, cb0 + 8, cb0 + 20, 60, 60 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');
-        if(s0 <= a0 + 20 && s1 > a0 + 20){                                             // the PICK UP sign, standing on the counter's west end
-          for(const pa of [a0 + 6, a0 + 52]) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+        /* the PICK UP sign, standing on the counter's west end: each post in the run it stands on, the board (its east end over the
+           screen's run) with the east post, after the screen -- the screen stands behind that post */
+        for(const pa of [a0 + 6, a0 + 52]) if(s0 <= pa && s1 > pa) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+        if(s0 <= a0 + 52 && s1 > a0 + 52){
           box(a0 + 2, a0 + 56, bf - 7, bf - 2, 100, 122, band, band, bandD);
           blockWordIn('PICK UP', a0 + 6, a0 + 52, 104, 118, bf - 1.6, '#eef4f6', null, 5);
         }
@@ -59762,8 +59764,10 @@ function houseCanopy(fn){
       runPiece(items, A0, A1, B0, B1, 76, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
         box(A0, A1, B0, B1, 0, 70, wood, woodF, woodS); box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 70, 76, '#6e4a31', '#5c3b26', '#4a2f1e');
       });
-      /* (what stands on it, each its own piece keyed on its middle line after the run it stands on: the screen, the banker's lamp, the papers) */
-      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* (what stands on it, each its own piece keyed just after the last run it stands on: the screen, the banker's lamp, the papers -- on
+         the runs' own line, the desk's near side B1, as runPiece keys them; keyed on its middle line, 18 short, the screen and the papers
+         sorted before the east run under them and it painted its top over them) */
+      const on = (oa, fp, fn) => items.push({ a: oa, b: B1, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
       on((579 + DX), [(566 + DX), (592 + DX), B0 + 4, B0 + 10, 100], () => box((566 + DX), (592 + DX), B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025'));
       on((552 + DX), [(544 + DX), (560 + DX), B0 + 8, B0 + 20, 112], () => { cyl((552 + DX), B0 + 14, 76, 104, 1.6, brass); box((544 + DX), (560 + DX), B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33'); });
       on((603 + DX), [(598 + DX), (608 + DX), B1 - 18, B1 - 6, 80], () => box((598 + DX), (608 + DX), B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2'));
@@ -60450,7 +60454,8 @@ function houseCanopy(fn){
       for(let r = 0; r < 6; r++) for(let c = 0; c < 2; c++){ const a0 = 114 + c*38, z0 = 8 + r*14; F(a0, a0 + 34, z0, z0 + 11, lacF, lacS, 0.7, 462.2); F(a0 + 14, a0 + 20, z0 + 4, z0 + 6, steel, null, 0, 462.4); }
       box(108, 192, 440, 464, 96, 100, '#e8eef0', '#c9d2d6', '#b9c2c6');
       for(let k = 0; k < 6; k++){ const a = 120 + k*11; discA(a, 452, 104, 4, steel); discA(a, 452.1, 104, 3, LENS); }
-    }, { pad: 4, keyStart: true });
+    }, { pad: 4, keyStart: true, run: 20 });   // (runs of 20: each keyed at its start after the partition's runs behind it -- in 40s, its
+                                               // east run (150..190, at 150) sorted before the partition's 180..210 and its base painted over it)
     /* THE TEST CHAIR: a big padded chair facing the chart, on a pump base; its arms; drawn back to front in one piece */
     items.push({ a: 222, b: 600, z: 0, solids: [{ name: 'test chair', c: [222, 600], r: 24, h: 100 }], draw: () => {
       const ca = 222, cb = 600, vin = '#24365a', vinF = '#1e2d4c', vinS = '#18243e';
@@ -63396,12 +63401,15 @@ function houseCanopy(fn){
       const _n0 = items.length;                                                  // (its pieces are tagged `fr` below: the street sees into them, queueMallThrough)
       const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bS = D + M.SOUT, bF = bS - M.SD, ZS = 170, dw = 56;   // its street wall on the street's shop line, SD deep
       const fl = sh.food ? '#efe6da' : '#e6dccb';
-      /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) */
-      for(const a of [a0, a1]) items.push({ a, b: (bF + bS)/2, z: 0, lvl: 0,
-        solids: [wallSolid(a - 6, a + 6, bF, bS, DZ, 'wall', 0)], draw: () => {
-          box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9));
-          T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9));
-        }});
+      /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) -- one where two shops meet, the east
+         shop's (its a1 and the next one's a0 were two walls at one place, the later's cap the one seen). Its end at the mall-side wall
+         its own stretch, keyed there (keyed at the wall's middle it sorted after the panels on the mall-side wall beside it and painted
+         over them); the rest keyed at its own middle, before the counters down it */
+      const WE = 40;
+      for(const a of [a0, a1]){ if(a === a1 && M.FRONT.some(o => o !== sh && o.a0 === a1)) continue;
+        const wDraw = () => { box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9)); T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9)); };
+        for(const [q0, q1] of [[bF, bF + WE], [bF + WE, bS]])
+          runPiece(items, a - 6, a + 6, q0, q1, DZ + 0.2, (s0, s1) => [wallSolid(a - 6, a + 6, s0, s1, DZ, 'wall', 0)], wDraw, { alongB: true, run: 1e4, extra: { lvl: 0 } }); }
       /* THE STREET WALL AS THE OUTSIDE HAS IT (Sir, 2026-10-21: "the way these
          shop fronts are becoming glass is bad becasue it doesnt match where the
          glass would be from the outside"): the concourse's shopfront for this
@@ -63673,6 +63681,10 @@ function houseCanopy(fn){
          two ends square navy posts as the outside's frame */
       items.push({ a: (c0 + c1)/2, b: D + 16, z: ZH, draw: () => {
         for(const a of [c0, c1]) box(a - 10, a + 10, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));
+      }});
+      /* (the header its own piece, keyed at its nearest corner as what stands over the doors is: at the curtain's middle the east pair's
+         jambs, under it, sorted after it and painted their tops over its face) */
+      items.push({ a: c1 + 10, b: D + 22, z: ZH, draw: () => {
         box(c0 - 10, c1 + 10, D + 8, D + 22, ZH, ZH + 18, navy, shade(navy, 0.8), shade(navy, 1.2));   // slim, so he shows under it
         F(c0 - 10, c1 + 10, ZH + 14, ZH + 18, gold, null, 0, D + 22.4);
       }}); }
