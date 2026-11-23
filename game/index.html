@@ -129790,8 +129790,18 @@ class WorldScene extends Phaser.Scene {
         if(SIGNAL.arm){
           box(-10, 10, -10, 10, FOOT, HEAD0, C_SIDE_X, C_SIDE_Y, C_TOP);
           /* the arm rides with the post, pointing along fdir = armF */
-          const arm = () => box(13, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP);
+          /* (the design pass, Sir 2026-11-23: a street-name blade hung under the arm near the pole -- green, a white rim -- drawn before
+             the arm over it; the arm's tip capped, a collar a hair proud of it, as the mast's end plate) */
+          const blade = () => { const b0 = armZ - 7 - 18, b1 = armZ - 7 - 3, a0 = 28, a1 = 92, sb = (rv.x + rv.y) > 0 ? 1 : -1;
+            box(a0, a1, -0.8, 0.8, b0, b1, 0x1d5e36, 0x1d5e36, 0x174a2b);
+            const F = (u0, u1, z0, z1, c) => { g.fillStyle(c, 1); g.fillPoints([W(u0, sb*1, z0), W(u1, sb*1, z0), W(u1, sb*1, z1), W(u0, sb*1, z1)], true); };
+            F(a0 + 1.5, a1 - 1.5, b0 + 1.5, b1 - 1.5, 0xe9ede8); F(a0 + 2.6, a1 - 2.6, b0 + 2.6, b1 - 2.6, 0x1d5e36);
+            for(const [u0, u1] of [[a0 + 6, a0 + 22], [a0 + 25, a0 + 33], [a0 + 36, a0 + 56]]) F(u0, u1, b0 + 6, b1 - 6, 0xe9ede8);   // its name, as strokes
+            box(a0 + 8, a0 + 11, -1.2, 1.2, b1, armZ - 7, C_DARK_X, C_DARK_Y, C_DARK_T); box(a1 - 11, a1 - 8, -1.2, 1.2, b1, armZ - 7, C_DARK_X, C_DARK_Y, C_DARK_T); };
           const armNear = dv.x > 0 || dv.y > 0;
+          /* (the cap at the tip: after the arm when the tip is the near end, before it when the arm runs away from the eye -- props_depth) */
+          const cap = () => box(SIGNAL.armLen, SIGNAL.armLen + 2, -7, 7, armZ - 8, armZ + 8, C_DARK_X, C_DARK_Y, C_DARK_T);
+          const arm = () => { blade(); if(!armNear) cap(); box(13, SIGNAL.armLen, -6, 6, armZ-7, armZ+7, C_SIDE_X, C_SIDE_Y, C_TOP); if(armNear) cap(); };
           if(!armNear) arm();
           box(-13, 13, -13, 13, HEAD0, HEAD1, C_DARK_X, C_DARK_Y, C_DARK_T);
           if(armNear) arm();
@@ -129800,16 +129810,16 @@ class WorldScene extends Phaser.Scene {
           box(-12, 12, -12, 12, SIGNAL.poleH, SIGNAL.poleH+7, C_DARK_X, C_DARK_Y, C_TOP);
         }
       } else {
-        /* HUNG UNDER THE ARM ON A BRACKET, A BACKPLATE BEHIND IT (Sir, 2026-11-23: "lets do a pass on the stop light. how can we
-           improve it"): the housing's top a bracket's height under the arm, the arm running on over it, as a mast-arm signal hangs --
-           it was set up into the arm, which then ran into its side; a backplate, the dark board round the case's back that frames it
-           against the sky, drawn first so the case covers its middle */
+        /* HUNG UNDER THE ARM ON A BRACKET (Sir, 2026-11-23: "lets do a pass on the stop light. how can we improve it"): the housing's
+           top a bracket's height under the arm, the arm running on over it, as a mast-arm signal hangs. No backplate: seen edge-on (a
+           head facing across the street) it read as a slab stuck to the case's back ("why did we add this large shape"). A lid a hair
+           wider than the case caps it */
         const R = SIGNAL.headR, gap = R*2.3, armBot = armZ - 7, hTop = armBot - 4;
         const botZ = hTop - gap*3.05;
-        const HW = R*1.4, PL = R*2.1;
-        box(-HW - 2, -HW, -PL, PL, botZ - 5, hTop + 3, C_DARK_X, C_DARK_Y, C_DARK_T);   // the backplate (its top under the arm)
-        box(-2.5, 2.5, -2.5, 2.5, hTop, armBot, C_DARK_X, C_DARK_Y, C_DARK_T);          // the bracket up to the arm
+        const HW = R*1.4;
+        box(-2.5, 2.5, -2.5, 2.5, hTop + 2, armBot, C_DARK_X, C_DARK_Y, C_DARK_T);      // the bracket up to the arm
         box(-HW, HW, -HW, HW, botZ, hTop, C_HOUSE_X, C_HOUSE_Y, C_HOOD);
+        box(-HW - 1, HW + 1, -HW - 1, HW + 1, hTop, hTop + 2, C_DARK_X, C_DARK_Y, C_DARK_T);   // its lid
         /* FACING. headF aims at the cars this signal stops, which is right
            and is not the whole story: the camera never rotates, so exactly
            two of the four heads at an intersection show it their BACK.
@@ -129824,22 +129834,20 @@ class WorldScene extends Phaser.Scene {
         if(dv.x > 0 || dv.y > 0){
           const st = signalAxisState(S.node, t, S.axis);
           const lamps = [["red", C_RED], ["amber", C_AMB], ["green", C_GRN]];
-          const face = R*1.42;
+          /* each lens ON the face, foreshortened with it (a ring of points in the face's plane, through W), not a circle flat to the
+             screen; a short hood over its top half, standing out from the face -- seen from above, its top shows over the lens's rim,
+             as a real visor does; the lit one with a soft glow round it */
+          const ring = (a, r, z, t0, t1, n) => { const P = []; for(let k = 0; k <= n; k++){ const th = t0 + (t1 - t0)*k/n; P.push(W(a, r*Math.cos(th), z + r*Math.sin(th))); } return P; };
+          const fill = (P, c, al) => { g.fillStyle(c, al == null ? 1 : al); g.fillPoints(P, true); };
           for(let i = 0; i < 3; i++){
             const z = hTop - gap*(0.75 + i);
             const lit = st === lamps[i][0];
-            /* visor over each lens, then a recessed ring, then the lens --
-               three flat circles on a flat face is what made the head look
-               like a sticker rather than a fitting */
-            const p = W(face, 0, z);
-            g.fillStyle(C_HOOD, 1);   g.fillCircle(p.x, p.y, R*1.16*this.K);
-            g.fillStyle(lit ? lamps[i][1] : C_OFF, 1); g.fillCircle(p.x, p.y, R*this.K);
-            if(lit){ g.fillStyle(0xffffff, 0.22); g.fillCircle(p.x, p.y, R*0.5*this.K); }
-            /* No visors. At headR 8 a hood is a couple of units of
-               protrusion on a lens a few pixels across -- it only ever
-               added clutter around the lamp it was meant to frame. The
-               recess ring below already does the job of setting the lens
-               into the case. */
+            if(lit) fill(ring(HW + 0.2, R*1.9, z, 0, 2*Math.PI, 20), lamps[i][1], 0.18);    // its glow
+            fill(ring(HW + 0.2, R*1.18, z, 0, 2*Math.PI, 20), C_HOOD);                      // the recess round it
+            fill(ring(HW + 0.3, R, z, 0, 2*Math.PI, 20), lit ? lamps[i][1] : C_OFF);         // the lens
+            if(lit) fill(ring(HW + 0.4, R*0.42, z + R*0.3, 0, 2*Math.PI, 12), 0xffffff, 0.28);   // its shine
+            /* the hood: the top half of a ring at the face and the same at its lip, 4 out */
+            fill(ring(HW + 0.4, R*1.2, z, 0, Math.PI, 10).concat(ring(HW + 4.4, R*1.2, z, Math.PI, 0, 10)), C_HOOD);
           }
         }
       }
