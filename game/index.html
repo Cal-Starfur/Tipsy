@@ -61886,7 +61886,7 @@ function houseCanopy(fn){
       for(let i = 0; i < n; i++){ const p0 = pts[i], p1 = pts[(i + 1) % n], l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); seg.push({ p0, p1, l, f: Math.atan2(p1[1] - p0[1], p1[0] - p0[0])/(Math.PI/2) }); L += l; }
       const Lo = L - seg[n - 1].l;   /* (the open path: all but the closing leg) */
       if(n < 3 || s < 0 || s > Lo){ s = ((s % L) + L) % L; let l0 = 0; for(let i = 0; i < n; i++){ const g = seg[i]; if(s <= l0 + g.l || i === n - 1){ const u = g.l ? (s - l0)/g.l : 0; return { a: g.p0[0] + (g.p1[0] - g.p0[0])*u, b: g.p0[1] + (g.p1[1] - g.p0[1])*u, fdir: g.f }; } l0 += g.l; } }
-      const turns = []; let LV = Lo; for(let i = 0; i < n - 2; i++){ if(seg[i].l < 0.5 && i > 0){ turns.push(0); continue; } let df = seg[i + 1].f - seg[i].f; while(df > 2) df -= 4; while(df < -2) df += 4; turns.push(df); LV += Math.abs(df)*SPIN; }
+      const turns = []; let LV = Lo; for(let i = 0; i < n - 2; i++){ if(seg[i].l < 0.5 && i > 0){ turns.push(0); continue; } let df = seg[i + 1].f - seg[i].f; while(df > 2) df -= 4; while(df < -2) df += 4; if(seg[i + 1].l < 0.5) df = 0; turns.push(df); LV += Math.abs(df)*SPIN; }   /* (no turn onto a hair's-breadth stub added only to end the path: the robot keeps the heading it arrived on -- Sir, 2026-11-23: "it starts to spin then snaps back") */
       let v = s*LV/Lo, fPrev = seg[0].f;
       for(let i = 0; i < n - 1; i++){ const g = seg[i]; if(g.l >= 0.5) fPrev = g.f;
         if(v <= g.l || i === n - 2){ const u = g.l ? Math.min(1, v/g.l) : 0; return { a: g.p0[0] + (g.p1[0] - g.p0[0])*u, b: g.p0[1] + (g.p1[1] - g.p0[1])*u, fdir: fPrev }; }
@@ -62294,7 +62294,8 @@ function houseCanopy(fn){
     const RBV0 = 0.3, RBA = [0, 6400, 12800, 19200], RBL = 1410, SPOD = [330, 1000], SROB = [500, 1000], RPOD = [430, 850], RBIN = [SROB[0], SROB[1], 31];   /* (RPOD: the empties' rack beside the picker) */
     const rbPA = k => BENCH(8 - k)[0], RBPK = k => [[820, 700, 460, 580][k], 1620];   /* (the full spares wait in the south-west corner, off the floor by the stations -- Sir, 2026-11-20: "this is clogging the floor") */
     const rbGeo = k => { const pa = rbPA(k), ST = [pa, 1330], PK = RBPK(k), A = RBA[k];
-      const EMP = [ST, [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, [PK[0], RBL], [pa, RBL], ST];
+      const H = (P, f) => [P[0] + 0.01*Math.cos(f*Math.PI/2), P[1] + 0.01*Math.sin(f*Math.PI/2)];   /* (a path starts the way the robot stands, so it spins off its spot rather than snapping: tools pathAt) */
+      const EMP = [ST, H(ST, 0), [pa, RBL], [SROB[0], RBL], SROB], RET = [SROB, H(SROB, 3), [620, SROB[1]], [620, RBL], [PK[0], RBL], PK], ENT = [PK, H(PK, 1), [PK[0], RBL], [pa, RBL], ST, [ST[0] + 0.6, ST[1]]];   /* (and the spare turns to face along the line at its station) */
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
       const E0 = (80 + pa - SROB[0])/RBV0 + 400 + (k >= 2 ? 1500 : 0);   /* (stations 6 and 5's spares a little later: none meets a robot coming back along the lane -- worked out by sim) */   /* (the spare sets off once the empty is off the lane, turned up to the stop: never the two on the lane at once) */
       return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin, E0 }; };
@@ -62319,7 +62320,8 @@ function houseCanopy(fn){
        the spare rolls in. On the pallet clock (row B's is half a SUP on) */
     const RAL = 520, APOD = [330, 330], AROB = [500, 330], ARPOD = [430, 180], RAPK = m => [[840, 960, 1080, 720][m], 330];   /* (worked out so no spare meets a robot coming back along the lane: tools sim) */   /* (the full spares side by side by the pick face, as row B's -- Sir, 2026-11-23: "I like how the lower group is tighter") */
     const raGeo = m => { const pa = POS[m + 1][0], ST = [pa, 658], PK = RAPK(m), A = RBA[m];
-      const EMP = [ST, [pa, RAL], [AROB[0], RAL], AROB], RET = [AROB, [620, AROB[1]], [620, RAL], [PK[0], RAL], PK], ENT = PK[0] === pa ? [PK, ST] : [PK, [PK[0], RAL], [pa, RAL], ST];
+      const H = (P, f) => [P[0] + 0.01*Math.cos(f*Math.PI/2), P[1] + 0.01*Math.sin(f*Math.PI/2)];   /* (as row B's: off its spot the way it stands) */
+      const EMP = [ST, H(ST, 0), [pa, RAL], [AROB[0], RAL], AROB], RET = [AROB, H(AROB, 3), [620, AROB[1]], [620, RAL], [PK[0], RAL], PK], ENT = [PK, H(PK, 3), [PK[0], RAL], [pa, RAL], ST, [ST[0] + 0.6, ST[1]]];
       const len = Q => plenP(Q.concat([[Q[Q.length - 1][0] + 0.01, Q[Q.length - 1][1]]])), tin = len(EMP)/RBV0, tout = len(RET)/RBV0, tent = len(ENT)/RBV0;
       const E0 = (ST[1] - RAL + pa - AROB[0])/RBV0 + 400 + (m === 3 ? 1500 : 0);   /* (as row B's: the spare sets off once the empty is off the lane; station 4's a little later, behind station 3's robot coming back along the lane) */
       return { pa, ST, PK, EMP, RET, ENT, tin, tout, tent, A, X: A - tin, E0 }; };
