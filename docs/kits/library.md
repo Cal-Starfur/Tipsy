@@ -79,7 +79,7 @@ tables. The labs (`labs/`) are where most of them were built and can be opened o
 | Shop doors (every door) | `drawShopDoor`, `shopDoor` looks `SHOP_DOOR_LOOKS` (six, panel, lite, french, bank, ...) | `docs/kits/doors.md` -- leaves, half doors, away doors |
 | Houses | `drawHouseUnit`, `labs/houses.js` | `docs/kits/houses.md` -- no house lawns |
 | Shopfronts | `drawStoreUnit`, `drawCornerStoreUnit`, `labs/flats-shops.js` | `docs/kits/shops.md` |
-| Lamps, signals, hydrants, bins, cones, planters, palms, trash | `drawProp(kind)`: `lamp`, `signalpost`, `signalhead`, `hydrant`, `bin`, `cone`, `planter`, `palm`, `palmDwarf`, `trash`, `paper`, `can`; `drawLampHull`, `drawPlant`, `drawAgave`, `drawCypress` | `docs/kits/props.md` (SP1: one registry) |
+| Lamps, signals, hydrants, bins, cones, planters, palms, trash | `drawProp(kind)`: `lamp`, `signalpost`, `signalhead`, `hydrant`, `bin`, `cone`, `planter`, `palm`, `palmDwarf`, `trash`, `paper`, `can`; `drawLampHull`, `drawPlant`, `drawAgave`, `drawCypress`; `arcStrip` (a band, collar or shaded side round a round prop: only the arc the eye sees, asked of the normal in world -- the cone's collars, the bin's band) | `docs/kits/props.md` (SP1: one registry) |
 | Benches, fences, gates, flags | `drawBenchProp`, `drawWoodFence`, `drawChainFence`, `drawGateFence`, `drawFlag` | |
 | Wheels and tyres | `drawWheel`, `soapWheel` | |
 

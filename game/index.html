@@ -2948,9 +2948,15 @@ const TRASH_ART = {
 };
 
 /* approved cone (cone lab, 2026-07-07) */
+/* STREET PROPS PASS (2026-11-23): a real cone stands on a square rubber base wider than its foot, and wears reflective white
+   collars. The foot narrows to 6.8 (was 8.5, all but the base's own half-width, so the base read as a rim under a fat cone) and the
+   base shows round it; `band` is the upper collar (the slalom's palettes recolour it), `lowBand` the narrow white one under it.
+   The rest angle (CONE_HIT.phiRest) is set by the tip, unchanged. */
 const CONE = {
-  height: 38, base: 18, band: 0,
-  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000
+  height: 38, base: 18, band: 6, lowBand: 3.5, foot: 6.8, tipR: 1.8,
+  body: 0xff7a1a, bodyDk: 0xd85f0a, band_c: 0xf4f5f7, shadow: 0x000000,
+  shade: 0xe5640c,                                               // the cone's right-hand side (SP13)
+  slabTop: 0xc9560c, slabL: 0xa8470a, slabR: 0x8a3a08, slabDk: 0x6f2f07   // the base: a deeper orange, its own piece
 };
 /* approved in cone hit lab (2026-07-09): rigid pivot-fall physics.
    ONE integrator drives every cone — no keyframes, no binary
@@ -2961,7 +2967,7 @@ const CONE = {
    it, topples past it, so the fall threshold emerges from the
    geometry rather than a tuned number. phiRest is solved once from
    the live CONE dimensions (the slant line's ground-contact angle). */
-const coneR = h => 8.5 - (8.5 - 1.8) * (h / CONE.height);
+const coneR = h => CONE.foot - (CONE.foot - CONE.tipR) * (h / CONE.height);
 const CONE_HIT = (() => {
   const pvt = CONE.base/2, H = CONE.height;
   const phiBal = Math.atan(pvt / (3 + H*0.25));
@@ -4685,6 +4691,7 @@ const HYD_SLIP = {
    box 13-19w × 8-12d × 8-12h, bush 12-20h, fullness 4-7, ~30% flowering. */
 const PLANTER = {
   box: 0x8f8577, boxDk: 0x7a7164, boxDk2: 0x6b6357,
+  lip: 0xa39a8b, lipL: 0x8f8577, lipR: 0x7b7266, inner: 0x524a40,   // the rim (planter pass, 2026-11-23)
   soil: 0x4a3f34, stalk: 0x5c6b3f,
   shadow: 0x000000
 };
@@ -107842,6 +107849,31 @@ class WorldScene extends Phaser.Scene {
     g.fillStyle(color, alpha);
     g.fillPoints(pts, false, false);
   }
+  /* A STRIP ROUND A ROUND PROP (street props pass, 2026-11-23: the cone's bands, its shaded side, the bin's band). A band round a
+     body is a ring -- only the arc the eye sees -- never a filled solid whose top lays a lid over what it wraps. P(psi, h, r) is the
+     prop's own point on the ring of radius r at height h; N(psi, out) writes the outward normal there in WORLD x, y, z (through the
+     prop's facing and tip: asked, never assumed). The arc kept is where the normal faces the eye (x + y + z > 0); with side 1 only
+     its right-hand part (x - y > 0: the dark side, SP13). Its two ends are found where the test crosses zero, so the strip runs to
+     the silhouette. One scratch normal, no closures per sample. */
+  arcStrip(g, P, N, h0, r0, h1, r1, side, col, alpha = 1, n = 28){
+    const nn = this._arcN || (this._arcN = { x: 0, y: 0, z: 0 }), TAU = Math.PI*2;
+    const m = psi => { N(psi, nn); const v = nn.x + nn.y + nn.z; return side ? Math.min(v, (nn.x - nn.y)*side) : v; };
+    const ms = this._arcM || (this._arcM = []);
+    let s = -1;
+    for(let i = 0; i < n; i++) ms[i] = m(i/n*TAU);
+    for(let i = 0; i < n; i++) if(ms[i] > 0 && ms[(i + n - 1) % n] <= 0){ s = i; break; }
+    if(s < 0) return;
+    const ps = this._arcPs || (this._arcPs = []); ps.length = 0;   // (scratch: drawn live for a falling cone)
+    { const i0 = (s + n - 1) % n, f = ms[i0]/(ms[i0] - ms[s]); ps.push((s - 1 + f)/n*TAU); }
+    let i = s, c = 0;
+    while(ms[i] > 0 && c < n){ ps.push(i/n*TAU); const j = (i + 1) % n;
+      if(ms[j] <= 0){ const f = ms[i]/(ms[i] - ms[j]); ps.push((i + f)/n*TAU); }
+      i = j; c++; }
+    const pts = this._arcPts || (this._arcPts = []); pts.length = 0;
+    for(let k = 0; k < ps.length; k++) pts.push(P(ps[k], h1, r1));
+    for(let k = ps.length - 1; k >= 0; k--) pts.push(P(ps[k], h0, r0));
+    this.quadOn(g, pts, col, alpha);
+  }
   /* A FUSED PIECE (PERSON_DRAW's LOD: the people's rounded pieces at views 2 and 3). A ring's side faces as runs: the
      faces toward the light (tone 0-3 of the nine) one strip in lit; the rest left to the silhouette under them in its
      shade -- or, with no silhouette (dark: a band round another piece, a hood open at the face), one strip in shade.
@@ -129526,9 +129558,11 @@ class WorldScene extends Phaser.Scene {
       };
       const dAt = (u, v, h) => {
         const tt = tip(u, h);
-        return (tt.u*fc - v*fsn) + (tt.u*fsn + v*fc) + tt.z*0.4;
+        /* in WORLD depth (props pass): the local frame turns with the facing (W maps a along dv, b along rv), so a + b alone
+           sorted the base's open end under the body at two of the four facings */
+        return (dv.x + dv.y)*(tt.u*fc - v*fsn) + (rv.x + rv.y)*(tt.u*fsn + v*fc) + tt.z*0.4;
       };
-      const rOf = hh => 8.5 - (8.5 - 1.8) * (hh / H);   // per-instance taper (visual variety, as before)
+      const rOf = hh => C.foot - (C.foot - C.tipR) * (hh / H);   // per-instance taper (visual variety, as before)
       const place = (hh, r, n=12) => {
         const pts = [];
         for(let i=0; i<n; i++){
@@ -129537,30 +129571,61 @@ class WorldScene extends Phaser.Scene {
         }
         return pts;
       };
+      /* a local direction (u, v, h) through the tip and the facing to WORLD x, y, z: which faces the eye sees is asked of it
+         (x + y + z > 0), and which is the right-hand, dark one (x - y > 0) -- SP13, at every facing and mid-fall */
+      const nW = (nu, nv, nh, o) => {
+        const u2 = nu*cphi + nh*sphi, z2 = -nu*sphi + nh*cphi;
+        const a = u2*fc - nv*fsn, b = u2*fsn + nv*fc;
+        o.x = dv.x*a + rv.x*b; o.y = dv.y*a + rv.y*b; o.z = z2; return o;
+      };
+      const slope = (C.foot - C.tipR)/H;
+      const ringP = (psi, hh, r) => L(Math.cos(psi)*r, Math.sin(psi)*r, hh);
+      const ringN = (psi, o) => nW(Math.cos(psi), Math.sin(psi), slope, o);
+      const nv0 = { x: 0, y: 0, z: 0 };
 
       /* shadow removed (requested) — the cone sits directly on its
          base slab with no cast ellipse. */
 
+      /* THE BASE IS A SQUARE SLAB, its own piece (props pass): the faces the eye sees, each in its own tone (the right-hand one
+         dark), the top a deeper orange than the cone so the two separate, the cone's foot standing in it with a ring of base all
+         round. The hull under it is only a backstop for the mid-fall poses. */
       const baseSlab = () => {
         const hb = C.base/2, pts = [];
         for(const bc of [[-hb,-hb],[hb,-hb],[hb,hb],[-hb,hb]]){
           pts.push(L(bc[0], bc[1], 0)); pts.push(L(bc[0], bc[1], 3));
         }
-        this.quadOn(g, convexHullKeep(pts), C.bodyDk);
-        const nu = sphi, nz = cphi;
-        if(nu*fc + nu*fsn + nz > 0.05){
+        this.quadOn(g, convexHullKeep(pts), C.slabDk);
+        for(let k = 0; k < 4; k++){
+          const nu = k === 0 ? 1 : k === 1 ? -1 : 0, nv = k === 2 ? 1 : k === 3 ? -1 : 0;
+          nW(nu, nv, 0, nv0);
+          if(nv0.x + nv0.y + nv0.z <= 0.02) continue;
+          const q = nu ? [L(nu*hb,-hb,0), L(nu*hb,hb,0), L(nu*hb,hb,3), L(nu*hb,-hb,3)]
+                       : [L(-hb,nv*hb,0), L(hb,nv*hb,0), L(hb,nv*hb,3), L(-hb,nv*hb,3)];
+          this.quadOn(g, q, (nv0.x - nv0.y) > 0 ? C.slabR : C.slabL);
+        }
+        nW(0, 0, 1, nv0);
+        if(nv0.x + nv0.y + nv0.z > 0.05){
           const top = [L(-hb,-hb,3), L(hb,-hb,3), L(hb,hb,3), L(-hb,hb,3)];
-          this.quadOn(g, top, C.body);
-          this.edgeOn(g, top, C.bodyDk, 1.5);
+          this.quadOn(g, top, C.slabTop);
         }
       };
+      /* the cone: its silhouette, the right-hand side in shade, then the reflective collars -- rings, the arc the eye sees only
+         (a band round a piece is never a filled solid), each with its own right-hand part shaded -- and the dark tip. */
       const body = () => {
-        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, 1.8))), C.body);
+        this.quadOn(g, convexHullKeep(place(2, rOf(2)).concat(place(H, C.tipR))), C.body);
+        this.arcStrip(g, ringP, ringN, 3, rOf(3), H, C.tipR, 1, C.shade);
+        const band = (h0, h1, col) => {
+          this.arcStrip(g, ringP, ringN, h0, rOf(h0) + 0.25, h1, rOf(h1) + 0.25, 0, col);
+          this.arcStrip(g, ringP, ringN, h0, rOf(h0) + 0.25, h1, rOf(h1) + 0.25, 1, 0x000000, 0.16);
+        };
+        if(C.lowBand > 0) band(H*0.3, H*0.3 + C.lowBand, 0xf4f5f7);
         if(C.band > 0){
           const b0 = H*0.52, b1 = Math.min(H*0.52 + C.band, H*0.9);
-          this.quadOn(g, convexHullKeep(place(b0, rOf(b0)+0.5).concat(place(b1, rOf(b1)+0.5))), C.band_c);
+          band(b0, b1, C.band_c);
         }
-        this.quadOn(g, place(H, 1.8, 8), C.bodyDk);
+        /* the foot's collar where the cone meets its base */
+        this.arcStrip(g, ringP, ringN, 3, rOf(3) + 0.7, 4.4, rOf(4.4) + 0.7, 0, C.bodyDk);
+        this.quadOn(g, place(H, C.tipR, 8), C.bodyDk);
       };
       /* THE OPEN BOTTOM (2026-08-27, Sir on-device: "this knocked cone
          looks upside down because of the angle").
@@ -129584,10 +129649,10 @@ class WorldScene extends Phaser.Scene {
          the dark tip cap if it fell toward. Either way one end is
          unmistakably the bottom and the taper can be read. */
       const baseCap = () => {
-        const nub = -sphi, nzb = -cphi;
-        if(nub*fc + nub*fsn + nzb <= 0.05) return;
+        nW(0, 0, -1, nv0);
+        if(nv0.x + nv0.y + nv0.z <= 0.05) return;
         const ring = place(2, rOf(2), 14);
-        this.quadOn(g, ring, C.bodyDk);
+        this.quadOn(g, ring, C.slabDk);                        // the dark inside (props pass: it was mid orange, a lid, not a hole)
         this.edgeOn(g, ring, C.body, 1.2);
       };
       const cparts = [
@@ -130041,119 +130106,127 @@ class WorldScene extends Phaser.Scene {
         return { dx: tt.u*fc - v*fsn, dy: tt.u*fsn + v*fc, z: tt.z };
       };
       const GT = (a, b, h) => { const p = TP(a, b, h); return GG(p.dx, p.dy, p.z); };
-      const dAt = (a, b, h) => { const p = TP(a, b, h); return p.dx + p.dy + p.z*0.4; };
+      const dAt = (a, b, h) => { const p = TP(a, b, h); return (dv.x + dv.y)*p.dx + (rv.x + rv.y)*p.dy + p.z*0.4; };   // world depth: the local frame turns with the facing (props pass)
       const baseShrink = 0.82;
       const corner = (sx, sy, h, shrink=1) => GT(sx*hw*shrink, sy*hd*shrink, h);
 
       /* planter body shadow removed (requested). */
 
       {
+        /* THE PLANTER PASS (street props, 2026-11-23: its plants read as lollipops on sticks). The box gets a rim -- a lip
+           standing proud of the walls round the top, its own lighter top, the dark of the inner walls inside it and the soil sunk
+           below it -- and the plant is a mound of foliage filling the box and spilling a little over the rim, each puff a shaded
+           ball (its dark body, the lit side, a highlight on the crown), no stalks; the grasses and succulents are blades fanning
+           out of the soil, not stars on sticks. Faces from the eye (SP13): every wall, lip and top is asked of its normal in WORLD
+           (through the facing and the tip), the right-hand wall dark. */
+        const lipT = 2.6*scale, lipO = 1.2*scale, wall = 2.4*scale, soilD = 1.8*scale;
+        const iw = hw - wall, id = hd - wall, Hb = H - lipT;
+        const shr = h => baseShrink + (1 - baseShrink)*h/H;
+        const nWp = (a, b, h, o) => {
+          const p1 = TP(a, b, h), p0 = TP(0, 0, 0), dx = p1.dx - p0.dx, dy = p1.dy - p0.dy;
+          o.x = dv.x*dx + rv.x*dy; o.y = dv.y*dx + rv.y*dy; o.z = p1.z - p0.z; return o;
+        };
+        const nn = { x: 0, y: 0, z: 0 };
+        const sees = (a, b, h) => { nWp(a, b, h, nn); return nn.x + nn.y + nn.z > 0.02; };
+        const rightHand = () => (nn.x - nn.y) > 0;
+        /* a ring of walls from h0 to h1, half-widths (w0, d0) at h0 and (w1, d1) at h1: the walls the eye sees */
+        const walls = (h0, w0, d0, h1, w1, d1, cL, cR) => {
+          for(const s of [1, -1]){
+            if(sees(s, 0, 0)) this.quadOn(g, [GT(s*w1, -d1, h1), GT(s*w1, d1, h1), GT(s*w0, d0, h0), GT(s*w0, -d0, h0)], rightHand() ? cR : cL);
+            if(sees(0, s, 0)) this.quadOn(g, [GT(-w1, s*d1, h1), GT(w1, s*d1, h1), GT(w0, s*d0, h0), GT(-w0, s*d0, h0)], rightHand() ? cR : cL);
+          }
+        };
         const pbox = () => {
-          /* silhouette backstop, tipped poses only: the two visible
-             side faces below are picked by the STANDING camera test
-             (faceX/faceY from dv) -- once the pot rotates, the set of
-             camera-facing faces changes (the base can come into view)
-             and gaps would show. A filled hull of all 8 corners
-             underneath keeps every mid-fall/fallen pose solid without
-             touching the standing art (guarded, phi=0 skips it). */
+          /* silhouette backstop, tipped poses only (the walls below are asked of the eye, but a pot mid-fall shows its base too) */
           if(phi > 0.05){
             const hull = [];
             for(const sx of [-1,1]) for(const sy of [-1,1]){
-              hull.push(corner(sx,sy,H)); hull.push(corner(sx,sy,0,baseShrink));
+              hull.push(GT(sx*(hw + lipO), sy*(hd + lipO), H)); hull.push(corner(sx,sy,0,baseShrink));
             }
-            this.quadOn(g, convexHull(hull), PL.boxDk);
+            this.quadOn(g, convexHull(hull), PL.boxDk2);
           }
-          const top = [corner(-1,-1,H), corner(1,-1,H), corner(1,1,H), corner(-1,1,H)];
-          this.quadOn(g, top, PL.box);
-          this.edgeOn(g, top, PL.boxDk, 1.2);
-          /* the two outward faces visible under this fixed camera —
-             was hardcoded to faceX=1,faceY=1, which is ONLY correct
-             when fdir===0 (dv={1,0}). The collidable planter hazard
-             (and now block-wrap scatter) can spawn at any of the 4
-             facings via facingAt()/scatterBlockProp, and for the other
-             3 the hardcoded version drew the WRONG two faces — this is
-             the exact same "which 2 box faces face the camera" problem
-             drawPersonHull already solves correctly for a continuous
-             heading (faceA=sign(cs+sn), faceB=sign(cs-sn)); dv is just
-             (cos,sin) of this box's 90°-snapped heading, so the same
-             formula applies directly, for any orientation. */
-          const faceX = Math.sign(dv.x + dv.y) || 1;
-          const faceY = Math.sign(dv.x - dv.y) || 1;
-          const xFace = [
-            corner(faceX,-1,H), corner(faceX,1,H),
-            corner(faceX,1,0,baseShrink), corner(faceX,-1,0,baseShrink)
-          ];
-          this.quadOn(g, xFace, faceX > 0 ? PL.boxDk : PL.boxDk2);
-          /* yFace overlaps xFace by a hair at their shared edge (sx
-             pushed just past 1) — a defensive seam guard. The two
-             faces meet at an exact edge, and without a tiny overlap,
-             sub-pixel rasterization gaps at that seam can make the
-             face drawn first (xFace) show through as a sliver on some
-             renderers, even though both faces are geometrically valid
-             (verified: comparable non-degenerate area on every facing
-             direction, nothing else drawn over it — this is purely a
-             rasterization seam fix, invisible at normal zoom).
-             The far corner used to be hardcoded to -1, written back
-             when "past 1" only ever meant the +1 case — it never
-             tracked faceX flipping to -1 (fdir 2/3), so instead of
-             spanning the box's actual far edge it sat 0.03 units from
-             the near corner: a sliver, not a face. -faceX is that far
-             edge for either sign, so this is now the same full-width
-             face (plus the same seam overlap) at every heading. */
-          const yFace = [
-            corner(-faceX,faceY,H), corner(faceX*1.03,faceY,H),
-            corner(faceX*1.03,faceY,0,baseShrink), corner(-faceX,faceY,0,baseShrink)
-          ];
-          this.quadOn(g, yFace, faceY > 0 ? PL.boxDk2 : PL.boxDk);
-          const soil = [corner(-0.82,-0.82,H-0.6), corner(0.82,-0.82,H-0.6), corner(0.82,0.82,H-0.6), corner(-0.82,0.82,H-0.6)];
-          this.quadOn(g, soil, PL.soil);
+          walls(0, hw*baseShrink, hd*baseShrink, Hb, hw*shr(Hb), hd*shr(Hb), PL.boxDk, PL.boxDk2);
+          walls(Hb, hw + lipO, hd + lipO, H, hw + lipO, hd + lipO, PL.lipL, PL.lipR);
+          if(sees(0, 0, 1)){
+            /* the rim's top is a frame round the opening (not a lid with the soil painted on it); through the opening, the inner
+               faces of the far walls (those whose outer faces are turned away), then the soil sunk below the rim, each cut to it */
+            const ow = hw + lipO, od = hd + lipO, hs = H - soilD;
+            this.quadOn(g, [GT(-ow,-od,H), GT(ow,-od,H), GT(iw,-id,H), GT(-iw,-id,H)], PL.lip);
+            this.quadOn(g, [GT(ow,-od,H), GT(ow,od,H), GT(iw,id,H), GT(iw,-id,H)], PL.lip);
+            this.quadOn(g, [GT(ow,od,H), GT(-ow,od,H), GT(-iw,id,H), GT(iw,id,H)], PL.lip);
+            this.quadOn(g, [GT(-ow,od,H), GT(-ow,-od,H), GT(-iw,-id,H), GT(-iw,id,H)], PL.lip);
+            const open = [GT(-iw,-id,H), GT(iw,-id,H), GT(iw,id,H), GT(-iw,id,H)];
+            for(const s of [1, -1]){
+              if(!sees(s, 0, 0)){ const q = clipConvex([GT(s*iw,-id,H), GT(s*iw,id,H), GT(s*iw,id,hs), GT(s*iw,-id,hs)], open); if(q) this.quadOn(g, q, PL.inner); }
+              if(!sees(0, s, 0)){ const q = clipConvex([GT(-iw,s*id,H), GT(iw,s*id,H), GT(iw,s*id,hs), GT(-iw,s*id,hs)], open); if(q) this.quadOn(g, q, PL.inner); }
+            }
+            const soil = clipConvex([GT(-iw,-id,hs), GT(iw,-id,hs), GT(iw,id,hs), GT(-iw,id,hs)], open);
+            if(soil) this.quadOn(g, soil, PL.soil);
+          }
         };
         const pbush = () => {
-          const baseH = H + 1;
-          const n = fullness;
-          const puffs = [];
-          puffs.push({ a:0, b:0, h:baseH + bushH*0.55, r:bushH*0.5, c:V.leafA });
-          for(let i=0; i<n; i++){
-            const ang = (i/n)*Math.PI*2 + rng()*0.4;
-            const rr = (boxW*0.28 + rng()*boxW*0.12);
-            const hh = baseH + bushH*(0.3 + rng()*0.55);
-            const size = bushH*(0.28 + rng()*0.16);
-            const shade = rng();
-            const col = shade < 0.33 ? V.leafA : shade < 0.66 ? V.leafB : V.leafC;
-            puffs.push({ a: Math.cos(ang)*rr, b: Math.sin(ang)*rr, h: hh, r: size, c: col, ang });
-          }
-          puffs.sort((p1,p2) => dAt(p1.a,p1.b,p1.h) - dAt(p2.a,p2.b,p2.h));
-          for(const pf of puffs){
-            const s0 = GT(pf.a*0.25, pf.b*0.25, baseH - 0.4);
-            const s1 = GT(pf.a, pf.b, Math.max(pf.h - pf.r*0.35, baseH));
-            g.lineStyle(Math.max(1, 1.1*this.K*0.4), PL.stalk, 1);
-            g.lineBetween(s0.x, s0.y, s1.x, s1.y);
-            const c = GT(pf.a, pf.b, pf.h);
-            g.fillStyle(pf.c, 1);
-            if(V.style === "spiky"){
-              // ornamental-grass blade: thin triangles radiating from
-              // the stalk tip instead of one round puff
-              const nb = 4;
-              for(let bIdx=0; bIdx<nb; bIdx++){
-                const bAng = (pf.ang || 0) + (bIdx/nb)*Math.PI*2 + rng()*0.3;
-                const tip = GT(pf.a + Math.cos(bAng)*pf.r*1.3, pf.b + Math.sin(bAng)*pf.r*1.3, pf.h + pf.r*0.7);
-                const base1 = GT(pf.a + Math.cos(bAng+0.3)*pf.r*0.3, pf.b + Math.sin(bAng+0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                const base2 = GT(pf.a + Math.cos(bAng-0.3)*pf.r*0.3, pf.b + Math.sin(bAng-0.3)*pf.r*0.3, pf.h - pf.r*0.3);
-                g.fillTriangle(tip.x, tip.y, base1.x, base1.y, base2.x, base2.y);
-              }
-            } else {
-              g.fillCircle(c.x, c.y, pf.r*this.K*0.42);
+          const baseH = H - soilD;
+          const K = this.K;
+          if(V.style === "spiky"){
+            /* blades fanning out of the soil, the far ones first; a succulent's shorter and broader */
+            const succ = V.n === "succulent", nb = fullness*3, blades = [];
+            for(let i=0; i<nb; i++){
+              const ang = rng()*Math.PI*2, rad = Math.sqrt(rng())*0.8;
+              const ca = Math.cos(ang), sa = Math.sin(ang);
+              const ba = ca*rad*iw, bb = sa*rad*id;
+              const lean = (succ ? 0.38 : 0.5)*bushH*(0.4 + rng()*0.6);
+              const th = baseH + bushH*(succ ? 0.4 + 0.3*rng() : 0.7 + 0.5*rng());
+              const sh = rng();
+              blades.push({ ba, bb, ca, sa, ta: ba + ca*lean, tb: bb + sa*lean, th, w: (succ ? 2.4 : 1.4)*scale,
+                            c: sh < 0.33 ? V.leafA : sh < 0.66 ? V.leafB : V.leafC, d: dAt(ba + ca*lean*0.5, bb + sa*lean*0.5, (baseH + th)/2) });
             }
-          }
-          if(flowering){
-            const nf = Math.max(2, Math.round(n*0.6));
-            for(let i=0; i<nf; i++){
-              const ang = rng()*Math.PI*2;
-              const rr = boxW*0.22 + rng()*boxW*0.16;
-              const hh = baseH + bushH*(0.45 + rng()*0.5);
-              const c = GT(Math.cos(ang)*rr, Math.sin(ang)*rr, hh);
+            blades.sort((p1, p2) => p1.d - p2.d);
+            for(const bl of blades){
+              const b1 = GT(bl.ba - bl.sa*bl.w, bl.bb + bl.ca*bl.w, baseH), b2 = GT(bl.ba + bl.sa*bl.w, bl.bb - bl.ca*bl.w, baseH);
+              const tp = GT(bl.ta, bl.tb, bl.th);
+              g.fillStyle(bl.c, 1);
+              g.fillTriangle(tp.x, tp.y, b1.x, b1.y, b2.x, b2.y);
+            }
+            if(flowering){
               g.fillStyle(V.flower, 1);
-              g.fillCircle(c.x, c.y, (1.6+rng())*this.K*0.42);
+              for(let i=0; i<3; i++){
+                const bl = blades[blades.length - 1 - i*2]; if(!bl) break;
+                const c = GT(bl.ba + (bl.ta - bl.ba)*0.7, bl.bb + (bl.tb - bl.bb)*0.7, baseH + (bl.th - baseH)*0.7);   // on the blade, not off its tip
+                g.fillCircle(c.x, c.y, Math.max(1.2, 1.3*scale*K));
+              }
+            }
+            return;
+          }
+          /* a mound: a crown, an inner ring, an outer ring round the rim (the front of it spilling over), far ones first */
+          const puffs = [{ a: 0, b: 0, h: baseH + bushH*0.72, r: bushH*0.3 }];
+          const nIn = Math.max(3, Math.round(fullness/2)), nOut = fullness + 2;
+          for(let i=0; i<nIn; i++){
+            const ang = (i/nIn)*Math.PI*2 + rng()*0.6;
+            puffs.push({ a: Math.cos(ang)*iw*0.45, b: Math.sin(ang)*id*0.5, h: baseH + bushH*(0.48 + rng()*0.1), r: bushH*(0.25 + rng()*0.04) });
+          }
+          for(let i=0; i<nOut; i++){
+            const ang = (i/nOut)*Math.PI*2 + rng()*0.4;
+            puffs.push({ a: Math.cos(ang)*iw*1.02, b: Math.sin(ang)*id*1.15, h: baseH + bushH*(0.2 + rng()*0.14), r: bushH*(0.21 + rng()*0.06) });
+          }
+          for(const pf of puffs) pf.d = dAt(pf.a, pf.b, pf.h);
+          puffs.sort((p1, p2) => p1.d - p2.d);
+          /* the shaded mass first, every puff (one shrub, not a pile of balls), then each puff's lit side far to near: the dark
+             shows only under the lumps and down the right-hand side */
+          const hiH = baseH + bushH*0.42;
+          g.fillStyle(V.leafB, 1);
+          for(const pf of puffs){ const c = GT(pf.a, pf.b, pf.h); g.fillCircle(c.x, c.y, pf.r*K); }
+          for(const pf of puffs){
+            const c = GT(pf.a, pf.b, pf.h), r = pf.r*K;
+            g.fillStyle(V.leafA, 1);
+            g.fillCircle(c.x - r*0.2, c.y - r*0.24, r*0.74);
+            if(pf.h > hiH){
+              g.fillStyle(V.leafC, 1);
+              g.fillCircle(c.x - r*0.32, c.y - r*0.42, r*0.36);
+            }
+            if(flowering && rng() < 0.55){
+              g.fillStyle(V.flower, 1);
+              g.fillCircle(c.x + (rng() - 0.6)*r*0.9, c.y - r*(0.1 + rng()*0.5), Math.max(1.1, 1.1*scale*K));
+              g.fillCircle(c.x + (rng() - 0.3)*r*0.9, c.y - r*(0.2 + rng()*0.4), Math.max(1.1, 1.1*scale*K));
             }
           }
         };
@@ -130548,7 +130621,7 @@ class WorldScene extends Phaser.Scene {
       const dAt = (u, v, h) => {
         const tt = tip(u, h);
         const a2 = (tt.u + slide)*fc - v*fsn, b2 = (tt.u + slide)*fsn + v*fc;
-        return a2 + b2 + tt.z*0.4;
+        return (dv.x + dv.y)*a2 + (rv.x + rv.y)*b2 + tt.z*0.4;   // world depth: the local frame turns with the facing (props pass)
       };
       const place = (h, r, n=14) => {
         const pts = [];
@@ -130559,6 +130632,13 @@ class WorldScene extends Phaser.Scene {
         return pts;
       };
 
+      /* the barrel's ring point and its outward normal in WORLD x, y, z (through the tip and the facing), for arcStrip */
+      const binP = (psi, h, r) => L(Math.cos(psi)*r, Math.sin(psi)*r, h);
+      const binN = (psi, o) => {
+        const nu = Math.cos(psi), nv = Math.sin(psi), u2 = nu*cphi, z2 = -nu*sphi;
+        const a = u2*fc - nv*fsn, b = u2*fsn + nv*fc;
+        o.x = dv.x*a + rv.x*b; o.y = dv.y*a + rv.y*b; o.z = z2; return o;
+      };
       const mid = tip(0, H*0.5);
       const kk = Math.min(1, sphi*1.1);
       /* no ground shadow: static props cast none (SP6) */
@@ -130585,9 +130665,19 @@ class WorldScene extends Phaser.Scene {
         const lowerN = 3, lower = [];
         for(let i=0; i<=lowerN; i++) lower.push(...place(i/lowerN*(H*0.5), binR(i/lowerN*(H*0.5))));
         this.quadOn(g, convexHullKeep(lower), B.bodyDk, 0.2);
+        /* THE BAND IS A RING ROUND THE BARREL while the lid is on (props pass, 2026-11-23): it was a filled solid, its top a white
+           lid laid over the barrel with the liner's dark mouth painted on it -- a hole two thirds up a shut bin. Shut, only the arc
+           the eye sees, the barrel running on above it to the lid. Open, the band IS the mouth (HB is b1): its rim and the dark
+           liner in it, as before. Either way the right-hand side of the barrel goes into shade (SP13). */
+        this.arcStrip(g, binP, binN, 0, binR(0), HB, binR(HB), 1, 0x000000, 0.14);
         if(B.band > 0){
-          this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
-          this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
+          if(HB === H){
+            this.arcStrip(g, binP, binN, b0, binR(b0) + 0.3, b1, binR(b1) + 0.3, 0, B.band_c);
+            this.arcStrip(g, binP, binN, b0, binR(b0) + 0.3, b1, binR(b1) + 0.3, 1, 0x000000, 0.16);
+          } else {
+            this.quadOn(g, convexHullKeep(place(b0, binR(b0)+0.3).concat(place(b1, binR(b1)+0.3))), B.band_c);
+            this.quadOn(g, place(b1, binR(b1)*0.7, 12), B.liner);
+          }
         }
         /* liner lip: camera-facing test, same pattern used everywhere
            else in this projection (rotated local normal dotted with
@@ -130636,21 +130726,24 @@ class WorldScene extends Phaser.Scene {
           g.fillCircle(knob.x, knob.y, 2.2*bs*K*0.45);
         }
       };
+      /* THE FOOT PEDAL IS A PLATE ON THE PAVEMENT (props pass): it was a screen-flat ellipse with a stroke for its lever, and the
+         lever ran from INSIDE the barrel (0.55 of its radius) -- a scratch down the can whenever the pedal side faced the eye. Now
+         a plate in the ground's own plane, its front edge where the eye sees it, butting the barrel's foot. Whether it is in front
+         of the barrel or behind is asked of its normal in world (binN), not of the local frame, which turns with the facing. */
+      const pedalN = binN(0, { x: 0, y: 0, z: 0 }), pedalFront = (pedalN.x + pedalN.y) > 0, pedalSN = { x: 0, y: 0, z: 0 };
       const bpedal = () => {
         if(phi > 0.05) return;
-        const a0 = L(B.baseR*0.55, 0, 1.5*bs);
-        const a1 = L(B.baseR*0.95, 0, 5.5*bs);
-        g.lineStyle(Math.max(1.5, 1.4*bs*K*0.4), B.pedalDk, 1);
-        g.lineBetween(a0.x, a0.y, a1.x, a1.y);
-        const p0 = L(B.baseR*0.95, -3.2*bs, 0.6*bs), p1 = L(B.baseR*1.25, 3.2*bs, 0.6*bs);
-        g.fillStyle(B.pedal, 1);
-        g.fillEllipse((p0.x+p1.x)/2, (p0.y+p1.y)/2, 7*bs*K*0.42, 3*bs*K*0.42);
+        const u0 = binR(0)*0.96, u1 = binR(0) + 6*bs, hw2 = 3.4*bs, h1 = 1.4*bs;
+        this.quadOn(g, [L(u0, -hw2, h1), L(u1, -hw2, h1), L(u1, hw2, h1), L(u0, hw2, h1)], B.pedal);
+        const sN = binN(Math.PI/2, pedalSN), sv = (sN.x + sN.y) > 0 ? 1 : -1;
+        this.quadOn(g, [L(u0, sv*hw2, 0), L(u1, sv*hw2, 0), L(u1, sv*hw2, h1), L(u0, sv*hw2, h1)], B.pedalDk);
+        if(pedalFront) this.quadOn(g, [L(u1, -hw2, 0), L(u1, hw2, 0), L(u1, hw2, h1), L(u1, -hw2, h1)], B.pedalDk);
       };
 
       const bparts = [
         { d: dAt(0, 0, 1.5*bs), fn: bbody },
-        { d: dAt(B.baseR*0.9, 0, 3*bs), fn: bpedal },
-        { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*(fc + fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
+        { d: dAt(0, 0, 1.5*bs) + (pedalFront ? 1 : -1), fn: bpedal },
+        { d: lidOpen ? (binR(0) + HB*sphi + B.lidR + 4*bs)*((dv.x + dv.y)*fc + (rv.x + rv.y)*fsn) + 0.4*bs : dAt(0, 0, H*0.95), fn: blid }
       ];
       bparts.sort((p1, p2) => p1.d - p2.d);
       for(const pt of bparts) pt.fn();
@@ -155402,12 +155495,15 @@ function tpHydrantSvg(size){
   </svg>`;
 }
 /* flat front-view of the game's actual cone prop — colors from the CONE
-   constant above (body:0xff7a1a, bodyDk:0xd85f0a). No white band: CONE.band
-   is 0 in the live game, so that stripe never actually renders. */
+   constant above (body:0xff7a1a, bodyDk:0xd85f0a), with its two white
+   collars (CONE.band and CONE.lowBand, at 0.52 and 0.30 of the height, since
+   the street props pass) and its deeper-orange base (CONE.slabTop). */
 function tpConeSvg(size){
   return `<svg viewBox="0 0 24 28" width="${size}" height="${size*28/24}">
-    <rect x="4.5" y="21.6" width="15" height="3.6" rx="1.2" fill="#d85f0a"/>
+    <rect x="4.5" y="21.6" width="15" height="3.6" rx="1.2" fill="#c9560c"/>
     <path d="M8.6 21.8 11.5 4.3a1.05 1.05 0 0 1 2.07 0l2.83 17.5z" fill="#ff7a1a"/>
+    <path d="M10.11 12.7 10.57 9.9h3.91l.45 2.8z" fill="#f4f5f7"/>
+    <path d="M9.47 16.55 9.74 14.95h5.55l.26 1.6z" fill="#f4f5f7"/>
     <ellipse cx="12.5" cy="4.6" rx="1.6" ry="1.2" fill="#d85f0a"/>
   </svg>`;
 }
