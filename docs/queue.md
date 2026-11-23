@@ -31,13 +31,11 @@ Run per room: `node tools/review/w37.js "<room>" --png <dir>` and `node tools/re
 
 ## 2. Waiting on Sir's decision
 
-- W37 everywhere (2026-11-22): swept. `w37.js --every` (every library entry: rooms, shops, houses, landmarks) went 1096 -> 176 open
-  findings, the gate's baseline (`tools/review/w37_baseline.json`). What is left is mostly not real: shop windows' contents drawn
-  clipped to the opening (the checker doesn't know clips). Entries the game shows turned: done 2026-11-23 -- tools/review/orient.js
-  tours the world and records each entry's turns (orient.json); w37.js checks each entry in each (mirrored, b turned, back() from
-  behind). Marina General clean; 14 rear-view faults locked in as known (Sir's OK: front details hidden behind the walls). Cove Grove
-  and Tidewater Green Park were not on the tour's map that day: rerun orient.js when they are placed. The house kit's yard fence (its sides end against a front garden wall, `yardFence.front`) and Dune Home & Garden's staging
-  (pots on the tops, the compost under the near one) fixed 2026-11-22.
+- W37 everywhere (2026-11-22, closed 2026-11-23): `w37.js --every` 1096 -> 8 open (the gate's baseline). The checker now knows the
+  game's turns (tools/review/orient.js -> orient.json: mirrored, b turned, back() from behind), clips (a part seen through an opening),
+  pieces placed by their own depth, and sorts BETWEEN pieces (`sort`). Left, Sir's OK to keep for now: Surfside Fitness's rear
+  clerestory sills across its fire door (a layout clash), Marina Parking's low wall over the booth desk's back edge (3 px), the Mall's
+  goth rose-window panel over its sign, the Saltwater bench inside its planter (no pixel).
 - People: long sleeves for suits (and which uniforms)?
 - People: the hands-forward pose seen from behind -- the hands show as stubs at the shoulders; change it or leave it?
 - Shelves: check none taller than its room's walls pokes past them.
