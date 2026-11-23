@@ -61695,7 +61695,7 @@ function houseCanopy(fn){
       case 1: wheel(a, b, z, 7, '#24262c'); break;
       case 2: wheel(a, b, z, 7, '#24262c'); tube(a, b, z, a + 2, b, z + 9, 1.8, '#9aa3ad'); break;
       case 3: box(a - 19, a + 19, b - 5.5, b + 5.5, z, z + 1.4, '#3d424c', '#34383f', '#2b2f35'); break;
-      case 4: tube(a, b, z - 13, a, b, z + 13, 1.8, PCOL); break;
+      case 4: tube(a, b, z - 26, a, b, z + 26, 1.8, PCOL); break;   /* (as long as in the bin, 52 -- Sir: "the size from the bot to him seems to shrink") */
       case 5: tube(a, b - 11, z, a, b + 11, z, 1.6, '#9aa3ad'); break;
       case 6: for(const e of [-1, 1]) tube(a, b + e*2, z, a, b + e*9, z, 2.2, '#3d424c'); break;
       case 7: ball(a, b - 3, z, 2.6, '#2a2f36', '#fff3c4'); box(a - 1.5, a + 1.5, b + 3, b + 9, z - 1.5, z + 1.5, '#e03a2f', '#c4322a', '#a82a23'); break; } };
@@ -61764,8 +61764,8 @@ function houseCanopy(fn){
           continue; }
         /* (at his part while the scooter stands; turned to his bench -- behind him in row A, east of him in row B -- for the next while the robots move) */
         const J0 = JOBAT(p, pa, pb, on ? u : w0 + 1, t + p*700), bench = [p === 5 ? BENCH(p)[0] : J0.at[0], BENCH(p)[1]], fb = faceTo(J0.at, bench);
-        if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: (pb - h[1]) + 6, cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (the part in his hands, being fitted: on the scooter from half the stand) */
-        if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, Object.assign({}, J0, at[1] < pb ? { dd: pb - at[1] + 2 } : {}))); continue; }   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
+        if(on && p >= 1 && p <= 7 && u < DWELL*0.5 && J0.hT){ const h = J0.hT; out.push({ kind: 'cargo', a: h[0], b: h[1], dd: Math.max((pb - h[1]) + 6, J0.at[0] + Math.max(pb, J0.at[1]) + 8 - h[0] - h[1]), cargo: () => PART(p, h[0], h[1], h[2] + 4) }); }   /* (after him too: in his hands, in front of him -- Sir: "he's not holding the part in front of him") */   /* (the part in his hands, being fitted: on the scooter from half the stand) */
+        if(on){ const { at, f } = J0; out.push(man(at[0], at[1], f, J0)); if(at[1] < pb) out.push(man(at[0], at[1], f, Object.assign({}, J0, { noLegs: true, dd: pb - at[1] + 2 }))); continue; }   /* (row A's from behind the robot: all of him in his own place, the robot over his legs; then his top half again just after the robot, his hands over its deck -- Sir, 2026-11-23: "the humanoid's legs are drawing over the warehouse robots") */   /* (row A's from behind the robot: sorted just after it, his hands over its deck, before the scooter he works on -- Sir, 2026-11-20: "the robots' arms are drawn over by the warehouse robot") */
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
         if(p === 7 && u > w1){ const T7 = JOBAT(7, pa, pb, DWELL, t), k = clamp01((u - w1)/900); at = [T7.at[0] + (J0.at[0] - T7.at[0])*k, T7.at[1] + (J0.at[1] - T7.at[1])*k];
           if(k < 1){ out.push(man(at[0], at[1], faceTo(T7.at, J0.at), { walk: 1, gait: k*(J0.at[0] - T7.at[0])/7 })); continue; } }   /* (the lamp man back along from the tail) */
@@ -123320,7 +123320,7 @@ class WorldScene extends Phaser.Scene {
       finally { if(sv){ for(const k of Object.keys(SKIN)) delete SKIN[k]; Object.assign(SKIN, sv); } } if(m.cargo) LIB.drawItem(name, g, G, K, { draw: () => m.cargo(t) }); return; }   /* (one of the fleet's other bots, as they are in the street: the patrol bot at Kickstand's door) */
     if(m.kind === 'scooter'){ this.drawScooterRider(g, x, y, z + (m.z || 0), m.th, HUMANOID_BUILD, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_WHITE, HUMANOID_FOOT, m.brand, t, 0, null, true, null, m.stage); return; }   /* (the game's own scooter, part-built: Kickstand's line) */
     if(m.kind === 'humanoid'){ const rp0 = this._roomPerson; this._roomPerson = true;   /* (the room's own: never taken for a passer-by over it, drawPersonHull) */
-      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, crew: true }); } finally { this._roomPerson = rp0; } }
+      try { this.drawBot(g, 'humanoid', x, y, z, t, m.fdir, 0, 0, { look: m.look, walk: m.walk || 0, gait: m.gait || 0, lift: m.lift, bend: m.bend, waist: m.waist, drop: m.drop, legs: m.legs, noLegs: m.noLegs, crew: true });   /* (m.noLegs: his top half only, a second pass after what he works over -- the line's row A) */ } finally { this._roomPerson = rp0; } }
     else if(m.kind === 'amr'){
       const saved = Object.assign({}, SKIN), jk = this._amrJack, lf = this._amrLift, cv = this._crewVel, tg = this._tug, tl = this._tugL, TS = this._crewTug || (this._crewTug = {});
       for(const k of Object.keys(SKIN)) if(!(k in SKIN_BASE)) delete SKIN[k];
@@ -123347,7 +123347,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, d.beforeNear || null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop } : d.lift ? { roll, lift: d.lift, bend: d.bend, behind: d.behind, legs: d.legs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, d.beforeNear || null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop, noLegs: d.noLegs } : d.lift ? { roll, lift: d.lift, bend: d.bend, behind: d.behind, legs: d.legs, noLegs: d.noLegs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
