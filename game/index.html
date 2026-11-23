@@ -61425,7 +61425,7 @@ function houseCanopy(fn){
     T(0, W, 0, D, 0, '#a7abae');
     for(let a = 120; a < W; a += 120) T(a - 0.6, a + 0.6, 0, D, 0.15, '#979b9e');
     for(let b = 120; b < D; b += 120) T(0, W, b - 0.6, b + 0.6, 0.15, '#979b9e');
-    lane(360, W, 380, 530, true);
+    /* (the lane in from the door gone -- Sir, 2026-11-23: "the path in from the door can go") */
     T(W, W + AP, DB0, DB1, 0.3, '#8f8a80'); T(W - 3, W + 3, DB0, DB1, 0.7, yel);
 
     /* ---- THE WALLS (the kit's): whitewashed brick over a grey dado, steel windows high, the zones' names; the south and east cut low in the
@@ -61674,23 +61674,15 @@ function houseCanopy(fn){
       const col = it.k === 'flat' ? 0xd9b07a : 0xc98a4a; box(ca - la, ca + la, cb - lb, cb + lb, z, z + it.h, col); box(ca - 2, ca + 2, cb - lb, cb + lb, z + it.h, z + it.h + 0.3, 0xe3c08a);
       if(it.k === 'deck' || it.k === 'parts') for(const [nx, ny] of [[0, 1], [0, -1], [1, 0], [-1, 0]]){ if(!V.sees(nx, ny, 0)) continue; const q = (w, zz) => nx ? V.P(ca + nx*(la + 0.3), cb + w, zz) : V.P(ca + w, cb + ny*(lb + 0.3), zz), wd = nx ? 6 : 14;
         V.Q([q(-wd, z + 6), q(wd, z + 6), q(wd, z + 14), q(-wd, z + 14)], it.k === 'deck' ? 0x2e8bd8 : 0x7a8088); } };
-    T(720, 2225, 632, 1250, 0.25, '#9ea2a4');
-    for(const [a0, a1, b0, b1] of [[720, 2225, 632, 640], [720, 2225, 1242, 1250], [720, 728, 632, 1250], [2217, 2225, 632, 1250]]) T(a0, a1, b0, b1, 0.5, yel);
-    for(const [pa, pb] of POS){ for(const [ca, cb] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ T(pa + ca*62 - (ca > 0 ? 18 : 0), pa + ca*62 + (ca < 0 ? 18 : 0), pb + cb*44 - (cb > 0 ? 4 : 0), pb + cb*44 + (cb < 0 ? 4 : 0), 0.6, '#f2efe6');
-        T(pa + ca*62 - (ca > 0 ? 4 : 0), pa + ca*62 + (ca < 0 ? 4 : 0), pb + cb*44 - (cb > 0 ? 14 : 0), pb + cb*44 + (cb < 0 ? 14 : 0), 0.6, '#f2efe6'); } }
-    for(const a of [720, 840, 960, 1080]){ for(const [a0, a1, b0, b1] of [[a - 46, a + 46, 266, 270], [a - 46, a + 46, 390, 394], [a - 46, a - 42, 266, 394], [a + 42, a + 46, 266, 394]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (the full spares' spots) */
-    T(2240, 2312, 530, 1428, 0.3, '#8f9599'); T(2240, 2246, 530, 1352, 0.5, yel); T(2306, 2312, 530, 1428, 0.5, yel);
-    T(1682, 2312, 1352, 1428, 0.3, '#8f9599'); T(1682, 2246, 1352, 1358, 0.5, yel); T(1682, 2312, 1422, 1428, 0.5, yel);   /* (the pallet mover's way out) */
-    T(1110, 2312, 1572, 1628, 0.3, '#8f9599'); T(1110, 2240, 1572, 1576, 0.5, yel); T(1110, 2312, 1624, 1628, 0.5, yel); T(2240, 2312, 1428, 1628, 0.3, '#8f9599'); T(2306, 2312, 1428, 1628, 0.5, yel);   /* (phase 6: the storage aisle, and the lane on to it) */
+    /* (the floor's layout marks -- the line's border and its stops' corners, the spares' squares, the pallet mover's ways -- gone, relics of
+       the first layout: Sir, 2026-11-23: "all the layout markings on the ground ... we can get rid of") */
 
     /* (the bins' one set of colours -- CPAL, below -- needed here first) */
     const CPAL = [0x2e8bd8, 0xe0453a, 0x2aa86a, 0xf2c02e], CPC = i => '#' + CPAL[i % 4].toString(16).padStart(6, '0');
     /* ---- THE PARTS STORE: no shelving -- the warehouse's own shelf pods, parked in a row along the north wall, each on its marked square
        (Sir, 2026-11-19: "all the shelving in the warehouse needs to be warehouse bot shelves that are organized"); the two at its east end
        (a 1910, 2030) are the pick face the rack pickers load the tugger from. Parked, so each is cached as a still piece (fx.pod) ---- */
-    const podSq = (a, b, alongB) => { const la = alongB ? 42 : 59, lb = alongB ? 59 : 42; T(a - la, a + la, b - lb, b + lb, 0.3, '#9ea2a4');
-      for(const [a0, a1, b0, b1] of [[a - la, a + la, b - lb, b - lb + 4], [a - la, a + la, b + lb - 4, b + lb], [a - la, a - la + 4, b - lb, b + lb], [a + la - 4, a + la, b - lb, b + lb]]) T(a0, a1, b0, b1, 0.5, '#5fb8e8');
-      T(a - 3, a + 3, b - 3, b + 3, 0.6, '#16181b'); };
+    const podSq = () => {};   /* (the pods' floor squares gone with the other layout marks, 2026-11-23) */
     const POD_FULL = AMR_SLOTS.amrshelf.map(q => q.def);
     /* THE NORTH LINE (Sir, 2026-11-21: row A's pick face "pulling from its own wall"): six pods along the north wall, the line's front at
        its west end over row A's stop, its back at a 930, the slot it waits in to join beyond (a 1070); the pods themselves move: row A's
@@ -61881,7 +61873,7 @@ function houseCanopy(fn){
       let P, kind;
       if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
       else if(q < G.tin + 4950){ P = { a: SROB[0], b: SROB[1], fdir: 3 }; kind = 'load'; }   /* (away once loaded and its lids are off, clear of the stop and down its own lane before the next empty comes up the other: crew_spacing.js) */
-      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
+      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 4950)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 1 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
       if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 1 }, kind: 'full' });
@@ -61906,7 +61898,7 @@ function houseCanopy(fn){
       let P, kind;
       if(q < G.tin){ P = sg(G.EMP, q/G.tin); kind = 'empty'; }
       else if(q < G.tin + 4950){ P = { a: AROB[0], b: AROB[1], fdir: 3 }; kind = 'load'; }
-      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 5400)/G.tout); kind = 'full'; }
+      else if(q < G.tin + 4950 + G.tout){ P = sg(G.RET, (q - G.tin - 4950)/G.tout); kind = 'full'; }
       else { P = { a: G.PK[0], b: G.PK[1], fdir: 3 }; kind = 'full'; }
       out.push({ P, kind, rr: G.X + q });
       if(q < G.E0) out.push({ P: { a: G.PK[0], b: G.PK[1], fdir: 3 }, kind: 'full' });
@@ -62056,11 +62048,6 @@ function houseCanopy(fn){
             if(J.bin){ const b = J.bin; out.push({ kind: 'cargo', a: b[0], b: b[1], dd: b[1] < ARPOD[1] + 60 ? Math.max(1, ARPOD[0] + ARPOD[1] + 2 - b[0] - b[1]) : b[0] > AROB[0] - 25 ? Math.max(1, AROB[0] + AROB[1] + 2 - b[0] - b[1]) : 1, cargo: () => STACK3(b[0], b[1], b[2], J.col) }); } }
           else out.push(man(IDL[0], IDL[1], 1, {})); }
         return out; } } });
-      T(270, 560, 230, 236, 0.5, yel); T(270, 560, 480, 486, 0.5, yel); T(270, 276, 230, 486, 0.5, yel); T(554, 560, 230, 486, 0.5, yel);   /* (row A's pick face's box) */
-      T(497, 503, 330, 520, 0.35, '#5fb8e8'); T(500, 1703, 517, 523, 0.35, '#5fb8e8'); T(617, 623, 330, 520, 0.35, '#5fb8e8');   /* (row A's lane: west to the stop up a 500, back down a 620) */
-      T(270, 560, 900, 906, 0.5, yel); T(270, 560, 1150, 1156, 0.5, yel); T(270, 276, 900, 1156, 0.5, yel); T(554, 560, 900, 1156, 0.5, yel);   /* (the west pick face's box) */
-      T(497, 503, 1000, 1410, 0.35, '#5fb8e8'); T(500, 1583, 1407, 1413, 0.35, '#5fb8e8'); T(617, 623, 1000, 1410, 0.35, '#5fb8e8');   /* (row B's lane: west to the stop up a 500, back down a 620) */
-      for(const k of [0, 1, 2, 3]){ const [a, b] = RBPK(k); for(const [a0, a1, b0, b1] of [[a - 46, a + 46, b - 64, b - 60], [a - 46, a + 46, b + 60, b + 64], [a - 46, a - 42, b - 64, b + 64], [a + 42, a + 46, b - 64, b + 64]]) T(a0, a1, b0, b1, 0.5, '#2aa86a'); }   /* (row B's full spares' spots) */
     }
 
     /* ---- THE PALLET MOVER (fx.crew): production to distribution -- the pallet jack robot takes each pallet the arm robot has stacked out of
