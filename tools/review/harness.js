@@ -26,6 +26,8 @@ function instrument(html){
   const L0 = html.indexOf('const LIB = (function(){');
   if(L0 < 0) return html;
   let head = html.slice(0, L0), body = html.slice(L0);
+  /* the canvas shim's state (its clip: the screen polygon a clipped draw is held to -- a shop window's contents, a runPiece's stretch) */
+  body = body.replace('    subs: [], cur: null, stack: []\n  };', '    subs: [], cur: null, stack: []\n  };\n  window.__RVctxS = S;');
   body = body.replace('const LIB = (function(){', 'const LIB = (function(){\nwindow.__RVK_ctx = () => ({ MIRROR, SC, ZSCALE, FLANK_RIGHT, W, SHOP_SLOT }); window.__RVK_shops = () => SHOPS;');
   /* every point the library draws, in its own frame (before the mirror), with the frame's slide (AOFF, BOFF) on it -- where it is
      drawn: a piece drawn with a shift, as Ferris Taylor Cottage's old fixtures moved into its L, is checked where it stands, not at

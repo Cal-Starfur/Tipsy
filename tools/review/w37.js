@@ -54,12 +54,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
      them (da*a + db*b, their own dk ignored there, as the block-edge queue does); one drawn whole and seen from behind (db -1) draws its rear elevation, back(), as the street does (rear). An entry the tour did not see: as the lab draws it (Sir, 2026-11-23: "lets do 3") */
   const ORI = (() => { try { return JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'orient.json'), 'utf8')); } catch(e){ return {}; } })();
   const out = await h.page.evaluate(([want, PNG, EVERY, ORI]) => {
-    let DA = 1, KA = 1, DB = 1;
+    let DA = 1, KA = 1, DB = 1, MW = 0;
     const sc = game.scene.getScene('world'), g = sc.add.graphics(), G = (a, b, z) => ({ x: a - b, y: (a + b)/2 - z });
     let cur = null, stack = 0;
-    window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([DA*a, DB*b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
+    window.__RVP3 = (a, b, z) => { if(cur && cur.prim) cur.prim.pts.push([KA*(MW ? MW - a : a), DB*b, z]); if(cur && window.__W37in) cur.runZ = Math.max(cur.runZ, z); };
     window.__RVK = (n, args, ph) => { if(!cur) return;
-      if(ph === 0){ if(stack++ === 0) cur.prim = { n, args: Array.from(args).slice(0, 7), pts: [], inRun: !!window.__W37in, line: ((new Error().stack.split('\n')[3] || '').match(/:(\d+):\d+\)?$/) || [])[1] }; }
+      if(ph === 0){ if(stack++ === 0) cur.prim = { n, args: Array.from(args).slice(0, 7), pts: [], inRun: !!window.__W37in, clip: window.__RVctxS && window.__RVctxS.clip ? window.__RVctxS.clip.map(p => ({ x: p.x, y: p.y })) : null, line: ((new Error().stack.split('\n')[3] || '').match(/:(\d+):\d+\)?$/) || [])[1] }; }
       else if(--stack === 0 && cur.prim){ cur.prims.push(cur.prim); cur.prim = null; } };
     const bb = pts => { const o = { a0: 1e9, a1: -1e9, b0: 1e9, b1: -1e9, z0: 1e9, z1: -1e9 }; for(const [a, b, z] of pts){ o.a0 = Math.min(o.a0, a); o.a1 = Math.max(o.a1, a); o.b0 = Math.min(o.b0, b); o.b1 = Math.max(o.b1, b); o.z0 = Math.min(o.z0, z); o.z1 = Math.max(o.z1, z); } return o; };
     const scr = q => ({ x0: q.a0 - q.b1, x1: q.a1 - q.b0, y0: (q.a0 + q.b0)/2 - q.z1, y1: (q.a1 + q.b1)/2 - q.z0 });
@@ -70,7 +70,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       for(const p of pts){ while(lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
       for(let i = pts.length - 1; i >= 0; i--){ const p = pts[i]; while(hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
       lo.pop(); hi.pop(); return lo.concat(hi); };
-    const paintOver = (qL, qE) => { const c = clipConvex(hull2(qL), hull2(qE)); if(!c || c.length < 3) return 0; let A = 0;
+    /* (cL, cE: the screen polygons the two are clipped to, if any -- a shop window's contents painted only inside its opening: what
+       they paint over is only there; Sir, 2026-11-23, "lets fix any issues we found" -- 49 window findings that no pixel showed) */
+    /* (seen through an opening: L clipped to a window or door opening (not a runPiece stretch) and E the shell round it, unclipped --
+       L paints only inside the opening, where it is meant to show: not a fault) */
+    const through = (L, E) => !!(L && L.clip && !L.inRun && !(E && E.clip && !E.inRun));
+    const paintOver = (qL, qE, cL, cE) => { let c = clipConvex(hull2(qL), hull2(qE)); if(c && c.length > 2 && cL) c = clipConvex(c, cL); if(c && c.length > 2 && cE) c = clipConvex(c, cE); if(!c || c.length < 3) return 0; let A = 0;
       for(let i = 0; i < c.length; i++){ const p = c[i], r = c[(i + 1) % c.length]; A += p.x*r.y - r.x*p.y; } return Math.abs(A)/2; };
     /* (--png: the piece alone, 4x, the two parts' outlines over it -- base red, what stands on it blue) */
     let nShot = 0;
@@ -103,7 +108,9 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       let isPieces = false; try { isPieces = !!(LIB.collect(name, G, 1) || []).length; } catch(err){}
       return (isPieces ? e.pieces : e.whole) || e.pieces || e.whole || ['1,1,1']; })()){
       [DA, KA, DB] = ori.split(',').map(Number);
-      const MIR = DA !== KA, GT = (a, b, z) => G(KA*a, DB*b, z), oriTag = ori === '1,1,1' ? '' : ' [drawn ' + [MIR ? 'mirrored' : DA < 0 ? 'a turned' : '', DB < 0 ? 'b turned' : ''].filter(Boolean).join(', ') + ']';
+      const MIR = DA !== KA, GT = (a, b, z) => G(KA*a, DB*b, z);
+      MW = MIR ? ((window.__RVK_shops().find(q => q.name === name) || {}).ww || window.__RVK_ctx().W) : 0;   // (mirrored: drawn at MW - a, read back as drawn)
+      const oriTag = ori === '1,1,1' ? '' : ' [drawn ' + [MIR ? 'mirrored' : DA < 0 ? 'a turned' : '', DB < 0 ? 'b turned' : ''].filter(Boolean).join(', ') + ']';
       const nFound0 = found.length;
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
       let items = []; try { items = LIB.collect(name, GT, 1, MIR ? false : undefined, MIR ? true : undefined) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
@@ -119,9 +126,9 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         if(!whole){ let shown = true; try { shown = !it.when || !!it.when(); } catch(e){}
           if(shown && !it.ghost){ const R = it.fpLab, along = it.__run ? it.__run.along : null, cut = [];
             for(const p of P){ if(!VOL.has(p.n) || p.n === 'prism') continue; const q = Object.assign({}, p.q);
-              if(R && along === 'a'){ const r0 = Math.min(DA*R.a0, DA*R.a1), r1 = Math.max(DA*R.a0, DA*R.a1); q.a0 = Math.max(q.a0, r0); q.a1 = Math.min(q.a1, r1); }
+              if(R && along === 'a'){ const fa = a => KA*(MW ? MW - a : a), r0 = Math.min(fa(R.a0), fa(R.a1)), r1 = Math.max(fa(R.a0), fa(R.a1)); q.a0 = Math.max(q.a0, r0); q.a1 = Math.min(q.a1, r1); }
               if(R && along === 'b'){ const r0 = Math.min(DB*R.b0, DB*R.b1), r1 = Math.max(DB*R.b0, DB*R.b1); q.b0 = Math.max(q.b0, r0); q.b1 = Math.min(q.b1, r1); }
-              if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line }); }
+              if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line, clip: p.clip, inRun: p.inRun }); }
             let dk = null; try { dk = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){}
             if(cut.length) sortRec.push({ i, it, occ: !!it.occ, key: dk != null && !oriTag ? dk : DA*(it.a || 0) + DB*(it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
               fix: it.__run ? [it.__run.a0, it.__run.a1, it.__run.b0, it.__run.b1, it.__run.zTop].join(',') : null, line: it.__run ? it.__run.line : (P[0] && P[0].line) }); } }
@@ -138,12 +145,12 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           if(L.n === 'S' && q.a1 - q.a0 < 0.5){
             const aa = q.a0, inR = p => p[1] > q.b0 + 1 && p[1] < q.b1 - 1 && p[2] > q.z0 + 1 && p[2] < q.z1 - 1;
             const pts = before.flatMap(p => p.pts).filter(inR);
-            if(pts.some(p => p[0] > aa + 2) && !pts.some(p => p[0] < aa - 2) && before.some(p => p.pts.some(r => inR(r) && r[0] > aa + 2) && paintOver(q, p.q) > 4)) found.push({ room: name, kind: 'back', at: [Math.round(aa), Math.round((q.b0 + q.b1)/2)], what: 'S at a ' + aa.toFixed(1) + ' is the west end of what it drew first (line ' + L.line + ')' });
+            if(pts.some(p => p[0] > aa + 2) && !pts.some(p => p[0] < aa - 2) && before.some(p => p.pts.some(r => inR(r) && r[0] > aa + 2) && !through(L, p) && paintOver(q, p.q, L.clip, p.clip) > 4)) found.push({ room: name, kind: 'back', at: [Math.round(aa), Math.round((q.b0 + q.b1)/2)], what: 'S at a ' + aa.toFixed(1) + ' is the west end of what it drew first (line ' + L.line + ')' });
           }
           if(L.n === 'F' && q.b1 - q.b0 < 0.5){
             const bv = q.b0, inR = p => p[0] > q.a0 + 1 && p[0] < q.a1 - 1 && p[2] > q.z0 + 1 && p[2] < q.z1 - 1;
             const pts = before.flatMap(p => p.pts).filter(inR);
-            if(pts.some(p => p[1] > bv + 2) && !pts.some(p => p[1] < bv - 2) && before.some(p => p.pts.some(r => inR(r) && r[1] > bv + 2) && paintOver(q, p.q) > 4)) found.push({ room: name, kind: 'back', at: [Math.round((q.a0 + q.a1)/2), Math.round(bv)], what: 'F at b ' + bv.toFixed(1) + ' is the north side of what it drew first (line ' + L.line + ')' });
+            if(pts.some(p => p[1] > bv + 2) && !pts.some(p => p[1] < bv - 2) && before.some(p => p.pts.some(r => inR(r) && r[1] > bv + 2) && !through(L, p) && paintOver(q, p.q, L.clip, p.clip) > 4)) found.push({ room: name, kind: 'back', at: [Math.round((q.a0 + q.a1)/2), Math.round(bv)], what: 'F at b ' + bv.toFixed(1) + ' is the north side of what it drew first (line ' + L.line + ')' });
           }
           /* foot: L drawn after E, L under E's foot (from at or below E's bottom up to no higher than partway up it), their footprints
              overlapping, L reaching nearer the eye (further east or south) than E: L's top and near faces paint over E's foot */
@@ -157,7 +164,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!under && !plate) continue;
             if(!(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5)) continue;
             const s1 = scr(q), s2 = scr(e), ox = Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0), oy = Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0);
-            if(ox > 1 && oy > 1){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') (line ' + L.line + ', it line ' + E.line + ')' };
+            if(ox > 1 && oy > 1 && !through(L, E) && (!(L.clip || E.clip) || paintOver(q, e, L.clip, E.clip) > 4)){ const f = { room: name, kind: 'foot', at: [Math.round((e.a0 + e.a1)/2), Math.round((e.b0 + e.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' standing on it (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') (line ' + L.line + ', it line ' + E.line + ')' };
               f.__L = L; if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
           /* hung: L drawn after E, L HANGING UNDER E -- its top at E's bottom (within 2), their footprints overlapping, L no wider
@@ -168,7 +175,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             if(!(q.z1 <= e.z0 + 0.5 && q.z1 >= e.z0 - 2 && e.z1 - e.z0 > 1)) continue;
             if(!(q.a0 < e.a1 - 0.5 && q.a1 > e.a0 + 0.5 && q.b0 < e.b1 - 0.5 && q.b1 > e.b0 + 0.5)) continue;
             if(q.a1 > e.a1 + 0.5 || q.b1 > e.b1 + 0.5) continue;                                     // (reaching nearer: foot's)
-            const ar = paintOver(q, e);
+            const ar = through(L, E) ? 0 : paintOver(q, e, L.clip, E.clip);
             if(ar > 16){ const f = { room: name, kind: 'hung', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') hung under the ' + E.n + ' (z ' + Math.round(e.z0) + '..' + Math.round(e.z1) + ') and drawn after it (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
@@ -183,7 +190,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
             const bN = q.b1 <= e.b0 + 3 && q.b0 < e.b0 - 0.5, bW = q.a1 <= e.a0 + 3 && q.a0 < e.a0 - 0.5, bU = q.z1 <= e.z0 + 0.5 && q.z0 < e.z0 - 0.5;
             const fr = q.a0 >= e.a1 - 0.5 || q.b0 >= e.b1 - 0.5 || q.z0 >= e.z1 - 0.5;
             if(!(bN || bW || bU) || fr) continue;
-            const ar = paintOver(q, e);                                     // (how much of E it paints over, in square units at 1x)
+            const ar = through(L, E) ? 0 : paintOver(q, e, L.clip, E.clip);                                     // (how much of E it paints over, in square units at 1x)
             if(ar > 16){ const f = { room: name, kind: 'behind', at: [Math.round((q.a0 + q.a1)/2), Math.round((q.b0 + q.b1)/2)], what: L.n + ' (b ' + Math.round(q.b0) + '..' + Math.round(q.b1) + ', a ' + Math.round(q.a0) + '..' + Math.round(q.a1) + ', z ' + Math.round(q.z0) + '..' + Math.round(q.z1) + ') drawn after the ' + E.n + ' in front of it (its back at ' + (bN ? 'b ' + Math.round(e.b0) : 'a ' + Math.round(e.a0)) + ') (line ' + L.line + ', it line ' + E.line + ')' };
               if(PNG && !MIR) f.png = shot(name, it, P, q, e); found.push(f); break; }
           }
@@ -241,7 +248,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           for(const l of L.P) for(const e of E.P){ const q = l.q, r = e.q;
             const bk = q.a1 <= r.a0 + T || q.b1 <= r.b0 + T || q.z1 <= r.z0 + T, fr = q.a0 >= r.a1 - T || q.b0 >= r.b1 - T || q.z0 >= r.z1 - T;
             if(!bk || fr) continue;
-            const ar = paintOver(q, r); if(ar > 24 && (!worst || ar > worst.ar)) worst = { ar, l, e }; }
+            const ar = through(l, e) ? 0 : paintOver(q, r, l.clip, e.clip); if(ar > 24 && (!worst || ar > worst.ar)) worst = { ar, l, e }; }
           if(!worst) continue;
           const k = [E.i, L.i].join(','); if(seenS.has(k)) continue; seenS.add(k);
           const c = o => '(' + Math.round((o.a0 + o.a1)/2) + ',' + Math.round((o.b0 + o.b1)/2) + ')';
@@ -289,7 +296,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           found.push({ room: name, kind: 'jamb', at: A.ax === 'a' ? [Math.round(mid), Math.round(fm)] : [Math.round(fm), Math.round(mid)],
             what: 'an opening ' + Math.round(gap) + ' wide along ' + A.ax + ': one side ' + (A.f1 - A.f0).toFixed(0) + ' thick (' + A.f0.toFixed(0) + '..' + A.f1.toFixed(0) + '), the other ' + (B.f1 - B.f0).toFixed(0) + ' (' + B.f0.toFixed(0) + '..' + B.f1.toFixed(0) + ') (line ' + A.line + ', it line ' + B.line + ')' }); } }
       /* (in a turn: its findings say so, and where -- in the eye's frame, a' and b' -- is turned back to the entry's own numbers) */
-      if(oriTag) for(let k = nFound0; k < found.length; k++){ const f = found[k]; f.at = [DA*f.at[0], DB*f.at[1]]; f.what += oriTag; }
+      if(oriTag) for(let k = nFound0; k < found.length; k++){ const f = found[k]; f.at = [Math.round(MW ? MW - KA*f.at[0] : KA*f.at[0]), DB*f.at[1]]; f.what += oriTag; }
     }
     g.destroy(); for(const f of found) delete f.__L;
     return { rooms: rooms.length, found };
