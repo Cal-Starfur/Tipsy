@@ -54928,9 +54928,12 @@ function houseCanopy(fn){
            Sir 2026-10-23, "still not far enough", and then the arm and base stood in from it: "it needs to line up") */
         for(const a of [996, 1326]) for(const b of [HB + 46, HB + 134]) cyl(a, b, 0, 6, 4, goldD);   // its feet
         box(990, 1332, HB + 40, HB + 140, 6, 22, sofaD, shade(sofa, 0.85), shade(sofaD, 0.9));    // the base
-        box(990, 1010, HB + 40, HB + 140, 22, 64, sofaL, sofa, sofaD);                // the far arm: before the back and its cushions (W37: drawn after them it went over them)
+        /* the far arm and the back's frame round their corner: one piece (the corner rule, pathRun) up to the arm's top, the frame on
+           up from there -- the frame from the arm's inner edge (past it, its west end stood out) to the near arm's outer edge; before the
+           back's cushions (W37: the arm drawn after them went over them) */
+        pathRun([[1000, HB + 140], [1000, HB + 50], [1332, HB + 50]], 10, 22, 64, sofaL, sofa, sofaD);
         T(990, 1010, HB + 40, HB + 140, 64.2, shade(sofaL, 1.05));
-        box(1010, 1332, HB + 40, HB + 60, 22, 100, sofaL, sofa, sofaD);               // the back's frame: from the far arm's inner edge (past it, its west end stood out) to the near arm's outer edge
+        box(1010, 1332, HB + 40, HB + 60, 63.6, 100, sofaL, sofa, sofaD);             // (from a hair under the arm's top: no seam where the two meet)
         T(1010, 1332, HB + 40, HB + 60, 100.2, shade(sofaL, 1.05));
         for(const [a0, a1] of [[1010, 1160], [1162, 1312]]) box(a0 + 1, a1 - 1, HB + 60, HB + 78, 22, 90, sofaL, shade(sofa, 1.06), sofaD);   // the back's cushions
         /* a gold cushion in each corner, flat against the back's (it stood 14 out from it and read as a block sticking out, Sir 2026-10-23) */
@@ -61252,9 +61255,11 @@ function houseCanopy(fn){
         pcr(180, 380, 330, 390, 74, () => sofaOf(C)(180, 380, 330, 390, false, [212, 330]), 74, 'sofa');   // (THE SOFA: sofaOf)
         pcr(225, 335, 210, 270, 40, () => { box(225, 335, 210, 270, 0, 30, C.wood[0], C.wood[1], C.wood[2]); box(240, 262, 225, 240, 30, 34, '#f3ecdc', '#e2dccb', '#cfc8b6'); cyl(310, 245, 30, 40, 8, '#e9e4da'); }, 40, 'coffee table');
         for(const [a, dir] of [[150, 'e'], [420, 'w']]) pc(a, 240, () => { box(a - 26, a + 26, 214, 266, 0, 38, C.chair[0], C.chair[1], C.chair[2]);   // (its seat at 38)
-          const bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26], back = () => box(bk[0], bk[1], 214, 266, 38, 78, C.chair[0], C.chair[1], C.chair[2]);
-          const arms = () => { for(const b of [214, 256]) box(dir === 'e' ? a - 16 : a - 26, dir === 'e' ? a + 26 : a + 16, b, b + 10, 38, 56, C.chair[0], C.chair[1], C.chair[2]); };   // (the arms up to the back, not into it: W37)
-          if(dir === 'e'){ back(); arms(); } else { arms(); back(); } }, sR(a - 26, a + 26, 214, 266, 78, 'armchair'));
+          /* (its arms and its back round their two corners: one piece up to the arms' top -- the corner rule, pathRun -- the back on up
+             from there, from a hair under it so no seam shows; nothing stands between the arms but the seat, under them) */
+          const ab = dir === 'e' ? a - 21 : a + 21, ae = dir === 'e' ? a + 26 : a - 26, bk = dir === 'e' ? [a - 26, a - 16] : [a + 16, a + 26];
+          pathRun([[ae, 219], [ab, 219], [ab, 261], [ae, 261]], 5, 38, 56, C.chair[0], C.chair[1], C.chair[2]);
+          box(bk[0], bk[1], 214, 266, 55.6, 78, C.chair[0], C.chair[1], C.chair[2]); }, sR(a - 26, a + 26, 214, 266, 78, 'armchair'));
         /* a bookcase on the north wall east of the fire, a floor lamp, plants */
         pcr(450, 590, 2, 32, 176, () => { box(450, 590, 2, 32, 0, 176, C.wood[0], C.wood[1], C.wood[2]);
           for(const z of [40, 84, 128]){ box(454, 586, 6, 30, z, z + 3, C.wood[1], C.wood[1], C.wood[2]); for(let k = 0; k < 12; k++) box(458 + k*10.5, 466 + k*10.5, 10, 28, z + 3, z + 26 + (k % 3)*4, ['#7f9a80', '#c4603a', '#e9e4da', '#3a4a6a'][k % 4], '#a69f91', '#8a8478'); } }, 176, 'bookcase');
@@ -63075,8 +63080,10 @@ function houseCanopy(fn){
     { const [a0, a1, b0, b1] = R.couch;
       items.push({ a: (a0 + a1)/2, b: (b0 + b1)/2, z: 0, solids: [solid(a0, a1, b0, b1, 74, 'couch')], draw: () => {
         box(a0, a1, b0, b1, 0, 38, '#2f6f7e', '#255a66', '#1f4c56');   // (its seat at a chair's 38: Sir, 2026-11-20, sofas)
-        box(a0, a0 + 12, b0, b1, 38, 74, '#2f6f7e', '#255a66', '#1f4c56');
-        for(const bb of [b0, b1 - 10]) box(a0 + 12, a1, bb, bb + 10, 38, 54, '#2f6f7e', '#255a66', '#1f4c56'); }});   // (its arms from its back forward: W37 inside)
+        /* (its back and its arms from it forward round their two corners: one piece up to the arms' top -- the corner rule, pathRun --
+           the back on up from a hair under it, so no seam shows) */
+        pathRun([[a1, b0 + 5], [a0 + 6, b0 + 5], [a0 + 6, b1 - 5], [a1, b1 - 5]], [5, 6, 5], 38, 54, '#2f6f7e', '#255a66', '#1f4c56');
+        box(a0, a0 + 12, b0, b1, 53.6, 74, '#2f6f7e', '#255a66', '#1f4c56'); }});
       const [t0, t1, u0, u1] = R.table;
       items.push({ a: (t0 + t1)/2, b: (u0 + u1)/2, z: 0, solids: [solid(t0, t1, u0, u1, 36, 'table')], draw: () => {
         box(t0, t1, u0, u1, 30, 36, wood, woodD, woodD); for(const [ta, tb] of [[t0 + 4, u0 + 4], [t1 - 4, u1 - 4]]) tube(ta, tb, 0, ta, tb, 30, 1.2, dark);
