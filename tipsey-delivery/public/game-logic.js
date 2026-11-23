@@ -61151,7 +61151,7 @@ function houseCanopy(fn){
           else { const k = E(3400, OFF); f = faceTo(S, at0) + dfn(faceTo(S, at0), fW)*k; pose = { lift: [0.55, 0.55], bend: [0.9, 0.9], armOut: [-0.45, -0.45] }; held = true; }   /* (turned to the scooter, the wheel before him) */
           if(held){ const fv = [Math.cos(f*Math.PI/2), Math.sin(f*Math.PI/2)], hz = o < 2600 && o >= 1800 ? (o < 2100 ? 44 : 44 + 10*E(2100, 2600)) : 54, hd = o < 2100 ? Math.hypot(tote[0] - pos[0], tote[1] - pos[1]) : o < 2600 ? Math.hypot(tote[0] - pos[0], tote[1] - pos[1]) + (24 - Math.hypot(tote[0] - pos[0], tote[1] - pos[1]))*E(2100, 2600) : 24, pp = [pos[0] + fv[0]*hd, pos[1] + fv[1]*hd, hz];
             if(o >= 2600){ const sv = [-fv[1], fv[0]]; pose = Object.assign({ walk: pose.walk, gait: pose.gait }, hP(pos, f, [pp[0] + sv[0]*6, pp[1] + sv[1]*6, pp[2] + 4], [pp[0] - sv[0]*6, pp[1] - sv[1]*6, pp[2] - 2], 0, 0.08)); }   /* (both hands on the wheel at his chest, elbows bent) */
-            out.push(SCO(pp[0] - 26, pp[1], pp[2] - 7, 'rear', Math.max(4, pos[0] + pos[1] + 10 - (pp[0] - 26) - pp[1]))); }
+            out.push(SCO(pp[0] - 26, pp[1], pp[2] - 7, 'rear', fv[0] + fv[1] > 0 ? Math.max(4, pos[0] + pos[1] + 10 - (pp[0] - 26) - pp[1]) : Math.min(-2, pos[0] + pos[1] - 6 - (pp[0] - 26) - pp[1]))); }   /* (in front of him: after him when he faces the eye, before him -- behind his back -- when he faces away, and before the bin robot he takes it from) */
           out.push(man(pos[0], pos[1], f, pose));
           continue; }
         let at = J0.at; if(p === 0) at = [at[0], at[1] + (pb - 78 - at[1])*s];   /* (the loader steps back to take the next deck from the feeder) */
@@ -120189,6 +120189,10 @@ class WorldScene extends Phaser.Scene {
     const farLate = !!(pose && pose.armsLate && faceB > 0);
     PT && PT('farArm');
     if(!noArms && !(farFront && farLate)) arm(-nearSide, false, farFront ? 'back' : null);   // (lifted toward the eye: only its sleeve and shoulder here, behind the torso -- see arm())
+    /* (the near arm reaching forward while the back is to the eye: in front of the body, so behind it from here -- drawn before the torso, which
+       covers all but what shows beside it; it had painted over his back -- Sir, 2026-11-23, "his right arm is drawing over") */
+    const nearAway = !noNear && !!(pose && pose.lift && pose.lift[1] != null && pose.lift[1] > 0.15 && pose.crewArms) && faceB < 0;
+    if(nearAway){ PT && PT('nearArm'); arm(nearSide, true); }
     if(pose && pose.behind) pose.behind();   // (what is held behind the body from here: after the far arm when it is behind, before the torso -- the humanoid's load, his back to the eye)
     PT && PT('torso');
     torso();
@@ -120266,7 +120270,7 @@ class WorldScene extends Phaser.Scene {
        microphone) goes over the head when they face the eye */
     const armLate = !!(pose && (pose.armLate || pose.armsLate) && faceB > 0);
     PT && PT('nearArm');
-    if(!armLate && !noNear) arm(nearSide, true);
+    if(!armLate && !noNear && !nearAway) arm(nearSide, true);
     PT && PT('aid'); aidDraw('front');
     PT && PT('head');
     if(faceB < 0) hood();
@@ -123026,7 +123030,7 @@ class WorldScene extends Phaser.Scene {
     let wp = 0; if(moving){ _gaitAng = d.gait || 0; wp = Math.sin(_gaitAng); }                        // (the stride's own phase, exact: see gaitKit)
     const L = d.look || null, SH = L ? L.shell : HUMANOID_WHITE;   // (d.look: Gideon's own, gideonParts)
     this.drawPersonHull(g, x, y, z, fdir*Math.PI/2 - Math.PI/2, HUMANOID_BUILD, SH, SH, L ? L.pants : SH, SH,
-      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, d.beforeNear || null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop, noLegs: d.noLegs } : d.lift ? { roll, lift: d.lift, bend: d.bend, behind: d.behind, legs: d.legs, noLegs: d.noLegs, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
+      L ? L.foot : HUMANOID_FOOT, wp, moving, 0, Math.min(1, d.reach || 0)*0.8, d.beforeNear || null, L ? L.uniform : HUMANOID_SKIN, true, d.tx || (d.waist && !d.lift) ? { roll, reach: d.tx, waist: d.waist, drop: d.drop, noLegs: d.noLegs } : d.lift ? { roll, lift: d.lift, bend: d.bend, behind: d.behind, legs: d.legs, noLegs: d.noLegs, crewArms: d.crew, legOut: d.legOut, armOut: d.armOut, waist: d.waist, hover: d.hover, armsLate: d.armsLate, armLate: d.armLate, drop: d.drop } : { roll });   // (d.lift/d.bend: posed arms -- the roof ladder's climb)
   }
   drawCrew(g, m, t, bot){
     const b = rosterBody(m.seed), { build, skin, hair } = b, U = withAid(TIPSY_CREW_UNIFORM, b);   // (off the roster)
