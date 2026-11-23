@@ -61448,12 +61448,22 @@ function houseCanopy(fn){
        Freight Yellow ---- */
     const LOOK = typeof gideonPartsOf === 'function' ? gideonPartsOf('cratewell') : null, BSK = 'amr:freight';
     const ease = u => u <= 0 ? 0 : u >= 1 ? 1 : u*u*(3 - 2*u), clamp01 = u => u < 0 ? 0 : u > 1 ? 1 : u;
-    /* along a polyline at distance s (closed: back to its first point), its heading turning through each corner over its last 40 */
-    const pathAt = (pts, s) => { let L = 0; const seg = []; for(let i = 0; i < pts.length; i++){ const p0 = pts[i], p1 = pts[(i + 1) % pts.length], l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); seg.push([p0, p1, l, L]); L += l; }
-      s = ((s % L) + L) % L; for(let i = 0; i < seg.length; i++){ const [p0, p1, l, l0] = seg[i]; if(s > l0 + l) continue; const u = (s - l0)/l, f0 = Math.atan2(p1[1] - p0[1], p1[0] - p0[0])/(Math.PI/2);
-        const n = seg[(i + 1) % seg.length], f1 = Math.atan2(n[1][1] - n[0][1], n[1][0] - n[0][0])/(Math.PI/2); let df = f1 - f0; while(df > 2) df -= 4; while(df < -2) df += 4;
-        const k = clamp01((s - (l0 + l - 40))/40)*0.5; return { a: p0[0] + (p1[0] - p0[0])*u, b: p0[1] + (p1[1] - p0[1])*u, fdir: f0 + df*k }; }
-      return { a: pts[0][0], b: pts[0][1], fdir: 0 }; };
+    /* along a polyline at distance s (closed: back to its first point). AT EACH CORNER IT SPINS ON THE SPOT, as the real ones do (Sir,
+       2026-11-23: "spin in place like real ones"): the open path is walked as if each corner were SPIN long per quarter turn, the robot
+       standing at the corner while it turns, the straights a little quicker so the whole takes the same time */
+    const SPIN = 45;
+    const pathAt = (pts, s) => { const n = pts.length, seg = []; let L = 0;
+      for(let i = 0; i < n; i++){ const p0 = pts[i], p1 = pts[(i + 1) % n], l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); seg.push({ p0, p1, l, f: Math.atan2(p1[1] - p0[1], p1[0] - p0[0])/(Math.PI/2) }); L += l; }
+      const Lo = L - seg[n - 1].l;   /* (the open path: all but the closing leg) */
+      if(n < 3 || s < 0 || s > Lo){ s = ((s % L) + L) % L; let l0 = 0; for(let i = 0; i < n; i++){ const g = seg[i]; if(s <= l0 + g.l || i === n - 1){ const u = g.l ? (s - l0)/g.l : 0; return { a: g.p0[0] + (g.p1[0] - g.p0[0])*u, b: g.p0[1] + (g.p1[1] - g.p0[1])*u, fdir: g.f }; } l0 += g.l; } }
+      const turns = []; let LV = Lo; for(let i = 0; i < n - 2; i++){ if(seg[i].l < 0.5 && i > 0){ turns.push(0); continue; } let df = seg[i + 1].f - seg[i].f; while(df > 2) df -= 4; while(df < -2) df += 4; turns.push(df); LV += Math.abs(df)*SPIN; }
+      let v = s*LV/Lo, fPrev = seg[0].f;
+      for(let i = 0; i < n - 1; i++){ const g = seg[i]; if(g.l >= 0.5) fPrev = g.f;
+        if(v <= g.l || i === n - 2){ const u = g.l ? Math.min(1, v/g.l) : 0; return { a: g.p0[0] + (g.p1[0] - g.p0[0])*u, b: g.p0[1] + (g.p1[1] - g.p0[1])*u, fdir: fPrev }; }
+        v -= g.l; const df = turns[i] || 0, sl = Math.abs(df)*SPIN;
+        if(sl && v <= sl){ return { a: g.p1[0], b: g.p1[1], fdir: fPrev + df*ease(v/sl) }; }   /* (turning on the spot at the corner) */
+        v -= sl; }
+      const g = seg[n - 2]; return { a: g.p1[0], b: g.p1[1], fdir: g.f }; };
     const plenP = Q => Q.slice(1).reduce((L, q, i) => L + Math.hypot(q[0] - Q[i][0], q[1] - Q[i][1]), 0) - 1;   /* (an open path's length, less the 1 its last stub adds) */
     const pathLen = pts => pts.reduce((L, p0, i) => { const p1 = pts[(i + 1) % pts.length]; return L + Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); }, 0);
     const bot = (a, b, fdir, x) => Object.assign({ kind: 'amr', a, b, fdir, bSkin: BSK }, x || {});
@@ -62077,9 +62087,13 @@ function houseCanopy(fn){
          to the next storage bay in turn (SB, round the six), then an empty off the stack back into the arm's bay. THE SHIPPING JACK owns the
          door: in with the parts pallet to Receiving, its empty round to the stack, then the oldest stored pallet out to Dispatch. The bays are
          worked from the aisle between their rows (AY); a path's point [a, b, 'r'] is driven to backwards (backing out of a bay) */
-      const drv = (pts, k) => { const S = []; let L = 0; for(let i = 1; i < pts.length; i++){ const A = pts[i - 1], B = pts[i], d = Math.hypot(B[0] - A[0], B[1] - A[1]); if(d < 0.01) continue; S.push({ A, B, d, L, r: B[2] === 'r' }); L += d; }
-        const sx = L*ease(clamp01(k)); for(const g of S){ if(sx <= g.L + g.d || g === S[S.length - 1]){ const u = clamp01((sx - g.L)/g.d), f = Math.atan2(g.B[1] - g.A[1], g.B[0] - g.A[0])/(Math.PI/2) + (g.r ? 2 : 0);
-          return { a: g.A[0] + (g.B[0] - g.A[0])*u, b: g.A[1] + (g.B[1] - g.A[1])*u, fdir: f, s: sx }; } }
+      const drv = (pts, k) => { const S = []; let L = 0; for(let i = 1; i < pts.length; i++){ const A = pts[i - 1], B = pts[i], d = Math.hypot(B[0] - A[0], B[1] - A[1]); if(d < 0.01) continue; S.push({ A, B, d, L, r: B[2] === 'r', f: Math.atan2(B[1] - A[1], B[0] - A[0])/(Math.PI/2) + (B[2] === 'r' ? 2 : 0) }); L += d; }
+        if(!S.length){ const E = pts[pts.length - 1]; return { a: E[0], b: E[1], fdir: 1, s: 0 }; }
+        /* (spun on the spot at each corner, as pathAt: SPIN per quarter turn, the straights a little quicker) */
+        const tr = S.map((g, i) => { if(i === S.length - 1) return 0; let df = S[i + 1].f - g.f; while(df > 2) df -= 4; while(df < -2) df += 4; return df; }), LV = L + tr.reduce((q, d) => q + Math.abs(d)*SPIN, 0);
+        const sx = L*ease(clamp01(k)); let v = sx*LV/L;
+        for(let i = 0; i < S.length; i++){ const g = S[i]; if(v <= g.d || i === S.length - 1){ const u = clamp01(v/g.d); return { a: g.A[0] + (g.B[0] - g.A[0])*u, b: g.A[1] + (g.B[1] - g.A[1])*u, fdir: g.f, s: sx }; }
+          v -= g.d; const sl = Math.abs(tr[i])*SPIN; if(sl && v <= sl) return { a: g.B[0], b: g.B[1], fdir: g.f + tr[i]*ease(v/sl), s: sx }; v -= sl; }
         const E = pts[pts.length - 1]; return { a: E[0], b: E[1], fdir: 1, s: 0 }; };
       const A0 = [1720, 1500 - JKD], STK = [1540, 1500 + JKD], DOOR = [W + 70, 455], hold = (P, f) => ({ a: P[0], b: P[1], fdir: f, s: 0 });
       /* (its forks still in under a pallet, backing out from one or nosing in: hidden, or they paint over it) */
