@@ -62454,6 +62454,7 @@ function houseCanopy(fn){
         [[440, 540], [560, 660], [680, 780]].forEach(([m0, m1], k) => { F(m0, m1, 150, 208, blk, null, 0, 0.4); F(m0 + 3, m1 - 3, 153, 205, ['#2f7f5a', '#2f6f9a', '#3a8ac8'][k], null, 0, 0.5);
           F(m0 + 10, m0 + 40, 190, 198, cream, null, 0, 0.6); F(m1 - 30, m1 - 10, 158, 164, coral, null, 0, 0.6); });
         F(450, 770, 230, 264, coral, null, 0, 0.4); blockWordIn('SURFSIDE FITNESS', 466, 754, 236, 258, 0.6, cream, null, 4);
+        F(780, 816, 228, 264, coral, null, 0, 0.4); blockWordIn('SF', 785, 811, 234, 258, 0.6, cream, null, 5);   // (the SF monogram beside it)
         /* over the desk: the opening hours, and a clock */
         F(150, 290, 196, 222, char, null, 0, 0.4); blockWordIn('OPEN 6 - 10', 160, 280, 201, 217, 0.6, cream, null, 3);
         faceCircle(330, 0.4, 212, 14, cream, char, 2); F(329.4, 330.6, 210, 222, char, null, 0, 0.6); F(330, 338, 211.4, 212.6, char, null, 0, 0.6);
@@ -62509,14 +62510,14 @@ function houseCanopy(fn){
       }, { pad: 3, keyStart: true, run: 55 });
     }
 
-    /* ---- THE FRONT DESK: coral to the members over a charcoal kick, the kettlebell mark on it, a white top; 150 clear behind it for Marisol; in
+    /* ---- THE FRONT DESK: coral to the members over a charcoal kick, the SF monogram on it, a white top; 150 clear behind it for Marisol; in
        runs of 40 on 50, keyed down its middle line. What stands on it its own piece ---- */
     { const A0 = 150, A1 = 350, B0 = 190, B1 = 240, zT = 75;
       runPiece(items, A0, A1, B0, B1, zT, (s0, s1) => [solid(s0, s1, B0, B1, zT, 'desk')], () => {
         box(A0, A1, B0, B1, 0, zT - 4, coral, coral, coralD);
         F(A0, A1, 0, 8, char, null, 0, B1 + 0.2);
         for(let a = A0 + 25; a < A1; a += 25) F(a - 0.5, a + 0.5, 8, zT - 4, coralD, null, 0, B1 + 0.2);
-        faceCircle(250, B1 + 0.4, 36, 12, cream); F(244, 256, 48, 52, cream, null, 0, B1 + 0.4); F(243, 246, 44, 52, cream, null, 0, B1 + 0.4); F(254, 257, 44, 52, cream, null, 0, B1 + 0.4);
+        F(234, 266, 22, 54, cream, null, 0, B1 + 0.4); F(237, 263, 25, 51, coral, null, 0, B1 + 0.5); blockWordIn('SF', 239, 261, 29, 47, B1 + 0.6, cream, null, 5);   // (the SF monogram)
         S(A1, B0, B1, 8, zT - 4, shade(coral, 0.86));
         box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, zT - 4, zT, '#f4f6f4', '#e8ecea', '#d4dad8');
       }, { pad: 5, run: 40, extra: { b: (B0 + B1)/2 } });
@@ -73656,7 +73657,7 @@ function houseCanopy(fn){
     opens:  [{ name: 'doorway', poly: volRect(162.4, 242.4, -90, 2), walk: true }]
   },
   head:'Double-width glass front, equipment on show, central entrance',
-  tags:['double-width unit','full-height glazing','equipment on show','kettlebell sign','no pavement props'],
+  tags:['double-width unit','full-height glazing','equipment on show','SF monogram sign','no pavement props'],
   desc:'Rebuilt at Sir\'s direction as a double-width unit with a glazed front: two full-height windows with real recesses, treadmills and a weight rack silhouetted behind the glass, and a central entrance between them.',
   draw(p){
     /* ============ THE FLATS PASS (2026-09-17) ============
@@ -73788,15 +73789,11 @@ function houseCanopy(fn){
        by construction rather than by patch. */
     slab(18,WW-18, 152, 196, -1, -10, shade(wall,1.15), null, trim);
     F(WW/2-100, WW/2+100, 162, 186, trim, null,0,-0.5);       // name panel, centred in a
-    /* Kettlebells at both ends, mirrored about 202.4. A sphere's own
-       depth radius shifts its near edge, so these sit at b 0 with the
-       ball symmetric -- no net screen shift at all, which is what keeps
-       the pair looking level. */
+    /* THE SF MONOGRAM at both ends, mirrored about 202.4 (Sir, 2026-11-23: the kettlebells out, "SF monogram"): bold white SF on a coral
+       square, proud of the board as the name panel is */
     for(const kb of [WW/2-148.4, WW/2+148.4]){
-      ball(kb, 0, 168, 10, trim);
-      tube(kb-6, 0, 179, kb+6, 0, 179, 2, trim);
-      tube(kb-6, 0, 179, kb-4, 0, 185, 2, trim);
-      tube(kb+6, 0, 179, kb+4, 0, 185, 2, trim);
+      F(kb-15, kb+15, 159, 189, trim, null,0,-0.5);
+      blockWordIn('SF', kb-11, kb+11, 164, 184, -0.3, '#fbfaf6', null, 5);
     }
 
     if(state.roof){
