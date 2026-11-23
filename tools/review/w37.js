@@ -130,7 +130,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
               if(R && along === 'b'){ const r0 = Math.min(DB*R.b0, DB*R.b1), r1 = Math.max(DB*R.b0, DB*R.b1); q.b0 = Math.max(q.b0, r0); q.b1 = Math.min(q.b1, r1); }
               if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line, clip: p.clip, inRun: p.inRun }); }
             let dk = null; try { dk = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){}
-            if(cut.length) sortRec.push({ i, it, occ: !!it.occ, key: dk != null && !oriTag ? dk : DA*(it.a || 0) + DB*(it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
+            if(cut.length) sortRec.push({ i, it, occ: !!(it.occ || it.depth !== undefined || it.wardFront || it.liftTower || it.deckAB), key: dk != null && !oriTag ? dk : DA*(it.a || 0) + DB*(it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
               fix: it.__run ? [it.__run.a0, it.__run.a1, it.__run.b0, it.__run.b1, it.__run.zTop].join(',') : null, line: it.__run ? it.__run.line : (P[0] && P[0].line) }); } }
         /* clip: one per fixture (its runs share the draw) */
         if(it.__run){ const R = it.__run, key = [R.a0, R.a1, R.b0, R.b1, R.zTop].join(',');
@@ -240,7 +240,8 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
         for(let x = 0; x < ord.length; x++) for(let y = x + 1; y < ord.length; y++){
           const E = ord[x], L = ord[y];                 // (E painted first, L after)
           /* (a street lot's pieces with occ are not sorted by key: queueExteriorLot's occDepth orders them by their place in the list
-             and by where he stands, in the street's frame, turned from this one -- not checked here) */
+             and by where he stands, in the street's frame, turned from this one -- not checked here; nor a piece with its own world
+             depth or a queue's special place: it.depth (Marina Parking's ground), wardFront, liftTower, deckAB) */
           if(E.occ || L.occ) continue;
           if(E.fix && E.fix === L.fix) continue;
           if(!ovS(E.box, L.box)) continue;
