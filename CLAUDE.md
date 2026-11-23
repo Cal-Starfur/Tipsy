@@ -100,7 +100,9 @@
 - Draw order everywhere (Sir, 2026-11-22: "create a rule to keep everything in the future consistent"): after any change to how
   something is drawn -- a building, shop, house, landmark, room piece or street prop -- `node tools/review/w37.js --every --gate` and
   `node tools/review/props_depth.js` must PASS: no draw-order fault new or grown against `tools/review/w37_baseline.json` (W37:
-  back to front, faces the eye sees, parts meeting; the props kit's SP13 for street props, faces asked of W since they turn). After a
+  back to front, faces the eye sees, parts meeting; the props kit's SP13 for street props, faces asked of W since they turn; and
+  `sort`, BETWEEN pieces: no piece the game paints later may stand behind one it painted earlier where they overlap on screen --
+  a long piece runPiece'd, what sits on a piece keyed after it). After a
   fix, `--every --update` and commit the baseline with it; a new fault is locked in only when I've agreed.
 - A corner is one piece (Sir, 2026-11-22: "place a rule so that the consistency is there for future builds"): anything that runs round
   a corner -- a wall and its cap, a fence, a hedge, a parapet, a roof cap, a kerb, a counter with a return -- is drawn with `pathRun`

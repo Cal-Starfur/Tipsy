@@ -21,6 +21,9 @@
               way standing out when it should not"): advisory, read each one
      behind   a part drawn after one it stands wholly behind (past its back face, within its width, no higher than its top) -- a
               fixture's far-side parts, its working face turned away (Seaglass's espresso machine: group heads over its back)
+     sort     BETWEEN PIECES: a piece the game paints later (its key, dk or a + b + z) standing wholly behind a part of one painted
+              earlier, overlapping it on screen (Sir, 2026-11-23, the mall's dining table keyed at its middle, its chairs either side of
+              it wrong). A long piece is runPiece'd; what sits on a piece is keyed after it
      order    a part drawn after a part that stands in front of it and overlaps it on screen (a shelf over the near legs) -- a
               heuristic: read each one
    node tools/review/w37.js [room name filter]      exits 1 on any clip, back, foot, hung or behind finding
@@ -91,13 +94,23 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
       if(name === 'Sandpiper Bakery Interior' || 1){ const pk = POCKETS.find(p => p.name === name); if(pk && pk.view) pk.view(); }
       let items = []; try { items = LIB.collect(name, G, 1) || []; } catch(e){ found.push({ room: name, kind: 'error', at: [0, 0], what: 'collect: ' + String(e).slice(0, 80) }); }
       let whole = false; if(!items.length && EVERY){ whole = true; items = [{ a: 0, b: 0, z: 0, draw: null }]; }
-      const runs = new Map(), entryP = [];
+      const runs = new Map(), entryP = [], sortRec = [];
       items.forEach((it, i) => {
         cur = { prims: [], prim: null, runZ: -1e9 }; stack = 0;
         try { if(whole) LIB.draw(name, g, G, undefined, 1); else LIB.drawItem(name, g, G, 1, it); } catch(e){ found.push({ room: name, kind: 'error', at: [Math.round(it.a), Math.round(it.b)], what: String(e).slice(0, 80) }); }
         const rec = cur; cur = null;
         const P = rec.prims.filter(p => p.pts.length >= 3).map(p => Object.assign(p, { q: bb(p.pts) }));
         for(const p of P) if(p.n === 'box' && !p.inRun) entryP.push(p);
+        /* (for sort: this piece's solid parts, a run's cut to its own stretch, and its key in the frame as the game sorts it) */
+        if(!whole){ let shown = true; try { shown = !it.when || !!it.when(); } catch(e){}
+          if(shown && !it.ghost){ const R = it.fpLab, along = it.__run ? it.__run.along : null, cut = [];
+            for(const p of P){ if(!VOL.has(p.n) || p.n === 'prism') continue; const q = Object.assign({}, p.q);
+              if(R && along === 'a'){ q.a0 = Math.max(q.a0, R.a0); q.a1 = Math.min(q.a1, R.a1); }
+              if(R && along === 'b'){ q.b0 = Math.max(q.b0, R.b0); q.b1 = Math.min(q.b1, R.b1); }
+              if(q.a1 - q.a0 < 0.5 || q.b1 - q.b0 < 0.5 || q.z1 - q.z0 < 0.5) continue; cut.push({ q, n: p.n, line: p.line }); }
+            let dk = null; try { dk = typeof it.dk === 'function' ? it.dk() : it.dk; } catch(e){}
+            if(cut.length) sortRec.push({ i, it, key: dk != null ? dk : (it.a || 0) + (it.b || 0) + (it.z || 0), P: cut, box: bb(cut.flatMap(c => [[c.q.a0, c.q.b0, c.q.z0], [c.q.a1, c.q.b1, c.q.z1]])),
+              fix: it.__run ? [it.__run.a0, it.__run.a1, it.__run.b0, it.__run.b1, it.__run.zTop].join(',') : null, line: it.__run ? it.__run.line : (P[0] && P[0].line) }); } }
         /* clip: one per fixture (its runs share the draw) */
         if(it.__run){ const R = it.__run, key = [R.a0, R.a1, R.b0, R.b1, R.zTop].join(',');
           if(!runs.has(key) && rec.runZ > -1e9){ runs.set(key, 1);
@@ -195,6 +208,28 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
           }
         });
       });
+      /* sort: BETWEEN PIECES -- the game paints the room's pieces in order of their keys (dk, or a + b + z); a piece painted later
+         that stands wholly BEHIND a part of one painted earlier (past its back on a, b or z, on no axis in front of it) and overlaps
+         it on screen paints over it (Sir, 2026-11-23, the mall's dining table keyed at its middle: a chair at its near west end drawn
+         under it, one at its far east end over it -- "why aren't you picking up the draw issue"). A long piece is runPiece'd, a piece
+         that sits on another keyed after it. The runs of one fixture are not checked against each other (each is clipped to its own) */
+      { const ord = sortRec.slice().sort((x, y) => x.key - y.key || x.i - y.i), T = 0.5;
+        const sx = q => scr(q), ovS = (A, B) => { const s1 = sx(A), s2 = sx(B); return Math.min(s1.x1, s2.x1) - Math.max(s1.x0, s2.x0) > 1 && Math.min(s1.y1, s2.y1) - Math.max(s1.y0, s2.y0) > 1; };
+        const seenS = new Set();
+        for(let x = 0; x < ord.length; x++) for(let y = x + 1; y < ord.length; y++){
+          const E = ord[x], L = ord[y];                 // (E painted first, L after)
+          if(E.fix && E.fix === L.fix) continue;
+          if(!ovS(E.box, L.box)) continue;
+          let worst = null;
+          for(const l of L.P) for(const e of E.P){ const q = l.q, r = e.q;
+            const bk = q.a1 <= r.a0 + T || q.b1 <= r.b0 + T || q.z1 <= r.z0 + T, fr = q.a0 >= r.a1 - T || q.b0 >= r.b1 - T || q.z0 >= r.z1 - T;
+            if(!bk || fr) continue;
+            const ar = paintOver(q, r); if(ar > 24 && (!worst || ar > worst.ar)) worst = { ar, l, e }; }
+          if(!worst) continue;
+          const k = [E.i, L.i].join(','); if(seenS.has(k)) continue; seenS.add(k);
+          const c = o => '(' + Math.round((o.a0 + o.a1)/2) + ',' + Math.round((o.b0 + o.b1)/2) + ')';
+          found.push({ room: name, kind: 'sort', at: [Math.round((worst.e.q.a0 + worst.e.q.a1)/2), Math.round((worst.e.q.b0 + worst.e.q.b1)/2)],
+            what: 'the piece at ' + c(L.box) + ' (key ' + Math.round(L.key) + ') is drawn after the one at ' + c(E.box) + ' (key ' + Math.round(E.key) + ') but its ' + worst.l.n + ' ' + c(worst.l.q) + ' z ' + Math.round(worst.l.q.z0) + '..' + Math.round(worst.l.q.z1) + ' stands behind that one\'s ' + worst.e.n + ' ' + c(worst.e.q) + ' z ' + Math.round(worst.e.q.z0) + '..' + Math.round(worst.e.q.z1) + ', ' + Math.round(worst.ar) + ' sq painted over (line ' + worst.l.line + ', it line ' + worst.e.line + ')' }); } }
       /* corner: two thin runs meeting at a right angle as two boxes (the entry's boxes, any pieces) */
       { const thin = entryP.map(p => { const q = p.q, la = q.a1 - q.a0, lb = q.b1 - q.b0, h = q.z1 - q.z0;
           if(h < 2) return null;
@@ -249,7 +284,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   for(const f of out.found) f.what = fix(f.what);
   const by = {}; for(const f of out.found){ const k = f.room + ' | ' + f.kind + ' | ' + f.what.replace(/[-\d.]+/g, '#'); (by[k] = by[k] || []).push(f); }
   console.log(out.rooms + ' rooms checked');
-  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner', 'jamb', 'order']){
+  for(const kind of ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'sort', 'corner', 'jamb', 'order']){
     const rows = out.found.filter(f => f.kind === kind); console.log('\n' + kind + ': ' + rows.length);
     if(kind === 'order' && !process.argv.includes('--order')){ console.log('  (advisory: list them with --order)'); continue; }
     for(const f of rows.slice(0, 400)) console.log('  ' + f.room + ' @' + f.at + '  ' + f.what);
@@ -257,7 +292,7 @@ const ADD = html => { const out = ADD0(html), src = process.env.REV ? null : req
   if(h.errs.length) console.log('page errors', h.errs);
   await h.close();
   /* THE GATE (CLAUDE.md, Sir 2026-11-22: "yes add it"): per entry and kind, against the baseline */
-  const GK = ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'corner'];
+  const GK = ['error', 'clip', 'back', 'foot', 'hung', 'behind', 'inside', 'sort', 'corner'];
   if(process.argv.includes('--gate') || process.argv.includes('--update')){
     const fs = require('fs'), path = require('path'), fn = path.join(__dirname, 'w37_baseline.json'), cnt = {};
     for(const f of out.found) if(GK.includes(f.kind)){ const k = f.room + ' | ' + f.kind; cnt[k] = (cnt[k] || 0) + 1; }
