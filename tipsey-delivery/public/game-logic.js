@@ -46416,7 +46416,9 @@ function svcLiftItems(items, H, U){
     box(S0.a1, E, S0.door[0] - 2, S0.door[1] + 2, H - 14, H, U.trim, U.trim, U.trimD);     // the walls' gold band, on over the doors
     ball(E + 3, MID, 186, 6, U.trim, U.lamp);
   }});
-  items.push({ a: E + 2, b: MID, z: 0, draw: () =>                                       // the roof, over the west wall's top too: one cornice
+  /* (keyed after every piece of the car -- the header, the east face's two sides -- that it caps: at the doorway it went before the
+     east face's south side, whose band then painted over the cornice -- w37 sort; no one out in front of the car meets it on screen) */
+  items.push({ a: E + 2, b: MID, z: 0, dk: Math.max(E + 3 + MID, S0.a1 + 8 + (S0.b0 + S0.door[0])/2, S0.a1 + 8 + (S0.door[1] + S0.b1 - 30)/2) + 0.5, draw: () =>   // the roof, over the west wall's top too: one cornice
     box(S0.a0 - 30, E + 6, S0.b0 - 22, S0.b1 + 6, H, H + 10, U.trim, U.trim, U.trimD) });
 }
 function box(a0,a1,b0,b1,z0,z1,top,front,side){
@@ -53062,14 +53064,7 @@ function houseCanopy(fn){
       for(const b of [330, 560, 760])                            // its sheen, slanting
         poly([P(0.6, b, 312), P(0.6, b + 34, 312), P(0.6, b - 46, 110), P(0.6, b - 80, 110)], '#b4c9d3');
       for(const b of [443, 657]) S(0.7, b - 4, b + 4, 110, 312, gold);   // posts between its panels
-      box(0, 34, 230, 870, 28, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.8));   // the cabinet
-      for(let b = 238; b < 860; b += 79){
-        S(34.3, b, b + 71, 36, 92, shade(oakD, 1.14));           // its doors
-        S(34.5, b + 5, b + 66, 41, 87, shade(oakD, 1.02));
-        ball(34.8, b + 62, 64, 2.2, gold, '#fff2c8');            // a knob
-      }
-      box(0, 38, 226, 874, 98, 102, '#3a2a1c', '#2a1e14', '#33251a');   // its top
-      for(let b = 246; b < 862; b += 15) cyl(18, b, 102, 113, 4, '#d6e3ea', '#eef5f8');   // glasses, upside down
+      /* (the cabinet below it, its top and the glasses on it: their own piece, BACK_CAB, after the bar's north flap) */
       /* a bottle at b on a shelf at z, standing at a = 13 off the mirror */
       const BOTTLE = {
         wine:   { w: 12, r: 5.5, h: 24, neck: 11, nr: 2.0, cap: '#7a2e2a', cols: ['#2f5a33', '#4a1c24', '#3b4a2a'], lab: '#efe4cc', sh: true },
@@ -53356,6 +53351,24 @@ function houseCanopy(fn){
     items.push({ a: 55, b: 216, z: 0, solids: [{ name:'bar flap', poly: volRect(0, 110, 210, 222), h: 75 }], draw: () => {
       box(0, 110, 210, 222, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
     }});
+    /* BACK_CAB: the back bar's cabinet, with panelled doors, its top and the glasses upside down on it. It stands 38 out from the
+       west wall, south of the north flap (b 226..874): keyed with the wall (-61) the flap, after it, painted over its north end (w37
+       sort). Its own piece, after the flap and before the bartenders (queued with the bar, 710): behind the bar, between the flaps,
+       no one else stands near it */
+    items.push({ a: 19, b: 550, z: 0, dk: 272, draw: () => {
+      box(0, 34, 230, 870, 28, 98, oakD, shade(oakD, 0.9), shade(oakD, 0.8));   // the cabinet
+      for(let b = 238; b < 860; b += 79){
+        S(34.3, b, b + 71, 36, 92, shade(oakD, 1.14));           // its doors
+        S(34.5, b + 5, b + 66, 41, 87, shade(oakD, 1.02));
+        ball(34.8, b + 62, 64, 2.2, gold, '#fff2c8');            // a knob
+      }
+      box(0, 38, 226, 874, 98, 102, '#3a2a1c', '#2a1e14', '#33251a');   // its top
+      for(let b = 246; b < 862; b += 15) cyl(18, b, 102, 113, 4, '#d6e3ea', '#eef5f8');   // glasses, upside down
+    }});
+    /* THE BARTENDERS' MAT, its own flat piece first (it was drawn in the bar's piece, after the bartenders queued just before it: it
+       painted over their legs, and over the cabinet's doors -- Sir, 2026-11-23; w37 sort): after the north flap it meets (271), before the
+       cabinet (BACK_CAB, 272) and all behind the bar */
+    items.push({ a: 55, b: 550, z: 0, dk: 271.5, draw: () => box(0, 110, 222, 878, 0, 4, '#5c3a21', '#4e311c', '#422917') });
     /* (THE BAR AT A COUNTER'S HEIGHT, 75, its top 65..75 -- it was 110, the bartenders on a 28 board behind it: Sir, 2026-11-20, "lets make
        the ballroom fixes we found"; its stools' seats 48, the drinks set on its top) */
     items.push({ a: 160, b: 550, z: 0, solids: [{ name:'bar', poly: volRect(110, 200, 220, 880), h: 75 },
@@ -53363,7 +53376,6 @@ function houseCanopy(fn){
       liveFirst: true,
       /* (serving: BAR_SERVE -- each his station at an end of the bar, his two guests, what they drink; the second half a loop behind) */
       live: BARTENDERS, fx: { kind: 'bardrinks', a: 0, b: 0, who: BARTENDERS }, draw: () => {
-      box(0, 110, 222, 878, 0, 4, '#5c3a21', '#4e311c', '#422917');       // the bartenders' mat
       box(0, 110, 878, 890, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));   // the south flap, up to the top (the north one: its own piece)
       box(110, 200, 220, 880, 0, 65, oakD, shade(oakD, 0.9), shade(oakD, 0.75));
       box(198, 202, 220, 880, 8, 58, gold, gold, goldD);                    // a gold rail down its front (before the top that overhangs it: W37)
@@ -53974,18 +53986,25 @@ function houseCanopy(fn){
 
     /* ---- THE BACK ROOM'S TWO LOW PARTITIONS (W6: one piece each, cut for the door): the east one a 408..424 down from the
        north wall, the south one b 408..424 along to the east one, its door gap a 130..250 ---- */
-    const part = (a0, a1, b0, b1) => {
-      const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n = Math.max(1, Math.ceil((hi - lo)/WALKIN_NEAR_RUN - 1e-9));
+    /* (its cream cap overhangs 1 round the run, but only at the run's two ends along it: between sections it stops where the base's
+       0.5 seam does (the next one's cap laps 0.5 back over it: no seam), or the next section's base, keyed after, paints over the cap's overhang -- w37 sort. `cuts`, the section ends
+       along it, where given; `cap0`, where the cap starts at the run's first end -- the door post's cap, which it meets) */
+    const part = (a0, a1, b0, b1, cuts, cap0) => {
+      const alongA = a1 - a0 >= b1 - b0, lo = alongA ? a0 : b0, hi = alongA ? a1 : b1, n0 = Math.max(1, Math.ceil((hi - lo)/WALKIN_NEAR_RUN - 1e-9));
+      const C = cuts || Array.from({ length: n0 + 1 }, (_, k) => lo + (hi - lo)*k/n0), n = C.length - 1;
       for(let k = 0; k < n; k++){
-        const s0 = lo + (hi - lo)*k/n, s1 = lo + (hi - lo)*(k + 1)/n, p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        const s0 = C[k], s1 = C[k + 1], p0 = alongA ? s0 : a0, p1 = alongA ? s1 : a1, q0 = alongA ? b0 : s0, q1 = alongA ? b1 : s1;
+        const e1 = k < n - 1 ? 0.5 : 0, c0 = k > 0 ? -0.5 : cap0 !== undefined ? cap0 - s0 : -1, c1 = k < n - 1 ? 0.5 : 1;
         items.push({ a: (p0 + p1)/2, b: (q0 + q1)/2, z: 0, solids: [solid(p0, p1, q0, q1, BK.h, 'partition')], draw: () => {
-          box(p0, p1 + (alongA && k < n - 1 ? 0.5 : 0), q0, q1 + (!alongA && k < n - 1 ? 0.5 : 0), 0, BK.h - 6, '#7a5238', '#7a5238', '#5b3d2a');
-          box(p0 - 1, p1 + (alongA && k < n - 1 ? 0.5 : 0) + 1, q0 - 1, q1 + (!alongA && k < n - 1 ? 0.5 : 0) + 1, BK.h - 6, BK.h, cream, '#e4d9c0', '#d0c4a8'); } });
+          box(p0, p1 + (alongA ? e1 : 0), q0, q1 + (!alongA ? e1 : 0), 0, BK.h - 6, '#7a5238', '#7a5238', '#5b3d2a');
+          box(alongA ? p0 + c0 : p0 - 1, alongA ? p1 + c1 : p1 + 1, !alongA ? q0 + c0 : q0 - 1, !alongA ? q1 + c1 : q1 + 1, BK.h - 6, BK.h, cream, '#e4d9c0', '#d0c4a8'); } });
       }
     };
-    part(BK.a - BK.T/2, BK.a + BK.T/2, 0, BK.b + BK.T/2);
+    /* (the east one cut where the back bar against it is, 60..360 every 50, and halfway between: a section of it never starts in
+       the far half of one of the bar's, which is keyed 24 east of it, or it paints over the bar -- w37 sort) */
+    part(BK.a - BK.T/2, BK.a + BK.T/2, 0, BK.b + BK.T/2, [0, 30, 60, 85, 110, 135, 160, 185, 210, 235, 260, 285, 310, 335, 360, 392, BK.b + BK.T/2]);
     part(0, BK.door[0], BK.b - BK.T/2, BK.b + BK.T/2);
-    part(BK.door[1], BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2);
+    part(BK.door[1] + 9, BK.a - BK.T/2, BK.b - BK.T/2, BK.b + BK.T/2, undefined, BK.door[1] + 9);   // (from the door post's east side, its cap 249..259 -- the post's body runs to it: not under the post's cap -- w37 sort)
     T(BK.door[0], BK.door[1], BK.b - 8, BK.b + 8, 0.6, '#8f969d');   // the door's threshold
 
     for(const [ta, tb, seats] of BB_IN.TABLES) if(seats === 4){ T(ta - 62, ta + 62, tb - 62, tb + 62, 0.42, '#7a3a2a'); T(ta - 56, ta + 56, tb - 56, tb + 56, 0.46, '#d9892b'); T(ta - 52, ta + 52, tb - 52, tb + 52, 0.5, '#efe2c8'); }
@@ -54056,7 +54075,7 @@ function houseCanopy(fn){
        (a 140..190): two steel rails, rungs, wall brackets, and at the top a roof hatch in the ceiling, a plank panel in a steel
        frame with a pull ring. Closed for now; it opens for Gideon's climb */
     { const L0 = 120, L1 = 150, rail = '#8f969d', railD = '#6e757c';   // (nudged 30 west of where it was: room between it and the bean shelves)
-      items.push({ a: (L0 + L1)/2, b: 60, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 60, its order key: it sorts after the far wall's pieces either side of it, not under them)
+      items.push({ a: (L0 + L1)/2, b: 54, z: 0, solids: [solid(L0 - 4, L1 + 4, 0, 14, H, 'roof ladder')], draw: () => {   // (b 54, its order key: it sorts after the far wall's pieces either side of it, not under them -- and before its rails on up the shaft, b 55, which stand on its tops: w37 sort)
         for(const z of [50, 150]) for(const x of [L0, L1]) box(x - 1.5, x + 1.5, 0, 2.2, z - 3, z + 3, steelD, steelD, steelS);   // brackets to the wall (behind the rails: first -- W37 behind)
         for(const x of [L0, L1]) box(x - 2.2, x + 2.2, 2, 8, 0, H - 4, rail, rail, railD);                                // the rails
         for(let z = 14; z < H - 8; z += 16) tube(L0, 5, z, L1, 5, z, 1.5, railD);                                          // the rungs
@@ -54130,7 +54149,7 @@ function houseCanopy(fn){
        GD_DOOR): swung open against the sides while he is about, swinging shut while his garage is open */
     { const DA0 = 130, DA1 = 250, DB0 = 408, DB1 = 424, DH = 98;
       for(const x of [DA0 - 8, DA1]) items.push({ a: x + 4, b: 416, z: 0, solids: [solid(x, x + 8, DB0, DB1, DH, 'door post')], draw: () => {
-        box(x, x + 8, DB0, DB1, 0, DH - 6, '#7a5238', '#7a5238', '#5b3d2a'); box(x - 1, x + 9, DB0 - 1, DB1 + 1, DH - 6, DH, cream, '#e4d9c0', '#d0c4a8'); } });
+        box(x, x + (x === DA1 ? 9.5 : 8), DB0, DB1, 0, DH - 6, '#7a5238', '#7a5238', '#5b3d2a'); box(x - 1, x + 9, DB0 - 1, DB1 + 1, DH - 6, DH, cream, '#e4d9c0', '#d0c4a8'); } });   // (the east post's body to its cap's east side, 259 (and 0.5 on, under the partition: no seam), where the partition meets it)
       items.push({ a: (DA0 + DA1)/2, b: 416, z: 0, solids: [], draw: () => { T(DA0, DA1, DB0, DB1, 0.9, '#8e6a43'); T(DA0 + 4, DA1 - 4, DB0 + 5, DB1 - 5, 1.0, '#a07a50'); } });
     }
     /* GIDEON'S CHARGING PAD (docs/gideon-dock.md): the same pad Tipsey has in his garage and at every charging station on the street (the
@@ -54193,8 +54212,10 @@ function houseCanopy(fn){
       for(let k = 0, m = Math.ceil(300/50); k < m; k++){ const s0 = 60 + 300*k/m, s1 = 60 + 300*(k + 1)/m;
         items.push({ a: 440, b: (s0 + s1)/2, z: 0, solids: [solid(428, 452, s0, s1, 100, 'back bar')], draw: () => {
           box(428, 452, s0, s1 + 0.5, 0, 88, '#8a5b3a', '#7a4f33', '#5f3d27'); box(426, 454, s0, s1 + 0.5, 88, 93, woodL, wood, woodD);
-          if(s0 <= 100 && s1 > 100){ box(432, 448, 88, 112, 93, 124, steelD, steel, steelS); cyl(440, 100, 124, 134, 8, '#c4cbd1', '#e4eaee'); }      // a grinder
-          if(s0 <= 160 && s1 > 160){ box(432, 448, 148, 172, 93, 124, steelD, steel, steelS); cyl(440, 160, 124, 134, 8, '#c4cbd1', '#e4eaee'); }
+          /* the grinders (b 88..112 and 148..172, across a section's end: each section draws its own stretch of the body, the next
+             one's top keyed after it would paint over the rest -- w37 sort) */
+          for(const [g0, g1, gc] of [[88, 112, 100], [148, 172, 160]]){ const t0 = Math.max(g0, s0), t1 = Math.min(g1, s1);
+            if(t1 > t0) box(432, 448, t0, t1, 93, 124, steelD, steel, steelS); if(s0 <= gc && s1 > gc) cyl(440, gc, 124, 134, 8, '#c4cbd1', '#e4eaee'); }
           if(s0 <= 230 && s1 > 230){ cyl(440, 230, 93, 112, 9, copper, '#e8a550'); tube(449, 230, 106, 456, 230, 98, 1.6, copper); }                // the kettle
           for(let b = Math.max(s0 + 6, 270); b < Math.min(s1 - 4, 354); b += 18) cyl(440, b, 93, 111, 6, 'rgba(207,227,232,.92)', cream);        // jars
         } }); }
@@ -54671,8 +54692,10 @@ function houseCanopy(fn){
       items.push({ a, b, z: 0, solids: [{ name: 'tyre barrier', c: [a, b], r: 18, h: 22 }], draw: () => { for(let k = 0; k < 2; k++) cyl(a, b, k*11, k*11 + 10, 15, k % 2 ? '#26282c' : '#2e3034', k === 1 ? '#1e1e22' : null); } });
     { const gb = TR.start + 14, ga0 = TR.a0 - TR.hw - 10, ga1 = TR.a0 + TR.hw + 10;
       for(const ga of [ga0, ga1]) items.push({ a: ga, b: gb, z: 0, solids: [solid(ga - 4, ga + 4, gb - 4, gb + 4, 112, 'start gantry')], draw: () => box(ga - 4, ga + 4, gb - 4, gb + 4, 0, 112, '#e8e4da', '#c9c4b8', '#b0aa9c') });
-      items.push({ a: TR.a0, b: gb, z: 96, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
-        for(let k = 0; k < m; k++) box(ga0 + k*w, ga0 + (k + 1)*w, gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
+      /* the banner: its squares between the posts' faces, not on into them; keyed between the two posts (dk, 50 past its middle -- past
+         anyone just behind it, under the east post's 55): at its height, 96, it went after the east post, its end over the post's face (w37 sort) */
+      items.push({ a: TR.a0, b: gb, z: 96, dk: TR.a0 + gb + 50, solids: [], draw: () => { const m = 12, w = (ga1 - ga0)/m;
+        for(let k = 0; k < m; k++) box(Math.max(ga0 + 4, ga0 + k*w), Math.min(ga1 - 4, ga0 + (k + 1)*w), gb - 3, gb + 3, 92, 110, k % 2 ? '#f4f2ec' : '#1e1e22', k % 2 ? '#d8d4ca' : '#141418', k % 2 ? '#c4c0b6' : '#0e0e10'); } }); }
     { const [pa0, pa1, pb0, pb1] = KW_YARD.pit, ra = (pa0 + pa1)/2;
       for(const [a, b] of [[pa0 + 4, pb0 + 4], [pa1 - 4, pb0 + 4], [pa0 + 4, pb1 - 4], [pa1 - 4, pb1 - 4]])
         items.push({ a, b, z: 0, solids: [solid(a - 3, a + 3, b - 3, b + 3, 100, 'pit canopy post')], draw: () => box(a - 3, a + 3, b - 3, b + 3, 0, 100, '#e8e4da', '#c9c4b8', '#b0aa9c') });
@@ -56229,8 +56252,10 @@ function houseCanopy(fn){
           F(478, 486, 60, 64, darkS, null, 0, cb0 + 21.2);                            // its stand
         }
         if(s0 <= 515 && s1 > 515) for(const [g0, g1, h] of [[504, 520, 12], [522, 534, 9]]) box(g0, g1, cb0 + 8, cb0 + 20, 60, 60 + h, '#f4f2ec', '#e2dfd6', '#d0ccc2');
-        if(s0 <= a0 + 20 && s1 > a0 + 20){                                             // the PICK UP sign, standing on the counter's west end
-          for(const pa of [a0 + 6, a0 + 52]) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+        /* the PICK UP sign, standing on the counter's west end: each post in the run it stands on, the board (its east end over the
+           screen's run) with the east post, after the screen -- the screen stands behind that post */
+        for(const pa of [a0 + 6, a0 + 52]) if(s0 <= pa && s1 > pa) box(pa - 1.5, pa + 1.5, bf - 6, bf - 3, 60, 104, grey, grey, greyD);
+        if(s0 <= a0 + 52 && s1 > a0 + 52){
           box(a0 + 2, a0 + 56, bf - 7, bf - 2, 100, 122, band, band, bandD);
           blockWordIn('PICK UP', a0 + 6, a0 + 52, 104, 118, bf - 1.6, '#eef4f6', null, 5);
         }
@@ -58001,8 +58026,10 @@ function houseCanopy(fn){
       runPiece(items, A0, A1, B0, B1, 76, (s0, s1) => [solid(s0, s1, B0, B1, 80, 'desk')], () => {
         box(A0, A1, B0, B1, 0, 70, wood, woodF, woodS); box(A0 - 3, A1 + 3, B0 - 3, B1 + 3, 70, 76, '#6e4a31', '#5c3b26', '#4a2f1e');
       });
-      /* (what stands on it, each its own piece keyed on its middle line after the run it stands on: the screen, the banker's lamp, the papers) */
-      const on = (oa, fp, fn) => items.push({ a: oa, b: (B0 + B1)/2, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
+      /* (what stands on it, each its own piece keyed just after the last run it stands on: the screen, the banker's lamp, the papers -- on
+         the runs' own line, the desk's near side B1, as runPiece keys them; keyed on its middle line, 18 short, the screen and the papers
+         sorted before the east run under them and it painted its top over them) */
+      const on = (oa, fp, fn) => items.push({ a: oa, b: B1, z: lcOnZ(A0, A1, 50, fp[0], fp[1], oa), fpLab: { a0: fp[0], a1: fp[1], b0: fp[2], b1: fp[3], z1: fp[4] }, solids: [], draw: fn });
       on((579 + DX), [(566 + DX), (592 + DX), B0 + 4, B0 + 10, 100], () => box((566 + DX), (592 + DX), B0 + 4, B0 + 10, 76, 100, '#2b3138', '#23282e', '#1c2025'));
       on((552 + DX), [(544 + DX), (560 + DX), B0 + 8, B0 + 20, 112], () => { cyl((552 + DX), B0 + 14, 76, 104, 1.6, brass); box((544 + DX), (560 + DX), B0 + 8, B0 + 20, 104, 112, '#2f6a4a', '#255a3e', '#1e4a33'); });
       on((603 + DX), [(598 + DX), (608 + DX), B1 - 18, B1 - 6, 80], () => box((598 + DX), (608 + DX), B1 - 18, B1 - 6, 76, 80, '#f4f2ec', '#e2dfd6', '#d0ccc2'));
@@ -58689,7 +58716,8 @@ function houseCanopy(fn){
       for(let r = 0; r < 6; r++) for(let c = 0; c < 2; c++){ const a0 = 114 + c*38, z0 = 8 + r*14; F(a0, a0 + 34, z0, z0 + 11, lacF, lacS, 0.7, 462.2); F(a0 + 14, a0 + 20, z0 + 4, z0 + 6, steel, null, 0, 462.4); }
       box(108, 192, 440, 464, 96, 100, '#e8eef0', '#c9d2d6', '#b9c2c6');
       for(let k = 0; k < 6; k++){ const a = 120 + k*11; discA(a, 452, 104, 4, steel); discA(a, 452.1, 104, 3, LENS); }
-    }, { pad: 4, keyStart: true });
+    }, { pad: 4, keyStart: true, run: 20 });   // (runs of 20: each keyed at its start after the partition's runs behind it -- in 40s, its
+                                               // east run (150..190, at 150) sorted before the partition's 180..210 and its base painted over it)
     /* THE TEST CHAIR: a big padded chair facing the chart, on a pump base; its arms; drawn back to front in one piece */
     items.push({ a: 222, b: 600, z: 0, solids: [{ name: 'test chair', c: [222, 600], r: 24, h: 100 }], draw: () => {
       const ca = 222, cb = 600, vin = '#24365a', vinF = '#1e2d4c', vinS = '#18243e';
@@ -61635,12 +61663,15 @@ function houseCanopy(fn){
       const _n0 = items.length;                                                  // (its pieces are tagged `fr` below: the street sees into them, queueMallThrough)
       const { a0, a1, st } = sh, col = st.col, mid = (a0 + a1)/2, bS = D + M.SOUT, bF = bS - M.SD, ZS = 170, dw = 56;   // its street wall on the street's shop line, SD deep
       const fl = sh.food ? '#efe6da' : '#e6dccb';
-      /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) */
-      for(const a of [a0, a1]) items.push({ a, b: (bF + bS)/2, z: 0, lvl: 0,
-        solids: [wallSolid(a - 6, a + 6, bF, bS, DZ, 'wall', 0)], draw: () => {
-          box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9));
-          T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9));
-        }});
+      /* its party walls: low, so the camera sees in (its floor is in the ground: THE NEAR WALLS) -- one where two shops meet, the east
+         shop's (its a1 and the next one's a0 were two walls at one place, the later's cap the one seen). Its end at the mall-side wall
+         its own stretch, keyed there (keyed at the wall's middle it sorted after the panels on the mall-side wall beside it and painted
+         over them); the rest keyed at its own middle, before the counters down it */
+      const WE = 40;
+      for(const a of [a0, a1]){ if(a === a1 && M.FRONT.some(o => o !== sh && o.a0 === a1)) continue;
+        const wDraw = () => { box(a - 6, a + 6, bF, bS, 0, DZ, wall, wallD, shade(wallD, 0.9)); T(a - 6, a + 6, bF, bS, DZ + 0.2, shade(col, 0.9)); };
+        for(const [q0, q1] of [[bF, bF + WE], [bF + WE, bS]])
+          runPiece(items, a - 6, a + 6, q0, q1, DZ + 0.2, (s0, s1) => [wallSolid(a - 6, a + 6, s0, s1, DZ, 'wall', 0)], wDraw, { alongB: true, run: 1e4, extra: { lvl: 0 } }); }
       /* THE STREET WALL AS THE OUTSIDE HAS IT (Sir, 2026-10-21: "the way these
          shop fronts are becoming glass is bad becasue it doesnt match where the
          glass would be from the outside"): the concourse's shopfront for this
@@ -61912,6 +61943,10 @@ function houseCanopy(fn){
          two ends square navy posts as the outside's frame */
       items.push({ a: (c0 + c1)/2, b: D + 16, z: ZH, draw: () => {
         for(const a of [c0, c1]) box(a - 10, a + 10, D + 8, D + 22, 0, ZH, navy, shade(navy, 0.8), shade(navy, 1.2));
+      }});
+      /* (the header its own piece, keyed at its nearest corner as what stands over the doors is: at the curtain's middle the east pair's
+         jambs, under it, sorted after it and painted their tops over its face) */
+      items.push({ a: c1 + 10, b: D + 22, z: ZH, draw: () => {
         box(c0 - 10, c1 + 10, D + 8, D + 22, ZH, ZH + 18, navy, shade(navy, 0.8), shade(navy, 1.2));   // slim, so he shows under it
         F(c0 - 10, c1 + 10, ZH + 14, ZH + 18, gold, null, 0, D + 22.4);
       }}); }
@@ -73334,9 +73369,11 @@ function houseCanopy(fn){
     const chunk = (s0, s1, n = 120) => { const out = [];
       for(let x = s0; x < s1 - 0.5; x += n) out.push([x, Math.min(s1, x+n)]); return out; };
     const yWall = (a0,a1,b0,b1) => {
+      /* (the coping 3 proud of the wall, and 3 past the run's free ends only: past a joint between two pieces it lay over the next
+         piece's wall, which sorted after it and painted over it) */
       const piece = (p0, p1, q0, q1) => items.push({ a: (p0+p1)/2, b: (q0+q1)/2, draw: () => {
         box(p0, p1, q0, q1, 0, FH, shade(wall,.9), shade(wall,.66), shade(wall,.54));
-        slab(p0-3, p1+3, FH, FH+8, q1+3, q0-3, shade(wall,1.05), null, shade(wall,1.2));
+        slab(p0 - (p0 === a0 ? 3 : 0), p1 + (p1 === a1 ? 3 : 0), FH, FH+8, q1 + (q1 === b1 ? 3 : 0), q0 - (q0 === b0 ? 3 : 0), shade(wall,1.05), null, shade(wall,1.2));
       } });
       if(a1 - a0 >= b1 - b0) for(const [c0, c1] of chunk(a0, a1)) piece(c0, c1, b0, b1);
       else for(const [c0, c1] of chunk(b0, b1)) piece(a0, a1, c0, c1);
@@ -73434,10 +73471,12 @@ function houseCanopy(fn){
         slab(ta-48, ta+48, 40, 46, tb+22, tb-22, '#9a7f5a', null, shade('#9a7f5a',1.2));
       };
       for(let r=0;r<4;r++) for(const ta of [110, 240]) items.push({ a: ta, b: -120 - r*130, draw: () => table(ta, -120 - r*130) });
-      for(const pb of [-70, -640]) items.push({ a: 175, b: pb, draw: () => {
+      /* (a planter 230 long: runPiece, each run keyed at its own stretch -- keyed at its middle, the table behind its east end
+         sorted after it and painted its legs over it) */
+      for(const pb of [-70, -640]) runPiece(items, 60, 290, pb-18, pb+18, 36, null, () => {
         box(60, 290, pb-18, pb+18, 0, 30, shade(wall,.9), shade(wall,.72), shade(wall,.6));
         for(let x = 80; x < 280; x += 40) ball(x, pb, 36, 16, ['#4e8058','#3f6b4a','#568a5e'][(x/40)%3|0]);
-      } });
+      }, { pad: 0 });   // (its clip its own stretch: padded, a run's clip reached over the next stretch's front, behind the tables' benches)
     }
 
     /* ---- THE BREWHOUSE, one item: back wall, flanks, tap room, upper
@@ -79488,11 +79527,13 @@ marinaEntry(),
       box(s0, s1, 520, 550, 0, 66, wood, teal, tealD);                                // (a counter's height: 66 and its top, under the waist)
       box(s0 - 0.5, s1 + 0.5, 518, 552, 66, 72, '#e4d3b0', '#cdb98f', '#b9a578');
     }});
-    items.push({ a: 600, b: 526, z: 0, draw: () => {
+    /* (what stands on the counter, each its own piece keyed just after the last run it stands on -- one piece keyed at the screen,
+       the runs under the phone and the bell sorted after it and painted their tops over them) */
+    items.push({ a: 618, b: 548, z: 0, draw: () => {
       box(582, 618, 524, 542, 72, 74, '#40454c', '#40454c', '#30343a'); F(586, 614, 74, 100, '#2e3a40', null, 0, 525); F(588, 612, 77, 97, '#9fd0e0', null, 0, 525.4);   // a screen
-      box(660, 674, 530, 542, 72, 80, '#c24a3a', '#c24a3a', '#a03a2c');                                                                                                   // a phone
-      cyl(700, 538, 72, 78, 6, '#d9b44a', '#f0d27a');                                                                                                                     // the bell
     }});
+    items.push({ a: 674, b: 530, z: 0, draw: () => box(660, 674, 530, 542, 72, 80, '#c24a3a', '#c24a3a', '#a03a2c') });                                            // a phone
+    items.push({ a: 706, b: 538, z: 0, draw: () => cyl(700, 538, 72, 78, 6, '#d9b44a', '#f0d27a') });                                                              // the bell
     for(const [s0, s1] of runs(735, 795, 30)) items.push({ a: (s0 + s1)/2, b: 190, z: 0, solids: [solid(s0, s1, 130, 250, 90, 'stock')], draw: () => {
       for(const [b0, b1, c] of [[134, 168, '#c98a52'], [172, 206, '#b5651d'], [210, 246, '#d9c9a8']]){
         box(s0 + 2, s1 - 2, b0, b1, 0, 44, shade(c, 1.1), c, shade(c, .8)); box(s0 + 4, s1 - 4, b0 + 2, b1 - 2, 44, 80, shade(c, 1.08), shade(c, .96), shade(c, .76));
@@ -80068,6 +80109,7 @@ marinaEntry(),
         R.fc.proj(x0, x1, 4, 0, 30, shade(stone, 1.06), stone, stoneD);
         R.fc.r(x0, x1, 150, 158, stone, 0.3); R.fc.r(x0, x1, H - 12, H, shade(trim, 1.0), 0.5);
         dwelling(R.fc, x0, x1, flip, flip);                             // (the east one, a 1824..2128, is the walk-in: the room inside, CTG_IN)
+        gateEnd(FC('b', CB1, 1), x0, x1);                         // (the gatehouse's face: the street front)
         roof(R, x0, x1, H, RH, null);
         dormer(R, (x0 + x1)/2 + (flip ? -30 : 30));
         chimney(R, (x0 + x1)/2 + (flip ? 74 : -74), H + RH, false);
@@ -80084,6 +80126,18 @@ marinaEntry(),
     }
 
     /* ============ THE GATEHOUSE: the arch, the clock, the lettering, a hipped roof with its vane ============ */
+    /* the buttresses either side of its front, stepped, and the plinth's return past its ends -- cut to the stretch u0..u1 */
+    const gateButt = (f, u0, u1) => {
+      const pj = (p0, p1, d, z0, z1, d0) => { const q0 = Math.max(p0, u0), q1 = Math.min(p1, u1); if(q1 > q0 + 0.01) f.proj(q0, q1, d, z0, z1, shade(stone, 1.08), stone, stoneD, d0); };
+      for(const s of [-1, 1]){ const u = s < 0 ? A.GA0 + 6 : A.GA1 - 6;
+        pj(u - 14, u + 14, 10, 0, 34, 4);                          // (its foot off the plinth's face, W37)
+        pj(u - 14, u + 14, 10, 34, 130); pj(u - 12, u + 12, 8, 130, 210); }
+    };
+    const gateEnd = (f, x0, x1) => {   // (a street dwelling's end against the gatehouse: the plinth's return and the buttress past g0 / g1)
+      const lo = x1 === A.GA0 ? A.GA0 - 20 : A.GA1, hi = x1 === A.GA0 ? A.GA0 : A.GA1 + 20;
+      if(x1 === A.GA0) f.proj(A.GA0 - 4, A.GA0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); else f.proj(A.GA1, A.GA1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      gateButt(f, lo, hi);
+    };
     it(GM, CB1 - RD/2, () => {
       const g0 = A.GA0, g1 = A.GA1, f0 = A.FG0, f1 = A.FG1;
       /* two piers and the bridge of wall over the arch, so the way through is open ground under the building */
@@ -80093,7 +80147,9 @@ marinaEntry(),
       wallBox(f0, f1, CB1 - RD, CB1, 150, TH);
       if(sa > 0) pierE(); else pierW();
       const f = FC('b', CB1, 1);
-      f.proj(g0 - 4, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1 + 4, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
+      /* (the plinth and the buttresses only over the gatehouse's own front, g0..g1: what stands out past its ends, over the
+         dwellings' fronts, each dwelling draws after its wall -- gateEnd -- or the dwelling sorted after it painted its wall over them) */
+      f.proj(g0, f0, 4, 0, 34, shade(stone, 1.06), stone, stoneD); f.proj(f1, g1, 4, 0, 34, shade(stone, 1.06), stone, stoneD);
       /* the arch: its stone ring, the dark opening, the voussoirs over it */
       headed(f, GM, A.FGW + 18, 0, 188, 82, shade(stone, 1.08), 0.25);
       tunnelView(f, GM, A.FGW, 182, 76, RD);
@@ -80105,9 +80161,7 @@ marinaEntry(),
       }
       f.r(GM - 12, GM + 12, 252, 270, shade(gold, .92), 1.1, shade(gold, .66), 1);
       /* the buttresses either side, stepped */
-      for(const s of [-1, 1]){ const u = s < 0 ? g0 + 6 : g1 - 6;
-        f.proj(u - 14, u + 14, 10, 0, 34, shade(stone, 1.08), stone, stoneD, 4);                          // (its foot off the plinth's face, W37)
-        f.proj(u - 14, u + 14, 10, 34, 130, shade(stone, 1.08), stone, stoneD); f.proj(u - 12, u + 12, 8, 130, 210, shade(stone, 1.08), stone, stoneD); }
+      gateButt(f, g0, g1);
       /* the lettering band, on a stone course over the arch */
       f.r(g0 + 24, g1 - 24, 276, 312, shade(stone, 1.1), 0.5, stoneD, 1);
       word('FERRIS TAYLOR ALMSHOUSES', g0 + 32, g1 - 32, 282, 306, CB1 + 1.2, trimD, null, 4);
@@ -80932,9 +80986,9 @@ marinaEntry(),
       T(r.a0 + 80, r.a0 + 350, 190, 330, 0.5, '#2f7f86'); T(r.a0 + 90, r.a0 + 340, 198, 322, 0.55, '#4c9ca3');      // the story rug
       for(let k = 0; k < 6; k++) T(r.a0 + 110 + k*35, r.a0 + 122 + k*35, 210, 222, 0.6, [yel, red, '#f4f0e6'][k % 3]);
       { const a0 = r.a0 + 440, a1 = r.a0 + 640, b0 = 220, b1 = 270;                                                  // the reading table and its chairs
-        furn(a0, a1, b0, b1, 46, 'reading table', () => { for(const [ea, eb] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, woodD, woodD, woodD);
+        runPiece(items, a0, a1, b0, b1, 46.1, (s0, s1) => [solid(s0, s1, b0, b1, 46, 'reading table')], () => { for(const [ea, eb] of [[a0 + 6, b0 + 6], [a1 - 6, b0 + 6], [a0 + 6, b1 - 6], [a1 - 6, b1 - 6]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 38, woodD, woodD, woodD);
           box(a0, a1, b0, b1, 38, 44, woodL, wood, woodD); T(a0 + 3, a1 - 3, b0 + 3, b1 - 3, 44.1, '#e0bf8a');
-          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } });
+          for(const [x, k] of [[a0 + 30, 0], [a0 + 86, 1], [a0 + 150, 2]]){ box(x, x + 22, b0 + 12, b0 + 34, 44, 46, [red, blue, green][k], shade([red, blue, green][k], 0.85), shade([red, blue, green][k], 0.7)); T(x + 1, x + 21, b0 + 13, b0 + 33, 46.1, paper); } }, { run: 50 });   // (in runs: 200 long keyed at its middle, it sorted after the chair at its west end)
         for(const x of [a0 + 36, a0 + 100, a0 + 164]){ chair(x, b1 + 24, [blue, teal, '#e8b54a'][(x/10 | 0) % 3]); } }
       /* the librarian's desk by the door (the check-out), a book cart, bean bags in the corner, a globe on a stand */
       { const a0 = r.a0 + 560, a1 = r.a0 + 700, b0 = 340, b1 = 376;
@@ -80972,7 +81026,7 @@ marinaEntry(),
         const a0 = k.a0 + 6, a1 = k.a0 + 200; box(a0, a1, 0, 42, 0, 50, steelL, steel, steelD); for(const [bx] of [[a0 + 20], [a0 + 70], [a0 + 120], [a0 + 168]]) { cyl(bx + 8, 21, 50, 52, 10, '#2b3138', '#454d54'); }
         for(const bx of [a0 + 18, a0 + 66, a0 + 114]) { cyl(bx + 8, 21, 52, 60, 9, '#3a4046', '#5a626a'); }
         box(a0, a1, 4, 38, 130, 168, steel, steelL, steelD); for(let k2 = 0; k2 < 3; k2++) F(a0 + 14 + k2*60, a0 + 38 + k2*60, 134, 160, '#8a9397', null, 0, 38.2);
-        cyl(a0 + 98, 21, 168, 232, 10, steelD, steelL); });
+        cyl(a0 + 98, 21, 168, 232, 10, steelD, steelL); }, { a: k.a0 + 103 });   // (keyed at the middle of what it draws, a0..a0 + 200: at its solid's middle it sorted after the prep table in front of it)
       furn(k.a1 - 70, k.a1 - 10, 0, 46, 190, 'fridge', () => { const a0 = k.a1 - 70, a1 = k.a1 - 10; box(a0, a1, 0, 46, 0, 150, '#e9eef0', '#cfd6d9', '#a9b1b5'); F(a0 + 2, a1 - 2, 100, 102, '#aab3b8', null, 0, 46.2); S(a0 + 2, 70, 80, 60, 90, '#8f9a9f'); });
       for(const [s0, s1] of runs(70, 340, 60)) furn(k.a0 + 140, k.a0 + 190, s0, s1, 60, 'prep table', () => { const a0 = k.a0 + 140, a1 = k.a0 + 190; box(a0, a1, s0, s1, 0, 42, steelL, steel, steelD); T(a0 - 1, a1 + 1, s0, s1, 44, '#e9eef0');
         if(s0 < 190 && s1 > 190){ cyl(a0 + 25, 190, 44, 52, 14, '#d4d8da', '#eef1f2'); cyl(a0 + 25, 190, 52, 54, 12, '#7a8a90'); } });
@@ -80983,7 +81037,7 @@ marinaEntry(),
     { const r = R.office;
       /* the front counter across the middle (a gate in it, east end), the secretary's desk behind it, filing, the copier */
       for(const [s0, s1, first, last] of runs(r.a0 + 20, r.a1 - 140, 60)) furn(s0, s1, 252, 280, 90, 'counter', () => {
-        box(s0, s1, 252, 280, 0, 46, '#2f7f86', '#2a7077', '#24626a'); box(s0 - 1, s1 + 1, 250, 282, 46, 52, '#ece6d8', '#ddd5c4', '#cfc6b2'); F(s0, s1, 6, 40, tealL, null, 0, 280.2);
+        box(s0, s1, 252, 280, 0, 46, '#2f7f86', '#2a7077', '#24626a'); box(first ? s0 - 1 : s0, last ? s1 + 1 : s1, 250, 282, 46, 52, '#ece6d8', '#ddd5c4', '#cfc6b2'); F(s0, s1, 6, 40, tealL, null, 0, 280.2);   // (its top's overhang only at the ends: run into the next run's stretch, it was under that run's base, painted after it)
         if(first){ box(s0 + 12, s0 + 40, 258, 266, 52, 80, '#30353b', '#262a2f', '#1f2226'); } });
       furn(r.a0 + 60, r.a0 + 170, 150, 190, 54, 'desk', () => { const a0 = r.a0 + 60, a1 = r.a0 + 170; for(const [ea, eb] of [[a0 + 4, 154], [a1 - 4, 154], [a0 + 4, 186], [a1 - 4, 186]]) box(ea - 2, ea + 2, eb - 2, eb + 2, 0, 42, woodD, woodD, woodD);
         box(a0, a1, 150, 190, 42, 48, woodL, wood, woodD); box(a0 + 40, a0 + 66, 158, 164, 48, 74, '#30353b', '#262a2f', '#1f2226');
@@ -81060,11 +81114,13 @@ marinaEntry(),
       for(const x of [1500, 2300, 3330, 3670, 4300, 5000, 6500]){ partB(x - 7, x + 7, FB, D);
         items.push({ a: x, b: FB, z: 0, draw: () => box(x - 8, x + 8, FB - 2, FB + 10, 0, LH + 3, tealL, tealD, tealD) }); }
       /* a whiteboard on its stand (the working face to the room: south), the foot's two legs */
-      const stand = (a, b, w) => furn(a - w/2, a + w/2, b - 6, b + 6, 190, 'board', () => {
+      /* (in runs, each keyed at its own stretch (Sir, 2026-11-23, "fix them all"): 260 long keyed at its middle, the door frame behind its
+         east end and the lab's printer sorted after it and painted over the board) */
+      const stand = (a, b, w) => runPiece(items, a - w/2, a + w/2, b - 6, b + 6, 196, (s0, s1) => [solid(s0, s1, b - 6, b + 6, 190, 'board')], () => {
         for(const ea of [a - w/2 + 14, a + w/2 - 14]) box(ea - 2, ea + 2, b - 5, b + 5, 0, 96, steel, steelD, steelD);
         box(a - w/2, a + w/2, b - 3, b + 3, 96, 196, '#9aa6ab', '#8a9397', '#6f787c'); F(a - w/2 + 4, a + w/2 - 4, 100, 192, '#fbfbf8', null, 0, b + 3.2);
         for(const [q, col] of [[-0.3, '#2f6fb0'], [0.05, red], [0.32, green]]) F(a + q*w, a + q*w + 40, 150 + (q*50 | 0), 153 + (q*50 | 0), col, null, 0, b + 3.4);
-        F(a - w/2 + 4, a + w/2 - 4, 100, 104, '#c4cacc', null, 0, b + 3.5); });
+        F(a - w/2 + 4, a + w/2 - 4, 100, 104, '#c4cacc', null, 0, b + 3.5); }, { run: 50 });
       /* ---------- THE TWO FRONT CLASSROOMS ---------- */
       for(const r of [R2.classC, R2.classD]){
         const c = (r.a0 + r.a1)/2;
@@ -81081,10 +81137,14 @@ marinaEntry(),
       }
       /* ---------- THE AUDITORIUM ---------- */
       { const r = R2.audi;
-        for(const [s0, s1, first, last] of runs(60, 1440, 90)) furn(s0, s1, 560, 700, 40, 'stage', () => {
-          box(s0, s1, 560, 700, 0, 34, '#b88a58', '#8a6a46', '#6f5334'); T(s0, s1, 560, 700, 34, '#c99a64'); for(let b = 570; b < 700; b += 20) T(s0, s1, b, b + 0.8, 34.1, '#a87f4c');
-          F(s0, s1, 4, 12, '#6f5334', null, 0, 700.2); }, { solids: [solid(s0, s1, 560, 700, 34, 'stage', true)] });
-        for(const [s0, s1] of runs(60, 1440, 60)) items.push({ a: (s0 + s1)/2, b: 565, z: 0, draw: () => { box(s0, s1, 561, 567, 34, 214, '#9a2f3c', '#7f2430', '#6a1e29');
+        /* (the stage's runs meet the curtain face to face (Sir, 2026-11-23, "fix them all"): its strip under the curtain, 560..567, is drawn
+           in the curtain's piece, before it, and the runs start at its front -- they ran under it and, keyed after it, painted their top over
+           its foot. A run under the podium, 718..782, keyed before the podium on it: the run across it painted over its base) */
+        for(const [s0, s1] of [...runs(60, 718, 90), [718, 782], ...runs(782, 1440, 90)]) furn(s0, s1, 560, 700, 40, 'stage', () => {
+          box(s0, s1, 567, 700, 0, 34, '#b88a58', '#8a6a46', '#6f5334'); T(s0, s1, 567, 700, 34, '#c99a64'); for(let b = 570; b < 700; b += 20) T(s0, s1, b, b + 0.8, 34.1, '#a87f4c');
+          F(s0, s1, 4, 12, '#6f5334', null, 0, 700.2); }, Object.assign({ b: 658, solids: [solid(s0, s1, 560, 700, 34, 'stage', true)] }, s0 === 718 ? { b: 628 } : null));
+        for(const [s0, s1, , last] of runs(60, 1440, 60)) items.push({ a: (s0 + s1)/2, b: 565, z: 0, draw: () => { T(s0, s1, 560, 567, 34, '#c99a64'); if(last) S(s1, 560, 567, 0, 34, '#6f5334');
+          box(s0, s1, 561, 567, 34, 214, '#9a2f3c', '#7f2430', '#6a1e29');
           for(let a = Math.ceil(s0/24)*24; a < s1; a += 24) F(a, a + 12, 34, 214, '#b23f4c', null, 0, 567.3); } });
         blockWordIn('TIDE POOL ELEMENTARY', 520, 980, 190, 206, 568, '#e8b54a', null, 9);
         furn(720, 780, 604, 640, 100, 'podium', () => { box(722, 778, 606, 638, 34, 90, woodL, wood, woodD); box(718, 782, 604, 640, 90, 96, wood, woodD, woodD); F(730, 770, 44, 84, tealD, null, 0, 638.2); });
@@ -81119,10 +81179,12 @@ marinaEntry(),
         for(const [s0, s1] of runs(r.a0 + 40, r.a0 + 160, 60)) furn(s0, s1, 580, 610, 70, 'cases', () => box(s0, s1, 580, 610, 0, 60, '#4a3a2a', '#5a4634', '#3a2c20')); }
       /* ---------- THE ENTRANCE HALL'S SPINE: the touch tank, benches, plants, the school map ---------- */
       { const r = R2.spine;
-        furn(3600, 3656, 620, 920, 80, 'tide pool tank', () => { for(const [s0, s1] of [[620, 920]]){ box(3600, 3656, s0, s1, 0, 40, '#8a6a46', '#7a5a38', '#654a2e'); box(3598, 3658, s0 - 2, s1 + 2, 40, 46, wood, woodD, woodD);
+        /* (in runs along b, each keyed at its own stretch, Sir 2026-11-23 "fix them all": 300 long keyed at its 70% mark, it sorted after
+           classroom D's bookcase across the wall from its north end and painted over it) */
+        runPiece(items, 3600, 3656, 620, 920, 48, (s0, s1) => [solid(3600, 3656, s0, s1, 80, 'tide pool tank')], () => { for(const [s0, s1] of [[620, 920]]){ box(3600, 3656, s0, s1, 0, 40, '#8a6a46', '#7a5a38', '#654a2e'); box(3598, 3658, s0 - 2, s1 + 2, 40, 46, wood, woodD, woodD);
             T(3604, 3652, s0 + 6, s1 - 6, 44, '#7ac0d0'); T(3608, 3648, s0 + 10, s1 - 10, 44.2, 'rgba(160,220,230,.6)');
             for(let k = 0; k < 9; k++){ const b = s0 + 30 + k*30, a = 3612 + (k % 3)*14; ball(a, b, 46, 7 + (k % 2)*2, ['#8a8d86', '#9a9d96', '#7a7d76'][k % 3], '#b4b7ae'); }
-            for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } });
+            for(const [b, col] of [[s0 + 60, '#e0674e'], [s0 + 140, '#f4a259'], [s0 + 220, '#d57ca6']]){ ball(3630, b, 48, 5, col, '#f6c27a'); } } }, { alongB: true });
         // (the spine's benches are gone, Sir 2026-11-08: "these benches in the schools entry can be removed")
         for(const a of [r.a0 + 34, r.a1 - 34]) furn(a - 14, a + 14, 1476, 1504, 120, 'plant', () => { cyl(a, 1490, 0, 24, 13, '#c2452e', '#d56a4e'); cyl(a, 1490, 24, 26, 11, '#4a3a2a');
           for(let k = 0; k < 7; k++){ const t = k*0.9 + 0.3; tube(a, 1490, 26, a + Math.cos(t)*22, 1490 + Math.sin(t)*22, 90 + (k % 3)*10, 2.2, '#4a8a52'); ball(a + Math.cos(t)*24, 1490 + Math.sin(t)*24, 96 + (k % 3)*10, 7, '#5aa064', '#7ac484'); } });
@@ -90015,14 +90077,20 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                world y runs with n -- the lab sees +b); the rails meet the posts' faces, never run into them */
             const nearHi = alongA ? (P(1, 0, 0).y - P(0, 0, 0).y) > 0 : (P(0, 1, 0).y - P(0, 0, 0).y) < 0;
             if(!nearHi) pts.reverse();
+            /* (a corner post is neither run's: its own piece, keyed against both (cornerPost below) -- drawn by each run, the one
+               sorted second painted its copy over the other's rail end) */
+            const corner = u => alongA ? Math.abs(u - F.a0) < 0.01 || Math.abs(u - F.a1) < 0.01 : Math.abs(u - F.n0) < 0.01 || Math.abs(u - F.n1) < 0.01;
             for(let k = 0; k < pts.length; k++){
               if(k){ const u0 = Math.min(pts[k-1], pts[k]) + 5, u1 = Math.max(pts[k-1], pts[k]) - 5;
                 R(u0, u1, 12, 16); R(u0, u1, 25, 29); }
-              post(pts[k]);
+              if(!corner(pts[k])) post(pts[k]);
             }
           };
           const gatePost = (a, n) => { box(a - 8, a + 8, bN(n + 8), bN(n - 8), 0, 50, FWD[0], FWD[1], FWD[2]);
                                        box(a - 10, a + 10, bN(n + 10), bN(n - 10), 50, 55, FW[0], FW[1], FW[2]); };
+          /* WHICH SIDES ARE FAR, asked of the projection (the game sees -b, the lab +b): a piece of a far side is keyed at its far end,
+             of a near side at its near end, each at its posts' near face; a gate post at its near corner */
+          const dep = (a, b) => P(a, b, 0).y, seeA = dep(1, 0) > dep(0, 0), seeB = dep(0, 1) > dep(0, 0);
           const side = (key, alongA, fixed, lo, hi) => {
             const cuts = [lo];
             for(const g of GATES[key]) cuts.push(g - F.gw/2, g + F.gw/2);
@@ -90036,15 +90104,17 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
                    sides (N, W) by its far end: the north run behind the start ramp,
                    keyed at its east end, sorted after the ramp and drew through it
                    (Sir: "the fence is showing through the ramp") */
-                const far = key === 'N' || key === 'W';
-                items.push({ a: alongA ? (far ? u : u1) : fixed + 5, b: alongA ? bN(fixed + 5) : bN(far ? u : u1), z: 0,
+                const far = alongA ? (key === 'N') !== seeB : (key === 'W') === seeA;
+                const ka = alongA ? (far === seeA ? u : u1) : (seeA ? fixed + 5 : fixed - 5);
+                const kb = alongA ? bN(seeB ? fixed - 5 : fixed + 5) : (far === seeB ? bN(u1) : bN(u));
+                items.push({ a: ka, b: kb, z: 0,
                   solids: [{ name:'park fence', poly: sol, h: F.h }],
                   draw: () => run(alongA, fixed, u, u1) });
               }
             }
             for(const g of GATES[key]) for(const u of [g - F.gw/2, g + F.gw/2]){
               const a = alongA ? u : fixed, n = alongA ? fixed : u;
-              items.push({ a: a + 10, b: bN(n + 10), z: 0,
+              items.push({ a: seeA ? a + 10 : a - 10, b: bN(seeB ? n - 10 : n + 10), z: 0,
                 solids: [{ name:'park gate post', poly: volRect(a - 8, a + 8, bN(n + 8), bN(n - 8)), h: 55 }],
                 draw: () => gatePost(a, n) });
             }
@@ -90053,6 +90123,14 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           side('S', true, F.n1, F.a0, F.a1);
           side('W', false, F.a0, F.n0, F.n1);
           side('E', false, F.a1, F.n0, F.n1);
+          /* the four corner posts: keyed at the post's far corner where both runs come toward the eye from it (their rails paint
+             over it), its near corner where both go away (it over theirs), its middle where one does each */
+          for(const [ca, cn] of [[F.a0, F.n0], [F.a1, F.n0], [F.a0, F.n1], [F.a1, F.n1]]){
+            const d0 = dep(ca, bN(cn)), tA = dep(ca + (ca === F.a0 ? 100 : -100), bN(cn)) > d0, tN = dep(ca, bN(cn + (cn === F.n0 ? 100 : -100))) > d0;
+            const k = tA && tN ? -1 : !tA && !tN ? 1 : 0;
+            items.push({ a: ca + k*(seeA ? 5 : -5), b: bN(cn) + k*(seeB ? 5 : -5), z: 0,
+              draw: () => box(ca - 5, ca + 5, bN(cn + 5), bN(cn - 5), 0, F.h, FWD[0], FWD[1], FWD[2]) });
+          }
         }
         /* THE COURSE ITSELF IS THE PARK'S FOR GOOD (Number 4 Builds a Winner, 2026-11-01: the club's karts are tested
            down it after derby day -- the dirt lane, the finish, the start ramp and its rails, derbyZ's terrain);
@@ -90086,8 +90164,10 @@ facEntry(0), facEntry(1), facEntry(2), facEntry(3),
           for(let k = 0; k < 8; k++){ const a0 = A0 + k*(A1-A0)/8;
             poly([P(a0,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1-14),Z+0.5),P(a0+(A1-A0)/8,bN(D.top1),Z+0.5),P(a0,bN(D.top1),Z+0.5)], k % 2 ? '#f4f2ec' : '#d8352a'); }
         }});
-        /* the back of the platform: a plank wall, solid */
-        items.push({ a: D.a0 - 12, b: bN(D.top0 - 12), z: 0,
+        /* the back of the platform: a plank wall, solid. Keyed at its far end where it is the ramp's far side (the game: the
+           eye sees -b), at its near end where it is the near side (the lab sees +b: the east rail's top run, behind it, drew over it) */
+        const backNear = (P(0, 1, 0).y - P(0, 0, 0).y) > 0;
+        items.push({ a: backNear ? D.a1 + 12 : D.a0 - 12, b: bN(D.top0 - 12), z: 0,
           solids: [{ name:'derby ramp back', poly: volRect(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12)), h: D.RZ + 40 }],
           draw: () => box(D.a0 - 12, D.a1 + 12, bN(D.top0), bN(D.top0 - 12), 0, D.RZ + 40, WOODD[0], WOODD[1], WOODD[2]) });
         /* the rails, both sides, stepped down the slope: the west in one piece
