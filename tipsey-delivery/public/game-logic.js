@@ -111543,7 +111543,11 @@ class WorldScene extends Phaser.Scene {
         if(seen.has(key)) continue;
         seen.add(key);
         if(Math.abs(cx - this.camX) + Math.abs(cy - this.camY) > cullSpan + ROAD_HALF) continue;
-        const tv = { x: -fv.y, y: fv.x }, lo = -(ROAD_HALF - 26), hi = ROAD_HALF - 26, bw = (hi - lo)/(2*NB - 1);
+        /* (its outer bars clear of the kerb and its gutter: run to ROAD_HALF - 26, the outermost bar's edge lay 4 from the stone's road
+           face -- it stands KERB_STONE.w into the asphalt -- and a sliver of it showed along the kerb's foot. Sir, 2026-11-23: "the crossing
+           zebra has a [sliver] under the curb") */
+        const ZE = ROAD_HALF - KERB_STONE.w - 20;
+        const tv = { x: -fv.y, y: fv.x }, lo = -ZE, hi = ZE, bw = (hi - lo)/(2*NB - 1);
         const Q = (u0, u1, t0, t1, z, col) => this.quadOn(g, [
           this.W(cx + fv.x*u0 + tv.x*t0, cy + fv.y*u0 + tv.y*t0, z), this.W(cx + fv.x*u1 + tv.x*t0, cy + fv.y*u1 + tv.y*t0, z),
           this.W(cx + fv.x*u1 + tv.x*t1, cy + fv.y*u1 + tv.y*t1, z), this.W(cx + fv.x*u0 + tv.x*t1, cy + fv.y*u0 + tv.y*t1, z)], col);
